@@ -4454,8 +4454,8 @@ var BOOKING_PLATFORMS = [
   { host: "zocdoc.com" },
   { host: "janeapp.com" }
 ];
-var BOOKING_PLATFORM_HOSTS = BOOKING_PLATFORMS.map((p) => p.host);
-var BOOKING_PAGE_MAX = BrainConfigSchema.shape.booking_link.unwrap().maxLength ?? Infinity;
+var BOOKING_PLATFORM_HOSTS = /* @__PURE__ */ (() => BOOKING_PLATFORMS.map((p) => p.host))();
+var BOOKING_PAGE_MAX = /* @__PURE__ */ (() => BrainConfigSchema.shape.booking_link.unwrap().maxLength ?? Infinity)();
 function bookingPageOf(raw) {
   const s = String(raw ?? "").trim();
   if (!s) return null;
@@ -4927,7 +4927,7 @@ function questionAfterProbe(plan, members) {
     dropTerm
   };
 }
-var LEAD_PLATFORM_HOSTS = [
+var LEAD_PLATFORM_HOSTS = /* @__PURE__ */ (() => [
   ...BOOKING_PLATFORM_HOSTS,
   "square.site",
   "godaddysites.com",
@@ -4938,7 +4938,7 @@ var LEAD_PLATFORM_HOSTS = [
   "linktr.ee",
   "yelp.com",
   "google.com"
-];
+])();
 var LEAD_JUNK_EMAIL_DOMAINS = [
   "vagaro.com",
   "square.site",
@@ -12577,8 +12577,12 @@ function listingFactsOf(raw) {
     primary_type: text(r2.primary_type),
     primary_type_label: text(r2.primary_type_label),
     service_area_only: r2.service_area_only === true,
-    time_zone: text(r2.time_zone)
+    time_zone: text(r2.time_zone),
+    booking_page: bookingPageOf(text(r2.booking_page))
   };
+}
+function bookingPageKept(prev, website) {
+  return prev && prev.website === website ? prev.booking_page : null;
 }
 var hhmm2 = (h, m) => `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 function hoursFromGoogle(periods) {
@@ -21829,6 +21833,7 @@ export {
   bookingLinkAction,
   bookingLinkOptional,
   bookingLinkRowWords,
+  bookingPageKept,
   bookingPageOf,
   bookingRuleRefusal,
   bookingRulesWords,

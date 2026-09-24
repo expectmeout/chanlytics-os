@@ -814,7 +814,7 @@ export function questionAfterProbe(plan: LeadSearchPlan, members: ProbeMember[])
  * Hosts that are a booking platform (booking-page.ts, which names them once), a site builder's shared domain or a
  * social page: a business there has no site of its own.
  */
-export const LEAD_PLATFORM_HOSTS: readonly string[] = [
+export const LEAD_PLATFORM_HOSTS: readonly string[] = /* @__PURE__ */ (() => [
   ...BOOKING_PLATFORM_HOSTS,
   "square.site",
   "godaddysites.com",
@@ -825,7 +825,7 @@ export const LEAD_PLATFORM_HOSTS: readonly string[] = [
   "linktr.ee",
   "yelp.com",
   "google.com",
-];
+])();
 /** Address domains that are never the business: platforms, builders' placeholders, trackers. */
 export const LEAD_JUNK_EMAIL_DOMAINS = [
   "vagaro.com",

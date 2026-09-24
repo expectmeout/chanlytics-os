@@ -21,6 +21,7 @@ import { dayDate, fmtDay, deltaOf, type ReportTileVM } from "./reports";
 import { DAYS, dayProblems, type Hours } from "./config";
 import { WEEKDAY_KEYS } from "./availability";
 import { normalizePhone } from "./phone";
+import { bookingPageOf } from "./booking-page";
 
 /** A moment in Google's week: day 0 is Sunday. */
 export type GooglePoint = {
@@ -55,6 +56,12 @@ export type GoogleListingFacts = {
   service_area_only: boolean;
   /** IANA zone, e.g. "America/New_York". */
   time_zone: string | null;
+  /**
+   * Where customers book, as the listing's website says it (booking-page.ts): the website itself when it is a page on
+   * a booking platform, or the one its home page links to. Never Google's own answer: the edge reads the website
+   * with the listing's first read, and Places' parse says null. Check offers it for the owner to take.
+   */
+  booking_page: string | null;
 };
 
 /** A moment of Google's week as stored, or null for anything else. */
@@ -95,7 +102,17 @@ export function listingFactsOf(raw: unknown): GoogleListingFacts | null {
     primary_type_label: text(r.primary_type_label),
     service_area_only: r.service_area_only === true,
     time_zone: text(r.time_zone),
+    booking_page: bookingPageOf(text(r.booking_page)),
   };
+}
+
+/**
+ * What a later read of a listing keeps of the booking page its first read found: the page, while the listing's
+ * website is the one it was found on. The website is read only with the first read (the edge's checkListing), so a
+ * new website has none until the listing is linked again.
+ */
+export function bookingPageKept(prev: GoogleListingFacts | null, website: string | null): string | null {
+  return prev && prev.website === website ? prev.booking_page : null;
 }
 
 type Day = (typeof DAYS)[number];

@@ -29,10 +29,10 @@ const BOOKING_PLATFORMS: readonly { host: string; path?: RegExp }[] = [
 ];
 
 /** The platforms' hosts, for a reader that asks only whether an address is on one (the lead finder's). */
-export const BOOKING_PLATFORM_HOSTS: readonly string[] = BOOKING_PLATFORMS.map((p) => p.host);
+export const BOOKING_PLATFORM_HOSTS: readonly string[] = /* @__PURE__ */ (() => BOOKING_PLATFORMS.map((p) => p.host))();
 
 /** The longest booking page the config keeps: its booking link's own cap. */
-const BOOKING_PAGE_MAX = BrainConfigSchema.shape.booking_link.unwrap().maxLength ?? Infinity;
+const BOOKING_PAGE_MAX = /* @__PURE__ */ (() => BrainConfigSchema.shape.booking_link.unwrap().maxLength ?? Infinity)();
 
 /**
  * The booking page an address is, as the https address the config keeps; null when it is not one. It is a business's

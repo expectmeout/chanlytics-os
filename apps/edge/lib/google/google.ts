@@ -36,6 +36,8 @@ import {
 import {
   autoReplyBell,
   autoReplyCandidates,
+  bookingPageKept,
+  listingFactsOf,
   localDate,
   parseTenantConfig,
   reviewReplyModeOf,
@@ -44,6 +46,7 @@ import {
   type ReviewReplyMode,
 } from "../packages/contracts.js";
 import { draftReviewReply } from "./review-reply.js";
+import { siteBookingPage } from "./booking-page.js";
 import { recordNotification } from "../ops/notify.js";
 import { logger } from "../log.js";
 import { readAllRows } from "../paged.js";
@@ -292,6 +295,15 @@ export async function checkListing(db: Db, row: ListingRow, tz: string, now = ne
     L.warn("google_check_failed", { error });
     return { ok: false, error };
   }
+
+  // The booking page the website links to is read with the listing's first read -- the link's, at once -- and every
+  // later read keeps it while the website is the one it was found on: the sweep reads forty listings a tick inside a
+  // minute (vercel.json), with no room for a site each.
+  const booking_page =
+    row.checked_at == null
+      ? await siteBookingPage(fetch, details.facts.website)
+      : bookingPageKept(listingFactsOf(row.facts), details.facts.website);
+  details = { ...details, facts: { ...details.facts, booking_page } };
 
   const conn = await connectionOf(db, row.tenant_id);
   const carriesReviews = !(conn && conn.location_name);

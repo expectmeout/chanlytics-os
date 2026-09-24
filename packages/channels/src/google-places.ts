@@ -218,6 +218,8 @@ function factsOf(p: Obj): GoogleListingFacts {
     primary_type_label: localized(p.primaryTypeDisplayName).text,
     service_area_only: p.pureServiceAreaBusiness === true,
     time_zone: str(obj(p.timeZone)?.id),
+    // Google names no booking page: the edge reads the website for one, with the listing's first read.
+    booking_page: null,
   };
 }
 

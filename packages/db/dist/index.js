@@ -758,26 +758,6 @@ var PERSON_CAME_FROM_WORDS = {
 var REPLY_WINDOW_HOURS = 72;
 var REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * 36e5;
 var REPLY_WINDOW_WORDS = `within ${REPLY_WINDOW_HOURS / 24} days`;
-var BOOKING_PLATFORMS = [
-  { host: "vagaro.com" },
-  { host: "booksy.com" },
-  { host: "fresha.com" },
-  { host: "glossgenius.com" },
-  { host: "styleseat.com" },
-  { host: "schedulicity.com" },
-  { host: "mindbodyonline.com" },
-  { host: "setmore.com" },
-  { host: "acuityscheduling.com" },
-  { host: "as.me" },
-  { host: "calendly.com" },
-  { host: "squareup.com", path: /^\/appointments\// },
-  { host: "simplybook.me" },
-  { host: "youcanbook.me" },
-  { host: "zocdoc.com" },
-  { host: "janeapp.com" }
-];
-var BOOKING_PLATFORM_HOSTS = BOOKING_PLATFORMS.map((p) => p.host);
-var BOOKING_PAGE_MAX = BrainConfigSchema.shape.booking_link.unwrap().maxLength ?? Infinity;
 var LEAD_MEMBER_CLASSES = ["qualified", "review", "excluded"];
 var LEAD_MAX_PLACES = 1e3;
 var LEAD_QUESTION_WAIT_MS = 24 * 36e5;
@@ -896,18 +876,6 @@ var LeadSearchPlanSchema = z4.object({
 var US_NAMES = Object.fromEntries(
   Object.entries(US_STATES).map(([name, code2]) => [code2, name])
 );
-var LEAD_PLATFORM_HOSTS = [
-  ...BOOKING_PLATFORM_HOSTS,
-  "square.site",
-  "godaddysites.com",
-  "wixsite.com",
-  "business.site",
-  "facebook.com",
-  "instagram.com",
-  "linktr.ee",
-  "yelp.com",
-  "google.com"
-];
 var DEAL_STAGES = ["proposed", "won", "lost", "ended"];
 var SELLS_BY_QUESTION = "How customers buy";
 var SELLS_BY_WORDS = {

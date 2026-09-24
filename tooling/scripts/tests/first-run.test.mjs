@@ -452,6 +452,7 @@ const googleSaid = (over = {}) => ({
   primary_type_label: "Moving company",
   service_area_only: false,
   time_zone: "America/New_York",
+  booking_page: null,
   ...over,
 });
 const listed = (said = {}, over = {}) => ({

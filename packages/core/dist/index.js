@@ -1647,26 +1647,6 @@ var PERSON_CAME_FROM_WORDS = {
 var REPLY_WINDOW_HOURS = 72;
 var REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * 36e5;
 var REPLY_WINDOW_WORDS = `within ${REPLY_WINDOW_HOURS / 24} days`;
-var BOOKING_PLATFORMS = [
-  { host: "vagaro.com" },
-  { host: "booksy.com" },
-  { host: "fresha.com" },
-  { host: "glossgenius.com" },
-  { host: "styleseat.com" },
-  { host: "schedulicity.com" },
-  { host: "mindbodyonline.com" },
-  { host: "setmore.com" },
-  { host: "acuityscheduling.com" },
-  { host: "as.me" },
-  { host: "calendly.com" },
-  { host: "squareup.com", path: /^\/appointments\// },
-  { host: "simplybook.me" },
-  { host: "youcanbook.me" },
-  { host: "zocdoc.com" },
-  { host: "janeapp.com" }
-];
-var BOOKING_PLATFORM_HOSTS = BOOKING_PLATFORMS.map((p) => p.host);
-var BOOKING_PAGE_MAX = BrainConfigSchema.shape.booking_link.unwrap().maxLength ?? Infinity;
 var LEAD_MEMBER_CLASSES = ["qualified", "review", "excluded"];
 var LEAD_MAX_PLACES = 1e3;
 var LEAD_QUESTION_WAIT_MS = 24 * 36e5;
@@ -1785,18 +1765,6 @@ var LeadSearchPlanSchema = z4.object({
 var US_NAMES = Object.fromEntries(
   Object.entries(US_STATES).map(([name, code2]) => [code2, name])
 );
-var LEAD_PLATFORM_HOSTS = [
-  ...BOOKING_PLATFORM_HOSTS,
-  "square.site",
-  "godaddysites.com",
-  "wixsite.com",
-  "business.site",
-  "facebook.com",
-  "instagram.com",
-  "linktr.ee",
-  "yelp.com",
-  "google.com"
-];
 var SELLS_BY_QUESTION = "How customers buy";
 var SELLS_BY_WORDS = {
   booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
@@ -4646,7 +4614,7 @@ function visitStartTime(v, tz) {
 var REPLY_WINDOW_HOURS2 = 72;
 var REPLY_WINDOW_MS2 = REPLY_WINDOW_HOURS2 * 36e5;
 var REPLY_WINDOW_WORDS2 = `within ${REPLY_WINDOW_HOURS2 / 24} days`;
-var BOOKING_PLATFORMS2 = [
+var BOOKING_PLATFORMS = [
   { host: "vagaro.com" },
   { host: "booksy.com" },
   { host: "fresha.com" },
@@ -4664,8 +4632,8 @@ var BOOKING_PLATFORMS2 = [
   { host: "zocdoc.com" },
   { host: "janeapp.com" }
 ];
-var BOOKING_PLATFORM_HOSTS2 = BOOKING_PLATFORMS2.map((p) => p.host);
-var BOOKING_PAGE_MAX2 = BrainConfigSchema2.shape.booking_link.unwrap().maxLength ?? Infinity;
+var BOOKING_PLATFORM_HOSTS = /* @__PURE__ */ (() => BOOKING_PLATFORMS.map((p) => p.host))();
+var BOOKING_PAGE_MAX = /* @__PURE__ */ (() => BrainConfigSchema2.shape.booking_link.unwrap().maxLength ?? Infinity)();
 function bookingPageOf(raw) {
   const s = String(raw ?? "").trim();
   if (!s) return null;
@@ -4677,14 +4645,14 @@ function bookingPageOf(raw) {
   }
   if (u.protocol !== "https:" && u.protocol !== "http:") return null;
   const host = u.hostname.toLowerCase().replace(/^www\./, "");
-  const platform = BOOKING_PLATFORMS2.find((p) => host === p.host || host.endsWith(`.${p.host}`));
+  const platform = BOOKING_PLATFORMS.find((p) => host === p.host || host.endsWith(`.${p.host}`));
   if (!platform) return null;
   if (platform.path && !platform.path.test(u.pathname)) return null;
   if (host === platform.host && !u.pathname.split("/").some(Boolean)) return null;
   u.protocol = "https:";
   u.hash = "";
   const page = u.toString();
-  return page.length <= BOOKING_PAGE_MAX2 ? page : null;
+  return page.length <= BOOKING_PAGE_MAX ? page : null;
 }
 var LEAD_MEMBER_CLASSES2 = ["qualified", "review", "excluded"];
 var LEAD_QUESTION_THRESHOLD = 0.6;
@@ -4993,8 +4961,8 @@ function questionAfterProbe(plan, members) {
     dropTerm
   };
 }
-var LEAD_PLATFORM_HOSTS2 = [
-  ...BOOKING_PLATFORM_HOSTS2,
+var LEAD_PLATFORM_HOSTS = /* @__PURE__ */ (() => [
+  ...BOOKING_PLATFORM_HOSTS,
   "square.site",
   "godaddysites.com",
   "wixsite.com",
@@ -5004,7 +4972,7 @@ var LEAD_PLATFORM_HOSTS2 = [
   "linktr.ee",
   "yelp.com",
   "google.com"
-];
+])();
 var LEAD_JUNK_EMAIL_DOMAINS = [
   "vagaro.com",
   "square.site",
@@ -5150,7 +5118,7 @@ function siteHost(url) {
   }
   host = host.replace(/^www\./, "");
   if (!host.includes(".") || host.length > LEAD_FACT_MAX) return null;
-  if (LEAD_PLATFORM_HOSTS2.some((p) => host === p || host.endsWith(`.${p}`))) return null;
+  if (LEAD_PLATFORM_HOSTS.some((p) => host === p || host.endsWith(`.${p}`))) return null;
   return host;
 }
 function stateCode(raw) {
@@ -7928,26 +7896,6 @@ var PERSON_CAME_FROM_WORDS3 = {
 var REPLY_WINDOW_HOURS3 = 72;
 var REPLY_WINDOW_MS3 = REPLY_WINDOW_HOURS3 * 36e5;
 var REPLY_WINDOW_WORDS3 = `within ${REPLY_WINDOW_HOURS3 / 24} days`;
-var BOOKING_PLATFORMS3 = [
-  { host: "vagaro.com" },
-  { host: "booksy.com" },
-  { host: "fresha.com" },
-  { host: "glossgenius.com" },
-  { host: "styleseat.com" },
-  { host: "schedulicity.com" },
-  { host: "mindbodyonline.com" },
-  { host: "setmore.com" },
-  { host: "acuityscheduling.com" },
-  { host: "as.me" },
-  { host: "calendly.com" },
-  { host: "squareup.com", path: /^\/appointments\// },
-  { host: "simplybook.me" },
-  { host: "youcanbook.me" },
-  { host: "zocdoc.com" },
-  { host: "janeapp.com" }
-];
-var BOOKING_PLATFORM_HOSTS3 = BOOKING_PLATFORMS3.map((p) => p.host);
-var BOOKING_PAGE_MAX3 = BrainConfigSchema3.shape.booking_link.unwrap().maxLength ?? Infinity;
 var LEAD_MEMBER_CLASSES3 = ["qualified", "review", "excluded"];
 var LEAD_MAX_PLACES3 = 1e3;
 var LEAD_QUESTION_WAIT_MS3 = 24 * 36e5;
@@ -8066,18 +8014,6 @@ var LeadSearchPlanSchema3 = z43.object({
 var US_NAMES3 = Object.fromEntries(
   Object.entries(US_STATES3).map(([name, code2]) => [code2, name])
 );
-var LEAD_PLATFORM_HOSTS3 = [
-  ...BOOKING_PLATFORM_HOSTS3,
-  "square.site",
-  "godaddysites.com",
-  "wixsite.com",
-  "business.site",
-  "facebook.com",
-  "instagram.com",
-  "linktr.ee",
-  "yelp.com",
-  "google.com"
-];
 var SELLS_BY_QUESTION3 = "How customers buy";
 var SELLS_BY_WORDS3 = {
   booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },

@@ -4,8 +4,16 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { bookingPageOf, BOOKING_PLATFORM_HOSTS, BrainConfigSchema, siteHost } from "@chanlytics/contracts";
+import {
+  bookingPageOf,
+  bookingPageKept,
+  BOOKING_PLATFORM_HOSTS,
+  BrainConfigSchema,
+  listingFactsOf,
+  siteHost,
+} from "@chanlytics/contracts";
 import { bookingPageOn } from "../../../packages/core/src/booking-page.ts";
+import { siteBookingPage } from "../../../apps/edge/lib/google/booking-page.ts";
 
 /* ------------------------------------ what a booking page is ------------------------------------ */
 
@@ -83,4 +91,62 @@ test("a page whose platform links are all the platform's own front door, or that
     null,
   );
   assert.equal(bookingPageOn("", PAGE), null);
+});
+
+/* ------------------------------------ the edge's read of the website ------------------------------------ */
+
+const FOUND = "https://booksy.com/en-us/00000_example-studio";
+/** A wire that says what it was asked, answering each ask with `answer`. */
+const wire = (answer) => {
+  const asked = [];
+  const fetchImpl = async (url) => {
+    asked.push(String(url));
+    return answer(String(url));
+  };
+  return { asked, fetchImpl };
+};
+const htmlOf = (body) => new Response(page(body), { headers: { "content-type": "text/html; charset=utf-8" } });
+
+test("a website that is itself a booking page is the listing's booking page, and is not read", async () => {
+  const w = wire(() => {
+    throw new Error("must not be read");
+  });
+  assert.equal(
+    await siteBookingPage(w.fetchImpl, "https://www.vagaro.com/example-studio"),
+    "https://www.vagaro.com/example-studio",
+  );
+  assert.deepEqual(w.asked, []);
+});
+
+test("a website's home page is read once for the booking page it links to", async () => {
+  const w = wire(() => htmlOf(`<a href="${FOUND}">Book now</a>`));
+  assert.equal(await siteBookingPage(w.fetchImpl, "https://studio.example.com"), FOUND);
+  assert.deepEqual(w.asked, ["https://studio.example.com/"]);
+});
+
+test("no website, a private address, a page that is not HTML and a read that fails each give none", async () => {
+  const quiet = wire(() => htmlOf(`<a href="${FOUND}">Book now</a>`));
+  assert.equal(await siteBookingPage(quiet.fetchImpl, null), null);
+  assert.equal(await siteBookingPage(quiet.fetchImpl, "http://10.0.0.5/"), null);
+  assert.equal(await siteBookingPage(quiet.fetchImpl, "http://localhost:3000/"), null);
+  assert.deepEqual(quiet.asked, [], "a private address is never read");
+  const json = wire(() => new Response("{}", { headers: { "content-type": "application/json" } }));
+  assert.equal(await siteBookingPage(json.fetchImpl, "https://studio.example.com/"), null);
+  const down = wire(() => {
+    throw new Error("offline");
+  });
+  assert.equal(await siteBookingPage(down.fetchImpl, "https://studio.example.com/"), null);
+});
+
+test("a later read keeps the booking page the first read found while the website is the one it was found on", () => {
+  const prev = listingFactsOf({ website: "https://studio.example.com/", booking_page: FOUND });
+  assert.equal(prev.booking_page, FOUND, "stored, and read back for what it is");
+  assert.equal(bookingPageKept(prev, "https://studio.example.com/"), FOUND);
+  assert.equal(bookingPageKept(prev, "https://new.example.com/"), null, "a new website: nothing found on it yet");
+  assert.equal(bookingPageKept(null, "https://studio.example.com/"), null);
+  assert.equal(
+    listingFactsOf({ website: "https://studio.example.com/", booking_page: "javascript:alert(1)" }).booking_page,
+    null,
+    "what is stored is read for what it is: the column is jsonb",
+  );
 });
