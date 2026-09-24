@@ -3641,6 +3641,7 @@ export type Database = {
       }
       segments: {
         Row: {
+          archived_at: string | null
           created_at: string
           created_by: string | null
           id: string
@@ -3650,6 +3651,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          archived_at?: string | null
           created_at?: string
           created_by?: string | null
           id?: string
@@ -3659,6 +3661,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          archived_at?: string | null
           created_at?: string
           created_by?: string | null
           id?: string

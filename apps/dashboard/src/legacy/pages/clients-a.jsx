@@ -968,10 +968,20 @@ const plRenameList = async (list, name) => {
   const r = await window.__lists.rename(list.id, name);
   return r.ok ? { ok: true } : { ok: false, error: r.message || "Could not rename the list." };
 };
+// Deleted, or archived (00169, decision 0009): a list a playbook runs on, or another list reads, is archived instead,
+// and the answer says what paused and what reads it, for the page to say.
 const plDeleteList = async (list) => {
   const r = await window.__lists.remove(list.id);
-  return r.ok ? { ok: true } : { ok: false, error: r.message || "The list could not be deleted." };
+  if (!r.ok) return { ok: false, error: r.message || "The list could not be deleted." };
+  const d = r.data || {};
+  return { ok: true, archived: !!d.archived, paused: d.paused || [], readBy: d.read_by || [] };
 };
+// What the page says when a delete archived instead: why, what paused, and where it comes back from.
+const plArchivedWords = (name, r) => (
+  <>
+    <b>{name}</b> is archived, not deleted: {r.paused.length ? <>{r.paused.join(", ")} paused</> : r.readBy.length ? <>{r.readBy.join(", ")} reads it</> : <>a playbook runs on it</>}. It comes back from Archived under your lists.
+  </>
+);
 // Made, then filled. A list whose filling the server refused (more people than it takes at once, say) is taken back,
 // so no empty list is left behind. `made` is the make's answer, `filled` the fill's (null when nothing was made).
 const plMakeListWith = async (name, ids) => {
@@ -1008,7 +1018,7 @@ const DeleteListButton = ({ list, onDeleted }) => {
     setBusy(false);
     if (!r.ok) { setError(r.error); return; }
     setArm(false);
-    onDeleted();
+    onDeleted(r);
   };
   if (!arm) {
     return <button className="cl-bucket-link danger" style={{ marginLeft: 8 }} onClick={() => { setError(null); setArm(true); }} data-testid="delete-list">Delete list…</button>;
@@ -1211,7 +1221,7 @@ const RailRow = ({ label, count = null, active = false, onPick, onWarm = null, s
 // sheet's first row, the way back to everyone. `dealsOn` puts the Pipeline in the switch. Under the Pipeline the rows
 // are People's own lists, and a pick opens that list on People (pipeline-scope.jsx).
 // `compact` is the phone's sheet: one level of heading (the groups), and the empty lists said in a line, not drawn.
-const PeopleRail = ({ scope = "people", onScope = () => {}, scopeTabs = true, dealsOn = false, everyone = null, children = null, lists = PL_NO_LISTS, groups = PL_DEFAULT_GROUPS, active, onPick, saved = [], savedRead = true, activeSaved = null, onPickSaved = () => {}, canEdit = false, onCreateList = null, newListSignal = 0, compact = false }) => (
+const PeopleRail = ({ scope = "people", onScope = () => {}, scopeTabs = true, dealsOn = false, everyone = null, children = null, lists = PL_NO_LISTS, groups = PL_DEFAULT_GROUPS, active, onPick, saved = [], savedRead = true, archived = PL_NO_LISTS, onRestore = null, activeSaved = null, onPickSaved = () => {}, canEdit = false, onCreateList = null, newListSignal = 0, compact = false }) => (
   <aside className="cl-rail">
     {scopeTabs && <PeopleScopeTabs scope={scope} onScope={onScope} dealsOn={dealsOn} />}
     {scope === "leads" ? children : (
@@ -1251,6 +1261,20 @@ const PeopleRail = ({ scope = "people", onScope = () => {}, scopeTabs = true, de
       ))}
       {savedRead && saved.length === 0 && !compact && (
         <div className="cl-rail-hint">No lists yet. Keep one by hand — regulars, one staff member's customers — or describe who, and it keeps itself current.</div>
+      )}
+      {/* Archived lists (00169): off the rail, each one press from coming back, in one quiet line. */}
+      {archived.length > 0 && (
+        <p className="cl-rail-empty" data-testid="rail-archived">
+          Archived:{" "}
+          {archived.map((a, i) => (
+            <React.Fragment key={a.id}>
+              {i > 0 ? " · " : null}
+              {canEdit && onRestore ? (
+                <button type="button" className="cl-bucket-link" title={`Bring ${a.name} back`} onClick={() => onRestore(a)} data-testid="rail-restore">{a.name}</button>
+              ) : a.name}
+            </React.Fragment>
+          ))}
+        </p>
       )}
     </RailSection>
     {canEdit && onCreateList && <NewListRow onCreate={onCreateList} openSignal={newListSignal} />}
@@ -2543,6 +2567,12 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
   // A list made on the rail says so and is the one shown: the rail used to close
   // with no word, the new list somewhere down it. The answer goes back to the
   // rail, which shows a refusal where the name was typed.
+  // An archived list back on the rail (00169): said in a toast either way.
+  const restoreList = async (a) => {
+    if (!window.__lists) return;
+    const r = await window.__lists.restore(a.id);
+    plFlash(r.ok ? { msg: <><b>{a.name}</b> is back on your lists</> } : { tone: "danger", msg: <>{r.message || "It could not be brought back."}</> });
+  };
   const createList = async (name, rule = null) => {
     const r = await window.__lists.create(name, rule);
     if (r.ok) {
@@ -2720,6 +2750,7 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
     if (listAct === "delete") {
       const r = await plDeleteList(activeSaved);
       if (!r.ok) { setListDraft((x) => ({ ...x, busy: false, error: r.error })); return; }
+      if (r.archived) plFlash({ msg: plArchivedWords(activeSaved.name, r) });
       closePhoneSheet();
       setSavedId(null);
       return;
@@ -2788,6 +2819,8 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
         canEdit={canEditLists}
         onCreateList={window.__lists ? createList : null}
         savedRead={people.savedRead !== false}
+        archived={people.archived || PL_NO_LISTS}
+        onRestore={restoreList}
         newListSignal={newListSignal}
       />
 
@@ -2860,7 +2893,7 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
                 {(activeList || activeSaved) && (
                   <button type="button" className="cl-bucket-link" onClick={() => { setListId(null); setSavedId(null); }} data-testid="show-everyone">Show everyone</button>
                 )}
-                {activeSaved && canEditLists && <DeleteListButton list={activeSaved} onDeleted={() => setSavedId(null)} />}
+                {activeSaved && canEditLists && <DeleteListButton list={activeSaved} onDeleted={(r) => { if (r.archived) plFlash({ msg: plArchivedWords(activeSaved.name, r) }); setSavedId(null); }} />}
                 {tab !== "all" && (
                   <span className="chip" data-testid="state-filter">
                     <Icon name="filter" size={10} />
@@ -2947,6 +2980,8 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
               canEdit={canEditLists}
               onCreateList={window.__lists ? createList : null}
               savedRead={people.savedRead !== false}
+              archived={people.archived || PL_NO_LISTS}
+              onRestore={restoreList}
               newListSignal={newListSignal}
             />
           </PeopleListsSheet>

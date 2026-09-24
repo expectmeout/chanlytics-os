@@ -38,6 +38,7 @@ import {
 import type { RouteContext } from "@/server/with-route";
 import { listRuns } from "@/server/broadcasts";
 import { peopleVisits } from "@/server/calendar";
+import { archivedListWords } from "@/server/audience";
 import { createBroadcastPorts, templateValuePorts } from "@/server/campaign-ports";
 import { everyone } from "@/server/people";
 import { sellsByOf } from "@/server/deals";
@@ -258,8 +259,11 @@ export async function triggerPools(
 ): Promise<{
   pools: Record<string, TriggerPool | null>;
   calendar: "ok" | "unavailable" | "none";
-  /** The lists a playbook may run on, each counted under "list:<id>"; null when they could not be read. */
-  lists: { id: string; name: string; smart: boolean }[] | null;
+  /**
+   * The workspace's own lists, each counted under "list:<id>"; null when they could not be read. An archived one
+   * (00169) is here for the playbooks that still name it, and offered to no new one.
+   */
+  lists: { id: string; name: string; smart: boolean; archived: boolean }[] | null;
   /** People's lists a playbook may run on here (none that is about whoever is looking), each counted under "seg:<id>". */
   people: { key: string; label: string; group: string }[];
 }> {
@@ -365,11 +369,11 @@ export async function triggerPools(
     const m = membersOf(d, vms, listCtx);
     pools[d.token] = m.state === "ok" ? count("saved_list", m.ids) : null;
   }
-  let lists: { id: string; name: string; smart: boolean }[] | null = null;
+  let lists: { id: string; name: string; smart: boolean; archived: boolean }[] | null = null;
   const people = builtins.map((d) => ({ key: d.ref.id, label: d.label, group: d.group }));
   try {
     const kept = await savedListsFor(ctx.supabase, tenantId);
-    lists = kept.map((l) => ({ id: l.id, name: l.name, smart: l.rule != null }));
+    lists = kept.map((l) => ({ id: l.id, name: l.name, smart: l.rule != null, archived: !!l.archived_at }));
     for (const l of kept) {
       const def = resolveList({ kind: "saved", id: l.id }, kept);
       const m = def ? membersOf(def, vms, listCtx, kept) : null;
@@ -472,6 +476,26 @@ export type { PlaybookInput };
  * A write of a playbook the database refused, in words where it is the workspace's one proposal follow-up (00167:
  * two would each owe every proposal its nudge, 0006); any other refusal as it came.
  */
+/**
+ * A playbook on an archived list (00169, decision 0009) is neither resumed nor run now: it stays paused until its list
+ * is restored or it is moved to another. Refused in words; nothing when its list is live, or it runs on none of the
+ * workspace's own.
+ */
+export async function refuseOnArchivedList(
+  ctx: Pick<RouteContext, "supabase">,
+  p: { id: string; trigger: string },
+): Promise<void> {
+  if (p.trigger !== "saved_list") return;
+  const { data: on } = await ctx.supabase.from("playbooks").select("list_id").eq("id", p.id).maybeSingle();
+  const listId = (on as { list_id?: string | null } | null)?.list_id ?? null;
+  const list = listId ? await listRow(ctx.supabase, listId) : null;
+  if (list?.archived_at)
+    throw new AppError(
+      "validation",
+      `Its list, ${list.name}, is archived. Restore it on People, or move the playbook to another list.`,
+    );
+}
+
 export function playbookWriteError(error: { code?: string; message: string }): Error {
   return error.code === "23505" && error.message.includes("playbooks_one_follow_up")
     ? new AppError("conflict", FOLLOW_UP_ONE, 409)
@@ -490,7 +514,10 @@ export async function checkPlaybookInput(
       // A list of this workspace, read under row security: another workspace's list is no list.
       listName: async (id) => {
         const list = await listRow(ctx.supabase, id);
-        return list && list.tenant_id === tenantId ? list.name : null;
+        if (!list || list.tenant_id !== tenantId) return null;
+        // An archived list is off People's rail (00169): a playbook is put on it again once it is restored.
+        if (list.archived_at) throw new AppError("validation", archivedListWords(list.name, "run"));
+        return list.name;
       },
       // How its customers buy (0008): a proposal follow-up is made only where deals are on (0006).
       dealsOn: async () => dealsAreOn(await sellsByOf(ctx, tenantId)),

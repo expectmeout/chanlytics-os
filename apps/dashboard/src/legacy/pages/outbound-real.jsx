@@ -832,6 +832,8 @@ const PlaybookCard = ({ p, canAct, onEdit, flash, focus = false, bare = false })
             {/* "Next run paused" was the words when it is. A follow-up where deals are off says why it runs nothing. */}
             {p.off
               ? <>{p.off}</>
+              : p.listArchived
+              ? <>Paused &mdash; its list, <b>{p.triggerLabel}</b>, is archived.{canAct && window.__lists ? <>{" "}<button type="button" className="ob-link" onClick={() => act(() => window.__lists.restore(p.list_id), () => <><b>{p.triggerLabel}</b> is back; resume the playbook when you want it running</>)} data-testid="pb-list-restore">Bring the list back</button>, or edit the playbook to run on another.</> : null}</>
               : p.state === "paused"
               ? <>Paused &mdash; nothing runs until you resume it.</>
               // The hour was in bold on its own, which promised a send. It keeps

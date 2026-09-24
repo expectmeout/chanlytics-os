@@ -379,6 +379,8 @@ export interface VerbList {
   name: string;
   /** A smart list's rule, or null for a list kept by hand. */
   rule: unknown;
+  /** When it was archived (00169); null for a live list. */
+  archived_at: string | null;
 }
 
 /** The saved list named by `:id`, read under RLS: one the caller cannot see is a 404, and the role is judged in the list's own workspace. */

@@ -1,8 +1,9 @@
 import { AppError } from "@chanlytics/contracts";
 import { read, write, workspace } from "@/server/route";
 import { jsonBody } from "@/server/request-guards";
-import { createList, savedListsFor } from "@chanlytics/db";
+import { createList, savedListsFor, type Json } from "@chanlytics/db";
 import { cleanListName, cleanListRule, type SavedListDto } from "@/server/lists";
+import { recordDecision } from "@/server/verbs";
 
 /**
  * Saved lists: a name and the people on it.
@@ -43,7 +44,13 @@ export const POST = write({
       if (error?.code === "23505") throw new AppError("conflict", "A list with that name already exists.", 409);
       throw new Error(error?.message ?? "The list was not made.");
     }
-    const made: SavedListDto = { id: list.id, name: list.name, ids: [], rule };
+    // The ledger's (00169, decision 0009): Activity says who made which list, kept by hand or by a rule.
+    await recordDecision(ctx, member.tenantId, "list", list.id, "make_list", {
+      name: list.name,
+      kept: rule ? "rule" : "hand",
+      ...(rule ? { rule: rule as unknown as Json } : {}),
+    });
+    const made: SavedListDto = { id: list.id, name: list.name, ids: [], rule, archived_at: null };
     return made;
   },
 });

@@ -3,7 +3,7 @@ import type { Json } from "@chanlytics/db";
 import { write } from "@/server/route";
 import { jsonBody } from "@/server/request-guards";
 import { playbookScope, recordDecision } from "@/server/verbs";
-import { checkPlaybookInput, playbookWriteError } from "@/server/playbooks";
+import { checkPlaybookInput, playbookWriteError, refuseOnArchivedList } from "@/server/playbooks";
 
 /**
  * One playbook.
@@ -32,6 +32,8 @@ export const PUT = write({
       if (!(PLAYBOOK_STATES as readonly string[]).includes(state))
         throw new AppError("validation", "A playbook is running or paused.");
       if (state === p.state) return { id, state };
+      // A playbook on an archived list stays paused until its list is restored or it is moved (decision 0009).
+      if (state === "running") await refuseOnArchivedList(ctx, p);
       const { error } = await ctx.supabase.from("playbooks").update({ state }).eq("id", id);
       if (error) throw new Error(error.message);
       const decisionId = await recordDecision(

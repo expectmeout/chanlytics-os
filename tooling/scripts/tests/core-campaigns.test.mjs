@@ -271,7 +271,14 @@ test("the audience: everyone, a People list, or a list kept by hand, crossed wit
     quiet.of("enrol")[0][2].map((r) => r.contact_id),
     ["a"],
   );
-  assert.deepEqual(quiet.of("create")[0][1].audience, { kind: "list", id: "quiet", label: "Quiet 30+ days" });
+  // The send keeps the list as it was counted (decision 0009): its token, and its rule then.
+  const counted = { counted_at: NOW.toISOString(), rule: null };
+  assert.deepEqual(quiet.of("create")[0][1].audience, {
+    kind: "list",
+    id: "quiet",
+    label: "Quiet 30+ days",
+    list: { token: "seg:quiet", ...counted },
+  });
   const saved = fakes({ list: (ref) => (ref.id === S1 ? { label: "VIPs", memberIds: ["b", "d"] } : null) });
   await make(saved, { template_id: T1, audience: { kind: "saved", id: S1 } });
   assert.deepEqual(
@@ -279,7 +286,12 @@ test("the audience: everyone, a People list, or a list kept by hand, crossed wit
     ["b"],
     "on the list and said yes",
   );
-  assert.deepEqual(saved.of("create")[0][1].audience, { kind: "saved", id: S1, label: "VIPs" });
+  assert.deepEqual(saved.of("create")[0][1].audience, {
+    kind: "saved",
+    id: S1,
+    label: "VIPs",
+    list: { token: `list:${S1}`, ...counted },
+  });
   await refused(
     make(fakes(), { template_id: T1, audience: { kind: "saved", id: S1 } }),
     "not_found",

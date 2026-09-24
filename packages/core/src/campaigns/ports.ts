@@ -104,7 +104,7 @@ export interface RunContext {
    * Who is on a list a saved_list playbook runs on, by its reference (contracts lists.ts membersOf, with no one
    * looking): its people, or why it can't be counted; null when it is gone.
    */
-  listMembers(ref: ListRef): Membership | null;
+  listMembers(ref: ListRef): (Membership & { rule?: unknown }) | null;
   /** Deals are on here (dealsAreOn, 0008): the proposal follow-up runs only then (0006). */
   dealsOn: boolean;
   /** The workspace's pace (contracts dealPaceOf): when a proposal waits, for the follow-up; null without one. */
@@ -194,7 +194,7 @@ export interface BroadcastRef {
 }
 
 /** A list as a send reads it: its people, or why it can't be counted. */
-export type ListCount = { label: string; memberIds: string[] } | { label: string; unknown: string };
+export type ListCount = { label: string; memberIds: string[]; rule?: unknown } | { label: string; unknown: string };
 
 export interface CreateBroadcastPorts extends AssemblePorts, TemplateValuesPorts {
   /** The business's clock, for the hours a send may go out in. */

@@ -70,7 +70,7 @@ import {
 import { listPolicies } from "@chanlytics/db";
 import type { ToolContext, ToolDef } from "./tools";
 import { planFacts } from "../leads";
-import { audiencePoolOnce, poolList } from "../audience";
+import { archivedListWords, audiencePoolOnce, poolList } from "../audience";
 import { dealPaceRead, sellsByOf } from "../deals";
 import { checkPlaybookInput, proposalFollowUps } from "../playbooks";
 import { replyChannelOf } from "../verbs";
@@ -815,6 +815,7 @@ async function proposeBroadcast(t: ToolContext, input: Record<string, unknown>):
       id: audienceId!,
     });
     if (!found) return refuse("no such list; list_audiences names them");
+    if (found.archived) return refuse(archivedListWords(found.label, "send"));
     if ("unknown" in found) return refuse(`${found.label} can't be counted here: ${found.unknown}`);
     members = new Set(found.memberIds);
     label = found.label;
@@ -993,6 +994,7 @@ async function proposePlaybook(t: ToolContext, input: Record<string, unknown>): 
   if (listRef) {
     const found = await poolList(t.ctx, t.tenantId, pool, listRef);
     if (!found) return refuse("no such list; list_audiences names them");
+    if (found.archived) return refuse(archivedListWords(found.label, "run"));
     if ("unknown" in found) return refuse(`${found.label} can't be counted right now: ${found.unknown}`);
     listIds = new Set(found.memberIds);
     listLabel = found.label;
