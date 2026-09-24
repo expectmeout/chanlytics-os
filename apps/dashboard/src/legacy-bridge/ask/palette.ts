@@ -76,11 +76,15 @@ export interface PaletteGlobals {
     };
   } | null;
   __BROADCASTS?: { rows?: Run[] } | null;
+  /** The Leads surface (leads.ts): the first day's suggestions and the searches, as the Leads chips read them. */
+  __LEADS?: { suggestions?: { items?: { words: string }[] } | null; searches?: { asked: string }[] } | null;
 }
 
 const LAST_LANGUAGE_KEY = "chanlytics:ask:lang";
 
-export function surfaceFor(page: string): AskSurface {
+/** Where the person is, from the route. Leads is the People page's `leads` param (clients/leads, clients/leads:s-<id>). */
+export function surfaceFor(page: string, param?: string | null): AskSurface {
+  if (page === "clients" && typeof param === "string" && param.startsWith("leads")) return "leads";
   switch (page) {
     case "today":
       return "today";
@@ -219,6 +223,9 @@ export function askPalette(win: Window, storage: Storage | null) {
         canAct: w.__ME?.role === "owner" || w.__ME?.role === "operator",
         // People's surface says whether deals are on here (0008); until it does, the question is not offered.
         dealsOn: !!w.__PEOPLE?.dealsOn,
+        // On Leads: the first day's ideas, else the latest two searches' own words; the leads bridge publishes both.
+        leadIdeas: (w.__LEADS?.suggestions?.items ?? []).map((i) => i.words),
+        leadSearches: (w.__LEADS?.searches ?? []).slice(0, 2).map((s) => s.asked),
       });
     },
     /** Which of the three quick questions this is, if any; the answer is quickAnswer's. */

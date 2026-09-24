@@ -22,6 +22,7 @@ import {
   type AskReadSet,
   type FastCall,
 } from "./ask";
+import { leadsRoute } from "./leads";
 
 /* ------------------------------------------------------------------ the shape */
 
@@ -112,8 +113,11 @@ export function answerText(a: AskAnswer): string {
 
 /* ------------------------------------------------------------- one door */
 
-/** Where a card's Open goes, or null for the kinds that have none (a reply, a rewrite, a whisper, an invite). */
-export function cardOpenRoute(p: Pick<AskProposal, "kind" | "payload">): string | null {
+/**
+ * Where a card's Open goes, or null for the kinds that have none (a reply, a rewrite, a whisper, an invite). A lead
+ * search's, once approved, is the search the commit made.
+ */
+export function cardOpenRoute(p: Pick<AskProposal, "kind" | "payload" | "outcome">): string | null {
   const pl = (p.payload ?? {}) as Record<string, unknown>;
   const id = (k: string) => (typeof pl[k] === "string" && pl[k] ? (pl[k] as string) : null);
   switch (p.kind) {
@@ -133,8 +137,13 @@ export function cardOpenRoute(p: Pick<AskProposal, "kind" | "payload">): string 
       return "broadcasts";
     case "playbook":
       return "outbound";
-    case "lead_search":
-      return "clients/leads";
+    case "lead_search": {
+      // Approved, the outcome carries the search the commit made (commit.ts's undo), and Open lands on that search
+      // rather than on All leads.
+      const undo = (p.outcome?.undo ?? {}) as Record<string, unknown>;
+      const sid = typeof undo.search_id === "string" && undo.search_id ? undo.search_id : null;
+      return sid ? leadsRoute({ searchId: sid, list: "all", cls: null }) : "clients/leads";
+    }
     default:
       return id("conversation_id") ? `inbox/th-${id("conversation_id")}` : null;
   }

@@ -305,7 +305,11 @@ export function turnSystem(t: TurnFacts): string {
         ? "an operator: they can reply, take over, snooze and resolve threads and change autonomy, but not settings, team or exports"
         : "a viewer: they can read everything and change nothing";
   lines.push(`You are speaking with ${t.personLabel}, ${can}.`);
-  if (t.surface) lines.push(`They are on the ${t.surface} page.`);
+  if (t.surface === "leads")
+    lines.push(
+      "They are on the Leads page, where the businesses Claude found for them are listed. Words that describe businesses (a kind, a place, a count) are a search to propose: read list_lead_searches, then propose_lead_search; ask only when the kind or the place is missing.",
+    );
+  else if (t.surface) lines.push(`They are on the ${t.surface} page.`);
   if (t.scope)
     lines.push(
       `They are looking at ${t.scope.label} (${t.scope.kind} ${t.scope.id}); "this", "them", "here" mean that unless they say otherwise. Read it before answering about it.`,

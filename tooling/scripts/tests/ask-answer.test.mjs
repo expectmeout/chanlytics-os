@@ -152,6 +152,18 @@ test("a card's Open is the contract's: its page, the person's, or none, never a 
   assert.equal(cardOpenRoute({ kind: "deal", payload: {} }), null, "REGRESSION: it opened clients/undefined");
   assert.equal(cardOpenRoute({ kind: "broadcast", payload: {} }), "broadcasts");
   assert.equal(cardOpenRoute({ kind: "lead_search", payload: {} }), "clients/leads");
+  const done = (undo) => ({ state: "done", receipt: "Finding 50 dentists.", atMs: 1, undo });
+  assert.equal(
+    cardOpenRoute({ kind: "lead_search", payload: {}, outcome: done({ search_id: ID }) }),
+    `clients/leads:s-${ID}`,
+    "approved: Open lands on the search the commit made, not on All leads",
+  );
+  assert.equal(cardOpenRoute({ kind: "lead_search", payload: {}, outcome: done(null) }), "clients/leads");
+  assert.equal(
+    cardOpenRoute({ kind: "lead_search", payload: {}, outcome: done({ search_id: "" }) }),
+    "clients/leads",
+    "never a route with a hole in it",
+  );
   assert.equal(cardOpenRoute({ kind: "thread_verb", payload: { conversation_id: ID } }), `inbox/th-${ID}`);
   for (const k of ["reply", "steer", "whisper", "invite"])
     assert.equal(cardOpenRoute({ kind: k, payload: {} }), null, k);

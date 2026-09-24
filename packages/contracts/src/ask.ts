@@ -460,7 +460,21 @@ export function askJump(query: string, index: JumpEntry[], limit = 6): JumpEntry
 
 /* ------------------------------------------------------------ suggestions */
 
-export type AskSurface = "today" | "inbox" | "people" | "conversations" | "live" | "reports" | "settings" | "other";
+/** The pages Ask knows it is on. The route accepts exactly these; the prompt names them. */
+export const ASK_SURFACES = [
+  "today",
+  "inbox",
+  "people",
+  "leads",
+  "conversations",
+  "live",
+  "reports",
+  "settings",
+  "other",
+] as const;
+export type AskSurface = (typeof ASK_SURFACES)[number];
+/** The kinds a scope may have: the same five a citation may name. */
+export const ASK_SCOPE_KINDS = ASK_CITATION_KINDS;
 
 export interface AskSuggestion {
   /** The words sent, or placed in the input when `compose` is set. */
@@ -488,6 +502,9 @@ export interface SuggestionInput {
   canAct?: boolean;
   /** Deals are a thing here (People's surface says so): the question about proposals is offered. */
   dealsOn?: boolean;
+  /** On Leads: the first day's suggestion words (each a search to propose), and the latest searches' own words. */
+  leadIdeas?: string[];
+  leadSearches?: string[];
 }
 
 const T = {
@@ -506,6 +523,7 @@ const T = {
     hours: "What are our hours this week?",
     brief: "Brief me on today",
     proposals: "Who has a proposal out?",
+    moreLike: "Find more like: {asked}",
     actLate: "Tell {name} we're running late",
     actLateQ: "Tell {name} we're running about 15 minutes late today",
     actDraft: "Draft a reply to {name}",
@@ -540,6 +558,7 @@ const T = {
     hours: "¿Cuál es nuestro horario esta semana?",
     brief: "Resúmeme el día",
     proposals: "¿Quién tiene una propuesta pendiente?",
+    moreLike: "Encuentra más como: {asked}",
     actLate: "Dile a {name} que vamos con retraso",
     actLateQ: "Dile a {name} que vamos con unos 15 minutos de retraso hoy",
     actDraft: "Redacta una respuesta a {name}",
@@ -595,6 +614,15 @@ export function buildAskSuggestions(input: SuggestionInput): AskSuggestion[] {
     case "people":
       add(t.who, "ask", "users");
       break;
+    case "leads": {
+      // The first day's ideas are each a search to propose; after that, the latest searches' own words, to find more.
+      const ideas = (input.leadIdeas ?? []).filter(Boolean).slice(0, 3);
+      for (const w of ideas) add(w, "ask", "search");
+      if (!ideas.length)
+        for (const a of (input.leadSearches ?? []).filter(Boolean).slice(0, 2))
+          add(t.moreLike.replace("{asked}", a), "ask", "search");
+      break;
+    }
     case "reports":
       add(t.week, "ask", "trending-up");
       break;

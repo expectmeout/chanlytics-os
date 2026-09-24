@@ -15949,6 +15949,18 @@ function askJump(query, index, limit = 6) {
   for (const p of index) if (p.kind !== "page" && p.label.toLowerCase().includes(s)) push(p);
   return out.slice(0, limit);
 }
+var ASK_SURFACES = [
+  "today",
+  "inbox",
+  "people",
+  "leads",
+  "conversations",
+  "live",
+  "reports",
+  "settings",
+  "other"
+];
+var ASK_SCOPE_KINDS = ASK_CITATION_KINDS;
 var T = {
   en: {
     needs: "Who needs me right now?",
@@ -15965,6 +15977,7 @@ var T = {
     hours: "What are our hours this week?",
     brief: "Brief me on today",
     proposals: "Who has a proposal out?",
+    moreLike: "Find more like: {asked}",
     actLate: "Tell {name} we're running late",
     actLateQ: "Tell {name} we're running about 15 minutes late today",
     actDraft: "Draft a reply to {name}",
@@ -15999,6 +16012,7 @@ var T = {
     hours: "\xBFCu\xE1l es nuestro horario esta semana?",
     brief: "Res\xFAmeme el d\xEDa",
     proposals: "\xBFQui\xE9n tiene una propuesta pendiente?",
+    moreLike: "Encuentra m\xE1s como: {asked}",
     actLate: "Dile a {name} que vamos con retraso",
     actLateQ: "Dile a {name} que vamos con unos 15 minutos de retraso hoy",
     actDraft: "Redacta una respuesta a {name}",
@@ -16048,6 +16062,14 @@ function buildAskSuggestions(input) {
     case "people":
       add(t.who, "ask", "users");
       break;
+    case "leads": {
+      const ideas = (input.leadIdeas ?? []).filter(Boolean).slice(0, 3);
+      for (const w of ideas) add(w, "ask", "search");
+      if (!ideas.length)
+        for (const a of (input.leadSearches ?? []).filter(Boolean).slice(0, 2))
+          add(t.moreLike.replace("{asked}", a), "ask", "search");
+      break;
+    }
     case "reports":
       add(t.week, "ask", "trending-up");
       break;
@@ -16278,8 +16300,11 @@ function cardOpenRoute(p) {
       return "broadcasts";
     case "playbook":
       return "outbound";
-    case "lead_search":
-      return "clients/leads";
+    case "lead_search": {
+      const undo = p.outcome?.undo ?? {};
+      const sid = typeof undo.search_id === "string" && undo.search_id ? undo.search_id : null;
+      return sid ? leadsRoute({ searchId: sid, list: "all", cls: null }) : "clients/leads";
+    }
     default:
       return id("conversation_id") ? `inbox/th-${id("conversation_id")}` : null;
   }
@@ -20192,6 +20217,8 @@ export {
   ASK_PAGES,
   ASK_PAGE_ROUTES,
   ASK_RETENTION_DAYS,
+  ASK_SCOPE_KINDS,
+  ASK_SURFACES,
   ASK_THREAD_VERBS,
   ASK_TOKENS_DAY,
   ASK_TURN_BUDGET_MS,
