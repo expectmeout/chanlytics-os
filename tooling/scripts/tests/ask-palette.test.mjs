@@ -1099,7 +1099,7 @@ test("on a phone a place Ask goes to takes the takeover's entry: Back from there
   }
 });
 
-test("the phone's three listen to a press held a beat; a shorter press does nothing (S11)", async () => {
+test("the phone's three listen to a press held a beat; a shorter press, or one that drags, does nothing (S11, S7)", async () => {
   const said = [];
   const talk = { start: () => said.push("start"), stop: () => said.push("stop") };
   let press3 = null;
@@ -1127,6 +1127,18 @@ test("the phone's three listen to a press held a beat; a shorter press does noth
   press3.onPointerCancel();
   await wait(360);
   assert.deepEqual(said, ["buzz", "start", "stop"], "nor a press the browser took back");
+  // A pull down that starts on the three closes the takeover; it is never a hold.
+  press3.onPointerDown({ ...pressOf(), clientX: 195, clientY: 200 });
+  press3.onPointerMove({ clientX: 196, clientY: 204 });
+  press3.onPointerMove({ clientX: 196, clientY: 240 });
+  await wait(360);
+  assert.deepEqual(said, ["buzz", "start", "stop"], "nor a press that drags");
+  press3.onPointerUp();
+  press3.onPointerDown({ ...pressOf(), clientX: 195, clientY: 200 });
+  press3.onPointerMove({ clientX: 197, clientY: 205 });
+  await wait(360);
+  assert.deepEqual(said, ["buzz", "start", "stop", "buzz", "start"], "a finger that trembles still holds");
+  press3.onPointerUp();
 });
 
 test("a quick answer nods, and a failed turn shakes: the palette says how a turn ended", async () => {
