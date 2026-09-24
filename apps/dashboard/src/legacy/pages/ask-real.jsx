@@ -324,10 +324,11 @@ const AskReal = ({ open, onClose }) => {
     onClose();
     window.CHANLY.nav(to);
   };
-  // "Change what I asked" on a card: the turn's own question back in the field, to change (spec F4).
-  const editWords = () => {
+  // "Change what I asked" on a card: the turn's own question back in the field, to change (spec F4). A fold hands
+  // its turn's question; the latest turn's card takes the last one asked.
+  const editWords = (text) => {
     const last = active ? [...active.messages].reverse().find((m) => m.role === "user") : null;
-    setQuery(last ? last.text : "");
+    setQuery(typeof text === "string" ? text : last ? last.text : "");
     setTimeout(() => inputRef.current && inputRef.current.focus(), 20);
   };
   // Leaving the turn in flight, if any: whatever its stream sends after changes nothing on the line (its thread keeps
@@ -699,7 +700,7 @@ const AskReal = ({ open, onClose }) => {
               <span className="ask-fold-a">{A.answerText(A.answer(tn.a).answer)}</span>
               <Icon name="chevron" size={12} className="ask-fold-chev" />
             </button>
-            {isOpen ? <AskTurn m={tn.a} t={t} lang={lang} onNav={nav} onFollow={submit} onOutcome={noteOutcome} onEdit={editWords} /> : null}
+            {isOpen ? <AskTurn m={tn.a} t={t} lang={lang} onNav={nav} onFollow={submit} onOutcome={noteOutcome} onEdit={() => editWords(tn.q.text)} /> : null}
           </div>
         );
       })}
