@@ -59,12 +59,17 @@ test.describe("creating another workspace", () => {
       // A new workspace answers nowhere yet, so it opens on its first run (#/start), not Today.
       await expect(page.getByTestId("first-run")).toBeVisible({ timeout: 20000 });
       await expect(page).toHaveURL(/#\/start/);
-      await expect(page.getByTestId("sb-workspace")).toContainText(name);
+      // The first run is drawn in place of the shell's chrome (#968), so there is no workspace switch to read there:
+      // the page names the new workspace itself, on the receptionist card beside the step.
+      await expect(page.getByTestId("first-run")).toContainText(name, { timeout: 20000 });
       createdId = await page.evaluate(
         () => (window as unknown as { __ACTIVE_WORKSPACE?: string }).__ACTIVE_WORKSPACE ?? null,
       );
       expect(createdId).not.toBeNull();
       expect(createdId).not.toBe(homeId);
+      // Both are listed where the switch is drawn: the first run's own Later leaves for Today, which has the sidebar.
+      await page.getByTestId("fr-later").click();
+      await expect(page.getByTestId("sb-workspace")).toContainText(name, { timeout: 20000 });
       await page.getByTestId("sb-workspace").click();
       const items = page.getByTestId("sb-workspace-menu").getByTestId("sb-ws-item");
       await expect(items).toHaveCount(before + 1);

@@ -3022,10 +3022,11 @@ test("Include opens the plan with that exclusion taken back and starts nothing; 
 });
 
 // "What if the answer is no, but I want it to update the search?" Change what I asked opens the plan panel's answer
-// row under the question, empty; Ask's card comes back as the waiting round's next version, and approving it
-// answers that round. It used to go through the commit, which started a second search while the first waited a
-// day and died.
-test("Change what I asked opens the answer row under the question, and approving answers the waiting round, not a new search", async () => {
+// row under the question, empty; the turn names the search's id, so Ask's card comes back carrying `amends` at the
+// version and count the server set, and approving it commits that card through Ask's door, which answers the
+// waiting round (commit.ts, spec G4/G5). A card without `amends` would start a second search while the first waited
+// a day and died, so the panel refuses it.
+test("Change what I asked opens the answer row under the question, and approving commits the amending card, not a new search", async () => {
   fresh();
   draw({ leadsRoute: `leads:s-${SEARCH_B}` });
   strips.at(-1).onAction("change");
@@ -3036,27 +3037,30 @@ test("Change what I asked opens the answer row under the question, and approving
       f.stage,
       f.words,
       f.answering && f.answering.question,
-      f.answering && f.answering.baseVersion,
-      f.answering && f.answering.count,
+      f.answering && f.answering.searchId,
+      f.answering && f.answering.name,
+      f.answering && "baseVersion" in f.answering,
     ],
-    ["compose", "", waiting.round.question.sentence, 1, 200],
-    "empty, under the question, carrying the round's version and the count it reserved",
+    ["compose", "", waiting.round.question.sentence, SEARCH_B, waiting.name, false],
+    "empty, under the question, naming the search; the version and count are the route's",
   );
   assert.deepEqual(
     calls.filter((c) => c[0] !== "view"),
     [],
     "nothing is asked or spent by opening it",
   );
+  const amends = { search_id: SEARCH_B, name: waiting.name, question: waiting.round.question.sentence };
   const card = {
     id: "p-amend",
     kind: "lead_search",
     needs: "owner",
-    title: "Find 50 personal trainers",
+    title: "Find 200 personal trainers",
     summary: "",
     payload: {
-      plan: { ...PLAN, count: 50, exclusions: [] },
-      view: { title: "Find 50 personal trainers" },
+      plan: { ...PLAN, exclusions: [], version: 2, count: 200 },
+      view: { title: "Find 200 personal trainers" },
       facts: null,
+      amends,
     },
     undo: "Stop the search",
   };
@@ -3065,21 +3069,33 @@ test("Change what I asked opens the answer row under the question, and approving
     sent.push(req);
     on({ t: "final", message: { text: "", proposals: [card] } });
   };
+  const committed = [];
+  globalThis.window.__ask.commit = async (p) => {
+    committed.push(p);
+    return { ok: true, receipt: `Answered. ${waiting.name} carries on with your answer; Leads shows it.`, undo: null };
+  };
   await f.onAnswer("include the chains too");
   await settle();
   draw({ leadsRoute: `leads:s-${SEARCH_B}` });
+  assert.match(sent[0].text, new RegExp(`search id ${SEARCH_B}`));
   assert.match(sent[0].text, /My answer: include the chains too\./);
   assert.equal(sent[0].surface, "leads", "the amend turn is on the Leads surface (spec F5)");
   const shown = panels.at(-1);
-  assert.deepEqual([shown.stage, shown.plan.version, shown.plan.count], ["plan", 2, 200]);
+  assert.deepEqual([shown.stage, shown.plan.version, shown.plan.count], ["plan", 2, 200], "the card's own plan");
   await shown.onApprove(shown.plan);
   await settle();
-  assert.deepEqual(calls.at(-1), [
-    "answer",
-    { id: SEARCH_B, answer: "include", plan: { ...PLAN, exclusions: [], version: 2, count: 200 } },
-  ]);
-  assert.ok(!uploads.includes("ask.commit"), "no second search");
+  assert.equal(committed.length, 1, "the card commits through Ask's door");
+  assert.deepEqual(
+    [committed[0].id, committed[0].payload.amends, committed[0].payload.plan],
+    ["p-amend", amends, shown.plan],
+    "as the card it is, with the plan the owner approved",
+  );
+  assert.ok(!calls.some((c) => c[0] === "answer"), "the page posts no answer of its own");
   assert.equal(textOf(flashes.at(-1).msg), "Carrying on with your change.");
+  assert.ok(
+    !went.some((w) => w.includes("clients/leads:s-")),
+    "an answer is on the search already open, so the owner stays",
+  );
 });
 
 test("a fresh Find after an abandoned answer is Ask's, and a plan opened after it is not an answer", () => {

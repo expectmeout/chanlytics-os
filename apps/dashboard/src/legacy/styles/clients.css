@@ -1909,6 +1909,20 @@
 /* A smart list drafted from the owner's words: its rule as chips, who it holds for, and what it left out, over the
    name it is saved under; the switch between kinds is a quiet link under the box. */
 .cl-list-rule { margin-left: 8px; font-size: 12px; font-weight: 400; color: var(--ink-dim); }
+/* A smart list's rule, changed under its title (decision 0009): the New list box's parts, at the width of a thought. */
+.cl-list-rule-edit { margin-left: 8px; font-size: 12px; font-weight: 400; }
+/* Pinned to Today: said in the link's own words, and in ink once it is. */
+.cl-list-pin { margin-left: 8px; }
+.cl-list-pin.is-on { color: var(--ink); }
+.cl-rule-edit { display: flex; flex-direction: column; gap: 8px; max-width: 520px; padding: 4px 0 12px; }
+.cl-rule-edit-acts { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+/* What "Save these" keeps: the rule, or the people shown. The one chosen reads as chosen, quietly. */
+.cl-save-mode { font-size: 12px; color: var(--ink-dim); white-space: nowrap; }
+/* With the choice, the box takes two lines -- the choice over the name -- so the list's title keeps its one line. */
+.cl-bulk-naming.has-modes { flex-wrap: wrap; justify-content: flex-end; max-width: 380px; }
+.cl-bulk-naming.has-modes .cl-save-mode { flex-basis: 100%; text-align: right; }
+.cl-save-mode .cl-bucket-link { color: var(--ink-dim); }
+.cl-save-mode .cl-bucket-link.is-on { color: var(--ink); font-weight: 500; }
 .cl-rail-draft { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
 .cl-rail-newlist-mode { display: block; margin-top: 6px; font-size: 11.5px; }
 .cl-rail-newlist input {
@@ -2387,6 +2401,11 @@
    bar -- the list, search behind a button, the scope's own last control. Searching, the bar is the field, at 16px: a
    phone zooms into anything smaller. */
 .pp-top { flex: none; }
+/* Two or three scopes never need to scroll. The shell's strip scrolls sideways at this width (components.css), and a
+   scroll container clips the active tab's 2px underline where it overlaps the strip's rule by 1px (.stabs-tab's
+   margin-bottom: -1px): on a touch screen the 44px tab then stood 43px in view and the strip scrolled 1px. Clip
+   leaves the other axis alone, so the overlap draws. */
+.stabs-people { overflow-x: clip; }
 .pp-bar { display: flex; align-items: center; gap: 6px; padding: 8px 8px 6px 16px; flex: none; }
 /* The page's menu is taller than a menu's 340px on a touch screen (44px items): it takes the room the phone has. */
 .pp-bar .more-menu { max-height: min(520px, calc(100vh - 140px)); }

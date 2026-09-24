@@ -30,6 +30,9 @@ const { commitProposal, undoProposal } = await import(at("apps/dashboard/src/leg
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const SEARCH = "55555555-5555-4555-8555-555555555551";
 const SEARCH2 = "55555555-5555-4555-8555-555555555552";
+const SEARCH3 = "55555555-5555-4555-8555-555555555553";
+const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+const SEARCH_ELSEWHERE = "55555555-5555-4555-8555-555555555554";
 const ROUND = "66666666-6666-4666-8666-666666666661";
 const NOW = new Date("2026-09-19T15:00:00Z");
 
@@ -110,6 +113,32 @@ const world = () => ({
       counted: 12,
       qualified: 12,
       review: 3,
+    }),
+    // The oldest one stopped after 25 to ask, and waits for the owner's answer.
+    viewRow({
+      id: SEARCH3,
+      name: "Personal trainers in Austin",
+      created_at: "2026-09-17T15:00:00Z",
+      state: "waiting_on_owner",
+      ending: null,
+      plan_version: 1,
+      question: { sentence: "Most of the first 25 are chain gyms. Include them?", criterionKey: "chains" },
+      waiting_since: "2026-09-19T14:00:00Z",
+      counted: 20,
+      qualified: 20,
+      review: 0,
+    }),
+    // Another workspace's search, waiting too: the tools never see it, and an amends that names it is refused.
+    viewRow({
+      id: SEARCH_ELSEWHERE,
+      tenant_id: B,
+      name: "Dentists in Denver",
+      created_at: "2026-09-19T12:00:00Z",
+      state: "waiting_on_owner",
+      ending: null,
+      plan_version: 1,
+      question: { sentence: "Many of the first 25 are orthodontists. Include them?", criterionKey: "ortho" },
+      waiting_since: "2026-09-19T13:00:00Z",
     }),
   ],
   tenants: [{ id: A, name: "Zilker Strength", timezone: "America/Chicago", slug: "harbor" }],
@@ -304,6 +333,7 @@ test("list_lead_searches says what was asked, in the owner's words, and how each
     "id",
     "name",
     "qualified",
+    "question",
     "review",
     "state",
   ]);
@@ -311,11 +341,62 @@ test("list_lead_searches says what was asked, in the owner's words, and how each
   // Newest first, the ending in words, and a round still going has none.
   assert.deepEqual(
     s.searches.map((x) => x.id),
-    [SEARCH2, SEARCH],
+    [SEARCH2, SEARCH, SEARCH3],
   );
   assert.equal(s.searches[1].ending, LEAD_ENDING_WORDS.target_reached);
   assert.equal(s.searches[0].ending, null);
   assert.equal(s.searches[0].state, "running");
+  // Only the search that stopped to ask carries its question; the model answers it through amends.
+  assert.equal(s.searches[0].question, null);
+  assert.equal(s.searches[1].question, null);
+  assert.equal(s.searches[2].question, "Most of the first 25 are chain gyms. Include them?");
+  assert.match(s.note, /propose_lead_search with amends set to its id/);
+  assert.match(s.note, /Yes, keep going or Stop here on Leads/);
+});
+
+test("propose_lead_search with amends answers a waiting search: the plan at the round's next version and count, the question on the card, no undo", async () => {
+  const t = toolContext({ role: "owner", tables: world() });
+  const out = await buildProposal(t, "propose_lead_search", {
+    ...MODEL_INPUT,
+    count: 50,
+    leave_out: [],
+    amends: SEARCH3,
+  });
+  assert.equal(out.isError, false, out.result);
+  const p = out.proposal;
+  assert.equal(p.payload.plan.version, 2, "the round's version + 1, set by the server");
+  assert.equal(p.payload.plan.count, PLAN.count, "the count the search's plan reserved, not the 50 the model wrote");
+  assert.equal(p.title, "Find 200 personal trainers", "the title is the plan's: the round's count, not the model's 50");
+  assert.deepEqual(p.payload.plan.exclusions, [], "the answer applied: the chains are no longer left out");
+  assert.deepEqual(p.payload.amends, {
+    search_id: SEARCH3,
+    name: "Personal trainers in Austin",
+    question: "Most of the first 25 are chain gyms. Include them?",
+  });
+  assert.ok(p.summary.startsWith("Answers “Most of the first 25"), p.summary);
+  assert.equal(
+    p.summary,
+    `Answers “Most of the first 25 are chain gyms. Include them?”: ${planSentence(p.payload.plan)}`,
+  );
+  assert.equal(p.undo, null, "an answer carries the round on; there is nothing to undo");
+  assert.ok(p.payload.view && p.payload.facts, "the card still carries the view and the facts");
+  // A search that is running, or one this workspace does not have, is a refusal in words, never a second search.
+  const running = await buildProposal(t, "propose_lead_search", { ...MODEL_INPUT, amends: SEARCH2 });
+  assert.equal(running.isError, true);
+  assert.match(JSON.parse(running.result).error, /not waiting for an answer/);
+  const notId = await buildProposal(t, "propose_lead_search", { ...MODEL_INPUT, amends: "not-a-uuid" });
+  assert.equal(notId.isError, true);
+  assert.match(JSON.parse(notId.result).error, /not in this workspace/);
+  const unknown = await buildProposal(t, "propose_lead_search", {
+    ...MODEL_INPUT,
+    amends: "55555555-5555-4555-8555-555555555599",
+  });
+  assert.equal(unknown.isError, true);
+  assert.match(JSON.parse(unknown.result).error, /not in this workspace/);
+  // Another workspace's waiting search is, to this one, not there at all.
+  const elsewhere = await buildProposal(t, "propose_lead_search", { ...MODEL_INPUT, amends: SEARCH_ELSEWHERE });
+  assert.equal(elsewhere.isError, true);
+  assert.match(JSON.parse(elsewhere.result).error, /not in this workspace/);
 });
 
 test("the card commits to POST lead-searches marked as Ask's, and its undo stops the search", async () => {
@@ -351,5 +432,46 @@ test("the card commits to POST lead-searches marked as Ask's, and its undo stops
   assert.deepEqual(
     [undone.ok, undone.receipt],
     [true, "Stopping. Whatever it found is kept, and the emails already found are still checked."],
+  );
+});
+
+test("a card that amends posts the answer to the search that asked, with no undo and opening on its question", async () => {
+  const { client, calls } = fakeClient({
+    [`POST /api/v1/lead-searches/${SEARCH3}/answer`]: { round_id: ROUND, answered: "include" },
+  });
+  const done = await commitProposal(
+    win,
+    {
+      id: "p2",
+      kind: "lead_search",
+      needs: "owner",
+      title: "Find 200 personal trainers",
+      summary: "…",
+      payload: {
+        plan: { ...PLAN, version: 2 },
+        amends: {
+          search_id: SEARCH3,
+          name: "Personal trainers in Austin",
+          question: "Most of the first 25 are chain gyms. Include them?",
+        },
+      },
+      undo: null,
+    },
+    client,
+  );
+  assert.deepEqual(
+    [done.ok, done.receipt, done.undo],
+    [true, "Answered. Personal trainers in Austin carries on with your answer; Leads shows it.", null],
+  );
+  assert.equal(calls[0].headers["x-via"], "ask");
+  assert.deepEqual(
+    calls[0].body,
+    { answer: "include", plan: { ...PLAN, version: 2 } },
+    "the plan the owner approved goes as the answer; the route sets its version and count",
+  );
+  assert.equal(
+    calls.some((c) => c.key === "POST /api/v1/lead-searches"),
+    false,
+    "REGRESSION: an answer started a new search",
   );
 });

@@ -25,6 +25,8 @@ test.describe("Receptionist mode for one person", () => {
     await rows.first().click();
     await expect(page.locator(".cl-prof-name")).toBeVisible();
 
+    // Since #907 the mode is a row on the record kit, its control in the Receptionist fold behind the row's Change.
+    await page.getByTestId("rec-row-act-person-receptionist").click();
     const control = page.getByTestId("receptionist-mode");
     await expect(control).toBeVisible();
     const segs = control.locator(".cl-prof-aut-seg");

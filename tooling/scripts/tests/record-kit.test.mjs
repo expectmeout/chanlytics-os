@@ -39,6 +39,13 @@ await import(`${L}/components/record-fold.jsx`);
 await import(`${L}/components/record-sheet.jsx`);
 const W = globalThis.window;
 
+/** Whether a selector list asks for this root, as document.querySelector reads ".app-root, .fr-shell". */
+const inRoots = (sel, root) =>
+  String(sel)
+    .split(",")
+    .map((x) => x.trim())
+    .includes(root);
+
 /**
  * A new tree, drawn as today-page.test.mjs draws one, over the last one unmounted as React replaces a tree: its effects
  * clean up (a fold's hold on the registry among them), its cells are forgotten, and the component is created.
@@ -1588,7 +1595,7 @@ test("on a phone a fold's sheet leaves as it closes: a still copy slides down ov
   const root = { added: [], appendChild: (n) => root.added.push(n) };
   const doc = globalThis.document;
   const was = doc.querySelector;
-  doc.querySelector = (sel) => (sel === ".app-root" ? root : null);
+  doc.querySelector = (sel) => (inRoots(sel, ".app-root") ? root : null);
   const width = atWidth(true);
   try {
     const body = fakeNode("div", { class: "rec-sheet-body", "data-testid": "rec-fold-says-booking_rules" });
@@ -3107,7 +3114,7 @@ test("a sheet takes focus as it opens, gives it back to what opened it, and open
     querySelector: doc.querySelector,
     createPortal: W.ReactDOM.createPortal,
   };
-  Object.assign(doc, { activeElement: opener, querySelector: (sel) => (sel === ".app-root" ? appRoot : null) });
+  Object.assign(doc, { activeElement: opener, querySelector: (sel) => (inRoots(sel, ".app-root") ? appRoot : null) });
   W.ReactDOM.createPortal = (node, into) => {
     portals.push(into);
     return node;
@@ -3129,6 +3136,29 @@ test("a sheet takes focus as it opens, gives it back to what opened it, and open
     [appRoot],
     "drawn in the app's root, where People's overlay check (PL_OVERLAY) finds a dialog, over the pane's own layout",
   );
+});
+
+test("on the first run, drawn in place of the app's chrome, a sheet and a fold's sheet open in its own shell", () => {
+  const shell = { first: "run" };
+  const portals = [];
+  const doc = globalThis.document;
+  const was = { querySelector: doc.querySelector, createPortal: W.ReactDOM.createPortal };
+  // The first run draws no .app-root (app-shell.jsx): its shell is the root there.
+  doc.querySelector = (sel) => (inRoots(sel, ".fr-shell") ? shell : null);
+  W.ReactDOM.createPortal = (node, into) => {
+    portals.push(into);
+    return node;
+  };
+  const width = atWidth(false);
+  try {
+    draw(W.RecordSheet, offer());
+    draw(W.RecordFold, { id: "hours", label: "Hours", frame: "sheet", onSave: () => {}, onCancel: () => {} });
+  } finally {
+    doc.querySelector = was.querySelector;
+    W.ReactDOM.createPortal = was.createPortal;
+    width.put();
+  }
+  assert.deepEqual(portals, [shell, shell]);
 });
 
 test("a sheet gives focus back as a fold does: to the field the person was in when what held it goes, and to a row the page names", () => {

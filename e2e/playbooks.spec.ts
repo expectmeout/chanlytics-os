@@ -43,9 +43,11 @@ test.describe("Playbooks on a real workspace", () => {
       (t) => t.channel === "whatsapp" && t.meta_status === "approved",
     );
 
-    // The cards are exactly the route's rows; none, and the page says so.
+    // The cards are exactly the route's rows; every moment stands whether or not somebody made a playbook for it
+    // (#741), so a workspace with none has no empty state: it has a slot per moment to start from. Eight moments:
+    // the six, a saved list's (decision 0009) and a proposal waiting (0008), contracts' PLAYBOOK_TRIGGERS.
     await expect(real.getByTestId("pb-card")).toHaveCount(playbooks.length);
-    if (playbooks.length === 0) await expect(real.getByTestId("pb-empty")).toBeVisible();
+    await expect(real.getByTestId("pb-slot")).toHaveCount(8);
 
     const text = await real.innerText();
     for (const s of INVENTED) expect(text, `invented: "${s}"`).not.toContain(s);
@@ -59,8 +61,8 @@ test.describe("Playbooks on a real workspace", () => {
     await expect(composer).toBeVisible();
     await composer.getByTestId("pb-moment").click();
     await expect(page.getByTestId("pb-moment-pop")).toBeVisible();
-    await expect(page.getByTestId("pb-moment-option")).toHaveCount(6);
-    await expect(page.getByTestId("pb-moment-option").first()).toContainText("Win-back");
+    await expect(page.getByTestId("pb-moment-option")).toHaveCount(8);
+    await expect(page.getByTestId("pb-moment-option").filter({ hasText: "Win-back" })).toHaveCount(1);
     // Escape closes the list, and only the list.
     await page.keyboard.press("Escape");
     await expect(page.getByTestId("pb-moment-pop")).toHaveCount(0);

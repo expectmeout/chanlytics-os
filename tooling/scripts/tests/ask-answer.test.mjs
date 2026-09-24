@@ -19,6 +19,7 @@ import {
   callsToday,
   cardOpenRoute,
   failedAnswer,
+  leadQuestionRoute,
   needsAnswer,
   normalizeAnswer,
   oneDoor,
@@ -164,12 +165,33 @@ test("a card's Open is the contract's: its page, the person's, or none, never a 
     "clients/leads",
     "never a route with a hole in it",
   );
+  assert.equal(
+    cardOpenRoute({ kind: "lead_search", payload: { plan: {}, amends: { search_id: "s9" } } }),
+    leadQuestionRoute("s9"),
+    "a card that answers a search opens on that search, on the pile it asked about",
+  );
+  assert.equal(
+    cardOpenRoute({
+      kind: "lead_search",
+      payload: { plan: {}, amends: { search_id: "s9" } },
+      outcome: done({ search_id: ID }),
+    }),
+    leadQuestionRoute("s9"),
+    "and the amended search wins over the outcome's",
+  );
   assert.equal(cardOpenRoute({ kind: "thread_verb", payload: { conversation_id: ID } }), `inbox/th-${ID}`);
   for (const k of ["reply", "steer", "whisper", "invite"])
     assert.equal(cardOpenRoute({ kind: k, payload: {} }), null, k);
 });
 
-const waiting = (people, runs = 0, more = 0) => ({
+const SEARCH = {
+  id: "q-s-s1",
+  name: "personal trainers",
+  question: "Most of the first 25 are gyms, not trainers. Keep them?",
+  to: "clients/leads:s-s1:c-excluded",
+};
+
+const waiting = (people, runs = 0, more = 0, searches = []) => ({
   people: people.map((who, i) => ({
     id: `c${i}`,
     kind: "thread",
@@ -186,6 +208,7 @@ const waiting = (people, runs = 0, more = 0) => ({
     reach: 1,
     to: `broadcasts/run:r${i}`,
   })),
+  searches,
 });
 
 test("Right now is Today's queue in a sentence: the people waiting, then the runs waiting for a yes, in English and Spanish", () => {
@@ -212,8 +235,32 @@ test("Right now is Today's queue in a sentence: the people waiting, then the run
   assert.equal(rightNowLine(null, "es"), "La cola de hoy aún no se ha leído.");
 });
 
-test("rightNowCounts: the people and the runs the sentence counts; zeros for a queue not read", () => {
-  assert.deepEqual(rightNowCounts(null), { people: 0, runs: 0 });
+test("Right now names the one search waiting for an answer, counts several, after the people and the runs", () => {
+  assert.equal(
+    rightNowLine(waiting(["Ana"], 0, 0, [SEARCH]), "en"),
+    "Ana is waiting on you; your search for personal trainers is waiting for your answer.",
+  );
+  assert.equal(
+    rightNowLine(waiting([], 0, 0, [SEARCH, { ...SEARCH, id: "q-s-s2", name: "yoga studios" }]), "en"),
+    "2 searches are waiting for your answer.",
+  );
+  assert.equal(
+    rightNowLine(waiting(["Ana"], 1, 0, [SEARCH]), "en"),
+    "Ana is waiting on you; one playbook run is waiting for your approval; your search for personal trainers is waiting for your answer.",
+    "three populations, three clauses, in this order",
+  );
+  assert.equal(
+    rightNowLine(waiting([], 0, 0, [SEARCH]), "es"),
+    "Tu búsqueda de personal trainers espera tu respuesta.",
+  );
+  assert.equal(
+    rightNowLine(waiting([], 0, 0, [SEARCH, { ...SEARCH, id: "q-s-s2" }]), "es"),
+    "2 búsquedas esperan tu respuesta.",
+  );
+});
+
+test("rightNowCounts: the people, the runs and the searches the sentence counts; zeros for a queue not read", () => {
+  assert.deepEqual(rightNowCounts(null), { people: 0, runs: 0, searches: 0 });
   const w = {
     people: [
       { id: "c1", kind: "thread", who: "Nora", channel: "WhatsApp", when: "2h", line: "", to: "inbox/th-c1" },
@@ -221,28 +268,43 @@ test("rightNowCounts: the people and the runs the sentence counts; zeros for a q
     ],
     more: 1,
     runs: [{ id: "r1", label: "Win-back", reach: 1, to: "broadcasts/run:r1" }],
+    searches: [SEARCH],
   };
-  assert.deepEqual(rightNowCounts(w), { people: 3, runs: 1 });
+  assert.deepEqual(rightNowCounts(w), { people: 3, runs: 1, searches: 1 });
   assert.equal(
     rightNowLine(w, "en"),
-    "Nora, Emily and 1 other are waiting on you; one playbook run is waiting for your approval.",
+    "Nora, Emily and 1 other are waiting on you; one playbook run is waiting for your approval; your search for personal trainers is waiting for your answer.",
   );
 });
 
-test("who needs me: the sentence, then the people and the runs as their own doors, and the Inbox only for the people past the cap", () => {
-  const a = needsAnswer(waiting(["Ana", "Sam"], 1), "en");
+test("who needs me: the sentence, then the people, the searches and the runs as their own doors, and the Inbox only for the people past the cap", () => {
+  const a = needsAnswer(waiting(["Ana", "Sam"], 1, 0, [SEARCH]), "en");
   assert.equal(a.form, "structured");
-  assert.equal(a.say.headline, "Ana and Sam are waiting on you; one playbook run is waiting for your approval.");
+  assert.equal(
+    a.say.headline,
+    "Ana and Sam are waiting on you; one playbook run is waiting for your approval; your search for personal trainers is waiting for your answer.",
+  );
   assert.deepEqual(
     a.show.items.map((i) => [i.title, i.meta, i.line, i.source.to]),
     [
       ["Ana", "WhatsApp · waited 3d", "“Can I come at 3?”", "inbox/th-c0"],
       ["Sam", "WhatsApp · waited 3d", "“Can I come at 3?”", "inbox/th-c1"],
+      [
+        "personal trainers",
+        "Leads",
+        "Most of the first 25 are gyms, not trainers. Keep them?",
+        "clients/leads:s-s1:c-excluded",
+      ],
       ["Win-back · quiet 30 days", "Playbook", "1 person", "broadcasts/run:r0"],
     ],
+    "the search's door is its question, opened where the answer row is (leadQuestionRoute)",
   );
+  assert.equal(a.show.items[2].source.kind, "page", "a search's door is a page, so the Inbox count never includes it");
   assert.equal(a.do.open, null, "each item is already a door");
   assert.equal(needsAnswer(waiting([], 1), "es").show.items[0].line, "1 persona", "a run's reach, in Spanish too");
+  const esSearch = needsAnswer(waiting([], 0, 0, [SEARCH]), "es");
+  assert.equal(esSearch.say.headline, "Tu búsqueda de personal trainers espera tu respuesta.");
+  assert.equal(esSearch.show.items[0].meta, "Leads", "a search's door says where it lives, in either language");
   const many = needsAnswer(waiting(["A", "B", "C", "D", "E", "F"], 0, 3), "en");
   assert.equal(many.show.items.length, ASK_ANSWER_CAPS.items);
   assert.deepEqual(

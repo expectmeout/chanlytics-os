@@ -1157,6 +1157,10 @@ ${lines.join("\n")}
 ` + (hasLink ? "Offer up to three of these that fit what they want, then send the booking link to lock one in. Never confirm a slot yourself; the calendar decides." : `Offer up to three of these that fit what they want, then take ${NO_LINK_DETAILS} so the team can confirm one. Never confirm a slot yourself; the calendar decides.`);
 }
 var foldName = (s) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+function sameListed(a, b) {
+  const x = foldName(String(a ?? "").trim());
+  return x !== "" && x === foldName(String(b ?? "").trim());
+}
 var wordsOf = (s) => s.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
 function matchService(services, asked) {
   const q = typeof asked === "string" ? foldName(asked.trim()) : "";
@@ -2904,7 +2908,7 @@ function isRealDate(key) {
   const at2 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
   return !Number.isNaN(at2.getTime()) && at2.toISOString().slice(0, 10) === key;
 }
-var DAY_NAME = {
+var DAY_NAMES2 = {
   mon: "Monday",
   tue: "Tuesday",
   wed: "Wednesday",
@@ -2913,6 +2917,7 @@ var DAY_NAME = {
   sat: "Saturday",
   sun: "Sunday"
 };
+var DAY_NAME = DAY_NAMES2;
 function dayProblems(h, day) {
   const name = DAY_NAME[day] ?? day;
   const out = [];
@@ -3005,6 +3010,10 @@ function parseTenantConfigResult(raw) {
     issues: r2.error.issues.map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
   };
 }
+function receptionistOf(parsed) {
+  if (parsed && !parsed.ok) return "broken";
+  return parsed?.config.brain ? "set" : "none";
+}
 function parseTenantConfig(raw) {
   const r2 = parseTenantConfigResult(raw);
   return r2.ok ? r2.config : null;
@@ -3020,15 +3029,7 @@ function withFirstAlertAddress(config, email) {
   });
   return next.success ? next.data : null;
 }
-var DAY_LABEL = {
-  mon: "Monday",
-  tue: "Tuesday",
-  wed: "Wednesday",
-  thu: "Thursday",
-  fri: "Friday",
-  sat: "Saturday",
-  sun: "Sunday"
-};
+var DAY_LABEL = DAY_NAMES2;
 function dayIntervals2(h) {
   return dayIntervals(h).map(([open, close]) => ({ open, close }));
 }
@@ -5794,6 +5795,20 @@ var PROFILE_CROSSING_WORDS = {
   stops: "Saved like this, the receptionist stops being given the details on this page and answers from its stored instructions.",
   starts: "Saved like this, the receptionist starts being given the details on this page, and the instructions it follows today are carried in beneath them."
 };
+var COMMON_LANGUAGES = [
+  "English",
+  "Spanish",
+  "Portuguese",
+  "French",
+  "Haitian Creole",
+  "Mandarin",
+  "Cantonese",
+  "Arabic",
+  "Russian",
+  "Polish",
+  "Italian",
+  "Hindi"
+];
 var TONE_PRESETS = [
   {
     label: "Warm and brief",
@@ -6127,6 +6142,127 @@ function writtenOutDetail(text, bookingLink) {
   return WRITTEN_OUT_NUMBER.test(said) ? "number" : null;
 }
 
+// src/check-chips.ts
+var SUGGESTIONS = {
+  hair_salon: [
+    "Haircut",
+    // trade-word: a hair salon's own service, suggested only where Google lists a hair salon
+    "Color",
+    "Highlights",
+    "Balayage",
+    // trade-word: a hair salon's own service, suggested only where Google lists a hair salon
+    "Blowout",
+    // trade-word: a hair salon's own service, suggested only where Google lists a hair salon
+    "Keratin treatment",
+    // trade-word: a hair salon's own service, suggested only where Google lists a hair salon
+    "Extensions"
+  ],
+  barber_shop: [
+    "Haircut",
+    // trade-word: a barber's own service, suggested only where Google lists a barber shop
+    "Beard trim",
+    "Hot towel shave",
+    "Fade",
+    "Kids' cut",
+    "Line-up"
+  ],
+  beauty_salon: [
+    "Haircut",
+    // trade-word: a beauty salon's own service, suggested only where Google lists one or a beautician
+    "Color",
+    "Manicure",
+    "Pedicure",
+    "Facial",
+    "Waxing",
+    "Brow shaping",
+    "Makeup"
+  ],
+  nail_salon: ["Manicure", "Pedicure", "Gel manicure", "Acrylic set", "Dip powder", "Nail art", "Fill"],
+  spa: ["Massage", "Facial", "Body scrub", "Hot stone massage", "Couples massage", "Body wrap"],
+  skin_care_clinic: ["Facial", "Chemical peel", "Microneedling", "Dermaplaning", "Acne treatment", "Consultation"],
+  makeup_artist: ["Bridal makeup", "Event makeup", "Makeup lesson", "Airbrush makeup", "Trial session"],
+  tanning_studio: ["Spray tan", "Tanning session", "Tanning package", "Rapid tan"],
+  body_art_service: ["Tattoo", "Piercing", "Touch-up", "Cover-up", "Consultation"],
+  dentist: ["Cleaning", "Checkup", "Whitening", "Filling", "Crown", "Emergency visit"],
+  chiropractor: ["New patient exam", "Adjustment", "Massage", "Spinal decompression", "Consultation"],
+  physiotherapist: [
+    "Evaluation",
+    "Physical therapy session",
+    "Sports injury rehab",
+    "Post-surgery rehab",
+    "Dry needling"
+  ],
+  doctor: ["New patient visit", "Annual physical", "Sick visit", "Follow-up", "Telehealth visit", "Vaccination"],
+  foot_care: ["Foot exam", "Nail care", "Callus removal", "Orthotics fitting", "Diabetic foot check"],
+  wellness_center: ["Consultation", "Massage", "Acupuncture", "IV drip", "Membership"],
+  veterinary_care: ["Wellness exam", "Vaccinations", "Dental cleaning", "Spay or neuter", "Sick visit", "Microchip"],
+  pet_care: ["Full groom", "Bath and brush", "Nail trim", "Boarding", "Daycare", "Dog walking"],
+  fitness_center: ["Personal training", "Group class", "Membership", "Day pass", "Nutrition coaching"],
+  yoga_studio: ["Drop-in class", "Class pack", "Private session", "Beginners series", "Membership"],
+  car_repair: ["Oil change", "Brake service", "Diagnostics", "Tire rotation", "Inspection", "AC repair"],
+  car_wash: ["Exterior wash", "Full detail", "Interior cleaning", "Wax", "Monthly plan"],
+  tire_shop: ["Tire installation", "Rotation", "Balancing", "Alignment", "Flat repair"],
+  moving_company: ["Local move", "Long-distance move", "Packing", "Storage", "Piano move", "Office move"],
+  plumber: ["Leak repair", "Drain cleaning", "Water heater", "Toilet repair", "Emergency call-out", "Inspection"],
+  electrician: [
+    "Outlet installation",
+    "Panel upgrade",
+    "Lighting installation",
+    "EV charger installation",
+    "Troubleshooting",
+    "Inspection"
+  ],
+  roofing_contractor: ["Roof inspection", "Roof repair", "Roof replacement", "Gutter repair", "Estimate"],
+  painter: ["Interior painting", "Exterior painting", "Cabinet painting", "Drywall repair", "Estimate"],
+  locksmith: ["Lockout", "Rekey", "Lock installation", "Key cutting", "Car lockout"],
+  laundry: ["Wash and fold", "Dry cleaning", "Pickup and delivery", "Alterations"],
+  tailor: ["Alterations", "Hemming", "Suit tailoring", "Repairs", "Custom fitting"],
+  florist: ["Bouquet", "Wedding flowers", "Event flowers", "Sympathy flowers", "Delivery"],
+  lawyer: ["Consultation", "Contract review", "Estate planning", "Family law", "Business formation"],
+  insurance_agency: ["Quote", "Auto insurance", "Home insurance", "Life insurance", "Policy review"],
+  real_estate_agency: ["Home valuation", "Buyer consultation", "Listing appointment", "Showing", "Rental help"],
+  catering_service: ["Event catering", "Tasting", "Corporate lunch", "Wedding catering", "Drop-off catering"],
+  child_care_agency: ["Tour", "Full-time care", "Part-time care", "After-school care", "Drop-in care"]
+};
+var SAME_AS = {
+  hair_care: "hair_salon",
+  beautician: "beauty_salon",
+  massage: "spa",
+  massage_spa: "spa",
+  dental_clinic: "dentist",
+  medical_clinic: "doctor",
+  medical_center: "doctor",
+  gym: "fitness_center",
+  pet_boarding_service: "pet_care"
+};
+var SERVICE_SUGGESTION_TYPES = /* @__PURE__ */ (() => Object.keys(SUGGESTIONS))();
+function serviceSuggestionsOf(type) {
+  const t = (type ?? "").trim();
+  return SUGGESTIONS[SAME_AS[t] ?? t] ?? [];
+}
+function checkChipsOf(i) {
+  const listed = (Array.isArray(i.services) ? i.services : []).map((s) => s && typeof s.name === "string" ? s.name.trim() : "").filter(Boolean);
+  const chosen = (Array.isArray(i.languages) ? i.languages : []).filter((l) => typeof l === "string" && l.trim() !== "").map((l) => l.trim());
+  const has3 = (list2, name) => list2.some((x) => sameListed(x, name));
+  const besides = chosen.filter((l, k) => !has3(COMMON_LANGUAGES, l) && !has3(chosen.slice(0, k), l));
+  const set = (key, chips, count2) => count2 >= PROFILE_LIMITS[key] && chips.some((c) => !c.on) ? { chips: chips.filter((c) => c.on), full: profileRefusal(key) } : { chips, full: null };
+  return {
+    services: set(
+      "services",
+      serviceSuggestionsOf(i.type).map((name) => ({ name, on: has3(listed, name) })),
+      listed.length
+    ),
+    languages: set(
+      "languages",
+      [
+        ...COMMON_LANGUAGES.map((name) => ({ name, on: has3(chosen, name) })),
+        ...besides.map((name) => ({ name, on: true }))
+      ],
+      chosen.length
+    )
+  };
+}
+
 // src/first-run.ts
 var FIRST_RUN_ROUTE = "start";
 function firstRunStepRoute(key) {
@@ -6206,8 +6342,48 @@ var FIRST_RUN_WORDS = {
     retry: "Try again",
     terms: "Terms of service",
     privacy: "Privacy policy"
+  },
+  /** Check, the business step once Find is not shown (canvas R2, V2): what the receptionist answers from. */
+  check: {
+    /** A listing on record: what was found there. */
+    found: "Here's what we found",
+    foundLead: "Your receptionist answers from this. Fix anything that's off.",
+    /** None: the basics, asked (V2). */
+    basics: "Tell us the basics",
+    basicsLead: "Your receptionist answers from this. You can add more later in Settings \u203A Business.",
+    /** No receptionist yet: the owner's one press, and where it starts from. */
+    makeListed: "Your receptionist starts from what your Google listing says, and you check it here.",
+    makeNamed: (name) => `Your receptionist starts with ${name ? `the name ${name}` : "your business's name"}, and you add the rest here.`,
+    make: "Set up your receptionist",
+    making: "Setting up\u2026",
+    notMade: "Not set up",
+    ownerSetsUp: "An owner sets up the receptionist here.",
+    /** Made, but the settings read has not brought it yet; and a read that failed, by what it could not read. */
+    reading: "Reading your receptionist\u2026",
+    failedWhat: "your receptionist",
+    /** The onward, once what it answers from is checked. */
+    looksRight: "Looks right",
+    /** Not on Google, said, where Google can be searched: the way back to Find. */
+    findIt: "On Google after all? Find it",
+    /** What each group of rows is, for a screen reader: the words on screen are the rows' own. */
+    groups: { facts: "Your hours and where you are", buys: "How customers buy", offer: "What it offers" },
+    /** The chips (check-chips.ts): a tap adds one, a tap on one that is on takes it out, with an Undo. */
+    chips: {
+      services: "Tap what you offer. A few is enough.",
+      languages: "Languages it answers in",
+      ownService: "+ Your own",
+      otherLanguage: "+ Other",
+      removed: (name) => `Removed ${name}`
+    }
   }
 };
+function unsureHoursWords(days) {
+  if (!days.length) return null;
+  if (days.length >= 7) return "Google's hours for every day could not be copied: add yours.";
+  const names2 = days.map((d) => DAY_NAMES2[d] ?? d);
+  const list2 = names2.length === 1 ? names2[0] : `${names2.slice(0, -1).join(", ")} and ${names2[names2.length - 1]}`;
+  return `Google's hours for ${list2} could not be copied: check ${days.length === 1 ? "that day" : "those days"}.`;
+}
 var rowOf = (vm, id) => vm.rows.find((r2) => r2.id === id) ?? null;
 var stepDone = (vm, def) => def.needs.every((id) => {
   const r2 = rowOf(vm, id);
@@ -6240,23 +6416,62 @@ function firstRunOf(vm, at2, who) {
   const final = def === last;
   const google = rowOf(vm, "google");
   const find = shown.key === "business" && !!who?.owner && vm.findable && !!google && (findAsked || !google.later);
-  const onward = find ? null : final ? { label: FIRST_RUN_WORDS.finish, to: "today", leaves: true } : shown.state === "done" ? { label: FIRST_RUN_WORDS.continue, to: FIRST_RUN_ROUTE, leaves: false } : null;
-  const primary = onward || find ? null : shown.rows.find((r2) => r2.state !== "ready" && !r2.later && r2.verb) ?? null;
-  const W = FIRST_RUN_WORDS.find;
+  const C2 = FIRST_RUN_WORDS.check;
+  const onCheck = shown.key === "business" && !find && vm.check.receptionist !== "broken";
+  const made = vm.check.receptionist === "set";
+  const check = onCheck ? {
+    made,
+    make: !made && who?.owner ? {
+      sentence: vm.check.listed ? C2.makeListed : C2.makeNamed(businessNameOf(null, who.workspaceName)),
+      cta: C2.make,
+      busy: C2.making
+    } : null,
+    waiting: !made && !who?.owner ? C2.ownerSetsUp : null,
+    unsure: made ? unsureHoursWords(vm.check.unsure) : null,
+    find: vm.findable && who?.owner ? { label: C2.findIt, to: FIRST_RUN_FIND_ROUTE } : null,
+    type: vm.check.type
+  } : null;
+  const F = FIRST_RUN_WORDS.find;
+  const facts = rowOf(vm, "facts");
+  const face = find ? {
+    heading: F.heading(businessNameOf(who?.receptionistName, who?.workspaceName)),
+    lead: who?.receptionistName ? F.leadOnRecord : F.lead,
+    onward: null
+  } : check ? {
+    heading: vm.check.listed ? C2.found : C2.basics,
+    lead: vm.check.listed ? C2.foundLead : C2.basicsLead,
+    onward: made ? {
+      label: C2.looksRight,
+      to: FIRST_RUN_ROUTE,
+      leaves: false,
+      held: shown.state === "done" ? null : facts?.sentence ?? null
+    } : null
+  } : final ? {
+    heading: FIRST_RUN_WORDS.liveHeading,
+    lead: vm.readiness.sentence,
+    onward: { label: FIRST_RUN_WORDS.finish, to: "today", leaves: true, held: null }
+  } : {
+    heading: def.name,
+    lead: def.lead,
+    onward: shown.state === "done" ? { label: FIRST_RUN_WORDS.continue, to: FIRST_RUN_ROUTE, leaves: false, held: null } : null
+  };
+  const onward = face.onward;
+  const primary = onward || find || check ? null : shown.rows.find((r2) => r2.state !== "ready" && !r2.later && r2.verb) ?? null;
   return {
     steps,
     current,
     complete: !open,
     shown,
-    heading: find ? W.heading(businessNameOf(who?.receptionistName, who?.workspaceName)) : final ? FIRST_RUN_WORDS.liveHeading : def.name,
-    lead: find ? who?.receptionistName ? W.leadOnRecord : W.lead : final ? vm.readiness.sentence : def.lead,
+    heading: face.heading,
+    lead: face.lead,
     phoneLine: firstRunKicker(shown.key),
     progress: Math.round(shown.number / FIRST_RUN_STEPS.length * 100),
     primaryRow: primary ? primary.id : null,
     back: shown.number > 1 ? steps[shown.number - 2].to : null,
     onward,
     find,
-    findDone: find && findAsked ? shown.to : null
+    findDone: find && findAsked ? shown.to : null,
+    check
   };
 }
 var CARD_SKIP = { put: "Skip", said: "Put off. It stays in Setting up for when you're ready." };
@@ -6300,6 +6515,11 @@ function setupCardOf(vm) {
 }
 var linkShown = (url) => url.replace(/^https?:\/\/(www\.)?/i, "").replace(/\/+$/, "");
 function receptionistCardOf(i) {
+  if (i.sellsBy !== null && typeof i.sellsBy !== "string") {
+    throw new TypeError(
+      "receptionistCardOf needs how customers buy (the workspace's sells_by, null when not said): how a business that quotes is reached turns on it."
+    );
+  }
   const b = i.brain;
   const p = b?.profile ?? null;
   const spoken = (b?.business_name || i.setup.business.name || "").trim();
@@ -6311,6 +6531,7 @@ function receptionistCardOf(i) {
   const line = i.numbers?.voiceLine ?? i.setup.channels.voice.number ?? null;
   const through = i.numbers?.handoff ?? i.setup.business.handoff ?? null;
   const show = (n) => n ? formatPhoneDisplay(n) ?? n : null;
+  const quotes = !!b && !b.booking_link && bookingLinkOptional(i.sellsBy);
   return {
     caption: "Your receptionist, so far",
     initials: name ? initialsOf(name) : "",
@@ -6326,7 +6547,7 @@ function receptionistCardOf(i) {
         label: "Knows",
         value: sv.count ? [sv.chips.map((c) => c.name).join(", "), sv.more].filter(Boolean).join(" ") : null
       },
-      { key: "books", label: "Books with", value: b?.booking_link ? linkShown(b.booking_link) : null },
+      quotes ? { key: "books", label: "For a quote", value: "Takes their details" } : { key: "books", label: "Books with", value: b?.booking_link ? linkShown(b.booking_link) : null },
       { key: "speaks", label: "Speaks", value: p?.languages?.length ? p.languages.join(", ") : null },
       // The line it answers, and the number set to forward to it, as recorded: no claim about when a call forwards.
       {
@@ -6347,6 +6568,7 @@ var FIRST_RUN_HELPERS = {
   of: firstRunOf,
   receptionist: receptionistCardOf,
   todayCard: setupCardOf,
+  chips: checkChipsOf,
   words: FIRST_RUN_WORDS,
   landedKey: FIRST_RUN_LANDED_KEY
 };
@@ -8456,6 +8678,34 @@ function savedListTip(list2) {
 var PeopleExportQuerySchema = z7.object({
   list: z7.string().max(80).refine((t) => parseListToken(t) !== null, "Name a list by its token.").optional()
 });
+function ruleNeedsViewer(rule) {
+  if (rule == null) return false;
+  const r2 = asListRule(rule);
+  return !!r2 && ruleNeeds(r2).includes("viewer");
+}
+var viewerListWords = (name) => `${name} is about whoever is looking ("me"), and a playbook's run has no one looking. Pick a list that says who by what they did.`;
+var TODAY_PINS_MAX = 8;
+function pinTokens(view) {
+  const pins = view && typeof view === "object" ? view.pins : null;
+  return Array.isArray(pins) ? pins.filter((t) => typeof t === "string" && parseListToken(t) !== null).slice(0, TODAY_PINS_MAX) : [];
+}
+function todayPins(view, people) {
+  return pinTokens(view).flatMap((token) => {
+    const ref = parseListToken(token);
+    if (ref.kind === "builtin") {
+      const l = people.lists.find((x) => x.id === ref.id);
+      return l ? [{ token, label: l.label, count: l.count, to: `clients/seg:${l.id}` }] : [];
+    }
+    const s = people.saved.find((x) => x.id.toLowerCase() === ref.id);
+    return s ? [{ token, label: s.name, count: s.unknown ? null : s.count, to: `clients/list:${s.id}` }] : [];
+  });
+}
+function togglePin(view, token) {
+  const pins = pinTokens(view);
+  const t = token.toLowerCase();
+  if (pins.some((p) => p.toLowerCase() === t)) return { pins: pins.filter((p) => p.toLowerCase() !== t) };
+  return pins.length < TODAY_PINS_MAX ? { pins: [...pins, token] } : null;
+}
 
 // src/people.ts
 var PERSON_MODES = ["auto", "ask", "never"];
@@ -8906,7 +9156,7 @@ function saidYesTo(r2, purpose) {
     { proactive: true }
   ).ok;
 }
-function receptionistOf(r2, tz, nowMs) {
+function receptionistOf2(r2, tz, nowMs) {
   if (isOwned(r2, nowMs)) return { tone: "paused", label: "Paused, a person owns the thread" };
   if (r2.open_escalation_reason)
     return { tone: "escalated", label: `Escalated, ${reasonShort(r2.open_escalation_reason)}` };
@@ -8972,7 +9222,7 @@ function toPersonRowVM(r2, tz, now = /* @__PURE__ */ new Date(), viewerId = null
     stateLabel: PERSON_STATE_LABELS[state],
     stateDetail,
     lastContact: last,
-    receptionist: receptionistOf(r2, tz, nowMs),
+    receptionist: receptionistOf2(r2, tz, nowMs),
     firstContact: first,
     cameFrom: cameFromOf(r2),
     consent,
@@ -9696,7 +9946,7 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date(), viewerId = null) {
     ownMessages: ownMessagesOf(d, stamp),
     smartLists: PEOPLE_LISTS.filter(
       (l) => l.onProfile !== false && (!l.needsCalendar || d.visits?.state === "ok") && l.test(base)
-    ).map((l) => ({ id: l.id, label: l.label })),
+    ).map((l) => ({ id: l.id, label: l.label, why: listRuleWhy(l.rule, base) })),
     campaigns: campaignsOf(d, tz, nowMs),
     lead: d.lead ? {
       id: d.lead.id,
@@ -12270,6 +12520,34 @@ function toReportVM(dto) {
 }
 
 // src/google.ts
+var pointOf = (v) => {
+  const p = v !== null && typeof v === "object" ? v : null;
+  return p && typeof p.day === "number" && typeof p.hour === "number" && typeof p.minute === "number" ? { day: p.day, hour: p.hour, minute: p.minute } : null;
+};
+function listingFactsOf(raw) {
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const r2 = raw;
+  if (!Object.keys(r2).length) return null;
+  const text = (v) => typeof v === "string" && v.trim() ? v.trim() : null;
+  const hours = Array.isArray(r2.hours) ? r2.hours.flatMap((p) => {
+    const q = p !== null && typeof p === "object" ? p : null;
+    const open = q ? pointOf(q.open) : null;
+    if (!q || !open) return [];
+    if (q.close == null) return [{ open, close: null }];
+    const close = pointOf(q.close);
+    return close ? [{ open, close }] : [];
+  }) : null;
+  return {
+    hours,
+    phone_e164: text(r2.phone_e164),
+    phone_display: text(r2.phone_display),
+    website: text(r2.website),
+    primary_type: text(r2.primary_type),
+    primary_type_label: text(r2.primary_type_label),
+    service_area_only: r2.service_area_only === true,
+    time_zone: text(r2.time_zone)
+  };
+}
 var hhmm2 = (h, m) => `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 function hoursFromGoogle(periods) {
   if ((periods ?? []).some((p) => !p.close)) return { hours: {}, unsure: [...DAYS] };
@@ -13735,7 +14013,13 @@ function setupSteps(i, nowMs = Date.now()) {
       whatsapp: waReady ? wa.number : null,
       whatsappLabel: waReady ? waNum : null
     } : null,
-    findable: !!i.google?.ready && i.google.places !== false && !i.google.listing
+    findable: !!i.google?.ready && i.google.places !== false && !i.google.listing,
+    check: {
+      receptionist: i.business.receptionist,
+      listed: !!i.google?.listing,
+      unsure: i.google?.unsure ?? [],
+      type: i.google?.type ?? null
+    }
   };
 }
 function setupRoute(hash) {
@@ -15284,6 +15568,7 @@ function emailWires(email) {
   return email?.ready && email.mailbox ? [{ kind: "email", status: "active", number: null, address: email.mailbox.address }] : [];
 }
 var TODAY_QUEUE_MAX = 6;
+var SEARCH_WARN_MS = 12 * 36e5;
 var QUOTE_MAX = 240;
 var NO_REPLY_AFTER_MS = 36e5;
 var andList = (xs) => xs.length < 3 ? xs.join(" and ") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`;
@@ -15535,7 +15820,7 @@ function figuresOf(m, conversations, callsInWindow, escalations, tz, now) {
   };
   return [messages, answered, calls, newPeople];
 }
-function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ new Date()) {
+function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ new Date(), searches = null) {
   const tz = m.workspace.timezone;
   const p = m.period;
   const live = m.now;
@@ -15964,13 +16249,39 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       waitedMs: Number.NEGATIVE_INFINITY
     });
   }
+  for (const s of searches ?? []) {
+    const r2 = s.round;
+    if (!r2 || r2.state !== "waiting_on_owner" || !r2.question) continue;
+    const since = r2.waiting_since ? new Date(r2.waiting_since).getTime() : now.getTime();
+    const waitedMs = Math.max(0, now.getTime() - since);
+    queueAll.push({
+      id: `q-s-${s.id}`,
+      kind: "search",
+      conversationId: null,
+      callId: null,
+      who: s.name,
+      initials: initialsOf(s.name),
+      channel: "Leads",
+      when: `waited ${formatWaited(waitedMs)}`,
+      sentence: r2.question.sentence,
+      quoted: false,
+      status: ["Waiting for your answer", "nothing is spent while it waits"],
+      tone: "escalated",
+      warn: waitedMs > SEARCH_WARN_MS,
+      cta: { label: "Answer", to: leadQuestionRoute(s.id) },
+      also: null,
+      waitedMs
+    });
+  }
   queueAll.sort((a, b) => b.waitedMs - a.waitedMs);
   const countOf = (...kinds) => queueAll.filter((r2) => kinds.includes(r2.kind)).length;
   const needN = countOf("handoff", "callback");
   const winN = countOf("window");
   const earN = countOf("call");
+  const searchN = countOf("search");
   const parts2 = [
     needN ? `${needN} need you` : "",
+    searchN ? `${searchN} ${searchN === 1 ? "search" : "searches"} waiting for your answer` : "",
     winN ? `${winN} reply window${winN === 1 ? "" : "s"} closing` : "",
     earN ? `${earN} call${earN === 1 ? "" : "s"} worth a listen` : ""
   ].filter(Boolean);
@@ -15979,7 +16290,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
     more: Math.max(0, queueAll.length - TODAY_QUEUE_MAX),
     parts: parts2,
     empty: queueEmpty,
-    waiting: needN + winN
+    waiting: needN + winN + searchN
   };
   return {
     standing: {
@@ -17098,6 +17409,8 @@ function cardOpenRoute(p) {
     case "playbook":
       return "outbound";
     case "lead_search": {
+      const am = pl.amends ?? null;
+      if (am && typeof am.search_id === "string" && am.search_id) return leadQuestionRoute(am.search_id);
       const undo = p.outcome?.undo ?? {};
       const sid = typeof undo.search_id === "string" && undo.search_id ? undo.search_id : null;
       return sid ? leadsRoute({ searchId: sid, list: "all", cls: null }) : "clients/leads";
@@ -17187,12 +17500,15 @@ function rightNowLine(w, language) {
   const people = total ? es ? `${names(who, total, true)} ${total === 1 ? "te espera" : "te esperan"}` : `${names(who, total, false)} ${total === 1 ? "is" : "are"} waiting on you` : "";
   const n = w.runs.length;
   const runs = n ? es ? `${n === 1 ? "un env\xEDo de playbook espera" : `${n} env\xEDos de playbook esperan`} tu aprobaci\xF3n` : `${n === 1 ? "one playbook run is" : `${n} playbook runs are`} waiting for your approval` : "";
-  if (!people && !runs) return es ? "Nadie te espera ahora mismo." : "Nobody is waiting on you right now.";
-  const s = [people, runs].filter(Boolean).join("; ");
+  const k = w.searches.length;
+  const searchesLine = k ? es ? k === 1 ? `tu b\xFAsqueda de ${w.searches[0].name} espera tu respuesta` : `${k} b\xFAsquedas esperan tu respuesta` : k === 1 ? `your search for ${w.searches[0].name} is waiting for your answer` : `${k} searches are waiting for your answer` : "";
+  if (!people && !runs && !searchesLine)
+    return es ? "Nadie te espera ahora mismo." : "Nobody is waiting on you right now.";
+  const s = [people, runs, searchesLine].filter(Boolean).join("; ");
   return `${s.charAt(0).toUpperCase()}${s.slice(1)}.`;
 }
 function rightNowCounts(w) {
-  return w ? { people: w.people.length + w.more, runs: w.runs.length } : { people: 0, runs: 0 };
+  return w ? { people: w.people.length + w.more, runs: w.runs.length, searches: w.searches.length } : { people: 0, runs: 0, searches: 0 };
 }
 function needsAnswer(w, language) {
   const es = language === "es";
@@ -17207,6 +17523,12 @@ function needsAnswer(w, language) {
       meta: `${p.channel} \xB7 ${p.when}`,
       line: p.line,
       source: { kind: p.kind, id: p.id, label: p.who, to: p.to, door: true }
+    })),
+    ...w.searches.map((x) => ({
+      title: x.name,
+      meta: "Leads",
+      line: x.question,
+      source: { kind: "page", id: x.to, label: x.name, to: x.to, door: true }
     })),
     ...w.runs.map((r2) => ({
       title: r2.label,
@@ -21058,6 +21380,49 @@ function importCounts(rows) {
     unreadable: rows.filter((r2) => !r2.phone && !r2.email).length
   };
 }
+
+// src/first-receptionist.ts
+var NAME_MAX = BrainConfigSchema.shape.business_name.maxLength ?? Infinity;
+function googleProfileOf(listing) {
+  const facts = listing?.facts ?? null;
+  const profile = {};
+  const week = hoursFromGoogle(facts?.hours ?? null);
+  if (Object.keys(week.hours).length) {
+    profile.hours = Object.fromEntries(
+      DAYS.filter((d) => !week.unsure.includes(d)).map((d) => [d, week.hours[d] ?? {}])
+    );
+  }
+  const address = (listing?.address ?? "").trim();
+  if (address && !facts?.service_area_only && BusinessProfileSchema.shape.address.safeParse(address).success) {
+    profile.address = address;
+  }
+  if (facts?.website && BusinessProfileSchema.shape.website.safeParse(facts.website).success) {
+    profile.website = facts.website;
+  }
+  return profile;
+}
+function firstReceptionistOf(known) {
+  const resolved = resolveFacts(null, {
+    workspace: { name: known.workspaceName },
+    listing: known.listing ? { name: known.listing.name, address: known.listing.address } : null
+  }).business_name.value;
+  const name = (resolved ?? "").slice(0, NAME_MAX).trim();
+  if (!name) return null;
+  const profile = googleProfileOf(known.listing);
+  return {
+    business_name: name,
+    ...newReceptionistDefaults(name),
+    ...Object.keys(profile).length ? { profile } : {}
+  };
+}
+function googleFillsOf(brain, listing) {
+  const p = brain.profile ?? {};
+  const google = googleProfileOf(listing);
+  const states = (v) => typeof v === "string" ? v.trim() !== "" : !!v && typeof v === "object" && Object.keys(v).length > 0;
+  const fills = ["hours", "address", "website"].filter((k) => google[k] !== void 0 && !states(p[k]));
+  if (!fills.length) return null;
+  return { ...brain, profile: { ...p, ...Object.fromEntries(fills.map((k) => [k, google[k]])) } };
+}
 export {
   ABANDONED_MS,
   ABILITY_CHANNEL_WORDS,
@@ -21135,6 +21500,7 @@ export {
   CHECKOUT_RETURNS,
   CHECKOUT_RETURN_ROUTE,
   CHIPS_SHOWN,
+  COMMON_LANGUAGES,
   COMPANY_TYPES,
   CONFIDENCE_STEPS,
   CONNECTION_GROUP_WORDS,
@@ -21152,6 +21518,7 @@ export {
   CalendarConfigSchema,
   ClosureSchema,
   DAYS,
+  DAY_NAMES2 as DAY_NAMES,
   DEAL_ACT_HINTS,
   DEAL_ACT_WORDS,
   DEAL_CARD_WORDS,
@@ -21511,6 +21878,7 @@ export {
   SENDING_HOURS_WORDS,
   SERVER_KEY_PREFIX,
   SERVER_NOTIFICATION_KINDS,
+  SERVICE_SUGGESTION_TYPES,
   SETUP_CARD_ORDER,
   SETUP_LATER_REFUSED,
   SETUP_REQUEST_KINDS,
@@ -21557,6 +21925,7 @@ export {
   TOAST_UNDO_MS,
   TODAY_DAY_MAX,
   TODAY_LEAK_MAX,
+  TODAY_PINS_MAX,
   TODAY_QUEUE_MAX,
   TODAY_STEPS_MAX,
   TONES,
@@ -21645,6 +22014,7 @@ export {
   channelFor,
   channelKindWords,
   channelsOf2 as channelsOf,
+  checkChipsOf,
   checkNoteSuggestion,
   checkedWords,
   chipsMoreWords,
@@ -21775,6 +22145,7 @@ export {
   findLanguages,
   firstLine,
   firstNameOf,
+  firstReceptionistOf,
   firstRunKicker,
   firstRunOf,
   firstRunStepOf,
@@ -21806,6 +22177,7 @@ export {
   gainedOver,
   googleAudienceWords,
   googleCallbackUrl,
+  googleFillsOf,
   greetingFor,
   groundCitations,
   groupTemplates,
@@ -21946,6 +22318,7 @@ export {
   listRuleWhy,
   listToken,
   listUnknownWords,
+  listingFactsOf,
   listingLine,
   listsFor,
   liveBar,
@@ -22048,6 +22421,7 @@ export {
   personStateFor,
   phoneTail,
   pickCurrentDeal,
+  pinTokens,
   pipelineBoardMore,
   pipelineMove,
   pipelineOf,
@@ -22131,6 +22505,7 @@ export {
   receiptWords,
   recencyCells,
   receptionistCardOf,
+  receptionistOf,
   receptionistOn,
   refusalOf,
   registrationPathOf,
@@ -22163,6 +22538,7 @@ export {
   ruleFacts,
   ruleLists,
   ruleNeeds,
+  ruleNeedsViewer,
   ruleParts,
   ruleStrength,
   rulesKept,
@@ -22174,6 +22550,7 @@ export {
   saidYesTo,
   saidYesWords,
   sameAddress,
+  sameListed,
   sameName,
   samePhone,
   sameQuestion,
@@ -22190,6 +22567,7 @@ export {
   sendableTemplates,
   serverNotificationRows,
   serviceOf,
+  serviceSuggestionsOf,
   serviceUndoName,
   servicesFoundWords,
   servicesSaveWords,
@@ -22311,12 +22689,14 @@ export {
   todayDay,
   todayLeaks,
   todayPeriodLine,
+  todayPins,
   todayProof,
   todayRunApproved,
   todayRunWords,
   todayRunsSub,
   todaySteps,
   todayStepsDue,
+  togglePin,
   tomorrowAtIn,
   trialOffer,
   trialWords,
@@ -22326,6 +22706,7 @@ export {
   unknownDetails,
   unmetNeed,
   unreadCount,
+  unsureHoursWords,
   usPhone,
   usableDeviceTimezone,
   v1FromAnswer,
@@ -22333,6 +22714,7 @@ export {
   verbForRoute,
   verbalOptInScript,
   verifyCodeWords,
+  viewerListWords,
   violatesNoPrices,
   visitAnswersAsk,
   visitDateKey,

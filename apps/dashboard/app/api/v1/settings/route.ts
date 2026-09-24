@@ -10,13 +10,13 @@ import {
   knownForwarding,
   samePhone,
   whyNotAHandoff,
-  changedConfigFields,
   type KnownFacts,
 } from "@chanlytics/contracts";
 import { getTenantConfig, putTenantConfig } from "@chanlytics/db";
 import type { Json } from "@chanlytics/db";
 import { promptPreview } from "@/server/prompt-preview";
 import { linesFor } from "@/server/lines";
+import { SETTINGS_REFUSED, recordSettingsChanged } from "@/server/settings-write";
 
 function maskFeedUrl(u: string): string {
   return u.length <= 30 ? "…" : `${u.slice(0, 24)}…${u.slice(-6)}`;
@@ -166,42 +166,9 @@ export const PUT = write({
       if (why) throw new AppError("validation", why);
     }
     const result = await putTenantConfig(ctx.supabase, member.tenantId, parsed.data as Json, body.version, ctx.userId);
-    if (!result.ok) {
-      // These are different failures and used to share one message. Telling an
-      // owner "someone else saved settings" when the row simply does not exist
-      // blames an imaginary colleague and prescribes a reload that can never
-      // help. Provisioning (migration 00017) makes the second case unreachable
-      // for tenants created from now on; this stays honest about the rest.
-      if (result.reason === "missing") {
-        throw new AppError(
-          "conflict",
-          "This workspace has no settings record yet, so there was nothing to update. It needs provisioning before settings can be saved.",
-          409,
-        );
-      }
-      throw new AppError("conflict", "Someone else saved settings after you loaded them — reload and reapply.", 409);
-    }
-    // The change, in the ledger every other consequential act lands in. Fields,
-    // never values -- see changedConfigFields. Best effort by design: an audit
-    // row that failed to write must not fail the save the owner just made and
-    // watched succeed.
-    const fields = changedConfigFields(before?.config, parsed.data);
-    if (fields.length) {
-      await ctx.supabase
-        .from("events")
-        .insert({
-          tenant_id: member.tenantId,
-          kind: "settings.changed",
-          category: "system",
-          subject_type: "workspace",
-          subject_id: member.tenantId,
-          // `via` says a card was tapped rather than a form saved, as the decisions ledger says it.
-          data: { fields, by: ctx.userId, version: result.row.version, ...(ctx.via ? { via: ctx.via } : {}) },
-        })
-        .then(({ error }) => {
-          if (error) console.error("settings_event_failed", error.message);
-        });
-    }
+    // Two different failures, each in its own words (settings-write.ts says why).
+    if (!result.ok) throw new AppError("conflict", SETTINGS_REFUSED[result.reason], 409);
+    await recordSettingsChanged(ctx, member.tenantId, before?.config, parsed.data, result.row.version);
     return { config: parseTenantConfig(result.row.config) ?? {}, version: result.row.version };
   },
 });

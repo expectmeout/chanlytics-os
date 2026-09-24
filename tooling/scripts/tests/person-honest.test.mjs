@@ -931,6 +931,42 @@ test("a frame with nobody to draw has no rail column; History leads About; ten s
   assert.match(textOf(history), /1 call, 12 s/, textOf(history));
 });
 
+test("each smart list on a profile says why it has them, in its rule's words (decision 0009)", async () => {
+  const vm = toPersonVM(detail({ row: row({ visits: VISITS }) }), ZONE, new Date(NOW));
+  assert.ok(vm.smartLists.length > 0, "the fixture is on one of People's lists");
+  for (const l of vm.smartLists) assert.ok(typeof l.why === "string" && l.why.length > 0, `${l.label} says why`);
+  const saved = globalThis.window.__PEOPLE;
+  const listsKept = globalThis.window.__lists;
+  globalThis.window.__PEOPLE = {
+    ...(saved || {}),
+    savedRead: true,
+    saved: [
+      {
+        id: "s2",
+        name: "Texters",
+        ids: [vm.id],
+        byHand: false,
+        rule: ["Reaches you by WhatsApp"],
+        unknown: null,
+        tip: "",
+      },
+    ],
+  };
+  globalThis.window.__lists = {
+    why: (id, person) => (id === "s2" && person === vm.id ? "Reaches you by WhatsApp" : null),
+  };
+  try {
+    const tree = (await profile(vm))();
+    const smart = all(tree, (n) => n.props?.["data-testid"] === "person-smart-chip");
+    assert.ok(smart.length > 0);
+    for (const chip of smart) assert.match(find(chip, (n) => n.type === "button").props["data-tip"], /^Because: /);
+    assert.equal(byTestId(tree, "person-list-open").props["data-tip"], "Because: Reaches you by WhatsApp");
+  } finally {
+    globalThis.window.__PEOPLE = saved;
+    globalThis.window.__lists = listsKept;
+  }
+});
+
 test("a profile opened before People is read says it is reading their lists -- it said there were none (decision 0009)", async () => {
   const vm = toPersonVM(detail({ row: row({ visits: VISITS }) }), ZONE, new Date(NOW));
   const saved = globalThis.window.__PEOPLE;

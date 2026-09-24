@@ -70,7 +70,7 @@ import {
 } from "../dto";
 import { audiencePoolOnce, poolList } from "../audience";
 import { dealPaceRead, sellsByOf } from "../deals";
-import { listSearches } from "../leads";
+import { listSearches, waitingQuestionOf } from "../leads";
 import { metricsSummaryFor } from "../metrics";
 import { listPlaybooks, proposalFollowUps } from "../playbooks";
 import { calendarWeek } from "../calendar";
@@ -189,7 +189,7 @@ export const READ_TOOLS: ToolDef[] = [
   {
     name: "list_lead_searches",
     description:
-      "The workspace's lead searches, newest first: what was asked in the owner's words and when, its state or ending in words, and how many qualified, need review and were counted. Read this before proposing a search, so a plan is not repeated.",
+      "The workspace's lead searches, newest first: what was asked in the owner's words and when, its state or ending in words, how many qualified, need review and were counted, and, for a search that stopped to ask, its question. Read this before proposing a search, so a plan is not repeated.",
     input_schema: obj({}),
   },
 ];
@@ -1236,26 +1236,32 @@ const ROUND_WORDS: Record<string, string> = {
 /**
  * Every search this workspace has asked for, newest first, in the owner's own
  * words: what they asked, the day they asked it, where it is or how it ended,
- * and the three counts. Nothing is started by reading it, and every string is
- * cut to 120 characters so a long ask cannot fill a turn.
+ * the three counts, and, for a search that stopped to ask, its question (the
+ * model answers it through propose_lead_search's amends). Nothing is started
+ * by reading it, and every string is cut to 120 characters so a long ask
+ * cannot fill a turn.
  */
 async function listLeadSearches(t: ToolContext): Promise<unknown> {
   const rows = await listSearches(t.ctx, t.tenantId);
   const cut = (v: string | null | undefined) => (typeof v === "string" ? v.slice(0, 120) : "");
   return {
     route: "clients/leads",
-    searches: rows.map((r) => ({
-      id: r.id,
-      name: cut(r.name),
-      asked: cut(r.asked),
-      asked_on: r.created_at.slice(0, 10),
-      state: r.state ? (ROUND_WORDS[r.state] ?? r.state) : "not started",
-      ending: r.ending ? (LEAD_ENDING_WORDS[r.ending as LeadRoundEnding] ?? null) : null,
-      qualified: r.qualified,
-      review: r.review,
-      counted: r.counted,
-    })),
-    note: "Counted is what came off this month's leads. Nothing here has started or changed because you read it; a new search is propose_lead_search, which becomes a card the owner approves.",
+    searches: rows.map((r) => {
+      const q = waitingQuestionOf(r);
+      return {
+        id: r.id,
+        name: cut(r.name),
+        asked: cut(r.asked),
+        asked_on: r.created_at.slice(0, 10),
+        state: r.state ? (ROUND_WORDS[r.state] ?? r.state) : "not started",
+        ending: r.ending ? (LEAD_ENDING_WORDS[r.ending as LeadRoundEnding] ?? null) : null,
+        qualified: r.qualified,
+        review: r.review,
+        counted: r.counted,
+        question: q ? cut(q) : null,
+      };
+    }),
+    note: "Counted is what came off this month's leads. A search with a question is waiting for the owner's answer: to answer it with a change, propose_lead_search with amends set to its id, carrying the same plan with the answer applied and everything else as it was; to carry on unchanged or stop it, the owner presses Yes, keep going or Stop here on Leads. Nothing here has started or changed because you read it; a new search is propose_lead_search without amends, which becomes a card the owner approves.",
   };
 }
 

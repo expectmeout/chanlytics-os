@@ -471,3 +471,28 @@ test("one pool: the edge and the dashboard read everyone the same way -- visits 
     [null, null],
   );
 });
+
+test("Today's pins: tokens kept in order and capped, toggled in and out, and read over the People surface", async () => {
+  const { pinTokens, togglePin, todayPins, TODAY_PINS_MAX } = await import("@chanlytics/contracts");
+  const S = "bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb";
+  assert.deepEqual(pinTokens({ pins: ["seg:quiet", 7, "nonsense", `list:${S}`] }), ["seg:quiet", `list:${S}`]);
+  assert.deepEqual(pinTokens(null), []);
+  assert.deepEqual(togglePin({ pins: ["seg:quiet"] }, `list:${S}`), { pins: ["seg:quiet", `list:${S}`] });
+  assert.deepEqual(togglePin({ pins: ["seg:quiet", `list:${S}`] }, "seg:quiet"), { pins: [`list:${S}`] });
+  const many = Array.from({ length: TODAY_PINS_MAX }, (_, i) => `seg:list_${"abcdefghij"[i]}`);
+  assert.equal(togglePin({ pins: many }, "seg:booked"), null, "never past the cap, and no pin is dropped to make room");
+  assert.deepEqual(togglePin({ pins: many }, many[0]).pins, many.slice(1), "at the cap, one still comes off");
+  assert.deepEqual(
+    todayPins(
+      { pins: [`list:${S.toUpperCase()}`, "seg:quiet"] },
+      {
+        lists: [{ id: "quiet", label: "Quiet 30+ days", count: 2 }],
+        saved: [{ id: S, name: "VIPs", count: 3 }],
+      },
+    ),
+    [
+      { token: `list:${S.toUpperCase()}`, label: "VIPs", count: 3, to: `clients/list:${S}` },
+      { token: "seg:quiet", label: "Quiet 30+ days", count: 2, to: "clients/seg:quiet" },
+    ],
+  );
+});

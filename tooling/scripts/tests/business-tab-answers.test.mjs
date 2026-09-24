@@ -348,6 +348,19 @@ test("a language is added from the list or as typed, removed with its Undo, and 
   assert.deepEqual(sent[0].config, expected, "the languages, and nothing else");
 });
 
+test("a language is one language however it is written, by contracts' one rule, which the first run's chips ask too", () => {
+  let tree = drawTab({ profile: { ...marisa, languages: ["English", "Haitian Créole"] } });
+  openFold(tree, "languages");
+  tree = redrawTab();
+  langBox(tree).props.onChange({ target: { value: "Haitian Creole" } });
+  tree = redrawTab();
+  assert.deepEqual(
+    langOptions(tree).map(textOf),
+    [],
+    "chosen as Haitian Créole, it is not offered again as Haitian Creole",
+  );
+});
+
 test("a language typed and left in the box is added as focus leaves it, as the old form's was, and saved", () => {
   // The review's probe: "Xhosa" typed, then Save, closed "Saved" with no Xhosa. The old form added what was typed as its
   // box lost focus (settings.jsx addLang), and so does this one, through the kit's onLeave.

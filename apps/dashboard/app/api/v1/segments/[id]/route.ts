@@ -1,4 +1,4 @@
-import { AppError } from "@chanlytics/contracts";
+import { AppError, ruleNeedsViewer } from "@chanlytics/contracts";
 import {
   addToList,
   archiveList,
@@ -95,6 +95,16 @@ export const PUT = write({
       await recordDecision(ctx, tenantId, "list", id, "rename_list", { from: list.name, to: rename });
     }
     if (rule) {
+      // A playbook runs on it with no one looking: a rule about "me" would stop it every day, so it is refused here.
+      if (ruleNeedsViewer(rule)) {
+        const on = await playbooksOnList(ctx.supabase, tenantId, id);
+        if (on.length)
+          throw new AppError(
+            "conflict",
+            `${on.map((p) => p.name).join(", ")} runs on ${list.name}, and a playbook's run has no one looking: a rule about "me" would stop it. Move the playbook first.`,
+            409,
+          );
+      }
       const { error } = await setListRule(ctx.supabase, id, rule);
       if (error) throw new Error(error.message);
       await recordDecision(ctx, tenantId, "list", id, "change_list_rule", {

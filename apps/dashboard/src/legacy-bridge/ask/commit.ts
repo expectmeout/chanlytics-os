@@ -259,6 +259,20 @@ export async function commitProposal(win: Window, p: AskProposal, client: Api = 
       };
     }
     case "lead_search": {
+      const amends = (pl.amends ?? null) as { search_id?: unknown; name?: unknown } | null;
+      if (amends && typeof amends.search_id === "string" && amends.search_id) {
+        // The card answers the search that asked (spec G4): the route sets the answer's version and count.
+        const a = await viaAsk(client, "POST lead-searches/[id]/answer", {
+          params: { id: amends.search_id },
+          body: { answer: "include", plan: pl.plan } as never,
+        });
+        if (!a.ok) return a;
+        return {
+          ok: true,
+          receipt: `Answered. ${s(amends.name) || "The search"} carries on with your answer; Leads shows it.`,
+          undo: null,
+        };
+      }
       const plan = (pl.plan ?? {}) as { count?: number; terms?: string[] };
       const r = await viaAsk(client, "POST lead-searches", { body: pl.plan as never });
       if (!r.ok) return r;

@@ -23,8 +23,10 @@ import {
   PEOPLE_LISTS,
   peopleListAction,
   stateOf,
+  leadQuestionRoute,
 } from "@chanlytics/contracts";
 import { installLegacyReact, fresh, again, all, find, byTestId, textOf, classes, press } from "./_legacy-react.mjs";
+import { PLAN } from "./_lead-fixtures.mjs";
 
 const ZONE = "America/New_York";
 // 4 PM in New York on Friday 18 September 2026.
@@ -879,6 +881,52 @@ test("four rows: people take three while a run wants the fourth, and all four wh
   );
 });
 
+test("a search waiting on you is a row of the queue like a person: its name, its wait, its question, one Answer that opens it", () => {
+  clear();
+  // Stopped to ask at 1 PM, three hours before NOW.
+  const waiting = {
+    id: "s-wait",
+    name: "Personal trainers in Austin",
+    asked: PLAN.asked,
+    asked_on: "2026-09-17T15:00:00Z",
+    plan: PLAN,
+    plan_version: 1,
+    round: {
+      id: "rd1",
+      seq: 1,
+      purpose: "find",
+      state: "waiting_on_owner",
+      ending: null,
+      question: { sentence: "Most of the first 25 are chain gyms. Include them?", criterion_key: "chains" },
+      target: 20,
+      counted: 25,
+      qualified: 20,
+      review: 0,
+      excluded: 5,
+      emails_checked: 0,
+      with_phone: 18,
+      ending_pending: false,
+      waiting_since: "2026-09-18T17:00:00Z",
+      cost_usd: 1.2,
+      ended_at: null,
+      undo_op_id: null,
+      undo_version: null,
+      nearby: [],
+    },
+  };
+  const vm = toTodayVM(metrics(), threads(), escalations(), calls(), NOW, [waiting]);
+  set({ TODAY_DATA: vm, __BROADCASTS: { rows: [] } });
+  const queue = byTestId(draw(W.AgentCommand), "today-queue");
+  const row = byTestId(queue, "queue-search");
+  assert.ok(row, "the search is drawn by the same row as every person");
+  assert.equal(textOf(find(row, (n) => classes(n).includes("cl-attn-who"))), waiting.name);
+  assert.ok(textOf(row).includes("Leads, waited 3h"), textOf(row));
+  assert.ok(textOf(row).includes(waiting.round.question.sentence), "the question, as the search asked it");
+  assert.match(textOf(find(queue, (n) => classes(n).includes("tq-sub"))), /1 search waiting for your answer/);
+  press(buttons(row, "Answer")[0]);
+  assert.equal(went.at(-1), leadQuestionRoute("s-wait"), "straight to the search, open on its question");
+});
+
 /* ------------------------------------ the day ------------------------------------ */
 
 test("the day listens for People too: it reads People for a visit that needs someone and a person's channel, and on a cold boot People lands last", () => {
@@ -1514,8 +1562,9 @@ test("the page is three bands and nothing seeded: the standing line, the queue w
   const page = find(tree, (n) => classes(n).includes("dash-a-v2"));
   assert.deepEqual(
     page.props.children.map((c) => (typeof c.type === "function" ? c.type.name : String(c.props.className))),
-    // No band above the queue: on a phone Ask is the ✦'s full-screen takeover (ask-real.jsx), not a part of Today.
-    ["HeroBrief", "dash-a-v2-core", "TodayCard", "dash-a-v2-foot"],
+    // No band above the queue: on a phone Ask is the ✦'s full-screen takeover (ask-real.jsx), not a part of Today. The
+    // lists a member pinned (decision 0009) are one row under the card, drawn only when something is pinned.
+    ["HeroBrief", "dash-a-v2-core", "TodayCard", "TodayPins", "dash-a-v2-foot"],
   );
   const name = (c) => (typeof c.type === "function" ? c.type.name : String(c.props.className));
   const core = find(tree, (n) => classes(n).includes("dash-a-v2-core"));

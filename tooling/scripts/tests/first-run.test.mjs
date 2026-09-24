@@ -27,6 +27,12 @@ import {
   pendingWorkspaceOf,
   PENDING_WORKSPACE_KEY,
   SIGNUP_WORDS,
+  listingFactsOf,
+  firstReceptionistOf,
+  newReceptionistDefaults,
+  TenantConfigWriteSchema,
+  unsureHoursWords,
+  googleFillsOf,
 } from "@chanlytics/contracts";
 import { greetingFor as shellGreeting, GREETING_DEFAULT as SHELL_DEFAULT } from "@chanlytics/channels";
 
@@ -50,7 +56,16 @@ const VOICE = "+13055550124";
 const WA = "+13055550123";
 const HANDOFF = "+13055550100";
 const empty = (over = {}) => ({
-  business: { name: null, hours: false, services: 0, bookingLink: false, address: false, handoff: null, broken: false },
+  business: {
+    name: null,
+    hours: false,
+    services: 0,
+    bookingLink: false,
+    address: false,
+    handoff: null,
+    broken: false,
+    receptionist: "none",
+  },
   channels: {
     whatsapp: { present: false, active: false, number: null, quality: null, lastInboundAt: null },
     voice: { present: false, active: false, number: null, lastInboundAt: null },
@@ -71,6 +86,7 @@ const facts = {
   address: true,
   handoff: HANDOFF,
   broken: false,
+  receptionist: "set",
 };
 const live = (over = {}) =>
   empty({
@@ -91,7 +107,7 @@ const live = (over = {}) =>
   });
 const ids = (rows) => rows.map((r) => r.id);
 
-test("a new workspace starts on its business: one step current, the rest ahead, and the step draws only its own rows", () => {
+test("a new workspace starts on its business: one step current, the rest ahead, and the step is Check", () => {
   const fr = firstRunOf(setupSteps(empty(), NOW));
   assert.deepEqual(
     fr.steps.map((s) => [s.key, s.state]),
@@ -106,8 +122,8 @@ test("a new workspace starts on its business: one step current, the rest ahead, 
   assert.equal(fr.complete, false);
   assert.equal(fr.shown.key, "business");
   assert.deepEqual(ids(fr.shown.rows), ["facts"], "Setup's facts row; no Google row on a deployment without it");
-  assert.equal(fr.primaryRow, "facts", "the step's one coral action is its first open row");
-  assert.equal(fr.heading, "Your business");
+  assert.equal(fr.primaryRow, null, "Check draws the Business tab's rows, not Setup's");
+  assert.equal(fr.heading, "Tell us the basics", "nothing on Google: the basics are asked");
   assert.equal(fr.phoneLine, "Step 1 of 4 · Your business");
   assert.equal(fr.progress, 25);
   assert.equal(fr.back, null);
@@ -137,10 +153,20 @@ test("the facts are in: the phone is current, the business can be looked at agai
   assert.equal(back.shown.key, "business", "a step already reached opens");
   assert.deepEqual(
     back.onward,
-    { label: "Continue", to: "start", leaves: false },
-    "and Continue goes on to where the workspace is, a step's own move",
+    { label: "Looks right", to: "start", leaves: false, held: null },
+    "and Looks right goes on to where the workspace is, a step's own move",
   );
-  assert.equal(back.primaryRow, null, "one coral button a step: on a step done it is Continue");
+  assert.equal(back.primaryRow, null, "one coral button a step: on a step done it is the onward");
+  assert.deepEqual(
+    firstRunOf(vm, "phone").onward,
+    null,
+    "the phone step asks something still: its rows carry the coral button",
+  );
+  assert.deepEqual(
+    firstRunOf(setupSteps(empty({ business: facts, channels: live().channels }), NOW), "phone").onward,
+    { label: "Continue", to: "start", leaves: false, held: null },
+    "a step done that is not Check goes on with Continue",
+  );
   assert.equal(firstRunOf(vm, "try").shown.key, "phone", "a step not reached yet shows where the workspace is instead");
   assert.equal(firstRunOf(vm, "phone").back, "start/business", "Back opens the step before, at its own address");
 });
@@ -158,7 +184,7 @@ test("answering: Live is current, with what is left after, and Finish goes to To
   assert.equal(fr.lead, vm.readiness.sentence, "Setup's own sentence says what it answers on");
   assert.deepEqual(ids(fr.shown.rows), ["whatsapp", "calendar", "team", "yes"]);
   assert.equal(fr.primaryRow, null, "on Live the one action is Finish");
-  assert.deepEqual(fr.onward, { label: "Finish", to: "today", leaves: true }, "Finish is a way out");
+  assert.deepEqual(fr.onward, { label: "Finish", to: "today", leaves: true, held: null }, "Finish is a way out");
   assert.equal(fr.progress, 100);
 });
 
@@ -308,6 +334,7 @@ test("the receptionist card: every value is Setup's or the settings read's, the 
     numbers: { voiceLine: VOICE, keptLine: "+12125550142", handoff: HANDOFF },
     workspaceName: "Northside",
     tz: "America/New_York",
+    sellsBy: "booking",
   });
   assert.equal(card.caption, "Your receptionist, so far");
   assert.equal(card.initials, "NM");
@@ -340,6 +367,7 @@ test("the receptionist card: every value is Setup's or the settings read's, the 
     numbers: null,
     workspaceName: "Luna Studio",
     tz: "America/New_York",
+    sellsBy: null,
   });
   assert.equal(bare.name, "Luna Studio", "the workspace's name until the receptionist has one");
   assert.equal(bare.initials, "LS");
@@ -362,6 +390,7 @@ test("the receptionist card: every value is Setup's or the settings read's, the 
     numbers: null,
     workspaceName: null,
     tz: "America/New_York",
+    sellsBy: null,
   });
   assert.deepEqual(untried.status, { state: "waiting_you", words: "Answering · not tried yet" });
   assert.equal(
@@ -405,4 +434,277 @@ test("the invite code sign-up checked is kept beside the name, and never read ba
   assert.equal(pendingCodeOf({ [PENDING_WORKSPACE_KEY]: { code: "x".repeat(81) } }), null);
   assert.equal(pendingCodeOf({ [PENDING_WORKSPACE_KEY]: { code: "   " } }), null, "a blank code is none");
   assert.equal(SIGNUP_WORDS.making, "Making your workspace…");
+});
+
+/* ---- the first receptionist, from what is known (3c-2) ---- */
+
+// Google's week as the edge stores it: day 0 is Sunday.
+const shift = (day, openHour, closeHour, closeDay = day) => ({
+  open: { day, hour: openHour, minute: 0 },
+  close: { day: closeDay, hour: closeHour, minute: 0 },
+});
+const googleSaid = (over = {}) => ({
+  hours: [2, 3, 4, 5, 6].map((d) => shift(d, 9, 19)),
+  phone_e164: "+13055550100",
+  phone_display: "(305) 555-0100",
+  website: "https://harbor.example.com/",
+  primary_type: "moving_company",
+  primary_type_label: "Moving company",
+  service_area_only: false,
+  time_zone: "America/New_York",
+  ...over,
+});
+const listed = (said = {}, over = {}) => ({
+  name: "Harbor Moving & Storage",
+  address: "12 Pier Rd, Brooklyn, NY 11231",
+  facts: googleSaid(said),
+  ...over,
+});
+const NINE_TO_SEVEN = { open: "09:00", close: "19:00" };
+
+test("Google's facts as stored: what the edge wrote reads as it is, a row from before the details read is none, and a malformed period is dropped", () => {
+  assert.deepEqual(listingFactsOf(googleSaid()), googleSaid());
+  assert.equal(listingFactsOf({}), null, "linked before the details read: nothing was said");
+  assert.equal(listingFactsOf(null), null);
+  assert.equal(listingFactsOf([]), null);
+  const odd = listingFactsOf({
+    hours: [
+      shift(2, 9, 19),
+      null,
+      { open: { day: "tue" } },
+      { open: { day: 0, hour: 0, minute: 0 }, close: null },
+      { open: { day: 3, hour: 9, minute: 0 }, close: "late" },
+    ],
+    website: 5,
+    service_area_only: "yes",
+  });
+  assert.deepEqual(
+    odd.hours,
+    [shift(2, 9, 19), { open: { day: 0, hour: 0, minute: 0 }, close: null }],
+    "a period with no close is Google's around the clock, and kept",
+  );
+  assert.equal(odd.website, null);
+  assert.equal(odd.service_area_only, false, "only true says it");
+  assert.equal(odd.time_zone, null);
+});
+
+test("the first receptionist is what Google says: the listing's name, its week with each closed day stated, the address and the website, and the product's own prompt and messages", () => {
+  const brain = firstReceptionistOf({ workspaceName: "Harbor", listing: listed() });
+  assert.deepEqual(brain, {
+    business_name: "Harbor Moving & Storage",
+    ...newReceptionistDefaults("Harbor Moving & Storage"),
+    profile: {
+      hours: {
+        mon: {},
+        tue: NINE_TO_SEVEN,
+        wed: NINE_TO_SEVEN,
+        thu: NINE_TO_SEVEN,
+        fri: NINE_TO_SEVEN,
+        sat: NINE_TO_SEVEN,
+        sun: {},
+      },
+      address: "12 Pier Rd, Brooklyn, NY 11231",
+      website: "https://harbor.example.com/",
+    },
+  });
+  assert.ok(TenantConfigWriteSchema.safeParse({ brain }).success, "a save would take it");
+  assert.equal(brain.booking_link, undefined, "no link: the website is read for one later");
+  assert.equal(brain.phone_display, undefined, "absent is the line it answers");
+});
+
+test("what the record cannot hold is left out: a service area has no address, a day past midnight is not stated, around the clock is no week, and a website the schema refuses is none", () => {
+  const area = firstReceptionistOf({ workspaceName: null, listing: listed({ service_area_only: true }) });
+  assert.equal(area.profile.address, undefined, "it goes to its customers");
+  const late = firstReceptionistOf({
+    workspaceName: null,
+    listing: listed({ hours: [shift(2, 9, 19), shift(5, 18, 2, 6)] }),
+  });
+  assert.deepEqual(
+    late.profile.hours,
+    { mon: {}, tue: NINE_TO_SEVEN, wed: {}, thu: {}, sat: {}, sun: {} },
+    "Friday closes on Saturday: it is asked about, never stated",
+  );
+  const allDay = firstReceptionistOf({
+    workspaceName: null,
+    listing: listed({ hours: [{ open: { day: 0, hour: 0, minute: 0 }, close: null }] }),
+  });
+  assert.equal(allDay.profile.hours, undefined, "open around the clock: every day is asked about");
+  assert.equal(firstReceptionistOf({ workspaceName: null, listing: listed({ hours: null }) }).profile.hours, undefined);
+  assert.equal(
+    firstReceptionistOf({ workspaceName: null, listing: listed({ website: "harbor dot com" }) }).profile.website,
+    undefined,
+  );
+});
+
+test("a receptionist set up before its listing was linked takes what Google says where it states nothing, and never over what is there", () => {
+  const byName = firstReceptionistOf({ workspaceName: "Harbor Moving", listing: null });
+  const filled = googleFillsOf(byName, listed());
+  assert.equal(filled.business_name, "Harbor Moving", "its own name stays");
+  assert.deepEqual(Object.keys(filled.profile).sort(), ["address", "hours", "website"]);
+  assert.equal(filled.profile.address, "12 Pier Rd, Brooklyn, NY 11231");
+  assert.ok(TenantConfigWriteSchema.safeParse({ brain: filled }).success);
+  const own = { ...byName, profile: { hours: { mon: NINE_TO_SEVEN }, website: "https://harbor-own.example.com/" } };
+  const kept = googleFillsOf(own, listed());
+  assert.deepEqual(kept.profile.hours, { mon: NINE_TO_SEVEN }, "the owner's week is theirs");
+  assert.equal(kept.profile.website, "https://harbor-own.example.com/");
+  assert.equal(kept.profile.address, "12 Pier Rd, Brooklyn, NY 11231", "and only what it lacks is filled");
+  const whole = { ...own, profile: { ...own.profile, address: "1 Dock St, Brooklyn, NY 11201" } };
+  assert.equal(googleFillsOf(whole, listed()), null, "nothing to add");
+  assert.equal(googleFillsOf(byName, null), null, "no listing, nothing to add");
+});
+
+test("not on Google, the first receptionist is the name typed at sign-up and nothing more; with no name at all there is none", () => {
+  assert.deepEqual(firstReceptionistOf({ workspaceName: " Harbor Moving ", listing: null }), {
+    business_name: "Harbor Moving",
+    ...newReceptionistDefaults("Harbor Moving"),
+  });
+  assert.equal(firstReceptionistOf({ workspaceName: "  ", listing: null }), null);
+  const unnamed = firstReceptionistOf({
+    workspaceName: "Harbor Moving",
+    listing: { name: null, address: null, facts: null },
+  });
+  assert.equal(unnamed.business_name, "Harbor Moving", "a listing with no name defers to the workspace's");
+  assert.equal(unnamed.profile, undefined);
+  const long = firstReceptionistOf({
+    workspaceName: null,
+    listing: listed({}, { name: `Harbor ${"Moving ".repeat(30)}` }),
+  });
+  assert.ok(long.business_name.length <= 120, "cut to what the schema takes");
+  assert.ok(TenantConfigWriteSchema.safeParse({ brain: long }).success);
+});
+
+/* ---- Check (3c-2) ---- */
+
+const LISTING = { name: "Harbor Moving", rating: 4.8, review_count: 12, checked_at: null, check_error: null };
+const harbor = (business = {}, google = {}) =>
+  empty({
+    business: {
+      name: "Harbor Moving",
+      hours: true,
+      services: 0,
+      bookingLink: false,
+      address: true,
+      handoff: null,
+      broken: false,
+      receptionist: "set",
+      ...business,
+    },
+    google: { ready: true, places: true, listing: LISTING, connected: false, unsure: [], ...google },
+  });
+const OWNER = { owner: true, receptionistName: "Harbor Moving", workspaceName: "Harbor Moving" };
+const W = FIRST_RUN_WORDS.check;
+
+test("Check is the business step once Find is not shown: what Google found, in the Business tab's rows, and Looks right held until the step is done", () => {
+  const fr = firstRunOf(setupSteps(harbor(), NOW), null, OWNER);
+  assert.equal(fr.find, false, "the listing is linked");
+  assert.deepEqual(fr.check, { made: true, make: null, waiting: null, unsure: null, find: null, type: null });
+  assert.equal(fr.heading, "Here's what we found");
+  assert.equal(fr.lead, "Your receptionist answers from this. Fix anything that's off.");
+  assert.equal(fr.primaryRow, null, "the rows are the Business tab's; Looks right is the step's button");
+  assert.deepEqual(
+    fr.onward,
+    { label: "Looks right", to: "start", leaves: false, held: "Still missing: services." },
+    "held, with the facts row's own sentence",
+  );
+  const done = firstRunOf(setupSteps(harbor({ services: 2 }), NOW), "business", OWNER);
+  assert.deepEqual(done.onward, { label: "Looks right", to: "start", leaves: false, held: null });
+});
+
+test("Check with nothing on Google asks for the basics, and offers Find again where Google can be searched", () => {
+  // Google can be searched here and nothing is linked: "We're not on Google" put it off, and Find is gone.
+  const putOff = setupSteps(empty({ ...harbor({}, { listing: null }), later: ["google"] }), NOW);
+  const basics = firstRunOf(putOff, null, OWNER);
+  assert.equal(basics.find, false, "not on Google, said");
+  assert.equal(basics.heading, "Tell us the basics");
+  assert.equal(basics.lead, "Your receptionist answers from this. You can add more later in Settings › Business.");
+  assert.deepEqual(basics.check.find, { label: "On Google after all? Find it", to: "start/find" });
+  assert.equal(
+    firstRunOf(putOff, null, { ...OWNER, owner: false }).check.find,
+    null,
+    "search and link are the owner's",
+  );
+  const noGoogle = setupSteps(harbor({}, { ready: false, places: false, listing: null }), NOW);
+  assert.equal(firstRunOf(noGoogle, null, OWNER).check.find, null, "nothing to search on this deployment");
+});
+
+test("Check with no receptionist yet: an owner is offered the one press, from Google or from the name typed at sign-up; anyone else is told an owner does it", () => {
+  const none = { name: null, hours: false, address: false, receptionist: "none" };
+  const listed = firstRunOf(setupSteps(harbor(none), NOW), null, { ...OWNER, receptionistName: null });
+  assert.deepEqual(listed.check, {
+    made: false,
+    make: {
+      sentence: "Your receptionist starts from what your Google listing says, and you check it here.",
+      cta: "Set up your receptionist",
+      busy: "Setting up…",
+    },
+    waiting: null,
+    unsure: null,
+    find: null,
+    type: null,
+  });
+  assert.equal(listed.onward, null, "the press is the step's one button");
+  const noGoogle = { ready: false, places: false, listing: null };
+  const named = firstRunOf(setupSteps(harbor(none, noGoogle), NOW), null, { ...OWNER, receptionistName: null });
+  assert.equal(
+    named.check.make.sentence,
+    "Your receptionist starts with the name Harbor Moving, and you add the rest here.",
+  );
+  const viewer = firstRunOf(setupSteps(harbor(none), NOW), null, { ...OWNER, owner: false, receptionistName: null });
+  assert.equal(viewer.check.make, null);
+  assert.equal(viewer.check.waiting, "An owner sets up the receptionist here.");
+});
+
+test("a config that cannot be read is no Check: Setup's facts row asks for the repair, as it does on Setup", () => {
+  const fr = firstRunOf(setupSteps(harbor({ broken: true, receptionist: "broken" }), NOW), null, OWNER);
+  assert.equal(fr.check, null);
+  assert.equal(fr.heading, "Your business");
+  assert.equal(fr.primaryRow, "facts");
+  assert.equal(fr.shown.rows.find((r) => r.id === "facts").verb.to, "verb:request-repair");
+});
+
+test("the days Google gives hours for that the week cannot hold are named under the hours", () => {
+  assert.equal(
+    firstRunOf(setupSteps(harbor({}, { unsure: ["fri", "sat"] }), NOW), null, OWNER).check.unsure,
+    "Google's hours for Friday and Saturday could not be copied: check those days.",
+  );
+  assert.equal(unsureHoursWords(["fri"]), "Google's hours for Friday could not be copied: check that day.");
+  assert.equal(
+    unsureHoursWords(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
+    "Google's hours for every day could not be copied: add yours.",
+  );
+  assert.equal(unsureHoursWords([]), null);
+  assert.equal(W.found, "Here's what we found");
+});
+
+test("the receptionist card says how a business that quotes, with no link, is reached; how customers buy is required", () => {
+  const card = (brain, sellsBy) =>
+    receptionistCardOf({
+      setup: empty(),
+      answering: false,
+      brain,
+      numbers: null,
+      workspaceName: "Harbor Moving",
+      tz: "America/New_York",
+      sellsBy,
+    }).rows.find((r) => r.key === "books");
+  const quoting = { business_name: "Harbor Moving" };
+  assert.deepEqual(card(quoting, "proposal"), { key: "books", label: "For a quote", value: "Takes their details" });
+  assert.deepEqual(
+    card(quoting, "booking"),
+    { key: "books", label: "Books with", value: null },
+    "missing, for one that books",
+  );
+  assert.deepEqual(card(null, "proposal"), { key: "books", label: "Books with", value: null }, "nothing read yet");
+  assert.throws(
+    () =>
+      receptionistCardOf({
+        setup: empty(),
+        answering: false,
+        brain: quoting,
+        numbers: null,
+        workspaceName: null,
+        tz: "America/New_York",
+      }),
+    TypeError,
+  );
 });

@@ -34,6 +34,7 @@ import { capabilityStatus, type ActivationRecord, type CapabilityStatus } from "
 import { EMAIL_ELSEWHERE_SENTENCE, EMAIL_NOT_ANSWERED_SENTENCE, type EmailSetupDto } from "./mailbox";
 import { GET_YES_ROUTE, NO_NUMBER_REACH } from "./people";
 import { FIRST_RUN_FIND_ROUTE } from "./first-run";
+import type { ReceptionistState } from "./config";
 
 export interface SetupDto {
   business: {
@@ -46,6 +47,8 @@ export interface SetupDto {
     handoff: string | null;
     /** The config row exists but the parser refused it. */
     broken: boolean;
+    /** Whether the receptionist is set up, by the one test (config.ts receptionistOf): none, set, or broken. */
+    receptionist: ReceptionistState;
   };
   channels: {
     whatsapp: {
@@ -298,6 +301,18 @@ export interface SetupVM {
   } | null;
   /** Google can be searched on this deployment and nothing is linked yet: the first run's Find has something to find. */
   findable: boolean;
+  /**
+   * What the first run's Check reads (first-run.ts): whether the receptionist is set up (none yet, set up, or a
+   * config the parser refused, whose repair only Chanlytics can make), whether a Google listing is on record, and the
+   * days whose hours it asks about (the setup read's google.unsure).
+   */
+  check: {
+    receptionist: ReceptionistState;
+    listed: boolean;
+    unsure: NonNullable<SetupGoogleFacts["unsure"]>;
+    /** Google's kind of place, which Check's service chips suggest by (check-chips.ts); null without one. */
+    type: string | null;
+  };
 }
 
 /**
@@ -1339,6 +1354,12 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
         }
       : null,
     findable: !!i.google?.ready && i.google.places !== false && !i.google.listing,
+    check: {
+      receptionist: i.business.receptionist,
+      listed: !!i.google?.listing,
+      unsure: i.google?.unsure ?? [],
+      type: i.google?.type ?? null,
+    },
   };
 }
 

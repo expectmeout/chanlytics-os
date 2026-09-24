@@ -143,7 +143,8 @@ const HeroBrief = () => {
 };
 
 // One figure: the number, its word and the clause under it. With a receipt it is a button: hover opens the receipt,
-// Enter or Space and a tap toggle it, Escape closes it. The receipt itself is drawn by the card as the last child of
+// Enter or Space and a tap toggle it, Escape closes it. Focus alone opens nothing: a tap focuses the button before it
+// clicks, and a receipt that focus opened and the click then closed never showed on a phone. The receipt itself is drawn by the card as the last child of
 // the row of figures (TodayReceipt), so a desktop anchors it under this figure by index and a phone lays it under the
 // row. A figure with nothing to add is not a button.
 const TodayFigure = ({ f, i, open, setOpen }) => {
@@ -165,7 +166,6 @@ const TodayFigure = ({ f, i, open, setOpen }) => {
           aria-expanded={on}
           aria-controls={on ? `today-receipt-${f.id}` : undefined}
           onClick={() => setOpen(on ? null : f.id)}
-          onFocus={() => setOpen(f.id)}
           onKeyDown={(e) => { if (e.key === "Escape") setOpen(null); }}
         >
           {body}

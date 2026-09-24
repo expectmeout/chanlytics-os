@@ -873,6 +873,9 @@ test("REGRESSION: People opens on the people -- one line, then the table; a titl
     "tapping the count shows the people it counts",
   );
   assert.equal(byTestId(tree, "people-standing-needs").props["aria-pressed"], true, "and says it is on");
+  // Needs you is a list (decision 0009): the tap opens it, by name and by its own address.
+  assert.equal(textOf(byTestId(tree, "smart-filter")), "Needs you");
+  assert.equal(globalThis.window.location.hash, "#/clients/seg:needs_you");
   byTestId(tree, "people-standing-needs").props.onClick();
   tree = draw();
   assert.equal(all(tree, (n) => n.props?.["data-testid"] === "row-select").length, 3, "tapping again shows everyone");
@@ -1748,6 +1751,218 @@ test("a link to a list People doesn't have says so and shows nobody; an archived
   assert.equal(empty.props.action.label, "Bring it back");
   await empty.props.action.onClick();
   assert.deepEqual(restored, ["s2"]);
+});
+
+// Decision 0009, phase 4b: a smart list's rule is seen and changed, and a view with a rule is kept as one.
+const TEXTERS = { all: [{ field: "channel", op: "is", channel: "whatsapp" }] };
+
+test("the list verbs: a rule changed through the route, the rule behind a view, and why a smart list has someone", async () => {
+  const { lists: verbs } = await import("../../../apps/dashboard/src/legacy-bridge/people-lists.ts");
+  await freshPage({
+    people: [person(1), person(2, { channels: ["sms"] })],
+    lists: [{ id: "s2", name: "Texters", ids: [], rule: TEXTERS }],
+  });
+  // The rule behind a view: one of People's, one of the workspace's smart lists, the standing filter; none for the rest.
+  assert.deepEqual(verbs.ruleOf({ builtin: "quiet" }), {
+    v: 2,
+    all: [{ field: "last_heard", op: "more_than", days: 30 }],
+  });
+  assert.deepEqual(verbs.ruleOf({ saved: "s2" }), { v: 2, ...TEXTERS });
+  assert.deepEqual(verbs.ruleOf({ standing: "needs_you" }), {
+    v: 2,
+    all: [{ field: "standing", op: "is", value: "needs_you" }],
+  });
+  assert.equal(verbs.ruleOf({ standing: "quiet" }), null, "Quiet the state is not a rule the language says");
+  assert.equal(verbs.ruleOf({}), null);
+  // Why the smart list has them, in its rule's words; nobody it doesn't have is given a reason.
+  assert.equal(verbs.why("s2", "p1"), "Reaches you by WhatsApp");
+  assert.equal(verbs.why("s2", "nobody"), null);
+  // A new rule goes to the list's own route, as a rule.
+  const sent = [];
+  const kept = globalThis.window.fetch;
+  globalThis.window.fetch = async (url, init) => {
+    sent.push([
+      new URL(String(url), "https://app.chanlytics.com").pathname,
+      init?.method,
+      JSON.parse(init?.body || "null"),
+    ]);
+    return new Response(JSON.stringify({ ok: true, data: {} }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  };
+  try {
+    const r = await verbs.setRule("s2", { v: 2, ...TEXTERS });
+    assert.equal(r.ok, true);
+    assert.deepEqual(sent, [["/api/v1/segments/s2", "PUT", { rule: { v: 2, ...TEXTERS } }]]);
+  } finally {
+    globalThis.window.fetch = kept;
+  }
+});
+
+test("a smart list's rule is changed under its title: described, drafted into chips with who it holds today, then saved", async () => {
+  await freshPage({ people: [person(1), person(2)], lists: [{ id: "s2", name: "Texters", ids: [], rule: TEXTERS }] });
+  const drafted = { name: "Texters", rule: { v: 2, all: [{ field: "calls", op: "at_least", n: 1 }] }, cannot: "" };
+  const saved = [];
+  globalThis.window.__lists = lists({
+    draft: async () => ({ ok: true, data: drafted }),
+    parts: () => ["Called at least once"],
+    count: () => 2,
+    setRule: async (id, rule) => {
+      saved.push([id, rule]);
+      return { ok: true, data: {} };
+    },
+  });
+  draw({ initialSaved: "s2" });
+  let tree = draw({ initialSaved: "s2" });
+  assert.equal(byTestId(tree, "rule-edit"), null, "closed until asked");
+  click(byTestId(tree, "list-rule-edit"));
+  tree = draw({ initialSaved: "s2" });
+  assert.match(textOf(byTestId(tree, "rule-edit-now")), /^Now: Reaches you by WhatsApp/);
+  byTestId(tree, "rule-edit-words").props.onChange({ target: { value: "people who called" } });
+  tree = draw({ initialSaved: "s2" });
+  await byTestId(tree, "rule-edit-build").props.onClick();
+  tree = draw({ initialSaved: "s2" });
+  assert.equal(textOf(byTestId(tree, "rule-edit-rule")), "Called at least once");
+  assert.equal(textOf(byTestId(tree, "rule-edit-holds")), "2 people on it today with this rule.");
+  await byTestId(tree, "rule-edit-save").props.onClick();
+  assert.deepEqual(saved, [["s2", drafted.rule]]);
+  assert.match(textOf(flashes.at(-1).msg), /^Who is on Texters changed/);
+  tree = draw({ initialSaved: "s2" });
+  assert.equal(byTestId(tree, "rule-edit"), null, "it closes once saved");
+});
+
+test("Save these keeps the rule behind the view by default -- a copy of one of People's lists -- or just the people shown", async () => {
+  await freshPage({ people: [person(1)] });
+  const made = [];
+  globalThis.window.__lists = lists({
+    create: async (name, rule = null) => {
+      made.push([name, rule]);
+      return { ok: true, data: { id: `s${made.length}`, name, ids: [] } };
+    },
+    add: async () => ({ ok: true, data: {} }),
+    ruleOf: ({ builtin }) =>
+      builtin === "opted_in" ? { v: 2, all: [{ field: "said_yes", op: "is", to: "messages", yes: true }] } : null,
+  });
+  draw({ initialSegment: "opted_in" });
+  let tree = draw({ initialSegment: "opted_in" });
+  // Just these: the people shown, frozen, as a view no rule says always was.
+  click(byTestId(tree, "save-shown"));
+  tree = draw({ initialSegment: "opted_in" });
+  assert.equal(byTestId(tree, "save-shown-rule").props["aria-checked"], true, "the rule, by default");
+  assert.equal(byTestId(tree, "save-shown-name").props.value, "Said yes to messages");
+  click(byTestId(tree, "save-shown-people"));
+  tree = draw({ initialSegment: "opted_in" });
+  byTestId(tree, "save-shown-name").props.onChange({ target: { value: "Frozen" } });
+  tree = draw({ initialSegment: "opted_in" });
+  await byTestId(tree, "save-shown-save").props.onClick();
+  assert.deepEqual(made, [["Frozen", null]]);
+  // The rule: a list that keeps itself current, opened once made.
+  tree = draw({ initialSegment: "opted_in" });
+  click(byTestId(tree, "save-shown"));
+  tree = draw({ initialSegment: "opted_in" });
+  byTestId(tree, "save-shown-name").props.onChange({ target: { value: "My yeses" } });
+  tree = draw({ initialSegment: "opted_in" });
+  await byTestId(tree, "save-shown-save").props.onClick();
+  assert.deepEqual(made.at(-1), [
+    "My yeses",
+    { v: 2, all: [{ field: "said_yes", op: "is", to: "messages", yes: true }] },
+  ]);
+  assert.match(textOf(flashes.at(-1).msg), /^My yeses made\. It keeps itself current/);
+  tree = draw({ initialSegment: "opted_in" });
+  assert.equal(byTestId(tree, "list-gone"), null, "the list on its way is not called missing");
+  // Once it has arrived it is a list like any other: gone again, it is said to be gone.
+  globalThis.window.__PEOPLE.saved = [
+    {
+      id: "s2",
+      name: "My yeses",
+      count: 1,
+      ids: ["p1"],
+      members: ["p1"],
+      byHand: false,
+      rule: ["Said yes to messages"],
+      spec: null,
+      unknown: null,
+      tip: "",
+    },
+  ];
+  draw({ initialSegment: "opted_in" });
+  draw({ initialSegment: "opted_in" });
+  globalThis.window.__PEOPLE.saved = [];
+  draw({ initialSegment: "opted_in" });
+  tree = draw({ initialSegment: "opted_in" });
+  assert.equal(
+    textOf(byTestId(tree, "list-gone")),
+    "This list isn't here",
+    "REGRESSION: the made list's guard never cleared",
+  );
+});
+
+test("on a phone a smart list's rule is shown and changed from the more-menu: the phone draws no title line", () =>
+  onPhone(async () => {
+    await freshPage({ people: [person(1)], lists: [{ id: "s2", name: "Texters", ids: [], rule: TEXTERS }] });
+    globalThis.window.__lists = lists({ draft: async () => ({ ok: false, message: "not here" }) });
+    draw({ initialSaved: "s2" });
+    let tree = draw({ initialSaved: "s2" });
+    const menu = find(
+      tree,
+      (n) => Array.isArray(n.props?.items) && n.props.items.some((i) => i.label === "Who is on it"),
+    );
+    assert.ok(menu, "the more-menu offers it for a smart list");
+    menu.props.items.find((i) => i.label === "Who is on it").onClick();
+    tree = draw({ initialSaved: "s2" });
+    const sheet = byTestId(tree, "list-act-sheet");
+    assert.match(textOf(byTestId(sheet, "rule-edit-now")), /^Now: Reaches you by WhatsApp/);
+  }));
+
+test("a state address for Needs you or Waiting on you opens the list, and any list open is pinned to Today and taken off", async () => {
+  await freshPage({ people: [person(1)] });
+  draw({ initialState: "waiting_on_you" });
+  let tree = draw({ initialState: "waiting_on_you" });
+  assert.equal(textOf(byTestId(tree, "smart-filter")), "Waiting on you", "the list, not a hidden tab");
+  assert.equal(byTestId(tree, "state-filter"), null);
+  // The pin: this member's Today view, saved; the page says it, and the list's line says it is on Today.
+  const saves = [];
+  globalThis.window.__lists = {
+    ...lists(),
+    ...(await import("../../../apps/dashboard/src/legacy-bridge/people-lists.ts")).lists,
+  };
+  // The route's answer alone: the verb says the pin on the surface's copy itself, and puts it back on a refusal.
+  let answer = { ok: true, data: { views: {} } };
+  globalThis.window.__saveView = async (page, view) => {
+    saves.push([page, view]);
+    return answer;
+  };
+  try {
+    draw({ initialSegment: "opted_in" });
+    tree = draw({ initialSegment: "opted_in" });
+    assert.equal(textOf(byTestId(tree, "list-pin")).trim(), "Pin to Today");
+    await byTestId(tree, "list-pin").props.onClick();
+    assert.deepEqual(saves, [["today", { pins: ["seg:opted_in"] }]]);
+    assert.match(textOf(flashes.at(-1).msg), /^Said yes to messages is on Today/);
+    tree = draw({ initialSegment: "opted_in" });
+    assert.equal(textOf(byTestId(tree, "list-pin")).trim(), "On Today");
+    assert.equal(byTestId(tree, "list-pin").props["aria-pressed"], true);
+    await byTestId(tree, "list-pin").props.onClick();
+    assert.deepEqual(saves.at(-1), ["today", { pins: [] }]);
+    // Refused: the toast says so, and the list is not pinned after all.
+    answer = { ok: false, message: "Could not keep it." };
+    tree = draw({ initialSegment: "opted_in" });
+    await byTestId(tree, "list-pin").props.onClick();
+    assert.equal(flashes.at(-1).tone, "danger");
+    tree = draw({ initialSegment: "opted_in" });
+    assert.equal(textOf(byTestId(tree, "list-pin")).trim(), "Pin to Today", "REGRESSION: a refused pin stayed on");
+    // Views that could not be read are never saved over: that would wipe the pins not shown.
+    answer = { ok: true, data: { views: {} } };
+    const before = saves.length;
+    globalThis.window.__PEOPLE.viewsRead = false;
+    tree = draw({ initialSegment: "opted_in" });
+    await byTestId(tree, "list-pin").props.onClick();
+    assert.equal(saves.length, before, "nothing saved");
+    assert.match(textOf(flashes.at(-1).msg), /couldn't be read just now/);
+  } finally {
+    delete globalThis.window.__saveView;
+  }
 });
 
 test("export follows the list that is open, and is not offered for a list that can't be counted or isn't here", async () => {

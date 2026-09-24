@@ -975,6 +975,13 @@
       "rate": "settings",
       "spend": false
     },
+    "POST settings/receptionist": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "settings",
+      "spend": false
+    },
     "POST setup/request": {
       "kind": "write",
       "scope": "workspace",

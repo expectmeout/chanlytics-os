@@ -7,8 +7,9 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toTodayVM, QUOTE_MAX } from "@chanlytics/contracts";
+import { toTodayVM, QUOTE_MAX, leadQuestionRoute } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
+import { PLAN } from "./_lead-fixtures.mjs";
 
 // 10:00 in New York on Sunday 6 September 2026.
 const NOW = new Date("2026-09-06T14:00:00Z");
@@ -169,6 +170,48 @@ const calls = [
   }),
 ];
 
+// A lead search as `GET lead-searches` answers it (LeadSearchDto): the plan from the finder's fixtures, its latest round.
+const search = (id, name, round) => ({
+  id,
+  name,
+  asked: PLAN.asked,
+  asked_on: "2026-09-05T15:00:00Z",
+  plan: PLAN,
+  plan_version: 1,
+  round,
+});
+const round = (over = {}) => ({
+  id: "rd1",
+  seq: 1,
+  purpose: "find",
+  state: "running",
+  ending: null,
+  question: null,
+  target: 20,
+  counted: 12,
+  qualified: 12,
+  review: 3,
+  excluded: 0,
+  emails_checked: 0,
+  with_phone: 9,
+  ending_pending: false,
+  waiting_since: null,
+  cost_usd: 1.2,
+  ended_at: null,
+  undo_op_id: null,
+  undo_version: null,
+  nearby: [],
+  ...over,
+});
+const QUESTION = { sentence: "Most of the first 25 are chain gyms. Include them?", criterion_key: "chains" };
+// Stopped to ask at 7:00 in New York, three hours before NOW: longer than the handoff's two.
+const waitingSearch = search(
+  "s-wait",
+  "Personal trainers in Austin",
+  round({ state: "waiting_on_owner", question: QUESTION, waiting_since: "2026-09-06T11:00:00Z", counted: 25 }),
+);
+const runningSearch = search("s-run", "Independent pharmacies near 78704", round());
+
 test("one queue, longest wait first: the handoff, the call-back, the closing window, the call worth an ear — each in the strip's grammar with its own verb", () => {
   const vm = toTodayVM(metrics(), conversations, escalations, calls, NOW);
   const rows = vm.queue.rows;
@@ -219,6 +262,47 @@ test("one queue, longest wait first: the handoff, the call-back, the closing win
     ["call", "Phone", "Reached voicemail", "Open the call", "conversations/cv-k2"],
   );
   assert.equal(ear.also, null);
+});
+
+test("a search waiting on its owner is a row in the queue, by its wait, with one button to answer it", () => {
+  const vm = toTodayVM(metrics(), conversations, escalations, calls, NOW, [waitingSearch, runningSearch]);
+  const rows = vm.queue.rows;
+  assert.deepEqual(
+    rows.map((r) => r.kind),
+    ["search", "handoff", "callback", "window", "call"],
+    "three hours waited sorts before the handoff's two; the running search is nobody waiting",
+  );
+  const row = rows[0];
+  assert.deepEqual(
+    [row.who, row.channel, row.when, row.quoted, row.tone, row.warn, row.conversationId, row.callId],
+    ["Personal trainers in Austin", "Leads", "waited 3h", false, "escalated", false, null, null],
+  );
+  assert.equal(row.sentence, QUESTION.sentence, "the question, as the search asked it");
+  assert.deepEqual(row.status, ["Waiting for your answer", "nothing is spent while it waits"]);
+  assert.deepEqual(row.cta, { label: "Answer", to: leadQuestionRoute("s-wait") });
+  assert.equal(row.also, null);
+  assert.ok(vm.queue.parts.includes("1 search waiting for your answer"), vm.queue.parts.join(" · "));
+  assert.equal(vm.queue.waiting, 4, "the search counts with the people waiting");
+
+  // Past twelve hours the row warns: the sweep stops a question after a day.
+  const stale = toTodayVM(metrics(), conversations, escalations, calls, NOW, [
+    search("s-old", "Dentists in Denver", round({ ...waitingSearch.round, waiting_since: "2026-09-06T01:00:00Z" })),
+  ]);
+  const old = stale.queue.rows.find((r) => r.kind === "search");
+  assert.deepEqual([old.when, old.warn], ["waited 13h", true]);
+
+  // Not read (null) and not passed at all say nothing about searches: the queue is what it was.
+  for (const before of [
+    toTodayVM(metrics(), conversations, escalations, calls, NOW, null),
+    toTodayVM(metrics(), conversations, escalations, calls, NOW),
+  ]) {
+    assert.deepEqual(
+      before.queue.rows.map((r) => r.kind),
+      ["handoff", "callback", "window", "call"],
+    );
+    assert.equal(before.queue.waiting, 3);
+    assert.ok(!before.queue.parts.some((p) => p.includes("search")));
+  }
 });
 
 test("the cap and the rest: six rows on Today, the rest counted for the Inbox link; a quiet day has an empty queue", () => {
