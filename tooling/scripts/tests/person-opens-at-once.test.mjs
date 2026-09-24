@@ -255,3 +255,34 @@ test("signing out takes them with the surfaces: nothing of a customer outlives t
     "no person's slot left in the tab",
   );
 });
+
+test("the sign-in page clears every kept slot, though it made none of the caches: the last session's person is never the next one's first draw", async () => {
+  // The sign-in, sign-up and reset pages clear the tab (clearSurfaceCache) without loading the people courier, so a
+  // clear that reached only the caches the page had made left the person's slot behind for whoever signed in next.
+  globalThis.sessionStorage.setItem("chanlytics.reads.v1.person-from-before", '{"build":"dev","entries":[]}');
+  globalThis.sessionStorage.setItem("chanlytics.place.v1-not-ours", "kept");
+  clearSurfaceCache();
+  assert.equal(globalThis.sessionStorage.getItem("chanlytics.reads.v1.person-from-before"), null);
+  assert.equal(
+    globalThis.sessionStorage.getItem("chanlytics.place.v1-not-ours"),
+    "kept",
+    "and nothing else of the tab's",
+  );
+  globalThis.sessionStorage.removeItem("chanlytics.place.v1-not-ours");
+});
+
+test("a read still out when the tab is cleared is not kept when it lands: a sign-out never writes the person back", async () => {
+  let land = null;
+  answer = () =>
+    new Promise((r) => {
+      land = () => r(json(200, { ok: true, data: { person: detail() } }));
+    });
+  const out = bridge.personDetail(ID);
+  await settle();
+  assert.ok(land, "the read went out");
+  clearSurfaceCache();
+  land();
+  await out;
+  assert.equal(bridge.peekPerson(ID), null, "REGRESSION: the read that landed after the sign-out kept them");
+  assert.equal(globalThis.sessionStorage.getItem(SLOT), null, "and wrote them back into the tab");
+});

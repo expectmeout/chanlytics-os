@@ -503,7 +503,9 @@ const ClientProfileSeed = ({ id = "c-aisha", onBack = () => {} }) => {
 // a person with no name yet the control is the invitation ("Name them"), always
 // visible; a person who has a name shows a quiet pencil beside it. The pencil
 // used to show on hover alone, which a phone never has. Enter saves, Escape leaves.
-const PersonName = ({ p, canEdit, flash }) => {
+// `still`: drawn in the head a person's page shows while their record is on its way -- the same size, so nothing moves
+// when the page lands, and nothing pressed yet: a rename typed there went with the frame it was typed in.
+const PersonName = ({ p, canEdit, flash, still = false }) => {
   const [editing, setEditing] = useStateP(false);
   const [value, setValue] = useStateP("");
   const [busy, setBusy] = useStateP(false);
@@ -530,7 +532,8 @@ const PersonName = ({ p, canEdit, flash }) => {
             className={`cl-prof-rename ${unnamed ? "is-plain" : ""}`}
             title={unnamed ? "Give them a name" : "Rename"}
             aria-label={unnamed ? "Give them a name" : "Rename"}
-            onClick={open}
+            onClick={still ? undefined : open}
+            disabled={still}
             data-testid="person-rename"
           >
             <Icon name="edit" size={11} />
@@ -1258,7 +1261,7 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
                   <div className="cl-prof-titles">
                     {/* The page's own name, rename and all: a bare h1 stood 9px higher on a phone than the name that
                         replaced it, whose rename takes a thumb's 44px. */}
-                    <div className="cl-prof-name-line"><PersonName p={known} canEdit={!!(window.__ME && (window.__ME.role === "owner" || window.__ME.role === "operator"))} flash={ppFlash} /></div>
+                    <div className="cl-prof-name-line"><PersonName p={known} canEdit={!!(window.__ME && (window.__ME.role === "owner" || window.__ME.role === "operator"))} flash={ppFlash} still /></div>
                     <div className="cl-prof-meta cl-prof-idline">
                       <div className="cl-prof-idline-run">{[known.channelWords, known.phone].filter(Boolean).map((part) => <span key={part} className="cl-prof-meta-part">{part}</span>)}</div>
                     </div>
@@ -1461,6 +1464,9 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
                 </div>
               )}
               {tone !== "answering" && <div className="cl-prof-now-why" data-testid="person-now-why">{p.rightNow.detail}</div>}
+              {/* The page is the copy this tab kept (people-detail.ts) and reading it again failed: said, quietly, where it
+                  is read, so a copy from before a reload is never taken for now. */}
+              {error && <FailedRead kind="line" what="the latest for them" why={error} body="What is here is from earlier." onRetry={load} testid="person-stale" />}
             </div>
           </div>
           <div className="cl-prof-queue-actions">

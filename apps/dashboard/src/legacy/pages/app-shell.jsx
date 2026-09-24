@@ -331,13 +331,16 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
     return () => names.forEach((n) => window.removeEventListener(n, go));
   }, [route.page, route.param]);
   // A person's page opens before People's rows land (it reads its own person), and its crumb and the tab's name come
-  // from their row: drawn again when the rows do, once.
+  // from their row: drawn again when the rows do, once. Asked with what this draw saw, so rows that landed between the
+  // draw and this effect draw it again too, rather than waiting for an event that has already gone.
+  const peopleAtDraw = !!window.__PEOPLE;
   useShellEffect(() => {
-    if (route.page !== "clients" || !route.param || window.__PEOPLE) return;
+    if (route.page !== "clients" || !route.param || peopleAtDraw) return;
     const again = () => setReadyTick((n) => n + 1);
+    if (window.__PEOPLE) { again(); return; }
     window.addEventListener("surface:clients", again, { once: true });
     return () => window.removeEventListener("surface:clients", again);
-  }, [route.page, route.param]);
+  }, [route.page, route.param, peopleAtDraw]);
 
   useShellEffect(() => {
     const handler = (e) => {

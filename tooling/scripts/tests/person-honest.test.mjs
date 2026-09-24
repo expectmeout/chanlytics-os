@@ -2178,8 +2178,34 @@ test("a person not read yet opens on their People row, with Reading… after the
     "Reading…, after a beat",
   );
   assert.ok(!textOf(tree).includes("Loading…"), "REGRESSION: a bare Loading… at once");
+  const rename = byTestId(known, "person-rename");
+  assert.ok(rename, "the page's own name, rename and all, so the name does not move when the page lands");
+  assert.equal(rename.props.disabled, true, "but nothing pressed yet: a rename typed there went with the frame");
   resolve(null);
   await settle();
+});
+
+test("a kept copy whose read again failed says so, quietly, and stays: never taken for now", async () => {
+  const vm = toPersonVM(detail(), ZONE, new Date(NOW));
+  const wasPeek = globalThis.window.__peekPerson;
+  globalThis.window.__peekPerson = (id) => (id === vm.id ? vm : null);
+  globalThis.window.__personDetail = async () => {
+    throw new Error("Could not be read right now");
+  };
+  try {
+    cells = [];
+    frames.begin();
+    globalThis.window.ClientProfile({ id: vm.id, onBack: () => {} });
+    await settle();
+    frames.begin();
+    const tree = globalThis.window.ClientProfile({ id: vm.id, onBack: () => {} });
+    assert.ok(byTestId(tree, "person-now"), "the page they already had");
+    const stale = byTestId(tree, "person-stale");
+    assert.ok(stale, "REGRESSION: a copy from before the reload was shown as current, the failed read unsaid");
+    assert.match(textOf(stale), /from earlier/);
+  } finally {
+    globalThis.window.__peekPerson = wasPeek;
+  }
 });
 
 test("a person this tab holds is the first draw, not the second, and is read again behind it", async () => {
