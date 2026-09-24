@@ -87,6 +87,7 @@ export const ROUTES = {
   "POST contacts/[id]/notes/decide": { method: "POST", path: "/api/v1/contacts/[id]/notes/decide" },
   "POST contacts/[id]/notes/done": { method: "POST", path: "/api/v1/contacts/[id]/notes/done" },
   "POST contacts/[id]/notes/remove": { method: "POST", path: "/api/v1/contacts/[id]/notes/remove" },
+  "POST contacts/import": { method: "POST", path: "/api/v1/contacts/import" },
   "POST conversations/[id]/archive": { method: "POST", path: "/api/v1/conversations/[id]/archive" },
   "POST conversations/[id]/hand-back": { method: "POST", path: "/api/v1/conversations/[id]/hand-back" },
   "POST conversations/[id]/reply": { method: "POST", path: "/api/v1/conversations/[id]/reply" },
@@ -247,6 +248,7 @@ export type Routes = {
   "POST contacts/[id]/notes/decide": typeof import("../../app/api/v1/contacts/[id]/notes/decide/route").POST;
   "POST contacts/[id]/notes/done": typeof import("../../app/api/v1/contacts/[id]/notes/done/route").POST;
   "POST contacts/[id]/notes/remove": typeof import("../../app/api/v1/contacts/[id]/notes/remove/route").POST;
+  "POST contacts/import": typeof import("../../app/api/v1/contacts/import/route").POST;
   "POST conversations/[id]/archive": typeof import("../../app/api/v1/conversations/[id]/archive/route").POST;
   "POST conversations/[id]/hand-back": typeof import("../../app/api/v1/conversations/[id]/hand-back/route").POST;
   "POST conversations/[id]/reply": typeof import("../../app/api/v1/conversations/[id]/reply/route").POST;
