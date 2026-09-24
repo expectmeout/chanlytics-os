@@ -22,6 +22,7 @@ import {
   NO_LINK_DETAILS,
   parseTenantConfigResult,
   resolveSystemPrompt,
+  standingLine,
   TenantConfigWriteSchema,
 } from "@chanlytics/contracts";
 
@@ -159,4 +160,11 @@ test("the openings, a caller's appointment and a correction on a call each end i
     ),
   );
   assert.doesNotMatch(corrected, /booking link/);
+});
+
+test("the Business tab says so: the one gap it names first is the link, and it claims no way to book", () => {
+  const read = parseTenantConfigResult({ brain: { ...QUOTES, profile: PROFILE } });
+  const s = standingLine(read.config.brain, true);
+  assert.deepEqual(s.missing, { sentence: "It has no booking link to send anyone.", row: "booking_link" });
+  assert.doesNotMatch(s.can, /how to book/);
 });

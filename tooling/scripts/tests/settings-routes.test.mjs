@@ -411,6 +411,40 @@ test("the settings write: the owner's, the workspace named, the body { config, v
   );
 });
 
+test("a receptionist with no booking link (one that quotes each job) is read as one, prompt and all, so the Business tab can say so; the save still refuses it, by field", async () => {
+  const brain = {
+    business_name: "Harbor Moving",
+    system_prompt: "You are the receptionist for Harbor Moving, which quotes each move before it is booked.",
+    fallbacks: { greeting: "g", error: "e", non_text: "n" },
+    profile: { address: "12 Pier Rd, Brooklyn" },
+  };
+  const tables = {
+    memberships: both("owner", "owner"),
+    tenant_config: [{ tenant_id: A, config: { brain }, version: 4, updated_at: "2026-09-01T00:00:00Z" }],
+    tenants: [{ id: A, name: "Harbor Moving", timezone: "America/New_York" }],
+    tenant_channels: [],
+    google_listings: [],
+    events: [],
+  };
+  const read = await settings.GET.run(get(inA), ctxFor(tables));
+  assert.deepEqual(
+    [read.configBroken, read.config.brain.business_name, read.config.brain.booking_link, read.facts.booking_link.value],
+    [false, "Harbor Moving", undefined, null],
+    "it was a config the parser refused: the tab showed a broken workspace",
+  );
+  assert.ok(
+    read.prompt.voice.includes("Booking: there is no booking link, so never use send_booking_link."),
+    "what the receptionist is told, as the tab shows it",
+  );
+  await refused(
+    settings.PUT.run(send("PUT", { config: { brain }, version: 4 }, inA), ctxFor(tables)),
+    "validation",
+    400,
+    "Config rejected — brain.booking_link: The receptionist needs a booking link before it can answer anyone.",
+  );
+  assert.equal(tables.tenant_config[0].version, 4, "and nothing is saved");
+});
+
 test("the autonomy matrix: the workspace's own rows, read by every member; changed by an operator, in the words each refusal has; a delay edit keeps the mode, and limits are merged never replaced; the dial and the day's budget travel the same way", async () => {
   const tables = {
     memberships: both("viewer", "operator"),
