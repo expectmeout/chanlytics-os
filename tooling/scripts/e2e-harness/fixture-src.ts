@@ -232,8 +232,15 @@ if (S.people && typeof w.fetch === "function" && w.location && w.history) {
   installPeopleCourier();
   w.__pipeline = pipelineHelpers();
   // What the People pages call that seed-globals.ts publishes from contracts: a selection's cell in an export, the
-  // words the one-step send of a proposal carries, and why a typed address is not one.
+  // reader of a client list the import sheet plans by, the words the one-step send of a proposal carries, and why a
+  // typed address is not one.
   w.__csvCell = C.csvCell;
+  w.__csvImport = {
+    parseCsv: C.parseCsv,
+    matchColumns: C.matchColumns,
+    importRowsOf: C.importRowsOf,
+    importCounts: C.importCounts,
+  };
   w.__proposalMessage = C.proposalMessage;
   w.__whyNotAnEmail = C.whyNotAnEmail;
   setStatus("workspace", "live");

@@ -1,0 +1,121 @@
+import { z } from "zod";
+import {
+  afterPersonRefused,
+  erasedEmailHash,
+  erasedPhoneHash,
+  normalizeEmail,
+  normalizePhone,
+  whyNotAPhone,
+  whyNotAnEmail,
+} from "@chanlytics/contracts";
+import { workspace, write } from "@/server/route";
+import { recordDecision } from "@/server/verbs";
+
+const Row = z.object({
+  name: z.string().max(200).optional(),
+  phone: z.string().max(40).optional(),
+  email: z.string().max(320).optional(),
+});
+const Body = z.object({
+  /** One id for the whole file, so the ledger's parts read as one import. */
+  import_id: z.string().uuid(),
+  rows: z.array(Row).min(1, "Nothing to import.").max(50, "Fifty at a time."),
+});
+
+/** The door's refusal of a person who asked to be forgotten (import_person, 00170): this row's own, so skipped like
+ *  22023. Never 42501: PostgREST says that when the grant is gone, a fault in every row, which stops the part. */
+const ERASED = "PE001";
+
+/**
+ * POST /api/v1/contacts/import -- { import_id, rows[≤50] }: a part of a business's own client list.
+ *
+ * Owner only, in its own bucket. Each row is normalised here on the one phone rule and the one email rule (the door
+ * refuses the same things and says less), and the digests of the number and the address are computed here, keyed to
+ * the workspace as the erasure keyed them, so the door can leave the erased erased. Each row then goes through
+ * `import_person`: found by number then address, fills only what is empty, never a yes. A row the door refuses (22023,
+ * or PE001 for the erased) is skipped and said by its line in the part, counted from 1; any other fault refuses every
+ * row and stops the part. One decision per part, subject the workspace, with the counts and nothing that names a person;
+ * a decision the ledger will not take is logged, never answered as a refusal of rows already on file.
+ */
+export const POST = write({
+  scope: workspace,
+  role: "owner",
+  rate: "person_import",
+  input: Body,
+  handle: async ({ ctx, member, input }) => {
+    const tenantId = member.tenantId;
+    const out = {
+      added: 0,
+      existed: 0,
+      emails_set: 0,
+      skipped: [] as { line: number; reason: string }[],
+      failed: [] as { line: number; message: string }[],
+      stopped: false,
+    };
+    for (const [i, r] of input.rows.entries()) {
+      const line = i + 1;
+      const phone = normalizePhone(r.phone ?? null);
+      const email = normalizeEmail(r.email ?? null);
+      if (!phone && !email) {
+        const said = r.phone?.trim() ? whyNotAPhone(r.phone) : r.email?.trim() ? whyNotAnEmail(r.email) : null;
+        out.skipped.push({ line, reason: said ?? "No number and no address." });
+        continue;
+      }
+      // What the row does not have is sent as empty, which the door reads as none: database.types.ts types the name,
+      // the number and the address as strings, as it does set_person_email's address. A digest is sent only for what
+      // the row has; left out, it is the door's default of none. The name is not cut here: the door keeps its first
+      // 80 characters, and a cut by code unit could split an emoji in half (csv.ts says the same of the reader).
+      const { data, error } = await ctx.supabase.rpc("import_person", {
+        p_tenant_id: tenantId,
+        p_name: (r.name ?? "").trim(),
+        p_phone_e164: phone ?? "",
+        p_email: email ?? "",
+        p_phone_digest: phone ? await erasedPhoneHash(tenantId, phone) : undefined,
+        p_email_digest: email ? await erasedEmailHash(tenantId, email) : undefined,
+      });
+      if (error) {
+        if (afterPersonRefused(error.code) === "skip" || error.code === ERASED) {
+          out.skipped.push({ line, reason: error.message });
+          continue;
+        }
+        out.failed.push({ line, message: error.message });
+        out.stopped = true;
+        break;
+      }
+      const made = data as { contact_id: string; existed: boolean; email: "set" | "kept" | "taken" | null };
+      if (made.existed) out.existed += 1;
+      else out.added += 1;
+      if (made.email === "set") out.emails_set += 1;
+    }
+    // The rows are the act; the decision is its record. Every row above went through import_person and is on file by
+    // now, each in its own commit, so a decision the ledger will not take -- a lock timeout, a CHECK on decisions that
+    // a migration has not widened yet -- must not come back as a refusal: with-route would turn the throw into a 500,
+    // the sheet would draw a refusal and refresh nothing, and the owner would be told that people who are on file were
+    // refused. The counts answer as they are; the failed record is said in the log, with the counts, and never a name.
+    try {
+      await recordDecision(ctx, tenantId, "workspace", tenantId, "import", {
+        import_id: input.import_id,
+        rows: input.rows.length,
+        added: out.added,
+        existed: out.existed,
+        emails_set: out.emails_set,
+        skipped: out.skipped.length,
+        failed: out.failed.length,
+      });
+    } catch (e) {
+      console.error(
+        "import_decision_failed",
+        JSON.stringify({
+          tenant: tenantId,
+          import_id: input.import_id,
+          added: out.added,
+          existed: out.existed,
+          skipped: out.skipped.length,
+          failed: out.failed.length,
+          error: e instanceof Error ? e.message : String(e),
+        }),
+      );
+    }
+    return out;
+  },
+});

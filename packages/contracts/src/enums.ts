@@ -447,6 +447,8 @@ export const DECISION_VERBS = [
   "archive_list",
   "restore_list",
   "delete_list",
+  /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
+  "import",
 ] as const;
 export type DecisionVerb = (typeof DECISION_VERBS)[number];
 

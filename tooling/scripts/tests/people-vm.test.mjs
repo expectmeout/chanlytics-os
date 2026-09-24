@@ -737,7 +737,7 @@ test("where a person came from, in the words People says it: one per stored valu
     call: "Phone",
     calendar: "Your calendar",
     manual: "Added by hand",
-    import: "Imported history",
+    import: "Imported",
     lead: "A lead you found",
   });
   for (const [key, label] of Object.entries(contracts.PERSON_CAME_FROM_WORDS))
