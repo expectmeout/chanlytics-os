@@ -210,14 +210,25 @@ page's acts), `styles/clients.css`; tests `pipeline.test.mjs`.
 
 Branch `tooling/the-harness-serves-people`. For a customer: nothing. For the repo: the Pipeline's e2e spec runs locally.
 
-- [ ] `tooling/scripts/e2e-harness/scenarios.mjs`: a `pipeline` scenario (fictional, a studio that sends proposals:
-  `sells_by: "proposal"`, eight people across the four groups, in `people_list`'s row shape).
-- [ ] `server.mjs` answers `GET /api/v1/contacts` (the scenario's page), `/segments`, `/views` and
+- [x] `tooling/scripts/e2e-harness/scenarios.mjs`: a `pipeline` scenario (fictional, a studio that sends proposals:
+  `sells_by: "proposal"`, eight people across the four groups, in `people_list`'s row shape). Built as Harbor
+  Creative over the salon's record: every column on every row, each person's thread (their row's message columns
+  read off it, the proposal in it as it went out), their visits under the salon's calendar, and the person read's
+  own detail; every deals-on is contracts `dealsAreOn(sells_by)`.
+- [x] `server.mjs` answers `GET /api/v1/contacts` (the scenario's page), `/segments`, `/views` and
   `GET /api/v1/contacts/:id` from the scenario; `fixture-src.ts` installs the real People surface (`peopleOverride`)
-  over them, so People and the Pipeline are real in the harness.
-- [ ] `e2e/people.spec.ts`'s Pipeline walk passes on `pnpm e2e:local -- e2e/people.spec.ts --scenario=pipeline`, and a
+  over them, so People and the Pipeline are real in the harness. The api client names the workspace by the slug in
+  the page's path, so the fixture puts the page at `/w/<slug>/` and the server serves that address and takes the
+  slug; the route gate is the app's own (`installRouteGate`, moved into `surface-registry.ts`), and the Pipeline's
+  helpers one spelling (`legacy-bridge/pipeline-helpers.ts`) for the app, the harness and the tests.
+- [x] `e2e/people.spec.ts`'s Pipeline walk passes on `pnpm e2e:local -- e2e/people.spec.ts --scenario=pipeline`, and a
   mutation (the peek not opening) turns it red.
-- [ ] `e2e-harness.test.mjs` builds the new scenario; the gate; the PR; merge.
+- [x] `e2e-harness.test.mjs` builds the new scenario; the gate; the PR; merge.
+- [x] The review's one round: every row in the real shape (visits under a calendar that reads, `message_channels`,
+  a deal's columns null where there is none), `consult_first` a flag as the route sends it, the three contracts
+  helpers the People pages call published, Settings and Setup live under the gate, the browser path tested over a
+  stub whose fetch is `answer()`, every global the People pages read published or excused, numbers from the
+  555-01xx block, and leads-honest on `pipelineHelpers()`.
 
 ---
 
