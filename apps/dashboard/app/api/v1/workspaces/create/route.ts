@@ -8,6 +8,7 @@ import {
 } from "@chanlytics/contracts";
 import { z } from "zod";
 import { inviteCodeMatches, notifyPlatformSignup } from "@/server/signup";
+import { giveFirstAlertAddress } from "@/server/first-alert";
 
 /**
  * POST /api/v1/workspaces/create — bring a new workspace into existence.
@@ -104,6 +105,12 @@ export const POST = write({
     // workspaces are made. Bounded and best-effort: the workspace exists whether
     // or not the notice gets through.
     await notifyPlatformSignup(data.id, ctx.email ?? "");
+
+    // The creator hears from their own workspace: their address is its first alert
+    // address, the one Settings › Notifications shows and changes. Without it every
+    // "a customer needs you" went to the platform, redacted, and the owner was never
+    // told. Best effort, like the notice above.
+    await giveFirstAlertAddress(ctx.supabase, data.id, ctx.email, ctx.userId);
 
     // The name typed at sign-up rode in the user's metadata to prefill this
     // screen (signup.ts); the workspace exists now, so it goes -- or the next

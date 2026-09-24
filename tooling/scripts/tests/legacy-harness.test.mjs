@@ -170,6 +170,14 @@ test("the stubs answer the way contracts answers", () => {
     );
     assert.equal(win.__handoffE164(n), handoffE164(n), `handoffE164(${JSON.stringify(n)})`);
   }
+  // The number the business keeps and forwards to the line (F2), made up in 555-01xx: refused in contracts' words.
+  for (const n of ["+12125550142", "+1 (212) 555-0142", "+19175550100", "+13055550123"]) {
+    assert.equal(
+      win.__whyNotAHandoff(n, "+13055550123", "+12125550142"),
+      whyNotAHandoff(n, "+13055550123", "+12125550142"),
+      `whyNotAHandoff(${JSON.stringify(n)}, line, kept)`,
+    );
+  }
 });
 
 test("the workspace's own write refuses a zone as the route does, and keeps the one it takes where the bridge keeps it", async () => {

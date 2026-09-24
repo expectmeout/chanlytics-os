@@ -676,6 +676,8 @@ export async function bindLocation(
           address: loc.address,
           maps_uri: loc.maps_uri,
           business_status: null,
+          // The old place's hours and number are not this one's; the next Places read fills them.
+          facts: {},
           linked_by: userId,
           linked_at: now.toISOString(),
           rating: null,

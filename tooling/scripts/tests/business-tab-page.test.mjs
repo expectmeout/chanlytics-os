@@ -260,10 +260,10 @@ test("a fact that is not the owner's says where it came from; one they set says 
     /\+1 \(646\) 932-5775/,
     "written as people write it, never as it is stored",
   );
-  assert.match(
+  assert.doesNotMatch(
     textOf(byTestId(tree, "rec-row-booking_link")),
-    /Sent instead of confirming an appointment itself\./,
-    "the old form's note, under the link",
+    /Sent instead of confirming/,
+    "a row that has its link states it and stops (24 Sep): what a link is for is an empty row's sentence",
   );
   // What only Google says is Google's: no address typed, and the one it lists.
   tree = drawTab({
@@ -446,6 +446,51 @@ test("what stops a save is said under the box, before any round trip, and nothin
     /That booking link needs to be a full web address, starting with https:\/\//,
   );
   assert.equal(sent.length, 0);
+});
+
+test("F2: the transfer number cannot be the number the business keeps and forwards -- said under the box, nothing sent", () => {
+  const sent = saving();
+  const flashes = [];
+  const flash = (f) => flashes.push(f);
+  // The salon keeps (718) 555-0142 and forwards the calls nobody picks up to its receptionist.
+  let tree = drawTab({ flash, facts: { kept_line: { value: "+17185550142", source: "provisioned" } } });
+  openFold(tree, "handoff_number");
+  tree = redrawTab(flash);
+  typeInto(tree, "handoff_number", "+1 (718) 555-0142");
+  tree = redrawTab(flash);
+  saveRow(tree, "handoff_number");
+  tree = redrawTab(flash);
+  assert.match(textOf(inline(tree, "handoff_number")), /a caller put through to it would come straight back/);
+  assert.deepEqual([sent.length, flashes.length], [0, 0], "nothing sent, and nothing said in a toast");
+  // A cell a person answers is still fine.
+  typeInto(tree, "handoff_number", "+1 917 555 0100");
+  tree = redrawTab(flash);
+  saveRow(tree, "handoff_number");
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].config.brain.profile.handoff_number, "+19175550100");
+});
+
+test("F1: the number the business keeps, given out, says its missed calls reach the receptionist -- not that they never do", () => {
+  const flash = () => {};
+  // The salon keeps (718) 555-0142 and forwards the calls nobody picks up to its receptionist's line.
+  let tree = drawTab({ flash, facts: { kept_line: { value: "+17185550142", source: "provisioned" } } });
+  openFold(tree, "phone_display");
+  tree = redrawTab(flash);
+  press(all(byTestId(tree, "rec-inline-phone_display-choice"), (n) => n.props?.role === "radio")[1]);
+  tree = redrawTab(flash);
+  typeInto(tree, "phone_display", "+1 (718) 555-0142");
+  tree = redrawTab(flash);
+  assert.match(
+    textOf(byTestId(tree, "rec-inline-phone_display-note")),
+    /^Your own number\. The calls nobody picks up there go to your receptionist on \+1 \(308\) 336-8109\.$/,
+  );
+  typeInto(tree, "phone_display", "+1 (646) 555-0100");
+  tree = redrawTab(flash);
+  assert.match(
+    textOf(byTestId(tree, "rec-inline-phone_display-note")),
+    /will not reach your receptionist/,
+    "any other number still does not reach it",
+  );
 });
 
 test("Use Google's and Publish the line instead each send exactly their patch", () => {

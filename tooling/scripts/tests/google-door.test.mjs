@@ -306,6 +306,20 @@ const place = (id, over = {}) => ({
   rating: 4.6,
   userRatingCount: 11,
   reviews: [],
+  // What the listing says beyond its name (F7): a mover's week, its numbers and site, and the area it serves.
+  regularOpeningHours: {
+    periods: [1, 2, 3, 4, 5, 6].map((day) => ({
+      open: { day, hour: 7, minute: 0 },
+      close: { day, hour: 19, minute: 0 },
+    })),
+  },
+  internationalPhoneNumber: "+1 718-555-0142",
+  nationalPhoneNumber: "(718) 555-0142",
+  websiteUri: "https://harbormoving.example",
+  primaryType: "moving_company",
+  primaryTypeDisplayName: { text: "Moving company", languageCode: "en" },
+  pureServiceAreaBusiness: true,
+  timeZone: { id: "America/New_York" },
   ...over,
 });
 /** A review as Places shows it: Rosa, two hours ago. */
@@ -710,6 +724,23 @@ test("link: the place is read BEFORE any row is written -- a wrong id is a 502 a
     [A, PLACE, "Harbor Moving", U, 4.6, 11, null],
   );
   assert.deepEqual(
+    row.facts,
+    {
+      hours: [1, 2, 3, 4, 5, 6].map((day) => ({
+        open: { day, hour: 7, minute: 0 },
+        close: { day, hour: 19, minute: 0 },
+      })),
+      phone_e164: "+17185550142",
+      phone_display: "(718) 555-0142",
+      website: "https://harbormoving.example",
+      primary_type: "moving_company",
+      primary_type_label: "Moving company",
+      service_area_only: true,
+      time_zone: "America/New_York",
+    },
+    "F7: what the listing says beyond its name is kept on the row, read at once, for the first run to offer",
+  );
+  assert.deepEqual(
     tables.google_reviews.map((r) => [r.tenant_id, r.review_id, r.origin, r.author, r.body]),
     [[A, "r-rosa", "places", "Rosa", "Careful movers, on time."]],
     "the old place's reviews are gone -- they were another place's -- and the new one's are on record",
@@ -723,6 +754,44 @@ test("link: the place is read BEFORE any row is written -- a wrong id is a 502 a
   assert.deepEqual(
     tables.events.map((e) => [e.tenant_id, e.kind, e.category, e.subject_type, e.data]),
     [[A, "google.linked", "google", "listing", { place_id: PLACE, name: "Harbor Moving", by: U, read: true }]],
+  );
+});
+
+test("F7: a relink keeps what the read that proved the new place said, even when the read after it fails -- never the old place's hours and number", async () => {
+  const tables = world({
+    google_listings: [
+      listingRow({
+        place_id: PLACE2,
+        name: "Harbor Moving Warehouse",
+        facts: {
+          hours: null,
+          phone_e164: "+13055550199",
+          phone_display: "(305) 555-0199",
+          website: "https://warehouse.example",
+          primary_type: "storage",
+          primary_type_label: "Storage",
+          service_area_only: false,
+          time_zone: "America/New_York",
+        },
+      }),
+    ],
+  });
+  use(tables);
+  let reads = 0;
+  wired((req) => {
+    if (req.url.split("?")[0] !== PLACE_URL(PLACE)) throw new Error(`unexpected ${req.method} ${req.url}`);
+    reads += 1;
+    return reads === 1 ? { status: 200, body: place(PLACE) } : refusal(503, "Backend unavailable", "UNAVAILABLE");
+  });
+  const [status, body] = await answer(await knock({ op: "link", place_id: PLACE, user_id: U }));
+  assert.equal(status, 200, JSON.stringify(body));
+  assert.equal(body.read.ok, false, "the read after linking failed");
+  const row = tables.google_listings[0];
+  assert.equal(row.place_id, PLACE);
+  assert.deepEqual(
+    [row.facts.phone_e164, row.facts.website, row.facts.primary_type, row.facts.hours.length],
+    ["+17185550142", "https://harbormoving.example", "moving_company", 6],
+    "the new place's own facts, from the read that proved its id",
   );
 });
 
@@ -842,7 +911,8 @@ test("refresh on the public listing: the rating, the count and the day are writt
 
 test("connect: the code from Google becomes the connection -- the token traded with the secret from this edge, the scope and the refresh token checked, the accounts and locations read as the owner, the credentials kept in Vault, the ledger told -- and with one location on Maps the listing is bound and the profile synced at once, the public five making way", async () => {
   const tables = world({
-    google_listings: [listingRow()],
+    // What the public listing's last read said beyond its name (F7): the profile names the same place, so it stays.
+    google_listings: [listingRow({ facts: { phone_e164: "+17185550142", website: "https://harbormoving.example" } })],
     google_reviews: [reviewRow(R1, { origin: "places", review_id: "p-1", body: "the public copy" })],
   });
   const { vault } = use(tables);
@@ -973,6 +1043,11 @@ test("connect: the code from Google becomes the connection -- the token traded w
     "the same place the public listing named, so the row is kept and takes the profile's numbers",
   );
   assert.deepEqual(
+    listing.facts,
+    { phone_e164: "+17185550142", website: "https://harbormoving.example" },
+    "and keeps what its last read said",
+  );
+  assert.deepEqual(
     tables.google_reviews.map((r) => [r.review_id, r.origin, r.rating, r.author, r.body, r.reply_text]).sort(),
     [
       ["g-1", "profile", 5, "Rosa", "Careful movers.", null],
@@ -1097,8 +1172,15 @@ test("connect with several locations on Maps waits for the owner's choice: the c
   );
   const listing = tables.google_listings[0];
   assert.deepEqual(
-    [tables.google_listings.length, listing.tenant_id, listing.place_id, listing.name, listing.linked_by],
-    [1, A, PLACE2, "Harbor Moving Warehouse", U],
+    [
+      tables.google_listings.length,
+      listing.tenant_id,
+      listing.place_id,
+      listing.name,
+      listing.linked_by,
+      listing.facts,
+    ],
+    [1, A, PLACE2, "Harbor Moving Warehouse", U, {}],
     "the chosen location's place on Maps becomes the listing",
   );
   assert.ok(Date.parse(listing.linked_at) >= t0);

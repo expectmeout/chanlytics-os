@@ -235,6 +235,76 @@ const PolLockedCells = ({ span, note }) => (
   </td>
 );
 
+// Whether the pane is a phone's, at Settings' own breakpoint (mobile.css, 640px), kept current as the window changes
+// size, as the record kit reads its own (record-fold.jsx useRecPhone). Read whatever the pane draws, so a pane holds
+// the same hooks at either width.
+const SET_PHONE_QUERY = "(max-width: 640px)";
+const useSetPhone = () => {
+  const q = () => (typeof window.matchMedia === "function" ? window.matchMedia(SET_PHONE_QUERY) : null);
+  const [phone, setPhone] = React.useState(() => { const m = q(); return !!(m && m.matches); });
+  React.useEffect(() => {
+    const m = q();
+    if (!m || !m.addEventListener) return undefined;
+    const on = (e) => setPhone(!!e.matches);
+    m.addEventListener("change", on);
+    return () => m.removeEventListener("change", on);
+  }, []);
+  return phone;
+};
+
+/**
+ * The matrix on a phone (24 Sep): one line per action class, its mode as a word that opens a menu of the modes the
+ * class takes, each saying what it does. The table of four columns collapsed into four captioned dots under every
+ * label there -- 107px a row, the four captions repeated seven times down the screen. A locked class says so and
+ * opens nothing. A desktop keeps the matrix, where four columns read at a glance. Hookless but for the menus.
+ */
+const PolPhoneRows = ({ rows, MODES, put, busy }) => (
+  <div className="pol-phone" data-testid="pol-phone">
+    {rows.map((r) => {
+      const g = window.gate("autonomy");
+      const gated = busy === r.cls ? "Saving — wait for this one to land." : g["aria-disabled"] ? g["data-tip"] : null;
+      return (
+        <div key={r.id} className="set-row pol-phone-row" data-testid={`pol-phone-${r.id}`}>
+          <div className="set-row-info">
+            <span className="set-row-label">
+              {r.label}
+              {r.note && !r.locked && (
+                <button
+                  type="button"
+                  className="set-mark"
+                  data-tip={r.note}
+                  aria-label={`What each mode does for ${r.label}: ${r.note}`}
+                  onClick={(e) => { if (window.__tip) window.__tip.show(e.currentTarget); }}
+                ><Icon name="info" size={12} /></button>
+              )}
+            </span>
+            {r.locked ? <span className="set-row-hint pol-phone-locked"><Icon name="shield" size={11} /> {r.note} — locked by charter</span> : null}
+          </div>
+          {r.locked ? null : (
+            <div className="set-row-control">
+              <MoreMenu
+                items={MODES.filter((m) => !r.modes || r.modes.includes(m)).map((m) => ({
+                  label: polMode(m).head,
+                  hint: (r.hints && r.hints[m]) || polMode(m).does,
+                  checked: r.mode === m,
+                  onClick: () => put(r, m.toLowerCase()),
+                }))}
+                label={polMode(r.mode).head}
+                title={`${r.label}: ${polMode(r.mode).head}`}
+                btnClass="bt-link pol-phone-mode"
+                align="right"
+                escape
+                gated={gated}
+                testid={`pol-phone-mode-${r.id}`}
+              />
+            </div>
+          )}
+        </div>
+      );
+    })}
+  </div>
+);
+
 // The charter as one screen — rows/modes live in window.POLICY (data-bits); Fleet reads the same source.
 const PolicyMatrix = () => {
   const POL_ROWS = window.POLICY.ROWS;
@@ -999,6 +1069,7 @@ const PaneAutonomyReal = ({ flash }) => {
     return () => { window.removeEventListener("policy:changed", bump); window.removeEventListener("surface:settings", bump); };
   }, []);
   const [busy, setBusy] = useSetState(null);
+  const phone = useSetPhone();
 
   if (window.__POLICIES === null) {
     return (
@@ -1055,6 +1126,7 @@ const PaneAutonomyReal = ({ flash }) => {
           <h2 className="fl-card-title">Policy matrix</h2>
           <span className="fl-card-sub">What it may do without you. Every row is one it consults before acting.</span>
         </div>
+        {phone ? <PolPhoneRows rows={rows} MODES={MODES} put={put} busy={busy} /> : (
         <table className="pol-table">
           <thead><tr><th>Action class</th>{MODES.map((m) => <th key={m} className="pol-mode"><PolModeHead m={m} /></th>)}</tr></thead>
           <tbody>
@@ -1098,6 +1170,7 @@ const PaneAutonomyReal = ({ flash }) => {
             })}
           </tbody>
         </table>
+        )}
       </section>
 
       <section className="fl-card set-card">

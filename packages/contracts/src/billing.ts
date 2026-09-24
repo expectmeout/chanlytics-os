@@ -508,6 +508,19 @@ export interface SetupBillingFacts {
   cancel_at_period_end?: boolean;
 }
 
+/**
+ * Where Stripe hands the browser back: Settings › Billing, or the first run that asked for the card. A closed
+ * list, because the address is built on the edge from this word, and a free path would be an open redirect on
+ * our own domain.
+ */
+export const CHECKOUT_RETURNS = ["billing", "start"] as const;
+export type CheckoutReturn = (typeof CHECKOUT_RETURNS)[number];
+/** The route each place is, after the workspace's own page (/w/<slug>#/<route>). */
+export const CHECKOUT_RETURN_ROUTE: Record<CheckoutReturn, string> = { billing: "admin/billing", start: "start" };
+export function isCheckoutReturn(v: unknown): v is CheckoutReturn {
+  return typeof v === "string" && (CHECKOUT_RETURNS as readonly string[]).includes(v);
+}
+
 /** The words the pages say for what came back from Stripe (the query the card reads once). */
 export const CHECKOUT_OUTCOME_WORDS: Record<string, string> = {
   success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",

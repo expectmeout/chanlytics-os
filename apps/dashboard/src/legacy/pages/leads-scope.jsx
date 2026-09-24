@@ -483,7 +483,7 @@ const LeadExcludedChips = ({ chips, active, onPick }) => (
   chips.length === 0 ? null : (
     <div className="ld-chips" data-testid="lead-excluded-chips">
       {chips.map((c) => (
-        <button key={c.key} type="button" className={`ld-chip ${active === c.key ? "on" : ""}`} aria-pressed={active === c.key} onClick={() => onPick(active === c.key ? null : c.key)} data-testid={`lead-chip-${c.key}`}>
+        <button key={c.key} type="button" className={`ld-chip ${active === c.key ? "on" : ""}`} aria-pressed={active === c.key} onClick={(e) => { const pick = () => onPick(active === c.key ? null : c.key); return window.holdStill ? window.holdStill(e && e.currentTarget, pick) : pick(); }} data-testid={`lead-chip-${c.key}`}>
           {c.key} <span className="count">{c.count}</span>
         </button>
       ))}
@@ -532,7 +532,7 @@ const LeadReviewBench = ({ groups, rows, groupKey, onGroup, search, month, revie
       <div className="ld-bench-queue" role="tablist" aria-label="What would resolve these leads" data-testid="lead-bench-queue">
         <div className="ld-bench-qh">The pile, in the order to work it</div>
         {groups.map((y) => (
-          <button key={y.key} type="button" role="tab" aria-selected={y.key === g.key} className={`ld-bench-g ${y.id}${y.key === g.key ? " on" : ""}`} onClick={() => onGroup(y.key)} data-testid={`bench-group-${y.key}`}>
+          <button key={y.key} type="button" role="tab" aria-selected={y.key === g.key} className={`ld-bench-g ${y.id}${y.key === g.key ? " on" : ""}`} onClick={(e) => (window.holdStill ? window.holdStill(e && e.currentTarget, () => onGroup(y.key)) : onGroup(y.key))} data-testid={`bench-group-${y.key}`}>
             <span className="n">{y.ids.length}</span>
             <span className="l">{y.label}</span>
             <span className="a">{y.acts.length ? y.acts.map((a) => words[a] || a).join(" · ") : "Resolves itself"}</span>

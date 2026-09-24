@@ -16,7 +16,6 @@ const useSetupTick = () => {
 // A row's tone is the state's own (contracts/tone.ts), through the bridge.
 const setupTone = (state) => (window.__chrome && window.__chrome.state ? window.__chrome.state("setup", state).tone : "plain");
 
-const money = (usd) => (typeof usd === "number" ? `about $${usd.toFixed(2)} a month` : "a small monthly fee");
 
 // Who may press a row's verb, and what pressing does, for the gate's sentence
 // (contracts refusal.ts roleGate). A verb that opens a panel or a page is anyone's;
@@ -47,7 +46,6 @@ const LineChooser = ({ S, flash, onDone, onKeep }) => {
   const [numbers, setNumbers] = React.useState(null);
   const [busy, setBusy] = React.useState(false);
   const [chosen, setChosen] = React.useState(null);
-  const cost = S.dto.lines && S.dto.lines.costs ? S.dto.lines.costs.local_number_month_usd : null;
   const owner = window.canDo ? window.canDo("team") : true;
   const find = async () => {
     // Enter in the area code reaches this too, past the gated Find numbers, so it asks the same gate.
@@ -90,7 +88,7 @@ const LineChooser = ({ S, flash, onDone, onKeep }) => {
       <div className="setup-paths">
         <button className={`setup-path ${path === "new" ? "active" : ""}`} onClick={() => setPath("new")} data-testid="setup-path-new">
           <b>Get a new number</b>
-          <span>A local number in your area code, {money(cost)}. Your receptionist answers it within a minute of choosing.</span>
+          <span>A local number in your area code, included in your plan. Your receptionist answers it within a minute of choosing.</span>
         </button>
         <button className={`setup-path ${path === "keep" ? "active" : ""}`} onClick={() => setPath("keep")} data-testid="setup-path-keep">
           <b>Keep my number</b>
@@ -130,7 +128,7 @@ const LineChooser = ({ S, flash, onDone, onKeep }) => {
           )}
           {chosen && (
             <div className="setup-confirm" data-testid="setup-confirm">
-              <span className="setup-confirm-text"><b className="tabular">{chosen.friendly}</b> · {money(cost)} · your receptionist answers it; texting arrives when the carriers register it</span>
+              <span className="setup-confirm-text"><b className="tabular">{chosen.friendly}</b> · included in your plan · your receptionist answers it; texting arrives when the carriers register it</span>
               <button className="btn btn-primary btn-sm" onClick={buy} disabled={busy} data-testid="setup-buy" {...window.gate("team", "get a line")}>{busy ? "Setting up…" : "Get this number"}</button>
             </div>
           )}

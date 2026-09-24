@@ -48,7 +48,6 @@ import {
   needsConsultation,
   BookingRulesSchema,
   BOOKING_DEFAULTS,
-  violatesNoPrices,
   TONE_PRESETS,
   handoffWords,
   handoffChatWords,
@@ -939,7 +938,7 @@ const svc = (name, duration_min, price_note) => ({
 });
 const MANY = Array.from({ length: 33 }, (_, i) => svc(`Service ${i + 1}`, 30 + i, "quoted at consult"));
 
-test("the services row counts them, names the first four with how long each takes, and says how many more", () => {
+test("the services row counts them, names the first three with how long each takes, and says how many more", () => {
   const vm = servicesWords([
     svc("Balayage", 180, "quoted at consult"),
     svc("Highlights", 45, "quoted at consult"),
@@ -948,22 +947,18 @@ test("the services row counts them, names the first four with how long each take
     ...MANY.slice(0, 29),
   ]);
   assert.equal(vm.count, 33);
-  assert.equal(vm.line, "33 on record", "the canvas's words");
+  assert.equal(vm.line, "33", "the count alone: the key says what it counts");
   // In the stored order, which is the order the receptionist reads them in: never sorted.
   // "180 min", never "180m", which a screen reader may say as metres.
   assert.deepEqual(vm.chips, [
     { name: "Balayage", takes: "180 min" },
     { name: "Highlights", takes: "45 min" },
     { name: "Haircut", takes: null },
-    { name: "Blowout", takes: "120 min" },
   ]);
-  assert.equal(vm.more, "+29 more");
-  // Four or fewer are all chips, with no "more".
-  assert.deepEqual([servicesWords(MANY.slice(0, 4)).chips.length, servicesWords(MANY.slice(0, 4)).more], [4, null]);
-  assert.deepEqual(
-    [servicesWords(MANY.slice(0, 5)).more, servicesWords(MANY.slice(0, 1)).line],
-    ["+1 more", "1 on record"],
-  );
+  assert.equal(vm.more, "+30");
+  // Three or fewer are all chips, with no "more".
+  assert.deepEqual([servicesWords(MANY.slice(0, 3)).chips.length, servicesWords(MANY.slice(0, 3)).more], [3, null]);
+  assert.deepEqual([servicesWords(MANY.slice(0, 4)).more, servicesWords(MANY.slice(0, 1)).line], ["+1", "1"]);
   // None is no line at all: the row says it has none. A row nobody finished (no name) is not counted, as no save writes it.
   // And a stored list that is not one (a hand-edited record) is none, never a throw: the row is drawn as the page draws.
   for (const none of [
@@ -975,56 +970,9 @@ test("the services row counts them, names the first four with how long each take
     { Balayage: 180 },
     "Balayage",
   ]) {
-    assert.deepEqual(servicesWords(none), { count: 0, line: null, priced: null, chips: [], more: null });
+    assert.deepEqual(servicesWords(none), { count: 0, line: null, chips: [], more: null });
   }
   assert.equal(servicesWords([svc("Balayage", 180), { name: "" }]).count, 1);
-});
-
-test("how they are priced is one sentence, judged by the detector the replies are checked by", () => {
-  // Every one sent to a consultation, in the owner's own note: the canvas's sentence.
-  assert.equal(servicesWords(MANY).priced, "Every one quoted at consult — none names a price.");
-  assert.equal(
-    servicesWords(MANY.map((s) => ({ ...s, price_note: "By consultation" }))).priced,
-    "Every one by consultation — none names a price.",
-    "the note as a sentence reads it",
-  );
-  assert.equal(
-    servicesWords(MANY.map((s, i) => ({ ...s, price_note: i % 2 ? "Quoted at consult" : "quoted at consult " })))
-      .priced,
-    "Every one quoted at consult — none names a price.",
-    "the same note, whatever its case or its space",
-  );
-  assert.equal(
-    servicesWords([svc("Balayage", 180, "quoted at consult")]).priced,
-    "Quoted at consult — it names no price.",
-    "one service is not 'every one'",
-  );
-  // A note the detector takes for a price is counted, whatever the rest say.
-  const priced = MANY.map((s, i) => (i < 2 ? { ...s, price_note: i ? "45 dollars" : "from $45" } : s));
-  assert.ok(
-    violatesNoPrices("from $45") && violatesNoPrices("45 dollars") && !violatesNoPrices("quoted at consult"),
-    "the one predicate",
-  );
-  assert.equal(servicesWords(priced).priced, "2 name a price.");
-  assert.equal(servicesWords([svc("Balayage", 180, "$120"), svc("Cut", 30)]).priced, "1 names a price.");
-  assert.equal(servicesWords(MANY.map((s) => ({ ...s, price_note: "$60" }))).priced, "33 name a price.");
-  // A duration or a length is not a price: the detector ignores bare numbers, and so does the row.
-  assert.equal(servicesWords([svc("Braids", 240, "varies by length, 2 to 6 hours")]).priced, "None names a price.");
-  // No price at all, notes that differ, or one note for all that sends no price to a consult: none names one, and no more.
-  assert.equal(servicesWords([svc("Balayage", 180), svc("Cut", 30)]).priced, "None names a price.");
-  assert.equal(
-    servicesWords([svc("Balayage", 180, "quoted at consult"), svc("Cut", 30, "varies")]).priced,
-    "None names a price.",
-  );
-  assert.equal(
-    servicesWords([svc("Balayage", 180, "quoted at consult"), svc("Cut", 30)]).priced,
-    "None names a price.",
-    "a service with no note is not 'quoted at consult'",
-  );
-  assert.equal(
-    servicesWords(MANY.map((s) => ({ ...s, price_note: "varies by length" }))).priced,
-    "None names a price.",
-  );
 });
 
 test("a block's share of the prompt is a rough fraction in words, never a percentage", () => {
@@ -1241,34 +1189,24 @@ test("the voice's three starting points are sentences the profile keeps, each na
   assert.equal(new Set(TONE_PRESETS.map((p) => p.tone)).size, 3, "three different voices");
 });
 
-test("the hand-off row at rest counts the reasons and quotes their opening, and says what a call does", () => {
+test("the hand-off row at rest is one line: the reasons counted, and what a call does", () => {
   const two = handoffWords(
     ["They ask for a person, for the owner", "They are upset, or have a complaint"],
     "+1 (646) 932-5775",
   );
   assert.equal(two.phone, "transfers to +1 (646) 932-5775");
-  assert.equal(
-    two.chat,
-    "on 2 reasons — They ask for a person, for the owner · They are upset, or have a…",
-    "cut at a word",
-  );
-  assert.equal(
-    handoffWords(["Refunds"], null).chat,
-    "on 1 reason — Refunds",
-    "short enough to say whole, with no ellipsis",
-  );
+  assert.equal(two.line, "For 2 reasons · on a call, transfers to +1 (646) 932-5775");
+  assert.doesNotMatch(two.line, /They ask/, "the reasons themselves are the fold's, whole");
+  assert.equal(handoffWords(["Refunds"], null).line, "For 1 reason · on a call, takes a message");
   // With no reasons it still hands over, on the composer's own triggers, in the words the ability card says them in.
   const none = handoffWords([], "  ");
-  assert.equal(none.chat, "when a customer asks for a person or it can't help");
+  assert.equal(none.line, "When a customer asks for a person or it can't help · on a call, takes a message");
   assert.equal(none.phone, "takes a message");
-  assert.ok(
-    handoffChatWords({ hasEscalateWhen: false, pauseHours: undefined }).startsWith(
-      `When ${none.chat.slice("when ".length)}, it`,
-    ),
-  );
+  const [clause] = none.line.split(" · ");
+  assert.ok(handoffChatWords({ hasEscalateWhen: false, pauseHours: undefined }).startsWith(`${clause}, it`));
   // A hand-edited record whose list is not one is no reasons, never a throw.
-  assert.equal(handoffWords("Refunds", undefined).chat, none.chat);
-  assert.equal(handoffWords([" ", null, 3], undefined).chat, none.chat);
+  assert.equal(handoffWords("Refunds", undefined).line, none.line);
+  assert.equal(handoffWords([" ", null, 3], undefined).line, none.line);
 });
 
 test("the hand-off sentences are the ability card's own, written once", () => {
@@ -1328,10 +1266,10 @@ test("the notes row names the first four by title, and how many more", () => {
   }));
   assert.deepEqual(notesWords(six), {
     count: 6,
-    chips: ["Parking", "Gift cards", "Second location", "Wi-Fi"],
-    more: "+2 more",
+    chips: ["Parking", "Gift cards", "Second location"],
+    more: "+3",
   });
-  assert.equal(notesWords(six.slice(0, 4)).more, null);
+  assert.equal(notesWords(six.slice(0, 3)).more, null);
   assert.deepEqual(notesWords([]), { count: 0, chips: [], more: null });
   assert.deepEqual(
     notesWords([{ title: " ", text: "half" }, null, { title: "Parking" }]).chips,

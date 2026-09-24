@@ -1310,3 +1310,33 @@ test("a person the sheet cannot work out is said in the sheet as a read that fai
   }
   await until("the wire is quiet", () => busy === 0);
 });
+
+test("a proposal started after a consultation names the service the consultation was for, as the Calendar's does", () => {
+  const after = (title, consultFirst = ["SEO"], deals = []) =>
+    person({ deals, visits: consulted(2 * D, title), consult_first: consultFirst });
+  // The quiet line's act and the card's next act both carry it, into the sheet (person-deal.jsx pdRun).
+  assert.equal(dealCardsOf(after("Consultation: SEO"), NOW, ZONE).quiet.act.service, "SEO");
+  assert.equal(dealNextAct(after("Consultation: SEO"), NOW).service, "SEO");
+  // A title that names no consult-first service, or a workspace with none: nothing is named.
+  assert.equal(dealCardsOf(after("Consultation"), NOW, ZONE).quiet.act.service, undefined);
+  assert.equal(dealCardsOf(after("Consultation: SEO", []), NOW, ZONE).quiet.act.service, undefined);
+  // An engagement that ended, then a consultation for SEO: the new proposal is for SEO.
+  const ended = dealDto({ stage: "ended", decided_at: at(40 * D), ended_at: at(20 * D) });
+  assert.equal(dealNextAct(after("SEO consult", ["SEO"], [ended]), NOW).service, "SEO");
+});
+
+test("a new proposal opens with the service their consultation named from every door, unless they have it open already", () => {
+  const after = (title, deals = []) => person({ deals, visits: consulted(2 * D, title), consult_first: ["SEO"] });
+  // No service named by the door that opened it (New proposal, a board drop, the thread): the consultation's.
+  assert.equal(dealSheetFor("propose", after("Consultation: SEO"), NOW, ZONE).draft.service, "SEO");
+  // A door that names one wins: the Calendar's appointment, a card's act.
+  assert.equal(
+    dealSheetFor("propose", after("Consultation: SEO"), NOW, ZONE, { service: "Ad management" }).draft.service,
+    "Ad management",
+  );
+  // SEO open already, a proposal out: the door would refuse a second, so the sheet names nothing.
+  const open = dealDto({ service: "SEO" });
+  assert.equal(dealSheetFor("propose", after("Consultation: SEO", [open]), NOW, ZONE).draft.service, "");
+  // A title that names nothing: nothing.
+  assert.equal(dealSheetFor("propose", after("Consultation"), NOW, ZONE).draft.service, "");
+});

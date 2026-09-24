@@ -76,6 +76,8 @@ import "@/legacy/pages/people-table.jsx";
 // scope before clients-a.jsx, whose ClientsA draws it.
 import "@/legacy/pages/pipeline-peek.jsx";
 import "@/legacy/pages/pipeline-board.jsx";
+// New proposal: who it is for, before the one deal sheet.
+import "@/legacy/pages/pipeline-new.jsx";
 import "@/legacy/pages/pipeline-scope.jsx";
 import "@/legacy/pages/clients-a.jsx";
 // A person's deal (0008): the card the profile draws first in its left column.

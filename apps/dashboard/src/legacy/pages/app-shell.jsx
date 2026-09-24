@@ -28,6 +28,8 @@ const PARAM_FOLLOWED_AS_PROP = new Set(["admin", "inbox", "broadcasts", "live", 
 const shellMountKey = (page, param) => {
   if (PARAM_FOLLOWED_AS_PROP.has(page)) return page;
   if (page === "clients" && param && /^leads(:|$)/.test(param)) return "clients/leads";
+  // The Pipeline follows its address the same way (0008): its views and a person open over one are the page already there.
+  if (page === "clients" && param && /^pipeline(:|$)/.test(param)) return "clients/pipeline";
   return `${page}/${param || ""}`;
 };
 // A flipped surface whose fetch failed. Painting the mockup here would show
@@ -432,15 +434,22 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
       : [{ label: "People", to: "clients" }, "Leads"];
     pane = true;
     content = <ClientsA key="leads" scope="leads" leadsRoute={param} onNavigate={navigate} onOpenProfile={(id) => navigate(`clients/${id}`)} />;
-  } else if (page === "clients" && param === "pipeline") {
+  } else if (page === "clients" && param && /^pipeline(:|$)/.test(param)) {
     // People › Pipeline (0008): People's rows by where their deal stands, the page's third scope. Only where deals are
     // on, by the People surface's answer (contracts dealsAreOn): anywhere else the address draws People, whose switch
     // offers no Pipeline there. The retired demo board keeps its own address, #/pipeline, which lands on People.
+    // The rest of the address is the Pipeline's own (contracts pipelineRoute): the view the rail picked, and the person
+    // open over it. The page follows it as a prop, so every one of them is one mount (shellMountKey).
     const dealsOn = !!(window.__PEOPLE && window.__PEOPLE.dealsOn);
+    const pv = dealsOn && window.__pipeline && window.__pipeline.parse ? window.__pipeline.parse(param) : null;
     activeNav = "clients";
-    crumbs = dealsOn ? [{ label: "People", to: "clients" }, "Pipeline"] : ["People"];
+    crumbs = !dealsOn
+      ? ["People"]
+      : pv && pv.view !== "all"
+        ? [{ label: "People", to: "clients" }, { label: "Pipeline", to: "clients/pipeline" }, window.__pipeline.viewLabel(pv.view)]
+        : [{ label: "People", to: "clients" }, "Pipeline"];
     pane = true;
-    content = <ClientsA key={dealsOn ? "pipeline" : "people"} scope={dealsOn ? "pipeline" : "people"} onNavigate={navigate} onOpenProfile={(id) => navigate(`clients/${id}`)} />;
+    content = <ClientsA key={dealsOn ? "pipeline" : "people"} scope={dealsOn ? "pipeline" : "people"} pipelineRoute={dealsOn ? param : null} onNavigate={navigate} onOpenProfile={(id) => navigate(`clients/${id}`)} />;
   } else if (page === "clients" && param === "new-list") {
     // People with the New list box open: a door elsewhere (a profile's "Make one on People") says where it goes in
     // the address, rather than navigating and then firing segments:new on a timer it hoped the page had loaded by.
@@ -472,7 +481,8 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
     const held = !client && window.__peekPerson ? window.__peekPerson(param) : null;
     const real = realWorkspace();
     activeNav = "clients";
-    crumbs = [{ label: "People", to: "clients" }, client ? client.name : held ? held.name : "Profile"];
+    // Its People is the profile's own Back (on a phone the only one: the crumb says ‹ People and the page draws none).
+    crumbs = [{ label: "People", to: "clients", go: backToPeople }, client ? client.name : held ? held.name : "Profile"];
     pane = true;
     content = client || people || real
       ? <ClientProfile id={param} onBack={backToPeople} real={real} />
@@ -616,15 +626,12 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
     activeNav = "outbound";
     crumbs = param ? ["Campaigns", { label: "Playbooks", to: "outbound" }, pbOpen ? pbOpen.name : "Playbook"] : ["Campaigns", "Playbooks"];
     pane = true;
-    // A real workspace's button opens the composer on the page, once the
-    // playbooks have loaded; until then there is nothing to press, where the
-    // demo's Ask detour opened Ask over the skeleton or the failure pane
-    // (N10). The seeded page keeps it.
-    primaryAction = window.__PLAYBOOKS ? (
-      <button className="btn btn-primary btn-sm" onClick={() => window.dispatchEvent(new CustomEvent("playbooks:new"))} data-testid="pb-new" {...window.gate("approve", "start a playbook")}>
-        <Icon name="plus" size={12} /> New playbook
-      </button>
-    ) : window.__DEMO_MODE ? (
+    // A real workspace's New playbook is the page's own, at the right of its one
+    // line, where Broadcasts and Templates keep theirs (outbound-real.jsx): the
+    // page draws only once the playbooks have loaded, so there is never a button
+    // over the skeleton or the failure pane, where the demo's Ask detour opened
+    // Ask (N10). The seeded page keeps its detour here.
+    primaryAction = !window.__PLAYBOOKS && window.__DEMO_MODE ? (
       <button className="btn btn-primary btn-sm" onClick={openAsk}>
         <Icon name="plus" size={12} /> New campaign
       </button>
@@ -794,7 +801,7 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
   // (an effect, a state) it re-drew the same element with the class, which cancelled the fade on every page one
   // frame in.
   const viewKey = routeLoading ? `${mountKey}/reading` : mountKey;
-  const family = page === "clients" && param && !/^(leads(:|$)|pipeline$|seg:|list:|state:)/.test(param) ? "clients/person" : page;
+  const family = page === "clients" && param && !/^(leads(:|$)|pipeline(:|$)|seg:|list:|state:)/.test(param) ? "clients/person" : page;
   const viewRef = useShellRef({ key: null, family: null, reading: false, stay: false });
   if (viewRef.current.key !== viewKey) {
     const prev = viewRef.current;

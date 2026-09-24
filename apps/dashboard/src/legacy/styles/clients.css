@@ -1201,11 +1201,12 @@
 }
 
 /* Hero: the way back, then who they are with the page's acts beside them (under them on a phone, mobile.css), then a
-   delete being asked. */
+   delete being asked, in a row of its own that is there only while it is asked: a named row for it stood empty under
+   every head, a gap of air with nothing in it. */
 .cl-prof-hero {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-areas: "back back" "id acts" "danger danger";
+  grid-template-areas: "back back" "id acts";
   gap: 12px 16px;
   align-items: start;
   container-type: inline-size;
@@ -1213,7 +1214,7 @@
 .cl-prof-hero > .cl-prof-back { grid-area: back; }
 .cl-prof-hero > .cl-prof-id { grid-area: id; min-width: 0; }
 .cl-prof-hero > .cl-prof-queue-actions { grid-area: acts; }
-.cl-prof-hero > .cl-prof-danger { grid-area: danger; }
+.cl-prof-hero > .cl-prof-danger { grid-column: 1 / -1; }
 /* A person on the way, from their People row: their head stands where the page's own will, so nothing moves when the
    rest lands. The frame keeps the page's grid; with the areas taken away, the way back was put in a column of its own
    (a grid-area naming no area makes one), 670px to the right of where it lands and 117px under it. */
@@ -1233,7 +1234,8 @@
   padding: 0;
 }
 .cl-prof-back:hover { color: var(--ink); }
-.cl-prof-hero > .cl-prof-back { align-self: flex-start; margin: 0; }
+/* As wide as its words: stretched across its row, the whole line over the name was a press that left the page. */
+.cl-prof-hero > .cl-prof-back { align-self: flex-start; justify-self: start; margin: 0; }
 
 .cl-prof-id {
   display: flex;
@@ -1485,6 +1487,17 @@
 .cl-prof-deal-act:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 /* None open: the line and its act, and nothing around them. */
 .cl-prof-deal-none { max-width: var(--measure-prose); display: flex; align-items: center; flex-wrap: wrap; gap: 4px 16px; min-width: 0; }
+/* No deal open: the section is one line, its name beside what stands and its act, where a heading over one line of
+   words took two lines and the gap between them. */
+.cl-prof-deal:has(> .cl-prof-deal-none) { flex-direction: row; align-items: baseline; flex-wrap: wrap; column-gap: 12px; }
+/* The deal's quiet words keep a thumb's press around them, not a box of it: a 44px box made each line of words as
+   tall as a button. The 26px words and 9px above and below are the 44px; the acts' rows stand 18px apart when they
+   wrap, so no press reaches into the row above it (at 4px apart, "They passed" took a press meant for "Follow up"). */
+@media (pointer: coarse) {
+  html.legacy-on .cl-prof-deal-acts { row-gap: 18px; }
+  html.legacy-on .cl-prof-deal-act { min-height: 0; position: relative; }
+  html.legacy-on .cl-prof-deal-act::after { content: ""; position: absolute; inset: -9px -8px; }
+}
 .cl-prof-deal-said { margin: 0; min-width: 0; font-size: 12.5px; line-height: 1.5; color: var(--ink-muted); }
 .cl-prof-deal-sub { color: var(--ink-dim); }
 .cl-prof-queue-body { min-width: 0; }
@@ -1918,6 +1931,10 @@
 @media (pointer: coarse) {
   html.legacy-on .cl-prof-attr .cl-prof-rename.is-plain,
   html.legacy-on .cl-prof-attr .cl-prof-attr-door { margin-block: -13px; }
+  /* The rename beside the name is a 22px mark with a thumb's press around it: a 44px box made the name's line 44px
+     tall, 17px of air over a name on every phone. */
+  html.legacy-on .cl-prof-name-row .cl-prof-rename { min-height: 0; position: relative; }
+  html.legacy-on .cl-prof-name-row .cl-prof-rename::after { content: ""; position: absolute; inset: -11px -8px; }
 }
 @media (hover: none) { .cl-prof-rename { opacity: 1; } }
 .cl-prof-name-input { font: inherit; font-size: 20px; font-weight: 600; letter-spacing: -.01em; color: var(--ink); background: var(--bg-raised); border: 1px solid var(--line-strong); border-radius: var(--radius-md); padding: 4px 10px; flex: 1 1 200px; min-width: 0; max-width: 420px; outline: none; }
@@ -2577,3 +2594,33 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
 .pipe-card-value { color: var(--ink); }
 .pipe-card-stage { color: var(--ink-dim); }
 .pipe-card > .pill { align-self: flex-start; }
+
+/* ---- People › Pipeline finds its way (pipeline-scope.jsx, pipeline-new.jsx) --------------------------------------
+   The rail is People's rail kit with the Pipeline's own rows. New proposal is the page's one filled button, at the
+   controls row's right; its picker is a record sheet on a desk and a phone sheet: a search box, the first eight people
+   as quiet rows (face, name, where their deal stands), and Add someone new as words that open two fields. */
+.pipe-new-btn { white-space: nowrap; }
+.pipe-new { display: flex; flex-direction: column; gap: 12px; padding: 16px 0 20px; }
+.pipe-new-sub { margin: 0; font-size: var(--text-sm); color: var(--ink-muted); }
+.pipe-new-search { display: flex; align-items: center; gap: 8px; padding: 0 10px; min-height: 36px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-sunken); color: var(--ink-faint); }
+.pipe-new-search:focus-within { border-color: var(--ink-faint); background: var(--bg); }
+.pipe-new-search input { flex: 1; min-width: 0; border: 0; outline: none; background: transparent; font: inherit; font-size: var(--text-base); color: var(--ink); }
+.pipe-new-list { list-style: none; margin: 0 -8px; padding: 0; display: flex; flex-direction: column; }
+.pipe-new-row { width: 100%; display: grid; grid-template-columns: 28px minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 10px; align-items: center; padding: 7px 8px; border: 0; border-radius: var(--radius-sm); background: none; font: inherit; text-align: left; color: var(--ink); cursor: pointer; }
+.pipe-new-row:hover { background: var(--bg-hover); }
+.pipe-new-row:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.pipe-new-face { grid-row: 1 / span 2; width: 28px; height: 28px; font-size: 10px; }
+.pipe-new-name { min-width: 0; font-size: var(--text-sm); font-weight: var(--weight-medium); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pipe-new-said { min-width: 0; font-size: 12px; color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pipe-new-none { margin: 0; font-size: var(--text-sm); color: var(--ink-dim); }
+.pipe-new-open-add { align-self: flex-start; gap: 6px; }
+.pipe-new-add { display: flex; flex-direction: column; gap: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.pipe-new-opt { color: var(--ink-faint); font-weight: 400; }
+.pipe-new-go { align-self: flex-start; }
+@media (max-width: 900px) {
+  .pipe-new { padding: 4px 0 12px; }
+  .pipe-new-search { min-height: 44px; }
+  .pipe-new-search input { font-size: 16px; }
+  .pipe-new-row { padding: 10px 8px; }
+  .pipe-new-go { align-self: stretch; min-height: 44px; justify-content: center; }
+}

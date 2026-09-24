@@ -437,7 +437,7 @@ test("search validates the area code and answers local numbers with the monthly 
     assert.equal(body.provider, "dry");
     assert.equal(body.area_code, 305, "a string of three digits is the number it spells");
     assert.equal(body.cost_month_usd, LINE_COSTS.local_number_month_usd);
-    assert.equal(body.cost_month_usd, 1.15, "the price the Setup page quotes");
+    assert.equal(body.cost_month_usd, 1.15, "what a number costs Chanlytics a month");
     assert.equal(body.numbers.length, 8, "eight to choose from");
     assert.ok(
       body.numbers.every((n) => n.e164.startsWith("+1305") && n.capabilities.voice && n.capabilities.sms),

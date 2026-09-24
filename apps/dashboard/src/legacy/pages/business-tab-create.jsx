@@ -32,9 +32,9 @@
  * buy, named by its question and chosen as `buys.first` says until a choice is made (the draft's `sells_by`, which no
  * write of the receptionist fold reads: business-tab-folds.jsx writes its own paths and nothing else).
  */
-const BtcFields = ({ draft, update, problems, readOnly, line, handoff, buys }) => {
+const BtcFields = ({ draft, update, problems, readOnly, line, handoff, kept, buys }) => {
   const d = draft || {};
-  const number = window.btPublishedBox({ line, handoff, testid: "rec-create-number" });
+  const number = window.btPublishedBox({ line, handoff, kept, testid: "rec-create-number" });
   return (
     <>
       <window.RecordField
@@ -108,10 +108,11 @@ const btcSendAnswer = ({ draft, stored, buys, flash }) => {
 const BtCreateCard = ({ flash = () => {} }) => {
   const S = window.__businessTabSave;
   const F = ((window.__FACTS || {}).facts) || {};
-  // The line it answers, and the transfer number, as the settings read resolved them: the number's box and its check
-  // are the Who you are row's, and ask both.
+  // The line it answers, the transfer number and the number the business keeps and forwards to that line, as the
+  // settings read resolved them: the number's box and its check are the Who you are row's, and ask all three.
   const line = (F.voice_line && F.voice_line.value) || "";
   const handoff = (F.handoff_number && F.handoff_number.value) || null;
+  const kept = (F.kept_line && F.kept_line.value) || null;
   const canEdit = !window.canDo || window.canDo("settings");
   const gate = window.gate("settings", "set up the receptionist");
   const Fold = window.BtFold;
@@ -150,7 +151,7 @@ const BtCreateCard = ({ flash = () => {} }) => {
             action={can ? { label: "Set up the receptionist", onClick: request, gate, recAct: "receptionist", testid: "rec-create-open" } : null}
           />
         )}
-        body={(f) => <BtcFields {...f} line={line} handoff={handoff} buys={buys} />}
+        body={(f) => <BtcFields {...f} line={line} handoff={handoff} kept={kept} buys={buys} />}
         after={buys ? (draft) => btcSendAnswer({ draft, stored, buys, flash }) : null}
       />
       <window.BtZoneRow brain={{}} canEdit={canEdit} gate={window.gate("settings", "change the timezone")} flash={flash} />

@@ -401,14 +401,20 @@ const LrPanel = ({ c, elapsed, nowMs = Date.now(), notice = null }) => {
       {notice && <LrMissing notice={notice} />}
       <header className="lm-head">
         <div className="lm-head-titles">
+          {/* Who is calling opens their page, and their number rings them from a phone: the words were plain text beside
+              an Open profile button, and a number read off the screen to be typed again. */}
           <div className="lm-head-name">
-            {c.who}
+            {c.clientId && window.routeDoor
+              ? <a className="lm-head-who" {...window.routeDoor(`clients/${c.clientId}`)} title={`Open ${c.who} in People`} data-testid="lm-head-person">{c.who}</a>
+              : c.who}
             <LrPill c={c} />
           </div>
           <div className="lm-head-meta">
             <span>Phone receptionist</span>
             <span className="cv-dot" />
-            <span className="tabular">{c.number || "Caller ID withheld"}</span>
+            {c.number
+              ? <a className="tabular lm-head-tel" href={`tel:${String(c.number).replace(/[^\d+]/g, "")}`} title={`Call ${c.number}`}>{c.number}</a>
+              : <span className="tabular">Caller ID withheld</span>}
             <span className="cv-dot" />
             <span className="tabular">
               {c.live

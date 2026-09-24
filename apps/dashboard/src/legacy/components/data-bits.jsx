@@ -553,6 +553,90 @@ const leaving = (key) => {
 };
 Object.assign(window, { touchSwipe, leaving, leaveOverlay });
 
+// ---- A switch holds still ---------------------------------------------------------------------------------------
+// A tab, a filter or a fold changes what is drawn beside it, and on a phone the page moved under the thumb that pressed
+// it: the person's History tabs went 328px down the screen for Consent and 439px for Visits (23 Sep), because a shorter
+// list made the page shorter and the browser pulled the scroll back to fit. `holdStill(control, change)` runs the change,
+// drawn at once, and keeps the control where it was on the screen:
+// - where the page came out too short to stay where it stood, what scrolls is given the difference as room at its foot
+//   (padding, under everything on it, never between two things) and put back where it was. The room gives itself back
+//   as the page is scrolled up, never more than keeps what is on the screen where it is, and is gone once none is
+//   needed, so no blank stays at the foot;
+// - a control that moved anyway (what changed was above it: a list shrinking over its "Show fewer") is scrolled back to
+//   where it was.
+// A control the change took with it (Mark all read, a form's "Not right?") still has the page held where it stood.
+// Where nothing scrolls, the change just runs. A change that lands later (after a server answers) is not held.
+const holdScroller = (from) => {
+  for (let n = from && from.parentElement; n && n !== document.body && n !== document.documentElement; n = n.parentElement) {
+    const over = window.getComputedStyle ? window.getComputedStyle(n).overflowY : "visible";
+    if ((over === "auto" || over === "scroll") && n.scrollHeight > n.clientHeight + 1) return n;
+  }
+  return null;
+};
+// The room a scroller was given, and the padding it had of its own: one per scroller, grown by each switch.
+const holdRooms = new WeakMap();
+const holdRoom = (box, more) => {
+  let room = holdRooms.get(box);
+  if (!room) {
+    room = { extra: 0, own: parseFloat(window.getComputedStyle(box).paddingBottom) || 0, inline: box.style.paddingBottom || "" };
+    const release = () => {
+      box.style.paddingBottom = room.inline;
+      box.removeEventListener("scroll", room.onScroll);
+      holdRooms.delete(box);
+    };
+    // Scrolled up, the page needs less of it: what keeps the screen where it is, and nothing once that is none.
+    room.onScroll = () => {
+      if (!box.isConnected) { release(); return; }
+      const need = Math.ceil(box.scrollTop + box.clientHeight - (box.scrollHeight - room.extra));
+      if (need <= 0) { release(); return; }
+      if (need < room.extra) {
+        room.extra = need;
+        box.style.paddingBottom = `${room.own + need}px`;
+      }
+    };
+    box.addEventListener("scroll", room.onScroll, { passive: true });
+    holdRooms.set(box, room);
+  }
+  room.extra += more;
+  box.style.paddingBottom = `${room.own + room.extra}px`;
+};
+const holdStill = (control, change) => {
+  const run = () => { if (typeof change === "function") change(); };
+  if (!control || !control.isConnected || !control.getBoundingClientRect) { run(); return; }
+  const box = holdScroller(control);
+  const was = control.getBoundingClientRect().top;
+  const at = box ? box.scrollTop : 0;
+  // Drawn now, so where the page and the control landed are read before anything is painted.
+  const flush = window.ReactDOM && window.ReactDOM.flushSync;
+  if (flush) flush(run); else run();
+  if (!box) return;
+  // Pulled back: the page came out shorter than where it stood. The difference goes under everything, and the page back.
+  const pulled = Math.ceil(at - box.scrollTop);
+  if (pulled >= 1) {
+    holdRoom(box, pulled);
+    box.scrollTop = at;
+  }
+  if (!control.isConnected) return;
+  const moved = control.getBoundingClientRect().top - was;
+  if (Math.abs(moved) >= 1) box.scrollTop += moved;
+};
+
+// ---- A door is a link -------------------------------------------------------------------------------------------------
+// A name, a face or a chip with a page of its own is a link to that page: `<a {...window.routeDoor(to, go)}>`. Its
+// address is in the href, so a long press, a middle click or a new tab opens it too, and a plain press takes the app's
+// own way there (`go`, else CHANLY.nav), which keeps Back the app's. A thread's person was reachable only through its
+// Actions menu, "Open profile", under a name that looked like a link and was not one.
+const routeDoor = (to, go = null) => ({
+  href: `#/${to}`,
+  onClick: (e) => {
+    if (e && (e.defaultPrevented || e.button > 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey)) return;
+    if (e && e.preventDefault) e.preventDefault();
+    if (go) go(to);
+    else if (window.CHANLY) window.CHANLY.nav(to);
+  },
+});
+Object.assign(window, { holdStill, routeDoor });
+
 // ---- Role gating (ST_STORE.can · CLAUDE.md UI patterns) ------------------
 // gate(action, doing?) spreads onto a committing control's opening tag AFTER its
 // handlers. Allowed -> {}. Denied -> the control stays on the page and in the tab

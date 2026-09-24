@@ -138,7 +138,7 @@ const BusinessRecordForm = ({ line, flash }) => {
               A registration is already filed as {API.pathWords[filedPath].filed.toLowerCase()}. It cannot be withdrawn — changing this answer means a second filing, and a second fee.
             </span>
           )}
-          {asking && <button className="cl-bucket-link" onClick={() => setAsking(false)} data-testid="biz-fork-back">Back to the form</button>}
+          {asking && <button className="cl-bucket-link" onClick={(e) => (window.holdStill ? window.holdStill(e && e.currentTarget, () => setAsking(false)) : setAsking(false))} data-testid="biz-fork-back">Back to the form</button>}
         </div>
       </div>
     );
@@ -154,7 +154,8 @@ const BusinessRecordForm = ({ line, flash }) => {
 
       <div className="biz-answer" data-testid="biz-answer">
         <span className="biz-hint">{API.pathWords[path].filed}. {API.pathWords[path].sub}</span>
-        {owner && <button className="cl-bucket-link" onClick={() => setAsking(true)} disabled={busy} data-testid="biz-path-change">Not right?</button>}
+        {/* The short question takes the long form's place: the page holds still under the press (data-bits holdStill). */}
+        {owner && <button className="cl-bucket-link" onClick={(e) => (window.holdStill ? window.holdStill(e && e.currentTarget, () => setAsking(true)) : setAsking(true))} disabled={busy} data-testid="biz-path-change">Not right?</button>}
       </div>
 
       {groups.map((g) => {

@@ -21,6 +21,10 @@ import {
   pipelineOf,
   pipelineMove,
   pipelinePeekOf,
+  pipelineRail,
+  pipelineRoute,
+  parsePipelineRoute,
+  pipelineViewLabel,
   PIPELINE_WORDS,
   whyNotAHandoff,
   handoffE164,
@@ -79,6 +83,10 @@ declare global {
       of: typeof pipelineOf;
       move: typeof pipelineMove;
       peek: typeof pipelinePeekOf;
+      rail: typeof pipelineRail;
+      route: typeof pipelineRoute;
+      parse: typeof parsePipelineRoute;
+      viewLabel: typeof pipelineViewLabel;
       words: typeof PIPELINE_WORDS;
     };
     __whyNotAHandoff: typeof whyNotAHandoff;
@@ -162,7 +170,17 @@ if (typeof window !== "undefined") {
   // People › Pipeline (0008): the rows People already holds, grouped by where each deal stands, what a card dropped in
   // another column asks for, what the peek says of a row, and every word the scope says. The page composes them; it
   // decides nothing (pipeline-scope.jsx).
-  window.__pipeline = { of: pipelineOf, move: pipelineMove, peek: pipelinePeekOf, words: PIPELINE_WORDS };
+  window.__pipeline = {
+    of: pipelineOf,
+    move: pipelineMove,
+    peek: pipelinePeekOf,
+    // Its own rail, and its address (clients/pipeline:v-<view>:p-<person>): the shell and the page read one spelling.
+    rail: pipelineRail,
+    route: pipelineRoute,
+    parse: parsePipelineRoute,
+    viewLabel: pipelineViewLabel,
+    words: PIPELINE_WORDS,
+  };
   window.__whyNotAHandoff = whyNotAHandoff;
   window.__handoffE164 = handoffE164;
   // A stored number written the way people write one, "+1 (305) 555-0100", as

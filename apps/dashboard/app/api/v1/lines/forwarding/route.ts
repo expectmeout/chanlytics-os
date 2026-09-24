@@ -1,5 +1,13 @@
 import { write, workspace } from "@/server/route";
-import { AppError, isCarrier, isForwardingMode, normalizePhone } from "@chanlytics/contracts";
+import {
+  AppError,
+  isCarrier,
+  isForwardingMode,
+  normalizePhone,
+  parseTenantConfig,
+  whyNotForward,
+} from "@chanlytics/contracts";
+import { getTenantConfig } from "@chanlytics/db";
 
 /**
  * POST /api/v1/lines/forwarding — {number, carrier, mode, test_from?}: keep
@@ -27,6 +35,11 @@ export const POST = write({
       typeof body.test_from === "string" && body.test_from.trim() ? normalizePhone(body.test_from) : null;
     if (typeof body.test_from === "string" && body.test_from.trim() && !testFrom)
       throw new AppError("validation", "The phone you will test from needs its area code.", 400);
+    // The loop from this side: the number the receptionist puts callers through to cannot become a number that
+    // forwards to the receptionist, or a caller put through to it would come straight back.
+    const cfg = await getTenantConfig(ctx.supabase, member.tenantId);
+    const loop = whyNotForward(number, parseTenantConfig(cfg?.config ?? null)?.brain?.profile?.handoff_number);
+    if (loop) throw new AppError("conflict", loop, 409);
     const { data, error } = await ctx.supabase.rpc("line_forwarding_set", {
       p_tenant_id: member.tenantId,
       p_number: number,

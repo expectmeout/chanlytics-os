@@ -2096,6 +2096,51 @@ test("the card's settings are one line each, and Change opens the editor under i
   }
 });
 
+test("REGRESSION: on a phone a row stays in the card behind its sheet -- taken out, the card was a row shorter under the wash, and everything under it moved up and back down", async () => {
+  const vm = toPersonVM(detail(), ZONE, new Date(NOW));
+  const mm = globalThis.window.matchMedia;
+  // The record kit's phone (record.css, 760px and under): a fold is a sheet over the page.
+  globalThis.window.matchMedia = (q) => ({ matches: /760px/.test(q), addEventListener() {}, removeEventListener() {} });
+  try {
+    const draw = await profile(vm);
+    press(byTestId(draw(), "rec-row-act-person-visit"));
+    const tree = draw();
+    const sheet = byTestId(tree, "rec-fold-person-visit");
+    assert.equal(sheet.props.role, "dialog", "on a phone the editor is a sheet");
+    const behind = find(tree, (n) => n.props?.className === "rec-fold-behind");
+    assert.ok(behind, "the row it opened from is drawn in the card behind it");
+    assert.ok(byTestId(behind, "rec-row-person-visit"), "the same row, where it stood");
+    assert.equal(behind.props["aria-hidden"], "true", "a picture of the row: nothing in it can be pressed or read out");
+  } finally {
+    globalThis.window.matchMedia = mm;
+  }
+});
+
+test("REGRESSION: a History filter holds still -- on a phone a shorter list made the page shorter, and the strip jumped 328px down the screen under the thumb", async () => {
+  const PAST = { ...NEXT, id: "b0:1", start: iso(10 * D), end: iso(10 * D - 2 * H) };
+  const vm = toPersonVM(detail({ visits: { ...VISITS, all: [PAST, NEXT] } }), ZONE, new Date(NOW));
+  const draw = await profile(vm);
+  const held = [];
+  const hold = globalThis.window.holdStill;
+  globalThis.window.holdStill = (control, change) => {
+    held.push(control);
+    change();
+  };
+  try {
+    const pressed = { tag: "the Visits button" };
+    byTestId(draw(), "timeline-filter-visits").props.onClick({
+      currentTarget: pressed,
+      stopPropagation() {},
+      preventDefault() {},
+    });
+    assert.deepEqual(held, [pressed], "the switch runs through holdStill, from the button pressed");
+    const timeline = find(draw(), (n) => typeof n.type === "function" && n.type.name === "PersonTimeline");
+    assert.equal(timeline.props.filter, "visits", "and History shows the visits");
+  } finally {
+    globalThis.window.holdStill = hold;
+  }
+});
+
 test("History names who added a person, by the door that did: the calendar, the lead finder, or you -- every one read Calendar, and a lead read Added by hand", async () => {
   const added = (source, title = null) =>
     toPersonVM(detail({ added: { at: iso(8 * D), source, title } }), ZONE, new Date(NOW));
