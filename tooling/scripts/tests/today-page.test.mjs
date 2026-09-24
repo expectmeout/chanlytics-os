@@ -1074,6 +1074,27 @@ test("worth a look: the tone once, as the row's pill; who is waiting as chips; A
     press(byTestId(row, `today-leak-ask-${l.id}`));
     assert.deepEqual(asked.at(-1), { prompt: l.ask });
     assert.ok(buttons(row, l.cta.label).length === 1);
+    // One left edge and one column of pills (Ruben, 24 Sep: "the badges can be better placed"): the pill is the row's
+    // own, placed in its corner, never inside a line with the sentence; the arithmetic, the names and the doors are the
+    // row's foot; the doors are words, not buttons with a button's padding.
+    assert.ok(
+      (row.props.children || []).flat().some((c) => c === tag || (c && c.rendered === tag)),
+      "the pill belongs to the row, not to a line beside the sentence",
+    );
+    const foot = find(row, (n) => classes(n).includes("tl-foot"));
+    assert.ok(foot, "a foot");
+    assert.ok(
+      find(foot, (n) => classes(n).includes("tl-math")),
+      "the arithmetic is the foot's",
+    );
+    const acts = find(foot, (n) => classes(n).includes("tl-acts"));
+    const doors = all(acts, (n) => n.type === "button");
+    assert.ok(doors.length >= 2, "Ask why and the row's own door");
+    assert.ok(
+      doors.every((d) => classes(d).includes("tl-act") && !classes(d).includes("btn")),
+      "the doors are words",
+    );
+    assert.ok(classes(doors.at(-1)).includes("tl-act-go"), "the row's own door is last, in ink");
   }
   assert.equal(rows[0].id, "never-booked");
   assert.equal(rows[1].id, "unanswered");
