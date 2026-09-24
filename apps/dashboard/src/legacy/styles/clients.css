@@ -2009,12 +2009,16 @@
 .cl-prof-note-day { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
 .cl-prof-note-date { max-width: 160px; }
 .cl-prof-note-step { display: flex; align-items: flex-start; gap: 8px; min-width: 0; }
-.cl-prof-note-done { flex: none; margin: 2px 0 0; accent-color: var(--ink); }
+.cl-prof-note-done-hit { flex: none; display: inline-flex; margin-top: 2px; cursor: pointer; }
+.cl-prof-note-done { margin: 0; accent-color: var(--ink); cursor: pointer; }
 .cl-prof-note-due { font-variant-numeric: tabular-nums; }
 .cl-prof-note-due[data-due="past"], .cl-prof-note-due[data-due="today"] { color: var(--warn-ink); font-weight: 500; }
 .cl-pnote.is-done .cl-prof-note-body { color: var(--ink-dim); text-decoration: line-through; text-decoration-color: var(--ink-faint); }
+/* Under a thumb the 44px floor would stretch the box and push the step's line down: the box keeps its size beside
+   the first line, and the label around it takes the thumb, reaching past it on every side without moving a word. */
 @media (pointer: coarse) {
-  html.legacy-on .cl-prof-note-done { width: 18px; height: 18px; }
+  html.legacy-on .cl-prof-note-done { min-height: 0; width: 18px; height: 18px; }
+  html.legacy-on .cl-prof-note-done-hit { padding: 13px; margin: -11px -13px -13px; }
 }
 
 /* ---- The rail in three groups; the next step under a list; the next visit on the row ---- */

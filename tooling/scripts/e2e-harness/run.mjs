@@ -22,7 +22,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { startHarness } from "./server.mjs";
-import { SCENARIOS } from "./scenarios.mjs";
+import { OWNER, SCENARIOS } from "./scenarios.mjs";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const PLAYWRIGHT = path.join(REPO, "node_modules/@playwright/test/cli.js");
@@ -66,7 +66,7 @@ const run = spawn(
       NEXT_PUBLIC_SUPABASE_URL: harness.url,
       NEXT_PUBLIC_SUPABASE_ANON_KEY: "harness-anon",
       SUPABASE_SERVICE_ROLE_KEY: "harness-not-a-key",
-      E2E_USER_EMAIL: "e2e-owner@example.com",
+      E2E_USER_EMAIL: OWNER.email,
     },
   },
 );

@@ -9,7 +9,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
-import { WORKSPACE } from "./scenarios.mjs";
+import { OWNER, WORKSPACE } from "./scenarios.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "../../..");
@@ -30,6 +30,7 @@ export async function buildFixture(record) {
       js:
         `window.__HX_SCENARIO = ${JSON.stringify(record)};` +
         `window.__HX_WORKSPACE = ${JSON.stringify(WORKSPACE)};` +
+        `window.__HX_OWNER = ${JSON.stringify(OWNER)};` +
         "var process = globalThis.process || { env: {} };",
     },
   });

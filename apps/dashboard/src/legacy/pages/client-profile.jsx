@@ -824,15 +824,17 @@ const PersonNotes = ({ p, canEdit, isOwner, flash, onChanged }) => {
         {n.step ? (
           <div className="cl-prof-note-step">
             {canEdit && stepping ? (
-              <input
-                type="checkbox"
-                className="cl-prof-note-done"
-                checked={n.step.done}
-                disabled={busy}
-                aria-label={n.step.done ? `${W.undo}: ${n.body}` : `${W.done}: ${n.body}`}
-                onChange={() => toggleDone(n)}
-                data-testid="person-note-done"
-              />
+              <label className="cl-prof-note-done-hit">
+                <input
+                  type="checkbox"
+                  className="cl-prof-note-done"
+                  checked={n.step.done}
+                  disabled={busy}
+                  aria-label={n.step.done ? `${W.undo}: ${n.body}` : `${W.done}: ${n.body}`}
+                  onChange={() => toggleDone(n)}
+                  data-testid="person-note-done"
+                />
+              </label>
             ) : null}
             <div className="cl-prof-note-body">{n.body}</div>
           </div>

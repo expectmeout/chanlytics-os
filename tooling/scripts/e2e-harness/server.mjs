@@ -21,7 +21,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dealsAreOn, err, ok } from "@chanlytics/contracts";
 import { buildFixture } from "./fixture.mjs";
-import { scenario, WORKSPACE } from "./scenarios.mjs";
+import { OWNER, scenario, WORKSPACE } from "./scenarios.mjs";
 import { mascotBundle, reportsSampleBundle, send, serveStatic, todaySampleBundle, TYPES } from "../serve-legacy.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -59,7 +59,7 @@ export function answer(method, pathname, params, record) {
         expires_in: 3600,
         expires_at: at + 3600,
         token_type: "bearer",
-        user: { id: "u-e2e-owner", email: "e2e-owner@example.com" },
+        user: { id: OWNER.id, email: OWNER.email },
       },
     };
   }
