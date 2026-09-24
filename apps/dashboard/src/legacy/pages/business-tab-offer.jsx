@@ -300,5 +300,6 @@ const BtOfferCard = ({ brain, canEdit, flash, saver }) => {
   );
 };
 
-// The choice of how customers buy is the create card's too (business-tab-create.jsx), which loads after this file.
-Object.assign(window, { BtOfferCard, btSellsByChoice: btwSellsByChoice, btSellsByNow: btwAnswerNow });
+// The choice of how customers buy is the create card's too (business-tab-create.jsx), which loads after this file, and
+// the first run's Check draws it and the services row (first-run.jsx).
+Object.assign(window, { BtOfferCard, btSellsByChoice: btwSellsByChoice, btSellsByNow: btwAnswerNow, BtServicesRow: BtwServicesRow });

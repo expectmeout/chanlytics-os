@@ -571,7 +571,7 @@ const recStill = (node, deep) => {
   return copy;
 };
 const recSheetLeaves = (sheet, wash, top) => {
-  const root = document.querySelector ? document.querySelector(".app-root") : null;
+  const root = document.querySelector ? document.querySelector(".app-root, .fr-shell") : null;
   if (!root || !sheet || !sheet.cloneNode || recReducedMotion()) return;
   const washCopy = wash && wash.cloneNode ? recStill(wash, false) : null;
   const sheetCopy = recStill(sheet, true);
@@ -669,8 +669,9 @@ const RecordFold = ({
     // The sheet's frame, as RecordSheet draws it: a wash over the page, and the sheet beside it (from the bottom, on a
     // phone) with its head, a body that scrolls and a foot that holds still. Drawn in the app's root for RecordSheet's
     // reasons (a Settings pane animates itself in with a transform and sizes every child to its column; People's keys
-    // hold still under a dialog there, PL_OVERLAY). The fields and what saving writes scroll; the ask, Save and Cancel
-    // stay in the foot, clear of the home indicator.
+    // hold still under a dialog there, PL_OVERLAY), or in the first run's own shell, which is drawn in place of the
+    // app's (.fr-shell). The fields and what saving writes scroll; the ask, Save and Cancel stay in the foot, clear of
+    // the home indicator.
     const node = (
       <>
         {/* A mousedown keeps focus where it was, as the sheet's wash does. The press is the fold's Cancel: a person
@@ -726,7 +727,7 @@ const RecordFold = ({
         </section>
       </>
     );
-    const root = document.querySelector ? document.querySelector(".app-root") : null;
+    const root = document.querySelector ? document.querySelector(".app-root, .fr-shell") : null;
     const drawn = root && window.ReactDOM && window.ReactDOM.createPortal ? window.ReactDOM.createPortal(node, root) : node;
     // What the page draws at rest in the fold's place, its row, stays in the card behind the sheet (`behind`), at every
     // width the sheet is drawn at: a card a row shorter under the wash grew back as the sheet left, which its leaving

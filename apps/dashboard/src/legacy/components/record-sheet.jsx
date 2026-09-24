@@ -45,7 +45,8 @@
 // It is drawn in the app's root (.app-root) rather than where the page put it. There, People's row keys hold still
 // while it is open, as they do for the phone's lists sheet and for any dialog in .app-root (PL_OVERLAY,
 // clients-a.jsx); and there no pane's layout reaches it -- a Settings pane sizes its every child to the prose
-// column, and animates itself in with a transform that would pin a fixed sheet to the pane.
+// column, and animates itself in with a transform that would pin a fixed sheet to the pane. The first run is drawn in
+// place of the app's chrome, with no .app-root (app-shell.jsx), and its shell (.fr-shell) is the root there.
 
 const { useRef: useSheetRef, useEffect: useSheetEffect, useCallback: useSheetCallback } = React;
 
@@ -170,7 +171,7 @@ const RecordSheet = ({
       </section>
     </>
   );
-  const root = document.querySelector ? document.querySelector(".app-root") : null;
+  const root = document.querySelector ? document.querySelector(".app-root, .fr-shell") : null;
   return root && window.ReactDOM && window.ReactDOM.createPortal ? window.ReactDOM.createPortal(node, root) : node;
 };
 
