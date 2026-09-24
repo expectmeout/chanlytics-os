@@ -27,6 +27,10 @@ import {
   pendingWorkspaceOf,
   PENDING_WORKSPACE_KEY,
   SIGNUP_WORDS,
+  listingFactsOf,
+  firstReceptionistOf,
+  newReceptionistDefaults,
+  TenantConfigWriteSchema,
 } from "@chanlytics/contracts";
 import { greetingFor as shellGreeting, GREETING_DEFAULT as SHELL_DEFAULT } from "@chanlytics/channels";
 
@@ -405,4 +409,124 @@ test("the invite code sign-up checked is kept beside the name, and never read ba
   assert.equal(pendingCodeOf({ [PENDING_WORKSPACE_KEY]: { code: "x".repeat(81) } }), null);
   assert.equal(pendingCodeOf({ [PENDING_WORKSPACE_KEY]: { code: "   " } }), null, "a blank code is none");
   assert.equal(SIGNUP_WORDS.making, "Making your workspace…");
+});
+
+/* ---- the first receptionist, from what is known (3c-2) ---- */
+
+// Google's week as the edge stores it: day 0 is Sunday.
+const shift = (day, openHour, closeHour, closeDay = day) => ({
+  open: { day, hour: openHour, minute: 0 },
+  close: { day: closeDay, hour: closeHour, minute: 0 },
+});
+const googleSaid = (over = {}) => ({
+  hours: [2, 3, 4, 5, 6].map((d) => shift(d, 9, 19)),
+  phone_e164: "+13055550100",
+  phone_display: "(305) 555-0100",
+  website: "https://harbor.example.com/",
+  primary_type: "moving_company",
+  primary_type_label: "Moving company",
+  service_area_only: false,
+  time_zone: "America/New_York",
+  ...over,
+});
+const listed = (said = {}, over = {}) => ({
+  name: "Harbor Moving & Storage",
+  address: "2150 NW 2nd Ave, Miami, FL 33127",
+  facts: googleSaid(said),
+  ...over,
+});
+const NINE_TO_SEVEN = { open: "09:00", close: "19:00" };
+
+test("Google's facts as stored: what the edge wrote reads as it is, a row from before the details read is none, and a malformed period is dropped", () => {
+  assert.deepEqual(listingFactsOf(googleSaid()), googleSaid());
+  assert.equal(listingFactsOf({}), null, "linked before the details read: nothing was said");
+  assert.equal(listingFactsOf(null), null);
+  assert.equal(listingFactsOf([]), null);
+  const odd = listingFactsOf({
+    hours: [
+      shift(2, 9, 19),
+      null,
+      { open: { day: "tue" } },
+      { open: { day: 0, hour: 0, minute: 0 }, close: null },
+      { open: { day: 3, hour: 9, minute: 0 }, close: "late" },
+    ],
+    website: 5,
+    service_area_only: "yes",
+  });
+  assert.deepEqual(
+    odd.hours,
+    [shift(2, 9, 19), { open: { day: 0, hour: 0, minute: 0 }, close: null }],
+    "a period with no close is Google's around the clock, and kept",
+  );
+  assert.equal(odd.website, null);
+  assert.equal(odd.service_area_only, false, "only true says it");
+  assert.equal(odd.time_zone, null);
+});
+
+test("the first receptionist is what Google says: the listing's name, its week with each closed day stated, the address and the website, and the product's own prompt and messages", () => {
+  const brain = firstReceptionistOf({ workspaceName: "Harbor", listing: listed() });
+  assert.deepEqual(brain, {
+    business_name: "Harbor Moving & Storage",
+    ...newReceptionistDefaults("Harbor Moving & Storage"),
+    profile: {
+      hours: {
+        mon: {},
+        tue: NINE_TO_SEVEN,
+        wed: NINE_TO_SEVEN,
+        thu: NINE_TO_SEVEN,
+        fri: NINE_TO_SEVEN,
+        sat: NINE_TO_SEVEN,
+        sun: {},
+      },
+      address: "2150 NW 2nd Ave, Miami, FL 33127",
+      website: "https://harbor.example.com/",
+    },
+  });
+  assert.ok(TenantConfigWriteSchema.safeParse({ brain }).success, "a save would take it");
+  assert.equal(brain.booking_link, undefined, "no link: the website is read for one later");
+  assert.equal(brain.phone_display, undefined, "absent is the line it answers");
+});
+
+test("what the record cannot hold is left out: a service area has no address, a day past midnight is not stated, around the clock is no week, and a website the schema refuses is none", () => {
+  const area = firstReceptionistOf({ workspaceName: null, listing: listed({ service_area_only: true }) });
+  assert.equal(area.profile.address, undefined, "it goes to its customers");
+  const late = firstReceptionistOf({
+    workspaceName: null,
+    listing: listed({ hours: [shift(2, 9, 19), shift(5, 18, 2, 6)] }),
+  });
+  assert.deepEqual(
+    late.profile.hours,
+    { mon: {}, tue: NINE_TO_SEVEN, wed: {}, thu: {}, sat: {}, sun: {} },
+    "Friday closes on Saturday: it is asked about, never stated",
+  );
+  const allDay = firstReceptionistOf({
+    workspaceName: null,
+    listing: listed({ hours: [{ open: { day: 0, hour: 0, minute: 0 }, close: null }] }),
+  });
+  assert.equal(allDay.profile.hours, undefined, "open around the clock: every day is asked about");
+  assert.equal(firstReceptionistOf({ workspaceName: null, listing: listed({ hours: null }) }).profile.hours, undefined);
+  assert.equal(
+    firstReceptionistOf({ workspaceName: null, listing: listed({ website: "harbor dot com" }) }).profile.website,
+    undefined,
+  );
+});
+
+test("not on Google, the first receptionist is the name typed at sign-up and nothing more; with no name at all there is none", () => {
+  assert.deepEqual(firstReceptionistOf({ workspaceName: " Harbor Moving ", listing: null }), {
+    business_name: "Harbor Moving",
+    ...newReceptionistDefaults("Harbor Moving"),
+  });
+  assert.equal(firstReceptionistOf({ workspaceName: "  ", listing: null }), null);
+  const unnamed = firstReceptionistOf({
+    workspaceName: "Harbor Moving",
+    listing: { name: null, address: null, facts: null },
+  });
+  assert.equal(unnamed.business_name, "Harbor Moving", "a listing with no name defers to the workspace's");
+  assert.equal(unnamed.profile, undefined);
+  const long = firstReceptionistOf({
+    workspaceName: null,
+    listing: listed({}, { name: `Harbor ${"Moving ".repeat(30)}` }),
+  });
+  assert.ok(long.business_name.length <= 120, "cut to what the schema takes");
+  assert.ok(TenantConfigWriteSchema.safeParse({ brain: long }).success);
 });
