@@ -835,6 +835,11 @@ export interface PeopleSurface {
   page: { q: string | null; offset: number; limit: number; total: number; has_more: boolean } | null;
   /** What this member's pages remember in this workspace (memberships.views). */
   views: Record<string, unknown>;
+  /**
+   * Whether they were read: false when the read failed, and `views` is then none of them. A save of one page replaces
+   * its whole view, so Today's pins are not changed over a read that failed (it would wipe the ones not shown).
+   */
+  viewsRead: boolean;
   fetchedAt: number;
 }
 
@@ -856,6 +861,7 @@ let peopleLoaded: {
   /** The proposal follow-up, as the list read answered it (0006); null where none runs. */
   followUp: FollowUpFactsDto | null;
   views: Record<string, unknown>;
+  viewsRead: boolean;
 } | null = null;
 
 /**
@@ -965,6 +971,7 @@ function publishPeople(): void {
     attention: Object.fromEntries(rows.map((r) => [r.id, attentionRow(r, tz, now.getTime())])),
     page: peopleLoaded.page,
     views: peopleLoaded.views,
+    viewsRead: peopleLoaded.viewsRead,
     fetchedAt: now.getTime(),
   };
 }
@@ -1114,7 +1121,7 @@ export const peopleOverride: SurfaceOverride = {
       // them took the whole surface down, and with it People, every profile and Lists.
       read("GET segments").catch((e: unknown) => e as Error),
       // A member's own views; a route that is not there yet reads as none.
-      read("GET views").catch(() => ({ views: {} as Record<string, unknown> })),
+      read("GET views").catch(() => ({ views: {} as Record<string, unknown>, failed: true as const })),
       workspaceZone(),
     ]);
     if (savedData instanceof Error) console.error("people_lists_fetch_failed", savedData.message);
@@ -1135,6 +1142,7 @@ export const peopleOverride: SurfaceOverride = {
         overlapped || keptViews.made !== savesBefore
           ? { ...(viewsData.views ?? {}), ...keptViews.views }
           : (viewsData.views ?? {}),
+      viewsRead: !("failed" in viewsData),
     };
     const w = window as unknown as {
       __peopleMore?: () => Promise<void>;

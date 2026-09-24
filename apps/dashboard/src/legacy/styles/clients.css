@@ -1911,6 +1911,9 @@
 .cl-list-rule { margin-left: 8px; font-size: 12px; font-weight: 400; color: var(--ink-dim); }
 /* A smart list's rule, changed under its title (decision 0009): the New list box's parts, at the width of a thought. */
 .cl-list-rule-edit { margin-left: 8px; font-size: 12px; font-weight: 400; }
+/* Pinned to Today: said in the link's own words, and in ink once it is. */
+.cl-list-pin { margin-left: 8px; }
+.cl-list-pin.is-on { color: var(--ink); }
 .cl-rule-edit { display: flex; flex-direction: column; gap: 8px; max-width: 520px; padding: 4px 0 12px; }
 .cl-rule-edit-acts { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
 /* What "Save these" keeps: the rule, or the people shown. The one chosen reads as chosen, quietly. */

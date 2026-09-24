@@ -873,6 +873,9 @@ test("REGRESSION: People opens on the people -- one line, then the table; a titl
     "tapping the count shows the people it counts",
   );
   assert.equal(byTestId(tree, "people-standing-needs").props["aria-pressed"], true, "and says it is on");
+  // Needs you is a list (decision 0009): the tap opens it, by name and by its own address.
+  assert.equal(textOf(byTestId(tree, "smart-filter")), "Needs you");
+  assert.equal(globalThis.window.location.hash, "#/clients/seg:needs_you");
   byTestId(tree, "people-standing-needs").props.onClick();
   tree = draw();
   assert.equal(all(tree, (n) => n.props?.["data-testid"] === "row-select").length, 3, "tapping again shows everyone");
@@ -1911,6 +1914,56 @@ test("on a phone a smart list's rule is shown and changed from the more-menu: th
     const sheet = byTestId(tree, "list-act-sheet");
     assert.match(textOf(byTestId(sheet, "rule-edit-now")), /^Now: Reaches you by WhatsApp/);
   }));
+
+test("a state address for Needs you or Waiting on you opens the list, and any list open is pinned to Today and taken off", async () => {
+  await freshPage({ people: [person(1)] });
+  draw({ initialState: "waiting_on_you" });
+  let tree = draw({ initialState: "waiting_on_you" });
+  assert.equal(textOf(byTestId(tree, "smart-filter")), "Waiting on you", "the list, not a hidden tab");
+  assert.equal(byTestId(tree, "state-filter"), null);
+  // The pin: this member's Today view, saved; the page says it, and the list's line says it is on Today.
+  const saves = [];
+  globalThis.window.__lists = {
+    ...lists(),
+    ...(await import("../../../apps/dashboard/src/legacy-bridge/people-lists.ts")).lists,
+  };
+  // The route's answer alone: the verb says the pin on the surface's copy itself, and puts it back on a refusal.
+  let answer = { ok: true, data: { views: {} } };
+  globalThis.window.__saveView = async (page, view) => {
+    saves.push([page, view]);
+    return answer;
+  };
+  try {
+    draw({ initialSegment: "opted_in" });
+    tree = draw({ initialSegment: "opted_in" });
+    assert.equal(textOf(byTestId(tree, "list-pin")).trim(), "Pin to Today");
+    await byTestId(tree, "list-pin").props.onClick();
+    assert.deepEqual(saves, [["today", { pins: ["seg:opted_in"] }]]);
+    assert.match(textOf(flashes.at(-1).msg), /^Said yes to messages is on Today/);
+    tree = draw({ initialSegment: "opted_in" });
+    assert.equal(textOf(byTestId(tree, "list-pin")).trim(), "On Today");
+    assert.equal(byTestId(tree, "list-pin").props["aria-pressed"], true);
+    await byTestId(tree, "list-pin").props.onClick();
+    assert.deepEqual(saves.at(-1), ["today", { pins: [] }]);
+    // Refused: the toast says so, and the list is not pinned after all.
+    answer = { ok: false, message: "Could not keep it." };
+    tree = draw({ initialSegment: "opted_in" });
+    await byTestId(tree, "list-pin").props.onClick();
+    assert.equal(flashes.at(-1).tone, "danger");
+    tree = draw({ initialSegment: "opted_in" });
+    assert.equal(textOf(byTestId(tree, "list-pin")).trim(), "Pin to Today", "REGRESSION: a refused pin stayed on");
+    // Views that could not be read are never saved over: that would wipe the pins not shown.
+    answer = { ok: true, data: { views: {} } };
+    const before = saves.length;
+    globalThis.window.__PEOPLE.viewsRead = false;
+    tree = draw({ initialSegment: "opted_in" });
+    await byTestId(tree, "list-pin").props.onClick();
+    assert.equal(saves.length, before, "nothing saved");
+    assert.match(textOf(flashes.at(-1).msg), /couldn't be read just now/);
+  } finally {
+    delete globalThis.window.__saveView;
+  }
+});
 
 test("export follows the list that is open, and is not offered for a list that can't be counted or isn't here", async () => {
   await freshPage({

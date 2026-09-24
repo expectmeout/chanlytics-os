@@ -8460,6 +8460,28 @@ function ruleNeedsViewer(rule) {
   return !!r2 && ruleNeeds(r2).includes("viewer");
 }
 var viewerListWords = (name) => `${name} is about whoever is looking ("me"), and a playbook's run has no one looking. Pick a list that says who by what they did.`;
+var TODAY_PINS_MAX = 8;
+function pinTokens(view) {
+  const pins = view && typeof view === "object" ? view.pins : null;
+  return Array.isArray(pins) ? pins.filter((t) => typeof t === "string" && parseListToken(t) !== null).slice(0, TODAY_PINS_MAX) : [];
+}
+function todayPins(view, people) {
+  return pinTokens(view).flatMap((token) => {
+    const ref = parseListToken(token);
+    if (ref.kind === "builtin") {
+      const l = people.lists.find((x) => x.id === ref.id);
+      return l ? [{ token, label: l.label, count: l.count, to: `clients/seg:${l.id}` }] : [];
+    }
+    const s = people.saved.find((x) => x.id.toLowerCase() === ref.id);
+    return s ? [{ token, label: s.name, count: s.unknown ? null : s.count, to: `clients/list:${s.id}` }] : [];
+  });
+}
+function togglePin(view, token) {
+  const pins = pinTokens(view);
+  const t = token.toLowerCase();
+  if (pins.some((p) => p.toLowerCase() === t)) return { pins: pins.filter((p) => p.toLowerCase() !== t) };
+  return pins.length < TODAY_PINS_MAX ? { pins: [...pins, token] } : null;
+}
 
 // src/people.ts
 var PERSON_MODES = ["auto", "ask", "never"];
@@ -21416,6 +21438,7 @@ export {
   TOAST_UNDO_MS,
   TODAY_DAY_MAX,
   TODAY_LEAK_MAX,
+  TODAY_PINS_MAX,
   TODAY_QUEUE_MAX,
   TODAY_STEPS_MAX,
   TONES,
@@ -21903,6 +21926,7 @@ export {
   personStateFor,
   phoneTail,
   pickCurrentDeal,
+  pinTokens,
   pipelineBoardMore,
   pipelineMove,
   pipelineOf,
@@ -22167,12 +22191,14 @@ export {
   todayDay,
   todayLeaks,
   todayPeriodLine,
+  todayPins,
   todayProof,
   todayRunApproved,
   todayRunWords,
   todayRunsSub,
   todaySteps,
   todayStepsDue,
+  togglePin,
   tomorrowAtIn,
   trialOffer,
   trialWords,
