@@ -2527,9 +2527,33 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
 }
 
 @media (max-width: 900px) {
-  /* A row of the phone's Lists sheet is the sheet's width, so what is picked and what is pressed is the whole row: a
-     row was as wide as its words, and Everyone's picked ground a box around two words. */
+  /* A cell of the phone's Lists sheet is its track's width, so what is picked and what is pressed is the whole cell:
+     a row was as wide as its words, and Everyone's picked ground a box around two words. */
   .pl-sheet .cl-rail-row { width: 100%; text-align: left; }
+  /* The sheet, compact (Ruben, 24 Sep: "too cluttered, takes most of the screen"). Its lists stand two to a row, as
+     the Inbox's buckets do: the name and its count on one line, the picked one raised on the rail's own ground. One
+     level of heading names each block (People's groups, Leads' Lists and Searches, the Pipeline's sections); a list
+     with nobody in it is said in the block's one quiet line (RailEmpty), not drawn. What stands across the sheet:
+     Everyone, a search with its menu, a heading, a hint, the quiet line and a box being filled in. */
+  .pl-sheet .cl-rail-section { padding: 6px 8px; }
+  .pl-sheet .cl-rail-section,
+  .pl-sheet .cl-rail-group { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px 6px; }
+  .pl-sheet .cl-rail-section > :not(.cl-rail-row),
+  .pl-sheet .cl-rail-group > :not(.cl-rail-row),
+  .pl-sheet .cl-rail-row.has-acts,
+  .pl-sheet .cl-rail-everyone > .cl-rail-row { grid-column: 1 / -1; }
+  .pl-sheet .cl-rail-group + .cl-rail-group { margin-top: 6px; }
+  .pl-sheet .cl-rail-label,
+  .pl-sheet .cl-rail-group-label { margin: 0; padding: 4px 10px 2px; }
+  /* The cell's height is the padding's on a mouse and the touch floor's 44px on a thumb (legacy.css): a min-height
+     here would outrank that floor. */
+  .pl-sheet .cl-rail-row { padding: 9px 10px; font-size: var(--text-sm); }
+  .pl-sheet .cl-rail-row.has-acts { padding: 0 4px 0 0; }
+  .pl-sheet .cl-rail-row .count { font-size: var(--text-sm); }
+  .pl-sheet .cl-rail-empty { margin: 0; padding: 2px 10px 4px; font-size: var(--text-xs); line-height: 1.5; color: var(--ink-dim); }
+  /* New list is a quiet row under Saved, not a dashed box in a footer of its own. */
+  .pl-sheet .cl-rail-foot { margin: 0; padding: 0 8px 4px; border-top: 0; }
+  .pl-sheet .cl-rail-newseg { justify-content: flex-start; padding: 9px 10px; border: 0; font-size: var(--text-sm); color: var(--ink-muted); }
 }
 
 /* ---- The table in sections (people-table.jsx `sections`): the Pipeline's stages, People › Pipeline (0008) -------

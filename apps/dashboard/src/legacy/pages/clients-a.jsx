@@ -1155,13 +1155,28 @@ const railToggle = (current, id) => (current === id ? null : id);
 
 const RailSection = ({ label, icon = null, testid = null, children }) => (
   <div className="cl-rail-section" data-testid={testid || undefined}>
-    <div className="cl-rail-label">
-      {icon ? <Icon name={icon} size={11} /> : null}
-      {label}
-    </div>
+    {label ? (
+      <div className="cl-rail-label">
+        {icon ? <Icon name={icon} size={11} /> : null}
+        {label}
+      </div>
+    ) : null}
     {children}
   </div>
 );
+
+/**
+ * A phone's Lists sheet is compact (Ruben, 24 Sep: the sheet "takes most of the screen"): a list with nobody in it
+ * gets no cell of its own there, only its name in one quiet line under its block. The one picked is always drawn,
+ * empty or not, and so is the list of all of them. `quietOf` answers the rows that step back; `RailEmpty` says them.
+ */
+const railQuiet = (rows, keep) => rows.filter((r) => r.count === 0 && !keep(r));
+const RailEmpty = ({ labels, testid = null }) =>
+  labels.length ? (
+    <p className="cl-rail-empty" data-testid={testid || undefined}>
+      Empty now: {labels.join(" · ")}
+    </p>
+  ) : null;
 
 const RailGroup = ({ label, testid = null, children }) => (
   <div className="cl-rail-group" data-testid={testid || undefined}>
@@ -1205,7 +1220,8 @@ const RailRow = ({ label, count = null, active = false, onPick, onWarm = null, s
 // `scopeTabs` is false in the phone's sheet, whose bar has the switch; `everyone` ({ count, active, onPick }) is the
 // sheet's first row, the way back to everyone. `dealsOn` puts the Pipeline in the switch. Under the Pipeline the rows
 // are People's own lists, and a pick opens that list on People (pipeline-scope.jsx).
-const PeopleRail = ({ scope = "people", onScope = () => {}, scopeTabs = true, dealsOn = false, everyone = null, children = null, lists = PL_NO_LISTS, groups = PL_DEFAULT_GROUPS, active, onPick, saved = [], savedRead = true, activeSaved = null, onPickSaved = () => {}, canEdit = false, onCreateList = null, newListSignal = 0 }) => (
+// `compact` is the phone's sheet: one level of heading (the groups), and the empty lists said in a line, not drawn.
+const PeopleRail = ({ scope = "people", onScope = () => {}, scopeTabs = true, dealsOn = false, everyone = null, children = null, lists = PL_NO_LISTS, groups = PL_DEFAULT_GROUPS, active, onPick, saved = [], savedRead = true, activeSaved = null, onPickSaved = () => {}, canEdit = false, onCreateList = null, newListSignal = 0, compact = false }) => (
   <aside className="cl-rail">
     {scopeTabs && <PeopleScopeTabs scope={scope} onScope={onScope} dealsOn={dealsOn} />}
     {scope === "leads" ? children : (
@@ -1217,19 +1233,24 @@ const PeopleRail = ({ scope = "people", onScope = () => {}, scopeTabs = true, de
         <RailRow label="Everyone" count={everyone.count} active={everyone.active} onPick={everyone.onPick} testid="rail-everyone" />
       </div>
     )}
-    <RailSection label="Smart lists" icon="sparkle">
+    <RailSection label={compact ? null : "Smart lists"} icon="sparkle">
       {groups.map((g) => {
         const own = lists.filter((l) => (l.group || "reach") === g.id);
         if (own.length === 0) return null;
+        const quiet = compact ? railQuiet(own, (l) => active === l.id) : [];
+        // A group with nobody in any of its lists has nothing to draw but its name: the one line says them.
+        if (quiet.length === own.length) return null;
         return (
           <RailGroup key={g.id} label={g.label} testid={`rail-group-${g.id}`}>
-            {own.map((l) => (
+            {own.filter((l) => !quiet.includes(l)).map((l) => (
               // A list of people who need you counts in amber (the tone map decides which: warn); every other count is a total.
               <RailRow key={l.id} smart label={l.label} count={l.count} active={active === l.id} onPick={() => onPick(l.id)} tip={PL_LIST_TIP[l.id] || null} className={window.__chrome && window.__chrome.state && window.__chrome.state("person", l.id).tone === "warn" ? "asks" : ""} />
             ))}
           </RailGroup>
         );
       })}
+      {/* The sheet's one quiet line: every empty list, in the rail's own order (a line a group read as clutter). */}
+      {compact ? <RailEmpty labels={railQuiet(lists, (l) => active === l.id).map((l) => l.label)} testid="rail-empty" /> : null}
     </RailSection>
     <RailSection label="Saved" testid="saved-lists">
       {/* Lists that could not be read are not "no lists": the read failed, and the people above stand. */}
@@ -1237,7 +1258,7 @@ const PeopleRail = ({ scope = "people", onScope = () => {}, scopeTabs = true, de
       {saved.map((s) => (
         <RailRow key={s.id} smart={!!s.rule} label={s.name} count={s.count} active={activeSaved === s.id} onPick={() => onPickSaved(s.id)} tip={s.rule ? `Keeps itself current: ${s.rule.join(" · ")}` : "A list kept by hand — add people from their profile"} testid={s.rule ? "saved-smart" : undefined} />
       ))}
-      {savedRead && saved.length === 0 && (
+      {savedRead && saved.length === 0 && !compact && (
         <div className="cl-rail-hint">No lists yet. Keep one by hand — regulars, one staff member's customers — or describe who, and it keeps itself current.</div>
       )}
     </RailSection>
@@ -2922,6 +2943,7 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
         {listsOpen && (
           <PeopleListsSheet onClose={() => setListsOpen(false)}>
             <PeopleRail
+              compact
               scope="people"
               scopeTabs={false}
               everyone={{ count: agg.total, active: !listId && !savedId, onPick: () => { setListId(null); setSavedId(null); setListsOpen(false); } }}
@@ -3712,4 +3734,4 @@ window.ClientsA = ClientsA;
 // Drawn on their own by refusals-on-the-page.test.mjs; the rail, the standing line and the table's noun are the
 // Leads scope's too (leads-scope.jsx draws them with scope="leads"). The Pipeline (pipeline-scope.jsx) is a third view
 // over the same list page, and takes its hooks, its person cell and its search from here: one rule each.
-Object.assign(window, { plAddPerson, plAddedWords, PL_ADD_EMPTY, NewListRow, AddPersonButton, DeleteListButton, PeopleRail, PeopleStanding, PeopleScopeTabs, PeopleListsSheet, PeopleBulkBar, PeoplePhoneBar, PhoneSheet, PhoneSheetRow, plRowCard, RailSection, RailGroup, RailRow, railToggle, usePeople, usePlControls, usePlPlace, plNameCell, plFace, plIsNumber, plMatcher, plScopeRoute, plLoadedWords, PL_SEARCH_LABEL });
+Object.assign(window, { plAddPerson, plAddedWords, PL_ADD_EMPTY, NewListRow, AddPersonButton, DeleteListButton, PeopleRail, PeopleStanding, PeopleScopeTabs, PeopleListsSheet, PeopleBulkBar, PeoplePhoneBar, PhoneSheet, PhoneSheetRow, plRowCard, RailSection, RailGroup, RailRow, RailEmpty, railQuiet, railToggle, usePeople, usePlControls, usePlPlace, plNameCell, plFace, plIsNumber, plMatcher, plScopeRoute, plLoadedWords, PL_SEARCH_LABEL });
