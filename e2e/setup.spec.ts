@@ -100,7 +100,7 @@ test.describe("Setup on a real workspace, a step at a time", () => {
     await expect(page.getByTestId("today-queue")).toBeVisible();
     const card = page.getByTestId("today-setup");
     if ((await card.count()) === 0) return; // nothing left to set up
-    await expect(card.locator(".tq-sub")).toHaveText(/^\d+ (steps? )?left$/);
+    await expect(card.getByTestId("today-setup-left")).toHaveText(/^\d+ (steps? )?left$/);
     const start = card.getByTestId("today-setup-go");
     if ((await start.count()) > 0) {
       await expect(start).toHaveText("Continue setting up");
@@ -109,7 +109,7 @@ test.describe("Setup on a real workspace, a step at a time", () => {
       await expect(page.getByTestId("first-run")).toBeVisible();
       return;
     }
-    const rows = card.locator(".cl-attn-row");
+    const rows = card.locator('[data-testid^="setup-row-"]');
     expect(await rows.count()).toBeGreaterThan(0);
     await expect(rows.first().locator('[data-testid^="setup-later-"]')).toHaveText("Skip");
   });

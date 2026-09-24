@@ -287,6 +287,31 @@ const ListingFinder = ({ flash, onDone }) => {
 };
 
 /**
+ * One of Setup's rows as Today's card draws it (canvas R10): its state as a dot (the word is the dot's name), its name
+ * and sentence, and its acts at the right: the next one coral, the others outlined, putting it off a quiet link.
+ * Hookless; the acts are the caller's, gate spreads included.
+ */
+const SetupCardRow = ({ tone, stateWords, name, sentence, cta = null, also = null, testid, ctaTestid = "setup-verb" }) => (
+  <div className="setup-card-row" data-testid={testid}>
+    <span className="setup-card-dot" data-tone={tone} role="img" aria-label={stateWords} title={stateWords} />
+    <div className="setup-card-body">
+      <span className="setup-card-name">{name}</span>
+      <span className="setup-card-said">{sentence}</span>
+    </div>
+    {cta || also ? (
+      <div className="setup-card-acts">
+        {cta ? (
+          <button type="button" className={cta.kind === "primary" ? "setup-card-btn primary" : "setup-card-btn"} onClick={cta.onClick} disabled={!!cta.busy} aria-busy={cta.busy ? true : undefined} {...(cta.gate || {})} data-testid={ctaTestid}>{cta.label}</button>
+        ) : null}
+        {also ? (
+          <button type="button" className="setup-card-skip" onClick={also.onClick} disabled={!!also.busy} aria-busy={also.busy ? true : undefined} {...(also.gate || {})} data-testid={also.testid}>{also.label}</button>
+        ) : null}
+      </div>
+    ) : null}
+  </div>
+);
+
+/**
  * Setup's rows, as attention rows, with everything a row does: a route, a dial, or one of the rows' own acts (asking a
  * person, the line chooser, forwarding, the Google finder, activation, billing), each behind its door's role
  * (SETUP_GATES). `rows` are Setup's (contracts setupSteps), in the order to draw them; `primary` names the row whose
@@ -294,9 +319,10 @@ const ListingFinder = ({ flash, onDone }) => {
  * run's Later keeps the row drawn with its undo, Today's Skip takes it off the card and says so in a toast with Undo
  * (`said`). Holds the panels' state and the one verb on its way, so a second press waits for the first (S23). The
  * list only: the caller draws the card it sits in, and may lend the toast (`flash`) where the card can go while one
- * is up -- Today's, when its last row is skipped.
+ * is up -- Today's, when its last row is skipped. `look` is how a row is drawn: `row`, the attention row the first
+ * run draws; `card`, Today's compact row (SetupCardRow).
  */
-const SetupRows = ({ S, rows, later, primary = null, flash: lent = null, testid = "setup-rows" }) => {
+const SetupRows = ({ S, rows, later, look, primary = null, flash: lent = null, testid = "setup-rows" }) => {
   const [toastNode, own] = window.usePPToast();
   const flash = lent || own;
   const [chooser, setChooser] = React.useState(false);
@@ -399,8 +425,19 @@ const SetupRows = ({ S, rows, later, primary = null, flash: lent = null, testid 
   return (
     <div className="setup-rows" data-testid={testid}>
       <div className="tq-list">
-      {rows.map((r) => (
+      {rows.map((r) => {
+        const cta = r.verb ? { label: r.verb.label, kind: primary === r.id ? "primary" : "ghost", onClick: () => act(r.verb), gate: setupGate(r.verb), busy: pending === r.verb.to } : null;
+        const also = r.undo
+          ? { label: r.undo.label, onClick: () => act(r.undo), gate: setupGate(r.undo), busy: pending === r.undo.to, testid: `setup-undo-${r.id}` }
+          : !r.required && r.state !== "ready" && laterLabel(r)
+            ? { label: laterLabel(r), onClick: () => putOff(r), busy: pending === `later:${r.id}`, testid: `setup-later-${r.id}` }
+            : null;
+        return (
         <div key={r.id} className={r.later ? "setup-later" : undefined}>
+          {look === "card" ? (
+            // The next row wears amber, as the one to do now; the rest their own state.
+            <SetupCardRow tone={primary === r.id ? "warn" : setupTone(r.state)} stateWords={r.stateWords} name={r.title} sentence={r.sentence} cta={cta} also={also} testid={`setup-row-${r.id}`} />
+          ) : (
           <window.AttnRow
             glyph={r.icon}
             name={r.title}
@@ -409,12 +446,8 @@ const SetupRows = ({ S, rows, later, primary = null, flash: lent = null, testid 
             status={[r.stateWords]}
             note={r.details.join(" · ")}
             tone={setupTone(r.state)}
-            cta={r.verb ? { label: r.verb.label, kind: primary === r.id ? "primary" : "ghost", onClick: () => act(r.verb), gate: setupGate(r.verb), busy: pending === r.verb.to } : null}
-            also={r.undo
-              ? { label: r.undo.label, onClick: () => act(r.undo), gate: setupGate(r.undo), busy: pending === r.undo.to, testid: `setup-undo-${r.id}` }
-              : !r.required && r.state !== "ready" && laterLabel(r)
-                ? { label: laterLabel(r), onClick: () => putOff(r), busy: pending === `later:${r.id}`, testid: `setup-later-${r.id}` }
-                : null}
+            cta={cta}
+            also={also}
             // The row is a click target for a navigation, never for a dial:
             // a mis-click on the receptionist row must not ring the shop. Nor is
             // it a way around its own gated button.
@@ -422,11 +455,13 @@ const SetupRows = ({ S, rows, later, primary = null, flash: lent = null, testid 
             testid={`setup-row-${r.id}`}
             ctaTestid="setup-verb"
           />
+          )}
           {r.id === "line" && chooser && <LineChooser S={S} flash={flash} onDone={() => setChooser(false)} onKeep={() => setForwarding(true)} />}
           {r.id === "keep" && forwarding && <ForwardingCard S={S} flash={flash} onDone={() => setForwarding(false)} />}
           {r.id === "google" && finder && <ListingFinder flash={flash} onDone={() => setFinder(false)} />}
         </div>
-      ))}
+        );
+      })}
       </div>
       {toastNode}
     </div>
@@ -461,4 +496,5 @@ const SetupTry = ({ tryIt }) => {
 };
 
 window.SetupRows = SetupRows;
+window.SetupCardRow = SetupCardRow;
 window.SetupTry = SetupTry;
