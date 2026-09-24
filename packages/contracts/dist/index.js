@@ -9627,7 +9627,13 @@ var ASK_PAGES = [
   },
   { label: "Reports", to: "reports", kind: "page" },
   { label: "Settings", to: "admin/workspace", kind: "page" },
-  { label: "Setting up", to: "start", kind: "page", sub: "the four steps to a receptionist that answers", also: ["setup"] },
+  {
+    label: "Setting up",
+    to: "start",
+    kind: "page",
+    sub: "the four steps to a receptionist that answers",
+    also: ["setup"]
+  },
   { label: "Billing", to: "admin/billing", kind: "page" },
   { label: "Activity", to: "admin/activity", kind: "page", sub: "who did what, for owners" },
   { label: "Profile", to: "admin/profile", kind: "page", sub: "your name and how you sign in" },
