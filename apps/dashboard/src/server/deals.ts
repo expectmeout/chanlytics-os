@@ -4,11 +4,16 @@ import {
   DEAL_LOST_REASONS,
   PERSON_CAME_FROM_WORDS,
   cameFromOf,
+  dealPaceFrom,
   isDealLostReason,
+  isYes,
+  medianWait,
+  PACE_WINDOW_DAYS,
   isSellsBy,
   pickCurrentDeal,
-  quantile,
+  yesWaits,
   type DealDto,
+  type DealPaceDto,
   type DealReportDto,
   type PersonCameFrom,
   type PersonRowDto,
@@ -26,6 +31,31 @@ export async function sellsByOf(ctx: Pick<RouteContext, "supabase">, tenantId: s
   if (r.error || !r.data) return null;
   const answer: unknown = (r.data as { sells_by?: unknown }).sells_by;
   return isSellsBy(answer) ? answer : null;
+}
+
+/**
+ * The workspace's pace (0008, amended): its yeses decided in the last year, under the member's own RLS, and their
+ * median wait by the one rule Reports' median reads (contracts yesWaits, dealPaceFrom). Null where the deals could
+ * not be read, which is said in the log: no pace is a week's wait, which costs the pace, never the page. The two
+ * People routes share it.
+ */
+export async function dealPaceRead(
+  ctx: Pick<RouteContext, "supabase">,
+  tenantId: string,
+  now = new Date(),
+): Promise<DealPaceDto | null> {
+  const since = new Date(now.getTime() - PACE_WINDOW_DAYS * DAY_MS).toISOString();
+  const { data, error } = await ctx.supabase
+    .from("deals")
+    .select("stage, proposed_at, decided_at")
+    .eq("tenant_id", tenantId)
+    .in("stage", ["won", "ended"])
+    .gte("decided_at", since);
+  if (error || !data) {
+    console.error("deal_pace_read_failed", JSON.stringify({ tenant: tenantId, error: error?.message ?? null }));
+    return null;
+  }
+  return dealPaceFrom(data, now.getTime());
 }
 
 /** The columns a deal is read with (contracts DealDto): a person's read of their deals, and the deal door's answer. */
@@ -112,7 +142,7 @@ export async function dealReport(
   const since = now.getTime() - days * DAY_MS;
   // The cohort is by when the proposal went, whatever became of it since; an ended engagement was won in its cohort.
   const cohort = data.filter((d) => Date.parse(d.proposed_at) >= since);
-  const yes = cohort.filter((d) => d.stage === "won" || d.stage === "ended");
+  const yes = cohort.filter(isYes);
   const passed = cohort.filter((d) => d.stage === "lost");
   const running = data.filter((d) => d.stage === "won");
   const open = data.filter((d) => d.stage === "proposed");
@@ -123,13 +153,9 @@ export async function dealReport(
     if (d.per === "year") return s + Math.round(d.amount_cents / 12);
     return s;
   }, 0);
-  // Whole days from the proposal to the yes, and their median; a yes dated before its proposal came the same day.
-  const waits = yes
-    .map((d) => (d.decided_at ? Date.parse(d.decided_at) - Date.parse(d.proposed_at) : NaN))
-    .filter((ms) => Number.isFinite(ms))
-    .map((ms) => Math.max(0, Math.floor(ms / DAY_MS)))
-    .sort((a, b) => a - b);
-  const median = quantile(waits, 0.5);
+  // Whole days from the proposal to the yes, and their median, by the one rule the workspace's pace reads (yesWaits):
+  // a client entered after the fact, the yes back-dated or put on file with its proposal, is not a wait.
+  const median = medianWait(yesWaits(yes));
   const cameFrom = new Map<string, PersonCameFrom | null>(people.map((p) => [p.id, cameFromOf(p)?.key ?? null]));
   return {
     any: true,
@@ -139,7 +165,7 @@ export async function dealReport(
     waiting: cohort.filter((d) => d.stage === "proposed").length,
     clients: running.length,
     monthly_cents: monthly,
-    median_days_to_yes: median === null ? null : Math.round(median),
+    median_days_to_yes: median,
     open: {
       count: open.length,
       amounts: open.flatMap((d) =>

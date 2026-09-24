@@ -445,3 +445,29 @@ many more it holds.
 - **A next step on every deal, "going cold" against the workspace's own pace,
   open tracking, accepting, paying** are the review's later phases and the
   owner's decisions, none of them started here.
+
+## Amended 24 September 2026 · Your pace
+
+The Pipeline, worked (plan `docs/superpowers/plans/2026-09-23-pipeline-worked.md`, PR 5): "waiting" was a
+week for every workspace, whatever its customers take to decide. It is now the workspace's own pace, once it has
+one.
+
+- **One rule for a yes's wait.** A yes is a deal that became a client, standing won or ended since (contracts
+  `isYes`). Its wait is the whole days from its proposal to its yes; a yes back-dated before its proposal, or put on
+  file within an hour of it, is a client entered after the fact and no wait (`pace.ts yesWaits`). Reports' "Median N
+  days to a yes" and the pace read that one rule and say a wait the same way (`yesWaitWords`), so a studio that
+  enters its current clients to fill Clients is not told every proposal is decided the same day.
+- **The pace.** The median of the waits of the workspace's yeses decided in the last 365 days, once there are five
+  (`dealPaceFrom`, `dealPaceOf`). Worked out on the server from the deal rows under the member's row security, by
+  both People reads where deals are on (`deal_pace`); the list reads it with its first page alone. People publishes
+  it, and the person read carries it; the Pipeline's peek takes People's, as its rows do. No migration: the rows
+  were already there, and a second copy of the rule in SQL would have been a second rule.
+- **Waiting.** A proposal out with nothing back waits once it is past the pace by a fifth, kept between three and
+  thirty days, and a week until there is a pace (`waitAfterDays`). The one rule, `waitingOnProposal`, takes the
+  pace as a required argument and reads its own wait: Today's leak, the Pipeline (its chip, line, Waiting view,
+  rail and crumb) and the deal card (its chip and its Follow up) all judge by it.
+- **The words.** A proposal's card says "Usually 12 days to a yes" (the peek draws that card). The Pipeline's line
+  says "N waiting longer than usual" and Today "N proposals have waited longer than usual with nothing back", with
+  the pace beside it; where the thirty-day cap holds the wait at or under the pace, they say the days instead ("N
+  waiting over 30 days"). The rail and the crumb say "Nothing back in N days". Without a pace every word is as
+  before.

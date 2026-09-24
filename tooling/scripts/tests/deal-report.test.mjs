@@ -160,13 +160,18 @@ test("a year is twelve months, once is not a month, an ended engagement was won 
   });
 });
 
-test("whole days from a proposal to its yes: part of a day is none, a yes dated before its proposal came the same day, an even count rounds its middle, a yes with no day is not counted", async () => {
+test("whole days from a proposal to its yes: part of a day is none, a client entered after the fact is no wait, an even count rounds its middle, a yes with no day is not counted", async () => {
   const won = (id, proposed, decided) => deal(id, { stage: "won", proposed_at: proposed, decided_at: decided });
   const at = (days, hours = 0) => new Date(NOW.getTime() - days * DAY + hours * HOUR).toISOString();
   const part = [won("a", at(6), at(6, 23))]; // 23 hours: under a day
   assert.equal((await dealReport(ctxFor({ deals: part }), T, 30, true, [], NOW)).median_days_to_yes, 0);
+  // A yes dated before its proposal went, or put on file with it, is a client entered after the fact: no wait, so
+  // no median of none (the pace reads the same rule, contracts yesWaits).
   const before = [won("b", at(6), at(7))]; // recorded a day before the proposal went
-  assert.equal((await dealReport(ctxFor({ deals: before }), T, 30, true, [], NOW)).median_days_to_yes, 0);
+  assert.equal((await dealReport(ctxFor({ deals: before }), T, 30, true, [], NOW)).median_days_to_yes, null);
+  const together = [won("b2", at(6), at(6, 0.2))]; // twelve minutes after
+  const r2 = await dealReport(ctxFor({ deals: together }), T, 30, true, [], NOW);
+  assert.deepEqual([r2.won, r2.median_days_to_yes], [1, null], "still a client of the cohort; not a wait");
   const even = [won("c", at(10), at(9)), won("d", at(10), at(8))]; // 1 and 2: the middle is 1.5
   assert.equal((await dealReport(ctxFor({ deals: even }), T, 30, true, [], NOW)).median_days_to_yes, 2);
   const undated = [won("e", at(10), null), won("f", at(10), at(4))];

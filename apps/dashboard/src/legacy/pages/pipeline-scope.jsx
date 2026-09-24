@@ -178,12 +178,14 @@ const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null, pipelineRo
   const rows = people.rows;
   // The whole Pipeline says the line over the table and the rail's counts; the view and the words in the box choose
   // only which rows show under them.
-  const all = React.useMemo(() => P.of(rows, nowMs, tz), [P, rows, nowMs, tz]);
-  const inView = React.useMemo(() => (view === "all" ? all : P.of(rows, nowMs, tz, view)), [P, all, rows, nowMs, tz, view]);
+  // The workspace's pace (0008, amended), as People read it: when a proposal out is waiting, and how the line says so.
+  const pace = people.dealPace || null;
+  const all = React.useMemo(() => P.of(rows, nowMs, tz, pace), [P, rows, nowMs, tz, pace]);
+  const inView = React.useMemo(() => (view === "all" ? all : P.of(rows, nowMs, tz, pace, view)), [P, all, rows, nowMs, tz, pace, view]);
   const vm = React.useMemo(() => {
     const match = window.plMatcher(q);
-    return match ? P.of(rows.filter(match), nowMs, tz, view) : inView;
-  }, [P, inView, rows, nowMs, tz, view, q]);
+    return match ? P.of(rows.filter(match), nowMs, tz, pace, view) : inView;
+  }, [P, inView, rows, nowMs, tz, pace, view, q]);
   const rail = P.rail ? P.rail(all, nowMs) : [];
   const viewCount = inView.groups.reduce((n, g) => n + g.count, 0);
   // Past the people People holds (its fifty pages), the line counts only the loaded, and says so in People's words.
@@ -398,7 +400,10 @@ const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null, pipelineRo
   const Peek = window.PipelinePeek;
   const New = window.PipelineNew;
   const onScope = (to) => nav(window.plScopeRoute(to));
-  const person = peek && peek.id === peekId ? peek.person : null;
+  // The peek's card judges its wait by People's pace, as the rows beside it do: the person read has its own, which
+  // a yes recorded on someone else since would leave behind.
+  const peekRead = peek && peek.id === peekId ? peek.person : null;
+  const person = React.useMemo(() => (peekRead ? { ...peekRead, dealPace: pace } : null), [peekRead, pace]);
   const line = loaded ? [...all.line, { words: loaded, view: null, tone: null }] : all.line;
   return (
     <div className="clients pipe-scope" data-testid="pipeline">
@@ -417,7 +422,7 @@ const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null, pipelineRo
               scope="pipeline"
               dealsOn
               onScope={onScope}
-              listLabel={P.viewLabel(view)}
+              listLabel={P.viewLabel(view, pace)}
               listCount={viewCount}
               onLists={() => setListsOpen(true)}
               listsOpen={listsOpen}

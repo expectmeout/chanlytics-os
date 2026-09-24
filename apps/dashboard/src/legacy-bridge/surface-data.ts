@@ -193,6 +193,8 @@ import {
   type CallDto,
   type TodayVM,
   toPersonRowVM,
+  dealPaceOf,
+  type DealPaceVM,
   peopleAggregates,
   PEOPLE_LISTS,
   asListRule,
@@ -771,6 +773,8 @@ export interface PeopleSurface {
   bookingLink: string | null;
   /** Deals are on here (dealsAreOn, 0008): the Journey's deal lists, the thread's menu item, the column. */
   dealsOn: boolean;
+  /** The workspace's pace (dealPaceOf, 0008 amended): when a proposal out is waiting, on Today and the Pipeline. */
+  dealPace: DealPaceVM | null;
   /** The page the rows came from: how many there are in all, and whether more follow (00112). */
   page: { q: string | null; offset: number; limit: number; total: number; has_more: boolean } | null;
   /** What this member's pages remember in this workspace (memberships.views). */
@@ -791,6 +795,8 @@ let peopleLoaded: {
   /** Deals are on here (0008), and the profile lists a consult-first service (0004): which Journey lists exist. */
   dealsOn: boolean;
   consultFirst: boolean;
+  /** The workspace's pace, as the list read answered it (00167); null without one. */
+  dealPace: DealPaceVM | null;
   views: Record<string, unknown>;
 } | null = null;
 
@@ -834,6 +840,7 @@ function publishPeople(): void {
     calendar,
     bookingLink: peopleLoaded.bookingLink,
     dealsOn,
+    dealPace: dealsOn ? peopleLoaded.dealPace : null,
     saved: (peopleLoaded.saved ?? []).map((l) => {
       // Who is on it: the ids kept on it, or everyone a smart list's rule holds for today (savedListIds), over the rows
       // on the page, so an erased person never counts.
@@ -1023,6 +1030,7 @@ export const peopleOverride: SurfaceOverride = {
       bookingLink: data.booking_link ?? null,
       dealsOn: !!data.deals_on,
       consultFirst: !!data.consult_first,
+      dealPace: dealPaceOf(data.deal_pace),
       views:
         overlapped || keptViews.made !== savesBefore
           ? { ...(viewsData.views ?? {}), ...keptViews.views }

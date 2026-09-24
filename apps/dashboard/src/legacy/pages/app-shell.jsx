@@ -450,7 +450,7 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
     crumbs = !dealsOn
       ? ["People"]
       : pv && pv.view !== "all"
-        ? [{ label: "People", to: "clients" }, { label: "Pipeline", to: "clients/pipeline" }, window.__pipeline.viewLabel(pv.view)]
+        ? [{ label: "People", to: "clients" }, { label: "Pipeline", to: "clients/pipeline" }, window.__pipeline.viewLabel(pv.view, (window.__PEOPLE && window.__PEOPLE.dealPace) || null)]
         : [{ label: "People", to: "clients" }, "Pipeline"];
     pane = true;
     content = <ClientsA key={dealsOn ? "pipeline" : "people"} scope={dealsOn ? "pipeline" : "people"} pipelineRoute={dealsOn ? param : null} onNavigate={navigate} onOpenProfile={(id) => navigate(`clients/${id}`)} />;

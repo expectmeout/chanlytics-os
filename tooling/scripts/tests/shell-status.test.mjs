@@ -1594,6 +1594,15 @@ test("People › Pipeline is the page's third scope at clients/pipeline: its cru
         { label: "Pipeline", to: "clients/pipeline" },
         "Proposal out",
       ]);
+      // What waits on the owner is named by the workspace's pace, as the rail names it (0008, amended).
+      const keepPeople = win.__PEOPLE;
+      win.__PEOPLE = {
+        ...keepPeople,
+        dealPace: { medianDays: 8, yeses: 6, waitDays: 10, longerThanUsual: true, words: "Usually 8 days to a yes" },
+      };
+      assert.equal(crumbs(mount("#/clients/pipeline:v-waiting").tree).at(-1), "Nothing back in 10 days");
+      win.__PEOPLE = keepPeople;
+      assert.equal(crumbs(mount("#/clients/pipeline:v-waiting").tree).at(-1), "Nothing back in a week");
     } finally {
       win.__pipeline = keepPipeline;
     }

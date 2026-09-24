@@ -52,10 +52,13 @@ import {
   DEAL_STAGE_WORDS,
   amountWords,
   dealOf,
+  dealPaceOf,
   isDealLostReason,
   proposalLinkOf,
   toDealVM,
   type DealDto,
+  type DealPaceDto,
+  type DealPaceVM,
   type DealVM,
 } from "./deals";
 import type { RecipientState } from "./broadcasts";
@@ -206,6 +209,8 @@ export interface PersonDetailDto {
   deals?: DealDto[];
   /** Whether deals are on in this workspace: it says some customers get a proposal first (dealsAreOn, 0008). */
   deals_on?: boolean;
+  /** The workspace's pace (00167 deal_pace), where deals are on; absent from a server before it. */
+  deal_pace?: DealPaceDto | null;
   /** The profile's service names, for the page's picker when it lists more than one. */
   services?: string[];
   /** The services that need a consultation first (booking_rules.consult_first): which one a consultation was for. */
@@ -2035,6 +2040,8 @@ export interface PersonVM extends PersonRowVM {
   deals: DealVM[];
   /** Whether deals are on here (dealsAreOn): the page draws its Deal section, and offers the proposal's send, only then. */
   dealsOn: boolean;
+  /** The workspace's pace (dealPaceOf): when their proposal waits, and what its card says; none until five are decided. */
+  dealPace: DealPaceVM | null;
   /** The profile's service names; the picker appears only past one. */
   services: string[];
   /** The services that need a consultation first: a proposal started from one names it (deal-sheet.ts). */
@@ -2774,6 +2781,7 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
     deal: current,
     deals,
     dealsOn,
+    dealPace: dealsOn ? dealPaceOf(d.deal_pace) : null,
     services: d.services ?? [],
     consultFirst: d.consult_first ?? [],
   };
