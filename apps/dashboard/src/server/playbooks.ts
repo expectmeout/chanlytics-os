@@ -8,10 +8,14 @@ import {
   playbookRunStop,
   purposeOfTemplate,
   PLAYBOOK_TRIGGERS,
-  savedListIds,
-  savedListLookup,
+  consultFirstOf,
+  poolListContext,
+  poolRowsOf,
+  withVisitsOf,
+  listsFor,
+  membersOf,
+  resolveList,
   playbookRunReach,
-  toPersonRowVM,
   triggerOffered,
   dealsAreOn,
   type DealPaceVM,
@@ -48,7 +52,7 @@ import { sellsByOf } from "@/server/deals";
  * broadcast could not send or a slot the workspace cannot fill.
  */
 const COLUMNS =
-  "id, name, trigger, list_id, template_id, template_name, template_language, params, policy_class, state, run_hour, cap_per_run, gap_days, cadence_days, last_run_for, last_run_at, created_at";
+  "id, name, trigger, list_id, list_key, template_id, template_name, template_language, params, policy_class, state, run_hour, cap_per_run, gap_days, cadence_days, last_run_for, last_run_at, created_at";
 
 /** One run on a card's history: the day it ran for, and what it earned. */
 export interface RunSummary {
@@ -256,6 +260,8 @@ export async function triggerPools(
   calendar: "ok" | "unavailable" | "none";
   /** The lists a playbook may run on, each counted under "list:<id>"; null when they could not be read. */
   lists: { id: string; name: string; smart: boolean }[] | null;
+  /** People's lists a playbook may run on here (none that is about whoever is looking), each counted under "seg:<id>". */
+  people: { key: string; label: string; group: string }[];
 }> {
   // The pools are a reading, never the page: a read that fails leaves the
   // playbooks themselves untouched. A moment it could not count is null, never
@@ -269,7 +275,12 @@ export async function triggerPools(
       "playbook_pools_people_failed",
       JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
     );
-    return { pools: Object.fromEntries(PLAYBOOK_TRIGGERS.map((t) => [t.id, null])), calendar: "none", lists: null };
+    return {
+      pools: Object.fromEntries(PLAYBOOK_TRIGGERS.map((t) => [t.id, null])),
+      calendar: "none",
+      lists: null,
+      people: [],
+    };
   }
   const pv = await peopleVisits(ctx, tenantId, rows, now).catch((e: unknown) => {
     console.error(
@@ -279,8 +290,11 @@ export async function triggerPools(
     return null;
   });
   const calendar = pv?.calendar.state ?? "none";
-  const vms = rows.map((r) =>
-    toPersonRowVM({ ...r, visits: pv && pv.calendar.state === "ok" ? (pv.visits.get(r.id) ?? null) : null }, tz, now),
+  // The pool's one reading (contracts audience-pool.ts), as a run reads it: no one looking, and no deal where deals
+  // are off. The visits are marked as consultations by the same rule the edge's runner reads them by.
+  const vms = poolRowsOf(
+    withVisitsOf(rows, pv?.visits ?? new Map(), pv?.calendar ?? { state: "none", timezone: tz, source: "calendar" }),
+    { tz, now, viewer: null, dealsOn: deals.on },
   );
   // Who already had their proposal's follow-up, from any playbook (proposalFollowUps): no run reaches them again for
   // that proposal (0006), so the moment's count leaves them out as its run does. Read only where deals are on;
@@ -337,28 +351,37 @@ export async function triggerPools(
     }
     pools[t.id] = count(t.id as PlaybookDto["trigger"], null);
   }
-  // Each list the workspace keeps, counted as a playbook on it would count it: who is on it (savedListIds), then the
-  // runner's own rules.
+  // Every list a playbook may run on (decision 0009), counted as a run on it would count it: who is on it (membersOf),
+  // then the runner's own rules, under its token (`seg:<id>` for People's, `list:<id>` for the workspace's own). A
+  // playbook has no one looking, so a list about "me" is never offered; one it can't count here is null, never a zero.
+  const listCtx = poolListContext({
+    calendar,
+    dealsOn: deals.on,
+    consultFirst: consultFirstOf(pv?.rules),
+    viewer: null,
+  });
+  const builtins = listsFor(listCtx, []).filter((d) => d.ref.kind === "builtin");
+  for (const d of builtins) {
+    const m = membersOf(d, vms, listCtx);
+    pools[d.token] = m.state === "ok" ? count("saved_list", m.ids) : null;
+  }
   let lists: { id: string; name: string; smart: boolean }[] | null = null;
+  const people = builtins.map((d) => ({ key: d.ref.id, label: d.label, group: d.group }));
   try {
     const kept = await savedListsFor(ctx.supabase, tenantId);
     lists = kept.map((l) => ({ id: l.id, name: l.name, smart: l.rule != null }));
-    // A playbook has no one looking: a list about "me" is not one it can run on (lists.ts ListContext).
-    const listCtx = {
-      calendar,
-      dealsOn: deals.on,
-      consultFirst: (pv?.rules?.consult_first ?? []).length > 0,
-      viewer: false,
-    };
-    const lookup = savedListLookup(kept);
-    for (const l of kept) pools[`list:${l.id}`] = count("saved_list", savedListIds(l, vms, listCtx, lookup));
+    for (const l of kept) {
+      const def = resolveList({ kind: "saved", id: l.id }, kept);
+      const m = def ? membersOf(def, vms, listCtx, kept) : null;
+      pools[`list:${l.id}`] = m && m.state === "ok" ? count("saved_list", m.ids) : null;
+    }
   } catch (e) {
     console.error(
       "playbook_pools_lists_failed",
       JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
     );
   }
-  return { pools, calendar, lists };
+  return { pools, calendar, lists, people };
 }
 
 export type PlaybookListRow = PlaybookDto & { totals: PlaybookTotals };
@@ -367,13 +390,21 @@ export async function listPlaybooks(ctx: RouteContext, tenantId: string): Promis
   const read = (columns: string) =>
     ctx.supabase.from("playbooks").select(columns).eq("tenant_id", tenantId).order("created_at", { ascending: false });
   const [first, runs] = await Promise.all([read(COLUMNS), listRuns(ctx, tenantId)]);
-  // A database 00155 has not reached has no list_id: read again without it, and no playbook runs on a list.
+  // A database 00168 has not reached has no list_key, and one 00155 has not reached no list_id: read again without
+  // them, and no playbook runs on a People list (or on any list).
   let { data: rows, error } = first as unknown as {
     data: Record<string, unknown>[] | null;
     error: { message: string } | null;
   };
-  if (error && /list_id/.test(error.message) && /does not exist|could not find/i.test(error.message))
-    ({ data: rows, error } = (await read(COLUMNS.replace("list_id, ", ""))) as unknown as {
+  const missing = (col: string) =>
+    !!error && new RegExp(col).test(error.message) && /does not exist|could not find/i.test(error.message);
+  if (missing("list_key"))
+    ({ data: rows, error } = (await read(COLUMNS.replace("list_key, ", ""))) as unknown as {
+      data: Record<string, unknown>[] | null;
+      error: { message: string } | null;
+    });
+  if (missing("list_id"))
+    ({ data: rows, error } = (await read(COLUMNS.replace("list_id, list_key, ", ""))) as unknown as {
       data: Record<string, unknown>[] | null;
       error: { message: string } | null;
     });
@@ -417,6 +448,7 @@ export async function listPlaybooks(ctx: RouteContext, tenantId: string): Promis
   return (rows ?? []).map((r) => ({
     ...(r as unknown as Omit<PlaybookDto, "params" | "trigger" | "policy_class" | "state">),
     list_id: (r.list_id as string | null | undefined) ?? null,
+    list_key: (r.list_key as string | null | undefined) ?? null,
     trigger: r.trigger as PlaybookTrigger,
     policy_class: r.policy_class as PlaybookPolicyClass,
     state: r.state as PlaybookDto["state"],

@@ -22,6 +22,23 @@ import {
   cardOpenRoute,
   groundCitations,
   normalizeAnswer,
+  LeadSearchPlanSchema,
+  LEAD_COUNT_CHOICES,
+  LEAD_QUESTION_WAIT_LINE,
+  leadEndingLine,
+  leadPlanAsk,
+  leadPlanFacts,
+  leadPlanLikely,
+  leadsRoute,
+  planArea,
+  planCeiling,
+  planMinutes,
+  planSaid,
+  planSentence,
+  planVersionOf,
+  planWhere,
+  planWho,
+  planWords,
 } from "@chanlytics/contracts";
 
 /* ---------------------------------- the window ---------------------------------- */
@@ -187,6 +204,8 @@ await import("../../../apps/dashboard/src/legacy/pages/ask-turn.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/ask-real.jsx");
 // Ask's face in the line (components/ask-face.jsx): drawn in every case; it moves only where a case installs the bridge.
 await import("../../../apps/dashboard/src/legacy/components/ask-face.jsx");
+// A lead search's card on the rail is the finder's own plan card (leads-finder.jsx LeadPlanCard, hookless).
+await import("../../../apps/dashboard/src/legacy/pages/leads-finder.jsx");
 const { askPalette, quickAnswer, surfaceFor } =
   await import("../../../apps/dashboard/src/legacy-bridge/ask/palette.ts");
 const { askSpeech } = await import("../../../apps/dashboard/src/legacy-bridge/ask/speech.ts");
@@ -1598,6 +1617,167 @@ test("REGRESSION (N18): every page a real workspace ships is a jump away -- 'cal
     ["calendar"],
     "a citation of the Calendar is kept",
   );
+  await closes();
+});
+
+/* ------------------------------ the Leads surface ------------------------------ */
+
+// A search's plan as the route returns it on a lead_search card: the finder's own shape (leads-finder.test.mjs CARD).
+const LEAD_PLAN = LeadSearchPlanSchema.parse({
+  version: 1,
+  card: "local_businesses",
+  name: "personal trainers",
+  asked: "200 personal trainers in Austin with a website",
+  terms: ["personal trainer", "strength coach", "fitness coach"],
+  area: {
+    kind: "city",
+    label: "Austin, TX",
+    state: "TX",
+    center: { lat: 30.2672, lng: -97.7431 },
+    radius_m: 25_000,
+    query: "Austin, TX, USA",
+  },
+  count: 200,
+  contact: "email",
+  criteria: [{ key: "website", text: "With a website", standard: "likely", required: true }],
+  exclusions: [{ key: "chain", text: "Chain gyms", origin: "claude" }],
+});
+const LEAD_FACTS = {
+  dupes: 14,
+  leadsLeft: 486,
+  bound: null,
+  prior: { places: 1_200, matched: 700, with_email: 406 },
+  priorOf: "trainers",
+  cannotSee: null,
+  renewsOn: "Oct 1",
+  nearby: [],
+};
+const LEAD_CARD = {
+  id: "p1",
+  kind: "lead_search",
+  needs: "owner",
+  title: "Find 200 personal trainers",
+  summary: planSentence(LEAD_PLAN),
+  payload: { plan: LEAD_PLAN, view: { title: "Find 200 personal trainers" }, facts: LEAD_FACTS },
+  undo: "Stop the search",
+};
+/** The derivations the plan card reads off the window (seed-globals.ts __LEAD_VM), so the card on the rail is the finder's own. */
+const LEAD_VM = {
+  planWords,
+  planSaid,
+  planWhere,
+  planWho,
+  planArea,
+  planMinutes,
+  planCeiling,
+  planSentence,
+  planVersionOf,
+  LEAD_COUNT_CHOICES,
+  leadEndingLine,
+  leadPlanLikely,
+  leadPlanFacts,
+  leadPlanAsk,
+  LEAD_QUESTION_WAIT_LINE,
+};
+
+test("on Leads the Line is the finder: describe the businesses, Find businesses with the day's chip and the consent line; the words go as typed on the leads surface; the card puts them back to change and opens the search once approved", async () => {
+  const hash = globalThis.window.location.hash;
+  const chanly = globalThis.window.CHANLY;
+  const went = [];
+  globalThis.window.location.hash = "#/clients/leads";
+  globalThis.window.__LEADS = { suggestions: { items: [{ words: "100 nail salons in Queens, NY" }] }, searches: [] };
+  globalThis.window.__LEAD_VM = LEAD_VM;
+  globalThis.window.CHANLY = { ...chanly, nav: (to) => went.push(to) };
+  try {
+    ask([]);
+    const askedWith = [];
+    const committed = [];
+    Object.assign(globalThis.window.__ask, {
+      commit: async (p) => {
+        committed.push(p.kind);
+        return { ok: true, receipt: "Finding 200 personal trainers. Leads shows it.", undo: { search_id: "s1" } };
+      },
+      outcome: async () => true,
+      undoOpen: () => false,
+      // The reply editor is for replies: a search's "Change what I asked" never reaches it.
+      editReply: () => assert.fail("REGRESSION: a lead search's Change what I asked opened the reply editor"),
+      send: async (input, on) => {
+        askedWith.push(input);
+        on({ t: "thread", id: TH(9).id, title: input.text });
+        on({ t: "final", message: { ...said("m-lead", "Here is the plan."), proposals: [LEAD_CARD] } });
+      },
+    });
+    render(Palette, OPEN);
+    let tree = await later(Palette, OPEN);
+    assert.equal(inputOf(tree).props.placeholder, "Describe the businesses you want", "the field asks for businesses");
+    assert.deepEqual(
+      byClass(tree, "ask-rows-label").map(textOf),
+      ["Find businesses"],
+      "the page's section is Find businesses, never Ask about Leads",
+    );
+    assert.equal(
+      textOf(byTestId(tree, "ask-row-sug")),
+      "100 nail salons in Queens, NY",
+      "the first chip is the day's suggestion",
+    );
+    assert.equal(
+      textOf(byTestId(tree, "ask-rows-note")),
+      "You can email and call leads. Texts and offers wait for their yes.",
+      "the consent rule stands under the chips",
+    );
+    typed(tree, "50 dentists in Austin, TX");
+    tree = await later(Palette, OPEN);
+    keyed(tree, "Enter");
+    tree = await later(Palette, OPEN);
+    assert.equal(askedWith.length, 1, "one turn");
+    assert.equal(askedWith[0].text, "50 dentists in Austin, TX", "the words go as typed, with no prefix");
+    assert.equal(askedWith[0].surface, "leads", "on the Leads surface");
+    assert.equal(askedWith[0].scope, null, "and with no scope");
+    assert.equal(byTestId(tree, "ask-card").props["data-kind"], "lead_search");
+    assert.ok(byTestId(tree, "lead-plan"), "the card on the rail is the finder's plan card");
+    // Change what I asked: the turn's question back in the field, and the field takes focus (spec F4). The field's own
+    // focus after the answer landed (useAskFocus, 30ms) is let fire first, so only this one is counted.
+    await new Promise((r) => setTimeout(r, 60));
+    let focused = 0;
+    inputOf(tree).props.ref.current = {
+      focus: () => {
+        focused++;
+      },
+    };
+    press(byTestId(tree, "plan-back"));
+    tree = await later(Palette, OPEN);
+    assert.equal(inputOf(tree).props.value, "50 dentists in Austin, TX", "the words are back in the field");
+    await new Promise((r) => setTimeout(r, 40));
+    assert.equal(focused, 1, "and the field takes focus");
+    // With the field emptied the answer is under the line again: Approve commits, the receipt stays on the card, and
+    // the Line goes to the search the commit made.
+    typed(tree, "");
+    tree = await later(Palette, OPEN);
+    press(byTestId(tree, "plan-approve"));
+    tree = await later(Palette, OPEN);
+    assert.deepEqual(committed, ["lead_search"], "committed through Ask's door");
+    assert.ok(
+      textOf(byClass(tree, "ask-card-receipt")[0]).includes("Leads shows it"),
+      "the receipt stays in the thread",
+    );
+    assert.deepEqual(went, ["clients/leads:s-s1"], "the Line went to the new search");
+    assert.equal(went[0], leadsRoute({ searchId: "s1", list: "all", cls: null }), "which is contracts' route for it");
+  } finally {
+    await closes();
+    globalThis.window.location.hash = hash;
+    globalThis.window.CHANLY = chanly;
+    delete globalThis.window.__LEADS;
+    delete globalThis.window.__LEAD_VM;
+  }
+});
+
+test("on Today the Line is as it was: Ask anything, questions about the page, and no consent line", async () => {
+  ask([]);
+  render(Palette, OPEN);
+  const tree = await later(Palette, OPEN);
+  assert.equal(inputOf(tree).props.placeholder, "Ask anything");
+  assert.ok(textOf(tree).includes("Ask about Today"));
+  assert.equal(byTestId(tree, "ask-rows-note"), null, "the consent rule is Leads' alone");
   await closes();
 });
 

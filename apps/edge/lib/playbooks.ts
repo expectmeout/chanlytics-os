@@ -36,15 +36,16 @@ import {
   dealPaceOf,
   dealsAreOn,
   isSellsBy,
-  indexFeed,
   ownAddressesOf,
   numberHealth,
   parseTenantConfig,
-  savedListIds,
-  savedListLookup,
-  toPersonRowVM,
-  toVisitDto,
-  visitsIn,
+  peopleVisitsOf,
+  poolListContext,
+  consultFirstOf,
+  poolRowsOf,
+  withVisitsOf,
+  membersOf,
+  resolveList,
   type PersonRowDto,
   type PersonVisitsDto,
 } from "./packages/contracts.js";
@@ -161,35 +162,46 @@ export async function loadTenantRunContext(
   // months out had its visit playbooks reading a fortnight of calendar.
   const daysAhead = cfgParsed?.brain?.profile?.booking_rules?.max_days_ahead ?? 14;
   let calendar: TenantRunContext["calendar"] = "none";
-  const visits = new Map<string, PersonVisitsDto>();
+  let visits = new Map<string, PersonVisitsDto>();
+  const profile = cfgParsed?.brain?.profile;
   if (url) {
     const items = await feedItemsFor(tenantId, url, tz, now, daysAhead);
     if (items) {
       calendar = "ok";
-      // The business's own addresses are never a customer's (contracts
-      // ownAddressesOf). Without them a visit playbook could thank the owner,
-      // as a customer, for a meeting on their own calendar.
-      const index = indexFeed(items, ownAddressesOf(cfgParsed));
-      for (const r of rows) {
-        const v = visitsIn(
-          index,
-          { id: r.id, name: r.display_name || r.wa_profile_name || "", phone: r.phone_e164, email: r.email ?? null },
-          now.getTime(),
-        );
-        visits.set(r.id, {
+      // The pool's one reading (contracts audience-pool.ts), as the dashboard reads it: the business's own addresses
+      // are never a customer's (ownAddressesOf) -- without them a visit playbook could thank the owner, as a customer,
+      // for a meeting on their own calendar -- and each visit says whether it is a consultation (0004).
+      visits = peopleVisitsOf(
+        items,
+        rows,
+        {
           timezone: tz,
           source: "calendar",
-          state: "ok",
-          next: toVisitDto(v.next),
-          last: toVisitDto(v.last),
-        });
-      }
+          own: ownAddressesOf(cfgParsed),
+          services: profile?.services ?? [],
+          rules: profile?.booking_rules ?? null,
+        },
+        now.getTime(),
+      );
     } else {
       calendar = "unavailable";
     }
   }
-  const vms = rows.map((r) => toPersonRowVM({ ...r, visits: visits.get(r.id) ?? null }, tz, now));
   const dealsOn = dealsAreOn(isSellsBy(tenant?.sells_by) ? tenant.sells_by : null);
+  // Everyone as the pool reads them: no one looking (a run has no viewer), no deal where deals are off, and their
+  // visits attached the one way (withVisitsOf), as the People list and the Playbooks page attach them.
+  const listCtx = poolListContext({
+    calendar,
+    dealsOn,
+    consultFirst: consultFirstOf(profile?.booking_rules),
+    viewer: null,
+  });
+  const vms = poolRowsOf(withVisitsOf(rows, visits, { state: calendar, timezone: tz, source: "calendar" }), {
+    tz,
+    now,
+    viewer: null,
+    dealsOn,
+  });
   return {
     db,
     tenantId,
@@ -198,24 +210,14 @@ export async function loadTenantRunContext(
     people: vms,
     calendar,
     visits,
-    // Who is on each list, the way the People rail and the send count it (contracts savedListIds). A run has no one
-    // looking, so a list about "me" is nobody here, as its needs say (lists.ts ListContext).
-    lists: new Map(
-      (kept.data ?? []).map((l) => [
-        l.id,
-        savedListIds(
-          l,
-          vms,
-          {
-            calendar,
-            dealsOn,
-            consultFirst: (cfgParsed?.brain?.profile?.booking_rules?.consult_first ?? []).length > 0,
-            viewer: false,
-          },
-          savedListLookup(kept.data ?? []),
-        ),
-      ]),
-    ),
+    // Who is on a list a playbook runs on, the way the People rail and the send count it (contracts lists.ts): one of
+    // People's or one of the workspace's own, resolved by its reference. A run has no one looking, so a list about
+    // "me" is one it cannot count, as its needs say.
+    listMembers: (ref) => {
+      const saved = kept.data ?? [];
+      const def = resolveList(ref, saved);
+      return def ? membersOf(def, vms, listCtx, saved) : null;
+    },
     modes: new Map(policies.map((r) => [r.class, r.mode])),
     health: numberHealth({ quality: s("quality_rating"), event: s("quality_event"), limit: s("messaging_limit") }),
     touches: { byThis, byAny, followUps },

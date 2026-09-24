@@ -201,7 +201,6 @@ import {
   type EscalationDto,
   type CallDto,
   type TodayVM,
-  toPersonRowVM,
   dealPaceOf,
   followUpStandOf,
   type FollowUpFactsDto,
@@ -215,6 +214,9 @@ import {
   parseListToken,
   savedListIds,
   savedListLookup,
+  poolListContext,
+  poolRowOf,
+  poolRowsOf,
   type ListContext,
   PEOPLE_LIST_GROUPS,
   peopleListAction,
@@ -842,8 +844,7 @@ let peopleLoaded: {
  * the row's second line, the thread's chip and send, or Today's proposals waiting, which all read it from here.
  */
 function personRowOf(r: PersonRowDto, tz: string, now: Date, dealsOn: boolean): PersonRowVM {
-  const vm = toPersonRowVM(r, tz, now, viewerId());
-  return dealsOn ? vm : { ...vm, deal: null, dealStage: null };
+  return poolRowOf(r, { tz, now, viewer: viewerId(), dealsOn });
 }
 
 /** The member looking, as the workspace surface named them at boot; null before it lands. */
@@ -866,7 +867,12 @@ function publishPeople(): void {
   });
   const calendar = peopleLoaded.calendar;
   // What this workspace and this reader can give a list (lists.ts): a rule that needs more says why it can't be counted.
-  const listCtx: ListContext = { calendar: calendar.state, dealsOn, consultFirst, viewer: viewerId() !== null };
+  const listCtx: ListContext = poolListContext({
+    calendar: calendar.state,
+    dealsOn,
+    consultFirst,
+    viewer: viewerId(),
+  });
   const savedLists = peopleLoaded.saved ?? [];
   const lookup = savedListLookup(savedLists);
   const listName = (token: string): string | null => {
@@ -1222,7 +1228,8 @@ export const broadcastsOverride: SurfaceOverride = {
     // Every page of people, not the first: the send enrols everyone, so an
     // audience counted over one page promised fewer people than the send reaches.
     const { people: everyone } = await everyPerson(people);
-    const rows = everyone.map((r) => toPersonRowVM(r, tz, now, viewerId()));
+    // The pool's one reading (contracts audience-pool.ts), as the send reads it.
+    const rows = poolRowsOf(everyone, { tz, now, viewer: viewerId(), dealsOn: !!people.deals_on });
     // Both purposes, for every audience, so picking a template re-reads a number
     // rather than recomputing a list. Two passes over the people already in hand.
     // Who a run reached within the week, for the note on how many of an audience heard from one.
@@ -1283,12 +1290,12 @@ export const broadcastsOverride: SurfaceOverride = {
               savedListIds(
                 s,
                 rows,
-                {
+                poolListContext({
                   calendar: people.calendar?.state ?? "none",
                   dealsOn: !!people.deals_on,
                   consultFirst: !!people.consult_first,
-                  viewer: viewerId() !== null,
-                },
+                  viewer: viewerId(),
+                }),
                 savedListLookup(saved.lists),
               ),
             ),
@@ -1428,11 +1435,17 @@ export interface PlaybooksSurface {
   /** Whether a visit trigger can run: the workspace's calendar state. */
   calendar: "ok" | "unavailable" | "none";
   triggers: PlaybookTriggerOption[];
-  /** The lists a playbook may run on, each with its own count; empty when there are none or they were not read. */
+  /**
+   * Every list a playbook may run on (decision 0009), each by its token (`seg:<id>` for People's, `list:<id>` for the
+   * workspace's own) with its own count: People's first, then the workspace's. Empty when none could be read.
+   */
   lists: {
+    /** The list's token: what the composer picks and the card links by. */
     id: string;
     name: string;
     smart: boolean;
+    /** One of People's lists, not the workspace's own. */
+    builtin: boolean;
     candidates: number | null;
     held: number | null;
     named: PlaybookNamed | null;
@@ -1496,20 +1509,24 @@ export const playbooksOverride: SurfaceOverride = {
     if (tpl instanceof Error) console.error("playbooks_templates_fetch_failed", tpl.message);
     if (ch instanceof Error) console.error("playbooks_channels_fetch_failed", ch.message);
     const tz = pb.timezone || "America/New_York";
-    // A playbook on one of the workspace's lists is counted by its list ("list:<id>"), and named for it.
+    // A playbook on a list is counted by its list's token (`seg:<id>` or `list:<id>`, decision 0009), and named for it.
     const listsKept = pb.lists ?? [];
-    const keyOf = (p: { trigger: string; list_id?: string | null }) =>
-      p.trigger === "saved_list" ? `list:${p.list_id ?? ""}` : p.trigger;
+    const peopleLists = pb.people_lists ?? [];
+    const keyOf = (p: { trigger: string; list_id?: string | null; list_key?: string | null }) =>
+      p.trigger !== "saved_list" ? p.trigger : p.list_key ? `seg:${p.list_key}` : `list:${p.list_id ?? ""}`;
+    const listNameOf = (p: { list_id?: string | null; list_key?: string | null }) =>
+      p.list_key
+        ? (peopleLists.find((l) => l.key === p.list_key)?.label ?? null)
+        : (listsKept.find((l) => l.id === p.list_id)?.name ?? null);
     // The moments offered here (0006): a proposal's only where deals are on, as the route counts them.
     const offered = PLAYBOOK_TRIGGERS.filter((t) => triggerOffered(t, !!pb.deals_on));
     (window as unknown as { __PLAYBOOKS?: PlaybooksSurface }).__PLAYBOOKS = {
       rows: pb.playbooks.map((p) => {
         const t = triggerOf(p.trigger);
-        const kept = p.trigger === "saved_list" ? listsKept.find((l) => l.id === p.list_id) : undefined;
         return {
           ...p,
           triggerLabel:
-            p.trigger === "saved_list" ? (kept?.name ?? "A list that was deleted") : (t?.label ?? p.trigger),
+            p.trigger === "saved_list" ? (listNameOf(p) ?? "A list that was deleted") : (t?.label ?? p.trigger),
           triggerHint: t?.hint ?? "",
           schedule: scheduleLine(p),
           next: nextRunLabel(p, tz, now),
@@ -1522,12 +1539,10 @@ export const playbooksOverride: SurfaceOverride = {
       }),
       timezone: tz,
       countsRead: offered.every((t) => t.kind === "saved" || !!pb.pools?.[t.id]),
-      lists: listsKept.map((l) => ({
-        ...l,
-        candidates: pool(`list:${l.id}`),
-        held: held(`list:${l.id}`),
-        named: named(`list:${l.id}`),
-      })),
+      lists: [
+        ...peopleLists.map((l) => ({ id: `seg:${l.key}`, name: l.label, smart: true, builtin: true })),
+        ...listsKept.map((l) => ({ id: `list:${l.id}`, name: l.name, smart: l.smart, builtin: false })),
+      ].map((l) => ({ ...l, candidates: pool(l.id), held: held(l.id), named: named(l.id) })),
       calendar: pb.calendar ?? "none",
       triggers: offered.map((t) => ({
         id: t.id,

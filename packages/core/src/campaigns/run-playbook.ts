@@ -3,6 +3,7 @@ import {
   nextOpenMoment,
   parseParamSpecs,
   planRun,
+  playbookListRef,
   playbookRunReach,
   playbookRunStop,
   proposalFactsFor,
@@ -83,9 +84,17 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
   // and the run says so.
   const trig = triggerOf(p.trigger);
   if ((trig?.kind === "visit" || trig?.id === "lapsed") && ctx.calendar !== "ok") return off("no_calendar");
-  // A playbook on one of the workspace's lists: who is on it now. A list deleted under it runs nobody, and says so.
-  const listIds = trig?.kind === "saved" ? (p.list_id ? (ctx.lists.get(p.list_id) ?? null) : null) : null;
-  if (trig?.kind === "saved" && !listIds) return off("no_list");
+  // A playbook on a list (decision 0009): who is on it now, one of People's or one of the workspace's own. A list
+  // deleted under it runs nobody, and one that can't be counted here -- a calendar not read, a rule this build can't
+  // read -- runs nobody either; each says so.
+  let listIds: ReadonlySet<string> | null = null;
+  if (trig?.kind === "saved") {
+    const ref = playbookListRef(p);
+    const m = ref ? ctx.listMembers(ref) : null;
+    if (!m) return off("no_list");
+    if (m.state === "unknown") return off(m.reason === "calendar" ? "no_calendar" : "list_uncounted");
+    listIds = m.ids;
+  }
   // A proposal follow-up where deals are off has no proposals to follow: off, and the run says so (0006).
   if (trig && !triggerOffered(trig, ctx.dealsOn)) return off("deals_off");
 

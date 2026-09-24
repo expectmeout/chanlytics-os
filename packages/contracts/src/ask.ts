@@ -460,7 +460,21 @@ export function askJump(query: string, index: JumpEntry[], limit = 6): JumpEntry
 
 /* ------------------------------------------------------------ suggestions */
 
-export type AskSurface = "today" | "inbox" | "people" | "conversations" | "live" | "reports" | "settings" | "other";
+/** The pages Ask knows it is on. The route accepts exactly these; the prompt names them. */
+export const ASK_SURFACES = [
+  "today",
+  "inbox",
+  "people",
+  "leads",
+  "conversations",
+  "live",
+  "reports",
+  "settings",
+  "other",
+] as const;
+export type AskSurface = (typeof ASK_SURFACES)[number];
+/** The kinds a scope may have: the same five a citation may name. */
+export const ASK_SCOPE_KINDS = ASK_CITATION_KINDS;
 
 export interface AskSuggestion {
   /** The words sent, or placed in the input when `compose` is set. */
@@ -488,6 +502,9 @@ export interface SuggestionInput {
   canAct?: boolean;
   /** Deals are a thing here (People's surface says so): the question about proposals is offered. */
   dealsOn?: boolean;
+  /** On Leads: the first day's suggestion words (each a search to propose), and the latest searches' own words. */
+  leadIdeas?: string[];
+  leadSearches?: string[];
 }
 
 const T = {
@@ -506,6 +523,7 @@ const T = {
     hours: "What are our hours this week?",
     brief: "Brief me on today",
     proposals: "Who has a proposal out?",
+    moreLike: "Find more like: {asked}",
     actLate: "Tell {name} we're running late",
     actLateQ: "Tell {name} we're running about 15 minutes late today",
     actDraft: "Draft a reply to {name}",
@@ -540,6 +558,7 @@ const T = {
     hours: "¿Cuál es nuestro horario esta semana?",
     brief: "Resúmeme el día",
     proposals: "¿Quién tiene una propuesta pendiente?",
+    moreLike: "Encuentra más como: {asked}",
     actLate: "Dile a {name} que vamos con retraso",
     actLateQ: "Dile a {name} que vamos con unos 15 minutos de retraso hoy",
     actDraft: "Redacta una respuesta a {name}",
@@ -566,11 +585,17 @@ const T = {
  * from the data, in the person's language, never from a seed; a workspace
  * with no missed call is not offered a question about missed calls.
  */
+/** Words cut to fit a chip: whole up to the cap, else the first letters and an ellipsis. */
+function clipWords(s: string, cap: number): string {
+  const w = s.replace(/\s+/g, " ").trim();
+  return w.length > cap ? `${w.slice(0, cap - 1).trimEnd()}…` : w;
+}
+
 export function buildAskSuggestions(input: SuggestionInput): AskSuggestion[] {
   const t = T[input.language === "es" ? "es" : "en"];
   const out: AskSuggestion[] = [];
-  const add = (q: string, kind: AskSuggestion["kind"], icon: string, fast = false) => {
-    if (!out.some((s) => s.q === q)) out.push({ q, kind, icon, fast });
+  const add = (q: string, kind: AskSuggestion["kind"], icon: string, fast = false, label?: string) => {
+    if (!out.some((s) => s.q === q)) out.push({ q, kind, icon, fast, ...(label ? { label } : {}) });
   };
   const s = input.scope;
   if (s && (s.kind === "thread" || s.kind === "conversation" || s.kind === "person")) {
@@ -578,6 +603,16 @@ export function buildAskSuggestions(input: SuggestionInput): AskSuggestion[] {
     if (s.kind === "thread") add(t.why, "ask", "sparkle");
   }
   if (s && s.kind === "call") add(t.live, "ask", "phone");
+  // On Leads the page's own chips come first: the first day's ideas, each a search to propose, or the latest
+  // searches' own words to find more. The section under the field keeps three, and they must be these.
+  if (input.surface === "leads") {
+    const ideas = (input.leadIdeas ?? []).filter(Boolean).slice(0, 3);
+    for (const w of ideas) add(w, "ask", "search");
+    // A search's own words can run long; the chip shows them clipped, the question sent keeps them whole.
+    if (!ideas.length)
+      for (const a of (input.leadSearches ?? []).filter(Boolean).slice(0, 2))
+        add(t.moreLike.replace("{asked}", a), "ask", "search", false, t.moreLike.replace("{asked}", clipWords(a, 40)));
+  }
   if (input.needsYou > 0) add(t.needs, "ask", "inbox", true);
   if (input.heldDrafts > 0) add(t.held, "ask", "clock");
   if (input.liveNow > 0) add(t.live, "ask", "phone");
@@ -594,6 +629,9 @@ export function buildAskSuggestions(input: SuggestionInput): AskSuggestion[] {
       break;
     case "people":
       add(t.who, "ask", "users");
+      break;
+    case "leads":
+      // Its chips are above: nothing of the other pages' is added here.
       break;
     case "reports":
       add(t.week, "ask", "trending-up");

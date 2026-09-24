@@ -962,7 +962,9 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
   assert.ok(
     svc.includes("const parsedFeeds = new Map<string, { text: string; tz: string; parsed: ParsedFeed }>();") &&
       svc.includes("export async function peopleVisits(") &&
-      svc.includes("const index = indexFeed(feed.parsed.items, own);"),
+      svc.includes(
+        "peopleVisitsOf(feed.parsed.items, rows, { timezone, source, own, services, rules }, now.getTime())",
+      ),
     "one parse, indexed once, for everyone",
   );
   assert.ok(svc.includes("export async function bookingReport(") && svc.includes("bookedAfterAsk("));
@@ -984,7 +986,7 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
   const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
   assert.ok(
     tools.includes('list: { type: "string" }') &&
-      tools.includes("if (list && !list.test(vmOf.get(r.id)!)) return false;") &&
+      tools.includes("if (onList && !onList.has(r.id)) return false;") &&
       tools.includes("next_visit: r.visits?.next"),
     "the assistant answers who booked and who never did",
   );

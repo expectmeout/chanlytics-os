@@ -1354,10 +1354,11 @@ test("REGRESSION: a broadcast to nobody is refused with the cause it has -- Ask 
       { id: S_REG, tenant_id: A, name: "Regulars" },
       { id: S_WALK, tenant_id: A, name: "Walk-ins" },
     ],
+    // As the table holds them: every member row carries its workspace (00044), which the send reads every list by.
     segment_members: [
-      { segment_id: S_REG, contact_id: ANA },
-      { segment_id: S_REG, contact_id: LUIS },
-      { segment_id: S_WALK, contact_id: LUIS },
+      { segment_id: S_REG, contact_id: ANA, tenant_id: A },
+      { segment_id: S_REG, contact_id: LUIS, tenant_id: A },
+      { segment_id: S_WALK, contact_id: LUIS, tenant_id: A },
     ],
   });
   const tc = newToolContext(ctxFor(t, { ...RPCS, people_list: () => people }), A, "owner", TZ, NOW);
@@ -1559,6 +1560,101 @@ test("the deal lists reach Ask only where deals are on -- list_audiences and sea
   assert.deepEqual(agency.named, ["proposal_out", "clients", "deal_ended"]);
   assert.equal(agency.clients.error, undefined, agency.clients.error);
   assert.deepEqual(agency.clients.people, [], "the list is offered; nobody is a client yet");
+});
+
+test("Ask reaches any list by its reference: a People list or one of the workspace's own, to search, to count and to propose, and one it can't count says why (decision 0009)", async () => {
+  const S_REG = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1";
+  const S_CAL = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb3";
+  const S_BAD = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb4";
+  const t = tables({
+    segments: [
+      { id: S_REG, tenant_id: A, name: "Regulars", rule: null },
+      // A rule that reads the calendar, in a workspace with none connected: it can't be counted here.
+      {
+        id: S_CAL,
+        tenant_id: A,
+        name: "Lapsed regulars",
+        rule: { all: [{ field: "last_visit", op: "more_than", days: 60 }] },
+      },
+      // A rule this version can't read.
+      { id: S_BAD, tenant_id: A, name: "From the future", rule: { v: 3, all: [{ field: "future_fact" }] } },
+    ],
+    segment_members: [
+      { segment_id: S_REG, contact_id: LUIS, tenant_id: A },
+      { segment_id: S_REG, contact_id: ROSA, tenant_id: A },
+    ],
+  });
+  const tc = newToolContext(ctxFor(t, { ...RPCS, people_list: () => threeAnswers() }), A, "owner", TZ, NOW);
+  const run = async (name, input) => JSON.parse((await runTool(tc, { name, input })).result);
+
+  // The audiences carry each list's token; one of the workspace's own that can't be counted says why, with no counts.
+  const { audiences } = await run("list_audiences", {});
+  const byLabel = Object.fromEntries(audiences.map((a) => [a.label, a]));
+  assert.equal(byLabel.Regulars.list, `list:${S_REG}`);
+  assert.equal(byLabel["Phoned only"].list, "seg:phoned_only");
+  assert.match(byLabel["Lapsed regulars"].cannot_count, /reads your calendar/);
+  assert.equal(byLabel["Lapsed regulars"].can_be_sent_offers, undefined, "no count it can't stand behind");
+  assert.match(byLabel["From the future"].cannot_count, /written by a newer version/);
+
+  // Search by any list: its token, or a People list's bare id.
+  const regulars = await run("search_people", { query: "", list: `list:${S_REG}` });
+  assert.deepEqual(regulars.people.map((p) => p.name).sort(), ["Luis Mora", "Rosa Diaz"]);
+  assert.equal(regulars.list, `list:${S_REG}`);
+  assert.deepEqual((await run("search_people", { query: "", list: "seg:phoned_only" })).people, []);
+  assert.match((await run("search_people", { query: "", list: `list:${S_CAL}` })).error, /Lapsed regulars: .*calendar/);
+  assert.match(
+    (await run("search_people", { query: "", list: "list:bbbbbbbb-bbbb-4bbb-8bbb-000000000000" })).error,
+    /no such list/,
+  );
+
+  // Propose a broadcast to a saved list and to a People list alike; one it can't count is refused with why.
+  const tpl = {
+    id: TPL,
+    tenant_id: A,
+    channel: "whatsapp",
+    name: "fall_offer",
+    language: "en",
+    meta_status: "approved",
+    category: "MARKETING",
+    variables: [],
+    body_preview: "20% off this week.",
+    hidden_at: null,
+  };
+  t.templates = [tpl];
+  const propose = (audience_kind, audience_id) =>
+    buildProposal(tc, "propose_broadcast", { template_id: TPL, audience_kind, audience_id, params: [] });
+  const toRegulars = await propose("saved", S_REG);
+  assert.equal(toRegulars.isError, false, toRegulars.result);
+  assert.deepEqual([toRegulars.proposal.payload.audience_label, toRegulars.proposal.payload.count], ["Regulars", 1]);
+  // A playbook on any list (00168): a saved list as a win-back, its list and class carried to the commit.
+  const onRegulars = await buildProposal(tc, "propose_playbook", {
+    trigger: "saved_list",
+    list: `list:${S_REG}`,
+    policy_class: "reengage",
+    template_id: TPL,
+    params: [],
+  });
+  assert.equal(onRegulars.isError, false, onRegulars.result);
+  assert.deepEqual(
+    [
+      onRegulars.proposal.payload.list_id,
+      onRegulars.proposal.payload.list_key,
+      onRegulars.proposal.payload.policy_class,
+    ],
+    [S_REG, null, "reengage"],
+  );
+  assert.equal(onRegulars.proposal.payload.candidates, 1, "Rosa: on the list, a yes to offers and a number");
+  const onMine = await buildProposal(tc, "propose_playbook", {
+    trigger: "saved_list",
+    list: "seg:waiting_on_you",
+    template_id: TPL,
+    params: [],
+  });
+  assert.equal(onMine.isError, true);
+  assert.match(JSON.parse(onMine.result).error, /a playbook runs with no one looking/);
+  const toCal = await propose("saved", S_CAL);
+  assert.equal(toCal.isError, true);
+  assert.match(JSON.parse(toCal.result).error, /can't be counted here: This list reads your calendar/);
 });
 
 test("a gated list's refusal names the condition that failed: with a calendar and deals on but no consult-first service, Consultation booked is refused for the service alone", async () => {

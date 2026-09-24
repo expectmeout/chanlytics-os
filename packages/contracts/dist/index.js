@@ -3347,11 +3347,11 @@ var FALLBACK_DEFAULTS = {
   error: "Thanks for reaching out to {business}! A member of our team will reply here soon. Book anytime: {booking link}",
   non_text: "Thanks for your message! A member of our team will take a look and reply here soon. For anything urgent, call us at {phone}."
 };
-var EARLIER_FALLBACK_DEFAULTS = {
+var EARLIER_FALLBACK_DEFAULTS = /* @__PURE__ */ (() => ({
   greeting: "Hi! Thanks for reaching out to {business}.\n\nBook anytime: {booking link}\n\nOr reply here with any question.",
   error: "Thanks for reaching out to {business}! Book anytime: {booking link} \u2014 or a member of our team will reply here soon.",
   non_text: FALLBACK_DEFAULTS.non_text
-};
+}))();
 function isProductFallback(key, text) {
   const t = typeof text === "string" ? text.trim() : "";
   return t === FALLBACK_DEFAULTS[key] || t === EARLIER_FALLBACK_DEFAULTS[key];
@@ -3373,7 +3373,11 @@ function fallbackMessages(brain, known) {
     "booking link": facts.booking_link.value ?? brain.booking_link ?? null,
     phone: facts.phone_display.value
   };
-  const say = (kind) => fillDetails(brain.fallbacks[kind], values) || fillDetails(FALLBACK_DEFAULTS[kind], values);
+  const own = (kind) => {
+    const stored = brain.fallbacks[kind];
+    return !values["booking link"] && stored.trim() === EARLIER_FALLBACK_DEFAULTS[kind] ? FALLBACK_DEFAULTS[kind] : stored;
+  };
+  const say = (kind) => fillDetails(own(kind), values) || fillDetails(FALLBACK_DEFAULTS[kind], values);
   return { greeting: say("greeting"), error: say("error"), non_text: say("non_text") };
 }
 function unknownDetails(text) {
@@ -5082,7 +5086,7 @@ function dealsAreOn(sellsBy) {
   return sellsBy === "proposal";
 }
 function bookingLinkOptional(sellsBy) {
-  return sellsBy === "proposal";
+  return dealsAreOn(sellsBy);
 }
 var BOOKING_LINK_NEEDED = "The receptionist needs a booking link to send anyone who wants to book.";
 var SELLS_BY_FIRST = "booking";
@@ -5572,15 +5576,15 @@ function rulesKept(i) {
   kept.push(i.vision ? PHOTOS_AT_REST_WORDS.on : PHOTOS_AT_REST_WORDS.off);
   return kept;
 }
-function bookingLinkRowWords(linkOptional) {
-  return linkOptional ? {
+function bookingLinkRowWords(sellsBy) {
+  return bookingLinkOptional(sellsBy) ? {
     empty: "None \u2014 it takes their details instead",
     hint: "Optional for a business that quotes: without one, it takes their details instead."
   } : { empty: "Not set", hint: "Sent instead of confirming an appointment itself." };
 }
 var CANNOT_SAY_SERVICES = "cannot say what you offer";
 var has2 = (v) => typeof v === "string" ? v.trim().length > 0 : Array.isArray(v) ? v.length > 0 : !!v && Object.keys(v).length > 0;
-var wontPrice = (link, calls) => `It offers ${link ? "a consult or the booking link" : "a consult"} instead of a price${calls ? " \u2014 in chat before the reply is sent, on a call caught afterwards rather than prevented" : ""}.`;
+var wontPrice = (link, calls) => `It offers ${link ? "a consult or the booking link" : "a consult, or takes their details,"} instead of a price${calls ? " \u2014 in chat before the reply is sent, on a call caught afterwards rather than prevented" : ""}.`;
 function standingLine(i, calls, sellsBy) {
   if (typeof calls !== "boolean") {
     throw new TypeError("standingLine needs to know whether the workspace answers calls: the two channels differ.");
@@ -5591,9 +5595,10 @@ function standingLine(i, calls, sellsBy) {
     );
   }
   const p = i.profile ?? {};
+  const link = offersBookingLink(i);
   const gaps = [];
   if (!has2(i.business_name)) gaps.push({ sentence: "It has no name to introduce itself with.", row: "name" });
-  if (!has2(i.booking_link) && !bookingLinkOptional(sellsBy))
+  if (!link && !bookingLinkOptional(sellsBy))
     gaps.push({ sentence: "It has no booking link to send anyone.", row: "booking_link" });
   if (!has2(p.hours)) gaps.push({ sentence: "It cannot say when you are open.", row: "hours" });
   if (!has2(p.services)) gaps.push({ sentence: `It ${CANNOT_SAY_SERVICES}.`, row: "services" });
@@ -5607,9 +5612,10 @@ function standingLine(i, calls, sellsBy) {
   if (has2(p.address)) answers.push("where you are");
   if (has2(p.hours)) answers.push("when you're open");
   if (has2(p.services)) answers.push("what you offer");
-  if (has2(i.booking_link)) answers.push("how to book");
+  if (link) answers.push("how to book");
+  else if (bookingLinkOptional(sellsBy)) answers.push("how to get a quote");
   const can = answers.length ? `It can say ${answers.length === 1 ? answers[0] : `${answers.slice(0, -1).join(", ")} and ${answers.at(-1)}`}.` : "It cannot answer anyone yet.";
-  const wont = has2(p.services) ? wontPrice(has2(i.booking_link), calls) : null;
+  const wont = has2(p.services) ? wontPrice(link, calls) : null;
   return { can, wont, missing: gaps[0] ?? null };
 }
 var DAY_COUNT_WORDS = ["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven"];
@@ -5844,8 +5850,9 @@ function fallbacksWords(fallbacks) {
   }).length;
   return { line: `${count(keys.length)} messages, ${differ ? "in your words" : "the product's wording"}` };
 }
-var RULES_WITHOUT_FIELDS_WORDS = /* @__PURE__ */ (() => `${NO_FIELDS_COMPOSED_WORDS} These four switches change nothing it is told: it answers from its own stored instructions, followed only by any rules your Autonomy tab adds.`)();
-var RULES_WITHOUT_FIELDS_NO_LINK_WORDS = /* @__PURE__ */ (() => `${NO_FIELDS_COMPOSED_WORDS} These four switches change nothing it is told: it answers from its own stored instructions, followed only by what to do with no booking link and any rules your Autonomy tab adds.`)();
+var rulesWithoutFields = (noLink) => `${NO_FIELDS_COMPOSED_WORDS} These four switches change nothing it is told: it answers from its own stored instructions, followed only by ${noLink ? "what to do with no booking link and " : ""}any rules your Autonomy tab adds.`;
+var RULES_WITHOUT_FIELDS_WORDS = /* @__PURE__ */ (() => rulesWithoutFields(false))();
+var RULES_WITHOUT_FIELDS_NO_LINK_WORDS = /* @__PURE__ */ (() => rulesWithoutFields(true))();
 function rulesWithoutFieldsWords(brain) {
   return offersBookingLink(brain) ? RULES_WITHOUT_FIELDS_WORDS : RULES_WITHOUT_FIELDS_NO_LINK_WORDS;
 }
@@ -5995,11 +6002,22 @@ var CANNOT_ROWS = [
     soon: true
   }
 ];
+var CANNOT_NO_LINK = {
+  book: "Not a setting you could switch on. There is no appointments table in this product \u2014 nothing in it can create, move or cancel one. Your team does that, from the details it takes.",
+  sms: "Not part of what is sold yet. It arrives with a line the carriers have approved, and Connections will say when."
+};
 function cannotRows(i) {
   if (typeof i?.smsLive !== "boolean") {
     throw new TypeError("cannotRows needs true or false for smsLive: left out, texting would be drawn as not sold.");
   }
-  return CANNOT_ROWS.filter((r2) => !(r2.id === "sms" && i.smsLive));
+  if (typeof i?.hasBookingLink !== "boolean") {
+    throw new TypeError(
+      "cannotRows needs true or false for hasBookingLink: left out, a business with no link would be told its link books."
+    );
+  }
+  return CANNOT_ROWS.filter((r2) => !(r2.id === "sms" && i.smsLive)).map(
+    (r2) => !i.hasBookingLink && CANNOT_NO_LINK[r2.id] ? { ...r2, detail: CANNOT_NO_LINK[r2.id] } : r2
+  );
 }
 var PROFILE_LIMITS = /* @__PURE__ */ (() => {
   const cap2 = (schema) => {
@@ -8377,13 +8395,13 @@ function listUnknownWords(reason, calendar) {
     case "calendar":
       return calendar === "none" ? "This list reads your calendar. Connect it under Settings \u203A Business to count it." : "This list reads your calendar, which can't be read right now.";
     case "consult":
-      return "This list reads consultations, and your profile lists no service that starts with one.";
+      return "This list exists only where the profile lists a consult-first service under Settings \u203A Business.";
     case "deals":
-      return "This list reads deals, which are off here.";
+      return `This list exists only where deals are on: the workspace answers \u201C${SELLS_BY_QUESTION}\u201D with \u201C${SELLS_BY_WORDS.proposal.label}\u201D.`;
     case "viewer":
       return "This list is about whoever is looking, so only a person can count it.";
     case "rule":
-      return "This list's rule can't be read by this version. Reload the page.";
+      return "This list's rule was written by a newer version of Chanlytics and can't be read here.";
     case "list":
       return "A list this one reads is gone, or can't be counted itself.";
   }
@@ -10169,14 +10187,15 @@ var PLAYBOOK_TRIGGERS = [
     kind: "list",
     hint: "No visit in 45 days, and nothing booked"
   },
-  // One of the workspace's own lists, kept by hand or by a rule; the card says which.
+  // Any list (decision 0009): one of People's (list_key, 00168) or one of the workspace's own (list_id, 00155), kept by
+  // hand or by a rule; the card says which. The id stays: playbooks made before any list could be named keep running.
   {
     id: "saved_list",
-    label: "One of your lists",
+    label: "On a list",
     list: null,
     cls: "campaign",
     kind: "saved",
-    hint: "Everyone on a list you keep"
+    hint: "Everyone on a list: one of People's, or one you keep"
   },
   // A proposal out that has waited past the workspace's pace with nothing back (0006): one nudge per proposal, with
   // its link, under its own class, where deals are on. Conversational: it answers the person's own request.
@@ -10233,6 +10252,13 @@ function playbookRunStop(o) {
   if (!o.canSend) return "number_flagged";
   return null;
 }
+function playbookListRef(p) {
+  if (triggerOf(p.trigger)?.kind !== "saved") return null;
+  if (p.list_key) return { kind: "builtin", id: p.list_key };
+  if (p.list_id) return { kind: "saved", id: p.list_id };
+  return null;
+}
+var LIST_PLAYBOOK_CLASSES = ["campaign", "reengage"];
 function eligibleForPlaybook(rows, p, touches, nowMs, pace, listIds = null) {
   return playbookRunReach(rows, p, touches, nowMs, pace, listIds).eligible;
 }
@@ -16664,6 +16690,18 @@ function askJump(query, index, limit = 6) {
   for (const p of index) if (p.kind !== "page" && p.label.toLowerCase().includes(s)) push(p);
   return out.slice(0, limit);
 }
+var ASK_SURFACES = [
+  "today",
+  "inbox",
+  "people",
+  "leads",
+  "conversations",
+  "live",
+  "reports",
+  "settings",
+  "other"
+];
+var ASK_SCOPE_KINDS = ASK_CITATION_KINDS;
 var T = {
   en: {
     needs: "Who needs me right now?",
@@ -16680,6 +16718,7 @@ var T = {
     hours: "What are our hours this week?",
     brief: "Brief me on today",
     proposals: "Who has a proposal out?",
+    moreLike: "Find more like: {asked}",
     actLate: "Tell {name} we're running late",
     actLateQ: "Tell {name} we're running about 15 minutes late today",
     actDraft: "Draft a reply to {name}",
@@ -16714,6 +16753,7 @@ var T = {
     hours: "\xBFCu\xE1l es nuestro horario esta semana?",
     brief: "Res\xFAmeme el d\xEDa",
     proposals: "\xBFQui\xE9n tiene una propuesta pendiente?",
+    moreLike: "Encuentra m\xE1s como: {asked}",
     actLate: "Dile a {name} que vamos con retraso",
     actLateQ: "Dile a {name} que vamos con unos 15 minutos de retraso hoy",
     actDraft: "Redacta una respuesta a {name}",
@@ -16734,11 +16774,15 @@ var T = {
     actHoldQ: "Ret\xE9n cada respuesta para mi revisi\xF3n antes de enviarla"
   }
 };
+function clipWords(s, cap2) {
+  const w = s.replace(/\s+/g, " ").trim();
+  return w.length > cap2 ? `${w.slice(0, cap2 - 1).trimEnd()}\u2026` : w;
+}
 function buildAskSuggestions(input) {
   const t = T[input.language === "es" ? "es" : "en"];
   const out = [];
-  const add = (q, kind, icon, fast = false) => {
-    if (!out.some((s2) => s2.q === q)) out.push({ q, kind, icon, fast });
+  const add = (q, kind, icon, fast = false, label) => {
+    if (!out.some((s2) => s2.q === q)) out.push({ q, kind, icon, fast, ...label ? { label } : {} });
   };
   const s = input.scope;
   if (s && (s.kind === "thread" || s.kind === "conversation" || s.kind === "person")) {
@@ -16746,6 +16790,13 @@ function buildAskSuggestions(input) {
     if (s.kind === "thread") add(t.why, "ask", "sparkle");
   }
   if (s && s.kind === "call") add(t.live, "ask", "phone");
+  if (input.surface === "leads") {
+    const ideas = (input.leadIdeas ?? []).filter(Boolean).slice(0, 3);
+    for (const w of ideas) add(w, "ask", "search");
+    if (!ideas.length)
+      for (const a of (input.leadSearches ?? []).filter(Boolean).slice(0, 2))
+        add(t.moreLike.replace("{asked}", a), "ask", "search", false, t.moreLike.replace("{asked}", clipWords(a, 40)));
+  }
   if (input.needsYou > 0) add(t.needs, "ask", "inbox", true);
   if (input.heldDrafts > 0) add(t.held, "ask", "clock");
   if (input.liveNow > 0) add(t.live, "ask", "phone");
@@ -16762,6 +16813,8 @@ function buildAskSuggestions(input) {
       break;
     case "people":
       add(t.who, "ask", "users");
+      break;
+    case "leads":
       break;
     case "reports":
       add(t.week, "ask", "trending-up");
@@ -16993,8 +17046,11 @@ function cardOpenRoute(p) {
       return "broadcasts";
     case "playbook":
       return "outbound";
-    case "lead_search":
-      return "clients/leads";
+    case "lead_search": {
+      const undo = p.outcome?.undo ?? {};
+      const sid = typeof undo.search_id === "string" && undo.search_id ? undo.search_id : null;
+      return sid ? leadsRoute({ searchId: sid, list: "all", cls: null }) : "clients/leads";
+    }
     default:
       return id("conversation_id") ? `inbox/th-${id("conversation_id")}` : null;
   }
@@ -17577,6 +17633,62 @@ function stepSheetMerge(draft, opened, fresh) {
     picking: dayTyped ? draft.picking : fresh.picking,
     forId: (draft.forId || null) !== (opened.forId || null) ? draft.forId : fresh.forId
   };
+}
+
+// src/audience-pool.ts
+function personLikeOf(p) {
+  return {
+    id: p.id,
+    name: p.display_name || p.wa_profile_name || "",
+    phone: p.phone_e164,
+    // Optional on the Pick the way personName takes it: a row read before 00125 carries no address, and no address is
+    // no match, never a crash.
+    email: p.email ?? null,
+    thread: p.has_chat && p.latest_conversation_id ? p.latest_conversation_id : null,
+    waInboundAt: p.latest_wa_inbound_at ?? null
+  };
+}
+function peopleVisitsOf(items, people, cal, nowMs) {
+  const index = indexFeed([...items], cal.own);
+  const mark = (v) => v ? { ...v, consultation: isConsultationTitle(v.title, cal.services, cal.rules) } : null;
+  const out = /* @__PURE__ */ new Map();
+  for (const p of people) {
+    const v = visitsIn(index, personLikeOf(p), nowMs);
+    out.set(p.id, {
+      timezone: cal.timezone,
+      source: cal.source,
+      state: "ok",
+      next: mark(toVisitDto(v.next)),
+      last: mark(toVisitDto(v.last))
+    });
+  }
+  return out;
+}
+function withVisitsOf(people, visits, cal) {
+  const unread2 = {
+    timezone: cal.timezone,
+    source: cal.source,
+    state: "unavailable",
+    next: null,
+    last: null
+  };
+  return people.map((p) => ({
+    ...p,
+    visits: cal.state === "ok" ? visits.get(p.id) ?? null : cal.state === "unavailable" ? unread2 : null
+  }));
+}
+function poolRowOf(person, o) {
+  const vm = toPersonRowVM(person, o.tz, o.now, o.viewer);
+  return o.dealsOn ? vm : { ...vm, deal: null, dealStage: null };
+}
+function poolRowsOf(people, o) {
+  return people.map((p) => poolRowOf(p, o));
+}
+function consultFirstOf(rules) {
+  return (rules?.consult_first ?? []).length > 0;
+}
+function poolListContext(o) {
+  return { calendar: o.calendar, dealsOn: o.dealsOn, consultFirst: o.consultFirst, viewer: o.viewer !== null };
 }
 
 // src/refusal.ts
@@ -20756,6 +20868,8 @@ export {
   ASK_PAGES,
   ASK_PAGE_ROUTES,
   ASK_RETENTION_DAYS,
+  ASK_SCOPE_KINDS,
+  ASK_SURFACES,
   ASK_THREAD_VERBS,
   ASK_TOKENS_DAY,
   ASK_TURN_BUDGET_MS,
@@ -21017,6 +21131,7 @@ export {
   LIST_DEAL_STAGES,
   LIST_DRAFT_JSON_SCHEMA,
   LIST_NEEDS,
+  LIST_PLAYBOOK_CLASSES,
   LIST_PURPOSES,
   LIST_RULE_FIELDS,
   LIST_RULE_MAX,
@@ -21358,6 +21473,7 @@ export {
   consentPageMetadata,
   consentPageVM,
   consentSourceLabel,
+  consultFirstOf,
   consultServiceOf,
   consultationHeld,
   consultationsWithoutProposal,
@@ -21704,9 +21820,11 @@ export {
   peopleAggregates,
   peopleFromItems,
   peopleListAction,
+  peopleVisitsOf,
   personActs,
   personInText,
   personInitials,
+  personLikeOf,
   personName,
   personNotesVM,
   personStanding,
@@ -21749,6 +21867,7 @@ export {
   platformQueue,
   platformRows,
   platformSummary,
+  playbookListRef,
   playbookName,
   playbookNoNumberWords,
   playbookReach,
@@ -21762,6 +21881,9 @@ export {
   policyClassOffered,
   policyLinks,
   policyRules,
+  poolListContext,
+  poolRowOf,
+  poolRowsOf,
   poolWords,
   previewHorizon,
   priceNextStep,
@@ -22027,6 +22149,7 @@ export {
   whyNotReceive,
   windowFor,
   withFirstAlertAddress,
+  withVisitsOf,
   workspaceHotkey,
   writtenChannelOf,
   writtenOutDetail,

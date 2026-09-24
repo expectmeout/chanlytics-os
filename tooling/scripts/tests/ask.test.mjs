@@ -14,7 +14,10 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
+  ASK_CITATION_KINDS,
   ASK_PAGES,
+  ASK_SCOPE_KINDS,
+  ASK_SURFACES,
   ASK_TOKENS_DAY,
   AskProposalOutcomeSchema,
   navigateLabel,
@@ -159,6 +162,120 @@ test("the question about proposals is offered only where deals are a thing (0004
     !buildAskSuggestions({ ...quiet, surface: "inbox", language: "en", dealsOn: true }).some((s) => s.q === EN),
     "the Inbox is not where people are looked at",
   );
+});
+
+test("the surfaces are one list, Leads among them, and a scope's kinds are a citation's: the route and the prompt read the same names", () => {
+  assert.ok(ASK_SURFACES.includes("leads"), "Leads is a page Ask knows it is on");
+  assert.ok(ASK_SURFACES.includes("people") && ASK_SURFACES.includes("other"));
+  assert.equal(new Set(ASK_SURFACES).size, ASK_SURFACES.length, "each said once");
+  assert.deepEqual(
+    [...ASK_SCOPE_KINDS],
+    [...ASK_CITATION_KINDS],
+    "a scope may have the five kinds a citation may name",
+  );
+});
+
+test("on Leads, the chips are the first day's ideas, each a search; after that, more like the latest two searches; then the usual questions", () => {
+  const quiet = { needsYou: 0, heldDrafts: 0, missedToday: 0, liveNow: 0, hasCalendar: false };
+  const ideas = buildAskSuggestions({
+    ...quiet,
+    surface: "leads",
+    language: "en",
+    leadIdeas: [
+      "100 nail salons in Queens, NY",
+      "",
+      "50 dentists in Austin, TX",
+      "Wedding planners in Miami, FL",
+      "Florists in Tampa, FL",
+    ],
+    leadSearches: ["30 gyms in Boise, ID"],
+  });
+  assert.deepEqual(
+    ideas.slice(0, 3).map((s) => [s.q, s.kind, s.icon]),
+    [
+      ["100 nail salons in Queens, NY", "ask", "search"],
+      ["50 dentists in Austin, TX", "ask", "search"],
+      ["Wedding planners in Miami, FL", "ask", "search"],
+    ],
+    "the ideas first, up to three, an empty one skipped",
+  );
+  assert.ok(
+    !ideas.some((s) => /Florists|more like/.test(s.q)),
+    "a fourth idea, and the searches beside ideas, are not offered",
+  );
+  const busy = buildAskSuggestions({
+    ...quiet,
+    needsYou: 2,
+    heldDrafts: 1,
+    missedToday: 1,
+    liveNow: 1,
+    surface: "leads",
+    language: "en",
+    leadIdeas: ["100 nail salons in Queens, NY"],
+  });
+  assert.equal(
+    busy[0].q,
+    "100 nail salons in Queens, NY",
+    "on a busy day the page's own chip still comes first: the section under the field keeps three",
+  );
+  const more = buildAskSuggestions({
+    ...quiet,
+    surface: "leads",
+    language: "en",
+    leadIdeas: [],
+    leadSearches: ["50 dentists in Austin, TX", "30 gyms in Boise, ID", "20 plumbers in Reno, NV"],
+  });
+  assert.deepEqual(
+    more.slice(0, 2).map((s) => [s.q, s.icon]),
+    [
+      ["Find more like: 50 dentists in Austin, TX", "search"],
+      ["Find more like: 30 gyms in Boise, ID", "search"],
+    ],
+    "no ideas: the latest two searches, in the owner's own words",
+  );
+  assert.ok(!more.some((s) => /Reno/.test(s.q)), "the latest two");
+  assert.ok(
+    more.some((s) => s.q === "Who needs me right now?" && s.fast),
+    "then the usual questions",
+  );
+  assert.ok(more.length <= 7);
+  const es = buildAskSuggestions({
+    ...quiet,
+    surface: "leads",
+    language: "es",
+    leadSearches: ["50 dentistas en Austin, TX"],
+  });
+  assert.equal(es[0].q, "Encuentra más como: 50 dentistas en Austin, TX");
+  const bare = buildAskSuggestions({ ...quiet, surface: "leads", language: "en" });
+  assert.ok(
+    bare.some((s) => s.q === "Who needs me right now?"),
+    "nothing to offer on Leads: the usual questions alone",
+  );
+  assert.ok(!bare.some((s) => s.icon === "search"));
+});
+
+test("the prompt on Leads: the page is named and words that describe businesses are a search to propose; every other page keeps its one line", async () => {
+  const { turnSystem } = await import(
+    pathToFileURL(path.join(here, "../../../apps/dashboard/src/server/ask/prompt.ts")).href
+  );
+  const facts = {
+    role: "owner",
+    personLabel: "ada@example.com (owner)",
+    scope: null,
+    language: "en",
+    timezone: "America/New_York",
+    closures: [],
+    now: new Date(NOW),
+  };
+  const leads = turnSystem({ ...facts, surface: "leads" });
+  assert.ok(leads.includes("They are on the Leads page"), leads);
+  assert.ok(leads.includes("read list_lead_searches, then propose_lead_search"), "a search is proposed, never run");
+  assert.ok(leads.includes("ask only when the kind or the place is missing"));
+  assert.ok(!leads.includes("They are on the leads page."), "the generic line does not double it");
+  const people = turnSystem({ ...facts, surface: "people" });
+  assert.ok(people.includes("They are on the people page."));
+  assert.ok(!people.includes("propose_lead_search"), "People is not the finder");
+  assert.ok(!turnSystem({ ...facts, surface: null }).includes("They are on the"), "no surface, no line");
 });
 
 test("the three quick questions are told by their words; the answers are ask-answer.ts's (ask-answer.test.mjs)", () => {
@@ -379,6 +496,32 @@ test("the bridge: the jump index and Right now come from the surfaces, the quick
   assert.equal(proposals("es"), true);
   assert.equal(api.timezone(), "America/New_York");
   assert.equal(api.surfaceFor("clients"), "people");
+  assert.equal(api.surfaceFor("clients", null), "people");
+  assert.equal(api.surfaceFor("clients", ID), "people", "a person's profile is People");
+  assert.equal(api.surfaceFor("clients", "leads"), "leads", "the Leads page is the People page's leads param");
+  assert.equal(api.surfaceFor("clients", "leads:s-x"), "leads", "a search open is still Leads");
+  // The Leads chips read the leads bridge's surface: the first day's ideas, else the latest searches' own words.
+  win.__LEADS = { suggestions: { items: [{ words: "100 nail salons in Queens, NY" }] }, searches: [] };
+  assert.ok(
+    api.suggestions("leads", null, "en").some((s) => s.q === "100 nail salons in Queens, NY" && s.icon === "search"),
+    "the first day's idea is a chip",
+  );
+  win.__LEADS = {
+    suggestions: null,
+    searches: [
+      { asked: "50 dentists in Austin, TX" },
+      { asked: "30 gyms in Boise, ID" },
+      { asked: "20 plumbers in Reno, NV" },
+    ],
+  };
+  assert.deepEqual(
+    api
+      .suggestions("leads", null, "en")
+      .filter((s) => s.icon === "search")
+      .map((s) => s.q),
+    ["Find more like: 50 dentists in Austin, TX", "Find more like: 30 gyms in Boise, ID"],
+    "after the first day, the latest two searches",
+  );
   const seen = [];
   await api.send({ text: "who wrote today?", threadId: null, scope: null, surface: "today" }, (ev) => seen.push(ev));
   assert.deepEqual(

@@ -212,10 +212,16 @@ instead of Quiet or Active.
 
 ### Playbooks
 
-One trigger, `on_list`, runs on any list a playbook may use: a built-in by `list_key`, a saved list by `list_id`, with
-its class chosen on the playbook. `quiet_30`, `new_week`, `phoned_only`, `lapsed` and `saved_list` stay readable, each
-the same moment as `on_list` on its list, so a playbook made before the change runs unchanged. The composer offers
-them as presets: a list, a class and a starter template.
+One trigger runs on any list a playbook may use: a built-in by `list_key` (00168), a saved list by `list_id` (00155),
+never both, with its class chosen on the playbook, an offer (`campaign`) or a win-back (`reengage`). As built, that
+trigger is `saved_list`, relabelled **On a list**, rather than a new `on_list` beside it: every playbook already on a
+list keeps running, and there are not two triggers for one moment. `quiet_30`, `new_week`, `phoned_only` and `lapsed`
+stay as they are, the presets they always were: a list, a class and a starter template. A run resolves its list by
+reference (`RunContext.listMembers`), and one it can't count here skips its day and says so (`list_uncounted`, or
+`no_calendar`). A list about whoever is looking is never offered to a playbook, and refused if named.
+
+00168 also grants the update of `list_id` (and `list_key`): 00121's column grant never named it, so in production a
+member could put a playbook on a list and never move it to another.
 
 ### One pool
 

@@ -426,6 +426,8 @@ globalThis.MoreMenu = (p) => {
   menus.push(p);
   return null;
 };
+/** A kept search's menu, as the rail drew it. */
+const menuOf = (name) => menus.find((m) => m.title === `More for ${name}`);
 globalThis.Confirm = (p) => {
   confirms.push(p);
   return null;
@@ -452,16 +454,18 @@ await import("../../../apps/dashboard/src/legacy/pages/pipeline-scope.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/clients-a.jsx");
 for (const k of ["PeopleRail", "PeopleStanding", "PeopleScopeTabs", "RailSection", "RailRow"])
   globalThis[k] = globalThis.window[k];
-// The boards this task does not write: the finder (Task 8), the strip (Task 10) and the peek (Task 12). Drawn
-// here as their props, so what THIS task hands them is what is pinned. The first day is NOT among them: it is
-// Task 17's own component, loaded below with leads-finder.jsx, because a stub of it is what let the Leads scope
+// The boards this task does not write: the plan panel (spec F5), the strip (Task 10) and the peek (Task 12).
+// Drawn here as their props, so what THIS task hands them is what is pinned. The first day is NOT among them: it
+// is Task 17's own component, loaded below with leads-finder.jsx, because a stub of it is what let the Leads scope
 // ship referencing a component nothing declared -- every test here green, and "LeadsFirstDay is not defined"
 // in the browser for every workspace that had not yet kept a search, which on the first day is all of them.
-const finders = [];
+const panels = [];
 const strips = [];
 const peeks = [];
-globalThis.LeadFinder = (p) => {
-  finders.push(p);
+// Find leads is Ask's (spec F1, F7): every door on the page hands Ask a detail, and that detail is what is pinned.
+const asks = [];
+globalThis.LeadPlanPanel = (p) => {
+  panels.push(p);
   return null;
 };
 globalThis.LeadStrip = (p) => {
@@ -478,32 +482,14 @@ globalThis.LeadPeek = (p) => {
 // a recorder (globalThis.LeadPeek, above); a hand-written stub of the acts would pin the page against a shape of
 // this file's own making, which is how every control in the peek came to be undefined on the page with 18 green
 // unit tests behind it.
-// Hold to talk is Ask's own hook and Ask's own words (ask-hooks.jsx, ask-text.jsx), loaded before this page in
-// both lists (manifest.ts:52, Chanlytics.html:90); the finder is handed its answer, so the page is drawn here the
-// way it is served. leads-finder.jsx is imported for the STRIP'S OWN FILE -- its component and its view model are
-// published on `window`, which is what leads-scope.jsx draws and what the page reads, so a strip that nothing
-// declares fails here rather than at an owner's first open search.
-await import("../../../apps/dashboard/src/legacy/pages/ask-text.jsx");
-await import("../../../apps/dashboard/src/legacy/pages/ask-hooks.jsx");
+// leads-finder.jsx is imported for the STRIP'S OWN FILE -- its component and its view model are published on
+// `window`, which is what leads-scope.jsx draws and what the page reads, so a strip that nothing declares fails
+// here rather than at an owner's first open search. Ask's hooks are not loaded: the page has no mic of its own
+// (Find leads is Ask's, spec F1), and it is drawn here the way it is served without them.
 await import("../../../apps/dashboard/src/legacy/pages/leads-finder.jsx");
-// The browser's own recogniser, and every way a page could record or upload: each one a recorder, so
-// "hold to talk sends nothing" is a fact this file can check rather than a sentence it repeats.
-const recs = [];
+// Every way a page could record or upload, and Ask's own doors: each one a recorder, so "the page asks nothing
+// and starts nothing by itself" is a fact this file can check rather than a sentence it repeats.
 const uploads = [];
-class FakeRecognition {
-  constructor() {
-    this.started = 0;
-    this.stopped = 0;
-    recs.push(this);
-  }
-  start() {
-    this.started += 1;
-  }
-  stop() {
-    this.stopped += 1;
-  }
-}
-globalThis.window.SpeechRecognition = FakeRecognition;
 globalThis.window.navigator = {
   language: "en-US",
   mediaDevices: {
@@ -638,6 +624,10 @@ const install = ({ role = "owner", refuse = null } = {}) => {
       leadMapNote,
       leadPinTone,
     },
+    // The shell's doors to Ask, recorded: askAbout (dashboard-a-ask.jsx) with what the page hands it, and appAsk
+    // (app-shell.jsx), the plain open ⌘K makes, which keeps what the owner left in the field.
+    askAbout: (detail) => asks.push(detail),
+    appAsk: () => asks.push("open"),
     __ask: {
       language: () => "en",
       send: async () => {
@@ -756,10 +746,10 @@ const fresh = ({ leads = surface(), views = {}, role = "owner", refuse = null, p
   opened.length = 0;
   menus.length = 0;
   confirms.length = 0;
-  finders.length = 0;
+  panels.length = 0;
   strips.length = 0;
   peeks.length = 0;
-  recs.length = 0;
+  asks.length = 0;
   uploads.length = 0;
   for (const k of Object.keys(listeners)) delete listeners[k];
   globalThis.document.activeElement = null;
@@ -780,6 +770,14 @@ const draw = (props = {}) => {
     onOpenProfile: (id) => opened.push(id),
     ...props,
   });
+};
+/** The plan panel, through a kept search's Search again, changed: the plan Claude wrote, with what was asked. */
+const openPlanFrom = (name = "Personal trainers · Austin") => {
+  draw();
+  menuOf(name)
+    .items.find((i) => i.label === "Search again, changed")
+    .onClick();
+  draw();
 };
 
 test("a fresh mount of Leads draws its first rows and the next draw every row", () => {
@@ -938,7 +936,7 @@ test("with no search kept the first day stands where the table would, and claims
   );
 });
 
-test("suggestions the page could not read say so, and the composer still works", () => {
+test("suggestions the page could not read say so, and Find leads is still offered", () => {
   fresh({ leads: surface({ searches: [], rows: [], suggestions: null }) });
   const fd = byTestId(draw(), "leads-first-day");
   assert.ok(fd, "the first day is still drawn");
@@ -948,21 +946,38 @@ test("suggestions the page could not read say so, and the composer still works",
     "the space where they go says why it is empty",
   );
   assert.equal(textOf(byTestId(fd, "ld-line")), "", "and nothing claims a business line that was never read");
-  assert.equal(finders.length, 1, "the composer is drawn either way: the owner can still describe what they want");
+  assert.ok(
+    byTestId(fd, "leads-first-find"),
+    "the door is drawn either way: the owner can still describe what they want",
+  );
 });
 
-test("a suggestion picked on the first day fills the composer, and the composer is inside the first day", () => {
+test("the first day offers Find leads, which opens Ask; a suggestion picked opens Ask with its words", () => {
   fresh({ leads: surface({ searches: [], rows: [], suggestions: SUGGESTIONS }) });
-  let tree = draw();
-  // The composer is a recorder here (globalThis.LeadFinder), so what this pins is that it is drawn once with
-  // nobody having opened it -- on the first day it is part of the page, not a fold-out over an empty table.
-  assert.equal(finders.length, 1, "the composer is drawn without the owner opening anything");
-  find(byTestId(tree, "leads-first-day"), (n) => n.type === "button" && n.props?.className === "q").props.onClick();
-  tree = draw();
-  assert.equal(
-    finders[finders.length - 1].words,
-    "gyms in Denver",
-    "the words land in the composer the owner then edits",
+  const fd = byTestId(draw(), "leads-first-day");
+  // The composer's slot is one button (spec F1): the page draws no composer of its own on the first day.
+  assert.equal(panels.length, 0, "no composer is drawn: Ask is the finder");
+  const door = byTestId(fd, "leads-first-find");
+  assert.match(textOf(door), /Find leads/);
+  assert.ok(
+    find(door, (n) => n.type === "Icon" && n.props?.name === "three"),
+    "wearing the three's still mark, Ask's face at rest",
+  );
+  click(door);
+  assert.equal(asks.at(-1), "open", "Find leads opens Ask as ⌘K does, keeping what was left in the field");
+  find(fd, (n) => n.type === "button" && n.props?.className === "q").props.onClick();
+  assert.deepEqual(
+    asks.at(-1),
+    { mode: "compose", prompt: "gyms in Denver" },
+    "a suggestion's words are in the field, ready to send",
+  );
+  assert.equal(panels.length, 0, "and still no composer");
+  // The button is gated as the bar's square was: an operator sees it refuse in the gate's sentence.
+  fresh({ role: "operator", leads: surface({ searches: [], rows: [], suggestions: SUGGESTIONS }) });
+  const gated = byTestId(byTestId(draw(), "leads-first-day"), "leads-first-find");
+  assert.deepEqual(
+    [gated.props["aria-disabled"], gated.props["aria-description"]],
+    [true, "Only an owner can find businesses for you."],
   );
 });
 
@@ -1594,7 +1609,7 @@ test("the search box filters the leads loaded, by name, kind and area, and sends
 const cursorRow = (tree) =>
   find(tree, (n) => n.type === "tr" && /\bfocused\b/.test(n.props?.className || ""))?.props.id ?? null;
 
-test("the keys: J and K move, Enter peeks, x selects, C calls, F finds; one listener before and after the scope draws", () => {
+test("the keys: J and K move, Enter peeks, x selects, C calls, F opens Ask; one listener before and after the scope draws", () => {
   fresh();
   draw();
   assert.equal(listeners.keydown?.size, 1, "one listener for the page's life");
@@ -1622,10 +1637,19 @@ test("the keys: J and K move, Enter peeks, x selects, C calls, F finds; one list
     "C dials the lead under the cursor from the owner's own phone",
   );
   assert.equal(press("f"), true);
-  assert.equal(draw() && finders.at(-1).open, true, "F opens the finder");
+  assert.equal(asks.at(-1), "open", "F opens Ask as ⌘K does, the finder on this page (spec F7)");
+  assert.equal(panels.length, 0, "and no panel of the page's own: nothing on it composes");
+  // The button is the same door, wearing the three's mark; its click event is not words.
+  const door = byTestId(draw(), "leads-find");
+  assert.ok(
+    find(door, (n) => n.type === "Icon" && n.props?.name === "three"),
+    "the mark",
+  );
+  click(door);
+  assert.equal(asks.at(-1), "open", "a click event is not words: the plain open, nothing seeded");
 });
 
-test("Esc closes the peek, then the finder, then the Columns menu, then the selection -- one press each, in that order", () => {
+test("Esc closes the peek, then the plan panel, then the Columns menu, then the selection -- one press each, in that order", () => {
   fresh();
   byTestId(draw(), "select-all").props.onChange();
   draw();
@@ -1633,23 +1657,26 @@ test("Esc closes the peek, then the finder, then the Columns menu, then the sele
   draw();
   press("Enter", { tagName: "TR", isContentEditable: false, closest: () => null });
   draw();
-  press("f");
+  // The plan panel's door on the page: a kept search's Search again, changed (F is Ask's, spec F7).
+  menuOf("Personal trainers · Austin")
+    .items.find((i) => i.label === "Search again, changed")
+    .onClick();
   draw();
   click(byTestId(draw(), "people-columns"));
-  // Everything the page can have open at once, opened: the peek, the finder, the Columns menu and a selection.
+  // Everything the page can have open at once, opened: the peek, the plan panel, the Columns menu and a selection.
   let tree = draw();
-  const drawn = { peeks: peeks.length, finders: finders.length };
+  const drawn = { peeks: peeks.length, panels: panels.length };
   assert.ok(byTestId(tree, "people-columns-menu"), "the menu is open");
   assert.equal(peeks.at(-1).vm.id, "l1", "so is the peek");
-  assert.equal(finders.at(-1).open, true, "and the finder");
-  assert.equal(press("j"), false, "the finder holds every key while it is open");
+  assert.equal(panels.at(-1).open, true, "and the plan panel");
+  assert.equal(press("j"), false, "the plan panel holds every key while it is open");
   assert.equal(press("Escape"), true);
   tree = draw();
   assert.equal(peeks.length, drawn.peeks, "the peek went first: it is not drawn any more");
-  assert.equal(finders.length, drawn.finders + 1, "and the finder is still open");
+  assert.equal(panels.length, drawn.panels + 1, "and the plan panel is still open");
   assert.equal(press("Escape"), true);
   tree = draw();
-  assert.equal(finders.length, drawn.finders + 1, "the finder went second");
+  assert.equal(panels.length, drawn.panels + 1, "the plan panel went second");
   assert.ok(byTestId(tree, "people-columns-menu"), "the Columns menu is still open");
   assert.equal(press("Escape"), true);
   tree = draw();
@@ -2220,86 +2247,6 @@ test("REGRESSION: the Pipeline's rows too -- a draw that changed nothing of a ro
   }
 });
 
-/** The finder as drawn by `fn`, or null when `fn` drew none: the recorder's last entry may be an older draw's. */
-const finderAfter = (fn) => {
-  const n = finders.length;
-  fn();
-  return finders.length > n ? finders.at(-1) : null;
-};
-
-test("a Find half-written is still there after a refresh and after a rail pick: the words, and the plan Claude wrote, open as they were left", async () => {
-  fresh();
-  draw();
-  press("f");
-  draw();
-  finders.at(-1).onWords("personal trainers in Austin with a website");
-  draw();
-  // Down the rail and back: the page stayed, so the finder did.
-  draw({ leadsRoute: `leads:s-${SEARCH_A}` });
-  draw({ leadsRoute: `leads:s-${SEARCH_A}` });
-  assert.deepEqual(
-    [finders.at(-1).open, finders.at(-1).words],
-    [true, "personal trainers in Austin with a website"],
-    "a rail pick used to tear the page down, and the words with it",
-  );
-  let back = finderAfter(comeBack);
-  assert.ok(back, "a refresh too: the finder is open again");
-  assert.deepEqual([back.stage, back.words], ["compose", "personal trainers in Austin with a website"]);
-  // Claude writes the plan; the owner refreshes before approving it.
-  globalThis.window.__ask.send = async (_turn, on) => {
-    on({ t: "final", message: { text: "", proposals: [{ kind: "lead_search", payload: { plan: PLAN } }] } });
-  };
-  await finders.at(-1).onPlan("personal trainers in Austin with a website");
-  draw();
-  assert.equal(finders.at(-1).stage, "plan");
-  back = finderAfter(comeBack);
-  assert.ok(back, "open again");
-  assert.deepEqual(
-    [back.stage, back.plan && back.plan.name, back.proposal && back.proposal.kind],
-    ["plan", PLAN.name, "lead_search"],
-    "the plan is the one Claude wrote: asking again would be another wait, and another answer",
-  );
-});
-
-test("a Find keeps only what can still be used: a turn that was still being read comes back as its words, and one that started leaves nothing", async () => {
-  fresh();
-  draw();
-  press("f");
-  draw();
-  finders.at(-1).onWords("gyms in Denver");
-  draw();
-  globalThis.window.__ask.send = () => new Promise(() => {});
-  finders.at(-1).onPlan("gyms in Denver");
-  draw();
-  assert.equal(finders.at(-1).stage, "thinking");
-  const back = finderAfter(comeBack);
-  assert.ok(back, "the finder is open again");
-  assert.deepEqual(
-    [back.stage, back.words],
-    ["compose", "gyms in Denver"],
-    "the answer that was on its way went with the page; the words did not",
-  );
-  // Approved and started: the finder closes itself and clears its words (leadFinderApprove), and so does what is kept.
-  globalThis.window.__ask.send = async (_turn, on) => {
-    on({ t: "final", message: { text: "", proposals: [{ kind: "lead_search", payload: { plan: PLAN } }] } });
-  };
-  globalThis.window.__ask.commit = async () => ({
-    ok: true,
-    receipt: "Finding 200 personal trainers.",
-    undo: { search_id: SEARCH_A },
-  });
-  await finders.at(-1).onPlan("gyms in Denver");
-  draw();
-  await finders.at(-1).onApprove(PLAN);
-  draw();
-  assert.equal(
-    globalThis.window.__tabMemory.draft("leads-find"),
-    null,
-    "nothing of a search that is already running waits to be started again",
-  );
-  assert.equal(finderAfter(comeBack), null, "and the finder is closed on the way back");
-});
-
 test("the peek is handed acts, not setters: every control it draws has a function behind it, and each one moves the page's own state", () => {
   fresh();
   draw();
@@ -2552,7 +2499,8 @@ test("an operator sees Find leads, Keep, Exclude and Put back refusing in the ga
     "Only an owner can put this lead back.",
   ]);
   assert.equal(press("f"), false, "and the key is not theirs either");
-  assert.equal(finders.length, 0);
+  assert.equal(panels.length, 0);
+  assert.equal(asks.length, 0, "Ask is not opened for them");
 });
 
 test("the Excluded view's chips count by criterion, and each narrows the rows", () => {
@@ -2580,8 +2528,6 @@ test("the Excluded view's chips count by criterion, and each narrows the rows", 
 });
 
 /* --------------------------------- a search, kept --------------------------------- */
-
-const menuOf = (name) => menus.find((m) => m.title === `More for ${name}`);
 
 test("a kept search's menu says what was asked and when, and offers Rename, Find new ones, Search again, Export and Remove", async () => {
   fresh();
@@ -2623,8 +2569,13 @@ test("Search again, changed opens the plan with what was asked; Rename renames t
     .onClick();
   draw();
   assert.deepEqual(
-    [finders.at(-1).stage, finders.at(-1).words, finders.at(-1).proposal.purpose],
+    [panels.at(-1).stage, panels.at(-1).words, panels.at(-1).proposal.purpose],
     ["plan", "personal trainers in Austin with a website, about 200", "renew"],
+  );
+  assert.equal(
+    panels.at(-1).plan,
+    panels.at(-1).proposal.plan,
+    "the card draws this search's plan, not an earlier one's",
   );
   // Rename happens where the search is: the rail's row becomes the box.
   fresh();
@@ -2756,13 +2707,11 @@ const bar = (over = {}) => {
     searchRef: { current: null },
     searchOpen: false,
     onSearchOpen() {},
-    onFind() {},
-    canFind: true,
     ...over,
   });
 };
 
-test("on a phone the switch, the list, search and Find are one bar; search is a button that opens the bar into the field", () => {
+test("on a phone the switch, the list and search are one bar with no Find square; search is a button that opens the bar into the field", () => {
   fresh();
   const t = bar();
   const tabs = all(t, (n) => n.props?.role === "tab");
@@ -2775,7 +2724,11 @@ test("on a phone the switch, the list, search and Find are one bar; search is a 
   );
   assert.equal(byTestId(t, "leads-phone-search-open").props["aria-label"], "Search leads");
   assert.equal(byTestId(t, "leads-phone-search"), null, "REGRESSION: the box was 64px wide on a phone and said 'Sear'");
-  assert.equal(byTestId(t, "leads-phone-find").props["aria-label"], "Find leads");
+  assert.equal(
+    byTestId(t, "leads-phone-find"),
+    null,
+    "no find square: Find leads is Ask on a phone, and the shell's ✦ is its one door (spec F1)",
+  );
   // The name gives way before the count: "All leads · 96" was one string, and a 375px phone drew it "All leads · …".
   const pick = byTestId(t, "leads-phone-lists");
   assert.equal(textOf(find(pick, (n) => n.props?.className === "pp-bar-pick-words")), "All leads");
@@ -2816,34 +2769,27 @@ test("where deals are on, a phone's bar has the Pipeline beside People and Leads
     ],
   );
   assert.equal(textOf(byTestId(byTestId(t, "leads-phone-lists"), "leads-phone-lists-count")), "322");
-  assert.ok(byTestId(t, "leads-phone-find"));
+  assert.equal(byTestId(t, "leads-phone-find"), null, "and still no find square");
 });
 
-test("Find on a phone is the gate's for anyone who may not find", () => {
-  fresh({ role: "operator" });
-  const t = bar({ canFind: false });
-  assert.equal(byTestId(t, "leads-phone-find").props["aria-disabled"], true);
-  assert.equal(byTestId(t, "leads-phone-find").props["aria-description"], "Only an owner can find businesses for you.");
-});
-
-test("the finder's sheet is the page's own dialog and registers no listener of its own", () => {
+test("the plan panel's sheet is the page's own dialog and registers no listener of its own", () => {
   fresh();
   cells = [];
   frames.begin();
   const before = frames.called();
-  const t = globalThis.window.LeadFinderSheet({
+  const t = globalThis.window.LeadPlanSheet({
     onClose() {},
-    children: globalThis.React.createElement("div", { "data-testid": "hold-to-talk" }, "Hold to talk, or type"),
+    children: globalThis.React.createElement("div", { "data-testid": "the-plan" }, "The plan"),
   });
   assert.equal(
     frames.called(),
     before,
     "hookless: the page's listener owns Esc, and a second one would take the key twice",
   );
-  const sheet = byTestId(t, "leads-finder-sheet");
+  const sheet = byTestId(t, "lead-plan-sheet");
   assert.equal(sheet.props.role, "dialog");
-  assert.ok(sheet.props.className.includes("pl-finder"), "PL_OVERLAY names .pl-finder as the page's own");
-  assert.ok(byTestId(t, "hold-to-talk"), "the first control in the sheet is the one the page put first");
+  assert.ok(sheet.props.className.includes("pl-plan"), "PL_OVERLAY names .pl-plan as the page's own");
+  assert.ok(byTestId(t, "the-plan"), "the panel the page put in it is drawn under its handle");
 });
 
 test("at a phone's width the page draws the bar instead of the rail and the controls, and nothing else above the rows", () => {
@@ -3021,36 +2967,19 @@ test("approving a new plan lands on the search it started, where the strip is; a
   fresh();
   const NEW = "3d1d5c1e-0000-4000-8000-00000000c0de";
   globalThis.window.__ask.commit = async () => ({ ok: true, receipt: "Finding 50 gyms.", undo: { search_id: NEW } });
-  draw();
-  press("f");
-  draw();
-  const f = finders.at(-1);
-  assert.equal(f.open, true);
-  // Ask answers the turn with a card, as the real loop does; the finder then approves it through the commit.
-  const card = {
-    id: "p-new",
-    kind: "lead_search",
-    needs: "owner",
-    title: "Find 50 gyms",
-    summary: "",
-    payload: { plan: PLAN, view: { title: "Find 50 gyms" }, facts: null },
-    undo: "Stop the search",
-  };
-  globalThis.window.__ask.send = async (_req, on) => {
-    on({ t: "final", message: { text: "", proposals: [card] } });
-  };
-  await f.onPlan("50 gyms in Austin");
-  await settle();
-  draw();
-  assert.equal(finders.at(-1).stage, "plan", "the card is up");
-  await finders.at(-1).onApprove({ ...PLAN, count: 50 });
+  // A new search from the page: a kept search's Search again, changed opens the plan Claude wrote, and approving
+  // it goes through Ask's commit door as a fresh Find from the Line does (leadFinderApprove).
+  openPlanFrom();
+  const f = panels.at(-1);
+  assert.deepEqual([f.open, f.stage], [true, "plan"], "the card is up");
+  await f.onApprove({ ...PLAN, count: 50 });
   await settle();
   assert.equal(went.at(-1), `clients/leads:s-${NEW}`, "straight to the new search, its strip and its classes");
   went.length = 0;
   draw({ leadsRoute: `leads:s-${SEARCH_B}` });
   strips.at(-1).onAction("include", "chain");
   draw({ leadsRoute: `leads:s-${SEARCH_B}` });
-  await finders.at(-1).onApprove(finders.at(-1).plan);
+  await panels.at(-1).onApprove(panels.at(-1).plan);
   await settle();
   assert.ok(
     !went.some((w) => w.includes("clients/leads:s-")),
@@ -3068,25 +2997,26 @@ test("Include opens the plan with that exclusion taken back and starts nothing; 
     [],
     "a press starts nothing that costs: the owner approves the plan first",
   );
-  const f = finders.at(-1);
+  const f = panels.at(-1);
   assert.equal(f.stage, "plan");
   assert.deepEqual(f.plan.exclusions, [], "the thing it asked about is taken out of the plan");
   assert.equal(f.plan.version, 2, "which is a new version, and that is the one the route is given");
-  assert.equal(f.words, "", "the composer under it is the owner's answer, not what they first asked");
+  assert.equal(f.words, "", "the answer row under it starts empty: the owner's answer, not what they first asked");
   await f.onApprove(f.plan);
   await settle();
   assert.deepEqual(calls.at(-1), ["answer", { id: SEARCH_B, answer: "include", plan: f.plan }]);
 });
 
-// "What if the answer is no, but I want it to update the search?" Change what I asked opens the finder under the
-// question, empty; Ask's card comes back as the waiting round's next version, and approving it answers that round.
-// It used to go through the commit, which started a second search while the first waited a day and died.
-test("Change what I asked opens the finder under the question, and approving answers the waiting round, not a new search", async () => {
+// "What if the answer is no, but I want it to update the search?" Change what I asked opens the plan panel's answer
+// row under the question, empty; Ask's card comes back as the waiting round's next version, and approving it
+// answers that round. It used to go through the commit, which started a second search while the first waited a
+// day and died.
+test("Change what I asked opens the answer row under the question, and approving answers the waiting round, not a new search", async () => {
   fresh();
   draw({ leadsRoute: `leads:s-${SEARCH_B}` });
   strips.at(-1).onAction("change");
   draw({ leadsRoute: `leads:s-${SEARCH_B}` });
-  const f = finders.at(-1);
+  const f = panels.at(-1);
   assert.deepEqual(
     [
       f.stage,
@@ -3118,14 +3048,15 @@ test("Change what I asked opens the finder under the question, and approving ans
   };
   const sent = [];
   globalThis.window.__ask.send = async (req, on) => {
-    sent.push(req.text);
+    sent.push(req);
     on({ t: "final", message: { text: "", proposals: [card] } });
   };
-  await f.onPlan("include the chains too");
+  await f.onAnswer("include the chains too");
   await settle();
   draw({ leadsRoute: `leads:s-${SEARCH_B}` });
-  assert.match(sent[0], /My answer: include the chains too\./);
-  const shown = finders.at(-1);
+  assert.match(sent[0].text, /My answer: include the chains too\./);
+  assert.equal(sent[0].surface, "leads", "the amend turn is on the Leads surface (spec F5)");
+  const shown = panels.at(-1);
   assert.deepEqual([shown.stage, shown.plan.version, shown.plan.count], ["plan", 2, 200]);
   await shown.onApprove(shown.plan);
   await settle();
@@ -3137,27 +3068,36 @@ test("Change what I asked opens the finder under the question, and approving ans
   assert.equal(textOf(flashes.at(-1).msg), "Carrying on with your change.");
 });
 
-test("a fresh Find after an abandoned answer is a new search, not an answer", () => {
+test("a fresh Find after an abandoned answer is Ask's, and a plan opened after it is not an answer", () => {
   fresh();
   draw({ leadsRoute: `leads:s-${SEARCH_B}` });
   strips.at(-1).onAction("change");
   draw({ leadsRoute: `leads:s-${SEARCH_B}` });
-  assert.ok(finders.at(-1).answering, "answering");
-  // Left half-done: Esc closes the finder (and keeps what was typed, as a Find does), then F starts a new one.
+  assert.ok(panels.at(-1).answering, "answering");
+  // Left half-done: Esc closes the panel and lets the answer go, then F is Ask's (spec F7): it opens no panel, so
+  // nothing of the answer can ride on it.
   press("Escape");
+  let drawn = panels.length;
   draw({ leadsRoute: `leads:s-${SEARCH_B}` });
+  assert.equal(panels.length, drawn, "closed: the panel is not drawn any more");
   press("f");
+  drawn = panels.length;
   draw({ leadsRoute: `leads:s-${SEARCH_B}` });
-  assert.equal(finders.at(-1).stage, "compose");
-  assert.equal(finders.at(-1).answering, null, "F opens a finder that is not answering anything");
-  // Esc alone lets it go too: what the tab keeps of a half-written Find is never an answer, so Search again or the
-  // first day's composer (which never open through F) cannot answer a search that is no longer on screen.
-  strips.at(-1).onAction("change");
+  assert.equal(asks.at(-1), "open", "F opens Ask, not a panel");
+  assert.equal(panels.length, drawn);
+  menuOf("Chiropractors · Round Rock")
+    .items.find((i) => i.label === "Search again, changed")
+    .onClick();
   draw({ leadsRoute: `leads:s-${SEARCH_B}` });
-  press("Escape");
+  assert.equal(panels.at(-1).stage, "plan");
+  assert.equal(panels.at(-1).answering, null, "Search again opens a plan that is not answering anything");
+  // Change what I asked on that plan is Ask's too, with what the search asked for in the field: the panel
+  // composes nothing (spec F5), so the words go where a fresh Find is written.
+  panels.at(-1).onBack();
+  drawn = panels.length;
   draw({ leadsRoute: `leads:s-${SEARCH_B}` });
-  const kept = globalThis.window.__tabMemory.draft("leads-find");
-  assert.equal(kept && kept.more ? kept.more.answer : null, null, "nothing of the answer is kept once it is closed");
+  assert.equal(panels.length, drawn, "the panel closed");
+  assert.deepEqual(asks.at(-1), { mode: "compose", prompt: waiting.asked }, "and Ask opened with the words");
 });
 
 // The question is only ever about places left out, and while it waits nothing is counted (under an email standard
@@ -3206,8 +3146,8 @@ test("an ending's one next step opens the plan and starts nothing until it is ap
     [],
     "Carry on opens the plan; nothing runs until it is approved",
   );
-  assert.equal(finders.at(-1).stage, "plan");
-  await finders.at(-1).onApprove(finders.at(-1).plan);
+  assert.equal(panels.at(-1).stage, "plan");
+  await panels.at(-1).onApprove(panels.at(-1).plan);
   await settle();
   assert.deepEqual(
     calls.at(-1),
@@ -3265,81 +3205,6 @@ test("the search menu removes the untouched leads and credits the month, named f
     ["undo", { op: "op-u", version: 2 }],
     "the toast's own Undo names the operation and the version it saw",
   );
-});
-
-/* ------------------------------------ hold to talk ------------------------------------ */
-
-test("the composer's mic is held to talk: it fills the input with what the browser heard, and uploads nothing", () => {
-  fresh();
-  draw();
-  press("f");
-  draw();
-  const talk = finders.at(-1).talk;
-  assert.ok(talk && talk.canTalk, "a browser with a recogniser is offered the mic; `talk: null` offers nothing");
-  talk.start({ preventDefault() {} });
-  draw();
-  assert.equal(recs.length, 1, "press starts the browser's own recogniser");
-  assert.deepEqual([recs[0].interimResults, recs[0].continuous, recs[0].started], [true, true, 1]);
-  recs[0].onresult({ results: [{ isFinal: false, 0: { transcript: "wedding planners" } }] });
-  draw();
-  assert.equal(finders.at(-1).words, "wedding planners", "interim words land in the input as they come");
-  recs[0].onresult({ results: [{ isFinal: true, 0: { transcript: "wedding planners around Austin" } }] });
-  talk.stop();
-  assert.equal(recs[0].stopped, 1, "release stops the recogniser; nothing is left listening");
-  recs[0].onend();
-  draw();
-  assert.equal(
-    finders.at(-1).words,
-    "wedding planners around Austin",
-    "and what was finally heard is what stays there",
-  );
-  assert.equal(
-    finders.at(-1).stage,
-    "compose",
-    "releasing the mic plans nothing and starts nothing: the owner still presses Plan it",
-  );
-  assert.deepEqual(
-    uploads,
-    [],
-    "nothing recorded and nothing sent: no fetch, no getUserMedia, no MediaRecorder, no Ask turn",
-  );
-  assert.deepEqual(
-    calls.filter((c) => c[0] !== "view"),
-    [],
-    "and no route was called: holding the mic asks nothing and starts nothing",
-  );
-});
-
-test("with no recogniser there is no mic, and a page drawn without Ask's hooks keeps one hook order", () => {
-  fresh();
-  draw();
-  press("f");
-  draw();
-  const SR = globalThis.window.SpeechRecognition;
-  const H = globalThis.window.AskHooks;
-  try {
-    delete globalThis.window.SpeechRecognition;
-    fresh();
-    draw();
-    press("f");
-    draw();
-    assert.equal(finders.at(-1).talk.canTalk, false, "a browser that cannot hear is offered nothing");
-    fresh();
-    draw();
-    const withHooks = frames.called();
-    delete globalThis.window.AskHooks;
-    fresh();
-    const tree = draw();
-    assert.equal(
-      frames.called(),
-      withHooks,
-      "the stand-in declares the same hooks, so LeadsReal calls as many either way",
-    );
-    assert.ok(byTestId(tree, "leads-standing"), "and the page still draws");
-  } finally {
-    globalThis.window.SpeechRecognition = SR;
-    globalThis.window.AskHooks = H;
-  }
 });
 
 // D5: every fact on this page is about a place, so the leads can be looked at as places. The picture is made from
@@ -3425,7 +3290,7 @@ test("D5: the same leads, on the ground — a pin per lead the source placed, th
   click(byTestId(tree, "map-widen"));
   tree = at();
   assert.deepEqual(
-    [finders.at(-1).stage, finders.at(-1).plan.area.radius_m],
+    [panels.at(-1).stage, panels.at(-1).plan.area.radius_m],
     ["plan", 50000],
     "Search wider opens the plan with twice the ground, and starts nothing until it is approved",
   );

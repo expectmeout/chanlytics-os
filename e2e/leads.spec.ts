@@ -211,7 +211,7 @@ test.describe("Leads on a real workspace", () => {
     await expect(page.getByTestId("leads-standing")).toBeVisible();
   });
 
-  test("the keyboard walks the leads: J focuses, Enter peeks, C dials, F opens the finder, Esc backs out in order", async ({
+  test("the keyboard walks the leads: J focuses, Enter peeks, C dials, F opens Ask on Leads, Esc backs out in order", async ({
     page,
   }) => {
     await page.goto("/#/clients/leads");
@@ -231,13 +231,16 @@ test.describe("Leads on a real workspace", () => {
     await expect(peek.getByTestId("peek-act-call")).toBeEnabled();
     await page.keyboard.press("Escape");
     await expect(page.getByTestId("lead-peek")).toHaveCount(0);
+    // F is Ask's on this page (spec F7): the Line opens on the Leads surface, asking for businesses, and Esc is its.
     await page.keyboard.press("f");
-    await expect(page.getByTestId("lead-finder")).toBeVisible();
+    const ask = page.getByTestId("ask-line");
+    await expect(ask).toBeVisible();
+    await expect(page.getByTestId("ask-input")).toHaveAttribute("placeholder", "Describe the businesses you want");
     await page.keyboard.press("Escape");
-    await expect(page.getByTestId("lead-finder")).toHaveCount(0);
+    await expect(ask).toBeHidden();
   });
 
-  test("at a phone's width the switch, the list, search and Find are one bar and the first lead is on the first screen", async ({
+  test("at a phone's width the switch, the list and search are one bar and the first lead is on the first screen", async ({
     page,
   }) => {
     await page.setViewportSize({ width: 375, height: 812 });
@@ -246,11 +249,9 @@ test.describe("Leads on a real workspace", () => {
     const bar = page.getByTestId("leads-phone-bar");
     await expect(bar).toBeVisible();
     await expect(bar.getByTestId("leads-phone-search-open")).toBeVisible();
-    await expect(bar.getByTestId("leads-phone-find")).toBeVisible();
     // Whole, not only there: the bar once drew 18px tall with all four clipped inside it (the rated card's star
     // track shared its class), and a clipped control still has a box, so it still passed as visible.
     await expect(bar.getByTestId("leads-phone-search-open")).toBeInViewport({ ratio: 1 });
-    await expect(bar.getByTestId("leads-phone-find")).toBeInViewport({ ratio: 1 });
     // Nothing above the rows but the bar and the strip: no stat cards, no
     // controls row, no rail (feedback_mobile_work_first).
     await expect(page.locator(".cl-rail")).toBeHidden();
@@ -291,37 +292,51 @@ test.describe("Leads on a real workspace", () => {
     await expect(bar.getByTestId("leads-phone-lists")).toBeVisible();
   });
 
-  test("Find leads turns words into a plan card, and nothing is started when it is closed", async ({ page }) => {
-    test.skip(!PAID, WHY_UNPAID);
-    const before = await (await apiGet(page, "/api/v1/lead-searches")).json();
+  /**
+   * Find leads is Ask on the Leads surface (spec F1, F2): the button opens the
+   * Line, the words go as typed, and the plan comes back as Ask's card, drawn
+   * with the page's own plan card inside it (ask-turn.jsx, LeadPlanCard).
+   */
+  async function askForBusinesses(page: Page, words: string): Promise<void> {
     await page.goto("/#/clients/leads");
     await page.waitForLoadState("networkidle");
     // The button reads "Find leads F" -- it carries its own key -- so it is
     // named by its test id rather than by a name that would never match.
     await page.getByTestId("leads-find").click();
-    await page.getByTestId("finder-input").fill("6 personal trainers in Round Rock, TX, a phone is enough");
-    await page.getByTestId("finder-plan").click();
-    await expect(page.getByTestId("lead-plan")).toBeVisible({ timeout: 40_000 });
+    await expect(page.getByTestId("ask-line")).toBeVisible();
+    const input = page.getByTestId("ask-input");
+    await input.fill(words);
+    await input.press("Enter");
+    await expect(page.getByTestId("ask-card").getByTestId("lead-plan")).toBeVisible({ timeout: 40_000 });
+  }
+
+  test("Find leads is Ask: the words become a plan card on the Line, and nothing is started when it is closed", async ({
+    page,
+  }) => {
+    test.skip(!PAID, WHY_UNPAID);
+    const before = await (await apiGet(page, "/api/v1/lead-searches")).json();
+    await askForBusinesses(page, "6 personal trainers in Round Rock, TX, a phone is enough");
     await expect(page.getByTestId("plan-sentence")).toContainText("Round Rock");
     await page.keyboard.press("Escape");
-    await expect(page.getByTestId("lead-finder")).toHaveCount(0);
+    await expect(page.getByTestId("ask-line")).toBeHidden();
     const after = await (await apiGet(page, "/api/v1/lead-searches")).json();
     expect((after.data.searches as unknown[]).length, "a plan the owner closed started nothing").toBe(
       (before.data.searches as unknown[]).length,
     );
   });
 
-  test("a small search runs end to end on the listed workspace, and is removed after", async ({ page }) => {
+  test("a small search runs end to end on the listed workspace from Ask's card, lands on the search, and is removed after", async ({
+    page,
+  }) => {
     test.skip(!PAID, WHY_UNPAID);
     test.setTimeout(10 * 60_000);
-    await page.goto("/#/clients/leads");
-    await page.waitForLoadState("networkidle");
-    await page.getByTestId("leads-find").click();
-    await page.getByTestId("finder-input").fill("6 independent bike shops in Round Rock, TX, a phone is enough");
-    await page.getByTestId("finder-plan").click();
-    await expect(page.getByTestId("lead-plan")).toBeVisible({ timeout: 40_000 });
+    await askForBusinesses(page, "6 independent bike shops in Round Rock, TX, a phone is enough");
     await page.getByTestId("plan-approve").click();
+    // Approve commits through Ask's door and lands on the new search (spec F4): the address is the search's own,
+    // and the strip narrating the run is on screen.
+    await expect.poll(() => new URL(page.url()).hash).toMatch(/^#\/clients\/leads:s-[0-9a-f-]{36}/);
     const strip = page.getByTestId("lead-strip");
+    await expect(strip).toBeVisible({ timeout: 60_000 });
     await expect(strip).toContainText(/Finding|Stopped|Found/, { timeout: 60_000 });
     await expect(strip).toContainText(/^(Found|Stopped)/, { timeout: 9 * 60_000 });
     // What it spent is read from the ledger, never from a screen.
@@ -338,5 +353,33 @@ test.describe("Leads on a real workspace", () => {
     await page.getByRole("menuitem", { name: "Remove this search" }).click();
     await page.getByTestId("leads-remove-yes").click();
     await expect(page.locator(".cl-rail-row", { hasText: mine!.name })).toHaveCount(0);
+  });
+});
+
+test.describe("Leads on a phone", () => {
+  test.skip(!HAVE_SESSION, WHY_SKIPPED);
+  test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  test.beforeEach(async ({ page }) => {
+    await signIn(page);
+  });
+
+  test("the ✦ opens the takeover on the Leads surface: it asks for businesses, and says the consent rule", async ({
+    page,
+  }) => {
+    await page.goto("/#/clients/leads");
+    await page.waitForLoadState("networkidle");
+    // The bar has no find square of its own (spec F1): the shell's ✦ is the one door, as it is everywhere.
+    await expect(page.getByTestId("leads-phone-find")).toHaveCount(0);
+    await page.getByTestId("phone-ask").tap();
+    const ask = page.getByTestId("ask-real");
+    await expect(ask).toBeVisible();
+    await expect(ask.getByTestId("ask-input")).toHaveAttribute("placeholder", "Describe the businesses you want");
+    // The Find businesses section draws only with chips: on this workspace, more like its one kept search (the seed's
+    // `asked`), so a seed without one fails here, on the cause, and not on the note under it.
+    await expect(ask.getByText(/Find more like/)).toBeVisible();
+    // The section's one dim line: the consent rule (spec F3), under its chips.
+    await expect(ask.getByTestId("ask-rows-note")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(ask).toBeHidden();
   });
 });

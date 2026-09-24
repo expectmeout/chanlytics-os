@@ -408,7 +408,8 @@ const runCtx = (over = {}) => ({
   touches: { byThis: new Map(), byAny: new Map() },
   calendar: "none",
   visits: new Map(),
-  lists: new Map(),
+  // Who is on a list a playbook runs on, by its reference (lists.ts membersOf): none here unless a test says.
+  listMembers: () => null,
   ...over,
 });
 const pbRow = (over = {}) => ({
@@ -436,12 +437,43 @@ test("a run on a list: its people, and a list deleted under it runs nobody and s
   const on = runPorts();
   const sent = await runPlaybook(on.ports, {
     playbook: pbRow(),
-    ctx: runCtx({ lists: new Map([["l1", new Set(["2"])]]) }),
+    ctx: runCtx({
+      listMembers: (ref) => (ref.kind === "saved" && ref.id === "l1" ? { state: "ok", ids: new Set(["2"]) } : null),
+    }),
     runFor: "2026-09-20",
     by: { kind: "system" },
   });
   assert.equal(sent.outcome, "sent", JSON.stringify(sent));
   assert.equal(sent.eligible, 1, "the one on the list");
+  // One of People's lists, by its id (00168): the same moment, resolved the same way (decision 0009).
+  const asked = [];
+  const peoples = await runPlaybook(runPorts().ports, {
+    playbook: pbRow({ list_id: null, list_key: "phoned_only" }),
+    ctx: runCtx({
+      listMembers: (ref) => {
+        asked.push(ref);
+        return { state: "ok", ids: new Set(["1"]) };
+      },
+    }),
+    runFor: "2026-09-20",
+    by: { kind: "system" },
+  });
+  assert.equal(peoples.outcome, "sent", JSON.stringify(peoples));
+  assert.deepEqual(asked, [{ kind: "builtin", id: "phoned_only" }]);
+  // A list it can't count here runs nobody, and says which: the calendar, or the list itself.
+  for (const [reason, skipped] of [
+    ["calendar", "no_calendar"],
+    ["rule", "list_uncounted"],
+    ["viewer", "list_uncounted"],
+  ]) {
+    const uncounted = await runPlaybook(runPorts().ports, {
+      playbook: pbRow(),
+      ctx: runCtx({ listMembers: () => ({ state: "unknown", reason }) }),
+      runFor: "2026-09-20",
+      by: { kind: "system" },
+    });
+    assert.deepEqual([uncounted.outcome, uncounted.skipped], ["off", skipped], reason);
+  }
   const gone = runPorts();
   const off = await runPlaybook(gone.ports, {
     playbook: pbRow({ list_id: null }),
@@ -486,8 +518,24 @@ test("a playbook on a list names it, the workspace's own, and takes its name whe
   );
   const ok = await checkPlaybook(ports, { ...body, list_id: L });
   assert.equal(ok.list_id, L);
+  assert.equal(ok.list_key, null);
   assert.equal(ok.name, "Regulars · Autumn offer");
   assert.equal(ok.policy_class, "campaign");
+  // One of People's lists, by its id (00168), under its label; and a win-back, when the owner says so.
+  const peoples = await checkPlaybook(ports, { ...body, list_key: "lapsed", policy_class: "reengage" });
+  assert.deepEqual([peoples.list_key, peoples.list_id, peoples.policy_class], ["lapsed", null, "reengage"]);
+  assert.equal(peoples.name, "Lapsed · Autumn offer");
+  assert.equal(
+    (await checkPlaybook(ports, { ...body, list_id: L, policy_class: "booking" })).policy_class,
+    "campaign",
+    "a list sends an offer or a win-back, never a reminder's class",
+  );
+  await assert.rejects(checkPlaybook(ports, { ...body, list_key: "no_such_list" }), /Pick the list it runs on/);
+  // A list about whoever is looking is never one a run can count: a run has no one looking.
+  await assert.rejects(
+    checkPlaybook(ports, { ...body, list_key: "waiting_on_you" }),
+    /about whoever is looking, and a playbook runs with no one looking/,
+  );
 });
 
 /* ------------------------------------------ the routes ------------------------------------------ */
@@ -635,9 +683,15 @@ test("a send to a smart list enrols who its rule holds for, over the same pool i
     {},
     { people_list: () => [person("1", ["sms"]), person("2", ["whatsapp"]), person("3", ["sms", "voice"])] },
   );
-  const seg = await createBroadcastPorts({ supabase: db, userId: USER }, A).savedList(S2);
-  assert.equal(seg.name, "Texters");
+  const ports = createBroadcastPorts({ supabase: db, userId: USER }, A);
+  const seg = await ports.list({ kind: "saved", id: S2 }, new Date("2026-09-20T15:00:00Z"));
+  assert.equal(seg.label, "Texters");
   assert.deepEqual(seg.memberIds.sort(), ["1", "3"]);
+  // A People list the same way, by its reference: one path for both kinds (decision 0009).
+  const phoned = await ports.list({ kind: "builtin", id: "phoned_only" }, new Date("2026-09-20T15:00:00Z"));
+  assert.equal(phoned.label, "Phoned only");
+  assert.deepEqual(phoned.memberIds, []);
+  assert.equal(await ports.list({ kind: "builtin", id: "no_such_list" }, new Date()), null);
 });
 
 /* ------------------------------------------- the edge ------------------------------------------- */
@@ -680,8 +734,17 @@ test("the sweep reads every list once per workspace, with who is on each now", a
   );
   const ctx = await loadTenantRunContext(db, "t1", new Date(NOW));
   assert.ok(!("error" in ctx), JSON.stringify(ctx));
-  assert.deepEqual([...ctx.lists.get("l-hand")], ["2"]);
-  assert.deepEqual([...ctx.lists.get("l-smart")], ["1"]);
+  const ids = (ref) => {
+    const m = ctx.listMembers(ref);
+    return m && m.state === "ok" ? [...m.ids] : m;
+  };
+  assert.deepEqual(ids({ kind: "saved", id: "l-hand" }), ["2"]);
+  assert.deepEqual(ids({ kind: "saved", id: "l-smart" }), ["1"]);
+  // One of People's lists the same way, over the same pool: both of them wrote, neither only phoned.
+  assert.deepEqual(ids({ kind: "builtin", id: "phoned_only" }), []);
+  assert.equal(ctx.listMembers({ kind: "saved", id: "gone" }), null, "a list deleted under it");
+  // A run has no one looking: a list about "me" can't be counted.
+  assert.deepEqual(ctx.listMembers({ kind: "builtin", id: "waiting_on_you" }), { state: "unknown", reason: "viewer" });
 });
 
 test("either deploy order: on a database 00155 has not reached, every list reads as one kept by hand, never as an error", async () => {

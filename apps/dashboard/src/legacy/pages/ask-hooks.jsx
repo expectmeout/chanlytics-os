@@ -28,7 +28,6 @@ const ahMicBlocked = async () => {
 // Nothing is recorded or uploaded. Where the browser can say whether the
 // microphone is blocked, the press waits for that answer first, and a press
 // released before it starts nothing (`wantRef`); elsewhere it starts at once.
-// Four cells: a page drawn without these hooks mirrors them (clients-a.jsx usePlNoTalk).
 const useAskTalk = ({ lang, onWords, onHeard, disabled }) => {
   const [listening, setListening] = useAhState(false);
   const recRef = useAhRef(null);

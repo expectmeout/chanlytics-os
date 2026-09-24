@@ -818,16 +818,6 @@ function parseTenantConfig(raw) {
   const r23 = parseTenantConfigResult(raw);
   return r23.ok ? r23.config : null;
 }
-var FALLBACK_DEFAULTS = {
-  greeting: "Hi! Thanks for reaching out to {business}.\n\nBook anytime: {booking link}\n\nReply here with any question.",
-  error: "Thanks for reaching out to {business}! A member of our team will reply here soon. Book anytime: {booking link}",
-  non_text: "Thanks for your message! A member of our team will take a look and reply here soon. For anything urgent, call us at {phone}."
-};
-var EARLIER_FALLBACK_DEFAULTS = {
-  greeting: "Hi! Thanks for reaching out to {business}.\n\nBook anytime: {booking link}\n\nOr reply here with any question.",
-  error: "Thanks for reaching out to {business}! Book anytime: {booking link} \u2014 or a member of our team will reply here soon.",
-  non_text: FALLBACK_DEFAULTS.non_text
-};
 var SHORT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var LIVE_STALE_MS = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS = 30 * 60 * 1e3;
@@ -7875,16 +7865,6 @@ var TenantConfigWriteSchema2 = TenantConfigSchema2.superRefine((cfg, ctx) => {
   }
   (p.closures ?? []).forEach((c2, n2) => checkClosure2(c2, n2, ctx));
 });
-var FALLBACK_DEFAULTS2 = {
-  greeting: "Hi! Thanks for reaching out to {business}.\n\nBook anytime: {booking link}\n\nReply here with any question.",
-  error: "Thanks for reaching out to {business}! A member of our team will reply here soon. Book anytime: {booking link}",
-  non_text: "Thanks for your message! A member of our team will take a look and reply here soon. For anything urgent, call us at {phone}."
-};
-var EARLIER_FALLBACK_DEFAULTS2 = {
-  greeting: "Hi! Thanks for reaching out to {business}.\n\nBook anytime: {booking link}\n\nOr reply here with any question.",
-  error: "Thanks for reaching out to {business}! Book anytime: {booking link} \u2014 or a member of our team will reply here soon.",
-  non_text: FALLBACK_DEFAULTS2.non_text
-};
 var SHORT2 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var LIVE_STALE_MS2 = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS2 = 30 * 60 * 1e3;
@@ -11010,16 +10990,6 @@ var TenantConfigWriteSchema3 = TenantConfigSchema3.superRefine((cfg, ctx) => {
   }
   (p.closures ?? []).forEach((c2, n2) => checkClosure3(c2, n2, ctx));
 });
-var FALLBACK_DEFAULTS3 = {
-  greeting: "Hi! Thanks for reaching out to {business}.\n\nBook anytime: {booking link}\n\nReply here with any question.",
-  error: "Thanks for reaching out to {business}! A member of our team will reply here soon. Book anytime: {booking link}",
-  non_text: "Thanks for your message! A member of our team will take a look and reply here soon. For anything urgent, call us at {phone}."
-};
-var EARLIER_FALLBACK_DEFAULTS3 = {
-  greeting: "Hi! Thanks for reaching out to {business}.\n\nBook anytime: {booking link}\n\nOr reply here with any question.",
-  error: "Thanks for reaching out to {business}! Book anytime: {booking link} \u2014 or a member of our team will reply here soon.",
-  non_text: FALLBACK_DEFAULTS3.non_text
-};
 var SHORT3 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var LIVE_STALE_MS3 = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS3 = 30 * 60 * 1e3;
@@ -13174,16 +13144,6 @@ var TenantConfigWriteSchema22 = TenantConfigSchema22.superRefine((cfg, ctx) => {
   }
   (p.closures ?? []).forEach((c2, n2) => checkClosure22(c2, n2, ctx));
 });
-var FALLBACK_DEFAULTS22 = {
-  greeting: "Hi! Thanks for reaching out to {business}.\n\nBook anytime: {booking link}\n\nReply here with any question.",
-  error: "Thanks for reaching out to {business}! A member of our team will reply here soon. Book anytime: {booking link}",
-  non_text: "Thanks for your message! A member of our team will take a look and reply here soon. For anything urgent, call us at {phone}."
-};
-var EARLIER_FALLBACK_DEFAULTS22 = {
-  greeting: "Hi! Thanks for reaching out to {business}.\n\nBook anytime: {booking link}\n\nOr reply here with any question.",
-  error: "Thanks for reaching out to {business}! Book anytime: {booking link} \u2014 or a member of our team will reply here soon.",
-  non_text: FALLBACK_DEFAULTS22.non_text
-};
 var SHORT22 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var LIVE_STALE_MS22 = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS22 = 30 * 60 * 1e3;
@@ -15311,16 +15271,6 @@ var TenantConfigWriteSchema32 = TenantConfigSchema32.superRefine((cfg, ctx) => {
   }
   (p.closures ?? []).forEach((c2, n2) => checkClosure32(c2, n2, ctx));
 });
-var FALLBACK_DEFAULTS32 = {
-  greeting: "Hi! Thanks for reaching out to {business}.\n\nBook anytime: {booking link}\n\nReply here with any question.",
-  error: "Thanks for reaching out to {business}! A member of our team will reply here soon. Book anytime: {booking link}",
-  non_text: "Thanks for your message! A member of our team will take a look and reply here soon. For anything urgent, call us at {phone}."
-};
-var EARLIER_FALLBACK_DEFAULTS32 = {
-  greeting: "Hi! Thanks for reaching out to {business}.\n\nBook anytime: {booking link}\n\nOr reply here with any question.",
-  error: "Thanks for reaching out to {business}! Book anytime: {booking link} \u2014 or a member of our team will reply here soon.",
-  non_text: FALLBACK_DEFAULTS32.non_text
-};
 var SHORT32 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var LIVE_STALE_MS32 = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS32 = 30 * 60 * 1e3;
@@ -17968,16 +17918,6 @@ var TenantConfigWriteSchema4 = TenantConfigSchema4.superRefine((cfg, ctx) => {
   }
   (p.closures ?? []).forEach((c2, n2) => checkClosure4(c2, n2, ctx));
 });
-var FALLBACK_DEFAULTS4 = {
-  greeting: "Hi! Thanks for reaching out to {business}.\n\nBook anytime: {booking link}\n\nReply here with any question.",
-  error: "Thanks for reaching out to {business}! A member of our team will reply here soon. Book anytime: {booking link}",
-  non_text: "Thanks for your message! A member of our team will take a look and reply here soon. For anything urgent, call us at {phone}."
-};
-var EARLIER_FALLBACK_DEFAULTS4 = {
-  greeting: "Hi! Thanks for reaching out to {business}.\n\nBook anytime: {booking link}\n\nOr reply here with any question.",
-  error: "Thanks for reaching out to {business}! Book anytime: {booking link} \u2014 or a member of our team will reply here soon.",
-  non_text: FALLBACK_DEFAULTS4.non_text
-};
 var SHORT4 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var LIVE_STALE_MS4 = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS4 = 30 * 60 * 1e3;

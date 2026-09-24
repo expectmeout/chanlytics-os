@@ -676,16 +676,6 @@ var TenantConfigWriteSchema = TenantConfigSchema.superRefine((cfg, ctx) => {
   }
   (p.closures ?? []).forEach((c, n) => checkClosure(c, n, ctx));
 });
-var FALLBACK_DEFAULTS = {
-  greeting: "Hi! Thanks for reaching out to {business}.\n\nBook anytime: {booking link}\n\nReply here with any question.",
-  error: "Thanks for reaching out to {business}! A member of our team will reply here soon. Book anytime: {booking link}",
-  non_text: "Thanks for your message! A member of our team will take a look and reply here soon. For anything urgent, call us at {phone}."
-};
-var EARLIER_FALLBACK_DEFAULTS = {
-  greeting: "Hi! Thanks for reaching out to {business}.\n\nBook anytime: {booking link}\n\nOr reply here with any question.",
-  error: "Thanks for reaching out to {business}! Book anytime: {booking link} \u2014 or a member of our team will reply here soon.",
-  non_text: FALLBACK_DEFAULTS.non_text
-};
 var SHORT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var LIVE_STALE_MS = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS = 30 * 60 * 1e3;

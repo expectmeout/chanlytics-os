@@ -1,7 +1,15 @@
+import { savedListFor, savedListsFor } from "@chanlytics/db";
 import {
+  asListRule,
   dealsAreOn,
-  toPersonRowVM,
+  listUnknownWords,
+  membersOf,
+  poolListContext,
+  poolRowsOf,
+  resolveList,
+  ruleLists,
   type ListContext,
+  type ListRef,
   type PersonRowDto,
   type PersonRowVM,
 } from "@chanlytics/contracts";
@@ -40,14 +48,22 @@ export async function audiencePool(ctx: RouteContext, tenantId: string, tz: stri
     sellsByOf(ctx, tenantId),
   ]);
   const deals_on = dealsAreOn(sellsBy);
+  const viewer = ctx.userId ?? null;
   return {
     people,
-    // For the member asking: a teammate's thread is theirs, and a list about "me" is about them.
-    rows: people.map((r) => toPersonRowVM(r, tz, now, ctx.userId ?? null)),
+    // The pool's one reading (contracts audience-pool.ts), for the member asking: a teammate's thread is theirs, and a
+    // list about "me" is about them. Where deals are off no row carries one.
+    rows: poolRowsOf(people, { tz, now, viewer, dealsOn: deals_on }),
     calendar,
     consult_first,
     deals_on,
-    listCtx: { calendar: calendar.state, dealsOn: deals_on, consultFirst: consult_first, viewer: !!ctx.userId },
+    // What the pool can give a list (contracts poolListContext), the consult-first service as withVisits read it.
+    listCtx: poolListContext({
+      calendar: calendar.state,
+      dealsOn: deals_on,
+      consultFirst: consult_first,
+      viewer,
+    }),
   };
 }
 
@@ -65,4 +81,32 @@ export function audiencePoolOnce(
     memo.set("audience_pool", p);
   }
   return p;
+}
+
+/**
+ * One list over a pool (decision 0009): resolved by its reference (contracts resolveList), counted the one way
+ * (membersOf) with the saved lists its rule may read, and, when it can't be counted here, why, in the page's words.
+ * Null when there is no such list. What a send, the assistant's search and its proposals all ask.
+ */
+export async function poolList(
+  ctx: Pick<RouteContext, "supabase">,
+  tenantId: string,
+  pool: Pick<AudiencePool, "rows" | "listCtx">,
+  ref: ListRef,
+): Promise<{ label: string; memberIds: string[] } | { label: string; unknown: string } | null> {
+  // A saved list is read with every member; the workspace's other lists only when its rule reads one (in_list). No
+  // built-in reads a saved list.
+  let saved: Awaited<ReturnType<typeof savedListsFor>> = [];
+  if (ref.kind === "saved") {
+    const one = await savedListFor(ctx.supabase, tenantId, ref.id);
+    if (!one) return null;
+    const rule = one.rule == null ? null : asListRule(one.rule);
+    saved = rule && ruleLists(rule).length ? await savedListsFor(ctx.supabase, tenantId) : [one];
+  }
+  const def = resolveList(ref, saved);
+  if (!def) return null;
+  const m = membersOf(def, pool.rows, pool.listCtx, saved);
+  return m.state === "ok"
+    ? { label: def.label, memberIds: [...m.ids] }
+    : { label: def.label, unknown: listUnknownWords(m.reason, pool.listCtx.calendar) };
 }

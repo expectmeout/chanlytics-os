@@ -31,6 +31,7 @@ export * from "./step-sheet";
 export * from "./broadcasts";
 export * from "./list-rules";
 export * from "./lists";
+export * from "./audience-pool";
 export * from "./templates";
 export * from "./playbooks";
 export * from "./template-library";

@@ -13,6 +13,8 @@ import type {
   ParamSpec,
   PersonRowVM,
   DealPaceVM,
+  ListRef,
+  Membership,
   PersonVisitsDto,
 } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
@@ -79,8 +81,10 @@ export interface PlaybookRow {
   cadence_days: number;
   created_by: string | null;
   last_run_for: string | null;
-  /** The list a saved_list playbook runs on (00155); null otherwise, and when its list was deleted. */
+  /** The list of the workspace's own a saved_list playbook runs on (00155); null otherwise, and when it was deleted. */
   list_id?: string | null;
+  /** The People list a saved_list playbook runs on, by its id (00168); null otherwise. */
+  list_key?: string | null;
 }
 
 /** The workspace as the run reads it once per tenant: the people, the modes, the number, the touches, the calendar. */
@@ -96,8 +100,11 @@ export interface RunContext {
   calendar: "ok" | "unavailable" | "none";
   /** Each person's next and last visit from that calendar, for the words a visit run keeps. */
   visits: Map<string, PersonVisitsDto>;
-  /** Who is on each of the workspace's lists, by list id (contracts savedListIds): what a saved_list playbook runs on. */
-  lists: Map<string, ReadonlySet<string>>;
+  /**
+   * Who is on a list a saved_list playbook runs on, by its reference (contracts lists.ts membersOf, with no one
+   * looking): its people, or why it can't be counted; null when it is gone.
+   */
+  listMembers(ref: ListRef): Membership | null;
   /** Deals are on here (dealsAreOn, 0008): the proposal follow-up runs only then (0006). */
   dealsOn: boolean;
   /** The workspace's pace (contracts dealPaceOf): when a proposal waits, for the follow-up; null without one. */
@@ -130,6 +137,7 @@ export type RunOutcome =
         | "already_ran_today"
         | "no_calendar"
         | "no_list"
+        | "list_uncounted"
         | "deals_off";
     }
   | { outcome: "failed"; error: string };
@@ -185,14 +193,20 @@ export interface BroadcastRef {
   run_for?: string | null;
 }
 
+/** A list as a send reads it: its people, or why it can't be counted. */
+export type ListCount = { label: string; memberIds: string[] } | { label: string; unknown: string };
+
 export interface CreateBroadcastPorts extends AssemblePorts, TemplateValuesPorts {
   /** The business's clock, for the hours a send may go out in. */
   timezone(): Promise<string>;
   /** Everyone, with their visits as of now, the way the People page counts them. */
   people(now: Date): Promise<PersonRowVM[]>;
-  /** A list kept by hand: its name and who is on it; null when there is no such list here. */
-  /** A saved list and who is on it: the ids kept on it, or everyone a smart list's rule holds for today. */
-  savedList(id: string): Promise<{ name: string; memberIds: string[] } | null>;
+  /**
+   * One list, resolved and counted the one way (contracts lists.ts resolveList, membersOf): a built-in or a saved list,
+   * its name and who is on it -- or, when it can't be counted here (a calendar that was not read, a rule this build
+   * cannot read), its name and why, in the page's words. Null when there is no such list here.
+   */
+  list(ref: ListRef, now: Date): Promise<ListCount | null>;
   /** The active WhatsApp number's health as Meta rated it; null when none is connected. */
   number(): Promise<NumberHealth | null>;
   record(subject: DecisionSubject, id: string, verb: DecisionVerb, payload: Json): Promise<string>;
