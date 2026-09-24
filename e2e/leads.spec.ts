@@ -368,7 +368,9 @@ test.describe("Leads on a phone", () => {
   }) => {
     await page.goto("/#/clients/leads");
     await page.waitForLoadState("networkidle");
-    // The bar has no find square of its own (spec F1): the shell's ✦ is the one door, as it is everywhere.
+    // At a phone's width the shell's ✦ is the one door (spec F1): the bar's own mark, the door for the widths
+    // where the shell draws no ✦ (721-900px), gives way to it here.
+    await expect(page.getByTestId("leads-bar-find")).toBeHidden();
     await expect(page.getByTestId("leads-phone-find")).toHaveCount(0);
     await page.getByTestId("phone-ask").tap();
     const ask = page.getByTestId("ask-real");

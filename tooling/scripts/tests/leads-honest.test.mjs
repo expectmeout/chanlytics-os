@@ -2711,9 +2711,10 @@ const bar = (over = {}) => {
   });
 };
 
-test("on a phone the switch, the list and search are one bar with no Find square; search is a button that opens the bar into the field", () => {
+test("on a phone the switch, the list and search are one bar; Find leads is its last control, the three's mark, a door to Ask; search is a button that opens the bar into the field", () => {
   fresh();
-  const t = bar();
+  const opened = [];
+  const t = bar({ onFind: () => opened.push("find"), canFind: true });
   const tabs = all(t, (n) => n.props?.role === "tab");
   assert.deepEqual(
     tabs.map((n) => [textOf(n), n.props["aria-selected"]]),
@@ -2724,10 +2725,23 @@ test("on a phone the switch, the list and search are one bar with no Find square
   );
   assert.equal(byTestId(t, "leads-phone-search-open").props["aria-label"], "Search leads");
   assert.equal(byTestId(t, "leads-phone-search"), null, "REGRESSION: the box was 64px wide on a phone and said 'Sear'");
-  assert.equal(
-    byTestId(t, "leads-phone-find"),
-    null,
-    "no find square: Find leads is Ask on a phone, and the shell's ✦ is its one door (spec F1)",
+  // The mark is a door to Ask, drawn for the widths where the shell has no ✦ (721-900px; leads.css hides it under
+  // 720px, where the ✦ is the door, spec F1). It calls the page's one door with no words, never with its event.
+  const door = byTestId(t, "leads-bar-find");
+  assert.ok(
+    find(door, (n) => n.type === "Icon" && n.props?.name === "three"),
+    "the three's still mark",
+  );
+  door.props.onClick({ type: "click" });
+  assert.deepEqual(opened, ["find"], "Find leads opens Ask");
+  assert.equal(byTestId(t, "leads-phone-find"), null, "the old coral square is gone");
+  // The gate reads the role, as every gate does (data-bits gate): an operator meets it at the door.
+  fresh({ role: "operator" });
+  const gatedDoor = byTestId(bar({ canFind: false }), "leads-bar-find");
+  assert.deepEqual(
+    [gatedDoor.props["aria-disabled"], gatedDoor.props["aria-description"]],
+    [true, "Only an owner can find businesses for you."],
+    "an operator is told at the door, as at the desktop's button",
   );
   // The name gives way before the count: "All leads · 96" was one string, and a 375px phone drew it "All leads · …".
   const pick = byTestId(t, "leads-phone-lists");
@@ -2769,7 +2783,7 @@ test("where deals are on, a phone's bar has the Pipeline beside People and Leads
     ],
   );
   assert.equal(textOf(byTestId(byTestId(t, "leads-phone-lists"), "leads-phone-lists-count")), "322");
-  assert.equal(byTestId(t, "leads-phone-find"), null, "and still no find square");
+  assert.ok(byTestId(t, "leads-bar-find"), "and the door to Ask is still the bar's last control");
 });
 
 test("the plan panel's sheet is the page's own dialog and registers no listener of its own", () => {

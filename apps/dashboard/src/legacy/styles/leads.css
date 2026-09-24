@@ -455,6 +455,11 @@
    900px and under: cards, one bar, and the work first. Nothing above the rows
    but the bar and the strip. */
 
+/* At a phone's width the shell's ✦ is the one door to Ask (spec F1): the bar's mark gives way to it. */
+@media (max-width: 720px) {
+  .ld-bar-find { display: none; }
+}
+
 @media (max-width: 900px) {
   /* One gutter for the pane, owned by the scope. The bar, the strip, the band, the chips, the bench, the map and the
      first day read --gutter-page, and at this width the pane's is People's 16px (the cards' wrap, the standing line
@@ -468,6 +473,9 @@
      for a window dragged past the band between two state changes, and it is scoped to Leads, because People's own
      controls row at this width is People's business. */
   .leads-scope .cl-controls { display: none; }
+  /* Find leads as the bar's last control, the three's still mark, in ink: from 721px to 900px the controls row is
+     gone and the shell draws no ✦, so this is the page's one door. */
+  .ld-bar-find { color: var(--ink); }
 
   /* The classes and the chips give up the gutter, not their words. */
   .ld-classes, .ld-chips { flex-wrap: nowrap; overflow-x: auto; }

@@ -939,11 +939,12 @@ const LeadsBulkBar = ({ sel, rows, total, view, canFind, canExport, busy, whyNot
 /* ---------------------------------------------------------------- the phone */
 
 // The phone's top (<=900px, the band People's own rows begin at), Leads' way: People's (PeoplePhoneBar, clients-a.jsx),
-// the scopes as the Inbox's tab strip over the bar: lists and search, nothing after them. Find leads is Ask on a
-// phone, and the shell's ✦ is its one door (spec F1), so the bar carries no square of its own. The same top on
-// every scope, and nothing else sits above the rows -- no title, no sub-headline, no stat cards and no second
-// control row (legacy/CLAUDE.md, the phone shows the work first).
-const LeadsPhoneBar = ({ scope, onScope, dealsOn = false, listLabel, listCount = null, onLists, listsOpen, q, onQ, searchRef, searchOpen = false, onSearchOpen = () => {} }) => {
+// the scopes as the Inbox's tab strip over the bar: lists, search, and Find leads as the three's still mark. Find
+// leads is Ask (spec F1): at a phone's width the shell's ✦ is its one door and the mark gives way (leads.css); from
+// 721px to 900px the controls row is gone and the shell draws no ✦, so the mark is the page's one door. The same
+// top on every scope, and nothing else sits above the rows -- no title, no sub-headline, no stat cards and no
+// second control row (legacy/CLAUDE.md, the phone shows the work first).
+const LeadsPhoneBar = ({ scope, onScope, dealsOn = false, listLabel, listCount = null, onLists, listsOpen, q, onQ, searchRef, searchOpen = false, onSearchOpen = () => {}, onFind = () => {}, canFind = false }) => {
   const Bar = window.PeoplePhoneBar;
   return (
     <Bar
@@ -961,6 +962,19 @@ const LeadsPhoneBar = ({ scope, onScope, dealsOn = false, listLabel, listCount =
       onSearchOpen={onSearchOpen}
       searchLabel="Search leads"
       testid="leads"
+      trailing={(
+        <button
+          type="button"
+          className="pp-bar-icon ld-bar-find"
+          aria-label="Find leads"
+          title="Find leads"
+          data-testid="leads-bar-find"
+          onClick={() => onFind()}
+          {...(canFind ? {} : window.gate("find", "find businesses for you"))}
+        >
+          <Icon name="three" size={16} />
+        </button>
+      )}
     />
   );
 };
@@ -1044,6 +1058,8 @@ const LeadsScope = (p) => {
               searchRef={p.searchRef}
               searchOpen={p.searchOpen}
               onSearchOpen={p.onSearchOpen}
+              onFind={p.onFind}
+              canFind={p.canFind}
             />
           ) : (
             <>

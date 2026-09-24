@@ -35,7 +35,11 @@ jobs:
   e2e:
     name: Playwright against production
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # A green run takes about fifteen minutes; a run with a handful of failing specs takes their three tries each
+    # on top. The cap was 30, and from 20 Sep every run hit it, so every run ended "cancelled" -- past the steps
+    # below that say so, since a cancelled job is not a failed one. The cap leaves room for the failures to finish
+    # and be reported; the steps below speak on a cancellation too.
+    timeout-minutes: 60
     # Who the signed-in specs are, and who else is on their team: addresses at
     # example.com, which receive no mail. e2e-workspace.mjs makes both users
     # and their workspace; session.ts signs in as the first.
@@ -107,7 +111,7 @@ jobs:
       # The report can hold a real workspace's data, so it is kept only when
       # something failed and only for a week.
       - uses: actions/upload-artifact@v7
-        if: failure()
+        if: failure() || cancelled()
         with:
           name: playwright-report
           path: playwright-report
@@ -115,11 +119,12 @@ jobs:
       # Somebody has to be told. The job runs at 09:00 with nobody watching,
       # and its whole purpose is to notice things.
       - name: Say so, where a person will see it
-        if: failure()
+        # A run the cap cancelled is a run nobody heard from: it is said the same way.
+        if: failure() || cancelled()
         run: |
           gh issue create \
-            --title "Nightly e2e failed $(date -u +%F)" \
-            --body "The nightly suite failed. Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            --title "Nightly e2e ${{ job.status == 'cancelled' && 'hit its cap' || 'failed' }} $(date -u +%F)" \
+            --body "The nightly suite ${{ job.status == 'cancelled' && 'was cancelled (the job cap, or by hand) before it finished' || 'failed' }}. Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
             --repo "$GITHUB_REPOSITORY"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
