@@ -135,9 +135,11 @@ const btpDoor = (block, prompt, canEdit) => {
  *
  *   head      "What your receptionist is told", and one muted line: who reads it, on the channel shown. No count.
  *   tools     the channel, WhatsApp or Phone, as the kit's toggle group: the two are not the same text.
- *   contents  "Written by": an entry per block, labelled by its row, with ONE quiet indicator of what it costs -- a thin
- *             bar as long as its share -- and the exact count in its description and its tip. The whole prompt's length
- *             is the contents' own name. An entry takes the reader to its block. Not drawn on a phone (settings.css).
+ *   contents  a plain list of the blocks' names, each labelled by its row, with the exact count of what it costs in
+ *             its description and its tip and nothing on the glass (the thin bar of its share, and the "Written by"
+ *             over the list, went on 23 Sep; the heading still names the list for a screen reader). The whole prompt's
+ *             length is the contents' own name. An entry takes the reader to its block. Not drawn on a phone
+ *             (settings.css).
  *   blocks    each keyed by its id, not its row (the platform's text is drawn twice on a call): its label, its share
  *             (on a phone only, where the contents are not: the rail's bar under the label, and the words for a screen
  *             reader), its door back to its row, its text in the page's own face with its line breaks, and its note as
@@ -170,9 +172,6 @@ const BtPromptSheet = ({ prompt, brain, canEdit = true }) => {
               aria-describedby={`bt-prompt-cost-${b.id}`} data-testid={`rec-prompt-entry-${b.id}`}
             >
               <span className="bt-prompt-entry-label">{b.label}</span>
-              <span className="bt-prompt-bar" aria-hidden="true">
-                <span className="bt-prompt-bar-fill" style={{ width: `${b.share * 100}%` }} />
-              </span>
             </button>
             {/* Beside the button, not in it: text inside a button, hidden or not, is part of its name, and the count
                 was heard twice, as the name and again as the description. */}
@@ -193,11 +192,9 @@ const BtPromptSheet = ({ prompt, brain, canEdit = true }) => {
           >
             <header className="bt-prompt-block-head">
               <h3 className="bt-prompt-block-label" id={`bt-prompt-label-${b.id}`}>{b.label}</h3>
-              {/* A phone's indicator, where the contents are not drawn: the rail's own bar, and its share in words for a
-                  screen reader (settings.css draws neither above 760px, where the entry says it). */}
-              <span className="bt-prompt-bar bt-prompt-block-bar" aria-hidden="true">
-                <span className="bt-prompt-bar-fill" style={{ width: `${b.share * 100}%` }} />
-              </span>
+              {/* Its share in words, for a screen reader on a phone, where the contents are not drawn (settings.css
+                  draws it nowhere above 760px, where the entry's description says it). The bar it once drew beside
+                  the words went with the rail's (23 Sep): the count stays in the entry's description and its tip. */}
               <span className="bt-prompt-block-share">{tab.blockShareWords(b.chars, total)}</span>
               {btpDoor(b, prompt, canEdit)}
             </header>

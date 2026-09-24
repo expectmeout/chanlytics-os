@@ -278,7 +278,7 @@ const BtoWeek = ({ draft: week, update, change, rows, press, problems, readOnly 
             items={copies}
             label={`Copy ${from ? BTO_LONG[from] : "a day"} to…`}
             title="Copy one day's hours onto others"
-            btnClass="btn btn-sm"
+            btnClass="bt-link"
             align="left"
             escape
             gated={readOnly ? "Saving — nothing can be copied until this is saved." : null}

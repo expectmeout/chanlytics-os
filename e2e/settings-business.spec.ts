@@ -312,7 +312,7 @@ const expectPromptSheetQuiet = (page: Page, where: string): Promise<void> =>
   expectSheetQuiet(page, '[data-testid="rec-sheet-prompt"]', where, [], true);
 
 /** A fold open on a phone is a sheet; its switches paint the two tokens a switch is drawn in, on and its knob. */
-const SWITCH_TOKENS = ["--ok", "--knob"];
+const SWITCH_TOKENS = ["--knob"];
 
 /**
  * Every control in a sheet takes a finger: 44px tall AND 44px wide, by its box or by the reach it draws around itself
@@ -1003,9 +1003,10 @@ test.describe("Settings › Business on a real workspace", () => {
       await expect(page.getByTestId("rec-prompt-contents")).toBeHidden();
       const n = await blocks.count();
       expect(n, `${channel}: there are blocks to read`).toBeGreaterThan(0);
-      // Each head carries the rail's bar, drawn, and its share in words kept for a screen reader, off the glass.
+      // Each head keeps its share in words for a screen reader, off the glass, and draws no bar of it (23 Sep: the
+      // rail is a plain list of names, and the bar under a phone's head went with the rail's).
       for (let i = 0; i < n; i++) {
-        await expect(blocks.nth(i).locator(".bt-prompt-block-bar")).toBeVisible();
+        await expect(blocks.nth(i).locator(".bt-prompt-bar")).toHaveCount(0);
         const words = await blocks
           .nth(i)
           .locator(".bt-prompt-block-share")

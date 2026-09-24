@@ -90,8 +90,12 @@ test("the contents lists one entry per block, with what each costs: a share on s
     // Nor in its NAME: a visually hidden span inside the button still names it, so the count was heard twice, once as
     // the entry's name and once as its description. The name is everything the button holds, hidden text included.
     assert.doesNotMatch(textOf(entry), /\d/, `${b.id}: the entry's name is its label alone`);
-    const bar = find(entry, (n) => classes(n).includes("bt-prompt-bar-fill"));
-    assert.equal(bar.props.style.width, `${b.share * 100}%`, `${b.id}: its bar is its share`);
+    // No bar of its share either (23 Sep): the rail is a plain list of names, and the cost is the description's.
+    assert.equal(
+      find(entry, (n) => classes(n).includes("bt-prompt-bar")),
+      null,
+      `${b.id}: nothing drawn but its name`,
+    );
   });
   // The whole is the contents' own name, and nowhere else.
   const contents = byTestId(tree, "rec-prompt-contents");
@@ -327,9 +331,11 @@ test("a phone reads the share on each block's head, as the rail's bar, with the 
   const total = W.__SETTINGS.prompt.whatsapp.length;
   for (const b of cut("whatsapp")) {
     const head = find(byTestId(tree, `rec-prompt-block-${b.id}`), (n) => classes(n).includes("bt-prompt-block-head"));
-    const bar = find(head, (n) => classes(n).includes("bt-prompt-block-bar"));
-    assert.equal(bar.props["aria-hidden"], "true", `${b.id}: the bar is not read`);
-    assert.equal(find(bar, (n) => classes(n).includes("bt-prompt-bar-fill")).props.style.width, `${b.share * 100}%`);
+    assert.equal(
+      find(head, (n) => classes(n).includes("bt-prompt-bar")),
+      null,
+      `${b.id}: no bar under the head`,
+    );
     const share = find(head, (n) => classes(n).includes("bt-prompt-block-share"));
     assert.equal(textOf(share), blockShareWords(b.chars, total), `${b.id}: the words, for a reader`);
   }

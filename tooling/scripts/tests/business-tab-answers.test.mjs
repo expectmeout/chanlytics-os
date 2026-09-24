@@ -65,7 +65,6 @@ const boxIn = (tree, fold) =>
   find(foldOf(tree, fold), (n) => (n.type === "input" || n.type === "textarea") && classes(n).includes("rec-input"));
 const typeIn = (tree, fold, text) => boxIn(tree, fold).props.onChange({ target: { value: text } });
 /** A button by the words on it, inside a node: what a person sees and presses. */
-const buttonSaying = (node, words) => find(node, (n) => n.type === "button" && textOf(n).trim() === words);
 /** The sentence the kit's FieldError draws for a box, by the box's id: rec-<id>-problem. */
 const problemOf = (tree, boxId) => {
   const n = find(tree, (m) => m.type === W.FieldError && m.props.id === `rec-${boxId}-problem`);
@@ -221,18 +220,21 @@ test("a starting point fills the voice with its sentence, which is contracts', a
   let tree = drawTab({ profile: without(melany, "tone") });
   openFold(tree, "tone");
   tree = redrawTab();
-  const group = byTestId(tree, "rec-tone-presets");
-  assert.equal(
-    textOf(find(group, (n) => n.props?.id === group.props["aria-labelledby"])),
-    "Start from",
-    "the presses are a group named by the words beside them",
-  );
+  // One small menu where three boxes stood (23 Sep): its items are the starting points, in contracts' order.
+  const menu = byTestId(tree, "rec-tone-presets");
+  assert.match(textOf(menu), /Start from/, "the menu says what it is for");
+  assert.equal(menu.props["aria-haspopup"], "menu");
+  const items = (t) => all(byTestId(t, "rec-fold-tone"), (n) => n.props?.role === "menuitem");
+  assert.equal(items(tree).length, 0, "closed, its items are not on the page");
+  press(menu);
+  tree = redrawTab();
   assert.deepEqual(
-    all(group, (n) => n.type === "button").map((b) => textOf(b)),
+    items(tree).map((b) => textOf(b).trim()),
     TONE_PRESETS.map((p) => p.label),
   );
-  press(buttonSaying(group, "Professional, no small talk"));
+  press(items(tree).find((b) => textOf(b).trim() === "Professional, no small talk"));
   tree = redrawTab();
+  assert.equal(items(tree).length, 0, "a pick closes the menu");
   const tone = TONE_PRESETS.find((p) => p.label === "Professional, no small talk").tone;
   assert.equal(boxIn(tree, "tone").props.value, tone, "the press fills the box");
   assert.deepEqual(partsOf(byTestId(tree, "rec-fold-says-tone")), [["It will be told", `Tone: ${tone}`]]);
@@ -1382,15 +1384,20 @@ test("Save stays a button focus can rest on while it saves, and the boxes take n
   saveFoldOf(tree, "tone");
   assert.equal(sent.length, 1, "a second press sends nothing more");
   assert.equal(boxIn(tree, "tone").props.readOnly, true);
-  const preset = buttonSaying(byTestId(tree, "rec-tone-presets"), "Warm and brief");
+  const preset = byTestId(tree, "rec-tone-presets");
   assert.deepEqual(
     [preset.props.disabled, preset.props["aria-disabled"]],
-    [undefined, true],
-    "a preset says it waits as Save does, and keeps focus",
+    [false, true],
+    "the starting points say they wait as Save does, and keep focus",
   );
   press(preset);
   tree = redrawTab();
-  assert.equal(boxIn(tree, "tone").props.value, "Calm.", "a preset pressed while it saves changes nothing");
+  assert.equal(
+    all(byTestId(tree, "rec-fold-tone"), (n) => n.props?.role === "menuitem").length,
+    0,
+    "a press while it saves opens nothing",
+  );
+  assert.equal(boxIn(tree, "tone").props.value, "Calm.", "and changes nothing");
 });
 
 test("the services sheet opened and closed beside this card, every fold of it keeps its own", () => {

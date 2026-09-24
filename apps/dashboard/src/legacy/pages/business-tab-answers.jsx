@@ -65,12 +65,21 @@ const BtaVoice = ({ draft, update, press, problems, readOnly }) => {
         readOnly={readOnly || undefined}
         testid="rec-tone-box"
       />
+      {/* The starting points as one small menu, where three boxes stood under the one box that matters (23 Sep). A
+          pick fills the box through the fold's own update; while the save is out the menu says it waits, as Save does
+          (MoreMenu's gated: aria-disabled, never disabled, so it keeps focus). */}
       {presets.length ? (
-        <div className="bt-presets" role="group" aria-labelledby="bt-tone-presets-key" data-testid="rec-tone-presets">
-          <span className="bt-presets-key" id="bt-tone-presets-key">Start from</span>
-          {presets.map((p) => (
-            <button key={p.label} type="button" className="btn btn-sm" {...press(() => update(() => p.tone, ["tone"]))}>{p.label}</button>
-          ))}
+        <div className="bt-presets">
+          <window.MoreMenu
+            items={presets.map((p) => ({ label: p.label, onClick: () => update(() => p.tone, ["tone"]) }))}
+            label="Start from…"
+            title="Fill the box with a starting point"
+            btnClass="bt-link"
+            align="left"
+            escape
+            gated={readOnly ? "Saving — nothing can be changed until this is saved." : null}
+            testid="rec-tone-presets"
+          />
         </div>
       ) : null}
     </>
