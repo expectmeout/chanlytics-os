@@ -1935,7 +1935,7 @@ const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport,
         </span>
       )}
       {canExport && keeps("export") && <button className="btn btn-sm" disabled={busy} onClick={exportCsv} data-testid="bulk-export"><Icon name="external" size={12} /> Export CSV</button>}
-      {!canEdit && <span className="cl-prof-aut-hint">{keeps("consent") ? "Only an owner or operator can add to lists or record a yes." : "Only an owner or operator can add to lists."}</span>}
+      {!canEdit && <span className="cl-prof-aut-hint">{keeps("consent") ? "Only an owner or operator can add to lists or record a yes." : window.gateTitle ? window.gateTitle("approve", "add people to a list") : null}</span>}
       <button className="btn btn-ghost btn-sm" onClick={onClear} data-testid="bulk-clear"><Icon name="x" size={11} /> Clear</button>
     </div>
   );
@@ -2236,8 +2236,9 @@ const usePlControls = ({ scope, cols, phoneCols, colCtx, people, sortFirst, rail
   const onSort = (key) => {
     viewTouched.current = true;
     if (sortBy === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    // A name starts at A, the soonest visit first, and the Pipeline's Stage in its own order; any other number, most first.
-    else { setSortBy(key); setSortDir(key === "name" || key === "visits" || key === "stage" ? "asc" : "desc"); }
+    // A name starts at A, the soonest visit first, and the Pipeline's Stage in its own order (Leads' stage column is a
+    // rank of its own, most first); any other number, most first.
+    else { setSortBy(key); setSortDir(key === "name" || key === "visits" || (key === "stage" && scope === "pipeline") ? "asc" : "desc"); }
   };
   // A sort the member picked from a menu rather than a heading (a phone's more-menu): theirs, like a heading's.
   const pickSort = (by, dir) => { viewTouched.current = true; setSortBy(by); setSortDir(dir); };

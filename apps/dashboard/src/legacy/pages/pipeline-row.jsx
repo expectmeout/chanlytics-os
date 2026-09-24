@@ -28,7 +28,10 @@ const PIPE_ACT_ICON = { propose: "deal", won: "check", lost: "x", edit: "edit", 
 const pipeRowItems = (r, { canRecord, onPage, onThread }) => {
   const kit = window.__deal;
   const W = window.__pipeline.words.peek;
-  const deal = r.person.deal;
+  // A consultation's row starts a proposal, as dragging it into Proposal out does (contracts pipelineMove), whatever
+  // deal of theirs closed before: its menu offered that old deal's Propose again. The sheet names the consultation's
+  // service itself (dealSheetFor).
+  const deal = r.group === "consultations" ? null : r.person.deal;
   const acts = canRecord && kit && kit.menu && window.openDealSheet
     ? kit.menu(deal).filter((a) => a.mode).map((a) => ({
         label: a.label,
@@ -55,10 +58,12 @@ const PipelineRowMenu = ({ r, canRecord = false, onPage, onThread }) => {
   );
 };
 
-// Mark as passed · N (0008): only a proposal out can pass, and why is asked once for every one. Each is recorded through
-// the one deal door in turn, with the version the person's own read says (a People row carries none), and the row
-// moves as the door answers; the last one reads People again behind it. What it came to is said once, and those the
-// door would not take (a proposal that moved since) stay selected, so the owner sees which.
+// Mark as passed · N (0008): only a proposal out can pass, fifty at a press, and why is asked once for every one. The
+// bridge records them (people-detail.ts passDeals: each person read afresh, only a deal still a proposal out, People
+// read again once after the last); what it came to is said once, and only those who passed leave the selection, so
+// the ones that had changed or could not be marked stay picked, and a selection cleared meanwhile stays cleared.
+// Focus goes to the first reason as the question opens and back to Mark as passed as it closes; Esc in it cancels
+// the question rather than the selection.
 const PipelinePassMany = ({ rows, flash, onDone }) => {
   const P = window.__pipeline;
   const W = P.words.pass;
@@ -66,51 +71,52 @@ const PipelinePassMany = ({ rows, flash, onDone }) => {
   const [asking, setAsking] = React.useState(false);
   const [reason, setReason] = React.useState(null);
   const [busy, setBusy] = React.useState(false);
+  const opener = React.useRef(null);
+  const group = React.useRef(null);
+  const was = React.useRef(false);
+  React.useEffect(() => {
+    if (asking && group.current && group.current.querySelector) {
+      const first = group.current.querySelector("[role='radio']");
+      if (first && first.focus) first.focus();
+    } else if (!asking && was.current && opener.current && opener.current.focus) opener.current.focus();
+    was.current = asking;
+  }, [asking]);
   if (!vm.words) return null;
   const gate = window.gate ? window.gate("approve", "mark a deal as passed") : {};
-  const versionOf = async (d) => {
-    const held = window.__peekPerson ? window.__peekPerson(d.personId) : null;
-    const person = held || (window.__personDetail ? await window.__personDetail(d.personId).catch(() => null) : null);
-    const deals = person ? person.deals || (person.deal ? [person.deal] : []) : [];
-    const found = deals.find((x) => x.id === d.dealId);
-    return found && found.version ? found.version : null;
-  };
+  const close = () => { setAsking(false); setReason(null); };
   const go = async () => {
-    if (busy || !reason || !window.__recordDeal) return;
+    if (busy || !reason || !window.__passDeals) return;
     setBusy(true);
-    let done = 0;
-    const left = [];
-    for (let i = 0; i < vm.deals.length; i += 1) {
-      const d = vm.deals[i];
-      const version = await versionOf(d);
-      const r = version
-        ? await window.__recordDeal(d.personId, { stage: "lost", deal_id: d.dealId, version, lost_reason: reason }, { refresh: i === vm.deals.length - 1 ? "behind" : false })
-        : null;
-      if (r && r.ok) done += 1;
-      else left.push(d.personId);
-    }
+    const r = await window.__passDeals(vm.deals, reason);
     setBusy(false);
-    setAsking(false);
-    setReason(null);
-    const said = P.passDone(done, left.length);
+    close();
+    const said = P.passDone(r.passed.length, r.changed.length, r.failed.length);
     if (flash) flash({ tone: said.tone, msg: said.words });
-    if (onDone) onDone(left);
+    if (onDone) onDone(r.passed);
   };
   if (!asking) {
     return (
-      <button type="button" className="btn btn-sm" onClick={() => setAsking(true)} data-testid="pipe-pass-open" {...gate}>
-        <Icon name="x" size={12} /> {W.button} · {vm.deals.length}
+      <button type="button" ref={opener} className="btn btn-sm" onClick={() => setAsking(true)} data-testid="pipe-pass-open" {...gate}>
+        <Icon name="x" size={12} /> {vm.button}
       </button>
     );
   }
   return (
-    <span className="cl-bulk-naming pipe-pass" role="group" aria-label={W.ask} data-testid="pipe-pass">
-      <span className="pipe-pass-ask">{W.ask}</span>
+    <span
+      ref={group}
+      className="cl-bulk-naming pipe-pass"
+      role="group"
+      aria-labelledby="pipe-pass-ask"
+      onKeyDown={(e) => { if (e.key === "Escape" && !busy) { e.preventDefault(); close(); } }}
+      data-testid="pipe-pass"
+    >
+      <span className="pipe-pass-ask" id="pipe-pass-ask">{W.ask}</span>
       {/* The deal sheet's own question, in its own control (deal-sheet.jsx): the record kit's toggle group. */}
-      <window.RecordToggleGroup label={W.ask} value={reason} options={vm.reasons.map((x) => ({ value: x.code, label: x.words }))} onChange={setReason} readOnly={busy} testid="pipe-pass-reasons" />
+      <window.RecordToggleGroup label={W.ask} labelledBy="pipe-pass-ask" value={reason} options={vm.reasons.map((x) => ({ value: x.code, label: x.words }))} onChange={setReason} readOnly={busy} testid="pipe-pass-reasons" />
       {vm.rest ? <span className="pipe-pass-rest" data-testid="pipe-pass-rest">{vm.rest}</span> : null}
+      {vm.more ? <span className="pipe-pass-rest" data-testid="pipe-pass-more">{vm.more}</span> : null}
       <button type="button" className="btn btn-sm btn-primary" disabled={busy || !reason} onClick={go} data-testid="pipe-pass-go">{busy ? W.busy : vm.words}</button>
-      <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={() => { setAsking(false); setReason(null); }} data-testid="pipe-pass-cancel">{W.cancel}</button>
+      <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={close} data-testid="pipe-pass-cancel">{W.cancel}</button>
     </span>
   );
 };

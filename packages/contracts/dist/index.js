@@ -18551,7 +18551,17 @@ var PIPELINE_WORDS = {
     reading: "Reading\u2026",
     what: "this person",
     /** How to reach them: the number (a call, a copy), the address (a copy), and what a reply may be. */
-    reach: { phone: "Phone", email: "Email", replies: "Replies", call: "Call", copy: "Copy", copied: "Copied" },
+    reach: {
+      phone: "Phone",
+      email: "Email",
+      replies: "Replies",
+      call: "Call",
+      copy: "Copy",
+      copied: "Copied",
+      /** What a Copy says it copies, to a screen reader: both buttons read "Copy" on the page. */
+      copyPhone: "Copy the number",
+      copyEmail: "Copy the address"
+    },
     /** What happened with their deals, newest first. */
     history: "History"
   },
@@ -18563,7 +18573,6 @@ var PIPELINE_WORDS = {
   pass: {
     button: "Mark as passed",
     ask: "Why did they pass?",
-    go: "Mark as passed",
     cancel: "Cancel",
     busy: "Marking\u2026"
   },
@@ -18622,9 +18631,10 @@ function dealTrack(r, d, chip) {
   const held = r.consultedMs !== null && Number.isFinite(r.consultedMs) ? [step("consultation", "done")] : [];
   return d.stage === "proposed" ? [...held, step("proposal", "current", chip?.tone === "warn" ? "warn" : "info"), step("client", "ahead")] : [...held, step("proposal", "done"), step("client", "current", "ok")];
 }
-function dealRow(r, d, chip, nowMs) {
+function dealRow(r, d, chip, nowMs, group) {
   return {
     id: r.id,
+    group,
     name: r.name,
     person: r,
     service: d.service,
@@ -18639,6 +18649,7 @@ function heldRow(r, endMs, tz, nowMs) {
   const heldMs = r.lastVisitMs !== null && Number.isFinite(r.lastVisitMs) ? r.lastVisitMs : endMs;
   return {
     id: r.id,
+    group: "consultations",
     name: r.name,
     person: r,
     service: null,
@@ -18654,6 +18665,7 @@ function aheadRow(r, c, tz, nowMs) {
   const when = c.allDay ? clockNear(c.startMs, zone, nowMs) : clockNearWhen(c.startMs, zone, nowMs);
   return {
     id: r.id,
+    group: "consultations",
     name: r.name,
     person: r,
     service: null,
@@ -18724,18 +18736,20 @@ function pipelineOf(rows, nowMs, tz, view = "all") {
     group(
       "proposals",
       inOrder(shownProposals, (x) => x.d.sinceMs).map(
-        (x) => dealRow(x.r, x.d, proposalChip(x.r, x.d, tz, nowMs), nowMs)
+        (x) => dealRow(x.r, x.d, proposalChip(x.r, x.d, tz, nowMs), nowMs, "proposals")
       ),
       worth(shownProposals)
     ),
     group(
       "clients",
-      inOrder(shownClients, (x) => x.d.sinceMs, true).map((x) => dealRow(x.r, x.d, clientChip(x.d), nowMs)),
+      inOrder(shownClients, (x) => x.d.sinceMs, true).map((x) => dealRow(x.r, x.d, clientChip(x.d), nowMs, "clients")),
       worth(shownClients)
     ),
     group(
       "closed",
-      inOrder(shownClosed, (x) => x.d.sinceMs, true).map((x) => dealRow(x.r, x.d, closedChip(x.d, tz, nowMs), nowMs)),
+      inOrder(shownClosed, (x) => x.d.sinceMs, true).map(
+        (x) => dealRow(x.r, x.d, closedChip(x.d, tz, nowMs), nowMs, "closed")
+      ),
       null
     )
   ].filter((g) => g.count > 0);
@@ -18870,8 +18884,8 @@ function pipelineSorted(vm, by, dir) {
     ranked.sort((a, b) => {
       if (sort === "stage") return sign * (a.i - b.i);
       if (sort === "name") return sign * a.r.name.localeCompare(b.r.name) || a.i - b.i;
-      const x = yearCents(a.r.person.deal);
-      const y = yearCents(b.r.person.deal);
+      const x = a.r.value === null ? null : yearCents(a.r.person.deal);
+      const y = b.r.value === null ? null : yearCents(b.r.person.deal);
       if (x === y) return a.i - b.i;
       if (x === null) return 1;
       if (y === null) return -1;
@@ -18881,26 +18895,35 @@ function pipelineSorted(vm, by, dir) {
   });
   return { ...vm, groups };
 }
+var PIPELINE_PASS_MAX = 50;
 function pipelinePassMany(rows) {
-  const deals = rows.filter((r) => r.deal && r.deal.stage === "proposed" && r.deal.id).map((r) => ({ personId: r.id, dealId: r.deal.id }));
-  const k = rows.length - deals.length;
+  const out = rows.filter((r) => r.deal && r.deal.stage === "proposed" && r.deal.id).map((r) => ({ personId: r.id, dealId: r.deal.id }));
+  const deals = out.slice(0, PIPELINE_PASS_MAX);
+  const later = out.length - deals.length;
+  const k = rows.length - out.length;
   return {
     deals,
+    button: deals.length ? `${PIPELINE_WORDS.pass.button} \xB7 ${deals.length}` : null,
     words: deals.length ? `Mark ${deals.length} as passed` : null,
+    more: later ? `${later} more stay selected, fifty at a time` : null,
     rest: k ? k === 1 ? "1 is not a proposal out and stays as it is" : `${k} are not proposals out and stay as they are` : null,
     reasons: DEAL_LOST_REASONS.map((code2) => ({ code: code2, words: DEAL_LOST_REASON_WORDS[code2] }))
   };
 }
-function pipelinePassDone(done, refused) {
-  const marked = done === 1 ? "1 marked as passed" : `${done} marked as passed`;
-  if (!refused) return { words: marked, tone: "ok" };
-  const left = refused === 1 ? "1 had changed, and was left as it is" : `${refused} had changed, and were left as they are`;
-  return { words: done ? `${marked} \xB7 ${left}` : left, tone: "warn" };
+function pipelinePassDone(done, changed, failed = 0) {
+  const parts2 = [];
+  if (done || !changed && !failed) parts2.push(done === 1 ? "1 marked as passed" : `${done} marked as passed`);
+  if (changed)
+    parts2.push(
+      changed === 1 ? "1 had changed, and was left as it is" : `${changed} had changed, and were left as they are`
+    );
+  if (failed) parts2.push(failed === 1 ? "1 could not be marked" : `${failed} could not be marked`);
+  return { words: parts2.join(" \xB7 "), tone: failed && !done ? "danger" : changed || failed ? "warn" : "ok" };
 }
 function pipelinePeekDetail(p) {
   const W = PIPELINE_WORDS.peek.reach;
   const reach = [];
-  if (p.phone) {
+  if (p.phone && !(p.consent && p.consent.dnc)) {
     const dial = p.phone.replace(/[^\d+]/g, "");
     reach.push({ id: "phone", label: W.phone, words: p.phone, call: dial ? `tel:${dial}` : null, copy: p.phone });
   }
@@ -19535,6 +19558,7 @@ export {
   PERSON_STATE_LABELS,
   PIPELINE_BOARD_CAP,
   PIPELINE_GROUPS,
+  PIPELINE_PASS_MAX,
   PIPELINE_RAIL_SERVICES,
   PIPELINE_SORTS,
   PIPELINE_WORDS,

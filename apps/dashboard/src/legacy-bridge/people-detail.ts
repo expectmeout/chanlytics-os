@@ -1,6 +1,7 @@
 import {
   CONSENT_SOURCES,
   DEAL_ACT_WORDS,
+  DEAL_REFUSALS,
   DEAL_CARD_WORDS,
   DEAL_SHEET_WORDS,
   NOTE_MAX,
@@ -8,6 +9,7 @@ import {
   TIMELINE_FILTERS,
   dealCardsOf,
   dealMenuActs,
+  dealNextAct,
   dealSheetBody,
   dealSheetDirty,
   dealSheetFor,
@@ -32,7 +34,7 @@ import {
 import { api } from "./api";
 import { ApiError, type ApiResult } from "../client/api";
 import { workspaceZone } from "./zone";
-import { readCache } from "./read-cache";
+import { readCache, staleReadCaches } from "./read-cache";
 import { keepSavedView, placeDeal } from "./surface-data";
 import { personRouteId } from "./surface-registry";
 import { getActiveWorkspace } from "./workspace";
@@ -330,6 +332,54 @@ export async function recordDeal(
 }
 
 /**
+ * A selection's pass (0008, the Pipeline's Mark as passed · N): `window.__passDeals(items, reason)`.
+ *
+ * Each is recorded through the one deal door in turn, with the version the person's own read says -- read now, not
+ * the tab's copy, which a teammate's move since does not age -- and only while that deal is still a proposal out: the
+ * door moves any stage to any when the version matches, so a deal that became a client, or passed for another
+ * reason, since the rows were drawn would be written over. Those are left as they are and said as changed, with a
+ * move the door refuses as moved; a read or a write that failed otherwise is said as not marked, for another press.
+ * Each row moves as its answer lands (placeDeal); People and Reports are read again once, after the last, by the
+ * table a single move's re-read follows, whatever the last one answered (inboxBulk's rule).
+ */
+export async function passDeals(
+  items: readonly { personId: string; dealId: string }[],
+  reason: DealLostReason,
+): Promise<{ passed: string[]; changed: string[]; failed: string[] }> {
+  const passed: string[] = [];
+  const changed: string[] = [];
+  const failed: string[] = [];
+  for (const it of items) {
+    let person: PersonVM | null = null;
+    try {
+      person = await personDetail(it.personId);
+    } catch {
+      failed.push(it.personId);
+      continue;
+    }
+    const deal = person ? (person.deals ?? []).find((d) => d.id === it.dealId) : undefined;
+    if (!deal || deal.stage !== "proposed" || !deal.version) {
+      changed.push(it.personId);
+      continue;
+    }
+    const r = await recordDeal(
+      it.personId,
+      { stage: "lost", deal_id: it.dealId, version: deal.version, lost_reason: reason },
+      { refresh: false },
+    );
+    if (r.ok) passed.push(it.personId);
+    else if (r.message === DEAL_REFUSALS.moved) changed.push(it.personId);
+    else failed.push(it.personId);
+  }
+  // As the client's own refresh after a write does: the tab's copies of what changed are read again, then the surfaces.
+  if (items.length) {
+    staleReadCaches();
+    await import("./refresh-map").then((m) => m.refreshAfter("POST contacts/[id]/deal"));
+  }
+  return { passed, changed, failed };
+}
+
+/**
  * A person's notes (0007): `window.__personNotes.write(id, body)` adds one (no `note_id`) or changes its author's own
  * (with `note_id` and the version the page saw); `remove` takes one away; `decide` keeps or dismisses the
  * receptionist's suggestion. The page re-reads the person after each; nothing else shows a note.
@@ -379,6 +429,7 @@ declare global {
     __consentSources?: readonly { id: string; label: string }[];
     __timeline?: { filters: typeof TIMELINE_FILTERS; filter: typeof filterTimeline };
     __recordDeal?: typeof recordDeal;
+    __passDeals?: typeof passDeals;
     /**
      * A deal on the page (0008): the one sheet every move goes through (deal-sheet.ts: its modes, what it says and
      * opens with, the draft once they are read again, the body it sends, where a refusal goes), the person page's deal
@@ -396,6 +447,7 @@ declare global {
       cards: typeof dealCardsOf;
       cardWords: typeof DEAL_CARD_WORDS;
       menu: typeof dealMenuActs;
+      next: typeof dealNextAct;
       actWords: typeof DEAL_ACT_WORDS;
     };
     /** The broadcast's own "may this person be reached", for pages that count people. */
@@ -462,6 +514,7 @@ export function installPeopleCourier(): void {
   window.__timeline = { filters: TIMELINE_FILTERS, filter: filterTimeline };
   // A deal on a person's word, and the words the page says one in: the rule, not a copy of it (0004).
   window.__recordDeal = recordDeal;
+  window.__passDeals = passDeals;
   // One sheet for every move, and the card and the thread's group that open it (0008): the rules, never a copy.
   window.__deal = {
     isMode: isDealSheetMode,
@@ -475,6 +528,8 @@ export function installPeopleCourier(): void {
     cards: dealCardsOf,
     cardWords: DEAL_CARD_WORDS,
     menu: dealMenuActs,
+    // The card's one next act, which a phone's peek pins under it.
+    next: dealNextAct,
     actWords: DEAL_ACT_WORDS,
   };
   // The rule, not a copy of it: the Lists page counts who a broadcast reaches, and

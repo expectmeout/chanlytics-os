@@ -664,7 +664,6 @@ export function personNotesVM(
     });
 }
 
-/** How a reply goes, in the words the page uses for the wire. */
 /**
  * What a reply to them may be, in the owner's words: the person page's Replies and the Pipeline peek's, one sentence.
  * WhatsApp takes any message for a day after they last wrote, and after that only a message WhatsApp approved ahead
@@ -683,6 +682,7 @@ export function repliesWords(
   return h >= 1 ? `Any message, for ${h} more ${h === 1 ? "hour" : "hours"}` : "Any message, for less than an hour";
 }
 
+/** How a reply goes, in the words the page uses for the wire. */
 const REPLY_VIA: Record<"whatsapp" | "sms" | "email", "WhatsApp" | "Text" | "Email"> = {
   whatsapp: "WhatsApp",
   sms: "Text",

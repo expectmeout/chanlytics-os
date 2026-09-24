@@ -408,12 +408,16 @@ A row's menu holds the deal's own acts, as the thread's Deal group does
 (`dealMenuActs`), for a member who may record one, then their thread and
 their page; the send is the peek's, whose card holds the person the words are
 for. A selection on a desk is People's own bar, led by Mark as passed · N
-(`pipelinePassMany`): only a proposal out passes, why is asked once for all of
-them, and each is recorded through the one deal door in turn with the version
-the person's own read says, since a People row carries none; People is read
-again once, behind the last, and what it came to is said once
-(`pipelinePassDone`), the ones the door would not take left selected. Of
-People's own acts the Pipeline keeps its lists and its export.
+(`pipelinePassMany`): only a proposal out passes, fifty at a press, why is
+asked once for all of them, and each is recorded through the one deal door in
+turn with the version the person's own read says, read afresh, since a People
+row carries none -- and only while that deal is still a proposal out, since
+the door moves any stage to any when the version matches. People is read again
+once after the last, whatever it answered; what it came to is said once
+(`pipelinePassDone`: passed, changed since, could not be marked), and only
+those who passed leave the selection. Of People's own acts the Pipeline keeps
+its lists and its export. The peek offers no Call and no copy of the number
+for someone on do-not-contact, as their page's own menu does not.
 
 The peek says, once the person is read, how to reach them -- the number with
 Call and Copy, the address with Copy, and what a reply may be now, the person

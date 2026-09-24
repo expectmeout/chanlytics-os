@@ -57,6 +57,8 @@ export interface PipelineChip {
 
 export interface PipelineRowVM<T extends PipelineSource = PersonRowVM> {
   id: string;
+  /** The group it is drawn in: what its menu offers is the group's (a consultation starts a proposal). */
+  group: PipelineGroupKey;
   name: string;
   /** The People row it stands for, whole: the person cell and the phone's card draw it as People does. */
   person: T;
@@ -167,7 +169,17 @@ export const PIPELINE_WORDS = {
     reading: "Reading…",
     what: "this person",
     /** How to reach them: the number (a call, a copy), the address (a copy), and what a reply may be. */
-    reach: { phone: "Phone", email: "Email", replies: "Replies", call: "Call", copy: "Copy", copied: "Copied" },
+    reach: {
+      phone: "Phone",
+      email: "Email",
+      replies: "Replies",
+      call: "Call",
+      copy: "Copy",
+      copied: "Copied",
+      /** What a Copy says it copies, to a screen reader: both buttons read "Copy" on the page. */
+      copyPhone: "Copy the number",
+      copyEmail: "Copy the address",
+    },
     /** What happened with their deals, newest first. */
     history: "History",
   },
@@ -179,7 +191,6 @@ export const PIPELINE_WORDS = {
   pass: {
     button: "Mark as passed",
     ask: "Why did they pass?",
-    go: "Mark as passed",
     cancel: "Cancel",
     busy: "Marking…",
   },
@@ -271,9 +282,11 @@ function dealRow<T extends PipelineSource>(
   d: DealVM,
   chip: PipelineChip | null,
   nowMs: number,
+  group: PipelineGroupKey,
 ): PipelineRowVM<T> {
   return {
     id: r.id,
+    group,
     name: r.name,
     person: r,
     service: d.service,
@@ -293,6 +306,7 @@ function heldRow<T extends PipelineSource>(r: T, endMs: number, tz: string, nowM
   const heldMs = r.lastVisitMs !== null && Number.isFinite(r.lastVisitMs) ? r.lastVisitMs : endMs;
   return {
     id: r.id,
+    group: "consultations",
     name: r.name,
     person: r,
     service: null,
@@ -315,6 +329,7 @@ function aheadRow<T extends PipelineSource>(
   const when = c.allDay ? clockNear(c.startMs, zone, nowMs) : clockNearWhen(c.startMs, zone, nowMs);
   return {
     id: r.id,
+    group: "consultations",
     name: r.name,
     person: r,
     service: null,
@@ -416,18 +431,20 @@ export function pipelineOf<T extends PipelineSource>(
     group(
       "proposals",
       inOrder(shownProposals, (x) => x.d.sinceMs).map((x) =>
-        dealRow(x.r, x.d, proposalChip(x.r, x.d, tz, nowMs), nowMs),
+        dealRow(x.r, x.d, proposalChip(x.r, x.d, tz, nowMs), nowMs, "proposals"),
       ),
       worth(shownProposals),
     ),
     group(
       "clients",
-      inOrder(shownClients, (x) => x.d.sinceMs, true).map((x) => dealRow(x.r, x.d, clientChip(x.d), nowMs)),
+      inOrder(shownClients, (x) => x.d.sinceMs, true).map((x) => dealRow(x.r, x.d, clientChip(x.d), nowMs, "clients")),
       worth(shownClients),
     ),
     group(
       "closed",
-      inOrder(shownClosed, (x) => x.d.sinceMs, true).map((x) => dealRow(x.r, x.d, closedChip(x.d, tz, nowMs), nowMs)),
+      inOrder(shownClosed, (x) => x.d.sinceMs, true).map((x) =>
+        dealRow(x.r, x.d, closedChip(x.d, tz, nowMs), nowMs, "closed"),
+      ),
       null,
     ),
   ].filter((g) => g.count > 0);
@@ -681,8 +698,9 @@ export function pipelineSorted<T extends PipelineSource>(
     ranked.sort((a, b) => {
       if (sort === "stage") return sign * (a.i - b.i);
       if (sort === "name") return sign * a.r.name.localeCompare(b.r.name) || a.i - b.i;
-      const x = yearCents(a.r.person.deal);
-      const y = yearCents(b.r.person.deal);
+      // What the row shows: a consultation's row shows no value, whatever a deal of theirs that closed came to.
+      const x = a.r.value === null ? null : yearCents(a.r.person.deal);
+      const y = b.r.value === null ? null : yearCents(b.r.person.deal);
       if (x === y) return a.i - b.i;
       if (x === null) return 1;
       if (y === null) return -1;
@@ -693,11 +711,19 @@ export function pipelineSorted<T extends PipelineSource>(
   return { ...vm, groups };
 }
 
+/** How many a selection's pass records at a press, as People's bar writes fifty (clients-a.jsx PL_BATCH). */
+export const PIPELINE_PASS_MAX = 50;
+
 /** A pass asked of a selection: the proposals out in it, why they passed, and those that stay as they are. */
 export interface PipelinePassManyVM {
+  /** The proposals out this press records, fifty at most. */
   deals: { personId: string; dealId: string }[];
-  /** "Mark 2 as passed"; null with no proposal out among them. */
+  /** The bar's button, "Mark as passed · 2"; null with no proposal out among them. */
+  button: string | null;
+  /** The question's own Go, "Mark 2 as passed"; null with no proposal out among them. */
   words: string | null;
+  /** Proposals out past the fifty, which stay selected: "12 more stay selected, fifty at a time"; null for none. */
+  more: string | null;
   /** "1 is not a proposal out and stays as it is"; null when every one is. */
   rest: string | null;
   /** The reasons a pass is asked, in the deal sheet's own words and order. */
@@ -710,13 +736,17 @@ export interface PipelinePassManyVM {
  * with the version the person's own read says (a People row does not carry one).
  */
 export function pipelinePassMany(rows: readonly PipelineSource[]): PipelinePassManyVM {
-  const deals = rows
+  const out = rows
     .filter((r) => r.deal && r.deal.stage === "proposed" && r.deal.id)
     .map((r) => ({ personId: r.id, dealId: r.deal!.id as string }));
-  const k = rows.length - deals.length;
+  const deals = out.slice(0, PIPELINE_PASS_MAX);
+  const later = out.length - deals.length;
+  const k = rows.length - out.length;
   return {
     deals,
+    button: deals.length ? `${PIPELINE_WORDS.pass.button} · ${deals.length}` : null,
     words: deals.length ? `Mark ${deals.length} as passed` : null,
+    more: later ? `${later} more stay selected, fifty at a time` : null,
     rest: k
       ? k === 1
         ? "1 is not a proposal out and stays as it is"
@@ -726,13 +756,24 @@ export function pipelinePassMany(rows: readonly PipelineSource[]): PipelinePassM
   };
 }
 
-/** What a selection's pass came to: how many were marked, and the ones the door would not take, said once. */
-export function pipelinePassDone(done: number, refused: number): { words: string; tone: "ok" | "warn" } {
-  const marked = done === 1 ? "1 marked as passed" : `${done} marked as passed`;
-  if (!refused) return { words: marked, tone: "ok" };
-  const left =
-    refused === 1 ? "1 had changed, and was left as it is" : `${refused} had changed, and were left as they are`;
-  return { words: done ? `${marked} · ${left}` : left, tone: "warn" };
+/**
+ * What a selection's pass came to, said once: how many were marked; those that had changed since (no longer a
+ * proposal out, or moved by someone else), left as they are; and those that could not be recorded at all (offline, a
+ * refusal of another kind), which another press may take.
+ */
+export function pipelinePassDone(
+  done: number,
+  changed: number,
+  failed = 0,
+): { words: string; tone: "ok" | "warn" | "danger" } {
+  const parts: string[] = [];
+  if (done || (!changed && !failed)) parts.push(done === 1 ? "1 marked as passed" : `${done} marked as passed`);
+  if (changed)
+    parts.push(
+      changed === 1 ? "1 had changed, and was left as it is" : `${changed} had changed, and were left as they are`,
+    );
+  if (failed) parts.push(failed === 1 ? "1 could not be marked" : `${failed} could not be marked`);
+  return { words: parts.join(" · "), tone: failed && !done ? "danger" : changed || failed ? "warn" : "ok" };
 }
 
 /** One way to reach them in the peek: what it is, the thing itself, and what can be done with it. */
@@ -760,7 +801,8 @@ export interface PipelinePeekDetailVM {
 export function pipelinePeekDetail(p: PersonVM): PipelinePeekDetailVM {
   const W = PIPELINE_WORDS.peek.reach;
   const reach: PipelinePeekReachVM[] = [];
-  if (p.phone) {
+  // Not for someone on do-not-contact: the person page's own menu offers neither the call nor the copy (personActs).
+  if (p.phone && !(p.consent && p.consent.dnc)) {
     const dial = p.phone.replace(/[^\d+]/g, "");
     reach.push({ id: "phone", label: W.phone, words: p.phone, call: dial ? `tel:${dial}` : null, copy: p.phone });
   }

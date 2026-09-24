@@ -2628,19 +2628,23 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
 .pipe-card .pipe-track { margin-top: 2px; }
 .pl-card-facts .pipe-track { align-self: center; }
 @media (min-width: 901px) {
-  /* Above the pinned cells (the box and the person, z 1), under the table's own head. */
-  .pipe-scope .pl-table tbody tr.pl-sec-head > th { position: sticky; top: var(--pipe-head-h, 39px); z-index: 2; }
-  .pipe-scope .pl-table thead th { z-index: 3; }
+  /* Under the table's own head (--pl-head, its one height), above the pinned cells even hovered or focused (z 2). */
+  .pipe-scope .pl-table tbody tr.pl-sec-head > th { position: sticky; top: var(--pl-head, 39px); z-index: 3; }
+  .pipe-scope .pl-table thead th { z-index: 4; }
   /* With a peek open the table makes room for it (leads.css .pk, 408px, and a 16px gap), so the columns kept beside it
      are seen; the line and the controls above it stay where they are, and nothing over the rows moves. */
   .pipe-scope .cl-main.has-peek .cl-table-wrap { margin-right: calc(408px + 16px); }
   /* The keys' hints are the peek's own to say while it is open (J and K walk it); the count stays. */
   .pipe-scope .cl-main.has-peek .cl-table-keys { display: none; }
+  /* A selection's bar sits in the room the table has, never under the peek; there it may take two lines. */
+  .pipe-scope .cl-main.has-peek .cl-bulk { left: calc((100% - 424px) / 2); max-width: calc(100% - 424px - 32px); flex-wrap: wrap; white-space: normal; border-radius: var(--radius-lg); }
 }
 .pipe-row-acts { justify-content: flex-end; }
 .pipe-card-wrap { position: relative; }
 .pipe-card-menu { position: absolute; top: 6px; right: 6px; opacity: 0; transition: opacity 80ms; }
 .pipe-card-wrap:hover .pipe-card-menu, .pipe-card-wrap:focus-within .pipe-card-menu { opacity: 1; }
+/* A touch screen has no hover to find it by: Move to is what a finger has in place of a drag. */
+@media (hover: none) { .pipe-card-menu { opacity: 1; } }
 .pipe-card-wrap .pipe-card-top { padding-right: 24px; }
 .pipe-col-more { align-self: flex-start; margin-top: 2px; }
 .pipe-pass { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; }

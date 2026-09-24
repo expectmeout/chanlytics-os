@@ -18,7 +18,9 @@ import {
   DEAL_CARD_WORDS,
   DEAL_STAGE_WORDS,
   DEAL_LOST_REASON_WORDS,
+  DEAL_REFUSALS,
   PIPELINE_BOARD_CAP,
+  PIPELINE_PASS_MAX,
   PIPELINE_GROUPS,
   PIPELINE_SORTS,
   PIPELINE_WORDS,
@@ -1379,6 +1381,26 @@ test("the rows order by the member's pick within each group: value over a year w
     pipelineSorted(vm, "name", "asc").groups.map((g) => g.key),
     vm.groups.map((g) => g.key),
   );
+  // Bea passed on $9,000 and came back for a consultation: her row shows no value, and sorts with those that have none.
+  const bea = pipelineOf(
+    [
+      ...fixture(),
+      toPersonRowVM(
+        personRow(NOW, "bea2", "Bea", {
+          ...deal(NOW, "lost", { proposed: 40, decided: 30, cents: 900_000, per: "once" }),
+          visits: visits(null, visit(ny("09-22", 10))),
+        }),
+        TZ,
+        new Date(NOW),
+      ),
+    ],
+    NOW,
+    TZ,
+  );
+  const held = (v) => byKey(v).consultations.rows.map((r) => r.id);
+  assert.equal(rowOf(bea, "bea2").value, null);
+  assert.deepEqual(held(pipelineSorted(bea, "value", "desc")), held(bea), "no value, the Pipeline's own order");
+  assert.deepEqual(held(pipelineSorted(bea, "value", "asc")), held(bea));
 });
 
 test("Mark as passed for a selection: only the proposals out pass, the rest are said and left, and why is asked once", () => {
@@ -1390,7 +1412,10 @@ test("Mark as passed for a selection: only the proposals out pass, the rest are 
     ["wes", "nia"],
   );
   assert.ok(vm.deals.every((d) => typeof d.dealId === "string" && d.dealId));
-  assert.deepEqual([vm.words, vm.rest], ["Mark 2 as passed", "1 is not a proposal out and stays as it is"]);
+  assert.deepEqual(
+    [vm.button, vm.words, vm.rest, vm.more],
+    ["Mark as passed · 2", "Mark 2 as passed", "1 is not a proposal out and stays as it is", null],
+  );
   assert.deepEqual(
     vm.reasons.map((r) => r.words),
     Object.values(DEAL_LOST_REASON_WORDS),
@@ -1409,6 +1434,22 @@ test("Mark as passed for a selection: only the proposals out pass, the rest are 
     tone: "warn",
   });
   assert.deepEqual(pipelinePassDone(0, 2), { words: "2 had changed, and were left as they are", tone: "warn" });
+  // One that could not be recorded at all (offline, a refusal of another kind) is not one that had changed.
+  assert.deepEqual(pipelinePassDone(1, 0, 1), { words: "1 marked as passed · 1 could not be marked", tone: "warn" });
+  assert.deepEqual(pipelinePassDone(0, 0, 2), { words: "2 could not be marked", tone: "danger" });
+  // Fifty at a press, as People's bar writes: the rest stay selected, and say so.
+  const many = Array.from({ length: PIPELINE_PASS_MAX + 3 }, (_, i) =>
+    toPersonRowVM(
+      personRow(NOW, `m${i}`, `M${i}`, deal(NOW, "proposed", { proposed: 2 + (i % 5) })),
+      TZ,
+      new Date(NOW),
+    ),
+  );
+  const capped = pipelinePassMany(many);
+  assert.deepEqual(
+    [capped.deals.length, capped.button, capped.more],
+    [50, "Mark as passed · 50", "3 more stay selected, fifty at a time"],
+  );
 });
 
 test("the peek's reach and history, once the person is read: the person page's own words, three moves at most", () => {
@@ -1446,6 +1487,11 @@ test("the peek's reach and history, once the person is read: the person page's o
   assert.deepEqual(
     d.history.map((h) => h.words),
     ["Proposal out · Ads", "Passed · Ads · Price", "Became a client · Web"],
+  );
+  // Do-not-contact: the person page's own menu offers no call and no copy of the number, and neither does the peek.
+  assert.deepEqual(
+    pipelinePeekDetail({ ...person, consent: { state: "opted_in", dnc: true } }).reach.map((r) => r.id),
+    ["email", "replies"],
   );
   // Nothing to reach them by, and no conversation: nothing said.
   assert.deepEqual(pipelinePeekDetail({ ...person, phone: null, email: null, hasChat: false, timeline: [] }), {
@@ -1534,7 +1580,16 @@ test("the peek's head and facts are the row's: who, the group and the service, w
     thread: "Open the thread",
     reading: "Reading…",
     what: "this person",
-    reach: { phone: "Phone", email: "Email", replies: "Replies", call: "Call", copy: "Copy", copied: "Copied" },
+    reach: {
+      phone: "Phone",
+      email: "Email",
+      replies: "Replies",
+      call: "Call",
+      copy: "Copy",
+      copied: "Copied",
+      copyPhone: "Copy the number",
+      copyEmail: "Copy the address",
+    },
     history: "History",
   });
 });
@@ -2269,7 +2324,6 @@ test("Columns shows where they came from and the day a proposal stands until, as
       ["stage", true],
       ["came", false],
       ["valid", false],
-      ["chip", true],
     ],
   );
   menu.props.onPick("valid");
@@ -2278,6 +2332,7 @@ test("Columns shows where they came from and the day a proposal stands until, as
   assert.ok(textOf(valid("val")).trim(), "the day alone, under its heading");
   assert.equal(valid("val").props.className.includes("is-lapsed"), false);
   assert.equal(valid("lars").props.className.includes("is-lapsed"), true, "a day that has passed, in the warn ink");
+  assert.match(textOf(valid("lars")), /^Lapsed /, "and in words, not by its colour alone");
   assert.equal(textOf(valid("cat")), "", "a client's deal stands until no day");
 });
 
@@ -2331,6 +2386,22 @@ test("a row's menu: the deal's own acts where the member may record one, then th
   items = menuOf(draw(), "hana").props.items;
   items[0].onClick();
   assert.deepEqual(asked.at(-1), { personId: "hana", mode: "propose", dealId: null });
+  // Someone who passed before and came back for a consultation: a new proposal, as dragging their card asks, never
+  // the old passed deal's Propose again.
+  const now = Date.now();
+  await fresh({
+    people: [
+      ...peopleNow(),
+      personRow(now, "bea", "Bea", {
+        ...deal(now, "lost", { proposed: 40, decided: 30, reason: "timing" }),
+        visits: visits(null, visit(now - 2 * DAY)),
+      }),
+    ],
+  });
+  items = menuOf(draw(), "bea").props.items;
+  assert.equal(items[0].label, DEAL_ACT_WORDS.propose);
+  items[0].onClick();
+  assert.deepEqual(asked.at(-1), { personId: "bea", mode: "propose", dealId: null });
   // A viewer keeps the door and sees no act it may not press.
   globalThis.window.__ME = { role: "viewer" };
   try {
@@ -2343,19 +2414,17 @@ test("a row's menu: the deal's own acts where the member may record one, then th
   }
 });
 
-test("a selection: People's bar leads with Mark as passed · N; why is asked once, each proposal is recorded in turn with its person's version, what it came to is said, and the refused stay selected", async () => {
+test("a selection: People's bar leads with Mark as passed · N; why is asked once, the bridge records them, what it came to is said once, and only those who passed leave the selection", async () => {
   await fresh();
   const flashes = [];
   const keepToast = globalThis.window.usePPToast;
-  const keepPeek = globalThis.window.__peekPerson;
-  const keepRecord = globalThis.window.__recordDeal;
+  const keepPass = globalThis.window.__passDeals;
   globalThis.window.usePPToast = () => [null, (f) => flashes.push(f)];
   const dealOfRow = (id) => globalThis.window.__PEOPLE.rows.find((r) => r.id === id).deal;
-  globalThis.window.__peekPerson = (id) => ({ id, deals: [{ id: dealOfRow(id).id, version: 3 }] });
-  const recorded = [];
-  globalThis.window.__recordDeal = async (id, body, opts) => {
-    recorded.push({ id, body, opts });
-    return id === "nia" ? { ok: false, code: "validation", message: "This deal moved." } : { ok: true, data: {} };
+  const asked = [];
+  globalThis.window.__passDeals = async (items, reason) => {
+    asked.push({ items, reason });
+    return { passed: ["wes"], changed: ["nia"], failed: [] };
   };
   try {
     let tree = draw();
@@ -2366,41 +2435,49 @@ test("a selection: People's bar leads with Mark as passed · N; why is asked onc
     const bar = byTestId(tree, "bulk-bar");
     assert.ok(bar, "People's own bar");
     assert.equal(textOf(byTestId(bar, "pipe-pass-open")).trim(), "Mark as passed · 2", "a client does not pass");
-    assert.equal(byTestId(bar, "bulk-note"), null, "of People's acts, the Pipeline keeps its lists and its export");
     click(byTestId(bar, "pipe-pass-open"));
     tree = draw();
     const ask = byTestId(tree, "pipe-pass");
+    assert.equal(ask.props["aria-labelledby"], "pipe-pass-ask", "the question names itself once");
     assert.equal(textOf(byTestId(ask, "pipe-pass-rest")), "1 is not a proposal out and stays as it is");
     assert.equal(byTestId(ask, "pipe-pass-go").props.disabled, true, "why comes first");
-    find(ask, (n) => n.type === globalThis.window.RecordToggleGroup).props.onChange("price");
+    // Esc in the question cancels the question, not the selection.
+    let prevented = false;
+    ask.props.onKeyDown({
+      key: "Escape",
+      preventDefault() {
+        prevented = true;
+      },
+    });
+    tree = draw();
+    assert.deepEqual([prevented, byTestId(tree, "pipe-pass"), !!byTestId(tree, "bulk-bar")], [true, null, true]);
+    click(byTestId(tree, "pipe-pass-open"));
+    tree = draw();
+    find(byTestId(tree, "pipe-pass"), (n) => n.type === globalThis.window.RecordToggleGroup).props.onChange("price");
     tree = draw();
     await byTestId(tree, "pipe-pass-go").props.onClick();
-    assert.deepEqual(
-      recorded.map((r) => [r.id, r.body, r.opts]),
-      [
-        ["wes", { stage: "lost", deal_id: dealOfRow("wes").id, version: 3, lost_reason: "price" }, { refresh: false }],
-        [
-          "nia",
-          { stage: "lost", deal_id: dealOfRow("nia").id, version: 3, lost_reason: "price" },
-          { refresh: "behind" },
+    assert.deepEqual(asked, [
+      {
+        items: [
+          { personId: "wes", dealId: dealOfRow("wes").id },
+          { personId: "nia", dealId: dealOfRow("nia").id },
         ],
-      ],
-      "one at a time, and People read again once, behind the last",
-    );
+        reason: "price",
+      },
+    ]);
     assert.deepEqual(flashes.at(-1), {
       tone: "warn",
       msg: "1 marked as passed · 1 had changed, and was left as it is",
     });
     tree = draw();
     assert.deepEqual(
-      [...find(tree, (n) => n.type === globalThis.window.PeopleTable).props.sel],
-      ["nia"],
-      "the one the door would not take stays selected",
+      [...find(tree, (n) => n.type === globalThis.window.PeopleTable).props.sel].sort(),
+      ["cat", "nia"],
+      "only Wes, who passed, leaves the selection: the one that had changed, and the client, stay picked",
     );
   } finally {
     globalThis.window.usePPToast = keepToast;
-    globalThis.window.__peekPerson = keepPeek;
-    globalThis.window.__recordDeal = keepRecord;
+    globalThis.window.__passDeals = keepPass;
   }
 });
 
@@ -2544,5 +2621,114 @@ test("on the board a card wears its steps and a Move to menu of the columns it m
     );
   } finally {
     globalThis.window.__ME = { role: "owner" };
+  }
+});
+
+test("the bridge's pass reads each person afresh, records only a deal still a proposal out, tells a change from a failure, and reads People again once after the last whatever it answered", async () => {
+  await fresh();
+  const { passDeals } = await import("../../../apps/dashboard/src/legacy-bridge/people-detail.ts");
+  const { startSurfaces } = await import("../../../apps/dashboard/src/legacy-bridge/surface-runner.ts");
+  const now = Date.now();
+  const dealDto = (id, contact, stage, version) => ({
+    id,
+    contact_id: contact,
+    service: "Color correction",
+    stage,
+    proposed_at: iso(now - 9 * DAY),
+    decided_at: stage === "proposed" ? null : iso(now - DAY),
+    ended_at: null,
+    amount_cents: 120_000,
+    per: "once",
+    currency: "USD",
+    note: null,
+    version,
+    created_at: iso(now - 9 * DAY),
+    proposal_url: null,
+    valid_until: null,
+    lost_reason: null,
+  });
+  // As the person read answers: Ann still a proposal out, Bo a client since the rows were drawn, Cy's deal moved by a
+  // teammate (the door refuses it), Di's read fails, Ed's write fails another way.
+  const people = {
+    ann: dealDto("d-ann", "ann", "proposed", 4),
+    bo: dealDto("d-bo", "bo", "won", 7),
+    cy: dealDto("d-cy", "cy", "proposed", 2),
+    di: null,
+    ed: dealDto("d-ed", "ed", "proposed", 5),
+  };
+  const detail = (id) => ({
+    row: personRow(now, id, id.toUpperCase(), {}),
+    identities: [],
+    conversations: [],
+    calls: [],
+    escalations: [],
+    decisions: [],
+    receptionist_mode: null,
+    workspace_reply_mode: "auto",
+    deals: people[id] ? [people[id]] : [],
+    deals_on: true,
+    services: ["Color correction"],
+  });
+  const old = globalThis.window.fetch;
+  const asked = [];
+  globalThis.window.fetch = async (url, init = {}) => {
+    const u = new URL(String(url), "https://app.chanlytics.com");
+    const method = init.method || "GET";
+    asked.push(`${method} ${u.pathname}`);
+    const one = u.pathname.match(/^\/api\/v1\/contacts\/([^/]+)$/);
+    if (one && method === "GET") {
+      if (one[1] === "di") return json(503, { ok: false, error: { code: "unavailable", message: "down" } });
+      return json(200, { ok: true, data: { person: detail(one[1]) } });
+    }
+    const write = u.pathname.match(/^\/api\/v1\/contacts\/([^/]+)\/deal$/);
+    if (write && method === "POST") {
+      const body = JSON.parse(init.body);
+      if (write[1] === "cy")
+        return json(400, { ok: false, error: { code: "validation", message: DEAL_REFUSALS.moved } });
+      if (write[1] === "ed") return json(403, { ok: false, error: { code: "forbidden", message: "No." } });
+      const d = { ...people[write[1]], stage: "lost", version: body.version + 1, lost_reason: body.lost_reason };
+      return json(200, { ok: true, data: { deal: d, from: "proposed", decision_id: "dec", current: d } });
+    }
+    // The one re-read after the pass (People's list, then Reports): answered, since the pass waits for it.
+    return json(404, { ok: false, error: { code: "not_found", message: `no ${u.pathname}` } });
+  };
+  const stop = startSurfaces([], () => () => {});
+  try {
+    const out = await passDeals(
+      ["ann", "bo", "cy", "di", "ed"].map((id) => ({ personId: id, dealId: `d-${id}` })),
+      "price",
+    );
+    assert.deepEqual(out, { passed: ["ann"], changed: ["bo", "cy"], failed: ["di", "ed"] });
+    const posts = asked.filter((a) => a.startsWith("POST"));
+    assert.deepEqual(
+      posts,
+      ["POST /api/v1/contacts/ann/deal", "POST /api/v1/contacts/cy/deal", "POST /api/v1/contacts/ed/deal"],
+      "Bo became a client since: nothing is written over him; Di could not be read: nothing is sent for her",
+    );
+    assert.equal(
+      asked.filter((a) => a === "GET /api/v1/contacts").length,
+      1,
+      "People is read again once, after the last, though the last was refused",
+    );
+  } finally {
+    stop();
+    await new Promise((r) => setTimeout(r, 20));
+    globalThis.window.fetch = old;
+  }
+});
+
+test("the bridge publishes the deal kit the pages read, the card's next act with it", async () => {
+  const { installPeopleCourier } = await import("../../../apps/dashboard/src/legacy-bridge/people-detail.ts");
+  const keep = {};
+  const names = ["__deal", "__recordDeal", "__passDeals", "__personDetail", "__peekPerson", "__warmPerson"];
+  for (const k of names) keep[k] = globalThis.window[k];
+  try {
+    installPeopleCourier();
+    // The bridge's own contracts, by name: this file and the bridge load the package as two module instances.
+    assert.equal(globalThis.window.__deal.next.name, dealNextAct.name, "a phone's peek pins the card's own next act");
+    assert.equal(globalThis.window.__deal.menu.name, dealMenuActs.name);
+    assert.equal(typeof globalThis.window.__passDeals, "function");
+  } finally {
+    for (const k of names) globalThis.window[k] = keep[k];
   }
 });

@@ -196,7 +196,13 @@ page's acts), `styles/clients.css`; tests `pipeline.test.mjs`.
   left beside the peek, which holds two columns; the peek's card says the value).
 - [x] The board: each card's ⋯ has Move to… (the columns `pipelineMove` allows); a column shows twenty, then Show more.
 - [x] Tests for each; the look; the gate; the PR; merge.
-- [x] The review's one round (below, once it has run).
+- [x] The review's one round: the pass reads each person afresh and records only a deal still a proposal out (a
+  teammate's client was being passed), in the bridge (`passDeals`) with one re-read after the last whatever it
+  answered, fifty at a press, passed / changed / could not be marked, only the passed leaving the selection; no
+  Call for do-not-contact; `__deal.next` published; the chip column fixed (a wordless Columns row); a
+  consultation's row menu proposes; value sorts by what the row shows; the bar beside the peek; heads at
+  `--pl-head` above hovered pins; Move to shown on touch; the pass question's focus and Esc; Leads' stage sort
+  untouched.
 
 ---
 

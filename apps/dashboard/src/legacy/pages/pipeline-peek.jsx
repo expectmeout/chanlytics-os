@@ -37,10 +37,12 @@ const PipelinePeekReach = ({ rows }) => {
           <dd className="pipe-peek-reach-what">
             <span className={`pipe-peek-reach-words${r.id === "phone" ? " tabular" : ""}`}>{r.words}</span>
             {r.call ? <a className="cl-prof-deal-act" href={r.call} data-testid="pipeline-peek-call">{W.call}</a> : null}
-            {r.copy ? <button type="button" className="cl-prof-deal-act" onClick={() => copy(r)} data-testid={`pipeline-peek-copy-${r.id}`}>{copied === r.id ? W.copied : W.copy}</button> : null}
+            {r.copy ? <button type="button" className="cl-prof-deal-act" aria-label={r.id === "phone" ? W.copyPhone : W.copyEmail} onClick={() => copy(r)} data-testid={`pipeline-peek-copy-${r.id}`}>{copied === r.id ? W.copied : W.copy}</button> : null}
           </dd>
         </div>
       ))}
+      {/* A copy is said once to a screen reader too: the button's own words change where it was pressed. */}
+      <span className="rec-sr" role="status" aria-live="polite">{copied ? W.copied : ""}</span>
     </dl>
   );
 };
