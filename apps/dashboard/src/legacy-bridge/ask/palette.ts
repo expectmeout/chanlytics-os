@@ -71,7 +71,7 @@ export interface PaletteGlobals {
           "id" | "kind" | "conversationId" | "callId" | "who" | "channel" | "when" | "sentence" | "quoted" | "cta"
         >
       >;
-      /** How many people wait across the whole queue, past the six rows drawn. */
+      /** How many wait across the whole queue (the people and the searches), past the six rows drawn. */
       waiting?: number;
     };
   } | null;
@@ -156,7 +156,8 @@ export function waitingFrom(win: Window): AskWaiting | null {
     .map((r) => ({ id: r.id, name: r.who, question: r.sentence, to: r.cta.to }));
   return {
     people,
-    // The queue's waiting counts the searches too; its cap can hide one, so more never goes negative.
+    // The queue's waiting counts the searches too; one past its six rows is counted here as one more, since the
+    // queue does not say which kind it hid.
     more: Math.max(0, (queue.waiting ?? people.length) - people.length - searches.length),
     runs: (w.__BROADCASTS?.rows ?? [])
       .filter((r) => r.state === "pending_approval")

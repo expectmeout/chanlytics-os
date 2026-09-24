@@ -472,6 +472,11 @@ test("the Line at rest: Right now is Today's queue, then questions about the pag
       "1 needs you",
       "1 search waiting",
     ]);
+    assert.equal(
+      globalThis.window.askText("en").searchWaiting(2),
+      "2 searches waiting",
+      "the pill counts several the same way",
+    );
     assert.equal(textOf(byTestId(tree, "ask-row-brief")), "Brief me");
     assert.ok(textOf(tree).includes("Ask about Today"), "questions about the page, under its name");
     assert.equal(all(tree, (n) => n.props?.["data-testid"] === "ask-row-sug").length, 3, "three questions, as chips");

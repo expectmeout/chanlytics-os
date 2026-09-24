@@ -302,6 +302,9 @@ test("who needs me: the sentence, then the people, the searches and the runs as 
   assert.equal(a.show.items[2].source.kind, "page", "a search's door is a page, so the Inbox count never includes it");
   assert.equal(a.do.open, null, "each item is already a door");
   assert.equal(needsAnswer(waiting([], 1), "es").show.items[0].line, "1 persona", "a run's reach, in Spanish too");
+  const esSearch = needsAnswer(waiting([], 0, 0, [SEARCH]), "es");
+  assert.equal(esSearch.say.headline, "Tu búsqueda de personal trainers espera tu respuesta.");
+  assert.equal(esSearch.show.items[0].meta, "Leads", "a search's door says where it lives, in either language");
   const many = needsAnswer(waiting(["A", "B", "C", "D", "E", "F"], 0, 3), "en");
   assert.equal(many.show.items.length, ASK_ANSWER_CAPS.items);
   assert.deepEqual(
