@@ -21,6 +21,7 @@ import {
   RULES_WITHOUT_FIELDS_WORDS,
   PROFILE_CROSSING_WORDS,
   FALLBACK_DEFAULTS,
+  EARLIER_FALLBACK_DEFAULTS,
   newReceptionistDefaults,
   hasProfile,
   GUARDRAIL_KEYS,
@@ -1415,4 +1416,13 @@ test("the services sheet opened and closed beside this card, every fold of it ke
   press(langOptions(tree)[0]);
   tree = redrawTab();
   assert.deepEqual(tokensOf(tree), ["English", "Spanish", "French"]);
+});
+
+test("a message in the product's earlier wording is the product's: no default wording is offered back for it", () => {
+  let tree = drawTab({ brain: { fallbacks: { ...EARLIER_FALLBACK_DEFAULTS } } });
+  assert.match(textOf(byTestId(tree, "rec-row-fallbacks")), /3 messages, the product's wording/);
+  openFold(tree, "fallbacks");
+  tree = redrawTab();
+  for (const key of ["greeting", "error", "non_text"])
+    assert.equal(byTestId(tree, `rec-fallback-${key}-default`), null, key);
 });

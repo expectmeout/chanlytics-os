@@ -24,6 +24,7 @@ import {
   NO_FIELDS_COMPOSED_WORDS,
   type GuardrailsInForce,
   INSTRUCTIONS_MAX,
+  isProductFallback,
   MAX_CLOSURES,
   MAX_INTERVALS_PER_DAY,
   POLICY_MODES,
@@ -975,7 +976,7 @@ export function fallbacksWords(
   const f = fallbacks && typeof fallbacks === "object" ? fallbacks : {};
   const differ = keys.filter((k) => {
     const t = typeof f[k] === "string" ? (f[k] as string).trim() : "";
-    return t !== "" && t !== FALLBACK_DEFAULTS[k];
+    return t !== "" && !isProductFallback(k, t);
   }).length;
   return { line: `${count(keys.length)} messages, ${differ ? "in your words" : "the product's wording"}` };
 }

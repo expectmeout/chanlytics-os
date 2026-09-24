@@ -476,7 +476,7 @@ const BtaFallbacks = ({ draft, update, press, problems, readOnly, brain }) => {
                 {written === "link" ? <>Your booking link is written out here — {"{booking link}"} keeps it current.</> : <>A number is written out here — {"{phone}"} gives the one you publish.</>}
               </span>
             ) : null}
-            {defaults[key] !== undefined && text !== defaults[key] ? (
+            {defaults[key] !== undefined && !window.__businessTab.isProductFallback(key, text) ? (
               <button
                 type="button" className="btn btn-ghost btn-sm bt-fallback-default"
                 aria-describedby={`bt-fallback-${key}-label`}

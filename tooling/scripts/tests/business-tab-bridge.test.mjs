@@ -176,6 +176,7 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     "hasProfile",
     "hoursZoneWords",
     "instructionsWords",
+    "isProductFallback",
     "needsConsultation",
     "notesWords",
     "openWeekWords",

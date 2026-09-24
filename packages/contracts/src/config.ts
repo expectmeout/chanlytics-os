@@ -1681,15 +1681,44 @@ export type FallbackDetail = (typeof FALLBACK_DETAILS)[number];
  * The product's own wording for the three messages, naming the details rather
  * than copying them, so they follow the business's details from the first day
  * and a customer is never sent "call us at ." before a line exists.
+ *
+ * Each sentence stands without the one naming the link, which a business that
+ * quotes does not have (the first run's decision 2): fillDetails leaves out a
+ * sentence naming a detail the workspace lacks, and what is left must still be
+ * a whole message.
  */
 export const FALLBACK_DEFAULTS: BrainConfig["fallbacks"] = {
+  greeting:
+    "Hi! Thanks for reaching out to {business}.\n\nBook anytime: {booking link}\n\nReply here with any question.",
+  error:
+    "Thanks for reaching out to {business}! A member of our team will reply here soon. Book anytime: {booking link}",
+  non_text:
+    "Thanks for your message! A member of our team will take a look and reply here soon. For anything urgent, call us at {phone}.",
+};
+
+/**
+ * The product's wording before 24 Sep 2026, still the product's. Two of its
+ * sentences leaned on the one naming the link ("Or reply here", "— or a member
+ * of our team will reply"), so with no link they read as half a message.
+ * Workspaces set up with it keep it, since a stored message is theirs to change:
+ * it is never said to be their own words, or offered the default wording back.
+ */
+export const EARLIER_FALLBACK_DEFAULTS: BrainConfig["fallbacks"] = {
   greeting:
     "Hi! Thanks for reaching out to {business}.\n\nBook anytime: {booking link}\n\nOr reply here with any question.",
   error:
     "Thanks for reaching out to {business}! Book anytime: {booking link} — or a member of our team will reply here soon.",
-  non_text:
-    "Thanks for your message! A member of our team will take a look and reply here soon. For anything urgent, call us at {phone}.",
+  non_text: FALLBACK_DEFAULTS.non_text,
 };
+
+/**
+ * Whether a message is in the product's wording, today's or the earlier one: the one test the Business tab's line
+ * (business-tab.ts fallbacksWords) and each message's "Use the default wording" ask.
+ */
+export function isProductFallback(key: keyof BrainConfig["fallbacks"], text: string | null | undefined): boolean {
+  const t = typeof text === "string" ? text.trim() : "";
+  return t === FALLBACK_DEFAULTS[key] || t === EARLIER_FALLBACK_DEFAULTS[key];
+}
 
 const DETAIL = /\{\s*(business|booking\s+link|phone)\s*\}/gi;
 const namesADetail = (text: string) => /\{\s*(business|booking\s+link|phone)\s*\}/i.test(text);

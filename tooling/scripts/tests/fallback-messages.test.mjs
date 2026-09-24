@@ -9,7 +9,14 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fallbackMessages, formatPhoneDisplay } from "@chanlytics/contracts";
+import {
+  EARLIER_FALLBACK_DEFAULTS,
+  FALLBACK_DEFAULTS,
+  fallbackMessages,
+  fallbacksWords,
+  formatPhoneDisplay,
+  isProductFallback,
+} from "@chanlytics/contracts";
 
 const LINE = "+13055550123";
 const brain = (fallbacks, over = {}) => ({
@@ -88,5 +95,35 @@ test("a message that would leave nothing to send says the default instead", () =
     out.non_text,
     "Thanks for your message! A member of our team will take a look and reply here soon.",
     "a customer is never sent nothing, and never a name",
+  );
+});
+
+test("the product's wording reads right with no booking link and offers the link where there is one; the wording a workspace was set up with before is still the product's", () => {
+  const quotes = {
+    business_name: "Harbor Moving",
+    system_prompt: "Answer as the front desk of Harbor Moving, which quotes each move before it is booked.",
+    fallbacks: { ...FALLBACK_DEFAULTS },
+  };
+  const none = fallbackMessages(quotes, null);
+  assert.equal(none.greeting, "Hi! Thanks for reaching out to Harbor Moving.\n\nReply here with any question.");
+  assert.equal(none.error, "Thanks for reaching out to Harbor Moving! A member of our team will reply here soon.");
+  const linked = fallbackMessages({ ...quotes, booking_link: "https://book.example/harbor" }, null);
+  assert.equal(
+    linked.greeting,
+    "Hi! Thanks for reaching out to Harbor Moving.\n\nBook anytime: https://book.example/harbor\n\nReply here with any question.",
+  );
+  assert.equal(
+    linked.error,
+    "Thanks for reaching out to Harbor Moving! A member of our team will reply here soon. Book anytime: https://book.example/harbor",
+  );
+  for (const key of ["greeting", "error", "non_text"]) {
+    assert.equal(isProductFallback(key, FALLBACK_DEFAULTS[key]), true, key);
+    assert.equal(isProductFallback(key, EARLIER_FALLBACK_DEFAULTS[key]), true, `the earlier wording (${key})`);
+    assert.equal(isProductFallback(key, "Thanks! We'll be in touch."), false, key);
+  }
+  assert.equal(
+    fallbacksWords({ ...EARLIER_FALLBACK_DEFAULTS }).line,
+    "3 messages, the product's wording",
+    "never told it wrote its own",
   );
 });
