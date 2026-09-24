@@ -444,7 +444,11 @@ test("copying a day says what it opened and what it overwrote, and puts it all b
     (n) => n.type === "button" && n.props["aria-haspopup"] === "menu",
   );
   assert.match(textOf(trigger), /^Copy Monday to…/);
-  assert.equal(all(tree, (n) => n.type === "button" && n.props["aria-haspopup"] === "menu").length, 1);
+  // One in the week: the voice's starting points are a menu of their own, in their own fold (23 Sep).
+  assert.equal(
+    all(byTestId(tree, "rec-fold-hours"), (n) => n.type === "button" && n.props["aria-haspopup"] === "menu").length,
+    1,
+  );
   tree = copyTo(tree, flash, "Every day");
 
   const said = flashes.at(-1);

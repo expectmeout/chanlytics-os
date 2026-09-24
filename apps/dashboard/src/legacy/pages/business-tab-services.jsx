@@ -166,7 +166,7 @@ const BtsServicesSheet = ({ brain, canEdit, flash, saver }) => {
             {consult ? <span id={consult} className="bt-service-consult" data-testid={`rec-service-consult-${i}`}>consult first</span> : null}
           </span>
           <window.RecordBox
-            id={`svc-${i}-minutes`} label={`Service ${n} takes, in minutes`} size="sm" unit="min" inputMode="numeric" placeholder="45"
+            id={`svc-${i}-minutes`} label={`Service ${n} takes (min)`} size="sm" inputMode="numeric" placeholder="45"
             value={x.duration_min == null ? "" : String(x.duration_min)} onChange={(v) => setSvc(i, "duration_min", v)}
             problem={said(`service-${i}-duration_min`)} readOnly={f.readOnly}
           />
@@ -194,7 +194,7 @@ const BtsServicesSheet = ({ brain, canEdit, flash, saver }) => {
         <span className="rec-sr" role="status" aria-live="polite" data-testid="rec-services-found">{found}</span>
         {list.length > 0 ? (
           <div className="bt-service-row bt-service-head" aria-hidden="true">
-            <span>Service</span><span>Takes</span><span>Price</span><span />
+            <span>Service</span><span>Takes (min)</span><span>Price</span><span />
           </div>
         ) : null}
         {drawn}
@@ -203,24 +203,20 @@ const BtsServicesSheet = ({ brain, canEdit, flash, saver }) => {
     );
   };
 
-  // What it will be told, in contracts' words: how many services the save writes, their block's share of the prompt
-  // (willSay's chars, over the whole prompt the draft would give it on WhatsApp, willSay's total: both after the save;
-  // the stored prompt's length put a block after the save over a prompt before it, and a large edit skewed the share),
-  // and, where the save crosses the resolver's line, the sentence for it. The list's own refusal (too many) is said here
-  // too, by the Save it stops.
+  // Only what an owner must know, over the Save: that a list with nothing in it composes nothing (contracts'
+  // servicesToldWords at zero), and, where the save crosses the resolver's line, the sentence for it. The count of
+  // services, their characters and their share of the prompt went with the "It will be told" eyebrow (23 Sep): a foot
+  // that said "33 services, 1,085 characters" under thirty-three rows was the clutter it counted, and the Save says how
+  // many it writes. The list's own refusal (too many) is said here too, by the Save it stops.
   const told = (f) => {
-    const words = tab.servicesToldWords
-      ? tab.servicesToldWords({ count: written(f.draft), chars: f.will ? f.will.chars : null, total: f.will ? f.will.total : null })
+    const count = written(f.draft);
+    const words = count === 0 && tab.servicesToldWords
+      ? tab.servicesToldWords({ count, chars: f.will ? f.will.chars : null, total: f.will ? f.will.total : null })
       : null;
     return (
       <div className="bt-services-told" data-testid="rec-sheet-services-told">
         {f.will && f.will.note ? <p className="bt-services-note" data-testid="rec-sheet-services-note">{f.will.note}</p> : null}
-        {words ? (
-          <p className="bt-services-told-line">
-            <span className="bt-services-told-key">It will be told</span>
-            <span data-testid="rec-sheet-services-told-words">{words}</span>
-          </p>
-        ) : null}
+        {words ? <p className="bt-services-told-line" data-testid="rec-sheet-services-told-words">{words}</p> : null}
         <window.FieldError id="bt-services-problem" message={f.problems.services || null} testid="rec-services-problem" />
       </div>
     );

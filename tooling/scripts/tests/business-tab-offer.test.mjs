@@ -8,7 +8,6 @@ import assert from "node:assert/strict";
 import {
   standingLine,
   servicesWords,
-  servicesToldWords,
   bookingRulesWords,
   BOOKING_RULE_HINTS,
   roleGate,
@@ -628,14 +627,14 @@ test("the sheet is the canvas's: its head, a search and Add, three columns, a co
     "Search services",
   );
   assert.match(textOf(byTestId(tree, "rec-services-add")), /Add/);
-  assert.equal(textOf(find(sheet, (n) => classes(n).includes("bt-service-head"))), "ServiceTakesPrice");
+  assert.equal(textOf(find(sheet, (n) => classes(n).includes("bt-service-head"))), "ServiceTakes (min)Price");
   // Each row is three boxes and a remove, each box named for its row.
   const third = rowsOf(tree)[2];
   assert.deepEqual(
     all(third, (n) => n.type === "input").map((n) => [n.props.id, n.props["aria-label"]]),
     [
       ["svc-2-name", "Service 3 name"],
-      ["svc-2-minutes", "Service 3 takes, in minutes"],
+      ["svc-2-minutes", "Service 3 takes (min)"],
       ["svc-2-price", "Service 3 price"],
     ],
   );
@@ -647,56 +646,28 @@ test("the sheet is the canvas's: its head, a search and Add, three columns, a co
   // The foot.
   assert.equal(textOf(byTestId(tree, "rec-sheet-save-services")), "Save 33 services");
   assert.match(textOf(find(sheet, (n) => classes(n).includes("rec-sheet-foot"))), /Removing one offers an undo\./);
-  assert.match(textOf(byTestId(tree, "rec-sheet-services-told")), /^It will be told/);
+  // With services in it the foot counts nothing (23 Sep: the count and its share went; the Save says how many).
+  assert.equal(byTestId(tree, "rec-sheet-services-told-words"), null);
 });
 
-test("the foot's count, characters and share are the services block's, over everything it reads", () => {
+test("the foot says only what an owner must know: the Save counts what it writes, and nothing counts the characters", () => {
+  // The count, the characters and the share of the prompt went from the foot on 23 Sep ("33 services, 1,085 characters
+  // — about a fifth of everything it reads" under thirty-three rows was the clutter it counted). What is left is the
+  // Save, which says how many it writes, and the one sentence for a list with nothing in it (the empty record's test).
   let tree = drawTab({ profile: many });
   tree = openSheet(tree);
-  const words = () => textOf(byTestId(tree, "rec-sheet-services-told-words"));
-  const block = (brain) => W.__businessTab.consequenceOf("services", brain, "whatsapp");
-  const total = W.__SETTINGS.prompt.whatsapp.length;
-  const stored = block(W.__SETTINGS.config.brain);
-  assert.equal(words(), servicesToldWords({ count: 33, chars: stored.chars, total }));
-  assert.match(words(), /^33 services, [\d,]+ characters — (about )?[a-z ]+ of everything it reads\.$/);
-  // Taken out, the count and the characters follow the draft, from the block the save would write.
+  const words = () => byTestId(tree, "rec-sheet-services-told-words");
+  assert.equal(words(), null, "nothing is counted on the glass");
+  assert.equal(textOf(byTestId(tree, "rec-sheet-save-services")), "Save 33 services");
   press(byTestId(tree, "rec-service-remove-0"));
   tree = redrawTab();
-  const S = W.__businessTabSave;
-  const draftOf = () => S.saveFold("services", S.saver.base(), S.draftOf("services", S.saver.base()).slice(1)).brain;
-  const next = draftOf();
-  // Over the whole prompt the draft would give it (the bridge resolves it with the block), never the stored one.
-  assert.equal(words(), servicesToldWords({ count: 32, chars: block(next).chars, total: block(next).total }));
-  assert.ok(block(next).chars < stored.chars);
-  assert.equal(
-    block(next).total,
-    composePromptPreview(next, {
-      tz: W.__SETTINGS.prompt.tz,
-      policy: {},
-      known: W.__SETTINGS.prompt.inputs.known,
-      openings: null,
-    }).whatsapp.length,
-    "the draft's own prompt",
-  );
+  assert.equal(words(), null);
   assert.equal(textOf(byTestId(tree, "rec-sheet-save-services")), "Save 32 services");
   // A row nobody named is not one the save writes, so it is not counted.
   press(byTestId(tree, "rec-services-add"));
   tree = redrawTab();
   assert.equal(textOf(byTestId(tree, "rec-sheet-save-services")), "Save 32 services");
-
-  // A large edit: fifty of sixty taken out. The block is after the save, and so is the prompt it is a share of: over the
-  // stored prompt, the share was of a prompt that no longer exists.
-  tree = openSheet(drawTab({ profile: full }));
-  const before = W.__SETTINGS.prompt.whatsapp.length;
-  for (let n = 0; n < 50; n += 1) {
-    press(byTestId(tree, "rec-service-remove-0"));
-    tree = redrawTab();
-  }
-  const kept = S.saveFold("services", S.saver.base(), S.draftOf("services", S.saver.base()).slice(50)).brain;
-  const right = servicesToldWords({ count: 10, chars: block(kept).chars, total: block(kept).total });
-  const skewed = servicesToldWords({ count: 10, chars: block(kept).chars, total: before });
-  assert.equal(words(), right);
-  assert.notEqual(right, skewed, "the fixture is one where the two denominators say different things");
+  assert.equal(words(), null, "a row with no name is not 'no services'");
 });
 
 test("the search reads names only, and never reorders: what it leaves out is hidden in place", () => {
@@ -851,7 +822,7 @@ test("a save sends the stored config with the services changed, and nothing else
   let tree = drawTab({ profile: many, flash });
   const stored = structuredClone(W.__SETTINGS.config);
   tree = openSheet(tree, flash);
-  typeAt(tree, "Service 3 takes, in minutes", "75");
+  typeAt(tree, "Service 3 takes (min)", "75");
   tree = redrawTab(flash);
   typeAt(tree, "Service 3 price", "  from a consult  ");
   tree = redrawTab(flash);
@@ -877,9 +848,9 @@ test("an unchanged Save sends nothing and closes, and so does one typed and type
   tree = redrawTab();
   assert.deepEqual([sent.length, sheetOf(tree)], [0, null]);
   tree = openSheet(tree);
-  typeAt(tree, "Service 3 takes, in minutes", "75");
+  typeAt(tree, "Service 3 takes (min)", "75");
   tree = redrawTab();
-  typeAt(tree, "Service 3 takes, in minutes", "32");
+  typeAt(tree, "Service 3 takes (min)", "32");
   tree = redrawTab();
   saveSheet(tree);
   tree = redrawTab();
@@ -890,7 +861,7 @@ test("what stops a save is said under its box, and nothing is sent", () => {
   const sent = saving();
   let tree = drawTab({ profile: many });
   tree = openSheet(tree);
-  typeAt(tree, "Service 2 takes, in minutes", "1.5");
+  typeAt(tree, "Service 2 takes (min)", "1.5");
   tree = redrawTab();
   typeAt(tree, "Service 4 name", "x".repeat(81));
   tree = redrawTab();
@@ -900,9 +871,9 @@ test("what stops a save is said under its box, and nothing is sent", () => {
   assert.ok(sheetOf(tree), "the sheet stays open with what was typed");
   assert.equal(problemOf(tree, "svc-1-minutes"), "Minutes are a whole number, like 45.");
   assert.equal(problemOf(tree, "svc-3-name"), "At most 80 characters — this is 81.");
-  assert.equal(labelled(tree, "Service 2 takes, in minutes").props["aria-invalid"], true);
+  assert.equal(labelled(tree, "Service 2 takes (min)").props["aria-invalid"], true);
   // Put right, its sentence goes with the change, and the save goes.
-  typeAt(tree, "Service 2 takes, in minutes", "15");
+  typeAt(tree, "Service 2 takes (min)", "15");
   tree = redrawTab();
   assert.equal(problemOf(tree, "svc-1-minutes"), null);
   typeAt(tree, "Service 4 name", "Service 4");
@@ -925,7 +896,7 @@ test("while the sheet saves its boxes take nothing, and a press that would add o
   const flash = (f) => flashes.push(f);
   let tree = drawTab({ profile: many, flash });
   tree = openSheet(tree, flash);
-  typeAt(tree, "Service 1 takes, in minutes", "40");
+  typeAt(tree, "Service 1 takes (min)", "40");
   tree = redrawTab(flash);
   saveSheet(tree);
   tree = redrawTab(flash);
@@ -954,12 +925,12 @@ test("while the sheet saves its boxes take nothing, and a press that would add o
     ],
   );
   const before = flashes.length;
-  typeAt(tree, "Service 1 takes, in minutes", "41");
+  typeAt(tree, "Service 1 takes (min)", "41");
   press(byTestId(tree, "rec-service-remove-0"));
   press(byTestId(tree, "rec-services-add"));
   tree = redrawTab(flash);
   assert.deepEqual(
-    [labelled(tree, "Service 1 takes, in minutes").props.value, rowsOf(tree).length, flashes.slice(before)],
+    [labelled(tree, "Service 1 takes (min)").props.value, rowsOf(tree).length, flashes.slice(before)],
     ["40", 33, []],
     "nothing typed or pressed under Saving… is held, or said",
   );
@@ -1649,10 +1620,14 @@ test("every box of What you offer is named by the words on screen beside it, so 
   )
     .map(textOf)
     .filter(Boolean);
-  assert.deepEqual(head, ["Service", "Takes", "Price"]);
+  assert.deepEqual(head, ["Service", "Takes (min)", "Price"]);
   const boxes = all(rowsOf(tree)[1], (n) => n.type === "input");
   boxes.forEach((box, i) =>
-    assert.match(heard(tree, box), new RegExp(head[i], "i"), `${heard(tree, box)} holds ${head[i]}`),
+    assert.match(
+      heard(tree, box),
+      new RegExp(head[i].replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"),
+      `${heard(tree, box)} holds ${head[i]}`,
+    ),
   );
   assert.match(heard(tree, boxes[1]), /min/, "and the minutes box its unit, min, as it is on screen");
 });
@@ -1660,9 +1635,9 @@ test("every box of What you offer is named by the words on screen beside it, so 
 test("Ctrl or Cmd with Enter saves the sheet, as it saves a fold", () => {
   const sent = saving();
   let tree = openSheet(drawTab({ profile: many }));
-  typeAt(tree, "Service 3 takes, in minutes", "75");
+  typeAt(tree, "Service 3 takes (min)", "75");
   tree = redrawTab();
-  const box = labelled(tree, "Service 3 takes, in minutes");
+  const box = labelled(tree, "Service 3 takes (min)");
   find(sheetOf(tree), (n) => classes(n).includes("rec-sheet")).props.onKeyDown({
     key: "Enter",
     ctrlKey: true,
