@@ -463,14 +463,24 @@
 /* The service picker takes the room its choice needs and no more: it narrows the board's open times to the ones a
    service fits, and the board is where that shows. */
 .cal-service { max-width: 180px; }
-/* The hours, the rules and the calendar's source, under the foot's toggle: a label and what it says, row by row. */
-.cal-rules { display: grid; grid-template-columns: max-content minmax(0, 1fr); align-items: baseline; gap: var(--space-2) var(--space-5); font-size: var(--text-sm); color: var(--ink-muted); }
-.cal-rules-group { display: contents; }
+/* The hours, the rules and the calendar's source, under the foot's toggle: one sheet of terms, each label over what it
+   says and each value on lines of its own. The terms stand side by side as columns, four across a desk and two to a
+   row on a phone, and the booking link's doors close the sheet under a hairline. */
+.cal-rules { display: flex; flex-direction: column; gap: var(--space-4); margin-top: var(--space-3); padding-top: var(--space-4); border-top: 1px solid var(--line); }
+.cal-rules-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--space-4) var(--space-6); margin: 0; }
+.cal-rules-group { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .cal-rules-label { font-size: var(--text-xs); color: var(--ink-faint); white-space: nowrap; }
-.cal-rules-value { min-width: 0; }
-.cal-rules-feed { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); }
-.cal-rules-feed .cal-feed-chip { flex-wrap: wrap; white-space: normal; font-size: inherit; }
-.cal-rules-links { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-4); padding-top: var(--space-1); color: var(--ink-dim); }
+.cal-rules-value { min-width: 0; margin: 0; font-size: var(--text-sm); line-height: 1.5; color: var(--ink); }
+.cal-rules-line { display: block; }
+.cal-rules-more { color: var(--ink-dim); }
+.cal-rules .cal-rule-parts { display: flex; flex-direction: column; }
+.cal-rules .cal-rule + .cal-rule::before { content: none; }
+.cal-rules-feed { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.cal-rules-feed .cal-feed-chip { flex-wrap: wrap; white-space: normal; }
+.cal-rules-links { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-4); padding-top: var(--space-3); border-top: 1px solid var(--line); }
+.cal-about-note { font-size: var(--text-xs); color: var(--ink-dim); }
+.cal-rules-doors { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-5); }
+.cal-rules-doors .cl-bucket-link { gap: 5px; font-size: var(--text-xs); }
 .cal-month { display: flex; flex-direction: column; margin: 0 var(--cal-gutter, 28px) 12px; border: 1px solid var(--line); border-radius: var(--radius-md); overflow: hidden; background: var(--bg-raised); }
 .cal-month-head { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); background: var(--bg-sunken); border-bottom: 1px solid var(--line); }
 .cal-month-head span { padding: 6px 10px; font-size: 10px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-dim); }
@@ -531,7 +541,16 @@
 .cal-month-cell.unread { background: var(--bg-sunken); }
 
 /* ---- The owner's Refresh, and a read on its way said in words (C2) ---- */
-.cal-refresh { white-space: nowrap; }
+/* A button that looks like one: the outline one, small, with its glyph. It was a ghost button beside the state and read
+   as one more word. */
+.cal-refresh { gap: 6px; white-space: nowrap; }
+/* On a touch screen it keeps its size and a thumb's reach past it: the 44px floor on every button made it a box as
+   tall as the four lines beside it. */
+@media (pointer: coarse) {
+  /* One class past the shell's touch floor (legacy.css html.legacy-on .btn), which loads after this sheet. */
+  html.legacy-on .cal-rules .cal-refresh { position: relative; min-height: 0; height: 30px; }
+  .cal-refresh::after { content: ""; position: absolute; inset: -7px -4px; }
+}
 .cal-reading { margin: 0 var(--cal-gutter, 28px) 12px; font-size: 11.5px; color: var(--ink-dim); }
 
 /* ---- The calendar first ----
@@ -564,14 +583,21 @@
 .cal-views { flex: none; }
 .cal-views .cl-tab { justify-content: center; padding: 4px 12px; font-size: 12px; }
 /* The foot: the legend and the toggle on one line, and what the toggle shows under them. */
-.cal-foot { display: flex; flex-direction: column; gap: var(--space-3); flex-shrink: 0; padding: var(--space-2) var(--cal-gutter) var(--space-3); border-top: 1px solid var(--line); }
+.cal-foot { display: flex; flex-direction: column; flex-shrink: 0; padding: var(--space-2) var(--cal-gutter) var(--space-3); border-top: 1px solid var(--line); }
 .cal-foot-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); }
 .cal-about-toggle { flex: none; gap: var(--space-1); margin-left: auto; color: var(--ink-muted); }
 .cal-about-toggle .icon { transition: transform 160ms var(--ease-out); }
 .cal-about-toggle[aria-expanded="true"] .icon { transform: rotate(180deg); }
-.cal-about { padding-top: var(--space-3); border-top: 1px solid var(--line); }
-.cal-about[hidden] { display: none; }
-@media (prefers-reduced-motion: reduce) { .cal-about-toggle .icon { transition: none; } }
+/* The sheet folds: opened, it is there at once and fades in while the page scrolls to it (calendar-real.jsx toggleAbout);
+   closed, it folds away, and the page, left taller than what it holds, glides up with it rather than keep a blank at its
+   foot. A transition belongs to the state it goes to, so only the close animates the height. */
+.cal-about { display: grid; grid-template-rows: 0fr; opacity: 0; visibility: hidden; scroll-margin-bottom: var(--space-4); transition: grid-template-rows 240ms var(--ease-out), opacity 160ms var(--ease-out), visibility 0s linear 240ms; }
+.cal-about[data-open="true"] { grid-template-rows: 1fr; opacity: 1; visibility: visible; transition: opacity 200ms var(--ease-out); }
+.cal-about-in { min-height: 0; overflow: hidden; }
+@media (prefers-reduced-motion: reduce) {
+  .cal-about-toggle .icon { transition: none; }
+  .cal-about, .cal-about[data-open="true"] { transition: none; }
+}
 @media (pointer: coarse) {
   .cal-steps .btn-icon { width: 44px; }
   .cal-title { min-height: 44px; }

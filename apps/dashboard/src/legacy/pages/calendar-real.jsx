@@ -443,6 +443,21 @@ const CalendarReal = ({ initialDay = null }) => {
   const [refreshing, setRefreshing] = React.useState(false);
   // The hours, the booking rules and the calendar's source wait under the board until asked for.
   const [aboutOpen, setAboutOpen] = React.useState(false);
+  // Hours and rules open under the board, where a phone has scrolled them out of sight: opening brings them into view,
+  // smoothly, and closing folds them away while the page glides back up with them (calendar.css), never a blank left
+  // at the foot. It held still before (data-bits holdStill), so the panel opened below the screen and, closed, left the
+  // room it had taken under everything (Ruben, 24 Sep).
+  const aboutRef = React.useRef(null);
+  const toggleAbout = () => {
+    const opening = !aboutOpen;
+    const flush = window.ReactDOM && window.ReactDOM.flushSync;
+    if (flush) flush(() => setAboutOpen(opening));
+    else setAboutOpen(opening);
+    const panel = aboutRef.current;
+    if (!opening || !panel || !panel.scrollIntoView) return;
+    const still = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+    panel.scrollIntoView({ block: "nearest", behavior: still ? "auto" : "smooth" });
+  };
   const [toastNode, flash] = window.usePPToast();
   const vm = C ? C.vm : null;
   const cal = window.__calendar;
@@ -658,58 +673,74 @@ const CalendarReal = ({ initialDay = null }) => {
             <span><i className="cal-legend-swatch closed" /> Outside your hours, or closed</span>
             <span className="cal-legend-rules"><span className="cal-keys">← → move · T today · </span>times are {vm.zoneCity} time</span>
           </div>
-          <button type="button" className="btn btn-ghost btn-sm cal-about-toggle" aria-expanded={aboutOpen} aria-controls="cal-about" onClick={(e) => (window.holdStill ? window.holdStill(e && e.currentTarget, () => setAboutOpen((v) => !v)) : setAboutOpen((v) => !v))} data-testid="cal-about-toggle">
+          <button type="button" className="btn btn-ghost btn-sm cal-about-toggle" aria-expanded={aboutOpen} aria-controls="cal-about" onClick={toggleAbout} data-testid="cal-about-toggle">
             Hours and rules <Icon name="chevron-down" size={12} />
           </button>
         </div>
         {/* The hours and the rules were a card over the board, and the calendar's pill and Refresh sat among the controls:
             they are one tap away here. A calendar that can't be read still says so over the board, with its Retry. */}
-        <div className="cal-about" id="cal-about" hidden={!aboutOpen} data-testid="cal-about">
-          <div className="cal-rules" data-testid="cal-rules">
-            <span className="cal-rules-group">
-              <span className="cal-rules-label">Hours</span>
-              <span className="cal-rules-value">{vm.hoursLines.length ? vm.hoursLines.join(" · ") : "not set yet"}</span>
-            </span>
-            <span className="cal-rules-group">
-              <span className="cal-rules-label">Closed</span>
-              <span className="cal-rules-value">
-                {vm.closuresAhead.length ? vm.closuresAhead.map((c) => `${c.label}${c.note ? ` (${c.note})` : ""}`).join(" · ") : "no closures ahead"}
-                {vm.closuresMore > 0 ? ` · +${vm.closuresMore} more` : ""}
-              </span>
-            </span>
-            <span className="cal-rules-group">
-              <span className="cal-rules-label">Booking</span>
-              <span className="cal-rule-parts cal-rules-value">{vm.ruleParts.map((p) => <span key={p} className="cal-rule" data-testid="cal-rule">{p}</span>)}</span>
-            </span>
-            {/* Which services wait for a consultation was said only inside the service picker (C1). */}
-            {vm.consultFirst.length > 0 && (
-              <span className="cal-rules-group" data-testid="cal-rules-consult">
-                <span className="cal-rules-label">Consultation first</span>
-                <span className="cal-rules-value">{vm.consultFirst.join(" · ")}</span>
-              </span>
-            )}
-            <span className="cal-rules-group">
-              {/* The Business tab's name for it, word for word (spec §10): one name for one thing on both pages. */}
-              <span className="cal-rules-label">Calendar it reads</span>
-              <span className="cal-rules-value cal-rules-feed">
-                {/* The state in the pill Connections and Setup use, and only the details beside it (C3): a coloured dot said
-                    it here, in no word those pages use. */}
-                <span className="cal-feed-chip" data-testid="cal-feed">
-                  <StatePill kind="calendar" value={vm.feed.health} testid="cal-feed-state" />
-                  {vm.feed.detail && <span className="cal-feed-detail">{vm.feed.detail}</span>}
-                </span>
-                {vm.feed.present && (
-                  <button type="button" className="btn btn-ghost btn-sm cal-refresh" onClick={refreshNow} disabled={refreshing} aria-busy={refreshing ? "true" : "false"} data-testid="cal-refresh">
-                    {refreshing ? "Reading your calendar…" : "Refresh"}
-                  </button>
+        <div className="cal-about" id="cal-about" ref={aboutRef} data-open={aboutOpen ? "true" : "false"} aria-hidden={aboutOpen ? undefined : "true"} inert={aboutOpen ? undefined : true} data-testid="cal-about">
+          {/* What the receptionist works from, as one sheet: a term and its value, each value on lines of its own. It
+              was a run of labels and sentences ("From your calendar · read just now · 36 events") with a Refresh that
+              read as a word (Ruben, 24 Sep: "less copy ... the refresh button does not even look like a button"). */}
+          <div className="cal-about-in">
+            <div className="cal-rules" data-testid="cal-rules">
+              <dl className="cal-rules-list">
+                <div className="cal-rules-group">
+                  <dt className="cal-rules-label">Hours</dt>
+                  <dd className="cal-rules-value">
+                    {vm.hoursLines.length ? vm.hoursLines.map((l) => <span key={l} className="cal-rules-line">{l}</span>) : "Not set yet"}
+                  </dd>
+                </div>
+                <div className="cal-rules-group">
+                  <dt className="cal-rules-label">Closed</dt>
+                  <dd className="cal-rules-value">
+                    {vm.closuresAhead.length
+                      ? vm.closuresAhead.map((c) => <span key={c.label} className="cal-rules-line">{`${c.label}${c.note ? ` (${c.note})` : ""}`}</span>)
+                      : "None ahead"}
+                    {vm.closuresMore > 0 && <span className="cal-rules-line cal-rules-more">+{vm.closuresMore} more</span>}
+                  </dd>
+                </div>
+                <div className="cal-rules-group">
+                  <dt className="cal-rules-label">Booking</dt>
+                  <dd className="cal-rule-parts cal-rules-value">{vm.ruleParts.map((p) => <span key={p} className="cal-rule" data-testid="cal-rule">{p}</span>)}</dd>
+                </div>
+                {/* Which services wait for a consultation was said only inside the service picker (C1). */}
+                {vm.consultFirst.length > 0 && (
+                  <div className="cal-rules-group" data-testid="cal-rules-consult">
+                    <dt className="cal-rules-label">Consultation first</dt>
+                    <dd className="cal-rules-value">{vm.consultFirst.join(" · ")}</dd>
+                  </div>
                 )}
-              </span>
-            </span>
-            <span className="cal-rules-links">
-              <span className="cal-about-note">Booking happens through your booking link, whichever tool is behind it.</span>
-              {vm.bookingLink && <button className="cl-bucket-link" title={vm.bookingLink} onClick={copyLink} data-testid="cal-copy-link">Copy the booking link</button>}
-              <button className="cl-bucket-link" onClick={() => window.CHANLY.nav(window.CHANLY.R.admin("workspace"))}>Edit in Settings › Business <Icon name="arrow-right" size={10} /></button>
-            </span>
+                <div className="cal-rules-group">
+                  {/* The Business tab's name for it, word for word (spec §10): one name for one thing on both pages. */}
+                  <dt className="cal-rules-label">Calendar it reads</dt>
+                  <dd className="cal-rules-value cal-rules-feed">
+                    {/* The state in the pill Connections and Setup use (C3), and beside it only when it was read: where
+                        it reads from and how many events it found are Settings' to say. Something wrong keeps the whole
+                        detail, when it was tried and when it was last read. */}
+                    <span className="cal-feed-chip" data-testid="cal-feed">
+                      <StatePill kind="calendar" value={vm.feed.health} testid="cal-feed-state" />
+                      {(vm.feed.state === "ok" && !vm.feed.stale ? vm.feed.read : vm.feed.detail) && (
+                        <span className="cal-feed-detail">{vm.feed.state === "ok" && !vm.feed.stale ? vm.feed.read : vm.feed.detail}</span>
+                      )}
+                    </span>
+                    {vm.feed.present && (
+                      <button type="button" className="btn btn-sm cal-refresh" onClick={refreshNow} disabled={refreshing} aria-busy={refreshing ? "true" : "false"} data-testid="cal-refresh">
+                        <Icon name="refresh" size={12} />{refreshing ? "Reading…" : "Refresh"}
+                      </button>
+                    )}
+                  </dd>
+                </div>
+              </dl>
+              <div className="cal-rules-links">
+                <span className="cal-about-note">Customers book through your booking link.</span>
+                <span className="cal-rules-doors">
+                  {vm.bookingLink && <button type="button" className="cl-bucket-link" title={vm.bookingLink} onClick={copyLink} data-testid="cal-copy-link"><Icon name="copy" size={11} />Copy booking link</button>}
+                  <button type="button" className="cl-bucket-link" onClick={() => window.CHANLY.nav(window.CHANLY.R.admin("workspace"))}>Edit in Settings › Business <Icon name="arrow-right" size={10} /></button>
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
