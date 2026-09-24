@@ -15,6 +15,8 @@
 
 Single-page React (Babel, no bundler). These files load TWICE, from two lists that must stay identical: `../legacy-bridge/manifest.ts` (the app) and `Chanlytics.html` (the standalone harness, `node tooling/scripts/serve-legacy.mjs`). Order in both: `data/bridge-stubs.jsx` (harness) or `seed-globals.ts` (app) → components/*.jsx → data/*.jsx → pages/*.jsx → app-shell; `Chanlytics.html` loads tokens/css first.
 
+**In the harness every file's top-level names are one namespace.** Babel's env preset makes a top-level `const` a `var`, so it lands on `window` and the file loaded last decides it: the retired `pages/pipeline.jsx` once replaced `PipelineBoard` and broke the Pipeline's Board. A top-level name is unique across the tree, or the same thing in every file that declares it (hooks take a per-file alias: `useState: usePipeState`). `legacy-harness.test.mjs` runs every file in that one scope and fails a second meaning.
+
 **The standalone harness is NOT the app, and never the evidence for a design change.** It loads every file over
 `data/bridge-stubs.jsx`, so the surfaces the bridge feeds do not mount in it: Today, the real Calendar, People, Leads
 and Live come out as a `soon` placeholder or the seeded mockup, on demo data at a density no workspace has. Use it for

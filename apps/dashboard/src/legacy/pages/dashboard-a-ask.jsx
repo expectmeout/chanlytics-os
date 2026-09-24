@@ -385,7 +385,7 @@ const askJumpMatches = (q) => {
   return out.slice(0, 6);
 };
 
-const AskAnswer = ({ msg, onClose, onAction }) => (
+const AskPaletteAnswer = ({ msg, onClose, onAction }) => (
   <div className="ask-msg ai">
     <span className="ask-msg-avatar"><Icon name="sparkle" size={11} /></span>
     <div className="ask-msg-body">
@@ -634,7 +634,7 @@ const AskBarSeed = ({ open, onClose }) => {
             <div className="ask-msgs" ref={scrollRef}>
               {active.msgs.map((m, i) => m.role === "user"
                 ? <div key={i} className="ask-msg user"><p className="ask-msg-text">{m.text}</p></div>
-                : <AskAnswer key={i} msg={m} onClose={onClose} onAction={runAction} />)}
+                : <AskPaletteAnswer key={i} msg={m} onClose={onClose} onAction={runAction} />)}
             </div>
           ) : flat.length === 0 ? (
             <div className="cmd-empty">No commands match “{qStr}”.<br />Press <span className="kbd">↵</span> to ask it anyway.</div>

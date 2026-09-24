@@ -71,7 +71,7 @@ const DealCard = ({ d }) => {
 };
 
 // ---------- Board ----------
-const PipelineBoard = ({ stages, deals, query, onClear }) => (
+const PipelineDemoBoard = ({ stages, deals, query, onClear }) => (
   <>
     {query && deals.length === 0 && (
       <div className="cv-empty">
@@ -247,7 +247,7 @@ const PipelinePage = () => {
 
       <div className="pp-body">
         {view === "board"
-          ? <PipelineBoard stages={PIPELINE_STAGES} deals={deals} query={query.trim()} onClear={() => setQuery("")} />
+          ? <PipelineDemoBoard stages={PIPELINE_STAGES} deals={deals} query={query.trim()} onClear={() => setQuery("")} />
           : <PipelineList stages={PIPELINE_STAGES} deals={deals} query={query.trim()} onClear={() => setQuery("")} />}
       </div>
     </div>
