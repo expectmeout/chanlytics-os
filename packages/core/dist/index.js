@@ -1725,6 +1725,9 @@ var LeadSearchPlanSchema = z4.object({
 var US_NAMES = Object.fromEntries(
   Object.entries(US_STATES).map(([name, code2]) => [code2, name])
 );
+var FIRST_RUN_ROUTE = "start";
+var FIND_PARAM = "find";
+var FIRST_RUN_FIND_ROUTE = `${FIRST_RUN_ROUTE}/${FIND_PARAM}`;
 var LEAD_CLASSES = LEAD_MEMBER_CLASSES;
 var LEAD_LISTS = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
 var LEAD_SORTS = ["fit", "found", "distance", "business", "rating", "stage"];
@@ -4626,6 +4629,9 @@ function stateCode(raw) {
   if (up.length === 2 && US_CODES2.has(up)) return up;
   return US_STATES2[s.toLowerCase()] ?? null;
 }
+var FIRST_RUN_ROUTE2 = "start";
+var FIND_PARAM2 = "find";
+var FIRST_RUN_FIND_ROUTE2 = `${FIRST_RUN_ROUTE2}/${FIND_PARAM2}`;
 var LEAD_CLASSES2 = LEAD_MEMBER_CLASSES2;
 var LEAD_LISTS2 = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
 var LEAD_SORTS2 = ["fit", "found", "distance", "business", "rating", "stage"];
@@ -7196,6 +7202,9 @@ var LeadSearchPlanSchema3 = z43.object({
 var US_NAMES3 = Object.fromEntries(
   Object.entries(US_STATES3).map(([name, code2]) => [code2, name])
 );
+var FIRST_RUN_ROUTE3 = "start";
+var FIND_PARAM3 = "find";
+var FIRST_RUN_FIND_ROUTE3 = `${FIRST_RUN_ROUTE3}/${FIND_PARAM3}`;
 var LEAD_CLASSES3 = LEAD_MEMBER_CLASSES3;
 var LEAD_LISTS3 = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
 var LEAD_SORTS3 = ["fit", "found", "distance", "business", "rating", "stage"];

@@ -9,7 +9,8 @@ const setupTone = (state) => (window.__chrome && window.__chrome.state ? window.
 
 
 // Who may press a row's verb, and what pressing does, for the gate's sentence
-// (contracts refusal.ts roleGate). A verb that opens a panel or a page is anyone's;
+// (contracts refusal.ts roleGate). A verb that opens a panel or a page is anyone's,
+// but for a page that is only an owner's (Find, where searching and linking are);
 // these reach doors that refuse everyone else (requireRole), and the button says so
 // before the press -- it used to say so after, in a toast.
 const SETUP_GATES = [
@@ -21,8 +22,9 @@ const SETUP_GATES = [
   ["verb:retry-line:", "team", "retry a line"],
   ["verb:activate:", "team", "activate a capability"],
   ["verb:deactivate:", "team", "withdraw an activation"],
-  // Google's row opens the first run's Find, and searching and linking are an owner's (the routes say so too).
-  ["start/business", "team", "find the business on Google"],
+  // Google's row opens the first run's Find (contracts FIRST_RUN_FIND_ROUTE), and searching and linking are an
+  // owner's (the routes say so too).
+  ["start/find", "team", "find the business on Google"],
 ];
 const setupGate = (verb) => {
   const hit = verb && verb.to ? SETUP_GATES.find(([to]) => (to.endsWith(":") ? verb.to.startsWith(to) : verb.to === to)) : null;

@@ -20,12 +20,15 @@ const useFrTick = (event) => {
   }, [event]);
 };
 
+/** The workspace this tab holds, from the list the shell already has: its name and clock. */
+const frWorkspace = () => (window.__WORKSPACES || []).find((t) => t.id === window.__ACTIVE_WORKSPACE) || null;
+
 // What the card reads beyond Setup: the brain and the resolved numbers from the settings read, once it has landed,
 // and the workspace's name and clock from the list the shell already holds.
 const frCardInputs = (S) => {
   const cfg = window.__SETTINGS && window.__SETTINGS.config;
   const facts = window.__FACTS && window.__FACTS.facts;
-  const ws = (window.__WORKSPACES || []).find((t) => t.id === window.__ACTIVE_WORKSPACE) || null;
+  const ws = frWorkspace();
   const value = (f) => (f && f.value) || null;
   return {
     setup: S.dto,
@@ -37,44 +40,41 @@ const frCardInputs = (S) => {
   };
 };
 
-/** What the business is called here: the receptionist's name, else the one typed at sign-up (the workspace's). */
-const frBusinessName = (S) => {
-  const ws = (window.__WORKSPACES || []).find((t) => t.id === window.__ACTIVE_WORKSPACE) || null;
-  return (S.dto.business.name || (ws && ws.name) || "").trim() || null;
-};
-
 /**
  * Find (canvas R1, P1): what Google has for the business, asked on arrival with the name on record -- the
  * receptionist's, or the one typed at sign-up (the search route falls back to it). The best match first and checked,
- * the others under it; one press links the one checked, or the owner says they are not on Google, which puts Google's
- * row off (their saved view) and leaves the step's rows. The step is Find only for an owner, who alone may search and
- * link. The toast is the page's (`flash`): a link ends Find as the surfaces repaint.
+ * the others under it (on a phone, behind "Not this one? Search again"); one press links the one checked, or the owner
+ * says they are not on Google, which puts Google's row off (their saved view) and leaves the step's rows -- or, where
+ * Find was asked for by name, goes to the step's own address (\`done\`). The step is Find only for an owner, who alone
+ * may search and link. The toast is the page's (\`flash\`): a link ends Find as the surfaces repaint.
  */
-const FrFind = ({ W, flash }) => {
-  // null while Google is asked; then what it said: the candidates, the words it was asked, whether they were typed.
+const FrFind = ({ W, flash, done, go }) => {
+  // null while Google is asked; then what it said: the candidates, the words it was asked, whether they were the owner's.
   const [found, setFound] = React.useState(null);
   const [picked, setPicked] = React.useState(null);
   const [words, setWords] = React.useState("");
   const [busy, setBusy] = React.useState(false);
-  const ask = async (typed) => {
+  // A phone shows the best match alone until the owner asks for more (canvas P1).
+  const [more, setMore] = React.useState(false);
+  const ask = async (ownWords) => {
     const G = window.__google;
     if (!G) return;
     setBusy(true);
-    const r = await G.find(typed || undefined);
+    const r = await G.find(ownWords || undefined);
     setBusy(false);
     setFound(r.ok
-      ? { ok: true, candidates: r.candidates, query: r.query, typed: !!typed, message: "" }
-      : { ok: false, candidates: [], query: typed || "", typed: !!typed, message: r.message });
+      ? { ok: true, candidates: r.candidates, query: r.query, ownWords: !!ownWords, message: "" }
+      : { ok: false, candidates: [], query: ownWords || "", ownWords: !!ownWords, message: r.message });
     setPicked(r.ok && r.candidates.length ? r.candidates[0].place_id : null);
   };
   React.useEffect(() => { ask(null); }, []);
-  const typed = words.replace(/\s+/g, " ").trim();
+  const searchWords = words.replace(/\s+/g, " ").trim();
   const search = (e) => {
     e.preventDefault();
-    if (busy || typed.length < 3) return;
-    ask(typed);
+    if (busy || searchWords.length < 3) return;
+    ask(searchWords);
   };
-  const yes = async () => {
+  const linkPicked = async () => {
     const c = found && found.candidates.find((x) => x.place_id === picked);
     if (!c || busy || !window.__google || !(window.canDo && window.canDo("team"))) return;
     setBusy(true);
@@ -87,20 +87,21 @@ const FrFind = ({ W, flash }) => {
     setBusy(true);
     const r = await window.__setup.later("google", true);
     setBusy(false);
-    if (!r.ok) flash(window.refusalToast(r, "Not saved"));
+    if (!r.ok) flash(window.refusalToast(r, W.notSaved));
+    else if (done) go(done);
   };
   const hits = found ? found.candidates : [];
   return (
-    <div className="fr-find" data-testid="fr-find">
+    <div className="fr-find" data-testid="fr-find" data-hits={hits.length > 0 ? "true" : undefined} data-more={more ? "true" : undefined}>
       {found === null ? <p className="fr-find-note" role="status" data-testid="fr-find-reading">{W.reading}</p> : null}
       {found && !found.ok ? (
         <p className="fr-find-note" role="alert" data-testid="fr-find-failed">
           {found.message}{" "}
-          <button type="button" className="fr-find-link" onClick={() => ask(found.typed ? found.query : null)} disabled={busy} data-testid="fr-find-retry">{W.retry}</button>
+          <button type="button" className="fr-find-link" onClick={() => ask(found.ownWords ? found.query : null)} disabled={busy} data-testid="fr-find-retry">{W.retry}</button>
         </p>
       ) : null}
       {found && found.ok && hits.length === 0 ? <p className="fr-find-note" data-testid="fr-find-none">{W.none(found.query)}</p> : null}
-      {found && found.ok && hits.length > 0 && found.typed ? <p className="fr-find-note">{W.typed(found.query)}</p> : null}
+      {found && found.ok && hits.length > 0 && found.ownWords ? <p className="fr-find-note">{W.typed(found.query)}</p> : null}
       {hits.length > 0 ? (
         <div className="fr-find-hits" role="radiogroup" aria-label={W.pick}>
           {hits.map((c, i) => (
@@ -111,21 +112,29 @@ const FrFind = ({ W, flash }) => {
                 <span className="fr-find-where">{[c.category, c.address || W.noAddress].filter(Boolean).join(" · ")}</span>
                 {c.maps_uri ? <a className="fr-find-maps" href={c.maps_uri} target="_blank" rel="noreferrer">{W.maps}</a> : null}
               </span>
-              {i === 0 ? <span className="fr-find-best">{W.best}</span> : null}
+              {i === 0 ? <span className="pill pill-ok fr-find-best">{W.best}</span> : null}
             </label>
           ))}
         </div>
       ) : null}
+      {hits.length > 0 && !more ? (
+        <button type="button" className="fr-find-link fr-find-more" onClick={() => setMore(true)} data-testid="fr-find-more">{W.more}</button>
+      ) : null}
       <form className="fr-find-search" role="search" onSubmit={search}>
         <input className="fr-find-input" value={words} onChange={(e) => setWords(e.target.value)} placeholder={W.search} aria-label={W.search} maxLength={200} data-testid="fr-find-words" />
-        <button type="submit" className="btn btn-sm" disabled={busy || typed.length < 3} data-testid="fr-find-search">{W.searchCta}</button>
+        <button type="submit" className="btn btn-sm" disabled={busy || searchWords.length < 3} data-testid="fr-find-search">{W.searchCta}</button>
       </form>
       <div className="fr-find-acts">
         {hits.length > 0 ? (
-          <button type="button" className="fr-onward" onClick={yes} disabled={busy || !picked} aria-busy={busy || undefined} data-testid="fr-find-yes" {...window.gate("team", "link the listing")}>{W.yes}</button>
+          <button type="button" className="fr-onward" onClick={linkPicked} disabled={busy || !picked} aria-busy={busy || undefined} data-testid="fr-find-yes" {...window.gate("team", "link the listing")}>{W.yes}</button>
         ) : null}
         <button type="button" className="fr-find-link" onClick={notOnGoogle} disabled={busy} data-testid="fr-find-not">{W.notOnGoogle}</button>
       </div>
+      <p className="fr-find-legal">
+        <a href="/terms">{W.terms}</a>
+        <span aria-hidden="true"> · </span>
+        <a href="/privacy">{W.privacy}</a>
+      </p>
     </div>
   );
 };
@@ -216,7 +225,13 @@ const FirstRun = ({ param = null, onNavigate }) => {
       </div>
     );
   }
-  const fr = F.of(S.vm, param, S.role === "owner");
+  // Who is looking, for Find: an owner by the role gate (View-as included), and what the business goes by.
+  const who = {
+    owner: !!(window.canDo && window.canDo("team")),
+    receptionistName: S.dto.business.name,
+    workspaceName: (frWorkspace() || {}).name || null,
+  };
+  const fr = F.of(S.vm, param, who);
   const card = F.receptionist(frCardInputs(S));
   const step = fr.shown;
   // The step on screen is the address's, replaced rather than pushed, so the browser's Back leaves the first run.
@@ -244,10 +259,10 @@ const FirstRun = ({ param = null, onNavigate }) => {
       <div className="fr-body">
         <main className="fr-step" aria-labelledby="fr-heading">
           <div className="fr-step-head">
-            <h1 className="fr-heading" id="fr-heading" data-testid="fr-heading">{fr.find ? W.find.heading(frBusinessName(S)) : fr.heading}</h1>
-            {fr.find ? <p className="fr-lead">{W.find.lead}</p> : fr.lead ? <p className="fr-lead">{fr.lead}</p> : null}
+            <h1 className="fr-heading" id="fr-heading" data-testid="fr-heading">{fr.heading}</h1>
+            {fr.lead ? <p className="fr-lead">{fr.lead}</p> : null}
           </div>
-          {fr.find ? <FrFind W={W.find} flash={flash} /> : null}
+          {fr.find ? <FrFind W={W.find} flash={flash} done={fr.findDone} go={go} /> : null}
           {step.key === "try" && S.vm.tryIt ? <window.SetupTry tryIt={S.vm.tryIt} /> : null}
           {!fr.find && step.rows.length ? (
             <div className="fr-part">

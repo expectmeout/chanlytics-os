@@ -635,7 +635,7 @@ test("the page: the Google row's Find it opens the first run's Find, and only an
   assert.ok(gRow, "the Google row is drawn when Places is ready");
   assert.equal(gRow.cta.label, "Find it");
   await gRow.cta.onClick();
-  assert.equal(calls.nav.at(-1), "start/business", "one finder: the business step's, which opens on Find");
+  assert.equal(calls.nav.at(-1), "start/find", "one finder: the business step's, which opens on Find");
   assert.equal(calls.find.length, 0, "nothing is searched from the row");
   const before = calls.nav.length;
   Object.assign(globalThis.window, {

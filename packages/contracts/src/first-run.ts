@@ -21,6 +21,23 @@ export function firstRunStepRoute(key: FirstRunStepKey): string {
   return `${FIRST_RUN_ROUTE}/${key}`;
 }
 
+/** The address's word for Find asked for by name ("Find it"), whether or not Google was put off. */
+const FIND_PARAM = "find";
+
+/**
+ * Where "Find it" goes, wherever it is (Setup's Google row, Connections, Reports): the business step with Find asked
+ * for, even after the owner said they are not on Google, since pressing it says otherwise.
+ */
+export const FIRST_RUN_FIND_ROUTE = `${FIRST_RUN_ROUTE}/${FIND_PARAM}`;
+
+/** What the business goes by here: the receptionist's own name, else the workspace's (typed at sign-up). */
+export function businessNameOf(
+  receptionistName: string | null | undefined,
+  workspaceName: string | null | undefined,
+): string | null {
+  return (receptionistName ?? "").trim() || (workspaceName ?? "").trim() || null;
+}
+
 /** The tab's own memory that this session has landed on the first run once: Today does not send it back again. */
 export const FIRST_RUN_LANDED_KEY = "chanlytics.setup.landed";
 
@@ -95,7 +112,9 @@ export const FIRST_RUN_WORDS = {
   /** Find, the business step while there is a listing to link (canvas R1, P1): only what Google said, and the owner's words. */
   find: {
     heading: (name: string | null) => (name ? `Is this ${name}?` : "Which one is your business?"),
+    /** The search asks the name typed at sign-up while there is no receptionist, and the name and address on record after (the search route). */
     lead: "We looked you up on Google with the name you signed up with.",
+    leadOnRecord: "We looked you up on Google with the name and address on record.",
     typed: (q: string) => `What Google has for “${q}”.`,
     reading: "Looking on Google…",
     pick: "Your listing on Google",
@@ -104,13 +123,18 @@ export const FIRST_RUN_WORDS = {
     noAddress: "No address on Google",
     none: (q: string) => `Nothing on Google for “${q}”.`,
     search: "Not these? Search by name or phone number",
+    /** A phone shows the best match alone until this is pressed (canvas P1). */
+    more: "Not this one? Search again",
     searchCta: "Search",
     yes: "Yes, this is us",
     notOnGoogle: "We're not on Google",
     linked: (name: string, read: boolean) =>
       `${name} is your listing on Google — ${read ? "read just now" : "Google will be read within the hour"}.`,
     notLinked: "Not linked",
+    notSaved: "Not saved",
     retry: "Try again",
+    terms: "Terms of service",
+    privacy: "Privacy policy",
   },
 } as const;
 
@@ -146,15 +170,28 @@ export interface FirstRunVM {
   /** Where Back goes: the step before the shown one. */
   back: string | null;
   /**
-   * The business step is Find: an owner, Google searchable on this deployment, nothing linked, and Google not put off.
-   * The page draws Find in place of the step's rows (first-run.jsx FrFind), and Setup's Google row opens it.
+   * The business step is Find: an owner, Google searchable on this deployment, nothing linked, and Google not put off
+   * (or Find asked for by name, FIRST_RUN_FIND_ROUTE). The page draws Find in place of the step's rows (first-run.jsx
+   * FrFind); its heading and lead are `heading` and `lead`, and its button is the step's one coral one, so no onward.
    */
   find: boolean;
+  /** After "We're not on Google" on Find asked for by name: the business step's own address, where Find is gone. */
+  findDone: string | null;
   /**
    * Once the shown step asks nothing more: on to where the workspace is, or Finish to Today from Live. `leaves` is a
    * way out of the first run; a step's own move is not one, and replaces the address so Back leaves.
    */
   onward: { label: string; to: string; leaves: boolean } | null;
+}
+
+/** Who is looking at the first run, for the business step's Find. */
+export interface FirstRunWho {
+  /** Only an owner may search Google and link a listing: the page asks the role gate, View-as included. */
+  owner: boolean;
+  /** The receptionist's own name, when it has one (Setup's business name). */
+  receptionistName: string | null;
+  /** The workspace's name, typed at sign-up. */
+  workspaceName: string | null;
 }
 
 const rowOf = (vm: SetupVM, id: string): SetupRowVM | null => vm.rows.find((r) => r.id === id) ?? null;
@@ -177,10 +214,10 @@ export function firstRunKicker(key: FirstRunStepKey): string {
 }
 
 /**
- * Where the workspace is in the first run, and what the step on screen draws. `at` is the address's step; `owner` is
- * whether the member may search Google and link a listing, which only an owner may.
+ * Where the workspace is in the first run, and what the step on screen draws. `at` is the address's step (or `find`,
+ * the business step with Find asked for); `who` is who is looking, for Find: nobody may link without it.
  */
-export function firstRunOf(vm: SetupVM, at?: string | null, owner = false): FirstRunVM {
+export function firstRunOf(vm: SetupVM, at?: string | null, who?: FirstRunWho): FirstRunVM {
   const last = FIRST_RUN_STEPS[FIRST_RUN_STEPS.length - 1];
   const open = FIRST_RUN_STEPS.find((s) => s !== last && !stepDone(vm, s));
   const current: FirstRunStepKey = open ? open.key : last.key;
@@ -192,40 +229,45 @@ export function firstRunOf(vm: SetupVM, at?: string | null, owner = false): Firs
     rows: def.rows.map((id) => rowOf(vm, id)).filter((r): r is SetupRowVM => r !== null),
     to: def.key === current ? FIRST_RUN_ROUTE : firstRunStepRoute(def.key),
   }));
-  const asked = firstRunStepOf(at);
+  const findAsked = at === FIND_PARAM;
+  const asked = findAsked ? "business" : firstRunStepOf(at);
   const shown =
     steps.find((s) => s.key === asked && s.state !== "ahead") ?? steps.find((s) => s.key === current) ?? steps[0];
   const def = FIRST_RUN_STEPS[shown.number - 1];
   const final = def === last;
-  const onward = final
-    ? { label: FIRST_RUN_WORDS.finish, to: "today", leaves: true }
-    : shown.state === "done"
-      ? { label: FIRST_RUN_WORDS.continue, to: FIRST_RUN_ROUTE, leaves: false }
-      : null;
-  // Find, while an owner can link a listing: Setup's Google row names this step, and only while it is open.
+  // Find, while an owner can link a listing: Google searchable and nothing linked (Setup's `findable`), and not put
+  // off, unless Find was asked for by name.
   const google = rowOf(vm, "google");
-  const find =
-    shown.key === "business" &&
-    owner &&
-    !!google &&
-    google.state === "not_started" &&
-    !google.later &&
-    google.verb?.to === firstRunStepRoute("business");
-  // One coral button a step: its first open row's while it asks something, else Continue or Finish. Find draws no rows.
+  const find = shown.key === "business" && !!who?.owner && vm.findable && !!google && (findAsked || !google.later);
+  // One coral button a step: its first open row's while it asks something, else Continue or Finish. Find's own button
+  // is the step's while it shows: no onward beside it, and no rows.
+  const onward = find
+    ? null
+    : final
+      ? { label: FIRST_RUN_WORDS.finish, to: "today", leaves: true }
+      : shown.state === "done"
+        ? { label: FIRST_RUN_WORDS.continue, to: FIRST_RUN_ROUTE, leaves: false }
+        : null;
   const primary = onward || find ? null : (shown.rows.find((r) => r.state !== "ready" && !r.later && r.verb) ?? null);
+  const W = FIRST_RUN_WORDS.find;
   return {
     steps,
     current,
     complete: !open,
     shown,
-    heading: final ? FIRST_RUN_WORDS.liveHeading : def.name,
-    lead: final ? vm.readiness.sentence : def.lead,
+    heading: find
+      ? W.heading(businessNameOf(who?.receptionistName, who?.workspaceName))
+      : final
+        ? FIRST_RUN_WORDS.liveHeading
+        : def.name,
+    lead: find ? (who?.receptionistName ? W.leadOnRecord : W.lead) : final ? vm.readiness.sentence : def.lead,
     phoneLine: firstRunKicker(shown.key),
     progress: Math.round((shown.number / FIRST_RUN_STEPS.length) * 100),
     primaryRow: primary ? primary.id : null,
     back: shown.number > 1 ? steps[shown.number - 2].to : null,
     onward,
     find,
+    findDone: find && findAsked ? shown.to : null,
   };
 }
 
@@ -341,7 +383,7 @@ export function receptionistCardOf(i: ReceptionistCardInputs): ReceptionistCardV
   // The name the phone greets with is the receptionist's own (voice call-start reads the brain), never the
   // workspace's: the card's title may borrow the workspace's until there is one, the greeting may not.
   const spoken = (b?.business_name || i.setup.business.name || "").trim();
-  const name = spoken || (i.workspaceName ?? "").trim();
+  const name = businessNameOf(spoken, i.workspaceName) ?? "";
   const tried = !!(i.setup.channels.voice.lastInboundAt || i.setup.channels.whatsapp.lastInboundAt);
   const status: ReceptionistCardVM["status"] = !i.answering
     ? { state: "not_started", words: "Not answering yet" }

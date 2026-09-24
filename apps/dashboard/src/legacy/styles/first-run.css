@@ -76,8 +76,10 @@ button.fr-rail-btn:hover { background: var(--bg-sunken); color: var(--ink); }
 .fr-find-where { font-size: 12.5px; line-height: 1.45; color: var(--ink-dim); overflow-wrap: anywhere; }
 .fr-find-maps { justify-self: start; font-size: 12px; color: var(--ink-dim); }
 .fr-find-maps:hover { color: var(--ink); }
-.fr-find-best { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-dim); white-space: nowrap; }
-.fr-find-best::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--ok); }
+/* The best match wears the ok pill (components.css, one shape per job); here it only keeps to one line. */
+.fr-find-best { white-space: nowrap; }
+/* A phone's "Not this one? Search again" (canvas P1); a wider screen shows every match and the search at once. */
+.fr-find-more { display: none; }
 .fr-find-search { display: flex; gap: 8px; max-width: 460px; }
 .fr-find-input {
   flex: 1; min-width: 0; height: 32px; padding: 0 10px;
@@ -92,6 +94,10 @@ button.fr-rail-btn:hover { background: var(--bg-sunken); color: var(--ink); }
 }
 .fr-find-link:hover { color: var(--ink); }
 .fr-find-link:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+/* The pages the owner agrees to, as the create screen links them: the first workspace was made without that screen. */
+.fr-find-legal { margin: 0; font-size: 12px; color: var(--ink-faint); }
+.fr-find-legal a { color: inherit; }
+.fr-find-legal a:hover { color: var(--ink-dim); }
 
 .fr-card { position: sticky; top: 24px; display: grid; gap: 8px; min-width: 0; }
 .fr-card-cap { font-size: 12px; color: var(--ink-dim); }
@@ -137,6 +143,17 @@ button.fr-rail-btn:hover { background: var(--bg-sunken); color: var(--ink); }
   .fr-heading { font-size: 20px; }
   .fr-find-hit { padding: 12px 14px; }
   .fr-find-search { max-width: none; }
+  /* Find on a phone (canvas P1): the best match alone until "Not this one? Search again", and its two acts held at the
+     foot, as Back and Continue are. */
+  .fr-find[data-hits]:not([data-more]) .fr-find-hit:not(.is-best),
+  .fr-find[data-hits]:not([data-more]) .fr-find-search { display: none; }
+  .fr-find[data-hits]:not([data-more]) .fr-find-more { display: inline; justify-self: start; }
+  .fr-find-acts {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 2;
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+    background: var(--bg); border-top: 1px solid var(--line);
+  }
+  .fr-find-acts .fr-onward { flex: 1 1 auto; }
   .fr-foot {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 2;
     padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));

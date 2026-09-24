@@ -43,6 +43,7 @@ import {
   EVENT_KINDS,
   SERVER_NOTIFICATION_KINDS,
   GOOGLE_SHOWN_REVIEWS,
+  placesQueryOf,
 } from "@chanlytics/contracts";
 import { readCode, readRaw, importSrc } from "./_source.mjs";
 
@@ -152,6 +153,17 @@ const PLACE = {
     },
   ],
 };
+
+test("the owner's words reach Google as it reads them: a phone number whole, with its country; anything else as typed", () => {
+  assert.equal(placesQueryOf("(305) 555-0100"), "+13055550100", "Google needs the country to match a number");
+  assert.equal(placesQueryOf(" +1 305 555 0100 "), "+13055550100");
+  assert.equal(
+    placesQueryOf("  Harbor   Moving 305 "),
+    "Harbor Moving 305",
+    "a name with a number in it is still a name",
+  );
+  assert.equal(placesQueryOf("12"), "12", "too short to be a number is sent as typed");
+});
 
 test("the parsers read what Google returns and refuse what it does not", () => {
   const found = parsePlacesSearch({ places: [PLACE, { id: "x" }, "junk"] });
@@ -626,7 +638,7 @@ test("Setup's Google row: absent until the platform can look listings up; then F
   assert.deepEqual(row(find, "google").details, ["Uses the name and address on record"]);
   assert.deepEqual(
     row(find, "google").verb,
-    { label: "Find it", to: "start/business" },
+    { label: "Find it", to: "start/find" },
     "one finder: the first run's business step, which opens on Find",
   );
   const noAddress = setup(

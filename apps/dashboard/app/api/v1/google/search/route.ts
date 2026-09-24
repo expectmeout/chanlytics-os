@@ -1,5 +1,11 @@
 import { write, workspace } from "@/server/route";
-import { AppError, parseTenantConfigResult, type GoogleCandidateDto } from "@chanlytics/contracts";
+import {
+  AppError,
+  businessNameOf,
+  parseTenantConfigResult,
+  placesQueryOf,
+  type GoogleCandidateDto,
+} from "@chanlytics/contracts";
 import { getTenantConfig } from "@chanlytics/db";
 import { edgeGoogle } from "@/server/google";
 import { tenantFacts } from "@/server/tenant";
@@ -18,13 +24,18 @@ export const POST = write({
   rate: "google_search",
   handle: async ({ ctx, req, member }) => {
     const body = (await req.json().catch(() => ({}))) as { query?: unknown };
-    let query = typeof body.query === "string" ? body.query.replace(/\s+/g, " ").trim().slice(0, 200) : "";
+    // A phone number goes whole and with its country, which Google needs to match a listing by its number.
+    let query = typeof body.query === "string" ? placesQueryOf(body.query).slice(0, 200) : "";
     let fromFacts = false;
     if (!query) {
       const row = await getTenantConfig(ctx.supabase, member.tenantId);
       const parsed = row ? parseTenantConfigResult(row.config) : null;
       const cfg = parsed && parsed.ok ? parsed.config : null;
-      const name = cfg?.brain?.business_name?.trim() || (await tenantFacts(ctx.supabase, member.tenantId)).name.trim();
+      // What the business goes by (contracts businessNameOf): the receptionist's name, else the one typed at sign-up,
+      // read only when there is no receptionist's name to ask with.
+      const own = cfg?.brain?.business_name ?? null;
+      const typed = own?.trim() ? null : (await tenantFacts(ctx.supabase, member.tenantId)).name;
+      const name = businessNameOf(own, typed) ?? "";
       const address = cfg?.brain?.profile?.address?.trim() ?? "";
       query = [name, address].filter(Boolean).join(", ");
       fromFacts = true;

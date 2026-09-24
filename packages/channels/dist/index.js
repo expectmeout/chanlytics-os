@@ -804,6 +804,9 @@ function greetingFor(name) {
   return `Thank you for calling${who}! This call may be recorded. I'm the automated assistant \u2014 how can I help you today?`;
 }
 var GREETING_DEFAULT = /* @__PURE__ */ greetingFor(null);
+var FIRST_RUN_ROUTE = "start";
+var FIND_PARAM = "find";
+var FIRST_RUN_FIND_ROUTE = `${FIRST_RUN_ROUTE}/${FIND_PARAM}`;
 var LEAD_CLASSES = LEAD_MEMBER_CLASSES;
 var LEAD_LISTS = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
 var LEAD_SORTS = ["fit", "found", "distance", "business", "rating", "stage"];

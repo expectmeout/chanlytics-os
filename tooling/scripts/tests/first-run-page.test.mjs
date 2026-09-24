@@ -414,16 +414,56 @@ test("Find: not on Google puts Google's row off, the member's own choice", async
   }
 });
 
-test("Find is an owner's: anyone else sees the step's rows", async () => {
+test("Find is an owner's, by the role gate (View-as included): anyone else sees the step's rows", async () => {
   const asked = googleSays([found([HARBOR])]);
-  globalThis.window.__SETUP = { ...surface(findable), role: "operator" };
+  const was = globalThis.window.canDo;
+  globalThis.window.canDo = (a) => a !== "team";
+  try {
+    globalThis.window.__SETUP = surface(findable);
+    param = null;
+    fresh();
+    const tree = mount();
+    assert.equal(byTestId(tree, "fr-find"), null);
+    assert.ok(byTestId(tree, "fr-rows"));
+    assert.equal(textOf(byTestId(tree, "fr-heading")), "Your business");
+    assert.deepEqual(asked.find, [], "and nothing is searched");
+  } finally {
+    globalThis.window.canDo = was;
+  }
+});
+
+test("Find it asks for Find by name, even after not on Google; not on Google again goes to the step's own address", async () => {
+  googleSays([found([HARBOR])]);
+  const putOff = { ...surface(findable), later: ["google"], vm: setupSteps({ ...findable, later: ["google"] }, NOW) };
+  globalThis.window.__SETUP = putOff;
   param = null;
   fresh();
+  assert.equal(byTestId(mount(), "fr-find"), null, "the plain address: put off, so the step's rows");
+  param = "find";
+  fresh();
+  mount();
+  await tick();
   const tree = mount();
-  assert.equal(byTestId(tree, "fr-find"), null);
-  assert.ok(byTestId(tree, "fr-rows"));
-  assert.equal(textOf(byTestId(tree, "fr-heading")), "Your business");
-  assert.deepEqual(asked.find, [], "and nothing is searched");
+  assert.ok(byTestId(tree, "fr-find"), "start/find: Find, whatever was said before");
+  await byTestId(tree, "fr-find-not").props.onClick();
+  assert.equal(replaced.at(-1), "start", "and the step's own address after, replaced");
+});
+
+test("Find on a phone: the best match alone until the owner asks for more, and the pages they agree to", async () => {
+  googleSays([found([HARBOR, WAREHOUSE])]);
+  const { tree } = await findOn();
+  const root = byTestId(tree, "fr-find");
+  assert.equal(root.props["data-hits"], "true");
+  assert.equal(root.props["data-more"], undefined, "the phone's styles show the best match alone");
+  byTestId(tree, "fr-find-more").props.onClick();
+  const more = mount();
+  assert.equal(byTestId(more, "fr-find").props["data-more"], "true");
+  assert.equal(byTestId(more, "fr-find-more"), null);
+  const links = [];
+  walk(more, (n) => {
+    if (n.type === "a" && (n.props.href === "/terms" || n.props.href === "/privacy")) links.push(textOf(n));
+  });
+  assert.deepEqual(links, ["Terms of service", "Privacy policy"]);
 });
 
 test("without the bridge the page says nothing of its own: every word is contracts'", () => {

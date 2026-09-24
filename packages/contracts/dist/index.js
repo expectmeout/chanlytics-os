@@ -5592,6 +5592,11 @@ var FIRST_RUN_ROUTE = "start";
 function firstRunStepRoute(key) {
   return `${FIRST_RUN_ROUTE}/${key}`;
 }
+var FIND_PARAM = "find";
+var FIRST_RUN_FIND_ROUTE = `${FIRST_RUN_ROUTE}/${FIND_PARAM}`;
+function businessNameOf(receptionistName, workspaceName) {
+  return (receptionistName ?? "").trim() || (workspaceName ?? "").trim() || null;
+}
 var FIRST_RUN_LANDED_KEY = "chanlytics.setup.landed";
 var FINISH_SETTING_UP = "Finish setting up";
 var LIVE_ROWS = ["whatsapp", "calendar", "team", "email", "yes"];
@@ -5639,7 +5644,9 @@ var FIRST_RUN_WORDS = {
   /** Find, the business step while there is a listing to link (canvas R1, P1): only what Google said, and the owner's words. */
   find: {
     heading: (name) => name ? `Is this ${name}?` : "Which one is your business?",
+    /** The search asks the name typed at sign-up while there is no receptionist, and the name and address on record after (the search route). */
     lead: "We looked you up on Google with the name you signed up with.",
+    leadOnRecord: "We looked you up on Google with the name and address on record.",
     typed: (q) => `What Google has for \u201C${q}\u201D.`,
     reading: "Looking on Google\u2026",
     pick: "Your listing on Google",
@@ -5648,12 +5655,17 @@ var FIRST_RUN_WORDS = {
     noAddress: "No address on Google",
     none: (q) => `Nothing on Google for \u201C${q}\u201D.`,
     search: "Not these? Search by name or phone number",
+    /** A phone shows the best match alone until this is pressed (canvas P1). */
+    more: "Not this one? Search again",
     searchCta: "Search",
     yes: "Yes, this is us",
     notOnGoogle: "We're not on Google",
     linked: (name, read) => `${name} is your listing on Google \u2014 ${read ? "read just now" : "Google will be read within the hour"}.`,
     notLinked: "Not linked",
-    retry: "Try again"
+    notSaved: "Not saved",
+    retry: "Try again",
+    terms: "Terms of service",
+    privacy: "Privacy policy"
   }
 };
 var rowOf = (vm, id) => vm.rows.find((r) => r.id === id) ?? null;
@@ -5669,7 +5681,7 @@ function firstRunKicker(key) {
   const i = FIRST_RUN_STEPS.findIndex((s) => s.key === key);
   return `Step ${i + 1} of ${FIRST_RUN_STEPS.length} \xB7 ${FIRST_RUN_STEPS[i].name}`;
 }
-function firstRunOf(vm, at2, owner = false) {
+function firstRunOf(vm, at2, who) {
   const last = FIRST_RUN_STEPS[FIRST_RUN_STEPS.length - 1];
   const open = FIRST_RUN_STEPS.find((s) => s !== last && !stepDone(vm, s));
   const current = open ? open.key : last.key;
@@ -5681,27 +5693,30 @@ function firstRunOf(vm, at2, owner = false) {
     rows: def2.rows.map((id) => rowOf(vm, id)).filter((r) => r !== null),
     to: def2.key === current ? FIRST_RUN_ROUTE : firstRunStepRoute(def2.key)
   }));
-  const asked = firstRunStepOf(at2);
+  const findAsked = at2 === FIND_PARAM;
+  const asked = findAsked ? "business" : firstRunStepOf(at2);
   const shown = steps.find((s) => s.key === asked && s.state !== "ahead") ?? steps.find((s) => s.key === current) ?? steps[0];
   const def = FIRST_RUN_STEPS[shown.number - 1];
   const final = def === last;
-  const onward = final ? { label: FIRST_RUN_WORDS.finish, to: "today", leaves: true } : shown.state === "done" ? { label: FIRST_RUN_WORDS.continue, to: FIRST_RUN_ROUTE, leaves: false } : null;
   const google = rowOf(vm, "google");
-  const find = shown.key === "business" && owner && !!google && google.state === "not_started" && !google.later && google.verb?.to === firstRunStepRoute("business");
+  const find = shown.key === "business" && !!who?.owner && vm.findable && !!google && (findAsked || !google.later);
+  const onward = find ? null : final ? { label: FIRST_RUN_WORDS.finish, to: "today", leaves: true } : shown.state === "done" ? { label: FIRST_RUN_WORDS.continue, to: FIRST_RUN_ROUTE, leaves: false } : null;
   const primary = onward || find ? null : shown.rows.find((r) => r.state !== "ready" && !r.later && r.verb) ?? null;
+  const W = FIRST_RUN_WORDS.find;
   return {
     steps,
     current,
     complete: !open,
     shown,
-    heading: final ? FIRST_RUN_WORDS.liveHeading : def.name,
-    lead: final ? vm.readiness.sentence : def.lead,
+    heading: find ? W.heading(businessNameOf(who?.receptionistName, who?.workspaceName)) : final ? FIRST_RUN_WORDS.liveHeading : def.name,
+    lead: find ? who?.receptionistName ? W.leadOnRecord : W.lead : final ? vm.readiness.sentence : def.lead,
     phoneLine: firstRunKicker(shown.key),
     progress: Math.round(shown.number / FIRST_RUN_STEPS.length * 100),
     primaryRow: primary ? primary.id : null,
     back: shown.number > 1 ? steps[shown.number - 2].to : null,
     onward,
-    find
+    find,
+    findDone: find && findAsked ? shown.to : null
   };
 }
 var CARD_SKIP = { put: "Skip", said: "Put off. It stays in Setting up for when you're ready." };
@@ -5748,7 +5763,7 @@ function receptionistCardOf(i) {
   const b = i.brain;
   const p = b?.profile ?? null;
   const spoken = (b?.business_name || i.setup.business.name || "").trim();
-  const name = spoken || (i.workspaceName ?? "").trim();
+  const name = businessNameOf(spoken, i.workspaceName) ?? "";
   const tried = !!(i.setup.channels.voice.lastInboundAt || i.setup.channels.whatsapp.lastInboundAt);
   const status = !i.answering ? { state: "not_started", words: "Not answering yet" } : tried ? { state: "ready", words: "Answering" } : { state: "waiting_you", words: "Answering \xB7 not tried yet" };
   const sv = servicesWords(p?.services ?? null);
@@ -11498,6 +11513,10 @@ function hoursFromGoogle(periods) {
   }
   return { hours, unsure: DAYS.filter((d) => unsure.has(d)) };
 }
+function placesQueryOf(words4) {
+  const w = words4.replace(/\s+/g, " ").trim();
+  return /^[\d\s().+-]+$/.test(w) ? normalizePhone(w) ?? w : w;
+}
 var GOOGLE_SHOWN_REVIEWS = 5;
 var REVIEW_NEWS_MS = 36 * 3600 * 1e3;
 var REVIEW_NEWS_MAX_AGE_MS = 14 * 864e5;
@@ -12896,8 +12915,8 @@ function setupSteps(i, nowMs = Date.now()) {
         details: [
           i.business.address ? "Uses the name and address on record" : "Add your address in Settings \u203A Business for a surer match"
         ],
-        // One finder: the first run's business step, which opens on Find for an owner (first-run.ts).
-        verb: { label: "Find it", to: firstRunStepRoute("business") }
+        // One finder: the first run's Find, asked for by name (first-run.ts).
+        verb: { label: "Find it", to: FIRST_RUN_FIND_ROUTE }
       });
     } else {
       row2({
@@ -12933,7 +12952,8 @@ function setupSteps(i, nowMs = Date.now()) {
       voiceLabel: voiceReady ? voiceNum : null,
       whatsapp: waReady ? wa.number : null,
       whatsappLabel: waReady ? waNum : null
-    } : null
+    } : null,
+    findable: !!i.google?.ready && i.google.places !== false && !i.google.listing
   };
 }
 function setupRoute(hash) {
@@ -18135,7 +18155,7 @@ function connectionRows(i, nowMs = Date.now()) {
         state: "none",
         stateWords: "Not watched",
         sentence: "Find it from the name and address on record; new reviews then reach your bell and Reports.",
-        verb: { label: "Find it", to: firstRunStepRoute("business"), who: "owner" }
+        verb: { label: "Find it", to: FIRST_RUN_FIND_ROUTE, who: "owner" }
       })
     );
   } else {
@@ -20282,6 +20302,7 @@ export {
   FALLBACK_DETAILS,
   FEED_MAX_BYTES,
   FINISH_SETTING_UP,
+  FIRST_RUN_FIND_ROUTE,
   FIRST_RUN_HELPERS,
   FIRST_RUN_LANDED_KEY,
   FIRST_RUN_ROUTE,
@@ -20694,6 +20715,7 @@ export {
   buildNotificationFeed,
   businessFieldsFor,
   businessGroupWordsFor,
+  businessNameOf,
   businessPageMetadata,
   businessPageVM,
   businessRecordForPath,
@@ -21107,6 +21129,7 @@ export {
   pipelineViewLabel,
   placeholdersOf,
   placeholdersSequential,
+  placesQueryOf,
   placesToAsk,
   planArea,
   planBilling,
