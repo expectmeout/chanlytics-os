@@ -1215,12 +1215,9 @@
 .cl-prof-hero > .cl-prof-id { grid-area: id; min-width: 0; }
 .cl-prof-hero > .cl-prof-queue-actions { grid-area: acts; }
 .cl-prof-hero > .cl-prof-danger { grid-column: 1 / -1; }
-/* A person on the way, from their People row: their head stands where the page's own will, so nothing moves when the
-   rest lands. The frame keeps the page's grid; with the areas taken away, the way back was put in a column of its own
-   (a grid-area naming no area makes one), 670px to the right of where it lands and 117px under it. */
-.cl-prof-hero > .cl-prof-known { grid-area: id; min-width: 0; }
-/* Nothing to name the person with yet (a bare Reading…, gone, a failed read): what is said takes the row under the way back. */
-.cl-profile--solo .cl-prof-hero > :not(.cl-prof-back):not(.cl-prof-known) { grid-column: 1 / -1; }
+/* Nobody to draw (gone, a failed read): what is said takes the row under the way back. The frame keeps the page's grid;
+   with the areas taken away, the way back was put in a column of its own (a grid-area naming no area makes one). */
+.cl-profile--solo .cl-prof-hero > :not(.cl-prof-back) { grid-column: 1 / -1; }
 .cl-prof-back {
   display: inline-flex;
   align-items: center;
@@ -1408,8 +1405,6 @@
 /* Said under the line only when it asks for something (escalated, held, queued, snoozed, silent). */
 .cl-prof-now-why { font-size: 12.5px; line-height: 1.45; color: var(--ink-muted); }
 /* A person the page has not read yet, drawn from their People row while the rest is read. */
-.cl-prof-known { display: flex; flex-direction: column; gap: 4px; }
-.cl-prof-known .route-reading { padding-left: 0; padding-right: 0; }
 /* The page's acts, beside who they are: the thread, what can be sent to them, and the page's ⋯. A label too long for
    its button ends in an ellipsis rather than pushing the row off the page. */
 .cl-prof-hero > .cl-prof-queue-actions { display: flex; align-items: center; gap: 6px; justify-content: flex-end; min-width: 0; }

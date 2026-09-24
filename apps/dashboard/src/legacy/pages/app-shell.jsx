@@ -15,7 +15,8 @@ const { useState: useShellState, useEffect: useShellEffect, useCallback: useShel
 
 // Is this route's data actually available? The bridge installs __surfaceGate
 // for flipped surfaces; unflipped ones are seeded and always ready.
-const routeReady = (page, param) => !window.__surfaceGate || window.__surfaceGate(page, param);
+// `own`: the route's own surface alone, without the bands its first draw waits for beside it (surface-registry ROUTE_WAITS).
+const routeReady = (page, param, own = false) => !window.__surfaceGate || window.__surfaceGate(page, param, own);
 
 /** Surfaces whose own route param is a prop they follow, not a new identity. Live writes the call it opens to the
  *  address (replaced), so each call being its own mount would tear the page down on every click; Conversations writes
@@ -275,6 +276,8 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
   // PREVIOUS route's value, painting one full frame of mockup threads before
   // the effect could correct it.
   const [routeTimedOut, setRouteTimedOut] = useShellState(false);
+  // A page whose own surface is in stops waiting for a band beside it after the registry's wait (ROUTE_WAIT_MS).
+  const [routeWaitedOut, setRouteWaitedOut] = useShellState(false);
   const [readyTick, setReadyTick] = useShellState(0);
 
   // A navigation is a new entry. `{ replace: true }` is a page saying the same place more exactly -- the lead a peek
@@ -779,19 +782,23 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
   useShellEffect(() => {
     setNavOpen(false);
     setRouteTimedOut(false);
+    setRouteWaitedOut(false);
     if (routeReady(page, param)) return;
     // Re-render when readiness changes; the render below reads the truth.
     const off = window.__onSurfaceReady ? window.__onSurfaceReady(() => setReadyTick((n) => n + 1)) : null;
     // Never strand the operator on the reading pane forever — but time out INTO the
     // unavailable pane, never into the mockup's seeds.
     const t = setTimeout(() => setRouteTimedOut(true), 8000);
-    return () => { if (off) off(); clearTimeout(t); };
+    const w = setTimeout(() => setRouteWaitedOut(true), window.__routeWaitMs || 3000);
+    return () => { if (off) off(); clearTimeout(t); clearTimeout(w); };
   }, [routeKey]);
 
   // Derived every render, so a navigation can never commit the previous
   // route's answer. readyTick is read so the subscription re-evaluates it.
   void readyTick;
-  const surfaceReady = routeReady(page, param);
+  // A band the page waits for beside its own surface (Today's setup, above its queue) holds the first draw so it never
+  // lands above content already drawn; once the page's own surface is in, only for so long.
+  const surfaceReady = routeReady(page, param) || (routeWaitedOut && routeReady(page, param, true));
   const surfaceUnavailable = !surfaceReady && (routeFailed(page, param) || routeTimedOut);
   const routeLoading = !surfaceReady && !surfaceUnavailable;
   // A move that stays on the page -- People to Leads or the Pipeline and back -- is still a remount (each scope is a

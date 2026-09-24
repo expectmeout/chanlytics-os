@@ -45,6 +45,7 @@ import { workspaceZone } from "./zone";
 import { readCache, staleReadCaches } from "./read-cache";
 import { keepSavedView, placeDeal } from "./surface-data";
 import { personRouteId } from "./surface-registry";
+import { afterBoot } from "./surface-runner";
 import { getActiveWorkspace } from "./workspace";
 
 /**
@@ -86,6 +87,41 @@ export function peekPerson(id: string): PersonVM | null {
  */
 export function warmPerson(id: string): void {
   people.warm(id, () => personDetail(id));
+}
+
+/** How many of a list's first rows are read ahead, and how many of those reads are out at once. */
+const AHEAD = 12;
+const AHEAD_LANES = 2;
+let ahead: string[] = [];
+let aheadOut = 0;
+
+/**
+ * Read the people a list shows before any of them is pressed: `window.__warmPeople(ids)`, the rows on screen in their
+ * order. A person the tab does not hold opens on nothing of theirs until their whole page is in (client-profile.jsx),
+ * so the one way their page opens at once is to have read them already. Measured on production (24 Sep 2026): a person
+ * never opened drew their page 289 ms after the press; one the tab held, in 8. Only after the boot (afterBoot), two at
+ * a time, the first twelve, and only those the tab does not hold at all (a copy from before is read again as a pointer
+ * reaches it). A later list replaces what an earlier one was still waiting to read.
+ */
+export function warmPeople(ids: string[]): void {
+  if (!getActiveWorkspace()) return;
+  ahead = [...new Set(ids)].slice(0, AHEAD).filter((id) => !people.peek(id));
+  if (!ahead.length) return;
+  void afterBoot().then(readAhead);
+}
+
+function readAhead(): void {
+  while (aheadOut < AHEAD_LANES && ahead.length) {
+    const id = ahead.shift() as string;
+    if (people.peek(id)) continue;
+    aheadOut += 1;
+    personDetail(id)
+      .catch(() => null)
+      .finally(() => {
+        aheadOut -= 1;
+        readAhead();
+      });
+  }
 }
 
 /**
@@ -463,6 +499,8 @@ declare global {
     __peekPerson?: (id: string) => PersonVM | null;
     /** Read someone before their row is clicked. */
     __warmPerson?: (id: string) => void;
+    /** Read the people a list shows, after the boot, a few at a time. */
+    __warmPeople?: (ids: string[]) => void;
     __setPersonConsent?: (id: string, body: ConsentBody) => Promise<DeleteResult>;
     __setPersonConsentMany?: (ids: string[], body: ConsentBody) => Promise<ManyResult>;
     __setPersonMarketingConsent?: (id: string, body: ConsentBody) => Promise<DeleteResult>;
@@ -536,6 +574,7 @@ export function installPeopleCourier(): void {
   window.__personDetail = personDetail;
   window.__peekPerson = peekPerson;
   window.__warmPerson = warmPerson;
+  window.__warmPeople = warmPeople;
   window.__setPersonConsentMany = setPersonConsentMany;
   window.__setPersonDetails = setPersonDetails;
   window.__personNotes = {

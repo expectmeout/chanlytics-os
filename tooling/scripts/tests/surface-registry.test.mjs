@@ -308,7 +308,7 @@ test("the flipped pages still resolve exactly as before", () => {
 
 test("the shell asks the gate with the pane it is about to render", () => {
   // A registry that resolves panes is useless if the caller drops the pane.
-  assert.ok(shell.includes("const surfaceReady = routeReady(page, param);"));
+  assert.ok(shell.includes("const surfaceReady = routeReady(page, param) ||"));
   assert.ok(shell.includes("routeFailed(page, param)"));
   assert.ok(!shell.includes("routeReady(page)"), "the bare-page call IS the bug");
 });

@@ -41,6 +41,17 @@ export {
 let activeRefresh: ((o: SurfaceOverride) => Promise<void>) | null = null;
 /** The running runner's surfaces: what the shell's Retry reads again. */
 let activeOverrides: SurfaceOverride[] = [];
+/** The running runner's boot, settled once its last surface is in, whether each read worked or not. */
+let activeBoot: Promise<void> = Promise.resolve();
+
+/**
+ * Once the boot is in: when work nobody is waiting for may start (people.ts reading a list's people ahead) without
+ * standing in the lanes the page's own surfaces boot through -- twenty-three reads at once is what made a cold load
+ * take 7.8 s. Settled at once when no runner is booting.
+ */
+export function afterBoot(): Promise<void> {
+  return activeBoot;
+}
 
 export async function refreshSurfaces(overrides: SurfaceOverride[]): Promise<void> {
   const fn = activeRefresh;
@@ -263,6 +274,10 @@ export function startSurfaces(overrides: SurfaceOverride[], joinFeed: JoinLiveFe
         ),
       )
     : inLanes(queued, BOOT_LANES, boot);
+  activeBoot = booted.then(
+    () => undefined,
+    () => undefined,
+  );
   void booted.then(() => {
     releaseAnswers();
     if (cancelled) return;
