@@ -312,7 +312,7 @@ const S = "a516a5a6-ecb5-4ad1-96bf-56a65afceac8";
 const tables = (config) => ({
   lead_rounds: [{ id: R, tenant_id: T, search_id: S, state: "waiting_on_owner", question: { sentence: "Some of the first 16 are large studio chains, which I'm leaving out. Is that what you meant?", criterionKey: "large_studio_chains", dropTerm: null, asked_at: "2026-09-24T04:30:11Z" } }],
   lead_searches: [{ id: S, tenant_id: T, name: "wedding photographers" }],
-  tenants: [{ id: T, slug: "melanys-beauty-salon" }],
+  tenants: [{ id: T, slug: "harbor-studio" }],
   tenant_config: config ? [{ tenant_id: T, config }] : [],
   tenant_channels: [],
 });
@@ -326,7 +326,7 @@ test("a search that stops to ask mails the workspace's own addresses, with the w
   assert.deepEqual(sent[0].to, ["owner@example.com"]);
   assert.equal(sent[0].subject, "Your search for wedding photographers is waiting for your answer");
   assert.match(sent[0].text, /^Some of the first 16 are large studio chains/);
-  assert.match(sent[0].text, /Answer it: https:\/\/app\.chanlytics\.com\/w\/melanys-beauty-salon#\/clients\/leads:s-a516a5a6-ecb5-4ad1-96bf-56a65afceac8:c-excluded$/);
+  assert.match(sent[0].text, /Answer it: https:\/\/app\.chanlytics\.com\/w\/harbor-studio#\/clients\/leads:s-a516a5a6-ecb5-4ad1-96bf-56a65afceac8:c-excluded$/);
 });
 
 test("a workspace with nowhere to send is not mailed, and the platform is not told about a question", async () => {
