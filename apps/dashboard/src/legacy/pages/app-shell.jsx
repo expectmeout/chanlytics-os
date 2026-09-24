@@ -340,7 +340,7 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
     if (window.__PEOPLE) { again(); return; }
     window.addEventListener("surface:clients", again, { once: true });
     return () => window.removeEventListener("surface:clients", again);
-  }, [route.page, route.param, peopleAtDraw]);
+  }, [route.page, route.param, peopleAtDraw, setReadyTick]);
 
   useShellEffect(() => {
     const handler = (e) => {
