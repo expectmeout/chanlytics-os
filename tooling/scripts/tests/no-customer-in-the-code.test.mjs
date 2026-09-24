@@ -4,7 +4,8 @@
  * CLAUDE.md: "A real business's name, number, link or prompt is configuration, never a literal." The first customer's
  * name, street, three phone numbers and booking link sat in about 140 tracked files, as fixtures, comments and docs,
  * until they became one made-up salon: Marisa's Beauty Salon, numbers in the 555-01xx range kept for fiction, and
- * links at example.com. This keeps the real ones out.
+ * links at example.com. Its voice agent's ids at the provider are configuration too: they live on the workspace's
+ * voice row. This keeps the real ones out.
  *
  * It reads every tracked file but `supabase/migrations`, which seeded that workspace and is forward-only history, and
  * fails on:
@@ -12,7 +13,9 @@
  *    slug, a domain, `NAME_INPUTS`, `getNameConfig`;
  *  - one of the three numbers, however it is punctuated: `+1 (NNN) NNN-NNNN`, `NNN NNN NNNN`, `1NNNNNNNNNN`, or a
  *    regex's `\(NNN\) NNN-NNNN`;
- *  - the booking site's id for the business, as a number of its own.
+ *  - the booking site's id for the business, as a number of its own;
+ *  - its voice agent's id at the provider, or the id of the LLM that agent runs, in any case, as a run of twelve or
+ *    more letters and digits of its own: the `agent_` or `llm_` in front is not part of it.
  *
  * It holds SHA-256 digests, not the details, so this file is not itself a copy of what it forbids, and a search for
  * the name finds nothing here. To guard one more value, lowercased the way the scan compares it:
@@ -50,6 +53,11 @@ const CUSTOMER = {
   ]),
   /** Its booking site's id. */
   ids: new Set(["13bdc0a76e3b2a952d952ff41677e47a26f93bf8a3b44b832bb91c001642022f"]),
+  /** Its voice agent and the LLM that agent runs, each as its id at the provider without the `agent_` or `llm_`. */
+  voice: new Set([
+    "b37ced05c7b7880873fef06538091a0c72cc359efe7d3247d8f8f4d4694ec9ee",
+    "bc87b72f6454bd182411e9507b1ae3280d0c982678894fefc488aa8ed19bb1af",
+  ]),
 };
 
 const WORD = 6;
@@ -59,7 +67,7 @@ const ID = 7;
 /**
  * Each place in `text` that writes a guarded value, as `line: what`. A word is a run of letters, split where camelCase
  * steps up; a phone is a run of digits that punctuation of up to three characters may break, the way a number is
- * written; an id is a run of digits on its own.
+ * written; an id is a run of digits on its own; a voice id is a run of twelve or more letters and digits, taken whole.
  */
 function scan(text, guarded) {
   const found = [];
@@ -82,6 +90,9 @@ function scan(text, guarded) {
     for (const [run] of line.matchAll(/\d+/g)) {
       if (run.length === ID && guarded.ids.has(digest(run))) at(`"${run}"`);
     }
+    for (const [run] of line.matchAll(/[A-Za-z\d]{12,}/g)) {
+      if (guarded.voice.has(digest(run.toLowerCase()))) at(`"${run}"`);
+    }
   });
   return found;
 }
@@ -92,6 +103,7 @@ test("the scan finds a guarded value however it is written, and nothing beside i
     words: new Set([sha256("marisa")]),
     phones: new Set([sha256("3055550123")]),
     ids: new Set([sha256("4471902")]),
+    voice: new Set([sha256("0123456789abcdef0123456789")]),
   };
   const hit = (s) => scan(s, madeUp).length > 0;
   for (const s of [
@@ -112,16 +124,35 @@ test("the scan finds a guarded value however it is written, and nothing beside i
     "https://wa.me/13055550123?text=YES",
     "https://book.example.com/en-us/4471902_marisa-s",
     "4471902",
+    "agent_0123456789abcdef0123456789",
+    "AGENT_0123456789ABCDEF0123456789",
+    "external_id = 'agent_0123456789abcdef0123456789'",
+    '{"agent_id":"agent_0123456789abcdef0123456789"}',
+    "0123456789abcdef0123456789",
   ]) {
     assert.ok(hit(s), `missed ${s}`);
   }
-  for (const s of ["Marissa", "Mari sa", "+13055550124", "305 555 012", "305, 555, 0123", "44719021", "14471902"]) {
+  for (const s of [
+    "Marissa",
+    "Mari sa",
+    "+13055550124",
+    "305 555 012",
+    "305, 555, 0123",
+    "44719021",
+    "14471902",
+    "agent_0123456789abcdef012345678",
+    "agent_0123456789abcdef01234567890",
+  ]) {
     assert.ok(!hit(s), `found one in ${s}`);
   }
-  assert.deepEqual(scan("one\r\ntwo Marisa\nthree 305-555-0123", madeUp), ['2: "Marisa"', '3: "305-555-0123"']);
+  assert.deepEqual(scan("one\r\ntwo Marisa\nthree 305-555-0123\nfour agent_0123456789abcdef0123456789", madeUp), [
+    '2: "Marisa"',
+    '3: "305-555-0123"',
+    '4: "0123456789abcdef0123456789"',
+  ]);
 });
 
-test("no customer's name, street, number or booking link is written anywhere but the migrations", () => {
+test("no customer's name, street, number, booking link or voice agent is written anywhere but the migrations", () => {
   const files = execFileSync("git", ["ls-files", "-z"], { cwd: ROOT, encoding: "utf8", maxBuffer: 1 << 26 })
     .split("\0")
     .filter((f) => f && !f.startsWith("supabase/migrations/"));

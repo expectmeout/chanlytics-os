@@ -98,7 +98,7 @@ const conv = (messages, over = {}) => ({
     id: "k1",
     display_name: null,
     wa_profile_name: null,
-    phone_e164: "+19175746416",
+    phone_e164: "+19175550137",
     consent: null,
     dnc: false,
   },
@@ -139,14 +139,14 @@ test("a call note knows it is one, and a person known by number keeps their whol
     ["whatsapp", "phone"],
     "the viewer drew the note as a WhatsApp bubble",
   );
-  assert.equal(vm.whoShort, "+1 (917) 574-6416", "REGRESSION: 'Latest from +1'");
+  assert.equal(vm.whoShort, "+1 (917) 555-0137", "REGRESSION: 'Latest from +1'");
   const named = toConversationVM(
     conv([msg({})], {
       contact: {
         id: "k1",
         display_name: "Daniela Ruiz",
         wa_profile_name: null,
-        phone_e164: "+19175746416",
+        phone_e164: "+19175550137",
         consent: null,
         dnc: false,
       },
@@ -162,7 +162,7 @@ test("a call note knows it is one, and a person known by number keeps their whol
       direction: "inbound",
       call_type: null,
       status: "ended",
-      from_e164: "+19175746416",
+      from_e164: "+19175550137",
       from_raw: null,
       to_e164: null,
       started_at: ago(H),
@@ -178,12 +178,12 @@ test("a call note knows it is one, and a person known by number keeps their whol
       conversation_id: null,
       contact_id: null,
       message_id: null,
-      contact: { display_name: "+1 (917) 574-6416", wa_profile_name: null, phone_e164: "+19175746416" },
+      contact: { display_name: "+1 (917) 555-0137", wa_profile_name: null, phone_e164: "+19175550137" },
     },
     ZONE,
     NOW,
   );
-  assert.equal(call.whoShort, "+1 (917) 574-6416");
+  assert.equal(call.whoShort, "+1 (917) 555-0137");
 });
 
 test("a preview is the last thing that actually happened, never a cancelled or queued draft", () => {
@@ -212,7 +212,7 @@ const row = (over = {}) => ({
   id: "p1",
   display_name: "Dani",
   wa_profile_name: null,
-  phone_e164: "+19175746416",
+  phone_e164: "+19175550137",
   consent: null,
   dnc: false,
   created_at: ago(30 * 24 * H),
@@ -292,7 +292,7 @@ test("the profile does not count a dial that never connected, and names it", () 
     direction: "inbound",
     call_type: null,
     status: "ended",
-    from_e164: "+19175746416",
+    from_e164: "+19175550137",
     from_raw: null,
     to_e164: null,
     started_at: ago(2 * H),

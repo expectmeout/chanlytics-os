@@ -64,7 +64,7 @@ const dto = (transcript_object) => ({
   direction: "inbound",
   call_type: null,
   status: "ongoing",
-  from_e164: "+19175746416",
+  from_e164: "+19175550137",
   from_raw: null,
   to_e164: null,
   started_at: new Date(Date.now() - 60_000).toISOString(),
@@ -82,7 +82,7 @@ const dto = (transcript_object) => ({
   message_id: null,
   created_at: new Date(Date.now() - 60_000).toISOString(),
   updated_at: new Date().toISOString(),
-  contact: { display_name: "Daniela Ruiz", wa_profile_name: null, phone_e164: "+19175746416" },
+  contact: { display_name: "Daniela Ruiz", wa_profile_name: null, phone_e164: "+19175550137" },
 });
 
 test("both transcripts show the whisper as the owner's own words, where it landed", () => {

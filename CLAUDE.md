@@ -56,7 +56,9 @@ People, Leads and Live do not mount in it and a screenshot of it proves nothing 
 Each of these is enforced by a test or a workflow. Breaking one is a red build, not a style note.
 
 - **No customer in the code.** A real business's name, number, link or prompt is configuration,
-  never a literal. `trade-neutral.test.mjs` fails one trade's words in front of another's customers.
+  never a literal, and a fixture takes made-up values: 555-01xx numbers, example.com links.
+  `no-customer-in-the-code.test.mjs` fails the first customer's details anywhere but the migrations;
+  `trade-neutral.test.mjs` fails one trade's words in front of another's customers.
 - **Nothing in the UI states a fact the database cannot support.** A zero is shown; an invented
   number is not. `surface-registry.ts` decides what is real; `no-fabricated-data.spec.ts` checks it.
 - **Storage says tenant, everything a person or the API sees says workspace.** Never both in one layer.

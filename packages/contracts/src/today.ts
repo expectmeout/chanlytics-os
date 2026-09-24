@@ -2088,6 +2088,8 @@ const AWAY_NOUN: Record<string, [one: string, many: string]> = {
   broadcast_sent: ["broadcast finished", "broadcasts finished"],
   broadcast_stopped: ["broadcast did not go out", "broadcasts did not go out"],
   note_for_you: ["note left for you", "notes left for you"],
+  // A search that stopped to ask: it waits a day for the answer, then stops and keeps what it found.
+  leads_question: ["search is waiting for your answer", "searches are waiting for your answer"],
 };
 
 /** A warning outranks good news, whatever their clocks say. */

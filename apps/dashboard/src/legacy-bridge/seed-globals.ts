@@ -41,6 +41,7 @@ import {
   leadPlanFacts,
   leadPlanLikely,
   leadEndingLine,
+  LEAD_QUESTION_WAIT_LINE,
   leadNearWhere,
   leadsFirstDayWays,
   leadUndoable,
@@ -95,6 +96,7 @@ declare global {
       leadPlanFacts: typeof leadPlanFacts;
       leadPlanAsk: typeof leadPlanAsk;
       leadEndingLine: typeof leadEndingLine;
+      LEAD_QUESTION_WAIT_LINE: typeof LEAD_QUESTION_WAIT_LINE;
       leadNearWhere: typeof leadNearWhere;
       planCeiling: typeof planCeiling;
       leadUndoable: typeof leadUndoable;
@@ -194,6 +196,8 @@ if (typeof window !== "undefined") {
     leadPlanFacts,
     leadPlanAsk,
     leadEndingLine,
+    // The question's one line under its sentence (the email says the same).
+    LEAD_QUESTION_WAIT_LINE,
     leadNearWhere,
     leadUndoable,
     leadReviewGroups,

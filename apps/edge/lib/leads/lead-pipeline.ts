@@ -15,6 +15,7 @@ import type { Json } from "../packages/db.js";
 import { leadDb } from "./lead-db.js";
 import { leadWires, type LeadWires } from "./lead-wires.js";
 import { storeLeadMark } from "./lead-marks.js";
+import { tellLeadQuestion } from "./lead-tell.js";
 import { logger } from "../log.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -53,6 +54,11 @@ function portsFor(wires: LeadWires, ctx: JobContext, job: ClaimedJob): LeadPorts
         dueAt: new Date(Date.now() + runAfterSeconds * 1000),
         payload: payload as Json,
       });
+    },
+    // A round that stopped to ask waits a day on a person: the workspace's own addresses hear of it (the row is the
+    // trigger's). Best effort, after the commit; it never throws.
+    tell: async (e) => {
+      if (e.kind === "question") await tellLeadQuestion(ctx.db, e.roundId);
     },
     deadline: ctx.deadline,
   };

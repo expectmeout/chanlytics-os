@@ -29,7 +29,7 @@
  * not point at shows as drift, never as done.
  *
  * Env:  RETELL_API_KEY   (never stored anywhere; paste it for the run)
- *       VOICE_AGENT_ID   e.g. agent_242005d0ce9352af2cef792432
+ *       VOICE_AGENT_ID   e.g. agent_0123456789abcdef0123456789
  *       VOICE_NUMBER     the line, E.164 (only read for --pin)
  *       RETELL_FN_SECRET optional — sets the booking tool's x-fn-secret header
  *                        when the live tool has none (the edge refuses calls

@@ -381,11 +381,19 @@ export async function listCounts(ctx: Pick<RouteContext, "supabase">, tenantId: 
   };
 }
 
+/**
+ * The key lead_rounds.question is kept under. The runner writes core's RoundQuestion (ports.ts) verbatim through
+ * lead_collect_commit, so it is `criterionKey`; reading only `criterion_key` gave the page "" for every question
+ * ever asked, and Include lifted nothing. The snake spelling is read too, for a row written by hand.
+ */
+const questionKeyOf = (q: { criterionKey?: unknown; criterion_key?: unknown }): string =>
+  typeof q.criterionKey === "string" ? q.criterionKey : typeof q.criterion_key === "string" ? q.criterion_key : "";
+
 /** `asked_on` is the view's own created_at: the day the owner asked, said once. */
 function toSearchDto(r: SearchViewRow): LeadSearchDto {
   const q =
     r.question && typeof r.question === "object"
-      ? (r.question as { sentence?: unknown; criterion_key?: unknown })
+      ? (r.question as { sentence?: unknown; criterionKey?: unknown; criterion_key?: unknown })
       : null;
   if (!r.round_id)
     return {
@@ -410,10 +418,7 @@ function toSearchDto(r: SearchViewRow): LeadSearchDto {
       purpose: r.purpose ?? "probe",
       state: r.state ?? "ended",
       ending: (r.ending ?? null) as LeadRoundEnding | null,
-      question:
-        q && typeof q.sentence === "string"
-          ? { sentence: q.sentence, criterion_key: typeof q.criterion_key === "string" ? q.criterion_key : "" }
-          : null,
+      question: q && typeof q.sentence === "string" ? { sentence: q.sentence, criterion_key: questionKeyOf(q) } : null,
       target: r.target ?? 0,
       counted: r.counted,
       qualified: r.qualified,

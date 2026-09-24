@@ -97,3 +97,25 @@ test('nothing unread anywhere is the one state that may say "All caught up."', (
   assert.equal(find(line, (n) => n.type === "Icon").props.name, "check");
   assert.equal(textOf(byClass(tree, "tq-count")).trim(), "0");
 });
+
+// A search that stops to ask waits a day and then ends, so it is news worth a line of its own, and two of them are
+// one line that says how many.
+test("two searches waiting on their answers are one line that says how many", () => {
+  const asks = (id, name) => ({
+    id,
+    kind: "leads_question",
+    title: `Your search for ${name} is waiting for your answer`,
+    message: "",
+    tone: "warn",
+    icon: "alert",
+    unread: true,
+    about: null,
+    time: "5m",
+    actions: [{ label: "Answer it", to: `clients/leads:s-${id}:c-excluded`, primary: true }],
+  });
+  const vm = todayAwayGrouped([asks("n:1", "florists"), asks("n:2", "bakers")]);
+  assert.deepEqual(
+    vm.groups.map((g) => [g.count, g.title]),
+    [[2, "2 searches are waiting for your answer"]],
+  );
+});

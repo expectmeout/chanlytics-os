@@ -98,7 +98,7 @@ test("an ongoing call is a live row the strip can draw", () => {
     direction: "inbound",
     call_type: null,
     status: "ongoing",
-    from_e164: "+19175746416",
+    from_e164: "+19175550137",
     from_raw: null,
     to_e164: null,
     started_at: started,
@@ -116,7 +116,7 @@ test("an ongoing call is a live row the strip can draw", () => {
     message_id: null,
     created_at: started,
     updated_at: new Date(NOW.getTime() - 5_000).toISOString(),
-    contact: { display_name: "Daniela Ruiz", wa_profile_name: null, phone_e164: "+19175746416" },
+    contact: { display_name: "Daniela Ruiz", wa_profile_name: null, phone_e164: "+19175550137" },
   };
   const vm = toTodayVM(metrics(), [], [], [call], NOW);
   assert.ok(vm.calls, "one call today");
