@@ -51,8 +51,7 @@
 - [ ] **Step 1: Add the Stage's words to `en`** after `noVoice` (`:57`), and remove `todayPlaceholder`, `continueInAsk`, `reviewInAsk` (`:58-61`; only `today-face.jsx` read them, which Task 8 deletes):
 
 ```js
-    askAnything: "Ask anything",
-    send: "Ask",
+    askSend: "Ask",
     briefMe: "Brief me",
     letGo: "Let go to ask",
     typeInstead: "Type instead",
@@ -63,8 +62,7 @@
 - [ ] **Step 2: The same in `es`**, replacing its three band words:
 
 ```js
-    askAnything: "Pregunta lo que quieras",
-    send: "Preguntar",
+    askSend: "Preguntar",
     briefMe: "Resúmeme",
     letGo: "Suelta para preguntar",
     typeInstead: "Escribir",
@@ -558,7 +556,7 @@ test("the band: one reading line says what Ask reads, Send fills with words, Sto
 
 ```jsx
   const sendButton = (
-    <button type="button" className="ask-send" onClick={() => submit()} disabled={!query.trim()} aria-label={t.send} title={t.send} data-testid="ask-send">
+    <button type="button" className="ask-send" onClick={() => submit()} disabled={!query.trim()} aria-label={t.askSend} title={t.askSend} data-testid="ask-send">
       <Icon name="arrow-up" size={15} />
     </button>
   );
