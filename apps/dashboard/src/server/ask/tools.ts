@@ -3,10 +3,12 @@ import {
   ASK_CAPS,
   EVERYONE_LABEL,
   NO_NUMBER_REACH,
-  PEOPLE_LISTS,
+  BUILTIN_LISTS,
   nextStepOf,
-  savedListIds,
-  savedListLookup,
+  listUnknownWords,
+  listsFor,
+  membersOf,
+  parseListToken,
   audiencePreview,
   type AudienceKind,
   numberHealth,
@@ -15,8 +17,6 @@ import {
   PERSON_STATE_LABELS,
   REPORT_RANGES,
   dealsAreOn,
-  SELLS_BY_QUESTION,
-  SELLS_BY_WORDS,
   ago,
   clockStamp,
   emptyReadSet,
@@ -66,7 +66,7 @@ import {
   toCallDto,
   toConversationDto,
 } from "../dto";
-import { audiencePoolOnce } from "../audience";
+import { audiencePoolOnce, poolList } from "../audience";
 import { dealPaceRead, sellsByOf } from "../deals";
 import { listSearches } from "../leads";
 import { metricsSummaryFor } from "../metrics";
@@ -124,8 +124,8 @@ export const READ_TOOLS: ToolDef[] = [
   },
   {
     name: "search_people",
-    description:
-      "Find people (customers and callers) by name or phone digits. Returns their state, last contact, receptionist mode and their next appointment when the calendar is connected. Empty query lists the most recent people. list narrows to one of People's smart lists: needs_you, waiting_on_you, new_week, booked, asked_never_booked (wrote or called this month, and nothing on the calendar since answers it), quiet, phoned_only, opted_in, opted_out, steps_due (a next step whose day has come), consultation_booked (the Pipeline's Consultations), proposal_out (a proposal waiting on their answer), clients, deal_passed, deal_ended (where deals are on here). Each person says their next step, when they have one.",
+    // The lists are named from the one table of them (contracts lists.ts), never typed beside it.
+    description: `Find people (customers and callers) by name or phone digits. Returns their state, last contact, receptionist mode and their next appointment when the calendar is connected. Empty query lists the most recent people. list narrows to one list: the list token list_audiences gives (seg:<id> for People's lists, list:<id> for the workspace's own), or a People list's id: ${BUILTIN_LISTS.map((l) => `${l.id} (${l.label})`).join(", ")}. A list that can't be counted here says why. Each person says their next step, when they have one.`,
     input_schema: obj({ query: { type: "string" }, list: { type: "string" } }, ["query"]),
   },
   {
@@ -169,7 +169,7 @@ export const READ_TOOLS: ToolDef[] = [
   {
     name: "list_audiences",
     description:
-      "The audiences a broadcast may go to — everyone who said yes, every People list, every list kept by hand — each with FOUR counts, because there are two consents and a yes needs a number to send to: can_be_sent_offers and can_be_sent_messages (who a promotional, or a utility or authentication, template reaches) and said_yes_to_offers and said_yes_to_messages (everyone who gave that yes, a number or not). Also the approved WhatsApp templates with their category and values, and whether the number may send. Read this before proposing a broadcast, and match the count to the template.",
+      "The audiences a broadcast may go to — everyone who said yes, every People list this workspace can count, and every list of the workspace's own (kept by hand, or by a rule) — each with its kind and audience_id (propose_broadcast's audience), its list token (search_people's list), and FOUR counts; a list of the workspace's own that can't be counted here carries cannot_count (why) and no counts, because there are two consents and a yes needs a number to send to: can_be_sent_offers and can_be_sent_messages (who a promotional, or a utility or authentication, template reaches) and said_yes_to_offers and said_yes_to_messages (everyone who gave that yes, a number or not). Also the approved WhatsApp templates with their category and values, and whether the number may send. Read this before proposing a broadcast, and match the count to the template.",
     input_schema: obj({}, []),
   },
   {
@@ -597,31 +597,28 @@ function personLine(r: PersonRowDto, tz: string, nowMs: number) {
 
 async function searchPeople(t: ToolContext, input: Record<string, unknown>): Promise<unknown> {
   const q = str(input.query, 80).toLowerCase();
-  const listId = str(input.list, 40);
-  const list = listId ? PEOPLE_LISTS.find((l) => l.id === listId) : null;
-  if (listId && !list) return { error: `list must be one of ${PEOPLE_LISTS.map((l) => l.id).join(", ")}` };
+  const listIn = str(input.list, 60);
+  // Any list, one way (decision 0009): a token list_audiences gave, or a People list's bare id.
+  const ref = listIn
+    ? (parseListToken(listIn) ?? parseListToken(`list:${listIn}`) ?? parseListToken(`seg:${listIn}`))
+    : null;
+  if (listIn && !ref) return { error: "list must be a list token from list_audiences, or a People list's id" };
   // With their appointments, so "who asked but never booked?" and "who is
   // booked this week?" are answered from the calendar, not guessed.
   const pool = await audiencePoolOnce(t.memo, t.ctx, t.tenantId, t.timezone, t.now);
-  const { people: rows, calendar } = pool;
-  const vmOf = new Map(pool.rows.map((v) => [v.id, v]));
-  if (list?.needsCalendar && calendar.state !== "ok")
-    return { error: "that list needs the calendar connected under Settings › Business", people: [] };
-  // The deal lists exist only where deals are on here (dealsAreOn, 0008), as on the page and in list_audiences. The
-  // refusal names the condition that failed: Consultations needs the consult-first service itself as well.
-  if (list?.needsConsultFirst && !pool.consult_first)
-    return {
-      error: "that list exists only where the profile lists a consult-first service under Settings › Business",
-      people: [],
-    };
-  if (list?.needsDeals && !pool.deals_on)
-    return {
-      error: `that list exists only where deals are on: the workspace answers "${SELLS_BY_QUESTION}" with "${SELLS_BY_WORDS.proposal.label}"`,
-      people: [],
-    };
+  const { people: rows } = pool;
+  // Counted as a send and the page count it (audience.ts poolList); one that can't be counted here says why, in the
+  // page's words, and names the condition that failed.
+  let onList: Set<string> | null = null;
+  if (ref) {
+    const found = await poolList(t.ctx, t.tenantId, pool, ref);
+    if (!found) return { error: "no such list; list_audiences names them", people: [] };
+    if ("unknown" in found) return { error: `${found.label}: ${found.unknown}`, people: [] };
+    onList = new Set(found.memberIds);
+  }
   const digits = q.replace(/\D/g, "");
   const hits = rows.filter((r) => {
-    if (list && !list.test(vmOf.get(r.id)!)) return false;
+    if (onList && !onList.has(r.id)) return false;
     if (!q) return true;
     const name = personName(r).toLowerCase();
     if (name.includes(q)) return true;
@@ -640,7 +637,8 @@ async function searchPeople(t: ToolContext, input: Record<string, unknown>): Pro
   }
   return {
     query: q,
-    list: list?.id ?? null,
+    // A People list by its id, as it was asked for; one of the workspace's own by its token.
+    list: ref ? (ref.kind === "builtin" ? ref.id : `list:${ref.id}`) : null,
     matches: hits.length,
     people: picked.map((r) => personLine(r, t.timezone, t.now.getTime())),
   };
@@ -1001,30 +999,27 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
       can_be_sent_messages: messages.sending,
     };
   };
+  // Every list the pool can offer (contracts listsFor): People's lists this workspace can count, then its own. Each
+  // with its token (search_people's list) and its kind and id (propose_broadcast's audience). The three consent lists
+  // are never audiences: each restates the yes every audience is already crossed with. A list of the workspace's own
+  // that can't be counted here is listed with why, and no counts.
+  const offered = listsFor(pool.listCtx, lists).filter(
+    (d) => !(d.ref.kind === "builtin" && ["opted_in", "offers_ok", "opted_out"].includes(d.ref.id)),
+  );
   const audiences = [
-    { kind: "everyone", audience_id: null, label: EVERYONE_LABEL, ...sizes("everyone", null, null) },
-    // The page's lists: a calendar's lists only when there is a calendar to read them from; the deal lists only
-    // where deals are on here (dealsAreOn, 0008).
-    ...PEOPLE_LISTS.filter(
-      (l) =>
-        l.id !== "opted_in" &&
-        l.id !== "offers_ok" &&
-        l.id !== "opted_out" &&
-        (!l.needsCalendar || pool.calendar.state === "ok") &&
-        (!l.needsConsultFirst || pool.consult_first) &&
-        (!l.needsDeals || pool.deals_on),
-    ).map((l) => ({
-      kind: "list",
-      audience_id: l.id,
-      label: l.label,
-      ...sizes("list", l.id, null),
-    })),
-    ...lists.map((s) => ({
-      kind: "saved",
-      audience_id: s.id,
-      label: s.name,
-      ...sizes("saved", null, savedListIds(s, rows, pool.listCtx, savedListLookup(lists))),
-    })),
+    { kind: "everyone", audience_id: null, list: null, label: EVERYONE_LABEL, ...sizes("everyone", null, null) },
+    ...offered.map((d) => {
+      const m = membersOf(d, rows, pool.listCtx, lists);
+      const head = {
+        kind: d.ref.kind === "builtin" ? "list" : "saved",
+        audience_id: d.ref.id,
+        list: d.token,
+        label: d.label,
+      };
+      return m.state === "ok"
+        ? { ...head, ...sizes("saved", null, m.ids) }
+        : { ...head, cannot_count: listUnknownWords(m.reason, pool.listCtx.calendar) };
+    }),
   ];
   const cfg = (
     ch.data?.config && typeof ch.data.config === "object" && !Array.isArray(ch.data.config) ? ch.data.config : {}

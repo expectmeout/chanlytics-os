@@ -292,20 +292,28 @@ test("REGRESSION: a send to a list past a thousand people enrols every one of th
   const { createBroadcastPorts } = await import("../../../apps/dashboard/src/server/campaign-ports.ts");
   const S = "aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa";
   const ids = Array.from({ length: 1500 }, (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`);
+  // Everyone, as people_list pages them (a thousand at a time): a list kept by hand is its people who are people here.
+  const people = ids.map((id) => ({ id, display_name: null, phone_e164: null, consent: "opted_in", dnc: false }));
   const db = fakeDb(
     {
+      tenants: [{ id: TID, timezone: "America/New_York" }],
+      tenant_config: [],
       segments: [{ id: S, tenant_id: TID, name: "Regulars" }],
       segment_members: ids.map((contact_id) => ({ segment_id: S, contact_id, tenant_id: TID })),
     },
     {},
-    {},
+    {
+      people_list: (args) =>
+        args.p_tenant_id === TID ? people.slice(args.p_offset ?? 0, (args.p_offset ?? 0) + (args.p_limit ?? 1000)) : [],
+    },
     { maxRows: 1000 },
   );
-  const seg = await createBroadcastPorts({ supabase: db }, TID).savedList(S);
-  assert.equal(seg.name, "Regulars");
+  const now = new Date("2026-09-20T15:00:00Z");
+  const seg = await createBroadcastPorts({ supabase: db }, TID).list({ kind: "saved", id: S }, now);
+  assert.equal(seg.label, "Regulars");
   assert.equal(seg.memberIds.length, 1500, "REGRESSION: the send enrolled 1000 of 1500");
   assert.equal(
-    await createBroadcastPorts({ supabase: db }, "t-other").savedList(S),
+    await createBroadcastPorts({ supabase: db }, "t-other").list({ kind: "saved", id: S }, now),
     null,
     "another workspace's list is no list",
   );

@@ -5,15 +5,8 @@
  * these. The session role writes here: it may insert a broadcast and its
  * people, and update a broadcast's `state` (00046) and `scheduled_for` (00119).
  */
-import { savedListFor, savedListsFor, type Json } from "@chanlytics/db";
-import {
-  asListRule,
-  numberHealth,
-  parseTenantConfig,
-  ruleLists,
-  savedListIds,
-  savedListLookup,
-} from "@chanlytics/contracts";
+import type { Json } from "@chanlytics/db";
+import { numberHealth, parseTenantConfig } from "@chanlytics/contracts";
 import type {
   ApproveRunPorts,
   AssemblePorts,
@@ -25,7 +18,7 @@ import type { RouteContext } from "./with-route";
 import { changed } from "./core-ports";
 import { recordDecision } from "./verbs";
 import { cancelKindFor, schedule } from "./service";
-import { audiencePool, type AudiencePool } from "./audience";
+import { audiencePool, poolList, type AudiencePool } from "./audience";
 import { tenantFacts } from "./tenant";
 
 /** PostgREST takes a payload this size in one statement. */
@@ -109,18 +102,9 @@ export function createBroadcastPorts(ctx: RouteContext, tenantId: string): Creat
     timezone: zone,
     // Everyone, not one page of them, with their appointments: the pool the page and the assistant count from.
     people: async (now) => (await poolAt(now)).rows,
-    // Every member, not the first thousand (packages/db savedListFor); a smart list's, by its rule (savedListIds).
-    savedList: async (id) => {
-      const seg = await savedListFor(ctx.supabase, tenantId, id);
-      if (!seg) return null;
-      if (seg.rule == null) return { name: seg.name, memberIds: seg.ids };
-      const now = new Date();
-      const p = await poolAt(now);
-      // A rule that reads other lists reads them all (lists.ts listMembers, one level deep).
-      const rule = asListRule(seg.rule);
-      const others = rule && ruleLists(rule).length ? await savedListsFor(ctx.supabase, tenantId) : [];
-      return { name: seg.name, memberIds: [...savedListIds(seg, p.rows, p.listCtx, savedListLookup(others))] };
-    },
+    // One list over the pool the send enrols from (audience.ts poolList): a built-in or a saved list, every member,
+    // not the first thousand, or why it can't be counted.
+    list: async (ref, now) => poolList(ctx, tenantId, await poolAt(now), ref),
     number: async () => {
       const { data: ch, error: chErr } = await ctx.supabase
         .from("tenant_channels")

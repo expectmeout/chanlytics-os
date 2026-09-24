@@ -13,6 +13,7 @@ import type {
   ParamSpec,
   PersonRowVM,
   DealPaceVM,
+  ListRef,
   PersonVisitsDto,
 } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
@@ -185,14 +186,20 @@ export interface BroadcastRef {
   run_for?: string | null;
 }
 
+/** A list as a send reads it: its people, or why it can't be counted. */
+export type ListCount = { label: string; memberIds: string[] } | { label: string; unknown: string };
+
 export interface CreateBroadcastPorts extends AssemblePorts, TemplateValuesPorts {
   /** The business's clock, for the hours a send may go out in. */
   timezone(): Promise<string>;
   /** Everyone, with their visits as of now, the way the People page counts them. */
   people(now: Date): Promise<PersonRowVM[]>;
-  /** A list kept by hand: its name and who is on it; null when there is no such list here. */
-  /** A saved list and who is on it: the ids kept on it, or everyone a smart list's rule holds for today. */
-  savedList(id: string): Promise<{ name: string; memberIds: string[] } | null>;
+  /**
+   * One list, resolved and counted the one way (contracts lists.ts resolveList, membersOf): a built-in or a saved list,
+   * its name and who is on it -- or, when it can't be counted here (a calendar that was not read, a rule this build
+   * cannot read), its name and why, in the page's words. Null when there is no such list here.
+   */
+  list(ref: ListRef, now: Date): Promise<ListCount | null>;
   /** The active WhatsApp number's health as Meta rated it; null when none is connected. */
   number(): Promise<NumberHealth | null>;
   record(subject: DecisionSubject, id: string, verb: DecisionVerb, payload: Json): Promise<string>;

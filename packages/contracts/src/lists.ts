@@ -16,6 +16,7 @@ import {
   type ListNeed,
   type ListRule,
 } from "./list-rules";
+import { SELLS_BY_QUESTION, SELLS_BY_WORDS } from "./deals";
 import type { PersonRowVM } from "./people";
 
 /* ------------------------------------------------------------------ the reference */
@@ -459,13 +460,13 @@ export function listUnknownWords(reason: ListUnknownReason, calendar: ListContex
         ? "This list reads your calendar. Connect it under Settings › Business to count it."
         : "This list reads your calendar, which can't be read right now.";
     case "consult":
-      return "This list reads consultations, and your profile lists no service that starts with one.";
+      return "This list exists only where the profile lists a consult-first service under Settings › Business.";
     case "deals":
-      return "This list reads deals, which are off here.";
+      return `This list exists only where deals are on: the workspace answers “${SELLS_BY_QUESTION}” with “${SELLS_BY_WORDS.proposal.label}”.`;
     case "viewer":
       return "This list is about whoever is looking, so only a person can count it.";
     case "rule":
-      return "This list's rule can't be read by this version. Reload the page.";
+      return "This list's rule was written by a newer version of Chanlytics and can't be read here.";
     case "list":
       return "A list this one reads is gone, or can't be counted itself.";
   }
