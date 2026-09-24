@@ -722,6 +722,101 @@ test("a turn since the Line: Say is drawn as it is written, the headline then th
   await closes();
 });
 
+test("the answer on the rail: tiles with the receipt inside, items with a kind mark, one Open button and chips", async () => {
+  const calls = ask([]);
+  const final = {
+    id: "m-r",
+    role: "assistant",
+    atMs: Date.now(),
+    failed: false,
+    citations: [],
+    followups: [],
+    proposals: [],
+    text: "6 of 16 went unanswered.",
+    answer: {
+      v: 2,
+      form: "structured",
+      language: "en",
+      say: { headline: "6 of 16 went unanswered.", detail: "Mostly after hours." },
+      show: {
+        figures: [
+          {
+            value: "5",
+            label: "needed you",
+            note: "up from 1",
+            source: { kind: "page", id: "reports", label: "Reports, past 7 days", to: "reports", door: true },
+          },
+          { value: "20s", label: "median reply", note: "stayed fast", source: null },
+        ],
+        items: [
+          {
+            title: "Nora",
+            meta: "WhatsApp · 2h",
+            line: "Can I come at 3?",
+            source: { kind: "thread", id: "c1", label: "Nora", to: "inbox/th-c1", door: true },
+          },
+        ],
+        breakdown: null,
+      },
+      do: {
+        open: { to: "reports", label: "Open the week in Reports", now: false },
+        next: ["What caused it?", "Who still needs me?"],
+      },
+    },
+  };
+  globalThis.window.__ask.send = async (input, on) => {
+    calls.sent.push(input.text);
+    on({ t: "thread", id: TH(1).id, title: input.text });
+    on({ t: "final", message: final });
+  };
+  render(Palette, OPEN);
+  let tree = await later(Palette, OPEN);
+  typed(tree, "how did the week go?");
+  tree = await later(Palette, OPEN);
+  keyed(tree, "Enter");
+  for (let i = 0; i < 3; i++) tree = await later(Palette, OPEN);
+  assert.deepEqual(calls.sent, ["how did the week go?"]);
+  assert.equal(all(tree, (n) => n.props?.["data-testid"] === "ask-mark").length, 3, "the rail's three squares");
+  const tiles = all(tree, (n) => n.props?.["data-testid"] === "ask-tile");
+  assert.equal(tiles.length, 2);
+  assert.equal(byTestId(tiles[0], "ask-tile-from").props["data-open"], "false", "the receipt waits inside the tile");
+  press(byTestId(tiles[0], "ask-figure"));
+  tree = await later(Palette, OPEN);
+  const opened = all(tree, (n) => n.props?.["data-testid"] === "ask-tile")[0];
+  assert.equal(byTestId(opened, "ask-tile-from").props["data-open"], "true");
+  assert.match(textOf(byTestId(opened, "ask-tile-from")), /From Reports, past 7 days/);
+  assert.equal(
+    byTestId(byTestId(opened, "ask-tile-from"), "ask-tile-door"),
+    null,
+    "Open already offers Reports, so the receipt draws no second door (oneDoor)",
+  );
+  assert.equal(
+    byTestId(all(tree, (n) => n.props?.["data-testid"] === "ask-tile")[1], "ask-figure"),
+    null,
+    "a figure with no source is words",
+  );
+  assert.ok(byTestId(tree, "ask-item-mark"), "a row carries its kind");
+  const open = byTestId(tree, "ask-open");
+  assert.ok(open.props.className.split(" ").includes("btn"), "Open is the kit's button");
+  assert.deepEqual(
+    all(tree, (n) => n.props?.["data-testid"] === "ask-next").map((n) =>
+      n.props.className.split(" ").includes("ask-chip"),
+    ),
+    [true, true],
+  );
+  // The reports door is offered once: the tile's receipt has no door beside Open (oneDoor), and the keys walk item, Open, next, next.
+  keyed(tree, "ArrowDown");
+  keyed(tree, "ArrowDown");
+  keyed(tree, "ArrowDown");
+  tree = await later(Palette, OPEN);
+  assert.ok(
+    all(tree, (n) => n.props?.["data-testid"] === "ask-next")[0]
+      .props.className.split(" ")
+      .includes("sel"),
+  );
+  await closes();
+});
+
 test("the Line takes back a Say the server set aside and shows the reads again; a later row to a place an earlier one opens is drawn as a row, never a second door", async () => {
   const calls = ask([]);
   let land = () => {};

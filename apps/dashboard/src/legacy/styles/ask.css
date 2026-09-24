@@ -109,63 +109,66 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 .ask-fold-more { align-self: flex-start; height: 32px; padding: 0 22px; border: 0; background: transparent; font: inherit; font-size: 12px; color: var(--ink-dim); cursor: pointer; }
 .ask-fold-more:hover { color: var(--ink); }
 
-/* ---- The answer: Say, Show and Do, each beside one of the three's squares, fading first to last as the mark does ---- */
-.ask-turn { display: flex; flex-direction: column; gap: 10px; padding: 18px 24px 20px 22px; }
-.ask-fold .ask-turn { padding: 6px 20px 16px 22px; }
-.ask-turn-q { margin: 0 0 2px 24px; font-size: 13px; color: var(--ink-dim); overflow-wrap: anywhere; }
+/* ---- The answer: Say, Show and Do on a rail of the three's squares (spec S3) ---- */
+.ask-turn { display: flex; flex-direction: column; gap: 10px; padding: 16px 20px 18px; }
+.ask-fold .ask-turn { padding: 6px 20px 16px; }
+.ask-turn-q { margin: 0 0 2px 30px; font-size: 13px; color: var(--ink-dim); overflow-wrap: anywhere; }
 .ask-answer { display: flex; flex-direction: column; gap: 22px; }
-.ask-part { display: grid; grid-template-columns: 8px minmax(0, 1fr); column-gap: 16px; align-items: start; }
-.ask-part.show, .ask-part.do { animation: ask-part-in 120ms var(--ease-out); }
-@keyframes ask-part-in { from { opacity: 0; } }
-.ask-mark { display: block; width: 8px; height: 8px; border-radius: 2px; }
+.ask-part { position: relative; display: grid; grid-template-columns: 12px minmax(0, 1fr); column-gap: 18px; align-items: start; }
+.ask-part:not(:last-child)::before { content: ""; position: absolute; left: 5.5px; top: 22px; bottom: -22px; width: 1px; background: var(--line); }
+.ask-part.show, .ask-part.do { animation: ask-part-in 160ms var(--ease-out) both; }
+.ask-part.do { animation-delay: 60ms; }
+@keyframes ask-part-in { from { opacity: 0; translate: 0 6px; } }
+.ask-mark { display: block; width: 12px; height: 12px; border-radius: 3px; }
 .ask-mark.m1 { background: color-mix(in oklab, var(--ink) 84%, var(--bg-raised)); }
 .ask-mark.m2 { background: color-mix(in oklab, var(--ink) 56%, var(--bg-raised)); }
 .ask-mark.m3 { background: color-mix(in oklab, var(--ink) 34%, var(--bg-raised)); }
-.ask-part.say .ask-mark { margin-top: 9px; }
-.ask-part.show .ask-mark { margin-top: 6px; }
-.ask-part.do .ask-mark { margin-top: 16px; }
+.ask-part.say .ask-mark { margin-top: 7px; }
+.ask-part.show .ask-mark { margin-top: 4px; }
+.ask-part.do .ask-mark { margin-top: 10px; }
 .ask-say { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.ask-headline { margin: 0; font-size: 20px; font-weight: 500; line-height: 1.35; letter-spacing: -0.012em; color: var(--ink); text-wrap: pretty; }
-.ask-detail { margin: 0; font-size: 14px; line-height: 1.5; color: var(--ink-muted); white-space: pre-wrap; }
+.ask-headline { margin: 0; font-size: 19px; font-weight: 500; line-height: 1.35; letter-spacing: -0.012em; color: var(--ink); text-wrap: pretty; }
+.ask-detail { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--ink-muted); white-space: pre-wrap; }
 .ask-prose { margin: 0; font-size: 14.5px; line-height: 1.55; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
-.ask-turn.failed .ask-prose { color: var(--ink-dim); }
-/* A turn that could not be answered says why as its headline: at the size of words, never of a finding. */
-.ask-turn.failed .ask-headline { font-size: 14.5px; font-weight: 400; line-height: 1.55; letter-spacing: 0; color: var(--ink-dim); }
-.ask-cursor { display: inline-block; width: 6px; height: 13px; margin-left: 2px; vertical-align: -2px; background: var(--accent); border-radius: 1px; animation: ask-blink 1s steps(2, start) infinite; }
+.ask-turn.failed .ask-prose, .ask-turn.failed .ask-headline { font-size: 14.5px; font-weight: 400; line-height: 1.55; letter-spacing: 0; color: var(--ink-dim); }
+.ask-cursor { display: inline-block; width: 2px; height: 18px; margin-left: 2px; vertical-align: -3px; background: var(--accent); border-radius: 1px; animation: ask-blink 1s steps(2, start) infinite; }
 @keyframes ask-blink { to { visibility: hidden; } }
-.ask-unverified { display: inline-flex; align-self: flex-start; align-items: center; gap: 6px; margin-left: 24px; font-size: 11px; color: var(--warn); background: var(--warn-soft); border-radius: var(--radius-full); padding: 3px 9px; }
-.ask-show { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
-.ask-figures { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
-.ask-figure { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 3px; min-width: 0; }
-.ask-figure-value { padding: 0; border: 0; background: transparent; font: inherit; font-size: 22px; font-weight: 500; letter-spacing: -0.025em; line-height: 1.15; font-variant-numeric: tabular-nums; color: var(--ink); cursor: pointer; text-decoration: underline dotted var(--line-strong); text-underline-offset: 5px; }
-.ask-figure-value.plain { cursor: default; text-decoration: none; }
-.ask-figure-value[aria-expanded="true"] { text-decoration: underline solid var(--ink-muted); }
-.ask-figure-label { font-size: 12.5px; color: var(--ink-muted); }
-.ask-figure-note { font-size: 11.5px; color: var(--ink-dim); }
-.ask-receipt { position: absolute; left: 0; top: calc(100% + 6px); z-index: 2; width: 260px; max-width: calc(100vw - 48px); display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 12px 14px; background: var(--bg-raised); border: 1px solid var(--line-strong); border-radius: var(--radius-md); box-shadow: var(--shadow-lg); font-size: 12.5px; color: var(--ink); }
-.ask-receipt-from { color: var(--ink-muted); }
-.ask-receipt-door { padding: 0; border: 0; background: transparent; font: inherit; font-size: 12.5px; color: var(--ink); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.ask-unverified { display: inline-flex; align-self: flex-start; align-items: center; gap: 6px; margin-left: 30px; font-size: 11px; color: var(--warn-ink); background: var(--warn-soft); border-radius: var(--radius-full); padding: 3px 9px; }
+.ask-show { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.ask-figures { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.ask-tile { display: flex; flex-direction: column; gap: 3px; min-width: 0; padding: 10px 12px 9px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg-raised); transition: background-color var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out); }
+.ask-tile:hover, .ask-tile:has(:focus-visible), .ask-tile.open { background: var(--bg-hover); border-color: var(--line-strong); }
+.ask-tile-value { align-self: flex-start; padding: 0; border: 0; background: transparent; font: inherit; font-size: 20px; font-weight: 500; letter-spacing: -0.02em; line-height: 1.15; font-variant-numeric: tabular-nums; color: var(--ink); cursor: pointer; }
+.ask-tile-value.plain { cursor: default; }
+.ask-tile-label { font-size: 12px; color: var(--ink-muted); }
+.ask-tile-note { font-size: 11.5px; color: var(--ink-dim); }
+.ask-tile-from { display: none; align-items: center; gap: 5px; font-size: 11.5px; color: var(--ink-dim); }
+/* Hover, the keys' focus (the value is a button) or a press: the note gives way to where the figure comes from (S4). */
+.ask-tile:hover .ask-tile-from, .ask-tile:has(:focus-visible) .ask-tile-from, .ask-tile-from[data-open="true"] { display: inline-flex; }
+.ask-tile:hover .ask-tile-note, .ask-tile:has(:focus-visible) .ask-tile-note, .ask-tile.open .ask-tile-note { display: none; }
+.ask-tile-door { display: inline-flex; padding: 2px; border: 0; background: transparent; color: var(--ink-muted); cursor: pointer; }
+.ask-tile-door:hover { color: var(--ink); }
 .ask-breakdown { display: flex; flex-direction: column; gap: 6px; }
 .ask-breakdown-title { font-size: 13px; font-weight: 500; color: var(--ink); }
 .ask-breakdown-from { display: inline-flex; align-items: baseline; gap: 8px; font-size: 12px; color: var(--ink-dim); }
-.ask-items { display: flex; flex-direction: column; gap: 2px; margin: 0 -12px; }
-.ask-item { display: flex; flex-direction: column; gap: 3px; width: 100%; padding: 10px 12px; border: 0; border-radius: var(--radius-md); background: transparent; font: inherit; text-align: left; cursor: pointer; }
+.ask-receipt-door { padding: 0; border: 0; background: transparent; font: inherit; font-size: 12px; color: var(--ink); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.ask-items { display: flex; flex-direction: column; gap: 2px; margin: 0 -10px; }
+.ask-item { display: grid; grid-template-columns: 24px minmax(0, 1fr) 12px; column-gap: 12px; align-items: center; width: 100%; min-height: 44px; padding: 8px 10px; border: 0; border-radius: 10px; background: transparent; font: inherit; text-align: left; cursor: pointer; }
 .ask-item:hover, .ask-item.sel { background: var(--bg-hover); }
 /* A later row to a place an earlier one already opens: said, not a second door. */
-.ask-item.plain { cursor: default; }
+.ask-item.plain { grid-template-columns: 24px minmax(0, 1fr); cursor: default; }
 .ask-item.plain:hover { background: transparent; }
+.ask-item-mark { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 6px; background: var(--bg-sunken); color: var(--ink-muted); }
+.ask-item-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .ask-item-top { display: flex; align-items: baseline; flex-wrap: wrap; column-gap: 8px; }
 .ask-item-title { font-size: 13.5px; font-weight: 500; color: var(--ink); }
 .ask-item-meta { font-size: 12px; color: var(--ink-dim); }
 .ask-item-line { font-size: 13px; line-height: 1.45; color: var(--ink-muted); overflow-wrap: anywhere; }
-.ask-do { display: flex; flex-direction: column; gap: 2px; margin-left: -12px; min-width: 0; }
-.ask-move { display: flex; align-items: center; width: 100%; min-height: 40px; padding: 8px 12px; border: 0; border-radius: var(--radius-md); background: transparent; font: inherit; font-size: 14px; color: var(--ink); text-align: left; cursor: pointer; }
-.ask-move:hover, .ask-move.sel { background: var(--bg-hover); }
-.ask-move.next { color: var(--ink-muted); }
-.ask-move.next:hover, .ask-move.next.sel { color: var(--ink); }
-/* Today's band draws the same answer, smaller, under the three. */
-.ask-answer.compact { gap: 14px; width: min(620px, 100%); text-align: left; }
-.ask-answer.compact .ask-headline { font-size: 16px; }
+.ask-item-chev { color: var(--ink-faint); }
+.ask-do { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.ask-do-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.ask-do-row .btn.sel { background: var(--bg-hover); border-color: var(--line-strong); }
+/* A compact answer sets its tiles two to a row. */
 .ask-answer.compact .ask-figures { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
 /* ---- Cards: a proposal the person approves (no coloured edge: coral is only for Ask at work) ---- */
@@ -226,7 +229,7 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
   .ask-line-input { font-size: 16px; }
   .ask-talk { width: 40px; height: 40px; }
   .ask-line-bar .ask-line-btn { width: 44px; height: 44px; }
-  .ask-row, .ask-move { min-height: 48px; }
+  .ask-row { min-height: 48px; }
   .ask-figures { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ask-turn { padding: 12px 16px 16px; }
   .ask-trace { padding: 12px 16px 16px; }

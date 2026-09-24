@@ -1,9 +1,10 @@
 /* global React, Icon */
 // One answer as the Line draws it (docs/superpowers/specs/2026-09-23-ask-the-line-design.md, section 5): Say, Show and
-// Do, each beside one of the three's own squares, lightest to darkest; a figure's receipt; the rows it names as their
-// own doors; the next step once; and the cards, which approve, edit, wait or undo through the verbs' own routes. What
-// an answer shows is decided by the contract (window.__ask.answer: the answer and one door per place); this file only
-// draws. Published as window.AskAnswerKit, and AskTurn, AskAnswer and AskCard on window.
+// Do, each beside one of the three's own squares on a rail (the stage's spec, S3), lightest to darkest; a figure as a
+// tile with its receipt inside; the rows it names as their own doors; the next step once; and the cards, which
+// approve, edit, wait or undo through the verbs' own routes. What an answer shows is decided by the contract
+// (window.__ask.answer: the answer and one door per place); this file only draws. Published as window.AskAnswerKit,
+// and AskTurn, AskAnswer and AskCard on window.
 
 const useAtState = React.useState;
 
@@ -137,26 +138,24 @@ const AskCard = ({ p, messageId, t, onNav, hideOpen = false, onOutcome }) => {
   );
 };
 
-// A figure: the value, what it counts, how it moved; a press on the value shows where it comes from (its receipt),
-// with a door to that place only where oneDoor left it one.
+// A figure as a tile: the value, what it counts, how it moved; where it comes from is inside the tile, shown on hover
+// (ask.css) or opened by a press on the value, with a door only where oneDoor left it one (spec S4).
 const AskFigure = ({ f, open, onToggle, t, onNav }) => (
-  <div className="ask-figure">
+  <div className={`ask-tile${open ? " open" : ""}`} data-testid="ask-tile">
     {f.source ? (
-      <button type="button" className="ask-figure-value" aria-expanded={open} onClick={onToggle} data-testid="ask-figure">
-        {f.value}
-      </button>
+      <button type="button" className="ask-tile-value" aria-expanded={open} onClick={onToggle} data-testid="ask-figure">{f.value}</button>
     ) : (
-      <span className="ask-figure-value plain">{f.value}</span>
+      <span className="ask-tile-value plain">{f.value}</span>
     )}
-    <span className="ask-figure-label">{f.label}</span>
-    {f.note ? <span className="ask-figure-note">{f.note}</span> : null}
-    {open && f.source ? (
-      <div className="ask-receipt" role="note" data-testid="ask-receipt">
-        <span className="ask-receipt-from">{t.from} {f.source.label}</span>
+    <span className="ask-tile-label">{f.label}</span>
+    {f.note ? <span className="ask-tile-note">{f.note}</span> : null}
+    {f.source ? (
+      <span className="ask-tile-from" data-open={open ? "true" : "false"} data-testid="ask-tile-from">
+        {t.from} {f.source.label}
         {f.source.door ? (
-          <button type="button" className="ask-receipt-door" onClick={() => onNav(f.source.to)}>{t.open}</button>
+          <button type="button" className="ask-tile-door" onClick={() => onNav(f.source.to)} aria-label={t.open} title={t.open} data-testid="ask-tile-door"><Icon name="arrow-right" size={11} /></button>
         ) : null}
-      </div>
+      </span>
     ) : null}
   </div>
 );
@@ -192,8 +191,9 @@ const AskBreakdown = ({ b, t, onNav }) => {
 };
 
 // The answer: Say (the headline, or a prose answer's words), Show (the whole in its parts, the figures, the rows it
-// names), Do (the cards, Try again, Open, the next questions). `walk`: this is the answer the keys walk, whose moves
-// carry the ids the line points at (answerMoves' order) and `sel` is the one they stand on; a folded answer has none.
+// names), Do (the cards, then one row: Try again, Open as the kit's button, the next questions as chips). `walk`: this
+// is the answer the keys walk, whose moves carry the ids the line points at (answerMoves' order) and `sel` is the one
+// they stand on; a folded answer has none.
 const AskAnswer = ({ answer, cardOpen, cards, messageId, retry, walk = false, sel = -1, t, onNav, onFollow, onOutcome, compact = false }) => {
   const [receipt, setReceipt] = useAtState(-1);
   const a = answer;
@@ -204,13 +204,20 @@ const AskAnswer = ({ answer, cardOpen, cards, messageId, retry, walk = false, se
   const itemMove = a.show.items.map((it) => (it.source.door !== false ? doors++ : -1));
   const openAt = doors;
   const nextAt = openAt + (a.do.open ? 1 : 0);
+  // A row's kind as the mark before it (a call, a person, a page, else a conversation); a row that is a door ends in a
+  // chevron.
+  const kindGlyph = (k) => (k === "call" ? "phone" : k === "person" ? "users" : k === "page" ? "arrow-right" : "chat");
   const itemBody = (it) => (
     <>
-      <span className="ask-item-top">
-        <span className="ask-item-title">{it.title}</span>
-        {it.meta ? <span className="ask-item-meta">{it.meta}</span> : null}
+      <span className="ask-item-mark" data-testid="ask-item-mark"><Icon name={kindGlyph(it.source.kind)} size={12} /></span>
+      <span className="ask-item-body">
+        <span className="ask-item-top">
+          <span className="ask-item-title">{it.title}</span>
+          {it.meta ? <span className="ask-item-meta">{it.meta}</span> : null}
+        </span>
+        {it.line ? <span className="ask-item-line">{it.line}</span> : null}
       </span>
-      {it.line ? <span className="ask-item-line">{it.line}</span> : null}
+      {it.source.door !== false ? <Icon name="chevron" size={12} className="ask-item-chev" /> : null}
     </>
   );
   const moveProps = (me, cls) =>
@@ -218,7 +225,7 @@ const AskAnswer = ({ answer, cardOpen, cards, messageId, retry, walk = false, se
   return (
     <div className={`ask-answer${compact ? " compact" : ""}`} data-testid="ask-answer">
       <div className="ask-part say" data-testid="ask-say">
-        <span className="ask-mark m1" aria-hidden="true" />
+        <span className="ask-mark m1" aria-hidden="true" data-testid="ask-mark" />
         <div className="ask-say">
           {a.say.headline ? <p className="ask-headline">{a.say.headline}</p> : null}
           {a.say.detail ? <p className={a.say.headline ? "ask-detail" : "ask-prose"}>{a.say.detail}</p> : null}
@@ -226,7 +233,7 @@ const AskAnswer = ({ answer, cardOpen, cards, messageId, retry, walk = false, se
       </div>
       {hasShow ? (
         <div className="ask-part show" data-testid="ask-show">
-          <span className="ask-mark m2" aria-hidden="true" />
+          <span className="ask-mark m2" aria-hidden="true" data-testid="ask-mark" />
           <div className="ask-show">
             {a.show.breakdown ? <AskBreakdown b={a.show.breakdown} t={t} onNav={onNav} /> : null}
             {a.show.figures.length ? (
@@ -256,24 +263,26 @@ const AskAnswer = ({ answer, cardOpen, cards, messageId, retry, walk = false, se
       ) : null}
       {hasDo ? (
         <div className="ask-part do" data-testid="ask-do">
-          <span className="ask-mark m3" aria-hidden="true" />
+          <span className="ask-mark m3" aria-hidden="true" data-testid="ask-mark" />
           <div className="ask-do">
             {(cards || []).map((p) => (
               <AskCard key={p.id} p={p} messageId={messageId} t={t} onNav={onNav} onOutcome={onOutcome} hideOpen={!!cardOpen && cardOpen[p.id] === false} />
             ))}
-            {retry ? (
-              <button type="button" className="ask-move" onClick={retry} data-testid="ask-retry">{t.tryAgain}</button>
+            {retry || a.do.open || a.do.next.length ? (
+              <div className="ask-do-row">
+                {retry ? <button type="button" className="btn ask-retry" onClick={retry} data-testid="ask-retry">{t.tryAgain}</button> : null}
+                {a.do.open ? (
+                  <button type="button" {...moveProps(openAt, "btn ask-open")} onClick={() => onNav(a.do.open.to)} data-testid="ask-open">
+                    <Icon name="arrow-right" size={14} />{a.do.open.label}
+                  </button>
+                ) : null}
+                {/* Where the keys walk this answer from the line, they walk its chips as they walk the home's, so Tab
+                    passes them; a folded answer's are Tab's. A long question ends in an ellipsis inside its chip. */}
+                {a.do.next.map((q, k) => (
+                  <button key={q} type="button" tabIndex={walk ? -1 : undefined} {...moveProps(nextAt + k, "ask-chip next")} onClick={() => onFollow(q)} data-testid="ask-next"><span>{q}</span></button>
+                ))}
+              </div>
             ) : null}
-            {a.do.open ? (
-              <button type="button" {...moveProps(openAt, "ask-move open")} onClick={() => onNav(a.do.open.to)} data-testid="ask-open">
-                {a.do.open.label}
-              </button>
-            ) : null}
-            {a.do.next.map((q, k) => (
-              <button key={q} type="button" {...moveProps(nextAt + k, "ask-move next")} onClick={() => onFollow(q)} data-testid="ask-next">
-                {q}
-              </button>
-            ))}
           </div>
         </div>
       ) : null}
@@ -293,7 +302,7 @@ const AskTurn = ({ m, q, quick, say, latest = false, streaming = false, walk = f
       <div className="ask-turn streaming" data-testid="ask-turn">
         {q ? <p className="ask-turn-q">{q}</p> : null}
         <div className="ask-part say" data-testid="ask-say">
-          <span className="ask-mark m1" aria-hidden="true" />
+          <span className="ask-mark m1" aria-hidden="true" data-testid="ask-mark" />
           {say ? (
             <div className="ask-say">
               {say.headline ? <p className="ask-headline">{say.headline}{say.detail ? null : cursor}</p> : null}

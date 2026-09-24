@@ -225,7 +225,7 @@ const AskReal = ({ open, onClose }) => {
   useArEffect(() => {
     const b = bodyRef.current;
     if (!b || !b.querySelector) return;
-    const el = b.querySelector(".ask-row.sel, .ask-chip.sel, .ask-item.sel, .ask-move.sel");
+    const el = b.querySelector(".ask-row.sel, .ask-chip.sel, .ask-item.sel, .ask-open.sel");
     if (!el) return;
     const top = el.offsetTop, h = el.offsetHeight;
     if (top < b.scrollTop) b.scrollTop = Math.max(0, top - 8);
