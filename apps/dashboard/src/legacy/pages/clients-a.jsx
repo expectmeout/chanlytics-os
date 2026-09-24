@@ -2469,7 +2469,7 @@ const usePlPlace = ({ controls, page, view, ids, noun, landed = true, selectionO
         if (k.selected) { e.preventDefault(); k.clearSel(); }
         return;
       }
-      // F opens the finder on the Leads scope, for whoever may find; the gate says why to everyone else, at the
+      // F opens Ask on the Leads scope (spec F7), for whoever may find; the gate says why to everyone else, at the
       // button, so the key is simply not theirs.
       if ((e.key === "f" || e.key === "F") && k.canFind) { e.preventDefault(); k.find(); return; }
       if (!k.ids.length) return;
@@ -3307,9 +3307,14 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
     asked: s.asked,
     leavingOut: (s.plan.exclusions || []).map((x) => x.text),
   });
-  // Find leads is Ask on this page (spec F1, F2): the takeover on a phone, the Stage on a desktop, the words ready.
-  // A button's click event is not words: only a string (a suggestion's) reaches the field.
-  const openFind = (words = "") => window.askAbout({ mode: "compose", prompt: typeof words === "string" ? words : "" });
+  // Find leads is Ask on this page (spec F1, F2): the takeover on a phone, the Stage on a desktop. A suggestion's
+  // words go into the field; the button and the F key open Ask as ⌘K does, keeping whatever the owner left in it
+  // (a click event is not words).
+  const openFind = (words) => {
+    if (typeof words === "string" && words) window.askAbout({ mode: "compose", prompt: words });
+    else if (window.appAsk) window.appAsk();
+    else window.askAbout({});
+  };
   // A next step opens the plan card with what would run; nothing starts until the owner approves it there.
   const openPlanFor = (s, plan, how) => {
     // Answering, the composer behind the card (Change what I asked) is the owner's answer: what they first asked

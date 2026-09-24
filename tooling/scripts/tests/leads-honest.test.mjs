@@ -642,8 +642,10 @@ const install = ({ role = "owner", refuse = null } = {}) => {
       leadMapNote,
       leadPinTone,
     },
-    // The shell's door to Ask (dashboard-a-ask.jsx), recorded: what the page hands it is read back.
+    // The shell's doors to Ask, recorded: askAbout (dashboard-a-ask.jsx) with what the page hands it, and appAsk
+    // (app-shell.jsx), the plain open ⌘K makes, which keeps what the owner left in the field.
     askAbout: (detail) => asks.push(detail),
+    appAsk: () => asks.push("open"),
     __ask: {
       language: () => "en",
       send: async () => {
@@ -986,7 +988,7 @@ test("the first day offers Find leads, which opens Ask; a suggestion picked open
     "wearing the three's still mark, Ask's face at rest",
   );
   click(door);
-  assert.deepEqual(asks.at(-1), { mode: "compose", prompt: "" }, "Find leads opens Ask with the field empty");
+  assert.equal(asks.at(-1), "open", "Find leads opens Ask as ⌘K does, keeping what was left in the field");
   find(fd, (n) => n.type === "button" && n.props?.className === "q").props.onClick();
   assert.deepEqual(
     asks.at(-1),
@@ -1659,7 +1661,7 @@ test("the keys: J and K move, Enter peeks, x selects, C calls, F opens Ask; one 
     "C dials the lead under the cursor from the owner's own phone",
   );
   assert.equal(press("f"), true);
-  assert.deepEqual(asks.at(-1), { mode: "compose", prompt: "" }, "F opens Ask, the finder on this page (spec F7)");
+  assert.equal(asks.at(-1), "open", "F opens Ask as ⌘K does, the finder on this page (spec F7)");
   assert.equal(finders.length, 0, "and no composer of the page's own");
   // The button is the same door, wearing the three's mark; its click event is not words.
   const door = byTestId(draw(), "leads-find");
@@ -1668,7 +1670,7 @@ test("the keys: J and K move, Enter peeks, x selects, C calls, F opens Ask; one 
     "the mark",
   );
   click(door);
-  assert.deepEqual(asks.at(-1), { mode: "compose", prompt: "" }, "the field is empty, not an event");
+  assert.equal(asks.at(-1), "open", "a click event is not words: the plain open, nothing seeded");
 });
 
 test("Esc closes the peek, then the finder, then the Columns menu, then the selection -- one press each, in that order", () => {
@@ -3186,7 +3188,7 @@ test("a fresh Find after an abandoned answer is Ask's, and a plan opened after i
   draw({ leadsRoute: `leads:s-${SEARCH_B}` });
   press("f");
   draw({ leadsRoute: `leads:s-${SEARCH_B}` });
-  assert.deepEqual(asks.at(-1), { mode: "compose", prompt: "" }, "F opens Ask, not a finder");
+  assert.equal(asks.at(-1), "open", "F opens Ask, not a finder");
   menuOf("Chiropractors · Round Rock")
     .items.find((i) => i.label === "Search again, changed")
     .onClick();

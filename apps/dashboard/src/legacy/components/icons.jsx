@@ -33,9 +33,9 @@ const Icon = ({ name, size = 16, className = "", style = {} }) => {
     case "clock":    return <svg {...props}><circle cx="8" cy="8" r="5.5"/><path d="M8 5v3l2 1.5"/></svg>;
     case "bolt":     return <svg {...props}><path d="M9 2L3.5 9H7l-1 5L12.5 7H9l1-5z"/></svg>;
     case "sparkle":  return <svg {...props}><path d="M8 2v4M8 10v4M2 8h4M10 8h4"/><path d="M4 4l1.5 1.5M10.5 10.5L12 12M4 12l1.5-1.5M10.5 5.5L12 4"/></svg>;
-    // Ask's three at rest, still: a descending diagonal, the pose the canvas holds. A door to Ask wears this mark
-    // where a second live canvas would be a second character (spec F1).
-    case "three":    return <svg {...props}><rect x="1.5" y="1.5" width="4.5" height="4.5" rx="1.2"/><rect x="5.75" y="5.75" width="4.5" height="4.5" rx="1.2"/><rect x="10" y="10" width="4.5" height="4.5" rx="1.2"/></svg>;
+    // Ask's three at rest, still: the stair the canvas holds (mascot/character.ts STEP, wider than tall, the squares
+    // clear of each other). A door to Ask wears this mark where a second live canvas would be a second character (F1).
+    case "three":    return <svg {...props}><rect x="0.9" y="3.4" width="4.4" height="4.4" rx="1.05"/><rect x="5.65" y="6.22" width="4.4" height="4.4" rx="1.05"/><rect x="10.4" y="9.04" width="4.4" height="4.4" rx="1.05"/></svg>;
     case "instagram":return <svg {...props}><rect x="2.5" y="2.5" width="11" height="11" rx="3"/><circle cx="8" cy="8" r="2.5"/><circle cx="11" cy="5" r="0.5" fill="currentColor"/></svg>;
     case "mail":     return <svg {...props}><rect x="2" y="3.5" width="12" height="9" rx="1"/><path d="M2.5 5l5.5 4 5.5-4"/></svg>;
     case "command":  return <svg {...props}><path d="M5 3.5h6v9H5z M3.5 5v6 M11 5h1.5v1.5H11z M3.5 9.5H5M11 9.5h1.5"/></svg>;
