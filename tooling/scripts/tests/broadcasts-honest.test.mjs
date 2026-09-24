@@ -1776,12 +1776,28 @@ test("REGRESSION (C20): on Messages only the pressed control says it is working,
   tree = messagesAgain();
   assert.match(
     textOf(byTestId(tree, "sync-templates")),
-    /In step with WhatsApp|Never checked with WhatsApp/,
+    /Synced|Never synced/,
     "and afterwards it says when it last looked, not what to press",
   );
 });
 
-test("A message is a row you scan, and the words open under it: what it is, every language's state, and what sends it -- without opening anything", () => {
+/**
+ * A message's languages are the row it opens: they were a column of every closed row ("● EN ⌄" sixteen times) for a
+ * choice that changes nothing about who a run reaches (23 Sep, Campaigns made compact). Opens the row `rowOf` finds
+ * when it is closed, and returns the tree with it open.
+ */
+const openedRow = (rowOf) => {
+  let tree = messagesAgain();
+  if (!byTestId(rowOf(tree), "template-open-body")) {
+    press(byTestId(rowOf(tree), "template-open"));
+    tree = messagesAgain();
+  }
+  return tree;
+};
+const customRow = (t) => byTestId(t, "custom-row");
+const lastStarterRow = (t) => all(t, (n) => n.props?.["data-testid"] === "starter-row").at(-1);
+
+test("A message is a row you scan, and the words open under it: what it is, what sends it and what went out -- without opening anything; its languages open with it", () => {
   const en = templateRow({
     id: "t-en",
     name: "offer",
@@ -1816,15 +1832,22 @@ test("A message is a row you scan, and the words open under it: what it is, ever
     "and the name WhatsApp knows it by, in the open row",
   );
 
-  // ONE language control per message, where a slot per language stood ("EN ES"
-  // on every row): the language in view, its state drawn, and no "+1" for a
-  // message that exists in one language.
-  const chips = all(row, (n) => n.props?.["data-testid"] === "template-lang");
+  // No language on the closed row. Open, ONE language control per message, where a slot per language stood ("EN ES"
+  // on every row): the language in view, its state drawn, and no "+1" for a message that exists in one language.
+  assert.equal(
+    all(row, (n) => n.props?.["data-testid"] === "template-lang").length,
+    0,
+    "the languages are the open row's",
+  );
+  const chips = all(
+    customRow(messagesOpen({ __TEMPLATES_ALL: [en] })),
+    (n) => n.props?.["data-testid"] === "template-lang",
+  );
   assert.equal(chips.length, 1);
   assert.equal(textOf(chips[0]).trim(), "EN");
   assert.equal(chips[0].props["data-tone"], "ok", "its state, drawn");
 
-  // A STARTER's chip opens its languages in groups: the one WhatsApp holds, the
+  // A STARTER's chip, in its open row, opens its languages in groups: the one WhatsApp holds, the
   // one the library has written and the workspace never added -- a language that
   // did not exist was simply absent before, which is the hole the toolbar's
   // arithmetic ("Add the 3 in English") was describing -- and every other
@@ -1835,6 +1858,7 @@ test("A message is a row you scan, and the words open under it: what it is, ever
       templateRow({ id: "t-w", name: "winback_offer", language: "en_US", meta_status: "approved" }),
     ],
   });
+  tree = openedRow((t) => all(t, (n) => n.props?.["data-testid"] === "starter-row")[0]);
   let starter = all(tree, (n) => n.props?.["data-testid"] === "starter-row")[0];
   const chip = byTestId(starter, "template-lang");
   assert.equal(textOf(chip).trim(), "EN", "Spanish is not on file, so there is nothing more to count");
@@ -1852,7 +1876,7 @@ test("A message is a row you scan, and the words open under it: what it is, ever
   );
   assert.equal(options.find((o) => o.props["aria-selected"]).props["data-lang"], "en_US", "the one in view is ticked");
 
-  // Picking the library's Spanish puts it in view and opens the message, where
+  // Picking the library's Spanish puts it in view in the open message, where
   // the words WhatsApp would review are, and the Add beside them.
   press(options.find((o) => o.props["data-lang"] === "es"));
   tree = messagesAgain();
@@ -1932,7 +1956,8 @@ test("A language nobody has written is picked from the one chip and written in t
   toasts.length = 0;
   try {
     let tree = messages({ __TEMPLATES_ALL: [offerEn()] });
-    press(byTestId(byTestId(tree, "custom-row"), "template-lang"));
+    tree = openedRow(customRow);
+    press(byTestId(customRow(tree), "template-lang"));
     tree = messagesAgain();
     // Every language WhatsApp takes, under "Translate into", for a message written here.
     const pt = optionOf(byTestId(tree, "custom-row"), "pt_BR");
@@ -1940,7 +1965,7 @@ test("A language nobody has written is picked from the one chip and written in t
     press(pt);
     tree = messagesAgain();
     let row = byTestId(tree, "custom-row");
-    // Picked, it opens the row on the new language and starts writing it at once.
+    // Picked, the open row turns to the new language and starts writing it at once.
     assert.equal(byTestId(row, "tpl-composer").props["data-mode"], "translate");
     assert.ok(byTestId(row, "tpl-translating"), "the shape of the words while the assistant writes");
     assert.deepEqual(
@@ -2018,7 +2043,8 @@ test("Cancel goes back to the language that was in view; a heading, or a role th
   };
   try {
     let tree = messages({ __TEMPLATES_ALL: [offerEn()] });
-    press(byTestId(byTestId(tree, "custom-row"), "template-lang"));
+    tree = openedRow(customRow);
+    press(byTestId(customRow(tree), "template-lang"));
     tree = messagesAgain();
     press(optionOf(byTestId(tree, "custom-row"), "fr"));
     messagesAgain();
@@ -2063,7 +2089,8 @@ test("Cancel goes back to the language that was in view; a heading, or a role th
   try {
     const starterIn = (list) => {
       let t = messages({ __TEMPLATES_ALL: list });
-      press(byTestId(all(t, (n) => n.props?.["data-testid"] === "starter-row").at(-1), "template-lang"));
+      t = openedRow(lastStarterRow);
+      press(byTestId(lastStarterRow(t), "template-lang"));
       t = messagesAgain();
       press(optionOf(all(t, (n) => n.props?.["data-testid"] === "starter-row").at(-1), "pt_BR"));
       t = messagesAgain();
@@ -2098,7 +2125,8 @@ test("Cancel goes back to the language that was in view; a heading, or a role th
   try {
     const pt = offerEn({ id: "t-pt", language: "pt_BR", body_preview: "Oi {{1}}, 20% de desconto esta semana." });
     let t = messages({ __TEMPLATES_ALL: [offerEn(), pt] });
-    press(byTestId(byTestId(t, "custom-row"), "template-lang"));
+    t = openedRow(customRow);
+    press(byTestId(customRow(t), "template-lang"));
     t = messagesAgain();
     press(optionOf(byTestId(t, "custom-row"), "pt_BR"));
     t = messagesAgain();
@@ -2115,7 +2143,8 @@ test("Cancel goes back to the language that was in view; a heading, or a role th
 
   // A heading would not come with it: no language to translate into, and the reason where they would be.
   let tree = messages({ __TEMPLATES_ALL: [offerEn({ header: "Fall news" })] });
-  press(byTestId(byTestId(tree, "custom-row"), "template-lang"));
+  tree = openedRow(customRow);
+  press(byTestId(customRow(tree), "template-lang"));
   tree = messagesAgain();
   let row = byTestId(tree, "custom-row");
   assert.deepEqual([...new Set(optionsIn(row).map((o) => o.props["data-group"]))], ["on"]);
@@ -2129,7 +2158,8 @@ test("Cancel goes back to the language that was in view; a heading, or a role th
   globalThis.window.canDo = () => false;
   try {
     tree = messages({ __TEMPLATES_ALL: [offerEn()] });
-    press(byTestId(byTestId(tree, "custom-row"), "template-lang"));
+    tree = openedRow(customRow);
+    press(byTestId(customRow(tree), "template-lang"));
     tree = messagesAgain();
     row = byTestId(tree, "custom-row");
     assert.deepEqual([...new Set(optionsIn(row).map((o) => o.props["data-group"]))], ["on"]);
@@ -2728,8 +2758,9 @@ test("A message says its state once, and a refusal is a line rather than a hover
       templateRow({ id: "t-es", name: "offer", language: "es", meta_status: "pending" }),
     ],
   });
-  // One chip for both: the language in view, its state DRAWN, and "+1" for the
+  // One chip for both, in the open row: the language in view, its state DRAWN, and "+1" for the
   // other -- a language, not a state, in its words.
+  tree = openedRow(customRow);
   let chip = byTestId(byTestId(tree, "custom-row"), "template-lang");
   assert.deepEqual(chipSays(chip), ["EN", "+1"]);
   assert.ok(!/approved|review/i.test(textOf(chip)), `the chip says a language, not a state: ${textOf(chip)}`);

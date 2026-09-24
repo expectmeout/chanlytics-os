@@ -2321,7 +2321,6 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   .cm-banner-text { flex: 1 1 calc(100% - 27px); }
   .cm-banner-more { display: none; }
   .cm-banner > .btn { margin-left: 25px; }
-  .tpl-fresh-words { display: none; }
   /* Playbooks' line on a phone: the playbooks' states, and the one warning on a line of its own. "Not set up" is the
      group's own count under the rows, and a dot left at the end of a wrapped line points at nothing. */
   .pb-standing .pb-tally-cell[data-tone="dim"],
@@ -2967,7 +2966,7 @@ html.legacy-on .bc-nobody-door { position: relative; min-height: 0; }
    10px capitals, rows on the page's ground with a hairline between them, the hover's grey. */
 .msg-list { container-type: inline-size; border: 1px solid var(--line); border-radius: var(--radius-md); overflow: clip; background: var(--bg); }
 .msg-list-head,
-.msg-row-line { display: grid; grid-template-columns: 28px minmax(0, 1fr) 104px 204px 92px; column-gap: 12px; align-items: center; }
+.msg-row-line { display: grid; grid-template-columns: 28px minmax(0, 1fr) 220px 92px; column-gap: 12px; align-items: center; }
 .msg-list-head { padding: 9px 14px; border-bottom: 1px solid var(--line); background: var(--bg-sunken); font-size: 10px; font-weight: var(--weight-medium); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-dim); }
 .msg-row { border-bottom: 1px solid var(--line); }
 .msg-row:last-child { border-bottom: 0; }
@@ -2990,8 +2989,6 @@ html.legacy-on .bc-nobody-door { position: relative; min-height: 0; }
 .msg-row-name { flex: none; font-size: var(--text-xs); color: var(--ink-dim); }
 .msg-tag { flex: none; }
 .msg-row-words { font-size: var(--text-xs); color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* The language chip's glyph sits under the column's heading, its padding outside the column. */
-.msg-row-langs { display: flex; align-items: center; min-width: 0; margin-left: -8px; }
 .msg-row-use { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; font-size: var(--text-xs); }
 .msg-use-link { max-width: 100%; padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-xs); color: var(--ink); text-align: left; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .msg-use-link:hover { text-decoration: underline; text-underline-offset: 2px; }
@@ -3094,12 +3091,13 @@ html.legacy-on .bc-nobody-door { position: relative; min-height: 0; }
    buttons: the row stood 115px where its lines are 72). The opener is the whole line (cmRowPress) and needs no floor;
    the words that are their own press take theirs from a box that takes no room, as a chip's buttons do. */
 html.legacy-on .msg-row-what,
-html.legacy-on .msg-use-link,
-html.legacy-on .msg-row-langs .lp-trigger { min-height: 0; }
-html.legacy-on .msg-use-link,
-html.legacy-on .msg-row-langs .lp-trigger { position: relative; }
-.msg-use-link::after,
-.msg-row-langs .lp-trigger::after { content: ""; position: absolute; inset: -10px -6px; }
+html.legacy-on .msg-use-link { min-height: 0; }
+html.legacy-on .msg-use-link { position: relative; }
+.msg-use-link::after { content: ""; position: absolute; inset: -10px -6px; }
+/* A message's languages, in the row it opens: which one is in view, its state, and every language behind it. */
+.msg-lang { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: var(--text-xs); color: var(--ink-dim); }
+.msg-lang-k { flex: none; }
+.msg-lang .lp-trigger { margin-left: -2px; }
 /* A language written in the row that opened it: the composer as a panel in the
    fold, its fields beside the message as the customer will read it, and while
    the assistant writes, the shape of the words rather than a spinner. */
@@ -3129,7 +3127,7 @@ html.legacy-on .msg-row-langs .lp-trigger { position: relative; }
 .msg-card-spacer { flex: 1; }
 .msg-card-acts { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 11.5px; padding-top: 6px; border-top: 1px solid var(--line); }
 /* The foot of the list: the fold of what is kept out of the composers, tucked under the list it belongs to. */
-.msg-foot { display: flex; align-items: center; gap: 9px; min-height: 32px; padding: 0 2px; margin-top: -6px; }
+.msg-foot { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 18px; min-height: 32px; padding: 0 2px; margin-top: -6px; }
 .msg-fold-toggle { display: inline-flex; align-items: center; gap: 8px; padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-sm); color: var(--ink-dim); cursor: pointer; }
 .msg-fold-toggle:hover { color: var(--ink-muted); }
 .msg-list-hidden { margin-top: -6px; }
@@ -3143,8 +3141,7 @@ html.legacy-on .msg-row-langs .lp-trigger { position: relative; }
 @container (max-width: 774px) {
   .msg-list-head { display: none; }
   .msg-row-line { grid-template-columns: var(--row-face) minmax(0, 1fr) auto; column-gap: var(--row-gap); row-gap: var(--row-line-gap); min-height: 0; padding: var(--row-pad-y) var(--row-pad-x); }
-  .msg-row-what { grid-column: 1 / 3; grid-row: 1; grid-template-columns: var(--row-face) minmax(0, 1fr); column-gap: var(--row-gap); align-items: start; padding: 0; }
-  .msg-row-langs { grid-column: 3; grid-row: 1; align-self: start; margin: -3px -6px 0 0; }
+  .msg-row-what { grid-column: 1 / -1; grid-row: 1; grid-template-columns: var(--row-face) minmax(0, 1fr); column-gap: var(--row-gap); align-items: start; padding: 0; }
   .msg-row-use { grid-column: 2; grid-row: 2; flex-direction: row; align-items: baseline; min-width: 0; font-size: var(--row-facts); line-height: var(--row-facts-line); }
   .msg-row-use .msg-use-note { display: none; }
   .msg-row-sent { grid-column: 3; grid-row: 2; flex-direction: row; align-items: baseline; gap: 5px; font-size: var(--row-facts); line-height: var(--row-facts-line); }
