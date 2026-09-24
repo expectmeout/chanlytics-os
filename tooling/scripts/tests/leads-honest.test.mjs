@@ -23,6 +23,7 @@ import {
   pipelineOf,
   pipelinePeekOf,
   pipelineRail,
+  pipelineSorted,
   pipelineRoute,
   pipelineViewLabel,
   roleGate,
@@ -2205,6 +2206,7 @@ test("REGRESSION: the Pipeline's rows too -- a draw that changed nothing of a ro
     route: pipelineRoute,
     parse: parsePipelineRoute,
     viewLabel: pipelineViewLabel,
+    sorted: pipelineSorted,
     words: PIPELINE_WORDS,
   };
   const drawPipeline = () => draw({ scope: "pipeline", leadsRoute: null });

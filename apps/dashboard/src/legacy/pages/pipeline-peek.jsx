@@ -9,8 +9,75 @@
 // there the moment it opens. The deal is the person page's own card (person-deal.jsx PersonDealOne and PersonDealQuiet
 // over contracts dealCardsOf, through window.__deal.cards), drawn once the person lands -- the tab's copy at once,
 // else read -- with every act the card offers: a send opens their thread with the words in the box, and every other
-// act opens the one deal sheet. Under it, the quiet facts People's row already says (when they were last heard, their
-// words, what is coming up), and the two doors: their page and their thread.
+// act opens the one deal sheet. Under it, once the person is read, how to reach them (the number with Call and Copy,
+// the address with Copy, what a reply may be now) and what happened with their deals, from contracts'
+// pipelinePeekDetail in the person page's own words; the quiet facts People's row already says (when they were last
+// heard, their words, what is coming up); and the two doors, their page and their thread. On a phone, where the peek
+// is the whole screen, the deal's next act and Call are pinned under it (`pipe-peek-bar`), in a thumb's reach.
+
+// How to reach them. A copy says so on the button it was pressed on, for a moment.
+const PipelinePeekReach = ({ rows }) => {
+  const [copied, setCopied] = React.useState(null);
+  const W = window.__pipeline.words.peek.reach;
+  if (!rows || !rows.length) return null;
+  const copy = (r) => {
+    const done = () => {
+      setCopied(r.id);
+      setTimeout(() => setCopied((c) => (c === r.id ? null : c)), 1600);
+    };
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(r.copy).then(done, () => {});
+    } catch (e) { /* no clipboard here */ }
+  };
+  return (
+    <dl className="pipe-peek-reach" data-testid="pipeline-peek-reach">
+      {rows.map((r) => (
+        <div key={r.id} className="pipe-peek-reach-row" data-testid={`pipeline-peek-reach-${r.id}`}>
+          <dt className="pipe-peek-reach-label">{r.label}</dt>
+          <dd className="pipe-peek-reach-what">
+            <span className={`pipe-peek-reach-words${r.id === "phone" ? " tabular" : ""}`}>{r.words}</span>
+            {r.call ? <a className="cl-prof-deal-act" href={r.call} data-testid="pipeline-peek-call">{W.call}</a> : null}
+            {r.copy ? <button type="button" className="cl-prof-deal-act" aria-label={r.id === "phone" ? W.copyPhone : W.copyEmail} onClick={() => copy(r)} data-testid={`pipeline-peek-copy-${r.id}`}>{copied === r.id ? W.copied : W.copy}</button> : null}
+          </dd>
+        </div>
+      ))}
+      {/* A copy is said once to a screen reader too: the button's own words change where it was pressed. */}
+      <span className="rec-sr" role="status" aria-live="polite">{copied ? W.copied : ""}</span>
+    </dl>
+  );
+};
+
+// What happened with their deals, newest first: the person page's own lines from their timeline.
+const PipelinePeekHistory = ({ items }) => {
+  const W = window.__pipeline.words.peek;
+  if (!items || !items.length) return null;
+  return (
+    <section className="pipe-peek-history" aria-label={W.history} data-testid="pipeline-peek-history">
+      <h3 className="pipe-peek-head">{W.history}</h3>
+      <ul className="pipe-peek-history-list">
+        {items.map((h) => (
+          <li key={h.id} className="pipe-peek-history-row"><span className="pipe-peek-history-words">{h.words}</span><span className="pipe-peek-when">{h.when}</span></li>
+        ))}
+      </ul>
+    </section>
+  );
+};
+
+// A phone's one act, pinned under the peek: the deal's next act (the card's own, contracts dealNextAct, through the
+// deal kit) for a member who may record one, and Call where there is a number.
+const PipelinePeekBar = ({ person, call, canRecord, onCompose }) => {
+  const kit = window.__deal;
+  let act = null;
+  try { act = canRecord && kit && kit.next ? kit.next(person, Date.now()) : null; } catch (err) { act = null; }
+  if (!act && !call) return null;
+  const W = window.__pipeline.words.peek.reach;
+  return (
+    <div className="pipe-peek-bar" data-testid="pipeline-peek-bar">
+      {act ? <button type="button" className="btn btn-primary pipe-peek-bar-act" onClick={() => window.pdRun && window.pdRun(person, act, person.deal ? person.deal.id : null, onCompose)} data-testid="pipeline-peek-bar-act">{act.label}</button> : null}
+      {call ? <a className="btn pipe-peek-bar-call" href={call} data-testid="pipeline-peek-bar-call"><Icon name="phone" size={14} /> {W.call}</a> : null}
+    </div>
+  );
+};
 
 const PipelinePeekFacts = ({ facts }) => (facts.length ? (
   <ul className="pipe-peek-facts" data-testid="pipeline-peek-facts">
@@ -43,6 +110,12 @@ const PipelinePeek = ({ vm, person = null, failed = null, canRecord = false, pho
   // On a phone, where the peek is the whole screen, a pull down from the top of what it shows is its Close (data-bits
   // touchSwipe, the lead peek's rule).
   const swipe = phone && window.touchSwipe ? window.touchSwipe({ onDown: onClose }) : {};
+  // What the peek says once the person is read; worked out tried, as the card is: a person it cannot say is not a throw.
+  let detail = null;
+  if (person && window.__pipeline.detail) {
+    try { detail = window.__pipeline.detail(person); } catch (err) { detail = null; }
+  }
+  const call = detail ? (detail.reach.find((r) => r.call) || {}).call || null : null;
   return (
     <aside className="pk pl-peek pipe-peek" role="dialog" aria-label={vm.name} data-testid="pipeline-peek" {...swipe}>
       <div className="pk-head">
@@ -55,13 +128,16 @@ const PipelinePeek = ({ vm, person = null, failed = null, canRecord = false, pho
       </div>
       <div className="pk-body pipe-peek-body">
         <PipelinePeekDeal person={person} failed={failed} canRecord={canRecord} onRetry={onRetry} onCompose={onCompose} />
+        {detail ? <PipelinePeekReach rows={detail.reach} /> : null}
         <PipelinePeekFacts facts={vm.facts} />
+        {detail ? <PipelinePeekHistory items={detail.history} /> : null}
         {/* The doors are quiet words, as the card's other moves are: the card's one next act keeps the outline button. */}
         <div className="pipe-peek-doors">
           <button type="button" className="cl-prof-deal-act pipe-peek-door" onClick={onOpenPage} data-testid="pipeline-peek-page">{W.page}<Icon name="arrow-right" size={11} /></button>
           {vm.thread ? <button type="button" className="cl-prof-deal-act pipe-peek-door" onClick={onOpenThread} data-testid="pipeline-peek-thread">{W.thread}<Icon name="arrow-right" size={11} /></button> : null}
         </div>
       </div>
+      {phone && person ? <PipelinePeekBar person={person} call={call} canRecord={canRecord} onCompose={onCompose} /> : null}
     </aside>
   );
 };

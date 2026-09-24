@@ -1615,7 +1615,10 @@ const plUndoList = async (id, name, flash) => {
 // the bar shows what the role allows and says why when it does not.
 // `phone`: the bar is docked along the foot of a phone's pane and scrolls sideways, so its menus are placed against the
 // window (MoreMenu escape), which that scroll cannot cut off.
-const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport, onClear, onKeep = () => {}, flash, activeSaved = null, phone = false, sheet = null, onSheet = () => {}, onSelectAll = null }) => {
+// `lead` is a page's own act, drawn first after the count (the Pipeline's Mark as passed · N); `acts` names which of
+// People's own it keeps ("lists", "consent", "receptionist", "note", "export"), every one where it is not given.
+const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport, onClear, onKeep = () => {}, flash, activeSaved = null, phone = false, sheet = null, onSheet = () => {}, onSelectAll = null, lead = null, acts = null }) => {
+  const keeps = (a) => !acts || acts.includes(a);
   const [busy, setBusy] = React.useState(false);
   const [naming, setNaming] = React.useState(false);
   const [name, setName] = React.useState("");
@@ -1854,7 +1857,8 @@ const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport,
   return (
     <div className="cl-bulk" role="toolbar" aria-label="Selected people" data-testid="bulk-bar">
       <span className="cl-bulk-count"><b>{ids.length}</b> selected</span>
-      {canEdit && window.__lists && !naming && (
+      {lead}
+      {canEdit && keeps("lists") && window.__lists && !naming && (
         <MoreMenu
           btnClass="btn btn-sm"
           escape={phone}
@@ -1885,7 +1889,7 @@ const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport,
           <Icon name="x" size={11} /> Take off {activeSaved.name}
         </button>
       )}
-      {canEdit && window.__setPersonConsentMany && sources.length > 0 && !slips && (
+      {canEdit && keeps("consent") && window.__setPersonConsentMany && sources.length > 0 && !slips && (
         <MoreMenu
           btnClass="btn btn-sm"
           escape={phone}
@@ -1908,7 +1912,7 @@ const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport,
           <button className="btn btn-ghost btn-sm" disabled={busy} onClick={closeSlips}>Cancel</button>
         </span>
       )}
-      {canEdit && isOwner && window.__setPersonReceptionistMany && (
+      {canEdit && keeps("receptionist") && isOwner && window.__setPersonReceptionistMany && (
         <MoreMenu
           btnClass="btn btn-sm"
           escape={phone}
@@ -1921,7 +1925,7 @@ const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport,
           ]}
         />
       )}
-      {canEdit && window.__appendPersonNotesMany && !noting && (
+      {canEdit && keeps("note") && window.__appendPersonNotesMany && !noting && (
         <button className="btn btn-sm" disabled={busy} onClick={() => setNoting(true)} data-testid="bulk-note"><Icon name="edit" size={12} /> Add a note</button>
       )}
       {canEdit && noting && (
@@ -1930,8 +1934,8 @@ const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport,
           <button className="btn btn-sm btn-primary" disabled={busy || !note.trim()} onClick={addNote}>Add</button>
         </span>
       )}
-      {canExport && <button className="btn btn-sm" disabled={busy} onClick={exportCsv} data-testid="bulk-export"><Icon name="external" size={12} /> Export CSV</button>}
-      {!canEdit && <span className="cl-prof-aut-hint">Only an owner or operator can add to lists or record a yes.</span>}
+      {canExport && keeps("export") && <button className="btn btn-sm" disabled={busy} onClick={exportCsv} data-testid="bulk-export"><Icon name="external" size={12} /> Export CSV</button>}
+      {!canEdit && <span className="cl-prof-aut-hint">{keeps("consent") ? "Only an owner or operator can add to lists or record a yes." : window.gateTitle ? window.gateTitle("approve", "add people to a list") : null}</span>}
       <button className="btn btn-ghost btn-sm" onClick={onClear} data-testid="bulk-clear"><Icon name="x" size={11} /> Clear</button>
     </div>
   );
@@ -2232,7 +2236,9 @@ const usePlControls = ({ scope, cols, phoneCols, colCtx, people, sortFirst, rail
   const onSort = (key) => {
     viewTouched.current = true;
     if (sortBy === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    else { setSortBy(key); setSortDir(key === "name" || key === "visits" ? "asc" : "desc"); }
+    // A name starts at A, the soonest visit first, and the Pipeline's Stage in its own order (Leads' stage column is a
+    // rank of its own, most first); any other number, most first.
+    else { setSortBy(key); setSortDir(key === "name" || key === "visits" || (key === "stage" && scope === "pipeline") ? "asc" : "desc"); }
   };
   // A sort the member picked from a menu rather than a heading (a phone's more-menu): theirs, like a heading's.
   const pickSort = (by, dir) => { viewTouched.current = true; setSortBy(by); setSortDir(dir); };
@@ -3641,4 +3647,4 @@ window.ClientsA = ClientsA;
 // Drawn on their own by refusals-on-the-page.test.mjs; the rail, the standing line and the table's noun are the
 // Leads scope's too (leads-scope.jsx draws them with scope="leads"). The Pipeline (pipeline-scope.jsx) is a third view
 // over the same list page, and takes its hooks, its person cell and its search from here: one rule each.
-Object.assign(window, { plAddPerson, plAddedWords, PL_ADD_EMPTY, NewListRow, AddPersonButton, DeleteListButton, PeopleRail, PeopleStanding, PeopleScopeTabs, PeopleListsSheet, PeoplePhoneBar, PhoneSheet, PhoneSheetRow, plRowCard, RailSection, RailGroup, RailRow, railToggle, usePeople, usePlControls, usePlPlace, plNameCell, plFace, plIsNumber, plMatcher, plScopeRoute, plLoadedWords, PL_SEARCH_LABEL });
+Object.assign(window, { plAddPerson, plAddedWords, PL_ADD_EMPTY, NewListRow, AddPersonButton, DeleteListButton, PeopleRail, PeopleStanding, PeopleScopeTabs, PeopleListsSheet, PeopleBulkBar, PeoplePhoneBar, PhoneSheet, PhoneSheetRow, plRowCard, RailSection, RailGroup, RailRow, railToggle, usePeople, usePlControls, usePlPlace, plNameCell, plFace, plIsNumber, plMatcher, plScopeRoute, plLoadedWords, PL_SEARCH_LABEL });

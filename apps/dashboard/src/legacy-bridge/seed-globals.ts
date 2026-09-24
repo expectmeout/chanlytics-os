@@ -25,6 +25,12 @@ import {
   pipelineRoute,
   parsePipelineRoute,
   pipelineViewLabel,
+  pipelineSorted,
+  pipelinePassMany,
+  pipelinePassDone,
+  pipelinePeekDetail,
+  pipelineBoardMore,
+  PIPELINE_BOARD_CAP,
   PIPELINE_WORDS,
   whyNotAHandoff,
   handoffE164,
@@ -87,6 +93,12 @@ declare global {
       route: typeof pipelineRoute;
       parse: typeof parsePipelineRoute;
       viewLabel: typeof pipelineViewLabel;
+      sorted: typeof pipelineSorted;
+      passMany: typeof pipelinePassMany;
+      passDone: typeof pipelinePassDone;
+      detail: typeof pipelinePeekDetail;
+      boardCap: typeof PIPELINE_BOARD_CAP;
+      boardMore: typeof pipelineBoardMore;
       words: typeof PIPELINE_WORDS;
     };
     __whyNotAHandoff: typeof whyNotAHandoff;
@@ -179,6 +191,14 @@ if (typeof window !== "undefined") {
     route: pipelineRoute,
     parse: parsePipelineRoute,
     viewLabel: pipelineViewLabel,
+    // The row carries the deal: its order by the member's heading, a selection's pass and what it came to, what the
+    // peek says once the person is read, and how many cards a board column shows.
+    sorted: pipelineSorted,
+    passMany: pipelinePassMany,
+    passDone: pipelinePassDone,
+    detail: pipelinePeekDetail,
+    boardCap: PIPELINE_BOARD_CAP,
+    boardMore: pipelineBoardMore,
     words: PIPELINE_WORDS,
   };
   window.__whyNotAHandoff = whyNotAHandoff;

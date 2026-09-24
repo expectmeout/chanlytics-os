@@ -6367,7 +6367,8 @@ function validUntilOf(day, tz, nowMs) {
   const at2 = wallClockAt(tz, day, 12, 0);
   if (!Number.isFinite(at2)) return null;
   const lapsed = zoneDayKey(nowMs, tz) > day;
-  return { day, words: `${lapsed ? "Lapsed" : "Valid until"} ${clockDate(at2, tz, nowMs)}`, lapsed };
+  const date = clockDate(at2, tz, nowMs);
+  return { day, date, words: `${lapsed ? "Lapsed" : "Valid until"} ${date}`, lapsed };
 }
 function toDealVM(d, tz, nowMs) {
   if (!isDealStage(d.stage)) return null;
@@ -6828,6 +6829,14 @@ function personNotesVM(notes, tz, nowMs) {
     };
   });
 }
+function repliesWords(via, window) {
+  if (via === "Email") return "Any time, by email";
+  if (via === "Text") return "Any time, by text";
+  if (via !== "WhatsApp" || !window) return null;
+  if (!window.open) return "Approved messages only, until they write again";
+  const h = window.hoursLeft;
+  return h >= 1 ? `Any message, for ${h} more ${h === 1 ? "hour" : "hours"}` : "Any message, for less than an hour";
+}
 var REPLY_VIA = {
   whatsapp: "WhatsApp",
   sms: "Text",
@@ -7277,12 +7286,12 @@ var LIST_STEPS = {
   offers_ok: OFFERS_STEP
 };
 function peopleListAction(id, members) {
-  const step = LIST_STEPS[id];
-  if (!step) return null;
-  if (step.answered && members.length > 0 && members.every((m) => saidYesTo(m, "marketing")))
-    return broadcastStep(step.answered.cta, step.answered.to, members);
-  if (!step.broadcast) return { text: step.text ?? "", cta: step.cta, to: step.to, enabled: members.length > 0 };
-  return broadcastStep(step.cta, step.to, members);
+  const step2 = LIST_STEPS[id];
+  if (!step2) return null;
+  if (step2.answered && members.length > 0 && members.every((m) => saidYesTo(m, "marketing")))
+    return broadcastStep(step2.answered.cta, step2.answered.to, members);
+  if (!step2.broadcast) return { text: step2.text ?? "", cta: step2.cta, to: step2.to, enabled: members.length > 0 };
+  return broadcastStep(step2.cta, step2.to, members);
 }
 function savedListAction(id, members) {
   return broadcastStep(USE_IN_A_BROADCAST, `broadcasts/${id}`, members);
@@ -7832,10 +7841,8 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
   about.push({ k: "Channels", v: base.channels.map((c) => PERSON_CHANNEL_WORDS[c]).join(" \xB7 ") || "\u2014" });
   if (base.hasChat && via && exactWindow) {
     const hours = exactWindow.closesAtIso ? Math.max(0, Math.round((new Date(exactWindow.closesAtIso).getTime() - nowMs) / 36e5)) : 0;
-    about.push({
-      k: "Replies",
-      v: via === "email" ? "Any time, by email" : via === "sms" ? "Any time, by text" : exactWindow.open ? hours >= 1 ? `Any message, for ${hours} more ${hours === 1 ? "hour" : "hours"}` : "Any message, for less than an hour" : "Approved messages only, until they write again"
-    });
+    const v = repliesWords(REPLY_VIA[via], { open: exactWindow.open, hoursLeft: hours });
+    if (v) about.push({ k: "Replies", v });
   }
   if (d.visits) {
     const v = d.visits;
@@ -9155,7 +9162,7 @@ var askWhy = (text, math) => `${text} ${capitalize2(math)}. Why is that?`;
 function todayLeaks(reports, people, noReply = [], max = TODAY_LEAK_MAX, nowMs = Date.now()) {
   const found = /* @__PURE__ */ new Map();
   const list2 = (id) => people ? people.lists.find((l) => l.id === id) ?? null : null;
-  const step = (id) => {
+  const step2 = (id) => {
     const l = list2(id);
     return l && l.action && l.action.enabled && l.count > 0 ? { label: l.action.cta, to: l.action.to } : null;
   };
@@ -9177,7 +9184,7 @@ function todayLeaks(reports, people, noReply = [], max = TODAY_LEAK_MAX, nowMs =
       peopleLead: null,
       ask: askWhy(text, math),
       cta: { label: "See who", to: never ? `clients/seg:${never.id}` : "clients" },
-      also: step("asked_never_booked")
+      also: step2("asked_never_booked")
     });
   }
   const a = reports && reports.vm.answered ? reports.vm.answered.totals : null;
@@ -9278,7 +9285,7 @@ function todayLeaks(reports, people, noReply = [], max = TODAY_LEAK_MAX, nowMs =
       peopleLead: null,
       ask: askWhy(text, math),
       cta: { label: "See who", to: `clients/seg:${quiet.id}` },
-      also: step("quiet")
+      also: step2("quiet")
     });
   }
   const all = LEAK_ORDER.map((id) => found.get(id)).filter((x) => !!x);
@@ -11801,13 +11808,13 @@ function toRunReportVM(d, opts) {
   const last = heard.length ? Math.max(...heard) - start : 0;
   const windowH = opts.windowMs / 36e5;
   const spanH = RUN_REPORT_SPANS_H.find((h) => h <= windowH && h * 36e5 > last) ?? windowH;
-  const step = spanH * 36e5 / RUN_REPORT_STEPS;
+  const step2 = spanH * 36e5 / RUN_REPORT_STEPS;
   const bars2 = (stamps) => {
     const out = new Array(RUN_REPORT_STEPS).fill(0);
     for (const s of stamps) {
       const t = s ? Date.parse(s) : NaN;
       if (!Number.isFinite(t)) continue;
-      const i = Math.floor((t - start) / step);
+      const i = Math.floor((t - start) / step2);
       if (i >= 0 && i < RUN_REPORT_STEPS) out[i] += 1;
     }
     return out;
@@ -18651,7 +18658,17 @@ var PIPELINE_WORDS = {
    * The table's headings, in the order it draws them. The chip's column shows none -- no one word is right for "Fri
    * 2:00 PM" and "Since Sep 18" alike -- and says this one to a screen reader.
    */
-  columns: { person: "Person", service: "Service", value: "Value", stage: "In stage", chip: "Where it stands" },
+  columns: {
+    person: "Person",
+    service: "Service",
+    value: "Value",
+    stage: "Stage",
+    came: "Came from",
+    valid: "Valid until",
+    chip: "Where it stands",
+    /** The row's own menu, as a screen reader hears its heading. */
+    acts: "More"
+  },
   /** What opens a folded group, whose head counts its rows already, and what folds it again. */
   show: "Show",
   hide: "Hide",
@@ -18665,10 +18682,33 @@ var PIPELINE_WORDS = {
     page: "Open their page",
     thread: "Open the thread",
     reading: "Reading\u2026",
-    what: "this person"
+    what: "this person",
+    /** How to reach them: the number (a call, a copy), the address (a copy), and what a reply may be. */
+    reach: {
+      phone: "Phone",
+      email: "Email",
+      replies: "Replies",
+      call: "Call",
+      copy: "Copy",
+      copied: "Copied",
+      /** What a Copy says it copies, to a screen reader: both buttons read "Copy" on the page. */
+      copyPhone: "Copy the number",
+      copyEmail: "Copy the address"
+    },
+    /** What happened with their deals, newest first. */
+    history: "History"
   },
-  /** The board: a column with nobody in it, and what a card says of itself to a screen reader. */
-  board: { nobody: "Nobody here", card: "Open" },
+  /** The board: a column with nobody in it, what a card says of itself to a screen reader, and a card's menu. */
+  board: { nobody: "Nobody here", card: "Open", menu: "More for", move: "Move to" },
+  /** The row's menu: the deal's own acts come from the deal sheet's words; these are its two doors. */
+  row: { menu: "More for" },
+  /** A selection's pass (Mark as passed · N): the one question, asked once for every proposal in it. */
+  pass: {
+    button: "Mark as passed",
+    ask: "Why did they pass?",
+    cancel: "Cancel",
+    busy: "Marking\u2026"
+  },
   /** A proposal out that has waited a week with nothing back: the row's In stage already says how long. */
   nothingBack: "Nothing back",
   /** The Pipeline's own rail: its groups, what waits on the owner, and each service. */
@@ -18714,28 +18754,43 @@ function closedChip(d, tz, nowMs) {
   const what = d.reason ? d.reason.words : d.word;
   return { words: d.sinceMs === null ? what : `${what} \xB7 ${clockDate(d.sinceMs, tz, nowMs)}`, tone: "plain" };
 }
-function dealRow(r, d, chip, nowMs) {
+var step = (key, at2, tone = "plain") => ({
+  key,
+  at: at2,
+  tone
+});
+function dealTrack(r, d, chip) {
+  if (d.stage !== "proposed" && d.stage !== "won") return [];
+  const held = r.consultedMs !== null && Number.isFinite(r.consultedMs) ? [step("consultation", "done")] : [];
+  return d.stage === "proposed" ? [...held, step("proposal", "current", chip?.tone === "warn" ? "warn" : "info"), step("client", "ahead")] : [...held, step("proposal", "done"), step("client", "current", "ok")];
+}
+function dealRow(r, d, chip, nowMs, group) {
   return {
     id: r.id,
+    group,
     name: r.name,
     person: r,
     service: d.service,
     value: d.amount,
     // A proposal's time in stage IS its wait, the number its chip says: the deal's own count, never a second one.
     inStage: daysWords(d.stage === "proposed" ? d.waitingDays : wholeDaysSince(d.sinceMs, nowMs)),
-    chip
+    chip,
+    track: dealTrack(r, d, chip)
   };
 }
 function heldRow(r, endMs, tz, nowMs) {
   const heldMs = r.lastVisitMs !== null && Number.isFinite(r.lastVisitMs) ? r.lastVisitMs : endMs;
   return {
     id: r.id,
+    group: "consultations",
     name: r.name,
     person: r,
     service: null,
     value: null,
     inStage: daysWords(wholeDaysSince(heldMs, nowMs)),
-    chip: { words: `Held ${clockNear(heldMs, zoneOf(r, tz), nowMs)} \xB7 no proposal yet`, tone: "warn" }
+    chip: { words: `Held ${clockNear(heldMs, zoneOf(r, tz), nowMs)} \xB7 no proposal yet`, tone: "warn" },
+    // Held, and the proposal is the step now: in warn, as the chip says it, since it waits on the owner.
+    track: [step("consultation", "done"), step("proposal", "current", "warn"), step("client", "ahead")]
   };
 }
 function aheadRow(r, c, tz, nowMs) {
@@ -18743,12 +18798,14 @@ function aheadRow(r, c, tz, nowMs) {
   const when = c.allDay ? clockNear(c.startMs, zone, nowMs) : clockNearWhen(c.startMs, zone, nowMs);
   return {
     id: r.id,
+    group: "consultations",
     name: r.name,
     person: r,
     service: null,
     value: null,
     inStage: "",
-    chip: { words: upper2(when), tone: "info" }
+    chip: { words: upper2(when), tone: "info" },
+    track: [step("consultation", "current", "info"), step("proposal", "ahead"), step("client", "ahead")]
   };
 }
 function inOrder(xs, at2, latest = false) {
@@ -18812,18 +18869,20 @@ function pipelineOf(rows, nowMs, tz, view = "all") {
     group(
       "proposals",
       inOrder(shownProposals, (x) => x.d.sinceMs).map(
-        (x) => dealRow(x.r, x.d, proposalChip(x.r, x.d, tz, nowMs), nowMs)
+        (x) => dealRow(x.r, x.d, proposalChip(x.r, x.d, tz, nowMs), nowMs, "proposals")
       ),
       worth(shownProposals)
     ),
     group(
       "clients",
-      inOrder(shownClients, (x) => x.d.sinceMs, true).map((x) => dealRow(x.r, x.d, clientChip(x.d), nowMs)),
+      inOrder(shownClients, (x) => x.d.sinceMs, true).map((x) => dealRow(x.r, x.d, clientChip(x.d), nowMs, "clients")),
       worth(shownClients)
     ),
     group(
       "closed",
-      inOrder(shownClosed, (x) => x.d.sinceMs, true).map((x) => dealRow(x.r, x.d, closedChip(x.d, tz, nowMs), nowMs)),
+      inOrder(shownClosed, (x) => x.d.sinceMs, true).map(
+        (x) => dealRow(x.r, x.d, closedChip(x.d, tz, nowMs), nowMs, "closed")
+      ),
       null
     )
   ].filter((g) => g.count > 0);
@@ -18943,6 +19002,73 @@ function pipelinePeekOf(row2, group) {
     facts,
     thread: p.threadId
   };
+}
+var PIPELINE_SORTS = ["stage", "value", "name"];
+function yearCents(d) {
+  if (!d || d.amountCents === null || !Number.isFinite(d.amountCents)) return null;
+  return d.per === "month" ? d.amountCents * 12 : d.amountCents;
+}
+function pipelineSorted(vm, by, dir) {
+  const sort = PIPELINE_SORTS.includes(by ?? "") ? by : "stage";
+  if (sort === "stage" && dir !== "desc") return vm;
+  const sign = dir === "desc" ? -1 : 1;
+  const groups = vm.groups.map((g) => {
+    const ranked = g.rows.map((r, i) => ({ r, i }));
+    ranked.sort((a, b) => {
+      if (sort === "stage") return sign * (a.i - b.i);
+      if (sort === "name") return sign * a.r.name.localeCompare(b.r.name) || a.i - b.i;
+      const x = a.r.value === null ? null : yearCents(a.r.person.deal);
+      const y = b.r.value === null ? null : yearCents(b.r.person.deal);
+      if (x === y) return a.i - b.i;
+      if (x === null) return 1;
+      if (y === null) return -1;
+      return sign * (x - y);
+    });
+    return { ...g, rows: ranked.map((x) => x.r) };
+  });
+  return { ...vm, groups };
+}
+var PIPELINE_PASS_MAX = 50;
+function pipelinePassMany(rows) {
+  const out = rows.filter((r) => r.deal && r.deal.stage === "proposed" && r.deal.id).map((r) => ({ personId: r.id, dealId: r.deal.id }));
+  const deals = out.slice(0, PIPELINE_PASS_MAX);
+  const later = out.length - deals.length;
+  const k = rows.length - out.length;
+  return {
+    deals,
+    button: deals.length ? `${PIPELINE_WORDS.pass.button} \xB7 ${deals.length}` : null,
+    words: deals.length ? `Mark ${deals.length} as passed` : null,
+    more: later ? `${later} more stay selected, fifty at a time` : null,
+    rest: k ? k === 1 ? "1 is not a proposal out and stays as it is" : `${k} are not proposals out and stay as they are` : null,
+    reasons: DEAL_LOST_REASONS.map((code2) => ({ code: code2, words: DEAL_LOST_REASON_WORDS[code2] }))
+  };
+}
+function pipelinePassDone(done, changed, failed = 0) {
+  const parts2 = [];
+  if (done || !changed && !failed) parts2.push(done === 1 ? "1 marked as passed" : `${done} marked as passed`);
+  if (changed)
+    parts2.push(
+      changed === 1 ? "1 had changed, and was left as it is" : `${changed} had changed, and were left as they are`
+    );
+  if (failed) parts2.push(failed === 1 ? "1 could not be marked" : `${failed} could not be marked`);
+  return { words: parts2.join(" \xB7 "), tone: failed && !done ? "danger" : changed || failed ? "warn" : "ok" };
+}
+function pipelinePeekDetail(p) {
+  const W = PIPELINE_WORDS.peek.reach;
+  const reach = [];
+  if (p.phone && !(p.consent && p.consent.dnc)) {
+    const dial = p.phone.replace(/[^\d+]/g, "");
+    reach.push({ id: "phone", label: W.phone, words: p.phone, call: dial ? `tel:${dial}` : null, copy: p.phone });
+  }
+  if (p.email) reach.push({ id: "email", label: W.email, words: p.email, call: null, copy: p.email });
+  const replies = p.hasChat ? repliesWords(p.replyVia, p.replyWindow) : null;
+  if (replies) reach.push({ id: "replies", label: W.replies, words: replies, call: null, copy: null });
+  const history = p.timeline.filter((t) => t.kind === "deal" && !t.ahead).sort((a, b) => b.ts - a.ts).slice(0, 3).map((t) => ({ id: t.id, words: t.text, when: t.day }));
+  return { reach, history };
+}
+var PIPELINE_BOARD_CAP = 20;
+function pipelineBoardMore(n) {
+  return `Show ${n} more`;
 }
 
 // src/lead-judge.ts
@@ -19569,8 +19695,11 @@ export {
   PERSON_MODE_LABELS,
   PERSON_MODE_WORDS,
   PERSON_STATE_LABELS,
+  PIPELINE_BOARD_CAP,
   PIPELINE_GROUPS,
+  PIPELINE_PASS_MAX,
   PIPELINE_RAIL_SERVICES,
+  PIPELINE_SORTS,
   PIPELINE_WORDS,
   PLATFORM_NEW_DAYS,
   PLATFORM_QUIET_DAYS,
@@ -20129,11 +20258,16 @@ export {
   personStateFor,
   phoneTail,
   pickCurrentDeal,
+  pipelineBoardMore,
   pipelineMove,
   pipelineOf,
+  pipelinePassDone,
+  pipelinePassMany,
+  pipelinePeekDetail,
   pipelinePeekOf,
   pipelineRail,
   pipelineRoute,
+  pipelineSorted,
   pipelineViewLabel,
   placeholdersOf,
   placeholdersSequential,
@@ -20202,6 +20336,7 @@ export {
   registrationPathOf,
   registrationPreflight,
   renderTemplate,
+  repliesWords,
   replyDelayMs,
   replyWaitsOnYou,
   replyWhy,

@@ -664,6 +664,24 @@ export function personNotesVM(
     });
 }
 
+/**
+ * What a reply to them may be, in the owner's words: the person page's Replies and the Pipeline peek's, one sentence.
+ * WhatsApp takes any message for a day after they last wrote, and after that only a message WhatsApp approved ahead
+ * of time; a text or an email goes any time. It said "Reply window · Closed · template only", and before it was
+ * channel-aware it said so to a person who had only ever emailed. Null with no wire a reply goes out on.
+ */
+export function repliesWords(
+  via: "WhatsApp" | "Text" | "Email" | null,
+  window: { open: boolean; hoursLeft: number } | null,
+): string | null {
+  if (via === "Email") return "Any time, by email";
+  if (via === "Text") return "Any time, by text";
+  if (via !== "WhatsApp" || !window) return null;
+  if (!window.open) return "Approved messages only, until they write again";
+  const h = window.hoursLeft;
+  return h >= 1 ? `Any message, for ${h} more ${h === 1 ? "hour" : "hours"}` : "Any message, for less than an hour";
+}
+
 /** How a reply goes, in the words the page uses for the wire. */
 const REPLY_VIA: Record<"whatsapp" | "sms" | "email", "WhatsApp" | "Text" | "Email"> = {
   whatsapp: "WhatsApp",
@@ -2572,22 +2590,8 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
     const hours = exactWindow.closesAtIso
       ? Math.max(0, Math.round((new Date(exactWindow.closesAtIso).getTime() - nowMs) / 3_600_000))
       : 0;
-    // What a reply may be, in the owner's words: WhatsApp takes any message for a day after they last wrote, and
-    // after that only a message WhatsApp approved ahead of time. It said "Reply window · Closed · template only",
-    // and before it was channel-aware it said so to a person who had only ever emailed.
-    about.push({
-      k: "Replies",
-      v:
-        via === "email"
-          ? "Any time, by email"
-          : via === "sms"
-            ? "Any time, by text"
-            : exactWindow.open
-              ? hours >= 1
-                ? `Any message, for ${hours} more ${hours === 1 ? "hour" : "hours"}`
-                : "Any message, for less than an hour"
-              : "Approved messages only, until they write again",
-    });
+    const v = repliesWords(REPLY_VIA[via], { open: exactWindow.open, hoursLeft: hours });
+    if (v) about.push({ k: "Replies", v });
   }
 
   // Their appointments, when the workspace's calendar is connected: the next

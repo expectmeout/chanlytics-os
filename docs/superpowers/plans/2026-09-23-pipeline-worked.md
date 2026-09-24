@@ -167,16 +167,18 @@ once), Add to list, Export; the peek shows how to reach them and the deal's hist
 
 **Files:** `packages/contracts/src/pipeline.ts`; tests `pipeline.test.mjs`.
 
-- [ ] `PipelineRowVM.track: { key: "consultation" | "proposal" | "client"; at: "done" | "current" | "ahead"; tone }[]`:
+- [x] `PipelineRowVM.track: { key: "consultation" | "proposal" | "client"; at: "done" | "current" | "ahead"; tone }[]`:
   the consultation only where one was held or is ahead; a proposal out is current at Proposal; a client done, done,
   current; a passed or ended deal has no track (its chip says it).
-- [ ] `PIPELINE_SORTS = ["waiting", "value", "name"]`, `pipelineSorted(vm, sort, dir)` within each group; `waiting`
+- [x] `PIPELINE_SORTS = ["waiting", "value", "name"]` (built as the table's own column keys, `stage`, `value`, `name`,
+  so a heading sorts the way People's do), `pipelineSorted(vm, sort, dir)` within each group; `waiting`
   is the Pipeline's own order; `value` orders by `annualCents(cents, per)` (a month × 12), none last.
-- [ ] Columns: Person (pinned), Service, Value, Stage (track + in stage), Came from (off), Valid until (off), the chip,
+- [x] Columns: Person (pinned), Service, Value, Stage (track + in stage), Came from (off), Valid until (off), the chip,
   the row's ⋯. Words in `PIPELINE_WORDS.columns`.
-- [ ] `pipelinePassMany(rows)`: the selection's proposals out (each `{ personId, dealId, version }`) and the words:
+- [x] `pipelinePassMany(rows)` (a People row carries no deal version, so the page reads it from each person first):
+  the selection's proposals out (each `{ personId, dealId }`) and the words:
   "Mark 2 as passed", "1 is not a proposal out and stays as it is".
-- [ ] `pipelinePeekDetail(person: PersonVM)`: reach rows (the number with Call and Copy, the address with Copy, the
+- [x] `pipelinePeekDetail(person: PersonVM)`: reach rows (the number with Call and Copy, the address with Copy, the
   wire's state: "Window open · 20 h", "Approved messages only until they write", "Texts", "Email") and history (the
   timeline's deal rows and steps done, newest first, at most three, then their last message).
 
@@ -185,14 +187,22 @@ once), Add to list, Export; the peek shows how to reach them and the deal's hist
 **Files:** `pipeline-scope.jsx`, `pipeline-peek.jsx`, `pipeline-board.jsx`, `clients-a.jsx` (the bulk bar takes a
 page's acts), `styles/clients.css`; tests `pipeline.test.mjs`.
 
-- [ ] The table: selectable, Sort (a menu on a desk, as People's), Columns (`PeopleColumnsMenu`), the ⋯ (`MoreMenu`
+- [x] The table: selectable, Sort (a menu on a desk, as People's), Columns (`PeopleColumnsMenu`), the ⋯ (`MoreMenu`
   with the deal's acts from `dealMenuActs`, then Open the thread, Open their page).
-- [ ] The bulk bar (People's `.cl-bulk`): Mark as passed · N asks why once (`DEAL_LOST_REASONS` as a toggle group),
+- [x] The bulk bar (People's `.cl-bulk`): Mark as passed · N asks why once (`DEAL_LOST_REASONS` as a toggle group),
   then records each through `__recordDeal` one at a time and says the count; Add to list and Export as People's.
-- [ ] The peek: reach rows and history under the card; on a phone an act bar pins the card's next act and Call.
-- [ ] Sticky group heads; with the peek open on a desk the table keeps Person, Value and the chip.
-- [ ] The board: each card's ⋯ has Move to… (the columns `pipelineMove` allows); a column shows twenty, then Show more.
-- [ ] Tests for each; the look; the gate; the PR; merge.
+- [x] The peek: reach rows and history under the card; on a phone an act bar pins the card's next act and Call.
+- [x] Sticky group heads; with the peek open on a desk the table keeps Person and the chip (at 1280 some 350px are
+  left beside the peek, which holds two columns; the peek's card says the value).
+- [x] The board: each card's ⋯ has Move to… (the columns `pipelineMove` allows); a column shows twenty, then Show more.
+- [x] Tests for each; the look; the gate; the PR; merge.
+- [x] The review's one round: the pass reads each person afresh and records only a deal still a proposal out (a
+  teammate's client was being passed), in the bridge (`passDeals`) with one re-read after the last whatever it
+  answered, fifty at a press, passed / changed / could not be marked, only the passed leaving the selection; no
+  Call for do-not-contact; `__deal.next` published; the chip column fixed (a wordless Columns row); a
+  consultation's row menu proposes; value sorts by what the row shows; the bar beside the peek; heads at
+  `--pl-head` above hovered pins; Move to shown on touch; the pass question's focus and Esc; Leads' stage sort
+  untouched.
 
 ---
 

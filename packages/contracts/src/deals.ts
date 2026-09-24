@@ -384,8 +384,11 @@ export interface DealVM {
    * it is still on its way (`sending`: queued, in the seconds its send can be undone); a People row can say neither.
    */
   proposal: { url: string; host: string; sent?: { at: string; via: string | null } | null; sending?: boolean } | null;
-  /** "Valid until Sep 30", or "Lapsed Sep 30" once that day has passed by the business's calendar: a proposal's only. */
-  validUntil: { day: string; words: string; lapsed: boolean } | null;
+  /**
+   * "Valid until Sep 30", or "Lapsed Sep 30" once that day has passed by the business's calendar: a proposal's only.
+   * `date` is the day alone ("Sep 30"), for a column whose heading already says what it is.
+   */
+  validUntil: { day: string; date: string; words: string; lapsed: boolean } | null;
   /** Why they passed, and its word: a passed deal's only. */
   reason: { code: DealLostReason; words: string } | null;
 }
@@ -396,7 +399,8 @@ function validUntilOf(day: string | null | undefined, tz: string, nowMs: number)
   const at = wallClockAt(tz, day, 12, 0);
   if (!Number.isFinite(at)) return null;
   const lapsed = zoneDayKey(nowMs, tz) > day;
-  return { day, words: `${lapsed ? "Lapsed" : "Valid until"} ${clockDate(at, tz, nowMs)}`, lapsed };
+  const date = clockDate(at, tz, nowMs);
+  return { day, date, words: `${lapsed ? "Lapsed" : "Valid until"} ${date}`, lapsed };
 }
 
 export function toDealVM(
