@@ -18,7 +18,7 @@
   --set-title: var(--text-md);
   --set-label: var(--text-base);
   --set-hint: var(--text-sm);
-  --set-row-y: 14px;
+  --set-row-y: 11px;
   --set-lead: 36px;
   --set-lead-gap: 14px;
   /* The second voice (the sentence under every label, a card sub, a fact name)
@@ -112,14 +112,15 @@
    The sentence sat opposite the title, right-aligned, where a long one ran the
    width of the card at 11px; an act the section offers (Invite, Edit) keeps the
    right-hand side to itself. */
-.settings .set-card { padding: 20px 24px 10px; }
+/* The record kit's card measures (record.css .rec-card): an 18px gutter, and the head close over its rows. */
+.settings .set-card { padding: 16px 18px 6px; }
 .settings .fl-card-head {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   column-gap: 16px;
   row-gap: 3px;
   align-items: center;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 .settings .fl-card-title { grid-column: 1; font-size: var(--set-title); font-weight: 600; letter-spacing: -0.01em; }
 .settings .fl-card-sub { grid-column: 1; font-size: var(--set-hint); line-height: 1.45; color: var(--ink-dim); max-width: 64ch; text-wrap: pretty; }
@@ -147,12 +148,12 @@
 /* The controls a row carries, at the row's scale: the product's small button,
    quiet link and pill are sized for a dense list, and looked lost at the end of
    a row this tall. Scoped here so nothing outside Settings moves. */
-.settings .btn-sm { height: 30px; padding: 0 12px; font-size: var(--set-hint); border-radius: var(--radius-md); }
+.settings .btn-sm { height: 30px; padding: 0 12px; font-size: var(--set-hint); border-radius: var(--radius-sm); }
 .settings .btn-icon.btn-sm { width: 30px; padding: 0; }
 .settings .cl-bucket-link {
   height: 30px;
   padding: 0 8px;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   font-size: var(--set-hint);
   font-weight: 500;
   color: var(--ink-muted);
@@ -174,7 +175,7 @@
 .settings .setup-number:active { transform: scale(0.97); }
 .settings .set-switch:active { filter: brightness(0.96); }
 .settings .set-switch:hover { background: color-mix(in oklab, var(--ink) 12%, var(--line-strong)); }
-.settings .set-switch.on:hover { background: color-mix(in oklab, var(--ink) 10%, var(--ok)); }
+.settings .set-switch.on:hover { background: var(--ink-muted); }
 .settings .setup-path:hover, .settings .setup-number:hover { border-color: var(--line-strong); }
 .set-pane a:not([class]) { color: var(--ink); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
 .set-pane a:not([class]):hover { text-decoration-color: currentColor; }
@@ -183,7 +184,7 @@
    `.sd-input` from the shared sheet: a smaller radius, 13px type, and
    `outline: none` on focus with only a border-colour change to stand in --
    which a keyboard user cannot see. Scoped, so nothing outside Settings moves. */
-.settings .sd-input { min-height: 36px; padding: 8px 11px; font-size: var(--set-label); border-radius: var(--radius-md); margin-bottom: 0; }
+.settings .sd-input { min-height: 36px; padding: 8px 11px; font-size: var(--set-label); border-radius: var(--radius-sm); margin-bottom: 0; }
 .settings .sd-input:hover { border-color: var(--line-strong); }
 .settings .sd-input::placeholder { color: var(--ink-dim); }
 /* Setup's state word carries the row's tone; on white, ok read 3.42. The
@@ -346,16 +347,18 @@
   transition: background 160ms var(--ease-out);
   padding: 0;
 }
-.set-switch.on { background: var(--ok); }
+/* Ink, not green, as the record kit's switch is (record.css, 24 Sep): a switch is a control, and green is the state
+   dot's. On, the knob takes the raised ground so it reads on the ink in either theme; off, the knob token. No shadow. */
+.set-switch.on { background: var(--ink); }
 .set-knob {
   position: absolute;
   top: 2px; left: 2px;
   width: 16px; height: 16px;
   border-radius: 999px;
-  background: oklch(0.99 0.002 80);
-  box-shadow: 0 1px 2px oklch(0 0 0 / 0.2), 0 0 0 1px oklch(0 0 0 / 0.05);
-  transition: transform 160ms var(--ease-out);
+  background: var(--knob);
+  transition: transform 160ms var(--ease-out), background 160ms var(--ease-out);
 }
+.set-switch.on .set-knob { background: var(--bg-raised); }
 /* A switch is a 36x20 pill. The 44px touch floor (legacy-bridge/legacy.css)
    applies to every button, so on a phone it became a 36x44 capsule with the
    knob pinned 26px above its own bottom -- twelve of them down the Hours block.
@@ -371,13 +374,15 @@
   display: flex;
   align-items: center;
   gap: var(--set-lead-gap);
-  padding: var(--set-row-y) 0;
+  min-height: 44px;
+  padding: 8px 0;
   border-top: 1px solid var(--line);
 }
 .set-team-row:first-of-type, .set-int-row:first-of-type { border-top: none; }
 .set-team-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-/* An address is one long word: it wraps inside its own column instead of running under the role beside it. */
-.set-team-name, .set-team-mail { overflow-wrap: anywhere; }
+/* An address is one long word: it is cut with an ellipsis inside its own column rather than broken across two lines
+   ("hi@chanlytics.agen / cy" at a phone's width); the whole of it is the row's title on hover. */
+.set-team-name, .set-team-mail { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .set-team-name { font-size: var(--set-label); font-weight: 500; line-height: 1.35; color: var(--ink); }
 /* What a row is called, then what it is attached to (a number, an address):
    the second part is a detail and reads as one. `.dim` had no rule anywhere. */
@@ -414,7 +419,10 @@
 /* On a phone a row's words keep the width; its state and acts take the next line, under the words. */
 @media (max-width: 640px) {
   .set-conn { grid-template-columns: var(--set-lead) minmax(0, 1fr); }
-  .set-conn > .set-int-row { row-gap: 10px; align-items: start; }
+  .set-conn > .set-int-row { row-gap: 8px; align-items: start; }
+  /* A connected row on a phone is its name, its state and its acts: the sentence under it (last message 3d ago) is
+     a desktop's. A row that wants something keeps its sentence, which says what. */
+  .set-conn > .set-int-row[data-state="connected"] .set-team-mail { display: none; }
   .set-conn > .set-int-row > .pill { grid-column: 2; grid-row: 2; align-self: center; }
   .set-conn > .set-int-row > .set-int-actions { grid-column: 2; grid-row: 2; justify-content: flex-end; }
   .set-conn > .set-row-stack { padding-left: 0; }
@@ -609,7 +617,7 @@
 /* ---------- Team & roles (audit U3) ---------- */
 /* A member's row is the settings row with an avatar in front (above); what is
    its own is the avatar's size, the pending look, and the word "You". */
-.set-team-row .avatar { width: 32px; height: 32px; font-size: 12px; }
+.set-team-row .avatar { width: var(--row-face, 32px); height: var(--row-face, 32px); font-size: 12px; }
 /* Each person's own hue, stable from their address, dark enough that the two
    letters on it read at 12px. Four identical grey discs told a reader nothing
    and made a page of people look like a page of rows. */
@@ -684,6 +692,13 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
    modes side by side, each named. As a table it was 520px wide inside a card that
    scrolled sideways with nothing to say so: a phone showed the Auto column alone,
    and a class set to Veto looked like a class with nothing set. */
+/* The matrix on a phone (pages/settings.jsx PolPhoneRows): one line per class, its mode as a word with a menu. The
+   rules under this for the table itself stay for the mockup's pane, which keeps the table at every width. */
+.pol-phone { display: flex; flex-direction: column; margin: 0 0 4px; }
+.pol-phone-row { min-height: 44px; }
+.pol-phone-mode { font-size: var(--set-label); white-space: nowrap; }
+.pol-phone-locked { display: inline-flex; align-items: center; gap: 6px; }
+.pol-phone-locked .icon { color: var(--warn-ink); flex: none; }
 @media (max-width: 640px) {
   .settings .pol-table { display: block; min-width: 0; }
   .pol-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
@@ -830,10 +845,14 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
    row People and Today share (attention-bits.jsx); the head carries the
    readiness sentence and the one next verb. A row put off for later fades. */
 .setup { display: grid; gap: 20px; }
-.setup-sentence { margin: 0 0 4px; font-size: var(--text-lg); font-weight: 500; line-height: 1.4; color: var(--ink); text-wrap: balance; }
+/* The body size (24 Sep): the largest type on the page was a sentence that said which lines answer. */
+.setup-sentence { margin: 0 0 4px; font-size: var(--set-label); font-weight: 500; line-height: 1.45; color: var(--ink); text-wrap: pretty; }
 .setup-next { display: flex; align-items: center; gap: 12px; margin-top: 14px; padding-bottom: 6px; flex-wrap: wrap; }
-.setup-next-label { font-size: var(--text-xs); letter-spacing: .05em; text-transform: uppercase; color: var(--ink-dim); }
+.setup-next-label { font-size: var(--set-hint); color: var(--ink-dim); }
 .setup-try-rows { display: grid; gap: 4px; padding-bottom: 8px; }
+/* The page is its rows: the meter, then the work, and on a phone the Try card after the rows rather than a screen
+   of it before them (feedback: a phone shows the work first). */
+@media (max-width: 640px) { .setup-try { order: 3; } }
 /* The number, then what to do with it. On a phone the acts take the next line
    rather than each wrapping alone: at 390px the row broke into four lines, one
    of them a lone arrow. */
@@ -900,8 +919,11 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
 .settings .set-team-row.pending .set-team-face { opacity: 1; }
 @media (max-width: 640px) {
   /* The words keep the width; the acts take the next line, at the end of it. */
-  .setup-rows .cl-attn-row { grid-template-columns: var(--set-lead) minmax(0, 1fr); row-gap: 8px; padding-left: 18px; padding-right: 18px; }
+  .setup-rows .cl-attn-row { grid-template-columns: var(--set-lead) minmax(0, 1fr); row-gap: 6px; padding-left: 15px; padding-right: 15px; }
   .setup-rows .cl-attn-acts { grid-column: 2; justify-self: end; }
+  /* A row that is ready is its name and its state on a phone: its sentence and its details are a desktop's. The rows
+     that want a person keep every word. */
+  .setup-rows .cl-attn-row.tone-ok .cl-attn-sentence, .setup-rows .cl-attn-row.tone-ok .cl-attn-note { display: none; }
 }
 
 /* The line chooser under the line row: three paths, then the area code, the
@@ -915,7 +937,7 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
 .setup-path.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
 .setup-new, .setup-ask { display: grid; gap: 10px; }
 .setup-find { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.setup-find-label { font-size: var(--text-xs); letter-spacing: .05em; text-transform: uppercase; color: var(--ink-dim); }
+.setup-find-label { font-size: var(--set-hint); color: var(--ink-dim); }
 .setup-area { width: 72px; min-height: 36px; padding: 6px 10px; font: inherit; font-size: var(--set-label); font-variant-numeric: tabular-nums; color: var(--ink); background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-sm); }
 .setup-area:focus-visible { outline: none; box-shadow: var(--focus-ring); border-color: var(--accent); }
 .setup-numbers { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px; }
@@ -960,7 +982,8 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
    above it, the same as every other control on this surface. It used to draw
    its own uppercase label and its own bottom border inside the TEAM card,
    which is what made it read as an orphan pasted above other people's rows. */
-.set-you { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+/* retired: .set-you */
+.set-you-retired { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 .set-you-input { width: 240px; max-width: 100%; }
 
 /* Profile: who is signed in, stated once, at the top of the first thing you

@@ -169,6 +169,8 @@ globalThis.React = {
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
 await import("../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+await import("../../../apps/dashboard/src/legacy/components/record-field.jsx");
+await import("../../../apps/dashboard/src/legacy/components/record-fold.jsx");
 await import("../../../apps/dashboard/src/legacy/components/record-row.jsx");
 // data-bits installs the shell tip on import, so the test tip -- where a pressed gate showed its reason -- goes on after it.
 globalThis.window.__tip = { show: (el) => tipped.push(el) };
@@ -536,6 +538,50 @@ const headCells = (tree) =>
     head: textOf(find(n, (k) => k.props?.className === "pol-mode-head")),
     sub: textOf(find(n, (k) => k.props?.className === "pol-mode-sub")),
   }));
+
+test("on a phone the matrix is one line per class: its mode is a word that opens a menu of the modes it takes, and a locked class says so", () => {
+  // 24 Sep: the table of four columns collapsed into four captioned dots under every label on a phone, 107px a row.
+  // Settings reads its own breakpoint (useSetPhone, 640px); the desktop keeps the matrix, which the tests above draw.
+  const W = globalThis.window;
+  const was = W.matchMedia;
+  W.matchMedia = (q) => ({ matches: q === "(max-width: 640px)", addEventListener() {}, removeEventListener() {} });
+  try {
+    let tree = autonomy([{ class: "reply", mode: "veto", limits: {} }]);
+    assert.equal(
+      find(tree, (n) => n.props?.className === "pol-table"),
+      null,
+      "no table on a phone",
+    );
+    const rows = all(tree, (n) => String(n.props?.className || "").includes("pol-phone-row"));
+    assert.ok(rows.length >= 2, "one line per class");
+    const reply = byTestId(tree, "pol-phone-reply");
+    assert.match(textOf(reply), /Replies to customers/);
+    const trigger = byTestId(tree, "pol-phone-mode-reply");
+    assert.equal(trigger.props["aria-haspopup"], "menu", "its mode is a menu");
+    assert.match(textOf(trigger), /Holds it/, "the word is the mode's, as the matrix's heading says it");
+    assert.equal(all(reply, (n) => n.props?.role === "menuitemradio").length, 0, "closed until pressed");
+    press(trigger);
+    tree = settle("autonomy");
+    const items = all(byTestId(tree, "pol-phone-reply"), (n) => n.props?.role === "menuitemradio");
+    assert.deepEqual(
+      items.map((i) => [textOf(find(i, (k) => k.props?.className === "more-item-label")), i.props["aria-checked"]]),
+      [
+        ["Sends it", false],
+        ["Holds it", true],
+        ["Asks you", false],
+        ["Stays quiet", false],
+      ],
+      "the four modes, the one in force ticked",
+    );
+    // The locked class is a line that says so, with nothing to press.
+    const money = byTestId(tree, "pol-phone-money");
+    assert.ok(money, "the charter's row is drawn");
+    assert.match(textOf(money), /locked by charter/);
+    assert.equal(byTestId(money, "pol-phone-mode-money"), null, "and opens nothing");
+  } finally {
+    W.matchMedia = was;
+  }
+});
 
 test("the matrix's headings say what the receptionist does, not how the mode is filed", () => {
   const tree = autonomy([{ class: "reply", mode: "veto", limits: {} }]);

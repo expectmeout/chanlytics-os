@@ -235,6 +235,76 @@ const PolLockedCells = ({ span, note }) => (
   </td>
 );
 
+// Whether the pane is a phone's, at Settings' own breakpoint (mobile.css, 640px), kept current as the window changes
+// size, as the record kit reads its own (record-fold.jsx useRecPhone). Read whatever the pane draws, so a pane holds
+// the same hooks at either width.
+const SET_PHONE_QUERY = "(max-width: 640px)";
+const useSetPhone = () => {
+  const q = () => (typeof window.matchMedia === "function" ? window.matchMedia(SET_PHONE_QUERY) : null);
+  const [phone, setPhone] = React.useState(() => { const m = q(); return !!(m && m.matches); });
+  React.useEffect(() => {
+    const m = q();
+    if (!m || !m.addEventListener) return undefined;
+    const on = (e) => setPhone(!!e.matches);
+    m.addEventListener("change", on);
+    return () => m.removeEventListener("change", on);
+  }, []);
+  return phone;
+};
+
+/**
+ * The matrix on a phone (24 Sep): one line per action class, its mode as a word that opens a menu of the modes the
+ * class takes, each saying what it does. The table of four columns collapsed into four captioned dots under every
+ * label there -- 107px a row, the four captions repeated seven times down the screen. A locked class says so and
+ * opens nothing. A desktop keeps the matrix, where four columns read at a glance. Hookless but for the menus.
+ */
+const PolPhoneRows = ({ rows, MODES, put, busy }) => (
+  <div className="pol-phone" data-testid="pol-phone">
+    {rows.map((r) => {
+      const g = window.gate("autonomy");
+      const gated = busy === r.cls ? "Saving — wait for this one to land." : g["aria-disabled"] ? g["data-tip"] : null;
+      return (
+        <div key={r.id} className="set-row pol-phone-row" data-testid={`pol-phone-${r.id}`}>
+          <div className="set-row-info">
+            <span className="set-row-label">
+              {r.label}
+              {r.note && !r.locked && (
+                <button
+                  type="button"
+                  className="set-mark"
+                  data-tip={r.note}
+                  aria-label={`What each mode does for ${r.label}: ${r.note}`}
+                  onClick={(e) => { if (window.__tip) window.__tip.show(e.currentTarget); }}
+                ><Icon name="info" size={12} /></button>
+              )}
+            </span>
+            {r.locked ? <span className="set-row-hint pol-phone-locked"><Icon name="shield" size={11} /> {r.note} — locked by charter</span> : null}
+          </div>
+          {r.locked ? null : (
+            <div className="set-row-control">
+              <MoreMenu
+                items={MODES.filter((m) => !r.modes || r.modes.includes(m)).map((m) => ({
+                  label: polMode(m).head,
+                  hint: (r.hints && r.hints[m]) || polMode(m).does,
+                  checked: r.mode === m,
+                  onClick: () => put(r, m.toLowerCase()),
+                }))}
+                label={polMode(r.mode).head}
+                title={`${r.label}: ${polMode(r.mode).head}`}
+                btnClass="bt-link pol-phone-mode"
+                align="right"
+                escape
+                gated={gated}
+                testid={`pol-phone-mode-${r.id}`}
+              />
+            </div>
+          )}
+        </div>
+      );
+    })}
+  </div>
+);
+
 // The charter as one screen — rows/modes live in window.POLICY (data-bits); Fleet reads the same source.
 const PolicyMatrix = () => {
   const POL_ROWS = window.POLICY.ROWS;
@@ -282,31 +352,60 @@ const stInitials = (n) => n.split(" ").map(w => w[0]).slice(0, 2).join("").toUpp
 // page titled Workspace whose first card was the business -- while the account
 // menu's own "Your name" item navigated there. It is the first row of Profile
 // now, which is where the menu points and where a person looks.
-const YourName = ({ flash, ...rest }) => {
+const YourName = ({ flash }) => {
   const me = window.__ME || {};
-  const [name, setName] = React.useState(me.display_name || "");
+  const stored = me.display_name || "";
+  // The record kit's row and inline editor (components/record-row.jsx, record-fold.jsx), as the Business tab edits a
+  // value where it is stated: the row says the name, Change opens the box on the row's own line, Enter saves, Esc
+  // cancels, and the registry keeps one editor open. It was a box always drawn, with a Save that appeared beside it.
+  const [draft, setDraft] = React.useState(null);
   const [busy, setBusy] = React.useState(false);
-  const dirty = name.trim() !== (me.display_name || "");
+  const live = React.useRef({ draft: null, stored, busy: false });
+  live.current.stored = stored;
+  live.current.busy = busy;
+  const fold = window.useRecordFold("profile-name", {
+    dirty: () => live.current.draft != null && live.current.draft.trim() !== live.current.stored,
+    saving: () => live.current.busy,
+  });
+  const now = draft == null ? stored : draft;
+  const set = (v) => { live.current.draft = v; setDraft(v); };
+  const close = () => { live.current.draft = null; setDraft(null); fold.close(); };
   const save = async () => {
+    if (busy) return;
+    if (now.trim() === stored) { close(); return; }
     setBusy(true);
-    const r = await window.__me.setName(name);
+    const r = await window.__me.setName(now);
     setBusy(false);
-    flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? (r.name ? <>You&rsquo;re <b>{r.name}</b> to your team now.</> : <>Name cleared — your email stands in.</>) : <>{r.message}</> });
+    if (!r.ok) { flash({ tone: "danger", msg: <>{r.message}</> }); return; }
+    close();
+    flash({ msg: r.name ? <>You&rsquo;re <b>{r.name}</b> to your team now.</> : <>Name cleared — your email stands in.</> });
   };
   return (
-    <div className="set-you" data-testid="set-you">
-      <input
-        className="sd-input set-you-input"
-        {...rest}
-        value={name}
-        maxLength={80}
-        placeholder="How your team sees you"
-        onChange={(e) => setName(e.target.value)}
-        onKeyDown={(e) => { if (e.key === "Enter" && dirty) save(); }}
-        data-testid="set-you-name"
-      />
-      {dirty && <button className="btn btn-primary btn-sm" onClick={save} disabled={busy} data-testid="set-you-save">{busy ? "Saving…" : "Save"}</button>}
-    </div>
+    <>
+      {fold.open ? null : (
+        <window.RecordRow
+          id="profile-name"
+          label="Name"
+          value={stored || null}
+          empty="Your email stands in"
+          act={{ label: stored ? "Change" : "Add one", name: stored ? "Change your name" : "Add one: your name", onClick: () => fold.request(), testid: "set-you-change" }}
+        />
+      )}
+      <window.RecordInline id="profile-name" label="Name" open={fold.open} onSave={save} onCancel={close} saving={busy}>
+        <window.RecordField
+          id="set-you-name"
+          label={null}
+          aria-labelledby="rec-inline-profile-name-key"
+          value={now}
+          onChange={set}
+          maxLength={80}
+          placeholder="How your team sees you"
+          readOnly={busy || undefined}
+          data-testid="set-you-name"
+          testid="set-you"
+        />
+      </window.RecordInline>
+    </>
   );
 };
 
@@ -330,42 +429,43 @@ const YourName = ({ flash, ...rest }) => {
 const PaneProfile = ({ flash }) => {
   const me = window.__ME || {};
   const words = window.__identity ? window.__identity.words(me) : { name: me.display_name || "Your account", email: me.email || "" };
-  const ws = (window.__WORKSPACES || []).find((t) => t.id === window.__ACTIVE_WORKSPACE) || null;
   const role = ST_ROLE_META[me.role] || null;
   const signOut = () => {
     if (window.__DEMO_MODE || !window.__shell) { flash({ msg: <>Nothing to sign out of in the demo.</> }); return; }
     window.__shell.signOut();
   };
+  // One card of the record kit's rows (24 Sep): the name, edited on its row; the address you signed in with, whose
+  // act goes to the sign-in page's password reset; your role, with what it may do as the row's hint (a desktop's;
+  // a phone reads the word); and the sign-out, a press inside its row rather than the row's act, since a whole row
+  // that signs you out everywhere is one stray tap too many. It was two cards, each row a label, a sentence and a
+  // control, 736px for four facts. The avatar, the name, the address and the role pill were a block above rows that
+  // say the same four things -- and the sidebar's own footer says three of them a third time.
   return (
-    <>
-      <section className="fl-card set-card" data-testid="set-profile">
-        <div className="fl-card-head"><h2 className="fl-card-title">You</h2></div>
-        {/* The avatar, the name, the address and the role pill were a block above rows that
-            say the same four things -- and the sidebar's own footer says three of them a third
-            time. The rows carry them once, each with what it is for. */}
-        <SetRow label="Your name" hint="How your team sees you. Clear it and your email stands in.">
-          <YourName flash={flash} />
-        </SetRow>
-        <SetRow label="Signed in as" hint={<>Your password is set from the sign-in page. <a className="lm-link" href="/reset-password">Choose a new one</a> and we&rsquo;ll email you a code.</>}>
-          <span className="set-me-static">{words.email || "—"}</span>
-        </SetRow>
-        {role && (
-          <SetRow label={`Your role in ${(ws && ws.name) || "this workspace"}`} hint={role.can}>
-            <RolePill role={me.role} />
-          </SetRow>
-        )}
-      </section>
+    <section className="rec-card set-profile" data-testid="set-profile" aria-labelledby="set-profile-title">
+      <div className="rec-card-head">
+        <h2 className="rec-card-title" id="set-profile-title">You</h2>
+        <span className="rec-card-sub">How your team sees you, and how you signed in.</span>
+      </div>
+      <YourName flash={flash} />
+      <window.RecordRow
+        id="profile-email"
+        label="Signed in as"
+        value={words.email || null}
+        empty="No address"
+        act={{ label: "Change password", name: "Change your password, from the sign-in page", icon: "arrow-right", onClick: () => { window.location.assign("/reset-password"); }, testid: "set-profile-password" }}
+      />
+      {role && (
+        <window.RecordRow id="profile-role" label="Role" value={role.label} hint={role.can} />
+      )}
       {/* Named for what it does. "This device" sat over a sign-out that ends every session on every device:
           /auth/signout revokes them all (S20). */}
-      <section className="fl-card set-card">
-        <div className="fl-card-head"><h2 className="fl-card-title">Signing out</h2></div>
-        <SetRow label="Sign out everywhere" hint="Ends your session on every device, this one included.">
-          <button className="btn btn-sm" onClick={signOut} data-testid="set-profile-signout">
-            <Icon name="logout" size={12} /> Sign out everywhere
-          </button>
-        </SetRow>
-      </section>
-    </>
+      <window.RecordRow
+        id="profile-signout"
+        label="Sign out"
+        value={<button type="button" className="bt-link" onClick={signOut} data-testid="set-profile-signout">Sign out everywhere</button>}
+        hint="Ends your session on every device, this one included."
+      />
+    </section>
   );
 };
 
@@ -969,6 +1069,7 @@ const PaneAutonomyReal = ({ flash }) => {
     return () => { window.removeEventListener("policy:changed", bump); window.removeEventListener("surface:settings", bump); };
   }, []);
   const [busy, setBusy] = useSetState(null);
+  const phone = useSetPhone();
 
   if (window.__POLICIES === null) {
     return (
@@ -1025,6 +1126,7 @@ const PaneAutonomyReal = ({ flash }) => {
           <h2 className="fl-card-title">Policy matrix</h2>
           <span className="fl-card-sub">What it may do without you. Every row is one it consults before acting.</span>
         </div>
+        {phone ? <PolPhoneRows rows={rows} MODES={MODES} put={put} busy={busy} /> : (
         <table className="pol-table">
           <thead><tr><th>Action class</th>{MODES.map((m) => <th key={m} className="pol-mode"><PolModeHead m={m} /></th>)}</tr></thead>
           <tbody>
@@ -1068,6 +1170,7 @@ const PaneAutonomyReal = ({ flash }) => {
             })}
           </tbody>
         </table>
+        )}
       </section>
 
       <section className="fl-card set-card">
