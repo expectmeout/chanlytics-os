@@ -24,7 +24,16 @@ import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
 import { fileURLToPath } from "node:url";
-import { hoursLines, resolveFacts, MAX_CLOSURES, PROFILE_LIMITS } from "@chanlytics/contracts";
+import {
+  dealsAreOn,
+  hoursLines,
+  pipelineOf,
+  resolveFacts,
+  toPersonRowVM,
+  toPersonVM,
+  MAX_CLOSURES,
+  PROFILE_LIMITS,
+} from "@chanlytics/contracts";
 import { NAME, TIMEZONE, workspaceChannel, workspaceConfig } from "../e2e-workspace.mjs";
 import { scenario, SCENARIOS, WORKSPACE } from "../e2e-harness/scenarios.mjs";
 import { buildFixture } from "../e2e-harness/fixture.mjs";
@@ -55,7 +64,7 @@ test("the salon record reaches the branches the nightly's data cannot: a list at
   assert.equal(p.languages.length, PROFILE_LIMITS.languages - 1, "one Add must fill the languages list");
   assert.equal(new Set(p.languages).size, p.languages.length, "each language once, whatever the cap is");
   assert.ok(p.services.length > 1 && Object.keys(p.hours).length === 7);
-  assert.deepEqual(SCENARIOS, ["nightly", "salon"]);
+  assert.deepEqual(SCENARIOS, ["nightly", "salon", "pipeline"]);
 });
 
 /**
@@ -310,4 +319,67 @@ test("the harness never writes: every method but a read is refused, whatever it 
   // The two auth calls are POSTs, and are not reads.
   assert.equal(answer("GET", "/auth/v1/verify", new URLSearchParams(), record).status, 405);
   assert.equal(answer("HEAD", "/api/v1/settings", scoped, record).status, 200);
+});
+
+test("the pipeline record is People as the app is handed them: every group of the Pipeline, and a read of each person", () => {
+  const record = scenario("pipeline", NOW);
+  assert.equal(record.sellsBy, "proposal", "a studio that sends proposals");
+  assert.equal(dealsAreOn(record.sellsBy), true, "so deals are on");
+  // People's rows through the People surface's own mapping, then the Pipeline's: every group has someone in it.
+  const rows = record.people.map((r) => toPersonRowVM(r, TIMEZONE, new Date(NOW)));
+  const vm = pipelineOf(rows, NOW, TIMEZONE);
+  assert.deepEqual(
+    vm.groups.map((g) => g.key),
+    ["consultations", "proposals", "clients", "closed"],
+  );
+  // Each person the page can open is read through the profile's own mapping, and their deal is the row's.
+  for (const r of record.people) {
+    const person = toPersonVM(record.details[r.id], TIMEZONE, new Date(NOW));
+    assert.equal(person.id, r.id);
+    if (r.deal_id) assert.equal(person.deals[0].id, r.deal_id, `${r.display_name}: the row's deal is the read's`);
+  }
+  // Ids are the app's own shape: a person's route is a UUID (surface-registry.ts personRouteId).
+  assert.ok(record.people.every((r) => /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-8[0-9a-f]{3}-[0-9a-f]{12}$/.test(r.id)));
+});
+
+test("the server answers People's reads where the record has people, by the workspace's id or slug, and nowhere else", () => {
+  const record = scenario("pipeline", NOW);
+  const byId = new URLSearchParams({ workspace: WORKSPACE.id });
+  const bySlug = new URLSearchParams({ workspace: WORKSPACE.slug });
+  const list = answer("GET", "/api/v1/contacts", byId, record);
+  assert.equal(list.status, 200);
+  assert.equal(list.body.data.people.length, record.people.length);
+  assert.deepEqual([list.body.data.deals_on, list.body.data.page.has_more], [true, false]);
+  assert.equal(list.body.data.calendar.state, "ok");
+  // A page's own read names the workspace by the slug in its address, as the app's does.
+  assert.equal(answer("GET", "/api/v1/contacts", bySlug, record).status, 200);
+  // The next page is empty: the surface reads pages until has_more is false.
+  const next = new URLSearchParams({ workspace: WORKSPACE.id, offset: "1000" });
+  assert.deepEqual(answer("GET", "/api/v1/contacts", next, record).body.data.people, []);
+  assert.deepEqual(answer("GET", "/api/v1/segments", byId, record).body.data, { lists: [] });
+  assert.deepEqual(answer("GET", "/api/v1/views", byId, record).body.data, { views: {} });
+  // The workspace list says how its customers buy, as the app's does; the records without an answer say nothing.
+  assert.equal(answer("GET", "/api/v1/workspaces", byId, record).body.data.workspaces[0].sells_by, "proposal");
+  assert.equal(
+    "sells_by" in answer("GET", "/api/v1/workspaces", byId, scenario("salon", NOW)).body.data.workspaces[0],
+    false,
+  );
+  const id = record.people[0].id;
+  assert.equal(answer("GET", `/api/v1/contacts/${id}`, byId, record).body.data.person.deals_on, true);
+  assert.equal(answer("GET", `/api/v1/contacts/${id}`, byId, record).body.data.person.row.id, id);
+  assert.equal(answer("GET", "/api/v1/contacts/00000000-0000-4000-8000-000000000000", byId, record).status, 404);
+  // A record with no people answers none of them: People stays the seeded page there, as it always has.
+  for (const name of ["nightly", "salon"]) {
+    assert.equal(answer("GET", "/api/v1/contacts", byId, scenario(name, NOW)).status, 404, name);
+  }
+  // And no read of them writes.
+  assert.equal(answer("PUT", "/api/v1/views/pipeline", byId, record).status, 405);
+});
+
+test("the pipeline fixture builds, and outside a browser it installs no People: nothing to read them by", async () => {
+  const w = await publishedGlobals("pipeline");
+  assert.equal(w.__PEOPLE, undefined);
+  assert.equal(w.__surfaceGate, undefined);
+  // The Settings half of the record is published as every scenario's is.
+  assert.equal(w.__ACTIVE_WORKSPACE, WORKSPACE.id);
 });

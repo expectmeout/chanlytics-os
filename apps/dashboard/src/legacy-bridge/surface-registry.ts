@@ -20,6 +20,8 @@
  * here, made in the same directory as the override that makes it true.
  */
 
+import { isSurfaceFailed, isSurfaceReady, onSurfaceStatusChange } from "./surface-status";
+
 export type SurfaceState = "real" | "demo";
 
 export const SURFACE_STATES: Record<string, SurfaceState> = {
@@ -271,4 +273,40 @@ export function installSurfaceRegistry(): void {
   };
   w.__surfaceState = surfaceStateFor;
   w.__surfaceRetired = surfaceRetiredTo;
+}
+
+/**
+ * The shell's route gate, installed at MODULE SCOPE — not in an effect.
+ *
+ * app-shell.jsx computes `routeLoading`'s INITIAL state during its first
+ * render, and it is a child of LegacyApp: children render before parent
+ * effects run. Installing the gate in a useEffect therefore left it undefined
+ * at the only moment it mattered, `routeReady()` fell back to `true`, and a
+ * cold boot painted the seeded mockup hero ($1,840 revenue, a fabricated
+ * operator) for one frame — then the reading pane, then the truth. Strictly worse
+ * than no gate at all.
+ *
+ * Module scope runs before React renders anything, so the very first frame is
+ * already gated. It also survives StrictMode's mount/unmount/mount, which the
+ * effect's cleanup used to tear down mid-sequence. LegacyApp.tsx calls it at
+ * its module scope; the e2e harness's fixture calls it over its own record.
+ */
+export function installRouteGate(): void {
+  const w = window as unknown as {
+    __surfaceGate?: (page: string, param?: string | null) => boolean;
+    __surfaceFailed?: (page: string, param?: string | null) => boolean;
+    __onSurfaceReady?: (fn: () => void) => () => void;
+  };
+  // The PANE decides, not the page. Asked with the bare page name, Settings
+  // resolved to nothing and the gate waved a cold load straight through onto
+  // the mockup's fabricated business.
+  w.__surfaceGate = (page, param) => {
+    const key = routeSurfaceFor(page, param);
+    return key ? isSurfaceReady(key) : true;
+  };
+  w.__surfaceFailed = (page, param) => {
+    const key = routeSurfaceFor(page, param);
+    return key ? isSurfaceFailed(key) : false;
+  };
+  w.__onSurfaceReady = onSurfaceStatusChange;
 }

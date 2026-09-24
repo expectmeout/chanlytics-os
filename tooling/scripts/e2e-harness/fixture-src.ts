@@ -26,6 +26,13 @@
 import * as C from "@chanlytics/contracts";
 import { installClock } from "@/legacy-bridge/zone";
 import { installBusinessTab } from "@/legacy-bridge/business-tab";
+import { startSurfaces } from "@/legacy-bridge/surface-runner";
+import { peopleOverride } from "@/legacy-bridge/surface-data";
+import { installPeopleCourier } from "@/legacy-bridge/people-detail";
+import { installRouteGate, installSurfaceRegistry } from "@/legacy-bridge/surface-registry";
+import { setStatus } from "@/legacy-bridge/surface-status";
+import { pipelineHelpers } from "@/legacy-bridge/pipeline-helpers";
+import { installTabMemory } from "@/legacy-bridge/tab-memory";
 
 interface Scenario {
   name: string;
@@ -35,6 +42,10 @@ interface Scenario {
   known: C.KnownFacts;
   version: number;
   role: string;
+  /** People, where the record has them (the pipeline scenario): people_list's rows. */
+  people?: unknown[];
+  /** How its customers buy (tenants.sells_by), where the record says: the pipeline's is "proposal". */
+  sellsBy?: string;
 }
 
 const w = window as unknown as Record<string, any>;
@@ -44,7 +55,17 @@ const zone = S.zone;
 
 /* ---- the shell ---- */
 w.__DEMO_MODE = false;
-w.__WORKSPACES = [{ id: WORKSPACE.id, slug: WORKSPACE.slug, name: WORKSPACE.name, status: "active", timezone: zone }];
+w.__WORKSPACES = [
+  {
+    id: WORKSPACE.id,
+    slug: WORKSPACE.slug,
+    name: WORKSPACE.name,
+    status: "active",
+    timezone: zone,
+    // Each workspace with its sells_by, as the app's boot lists them (identity.ts), where the record has one.
+    ...(S.sellsBy ? { sells_by: S.sellsBy } : {}),
+  },
+];
 w.__ACTIVE_WORKSPACE = WORKSPACE.id;
 w.__ME = {
   id: "u-e2e-owner",
@@ -188,6 +209,31 @@ w.__TEMPLATES_ALL = S.templates ?? [];
 // No __CHANNELS. The bridge publishes `toChannelVM(c, now)` (surface-data.ts), and defining the global at all flips
 // settings.jsx to PaneIntegrationsReal -- so a hand-built row would draw a pane no spec here opens, out of a shape
 // the product does not use. The channels reach the page where the page reads them: in the facts, resolved above.
+
+/* ---- People, real, where the record has people (the pipeline scenario) ----
+ * The app's own pieces over the harness's own answers (server.mjs peopleAnswer): the People surface booted by the
+ * runner, the profile's courier, the registry that says which surfaces are real, and the route gate LegacyApp.tsx
+ * installs, so a route waits for its surface and draws when it lands, never the seeded page first. Who is looking
+ * is published above (__ME), so the workspace surface, which carries it in the app, is ready as the page opens. The
+ * Pipeline's helpers are the ones seed-globals.ts publishes (pipeline-helpers.ts). A record with no people changes
+ * nothing: People stays the seeded page, and the Settings specs see the harness they always did.
+ */
+// Only in a browser: the harness's own test runs this bundle in a bare context, with no fetch to read People by.
+if (S.people && typeof w.fetch === "function" && w.location && w.history) {
+  // At the workspace's own address, as a signed-in tab is: every read names its workspace by the slug in the path
+  // (workspace.ts getActiveWorkspace). Replaced before the document loads another file, whose paths the server maps.
+  if (!w.location.pathname.startsWith(`/w/${WORKSPACE.slug}/`)) {
+    w.history.replaceState(w.history.state, "", `/w/${WORKSPACE.slug}/${w.location.search}${w.location.hash}`);
+  }
+  installTabMemory(w as unknown as Window);
+  installSurfaceRegistry();
+  installPeopleCourier();
+  w.__pipeline = pipelineHelpers();
+  setStatus("workspace", "live");
+  installRouteGate();
+  // No live feed here: nothing writes, so there is nothing to hear.
+  startSurfaces([peopleOverride], () => () => {});
+}
 
 // The app's fonts and the class that turns on its touch floor, which the mockup's document lacks.
 const fonts = () => {

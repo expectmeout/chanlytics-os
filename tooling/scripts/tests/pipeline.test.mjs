@@ -53,6 +53,7 @@ import {
   toPersonRowVM,
 } from "@chanlytics/contracts";
 import { hookFrames } from "./_hook-frames.mjs";
+import { pipelineHelpers } from "../../../apps/dashboard/src/legacy-bridge/pipeline-helpers.ts";
 
 const TZ = "America/New_York";
 const H = 3_600_000;
@@ -665,23 +666,9 @@ Object.assign(globalThis.window, {
   __consentSources: CONSENT_SOURCES,
   __offersYesSources: CONSENT_SOURCES.filter((s) => offersYesRefusal(s.id) === null),
   __mayReceive: mayReceive,
-  // What seed-globals.ts publishes for the page: contracts' own, never a stand-in that could say a word differently.
-  __pipeline: {
-    of: pipelineOf,
-    move: pipelineMove,
-    peek: pipelinePeekOf,
-    rail: pipelineRail,
-    route: pipelineRoute,
-    parse: parsePipelineRoute,
-    viewLabel: pipelineViewLabel,
-    sorted: pipelineSorted,
-    passMany: pipelinePassMany,
-    passDone: pipelinePassDone,
-    detail: pipelinePeekDetail,
-    boardCap: PIPELINE_BOARD_CAP,
-    boardMore: pipelineBoardMore,
-    words: PIPELINE_WORDS,
-  },
+  // What seed-globals.ts publishes for the page (pipeline-helpers.ts): contracts' own, never a stand-in that could
+  // say a word differently.
+  __pipeline: pipelineHelpers(),
   // What people-detail.ts publishes of the deal for the card the peek draws (installPeopleCourier): contracts' own,
   // with the thread's Deal group (the row's menu) and the card's next act (a phone peek's pinned act).
   __deal: { cards: dealCardsOf, cardWords: DEAL_CARD_WORDS, menu: dealMenuActs, next: dealNextAct },
