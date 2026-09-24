@@ -28,7 +28,7 @@ import { knownZone, pageClock, workspaceZone } from "./zone";
 import { heldViews } from "./held-views";
 export { getActiveWorkspace } from "./workspace";
 import { DEFAULT_REFRESH_TABLES, type RealtimeChange } from "./surface-realtime";
-import type { NotificationsDto, PendingWorkspace, ResolvedFacts, FactConflict } from "@chanlytics/contracts";
+import type { DealDto, NotificationsDto, PendingWorkspace, ResolvedFacts, FactConflict } from "@chanlytics/contracts";
 import type { PoliciesSurface } from "./policy-store";
 
 export interface SurfaceOverride {
@@ -903,6 +903,37 @@ async function peopleMore(): Promise<void> {
   peopleLoaded.page = next.page;
   publishPeople();
   window.dispatchEvent(new CustomEvent("surface:clients"));
+}
+
+/**
+ * A person's current deal, laid on their People row as the door answers (0008): the deal door answers the deal their
+ * row shows after the write (server/deals.ts currentDealOf, people_list's own rule), so the Pipeline moves the row as
+ * the sheet closes, instead of once all of People has been read again; the re-read the refresh map asks for behind
+ * it says the rest. It was the deal the door recorded, which is not the row's when the move was on someone's older
+ * deal: their row jumped to it until the re-read. True when a row took it.
+ */
+export function placeDeal(personId: string, deal: DealDto | null | undefined): boolean {
+  if (!peopleLoaded || !deal || !deal.id) return false;
+  const i = peopleLoaded.people.findIndex((r) => r.id === personId);
+  if (i < 0) return false;
+  const row = peopleLoaded.people[i];
+  peopleLoaded.people[i] = {
+    ...row,
+    deal_id: deal.id,
+    deal_stage: deal.stage,
+    deal_service: deal.service,
+    deal_proposed_at: deal.proposed_at,
+    deal_decided_at: deal.decided_at,
+    deal_ended_at: deal.ended_at,
+    deal_amount_cents: deal.amount_cents,
+    deal_per: deal.per,
+    deal_proposal_url: deal.proposal_url ?? null,
+    deal_valid_until: deal.valid_until ?? null,
+    deal_lost_reason: deal.lost_reason ?? null,
+  };
+  publishPeople();
+  window.dispatchEvent(new CustomEvent("surface:clients"));
+  return true;
 }
 
 /**

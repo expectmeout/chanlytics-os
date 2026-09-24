@@ -13,6 +13,7 @@ import {
 } from "@chanlytics/contracts";
 import { write } from "@/server/route";
 import { contactScope, recordDecision } from "@/server/verbs";
+import { currentDealOf } from "@/server/deals";
 
 const Body = z
   .object({
@@ -57,6 +58,9 @@ const Body = z
  * A proposal's link, its valid-until day, a reason for passing and the fields
  * a person emptied (0008) each reach the door only when the body names them,
  * so a page from before them calls it exactly as it did.
+ *
+ * It answers the deal it recorded, and `current`: the deal the person's People
+ * row shows now (people_list's rule), which a page lays on the row at once.
  */
 export const POST = write({
   scope: contactScope,
@@ -108,6 +112,11 @@ export const POST = write({
       from: r.from ?? null,
       service: r.deal.service ?? null,
     });
-    return { deal: r.deal, from: r.from ?? null, decision_id };
+    return {
+      deal: r.deal,
+      from: r.from ?? null,
+      decision_id,
+      current: await currentDealOf(ctx, contact.tenant_id, contact.id),
+    };
   },
 });

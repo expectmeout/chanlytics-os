@@ -1378,3 +1378,76 @@ test("deals are on in People exactly where the workspace says some customers get
     assert.equal((await page(s)).deals_on, false, `${s}: the person's page`);
   }
 });
+
+test("deal: the door answers the deal the person's People row shows now -- an open one first, then the newest -- which is not always the one it recorded", async () => {
+  const D2 = "dddddddd-2222-4222-8222-dddddddddddd";
+  const deals = [
+    // Their newest: a proposal out, the deal their row shows.
+    {
+      id: D1,
+      tenant_id: B,
+      contact_id: P2,
+      service: "SEO",
+      stage: "proposed",
+      proposed_at: "2026-09-20T12:00:00Z",
+      decided_at: null,
+      ended_at: null,
+      amount_cents: 80_000,
+      per: "once",
+      currency: "USD",
+      note: null,
+      version: 1,
+      created_at: "2026-09-20T12:00:00Z",
+    },
+    // An older engagement, still a client.
+    {
+      id: D2,
+      tenant_id: B,
+      contact_id: P2,
+      service: "Ads",
+      stage: "won",
+      proposed_at: "2026-07-01T12:00:00Z",
+      decided_at: "2026-07-05T12:00:00Z",
+      ended_at: null,
+      amount_cents: 50_000,
+      per: "month",
+      currency: "USD",
+      note: null,
+      version: 1,
+      created_at: "2026-07-01T12:00:00Z",
+    },
+  ];
+  const tables = { memberships: both("viewer", "operator"), contacts: [contact(P2, B)], decisions: [], deals };
+  // The door, as it writes: the row it moved, with its version on.
+  const rpcs = {
+    deal_record: (a) => {
+      const d = tables.deals.find((x) => x.id === a.p_deal_id);
+      Object.assign(d, {
+        stage: a.p_stage,
+        version: d.version + 1,
+        ...(a.p_amount_cents !== undefined ? { amount_cents: a.p_amount_cents } : {}),
+        ...(a.p_stage === "lost" ? { decided_at: "2026-09-23T12:00:00Z" } : {}),
+      });
+      return { deal: { ...d }, from: "won" };
+    },
+  };
+  // The older client's amount changed: it is what the door recorded, and the proposal is still what their row shows.
+  let out = await deal.POST.run(
+    send("POST", { stage: "won", deal_id: D2, version: 1, amount_cents: 60_000 }),
+    ctxFor(tables, { id: P2 }, rpcs),
+  );
+  assert.deepEqual([out.deal.id, out.current.id], [D2, D1]);
+  // The proposal passed: the client is the one open deal now, so it is their row's.
+  out = await deal.POST.run(
+    send("POST", { stage: "lost", deal_id: D1, version: 1, lost_reason: "price" }),
+    ctxFor(tables, { id: P2 }, rpcs),
+  );
+  assert.deepEqual([out.deal.id, out.deal.stage, out.current.id], [D1, "lost", D2]);
+  // Their deals could not be read: the write still answers, with no row to move until People is read again.
+  const faulty = {
+    ...ctxFor(tables, { id: P2 }, rpcs),
+    supabase: fakeDb(tables, { "deals.select": { message: "statement timeout" } }, rpcs),
+  };
+  out = await deal.POST.run(send("POST", { stage: "won", deal_id: D2, version: 2, amount_cents: 70_000 }), faulty);
+  assert.deepEqual([out.deal.id, out.current], [D2, null]);
+});

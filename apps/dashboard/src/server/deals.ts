@@ -6,7 +6,9 @@ import {
   cameFromOf,
   isDealLostReason,
   isSellsBy,
+  pickCurrentDeal,
   quantile,
+  type DealDto,
   type DealReportDto,
   type PersonCameFrom,
   type PersonRowDto,
@@ -24,6 +26,34 @@ export async function sellsByOf(ctx: Pick<RouteContext, "supabase">, tenantId: s
   if (r.error || !r.data) return null;
   const answer: unknown = (r.data as { sells_by?: unknown }).sells_by;
   return isSellsBy(answer) ? answer : null;
+}
+
+/** The columns a deal is read with (contracts DealDto): a person's read of their deals, and the deal door's answer. */
+export const DEAL_DTO_COLUMNS =
+  "id, contact_id, service, stage, proposed_at, decided_at, ended_at, amount_cents, per, currency, note, version, created_at, proposal_url, valid_until, lost_reason";
+
+/**
+ * The deal a person's People row shows now, by people_list's own rule (contracts pickCurrentDeal: an open one first,
+ * then the newest). The deal door answers with it, so a page moves the row to it as the door answers (0008), and a
+ * person with two open deals keeps showing the one their row shows. Null where it could not be read: the People
+ * re-read behind the write says it then, and a write that landed never answers a failure for it.
+ */
+export async function currentDealOf(
+  ctx: Pick<RouteContext, "supabase">,
+  tenantId: string,
+  contactId: string,
+): Promise<DealDto | null> {
+  try {
+    const r = await ctx.supabase
+      .from("deals")
+      .select(DEAL_DTO_COLUMNS)
+      .eq("tenant_id", tenantId)
+      .eq("contact_id", contactId);
+    if (r.error || !r.data) return null;
+    return pickCurrentDeal(r.data as unknown as DealDto[]);
+  } catch {
+    return null;
+  }
 }
 
 const DAY_MS = 86_400_000;
