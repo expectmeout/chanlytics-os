@@ -111,22 +111,6 @@ const PB_BLURBS = {
   lapsed: "Everyone whose last visit was 45 days ago or more, with nothing ahead on the calendar — the regulars drifting away.",
   saved_list: "Everyone on one of your lists — kept by hand, or kept current by a rule you described.",
 };
-// The languages a playbook's message exists in, each with its state at WhatsApp:
-// a starter's are the starter set's, a message written elsewhere its own. Read off
-// every template when Templates has been read, else the approved ones this page
-// holds -- where a language that is not approved reads as not there, which for a
-// run is true: an unapproved language sends nothing.
-const pbLangs = (p) => {
-  const S = window.__starters;
-  const own = window.__PLAYBOOKS && Array.isArray(window.__PLAYBOOKS.templates) ? window.__PLAYBOOKS.templates : PB_NONE;
-  const pool = Array.isArray(window.__TEMPLATES_ALL) ? window.__TEMPLATES_ALL : own;
-  const mine = pool.filter((t) => t.name === p.template_name);
-  const langs = S && S.byName && S.byName(p.template_name) ? S.languages : [...new Set(mine.map((t) => t.language))].map((id) => ({ id, label: id }));
-  return langs.map((l) => {
-    const r = mine.find((t) => t.language === l.id);
-    return { id: l.id, label: l.label, status: r ? r.meta_status || "approved" : null };
-  });
-};
 const pbShort = (id) => (window.__starters && window.__starters.langTag ? window.__starters.langTag(id) : String(id || "").slice(0, 2).toUpperCase());
 const pbLabel = (id) => (window.__starters && window.__starters.langLabel ? window.__starters.langLabel(id) : pbLangWords(id));
 
@@ -144,7 +128,6 @@ const PlaybookTile = ({ p, canAct, onEdit, flash, open = false, onOpen, focus = 
   const waiting = p.totals.waiting;
   const paused = p.state === "paused";
   const warn = status === "approval" || paused;
-  const langs = pbLangs(p);
   // Who a run reaches: the people on the list who said yes and have not heard
   // from a playbook this week. Paused, nobody -- and the bar says so. Waiting on
   // the owner, the run it holds.
@@ -169,10 +152,8 @@ const PlaybookTile = ({ p, canAct, onEdit, flash, open = false, onOpen, focus = 
   const pool = Math.max(will, counted ? named.pool : 0);
   // Paused, everyone it could reach waits on the pause: the amber is all of them.
   const held = paused ? reachable : p.held;
-  // The language its runs go out in: ONE, whatever others the message has -- a
-  // run sends `template_language` to everyone on it (run-playbook.ts), so a
+  // A run sends `template_language` to everyone on it (run-playbook.ts), so a
   // language the message lacks holds nobody back and is not a reason here.
-  const sends = langs.find((l) => l.id === p.template_language) || { id: p.template_language, label: pbLangWords(p.template_language), status: null };
   // Why the rest are not reached, in the approval sheet's words (contracts
   // reachLines), the most first -- and "Get their yes" on the one an owner can
   // change. Three at most: a card is a glance, and the rest open with it.
@@ -197,17 +178,10 @@ const PlaybookTile = ({ p, canAct, onEdit, flash, open = false, onOpen, focus = 
           <span className="mark pb-row-mark" aria-hidden="true"><Icon name={pbIcon(p.trigger)} size={13} /></span>
           <span className="pb-row-titles">
             <span className="pb-row-name">{p.name}</span>
-            <span className="pb-row-hint">
-              <span className="pb-row-cond">{p.triggerHint}</span>
-              {/* The one language its runs go out in, its state drawn: a run sends one
-                  language to everyone on it. The card drew every language the message
-                  has -- "EN ES" -- as if each customer got their own. The name WhatsApp
-                  knows the message by is the open row's (its caption). */}
-              <span className="pb-tile-lang" title={`Goes out in ${pbLabel(sends.id)}${sends.status ? "" : " — not on WhatsApp"}`} data-testid="pb-tile-lang">
-                <window.CmLangGlyph status={sends.status} size={10} />
-                <span>{pbShort(sends.id)}</span>
-              </span>
-            </span>
+            {/* What starts it. The message and the one language its runs go out in are the
+                open row's caption ("Win-back · English"): a run sends one language to
+                everyone, and a language tag on every row said nothing an owner acts on. */}
+            <span className="pb-row-hint">{p.triggerHint}</span>
           </span>
         </button>
         <span className="pb-row-state">
@@ -970,7 +944,8 @@ const PlaybooksReal = ({ initialPlaybook = null }) => {
   const runningN = rows.filter((p) => p.state === "running" && !p.totals.waiting).length;
   const waitingN = rows.filter((p) => p.totals.waiting).length;
   const pausedN = rows.filter((p) => p.state === "paused").length;
-  const reachesNobody = rows.filter((p) => pbReach({ state: p.state, candidates: p.candidates, held: p.held, waiting: p.totals.waiting }) === "nobody").length;
+  const nobody = rows.filter((p) => pbReach({ state: p.state, candidates: p.candidates, held: p.held, waiting: p.totals.waiting }) === "nobody");
+  const reachesNobody = nobody.length;
   const closeComposer = () => { setComposing(false); setEditing(null); setSlot(null); };
   const startAt = (id) => { setEditing(null); setSlot(id); setComposing(true); };
   const startNew = () => { setEditing(null); setSlot(null); setComposing(true); };
@@ -1020,7 +995,9 @@ const PlaybooksReal = ({ initialPlaybook = null }) => {
               {reachesNobody > 0 && (
                 <>
                   <window.CmDot />
-                  <span className="pb-standing-warn" data-testid="pb-reaches-nobody">{reachesNobody === runningN + waitingN ? "None of them has anyone to send to" : `${pbSpell(reachesNobody, true)} running with nobody to send to`}</span>
+                  {/* One is named -- "Welcome has nobody to send to" says which row to open, where "One running
+                      with nobody to send to" left the owner to find it. */}
+                  <span className="pb-standing-warn" data-testid="pb-reaches-nobody">{reachesNobody === 1 ? `${nobody[0].name} has nobody to send to` : reachesNobody === runningN + waitingN ? "None of them has anyone to send to" : `${pbSpell(reachesNobody, true)} have nobody to send to`}</span>
                 </>
               )}
             </span>

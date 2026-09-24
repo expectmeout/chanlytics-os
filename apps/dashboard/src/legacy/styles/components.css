@@ -2417,9 +2417,7 @@ html.legacy-on .tpl-fresh { min-height: 0; position: relative; }
 .pb-row-what:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-sm); }
 .pb-row-titles { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .pb-row-name { font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pb-row-hint { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: var(--text-xs); color: var(--ink-dim); }
-.pb-row-cond { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pb-tile-lang { flex: none; display: inline-flex; align-items: center; gap: 3px; font-size: 10px; font-weight: var(--weight-medium); letter-spacing: 0.02em; color: var(--ink-dim); }
+.pb-row-hint { min-width: 0; font-size: var(--text-xs); color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pb-row-state, .pb-row-reach, .pb-row-next { min-width: 0; }
 /* Who it reaches: the count with its bar beside it, and the reasons on ONE line under them, the rest past an
    ellipsis; open, the row says them all. A card drew the count, the bar and three reasons as five lines. */

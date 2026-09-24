@@ -444,13 +444,11 @@ test("A playbook is a card of the moment it does: its message and languages, who
   // Who it reaches, out of whom, and who it holds back -- named, not summed away.
   assert.ok(textOf(byTestId(winback, "pb-tile-reach")).includes("24of 36"), textOf(byTestId(winback, "pb-tile-reach")));
   assert.ok(textOf(winback).includes("12 heard from a playbook this week"));
-  // The ONE language its runs go out in -- a run sends its language to everyone on
-  // it -- where the card drew every language the message has ("EN ES") and named a
-  // missing one as though it held somebody back.
-  assert.deepEqual(
-    all(winback, (n) => n.props?.["data-testid"] === "pb-tile-lang").map((m) => textOf(m).trim()),
-    ["EN"],
-  );
+  // No language on the row: a run sends one language to everyone on it, and the open row's caption says which
+  // ("Win-back · English"). The card drew every language the message has ("EN ES") and named a missing one as though
+  // it held somebody back; then a tag of the one language on every row, which said nothing an owner acts on (23 Sep,
+  // Campaigns made compact).
+  assert.equal(all(winback, (n) => n.props?.["data-testid"] === "pb-tile-lang").length, 0);
   assert.ok(
     !/never added/.test(textOf(winback)),
     "a language the message lacks holds nobody back from a run in another",
