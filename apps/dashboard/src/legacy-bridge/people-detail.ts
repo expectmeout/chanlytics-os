@@ -33,7 +33,7 @@ import { api } from "./api";
 import { ApiError, type ApiResult } from "../client/api";
 import { workspaceZone } from "./zone";
 import { readCache } from "./read-cache";
-import { keepSavedView } from "./surface-data";
+import { keepSavedView, placeDeal } from "./surface-data";
 import { personRouteId } from "./surface-registry";
 import { getActiveWorkspace } from "./workspace";
 
@@ -311,8 +311,19 @@ export interface DealBody {
 export async function recordDeal(
   id: string,
   body: DealBody,
-): Promise<ApiResult<{ deal: DealDto; from: string | null; decision_id: string }>> {
-  return api()("POST contacts/[id]/deal", { params: { id }, body });
+): Promise<ApiResult<{ deal: DealDto; from: string | null; decision_id: string; current: DealDto | null }>> {
+  return api()("POST contacts/[id]/deal", {
+    params: { id },
+    body,
+    // The row moves as the door answers (0008): the door answers the deal the person's People row shows now (`current`,
+    // people_list's rule), which goes onto the row at once, and People and Reports are read again behind it, so the
+    // sheet closes when the server takes the move rather than once every person has been read again. Not the deal it
+    // recorded: a move on someone's older deal is not the one their row shows.
+    onAccepted: (d) => {
+      if (d && d.current) placeDeal(id, d.current);
+    },
+    refresh: "behind",
+  });
 }
 
 /**

@@ -298,7 +298,10 @@ from it. A row could only leave the page; no act was offered on a row; a
 teammate's move never arrived until the list reloaded; and the words in the
 box did not find a service. This amendment is the review's first phase, "one
 workspace", made Chanlytics-shaped. The plan is
-`docs/superpowers/plans/2026-09-23-pipeline-one-workspace.md`.
+`docs/superpowers/plans/2026-09-23-pipeline-one-workspace.md`, and its second
+pass (the canvas "Pipeline, worked", decisions approved the same night) is
+`docs/superpowers/plans/2026-09-23-pipeline-worked.md`, whose PR 1 revised the
+peek's address, the rail and the board's layout below.
 
 ### The peek
 
@@ -315,16 +318,49 @@ coming up) and two doors as quiet words: their page, their thread. Enter
 opens it for the row under the cursor, Esc closes it, J and K walk on behind
 it and it follows; focus moves into it as it opens and back to the row as it
 closes. It re-reads the person when a deal is recorded on them
-(`deal:recorded`), and closes when they leave the Pipeline. It lives in the
-page's state, not the address: unlike a lead, a person has a page of their
-own to link to.
+(`deal:recorded`), and closes when they leave the Pipeline.
+
+It is in the address, as the lead's is (`clients/pipeline:p-<person>`, contracts
+`pipelineRoute`): opening pushes an entry, the cursor walking it on replaces
+that entry, and closing goes back to it, so on a phone, where the peek is the
+whole screen, the system's Back closes it rather than leaving the Pipeline. A
+person the address names opens as it lands and closes by replacing. So any page
+can open a deal in place. _This reverses the first version of this amendment,
+which kept the peek in the page's state because a person has a page of their
+own; on a phone that made Back leave the Pipeline._
+
+### Its own rail, and New proposal
+
+The Pipeline's rail is its own (contracts `pipelineRail`), not People's lists,
+each of which left for People: All deals and each group, always; what waits on
+the owner (nothing back in a week, lapsed), only when there is some; and each
+service a deal is for, the busiest eight. A pick is the address's view
+(`v-<view>`, a service as `v-s.<its name, encoded>`), so it is a place of its
+own that Back returns to. The standing line's warn parts press to the same
+views; its totals are words. On a phone the view is the bar's list button and
+its rows a sheet, so no row of controls stands above the work.
+
+New proposal is the page's one filled button: a picker over the People rows the
+page holds (People's own matcher), or Add someone new by name and number
+(People's own door), then the one deal sheet in its propose mode.
+
+A proposal with no link is a fact at rest, a plain "No link", never amber: the
+wait is what needs the owner, and "Nothing back" says it without the number,
+which the row's In stage already says. A recorded move lands on the row from
+the door's answer at once, and People is read again behind it
+(`placeDeal`, `refresh: "behind"`): the door answers the deal the person's row
+shows now (`current`, people_list's own rule), which is not the deal it recorded
+when the move was on someone's older deal. A new proposal opens with the
+consult-first service their consultation named, from every door that starts
+one, unless they have that service open already.
 
 ### The board
 
 On a desk the rows can be a board: the same four groups as columns (every
 group, empty ones too, so a card has somewhere to drop), the same rows as
 cards -- who, the service, the value beside the time in stage, the one chip.
-The choice is kept per viewer on the device (`pipeline.view`). A card is a
+The choice is the member's saved view (`views.pipeline.layout`, through
+`usePlControls`' `extraDefaults`), beside People's and Leads' own. A card is a
 button too: Enter opens its peek, and J and K walk the cards as they walk the
 rows (each card carries the row's own id). A card dragged into another column
 asks for the one deal sheet in the mode the move needs, and nothing else moves:
