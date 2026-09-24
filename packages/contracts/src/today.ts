@@ -33,7 +33,7 @@ import {
 import { waWindow } from "./policy";
 import { ANALYSIS_GRACE_MS } from "./live";
 import { NO_NUMBER_REACH, NOTE_WORDS, reasonShort, saidYesTo, type PersonRowVM } from "./people";
-import { todayStepsDue, type StepDue } from "./steps";
+import { TODAY_STEPS_MAX, todayStepsDue, type StepDue } from "./steps";
 import { consultationsWithoutProposal, consultsHeldWords, proposalsWaiting, type DealVM } from "./deals";
 import { clipAtWord } from "./viewmodels";
 import { conversationOfNeedsKey, callOfKey, unreadCount } from "./notifications";
@@ -2266,9 +2266,6 @@ export function todayAwayGrouped<T extends AwayRowLike>(
 
 /* ------------------------------------------------ the steps due (0007, amended) */
 
-/** How many steps due Today names at the head of the day, the rest a line to People's Steps due. */
-export const TODAY_STEPS_MAX = 3;
-
 /** One step due as Today names it: who, what, and when it was due, the oldest first. */
 export interface TodayStepVM {
   personId: string;
@@ -2290,7 +2287,8 @@ export interface TodayStepsVM {
 /**
  * The steps due at the head of the day (0007, amended), in every workspace, calendar or not: whose next step's day has
  * come or gone, the oldest first, three at most, and a line to People's Steps due for the rest. Null with none due.
- * Each day is judged again at `nowMs`, so a list read yesterday says today's.
+ * Each day is judged at `nowMs`: the page passes the moment People's rows were published, as every page judges a
+ * step (steps.ts dueStepDay), so this block and the list its line opens say one thing.
  */
 export function todaySteps(
   rows: readonly Pick<PersonRowVM, "id" | "name" | "nextStep">[] | null | undefined,

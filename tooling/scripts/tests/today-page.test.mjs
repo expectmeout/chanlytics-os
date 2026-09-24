@@ -953,26 +953,36 @@ test("the steps due at the head of the day: three at most, the oldest first, eac
   clear();
   const nowMs = Date.now();
   const day = (d) => zoneDayKey(nowMs + d * 86_400_000, ZONE);
-  const row = (id, name, d) => ({
+  const row = (id, name, d, forName = null) => ({
     id,
     name,
     nextStep:
       d === null
         ? null
-        : nextStepOf({ step_id: `s-${id}`, step_body: `Call ${name}`, step_due_on: day(d) }, ZONE, nowMs),
+        : nextStepOf(
+            {
+              step_id: `s-${id}`,
+              step_body: `Call ${name}`,
+              step_due_on: day(d),
+              step_for_user_id: forName ? `u-${forName}` : null,
+              step_for_name: forName,
+            },
+            ZONE,
+            nowMs,
+          ),
   });
   const rows = [
     row("a", "Ana", -3),
     row("b", "Ben", 0),
     row("c", "Cy", -1),
-    row("d", "Di", -5),
+    row("d", "Di", -5, "Maria"),
     row("e", "Eli", 2),
     row("f", "Flo", null),
   ];
   const clock = W.__clock;
   W.__clock = { ...clock, zone: () => ZONE };
   try {
-    set({ TODAY_DATA: busy(), __PLAYBOOKS: { rows: [] }, __PEOPLE: { rows } });
+    set({ TODAY_DATA: busy(), __PLAYBOOKS: { rows: [] }, __PEOPLE: { rows, fetchedAt: nowMs } });
     const want = todaySteps(rows, nowMs, ZONE);
     const alone = byTestId(draw(W.TodayDay), "today-day-steps");
     assert.ok(alone, "no calendar: the panel is the steps alone");
@@ -989,6 +999,7 @@ test("the steps due at the head of the day: three at most, the oldest first, eac
       ["Di", "Ana", "Cy"],
       "the oldest day first, three at most",
     );
+    assert.equal(textOf(find(items[0], (n) => classes(n).includes("td-step-for"))), "For Maria", "whose it is");
     press(items[0]);
     assert.equal(went.at(-1), "clients/d", "a step opens its person");
     const more = byTestId(alone, "today-steps-more");
@@ -1010,6 +1021,17 @@ test("the steps due at the head of the day: three at most, the oldest first, eac
     const broke = byTestId(draw(W.TodayDay), "today-day-failed");
     assert.ok(byTestId(broke, "today-steps") && byTestId(broke, "today-day-failed-read"));
     failed.clear();
+    // A feed it has and could not read: the steps, then what went wrong. None connected: the steps alone.
+    const cal = calendar([]);
+    cal.vm.feed = { ...cal.vm.feed, state: "unavailable", problem: feedProblemWords("settings"), events: 0 };
+    set({ __CALENDAR: cal });
+    assert.ok(byTestId(byTestId(draw(W.TodayDay), "today-day-unreadable"), "today-steps"));
+    cal.vm.feed = { ...cal.vm.feed, present: false, state: "none", problem: null };
+    assert.ok(byTestId(draw(W.TodayDay), "today-day-steps"), "no feed: the steps alone, never nothing");
+    set({ __CALENDAR: undefined });
+    // Judged when People's rows were published, as every page judges a step: six days ago, none was due yet.
+    set({ __PEOPLE: { rows, fetchedAt: nowMs - 6 * 86_400_000 } });
+    assert.equal(draw(W.TodayDay).rendered, null, "one clock: People's");
     // None due: nothing, and without a calendar nothing at all.
     set({ __PEOPLE: { rows: [row("e", "Eli", 2), row("f", "Flo", null)] } });
     assert.equal(draw(W.TodayDay).rendered, null);

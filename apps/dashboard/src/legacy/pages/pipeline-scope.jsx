@@ -41,7 +41,7 @@ const pipeColumns = () => {
       </td>
     ) },
     { key: "next", label: w.next, sortable: true, cell: (r) => (
-      <td key="next" className="pipe-next" data-due={r.next ? r.next.due : undefined} data-testid="pipe-next">
+      <td key="next" className="pipe-next" data-due={r.next ? r.next.due : undefined} title={r.next ? [r.next.words, r.next.forWho].filter(Boolean).join(" · ") : undefined} data-testid="pipe-next">
         {r.next ? <span className="pipe-next-in"><span className="pipe-next-words">{r.next.words}</span><span className="pipe-next-when">{r.next.when}</span></span> : null}
       </td>
     ) },
@@ -59,7 +59,8 @@ const pipeColumns = () => {
 };
 
 // A row on a phone is People's card (plRowCard): the face and the name with the chip beside them; the service under
-// them; then the deal's steps, the value and the time in stage, and their next step.
+// them; then the deal's steps, the value and the time in stage; and their next step on a line of its own, where it
+// takes nothing from the facts.
 const pipeCardCell = (r) => {
   const p = r.person;
   return window.plRowCard({
@@ -73,8 +74,13 @@ const pipeCardCell = (r) => {
       r.track.length && window.PipelineTrack ? <window.PipelineTrack key="track" steps={r.track} /> : null,
       r.value ? <span key="value" className="pipe-card-value" data-testid="pipe-value">{r.value}</span> : null,
       r.inStage ? <span key="stage" className="pl-card-last" data-testid="pipe-in-stage">{r.inStage}</span> : null,
-      r.next ? <span key="next" className="pipe-row-next" data-due={r.next.due} data-testid="pipe-next">{`${r.next.words} · ${r.next.when}`}</span> : null,
     ],
+    tail: r.next ? (
+      <span className="pipe-row-next" data-due={r.next.due} data-testid="pipe-next">
+        <span className="pipe-next-words">{r.next.words}</span>
+        <span className="pipe-next-when">{r.next.when}</span>
+      </span>
+    ) : null,
   });
 };
 let PIPE_PHONE_COLUMNS = null;
@@ -263,7 +269,9 @@ const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null, pipelineRo
   }, [all, peekId]);
   // Someone who left the Pipeline (nothing to follow now) closes their peek.
   React.useEffect(() => { if (peekId && !peekRow) setPeekId(null); }, [peekId, peekRow]);
-  const peekVm = peekRow ? P.peek(peekRow.row, peekRow.group) : null;
+  // Once they are read, their deals say which step a deal card of theirs carries, so the peek says it once.
+  const peekDeals = peek && peek.id === peekId && peek.person ? peek.person.deals || null : null;
+  const peekVm = peekRow ? P.peek(peekRow.row, peekRow.group, peekDeals) : null;
   // Beside an open peek on a desk, the columns that still say the row; on a phone the peek is the whole screen.
   const compact = !!peekVm && !phone;
   const tableColumns = React.useMemo(() => (compact ? columns.filter((c) => PIPE_PEEK_KEEPS.has(c.key)) : columns), [columns, compact]);

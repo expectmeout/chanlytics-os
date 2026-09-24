@@ -6,6 +6,7 @@ import {
   DEAL_SHEET_WORDS,
   NOTE_MAX,
   NOTE_WORDS,
+  dueStepDay,
   stepDayOf,
   stepDays,
   stepSheetBody,
@@ -446,6 +447,8 @@ declare global {
       /** The days a step's picker offers, and a day as every page says it (contracts steps.ts). */
       days: typeof stepDays;
       dayOf: typeof stepDayOf;
+      /** A step's day once it has come, as every page judges it (contracts steps.ts). */
+      dueDay: typeof dueStepDay;
       /** The step sheet's words, what it opens with, what it sends, and whether anything was typed (step-sheet.ts). */
       sheet: typeof stepSheetFor;
       sheetBody: typeof stepSheetBody;
@@ -542,6 +545,7 @@ export function installPeopleCourier(): void {
     done: markStepDone,
     days: stepDays,
     dayOf: stepDayOf,
+    dueDay: dueStepDay,
     sheet: stepSheetFor,
     sheetBody: stepSheetBody,
     sheetDirty: stepSheetDirty,

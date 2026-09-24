@@ -38,6 +38,7 @@ const TodaySteps = ({ vm, nav }) => (
           <button type="button" className="td-step" onClick={() => nav(`clients/${s.personId}`)} data-testid="today-step">
             <span className="td-step-who">{s.name}</span>
             <span className="td-step-words">{s.words}</span>
+            {s.forWho ? <span className="td-step-for">{s.forWho}</span> : null}
             <span className="td-step-when" data-due={s.due}>{s.when}</span>
           </button>
         </li>
@@ -59,7 +60,8 @@ const TodayDay = () => {
   const people = tdSurface("__PEOPLE");
   const go = (to) => window.appNavigate && window.appNavigate(to);
   const tz = window.__clock && window.__clock.zone ? window.__clock.zone() : "UTC";
-  const stepsVm = people && window.__today && window.__today.steps ? window.__today.steps(people.rows, Date.now(), tz) : null;
+  // Judged as every page judges a step: at the moment People's rows were published, as its own Steps due is.
+  const stepsVm = people && window.__today && window.__today.steps ? window.__today.steps(people.rows, people.fetchedAt || Date.now(), tz) : null;
   const steps = stepsVm ? <TodaySteps vm={stepsVm} nav={go} /> : null;
   // No day to draw: the panel is the steps alone, where any are due.
   const stepsOnly = steps ? <section className="td-day" data-testid="today-day-steps">{steps}</section> : null;

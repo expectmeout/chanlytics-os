@@ -26,6 +26,7 @@ import {
   amountTotalsWords,
   consultationsWithoutProposal,
   consultsHeldWords,
+  dealIsOpen,
   heardSinceProposal,
   proposalsWaiting,
   waitingOnProposal,
@@ -34,7 +35,7 @@ import {
   type DealVM,
 } from "./deals";
 import { repliesWords, type PersonRowVM, type PersonVM } from "./people";
-import { stepDayOf, type StepDue } from "./steps";
+import { stepDayOf, stepIsDue, type StepDue } from "./steps";
 import type { Tone } from "./tone";
 
 export type PipelineGroupKey = "consultations" | "proposals" | "clients" | "closed";
@@ -314,7 +315,7 @@ function nextOf(p: PipelineSource, tz: string, nowMs: number): PipelineNextVM | 
 }
 
 /** A row whose next step's day has come: today, or before it. */
-const stepDue = (r: { next: PipelineNextVM | null }): boolean => !!r.next && r.next.due !== "ahead";
+const stepDue = (r: { next: PipelineNextVM | null }): boolean => stepIsDue(r.next);
 
 function dealRow<T extends PipelineSource>(
   r: T,
@@ -703,18 +704,27 @@ export interface PipelinePeekVM {
 
 /**
  * What the peek says of a row before the person is read: the head from the row alone, and the facts People's row
- * already carries, so the peek stands the moment it opens and the deal card fills in as the person lands.
+ * already carries, so the peek stands the moment it opens and the deal card fills in as the person lands. `deals`
+ * are the person's own once they are read, which say which step a deal card of theirs carries.
  */
-export function pipelinePeekOf(row: PipelineRowVM, group: PipelineGroupKey): PipelinePeekVM {
+export function pipelinePeekOf(
+  row: PipelineRowVM,
+  group: PipelineGroupKey,
+  deals: readonly { id: string; stage: string }[] | null = null,
+): PipelinePeekVM {
   const p = row.person;
   const facts: PipelinePeekFact[] = [];
   if (p.lastContact.label) facts.push({ id: "heard", words: p.lastContact.label });
   if (p.quote) facts.push({ id: "quote", words: `“${p.quote}”` });
   if (p.nextVisit) facts.push({ id: "next", words: `Coming up · ${p.nextVisit}` });
-  // Their next step, said once: one that names their deal is the deal card's (dealStepOf), which the peek draws.
+  // Their next step, said once. One that names an open deal of theirs is that deal's card's: the peek draws a card
+  // for each open deal (dealCardsOf), which says its earliest open step (dealStepOf), and this is theirs. A step
+  // about the person, or about a deal that has closed, has no card to say it, so it is said here. Until the person
+  // is read, the row's own deal is the one known.
   const n = row.next;
-  if (n && (!n.dealId || n.dealId !== p.deal?.id))
-    facts.push({ id: "step", words: `${PIPELINE_WORDS.columns.next} · ${n.words} · ${n.when}` });
+  const known = deals ?? (p.deal ? [p.deal] : []);
+  const onCard = !!n?.dealId && known.some((d) => d.id === n.dealId && dealIsOpen(d));
+  if (n && !onCard) facts.push({ id: "step", words: `${PIPELINE_WORDS.columns.next} · ${n.words} · ${n.when}` });
   return {
     id: row.id,
     name: row.name,

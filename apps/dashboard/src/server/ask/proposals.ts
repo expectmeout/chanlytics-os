@@ -623,10 +623,10 @@ async function proposeDeal(t: ToolContext, input: Record<string, unknown>): Prom
       ...(url ? { proposal_url: url } : {}),
       ...(day ? { valid_until: day } : {}),
       ...(reason ? { lost_reason: reason } : {}),
-      ...(stepDay ? { next_step: stepWords, next_step_due: stepDay.day } : {}),
       who,
     },
     undo: null,
+    ...(stepDay ? { step: { body: stepWords, due_on: stepDay.day } } : {}),
   });
 }
 

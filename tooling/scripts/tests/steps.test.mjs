@@ -9,11 +9,13 @@ import {
   NOTE_REFUSALS,
   NOTE_WORDS,
   PEOPLE_LISTS,
+  dueStepDay,
   forWords,
   nextStepOf,
   personNotesVM,
   stepDayOf,
   stepDays,
+  stepIsDue,
   toPersonRowVM,
   todayStepsDue,
   todaySteps,
@@ -58,6 +60,21 @@ test("the picker offers today, tomorrow, the weekdays to Friday, next week's Mon
   );
   assert.equal(monday[2].title, "Wednesday, Sep 23");
   assert.equal(stepDays(NOW, TZ).find((c) => c.label === "Next week").key, "2026-09-28");
+});
+
+test("a step is due by one rule -- its day today or before, judged when asked -- and a day ahead is not", () => {
+  assert.deepEqual([{ due: "past" }, { due: "today" }, { due: "ahead" }, null].map(stepIsDue), [
+    true,
+    true,
+    false,
+    false,
+  ]);
+  const tomorrow = { day: { day: "2026-09-25" } };
+  assert.equal(dueStepDay(tomorrow, TZ, NOW), null, "tomorrow's is ahead");
+  const then = Date.parse("2026-09-25T15:00:00Z");
+  assert.deepEqual(dueStepDay(tomorrow, TZ, then), stepDayOf("2026-09-25", TZ, then), "due once its day comes");
+  assert.equal(dueStepDay({ day: { day: "2026-02-31" } }, TZ, NOW), null, "no real day, no step due");
+  assert.equal(dueStepDay(null, TZ, NOW), null);
 });
 
 test("who a step is for: you, a teammate by name, or anyone", () => {

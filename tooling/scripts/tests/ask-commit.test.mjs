@@ -373,15 +373,8 @@ test("a deal: the card's body to the person's deal route without the card's own 
 test("a deal with its next step: the deal first, then the step as a note of the team's that names the row the door wrote, with its day; a step the door refused is said on the receipt, and the deal stands", async () => {
   const deal = `POST /api/v1/contacts/${P1}/deal`;
   const notes = `POST /api/v1/contacts/${P1}/notes`;
-  const withStep = card("deal", {
-    contact_id: P1,
-    stage: "won",
-    deal_id: DEAL1,
-    version: 3,
-    next_step: "Send the onboarding form",
-    next_step_due: "2026-09-18",
-    who: "Maria",
-  });
+  const step = { body: "Send the onboarding form", due_on: "2026-09-18" };
+  const withStep = card("deal", { contact_id: P1, stage: "won", deal_id: DEAL1, version: 3, who: "Maria" }, { step });
   const t = tab((key) =>
     key === deal ? envelope(ANSWERS[deal]) : key === notes ? envelope({ note: { id: "n1" } }) : null,
   );
@@ -410,10 +403,69 @@ test("a deal with its next step: the deal first, then the step as a note of the 
   });
   assert.equal(r.sent.length, 2);
   assert.ok(!r.events.includes("event:note:saved"), "nothing saved, nothing said");
+  // A new proposal's card names no deal: the step names the row the door wrote.
+  const DEAL2 = "dddddddd-dddd-4ddd-8ddd-dddddddddd22";
+  const fresh = tab((key) =>
+    key === deal
+      ? envelope({ deal: { id: DEAL2, stage: "proposed", version: 1 }, from: null, decision_id: "x" })
+      : key === notes
+        ? envelope({ note: { id: "n2" } })
+        : null,
+  );
+  await commitProposal(
+    fresh.win,
+    card("deal", { contact_id: P1, stage: "proposed", service: "SEO", who: "Maria" }, { step }),
+    fresh.client,
+  );
+  assert.deepEqual(
+    fresh.sent.map((x) => x.body),
+    [
+      { stage: "proposed", service: "SEO" },
+      { body: "Send the onboarding form", due_on: "2026-09-18", team_only: true, deal_id: DEAL2 },
+    ],
+  );
   // A deal the door refused writes no step.
   const no = tab(() => refusal(409, "conflict", "Someone moved this deal."));
   assert.equal((await commitProposal(no.win, withStep, no.client)).ok, false);
   assert.equal(no.sent.length, 1);
+});
+
+test("the step's write answers as the door takes it: People is read again behind it, after the deal's own read", async () => {
+  const log = [];
+  const client = createApi({
+    fetch: async (url, init) => {
+      const key = `${init.method} ${String(url).replace(/\?.*$/, "")}`;
+      return envelope(key.endsWith("/deal") ? ANSWERS[`POST /api/v1/contacts/${P1}/deal`] : { note: { id: "n3" } });
+    },
+    workspace: () => A,
+    onSignedOut() {},
+    onChooseWorkspace() {},
+    refresh: (key) => {
+      log.push(`read after ${key}`);
+      return new Promise((resolve) =>
+        setTimeout(() => {
+          log.push(`read done ${key}`);
+          resolve();
+        }, 30),
+      );
+    },
+    now: () => 1_000,
+  });
+  const step = { body: "Send the onboarding form", due_on: "2026-09-18" };
+  await commitProposal(
+    { dispatchEvent: () => true },
+    card("deal", { contact_id: P1, stage: "won", deal_id: DEAL1, version: 3, who: "Maria" }, { step }),
+    client,
+  );
+  log.push("committed");
+  await new Promise((resolve) => setTimeout(resolve, 80));
+  assert.deepEqual(log, [
+    "read after POST contacts/[id]/deal",
+    "read done POST contacts/[id]/deal",
+    "read after POST contacts/[id]/notes",
+    "committed",
+    "read done POST contacts/[id]/notes",
+  ]);
 });
 
 test("a policy: the class with the mode or the dial, whichever the card carries; undo holds the previous values, or says it cannot", async () => {

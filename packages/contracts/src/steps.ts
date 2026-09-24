@@ -32,6 +32,25 @@ export function stepDayOf(day: string | null | undefined, tz: string, nowMs: num
   return { day, due, near, words: due === "past" ? `Overdue since ${near}` : `Due ${near}` };
 }
 
+/** Whether a step's day has come: today, or before it. The one rule, wherever a step is called due. */
+export function stepIsDue(step: { due: StepDue } | null | undefined): boolean {
+  return !!step && step.due !== "ahead";
+}
+
+/**
+ * A step's day said at `nowMs`, once it has come; null while it is ahead, or for a step with no real day. The pages
+ * judge a step at the moment People's rows were published (the surface's `fetchedAt`), as People's own Steps due
+ * does, so Today, the thread, the Pipeline and that list say one thing of it.
+ */
+export function dueStepDay(
+  step: { day: { day: string } } | null | undefined,
+  tz: string,
+  nowMs: number,
+): StepDayVM | null {
+  const day = step ? stepDayOf(step.day.day, tz, nowMs) : null;
+  return stepIsDue(day) ? day : null;
+}
+
 /** Who a note or a step is for, in the page's words: "For you", "For Maria"; null when it is for anyone. */
 export function forWords(
   forMe: boolean | null | undefined,
@@ -132,6 +151,9 @@ export function stepDays(nowMs: number, tz: string): StepDayChoice[] {
   return out;
 }
 
+/** How many steps due Today names at the head of the day, the rest a line to People's Steps due. */
+export const TODAY_STEPS_MAX = 3;
+
 /**
  * The people whose next step is due, today or before, for Today's day panel: the oldest day first, then by name, at
  * most `max`, and how many more there are. Each day is judged again at `nowMs`, so a row read yesterday says today's.
@@ -140,13 +162,13 @@ export function todayStepsDue<T extends { name: string; nextStep: PersonNextStep
   rows: readonly T[],
   nowMs: number,
   tz: string,
-  max = 3,
+  max = TODAY_STEPS_MAX,
 ): { rows: { row: T; step: PersonNextStepVM }[]; count: number; more: string | null } {
   const due = rows
     .map((row): { row: T; step: PersonNextStepVM } | null => {
       const s = row.nextStep;
-      const day = s ? stepDayOf(s.day.day, tz, nowMs) : null;
-      return s && day && day.due !== "ahead" ? { row, step: { ...s, day, due: day.due } } : null;
+      const day = dueStepDay(s, tz, nowMs);
+      return s && day ? { row, step: { ...s, day, due: day.due } } : null;
     })
     .filter((x): x is { row: T; step: PersonNextStepVM } => x !== null)
     .sort((a, b) => a.step.day.day.localeCompare(b.step.day.day) || a.row.name.localeCompare(b.row.name));

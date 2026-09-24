@@ -4219,6 +4219,13 @@ function stepDayOf(day, tz, nowMs) {
   const near = clockNear(at2, tz, nowMs);
   return { day, due, near, words: due === "past" ? `Overdue since ${near}` : `Due ${near}` };
 }
+function stepIsDue(step2) {
+  return !!step2 && step2.due !== "ahead";
+}
+function dueStepDay(step2, tz, nowMs) {
+  const day = step2 ? stepDayOf(step2.day.day, tz, nowMs) : null;
+  return stepIsDue(day) ? day : null;
+}
 function forWords(forMe, forUserId, forName) {
   if (forMe) return "For you";
   const name = (forName ?? "").trim();
@@ -4263,11 +4270,12 @@ function stepDays(nowMs, tz) {
   out.push({ key: "pick", label: "Pick a day", title: "Choose any day" });
   return out;
 }
-function todayStepsDue(rows, nowMs, tz, max = 3) {
+var TODAY_STEPS_MAX = 3;
+function todayStepsDue(rows, nowMs, tz, max = TODAY_STEPS_MAX) {
   const due = rows.map((row2) => {
     const s = row2.nextStep;
-    const day = s ? stepDayOf(s.day.day, tz, nowMs) : null;
-    return s && day && day.due !== "ahead" ? { row: row2, step: { ...s, day, due: day.due } } : null;
+    const day = dueStepDay(s, tz, nowMs);
+    return s && day ? { row: row2, step: { ...s, day, due: day.due } } : null;
   }).filter((x) => x !== null).sort((a, b) => a.step.day.day.localeCompare(b.step.day.day) || a.row.name.localeCompare(b.row.name));
   const cap2 = Math.max(0, max);
   return {
@@ -7675,7 +7683,9 @@ var NOTE_WORDS = {
   stepSaved: "Step saved",
   stepDone: "Step done",
   stepReopened: "Step open again",
-  setTheNext: "Set the next one"
+  setTheNext: "Set the next one",
+  /** Done's name for a screen reader, where a header holds more than the step. */
+  markDone: (words4) => `Mark \u201C${words4}\u201D done`
 };
 var NOTE_REFUSALS = {
   empty: "Write something first.",
@@ -8068,7 +8078,7 @@ var PEOPLE_LISTS = [
     label: "Steps due",
     group: "attention",
     onProfile: false,
-    test: (v) => !!v.nextStep && v.nextStep.due !== "ahead"
+    test: (v) => stepIsDue(v.nextStep)
   },
   { id: "new_week", label: "New this week", group: "journey", test: (v) => v.state === "new" },
   {
@@ -10306,7 +10316,6 @@ function todayAwayGrouped(rows, inQueue = [], max = 5) {
   const empty = fresh.length ? null : total === 0 ? { icon: "check", text: AWAY_EMPTY_CLEAR } : { icon: "arrow-up", text: AWAY_EMPTY_QUEUED };
   return { groups: shown, total, more, queued, foot: awayFoot(more, queued, shown.length > 0), empty };
 }
-var TODAY_STEPS_MAX = 3;
 function todaySteps(rows, nowMs, tz, max = TODAY_STEPS_MAX) {
   const due = todayStepsDue(rows ?? [], nowMs, tz, max);
   if (!due.count) return null;
@@ -19235,7 +19244,7 @@ function nextOf(p, tz, nowMs) {
   if (!day) return null;
   return { id: s.id, words: s.words, day: day.day, when: day.words, due: day.due, forWho: s.forWho, dealId: s.dealId };
 }
-var stepDue = (r) => !!r.next && r.next.due !== "ahead";
+var stepDue = (r) => stepIsDue(r.next);
 function dealRow(r, d, chip, nowMs, group) {
   return {
     id: r.id,
@@ -19473,15 +19482,16 @@ function pipelineMove(from, to, row2) {
     return deal.stage === "lost" ? { mode: "again", dealId: deal.id } : { mode: "propose", dealId: null };
   return null;
 }
-function pipelinePeekOf(row2, group) {
+function pipelinePeekOf(row2, group, deals = null) {
   const p = row2.person;
   const facts = [];
   if (p.lastContact.label) facts.push({ id: "heard", words: p.lastContact.label });
   if (p.quote) facts.push({ id: "quote", words: `\u201C${p.quote}\u201D` });
   if (p.nextVisit) facts.push({ id: "next", words: `Coming up \xB7 ${p.nextVisit}` });
   const n = row2.next;
-  if (n && (!n.dealId || n.dealId !== p.deal?.id))
-    facts.push({ id: "step", words: `${PIPELINE_WORDS.columns.next} \xB7 ${n.words} \xB7 ${n.when}` });
+  const known = deals ?? (p.deal ? [p.deal] : []);
+  const onCard = !!n?.dealId && known.some((d) => d.id === n.dealId && dealIsOpen(d));
+  if (n && !onCard) facts.push({ id: "step", words: `${PIPELINE_WORDS.columns.next} \xB7 ${n.words} \xB7 ${n.when}` });
   return {
     id: row2.id,
     name: row2.name,
@@ -20512,6 +20522,7 @@ export {
   detectLanguage,
   deviceTimezone,
   draftSendsAtMs,
+  dueStepDay,
   durationLabel,
   eligibleFor,
   eligibleForPlaybook,
@@ -20967,6 +20978,7 @@ export {
   stateTone,
   stepDayOf,
   stepDays,
+  stepIsDue,
   stepSheetBody,
   stepSheetDirty,
   stepSheetFor,

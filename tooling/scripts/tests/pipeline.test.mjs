@@ -561,7 +561,7 @@ test("Next step sorts within each group by its day, the soonest first; a row wit
   ]);
 });
 
-test("the peek says a step about the person as a fact; one that moves their deal is the deal card's, said there once", () => {
+test("the peek says a step no deal card of theirs carries -- about the person, or a deal that closed; one on an open deal is that card's, said there once", () => {
   const rows = [
     personRow(NOW, "wes", "Wes", { ...deal(NOW, "proposed", { proposed: 11 }), ...stepCols(NOW, "wes", -2) }),
     personRow(NOW, "nia", "Nia", {
@@ -573,6 +573,35 @@ test("the peek says a step about the person as a fact; one that moves their deal
   const facts = (id) => pipelinePeekOf(rowOf(vm, id), "proposals").facts.filter((f) => f.id === "step");
   assert.deepEqual(facts("wes"), [{ id: "step", words: "Next step · Call wes back · Overdue since Mon" }]);
   assert.deepEqual(facts("nia"), [], "Nia's step names her deal: the card the peek draws says it");
+  // REGRESSION: a step on a deal that passed was hidden as the card's, and no card is drawn for a closed deal.
+  const dan = toPersonRowVM(
+    personRow(NOW, "dan", "Dan", {
+      ...deal(NOW, "lost", { proposed: 8, decided: 3 }),
+      ...stepCols(NOW, "dan", 20, { dealId: "d-lost-8" }),
+    }),
+    TZ,
+    new Date(NOW),
+  );
+  const danRow = rowOf(pipelineOf([dan], NOW, TZ), "dan");
+  assert.deepEqual(
+    pipelinePeekOf(danRow, "closed").facts.filter((f) => f.id === "step"),
+    [{ id: "step", words: `Next step · Call dan back · ${danRow.next.when}` }],
+  );
+  // Two open deals, the step on the one the row does not carry: a fact until they are read, then that card's.
+  const val = toPersonRowVM(
+    personRow(NOW, "val", "Val", {
+      ...deal(NOW, "proposed", { proposed: 2 }),
+      ...stepCols(NOW, "val", 1, { dealId: "d-other" }),
+    }),
+    TZ,
+    new Date(NOW),
+  );
+  const valRow = rowOf(pipelineOf([val], NOW, TZ), "val");
+  const valFacts = (deals) => pipelinePeekOf(valRow, "proposals", deals).facts.filter((f) => f.id === "step");
+  assert.equal(valFacts(null).length, 1, "before they are read, the row's own deal is the one known");
+  const current = { id: "d-proposed-2", stage: "proposed" };
+  assert.deepEqual(valFacts([current, { id: "d-other", stage: "won" }]), [], "read: a card of theirs says it");
+  assert.equal(valFacts([current, { id: "d-other", stage: "ended" }]).length, 1, "an ended deal draws no card");
 });
 
 test("the Pipeline's route waits for People's rows: it reads nothing else", async () => {
@@ -2866,6 +2895,7 @@ test("their next step on the page: a column after Stage that sorts by its day, i
   assert.equal(cell("wes").props["data-due"], "past", "the warn ink is the stylesheet's, keyed on this");
   assert.equal(cell("nia").props["data-due"], "ahead");
   assert.equal(textOf(cell("cat")), "", "no step: an empty cell, never a word for nothing");
+  assert.equal(cell("wes").props.title, "Send the revised quote", "the words whole, where the cell cuts them");
   // The heading sorts by the day, within each group, and the member's view keeps it.
   const nextHead = (t) => find(t, (n) => n.props?.className === "cl-th-sort" && textOf(n).startsWith("Next step"));
   click(nextHead(tree));
@@ -2913,7 +2943,53 @@ test("their next step on the page: a column after Stage that sorts by its day, i
   await onPhone(async () => {
     await fresh({ people: people() });
     const card = find(draw(), (n) => n.type === "tr" && n.props?.id === "person-wes");
-    assert.equal(textOf(byTestId(card, "pipe-next")), `Send the revised quote · ${wesWhen}`);
-    assert.equal(byTestId(card, "pipe-next").props["data-due"], "past");
+    const step = byTestId(card, "pipe-next");
+    assert.deepEqual(
+      [textOf(byClass(step, "pipe-next-words")), textOf(byClass(step, "pipe-next-when")), step.props["data-due"]],
+      ["Send the revised quote", wesWhen, "past"],
+    );
+    assert.equal(
+      byTestId(
+        find(card, (n) => n.props?.className === "pl-card-facts"),
+        "pipe-next",
+      ),
+      null,
+      "a line of its own, under the facts: it took the time in stage's room",
+    );
   });
+});
+
+test("the peek hands the person's deals over once they are read: the step's fact until then, and its deal's card after", async () => {
+  const now = Date.now();
+  await fresh({
+    people: peopleNow().map((r) =>
+      r.id === "wes"
+        ? {
+            ...r,
+            step_id: "s-wes",
+            step_body: "Send the revised quote",
+            step_due_on: zoneDayKey(now + 2 * DAY, ZONE),
+            step_for_user_id: null,
+            step_deal_id: "d-other",
+          }
+        : r,
+    ),
+  });
+  const W = globalThis.window;
+  W.__peekPerson = () => null;
+  W.__personDetail = (id) => {
+    const p = personFor(id);
+    return Promise.resolve({ ...p, deals: [...p.deals, { ...p.deal, id: "d-other", service: "Extensions" }] });
+  };
+  let tree = draw();
+  find(tree, (n) => n.type === "tr" && n.props?.id === "person-wes").props.onClick();
+  tree = draw();
+  assert.ok(byTestId(peekOf(tree), "pipeline-peek-step"), "not read yet: the row's deal is not the step's");
+  await tick();
+  tree = draw();
+  assert.equal(
+    byTestId(peekOf(tree), "pipeline-peek-step"),
+    null,
+    "read: the open deal it names has a card of its own",
+  );
 });

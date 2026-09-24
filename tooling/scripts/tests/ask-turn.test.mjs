@@ -2291,9 +2291,12 @@ test("propose_deal carries a next step with its day: the card says it, the body 
   const words = "Send the onboarding form and book the kickoff call";
   const won = await p({ next_step: `  ${words} `, next_step_due: "2026-09-18" });
   assert.equal(won.isError, false, won.result);
+  assert.deepEqual([won.proposal.step, won.proposal.payload.deal_id], [{ body: words, due_on: "2026-09-18" }, "d1"]);
+  // Beside the payload, never in it: a tab from before the step hands the payload to the strict deal route whole.
   assert.deepEqual(
-    [won.proposal.payload.next_step, won.proposal.payload.next_step_due, won.proposal.payload.deal_id],
-    [words, "2026-09-18", "d1"],
+    Object.keys(won.proposal.payload).filter((k) => k.includes("step")),
+    [],
+    "REGRESSION: an old tab's deal was refused for the step's keys",
   );
   assert.equal(won.proposal.summary, `Client · SEO · Next step: ${words}, due Fri`);
   assert.equal(
@@ -2302,9 +2305,9 @@ test("propose_deal carries a next step with its day: the card says it, the body 
   );
   const long = "Call ".repeat(40).trim();
   const clipped = (await p({ next_step: long, next_step_due: "2026-09-18" })).proposal;
-  assert.equal(clipped.payload.next_step, long, "the note keeps the words whole");
+  assert.equal(clipped.step.body, long, "the note keeps the words whole");
   assert.ok(clipped.summary.length < 140, "the card clips them at a word");
-  assert.equal((await p({})).proposal.payload.next_step, undefined, "no step: nothing in the body");
+  assert.equal((await p({})).proposal.step, undefined, "no step: nothing beside the body");
   for (const [input, why] of [
     [{ next_step: "Call" }, /next_step needs next_step_due, the day it is due/],
     [{ next_step_due: "2026-09-18" }, /next_step_due goes only with next_step/],

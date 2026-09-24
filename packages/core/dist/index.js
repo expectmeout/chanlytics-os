@@ -4107,6 +4107,9 @@ function visitStartTime(v, tz) {
     new Date(ms(v.start))
   );
 }
+function stepIsDue(step2) {
+  return !!step2 && step2.due !== "ahead";
+}
 var REPLY_WINDOW_HOURS2 = 72;
 var REPLY_WINDOW_MS2 = REPLY_WINDOW_HOURS2 * 36e5;
 var REPLY_WINDOW_WORDS2 = `within ${REPLY_WINDOW_HOURS2 / 24} days`;
@@ -4892,7 +4895,7 @@ var PEOPLE_LISTS = [
     label: "Steps due",
     group: "attention",
     onProfile: false,
-    test: (v) => !!v.nextStep && v.nextStep.due !== "ahead"
+    test: (v) => stepIsDue(v.nextStep)
   },
   { id: "new_week", label: "New this week", group: "journey", test: (v) => v.state === "new" },
   {
