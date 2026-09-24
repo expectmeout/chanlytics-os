@@ -14,7 +14,20 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { LEAD_WORDS, PIPELINE_WORDS, ROLE_PERMS, pipelineOf, roleGate, toPersonRowVM } from "@chanlytics/contracts";
+import {
+  LEAD_WORDS,
+  PIPELINE_WORDS,
+  ROLE_PERMS,
+  parsePipelineRoute,
+  pipelineMove,
+  pipelineOf,
+  pipelinePeekOf,
+  pipelineRail,
+  pipelineRoute,
+  pipelineViewLabel,
+  roleGate,
+  toPersonRowVM,
+} from "@chanlytics/contracts";
 import {
   leadEndingLine,
   leadReviewGroups,
@@ -2183,7 +2196,17 @@ test("REGRESSION: the Pipeline's rows too -- a draw that changed nothing of a ro
     person("k3", "Cy", proposed(1)),
   ].map((r) => toPersonRowVM(r, TZ, NOW));
   Object.assign(globalThis.window.__PEOPLE, { rows, dealsOn: true, fetchedAt: NOW.getTime() });
-  globalThis.window.__pipeline = { of: pipelineOf, words: PIPELINE_WORDS };
+  // What seed-globals.ts publishes: contracts' own, the Pipeline's rail and address with its rows.
+  globalThis.window.__pipeline = {
+    of: pipelineOf,
+    move: pipelineMove,
+    peek: pipelinePeekOf,
+    rail: pipelineRail,
+    route: pipelineRoute,
+    parse: parsePipelineRoute,
+    viewLabel: pipelineViewLabel,
+    words: PIPELINE_WORDS,
+  };
   const drawPipeline = () => draw({ scope: "pipeline", leadsRoute: null });
   try {
     const a = tableRowsOf(drawPipeline());
@@ -3559,5 +3582,24 @@ test("a converted lead whose person became a client reads Client, on the desktop
     assert.equal(textOf(byTestId(cardOf("c2"), "lead-state")), rows[1].stateTag);
   } finally {
     globalThis.__phone = false;
+  }
+});
+
+test("a lead a link names stays open where this tab kept a cursor in that view: the address's lead takes the cursor", () => {
+  const { navs, at, openPeek } = addressed();
+  // The tab's place for Leads (usePlPlace): the cursor was left on the first lead.
+  globalThis.window.__tabMemory = {
+    place: (page) => (page === "leads" ? { q: "", cursor: UA, top: 0 } : null),
+    keepPlace() {},
+    draft: () => null,
+    keepDraft() {},
+    dropDraft() {},
+  };
+  try {
+    for (let i = 0; i < 4; i += 1) at(`leads:p-${UB}`);
+    assert.equal(openPeek().vm.id, UB, "the link's lead, not the kept cursor's");
+    assert.deepEqual(navs, [], "and the address is left as the link said it");
+  } finally {
+    delete globalThis.window.__tabMemory;
   }
 });

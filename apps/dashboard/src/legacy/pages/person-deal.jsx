@@ -24,7 +24,8 @@ const pdRun = (p, a, dealId, onCompose) => {
     if (onCompose) onCompose(a.text || null);
     return;
   }
-  if (window.openDealSheet) window.openDealSheet({ personId: p.id, mode: a.mode, dealId: a.mode === "propose" ? null : dealId });
+  // A new proposal after a consultation opens with the service the consultation was for (contracts consultedService).
+  if (window.openDealSheet) window.openDealSheet({ personId: p.id, mode: a.mode, dealId: a.mode === "propose" ? null : dealId, ...(a.mode === "propose" && a.service ? { service: a.service } : {}) });
 };
 
 // One open deal. `W` is contracts' DEAL_CARD_WORDS.

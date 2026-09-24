@@ -2594,3 +2594,33 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
 .pipe-card-value { color: var(--ink); }
 .pipe-card-stage { color: var(--ink-dim); }
 .pipe-card > .pill { align-self: flex-start; }
+
+/* ---- People › Pipeline finds its way (pipeline-scope.jsx, pipeline-new.jsx) --------------------------------------
+   The rail is People's rail kit with the Pipeline's own rows. New proposal is the page's one filled button, at the
+   controls row's right; its picker is a record sheet on a desk and a phone sheet: a search box, the first eight people
+   as quiet rows (face, name, where their deal stands), and Add someone new as words that open two fields. */
+.pipe-new-btn { white-space: nowrap; }
+.pipe-new { display: flex; flex-direction: column; gap: 12px; padding: 16px 0 20px; }
+.pipe-new-sub { margin: 0; font-size: var(--text-sm); color: var(--ink-muted); }
+.pipe-new-search { display: flex; align-items: center; gap: 8px; padding: 0 10px; min-height: 36px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-sunken); color: var(--ink-faint); }
+.pipe-new-search:focus-within { border-color: var(--ink-faint); background: var(--bg); }
+.pipe-new-search input { flex: 1; min-width: 0; border: 0; outline: none; background: transparent; font: inherit; font-size: var(--text-base); color: var(--ink); }
+.pipe-new-list { list-style: none; margin: 0 -8px; padding: 0; display: flex; flex-direction: column; }
+.pipe-new-row { width: 100%; display: grid; grid-template-columns: 28px minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 10px; align-items: center; padding: 7px 8px; border: 0; border-radius: var(--radius-sm); background: none; font: inherit; text-align: left; color: var(--ink); cursor: pointer; }
+.pipe-new-row:hover { background: var(--bg-hover); }
+.pipe-new-row:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.pipe-new-face { grid-row: 1 / span 2; width: 28px; height: 28px; font-size: 10px; }
+.pipe-new-name { min-width: 0; font-size: var(--text-sm); font-weight: var(--weight-medium); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pipe-new-said { min-width: 0; font-size: 12px; color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pipe-new-none { margin: 0; font-size: var(--text-sm); color: var(--ink-dim); }
+.pipe-new-open-add { align-self: flex-start; gap: 6px; }
+.pipe-new-add { display: flex; flex-direction: column; gap: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.pipe-new-opt { color: var(--ink-faint); font-weight: 400; }
+.pipe-new-go { align-self: flex-start; }
+@media (max-width: 900px) {
+  .pipe-new { padding: 4px 0 12px; }
+  .pipe-new-search { min-height: 44px; }
+  .pipe-new-search input { font-size: 16px; }
+  .pipe-new-row { padding: 10px 8px; }
+  .pipe-new-go { align-self: stretch; min-height: 44px; justify-content: center; }
+}

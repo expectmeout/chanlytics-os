@@ -22,6 +22,7 @@ import {
   DEAL_REFUSALS,
   DEAL_STAGE_WORDS,
   amountWords,
+  consultServiceOf,
   consultationsWithoutProposal,
   noProposalSince,
   parseAmount,
@@ -74,6 +75,8 @@ export interface DealPerson {
   consultationVisit?: boolean;
   /** That consultation's title, as the calendar says it: the service it names draws the Consultation step. */
   consultationTitle?: string | null;
+  /** The services that need a consultation first (PersonVM.consultFirst): which one the consultation was for. */
+  consultFirst?: readonly string[];
 }
 
 /* --------------------------------------------- the send ----------------------------------------------------- */
@@ -137,6 +140,8 @@ export interface DealAct {
   text?: string;
   /** What it does, on hover. */
   hint?: string;
+  /** A new proposal's service: the one the consultation before it was for. Absent where none is named. */
+  service?: string;
 }
 
 const MODE_OF: Record<DealActId, DealSheetMode | null> = {
@@ -150,13 +155,33 @@ const MODE_OF: Record<DealActId, DealSheetMode | null> = {
   "follow-up": null,
 };
 
-const act = (id: DealActId, extra: { text?: string; hint?: string } = {}): DealAct => ({
+const act = (id: DealActId, extra: { text?: string; hint?: string; service?: string | null } = {}): DealAct => ({
   id,
   label: DEAL_ACT_WORDS[id],
   mode: MODE_OF[id],
   ...(extra.text !== undefined ? { text: extra.text } : {}),
   ...(extra.hint !== undefined ? { hint: extra.hint } : {}),
+  ...(extra.service ? { service: extra.service } : {}),
 });
+
+/**
+ * The consult-first service their consultation named: what a proposal started from it is for, by the Calendar's own
+ * rule (deals.ts consultServiceOf), so a new proposal opens with it wherever it is started -- the card, the thread,
+ * New proposal, a card dropped on the board. Null where the title names none, where no service needs a consultation,
+ * and where they have that service open already, which the door would refuse (already_open).
+ */
+function consultedService(p: DealPerson): string | null {
+  if (!p.consultationTitle) return null;
+  const named = consultServiceOf(
+    p.consultationTitle,
+    (p.services ?? []).map((name) => ({ name })),
+    { consult_first: p.consultFirst ?? [] },
+  );
+  const open = (p.deals ?? (p.deal ? [p.deal] : [])).some(
+    (d) => d.service === named && (d.stage === "proposed" || d.stage === "won"),
+  );
+  return named && !open ? named : null;
+}
 
 /** Whether a deal's proposal went: the deal's own word for it on a person's page, else the person's for its link. */
 function sentOf(p: DealPerson, deal: DealVM): { at: string; via: string | null } | null {
@@ -176,7 +201,7 @@ function sentOf(p: DealPerson, deal: DealVM): { at: string; via: string | null }
  * person may hold one open deal per service); the person's current one by default.
  */
 export function dealNextAct(p: DealPerson, nowMs: number, deal: DealVM | null = p.deal): DealAct | null {
-  if (!deal || deal.stage === "ended") return act("propose");
+  if (!deal || deal.stage === "ended") return act("propose", { service: consultedService(p) });
   if (deal.stage === "won") return null;
   if (deal.stage === "lost") return act("again");
   const url = deal.proposal?.url ?? null;
@@ -448,7 +473,14 @@ function quietOf(p: DealPerson, nowMs: number, tz: string): DealQuietVM {
   const fresh =
     consulted !== null && consultationsWithoutProposal([{ consultedMs: consulted, deal: p.deal }], nowMs).length > 0;
   const sub = fresh && consulted !== null ? consultationWas(consulted, tz, nowMs) : null;
-  if (!closed) return { words: DEAL_LINE_NONE, sub, act: act("propose"), dealId: null, primary: fresh };
+  if (!closed)
+    return {
+      words: DEAL_LINE_NONE,
+      sub,
+      act: act("propose", { service: consultedService(p) }),
+      dealId: null,
+      primary: fresh,
+    };
   const day = closed.sinceMs === null ? null : clockDate(closed.sinceMs, tz, nowMs);
   const said =
     closed.stage === "lost"
@@ -459,7 +491,7 @@ function quietOf(p: DealPerson, nowMs: number, tz: string): DealQuietVM {
   return {
     words: said.filter((x): x is string => !!x).join(" · "),
     sub,
-    act: again ? act("again") : act("propose"),
+    act: again ? act("again") : act("propose", { service: consultedService(p) }),
     dealId: again ? closed.id : null,
     primary: fresh,
   };
@@ -712,7 +744,7 @@ export function dealSheetFor(
     ...DRAFT_EMPTY,
     ...(mode === "propose"
       ? {
-          service: target.service?.trim() || "",
+          service: target.service?.trim() || consultedService(p) || "",
           // The link left on the person (00154) is theirs only with no deal at all (proposalLinkOf).
           link: !p.deal && p.proposal ? p.proposal.url : "",
         }
