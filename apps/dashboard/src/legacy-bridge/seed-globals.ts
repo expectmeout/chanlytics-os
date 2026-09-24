@@ -18,20 +18,6 @@ import {
   linkHost,
   proposalMessage,
   proposalLinkOf,
-  pipelineOf,
-  pipelineMove,
-  pipelinePeekOf,
-  pipelineRail,
-  pipelineRoute,
-  parsePipelineRoute,
-  pipelineViewLabel,
-  pipelineSorted,
-  pipelinePassMany,
-  pipelinePassDone,
-  pipelinePeekDetail,
-  pipelineBoardMore,
-  PIPELINE_BOARD_CAP,
-  PIPELINE_WORDS,
   whyNotAHandoff,
   handoffE164,
   formatPhoneDisplay,
@@ -40,6 +26,7 @@ import {
   csvCell,
   LEAD_WORDS,
 } from "@chanlytics/contracts";
+import { pipelineHelpers, type PipelineHelpers } from "./pipeline-helpers";
 import {
   LEAD_COUNT_CHOICES,
   planArea,
@@ -85,22 +72,7 @@ declare global {
     __linkHost: typeof linkHost;
     __proposalMessage: typeof proposalMessage;
     __proposalLinkOf: typeof proposalLinkOf;
-    __pipeline: {
-      of: typeof pipelineOf;
-      move: typeof pipelineMove;
-      peek: typeof pipelinePeekOf;
-      rail: typeof pipelineRail;
-      route: typeof pipelineRoute;
-      parse: typeof parsePipelineRoute;
-      viewLabel: typeof pipelineViewLabel;
-      sorted: typeof pipelineSorted;
-      passMany: typeof pipelinePassMany;
-      passDone: typeof pipelinePassDone;
-      detail: typeof pipelinePeekDetail;
-      boardCap: typeof PIPELINE_BOARD_CAP;
-      boardMore: typeof pipelineBoardMore;
-      words: typeof PIPELINE_WORDS;
-    };
+    __pipeline: PipelineHelpers;
     __whyNotAHandoff: typeof whyNotAHandoff;
     __handoffE164: typeof handoffE164;
     __phoneDisplay: typeof formatPhoneDisplay;
@@ -179,28 +151,9 @@ if (typeof window !== "undefined") {
   // And which link is a person's now (0008): their deal's while it is a proposal out, none for any other deal, their
   // own only with no deal. The thread reads it off People's row, so its send never offers a client a proposal.
   window.__proposalLinkOf = proposalLinkOf;
-  // People › Pipeline (0008): the rows People already holds, grouped by where each deal stands, what a card dropped in
-  // another column asks for, what the peek says of a row, and every word the scope says. The page composes them; it
-  // decides nothing (pipeline-scope.jsx).
-  window.__pipeline = {
-    of: pipelineOf,
-    move: pipelineMove,
-    peek: pipelinePeekOf,
-    // Its own rail, and its address (clients/pipeline:v-<view>:p-<person>): the shell and the page read one spelling.
-    rail: pipelineRail,
-    route: pipelineRoute,
-    parse: parsePipelineRoute,
-    viewLabel: pipelineViewLabel,
-    // The row carries the deal: its order by the member's heading, a selection's pass and what it came to, what the
-    // peek says once the person is read, and how many cards a board column shows.
-    sorted: pipelineSorted,
-    passMany: pipelinePassMany,
-    passDone: pipelinePassDone,
-    detail: pipelinePeekDetail,
-    boardCap: PIPELINE_BOARD_CAP,
-    boardMore: pipelineBoardMore,
-    words: PIPELINE_WORDS,
-  };
+  // People › Pipeline (0008): the rows People already holds, grouped by where each deal stands, and everything the
+  // scope says of them (pipeline-helpers.ts, which the e2e harness publishes too).
+  window.__pipeline = pipelineHelpers();
   window.__whyNotAHandoff = whyNotAHandoff;
   window.__handoffE164 = handoffE164;
   // A stored number written the way people write one, "+1 (305) 555-0100", as

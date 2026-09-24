@@ -19,7 +19,7 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { err, ok } from "@chanlytics/contracts";
+import { dealsAreOn, err, ok } from "@chanlytics/contracts";
 import { buildFixture } from "./fixture.mjs";
 import { scenario, WORKSPACE } from "./scenarios.mjs";
 import { mascotBundle, reportsSampleBundle, send, serveStatic, todaySampleBundle, TYPES } from "../serve-legacy.mjs";
@@ -67,9 +67,11 @@ export function answer(method, pathname, params, record) {
   // A PUT of the settings is what the page's Save would send. Answered as a read it would tell a spec its write
   // landed -- on a harness that has nothing to write to.
   if (!read) return refused(pathname);
-  // Every read the app makes names its workspace (surface-data.ts scoped()); one that did not would be refused in
+  // Every read the app makes names its workspace (surface-data.ts scoped()), by its id or, from a page at its
+  // address, by its slug (legacy-bridge/workspace.ts getActiveWorkspace); one that did not would be refused in
   // production by memberContext, and is refused here for the same reason.
-  if (pathname !== "/api/v1/workspaces" && params.get("workspace") !== WORKSPACE.id) {
+  const named = params.get("workspace");
+  if (pathname !== "/api/v1/workspaces" && named !== WORKSPACE.id && named !== WORKSPACE.slug) {
     return { status: 400, body: err("choose_workspace", "Which workspace do you mean?") };
   }
   if (pathname === "/api/v1/workspaces") {
@@ -77,7 +79,15 @@ export function answer(method, pathname, params, record) {
       status: 200,
       body: ok({
         activeWorkspaceId: WORKSPACE.id,
-        workspaces: [{ id: WORKSPACE.id, slug: WORKSPACE.slug, name: WORKSPACE.name }],
+        // With how its customers buy where the record says (the workspace list carries tenants.sells_by).
+        workspaces: [
+          {
+            id: WORKSPACE.id,
+            slug: WORKSPACE.slug,
+            name: WORKSPACE.name,
+            ...(record.sellsBy ? { sells_by: record.sellsBy } : {}),
+          },
+        ],
       }),
     };
   }
@@ -87,7 +97,45 @@ export function answer(method, pathname, params, record) {
       body: ok({ config: record.config, version: record.version, role: record.role, configBroken: false }),
     };
   }
+  // People's reads, where the record has people (the pipeline scenario): the list as GET contacts pages it, the
+  // member's saved lists and views (none), and one person as the person read hands them over. A record with no
+  // people answers none of them, so People stays the seeded page there, as it always has.
+  if (record.people) {
+    const people = peopleAnswer(pathname, params, record);
+    if (people) return people;
+  }
   return { status: 404, body: err("not_found", `the harness has no ${pathname}`) };
+}
+
+/** People's reads from a record with people; null for a path that is not one of them. */
+function peopleAnswer(pathname, params, record) {
+  if (pathname === "/api/v1/contacts") {
+    // Every person on the first page and none after it: the surface reads pages until has_more is false.
+    const offset = Number(params.get("offset") || 0);
+    const rows = offset === 0 ? record.people : [];
+    return {
+      status: 200,
+      body: ok({
+        people: rows,
+        calendar: record.calendar ?? { state: "none", source: "your calendar", timezone: record.zone },
+        booking_link: record.config?.brain?.booking_link?.trim() || null,
+        // Whether the profile lists a consult-first service (withVisits): a flag; the names stay on the server.
+        consult_first: (record.config?.brain?.profile?.booking_rules?.consult_first ?? []).length > 0,
+        deals_on: dealsAreOn(record.sellsBy),
+        page: { q: params.get("q"), offset, limit: 1000, total: record.people.length, has_more: false },
+      }),
+    };
+  }
+  if (pathname === "/api/v1/segments") return { status: 200, body: ok({ lists: [] }) };
+  if (pathname === "/api/v1/views") return { status: 200, body: ok({ views: {} }) };
+  const one = pathname.match(/^\/api\/v1\/contacts\/([0-9a-f-]{36})$/i);
+  if (one) {
+    const person = record.details?.[one[1]];
+    return person
+      ? { status: 200, body: ok({ person }) }
+      : { status: 404, body: err("not_found", "This person is not in your workspace.") };
+  }
+  return null;
 }
 
 /**
@@ -132,7 +180,9 @@ export async function startHarness({ name = "nightly", port = 0, now = Date.now(
 
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url || "/", "http://localhost");
-    const p = decodeURIComponent(url.pathname);
+    // The page may stand at its workspace's address (/w/<slug>/, which the fixture puts it at for a record with
+    // people), and every file it names from there is the tree's own.
+    const p = decodeURIComponent(url.pathname).replace(new RegExp(`^/w/${WORKSPACE.slug}(?=/|$)`), "") || "/";
     const method = (req.method || "GET").toUpperCase();
     try {
       const json = answer(method, p, url.searchParams, record);
