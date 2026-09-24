@@ -194,7 +194,9 @@ const MoreMenu = ({ items = [], align = "right", size = 13, title = "More", btnC
 // (toastShape) and reaches here through the chrome bridge; the standalone
 // mockup has no bridge and keeps the old one-tone behaviour.
 // Usage: const [toastNode, flash] = usePPToast();
-//   flash({ msg, tone?: "ok"|"info"|"warn"|"danger", undo?, action?: {label,onClick}, links?: [{label,to}], ms?, icon? })
+//   flash({ msg, tone?: "ok"|"info"|"warn"|"danger", undo?, action?: {label,onClick}, links?: [{label,to}], ms?, icon?, once? })
+// `once`: a name for what the toast says; a second flash with the same name refreshes that toast in place of stacking
+// a twin under it (a mic pressed twice says "blocked" once).
 const toastShapeOf = (p) => (window.__chrome && window.__chrome.toast)
   ? window.__chrome.toast(p)
   : { tone: p.tone || "ok", icon: p.icon || "check", role: "status", ms: p.ms || 6000 };
@@ -228,7 +230,13 @@ const usePPToast = () => {
     const shape = toastShapeOf(payload);
     const id = ++usePPToast._seq;
     setToasts((ts) => {
-      const next = [...ts, { ...payload, ...shape, id }];
+      const twin = payload.once ? ts.find((x) => x.once === payload.once) : null;
+      if (twin) {
+        const t = timers.current[twin.id];
+        if (t) window.clearTimeout(t.handle);
+        delete timers.current[twin.id];
+      }
+      const next = [...ts.filter((x) => x !== twin), { ...payload, ...shape, id }];
       while (next.length > 3) {
         const gone = next.shift();
         const t = timers.current[gone.id];

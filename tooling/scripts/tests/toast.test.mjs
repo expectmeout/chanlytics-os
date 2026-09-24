@@ -269,6 +269,23 @@ test("three at most: a fourth drops the oldest and stops its clock", () => {
   assert.equal(live().length, 3, "the dropped toast's timer is cleared with it");
 });
 
+test("`once`: a second flash that says the same thing refreshes the toast in place of a twin under it", () => {
+  fresh();
+  mount();
+  flash({ once: "ask-mic", msg: "blocked" });
+  flash({ msg: "copied" });
+  flash({ once: "ask-mic", msg: "blocked" });
+  const shown = toastsOf(mount()).map((t) => {
+    let s = "";
+    walk(t, (n) => {
+      if (n.props?.className === "pp-toast-msg") s = n.props.children.join("");
+    });
+    return s;
+  });
+  assert.deepEqual(shown, ["copied", "blocked"], "one toast says it, the newer, after the others");
+  assert.equal(live().length, 2, "the replaced toast's clock is stopped with it");
+});
+
 /* ------------------------------ the icons ------------------------------ */
 
 test("the two glyphs the tones need exist, and are not the fallback circle", async () => {
