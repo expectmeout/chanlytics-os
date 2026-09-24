@@ -767,6 +767,10 @@ test("voice and the phone: hold to talk uses the browser's recogniser, the origi
     "in the tab bar's own row, at the thumb and over no page: it floated 126px up, over what the page drew there",
   );
   assert.ok(
+    askCss.includes("html.in-app .phone-ask { bottom: calc(10px + var(--app-inset-bottom, 0px)); }"),
+    "and inside the native shell it lifts by the shell's tab bar, whose height the shell sets on <html>",
+  );
+  assert.ok(
     readRaw("apps/dashboard/src/legacy/styles/mobile.css").includes("grid-template-columns: repeat(5, 1fr);"),
     "the five tabs keep their places",
   );

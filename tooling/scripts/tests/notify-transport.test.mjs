@@ -516,3 +516,38 @@ test("REGRESSION: a job's alert is kept as what the job said it is -- a complete
   );
   assert.equal(rows[0].title, "Broadcast “Spring offer” sent");
 });
+
+test("a kept row of a kind a phone hears about schedules one push_send naming it, after the row and before the mail; a kind a phone does not hear about schedules none", async () => {
+  const rows = [];
+  const jobs = [];
+  const db = fakeDb({ notifications: rows, jobs });
+  const t = transport();
+  const send = async (...a) => {
+    assert.equal(jobs.length, 1, "the phone's job is on the ledger before the transport is asked");
+    return t.send(...a);
+  };
+  await withEnv(PLATFORM_ENV, () =>
+    notify(
+      { tenantId: TENANT, notifications: MAILBOX, isEnvDefault: false },
+      { kind: "handoff", route: "inbox/th-1", subject: "Handoff needed", body: "Maria asked." },
+      { db, send },
+    ),
+  );
+  assert.equal(jobs.length, 1);
+  assert.deepEqual(
+    [jobs[0].kind, jobs[0].tenant_id, jobs[0].payload],
+    ["push_send", TENANT, { notification_id: rows[0].id }],
+    "one job, this workspace's, naming the kept row",
+  );
+  assert.ok(rows[0].id, "the row was given its id back");
+  await withEnv(PLATFORM_ENV, () =>
+    notify(
+      { tenantId: TENANT, notifications: MAILBOX, isEnvDefault: false },
+      { kind: "sweep", subject: "Sweep late", body: "x" },
+      { db, send: t.send },
+    ),
+  );
+  assert.equal(rows.length, 2, "the sweep's row is kept");
+  assert.equal(jobs.length, 1, "and stays off the phone");
+  assert.equal(t.sent.length, 2, "both mails left as ever");
+});

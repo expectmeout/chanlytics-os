@@ -501,6 +501,7 @@ const TENANT_TABLES = {
 const OTHER_TABLES = {
   tenants: "workspace", // read by membership on id; owners update their own
   notification_marks: "own",
+  push_devices: "own", // a person's phones (00162): read by user_id; written only through the two definer doors
   profiles: "people", // a person's own row, and the rows of people who share a workspace with them: not tenancy
   operator_pages: "none",
   platform_admins: "none",

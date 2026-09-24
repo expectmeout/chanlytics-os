@@ -9,6 +9,7 @@ export const ROUTES = {
   "DELETE google/link": { method: "DELETE", path: "/api/v1/google/link" },
   "DELETE lead-searches/[id]": { method: "DELETE", path: "/api/v1/lead-searches/[id]" },
   "DELETE leads/[id]": { method: "DELETE", path: "/api/v1/leads/[id]" },
+  "DELETE me/devices": { method: "DELETE", path: "/api/v1/me/devices" },
   "DELETE playbooks/[id]": { method: "DELETE", path: "/api/v1/playbooks/[id]" },
   "DELETE segments/[id]": { method: "DELETE", path: "/api/v1/segments/[id]" },
   "DELETE team/[id]": { method: "DELETE", path: "/api/v1/team/[id]" },
@@ -148,6 +149,7 @@ export const ROUTES = {
   "PUT lead-suggestions": { method: "PUT", path: "/api/v1/lead-suggestions" },
   "PUT mailboxes/[id]": { method: "PUT", path: "/api/v1/mailboxes/[id]" },
   "PUT me": { method: "PUT", path: "/api/v1/me" },
+  "PUT me/devices": { method: "PUT", path: "/api/v1/me/devices" },
   "PUT notifications": { method: "PUT", path: "/api/v1/notifications" },
   "PUT playbooks/[id]": { method: "PUT", path: "/api/v1/playbooks/[id]" },
   "PUT policies": { method: "PUT", path: "/api/v1/policies" },
@@ -166,6 +168,7 @@ export type Routes = {
   "DELETE google/link": typeof import("../../app/api/v1/google/link/route").DELETE;
   "DELETE lead-searches/[id]": typeof import("../../app/api/v1/lead-searches/[id]/route").DELETE;
   "DELETE leads/[id]": typeof import("../../app/api/v1/leads/[id]/route").DELETE;
+  "DELETE me/devices": typeof import("../../app/api/v1/me/devices/route").DELETE;
   "DELETE playbooks/[id]": typeof import("../../app/api/v1/playbooks/[id]/route").DELETE;
   "DELETE segments/[id]": typeof import("../../app/api/v1/segments/[id]/route").DELETE;
   "DELETE team/[id]": typeof import("../../app/api/v1/team/[id]/route").DELETE;
@@ -305,6 +308,7 @@ export type Routes = {
   "PUT lead-suggestions": typeof import("../../app/api/v1/lead-suggestions/route").PUT;
   "PUT mailboxes/[id]": typeof import("../../app/api/v1/mailboxes/[id]/route").PUT;
   "PUT me": typeof import("../../app/api/v1/me/route").PUT;
+  "PUT me/devices": typeof import("../../app/api/v1/me/devices/route").PUT;
   "PUT notifications": typeof import("../../app/api/v1/notifications/route").PUT;
   "PUT playbooks/[id]": typeof import("../../app/api/v1/playbooks/[id]/route").PUT;
   "PUT policies": typeof import("../../app/api/v1/policies/route").PUT;

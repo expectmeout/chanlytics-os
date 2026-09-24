@@ -20,6 +20,7 @@ const me = await import(at("apps/dashboard/app/api/v1/me/route.ts"));
 const workspaces = await import(at("apps/dashboard/app/api/v1/workspaces/route.ts"));
 const create = await import(at("apps/dashboard/app/api/v1/workspaces/create/route.ts"));
 const team = await import(at("apps/dashboard/app/api/v1/team/route.ts"));
+const devices = await import(at("apps/dashboard/app/api/v1/me/devices/route.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));
 
@@ -598,4 +599,57 @@ test("the name Google gave stands in until the person gives one, and is never ma
     metadata: { email: "hi@chanlytics.agency" },
   });
   assert.equal(nothing.user.display_name, null, "no name is no name");
+});
+
+test("a phone is registered on the account through the definer door, and forgotten the same way", async () => {
+  assert.deepEqual(devices.PUT.policy, {
+    kind: "write",
+    scope: "account",
+    role: null,
+    rate: "device_register",
+    spend: false,
+  });
+  assert.deepEqual(devices.DELETE.policy, {
+    kind: "write",
+    scope: "account",
+    role: null,
+    rate: "device_register",
+    spend: false,
+  });
+  const calls = [];
+  const rpcs = {
+    push_device_register: (args) => {
+      calls.push(["register", args]);
+      return { id: "d1" };
+    },
+    push_device_forget: (args) => {
+      calls.push(["forget", args]);
+      return { forgotten: 1 };
+    },
+  };
+  const tables = { memberships: both("owner", "owner"), tenants: tenants() };
+  assert.deepEqual(
+    await devices.PUT.run(
+      send("PUT", { token: "ExponentPushToken[abc]", platform: "ios", app_version: "1.2.0" }),
+      ctxFor(tables, {}, rpcs),
+    ),
+    { id: "d1" },
+  );
+  assert.deepEqual(
+    await devices.DELETE.run(send("DELETE", { token: "ExponentPushToken[abc]" }), ctxFor(tables, {}, rpcs)),
+    {
+      forgotten: 1,
+    },
+  );
+  assert.deepEqual(calls, [
+    ["register", { p_token: "ExponentPushToken[abc]", p_platform: "ios", p_app_version: "1.2.0" }],
+    ["forget", { p_token: "ExponentPushToken[abc]" }],
+  ]);
+  await refused(
+    devices.PUT.run(send("PUT", { token: "t", platform: "windows" }), ctxFor(tables, {}, rpcs)),
+    "validation",
+    400,
+    "iPhone or an Android",
+  );
+  await refused(devices.DELETE.run(send("DELETE", {}), ctxFor(tables, {}, rpcs)), "validation", 400, "push token");
 });

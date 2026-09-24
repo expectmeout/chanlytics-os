@@ -45,6 +45,7 @@ import type { DEAL_LOST_REASONS, DEAL_PERS, DEAL_SOURCES, DEAL_STAGES, SELLS_BY 
 import type { SERVER_NOTIFICATION_KINDS } from "./notifications";
 import type { PLAYBOOK_STATES, PLAYBOOK_TRIGGERS } from "./playbooks";
 import type { TEMPLATE_CATEGORIES } from "./templates";
+import type { PUSH_PLATFORMS } from "./push";
 import type {
   LEAD_CLOSED_REASONS,
   LEAD_COUNTER_KINDS,
@@ -103,6 +104,7 @@ export type SchemaAgreement = [
   // The jobs ledger.
   Holds<Exactly<Of<typeof JOB_KINDS>, SchemaSet<"jobs.kind">>>,
   Holds<Exactly<Of<typeof JOB_STATES>, SchemaSet<"jobs.state">>>,
+  Holds<Exactly<Of<typeof PUSH_PLATFORMS>, SchemaSet<"push_devices.platform">>>,
 
   // The inbox, and the ledger of who decided what.
   Holds<Exactly<Of<typeof ESCALATION_REASONS>, SchemaSet<"escalations.reason">>>,

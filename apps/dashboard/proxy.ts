@@ -32,6 +32,7 @@ const PUBLIC_PATHS = new Set([
   "/login",
   "/auth/signout",
   "/auth/callback",
+  "/auth/native",
   "/api/version",
   "/manifest.webmanifest",
   "/signup",
@@ -58,7 +59,7 @@ const PUBLIC_PATHS = new Set([
  * built for exactly that; nothing else goes on this list without the same
  * argument.
  */
-const PUBLIC_PREFIXES = ["/yes/", "/b/"];
+const PUBLIC_PREFIXES = ["/yes/", "/b/", "/.well-known/"];
 
 /**
  * An auth redirect must never be stored. These responses depend entirely on a

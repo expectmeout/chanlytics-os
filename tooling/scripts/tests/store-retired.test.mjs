@@ -105,6 +105,7 @@ test("the queue's kinds: each one handled and each one scheduled somewhere", () 
       "lead_round_start",
       "lead_collect",
       "lead_check",
+      "push_send",
     ],
   );
   const handlers = readCode("packages/jobs/src/handlers.ts");
@@ -146,5 +147,10 @@ test("the retired kind is withdrawn from the database too, rows first", () => {
   const del = m.indexOf("delete from public.jobs where kind = 'blob_thread_erase';");
   const check = m.indexOf("add constraint jobs_kind_check");
   assert.ok(del > -1 && check > del, "the rows go before the CHECK that would refuse them");
-  assert.ok(m.includes(`check (kind in ('${JOB_KINDS.join("', '")}'))`), "the CHECK is the declared set, in order");
+  // The CHECK it wrote names no retired kind. That the CURRENT CHECK is the
+  // declared set, in order, is held at compile time (contracts/src/schema-sets.ts
+  // against the set generated from the database) and by CI's replay, so a later
+  // migration that widens it (00162's push_send) is not this one's to repeat.
+  assert.ok(!m.slice(check).includes("'blob_thread_erase'"), "the CHECK it wrote has no retired kind");
+  assert.ok(m.slice(check).includes("'lead_check'"), "and keeps the kinds of its day");
 });

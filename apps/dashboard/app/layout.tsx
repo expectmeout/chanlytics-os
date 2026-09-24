@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { themeBootScript, themeColorOf } from "@chanlytics/contracts";
+import { inAppBootScript, themeBootScript, themeColorOf } from "@chanlytics/contracts";
 import "./globals.css";
 
 /**
@@ -61,6 +61,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" data-theme="dark" suppressHydrationWarning className={`${geist.variable} ${geistMono.variable}`}>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeBootScript() }} />
+        {/* Inside the native shell (a User-Agent token, contracts inAppBootScript): html.in-app and window.__IN_APP, before paint. */}
+        <script dangerouslySetInnerHTML={{ __html: inAppBootScript() }} />
       </head>
       <body>{children}</body>
     </html>
