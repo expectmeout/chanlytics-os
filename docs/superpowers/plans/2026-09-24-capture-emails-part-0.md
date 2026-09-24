@@ -14,7 +14,7 @@
 
 ## PR 1 — Import people from a spreadsheet, and the paper form's Email line
 
-Branch: `design/campaign-channels` (it already holds the spec commit `8b31b707`). Migration number: `00168` (check `ls supabase/migrations | tail -1` first; take the next free number if another PR took it).
+Branch: `design/campaign-channels` (it already holds the spec commit `8b31b707`). Migration number: `00169` — open PR #992 holds `00168`, and two files on one number are silently skipped (check `ls supabase/migrations | tail -1` and the open PRs' migrations first; take the next free number). Where this plan says 00168 for PR 1, read 00169.
 
 ### Task 1: The CSV reader and the column matcher (contracts)
 
@@ -1244,7 +1244,7 @@ Expected: PASS (the harness test holds the two lists equal).
 
 - [ ] **Step 6: See it in the app**
 
-Start the dev server from the worktree (`.claude/launch.json` entry `cm-camp-compact-app`, port 3290), open `/w/melanys-beauty-salon/#/clients`, press *Import*, paste three rows with your own test addresses, read, and import; then check the three people on People and one person's page (the address, "Imported" under where they came from). Take a screenshot at desk width and at 375px. Do not import a real list here.
+Start the dev server from the worktree (`.claude/launch.json` entry `cm-camp-compact-app`, port 3290), open `/w/<workspace-slug>/#/clients`, press *Import*, paste three rows with your own test addresses, read, and import; then check the three people on People and one person's page (the address, "Imported" under where they came from). Take a screenshot at desk width and at 375px. Do not import a real list here.
 
 - [ ] **Step 7: Commit**
 
@@ -1285,7 +1285,7 @@ and extend `office` so it ends: `…as “Sign-up form”, type the email on the
 - [ ] **Step 4: Build, run, look**
 
 Run: `corepack pnpm --filter "./packages/*" build && node --conditions=react-server --import tsx --test tooling/scripts/tests/consent-page.test.mjs`
-Expected: PASS. Open `/yes/melanys-beauty-salon/form` on the dev server: three ruled lines, the page still one sheet in print preview.
+Expected: PASS. Open `/yes/<workspace-slug>/form` on the dev server: three ruled lines, the page still one sheet in print preview.
 
 - [ ] **Step 5: Commit**
 
@@ -1307,13 +1307,13 @@ In `docs/superpowers/specs/2026-09-24-campaigns-on-every-channel-design.md`, Par
 
 - [ ] **Step 3: Open the PR**
 
-Push `design/campaign-channels`; `gh pr create` titled "Capture emails 1 of 2: People imports a client list, and the paper form takes an email" with a body that says: what changes for a customer (Import people on People for the owner, "Imported" as where they came from, the form's third line); before merging: **push migration 00168 to production before merging** (dry run first, then read back: `import_person` exists, `decisions_verb_check` includes `import`, `people_list` maps `import`); either deploy order works otherwise. End with `🤖 Generated with [Claude Code](https://claude.com/claude-code)`. Wait for CI green, squash-merge, delete the branch. Then verify on production: `/api/version` carries the merge SHA, and People shows *Import* for the owner.
+Push `design/campaign-channels`; `gh pr create` titled "Capture emails 1 of 2: People imports a client list, and the paper form takes an email" with a body that says: what changes for a customer (Import people on People for the owner, "Imported" as where they came from, the form's third line); before merging: **push migration 00169 to production before merging** (dry run first, then read back: `import_person` exists, `decisions_verb_check` includes `import`, `people_list` maps `import`); either deploy order works otherwise. End with `🤖 Generated with [Claude Code](https://claude.com/claude-code)`. Wait for CI green, squash-merge, delete the branch. Then verify on production: `/api/version` carries the merge SHA, and People shows *Import* for the owner.
 
 ---
 
 ## PR 2 — Addresses customers give
 
-Branch: `design/campaign-channels-0b` from `origin/main` after PR 1 merges. Migration number: the next free one (`00169` if nothing else landed).
+Branch: `design/campaign-channels-0b` from `origin/main` after PR 1 merges. Migration number: the next free one after PR 1's 00169 and whatever landed meanwhile (`00170` if nothing else did); where this plan says 00169 for PR 2, read that number.
 
 ### Task 8: The receptionist asks for an email when it sends the booking link
 
