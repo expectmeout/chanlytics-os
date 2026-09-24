@@ -6190,6 +6190,15 @@ function leadsStanding(counts, searches) {
     needsYou: waiting.length ? { count: waiting.length, searchId: waiting[0].id } : null
   };
 }
+var leadQuestionTitle = (name) => `Your search for ${name} is waiting for your answer`;
+var LEAD_QUESTION_WAIT_LINE = "Nothing is spent while this waits. With no answer in a day, it stops and keeps what it found.";
+var leadQuestionRoute = (searchId) => leadsRoute({ searchId, cls: "excluded" });
+function leadQuestionMail(x) {
+  return {
+    subject: leadQuestionTitle(x.name),
+    body: [x.sentence, "", LEAD_QUESTION_WAIT_LINE, "", `Answer it: ${x.link}`].join("\n")
+  };
+}
 var LEAD_PRIOR_MIN_PLACES = 50;
 function leadPlanLikely(plan, facts) {
   const p = facts.prior;
@@ -8078,7 +8087,7 @@ function unreadCount(rows) {
 function agoLabel(atMs, now) {
   return agoShort(atMs, now);
 }
-var ALERT_KINDS = ["needs_you", "held_draft", "missed_call"];
+var ALERT_KINDS = ["needs_you", "held_draft", "missed_call", "leads_question"];
 var SERVER_NOTIFICATION_KINDS = [
   "handoff",
   "deadman",
@@ -8131,7 +8140,7 @@ var SERVER_LOOK = {
   /** A search that finished: good news, on the page the leads are on. */
   leads_ready: { icon: "users", tone: "ok", action: "Open Leads", to: "clients/leads" },
   /** A round that stopped to ask. It waits a day and then ends, so it is a warning. */
-  leads_question: { icon: "alert", tone: "warn", action: "Answer it", to: "clients/leads" },
+  leads_question: { icon: "alert", tone: "warn", action: "Answer it", to: "clients/leads", own: true },
   /** A review on Google: good news with somewhere to read it. */
   review: { icon: "star", tone: "ok", action: "Open Reports", to: "reports" },
   /** The subscription: a trial starting or ending, a card declined, the receptionist paused or back. */
@@ -8156,6 +8165,8 @@ var ROUTE_VERBS = [
   [/^calendar/, "Open Calendar"],
   // One person's page, by their id: the row is about them, so its door says so.
   [/^clients\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/, "Open their page"],
+  // Leads is a scope of People, and its rows name it: a finished search said "Open People" over a door to Leads.
+  [/^clients\/leads/, "Open Leads"],
   [/^clients/, "Open People"],
   [/^reports/, "Open Reports"],
   [/^today/, "Open Today"]
@@ -8189,7 +8200,7 @@ function serverNotificationRows(dto) {
       to: n.route ?? look.to,
       icon: look.icon,
       tone: look.tone,
-      action: verbForRoute(n.route) ?? look.action,
+      action: look.own ? look.action : verbForRoute(n.route) ?? look.action,
       unread: at2 > seen && !n.read,
       about: n.subject_type && n.subject_id ? { type: n.subject_type, id: n.subject_id } : null
     };
@@ -9309,7 +9320,9 @@ var AWAY_NOUN = {
   // the same thing about the same fact.
   broadcast_sent: ["broadcast finished", "broadcasts finished"],
   broadcast_stopped: ["broadcast did not go out", "broadcasts did not go out"],
-  note_for_you: ["note left for you", "notes left for you"]
+  note_for_you: ["note left for you", "notes left for you"],
+  // A search that stopped to ask: it waits a day for the answer, then stops and keeps what it found.
+  leads_question: ["search is waiting for your answer", "searches are waiting for your answer"]
 };
 var AWAY_TONE_RANK = { warn: 0, "": 1, ok: 2 };
 var AWAY_GROUP_MIN = 2;
@@ -19586,6 +19599,7 @@ export {
   LEAD_PROBE_PLACES,
   LEAD_QUESTION_MIN_EVIDENCE,
   LEAD_QUESTION_THRESHOLD,
+  LEAD_QUESTION_WAIT_LINE,
   LEAD_QUESTION_WAIT_MS,
   LEAD_REASON_MAX_WORDS,
   LEAD_REMOVE_KEEPS,
@@ -20144,6 +20158,9 @@ export {
   leadPlanAsk,
   leadPlanFacts,
   leadPlanLikely,
+  leadQuestionMail,
+  leadQuestionRoute,
+  leadQuestionTitle,
   leadRail,
   leadReachLine,
   leadReviewCosts,

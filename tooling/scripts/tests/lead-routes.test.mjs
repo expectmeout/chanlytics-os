@@ -79,7 +79,7 @@ const view = (over = {}) => ({
   purpose: "probe",
   state: "waiting_on_owner",
   ending: null,
-  question: { sentence: "…" },
+  question: { sentence: "…", criterionKey: "chains", dropTerm: null, asked_at: "2026-09-19T00:00:00Z" },
   answered: null,
   target: 20,
   plan_version: 1,
@@ -1097,6 +1097,36 @@ test("the searches read brings the rail's counts with it, and a round says wheth
   tables.lead_searches_view = [view({ ending_pending: null })];
   const done = await searches.GET.run(get(inA), ctxOf(tables, {}, rpcs));
   assert.equal(done.searches[0].round.ending_pending, false, "a round with no pending ending is not stopping");
+});
+
+// The page's Include read `criterion_key`, and the runner has only ever written `criterionKey` (core ports.ts
+// RoundQuestion, kept verbatim by lead_collect_commit): the strip drew "Include what I left out", which lifted
+// nothing, and the door refused the plan it was handed. So the question is built here by core's own afterProbe.
+test("the question the runner asks reaches the page with its exclusion's key: the stored shape is core's own", async () => {
+  const { afterProbe } = await import("../../../packages/core/src/leads/question.ts");
+  const plan = { ...PLAN, exclusions: [{ key: "chains", text: "Chain gyms", origin: "claude" }] };
+  const members = [
+    ...Array.from({ length: 8 }, () => ({
+      class: "excluded",
+      excluded_by: "chains",
+      term: "gym",
+      phone: null,
+      email: null,
+    })),
+    ...Array.from({ length: 4 }, () => ({
+      class: "qualified",
+      excluded_by: null,
+      term: "gym",
+      phone: "+15125550100",
+      email: null,
+    })),
+  ];
+  const asked = afterProbe(plan, members, new Date("2026-09-24T04:30:00Z"));
+  assert.equal(asked.kind, "ask");
+  const tables = world({ role: "viewer" });
+  tables.lead_searches_view = [view({ plan, question: asked.question })];
+  const out = await searches.GET.run(get(inA), ctxOf(tables, {}, doors()));
+  assert.deepEqual(out.searches[0].round.question, { sentence: asked.question.sentence, criterion_key: "chains" });
 });
 
 test("a kept search is renamed, removed with the worked leads kept, or has its finished round's leads given back", async () => {

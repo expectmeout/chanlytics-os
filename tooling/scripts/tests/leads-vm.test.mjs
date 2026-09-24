@@ -47,6 +47,10 @@ import {
   leadHoursShort,
   leadTileSrc,
   leadMarkSrc,
+  leadQuestionTitle,
+  leadQuestionRoute,
+  leadQuestionMail,
+  LEAD_QUESTION_WAIT_LINE,
 } from "../../../packages/contracts/src/leads.ts";
 import {
   LEAD_ROUND_ENDINGS,
@@ -1390,4 +1394,24 @@ test("a kept mark is served from the project's own storage, and only a name we w
     ["not a url", NAME, "a variable that is not an address"],
   ])
     assert.equal(leadMarkSrc(base, name), null, why);
+});
+
+// The bell's row (00163 writes the title in SQL), the strip's line, the address it opens and the email: one set of
+// words for the one moment a search stops to ask.
+test("a question's words are said once: the bell's title, the wait line, where it opens, and the email", () => {
+  assert.equal(
+    leadQuestionTitle("wedding photographers"),
+    "Your search for wedding photographers is waiting for your answer",
+  );
+  assert.equal(
+    LEAD_QUESTION_WAIT_LINE,
+    "Nothing is spent while this waits. With no answer in a day, it stops and keeps what it found.",
+  );
+  assert.equal(leadQuestionRoute("s1"), "clients/leads:s-s1:c-excluded", "the pile the question is about");
+  assert.deepEqual(parseLeadsRoute(leadQuestionRoute(SEARCH_A)).cls, "excluded", "and the page reads it back");
+  const sentence = "Some of the first 16 are large studio chains, which I'm leaving out. Is that what you meant?";
+  const link = "https://app.example.com/w/harbor#/clients/leads:s-s1:c-excluded";
+  const m = leadQuestionMail({ name: "wedding photographers", sentence, link });
+  assert.equal(m.subject, "Your search for wedding photographers is waiting for your answer");
+  assert.equal(m.body, [sentence, "", LEAD_QUESTION_WAIT_LINE, "", `Answer it: ${link}`].join("\n"));
 });

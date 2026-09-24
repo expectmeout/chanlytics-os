@@ -3243,8 +3243,10 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
   };
   const finderPlanIt = (words) => window.leadFinderPlan(words, finderSet);
   const finderApprove = async (plan) => {
+    const answering = !!(finderMore && finderMore.answer);
     const r = await window.leadFinderApprove(finderProposal, plan, finderSet);
     if (r && r.ok) setFinderMore(null);
+    if (r && r.ok && answering) plFlash({ msg: <>Carrying on with your change.</> });
     // A new search lands the owner on it: the strip narrating the run, the
     // classes filling, the address the search's own. Without this they stayed
     // on All leads with a live dot in the rail and nothing saying what was
@@ -3254,12 +3256,34 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
     if (started && !leadView.searchId && window.__leadsRouteOf) nav(window.__leadsRouteOf({ searchId: started, list: "all", cls: null }));
     return r;
   };
+  // What answering a search's question carries (leadFinderAmendAsk, leadFinderApprove): the question, the round's
+  // version and the count it reserved, and what was first asked, so one Ask turn can amend the same search.
+  const answerOf = (s) => ({
+    answer: true,
+    question: s.round && s.round.question ? s.round.question.sentence : "",
+    baseVersion: s.plan_version || (s.plan && s.plan.version) || 1,
+    count: s.plan.count,
+    name: s.name,
+    asked: s.asked,
+    leavingOut: (s.plan.exclusions || []).map((x) => x.text),
+  });
+  // A fresh Find is never an answer: an answer left half-done must not turn the next search into one.
+  const openFind = () => {
+    setFinderMore(null);
+    setFinderProposal(null);
+    setFinderPlan(null);
+    setFinderRefusal(null);
+    setFinderStage("compose");
+    setFinderOpen(true);
+  };
   // A next step opens the plan card with what would run; nothing starts until the owner approves it there.
   const openPlanFor = (s, plan, how) => {
-    setFinderWords(s.asked);
+    // Answering, the composer behind the card (Change what I asked) is the owner's answer: what they first asked
+    // sent back as the answer amended nothing.
+    setFinderWords(how === "answer" ? "" : s.asked);
     setFinderProposal(null);
     setFinderPlan(plan);
-    setFinderMore({ searchId: s.id, purpose: "topup", answer: how === "answer" });
+    setFinderMore({ searchId: s.id, purpose: "topup", ...(how === "answer" ? answerOf(s) : { answer: false }) });
     setFinderRefusal(null);
     setFinderPick(null);
     setFinderStage("plan");
@@ -3323,6 +3347,7 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
     const dto = searchById(s.id);
     if (!dto) return;
     setFinderWords(dto.asked);
+    setFinderMore(null);
     setFinderProposal({ searchId: dto.id, plan: dto.plan, purpose: "renew" });
     setFinderRefusal(null);
     setFinderStage("plan");
@@ -3347,9 +3372,10 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
     // Columns menu, the selection.
     closePeek: () => leadPeekEscape({ mode: peekMode, armed, setMode: setPeekMode, setArmed, setPeekId, lightbox: lightboxId, setLightbox: setLightboxId }),
     finderOpen,
-    closeFinder: () => setFinderOpen(false),
+    // Esc lets an answer go as the close button does: what the tab keeps of a Find is never an answer.
+    closeFinder: () => { setFinderOpen(false); setFinderMore(null); },
     canFind,
-    find: () => { setFinderRefusal(null); setFinderStage("compose"); setFinderOpen(true); },
+    find: openFind,
     call: callLead,
   });
 
@@ -3381,7 +3407,16 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
   const goto = (patch) => nav(window.__leadsRouteOf({ searchId: leadView.searchId, list: leadView.list, cls: leadView.cls, ...patch }));
   // Where a rail row's press goes (railToggle: one row at a time; the picked row pressed again shows all leads).
   const pickListRoute = (id) => window.__leadsRouteOf({ searchId: null, list: railToggle(leadView.searchId ? null : leadView.list, id) || "all", cls: null });
-  const pickSearchRoute = (id) => window.__leadsRouteOf({ searchId: railToggle(leadView.searchId, id), list: "all", cls: null });
+  // A search waiting on its question opens on the places the question is about (a question is only ever asked about
+  // places left out); its counted view is empty while it waits.
+  const waitsOn = (id) => {
+    const s = id ? searchById(id) : null;
+    return !!(s && s.round && s.round.state === "waiting_on_owner");
+  };
+  const pickSearchRoute = (id) => {
+    const to = railToggle(leadView.searchId, id);
+    return window.__leadsRouteOf({ searchId: to, list: "all", cls: to && waitsOn(to) ? "excluded" : null });
+  };
   // What each strip control does (Task 10 step 6). Every act goes out through its route; the six that would
   // make a new round open the plan card instead, because nothing that counts against the month may start
   // without the owner approving what runs.
@@ -3396,6 +3431,19 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
     if (id === "stop") return leadAct(() => window.__leadSearchStop(s.id), <>Stopping. The emails of what was found are still being checked.</>);
     if (id === "keep") return leadAct(() => window.__leadSearchAnswer(s.id, "keep"), <>Carrying on.</>);
     if (id === "stop_here") return leadAct(() => window.__leadSearchAnswer(s.id, "stop"), <>Stopped. The ones already found are yours.</>);
+    // The no that changes the search: the finder opens under the question, empty, and what comes back from Ask is
+    // this round's next version (leadFinderApprove answers it; it never starts a second search).
+    if (id === "change") {
+      setFinderWords("");
+      setFinderProposal(null);
+      setFinderPlan(null);
+      setFinderRefusal(null);
+      setFinderPick(null);
+      setFinderMore({ searchId: s.id, purpose: "topup", ...answerOf(s) });
+      setFinderStage("compose");
+      setFinderOpen(true);
+      return undefined;
+    }
     // Include takes the thing it asked about back out of the plan, which planVersionOf makes a new version of:
     // the route is given the version the owner approved, not the one the round started on.
     if (id === "include") {
@@ -3483,7 +3531,9 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
       onValues={(v) => { setValues(v); try { if (window.localStorage) window.localStorage.setItem("leads.values", v ? "1" : "0"); } catch (e) { /* a private window: the choice lives for the page */ } }}
       empty={leadView.cls === "review"
         ? { title: "Nothing needs a look.", body: "Every lead here has been checked or decided.", action: null }
-        : { title: "No leads in this view yet.", body: "Describe the businesses you want and Claude finds them.", action: canFind ? { label: "Find leads", onClick: () => { setFinderStage("compose"); setFinderOpen(true); } } : null }}
+        : !leadView.cls && waitsOn(leadView.searchId)
+        ? { title: "Nothing is counted yet.", body: "It is waiting for your answer above.", action: null }
+        : { title: "No leads in this view yet.", body: "Describe the businesses you want and Claude finds them.", action: canFind ? { label: "Find leads", onClick: openFind } : null }}
       sel={sel}
       onToggle={toggleSel}
       onToggleAll={toggleAll}
@@ -3536,7 +3586,7 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
       onPickClass={(cls) => { setChip(null); goto({ cls }); }}
       chip={chip}
       onPickChip={setChip}
-      onNeedsYou={(id) => nav(window.__leadsRouteOf({ searchId: id, list: "all", cls: null }))}
+      onNeedsYou={(id) => nav(window.__leadsRouteOf({ searchId: id, list: "all", cls: "excluded" }))}
       exportHrefFor={exportHrefFor}
       searchWordsFor={searchWordsFor}
       renaming={renaming}
@@ -3552,7 +3602,7 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
       removeError={removeError}
       onFindNewOnes={findNewOnes}
       onSearchAgain={searchAgain}
-      onFind={() => { setFinderRefusal(null); setFinderStage("compose"); setFinderOpen(true); }}
+      onFind={openFind}
       finderOpen={finderOpen}
       finderStage={finderStage}
       finderWords={finderWords}
@@ -3569,6 +3619,7 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
       onFinderPick={setFinderPick}
       onFinderBack={() => setFinderStage("compose")}
       onCloseFinder={() => { setFinderOpen(false); setFinderMore(null); }}
+      finderAnswering={finderMore && finderMore.answer ? finderMore : null}
       talk={talk}
       peek={peekId && window.__leadPeekVM ? window.__leadPeekVM(peekId) : null}
       // Where this lead sits in the pile, and the two ways through it (D5). Moving the deck moves the page's own

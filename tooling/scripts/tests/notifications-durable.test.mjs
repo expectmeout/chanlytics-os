@@ -5,7 +5,12 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { serverNotificationRows, SERVER_KEY_PREFIX, SERVER_NOTIFICATION_KINDS } from "@chanlytics/contracts";
+import {
+  ALERT_KINDS,
+  serverNotificationRows,
+  SERVER_KEY_PREFIX,
+  SERVER_NOTIFICATION_KINDS,
+} from "@chanlytics/contracts";
 import { readCode } from "./_source.mjs";
 
 const NOW = Date.parse("2026-09-06T16:00:00.000Z");
@@ -57,6 +62,35 @@ test("a kept row on the bell: keyed apart from derived ones, unread by the seen 
   );
   assert.deepEqual(serverNotificationRows(null), []);
   assert.ok(SERVER_NOTIFICATION_KINDS.includes("handoff") && SERVER_NOTIFICATION_KINDS.includes("calendar_people"));
+});
+
+// The route named the family (`clients`), so a search's rows said "Open People" over a door to Leads, and the
+// question's own verb never showed: the owner read "go to People" for a search that was waiting on them.
+test("a search's rows say Leads: a finished one opens Leads, and one that asks keeps its own verb", () => {
+  const S = "a516a5a6-ecb5-4ad1-96bf-56a65afceac8";
+  const [asks, done] = serverNotificationRows({
+    notifications: [
+      row({
+        id: "44444444-4444-4444-8444-444444444444",
+        kind: "leads_question",
+        title: "Your search for wedding photographers is waiting for your answer",
+        body: "Some of the first 16 are large studio chains, which I'm leaving out. Is that what you meant?",
+        route: `clients/leads:s-${S}:c-excluded`,
+      }),
+      row({
+        id: "55555555-5555-4555-8555-555555555555",
+        kind: "leads_ready",
+        title: "Your search for florists is done",
+        body: "12 found.",
+        route: `clients/leads:s-${S}`,
+        created_at: new Date(NOW - 120_000).toISOString(),
+      }),
+    ],
+    seen_at: null,
+  });
+  assert.deepEqual([asks.action, asks.tone, asks.to], ["Answer it", "warn", `clients/leads:s-${S}:c-excluded`]);
+  assert.equal(done.action, "Open Leads", "not People: the route names Leads");
+  assert.ok(ALERT_KINDS.includes("leads_question"), "a question that waits a day wakes the device");
 });
 
 test("the wiring: the table and its doors, the route, the surface, the bell reading both, and every edge alert kept with a kind and a route", () => {
@@ -171,5 +205,9 @@ test("a note left for you (0007, 00158) is a row of its own kind: it names who w
   });
   assert.deepEqual([r.icon, r.action, r.to, r.unread], ["edit", "Open their page", `clients/${id}`, true]);
   assert.equal(verbForRoute("clients"), "Open People", "People itself keeps its door");
-  assert.equal(verbForRoute("clients/leads"), "Open People", "and so does a scope of it");
+  assert.equal(
+    verbForRoute("clients/leads"),
+    "Open Leads",
+    "a scope of it says the scope: the owner was sent to People for a search",
+  );
 });
