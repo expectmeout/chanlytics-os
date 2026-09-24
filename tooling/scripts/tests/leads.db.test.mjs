@@ -465,7 +465,14 @@ test(
   { skip },
   async () => {
     const bell = async (kind) =>
-      ok(await db.from("notifications").select("title, body, route, subject_id").eq("tenant_id", A).eq("kind", kind));
+      ok(
+        await db.from("notifications").select("id, title, body, route, subject_id").eq("tenant_id", A).eq("kind", kind),
+      );
+    // A phone hears what the bell hears (00162's push_send): these rows are the trigger's, so their jobs are too.
+    const pushes = async (id) =>
+      ok(await db.from("jobs").select("payload").eq("tenant_id", A).eq("kind", "push_send")).filter(
+        (j) => j.payload?.notification_id === id,
+      ).length;
     ok(await db.from("lead_rounds").update({ state: "probing" }).eq("id", ids.round));
     ok(
       await db
@@ -492,6 +499,7 @@ test(
       `clients/leads:s-${ids.search}:c-excluded`,
       "the pile the question is about: the counted view is empty while it waits",
     );
+    assert.equal(await pushes(asked[0].id), 1, "one push for the question");
     ok(
       await db
         .from("lead_rounds")
@@ -610,6 +618,7 @@ test(
     assert.equal(done[0].title, "Your search for personal trainers is done");
     assert.equal(done[0].body, "4 found.");
     assert.equal(done[0].route, `clients/leads:s-${ids.search}`);
+    assert.equal(await pushes(done[0].id), 1, "one push for the search that is done");
   },
 );
 
