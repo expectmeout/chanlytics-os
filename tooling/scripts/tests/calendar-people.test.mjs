@@ -305,7 +305,7 @@ test("an address is read after the number and before the name, so a customer boo
   );
 
   assert.ok(
-    !describeVisits(v, TZ, NOW).includes("Matched by name only"),
+    !describeVisits(v, TZ, NOW, true).includes("Matched by name only"),
     "an address is exact: it needs no are-you-sure, no more than a number does",
   );
 });
@@ -392,16 +392,25 @@ test("their visits: the next one that has not ended, the latest one that has; th
 
 test("the receptionist's lines: the next appointment, the last visit, the rule that nothing changes here, and a name-only match flagged", () => {
   const f = feed();
-  const words = describeVisits(visitsOf(f.items, PEOPLE[0], NOW, NO_OWN), TZ, NOW);
+  const words = describeVisits(visitsOf(f.items, PEOPLE[0], NOW, NO_OWN), TZ, NOW, true);
   assert.equal(
     words,
     "Their next appointment on the calendar: Tue, Sep 8 · 2:00 – 5:00 PM (Maria Lopez - Balayage). If they ask, confirm it; to change or cancel it, send the booking link — nothing is changed from here.",
   );
-  const byName = describeVisits(visitsOf(f.items, { id: "x", name: "Maria Lopez", phone: null }, NOW, NO_OWN), TZ, NOW);
+  const byName = describeVisits(
+    visitsOf(f.items, { id: "x", name: "Maria Lopez", phone: null }, NOW, NO_OWN),
+    TZ,
+    NOW,
+    true,
+  );
   assert.ok(byName.includes("Matched by name only — make sure it is them before confirming details."));
-  const last = describeVisits(visitsOf(f.items, PEOPLE[2], NOW, NO_OWN), TZ, NOW);
+  const last = describeVisits(visitsOf(f.items, PEOPLE[2], NOW, NO_OWN), TZ, NOW, true);
   assert.equal(last, "Their last visit on the calendar: Aug 20 (Daniela Ruiz · Colour).");
-  assert.equal(describeVisits({ next: null, last: null }, TZ, NOW), null, "nothing to say is null, never a sentence");
+  assert.equal(
+    describeVisits({ next: null, last: null }, TZ, NOW, true),
+    null,
+    "nothing to say is null, never a sentence",
+  );
 });
 
 test("the calendar's name from its address, and a description as plain text", () => {
@@ -558,7 +567,7 @@ test("the wiring: the board and the profile read one match; both receptionists a
     /export async function visitsFor\(\s*rt: TenantRuntime,\s*who: \{ phone: string \| null; name: string \| null \}/.test(
       edge,
     ) &&
-      /return describeVisits\(\s*visitsOf\(feed\.items, \{ id: "caller", name: who\.name \?\? "", phone: who\.phone, email: null \}, now\.getTime\(\), own\),\s*rt\.timezone,\s*now\.getTime\(\),?\s*\);/.test(
+      /return describeVisits\(\s*visitsOf\(feed\.items, \{ id: "caller", name: who\.name \?\? "", phone: who\.phone, email: null \}, now\.getTime\(\), own\),\s*rt\.timezone,\s*now\.getTime\(\),\s*!!rt\.brain\?\.booking_link,?\s*\);/.test(
         edge,
       ),
   );

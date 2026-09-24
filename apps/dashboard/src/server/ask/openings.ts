@@ -228,7 +228,11 @@ export async function openingsFor(
     return { state: "unavailable", text: "The calendar could not be read right now.", tz: timezone, days: [], service };
   }
   const picked = filterOpenings(openings, { day: by.day ?? null, minMinutes: offer?.minMinutes ?? null });
-  const described = describeOpenings(picked, timezone, { maxDays: 3, daysAhead });
+  const described = describeOpenings(picked, timezone, {
+    maxDays: 3,
+    daysAhead,
+    hasBookingLink: !!cfg?.brain?.booking_link,
+  });
   return {
     state: "ok",
     text: `${offerLead(offer)}${described}`,

@@ -100,7 +100,7 @@ export async function openingsBlock(
       rules,
       now,
     });
-    return describeOpenings(openings, cfg.tz, { daysAhead });
+    return describeOpenings(openings, cfg.tz, { daysAhead, hasBookingLink: !!cfg.brain?.booking_link });
   } catch (e) {
     console.error(
       "prompt_preview_openings_failed",

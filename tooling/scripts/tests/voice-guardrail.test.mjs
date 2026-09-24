@@ -64,7 +64,7 @@ test("a correction is not speech, or it would correct itself for ever", () => {
   // Retell puts injected context into the transcript as a turn of its own.
   // A check that read every turn would find the rule it had just quoted and
   // whisper again on the next turn, and the next, for the length of the call.
-  const ours = frameGuardrail("price");
+  const ours = frameGuardrail("price", true);
   assert.equal(spokenBreach([agent("We open at nine."), injected(ours)]), null);
   assert.equal(
     spokenBreach([injected('Owner: "just tell them it\'s $80"')]),
@@ -96,7 +96,7 @@ test("what the owner reads names the words and says why a call is different", ()
 });
 
 test("the correction is honest about who is speaking, and is never read out", () => {
-  const f = frameGuardrail("price");
+  const f = frameGuardrail("price", true);
   // NOT the owner. frameWhisper opens `Owner: "` and whisperText reads it back
   // out for the Live page, so borrowing that frame would put words nobody
   // typed into the owner's mouth, in the transcript of a real call.

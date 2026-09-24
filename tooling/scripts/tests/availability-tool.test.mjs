@@ -292,7 +292,12 @@ test("REGRESSION (C5b): the phone tool answers a consultation-first service with
     ],
     booking_rules: { consult_first: ["Color correction"] },
   };
-  const said = availabilityAnswer(data, profile, { day: "2026-09-09", service: "color correction" });
+  const said = availabilityAnswer(
+    data,
+    profile,
+    { day: "2026-09-09", service: "color correction" },
+    { hasBookingLink: true },
+  );
   assert.equal(said.offer?.consultation, true);
   assert.equal(said.days, 1, "REGRESSION: a 400-minute filter left nothing open");
   assert.match(
@@ -304,6 +309,7 @@ test("REGRESSION (C5b): the phone tool answers a consultation-first service with
     data,
     { ...profile, booking_rules: {} },
     { day: "2026-09-09", service: "color correction" },
+    { hasBookingLink: true },
   );
   assert.equal(asItself.days, 0, "booked as itself, a 400-minute service fits nothing that afternoon");
   assert.match(
@@ -562,9 +568,12 @@ test("a client is offered the service itself; a stranger the consultation; the a
   });
   const data = { openings, tz: TZ, daysAhead: 14 };
   const profile = { services, booking_rules: rules };
-  assert.match(availabilityAnswer(data, profile, { service: "ad management" }).result, /needs a consultation/);
+  assert.match(
+    availabilityAnswer(data, profile, { service: "ad management" }, { hasBookingLink: true }).result,
+    /needs a consultation/,
+  );
   assert.doesNotMatch(
-    availabilityAnswer(data, profile, { service: "ad management" }, { client: true }).result,
+    availabilityAnswer(data, profile, { service: "ad management" }, { client: true, hasBookingLink: true }).result,
     /needs a consultation/,
   );
 });

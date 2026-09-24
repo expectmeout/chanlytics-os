@@ -57,18 +57,22 @@ type Openings = NonNullable<Awaited<ReturnType<typeof openingsData>>>;
 /**
  * What the tool says for a day and a service, from the openings it read: the caller's service offered as itself, or as
  * a consultation first -- sized by the consultation, never by the service's own length (C5b). A client is offered the
- * service itself (0004).
+ * service itself (0004). What follows the times is the link, or the details for a business with none.
  */
 export function availabilityAnswer(
   data: Openings,
   profile: { services?: readonly ServiceLike[]; booking_rules?: ConsultRules | null } | undefined,
   args: { day?: unknown; service?: unknown },
-  opts: { client?: boolean } = {},
+  opts: { client?: boolean; hasBookingLink: boolean },
 ): { result: string; offer: ServiceOffer | null; day: string | null; days: number } {
   const offer = offerFor(profile?.services, profile?.booking_rules, args.service, opts);
   const day = typeof args.day === "string" ? args.day : null;
   const picked = filterOpenings(data.openings, { day, minMinutes: offer?.minMinutes ?? null });
-  const text = describeOpenings(picked, data.tz, { maxDays: 3, daysAhead: data.daysAhead });
+  const text = describeOpenings(picked, data.tz, {
+    maxDays: 3,
+    daysAhead: data.daysAhead,
+    hasBookingLink: opts.hasBookingLink,
+  });
   return { result: spoken(text, offer), offer, day, days: picked.length };
 }
 
@@ -105,6 +109,7 @@ export async function POST(request: Request): Promise<Response> {
     L.info("retell_availability_booking_held", { tenant: routed.tenantId });
     return json(200, { result: BOOKING_HELD });
   }
+  const hasBookingLink = !!rt.brain?.booking_link;
   if (!rt.calendar?.ical_url) {
     L.info("retell_availability_no_calendar", { tenant: routed.tenantId });
     return json(200, { result: NO_CALENDAR });
@@ -121,7 +126,7 @@ export async function POST(request: Request): Promise<Response> {
     L.info("retell_availability_unavailable", { tenant: routed.tenantId });
     return json(200, { result: CANNOT_SEE });
   }
-  const answer = availabilityAnswer(data, rt.brain?.profile, args, { client: deal?.stage === "won" });
+  const answer = availabilityAnswer(data, rt.brain?.profile, args, { client: deal?.stage === "won", hasBookingLink });
   L.info("retell_availability", {
     tenant: routed.tenantId,
     day: answer.day,

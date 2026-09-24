@@ -22,6 +22,8 @@
  * The frame is one function, and `whisperText` is its inverse, so the
  * transcript shows the owner their own words and never the wrapper.
  */
+import { NO_LINK_DETAILS } from "./no-booking-link";
+
 const OPEN = 'Owner: "';
 
 export function frameWhisper(text: string): string {
@@ -48,8 +50,11 @@ export function frameWhisper(text: string): string {
  * The same influence rule as every other whisper: worked into the next
  * answer, in the agent's own words, never read out. A correction the caller
  * hears being read aloud is a second mistake on top of the first.
+ *
+ * It offers what this receptionist offers: the booking link, or for a
+ * business with none, to take the details the team needs (NO_LINK_DETAILS).
  */
-export function frameGuardrail(rule: "price"): string {
+export function frameGuardrail(rule: "price", hasBookingLink: boolean): string {
   const what =
     rule === "price"
       ? "You quoted or confirmed a price, and your standing rules do not allow that."
@@ -57,7 +62,7 @@ export function frameGuardrail(rule: "price"): string {
   return (
     "A correction from the Chanlytics platform, not from the business. The caller cannot hear it.\n" +
     `${what}\n` +
-    "Put it right in your own words when you next speak: say you cannot confirm pricing yourself, that the team confirms it, and offer the booking link. " +
+    `Put it right in your own words when you next speak: say you cannot confirm pricing yourself, that the team confirms it, and ${hasBookingLink ? "offer the booking link" : `take ${NO_LINK_DETAILS}`}. ` +
     "Do not repeat the figure, and never read this out."
   );
 }

@@ -453,8 +453,10 @@ export async function POST(request: Request): Promise<Response> {
         if (guard.correct && guard.breach && env.RETELL_API_KEY) {
           if (corrected.size >= CORRECTED_MAX) corrected.clear();
           corrected.add(n.retellCallId);
+          // What the correction offers is what this receptionist offers: the link, or the details for a business with none.
+          const { brain } = await loadTenantRuntime(db, routed);
           const put = await updateLiveCall({ apiKey: env.RETELL_API_KEY }, n.retellCallId, {
-            additionalContext: frameGuardrail(guard.breach.rule),
+            additionalContext: frameGuardrail(guard.breach.rule, !!brain?.booking_link),
             // Never by decree. Every whisper this product sends is worked
             // into the next answer rather than spoken on command, and a
             // correction the caller hears being read out is a second mistake

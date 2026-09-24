@@ -177,11 +177,14 @@ test("the words: a few days, the windows on each, and the rule that the calendar
     rules: { lead_hours: 2, max_days_ahead: 3 },
     now,
   });
-  const text = describeOpenings(out, TZ);
+  const text = describeOpenings(out, TZ, { hasBookingLink: true });
   assert.match(text, /^Open times \(from the calendar, checked just now/);
   assert.match(text, /- Wednesday, September 9: 10:00 AM – 11:00 AM, 1:00 PM – 3:00 PM, 4:00 PM – 6:00 PM/);
   assert.match(text, /Never confirm a slot yourself; the calendar decides\./);
-  assert.match(describeOpenings([], TZ, { daysAhead: 14 }), /nothing is open in the next 14 days/);
+  assert.match(
+    describeOpenings([], TZ, { daysAhead: 14, hasBookingLink: true }),
+    /nothing is open in the next 14 days/,
+  );
 });
 
 /* --------------------------------- config, composer, runtime, settings -- */

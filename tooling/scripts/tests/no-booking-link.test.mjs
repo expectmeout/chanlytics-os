@@ -14,8 +14,11 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "./_fake-db.mjs";
 import {
   composeSystemPrompt,
+  describeOpenings,
+  describeVisits,
   fallbackMessages,
   FALLBACK_DEFAULTS,
+  frameGuardrail,
   NO_LINK_DETAILS,
   parseTenantConfigResult,
   resolveSystemPrompt,
@@ -120,4 +123,40 @@ test("the messages sent in its name leave out the link's sentence, and nothing e
   for (const m of Object.values(f)) assert.doesNotMatch(m, /\{|booking link|Book anytime/i);
   assert.ok(f.greeting.startsWith("Hi! Thanks for reaching out to Harbor Moving."));
   assert.ok(f.error.startsWith("Thanks for reaching out to Harbor Moving!"));
+});
+
+test("the openings, a caller's appointment and a correction on a call each end in the details, not the link", () => {
+  const TZ = "America/New_York";
+  const monday = Date.UTC(2026, 8, 28, 13);
+  const openings = [
+    {
+      key: "2026-09-28",
+      weekday: "mon",
+      label: "Monday, September 28",
+      windows: [{ start: monday, end: monday + 2 * 3_600_000 }],
+    },
+  ];
+  assert.ok(
+    describeOpenings(openings, TZ, { daysAhead: 14, hasBookingLink: false }).endsWith(
+      `Offer up to three of these that fit what they want, then take ${NO_LINK_DETAILS} so the team can confirm one. Never confirm a slot yourself; the calendar decides.`,
+    ),
+  );
+  assert.equal(
+    describeOpenings([], TZ, { daysAhead: 14, hasBookingLink: false }),
+    "Open times (from the calendar): nothing is open in the next 14 days. Offer to have someone call back.",
+  );
+  const visits = {
+    next: { id: "v1", start: monday, end: monday + 3_600_000, title: "Estimate visit", allDay: false, via: "phone" },
+    last: null,
+  };
+  const said = describeVisits(visits, TZ, monday - 86_400_000, false);
+  assert.ok(said.includes("to change or cancel it, say the team will follow up — nothing is changed from here."));
+  assert.doesNotMatch(said, /booking link/);
+  const corrected = frameGuardrail("price", false);
+  assert.ok(
+    corrected.includes(
+      `say you cannot confirm pricing yourself, that the team confirms it, and take ${NO_LINK_DETAILS}.`,
+    ),
+  );
+  assert.doesNotMatch(corrected, /booking link/);
 });
