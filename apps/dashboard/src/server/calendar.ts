@@ -92,8 +92,15 @@ interface ParsedRead {
   checkedAt: number | null;
 }
 
-async function parsedFeedFor(tenantId: string, url: string, tz: string, now: Date, fresh = false): Promise<ParsedRead> {
-  const feed = await loadFeed(tenantId, url, { fresh });
+/** `fresh`: the board's Refresh (C2). `stale`: a reader that may take the last good read while a new one is fetched (openings.ts). */
+async function parsedFeedFor(
+  tenantId: string,
+  url: string,
+  tz: string,
+  now: Date,
+  opts: { fresh?: boolean; stale?: boolean } = {},
+): Promise<ParsedRead> {
+  const feed = await loadFeed(tenantId, url, opts);
   if (!feed.text)
     return { parsed: null, at: null, reason: feed.reason, status: feed.status, checkedAt: feed.checkedAt };
   const hit = parsedFeeds.get(tenantId);
@@ -376,7 +383,7 @@ export async function calendarWeek(
   // receptionist's own, never computed from a feed cut short. A fresh read is the board's Refresh (C2).
   let feed: ParsedRead;
   try {
-    feed = await parsedFeedFor(tenantId, url, timezone, now, !!opts.fresh);
+    feed = await parsedFeedFor(tenantId, url, timezone, now, { fresh: !!opts.fresh });
   } catch (e) {
     console.error(
       "calendar_parse_failed",
@@ -535,27 +542,35 @@ export async function previewFeed(url: string, tz: string, now = new Date()): Pr
  * calendar; "unavailable" when it has one that could not be read. Ninety
  * days back and sixty ahead: a last visit worth naming, and a next one
  * booked past the receptionist's own offering window.
+ *
+ * `who` may still be on its way (the profile's row, read in the same round): the feed does not need to know who they
+ * are, so it is asked for as soon as the calendar's address is known, and the two meet here. Null for nobody. The feed
+ * may be the last good read while a new one is fetched (`stale`): a profile's next visit, never an opening offered.
  */
 export async function personVisits(
   ctx: RouteContext,
   tenantId: string,
-  person: PersonLike,
+  who: PersonLike | PromiseLike<PersonLike | null>,
   now = new Date(),
 ): Promise<PersonVisitsDto | null> {
-  const { url, lostCalendar, timezone, source, own } = await calendarOf(ctx, tenantId);
+  const calendar = calendarOf(ctx, tenantId);
+  const feedRead = calendar.then(async ({ url, timezone }): Promise<ParsedRead | null> => {
+    if (!url) return null;
+    try {
+      return await parsedFeedFor(tenantId, url, timezone, now, { stale: true });
+    } catch (e) {
+      console.error(
+        "calendar_parse_failed",
+        JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
+      );
+      return { parsed: null, at: null, reason: "not_ical", status: null, checkedAt: null };
+    }
+  });
+  const [{ url, lostCalendar, timezone, source, own }, feed, person] = await Promise.all([calendar, feedRead, who]);
   // No calendar: nothing to say about this person's visits. A calendar the settings hid: say that, not nothing.
   if (!url) return lostCalendar ? { timezone, source, state: "unavailable", next: null, last: null } : null;
-  let feed: ParsedRead;
-  try {
-    feed = await parsedFeedFor(tenantId, url, timezone, now);
-  } catch (e) {
-    console.error(
-      "calendar_parse_failed",
-      JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
-    );
-    feed = { parsed: null, at: null, reason: "not_ical", status: null, checkedAt: null };
-  }
-  if (!feed.parsed) return { timezone, source, state: "unavailable", next: null, last: null };
+  if (!person) return null;
+  if (!feed?.parsed) return { timezone, source, state: "unavailable", next: null, last: null };
   const index = indexFeed(feed.parsed.items, own);
   const v = visitsIn(index, person, now.getTime());
   // The timeline wants them all; a season either side is what the parse holds.

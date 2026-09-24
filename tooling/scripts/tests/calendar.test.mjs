@@ -234,7 +234,7 @@ test("day keys, the words, and the zone", () => {
 test("the doors and the page: read-only, the feed's address never in the browser, the registry flipped", () => {
   const svc = readCode("apps/dashboard/src/server/calendar.ts");
   assert.ok(
-    svc.includes("const feed = await loadFeed(tenantId, url, { fresh });"),
+    svc.includes("const feed = await loadFeed(tenantId, url, opts);"),
     "the same cache the assistant's openings use",
   );
   assert.ok(
