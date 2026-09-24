@@ -1587,3 +1587,65 @@ test("a step (00166): the note route takes a day and a deal only when named, jud
     ],
   );
 });
+
+test("both People reads answer the workspace's pace where deals are on: its last year's yeses, their median wait and how many; the list reads it with its first page alone; none where deals are off", async () => {
+  const now = Date.now();
+  const DAY = 86_400_000;
+  const iso = (ms) => new Date(ms).toISOString();
+  const deal = (n, days, stage = "won") => ({
+    id: `dddddddd-000${n}-4000-8000-dddddddddddd`,
+    tenant_id: A,
+    contact_id: P1,
+    service: `Service ${n}`,
+    stage,
+    proposed_at: iso(now - (days + 3) * DAY),
+    decided_at: iso(now - 3 * DAY),
+    ended_at: null,
+    amount_cents: null,
+    per: null,
+    currency: "USD",
+    note: null,
+    version: 1,
+    created_at: iso(now - 60 * DAY),
+    proposal_url: null,
+    valid_until: null,
+    lost_reason: null,
+  });
+  const world = (sellsBy) => ({
+    memberships: both("viewer", "viewer"),
+    policies: [],
+    tenant_config: [],
+    contacts: [contact(P1, A)],
+    deals: [deal(1, 4), deal(2, 10), deal(3, 12), deal(4, 20), deal(5, 6, "ended"), deal(6, 2, "lost")],
+    tenants: [{ id: A, slug: "harbor", sells_by: sellsBy }],
+  });
+  const rpcs = {
+    people_list: (a) => (a.p_tenant_id === A && (!a.p_contact_id || a.p_contact_id === P1) ? [personRow(P1)] : []),
+  };
+  const list = async (s, q = "") => (await contacts.GET.run(get(inA + q), ctxFor(world(s), {}, rpcs))).deal_pace;
+  const page = async (s) => (await person.GET.run(get(inA), ctxFor(world(s), { id: P1 }, rpcs))).person.deal_pace;
+  // 4, 6, 10, 12 and 20 days: a pass is not a yes, an ended engagement was one.
+  assert.deepEqual(await list("proposal"), { median_days: 10, yeses: 5 });
+  assert.deepEqual(await page("proposal"), { median_days: 10, yeses: 5 }, "the person's page reads the same pace");
+  assert.equal(await list("proposal", "&q=ro"), null, "a search reads no pace: People keeps its first page's");
+  assert.equal(await list("booking"), null, "deals off: no pace");
+  assert.equal(await page("booking"), null);
+  // A read that fails costs the pace, never the list, and says so in the log.
+  const logged = [];
+  const keep = console.error;
+  console.error = (...a) => logged.push(a.join(" "));
+  try {
+    const r = await contacts.GET.run(get(inA), {
+      ...ctxFor(world("proposal"), {}, rpcs),
+      supabase: fakeDb(world("proposal"), { "deals.select": { message: "statement timeout" } }, rpcs),
+    });
+    assert.equal(r.deal_pace, null);
+    assert.equal(r.people.length, 1);
+  } finally {
+    console.error = keep;
+  }
+  assert.ok(
+    logged.some((l) => l.startsWith("deal_pace_read_failed")),
+    logged.join("\n"),
+  );
+});

@@ -75,6 +75,7 @@ export * from "./erasure";
 export * from "./lead-search";
 export * from "./leads";
 export * from "./deals";
+export * from "./pace";
 export * from "./deal-sheet";
 export * from "./pipeline";
 export * from "./lead-judge";

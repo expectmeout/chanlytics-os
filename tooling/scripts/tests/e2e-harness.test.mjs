@@ -328,7 +328,7 @@ test("the pipeline record is People as the app is handed them: every group of th
   // People's rows through the People surface's own mapping, then the Pipeline's: every group has someone in it.
   const rows = record.people.map((r) => toPersonRowVM(r, TIMEZONE, new Date(NOW)));
   assert.deepEqual(
-    pipelineOf(rows, NOW, TIMEZONE).groups.map((g) => [g.key, g.count]),
+    pipelineOf(rows, NOW, TIMEZONE, null).groups.map((g) => [g.key, g.count]),
     [
       ["consultations", 2],
       ["proposals", 3],
