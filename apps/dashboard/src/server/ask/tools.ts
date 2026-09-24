@@ -5,8 +5,10 @@ import {
   NO_NUMBER_REACH,
   BUILTIN_LISTS,
   nextStepOf,
+  listToken,
   listUnknownWords,
   listsFor,
+  playbookListRef,
   membersOf,
   parseListToken,
   audiencePreview,
@@ -1082,6 +1084,7 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
   const modeOf = (cls: string) => modes.get(cls) ?? "ask";
   // With their appointments: the visit triggers count from the calendar.
   const vm = pool.rows;
+  const vmPool = pool;
   const untouched = {
     byThis: new Map<string, number>(),
     byAny: new Map<string, number>(),
@@ -1091,7 +1094,7 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
   // a run reaches, by the runner's own draw before anyone has heard from a
   // playbook. `said_yes_now` was the reach, so a moment whose yes had no number
   // to send to read as nobody's yes.
-  const moment = (trigger: string) => {
+  const moment = (trigger: string, listIds: ReadonlySet<string> | null = null) => {
     const deal = triggerOf(trigger)?.kind === "deal";
     if (deal && !followUps) return { said_yes_now: null, can_be_sent_now: null };
     const drawn = playbookRunReach(
@@ -1105,9 +1108,29 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
       deal && followUps ? { ...untouched, followUps } : untouched,
       t.now.getTime(),
       pace,
+      listIds,
     );
     return { said_yes_now: drawn.saidYes, can_be_sent_now: drawn.reach.will };
   };
+  // A playbook on a list is counted over its own list (decision 0009): each list once, one of People's or one of the
+  // workspace's own, as the run counts it; one it can't count here says why. It read as nobody before.
+  const onList = new Map<
+    string,
+    { said_yes_now: number | null; can_be_sent_now: number | null } | { cannot_count: string }
+  >();
+  for (const p of rows) {
+    const ref = playbookListRef(p);
+    if (!ref || onList.has(listToken(ref))) continue;
+    const found = await poolList(t.ctx, t.tenantId, vmPool, ref);
+    onList.set(
+      listToken(ref),
+      !found
+        ? { cannot_count: "its list was deleted" }
+        : "unknown" in found
+          ? { cannot_count: found.unknown }
+          : moment(p.trigger, new Set(found.memberIds)),
+    );
+  }
   return {
     route: "outbound",
     timezone: facts.timezone,
@@ -1130,6 +1153,11 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
       mode: modeOf(p.policy_class),
       schedule: scheduleLine(p),
       next_run: nextRunLabel(p, facts.timezone, t.now),
+      // On a list: its token, and who a run on it reaches now.
+      ...(() => {
+        const ref = playbookListRef(p);
+        return ref ? { list: listToken(ref), ...onList.get(listToken(ref)) } : {};
+      })(),
       runs: p.totals.runs,
       sent: p.totals.sent,
       replied: p.totals.replied,
@@ -1143,7 +1171,8 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
       label: x.label,
       when: x.hint,
       policy_class: x.cls,
-      ...moment(x.id),
+      // On a list, the counts are the list's: list_audiences has each list's.
+      ...(x.kind === "saved" ? { counted_per_list: true } : moment(x.id)),
       starter_template: starterForTrigger(x.id)?.title ?? null,
     })),
     note: `A run is a broadcast, and ${NO_NUMBER_REACH}. It never reaches anyone twice within the playbook's gap, and sends one playbook message per person per week. said_yes_now counts who each trigger names that said the yes its template needs, a number or not; can_be_sent_now is who of them a run reaches. When can_be_sent_now is 0 and said_yes_now is not, the ones who said yes have no number: say so, and never send the owner to get a yes they already have.${pool.deals_on ? " The proposal follow-up reaches each proposal once, with its link: its counts leave out whoever already had theirs, and null means that could not be read." : ""} Nothing here has run because you read it.`,

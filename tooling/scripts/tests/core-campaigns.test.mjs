@@ -907,6 +907,7 @@ test("the playbook's check: the trigger first, then the template through the one
       name: "Win-back",
       trigger: "quiet_30",
       list_id: null,
+      list_key: null,
       template_id: T1,
       template_name: starter,
       template_language: "en_US",

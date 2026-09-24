@@ -1626,6 +1626,32 @@ test("Ask reaches any list by its reference: a People list or one of the workspa
   const toRegulars = await propose("saved", S_REG);
   assert.equal(toRegulars.isError, false, toRegulars.result);
   assert.deepEqual([toRegulars.proposal.payload.audience_label, toRegulars.proposal.payload.count], ["Regulars", 1]);
+  // A playbook on any list (00168): a saved list as a win-back, its list and class carried to the commit.
+  const onRegulars = await buildProposal(tc, "propose_playbook", {
+    trigger: "saved_list",
+    list: `list:${S_REG}`,
+    policy_class: "reengage",
+    template_id: TPL,
+    params: [],
+  });
+  assert.equal(onRegulars.isError, false, onRegulars.result);
+  assert.deepEqual(
+    [
+      onRegulars.proposal.payload.list_id,
+      onRegulars.proposal.payload.list_key,
+      onRegulars.proposal.payload.policy_class,
+    ],
+    [S_REG, null, "reengage"],
+  );
+  assert.equal(onRegulars.proposal.payload.candidates, 1, "Rosa: on the list, a yes to offers and a number");
+  const onMine = await buildProposal(tc, "propose_playbook", {
+    trigger: "saved_list",
+    list: "seg:waiting_on_you",
+    template_id: TPL,
+    params: [],
+  });
+  assert.equal(onMine.isError, true);
+  assert.match(JSON.parse(onMine.result).error, /a playbook runs with no one looking/);
   const toCal = await propose("saved", S_CAL);
   assert.equal(toCal.isError, true);
   assert.match(JSON.parse(toCal.result).error, /can't be counted here: This list reads your calendar/);

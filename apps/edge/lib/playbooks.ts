@@ -44,8 +44,8 @@ import {
   consultFirstOf,
   poolRowsOf,
   withVisitsOf,
-  savedListIds,
-  savedListLookup,
+  membersOf,
+  resolveList,
   type PersonRowDto,
   type PersonVisitsDto,
 } from "./packages/contracts.js";
@@ -190,6 +190,12 @@ export async function loadTenantRunContext(
   const dealsOn = dealsAreOn(isSellsBy(tenant?.sells_by) ? tenant.sells_by : null);
   // Everyone as the pool reads them: no one looking (a run has no viewer), no deal where deals are off, and their
   // visits attached the one way (withVisitsOf), as the People list and the Playbooks page attach them.
+  const listCtx = poolListContext({
+    calendar,
+    dealsOn,
+    consultFirst: consultFirstOf(profile?.booking_rules),
+    viewer: null,
+  });
   const vms = poolRowsOf(withVisitsOf(rows, visits, { state: calendar, timezone: tz, source: "calendar" }), {
     tz,
     now,
@@ -204,24 +210,14 @@ export async function loadTenantRunContext(
     people: vms,
     calendar,
     visits,
-    // Who is on each list, the way the People rail and the send count it (contracts savedListIds). A run has no one
-    // looking, so a list about "me" is nobody here, as its needs say (lists.ts ListContext).
-    lists: new Map(
-      (kept.data ?? []).map((l) => [
-        l.id,
-        savedListIds(
-          l,
-          vms,
-          poolListContext({
-            calendar,
-            dealsOn,
-            consultFirst: consultFirstOf(profile?.booking_rules),
-            viewer: null,
-          }),
-          savedListLookup(kept.data ?? []),
-        ),
-      ]),
-    ),
+    // Who is on a list a playbook runs on, the way the People rail and the send count it (contracts lists.ts): one of
+    // People's or one of the workspace's own, resolved by its reference. A run has no one looking, so a list about
+    // "me" is one it cannot count, as its needs say.
+    listMembers: (ref) => {
+      const saved = kept.data ?? [];
+      const def = resolveList(ref, saved);
+      return def ? membersOf(def, vms, listCtx, saved) : null;
+    },
     modes: new Map(policies.map((r) => [r.class, r.mode])),
     health: numberHealth({ quality: s("quality_rating"), event: s("quality_event"), limit: s("messaging_limit") }),
     touches: { byThis, byAny, followUps },

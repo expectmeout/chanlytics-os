@@ -240,6 +240,9 @@ export async function commitProposal(win: Window, p: AskProposal, client: Api = 
         body: {
           name: pl.name ?? null,
           trigger: pl.trigger,
+          // On a list (decision 0009): the list it names, and whether it sends an offer or a win-back.
+          ...(pl.list_key ? { list_key: pl.list_key } : pl.list_id ? { list_id: pl.list_id } : {}),
+          ...(pl.list_key || pl.list_id ? { policy_class: pl.policy_class } : {}),
           template_id: pl.template_id,
           params: Array.isArray(pl.params) ? pl.params : [],
           run_hour: pl.run_hour,

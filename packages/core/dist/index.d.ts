@@ -1,6 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { EmailRequest, SendResult, ResendConfig, EmailSendsAs, WaConfig, ApifyClient, LeadJudge, NormalizedInbound, CarrierConsent } from '@chanlytics/channels';
-import { SendPurpose, DecisionSubject, DecisionVerb, JobNews, ParamSpec, Audience, PersonRowVM, ListRef, NumberHealth, PersonVisitsDto, DealPaceVM, PlaybookTrigger, PlaybookPolicyClass, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadArea, LeadRoundPurpose, LeadSearchPlan, PlaceFacts, LeadContactStandard, ProbeMember, BrainMeta, NotificationsConfig, BrainConfig, CalendarConfig, FeaturesConfig, PolicyLimits, KnownFacts } from '@chanlytics/contracts';
+import { SendPurpose, DecisionSubject, DecisionVerb, JobNews, ParamSpec, Audience, PersonRowVM, ListRef, NumberHealth, PersonVisitsDto, Membership, DealPaceVM, PlaybookTrigger, PlaybookPolicyClass, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadArea, LeadRoundPurpose, LeadSearchPlan, PlaceFacts, LeadContactStandard, ProbeMember, BrainMeta, NotificationsConfig, BrainConfig, CalendarConfig, FeaturesConfig, PolicyLimits, KnownFacts } from '@chanlytics/contracts';
 import { Json, Database, RoutedChannel, LeadContext, IngestResult } from '@chanlytics/db';
 
 /**
@@ -866,8 +866,10 @@ interface PlaybookRow {
     cadence_days: number;
     created_by: string | null;
     last_run_for: string | null;
-    /** The list a saved_list playbook runs on (00155); null otherwise, and when its list was deleted. */
+    /** The list of the workspace's own a saved_list playbook runs on (00155); null otherwise, and when it was deleted. */
     list_id?: string | null;
+    /** The People list a saved_list playbook runs on, by its id (00168); null otherwise. */
+    list_key?: string | null;
 }
 /** The workspace as the run reads it once per tenant: the people, the modes, the number, the touches, the calendar. */
 interface RunContext {
@@ -886,8 +888,11 @@ interface RunContext {
     calendar: "ok" | "unavailable" | "none";
     /** Each person's next and last visit from that calendar, for the words a visit run keeps. */
     visits: Map<string, PersonVisitsDto>;
-    /** Who is on each of the workspace's lists, by list id (contracts savedListIds): what a saved_list playbook runs on. */
-    lists: Map<string, ReadonlySet<string>>;
+    /**
+     * Who is on a list a saved_list playbook runs on, by its reference (contracts lists.ts membersOf, with no one
+     * looking): its people, or why it can't be counted; null when it is gone.
+     */
+    listMembers(ref: ListRef): Membership | null;
     /** Deals are on here (dealsAreOn, 0008): the proposal follow-up runs only then (0006). */
     dealsOn: boolean;
     /** The workspace's pace (contracts dealPaceOf): when a proposal waits, for the follow-up; null without one. */
@@ -923,7 +928,7 @@ type RunOutcome =
 } | {
     outcome: "off";
     mode: string;
-    skipped: "never" | "template_not_approved" | "number_flagged" | "already_ran_today" | "no_calendar" | "no_list" | "deals_off";
+    skipped: "never" | "template_not_approved" | "number_flagged" | "already_ran_today" | "no_calendar" | "no_list" | "list_uncounted" | "deals_off";
 } | {
     outcome: "failed";
     error: string;
@@ -1144,8 +1149,10 @@ declare function cancelBroadcast(ports: CancelBroadcastPorts, cmd: {
 interface PlaybookInput {
     name: string;
     trigger: PlaybookTrigger;
-    /** The list a saved_list playbook runs on; null for every other trigger. */
+    /** The list of the workspace's own a saved_list playbook runs on; null for every other trigger. */
     list_id: string | null;
+    /** The People list a saved_list playbook runs on, by its id (00168); null otherwise. Never both. */
+    list_key: string | null;
     template_id: string;
     template_name: string;
     template_language: string;
