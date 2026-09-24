@@ -2775,6 +2775,11 @@ var BookingRulesSchema = z3.object({
   /** Services that need a consultation before they can be booked. */
   consult_first: z3.array(z3.string().min(1).max(80)).max(20).optional(),
   party_max: z3.number().int().min(1).max(20).optional(),
+  /**
+   * Ask, once, for an email when sending the booking link -- for the confirmation, and for the campaigns that follow
+   * (Part 0 of the campaigns-on-every-channel spec). Absent = no.
+   */
+  ask_email: z3.boolean().optional(),
   /** Anything else about booking, one short line each. */
   notes: z3.array(z3.string().min(1).max(200)).max(10).optional()
 }).strict();
@@ -3215,7 +3220,7 @@ ${PROMPT_OPENINGS.notes}
 ${profile.notes.map((n) => `- ${n.title}: ${n.text}`).join("\n")}`);
   }
   const br = profile.booking_rules;
-  if (br && (br.lead_hours !== void 0 || br.consult_first?.length || br.party_max || br.notes?.length)) {
+  if (br && (br.lead_hours !== void 0 || br.consult_first?.length || br.party_max || br.notes?.length || br.ask_email)) {
     const lines = [];
     if (br.lead_hours !== void 0) {
       lines.push(
@@ -3227,6 +3232,10 @@ ${profile.notes.map((n) => `- ${n.title}: ${n.text}`).join("\n")}`);
     if (br.party_max)
       lines.push(
         `Up to ${br.party_max} ${br.party_max === 1 ? "person" : "people"} per booking; larger groups go to a person.`
+      );
+    if (br.ask_email)
+      lines.push(
+        "When you send the booking link and no email address is on file for them, ask once for the best email for their booking confirmation, then move on. Never insist; thank them if they give one."
       );
     for (const n of br.notes ?? []) lines.push(n);
     s.push(`
@@ -5751,6 +5760,7 @@ function bookingRulesWords(rules) {
     );
   if (isNumber(r2.max_days_ahead)) parts2.push(`up to ${plural2(r2.max_days_ahead, "day", "days")} ahead`);
   if (isNumber(r2.party_max)) parts2.push(`up to ${plural2(r2.party_max, "person", "people")}`);
+  if (r2.ask_email) parts2.push("asks for an email when sending the booking link");
   const joined = parts2.join(" \xB7 ");
   const notes = (Array.isArray(r2.notes) ? r2.notes : []).filter((x) => typeof x === "string" && x.trim() !== "").map((x) => {
     const t = x.trim();

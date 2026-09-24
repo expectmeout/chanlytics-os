@@ -533,6 +533,11 @@ var BookingRulesSchema = z3.object({
   /** Services that need a consultation before they can be booked. */
   consult_first: z3.array(z3.string().min(1).max(80)).max(20).optional(),
   party_max: z3.number().int().min(1).max(20).optional(),
+  /**
+   * Ask, once, for an email when sending the booking link -- for the confirmation, and for the campaigns that follow
+   * (Part 0 of the campaigns-on-every-channel spec). Absent = no.
+   */
+  ask_email: z3.boolean().optional(),
   /** Anything else about booking, one short line each. */
   notes: z3.array(z3.string().min(1).max(200)).max(10).optional()
 }).strict();

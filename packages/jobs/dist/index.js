@@ -623,6 +623,11 @@ var BookingRulesSchema = z3.object({
   /** Services that need a consultation before they can be booked. */
   consult_first: z3.array(z3.string().min(1).max(80)).max(20).optional(),
   party_max: z3.number().int().min(1).max(20).optional(),
+  /**
+   * Ask, once, for an email when sending the booking link -- for the confirmation, and for the campaigns that follow
+   * (Part 0 of the campaigns-on-every-channel spec). Absent = no.
+   */
+  ask_email: z3.boolean().optional(),
   /** Anything else about booking, one short line each. */
   notes: z3.array(z3.string().min(1).max(200)).max(10).optional()
 }).strict();
@@ -7732,6 +7737,11 @@ var BookingRulesSchema2 = z32.object({
   /** Services that need a consultation before they can be booked. */
   consult_first: z32.array(z32.string().min(1).max(80)).max(20).optional(),
   party_max: z32.number().int().min(1).max(20).optional(),
+  /**
+   * Ask, once, for an email when sending the booking link -- for the confirmation, and for the campaigns that follow
+   * (Part 0 of the campaigns-on-every-channel spec). Absent = no.
+   */
+  ask_email: z32.boolean().optional(),
   /** Anything else about booking, one short line each. */
   notes: z32.array(z32.string().min(1).max(200)).max(10).optional()
 }).strict();
@@ -10909,6 +10919,11 @@ var BookingRulesSchema3 = z33.object({
   /** Services that need a consultation before they can be booked. */
   consult_first: z33.array(z33.string().min(1).max(80)).max(20).optional(),
   party_max: z33.number().int().min(1).max(20).optional(),
+  /**
+   * Ask, once, for an email when sending the booking link -- for the confirmation, and for the campaigns that follow
+   * (Part 0 of the campaigns-on-every-channel spec). Absent = no.
+   */
+  ask_email: z33.boolean().optional(),
   /** Anything else about booking, one short line each. */
   notes: z33.array(z33.string().min(1).max(200)).max(10).optional()
 }).strict();
@@ -13112,6 +13127,11 @@ var BookingRulesSchema22 = z322.object({
   /** Services that need a consultation before they can be booked. */
   consult_first: z322.array(z322.string().min(1).max(80)).max(20).optional(),
   party_max: z322.number().int().min(1).max(20).optional(),
+  /**
+   * Ask, once, for an email when sending the booking link -- for the confirmation, and for the campaigns that follow
+   * (Part 0 of the campaigns-on-every-channel spec). Absent = no.
+   */
+  ask_email: z322.boolean().optional(),
   /** Anything else about booking, one short line each. */
   notes: z322.array(z322.string().min(1).max(200)).max(10).optional()
 }).strict();
@@ -15288,6 +15308,11 @@ var BookingRulesSchema32 = z332.object({
   /** Services that need a consultation before they can be booked. */
   consult_first: z332.array(z332.string().min(1).max(80)).max(20).optional(),
   party_max: z332.number().int().min(1).max(20).optional(),
+  /**
+   * Ask, once, for an email when sending the booking link -- for the confirmation, and for the campaigns that follow
+   * (Part 0 of the campaigns-on-every-channel spec). Absent = no.
+   */
+  ask_email: z332.boolean().optional(),
   /** Anything else about booking, one short line each. */
   notes: z332.array(z332.string().min(1).max(200)).max(10).optional()
 }).strict();
@@ -17985,6 +18010,11 @@ var BookingRulesSchema4 = z34.object({
   /** Services that need a consultation before they can be booked. */
   consult_first: z34.array(z34.string().min(1).max(80)).max(20).optional(),
   party_max: z34.number().int().min(1).max(20).optional(),
+  /**
+   * Ask, once, for an email when sending the booking link -- for the confirmation, and for the campaigns that follow
+   * (Part 0 of the campaigns-on-every-channel spec). Absent = no.
+   */
+  ask_email: z34.boolean().optional(),
   /** Anything else about booking, one short line each. */
   notes: z34.array(z34.string().min(1).max(200)).max(10).optional()
 }).strict();
