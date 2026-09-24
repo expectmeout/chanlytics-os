@@ -34,7 +34,7 @@ import {
   foldOf,
   inline,
   labelled,
-  melany,
+  marisa,
   openFold,
   openFolds,
   openRows,
@@ -77,10 +77,10 @@ test("When you're open draws four rows in the spec's order, under a line contrac
   assert.equal(textOf(find(card, (n) => classes(n).includes("rec-card-title"))), "When you're open");
   assert.equal(
     textOf(find(card, (n) => classes(n).includes("rec-card-sub"))),
-    openWeekWords(melany.hours, "America/New_York"),
+    openWeekWords(marisa.hours, "America/New_York"),
   );
   assert.equal(
-    openWeekWords(melany.hours, "America/New_York"),
+    openWeekWords(marisa.hours, "America/New_York"),
     "Six days a week, in New York time",
     "the canvas's line, from contracts",
   );
@@ -92,17 +92,17 @@ test("When you're open draws four rows in the spec's order, under a line contrac
 });
 
 test("the summary sentence is the one the composer wrote", () => {
-  const row = byTestId(drawTab({ profile: melany }), "rec-row-hours");
-  assert.match(textOf(row), new RegExp(escape(summaryOf(melany.hours))));
+  const row = byTestId(drawTab({ profile: marisa }), "rec-row-hours");
+  assert.match(textOf(row), new RegExp(escape(summaryOf(marisa.hours))));
   assert.equal(
     textOf(byTestId(row, "rec-hours-line")),
-    summaryOf(melany.hours),
+    summaryOf(marisa.hours),
     "word for word, joined as hoursSummary joins them",
   );
 });
 
 test("with no hours stored, the row is empty in the old card's words, and its act adds them", () => {
-  const tree = drawTab({ profile: without(melany, "hours") });
+  const tree = drawTab({ profile: without(marisa, "hours") });
   const row = byTestId(tree, "rec-row-hours");
   assert.equal(row.props["data-empty"], "true");
   assert.match(textOf(row), /Not set — the receptionist cannot state your hours/);
@@ -190,7 +190,7 @@ test("an hours save sends the stored config with the week changed, and everythin
     ...stored,
     brain: {
       ...stored.brain,
-      profile: { ...stored.brain.profile, hours: { ...melany.hours, mon: { open: "09:30", close: "17:00" } } },
+      profile: { ...stored.brain.profile, hours: { ...marisa.hours, mon: { open: "09:30", close: "17:00" } } },
     },
   });
   assert.equal(textOf(flashes.at(-1).msg), "Saved — the receptionist picks it up within a minute");
@@ -264,7 +264,7 @@ test("a closed day keeps its shifts until Save, which is what decides a closed d
   saveFoldOf(tree, "hours");
   assert.deepEqual(sent[0].config, {
     ...stored,
-    brain: { ...stored.brain, profile: { ...stored.brain.profile, hours: { ...melany.hours, sat: {} } } },
+    brain: { ...stored.brain, profile: { ...stored.brain.profile, hours: { ...marisa.hours, sat: {} } } },
   });
   // A day that never had times opens with one empty shift to type into.
   tree = drawTab();
@@ -413,7 +413,7 @@ test("copying a day says what it opened and what it overwrote, and puts it all b
   assert.equal(textOf({ props: { children: flashes.at(-1).msg } }), "Copied Mon's hours — nothing else changed");
 
   // A business shut on Mondays copies the first day it is open.
-  tree = drawTab({ flash, profile: { ...melany, hours: { ...melany.hours, mon: {} } } });
+  tree = drawTab({ flash, profile: { ...marisa, hours: { ...marisa.hours, mon: {} } } });
   openFold(tree, "hours");
   tree = redrawTab(flash);
   assert.match(
@@ -473,7 +473,7 @@ test("the hours fold says what the receptionist will be told as the draft stands
   says = byTestId(tree, "rec-fold-says-hours");
   const next = {
     ...stored,
-    profile: { ...melany, hours: { ...melany.hours, mon: { open: "09:30", close: "17:00" } } },
+    profile: { ...marisa, hours: { ...marisa.hours, mon: { open: "09:30", close: "17:00" } } },
   };
   // The hours block's lines are runs of days: a changed Monday re-cuts them, and the lines that fall out of the old
   // block are about days nobody changed. So nothing is said to go while the block stays (the folds test holds the
@@ -515,7 +515,7 @@ test("the hours fold says what the receptionist will be told as the draft stands
 });
 
 test("the standing line's hours door opens the fold, and the fold asks before its changes go like any other", () => {
-  let tree = drawTab({ profile: without(melany, "hours") });
+  let tree = drawTab({ profile: without(marisa, "hours") });
   const gap = standingLine(W.__SETTINGS.config.brain, true).missing;
   assert.equal(gap.row, "hours");
   const door = byTestId(byTestId(tree, "rec-standing"), "rec-standing-door");
@@ -750,7 +750,7 @@ test("the closed days ahead are counted on the business's own day, and none ahea
   const now = Date.now();
   const earlier = zoneDayKey(now, "Pacific/Pago_Pago");
   assert.ok(zoneDayKey(now, "Pacific/Kiritimati") > earlier);
-  const profile = { ...melany, closures: [{ date: earlier, note: "Stocktake" }] };
+  const profile = { ...marisa, closures: [{ date: earlier, note: "Stocktake" }] };
   let row = byTestId(drawTab({ profile, zone: "Pacific/Pago_Pago" }), "rec-row-closures");
   assert.equal(
     textOf(find(row, (n) => classes(n).includes("rec-row-value"))),
@@ -761,13 +761,13 @@ test("the closed days ahead are counted on the business's own day, and none ahea
   assert.equal(row.props["data-empty"], "true", "the same closure, already past where the business is");
   assert.match(textOf(row), /None ahead/);
 
-  // Melany keeps none: the canvas's empty row.
+  // Marisa keeps none: the canvas's empty row.
   const tree = drawTab();
   assert.match(textOf(byTestId(tree, "rec-row-closures")), /None ahead/);
   assert.equal(textOf(byTestId(tree, "rec-row-act-closures")), "Add one");
   // Two ahead, the next one named as the Calendar's own list names it.
   assert.match(
-    textOf(byTestId(drawTab({ profile: { ...melany, closures: [NEW_YEAR, XMAS] } }), "rec-row-closures")),
+    textOf(byTestId(drawTab({ profile: { ...marisa, closures: [NEW_YEAR, XMAS] } }), "rec-row-closures")),
     /2 ahead · next Dec 24 – 26 · Christmas/,
   );
 });
@@ -776,7 +776,7 @@ test("the closures fold adds, edits and removes a closed day, puts a removed one
   const sent = saving();
   const flashes = [];
   const flash = (f) => flashes.push(f);
-  let tree = drawTab({ flash, profile: { ...melany, closures: [XMAS, NEW_YEAR] } });
+  let tree = drawTab({ flash, profile: { ...marisa, closures: [XMAS, NEW_YEAR] } });
   const stored = written(W.__SETTINGS.config);
   openFold(tree, "closures");
   tree = redrawTab(flash);
@@ -848,7 +848,7 @@ test("the closures fold adds, edits and removes a closed day, puts a removed one
 
 test("what stops a closures save is said under its own box, and at the cap the fold says so and offers no more", () => {
   const sent = saving();
-  let tree = drawTab({ profile: { ...melany, closures: [XMAS] } });
+  let tree = drawTab({ profile: { ...marisa, closures: [XMAS] } });
   openFold(tree, "closures");
   tree = redrawTab();
   const boxes = () => all(byTestId(tree, "rec-closure-0"), (n) => n.type === "input");
@@ -880,7 +880,7 @@ test("what stops a closures save is said under its own box, and at the cap the f
   const many = Array.from({ length: MAX_CLOSURES }, (_, i) => ({
     date: `2099-${String(1 + (i % 12)).padStart(2, "0")}-${String(1 + Math.floor(i / 12)).padStart(2, "0")}`,
   }));
-  tree = drawTab({ profile: { ...melany, closures: many } });
+  tree = drawTab({ profile: { ...marisa, closures: many } });
   openFold(tree, "closures");
   tree = redrawTab();
   assert.equal(byTestId(tree, "rec-closures-add"), null);
@@ -903,7 +903,7 @@ const calendarRead = (feed, agoMs = 0) => {
     from: today,
     to: today,
     feed,
-    hours: melany.hours,
+    hours: marisa.hours,
     closures: [],
     rules: null,
     services: [],
@@ -933,7 +933,7 @@ const readOk = (over = {}) => ({
 test("the calendar row says where it reads and when, and keeps the address, the count and the source in its fold", () => {
   W.__CALENDAR = calendarRead(readOk());
   try {
-    const tree = drawTab({ profile: melany });
+    const tree = drawTab({ profile: marisa });
     const row = byTestId(tree, "rec-row-calendar");
     assert.equal(
       find(row, (n) => /Check the address/i.test(textOf(n))),
@@ -1103,14 +1103,14 @@ test("with no feed the calendar row is empty and says what the address is for; i
     );
     assert.equal(sent.length, 0);
     box().props.onChange({
-      target: { value: "  https://calendar.google.com/calendar/ical/melany/private-abc/basic.ics  " },
+      target: { value: "  https://calendar.google.com/calendar/ical/marisa/private-abc/basic.ics  " },
     });
     tree = redrawTab(flash);
     assert.equal(box().props["aria-invalid"], undefined, "typing again takes the sentence away");
     saveFoldOf(tree, "calendar");
     assert.deepEqual(sent[0].config, {
       ...without(stored, "calendar"),
-      calendar: { ical_url: "https://calendar.google.com/calendar/ical/melany/private-abc/basic.ics" },
+      calendar: { ical_url: "https://calendar.google.com/calendar/ical/marisa/private-abc/basic.ics" },
     });
 
     // A feed is stored: the fold keeps the door to the Calendar, and an emptied box disconnects it.
@@ -1150,14 +1150,14 @@ test("a viewer reads when the business is open and is offered no act on any of i
   W.__workspace = { setTimezone: async () => ({ ok: true, tz: "America/Chicago", message: "" }) };
   W.__CALENDAR = calendarRead(readOk());
   try {
-    const tree = drawTab({ profile: { ...melany, closures: [XMAS] } });
+    const tree = drawTab({ profile: { ...marisa, closures: [XMAS] } });
     const card = byTestId(tree, "rec-card-open");
     assert.deepEqual(
       all(card, (n) => /^rec-row-act-/.test(n.props?.["data-testid"] || "")),
       [],
       "no row offers a change",
     );
-    assert.match(textOf(card), new RegExp(escape(summaryOf(melany.hours))));
+    assert.match(textOf(card), new RegExp(escape(summaryOf(marisa.hours))));
     assert.match(textOf(card), /1 ahead · Dec 24 – 26 · Christmas/);
     // The whole of the last read, on the ROW: where it read from, when, and how many events. A viewer never opens a
     // fold (below), so the fold is no place to keep it from them -- they read the record, all of it.
@@ -1174,7 +1174,7 @@ test("a viewer reads when the business is open and is offered no act on any of i
         problem: "The calendar answered 404.",
       }),
     );
-    const failed = byTestId(drawTab({ profile: { ...melany, closures: [XMAS] } }), "rec-row-calendar");
+    const failed = byTestId(drawTab({ profile: { ...marisa, closures: [XMAS] } }), "rec-row-calendar");
     assert.match(textOf(failed), /tried 4m ago/, "a viewer reads what the last try was, too");
     assert.match(textOf(failed), /The calendar answered 404\./);
     W.__CALENDAR = calendarRead(readOk());
@@ -1235,7 +1235,7 @@ test("a refusal that is not the fold's to fix is said once in the fold, and neve
   // A stored closure on a date that is not on the calendar: the save's schema refuses the whole brain for it, whichever
   // fold is saving.
   const sent = saving();
-  let tree = drawTab({ profile: { ...melany, closures: [{ date: "2099-02-31", note: "Not a day" }] } });
+  let tree = drawTab({ profile: { ...marisa, closures: [{ date: "2099-02-31", note: "Not a day" }] } });
   openFold(tree, "hours");
   tree = redrawTab();
   typeAt(tree, "Monday closes", "17:00");
@@ -1272,9 +1272,9 @@ test("under Saving…, a press that would add or remove changes nothing and toas
   const flash = (f) => flashes.push(f);
   const held = (node) => [node.props["aria-disabled"], node.props.disabled];
   const two = {
-    ...melany,
+    ...marisa,
     hours: {
-      ...melany.hours,
+      ...marisa.hours,
       mon: {
         intervals: [
           { open: "09:30", close: "13:00" },
@@ -1334,7 +1334,7 @@ test("under Saving…, a press that would add or remove changes nothing and toas
     "nothing was removed, so nothing says it was",
   );
 
-  tree = drawTab({ flash, profile: { ...melany, closures: [XMAS, NEW_YEAR] } });
+  tree = drawTab({ flash, profile: { ...marisa, closures: [XMAS, NEW_YEAR] } });
   openFold(tree, "closures");
   tree = redrawTab(flash);
   all(byTestId(tree, "rec-closure-1"), (n) => n.type === "input")[2].props.onChange({ target: { value: "New Year" } });
@@ -1802,7 +1802,7 @@ test("a list inside a fold keeps its cap through an Undo too: a removed row is p
   const many = Array.from({ length: MAX_CLOSURES }, (_, i) => ({
     date: `2099-${String(1 + (i % 12)).padStart(2, "0")}-${String(1 + Math.floor(i / 12)).padStart(2, "0")}`,
   }));
-  tree = drawTab({ flash, profile: { ...melany, closures: many } });
+  tree = drawTab({ flash, profile: { ...marisa, closures: many } });
   openFold(tree, "closures");
   tree = redrawTab(flash);
   press(byTestId(tree, "rec-closure-remove-0"));
@@ -2003,7 +2003,7 @@ test("a closed day taken out goes back between the same two days, whatever was t
   const flashes = [];
   const flash = (f) => flashes.push(f);
   const days = ["2099-01-05", "2099-02-05", "2099-03-05", "2099-04-05"].map((date) => ({ date }));
-  let tree = drawTab({ flash, profile: { ...melany, closures: days } });
+  let tree = drawTab({ flash, profile: { ...marisa, closures: days } });
   openFold(tree, "closures");
   tree = redrawTab(flash);
   const dates = () =>
@@ -2039,7 +2039,7 @@ test("a shift taken out of one day goes back into that day, whatever another day
   ];
   let tree = drawTab({
     flash,
-    profile: { ...melany, hours: { ...melany.hours, mon: { intervals: three }, tue: { intervals: three } } },
+    profile: { ...marisa, hours: { ...marisa.hours, mon: { intervals: three }, tue: { intervals: three } } },
   });
   openFold(tree, "hours");
   tree = redrawTab(flash);
@@ -2074,8 +2074,8 @@ test("a day's hours replaced whole by a copy leave its waiting shift nowhere to 
   let tree = drawTab({
     flash,
     profile: {
-      ...melany,
-      hours: { ...melany.hours, mon: { open: "09:00", close: "17:00" }, tue: { intervals: three } },
+      ...marisa,
+      hours: { ...marisa.hours, mon: { open: "09:00", close: "17:00" }, tue: { intervals: three } },
     },
   });
   openFold(tree, "hours");
@@ -2116,7 +2116,7 @@ test("the page draws itself again when the settings surface is read again: the c
   // the old zone's "in … time" and counted the closed days on the old zone's day. Honolulu and Kiritimati are a whole
   // day apart, so a closure on Honolulu's today is ahead there and already past in Kiritimati.
   const today = zoneDayKey(Date.now(), "Pacific/Honolulu");
-  const profile = { ...melany, closures: [{ date: today, note: "Stocktake" }] };
+  const profile = { ...marisa, closures: [{ date: today, note: "Stocktake" }] };
   let tree = drawTab({ profile, zone: "Pacific/Honolulu" });
   const sub = (t) => textOf(find(byTestId(t, "rec-card-open"), (n) => classes(n).includes("rec-card-sub")));
   const closed = (t) => textOf(find(byTestId(t, "rec-row-closures"), (n) => classes(n).includes("rec-row-val")));
@@ -2127,7 +2127,7 @@ test("the page draws itself again when the settings surface is read again: the c
   );
   tree = redrawTab();
   // The zone is saved and the settings surface read back: the workspace's list and the read's own preview name the new zone.
-  W.__WORKSPACES = [{ id: "t-melany", name: "Melany's Beauty Salon", timezone: "Pacific/Kiritimati" }];
+  W.__WORKSPACES = [{ id: "t-marisa", name: "Marisa's Beauty Salon", timezone: "Pacific/Kiritimati" }];
   W.__SETTINGS = settings(profile, {}, {}, "Pacific/Kiritimati");
   quiet();
   W.dispatchEvent({ type: "surface:settings" });

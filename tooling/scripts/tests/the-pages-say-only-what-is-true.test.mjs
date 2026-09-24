@@ -26,7 +26,7 @@ const ZONE = "America/New_York";
 const NOW = new Date("2026-09-06T14:00:00Z");
 
 const metrics = (oldest) => ({
-  workspace: { name: "Melany's Beauty Salon", timezone: "America/New_York", status: "active" },
+  workspace: { name: "Marisa's Beauty Salon", timezone: "America/New_York", status: "active" },
   channels: [
     { kind: "whatsapp", status: "active", number: "+1 305" },
     { kind: "voice", status: "active", number: "+1 786" },
@@ -149,7 +149,7 @@ const call = (over = {}) => ({
   status: "ended",
   from_e164: "+19175550106",
   from_raw: null,
-  to_e164: "+13083368109",
+  to_e164: "+13055550123",
   started_at: "2026-09-06T13:00:00Z",
   ended_at: "2026-09-06T13:03:10Z",
   duration_ms: 190_000,
@@ -157,7 +157,7 @@ const call = (over = {}) => ({
   sentiment: "Positive",
   call_successful: true,
   in_voicemail: false,
-  summary: "The user called Melany's Beauty Salon to arrange a bridal trial.",
+  summary: "The user called Marisa's Beauty Salon to arrange a bridal trial.",
   transcript_object: null,
   recording: null,
   conversation_id: "cv7",
@@ -816,7 +816,7 @@ const mountMessages = (over) => {
       __ME: { role: "owner" },
       __starters: undefined,
       __SETTINGS: {
-        config: { brain: { business_name: "Melany's Beauty Salon", booking_link: "https://booksy.com/melany" } },
+        config: { brain: { business_name: "Marisa's Beauty Salon", booking_link: "https://book.example.com/marisa" } },
       },
     },
     over,
@@ -905,8 +905,8 @@ test("REGRESSION: a message's preview names this business and its booking link -
         "template-open-body",
       ),
     );
-    assert.ok(said.includes("Melany's Beauty Salon"), `${language}: ${said}`);
-    assert.ok(said.includes("https://booksy.com/melany"), `${language}: ${said}`);
+    assert.ok(said.includes("Marisa's Beauty Salon"), `${language}: ${said}`);
+    assert.ok(said.includes("https://book.example.com/marisa"), `${language}: ${said}`);
     assert.ok(
       !said.includes("Luna Studio") && !said.includes("booksy.com/luna-studio"),
       `REGRESSION (${language}): another business's name and link in this business's message`,

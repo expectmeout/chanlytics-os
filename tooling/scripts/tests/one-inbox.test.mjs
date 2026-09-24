@@ -69,7 +69,7 @@ globalThis.React = {
   useCallback: (fn) => fn,
 };
 globalThis.window = {
-  location: { hash: "", pathname: "/w/melanys", origin: "https://app.chanlytics.com" },
+  location: { hash: "", pathname: "/w/marisas", origin: "https://app.chanlytics.com" },
   localStorage: globalThis.localStorage,
   sessionStorage: globalThis.sessionStorage,
   CHANLY: { nav() {}, agentIdFor: (n) => String(n).toLowerCase().replace(/ /g, "-") },

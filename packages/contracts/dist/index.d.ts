@@ -1692,7 +1692,7 @@ declare function knownForwarding(rows: ReadonlyArray<{
 /**
  * Two ways of writing one address.
  *
- * Deliberately loose: Google returns "2581 Pitkin Ave, Brooklyn, NY 11208, USA"
+ * Deliberately loose: Google returns "1200 Maple Ave, Brooklyn, NY 11208, USA"
  * for an owner who typed the same thing without the country. Reporting that as
  * a disagreement would train people to ignore the warning, which costs more
  * than the warning is worth.
@@ -4212,7 +4212,7 @@ declare function callOutcomeOf(v: unknown): CallOutcome | null;
 declare function callOutcomeWords(v: unknown): string | null;
 /**
  * A provider summary from before the analysis carried what the caller
- * wanted reads "The user called Melany's Beauty Salon to inquire about…".
+ * wanted reads "The user called Marisa's Beauty Salon to inquire about…".
  * Nobody says that. The opening is folded to "Called to inquire about…"
  * without touching a word of the rest, so nothing is invented; a summary
  * that opens any other way is kept as it is.
@@ -6115,9 +6115,9 @@ policy?: Record<string, {
  * has filled in its profile gets a prompt composed from those facts; one that
  * has not keeps the prompt it already had, byte for byte.
  *
- * That fallback is the whole reason this can ship: Melany's hand-written
+ * That fallback is the whole reason this can ship: the pilot's hand-written
  * prompt is live and answering real customers, and a migration that changed
- * what her receptionist says the moment the code deployed would be a
+ * what its receptionist says the moment the code deployed would be a
  * behaviour change nobody asked for.
  */
 declare function resolveSystemPrompt(brain: BrainConfig, channel?: "whatsapp" | "voice", 
@@ -11909,7 +11909,7 @@ interface PlatformQueue {
 interface WaitingRowVM {
     id: string;
     email: string;
-    /** "Melany's Beauty Salon · from the pricing page", or whichever half they gave. */
+    /** "Marisa's Beauty Salon · from the pricing page", or whichever half they gave. */
     detail: string | null;
     /** "asked 3d ago" */
     waited: string;
@@ -12767,9 +12767,9 @@ declare function handoffCallWords(i: {
 }): string;
 /** The hand-off row at rest, and what a call does, which its fold says under Phone. */
 interface HandoffWordsVM {
-    /** One line: "For 2 reasons · on a call, transfers to +1 (646) 932-5775"; with no reasons, when it hands over anyway. */
+    /** One line: "For 2 reasons · on a call, transfers to +1 (212) 555-0142"; with no reasons, when it hands over anyway. */
     line: string;
-    /** "transfers to +1 (646) 932-5775", or "takes a message" with no number. */
+    /** "transfers to +1 (212) 555-0142", or "takes a message" with no number. */
     phone: string;
 }
 /**

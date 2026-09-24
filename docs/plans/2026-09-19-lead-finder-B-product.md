@@ -7478,7 +7478,7 @@ const courierOf = (over = {}) => {
   const api = {
     seen,
     __leadStage: async (id, input) => { seen.push(["stage", id, input]); return over.stage ? over.stage(input) : { ok: true, data: { stage: "nurture", closed_reason: null, contact_id: null, existed: false, converted: false, op_id: "op-1", version: 4, toast: "Marked contacted.", undo: { op_id: "op-1", version: 4 } } }; },
-    __leadDraft: async (id, input) => { seen.push(["draft", id, input]); return over.draft ? over.draft(input) : { ok: true, data: { to: "hello@travisheightscoaching.example", subject: "Missed calls at Travis Heights", body: `Hi,\n\nI came across Travis Heights Coaching Co. on Google Maps.${leadDraftFooter("Melany's Beauty Salon", "1 Main St, Austin, TX 78701")}`, mailto: "mailto:hello%40travisheightscoaching.example?subject=Missed%20calls" } }; },
+    __leadDraft: async (id, input) => { seen.push(["draft", id, input]); return over.draft ? over.draft(input) : { ok: true, data: { to: "hello@travisheightscoaching.example", subject: "Missed calls at Travis Heights", body: `Hi,\n\nI came across Travis Heights Coaching Co. on Google Maps.${leadDraftFooter("Marisa's Beauty Salon", "1 Main St, Austin, TX 78701")}`, mailto: "mailto:hello%40travisheightscoaching.example?subject=Missed%20calls" } }; },
     __leadUndo: async (opId, version) => { seen.push(["undo", opId, version]); return over.undo ? over.undo() : { ok: true, data: {} }; },
   };
   return api;
@@ -8465,7 +8465,7 @@ test("the mailto encodes each part once, keeps a quote and an ampersand, and bre
 });
 
 test("a body that already carries CRLF is not doubled, and the CAN-SPAM foot survives the trip", () => {
-  const foot = leadDraftFooter("Melany's Beauty Salon", "1 Main St, Austin, TX 78701");
+  const foot = leadDraftFooter("Marisa's Beauty Salon", "1 Main St, Austin, TX 78701");
   const once = leadMailto("a@b.example", "s", `Hi.${foot}`);
   const twice = leadMailto("a@b.example", "s", `Hi.${foot}`.replace(/\n/g, "\r\n"));
   assert.equal(once, twice);
@@ -9530,7 +9530,7 @@ test("the suggestions are this workspace's own line, each with who it is for and
   const picked = [];
   byTestId(firstDay({ onPick: (w) => picked.push(w) }), "ld-sug-chiropractor").props.children[0].props.onClick();
   assert.deepEqual(picked, ["Chiropractors and physical therapists within 5 miles"]);
-  assert.equal(/personal trainers in Austin|Ridge Strength|Melany/.test(textOf(t)), false, "never a seeded example: every word here came from this workspace's own line");
+  assert.equal(/personal trainers in Austin|Ridge Strength|Marisa/.test(textOf(t)), false, "never a seeded example: every word here came from this workspace's own line");
 });
 
 test("Not right? Change it is the owner's, opens one line, and saves it", () => {

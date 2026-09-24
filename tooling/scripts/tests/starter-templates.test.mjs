@@ -99,15 +99,15 @@ test("one starter per playbook trigger, one for any broadcast; titles for people
   assert.equal(templateTitle("winback_offer", "   "), "Win-back", "an empty title is no title");
   assert.equal(templateTitle(""), "");
   assert.equal(
-    starterPreview(starterByKey("winback_offer"), "en_US", "Melany's Beauty Salon", "https://booksy.com/melany"),
-    "Hi Dani, it's been a while since we last saw you at Melany's Beauty Salon. We'd love to have you back — pick a time that suits you here: https://booksy.com/melany and we'll take care of the rest.",
+    starterPreview(starterByKey("winback_offer"), "en_US", "Marisa's Beauty Salon", "https://book.example.com/marisa"),
+    "Hi Dani, it's been a while since we last saw you at Marisa's Beauty Salon. We'd love to have you back — pick a time that suits you here: https://book.example.com/marisa and we'll take care of the rest.",
     "the business's own name and booking link",
   );
   // A fact the business has not given yet is a blank to fill, never the sample filed with Meta: "Luna Studio" and its
   // booksy link read as a real business's real link. The customer's name stays a sample -- no one customer is shown.
   assert.equal(
-    starterPreview(starterByKey("winback_offer"), "en_US", "Melany's Beauty Salon"),
-    "Hi Dani, it's been a while since we last saw you at Melany's Beauty Salon. We'd love to have you back — pick a time that suits you here: [Booking link] and we'll take care of the rest.",
+    starterPreview(starterByKey("winback_offer"), "en_US", "Marisa's Beauty Salon"),
+    "Hi Dani, it's been a while since we last saw you at Marisa's Beauty Salon. We'd love to have you back — pick a time that suits you here: [Booking link] and we'll take care of the rest.",
   );
   assert.ok(
     starterPreview(starterByKey("quick_note"), "es").startsWith("Hola Dani, una nota rápida de [Nombre del negocio]:"),
@@ -128,10 +128,10 @@ test("a saved template reads as this business's message: its own name and bookin
     { label: "Value 3", example: "https://booksy.com/luna-studio", position: 3 },
   ];
   const body = "Hi {{1}}, thanks for calling {{2}}. Book any time: {{3}} or just write to us here.";
-  const own = { business_name: "Melany's Beauty Salon", booking_link: "https://booksy.com/melany" };
+  const own = { business_name: "Marisa's Beauty Salon", booking_link: "https://book.example.com/marisa" };
   assert.equal(
     templatePreview({ name: "save_our_number", body_preview: body, variables: filed }, own),
-    "Hi Dani, thanks for calling Melany's Beauty Salon. Book any time: https://booksy.com/melany or just write to us here.",
+    "Hi Dani, thanks for calling Marisa's Beauty Salon. Book any time: https://book.example.com/marisa or just write to us here.",
     "a starter's slots are known by its name",
   );
   assert.equal(
@@ -160,7 +160,7 @@ test("a saved template reads as this business's message: its own name and bookin
       },
       own,
     ),
-    "Book again: https://booksy.com/melany",
+    "Book again: https://book.example.com/marisa",
     "a link slot is this business's link",
   );
   assert.equal(
@@ -216,8 +216,8 @@ test("a slot's source: a starter's own, or a guess from the label and the exampl
     defaultSlotKinds({
       name: "reservar_ahora",
       variables: [
-        { position: 1, label: "Business name", example: "Melany's" },
-        { position: 2, label: "Booking link", example: "booksy.com/melanys" },
+        { position: 1, label: "Business name", example: "Marisa's" },
+        { position: 2, label: "Booking link", example: "book.example.com/marisas" },
       ],
     }),
     ["business_name", "booking_link"],

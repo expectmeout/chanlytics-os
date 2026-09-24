@@ -40,7 +40,7 @@ export const callDto = (over = {}) => ({
   status: "ended",
   from_e164: "+19175550106",
   from_raw: null,
-  to_e164: "+13083368109",
+  to_e164: "+13055550123",
   started_at: at(1200),
   ended_at: at(1197),
   duration_ms: 190_000,
@@ -50,7 +50,7 @@ export const callDto = (over = {}) => ({
   in_voicemail: false,
   summary: "The caller asked about a bridal trial.",
   transcript_object: [
-    { role: "agent", content: "Thank you for calling Melany's Beauty Salon. How can I help?", words: [{ start: 0 }] },
+    { role: "agent", content: "Thank you for calling Marisa's Beauty Salon. How can I help?", words: [{ start: 0 }] },
     { role: "user", content: "Hi! I'd like to do a bridal trial on October third.", words: [{ start: 6 }] },
   ],
   recording: { fetch_state: "stored", mime: "audio/mpeg", bytes: 48_000 },
@@ -171,14 +171,14 @@ test("a connected call with no recording says so; a call that never connected sa
 
 globalThis.window = {
   location: {
-    pathname: "/w/melanys",
+    pathname: "/w/marisas",
     hash: "",
     origin: "https://app.chanlytics.com",
     assign() {},
     replace() {},
     reload() {},
   },
-  __WORKSPACES: [{ id: "t1", slug: "melanys", name: "Melany's Beauty Salon", status: "active", timezone: ZONE }],
+  __WORKSPACES: [{ id: "t1", slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: ZONE }],
   __ACTIVE_WORKSPACE: "t1",
   __chrome: { state: stateOf },
   __identity: { member: memberWords },
@@ -412,7 +412,7 @@ test("a call is part of its conversation: where it began, its lines as the threa
   assert.deepEqual(
     lines.map((l) => [hasClass("client")(l) ? "theirs" : "ours", words(l)]),
     [
-      ["ours", "Thank you for calling Melany's Beauty Salon. How can I help?"],
+      ["ours", "Thank you for calling Marisa's Beauty Salon. How can I help?"],
       ["theirs", "Hi! I'd like to do a bridal trial on October third."],
     ],
     "the receptionist's words on our side, the caller's on theirs, as a written thread draws them",

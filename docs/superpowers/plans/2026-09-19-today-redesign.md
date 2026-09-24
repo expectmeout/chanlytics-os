@@ -1773,7 +1773,7 @@ test("the same moment is the same day, kept rather than rebuilt on every draw", 
   const a = todaySample(NOW);
   assert.equal(a, todaySample(NOW));
   assert.notEqual(a, todaySample(NOW + 60_000), "another moment is another day");
-  assert.equal(a.TODAY_DATA.standing.eyebrow.split(" · ").at(-1), "Melany's Studio");
+  assert.equal(a.TODAY_DATA.standing.eyebrow.split(" · ").at(-1), "Marisa's Studio");
 });
 
 test("every figure agrees with the threads and calls under it", () => {
@@ -2094,11 +2094,11 @@ function build(nowMs: number): TodaySample {
   const lastInboundAt = conversations.flatMap((c) => c.messages.filter((m) => m.direction === "inbound").map((m) => m.created_at)).sort().at(-1) ?? null;
   const lastOutboundAt = conversations.flatMap((c) => c.messages.filter((m) => m.direction === "outbound" && m.status === "delivered").map((m) => m.created_at)).sort().at(-1) ?? null;
   const metrics: MetricsSummaryDto = {
-    workspace: { name: "Melany's Studio", timezone: ZONE, status: "active" },
+    workspace: { name: "Marisa's Studio", timezone: ZONE, status: "active" },
     channels: [
       { kind: "whatsapp", status: "active", number: "+1 (305) 555-0100" },
       { kind: "voice", status: "active", number: "+1 (305) 555-0100" },
-      { kind: "email", status: "active", number: null, address: "hello@melanys.example" },
+      { kind: "email", status: "active", number: null, address: "hello@marisas.example" },
     ],
     window: { days: 1, since, since_local: `${today}T00:00:00`, now_local: naiveLocal(nowMs, ZONE) },
     now: {
@@ -2291,7 +2291,7 @@ export function installTodaySample(win: Record<string, unknown>, nowMs: number =
 }
 ```
 
-(This block is the file as committed. What the real types, the rules and the review forced while it was written: `BellRow` lives in the bridge's `notifications.ts`, which imports `./api`, so the sample declares its own identical interface; the email wire carries `number: null`; Bea's and Priya's threads hold an earlier exchange so only Renata and Marco are new today; `trade-neutral.test.mjs` refuses a salon's words in bridge code, so the business is "Melany's Studio" and its copy says "color treatment"; the borrowed surfaces live under ONE namespaced global, `window.__TODAY_SAMPLE`, because the mockup's other pages switch to their real variants on the bridge's own names and crash on a sample's partial shapes, so only `TODAY_DATA` and `__today`, which Today alone reads, are set as globals, and PR B's page reads the rest through `todaySurface` in a demo session; and every metric is counted from the rows and windowed to the business's day, so the figures agree with their receipts at any hour, which the last test walks at 00:13, 06:00, 16:00 and 22:00. Two globals the earlier draft published are deliberately gone: `__refreshSurface` and `__surfaceFailed` are the app shell's hooks, not a borrowed surface, and every reader guards them (`components/data-bits.jsx:495`, `pages/app-shell.jsx:23`), so nothing breaks; the cost is that a failed read's line and its retry cannot be seen in the mockup. Task B4 says whether the page wants them through `todaySurface`.)
+(This block is the file as committed. What the real types, the rules and the review forced while it was written: `BellRow` lives in the bridge's `notifications.ts`, which imports `./api`, so the sample declares its own identical interface; the email wire carries `number: null`; Bea's and Priya's threads hold an earlier exchange so only Renata and Marco are new today; `trade-neutral.test.mjs` refuses a salon's words in bridge code, so the business is "Marisa's Studio" and its copy says "color treatment"; the borrowed surfaces live under ONE namespaced global, `window.__TODAY_SAMPLE`, because the mockup's other pages switch to their real variants on the bridge's own names and crash on a sample's partial shapes, so only `TODAY_DATA` and `__today`, which Today alone reads, are set as globals, and PR B's page reads the rest through `todaySurface` in a demo session; and every metric is counted from the rows and windowed to the business's day, so the figures agree with their receipts at any hour, which the last test walks at 00:13, 06:00, 16:00 and 22:00. Two globals the earlier draft published are deliberately gone: `__refreshSurface` and `__surfaceFailed` are the app shell's hooks, not a borrowed surface, and every reader guards them (`components/data-bits.jsx:495`, `pages/app-shell.jsx:23`), so nothing breaks; the cost is that a failed read's line and its retry cannot be seen in the mockup. Task B4 says whether the page wants them through `todaySurface`.)
 
 - [ ] **Step 4: `serve-legacy.mjs` builds both samples.** Replace the block from `const SAMPLE = path.join(...)` through the end of `reportsSampleBundle` (the `return built.js; }`) with:
 
@@ -2687,7 +2687,7 @@ const W = globalThis.window;
 /* ------------------------------------ a working day ------------------------------------ */
 
 const metrics = (over = {}) => ({
-  workspace: { name: "Melany's Beauty Salon", timezone: ZONE, status: "active" },
+  workspace: { name: "Marisa's Beauty Salon", timezone: ZONE, status: "active" },
   channels: [{ kind: "whatsapp", status: "active", number: "+1 305" }, { kind: "voice", status: "active", number: "+1 786" }],
   window: { days: 1, since: "2026-09-18T04:00:00Z", since_local: "2026-09-18T00:00:00", now_local: "2026-09-18T16:00:00" },
   now: { escalations_open: 1, oldest_open_escalation_at: "2026-09-18T18:20:00Z", threads_needing_human: 1, threads_snoozed: 0, threads_awaiting_reply: 0, last_inbound_at: "2026-09-18T19:38:00Z", last_outbound_at: "2026-09-18T19:38:41Z", ...(over.now ?? {}) },
@@ -2742,7 +2742,7 @@ test("the standing line: the day, the time, the lines counted, its own dot; no g
   const tree = draw(W.HeroBrief);
   const line = byTestId(tree, "today-standing");
   assert.ok(line);
-  assert.match(textOf(line), /Melany's Beauty Salon/);
+  assert.match(textOf(line), /Marisa's Beauty Salon/);
   assert.match(textOf(line), /2 of 2 lines connected/);
   assert.ok(!/Good (morning|afternoon|evening)/.test(textOf(line)));
   assert.ok(!textOf(line).includes(busy().standing.headline), "Ask reads the headline; the page draws the work instead");

@@ -27,11 +27,11 @@ import { readCode, readRaw } from "./_source.mjs";
 
 const NOW = Date.parse("2026-09-07T15:00:00Z");
 const FACTS = {
-  name: "Melany's Beauty Salon",
+  name: "Marisa's Beauty Salon",
   tone: "warm, brief, no exclamation marks",
   languages: ["English", "Spanish"],
-  phone: "+1 646 932 5775",
-  website: "https://melanysbeautysalon.com",
+  phone: "+1 212 555 0142",
+  website: "https://marisasbeautysalon.example.com",
   services: ["Balayage", "Keratin treatment", "Blowout"],
 };
 
@@ -55,7 +55,7 @@ test("the prompt: the business as the system, the charter's rules, the review as
   const p = reviewReplyPrompt(FACTS, {
     rating: 5,
     author: "Maria Lopez",
-    text: "Best balayage in Queens, Melany is a  magician.",
+    text: "Best balayage in Queens, Marisa is a  magician.",
     written_at: "2026-09-05T12:00:00Z",
   });
   assert.ok(
@@ -64,7 +64,7 @@ test("the prompt: the business as the system, the charter's rules, the review as
     ),
   );
   assert.ok(
-    p.system.includes("Business: Melany's Beauty Salon.") &&
+    p.system.includes("Business: Marisa's Beauty Salon.") &&
       p.system.includes("Tone, in the owner's words: warm, brief, no exclamation marks"),
   );
   assert.ok(
@@ -72,7 +72,7 @@ test("the prompt: the business as the system, the charter's rules, the review as
       p.system.includes("Services: Balayage, Keratin treatment, Blowout."),
   );
   assert.ok(
-    p.system.includes("Website: https://melanysbeautysalon.com") && p.system.includes("Phone: +1 646 932 5775"),
+    p.system.includes("Website: https://marisasbeautysalon.example.com") && p.system.includes("Phone: +1 212 555 0142"),
   );
   assert.ok(
     p.system.includes(
@@ -86,13 +86,13 @@ test("the prompt: the business as the system, the charter's rules, the review as
       p.system.includes("Never argue, never dispute what they wrote, never blame them."),
   );
   assert.ok(
-    p.system.includes("put right (+1 646 932 5775)"),
+    p.system.includes("put right (+1 212 555 0142)"),
     "the invitation on a poor review carries the line customers use",
   );
   assert.ok(p.system.endsWith("Answer with the reply text only."));
   assert.equal(
     p.user,
-    'Rating: 5 of 5\nFrom: Maria Lopez\nWritten: 2026-09-05\nReview: "Best balayage in Queens, Melany is a magician."',
+    'Rating: 5 of 5\nFrom: Maria Lopez\nWritten: 2026-09-05\nReview: "Best balayage in Queens, Marisa is a magician."',
   );
 });
 

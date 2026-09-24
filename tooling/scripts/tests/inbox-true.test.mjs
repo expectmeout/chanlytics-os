@@ -119,7 +119,7 @@ test("a teammate's name on a thread nobody flagged is not a claim: the thread is
   assert.equal(vm.summary, "They wrote last — no reply yet.", "and its one sentence is the true one");
 
   const flagged = vmOf(
-    quiet([wrote("m1", "Can I speak to Melany?", 40)], {
+    quiet([wrote("m1", "Can I speak to Marisa?", 40)], {
       state: "needs_human",
       assignee_user_id: TEAMMATE,
       assignee_is_me: false,
@@ -231,7 +231,7 @@ test("a call back's flag says why it was flagged, and its to-do is said once, wh
       asked({ reason: "callback", details }),
     );
   const long =
-    "Call Emily back to confirm the bridal trial on October 3 — she needs a quote for three people and asked to speak with Melany directly";
+    "Call Emily back to confirm the bridal trial on October 3 — she needs a quote for three people and asked to speak with Marisa directly";
   const flag = vm(long).timeline.find((e) => e.type === "event").body;
   // It quoted the to-do (cut at 120 characters), under the band that said it again beside "From the call".
   assert.equal(

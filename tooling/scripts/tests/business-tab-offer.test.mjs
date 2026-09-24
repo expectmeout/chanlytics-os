@@ -29,7 +29,7 @@ import {
   escape,
   foldOf,
   labelled,
-  melany,
+  marisa,
   openFold,
   openFolds,
   openRows,
@@ -46,7 +46,7 @@ after(() => unmount());
 
 /** Thirty-three services, as the live record holds them: every one quoted at consult. */
 const many = {
-  ...melany,
+  ...marisa,
   services: Array.from({ length: 33 }, (_, i) => ({
     name: `Service ${i + 1}`,
     duration_min: 30 + i,
@@ -55,7 +55,7 @@ const many = {
 };
 const LIMIT = 60;
 const full = {
-  ...melany,
+  ...marisa,
   services: Array.from({ length: LIMIT }, (_, i) => ({ name: `Service ${i + 1}`, duration_min: 30 })),
 };
 
@@ -153,7 +153,7 @@ test("removing a service offers it back at its own index", () => {
 });
 
 test("the booking-rules fold shows what the composer will write", () => {
-  let tree = drawTab({ profile: melany });
+  let tree = drawTab({ profile: marisa });
   openFold(tree, "booking_rules");
   tree = redrawTab();
   const S = W.__businessTabSave;
@@ -173,11 +173,11 @@ test("the booking-rules fold shows what the composer will write", () => {
 });
 
 test("consult-first is its own row with its own name", () => {
-  const row = byTestId(drawTab({ profile: melany }), "rec-row-consult_first");
+  const row = byTestId(drawTab({ profile: marisa }), "rec-row-consult_first");
   assert.match(textOf(row), /Needs a consult first/i);
   assert.match(textOf(row), /Color correction, Extensions/);
   const empty = byTestId(
-    drawTab({ profile: { ...melany, booking_rules: without(melany.booking_rules, "consult_first") } }),
+    drawTab({ profile: { ...marisa, booking_rules: without(marisa.booking_rules, "consult_first") } }),
     "rec-row-consult_first",
   );
   assert.match(textOf(empty), /None/);
@@ -198,18 +198,18 @@ test("What you offer draws four rows under its title, and the booking rules in o
     "Needs a consult first",
   ]);
   const rules = byTestId(card, "rec-row-booking_rules");
-  assert.match(textOf(rules), new RegExp(escape(bookingRulesWords(melany.booking_rules).line)));
+  assert.match(textOf(rules), new RegExp(escape(bookingRulesWords(marisa.booking_rules).line)));
   assert.equal(
-    bookingRulesWords(melany.booking_rules).line,
+    bookingRulesWords(marisa.booking_rules).line,
     "At least 2 hours' notice · 30-minute slots · up to 14 days ahead · up to 4 people",
     "the canvas's line",
   );
   // The notes under it, as sentences.
   const noted = drawTab({
     profile: {
-      ...melany,
+      ...marisa,
       booking_rules: {
-        ...melany.booking_rules,
+        ...marisa.booking_rules,
         notes: ["No chemical services after 4 PM", "Bridal parties are booked by phone"],
       },
     },
@@ -220,7 +220,7 @@ test("What you offer draws four rows under its title, and the booking rules in o
   );
   // None of the five set: what the openings are worked out with, not "no rule".
   const bare = byTestId(
-    drawTab({ profile: { ...melany, booking_rules: { consult_first: ["Extensions"] } } }),
+    drawTab({ profile: { ...marisa, booking_rules: { consult_first: ["Extensions"] } } }),
     "rec-row-booking_rules",
   );
   assert.match(textOf(bare), /The calendar's own — at least 2 hours' notice, up to 14 days ahead, in 30-minute slots/);
@@ -229,14 +229,14 @@ test("What you offer draws four rows under its title, and the booking rules in o
 
 test("a chip names a service alone where it has no duration", () => {
   const chips = all(
-    byTestId(drawTab({ profile: { ...melany, services: [{ name: "Cut" }] } }), "rec-row-services"),
+    byTestId(drawTab({ profile: { ...marisa, services: [{ name: "Cut" }] } }), "rec-row-services"),
     (n) => classes(n).includes("rec-chip"),
   );
   assert.deepEqual(chips.map(textOf), ["Cut"]);
 });
 
 test("with no services the row says none yet, and its act adds one", () => {
-  const tree = drawTab({ profile: without(melany, "services") });
+  const tree = drawTab({ profile: without(marisa, "services") });
   const row = byTestId(tree, "rec-row-services");
   assert.match(textOf(row), /None yet/);
   assert.equal(row.props["data-empty"], "true");
@@ -581,7 +581,7 @@ test("Needs a consult first says a consultation starts a deal while it is empty,
   // With nothing that needs one, the row says what one would start: the hint is the answer's, and an empty row's.
   const bare = (sellsBy) => ({
     sellsBy,
-    profile: { ...melany, booking_rules: without(melany.booking_rules, "consult_first") },
+    profile: { ...marisa, booking_rules: without(marisa.booking_rules, "consult_first") },
   });
   const none = drawTab(bare("proposal"));
   assert.match(textOf(byTestId(none, "rec-row-consult_first")), /None/);
@@ -1021,7 +1021,7 @@ test("opening the sheet with a fold holding changes asks about the fold, and ope
 });
 
 test("the standing line's services door opens the sheet, guarded like any row", () => {
-  const bare = without(melany, "services");
+  const bare = without(marisa, "services");
   let tree = drawTab({ profile: bare });
   assert.equal(standingLine(W.__SETTINGS.config.brain, true).missing.row, "services");
   press(byTestId(byTestId(tree, "rec-standing"), "rec-standing-door"));
@@ -1196,7 +1196,7 @@ test("each booking rule saves within its range; outside it, or not a whole numbe
       assert.deepEqual(openFolds(tree), ["booking_rules"]);
     }
     for (const good of [lo, hi]) {
-      let tree = drawTab({ profile: { ...melany, booking_rules: { consult_first: ["Extensions"] } } });
+      let tree = drawTab({ profile: { ...marisa, booking_rules: { consult_first: ["Extensions"] } } });
       openFold(tree, "booking_rules");
       tree = redrawTab();
       typeHeard(tree, labels[key], String(good));
@@ -1243,7 +1243,7 @@ test("the booking rules' save writes those rules and their notes, and nothing el
     expected,
     "only the fold's own keys: an emptied box deletes its key, and consult-first is kept as it was",
   );
-  assert.deepEqual(sent[0].config.brain.profile.booking_rules.consult_first, melany.booking_rules.consult_first);
+  assert.deepEqual(sent[0].config.brain.profile.booking_rules.consult_first, marisa.booking_rules.consult_first);
   assert.deepEqual(openFolds(redrawTab()), []);
 });
 
@@ -1267,7 +1267,7 @@ test("consult-first saves one service to a line, under its own name, and says wh
   );
   saveFoldOf(tree, "consult_first");
   assert.deepEqual(sent[0].config.brain.profile.booking_rules, {
-    ...melany.booking_rules,
+    ...marisa.booking_rules,
     consult_first: ["Color correction", "Extensions", "Keratin"],
   });
   // Too many, or one too long, is said under the box, and nothing is sent.
@@ -1299,7 +1299,7 @@ test("consult-first and the booking rules share one stored object, and saved one
   assert.equal(sent.length, 2);
   assert.deepEqual(
     sent[1].config.brain.profile.booking_rules,
-    { ...melany.booking_rules, lead_hours: 6, consult_first: ["Keratin"] },
+    { ...marisa.booking_rules, lead_hours: 6, consult_first: ["Keratin"] },
     "REGRESSION: one fold put the other's keys back as they were",
   );
   assert.equal(sent[1].version, 8, "the second on the first's answer");
@@ -1318,7 +1318,7 @@ test("consult-first and the booking rules share one stored object, and saved one
   tree = redrawTab();
   saveFoldOf(tree, "consult_first");
   assert.deepEqual(sent[1].config.brain.profile.booking_rules, {
-    ...without(melany.booking_rules, "consult_first"),
+    ...without(marisa.booking_rules, "consult_first"),
     party_max: 8,
   });
 });
@@ -1327,8 +1327,8 @@ test("the consult-first mark and the search's folding are contracts' own rules, 
   // The spec review's probe: the sheet folded names with a copy of contracts' foldName, and matched the consult-first list
   // with a copy of needsConsultation. A second implementation of a rule is a bug even when it agrees (root CLAUDE.md).
   const services = [{ name: "Colour Correction" }, { name: "Uñas de gel" }, { name: " Extensions" }, { name: "Cut" }];
-  const rules = { ...melany.booking_rules, consult_first: ["colour correction ", "EXTENSIONS"] };
-  let tree = drawTab({ profile: { ...melany, services, booking_rules: rules } });
+  const rules = { ...marisa.booking_rules, consult_first: ["colour correction ", "EXTENSIONS"] };
+  let tree = drawTab({ profile: { ...marisa, services, booking_rules: rules } });
   tree = openSheet(tree);
   const marked = services.map((_, i) => !!byTestId(tree, `rec-service-consult-${i}`));
   assert.deepEqual(
@@ -1352,7 +1352,7 @@ test("the consult-first mark and the search's folding are contracts' own rules, 
 /* ------------------------------------ put back between the same two rows ------------------------------------ */
 
 const ten = {
-  ...melany,
+  ...marisa,
   services: Array.from({ length: 10 }, (_, i) => ({ name: `Service ${i + 1}`, duration_min: 30 })),
 };
 /** The sheet's list as drawn: each row by its name, and each Undo left in a row's place as <the name it puts back>. */
@@ -1504,7 +1504,7 @@ test("while the sheet could not open, the services row offers no act, as a fold 
   const was = console.error;
   console.error = (...args) => errors.push(args);
   try {
-    let tree = drawTab({ profile: { ...melany, services: { Balayage: 180 } } });
+    let tree = drawTab({ profile: { ...marisa, services: { Balayage: 180 } } });
     const row = byTestId(tree, "rec-row-services");
     assert.equal(byTestId(row, "rec-row-act-services"), null, "REGRESSION: an act that opened nothing");
     assert.match(textOf(row), /None yet/, "and the row still says what it says");
@@ -1789,7 +1789,7 @@ test("the search says politely how many rows it found, in contracts' words", () 
 test("a consult-first mark describes its row's name box, so it is heard with the box", () => {
   // The quality review: the mark beside a name was a word nobody heard with the box it stood beside.
   const tree = openSheet(
-    drawTab({ profile: { ...many, booking_rules: { ...melany.booking_rules, consult_first: ["Service 2"] } } }),
+    drawTab({ profile: { ...many, booking_rules: { ...marisa.booking_rules, consult_first: ["Service 2"] } } }),
   );
   const mark = byTestId(tree, "rec-service-consult-1");
   const nameBox = labelled(tree, "Service 2 name");

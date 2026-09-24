@@ -7,7 +7,7 @@
  * risk lives in the SQL (ordering, status filters, tenant scoping) rather than
  * in the mapping.
  *
- * Runs against the smoke-test tenant, never Melany's, and cleans up after
+ * Runs against the smoke-test tenant, never Marisa's, and cleans up after
  * itself. Skips (does not fail) without service-role credentials, so CI without
  * secrets stays green.
  *
@@ -117,7 +117,7 @@ before(async () => {
       direction: "outbound",
       sender: "human",
       type: "text",
-      body: "Melany here — happy to help.",
+      body: "Marisa here — happy to help.",
       status: "sent",
       created_at: at(6),
     },
@@ -182,7 +182,7 @@ test("history is chronological and maps senders to model roles", { skip }, async
     { role: "user", content: "hi are you open?" },
     { role: "assistant", content: "We're open till 7 today." },
     { role: "assistant", content: "Caller asked about gel refills." },
-    { role: "assistant", content: "Melany here — happy to help." },
+    { role: "assistant", content: "Marisa here — happy to help." },
     { role: "assistant", content: "Imported reply from the old thread." },
   ]);
 });

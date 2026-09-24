@@ -282,7 +282,7 @@ test("under a pause, the receptionist's queued draft goes unless a person spoke 
             tenant_id: T,
             conversation_id: "c1",
             status: "sent",
-            body: "Melany here",
+            body: "Marisa here",
             sender: "human",
             channel: "whatsapp",
             direction: "outbound",

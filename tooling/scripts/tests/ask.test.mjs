@@ -189,7 +189,7 @@ test("language, scope and settings changes", () => {
   assert.equal(scopeFromRoute("clients", "seg:vip"), null);
   const cfg = {
     brain: {
-      business_name: "Melany's",
+      business_name: "Marisa's",
       profile: { hours: { mon: { open: "10:00", close: "18:00" } }, closures: [{ date: "2026-12-25" }] },
     },
     features: { vision: true },

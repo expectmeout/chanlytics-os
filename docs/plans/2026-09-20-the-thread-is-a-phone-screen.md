@@ -1,6 +1,6 @@
 # The thread is a phone screen
 
-Measured on `app.chanlytics.com` at 375×812, signed in, against Melany's Beauty Salon.
+Measured on `app.chanlytics.com` at 375×812, signed in, against the pilot's workspace.
 
 ## What the audit found
 
@@ -26,7 +26,7 @@ band's `IxAsk`.
 **An email arrived with its quote chain intact.** "Got it, thanks!" rendered as six lines of
 `On Thu, Sep 17, 2026 at 10:44 PM … wrote: > testing back at you >`.
 
-**A booking URL took five lines.** `https://booksy.com/en-us/1817434_melany-s-beauty-salon_hair-salon_29902_brooklyn`
+**A booking URL took five lines.** `https://book.example.com/en-us/4471902_marisa-s-beauty-salon_hair-salon_29902_brooklyn`
 force-wrapped inside the bubble, and was not tappable.
 
 Also: the `…` menu opened as a desktop popover pinned to the far top corner, over the

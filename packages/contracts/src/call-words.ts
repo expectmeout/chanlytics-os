@@ -38,7 +38,7 @@ export function callOutcomeWords(v: unknown): string | null {
 
 /**
  * A provider summary from before the analysis carried what the caller
- * wanted reads "The user called Melany's Beauty Salon to inquire about…".
+ * wanted reads "The user called Marisa's Beauty Salon to inquire about…".
  * Nobody says that. The opening is folded to "Called to inquire about…"
  * without touching a word of the rest, so nothing is invented; a summary
  * that opens any other way is kept as it is.

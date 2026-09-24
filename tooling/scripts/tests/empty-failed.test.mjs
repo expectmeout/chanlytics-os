@@ -268,8 +268,8 @@ const NOW = new Date("2026-08-27T15:00:00Z");
 const metrics = (over = {}) => ({
   workspace: { name: "Harbor Moving", timezone: "America/New_York", status: "active" },
   channels: [
-    { kind: "whatsapp", status: "active", number: "+19177724072" },
-    { kind: "voice", status: "active", number: "+13083368109" },
+    { kind: "whatsapp", status: "active", number: "+13055550188" },
+    { kind: "voice", status: "active", number: "+13055550123" },
   ],
   window: {
     days: 1,

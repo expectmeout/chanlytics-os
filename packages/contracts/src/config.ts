@@ -300,7 +300,7 @@ export interface PolicyRow {
  * wants variables. So the voice agent got its own copy of the same facts in
  * another dashboard, and the two drift the first time somebody opens later.
  *
- * Every field is OPTIONAL and the profile itself is optional, because Melany's
+ * Every field is OPTIONAL and the profile itself is optional, because the pilot's
  * hand-written prompt is live and working. Nothing composes until a workspace
  * actually fills these in.
  */
@@ -1418,7 +1418,7 @@ function composeSystemPromptWith(
     const stated = above.length > 0;
     const text = profile.extra_instructions.trim();
     // This block is often a prompt that was written for ONE channel before the
-    // business had fields — Melany's opens "You are the WhatsApp assistant".
+    // business had fields — the pilot's opens "You are the WhatsApp assistant".
     // Read down a phone line that is a false identity statement, and the fix
     // is not to strip it (whose sentence would we delete?) but to say where it
     // came from. The channel line below and the rules after it still win.
@@ -1486,9 +1486,9 @@ function composeSystemPromptWith(
  * has filled in its profile gets a prompt composed from those facts; one that
  * has not keeps the prompt it already had, byte for byte.
  *
- * That fallback is the whole reason this can ship: Melany's hand-written
+ * That fallback is the whole reason this can ship: the pilot's hand-written
  * prompt is live and answering real customers, and a migration that changed
- * what her receptionist says the moment the code deployed would be a
+ * what its receptionist says the moment the code deployed would be a
  * behaviour change nobody asked for.
  */
 export function resolveSystemPrompt(

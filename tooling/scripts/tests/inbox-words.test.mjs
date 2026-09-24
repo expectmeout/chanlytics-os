@@ -94,8 +94,8 @@ const tpl = (name, over = {}) => ({
 const valued = (...examples) => examples.map((example, i) => ({ label: `Value ${i + 1}`, example, position: i + 1 }));
 const booking = tpl("booking_link", {
   variables: [
-    { label: "Business name", example: "Melany's Beauty Salon", position: 1 },
-    { label: "Booking link", example: "booksy.com/melanys", position: 2 },
+    { label: "Business name", example: "Marisa's Beauty Salon", position: 1 },
+    { label: "Booking link", example: "book.example.com/marisas", position: 2 },
   ],
 });
 const offer = tpl("monthly_offer", {
@@ -218,7 +218,7 @@ test("the thread knows what the composer needs: whether they said yes to offers,
 
 globalThis.window = {
   location: {
-    pathname: "/w/melanys",
+    pathname: "/w/marisas",
     hash: "",
     origin: "https://app.chanlytics.com",
     assign() {},
@@ -227,7 +227,7 @@ globalThis.window = {
   },
   localStorage: globalThis.localStorage,
   sessionStorage: globalThis.sessionStorage,
-  __WORKSPACES: [{ id: "t1", slug: "melanys", name: "Melany's Beauty Salon", status: "active", timezone: ZONE }],
+  __WORKSPACES: [{ id: "t1", slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: ZONE }],
   __ACTIVE_WORKSPACE: "t1",
   __chrome: { state: stateOf },
   __identity: { member: memberWords },

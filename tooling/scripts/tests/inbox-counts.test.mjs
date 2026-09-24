@@ -23,7 +23,7 @@ const NOW = new Date("2026-09-15T14:00:00Z");
 const ago = (min) => new Date(NOW.getTime() - min * 60_000).toISOString();
 const later = new Date(NOW.getTime() + 3 * 3_600_000).toISOString();
 const ANA = "u-ana";
-const TEAM = [{ userId: ANA, email: "ana@melanys.com", displayName: "Ana García" }];
+const TEAM = [{ userId: ANA, email: "ana@marisas.example.com", displayName: "Ana García" }];
 const person = (id, name) => ({
   id,
   display_name: name,
@@ -114,7 +114,7 @@ test("the fixtures stand where the salon's threads stand", () => {
 const counted = [];
 globalThis.window = {
   location: {
-    pathname: "/w/melanys",
+    pathname: "/w/marisas",
     hash: "",
     origin: "https://app.chanlytics.com",
     assign() {},

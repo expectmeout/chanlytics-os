@@ -23,7 +23,7 @@ import {
   KNOWN,
   composePromptPreview,
   drawTab,
-  melany,
+  marisa,
   redrawTab,
   openFolds,
   typeAt,
@@ -35,7 +35,7 @@ after(() => unmount());
 
 /** The page with the prompt sheet opened from the told section's door, on the channel asked for. */
 const drawPrompt = (channel = "whatsapp", over = {}) => {
-  const tree = drawTab({ profile: melany, ...over });
+  const tree = drawTab({ profile: marisa, ...over });
   press(byTestId(tree, "rec-prompt-open"));
   let open = redrawTab();
   if (channel !== "whatsapp") {
@@ -151,7 +151,7 @@ test("the page draws one sheet slot, and it draws one sheet or none", () => {
   // last because the tests' old stub kept every hook in one order; it keeps each component's where it sits now.)
   const slotOf = (tree) => find(tree, (n) => n.type === W.BtSheetSlot);
   const sheets = (tree) => all(tree, (n) => n.type === W.RecordSheet);
-  let tree = drawTab({ profile: melany });
+  let tree = drawTab({ profile: marisa });
   assert.ok(slotOf(tree), "closed");
   assert.equal(sheets(tree).length, 0, "and it draws no sheet");
 
@@ -185,7 +185,7 @@ test("opened after the services sheet, and the services sheet after it, every ed
       byTestId(tree, "rec-sheet-services"),
       (n) => n.type === "input" && /name$/.test(n.props["aria-label"] || ""),
     ).map((n) => n.props.value);
-  let tree = drawTab({ profile: melany });
+  let tree = drawTab({ profile: marisa });
   const rest = textOf(byTestId(tree, "rec-row-hours"));
   press(byTestId(tree, "rec-row-act-services"));
   tree = redrawTab();
@@ -219,7 +219,7 @@ test("opened after the services sheet, and the services sheet after it, every ed
 /* ------------------------------------ the sheet ------------------------------------ */
 
 test("the told section's door opens the sheet, and its Close, Escape and foot all close it again", () => {
-  let tree = drawTab({ profile: melany });
+  let tree = drawTab({ profile: marisa });
   assert.equal(sheetOf(tree), null);
   assert.equal(byTestId(tree, "rec-prompt-open").props["data-rec-act"], "prompt", "focus comes back to the door");
   press(byTestId(tree, "rec-prompt-open"));
@@ -314,7 +314,7 @@ test("each block says what contracts wrote about it, and a block with nothing to
 
 test("the prompt carried into a blank box is found, because the sheet cuts with the stored brain", () => {
   // No words of the owner's own: the resolver carries the stored prompt in their place, and the sheet names it so.
-  const carried = { ...melany, extra_instructions: undefined };
+  const carried = { ...marisa, extra_instructions: undefined };
   const tree = drawPrompt("whatsapp", { profile: carried });
   const own = byTestId(tree, "rec-prompt-block-extra_instructions");
   assert.ok(own, "the carried prompt is a block of its own");
@@ -395,9 +395,9 @@ test("every block a row of this page wrote opens that row, and the platform's op
 });
 
 test("the closed days' block opens the closed days' fold", () => {
-  // Melany's record has no closure ahead, so the block exists only on a record with one: a month out, whatever today is.
+  // Marisa's record has no closure ahead, so the block exists only on a record with one: a month out, whatever today is.
   const date = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10);
-  const tree = drawPrompt("whatsapp", { profile: { ...melany, closures: [{ date, note: "Inventory" }] } });
+  const tree = drawPrompt("whatsapp", { profile: { ...marisa, closures: [{ date, note: "Inventory" }] } });
   press(byTestId(tree, "rec-prompt-door-closures"));
   const next = redrawTab();
   assert.equal(sheetOf(next), null, "the sheet closes");
@@ -447,7 +447,7 @@ test("a role that may not change the business reads the whole prompt, and is off
 test("what the receptionist is told says who reads it at rest, with one door, and counts nothing", () => {
   // Task 4.0's guarantee, carried from PromptPreview's head: one phrase and the door at rest, no count anywhere on the
   // glass, and the phrase follows the channel last chosen.
-  let tree = drawTab({ profile: melany });
+  let tree = drawTab({ profile: marisa });
   const told = byTestId(tree, "rec-card-told");
   assert.equal(textOf(find(told, (n) => classes(n).includes("rec-card-title"))), "What your receptionist is told");
   assert.equal(textOf(find(told, (n) => classes(n).includes("rec-card-sub"))), PROMPT_READERS.whatsapp);
@@ -484,7 +484,7 @@ test("the sheet draws what the server composed, word for word, and nothing when 
     assert.ok(textOf(byTestId(sheet, "rec-prompt-now")).includes("It is 7:23 PM."));
     // Nothing composed: no section, no door, no sheet -- an empty box would say "your receptionist is told nothing".
     W.__composedPrompt = () => null;
-    tree = drawTab({ profile: melany });
+    tree = drawTab({ profile: marisa });
     assert.equal(byTestId(tree, "rec-card-told"), null);
     assert.equal(byTestId(tree, "rec-prompt-open"), null);
   } finally {

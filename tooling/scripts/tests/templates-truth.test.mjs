@@ -50,7 +50,7 @@ test("Meta's words into the table's: status, category, the body, the numbered va
       {
         type: "BODY",
         text: "Hi {{1}}, {{2}} is 20% off this week at {{3}}.",
-        example: { body_text: [["Dani", "Balayage", "Melany's"]] },
+        example: { body_text: [["Dani", "Balayage", "Marisa's"]] },
       },
       { type: "FOOTER", text: "Reply STOP to opt out" },
     ],
@@ -59,7 +59,7 @@ test("Meta's words into the table's: status, category, the body, the numbered va
   assert.deepEqual(mod.variablesOf(t), [
     { position: 1, label: "Value 1", example: "Dani" },
     { position: 2, label: "Value 2", example: "Balayage" },
-    { position: 3, label: "Value 3", example: "Melany's" },
+    { position: 3, label: "Value 3", example: "Marisa's" },
   ]);
   assert.deepEqual(
     mod.variablesOf(t, [{ position: 2, label: "Service", example: null }]).map((v) => v.label),

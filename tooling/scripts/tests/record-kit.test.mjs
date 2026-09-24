@@ -58,18 +58,18 @@ const byId = (tree, id) => find(tree, (n) => n.props?.id === id);
 test("a row draws its label, its value and one act", () => {
   const tree = draw(W.RecordRow, {
     label: "Website",
-    value: "melanysbeautysalon.com",
+    value: "marisasbeautysalon.example.com",
     act: { label: "Change", onClick: () => {} },
   });
   assert.match(textOf(tree), /Website/);
-  assert.match(textOf(tree), /melanysbeautysalon\.com/);
+  assert.match(textOf(tree), /marisasbeautysalon\.example\.com/);
   assert.match(textOf(tree), /Change/);
   assert.equal(all(tree, (n) => n.type === "button").length, 1, "one act, never two");
   // And the whole row is that act's press (record-row.jsx recRowPress): a row with an act says so, and one without
   // is not a press at all.
   const row = find(tree, (n) => classes(n).includes("rec-row"));
   assert.deepEqual([row.props["data-act"], row.props.onClick], ["true", W.recRowPress]);
-  const still = find(draw(W.RecordRow, { label: "Website", value: "melanysbeautysalon.com" }), (n) =>
+  const still = find(draw(W.RecordRow, { label: "Website", value: "marisasbeautysalon.example.com" }), (n) =>
     classes(n).includes("rec-row"),
   );
   assert.deepEqual([still.props["data-act"], still.props.onClick], [undefined, undefined]);
@@ -102,7 +102,7 @@ test("a press on a row is a press on its act, never for a press on something of 
     assert.deepEqual(pressed, ["act"], "a link or a box in the row is pressed for itself");
     W.recRowPress(at({ closest: (sel) => (sel.includes("button") ? act : null) }));
     assert.deepEqual(pressed, ["act"], "the act itself has already answered its own press");
-    selected.text = "melanys";
+    selected.text = "marisas";
     W.recRowPress(at(words));
     assert.deepEqual(pressed, ["act"], "words dragged over are a selection, not a press");
   } finally {
@@ -179,7 +179,7 @@ test("an empty row says so and keeps its act reachable", () => {
 });
 
 test("a fact that is not the owner's says where it came from, quietly; one they typed says nothing", () => {
-  const tree = draw(W.RecordRow, { label: "Address", value: "2581 Pitkin Ave", source: "verified" });
+  const tree = draw(W.RecordRow, { label: "Address", value: "1200 Maple Ave", source: "verified" });
   const src = find(tree, (n) => classes(n).includes("rec-src"));
   assert.ok(src, "a source that is not the owner's is said");
   assert.match(textOf(src), /from Google/, "in contracts' words");
@@ -189,12 +189,12 @@ test("a fact that is not the owner's says where it came from, quietly; one they 
     "a muted word beside the value, never a bordered pill: a phone wrapped the pill onto a line of its own",
   );
   // "You set this" is every row's default and tells an owner nothing they could act on.
-  const typed = draw(W.RecordRow, { label: "Address", value: "2581 Pitkin Ave", source: "typed" });
+  const typed = draw(W.RecordRow, { label: "Address", value: "1200 Maple Ave", source: "typed" });
   assert.ok(!find(typed, (n) => classes(n).includes("rec-src")), "typed draws no source at all");
   assert.equal(textOf(typed).includes(stateOf("fact", "typed").label), false);
   // The four that are not the owner's still are, each in contracts' words.
   for (const source of ["provisioned", "workspace", "absent"]) {
-    const row = draw(W.RecordRow, { label: "Answers on", value: "+1 (646) 932-5775", source });
+    const row = draw(W.RecordRow, { label: "Answers on", value: "+1 (212) 555-0142", source });
     assert.equal(
       textOf(find(row, (n) => classes(n).includes("rec-src"))),
       stateOf("fact", source).label,
@@ -205,9 +205,9 @@ test("a fact that is not the owner's says where it came from, quietly; one they 
 
 test("a disputed fact wears warn and offers the other answer", () => {
   const used = [];
-  const disputed = { value: "2581 Pitkin Ave, Brooklyn, NY 11208, USA", source: "verified", onUse: () => used.push(1) };
-  const tree = draw(W.RecordRow, { label: "Address", value: "2581 Pitkin Avenue", source: "typed", disputed });
-  assert.match(textOf(tree), /2581 Pitkin Ave, Brooklyn, NY 11208, USA/, "the other answer is on the row");
+  const disputed = { value: "1200 Maple Ave, Brooklyn, NY 11208, USA", source: "verified", onUse: () => used.push(1) };
+  const tree = draw(W.RecordRow, { label: "Address", value: "1200 Maple Avenue", source: "typed", disputed });
+  assert.match(textOf(tree), /1200 Maple Ave, Brooklyn, NY 11208, USA/, "the other answer is on the row");
   assert.deepEqual(
     all(tree, (n) => classes(n).includes("rec-src")).map(textOf),
     [stateOf("fact", "disputed").label, stateOf("fact", "verified").label],
@@ -225,7 +225,7 @@ test("a disputed fact wears warn and offers the other answer", () => {
   const kept = [];
   const keeping = draw(W.RecordRow, {
     label: "Address",
-    value: "2581 Pitkin Avenue",
+    value: "1200 Maple Avenue",
     source: "typed",
     disputed: { ...disputed, onKeep: () => kept.push(1) },
   });
@@ -236,18 +236,18 @@ test("a disputed fact wears warn and offers the other answer", () => {
 test("something wrong is on its row at full strength: a serious disagreement, or a sentence the page names", () => {
   const rowOf = (tree) => find(tree, (n) => classes(n).includes("rec-row"));
   assert.equal(
-    rowOf(draw(W.RecordRow, { label: "Website", value: "melanys.com" })).props["data-state"],
+    rowOf(draw(W.RecordRow, { label: "Website", value: "marisas.example.com" })).props["data-state"],
     undefined,
     "nothing wrong, no state",
   );
   // Severity is factConflicts' (contracts facts.ts), and it is about the customer: the published number that does not
   // reach the receptionist is serious; an address written two ways is minor.
-  const serious = { value: "+1 (308) 336-8109", source: "provisioned", severity: "serious", onUse: () => {} };
+  const serious = { value: "+1 (305) 555-0123", source: "provisioned", severity: "serious", onUse: () => {} };
   assert.equal(
     rowOf(
       draw(W.RecordRow, {
         label: "Tells customers to call",
-        value: "+1 (646) 932-5775",
+        value: "+1 (212) 555-0142",
         source: "typed",
         disputed: serious,
       }),
@@ -278,14 +278,14 @@ test("something wrong is on its row at full strength: a serious disagreement, or
 
 test("a minor disagreement keeps its warn word and its line, and leaves the row as it is", () => {
   const minor = {
-    value: "2581 Pitkin Ave, Brooklyn, NY 11208, USA",
+    value: "1200 Maple Ave, Brooklyn, NY 11208, USA",
     source: "verified",
     severity: "minor",
     onUse: () => {},
   };
   const tree = draw(W.RecordRow, {
     label: "Address",
-    value: "2581 Pitkin Avenue",
+    value: "1200 Maple Avenue",
     source: "typed",
     disputed: minor,
     act: { label: "Change", onClick: () => {} },
@@ -298,7 +298,7 @@ test("a minor disagreement keeps its warn word and its line, and leaves the row 
   );
   assert.match(
     textOf(find(row, (n) => classes(n).includes("rec-row-dispute"))),
-    /2581 Pitkin Ave, Brooklyn, NY 11208, USA/,
+    /1200 Maple Ave, Brooklyn, NY 11208, USA/,
     "and the line with the other answer",
   );
   // What draws an act at rest in record.css is the row's warn state or its being empty; this row has neither, so its
@@ -311,12 +311,12 @@ test("a disagreement with nothing to take it is a line to read, and offers no pr
   // A role that may not settle it, or an answer that is information rather than a fill (the workspace's own name):
   // the page passes no onUse, and the kit draws no button that could only refuse.
   const sentence =
-    "Your receptionist introduces the business as Melany's Beauty Salon; this workspace is named Billing probe.";
+    "Your receptionist introduces the business as Marisa's Beauty Salon; this workspace is named Billing probe.";
   const read = { value: "Billing probe", source: "workspace", severity: "minor", sentence };
   const tree = draw(W.RecordRow, {
     id: "name",
     label: "Name",
-    value: "Melany's Beauty Salon",
+    value: "Marisa's Beauty Salon",
     source: "typed",
     disputed: read,
   });
@@ -341,7 +341,7 @@ test("a disagreement with nothing to take it is a line to read, and offers no pr
   const kept = draw(W.RecordRow, {
     id: "name",
     label: "Name",
-    value: "Melany's Beauty Salon",
+    value: "Marisa's Beauty Salon",
     source: "typed",
     disputed: { ...read, onKeep: () => {} },
   });
@@ -355,7 +355,7 @@ test("an act says which row it acts on, and a gate's refusal replaces its press"
   const tree = draw(W.RecordRow, {
     id: "website",
     label: "Website",
-    value: "melanys.com",
+    value: "marisas.example.com",
     act: { label: "Change", onClick: () => pressed.push(1), gate },
   });
   assert.ok(
@@ -1028,7 +1028,7 @@ test("a tip you cannot click is a chip; one you can is a card", () => {
   const used = [];
   const card = draw(W.RecordTipCard, {
     title: "Google's address",
-    body: "2581 Pitkin Ave, Brooklyn, NY 11208, USA",
+    body: "1200 Maple Ave, Brooklyn, NY 11208, USA",
     act: { label: "Use it", onClick: () => used.push(1) },
   });
   assert.ok(
@@ -1183,7 +1183,7 @@ test("what saving writes is drawn a line at a time, and only the lines the page 
     id: "website",
     label: "Website",
     open: true,
-    says: "Website: https://melanys.example",
+    says: "Website: https://marisas.example",
     saysLabel: "It will say",
     changed: [0],
     onSave: () => {},
@@ -2058,7 +2058,7 @@ test("an inline editor is the row's label and its field, what saving writes, and
   const cancelled = [];
   const tree = drawInline(
     website({
-      says: "Website: https://melanys.example",
+      says: "Website: https://marisas.example",
       saysLabel: "It will say",
       onSave: () => saved.push(1),
       onCancel: () => cancelled.push(1),
@@ -2086,7 +2086,7 @@ test("an inline editor is the row's label and its field, what saving writes, and
   assert.equal(says.props["data-inline"], "true");
   assert.deepEqual(
     [textOf(find(says, (n) => classes(n).includes("rec-says-eyebrow"))), textOf(find(says, (n) => n.type === "pre"))],
-    ["It will say", "Website: https://melanys.example"],
+    ["It will say", "Website: https://marisas.example"],
   );
   press(find(tree, (n) => n.props?.["data-testid"] === "rec-inline-save-website"));
   press(find(tree, (n) => n.props?.["data-testid"] === "rec-inline-cancel-website"));
@@ -2120,9 +2120,9 @@ test("an inline editor is the row's label and its field, what saving writes, and
 test("what saving writes can say what goes as well as what comes, and a sentence of the page's before them", () => {
   const tree = drawInline(
     website({
-      says: "Website: https://melanys.example",
+      says: "Website: https://marisas.example",
       saysLabel: "It will say",
-      gone: "Website: https://melanysbeautysalon.com",
+      gone: "Website: https://marisasbeautysalon.example.com",
       goneLabel: "It will no longer say",
       note: "Saved like this, the receptionist starts being given the details on this page.",
     }),
@@ -2134,8 +2134,8 @@ test("what saving writes can say what goes as well as what comes, and a sentence
     textOf(find(p, (n) => n.type === "pre")),
   ]);
   assert.deepEqual(parts, [
-    ["says", "It will say", "Website: https://melanys.example"],
-    ["gone", "It will no longer say", "Website: https://melanysbeautysalon.com"],
+    ["says", "It will say", "Website: https://marisas.example"],
+    ["gone", "It will no longer say", "Website: https://marisasbeautysalon.example.com"],
   ]);
   assert.match(
     textOf(find(says, (n) => n.props?.["data-testid"] === "rec-inline-says-website-note")),
@@ -2224,7 +2224,7 @@ test("an inline editor takes focus as it opens, gives it back as it closes, and 
   const box = {
     tabIndex: 0,
     disabled: false,
-    value: "https://melanys.example",
+    value: "https://marisas.example",
     getClientRects: () => [{}],
     classList: { contains: () => false },
     closest: () => null,
@@ -2273,9 +2273,9 @@ test("an inline editor takes focus as it opens, gives it back as it closes, and 
 
 test("a row being edited keeps its disagreement on screen, to read, and its press stays with the row", () => {
   const disputed = {
-    value: "2581 Pitkin Ave, Brooklyn, NY 11208, USA",
+    value: "1200 Maple Ave, Brooklyn, NY 11208, USA",
     source: "verified",
-    sentence: "Your receptionist gives 2581 Pitkin Avenue; Google has you at 2581 Pitkin Ave, Brooklyn, NY 11208, USA.",
+    sentence: "Your receptionist gives 1200 Maple Avenue; Google has you at 1200 Maple Ave, Brooklyn, NY 11208, USA.",
     onUse: () => {},
   };
   const tree = drawInline(website({ id: "address", label: "Address", disputed }));
@@ -2292,7 +2292,7 @@ test("a row being edited keeps its disagreement on screen, to read, and its pres
     [],
     "the id is the row's own line's, once in the document",
   );
-  const row = draw(W.RecordRow, { id: "address", label: "Address", value: "2581 Pitkin Avenue", disputed });
+  const row = draw(W.RecordRow, { id: "address", label: "Address", value: "1200 Maple Avenue", disputed });
   assert.equal(all(row, (n) => n.props?.id === "rec-row-address-other").length, 1);
 });
 

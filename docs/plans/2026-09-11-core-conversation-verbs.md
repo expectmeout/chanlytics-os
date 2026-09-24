@@ -601,7 +601,7 @@ function fakes(over = {}) {
     replyChannel: async () => "whatsapp",
     priorReceipt: async () => null,
     template: async () => approved,
-    templateFacts: async () => ({ business_name: "Melany's", booking_link: "https://book.example/m" }),
+    templateFacts: async () => ({ business_name: "Marisa's", booking_link: "https://book.example/m" }),
     claimForReply: async (id, until, user, now) => { log.push(["claim", until, now]); return true; },
     queue: async (row) => { log.push(["queue", row]); return "m1"; },
     schedule: async (t, due, payload) => { log.push(["schedule", due.toISOString(), payload]); },
@@ -647,8 +647,8 @@ test("outside the window: only an approved template goes, a promotion needs a ye
   await refused(replyToConversation(promo.ports, cmd({ conv: closed, body: { template: { name: "booking_link_v1", language: "en_US" } } })), "forbidden", /offers/);
   const { ports, log } = fakes();
   const r = await replyToConversation(ports, cmd({ conv: closed, body: { template: { name: "booking_link_v1", language: "en_US", params: ["client", "params"] } } }));
-  assert.equal(log[3][1].body, "Book with Melany's: book.example/m", "the config's facts, the scheme stripped");
-  assert.deepEqual(log[4][2].template, { name: "booking_link_v1", language: "en_US", params: ["Melany's", "book.example/m"] });
+  assert.equal(log[3][1].body, "Book with Marisa's: book.example/m", "the config's facts, the scheme stripped");
+  assert.deepEqual(log[4][2].template, { name: "booking_link_v1", language: "en_US", params: ["Marisa's", "book.example/m"] });
   assert.equal(r.window_open, false);
   const bare = fakes({ templateFacts: async () => null });
   const fell = await replyToConversation(bare.ports, cmd({ conv: closed, body: { template: { name: "booking_link_v1", language: "en_US", params: ["A", "B"] } } }));

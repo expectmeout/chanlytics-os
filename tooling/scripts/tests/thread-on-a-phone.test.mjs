@@ -70,14 +70,14 @@ const conv = (messages, over = {}) => ({
 
 globalThis.window = {
   location: {
-    pathname: "/w/melanys",
+    pathname: "/w/marisas",
     hash: "",
     origin: "https://app.chanlytics.com",
     assign() {},
     replace() {},
     reload() {},
   },
-  __WORKSPACES: [{ id: "t1", slug: "melanys", name: "Melany's Beauty Salon", status: "active", timezone: ZONE }],
+  __WORKSPACES: [{ id: "t1", slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: ZONE }],
   __ACTIVE_WORKSPACE: "t1",
   __chrome: { state: stateOf },
   __identity: { member: memberWords },
@@ -89,7 +89,7 @@ globalThis.window = {
   },
   __surfaceState: () => "live",
   __DEMO_MODE: false,
-  __href: (_route, p) => `/api/v1/messages/${p.id}/media?workspace=melanys`,
+  __href: (_route, p) => `/api/v1/messages/${p.id}/media?workspace=marisas`,
   gate: () => ({}),
   addEventListener() {},
   removeEventListener() {},
@@ -219,7 +219,7 @@ const redraw = (dto, escalation = null) => {
 
 /* ---------------------------------- a link ---------------------------------- */
 
-const BOOKSY = "https://booksy.com/en-us/1817434_melany-s-beauty-salon_hair-salon_29902_brooklyn";
+const BOOKSY = "https://book.example.com/en-us/4471902_marisa-s-beauty-salon_hair-salon_29902_brooklyn";
 
 test("an address in a message is a link, and the whole of it stays in the DOM to be copied", () => {
   const tree = draw(conv([msg(), ours({ body: `Book any time: ${BOOKSY}` })]));

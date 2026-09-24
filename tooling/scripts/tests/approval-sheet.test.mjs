@@ -27,7 +27,7 @@ const run = (over = {}) => ({
 });
 const opts = (over = {}) => ({
   playbook: { trigger: "everyone_monthly", cap_per_run: 250, gap_days: 90, cadence_days: 30 },
-  businessName: "Melany Studio",
+  businessName: "Marisa Studio",
   today: "2026-09-21",
   open: { time: "10:00", moved: false },
   day: (ymd) => `day ${ymd}`,
@@ -70,7 +70,7 @@ test("a run that kept no count says who it reaches by the number it has and the 
 test('the words are the first named person\'s, slot by slot, and the people a greeting by name reaches with no name are counted -- they get "Hi there"', () => {
   const vm = C.toApprovalVM({ broadcast: run(), recipients: people }, opts());
   assert.equal(vm.reader, "Priya Nair", "the first person on it with a name, not a number");
-  assert.deepEqual(vm.values, ["This month at", "Melany Studio", "Priya"]);
+  assert.deepEqual(vm.values, ["This month at", "Marisa Studio", "Priya"]);
   assert.equal(vm.hiThere, 1);
   const noName = C.toApprovalVM(
     { broadcast: run({ params: [{ kind: "text", value: "20% off" }] }), recipients: people },

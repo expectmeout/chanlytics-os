@@ -51,7 +51,7 @@ const ICS = [
   "SUMMARY:Maria Lopez - Balayage",
   "DESCRIPTION:Booked via Booksy\\nPhone: (305) 555-0134\\nEmail: maria.lopez",
   " @gmail.com\\nNotes: first time\\, wants ash tones",
-  "LOCATION:Melany's Beauty Salon\\, 123 Main St",
+  "LOCATION:Marisa's Beauty Salon\\, 123 Main St",
   "DTSTART;TZID=America/New_York:20260908T140000",
   "DTEND;TZID=America/New_York:20260908T170000",
   "END:VEVENT",
@@ -59,7 +59,7 @@ const ICS = [
   "UID:b2",
   "SUMMARY:Haircut",
   'ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN="Ruiz, Ana: VIP";X-NUM-GUESTS=0:mailto:ana@example.com',
-  "ATTENDEE;CN=Melany Owner:mailto:owner@salon.com",
+  "ATTENDEE;CN=Marisa Owner:mailto:owner@salon.com",
   "DTSTART;TZID=America/New_York:20260910T100000",
   "DTEND;TZID=America/New_York:20260910T110000",
   "END:VEVENT",
@@ -89,14 +89,14 @@ test("the feed carries the description, the place and the guests — folded, une
     maria.description,
     "Booked via Booksy\nPhone: (305) 555-0134\nEmail: maria.lopez@gmail.com\nNotes: first time, wants ash tones",
   );
-  assert.equal(maria.location, "Melany's Beauty Salon, 123 Main St");
+  assert.equal(maria.location, "Marisa's Beauty Salon, 123 Main St");
   assert.deepEqual(maria.attendees, []);
   const cut = f.items.find((i) => i.uid === "b2");
   assert.deepEqual(
     cut.attendees,
     [
       { name: "Ruiz, Ana: VIP", email: "ana@example.com" },
-      { name: "Melany Owner", email: "owner@salon.com" },
+      { name: "Marisa Owner", email: "owner@salon.com" },
     ],
     "a quoted CN may hold : and ;",
   );
@@ -117,7 +117,7 @@ test("phones and emails are found wherever they were written; a date, a time and
     NO_OWN,
   );
   assert.deepEqual(g.emails, ["ana@example.com", "owner@salon.com"]);
-  assert.deepEqual(g.names, ["Ruiz, Ana: VIP", "Melany Owner"]);
+  assert.deepEqual(g.names, ["Ruiz, Ana: VIP", "Marisa Owner"]);
   const lunch = extractContacts(
     f.items.find((i) => i.uid === "b4"),
     NO_OWN,
@@ -220,8 +220,8 @@ const GUEST_ICS = [
   "BEGIN:VEVENT",
   "UID:g4",
   "SUMMARY:Gel manicure",
-  "ORGANIZER;CN=Melany Owner:mailto:Melany@Gmail.com",
-  "ATTENDEE;CN=Melany Owner;PARTSTAT=ACCEPTED:mailto:melany@gmail.com",
+  "ORGANIZER;CN=Marisa Owner:mailto:Marisa@Example.com",
+  "ATTENDEE;CN=Marisa Owner;PARTSTAT=ACCEPTED:mailto:marisa@example.com",
   "ATTENDEE;CN=Ana Gomez;PARTSTAT=NEEDS-ACTION:mailto:ana.gomez@gmail.com",
   "DTSTART;TZID=America/New_York:20260914T090000",
   "DTEND;TZID=America/New_York:20260914T100000",
@@ -317,7 +317,7 @@ test("an address is read after the number and before the name, so a customer boo
  * likely, since testing a new inbox means writing to it from your own address
  * -- matching them would hand them every appointment on the calendar.
  */
-const OWNER = { id: "p-melany", name: "Melany Owner", phone: null, email: "melany@gmail.com" };
+const OWNER = { id: "p-marisa", name: "Marisa Owner", phone: null, email: "marisa@example.com" };
 const ANA = { id: "p-ana-g", name: "Ana Gomez", phone: null, email: "ana.gomez@gmail.com" };
 
 test("the organiser is not the customer: the owner's own address and name are off the event, however many ways it names them", async () => {
@@ -347,7 +347,7 @@ test("the organiser is not the customer: the owner's own address and name are of
 
   const index = indexFeed(g.items, NO_OWN);
   assert.equal(
-    index.byEmail.get("melany@gmail.com"),
+    index.byEmail.get("marisa@example.com"),
     undefined,
     "the organiser is not indexed, so no number of events can add up to a match",
   );
@@ -359,7 +359,7 @@ test("the organiser is not the customer: the owner's own address and name are of
 
   assert.equal(
     matchPerson(
-      { title: "Lunch", description: null, location: null, attendees: [], organizer: "melany@gmail.com" },
+      { title: "Lunch", description: null, location: null, attendees: [], organizer: "marisa@example.com" },
       people,
       NO_OWN,
     ),
@@ -1401,7 +1401,7 @@ test("every visit, oldest first, for the timeline; the profile reads them as Vis
   const vm = toPersonVM(
     {
       ...detail_(),
-      booking_link: " https://booksy.com/melanys ",
+      booking_link: " https://book.example.com/marisas ",
       visits: { timezone: TZ, source: "Google Calendar", state: "ok", next: ahead, last: past, all: [past, ahead] },
       added: { at: "2026-09-01T12:00:00.000Z", source: "calendar", title: "Colour" },
     },
@@ -1434,7 +1434,7 @@ test("every visit, oldest first, for the timeline; the profile reads them as Vis
   assert.match(up.date, /^\d{1,2}$/);
   assert.ok(["Today", "Tomorrow"].includes(up.day) || /^[A-Z][a-z]{2}$/.test(up.day), up.day);
   assert.equal(vm.timeline.find((i) => i.id === "added").text, "Added from your calendar (Colour)");
-  assert.equal(vm.bookingLink, "https://booksy.com/melanys");
+  assert.equal(vm.bookingLink, "https://book.example.com/marisas");
   assert.equal(vm.replyWindow, null, "no chat, no window");
   const chat = toPersonVM(
     detail_({ has_chat: true, latest_wa_inbound_at: new Date(NOW - 2 * 3_600_000).toISOString() }),
@@ -1451,7 +1451,7 @@ test("every visit, oldest first, for the timeline; the profile reads them as Vis
   const page = readCode("apps/dashboard/src/legacy/pages/client-profile.jsx");
   assert.ok(page.includes('sessionStorage.setItem("chanlytics-compose"'), "the send carries the link into the thread");
   assert.ok(
-    personActs({ ...chat, openThread: "inbox/th-1", bookingLink: "https://booksy.com/melanys" }).some(
+    personActs({ ...chat, openThread: "inbox/th-1", bookingLink: "https://book.example.com/marisas" }).some(
       (a) => a.id === "booking" && a.label === "Send booking link",
     ),
     "the page's More menu offers it, in plain words, once there is a thread to open (personActs)",

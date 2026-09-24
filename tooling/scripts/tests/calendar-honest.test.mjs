@@ -95,7 +95,7 @@ function dto(over = {}) {
     },
     closures: [{ date: "2026-09-12", note: "Wedding" }],
     rules: { lead_hours: 2, buffer_min: 15, max_days_ahead: 14 },
-    booking_link: "https://booksy.com/melanys",
+    booking_link: "https://book.example.com/marisas",
     days,
     ...over,
   };

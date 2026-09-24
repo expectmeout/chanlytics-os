@@ -61,7 +61,7 @@ export type ConnectionKind = "whatsapp" | "phone" | "sms" | "google_listing" | "
 export type ConnectionAvailability = "live" | "review" | "later";
 export type ConnectionState = "none" | "waiting_you" | "waiting_them" | "connected" | "attention" | "off";
 export interface ConnectionRow {
-  kind: ConnectionKind; icon: string; title: string; detail: string | null;   // "+1 (917) 772-4072", "Melany's Beauty Salon · 2581 Pitkin Ave"
+  kind: ConnectionKind; icon: string; title: string; detail: string | null;   // "+1 (305) 555-0188", "Marisa's Beauty Salon · 1200 Maple Ave"
   availability: ConnectionAvailability; state: ConnectionState;
   stateWords: string;                 // "On" · "Watched" · "Waiting on carriers" · "Later"
   sentence: string;                   // one line, the owner's words, with "since" when waiting

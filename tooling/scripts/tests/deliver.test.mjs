@@ -540,7 +540,7 @@ test("the receptionist's own escalation pauses the thread and queues its holding
       tenant_id: T,
       conversation_id: "c1",
       status: "sent",
-      body: "Hi, Melany here",
+      body: "Hi, Marisa here",
       sender: "human",
       direction: "outbound",
       created_at: "2026-09-10T09:59:30.000Z",
@@ -714,7 +714,7 @@ test("email's wire is one workspace's: it sends the frozen request and nothing i
       refused("request_names_another_recipient"),
     );
     // The provider key is every workspace's. What stops one business's row leaving as another is this.
-    const another = { fromName: "Best Movers", fromAddress: "melanys@mail.chanlytics.com", replyTo: AS.replyRoutes[0] };
+    const another = { fromName: "Best Movers", fromAddress: "marisas@mail.chanlytics.com", replyTo: AS.replyRoutes[0] };
     assert.deepEqual(
       await send(ADDRESS, { body: "hi", email: frozen({ identity: another }) }),
       refused("request_leaves_as_another_sender"),

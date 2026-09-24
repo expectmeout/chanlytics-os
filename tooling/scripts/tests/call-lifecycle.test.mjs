@@ -47,13 +47,13 @@ test("Retell's not_connected is its own status, not 'ended'", () => {
 
 test("a live transcript keeps the spoken turns and drops the tool calls", () => {
   const items = [
-    { role: "agent", content: "Melany's, this is the booking line." },
+    { role: "agent", content: "Marisa's, this is the booking line." },
     { role: "tool_call_invocation", content: "", tool_call_id: "t1", name: "check_availability" },
     { role: "tool_call_result", content: "{}", tool_call_id: "t1" },
     { role: "user", content: "Do you have Saturday?", words: [{ word: "Do", start: 3.1, end: 3.3 }] },
   ];
   assert.deepEqual(liveTurns(items), [
-    { role: "agent", content: "Melany's, this is the booking line." },
+    { role: "agent", content: "Marisa's, this is the booking line." },
     { role: "user", content: "Do you have Saturday?", words: [{ word: "Do", start: 3.1, end: 3.3 }] },
   ]);
   assert.equal(liveTurns([]), null);
@@ -116,7 +116,7 @@ const base = {
   call_type: "phone_call",
   from_e164: "+13475550101",
   from_raw: null,
-  to_e164: "+13083368109",
+  to_e164: "+13055550123",
   started_at: agoIso(120_000),
   ended_at: null,
   duration_ms: null,
@@ -167,8 +167,8 @@ test("a live call carries its start as `ts`, which is what the viewer's clock ru
 /* ------------------------------ Today's rows ------------------------------ */
 
 const metrics = (over = {}) => ({
-  workspace: { name: "Melany's Beauty Salon", timezone: "America/New_York", status: "active" },
-  channels: [{ kind: "voice", status: "active", number: "+13083368109" }],
+  workspace: { name: "Marisa's Beauty Salon", timezone: "America/New_York", status: "active" },
+  channels: [{ kind: "voice", status: "active", number: "+13055550123" }],
   window: {
     days: 1,
     since: "2026-09-04T04:00:00+00:00",

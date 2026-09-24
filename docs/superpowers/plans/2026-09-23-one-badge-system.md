@@ -12,7 +12,7 @@
 
 **Run one test file:** `node --conditions=react-server --import tsx --test tooling/scripts/tests/<file>.test.mjs` from the worktree root.
 
-**See a page:** the dev server `cm-badges-next` (the parent folder's `.claude/launch.json`, port 3291), signed in, at `http://localhost:3291/w/melanys-beauty-salon/#/<route>`. CSS is proved there, never by reading the stylesheet: the source-scan ratchet refuses a new `readCode`/`readRaw`.
+**See a page:** the dev server `cm-badges-next` (the parent folder's `.claude/launch.json`, port 3291), signed in, at `http://localhost:3291/w/<workspace-slug>/#/<route>`. CSS is proved there, never by reading the stylesheet: the source-scan ratchet refuses a new `readCode`/`readRaw`.
 
 **The measuring probe** (paste into the pane's `javascript_tool` once per page load; `__bp()` lists every badge-like element's computed geometry and colours by class):
 

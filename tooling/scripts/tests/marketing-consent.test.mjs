@@ -148,8 +148,8 @@ test("what a message IS comes from what was already recorded, and NULL means mar
 
 test("the page asks twice, and neither ask claims the other's messages", () => {
   const vm = consentPageVM({
-    businessName: "Melany's Beauty Salon",
-    whatsappE164: "+19177724072",
+    businessName: "Marisa's Beauty Salon",
+    whatsappE164: "+13055550188",
     smsE164: "+13055550100",
   });
   assert.deepEqual(
@@ -204,12 +204,12 @@ test("the database records the two answers apart, and neither writer reaches acr
 
 /** What a workspace files, run rather than sliced out of the source. */
 const FILED = {
-  businessName: "Melany's Beauty Salon",
-  legalName: "Melany Beauty LLC",
-  optInUrl: "https://app.chanlytics.com/yes/melanys",
+  businessName: "Marisa's Beauty Salon",
+  legalName: "Marisa Beauty LLC",
+  optInUrl: "https://app.chanlytics.com/yes/marisas",
   privacyUrl: "https://app.chanlytics.com/privacy",
   termsUrl: "https://app.chanlytics.com/terms",
-  hostedUrl: "https://app.chanlytics.com/b/melanys",
+  hostedUrl: "https://app.chanlytics.com/b/marisas",
   lineNumber: "+1 (929) 656-6623",
 };
 
@@ -336,14 +336,14 @@ test("the message flow filed with the carriers describes one program, every way 
   // and what was accepted on the fourth review.
   assert.match(
     desc,
-    /^Messages are sent by Melany's Beauty Salon \(Melany Beauty LLC\) to its own customers/,
+    /^Messages are sent by Marisa's Beauty Salon \(Marisa Beauty LLC\) to its own customers/,
     "the registered name beside the trade name, as the brand was vetted, in the reviewers' own register",
   );
-  assert.match(desc, /on Melany's Beauty Salon's own behalf/, "the business, not the software it sends with");
+  assert.match(desc, /on Marisa's Beauty Salon's own behalf/, "the business, not the software it sends with");
   assert.match(desc, /sent through the Chanlytics OS application/, "and the application layer named, as 30912 asks");
   assert.match(
     desc,
-    /wrote to Melany's Beauty Salon first, or who said yes on its sign-up page \(https:\/\/app\.chanlytics\.com\/yes\/melanys\) or its signed sign-up form/,
+    /wrote to Marisa's Beauty Salon first, or who said yes on its sign-up page \(https:\/\/app\.chanlytics\.com\/yes\/marisas\) or its signed sign-up form/,
     "who the recipients are, and how they came",
   );
   assert.match(desc, /No marketing or promotional content is sent from this number/);
@@ -353,10 +353,10 @@ test("the message flow filed with the carriers describes one program, every way 
     "REGRESSION: promotional content described in an informational campaign",
   );
   // One business said twice is not two names.
-  assert.doesNotMatch(campaignFactsFor({ ...FILED, legalName: "melany's beauty salon" }).description, /\(melany/i);
+  assert.doesNotMatch(campaignFactsFor({ ...FILED, legalName: "marisa's beauty salon" }).description, /\(marisa/i);
   assert.match(
     campaignFactsFor({ ...FILED, legalName: null }).description,
-    /^Messages are sent by Melany's Beauty Salon to its own customers/,
+    /^Messages are sent by Marisa's Beauty Salon to its own customers/,
   );
   // The two keywords still answer different questions on the wire, and only
   // the appointment one is the texting line's.
@@ -381,7 +381,7 @@ test("the confirmation filed for START confirms appointment texts, and only thos
   // has to be right on the first filing, for every workspace.
   const { optInMessage, optInKeywords } = campaignFactsFor(FILED);
   assert.deepEqual(optInKeywords, ["START", "UNSTOP", "RESUME"], "the keywords it confirms");
-  assert.match(optInMessage, /^Melany's Beauty Salon: /, "whose texts, by the name the customer knows");
+  assert.match(optInMessage, /^Marisa's Beauty Salon: /, "whose texts, by the name the customer knows");
   assert.match(optInMessage, /appointments/);
   assert.doesNotMatch(
     optInMessage,
@@ -392,7 +392,7 @@ test("the confirmation filed for START confirms appointment texts, and only thos
   assert.match(optInMessage, /Reply HELP for help, STOP to cancel/);
   assert.equal(
     optInMessage,
-    optInConfirmation("Melany's Beauty Salon", "conversational"),
+    optInConfirmation("Marisa's Beauty Salon", "conversational"),
     "the words the wire sends when START arrives",
   );
 });
@@ -414,7 +414,7 @@ test("the samples match what the filing declares about them, and none is a promo
   assert.doesNotMatch(all, /offer|promot|news/i, "REGRESSION: a promotional sample in an informational campaign");
   assert.match(all, /\[date\] at \[time\]/, "brackets mark what varies, as the guide asks");
   assert.ok(
-    samples.every((x) => x.includes("Melany's Beauty Salon")),
+    samples.every((x) => x.includes("Marisa's Beauty Salon")),
     "every sample names the brand",
   );
   assert.ok(samples.filter((x) => /Reply STOP/.test(x)).length >= 1, "opt-out language in at least one");
@@ -584,7 +584,7 @@ test("the campaign description opens with what the business does", () => {
   const about = "A beauty salon in Brooklyn: hair, colour and nails for walk-in and booked clients";
   const { description } = campaignFactsFor({ ...FILED, about: `  ${about}\n` });
   assert.ok(
-    description.startsWith(`About Melany's Beauty Salon (Melany Beauty LLC): ${about}. Messages are sent by `),
+    description.startsWith(`About Marisa's Beauty Salon (Marisa Beauty LLC): ${about}. Messages are sent by `),
     description,
   );
   // Said once, as finished sentences, whatever the owner typed at the end.
@@ -592,7 +592,7 @@ test("the campaign description opens with what the business does", () => {
   assert.ok(campaignFactsFor({ ...FILED, about: `${about}!` }).description.includes(`${about}! Messages`));
 
   // Nothing said, nothing added: the description every filing already carries.
-  assert.ok(campaignFactsFor(FILED).description.startsWith("Messages are sent by Melany's Beauty Salon"));
+  assert.ok(campaignFactsFor(FILED).description.startsWith("Messages are sent by Marisa's Beauty Salon"));
   assert.ok(campaignFactsFor({ ...FILED, about: "   " }).description.startsWith("Messages are sent by"));
 
   // The longest description the record allows still fits Twilio's 40 to 4096.
