@@ -9,8 +9,8 @@ import { apiGet } from "./workspace";
  * calendars, Stripe, Twilio, Gmail with a re-authorize nag — none of which
  * exist. The real pane is one row per connection in three groups: Connected
  * (from tenant_channels, Google, the calendar feed), Available (a door this
- * deployment has), Later (built for nobody yet, with no button). Nothing
- * pretends.
+ * deployment has), Later (built for nobody yet: a Connect that is gated until
+ * it is, and says so, #614). Nothing pretends.
  */
 const INVENTED = ["Reauthorize by May 1", "7 of 7 healthy", "Twilio", "Apple Calendar", "Email Agent"];
 const KINDS = [
@@ -42,7 +42,7 @@ test.describe("Settings → Integrations on a real workspace", () => {
     expect(JSON.stringify(data)).not.toMatch(/secret|token/i);
   });
 
-  test("every connection is a row, once, in its group; Later rows offer nothing", async ({ page }) => {
+  test("every connection is a row, once, in its group; Later rows offer nothing live", async ({ page }) => {
     await page.goto("/#/admin/integrations");
     await page.waitForLoadState("networkidle");
     await expect(page.getByTestId("connections-connected")).toBeVisible();
@@ -51,7 +51,14 @@ test.describe("Settings → Integrations on a real workspace", () => {
     const later = page.getByTestId("connections-later");
     await expect(later).toContainText("Instagram");
     await expect(later).toContainText("nothing here is connected");
-    expect(await later.locator("button").count()).toBe(0);
+    // Since #614 a Later row offers what it will offer: a Connect that is gated, with the reason on it, never a door.
+    const offers = later.locator("button");
+    await expect(offers.first()).toBeVisible();
+    for (const offer of await offers.all()) {
+      await expect(offer).toHaveText("Connect");
+      await expect(offer).toHaveAttribute("aria-disabled", "true");
+      await expect(offer).toHaveAttribute("data-tip", /Not built yet/);
+    }
     const text = await page.locator(".set-pane").innerText();
     for (const s of INVENTED) expect(text, `invented service: "${s}"`).not.toContain(s);
   });
