@@ -25,7 +25,7 @@ What does not change: the backend ("i like the backend"); the words of every ans
 ## 3. Decisions
 
 - **S1. The three are the object.** On the desktop they stand in a stage band at 84×68, the largest face in the app; on a phone they fill the screen at Today's size and are what you talk to. The top bar's button and the ✦ stay the doors and hide while Ask is open (one character).
-- **S2. Form, not lines.** What needs you is amber pills (`.pill-warn`); questions are chips; figures are tiles; rows carry a 24px kind mark; the door is one button; the next questions are chips. Every shape is the site's badge system or its `.btn`, at the kit's sizes (`components.css` "Badges: one shape per job", `.btn`, `.btn-sm`, `.btn-ghost`). No gradient, no second family, one accent (coral, live only).
+- **S2. Form, not lines.** What needs you is amber pills (`.pill-warn`); questions are chips (a 28px control of its own, `.ask-chip`, not the kit's 20px `.chip`, which names a thing); figures are tiles; rows carry a 24px kind mark; the door is one button; the next questions are chips. Every shape is the site's badge system or its `.btn`, at the kit's sizes (`components.css` "Badges: one shape per job", `.btn`, `.btn-sm`, `.btn-ghost`). No gradient, no second family, one accent (coral, live only).
 - **S3. The rail.** The answer's three parts hang on a rail: a 12px square per part in the three's shades (light, mid, dark, as the 8px marks are today) joined by a hairline. On a phone the rail keeps its size and the gap shrinks.
 - **S4. The receipt is in the tile.** A figure's source is shown as a line inside its tile on hover, focus or a tap ("From Reports, past 7 days", with the door's arrow only where oneDoor left it one). The popover receipt goes.
 - **S5. One reading line.** While Ask reads, the latest trace is one line in coral ink under the field (desktop) or under the three (phone), with a pulsing dot. The trace rows go.
@@ -69,7 +69,7 @@ The rows are one listbox as today (`role="listbox"`, `aria-activedescendant`); a
 
 ### 4.4 Typing
 
-As today: the words as the first row ("Ask <words>"), the jumps, the matching questions, the matching acts with their "Card" meta, at 36px, in one listbox.
+The words as the first row ("Ask <words>") and the jumps as 36px rows; the matching questions and the matching acts (with their "Card" meta) as chips; all in one listbox.
 
 ### 4.5 The answer
 
