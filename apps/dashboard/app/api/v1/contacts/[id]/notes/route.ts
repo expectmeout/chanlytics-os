@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { NOTE_MAX } from "@chanlytics/contracts";
+import { NOTE_MAX, isRealDate } from "@chanlytics/contracts";
 import { write } from "@/server/route";
 import { contactScope } from "@/server/verbs";
 import { noteAnswer, noteOn, writtenNote } from "@/server/person-notes";
@@ -14,6 +14,12 @@ const Body = z
     /** Absent: a new note. Present: its author's change, with the version the page saw. */
     note_id: z.string().uuid().optional(),
     version: z.number().int().min(1).optional(),
+    /** Its day, which makes it a step, and the team's (00163): a real day by the business's calendar. */
+    due_on: z.string().refine(isRealDate, "A day, as 2026-09-30.").nullable().optional(),
+    /** The person's own deal it moves, when it names one. */
+    deal_id: z.string().uuid().nullable().optional(),
+    /** On a change: take its day away. A change that does not name a day keeps the one it has. */
+    clear_due: z.boolean().optional(),
   })
   .strict();
 
@@ -37,6 +43,9 @@ export const POST = write({
         ...(input.for_user_id ? { p_for_user_id: input.for_user_id } : {}),
         p_team_only: input.team_only ?? false,
         ...(input.version !== undefined ? { p_version: input.version } : {}),
+        ...(input.due_on ? { p_due_on: input.due_on } : {}),
+        ...(input.deal_id ? { p_deal_id: input.deal_id } : {}),
+        ...(input.clear_due ? { p_clear_due: true } : {}),
       });
       const { note } = noteAnswer("person_note_edit", data, error);
       return { note: note ? writtenNote(ctx, note) : null };
@@ -46,6 +55,8 @@ export const POST = write({
       p_body: input.body,
       ...(input.for_user_id ? { p_for_user_id: input.for_user_id } : {}),
       p_team_only: input.team_only ?? false,
+      ...(input.due_on ? { p_due_on: input.due_on } : {}),
+      ...(input.deal_id ? { p_deal_id: input.deal_id } : {}),
     });
     const { note } = noteAnswer("person_note_add", data, error);
     return { note: note ? writtenNote(ctx, note) : null };

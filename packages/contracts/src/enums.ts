@@ -188,6 +188,8 @@ export const EVENT_KINDS = [
   "contact.note_suggested",
   "contact.note_kept",
   "contact.note_dismissed",
+  "contact.note_done",
+  "contact.note_undone",
   "contact.email_set",
   /** A person's proposal link set or cleared at the desk (00154). Never the address. */
   "contact.proposal_set",

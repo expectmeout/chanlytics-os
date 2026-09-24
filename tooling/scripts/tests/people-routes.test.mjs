@@ -1451,3 +1451,139 @@ test("deal: the door answers the deal the person's People row shows now -- an op
   out = await deal.POST.run(send("POST", { stage: "won", deal_id: D2, version: 2, amount_cents: 70_000 }), faulty);
   assert.deepEqual([out.deal.id, out.current], [D2, null]);
 });
+
+test("a step (00163): the note route takes a day and a deal only when named, judging the day first; one route marks it done by anyone who acts; People's rows say who each is for, reading the team only when one is for someone", async () => {
+  const noteDone = await import(at("apps/dashboard/app/api/v1/contacts/[id]/notes/done/route.ts"));
+  assert.deepEqual(noteDone.POST.policy, {
+    kind: "write",
+    scope: "row",
+    role: "operator",
+    rate: "person_edit",
+    spend: false,
+  });
+  const N1 = "abababab-1111-4111-8111-abababababab";
+  const N2 = "efefefef-3333-4333-8333-efefefefefef";
+  const stamp = "2026-09-20T15:00:00.000Z";
+  const stored = (over = {}) => ({
+    id: N1,
+    tenant_id: B,
+    contact_id: P2,
+    body: "Call about the timeline",
+    author_kind: "member",
+    author_user_id: USER,
+    for_user_id: null,
+    team_only: true,
+    state: "kept",
+    source: "page",
+    version: 1,
+    created_at: stamp,
+    updated_at: stamp,
+    due_on: "2026-09-30",
+    done_at: null,
+    done_by: null,
+    deal_id: null,
+    ...over,
+  });
+  const doors = [];
+  const rpcs = {
+    person_note_add: (a) => (
+      doors.push(["add", a]),
+      { note: stored({ due_on: a.p_due_on ?? null, deal_id: a.p_deal_id ?? null }) }
+    ),
+    person_note_edit: (a) => (doors.push(["edit", a]), { note: stored({ version: 2 }) }),
+    person_note_done: (a) => (
+      doors.push(["done", a]),
+      a.p_version === 9
+        ? { error: "moved", version: 1 }
+        : a.p_note_id === N1
+          ? { note: stored({ done_at: stamp, done_by: USER, version: 2 }) }
+          : { error: "not_a_step" }
+    ),
+  };
+  const tables = () => ({
+    memberships: both("viewer", "operator"),
+    contacts: [contact(P1, A), contact(P2, B)],
+    person_notes: [stored(), stored({ id: N2, due_on: null, team_only: false })],
+  });
+  const ctx = (id = P2) => ctxFor(tables(), { id }, rpcs);
+
+  // A day that is not one is refused before any door opens.
+  await assert.rejects(
+    noteWrite.POST.run(send("POST", { body: "Call", due_on: "2026-02-30" }), ctx()),
+    (e) => (assert.equal(e.code, "validation"), true),
+  );
+  assert.equal(doors.length, 0);
+  // The day and the deal reach the door only when named; a change clears a day only when told to.
+  const added = await noteWrite.POST.run(
+    send("POST", { body: "Call about the timeline", due_on: "2026-09-30", deal_id: D1 }),
+    ctx(),
+  );
+  assert.deepEqual(doors.at(-1), [
+    "add",
+    { p_contact_id: P2, p_body: "Call about the timeline", p_team_only: false, p_due_on: "2026-09-30", p_deal_id: D1 },
+  ]);
+  assert.deepEqual([added.note.due_on, added.note.deal_id, added.note.done_at], ["2026-09-30", D1, null]);
+  await noteWrite.POST.run(send("POST", { body: "Plain" }), ctx());
+  assert.deepEqual(
+    doors.at(-1),
+    ["add", { p_contact_id: P2, p_body: "Plain", p_team_only: false }],
+    "a note names neither",
+  );
+  await noteWrite.POST.run(send("POST", { body: "No day now", note_id: N1, version: 1, clear_due: true }), ctx());
+  assert.deepEqual(doors.at(-1), [
+    "edit",
+    { p_note_id: N1, p_body: "No day now", p_team_only: false, p_version: 1, p_clear_due: true },
+  ]);
+
+  // Done: by any operator, with the version the page saw; the door's refusals in the owner's words.
+  const done = await noteDone.POST.run(send("POST", { note_id: N1, version: 1 }), ctx());
+  assert.deepEqual(doors.at(-1), ["done", { p_note_id: N1, p_done: true, p_version: 1 }]);
+  assert.deepEqual([done.note.done_at, done.note.done_by_me], [stamp, true]);
+  await noteDone.POST.run(send("POST", { note_id: N1, done: false }), ctx());
+  assert.deepEqual(doors.at(-1), ["done", { p_note_id: N1, p_done: false }]);
+  await refused(noteDone.POST.run(send("POST", { note_id: N1, version: 9 }), ctx()), "conflict", 409);
+  await refused(noteDone.POST.run(send("POST", { note_id: N2 }), ctx()), "validation", 400, "only a step is done");
+  const n = doors.length;
+  await refused(noteDone.POST.run(send("POST", { note_id: N1 }), ctx(P1)), "forbidden", 403, "a viewer marks nothing");
+  assert.equal(doors.length, n, "and no door opened for it");
+
+  // People's rows: who each next step is for, from the team, and the team read only when a step is for someone.
+  let roster = 0;
+  const listCtx = (rows) =>
+    ctxFor(
+      { memberships: both("viewer", "viewer"), policies: [], tenants: [], tenant_config: [] },
+      {},
+      {
+        people_list: () => rows,
+        team_roster: () => (
+          roster++,
+          [
+            { member_user_id: USER, display_name: "Ada", email: "ada@example.com" },
+            { member_user_id: "u2", display_name: "Sam", email: "sam@example.com" },
+          ]
+        ),
+      },
+    );
+  const step = (id, forWho) => ({
+    step_id: id,
+    step_body: "Call",
+    step_due_on: "2026-09-30",
+    step_for_user_id: forWho,
+  });
+  const plain = await contacts.GET.run(get(inA), listCtx([personRow(P1, step(N1, null))]));
+  assert.equal(roster, 0, "no step for anyone: the team is not read");
+  assert.equal("step_for_name" in plain.people[0], false);
+  const named = await contacts.GET.run(
+    get(inA),
+    listCtx([personRow(P1, step(N1, "u2")), personRow(P2, step(N2, USER)), personRow(P3)]),
+  );
+  assert.equal(roster, 1, "read once for the whole page");
+  assert.deepEqual(
+    named.people.map((p) => [p.step_for_name ?? null, p.step_for_me ?? null]),
+    [
+      ["Sam", false],
+      ["Ada", true],
+      [null, null],
+    ],
+  );
+});

@@ -275,6 +275,13 @@
       "rate": "person_edit",
       "spend": false
     },
+    "POST contacts/[id]/notes/done": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "person_edit",
+      "spend": false
+    },
     "POST contacts/[id]/notes/remove": {
       "kind": "write",
       "scope": "row",

@@ -82,6 +82,8 @@ var EVENT_KINDS = [
   "contact.note_suggested",
   "contact.note_kept",
   "contact.note_dismissed",
+  "contact.note_done",
+  "contact.note_undone",
   "contact.email_set",
   /** A person's proposal link set or cleared at the desk (00154). Never the address. */
   "contact.proposal_set",
@@ -1030,7 +1032,9 @@ var NOTE_REFUSALS = {
   not_yours: "Only the person who wrote this note can change it.",
   moved: "Someone changed this note since you opened it. Read it again, then save.",
   decided: "Someone already decided on this suggestion.",
-  bad_source: "Could not save this note."
+  bad_source: "Could not save this note.",
+  bad_deal: "That deal is not this person's.",
+  not_a_step: "Only a note with a day can be done."
 };
 var REPLY_VIA = {
   whatsapp: "WhatsApp",

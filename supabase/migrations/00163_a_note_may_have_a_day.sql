@@ -256,10 +256,16 @@ begin
          version = n.version + 1
    where n.id = v_row.id
   returning * into v_row;
-  insert into events (tenant_id, kind, category, subject_type, subject_id, data)
-  values (v_row.tenant_id, case when v_done then 'contact.note_done' else 'contact.note_undone' end,
-          'contact', 'contact', v_row.contact_id,
-          jsonb_build_object('note_id', v_row.id, 'by', v_user, 'due_on', v_row.due_on, 'deal_id', v_row.deal_id));
+  -- Each kind written out, as every event name is: what the activity log and the alerts read by.
+  if v_done then
+    insert into events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (v_row.tenant_id, 'contact.note_done', 'contact', 'contact', v_row.contact_id,
+            jsonb_build_object('note_id', v_row.id, 'by', v_user, 'due_on', v_row.due_on, 'deal_id', v_row.deal_id));
+  else
+    insert into events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (v_row.tenant_id, 'contact.note_undone', 'contact', 'contact', v_row.contact_id,
+            jsonb_build_object('note_id', v_row.id, 'by', v_user, 'due_on', v_row.due_on, 'deal_id', v_row.deal_id));
+  end if;
   return jsonb_build_object('note', to_jsonb(v_row));
 end $$;
 

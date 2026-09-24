@@ -6,6 +6,8 @@ import {
   DEAL_SHEET_WORDS,
   NOTE_MAX,
   NOTE_WORDS,
+  stepDayOf,
+  stepDays,
   TIMELINE_FILTERS,
   dealCardsOf,
   dealMenuActs,
@@ -390,10 +392,27 @@ export interface NoteBody {
   team_only?: boolean;
   note_id?: string;
   version?: number;
+  /** Its day, which makes it a step (00163); a change that names none keeps the one it has, `clear_due` takes it. */
+  due_on?: string | null;
+  deal_id?: string | null;
+  clear_due?: boolean;
 }
 
 export async function writePersonNote(id: string, body: NoteBody): Promise<ApiResult<{ note: PersonNoteDto | null }>> {
   return api()("POST contacts/[id]/notes", { params: { id }, body });
+}
+
+/** A step done, or open again (00163): any owner or operator, with the version the page saw. */
+export async function markStepDone(
+  id: string,
+  noteId: string,
+  done = true,
+  version?: number,
+): Promise<ApiResult<{ note: PersonNoteDto | null }>> {
+  return api()("POST contacts/[id]/notes/done", {
+    params: { id },
+    body: { note_id: noteId, done, ...(version !== undefined ? { version } : {}) },
+  });
 }
 
 export async function removePersonNote(id: string, noteId: string): Promise<ApiResult<{ removed: string }>> {
@@ -414,6 +433,11 @@ declare global {
       write: typeof writePersonNote;
       remove: typeof removePersonNote;
       decide: typeof decidePersonNote;
+      /** A step done, or open again (00163). */
+      done: typeof markStepDone;
+      /** The days a step's picker offers, and a day as every page says it (contracts steps.ts). */
+      days: typeof stepDays;
+      dayOf: typeof stepDayOf;
       words: typeof NOTE_WORDS;
       max: number;
     };
@@ -501,6 +525,9 @@ export function installPeopleCourier(): void {
     write: writePersonNote,
     remove: removePersonNote,
     decide: decidePersonNote,
+    done: markStepDone,
+    days: stepDays,
+    dayOf: stepDayOf,
     words: NOTE_WORDS,
     max: NOTE_MAX,
   };

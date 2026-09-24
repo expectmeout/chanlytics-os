@@ -14,10 +14,14 @@ type NoteRow = {
   version: number;
   created_at: string;
   updated_at: string;
+  due_on: string | null;
+  done_at: string | null;
+  done_by: string | null;
+  deal_id: string | null;
 };
 
 const NOTE_COLUMNS =
-  "id, contact_id, body, author_kind, author_user_id, for_user_id, team_only, state, source, version, created_at, updated_at";
+  "id, contact_id, body, author_kind, author_user_id, for_user_id, team_only, state, source, version, created_at, updated_at, due_on, done_at, done_by, deal_id";
 
 /** A stored note as the page reads it, with the names of who wrote it and who it is for (0007). */
 export function toNoteDto(n: NoteRow, names: Map<string, string>, me: string): PersonNoteDto {
@@ -36,11 +40,17 @@ export function toNoteDto(n: NoteRow, names: Map<string, string>, me: string): P
     version: n.version,
     created_at: n.created_at,
     updated_at: n.updated_at,
+    // A note with a day is a step (00163): its day, who did it and when, and the deal it moves.
+    due_on: n.due_on ?? null,
+    done_at: n.done_at ?? null,
+    done_by_name: n.done_by ? (names.get(n.done_by) ?? null) : null,
+    done_by_me: !!n.done_by && n.done_by === me,
+    deal_id: n.deal_id ?? null,
   };
 }
 
 /** The team by name: who wrote a note and who it is for. A member without a name is called by their address's name. */
-async function teamNames(ctx: RouteContext, tenantId: string): Promise<PersonNoteTeamDto[] | null> {
+export async function teamNames(ctx: RouteContext, tenantId: string): Promise<PersonNoteTeamDto[] | null> {
   const { data, error } = await Promise.resolve()
     .then(() => ctx.supabase.rpc("team_roster", { p_tenant_id: tenantId }))
     .then(
@@ -131,4 +141,30 @@ export function noteAnswer(
 /** The note a door wrote, as the page reads it: names come with the next read, so the writer's own is filled here. */
 export function writtenNote(ctx: RouteContext, n: NoteRow, forName: string | null = null): PersonNoteDto {
   return toNoteDto(n, new Map(n.for_user_id && forName ? [[n.for_user_id, forName]] : []), ctx.userId);
+}
+
+/** Who a row's next step is for, by name and whether it is the reader (00163), from the team as a note's is. */
+export function stepFor(
+  row: { step_for_user_id?: string | null },
+  team: PersonNoteTeamDto[] | null | undefined,
+  me: string,
+): { step_for_name?: string | null; step_for_me?: boolean } {
+  const id = row.step_for_user_id;
+  if (!id) return {};
+  return { step_for_name: (team ?? []).find((m) => m.id === id)?.name ?? null, step_for_me: id === me };
+}
+
+/**
+ * People's rows with who each next step is for: the team is read only when a step is for someone, alongside the
+ * list's other reads, and answers a mapping the route lays over the rows. Never fatal: without the team a step names
+ * no one.
+ */
+export async function stepNamer<R extends { step_for_user_id?: string | null }>(
+  ctx: RouteContext,
+  tenantId: string,
+  rows: readonly R[],
+): Promise<<T extends { step_for_user_id?: string | null }>(row: T) => T> {
+  if (!rows.some((r) => r.step_for_user_id)) return (row) => row;
+  const team = await teamNames(ctx, tenantId);
+  return (row) => (row.step_for_user_id ? { ...row, ...stepFor(row, team, ctx.userId) } : row);
 }
