@@ -169,6 +169,7 @@ globalThis.React = {
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
 await import("../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+await import("../../../apps/dashboard/src/legacy/components/record-field.jsx");
 await import("../../../apps/dashboard/src/legacy/components/record-row.jsx");
 // The record kit's folds answer the rail's question too, and the kit loads before any page, as it does in the app.
 await import("../../../apps/dashboard/src/legacy/components/record-fold.jsx");

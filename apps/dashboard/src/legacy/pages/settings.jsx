@@ -282,31 +282,60 @@ const stInitials = (n) => n.split(" ").map(w => w[0]).slice(0, 2).join("").toUpp
 // page titled Workspace whose first card was the business -- while the account
 // menu's own "Your name" item navigated there. It is the first row of Profile
 // now, which is where the menu points and where a person looks.
-const YourName = ({ flash, ...rest }) => {
+const YourName = ({ flash }) => {
   const me = window.__ME || {};
-  const [name, setName] = React.useState(me.display_name || "");
+  const stored = me.display_name || "";
+  // The record kit's row and inline editor (components/record-row.jsx, record-fold.jsx), as the Business tab edits a
+  // value where it is stated: the row says the name, Change opens the box on the row's own line, Enter saves, Esc
+  // cancels, and the registry keeps one editor open. It was a box always drawn, with a Save that appeared beside it.
+  const [draft, setDraft] = React.useState(null);
   const [busy, setBusy] = React.useState(false);
-  const dirty = name.trim() !== (me.display_name || "");
+  const live = React.useRef({ draft: null, stored, busy: false });
+  live.current.stored = stored;
+  live.current.busy = busy;
+  const fold = window.useRecordFold("profile-name", {
+    dirty: () => live.current.draft != null && live.current.draft.trim() !== live.current.stored,
+    saving: () => live.current.busy,
+  });
+  const now = draft == null ? stored : draft;
+  const set = (v) => { live.current.draft = v; setDraft(v); };
+  const close = () => { live.current.draft = null; setDraft(null); fold.close(); };
   const save = async () => {
+    if (busy) return;
+    if (now.trim() === stored) { close(); return; }
     setBusy(true);
-    const r = await window.__me.setName(name);
+    const r = await window.__me.setName(now);
     setBusy(false);
-    flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? (r.name ? <>You&rsquo;re <b>{r.name}</b> to your team now.</> : <>Name cleared — your email stands in.</>) : <>{r.message}</> });
+    if (!r.ok) { flash({ tone: "danger", msg: <>{r.message}</> }); return; }
+    close();
+    flash({ msg: r.name ? <>You&rsquo;re <b>{r.name}</b> to your team now.</> : <>Name cleared — your email stands in.</> });
   };
   return (
-    <div className="set-you" data-testid="set-you">
-      <input
-        className="sd-input set-you-input"
-        {...rest}
-        value={name}
-        maxLength={80}
-        placeholder="How your team sees you"
-        onChange={(e) => setName(e.target.value)}
-        onKeyDown={(e) => { if (e.key === "Enter" && dirty) save(); }}
-        data-testid="set-you-name"
-      />
-      {dirty && <button className="btn btn-primary btn-sm" onClick={save} disabled={busy} data-testid="set-you-save">{busy ? "Saving…" : "Save"}</button>}
-    </div>
+    <>
+      {fold.open ? null : (
+        <window.RecordRow
+          id="profile-name"
+          label="Name"
+          value={stored || null}
+          empty="Your email stands in"
+          act={{ label: stored ? "Change" : "Add one", name: stored ? "Change your name" : "Add one: your name", onClick: () => fold.request(), testid: "set-you-change" }}
+        />
+      )}
+      <window.RecordInline id="profile-name" label="Name" open={fold.open} onSave={save} onCancel={close} saving={busy}>
+        <window.RecordField
+          id="set-you-name"
+          label={null}
+          aria-labelledby="rec-inline-profile-name-key"
+          value={now}
+          onChange={set}
+          maxLength={80}
+          placeholder="How your team sees you"
+          readOnly={busy || undefined}
+          data-testid="set-you-name"
+          testid="set-you"
+        />
+      </window.RecordInline>
+    </>
   );
 };
 
@@ -330,42 +359,43 @@ const YourName = ({ flash, ...rest }) => {
 const PaneProfile = ({ flash }) => {
   const me = window.__ME || {};
   const words = window.__identity ? window.__identity.words(me) : { name: me.display_name || "Your account", email: me.email || "" };
-  const ws = (window.__WORKSPACES || []).find((t) => t.id === window.__ACTIVE_WORKSPACE) || null;
   const role = ST_ROLE_META[me.role] || null;
   const signOut = () => {
     if (window.__DEMO_MODE || !window.__shell) { flash({ msg: <>Nothing to sign out of in the demo.</> }); return; }
     window.__shell.signOut();
   };
+  // One card of the record kit's rows (24 Sep): the name, edited on its row; the address you signed in with, whose
+  // act goes to the sign-in page's password reset; your role, with what it may do as the row's hint (a desktop's;
+  // a phone reads the word); and the sign-out, a press inside its row rather than the row's act, since a whole row
+  // that signs you out everywhere is one stray tap too many. It was two cards, each row a label, a sentence and a
+  // control, 736px for four facts. The avatar, the name, the address and the role pill were a block above rows that
+  // say the same four things -- and the sidebar's own footer says three of them a third time.
   return (
-    <>
-      <section className="fl-card set-card" data-testid="set-profile">
-        <div className="fl-card-head"><h2 className="fl-card-title">You</h2></div>
-        {/* The avatar, the name, the address and the role pill were a block above rows that
-            say the same four things -- and the sidebar's own footer says three of them a third
-            time. The rows carry them once, each with what it is for. */}
-        <SetRow label="Your name" hint="How your team sees you. Clear it and your email stands in.">
-          <YourName flash={flash} />
-        </SetRow>
-        <SetRow label="Signed in as" hint={<>Your password is set from the sign-in page. <a className="lm-link" href="/reset-password">Choose a new one</a> and we&rsquo;ll email you a code.</>}>
-          <span className="set-me-static">{words.email || "—"}</span>
-        </SetRow>
-        {role && (
-          <SetRow label={`Your role in ${(ws && ws.name) || "this workspace"}`} hint={role.can}>
-            <RolePill role={me.role} />
-          </SetRow>
-        )}
-      </section>
+    <section className="rec-card set-profile" data-testid="set-profile" aria-labelledby="set-profile-title">
+      <div className="rec-card-head">
+        <h2 className="rec-card-title" id="set-profile-title">You</h2>
+        <span className="rec-card-sub">How your team sees you, and how you signed in.</span>
+      </div>
+      <YourName flash={flash} />
+      <window.RecordRow
+        id="profile-email"
+        label="Signed in as"
+        value={words.email || null}
+        empty="No address"
+        act={{ label: "Change password", name: "Change your password, from the sign-in page", icon: "arrow-right", onClick: () => { window.location.assign("/reset-password"); }, testid: "set-profile-password" }}
+      />
+      {role && (
+        <window.RecordRow id="profile-role" label="Role" value={role.label} hint={role.can} />
+      )}
       {/* Named for what it does. "This device" sat over a sign-out that ends every session on every device:
           /auth/signout revokes them all (S20). */}
-      <section className="fl-card set-card">
-        <div className="fl-card-head"><h2 className="fl-card-title">Signing out</h2></div>
-        <SetRow label="Sign out everywhere" hint="Ends your session on every device, this one included.">
-          <button className="btn btn-sm" onClick={signOut} data-testid="set-profile-signout">
-            <Icon name="logout" size={12} /> Sign out everywhere
-          </button>
-        </SetRow>
-      </section>
-    </>
+      <window.RecordRow
+        id="profile-signout"
+        label="Sign out"
+        value={<button type="button" className="bt-link" onClick={signOut} data-testid="set-profile-signout">Sign out everywhere</button>}
+        hint="Ends your session on every device, this one included."
+      />
+    </section>
   );
 };
 
