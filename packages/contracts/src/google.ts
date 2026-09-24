@@ -258,6 +258,8 @@ export interface SetupGoogleFacts {
    * the clock) and the record does not state yet: the first run's Check asks about them. Absent reads as none.
    */
   unsure?: Day[];
+  /** Google's kind of place (the facts' primary_type, e.g. "moving_company"): what Check's service chips suggest by. */
+  type?: string | null;
 }
 
 /** Google shows this many reviews of a listing, the most relevant first. */

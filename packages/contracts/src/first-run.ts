@@ -16,6 +16,7 @@ import { initialsOf } from "./viewmodels";
 import { openWeekWords, servicesWords, type ServiceWordsInput } from "./business-tab";
 import { DAY_NAMES, type Hours } from "./config";
 import { bookingLinkOptional } from "./deals";
+import { checkChipsOf } from "./check-chips";
 import type { SetupDto, SetupRowVM, SetupState, SetupVM } from "./setup";
 
 /** The first run's address: `#/start`, and `#/start/<step>` for a step already reached. */
@@ -166,6 +167,14 @@ export const FIRST_RUN_WORDS = {
     findIt: "On Google after all? Find it",
     /** What each group of rows is, for a screen reader: the words on screen are the rows' own. */
     groups: { facts: "Your hours and where you are", buys: "How customers buy", offer: "What it offers" },
+    /** The chips (check-chips.ts): a tap adds one, a tap on one that is on takes it out, with an Undo. */
+    chips: {
+      services: "Tap what you offer. A few is enough.",
+      languages: "Languages it answers in",
+      ownService: "+ Your own",
+      otherLanguage: "+ Other",
+      removed: (name: string) => `Removed ${name}`,
+    },
   },
 } as const;
 
@@ -198,6 +207,8 @@ export interface FirstRunCheckVM {
   unsure: string | null;
   /** Not on Google, said, where Google can be searched and an owner is looking: the way back to Find. */
   find: { label: string; to: string } | null;
+  /** Google's kind of place, which the service chips suggest by (FIRST_RUN_HELPERS.chips); null without one. */
+  type: string | null;
 }
 
 export interface FirstRunStepVM {
@@ -322,6 +333,7 @@ export function firstRunOf(vm: SetupVM, at?: string | null, who?: FirstRunWho): 
         waiting: !made && !who?.owner ? C.ownerSetsUp : null,
         unsure: made ? unsureHoursWords(vm.check.unsure) : null,
         find: vm.findable && who?.owner ? { label: C.findIt, to: FIRST_RUN_FIND_ROUTE } : null,
+        type: vm.check.type,
       }
     : null;
   // What the step on screen is, said once: its heading, its lead and its one coral button (onward). Find's button is
@@ -571,6 +583,7 @@ export const FIRST_RUN_HELPERS = {
   of: firstRunOf,
   receptionist: receptionistCardOf,
   todayCard: setupCardOf,
+  chips: checkChipsOf,
   words: FIRST_RUN_WORDS,
   landedKey: FIRST_RUN_LANDED_KEY,
 } as const;
