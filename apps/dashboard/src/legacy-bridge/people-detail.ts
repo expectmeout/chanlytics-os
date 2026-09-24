@@ -107,7 +107,9 @@ export function warmPeople(ids: string[]): void {
   if (!getActiveWorkspace()) return;
   ahead = [...new Set(ids)].slice(0, AHEAD).filter((id) => !people.peek(id));
   if (!ahead.length) return;
-  void afterBoot().then(readAhead);
+  // Asked a step later: on a reload a list draws from the tab before the shell starts the boot (a child's effects run
+  // before its parent's), and asked at once, afterBoot answered for no boot at all.
+  void Promise.resolve().then(afterBoot).then(readAhead);
 }
 
 function readAhead(): void {

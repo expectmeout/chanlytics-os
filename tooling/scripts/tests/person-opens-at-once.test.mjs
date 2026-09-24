@@ -142,6 +142,7 @@ const settle = async () => {
 };
 
 const bridge = await import("../../../apps/dashboard/src/legacy-bridge/people-detail.ts");
+const { startSurfaces } = await import("../../../apps/dashboard/src/legacy-bridge/surface-runner.ts");
 const { readCache, clearReadCaches } = await import("../../../apps/dashboard/src/legacy-bridge/read-cache.ts");
 const { clearSurfaceCache } = await import("../../../apps/dashboard/src/legacy-bridge/surface-cache.ts");
 /**
@@ -335,4 +336,29 @@ test("a later list replaces what an earlier one was still waiting to read; off a
   bridge.warmPeople([uuid(41)]);
   await settle();
   assert.deepEqual(asked(), [], "a read that names no workspace is refused, so none goes");
+});
+
+test("a list drawn from the tab before the boot starts waits for that boot: its reads never stand in the boot's lanes", async () => {
+  // On a reload People draws from the tab in the first render, and its effect runs before the shell's starts the boot
+  // (a child's effects run before its parent's). Asked at once, afterBoot answered for no boot at all.
+  let bootIn = () => {};
+  const slow = {
+    key: "slow",
+    apply: () =>
+      new Promise((r) => {
+        bootIn = r;
+      }),
+  };
+  bridge.warmPeople([uuid(51)]);
+  const stop = startSurfaces([slow]);
+  try {
+    await settle();
+    assert.deepEqual(asked(), [], "REGRESSION: the read went out beside the boot's own");
+    bootIn();
+    await settle();
+    await settle();
+    assert.deepEqual(asked(), [uuid(51)], "and once the boot is in, it goes");
+  } finally {
+    stop();
+  }
 });

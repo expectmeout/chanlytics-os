@@ -1404,7 +1404,6 @@
 .cl-prof-now .pill .live-dot { display: none; }
 /* Said under the line only when it asks for something (escalated, held, queued, snoozed, silent). */
 .cl-prof-now-why { font-size: 12.5px; line-height: 1.45; color: var(--ink-muted); }
-/* A person the page has not read yet, drawn from their People row while the rest is read. */
 /* The page's acts, beside who they are: the thread, what can be sent to them, and the page's ⋯. A label too long for
    its button ends in an ellipsis rather than pushing the row off the page. */
 .cl-prof-hero > .cl-prof-queue-actions { display: flex; align-items: center; gap: 6px; justify-content: flex-end; min-width: 0; }

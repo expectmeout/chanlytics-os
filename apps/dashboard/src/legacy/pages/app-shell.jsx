@@ -275,9 +275,10 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
   // (below) — storing it meant a navigation committed the new page with the
   // PREVIOUS route's value, painting one full frame of mockup threads before
   // the effect could correct it.
-  const [routeTimedOut, setRouteTimedOut] = useShellState(false);
+  // Each keyed on the route it was armed for, so the next page never draws one frame with the last one's answer.
+  const [timedOutKey, setTimedOutKey] = useShellState(null);
   // A page whose own surface is in stops waiting for a band beside it after the registry's wait (ROUTE_WAIT_MS).
-  const [routeWaitedOut, setRouteWaitedOut] = useShellState(false);
+  const [waitedOutKey, setWaitedOutKey] = useShellState(null);
   const [readyTick, setReadyTick] = useShellState(0);
 
   // A navigation is a new entry. `{ replace: true }` is a page saying the same place more exactly -- the lead a peek
@@ -781,21 +782,27 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
   const mountKey = shellMountKey(page, param);
   useShellEffect(() => {
     setNavOpen(false);
-    setRouteTimedOut(false);
-    setRouteWaitedOut(false);
     if (routeReady(page, param)) return;
+    // The wait for a band beside the page counts from the page's own surface landing, not from arriving: a slow own
+    // read that used the whole wait would draw the page the moment it landed, and the band would still push it down.
+    let w = null;
+    const armWait = () => {
+      if (w === null && routeReady(page, param, true)) w = setTimeout(() => setWaitedOutKey(routeKey), window.__routeWaitMs || 3000);
+    };
     // Re-render when readiness changes; the render below reads the truth.
-    const off = window.__onSurfaceReady ? window.__onSurfaceReady(() => setReadyTick((n) => n + 1)) : null;
+    const off = window.__onSurfaceReady ? window.__onSurfaceReady(() => { setReadyTick((n) => n + 1); armWait(); }) : null;
+    armWait();
     // Never strand the operator on the reading pane forever — but time out INTO the
     // unavailable pane, never into the mockup's seeds.
-    const t = setTimeout(() => setRouteTimedOut(true), 8000);
-    const w = setTimeout(() => setRouteWaitedOut(true), window.__routeWaitMs || 3000);
-    return () => { if (off) off(); clearTimeout(t); clearTimeout(w); };
+    const t = setTimeout(() => setTimedOutKey(routeKey), 8000);
+    return () => { if (off) off(); clearTimeout(t); if (w !== null) clearTimeout(w); };
   }, [routeKey]);
 
   // Derived every render, so a navigation can never commit the previous
   // route's answer. readyTick is read so the subscription re-evaluates it.
   void readyTick;
+  const routeTimedOut = timedOutKey === routeKey;
+  const routeWaitedOut = waitedOutKey === routeKey;
   // A band the page waits for beside its own surface (Today's setup, above its queue) holds the first draw so it never
   // lands above content already drawn; once the page's own surface is in, only for so long.
   const surfaceReady = routeReady(page, param) || (routeWaitedOut && routeReady(page, param, true));

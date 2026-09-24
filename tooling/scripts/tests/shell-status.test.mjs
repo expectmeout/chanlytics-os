@@ -1534,13 +1534,30 @@ test("Today waits for the card it draws above its queue, and once its own read i
       "past the wait, the page draws with what it has",
     );
 
+    // The wait counts from Today's own surface landing, not from arriving: a slow own read that used the whole wait
+    // would draw the moment it landed, and the card would still push the queue down.
+    const told = [];
+    win.__onSurfaceReady = (fn) => {
+      told.push(fn);
+      return () => {};
+    };
     win.__surfaceGate = () => false;
+    due.clear();
     mount("#/today");
-    due.get(3000)();
+    assert.ok(!due.has(3000), "REGRESSION: the wait ran from arriving, before Today's own surface was in");
     assert.ok(!find(redraw(), (n) => n.type === "DashboardA"), "a page whose own surface is not in keeps reading");
+    win.__surfaceGate = (page, param, own) => !!own;
+    for (const fn of told) fn();
+    assert.ok(due.has(3000), "armed as Today's own surface lands");
+    due.get(3000)();
+    assert.ok(
+      find(redraw(), (n) => n.type === "DashboardA"),
+      "and past it, Today draws",
+    );
   } finally {
     globalThis.setTimeout = keepTimeout;
     delete win.__surfaceGate;
+    delete win.__onSurfaceReady;
     delete win.__routeWaitMs;
   }
 });
