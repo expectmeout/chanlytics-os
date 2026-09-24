@@ -1049,6 +1049,11 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 .tsec-sub { min-width: 0; font-size: 11.5px; color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tsec-note { padding: 10px 16px; border-top: 1px solid var(--line); font-size: 11.5px; color: var(--ink-dim); }
 
+/* ---- The lists this member pinned: one quiet row of doors (decision 0009) ------ */
+.tsec.tp { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 10px 16px; }
+.tp-lead { font-size: 12px; color: var(--ink-dim); margin-right: 2px; }
+.tp-pin { gap: 6px; }
+
 /* ---- Worth a look: the page's one place where two numbers meet ------------- */
 /* Deliberately quiet. A red panel shouting at a salon owner every morning is noise within a week; one pill for the
    tone, the sentence, and the arithmetic under it is read once and believed. */

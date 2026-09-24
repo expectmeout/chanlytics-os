@@ -119,3 +119,61 @@ test("two searches waiting on their answers are one line that says how many", ()
     [[2, "2 searches are waiting for your answer"]],
   );
 });
+
+// Decision 0009: any list is a door on Today, pinned by the member (memberships.views.today.pins).
+test("the lists a member pinned are one row of doors on Today, with People's counts; a list that isn't here is left out", async () => {
+  const S2 = "bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb";
+  const people = {
+    lists: [{ id: "quiet", label: "Quiet 30+ days", count: 4 }],
+    saved: [
+      { id: S2, name: "VIPs", count: 12, unknown: null },
+      { id: "cccccccc-3333-4333-8333-cccccccccccc", name: "Booked soon", count: 0, unknown: "No calendar is read." },
+    ],
+    views: {
+      today: {
+        pins: [
+          "seg:quiet",
+          `list:${S2}`,
+          "list:cccccccc-3333-4333-8333-cccccccccccc",
+          "seg:gone",
+          "list:dddddddd-4444-4444-8444-dddddddddddd",
+        ],
+      },
+    },
+  };
+  const went = [];
+  const kept = globalThis.appNavigate;
+  globalThis.appNavigate = (to) => went.push(to);
+  try {
+    fresh();
+    globalThis.__PEOPLE = people;
+    // The bridge's own verb (people-lists.ts), over the surface as People publishes it.
+    globalThis.__lists = (await import("../../../apps/dashboard/src/legacy-bridge/people-lists.ts")).lists;
+    const tree = globalThis.React.createElement(globalThis.TodayPins, {});
+    const row = byTestId(tree, "today-pins");
+    const pins = [];
+    (function walk(n) {
+      if (!n || typeof n !== "object") return;
+      if (Array.isArray(n)) return n.forEach(walk);
+      if (n.props?.["data-testid"] === "today-pin") pins.push(n);
+      walk(n.props?.children);
+    })(row);
+    assert.deepEqual(
+      pins.map((p) => textOf(p)),
+      ["Quiet 30+ days4", "VIPs12", "Booked soon"],
+      "a count where People has one; none where it can't be counted; a list that isn't here, left out",
+    );
+    // A list's name is the chip with its button inside, its count the tally.
+    assert.ok(find(pins[0], (n) => String(n.props?.className || "").includes("tally")));
+    find(pins[1], (n) => n.type === "button").props.onClick();
+    assert.deepEqual(went, [`clients/list:${S2}`]);
+    // Nothing pinned: no row at all.
+    fresh();
+    globalThis.__PEOPLE = { ...people, views: {} };
+    assert.equal(byTestId(globalThis.React.createElement(globalThis.TodayPins, {}), "today-pins"), null);
+  } finally {
+    globalThis.appNavigate = kept;
+    delete globalThis.__PEOPLE;
+    delete globalThis.__lists;
+  }
+});
