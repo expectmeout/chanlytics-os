@@ -203,6 +203,40 @@ test("a part the door stops mid-way ends the import at the file's own line, and 
   assert.equal(byTestId(tree, "sheet-save"), null, "a stopped import is not tried again from the summary");
 });
 
+test("a part refused after others went through ends the import at the line it began; the summary says what went through", async () => {
+  const parts = [];
+  W.__importPeople = async (body) => {
+    parts.push(body);
+    if (parts.length === 1)
+      return { ok: true, data: { added: 49, existed: 1, emails_set: 50, skipped: [], failed: [], stopped: false } };
+    return {
+      ok: false,
+      code: "internal",
+      status: 500,
+      title: "Chanlytics hit a problem",
+      message:
+        "Chanlytics hit a problem and couldn't confirm this — check whether it went through before trying again.",
+    };
+  };
+  let { draw, tree } = readSixty({ onClose() {}, flash() {} });
+  await press(byTestId(tree, "sheet-save"));
+  await settle();
+  tree = again(draw);
+  assert.equal(parts.length, 2, "nothing after the refused part is sent");
+  // The second part began at P50, which is the file's line 52 (the header is line 1, P0 line 2).
+  assert.equal(
+    textOf(byTestId(tree, "import-error")),
+    "Stopped at line 52: Chanlytics hit a problem and couldn't confirm this — check whether it went through before trying again.",
+  );
+  const summary = textOf(byTestId(tree, "import-summary"));
+  for (const words of ["49 new", "1 already here", "50 emails added", "1 skipped"]) {
+    assert.ok(summary.includes(words), `"${summary}" says ${words}`);
+  }
+  assert.ok(!summary.includes("could not be added"), summary);
+  assert.equal(byTestId(tree, "sheet-save"), null, "what went through is not tried again from the summary");
+  assert.equal(byTestId(tree, "import-preview"), null);
+});
+
 test("rows with no header are told apart by what is in them, and one row is said in the singular", () => {
   const plan = W.plImportPlan("Ana Ruiz,(646) 555-0101\n");
   assert.equal(plan.header, false);

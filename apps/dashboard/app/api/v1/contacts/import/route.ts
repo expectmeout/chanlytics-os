@@ -34,7 +34,8 @@ const ERASED = "PE001";
  * the workspace as the erasure keyed them, so the door can leave the erased erased. Each row then goes through
  * `import_person`: found by number then address, fills only what is empty, never a yes. A row the door refuses (22023,
  * or PE001 for the erased) is skipped and said by its line in the part, counted from 1; any other fault refuses every
- * row and stops the part. One decision per part, subject the workspace, with the counts and nothing that names a person.
+ * row and stops the part. One decision per part, subject the workspace, with the counts and nothing that names a person;
+ * a decision the ledger will not take is logged, never answered as a refusal of rows already on file.
  */
 export const POST = write({
   scope: workspace,
@@ -86,15 +87,35 @@ export const POST = write({
       else out.added += 1;
       if (made.email === "set") out.emails_set += 1;
     }
-    await recordDecision(ctx, tenantId, "workspace", tenantId, "import", {
-      import_id: input.import_id,
-      rows: input.rows.length,
-      added: out.added,
-      existed: out.existed,
-      emails_set: out.emails_set,
-      skipped: out.skipped.length,
-      failed: out.failed.length,
-    });
+    // The rows are the act; the decision is its record. Every row above went through import_person and is on file by
+    // now, each in its own commit, so a decision the ledger will not take -- a lock timeout, a CHECK on decisions that
+    // a migration has not widened yet -- must not come back as a refusal: with-route would turn the throw into a 500,
+    // the sheet would draw a refusal and refresh nothing, and the owner would be told that people who are on file were
+    // refused. The counts answer as they are; the failed record is said in the log, with the counts, and never a name.
+    try {
+      await recordDecision(ctx, tenantId, "workspace", tenantId, "import", {
+        import_id: input.import_id,
+        rows: input.rows.length,
+        added: out.added,
+        existed: out.existed,
+        emails_set: out.emails_set,
+        skipped: out.skipped.length,
+        failed: out.failed.length,
+      });
+    } catch (e) {
+      console.error(
+        "import_decision_failed",
+        JSON.stringify({
+          tenant: tenantId,
+          import_id: input.import_id,
+          added: out.added,
+          existed: out.existed,
+          skipped: out.skipped.length,
+          failed: out.failed.length,
+          error: e instanceof Error ? e.message : String(e),
+        }),
+      );
+    }
     return out;
   },
 });

@@ -31,8 +31,8 @@ const tables = () => ({
   decisions: [],
 });
 /** fakeDb writes into the tables it is given, so a test that passes its own reads back what the route wrote. */
-const ctxFor = (rpcs, db = tables()) => ({
-  supabase: fakeDb(db, {}, rpcs),
+const ctxFor = (rpcs, db = tables(), faults = {}) => ({
+  supabase: fakeDb(db, faults, rpcs),
   userId: USER,
   email: "ada@example.com",
   params: {},
@@ -159,6 +159,51 @@ test("42501 is never a row's own: PostgREST says it when the grant is gone, a fa
   assert.equal(out.stopped, true);
   assert.deepEqual(out.skipped, []);
   assert.equal(out.failed.length, 1);
+});
+
+test("a decision the ledger will not take never refuses people who are on file: the counts still answer, and the log says what was not recorded", async () => {
+  const db = tables();
+  const refused = 'new row for relation "decisions" violates check constraint "decisions_verb_check"';
+  const ctx = ctxFor(
+    { import_person: (args) => ({ contact_id: "k", existed: false, email: args.p_email ? "set" : null }) },
+    db,
+    { "decisions.insert": { message: refused, code: "23514" } },
+  );
+  const said = [];
+  const error = console.error;
+  console.error = (...a) => said.push(a);
+  let out;
+  try {
+    out = await route.POST.run(
+      post({
+        import_id: IMPORT,
+        rows: [{ phone: "+16465550101", email: "ana@example.com" }, { phone: "+16465550102" }, { name: "Nobody" }],
+      }),
+      ctx,
+    );
+  } finally {
+    console.error = error;
+  }
+  // Every row went through the door before the ledger was asked: the rows are the act, and they answer as they are.
+  assert.equal(out.added, 2);
+  assert.equal(out.emails_set, 1);
+  assert.equal(out.skipped.length, 1);
+  assert.deepEqual(out.failed, []);
+  assert.equal(out.stopped, false);
+  assert.equal(db.decisions.length, 0, "the ledger took nothing");
+  // The record that was not made is said once in the log, with the counts and the ledger's own sentence (recordDecision
+  // throws `decision: <the database's words>`), and no name.
+  assert.equal(said.length, 1);
+  assert.equal(said[0][0], "import_decision_failed");
+  assert.deepEqual(JSON.parse(said[0][1]), {
+    tenant: A,
+    import_id: IMPORT,
+    added: 2,
+    existed: 0,
+    skipped: 1,
+    failed: 0,
+    error: `decision: ${refused}`,
+  });
 });
 
 test("a name reaches the door whole: the door keeps its first 80 characters, so an emoji at the edge is never split here", async () => {

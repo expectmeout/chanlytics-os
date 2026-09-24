@@ -7,7 +7,8 @@
 // The reader is contracts' (csv.ts), published as window.__csvImport by seed-globals.ts: parseCsv, matchColumns,
 // importRowsOf, importCounts. The door answers each part's skipped and failed lines counted within the part; they are
 // said here as the file's own lines. A refusal is said by the Save, as the deal sheet says its own (the sheet's foot);
-// a part the door stops ends the import there, and the summary says what went through before it.
+// a part the door stops, or refuses after others went through, ends the import at the line it began, and the summary
+// says what went through before it.
 
 const PL_IMPORT_PART = 50;
 // Rows drawn before the import, as a taste of what was read.
@@ -85,7 +86,13 @@ const PeopleImportSheet = ({ onClose, onDone = null, flash = null }) => {
     for (let i = 0; i < readable.length; i += PL_IMPORT_PART) {
       setProgress({ done: i, total: readable.length });
       const r = await window.__importPeople({ import_id: importId, rows: plImportPartOf(readable.slice(i, i + PL_IMPORT_PART)) });
-      if (!r.ok) { stopped = r.message || "The import could not go on."; break; }
+      if (!r.ok) {
+        // Refused after other parts went through: said at the line this part began, as a stopped part is, over the
+        // summary of what went. Refused before anything went: the bare refusal by the Save, over the preview.
+        const message = r.message || "The import could not go on.";
+        stopped = sent > 0 ? `Stopped at line ${readable[i].line}: ${message}` : message;
+        break;
+      }
       sent += 1;
       const d = r.data;
       totals.added += d.added;
@@ -123,7 +130,6 @@ const PeopleImportSheet = ({ onClose, onDone = null, flash = null }) => {
   return (
     <window.RecordSheet
       id="people-import"
-      className="pl-import-sheet"
       title="Import people"
       sub="A spreadsheet of your clients: names, mobile numbers, emails. Nothing already here is overwritten, and nobody is signed up for anything."
       onClose={onClose}
