@@ -98,6 +98,10 @@ export interface LeadMemberRow {
   email_state: LeadEmailState;
   /** The term of the run that found it, from the judgment. */
   term: string | null;
+  /** The place the source listed it as, for reading it again (an answer's re-judge); null once blanked. */
+  place_id: string | null;
+  /** The owner decided it (Keep, Put back, Exclude) or has worked the lead: nothing the engine decides overrides it. */
+  decided: boolean;
 }
 
 /** The columns of `leads` the runner writes (PRD §12.4, Appendix B). */
@@ -164,6 +168,8 @@ export interface MemberJudgment {
   answer: JudgePlaceAnswer | null;
   model: string | null;
   reasons: string[];
+  /** The version of the plan the class was decided under; absent is 1. An answer that changed the plan re-judges below it. */
+  plan_version?: number;
 }
 
 export interface CollectPlace {
@@ -214,6 +220,9 @@ export interface CollectPage {
   } | null;
 }
 
+export type RejudgeResult =
+  { ok: true; changed: number; counted: number; uncounted: number } | { ok: false; why: "round" | "state" | "version" };
+
 export type CollectCommitResult =
   | { ok: true; counted: number; qualified: number; review: number; excluded: number; round_state: LeadRoundState }
   | { ok: false; why: "lease" | "offset" | "run" | "ended" };
@@ -248,6 +257,17 @@ export interface LeadDb {
     last: boolean,
   ): Promise<{ ok: boolean }>;
   roundEnd(roundId: string, ending: LeadRoundEnding): Promise<boolean>;
+  /**
+   * lead_round_rejudge (00165): the verdicts of an answer that changed the plan, over places the probe already judged,
+   * committed on a round running at that plan version. Never over the owner's decision, never twice, counted both
+   * ways from the round's reservation.
+   */
+  roundRejudge(
+    roundId: string,
+    planVersion: number,
+    places: CollectPlace[],
+    judgment: CollectJudgment | null,
+  ): Promise<RejudgeResult>;
   /** Insert the run rows that are not there yet, by their deterministic ids, and answer every row of the round. */
   runsEnsure(
     rows: {

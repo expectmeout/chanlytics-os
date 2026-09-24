@@ -15,6 +15,7 @@ import {
   OUT_OF_AREA_REASON,
   CLOSED_REASON,
   JUDGE_MARGIN_MS,
+  rejudgeProbe,
 } from "../../../packages/core/src/leads/runner.ts";
 import { JUDGE_REFUSED_REASON, JUDGE_TIMEOUT_MS } from "../../../packages/core/src/leads/judge.ts";
 import { runIdFor } from "../../../packages/core/src/leads/ids.ts";
@@ -336,6 +337,106 @@ test("an answer that changed the plan keeps every term, a yes drops the one the 
       .map((c) => c.input.searchStringsArray[0]);
     assert.equal(!terms.includes("strength coach"), dropped, `${answer}: ${terms.join(", ")}`);
   }
+});
+
+/* --------------------------------------- an answer re-judges the probe -- */
+
+/** The fixture probe, asked about: 24 judged, 11 counted, 9 chains and 3 other kinds left out. */
+async function asked() {
+  const x = await probed();
+  const [r1, r2] = x.w.runs();
+  await collect(x.p("c1"), r1.id, "p0", "c1");
+  await collect(x.p("c2"), r2.id, "p0", "c2");
+  assert.equal(x.w.round().state, "waiting_on_owner");
+  return x;
+}
+const chainsOf = (w) =>
+  w.members().filter((m) => w.T.leads.find((l) => l.id === m.lead_id)?.business_name.startsWith("PowerGym"));
+
+// "Include large studio chains" left every one of them out: the main phase skips a place the workspace already holds,
+// and the places the probe judged kept the verdicts of the plan the owner had just said was wrong.
+test("an Include re-classes the first places from what the judge already said: they come back whole and counted, the judge is not asked again, and the owner's own decision stands", async () => {
+  const { w, p } = await asked();
+  const paid = w.judge.calls.length;
+  const kept = chainsOf(w)[0];
+  kept.kept_at = "2026-09-24T05:00:00Z"; // the owner decided this one while the question waited
+  const plan = w.round().plan;
+  const lifted = {
+    ...plan,
+    version: 2,
+    criteria: plan.criteria.filter((c) => c.key !== "independent"),
+    exclusions: [],
+  };
+  w.rpcs.lead_round_answer({ p_round_id: w.round().id, p_answer: "include", p_plan: lifted });
+  await startRound(p("job-3"), w.round().id, "job-3", true);
+  assert.equal(
+    w.judge.calls.length - paid,
+    0,
+    "every key the new plan asks was answered already: nobody is paid again",
+  );
+  const back = chainsOf(w).filter((m) => m !== kept);
+  assert.equal(back.length, 8);
+  assert.ok(
+    back.every((m) => m.class === "qualified" && m.excluded_by === null && m.judgment.plan_version === 2),
+    JSON.stringify(back.map((m) => [m.class, m.excluded_by, m.judgment.plan_version])),
+  );
+  assert.deepEqual([kept.class, kept.judgment.plan_version], ["excluded", undefined], "the owner's decision stands");
+  assert.equal(back.filter((m) => m.counted).length, 8, "counted from the round's own reservation");
+  assert.equal(w.round().allowance_used, 19);
+  const lead = w.T.leads.find((l) => l.id === back[0].lead_id);
+  assert.ok(lead.email && lead.email.endsWith(".example"), "whole: the address a left-out place never kept");
+  assert.equal(lead.email_state, "checking", "waiting on the round's checks, like any lead's");
+  assert.equal(lead.neighborhood, "Zilker", "and what its listing shows");
+  const again = await rejudgeProbe(p("job-4"), w.round());
+  assert.deepEqual([again.changed, again.judged], [0, 0], "a second pass changes nothing");
+});
+
+test("a change that asks something new judges the first places once under it, a batch at a time", async () => {
+  const { w, p } = await asked();
+  const paid = w.judge.calls.length;
+  const plan = w.round().plan;
+  const added = {
+    ...plan,
+    version: 2,
+    exclusions: [...plan.exclusions, { key: "big_boxes", text: "big box gyms", origin: "you_said" }],
+  };
+  w.rpcs.lead_round_answer({ p_round_id: w.round().id, p_answer: "include", p_plan: added });
+  const out = await rejudgeProbe(p("job-3"), w.round());
+  assert.deepEqual(
+    w.judge.calls.slice(paid).map((c) => c.length),
+    [24],
+    "the 24 the probe judged, in one batch: no stored answer says anything about big box gyms",
+  );
+  assert.deepEqual([out.judged, out.reused, out.unread], [24, 0, 0]);
+  assert.equal(w.T.lead_judgments.length, 3, "the answer kept once, beside the probe's two");
+  assert.ok(
+    w
+      .members()
+      .filter((m) => m.judgment.answer)
+      .every((m) => m.judgment.plan_version === 2),
+    "every place the judge answered is judged under the new plan",
+  );
+  const before = w.judge.calls.length;
+  await rejudgeProbe(p("job-4"), w.round());
+  assert.equal(w.judge.calls.length, before, "and never again");
+});
+
+test("a place the source no longer lists is left as it was, and said", async () => {
+  const { w, p } = await asked();
+  const plan = w.round().plan;
+  w.rpcs.lead_round_answer({
+    p_round_id: w.round().id,
+    p_answer: "include",
+    p_plan: { ...plan, version: 2, exclusions: [] },
+  });
+  // The datasets expired: nothing to read the places from.
+  for (const r of w.runs()) r.dataset_id = null;
+  const out = await rejudgeProbe(p("job-3"), w.round());
+  assert.deepEqual([out.changed, out.unread], [0, 24]);
+  assert.ok(
+    chainsOf(w).every((m) => m.class === "excluded"),
+    "nothing is decided from a place nobody read",
+  );
 });
 
 test("a probe that fits well goes on: the round runs and the main phase is scheduled as a resume of the same round, sized from the yield", async () => {

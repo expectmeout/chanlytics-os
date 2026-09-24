@@ -27,7 +27,7 @@ day a question waits), so they are read again (a read, not a run) and cleaned as
 ### Task 1: The door, red first
 
 **Files:** `tooling/scripts/tests/lead-engine.db.test.mjs` (test "an answer that changed the plan re-judges the first
-places…"); then `supabase/migrations/00164_an_answer_rejudges_the_first_places.sql`.
+places…"); then `supabase/migrations/00165_an_answer_rejudges_the_first_places.sql`.
 
 - [ ] Commit the test alone; open the draft PR; wait for the database workflow to go red.
 - [ ] `lead_round_rejudge(p_round_id uuid, p_plan_version integer, p_places jsonb, p_judgment jsonb default null)`,
@@ -62,4 +62,4 @@ places…"); then `supabase/migrations/00164_an_answer_rejudges_the_first_places
 ### Task 3: Verify and ship
 
 - [ ] Rebuild every package, commit real dist diffs; typecheck, lint, format, the full suite.
-- [ ] One combined review; fix; push; the four checks green; `db push` 00164 (dry run lists only it); read back; merge.
+- [ ] One combined review; fix; push; the four checks green; `db push` 00165 (dry run lists only it); read back; merge.

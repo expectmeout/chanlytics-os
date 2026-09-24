@@ -1649,7 +1649,7 @@ test(
 );
 
 // An answer that changed the plan (Include, or Change what I asked) re-judges the places the probe already judged, under
-// the new plan (lead_round_rejudge, 00164). Without it the question's "Include large studio chains" left all nine of
+// the new plan (lead_round_rejudge, 00165). Without it the question's "Include large studio chains" left all nine of
 // them out: the main phase skips a place the workspace already holds, so they could never come back.
 test(
   "an answer that changed the plan re-judges the first places: the one it lets in comes back whole and counted, one it now leaves out gives its lead back and keeps nothing, the owner's own decision stands, and a second pass changes nothing",

@@ -1260,6 +1260,10 @@ interface LeadMemberRow {
     email_state: LeadEmailState;
     /** The term of the run that found it, from the judgment. */
     term: string | null;
+    /** The place the source listed it as, for reading it again (an answer's re-judge); null once blanked. */
+    place_id: string | null;
+    /** The owner decided it (Keep, Put back, Exclude) or has worked the lead: nothing the engine decides overrides it. */
+    decided: boolean;
 }
 /** The columns of `leads` the runner writes (PRD §12.4, Appendix B). */
 interface LeadColumns {
@@ -1335,6 +1339,8 @@ interface MemberJudgment {
     answer: JudgePlaceAnswer | null;
     model: string | null;
     reasons: string[];
+    /** The version of the plan the class was decided under; absent is 1. An answer that changed the plan re-judges below it. */
+    plan_version?: number;
 }
 interface CollectPlace {
     place: LeadColumns;
@@ -1385,6 +1391,15 @@ interface CollectPage {
         nearby?: LeadArea[];
     } | null;
 }
+type RejudgeResult = {
+    ok: true;
+    changed: number;
+    counted: number;
+    uncounted: number;
+} | {
+    ok: false;
+    why: "round" | "state" | "version";
+};
 type CollectCommitResult = {
     ok: true;
     counted: number;
@@ -1414,6 +1429,12 @@ interface LeadDb {
         ok: boolean;
     }>;
     roundEnd(roundId: string, ending: LeadRoundEnding): Promise<boolean>;
+    /**
+     * lead_round_rejudge (00165): the verdicts of an answer that changed the plan, over places the probe already judged,
+     * committed on a round running at that plan version. Never over the owner's decision, never twice, counted both
+     * ways from the round's reservation.
+     */
+    roundRejudge(roundId: string, planVersion: number, places: CollectPlace[], judgment: CollectJudgment | null): Promise<RejudgeResult>;
     /** Insert the run rows that are not there yet, by their deterministic ids, and answer every row of the round. */
     runsEnsure(rows: {
         id: string;
@@ -1960,6 +1981,27 @@ declare function takeBatch(card: LeadCardRunner, items: unknown[], cursor: numbe
     prepared: Prepared[];
 };
 declare function collect(p: LeadPorts, runId: string, seq: string, owner: string): Promise<CollectOutcome>;
+type RejudgeOutcome = {
+    changed: number;
+    reused: number;
+    judged: number;
+    unread: number;
+};
+/**
+ * An answer that changed the plan re-judges the places the probe already judged (00165). The question asked
+ * "is that what you meant?" about them; when the owner answers by changing the plan -- Include the thing it left out,
+ * or Change what I asked -- those places were still classed by the plan they had just said was wrong, and the main
+ * phase never sees them again (a place the workspace holds is skipped), so an Include brought back nothing.
+ *
+ * A left-out place kept no email and nothing its listing showed (PRD §0.4), so the places are read again from the
+ * probe's own items (a read of its dataset, not a run) and cleaned as the collect cleaned them. A stored answer that
+ * answers every key the new plan asks is the answer (an Include lifts a key: free, and exactly what was said before);
+ * otherwise the places are judged again under the new plan, a batch at a time, before the deadline. Classes are
+ * code's, through the collect's own memberOf, against the plan's area. The door (lead_round_rejudge) never overrides
+ * the owner's decision and never applies twice. A refused batch is left as it was; a place the source no longer
+ * lists (an expired dataset) is left as it was and counted as unread.
+ */
+declare function rejudgeProbe(p: LeadPorts, round: LeadRoundRow): Promise<RejudgeOutcome>;
 type CheckOutcome = {
     kind: "not_open";
 } | {
@@ -2577,4 +2619,4 @@ interface InboundInput {
 }
 declare function answerInbound(input: InboundInput, ports: InboundPorts): Promise<void>;
 
-export { type AfterProbe, type ApproveReceipt, type ApproveRunPorts, type ArchivePorts, type AssembleCommand, type AssemblePorts, type Assembled, BROADCAST_STALL_RETRY_MS, type BroadcastBatchCommand, type BroadcastBatchPorts, type BroadcastReceipt, type BroadcastRef, type BroadcastRow, CARDS, CHECKER_FIELDS, CHECKER_RUN_TIMEOUT_SECS, CHECK_BATCH, CLOSED_REASON, type CancelBroadcastPorts, type CancelReceipt, type CancelSendPorts, type Channel, type CheckAgain, type CheckOutcome, type CheckPlaybookPorts, type CleanPlace, type CollectCommitResult, type CollectJudgment, type CollectOutcome, type CollectPage, type CollectPlace, type ConsentDecision, type ConsentInputs, type ConsentSource, type ContactRow, type CreateBroadcastCommand, type CreateBroadcastPorts, DEADLINE_MARGIN_MS, DUPLICATE_REASON, type Db, type DeliverPorts, type Delivered, type Delivery, type DeliveryRefusal, type Door, EMAIL_BODY_MAX, EMAIL_REVIEW_WORDS, type EmailClaim, type EmailIngestOutcome, type EmailIngestPorts, type EmailParentFacts, type EmailReplyPorts, type EscalationPorts, FACT_MAX, FINAL_RUN_STATES, FIRST_COLLECT_SECONDS, type HandBackPorts, IDEMPOTENCY_WINDOW_MS, INPUT_MARKER, type Identity, type InboundBrainReply, type InboundCarrier, type InboundChannel, type InboundDb, type InboundHandoff, type InboundInput, type InboundLog, type InboundPorts, type InboundRuntime, type InboundSink, type IncomingEmail, IngestFailed, JUDGE_MARGIN_MS, JUDGE_REFUSED_REASON, JUDGE_TIMEOUT_MS, type JudgedBatch, LEASE_SECONDS, type LatLng, type LayerTwoIn, type LayerTwoOut, type LeadCardRunner, type LeadColumns, type LeadDb, type LeadMemberRow, type LeadPorts, LeadRetry, type LeadRoundRow, type LeadRunRow, type LeadShare, MAPS_CAP_FLOOR_USD, MAPS_FIELDS, MAPS_RUN_TIMEOUT_SECS, MARK_ALLOWANCE_MS, MARK_AT_ONCE, MARK_MAX_BYTES, MARK_MAX_RATIO, MARK_MIN_SIDE, MARK_TRIES, MAX_REPLIES_PER_DAY, MAX_SNOOZE_MS, type MapsPlace, type MarkImage, type MarkKind, type MemberJudgment, NEEDS_UNTIL, NO_LOCATION_REASON, NO_MODEL_PAGE, type NewBroadcast, type NewRecipient, OUT_OF_AREA_REASON, type Owner, PAGE_ITEMS, PAGE_READ_ALLOWANCE_MS, PAUSE_MS, PERSON_CONTROL_MAX_S, POLL_SECONDS, PROVIDER_RUN_PAGE, type Phase, type PlaybookInput, type PlaybookRow, type ProbeYieldMember, type ProvisionLinePorts, type QueuedReply, RADIUS_MAX_M, RADIUS_MIN_M, type RecipientMark, type RecipientRow, type ReconcileOutcome, type ReplyBody, type ReplyCommand, type ReplyPorts, type ReplyPosture, type ReplyReceipt, type ReplyThread, type ResolveResult, type RoundQuestion, type RoutingFacts, type RunBy, type RunContext, type RunOutcome, type RunPlaybookCommand, type RunPlaybookPorts, SEND_GRACE_MS, STALE_MS, STALE_REPLY_MS, type SendKind, type SendPayload, type SendQueuedCommand, type SendQueuedPorts, type Sender, type SnoozePorts, type SnoozeResult, type StartOutcome, type TakeOverPorts, type TakeOverResult, type TemplateRow, type TemplateSend, type TemplateValuesPorts, type TermOutcome, type Thread, type ThreadPorts, type ThreadState, type ThreadTurn, UNKNOWN_START_GRACE_MS, VISION_MAX_BYTES, VISION_MIMES, type WakePorts, type Wire, type WirePayload, afterProbe, ageVerdict, answerInbound, approveRun, archive, areaCenter, assembleRun, cancelBroadcast, cancelSend, centerOf, check, checkPlaybook, checkable, cleanPlace, collect, createBroadcast, deliver, deliverSafely, discoveryEnding, effectiveReplyMode, emailSender, fact, factsOf, foldDuplicates, handBack, hasContact, haversineM, holdCopy, holdPlan, identityOf, imageHeaderOf, inArea, ingestEmail, isAgainRun, isFreeMail, isThreadUnknown, isVisionMime, judgeBatch, layerTwo, mainAsk, markImageFrom, markPlaces, medianCenter, memberOf, nearbyFor, nearestAreas, noModelPlan, opIdFor, photoUserText, probeAsk, probeYield, provisionLine, radiusFromSpread, reconcileUnknownRuns, replyPosture, replyToConversation, resolveConsent, resolveEscalation, runCaps, runIdFor, runPlaybook, runStateOf, sendBroadcastBatch, sendQueued, sha256Hex, shareKeysOf, sharesWithin, snooze, startRound, takeBatch, takeOver, targetOf, templatePurpose, templateValues, termsShortOf, threadVerdict, toBase64, unreadableThread, wake, whatsappSender, yieldOf, zctaCenter };
+export { type AfterProbe, type ApproveReceipt, type ApproveRunPorts, type ArchivePorts, type AssembleCommand, type AssemblePorts, type Assembled, BROADCAST_STALL_RETRY_MS, type BroadcastBatchCommand, type BroadcastBatchPorts, type BroadcastReceipt, type BroadcastRef, type BroadcastRow, CARDS, CHECKER_FIELDS, CHECKER_RUN_TIMEOUT_SECS, CHECK_BATCH, CLOSED_REASON, type CancelBroadcastPorts, type CancelReceipt, type CancelSendPorts, type Channel, type CheckAgain, type CheckOutcome, type CheckPlaybookPorts, type CleanPlace, type CollectCommitResult, type CollectJudgment, type CollectOutcome, type CollectPage, type CollectPlace, type ConsentDecision, type ConsentInputs, type ConsentSource, type ContactRow, type CreateBroadcastCommand, type CreateBroadcastPorts, DEADLINE_MARGIN_MS, DUPLICATE_REASON, type Db, type DeliverPorts, type Delivered, type Delivery, type DeliveryRefusal, type Door, EMAIL_BODY_MAX, EMAIL_REVIEW_WORDS, type EmailClaim, type EmailIngestOutcome, type EmailIngestPorts, type EmailParentFacts, type EmailReplyPorts, type EscalationPorts, FACT_MAX, FINAL_RUN_STATES, FIRST_COLLECT_SECONDS, type HandBackPorts, IDEMPOTENCY_WINDOW_MS, INPUT_MARKER, type Identity, type InboundBrainReply, type InboundCarrier, type InboundChannel, type InboundDb, type InboundHandoff, type InboundInput, type InboundLog, type InboundPorts, type InboundRuntime, type InboundSink, type IncomingEmail, IngestFailed, JUDGE_MARGIN_MS, JUDGE_REFUSED_REASON, JUDGE_TIMEOUT_MS, type JudgedBatch, LEASE_SECONDS, type LatLng, type LayerTwoIn, type LayerTwoOut, type LeadCardRunner, type LeadColumns, type LeadDb, type LeadMemberRow, type LeadPorts, LeadRetry, type LeadRoundRow, type LeadRunRow, type LeadShare, MAPS_CAP_FLOOR_USD, MAPS_FIELDS, MAPS_RUN_TIMEOUT_SECS, MARK_ALLOWANCE_MS, MARK_AT_ONCE, MARK_MAX_BYTES, MARK_MAX_RATIO, MARK_MIN_SIDE, MARK_TRIES, MAX_REPLIES_PER_DAY, MAX_SNOOZE_MS, type MapsPlace, type MarkImage, type MarkKind, type MemberJudgment, NEEDS_UNTIL, NO_LOCATION_REASON, NO_MODEL_PAGE, type NewBroadcast, type NewRecipient, OUT_OF_AREA_REASON, type Owner, PAGE_ITEMS, PAGE_READ_ALLOWANCE_MS, PAUSE_MS, PERSON_CONTROL_MAX_S, POLL_SECONDS, PROVIDER_RUN_PAGE, type Phase, type PlaybookInput, type PlaybookRow, type ProbeYieldMember, type ProvisionLinePorts, type QueuedReply, RADIUS_MAX_M, RADIUS_MIN_M, type RecipientMark, type RecipientRow, type ReconcileOutcome, type RejudgeOutcome, type RejudgeResult, type ReplyBody, type ReplyCommand, type ReplyPorts, type ReplyPosture, type ReplyReceipt, type ReplyThread, type ResolveResult, type RoundQuestion, type RoutingFacts, type RunBy, type RunContext, type RunOutcome, type RunPlaybookCommand, type RunPlaybookPorts, SEND_GRACE_MS, STALE_MS, STALE_REPLY_MS, type SendKind, type SendPayload, type SendQueuedCommand, type SendQueuedPorts, type Sender, type SnoozePorts, type SnoozeResult, type StartOutcome, type TakeOverPorts, type TakeOverResult, type TemplateRow, type TemplateSend, type TemplateValuesPorts, type TermOutcome, type Thread, type ThreadPorts, type ThreadState, type ThreadTurn, UNKNOWN_START_GRACE_MS, VISION_MAX_BYTES, VISION_MIMES, type WakePorts, type Wire, type WirePayload, afterProbe, ageVerdict, answerInbound, approveRun, archive, areaCenter, assembleRun, cancelBroadcast, cancelSend, centerOf, check, checkPlaybook, checkable, cleanPlace, collect, createBroadcast, deliver, deliverSafely, discoveryEnding, effectiveReplyMode, emailSender, fact, factsOf, foldDuplicates, handBack, hasContact, haversineM, holdCopy, holdPlan, identityOf, imageHeaderOf, inArea, ingestEmail, isAgainRun, isFreeMail, isThreadUnknown, isVisionMime, judgeBatch, layerTwo, mainAsk, markImageFrom, markPlaces, medianCenter, memberOf, nearbyFor, nearestAreas, noModelPlan, opIdFor, photoUserText, probeAsk, probeYield, provisionLine, radiusFromSpread, reconcileUnknownRuns, rejudgeProbe, replyPosture, replyToConversation, resolveConsent, resolveEscalation, runCaps, runIdFor, runPlaybook, runStateOf, sendBroadcastBatch, sendQueued, sha256Hex, shareKeysOf, sharesWithin, snooze, startRound, takeBatch, takeOver, targetOf, templatePurpose, templateValues, termsShortOf, threadVerdict, toBase64, unreadableThread, wake, whatsappSender, yieldOf, zctaCenter };

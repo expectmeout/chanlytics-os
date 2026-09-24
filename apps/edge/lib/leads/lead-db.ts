@@ -21,6 +21,7 @@ import type {
   LeadRoundRow,
   LeadRunRow,
   LeadShare,
+  RejudgeResult,
 } from "../packages/core.js";
 
 type Db = SupabaseClient<Database>;
@@ -93,6 +94,13 @@ export function leadDb(db: Db): LeadDb {
         p_last: last,
       }),
     roundEnd: (roundId, ending: LeadRoundEnding) => bool("lead_round_end", { p_round_id: roundId, p_ending: ending }),
+    roundRejudge: (roundId, planVersion, places, judgment) =>
+      json<RejudgeResult>("lead_round_rejudge", {
+        p_round_id: roundId,
+        p_plan_version: planVersion,
+        p_places: places as unknown as Json,
+        p_judgment: (judgment ?? null) as unknown as Json,
+      }),
     async runsEnsure(rows) {
       if (!rows.length) return [];
       // The id is derived from the round, the phase and the term (core runIdFor): a second inserter meets the first row and inserts nothing.
@@ -166,13 +174,13 @@ export function leadDb(db: Db): LeadDb {
       const leads = must<
         Pick<
           Database["public"]["Tables"]["leads"]["Row"],
-          "id" | "lat" | "lng" | "phone_e164" | "email" | "email_state"
+          "id" | "lat" | "lng" | "phone_e164" | "email" | "email_state" | "place_id" | "stage" | "contact_id"
         >[]
       >(
         "leads read",
         await db
           .from("leads")
-          .select("id, lat, lng, phone_e164, email, email_state")
+          .select("id, lat, lng, phone_e164, email, email_state, place_id, stage, contact_id")
           .in(
             "id",
             members.map((m) => m.lead_id),
@@ -197,6 +205,12 @@ export function leadDb(db: Db): LeadDb {
           email: l?.email ?? null,
           email_state: (l?.email_state ?? "none") as LeadMemberRow["email_state"],
           term: typeof j?.term === "string" ? j.term : null,
+          place_id: l?.place_id ?? null,
+          // The owner's own decision (00140's member doors) or a lead they have worked: lead_round_rejudge skips it too.
+          decided:
+            m.kept_at !== null ||
+            m.excluded_by === "owner" ||
+            (!!l && ((l.stage ?? "ready") !== "ready" || l.contact_id !== null)),
         };
       });
     },

@@ -25,6 +25,7 @@
 import {
   type LeadArea,
   LEAD_CARDS,
+  LEAD_KIND_KEY,
   LEAD_ESTIMATE_MARGIN,
   LEAD_JUDGE_BATCH,
   classify,
@@ -46,6 +47,7 @@ import { foldDuplicates, identityOf, shareKeysOf, sharesWithin } from "./identit
 import { JUDGE_REFUSED_REASON, JUDGE_TIMEOUT_MS, factsOf, judgeBatch, opIdFor, type JudgedBatch } from "./judge";
 import type {
   CollectCommitResult,
+  CollectJudgment,
   CollectPage,
   CollectPlace,
   LeadMemberRow,
@@ -53,6 +55,7 @@ import type {
   LeadRoundRow,
   LeadRunRow,
   LeadShare,
+  MemberJudgment,
 } from "./ports";
 import { afterProbe } from "./question";
 import { mainAsk, probeAsk, probeYield, runCaps } from "./sizing";
@@ -200,6 +203,9 @@ export async function startRound(p: LeadPorts, roundId: string, owner: string, r
   if (phase === "probe") {
     ask = probeAsk(plan);
   } else {
+    // An answer that changed the plan (Include, Change what I asked) re-judges the places the probe already judged
+    // under it first: what it lets in comes back, what it now leaves out goes, and the rest is sized from that.
+    if (resume && round.answered === "include" && round.purpose === "probe") await rejudgeProbe(p, round);
     const members = await p.db.membersOfRound(round.id);
     const judged = members.filter(wasJudged);
     const counted = members.filter((m) => m.counted).length;
@@ -657,6 +663,8 @@ async function collectHeld(
 /** The rows just committed, as members of the round, for a decision made in the same invocation. */
 function memberRows(places: CollectPlace[], term: string | null): LeadMemberRow[] {
   return places.map((x) => ({
+    place_id: x.place.place_id,
+    decided: false,
     lead_id: x.place.place_id,
     class: x.member.class,
     excluded_by: x.member.excluded_by,
@@ -766,6 +774,139 @@ async function roundDecision(
     next: null,
     after: () => p.schedule("lead_check", { round_id: round.id, batch: 0 }, 0),
   };
+}
+
+/* ------------------------------------------------- an answer re-judges -- */
+
+/** The version of the plan a member's class was decided under: 1 until an answer changed the plan. */
+const versionOf = (m: LeadMemberRow): number => {
+  const v = (m.judgment as Partial<MemberJudgment> | null)?.plan_version;
+  return typeof v === "number" ? v : 1;
+};
+
+/** Every key the plan asks the judge (contracts' rubric): the kind, each exclusion, each criterion. */
+const keysOf = (plan: LeadSearchPlan): string[] => [
+  LEAD_KIND_KEY,
+  ...plan.exclusions.map((e) => e.key),
+  ...plan.criteria.map((c) => c.key),
+];
+
+export type RejudgeOutcome = { changed: number; reused: number; judged: number; unread: number };
+
+/**
+ * An answer that changed the plan re-judges the places the probe already judged (00165). The question asked
+ * "is that what you meant?" about them; when the owner answers by changing the plan -- Include the thing it left out,
+ * or Change what I asked -- those places were still classed by the plan they had just said was wrong, and the main
+ * phase never sees them again (a place the workspace holds is skipped), so an Include brought back nothing.
+ *
+ * A left-out place kept no email and nothing its listing showed (PRD §0.4), so the places are read again from the
+ * probe's own items (a read of its dataset, not a run) and cleaned as the collect cleaned them. A stored answer that
+ * answers every key the new plan asks is the answer (an Include lifts a key: free, and exactly what was said before);
+ * otherwise the places are judged again under the new plan, a batch at a time, before the deadline. Classes are
+ * code's, through the collect's own memberOf, against the plan's area. The door (lead_round_rejudge) never overrides
+ * the owner's decision and never applies twice. A refused batch is left as it was; a place the source no longer
+ * lists (an expired dataset) is left as it was and counted as unread.
+ */
+export async function rejudgeProbe(p: LeadPorts, round: LeadRoundRow): Promise<RejudgeOutcome> {
+  const out: RejudgeOutcome = { changed: 0, reused: 0, judged: 0, unread: 0 };
+  const plan = round.plan;
+  const card = CARDS[plan.card];
+  const members = await p.db.membersOfRound(round.id);
+  const pending = members.filter(
+    (m) => wasJudged(m) && !m.decided && m.place_id !== null && versionOf(m) < round.plan_version,
+  );
+  if (!pending.length) return out;
+
+  // The probe's own items, by place id, with the term that found each.
+  const listed = new Map<string, { clean: CleanPlace; term: string }>();
+  for (const r of await p.db.runsOfRound(round.id)) {
+    if (r.purpose !== "discover" || r.term === null || !r.dataset_id) continue;
+    if ((await runIdFor(round.id, "probe", r.term)) !== r.id) continue;
+    for (let from = 0; ; from += PAGE_ITEMS) {
+      if (outOfTime(p)) throw new LeadRetry("out of time reading the first places again");
+      const { items } = await p.apify.listItems(r.dataset_id, from, PAGE_ITEMS, [...card.fields]);
+      for (const it of items) {
+        const mapped = card.mapItem(it);
+        if (mapped) listed.set(mapped.placeId, { clean: cleanPlace(mapped), term: r.term });
+      }
+      if (items.length < PAGE_ITEMS) break;
+    }
+  }
+  const found = pending.flatMap((m) => {
+    const x = listed.get(m.place_id as string);
+    if (!x) out.unread += 1;
+    return x ? [{ m, ...x }] : [];
+  });
+  if (!found.length) return out;
+  // What the collect filtered before it judged, filtered again, so a stored answer's email index still points at
+  // the same address.
+  const supp = await p.db.suppressed(round.tenant_id, {
+    emails: found.flatMap((x) => x.clean.emails),
+    placeIds: found.map((x) => x.clean.raw.placeId),
+  });
+  const geo = centerOf(plan, members);
+  const keys = keysOf(plan);
+  const reuse: typeof found = [];
+  const judge: typeof found = [];
+  for (const x of found) {
+    if (supp.placeIds.has(x.clean.raw.placeId)) continue;
+    x.clean.emails = x.clean.emails.filter((e) => !supp.emails.has(e));
+    const stored = (x.m.judgment as Partial<MemberJudgment>).answer;
+    const answers = new Set((stored?.criteria ?? []).map((c) => c.key));
+    (keys.every((k) => answers.has(k)) ? reuse : judge).push(x);
+  }
+
+  const place = (
+    x: (typeof found)[number],
+    answer: JudgePlaceAnswer | null,
+    opId: string | null,
+    model: string | null,
+  ): CollectPlace => {
+    const rule =
+      geo.center && !inArea(geo.center, geo.radiusM, x.clean.raw.location)
+        ? { class: "review" as const, reason: OUT_OF_AREA_REASON, token: "out_of_area", excluded_by: null }
+        : null;
+    const made = memberOf(plan, x.term, x.clean, answer, opId, model, rule, geo, [], null);
+    made.member.judgment = { ...made.member.judgment, plan_version: round.plan_version };
+    return made;
+  };
+  const commit = async (xs: typeof found, places: CollectPlace[], judgment: CollectJudgment | null) => {
+    // Their own marks, for the places the new plan lets back in (a left-out place kept none).
+    await markPlaces(
+      p,
+      places.filter((pl, i) => xs[i].m.class === "excluded" && pl.member.class !== "excluded"),
+    );
+    const res = await p.db.roundRejudge(round.id, round.plan_version, places, judgment);
+    if (!res.ok) return false;
+    out.changed += res.changed;
+    return true;
+  };
+
+  if (reuse.length) {
+    const places = reuse.map((x) => {
+      const j = x.m.judgment as Partial<MemberJudgment>;
+      return place(x, j.answer ?? null, j.op_id ?? null, j.model ?? null);
+    });
+    out.reused = reuse.length;
+    if (!(await commit(reuse, places, null))) return out;
+  }
+  for (let i = 0; i < judge.length; i += LEAD_JUDGE_BATCH) {
+    const batch = judge.slice(i, i + LEAD_JUDGE_BATCH);
+    if (outOfTime(p, JUDGE_MARGIN_MS)) throw new LeadRetry("out of time before judging the first places again");
+    const judged = await judgeBatch(
+      p.judge,
+      plan,
+      batch.map((x, ref) => factsOf(ref, x.clean)),
+      opIdFor(`rejudge:${round.id}:${round.plan_version}`, i, 0),
+    );
+    if (judged.refused) continue;
+    const places = batch.map((x, ref) =>
+      place(x, judged.answers.get(ref) ?? null, judged.judgment?.op_id ?? null, judged.model),
+    );
+    out.judged += batch.length;
+    if (!(await commit(batch, places, judged.judgment))) return out;
+  }
+  return out;
 }
 
 /** Stop: abort at the provider, then the round goes to its checks with "stopped" pending (PRD §0.5, decision 17). */
