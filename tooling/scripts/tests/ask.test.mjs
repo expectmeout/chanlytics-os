@@ -1043,7 +1043,7 @@ test("the speed pass: a fast model for a short answer, the day's rows never re-r
   );
   assert.ok(
     route.includes("listPolicies(ctx.supabase, tenantId).catch(() => [])") &&
-      route.includes("cfg.data?.config ?? null, policies)"),
+      route.includes("cfg.data?.config ?? null, offered)"),
   );
   const prompt = readCode("apps/dashboard/src/server/ask/prompt.ts");
   assert.ok(

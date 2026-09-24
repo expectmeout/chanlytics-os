@@ -246,7 +246,14 @@ import {
   type NumberHealth,
   type SendPurpose,
 } from "@chanlytics/contracts";
-import { PLAYBOOK_TRIGGERS, nextRunLabel, scheduleLine, triggerOf, type PlaybookDto } from "@chanlytics/contracts";
+import {
+  PLAYBOOK_TRIGGERS,
+  nextRunLabel,
+  scheduleLine,
+  triggerOf,
+  triggerOffered,
+  type PlaybookDto,
+} from "@chanlytics/contracts";
 
 /**
  * Slice 2: the Inbox flips to the real escalations queue. Open escalations +
@@ -714,6 +721,8 @@ export const settingsOverride: SurfaceOverride = {
               : {},
         })),
         role: pol.role ?? null,
+        // Deals on or off (0008): the follow-ups' row is drawn only where they are on (0006).
+        dealsOn: !!pol.deals_on,
       };
     }
     if (team instanceof Error) {
@@ -1328,7 +1337,7 @@ export interface PlaybookTriggerOption {
   hint: string;
   cls: string;
   list: string | null;
-  /** list, cadence or visit — a visit trigger needs the calendar and has no gap. */
+  /** list, cadence, visit, saved or deal — a visit trigger needs the calendar and has no gap; a deal's, once per proposal. */
   kind: string;
   /** Null, with `held` and `named`: the server could not count this moment -- never a zero it did not count. */
   candidates: number | null;
@@ -1416,6 +1425,8 @@ export const playbooksOverride: SurfaceOverride = {
     const listsKept = pb.lists ?? [];
     const keyOf = (p: { trigger: string; list_id?: string | null }) =>
       p.trigger === "saved_list" ? `list:${p.list_id ?? ""}` : p.trigger;
+    // The moments offered here (0006): a proposal's only where deals are on, as the route counts them.
+    const offered = PLAYBOOK_TRIGGERS.filter((t) => triggerOffered(t, !!pb.deals_on));
     (window as unknown as { __PLAYBOOKS?: PlaybooksSurface }).__PLAYBOOKS = {
       rows: pb.playbooks.map((p) => {
         const t = triggerOf(p.trigger);
@@ -1433,7 +1444,7 @@ export const playbooksOverride: SurfaceOverride = {
         };
       }),
       timezone: tz,
-      countsRead: PLAYBOOK_TRIGGERS.every((t) => t.kind === "saved" || !!pb.pools?.[t.id]),
+      countsRead: offered.every((t) => t.kind === "saved" || !!pb.pools?.[t.id]),
       lists: listsKept.map((l) => ({
         ...l,
         candidates: pool(`list:${l.id}`),
@@ -1441,7 +1452,7 @@ export const playbooksOverride: SurfaceOverride = {
         named: named(`list:${l.id}`),
       })),
       calendar: pb.calendar ?? "none",
-      triggers: PLAYBOOK_TRIGGERS.map((t) => ({
+      triggers: offered.map((t) => ({
         id: t.id,
         label: t.label,
         hint: t.hint,

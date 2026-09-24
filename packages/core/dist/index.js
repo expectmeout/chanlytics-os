@@ -1314,7 +1314,13 @@ var POLICY_CLASS_WORDS = {
     short: "Reviews",
     note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you"
   },
-  money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" }
+  money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" },
+  // 0006: one nudge per proposal, with its link, once it has waited past the workspace's pace with nothing back.
+  follow_up: {
+    name: "Proposal follow-ups",
+    short: "Follow-ups",
+    note: "the proposal follow-up playbook \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
+  }
 };
 var PolicyLimitsSchema = z3.object({
   max_replies_day: z3.number().int().min(1).max(200).optional(),
@@ -1939,6 +1945,14 @@ var LeadSuggestAnswerSchema = z5.object({
   ).min(1).max(4)
 });
 var LEAD_UNDO_MS = 24 * 60 * 6e4;
+var SELLS_BY_QUESTION = "How customers buy";
+var SELLS_BY_WORDS = {
+  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
+  proposal: {
+    label: "Some get a proposal first",
+    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
+  }
+};
 var PERSON_MODE_LABELS = { auto: "Answer", ask: "Ask me first", never: "Never" };
 var PERSON_MODE_WORDS = {
   ...PERSON_MODE_LABELS,
@@ -2322,6 +2336,24 @@ var WHATSAPP_LANGUAGES = [
   L("zu", "Zulu", null, "isiZulu")
 ];
 var BY_ID = new Map(WHATSAPP_LANGUAGES.map((l) => [l.id.toLowerCase(), l]));
+var DAY_MS7 = 864e5;
+var PLAYBOOK_HOURS = { min: 9, max: 20 };
+var SENDING_HOURS_WORDS = {
+  min: PLAYBOOK_HOURS.min,
+  max: PLAYBOOK_HOURS.max,
+  first: `${PLAYBOOK_HOURS.min}:00`,
+  range: `${PLAYBOOK_HOURS.min}:00\u2013${PLAYBOOK_HOURS.max}:59`,
+  between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
+};
+var PLAYBOOK_BREATH_MS = 7 * DAY_MS7;
+var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
+var FOLLOW_UP_NEEDS_DEALS = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION}\u201D with \u201C${SELLS_BY_WORDS.proposal.label}\u201D.`;
+var PLAYBOOK_CLASS_LABEL = {
+  reengage: POLICY_CLASS_WORDS.reengage.short,
+  campaign: POLICY_CLASS_WORDS.campaign.short,
+  booking: POLICY_CLASS_WORDS.booking.short,
+  follow_up: POLICY_CLASS_WORDS.follow_up.short
+};
 var FIRST = { kind: "first_name", label: "First name", example: "Dani" };
 var BUSINESS = { kind: "business_name", label: "Business name", example: "Luna Studio" };
 var LINK = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
@@ -2332,6 +2364,12 @@ var WHEN = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" }
 var SERVICE = { kind: "visit_service", label: "Service", example: "a consultation" };
 var WHEN_ES = { ...WHEN, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
 var SERVICE_ES = { ...SERVICE, label: "Servicio", example: "una consulta" };
+var PROPOSAL = {
+  kind: "proposal_link",
+  label: "Proposal link",
+  example: "https://docs.example.com/proposal"
+};
+var PROPOSAL_ES = { ...PROPOSAL, label: "Enlace de la propuesta" };
 var LIMIT_TIERS = {
   TIER_50: 50,
   TIER_250: 250,
@@ -2417,22 +2455,6 @@ var ListDraftAnswerSchema = z7.object({
   cannot: z7.string().trim().max(200),
   all: z7.array(ListConditionSchema).max(8)
 });
-var DAY_MS8 = 864e5;
-var PLAYBOOK_HOURS = { min: 9, max: 20 };
-var SENDING_HOURS_WORDS = {
-  min: PLAYBOOK_HOURS.min,
-  max: PLAYBOOK_HOURS.max,
-  first: `${PLAYBOOK_HOURS.min}:00`,
-  range: `${PLAYBOOK_HOURS.min}:00\u2013${PLAYBOOK_HOURS.max}:59`,
-  between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
-};
-var PLAYBOOK_BREATH_MS = 7 * DAY_MS8;
-var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
-var PLAYBOOK_CLASS_LABEL = {
-  reengage: POLICY_CLASS_WORDS.reengage.short,
-  campaign: POLICY_CLASS_WORDS.campaign.short,
-  booking: POLICY_CLASS_WORDS.booking.short
-};
 var DATE_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var FORWARDING_TEST_WINDOW_MS = 30 * 6e4;
@@ -3082,7 +3104,7 @@ function purposeOfTemplate(category) {
   return category === "utility" || category === "authentication" ? "conversational" : "marketing";
 }
 function purposeOfPlaybook(policyClass) {
-  return policyClass === "booking" ? "conversational" : "marketing";
+  return policyClass === "booking" || policyClass === "follow_up" ? "conversational" : "marketing";
 }
 var DAY_MS2 = 864e5;
 var WEEK_MS4 = 7 * DAY_MS2;
@@ -3429,7 +3451,13 @@ var POLICY_CLASS_WORDS2 = {
     short: "Reviews",
     note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you"
   },
-  money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" }
+  money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" },
+  // 0006: one nudge per proposal, with its link, once it has waited past the workspace's pace with nothing back.
+  follow_up: {
+    name: "Proposal follow-ups",
+    short: "Follow-ups",
+    note: "the proposal follow-up playbook \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
+  }
 };
 function policyClassOfIntent(intent) {
   if (intent === "booking") return "booking";
@@ -4816,6 +4844,27 @@ var LeadSuggestAnswerSchema2 = z52.object({
   ).min(1).max(4)
 });
 var LEAD_UNDO_MS2 = 24 * 60 * 6e4;
+var SELLS_BY_QUESTION2 = "How customers buy";
+var SELLS_BY_WORDS2 = {
+  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
+  proposal: {
+    label: "Some get a proposal first",
+    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
+  }
+};
+var WAITING_AFTER_DAYS = 7;
+var DAY_MS3 = 864e5;
+function heardSinceProposal(r) {
+  const d = r.deal;
+  return !!d && d.stage === "proposed" && d.sinceMs !== null && r.askedMs !== null && r.askedMs >= d.sinceMs;
+}
+function waitingOnProposal(r, nowMs, pace) {
+  const d = r.deal;
+  if (!d || d.stage !== "proposed" || d.sinceMs === null) return false;
+  const wait = pace && Number.isFinite(pace.waitDays) ? pace.waitDays : WAITING_AFTER_DAYS;
+  if (nowMs - d.sinceMs < wait * DAY_MS3) return false;
+  return !heardSinceProposal(r);
+}
 var PERSON_MODE_LABELS2 = { auto: "Answer", ask: "Ask me first", never: "Never" };
 var PERSON_MODE_WORDS2 = {
   ...PERSON_MODE_LABELS2,
@@ -5342,18 +5391,19 @@ var PARAM_SOURCE_LABELS = {
   business_name: "The business name",
   booking_link: "The booking link",
   visit_when: "Their visit's time",
-  visit_service: "Their visit's service"
+  visit_service: "Their visit's service",
+  proposal_link: "Their proposal's link"
 };
 function parseParamSpec(raw) {
   if (typeof raw === "string") {
-    const m = /^@(first_name|business_name|booking_link|visit_when|visit_service)$/.exec(raw.trim());
+    const m = /^@(first_name|business_name|booking_link|visit_when|visit_service|proposal_link)$/.exec(raw.trim());
     if (m) return { kind: m[1] };
     return { kind: "text", value: raw };
   }
   if (raw && typeof raw === "object") {
     const o = raw;
     if (o.kind === "text") return typeof o.value === "string" ? { kind: "text", value: o.value } : null;
-    if (o.kind === "first_name" || o.kind === "business_name" || o.kind === "booking_link" || o.kind === "visit_when" || o.kind === "visit_service")
+    if (o.kind === "first_name" || o.kind === "business_name" || o.kind === "booking_link" || o.kind === "visit_when" || o.kind === "visit_service" || o.kind === "proposal_link")
       return { kind: o.kind };
   }
   return null;
@@ -5385,8 +5435,242 @@ function resolveParams(specs, f) {
         return f.visitWhen ?? "";
       case "visit_service":
         return f.visitService ?? "";
+      case "proposal_link":
+        return f.proposalLink ?? "";
     }
   });
+}
+var DAY_MS72 = 864e5;
+var PLAYBOOK_TRIGGERS = [
+  { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
+  {
+    id: "new_week",
+    label: "Welcome",
+    list: "new_week",
+    cls: "campaign",
+    kind: "list",
+    hint: "First contact in the last 7 days"
+  },
+  {
+    id: "phoned_only",
+    label: "Save our number",
+    list: "phoned_only",
+    cls: "reengage",
+    kind: "list",
+    hint: "Only ever phoned, never texted"
+  },
+  {
+    id: "everyone_monthly",
+    label: "The month's offer",
+    list: null,
+    cls: "campaign",
+    kind: "cadence",
+    hint: "Everyone who said yes, on a cadence"
+  },
+  {
+    id: "visit_tomorrow",
+    label: "Visit reminder",
+    list: null,
+    cls: "booking",
+    kind: "visit",
+    hint: "The day before an appointment on the calendar"
+  },
+  {
+    id: "visited",
+    label: "After the visit",
+    list: null,
+    cls: "reengage",
+    kind: "visit",
+    hint: "The day after a visit, when nothing is booked next"
+  },
+  // People's Lapsed list, by visits rather than silence: the win-back a salon means, which had no playbook of its own
+  // (00155). Named for its list, so it is never a second "Win-back" beside the one for the quiet.
+  {
+    id: "lapsed",
+    label: "Lapsed",
+    list: "lapsed",
+    cls: "reengage",
+    kind: "list",
+    hint: "No visit in 45 days, and nothing booked"
+  },
+  // One of the workspace's own lists, kept by hand or by a rule; the card says which.
+  {
+    id: "saved_list",
+    label: "One of your lists",
+    list: null,
+    cls: "campaign",
+    kind: "saved",
+    hint: "Everyone on a list you keep"
+  },
+  // A proposal out that has waited past the workspace's pace with nothing back (0006): one nudge per proposal, with
+  // its link, under its own class, where deals are on. Conversational: it answers the person's own request.
+  {
+    id: "proposal_waiting",
+    label: "Proposal follow-up",
+    list: null,
+    cls: "follow_up",
+    kind: "deal",
+    hint: "A proposal waiting with nothing back"
+  }
+];
+var PLAYBOOK_DEFAULTS = { runHour: 10, capPerRun: 25, gapDays: 90, cadenceDays: 30 };
+var PLAYBOOK_HOURS2 = { min: 9, max: 20 };
+var SENDING_HOURS_WORDS2 = {
+  min: PLAYBOOK_HOURS2.min,
+  max: PLAYBOOK_HOURS2.max,
+  first: `${PLAYBOOK_HOURS2.min}:00`,
+  range: `${PLAYBOOK_HOURS2.min}:00\u2013${PLAYBOOK_HOURS2.max}:59`,
+  between: `between ${PLAYBOOK_HOURS2.min}:00 and ${PLAYBOOK_HOURS2.max}:59`
+};
+var PLAYBOOK_BREATH_MS2 = 7 * DAY_MS72;
+var PLAYBOOK_VETO_DELAY_MS2 = 30 * 6e4;
+var PLAYBOOK_NAME_MAX = 80;
+function triggerOf(id) {
+  return PLAYBOOK_TRIGGERS.find((t) => t.id === id) ?? null;
+}
+function triggerOffered(t, dealsOn) {
+  return t.kind !== "deal" || dealsOn;
+}
+var FOLLOW_UP_NEEDS_DEALS2 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION2}\u201D with \u201C${SELLS_BY_WORDS2.proposal.label}\u201D.`;
+function playbookRunReach(rows, p, touches, nowMs, pace, listIds = null) {
+  const reach = {
+    pool: 0,
+    will: 0,
+    noNumber: 0,
+    stopped: 0,
+    noYes: 0,
+    heardThis: 0,
+    heardAny: 0,
+    overCap: 0,
+    overLimit: 0
+  };
+  const t = triggerOf(p.trigger);
+  if (!t) return { eligible: [], reach, saidYes: 0 };
+  const purpose = purposeOfPlaybook(t.cls);
+  const named = t.kind === "visit" ? (
+    // The calendar's own day, never hours: eleven at night tomorrow is still tomorrow.
+    rows.filter((r) => {
+      if (!r.calendarTz) return false;
+      if (p.trigger === "visit_tomorrow")
+        return r.nextVisitDate !== null && r.nextVisitDate === localDate(r.calendarTz, new Date(nowMs + DAY_MS72));
+      return r.lastVisitDate !== null && r.lastVisitDate === localDate(r.calendarTz, new Date(nowMs - DAY_MS72)) && !r.booked;
+    })
+  ) : t.kind === "saved" ? audienceMembers(rows, "saved", null, listIds ?? /* @__PURE__ */ new Set()) : t.kind === "deal" ? (
+    // Waiting on a proposal, by Today's own rule and the workspace's pace, and with a link to carry: without
+    // one the nudge would be a bare "just checking in", which is a person's to write (0006).
+    rows.filter((r) => waitingOnProposal(r, nowMs, pace) && !!r.deal?.proposal?.url)
+  ) : audienceMembers(rows, t.list ? "list" : "everyone", t.list ?? null, null);
+  reach.pool = named.length;
+  const saidYes = named.filter((r) => saidYesTo(r, purpose)).length;
+  const allowed = [];
+  for (const r of named) {
+    const why = whyNotReceive(r, purpose);
+    if (why === "no_number") reach.noNumber += 1;
+    else if (why === "stopped") reach.stopped += 1;
+    else if (why === "no_yes") reach.noYes += 1;
+    else allowed.push(r);
+  }
+  if (t.kind === "visit") {
+    allowed.sort(
+      (a, b) => p.trigger === "visit_tomorrow" ? (a.nextVisitMs ?? 0) - (b.nextVisitMs ?? 0) : (a.lastVisitMs ?? 0) - (b.lastVisitMs ?? 0)
+    );
+    reach.will = allowed.length;
+    return { eligible: allowed, reach, saidYes };
+  }
+  const gapMs = (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) * DAY_MS72;
+  const heardThis = (r, mine) => t.kind === "deal" ? mine >= (r.deal?.sinceMs ?? Number.POSITIVE_INFINITY) : nowMs - mine < gapMs;
+  const picked = allowed.filter((r) => {
+    const mine = touches.byThis.get(r.id);
+    if (mine !== void 0 && heardThis(r, mine)) {
+      reach.heardThis += 1;
+      return false;
+    }
+    const any = touches.byAny.get(r.id);
+    if (any !== void 0 && nowMs - any < PLAYBOOK_BREATH_MS2) {
+      reach.heardAny += 1;
+      return false;
+    }
+    return true;
+  });
+  picked.sort((a, b) => (a.lastContact.ts ?? 0) - (b.lastContact.ts ?? 0));
+  const eligible = picked.slice(0, Math.max(1, p.cap_per_run));
+  reach.overCap = picked.length - eligible.length;
+  reach.will = eligible.length;
+  return { eligible, reach, saidYes };
+}
+function planRun(mode, now) {
+  switch (mode) {
+    case "auto":
+      return { kind: "send", state: "scheduled", at: now };
+    case "veto":
+      return { kind: "send", state: "scheduled", at: new Date(now.getTime() + PLAYBOOK_VETO_DELAY_MS2) };
+    case "ask":
+      return { kind: "hold", state: "pending_approval" };
+    default:
+      return { kind: "off" };
+  }
+}
+function parts(tz, now) {
+  try {
+    const f = new Intl.DateTimeFormat("en-CA", {
+      timeZone: tz,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      hour12: false
+    });
+    const p = Object.fromEntries(f.formatToParts(now).map((x) => [x.type, x.value]));
+    const hour = Number(p.hour) % 24;
+    return { date: `${p.year}-${p.month}-${p.day}`, hour };
+  } catch {
+    return { date: now.toISOString().slice(0, 10), hour: now.getUTCHours() };
+  }
+}
+function localDate(tz, now) {
+  return parts(tz, now).date;
+}
+function nextOpenMoment(tz, when) {
+  const { date, hour } = parts(tz, when);
+  if (hour >= PLAYBOOK_HOURS2.min && hour <= PLAYBOOK_HOURS2.max) return { at: when, moved: false };
+  const day = hour < PLAYBOOK_HOURS2.min ? date : shiftKey(date, 1);
+  let at2 = zoneMidnight(tz, day) + PLAYBOOK_HOURS2.min * 36e5;
+  const landed = parts(tz, new Date(at2)).hour;
+  if (landed !== PLAYBOOK_HOURS2.min) at2 += (PLAYBOOK_HOURS2.min - landed) * 36e5;
+  return { at: new Date(at2), moved: true };
+}
+var PLAYBOOK_CLASS_LABEL2 = {
+  reengage: POLICY_CLASS_WORDS2.reengage.short,
+  campaign: POLICY_CLASS_WORDS2.campaign.short,
+  booking: POLICY_CLASS_WORDS2.booking.short,
+  follow_up: POLICY_CLASS_WORDS2.follow_up.short
+};
+function proposalFactsFor(trigger, row2) {
+  const t = triggerOf(trigger);
+  const url = row2?.deal?.proposal?.url ?? null;
+  return t && t.kind === "deal" && url ? { proposal_link: url } : null;
+}
+function visitFactsFor(trigger, visit, tz, sendAt) {
+  const t = triggerOf(trigger);
+  if (!t || t.kind !== "visit" || !visit) return null;
+  return {
+    visit_when: trigger === "visit_tomorrow" ? `${visitDayWord(visit, tz, sendAt, "tomorrow")} at ${visitStartTime(visit, tz)}` : visitDayWord(visit, tz, sendAt, "yesterday"),
+    visit_service: visit.title.trim() || "your appointment"
+  };
+}
+function visitDayWord(visit, tz, sendAt, assumed) {
+  if (!sendAt) return assumed;
+  const visitDay2 = localDate(tz, new Date(visit.start));
+  const sendDay = localDate(tz, sendAt);
+  const delta = Math.round((Date.parse(`${visitDay2}T00:00:00Z`) - Date.parse(`${sendDay}T00:00:00Z`)) / DAY_MS72);
+  if (delta === 1) return "tomorrow";
+  if (delta === 0) return "today";
+  if (delta === -1) return "yesterday";
+  try {
+    return `on ${new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long" }).format(new Date(visit.start))}`;
+  } catch {
+    return delta > 0 ? "soon" : "recently";
+  }
 }
 var FIRST2 = { kind: "first_name", label: "First name", example: "Dani" };
 var BUSINESS2 = { kind: "business_name", label: "Business name", example: "Luna Studio" };
@@ -5398,6 +5682,12 @@ var WHEN3 = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" 
 var SERVICE2 = { kind: "visit_service", label: "Service", example: "a consultation" };
 var WHEN_ES2 = { ...WHEN3, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
 var SERVICE_ES2 = { ...SERVICE2, label: "Servicio", example: "una consulta" };
+var PROPOSAL2 = {
+  kind: "proposal_link",
+  label: "Proposal link",
+  example: "https://docs.example.com/proposal"
+};
+var PROPOSAL_ES2 = { ...PROPOSAL2, label: "Enlace de la propuesta" };
 var STOP_EN = "Reply STOP to opt out";
 var STOP_ES = "Responde STOP para darte de baja";
 var STARTER_TEMPLATES = [
@@ -5575,6 +5865,28 @@ var STARTER_TEMPLATES = [
     // workspace's database, marked approved, with no meta_id: an approval Meta
     // had never given, so every send of it failed, and it failed for every
     // other workspace by not existing at all.
+    // 0006: one nudge per proposal, with its link. Utility, as a reminder of a person's own request is; it names no
+    // price, date, amount or offer, and Meta's category decides the yes it needs at the wire (deliver.ts).
+    key: "proposal_follow_up",
+    name: "proposal_follow_up",
+    title: "Proposal follow-up",
+    purpose: "for a proposal waiting with nothing back",
+    category: "utility",
+    trigger: "proposal_waiting",
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, just making sure the proposal from {{2}} reached you: {{3}}. Reply here with any questions.",
+        footer: null,
+        slots: [FIRST2, BUSINESS2, PROPOSAL2]
+      },
+      es: {
+        body: "Hola {{1}}, solo queremos confirmar que te lleg\xF3 la propuesta de {{2}}: {{3}}. Responde aqu\xED con cualquier pregunta.",
+        footer: null,
+        slots: [FIRST_ES2, BUSINESS_ES2, PROPOSAL_ES2]
+      }
+    }
+  },
+  {
     key: "booking_link",
     name: "booking_link",
     title: "Booking link",
@@ -5622,6 +5934,7 @@ function templateTitle(name, title) {
 function guessSlotKind(label, example) {
   const l = String(label ?? "").toLowerCase();
   const e = String(example ?? "").toLowerCase();
+  if (/proposal|propuesta|quote/.test(l)) return "proposal_link";
   if (/link|url|book/.test(l) || /^https?:\/\//.test(e) || /booksy|calendly|square|fresha|\.com\//.test(e))
     return "booking_link";
   if (/business|salon|company|shop|studio|clinic|brand|negocio/.test(l)) return "business_name";
@@ -5662,7 +5975,9 @@ function inboxSlots(t) {
   return Array.isArray(t.variables) ? defaultParamSpecs({ name: t.name, variables: t.variables }) : [{ kind: "business_name" }, { kind: "booking_link" }];
 }
 function slotToWrite(t) {
-  const at2 = inboxSlots(t).findIndex((s) => s.kind === "text" || s.kind === "visit_when" || s.kind === "visit_service");
+  const at2 = inboxSlots(t).findIndex(
+    (s) => s.kind === "text" || s.kind === "visit_when" || s.kind === "visit_service" || s.kind === "proposal_link"
+  );
   if (at2 < 0) return null;
   return slotLabels({ name: t.name, language: t.language ?? "en_US", variables: t.variables })[at2] ?? `Value ${at2 + 1}`;
 }
@@ -5796,213 +6111,6 @@ var ListDraftAnswerSchema2 = z72.object({
   cannot: z72.string().trim().max(200),
   all: z72.array(ListConditionSchema2).max(8)
 });
-var DAY_MS82 = 864e5;
-var PLAYBOOK_TRIGGERS = [
-  { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
-  {
-    id: "new_week",
-    label: "Welcome",
-    list: "new_week",
-    cls: "campaign",
-    kind: "list",
-    hint: "First contact in the last 7 days"
-  },
-  {
-    id: "phoned_only",
-    label: "Save our number",
-    list: "phoned_only",
-    cls: "reengage",
-    kind: "list",
-    hint: "Only ever phoned, never texted"
-  },
-  {
-    id: "everyone_monthly",
-    label: "The month's offer",
-    list: null,
-    cls: "campaign",
-    kind: "cadence",
-    hint: "Everyone who said yes, on a cadence"
-  },
-  {
-    id: "visit_tomorrow",
-    label: "Visit reminder",
-    list: null,
-    cls: "booking",
-    kind: "visit",
-    hint: "The day before an appointment on the calendar"
-  },
-  {
-    id: "visited",
-    label: "After the visit",
-    list: null,
-    cls: "reengage",
-    kind: "visit",
-    hint: "The day after a visit, when nothing is booked next"
-  },
-  // People's Lapsed list, by visits rather than silence: the win-back a salon means, which had no playbook of its own
-  // (00155). Named for its list, so it is never a second "Win-back" beside the one for the quiet.
-  {
-    id: "lapsed",
-    label: "Lapsed",
-    list: "lapsed",
-    cls: "reengage",
-    kind: "list",
-    hint: "No visit in 45 days, and nothing booked"
-  },
-  // One of the workspace's own lists, kept by hand or by a rule; the card says which.
-  {
-    id: "saved_list",
-    label: "One of your lists",
-    list: null,
-    cls: "campaign",
-    kind: "saved",
-    hint: "Everyone on a list you keep"
-  }
-];
-var PLAYBOOK_DEFAULTS = { runHour: 10, capPerRun: 25, gapDays: 90, cadenceDays: 30 };
-var PLAYBOOK_HOURS2 = { min: 9, max: 20 };
-var SENDING_HOURS_WORDS2 = {
-  min: PLAYBOOK_HOURS2.min,
-  max: PLAYBOOK_HOURS2.max,
-  first: `${PLAYBOOK_HOURS2.min}:00`,
-  range: `${PLAYBOOK_HOURS2.min}:00\u2013${PLAYBOOK_HOURS2.max}:59`,
-  between: `between ${PLAYBOOK_HOURS2.min}:00 and ${PLAYBOOK_HOURS2.max}:59`
-};
-var PLAYBOOK_BREATH_MS2 = 7 * DAY_MS82;
-var PLAYBOOK_VETO_DELAY_MS2 = 30 * 6e4;
-var PLAYBOOK_NAME_MAX = 80;
-function triggerOf(id) {
-  return PLAYBOOK_TRIGGERS.find((t) => t.id === id) ?? null;
-}
-function playbookRunReach(rows, p, touches, nowMs, listIds = null) {
-  const reach = {
-    pool: 0,
-    will: 0,
-    noNumber: 0,
-    stopped: 0,
-    noYes: 0,
-    heardThis: 0,
-    heardAny: 0,
-    overCap: 0,
-    overLimit: 0
-  };
-  const t = triggerOf(p.trigger);
-  if (!t) return { eligible: [], reach, saidYes: 0 };
-  const purpose = purposeOfPlaybook(t.cls);
-  const named = t.kind === "visit" ? (
-    // The calendar's own day, never hours: eleven at night tomorrow is still tomorrow.
-    rows.filter((r) => {
-      if (!r.calendarTz) return false;
-      if (p.trigger === "visit_tomorrow")
-        return r.nextVisitDate !== null && r.nextVisitDate === localDate(r.calendarTz, new Date(nowMs + DAY_MS82));
-      return r.lastVisitDate !== null && r.lastVisitDate === localDate(r.calendarTz, new Date(nowMs - DAY_MS82)) && !r.booked;
-    })
-  ) : t.kind === "saved" ? audienceMembers(rows, "saved", null, listIds ?? /* @__PURE__ */ new Set()) : audienceMembers(rows, t.list ? "list" : "everyone", t.list ?? null, null);
-  reach.pool = named.length;
-  const saidYes = named.filter((r) => saidYesTo(r, purpose)).length;
-  const allowed = [];
-  for (const r of named) {
-    const why = whyNotReceive(r, purpose);
-    if (why === "no_number") reach.noNumber += 1;
-    else if (why === "stopped") reach.stopped += 1;
-    else if (why === "no_yes") reach.noYes += 1;
-    else allowed.push(r);
-  }
-  if (t.kind === "visit") {
-    allowed.sort(
-      (a, b) => p.trigger === "visit_tomorrow" ? (a.nextVisitMs ?? 0) - (b.nextVisitMs ?? 0) : (a.lastVisitMs ?? 0) - (b.lastVisitMs ?? 0)
-    );
-    reach.will = allowed.length;
-    return { eligible: allowed, reach, saidYes };
-  }
-  const gapMs = (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) * DAY_MS82;
-  const picked = allowed.filter((r) => {
-    const mine = touches.byThis.get(r.id);
-    if (mine !== void 0 && nowMs - mine < gapMs) {
-      reach.heardThis += 1;
-      return false;
-    }
-    const any = touches.byAny.get(r.id);
-    if (any !== void 0 && nowMs - any < PLAYBOOK_BREATH_MS2) {
-      reach.heardAny += 1;
-      return false;
-    }
-    return true;
-  });
-  picked.sort((a, b) => (a.lastContact.ts ?? 0) - (b.lastContact.ts ?? 0));
-  const eligible = picked.slice(0, Math.max(1, p.cap_per_run));
-  reach.overCap = picked.length - eligible.length;
-  reach.will = eligible.length;
-  return { eligible, reach, saidYes };
-}
-function planRun(mode, now) {
-  switch (mode) {
-    case "auto":
-      return { kind: "send", state: "scheduled", at: now };
-    case "veto":
-      return { kind: "send", state: "scheduled", at: new Date(now.getTime() + PLAYBOOK_VETO_DELAY_MS2) };
-    case "ask":
-      return { kind: "hold", state: "pending_approval" };
-    default:
-      return { kind: "off" };
-  }
-}
-function parts(tz, now) {
-  try {
-    const f = new Intl.DateTimeFormat("en-CA", {
-      timeZone: tz,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      hour12: false
-    });
-    const p = Object.fromEntries(f.formatToParts(now).map((x) => [x.type, x.value]));
-    const hour = Number(p.hour) % 24;
-    return { date: `${p.year}-${p.month}-${p.day}`, hour };
-  } catch {
-    return { date: now.toISOString().slice(0, 10), hour: now.getUTCHours() };
-  }
-}
-function localDate(tz, now) {
-  return parts(tz, now).date;
-}
-function nextOpenMoment(tz, when) {
-  const { date, hour } = parts(tz, when);
-  if (hour >= PLAYBOOK_HOURS2.min && hour <= PLAYBOOK_HOURS2.max) return { at: when, moved: false };
-  const day = hour < PLAYBOOK_HOURS2.min ? date : shiftKey(date, 1);
-  let at2 = zoneMidnight(tz, day) + PLAYBOOK_HOURS2.min * 36e5;
-  const landed = parts(tz, new Date(at2)).hour;
-  if (landed !== PLAYBOOK_HOURS2.min) at2 += (PLAYBOOK_HOURS2.min - landed) * 36e5;
-  return { at: new Date(at2), moved: true };
-}
-var PLAYBOOK_CLASS_LABEL2 = {
-  reengage: POLICY_CLASS_WORDS2.reengage.short,
-  campaign: POLICY_CLASS_WORDS2.campaign.short,
-  booking: POLICY_CLASS_WORDS2.booking.short
-};
-function visitFactsFor(trigger, visit, tz, sendAt) {
-  const t = triggerOf(trigger);
-  if (!t || t.kind !== "visit" || !visit) return null;
-  return {
-    visit_when: trigger === "visit_tomorrow" ? `${visitDayWord(visit, tz, sendAt, "tomorrow")} at ${visitStartTime(visit, tz)}` : visitDayWord(visit, tz, sendAt, "yesterday"),
-    visit_service: visit.title.trim() || "your appointment"
-  };
-}
-function visitDayWord(visit, tz, sendAt, assumed) {
-  if (!sendAt) return assumed;
-  const visitDay2 = localDate(tz, new Date(visit.start));
-  const sendDay = localDate(tz, sendAt);
-  const delta = Math.round((Date.parse(`${visitDay2}T00:00:00Z`) - Date.parse(`${sendDay}T00:00:00Z`)) / DAY_MS82);
-  if (delta === 1) return "tomorrow";
-  if (delta === 0) return "today";
-  if (delta === -1) return "yesterday";
-  try {
-    return `on ${new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long" }).format(new Date(visit.start))}`;
-  } catch {
-    return delta > 0 ? "soon" : "recently";
-  }
-}
 var DATE_FMT22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WHEN22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var FORWARDING_TEST_WINDOW_MS2 = 30 * 6e4;
@@ -6505,8 +6613,8 @@ var DECISION_VERBS3 = [
   "end_call",
   "record_deal"
 ];
-var DAY_MS3 = 864e5;
-var WEEK_MS5 = 7 * DAY_MS3;
+var DAY_MS8 = 864e5;
+var WEEK_MS5 = 7 * DAY_MS8;
 var BRAIN_INTENTS3 = [
   "booking",
   "pricing",
@@ -6659,7 +6767,13 @@ var POLICY_CLASS_WORDS3 = {
     short: "Reviews",
     note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you"
   },
-  money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" }
+  money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" },
+  // 0006: one nudge per proposal, with its link, once it has waited past the workspace's pace with nothing back.
+  follow_up: {
+    name: "Proposal follow-ups",
+    short: "Follow-ups",
+    note: "the proposal follow-up playbook \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
+  }
 };
 var PolicyLimitsSchema3 = z33.object({
   max_replies_day: z33.number().int().min(1).max(200).optional(),
@@ -7284,6 +7398,14 @@ var LeadSuggestAnswerSchema3 = z53.object({
   ).min(1).max(4)
 });
 var LEAD_UNDO_MS3 = 24 * 60 * 6e4;
+var SELLS_BY_QUESTION3 = "How customers buy";
+var SELLS_BY_WORDS3 = {
+  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
+  proposal: {
+    label: "Some get a proposal first",
+    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
+  }
+};
 var PERSON_MODE_LABELS3 = { auto: "Answer", ask: "Ask me first", never: "Never" };
 var PERSON_MODE_WORDS3 = {
   ...PERSON_MODE_LABELS3,
@@ -7667,6 +7789,24 @@ var WHATSAPP_LANGUAGES3 = [
   L3("zu", "Zulu", null, "isiZulu")
 ];
 var BY_ID3 = new Map(WHATSAPP_LANGUAGES3.map((l) => [l.id.toLowerCase(), l]));
+var DAY_MS73 = 864e5;
+var PLAYBOOK_HOURS3 = { min: 9, max: 20 };
+var SENDING_HOURS_WORDS3 = {
+  min: PLAYBOOK_HOURS3.min,
+  max: PLAYBOOK_HOURS3.max,
+  first: `${PLAYBOOK_HOURS3.min}:00`,
+  range: `${PLAYBOOK_HOURS3.min}:00\u2013${PLAYBOOK_HOURS3.max}:59`,
+  between: `between ${PLAYBOOK_HOURS3.min}:00 and ${PLAYBOOK_HOURS3.max}:59`
+};
+var PLAYBOOK_BREATH_MS3 = 7 * DAY_MS73;
+var PLAYBOOK_VETO_DELAY_MS3 = 30 * 6e4;
+var FOLLOW_UP_NEEDS_DEALS3 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION3}\u201D with \u201C${SELLS_BY_WORDS3.proposal.label}\u201D.`;
+var PLAYBOOK_CLASS_LABEL3 = {
+  reengage: POLICY_CLASS_WORDS3.reengage.short,
+  campaign: POLICY_CLASS_WORDS3.campaign.short,
+  booking: POLICY_CLASS_WORDS3.booking.short,
+  follow_up: POLICY_CLASS_WORDS3.follow_up.short
+};
 var FIRST3 = { kind: "first_name", label: "First name", example: "Dani" };
 var BUSINESS3 = { kind: "business_name", label: "Business name", example: "Luna Studio" };
 var LINK3 = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
@@ -7677,6 +7817,12 @@ var WHEN4 = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" 
 var SERVICE3 = { kind: "visit_service", label: "Service", example: "a consultation" };
 var WHEN_ES3 = { ...WHEN4, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
 var SERVICE_ES3 = { ...SERVICE3, label: "Servicio", example: "una consulta" };
+var PROPOSAL3 = {
+  kind: "proposal_link",
+  label: "Proposal link",
+  example: "https://docs.example.com/proposal"
+};
+var PROPOSAL_ES3 = { ...PROPOSAL3, label: "Enlace de la propuesta" };
 var LIMIT_TIERS3 = {
   TIER_50: 50,
   TIER_250: 250,
@@ -7762,22 +7908,6 @@ var ListDraftAnswerSchema3 = z73.object({
   cannot: z73.string().trim().max(200),
   all: z73.array(ListConditionSchema3).max(8)
 });
-var DAY_MS83 = 864e5;
-var PLAYBOOK_HOURS3 = { min: 9, max: 20 };
-var SENDING_HOURS_WORDS3 = {
-  min: PLAYBOOK_HOURS3.min,
-  max: PLAYBOOK_HOURS3.max,
-  first: `${PLAYBOOK_HOURS3.min}:00`,
-  range: `${PLAYBOOK_HOURS3.min}:00\u2013${PLAYBOOK_HOURS3.max}:59`,
-  between: `between ${PLAYBOOK_HOURS3.min}:00 and ${PLAYBOOK_HOURS3.max}:59`
-};
-var PLAYBOOK_BREATH_MS3 = 7 * DAY_MS83;
-var PLAYBOOK_VETO_DELAY_MS3 = 30 * 6e4;
-var PLAYBOOK_CLASS_LABEL3 = {
-  reengage: POLICY_CLASS_WORDS3.reengage.short,
-  campaign: POLICY_CLASS_WORDS3.campaign.short,
-  booking: POLICY_CLASS_WORDS3.booking.short
-};
 var DATE_FMT23 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WHEN23 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var FORWARDING_TEST_WINDOW_MS3 = 30 * 6e4;
@@ -8737,7 +8867,9 @@ async function sendBroadcastBatch(ports, cmd) {
       businessName,
       bookingLink,
       visitWhen: typeof facts.visit_when === "string" ? facts.visit_when : null,
-      visitService: typeof facts.visit_service === "string" ? facts.visit_service : null
+      visitService: typeof facts.visit_service === "string" ? facts.visit_service : null,
+      // A follow-up's link, frozen when the run was made (0006).
+      proposalLink: typeof facts.proposal_link === "string" ? facts.proposal_link : null
     });
     if (params.some((v) => !v)) {
       await skip(r.contact_id, "missing_value");
@@ -8880,6 +9012,7 @@ async function runPlaybook(ports, cmd) {
   if ((trig?.kind === "visit" || trig?.id === "lapsed") && ctx.calendar !== "ok") return off("no_calendar");
   const listIds = trig?.kind === "saved" ? p.list_id ? ctx.lists.get(p.list_id) ?? null : null : null;
   if (trig?.kind === "saved" && !listIds) return off("no_list");
+  if (trig && !triggerOffered(trig, ctx.dealsOn)) return off("deals_off");
   const drawn = playbookRunReach(
     ctx.people,
     {
@@ -8890,6 +9023,7 @@ async function runPlaybook(ports, cmd) {
     },
     { byThis: ctx.touches.byThis.get(p.id) ?? /* @__PURE__ */ new Map(), byAny: ctx.touches.byAny },
     now.getTime(),
+    ctx.pace,
     listIds
   );
   let eligible = drawn.eligible;
@@ -8908,6 +9042,7 @@ async function runPlaybook(ports, cmd) {
   }
   const specs = parseParamSpecs(p.params);
   const factsOf2 = (r) => {
+    if (trig?.kind === "deal") return proposalFactsFor(p.trigger, r);
     const v = ctx.visits.get(r.id);
     return visitFactsFor(
       p.trigger,
@@ -8998,7 +9133,7 @@ async function templateValues(ports, cmd) {
     if (!spec)
       throw new AppError(
         "validation",
-        "Each value is typed text, their first name, the business name, the booking link, or a visit's time or service."
+        "Each value is typed text, their first name, the business name, the booking link, a visit's time or service, or a proposal's link."
       );
     if (spec.kind === "text") {
       const v = cleanParam(spec.value);
@@ -9014,6 +9149,9 @@ async function templateValues(ports, cmd) {
           "validation",
           "Only a visit reminder or an after-the-visit playbook can fill in a visit's time or service."
         );
+      }
+      if (spec.kind === "proposal_link" && !cmd.proposal) {
+        throw new AppError("validation", "Only the proposal follow-up can fill in a proposal's link.");
       }
       specs.push(spec);
     }
@@ -9044,7 +9182,12 @@ async function createBroadcast(ports, cmd) {
   if (kind === "saved" && (!audienceId || !UUID2.test(audienceId))) throw new AppError("validation", "Pick a list.");
   if (kind === "list" && (!audienceId || !PEOPLE_LISTS.some((l) => l.id === audienceId)))
     throw new AppError("validation", "Pick a list.");
-  const { template: tpl, specs } = await templateValues(ports, { templateId, params: body?.params, visits: false });
+  const { template: tpl, specs } = await templateValues(ports, {
+    templateId,
+    params: body?.params,
+    visits: false,
+    proposal: false
+  });
   let when = now;
   if (typeof body?.scheduled_for === "string" && body.scheduled_for) {
     const t = new Date(body.scheduled_for);
@@ -9214,8 +9357,10 @@ async function checkPlaybook(ports, body) {
   if (!trig)
     throw new AppError(
       "validation",
-      "Pick what starts it: win-back, welcome, save our number, the month's offer, a visit tomorrow, a visit yesterday, lapsed, or one of your lists."
+      "Pick what starts it: win-back, welcome, save our number, the month's offer, a visit tomorrow, a visit yesterday, lapsed, one of your lists, or a proposal waiting."
     );
+  if (trig.kind === "deal" && !triggerOffered(trig, await ports.dealsOn()))
+    throw new AppError("validation", FOLLOW_UP_NEEDS_DEALS2);
   let listName = null;
   const listId = trig.kind === "saved" && typeof body?.list_id === "string" ? body.list_id : null;
   if (trig.kind === "saved") {
@@ -9227,7 +9372,8 @@ async function checkPlaybook(ports, body) {
   const { template: tpl, specs } = await templateValues(ports, {
     templateId,
     params: body?.params,
-    visits: trig.kind === "visit"
+    visits: trig.kind === "visit",
+    proposal: trig.kind === "deal"
   });
   return {
     // A name when none was given: the trigger's alone when it sends its own starter, else with the template's title; a

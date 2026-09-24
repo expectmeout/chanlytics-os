@@ -6,6 +6,9 @@ import {
   savedListIds,
   playbookRunReach,
   toPersonRowVM,
+  triggerOffered,
+  dealsAreOn,
+  type DealPaceVM,
   type PersonRowDto,
   type PlaybookDto,
   type PlaybookPolicyClass,
@@ -18,6 +21,7 @@ import { listRuns } from "@/server/broadcasts";
 import { peopleVisits } from "@/server/calendar";
 import { templateValuePorts } from "@/server/campaign-ports";
 import { everyone } from "@/server/people";
+import { sellsByOf } from "@/server/deals";
 
 /**
  * Playbooks, read and checked.
@@ -113,6 +117,11 @@ export async function triggerPools(
   touched: Record<string, string>,
   tz: string,
   now: Date,
+  /**
+   * Whether deals are on here, and the workspace's pace (contracts dealPaceOf): a proposal's moment is counted by the
+   * pace where they are on, and reaches nobody where they are off, as its run does (0006).
+   */
+  deals: { on: boolean; pace: Pick<DealPaceVM, "waitDays"> | null },
 ): Promise<{
   pools: Record<string, TriggerPool | null>;
   calendar: "ok" | "unavailable" | "none";
@@ -158,6 +167,7 @@ export async function triggerPools(
       { trigger, cap_per_run: PLAYBOOK_POOL, gap_days: 0, cadence_days: 0 },
       breath,
       now.getTime(),
+      deals.pace,
       listIds,
     );
     return {
@@ -177,7 +187,10 @@ export async function triggerPools(
       pools[t.id] = null;
       continue;
     }
-    pools[t.id] = count(t.id as PlaybookDto["trigger"], null);
+    // A proposal's moment where deals are off: its run is off (0006), so it reaches nobody, and nobody is counted.
+    pools[t.id] = triggerOffered(t, deals.on)
+      ? count(t.id as PlaybookDto["trigger"], null)
+      : { candidates: 0, held: 0, pool: 0, noYes: 0, stopped: 0, noNumber: 0, saidYes: 0 };
   }
   // Each list the workspace keeps, counted as a playbook on it would count it: who is on it (savedListIds), then the
   // runner's own rules.
@@ -285,6 +298,8 @@ export async function checkPlaybookInput(
         const list = await listRow(ctx.supabase, id);
         return list && list.tenant_id === tenantId ? list.name : null;
       },
+      // How its customers buy (0008): a proposal follow-up is made only where deals are on (0006).
+      dealsOn: async () => dealsAreOn(await sellsByOf(ctx, tenantId)),
     },
     body,
   );

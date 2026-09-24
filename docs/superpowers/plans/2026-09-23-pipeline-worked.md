@@ -345,7 +345,17 @@ questions answered as it recommends: a new class `follow_up`, `ask` by default, 
 workspace's pace (PR 5) rather than a fixed week. The Pipeline then says when a proposal's follow-up goes
 ("Follow-up Tue 9:00 AM") and keeps "Nothing back" for those it will not reach, as 0006 says of Today.
 
-- [ ] Its six steps, its tests (0006 "Tests"), the look, the gate, the PR, the push, merge; 0006's status: built.
+- [x] (6a) Steps 1–4 and 6, and step 5's page: 00167 (the three CHECKs, `provision_tenant`, every workspace's
+  row as ask), the class and its words, the trigger, the starter, the slot, the run and the link it freezes, the
+  check that makes one. Built: offered only where deals are on, by one rule each (contracts `triggerOffered`,
+  `policyClassOffered`, `startersOffered`): the Playbooks page and its counts, the Autonomy row beside Win-back,
+  the starter set, Run now's words, Ask's reads; the wait is the workspace's pace, which the edge reads through
+  packages/db `yesesSince`, as People's reads now do, and an unreadable pace is a week's, said in the log; a
+  follow-up playbook where deals were turned off runs nothing and says why (`deals_off`). The look: the
+  Playbooks page, its composer and a follow-up's row on the mockup with a deals-on surface.
+- [ ] (6b) Today's leak counts only the people the playbook will not reach; Ask's `propose_playbook` gains it
+  where deals are on; the Pipeline says when a proposal's follow-up goes, in words true under ask; its tests, the
+  look, the gate, the PR, the push, merge; 0006's status: built.
 
 ---
 

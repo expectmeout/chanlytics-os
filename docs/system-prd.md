@@ -690,15 +690,16 @@ Writes are owner-only and a versioned compare-and-swap (`PUT /settings` echoes t
 
 `policies` rows are a class, a mode and limits.
 
-| Class      | Modes                     | Enforced by                                                                                  |
-| ---------- | ------------------------- | -------------------------------------------------------------------------------------------- |
-| `reply`    | auto · veto · ask · never | The edge, on every inbound message                                                           |
-| `booking`  | auto · ask                | Layer two (a booking question under ask escalates `policy_ask`); the visit-reminder playbook |
-| `faq`      | auto · ask                | Layer two (a service or pricing question under ask escalates `policy_ask`)                   |
-| `reengage` | auto · veto · ask · never | Playbook runs: win-back, save our number, after the visit                                    |
-| `campaign` | auto · veto · ask · never | Playbook runs: welcome, the month's offer                                                    |
-| `reviews`  | auto · ask · never        | Google: auto answers within the hour; ask drafts; never leaves reviews to people             |
-| `money`    | never                     | Locked by the `enforce_money_lock` trigger (proved to hold, 00102)                           |
+| Class       | Modes                     | Enforced by                                                                                  |
+| ----------- | ------------------------- | -------------------------------------------------------------------------------------------- |
+| `reply`     | auto · veto · ask · never | The edge, on every inbound message                                                           |
+| `booking`   | auto · ask                | Layer two (a booking question under ask escalates `policy_ask`); the visit-reminder playbook |
+| `faq`       | auto · ask                | Layer two (a service or pricing question under ask escalates `policy_ask`)                   |
+| `reengage`  | auto · veto · ask · never | Playbook runs: win-back, save our number, after the visit                                    |
+| `campaign`  | auto · veto · ask · never | Playbook runs: welcome, the month's offer                                                    |
+| `reviews`   | auto · ask · never        | Google: auto answers within the hour; ask drafts; never leaves reviews to people             |
+| `follow_up` | auto · ask · never        | Playbook runs: the proposal follow-up, a row only where deals are on (0006)                  |
+| `money`     | never                     | Locked by the `enforce_money_lock` trigger (proved to hold, 00102)                           |
 
 A per-person row (`subject_type 'contact'`) overrides the workspace's reply mode for one customer; the edge reads it on every message and never caches it. The reply row's limits are **the owner's dials** on the Autonomy pane: `max_replies_day`, `pause_hours`, `max_llm_tokens_day` (the day's budget has its handle), `min_confidence`, and the veto delay. Every switch on the pane is one something honours, and the copy says what the dial does.
 
@@ -735,16 +736,20 @@ The yes is always the customer's own message. `/yes/<slug>` asks twice, each wit
 
 A standing rule that sends one approved template to people who newly qualify.
 
-| Trigger           | Who                                             | Class    |
-| ----------------- | ----------------------------------------------- | -------- |
-| Win-back          | Nothing heard in 30 days                        | reengage |
-| Welcome           | First contact in the last 7 days                | campaign |
-| Save our number   | Only ever phoned                                | reengage |
-| The month's offer | Everyone who said yes, on a cadence             | campaign |
-| Visit reminder    | The day before an appointment on the calendar   | booking  |
-| After the visit   | The day after a visit, with nothing booked next | reengage |
+| Trigger            | Who                                                                       | Class     |
+| ------------------ | ------------------------------------------------------------------------- | --------- |
+| Win-back           | Nothing heard in 30 days                                                  | reengage  |
+| Welcome            | First contact in the last 7 days                                          | campaign  |
+| Save our number    | Only ever phoned                                                          | reengage  |
+| The month's offer  | Everyone who said yes, on a cadence                                       | campaign  |
+| Visit reminder     | The day before an appointment on the calendar                             | booking   |
+| After the visit    | The day after a visit, with nothing booked next                           | reengage  |
+| Proposal follow-up | A proposal waiting past the workspace's pace, with its link, nothing back | follow_up |
 
-A run (core `runPlaybook`, shared by the hourly sweep and Run now, every branch tested) is a broadcast: the trigger's people who said yes, minus anyone this playbook reached within its gap (90 days by default), minus anyone any playbook reached this week, longest-unheard first, up to the cap (25 by default); one run per local day, at the playbook's hour (between 9 and 20). The class's mode decides what the run does: **auto** sends now, **veto** schedules it half an hour out with a Stop, **ask** leaves it waiting as `pending_approval` on Today and on Playbooks — and an approval moves the send to the next open moment (00119) — **never** does nothing. A person who presses Run now has decided: it sends unless the class is never. A visit run keeps the visit's own words ("tomorrow at 2:00 PM", the service) on each recipient row. A playbook's card says what it sends, and a run has a page of its own. A playbook is made and changed in one sheet beside the page: its moment and who that reaches today, its message as a customer reads it, and its clock as one sentence. Each slot takes only what keeps the message true (contracts `slotChoices`): a starter's first name is each person's own and a visit's time each visit's, the business name and the booking link may be typed over, a slot on a template written elsewhere may take any source (its guess first), and a message with a slot the moment cannot fill is not offered on it. A playbook stored with a slot filled by something it cannot take says so on its card, and the next change puts it right. A visit run is different in three ways (#580): it reminds everyone with a visit, the cap being a fatigue limit for offers (the number's own daily limit is the one ceiling left, and the run's record says when it cut); its words are relative to the moment the send goes, so a run asked for at eleven at night and moved to nine says "today"; and a day's run approved on a later day is refused, and the next sweep reads the calendar again.
+A run (core `runPlaybook`, shared by the hourly sweep and Run now, every branch tested) is a broadcast: the trigger's people who said yes, minus anyone this playbook reached within its gap (90 days by default), minus anyone any playbook reached this week, longest-unheard first, up to the cap (25 by default); one run per local day, at the playbook's hour (between 9 and 20). The class's mode decides what the run does: **auto** sends now, **veto** schedules it half an hour out with a Stop, **ask** leaves it waiting as `pending_approval` on Today and on Playbooks — and an approval moves the send to the next open moment (00119) — **never** does nothing. A person who presses Run now has decided: it sends unless the class is never. A visit run keeps the visit's own words ("tomorrow at 2:00 PM", the service) on each recipient row. A playbook's card says what it sends, and a run has a page of its own. A playbook is made and changed in one sheet beside the page: its moment and who that reaches today, its message as a customer reads it, and its clock as one sentence. Each slot takes only what keeps the message true (contracts `slotChoices`): a starter's first name is each person's own and a visit's time each visit's, the business name and the booking link may be typed over, a slot on a template written elsewhere may take any source (its guess first), and a message with a slot the moment cannot fill is not offered on it. A playbook stored with a slot filled by something it cannot take says so on its card, and the next change puts it right. A visit run is different in three ways (#580): it reminds everyone with a visit, the cap being a fatigue limit for offers (the number's own daily limit is the one ceiling left, and the run's record says when it cut); its words are relative to the moment the send goes, so a run asked for at eleven at night and moved to nine says "today"; and a day's run approved on a later day is refused, and the next sweep reads the calendar again. The proposal
+follow-up (0006, 00167) is offered only where deals are on: it names whoever is waiting on a proposal by Today's own
+rule and the workspace's pace, with a link to carry, and reaches each once per proposal (no gap); it is
+conversational, as a reminder is, and keeps the proposal's link on each recipient row as a visit run keeps its words.
 
 ## S-15 · Calendar and availability
 

@@ -40,6 +40,9 @@ import {
   type ParamSpec,
   POLICY_CLASSES,
   POLICY_MODES,
+  FOLLOW_UP_NEEDS_DEALS,
+  dealsAreOn,
+  policyClassOffered,
   contactName,
   describeSettingsChange,
   isHeldDraft,
@@ -66,6 +69,7 @@ import { listPolicies, savedListFor } from "@chanlytics/db";
 import type { ToolContext, ToolDef } from "./tools";
 import { planFacts } from "../leads";
 import { audiencePoolOnce } from "../audience";
+import { sellsByOf } from "../deals";
 import { checkPlaybookInput } from "../playbooks";
 import { replyChannelOf } from "../verbs";
 
@@ -161,7 +165,7 @@ export const ACT_TOOLS: ToolDef[] = [
   {
     name: "propose_policy",
     description:
-      "Propose a change to what the receptionist may do alone: a class (reply, booking, faq, reengage, campaign, reviews) and a mode (auto, veto, ask, never), or the reply confidence dial (0 to 1). Never for money: that class is locked by charter, so a request to change it is answered in words, not proposed.",
+      "Propose a change to what the receptionist may do alone: a class (reply, booking, faq, reengage, campaign, reviews, and follow_up where deals are on) and a mode (auto, veto, ask, never), or the reply confidence dial (0 to 1). Never for money: that class is locked by charter, so a request to change it is answered in words, not proposed.",
     input_schema: obj(
       {
         class: { type: "string", enum: [...POLICY_CLASSES] },
@@ -225,8 +229,11 @@ export const ACT_TOOLS: ToolDef[] = [
       "Propose a playbook: a standing rule that sends one approved WhatsApp template to newly eligible people who said yes. trigger: quiet_30 (win-back), new_week (welcome), phoned_only (save our number) or everyone_monthly (the month's offer). template_id: an approved template, or omit it for the trigger's starter when the workspace holds it. params: the template's values in order (typed text, or @first_name, @business_name, @booking_link); a starter's are filled in, except a typed one such as the month's offer. run_hour 9–20 by the business's clock (default 10), cap_per_run (default 25). Read list_playbooks first. It becomes a card the person approves; it then runs under its class's autonomy mode.",
     input_schema: obj(
       {
-        // Every trigger except the two that follow the calendar.
-        trigger: { type: "string", enum: PLAYBOOK_TRIGGERS.filter((t) => t.kind !== "visit").map((t) => t.id) },
+        // Every trigger except the two that follow the calendar, and a proposal's, which the Playbooks page sets up.
+        trigger: {
+          type: "string",
+          enum: PLAYBOOK_TRIGGERS.filter((t) => t.kind !== "visit" && t.kind !== "deal").map((t) => t.id),
+        },
         template_id: { type: "string" },
         params: { type: "array", items: { type: "string" } },
         run_hour: { type: "number" },
@@ -635,8 +642,11 @@ async function proposePolicy(t: ToolContext, input: Record<string, unknown>): Pr
   const mode = str(input.mode, 10);
   const conf = typeof input.min_confidence === "number" ? input.min_confidence : null;
   if (!(POLICY_CLASSES as readonly string[]).includes(cls))
-    return refuse("class must be reply, booking, faq, reengage, campaign, reviews or money");
+    return refuse("class must be reply, booking, faq, reengage, campaign, reviews, follow_up or money");
   if (cls === "money") return refuse("money stays owner-only by charter; that row is locked");
+  // A class only a proposal's moment runs under is offered only where deals are on (0006); only it asks.
+  if (!policyClassOffered(cls, false) && !policyClassOffered(cls, dealsAreOn(await sellsByOf(t.ctx, t.tenantId))))
+    return refuse(FOLLOW_UP_NEEDS_DEALS);
   if (mode && !(POLICY_MODES as readonly string[]).includes(mode))
     return refuse("mode must be auto, veto, ask or never");
   if (mode === "veto" && cls !== "reply") return refuse("only replies can be held for review");
@@ -855,6 +865,8 @@ const MODE_WORDS: Record<string, string> = {
 async function proposePlaybook(t: ToolContext, input: Record<string, unknown>): Promise<ProposalOutcome> {
   const trig = triggerOf(str(input.trigger, 30));
   if (!trig) return refuse("trigger must be quiet_30, new_week, phoned_only or everyone_monthly");
+  // A proposal's follow-up is made on the Playbooks page, which counts it by the workspace's pace.
+  if (trig.kind === "deal") return refuse("the proposal follow-up is set up on the Playbooks page");
   let templateId = str(input.template_id, 40);
   if (templateId && !UUID.test(templateId))
     return refuse("template_id must be an id list_audiences returned, or omitted for the trigger's starter");
@@ -943,6 +955,8 @@ async function proposePlaybook(t: ToolContext, input: Record<string, unknown>): 
     { trigger: trig.id, cap_per_run: 100_000, gap_days: 0, cadence_days: 0 },
     untouched,
     t.now.getTime(),
+    // No proposal's moment is proposed here (above), so none waits on a pace.
+    null,
   );
   const candidates = drawn.reach.will;
   const mode = policies.find((r) => r.class === trig.cls)?.mode ?? "ask";

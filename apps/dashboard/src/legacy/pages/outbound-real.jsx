@@ -55,7 +55,7 @@ const pbOrder = (a, b) => (window.__starters ? window.__starters.compare(a, b) :
 // being drafted and never again -- on this page, on Playbooks, and on Messages.
 const pbFooter = (t) => (t && window.__starters && window.__starters.footer ? window.__starters.footer(t) : null);
 // What a slot shows in a preview: what a real person would see (contracts exampleParams), in the composer and on a card alike.
-const PB_EXAMPLES = { visit_when: "tomorrow at 2:00 PM", visit_service: "a consultation" };
+const PB_EXAMPLES = { visit_when: "tomorrow at 2:00 PM", visit_service: "a consultation", proposal_link: "their proposal's link" };
 const pbExample = (kind, businessName) => (kind === "first_name" ? "Dani" : kind === "business_name" ? (businessName || "the business") : kind === "booking_link" ? "your booking link" : (PB_EXAMPLES[kind] || ""));
 // A card's message: its template among the approved, with the playbook's own
 // values in the slots; null when it is not among them. The body and the values
@@ -70,7 +70,7 @@ const pbWrongSlot = (p, t) => {
   const S = window.__starters;
   if (!t || !S || !S.slots || !Array.isArray(p.params)) return null;
   const trig = (window.__PLAYBOOKS && window.__PLAYBOOKS.triggers || PB_NONE).find((x) => x.id === p.trigger) || null;
-  const choices = S.slots(t, { visits: !!(trig && trig.kind === "visit"), bookingLink: true });
+  const choices = S.slots(t, { visits: !!(trig && trig.kind === "visit"), bookingLink: true, proposal: !!(trig && trig.kind === "deal") });
   if (!choices) return null;
   const at = p.params.findIndex((s, i) => s && s.kind && choices[i] && !choices[i].includes(s.kind));
   if (at < 0) return null;
@@ -94,10 +94,11 @@ const pbMessage = (p, templates, businessName) => {
 const pbReplyTip = () => { const w = window.__PLAYBOOKS && window.__PLAYBOOKS.replyWindow; return w ? `Threads that heard from the customer ${w} of a run` : "Threads that heard from the customer after a run"; };
 const pbSentWhen = (d) => (d && d.scheduled_for && window.bcWhenWords ? window.bcWhenWords(d) : window.__clock && window.__clock.hours ? `on its way — sends go out ${window.__clock.hours.between} by your clock` : "on its way");
 
-// Each of the six moments has its glyph: the arrow that comes back, a wave
-// hello, the phone that only ever rang, the gift, the calendar, the clock of
-// the day after. A playbook on a trigger this list does not know gets a bolt.
-const PB_ICONS = { quiet_30: "undo", new_week: "wave", phoned_only: "phone", everyone_monthly: "gift", visit_tomorrow: "calendar", visited: "clock", lapsed: "undo", saved_list: "filter" };
+// Each moment has its glyph: the arrow that comes back, a wave hello, the
+// phone that only ever rang, the gift, the calendar, the clock of the day
+// after, a list's filter, and a proposal's deal. A playbook on a trigger this
+// list does not know gets a bolt.
+const PB_ICONS = { quiet_30: "undo", new_week: "wave", phoned_only: "phone", everyone_monthly: "gift", visit_tomorrow: "calendar", visited: "clock", lapsed: "undo", saved_list: "filter", proposal_waiting: "deal" };
 const pbIcon = (trigger) => PB_ICONS[trigger] || "bolt";
 // What a moment is for, said once on its empty card: who it reaches and why it
 // is worth a message. The count of who it would reach today follows it.
@@ -110,6 +111,7 @@ const PB_BLURBS = {
   visited: "Everyone who came in yesterday and has nothing on the calendar — the shortest path from a visit to the next booking.",
   lapsed: "Everyone whose last visit was 45 days ago or more, with nothing ahead on the calendar — the regulars drifting away.",
   saved_list: "Everyone on one of your lists — kept by hand, or kept current by a rule you described.",
+  proposal_waiting: "Everyone whose proposal has waited with nothing back — one nudge each, with the link to it, before it goes cold.",
 };
 const pbShort = (id) => (window.__starters && window.__starters.langTag ? window.__starters.langTag(id) : String(id || "").slice(0, 2).toUpperCase());
 const pbLabel = (id) => (window.__starters && window.__starters.langLabel ? window.__starters.langLabel(id) : pbLangWords(id));
@@ -282,9 +284,11 @@ const PbTok = ({ value, options, onChange, label, testid = null }) => (
   </span>
 );
 // What every run keeps to, behind the shield.
-const pbGuardWords = (visits) => (visits
+const pbGuardWords = (kind) => (kind === "visit"
   ? "Only people with a recorded yes and a number. One message per visit. Anyone who asked to stop, or is mid-thread with a person, is held back at the wire."
-  : "Only people with a recorded yes and a number. Never twice within its gap, and one playbook message per person a week, across every playbook. Anyone who asked to stop, or is mid-thread with a person, is held back at the wire.");
+  : kind === "deal"
+    ? "Only people with a recorded yes and a number, whose proposal has its link and nothing back. One message per proposal, and one playbook message per person a week, across every playbook. Anyone who asked to stop, or is mid-thread with a person, is held back at the wire."
+    : "Only people with a recorded yes and a number. Never twice within its gap, and one playbook message per person a week, across every playbook. Anyone who asked to stop, or is mid-thread with a person, is held back at the wire.");
 
 /**
  * The composer: a new playbook, or one being changed, in a sheet beside the
@@ -371,8 +375,9 @@ const PlaybookComposer = ({ data, editing, initialTrigger = null, onDone, onCanc
   const lists = data.lists || PB_NONE;
   const list = onList ? lists.find((l) => l.id === listId) || null : null;
   const link = !!data.bookingLink;
-  // What each slot of a message may take on a moment, or null when one of them can take nothing there.
-  const slotsOf = (t, v = visits) => (S && S.slots ? S.slots(t, { visits: v, bookingLink: link }) : (Array.isArray(t.variables) ? t.variables : PB_NONE).map(() => PB_TEXT));
+  // What each slot of a message may take on a moment -- a visit's time and service on a visit, a proposal's link on
+  // the follow-up (0006) -- or null when one of them can take nothing there.
+  const slotsOf = (t, m = trig) => (S && S.slots ? S.slots(t, { visits: !!(m && m.kind === "visit"), bookingLink: link, proposal: !!(m && m.kind === "deal") }) : (Array.isArray(t.variables) ? t.variables : PB_NONE).map(() => PB_TEXT));
   const usable = offered.sendable.filter((t) => slotsOf(t) !== null);
   // One entry per message, whatever languages it has: the language is its own control.
   const groups = S && S.group ? S.group(usable) : usable.map((t) => ({ name: t.name, title: pbTitle(t.name), rows: [t], labels: {} }));
@@ -442,7 +447,7 @@ const PlaybookComposer = ({ data, editing, initialTrigger = null, onDone, onCanc
   const chooseMoment = (id) => {
     if (id === trigger) return;
     const t = triggers.find((x) => x.id === id) || null;
-    if (picked && tpl && slotsOf(tpl, !!(t && t.kind === "visit")) === null) setPicked(false);
+    if (picked && tpl && slotsOf(tpl, t) === null) setPicked(false);
     setTrigger(id);
   };
   const chooseMessage = (id) => {
@@ -667,12 +672,15 @@ const PlaybookComposer = ({ data, editing, initialTrigger = null, onDone, onCanc
               ? <>, to {trigger === "visit_tomorrow" ? "everyone with a visit the next day" : "everyone who came in the day before"} — one message per visit.</>
               : <>
                   , up to <PbTok value={cap} options={pbWith(PB_CAPS, Number(cap)).map((n) => ({ v: n, t: String(n) }))} onChange={setCap} label="The most one run sends" testid="pb-cap" /> {Number(cap) === 1 ? "person" : "people"} a run.{" "}
-                  No one hears it more than once every <PbTok value={repeat} options={pbWith(monthly ? PB_CADENCES : PB_GAPS, Number(repeat)).map((n) => ({ v: n, t: `${n} days` }))} onChange={monthly ? setCadence : setGap} label={monthly ? "How often the same person hears it" : "The days before the same person hears it again"} testid="pb-gap" />.
+                  {/* A follow-up is owed once per proposal (0006): there is no gap to choose. */}
+                  {trig && trig.kind === "deal"
+                    ? <>One message per proposal.</>
+                    : <>No one hears it more than once every <PbTok value={repeat} options={pbWith(monthly ? PB_CADENCES : PB_GAPS, Number(repeat)).map((n) => ({ v: n, t: `${n} days` }))} onChange={monthly ? setCadence : setGap} label={monthly ? "How often the same person hears it" : "The days before the same person hears it again"} testid="pb-gap" />.</>}
                 </>}
           </p>
           <div className="pb-rules-line">
             {policyRow && <span className="pb-runs-under" data-testid="pb-runs-under"><span>Runs under</span><PolicyChip cls={trig.cls} /></span>}
-            <span className="pb-guard" tabIndex={0} data-tip={pbGuardWords(visits)} aria-description={pbGuardWords(visits)} data-testid="pb-guard"><Icon name="shield" size={12} /> Guardrails</span>
+            <span className="pb-guard" tabIndex={0} data-tip={pbGuardWords(trig && trig.kind)} aria-description={pbGuardWords(trig && trig.kind)} data-testid="pb-guard"><Icon name="shield" size={12} /> Guardrails</span>
           </div>
         </section>
 
@@ -696,7 +704,8 @@ const PlaybookCard = ({ p, canAct, onEdit, flash, focus = false, bare = false })
   const status = pbStatus(p);
   const trig = (window.__PLAYBOOKS && window.__PLAYBOOKS.triggers || PB_NONE).find((t) => t.id === p.trigger) || null;
   // The trigger's list, on People (a smart list's own view); `segments/<id>` would land there too, one hop later.
-  const listRoute = p.trigger === "saved_list" && p.list_id ? `clients/list:${p.list_id}` : trig && trig.list ? `clients/seg:${trig.list}` : "clients/seg:opted_in";
+  // A follow-up's is the Pipeline's own view of the proposals waiting (contracts pipelineRoute).
+  const listRoute = p.trigger === "saved_list" && p.list_id ? `clients/list:${p.list_id}` : trig && trig.list ? `clients/seg:${trig.list}` : trig && trig.kind === "deal" && window.__pipeline ? window.__pipeline.route({ view: "waiting" }) : "clients/seg:opted_in";
   // What its runs send. Templates that could not be read are said once, over the cards; one not among the approved, here.
   const surface = window.__PLAYBOOKS || {};
   const message = Array.isArray(surface.templates) ? pbMessage(p, surface.templates, surface.businessName) : null;
@@ -778,7 +787,7 @@ const PlaybookCard = ({ p, canAct, onEdit, flash, focus = false, bare = false })
             {counted && (
               <>
                 {" "}&mdash;{" "}
-                <button className="ob-link" data-tip={trig && trig.kind === "visit" ? "Everyone with a recorded yes — the day's visits are picked from them · click to open them in People" : "The list this playbook watches — before the gap and the week's breath · click to open it in People"} onClick={() => window.CHANLY.nav(listRoute)} data-testid="pb-audience">
+                <button className="ob-link" data-tip={trig && trig.kind === "visit" ? "Everyone with a recorded yes — the day's visits are picked from them · click to open them in People" : trig && trig.kind === "deal" ? "Everyone whose proposal waits with nothing back, with its link — before the week's breath · click to open them in the Pipeline" : "The list this playbook watches — before the gap and the week's breath · click to open it in People"} onClick={() => window.CHANLY.nav(listRoute)} data-testid="pb-audience">
                   {noNumber || `${pbPeople(p.candidates)} on the list said yes`}
                 </button>
                 {/* Why a list with people on it can still offer nobody: one message per

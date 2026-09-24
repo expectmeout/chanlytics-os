@@ -46,6 +46,7 @@ const MODES = {
   campaign: "ask",
   reviews: "ask",
   money: "never",
+  follow_up: "ask",
 };
 
 /** A database in memory, an auth admin, and provision_tenant as the migrations write it. */

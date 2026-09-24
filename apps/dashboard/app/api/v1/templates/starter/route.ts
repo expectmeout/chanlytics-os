@@ -1,6 +1,7 @@
 import {
   AppError,
-  STARTER_TEMPLATES,
+  dealsAreOn,
+  startersOffered,
   starterDraft,
   starterText,
   templateComponents,
@@ -9,12 +10,14 @@ import {
 import { write, workspace } from "@/server/route";
 import { jsonBody } from "@/server/request-guards";
 import { createTemplate, syncTemplates } from "@/server/service";
+import { sellsByOf } from "@/server/deals";
 
 /**
  * POST /api/v1/templates/starter — the starter set, added to this workspace.
  *
- * { keys?: string[], languages?: string[] } — every starter by default, in
- * English by default. Idempotent: a starter already on file is left as it
+ * { keys?: string[], languages?: string[] } — every starter the workspace is
+ * offered by default (contracts startersOffered: the proposal follow-up's only
+ * where deals are on, 0006), in English by default. Idempotent: a starter already on file is left as it
  * is; one the number's account already holds (a shared account, or written
  * in WhatsApp Manager) is synced in rather than refused; the rest are
  * submitted to Meta for review, exactly as a template written by hand is.
@@ -46,15 +49,17 @@ export const POST = write({
   rate: "settings",
   handle: async ({ ctx, req, member }) => {
     const body = (await jsonBody(req)) as { keys?: unknown; languages?: unknown } | null;
+    // The set this workspace is offered: a starter it is not offered is not filed, asked for or not.
+    const offered = startersOffered(dealsAreOn(await sellsByOf(ctx, member.tenantId)));
     const keys = Array.isArray(body?.keys)
       ? body.keys.filter((k): k is string => typeof k === "string")
-      : STARTER_TEMPLATES.map((s) => s.key);
+      : offered.map((s) => s.key);
     const languages = Array.isArray(body?.languages)
       ? body.languages.filter((l): l is string => typeof l === "string")
       : ["en_US"];
-    const wanted = STARTER_TEMPLATES.filter((s) => keys.includes(s.key)).flatMap((s) =>
-      languages.filter((l) => !!s.texts[l]).map((l) => ({ s, l })),
-    );
+    const wanted = offered
+      .filter((s) => keys.includes(s.key))
+      .flatMap((s) => languages.filter((l) => !!s.texts[l]).map((l) => ({ s, l })));
     if (wanted.length === 0)
       throw new AppError("validation", "Pick at least one starter template, in English or Spanish.");
 

@@ -567,3 +567,80 @@ test("what else makes a person's run off, each recorded with its reason: a templ
   assert.deepEqual(w.tables.events, [], "a failed run is not recorded as one");
   assert.equal(w.tables.playbooks[0].last_run_for, null, "and does not take the day: the next press may succeed");
 });
+
+test("a proposal follow-up (0006): where deals are on, a run reaches the proposal waiting past the workspace's pace, with its link frozen on the recipient; where they are off it is off and says why", async (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: IN_HOURS });
+  const out = (id, daysOut, over = {}) =>
+    person(id, {
+      deal_id: `deal-${id}`,
+      deal_stage: "proposed",
+      deal_proposed_at: iso(daysOut * D),
+      deal_proposal_url: `https://docs.example.com/proposal/${id}`,
+      ...over,
+    });
+  const followUp = () =>
+    playbook(A, P, {
+      name: "Proposal follow-up",
+      trigger: "proposal_waiting",
+      template_id: "tpl-follow",
+      template_name: "proposal_follow_up",
+      params: [{ kind: "first_name" }, { kind: "business_name" }, { kind: "proposal_link" }],
+      policy_class: "follow_up",
+    });
+  // Five yeses that took twelve days each: the workspace's pace, so a proposal waits fourteen days before its nudge.
+  const yeses = Array.from({ length: 5 }, (_, i) => ({
+    id: `yes-${i}`,
+    tenant_id: A,
+    contact_id: `z${i}`,
+    stage: "won",
+    proposed_at: iso((40 + i) * D),
+    decided_at: iso((28 + i) * D),
+  }));
+  const people = [out("c1", 20), out("c2", 10), out("c3", 20, { deal_proposal_url: null })];
+  const set = (w, sellsBy) => {
+    workspace(w.tables, A, "ask", { sells_by: sellsBy });
+    w.tables.templates.push({
+      tenant_id: A,
+      channel: "whatsapp",
+      name: "proposal_follow_up",
+      language: "en_US",
+      meta_status: "approved",
+    });
+    w.tables.deals = yeses.map((y) => ({ ...y }));
+    w.tables.playbooks.push(followUp());
+  };
+
+  let w = world({ people: { [A]: people } });
+  set(w, "proposal");
+  const [status, body] = await answer(await knock(press));
+  assert.equal(status, 200, JSON.stringify(body));
+  assert.deepEqual([body.outcome, body.eligible], ["sent", 1]);
+  assert.deepEqual(
+    w.tables.broadcast_recipients.map((r) => [r.contact_id, r.facts]),
+    [["c1", { proposal_link: "https://docs.example.com/proposal/c1" }]],
+    "out twenty days with its link: reached, the link it was run for kept on the row; ten days is inside the pace; no link, not named",
+  );
+  assert.deepEqual(w.tables.broadcasts[0].params, [
+    { kind: "first_name" },
+    { kind: "business_name" },
+    { kind: "proposal_link" },
+  ]);
+
+  // The pace cannot be read: a week's wait, as before one, and the run goes on.
+  w = world({
+    people: { [A]: people },
+    faults: { "deals.select": { message: "canceling statement due to statement timeout" } },
+  });
+  set(w, "proposal");
+  const [, unread] = await answer(await knock(press));
+  assert.deepEqual([unread.outcome, unread.eligible], ["sent", 2], "ten days out is past a week");
+
+  // Deals off: nothing runs, and the reason is the run's own.
+  w = world({ people: { [A]: people } });
+  set(w, "booking");
+  assert.deepEqual(await answer(await knock(press)), [
+    200,
+    { ok: true, outcome: "off", mode: "ask", skipped: "deals_off" },
+  ]);
+  nothingMade(w.tables);
+});

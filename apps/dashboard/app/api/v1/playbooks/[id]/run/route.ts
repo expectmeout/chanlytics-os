@@ -1,4 +1,4 @@
-import { AppError } from "@chanlytics/contracts";
+import { AppError, FOLLOW_UP_NEEDS_DEALS } from "@chanlytics/contracts";
 import { write } from "@/server/route";
 import { playbookScope } from "@/server/verbs";
 import { runPlaybookNow } from "@/server/service";
@@ -20,6 +20,7 @@ const SAID: Record<string, string> = {
   template_not_approved: "Its template is no longer approved by WhatsApp. Pick another template.",
   number_flagged: "WhatsApp flagged this number's quality; wait for it to recover.",
   already_ran_today: "It already ran today. It runs again tomorrow at its hour.",
+  deals_off: FOLLOW_UP_NEEDS_DEALS,
 };
 
 export const POST = write({

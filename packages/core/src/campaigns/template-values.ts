@@ -12,7 +12,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  */
 export async function templateValues(
   ports: TemplateValuesPorts,
-  cmd: { templateId: string; params: unknown; visits: boolean },
+  /** `visits`: a visit playbook, whose run knows each visit; `proposal`: the follow-up, whose run knows each link. */
+  cmd: { templateId: string; params: unknown; visits: boolean; proposal: boolean },
 ): Promise<{ template: TemplateRow; specs: ParamSpec[] }> {
   if (!UUID.test(cmd.templateId)) throw new AppError("validation", "Pick a template.");
   const tpl = await ports.template(cmd.templateId);
@@ -36,7 +37,7 @@ export async function templateValues(
     if (!spec)
       throw new AppError(
         "validation",
-        "Each value is typed text, their first name, the business name, the booking link, or a visit's time or service.",
+        "Each value is typed text, their first name, the business name, the booking link, a visit's time or service, or a proposal's link.",
       );
     if (spec.kind === "text") {
       const v = cleanParam(spec.value);
@@ -54,6 +55,10 @@ export async function templateValues(
           "validation",
           "Only a visit reminder or an after-the-visit playbook can fill in a visit's time or service.",
         );
+      }
+      // A proposal's link exists only on the follow-up's run, one proposal at a time (0006).
+      if (spec.kind === "proposal_link" && !cmd.proposal) {
+        throw new AppError("validation", "Only the proposal follow-up can fill in a proposal's link.");
       }
       specs.push(spec);
     }

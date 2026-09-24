@@ -16,9 +16,9 @@ import {
   PARAM_SOURCE_HINTS,
   PARAM_SOURCE_LABELS,
   STARTER_LANGUAGES,
-  STARTER_TEMPLATES,
   WHATSAPP_LANGUAGES,
   compareTemplates,
+  dealsAreOn,
   defaultSlotKinds,
   defaultTemplate,
   findLanguages,
@@ -34,6 +34,7 @@ import {
   starterPreview,
   starterPreviewValues,
   starterText,
+  startersOffered,
   sendableTemplates,
   slotChoices,
   templateFooter,
@@ -42,6 +43,7 @@ import {
   templateSlots,
   templateTitle,
   templateUntranslatable,
+  type StarterTemplate,
 } from "@chanlytics/contracts";
 
 /**
@@ -101,7 +103,8 @@ export function titleOf(t: string | { name: string; title?: string | null } | nu
 
 /** The starter set as the pages read it: the library, and the words and slots for any template. */
 export interface StarterLibrary {
-  list: typeof STARTER_TEMPLATES;
+  /** The starters this workspace is offered (contracts startersOffered): the proposal follow-up's only where deals are on (0006). */
+  readonly list: readonly StarterTemplate[];
   languages: typeof STARTER_LANGUAGES;
   byName: typeof starterByName;
   forTrigger: typeof starterForTrigger;
@@ -159,11 +162,23 @@ declare global {
   }
 }
 
+/** How the workspace being viewed says its customers buy (0008), from the list the workspace surface publishes. */
+function viewedSellsBy(): string | null {
+  const w = window as unknown as {
+    __WORKSPACES?: Array<{ id: string; sells_by?: string | null }>;
+    __ACTIVE_WORKSPACE?: string;
+  };
+  return w.__WORKSPACES?.find((t) => t.id === w.__ACTIVE_WORKSPACE)?.sells_by ?? null;
+}
+
 export function installTemplates(): void {
   window.__syncTemplates = syncTemplates;
   window.__templates = templates;
   window.__starters = {
-    list: STARTER_TEMPLATES,
+    // Read each time a page draws the set: an answer changed in Settings › Business changes it.
+    get list() {
+      return startersOffered(dealsAreOn(viewedSellsBy()));
+    },
     languages: STARTER_LANGUAGES,
     byName: starterByName,
     forTrigger: starterForTrigger,

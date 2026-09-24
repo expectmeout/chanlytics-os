@@ -10,6 +10,7 @@ export * from "./repositories/control-plane";
 export * from "./repositories/people";
 export * from "./repositories/lists";
 export * from "./repositories/touches";
+export * from "./repositories/deals";
 export * from "./realtime";
 export * from "./paged";
 export type { Database, Json } from "./database.types";

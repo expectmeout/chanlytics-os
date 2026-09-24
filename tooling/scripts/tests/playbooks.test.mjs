@@ -26,7 +26,14 @@ import {
   scheduleLine,
   toBroadcastVM,
   triggerOf,
+  FOLLOW_UP_NEEDS_DEALS,
+  POLICY_CLASSES,
   PLAYBOOK_REACH_WORDS,
+  playbookRunReach,
+  policyClassOffered,
+  poolWords,
+  reachLines,
+  triggerOffered,
   playbookReach,
   playbookReachDoor,
   playbookNoNumberWords,
@@ -117,10 +124,25 @@ test("the reminder's words are relative to the moment it goes: tomorrow, today, 
   );
 });
 
-test("eight triggers: People's lists and a cadence, two the calendar makes possible, Lapsed, and one of the workspace's own lists, each under one of the three autonomy rows", () => {
+test("nine triggers: People's lists and a cadence, two the calendar makes possible, Lapsed, one of the workspace's own lists, and a proposal waiting, each under one of the four autonomy rows", () => {
   assert.deepEqual(
     PLAYBOOK_TRIGGERS.map((t) => t.id),
-    ["quiet_30", "new_week", "phoned_only", "everyone_monthly", "visit_tomorrow", "visited", "lapsed", "saved_list"],
+    [
+      "quiet_30",
+      "new_week",
+      "phoned_only",
+      "everyone_monthly",
+      "visit_tomorrow",
+      "visited",
+      "lapsed",
+      "saved_list",
+      "proposal_waiting",
+    ],
+  );
+  assert.deepEqual(
+    [triggerOf("proposal_waiting").kind, triggerOf("proposal_waiting").cls, triggerOf("proposal_waiting").list],
+    ["deal", "follow_up", null],
+    "a proposal's moment, under its own class (0006), on no People list: Today's rule names who waits",
   );
   assert.equal(triggerOf("lapsed").list, "lapsed", "the win-back by visits runs on People's own Lapsed list");
   assert.notEqual(triggerOf("lapsed").label, triggerOf("quiet_30").label, "never a second Win-back");
@@ -402,7 +424,7 @@ test("the page and its doors: Outbound is Playbooks, real; make, change, pause, 
     );
   const pools = readCode("apps/dashboard/src/server/playbooks.ts");
   assert.ok(
-    /cap_per_run: PLAYBOOK_POOL, gap_days: 0, cadence_days: 0 \},\s*breath,\s*now\.getTime\(\),\s*listIds,?\s*\);/.test(
+    /cap_per_run: PLAYBOOK_POOL, gap_days: 0, cadence_days: 0 \},\s*breath,\s*now\.getTime\(\),\s*deals\.pace,\s*listIds,?\s*\);/.test(
       pools,
     ),
     "the chip counts the pool with the runner's own predicate -- with the week's touches, since slice C of the data program; on the server over everyone since Calendar 3 (run in calendar-counts.test.mjs)",
@@ -586,5 +608,97 @@ test("Ask knows playbooks: read as the page shows them, proposed as a card, comm
   assert.ok(
     !readCode("apps/dashboard/src/legacy/pages/broadcasts-real.jsx").includes("Not available yet"),
     "no disabled channel chips until a second channel is real",
+  );
+});
+
+test("a proposal follow-up (0006): the proposal waiting past the pace, with its link and a yes, once per proposal", () => {
+  const out = (id, daysOut, over = {}) =>
+    person(id, {
+      deal: {
+        stage: "proposed",
+        sinceMs: NOW - daysOut * DAY,
+        proposal: { url: `https://docs.example.com/proposal/${id}` },
+      },
+      askedMs: NOW - 30 * DAY,
+      ...over,
+    });
+  const yes = person("x").consent;
+  const follow = { trigger: "proposal_waiting", cap_per_run: 25, gap_days: 90, cadence_days: 30 };
+  const rows = [
+    out("a", 10),
+    out("b", 10, { deal: { stage: "proposed", sinceMs: NOW - 10 * DAY, proposal: null } }),
+    out("c", 10, { consent: { ...yes, state: "opted_out" } }),
+    out("d", 10, { consent: { ...yes, state: "unknown", marketing: "unknown" } }),
+    out("e", 10, { askedMs: NOW - 2 * DAY }),
+    out("f", 4),
+    out("g", 10, {
+      deal: { stage: "won", sinceMs: NOW - 10 * DAY, proposal: { url: "https://docs.example.com/proposal/g" } },
+    }),
+  ];
+  const drawn = playbookRunReach(rows, follow, noTouch, NOW, null);
+  assert.deepEqual(
+    drawn.eligible.map((r) => r.id),
+    ["a"],
+    "waiting a week and more, with its link, and a yes to hearing from them",
+  );
+  assert.deepEqual(
+    [drawn.reach.pool, drawn.reach.stopped, drawn.reach.noYes, drawn.reach.will],
+    [3, 1, 1, 1],
+    "no link, a reply since, too soon or another stage is not a proposal waiting; a stop and no yes are counted",
+  );
+  // The same proposal, followed up yesterday: never twice.
+  const sent = { byThis: new Map([["a", NOW - DAY]]), byAny: new Map([["a", NOW - DAY]]) };
+  const again = playbookRunReach(rows, follow, sent, NOW, null);
+  assert.deepEqual([again.reach.will, again.reach.heardThis], [0, 1], "a playbook message since the proposal: heard");
+  // A week on, past the week's breath: still nobody, since one follow-up was owed for this proposal.
+  const later = playbookRunReach([rows[0]], follow, sent, NOW + 8 * DAY, null);
+  assert.deepEqual(
+    [later.reach.will, later.reach.heardThis, later.reach.heardAny],
+    [0, 1, 0],
+    "a second run a week later: nobody",
+  );
+  // The follow-up of an earlier proposal is not this one's.
+  const before = { byThis: new Map([["a", NOW - 20 * DAY]]), byAny: new Map([["a", NOW - 20 * DAY]]) };
+  assert.deepEqual(
+    playbookRunReach(rows, follow, before, NOW, null).eligible.map((r) => r.id),
+    ["a"],
+  );
+  // The workspace's pace: where a proposal waits fourteen days, ten is not yet waiting; where it waits three, four is.
+  assert.equal(playbookRunReach(rows, follow, noTouch, NOW, { waitDays: 14 }).reach.pool, 0, "the pace's own wait");
+  assert.deepEqual(
+    playbookRunReach(rows, follow, noTouch, NOW, { waitDays: 3 })
+      .eligible.map((r) => r.id)
+      .sort(),
+    ["a", "f"],
+  );
+  // What the card and the sheet say of it.
+  assert.equal(scheduleLine({ ...follow, run_hour: 10 }), "Daily 10:00 · up to 25 · once per proposal");
+  assert.equal(poolWords("proposal_waiting"), "with a proposal waiting");
+  assert.deepEqual(
+    reachLines(again.reach, follow).lines.map((l) => l.words),
+    ["1 never said yes to hearing from you", "1 had this proposal's follow-up already", "1 asked you to stop"],
+    "its yes is to hearing from them, never to offers; and the follow-up it already had, never a gap",
+  );
+});
+
+test("offered here (0006): a proposal's moment and its Autonomy class only where deals are on, every other everywhere", () => {
+  assert.deepEqual(
+    PLAYBOOK_TRIGGERS.filter((t) => !triggerOffered(t, false)).map((t) => t.id),
+    ["proposal_waiting"],
+  );
+  assert.ok(PLAYBOOK_TRIGGERS.every((t) => triggerOffered(t, true)));
+  assert.deepEqual(
+    POLICY_CLASSES.filter((c) => !policyClassOffered(c, false)),
+    ["follow_up"],
+    "a salon's Autonomy: seven rows",
+  );
+  assert.ok(
+    POLICY_CLASSES.every((c) => policyClassOffered(c, true)),
+    "deals on: all eight",
+  );
+  assert.ok(
+    FOLLOW_UP_NEEDS_DEALS.includes("Settings › Business") &&
+      FOLLOW_UP_NEEDS_DEALS.includes("“Some get a proposal first”"),
+    "the refusal says where the answer is given, in the answer's own words",
   );
 });

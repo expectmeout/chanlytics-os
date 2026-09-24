@@ -178,16 +178,16 @@ test("a playbook on a list runs on who is on it; the Lapsed moment runs on Peopl
   const rows = [vm("1"), vm("2"), vm("3")];
   const touches = { byThis: new Map(), byAny: new Map() };
   const p = { trigger: "saved_list", cap_per_run: 25, gap_days: 90, cadence_days: 30 };
-  const drawn = playbookRunReach(rows, p, touches, NOW, new Set(["1", "3"]));
+  const drawn = playbookRunReach(rows, p, touches, NOW, null, new Set(["1", "3"]));
   assert.deepEqual(drawn.eligible.map((r) => r.id).sort(), ["1", "3"]);
   assert.equal(drawn.reach.pool, 2);
-  assert.equal(playbookRunReach(rows, p, touches, NOW, null).reach.pool, 0, "no list, nobody");
+  assert.equal(playbookRunReach(rows, p, touches, NOW, null, null).reach.pool, 0, "no list, nobody");
   const lapsedRows = [
     vm("a", { lastVisitDays: 60 }),
     vm("b", { lastVisitDays: 60, booked: true }),
     vm("c", { lastVisitDays: 10 }),
   ];
-  const lapsed = playbookRunReach(lapsedRows, { ...p, trigger: "lapsed" }, touches, NOW);
+  const lapsed = playbookRunReach(lapsedRows, { ...p, trigger: "lapsed" }, touches, NOW, null);
   assert.deepEqual(
     lapsed.eligible.map((r) => r.id),
     ["a"],

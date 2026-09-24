@@ -616,7 +616,7 @@ function purposeOfTemplate(category) {
   return category === "utility" || category === "authentication" ? "conversational" : "marketing";
 }
 function purposeOfPlaybook(policyClass) {
-  return policyClass === "booking" ? "conversational" : "marketing";
+  return policyClass === "booking" || policyClass === "follow_up" ? "conversational" : "marketing";
 }
 
 // src/time.ts
@@ -2542,7 +2542,16 @@ var ROLE_PERMS = {
     find: false
   }
 };
-var POLICY_CLASSES = ["reply", "booking", "faq", "reengage", "campaign", "reviews", "money"];
+var POLICY_CLASSES = [
+  "reply",
+  "booking",
+  "faq",
+  "reengage",
+  "campaign",
+  "reviews",
+  "money",
+  "follow_up"
+];
 var POLICY_CLASS_WORDS = {
   reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
   faq: {
@@ -2570,7 +2579,13 @@ var POLICY_CLASS_WORDS = {
     short: "Reviews",
     note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you"
   },
-  money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" }
+  money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" },
+  // 0006: one nudge per proposal, with its link, once it has waited past the workspace's pace with nothing back.
+  follow_up: {
+    name: "Proposal follow-ups",
+    short: "Follow-ups",
+    note: "the proposal follow-up playbook \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
+  }
 };
 var POLICY_MODES = ["auto", "veto", "ask", "never"];
 var POLICY_MODE_WORDS = {
@@ -2596,7 +2611,8 @@ var POLICY_CLASS_MODES = {
   reengage: ["auto", "veto", "ask", "never"],
   campaign: ["auto", "veto", "ask", "never"],
   reviews: ["auto", "ask", "never"],
-  money: ["never"]
+  money: ["never"],
+  follow_up: ["auto", "ask", "never"]
 };
 function policyClassOfIntent(intent) {
   if (intent === "booking") return "booking";
@@ -11901,7 +11917,8 @@ var PARAM_SOURCES = [
   "business_name",
   "booking_link",
   "visit_when",
-  "visit_service"
+  "visit_service",
+  "proposal_link"
 ];
 var PARAM_SOURCE_LABELS = {
   text: "Type it",
@@ -11909,25 +11926,27 @@ var PARAM_SOURCE_LABELS = {
   business_name: "The business name",
   booking_link: "The booking link",
   visit_when: "Their visit's time",
-  visit_service: "Their visit's service"
+  visit_service: "Their visit's service",
+  proposal_link: "Their proposal's link"
 };
 var PARAM_SOURCE_HINTS = {
   first_name: "Each person's own \u2014 \u201Cthere\u201D when none is on file",
   business_name: "From Settings \u203A Business",
   booking_link: "From Settings \u203A Business",
   visit_when: "Each visit's own, from the calendar",
-  visit_service: "Each visit's own, from the calendar"
+  visit_service: "Each visit's own, from the calendar",
+  proposal_link: "Each proposal's own, from its deal"
 };
 function parseParamSpec(raw) {
   if (typeof raw === "string") {
-    const m = /^@(first_name|business_name|booking_link|visit_when|visit_service)$/.exec(raw.trim());
+    const m = /^@(first_name|business_name|booking_link|visit_when|visit_service|proposal_link)$/.exec(raw.trim());
     if (m) return { kind: m[1] };
     return { kind: "text", value: raw };
   }
   if (raw && typeof raw === "object") {
     const o = raw;
     if (o.kind === "text") return typeof o.value === "string" ? { kind: "text", value: o.value } : null;
-    if (o.kind === "first_name" || o.kind === "business_name" || o.kind === "booking_link" || o.kind === "visit_when" || o.kind === "visit_service")
+    if (o.kind === "first_name" || o.kind === "business_name" || o.kind === "booking_link" || o.kind === "visit_when" || o.kind === "visit_service" || o.kind === "proposal_link")
       return { kind: o.kind };
   }
   return null;
@@ -11965,6 +11984,8 @@ function resolveParams(specs, f) {
         return f.visitWhen ?? "";
       case "visit_service":
         return f.visitService ?? "";
+      case "proposal_link":
+        return f.proposalLink ?? "";
     }
   });
 }
@@ -11974,7 +11995,8 @@ function exampleParams(specs, businessName) {
     businessName,
     bookingLink: "your booking link",
     visitWhen: "tomorrow at 2:00 PM",
-    visitService: "a consultation"
+    visitService: "a consultation",
+    proposalLink: "their proposal's link"
   });
 }
 var NOTHING = { playbooks: [], broadcasts: 0, recent: [], booking: false };
@@ -12056,6 +12078,418 @@ function templateSentWords(s, tz, nowMs) {
   };
 }
 
+// src/playbooks.ts
+var DAY_MS7 = 864e5;
+var PLAYBOOK_TRIGGERS = [
+  { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
+  {
+    id: "new_week",
+    label: "Welcome",
+    list: "new_week",
+    cls: "campaign",
+    kind: "list",
+    hint: "First contact in the last 7 days"
+  },
+  {
+    id: "phoned_only",
+    label: "Save our number",
+    list: "phoned_only",
+    cls: "reengage",
+    kind: "list",
+    hint: "Only ever phoned, never texted"
+  },
+  {
+    id: "everyone_monthly",
+    label: "The month's offer",
+    list: null,
+    cls: "campaign",
+    kind: "cadence",
+    hint: "Everyone who said yes, on a cadence"
+  },
+  {
+    id: "visit_tomorrow",
+    label: "Visit reminder",
+    list: null,
+    cls: "booking",
+    kind: "visit",
+    hint: "The day before an appointment on the calendar"
+  },
+  {
+    id: "visited",
+    label: "After the visit",
+    list: null,
+    cls: "reengage",
+    kind: "visit",
+    hint: "The day after a visit, when nothing is booked next"
+  },
+  // People's Lapsed list, by visits rather than silence: the win-back a salon means, which had no playbook of its own
+  // (00155). Named for its list, so it is never a second "Win-back" beside the one for the quiet.
+  {
+    id: "lapsed",
+    label: "Lapsed",
+    list: "lapsed",
+    cls: "reengage",
+    kind: "list",
+    hint: "No visit in 45 days, and nothing booked"
+  },
+  // One of the workspace's own lists, kept by hand or by a rule; the card says which.
+  {
+    id: "saved_list",
+    label: "One of your lists",
+    list: null,
+    cls: "campaign",
+    kind: "saved",
+    hint: "Everyone on a list you keep"
+  },
+  // A proposal out that has waited past the workspace's pace with nothing back (0006): one nudge per proposal, with
+  // its link, under its own class, where deals are on. Conversational: it answers the person's own request.
+  {
+    id: "proposal_waiting",
+    label: "Proposal follow-up",
+    list: null,
+    cls: "follow_up",
+    kind: "deal",
+    hint: "A proposal waiting with nothing back"
+  }
+];
+var PLAYBOOK_STATES = ["running", "paused"];
+var PLAYBOOK_DEFAULTS = { runHour: 10, capPerRun: 25, gapDays: 90, cadenceDays: 30 };
+var PLAYBOOK_HOURS = { min: 9, max: 20 };
+var SENDING_HOURS_WORDS = {
+  min: PLAYBOOK_HOURS.min,
+  max: PLAYBOOK_HOURS.max,
+  first: `${PLAYBOOK_HOURS.min}:00`,
+  range: `${PLAYBOOK_HOURS.min}:00\u2013${PLAYBOOK_HOURS.max}:59`,
+  between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
+};
+var PLAYBOOK_BREATH_MS = 7 * DAY_MS7;
+var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
+var PLAYBOOK_NAME_MAX = 80;
+function triggerOf(id) {
+  return PLAYBOOK_TRIGGERS.find((t) => t.id === id) ?? null;
+}
+function triggerOffered(t, dealsOn) {
+  return t.kind !== "deal" || dealsOn;
+}
+function policyClassOffered(cls, dealsOn) {
+  const runs = PLAYBOOK_TRIGGERS.filter((t) => t.cls === cls);
+  return runs.length === 0 || runs.some((t) => triggerOffered(t, dealsOn));
+}
+var FOLLOW_UP_NEEDS_DEALS = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION}\u201D with \u201C${SELLS_BY_WORDS.proposal.label}\u201D.`;
+function eligibleForPlaybook(rows, p, touches, nowMs, pace, listIds = null) {
+  return playbookRunReach(rows, p, touches, nowMs, pace, listIds).eligible;
+}
+function playbookRunReach(rows, p, touches, nowMs, pace, listIds = null) {
+  const reach = {
+    pool: 0,
+    will: 0,
+    noNumber: 0,
+    stopped: 0,
+    noYes: 0,
+    heardThis: 0,
+    heardAny: 0,
+    overCap: 0,
+    overLimit: 0
+  };
+  const t = triggerOf(p.trigger);
+  if (!t) return { eligible: [], reach, saidYes: 0 };
+  const purpose = purposeOfPlaybook(t.cls);
+  const named = t.kind === "visit" ? (
+    // The calendar's own day, never hours: eleven at night tomorrow is still tomorrow.
+    rows.filter((r) => {
+      if (!r.calendarTz) return false;
+      if (p.trigger === "visit_tomorrow")
+        return r.nextVisitDate !== null && r.nextVisitDate === localDate(r.calendarTz, new Date(nowMs + DAY_MS7));
+      return r.lastVisitDate !== null && r.lastVisitDate === localDate(r.calendarTz, new Date(nowMs - DAY_MS7)) && !r.booked;
+    })
+  ) : t.kind === "saved" ? audienceMembers(rows, "saved", null, listIds ?? /* @__PURE__ */ new Set()) : t.kind === "deal" ? (
+    // Waiting on a proposal, by Today's own rule and the workspace's pace, and with a link to carry: without
+    // one the nudge would be a bare "just checking in", which is a person's to write (0006).
+    rows.filter((r) => waitingOnProposal(r, nowMs, pace) && !!r.deal?.proposal?.url)
+  ) : audienceMembers(rows, t.list ? "list" : "everyone", t.list ?? null, null);
+  reach.pool = named.length;
+  const saidYes = named.filter((r) => saidYesTo(r, purpose)).length;
+  const allowed = [];
+  for (const r of named) {
+    const why = whyNotReceive(r, purpose);
+    if (why === "no_number") reach.noNumber += 1;
+    else if (why === "stopped") reach.stopped += 1;
+    else if (why === "no_yes") reach.noYes += 1;
+    else allowed.push(r);
+  }
+  if (t.kind === "visit") {
+    allowed.sort(
+      (a, b) => p.trigger === "visit_tomorrow" ? (a.nextVisitMs ?? 0) - (b.nextVisitMs ?? 0) : (a.lastVisitMs ?? 0) - (b.lastVisitMs ?? 0)
+    );
+    reach.will = allowed.length;
+    return { eligible: allowed, reach, saidYes };
+  }
+  const gapMs = (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) * DAY_MS7;
+  const heardThis = (r, mine) => t.kind === "deal" ? mine >= (r.deal?.sinceMs ?? Number.POSITIVE_INFINITY) : nowMs - mine < gapMs;
+  const picked = allowed.filter((r) => {
+    const mine = touches.byThis.get(r.id);
+    if (mine !== void 0 && heardThis(r, mine)) {
+      reach.heardThis += 1;
+      return false;
+    }
+    const any = touches.byAny.get(r.id);
+    if (any !== void 0 && nowMs - any < PLAYBOOK_BREATH_MS) {
+      reach.heardAny += 1;
+      return false;
+    }
+    return true;
+  });
+  picked.sort((a, b) => (a.lastContact.ts ?? 0) - (b.lastContact.ts ?? 0));
+  const eligible = picked.slice(0, Math.max(1, p.cap_per_run));
+  reach.overCap = picked.length - eligible.length;
+  reach.will = eligible.length;
+  return { eligible, reach, saidYes };
+}
+function planRun(mode, now) {
+  switch (mode) {
+    case "auto":
+      return { kind: "send", state: "scheduled", at: now };
+    case "veto":
+      return { kind: "send", state: "scheduled", at: new Date(now.getTime() + PLAYBOOK_VETO_DELAY_MS) };
+    case "ask":
+      return { kind: "hold", state: "pending_approval" };
+    default:
+      return { kind: "off" };
+  }
+}
+function parts(tz, now) {
+  try {
+    const f = new Intl.DateTimeFormat("en-CA", {
+      timeZone: tz,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      hour12: false
+    });
+    const p = Object.fromEntries(f.formatToParts(now).map((x) => [x.type, x.value]));
+    const hour = Number(p.hour) % 24;
+    return { date: `${p.year}-${p.month}-${p.day}`, hour };
+  } catch {
+    return { date: now.toISOString().slice(0, 10), hour: now.getUTCHours() };
+  }
+}
+function localDate(tz, now) {
+  return parts(tz, now).date;
+}
+function localHour(tz, now) {
+  return parts(tz, now).hour;
+}
+function nextOpenMoment(tz, when) {
+  const { date, hour } = parts(tz, when);
+  if (hour >= PLAYBOOK_HOURS.min && hour <= PLAYBOOK_HOURS.max) return { at: when, moved: false };
+  const day = hour < PLAYBOOK_HOURS.min ? date : shiftKey(date, 1);
+  let at2 = zoneMidnight(tz, day) + PLAYBOOK_HOURS.min * 36e5;
+  const landed = parts(tz, new Date(at2)).hour;
+  if (landed !== PLAYBOOK_HOURS.min) at2 += (PLAYBOOK_HOURS.min - landed) * 36e5;
+  return { at: new Date(at2), moved: true };
+}
+function runDueNow(p, tz, now) {
+  if (p.state !== "running") return false;
+  const { date, hour } = parts(tz, now);
+  return hour >= p.run_hour && hour <= PLAYBOOK_HOURS.max && p.last_run_for !== date;
+}
+var two2 = (n) => String(n).padStart(2, "0");
+function scheduleLine(p) {
+  const at2 = `${two2(p.run_hour)}:00`;
+  if (triggerOf(p.trigger)?.kind === "visit")
+    return `Daily ${at2} \xB7 ${p.trigger === "visit_tomorrow" ? "everyone with a visit tomorrow" : "everyone who visited yesterday"} \xB7 up to ${p.cap_per_run}`;
+  if (p.trigger === "everyone_monthly") return `Every ${p.cadence_days} days at ${at2} \xB7 up to ${p.cap_per_run} a day`;
+  if (triggerOf(p.trigger)?.kind === "deal") return `Daily ${at2} \xB7 up to ${p.cap_per_run} \xB7 once per proposal`;
+  return `Daily ${at2} \xB7 up to ${p.cap_per_run} \xB7 once per person, again after ${p.gap_days} days`;
+}
+function runsWords(p) {
+  const at2 = `${two2(p.run_hour)}:00`;
+  return p.trigger === "everyone_monthly" ? `runs every ${p.cadence_days} days at ${at2}` : `runs daily at ${at2}`;
+}
+function nextRunLabel(p, tz, now) {
+  if (p.state !== "running") return "paused";
+  const { date, hour } = parts(tz, now);
+  const at2 = `${two2(p.run_hour)}:00`;
+  if (p.last_run_for !== date) {
+    if (hour < p.run_hour) return `today ${at2}`;
+    if (hour <= PLAYBOOK_HOURS.max) return "today, within the hour";
+  }
+  return `tomorrow ${at2}`;
+}
+function playbookReach(p) {
+  if (p.waiting) return "waiting";
+  if (p.state !== "running") return "paused";
+  if (p.candidates === null || p.held === null) return "uncounted";
+  if (p.candidates > 0) return "sends";
+  return p.held > 0 ? "all-heard" : "nobody";
+}
+function playbookReachDoor(reach, named) {
+  return reach === "nobody" && named !== null && named.pool > 0 && named.saidYes === 0 ? { label: "Get their yes", to: GET_YES_ROUTE } : null;
+}
+function playbookNoNumberWords(p, named) {
+  if (!named || named.saidYes === 0 || p.candidates === null || p.held === null || p.candidates + p.held > 0)
+    return null;
+  return saidYesWords("the list", purposeOfPlaybook(p.policy_class), 0, named.saidYes);
+}
+var PLAYBOOK_REACH_WORDS = {
+  waiting: null,
+  paused: null,
+  sends: null,
+  nobody: "nobody to send to",
+  "all-heard": "waiting out the week's gap",
+  // The page says once, over the cards, that who each moment reaches could not be read.
+  uncounted: null
+};
+var PLAYBOOK_CLASS_LABEL = {
+  reengage: POLICY_CLASS_WORDS.reengage.short,
+  campaign: POLICY_CLASS_WORDS.campaign.short,
+  booking: POLICY_CLASS_WORDS.booking.short,
+  follow_up: POLICY_CLASS_WORDS.follow_up.short
+};
+function proposalFactsFor(trigger, row2) {
+  const t = triggerOf(trigger);
+  const url = row2?.deal?.proposal?.url ?? null;
+  return t && t.kind === "deal" && url ? { proposal_link: url } : null;
+}
+function visitFactsFor(trigger, visit, tz, sendAt) {
+  const t = triggerOf(trigger);
+  if (!t || t.kind !== "visit" || !visit) return null;
+  return {
+    visit_when: trigger === "visit_tomorrow" ? `${visitDayWord(visit, tz, sendAt, "tomorrow")} at ${visitStartTime(visit, tz)}` : visitDayWord(visit, tz, sendAt, "yesterday"),
+    visit_service: visit.title.trim() || "your appointment"
+  };
+}
+function visitDayWord(visit, tz, sendAt, assumed) {
+  if (!sendAt) return assumed;
+  const visitDay2 = localDate(tz, new Date(visit.start));
+  const sendDay = localDate(tz, sendAt);
+  const delta = Math.round((Date.parse(`${visitDay2}T00:00:00Z`) - Date.parse(`${sendDay}T00:00:00Z`)) / DAY_MS7);
+  if (delta === 1) return "tomorrow";
+  if (delta === 0) return "today";
+  if (delta === -1) return "yesterday";
+  try {
+    return `on ${new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long" }).format(new Date(visit.start))}`;
+  } catch {
+    return delta > 0 ? "soon" : "recently";
+  }
+}
+function poolWords(trigger) {
+  const t = triggerOf(trigger);
+  if (!t) return "";
+  if (t.kind === "visit") return trigger === "visit_tomorrow" ? "with a visit tomorrow" : "who visited yesterday";
+  if (t.kind === "deal") return "with a proposal waiting";
+  return t.list || t.kind === "saved" ? "on the list" : "in People";
+}
+function reachLines(reach, p) {
+  if (!reach || !Number.isFinite(reach.pool)) return null;
+  const t = p ? triggerOf(p.trigger) : null;
+  const offers = t ? purposeOfPlaybook(t.cls) === "marketing" : true;
+  const gap = p ? p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days : null;
+  const one = (n, singular, plural11) => n === 1 ? singular : plural11;
+  const reasons = [
+    {
+      n: reach.noYes,
+      words: `never said yes to ${offers ? "offers" : "hearing from you"}`,
+      tone: "plain",
+      door: { words: "Get their yes", to: GET_YES_ROUTE }
+    },
+    { n: reach.heardAny, words: "heard from a playbook this week", tone: "warn", door: null },
+    {
+      n: reach.heardThis,
+      // A follow-up is owed once per proposal (0006): its last one is why, never a gap.
+      words: t?.kind === "deal" ? "had this proposal's follow-up already" : gap ? `heard from this playbook in the last ${gap} days` : "heard from this playbook lately",
+      tone: "warn",
+      door: null
+    },
+    { n: reach.stopped, words: "asked you to stop", tone: "plain", door: null },
+    {
+      n: reach.noNumber,
+      words: one(reach.noNumber, "has no number on file", "have no number on file"),
+      tone: "plain",
+      door: null
+    },
+    {
+      n: reach.overCap,
+      words: `${one(reach.overCap, "waits", "wait")} for the next run${p ? ` \u2014 ${p.cap_per_run} a run, the longest unheard first` : ""}`,
+      tone: "plain",
+      door: null
+    },
+    {
+      n: reach.overLimit,
+      words: one(
+        reach.overLimit,
+        "is past what the number may start today",
+        "are past what the number may start today"
+      ),
+      tone: "warn",
+      door: null
+    }
+  ];
+  const lines = reasons.map((r, rank) => ({ ...r, rank })).filter((r) => r.n > 0).sort((a, b) => b.n - a.n || a.rank - b.rank).map(({ n, words: words4, tone, door }) => ({ n, words: `${n} ${words4}`, tone, door }));
+  return { pool: reach.pool, held: reach.heardAny + reach.heardThis + reach.overLimit, lines };
+}
+function toApprovalVM(d, opts) {
+  const b = d.broadcast;
+  const will = b.recipient_count;
+  const t = opts.playbook ? triggerOf(opts.playbook.trigger) : null;
+  const rules = [];
+  if (t && opts.playbook) {
+    rules.push(
+      purposeOfPlaybook(t.cls) === "marketing" ? "each said yes to offers" : "each said yes to hearing from you"
+    );
+    if (t.kind === "visit") {
+      rules.push(
+        opts.playbook.trigger === "visit_tomorrow" ? "each has a visit tomorrow on the calendar" : "each visited yesterday and has nothing booked next"
+      );
+    } else if (t.kind === "deal") {
+      rules.push(
+        "each has a proposal waiting with nothing back, and its link",
+        "none followed up on that proposal before",
+        "none heard from any playbook this week"
+      );
+      if (will >= opts.playbook.cap_per_run)
+        rules.push(`capped at ${opts.playbook.cap_per_run} a run, the longest unheard first`);
+    } else {
+      const gap = opts.playbook.trigger === "everyone_monthly" ? opts.playbook.cadence_days : opts.playbook.gap_days;
+      rules.push(`none heard from this playbook in ${gap} days`, "none heard from any playbook this week");
+      if (will >= opts.playbook.cap_per_run)
+        rules.push(`capped at ${opts.playbook.cap_per_run} a run, the longest unheard first`);
+    }
+  }
+  const named = d.recipients.find((r) => r.first_name);
+  const reader = named ?? d.recipients[0] ?? null;
+  const params = Array.isArray(b.params) ? b.params : [];
+  const values = params.map((p) => {
+    switch (p.kind) {
+      case "text":
+        return p.value;
+      case "first_name":
+        return reader?.first_name || "there";
+      case "business_name":
+        return opts.businessName;
+      case "booking_link":
+        return "your booking link";
+      default:
+        return `[${PARAM_SOURCE_LABELS[p.kind].toLowerCase()}]`;
+    }
+  });
+  const greets = params.some((p) => p.kind === "first_name");
+  const late = !!b.run_for && b.run_for !== opts.today;
+  return {
+    will,
+    rules,
+    of: reachLines(b.audience?.reach ?? null, opts.playbook),
+    values,
+    reader: reader ? reader.name : null,
+    hiThere: greets ? d.recipients.filter((r) => !r.first_name).length : 0,
+    approve: late ? null : `Approve \u2014 ${will} ${opts.open.moved ? `at ${opts.open.time}` : "now"}`,
+    expired: late ? `Made for ${opts.day(b.run_for)}, and that day has passed \u2014 its people and its words were that day's. Skip it; the next run starts over.` : null,
+    goes: late ? `made for ${opts.day(b.run_for)}` : opts.open.moved ? `goes at ${opts.open.time} once you approve it` : "goes the moment you approve it",
+    skip: "Skipping loses this run only \u2014 the playbook keeps running."
+  };
+}
+
 // src/template-library.ts
 var STARTER_LANGUAGES = [
   { id: "en_US", label: "English" },
@@ -12071,6 +12505,12 @@ var WHEN = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" }
 var SERVICE = { kind: "visit_service", label: "Service", example: "a consultation" };
 var WHEN_ES = { ...WHEN, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
 var SERVICE_ES = { ...SERVICE, label: "Servicio", example: "una consulta" };
+var PROPOSAL = {
+  kind: "proposal_link",
+  label: "Proposal link",
+  example: "https://docs.example.com/proposal"
+};
+var PROPOSAL_ES = { ...PROPOSAL, label: "Enlace de la propuesta" };
 var STOP_EN = "Reply STOP to opt out";
 var STOP_ES = "Responde STOP para darte de baja";
 var STARTER_TEMPLATES = [
@@ -12248,6 +12688,28 @@ var STARTER_TEMPLATES = [
     // workspace's database, marked approved, with no meta_id: an approval Meta
     // had never given, so every send of it failed, and it failed for every
     // other workspace by not existing at all.
+    // 0006: one nudge per proposal, with its link. Utility, as a reminder of a person's own request is; it names no
+    // price, date, amount or offer, and Meta's category decides the yes it needs at the wire (deliver.ts).
+    key: "proposal_follow_up",
+    name: "proposal_follow_up",
+    title: "Proposal follow-up",
+    purpose: "for a proposal waiting with nothing back",
+    category: "utility",
+    trigger: "proposal_waiting",
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, just making sure the proposal from {{2}} reached you: {{3}}. Reply here with any questions.",
+        footer: null,
+        slots: [FIRST, BUSINESS, PROPOSAL]
+      },
+      es: {
+        body: "Hola {{1}}, solo queremos confirmar que te lleg\xF3 la propuesta de {{2}}: {{3}}. Responde aqu\xED con cualquier pregunta.",
+        footer: null,
+        slots: [FIRST_ES, BUSINESS_ES, PROPOSAL_ES]
+      }
+    }
+  },
+  {
     key: "booking_link",
     name: "booking_link",
     title: "Booking link",
@@ -12278,6 +12740,12 @@ function starterByKey(key) {
   return STARTER_TEMPLATES.find((s) => s.key === key) ?? null;
 }
 var STARTER_OF = { lapsed: "quiet_30" };
+function startersOffered(dealsOn) {
+  return STARTER_TEMPLATES.filter((s) => {
+    const t = s.trigger ? triggerOf(s.trigger) : null;
+    return !t || triggerOffered(t, dealsOn);
+  });
+}
 function starterForTrigger(trigger) {
   if (!trigger) return null;
   const own = STARTER_OF[trigger] ?? trigger;
@@ -12468,6 +12936,7 @@ function inboxTemplates(templates, to) {
 function guessSlotKind(label, example) {
   const l = String(label ?? "").toLowerCase();
   const e = String(example ?? "").toLowerCase();
+  if (/proposal|propuesta|quote/.test(l)) return "proposal_link";
   if (/link|url|book/.test(l) || /^https?:\/\//.test(e) || /booksy|calendly|square|fresha|\.com\//.test(e))
     return "booking_link";
   if (/business|salon|company|shop|studio|clinic|brand|negocio/.test(l)) return "business_name";
@@ -12489,7 +12958,7 @@ function defaultParamSpecs(t) {
   return defaultSlotKinds(t).map((k) => k === "text" ? { kind: "text", value: "" } : { kind: k });
 }
 function slotChoices(kind, o) {
-  const may = (k) => k === "booking_link" ? o.bookingLink : k === "visit_when" || k === "visit_service" ? o.visits : true;
+  const may = (k) => k === "booking_link" ? o.bookingLink : k === "visit_when" || k === "visit_service" ? o.visits : k === "proposal_link" ? o.proposal : true;
   if (!o.known) return [kind, ...PARAM_SOURCES.filter((k) => k !== kind)].filter(may);
   switch (kind) {
     case "first_name":
@@ -12501,13 +12970,18 @@ function slotChoices(kind, o) {
     case "visit_when":
     case "visit_service":
       return o.visits ? [kind] : [];
+    // A proposal's link is each proposal's, and there is one only on the follow-up (0006).
+    case "proposal_link":
+      return o.proposal ? [kind] : [];
     default:
       return ["text"];
   }
 }
 function templateSlots(t, o) {
   const known = starterByName(t.name) !== null;
-  const each = defaultSlotKinds(t).map((k) => slotChoices(k, { known, visits: o.visits, bookingLink: o.bookingLink }));
+  const each = defaultSlotKinds(t).map(
+    (k) => slotChoices(k, { known, visits: o.visits, bookingLink: o.bookingLink, proposal: o.proposal })
+  );
   return each.every((c) => c.length > 0) ? each : null;
 }
 function playbookName(trigger, tpl) {
@@ -12637,7 +13111,9 @@ function inboxSlots(t) {
   return Array.isArray(t.variables) ? defaultParamSpecs({ name: t.name, variables: t.variables }) : [{ kind: "business_name" }, { kind: "booking_link" }];
 }
 function slotToWrite(t) {
-  const at2 = inboxSlots(t).findIndex((s) => s.kind === "text" || s.kind === "visit_when" || s.kind === "visit_service");
+  const at2 = inboxSlots(t).findIndex(
+    (s) => s.kind === "text" || s.kind === "visit_when" || s.kind === "visit_service" || s.kind === "proposal_link"
+  );
   if (at2 < 0) return null;
   return slotLabels({ name: t.name, language: t.language ?? "en_US", variables: t.variables })[at2] ?? `Value ${at2 + 1}`;
 }
@@ -13005,7 +13481,7 @@ function toRunReportVM(d, opts) {
 
 // src/list-rules.ts
 import { z as z7 } from "zod";
-var DAY_MS7 = 864e5;
+var DAY_MS8 = 864e5;
 var LIST_RULE_FIELDS = [
   { id: "last_visit", label: "Last visit", kind: "days", needsCalendar: true },
   { id: "next_visit", label: "Next visit", kind: "days", needsCalendar: true },
@@ -13060,7 +13536,7 @@ function ruleNeedsCalendar(rule) {
   return rule.all.some((c) => LIST_RULE_FIELDS.find((f) => f.id === c.field)?.needsCalendar);
 }
 var within = (days, c) => days !== null && (c.op === "within" ? days <= c.days : days > c.days);
-var ago3 = (ts2, nowMs) => ts2 === null ? null : Math.floor((nowMs - ts2) / DAY_MS7);
+var ago3 = (ts2, nowMs) => ts2 === null ? null : Math.floor((nowMs - ts2) / DAY_MS8);
 function holds(c, v, nowMs) {
   switch (c.field) {
     case "last_visit":
@@ -13152,378 +13628,6 @@ function savedListIds(list2, rows, nowMs, calendarOk) {
   const rule = asListRule(list2.rule);
   if (!rule || ruleNeedsCalendar(rule) && !calendarOk) return /* @__PURE__ */ new Set();
   return new Set(rows.filter((r) => listRuleMatches(rule, r, nowMs)).map((r) => r.id));
-}
-
-// src/playbooks.ts
-var DAY_MS8 = 864e5;
-var PLAYBOOK_TRIGGERS = [
-  { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
-  {
-    id: "new_week",
-    label: "Welcome",
-    list: "new_week",
-    cls: "campaign",
-    kind: "list",
-    hint: "First contact in the last 7 days"
-  },
-  {
-    id: "phoned_only",
-    label: "Save our number",
-    list: "phoned_only",
-    cls: "reengage",
-    kind: "list",
-    hint: "Only ever phoned, never texted"
-  },
-  {
-    id: "everyone_monthly",
-    label: "The month's offer",
-    list: null,
-    cls: "campaign",
-    kind: "cadence",
-    hint: "Everyone who said yes, on a cadence"
-  },
-  {
-    id: "visit_tomorrow",
-    label: "Visit reminder",
-    list: null,
-    cls: "booking",
-    kind: "visit",
-    hint: "The day before an appointment on the calendar"
-  },
-  {
-    id: "visited",
-    label: "After the visit",
-    list: null,
-    cls: "reengage",
-    kind: "visit",
-    hint: "The day after a visit, when nothing is booked next"
-  },
-  // People's Lapsed list, by visits rather than silence: the win-back a salon means, which had no playbook of its own
-  // (00155). Named for its list, so it is never a second "Win-back" beside the one for the quiet.
-  {
-    id: "lapsed",
-    label: "Lapsed",
-    list: "lapsed",
-    cls: "reengage",
-    kind: "list",
-    hint: "No visit in 45 days, and nothing booked"
-  },
-  // One of the workspace's own lists, kept by hand or by a rule; the card says which.
-  {
-    id: "saved_list",
-    label: "One of your lists",
-    list: null,
-    cls: "campaign",
-    kind: "saved",
-    hint: "Everyone on a list you keep"
-  }
-];
-var PLAYBOOK_STATES = ["running", "paused"];
-var PLAYBOOK_DEFAULTS = { runHour: 10, capPerRun: 25, gapDays: 90, cadenceDays: 30 };
-var PLAYBOOK_HOURS = { min: 9, max: 20 };
-var SENDING_HOURS_WORDS = {
-  min: PLAYBOOK_HOURS.min,
-  max: PLAYBOOK_HOURS.max,
-  first: `${PLAYBOOK_HOURS.min}:00`,
-  range: `${PLAYBOOK_HOURS.min}:00\u2013${PLAYBOOK_HOURS.max}:59`,
-  between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
-};
-var PLAYBOOK_BREATH_MS = 7 * DAY_MS8;
-var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
-var PLAYBOOK_NAME_MAX = 80;
-function triggerOf(id) {
-  return PLAYBOOK_TRIGGERS.find((t) => t.id === id) ?? null;
-}
-function eligibleForPlaybook(rows, p, touches, nowMs, listIds = null) {
-  return playbookRunReach(rows, p, touches, nowMs, listIds).eligible;
-}
-function playbookRunReach(rows, p, touches, nowMs, listIds = null) {
-  const reach = {
-    pool: 0,
-    will: 0,
-    noNumber: 0,
-    stopped: 0,
-    noYes: 0,
-    heardThis: 0,
-    heardAny: 0,
-    overCap: 0,
-    overLimit: 0
-  };
-  const t = triggerOf(p.trigger);
-  if (!t) return { eligible: [], reach, saidYes: 0 };
-  const purpose = purposeOfPlaybook(t.cls);
-  const named = t.kind === "visit" ? (
-    // The calendar's own day, never hours: eleven at night tomorrow is still tomorrow.
-    rows.filter((r) => {
-      if (!r.calendarTz) return false;
-      if (p.trigger === "visit_tomorrow")
-        return r.nextVisitDate !== null && r.nextVisitDate === localDate(r.calendarTz, new Date(nowMs + DAY_MS8));
-      return r.lastVisitDate !== null && r.lastVisitDate === localDate(r.calendarTz, new Date(nowMs - DAY_MS8)) && !r.booked;
-    })
-  ) : t.kind === "saved" ? audienceMembers(rows, "saved", null, listIds ?? /* @__PURE__ */ new Set()) : audienceMembers(rows, t.list ? "list" : "everyone", t.list ?? null, null);
-  reach.pool = named.length;
-  const saidYes = named.filter((r) => saidYesTo(r, purpose)).length;
-  const allowed = [];
-  for (const r of named) {
-    const why = whyNotReceive(r, purpose);
-    if (why === "no_number") reach.noNumber += 1;
-    else if (why === "stopped") reach.stopped += 1;
-    else if (why === "no_yes") reach.noYes += 1;
-    else allowed.push(r);
-  }
-  if (t.kind === "visit") {
-    allowed.sort(
-      (a, b) => p.trigger === "visit_tomorrow" ? (a.nextVisitMs ?? 0) - (b.nextVisitMs ?? 0) : (a.lastVisitMs ?? 0) - (b.lastVisitMs ?? 0)
-    );
-    reach.will = allowed.length;
-    return { eligible: allowed, reach, saidYes };
-  }
-  const gapMs = (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) * DAY_MS8;
-  const picked = allowed.filter((r) => {
-    const mine = touches.byThis.get(r.id);
-    if (mine !== void 0 && nowMs - mine < gapMs) {
-      reach.heardThis += 1;
-      return false;
-    }
-    const any = touches.byAny.get(r.id);
-    if (any !== void 0 && nowMs - any < PLAYBOOK_BREATH_MS) {
-      reach.heardAny += 1;
-      return false;
-    }
-    return true;
-  });
-  picked.sort((a, b) => (a.lastContact.ts ?? 0) - (b.lastContact.ts ?? 0));
-  const eligible = picked.slice(0, Math.max(1, p.cap_per_run));
-  reach.overCap = picked.length - eligible.length;
-  reach.will = eligible.length;
-  return { eligible, reach, saidYes };
-}
-function planRun(mode, now) {
-  switch (mode) {
-    case "auto":
-      return { kind: "send", state: "scheduled", at: now };
-    case "veto":
-      return { kind: "send", state: "scheduled", at: new Date(now.getTime() + PLAYBOOK_VETO_DELAY_MS) };
-    case "ask":
-      return { kind: "hold", state: "pending_approval" };
-    default:
-      return { kind: "off" };
-  }
-}
-function parts(tz, now) {
-  try {
-    const f = new Intl.DateTimeFormat("en-CA", {
-      timeZone: tz,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      hour12: false
-    });
-    const p = Object.fromEntries(f.formatToParts(now).map((x) => [x.type, x.value]));
-    const hour = Number(p.hour) % 24;
-    return { date: `${p.year}-${p.month}-${p.day}`, hour };
-  } catch {
-    return { date: now.toISOString().slice(0, 10), hour: now.getUTCHours() };
-  }
-}
-function localDate(tz, now) {
-  return parts(tz, now).date;
-}
-function localHour(tz, now) {
-  return parts(tz, now).hour;
-}
-function nextOpenMoment(tz, when) {
-  const { date, hour } = parts(tz, when);
-  if (hour >= PLAYBOOK_HOURS.min && hour <= PLAYBOOK_HOURS.max) return { at: when, moved: false };
-  const day = hour < PLAYBOOK_HOURS.min ? date : shiftKey(date, 1);
-  let at2 = zoneMidnight(tz, day) + PLAYBOOK_HOURS.min * 36e5;
-  const landed = parts(tz, new Date(at2)).hour;
-  if (landed !== PLAYBOOK_HOURS.min) at2 += (PLAYBOOK_HOURS.min - landed) * 36e5;
-  return { at: new Date(at2), moved: true };
-}
-function runDueNow(p, tz, now) {
-  if (p.state !== "running") return false;
-  const { date, hour } = parts(tz, now);
-  return hour >= p.run_hour && hour <= PLAYBOOK_HOURS.max && p.last_run_for !== date;
-}
-var two2 = (n) => String(n).padStart(2, "0");
-function scheduleLine(p) {
-  const at2 = `${two2(p.run_hour)}:00`;
-  if (triggerOf(p.trigger)?.kind === "visit")
-    return `Daily ${at2} \xB7 ${p.trigger === "visit_tomorrow" ? "everyone with a visit tomorrow" : "everyone who visited yesterday"} \xB7 up to ${p.cap_per_run}`;
-  if (p.trigger === "everyone_monthly") return `Every ${p.cadence_days} days at ${at2} \xB7 up to ${p.cap_per_run} a day`;
-  return `Daily ${at2} \xB7 up to ${p.cap_per_run} \xB7 once per person, again after ${p.gap_days} days`;
-}
-function runsWords(p) {
-  const at2 = `${two2(p.run_hour)}:00`;
-  return p.trigger === "everyone_monthly" ? `runs every ${p.cadence_days} days at ${at2}` : `runs daily at ${at2}`;
-}
-function nextRunLabel(p, tz, now) {
-  if (p.state !== "running") return "paused";
-  const { date, hour } = parts(tz, now);
-  const at2 = `${two2(p.run_hour)}:00`;
-  if (p.last_run_for !== date) {
-    if (hour < p.run_hour) return `today ${at2}`;
-    if (hour <= PLAYBOOK_HOURS.max) return "today, within the hour";
-  }
-  return `tomorrow ${at2}`;
-}
-function playbookReach(p) {
-  if (p.waiting) return "waiting";
-  if (p.state !== "running") return "paused";
-  if (p.candidates === null || p.held === null) return "uncounted";
-  if (p.candidates > 0) return "sends";
-  return p.held > 0 ? "all-heard" : "nobody";
-}
-function playbookReachDoor(reach, named) {
-  return reach === "nobody" && named !== null && named.pool > 0 && named.saidYes === 0 ? { label: "Get their yes", to: GET_YES_ROUTE } : null;
-}
-function playbookNoNumberWords(p, named) {
-  if (!named || named.saidYes === 0 || p.candidates === null || p.held === null || p.candidates + p.held > 0)
-    return null;
-  return saidYesWords("the list", purposeOfPlaybook(p.policy_class), 0, named.saidYes);
-}
-var PLAYBOOK_REACH_WORDS = {
-  waiting: null,
-  paused: null,
-  sends: null,
-  nobody: "nobody to send to",
-  "all-heard": "waiting out the week's gap",
-  // The page says once, over the cards, that who each moment reaches could not be read.
-  uncounted: null
-};
-var PLAYBOOK_CLASS_LABEL = {
-  reengage: POLICY_CLASS_WORDS.reengage.short,
-  campaign: POLICY_CLASS_WORDS.campaign.short,
-  booking: POLICY_CLASS_WORDS.booking.short
-};
-function visitFactsFor(trigger, visit, tz, sendAt) {
-  const t = triggerOf(trigger);
-  if (!t || t.kind !== "visit" || !visit) return null;
-  return {
-    visit_when: trigger === "visit_tomorrow" ? `${visitDayWord(visit, tz, sendAt, "tomorrow")} at ${visitStartTime(visit, tz)}` : visitDayWord(visit, tz, sendAt, "yesterday"),
-    visit_service: visit.title.trim() || "your appointment"
-  };
-}
-function visitDayWord(visit, tz, sendAt, assumed) {
-  if (!sendAt) return assumed;
-  const visitDay2 = localDate(tz, new Date(visit.start));
-  const sendDay = localDate(tz, sendAt);
-  const delta = Math.round((Date.parse(`${visitDay2}T00:00:00Z`) - Date.parse(`${sendDay}T00:00:00Z`)) / DAY_MS8);
-  if (delta === 1) return "tomorrow";
-  if (delta === 0) return "today";
-  if (delta === -1) return "yesterday";
-  try {
-    return `on ${new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long" }).format(new Date(visit.start))}`;
-  } catch {
-    return delta > 0 ? "soon" : "recently";
-  }
-}
-function poolWords(trigger) {
-  const t = triggerOf(trigger);
-  if (!t) return "";
-  if (t.kind === "visit") return trigger === "visit_tomorrow" ? "with a visit tomorrow" : "who visited yesterday";
-  return t.list || t.kind === "saved" ? "on the list" : "in People";
-}
-function reachLines(reach, p) {
-  if (!reach || !Number.isFinite(reach.pool)) return null;
-  const t = p ? triggerOf(p.trigger) : null;
-  const offers = t ? purposeOfPlaybook(t.cls) === "marketing" : true;
-  const gap = p ? p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days : null;
-  const one = (n, singular, plural11) => n === 1 ? singular : plural11;
-  const reasons = [
-    {
-      n: reach.noYes,
-      words: `never said yes to ${offers ? "offers" : "hearing from you"}`,
-      tone: "plain",
-      door: { words: "Get their yes", to: GET_YES_ROUTE }
-    },
-    { n: reach.heardAny, words: "heard from a playbook this week", tone: "warn", door: null },
-    {
-      n: reach.heardThis,
-      words: gap ? `heard from this playbook in the last ${gap} days` : "heard from this playbook lately",
-      tone: "warn",
-      door: null
-    },
-    { n: reach.stopped, words: "asked you to stop", tone: "plain", door: null },
-    {
-      n: reach.noNumber,
-      words: one(reach.noNumber, "has no number on file", "have no number on file"),
-      tone: "plain",
-      door: null
-    },
-    {
-      n: reach.overCap,
-      words: `${one(reach.overCap, "waits", "wait")} for the next run${p ? ` \u2014 ${p.cap_per_run} a run, the longest unheard first` : ""}`,
-      tone: "plain",
-      door: null
-    },
-    {
-      n: reach.overLimit,
-      words: one(
-        reach.overLimit,
-        "is past what the number may start today",
-        "are past what the number may start today"
-      ),
-      tone: "warn",
-      door: null
-    }
-  ];
-  const lines = reasons.map((r, rank) => ({ ...r, rank })).filter((r) => r.n > 0).sort((a, b) => b.n - a.n || a.rank - b.rank).map(({ n, words: words4, tone, door }) => ({ n, words: `${n} ${words4}`, tone, door }));
-  return { pool: reach.pool, held: reach.heardAny + reach.heardThis + reach.overLimit, lines };
-}
-function toApprovalVM(d, opts) {
-  const b = d.broadcast;
-  const will = b.recipient_count;
-  const t = opts.playbook ? triggerOf(opts.playbook.trigger) : null;
-  const rules = [];
-  if (t && opts.playbook) {
-    rules.push(
-      purposeOfPlaybook(t.cls) === "marketing" ? "each said yes to offers" : "each said yes to hearing from you"
-    );
-    if (t.kind === "visit") {
-      rules.push(
-        opts.playbook.trigger === "visit_tomorrow" ? "each has a visit tomorrow on the calendar" : "each visited yesterday and has nothing booked next"
-      );
-    } else {
-      const gap = opts.playbook.trigger === "everyone_monthly" ? opts.playbook.cadence_days : opts.playbook.gap_days;
-      rules.push(`none heard from this playbook in ${gap} days`, "none heard from any playbook this week");
-      if (will >= opts.playbook.cap_per_run)
-        rules.push(`capped at ${opts.playbook.cap_per_run} a run, the longest unheard first`);
-    }
-  }
-  const named = d.recipients.find((r) => r.first_name);
-  const reader = named ?? d.recipients[0] ?? null;
-  const params = Array.isArray(b.params) ? b.params : [];
-  const values = params.map((p) => {
-    switch (p.kind) {
-      case "text":
-        return p.value;
-      case "first_name":
-        return reader?.first_name || "there";
-      case "business_name":
-        return opts.businessName;
-      case "booking_link":
-        return "your booking link";
-      default:
-        return `[${PARAM_SOURCE_LABELS[p.kind].toLowerCase()}]`;
-    }
-  });
-  const greets = params.some((p) => p.kind === "first_name");
-  const late = !!b.run_for && b.run_for !== opts.today;
-  return {
-    will,
-    rules,
-    of: reachLines(b.audience?.reach ?? null, opts.playbook),
-    values,
-    reader: reader ? reader.name : null,
-    hiThere: greets ? d.recipients.filter((r) => !r.first_name).length : 0,
-    approve: late ? null : `Approve \u2014 ${will} ${opts.open.moved ? `at ${opts.open.time}` : "now"}`,
-    expired: late ? `Made for ${opts.day(b.run_for)}, and that day has passed \u2014 its people and its words were that day's. Skip it; the next run starts over.` : null,
-    goes: late ? `made for ${opts.day(b.run_for)}` : opts.open.moved ? `goes at ${opts.open.time} once you approve it` : "goes the moment you approve it",
-    skip: "Skipping loses this run only \u2014 the playbook keeps running."
-  };
 }
 
 // src/refusal.ts
@@ -18408,7 +18512,7 @@ var SCHEMA_SETS = {
   "person_notes.author_kind": ["member", "receptionist"],
   "person_notes.source": ["page", "bulk", "moved", "call", "thread"],
   "person_notes.state": ["kept", "suggested"],
-  "playbooks.policy_class": ["reengage", "campaign", "booking"],
+  "playbooks.policy_class": ["reengage", "campaign", "booking", "follow_up"],
   "playbooks.state": ["running", "paused"],
   "playbooks.trigger": [
     "quiet_30",
@@ -18418,9 +18522,10 @@ var SCHEMA_SETS = {
     "visit_tomorrow",
     "visited",
     "lapsed",
-    "saved_list"
+    "saved_list",
+    "proposal_waiting"
   ],
-  "policies.class": ["reply", "booking", "faq", "reengage", "campaign", "money", "reviews"],
+  "policies.class": ["reply", "booking", "faq", "reengage", "campaign", "money", "reviews", "follow_up"],
   "policies.mode": ["auto", "veto", "ask", "never"],
   "policies.subject_type": ["segment", "contact"],
   "push_devices.platform": ["ios", "android"],
@@ -20073,6 +20178,7 @@ export {
   FIRST_RUN_STEPS,
   FIRST_RUN_WORDS,
   FOLLOWUP_ECHO,
+  FOLLOW_UP_NEEDS_DEALS,
   FORWARDING_MODES,
   FORWARDING_TEST_WINDOW_MS,
   FORWARD_IS_HANDOFF,
@@ -20911,6 +21017,7 @@ export {
   pointsDelta,
   policyAskClass,
   policyClassOfIntent,
+  policyClassOffered,
   policyLinks,
   policyRules,
   poolWords,
@@ -20922,6 +21029,7 @@ export {
   promptCostWords,
   promptTotalWords,
   proposalAction,
+  proposalFactsFor,
   proposalFollowUp,
   proposalLinkOf,
   proposalMessage,
@@ -21040,6 +21148,7 @@ export {
   starterPreview,
   starterPreviewValues,
   starterText,
+  startersOffered,
   stateCode,
   stateLabel,
   stateOf,
@@ -21124,6 +21233,7 @@ export {
   trialOffer,
   trialWords,
   triggerOf,
+  triggerOffered,
   tzClock,
   unknownDetails,
   unreadCount,

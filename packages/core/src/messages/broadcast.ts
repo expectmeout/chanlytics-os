@@ -177,6 +177,8 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
       bookingLink,
       visitWhen: typeof facts.visit_when === "string" ? facts.visit_when : null,
       visitService: typeof facts.visit_service === "string" ? facts.visit_service : null,
+      // A follow-up's link, frozen when the run was made (0006).
+      proposalLink: typeof facts.proposal_link === "string" ? facts.proposal_link : null,
     });
     if (params.some((v) => !v)) {
       await skip(r.contact_id, "missing_value");

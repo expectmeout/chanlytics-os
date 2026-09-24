@@ -42,10 +42,11 @@ const bcFooter = (t) => (t && window.__starters && window.__starters.footer ? wi
 // first name is each person's own, its business name and booking link may be typed over, and a slot on a template
 // written elsewhere may take anything, its guess first. Every slot took any source, so a first name could be set to
 // the booking link and a broadcast greeted everyone "Hi your booking link". A broadcast has no visit, so a visit's
-// time and service are nobody's here: null when a slot can take nothing. With no library, every slot is typed.
+// time and service are nobody's here, nor a proposal's link (0006): null when a slot can take nothing. With no library,
+// every slot is typed.
 const BC_TEXT = ["text"];
 const bcSlots = (t, bookingLink) => (window.__starters && window.__starters.slots
-  ? window.__starters.slots(t, { visits: false, bookingLink })
+  ? window.__starters.slots(t, { visits: false, bookingLink, proposal: false })
   : (Array.isArray(t.variables) ? t.variables : BC_NONE).map(() => BC_TEXT));
 // What is still to come, by state -- "1 sending · 2 scheduled · 1 waiting for you" -- where "N queued" counted runs waiting for a person.
 // Stable empties, so a workspace without lists or templates does not re-run

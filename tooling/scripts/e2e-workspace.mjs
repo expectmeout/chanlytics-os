@@ -297,6 +297,7 @@ const POLICY_MODES = {
   campaign: "ask",
   reviews: "ask",
   money: "never",
+  follow_up: "ask",
 };
 const REPLY_LIMITS = { max_replies_day: 20, pause_hours: 24 };
 

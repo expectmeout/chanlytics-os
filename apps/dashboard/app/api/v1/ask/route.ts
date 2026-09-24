@@ -1,7 +1,9 @@
 import {
   AppError,
   ASK_MAX_CHARS,
+  dealsAreOn,
   detectLanguage,
+  policyClassOffered,
   v1FromAnswer,
   type AskMessageVM,
   type AskScope,
@@ -9,6 +11,7 @@ import {
 import { write, workspace } from "@/server/route";
 import { requireUuid } from "@/server/request-guards";
 import { tenantFacts } from "@/server/tenant";
+import { sellsByOf } from "@/server/deals";
 import { runAskTurn, ASK_MODEL, type TurnEvent } from "@/server/ask/loop";
 import { listPolicies } from "@chanlytics/db";
 import { workspaceFacts, titleFromQuestion } from "@/server/ask/prompt";
@@ -92,14 +95,17 @@ export const POST = write({
     }
     await appendMessage(ctx, thread.id, tenantId, "user", { text });
 
-    const [{ name, timezone }, cfg, policies] = await Promise.all([
+    const [{ name, timezone }, cfg, policies, sellsBy] = await Promise.all([
       tenantFacts(ctx.supabase, tenantId),
       ctx.supabase.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
       // The autonomy modes ride in the stable block, so "what can the receptionist do alone" needs no read.
       listPolicies(ctx.supabase, tenantId).catch(() => []),
+      sellsByOf(ctx, tenantId),
     ]);
     if (cfg.error) throw new Error(cfg.error.message);
-    const facts = workspaceFacts(name, timezone, cfg.data?.config ?? null, policies);
+    // The rows the pane draws: the follow-ups' only where deals are on (0006).
+    const offered = policies.filter((p) => policyClassOffered(p.class, dealsAreOn(sellsBy)));
+    const facts = workspaceFacts(name, timezone, cfg.data?.config ?? null, offered);
     const language = detectLanguage(text);
     const personLabel = ctx.email ? `${ctx.email} (${member.role})` : member.role;
 

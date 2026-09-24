@@ -23,12 +23,13 @@ import {
   starterForTrigger,
   starterIndex,
   starterPreview,
+  startersOffered,
   templateTitle,
   validateTemplateDraft,
 } from "@chanlytics/contracts";
 import { readCode, readRaw, importSrc } from "./_source.mjs";
 
-test("eight starters, each in English and Spanish, each passing the hand-written check with no warnings", () => {
+test("nine starters, each in English and Spanish, each passing the hand-written check with no warnings", () => {
   assert.deepEqual(
     STARTER_TEMPLATES.map((s) => s.key),
     [
@@ -39,6 +40,7 @@ test("eight starters, each in English and Spanish, each passing the hand-written
       "visit_reminder",
       "after_visit",
       "quick_note",
+      "proposal_follow_up",
       "booking_link",
     ],
     "booking_link is LAST on purpose: the order is what a composer opens on, and this is the one a caller asks for out loud rather than one anybody broadcasts",
@@ -397,7 +399,7 @@ test("the library's order, what a composer opens on, and each slot's words", () 
     ["Business name", "Value 2"],
   );
   assert.equal(starterIndex("welcome_new"), 1);
-  assert.equal(starterIndex("nope"), 8, "a name we did not write sorts after every one we did");
+  assert.equal(starterIndex("nope"), STARTER_TEMPLATES.length, "a name we did not write sorts after every one we did");
 });
 
 test("hidden from the composers: the door, the routes, the sync's first sight, the card", () => {
@@ -474,4 +476,31 @@ test("a template's title: the workspace's own words, set through its door, shown
     readCode("apps/dashboard/app/api/v1/templates/route.ts").includes("source, hidden_at, title"),
     "the composers read it",
   );
+});
+
+test("the set a workspace is offered (0006): the proposal follow-up only where deals are on, a utility with no figure in it", () => {
+  assert.deepEqual(
+    startersOffered(false).map((s) => s.key),
+    STARTER_TEMPLATES.filter((s) => s.key !== "proposal_follow_up").map((s) => s.key),
+    "a workspace whose customers book is never offered it, nor has it filed with WhatsApp",
+  );
+  assert.deepEqual(
+    startersOffered(true).map((s) => s.key),
+    STARTER_TEMPLATES.map((s) => s.key),
+  );
+  const s = starterByKey("proposal_follow_up");
+  assert.deepEqual(
+    [s.category, s.trigger, s.texts.en_US.slots.map((x) => x.kind)],
+    ["utility", "proposal_waiting", ["first_name", "business_name", "proposal_link"]],
+  );
+  assert.equal(
+    starterPreview(s, "en_US", "Harbor Moving"),
+    "Hi Dani, just making sure the proposal from Harbor Moving reached you: https://docs.example.com/proposal. Reply here with any questions.",
+  );
+  for (const l of STARTER_LANGUAGES)
+    assert.ok(
+      !/[$€£]|\d/.test(s.texts[l.id].body.replace(/\{\{\d\}\}/g, "")),
+      `${l.id}: no price, date or amount in its words`,
+    );
+  assert.equal(guessSlotKind("Proposal link"), "proposal_link", "a label that names the proposal is its link");
 });

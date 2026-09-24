@@ -75,7 +75,16 @@ export const ROLE_PERMS: Record<
 
 /* --------------------------------------------------------------- E3 policy */
 
-export const POLICY_CLASSES = ["reply", "booking", "faq", "reengage", "campaign", "reviews", "money"] as const;
+export const POLICY_CLASSES = [
+  "reply",
+  "booking",
+  "faq",
+  "reengage",
+  "campaign",
+  "reviews",
+  "money",
+  "follow_up",
+] as const;
 export type PolicyClass = (typeof POLICY_CLASSES)[number];
 
 /**
@@ -112,6 +121,12 @@ export const POLICY_CLASS_WORDS: Record<PolicyClass, { name: string; short: stri
     note: "replies under new reviews on Google, through the connected Business Profile · auto answers each within the hour, ask drafts one for you to send, never leaves them all to you",
   },
   money: { name: "Refunds · rates · negotiation", short: "Money", note: "always goes to you" },
+  // 0006: one nudge per proposal, with its link, once it has waited past the workspace's pace with nothing back.
+  follow_up: {
+    name: "Proposal follow-ups",
+    short: "Follow-ups",
+    note: "the proposal follow-up playbook · one nudge per proposal, with its link, once it has waited with nothing back · auto sends each run, ask leaves it waiting on Today, never runs nothing",
+  },
 };
 
 /** The four modes. 'veto' is honoured where there is something to hold: a
@@ -173,6 +188,7 @@ export const POLICY_CLASS_MODES: Record<PolicyClass, readonly PolicyMode[]> = {
   campaign: ["auto", "veto", "ask", "never"],
   reviews: ["auto", "ask", "never"],
   money: ["never"],
+  follow_up: ["auto", "ask", "never"],
 };
 
 /** The class a customer's intent falls under, when the Autonomy pane has a row for it. */
