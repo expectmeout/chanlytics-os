@@ -413,9 +413,9 @@
 .ld-search-renaming input { flex: 1; min-width: 0; }
 
 /* ======================================================= the first day ====
-   No search kept yet (Task 17, §8.9): people first, then the composer and the
-   suggestions Claude wrote from this workspace's own line. It stands where the
-   table stands, so it keeps the table's column of measure. */
+   No search kept yet (Task 17, §8.9): people first, then Find leads (the door
+   to Ask) and the suggestions Claude wrote from this workspace's own line. It
+   stands where the table stands, so it keeps the table's column of measure. */
 
 .fr { max-width: 816px; padding: 20px 28px 40px; display: flex; flex-direction: column; gap: 10px; }
 .fr-h { font-size: var(--text-xl); font-weight: var(--weight-semibold); color: var(--ink); margin: 0; }

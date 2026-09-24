@@ -9768,11 +9768,6 @@ interface SuggestionInput {
     leadIdeas?: string[];
     leadSearches?: string[];
 }
-/**
- * Questions the workspace can answer today, for where the person is. Built
- * from the data, in the person's language, never from a seed; a workspace
- * with no missed call is not offered a question about missed calls.
- */
 declare function buildAskSuggestions(input: SuggestionInput): AskSuggestion[];
 interface FastCall {
     callId: string;

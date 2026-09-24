@@ -46,7 +46,7 @@ const buildLineRows = ({ A, t, lang, query, surface, scope, threads, view, phone
     sections.push({
       key: "about",
       label: t.askAbout(surface),
-      items: asks.map((s) => ({ type: "sug", label: s.q, q: s.q })),
+      items: asks.map((s) => ({ type: "sug", label: s.label || s.q, q: s.q })),
       note: surface === "leads" ? t.leadsConsent : null,
     });
   if (threads.length && !phone) {

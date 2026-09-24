@@ -262,6 +262,8 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
      keeps the full width (Earlier, the words typed, the jumps), and Right now centres its own parts. */
   .ask-rows { align-items: center; gap: 16px; padding: 8px 16px 12px; }
   .ask-rows-sec { align-items: center; width: 100%; }
+  /* Centred, the chips would take their own width and a long one would run past both edges: they keep to the section's. */
+  .ask-rows-sec > .ask-chips { max-width: 100%; }
   .ask-rows-sec > .ask-row { align-self: stretch; }
   .ask-row { min-height: 48px; }
   .ask-row.now { flex-direction: column; align-items: center; gap: 10px; text-align: center; min-height: 0; padding: 0; }

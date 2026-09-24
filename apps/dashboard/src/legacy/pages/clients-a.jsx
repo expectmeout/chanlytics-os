@@ -3334,6 +3334,9 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
     setFinderWords(dto.asked);
     setFinderMore(null);
     setFinderProposal({ searchId: dto.id, plan: dto.plan, purpose: "renew" });
+    // The card draws the plan it is handed: without this it drew the last strip-born plan, or nothing at all.
+    setFinderPlan(dto.plan);
+    setFinderPick(null);
     setFinderRefusal(null);
     setFinderStage("plan");
     setFinderOpen(true);

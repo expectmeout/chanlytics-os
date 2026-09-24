@@ -56,10 +56,11 @@ const LeadWayCard = ({ way, onGo }) => (
 
 /**
  * The first day of Leads: no search kept yet. People first -- the three ways
- * they arrive, each claiming only what this tab has read -- then the composer
- * and the suggestions Claude wrote from this workspace's own business line.
- * Never a seeded example: the items are the server's, from this workspace's
- * line, and a refused read is a note beside a composer that still works.
+ * they arrive, each claiming only what this tab has read -- then Find leads,
+ * the door to Ask, and the suggestions Claude wrote from this workspace's own
+ * business line, each a door to Ask with its words. Never a seeded example:
+ * the items are the server's, and a refused read is a note beside a door
+ * that still opens.
  *
  * Hookless, like everything else here: the line being rewritten is
  * LeadsReal's (`leadLine`), handed down.

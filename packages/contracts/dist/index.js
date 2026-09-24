@@ -16033,11 +16033,15 @@ var T = {
     actHoldQ: "Ret\xE9n cada respuesta para mi revisi\xF3n antes de enviarla"
   }
 };
+function clipWords(s, cap2) {
+  const w = s.replace(/\s+/g, " ").trim();
+  return w.length > cap2 ? `${w.slice(0, cap2 - 1).trimEnd()}\u2026` : w;
+}
 function buildAskSuggestions(input) {
   const t = T[input.language === "es" ? "es" : "en"];
   const out = [];
-  const add = (q, kind, icon, fast = false) => {
-    if (!out.some((s2) => s2.q === q)) out.push({ q, kind, icon, fast });
+  const add = (q, kind, icon, fast = false, label) => {
+    if (!out.some((s2) => s2.q === q)) out.push({ q, kind, icon, fast, ...label ? { label } : {} });
   };
   const s = input.scope;
   if (s && (s.kind === "thread" || s.kind === "conversation" || s.kind === "person")) {
@@ -16050,7 +16054,7 @@ function buildAskSuggestions(input) {
     for (const w of ideas) add(w, "ask", "search");
     if (!ideas.length)
       for (const a of (input.leadSearches ?? []).filter(Boolean).slice(0, 2))
-        add(t.moreLike.replace("{asked}", a), "ask", "search");
+        add(t.moreLike.replace("{asked}", a), "ask", "search", false, t.moreLike.replace("{asked}", clipWords(a, 40)));
   }
   if (input.needsYou > 0) add(t.needs, "ask", "inbox", true);
   if (input.heldDrafts > 0) add(t.held, "ask", "clock");

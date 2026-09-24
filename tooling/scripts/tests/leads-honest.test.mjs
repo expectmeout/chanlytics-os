@@ -2572,6 +2572,11 @@ test("Search again, changed opens the plan with what was asked; Rename renames t
     [panels.at(-1).stage, panels.at(-1).words, panels.at(-1).proposal.purpose],
     ["plan", "personal trainers in Austin with a website, about 200", "renew"],
   );
+  assert.equal(
+    panels.at(-1).plan,
+    panels.at(-1).proposal.plan,
+    "the card draws this search's plan, not an earlier one's",
+  );
   // Rename happens where the search is: the rail's row becomes the box.
   fresh();
   draw();

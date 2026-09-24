@@ -374,7 +374,10 @@ test.describe("Leads on a phone", () => {
     const ask = page.getByTestId("ask-real");
     await expect(ask).toBeVisible();
     await expect(ask.getByTestId("ask-input")).toHaveAttribute("placeholder", "Describe the businesses you want");
-    // The Find businesses section's one dim line: the consent rule (spec F3), under its chips.
+    // The Find businesses section draws only with chips: on this workspace, more like its one kept search (the seed's
+    // `asked`), so a seed without one fails here, on the cause, and not on the note under it.
+    await expect(ask.getByText(/Find more like/)).toBeVisible();
+    // The section's one dim line: the consent rule (spec F3), under its chips.
     await expect(ask.getByTestId("ask-rows-note")).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(ask).toBeHidden();
