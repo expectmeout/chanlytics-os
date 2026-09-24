@@ -271,6 +271,7 @@ test("the prompt on Leads: the page is named and words that describe businesses 
   assert.ok(leads.includes("They are on the Leads page"), leads);
   assert.ok(leads.includes("read list_lead_searches, then propose_lead_search"), "a search is proposed, never run");
   assert.ok(leads.includes("ask only when the kind or the place is missing"));
+  assert.ok(leads.includes("amends"), "an answer amends the search that asked");
   assert.ok(!leads.includes("They are on the leads page."), "the generic line does not double it");
   const people = turnSystem({ ...facts, surface: "people" });
   assert.ok(people.includes("They are on the people page."));

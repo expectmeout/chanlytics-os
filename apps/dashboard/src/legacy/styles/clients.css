@@ -2065,6 +2065,26 @@
 .cl-bulk-naming input { font: inherit; font-size: 12.5px; color: var(--ink); background: var(--bg); border: 1px solid var(--line-strong); border-radius: var(--radius-md); padding: 4px 8px; width: 180px; outline: none; }
 .cl-bulk-naming input:focus { border-color: var(--accent); }
 
+/* ---- Import people (pages/people-import.jsx): the record kit's sheet. Its body is a file or pasted rows, the counts
+   before anything is written, five rows as a taste, then the summary; the kit's own field, label and input rules
+   (record.css) dress the fields, and the body carries the vertical room the kit's body leaves to its page. ---- */
+.pl-import { display: flex; flex-direction: column; gap: 16px; padding: 20px 0 24px; }
+.pl-import input[type="file"] { font: inherit; font-size: var(--text-sm); color: var(--ink-muted); }
+.pl-import input[type="file"]::file-selector-button { margin-right: 10px; padding: 5px 10px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--bg-raised); font: inherit; font-size: var(--text-sm); color: var(--ink); cursor: pointer; }
+.pl-import-read { align-self: flex-start; }
+.pl-import-preview, .pl-import-summary { display: flex; flex-direction: column; gap: 8px; }
+.pl-import-counts { margin: 0; font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink); }
+.pl-import-hint { margin: 0; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); }
+/* A taste of the rows, not People's list (.cl-table, whose phone rules turn every row into a person's card): its own
+   quiet table, the head in the list's small caps, a hairline between rows, a number never broken. */
+.pl-import-table { width: 100%; border-collapse: collapse; }
+.pl-import-table th { padding: 6px 10px; text-align: left; font-size: var(--text-xs); font-weight: var(--weight-medium); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-dim); background: var(--bg-sunken); border-bottom: 1px solid var(--line); }
+.pl-import-table td { padding: 6px 10px; vertical-align: top; font-size: var(--text-xs); color: var(--ink); border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+.pl-import-table tbody tr:last-child td { border-bottom: none; }
+.pl-import-table td.tabular { white-space: nowrap; }
+.pl-import-lines { margin: 0; padding-left: 18px; font-size: var(--text-xs); line-height: var(--leading-normal); color: var(--ink-dim); }
+.pl-import-foot { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; }
+
 /* ---- The table: who, at a glance; actions on hover; a keyboard row; cards when narrow ---- */
 .tabular { font-variant-numeric: tabular-nums; }
 .cl-row-avatar-glyph { color: var(--ink-faint); background: var(--bg-sunken); }

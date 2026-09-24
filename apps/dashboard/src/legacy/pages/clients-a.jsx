@@ -2671,6 +2671,8 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
   // A list made here, on its way from the server: not "a list that isn't here" while the surface re-reads.
   const [madeId, setMadeId] = useState(null);
   const [listDraft, setListDraft] = useState(PL_LIST_EMPTY);
+  // Import people: the owner's sheet over the page (people-import.jsx). The refresh-map re-reads People after each part.
+  const [importOpen, setImportOpen] = useState(false);
   React.useEffect(() => {
     const onNew = () => {
       setNewListSignal((n) => n + 1);
@@ -2952,6 +2954,8 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
     // A selection begun from here, with nobody picked yet, for whoever a selection could do something for.
     ...((canEditLists || canExport) && shown.length > 0 ? [{ label: "Select people", icon: "check", onClick: () => setSelectMode(true) }] : []),
     ...(canEditLists && window.__addPerson ? [{ label: "Add a person", icon: "plus", onClick: () => { setAddDraft(PL_ADD_EMPTY); setAddOpen(true); } }] : []),
+    // A client list as a file, for the owner (the import door is the owner's, as the export is).
+    ...(canExport && window.__importPeople && window.PeopleImportSheet ? [{ label: "Import people", icon: "download", meta: "CSV", onClick: () => setImportOpen(true) }] : []),
     { header: "Sort" },
     ...PL_PHONE_SORTS.filter((s) => !s.needs || s.needs({ withCalendar })).map((s) => ({ label: s.label, checked: sortBy === s.by && sortDir === s.dir, onClick: () => pickSort(s.by, s.dir) })),
     // The route's file of everyone: a download (it answers as an attachment), so the page stays where it is.
@@ -3028,6 +3032,11 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
             </div>
             <div className="cl-controls-right">
               {canEditLists && window.__addPerson && <AddPersonButton onAdded={onOpenProfile} flash={plFlash} />}
+              {/* A client list as a file, for the owner: read in the browser, counted, then written in parts of fifty
+                  (people-import.jsx). */}
+              {canExport && window.__importPeople && window.PeopleImportSheet && (
+                <button className="btn btn-ghost btn-sm" onClick={() => setImportOpen(true)} data-testid="import-people"><Icon name="download" size={12} /> Import</button>
+              )}
               {/* Everyone as a CSV, from the route: owner only, and the button
                   says so for anyone else instead of leading to a refusal. */}
               {window.__href && (
@@ -3171,6 +3180,11 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
         )}
         {phone && listAct && (listAct === "save" || activeSaved) && (
           <PeopleListActSheet act={listAct} list={activeSaved} count={shown.length} rule={viewRule} flash={plFlash} draft={listDraft} onDraft={(patch) => setListDraft((d) => ({ ...d, ...patch }))} onGo={listActGo} onClose={closePhoneSheet} />
+        )}
+        {/* Import people, at every width: the record kit's sheet, drawn in .app-root, where the page's keys hold still
+            while it is open (PL_OVERLAY) and it closes on its own Esc. */}
+        {importOpen && window.PeopleImportSheet && (
+          <window.PeopleImportSheet onClose={() => setImportOpen(false)} flash={plFlash} />
         )}
         {toastNode}
       </div>
@@ -3461,13 +3475,12 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
     if (started && !leadView.searchId && window.__leadsRouteOf) nav(window.__leadsRouteOf({ searchId: started, list: "all", cls: null }));
     return r;
   };
-  // What answering a search's question carries (leadFinderAmendAsk, leadFinderApprove): the question, the round's
-  // version and the count it reserved, and what was first asked, so one Ask turn can amend the same search.
+  // What answering a search's question carries (leadFinderAmendAsk, leadFinderApprove): the question, the search's
+  // id and name, what was first asked and what it leaves out, so one Ask turn can amend the same search; the
+  // version and count are the route's.
   const answerOf = (s) => ({
     answer: true,
     question: s.round && s.round.question ? s.round.question.sentence : "",
-    baseVersion: s.plan_version || (s.plan && s.plan.version) || 1,
-    count: s.plan.count,
     name: s.name,
     asked: s.asked,
     leavingOut: (s.plan.exclusions || []).map((x) => x.text),
@@ -3638,8 +3651,9 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
     if (id === "stop") return leadAct(() => window.__leadSearchStop(s.id), <>Stopping. The emails of what was found are still being checked.</>);
     if (id === "keep") return leadAct(() => window.__leadSearchAnswer(s.id, "keep"), <>Carrying on.</>);
     if (id === "stop_here") return leadAct(() => window.__leadSearchAnswer(s.id, "stop"), <>Stopped. The ones already found are yours.</>);
-    // The no that changes the search: the plan panel opens its answer row under the question, empty, and what comes
-    // back from Ask is this round's next version (leadFinderApprove answers it; it never starts a second search).
+    // The no that changes the search: the plan panel opens its answer row under the question, empty; what comes
+    // back from Ask is a card that amends this search, and approving it commits through Ask's door, which answers
+    // the round; it never starts a second search.
     if (id === "change") {
       setFinderWords("");
       setFinderProposal(null);
@@ -3652,7 +3666,7 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
       return undefined;
     }
     // Include takes the thing it asked about back out of the plan, which planVersionOf makes a new version of:
-    // the route is given the version the owner approved, not the one the round started on.
+    // the plan goes as the owner approved it; the route sets the version and the count the round reserved (G1).
     if (id === "include") {
       const V = window.__LEAD_VM || {};
       const plan = V.planVersionOf ? V.planVersionOf(s.plan, { exclusions: s.plan.exclusions.filter((x) => x.key !== arg) }) : s.plan;

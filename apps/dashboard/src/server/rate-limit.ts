@@ -79,6 +79,8 @@ export const RATE = {
   playbook: { limit: 30, windowMs: 60_000, noun: "playbook changes" },
   /** A person added by hand — from an appointment, before they ever write. */
   person_create: { limit: 60, windowMs: 3_600_000, noun: "people added" },
+  /** A client list arrives in parts of fifty: two hundred and forty parts an hour is twelve thousand people, and a script is not. */
+  person_import: { limit: 240, windowMs: 3_600_000, noun: "import parts" },
   /** A person's name or the notes the receptionist reads. */
   person_edit: { limit: 60, windowMs: 60_000, noun: "profile edits" },
   /** Read and dismiss marks on the bell. */

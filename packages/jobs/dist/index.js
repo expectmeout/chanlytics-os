@@ -372,7 +372,9 @@ var DECISION_VERBS = [
   "drop_from_list",
   "archive_list",
   "restore_list",
-  "delete_list"
+  "delete_list",
+  /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
+  "import"
 ];
 var DAY_MS = 864e5;
 var WEEK_MS = 7 * DAY_MS;
@@ -858,7 +860,7 @@ var PERSON_CAME_FROM_WORDS = {
   call: PERSON_CHANNEL_WORDS.voice,
   calendar: "Your calendar",
   manual: "Added by hand",
-  import: "Imported history",
+  import: "Imported",
   lead: "A lead you found"
 };
 var REPLY_WINDOW_HOURS = 72;
@@ -1940,6 +1942,7 @@ var KIND_META = {
   email: { name: CHANNEL_KIND_WORDS.email, what: "Email", icon: "mail", noun: "email" },
   instagram: { name: CHANNEL_KIND_WORDS.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
 };
+var SEARCH_WARN_MS = 12 * 36e5;
 var NOTE_SUGGEST_KINDS = ["preference", "timing", "contact", "sensitivity", "context"];
 var NOTE_SUGGEST_SCHEMA = {
   type: "object",
@@ -7479,7 +7482,9 @@ var DECISION_VERBS2 = [
   "drop_from_list",
   "archive_list",
   "restore_list",
-  "delete_list"
+  "delete_list",
+  /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
+  "import"
 ];
 var DAY_MS2 = 864e5;
 var WEEK_MS4 = 7 * DAY_MS2;
@@ -7961,7 +7966,7 @@ var PERSON_CAME_FROM_WORDS2 = {
   call: PERSON_CHANNEL_WORDS2.voice,
   calendar: "Your calendar",
   manual: "Added by hand",
-  import: "Imported history",
+  import: "Imported",
   lead: "A lead you found"
 };
 var REPLY_WINDOW_HOURS2 = 72;
@@ -9030,6 +9035,7 @@ var KIND_META2 = {
   email: { name: CHANNEL_KIND_WORDS2.email, what: "Email", icon: "mail", noun: "email" },
   instagram: { name: CHANNEL_KIND_WORDS2.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
 };
+var SEARCH_WARN_MS2 = 12 * 36e5;
 var NOTE_SUGGEST_KINDS2 = ["preference", "timing", "contact", "sensitivity", "context"];
 var NOTE_SUGGEST_SCHEMA2 = {
   type: "object",
@@ -10662,7 +10668,9 @@ var DECISION_VERBS3 = [
   "drop_from_list",
   "archive_list",
   "restore_list",
-  "delete_list"
+  "delete_list",
+  /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
+  "import"
 ];
 var DAY_MS3 = 864e5;
 var WEEK_MS5 = 7 * DAY_MS3;
@@ -11144,7 +11152,7 @@ var PERSON_CAME_FROM_WORDS3 = {
   call: PERSON_CHANNEL_WORDS3.voice,
   calendar: "Your calendar",
   manual: "Added by hand",
-  import: "Imported history",
+  import: "Imported",
   lead: "A lead you found"
 };
 var REPLY_WINDOW_HOURS3 = 72;
@@ -12213,6 +12221,7 @@ var KIND_META3 = {
   email: { name: CHANNEL_KIND_WORDS3.email, what: "Email", icon: "mail", noun: "email" },
   instagram: { name: CHANNEL_KIND_WORDS3.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
 };
+var SEARCH_WARN_MS3 = 12 * 36e5;
 var NOTE_SUGGEST_KINDS3 = ["preference", "timing", "contact", "sensitivity", "context"];
 var NOTE_SUGGEST_SCHEMA3 = {
   type: "object",
@@ -12865,7 +12874,9 @@ var DECISION_VERBS22 = [
   "drop_from_list",
   "archive_list",
   "restore_list",
-  "delete_list"
+  "delete_list",
+  /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
+  "import"
 ];
 function isOptedOutContact(c2) {
   return c2.consent === "opted_out" || c2.dnc === true;
@@ -13353,7 +13364,7 @@ var PERSON_CAME_FROM_WORDS22 = {
   call: PERSON_CHANNEL_WORDS22.voice,
   calendar: "Your calendar",
   manual: "Added by hand",
-  import: "Imported history",
+  import: "Imported",
   lead: "A lead you found"
 };
 var REPLY_WINDOW_HOURS22 = 72;
@@ -14474,6 +14485,7 @@ var KIND_META22 = {
   email: { name: CHANNEL_KIND_WORDS22.email, what: "Email", icon: "mail", noun: "email" },
   instagram: { name: CHANNEL_KIND_WORDS22.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
 };
+var SEARCH_WARN_MS22 = 12 * 36e5;
 var NOTE_SUGGEST_KINDS22 = ["preference", "timing", "contact", "sensitivity", "context"];
 var NOTE_SUGGEST_SCHEMA22 = {
   type: "object",
@@ -15061,7 +15073,9 @@ var DECISION_VERBS32 = [
   "drop_from_list",
   "archive_list",
   "restore_list",
-  "delete_list"
+  "delete_list",
+  /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
+  "import"
 ];
 var DAY_MS8 = 864e5;
 var WEEK_MS52 = 7 * DAY_MS8;
@@ -15535,7 +15549,7 @@ var PERSON_CAME_FROM_WORDS32 = {
   call: PERSON_CHANNEL_WORDS32.voice,
   calendar: "Your calendar",
   manual: "Added by hand",
-  import: "Imported history",
+  import: "Imported",
   lead: "A lead you found"
 };
 var REPLY_WINDOW_HOURS32 = 72;
@@ -16604,6 +16618,7 @@ var KIND_META32 = {
   email: { name: CHANNEL_KIND_WORDS32.email, what: "Email", icon: "mail", noun: "email" },
   instagram: { name: CHANNEL_KIND_WORDS32.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
 };
+var SEARCH_WARN_MS32 = 12 * 36e5;
 var NOTE_SUGGEST_KINDS32 = ["preference", "timing", "contact", "sensitivity", "context"];
 var NOTE_SUGGEST_SCHEMA32 = {
   type: "object",
@@ -17764,7 +17779,9 @@ var DECISION_VERBS4 = [
   "drop_from_list",
   "archive_list",
   "restore_list",
-  "delete_list"
+  "delete_list",
+  /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
+  "import"
 ];
 var DAY_MS9 = 864e5;
 var WEEK_MS6 = 7 * DAY_MS9;
@@ -18238,7 +18255,7 @@ var PERSON_CAME_FROM_WORDS4 = {
   call: PERSON_CHANNEL_WORDS4.voice,
   calendar: "Your calendar",
   manual: "Added by hand",
-  import: "Imported history",
+  import: "Imported",
   lead: "A lead you found"
 };
 var REPLY_WINDOW_HOURS4 = 72;
@@ -19307,6 +19324,7 @@ var KIND_META4 = {
   email: { name: CHANNEL_KIND_WORDS4.email, what: "Email", icon: "mail", noun: "email" },
   instagram: { name: CHANNEL_KIND_WORDS4.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
 };
+var SEARCH_WARN_MS4 = 12 * 36e5;
 var NOTE_SUGGEST_KINDS4 = ["preference", "timing", "contact", "sensitivity", "context"];
 var NOTE_SUGGEST_SCHEMA4 = {
   type: "object",

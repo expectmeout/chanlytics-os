@@ -174,6 +174,10 @@ test("the paper form asks the same two questions, each its own unticked box with
   assert.match(form.lead, /signing one does not sign you up for the other/);
   assert.deepEqual(form.terms, page.terms, "the foot is the page's foot");
   assert.match(form.office, /Sign-up form/, "and it tells the business how to record the sheet");
+  // An email line (the campaigns-on-every-channel spec, Part 0): typed in on the person's page as the signed boxes
+  // are recorded. It is a line to write on, never a box: nothing on paper is a yes to email.
+  assert.deepEqual(form.fields, ["Name", "Mobile number", "Email"]);
+  assert.match(form.office, /type the email on their page/);
   // Paper needs no number: a business can take signed forms before its line is
   // approved for texting, while its page has nothing to offer yet.
   const bare = consentFormVM({ businessName: "Harbor Moving Co.", whatsappE164: null, smsE164: null });
