@@ -386,9 +386,9 @@ test("REGRESSION (A22): a new workspace's Conversations says there are none yet 
   assert.match(textOf(find(none, byTestId("cv-none"))), /No conversations yet\./);
   const pane = find(none, byTestId("cv-none-pane"));
   assert.match(textOf(pane), /Every WhatsApp chat and phone call with a customer lands here/);
-  const setup = find(pane, (n) => n.type === "button" && textOf(n).includes("Open Setup"));
+  const setup = find(pane, (n) => n.type === "button" && textOf(n).includes("Finish setting up"));
   setup.props.onClick();
-  assert.equal(went.at(-1), "admin/setup");
+  assert.equal(went.at(-1), "start");
 
   withRows([toConversationVM(conv([msg({ id: "m1" }), ours()]), ZONE, NOW)]);
   cells = [];

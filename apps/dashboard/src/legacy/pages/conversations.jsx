@@ -344,7 +344,7 @@ const ConversationsPage = ({ channel = "all", initialId = null }) => {
           />
         )
       ) : CONVERSATIONS.length === 0 ? (
-        <EmptyState kind="page" glyph="chat" title="Nothing to read yet" body="Every WhatsApp chat and phone call with a customer lands here, with what was said." action={{ label: "Open Setup", to: "admin/setup" }} testid="cv-none-pane" />
+        <EmptyState kind="page" glyph="chat" title="Nothing to read yet" body="Every WhatsApp chat and phone call with a customer lands here, with what was said." action={{ label: "Finish setting up", to: "start" }} testid="cv-none-pane" />
       ) : (
         <EmptyState kind="page" glyph="search" title={query.trim() ? "Nothing matches your search" : "Nothing on this channel yet"} body={query.trim() ? "Clear the search to see every conversation." : "Choose All to see every conversation."} />
       )}

@@ -321,7 +321,9 @@ const SERVER_LOOK: Record<string, { icon: string; tone: "" | "ok" | "warn"; acti
 
 /** The verb for a row that names its own route; the kind's verb otherwise. */
 const ROUTE_VERBS: Array<[RegExp, string]> = [
-  [/^admin\/setup/, "Open Setup"],
+  // Setup is the first run now (#/start); a row written before then still says admin/setup, and lands there too.
+  [/^admin\/setup/, "Finish setting up"],
+  [/^start/, "Finish setting up"],
   [/^admin\/integrations/, "Open Connections"],
   [/^admin\/workspace/, "Open Business"],
   [/^admin\/notifications/, "Open Notifications"],

@@ -841,14 +841,8 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
 .set-broken-issues li { margin: 2px 0; }
 .set-notif-platform { margin-left: 8px; vertical-align: middle; }
 
-/* Setup: one page until the receptionist answers. The rows are the attention
-   row People and Today share (attention-bits.jsx); the head carries the
-   readiness sentence and the one next verb. A row put off for later fades. */
-.setup { display: grid; gap: 20px; }
-/* The body size (24 Sep): the largest type on the page was a sentence that said which lines answer. */
-.setup-sentence { margin: 0 0 4px; font-size: var(--set-label); font-weight: 500; line-height: 1.45; color: var(--ink); text-wrap: pretty; }
-.setup-next { display: flex; align-items: center; gap: 12px; margin-top: 14px; padding-bottom: 6px; flex-wrap: wrap; }
-.setup-next-label { font-size: var(--set-hint); color: var(--ink-dim); }
+/* Setup's rows, wherever they are drawn: the first run (first-run.jsx) and Today's card. The rows are the attention
+   row People and Today share (attention-bits.jsx). A row put off for later fades. */
 .setup-try-rows { display: grid; gap: 4px; padding-bottom: 8px; }
 /* The page is its rows: the meter, then the work, and on a phone the Try card after the rows rather than a screen
    of it before them (feedback: a phone shows the work first). */

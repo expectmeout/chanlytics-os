@@ -407,7 +407,7 @@ export interface LeadWay {
  */
 export function leadsFirstDayWays(f: LeadWayFacts): LeadWay[] {
   const live = !!(f.voice && f.voice.active && f.voice.number);
-  const reachDoors = [{ id: "line", label: live ? "Your number" : "Set up your number", to: "admin/setup" }];
+  const reachDoors = [{ id: "line", label: live ? "Your number" : "Set up your number", to: "start" }];
   if (!f.whatsapp || !f.whatsapp.active)
     reachDoors.push({ id: "whatsapp", label: "Connect WhatsApp", to: "admin/integrations" });
   return [

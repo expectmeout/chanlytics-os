@@ -131,7 +131,7 @@ export const ASK_PAGE_ROUTES = [
   "broadcasts",
   "messages",
   "reports",
-  "admin/setup",
+  "start",
   "admin/workspace",
   "admin/team",
   "admin/autonomy",
@@ -143,7 +143,7 @@ export const ASK_PAGE_ROUTES = [
 ] as const;
 
 const PAGE_PREFIX =
-  /^(today|inbox|clients|segments|conversations|live|calendar|outbound|broadcasts|messages|reports|admin)(\/[A-Za-z0-9:_-]+)?$/;
+  /^(today|inbox|clients|segments|conversations|live|calendar|outbound|broadcasts|messages|reports|start|admin)(\/[A-Za-z0-9:_-]+)?$/;
 
 /**
  * Drop every citation that names a row the tools did not return this turn.
@@ -406,7 +406,13 @@ export const ASK_PAGES: JumpEntry[] = [
   },
   { label: "Reports", to: "reports", kind: "page" },
   { label: "Settings", to: "admin/workspace", kind: "page" },
-  { label: "Setup", to: "admin/setup", kind: "page", sub: "what is left to set up" },
+  {
+    label: "Setting up",
+    to: "start",
+    kind: "page",
+    sub: "the four steps to a receptionist that answers",
+    also: ["setup"],
+  },
   { label: "Billing", to: "admin/billing", kind: "page" },
   { label: "Activity", to: "admin/activity", kind: "page", sub: "who did what, for owners" },
   { label: "Profile", to: "admin/profile", kind: "page", sub: "your name and how you sign in" },

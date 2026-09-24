@@ -107,7 +107,7 @@ test("a workspace with nothing: every door honest, nothing pretends", () => {
       r.whatsapp.verb === null,
     "the missing piece is named, not hidden",
   );
-  assert.deepEqual(r.phone.verb, { label: "Ask for a line", to: "admin/setup", who: "owner" });
+  assert.deepEqual(r.phone.verb, { label: "Ask for a line", to: "start", who: "owner" });
   assert.equal(r.sms.group, "later");
   assert.equal(r.google_profile.group, "later");
   assert.equal(r.google_listing.group, "later");
@@ -205,7 +205,7 @@ test("Google's doors: Connect where open with the audience said, choose where se
     !open.google_profile.sentence.includes("Google is reviewing"),
     "nothing to say when the audience is not set",
   );
-  assert.deepEqual(open.google_listing.verb, { label: "Find it on Setup", to: "admin/setup", who: "owner" });
+  assert.deepEqual(open.google_listing.verb, { label: "Find it", to: "start", who: "owner" });
   const testing = by(
     connectionRows(
       {
@@ -259,9 +259,10 @@ test("the phone line's road: requested, being set up with the step and since, st
     connectionRows({ ...base(), lines: { rows: [line({ voice_state: "failed", step: "trunk" })], ready: true } }, NOW),
   );
   assert.equal(failed.phone.stateWords, "Waiting on us");
-  assert.equal(failed.phone.verb.to, "admin/setup");
+  assert.deepEqual(failed.phone.verb, { label: "Retry it", to: "start", who: "owner" });
+  assert.equal(failed.phone.sentence, "Setting up stopped. A person at Chanlytics has it, or you can retry it.");
   const offer = by(connectionRows({ ...base(), lines: { rows: [], ready: true } }, NOW));
-  assert.deepEqual(offer.phone.verb, { label: "Get a line", to: "admin/setup", who: "owner" });
+  assert.deepEqual(offer.phone.verb, { label: "Get a line", to: "start", who: "owner" });
   const fwd = by(
     connectionRows(
       { ...base(), lines: { rows: [line({ provider: "carrier", voice_state: "none" })], ready: true } },

@@ -9133,7 +9133,7 @@ declare function cleanAnswer(raw: string): string;
 type AskReadSet = Record<Exclude<AskCitationKind, "page">, Set<string>>;
 declare function emptyReadSet(): AskReadSet;
 /** The pages a citation or a navigate target may point at without a read. */
-declare const ASK_PAGE_ROUTES: readonly ["today", "inbox", "clients", "clients/leads", "segments", "conversations", "live", "calendar", "outbound", "broadcasts", "messages", "reports", "admin/setup", "admin/workspace", "admin/team", "admin/autonomy", "admin/notifications", "admin/integrations", "admin/billing", "admin/activity", "admin/profile"];
+declare const ASK_PAGE_ROUTES: readonly ["today", "inbox", "clients", "clients/leads", "segments", "conversations", "live", "calendar", "outbound", "broadcasts", "messages", "reports", "start", "admin/workspace", "admin/team", "admin/autonomy", "admin/notifications", "admin/integrations", "admin/billing", "admin/activity", "admin/profile"];
 /**
  * Drop every citation that names a row the tools did not return this turn.
  * A model that read nothing cannot cite anything; a model that read the
@@ -11625,7 +11625,7 @@ type ConnectionTone = Tone;
 type ConnectionWho = "owner" | "operator";
 interface ConnectionVerb {
     label: string;
-    /** A route ("admin/setup", "messages") or a `verb:` id the page runs. */
+    /** A route ("start", "messages") or a `verb:` id the page runs. */
     to: string;
     who: ConnectionWho;
 }

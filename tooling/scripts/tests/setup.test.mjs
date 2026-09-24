@@ -591,9 +591,9 @@ test("the bell's verb follows the row's route: a setup row opens Setup, an unrou
   assert.deepEqual(
     rows.map((r) => [r.to, r.action]),
     [
-      ["admin/setup", "Open Setup"],
+      ["admin/setup", "Finish setting up"],
       ["today", "Open Today"],
-      ["admin/setup", "Open Setup"],
+      ["admin/setup", "Finish setting up"],
     ],
   );
   assert.equal(verbForRoute("inbox/th-1"), "Open the Inbox");
@@ -828,31 +828,15 @@ test("the words: four states, no jargon, no trade", () => {
   assert.doesNotMatch(words, /\$\d/, "no invented prices");
 });
 
-test("wiring: Settings tab, manifest, bridge, routes, registry, rate bucket, event kind, migration, Today line", () => {
-  const settings = readCode("apps/dashboard/src/legacy/pages/settings.jsx");
-  // First in the WORKSPACE group. Profile opens the rail now, because the
-  // first thing a person needs from settings is which account they are in —
-  // Setup is still the first thing they do TO the workspace.
-  assert.match(
-    settings,
-    /\{ id: "profile",[^\n]*group: "You" \},\s*\{ id: "setup",[^\n]*group: "Workspace" \}/,
-    "Setup is the first thing you do to the workspace",
-  );
-  assert.ok(
-    settings.includes('{active.id === "setup" && window.PaneSetup && <window.PaneSetup />}'),
-    "the pane is the page's component",
-  );
+// Setup left Settings for the first run (#/start): surface-registry.test.mjs holds its route and the old address's
+// move, and first-run-page.test.mjs draws it.
+test("wiring: manifest, bridge, routes, rate bucket, event kind, migration", () => {
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/manifest.ts").includes('import "@/legacy/pages/setup.jsx";'));
   const app = readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx");
   assert.ok(
     app.includes("installSetup();") &&
       /notificationsOverride,\s*setupOverride,\s*googleOverride,\s*billingOverride,?\s*\];/.test(app),
     "the surface boots with the rest",
-  );
-  const reg = readCode("apps/dashboard/src/legacy-bridge/surface-registry.ts");
-  assert.ok(
-    reg.includes('"admin/setup": "real",') && reg.includes('"admin/setup": "setup",'),
-    "the route waits for its surface",
   );
   assert.ok(
     readCode("apps/dashboard/src/server/rate-limit.ts").includes(

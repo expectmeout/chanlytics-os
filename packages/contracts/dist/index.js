@@ -5123,7 +5123,7 @@ function leadReachLine(prior) {
 }
 function leadsFirstDayWays(f) {
   const live = !!(f.voice && f.voice.active && f.voice.number);
-  const reachDoors = [{ id: "line", label: live ? "Your number" : "Set up your number", to: "admin/setup" }];
+  const reachDoors = [{ id: "line", label: live ? "Your number" : "Set up your number", to: "start" }];
   if (!f.whatsapp || !f.whatsapp.active)
     reachDoors.push({ id: "whatsapp", label: "Connect WhatsApp", to: "admin/integrations" });
   return [
@@ -8085,7 +8085,9 @@ var SERVER_LOOK = {
   alert: { icon: "bell", tone: "", action: "Open Today", to: "today" }
 };
 var ROUTE_VERBS = [
-  [/^admin\/setup/, "Open Setup"],
+  // Setup is the first run now (#/start); a row written before then still says admin/setup, and lands there too.
+  [/^admin\/setup/, "Finish setting up"],
+  [/^start/, "Finish setting up"],
   [/^admin\/integrations/, "Open Connections"],
   [/^admin\/workspace/, "Open Business"],
   [/^admin\/notifications/, "Open Notifications"],
@@ -9506,7 +9508,7 @@ var ASK_PAGE_ROUTES = [
   "broadcasts",
   "messages",
   "reports",
-  "admin/setup",
+  "start",
   "admin/workspace",
   "admin/team",
   "admin/autonomy",
@@ -9516,7 +9518,7 @@ var ASK_PAGE_ROUTES = [
   "admin/activity",
   "admin/profile"
 ];
-var PAGE_PREFIX = /^(today|inbox|clients|segments|conversations|live|calendar|outbound|broadcasts|messages|reports|admin)(\/[A-Za-z0-9:_-]+)?$/;
+var PAGE_PREFIX = /^(today|inbox|clients|segments|conversations|live|calendar|outbound|broadcasts|messages|reports|start|admin)(\/[A-Za-z0-9:_-]+)?$/;
 function groundCitations(citations, read) {
   const kept = [];
   let dropped = 0;
@@ -9625,7 +9627,7 @@ var ASK_PAGES = [
   },
   { label: "Reports", to: "reports", kind: "page" },
   { label: "Settings", to: "admin/workspace", kind: "page" },
-  { label: "Setup", to: "admin/setup", kind: "page", sub: "what is left to set up" },
+  { label: "Setting up", to: "start", kind: "page", sub: "the four steps to a receptionist that answers", also: ["setup"] },
   { label: "Billing", to: "admin/billing", kind: "page" },
   { label: "Activity", to: "admin/activity", kind: "page", sub: "who did what, for owners" },
   { label: "Profile", to: "admin/profile", kind: "page", sub: "your name and how you sign in" },
@@ -15464,8 +15466,8 @@ function connectionRows(i, nowMs = Date.now()) {
         detail: formatPhoneDisplay(own.e164),
         state: "waiting_them",
         stateWords: "Waiting on us",
-        sentence: "Setting up stopped. A person at Chanlytics has it; retry from Setup.",
-        verb: { label: "Open Setup", to: "admin/setup", who: "owner" }
+        sentence: "Setting up stopped. A person at Chanlytics has it, or you can retry it.",
+        verb: { label: "Retry it", to: "start", who: "owner" }
       })
     );
   } else if (i.lineRequestedAt) {
@@ -15491,7 +15493,7 @@ function connectionRows(i, nowMs = Date.now()) {
         state: "none",
         stateWords: "Not connected",
         sentence: "Get a number the receptionist answers, or keep the one you have.",
-        verb: { label: "Get a line", to: "admin/setup", who: "owner" }
+        verb: { label: "Get a line", to: "start", who: "owner" }
       })
     );
   } else {
@@ -15504,7 +15506,7 @@ function connectionRows(i, nowMs = Date.now()) {
         state: "none",
         stateWords: "Not connected",
         sentence: "We set up your phone line with you.",
-        verb: { label: "Ask for a line", to: "admin/setup", who: "owner" }
+        verb: { label: "Ask for a line", to: "start", who: "owner" }
       })
     );
   }
@@ -15590,7 +15592,7 @@ function connectionRows(i, nowMs = Date.now()) {
         state: "none",
         stateWords: "Not watched",
         sentence: "Find it from the name and address on record; new reviews then reach your bell and Reports.",
-        verb: { label: "Find it on Setup", to: "admin/setup", who: "owner" }
+        verb: { label: "Find it", to: "start", who: "owner" }
       })
     );
   } else {
