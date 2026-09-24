@@ -83,11 +83,8 @@ test("the tab bar carries the real surfaces and the two counts that matter", () 
     css.includes("html.in-app .main-scroll { padding-bottom: var(--app-inset-bottom, 0px); }"),
     "the room under every surface is the shell's tab bar, not the web's",
   );
-  assert.ok(
-    css.includes("html.in-app .phone-ask { bottom: calc(10px + var(--app-inset-bottom, 0px)); }"),
-    "the ✦ sits above the native bar",
-  );
   assert.ok(css.includes("html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px)); }"));
+  // The ✦'s own lift lives in ask.css with the palette's rules (ask.test.mjs holds it there).
   assert.ok(
     css.includes("position: fixed;") && css.includes("left: 0; right: 0; bottom: 0;"),
     "fixed to the viewport: flowed, it lived below the fold",

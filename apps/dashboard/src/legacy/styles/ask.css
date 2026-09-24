@@ -209,6 +209,8 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
   .phone-ask .phone-ask-face { display: block; width: 30px; height: 24px; }
   .phone-ask:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
   .phone-ask:active { transform: scale(0.96); }
+  /* Inside the native shell the native tab bar stands under it: the ✦ lifts by the shell's inset (mobile.css, html.in-app). */
+  html.in-app .phone-ask { bottom: calc(10px + var(--app-inset-bottom, 0px)); }
   /* Inside an open thread the reply box IS the action, and Send sits a thumb from here. Ask comes back with the list. */
   body:has(.inbox.phone-thread) .phone-ask,
   body:has(.conversations.phone-detail) .phone-ask { display: none; }
