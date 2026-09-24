@@ -1,5 +1,5 @@
 /**
- * Settings › Business, *When you're open*, EXECUTED on the stub React: the week as a ribbon and a fold, the zone, the
+ * Settings › Business, *When you're open*, EXECUTED on the stub React: the week as a fold, the zone, the
  * closed days, and the calendar it reads. The page, the fixture and the presses are _business-tab-harness.mjs; every
  * claim here is something the page drew, or something a press on it sent.
  */
@@ -54,7 +54,6 @@ import {
 // The last page this file drew goes as React would take it away (the harness says why).
 after(() => unmount());
 
-const barsOf = (node) => all(node, (n) => classes(n).includes("bt-ribbon-bar"));
 /** A shift's place in its day, as its box is named: the second, third, fourth shift. */
 const place = (n) => ["", "", "second", "third", "fourth", "fifth", "sixth"][n];
 /** The week's one menu: open it, then press the copy it names. */
@@ -92,73 +91,6 @@ test("When you're open draws four rows in the spec's order, under a line contrac
   );
 });
 
-test("the ribbon draws the week, and a closed day carries no bar", () => {
-  const ribbon = byTestId(drawTab({ profile: melany }), "bt-hours-ribbon");
-  const days = all(ribbon, (n) => classes(n).includes("bt-ribbon-day"));
-  assert.equal(days.length, 7);
-  assert.deepEqual(
-    days.map((d) => d.props["data-day"]),
-    ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
-  );
-  const sunday = days[6];
-  assert.equal(
-    find(sunday, (n) => classes(n).includes("bt-ribbon-bar")),
-    null,
-    "Sunday is shut, and looks it",
-  );
-  assert.deepEqual(
-    days.map((d) => barsOf(d).length),
-    [1, 1, 1, 1, 1, 1, 0],
-  );
-  // A picture of the sentence under it: a screen reader is given the sentence alone.
-  assert.equal(ribbon.props["aria-hidden"], "true");
-});
-
-test("a bar's place comes from its times on the one 6 AM to 10 PM scale: a break is a second bar, and a time outside the scale clamps", () => {
-  const place = (bar) => [parseFloat(bar.props.style.left), parseFloat(bar.props.style.width)];
-  const days = (tree) => all(byTestId(tree, "bt-hours-ribbon"), (n) => classes(n).includes("bt-ribbon-day"));
-  // 9:30 is three and a half hours into a sixteen-hour scale, and 6 PM twelve: the canvas's 21.875% and 53.125%.
-  assert.deepEqual(place(barsOf(days(drawTab())[0])[0]), [21.875, 53.125]);
-  assert.deepEqual(
-    place(barsOf(days(drawTab())[4])[0]),
-    [21.875, 59.375],
-    "Friday closes an hour later, and is an hour longer",
-  );
-  const odd = {
-    ...melany.hours,
-    tue: {
-      intervals: [
-        { open: "09:30", close: "13:30" },
-        { open: "14:00", close: "18:00" },
-      ],
-    },
-    wed: { open: "05:00", close: "23:30" },
-    thu: { open: "22:30", close: "23:30" },
-  };
-  const tree = drawTab({ profile: { ...melany, hours: odd } });
-  assert.deepEqual(
-    barsOf(days(tree)[1]).map(place),
-    [
-      [21.875, 25],
-      [50, 25],
-    ],
-    "a lunch break is the gap between two bars on the same row",
-  );
-  assert.deepEqual(
-    place(barsOf(days(tree)[2])[0]),
-    [0, 100],
-    "open before six and after ten: clamped to the scale's edges",
-  );
-  const late = place(barsOf(days(tree)[3])[0]);
-  assert.ok(
-    late[1] > 0 && late[0] + late[1] === 100,
-    "wholly outside the scale, it is still a sliver at the edge: a day that is open never looks shut",
-  );
-  // And the day still reads in full in the sentence under the ribbon, whatever the ribbon could draw of it.
-  assert.equal(textOf(byTestId(tree, "rec-hours-line")), summaryOf(odd));
-  assert.match(summaryOf(odd), /5 AM – 11:30 PM/);
-});
-
 test("the summary sentence is the one the composer wrote", () => {
   const row = byTestId(drawTab({ profile: melany }), "rec-row-hours");
   assert.match(textOf(row), new RegExp(escape(summaryOf(melany.hours))));
@@ -174,7 +106,6 @@ test("with no hours stored, the row is empty in the old card's words, and its ac
   const row = byTestId(tree, "rec-row-hours");
   assert.equal(row.props["data-empty"], "true");
   assert.match(textOf(row), /Not set — the receptionist cannot state your hours/);
-  assert.equal(byTestId(tree, "bt-hours-ribbon"), null, "no week to draw");
   const act = byTestId(tree, "rec-row-act-hours");
   assert.equal(textOf(act), "Add them");
   assert.ok(act.props["aria-label"].startsWith("Add them"), "a person who says the words on it reaches it");
@@ -224,9 +155,9 @@ test("the hours fold is the week on one scale: a switch, the bars and the times 
     ["09:30", "18:00", "time"],
   );
   assert.deepEqual(
-    ["mon", "sun"].map((d) => barsOf(dayOf(tree, d)).length),
-    [1, 0],
-    "the bars beside the boxes that draw them",
+    ["mon", "sun"].map((d) => dayOf(tree, d).props["data-open"]),
+    ["true", "false"],
+    "each day says whether it is open",
   );
   assert.match(textOf(dayOf(tree, "sun")), /Closed/);
   assert.equal(labelled(fold, "Sunday opens"), null, "a closed day offers no boxes");
@@ -320,7 +251,7 @@ test("a closed day keeps its shifts until Save, which is what decides a closed d
   tree = redrawTab();
   assert.equal(byTestId(tree, "rec-hours-switch-sat").props["aria-checked"], false);
   assert.match(textOf(dayOf(tree, "sat")), /Closed — times kept/);
-  assert.equal(barsOf(dayOf(tree, "sat")).length, 0, "shut, and looks it");
+  assert.equal(dayOf(tree, "sat").props["data-open"], "false", "shut, and says it");
   // An accidental tap costs nothing: the times are there when the day opens again.
   press(byTestId(tree, "rec-hours-switch-sat"));
   tree = redrawTab();
@@ -459,7 +390,7 @@ test("copying a day says what it opened and what it overwrote, and puts it all b
     "Copied Mon's hours — Sun was closed and is now open, and replaced different hours on Fri, Sat",
   );
   assert.equal(typeof said.undo, "function", "the whole grid goes back in one press");
-  assert.equal(barsOf(dayOf(tree, "sun")).length, 1, "Sunday is open, as Monday is");
+  assert.equal(dayOf(tree, "sun").props["data-open"], "true", "Sunday is open, as Monday is");
   assert.deepEqual(
     [labelled(tree, "Sunday closes").props.value, labelled(tree, "Friday closes").props.value],
     ["18:00", "18:00"],
@@ -467,7 +398,7 @@ test("copying a day says what it opened and what it overwrote, and puts it all b
 
   said.undo();
   tree = redrawTab(flash);
-  assert.equal(barsOf(dayOf(tree, "sun")).length, 0, "Sunday is shut again");
+  assert.equal(dayOf(tree, "sun").props["data-open"], "false", "Sunday is shut again");
   assert.equal(byTestId(tree, "rec-hours-switch-sun").props["aria-checked"], false);
   assert.equal(labelled(tree, "Friday closes").props.value, "19:00", "and Friday has its own hours back");
 

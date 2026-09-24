@@ -74,13 +74,19 @@
 .rec-row-dispute-other { flex: 1 1 14em; min-width: 0; display: inline-flex; align-items: baseline; flex-wrap: wrap; gap: 8px; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-muted); }
 .rec-row-dispute-value { font-weight: var(--weight-medium); color: var(--ink); overflow-wrap: anywhere; }
 .rec-row-dispute-acts { flex: none; display: inline-flex; align-items: center; gap: 6px; }
-/* A row of chips under a value (a row's children): each names one thing the value counts, with its measure beside it
-   in the faint ink ("Balayage 180m"), and the last may say how many more there are, drawn with no edge. */
-.rec-chips { flex: 1 1 100%; display: flex; flex-wrap: wrap; gap: 5px; min-width: 0; }
-/* The chip (components.css), except that a long name wraps rather than being cut: a rule's words run long. */
-.rec-chip { gap: 5px; height: auto; min-height: 20px; padding-block: 2px; line-height: 14px; white-space: normal; overflow-wrap: anywhere; }
-.rec-chip-meta { flex: none; font-variant-numeric: tabular-nums; color: var(--ink-dim); }
-.rec-chip[data-more="true"] { border-color: transparent; color: var(--ink-dim); }
+/* A row of chips (a row's children) reads as one line of words (23 Sep): the names, comma-separated, after the value,
+   and "+N more" as the last word in the dim ink; a chip's measure is not drawn at rest, since the sheet says it. It was
+   a wrap of bordered chips, three deep at a phone's width, on rows that state one fact. The chip keeps its class (the
+   kit's tests and the badge system's rule, components.css .chip); only its look is a word's here. */
+/* A basis of nothing, so the list stays on the value's line and takes what is left of it, wrapping as words do: with
+   a basis of its own width the row's wrap put the whole list on a line of its own. */
+.rec-chips { flex: 1 1 0; min-width: 0; }
+.rec-row-value ~ .rec-chips::before { content: "· "; color: var(--ink-dim); }
+.rec-chips .rec-chip { display: inline; height: auto; min-height: 0; padding: 0; border: none; border-radius: 0; background: none; font-size: inherit; line-height: inherit; white-space: normal; overflow-wrap: anywhere; color: var(--ink); }
+.rec-chips .rec-chip + .rec-chip:not([data-more="true"])::before { content: ", "; }
+.rec-chips .rec-chip[data-more="true"] { color: var(--ink-dim); }
+.rec-chips .rec-chip[data-more="true"]::before { content: " "; }
+.rec-chip-meta { display: none; }
 
 /* ---------- A fold: a set of fields, opened under its row ---------- */
 /* The fold reaches both edges of the card, so its head and its fields line up with the rows above and below it, and
@@ -362,6 +368,9 @@ html.legacy-on .rec-row-act { min-height: 0; }
 /* ---------- On a phone ---------- */
 @media (max-width: 760px) {
   .rec-card { --rec-gutter: 15px; padding: 15px var(--rec-gutter) 8px; }
+  /* A card's subtitle is not drawn on a phone (23 Sep): its title says what the card is, and the line under it took a
+     second and third line of every card on a screen that fits three rows. */
+  .rec-card-sub { display: none; }
   /* At a phone's width the whole row is the act, and its chevron is drawn, under a mouse too. The act's own box
      stretches over the row (its ::after), so it stays one button with one name; anything else in the row that can be
      pressed sits above that. */

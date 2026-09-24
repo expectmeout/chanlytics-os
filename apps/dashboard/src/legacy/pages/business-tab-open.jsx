@@ -2,7 +2,7 @@
 // Chanlytics — Settings › Business: When you're open.
 //
 // The second card of the record (docs/superpowers/specs/2026-09-20-business-tab-design.md §4.3; the canvas's Record and
-// Group-Open boards): the week as a ribbon and one sentence, the zone with the local time beside it, the days the week
+// Group-Open boards): the week as one sentence, the zone with the local time beside it, the days the week
 // does not apply to, and the calendar the receptionist reads, saying what its last read found. Four rows, each edited
 // where it is stated: the week and the closed days fold open under their rows, the zone is one value edited in its row,
 // and the calendar's fold holds its one box. It replaces three sections of the form this page retires (BusinessEditor,
@@ -34,61 +34,6 @@ const BTO_SHORT = Object.fromEntries(BTO_DAYS.map(([d, , short]) => [d, short]))
 const BTO_LONG = Object.fromEntries(BTO_DAYS.map(([d, long]) => [d, long]));
 const BTO_WEEKDAYS = ["mon", "tue", "wed", "thu", "fri"];
 
-// The one scale the week is drawn on, in minutes from midnight: 6 AM to 10 PM, the canvas's axis. A bar's place comes
-// from its times and this, never from a typed percentage; the axis labels are read off the same two numbers.
-const BTO_SCALE = { from: 6 * 60, to: 22 * 60 };
-const BTO_AXIS = [0, 0.25, 0.5, 0.75, 1].map((f) => {
-  const h = (BTO_SCALE.from + f * (BTO_SCALE.to - BTO_SCALE.from)) / 60;
-  return `${((h + 11) % 12) + 1} ${h >= 12 ? "PM" : "AM"}`;
-});
-// The least a bar is drawn at, in hundredths of the scale: a stretch wholly outside it (a bar open from 11 PM) clamps to
-// the edge, and still has to be seen there, or a day that is open would look shut.
-const BTO_SLIVER = 2;
-
-const btoClock = (hhmm) => {
-  const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm == null ? "" : hhmm).trim());
-  return m ? Number(m[1]) * 60 + Number(m[2]) : null;
-};
-
-/**
- * A day's open stretches as bars on the scale: { left, width } in hundredths of it. Only a stretch with both its times,
- * closing after it opens, is one; a break is simply the next bar on the same row. Times outside the scale clamp to its
- * edge, so nothing is drawn past the track, and the day still reads in full in the sentence under the ribbon.
- */
-const btoBars = (shifts) => (shifts || []).flatMap((s) => {
-  const o = btoClock(s.open);
-  const c = btoClock(s.close);
-  if (o == null || c == null || c <= o) return [];
-  const span = BTO_SCALE.to - BTO_SCALE.from;
-  const at = (t) => ((Math.min(BTO_SCALE.to, Math.max(BTO_SCALE.from, t)) - BTO_SCALE.from) / span) * 100;
-  const width = Math.max(BTO_SLIVER, at(c) - at(o));
-  return [{ left: Math.min(at(o), 100 - width), width }];
-});
-
-/** The bars of one day, on a track. A closed day has no bar at all: shut, and looks it. */
-const BtoTrack = ({ day }) => (
-  <span className="bt-week-track" data-open={day.isOpen ? "true" : "false"}>
-    {day.isOpen ? btoBars(day.shifts).map((b, i) => (
-      <span key={i} className="bt-ribbon-bar" style={{ left: `${b.left}%`, width: `${b.width}%` }} />
-    )) : null}
-  </span>
-);
-
-/**
- * The week at a glance, at rest: seven days, each its bars on the one scale, before any grid. It is a picture of the
- * sentence under it and says nothing the sentence does not, so a screen reader is given the sentence alone.
- */
-const BtoRibbon = ({ week }) => (
-  <span className="bt-ribbon" data-testid="bt-hours-ribbon" aria-hidden="true">
-    {BTO_DAYS.map(([d, , short]) => (
-      <span key={d} className="bt-ribbon-day" data-day={d} data-open={week[d].isOpen ? "true" : "false"}>
-        <BtoTrack day={week[d]} />
-        <span className="bt-ribbon-name">{short}</span>
-      </span>
-    ))}
-  </span>
-);
-
 /**
  * The owner's own summary of their hours: the composer's run-collapsing (contracts hoursLines, published by the bridge
  * as window.__hoursLines), joined as the old card's hoursSummary joins it (settings.jsx, a wrapper over the same
@@ -113,8 +58,10 @@ const btoSameShifts = (a, b) =>
   a.shifts.every((s, i) => s.open === b.shifts[i].open && s.close === b.shifts[i].close);
 
 /**
- * The week on one scale (the canvas's Group-Open): a day is a switch, its bars, and its times as boxes. Hookless but
- * for the one menu, which is always drawn: a day's shifts come and go.
+ * The week as seven lines (23 Sep): a day is a switch and its times as boxes. It was drawn on one scale, a track of
+ * bars beside each day's boxes under an axis, and the row at rest carried the same week as a ribbon; the sentence says
+ * the week in full, and the graphic said nothing it did not. Hookless but for the one menu, which is always drawn: a
+ * day's shifts come and go.
  */
 const BtoWeek = ({ draft: week, update, change, rows, press, problems, readOnly }) => {
   // A day's shifts are a list inside the week, with a list's rules from BtFold (rows): the cap the write schema keeps
@@ -197,12 +144,6 @@ const BtoWeek = ({ draft: week, update, change, rows, press, problems, readOnly 
 
   return (
     <div className="bt-week" data-testid="rec-hours-week">
-      <div className="bt-week-row bt-week-axis" aria-hidden="true">
-        <span className="bt-week-day" />
-        <span className="bt-week-ticks">{BTO_AXIS.map((t) => <span key={t}>{t}</span>)}</span>
-        <span className="bt-week-times" />
-        <span className="bt-week-more" />
-      </div>
       {BTO_DAYS.map(([d, long, short]) => {
         const day = week[d];
         const bad = problems[`hours-${d}`] || null;
@@ -214,7 +155,6 @@ const BtoWeek = ({ draft: week, update, change, rows, press, problems, readOnly 
               <window.RecordSwitch on={day.isOpen} onChange={() => toggleDay(d)} label={long} readOnly={readOnly} testid={`rec-hours-switch-${d}`} />
               <span className="bt-week-name">{short}</span>
             </span>
-            <BtoTrack day={day} />
             <span className="bt-week-times">
               {day.isOpen ? (
                 <>
@@ -632,7 +572,6 @@ const BtoFeedBox = ({ draft, update, problems, readOnly, stored }) => (
  * saver's base, which BtFold asks for itself.
  */
 const BtOpenCard = ({ brain, config = null, prompt = null, canEdit, flash, saver }) => {
-  const S = window.__businessTabSave;
   const tab = window.__businessTab || {};
   const Fold = window.BtFold;
   const profile = brain.profile || {};
@@ -644,9 +583,6 @@ const BtOpenCard = ({ brain, config = null, prompt = null, canEdit, flash, saver
   const gate = (thing) => window.gate("settings", `change ${thing}`);
   const shared = { canEdit, flash, saver };
 
-  // The week as the fold reads a stored one (draftOf: both shapes a day may be stored in, as the composer unions them),
-  // so the ribbon and the fold never read a day two ways.
-  const week = S.draftOf("hours", { brain });
   const hoursLine = btoHoursLine(profile.hours);
   const ahead = tab.closuresAheadWords ? tab.closuresAheadWords(profile.closures, wsZone, new Date()) : { count: 0, line: null };
   const feed = (config && config.calendar && config.calendar.ical_url) || "";
@@ -667,12 +603,7 @@ const BtOpenCard = ({ brain, config = null, prompt = null, canEdit, flash, saver
         saveLabel="Save the week"
         gate={gate("your hours")}
         row={{
-          value: hoursLine ? (
-            <span className="bt-hours">
-              <BtoRibbon week={week} />
-              <span className="bt-hours-line" data-testid="rec-hours-line">{hoursLine}</span>
-            </span>
-          ) : null,
+          value: hoursLine ? <span className="bt-hours-line" data-testid="rec-hours-line">{hoursLine}</span> : null,
           // What the old card said of a week nobody has typed.
           empty: "Not set — the receptionist cannot state your hours",
           act: hoursLine ? "Change" : "Add them",
