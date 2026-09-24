@@ -3293,6 +3293,10 @@ export type Database = {
           body: string
           contact_id: string
           created_at: string
+          deal_id: string | null
+          done_at: string | null
+          done_by: string | null
+          due_on: string | null
           for_user_id: string | null
           id: string
           kept_at: string | null
@@ -3311,6 +3315,10 @@ export type Database = {
           body: string
           contact_id: string
           created_at?: string
+          deal_id?: string | null
+          done_at?: string | null
+          done_by?: string | null
+          due_on?: string | null
           for_user_id?: string | null
           id?: string
           kept_at?: string | null
@@ -3329,6 +3337,10 @@ export type Database = {
           body?: string
           contact_id?: string
           created_at?: string
+          deal_id?: string | null
+          done_at?: string | null
+          done_by?: string | null
+          due_on?: string | null
           for_user_id?: string | null
           id?: string
           kept_at?: string | null
@@ -3347,6 +3359,13 @@ export type Database = {
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "person_notes_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "deals"
             referencedColumns: ["id"]
           },
           {
@@ -4587,6 +4606,11 @@ export type Database = {
           open_escalation_since: string
           phone_e164: string
           queued_reply_at: string
+          step_body: string
+          step_deal_id: string
+          step_due_on: string
+          step_for_user_id: string
+          step_id: string
           wa_profile_name: string
         }[]
       }
@@ -4594,6 +4618,8 @@ export type Database = {
         Args: {
           p_body: string
           p_contact_id: string
+          p_deal_id?: string
+          p_due_on?: string
           p_for_user_id?: string
           p_source?: string
           p_team_only?: boolean
@@ -4609,9 +4635,16 @@ export type Database = {
         }
         Returns: Json
       }
+      person_note_done: {
+        Args: { p_done?: boolean; p_note_id: string; p_version?: number }
+        Returns: Json
+      }
       person_note_edit: {
         Args: {
           p_body: string
+          p_clear_due?: boolean
+          p_deal_id?: string
+          p_due_on?: string
           p_for_user_id?: string
           p_note_id: string
           p_team_only?: boolean
