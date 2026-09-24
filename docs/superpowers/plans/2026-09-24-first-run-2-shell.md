@@ -2003,8 +2003,9 @@ One whole-branch review (standards and spec) and one fix round changed these fro
   own rows, a re-read while a save is out keeps what is on screen, and nothing is saved over a view that could not
   be read (`SETUP_LATER_REFUSED`). The landing is run in `setup-later.test.mjs`, and its two source pins went.
 - **Today's card.** Skip and Hide say so in the card's own toast, which it lends its rows because a Skip can take
-  the card away, with an Undo. The start row says the step it opens on. On a phone the card is one line and one
-  button: Skip and Hide wait for a wider screen.
+  the card away, with an Undo. The start row says the step it opens on, and which case it is: nothing answers,
+  WhatsApp answers and calls do not, or calls are answered with a step still open. On a phone the card is one line
+  and one button: Skip and Hide wait for a wider screen.
 - **The receptionist card.** Its status is Setup's own state, drawn as the `StatePill`. The greeting uses only the
   receptionist's name, never the workspace's. Answers says the line, and the number forwarded to it when one is.
 - **A pane that moved redirects in a demo too.** `surfaceRetiredTo(page, param, demo)`: a moved pane and a page gone

@@ -189,6 +189,12 @@ test("Today's card: while nothing answers, one row that opens the first run; aft
   );
   assert.equal(texting.start.name, "Calls aren't answered yet");
   assert.equal(texting.start.status, "Next: your phone");
+  // Calls answered and a step still open (the facts, here): the row never says calls are not answered.
+  const calls = setupCardOf(
+    setupSteps(empty({ channels: { ...empty().channels, voice: live().channels.voice } }), NOW),
+  );
+  assert.equal(calls.start.name, "Your receptionist is answering");
+  assert.equal(calls.start.status, "Next: your business");
 
   const after = setupCardOf(setupSteps(live(), NOW));
   assert.equal(after.start, null);

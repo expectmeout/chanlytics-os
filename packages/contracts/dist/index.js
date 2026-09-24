@@ -5595,8 +5595,9 @@ function setupCardOf(vm) {
       title: FINISH_SETTING_UP,
       left: `${left} ${left === 1 ? "step" : "steps"} left`,
       start: {
-        // WhatsApp can answer before the phone does (Setup's readiness): then it is the calls that are not answered.
-        name: vm.readiness.answering ? "Calls aren't answered yet" : "Your receptionist isn't answering yet",
+        // Said as it is: nothing answers yet; WhatsApp answers and calls do not (Setup's readiness counts either);
+        // or calls are answered and a step is still open.
+        name: !vm.readiness.answering ? "Your receptionist isn't answering yet" : vm.tryIt?.voice ? "Your receptionist is answering" : "Calls aren't answered yet",
         sentence: def.lead,
         status: `Next: ${next.name.toLowerCase()}`,
         cta: "Continue setting up",
