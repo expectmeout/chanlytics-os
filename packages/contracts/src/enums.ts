@@ -435,6 +435,8 @@ export const DECISION_VERBS = [
   /** A call in progress ended from the Live page (00118). Passing one to the business is take_over, the Inbox's word for the same intent. */
   "end_call",
   "record_deal",
+  /** A client list brought in from a spreadsheet: one row per part of fifty, subject the workspace. */
+  "import",
 ] as const;
 export type DecisionVerb = (typeof DECISION_VERBS)[number];
 

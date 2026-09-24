@@ -541,7 +541,9 @@ var DECISION_VERBS = [
   "export",
   /** A call in progress ended from the Live page (00118). Passing one to the business is take_over, the Inbox's word for the same intent. */
   "end_call",
-  "record_deal"
+  "record_deal",
+  /** A client list brought in from a spreadsheet: one row per part of fifty, subject the workspace. */
+  "import"
 ];
 var DECISION_SUBJECTS = [
   "conversation",
@@ -3896,7 +3898,7 @@ var PERSON_CAME_FROM_WORDS = {
   call: PERSON_CHANNEL_WORDS.voice,
   calendar: "Your calendar",
   manual: "Added by hand",
-  import: "Imported history",
+  import: "Imported",
   lead: "A lead you found"
 };
 
@@ -19221,6 +19223,7 @@ var WORDS = {
   pause_playbook: "Paused a playbook",
   reply_review: "Replied to a Google review",
   export: "Exported data",
+  import: "Imported people from a spreadsheet",
   end_call: "Ended a call",
   record_deal: "Recorded a deal",
   // events
@@ -19333,6 +19336,11 @@ function activityWords(kind, payload) {
       const rows = num2(p, "rows");
       if (rows !== null) bits2.push(`${rows} rows`);
       break;
+    }
+    case "import": {
+      const n = (k) => num2(p, k) ?? 0;
+      const counts = `${n("added")} new, ${n("existed")} already here, ${n("skipped")} skipped`;
+      return `Imported ${n("rows")} rows from a spreadsheet: ${counts}`;
     }
     case "pause_agent":
     case "resume_agent": {
@@ -20181,7 +20189,8 @@ var SCHEMA_SETS = {
     "reply_review",
     "export",
     "end_call",
-    "record_deal"
+    "record_deal",
+    "import"
   ],
   "escalations.reason": [
     "human_token",

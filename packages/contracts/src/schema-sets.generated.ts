@@ -42,7 +42,7 @@ export const SCHEMA_SETS = {
     "reply", "cancel_send", "pause_agent", "resume_agent", "invite", "revoke_invite", "change_role",
     "remove_member", "erase", "whisper", "connect_channel", "consent_change", "send_broadcast",
     "cancel_broadcast", "start_playbook", "pause_playbook", "reply_review", "export", "end_call",
-    "record_deal",
+    "record_deal", "import",
   ],
   "escalations.reason": [
     "human_token", "non_text", "refusal", "rate_cap", "policy_block", "send_failed", "deadman",

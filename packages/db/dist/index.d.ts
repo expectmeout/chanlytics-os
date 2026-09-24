@@ -4201,6 +4201,17 @@ type Database = {
                 };
                 Returns: boolean;
             };
+            import_person: {
+                Args: {
+                    p_email: string;
+                    p_email_digest?: string;
+                    p_name: string;
+                    p_phone_digest?: string;
+                    p_phone_e164: string;
+                    p_tenant_id: string;
+                };
+                Returns: Json;
+            };
             ingest_call: {
                 Args: {
                     p_agent_id: string;

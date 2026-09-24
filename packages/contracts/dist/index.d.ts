@@ -359,7 +359,7 @@ declare const ESCALATION_REASONS: readonly ["human_token", "non_text", "refusal"
 type EscalationReason = (typeof ESCALATION_REASONS)[number];
 declare const ESCALATION_STATES: readonly ["open", "resolved"];
 type EscalationState = (typeof ESCALATION_STATES)[number];
-declare const DECISION_VERBS: readonly ["approve", "edit", "decline", "snooze", "wake", "take_over", "hand_back", "resolve", "archive", "reply", "cancel_send", "pause_agent", "resume_agent", "invite", "revoke_invite", "change_role", "remove_member", "erase", "whisper", "connect_channel", "consent_change", "send_broadcast", "cancel_broadcast", "start_playbook", "pause_playbook", "reply_review", "export", "end_call", "record_deal"];
+declare const DECISION_VERBS: readonly ["approve", "edit", "decline", "snooze", "wake", "take_over", "hand_back", "resolve", "archive", "reply", "cancel_send", "pause_agent", "resume_agent", "invite", "revoke_invite", "change_role", "remove_member", "erase", "whisper", "connect_channel", "consent_change", "send_broadcast", "cancel_broadcast", "start_playbook", "pause_playbook", "reply_review", "export", "end_call", "record_deal", "import"];
 type DecisionVerb = (typeof DECISION_VERBS)[number];
 declare const DECISION_SUBJECTS: readonly ["conversation", "escalation", "draft", "lead", "message", "agent", "membership", "invitation", "contact", "call", "channel", "broadcast", "playbook", "review", "workspace", "deal"];
 type DecisionSubject = (typeof DECISION_SUBJECTS)[number];
@@ -1519,10 +1519,10 @@ type PersonChannel = "whatsapp" | "sms" | "voice" | "email";
 declare const PERSON_CHANNEL_WORDS: Record<PersonChannel, string>;
 /**
  * Where a person first came from, as people_list decides it once (00138): the
- * door that added them (calendar, lead, manual), an imported history (import),
- * else their first call (call) or the wire of their first message (whatsapp,
- * sms, email). People's "Came from" column says it in these words; a stored
- * value is never shown.
+ * door that added them (calendar, lead, a client list's import since 00169,
+ * manual), an imported history (import), else their first call (call) or the
+ * wire of their first message (whatsapp, sms, email). People's "Came from"
+ * column says it in these words; a stored value is never shown.
  */
 type PersonCameFrom = "whatsapp" | "sms" | "email" | "call" | "calendar" | "manual" | "import" | "lead";
 /** The words for each, once: the three wires say what a reply on them says (REPLY_VIA), and a call says what its glyph says (PERSON_CHANNEL_WORDS.voice). */
@@ -1558,7 +1558,7 @@ declare const SCHEMA_SETS: {
     readonly "deals.stage": readonly ["proposed", "won", "lost", "ended"];
     readonly "decisions.actor_type": readonly ["user", "ai", "system", "owner_phone"];
     readonly "decisions.subject_type": readonly ["conversation", "escalation", "draft", "lead", "message", "agent", "membership", "invitation", "contact", "call", "channel", "broadcast", "playbook", "review", "workspace", "deal"];
-    readonly "decisions.verb": readonly ["approve", "edit", "decline", "snooze", "wake", "take_over", "hand_back", "resolve", "archive", "reply", "cancel_send", "pause_agent", "resume_agent", "invite", "revoke_invite", "change_role", "remove_member", "erase", "whisper", "connect_channel", "consent_change", "send_broadcast", "cancel_broadcast", "start_playbook", "pause_playbook", "reply_review", "export", "end_call", "record_deal"];
+    readonly "decisions.verb": readonly ["approve", "edit", "decline", "snooze", "wake", "take_over", "hand_back", "resolve", "archive", "reply", "cancel_send", "pause_agent", "resume_agent", "invite", "revoke_invite", "change_role", "remove_member", "erase", "whisper", "connect_channel", "consent_change", "send_broadcast", "cancel_broadcast", "start_playbook", "pause_playbook", "reply_review", "export", "end_call", "record_deal", "import"];
     readonly "escalations.reason": readonly ["human_token", "non_text", "refusal", "rate_cap", "policy_block", "send_failed", "deadman", "brain_error", "manual", "opt_out", "state_unavailable", "stale", "person_hold", "budget", "policy_ask", "callback", "paused", "carriers", "email_review"];
     readonly "escalations.state": readonly ["open", "resolved"];
     readonly "google_reviews.origin": readonly ["places", "profile"];
@@ -10247,9 +10247,9 @@ declare const ListFactSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
         sms: "sms";
         email: "email";
         manual: "manual";
+        import: "import";
         lead: "lead";
         call: "call";
-        import: "import";
         calendar: "calendar";
     }>;
 }, z.core.$strict>, z.ZodObject<{
@@ -10414,9 +10414,9 @@ declare const AnySchema: z.ZodObject<{
             sms: "sms";
             email: "email";
             manual: "manual";
+            import: "import";
             lead: "lead";
             call: "call";
-            import: "import";
             calendar: "calendar";
         }>;
     }, z.core.$strict>, z.ZodObject<{
@@ -10581,9 +10581,9 @@ declare const ListConditionSchema: z.ZodUnion<readonly [z.ZodObject<{
             sms: "sms";
             email: "email";
             manual: "manual";
+            import: "import";
             lead: "lead";
             call: "call";
-            import: "import";
             calendar: "calendar";
         }>;
     }, z.core.$strict>, z.ZodObject<{
@@ -10745,9 +10745,9 @@ declare const ListConditionSchema: z.ZodUnion<readonly [z.ZodObject<{
         sms: "sms";
         email: "email";
         manual: "manual";
+        import: "import";
         lead: "lead";
         call: "call";
-        import: "import";
         calendar: "calendar";
     }>;
 }, z.core.$strict>, z.ZodObject<{
@@ -10914,9 +10914,9 @@ declare const ListRuleSchema: z.ZodObject<{
                 sms: "sms";
                 email: "email";
                 manual: "manual";
+                import: "import";
                 lead: "lead";
                 call: "call";
-                import: "import";
                 calendar: "calendar";
             }>;
         }, z.core.$strict>, z.ZodObject<{
@@ -11078,9 +11078,9 @@ declare const ListRuleSchema: z.ZodObject<{
             sms: "sms";
             email: "email";
             manual: "manual";
+            import: "import";
             lead: "lead";
             call: "call";
-            import: "import";
             calendar: "calendar";
         }>;
     }, z.core.$strict>, z.ZodObject<{

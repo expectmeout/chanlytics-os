@@ -22,10 +22,10 @@ export const PERSON_CHANNEL_WORDS: Record<PersonChannel, string> = {
 
 /**
  * Where a person first came from, as people_list decides it once (00138): the
- * door that added them (calendar, lead, manual), an imported history (import),
- * else their first call (call) or the wire of their first message (whatsapp,
- * sms, email). People's "Came from" column says it in these words; a stored
- * value is never shown.
+ * door that added them (calendar, lead, a client list's import since 00169,
+ * manual), an imported history (import), else their first call (call) or the
+ * wire of their first message (whatsapp, sms, email). People's "Came from"
+ * column says it in these words; a stored value is never shown.
  */
 export type PersonCameFrom = "whatsapp" | "sms" | "email" | "call" | "calendar" | "manual" | "import" | "lead";
 
@@ -37,6 +37,6 @@ export const PERSON_CAME_FROM_WORDS: Record<PersonCameFrom, string> = {
   call: PERSON_CHANNEL_WORDS.voice,
   calendar: "Your calendar",
   manual: "Added by hand",
-  import: "Imported history",
+  import: "Imported",
   lead: "A lead you found",
 };
