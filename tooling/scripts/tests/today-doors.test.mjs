@@ -522,6 +522,10 @@ test("the card once it answers: Setup's own rows, WhatsApp first, and Hide puts 
       "each row can be skipped",
     );
     assert.equal(textOf(find(card, (n) => n.props?.["data-testid"] === "today-setup-left")), `${rows.length} left`);
+    // On a phone the card is its first row alone (canvas P9), so the count rides beside that row's words.
+    const aside = (r) => find(r, (n) => n.props?.className === "setup-card-aside");
+    assert.ok(textOf(aside(rows[0])).endsWith(`${rows.length} left`));
+    assert.ok(!aside(rows[1]), "and only there");
     const hide = find(card, (n) => n.props?.["data-testid"] === "today-setup-hide");
     await hide.props.onClick();
     assert.equal(put.at(-1)[1], true);

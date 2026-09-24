@@ -178,6 +178,7 @@ test("Today's card: while nothing answers, one row that opens the first run; aft
     sentence: "What your receptionist says about you: your name, when you're open, what you offer.",
     status: "Next: your business",
     cta: "Continue setting up",
+    ctaShort: "Continue",
     to: "start",
   });
   assert.deepEqual(before.rows, []);

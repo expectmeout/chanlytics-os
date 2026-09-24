@@ -125,13 +125,19 @@
      wraps left them a column one word wide, and they ran under it (24 Sep). */
   :where(.dash-a-v2) .tc-beats .brief-beat-text { flex-basis: calc(100% - 34px); }
   :where(.dash-a-v2) .tc-beats .brief-beat-text ~ .brief-chip { margin-left: 28px; }
-  /* What is left to set up, on a phone: only the next thing, one line and one button under it; its head says how many
-     are left. Skip and Hide wait for a wider screen. */
+  /* What is left to set up, on a phone (canvas P9): the card is one row, the next thing -- its dot, its name over one
+     line of its words with how many are left, and its button beside them. The head, the other rows, Skip and Hide
+     wait for a wider screen. */
+  .today-setup { padding: 12px 14px; gap: 0; }
+  .today-setup .setup-card-head { display: none; }
   .today-setup .tq-list > :not(:first-child) { display: none; }
-  .setup-card-row { grid-template-columns: 14px minmax(0, 1fr); row-gap: 10px; }
-  .setup-card-acts { grid-column: 2; }
-  .today-setup .setup-card-said { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .today-setup .setup-card-row { gap: 10px; padding: 0; border-top: 0; }
+  .today-setup .setup-card-said { display: flex; min-width: 0; font-size: 12px; }
+  .today-setup .setup-card-words { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .today-setup .setup-card-aside { display: inline; flex: none; white-space: nowrap; }
   .today-setup .setup-card-skip { display: none; }
+  .today-setup .setup-card-long { display: none; }
+  .today-setup .setup-card-short { display: inline; }
 
   /* ---------- Inbox ---------- */
   .inbox, .inbox.with-rail { grid-template-columns: 1fr; grid-template-rows: minmax(0, 42vh) minmax(0, 1fr); }

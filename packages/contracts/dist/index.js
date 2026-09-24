@@ -5695,6 +5695,7 @@ function setupCardOf(vm) {
         sentence: def.lead,
         status: `Next: ${next.name.toLowerCase()}`,
         cta: "Continue setting up",
+        ctaShort: "Continue",
         to: FIRST_RUN_ROUTE
       },
       rows: [],

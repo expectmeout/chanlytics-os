@@ -190,7 +190,8 @@ export interface SetupCardVM {
   /** "3 steps left" while the first run is not done; "2 left" after. */
   left: string;
   /** While calls are not answered: the one row, which opens the first run where it stands. */
-  start: { name: string; sentence: string; status: string; cta: string; to: string } | null;
+  /** `ctaShort` is the button on a phone, where it sits beside the words (canvas P9). */
+  start: { name: string; sentence: string; status: string; cta: string; ctaShort: string; to: string } | null;
   /** After: Setup's own rows, open and not put off, in SETUP_CARD_ORDER. */
   rows: SetupRowVM[];
   /** Puts every row off at once, and what the toast says after; only where rows can be put off. */
@@ -223,6 +224,7 @@ export function setupCardOf(vm: SetupVM): SetupCardVM | null {
         sentence: def.lead,
         status: `Next: ${next.name.toLowerCase()}`,
         cta: "Continue setting up",
+        ctaShort: "Continue",
         to: FIRST_RUN_ROUTE,
       },
       rows: [],
