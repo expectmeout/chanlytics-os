@@ -173,7 +173,7 @@ const textOf = (n) => {
 };
 
 test("a new workspace opens on its business: the rail says where it is, the step draws its own rows, and nothing answers yet", () => {
-  window.__SETUP = surface(blank);
+  globalThis.window.__SETUP = surface(blank);
   param = null;
   fresh();
   const tree = mount();
@@ -192,7 +192,7 @@ test("a new workspace opens on its business: the rail says where it is, the step
 });
 
 test("a step already reached opens in place from the rail, and Continue goes on to where the workspace is", () => {
-  window.__SETUP = surface(withFacts);
+  globalThis.window.__SETUP = surface(withFacts);
   param = "business";
   fresh();
   const tree = mount();
@@ -214,7 +214,7 @@ test("a step already reached opens in place from the rail, and Continue goes on 
 });
 
 test("answering: Live, with what is left, and Finish goes to Today", () => {
-  window.__SETUP = surface(answering);
+  globalThis.window.__SETUP = surface(answering);
   param = null;
   fresh();
   const tree = mount();
@@ -227,7 +227,7 @@ test("answering: Live, with what is left, and Finish goes to Today", () => {
 });
 
 test("Finish later leaves for Today", () => {
-  window.__SETUP = surface(blank);
+  globalThis.window.__SETUP = surface(blank);
   param = null;
   fresh();
   byTestId(mount(), "fr-later").props.onClick();
@@ -235,11 +235,11 @@ test("Finish later leaves for Today", () => {
 });
 
 test("the card fills in from the settings read once it lands", () => {
-  window.__SETUP = surface(withFacts);
-  window.__SETTINGS = {
+  globalThis.window.__SETUP = surface(withFacts);
+  globalThis.window.__SETTINGS = {
     config: { brain: { business_name: "Harbor Moving", booking_link: "https://harbor.example/book" } },
   };
-  window.__FACTS = {
+  globalThis.window.__FACTS = {
     facts: { voice_line: { value: null }, kept_line: { value: null }, handoff_number: { value: "+13055550100" } },
   };
   try {
@@ -250,19 +250,19 @@ test("the card fills in from the settings read once it lands", () => {
     assert.equal(textOf(byTestId(tree, "fr-card-through")), "Puts through to+1 (305) 555-0100");
     assert.equal(textOf(byTestId(tree, "fr-card-open")), "Open—", "hours set but not read yet: a dash, not a guess");
   } finally {
-    delete window.__SETTINGS;
-    delete window.__FACTS;
+    delete globalThis.window.__SETTINGS;
+    delete globalThis.window.__FACTS;
   }
 });
 
 test("a failed read says so, and the retry reads again; before the read, Reading your workspace…", () => {
-  window.__SETUP = null;
+  globalThis.window.__SETUP = null;
   fresh();
   const failed = mount();
   assert.ok(byTestId(failed, "fr-failed"));
   byTestId(failed, "fr-retry").props.onClick();
   assert.equal(refreshed, 1);
-  window.__SETUP = undefined;
+  globalThis.window.__SETUP = undefined;
   fresh();
   assert.equal(textOf(byTestId(mount(), "fr-reading")), "Reading your workspace…");
 });
