@@ -88,8 +88,9 @@ globalThis.ReactDOM ??= { createPortal: (node) => node };
 await import("../../../apps/dashboard/src/legacy/components/data-bits.jsx");
 globalThis.FailedRead = globalThis.window.FailedRead;
 globalThis.StatePill = globalThis.window.StatePill;
-// data-bits publishes the shell's toast hook; the page's rows keep this harness's quiet one.
-globalThis.window.usePPToast = () => [null, () => {}];
+// data-bits publishes the shell's toast hook; this harness keeps its own, which remembers what was said.
+const flashes = [];
+globalThis.window.usePPToast = () => [null, (m) => flashes.push(m)];
 await import("../../../apps/dashboard/src/legacy/pages/setup.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/first-run.jsx");
 
@@ -271,6 +272,158 @@ test("a failed read says so, and the retry reads again; before the read, Reading
   globalThis.window.__SETUP = undefined;
   fresh();
   assert.equal(textOf(byTestId(mount(), "fr-reading")), "Reading your workspace…");
+});
+
+/* ---- Find: the business step while an owner can link a listing ---- */
+const tick = () => new Promise((r) => setTimeout(r, 0));
+const findable = { ...blank, google: { ready: true, places: true, listing: null, connected: false } };
+const HARBOR = {
+  place_id: "p-harbor",
+  name: "Harbor Moving",
+  address: "1 Main St, Brooklyn, NY 11201",
+  maps_uri: "https://maps.google.com/?cid=1",
+  category: "Moving company",
+};
+const WAREHOUSE = {
+  place_id: "p-dock",
+  name: "Harbor Moving Warehouse",
+  address: null,
+  maps_uri: null,
+  category: null,
+};
+/** A Google that answers from a script and remembers what it was asked. */
+const googleSays = (answers) => {
+  const asked = { find: [], link: [] };
+  globalThis.window.__google = {
+    find: async (q) => {
+      asked.find.push(q ?? null);
+      return answers.shift();
+    },
+    link: async (id) => {
+      asked.link.push(id);
+      return { ok: true, read: true, message: "" };
+    },
+  };
+  return asked;
+};
+const found = (candidates, query = "Harbor Moving") => ({ ok: true, candidates, query, fromFacts: true, message: "" });
+const findOn = async () => {
+  globalThis.window.__SETUP = surface(findable);
+  param = null;
+  fresh();
+  const first = mount();
+  await tick();
+  return { first, tree: mount() };
+};
+
+test("Find: the business step opens on what Google has for the name on record, the best match first and checked", async () => {
+  const asked = googleSays([found([HARBOR, WAREHOUSE])]);
+  const { first, tree } = await findOn();
+  assert.equal(textOf(byTestId(first, "fr-find-reading")), "Looking on Google…", "asked on arrival");
+  assert.deepEqual(asked.find, [null], "with the name on record, no words of the owner's");
+  assert.equal(textOf(byTestId(tree, "fr-heading")), "Is this Harbor Moving?", "the name typed at sign-up");
+  assert.equal(byTestId(tree, "fr-rows"), null, "Find draws in place of the step's rows");
+  const hits = [];
+  walk(tree, (n) => {
+    if (n.props?.["data-testid"] === "fr-find-hit") hits.push(n);
+  });
+  assert.equal(hits.length, 2);
+  assert.match(textOf(hits[0]), /Harbor Moving.*Moving company · 1 Main St, Brooklyn, NY 11201.*Best match/);
+  assert.match(textOf(hits[1]), /No address on Google/);
+  const radios = [];
+  walk(tree, (n) => {
+    if (n.type === "input" && n.props.type === "radio") radios.push(n);
+  });
+  assert.deepEqual(
+    radios.map((r) => r.props.checked),
+    [true, false],
+  );
+});
+
+test("Find: another one checked, Yes links it, and the page says so, since Find is gone once it is linked", async () => {
+  const asked = googleSays([found([HARBOR, WAREHOUSE])]);
+  const { tree } = await findOn();
+  const radios = [];
+  walk(tree, (n) => {
+    if (n.type === "input" && n.props.type === "radio") radios.push(n);
+  });
+  radios[1].props.onChange();
+  const again = mount();
+  const before = flashes.length;
+  await byTestId(again, "fr-find-yes").props.onClick();
+  assert.deepEqual(asked.link, ["p-dock"]);
+  assert.equal(flashes.length, before + 1);
+  assert.equal(textOf(flashes.at(-1).msg), "Harbor Moving Warehouse is your listing on Google — read just now.");
+});
+
+test("Find: nothing found says so, with the search and the way out, and no Yes", async () => {
+  googleSays([found([], "Harbor Moving")]);
+  const { tree } = await findOn();
+  assert.equal(textOf(byTestId(tree, "fr-find-none")), "Nothing on Google for “Harbor Moving”.");
+  assert.equal(byTestId(tree, "fr-find-yes"), null);
+  assert.ok(byTestId(tree, "fr-find-not"));
+});
+
+test("Find: the owner's own words are searched from three letters on", async () => {
+  const asked = googleSays([found([]), found([HARBOR], "harbor moving brooklyn")]);
+  const { tree } = await findOn();
+  byTestId(tree, "fr-find-words").props.onChange({ target: { value: "ha" } });
+  let form = null;
+  walk(mount(), (n) => {
+    if (!form && n.type === "form") form = n;
+  });
+  form.props.onSubmit({ preventDefault() {} });
+  assert.deepEqual(asked.find, [null], "two letters are not sent");
+  byTestId(mount(), "fr-find-words").props.onChange({ target: { value: "  harbor   moving brooklyn " } });
+  walk(mount(), (n) => {
+    if (n.type === "form") form = n;
+  });
+  form.props.onSubmit({ preventDefault() {} });
+  await tick();
+  assert.deepEqual(asked.find, [null, "harbor moving brooklyn"]);
+  assert.match(textOf(mount()), /What Google has for “harbor moving brooklyn”./);
+});
+
+test("Find: a search that failed says the server's sentence, and Try again asks again", async () => {
+  const asked = googleSays([
+    { ok: false, candidates: [], query: "", fromFacts: true, message: "Google could not be searched just now." },
+    found([HARBOR]),
+  ]);
+  const { tree } = await findOn();
+  assert.match(textOf(byTestId(tree, "fr-find-failed")), /Google could not be searched just now./);
+  await byTestId(tree, "fr-find-retry").props.onClick();
+  await tick();
+  assert.deepEqual(asked.find, [null, null]);
+  assert.ok(byTestId(mount(), "fr-find-yes"));
+});
+
+test("Find: not on Google puts Google's row off, the member's own choice", async () => {
+  googleSays([found([HARBOR])]);
+  const said = [];
+  const was = globalThis.window.__setup.later;
+  globalThis.window.__setup.later = async (ids, on) => {
+    said.push([ids, on]);
+    return { ok: true, message: "" };
+  };
+  try {
+    const { tree } = await findOn();
+    await byTestId(tree, "fr-find-not").props.onClick();
+    assert.deepEqual(said, [["google", true]]);
+  } finally {
+    globalThis.window.__setup.later = was;
+  }
+});
+
+test("Find is an owner's: anyone else sees the step's rows", async () => {
+  const asked = googleSays([found([HARBOR])]);
+  globalThis.window.__SETUP = { ...surface(findable), role: "operator" };
+  param = null;
+  fresh();
+  const tree = mount();
+  assert.equal(byTestId(tree, "fr-find"), null);
+  assert.ok(byTestId(tree, "fr-rows"));
+  assert.equal(textOf(byTestId(tree, "fr-heading")), "Your business");
+  assert.deepEqual(asked.find, [], "and nothing is searched");
 });
 
 test("without the bridge the page says nothing of its own: every word is contracts'", () => {
