@@ -1308,7 +1308,6 @@ test("what was typed comes back on the next open; the open conversation's id is 
     let tree = await later(Palette, OPEN);
     typed(tree, "how did the");
     tree = await later(Palette, OPEN);
-    await new Promise((r) => setTimeout(r, 350));
     assert.equal(drafts.get("ask"), "how did the", "kept as typed");
     await closes();
     tree = await opens();
@@ -1316,7 +1315,7 @@ test("what was typed comes back on the next open; the open conversation's id is 
     keyed(tree, "Enter");
     for (let i = 0; i < 3; i++) tree = await later(Palette, OPEN);
     assert.deepEqual(calls.sent, ["how did the"]);
-    assert.equal(drafts.has("ask"), false, "gone once sent, not a beat later");
+    assert.equal(drafts.has("ask"), false, "gone once sent");
     assert.equal(drafts.get("ask-thread"), TH(1).id, "the conversation's id is kept");
     press(byTestId(tree, "ask-clear"));
     tree = await later(Palette, OPEN);

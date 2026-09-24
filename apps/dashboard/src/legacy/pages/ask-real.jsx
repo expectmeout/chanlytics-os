@@ -214,11 +214,11 @@ const AskReal = ({ open, onClose }) => {
   }, [open]);
 
   // The draft and the conversation's id, kept in the tab (legacy-bridge/tab-memory.ts) so a reload keeps them too (S9):
-  // the words a beat after the last key, forgotten the moment they go (sent, cleared), so a close right after a send
-  // never keeps words already asked; the id whenever a thread is opened or made, forgotten when the conversation ends
-  // (Clear, or deleted), never by the Line being made.
+  // the words as typed, never on a timer (record-fold.jsx useUnsavedWork), forgotten when the field empties while open;
+  // the Line is made closed, so being made forgets nothing. The id whenever a thread is opened or made, forgotten when
+  // the conversation ends (Clear, or deleted), never by the Line being made, or when the kept one cannot be read, so a
+  // thread that will not read does not flash on every open.
   const mem = () => (typeof window !== "undefined" && window.__tabMemory) || null;
-  const wordsWere = useArRef("");
   const threadWas = useArRef(null);
   // Open: what the tab kept comes back. A kept conversation is read first and the words go back after it, since
   // opening a thread empties the field; a request the shell sent as it opened (asked) wins over a kept conversation.
@@ -234,13 +234,10 @@ const AskReal = ({ open, onClose }) => {
   }, [open]);
   useArEffect(() => {
     const m = mem();
-    const had = wordsWere.current;
-    wordsWere.current = query;
-    if (!open || !m) return;
-    if (!query.trim()) { if (had.trim()) m.dropDraft("ask"); return; }
-    const id = setTimeout(() => m.keepDraft("ask", query), 300);
-    return () => clearTimeout(id);
-  }, [query, open]);
+    if (!m) return;
+    if (query.trim()) m.keepDraft("ask", query);
+    else if (open) m.dropDraft("ask");
+  }, [query]);
   useArEffect(() => {
     const m = mem();
     const id = active ? active.id : null;

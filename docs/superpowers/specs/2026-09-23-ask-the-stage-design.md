@@ -143,7 +143,7 @@ The ✦ (`.phone-ask`, the three on coral) opens it with a tap; it hides while t
 | Practice | Where | How |
 |---|---|---|
 | Conversation until Clear | both | `AskReal` keeps `active` across a close (today) |
-| Draft comes back | both | `__tabMemory.keepDraft("ask", query)` on change (debounced 300ms), `draft("ask")` on open, `dropDraft` on send and Clear |
+| Draft comes back | both | `__tabMemory.keepDraft("ask", query)` on change, never on a timer (the kit's rule), `draft("ask")` on open, `dropDraft` on send and Clear |
 | Conversation survives a reload | both | `keepDraft("ask-thread", active.id)` when a thread is opened or made; on the first open after a reload, `openThread({ id })`; `dropDraft` on Clear or a deleted thread |
 | Swipe down closes | phone | `touchSwipe` on the screen, when at the top |
 | Back closes | phone | one `pushState(null, "", location.href)` on open; `popstate` closes; ×, Esc and a swipe `history.back()` as they close |
