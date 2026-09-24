@@ -2,7 +2,8 @@
  * Setup for the legacy pages: the facts from /api/v1/setup, the rows from
  * contracts/setup.ts, the rows this member put off (their saved view, on every
  * device), one verb that asks a person at Chanlytics for a line, the first
- * run's helpers (contracts/first-run.ts, as window.__firstRun), and the landing
+ * run's helpers (contracts/first-run.ts, as window.__firstRun), the first
+ * run's ask for the receptionist (set up from what is known), and the landing
  * rule — an owner whose receptionist answers nowhere yet lands on the first
  * run once per session. Every write goes through the typed client; after one
  * lands the refresh map re-reads this surface.
@@ -48,6 +49,12 @@ export type FirstRunApi = typeof FIRST_RUN_HELPERS;
 export interface SetupApi {
   /** Put optional rows off, or take them back: this member's, saved to their view, on every device. */
   later(ids: string | string[], on: boolean): Promise<{ ok: boolean; message: string }>;
+  /**
+   * The receptionist from what is known: set up where there is none, from Google's listing when one is linked and the
+   * name typed at sign-up otherwise; filled from Google where one states none of it. `wrote` is false when there was
+   * nothing to add. Owners only; the route says so.
+   */
+  receptionist(): Promise<{ ok: boolean; wrote: boolean; message: string }>;
   /** Ask a person at Chanlytics for something the product cannot provision yet. */
   request(what: SetupRequestKind): Promise<{ ok: boolean; already: boolean; message: string }>;
   /** The owner switches a tested capability on: a record, not a claim. Owners only; the route says so. */
@@ -190,6 +197,10 @@ export function installSetup(win: Window = window): void {
       });
       laterSaving = saved;
       return saved;
+    },
+    async receptionist() {
+      const r = await api()("POST settings/receptionist", { body: {} });
+      return r.ok ? { ok: true, wrote: r.data.wrote, message: "" } : { ok: false, wrote: false, message: r.message };
     },
     async activate(kind) {
       const r = await api()("POST capabilities/[kind]", { params: { kind }, body: {} });

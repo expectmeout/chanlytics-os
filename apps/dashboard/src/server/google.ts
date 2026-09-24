@@ -9,12 +9,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { deployment } from "./deployment";
 import type { Database } from "@chanlytics/db";
-import type {
-  GoogleAudience,
-  GoogleConnectionDto,
-  GoogleDayDto,
-  GoogleListingDto,
-  GoogleReviewDto,
+import {
+  listingFactsOf,
+  type GoogleAudience,
+  type GoogleConnectionDto,
+  type GoogleDayDto,
+  type GoogleListingDto,
+  type GoogleListingFacts,
+  type GoogleReviewDto,
 } from "@chanlytics/contracts";
 import type { EdgeAnswer } from "./lines";
 
@@ -41,6 +43,23 @@ export async function listingFor(db: SupabaseClient<Database>, tenantId: string)
     .maybeSingle();
   if (error) throw new Error(error.message);
   return data ? (data as GoogleListingDto) : null;
+}
+
+/**
+ * The listing's name and address, and Google's facts as the edge stored them (contracts listingFactsOf), which no read
+ * above hands the browser: what the first receptionist is built from, and what the first run's Check asks about.
+ */
+export async function listingFactsFor(
+  db: SupabaseClient<Database>,
+  tenantId: string,
+): Promise<{ name: string; address: string | null; facts: GoogleListingFacts | null } | null> {
+  const { data, error } = await db
+    .from("google_listings")
+    .select("name, address, facts")
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data ? { name: data.name, address: data.address, facts: listingFactsOf(data.facts) } : null;
 }
 
 export async function connectionFor(

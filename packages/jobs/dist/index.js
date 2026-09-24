@@ -731,7 +731,7 @@ function isRealDate(key) {
   const at2 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
   return !Number.isNaN(at2.getTime()) && at2.toISOString().slice(0, 10) === key;
 }
-var DAY_NAME = {
+var DAY_NAMES2 = {
   mon: "Monday",
   tue: "Tuesday",
   wed: "Wednesday",
@@ -740,6 +740,7 @@ var DAY_NAME = {
   sat: "Saturday",
   sun: "Sunday"
 };
+var DAY_NAME = DAY_NAMES2;
 function dayProblems(h, day) {
   const name2 = DAY_NAME[day] ?? day;
   const out = [];
@@ -1940,6 +1941,7 @@ var KIND_META = {
   email: { name: CHANNEL_KIND_WORDS.email, what: "Email", icon: "mail", noun: "email" },
   instagram: { name: CHANNEL_KIND_WORDS.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
 };
+var SEARCH_WARN_MS = 12 * 36e5;
 var NOTE_SUGGEST_KINDS = ["preference", "timing", "contact", "sensitivity", "context"];
 var NOTE_SUGGEST_SCHEMA = {
   type: "object",
@@ -2320,6 +2322,7 @@ var K = new Uint32Array([
   3204031479,
   3329325298
 ]);
+var NAME_MAX = BrainConfigSchema.shape.business_name.maxLength ?? Infinity;
 
 // ../channels/dist/index.js
 import { z as z11 } from "zod";
@@ -7845,7 +7848,7 @@ function isRealDate2(key) {
   const at2 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
   return !Number.isNaN(at2.getTime()) && at2.toISOString().slice(0, 10) === key;
 }
-var DAY_NAME2 = {
+var DAY_NAMES22 = {
   mon: "Monday",
   tue: "Tuesday",
   wed: "Wednesday",
@@ -7854,6 +7857,7 @@ var DAY_NAME2 = {
   sat: "Saturday",
   sun: "Sunday"
 };
+var DAY_NAME2 = DAY_NAMES22;
 function dayProblems2(h, day) {
   const name2 = DAY_NAME2[day] ?? day;
   const out = [];
@@ -9029,6 +9033,7 @@ var KIND_META2 = {
   email: { name: CHANNEL_KIND_WORDS2.email, what: "Email", icon: "mail", noun: "email" },
   instagram: { name: CHANNEL_KIND_WORDS2.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
 };
+var SEARCH_WARN_MS2 = 12 * 36e5;
 var NOTE_SUGGEST_KINDS2 = ["preference", "timing", "contact", "sensitivity", "context"];
 var NOTE_SUGGEST_SCHEMA2 = {
   type: "object",
@@ -9409,6 +9414,7 @@ var K2 = new Uint32Array([
   3204031479,
   3329325298
 ]);
+var NAME_MAX2 = BrainConfigSchema2.shape.business_name.maxLength ?? Infinity;
 var MEDIA_MAX_BYTES = 25 * 1024 * 1024;
 var CALL_ANALYSIS_FIELDS = [
   {
@@ -11033,7 +11039,7 @@ function isRealDate3(key) {
   const at2 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
   return !Number.isNaN(at2.getTime()) && at2.toISOString().slice(0, 10) === key;
 }
-var DAY_NAME3 = {
+var DAY_NAMES23 = {
   mon: "Monday",
   tue: "Tuesday",
   wed: "Wednesday",
@@ -11042,6 +11048,7 @@ var DAY_NAME3 = {
   sat: "Saturday",
   sun: "Sunday"
 };
+var DAY_NAME3 = DAY_NAMES23;
 function dayProblems3(h, day) {
   const name2 = DAY_NAME3[day] ?? day;
   const out = [];
@@ -12217,6 +12224,7 @@ var KIND_META3 = {
   email: { name: CHANNEL_KIND_WORDS3.email, what: "Email", icon: "mail", noun: "email" },
   instagram: { name: CHANNEL_KIND_WORDS3.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
 };
+var SEARCH_WARN_MS3 = 12 * 36e5;
 var NOTE_SUGGEST_KINDS3 = ["preference", "timing", "contact", "sensitivity", "context"];
 var NOTE_SUGGEST_SCHEMA3 = {
   type: "object",
@@ -12597,6 +12605,7 @@ var K3 = new Uint32Array([
   3204031479,
   3329325298
 ]);
+var NAME_MAX3 = BrainConfigSchema3.shape.business_name.maxLength ?? Infinity;
 var MEDIA_MAX_BYTES2 = 25 * 1024 * 1024;
 var CALL_ANALYSIS_FIELDS2 = [
   {
@@ -13247,7 +13256,7 @@ function isRealDate22(key) {
   const at2 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
   return !Number.isNaN(at2.getTime()) && at2.toISOString().slice(0, 10) === key;
 }
-var DAY_NAME22 = {
+var DAY_NAMES222 = {
   mon: "Monday",
   tue: "Tuesday",
   wed: "Wednesday",
@@ -13256,6 +13265,7 @@ var DAY_NAME22 = {
   sat: "Saturday",
   sun: "Sunday"
 };
+var DAY_NAME22 = DAY_NAMES222;
 function dayProblems22(h, day) {
   const name2 = DAY_NAME22[day] ?? day;
   const out = [];
@@ -14483,6 +14493,7 @@ var KIND_META22 = {
   email: { name: CHANNEL_KIND_WORDS22.email, what: "Email", icon: "mail", noun: "email" },
   instagram: { name: CHANNEL_KIND_WORDS22.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
 };
+var SEARCH_WARN_MS22 = 12 * 36e5;
 var NOTE_SUGGEST_KINDS22 = ["preference", "timing", "contact", "sensitivity", "context"];
 var NOTE_SUGGEST_SCHEMA22 = {
   type: "object",
@@ -14863,6 +14874,7 @@ var K22 = new Uint32Array([
   3204031479,
   3329325298
 ]);
+var NAME_MAX22 = BrainConfigSchema22.shape.business_name.maxLength ?? Infinity;
 z122.config({ jitless: true });
 var LABEL32 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL32 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
@@ -15428,7 +15440,7 @@ function isRealDate32(key) {
   const at2 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
   return !Number.isNaN(at2.getTime()) && at2.toISOString().slice(0, 10) === key;
 }
-var DAY_NAME32 = {
+var DAY_NAMES232 = {
   mon: "Monday",
   tue: "Tuesday",
   wed: "Wednesday",
@@ -15437,6 +15449,7 @@ var DAY_NAME32 = {
   sat: "Saturday",
   sun: "Sunday"
 };
+var DAY_NAME32 = DAY_NAMES232;
 function dayProblems32(h, day) {
   const name2 = DAY_NAME32[day] ?? day;
   const out = [];
@@ -16612,6 +16625,7 @@ var KIND_META32 = {
   email: { name: CHANNEL_KIND_WORDS32.email, what: "Email", icon: "mail", noun: "email" },
   instagram: { name: CHANNEL_KIND_WORDS32.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
 };
+var SEARCH_WARN_MS32 = 12 * 36e5;
 var NOTE_SUGGEST_KINDS32 = ["preference", "timing", "contact", "sensitivity", "context"];
 var NOTE_SUGGEST_SCHEMA32 = {
   type: "object",
@@ -16992,6 +17006,7 @@ var K32 = new Uint32Array([
   3204031479,
   3329325298
 ]);
+var NAME_MAX32 = BrainConfigSchema32.shape.business_name.maxLength ?? Infinity;
 async function recordOutbound(db, p) {
   const { data, error } = await db.from("messages").insert({
     tenant_id: p.tenantId,
@@ -18130,7 +18145,7 @@ function isRealDate4(key) {
   const at2 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
   return !Number.isNaN(at2.getTime()) && at2.toISOString().slice(0, 10) === key;
 }
-var DAY_NAME4 = {
+var DAY_NAMES24 = {
   mon: "Monday",
   tue: "Tuesday",
   wed: "Wednesday",
@@ -18139,6 +18154,7 @@ var DAY_NAME4 = {
   sat: "Saturday",
   sun: "Sunday"
 };
+var DAY_NAME4 = DAY_NAMES24;
 function dayProblems4(h, day) {
   const name2 = DAY_NAME4[day] ?? day;
   const out = [];
@@ -19314,6 +19330,7 @@ var KIND_META4 = {
   email: { name: CHANNEL_KIND_WORDS4.email, what: "Email", icon: "mail", noun: "email" },
   instagram: { name: CHANNEL_KIND_WORDS4.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
 };
+var SEARCH_WARN_MS4 = 12 * 36e5;
 var NOTE_SUGGEST_KINDS4 = ["preference", "timing", "contact", "sensitivity", "context"];
 var NOTE_SUGGEST_SCHEMA4 = {
   type: "object",
@@ -19694,6 +19711,7 @@ var K4 = new Uint32Array([
   3204031479,
   3329325298
 ]);
+var NAME_MAX4 = BrainConfigSchema4.shape.business_name.maxLength ?? Infinity;
 async function ingestInbound(db, p) {
   const { data, error } = await db.rpc("ingest_inbound", {
     p_tenant_id: p.tenantId,

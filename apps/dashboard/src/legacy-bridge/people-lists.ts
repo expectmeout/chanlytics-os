@@ -11,6 +11,10 @@
  */
 import {
   PEOPLE_LISTS,
+  TODAY_PINS_MAX,
+  pinTokens,
+  todayPins,
+  togglePin,
   listMembers,
   listRuleParts,
   listRuleWhy,
@@ -24,6 +28,19 @@ const peopleSurface = () =>
   (
     window as unknown as {
       __PEOPLE?: { rows: PersonRowVM[]; saved?: { id: string; name: string; spec?: ListRule | null }[] };
+    }
+  ).__PEOPLE;
+
+/** The People surface as Today's pins read it: its lists, its saved lists, and this member's views. */
+const pinSurface = () =>
+  (
+    window as unknown as {
+      __PEOPLE?: {
+        lists: { id: string; label: string; count: number }[];
+        saved: { id: string; name: string; count: number; unknown?: string | null }[];
+        views?: Record<string, unknown>;
+        viewsRead?: boolean;
+      };
     }
   ).__PEOPLE;
 
@@ -94,6 +111,45 @@ export const lists = {
         : (PEOPLE_LISTS.find((l) => l.id === id)?.label ?? null);
     };
     return listRuleWhy(spec, row, name);
+  },
+  /** The lists this member pinned to Today (contracts todayPins), over the People surface; none before it is read. */
+  pinned: (): ReturnType<typeof todayPins> => {
+    const P = pinSurface();
+    return P ? todayPins(P.views?.today, P) : [];
+  },
+  /** Whether a list (by its token) is pinned to Today. */
+  isPinned: (token: string): boolean =>
+    pinTokens(pinSurface()?.views?.today).some((t) => t.toLowerCase() === token.toLowerCase()),
+  /**
+   * A list pinned to Today, or unpinned: this member's Today view, saved (window.__saveView, memberships.views). Said
+   * at once on the surface's copy, and put back when the save is refused. Never over views that could not be read (a
+   * save replaces the whole view, and would wipe the pins not shown), and never past TODAY_PINS_MAX: a pin to a list
+   * that isn't here any more makes room first; a live one is never dropped.
+   */
+  pin: async (token: string): Promise<{ ok: boolean; message?: string }> => {
+    const save = (
+      window as unknown as {
+        __saveView?: (page: string, view: Record<string, unknown>) => Promise<{ ok: boolean; message?: string }>;
+      }
+    ).__saveView;
+    const P = pinSurface();
+    if (!save || !P) return { ok: false, message: "Pins are kept once People has been read." };
+    if (P.viewsRead === false)
+      return {
+        ok: false,
+        message: "Today's lists couldn't be read just now, so they can't change. Try again in a moment.",
+      };
+    const before = P.views?.today;
+    const live = new Set(todayPins(before, P).map((p) => p.token.toLowerCase()));
+    const kept = pinTokens(before);
+    const roomy = kept.length >= TODAY_PINS_MAX ? { pins: kept.filter((t) => live.has(t.toLowerCase())) } : before;
+    const next = togglePin(roomy, token);
+    if (!next) return { ok: false, message: `Today keeps ${TODAY_PINS_MAX} lists. Take one off first.` };
+    const views = (P.views ??= {});
+    views.today = next;
+    const r = await save("today", next);
+    if (!r.ok) views.today = before;
+    return r;
   },
   rename: (id: string, name: string) => api()("PUT segments/[id]", { params: { id }, body: { name } }),
   /** Deleted, or archived when a playbook or another list depends on it (the answer says which, and what paused). */

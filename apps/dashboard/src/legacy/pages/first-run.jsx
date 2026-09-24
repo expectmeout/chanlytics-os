@@ -11,6 +11,12 @@
 //
 // The business step is Find while an owner can link a listing (first-run.ts `find`): what Google has for the business,
 // found already, instead of the step's rows. Setup's Google row opens it (the one finder).
+//
+// After Find it is Check (first-run.ts `check`, canvas R2, V2, P2): what the receptionist answers from, in the Business
+// tab's own rows (business-tab-*.jsx, drawn here through window, so the two screens never disagree), and how customers
+// buy. The receptionist it checks is set up from what is known, on an owner's press (window.__setup.receptionist, the
+// first receptionist's route): Find's "Yes, this is us" and "We're not on Google" ask for it, and so does Check's own
+// press where there is still none. Every row saves through the Business tab's one saver, as it does on that tab.
 
 const useFrTick = (event) => {
   const [, bump] = React.useReducer((n) => n + 1, 0);
@@ -24,7 +30,7 @@ const useFrTick = (event) => {
 const frWorkspace = () => (window.__WORKSPACES || []).find((t) => t.id === window.__ACTIVE_WORKSPACE) || null;
 
 // What the card reads beyond Setup: the brain and the resolved numbers from the settings read, once it has landed,
-// and the workspace's name and clock from the list the shell already holds.
+// and the workspace's name, clock and answer to how its customers buy from the list the shell already holds.
 const frCardInputs = (S) => {
   const cfg = window.__SETTINGS && window.__SETTINGS.config;
   const facts = window.__FACTS && window.__FACTS.facts;
@@ -37,6 +43,7 @@ const frCardInputs = (S) => {
     numbers: facts ? { voiceLine: value(facts.voice_line), keptLine: value(facts.kept_line), handoff: value(facts.handoff_number) } : null,
     workspaceName: (ws && ws.name) || null,
     tz: (ws && ws.timezone) || window.DEFAULT_TIMEZONE || "America/New_York",
+    sellsBy: (ws && ws.sells_by) || null,
   };
 };
 
@@ -48,7 +55,7 @@ const frCardInputs = (S) => {
  * Find was asked for by name, goes to the step's own address (\`done\`). The step is Find only for an owner, who alone
  * may search and link. The toast is the page's (\`flash\`): a link ends Find as the surfaces repaint.
  */
-const FrFind = ({ W, flash, done, go }) => {
+const FrFind = ({ W, flash, done, go, make }) => {
   // null while Google is asked; then what it said: the candidates, the words it was asked, whether they were the owner's.
   const [found, setFound] = React.useState(null);
   const [picked, setPicked] = React.useState(null);
@@ -81,14 +88,21 @@ const FrFind = ({ W, flash, done, go }) => {
     const r = await window.__google.link(c.place_id);
     setBusy(false);
     flash(r.ok ? { tone: "ok", msg: <>{W.linked(c.name, r.read)}</> } : window.refusalToast(r, W.notLinked));
+    // "Yes, this is us": the receptionist is set up from what Google says, where none is yet.
+    if (r.ok) make();
   };
   const notOnGoogle = async () => {
     if (busy || !window.__setup) return;
     setBusy(true);
     const r = await window.__setup.later("google", true);
     setBusy(false);
-    if (!r.ok) flash(window.refusalToast(r, W.notSaved));
-    else if (done) go(done);
+    if (!r.ok) {
+      flash(window.refusalToast(r, W.notSaved));
+      return;
+    }
+    // Not on Google: the receptionist is set up with the name typed at sign-up, and Check asks for the rest.
+    make();
+    if (done) go(done);
   };
   const hits = found ? found.candidates : [];
   return (
@@ -135,6 +149,238 @@ const FrFind = ({ W, flash, done, go }) => {
         <span aria-hidden="true"> · </span>
         <a href="/privacy">{W.privacy}</a>
       </p>
+    </div>
+  );
+};
+
+/**
+ * How customers buy, as the first run reads it: the answer stored (the workspace list's, as the first run reads its
+ * workspace), and the answer shown, which is the stored one or, until one is said, the first (contracts sellsByVM, whose
+ * words the choice draws). Null without the bridge.
+ */
+const frAnswer = () => {
+  const tab = window.__businessTab || {};
+  const stored = (frWorkspace() || {}).sells_by || null;
+  const vm = tab.sellsByVM ? tab.sellsByVM(stored) : null;
+  return vm ? { stored, shown: vm.first, vm } : null;
+};
+
+/**
+ * An answer sent through the workspace's door, said as the Business tab says it (contracts sellsBySaved), with `done`
+ * run once it is taken. Nothing is sent that is stored already, or while one is out: answers whether it sent.
+ */
+const frSendAnswer = (answer, flash, done = null) => {
+  const B = window.__businessTabSave;
+  const tab = window.__businessTab || {};
+  const door = B && B.sellsBy;
+  const a = frAnswer();
+  if (!door || !a || answer === a.stored || door.pending()) return false;
+  door.save({ answer, said: tab.sellsBySaved ? tab.sellsBySaved(a.stored, answer) : null, done, flash });
+  return true;
+};
+
+// The two lists a chip changes, as the Business tab's folds hold them (draftOf): what a row of each is, and the name it
+// goes by.
+const FR_LISTS = {
+  services: { row: (name) => ({ name }), nameOf: (r) => (r && typeof r.name === "string" ? r.name : "") },
+  languages: { row: (name) => name, nameOf: (r) => (typeof r === "string" ? r : "") },
+};
+
+/**
+ * A chip's press, saved as the Business tab saves that list: the list's draft as the next save finds it (draftOf on the
+ * saver's base), changed, and sent as its fold's one job (foldJob), which writes it as the tab's own editor writes it and
+ * refuses to go when the list moved under it. Off, it adds the name at the end, quietly (the chip turns on). On, it takes
+ * out every row of that name (sameListed, contracts' one rule), and the toast's Undo puts each back where it was, whole: a
+ * service keeps its minutes and its price. Only a refusal is said, in the saver's words. A role that may not change the
+ * business sends nothing, whatever pressed it.
+ */
+const frChipPress = ({ list, chip, flash, words }) => {
+  if (window.canDo && !window.canDo("settings")) return;
+  const S = window.__businessTabSave;
+  const L = FR_LISTS[list];
+  const same = (r) => window.__businessTab.sameListed(L.nameOf(r), chip.name);
+  const refusals = (f) => { if (f && f.tone === "danger") flash(f); };
+  // `edit` is run once, now, on the list as the next save finds it, and hands back the list the press leaves.
+  const send = (edit, done = null) => {
+    const opened = S.draftOf(list, S.saver.base());
+    S.saver.save(S.foldJob(list, edit(opened), { opened, said: null, done, flash: refusals }));
+  };
+  if (!chip.on) {
+    send((rows) => (rows.some(same) ? rows : rows.concat([L.row(chip.name)])));
+    return;
+  }
+  // Every row of that name, and its place, for the Undo to put back whole.
+  let gone = [];
+  const putBack = (rows) => {
+    if (rows.some(same)) return rows;
+    const back = rows.slice();
+    gone.forEach((g) => back.splice(Math.min(g.at, back.length), 0, g.row));
+    return back;
+  };
+  send(
+    (rows) => {
+      gone = rows.flatMap((row, at) => (same(row) ? [{ row, at }] : []));
+      return rows.filter((r) => !same(r));
+    },
+    () => {
+      if (!gone.length) return;
+      flash({ msg: <>{words.removed(chip.name)}</>, undo: () => { send(putBack); return true; } });
+    },
+  );
+};
+
+/**
+ * One list of chips, under its own words: a toggle each (aria-pressed), gated as a change to the settings (`doing` says
+ * what it changes), and, for a role that may change the business, the way to the Business tab's own editor for what the
+ * chips do not name. At the profile's cap the chips that are off are not drawn, and the cap's sentence stands where they
+ * were (check-chips.ts). Hookless, since the languages' is drawn as its fold's rest.
+ */
+const FrChips = ({ list, label, set, doing, canEdit, flash, words, more, moreTestid }) => (
+  <div className="fr-chips" role="group" aria-labelledby={`fr-chips-${list}-label`} data-testid={`fr-chips-${list}`}>
+    <span className="fr-chips-label" id={`fr-chips-${list}-label`} data-testid={`fr-chips-${list}-label`}>{label}</span>
+    <span className="fr-chips-list">
+      {set.chips.map((c) => (
+        <button
+          key={c.name}
+          type="button"
+          className="fr-chip"
+          aria-pressed={c.on}
+          onClick={() => frChipPress({ list, chip: c, flash, words })}
+          {...window.gate("settings", doing)}
+          data-testid={`fr-chip-${list}-${c.name}`}
+        >
+          {c.on ? <Icon name="check" size={11} /> : null}
+          {c.name}
+        </button>
+      ))}
+      {more && canEdit ? (
+        <button type="button" className="fr-chip fr-chip-more" onClick={more.onClick} data-rec-act={more.act || undefined} data-testid={moreTestid}>
+          {more.label}
+        </button>
+      ) : null}
+    </span>
+    {set.full ? <span className="fr-chips-full" data-testid={`fr-chips-${list}-full`}>{set.full}</span> : null}
+  </div>
+);
+
+/**
+ * Check (canvas R2, V2, P2): what the receptionist answers from, in the Business tab's own rows, over the settings read's
+ * brain -- the week and its clock, where the business is, its website; how customers buy, the booking link (for a
+ * business that books) and the rules it keeps (the price rule shown as its default); what it offers and the languages it
+ * speaks. Each row saves through the tab's one saver, and a sheet opens over the first run as it does over the tab. How
+ * customers buy is the tab's own choice, drawn open and saved at once through the workspace's door; until it is said,
+ * the first answer is shown, and Looks right sends it (FirstRun). With no receptionist yet: an owner's one press, or
+ * who sets it up. `canEdit` is whether the role may change the business, as the tab asks it.
+ */
+const FrCheck = ({ check, W, flash, make, making, go, canEdit }) => {
+  const settings = window.__SETTINGS || null;
+  const brain = (settings && settings.config && settings.config.brain) || null;
+  if (!brain) {
+    // The settings read's brain draws the rows. None there: the owner's press, who sets it up, or, set up and not read
+    // back yet, the read on its way; and a read that failed, its retry.
+    if (check.make) {
+      return (
+        <div className="fr-check-make" data-testid="fr-check-make">
+          <p className="fr-check-note">{check.make.sentence}</p>
+          <button type="button" className="fr-onward" onClick={make} disabled={making} aria-busy={making || undefined} data-testid="fr-check-make-press" {...window.gate("team", "set up the receptionist")}>
+            {making ? check.make.busy : check.make.cta}
+          </button>
+        </div>
+      );
+    }
+    if (check.waiting) return <p className="fr-check-note" data-testid="fr-check-waiting">{check.waiting}</p>;
+    if (window.__surfaceFailed && window.__surfaceFailed("admin", "workspace")) {
+      return <FailedRead kind="card" what={W.failedWhat} surface="settings" testid="fr-check-failed" retryTestid="fr-check-retry" />;
+    }
+    return <p className="fr-reading" data-testid="fr-check-reading">{W.reading}</p>;
+  }
+  const S = window.__businessTabSave;
+  const saver = S.saver;
+  const base = saver.base();
+  const rows = { brain, base, canEdit, flash, saver };
+  const tab = window.__businessTab || {};
+  const answer = frAnswer();
+  const door = S.sellsBy;
+  // The booking link is asked of a business that books (the spec's "only for businesses that book"). One that quotes
+  // has none by right (contracts bookingLinkOptional), and its row is drawn only while it has a link to show; in its
+  // place, what it does without one, in the row's own words (bookingLinkRowWords).
+  const quotes = !!(answer && tab.bookingLinkOptional && tab.bookingLinkOptional(answer.shown));
+  const linkRow = !quotes || !!brain.booking_link;
+  const note = check.unsure ? <span className="fr-check-unsure" data-testid="fr-check-unsure">{check.unsure}</span> : null;
+  // What it offers and the languages it speaks, as chips over the config the next save goes on: a tap is on at once.
+  const brainNow = (base && base.brain) || brain;
+  const chips = window.__firstRun.chips({
+    type: check.type,
+    services: (brainNow.profile || {}).services,
+    languages: (brainNow.profile || {}).languages,
+  });
+  const C = W.chips;
+  const request = (id) => { if (window.__recordFolds) window.__recordFolds.request(id); };
+  return (
+    <div className="fr-check" data-testid="fr-check">
+      <section className="rec-card fr-check-card" aria-label={W.groups.facts}>
+        <window.BtHoursRow brain={brain} prompt={settings.prompt || null} canEdit={canEdit} flash={flash} saver={saver} note={note} />
+        <window.BtZoneRow brain={brain} canEdit={canEdit} flash={flash} />
+        <window.BtAddressRow {...rows} />
+        <window.BtWebsiteRow {...rows} />
+      </section>
+      <section className="rec-card fr-check-card" aria-label={W.groups.buys}>
+        {answer && window.btSellsByChoice ? (
+          <div className="fr-check-buys">
+            {window.btSellsByChoice({
+              id: "fr-sells-by",
+              vm: answer.vm,
+              value: answer.shown,
+              set: (next) => frSendAnswer(next, flash),
+              readOnly: !canEdit || !door || door.pending(),
+              label: true,
+              testid: "fr-sells-by",
+            })}
+            {!linkRow && tab.bookingLinkRowWords ? (
+              <p className="fr-check-note" data-testid="fr-check-quotes">{tab.bookingLinkRowWords(answer.shown).hint}</p>
+            ) : null}
+          </div>
+        ) : null}
+        {linkRow ? <window.BtBookingLinkRow {...rows} /> : null}
+        <window.BtRulesRow {...rows} config={settings.config} />
+      </section>
+      <section className="rec-card fr-check-card" aria-label={W.groups.offer}>
+        <window.BtServicesRow brain={brain} canEdit={canEdit} saver={saver} />
+        {chips.services.chips.length || chips.services.full ? (
+          <FrChips
+            list="services"
+            label={C.services}
+            set={chips.services}
+            doing="change your services"
+            canEdit={canEdit}
+            flash={flash}
+            words={C}
+            more={{ label: C.ownService, onClick: () => request("services") }}
+            moreTestid="fr-chip-own-service"
+          />
+        ) : null}
+        <window.BtLanguagesRow
+          {...rows}
+          rest={({ request: open, can }) => (
+            <FrChips
+              list="languages"
+              label={C.languages}
+              set={chips.languages}
+              doing="change the languages it speaks"
+              canEdit={canEdit}
+              flash={flash}
+              words={C}
+              more={can ? { label: C.otherLanguage, onClick: open, act: "languages" } : null}
+              moreTestid="fr-chip-other-language"
+            />
+          )}
+        />
+      </section>
+      {check.find ? (
+        <p className="fr-check-note">
+          <button type="button" className="fr-find-link" onClick={() => go(check.find.to)} data-testid="fr-check-find">{check.find.label}</button>
+        </p>
+      ) : null}
     </div>
   );
 };
@@ -190,8 +436,21 @@ const FirstRun = ({ param = null, onNavigate }) => {
   useFrTick("surface:setup");
   useFrTick("surface:settings");
   const [cardOpen, setCardOpen] = React.useState(false);
-  // The page's toast, lent to Find: a link ends Find as the surfaces repaint, and what it says outlives it.
+  // The page's toast, lent to Find and Check: a link ends Find as the surfaces repaint, and what it says outlives it.
   const [toastNode, flash] = window.usePPToast();
+  // The ask for the receptionist, held here and lent to Find and Check: Find is gone by the time it answers.
+  const [making, setMaking] = React.useState(false);
+  // Whether Check is on screen, so it stays there (below): kept across draws, as React keeps a ref.
+  const onCheck = React.useRef(false);
+  // Check's rows save through the Business tab's saver and doors, which outlive the page: a save moving through any of
+  // them draws the page again, as it draws the tab.
+  const [, redraw] = React.useReducer((n) => n + 1, 0);
+  React.useEffect(() => {
+    const S = window.__businessTabSave;
+    const doors = S ? [S.saver, S.zone, S.sellsBy] : [];
+    const stops = doors.map((d) => (d && d.subscribe ? d.subscribe(redraw) : null));
+    return () => stops.forEach((stop) => { if (stop) stop(); });
+  }, []);
   const F = window.__firstRun;
   // Being here is the landing: Today does not send this tab back again this session.
   React.useEffect(() => {
@@ -231,12 +490,46 @@ const FirstRun = ({ param = null, onNavigate }) => {
     receptionistName: S.dto.business.name,
     workspaceName: (frWorkspace() || {}).name || null,
   };
-  const fr = F.of(S.vm, param, who);
+  // Check stays on screen while the owner is on it. Its step is done the moment its last fact lands (a service saved in
+  // its sheet), and the first run, which opens where the workspace is, would go on to the phone under them; they go on
+  // with Looks right instead. So once Check is drawn, the business step is asked for by name until the owner moves.
+  const asked = F.of(S.vm, param, who);
+  const fr = !param && onCheck.current && asked.shown.key !== "business" ? F.of(S.vm, "business", who) : asked;
+  onCheck.current = !!fr.check;
   const card = F.receptionist(frCardInputs(S));
   const step = fr.shown;
-  // The step on screen is the address's, replaced rather than pushed, so the browser's Back leaves the first run.
-  const go = (to) => onNavigate(to, { replace: true });
-  const onward = () => (fr.onward.leaves ? leave(fr.onward.to) : go(fr.onward.to));
+  // Whether this role may change the business, as the Business tab asks it: its rows' acts, and the answer's door.
+  const canEdit = !window.canDo || window.canDo("settings");
+  // The step on screen is the address's, replaced rather than pushed, so the browser's Back leaves the first run. A
+  // move opens the next step at its top: the shell is the page's scroll (first-run.css).
+  const go = (to) => {
+    onCheck.current = false;
+    onNavigate(to, { replace: true });
+    const shell = document.querySelector ? document.querySelector(".fr-shell") : null;
+    if (shell && shell.scrollTo) shell.scrollTo(0, 0);
+  };
+  // Set the receptionist up from what is known, where none is: once at a time, and a refusal said in its words.
+  const make = async () => {
+    if (making || !window.__setup || !window.__setup.receptionist) return;
+    setMaking(true);
+    const r = await window.__setup.receptionist();
+    setMaking(false);
+    if (!r.ok) flash(window.refusalToast(r, W.check.notMade));
+  };
+  const onward = () => {
+    const o = fr.onward;
+    if (o.held) return;
+    if (!fr.check) {
+      if (o.leaves) leave(o.to);
+      else go(o.to);
+      return;
+    }
+    // Looks right: the answer to how customers buy, as Check shows it, is sent where none is stored (as the create card
+    // sends it), and the step goes on once it is taken. A role that may not change the workspace sends nothing: the
+    // door would refuse it, and the step goes on as it is.
+    const a = frAnswer();
+    if (!canEdit || !a || a.stored || !frSendAnswer(a.shown, flash, () => go(o.to))) go(o.to);
+  };
   return (
     <div className="fr-root" data-testid="first-run" data-step={step.key}>
       <header className="fr-top">
@@ -262,9 +555,10 @@ const FirstRun = ({ param = null, onNavigate }) => {
             <h1 className="fr-heading" id="fr-heading" data-testid="fr-heading">{fr.heading}</h1>
             {fr.lead ? <p className="fr-lead">{fr.lead}</p> : null}
           </div>
-          {fr.find ? <FrFind W={W.find} flash={flash} done={fr.findDone} go={go} /> : null}
+          {fr.find ? <FrFind W={W.find} flash={flash} done={fr.findDone} go={go} make={make} /> : null}
+          {fr.check ? <FrCheck check={fr.check} W={W.check} flash={flash} make={make} making={making} go={go} canEdit={canEdit} /> : null}
           {step.key === "try" && S.vm.tryIt ? <window.SetupTry tryIt={S.vm.tryIt} /> : null}
-          {!fr.find && step.rows.length ? (
+          {!fr.find && !fr.check && step.rows.length ? (
             <div className="fr-part">
               {step.key === "live" ? <h2 className="fr-sub">{W.liveNext}</h2> : null}
               <section className="tq fr-rows">
@@ -275,12 +569,29 @@ const FirstRun = ({ param = null, onNavigate }) => {
           {fr.back || fr.onward ? (
             <div className="fr-foot">
               {fr.back ? <button type="button" className="btn btn-ghost btn-sm" onClick={() => go(fr.back)} data-testid="fr-back">{W.back}</button> : <span />}
-              {fr.onward ? <button type="button" className="fr-onward" onClick={onward} data-testid="fr-onward">{fr.onward.label}</button> : null}
+              {fr.onward && fr.onward.held ? <span className="fr-held" id="fr-held" data-testid="fr-held">{fr.onward.held}</span> : null}
+              {fr.onward ? (
+                <button
+                  type="button"
+                  className="fr-onward"
+                  onClick={onward}
+                  // Held, it stays in reach and says why beside it, as a gated act does: never `disabled`, which lets go of focus.
+                  aria-disabled={fr.onward.held ? true : undefined}
+                  aria-describedby={fr.onward.held ? "fr-held" : undefined}
+                  data-testid="fr-onward"
+                >
+                  {fr.onward.label}
+                </button>
+              ) : null}
             </div>
           ) : null}
         </main>
         <FrCard card={card} open={cardOpen} />
       </div>
+      {/* The services list opens in a sheet, as it does on the Business tab, which draws it last of everything there. */}
+      {fr.check && window.__SETTINGS && window.__SETTINGS.config && window.__SETTINGS.config.brain && window.BtServicesSheet ? (
+        <window.BtServicesSheet brain={window.__SETTINGS.config.brain} canEdit={canEdit} flash={flash} saver={window.__businessTabSave.saver} />
+      ) : null}
       {toastNode}
     </div>
   );

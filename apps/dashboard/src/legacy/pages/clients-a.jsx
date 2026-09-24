@@ -651,7 +651,11 @@ const ClientsASeed = ({ onOpenProfile = () => {}, initialSegment = null }) => {
 // seam and derived by the tested rule in contracts. Nothing here scores,
 // estimates or invents: no health, no LTV, no visits, no therapist.
 
-const PL_TABS = ["needs_you", "waiting_on_you", "new", "quiet", "active"];
+// The states an address may still name (state:<x>). Needs you and Waiting on you are lists (decision 0009): their state
+// address opens the list, as the standing line's count does.
+const PL_TABS = ["new", "quiet", "active"];
+const PL_STANDING_LISTS = ["needs_you", "waiting_on_you"];
+const plStandingList = (state) => (PL_STANDING_LISTS.includes(state) ? state : null);
 const PL_TAB_LABEL = { all: "All", needs_you: "Needs you", waiting_on_you: "Waiting on you", new: "New", quiet: "Quiet", active: "Active" };
 
 // What the page remembers between visits on this device, per scope: the sort and the columns
@@ -2643,8 +2647,8 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
   const dealsOn = !!people.dealsOn;
   // The list the address names, as it names it: one People doesn't have here is said to be missing (listGone, below),
   // never swapped for Everyone.
-  const [listId, setListId] = useState(initialSegment || null);
-  React.useEffect(() => { setListId(initialSegment || null); }, [initialSegment]);
+  const [listId, setListId] = useState(initialSegment || plStandingList(initialState) || null);
+  React.useEffect(() => { setListId(initialSegment || plStandingList(initialState) || null); }, [initialSegment, initialState]);
   const saved = people.saved || PL_NO_LISTS;
   const [savedId, setSavedId] = useState(initialSaved);
   React.useEffect(() => { setSavedId(initialSaved); }, [initialSaved]);
@@ -2790,6 +2794,22 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
   const viewRule = !q.trim() && window.__lists && window.__lists.ruleOf && !((listId || savedId) && tab !== "all")
     ? window.__lists.ruleOf({ builtin: activeList ? activeList.id : null, saved: activeSaved && !activeSaved.byHand ? activeSaved.id : null, standing: !listId && !savedId ? tab : null })
     : null;
+  // Any list open is a door Today can keep (decision 0009): pinned for this member (memberships.views.today), said on the
+  // list's title line and in a phone's more-menu. The page holds the answer until the surface's copy has it.
+  const openToken = activeSaved ? `list:${activeSaved.id}` : activeList ? `seg:${activeList.id}` : null;
+  const canPin = !!(openToken && window.__lists && window.__lists.pin && window.__saveView);
+  // One press at a time: a second one waits for the first's answer, so the saves land in the order pressed.
+  const [pinBusy, setPinBusy] = useState(false);
+  const pinned = canPin && window.__lists.isPinned(openToken);
+  const togglePin = async () => {
+    if (!canPin || pinBusy) return;
+    const was = window.__lists.isPinned(openToken);
+    const name = activeSaved ? activeSaved.name : activeList.label;
+    setPinBusy(true);
+    const r = await window.__lists.pin(openToken);
+    setPinBusy(false);
+    plFlash(r.ok ? { msg: was ? <><b>{name}</b> is off Today</> : <><b>{name}</b> is on Today</> } : { tone: "danger", msg: <>{r.message || "Could not change Today's lists."}</> });
+  };
   // A list kept as a rule is opened, and its title is where it is changed.
   const openMade = (id) => { setListId(null); setTab("all"); setSavedId(id); setMadeId(id); };
   // Export follows the list that is open (decision 0009): the route counts it as a send does, every member; with no
@@ -2936,6 +2956,7 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
     ...PL_PHONE_SORTS.filter((s) => !s.needs || s.needs({ withCalendar })).map((s) => ({ label: s.label, checked: sortBy === s.by && sortDir === s.dir, onClick: () => pickSort(s.by, s.dir) })),
     // The route's file of everyone: a download (it answers as an attachment), so the page stays where it is.
     ...(window.__href && !exportBlocked ? [{ divider: true }, { label: exportName ? `Export ${exportName}` : "Export everyone", icon: "external", meta: "CSV", onClick: () => window.location.assign(exportHref), ...(canExport ? {} : { gate: window.gate("export") }) }] : []),
+    ...(canPin ? [{ divider: true }, { label: pinned ? "Take off Today" : "Pin to Today", icon: "pin", onClick: togglePin }] : []),
     ...(activeSaved && canEditLists && window.__lists ? [
       { divider: true },
       { label: "Rename this list", icon: "edit", onClick: () => { setListDraft({ ...PL_LIST_EMPTY, name: activeSaved.name }); setListAct("rename"); } },
@@ -2994,8 +3015,8 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
           <PeopleStanding
             scope="people"
             agg={agg}
-            needsShown={tab === "needs_you"}
-            onNeeds={() => setTab((t) => (t === "needs_you" ? "all" : "needs_you"))}
+            needsShown={listId === "needs_you"}
+            onNeeds={() => { setSavedId(null); setTab("all"); setListId((l) => (l === "needs_you" ? null : "needs_you")); }}
           />
 
           {!phone && (
@@ -3042,6 +3063,11 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
                       : <span className="cl-section-title">Everyone</span>}
                 {(activeList || activeSaved || listGone) && (
                   <button type="button" className="cl-bucket-link" onClick={() => { setListId(null); setSavedId(null); }} data-testid="show-everyone">Show everyone</button>
+                )}
+                {canPin && (
+                  <button type="button" className={`cl-bucket-link cl-list-pin${pinned ? " is-on" : ""}`} aria-pressed={pinned} disabled={pinBusy} onClick={togglePin} data-testid="list-pin">
+                    {pinned ? "On Today" : "Pin to Today"}
+                  </button>
                 )}
                 {activeSaved && canEditLists && <DeleteListButton list={activeSaved} onDeleted={(r) => { if (r.archived) plFlash({ msg: plArchivedWords(activeSaved.name, r) }); setSavedId(null); }} />}
                 {tab !== "all" && (
@@ -3435,13 +3461,12 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
     if (started && !leadView.searchId && window.__leadsRouteOf) nav(window.__leadsRouteOf({ searchId: started, list: "all", cls: null }));
     return r;
   };
-  // What answering a search's question carries (leadFinderAmendAsk, leadFinderApprove): the question, the round's
-  // version and the count it reserved, and what was first asked, so one Ask turn can amend the same search.
+  // What answering a search's question carries (leadFinderAmendAsk, leadFinderApprove): the question, the search's
+  // id and name, what was first asked and what it leaves out, so one Ask turn can amend the same search; the
+  // version and count are the route's.
   const answerOf = (s) => ({
     answer: true,
     question: s.round && s.round.question ? s.round.question.sentence : "",
-    baseVersion: s.plan_version || (s.plan && s.plan.version) || 1,
-    count: s.plan.count,
     name: s.name,
     asked: s.asked,
     leavingOut: (s.plan.exclusions || []).map((x) => x.text),
@@ -3612,8 +3637,9 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
     if (id === "stop") return leadAct(() => window.__leadSearchStop(s.id), <>Stopping. The emails of what was found are still being checked.</>);
     if (id === "keep") return leadAct(() => window.__leadSearchAnswer(s.id, "keep"), <>Carrying on.</>);
     if (id === "stop_here") return leadAct(() => window.__leadSearchAnswer(s.id, "stop"), <>Stopped. The ones already found are yours.</>);
-    // The no that changes the search: the plan panel opens its answer row under the question, empty, and what comes
-    // back from Ask is this round's next version (leadFinderApprove answers it; it never starts a second search).
+    // The no that changes the search: the plan panel opens its answer row under the question, empty; what comes
+    // back from Ask is a card that amends this search, and approving it commits through Ask's door, which answers
+    // the round; it never starts a second search.
     if (id === "change") {
       setFinderWords("");
       setFinderProposal(null);
@@ -3626,7 +3652,7 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
       return undefined;
     }
     // Include takes the thing it asked about back out of the plan, which planVersionOf makes a new version of:
-    // the route is given the version the owner approved, not the one the round started on.
+    // the plan goes as the owner approved it; the route sets the version and the count the round reserved (G1).
     if (id === "include") {
       const V = window.__LEAD_VM || {};
       const plan = V.planVersionOf ? V.planVersionOf(s.plan, { exclusions: s.plan.exclusions.filter((x) => x.key !== arg) }) : s.plan;

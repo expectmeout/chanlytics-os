@@ -22,7 +22,7 @@ import {
   type AskReadSet,
   type FastCall,
 } from "./ask";
-import { leadsRoute } from "./leads";
+import { leadQuestionRoute, leadsRoute } from "./leads";
 
 /* ------------------------------------------------------------------ the shape */
 
@@ -138,6 +138,10 @@ export function cardOpenRoute(p: Pick<AskProposal, "kind" | "payload" | "outcome
     case "playbook":
       return "outbound";
     case "lead_search": {
+      // A card that answers a search opens on that search, on the pile it asked about; a card approved opens on the
+      // search it made.
+      const am = (pl.amends ?? null) as { search_id?: unknown } | null;
+      if (am && typeof am.search_id === "string" && am.search_id) return leadQuestionRoute(am.search_id);
       // Approved, the outcome carries the search the commit made (commit.ts's undo), and Open lands on that search
       // rather than on All leads.
       const undo = (p.outcome?.undo ?? {}) as Record<string, unknown>;
@@ -265,6 +269,8 @@ export interface AskWaiting {
   more: number;
   /** A run's reach is the people it would send to. */
   runs: Array<{ id: string; label: string; reach: number; to: string }>;
+  /** Searches that stopped to ask, waiting on the owner (Today's queue's search rows). */
+  searches: Array<{ id: string; name: string; question: string; to: string }>;
 }
 
 /** Up to two names, then how many others: "Ana, Sam and 3 others"; a count alone when fewer names are drawn. */
@@ -280,7 +286,10 @@ const names = (list: string[], total: number, es: boolean) => {
 
 const unread = (es: boolean) => (es ? "La cola de hoy aún no se ha leído." : "Today's queue hasn't been read yet.");
 
-/** Right now, in a sentence: the people waiting, then the runs waiting for a yes -- two populations, two clauses. */
+/**
+ * Right now, in a sentence: the people waiting, then the runs waiting for a yes, then the searches waiting for an
+ * answer -- three populations, three clauses.
+ */
 export function rightNowLine(w: AskWaiting | null, language: AskLanguage): string {
   const es = language === "es";
   if (!w) return unread(es);
@@ -297,19 +306,36 @@ export function rightNowLine(w: AskWaiting | null, language: AskLanguage): strin
       ? `${n === 1 ? "un envío de playbook espera" : `${n} envíos de playbook esperan`} tu aprobación`
       : `${n === 1 ? "one playbook run is" : `${n} playbook runs are`} waiting for your approval`
     : "";
-  if (!people && !runs) return es ? "Nadie te espera ahora mismo." : "Nobody is waiting on you right now.";
-  const s = [people, runs].filter(Boolean).join("; ");
+  // One search is named, since its question is the thing waiting; several are only counted, like the runs.
+  const k = w.searches.length;
+  const searchesLine = k
+    ? es
+      ? k === 1
+        ? `tu búsqueda de ${w.searches[0].name} espera tu respuesta`
+        : `${k} búsquedas esperan tu respuesta`
+      : k === 1
+        ? `your search for ${w.searches[0].name} is waiting for your answer`
+        : `${k} searches are waiting for your answer`
+    : "";
+  if (!people && !runs && !searchesLine)
+    return es ? "Nadie te espera ahora mismo." : "Nobody is waiting on you right now.";
+  const s = [people, runs, searchesLine].filter(Boolean).join("; ");
   return `${s.charAt(0).toUpperCase()}${s.slice(1)}.`;
 }
 
-/** The counts rightNowLine's sentence is built from, so pills beside it never disagree: people waiting (drawn and past the rows) and runs waiting. */
-export function rightNowCounts(w: AskWaiting | null): { people: number; runs: number } {
-  return w ? { people: w.people.length + w.more, runs: w.runs.length } : { people: 0, runs: 0 };
+/**
+ * The counts rightNowLine's sentence is built from, so pills beside it never disagree: people waiting (drawn and past
+ * the rows), runs waiting and searches waiting.
+ */
+export function rightNowCounts(w: AskWaiting | null): { people: number; runs: number; searches: number } {
+  return w
+    ? { people: w.people.length + w.more, runs: w.runs.length, searches: w.searches.length }
+    : { people: 0, runs: 0, searches: 0 };
 }
 
 /**
- * Who needs me: the sentence; the people, then the runs, as their own doors; the Inbox only for the people past what
- * is drawn. A queue not read yet says so, and points at Today.
+ * Who needs me: the sentence; the people, then the searches, then the runs, as their own doors; the Inbox only for
+ * the people past what is drawn. A queue not read yet says so, and points at Today.
  */
 export function needsAnswer(w: AskWaiting | null, language: AskLanguage): AskAnswer {
   const es = language === "es";
@@ -324,6 +350,12 @@ export function needsAnswer(w: AskWaiting | null, language: AskLanguage): AskAns
       meta: `${p.channel} · ${p.when}`,
       line: p.line,
       source: { kind: p.kind, id: p.id, label: p.who, to: p.to, door: true },
+    })),
+    ...w.searches.map((x) => ({
+      title: x.name,
+      meta: "Leads",
+      line: x.question,
+      source: { kind: "page" as const, id: x.to, label: x.name, to: x.to, door: true },
     })),
     ...w.runs.map((r) => ({
       title: r.label,

@@ -13,6 +13,8 @@ test.describe("identity on a real workspace", () => {
     await signIn(page);
     await page.goto("/#/admin/profile");
     await page.waitForLoadState("networkidle");
+    // Since #947 the name is a row on the record kit: the field is in the DOM, hidden, until its Change is pressed.
+    await page.getByTestId("set-you-change").click();
     const field = page.getByTestId("set-you-name");
     await expect(field).toBeVisible();
     const before = await field.inputValue();

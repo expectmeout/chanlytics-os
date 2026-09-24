@@ -272,6 +272,16 @@ The second, **rules you can see and change**:
   to me", is offered to no playbook and refused if named (`ruleNeedsViewer`), and a list a playbook runs on takes no
   such rule.
 
+The third, **any list is a door**:
+
+- **Needs you and Waiting on you are lists**, not a hidden state tab: the standing line's "N need you" opens the Needs
+  you list, and a `state:needs_you` or `state:waiting_on_you` address opens its list. The other states an old address
+  names (new, quiet, active) keep their filter.
+- **Any list pins to Today**, one of People's or one of the workspace's own: "Pin to Today" on the open list's title
+  line (a phone's more-menu), kept per member in `memberships.views.today.pins` (`togglePin`, at most eight). Today
+  draws them as one quiet row of doors with People's counts (`todayPins`), and only when something is pinned; a pin to
+  a list that isn't here now is left out and comes back with the list.
+
 ### The four calls, as approved
 
 1. Quiet, New this week, Waiting on you and Booked this week take the meanings above.

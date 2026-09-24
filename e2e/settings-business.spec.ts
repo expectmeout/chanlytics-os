@@ -184,6 +184,10 @@ async function expectRuleBadgesInLine(page: Page, sheet: string, where: string):
 }
 
 async function expectAbilitiesQuiet(page: Page, where: string): Promise<void> {
+  // The card says "Reading your connections…" until Setup's surface is in, and that boots behind the record's own:
+  // the boot reads the route's surface first and the rest in lanes (#642, #824), and the lists' surfaces joined the
+  // queue this week (#988–#993). The rows are waited for; the one-shot read below counted the reading line as none.
+  await expect(page.getByTestId("rec-card-can").locator(".bt-can-row").first()).toBeVisible({ timeout: 20_000 });
   const card = await page.evaluate(() => {
     const el = document.querySelector('[data-testid="rec-card-can"]');
     if (!el) return null;

@@ -792,6 +792,27 @@ export type ProfileCrossing = keyof typeof PROFILE_CROSSING_WORDS;
 /* ---- How it answers ---- */
 
 /**
+ * The languages offered rather than typed, the commonest first: the Business tab's languages box
+ * (business-tab-answers.jsx) and the first run's chips (check-chips.ts) offer this one list. A comma-separated box asks
+ * someone to guess both the spelling and the separator, and "Espanol" and "Spanish" would then be two different
+ * languages to anything reading this later. Anything not listed can still be added by hand.
+ */
+export const COMMON_LANGUAGES: readonly string[] = [
+  "English",
+  "Spanish",
+  "Portuguese",
+  "French",
+  "Haitian Creole",
+  "Mandarin",
+  "Cantonese",
+  "Arabic",
+  "Russian",
+  "Polish",
+  "Italian",
+  "Hindi",
+];
+
+/**
  * The three voices the voice's fold offers to start from (the canvas's Group-Answers board): a press puts the sentence
  * in the box, and the owner makes it their own from there. Each is what the prompt then says after "Tone: ", for any
  * trade, and well inside the 200 characters the profile keeps (BusinessProfileSchema.tone; a vm test holds them to it).

@@ -2,7 +2,9 @@
    Full screen, the shell's chrome set aside (first-run.jsx). Desktop: a top bar with the four steps, the step at the
    prose measure, the receptionist beside it. At 900px and under: the step's line, a 2px bar, the receptionist as one
    line that opens, and the step's button held at the foot. Tokens only; the coral is the step's one action. */
-.fr-shell { min-height: 100dvh; background: var(--bg); color: var(--ink); }
+/* The shell is the page's scroll: the app holds html and body to the viewport (legacy.css, for its own panes'
+   scrolling), so a step taller than the screen was cut off. The phone's sticky head and the card stick inside it. */
+.fr-shell { height: 100vh; height: 100dvh; overflow-y: auto; overscroll-behavior-y: contain; background: var(--bg); color: var(--ink); }
 .fr-root { min-height: 100dvh; display: flex; flex-direction: column; background: var(--bg); color: var(--ink); }
 .fr-waiting { align-items: center; justify-content: center; padding: 32px var(--gutter-page); }
 .fr-reading { margin: 0; color: var(--ink-dim); font-size: 13px; }
@@ -99,6 +101,38 @@ button.fr-rail-btn:hover { background: var(--bg-sunken); color: var(--ink); }
 .fr-find-legal a { color: inherit; }
 .fr-find-legal a:hover { color: var(--ink-dim); }
 
+/* Check (canvas R2, V2, P2): the Business tab's own rows, in three cards, with the choice of how customers buy drawn
+   open in the second and a quiet note under the hours. The rows and their sheets are the record kit's (record.css); only
+   the cards' spacing is the first run's. A card here has no head, so its first row draws no rule over itself. */
+.fr-check { display: grid; gap: 16px; }
+.fr-check-card { padding-top: 6px; }
+.fr-check-card > .rec-row:first-child { border-top: 0; }
+.fr-check-buys { display: grid; gap: 10px; padding: 12px 0 14px; }
+.fr-check-note { margin: 0; font-size: 13px; line-height: var(--leading-relaxed); color: var(--ink-dim); }
+.fr-check-unsure { flex: 1 1 100%; font-size: 12.5px; line-height: var(--leading-normal); color: var(--ink-muted); }
+.fr-check-make { display: grid; gap: 14px; justify-items: start; }
+/* The chips (check-chips.ts): what it offers and the languages it speaks, a tap each. On, a chip is outlined in ink
+   with its tick, as the canvas draws it (R2): no fill, and the coral stays the step's one action. A row of its own,
+   under a rule, as the record's rows are. */
+.fr-chips { display: grid; gap: 8px; padding: 11px 0 13px; border-top: 1px solid var(--line); }
+.fr-chips-label { font-size: 12.5px; color: var(--ink-dim); }
+.fr-chips-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.fr-chip {
+  display: inline-flex; align-items: center; gap: 5px; min-height: 28px; padding: 0 11px;
+  border: 1px solid var(--line-strong); border-radius: 999px; background: var(--bg-raised);
+  font: inherit; font-size: 12.5px; color: var(--ink); cursor: pointer;
+}
+.fr-chip:hover { background: var(--bg-sunken); }
+.fr-chip[aria-pressed="true"] { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+.fr-chip[aria-disabled="true"] { cursor: default; opacity: 0.6; }
+.fr-chip-more { border-style: dashed; color: var(--ink-dim); }
+.fr-chips-full { font-size: 12.5px; color: var(--ink-dim); }
+.fr-chip:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.fr-chip[aria-pressed="true"]:focus-visible { box-shadow: inset 0 0 0 1px var(--ink), var(--focus-ring); }
+/* Looks right, held until the step is done: in reach, with why beside it. */
+.fr-held { flex: 1 1 auto; font-size: 12.5px; line-height: var(--leading-normal); color: var(--ink-dim); text-align: right; }
+.fr-onward[aria-disabled="true"] { opacity: 0.5; cursor: default; }
+
 .fr-card { position: sticky; top: 24px; display: grid; gap: 8px; min-width: 0; }
 .fr-card-cap { font-size: 12px; color: var(--ink-dim); }
 .fr-card-box {
@@ -160,5 +194,8 @@ button.fr-rail-btn:hover { background: var(--bg-sunken); color: var(--ink); }
     background: var(--bg); border-top: 1px solid var(--line);
   }
   .fr-foot .fr-onward { flex: 1 1 auto; }
+  /* Why Looks right is held, over it rather than squeezed beside it. */
+  .fr-foot { flex-wrap: wrap; }
+  .fr-held { flex: 1 1 100%; order: -1; text-align: left; }
 }
 @media (prefers-reduced-motion: reduce) { .fr-bar > span { transition: none; } }

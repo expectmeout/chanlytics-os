@@ -83,7 +83,8 @@ test.describe("Saved lists on People", () => {
     const section = page.getByTestId("person-lists");
     await expect(section).toBeVisible();
     await expect(section).toContainText("Lists");
-    // Either an "Add to…" control (lists exist) or the honest empty line.
-    await expect(section).toContainText(/Add to|No lists yet/);
+    // Either an "Add to…" control (lists exist) or the honest empty line, whose words say whether smart lists stand
+    // beside the ones kept by hand (decision 0009, #988-#993 and after).
+    await expect(section).toContainText(/Add to|No lists( of your own| kept by hand)? yet/);
   });
 });

@@ -40,18 +40,20 @@ import type { Database } from "@chanlytics/db";
 import { getTenantConfig } from "@chanlytics/db";
 import {
   parseTenantConfigResult,
+  receptionistOf,
   starterByName,
   resolveFacts,
   factConflicts,
   knownForwarding,
   channelFor,
+  hoursFromGoogle,
   type SetupDto,
   type CapabilityKind,
 } from "@chanlytics/contracts";
 import { calendarWeek } from "./calendar";
 import { teamRoster } from "./service";
 import { linesFor, linesStatus } from "./lines";
-import { listingFor, connectionFor, googleReadiness } from "./google";
+import { listingFor, listingFactsFor, connectionFor, googleReadiness } from "./google";
 import { billingFor, billingReadiness } from "./billing";
 import { emailSetupFor } from "./email";
 
@@ -124,6 +126,7 @@ export async function setupDtoFor(
     lineRows,
     lineStatus,
     listing,
+    listingFacts,
     google,
     connection,
     billingRow,
@@ -197,6 +200,8 @@ export async function setupDtoFor(
     linesFor(supabase, tenantId),
     linesStatus(),
     listingFor(supabase, tenantId),
+    // Google's facts, which no read above carries: the days the first run's Check asks about.
+    listingFactsFor(supabase, tenantId),
     googleReadiness(),
     connectionFor(supabase, tenantId),
     billingFor(supabase, tenantId),
@@ -225,6 +230,8 @@ export async function setupDtoFor(
   const cfg = parsed && parsed.ok ? parsed.config : null;
   const brain = cfg?.brain ?? null;
   const profile = brain?.profile ?? null;
+  // Whether the receptionist is set up, by the one test the first receptionist's route asks too.
+  const receptionist = receptionistOf(parsed);
   const business: SetupDto["business"] = {
     name: brain?.business_name ?? null,
     hours: !!profile?.hours && Object.keys(profile.hours).length > 0,
@@ -232,7 +239,8 @@ export async function setupDtoFor(
     bookingLink: !!brain?.booking_link,
     address: !!profile?.address,
     handoff: profile?.handoff_number ?? null,
-    broken: !!parsed && !parsed.ok,
+    broken: receptionist === "broken",
+    receptionist,
   };
 
   // `channelFor`, not a bare `.find`. The query has no status filter and no order,
@@ -324,6 +332,13 @@ export async function setupDtoFor(
           }
         : null,
       connected: !!connection?.location_name,
+      // A day the record states, closed included (`{}`), is answered: only the rest are asked about.
+      unsure: listingFacts?.facts
+        ? hoursFromGoogle(listingFacts.facts.hours).unsure.filter(
+            (d) => !Object.prototype.hasOwnProperty.call(profile?.hours ?? {}, d),
+          )
+        : [],
+      type: listingFacts?.facts?.primary_type ?? null,
     },
     billing: billingRow
       ? {

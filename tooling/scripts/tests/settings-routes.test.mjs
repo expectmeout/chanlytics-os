@@ -393,6 +393,11 @@ test("the settings write: the owner's, the workspace named, the body { config, v
     "the keys that changed, never their values",
   );
   assert.equal(tables.events[0].data.via, undefined, "a form saved: no card mark");
+  assert.deepEqual(
+    Object.keys(tables.events[0].data).sort(),
+    ["by", "fields", "version"],
+    "REGRESSION: an audit row never copies the business's own words into a second place",
+  );
   // A settings card from the Ask palette: the same route, the same event, marked.
   const fromCard = await settings.PUT.run(
     send("PUT", { config: { brain: { ...brain, business_name: "Bayside Salon & Spa" } }, version: 2 }, inB),

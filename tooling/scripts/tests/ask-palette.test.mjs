@@ -29,6 +29,7 @@ import {
   leadPlanAsk,
   leadPlanFacts,
   leadPlanLikely,
+  leadQuestionRoute,
   leadsRoute,
   planArea,
   planCeiling,
@@ -441,16 +442,41 @@ test("the Line at rest: Right now is Today's queue, then questions about the pag
           quoted: true,
           cta: { label: "Reply", to: "inbox/th-c1" },
         },
+        {
+          id: "q-s-s1",
+          kind: "search",
+          conversationId: null,
+          callId: null,
+          who: "personal trainers",
+          channel: "Leads",
+          when: "waited 3h",
+          sentence: "Most of the first 25 are gyms, not trainers. Keep them?",
+          quoted: false,
+          cta: { label: "Answer", to: "clients/leads:s-s1:c-excluded" },
+        },
       ],
+      // The queue counts the search among those waiting; it is not a person, so it is not "1 more".
+      waiting: 2,
     },
   };
   try {
     const calls = ask([TH(1), TH(2), TH(3), TH(4)]);
     render(Palette, OPEN);
     let tree = await later(Palette, OPEN);
-    assert.equal(textOf(byClass(byTestId(tree, "ask-row-now"), "ask-row-label")[0]), "Nora is waiting on you.");
-    // The pills beside the sentence say its counts (rightNowParts): one person waiting, no run.
-    assert.deepEqual(all(tree, (n) => n.props?.["data-testid"] === "ask-pill").map(textOf), ["1 needs you"]);
+    assert.equal(
+      textOf(byClass(byTestId(tree, "ask-row-now"), "ask-row-label")[0]),
+      "Nora is waiting on you; your search for personal trainers is waiting for your answer.",
+    );
+    // The pills beside the sentence say its counts (rightNowParts): one person waiting, no run, one search.
+    assert.deepEqual(all(tree, (n) => n.props?.["data-testid"] === "ask-pill").map(textOf), [
+      "1 needs you",
+      "1 search waiting",
+    ]);
+    assert.equal(
+      globalThis.window.askText("en").searchWaiting(2),
+      "2 searches waiting",
+      "the pill counts several the same way",
+    );
     assert.equal(textOf(byTestId(tree, "ask-row-brief")), "Brief me");
     assert.ok(textOf(tree).includes("Ask about Today"), "questions about the page, under its name");
     assert.equal(all(tree, (n) => n.props?.["data-testid"] === "ask-row-sug").length, 3, "three questions, as chips");
@@ -471,11 +497,17 @@ test("the Line at rest: Right now is Today's queue, then questions about the pag
     keyed(tree, "Enter");
     tree = await later(Palette, OPEN);
     assert.deepEqual(calls.sent, [], "a quick answer asks no model");
-    assert.equal(textOf(byTestId(tree, "ask-say")), "Nora is waiting on you.");
+    assert.equal(
+      textOf(byTestId(tree, "ask-say")),
+      "Nora is waiting on you; your search for personal trainers is waiting for your answer.",
+    );
     assert.deepEqual(
       all(tree, (n) => n.props?.["data-testid"] === "ask-item").map((n) => textOf(n)),
-      ["NoraWhatsApp · waited 2h“Can I come at 3?”"],
-      "the person is her own door; there is no second one to the Inbox",
+      [
+        "NoraWhatsApp · waited 2h“Can I come at 3?”",
+        "personal trainersLeadsMost of the first 25 are gyms, not trainers. Keep them?",
+      ],
+      "the person and the search are their own doors; there is no second one to the Inbox",
     );
     assert.equal(byTestId(tree, "ask-open"), null);
     await closes();
@@ -1762,6 +1794,75 @@ test("on Leads the Line is the finder: describe the businesses, Find businesses 
     );
     assert.deepEqual(went, ["clients/leads:s-s1"], "the Line went to the new search");
     assert.equal(went[0], leadsRoute({ searchId: "s1", list: "all", cls: null }), "which is contracts' route for it");
+  } finally {
+    await closes();
+    globalThis.window.location.hash = hash;
+    globalThis.window.CHANLY = chanly;
+    delete globalThis.window.__LEADS;
+    delete globalThis.window.__LEAD_VM;
+  }
+});
+
+test("on Leads a card that answers a search commits through Ask's door with no undo, and the Line goes to the search's question", async () => {
+  const hash = globalThis.window.location.hash;
+  const chanly = globalThis.window.CHANLY;
+  const went = [];
+  globalThis.window.location.hash = "#/clients/leads";
+  globalThis.window.__LEADS = { suggestions: { items: [] }, searches: [] };
+  globalThis.window.__LEAD_VM = LEAD_VM;
+  globalThis.window.CHANLY = { ...chanly, nav: (to) => went.push(to) };
+  const answering = {
+    ...LEAD_CARD,
+    id: "p2",
+    summary: `Answers “Most of the first 25 are chain gyms. Include them?”: ${planSentence(LEAD_PLAN)}`,
+    payload: {
+      ...LEAD_CARD.payload,
+      plan: { ...LEAD_PLAN, version: 2 },
+      amends: {
+        search_id: "s1",
+        name: "personal trainers",
+        question: "Most of the first 25 are chain gyms. Include them?",
+      },
+    },
+    undo: null,
+  };
+  try {
+    ask([]);
+    const committed = [];
+    Object.assign(globalThis.window.__ask, {
+      commit: async (p) => {
+        committed.push(p.payload.amends);
+        return {
+          ok: true,
+          receipt: "Answered. personal trainers carries on with your answer; Leads shows it.",
+          undo: null,
+        };
+      },
+      outcome: async () => true,
+      undoOpen: () => false,
+      send: async (input, on) => {
+        on({ t: "thread", id: TH(9).id, title: input.text });
+        on({ t: "final", message: { ...said("m-lead", "Here is the plan."), proposals: [answering] } });
+      },
+    });
+    render(Palette, OPEN);
+    let tree = await later(Palette, OPEN);
+    typed(tree, "include them");
+    tree = await later(Palette, OPEN);
+    keyed(tree, "Enter");
+    tree = await later(Palette, OPEN);
+    assert.equal(byTestId(tree, "ask-card").props["data-kind"], "lead_search");
+    typed(tree, "");
+    tree = await later(Palette, OPEN);
+    press(byTestId(tree, "plan-approve"));
+    tree = await later(Palette, OPEN);
+    assert.deepEqual(committed, [answering.payload.amends], "the card commits as it came, its amends intact");
+    assert.ok(textOf(byClass(tree, "ask-card-receipt")[0]).includes("Answered."), "the receipt stays in the thread");
+    assert.deepEqual(
+      went,
+      [leadQuestionRoute("s1")],
+      "the Line went to the search that asked, on the pile it asked about",
+    );
   } finally {
     await closes();
     globalThis.window.location.hash = hash;
