@@ -261,7 +261,7 @@ const blank = () => ({ history: [], pausedUntil: 0, replies: [], repliedBefore: 
  * `ingest(n)` runs inside the ingest, so a case can make one message's throw.
  */
 function receptionist({ ingest = () => {} } = {}) {
-  const seen = { runtimes: [], wires: [], ingested: [], sent: [], alerts: [] };
+  const seen = { runtimes: [], wires: [], ingested: [], sent: [], alerts: [], emails: [] };
   setInboundPorts({
     db: pg,
     runtime: async (_db, routed) => {
@@ -309,6 +309,9 @@ function receptionist({ ingest = () => {} } = {}) {
         processed: async () => {},
         allowlistSkip: async () => {},
         unreachableSender: async () => {},
+        noteEmail: async (address) => {
+          seen.emails.push(address);
+        },
         vetoFallback: async () => {},
         pause: async () => {},
         usage: async () => {},

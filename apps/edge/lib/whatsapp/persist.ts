@@ -278,6 +278,31 @@ export function pgSink(
           )
         : Promise.resolve(),
     /**
+     * An address the customer gave in their own words (answer.ts, contracts addressInMessage): kept through the door
+     * set_person_email, which takes the edge's call with no session (00171) and writes the event, only where the person
+     * has none. Another person here holding the address is said in the log, never moved: the owner merges them.
+     */
+    noteEmail: (address: string) =>
+      on
+        ? pgSafe("note_email", async () => {
+            const { data, error: unread } = await db!
+              .from("contacts")
+              .select("email")
+              .eq("id", ing!.contact_id)
+              .maybeSingle();
+            // The door itself overwrites, so this read is the one thing that keeps an address already on file: a
+            // read that failed keeps everything, rather than writing over an address nobody could see.
+            if (unread) throw new Error(unread.message);
+            if (data?.email) return;
+            const { error } = await db!.rpc("set_person_email", { p_contact_id: ing!.contact_id, p_email: address });
+            if (error && error.code === "23505") {
+              logger().info("inbound_email_taken", { tenant_id: tenantId, contact: ing!.contact_id });
+              return;
+            }
+            if (error) throw new Error(error.message);
+          })
+        : Promise.resolve(),
+    /**
      * A veto window this workspace CONFIGURED did not happen, and the customer
      * has the receptionist's words already. The reply itself is fine — the
      * promise the setting made is what broke, and a setting that quietly stops

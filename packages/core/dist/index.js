@@ -3320,6 +3320,24 @@ function normalizeEmail(raw) {
   if (!m || m[1].length > MAX_LOCAL) return null;
   return s;
 }
+var OWN_ADDRESS_WORDS = /\b(my|mine|it'?s|is|email|e-mail|mail|correo|mi|es|sure|here|aqu[ií])\b/i;
+function addressInMessage(body) {
+  const s = String(body ?? "").trim();
+  if (!s || s.length > 160) return null;
+  const tokens = s.split(/\s+/);
+  const found = /* @__PURE__ */ new Set();
+  for (const raw of tokens) {
+    const t = raw.replace(/^[("'<[]+|[)"'>\].,;:!?]+$/g, "");
+    if (!t.includes("@")) continue;
+    const e = normalizeEmail(t);
+    if (!e) return null;
+    found.add(e);
+  }
+  if (found.size !== 1) return null;
+  const alone = tokens.length === 1;
+  const theirs = tokens.length <= 8 && OWN_ADDRESS_WORDS.test(s);
+  return alone || theirs ? [...found][0] : null;
+}
 var EVENT_KINDS2 = [
   "message.received",
   "message.sent",
@@ -45474,6 +45492,10 @@ async function answerInbound(input, ports) {
     ...carrier ? { sms: (to, p) => carrier.send(to, p.body) } : {}
   };
   const sink = ports.persist.sink(db, tenantId, ing, rt, channel, wires);
+  if (ing && n.type === "text") {
+    const given = addressInMessage(n.body);
+    if (given) await sink.noteEmail(given);
+  }
   const repliedBefore = thread.repliedBefore ?? thread.history.some((h) => h.role === "assistant");
   const firstReply = thread.replies.length === 0 && !repliedBefore;
   const wire = (text) => carrier ? carrier.body(text, firstReply) : text;

@@ -99,6 +99,7 @@ function world(over = {}) {
     unreachable: 0,
     media: 0,
     purposes: [],
+    emails: [],
   };
   const rt = over.rt ?? runtime();
   const recordIngest = over.ingest ?? (async (_db, _tenant, n) => ingested(n));
@@ -145,6 +146,9 @@ function world(over = {}) {
         allowlistSkip: async () => {},
         unreachableSender: async () => {
           seen.unreachable += 1;
+        },
+        noteEmail: async (address) => {
+          seen.emails.push(address);
         },
         vetoFallback: async () => {},
         pause: async (iso) => {
