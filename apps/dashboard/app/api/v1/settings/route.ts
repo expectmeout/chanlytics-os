@@ -7,12 +7,14 @@ import {
   TenantConfigWriteSchema,
   resolveFacts,
   factConflicts,
+  knownForwarding,
   changedConfigFields,
   type KnownFacts,
 } from "@chanlytics/contracts";
 import { getTenantConfig, putTenantConfig } from "@chanlytics/db";
 import type { Json } from "@chanlytics/db";
 import { promptPreview } from "@/server/prompt-preview";
+import { linesFor } from "@/server/lines";
 
 function maskFeedUrl(u: string): string {
   return u.length <= 30 ? "…" : `${u.slice(0, 24)}…${u.slice(-6)}`;
@@ -29,10 +31,12 @@ function maskFeedUrl(u: string): string {
  * is one answer — which is the whole point of facts.ts.
  */
 async function knownFacts(ctx: RouteContext, tenantId: string): Promise<KnownFacts> {
-  const [ws, ch, gl] = await Promise.all([
+  const [ws, ch, gl, lines] = await Promise.all([
     ctx.supabase.from("tenants").select("name, timezone").eq("id", tenantId).maybeSingle(),
     ctx.supabase.from("tenant_channels").select("kind, number_e164, status").eq("tenant_id", tenantId),
     ctx.supabase.from("google_listings").select("name, address").eq("tenant_id", tenantId).maybeSingle(),
+    // The number the business keeps and forwards: the same rows, read the same way, as Setup's line rows.
+    linesFor(ctx.supabase, tenantId).catch(() => []),
   ]);
   // None of these is worth failing the settings read for. A workspace whose
   // channels could not be listed sees its typed values unresolved, which is
@@ -41,6 +45,7 @@ async function knownFacts(ctx: RouteContext, tenantId: string): Promise<KnownFac
     workspace: ws.error ? null : ws.data,
     channels: ch.error ? [] : (ch.data ?? []),
     listing: gl.error ? null : gl.data,
+    forwarding: knownForwarding(lines),
   };
 }
 

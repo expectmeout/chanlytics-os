@@ -68,6 +68,11 @@ export interface KnownFacts {
   }> | null;
   /** The linked Google Business Profile, when there is one. */
   listing?: { name?: string | null; address?: string | null } | null;
+  /**
+   * The numbers the business keeps that forward to one of its lines (lines of kind "forwarded"): the number
+   * customers already call, and the line those calls reach when nobody picks up.
+   */
+  forwarding?: ReadonlyArray<{ from_e164: string | null; to_e164?: string | null }> | null;
 }
 
 /** The brain fields this resolves over. A subset, so callers need not have parsed everything. */
@@ -95,6 +100,11 @@ export interface ResolvedFacts {
   voice_line: Fact<string>;
   /** The WhatsApp line. Provisioned or nothing. */
   whatsapp_line: Fact<string>;
+  /**
+   * The number the business keeps and forwards to the receptionist. Provisioned by the forwarding the owner set
+   * up, never typed here -- and never a number to put a caller through to, since the call would come straight back.
+   */
+  kept_line: Fact<string>;
 }
 
 const trimmed = (v: unknown): string | null => {
@@ -107,6 +117,31 @@ const activeChannel = (known: KnownFacts | null | undefined, kind: string): stri
   const row = rows.find((c) => c.kind === kind && (c.status ?? "active") === "active");
   return trimmed(row?.number_e164);
 };
+
+/** The first number the business keeps and forwards, wherever it forwards to. */
+const keptNumber = (known: KnownFacts | null | undefined): string | null =>
+  trimmed((known?.forwarding ?? []).find((r) => trimmed(r.from_e164))?.from_e164);
+
+/**
+ * The kept number whose calls reach THIS line, when there is one. Forwarding is saved against the line it pointed
+ * at when the owner set it up (lines.facts.destination_e164); a line since replaced does not receive those calls.
+ */
+const keptReaching = (known: KnownFacts | null | undefined, line: string | null): string | null =>
+  line
+    ? trimmed((known?.forwarding ?? []).find((r) => trimmed(r.from_e164) && samePhone(r.to_e164, line))?.from_e164)
+    : null;
+
+/** The forwarding the platform knows about, from a workspace's lines as Setup reads them (dashboard server/lines.ts). */
+export function knownForwarding(
+  rows: ReadonlyArray<{ kind: string; e164: string | null; forwarding?: { destination_e164: string | null } | null }>,
+): Array<{ from_e164: string; to_e164: string | null }> {
+  const out: Array<{ from_e164: string; to_e164: string | null }> = [];
+  for (const r of rows) {
+    const from = trimmed(r.e164);
+    if (r.kind === "forwarded" && from) out.push({ from_e164: from, to_e164: r.forwarding?.destination_e164 ?? null });
+  }
+  return out;
+}
 
 /** Two ways of writing one number. `(646) 555-0175` and `+16465550175` are the same fact. */
 export function samePhone(a: string | null | undefined, b: string | null | undefined): boolean {
@@ -182,6 +217,8 @@ export function resolveFacts(typed: TypedFacts | null | undefined, known?: Known
   const p = typed?.profile ?? null;
   const voice = activeChannel(known, "voice");
   const whatsapp = activeChannel(known, "whatsapp");
+  const kept = keptNumber(known);
+  const published = trimmed(typed?.phone_display);
   const strEq = (a: string | null, b: string | null) => a === b;
 
   return {
@@ -197,12 +234,13 @@ export function resolveFacts(typed: TypedFacts | null | undefined, known?: Known
     // written to customers -- "Phone: +13085550109" in a prompt becomes a
     // receptionist reading digits aloud -- so the provisioned line arrives as
     // "+1 (308) 555-0109", the way a person says a number.
-    phone_display: typedOverKnown(
-      trimmed(typed?.phone_display),
-      voice ? formatPhoneDisplay(voice) : null,
-      "provisioned",
-      samePhone,
-    ),
+    //
+    // The number the business keeps and forwards to THIS line is the one typed value that is not a disagreement
+    // with it: customers call the number they know, and when nobody picks up they reach the receptionist.
+    phone_display:
+      published && samePhone(published, keptReaching(known, voice))
+        ? { value: published, source: "typed" }
+        : typedOverKnown(published, voice ? formatPhoneDisplay(voice) : null, "provisioned", samePhone),
     booking_link: typedOverKnown(trimmed(typed?.booking_link), null, "absent", strEq),
     address: typedOverKnown(trimmed(p?.address), trimmed(known?.listing?.address), "verified", sameAddress),
     website: typedOverKnown(trimmed(p?.website), null, "absent", strEq),
@@ -212,6 +250,7 @@ export function resolveFacts(typed: TypedFacts | null | undefined, known?: Known
       : { value: null, source: "absent" },
     voice_line: voice ? { value: voice, source: "provisioned" } : { value: null, source: "absent" },
     whatsapp_line: whatsapp ? { value: whatsapp, source: "provisioned" } : { value: null, source: "absent" },
+    kept_line: kept ? { value: kept, source: "provisioned" } : { value: null, source: "absent" },
   };
 }
 

@@ -2321,6 +2321,16 @@ var activeChannel = (known, kind) => {
   const row2 = rows.find((c) => c.kind === kind && (c.status ?? "active") === "active");
   return trimmed(row2?.number_e164);
 };
+var keptNumber = (known) => trimmed((known?.forwarding ?? []).find((r) => trimmed(r.from_e164))?.from_e164);
+var keptReaching = (known, line) => line ? trimmed((known?.forwarding ?? []).find((r) => trimmed(r.from_e164) && samePhone(r.to_e164, line))?.from_e164) : null;
+function knownForwarding(rows) {
+  const out = [];
+  for (const r of rows) {
+    const from = trimmed(r.e164);
+    if (r.kind === "forwarded" && from) out.push({ from_e164: from, to_e164: r.forwarding?.destination_e164 ?? null });
+  }
+  return out;
+}
 function samePhone(a, b) {
   const x = normalizePhone(a);
   const y = normalizePhone(b);
@@ -2352,6 +2362,8 @@ function resolveFacts(typed, known) {
   const p = typed?.profile ?? null;
   const voice = activeChannel(known, "voice");
   const whatsapp = activeChannel(known, "whatsapp");
+  const kept = keptNumber(known);
+  const published = trimmed(typed?.phone_display);
   const strEq = (a, b) => a === b;
   return {
     business_name: typedOverKnown(
@@ -2366,19 +2378,18 @@ function resolveFacts(typed, known) {
     // written to customers -- "Phone: +13085550109" in a prompt becomes a
     // receptionist reading digits aloud -- so the provisioned line arrives as
     // "+1 (308) 555-0109", the way a person says a number.
-    phone_display: typedOverKnown(
-      trimmed(typed?.phone_display),
-      voice ? formatPhoneDisplay(voice) : null,
-      "provisioned",
-      samePhone
-    ),
+    //
+    // The number the business keeps and forwards to THIS line is the one typed value that is not a disagreement
+    // with it: customers call the number they know, and when nobody picks up they reach the receptionist.
+    phone_display: published && samePhone(published, keptReaching(known, voice)) ? { value: published, source: "typed" } : typedOverKnown(published, voice ? formatPhoneDisplay(voice) : null, "provisioned", samePhone),
     booking_link: typedOverKnown(trimmed(typed?.booking_link), null, "absent", strEq),
     address: typedOverKnown(trimmed(p?.address), trimmed(known?.listing?.address), "verified", sameAddress),
     website: typedOverKnown(trimmed(p?.website), null, "absent", strEq),
     // Human-only by nature: nothing provisions "the person to put a caller through to".
     handoff_number: p?.handoff_number ? { value: p.handoff_number, source: "typed" } : { value: null, source: "absent" },
     voice_line: voice ? { value: voice, source: "provisioned" } : { value: null, source: "absent" },
-    whatsapp_line: whatsapp ? { value: whatsapp, source: "provisioned" } : { value: null, source: "absent" }
+    whatsapp_line: whatsapp ? { value: whatsapp, source: "provisioned" } : { value: null, source: "absent" },
+    kept_line: kept ? { value: kept, source: "provisioned" } : { value: null, source: "absent" }
   };
 }
 function factConflicts(f) {
@@ -19699,6 +19710,7 @@ export {
   judgeOpId,
   judgeSystemPrompt,
   judgeUserContent,
+  knownForwarding,
   knownTimezones,
   languageLabel,
   languageLabels,

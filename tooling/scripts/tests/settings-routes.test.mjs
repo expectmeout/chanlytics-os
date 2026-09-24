@@ -209,6 +209,50 @@ test("the settings read composes what the receptionist is told, with the inputs 
   assert.equal(none.prompt, null);
 });
 
+test("F1: the settings read knows the number the business keeps -- publishing it is no conflict while it forwards to the line, and the conflict it is once the line has changed", async () => {
+  const BRAIN = {
+    business_name: "Harbor Moving",
+    booking_link: "https://book.example/harbor",
+    phone_display: "(718) 555-0142",
+    system_prompt: "Answer as the front desk of Harbor Moving: brief, warm, and never a price.",
+    fallbacks: { greeting: "g", error: "e", non_text: "n" },
+  };
+  const kept = (destination) => ({
+    id: L1,
+    tenant_id: A,
+    e164: "+17185550142",
+    kind: "forwarded",
+    provider: "carrier",
+    area_code: 718,
+    voice_state: "answering",
+    sms_state: "none",
+    whatsapp_state: "none",
+    port_state: "none",
+    forwarding_state: "verified",
+    state_since: "2026-09-20T00:00:00Z",
+    created_at: "2026-09-20T00:00:00Z",
+    facts: { carrier: "verizon", mode: "unanswered", destination_e164: destination },
+  });
+  const tables = (destination) => ({
+    memberships: both("owner", "owner"),
+    tenant_config: [{ tenant_id: A, config: { brain: BRAIN }, version: 2, updated_at: "2026-09-01T00:00:00Z" }],
+    tenants: [{ id: A, name: "Harbor Moving", timezone: "America/New_York" }],
+    tenant_channels: [{ tenant_id: A, kind: "voice", number_e164: "+19295550100", status: "active" }],
+    google_listings: [],
+    lines: [kept(destination)],
+  });
+  const forwarded = await settings.GET.run(get(inA), ctxFor(tables("+19295550100")));
+  assert.deepEqual(forwarded.facts.kept_line, { value: "+17185550142", source: "provisioned" });
+  assert.deepEqual(forwarded.facts.phone_display, { value: "(718) 555-0142", source: "typed" });
+  assert.deepEqual(forwarded.conflicts, [], "customers call the number they know and reach the receptionist");
+  const stale = await settings.GET.run(get(inA), ctxFor(tables("+13055550199")));
+  assert.deepEqual(
+    stale.conflicts.map((c) => [c.fact, c.severity]),
+    [["phone_display", "serious"]],
+    "forwarding saved against a line since replaced reaches nobody",
+  );
+});
+
 test("the settings write: the owner's, the workspace named, the body { config, version }, the write schema's refusals named by field, a stale version a conflict, the change on the ledger as fields never values", async () => {
   const tables = {
     memberships: both("viewer", "owner"),

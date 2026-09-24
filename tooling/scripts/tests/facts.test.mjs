@@ -9,7 +9,15 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { resolveFacts, factConflicts, samePhone, sameAddress, sameName, SOURCE_WORDS } from "@chanlytics/contracts";
+import {
+  resolveFacts,
+  factConflicts,
+  knownForwarding,
+  samePhone,
+  sameAddress,
+  sameName,
+  SOURCE_WORDS,
+} from "@chanlytics/contracts";
 import { importSrc, readCode, readRaw } from "./_source.mjs";
 
 /** Melany's Beauty Salon, exactly as the database held it. */
@@ -74,6 +82,44 @@ test("a mismatch that is NOT the transfer number reads as the plain error it is"
   );
   const [c] = factConflicts(f);
   assert.match(c.sentence, /Anyone who calls the published number does not reach it/);
+});
+
+test("F1: the number the business keeps and forwards to its line is what it publishes, not a disagreement", () => {
+  // The first run's default: keep the number customers know, forward the calls nobody picks up to the line.
+  const known = { ...LIVE.known, forwarding: [{ from_e164: "+16469325775", to_e164: "+13083368109" }] };
+  const f = resolveFacts({ ...LIVE.typed, profile: { ...LIVE.typed.profile, handoff_number: "+19175550100" } }, known);
+  assert.deepEqual(f.kept_line, { value: "+16469325775", source: "provisioned" });
+  assert.deepEqual(
+    f.phone_display,
+    { value: "(646) 932-5775", source: "typed" },
+    "no dispute: a call to it that nobody picks up reaches the line",
+  );
+  assert.deepEqual(factConflicts(f), []);
+});
+
+test("F1: forwarding that points at a line the workspace no longer answers on is still the conflict it is", () => {
+  const known = { ...LIVE.known, forwarding: [{ from_e164: "+16469325775", to_e164: "+13055550199" }] };
+  const f = resolveFacts({ ...LIVE.typed, profile: { ...LIVE.typed.profile, handoff_number: "+19175550100" } }, known);
+  assert.equal(f.kept_line.value, "+16469325775", "the number is still kept");
+  const [c] = factConflicts(f);
+  assert.equal(c.severity, "serious");
+  assert.match(c.sentence, /Anyone who calls the published number does not reach it/);
+});
+
+test("F1: knownForwarding reads Setup's lines -- forwarded rows with a number, and where each one goes", () => {
+  assert.deepEqual(
+    knownForwarding([
+      { kind: "own", e164: "+13083368109", forwarding: null },
+      { kind: "forwarded", e164: "+16469325775", forwarding: { destination_e164: "+13083368109" } },
+      { kind: "forwarded", e164: null, forwarding: { destination_e164: "+13083368109" } },
+      { kind: "forwarded", e164: "+17185550100" },
+    ]),
+    [
+      { from_e164: "+16469325775", to_e164: "+13083368109" },
+      { from_e164: "+17185550100", to_e164: null },
+    ],
+  );
+  assert.deepEqual(knownForwarding([]), []);
 });
 
 test("no typed value falls back to what the platform knows", () => {
