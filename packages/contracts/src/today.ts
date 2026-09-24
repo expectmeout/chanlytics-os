@@ -44,6 +44,7 @@ import {
 import { clipAtWord } from "./viewmodels";
 import { conversationOfNeedsKey, callOfKey, unreadCount } from "./notifications";
 import { channelKindWords, CHANNEL_ANSWERED } from "./channels";
+import { formatPhoneDisplay } from "./phone";
 import { EMAIL_NOT_ANSWERED_SENTENCE, type EmailSetupDto } from "./mailbox";
 
 /**
@@ -740,7 +741,9 @@ export function toTodayVM(
     kind: c.kind,
     label: channelKindWords(c.kind),
     on: c.status === "active",
-    where: c.address ?? c.number ?? null,
+    // A number as a person reads it, "+1 (212) 555-0142": the quiet day's proof
+    // said the column's "+12125550142".
+    where: c.address ?? formatPhoneDisplay(c.number),
   }));
   const chips = wires.map((w) => ({ text: `${w.label} ${w.on ? "connected" : "disconnected"}`, ok: w.on }));
   const down = wires.filter((w) => !w.on);
