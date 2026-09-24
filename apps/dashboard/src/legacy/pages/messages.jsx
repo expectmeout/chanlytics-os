@@ -212,19 +212,21 @@ const MessageRow = ({ g, langs, bizName, canAct, canAdd = false, addWhy = null, 
     setAdding(null);
   };
   return (
-    <div className={`msg-row${open ? " is-open" : ""}${attn ? " is-attn" : ""}${dim ? " is-dim" : ""}${row && row.hidden_at ? " is-hidden" : ""}`} data-testid={g.starter ? "starter-row" : "custom-row"}>
-      <div className="msg-row-line">
+    <div className={`msg-row${open ? " is-open" : ""}${attn ? " is-attn" : ""}${dim ? " is-dim" : ""}${row && row.hidden_at ? " is-hidden" : ""}`} data-template={gName || undefined} data-testid={g.starter ? "starter-row" : "custom-row"}>
+      {/* A press anywhere on the line that is not one of its controls opens it (cmRowPress), as a person's row does. */}
+      <div className="msg-row-line" onClick={window.cmRowPress}>
         {/* The press that opens it covers the mark and the words -- the part of a
             row that is not already something you can press. The languages and
             what sends it are their own acts, in their own cells. */}
-        <button type="button" className="msg-row-what" onClick={onOpen} aria-expanded={open} data-testid="template-open">
+        <button type="button" className="msg-row-what" onClick={onOpen} aria-expanded={open} data-row-open data-testid="template-open">
           <span className="mark msg-row-mark" data-kind={offer ? "offer" : "note"} data-tip={offer ? "An offer — WhatsApp calls this marketing, so it only reaches people who said yes to offers." : "A note — WhatsApp calls this utility, so it reaches anyone it is sent to."}>
             <Icon name={offer ? "gift" : "bell"} size={13} />
           </span>
           <span className="msg-row-said">
             <span className="msg-row-titles">
+              {/* The name WhatsApp knows it by is the open row's (its foot), not every row's: an owner reads the
+                  title and the words, and "winback_offer" in type is nothing they act on. */}
               <span className="msg-row-title">{g.title}</span>
-              {gName && <span className="msg-row-name mono">{gName}</span>}
               {/* A template's state is a pill in its tone; where it came from is a name, a chip. */}
               {tag && (tag.state
                 ? <span className={`pill${tag.tone && tag.tone !== "plain" ? ` pill-${tag.tone}` : ""} msg-tag`} data-tone={tag.tone} data-testid="template-status">{tag.words}</span>
@@ -505,8 +507,9 @@ const MessagesReal = () => {
   return (
     <div className="reports tpl-page" data-testid="messages-real">
       <div className="rp-body cm-page">
-        {/* A headline and one line under it, the way every Campaigns page opens.
-            The line is the page's numbers -- how many, how many approved, how many
+        {/* One line, the way every Campaigns tab opens: the tab says "Templates", so the
+            name is a screen reader's alone (CmHead quiet). The line is the page's
+            numbers -- how many, how many approved, how many
             WhatsApp is still reading -- and being in step with WhatsApp, which is a
             STATE the page is in, not a chore the owner remembers: it says when it
             last looked and presses to look again, and while it looks it is the only
@@ -514,10 +517,11 @@ const MessagesReal = () => {
             word is a thread in the Inbox and a send in a broadcast's numbers. */}
         <window.CmHead
           title="Templates"
+          quiet
           testid="messages-standing"
           sub={(
             <>
-              <span className="tabular" data-tip="What the receptionist and your campaigns send on WhatsApp, as the customer sees it. Written here or in WhatsApp Manager, WhatsApp approves either way. A marketing template can only go to people who said yes to offers.">
+              <span className="tabular" data-tip="What the receptionist and your campaigns send on WhatsApp, as the customer sees it. Written here or in WhatsApp Manager, WhatsApp approves either way, usually within minutes. A marketing template can only go to people who said yes to offers.">
                 {shown.length === 0 ? "No template on file yet" : <><b className="cm-head-n">{shown.length}</b> {shown.length === 1 ? "template" : "templates"}</>}
               </span>
               {shown.length > 0 && (
@@ -538,7 +542,8 @@ const MessagesReal = () => {
                     {...window.gate("approve", "sync from WhatsApp")}
                   >
                     <span className={`tpl-fresh-dot${lastSync ? "" : " never"}`} aria-hidden="true" />
-                    {doing === "sync" ? "Checking WhatsApp…" : lastSync ? <>In step with WhatsApp <span className="tpl-fresh-age">{tplAgo(lastSync)}</span></> : "Never checked with WhatsApp"}
+                    {/* On a phone the dot and the age say it, so the line stays one line (the button's label says the rest). */}
+                    {doing === "sync" ? "Checking WhatsApp…" : lastSync ? <><span className="tpl-fresh-words">In step with WhatsApp</span> <span className="tpl-fresh-age">{tplAgo(lastSync)}</span></> : "Never checked with WhatsApp"}
                     <span className="tpl-fresh-again" aria-hidden="true"><Icon name="refresh" size={12} /></span>
                   </button>
                 </>
@@ -600,9 +605,13 @@ const MessagesReal = () => {
                 </button>
               )}
             >
+              {/* What the hole costs, in one clause: who gets nothing, from what. Why a language is missing (the set
+                  comes in two) is the lead's own news, and the sentence that explained it doubled the notice. */}
               {allMissing
                 ? <>In {tplAnd(langs.map((l) => l.label))} — WhatsApp reviews each, usually within minutes.</>
-                : <>The set comes in {tplAnd(langs.map((l) => l.label))}, so a message that exists in one reaches only the customers who read it{costly ? <> — the {costly.words} is sending nothing to your {costly.lang.label}-speaking customers</> : null}.</>}
+                : costly
+                  ? <>Your {costly.lang.label}-speaking customers get nothing from {costly.words}.</>
+                  : <>The set comes in {tplAnd(langs.map((l) => l.label))}, so a message in one reaches only the customers who read it.</>}
             </window.CmBanner>
           </div>
         )}
@@ -630,18 +639,18 @@ const MessagesReal = () => {
           {!hasWhatsApp && customGroups.length === 0 && <EmptyState kind="line" title="Nothing on file yet." />}
         </section>
         {/* The foot of the list: what the workspace kept out of the composers, folded
-            and still on file, and how long WhatsApp takes to read a new one. */}
-        <footer className="msg-foot">
-          {hiddenGroups.length > 0 && (
+            and still on file. How long WhatsApp takes to read a new one is the head's
+            hover and the composer's line; said here too, it was the page's third time. */}
+        {hiddenGroups.length > 0 && (
+          <footer className="msg-foot">
             <span className="msg-foot-fold" data-testid="templates-fold">
               <button className="msg-fold-toggle" onClick={() => setShowHidden((v) => !v)} aria-expanded={showHidden} data-testid="templates-hidden">
                 <Icon name={showHidden ? "chevron-up" : "chevron-down"} size={12} />
                 Not in the composers · <span className="tabular">{hiddenRows.length}</span> · still on file
               </button>
             </span>
-          )}
-          <span className="msg-foot-note">WhatsApp reviews each message, usually within minutes</span>
-        </footer>
+          </footer>
+        )}
         {showHidden && hiddenGroups.length > 0 && <div className="msg-list msg-list-hidden">{hiddenGroups.map(card)}</div>}
       </div>
       {toastNode}
