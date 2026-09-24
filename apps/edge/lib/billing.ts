@@ -47,7 +47,7 @@ export function dashboardOrigin(): string {
 export function billingReturnUrl(
   slug: string | null,
   outcome: "success" | "cancel" | "portal",
-  back: CheckoutReturn = "billing",
+  back: CheckoutReturn,
 ): string {
   const page = slug ? `/w/${encodeURIComponent(slug)}` : "/";
   return `${dashboardOrigin()}${page}?billing=${outcome}#/${CHECKOUT_RETURN_ROUTE[back]}`;
@@ -301,8 +301,8 @@ export async function checkoutFor(
   tenantId: string,
   tenantName: string,
   email: string | null,
-  slug: string | null = null,
-  back: CheckoutReturn = "billing",
+  slug: string | null,
+  back: CheckoutReturn,
 ): Promise<{ ok: true; url: string } | { ok: false; error: BillingFailure; detail?: string }> {
   const s = stripe();
   const price = priceId();
@@ -355,7 +355,7 @@ export async function portalFor(
   try {
     const session = await s.billingPortal.sessions.create({
       customer: row.stripe_customer_id,
-      return_url: billingReturnUrl(slug, "portal"),
+      return_url: billingReturnUrl(slug, "portal", "billing"),
     });
     return { ok: true, url: session.url };
   } catch (e) {

@@ -71,10 +71,19 @@ test("F4: the first run's word rides to the edge; Billing's callers send nothing
 
 test("F4: a place that is not on the list is refused before the edge is asked", async () => {
   asked.length = 0;
-  await assert.rejects(checkout.POST.run(post({ return: "https://evil.example/steal" }), ctx()), (e) => {
-    assert.equal(e.code, "validation");
-    assert.equal(e.status, 400);
-    return true;
-  });
+  for (const junk of ["https://evil.example/steal", "admin/billing", 7, null]) {
+    await assert.rejects(checkout.POST.run(post({ return: junk }), ctx()), (e) => {
+      assert.equal(e.code, "validation");
+      assert.equal(e.status, 400);
+      assert.equal(e.message, "return: Checkout comes back to Billing or to setting up.");
+      return true;
+    });
+  }
   assert.equal(asked.length, 0, "the edge never heard of it");
+  // An older page that posts no body at all still reaches Checkout, and comes back to Billing.
+  assert.deepEqual(await checkout.POST.run(post(undefined), ctx()), { url: "https://checkout.stripe.test/cs_1" });
+  assert.deepEqual(
+    asked.map((b) => b.return),
+    [undefined],
+  );
 });

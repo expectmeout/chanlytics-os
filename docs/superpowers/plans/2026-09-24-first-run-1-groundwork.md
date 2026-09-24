@@ -37,24 +37,24 @@ node:test (`corepack pnpm test`), committed `packages/*/dist`, no new dependenci
 - Modify: `apps/dashboard/src/server/setup.ts` (the resolver gets the forwarding it already read)
 - Test: `tooling/scripts/tests/facts.test.mjs`, `tooling/scripts/tests/settings-routes.test.mjs`
 
-- [ ] **Step 1: Write the failing tests** in `facts.test.mjs`:
+- [x] **Step 1: Write the failing tests** in `facts.test.mjs`:
 
 ```js
 test("F1: the number the business keeps and forwards to its line is what it publishes, not a disagreement", () => {
   const known = {
-    ...LIVE.known,
-    forwarding: [{ from_e164: "+16469325775", to_e164: "+13083368109" }],
+    ...HARBOR.known,
+    forwarding: [{ from_e164: "+12125550142", to_e164: "+13055550123" }],
   };
-  const f = resolveFacts({ ...LIVE.typed, profile: { ...LIVE.typed.profile, handoff_number: "+19175550100" } }, known);
-  assert.deepEqual(f.kept_line, { value: "+16469325775", source: "provisioned" });
-  assert.deepEqual(f.phone_display, { value: "(646) 932-5775", source: "typed" }, "no dispute: calls to it forward to the line");
+  const f = resolveFacts({ ...HARBOR.typed, profile: { ...HARBOR.typed.profile, handoff_number: "+19175550100" } }, known);
+  assert.deepEqual(f.kept_line, { value: "+12125550142", source: "provisioned" });
+  assert.deepEqual(f.phone_display, { value: "(212) 555-0142", source: "typed" }, "no dispute: calls to it forward to the line");
   assert.deepEqual(factConflicts(f), []);
 });
 
 test("F1: forwarding that points at a line the workspace no longer answers on is still the conflict it is", () => {
-  const known = { ...LIVE.known, forwarding: [{ from_e164: "+16469325775", to_e164: "+13055550199" }] };
-  const f = resolveFacts({ ...LIVE.typed, profile: { ...LIVE.typed.profile, handoff_number: "+19175550100" } }, known);
-  assert.equal(f.kept_line.value, "+16469325775", "the number is still kept");
+  const known = { ...HARBOR.known, forwarding: [{ from_e164: "+12125550142", to_e164: "+13055550199" }] };
+  const f = resolveFacts({ ...HARBOR.typed, profile: { ...HARBOR.typed.profile, handoff_number: "+19175550100" } }, known);
+  assert.equal(f.kept_line.value, "+12125550142", "the number is still kept");
   const [c] = factConflicts(f);
   assert.equal(c.severity, "serious");
   assert.match(c.sentence, /Anyone who calls the published number does not reach it/);
@@ -63,13 +63,13 @@ test("F1: forwarding that points at a line the workspace no longer answers on is
 test("F1: knownForwarding reads Setup's lines: forwarded rows with a number, and where each one goes", () => {
   assert.deepEqual(
     knownForwarding([
-      { kind: "own", e164: "+13083368109", forwarding: null },
-      { kind: "forwarded", e164: "+16469325775", forwarding: { destination_e164: "+13083368109" } },
-      { kind: "forwarded", e164: null, forwarding: { destination_e164: "+13083368109" } },
+      { kind: "own", e164: "+13055550123", forwarding: null },
+      { kind: "forwarded", e164: "+12125550142", forwarding: { destination_e164: "+13055550123" } },
+      { kind: "forwarded", e164: null, forwarding: { destination_e164: "+13055550123" } },
       { kind: "forwarded", e164: "+17185550100" },
     ]),
     [
-      { from_e164: "+16469325775", to_e164: "+13083368109" },
+      { from_e164: "+12125550142", to_e164: "+13055550123" },
       { from_e164: "+17185550100", to_e164: null },
     ],
   );
@@ -78,10 +78,10 @@ test("F1: knownForwarding reads Setup's lines: forwarded rows with a number, and
 
 (`knownForwarding` joins the contracts import at the top of the file.)
 
-- [ ] **Step 2:** Run `corepack pnpm --filter @chanlytics/contracts build; node --test tooling/scripts/tests/facts.test.mjs` —
+- [x] **Step 2:** Run `corepack pnpm --filter @chanlytics/contracts build; node --test tooling/scripts/tests/facts.test.mjs` —
 expected: the three new tests FAIL (`kept_line` undefined, a dispute present, `knownForwarding` not a function).
 
-- [ ] **Step 3: Implement in `facts.ts`.** Add to `KnownFacts`:
+- [x] **Step 3: Implement in `facts.ts`.** Add to `KnownFacts`:
 
 ```ts
   /**
@@ -138,10 +138,10 @@ In `resolveFacts`, compute `const kept = keptNumber(known);` beside `voice`, rep
 and add `kept_line: kept ? { value: kept, source: "provisioned" } : { value: null, source: "absent" },` after
 `whatsapp_line`.
 
-- [ ] **Step 4:** Rebuild contracts and run `facts.test.mjs` — expected: PASS, including the existing
+- [x] **Step 4:** Rebuild contracts and run `facts.test.mjs` — expected: PASS, including the existing
 "nothing known and nothing typed is 'absent'" (it walks every key, `kept_line` included).
 
-- [ ] **Step 5: The readers.** In `settings/route.ts`, import `knownForwarding` from contracts and `linesFor` from
+- [x] **Step 5: The readers.** In `settings/route.ts`, import `knownForwarding` from contracts and `linesFor` from
 `@/server/lines`; `knownFacts` reads the lines beside the others and adds `forwarding`:
 
 ```ts
@@ -163,15 +163,15 @@ and add `kept_line: kept ? { value: kept, source: "provisioned" } : { value: nul
 In `server/setup.ts`, the `resolveFacts(brain, {...})` call gains `forwarding: knownForwarding(lineRows),` (the rows
 `linesFor` already returned into the Setup read).
 
-- [ ] **Step 6: The route test.** In `settings-routes.test.mjs`, a test that reads settings for a workspace whose
+- [x] **Step 6: The route test.** In `settings-routes.test.mjs`, a test that reads settings for a workspace whose
 brain publishes the kept number, with a voice channel and a forwarded line to it, and asserts `conflicts` is `[]` and
 `facts.kept_line.value` is the kept number; the same read with the line's destination changed asserts one serious
 conflict. (Seed `tenant_channels` with the voice row and `lines` with `{ tenant_id, kind: "forwarded", e164,
 facts: { destination_e164 }, ... }` in the shape `linesFor` selects.)
 
-- [ ] **Step 7:** Run `node --test tooling/scripts/tests/settings-routes.test.mjs tooling/scripts/tests/facts.test.mjs` — PASS.
+- [x] **Step 7:** Run `node --test tooling/scripts/tests/settings-routes.test.mjs tooling/scripts/tests/facts.test.mjs` — PASS.
 
-- [ ] **Step 8: Commit** — `git add -A packages/contracts apps/dashboard tooling/scripts/tests && git commit -m "fix(facts): a number the business keeps and forwards to its line is not a published-number conflict (F1)"`
+- [x] **Step 8: Commit** — `git add -A packages/contracts apps/dashboard tooling/scripts/tests && git commit -m "fix(facts): a number the business keeps and forwards to its line is not a published-number conflict (F1)"`
 
 ---
 
@@ -186,26 +186,26 @@ facts: { destination_e164 }, ... }` in the shape `linesFor` selects.)
 - Modify: `tooling/scripts/tests/webhook-auth-evidence.test.mjs:70` (the existing pin's string, not a new pin)
 - Test: `tooling/scripts/tests/phone.test.mjs`, `settings-routes.test.mjs`, `business-tab-page.test.mjs`
 
-- [ ] **Step 1: Failing contracts test** in `phone.test.mjs` (import `whyNotAHandoff, whyNotForward`):
+- [x] **Step 1: Failing contracts test** in `phone.test.mjs` (import `whyNotAHandoff, whyNotForward`):
 
 ```js
 test("F2: a transfer number that forwards to the receptionist is refused, and so is forwarding the transfer number", () => {
-  const LINE = "+13083368109";
-  const KEPT = "+16469325775";
+  const LINE = "+13055550123";
+  const KEPT = "+12125550142";
   assert.equal(whyNotAHandoff("+1 917 555 0100", LINE, KEPT), null, "a cell a person answers is fine");
-  assert.match(whyNotAHandoff("+1 (646) 932-5775", LINE, KEPT), /come straight back/);
-  assert.match(whyNotAHandoff("+13083368109", LINE, KEPT), /own line/, "the own-line refusal is unchanged");
-  assert.equal(whyNotAHandoff("+16469325775", LINE, null), null, "no forwarding, no loop");
+  assert.match(whyNotAHandoff("+1 (212) 555-0142", LINE, KEPT), /come straight back/);
+  assert.match(whyNotAHandoff("+13055550123", LINE, KEPT), /own line/, "the own-line refusal is unchanged");
+  assert.equal(whyNotAHandoff("+12125550142", LINE, null), null, "no forwarding, no loop");
   assert.equal(whyNotAHandoff("", LINE, KEPT), null, "empty is a choice: take a message");
-  assert.match(whyNotForward("+16469325775", "+1 646 932 5775"), /transfer number/);
-  assert.equal(whyNotForward("+16469325775", "+19175550100"), null);
-  assert.equal(whyNotForward("+16469325775", null), null);
+  assert.match(whyNotForward("+12125550142", "+1 212 555 0142"), /transfer number/);
+  assert.equal(whyNotForward("+12125550142", "+19175550100"), null);
+  assert.equal(whyNotForward("+12125550142", null), null);
 });
 ```
 
-- [ ] **Step 2:** Rebuild contracts; run it — FAIL (`whyNotForward` is not a function; the kept number passes).
+- [x] **Step 2:** Rebuild contracts; run it — FAIL (`whyNotForward` is not a function; the kept number passes).
 
-- [ ] **Step 3: Implement in `phone.ts`.** Extend the doc comment with the third refusal, change the signature to
+- [x] **Step 3: Implement in `phone.ts`.** Extend the doc comment with the third refusal, change the signature to
 `whyNotAHandoff(raw, ownLine?, keptLine?)`, and before `return null;` add:
 
 ```ts
@@ -228,9 +228,9 @@ export function whyNotForward(number: string | null | undefined, handoff: string
 }
 ```
 
-- [ ] **Step 4:** Rebuild; the phone test PASSES.
+- [x] **Step 4:** Rebuild; the phone test PASSES.
 
-- [ ] **Step 5: The Business tab.** `business-tab-save.jsx:339` becomes
+- [x] **Step 5: The Business tab.** `business-tab-save.jsx:339` becomes
 `const btCheckTransfer = (d, line, kept) => (window.__whyNotAHandoff ? window.__whyNotAHandoff(d, line, kept) : null);`
 In `business-tab-who.jsx`, beside the voice line read from `F` add
 `const keptLine = (F.kept_line && F.kept_line.value) || null;` and the transfer row's check becomes
@@ -238,11 +238,11 @@ In `business-tab-who.jsx`, beside the voice line read from `F` add
 `(raw, ownLine, kept)` and refuses the kept number with the same sentence. The pin in
 `webhook-auth-evidence.test.mjs:70` reads `window.__whyNotAHandoff(d, line, kept)`.
 
-- [ ] **Step 6: The page test.** In `business-tab-page.test.mjs`, beside the test that presses the own-line
+- [x] **Step 6: The page test.** In `business-tab-page.test.mjs`, beside the test that presses the own-line
 refusal, a case with `known.forwarding` naming the kept number: typing it into the transfer row shows the "come
 straight back" sentence and saves nothing.
 
-- [ ] **Step 7: The two doors.** In `settings/route.ts` PUT, after `const before = …` and before the write:
+- [x] **Step 7: The two doors.** In `settings/route.ts` PUT, after `const before = …` and before the write:
 
 ```ts
     // The transfer number, judged again here when it changes (F2). The page asks the same question as the owner
@@ -269,12 +269,12 @@ In `lines/forwarding/route.ts`, after the body checks and before the RPC:
 (`getTenantConfig` from `@chanlytics/db`; `parseTenantConfig`, `samePhone`, `whyNotAHandoff`, `whyNotForward` from
 contracts.)
 
-- [ ] **Step 8: The door tests** in `settings-routes.test.mjs`: (a) a PUT changing the transfer number to the kept
+- [x] **Step 8: The door tests** in `settings-routes.test.mjs`: (a) a PUT changing the transfer number to the kept
 number is refused `validation` 400 with "come straight back" and writes nothing; (b) a PUT that changes only the
 business name keeps a stored transfer number equal to the line (legacy data) and saves; (c) the forwarding POST for
 the workspace's transfer number is refused `conflict` 409 with "transfer number" and never reaches the RPC.
 
-- [ ] **Step 9:** Run the four test files — PASS. **Commit:** `fix(transfer): a transfer number that forwards to the receptionist is refused from both sides (F2)`
+- [x] **Step 9:** Run the four test files — PASS. **Commit:** `fix(transfer): a transfer number that forwards to the receptionist is refused from both sides (F2)`
 
 ---
 
@@ -286,7 +286,7 @@ the workspace's transfer number is refused `conflict` 409 with "transfer number"
 - Modify: `apps/dashboard/app/api/v1/workspaces/create/route.ts`
 - Test: `tooling/scripts/tests/notifications-first-address.test.mjs` (new), `account-routes.test.mjs`
 
-- [ ] **Step 1: Failing contracts test** (new file):
+- [x] **Step 1: Failing contracts test** (new file):
 
 ```js
 import { test } from "node:test";
@@ -304,9 +304,9 @@ test("F3: a new workspace's first alert address is its creator's, and only when 
 });
 ```
 
-- [ ] **Step 2:** Rebuild contracts; run it — FAIL (not a function).
+- [x] **Step 2:** Rebuild contracts; run it — FAIL (not a function).
 
-- [ ] **Step 3: Implement in `config.ts`** after `parseTenantConfig`:
+- [x] **Step 3: Implement in `config.ts`** after `parseTenantConfig`:
 
 ```ts
 /**
@@ -327,9 +327,9 @@ export function withFirstAlertAddress(config: unknown, email: string | null | un
 }
 ```
 
-- [ ] **Step 4:** Rebuild; PASS.
+- [x] **Step 4:** Rebuild; PASS.
 
-- [ ] **Step 5: The door.** `apps/dashboard/src/server/first-alert.ts`:
+- [x] **Step 5: The door.** `apps/dashboard/src/server/first-alert.ts`:
 
 ```ts
 import { getTenantConfig, putTenantConfig, type Db } from "@chanlytics/db";
@@ -359,12 +359,12 @@ export async function giveFirstAlertAddress(db: Db, tenantId: string, email: str
 `notifyPlatformSignup(...)`: `await giveFirstAlertAddress(ctx.supabase, data.id, ctx.email, ctx.userId);` with a
 comment saying why.
 
-- [ ] **Step 6: The door test** in `account-routes.test.mjs`: create with a seeded `tenant_config` row for the id
+- [x] **Step 6: The door test** in `account-routes.test.mjs`: create with a seeded `tenant_config` row for the id
 the `create_workspace` RPC returns; after the POST, the row's config is
 `{ notifications: { escalation_emails: ["ada@example.com"] } }` at version 2 by `USER`; with `tenant_config` absent
 the POST still answers the workspace.
 
-- [ ] **Step 7:** Run both tests — PASS. **Commit:** `fix(alerts): a new workspace's first alert address is its creator's (F3)`
+- [x] **Step 7:** Run both tests — PASS. **Commit:** `fix(alerts): a new workspace's first alert address is its creator's (F3)`
 
 ---
 
@@ -376,15 +376,15 @@ the POST still answers the workspace.
 - Modify: `apps/dashboard/app/api/v1/billing/checkout/route.ts`, `apps/dashboard/src/legacy-bridge/billing.ts`
 - Test: `tooling/scripts/tests/billing-door.test.mjs`, `billing-routes.test.mjs`
 
-- [ ] **Step 1: Failing tests.** In `billing-door.test.mjs`, beside the checkout test that asserts
+- [x] **Step 1: Failing tests.** In `billing-door.test.mjs`, beside the checkout test that asserts
 `success_url: BILLING_PAGE("harbor", "success")`: a checkout with `return: "start"` makes a session whose
 `success_url` is `https://dash.test/w/harbor?billing=success#/start` and `cancel_url` the same with `cancel`;
 `return: "elsewhere"` falls back to Billing. In `billing-routes.test.mjs`: the route sends `return: "start"` on to the
 edge body, and refuses `{ return: "https://evil.example" }` with `validation` 400 before the edge is called.
 
-- [ ] **Step 2:** Run them — FAIL.
+- [x] **Step 2:** Run them — FAIL.
 
-- [ ] **Step 3: Contracts** (`billing.ts`):
+- [x] **Step 3: Contracts** (`billing.ts`):
 
 ```ts
 /**
@@ -399,12 +399,12 @@ export function isCheckoutReturn(v: unknown): v is CheckoutReturn {
 }
 ```
 
-- [ ] **Step 4: The edge.** `billingReturnUrl(slug, outcome, back: CheckoutReturn = "billing")` ends
+- [x] **Step 4: The edge.** `billingReturnUrl(slug, outcome, back: CheckoutReturn = "billing")` ends
 `#/${CHECKOUT_RETURN_ROUTE[back]}`; `checkoutFor(..., slug = null, back: CheckoutReturn = "billing")` passes `back`
 to both URLs; the door's checkout op reads `const back = isCheckoutReturn(body.return) ? body.return : "billing";`
 and the op list in its header says `{ op: "checkout", tenant_id, email, return? }`. The portal keeps Billing.
 
-- [ ] **Step 5: The dashboard.** The route reads its body:
+- [x] **Step 5: The dashboard.** The route reads its body:
 
 ```ts
     const body = (await req.json().catch(() => ({}))) as { return?: unknown };
@@ -419,7 +419,7 @@ and the op list in its header says `{ op: "checkout", tenant_id, email, return? 
 The bridge's `checkout(back?: CheckoutReturn)` sends `{ return: back }` when it is given, `{}` otherwise (every
 caller today passes nothing).
 
-- [ ] **Step 6:** Run — PASS. Run `node tooling/scripts/gen-route-types.mjs --check` — expected: in sync.
+- [x] **Step 6:** Run — PASS. Run `node tooling/scripts/gen-route-types.mjs --check` — expected: in sync.
 **Commit:** `fix(billing): checkout can come back to the first run, from a closed list (F4)`
 
 ---
@@ -438,7 +438,7 @@ The field names were checked against Google's Place reference on 24 Sep 2026: `r
 `timeZone` (Pro). The details call already bills at Enterprise + Atmosphere for `reviews`, so none costs more. A wrong
 name makes Google refuse the whole read — the mask is pinned name by name.
 
-- [ ] **Step 1: Failing tests** in `google.test.mjs`: the details mask includes each of the eight new names; the
+- [x] **Step 1: Failing tests** in `google.test.mjs`: the details mask includes each of the eight new names; the
 `PLACE` fixture gains
 
 ```js
@@ -464,9 +464,9 @@ primary_type_label: null, service_area_only: false, time_zone: null }`. `hoursFr
 past midnight, a period with no close, and a fifth shift each leave the day out and name it in `unsure`; a point
 Google sent without `hour`/`minute` reads as 0. `planListingCheck(...).listing` carries `facts`.
 
-- [ ] **Step 2:** Run — FAIL.
+- [x] **Step 2:** Run — FAIL.
 
-- [ ] **Step 3: Contracts** (`google.ts`, importing `DAYS` and `type Hours` from `./config`): the two types as in the
+- [x] **Step 3: Contracts** (`google.ts`, importing `DAYS` and `type Hours` from `./config`): the two types as in the
 spec's F7, and
 
 ```ts
@@ -514,7 +514,7 @@ export function hoursFromGoogle(periods: readonly GooglePeriod[] | null | undefi
 }
 ```
 
-- [ ] **Step 4: The wire** (`google-places.ts`): append
+- [x] **Step 4: The wire** (`google-places.ts`): append
 `,regularOpeningHours,internationalPhoneNumber,nationalPhoneNumber,websiteUri,primaryType,primaryTypeDisplayName,pureServiceAreaBusiness,timeZone`
 to `PLACES_DETAILS_MASK` (the header comment says why none costs more); `PlaceDetails` gains `facts:
 GoogleListingFacts`; `parsePlaceDetails` sets `facts: factsOf(p)`:
@@ -557,7 +557,7 @@ function factsOf(p: Obj): GoogleListingFacts {
 `planListingCheck`'s `listing` gains `facts: details.facts` so every good read (the link's first, and each day's)
 keeps what Google says now. `listingForClient` is unchanged: the dashboard reads the facts from PR 3.
 
-- [ ] **Step 5:** Rebuild contracts and channels; run `google.test.mjs` and `google-door.test.mjs` (the link test also
+- [x] **Step 5:** Rebuild contracts and channels; run `google.test.mjs` and `google-door.test.mjs` (the link test also
 asserts the row's `facts`) — PASS. **Commit:** `feat(google): the listing keeps what Google says about the hours, phone, website, category and area (F7)`
 
 ---
@@ -569,14 +569,14 @@ asserts the row's `facts`) — PASS. **Commit:** `feat(google): the listing keep
 - Modify: `apps/dashboard/src/legacy/pages/setup.jsx:19`, `:50`, `:93`, `:133`
 - Modify: `tooling/scripts/tests/setup.test.mjs:665`, `tooling/scripts/tests/lines-door.test.mjs:440` (the message)
 
-- [ ] **Step 1:** `setup.test.mjs:665` expects
+- [x] **Step 1:** `setup.test.mjs:665` expects
 `"A local number, included in your plan · your receptionist answers it · texting arrives when the carriers register it"`;
 run it — FAIL.
-- [ ] **Step 2:** `setup.ts:821` says that; `:834` says `"A local number, included in your plan"`; `setup.jsx`
+- [x] **Step 2:** `setup.ts:821` says that; `:834` says `"A local number, included in your plan"`; `setup.jsx`
 drops the `money` helper and `cost`, line 93 reads "A local number in your area code, included in your plan. Your
 receptionist answers it within a minute of choosing." and line 133 "· included in your plan ·". The lines-door
 assertion message becomes "what a number costs Chanlytics a month". Rebuild; PASS.
-- [ ] **Step 3: Commit** — `fix(setup): the number is part of the plan; nothing quotes a fee nothing bills (decision 1)`
+- [x] **Step 3: Commit** — `fix(setup): the number is part of the plan; nothing quotes a fee nothing bills (decision 1)`
 
 ---
 
@@ -588,3 +588,30 @@ with a real diff (`git diff -w --ignore-cr-at-eol`).
 - [ ] One whole-branch review (spec + quality), one fix round, the suite green again.
 - [ ] The PR says what changes for a customer (nothing visible except Setup's line no longer quoting a fee), what to
 set before merging (nothing), and the deploy order (either).
+
+---
+
+## As built (24 September 2026)
+
+One whole-branch review (standards and spec) and one fix round changed these from the steps above:
+
+- **F1: `kept_line` is only a number that forwards to the line the workspace answers on now.** Forwarding that points
+  anywhere else keeps nothing, so the replaced-line case reads `kept_line` as absent and the published number is
+  the serious conflict it was. The tests use a made-up workspace (Harbor Moving, every number in 555-01xx), never a
+  real business's numbers.
+- **A transfer number stored before F2 that is the kept number** is a serious conflict of its own, on the transfer
+  row (`factConflicts`, `fact: "handoff_number"`): said, and never offered as a one-press fix, because taking the
+  other answer would make the loop (`BT_TAKE_NOTHING` in business-tab-who.jsx).
+- **The published-number box** says "Your own number. The calls nobody picks up there go to your receptionist on …"
+  for the kept number, on the Who you are row and on the create card, rather than that its callers never reach it.
+- **`samePhone` lives in phone.ts**, and the two loop sentences are its constants (`HANDOFF_FORWARDS_BACK`,
+  `FORWARD_IS_HANDOFF`). The settings route's lines read fails open, on purpose, and says so.
+- **F3** normalises the creator's address before it is written.
+- **F4** The checkout route declares its input through `route()` (`z.enum(CHECKOUT_RETURNS)`); on the edge the
+  return place is a required argument, and the portal passes `"billing"`.
+- **F7** Around the clock (a period with no close) leaves all seven days unsure; each day is judged by the record's
+  own `dayProblems` (config.ts); the phone is Google's international form as E.164, never a +1 guessed for any ten
+  digits; a link writes the facts its own read returned, so a failed second read never leaves the old place's, and
+  a profile bound to a different place resets them to `{}` until the next Places read.
+- **webhook-auth-evidence.test.mjs** runs `whyNotAHandoff` rather than pinning source text; its two source reads
+  left the ratchet's baseline.

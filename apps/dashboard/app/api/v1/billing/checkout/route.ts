@@ -1,4 +1,5 @@
-import { AppError, isCheckoutReturn } from "@chanlytics/contracts";
+import { z } from "zod";
+import { AppError, CHECKOUT_RETURNS } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/route";
 import { BILLING_SAID, edgeBilling } from "@/server/billing";
 
@@ -16,13 +17,17 @@ export const POST = write({
   scope: workspace,
   role: "owner",
   rate: "billing",
-  handle: async ({ ctx, req, member }) => {
-    const body = (await req.json().catch(() => ({}))) as { return?: unknown } | null;
-    const back = body?.return;
-    if (back !== undefined && !isCheckoutReturn(back))
-      throw new AppError("validation", "Checkout comes back to Billing or to setting up.", 400);
+  input: z.object({
+    return: z.enum(CHECKOUT_RETURNS, { error: "Checkout comes back to Billing or to setting up." }).optional(),
+  }),
+  handle: async ({ ctx, input, member }) => {
     const a = await edgeBilling(
-      { op: "checkout", tenant_id: member.tenantId, email: ctx.email ?? null, ...(back ? { return: back } : {}) },
+      {
+        op: "checkout",
+        tenant_id: member.tenantId,
+        email: ctx.email ?? null,
+        ...(input.return ? { return: input.return } : {}),
+      },
       25_000,
     );
     const b = a.body ?? {};

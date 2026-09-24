@@ -16,6 +16,13 @@ export function normalizePhone(raw: string | null | undefined): string | null {
   return null;
 }
 
+/** Two ways of writing one number. `(646) 555-0175` and `+16465550175` are the same fact; nothing is never a match. */
+export function samePhone(a: string | null | undefined, b: string | null | undefined): boolean {
+  const x = normalizePhone(a);
+  const y = normalizePhone(b);
+  return !!x && !!y && x === y;
+}
+
 /**
  * Why this is not a number anyone can be reached on — in the owner's words —
  * or null when it is one.
@@ -87,24 +94,26 @@ export function whyNotAHandoff(
   if (!(/^\+/.test(typed) && /^\+[1-9][0-9]{6,14}$/.test(norm))) {
     return "The transfer number needs the country code, like +1 212 555 0143.";
   }
-  if (ownLine && normalizePhone(norm) && normalizePhone(norm) === normalizePhone(ownLine)) {
+  if (samePhone(norm, ownLine)) {
     return "That is the receptionist's own line — it would ring itself. Use a line a person answers.";
   }
-  if (keptLine && normalizePhone(norm) && normalizePhone(norm) === normalizePhone(keptLine)) {
-    return "That number sends the calls nobody picks up to your receptionist, so a caller put through to it would come straight back. Use a mobile or another line a person answers.";
-  }
+  if (samePhone(norm, keptLine)) return HANDOFF_FORWARDS_BACK;
   return null;
 }
 
 /**
- * The same loop from the other side: forwarding a number to the receptionist
- * when that number is where the receptionist puts callers through. Returns the
- * owner's sentence, or null when the number may forward.
+ * The loop, in the owner's words, from each side. One rule -- a transfer number is never a number that forwards to
+ * the receptionist -- judged by samePhone at both of its doors: the transfer number's (whyNotAHandoff) and
+ * forwarding's (whyNotForward).
  */
+export const HANDOFF_FORWARDS_BACK =
+  "That number sends the calls nobody picks up to your receptionist, so a caller put through to it would come straight back. Use a mobile or another line a person answers.";
+export const FORWARD_IS_HANDOFF =
+  "Your receptionist puts callers through to this number. Change the transfer number in Settings › Business first — once this number forwards to the receptionist, a caller put through to it would come straight back.";
+
+/** The same loop from forwarding's side: returns the owner's sentence, or null when the number may forward. */
 export function whyNotForward(number: string | null | undefined, handoff: string | null | undefined): string | null {
-  const n = normalizePhone(number);
-  if (!n || !handoff || n !== normalizePhone(handoff)) return null;
-  return "Your receptionist puts callers through to this number. Change the transfer number in Settings › Business first — once this number forwards to the receptionist, a caller put through to it would come straight back.";
+  return samePhone(number, handoff) ? FORWARD_IS_HANDOFF : null;
 }
 
 /** What a typed handoff is STORED as: E.164, or nothing at all. */

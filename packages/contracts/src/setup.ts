@@ -817,8 +817,9 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
           state: "waiting_you",
           required: !answering,
           sentence: "Get a number for calls, or keep the one you have.",
-          // The number is part of the plan (decision 1, 24 Sep 2026): Checkout bills one price and nothing bills a
-          // number fee, so no row quotes one. What a number costs Chanlytics stays in lines.costs for the back office.
+          // The number is part of the plan (Ruben, 24 Sep 2026; docs/superpowers/specs/2026-09-24-first-run-design.md):
+          // Checkout bills one price and nothing bills a number fee, so no row quotes one. The DTO still carries what a
+          // number costs Chanlytics (lines.costs); nothing an owner reads says it.
           details: [
             "A local number, included in your plan · your receptionist answers it · texting arrives when the carriers register it",
           ],

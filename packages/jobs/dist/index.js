@@ -709,51 +709,37 @@ var DAY_NAME = {
   sat: "Saturday",
   sun: "Sunday"
 };
-function checkDay(h, day, ctx) {
+function dayProblems(h, day) {
   const name2 = DAY_NAME[day] ?? day;
-  const at2 = (...rest) => ["brain", "profile", "hours", day, ...rest];
+  const out = [];
   const open = h.open ?? void 0;
   const close = h.close ?? void 0;
   if (!!open !== !!close) {
-    ctx.addIssue({
-      code: z3.ZodIssueCode.custom,
-      path: at2(open ? "close" : "open"),
-      message: `${name2} needs both an opening and a closing time, or neither.`
-    });
+    out.push({ path: [open ? "close" : "open"], message: `${name2} needs both an opening and a closing time, or neither.` });
   }
   if (open && close && close <= open) {
-    ctx.addIssue({
-      code: z3.ZodIssueCode.custom,
-      path: at2("close"),
-      message: `${name2} closes at or before it opens.`
-    });
+    out.push({ path: ["close"], message: `${name2} closes at or before it opens.` });
   }
   const iv = h.intervals ?? [];
   if (iv.length > MAX_INTERVALS_PER_DAY) {
-    ctx.addIssue({
-      code: z3.ZodIssueCode.custom,
-      path: at2("intervals"),
-      message: `${name2} can be split into at most ${MAX_INTERVALS_PER_DAY} shifts.`
-    });
+    out.push({ path: ["intervals"], message: `${name2} can be split into at most ${MAX_INTERVALS_PER_DAY} shifts.` });
   }
   iv.forEach((x, n2) => {
     if (x.close <= x.open) {
-      ctx.addIssue({
-        code: z3.ZodIssueCode.custom,
-        path: at2("intervals", n2, "close"),
-        message: `${name2}: a shift has to close after it opens.`
-      });
+      out.push({ path: ["intervals", n2, "close"], message: `${name2}: a shift has to close after it opens.` });
     }
   });
   const sorted = [...iv].sort((a, b) => a.open < b.open ? -1 : a.open > b.open ? 1 : 0);
   for (let n2 = 1; n2 < sorted.length; n2++) {
     if (sorted[n2].open < sorted[n2 - 1].close) {
-      ctx.addIssue({
-        code: z3.ZodIssueCode.custom,
-        path: at2("intervals", n2, "open"),
-        message: `${name2}: two shifts overlap.`
-      });
+      out.push({ path: ["intervals", n2, "open"], message: `${name2}: two shifts overlap.` });
     }
+  }
+  return out;
+}
+function checkDay(h, day, ctx) {
+  for (const p of dayProblems(h, day)) {
+    ctx.addIssue({ code: z3.ZodIssueCode.custom, path: ["brain", "profile", "hours", day, ...p.path], message: p.message });
   }
 }
 function checkClosure(c2, n2, ctx) {
@@ -7367,51 +7353,37 @@ var DAY_NAME2 = {
   sat: "Saturday",
   sun: "Sunday"
 };
-function checkDay2(h, day, ctx) {
+function dayProblems2(h, day) {
   const name2 = DAY_NAME2[day] ?? day;
-  const at2 = (...rest) => ["brain", "profile", "hours", day, ...rest];
+  const out = [];
   const open = h.open ?? void 0;
   const close = h.close ?? void 0;
   if (!!open !== !!close) {
-    ctx.addIssue({
-      code: z32.ZodIssueCode.custom,
-      path: at2(open ? "close" : "open"),
-      message: `${name2} needs both an opening and a closing time, or neither.`
-    });
+    out.push({ path: [open ? "close" : "open"], message: `${name2} needs both an opening and a closing time, or neither.` });
   }
   if (open && close && close <= open) {
-    ctx.addIssue({
-      code: z32.ZodIssueCode.custom,
-      path: at2("close"),
-      message: `${name2} closes at or before it opens.`
-    });
+    out.push({ path: ["close"], message: `${name2} closes at or before it opens.` });
   }
   const iv = h.intervals ?? [];
   if (iv.length > MAX_INTERVALS_PER_DAY2) {
-    ctx.addIssue({
-      code: z32.ZodIssueCode.custom,
-      path: at2("intervals"),
-      message: `${name2} can be split into at most ${MAX_INTERVALS_PER_DAY2} shifts.`
-    });
+    out.push({ path: ["intervals"], message: `${name2} can be split into at most ${MAX_INTERVALS_PER_DAY2} shifts.` });
   }
   iv.forEach((x, n2) => {
     if (x.close <= x.open) {
-      ctx.addIssue({
-        code: z32.ZodIssueCode.custom,
-        path: at2("intervals", n2, "close"),
-        message: `${name2}: a shift has to close after it opens.`
-      });
+      out.push({ path: ["intervals", n2, "close"], message: `${name2}: a shift has to close after it opens.` });
     }
   });
   const sorted = [...iv].sort((a, b) => a.open < b.open ? -1 : a.open > b.open ? 1 : 0);
   for (let n2 = 1; n2 < sorted.length; n2++) {
     if (sorted[n2].open < sorted[n2 - 1].close) {
-      ctx.addIssue({
-        code: z32.ZodIssueCode.custom,
-        path: at2("intervals", n2, "open"),
-        message: `${name2}: two shifts overlap.`
-      });
+      out.push({ path: ["intervals", n2, "open"], message: `${name2}: two shifts overlap.` });
     }
+  }
+  return out;
+}
+function checkDay2(h, day, ctx) {
+  for (const p of dayProblems2(h, day)) {
+    ctx.addIssue({ code: z32.ZodIssueCode.custom, path: ["brain", "profile", "hours", day, ...p.path], message: p.message });
   }
 }
 function checkClosure2(c2, n2, ctx) {
@@ -10109,51 +10081,37 @@ var DAY_NAME3 = {
   sat: "Saturday",
   sun: "Sunday"
 };
-function checkDay3(h, day, ctx) {
+function dayProblems3(h, day) {
   const name2 = DAY_NAME3[day] ?? day;
-  const at2 = (...rest) => ["brain", "profile", "hours", day, ...rest];
+  const out = [];
   const open = h.open ?? void 0;
   const close = h.close ?? void 0;
   if (!!open !== !!close) {
-    ctx.addIssue({
-      code: z33.ZodIssueCode.custom,
-      path: at2(open ? "close" : "open"),
-      message: `${name2} needs both an opening and a closing time, or neither.`
-    });
+    out.push({ path: [open ? "close" : "open"], message: `${name2} needs both an opening and a closing time, or neither.` });
   }
   if (open && close && close <= open) {
-    ctx.addIssue({
-      code: z33.ZodIssueCode.custom,
-      path: at2("close"),
-      message: `${name2} closes at or before it opens.`
-    });
+    out.push({ path: ["close"], message: `${name2} closes at or before it opens.` });
   }
   const iv = h.intervals ?? [];
   if (iv.length > MAX_INTERVALS_PER_DAY3) {
-    ctx.addIssue({
-      code: z33.ZodIssueCode.custom,
-      path: at2("intervals"),
-      message: `${name2} can be split into at most ${MAX_INTERVALS_PER_DAY3} shifts.`
-    });
+    out.push({ path: ["intervals"], message: `${name2} can be split into at most ${MAX_INTERVALS_PER_DAY3} shifts.` });
   }
   iv.forEach((x, n2) => {
     if (x.close <= x.open) {
-      ctx.addIssue({
-        code: z33.ZodIssueCode.custom,
-        path: at2("intervals", n2, "close"),
-        message: `${name2}: a shift has to close after it opens.`
-      });
+      out.push({ path: ["intervals", n2, "close"], message: `${name2}: a shift has to close after it opens.` });
     }
   });
   const sorted = [...iv].sort((a, b) => a.open < b.open ? -1 : a.open > b.open ? 1 : 0);
   for (let n2 = 1; n2 < sorted.length; n2++) {
     if (sorted[n2].open < sorted[n2 - 1].close) {
-      ctx.addIssue({
-        code: z33.ZodIssueCode.custom,
-        path: at2("intervals", n2, "open"),
-        message: `${name2}: two shifts overlap.`
-      });
+      out.push({ path: ["intervals", n2, "open"], message: `${name2}: two shifts overlap.` });
     }
+  }
+  return out;
+}
+function checkDay3(h, day, ctx) {
+  for (const p of dayProblems3(h, day)) {
+    ctx.addIssue({ code: z33.ZodIssueCode.custom, path: ["brain", "profile", "hours", day, ...p.path], message: p.message });
   }
 }
 function checkClosure3(c2, n2, ctx) {
@@ -11880,51 +11838,37 @@ var DAY_NAME22 = {
   sat: "Saturday",
   sun: "Sunday"
 };
-function checkDay22(h, day, ctx) {
+function dayProblems22(h, day) {
   const name2 = DAY_NAME22[day] ?? day;
-  const at2 = (...rest) => ["brain", "profile", "hours", day, ...rest];
+  const out = [];
   const open = h.open ?? void 0;
   const close = h.close ?? void 0;
   if (!!open !== !!close) {
-    ctx.addIssue({
-      code: z322.ZodIssueCode.custom,
-      path: at2(open ? "close" : "open"),
-      message: `${name2} needs both an opening and a closing time, or neither.`
-    });
+    out.push({ path: [open ? "close" : "open"], message: `${name2} needs both an opening and a closing time, or neither.` });
   }
   if (open && close && close <= open) {
-    ctx.addIssue({
-      code: z322.ZodIssueCode.custom,
-      path: at2("close"),
-      message: `${name2} closes at or before it opens.`
-    });
+    out.push({ path: ["close"], message: `${name2} closes at or before it opens.` });
   }
   const iv = h.intervals ?? [];
   if (iv.length > MAX_INTERVALS_PER_DAY22) {
-    ctx.addIssue({
-      code: z322.ZodIssueCode.custom,
-      path: at2("intervals"),
-      message: `${name2} can be split into at most ${MAX_INTERVALS_PER_DAY22} shifts.`
-    });
+    out.push({ path: ["intervals"], message: `${name2} can be split into at most ${MAX_INTERVALS_PER_DAY22} shifts.` });
   }
   iv.forEach((x, n2) => {
     if (x.close <= x.open) {
-      ctx.addIssue({
-        code: z322.ZodIssueCode.custom,
-        path: at2("intervals", n2, "close"),
-        message: `${name2}: a shift has to close after it opens.`
-      });
+      out.push({ path: ["intervals", n2, "close"], message: `${name2}: a shift has to close after it opens.` });
     }
   });
   const sorted = [...iv].sort((a, b) => a.open < b.open ? -1 : a.open > b.open ? 1 : 0);
   for (let n2 = 1; n2 < sorted.length; n2++) {
     if (sorted[n2].open < sorted[n2 - 1].close) {
-      ctx.addIssue({
-        code: z322.ZodIssueCode.custom,
-        path: at2("intervals", n2, "open"),
-        message: `${name2}: two shifts overlap.`
-      });
+      out.push({ path: ["intervals", n2, "open"], message: `${name2}: two shifts overlap.` });
     }
+  }
+  return out;
+}
+function checkDay22(h, day, ctx) {
+  for (const p of dayProblems22(h, day)) {
+    ctx.addIssue({ code: z322.ZodIssueCode.custom, path: ["brain", "profile", "hours", day, ...p.path], message: p.message });
   }
 }
 function checkClosure22(c2, n2, ctx) {
@@ -13617,51 +13561,37 @@ var DAY_NAME32 = {
   sat: "Saturday",
   sun: "Sunday"
 };
-function checkDay32(h, day, ctx) {
+function dayProblems32(h, day) {
   const name2 = DAY_NAME32[day] ?? day;
-  const at2 = (...rest) => ["brain", "profile", "hours", day, ...rest];
+  const out = [];
   const open = h.open ?? void 0;
   const close = h.close ?? void 0;
   if (!!open !== !!close) {
-    ctx.addIssue({
-      code: z332.ZodIssueCode.custom,
-      path: at2(open ? "close" : "open"),
-      message: `${name2} needs both an opening and a closing time, or neither.`
-    });
+    out.push({ path: [open ? "close" : "open"], message: `${name2} needs both an opening and a closing time, or neither.` });
   }
   if (open && close && close <= open) {
-    ctx.addIssue({
-      code: z332.ZodIssueCode.custom,
-      path: at2("close"),
-      message: `${name2} closes at or before it opens.`
-    });
+    out.push({ path: ["close"], message: `${name2} closes at or before it opens.` });
   }
   const iv = h.intervals ?? [];
   if (iv.length > MAX_INTERVALS_PER_DAY32) {
-    ctx.addIssue({
-      code: z332.ZodIssueCode.custom,
-      path: at2("intervals"),
-      message: `${name2} can be split into at most ${MAX_INTERVALS_PER_DAY32} shifts.`
-    });
+    out.push({ path: ["intervals"], message: `${name2} can be split into at most ${MAX_INTERVALS_PER_DAY32} shifts.` });
   }
   iv.forEach((x, n2) => {
     if (x.close <= x.open) {
-      ctx.addIssue({
-        code: z332.ZodIssueCode.custom,
-        path: at2("intervals", n2, "close"),
-        message: `${name2}: a shift has to close after it opens.`
-      });
+      out.push({ path: ["intervals", n2, "close"], message: `${name2}: a shift has to close after it opens.` });
     }
   });
   const sorted = [...iv].sort((a, b) => a.open < b.open ? -1 : a.open > b.open ? 1 : 0);
   for (let n2 = 1; n2 < sorted.length; n2++) {
     if (sorted[n2].open < sorted[n2 - 1].close) {
-      ctx.addIssue({
-        code: z332.ZodIssueCode.custom,
-        path: at2("intervals", n2, "open"),
-        message: `${name2}: two shifts overlap.`
-      });
+      out.push({ path: ["intervals", n2, "open"], message: `${name2}: two shifts overlap.` });
     }
+  }
+  return out;
+}
+function checkDay32(h, day, ctx) {
+  for (const p of dayProblems32(h, day)) {
+    ctx.addIssue({ code: z332.ZodIssueCode.custom, path: ["brain", "profile", "hours", day, ...p.path], message: p.message });
   }
 }
 function checkClosure32(c2, n2, ctx) {
@@ -15874,51 +15804,37 @@ var DAY_NAME4 = {
   sat: "Saturday",
   sun: "Sunday"
 };
-function checkDay4(h, day, ctx) {
+function dayProblems4(h, day) {
   const name2 = DAY_NAME4[day] ?? day;
-  const at2 = (...rest) => ["brain", "profile", "hours", day, ...rest];
+  const out = [];
   const open = h.open ?? void 0;
   const close = h.close ?? void 0;
   if (!!open !== !!close) {
-    ctx.addIssue({
-      code: z34.ZodIssueCode.custom,
-      path: at2(open ? "close" : "open"),
-      message: `${name2} needs both an opening and a closing time, or neither.`
-    });
+    out.push({ path: [open ? "close" : "open"], message: `${name2} needs both an opening and a closing time, or neither.` });
   }
   if (open && close && close <= open) {
-    ctx.addIssue({
-      code: z34.ZodIssueCode.custom,
-      path: at2("close"),
-      message: `${name2} closes at or before it opens.`
-    });
+    out.push({ path: ["close"], message: `${name2} closes at or before it opens.` });
   }
   const iv = h.intervals ?? [];
   if (iv.length > MAX_INTERVALS_PER_DAY4) {
-    ctx.addIssue({
-      code: z34.ZodIssueCode.custom,
-      path: at2("intervals"),
-      message: `${name2} can be split into at most ${MAX_INTERVALS_PER_DAY4} shifts.`
-    });
+    out.push({ path: ["intervals"], message: `${name2} can be split into at most ${MAX_INTERVALS_PER_DAY4} shifts.` });
   }
   iv.forEach((x, n2) => {
     if (x.close <= x.open) {
-      ctx.addIssue({
-        code: z34.ZodIssueCode.custom,
-        path: at2("intervals", n2, "close"),
-        message: `${name2}: a shift has to close after it opens.`
-      });
+      out.push({ path: ["intervals", n2, "close"], message: `${name2}: a shift has to close after it opens.` });
     }
   });
   const sorted = [...iv].sort((a, b) => a.open < b.open ? -1 : a.open > b.open ? 1 : 0);
   for (let n2 = 1; n2 < sorted.length; n2++) {
     if (sorted[n2].open < sorted[n2 - 1].close) {
-      ctx.addIssue({
-        code: z34.ZodIssueCode.custom,
-        path: at2("intervals", n2, "open"),
-        message: `${name2}: two shifts overlap.`
-      });
+      out.push({ path: ["intervals", n2, "open"], message: `${name2}: two shifts overlap.` });
     }
+  }
+  return out;
+}
+function checkDay4(h, day, ctx) {
+  for (const p of dayProblems4(h, day)) {
+    ctx.addIssue({ code: z34.ZodIssueCode.custom, path: ["brain", "profile", "hours", day, ...p.path], message: p.message });
   }
 }
 function checkClosure4(c2, n2, ctx) {

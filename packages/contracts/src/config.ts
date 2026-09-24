@@ -8,6 +8,7 @@ import type { SchemaSet } from "./schema-sets";
 import { feedProblemWords, feedUrlOk } from "./feed-url";
 import { dayIntervals as spansOfDay } from "./availability";
 import { resolveFacts, type KnownFacts } from "./facts";
+import { normalizeEmail } from "./email-address";
 import { z } from "zod";
 import { MEMBERSHIP_ROLES } from "./enums";
 
@@ -750,40 +751,32 @@ const DAY_NAME: Record<string, string> = {
   sun: "Sunday",
 };
 
-function checkDay(h: Hours, day: string, ctx: z.RefinementCtx): void {
+/**
+ * What is wrong with one day of the week, in the owner's words, each with where in the day it is. The write rules'
+ * day check (checkDay) and anything that builds a day from elsewhere (google.ts hoursFromGoogle) ask this, so a day
+ * is judged by one set of rules wherever it comes from. Empty when the day is one the record holds.
+ */
+export function dayProblems(h: Hours, day: string): Array<{ path: Array<string | number>; message: string }> {
   const name = DAY_NAME[day] ?? day;
-  const at = (...rest: (string | number)[]) => ["brain", "profile", "hours", day, ...rest];
+  const out: Array<{ path: Array<string | number>; message: string }> = [];
   const open = h.open ?? undefined;
   const close = h.close ?? undefined;
   if (!!open !== !!close) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: at(open ? "close" : "open"),
+    out.push({
+      path: [open ? "close" : "open"],
       message: `${name} needs both an opening and a closing time, or neither.`,
     });
   }
   if (open && close && close <= open) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: at("close"),
-      message: `${name} closes at or before it opens.`,
-    });
+    out.push({ path: ["close"], message: `${name} closes at or before it opens.` });
   }
   const iv = h.intervals ?? [];
   if (iv.length > MAX_INTERVALS_PER_DAY) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: at("intervals"),
-      message: `${name} can be split into at most ${MAX_INTERVALS_PER_DAY} shifts.`,
-    });
+    out.push({ path: ["intervals"], message: `${name} can be split into at most ${MAX_INTERVALS_PER_DAY} shifts.` });
   }
   iv.forEach((x, n) => {
     if (x.close <= x.open) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: at("intervals", n, "close"),
-        message: `${name}: a shift has to close after it opens.`,
-      });
+      out.push({ path: ["intervals", n, "close"], message: `${name}: a shift has to close after it opens.` });
     }
   });
   // Overlap, not adjacency. Two shifts that TOUCH — 09:00-13:00 and
@@ -793,12 +786,19 @@ function checkDay(h: Hours, day: string, ctx: z.RefinementCtx): void {
   const sorted = [...iv].sort((a, b) => (a.open < b.open ? -1 : a.open > b.open ? 1 : 0));
   for (let n = 1; n < sorted.length; n++) {
     if (sorted[n].open < sorted[n - 1].close) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: at("intervals", n, "open"),
-        message: `${name}: two shifts overlap.`,
-      });
+      out.push({ path: ["intervals", n, "open"], message: `${name}: two shifts overlap.` });
     }
+  }
+  return out;
+}
+
+function checkDay(h: Hours, day: string, ctx: z.RefinementCtx): void {
+  for (const p of dayProblems(h, day)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["brain", "profile", "hours", day, ...p.path],
+      message: p.message,
+    });
   }
 }
 
@@ -897,9 +897,7 @@ export function parseTenantConfig(raw: unknown): TenantConfig | null {
 export function withFirstAlertAddress(config: unknown, email: string | null | undefined): TenantConfig | null {
   const current = parseTenantConfigResult(config ?? {});
   if (!current.ok || current.config.notifications) return null;
-  const address = String(email ?? "")
-    .trim()
-    .toLowerCase();
+  const address = normalizeEmail(email);
   if (!address) return null;
   const next = TenantConfigWriteSchema.safeParse({
     ...current.config,

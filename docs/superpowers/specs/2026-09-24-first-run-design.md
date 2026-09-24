@@ -56,7 +56,7 @@ per person. The Setup tab leaves Settings; its address redirects. Texting is not
   forwarding a number that is the transfer number), because the call would come straight back.
 - **F3** A new workspace's first alert address is its creator's, so the owner is emailed when someone needs them.
 - **F4** Checkout can return to the first run (a closed list of places), not only to Settings › Billing.
-- **F7** The Google details read keeps the listing's hours, phone, website, category, service area and time zone,
+- **F7** The Google details read keeps the listing's hours, phone, website, category, whether it serves an area rather than an address, and time zone,
   at no extra cost (the read is already billed at that tier for the reviews).
 - **F5** (landing on the first run, one-press create) is the first run itself, so it is PR 2, not a fix.
 - **F6** needs no fix: the server never forced a published number; only the Business tab's create fold does, and

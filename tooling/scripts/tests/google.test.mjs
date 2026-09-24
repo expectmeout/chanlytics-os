@@ -220,6 +220,13 @@ test("F7: the listing's facts are read as Google says them -- the week, the numb
     { open: { day: 0, hour: 0, minute: 0 }, close: null },
     { open: { day: 1, hour: 9, minute: 0 }, close: { day: 1, hour: 17, minute: 0 } },
   ]);
+  // The international form carries its own country: its digits, never a +1 guessed for any ten of them. Country
+  // code 999 is reserved, so this number is nobody's; the national form alone is no E.164 number.
+  const phoneOf = (internationalPhoneNumber) =>
+    parsePlaceDetails({ ...PLACE, internationalPhoneNumber }).facts.phone_e164;
+  assert.equal(phoneOf("+999 555 0142"), "+9995550142");
+  assert.equal(phoneOf("(718) 555-0142"), null);
+  assert.equal(phoneOf("+1 555"), null, "too short to be a number");
 });
 
 test("F7: Google's week becomes the Business record's, and what the record cannot hold is named, never guessed", () => {
@@ -248,11 +255,12 @@ test("F7: Google's week becomes the Business record's, and what the record canno
       ],
     },
   });
-  // Past midnight, around the clock, five shifts, two that overlap: each day is left out and named.
+  // Past midnight, five shifts, two that overlap: each day is left out and named.
   assert.deepEqual(hoursFromGoogle([p(5, 18, 0, 2, 0, 6)]), { hours: {}, unsure: ["fri"] });
+  // Around the clock is one period with no close, on Sunday: every day is open and none has hours to give.
   assert.deepEqual(hoursFromGoogle([{ open: { day: 0, hour: 0, minute: 0 }, close: null }]), {
     hours: {},
-    unsure: ["sun"],
+    unsure: ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
   });
   assert.deepEqual(
     hoursFromGoogle([8, 10, 12, 14, 16].map((h) => p(3, h, 0, h + 1, 0))),

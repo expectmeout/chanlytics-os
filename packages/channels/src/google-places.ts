@@ -21,7 +21,7 @@
  * Place reference's own, checked on 24 Sep 2026; one wrong name and Google
  * refuses the whole read, so the test pins them name by name.
  */
-import { normalizePhone, type GoogleListingFacts, type GooglePeriod, type GooglePoint } from "@chanlytics/contracts";
+import { E164, type GoogleListingFacts, type GooglePeriod, type GooglePoint } from "@chanlytics/contracts";
 
 export const PLACES_BASE = "https://places.googleapis.com/v1";
 export const PLACES_SEARCH_MASK =
@@ -189,12 +189,23 @@ function periodOf(v: unknown): GooglePeriod | null {
   return close ? { open, close } : null;
 }
 
+/**
+ * The number as Google writes it for the world ("+44 20 7946 0958"), in E.164: its own digits after its own country
+ * code. Never normalizePhone's reading, which takes any ten digits for an American number and would give a
+ * ten-digit number from elsewhere a +1 it does not have.
+ */
+function e164Of(international: string | null): string | null {
+  if (!international || !international.trim().startsWith("+")) return null;
+  const e164 = `+${international.replace(/\D/g, "")}`;
+  return E164.test(e164) ? e164 : null;
+}
+
 /** What the listing says beyond its name and address, as Google says it; nothing invented where it says nothing. */
 function factsOf(p: Obj): GoogleListingFacts {
   const periods = obj(p.regularOpeningHours)?.periods;
   return {
     hours: Array.isArray(periods) ? periods.map(periodOf).filter((x): x is GooglePeriod => x !== null) : null,
-    phone_e164: normalizePhone(str(p.internationalPhoneNumber)),
+    phone_e164: e164Of(str(p.internationalPhoneNumber)),
     phone_display: str(p.nationalPhoneNumber),
     website: str(p.websiteUri),
     primary_type: str(p.primaryType),

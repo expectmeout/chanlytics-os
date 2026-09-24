@@ -470,6 +470,29 @@ test("F2: the transfer number cannot be the number the business keeps and forwar
   assert.equal(sent[0].config.brain.profile.handoff_number, "+19175550100");
 });
 
+test("F1: the number the business keeps, given out, says its missed calls reach the receptionist -- not that they never do", () => {
+  const flash = () => {};
+  // The salon keeps (718) 555-0142 and forwards the calls nobody picks up to its receptionist's line.
+  let tree = drawTab({ flash, facts: { kept_line: { value: "+17185550142", source: "provisioned" } } });
+  openFold(tree, "phone_display");
+  tree = redrawTab(flash);
+  press(all(byTestId(tree, "rec-inline-phone_display-choice"), (n) => n.props?.role === "radio")[1]);
+  tree = redrawTab(flash);
+  typeInto(tree, "phone_display", "+1 (718) 555-0142");
+  tree = redrawTab(flash);
+  assert.match(
+    textOf(byTestId(tree, "rec-inline-phone_display-note")),
+    /^Your own number\. The calls nobody picks up there go to your receptionist on \+1 \(308\) 336-8109\.$/,
+  );
+  typeInto(tree, "phone_display", "+1 (646) 555-0100");
+  tree = redrawTab(flash);
+  assert.match(
+    textOf(byTestId(tree, "rec-inline-phone_display-note")),
+    /will not reach your receptionist/,
+    "any other number still does not reach it",
+  );
+});
+
 test("Use Google's and Publish the line instead each send exactly their patch", () => {
   const sent = saving();
   const flashes = [];

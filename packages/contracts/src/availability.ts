@@ -131,7 +131,8 @@ export function dayInZone(tz: string, atMs: number): { key: string; weekday: str
 const dayNumber = (y: number, m: number, d: number) => Math.floor(Date.UTC(y, m - 1, d) / 86400000);
 
 /** The weekday keys in the order getUTCDay() numbers them, which is Sunday first. */
-const WEEKDAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
+/** The days of the week by their number from Sunday (Date.getUTCDay, and Google's Point.day). */
+export const WEEKDAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 
 /**
  * The local day `days` after the one `atMs` falls on -- BY THE CALENDAR, not by

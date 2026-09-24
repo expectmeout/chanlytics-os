@@ -37,7 +37,9 @@ async function knownFacts(ctx: RouteContext, tenantId: string): Promise<KnownFac
     ctx.supabase.from("tenants").select("name, timezone").eq("id", tenantId).maybeSingle(),
     ctx.supabase.from("tenant_channels").select("kind, number_e164, status").eq("tenant_id", tenantId),
     ctx.supabase.from("google_listings").select("name, address").eq("tenant_id", tenantId).maybeSingle(),
-    // The number the business keeps and forwards: the same rows, read the same way, as Setup's line rows.
+    // The number the business keeps and forwards: the same rows, read the same way, as Setup's line rows. A failed
+    // read is no forwarding, on purpose: the settings read and a save still go through, and a transfer number is
+    // then judged against the line alone, as it was before forwarding was known.
     linesFor(ctx.supabase, tenantId).catch(() => []),
   ]);
   // None of these is worth failing the settings read for. A workspace whose
