@@ -1036,7 +1036,7 @@ test("a run that kept who it left out opens as the board's card: of how many, th
   assert.equal(went.at(-1), "broadcasts/get-yes");
 });
 
-test("Broadcasts is one ledger: the runs waiting on you said at the head, a band bar whose legend filters the runs, the week ahead, and the composer its own screen", () => {
+test("Broadcasts is one ledger: the runs waiting on you said at the head, the states as the filter of the runs, the week ahead, and the composer its own screen", () => {
   const sent = (i) =>
     dto({
       id: `b-s${i}`,
@@ -1091,8 +1091,10 @@ test("Broadcasts is one ledger: the runs waiting on you said at the head, a band
   });
   const props = { initialSegment: null, initialRun: null };
   let tree = page(props);
-  // The head says what waits on you, and the page's act is beside it.
-  assert.equal(textOf(byTestId(tree, "bc-waiting")).trim(), "1 waiting on you");
+  // The head says what waits on you once -- its state's filter, the line's first words -- and the page's act is beside
+  // it. A flag at the right said "1 waiting on you" a second time over the same filter (23 Sep, Campaigns made compact).
+  assert.equal(textOf(byTestId(tree, "bc-band-pending_approval")).trim(), "1 waiting on you");
+  assert.equal(byTestId(tree, "bc-waiting"), null, "said once");
   assert.ok(byTestId(tree, "bc-new"), "New broadcast");
   assert.equal(byTestId(tree, "bc-composer"), null, "the composer is its own screen, not the top of the ledger");
   // Everything open, what waits on you first, then what is going out, then what is to come; then the latest five gone.

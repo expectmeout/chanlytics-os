@@ -54,17 +54,6 @@ const cmRowPress = (e) => {
 };
 
 /**
- * A state that asks for the owner, said at the right of a head: "2 waiting on
- * you". The tone is the vocabulary's (tone.ts); this never picks one.
- */
-const CmFlag = ({ tone = "warn", children, testid = null }) => (
-  // The house pill in the tone (components.css): it was a 28px flag of its own, the largest badge in the app.
-  <span className={`pill pill-${tone} cm-flag`} data-tone={tone} data-testid={testid || undefined}>
-    {children}
-  </span>
-);
-
-/**
  * A notice that sits between the head and the list: one bold sentence saying
  * what is true, the rest saying what it costs, and the one act that fixes it.
  */
@@ -448,4 +437,4 @@ const CmSpark = ({ values = [], label = null }) => {
 // The picker was made for a message's languages, and a language is still what it opens on by default.
 const LanguagePicker = CmPicker;
 
-Object.assign(window, { CmHead, CmDot, CmFlag, CmBanner, CmLangGlyph, CmPicker, LanguagePicker, CmReach, CmSpark, cmRowPress });
+Object.assign(window, { CmHead, CmDot, CmBanner, CmLangGlyph, CmPicker, LanguagePicker, CmReach, CmSpark, cmRowPress });

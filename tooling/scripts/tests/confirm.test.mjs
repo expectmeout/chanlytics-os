@@ -368,13 +368,13 @@ const broadcast = (state) => ({
 
 test("a broadcast's stop is armed and named for what it does: Stop a send, Skip a run nobody approved, Cancel one still to come", async () => {
   fresh();
-  const draw = (state, armed) => {
+  // The verbs, as the run's report draws them for every run still open.
+  const BcRunVerbs = globalThis.window.BcRunVerbs;
+  const draw = (state, armed, canSend = true) => {
     frames.begin();
-    return BcRunCard({
+    return BcRunVerbs({
       row: broadcast(state),
-      now: Date.now(),
-      canSend: true,
-      onOpen() {},
+      canSend,
       armed,
       onArm: (on) => calls.arm.push(on),
       stopping: false,
@@ -403,28 +403,32 @@ test("a broadcast's stop is armed and named for what it does: Stop a send, Skip 
   assert.deepEqual(calls.cancel, [], "REGRESSION: one click used to cancel");
   await byTestId(draw("sending", true), "bc-stop-yes").props.onClick();
   assert.deepEqual(calls.cancel, ["b-sending"]);
+  assert.equal(byTestId(draw("sending", false, false), "bc-stop"), null, "a viewer has no stop to arm");
+  // On the ledger only a run waiting on the owner carries its acts -- Approve, and Skip armed the same way, on its
+  // row. A run to come or going out is cancelled or stopped from its report (23 Sep, Campaigns made compact).
+  const row = (state, armed = false) => {
+    frames.begin();
+    return BcRunCard({
+      row: broadcast(state),
+      now: Date.now(),
+      canSend: true,
+      onOpen() {},
+      armed,
+      onArm: (on) => calls.arm.push(on),
+      stopping: false,
+      approve() {},
+      cancel() {},
+    });
+  };
   assert.ok(
-    byTestId(draw("pending_approval", false), "bc-approve"),
+    byTestId(row("pending_approval"), "bc-approve"),
     "unarmed, a run waiting for approval still offers Approve",
   );
-  assert.equal(
-    byTestId(
-      BcRunCard({
-        row: broadcast("sending"),
-        now: Date.now(),
-        canSend: false,
-        onOpen() {},
-        armed: false,
-        onArm() {},
-        stopping: false,
-        approve() {},
-        cancel() {},
-      }),
-      "bc-stop",
-    ),
-    null,
-    "a viewer has no stop to arm",
-  );
+  assert.equal(textOf(byTestId(row("pending_approval"), "bc-stop")), "Skip");
+  assert.ok(textOf(byTestId(row("pending_approval", true), "bc-stop-confirm")).includes("Skip September offer?"));
+  for (const state of ["sending", "scheduled"]) {
+    assert.equal(byTestId(row(state), "bc-stop"), null, `${state}: its stop is its report's`);
+  }
 });
 
 /* ---------------- Playbooks: the delete that was two clicks --------------- */
