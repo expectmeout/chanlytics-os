@@ -175,27 +175,29 @@ const IsOrNot = z.enum(["is", "is_not"]);
 /** A list's token, as the address writes it: `seg:<built-in id>` or `list:<saved list id>` (lists.ts). */
 const Token = z.string().regex(/^(seg:[a-z_]{1,40}|list:[0-9a-f-]{36})$/i);
 
+// Strict: a fact that says anything this build does not read ("service": "balayage") is not read as a broader one.
+const fact = <T extends z.ZodRawShape>(shape: T) => z.object(shape).strict();
 export const ListFactSchema = z.discriminatedUnion("field", [
-  z.object({ field: z.literal("last_visit"), ...Days }),
-  z.object({ field: z.literal("next_visit"), ...Days }),
-  z.object({ field: z.literal("booked"), ...YesNo }),
-  z.object({ field: z.literal("asked_not_booked"), ...YesNo }),
-  z.object({ field: z.literal("last_heard"), ...Days }),
-  z.object({ field: z.literal("first_contact"), ...Days }),
-  z.object({ field: z.literal("channel"), op: IsOrNot, channel: z.enum(CHANNELS) }),
-  z.object({ field: z.literal("came_from"), op: IsOrNot, from: z.enum(CAME_FROM) }),
-  z.object({ field: z.literal("calls"), ...Count }),
-  z.object({ field: z.literal("conversations"), ...Count }),
-  z.object({ field: z.literal("has_chat"), ...YesNo }),
-  z.object({ field: z.literal("said_yes"), ...YesNo, to: z.enum(LIST_PURPOSES) }),
-  z.object({ field: z.literal("can_receive"), ...YesNo, to: z.enum(LIST_PURPOSES) }),
-  z.object({ field: z.literal("stopped"), ...YesNo }),
-  z.object({ field: z.literal("standing"), op: IsOrNot, value: z.enum(LIST_STANDINGS) }),
-  z.object({ field: z.literal("assigned"), op: IsOrNot, value: z.enum(LIST_ASSIGNED) }),
-  z.object({ field: z.literal("deal_stage"), op: IsOrNot, value: z.enum(LIST_DEAL_STAGES) }),
-  z.object({ field: z.literal("consultation"), ...YesNo }),
-  z.object({ field: z.literal("step_due"), ...YesNo }),
-  z.object({ field: z.literal("in_list"), op: IsOrNot, list: Token }),
+  fact({ field: z.literal("last_visit"), ...Days }),
+  fact({ field: z.literal("next_visit"), ...Days }),
+  fact({ field: z.literal("booked"), ...YesNo }),
+  fact({ field: z.literal("asked_not_booked"), ...YesNo }),
+  fact({ field: z.literal("last_heard"), ...Days }),
+  fact({ field: z.literal("first_contact"), ...Days }),
+  fact({ field: z.literal("channel"), op: IsOrNot, channel: z.enum(CHANNELS) }),
+  fact({ field: z.literal("came_from"), op: IsOrNot, from: z.enum(CAME_FROM) }),
+  fact({ field: z.literal("calls"), ...Count }),
+  fact({ field: z.literal("conversations"), ...Count }),
+  fact({ field: z.literal("has_chat"), ...YesNo }),
+  fact({ field: z.literal("said_yes"), ...YesNo, to: z.enum(LIST_PURPOSES) }),
+  fact({ field: z.literal("can_receive"), ...YesNo, to: z.enum(LIST_PURPOSES) }),
+  fact({ field: z.literal("stopped"), ...YesNo }),
+  fact({ field: z.literal("standing"), op: IsOrNot, value: z.enum(LIST_STANDINGS) }),
+  fact({ field: z.literal("assigned"), op: IsOrNot, value: z.enum(LIST_ASSIGNED) }),
+  fact({ field: z.literal("deal_stage"), op: IsOrNot, value: z.enum(LIST_DEAL_STAGES) }),
+  fact({ field: z.literal("consultation"), ...YesNo }),
+  fact({ field: z.literal("step_due"), ...YesNo }),
+  fact({ field: z.literal("in_list"), op: IsOrNot, list: Token }),
 ]);
 export type ListFact = z.infer<typeof ListFactSchema>;
 
@@ -221,6 +223,8 @@ export const ListRuleSchema = z
     v: z.literal(2).optional(),
     all: z.array(ListConditionSchema).min(1).max(LIST_RULE_MAX),
   })
+  // A rule that says more than this build reads ("none": [...]) is not one it reads, never a broader one it does.
+  .strict()
   .superRefine((r, ctx) => {
     for (const f of r.all.flatMap((c) => ("any" in c ? c.any : [c]))) {
       const p = factProblem(f);
@@ -240,14 +244,21 @@ function upgradeFact(raw: unknown): unknown {
   return f;
 }
 
+/**
+ * Version 1 (no `v`) and version 2 read as version 2; anything else is left as it is, for the schema to refuse: a
+ * version 3 rule is not a version 2 rule with its new parts dropped. Every key is kept, so a condition that is both a
+ * fact and an "any" group, or a rule with a part this build does not know, is refused rather than narrowed.
+ */
 function upgrade(raw: unknown): unknown {
   if (!raw || typeof raw !== "object" || !Array.isArray((raw as { all?: unknown }).all)) return raw;
   const r = raw as { v?: unknown; all: unknown[] };
+  if (r.v !== undefined && r.v !== 2) return raw;
   return {
+    ...r,
     v: 2,
     all: r.all.map((c) =>
       c && typeof c === "object" && Array.isArray((c as { any?: unknown }).any)
-        ? { any: ((c as { any: unknown[] }).any ?? []).map(upgradeFact) }
+        ? { ...(c as object), any: (c as { any: unknown[] }).any.map(upgradeFact) }
         : upgradeFact(c),
     ),
   };
@@ -257,6 +268,43 @@ function upgrade(raw: unknown): unknown {
 export function asListRule(raw: unknown): ListRule | null {
   const r = ListRuleSchema.safeParse(upgrade(raw));
   return r.success ? (r.data as ListRule) : null;
+}
+
+/** The keys each kind of fact carries beside its field and op: what a draft's fact is cut down to. */
+const KIND_KEYS: Record<FieldKind, readonly string[]> = {
+  days: ["days"],
+  yesno: ["yes"],
+  channel: ["channel"],
+  came_from: ["from"],
+  count: ["n"],
+  purpose: ["to", "yes"],
+  standing: ["value"],
+  assigned: ["value"],
+  deal_stage: ["value"],
+  list: ["list"],
+};
+
+/**
+ * A rule the drafting model wrote (LIST_DRAFT_JSON_SCHEMA, whose every property is optional): each fact cut down to the
+ * keys its field reads, an "any" group to its facts, then read strictly (asListRule). A stored rule is never read this
+ * leniently: the model fills in what it may, a stored rule says what it means.
+ */
+export function draftListRule(all: readonly unknown[]): ListRule | null {
+  const cut = (raw: unknown): unknown => {
+    if (!raw || typeof raw !== "object") return raw;
+    const f = raw as Record<string, unknown>;
+    const field = LIST_RULE_FIELDS.find((x) => x.id === f.field);
+    if (!field) return raw;
+    const keep = ["field", "op", ...KIND_KEYS[field.kind]];
+    return Object.fromEntries(Object.entries(f).filter(([k, v]) => keep.includes(k) && v !== null));
+  };
+  return asListRule({
+    all: all.map((c) =>
+      c && typeof c === "object" && Array.isArray((c as { any?: unknown }).any)
+        ? { any: (c as { any: unknown[] }).any.map(cut) }
+        : cut(c),
+    ),
+  });
 }
 
 /** Every fact in a rule, the ones inside an "any" group too. */

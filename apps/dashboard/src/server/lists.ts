@@ -5,6 +5,7 @@ import {
   LIST_DRAFT_JSON_SCHEMA,
   ListDraftAnswerSchema,
   asListRule,
+  draftListRule,
   listDraftFieldLines,
   parseListToken,
   ruleLists,
@@ -63,9 +64,10 @@ export function cleanListRule(
     if (!known) throw new AppError("validation", "That rule reads a list there isn't. Pick one of your lists.");
     if (ref?.kind === "saved" && ref.id === self?.toLowerCase())
       throw new AppError("validation", "A list can't read itself.");
-    if (typeof known === "object") {
-      const other = known.rule == null ? null : asListRule(known.rule);
-      if (other && ruleLists(other).length)
+    if (typeof known === "object" && known.rule != null) {
+      const other = asListRule(known.rule);
+      if (!other) throw new AppError("validation", "That rule reads a list this version can't read. Reload the page.");
+      if (ruleLists(other).length)
         throw new AppError("validation", "That list reads another list itself. A list reads lists one level deep.");
     }
   }
@@ -130,7 +132,8 @@ export async function draftList(
     ListDraftAnswerSchema,
     "list",
   );
-  const rule = asListRule({ all: answer.all });
+  // Each fact cut down to what its field reads, then read strictly (contracts draftListRule).
+  const rule = draftListRule(answer.all);
   if (!rule)
     throw new AppError(
       "validation",

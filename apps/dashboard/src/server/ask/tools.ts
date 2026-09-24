@@ -738,7 +738,7 @@ async function getPerson(t: ToolContext, input: Record<string, unknown>): Promis
     proposal_url: own.data?.proposal_url ?? null,
     deals_on: dealsAreOn(sellsBy),
   };
-  const vm = toPersonVM(detail, t.timezone, t.now);
+  const vm = toPersonVM(detail, t.timezone, t.now, t.ctx.userId ?? null);
   t.read.person.add(id);
   for (const c of detail.conversations) {
     t.read.thread.add(c.id);

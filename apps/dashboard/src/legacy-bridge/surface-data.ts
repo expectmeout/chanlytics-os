@@ -141,7 +141,16 @@ export const workspaceOverride: SurfaceOverride & { current: () => Workspace | n
     }
     // The sidebar renders whoever this says — replacing the mockup's
     // hardcoded operator, who was a fabricated person shown as "you".
-    if (data.user) w.__ME = data.user;
+    if (data.user) {
+      const was = w.__ME?.id ?? null;
+      w.__ME = data.user;
+      // People read before who is looking was known is read again for them (decision 0009): a teammate's thread is
+      // theirs, and a list about "me" can be counted.
+      if (peopleLoaded && was !== (data.user.id ?? null)) {
+        publishPeople();
+        window.dispatchEvent(new CustomEvent("surface:clients"));
+      }
+    }
   },
 };
 

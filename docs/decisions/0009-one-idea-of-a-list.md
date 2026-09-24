@@ -179,6 +179,19 @@ beside it.
 
 Ids never change: a sent broadcast's audience names them.
 
+Three readings the table implies, said plainly (phase 1 review):
+
+- **Asked, never booked keeps Reports' window.** It is Reports' 30 days, measured as Reports measures its period, so the
+  two numbers Today prints side by side count one rule over one window.
+- **New reads the first contact the row names.** That is `first_contact_at`, or, with no import behind it, the earliest
+  row held (the People column's own rule, `firstContactOf`); an import's floor is never a first contact.
+- **Passed and Ended read the deal when the calendar can't be.** A consultation ahead moves someone to Consultations,
+  and only a read calendar shows one; unread, they stand where their deal does, as the Pipeline draws them.
+
+A stored rule is read strictly: a part this build does not know, a version it does not read, or a condition that is
+both a fact and an "any" group makes the list one it cannot count, never a broader one it can. Only a draft from the
+model is cut down to what each field reads first.
+
 **The row's pill follows the lists.** `personStateFor` takes the viewer, so a teammate's thread is not waiting on you,
 and its quiet is the Quiet list's rule. Someone never heard from, and not new, is a new state, **Not heard from**,
 instead of Quiet or Active.

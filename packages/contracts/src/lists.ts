@@ -265,8 +265,12 @@ export interface SavedListLike {
   rule?: unknown;
 }
 
-/** The lists a rule may read, resolved by token: a built-in, a saved list, or null when it is gone. */
-export type ListLookup = (token: string) => { rule: ListRule | null; ids: readonly string[] } | null;
+/**
+ * The lists a rule may read, resolved by token: a built-in, a saved list, or null when it is gone. `readable` is false
+ * for a saved list whose rule this build cannot read: it is not a list kept by hand, and a list that reads it cannot be
+ * counted either.
+ */
+export type ListLookup = (token: string) => { rule: ListRule | null; ids: readonly string[]; readable: boolean } | null;
 
 const builtinByToken = (token: string) => {
   const ref = parseListToken(token);
@@ -297,8 +301,8 @@ export function listMembers(
   const read = new Map<string, Set<string>>();
   for (const token of ruleLists(rule)) {
     const b = builtinByToken(token);
-    const other = b ? { rule: b.rule, ids: [] } : lookup(token);
-    if (!other) return { state: "unknown", reason: "list" };
+    const other = b ? { rule: b.rule, ids: [], readable: true } : lookup(token);
+    if (!other || !other.readable) return { state: "unknown", reason: "list" };
     if (other.rule && ruleLists(other.rule).length) return { state: "unknown", reason: "list" };
     const m = listMembers(other, rows, ctx);
     if (m.state === "unknown") return m;
@@ -328,7 +332,9 @@ export function savedListLookup(saved: readonly SavedListLike[]): ListLookup {
     const ref = parseListToken(token);
     if (!ref || ref.kind !== "saved") return null;
     const l = saved.find((s) => s.id.toLowerCase() === ref.id);
-    return l ? { rule: l.rule == null ? null : asListRule(l.rule), ids: l.ids } : null;
+    if (!l) return null;
+    const rule = l.rule == null ? null : asListRule(l.rule);
+    return { rule, ids: l.ids, readable: l.rule == null || rule !== null };
   };
 }
 

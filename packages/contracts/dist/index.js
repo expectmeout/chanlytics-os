@@ -7749,27 +7749,28 @@ var YesNo = { op: z6.literal("is"), yes: z6.boolean() };
 var Count = { op: z6.enum(["at_least", "at_most"]), n: z6.number().int().min(0).max(1e4) };
 var IsOrNot = z6.enum(["is", "is_not"]);
 var Token = z6.string().regex(/^(seg:[a-z_]{1,40}|list:[0-9a-f-]{36})$/i);
+var fact = (shape) => z6.object(shape).strict();
 var ListFactSchema = z6.discriminatedUnion("field", [
-  z6.object({ field: z6.literal("last_visit"), ...Days }),
-  z6.object({ field: z6.literal("next_visit"), ...Days }),
-  z6.object({ field: z6.literal("booked"), ...YesNo }),
-  z6.object({ field: z6.literal("asked_not_booked"), ...YesNo }),
-  z6.object({ field: z6.literal("last_heard"), ...Days }),
-  z6.object({ field: z6.literal("first_contact"), ...Days }),
-  z6.object({ field: z6.literal("channel"), op: IsOrNot, channel: z6.enum(CHANNELS) }),
-  z6.object({ field: z6.literal("came_from"), op: IsOrNot, from: z6.enum(CAME_FROM) }),
-  z6.object({ field: z6.literal("calls"), ...Count }),
-  z6.object({ field: z6.literal("conversations"), ...Count }),
-  z6.object({ field: z6.literal("has_chat"), ...YesNo }),
-  z6.object({ field: z6.literal("said_yes"), ...YesNo, to: z6.enum(LIST_PURPOSES) }),
-  z6.object({ field: z6.literal("can_receive"), ...YesNo, to: z6.enum(LIST_PURPOSES) }),
-  z6.object({ field: z6.literal("stopped"), ...YesNo }),
-  z6.object({ field: z6.literal("standing"), op: IsOrNot, value: z6.enum(LIST_STANDINGS) }),
-  z6.object({ field: z6.literal("assigned"), op: IsOrNot, value: z6.enum(LIST_ASSIGNED) }),
-  z6.object({ field: z6.literal("deal_stage"), op: IsOrNot, value: z6.enum(LIST_DEAL_STAGES) }),
-  z6.object({ field: z6.literal("consultation"), ...YesNo }),
-  z6.object({ field: z6.literal("step_due"), ...YesNo }),
-  z6.object({ field: z6.literal("in_list"), op: IsOrNot, list: Token })
+  fact({ field: z6.literal("last_visit"), ...Days }),
+  fact({ field: z6.literal("next_visit"), ...Days }),
+  fact({ field: z6.literal("booked"), ...YesNo }),
+  fact({ field: z6.literal("asked_not_booked"), ...YesNo }),
+  fact({ field: z6.literal("last_heard"), ...Days }),
+  fact({ field: z6.literal("first_contact"), ...Days }),
+  fact({ field: z6.literal("channel"), op: IsOrNot, channel: z6.enum(CHANNELS) }),
+  fact({ field: z6.literal("came_from"), op: IsOrNot, from: z6.enum(CAME_FROM) }),
+  fact({ field: z6.literal("calls"), ...Count }),
+  fact({ field: z6.literal("conversations"), ...Count }),
+  fact({ field: z6.literal("has_chat"), ...YesNo }),
+  fact({ field: z6.literal("said_yes"), ...YesNo, to: z6.enum(LIST_PURPOSES) }),
+  fact({ field: z6.literal("can_receive"), ...YesNo, to: z6.enum(LIST_PURPOSES) }),
+  fact({ field: z6.literal("stopped"), ...YesNo }),
+  fact({ field: z6.literal("standing"), op: IsOrNot, value: z6.enum(LIST_STANDINGS) }),
+  fact({ field: z6.literal("assigned"), op: IsOrNot, value: z6.enum(LIST_ASSIGNED) }),
+  fact({ field: z6.literal("deal_stage"), op: IsOrNot, value: z6.enum(LIST_DEAL_STAGES) }),
+  fact({ field: z6.literal("consultation"), ...YesNo }),
+  fact({ field: z6.literal("step_due"), ...YesNo }),
+  fact({ field: z6.literal("in_list"), op: IsOrNot, list: Token })
 ]);
 var AnySchema = z6.object({ any: z6.array(ListFactSchema).min(2).max(LIST_ANY_MAX) }).strict();
 var ListConditionSchema = z6.union([AnySchema, ListFactSchema]);
@@ -7783,7 +7784,7 @@ function factProblem(f) {
 var ListRuleSchema = z6.object({
   v: z6.literal(2).optional(),
   all: z6.array(ListConditionSchema).min(1).max(LIST_RULE_MAX)
-}).superRefine((r2, ctx) => {
+}).strict().superRefine((r2, ctx) => {
   for (const f of r2.all.flatMap((c) => "any" in c ? c.any : [c])) {
     const p = factProblem(f);
     if (p) ctx.addIssue({ code: z6.ZodIssueCode.custom, message: p });
@@ -7798,16 +7799,45 @@ function upgradeFact(raw) {
 function upgrade(raw) {
   if (!raw || typeof raw !== "object" || !Array.isArray(raw.all)) return raw;
   const r2 = raw;
+  if (r2.v !== void 0 && r2.v !== 2) return raw;
   return {
+    ...r2,
     v: 2,
     all: r2.all.map(
-      (c) => c && typeof c === "object" && Array.isArray(c.any) ? { any: (c.any ?? []).map(upgradeFact) } : upgradeFact(c)
+      (c) => c && typeof c === "object" && Array.isArray(c.any) ? { ...c, any: c.any.map(upgradeFact) } : upgradeFact(c)
     )
   };
 }
 function asListRule(raw) {
   const r2 = ListRuleSchema.safeParse(upgrade(raw));
   return r2.success ? r2.data : null;
+}
+var KIND_KEYS = {
+  days: ["days"],
+  yesno: ["yes"],
+  channel: ["channel"],
+  came_from: ["from"],
+  count: ["n"],
+  purpose: ["to", "yes"],
+  standing: ["value"],
+  assigned: ["value"],
+  deal_stage: ["value"],
+  list: ["list"]
+};
+function draftListRule(all) {
+  const cut = (raw) => {
+    if (!raw || typeof raw !== "object") return raw;
+    const f = raw;
+    const field = LIST_RULE_FIELDS.find((x) => x.id === f.field);
+    if (!field) return raw;
+    const keep = ["field", "op", ...KIND_KEYS[field.kind]];
+    return Object.fromEntries(Object.entries(f).filter(([k, v]) => keep.includes(k) && v !== null));
+  };
+  return asListRule({
+    all: all.map(
+      (c) => c && typeof c === "object" && Array.isArray(c.any) ? { any: c.any.map(cut) } : cut(c)
+    )
+  });
 }
 function ruleFacts(rule) {
   return rule.all.flatMap((c) => "any" in c ? c.any : [c]);
@@ -8203,8 +8233,8 @@ function listMembers(list2, rows, ctx, lookup = () => null) {
   const read = /* @__PURE__ */ new Map();
   for (const token of ruleLists(rule)) {
     const b = builtinByToken(token);
-    const other = b ? { rule: b.rule, ids: [] } : lookup(token);
-    if (!other) return { state: "unknown", reason: "list" };
+    const other = b ? { rule: b.rule, ids: [], readable: true } : lookup(token);
+    if (!other || !other.readable) return { state: "unknown", reason: "list" };
     if (other.rule && ruleLists(other.rule).length) return { state: "unknown", reason: "list" };
     const m = listMembers(other, rows, ctx);
     if (m.state === "unknown") return m;
@@ -8222,7 +8252,9 @@ function savedListLookup(saved) {
     const ref = parseListToken(token);
     if (!ref || ref.kind !== "saved") return null;
     const l = saved.find((s) => s.id.toLowerCase() === ref.id);
-    return l ? { rule: l.rule == null ? null : asListRule(l.rule), ids: l.ids } : null;
+    if (!l) return null;
+    const rule = l.rule == null ? null : asListRule(l.rule);
+    return { rule, ids: l.ids, readable: l.rule == null || rule !== null };
   };
 }
 function listNeeds(rule, lookup = () => null) {
@@ -21322,6 +21354,7 @@ export {
   deskSignVM,
   detectLanguage,
   deviceTimezone,
+  draftListRule,
   draftSendsAtMs,
   dueStepDay,
   durationLabel,

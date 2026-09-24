@@ -285,6 +285,68 @@ test("who is on a list: the ids kept on it, or who its rule holds for today; unk
   );
 });
 
+test("a stored rule is read strictly: a part, a version or a shape this build does not read is a list it cannot count, never a broader one", () => {
+  const { draftListRule } = contracts;
+  const booked = { field: "booked", op: "is", yes: true };
+  const stopped = { field: "stopped", op: "is", yes: true };
+  assert.equal(asListRule({ v: 3, all: [booked] }), null, "a version this build does not read");
+  assert.equal(asListRule({ all: [booked], none: [stopped] }), null, "a part it does not know");
+  assert.equal(
+    asListRule({ all: [{ field: "last_visit", op: "within", days: 30, service: "balayage" }] }),
+    null,
+    "a fact that says more than its field",
+  );
+  assert.equal(
+    asListRule({ all: [{ any: [booked, stopped], field: "calls", op: "at_least", n: 1 }] }),
+    null,
+    "a condition that is both a fact and an any group",
+  );
+  // The model's draft is cut down to what each field reads first (every property of its schema is optional).
+  assert.deepEqual(draftListRule([{ field: "booked", op: "is", yes: true, days: null, channel: "sms" }]), {
+    v: 2,
+    all: [booked],
+  });
+  assert.deepEqual(
+    draftListRule([
+      {
+        any: [
+          { field: "channel", op: "is", channel: "sms", n: 0 },
+          { field: "channel", op: "is", channel: "email" },
+        ],
+      },
+    ]),
+    {
+      v: 2,
+      all: [
+        {
+          any: [
+            { field: "channel", op: "is", channel: "sms" },
+            { field: "channel", op: "is", channel: "email" },
+          ],
+        },
+      ],
+    },
+  );
+});
+
+test("a list that reads a list whose rule can't be read cannot be counted either: never counted as a list kept by hand", () => {
+  const rows = [vm("1"), vm("2")];
+  const B = "22222222-2222-4222-8222-222222222222";
+  const saved = [{ id: B, name: "Future", ids: [], rule: { v: 3, all: [{ field: "future_fact", op: "is" }] } }];
+  for (const op of ["is", "is_not"]) {
+    assert.deepEqual(
+      listMembers(
+        { ids: [], rule: rule({ field: "in_list", op, list: `list:${B}` }) },
+        rows,
+        ALL,
+        savedListLookup(saved),
+      ),
+      { state: "unknown", reason: "list" },
+      `in_list ${op}`,
+    );
+  }
+});
+
 /* ---------------------------------------- playbooks on a list ---------------------------------------- */
 
 test("a playbook on a list runs on who is on it; the Lapsed moment runs on People's Lapsed list", () => {
@@ -435,6 +497,7 @@ const lists = await import(at("apps/dashboard/app/api/v1/segments/route.ts"));
 const list = await import(at("apps/dashboard/app/api/v1/segments/[id]/route.ts"));
 const draft = await import(at("apps/dashboard/app/api/v1/segments/draft/route.ts"));
 const { setModelStream } = await import(at("apps/dashboard/src/server/model-json.ts"));
+const { cleanListRule } = await import(at("apps/dashboard/src/server/lists.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));
 
@@ -650,4 +713,29 @@ test("either deploy order: on a database 00155 has not reached, every list reads
   assert.deepEqual(await savedListsFor(db, "t1"), [{ id: "s1", name: "Regulars", ids: ["c1"], rule: null }]);
   assert.deepEqual(await savedListFor(db, "t1", "s1"), { id: "s1", name: "Regulars", ids: ["c1"], rule: null });
   assert.deepEqual(await listRow(db, "s1"), { id: "s1", tenant_id: "t1", name: "Regulars", rule: null });
+});
+
+test("a rule may read another list only one level deep, only one there is, never itself, never one this version can't read", () => {
+  const A1 = "33333333-3333-4333-8333-333333333333";
+  const B1 = "44444444-4444-4444-8444-444444444444";
+  const C1 = "55555555-5555-4555-8555-555555555555";
+  const reads = (id) => ({ all: [{ field: "in_list", op: "is", list: `list:${id}` }] });
+  const saved = [
+    { id: A1, rule: null },
+    { id: B1, rule: reads(A1) },
+    { id: C1, rule: { v: 3, all: [{ field: "future_fact" }] } },
+  ];
+  assert.deepEqual(cleanListRule(reads(A1), saved).all[0].list, `list:${A1}`, "a hand list, one level");
+  assert.ok(cleanListRule({ all: [{ field: "in_list", op: "is_not", list: "seg:lapsed" }] }, saved), "a built-in");
+  assert.throws(() => cleanListRule(reads(B1), saved), /reads another list itself/);
+  assert.throws(() => cleanListRule(reads(C1), saved), /this version can't read/);
+  assert.throws(() => cleanListRule(reads("66666666-6666-4666-8666-666666666666"), saved), /a list there isn't/);
+  assert.throws(() => cleanListRule(reads(A1), saved, A1), /can't read itself/);
+  assert.throws(
+    () => cleanListRule({ all: [{ field: "in_list", op: "is", list: "seg:nope" }] }, saved),
+    /a list there isn't/,
+  );
+  // A list another list reads may not start reading lists itself: one level deep either way.
+  const D1 = "77777777-7777-4777-8777-777777777777";
+  assert.throws(() => cleanListRule(reads(D1), [...saved, { id: D1, rule: null }], A1), /Another list reads this one/);
 });

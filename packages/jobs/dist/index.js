@@ -1322,27 +1322,28 @@ var YesNo = { op: z6.literal("is"), yes: z6.boolean() };
 var Count = { op: z6.enum(["at_least", "at_most"]), n: z6.number().int().min(0).max(1e4) };
 var IsOrNot = z6.enum(["is", "is_not"]);
 var Token = z6.string().regex(/^(seg:[a-z_]{1,40}|list:[0-9a-f-]{36})$/i);
+var fact = (shape) => z6.object(shape).strict();
 var ListFactSchema = z6.discriminatedUnion("field", [
-  z6.object({ field: z6.literal("last_visit"), ...Days }),
-  z6.object({ field: z6.literal("next_visit"), ...Days }),
-  z6.object({ field: z6.literal("booked"), ...YesNo }),
-  z6.object({ field: z6.literal("asked_not_booked"), ...YesNo }),
-  z6.object({ field: z6.literal("last_heard"), ...Days }),
-  z6.object({ field: z6.literal("first_contact"), ...Days }),
-  z6.object({ field: z6.literal("channel"), op: IsOrNot, channel: z6.enum(CHANNELS) }),
-  z6.object({ field: z6.literal("came_from"), op: IsOrNot, from: z6.enum(CAME_FROM) }),
-  z6.object({ field: z6.literal("calls"), ...Count }),
-  z6.object({ field: z6.literal("conversations"), ...Count }),
-  z6.object({ field: z6.literal("has_chat"), ...YesNo }),
-  z6.object({ field: z6.literal("said_yes"), ...YesNo, to: z6.enum(LIST_PURPOSES) }),
-  z6.object({ field: z6.literal("can_receive"), ...YesNo, to: z6.enum(LIST_PURPOSES) }),
-  z6.object({ field: z6.literal("stopped"), ...YesNo }),
-  z6.object({ field: z6.literal("standing"), op: IsOrNot, value: z6.enum(LIST_STANDINGS) }),
-  z6.object({ field: z6.literal("assigned"), op: IsOrNot, value: z6.enum(LIST_ASSIGNED) }),
-  z6.object({ field: z6.literal("deal_stage"), op: IsOrNot, value: z6.enum(LIST_DEAL_STAGES) }),
-  z6.object({ field: z6.literal("consultation"), ...YesNo }),
-  z6.object({ field: z6.literal("step_due"), ...YesNo }),
-  z6.object({ field: z6.literal("in_list"), op: IsOrNot, list: Token })
+  fact({ field: z6.literal("last_visit"), ...Days }),
+  fact({ field: z6.literal("next_visit"), ...Days }),
+  fact({ field: z6.literal("booked"), ...YesNo }),
+  fact({ field: z6.literal("asked_not_booked"), ...YesNo }),
+  fact({ field: z6.literal("last_heard"), ...Days }),
+  fact({ field: z6.literal("first_contact"), ...Days }),
+  fact({ field: z6.literal("channel"), op: IsOrNot, channel: z6.enum(CHANNELS) }),
+  fact({ field: z6.literal("came_from"), op: IsOrNot, from: z6.enum(CAME_FROM) }),
+  fact({ field: z6.literal("calls"), ...Count }),
+  fact({ field: z6.literal("conversations"), ...Count }),
+  fact({ field: z6.literal("has_chat"), ...YesNo }),
+  fact({ field: z6.literal("said_yes"), ...YesNo, to: z6.enum(LIST_PURPOSES) }),
+  fact({ field: z6.literal("can_receive"), ...YesNo, to: z6.enum(LIST_PURPOSES) }),
+  fact({ field: z6.literal("stopped"), ...YesNo }),
+  fact({ field: z6.literal("standing"), op: IsOrNot, value: z6.enum(LIST_STANDINGS) }),
+  fact({ field: z6.literal("assigned"), op: IsOrNot, value: z6.enum(LIST_ASSIGNED) }),
+  fact({ field: z6.literal("deal_stage"), op: IsOrNot, value: z6.enum(LIST_DEAL_STAGES) }),
+  fact({ field: z6.literal("consultation"), ...YesNo }),
+  fact({ field: z6.literal("step_due"), ...YesNo }),
+  fact({ field: z6.literal("in_list"), op: IsOrNot, list: Token })
 ]);
 var AnySchema = z6.object({ any: z6.array(ListFactSchema).min(2).max(LIST_ANY_MAX) }).strict();
 var ListConditionSchema = z6.union([AnySchema, ListFactSchema]);
@@ -1356,7 +1357,7 @@ function factProblem(f) {
 var ListRuleSchema = z6.object({
   v: z6.literal(2).optional(),
   all: z6.array(ListConditionSchema).min(1).max(LIST_RULE_MAX)
-}).superRefine((r23, ctx) => {
+}).strict().superRefine((r23, ctx) => {
   for (const f of r23.all.flatMap((c2) => "any" in c2 ? c2.any : [c2])) {
     const p = factProblem(f);
     if (p) ctx.addIssue({ code: z6.ZodIssueCode.custom, message: p });
@@ -8363,27 +8364,28 @@ var YesNo2 = { op: z62.literal("is"), yes: z62.boolean() };
 var Count2 = { op: z62.enum(["at_least", "at_most"]), n: z62.number().int().min(0).max(1e4) };
 var IsOrNot2 = z62.enum(["is", "is_not"]);
 var Token2 = z62.string().regex(/^(seg:[a-z_]{1,40}|list:[0-9a-f-]{36})$/i);
+var fact2 = (shape) => z62.object(shape).strict();
 var ListFactSchema2 = z62.discriminatedUnion("field", [
-  z62.object({ field: z62.literal("last_visit"), ...Days2 }),
-  z62.object({ field: z62.literal("next_visit"), ...Days2 }),
-  z62.object({ field: z62.literal("booked"), ...YesNo2 }),
-  z62.object({ field: z62.literal("asked_not_booked"), ...YesNo2 }),
-  z62.object({ field: z62.literal("last_heard"), ...Days2 }),
-  z62.object({ field: z62.literal("first_contact"), ...Days2 }),
-  z62.object({ field: z62.literal("channel"), op: IsOrNot2, channel: z62.enum(CHANNELS2) }),
-  z62.object({ field: z62.literal("came_from"), op: IsOrNot2, from: z62.enum(CAME_FROM2) }),
-  z62.object({ field: z62.literal("calls"), ...Count2 }),
-  z62.object({ field: z62.literal("conversations"), ...Count2 }),
-  z62.object({ field: z62.literal("has_chat"), ...YesNo2 }),
-  z62.object({ field: z62.literal("said_yes"), ...YesNo2, to: z62.enum(LIST_PURPOSES2) }),
-  z62.object({ field: z62.literal("can_receive"), ...YesNo2, to: z62.enum(LIST_PURPOSES2) }),
-  z62.object({ field: z62.literal("stopped"), ...YesNo2 }),
-  z62.object({ field: z62.literal("standing"), op: IsOrNot2, value: z62.enum(LIST_STANDINGS2) }),
-  z62.object({ field: z62.literal("assigned"), op: IsOrNot2, value: z62.enum(LIST_ASSIGNED2) }),
-  z62.object({ field: z62.literal("deal_stage"), op: IsOrNot2, value: z62.enum(LIST_DEAL_STAGES2) }),
-  z62.object({ field: z62.literal("consultation"), ...YesNo2 }),
-  z62.object({ field: z62.literal("step_due"), ...YesNo2 }),
-  z62.object({ field: z62.literal("in_list"), op: IsOrNot2, list: Token2 })
+  fact2({ field: z62.literal("last_visit"), ...Days2 }),
+  fact2({ field: z62.literal("next_visit"), ...Days2 }),
+  fact2({ field: z62.literal("booked"), ...YesNo2 }),
+  fact2({ field: z62.literal("asked_not_booked"), ...YesNo2 }),
+  fact2({ field: z62.literal("last_heard"), ...Days2 }),
+  fact2({ field: z62.literal("first_contact"), ...Days2 }),
+  fact2({ field: z62.literal("channel"), op: IsOrNot2, channel: z62.enum(CHANNELS2) }),
+  fact2({ field: z62.literal("came_from"), op: IsOrNot2, from: z62.enum(CAME_FROM2) }),
+  fact2({ field: z62.literal("calls"), ...Count2 }),
+  fact2({ field: z62.literal("conversations"), ...Count2 }),
+  fact2({ field: z62.literal("has_chat"), ...YesNo2 }),
+  fact2({ field: z62.literal("said_yes"), ...YesNo2, to: z62.enum(LIST_PURPOSES2) }),
+  fact2({ field: z62.literal("can_receive"), ...YesNo2, to: z62.enum(LIST_PURPOSES2) }),
+  fact2({ field: z62.literal("stopped"), ...YesNo2 }),
+  fact2({ field: z62.literal("standing"), op: IsOrNot2, value: z62.enum(LIST_STANDINGS2) }),
+  fact2({ field: z62.literal("assigned"), op: IsOrNot2, value: z62.enum(LIST_ASSIGNED2) }),
+  fact2({ field: z62.literal("deal_stage"), op: IsOrNot2, value: z62.enum(LIST_DEAL_STAGES2) }),
+  fact2({ field: z62.literal("consultation"), ...YesNo2 }),
+  fact2({ field: z62.literal("step_due"), ...YesNo2 }),
+  fact2({ field: z62.literal("in_list"), op: IsOrNot2, list: Token2 })
 ]);
 var AnySchema2 = z62.object({ any: z62.array(ListFactSchema2).min(2).max(LIST_ANY_MAX2) }).strict();
 var ListConditionSchema2 = z62.union([AnySchema2, ListFactSchema2]);
@@ -8397,7 +8399,7 @@ function factProblem2(f) {
 var ListRuleSchema2 = z62.object({
   v: z62.literal(2).optional(),
   all: z62.array(ListConditionSchema2).min(1).max(LIST_RULE_MAX2)
-}).superRefine((r23, ctx) => {
+}).strict().superRefine((r23, ctx) => {
   for (const f of r23.all.flatMap((c2) => "any" in c2 ? c2.any : [c2])) {
     const p = factProblem2(f);
     if (p) ctx.addIssue({ code: z62.ZodIssueCode.custom, message: p });
@@ -11482,27 +11484,28 @@ var YesNo3 = { op: z63.literal("is"), yes: z63.boolean() };
 var Count3 = { op: z63.enum(["at_least", "at_most"]), n: z63.number().int().min(0).max(1e4) };
 var IsOrNot3 = z63.enum(["is", "is_not"]);
 var Token3 = z63.string().regex(/^(seg:[a-z_]{1,40}|list:[0-9a-f-]{36})$/i);
+var fact3 = (shape) => z63.object(shape).strict();
 var ListFactSchema3 = z63.discriminatedUnion("field", [
-  z63.object({ field: z63.literal("last_visit"), ...Days3 }),
-  z63.object({ field: z63.literal("next_visit"), ...Days3 }),
-  z63.object({ field: z63.literal("booked"), ...YesNo3 }),
-  z63.object({ field: z63.literal("asked_not_booked"), ...YesNo3 }),
-  z63.object({ field: z63.literal("last_heard"), ...Days3 }),
-  z63.object({ field: z63.literal("first_contact"), ...Days3 }),
-  z63.object({ field: z63.literal("channel"), op: IsOrNot3, channel: z63.enum(CHANNELS3) }),
-  z63.object({ field: z63.literal("came_from"), op: IsOrNot3, from: z63.enum(CAME_FROM3) }),
-  z63.object({ field: z63.literal("calls"), ...Count3 }),
-  z63.object({ field: z63.literal("conversations"), ...Count3 }),
-  z63.object({ field: z63.literal("has_chat"), ...YesNo3 }),
-  z63.object({ field: z63.literal("said_yes"), ...YesNo3, to: z63.enum(LIST_PURPOSES3) }),
-  z63.object({ field: z63.literal("can_receive"), ...YesNo3, to: z63.enum(LIST_PURPOSES3) }),
-  z63.object({ field: z63.literal("stopped"), ...YesNo3 }),
-  z63.object({ field: z63.literal("standing"), op: IsOrNot3, value: z63.enum(LIST_STANDINGS3) }),
-  z63.object({ field: z63.literal("assigned"), op: IsOrNot3, value: z63.enum(LIST_ASSIGNED3) }),
-  z63.object({ field: z63.literal("deal_stage"), op: IsOrNot3, value: z63.enum(LIST_DEAL_STAGES3) }),
-  z63.object({ field: z63.literal("consultation"), ...YesNo3 }),
-  z63.object({ field: z63.literal("step_due"), ...YesNo3 }),
-  z63.object({ field: z63.literal("in_list"), op: IsOrNot3, list: Token3 })
+  fact3({ field: z63.literal("last_visit"), ...Days3 }),
+  fact3({ field: z63.literal("next_visit"), ...Days3 }),
+  fact3({ field: z63.literal("booked"), ...YesNo3 }),
+  fact3({ field: z63.literal("asked_not_booked"), ...YesNo3 }),
+  fact3({ field: z63.literal("last_heard"), ...Days3 }),
+  fact3({ field: z63.literal("first_contact"), ...Days3 }),
+  fact3({ field: z63.literal("channel"), op: IsOrNot3, channel: z63.enum(CHANNELS3) }),
+  fact3({ field: z63.literal("came_from"), op: IsOrNot3, from: z63.enum(CAME_FROM3) }),
+  fact3({ field: z63.literal("calls"), ...Count3 }),
+  fact3({ field: z63.literal("conversations"), ...Count3 }),
+  fact3({ field: z63.literal("has_chat"), ...YesNo3 }),
+  fact3({ field: z63.literal("said_yes"), ...YesNo3, to: z63.enum(LIST_PURPOSES3) }),
+  fact3({ field: z63.literal("can_receive"), ...YesNo3, to: z63.enum(LIST_PURPOSES3) }),
+  fact3({ field: z63.literal("stopped"), ...YesNo3 }),
+  fact3({ field: z63.literal("standing"), op: IsOrNot3, value: z63.enum(LIST_STANDINGS3) }),
+  fact3({ field: z63.literal("assigned"), op: IsOrNot3, value: z63.enum(LIST_ASSIGNED3) }),
+  fact3({ field: z63.literal("deal_stage"), op: IsOrNot3, value: z63.enum(LIST_DEAL_STAGES3) }),
+  fact3({ field: z63.literal("consultation"), ...YesNo3 }),
+  fact3({ field: z63.literal("step_due"), ...YesNo3 }),
+  fact3({ field: z63.literal("in_list"), op: IsOrNot3, list: Token3 })
 ]);
 var AnySchema3 = z63.object({ any: z63.array(ListFactSchema3).min(2).max(LIST_ANY_MAX3) }).strict();
 var ListConditionSchema3 = z63.union([AnySchema3, ListFactSchema3]);
@@ -11516,7 +11519,7 @@ function factProblem3(f) {
 var ListRuleSchema3 = z63.object({
   v: z63.literal(2).optional(),
   all: z63.array(ListConditionSchema3).min(1).max(LIST_RULE_MAX3)
-}).superRefine((r222, ctx) => {
+}).strict().superRefine((r222, ctx) => {
   for (const f of r222.all.flatMap((c2) => "any" in c2 ? c2.any : [c2])) {
     const p = factProblem3(f);
     if (p) ctx.addIssue({ code: z63.ZodIssueCode.custom, message: p });
@@ -13630,27 +13633,28 @@ var YesNo22 = { op: z622.literal("is"), yes: z622.boolean() };
 var Count22 = { op: z622.enum(["at_least", "at_most"]), n: z622.number().int().min(0).max(1e4) };
 var IsOrNot22 = z622.enum(["is", "is_not"]);
 var Token22 = z622.string().regex(/^(seg:[a-z_]{1,40}|list:[0-9a-f-]{36})$/i);
+var fact22 = (shape) => z622.object(shape).strict();
 var ListFactSchema22 = z622.discriminatedUnion("field", [
-  z622.object({ field: z622.literal("last_visit"), ...Days22 }),
-  z622.object({ field: z622.literal("next_visit"), ...Days22 }),
-  z622.object({ field: z622.literal("booked"), ...YesNo22 }),
-  z622.object({ field: z622.literal("asked_not_booked"), ...YesNo22 }),
-  z622.object({ field: z622.literal("last_heard"), ...Days22 }),
-  z622.object({ field: z622.literal("first_contact"), ...Days22 }),
-  z622.object({ field: z622.literal("channel"), op: IsOrNot22, channel: z622.enum(CHANNELS22) }),
-  z622.object({ field: z622.literal("came_from"), op: IsOrNot22, from: z622.enum(CAME_FROM22) }),
-  z622.object({ field: z622.literal("calls"), ...Count22 }),
-  z622.object({ field: z622.literal("conversations"), ...Count22 }),
-  z622.object({ field: z622.literal("has_chat"), ...YesNo22 }),
-  z622.object({ field: z622.literal("said_yes"), ...YesNo22, to: z622.enum(LIST_PURPOSES22) }),
-  z622.object({ field: z622.literal("can_receive"), ...YesNo22, to: z622.enum(LIST_PURPOSES22) }),
-  z622.object({ field: z622.literal("stopped"), ...YesNo22 }),
-  z622.object({ field: z622.literal("standing"), op: IsOrNot22, value: z622.enum(LIST_STANDINGS22) }),
-  z622.object({ field: z622.literal("assigned"), op: IsOrNot22, value: z622.enum(LIST_ASSIGNED22) }),
-  z622.object({ field: z622.literal("deal_stage"), op: IsOrNot22, value: z622.enum(LIST_DEAL_STAGES22) }),
-  z622.object({ field: z622.literal("consultation"), ...YesNo22 }),
-  z622.object({ field: z622.literal("step_due"), ...YesNo22 }),
-  z622.object({ field: z622.literal("in_list"), op: IsOrNot22, list: Token22 })
+  fact22({ field: z622.literal("last_visit"), ...Days22 }),
+  fact22({ field: z622.literal("next_visit"), ...Days22 }),
+  fact22({ field: z622.literal("booked"), ...YesNo22 }),
+  fact22({ field: z622.literal("asked_not_booked"), ...YesNo22 }),
+  fact22({ field: z622.literal("last_heard"), ...Days22 }),
+  fact22({ field: z622.literal("first_contact"), ...Days22 }),
+  fact22({ field: z622.literal("channel"), op: IsOrNot22, channel: z622.enum(CHANNELS22) }),
+  fact22({ field: z622.literal("came_from"), op: IsOrNot22, from: z622.enum(CAME_FROM22) }),
+  fact22({ field: z622.literal("calls"), ...Count22 }),
+  fact22({ field: z622.literal("conversations"), ...Count22 }),
+  fact22({ field: z622.literal("has_chat"), ...YesNo22 }),
+  fact22({ field: z622.literal("said_yes"), ...YesNo22, to: z622.enum(LIST_PURPOSES22) }),
+  fact22({ field: z622.literal("can_receive"), ...YesNo22, to: z622.enum(LIST_PURPOSES22) }),
+  fact22({ field: z622.literal("stopped"), ...YesNo22 }),
+  fact22({ field: z622.literal("standing"), op: IsOrNot22, value: z622.enum(LIST_STANDINGS22) }),
+  fact22({ field: z622.literal("assigned"), op: IsOrNot22, value: z622.enum(LIST_ASSIGNED22) }),
+  fact22({ field: z622.literal("deal_stage"), op: IsOrNot22, value: z622.enum(LIST_DEAL_STAGES22) }),
+  fact22({ field: z622.literal("consultation"), ...YesNo22 }),
+  fact22({ field: z622.literal("step_due"), ...YesNo22 }),
+  fact22({ field: z622.literal("in_list"), op: IsOrNot22, list: Token22 })
 ]);
 var AnySchema22 = z622.object({ any: z622.array(ListFactSchema22).min(2).max(LIST_ANY_MAX22) }).strict();
 var ListConditionSchema22 = z622.union([AnySchema22, ListFactSchema22]);
@@ -13664,7 +13668,7 @@ function factProblem22(f) {
 var ListRuleSchema22 = z622.object({
   v: z622.literal(2).optional(),
   all: z622.array(ListConditionSchema22).min(1).max(LIST_RULE_MAX22)
-}).superRefine((r222, ctx) => {
+}).strict().superRefine((r222, ctx) => {
   for (const f of r222.all.flatMap((c2) => "any" in c2 ? c2.any : [c2])) {
     const p = factProblem22(f);
     if (p) ctx.addIssue({ code: z622.ZodIssueCode.custom, message: p });
@@ -15751,27 +15755,28 @@ var YesNo32 = { op: z632.literal("is"), yes: z632.boolean() };
 var Count32 = { op: z632.enum(["at_least", "at_most"]), n: z632.number().int().min(0).max(1e4) };
 var IsOrNot32 = z632.enum(["is", "is_not"]);
 var Token32 = z632.string().regex(/^(seg:[a-z_]{1,40}|list:[0-9a-f-]{36})$/i);
+var fact32 = (shape) => z632.object(shape).strict();
 var ListFactSchema32 = z632.discriminatedUnion("field", [
-  z632.object({ field: z632.literal("last_visit"), ...Days32 }),
-  z632.object({ field: z632.literal("next_visit"), ...Days32 }),
-  z632.object({ field: z632.literal("booked"), ...YesNo32 }),
-  z632.object({ field: z632.literal("asked_not_booked"), ...YesNo32 }),
-  z632.object({ field: z632.literal("last_heard"), ...Days32 }),
-  z632.object({ field: z632.literal("first_contact"), ...Days32 }),
-  z632.object({ field: z632.literal("channel"), op: IsOrNot32, channel: z632.enum(CHANNELS32) }),
-  z632.object({ field: z632.literal("came_from"), op: IsOrNot32, from: z632.enum(CAME_FROM32) }),
-  z632.object({ field: z632.literal("calls"), ...Count32 }),
-  z632.object({ field: z632.literal("conversations"), ...Count32 }),
-  z632.object({ field: z632.literal("has_chat"), ...YesNo32 }),
-  z632.object({ field: z632.literal("said_yes"), ...YesNo32, to: z632.enum(LIST_PURPOSES32) }),
-  z632.object({ field: z632.literal("can_receive"), ...YesNo32, to: z632.enum(LIST_PURPOSES32) }),
-  z632.object({ field: z632.literal("stopped"), ...YesNo32 }),
-  z632.object({ field: z632.literal("standing"), op: IsOrNot32, value: z632.enum(LIST_STANDINGS32) }),
-  z632.object({ field: z632.literal("assigned"), op: IsOrNot32, value: z632.enum(LIST_ASSIGNED32) }),
-  z632.object({ field: z632.literal("deal_stage"), op: IsOrNot32, value: z632.enum(LIST_DEAL_STAGES32) }),
-  z632.object({ field: z632.literal("consultation"), ...YesNo32 }),
-  z632.object({ field: z632.literal("step_due"), ...YesNo32 }),
-  z632.object({ field: z632.literal("in_list"), op: IsOrNot32, list: Token32 })
+  fact32({ field: z632.literal("last_visit"), ...Days32 }),
+  fact32({ field: z632.literal("next_visit"), ...Days32 }),
+  fact32({ field: z632.literal("booked"), ...YesNo32 }),
+  fact32({ field: z632.literal("asked_not_booked"), ...YesNo32 }),
+  fact32({ field: z632.literal("last_heard"), ...Days32 }),
+  fact32({ field: z632.literal("first_contact"), ...Days32 }),
+  fact32({ field: z632.literal("channel"), op: IsOrNot32, channel: z632.enum(CHANNELS32) }),
+  fact32({ field: z632.literal("came_from"), op: IsOrNot32, from: z632.enum(CAME_FROM32) }),
+  fact32({ field: z632.literal("calls"), ...Count32 }),
+  fact32({ field: z632.literal("conversations"), ...Count32 }),
+  fact32({ field: z632.literal("has_chat"), ...YesNo32 }),
+  fact32({ field: z632.literal("said_yes"), ...YesNo32, to: z632.enum(LIST_PURPOSES32) }),
+  fact32({ field: z632.literal("can_receive"), ...YesNo32, to: z632.enum(LIST_PURPOSES32) }),
+  fact32({ field: z632.literal("stopped"), ...YesNo32 }),
+  fact32({ field: z632.literal("standing"), op: IsOrNot32, value: z632.enum(LIST_STANDINGS32) }),
+  fact32({ field: z632.literal("assigned"), op: IsOrNot32, value: z632.enum(LIST_ASSIGNED32) }),
+  fact32({ field: z632.literal("deal_stage"), op: IsOrNot32, value: z632.enum(LIST_DEAL_STAGES32) }),
+  fact32({ field: z632.literal("consultation"), ...YesNo32 }),
+  fact32({ field: z632.literal("step_due"), ...YesNo32 }),
+  fact32({ field: z632.literal("in_list"), op: IsOrNot32, list: Token32 })
 ]);
 var AnySchema32 = z632.object({ any: z632.array(ListFactSchema32).min(2).max(LIST_ANY_MAX32) }).strict();
 var ListConditionSchema32 = z632.union([AnySchema32, ListFactSchema32]);
@@ -15785,7 +15790,7 @@ function factProblem32(f) {
 var ListRuleSchema32 = z632.object({
   v: z632.literal(2).optional(),
   all: z632.array(ListConditionSchema32).min(1).max(LIST_RULE_MAX32)
-}).superRefine((r222, ctx) => {
+}).strict().superRefine((r222, ctx) => {
   for (const f of r222.all.flatMap((c2) => "any" in c2 ? c2.any : [c2])) {
     const p = factProblem32(f);
     if (p) ctx.addIssue({ code: z632.ZodIssueCode.custom, message: p });
@@ -18392,27 +18397,28 @@ var YesNo4 = { op: z64.literal("is"), yes: z64.boolean() };
 var Count4 = { op: z64.enum(["at_least", "at_most"]), n: z64.number().int().min(0).max(1e4) };
 var IsOrNot4 = z64.enum(["is", "is_not"]);
 var Token4 = z64.string().regex(/^(seg:[a-z_]{1,40}|list:[0-9a-f-]{36})$/i);
+var fact4 = (shape) => z64.object(shape).strict();
 var ListFactSchema4 = z64.discriminatedUnion("field", [
-  z64.object({ field: z64.literal("last_visit"), ...Days4 }),
-  z64.object({ field: z64.literal("next_visit"), ...Days4 }),
-  z64.object({ field: z64.literal("booked"), ...YesNo4 }),
-  z64.object({ field: z64.literal("asked_not_booked"), ...YesNo4 }),
-  z64.object({ field: z64.literal("last_heard"), ...Days4 }),
-  z64.object({ field: z64.literal("first_contact"), ...Days4 }),
-  z64.object({ field: z64.literal("channel"), op: IsOrNot4, channel: z64.enum(CHANNELS4) }),
-  z64.object({ field: z64.literal("came_from"), op: IsOrNot4, from: z64.enum(CAME_FROM4) }),
-  z64.object({ field: z64.literal("calls"), ...Count4 }),
-  z64.object({ field: z64.literal("conversations"), ...Count4 }),
-  z64.object({ field: z64.literal("has_chat"), ...YesNo4 }),
-  z64.object({ field: z64.literal("said_yes"), ...YesNo4, to: z64.enum(LIST_PURPOSES4) }),
-  z64.object({ field: z64.literal("can_receive"), ...YesNo4, to: z64.enum(LIST_PURPOSES4) }),
-  z64.object({ field: z64.literal("stopped"), ...YesNo4 }),
-  z64.object({ field: z64.literal("standing"), op: IsOrNot4, value: z64.enum(LIST_STANDINGS4) }),
-  z64.object({ field: z64.literal("assigned"), op: IsOrNot4, value: z64.enum(LIST_ASSIGNED4) }),
-  z64.object({ field: z64.literal("deal_stage"), op: IsOrNot4, value: z64.enum(LIST_DEAL_STAGES4) }),
-  z64.object({ field: z64.literal("consultation"), ...YesNo4 }),
-  z64.object({ field: z64.literal("step_due"), ...YesNo4 }),
-  z64.object({ field: z64.literal("in_list"), op: IsOrNot4, list: Token4 })
+  fact4({ field: z64.literal("last_visit"), ...Days4 }),
+  fact4({ field: z64.literal("next_visit"), ...Days4 }),
+  fact4({ field: z64.literal("booked"), ...YesNo4 }),
+  fact4({ field: z64.literal("asked_not_booked"), ...YesNo4 }),
+  fact4({ field: z64.literal("last_heard"), ...Days4 }),
+  fact4({ field: z64.literal("first_contact"), ...Days4 }),
+  fact4({ field: z64.literal("channel"), op: IsOrNot4, channel: z64.enum(CHANNELS4) }),
+  fact4({ field: z64.literal("came_from"), op: IsOrNot4, from: z64.enum(CAME_FROM4) }),
+  fact4({ field: z64.literal("calls"), ...Count4 }),
+  fact4({ field: z64.literal("conversations"), ...Count4 }),
+  fact4({ field: z64.literal("has_chat"), ...YesNo4 }),
+  fact4({ field: z64.literal("said_yes"), ...YesNo4, to: z64.enum(LIST_PURPOSES4) }),
+  fact4({ field: z64.literal("can_receive"), ...YesNo4, to: z64.enum(LIST_PURPOSES4) }),
+  fact4({ field: z64.literal("stopped"), ...YesNo4 }),
+  fact4({ field: z64.literal("standing"), op: IsOrNot4, value: z64.enum(LIST_STANDINGS4) }),
+  fact4({ field: z64.literal("assigned"), op: IsOrNot4, value: z64.enum(LIST_ASSIGNED4) }),
+  fact4({ field: z64.literal("deal_stage"), op: IsOrNot4, value: z64.enum(LIST_DEAL_STAGES4) }),
+  fact4({ field: z64.literal("consultation"), ...YesNo4 }),
+  fact4({ field: z64.literal("step_due"), ...YesNo4 }),
+  fact4({ field: z64.literal("in_list"), op: IsOrNot4, list: Token4 })
 ]);
 var AnySchema4 = z64.object({ any: z64.array(ListFactSchema4).min(2).max(LIST_ANY_MAX4) }).strict();
 var ListConditionSchema4 = z64.union([AnySchema4, ListFactSchema4]);
@@ -18426,7 +18432,7 @@ function factProblem4(f) {
 var ListRuleSchema4 = z64.object({
   v: z64.literal(2).optional(),
   all: z64.array(ListConditionSchema4).min(1).max(LIST_RULE_MAX4)
-}).superRefine((r23, ctx) => {
+}).strict().superRefine((r23, ctx) => {
   for (const f of r23.all.flatMap((c2) => "any" in c2 ? c2.any : [c2])) {
     const p = factProblem4(f);
     if (p) ctx.addIssue({ code: z64.ZodIssueCode.custom, message: p });

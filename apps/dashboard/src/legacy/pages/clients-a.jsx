@@ -2632,7 +2632,8 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
     if (match) list = list.filter(match);
     // By state: who needs a person first, then who is waiting on one, then the rest in the rail's order. The ranks ran
     // the other way, so "By state" (the descending sort a first press gives) put Active first and Needs you last.
-    const order = { needs_you: 5, waiting_on_you: 4, opted_out: 3, new: 2, quiet: 1, active: 0 };
+    // Never heard from sits with the quiet, under them: nothing is asked of anyone there (decision 0009).
+    const order = { needs_you: 6, waiting_on_you: 5, opted_out: 4, new: 3, quiet: 2, unheard: 1, active: 0 };
     return [...list].sort((a, b) => {
       let av, bv;
       switch (sortBy) {
