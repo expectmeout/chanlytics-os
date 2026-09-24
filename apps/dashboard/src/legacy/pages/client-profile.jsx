@@ -938,7 +938,12 @@ const PersonLists = ({ personId, canEdit, first, flash, smart = [] }) => {
   const [, bump] = React.useReducer((n) => n + 1, 0);
   useEffectP(() => {
     window.addEventListener("surface:clients", bump);
-    return () => window.removeEventListener("surface:clients", bump);
+    // A read of People that failed is heard too, so "Reading…" gives way to saying so.
+    const off = window.__onSurfaceReady ? window.__onSurfaceReady(bump) : null;
+    return () => {
+      window.removeEventListener("surface:clients", bump);
+      if (off) off();
+    };
   }, []);
   const [busy, setBusy] = useStateP(false);
   const saved = (window.__PEOPLE && window.__PEOPLE.saved) || [];
@@ -965,6 +970,19 @@ const PersonLists = ({ personId, canEdit, first, flash, smart = [] }) => {
       <button type="button" onClick={() => window.CHANLY.nav(window.CHANLY.R.clientSeg(l.id))} title={`${l.label} keeps itself current — open it on People`}>{l.label}</button>
     </span>
   ));
+  // Not read yet is not "no lists": a profile opened straight from a link reads People after the person, and says so
+  // until it lands (surface:clients redraws this), or that it failed. The smart lists are the person's own read's.
+  if (!window.__PEOPLE) {
+    const failed = !!(window.__surfaceFailed && window.__surfaceFailed("clients"));
+    return (
+      <div className="cl-prof-lists">
+        {smartChips.length > 0 && <div className="cl-tag-stack cl-prof-list-chips">{smartChips}</div>}
+        {failed
+          ? <FailedRead kind="line" what="their lists" surface="people" testid="person-lists-failed" />
+          : <div className="cl-prof-aut-hint" role="status" aria-busy="true" data-testid="person-lists-reading">Reading…</div>}
+      </div>
+    );
+  }
   if (saved.length === 0) {
     // "The People rail" is not on a phone; the Lists page is, from here.
     // The lists live on People: the door lands there with the New list box open (clients/new-list, app-shell.jsx).
@@ -972,7 +990,7 @@ const PersonLists = ({ personId, canEdit, first, flash, smart = [] }) => {
       <div className="cl-prof-lists">
         {smartChips.length > 0 && <div className="cl-tag-stack cl-prof-list-chips">{smartChips}</div>}
         <div className="cl-prof-aut-hint">
-          No lists kept by hand yet.{" "}
+          {smartChips.length > 0 ? "No lists of your own yet." : "No lists yet."}{" "}
           <button type="button" className="cl-bucket-link" onClick={() => window.CHANLY.nav("clients/new-list")} data-testid="person-lists-make">Make one on People <Icon name="arrow-right" size={10} /></button>
         </div>
       </div>

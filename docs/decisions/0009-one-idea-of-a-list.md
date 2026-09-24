@@ -241,6 +241,23 @@ The rows, visits and view models the edge and the dashboard judge lists over are
 from what each app fetches, with one calendar horizon. Past the page's 50 pages the page shows the server's count from
 the same judge (phase 5, when a workspace nears it).
 
+### The surfaces, as built
+
+Phase 4 ships in three parts. The first, **honest lists**:
+
+- **A list the address names that People doesn't have is said, never Everyone under its name.** The address keeps
+  it, nobody is shown, and the title and the table say "This list isn't here" with the way back to everyone. An
+  archived list says so and comes back from the same line. The old `segments/<id>` route lands on the list's own
+  address either way.
+- **A list playbook's name** comes from contracts when it is one of People's, which is never deleted; one of the
+  workspace's own whose read failed is "a list that could not be read", not a deleted one.
+- **The words:** a list with a rule is never called "kept by hand"; a profile opened before People is read says it
+  is reading their lists; every list's tip is the view model's (`BUILTIN_LISTS[].tip`, `savedListTip`).
+- **The phone's Lists sheet** folds an empty list of the workspace's own into its quiet line, and draws no Saved
+  heading over nothing. The New list door's address gives way to the list once it is made.
+- **Export follows the list that is open:** `GET contacts/export?list=<token>`, counted as a send counts it (every
+  member, not the page's loaded rows), named in the file and on the ledger.
+
 ### The four calls, as approved
 
 1. Quiet, New this week, Waiting on you and Booked this week take the meanings above.

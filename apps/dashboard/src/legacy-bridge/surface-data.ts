@@ -211,9 +211,12 @@ import {
   listMembers,
   listRuleParts,
   listUnknownWords,
+  ruleNeeds,
+  unmetNeed,
   parseListToken,
   savedListIds,
   savedListLookup,
+  savedListTip,
   poolListContext,
   poolRowOf,
   poolRowsOf,
@@ -773,11 +776,18 @@ export interface PeopleSurface {
     id: string;
     label: string;
     group: string;
+    /** What it holds, in one line (contracts BUILTIN_LISTS): the rail's tip. */
+    tip: string;
     count: number;
     ids: string[];
     action: { text: string; cta: string; to: string; enabled: boolean } | null;
   }[];
   groups: { id: string; label: string }[];
+  /**
+   * People's lists this workspace doesn't show, each with why (lists.ts listUnknownWords): a calendar not read, deals
+   * off. A door to one says it can't be counted here, never that it isn't a list.
+   */
+  hidden: { id: string; label: string; why: string }[];
   /** The lists kept by hand (segments), counted over the rows on the page so
    *  an erased person never counts; `members` is every id the server keeps on
    *  the list, so an Undo can tell who an add really added. */
@@ -794,6 +804,8 @@ export interface PeopleSurface {
     rule: string[] | null;
     /** Why it can't be counted (lists.ts listUnknownWords); null when it was. Its count is then no one's, never 0. */
     unknown: string | null;
+    /** Its line on the rail (contracts savedListTip): why it can't be counted, what a hand list is for, or its rule. */
+    tip: string;
   }[];
   /** Whether the saved lists were read: false leaves People standing without them, and the rail and the profile say so. */
   savedRead: boolean;
@@ -901,12 +913,17 @@ function publishPeople(): void {
         id: l.id,
         label: l.label,
         group: l.group,
+        tip: l.tip,
         count: members.length,
         ids: members.map((r) => r.id),
         action: peopleListAction(l.id, members),
       };
     }),
     groups: PEOPLE_LIST_GROUPS.map((g) => ({ id: g.id, label: g.label })),
+    hidden: PEOPLE_LISTS.flatMap((l) => {
+      const need = unmetNeed(ruleNeeds(l.rule), listCtx);
+      return need ? [{ id: l.id, label: l.label, why: listUnknownWords(need, calendar.state) }] : [];
+    }),
     calendar,
     bookingLink: peopleLoaded.bookingLink,
     dealsOn,
@@ -934,7 +951,8 @@ function publishPeople(): void {
           rule: rule ? listRuleParts(rule, listName) : null,
           unknown: m.state === "unknown" ? listUnknownWords(m.reason, calendar.state) : null,
         };
-      }),
+      })
+      .map((s) => ({ ...s, tip: savedListTip(s) })),
     savedRead: peopleLoaded.saved !== null,
     archived: savedLists.filter((l) => !!l.archived_at).map((l) => ({ id: l.id, name: l.name })),
     // The total is the server's: past the first page the rows here are not everyone.
@@ -1527,10 +1545,15 @@ export const playbooksOverride: SurfaceOverride = {
     const peopleLists = pb.people_lists ?? [];
     const keyOf = (p: { trigger: string; list_id?: string | null; list_key?: string | null }) =>
       p.trigger !== "saved_list" ? p.trigger : p.list_key ? `seg:${p.list_key}` : `list:${p.list_id ?? ""}`;
+    // A built-in is named by contracts when the route's People read failed: it is never deleted. One of the
+    // workspace's own is named by the lists read; unread, it is a list that could not be read, never a deleted one.
     const listNameOf = (p: { list_id?: string | null; list_key?: string | null }) =>
       p.list_key
-        ? (peopleLists.find((l) => l.key === p.list_key)?.label ?? null)
+        ? (peopleLists.find((l) => l.key === p.list_key)?.label ??
+          PEOPLE_LISTS.find((l) => l.id === p.list_key)?.label ??
+          null)
         : (listsKept.find((l) => l.id === p.list_id)?.name ?? null);
+    const unnamed = pb.lists === null ? "A list that could not be read" : "A list that was deleted";
     // The moments offered here (0006): a proposal's only where deals are on, as the route counts them.
     const offered = PLAYBOOK_TRIGGERS.filter((t) => triggerOffered(t, !!pb.deals_on));
     (window as unknown as { __PLAYBOOKS?: PlaybooksSurface }).__PLAYBOOKS = {
@@ -1541,8 +1564,7 @@ export const playbooksOverride: SurfaceOverride = {
           ...p,
           // Its list was archived (00169): paused until the list is restored or the playbook moved to another.
           listArchived: onArchived,
-          triggerLabel:
-            p.trigger === "saved_list" ? (listNameOf(p) ?? "A list that was deleted") : (t?.label ?? p.trigger),
+          triggerLabel: p.trigger === "saved_list" ? (listNameOf(p) ?? unnamed) : (t?.label ?? p.trigger),
           triggerHint: t?.hint ?? "",
           schedule: scheduleLine(p),
           next: nextRunLabel(p, tz, now),

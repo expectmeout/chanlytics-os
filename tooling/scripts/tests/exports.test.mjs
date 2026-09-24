@@ -326,7 +326,9 @@ test("the pages link to the routes, and only where the bridge can name the works
   // A conversation's file is in its thread's menu (one-thread.test.mjs), a call's under its transcript
   // (calls-in-the-thread.test.mjs): both run there, off a demo and only with the bridge.
   const people = readRaw("apps/dashboard/src/legacy/pages/clients-a.jsx");
-  assert.ok(people.includes('href={window.__href("GET contacts/export")}'));
+  // Everyone, or the list that is open (decision 0009), by its token.
+  assert.ok(people.includes("href={exportHref}"));
+  assert.ok(people.includes('window.__href("GET contacts/export", undefined, exportName ? { list:'));
   assert.ok(
     people.includes('window.canDo && !window.canDo("export")'),
     "a non-owner sees a disabled button that says why, not a refusal",
@@ -912,6 +914,67 @@ test("everyone as a CSV: owners only, the file, and the ledger row that says who
     t.decisions.map((x) => [x.subject_type, x.subject_id, x.verb, x.payload]),
     [["workspace", T, "export", { what: "people", rows: 2 }]],
   );
+  // The list that is open (decision 0009): its people, counted as a send counts them, named in the file and on the
+  // ledger; a list that isn't here is refused in words, and nothing is taken.
+  const S = "bbbbbbbb-1111-4111-8111-bbbbbbbbbbbb";
+  const listed = {
+    ...tables("owner"),
+    segments: [{ id: S, tenant_id: T, name: "Regulars", rule: null, archived_at: null }],
+    segment_members: [{ segment_id: S, contact_id: "p2", tenant_id: T }],
+  };
+  const one = await csv.GET.run(new Request(`http://localhost/api/v1/contacts/export?workspace=${T}&list=list:${S}`), {
+    supabase: fakeDb(listed, {}, rpcs),
+    userId: "u1",
+    email: "ada@example.com",
+    params: {},
+  });
+  assert.match(
+    one.headers.get("content-disposition") ?? "",
+    /^attachment; filename="people-Marisa-s-Beauty-Salon-Regulars-2026\d{4}\.csv"/,
+  );
+  const oneText = new TextDecoder().decode(new Uint8Array(await one.arrayBuffer()).slice(3));
+  assert.equal(oneText.split("\r\n").length, 3, "a header, the one person on it, the trailing newline");
+  assert.ok(oneText.includes("Bo") && !oneText.includes("Dani"));
+  assert.deepEqual(
+    listed.decisions.map((x) => x.payload),
+    [{ what: "people", rows: 1, list: `list:${S}`, name: "Regulars" }],
+  );
+  await assert.rejects(
+    csv.GET.run(
+      new Request(
+        `http://localhost/api/v1/contacts/export?workspace=${T}&list=list:cccccccc-1111-4111-8111-cccccccccccc`,
+      ),
+      { supabase: fakeDb(listed, {}, rpcs), userId: "u1", email: "ada@example.com", params: {} },
+    ),
+    (e) => e.status === 404 && e.message === "That list isn't here.",
+  );
+  assert.equal(listed.decisions.length, 1, "nothing on the ledger for a copy not taken");
+  // One of People's, by its token: who said yes to messages.
+  const saidYes = await csv.GET.run(
+    new Request(`http://localhost/api/v1/contacts/export?workspace=${T}&list=seg:opted_in`),
+    { supabase: fakeDb(listed, {}, rpcs), userId: "u1", email: "ada@example.com", params: {} },
+  );
+  const saidText = new TextDecoder().decode(new Uint8Array(await saidYes.arrayBuffer()).slice(3));
+  assert.ok(saidText.includes("Dani") && !saidText.includes("Bo"), saidText);
+  // A list that can't be counted here (it reads visits; no calendar is read) is refused in its words, and not taken.
+  const U = "dddddddd-1111-4111-8111-dddddddddddd";
+  listed.segments.push({
+    id: U,
+    tenant_id: T,
+    name: "Booked soon",
+    rule: { v: 2, all: [{ field: "booked", op: "is", yes: true }] },
+    archived_at: null,
+  });
+  await assert.rejects(
+    csv.GET.run(new Request(`http://localhost/api/v1/contacts/export?workspace=${T}&list=list:${U}`), {
+      supabase: fakeDb(listed, {}, rpcs),
+      userId: "u1",
+      email: "ada@example.com",
+      params: {},
+    }),
+    (e) => e.status === 409 && e.message.startsWith("Booked soon can't be counted here."),
+  );
+  assert.equal(listed.decisions.length, 2, "the one list taken, and nothing for the refused one");
   await assert.rejects(
     csv.GET.run(new Request(`http://localhost/api/v1/contacts/export?workspace=${T}`), {
       supabase: fakeDb(tables("operator"), {}, rpcs),

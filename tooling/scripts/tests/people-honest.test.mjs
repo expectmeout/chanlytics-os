@@ -1707,12 +1707,167 @@ test("a desktop's rail keeps every list and its heading: compact is the phone's 
   assert.ok(find(tree, (n) => n.props?.className === "cl-rail-label" && /Smart lists/.test(textOf(n))));
 });
 
+// Decision 0009, phase 4: a list the address names that People doesn't have is said, never Everyone under its name.
+test("a link to a list People doesn't have says so and shows nobody; an archived one says how it comes back", async () => {
+  await freshPage({
+    people: [person(1), person(2)],
+    lists: [
+      { id: "s1", name: "Regulars", ids: ["p1"] },
+      { id: "s2", name: "VIP", ids: ["p2"], archived_at: "2026-09-20T12:00:00.000Z" },
+    ],
+  });
+  const tableEmpty = (tree) => find(tree, (n) => n.props?.kind === "line" && typeof n.props?.title === "string");
+  for (const props of [{ initialSaved: "cccccccc-1111-4111-8111-cccccccccccc" }, { initialSegment: "nope" }]) {
+    // The address's list arrives through an effect, drawn on the next frame, as React would.
+    draw(props);
+    let tree = draw(props);
+    assert.equal(textOf(byTestId(tree, "list-gone")), "This list isn't here", JSON.stringify(props));
+    assert.equal(tableEmpty(tree).props.title, "This list isn't here", "the table says it too, over nobody");
+    assert.ok(byTestId(tree, "show-everyone"), "and the way back to everyone is there");
+    click(byTestId(tree, "show-everyone"));
+    tree = draw(props);
+    assert.equal(byTestId(tree, "list-gone"), null, "Show everyone leaves it");
+  }
+  // One of People's this workspace doesn't show (no calendar read here): can't be counted, not gone.
+  draw({ initialSegment: "booked" });
+  const hidden = draw({ initialSegment: "booked" });
+  assert.equal(textOf(byTestId(hidden, "list-gone")), "Booked can't be counted here");
+  assert.equal(tableEmpty(hidden).props.body, globalThis.window.__PEOPLE.hidden.find((h) => h.id === "booked").why);
+  const restored = [];
+  globalThis.window.__lists = lists({
+    restore: async (id) => {
+      restored.push(id);
+      return { ok: true, data: {} };
+    },
+  });
+  draw({ initialSaved: "s2" });
+  const tree = draw({ initialSaved: "s2" });
+  assert.equal(textOf(byTestId(tree, "list-gone")), "VIP is archived");
+  const empty = tableEmpty(tree);
+  assert.equal(empty.props.body, "It comes back from Archived under your lists.");
+  assert.equal(empty.props.action.label, "Bring it back");
+  await empty.props.action.onClick();
+  assert.deepEqual(restored, ["s2"]);
+});
+
+test("export follows the list that is open, and is not offered for a list that can't be counted or isn't here", async () => {
+  await freshPage({
+    people: [person(1)],
+    lists: [{ id: "s3", name: "Booked soon", ids: [], rule: { all: [{ field: "booked", op: "is", yes: true }] } }],
+  });
+  globalThis.window.__href = (key, params, query) => `/x?${new URLSearchParams(query || {})}`;
+  try {
+    const everyone = byTestId(draw(), "people-export");
+    assert.equal(everyone.props.href, "/x?", "no list open: everyone");
+    draw({ initialSegment: "opted_in" });
+    const one = byTestId(draw({ initialSegment: "opted_in" }), "people-export");
+    assert.equal(one.props.href, "/x?list=seg%3Aopted_in");
+    assert.equal(one.props.title, "Download the people on Said yes to messages as a CSV file");
+    // A smart list that reads visits, with no calendar read: the route would refuse it, so the button says why.
+    draw({ initialSaved: "s3" });
+    const blocked = byTestId(draw({ initialSaved: "s3" }), "people-export");
+    assert.equal(blocked.type, "button");
+    assert.equal(blocked.props.disabled, true);
+    assert.equal(blocked.props["data-tip"], globalThis.window.__PEOPLE.saved[0].unknown);
+  } finally {
+    delete globalThis.window.__href;
+  }
+});
+
+test("the New list door's address stands until a list is made, then is that list's: a reload opens the list, not the box", async () => {
+  await freshPage({ people: [person(1)] });
+  globalThis.window.location.hash = "#/clients/new-list";
+  globalThis.window.__lists = lists({ create: async (name) => ({ ok: true, data: { id: "s9", name, ids: [] } }) });
+  let tree = draw({ newList: true });
+  assert.equal(globalThis.window.location.hash, "#/clients/new-list", "the box is what the address opened");
+  await find(tree, (n) => typeof n.props?.onCreateList === "function").props.onCreateList("Regulars");
+  globalThis.window.__PEOPLE.saved = [
+    { id: "s9", name: "Regulars", count: 0, ids: [], members: [], byHand: true, tip: "" },
+  ];
+  tree = draw({ newList: true });
+  assert.equal(
+    globalThis.window.location.hash,
+    "#/clients/list:s9",
+    "REGRESSION: clients/new-list stuck, and a reload opened the box again",
+  );
+});
+
+test("every list's tip is the surface's, from contracts: a built-in's line, and a saved list's from what it is", async () => {
+  await freshPage({
+    people: [person(1)],
+    lists: [
+      { id: "s1", name: "Regulars", ids: ["p1"] },
+      { id: "s2", name: "Texters", ids: [], rule: { all: [{ field: "channel", op: "is", channel: "whatsapp" }] } },
+    ],
+  });
+  const P = globalThis.window.__PEOPLE;
+  assert.ok(P.lists.length > 0 && P.lists.every((l) => typeof l.tip === "string" && l.tip.length > 10));
+  assert.deepEqual(
+    P.saved.map((l) => l.tip),
+    ["A list kept by hand — add people from their profile", "Keeps itself current: Reaches you by WhatsApp"],
+  );
+  const tree = draw();
+  const tips = all(tree, (n) => n.type === "button" && typeof n.props?.["data-tip"] === "string").map(
+    (n) => n.props["data-tip"],
+  );
+  for (const l of [...P.lists, ...P.saved])
+    assert.ok(tips.includes(l.tip), `${l.label || l.name}'s row carries its tip`);
+});
+
+test("on a phone an empty list of your own is said in the quiet line, and a sheet with none of its own draws no Saved over nothing", () =>
+  onPhone(async () => {
+    const sheetOf = () => {
+      let tree = draw();
+      click(byTestId(tree, "people-phone-lists"));
+      tree = draw();
+      return byTestId(tree, "people-lists-sheet");
+    };
+    await freshPage({
+      people: [person(1)],
+      lists: [
+        { id: "s1", name: "Regulars", ids: ["p1"] },
+        { id: "s2", name: "Walk-ins", ids: [] },
+      ],
+    });
+    let saved = byTestId(sheetOf(), "saved-lists");
+    const rows = all(saved, (n) => n.type === "button" && typeof n.props?.["data-tip"] === "string").map((n) =>
+      textOf(n),
+    );
+    assert.ok(
+      rows.some((t) => t.startsWith("Regulars")),
+      "a list with somebody on it keeps its row",
+    );
+    assert.ok(!rows.some((t) => t.startsWith("Walk-ins")), "REGRESSION: an empty one kept a full row");
+    assert.match(textOf(byTestId(saved, "saved-empty")), /^Empty now: Walk-ins/);
+    // Still one tap from its own page, where an empty list is renamed, deleted and filled.
+    click(byTestId(saved, "saved-empty-open"));
+    const tree = draw();
+    assert.equal(
+      textOf(byTestId(tree, "people-phone-lists")).trim(),
+      "Walk-ins",
+      "REGRESSION: an empty list could not be opened",
+    );
+    await freshPage({ people: [person(1)], lists: [] });
+    saved = byTestId(sheetOf(), "saved-lists");
+    assert.equal(
+      find(saved, (n) => n.props?.className === "cl-rail-label"),
+      null,
+      "REGRESSION: a Saved heading over nothing",
+    );
+  }));
+
 test("a list's own route lands on People with that list picked -- Playbooks' list, an answer's jump and a kept address still arrive", async () => {
   await freshPage({ people: [person(1)], lists: [{ id: "s1", name: "Regulars", ids: ["p1"] }] });
   const route = globalThis.window.__listRoute;
   assert.equal(route("s1"), "clients/list:s1", "a list kept by hand");
   assert.equal(route("needs_you"), "clients/seg:needs_you", "a smart list");
-  assert.equal(route("gone"), "clients", "a list that is not here: People itself");
+  // A list People doesn't have: its own address all the same, where People says so (decision 0009).
+  assert.equal(route("gone"), "clients/seg:gone", "one of People's that isn't here");
+  assert.equal(
+    route("cccccccc-1111-4111-8111-cccccccccccc"),
+    "clients/list:cccccccc-1111-4111-8111-cccccccccccc",
+    "one of the workspace's own that isn't here",
+  );
   assert.equal(route(null), "clients");
 });
 

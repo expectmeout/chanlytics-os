@@ -1204,7 +1204,7 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
                   {a.label} <span className="bc-chip-count tabular">{sizeOf(a)}</span>
                 </button>
               ))}
-              {data.listsRead === false && <FailedRead kind="line" what="your saved lists" body="The built-in audiences are current; the lists you keep by hand are missing until they read." surface="broadcasts" testid="bc-lists-failed" />}
+              {data.listsRead === false && <FailedRead kind="line" what="your saved lists" body="People's lists are current; the lists you made are missing until they read." surface="broadcasts" testid="bc-lists-failed" />}
             </div>
             <BcAudience sample={sample} people={people} who={who} onWho={setWho} />
             <div className="bc-meta">
