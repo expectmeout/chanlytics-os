@@ -1167,7 +1167,7 @@ test("REGRESSION (C2): the feed line has a Refresh that reads the calendar afres
   const pressed = button().props.onClick();
   tree = page();
   assert.deepEqual(asked, [{ fresh: true }], "a fresh read, not the cache");
-  assert.match(textOf(button()), /Reading your calendar/, "on its way, it says so");
+  assert.match(textOf(button()), /^Reading…$/, "on its way, it says so");
   assert.equal(button().props.disabled, true, "and a second press waits for it");
   button().props.onClick();
   assert.equal(asked.length, 1, "a press that reaches it anyway sends nothing more");
@@ -1509,12 +1509,15 @@ test("REGRESSION (C3): the rules bar says what Business calls each thing -- 'Rul
 
 test("REGRESSION (C3): hours are said in the board's clock -- the bar said 'Mon–Tue 09:00–18:00' over a board drawn in 9 AM, a morning-to-midnight day could read '10 – 12 AM', and a day with half its hours said the prompt's 'ask them to call' to the owner", () => {
   fresh();
-  const bar = textOf(byTestId(page(), "cal-rules"));
-  assert.ok(
-    bar.includes(
-      "Mon–Tue 9 AM – 6 PM · Wed 9 AM – 1 PM and 3 – 7 PM · Thu–Fri 9 AM – 6 PM · Sat 10 AM – 4 PM · Sun closed",
-    ),
-    `REGRESSION: 09:00–18:00: ${bar}`,
+  // Each run of days on a line of its own (24 Sep): they ran on in one sentence joined by dots.
+  const hours = find(
+    byTestId(page(), "cal-rules"),
+    (n) => n.props?.className === "cal-rules-group" && textOf(n).startsWith("Hours"),
+  );
+  assert.deepEqual(
+    all(hours, (n) => n.props?.className === "cal-rules-line").map(textOf),
+    ["Mon–Tue 9 AM – 6 PM", "Wed 9 AM – 1 PM and 3 – 7 PM", "Thu–Fri 9 AM – 6 PM", "Sat 10 AM – 4 PM", "Sun closed"],
+    `REGRESSION: 09:00–18:00: ${textOf(hours)}`,
   );
   assert.deepEqual(
     hoursLines({
@@ -1767,20 +1770,36 @@ test("REGRESSION: the Calendar shows the calendar first -- a title the top bar a
   // The hours, the rules, the calendar's source, Refresh and the booking link wait under the board, one tap away.
   const about = () => byTestId(tree, "cal-about");
   const toggle = () => byTestId(tree, "cal-about-toggle");
-  assert.equal(about().props.hidden, true, "shut until asked for");
+  // A fold, not a hidden block: it folds away while the page glides up with it (calendar.css), shut to a reader and to
+  // the keyboard (aria-hidden, inert) while it is closed.
+  const shut = () =>
+    about().props["data-open"] === "false" && about().props["aria-hidden"] === "true" && about().props.inert === true;
+  assert.ok(shut(), "shut until asked for");
   assert.equal(toggle().props["aria-expanded"], false);
   assert.equal(toggle().props["aria-controls"], about().props.id);
   for (const id of ["cal-rules", "cal-feed", "cal-refresh", "cal-copy-link"]) {
     assert.ok(byTestId(about(), id), `${id} is behind the toggle`);
     assert.equal(byTestId(bar, id), null, `${id} is not among the controls`);
   }
-  toggle().props.onClick();
-  tree = page();
-  assert.equal(about().props.hidden, false, "one tap shows them");
-  assert.equal(toggle().props["aria-expanded"], true);
-  toggle().props.onClick();
-  tree = page();
-  assert.equal(about().props.hidden, true, "and another puts them away");
+  // It no longer holds the page still (data-bits holdStill): that kept the toggle where it was, so the sheet opened below
+  // the screen, and closed, it left the room it had taken as a blank at the foot.
+  const held = [];
+  const keepHold = globalThis.window.holdStill;
+  globalThis.window.holdStill = (...a) => held.push(a);
+  try {
+    toggle().props.onClick();
+    tree = page();
+    assert.equal(about().props["data-open"], "true", "one tap shows them");
+    assert.equal(about().props["aria-hidden"], undefined);
+    assert.equal(about().props.inert, undefined);
+    assert.equal(toggle().props["aria-expanded"], true);
+    toggle().props.onClick();
+    tree = page();
+    assert.ok(shut(), "and another puts them away");
+    assert.deepEqual(held, [], "REGRESSION: the fold held the page still and left a blank at its foot");
+  } finally {
+    globalThis.window.holdStill = keepHold;
+  }
   // A calendar that can't be read still says so over the board, with its Retry, not behind the toggle.
   fresh(
     dto({
