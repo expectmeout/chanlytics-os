@@ -165,11 +165,11 @@ test("the messages the fixture publishes are the scenario's own, and the nightly
 
 /* ------------------------------- what the pages read ------------------------------- */
 
-/** Every `window.__x` the pages under test read. */
-function globalsRead(files) {
+/** Every `window.__x` the pages under test read: files in legacy/pages, or legacy/<dir>. */
+function globalsRead(files, dir = "pages") {
   const names = new Set();
   for (const f of files) {
-    for (const m of fs.readFileSync(path.join(LEGACY, "pages", f), "utf8").matchAll(/window\.(__[A-Za-z0-9_]+)/g)) {
+    for (const m of fs.readFileSync(path.join(LEGACY, dir, f), "utf8").matchAll(/window\.(__[A-Za-z0-9_]+)/g)) {
       names.add(m[1]);
     }
   }
@@ -327,19 +327,42 @@ test("the pipeline record is People as the app is handed them: every group of th
   assert.equal(dealsAreOn(record.sellsBy), true, "so deals are on");
   // People's rows through the People surface's own mapping, then the Pipeline's: every group has someone in it.
   const rows = record.people.map((r) => toPersonRowVM(r, TIMEZONE, new Date(NOW)));
-  const vm = pipelineOf(rows, NOW, TIMEZONE);
   assert.deepEqual(
-    vm.groups.map((g) => g.key),
-    ["consultations", "proposals", "clients", "closed"],
+    pipelineOf(rows, NOW, TIMEZONE).groups.map((g) => [g.key, g.count]),
+    [
+      ["consultations", 2],
+      ["proposals", 3],
+      ["clients", 2],
+      ["closed", 1],
+    ],
   );
-  // Each person the page can open is read through the profile's own mapping, and their deal is the row's.
-  for (const r of record.people) {
-    const person = toPersonVM(record.details[r.id], TIMEZONE, new Date(NOW));
-    assert.equal(person.id, r.id);
-    if (r.deal_id) assert.equal(person.deals[0].id, r.deal_id, `${r.display_name}: the row's deal is the read's`);
-  }
-  // Ids are the app's own shape: a person's route is a UUID (surface-registry.ts personRouteId).
+  // The real shape, not a subset of it: every column on every row, a deal's null where there is none; and under a
+  // calendar that reads, everyone's visits -- none is still an answer, never a workspace with no calendar.
+  const columns = Object.keys(record.people[0]).join();
+  assert.ok(
+    record.people.every((r) => Object.keys(r).join() === columns),
+    "one shape for every row",
+  );
+  assert.ok(["message_channels", "came_from", "deal_lost_reason"].every((k) => k in record.people[0]));
+  assert.ok(record.people.every((r) => r.visits?.state === "ok"));
+  assert.ok(
+    rows.every((r) => r.calendar !== "none"),
+    "nobody reads as a workspace with no calendar",
+  );
+  // Ids are the app's own shape: a person's route is a UUID (surface-registry.ts personRouteId); and every number is
+  // from the block kept for fiction, 555-0100 to 0199.
   assert.ok(record.people.every((r) => /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-8[0-9a-f]{3}-[0-9a-f]{12}$/.test(r.id)));
+  assert.ok(record.people.every((r) => /^\+1\d{3}55501\d{2}$/.test(r.phone_e164)));
+  // Each person's page agrees with their row, read through the profile's own mapping: the row's last message is their
+  // thread's newest, the page offers the link the list does, and a proposal out says it went out.
+  for (const r of record.people) {
+    const d = record.details[r.id];
+    const newest = d.conversations[0].messages.at(-1);
+    assert.deepEqual([r.last_message_at, r.last_message_direction], [newest.created_at, newest.direction]);
+    const person = toPersonVM(d, TIMEZONE, new Date(NOW));
+    assert.equal(person.bookingLink, record.config.brain.booking_link, r.display_name);
+    if (r.deal_stage === "proposed") assert.ok(person.proposal?.sent, `${r.display_name}: the page says it went`);
+  }
 });
 
 test("the server answers People's reads where the record has people, by the workspace's id or slug, and nowhere else", () => {
@@ -348,9 +371,16 @@ test("the server answers People's reads where the record has people, by the work
   const bySlug = new URLSearchParams({ workspace: WORKSPACE.slug });
   const list = answer("GET", "/api/v1/contacts", byId, record);
   assert.equal(list.status, 200);
-  assert.equal(list.body.data.people.length, record.people.length);
-  assert.deepEqual([list.body.data.deals_on, list.body.data.page.has_more], [true, false]);
-  assert.equal(list.body.data.calendar.state, "ok");
+  const { people, page, ...rest } = list.body.data;
+  assert.equal(people.length, record.people.length);
+  assert.equal(page.has_more, false);
+  // The route's own envelope (app/api/v1/contacts/route.ts): consult_first a flag, the names left on the server.
+  assert.deepEqual(rest, {
+    calendar: { state: "ok", source: "your calendar", timezone: TIMEZONE },
+    booking_link: record.config.brain.booking_link,
+    consult_first: true,
+    deals_on: true,
+  });
   // A page's own read names the workspace by the slug in its address, as the app's does.
   assert.equal(answer("GET", "/api/v1/contacts", bySlug, record).status, 200);
   // The next page is empty: the surface reads pages until has_more is false.
@@ -365,8 +395,8 @@ test("the server answers People's reads where the record has people, by the work
     false,
   );
   const id = record.people[0].id;
-  assert.equal(answer("GET", `/api/v1/contacts/${id}`, byId, record).body.data.person.deals_on, true);
-  assert.equal(answer("GET", `/api/v1/contacts/${id}`, byId, record).body.data.person.row.id, id);
+  const person = answer("GET", `/api/v1/contacts/${id}`, byId, record).body.data.person;
+  assert.deepEqual([person.row.id, person.deals_on], [id, true]);
   assert.equal(answer("GET", "/api/v1/contacts/00000000-0000-4000-8000-000000000000", byId, record).status, 404);
   // A record with no people answers none of them: People stays the seeded page there, as it always has.
   for (const name of ["nightly", "salon"]) {
@@ -378,8 +408,173 @@ test("the server answers People's reads where the record has people, by the work
 
 test("the pipeline fixture builds, and outside a browser it installs no People: nothing to read them by", async () => {
   const w = await publishedGlobals("pipeline");
-  assert.equal(w.__PEOPLE, undefined);
+  // Each is set as the block runs, before anything is read: none is here, so none of it ran.
+  assert.equal(w.__pipeline, undefined);
   assert.equal(w.__surfaceGate, undefined);
+  assert.equal(w.__proposalMessage, undefined);
   // The Settings half of the record is published as every scenario's is.
   assert.equal(w.__ACTIVE_WORKSPACE, WORKSPACE.id);
+});
+
+/* ------------------------------------------- the pipeline record, in a browser ------------------------------------------- */
+
+/**
+ * A browser as far as the fixture's People block reaches: an address and a history, storage, events, and a fetch that
+ * is the harness's own answer(), so the People boot runs as it does on the page, with no socket. The timers the page
+ * starts are unreferenced: a read the runner schedules for later never holds the suite open.
+ */
+function browserWindow(record, hash) {
+  const asked = [];
+  const store = () => {
+    const m = new Map();
+    return {
+      getItem: (k) => (m.has(k) ? m.get(k) : null),
+      setItem: (k, v) => m.set(k, String(v)),
+      removeItem: (k) => m.delete(k),
+    };
+  };
+  const unref = (h) => {
+    h?.unref?.();
+    return h;
+  };
+  const listeners = {};
+  const w = {
+    console,
+    URL,
+    URLSearchParams,
+    AbortController,
+    AbortSignal,
+    setTimeout: (f, ms, ...a) => unref(setTimeout(f, ms, ...a)),
+    clearTimeout,
+    setInterval: (f, ms, ...a) => unref(setInterval(f, ms, ...a)),
+    clearInterval,
+    CustomEvent: class {
+      constructor(type, o) {
+        this.type = type;
+        this.detail = o?.detail;
+      }
+    },
+    navigator: { onLine: true },
+    location: { pathname: "/", search: "", hash },
+    history: {
+      state: null,
+      replaceState(_state, _title, url) {
+        const to = new URL(url, `http://localhost${w.location.pathname}`);
+        Object.assign(w.location, { pathname: to.pathname, search: to.search, hash: to.hash });
+      },
+    },
+    sessionStorage: store(),
+    localStorage: store(),
+    document: { ...stubWindow().document, removeEventListener() {}, visibilityState: "visible" },
+    addEventListener: (type, f) => (listeners[type] ||= []).push(f),
+    removeEventListener() {},
+    dispatchEvent: (e) => {
+      for (const f of listeners[e.type] ?? []) f(e);
+      return true;
+    },
+    fetch: async (url, init) => {
+      const u = new URL(url, "http://localhost");
+      const method = init?.method ?? "GET";
+      asked.push({ method, path: u.pathname, workspace: u.searchParams.get("workspace") });
+      const got = answer(method, u.pathname, u.searchParams, record);
+      return {
+        ok: !!got && got.status < 300,
+        status: got ? got.status : 404,
+        json: async () => (got ? got.body : null),
+        headers: { get: () => null },
+      };
+    },
+  };
+  w.window = w;
+  w.self = w;
+  return { w, asked };
+}
+
+/** Resolves once `ok()` holds, polling on this realm's timers; fails after two seconds. */
+async function until(ok, ms = 2000) {
+  const end = Date.now() + ms;
+  while (!ok()) {
+    if (Date.now() > end) throw new Error("timed out waiting");
+    await new Promise((r) => setTimeout(r, 10));
+  }
+}
+
+/** The pipeline record's page in a browser, once People has landed. */
+async function pipelinePage(hash = "#/clients/pipeline") {
+  const record = scenario("pipeline", NOW);
+  const { w, asked } = browserWindow(record, hash);
+  vm.runInNewContext(await buildFixture(record), vm.createContext(w));
+  const at = { pathname: w.location.pathname, hash: w.location.hash };
+  await until(() => w.__PEOPLE);
+  return { record, w, asked, at };
+}
+
+test("in a browser, the pipeline record's page stands at its workspace's address and reads People through the app's own surface", async () => {
+  const { record, w, asked, at } = await pipelinePage();
+  // At the workspace's address before anything is read, with the route kept (the server serves that address).
+  assert.deepEqual(at, { pathname: `/w/${WORKSPACE.slug}/`, hash: "#/clients/pipeline" });
+  assert.equal(w.__PEOPLE.rows.length, record.people.length);
+  assert.equal(w.__PEOPLE.dealsOn, true);
+  // Every read named the workspace as the app's do from that address, by its slug; not one of them was a write.
+  assert.ok(asked.length > 0);
+  assert.deepEqual([...new Set(asked.map((a) => `${a.method} ${a.workspace}`))], [`GET ${WORKSPACE.slug}`]);
+  // The route gate is the app's own: the Pipeline and a person's page open once People and who is looking have
+  // landed, and so do Settings and Setup, which the fixture publishes.
+  for (const [page, param] of [
+    ["clients", "pipeline"],
+    ["clients", record.people[0].id],
+    ["admin", "workspace"],
+    ["admin", "setup"],
+  ]) {
+    assert.equal(w.__surfaceGate(page, param), true, `${page}/${param}`);
+  }
+  // What the harness does not serve waits, as the app waits for a read: never the mockup's seeded page.
+  assert.equal(w.__surfaceGate("today", null), false);
+  // A person is read through the app's own courier, from the harness's own answer.
+  const person = await w.__personDetail(record.people[3].id);
+  assert.equal(person.name, record.people[3].display_name);
+  assert.equal(person.proposal.sent !== null, true, "the proposal went out, and the page says so");
+});
+
+/**
+ * What the People pages read that the pipeline record's page leaves alone, and why. The Leads scope's own is excused
+ * whole (LEADS_SCOPE): clients-a.jsx draws it beside People, and this record has no searches.
+ */
+const PEOPLE_NOT_PUBLISHED = new Map([
+  [
+    "__href",
+    "the api's addresses (inbox-verbs.ts): without it the page offers no export, and the harness serves no file",
+  ],
+  ["__lists", "a saved list's verbs (people-lists.ts), every one a write: the page offers none without them"],
+  ["__ask", "Ask's (ask.ts): the page asks it only which language a talk is in, and says English without it"],
+]);
+const LEADS_SCOPE = /^__(LEADS|LEAD_VM|leads?[A-Z]\w*)$/;
+
+test("in a browser, the pipeline record's page has every global the People pages read, or says why not", async () => {
+  const read = new Set([
+    ...globalsRead([
+      "clients-a.jsx",
+      "clients-bits.jsx",
+      "people-table.jsx",
+      "pipeline-scope.jsx",
+      "pipeline-row.jsx",
+      "pipeline-peek.jsx",
+      "pipeline-board.jsx",
+      "pipeline-new.jsx",
+      "client-profile.jsx",
+      "person-deal.jsx",
+    ]),
+    ...globalsRead(["deal-sheet.jsx"], "components"),
+  ]);
+  assert.ok(read.has("__proposalMessage"), "the one-step send's words are one of the globals this test is about");
+  const { w } = await pipelinePage();
+  const published = new Set(Object.keys(w));
+  const installed = globalsInstalledByThePages();
+  const missing = [...read]
+    .filter((n) => !published.has(n) && !installed.has(n) && !PEOPLE_NOT_PUBLISHED.has(n) && !LEADS_SCOPE.test(n))
+    .sort();
+  assert.deepEqual(missing, [], `neither published nor accounted for: ${missing.join(", ")}`);
+  // The list only shrinks: a name published AND excused is an excuse nobody will delete.
+  const stale = [...PEOPLE_NOT_PUBLISHED.keys()].filter((n) => published.has(n) || !read.has(n)).sort();
+  assert.deepEqual(stale, [], `no longer true of: ${stale.join(", ")}`);
 });

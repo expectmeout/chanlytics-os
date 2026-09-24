@@ -117,9 +117,10 @@ function peopleAnswer(pathname, params, record) {
       status: 200,
       body: ok({
         people: rows,
-        calendar: record.calendar ?? { state: "none" },
-        booking_link: record.config?.brain?.booking_link ?? null,
-        consult_first: record.config?.brain?.profile?.booking_rules?.consult_first ?? [],
+        calendar: record.calendar ?? { state: "none", source: "your calendar", timezone: record.zone },
+        booking_link: record.config?.brain?.booking_link?.trim() || null,
+        // Whether the profile lists a consult-first service (withVisits): a flag; the names stay on the server.
+        consult_first: (record.config?.brain?.profile?.booking_rules?.consult_first ?? []).length > 0,
         deals_on: dealsAreOn(record.sellsBy),
         page: { q: params.get("q"), offset, limit: 1000, total: record.people.length, has_more: false },
       }),

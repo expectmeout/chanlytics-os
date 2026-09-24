@@ -195,6 +195,7 @@ and answers the spec's own `/api/v1` reads from a record.
 corepack pnpm e2e:local -- e2e/settings-business.spec.ts
 corepack pnpm e2e:local -- e2e/settings-business.spec.ts --scenario=salon
 corepack pnpm e2e:local -- e2e/settings-business.spec.ts --grep "fits a phone"
+corepack pnpm e2e:local -- e2e/people.spec.ts --scenario=pipeline --grep "the Pipeline is a third scope"
 ```
 
 It takes a free port, sets what `signIn()` reads, runs the REAL spec unmodified
@@ -205,12 +206,19 @@ landed. It runs with `--retries=0`, where the config retries once locally: a
 mutation run asks whether the journey went red, and a retry that passes turns a
 caught mutant into a flake.
 
-Two records. `nightly` is the seeded `chanlytics-e2e` workspace, DERIVED from
+Three records. `nightly` is the seeded `chanlytics-e2e` workspace, DERIVED from
 `tooling/scripts/e2e-workspace.mjs` -- the config it writes, the line it
 provisions, the clock it sets -- so it changes when the seed changes rather than
 drifting from it; `e2e-harness.test.mjs` holds the two together. `salon` is a
 fuller, fictional record for the branches the nightly's data cannot reach: a
 week of hours, closures at the cap, services, and one language short of the cap.
+`pipeline` is the salon's record made a studio whose customers buy by proposal
+(`sells_by: "proposal"`, so deals are on), with eight people across the
+Pipeline's four groups in `people_list`'s row shape and the person read's own.
+For it alone the server answers People's reads and the fixture runs the app's
+People surface, courier and route gate over them, so People, the Pipeline and a
+person's page are real there; a route whose surface the harness does not serve
+(Today, the Inbox, Leads) waits on it and then says it could not be read.
 
 What it cannot prove: anything behind a Save (the page's saver refuses, by
 design, and the specs that run here never press one), and anything about timing
@@ -218,7 +226,8 @@ in the real bundle -- the harness compiles the legacy tree with Babel in the
 browser, so the runner raises the per-test timeout where production runs under
 the config's own 45s. Green here is not a green nightly.
 
-`e2e/settings-business.spec.ts` is the spec that runs on it today. Another
+`e2e/settings-business.spec.ts` runs on it, and `e2e/people.spec.ts`'s Pipeline
+walk on the `pipeline` record. Another
 surface needs its own globals added to `e2e-harness/fixture-src.ts` -- whatever
 that page's bridge publishes -- and any read it makes added to `answer()` in
 `e2e-harness/server.mjs`.

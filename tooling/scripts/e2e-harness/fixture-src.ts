@@ -229,7 +229,17 @@ if (S.people && typeof w.fetch === "function" && w.location && w.history) {
   installSurfaceRegistry();
   installPeopleCourier();
   w.__pipeline = pipelineHelpers();
+  // What the People pages call that seed-globals.ts publishes from contracts: a selection's cell in an export, the
+  // words the one-step send of a proposal carries, and why a typed address is not one.
+  w.__csvCell = C.csvCell;
+  w.__proposalMessage = C.proposalMessage;
+  w.__whyNotAnEmail = C.whyNotAnEmail;
   setStatus("workspace", "live");
+  // The settings read and Setup are published above, as for every record, so their routes draw. A route whose
+  // surface the harness does not serve (Today, the Inbox, Leads) waits under the gate and then says it could not be
+  // read, as the app does when a read fails: this record is for People, the Pipeline and a person's page.
+  setStatus("settings", "live");
+  setStatus("setup", "live");
   installRouteGate();
   // No live feed here: nothing writes, so there is nothing to hear.
   startSurfaces([peopleOverride], () => () => {});

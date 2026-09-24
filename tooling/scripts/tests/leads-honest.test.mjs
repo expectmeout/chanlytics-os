@@ -14,21 +14,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-  LEAD_WORDS,
-  PIPELINE_WORDS,
-  ROLE_PERMS,
-  parsePipelineRoute,
-  pipelineMove,
-  pipelineOf,
-  pipelinePeekOf,
-  pipelineRail,
-  pipelineSorted,
-  pipelineRoute,
-  pipelineViewLabel,
-  roleGate,
-  toPersonRowVM,
-} from "@chanlytics/contracts";
+import { LEAD_WORDS, ROLE_PERMS, roleGate, toPersonRowVM } from "@chanlytics/contracts";
 import {
   leadEndingLine,
   leadReviewGroups,
@@ -56,6 +42,7 @@ import {
   planWho,
 } from "../../../packages/contracts/src/lead-search.ts";
 import { hookFrames } from "./_hook-frames.mjs";
+import { pipelineHelpers } from "../../../apps/dashboard/src/legacy-bridge/pipeline-helpers.ts";
 
 /* ------------------------------------------------------------- the fixtures */
 
@@ -2197,18 +2184,8 @@ test("REGRESSION: the Pipeline's rows too -- a draw that changed nothing of a ro
     person("k3", "Cy", proposed(1)),
   ].map((r) => toPersonRowVM(r, TZ, NOW));
   Object.assign(globalThis.window.__PEOPLE, { rows, dealsOn: true, fetchedAt: NOW.getTime() });
-  // What seed-globals.ts publishes: contracts' own, the Pipeline's rail and address with its rows.
-  globalThis.window.__pipeline = {
-    of: pipelineOf,
-    move: pipelineMove,
-    peek: pipelinePeekOf,
-    rail: pipelineRail,
-    route: pipelineRoute,
-    parse: parsePipelineRoute,
-    viewLabel: pipelineViewLabel,
-    sorted: pipelineSorted,
-    words: PIPELINE_WORDS,
-  };
+  // What seed-globals.ts publishes (pipeline-helpers.ts): contracts' own, the Pipeline's rail and address with its rows.
+  globalThis.window.__pipeline = pipelineHelpers();
   const drawPipeline = () => draw({ scope: "pipeline", leadsRoute: null });
   try {
     const a = tableRowsOf(drawPipeline());
