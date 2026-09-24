@@ -452,7 +452,7 @@ export const todayOverride: SurfaceOverride = {
   // transcript turn every few seconds (an UPDATE that keeps the status
   // ongoing) must NOT re-run three plpgsql aggregates; a start or an end does.
   // Lead rounds too: a search that stops to ask is an UPDATE on its round, and
-  // its answer another. Every lead_rounds change goes through -- they are rare
+  // its answer another. Every lead_rounds change goes through — they are rare
   // and each one changes what the queue says about a search waiting on you.
   refreshOnTables: [...DEFAULT_REFRESH_TABLES, "calls", "lead_rounds"],
   refreshWhen: (c) => c.table !== "calls" || c.event !== "UPDATE" || c.row.status !== "ongoing",

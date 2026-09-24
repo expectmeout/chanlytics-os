@@ -200,6 +200,8 @@ export interface TodayQueueRowVM {
 
 /** Six rows on Today; the rest is a count for the Inbox link. */
 export const TODAY_QUEUE_MAX = 6;
+/** A question waited this long is warned: the sweep stops it after a day. */
+const SEARCH_WARN_MS = 12 * 3600000;
 
 /**
  * How much of a customer's own words a queue row carries.
@@ -1353,7 +1355,6 @@ export function toTodayVM(
   }
   // A search that stopped to ask waits on the owner like a person does (spec G6): its name, its question, one
   // button to answer it. Null: the searches were not read; the queue says nothing about them.
-  const SEARCH_WARN_MS = 12 * 3600000; // the sweep stops a question after a day
   for (const s of searches ?? []) {
     const r = s.round;
     if (!r || r.state !== "waiting_on_owner" || !r.question) continue;

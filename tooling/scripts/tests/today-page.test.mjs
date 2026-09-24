@@ -26,6 +26,7 @@ import {
   leadQuestionRoute,
 } from "@chanlytics/contracts";
 import { installLegacyReact, fresh, again, all, find, byTestId, textOf, classes, press } from "./_legacy-react.mjs";
+import { PLAN } from "./_lead-fixtures.mjs";
 
 const ZONE = "America/New_York";
 // 4 PM in New York on Friday 18 September 2026.
@@ -886,9 +887,9 @@ test("a search waiting on you is a row of the queue like a person: its name, its
   const waiting = {
     id: "s-wait",
     name: "Personal trainers in Austin",
-    asked: "personal trainers in Austin that are not big gyms",
+    asked: PLAN.asked,
     asked_on: "2026-09-17T15:00:00Z",
-    plan: { version: 1, card: "local_businesses", name: "Personal trainers in Austin" },
+    plan: PLAN,
     plan_version: 1,
     round: {
       id: "rd1",
