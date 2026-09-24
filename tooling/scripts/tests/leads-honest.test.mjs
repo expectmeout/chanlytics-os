@@ -1089,7 +1089,11 @@ test("the rail counts what the lists hold, a waiting search wears a question mar
   );
   assert.equal(textOf(byTestId(tree, "leads-standing")), "322 leads·272 ready·2 searches·1 search needs you");
   click(byTestId(tree, "leads-standing-needs"));
-  assert.deepEqual(went, [`clients/leads:s-${SEARCH_B}`], "and it is the tap that opens the search waiting on you");
+  assert.deepEqual(
+    went,
+    [`clients/leads:s-${SEARCH_B}:c-excluded`],
+    "and it is the tap that opens the search waiting on you, on the places its question is about",
+  );
 });
 
 // The rail picks the way People's does (railToggle, clients-a.jsx). On production (21 Sep) a list pressed while a
@@ -1119,9 +1123,14 @@ test("the Leads rail picks one row at a time, as People's does: a list leaves an
     "a search shows all of itself, not its Ready ones",
   );
   assert.equal(
-    pressed(`leads:s-${SEARCH_A}:c-review`, `leads-search-${SEARCH_B}`),
-    leadsRoute({ searchId: SEARCH_B }),
+    pressed(`leads:s-${SEARCH_B}:c-review`, `leads-search-${SEARCH_A}`),
+    leadsRoute({ searchId: SEARCH_A }),
     "and starts on all of its classes",
+  );
+  assert.equal(
+    pressed(`leads:s-${SEARCH_A}:c-review`, `leads-search-${SEARCH_B}`),
+    leadsRoute({ searchId: SEARCH_B, cls: "excluded" }),
+    "one waiting on its question starts on the places the question is about",
   );
   assert.equal(
     pressed(`leads:s-${SEARCH_A}`, `leads-search-${SEARCH_A}`),
@@ -2954,7 +2963,7 @@ test("the running strip's Stop reaches the stop route, and the question's Yes an
   const q = strips.at(-1);
   assert.deepEqual(
     q.vm.actions.map((a) => a.id),
-    ["keep", "include", "stop_here"],
+    ["keep", "include", "change", "stop_here"],
   );
   await q.onAction("keep");
   await settle();
@@ -3026,6 +3035,97 @@ test("Include opens the plan with that exclusion taken back and starts nothing; 
   await f.onApprove(f.plan);
   await settle();
   assert.deepEqual(calls.at(-1), ["answer", { id: SEARCH_B, answer: "include", plan: f.plan }]);
+});
+
+// "What if the answer is no, but I want it to update the search?" Change what I asked opens the finder under the
+// question, empty; Ask's card comes back as the waiting round's next version, and approving it answers that round.
+// It used to go through the commit, which started a second search while the first waited a day and died.
+test("Change what I asked opens the finder under the question, and approving answers the waiting round, not a new search", async () => {
+  fresh();
+  draw({ leadsRoute: `leads:s-${SEARCH_B}` });
+  strips.at(-1).onAction("change");
+  draw({ leadsRoute: `leads:s-${SEARCH_B}` });
+  const f = finders.at(-1);
+  assert.deepEqual(
+    [
+      f.stage,
+      f.words,
+      f.answering && f.answering.question,
+      f.answering && f.answering.baseVersion,
+      f.answering && f.answering.count,
+    ],
+    ["compose", "", waiting.round.question.sentence, 1, 200],
+    "empty, under the question, carrying the round's version and the count it reserved",
+  );
+  assert.deepEqual(
+    calls.filter((c) => c[0] !== "view"),
+    [],
+    "nothing is asked or spent by opening it",
+  );
+  const card = {
+    id: "p-amend",
+    kind: "lead_search",
+    needs: "owner",
+    title: "Find 50 personal trainers",
+    summary: "",
+    payload: {
+      plan: { ...PLAN, count: 50, exclusions: [] },
+      view: { title: "Find 50 personal trainers" },
+      facts: null,
+    },
+    undo: "Stop the search",
+  };
+  const sent = [];
+  globalThis.window.__ask.send = async (req, on) => {
+    sent.push(req.text);
+    on({ t: "final", message: { text: "", proposals: [card] } });
+  };
+  await f.onPlan("include the chains too");
+  await settle();
+  draw({ leadsRoute: `leads:s-${SEARCH_B}` });
+  assert.match(sent[0], /My answer: include the chains too\./);
+  const shown = finders.at(-1);
+  assert.deepEqual([shown.stage, shown.plan.version, shown.plan.count], ["plan", 2, 200]);
+  await shown.onApprove(shown.plan);
+  await settle();
+  assert.deepEqual(calls.at(-1), [
+    "answer",
+    { id: SEARCH_B, answer: "include", plan: { ...PLAN, exclusions: [], version: 2, count: 200 } },
+  ]);
+  assert.ok(!uploads.includes("ask.commit"), "no second search");
+  assert.equal(textOf(flashes.at(-1).msg), "Carrying on with your change.");
+});
+
+test("a fresh Find after an abandoned answer is a new search, not an answer", () => {
+  fresh();
+  draw({ leadsRoute: `leads:s-${SEARCH_B}` });
+  strips.at(-1).onAction("change");
+  draw({ leadsRoute: `leads:s-${SEARCH_B}` });
+  assert.ok(finders.at(-1).answering, "answering");
+  // Left half-done: Esc closes the finder (and keeps what was typed, as a Find does), then F starts a new one.
+  press("Escape");
+  draw({ leadsRoute: `leads:s-${SEARCH_B}` });
+  press("f");
+  draw({ leadsRoute: `leads:s-${SEARCH_B}` });
+  assert.equal(finders.at(-1).stage, "compose");
+  assert.equal(finders.at(-1).answering, null, "F opens a finder that is not answering anything");
+});
+
+// The question is only ever about places left out, and while it waits nothing is counted (under an email standard
+// nothing counts until the checks): the search's own view was an empty table saying "Describe the businesses you
+// want", with the evidence a tab away.
+test("a waiting search opens on the places its question is about, and its counted view says it is waiting", () => {
+  fresh();
+  const tree = draw();
+  click(byTestId(tree, `leads-search-${SEARCH_B}`));
+  assert.equal(went.at(-1), `clients/leads:s-${SEARCH_B}:c-excluded`, "the waiting search opens on its left-out pile");
+  click(byTestId(draw(), `leads-search-${SEARCH_A}`));
+  assert.equal(went.at(-1), `clients/leads:s-${SEARCH_A}`, "a search that is not waiting opens as it did");
+  fresh({ leads: surface({ rows: [] }) });
+  const counted = draw({ leadsRoute: `leads:s-${SEARCH_B}` });
+  assert.match(textOf(counted), /Nothing is counted yet\./);
+  assert.match(textOf(counted), /It is waiting for your answer above\./);
+  assert.doesNotMatch(textOf(counted), /Describe the businesses you want/);
 });
 
 test("an ending's one next step opens the plan and starts nothing until it is approved; Sort by fit and the new ones go to the surface", async () => {
