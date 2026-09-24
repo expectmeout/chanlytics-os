@@ -80,7 +80,7 @@ test.describe("Today on a real workspace", () => {
     await expect(line.or(failed)).toBeVisible({ timeout: 15_000 });
     if ((await line.count()) === 0) return;
     const said = (await line.innerText()).trim();
-    const m = /^Last (7|30|90) days: (\d+) customer messages?/.exec(said);
+    const m = /^Last (7|30|90) days: (\d+) messages?/.exec(said);
     expect(m, said).not.toBeNull();
     const door = page.getByTestId("today-card").getByRole("button", { name: /Open Reports/ });
     await expect(door).toHaveCount(1);

@@ -25,6 +25,8 @@ test.describe("Consent for one person", () => {
     await rows.first().click();
     await expect(page.locator(".cl-prof-name")).toBeVisible();
 
+    // Since #907 the answer in force is a row on the record kit, its control in the Visit messages fold behind it.
+    await page.getByTestId("rec-row-act-person-visit").click();
     const control = page.getByTestId("consent-control");
     await expect(control).toBeVisible();
     const segs = control.locator(".cl-prof-autonomy").first().locator(".cl-prof-aut-seg");
@@ -71,7 +73,7 @@ test.describe("Consent for one person", () => {
     await expect(page.locator(".cl-rail-row", { hasText: "Can receive offers" })).toBeVisible();
   });
 
-  test("a name the owner gives and notes the receptionist reads issue a workspace-scoped PUT — intercepted", async ({
+  test("a name the owner gives is a workspace-scoped PUT, and a note the receptionist reads a workspace-scoped POST to the notes log — intercepted", async ({
     page,
   }) => {
     await page.goto("/#/clients");
@@ -103,13 +105,27 @@ test.describe("Consent for one person", () => {
     expect(seen[0].url).toContain("workspace=");
     expect(seen[0].body).toEqual({ name: "Test Name" });
 
+    // Since #919 notes are a dated, signed log of their own (person-notes.jsx): a note is one POST to the person's
+    // notes door, with its words as `body`, and the details door is not touched.
+    const noted: { method: string; url: string; body: unknown }[] = [];
+    await page.route("**/api/v1/contacts/*/notes*", async (route) => {
+      const req = route.request();
+      noted.push({ method: req.method(), url: req.url(), body: req.postDataJSON() });
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true, data: {} }),
+      });
+    });
     const notes = page.getByTestId("person-notes-input");
     await expect(notes).toBeVisible();
     await notes.fill("Sees Sofia. Prefers mornings.");
     await page.getByTestId("person-notes-save").click();
-    await expect.poll(() => seen.length).toBe(2);
-    expect(seen[1].body).toEqual({ notes: "Sees Sofia. Prefers mornings." });
-    await expect(page.getByText("Notes for the receptionist")).toBeVisible();
+    await expect.poll(() => noted.length).toBe(1);
+    expect(noted[0].method).toBe("POST");
+    expect(noted[0].url).toContain("workspace=");
+    expect(noted[0].body).toMatchObject({ body: "Sees Sofia. Prefers mornings." });
+    expect(seen.length, "a note never goes through the details door").toBe(1);
   });
 
   /**

@@ -2367,6 +2367,11 @@
    bar -- the list, search behind a button, the scope's own last control. Searching, the bar is the field, at 16px: a
    phone zooms into anything smaller. */
 .pp-top { flex: none; }
+/* Two or three scopes never need to scroll. The shell's strip scrolls sideways at this width (components.css), and a
+   scroll container clips the active tab's 2px underline where it overlaps the strip's rule by 1px (.stabs-tab's
+   margin-bottom: -1px): on a touch screen the 44px tab then stood 43px in view and the strip scrolled 1px. Clip
+   leaves the other axis alone, so the overlap draws. */
+.stabs-people { overflow-x: clip; }
 .pp-bar { display: flex; align-items: center; gap: 6px; padding: 8px 8px 6px 16px; flex: none; }
 /* The page's menu is taller than a menu's 340px on a touch screen (44px items): it takes the room the phone has. */
 .pp-bar .more-menu { max-height: min(520px, calc(100vh - 140px)); }

@@ -419,7 +419,8 @@ test.describe("Phone shell on a real workspace", () => {
             height: Math.round(r.height),
             face: f ? Math.round(f.width) : null,
             gutter: f ? Math.round(f.left - r.left) : null,
-            name: n ? `${Number.parseFloat(n.fontSize)}/${Number.parseFloat(n.lineHeight)}/${n.fontWeight}` : null,
+            // Size and leading, not weight: an unread thread's name is bolder on purpose (inbox.css), the row is the same.
+            name: n ? `${Number.parseFloat(n.fontSize)}/${Number.parseFloat(n.lineHeight)}` : null,
             past: Math.round(el.scrollWidth - el.clientWidth),
           };
         },
@@ -441,14 +442,19 @@ test.describe("Phone shell on a real workspace", () => {
     const seen = Object.entries(shapes);
     test.skip(seen.length < 2, "this workspace has fewer than two lists with anything in them");
     const [first, firstShape] = seen[0];
+    // The same row, drawn with its facts line (84px) or without one: a thread with no second agent, confidence, tags
+    // or value (the nightly's threads) is name and sub alone, one 19px line shorter (inbox.css .ix-thread-foot draws
+    // only when there is something to say). The face, the gutter and the name's type are the row's either way.
+    const rowHeights = [84, 65];
     for (const [label, shape] of seen.slice(1)) {
-      expect(shape.height, `${label} is as tall as ${first}`).toBe(firstShape.height);
       expect(shape.face, `${label}'s face is ${first}'s`).toBe(firstShape.face);
       expect(shape.gutter, `${label} starts where ${first} does`).toBe(firstShape.gutter);
       expect(shape.name, `${label}'s name is set like ${first}'s`).toBe(firstShape.name);
     }
     for (const [label, shape] of seen) {
-      expect(shape.height, `${label} is the row tokens.css draws`).toBe(84);
+      expect(rowHeights, `${label} is the row tokens.css draws, with or without its facts line`).toContain(
+        shape.height,
+      );
       expect(shape.face, `${label}'s face is --row-face`).toBe(32);
       expect(shape.gutter, `${label} keeps --row-pad-x`).toBe(16);
       expect(shape.past, `nothing on ${label} is past its right edge`).toBeLessThanOrEqual(1);
