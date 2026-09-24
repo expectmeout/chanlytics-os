@@ -1581,7 +1581,7 @@ test("REGRESSION (N18): every page a real workspace ships is a jump away -- 'cal
     ["playbooks", "outbound"],
     ["broadcasts", "broadcasts"],
     ["messages", "messages"],
-    ["setup", "admin/setup"],
+    ["setup", "start"],
     ["billing", "admin/billing"],
     ["activity", "admin/activity"],
     ["profile", "admin/profile"],

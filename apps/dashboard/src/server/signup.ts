@@ -95,8 +95,18 @@ export async function signUp(input: SignupInput & { password: string }): Promise
     email: input.email,
     password: input.password,
     // user_metadata, the same key the create screen reads. A prefilled form,
-    // never a permission: nothing downstream treats it as one.
-    options: { data: { [PENDING_WORKSPACE_KEY]: { name: input.name, timezone: input.timezone ?? null } } },
+    // never a permission: nothing downstream treats it as one. With the
+    // invite code the route checked, so the first workspace needs nothing
+    // typed twice -- the create route checks it again (pendingCodeOf).
+    options: {
+      data: {
+        [PENDING_WORKSPACE_KEY]: {
+          name: input.name,
+          timezone: input.timezone ?? null,
+          ...(input.code ? { code: input.code } : {}),
+        },
+      },
+    },
   });
   if (error) {
     // AN ADDRESS WE ALREADY HAVE, answered exactly as a new one is: nothing

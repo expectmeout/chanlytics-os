@@ -10,6 +10,9 @@ import { isTimezone } from "./workspace";
 export const SIGNUP_NAME_MIN = 2;
 export const SIGNUP_NAME_MAX = 120;
 
+/** The invite code, where sign-up is by invitation: what the form, the create screen and the kept answers all read it as. */
+export const InviteCodeSchema = z.string().trim().max(80);
+
 export const SignupSchema = z
   .object({
     name: z
@@ -35,7 +38,7 @@ export const SignupSchema = z
     /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
     timezone: z.string().trim().min(1).max(64).optional(),
     /** The invite code, when sign-up is by invitation. */
-    code: z.string().trim().max(80).optional(),
+    code: InviteCodeSchema.optional(),
   })
   .strict();
 export type SignupInput = z.infer<typeof SignupSchema>;
@@ -102,9 +105,23 @@ export function pendingWorkspaceOf(metadata: unknown): PendingWorkspace | null {
   return r.success ? r.data : null;
 }
 
+/**
+ * The invite code sign-up checked, kept beside the name so the first workspace is made from sign-up's answers alone:
+ * the create route checks it again, as it checks one typed. It is never part of the form -- pendingWorkspaceOf reads
+ * the name and the clock only, and zod drops the rest -- and nothing but that check reads it.
+ */
+export function pendingCodeOf(metadata: unknown): string | null {
+  if (!metadata || typeof metadata !== "object") return null;
+  const p = (metadata as Record<string, unknown>)[PENDING_WORKSPACE_KEY];
+  const r = InviteCodeSchema.safeParse(p && typeof p === "object" ? (p as { code?: unknown }).code : null);
+  return r.success && r.data ? r.data : null;
+}
+
 /** What the page says, in one place. The sentence after a submit is the same whether or not the address was known. */
 export const SIGNUP_WORDS = {
   title: "Create your workspace",
+  /** The create screen while it makes the workspace from what sign-up kept: nothing is asked twice. */
+  making: "Making your workspace…",
   lead: "Your business gets its own workspace: the receptionist, the inbox, the numbers. You become its owner.",
   sent: (email: string) => `If ${email} can receive email, a 6-digit code is on its way. Enter it below to finish.`,
   codeRequired: "Sign-up is by invitation right now. Enter the invite code you were given.",

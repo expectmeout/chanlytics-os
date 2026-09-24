@@ -26,15 +26,18 @@ test.describe("Google on a real workspace", () => {
     expect(JSON.stringify(data)).not.toMatch(/AIza|api_key|secret|token/i);
   });
 
-  test("Setup, Reports and Integrations follow the platform's readiness, then the listing", async ({ page }) => {
+  test("the first run, Reports and Integrations follow the platform's readiness, then the listing", async ({
+    page,
+  }) => {
     const { data } = await (await apiGet(page, "/api/v1/google")).json();
     const ready: boolean = data.google.ready.places;
     const profile: boolean = data.google.ready.profile;
     const linked = !!data.google.listing;
 
-    await page.goto("/#/admin/setup");
+    // The listing is the first step's, which every workspace has reached.
+    await page.goto("/#/start/business");
     await page.waitForLoadState("networkidle");
-    await expect(page.getByTestId("setup-readiness")).toBeVisible();
+    await expect(page.getByTestId("first-run")).toBeVisible();
     const row = page.getByTestId("setup-row-google");
     if (!ready && !profile) {
       await expect(row).toHaveCount(0);
@@ -54,7 +57,7 @@ test.describe("Google on a real workspace", () => {
       await expect(page.getByTestId("google-none")).toHaveCount(0);
       await expect(page.getByTestId("google-tiles")).toHaveCount(0);
     } else if (!linked) {
-      await expect(page.getByTestId("google-none")).toContainText("Find it on Setup");
+      await expect(page.getByTestId("google-none")).toContainText("Find it");
     } else {
       const tiles = page.getByTestId("google-tiles").locator(".rp2-tile");
       await expect(tiles).toHaveCount(4);

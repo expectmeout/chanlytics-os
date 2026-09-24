@@ -27,7 +27,10 @@
  * sending "".
  */
 
-import { CALL_OUTCOMES } from "@chanlytics/contracts";
+import { CALL_OUTCOMES, greetingFor, GREETING_DEFAULT } from "@chanlytics/contracts";
+
+/** The opening line and its unnamed default: contracts' (greeting.ts), so the first run can show it; said here too. */
+export { greetingFor, GREETING_DEFAULT };
 
 /** The prompt body. Both placeholders are mandatory; a test pins them. */
 export const VOICE_SHELL_PROMPT = "{{business_facts}}\n\nWho you are speaking with:\n{{caller_context}}";
@@ -55,31 +58,6 @@ export const FACTS_UNAVAILABLE =
 
 /** What the agent is told about a caller when nothing could be read: the shell's default, and the webhook's fallback. */
 export const CALLER_UNKNOWN = "New caller - no prior interactions on record.";
-
-/**
- * The opening line, with the business named only when we know which it is.
- *
- * Composed here rather than typed into Retell's dashboard, so the business
- * NAME does not become a third hand-kept copy of a fact the product already
- * owns -- a rename would otherwise leave the phone greeting saying the old one.
- *
- * A whole sentence, not the name on its own: Retell leaves a variable it
- * cannot fill in the prompt verbatim, and "Thank you for calling
- * {{business_name}}" read down a phone line is worse than any wording. When
- * the business is unknown this simply greets nobody by name, which is never
- * wrong -- and is the shell's own default, below, so the two are one sentence.
- *
- * Both disclosures -- recording, and that this is an automated assistant --
- * live here rather than in the agent's config, because they are promises the
- * product makes and should not be editable by whoever last opened Retell.
- */
-export function greetingFor(name: string | null): string {
-  const who = name ? ` ${name}` : "";
-  return `Thank you for calling${who}! This call may be recorded. I'm the automated assistant — how can I help you today?`;
-}
-
-/** The greeting with no business named -- never wrong, never a placeholder. */
-export const GREETING_DEFAULT = greetingFor(null);
 
 /** Where the booking-link tool posts. Overridable for previews. */
 export const DEFAULT_FN_URL = "https://chanlytics-messaging.vercel.app/api/retell-fn";

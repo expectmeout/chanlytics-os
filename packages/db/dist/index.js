@@ -1612,6 +1612,7 @@ var SOLE_PROP_CEILING_SENTENCE = `This is the sole-proprietor registration: one 
 var SOLE_PROP_TEXTING_SENTENCE = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE}`;
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
+var InviteCodeSchema = z8.string().trim().max(80);
 var SignupSchema = z8.object({
   name: z8.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
   email: z8.string().trim().toLowerCase().email("Enter a work email address.").max(254),
@@ -1632,7 +1633,7 @@ var SignupSchema = z8.object({
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
   timezone: z8.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
-  code: z8.string().trim().max(80).optional()
+  code: InviteCodeSchema.optional()
 }).strict();
 var PendingWorkspaceSchema = z8.object({
   name: z8.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),

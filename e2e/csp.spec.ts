@@ -72,7 +72,7 @@ test.describe("Content-Security-Policy, enforced", () => {
         "#/broadcasts",
         "#/messages",
         "#/reports",
-        "#/admin/setup",
+        "#/start",
         "#/admin/workspace",
         "#/admin/team",
         "#/admin/autonomy",

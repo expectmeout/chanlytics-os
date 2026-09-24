@@ -56,8 +56,9 @@ test.describe("creating another workspace", () => {
       await expect(screen).toContainText("New workspace");
       await screen.getByLabel("Business name").fill(name);
       await screen.getByRole("button", { name: "Create workspace" }).click();
-      // A new workspace answers nowhere yet, so its owner lands on Setup, not Today.
-      await expect(page.getByTestId("setup-readiness")).toBeVisible({ timeout: 20000 });
+      // A new workspace answers nowhere yet, so it opens on its first run (#/start), not Today.
+      await expect(page.getByTestId("first-run")).toBeVisible({ timeout: 20000 });
+      await expect(page).toHaveURL(/#\/start/);
       await expect(page.getByTestId("sb-workspace")).toContainText(name);
       createdId = await page.evaluate(
         () => (window as unknown as { __ACTIVE_WORKSPACE?: string }).__ACTIVE_WORKSPACE ?? null,

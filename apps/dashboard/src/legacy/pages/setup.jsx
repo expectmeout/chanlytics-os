@@ -1,18 +1,9 @@
-/* global React, Icon, FailedRead */
-// Setup — one page a new owner lands on until the receptionist is answering.
-// Every row is a fact the workspace holds (contracts/setup.ts, published by
-// the bridge as window.__SETUP); the rows use the attention row grammar
-// People and Today share. A verb is a route, a dial, or one of the actions
-// the page performs: asking a person at Chanlytics for a line, opening the
-// line chooser, retrying a line that stopped.
-const useSetupTick = () => {
-  const [, bump] = React.useReducer((n) => n + 1, 0);
-  React.useEffect(() => {
-    window.addEventListener("surface:setup", bump);
-    return () => window.removeEventListener("surface:setup", bump);
-  }, []);
-};
-
+/* global React, Icon */
+// Setup's rows: every fact the workspace holds (contracts/setup.ts, published by the bridge as window.__SETUP), drawn
+// wherever a page asks what is left to set up. The first run draws them one step at a time (first-run.jsx); Today
+// draws what is left after (dashboard-a-brief.jsx TodaySetup). The rows use the attention row grammar People and
+// Today share. A verb is a route, a dial, or one of the actions the rows perform: asking a person at Chanlytics for a
+// line, opening the line chooser, retrying a line that stopped.
 // A row's tone is the state's own (contracts/tone.ts), through the bridge.
 const setupTone = (state) => (window.__chrome && window.__chrome.state ? window.__chrome.state("setup", state).tone : "plain");
 
@@ -295,33 +286,25 @@ const ListingFinder = ({ flash, onDone }) => {
   );
 };
 
-const PaneSetup = () => {
-  useSetupTick();
-  const [toastNode, flash] = window.usePPToast();
+/**
+ * Setup's rows, as attention rows, with everything a row does: a route, a dial, or one of the rows' own acts (asking a
+ * person, the line chooser, forwarding, the Google finder, activation, billing), each behind its door's role
+ * (SETUP_GATES). `rows` are Setup's (contracts setupSteps), in the order to draw them; `primary` names the row whose
+ * button is the one coral action; `later` is what a row's second button says, the caller's (contracts): the first
+ * run's Later keeps the row drawn with its undo, Today's Skip takes it off the card and says so in a toast with Undo
+ * (`said`). Holds the panels' state and the one verb on its way, so a second press waits for the first (S23). The
+ * list only: the caller draws the card it sits in, and may lend the toast (`flash`) where the card can go while one
+ * is up -- Today's, when its last row is skipped.
+ */
+const SetupRows = ({ S, rows, later, primary = null, flash: lent = null, testid = "setup-rows" }) => {
+  const [toastNode, own] = window.usePPToast();
+  const flash = lent || own;
   const [chooser, setChooser] = React.useState(false);
   const [forwarding, setForwarding] = React.useState(false);
   const [finder, setFinder] = React.useState(false);
-  // The verb on its way, if any. Its button shows busy, and a second press -- the same row, Next, or another row's --
+  // The verb on its way, if any. Its button shows busy, and a second press -- the same row's or another row's --
   // waits for it to land instead of sending again (S23).
   const [pending, setPending] = React.useState(null);
-  const S = window.__SETUP;
-  if (S === null) {
-    // The read failed: say so, and offer the retry Connections offers, instead of "Reading…" for ever.
-    return (
-      <>
-        <FailedRead kind="card" what="your setup" body="The receptionist keeps answering; this page just can't read your workspace at the moment." onRetry={() => window.__setup && window.__setup.refresh && window.__setup.refresh()} testid="setup-failed" retryTestid="setup-retry" />
-        {toastNode}
-      </>
-    );
-  }
-  if (!S) {
-    return (
-      <section className="fl-card set-card" data-testid="setup-loading">
-        <div className="set-row"><div className="set-row-info"><span className="set-row-hint">{window.__DEMO_MODE ? "Setup reads a real workspace." : "Reading your workspace…"}</span></div></div>
-      </section>
-    );
-  }
-  const vm = S.vm;
   const nav = (to) => window.appNavigate && window.appNavigate(to);
   const once = async (to, run) => {
     if (pending) return;
@@ -403,82 +386,79 @@ const PaneSetup = () => {
     if (verb.to.startsWith("tel:")) { window.location.href = verb.to; return; }
     nav(verb.to);
   };
-  const dial = (n) => (n ? `tel:${n}` : null);
+  // Put off, or taken back: this member's, saved to their view (legacy-bridge/setup.ts later), and said when it was not.
+  const putOff = (r) =>
+    once(`later:${r.id}`, async () => {
+      const res = await window.__setup.later(r.id, !r.later);
+      if (!res.ok) flash(window.refusalToast(res, "Not saved"));
+      else if (!r.later && later.said) flash({ msg: <>{later.said}</>, undo: () => takeBack(r.id) });
+    });
+  const takeBack = (id) =>
+    window.__setup.later(id, false).then((res) => { if (!res.ok) flash(window.refusalToast(res, "Not saved")); });
+  const laterLabel = (r) => (r.later ? later.undo : later.put);
   return (
-    <div className="setup" data-testid="setup">
-      <section className="fl-card set-card setup-head" data-testid="setup-readiness">
-        <div className="fl-card-head">
-          <h2 className="fl-card-title">Setup</h2>
-          <span className="fl-card-sub tabular" data-testid="setup-count">{vm.done} of {vm.total} ready</span>
+    <div className="setup-rows" data-testid={testid}>
+      <div className="tq-list">
+      {rows.map((r) => (
+        <div key={r.id} className={r.later ? "setup-later" : undefined}>
+          <window.AttnRow
+            glyph={r.icon}
+            name={r.title}
+            sentence={r.sentence}
+            quoted={false}
+            status={[r.stateWords]}
+            note={r.details.join(" · ")}
+            tone={setupTone(r.state)}
+            cta={r.verb ? { label: r.verb.label, kind: primary === r.id ? "primary" : "ghost", onClick: () => act(r.verb), gate: setupGate(r.verb), busy: pending === r.verb.to } : null}
+            also={r.undo
+              ? { label: r.undo.label, onClick: () => act(r.undo), gate: setupGate(r.undo), busy: pending === r.undo.to, testid: `setup-undo-${r.id}` }
+              : !r.required && r.state !== "ready" && laterLabel(r)
+                ? { label: laterLabel(r), onClick: () => putOff(r), busy: pending === `later:${r.id}`, testid: `setup-later-${r.id}` }
+                : null}
+            // The row is a click target for a navigation, never for a dial:
+            // a mis-click on the receptionist row must not ring the shop. Nor is
+            // it a way around its own gated button.
+            onOpen={r.verb && !r.verb.to.startsWith("tel:") && !setupGated(r.verb) ? () => act(r.verb) : undefined}
+            testid={`setup-row-${r.id}`}
+            ctaTestid="setup-verb"
+          />
+          {r.id === "line" && chooser && <LineChooser S={S} flash={flash} onDone={() => setChooser(false)} onKeep={() => setForwarding(true)} />}
+          {r.id === "keep" && forwarding && <ForwardingCard S={S} flash={flash} onDone={() => setForwarding(false)} />}
+          {r.id === "google" && finder && <ListingFinder flash={flash} onDone={() => setFinder(false)} />}
         </div>
-        <div className="setup-meter" data-testid="setup-meter" aria-hidden="true">
-          <span className="setup-meter-fill" style={{ width: `${vm.total ? Math.round((vm.done / vm.total) * 100) : 0}%` }} />
-        </div>
-        <p className="setup-sentence" data-testid="setup-sentence">{vm.readiness.sentence}</p>
-        {vm.next && (
-          <div className="setup-next">
-            <span className="setup-next-label">Next</span>
-            <button className="btn btn-primary btn-sm" onClick={() => act(vm.next)} disabled={!!pending} data-testid="setup-next" {...setupGate(vm.next)}>{vm.next.title}: {vm.next.label} <Icon name="arrow-right" size={11} /></button>
-          </div>
-        )}
-      </section>
-
-      {vm.tryIt && (
-        <section className="fl-card set-card setup-try" data-testid="setup-try">
-          <div className="fl-card-head"><h2 className="fl-card-title">Try your receptionist</h2><span className="fl-card-sub">from your own phone</span></div>
-          <div className="setup-try-rows">
-            {vm.tryIt.voice && (
-              <div className="setup-try-row">
-                <Icon name="phone" size={13} />
-                <span className="setup-try-num">{vm.tryIt.voiceLabel}</span>
-                <a className="btn btn-sm" href={dial(vm.tryIt.voice)}>Call it</a>
-                <button className="btn btn-ghost btn-sm" onClick={() => nav("live")}>Then open Live <Icon name="arrow-right" size={10} /></button>
-              </div>
-            )}
-            {vm.tryIt.whatsapp && (
-              <div className="setup-try-row">
-                <Icon name="chat" size={13} />
-                <span className="setup-try-num">{vm.tryIt.whatsappLabel}</span>
-                <button className="btn btn-ghost btn-sm" onClick={() => nav("inbox")}>Text it, then open the Inbox <Icon name="arrow-right" size={10} /></button>
-              </div>
-            )}
-          </div>
-        </section>
-      )}
-
-      <section className="tq setup-rows" data-testid="setup-rows">
-        <div className="tq-list">
-          {vm.rows.map((r) => (
-            <div key={r.id} className={r.later ? "setup-later" : undefined}>
-              <window.AttnRow
-                glyph={r.icon}
-                name={r.title}
-                sentence={r.sentence}
-                quoted={false}
-                status={[r.stateWords]}
-                note={r.details.join(" · ")}
-                tone={setupTone(r.state)}
-                cta={r.verb ? { label: r.verb.label, kind: vm.next && vm.next.row === r.id ? "primary" : "ghost", onClick: () => act(r.verb), gate: setupGate(r.verb), busy: pending === r.verb.to } : null}
-                also={r.undo
-                  ? { label: r.undo.label, onClick: () => act(r.undo), gate: setupGate(r.undo), busy: pending === r.undo.to, testid: `setup-undo-${r.id}` }
-                  : !r.required && r.state !== "ready" ? { label: r.later ? "Undo later" : "Later", onClick: () => window.__setup.later(r.id, !r.later), testid: `setup-later-${r.id}` } : null}
-                // The row is a click target for a navigation, never for a dial:
-                // a mis-click on the receptionist row must not ring the shop. Nor is
-                // it a way around its own gated button.
-                onOpen={r.verb && !r.verb.to.startsWith("tel:") && !setupGated(r.verb) ? () => act(r.verb) : undefined}
-                testid={`setup-row-${r.id}`}
-                ctaTestid="setup-verb"
-              />
-              {r.id === "line" && chooser && <LineChooser S={S} flash={flash} onDone={() => setChooser(false)} onKeep={() => setForwarding(true)} />}
-              {r.id === "keep" && forwarding && <ForwardingCard S={S} flash={flash} onDone={() => setForwarding(false)} />}
-              {r.id === "google" && finder && <ListingFinder flash={flash} onDone={() => setFinder(false)} />}
-            </div>
-          ))}
-        </div>
-      </section>
+      ))}
+      </div>
       {toastNode}
     </div>
   );
 };
 
-window.PaneSetup = PaneSetup;
+/** The numbers to try once the receptionist answers somewhere: call it, then open Live; text it, then open the Inbox. */
+const SetupTry = ({ tryIt }) => {
+  const nav = (to) => window.appNavigate && window.appNavigate(to);
+  return (
+    <section className="fl-card set-card setup-try" data-testid="setup-try">
+      <div className="fl-card-head"><h2 className="fl-card-title">Try your receptionist</h2><span className="fl-card-sub">from your own phone</span></div>
+      <div className="setup-try-rows">
+        {tryIt.voice && (
+          <div className="setup-try-row">
+            <Icon name="phone" size={13} />
+            <span className="setup-try-num">{tryIt.voiceLabel}</span>
+            <a className="btn btn-sm" href={`tel:${tryIt.voice}`}>Call it</a>
+            <button className="btn btn-ghost btn-sm" onClick={() => nav("live")}>Then open Live <Icon name="arrow-right" size={10} /></button>
+          </div>
+        )}
+        {tryIt.whatsapp && (
+          <div className="setup-try-row">
+            <Icon name="chat" size={13} />
+            <span className="setup-try-num">{tryIt.whatsappLabel}</span>
+            <button className="btn btn-ghost btn-sm" onClick={() => nav("inbox")}>Text it, then open the Inbox <Icon name="arrow-right" size={10} /></button>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+};
+
+window.SetupRows = SetupRows;
+window.SetupTry = SetupTry;

@@ -1,4 +1,5 @@
 import { agoShort as spanAgo } from "./time";
+import { FINISH_SETTING_UP } from "./first-run";
 import { firstLine } from "./push";
 /**
  * The bell: what needs the owner, from what the browser already holds.
@@ -331,7 +332,9 @@ const SERVER_LOOK: Record<string, { icon: string; tone: "" | "ok" | "warn"; acti
 
 /** The verb for a row that names its own route; the kind's verb otherwise. */
 const ROUTE_VERBS: Array<[RegExp, string]> = [
-  [/^admin\/setup/, "Open Setup"],
+  // Setup is the first run now (#/start); a row written before then still says admin/setup, and lands there too.
+  [/^admin\/setup/, FINISH_SETTING_UP],
+  [/^start/, FINISH_SETTING_UP],
   [/^admin\/integrations/, "Open Connections"],
   [/^admin\/workspace/, "Open Business"],
   [/^admin\/notifications/, "Open Notifications"],

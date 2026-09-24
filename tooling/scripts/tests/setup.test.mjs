@@ -9,7 +9,6 @@ import assert from "node:assert/strict";
 import {
   setupSteps,
   setupRoute,
-  shouldLandOnSetup,
   SETUP_STATE_WORDS,
   formatPhoneDisplay,
   agoWords,
@@ -139,7 +138,6 @@ test("an empty workspace: nothing answers, every row reads its true state, the f
     row: "facts",
     title: "Business facts",
   });
-  assert.equal(vm.line, "Setup · 0 of 9 · Business facts: start in business");
   assert.equal(vm.tryIt, null);
   for (const r of vm.rows) assert.equal(r.stateWords, SETUP_STATE_WORDS[r.state]);
 });
@@ -158,10 +156,8 @@ test("a workspace that answers everywhere: eight of nine — the kept number is 
     row: "keep",
     title: "The number you already have",
   });
-  assert.equal(vm.line, "Setup · 8 of 9 · The number you already have: set up forwarding");
   const kept = setupSteps({ ...live(), later: ["keep"] }, NOW);
   assert.equal(kept.next, null, "put off for later: nothing is left to press");
-  assert.equal(kept.line, null);
   assert.deepEqual(vm.tryIt, {
     voice: VOICE,
     voiceLabel: formatPhoneDisplay(VOICE),
@@ -341,7 +337,6 @@ test("calls only: the sentence says what is missing, and WhatsApp can now wait f
   const later = setupSteps({ ...dto, later: ["whatsapp", "keep"] }, NOW);
   assert.equal(row(later, "whatsapp").later, true);
   assert.equal(later.next, null, "rows put off for later leave nothing to press");
-  assert.equal(later.line, null);
   assert.equal(later.done, 7);
 });
 
@@ -371,7 +366,6 @@ test("later is a preference for optional rows only; a required row ignores it", 
     row: "line",
     title: "A line for calls and texts",
   });
-  assert.equal(vm.line, "Setup · 2 of 9 · A line for calls and texts: ask for a line");
 });
 
 test("a line that was asked for waits on us and says when; one that exists but is not active says so", () => {
@@ -592,9 +586,9 @@ test("the bell's verb follows the row's route: a setup row opens Setup, an unrou
   assert.deepEqual(
     rows.map((r) => [r.to, r.action]),
     [
-      ["admin/setup", "Open Setup"],
+      ["admin/setup", "Finish setting up"],
       ["today", "Open Today"],
-      ["admin/setup", "Open Setup"],
+      ["admin/setup", "Finish setting up"],
     ],
   );
   assert.equal(verbForRoute("inbox/th-1"), "Open the Inbox");
@@ -618,9 +612,8 @@ test("a first ask reaches the platform mailbox through the edge; a repeat does n
   // in mail-doors.test.mjs.
 });
 
-test("the primary verb belongs to the next row alone; mobile tabs keep their labels", () => {
-  const page = readCode("apps/dashboard/src/legacy/pages/setup.jsx");
-  assert.ok(page.includes('kind: vm.next && vm.next.row === r.id ? "primary" : "ghost"'));
+// Which row's verb is the one coral button is the caller's to name, and setup-page-activate.test.mjs presses it.
+test("mobile tabs keep their labels, and a row's sentence wraps on a phone", () => {
   const mobile = readRaw("apps/dashboard/src/legacy/styles/mobile.css");
   assert.ok(mobile.includes(".set-nav-row { grid-template-columns: auto auto; white-space: nowrap; flex: 0 0 auto; }"));
   assert.ok(
@@ -805,17 +798,11 @@ test("the wiring for lines: routes owner-only and rate-limited, the setup route 
   );
 });
 
-test("the landing rule: an owner whose receptionist answers nowhere lands on Setup once, from Today or nothing", () => {
+// The landing rule itself moved with the page it lands on: first-run.test.mjs, shouldLandOnFirstRun.
+test("the route a hash names, which the landing rule reads", () => {
   assert.equal(setupRoute(""), "today");
-  assert.equal(setupRoute("#/admin/setup"), "admin/setup");
+  assert.equal(setupRoute("#/start"), "start");
   assert.equal(setupRoute("#today"), "today");
-  assert.equal(shouldLandOnSetup("owner", false, "today", false), true);
-  assert.equal(shouldLandOnSetup("owner", false, "", false), true);
-  assert.equal(shouldLandOnSetup("owner", false, "inbox", false), false, "a deep link is respected");
-  assert.equal(shouldLandOnSetup("owner", false, "today", true), false, "once per session");
-  assert.equal(shouldLandOnSetup("owner", true, "today", false), false, "answering — Today is the page");
-  assert.equal(shouldLandOnSetup("operator", false, "today", false), false, "only the owner is sent to Setup");
-  assert.equal(shouldLandOnSetup(null, false, "today", false), false);
 });
 
 test("the words: four states, no jargon, no trade", () => {
@@ -836,31 +823,15 @@ test("the words: four states, no jargon, no trade", () => {
   assert.doesNotMatch(words, /\$\d/, "no invented prices");
 });
 
-test("wiring: Settings tab, manifest, bridge, routes, registry, rate bucket, event kind, migration, Today line", () => {
-  const settings = readCode("apps/dashboard/src/legacy/pages/settings.jsx");
-  // First in the WORKSPACE group. Profile opens the rail now, because the
-  // first thing a person needs from settings is which account they are in —
-  // Setup is still the first thing they do TO the workspace.
-  assert.match(
-    settings,
-    /\{ id: "profile",[^\n]*group: "You" \},\s*\{ id: "setup",[^\n]*group: "Workspace" \}/,
-    "Setup is the first thing you do to the workspace",
-  );
-  assert.ok(
-    settings.includes('{active.id === "setup" && window.PaneSetup && <window.PaneSetup />}'),
-    "the pane is the page's component",
-  );
+// Setup left Settings for the first run (#/start): surface-registry.test.mjs holds its route and the old address's
+// move, and first-run-page.test.mjs draws it.
+test("wiring: manifest, bridge, routes, rate bucket, event kind, migration", () => {
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/manifest.ts").includes('import "@/legacy/pages/setup.jsx";'));
   const app = readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx");
   assert.ok(
     app.includes("installSetup();") &&
       /notificationsOverride,\s*setupOverride,\s*googleOverride,\s*billingOverride,?\s*\];/.test(app),
     "the surface boots with the rest",
-  );
-  const reg = readCode("apps/dashboard/src/legacy-bridge/surface-registry.ts");
-  assert.ok(
-    reg.includes('"admin/setup": "real",') && reg.includes('"admin/setup": "setup",'),
-    "the route waits for its surface",
   );
   assert.ok(
     readCode("apps/dashboard/src/server/rate-limit.ts").includes(
@@ -874,14 +845,7 @@ test("wiring: Settings tab, manifest, bridge, routes, registry, rate bucket, eve
       bridge.includes('globals: ["__SETUP"]') &&
       bridge.includes('events: ["surface:setup"]'),
   );
-  assert.ok(
-    bridge.includes("chanlytics.setup.later.") && bridge.includes("chanlytics.setup.landed"),
-    "later is a preference on this device; landing is once per session",
-  );
-  assert.ok(
-    bridge.includes("shouldLandOnSetup(s.role, s.vm.readiness.answering, setupRoute(win.location.hash), landed)"),
-    "the landing rule is the contracts' rule",
-  );
+  // A row put off is the member's, and the landing is once a session: setup-later.test.mjs runs both.
   // One assembly, two callers: the workspace reads its own on the session
   // client, the back office reads another's on the service client. The route
   // is now four lines and the pins live where the work does.
@@ -927,16 +891,11 @@ test("wiring: Settings tab, manifest, bridge, routes, registry, rate bucket, eve
     "testid={`setup-row-${r.id}`}",
     'ctaTestid="setup-verb"',
     "testid: `setup-later-${r.id}`",
-    'data-testid="setup-next"',
     'window.canDo("approve")',
-    "window.PaneSetup = PaneSetup;",
+    "window.SetupRows = SetupRows;",
   ])
     assert.ok(page.includes(pin), pin);
-  const brief = readCode("apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx");
-  assert.ok(
-    brief.includes('data-testid="brief-setup"') && brief.includes("<SetupLine nav={nav} />"),
-    "Today carries the one line",
-  );
+  // Today's card of what is left to set up is drawn and pressed in today-doors.test.mjs.
   assert.ok(readCode("packages/contracts/src/index.ts").includes('export * from "./setup";'));
 });
 

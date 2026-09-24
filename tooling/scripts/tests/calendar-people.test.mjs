@@ -981,7 +981,7 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
   );
   const shell = readCode("apps/dashboard/src/legacy/pages/app-shell.jsx");
   assert.ok(
-    shell.includes('if (retiredTo) window.location.hash = "/" + retiredTo;'),
+    shell.includes('if (retiredTo) window.location.replace("#/" + retiredTo);'),
     "a real workspace lands on People",
   );
   // Booked was a stat card above the table as well as a list on the rail; the rail keeps it.
