@@ -1205,6 +1205,21 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 .tq-head > button, .td-day-head > button { grid-column: 2; grid-row: 1 / span 2; align-self: start; }
 .tq-live { padding: 10px 18px; }
 .tq-foot, .tq-failed, .tq-empty { padding-left: 18px; padding-right: 18px; }
+/* The queue, compact (as the setup card above it, canvas R10): one head line -- the title, what the rows hold beside
+   it, Open Inbox a quiet link at the right -- rows with less air, and an empty queue's mark beside its words, inside
+   the card's gutter. */
+.today-queue .tq-head { grid-template-columns: auto minmax(0, 1fr) auto; align-items: baseline; column-gap: 8px; padding: 12px 18px 6px; }
+.today-queue .tq-title, .today-queue .tq-sub { grid-column: auto; }
+.today-queue .tq-sub { font-size: 12.5px; }
+.today-queue .tq-head > .tq-open { grid-column: 3; grid-row: 1; align-self: baseline; }
+.tq-open {
+  padding: 0; border: 0; background: none; font: inherit; font-size: 12.5px; color: var(--ink-dim); white-space: nowrap;
+  text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; cursor: pointer;
+}
+.tq-open:hover { color: var(--ink); }
+.tq-open:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+:where(.dash-a-v2) .today-queue .cl-attn-row { gap: 4px; padding: 10px 18px; }
+:where(.dash-a-v2) .today-queue .empty-line { flex-wrap: nowrap; align-items: baseline; gap: 8px; padding: 4px 18px 12px; }
 
 /* The day's rows: a wider time column, and air between them. */
 .td-frame { padding: 12px 18px 14px; gap: 12px; }
