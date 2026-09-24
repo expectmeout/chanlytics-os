@@ -143,3 +143,42 @@ their tests.
   suite.
 - [ ] Look at the Business tab for a business that quotes, with no link, on the probe.
 - [ ] One review round and one fix round. Merge main, open the PR, watch CI, squash-merge, check main's run.
+
+## As built (24 September 2026)
+
+Tasks 1 to 5 as planned. Task 6's look on the probe was skipped: nothing about a page's layout changed, and the page
+tests draw the real Business tab and create card and assert every word this PR changed. Then one whole-branch review
+(standards and spec) and one fix round.
+
+**Fixed in the review round.**
+- **Words that still assumed a link:**
+  - the cannot-do rows ("Your booking link does that", and the texting row's WhatsApp sentence): `cannotRows` takes a
+    required `hasBookingLink`;
+  - the booking rules fold's hint and the calendar fold's note;
+  - the create fold's hint, which said the link was one of "the three things it cannot answer anyone without";
+  - the Calendar page's four sentences, by the view model's `bookingLink`;
+  - Ask's glossary line and its calendar tool's note.
+- **"It cannot answer anyone yet."** A business that quotes, with no link and nothing else yet, was told this. It
+  answers: the standing line says "how to get a quote" where the link would have said "how to book".
+- **The price clause with no link** says "It offers a consult, or takes their details, instead of a price", as a
+  call's correction does since 3b.
+- **The earlier default messages with no link.** A workspace set up before this PR holds the earlier wording, which
+  reads as half a message with no link. `fallbackMessages` sends today's wording in its place when there is no link,
+  so whatever path removed the link, a customer is never sent the dangling greeting; an owner's own words are never
+  swapped.
+- **The Inbox's refusal with no template facts** asks for the business name alone: the link is asked only by a
+  template that sends one.
+- **One predicate each:**
+  - `bookingLinkOptional` is `dealsAreOn`'s answer;
+  - `standingLine`, the abilities and the cannot-do rows ask `offersBookingLink`;
+  - `bookingLinkRowWords` takes the answer;
+  - one `btPatchBrain(key)` for the two keys an emptied box removes;
+  - the page reads the answer once through `__businessTabSave.answer()` and `answerOf(draft)`;
+  - one builder for the two rules sentences.
+- **The pages degrade without the bridge:** with no `__businessTab`, the link check asks nothing, as the schema checks
+  do.
+- **The rules sentence** is judged on the brain the save goes on (`on`), as `composes` is.
+- **`EARLIER_FALLBACK_DEFAULTS`** is built in a call marked pure, so the bundles that never use it drop it.
+- **The mockup's bridge bundle** (`data/business-tab.js`) is version-bumped with the new keys.
+- **The create card's first-time path** is tested: a new workspace choosing "Some get a proposal first" in the fold
+  saves with no link.

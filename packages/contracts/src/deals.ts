@@ -77,13 +77,14 @@ export function dealsAreOn(sellsBy: string | null | undefined): boolean {
  * and a receptionist with no link is read and answered either way (no-booking-link.ts).
  */
 export function bookingLinkOptional(sellsBy: string | null | undefined): boolean {
-  return sellsBy === "proposal";
+  // The one answer that turns deals on: a business that quotes.
+  return dealsAreOn(sellsBy);
 }
 
 /**
  * What a page says when a business that is asked for a booking link leaves it empty: the Business tab's own check
- * (business-tab-save.jsx btCheckBookingLink, which reads it through the bridge) and the first run's Check. Said as what
- * the link is for, since a receptionist with none is still read and answered.
+ * (business-tab-save.jsx btCheckBookingLink, which reads it through the bridge). Said as what the link is for, since a
+ * receptionist with none is still read and answered.
  */
 export const BOOKING_LINK_NEEDED = "The receptionist needs a booking link to send anyone who wants to book.";
 

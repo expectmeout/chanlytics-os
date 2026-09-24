@@ -1703,13 +1703,13 @@ export const FALLBACK_DEFAULTS: BrainConfig["fallbacks"] = {
  * Workspaces set up with it keep it, since a stored message is theirs to change:
  * it is never said to be their own words, or offered the default wording back.
  */
-export const EARLIER_FALLBACK_DEFAULTS: BrainConfig["fallbacks"] = {
+export const EARLIER_FALLBACK_DEFAULTS: BrainConfig["fallbacks"] = /* @__PURE__ */ (() => ({
   greeting:
     "Hi! Thanks for reaching out to {business}.\n\nBook anytime: {booking link}\n\nOr reply here with any question.",
   error:
     "Thanks for reaching out to {business}! Book anytime: {booking link} — or a member of our team will reply here soon.",
   non_text: FALLBACK_DEFAULTS.non_text,
-};
+}))();
 
 /**
  * Whether a message is in the product's wording, today's or the earlier one: the one test the Business tab's line
@@ -1763,8 +1763,17 @@ export function fallbackMessages(brain: BrainConfig, known?: KnownFacts | null):
     "booking link": facts.booking_link.value ?? brain.booking_link ?? null,
     phone: facts.phone_display.value,
   };
+  // The earlier wording leaned on the sentence naming the link, so with none it went out as half a message ("Or reply
+  // here with any question."): a workspace still holding it is sent today's wording in its place, which says the same
+  // in whole sentences. Its own words are never touched.
+  const own = (kind: keyof BrainConfig["fallbacks"]) => {
+    const stored = brain.fallbacks[kind];
+    return !values["booking link"] && stored.trim() === EARLIER_FALLBACK_DEFAULTS[kind]
+      ? FALLBACK_DEFAULTS[kind]
+      : stored;
+  };
   const say = (kind: keyof BrainConfig["fallbacks"]) =>
-    fillDetails(brain.fallbacks[kind], values) || fillDetails(FALLBACK_DEFAULTS[kind], values);
+    fillDetails(own(kind), values) || fillDetails(FALLBACK_DEFAULTS[kind], values);
   return { greeting: say("greeting"), error: say("error"), non_text: say("non_text") };
 }
 

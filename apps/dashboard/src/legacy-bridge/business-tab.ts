@@ -67,6 +67,7 @@ import {
   bookingLinkOptional,
   bookingLinkRowWords,
   BOOKING_LINK_NEEDED,
+  offersBookingLink,
   type PromptBlockVM,
   type ProfileCrossing,
   type BusinessProfile,
@@ -355,6 +356,7 @@ export const BUSINESS_TAB = {
   bookingLinkOptional,
   bookingLinkRowWords,
   BOOKING_LINK_NEEDED,
+  offersBookingLink,
 };
 export type BusinessTabHelpers = typeof BUSINESS_TAB;
 

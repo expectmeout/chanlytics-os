@@ -590,8 +590,8 @@ const BT_PROBLEMS_OF = {
     const found = {};
     const name = C.name(d.name);
     if (name) found.name = name;
-    // By the answer chosen in the fold, else the workspace's: a business that quotes is not asked for a link.
-    const link = C.booking_link(d.link, d.sells_by || (window.btSellsByNow ? window.btSellsByNow() : null));
+    // By the answer the fold stands on: a business that quotes is not asked for a link.
+    const link = C.booking_link(d.link, window.__businessTabSave.answerOf(d));
     if (link) found.link = link;
     return found;
   },

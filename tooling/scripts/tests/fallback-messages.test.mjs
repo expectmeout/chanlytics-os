@@ -127,3 +127,28 @@ test("the product's wording reads right with no booking link and offers the link
     "never told it wrote its own",
   );
 });
+
+test("a workspace still holding the earlier wording, with no booking link, is sent today's wording in its place; with a link, as stored; and an owner's own words are never swapped", () => {
+  const held = {
+    business_name: "Harbor Moving",
+    system_prompt: "Answer as the front desk of Harbor Moving, which quotes each move before it is booked.",
+    fallbacks: { ...EARLIER_FALLBACK_DEFAULTS },
+  };
+  const none = fallbackMessages(held, null);
+  assert.equal(none.greeting, "Hi! Thanks for reaching out to Harbor Moving.\n\nReply here with any question.");
+  assert.equal(none.error, "Thanks for reaching out to Harbor Moving! A member of our team will reply here soon.");
+  const linked = fallbackMessages({ ...held, booking_link: "https://book.example/harbor" }, null);
+  assert.equal(
+    linked.greeting,
+    "Hi! Thanks for reaching out to Harbor Moving.\n\nBook anytime: https://book.example/harbor\n\nOr reply here with any question.",
+    "with a link the earlier wording reads whole, and is what they hold",
+  );
+  const own = fallbackMessages(
+    {
+      ...held,
+      fallbacks: { ...held.fallbacks, greeting: "Hello from the movers! Book: {booking link}\n\nOr ask us here." },
+    },
+    null,
+  );
+  assert.equal(own.greeting, "Hello from the movers!\n\nOr ask us here.");
+});

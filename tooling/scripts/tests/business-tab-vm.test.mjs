@@ -844,7 +844,7 @@ test("each half of a hand-off opens the row that supplies it: the transfer numbe
 /* ---- What it cannot do ---- */
 
 test("what it cannot do is stated, and is not a setting", () => {
-  const rows = cannotRows({ smsLive: false });
+  const rows = cannotRows({ smsLive: false, hasBookingLink: true });
   const ids = rows.map((r) => r.id);
   assert.deepEqual(ids, ["book", "outbound_call", "sms"]);
   assert.match(rows[0].detail, /no appointments table/i);
@@ -856,7 +856,7 @@ test("a text message is not listed as something it cannot do once texting is liv
   // Texting goes live on an active carrier line that is not a rehearsal filing
   // (capabilities.ts). On such a line "not part of what is sold yet" is not true.
   assert.deepEqual(
-    cannotRows({ smsLive: true }).map((r) => r.id),
+    cannotRows({ smsLive: true, hasBookingLink: true }).map((r) => r.id),
     ["book", "outbound_call"],
   );
   // Left out by an untyped caller, it would quietly read as not live.
@@ -1508,20 +1508,27 @@ test("a message that writes a detail out instead of naming it is found, link fir
   );
 });
 
-test("a business that quotes, with no booking link, is told of no missing link; with no link its price clause offers a consult alone; with a link every word is as it was", () => {
+test("a business that quotes, with no booking link, is told of no missing link and says how to get a quote; with no link its price clause takes their details; with a link every word is as it was", () => {
   const quotes = { ...full, booking_link: undefined };
   const s = standingLine(quotes, false, "proposal");
   assert.equal(s.missing, null, "it has none by right (the first run's decision 2), and nothing else is missing");
   assert.doesNotMatch(s.can, /how to book/);
-  assert.equal(s.wont, "It offers a consult instead of a price.");
+  assert.match(s.can, /and how to get a quote\.$/, "it answers: it takes their details for a quote");
+  assert.equal(
+    standingLine({ business_name: "Harbor Moving" }, false, "proposal").can,
+    "It can say how to get a quote.",
+    "never 'cannot answer anyone yet' just after the create card",
+  );
+  assert.equal(s.wont, "It offers a consult, or takes their details, instead of a price.");
   assert.equal(
     standingLine(quotes, true, "proposal").wont,
-    "It offers a consult instead of a price — in chat before the reply is sent, on a call caught afterwards rather than prevented.",
+    "It offers a consult, or takes their details, instead of a price — in chat before the reply is sent, on a call caught afterwards rather than prevented.",
   );
   for (const answer of ["booking", null]) {
     const asked = standingLine(quotes, false, answer);
     assert.equal(asked.missing.row, "booking_link", `one that books, or has not said, is missing it (${answer})`);
-    assert.equal(asked.wont, "It offers a consult instead of a price.");
+    assert.doesNotMatch(asked.can, /how to book|how to get a quote/, String(answer));
+    assert.equal(asked.wont, "It offers a consult, or takes their details, instead of a price.");
   }
   for (const answer of ["booking", "proposal", null])
     assert.equal(standingLine(full, false, answer).wont, "It offers a consult or the booking link instead of a price.");
@@ -1551,4 +1558,22 @@ test("the rules fold over a stored prompt names the no-link rule where there is 
     rulesWithoutFieldsWords({}),
     `${NO_FIELDS_COMPOSED_WORDS} These four switches change nothing it is told: it answers from its own stored instructions, followed only by what to do with no booking link and any rules your Autonomy tab adds.`,
   );
+});
+
+test("with no booking link, the two rows that lean on one say what does the work instead; the rest are as they were", () => {
+  const detail = (hasBookingLink) =>
+    Object.fromEntries(cannotRows({ smsLive: false, hasBookingLink }).map((r) => [r.id, r.detail]));
+  const linked = detail(true);
+  const none = detail(false);
+  assert.match(linked.book, /Your booking link does that, whichever tool is behind it\.$/);
+  assert.equal(
+    none.book,
+    "Not a setting you could switch on. There is no appointments table in this product — nothing in it can create, move or cancel one. Your team does that, from the details it takes.",
+  );
+  assert.equal(
+    none.sms,
+    "Not part of what is sold yet. It arrives with a line the carriers have approved, and Connections will say when.",
+  );
+  assert.equal(none.outbound_call, linked.outbound_call, "a row that leans on no link is as it was");
+  assert.throws(() => cannotRows({ smsLive: false }), TypeError, "whether there is a link is required, as smsLive is");
 });

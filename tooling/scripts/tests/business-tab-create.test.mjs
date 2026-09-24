@@ -523,3 +523,31 @@ test("a business that quotes sets up its receptionist with no booking link, and 
   }
   assert.equal(sent.length, 1, "and neither was sent");
 });
+
+test("a new workspace that chooses 'Some get a proposal first' in the fold sets up with no booking link: the box says it is optional, the brain holds no key, and the answer follows", async () => {
+  const sent = saving();
+  const patched = courier();
+  try {
+    let tree = drawCreate({ line: "+13055550123" });
+    setUp(tree);
+    tree = redrawCreate();
+    typeIn(tree, "rec-create-name", "Harbor Moving");
+    tree = redrawCreate();
+    assert.match(
+      textOf(byTestId(tree, "rec-create-link")),
+      /Sent instead of confirming an appointment itself/,
+      "not said yet: asked for one",
+    );
+    press(answersIn(tree).find((r) => labelOf(r) === "Some get a proposal first"));
+    tree = redrawCreate();
+    assert.match(textOf(byTestId(tree, "rec-create-link")), /Optional for a business that quotes/);
+    save(tree);
+    await settle();
+    tree = redrawCreate();
+    assert.equal(sent.length, 1, wrongIn(tree, "rec-create-link") ?? "sent");
+    assert.equal(Object.prototype.hasOwnProperty.call(sent[0].config.brain, "booking_link"), false);
+    assert.deepEqual(patched, [{ sells_by: "proposal" }]);
+  } finally {
+    delete W.__workspace;
+  }
+});

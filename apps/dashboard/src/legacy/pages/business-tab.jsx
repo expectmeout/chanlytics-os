@@ -60,7 +60,7 @@ const BtStanding = ({ brain, door }) => {
   if (!tab || !tab.standingLine) return null;
   const voice = ((window.__FACTS || {}).facts || {}).voice_line;
   // With how customers buy, which decides whether a missing booking link is a gap (the first run's decision 2).
-  const vm = tab.standingLine(brain, !!(voice && voice.value), window.btSellsByNow ? window.btSellsByNow() : null);
+  const vm = tab.standingLine(brain, !!(voice && voice.value), window.__businessTabSave.answer());
   const gap = vm.missing;
   return (
     <section className="bt-standing" data-testid="rec-standing" data-state={gap ? "warn" : "ok"}>

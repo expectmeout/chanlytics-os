@@ -179,6 +179,7 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     "isProductFallback",
     "needsConsultation",
     "notesWords",
+    "offersBookingLink",
     "openWeekWords",
     "profileCrossing",
     "profileRefusal",
@@ -223,8 +224,8 @@ test("the bridge publishes the tab's view models, and each says what contracts s
   // Who is asked for a booking link, by that answer (the first run's decision 2), and what the link row says either way.
   for (const answer of [null, "booking", "proposal"])
     assert.equal(tab.bookingLinkOptional(answer), bookingLinkOptional(answer), String(answer));
-  for (const optional of [true, false])
-    assert.deepEqual(tab.bookingLinkRowWords(optional), bookingLinkRowWords(optional));
+  for (const answer of [null, "booking", "proposal"])
+    assert.deepEqual(tab.bookingLinkRowWords(answer), bookingLinkRowWords(answer));
   assert.equal(tab.BOOKING_LINK_NEEDED, BOOKING_LINK_NEEDED);
   // The prompt sheet's: who reads it, what is sent beside it, and what a block costs, each contracts' own.
   assert.deepEqual(tab.PROMPT_READERS, PROMPT_READERS);
@@ -310,7 +311,9 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     replyMode: "auto",
   };
   assert.deepEqual(tab.abilityRows(inputs), abilityRows(inputs));
-  for (const smsLive of [false, true]) assert.deepEqual(tab.cannotRows({ smsLive }), cannotRows({ smsLive }));
+  for (const smsLive of [false, true])
+    for (const hasBookingLink of [false, true])
+      assert.deepEqual(tab.cannotRows({ smsLive, hasBookingLink }), cannotRows({ smsLive, hasBookingLink }));
   const policies = [null, { booking: { mode: "auto" } }, POLICY];
   assert.deepEqual(
     policies.map((p) => tab.bookingHeld(p)),

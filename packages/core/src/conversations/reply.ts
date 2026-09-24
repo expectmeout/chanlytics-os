@@ -313,7 +313,7 @@ export async function replyToConversation(ports: ReplyPorts, cmd: ReplyCommand):
     if (!facts)
       throw new AppError(
         "validation",
-        "This workspace has no template facts configured yet. Add the business name and booking link in Settings › Business first.",
+        "This workspace has no template facts configured yet. Add the business name in Settings › Business first.",
       );
     const slots = inboxSlots(tpl);
     // A business that quotes each job has no link (the first run's decision 2). Its templates that name none still

@@ -144,9 +144,9 @@ const BtWho = ({ brain, base = null, canEdit, flash, saver }) => {
   const link = factOf("booking_link", brain.booking_link);
   // Whether this workspace is asked for a link at all, by how its customers buy (0008, the first run's decision 2): the
   // row's check, its empty state and its hint all follow the one answer.
-  const sellsNow = window.btSellsByNow ? window.btSellsByNow() : null;
-  const tab = window.__businessTab;
-  const linkWords = tab.bookingLinkRowWords(tab.bookingLinkOptional(sellsNow));
+  const sellsNow = S.answer();
+  const tab = window.__businessTab || {};
+  const linkWords = tab.bookingLinkRowWords ? tab.bookingLinkRowWords(sellsNow) : {};
   const line = F.voice_line || null;
   const voiceLine = (line && line.value) || "";
   const lineShown = phoneShown(voiceLine);

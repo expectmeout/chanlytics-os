@@ -404,7 +404,11 @@ test("full-fledged: month and agenda views, a date to jump to, windows that fit 
     tools.includes('name: "get_calendar"') &&
       /case "get_calendar":\s*out = await getCalendar\(t, run\.input\);\s*break;/.test(tools),
   );
-  assert.ok(tools.includes("Nothing is booked from here — the booking link does that."));
+  assert.ok(
+    tools.includes(
+      "Nothing is booked from here: customers book through the booking link, or with the team where there is none.",
+    ),
+  );
   assert.ok(
     /"?calendar"?:\s*"The owner's calendar as the receptionist reads it/.test(
       readCode("apps/dashboard/src/server/ask/prompt.ts"),

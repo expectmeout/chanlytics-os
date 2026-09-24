@@ -108,7 +108,7 @@ test("a workspace with both lines and an approved booking-link message is told t
 
 test("what it cannot do carries no switch", () => {
   const card = byTestId(drawTab({ profile: marisa }), "rec-card-cannot");
-  for (const c of cannotRows({ smsLive: false })) {
+  for (const c of cannotRows({ smsLive: false, hasBookingLink: true })) {
     const row = byTestId(card, `rec-cannot-${c.id}`);
     assert.ok(row, `${c.id} is drawn`);
     assert.equal(
