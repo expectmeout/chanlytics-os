@@ -5,7 +5,7 @@
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { FIRST_RUN_HELPERS, setupSteps } from "@chanlytics/contracts";
+import { FIRST_RUN_HELPERS, setupSteps, PROFILE_LIMITS, profileRefusal } from "@chanlytics/contracts";
 import { again, unmount, settle, all, byTestId, textOf, press } from "./_legacy-react.mjs";
 import { W, saving, settings, facts, typeInto, saveRow } from "./_business-tab-harness.mjs";
 
@@ -255,9 +255,16 @@ test("a mover is offered what a mover offers: a tap adds the service through the
   assert.equal(chip(tree, "services", "Local move").props["aria-pressed"], true, "on the config the next save goes on");
 });
 
-test("a tap on a chip that is on takes the service out, and the toast's Undo puts it back where it was, whole", () => {
+test("a tap on a chip that is on takes out every service of its name, and the toast's Undo puts each back where it was, whole", () => {
   const sent = saving();
-  const listed = { ...HARBOR, services: [{ name: "Local move", duration_min: 180 }, { name: "Packing" }] };
+  const listed = {
+    ...HARBOR,
+    services: [
+      { name: "Local move", duration_min: 180, price_note: "From $400" },
+      { name: "Packing" },
+      { name: "local move" },
+    ],
+  };
   const tree = draw({ profile: listed });
   assert.equal(chip(tree, "services", "Local move").props["aria-pressed"], true);
   press(chip(tree, "services", "Local move"));
@@ -267,8 +274,8 @@ test("a tap on a chip that is on takes the service out, and the toast's Undo put
   said.undo();
   assert.deepEqual(
     sent.at(-1).config.brain.profile.services,
-    [{ name: "Local move", duration_min: 180 }, { name: "Packing" }],
-    "back at its place, with what it held",
+    listed.services,
+    "back at their places, with what they held",
   );
 });
 
@@ -290,24 +297,53 @@ test("+ Your own opens the services sheet", () => {
   assert.ok(byTestId(tree, "rec-sheet-services"));
 });
 
-test("a role that may not change the business reads the chips and cannot press them; a full list adds nothing, and says why", () => {
+test("a role that may not change the business sees the chips gated, a press saying why, and no way to the editors", () => {
   const sent = saving();
-  const was = W.canDo;
+  const was = { canDo: W.canDo, gate: W.gate };
+  const told = [];
   W.canDo = (a) => a !== "settings";
+  W.gate = (perm, doing) => (perm === "settings" ? { "aria-disabled": true, onClick: () => told.push(doing) } : {});
   try {
     const tree = draw();
     const c = chip(tree, "services", "Packing");
     assert.equal(c.props["aria-disabled"], true);
     press(c);
+    press(chip(tree, "languages", "Spanish"));
     assert.equal(sent.length, 0);
+    assert.deepEqual(
+      told,
+      ["change your services", "change the languages it speaks"],
+      "the gate's own press, which says why",
+    );
+    assert.equal(byTestId(tree, "fr-chip-own-service"), null);
+    assert.equal(byTestId(tree, "fr-chip-other-language"), null);
   } finally {
-    W.canDo = was;
+    Object.assign(W, was);
   }
-  const full = { ...HARBOR, services: Array.from({ length: 60 }, (_, i) => ({ name: `Service ${i + 1}` })) };
-  const tree = draw({ profile: full });
+});
+
+test("at what the profile keeps, no chip that is off is offered: the ones on stay, over the cap's own sentence", () => {
+  const sent = saving();
+  const many = Array.from({ length: PROFILE_LIMITS.services - 1 }, (_, i) => ({ name: `Service ${i + 1}` }));
+  const tree = draw({ profile: { ...HARBOR, services: [...many, { name: "Packing" }] } });
+  const drawn = all(byTestId(tree, "fr-chips-services"), (n) => n.props && n.props["aria-pressed"] !== undefined);
+  assert.deepEqual(drawn.map(textOf), ["Packing"]);
+  assert.equal(textOf(byTestId(tree, "fr-chips-services-full")), profileRefusal("services"));
   press(chip(tree, "services", "Packing"));
-  assert.equal(sent.length, 0, "nothing past what the profile keeps");
-  assert.equal(textOf(flashes.at(-1).msg), "The receptionist keeps no more services. Take one out first.");
+  assert.deepEqual(sent.at(-1).config.brain.profile.services, many, "one that is on still takes one out");
+});
+
+test("+ Other's editor, opened over languages the record has, closes on a Save with nothing typed, as a row's does", () => {
+  const sent = saving();
+  // A hand-edited list the editor's own check would refuse: judged, the untouched Save would say so and stay open.
+  let tree = draw({ profile: { ...HARBOR, languages: ["English", "X"] } });
+  press(byTestId(tree, "fr-chip-other-language"));
+  tree = redraw();
+  assert.equal(byTestId(tree, "rec-fold-languages").props["data-open"], "true");
+  press(byTestId(tree, "rec-fold-save-languages"));
+  tree = redraw();
+  assert.equal(byTestId(tree, "rec-fold-languages").props["data-open"], "false", "closed");
+  assert.equal(sent.length, 0);
 });
 
 test("a business Google lists no kind for is offered no services, and still the languages", () => {

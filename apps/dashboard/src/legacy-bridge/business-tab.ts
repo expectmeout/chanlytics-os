@@ -69,6 +69,7 @@ import {
   BOOKING_LINK_NEEDED,
   offersBookingLink,
   COMMON_LANGUAGES,
+  sameListed,
   type PromptBlockVM,
   type ProfileCrossing,
   type BusinessProfile,
@@ -279,7 +280,8 @@ export function saveIssues(part: unknown): Array<{ path: Array<string | number>;
 // the share it draws a block's cost by, promptCostWords (the exact count, for its description only), promptTotalWords,
 // PROMPT_READERS (who reads it, per channel) and PROMPT_NOW (what is sent beside it, and why it is apart).
 // needsConsultation and foldName are the rules the services sheet marks a consult-first service by and searches by: the
-// Calendar's and the phone tool's own, not copies.
+// Calendar's and the phone tool's own, not copies. sameListed is whether two names are one, which the languages box asks
+// as the first run's chips do.
 // bookingRuleRefusal is a booking rule's sentence for a number outside its range (business-tab-folds.jsx problemsOf),
 // and PROFILE_LIMITS with profileRefusal are the SAME pair for every other cap a fold holds: the most of each thing
 // the save would take, read off the schema, and the sentence written from that one number. The page held both, so
@@ -359,6 +361,7 @@ export const BUSINESS_TAB = {
   BOOKING_LINK_NEEDED,
   offersBookingLink,
   COMMON_LANGUAGES,
+  sameListed,
 };
 export type BusinessTabHelpers = typeof BUSINESS_TAB;
 

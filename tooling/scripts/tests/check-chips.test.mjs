@@ -11,6 +11,8 @@ import {
   COMMON_LANGUAGES,
   PROFILE_LIMITS,
   foldName,
+  sameListed,
+  profileRefusal,
 } from "@chanlytics/contracts";
 
 test("a kind of place suggests what such a business usually offers; a near kind shares its list; one we do not know suggests nothing", () => {
@@ -44,7 +46,7 @@ test("the chips: a suggestion is on when a service of its name is listed, howeve
     languages: ["Spanish", "Tagalog"],
   });
   assert.deepEqual(
-    chips.services.slice(0, 3),
+    chips.services.chips.slice(0, 3),
     [
       { name: "Local move", on: true },
       { name: "Long-distance move", on: false },
@@ -53,31 +55,48 @@ test("the chips: a suggestion is on when a service of its name is listed, howeve
     "the same name, by the one rule (foldName)",
   );
   assert.deepEqual(
-    chips.languages.map((l) => [l.name, l.on]),
-    [
-      ["English", false],
-      ["Spanish", true],
-      ["Portuguese", false],
-      ["French", false],
-      ["Haitian Creole", false],
-      ["Mandarin", false],
-      ["Tagalog", true],
-    ],
-    "the first few common ones, and a chosen one the list does not name",
+    chips.languages.chips.map((l) => [l.name, l.on]),
+    [...COMMON_LANGUAGES.map((l) => [l, l === "Spanish"]), ["Tagalog", true]],
+    "every common one, and a chosen one the list does not name",
   );
-  assert.deepEqual([chips.servicesFull, chips.languagesFull], [false, false]);
+  assert.deepEqual([chips.services.full, chips.languages.full], [null, null]);
   assert.deepEqual(COMMON_LANGUAGES.slice(0, 2), ["English", "Spanish"]);
 });
 
-test("a list the profile keeps no more of is full: nothing off is offered to add", () => {
-  const many = Array.from({ length: PROFILE_LIMITS.services }, (_, i) => ({ name: `Service ${i + 1}` }));
-  const langs = COMMON_LANGUAGES.slice(0, PROFILE_LIMITS.languages);
-  const chips = checkChipsOf({ type: "plumber", services: many, languages: langs });
-  assert.deepEqual([chips.servicesFull, chips.languagesFull], [true, true]);
+test("a name is the same name however it is written: accents, case and the space around it are not the name", () => {
+  assert.equal(sameListed("Haitian Créole", " haitian creole "), true);
+  assert.equal(sameListed("Español", "espanol"), true);
+  assert.equal(sameListed("Spanish", "Español"), false, "a translation is another name");
+  assert.equal(sameListed("", " "), false, "no name is no name");
+  const twice = checkChipsOf({ type: null, services: null, languages: ["Tagalog", " tagalog", "Haitian Créole"] });
+  assert.deepEqual(
+    twice.languages.chips.filter((c) => c.on).map((c) => c.name),
+    ["Haitian Creole", "Tagalog"],
+    "a chosen language is one chip, however often and however it is written",
+  );
+});
+
+test("at what the profile keeps, none that is off is offered to add: the ones on stay, and the cap's sentence stands for the rest", () => {
+  const many = Array.from({ length: PROFILE_LIMITS.services - 1 }, (_, i) => ({ name: `Service ${i + 1}` }));
+  const langs = [...COMMON_LANGUAGES.slice(0, PROFILE_LIMITS.languages - 1), "Tagalog"];
+  const chips = checkChipsOf({ type: "moving_company", services: [...many, { name: "Packing" }], languages: langs });
+  assert.deepEqual(chips.services, { chips: [{ name: "Packing", on: true }], full: profileRefusal("services") });
+  assert.deepEqual(chips.languages, {
+    chips: langs.map((name) => ({ name, on: true })),
+    full: profileRefusal("languages"),
+  });
+  // Nothing held back, nothing to stand for: every suggestion is on, or there are none.
+  const every = serviceSuggestionsOf("moving_company").map((name) => ({ name }));
+  const filled = [...many.slice(0, PROFILE_LIMITS.services - every.length), ...every];
+  assert.equal(checkChipsOf({ type: "moving_company", services: filled, languages: [] }).services.full, null);
+  assert.deepEqual(checkChipsOf({ type: null, services: [...many, { name: "Packing" }], languages: [] }).services, {
+    chips: [],
+    full: null,
+  });
   const none = checkChipsOf({ type: null, services: null, languages: null });
-  assert.deepEqual(none.services, [], "no kind, no suggestions");
+  assert.deepEqual(none.services, { chips: [], full: null }, "no kind, no suggestions");
   assert.equal(
-    none.languages.every((l) => !l.on),
+    none.languages.chips.every((l) => !l.on),
     true,
   );
 });

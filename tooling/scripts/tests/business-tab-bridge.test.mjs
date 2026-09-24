@@ -61,6 +61,7 @@ import {
   bookingLinkRowWords,
   BOOKING_LINK_NEEDED,
   COMMON_LANGUAGES,
+  sameListed,
 } from "@chanlytics/contracts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -191,6 +192,7 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     "ruleStrength",
     "rulesKept",
     "rulesWithoutFieldsWords",
+    "sameListed",
     "saveIssues",
     "sellsBySaved",
     "sellsByVM",
@@ -300,6 +302,13 @@ test("the bridge publishes the tab's view models, and each says what contracts s
       name,
     );
   assert.equal(tab.foldName("Uñas de Gel"), foldName("Uñas de Gel"));
+  // The languages box's test of one language, and the first run's chips': contracts' one rule.
+  for (const [a, b] of [
+    ["Haitian Créole", " haitian creole"],
+    ["Spanish", "Español"],
+    ["", ""],
+  ])
+    assert.equal(tab.sameListed(a, b), sameListed(a, b), `${a} / ${b}`);
   const inputs = {
     voiceLive: true,
     whatsappLive: true,

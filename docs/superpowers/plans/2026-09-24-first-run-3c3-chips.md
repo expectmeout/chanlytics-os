@@ -84,3 +84,40 @@ words); `tooling/scripts/tests/service-suggestions.test.mjs`.
 - [ ] Bump `?v=`; rebuild the dists; typecheck, lint, format:check, the route types and the whole suite.
 - [ ] Look at the chips on the probe, desktop and phone.
 - [ ] One review round and one fix round. Merge main, open the PR, watch CI, squash-merge, check main's run.
+
+## As built (24 September 2026)
+
+Tasks 1 to 5 as planned, with these differences:
+- **The module is `check-chips.ts`**, not `service-suggestions.ts`. It holds the suggestions and the chips' view model
+  (`checkChipsOf`) together, and `first-run.ts` publishes the builder (`FIRST_RUN_HELPERS.chips`). Its test is
+  `check-chips.test.mjs`.
+- **More of Google's near kinds share a list** than the plan's four: `hair_care`, `beautician`, `massage`,
+  `massage_spa`, `dental_clinic`, `medical_clinic`, `medical_center`, `gym` and `pet_boarding_service`.
+- **The language chips stand in the languages row's place** (BtFold's `rest`), since they name every language the
+  record holds. The service chips sit under the services row, which also counts the services no chip names.
+
+**Fixed in the review round** (one whole-branch review, standards and spec, then one fix round):
+- **One test of "the same name" on a list:** `sameListed` (availability.ts, beside `foldName`). The chips and the
+  Business tab's languages box both ask it, the box through the bridge. The box compared trimmed, lower-cased words,
+  so a language stored as "Haitian Créole" turned the chip "Haitian Creole" on while the box still offered it.
+  facts.ts `sameName` stays the business name's test, which lets punctuation go too.
+- **A chip saves as the tab's own editor saves its list:** the fold's draft as the next save finds it (`draftOf`),
+  sent as the fold's one job (`foldJob`). That job writes the list with the tab's writers and refuses to go when the
+  list moved under it. A removal takes out every row of that name, and its Undo puts each back at its place, whole.
+- **The chips are gated** with `window.gate("settings", …)`. A role that may not change the business sees them and is
+  told why at the press; "+ Your own" and "+ Other" stay out of its sight.
+- **At the cap, no chip that is off is drawn.** The ones on stay, over contracts' sentence for the cap
+  (`profileRefusal`), and the first run's own words for it are gone.
+- **Every common language is a chip** (the plan's "the common ones"), not the first six.
+- **A chip that is on is outlined in ink**, with its tick, as canvas R2 draws it; it was filled.
+- **BtFold's `rest` no longer marks a fold whose row holds its fact as stating nothing.** "+ Other"'s editor, opened
+  over languages the record has, closes on an untouched Save, as a row's does. The create card's (no fact in its row)
+  is judged as before.
+- **The beauty salon's `trade-word:` note** names the beautician too, whom that list reaches.
+- **A listing whose facts say nothing gives no kind** (setup.test).
+- **Left as it is:**
+  - "Removed …" is the first run's word, in contracts, as every word on it is; the tab's pages keep their own inline.
+  - Each list's gate says what the tab's rows say ("change your services", "change the languages it speaks"), written
+    where the chips spread it, as every gate names its act.
+  - A tap refused because a colleague's save landed between the tap and its send says the fold's words ("Close it
+    and open it again").

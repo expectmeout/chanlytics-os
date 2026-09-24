@@ -174,10 +174,6 @@ export const FIRST_RUN_WORDS = {
       ownService: "+ Your own",
       otherLanguage: "+ Other",
       removed: (name: string) => `Removed ${name}`,
-      full: {
-        services: "The receptionist keeps no more services. Take one out first.",
-        languages: "The receptionist keeps no more languages. Take one out first.",
-      },
     },
   },
 } as const;

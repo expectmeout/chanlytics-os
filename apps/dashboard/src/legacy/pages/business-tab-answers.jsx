@@ -87,7 +87,13 @@ const BtaVoice = ({ draft, update, press, problems, readOnly }) => {
 
 // What the languages' box says where Add would be, once the list holds as many as the profile keeps (LIMITS.languages).
 const BTA_LANGUAGES_FULL = "That is the most languages it keeps. Remove one to add another.";
-const btaSameWord = (a, b) => String(a).trim().toLowerCase() === String(b).trim().toLowerCase();
+// Whether two languages are one, however written: contracts' one rule (sameListed, through the bridge), which the first
+// run's chips ask too, so "Haitian Créole" chosen is "Haitian Creole" offered. With no bridge to ask, a name is
+// compared as it is written: nothing here folds it a second way.
+const btaSameWord = (a, b) => {
+  const same = window.__businessTab && window.__businessTab.sameListed;
+  return same ? same(a, b) : String(a).trim() === String(b).trim();
+};
 
 /**
  * The languages as tokens, each with its remove, and one box to add another: the kit's combobox over the common ones,

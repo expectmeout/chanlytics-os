@@ -360,6 +360,13 @@ test("what the first run's Check reads: whether a receptionist is set up, whethe
   const none = await setupDtoFor(fakeDb({}), T, { kind: "back_office" }, new Date(NOW));
   assert.deepEqual([none.business.receptionist, none.business.broken], ["none", false]);
   assert.equal(none.google.type, null, "no listing, no kind");
+  const bare = tables();
+  bare.google_listings[0].facts = {};
+  assert.equal(
+    (await setupDtoFor(fakeDb(bare), T, { kind: "back_office" }, new Date(NOW))).google.type,
+    null,
+    "a listing Google said nothing of kind about",
+  );
   assert.deepEqual((await read({ sat: {} })).unsure, ["fri"], "Saturday is stated, closed: it is not asked again");
   assert.deepEqual(
     (await setupDtoFor(fakeDb({}), T, { kind: "back_office" }, new Date(NOW))).google.unsure,

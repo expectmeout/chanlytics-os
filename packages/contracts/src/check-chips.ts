@@ -9,8 +9,8 @@
  * in front of its customers (trade-neutral.test.mjs). A line naming one trade's own services says so with
  * `trade-word:`: the table only reaches a business Google lists as that trade.
  */
-import { foldName } from "./availability";
-import { COMMON_LANGUAGES, PROFILE_LIMITS } from "./business-tab";
+import { sameListed } from "./availability";
+import { COMMON_LANGUAGES, PROFILE_LIMITS, profileRefusal } from "./business-tab";
 
 const SUGGESTIONS: Readonly<Record<string, readonly string[]>> = {
   hair_salon: [
@@ -31,7 +31,7 @@ const SUGGESTIONS: Readonly<Record<string, readonly string[]>> = {
     "Line-up",
   ],
   beauty_salon: [
-    "Haircut", // trade-word: a beauty salon's own service, suggested only where Google lists one
+    "Haircut", // trade-word: a beauty salon's own service, suggested only where Google lists one or a beautician
     "Color",
     "Manicure",
     "Pedicure",
@@ -110,28 +110,30 @@ export function serviceSuggestionsOf(type: string | null | undefined): readonly 
   return SUGGESTIONS[SAME_AS[t] ?? t] ?? [];
 }
 
-/** How many of the common languages are chips; every other is in the Business tab's own box ("+ Other"). */
-const LANGUAGE_CHIPS = 6;
-
 export interface CheckChipVM {
   name: string;
   /** Already the record's: a tap takes it out. */
   on: boolean;
 }
 
+/** One list's chips, and what stands for the rest once the profile keeps no more of the list. */
+export interface CheckChipSetVM {
+  /** In the list's order. At the cap, only the ones that are on: none is offered to add, and each still takes one out. */
+  chips: CheckChipVM[];
+  /** At the cap (PROFILE_LIMITS), the cap's own sentence (profileRefusal), said where the rest were; else null. */
+  full: string | null;
+}
+
 export interface CheckChipsVM {
-  /** Google's kind's suggestions, in the list's order. */
-  services: CheckChipVM[];
-  /** The first common languages, then any chosen one they do not name. */
-  languages: CheckChipVM[];
-  /** The profile keeps no more (PROFILE_LIMITS): a chip that is off adds nothing, and says why. */
-  servicesFull: boolean;
-  languagesFull: boolean;
+  /** Google's kind's suggestions. */
+  services: CheckChipSetVM;
+  /** The common languages, then any chosen one they do not name. */
+  languages: CheckChipSetVM;
 }
 
 /**
  * The chips over the record as it stands: the settings read's services and languages. A name is the same name however
- * it is written, by the one rule the services sheet searches by (availability.ts foldName).
+ * it is written, by the one rule (availability.ts sameListed).
  */
 export function checkChipsOf(i: {
   type: string | null | undefined;
@@ -145,15 +147,27 @@ export function checkChipsOf(i: {
   const chosen = (Array.isArray(i.languages) ? i.languages : [])
     .filter((l): l is string => typeof l === "string" && l.trim() !== "")
     .map((l) => l.trim());
-  const has = (list: readonly string[], name: string) => list.some((x) => foldName(x) === foldName(name));
-  const offered = COMMON_LANGUAGES.slice(0, LANGUAGE_CHIPS);
+  const has = (list: readonly string[], name: string) => list.some((x) => sameListed(x, name));
+  // A chosen language the list does not name is a chip of its own, once however often it is stored.
+  const besides = chosen.filter((l, k) => !has(COMMON_LANGUAGES, l) && !has(chosen.slice(0, k), l));
+  // At the cap, none that is off is offered to add: the ones on stay, and the cap's sentence stands for the rest.
+  const set = (key: "services" | "languages", chips: CheckChipVM[], count: number): CheckChipSetVM =>
+    count >= PROFILE_LIMITS[key] && chips.some((c) => !c.on)
+      ? { chips: chips.filter((c) => c.on), full: profileRefusal(key) }
+      : { chips, full: null };
   return {
-    services: serviceSuggestionsOf(i.type).map((name) => ({ name, on: has(listed, name) })),
-    languages: [
-      ...offered.map((name) => ({ name, on: has(chosen, name) })),
-      ...chosen.filter((l) => !has(offered, l)).map((name) => ({ name, on: true })),
-    ],
-    servicesFull: listed.length >= PROFILE_LIMITS.services,
-    languagesFull: chosen.length >= PROFILE_LIMITS.languages,
+    services: set(
+      "services",
+      serviceSuggestionsOf(i.type).map((name) => ({ name, on: has(listed, name) })),
+      listed.length,
+    ),
+    languages: set(
+      "languages",
+      [
+        ...COMMON_LANGUAGES.map((name) => ({ name, on: has(chosen, name) })),
+        ...besides.map((name) => ({ name, on: true })),
+      ],
+      chosen.length,
+    ),
   };
 }

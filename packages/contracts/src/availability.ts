@@ -787,6 +787,19 @@ export const foldName = (s: string): string =>
     .normalize("NFD")
     .replace(/\p{Diacritic}/gu, "")
     .toLowerCase();
+
+/**
+ * Whether two names on one of the business's lists (its services, its languages) are one: accents, case and the space
+ * around a name are not the name (foldName). The one test for "already there" on such a list: the first run's chips and
+ * the Business tab's languages box both ask it, so a language chosen as "Haitian Créole" is the chip "Haitian Creole",
+ * and is not offered again beside it. An empty name is no name, and the same as none. A business's own name is
+ * facts.ts sameName's, which lets punctuation go too.
+ */
+export function sameListed(a: string, b: string): boolean {
+  const x = foldName(String(a ?? "").trim());
+  return x !== "" && x === foldName(String(b ?? "").trim());
+}
+
 const wordsOf = (s: string): string[] => s.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
 
 /**

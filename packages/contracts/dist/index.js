@@ -1155,6 +1155,10 @@ ${lines.join("\n")}
 ` + (hasLink ? "Offer up to three of these that fit what they want, then send the booking link to lock one in. Never confirm a slot yourself; the calendar decides." : `Offer up to three of these that fit what they want, then take ${NO_LINK_DETAILS} so the team can confirm one. Never confirm a slot yourself; the calendar decides.`);
 }
 var foldName = (s) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+function sameListed(a, b) {
+  const x = foldName(String(a ?? "").trim());
+  return x !== "" && x === foldName(String(b ?? "").trim());
+}
 var wordsOf = (s) => s.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
 function matchService(services, asked) {
   const q = typeof asked === "string" ? foldName(asked.trim()) : "";
@@ -6162,7 +6166,7 @@ var SUGGESTIONS = {
   ],
   beauty_salon: [
     "Haircut",
-    // trade-word: a beauty salon's own service, suggested only where Google lists one
+    // trade-word: a beauty salon's own service, suggested only where Google lists one or a beautician
     "Color",
     "Manicure",
     "Pedicure",
@@ -6234,20 +6238,26 @@ function serviceSuggestionsOf(type) {
   const t = (type ?? "").trim();
   return SUGGESTIONS[SAME_AS[t] ?? t] ?? [];
 }
-var LANGUAGE_CHIPS = 6;
 function checkChipsOf(i) {
   const listed = (Array.isArray(i.services) ? i.services : []).map((s) => s && typeof s.name === "string" ? s.name.trim() : "").filter(Boolean);
   const chosen = (Array.isArray(i.languages) ? i.languages : []).filter((l) => typeof l === "string" && l.trim() !== "").map((l) => l.trim());
-  const has3 = (list2, name) => list2.some((x) => foldName(x) === foldName(name));
-  const offered = COMMON_LANGUAGES.slice(0, LANGUAGE_CHIPS);
+  const has3 = (list2, name) => list2.some((x) => sameListed(x, name));
+  const besides = chosen.filter((l, k) => !has3(COMMON_LANGUAGES, l) && !has3(chosen.slice(0, k), l));
+  const set = (key, chips, count2) => count2 >= PROFILE_LIMITS[key] && chips.some((c) => !c.on) ? { chips: chips.filter((c) => c.on), full: profileRefusal(key) } : { chips, full: null };
   return {
-    services: serviceSuggestionsOf(i.type).map((name) => ({ name, on: has3(listed, name) })),
-    languages: [
-      ...offered.map((name) => ({ name, on: has3(chosen, name) })),
-      ...chosen.filter((l) => !has3(offered, l)).map((name) => ({ name, on: true }))
-    ],
-    servicesFull: listed.length >= PROFILE_LIMITS.services,
-    languagesFull: chosen.length >= PROFILE_LIMITS.languages
+    services: set(
+      "services",
+      serviceSuggestionsOf(i.type).map((name) => ({ name, on: has3(listed, name) })),
+      listed.length
+    ),
+    languages: set(
+      "languages",
+      [
+        ...COMMON_LANGUAGES.map((name) => ({ name, on: has3(chosen, name) })),
+        ...besides.map((name) => ({ name, on: true }))
+      ],
+      chosen.length
+    )
   };
 }
 
@@ -6361,11 +6371,7 @@ var FIRST_RUN_WORDS = {
       languages: "Languages it answers in",
       ownService: "+ Your own",
       otherLanguage: "+ Other",
-      removed: (name) => `Removed ${name}`,
-      full: {
-        services: "The receptionist keeps no more services. Take one out first.",
-        languages: "The receptionist keeps no more languages. Take one out first."
-      }
+      removed: (name) => `Removed ${name}`
     }
   }
 };
@@ -22355,6 +22361,7 @@ export {
   saidYesTo,
   saidYesWords,
   sameAddress,
+  sameListed,
   sameName,
   samePhone,
   sameQuestion,
