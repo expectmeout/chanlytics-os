@@ -109,21 +109,30 @@ test("a part is normalised before the door sees it, the unreadable are skipped i
 
 test("a row the door refuses is skipped with its sentence; a fault that refuses every row stops the part and is said", async () => {
   let n = 0;
+  // The door's two refusals of one row, each with its sentence: PE001 for a person who asked to be forgotten, 22023 for
+  // a line it cannot take. Both are that row's own, so the row after them is still tried.
   const refusing = ctxFor({
     import_person: () => {
       n += 1;
-      if (n === 1) throw Object.assign(new Error("That person asked to be forgotten."), { code: "42501" });
-      return { contact_id: "k-2", existed: false, email: null };
+      if (n === 1) throw Object.assign(new Error("That person asked to be forgotten."), { code: "PE001" });
+      if (n === 2) throw Object.assign(new Error("A phone number in international form is needed."), { code: "22023" });
+      return { contact_id: "k-3", existed: false, email: null };
     },
   });
   const out = await route.POST.run(
-    post({ import_id: IMPORT, rows: [{ phone: "+16465550101" }, { phone: "+16465550102" }] }),
+    post({
+      import_id: IMPORT,
+      rows: [{ phone: "+16465550101" }, { phone: "+16465550102" }, { phone: "+16465550103" }],
+    }),
     refusing,
   );
-  assert.deepEqual(out.skipped, [{ line: 1, reason: "That person asked to be forgotten." }]);
+  assert.deepEqual(out.skipped, [
+    { line: 1, reason: "That person asked to be forgotten." },
+    { line: 2, reason: "A phone number in international form is needed." },
+  ]);
   assert.equal(out.added, 1);
 
-  // A fault no row caused, with its own code: "permission denied" would be 42501, which this door spends on the erased.
+  // A fault no row caused, and so every row would meet: the part stops at the first.
   const broken = ctxFor({
     import_person: () => {
       throw Object.assign(new Error('relation "contacts" does not exist'), { code: "42P01" });
@@ -135,6 +144,21 @@ test("a row the door refuses is skipped with its sentence; a fault that refuses 
   );
   assert.equal(stopped.stopped, true);
   assert.equal(stopped.failed.length, 1, "the first fault stops the part; nothing after it is tried");
+});
+
+test("42501 is never a row's own: PostgREST says it when the grant is gone, a fault in every row, so the part stops", async () => {
+  const denied = ctxFor({
+    import_person: () => {
+      throw Object.assign(new Error("permission denied for function import_person"), { code: "42501" });
+    },
+  });
+  const out = await route.POST.run(
+    post({ import_id: IMPORT, rows: [{ phone: "+16465550101" }, { phone: "+16465550102" }] }),
+    denied,
+  );
+  assert.equal(out.stopped, true);
+  assert.deepEqual(out.skipped, []);
+  assert.equal(out.failed.length, 1);
 });
 
 test("a name reaches the door whole: the door keeps its first 80 characters, so an emoji at the edge is never split here", async () => {

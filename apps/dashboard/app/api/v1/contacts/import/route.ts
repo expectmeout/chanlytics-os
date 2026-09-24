@@ -22,6 +22,10 @@ const Body = z.object({
   rows: z.array(Row).min(1, "Nothing to import.").max(50, "Fifty at a time."),
 });
 
+/** The door's refusal of a person who asked to be forgotten (import_person, 00170): this row's own, so skipped like
+ *  22023. Never 42501: PostgREST says that when the grant is gone, a fault in every row, which stops the part. */
+const ERASED = "PE001";
+
 /**
  * POST /api/v1/contacts/import -- { import_id, rows[≤50] }: a part of a business's own client list.
  *
@@ -29,7 +33,7 @@ const Body = z.object({
  * refuses the same things and says less), and the digests of the number and the address are computed here, keyed to
  * the workspace as the erasure keyed them, so the door can leave the erased erased. Each row then goes through
  * `import_person`: found by number then address, fills only what is empty, never a yes. A row the door refuses (22023,
- * or 42501 for the erased) is skipped and said by its line in the part, counted from 1; any other fault refuses every
+ * or PE001 for the erased) is skipped and said by its line in the part, counted from 1; any other fault refuses every
  * row and stops the part. One decision per part, subject the workspace, with the counts and nothing that names a person.
  */
 export const POST = write({
@@ -69,7 +73,7 @@ export const POST = write({
         p_email_digest: email ? await erasedEmailHash(tenantId, email) : undefined,
       });
       if (error) {
-        if (afterPersonRefused(error.code) === "skip" || error.code === "42501") {
+        if (afterPersonRefused(error.code) === "skip" || error.code === ERASED) {
           out.skipped.push({ line, reason: error.message });
           continue;
         }
