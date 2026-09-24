@@ -1648,6 +1648,178 @@ test(
   },
 );
 
+// An answer that changed the plan (Include, or Change what I asked) re-judges the places the probe already judged, under
+// the new plan (lead_round_rejudge, 00165). Without it the question's "Include large studio chains" left all nine of
+// them out: the main phase skips a place the workspace already holds, so they could never come back.
+test(
+  "an answer that changed the plan re-judges the first places: the one it lets in comes back whole and counted, one it now leaves out gives its lead back and keeps nothing, the owner's own decision stands, and a second pass changes nothing",
+  { skip },
+  async () => {
+    const phonePlan = (version, over = {}) => ({ ...plan(4, version), contact: "phone", ...over });
+    const made = ok(
+      await owner.client.rpc("lead_search_create", {
+        p_tenant_id: A,
+        p_plan: phonePlan(1),
+        p_via: "ask",
+        p_estimate_usd: 0.01,
+      }),
+    );
+    const roundId = made.round_id;
+    const run = await runOf(roundId, "rejudge term", "w9");
+    // The probe: a chain left out (keeping nothing, as the runner commits a left-out place), one counted, one to review.
+    const chain = place(951, "excluded");
+    Object.assign(chain.place, { email: null, email_state: "none", about: null });
+    ok(
+      await commit(run.id, "w9", run.gen, 0, 4, {
+        places: [chain, place(952, "qualified"), place(953, "review"), place(954, "qualified")],
+        usage_usd: 0,
+        items_seen: 4,
+        round: { state: "probing" },
+      }),
+    );
+    ok(
+      await commit(run.id, "w9", run.gen, 4, 4, {
+        places: [],
+        round: {
+          state: "waiting_on_owner",
+          question: { sentence: "Some of the first 3 are chain gyms. Is that what you meant?", criterionKey: "chain" },
+        },
+      }),
+    );
+    const [l1, l2, l3] = await Promise.all(["0951", "0952", "0953"].map((n) => leadByPlace(`ChIJfixture${n}`)));
+    // The owner keeps the one under review while the question waits: their decision, which no re-judge undoes.
+    ok(await owner.client.rpc("lead_member_keep", { p_search_id: made.search_id, p_lead_id: l3.id }));
+    // And marks another's number wrong: a lead they have worked, which no re-judge takes back either.
+    const l4 = await leadByPlace("ChIJfixture0954");
+    ok(await db.from("leads").update({ phone_wrong: true }).eq("id", l4.id));
+    const month = ok(await db.from("lead_rounds").select("month").eq("id", roundId).single()).month;
+    const before = await counter("allowance", month);
+    const r = ok(
+      await owner.client.rpc("lead_round_answer", {
+        p_round_id: roundId,
+        p_answer: "include",
+        p_plan: phonePlan(2, { exclusions: [] }),
+      }),
+    );
+    assert.equal(r.state, "running");
+
+    const judged = (cls, over = {}) => ({
+      class: cls,
+      excluded_by: cls === "excluded" ? "website" : null,
+      fit: cls === "excluded" ? null : "strong",
+      reason: cls === "excluded" ? "No website of its own" : "Independent studio with its own site",
+      judgment: {
+        op_id: "op-rejudge-1",
+        term: "rejudge term",
+        answer: { criteria: [] },
+        model: "m",
+        reasons: [],
+        plan_version: 2,
+      },
+      ...over,
+    });
+    const back = place(951, "qualified");
+    Object.assign(back.place, {
+      email: "hello@fixture951.example",
+      email_state: "checking",
+      about: "An independent studio.",
+    });
+    const pages = [
+      { place: back.place, member: judged("qualified") },
+      { place: place(952, "excluded").place, member: judged("excluded") },
+      { place: place(953, "excluded").place, member: judged("excluded") },
+      { place: place(954, "excluded").place, member: judged("excluded") },
+    ];
+    const judgment = {
+      op_id: "op-rejudge-1",
+      batch: 0,
+      request_hash: "r".repeat(64),
+      answer: {},
+      model: "m",
+      tokens: 30,
+    };
+    const rejudge = (version, places = pages) =>
+      db.rpc("lead_round_rejudge", {
+        p_round_id: roundId,
+        p_plan_version: version,
+        p_places: places,
+        p_judgment: judgment,
+      });
+
+    assert.deepEqual(ok(await rejudge(1)), { ok: false, why: "version" }, "only under the plan the round runs on now");
+    const tokens = ok(await db.from("lead_rounds").select("judge_tokens").eq("id", roundId).single()).judge_tokens;
+    assert.deepEqual(ok(await rejudge(2)), { ok: true, changed: 2, counted: 1, uncounted: 1 });
+
+    const m1 = await member(made.search_id, l1.id);
+    const m2 = await member(made.search_id, l2.id);
+    const m3 = await member(made.search_id, l3.id);
+    assert.deepEqual(
+      [m1.class, m1.counted, m1.excluded_by, m1.judgment.plan_version, m1.version],
+      ["qualified", true, null, 2, 2],
+      "the chain it lets in is a lead now, counted from the round's reservation",
+    );
+    const lead1 = await leadByPlace("ChIJfixture0951");
+    assert.deepEqual(
+      [lead1.email, lead1.email_state, lead1.about],
+      ["hello@fixture951.example", "checking", "An independent studio."],
+      "and whole: what a left-out place never kept is filled, its email waiting on the round's checks",
+    );
+    assert.deepEqual(
+      [m2.class, m2.counted, m2.excluded_by, m2.version],
+      ["excluded", false, "website", 2],
+      "one the new plan leaves out gives its lead back",
+    );
+    const lead2 = await leadByPlace("ChIJfixture0952");
+    assert.deepEqual(
+      [lead2.email, lead2.email_state, lead2.about, lead2.image_url],
+      [null, "none", null, null],
+      "and keeps nothing a left-out place never keeps (PRD 0.4)",
+    );
+    assert.deepEqual([m3.class, m3.kept_at !== null], ["qualified", true], "the owner's Keep stands");
+    const m4 = await member(made.search_id, l4.id);
+    assert.deepEqual([m4.class, m4.counted, m4.version], ["qualified", true, 1], "and so does a lead they worked");
+    assert.deepEqual(m1.judgment.shares, [], "the shares the collect marked are kept under the new judgment");
+
+    const round = ok(await db.from("lead_rounds").select("allowance_used, judge_tokens").eq("id", roundId).single());
+    assert.equal(round.allowance_used, 2, "one in, one out: the round's reservation is used as before");
+    assert.equal(round.judge_tokens, tokens + 30, "the judge's answer is kept once, with its tokens");
+    assert.deepEqual(await counter("allowance", month), before, "and the month's counter says the same");
+    assert.deepEqual(
+      ok(await rejudge(2)),
+      { ok: true, changed: 0, counted: 0, uncounted: 0 },
+      "a second pass changes nothing",
+    );
+    assert.equal(
+      ok(await db.from("lead_rounds").select("judge_tokens").eq("id", roundId).single()).judge_tokens,
+      tokens + 30,
+      "nor pays for the same answer twice",
+    );
+    const ev = ok(
+      await db
+        .from("events")
+        .select("data")
+        .eq("tenant_id", A)
+        .eq("kind", "lead.round")
+        .eq("subject_id", roundId)
+        .order("created_at", { ascending: false })
+        .limit(3),
+    );
+    assert.ok(
+      ev.some((e) => e.data.rejudged === 2 && e.data.plan_version === 2),
+      "the round's history says how many the new plan changed",
+    );
+    const denied = await owner.client.rpc("lead_round_rejudge", {
+      p_round_id: roundId,
+      p_plan_version: 2,
+      p_places: pages,
+      p_judgment: judgment,
+    });
+    assert.ok(denied.error, "the runner's door, not a member's");
+    assert.equal(ok(await db.rpc("lead_round_end", { p_round_id: roundId, p_ending: "stopped" })), true);
+    assert.deepEqual(ok(await rejudge(2)), { ok: false, why: "state" }, "an ended round is final");
+  },
+);
+
 test("the owner's other two answers: Keep carries the round on as it is, Stop ends it stopped", { skip }, async () => {
   /** A fresh search whose round is waiting on the owner after the probe. */
   const waiting = async (worker) => {

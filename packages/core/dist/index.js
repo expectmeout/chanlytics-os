@@ -6126,6 +6126,22 @@ var JUDGE_OUTPUT_SCHEMA2 = {
   required: ["places"],
   additionalProperties: false
 };
+function judgeQuestions(plan) {
+  const out = {};
+  out[LEAD_KIND_KEY] = `the place is one of the ${plan.name} the search is for -- that kind of business itself, not a neighbour, supplier, competitor or a business that merely serves them [required; Claude's read of the name and category is enough (likely)]`;
+  for (const c of plan.criteria) {
+    const bar = c.standard === "seen" ? "must be SEEN in the facts: pass only when a fact you cite shows it; a read from the name or category alone is unknown" : "Claude's read of the facts is enough (likely)";
+    out[c.key] = `${c.text} [${c.required ? "required" : "preferred"}; ${bar}]`;
+  }
+  for (const e of plan.exclusions)
+    out[e.key] = `the place is NOT ${e.text} [required; fail when the place is what is left out]`;
+  return out;
+}
+function judgeAsked(plan) {
+  const out = {};
+  for (const [key, q] of Object.entries(judgeQuestions(plan))) out[key] = sha256Hex(q).slice(0, 16);
+  return out;
+}
 var AnswerSchema2 = z92.object({
   places: z92.array(
     z92.object({
@@ -42772,9 +42788,9 @@ function runStateOf(status) {
       return "running";
   }
 }
-function termsShortOf(runs, askedOf) {
+function termsShortOf(runs, askedOf2) {
   return runs.map((r) => {
-    const asked = askedOf(r);
+    const asked = askedOf2(r);
     return asked !== null && r.items_seen < asked;
   });
 }
@@ -43068,6 +43084,7 @@ async function startRound(p, roundId, owner, resume = false) {
   if (phase === "probe") {
     ask = probeAsk(plan);
   } else {
+    if (resume && round.answered === "include" && round.purpose === "probe") await rejudgeProbe(p, round);
     const members = await p.db.membersOfRound(round.id);
     const judged = members.filter(wasJudged);
     const counted = members.filter((m) => m.counted).length;
@@ -43141,6 +43158,12 @@ function nearbyFor(plan, members) {
   if (!geo.center) return [];
   return nearestAreas(geo.center, { excludeWithinM: Math.max(geo.radiusM, 15e3), take: 3, state: plan.area.state });
 }
+var ASKED = /* @__PURE__ */ new WeakMap();
+var askedOf = (plan) => {
+  let a = ASKED.get(plan);
+  if (!a) ASKED.set(plan, a = judgeAsked(plan));
+  return a;
+};
 function memberOf(plan, term, c, a, opId, model, rule, geo, shares, duplicateOf) {
   const loc = c.raw.location;
   const distance = geo.center && loc ? haversineM(geo.center, loc) : null;
@@ -43203,7 +43226,14 @@ function memberOf(plan, term, c, a, opId, model, rule, geo, shares, duplicateOf)
       mark_path: null
     },
     member: {
-      judgment: { op_id: opId, term, answer: a, model, reasons: verdict.reasons },
+      judgment: {
+        op_id: opId,
+        term,
+        answer: a,
+        model,
+        reasons: verdict.reasons,
+        ...a ? { asked: askedOf(plan) } : {}
+      },
       class: verdict.class,
       excluded_by: verdict.excluded_by,
       fit: verdict.fit,
@@ -43407,6 +43437,8 @@ async function collectHeld(p, round, run, owner, gen) {
 }
 function memberRows(places, term) {
   return places.map((x) => ({
+    place_id: x.place.place_id,
+    decided: false,
     lead_id: x.place.place_id,
     class: x.member.class,
     excluded_by: x.member.excluded_by,
@@ -43489,6 +43521,114 @@ async function roundDecision(p, round, run, phase, runState, members, itemsSeenN
     next: null,
     after: () => p.schedule("lead_check", { round_id: round.id, batch: 0 }, 0)
   };
+}
+var versionOf = (m) => {
+  const v = m.judgment?.plan_version;
+  return typeof v === "number" ? v : 1;
+};
+var keysOf = (plan) => [
+  LEAD_KIND_KEY,
+  ...plan.exclusions.map((e) => e.key),
+  ...plan.criteria.map((c) => c.key)
+];
+async function rejudgeProbe(p, round) {
+  const out = { changed: 0, reused: 0, judged: 0, unread: 0 };
+  const plan = round.plan;
+  const card = CARDS[plan.card];
+  const members = await p.db.membersOfRound(round.id);
+  const pending = members.filter(
+    (m) => wasJudged(m) && !m.decided && m.place_id !== null && versionOf(m) < round.plan_version
+  );
+  if (!pending.length) return out;
+  const listed = /* @__PURE__ */ new Map();
+  for (const r of await p.db.runsOfRound(round.id)) {
+    if (r.purpose !== "discover" || r.term === null || !r.dataset_id) continue;
+    if (await runIdFor(round.id, "probe", r.term) !== r.id) continue;
+    for (let from = 0; ; from += PAGE_ITEMS) {
+      if (outOfTime(p)) throw new LeadRetry("out of time reading the first places again");
+      let items;
+      try {
+        items = (await p.apify.listItems(r.dataset_id, from, PAGE_ITEMS, [...card.fields])).items;
+      } catch (e) {
+        if (isRefused(e)) break;
+        throw e;
+      }
+      for (const it of items) {
+        const mapped = card.mapItem(it);
+        if (mapped && !listed.has(mapped.placeId))
+          listed.set(mapped.placeId, { clean: cleanPlace(mapped), term: r.term });
+      }
+      if (items.length < PAGE_ITEMS) break;
+    }
+  }
+  const found = pending.flatMap((m) => {
+    const x = listed.get(m.place_id);
+    if (!x) out.unread += 1;
+    return x ? [{ m, clean: x.clean, term: m.term ?? x.term }] : [];
+  });
+  if (!found.length) return out;
+  const supp = await p.db.suppressed(round.tenant_id, {
+    emails: found.flatMap((x) => shareKeysOf(x.clean).emails),
+    placeIds: found.map((x) => x.clean.raw.placeId)
+  });
+  const geo = { center: areaCenter(plan), radiusM: plan.area.radius_m };
+  const keys = keysOf(plan);
+  const nowAsked = askedOf(plan);
+  const reuse = [];
+  const judge = [];
+  for (const x of found) {
+    if (supp.placeIds.has(x.clean.raw.placeId)) continue;
+    x.clean.emails = x.clean.emails.filter((e) => !supp.emails.has(e));
+    const j = x.m.judgment;
+    const answers = new Set((j.answer?.criteria ?? []).map((c) => c.key));
+    const same = keys.every((k) => answers.has(k) && j.asked?.[k] === nowAsked[k]);
+    (same ? reuse : judge).push(x);
+  }
+  const place = (x, answer, opId, model) => {
+    const rule = geo.center && !inArea(geo.center, geo.radiusM, x.clean.raw.location) ? { class: "review", reason: OUT_OF_AREA_REASON, token: "out_of_area", excluded_by: null } : null;
+    const made = memberOf(plan, x.term, x.clean, answer, opId, model, rule, geo, [], null);
+    made.member.judgment = { ...made.member.judgment, plan_version: round.plan_version };
+    return made;
+  };
+  const commit = async (xs, places, judgment) => {
+    await markPlaces(
+      p,
+      places.filter((pl, i) => xs[i].m.class === "excluded" && pl.member.class !== "excluded")
+    );
+    const res = await p.db.roundRejudge(round.id, round.plan_version, places, judgment);
+    if (!res.ok) return false;
+    out.changed += res.changed;
+    return true;
+  };
+  if (reuse.length) {
+    const places = reuse.map((x) => {
+      const j = x.m.judgment;
+      return place(x, j.answer ?? null, j.op_id ?? null, j.model ?? null);
+    });
+    out.reused = reuse.length;
+    if (!await commit(reuse, places, null)) return out;
+  }
+  for (let i = 0; i < judge.length; i += LEAD_JUDGE_BATCH) {
+    const batch = judge.slice(i, i + LEAD_JUDGE_BATCH);
+    if (outOfTime(p, JUDGE_MARGIN_MS)) throw new LeadRetry("out of time before judging the first places again");
+    const judged = await judgeBatch(
+      p.judge,
+      plan,
+      batch.map((x, ref) => factsOf(ref, x.clean)),
+      opIdFor(
+        `rejudge:${round.id}:${round.plan_version}:${batch.map((x) => x.clean.raw.placeId).sort().join(",")}`,
+        0,
+        0
+      )
+    );
+    if (judged.refused) continue;
+    const places = batch.map(
+      (x, ref) => place(x, judged.answers.get(ref) ?? null, judged.judgment?.op_id ?? null, judged.model)
+    );
+    out.judged += batch.length;
+    if (!await commit(batch, places, judged.judgment)) return out;
+  }
+  return out;
 }
 async function stopRun(p, round, run, owner) {
   if (run.apify_run_id && !FINAL_RUN_STATES.has(run.state)) await p.apify.abortRun(run.apify_run_id);
@@ -44468,6 +44608,7 @@ export {
   provisionLine,
   radiusFromSpread,
   reconcileUnknownRuns,
+  rejudgeProbe,
   replyPosture,
   replyToConversation,
   resolveConsent,

@@ -4292,6 +4292,15 @@ export type Database = {
         Args: { p_ending: string; p_round_id: string }
         Returns: boolean
       }
+      lead_round_rejudge: {
+        Args: {
+          p_judgment?: Json
+          p_places: Json
+          p_plan_version: number
+          p_round_id: string
+        }
+        Returns: Json
+      }
       lead_round_stop: { Args: { p_search_id: string }; Returns: Json }
       lead_run_claim: {
         Args: { p_owner: string; p_run_id: string }

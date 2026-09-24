@@ -272,6 +272,106 @@ export function leadWorld({
       Object.assign(run, { lease_owner: null, lease_until: null });
       return true;
     },
+    // 00165, in memory: the verdicts of an answer that changed the plan over the places the probe judged.
+    lead_round_rejudge: ({ p_round_id, p_plan_version, p_places, p_judgment }) => {
+      const round = roundOf(p_round_id);
+      if (!round) return { ok: false, why: "round" };
+      if (round.state !== "running") return { ok: false, why: "state" };
+      if (round.plan_version !== p_plan_version) return { ok: false, why: "version" };
+      const judgments = Array.isArray(p_judgment) ? p_judgment : p_judgment ? [p_judgment] : [];
+      for (const j of judgments) {
+        if (T.lead_judgments.some((x) => x.op_id === j.op_id)) continue;
+        T.lead_judgments.push({
+          id: uuid(),
+          tenant_id: round.tenant_id,
+          round_id: round.id,
+          batch: j.batch ?? 0,
+          op_id: j.op_id,
+          request_hash: j.request_hash,
+          answer: j.answer,
+          model: j.model,
+          tokens: j.tokens ?? 0,
+          created_at: nowIso(),
+        });
+        round.judge_tokens += j.tokens ?? 0;
+      }
+      const LISTING = [
+        "about",
+        "image_url",
+        "price",
+        "reviews_dist",
+        "facebook_url",
+        "linkedin_url",
+        "tiktok_url",
+        "claimed",
+        "maps_url",
+        "rank",
+        "neighborhood",
+        "logo_url",
+        "mark_path",
+      ];
+      let room = Math.max(0, round.allowance_reserved - round.allowance_used);
+      let changed = 0;
+      let counted = 0;
+      let uncounted = 0;
+      for (const x of p_places ?? []) {
+        const lead = T.leads.find((l) => l.tenant_id === round.tenant_id && l.place_id === x.place?.place_id);
+        if (!lead || lead.blanked_at || lead.erased_at) continue;
+        const m = T.lead_search_members.find((y) => y.search_id === round.search_id && y.lead_id === lead.id);
+        if (!m || m.round_id !== round.id || m.blanked_at) continue;
+        if (
+          m.kept_at ||
+          m.excluded_by === "owner" ||
+          lead.stage !== "ready" ||
+          lead.contact_id ||
+          lead.contacted_at ||
+          lead.last_outcome ||
+          lead.phone_wrong
+        )
+          continue;
+        if ((m.judgment?.plan_version ?? 1) >= p_plan_version) continue;
+        const was = m.class;
+        const cls = x.member.class ?? "review";
+        Object.assign(m, {
+          class: cls,
+          excluded_by: x.member.excluded_by ?? null,
+          fit: x.member.fit ?? null,
+          reason: (x.member.reason ?? "").slice(0, 120),
+          judgment: { ...(x.member.judgment ?? {}), shares: m.judgment?.shares ?? [], plan_version: p_plan_version },
+          version: m.version + 1,
+        });
+        if (was === "excluded" && cls !== "excluded") {
+          if (lead.email == null) {
+            lead.email = x.place.email ?? null;
+            lead.email_alternates = x.place.email_alternates ?? [];
+            if (x.place.email) lead.email_state = x.place.email_state ?? "checking";
+          }
+          for (const k of LISTING) if (lead[k] == null) lead[k] = x.place[k] ?? null;
+          if (!lead.hours || !lead.hours.length) lead.hours = x.place.hours ?? [];
+        } else if (was !== "excluded" && cls === "excluded") {
+          Object.assign(lead, {
+            email: null,
+            email_alternates: [],
+            email_state: "none",
+            email_checked_at: null,
+            hours: [],
+          });
+          for (const k of LISTING) lead[k] = null;
+        }
+        if (cls === "qualified" && !m.counted && room > 0) {
+          Object.assign(m, { counted: true, counted_month: month });
+          room -= 1;
+          counted += 1;
+        } else if (cls !== "qualified" && m.counted) {
+          Object.assign(m, { counted: false, counted_month: null });
+          room += 1;
+          uncounted += 1;
+        }
+        changed += 1;
+      }
+      round.allowance_used += counted - uncounted;
+      return { ok: true, changed, counted, uncounted };
+    },
     lead_collect_commit: ({ p_run_id, p_owner, p_gen, p_from_offset, p_to_offset, p_page }) => {
       const run = runOf(p_run_id);
       if (!run) return { ok: false, why: "run" };
