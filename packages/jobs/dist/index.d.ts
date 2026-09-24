@@ -1,5 +1,5 @@
 import { Database, Json } from '@chanlytics/db';
-import { JobKind, JobNews } from '@chanlytics/contracts';
+import { JobKind, JobNews, PushMessage } from '@chanlytics/contracts';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { ReceivedEmail } from '@chanlytics/channels';
 import { Wire, EmailIngestPorts, IncomingEmail } from '@chanlytics/core';
@@ -222,6 +222,15 @@ declare function upsertEscalation(db: SupabaseClient<Database>, tenantId: string
  * adapter that builds the ports from the job's context (no env reads here).
  */
 
+interface PushReceipt {
+    to: string;
+    status: "ok" | "error";
+    /** Expo's name for what went wrong; "DeviceNotRegistered" is a phone to forget. */
+    error?: string;
+}
+interface PushPort {
+    send(messages: PushMessage[]): Promise<PushReceipt[]>;
+}
 interface JobContext {
     db: SupabaseClient<Database>;
     /**
@@ -283,6 +292,12 @@ interface JobContext {
         collect: (ctx: JobContext, job: ClaimedJob) => Promise<void>;
         check: (ctx: JobContext, job: ClaimedJob) => Promise<void>;
     };
+    /**
+     * The phones: one message each through Expo's push service, as the edge
+     * binds it (lib/ops/push.ts). INJECTED like email's intake. A receipt per
+     * message, in order; a transport failure throws and the ledger tries again.
+     */
+    push?: PushPort;
     /**
      * Schedule a job of this tenant — how a broadcast continues itself, one
      * batch after another, through the same door the dashboard uses.
@@ -437,4 +452,4 @@ interface TickCounts {
 }
 declare function runTick(ports: TickPorts, opts: TickOptions): Promise<TickCounts>;
 
-export { CLAIM_FOR_MS, type ClaimedJob, type Db, type EscalationOutcome, FUNCTION_CEILING_MS, type JobContext, LEAD_YIELD_AT_MS, LEASE_SECONDS, type LedgerRow, MAX_ATTEMPTS, MAX_RESUMES, RETRY_WAITS_MS, RUN_INTERRUPTED, SPEAKS_TO_A_PERSON, type ScheduleParams, type Settled, type TerminalJob, type TickCounts, type TickFields, type TickLog, type TickOptions, type TickPorts, type Verdict, YIELD_AT_MS, cancelJobsFor, claimNext, completeJob, deferJob, dispatchJob, failJob, incomingEmailOf, retryWait, runTick, saySettled, scheduleJob, scheduleJobOnce, settleJob, upsertEscalation, verdictFor };
+export { CLAIM_FOR_MS, type ClaimedJob, type Db, type EscalationOutcome, FUNCTION_CEILING_MS, type JobContext, LEAD_YIELD_AT_MS, LEASE_SECONDS, type LedgerRow, MAX_ATTEMPTS, MAX_RESUMES, type PushPort, type PushReceipt, RETRY_WAITS_MS, RUN_INTERRUPTED, SPEAKS_TO_A_PERSON, type ScheduleParams, type Settled, type TerminalJob, type TickCounts, type TickFields, type TickLog, type TickOptions, type TickPorts, type Verdict, YIELD_AT_MS, cancelJobsFor, claimNext, completeJob, deferJob, dispatchJob, failJob, incomingEmailOf, retryWait, runTick, saySettled, scheduleJob, scheduleJobOnce, settleJob, upsertEscalation, verdictFor };

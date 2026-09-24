@@ -1192,6 +1192,19 @@ var PERSON_CAME_FROM_WORDS = {
   import: "Imported history",
   lead: "A lead you found"
 };
+function firstLine(body, max = 160) {
+  return body.split("\n").find((l2) => l2.trim())?.trim().slice(0, max) ?? "";
+}
+function pushFor(n2, tokens) {
+  const body = firstLine(n2.body);
+  return tokens.map((to) => ({
+    to,
+    title: n2.title,
+    body,
+    sound: "default",
+    data: { route: n2.route, notification_id: n2.id, tenant_id: n2.tenant_id }
+  }));
+}
 var DAY_MS5 = 24 * 3600 * 1e3;
 var DAY_MS6 = 864e5;
 var QUIET_AFTER_MS2 = 7 * DAY_MS6;
@@ -5444,25 +5457,25 @@ var InlineTextBuilder = class {
     const parts = [];
     let idx = 0;
     while (word.length > this.maxLineLength) {
-      const firstLine = word.substring(0, this.maxLineLength);
+      const firstLine2 = word.substring(0, this.maxLineLength);
       const remainingChars = word.substring(this.maxLineLength);
-      const splitIndex = firstLine.lastIndexOf(this.wrapCharacters[idx]);
+      const splitIndex = firstLine2.lastIndexOf(this.wrapCharacters[idx]);
       if (splitIndex > -1) {
-        word = firstLine.substring(splitIndex + 1) + remainingChars;
-        parts.push(firstLine.substring(0, splitIndex + 1));
+        word = firstLine2.substring(splitIndex + 1) + remainingChars;
+        parts.push(firstLine2.substring(0, splitIndex + 1));
       } else {
         idx++;
         if (idx < this.wrapCharacters.length) {
-          word = firstLine + remainingChars;
+          word = firstLine2 + remainingChars;
         } else {
           if (this.forceWrapOnLimit) {
-            parts.push(firstLine);
+            parts.push(firstLine2);
             word = remainingChars;
             if (word.length > this.maxLineLength) {
               continue;
             }
           } else {
-            word = firstLine + remainingChars;
+            word = firstLine2 + remainingChars;
           }
           break;
         }
@@ -17385,6 +17398,36 @@ async function leadCheck(ctx, job) {
   if (!ctx.leads) throw new Error("lead_check: this runtime holds no lead pipeline");
   await ctx.leads.check(ctx, job);
 }
+async function pushSend(ctx, job) {
+  if (!ctx.push) throw new Error("push_send: this runtime holds no push transport");
+  const id = String(job.payload.notification_id ?? "");
+  if (!id) throw new Error("push_send: no notification named");
+  const n2 = must(
+    "push_send: cannot read the notification",
+    await ctx.db.from("notifications").select("id, tenant_id, title, body, route, recipient_user_id").eq("id", id).eq("tenant_id", job.tenant_id).maybeSingle()
+  );
+  if (!n2) return;
+  const readers = n2.recipient_user_id ? [n2.recipient_user_id] : (must(
+    "push_send: cannot read who is in the workspace",
+    await ctx.db.from("memberships").select("user_id").eq("tenant_id", job.tenant_id)
+  ) ?? []).map((m) => m.user_id);
+  if (!readers.length) return;
+  const devices = must(
+    "push_send: cannot read the phones",
+    await ctx.db.from("push_devices").select("token").in("user_id", readers)
+  ) ?? [];
+  if (!devices.length) return;
+  const receipts = await ctx.push.send(
+    pushFor(
+      n2,
+      devices.map((d) => d.token)
+    )
+  );
+  const gone = receipts.filter((r2) => r2.status === "error" && r2.error === "DeviceNotRegistered").map((r2) => r2.to);
+  if (gone.length) {
+    must("push_send: cannot forget a phone that is gone", await ctx.db.from("push_devices").delete().in("token", gone));
+  }
+}
 var HANDLERS = {
   outbound_send: outboundSend,
   broadcast_send: broadcastSend,
@@ -17392,7 +17435,8 @@ var HANDLERS = {
   email_ingest: emailIngest,
   lead_round_start: leadRoundStart,
   lead_collect: leadCollect,
-  lead_check: leadCheck
+  lead_check: leadCheck,
+  push_send: pushSend
 };
 async function dispatchJob(ctx, job) {
   const handler = HANDLERS[job.kind];
@@ -17426,7 +17470,12 @@ var RETRY_WAITS_MS = {
   // ends "the source failed". Every wait outlasts the lease (jobs-ledger.test.mjs).
   lead_round_start: [2 * 6e4, 10 * 6e4],
   lead_collect: [2 * 6e4, 10 * 6e4],
-  lead_check: [2 * 6e4, 10 * 6e4]
+  lead_check: [2 * 6e4, 10 * 6e4],
+  // A phone told from a kept row (00162): the push service's bad minute, then
+  // its short outage, each wait outlasting the lease like the three above. The
+  // row is read again on each try, and a phone the service answered for is
+  // answered for once.
+  push_send: [2 * 6e4, 10 * 6e4]
 };
 function retryWait(job) {
   if (SPEAKS_TO_A_PERSON.has(job.kind) || job.attempts >= MAX_ATTEMPTS) return null;

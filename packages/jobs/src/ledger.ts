@@ -147,6 +147,11 @@ export const RETRY_WAITS_MS: Readonly<Record<string, readonly number[]>> = {
   lead_round_start: [2 * 60_000, 10 * 60_000],
   lead_collect: [2 * 60_000, 10 * 60_000],
   lead_check: [2 * 60_000, 10 * 60_000],
+  // A phone told from a kept row (00162): the push service's bad minute, then
+  // its short outage, each wait outlasting the lease like the three above. The
+  // row is read again on each try, and a phone the service answered for is
+  // answered for once.
+  push_send: [2 * 60_000, 10 * 60_000],
 };
 
 /** How long a job that just threw waits before it is tried again; null when it is failed now. */

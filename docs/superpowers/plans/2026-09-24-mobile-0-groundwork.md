@@ -1241,7 +1241,7 @@ async function pushSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
 }
 ```
 
-`HANDLERS` gains `push_send: pushSend,`. In `ledger.ts` `RETRY_WAITS_MS` gains `push_send: [60_000, 5 * 60_000],` with a comment: a provider's bad minute, then its bad five.
+`HANDLERS` gains `push_send: pushSend,`. In `ledger.ts` `RETRY_WAITS_MS` gains `push_send: [2 * 60_000, 10 * 60_000],` with a comment: the provider's bad minute, then its short outage, each wait outlasting the lease (jobs-ledger.test.mjs holds every wait above it).
 
 - [ ] **Step 4: The transport** `apps/edge/lib/ops/push.ts`:
 

@@ -25,7 +25,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../packages/db.js";
 import type { NotificationsConfig } from "../packages/contracts.js";
-import { SERVER_NOTIFICATION_KINDS } from "../packages/contracts.js";
+import { SERVER_NOTIFICATION_KINDS, isPushKind } from "../packages/contracts.js";
+import { scheduleJob } from "../packages/jobs.js";
 import { pg } from "../pg.js";
 import { env } from "../env.js";
 import { logger, errField } from "../log.js";
@@ -190,24 +191,53 @@ export async function recordNotification(
   tenantId: string | null,
   n: { kind?: string; title: string; body: string; route?: string | null; about?: { type: string; id: string } | null },
   db: Db | null = pg(),
-): Promise<void> {
-  if (!tenantId) return;
-  if (!db) return;
+): Promise<{ id: string; kind: string } | null> {
+  if (!tenantId) return null;
+  if (!db) return null;
   const kind = n.kind && KEPT_KINDS.has(n.kind) ? n.kind : "alert";
   const L = logger({ tenant: tenantId });
   try {
-    const { error } = await db.from("notifications").insert({
-      tenant_id: tenantId,
-      kind,
-      title: n.title.slice(0, 200),
-      body: n.body.slice(0, 4000),
-      route: n.route ?? null,
-      subject_type: n.about?.type ?? null,
-      subject_id: n.about?.id ?? null,
-    });
-    if (error) L.error("notification_record_failed", { kind, error: error.message });
+    const { data, error } = await db
+      .from("notifications")
+      .insert({
+        tenant_id: tenantId,
+        kind,
+        title: n.title.slice(0, 200),
+        body: n.body.slice(0, 4000),
+        route: n.route ?? null,
+        subject_type: n.about?.type ?? null,
+        subject_id: n.about?.id ?? null,
+      })
+      .select("id")
+      .single();
+    if (error || !data) {
+      L.error("notification_record_failed", { kind, error: error?.message ?? "no row" });
+      return null;
+    }
+    return { id: data.id, kind };
   } catch (e) {
     L.error("notification_record_failed", { kind, error: errField(e) });
+    return null;
+  }
+}
+
+/**
+ * A phone is told from the kept row, by the ledger: never in this request
+ * (the mail is the alarm channel and must not wait on a push provider), and
+ * never lost with the mail (a scheduling failure is logged, not thrown).
+ * Only the kinds a phone should hear about (contracts PUSH_KINDS).
+ */
+async function schedulePush(tenantId: string, kept: { id: string; kind: string }, db: Db | null): Promise<void> {
+  if (!db || !isPushKind(kept.kind)) return;
+  try {
+    await scheduleJob(db, {
+      tenantId,
+      kind: "push_send",
+      dueAt: new Date(),
+      payload: { notification_id: kept.id },
+    });
+  } catch (e) {
+    logger({ tenant: tenantId }).error("push_schedule_failed", { kind: kept.kind, error: errField(e) });
   }
 }
 
@@ -215,11 +245,13 @@ export async function notify(target: NotifyTarget, msg: NotifyMessage, ports: No
   const L = logger({ tenant: target.tenantId });
   const send = ports.send ?? post;
   // The row first: it is the workspace's own record, addressed or not.
-  await recordNotification(
+  const db = ports.db === undefined ? pg() : ports.db;
+  const kept = await recordNotification(
     target.tenantId,
     { kind: msg.kind, title: msg.subject, body: msg.body, route: msg.route, about: msg.about },
-    ports.db === undefined ? pg() : ports.db,
+    db,
   );
+  if (kept && target.tenantId) await schedulePush(target.tenantId, kept, db);
   const addressing = chooseAddressing(target, { to: platformTo(), from: platformFrom() });
 
   switch (addressing.kind) {

@@ -78,8 +78,8 @@ broadcast_sent, broadcast_stopped, job_failed, billing, number, review), it sche
 row. The job reads the row, finds its readers (the one `recipient_user_id`, else every member of the workspace), their
 devices, and sends one message per device through a push port the edge binds (`lib/ops/push.ts`, Expo's push service,
 `EXPO_ACCESS_TOKEN` optional). A device the service reports as gone (`DeviceNotRegistered`) is forgotten. A transport
-failure throws, and `push_send` is in `RETRY_WAITS_MS` (one minute, then five), so a bad minute at the provider is not
-a lost alert. The words are the bell's own: the row's title, the first line of its body (`firstLine`, the derivation the
+failure throws, and `push_send` is in `RETRY_WAITS_MS` (two minutes, then ten, each outlasting the lease), so a bad
+minute at the provider is not a lost alert. The words are the bell's own: the row's title, the first line of its body (`firstLine`, the derivation the
 bell already uses), the route in `data`.
 
 ## What this PR does not do
