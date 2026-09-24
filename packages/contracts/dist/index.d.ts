@@ -16625,11 +16625,13 @@ interface SetupCardVM {
     /** "3 steps left" while the first run is not done; "2 left" after. */
     left: string;
     /** While calls are not answered: the one row, which opens the first run where it stands. */
+    /** `ctaShort` is the button on a phone, where it sits beside the words (canvas P9). */
     start: {
         name: string;
         sentence: string;
         status: string;
         cta: string;
+        ctaShort: string;
         to: string;
     } | null;
     /** After: Setup's own rows, open and not put off, in SETUP_CARD_ORDER. */

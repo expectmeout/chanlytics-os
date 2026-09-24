@@ -53,8 +53,8 @@ const RunsDone = ({ nav }) => {
 // while a step is open, the one row that opens the first run; after, Setup's own optional rows in the order they help
 // most, each with its act and a Skip this person keeps on every device (their saved view). Gone once nothing is left.
 // Every word is contracts' (first-run.ts setupCardOf, through window.__firstRun); the rows are Setup's own, drawn as the
-// card's compact rows (setup.jsx SetupRows look="card", SetupCardRow). On a phone only the next row shows, with its
-// one button (mobile.css).
+// card's compact rows (setup.jsx SetupRows look="card", SetupCardRow). On a phone the card is that one row, the
+// next thing with its button beside it and the count under its name (canvas P9, mobile.css).
 const TodaySetup = () => {
   useTcTick("surface:setup");
   // The card's toast, lent to its rows: a Skip or a Hide can take the card away while its Undo is still up.
@@ -89,13 +89,14 @@ const TodaySetup = () => {
             stateWords={card.start.status}
             name={card.start.name}
             sentence={card.start.sentence}
-            cta={{ label: card.start.cta, kind: "primary", onClick: () => nav(card.start.to) }}
+            left={card.left}
+            cta={{ label: card.start.cta, short: card.start.ctaShort, kind: "primary", onClick: () => nav(card.start.to) }}
             testid="today-setup-start"
             ctaTestid="today-setup-go"
           />
         </div>
       ) : (
-        <window.SetupRows S={S} rows={card.rows} look="card" primary={card.rows[0].id} later={card.skip} flash={flash} testid="today-setup-rows" />
+        <window.SetupRows S={S} rows={card.rows} look="card" primary={card.rows[0].id} left={card.left} later={card.skip} flash={flash} testid="today-setup-rows" />
       )}
       {toastNode}
     </section>

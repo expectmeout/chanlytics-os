@@ -289,19 +289,23 @@ const ListingFinder = ({ flash, onDone }) => {
 /**
  * One of Setup's rows as Today's card draws it (canvas R10): its state as a dot (the word is the dot's name), its name
  * and sentence, and its acts at the right: the next one coral, the others outlined, putting it off a quiet link.
- * Hookless; the acts are the caller's, gate spreads included.
+ * Hookless; the acts are the caller's, gate spreads included. `left` is how many are left, beside the words: a phone
+ * draws the card as this one row with no head (canvas P9), so the count rides here; a wider screen hides it.
  */
-const SetupCardRow = ({ tone, stateWords, name, sentence, cta = null, also = null, testid, ctaTestid = "setup-verb" }) => (
+const SetupCardRow = ({ tone, stateWords, name, sentence, left = null, cta = null, also = null, testid, ctaTestid = "setup-verb" }) => (
   <div className="setup-card-row" data-testid={testid}>
     <span className="setup-card-dot" data-tone={tone} role="img" aria-label={stateWords} title={stateWords} />
     <div className="setup-card-body">
       <span className="setup-card-name">{name}</span>
-      <span className="setup-card-said">{sentence}</span>
+      <span className="setup-card-said">
+        <span className="setup-card-words">{sentence}</span>
+        {left ? <span className="setup-card-aside"><span aria-hidden="true"> · </span>{left}</span> : null}
+      </span>
     </div>
     {cta || also ? (
       <div className="setup-card-acts">
         {cta ? (
-          <button type="button" className={cta.kind === "primary" ? "setup-card-btn primary" : "setup-card-btn"} onClick={cta.onClick} disabled={!!cta.busy} aria-busy={cta.busy ? true : undefined} {...(cta.gate || {})} data-testid={ctaTestid}>{cta.label}</button>
+          <button type="button" className={cta.kind === "primary" ? "setup-card-btn primary" : "setup-card-btn"} onClick={cta.onClick} disabled={!!cta.busy} aria-busy={cta.busy ? true : undefined} {...(cta.gate || {})} data-testid={ctaTestid}>{cta.short ? <><span className="setup-card-long">{cta.label}</span><span className="setup-card-short">{cta.short}</span></> : cta.label}</button>
         ) : null}
         {also ? (
           <button type="button" className="setup-card-skip" onClick={also.onClick} disabled={!!also.busy} aria-busy={also.busy ? true : undefined} {...(also.gate || {})} data-testid={also.testid}>{also.label}</button>
@@ -320,9 +324,9 @@ const SetupCardRow = ({ tone, stateWords, name, sentence, cta = null, also = nul
  * (`said`). Holds the panels' state and the one verb on its way, so a second press waits for the first (S23). The
  * list only: the caller draws the card it sits in, and may lend the toast (`flash`) where the card can go while one
  * is up -- Today's, when its last row is skipped. `look` is how a row is drawn: `row`, the attention row the first
- * run draws; `card`, Today's compact row (SetupCardRow).
+ * run draws; `card`, Today's compact row (SetupCardRow), whose first carries `left`, the card's count.
  */
-const SetupRows = ({ S, rows, later, look, primary = null, flash: lent = null, testid = "setup-rows" }) => {
+const SetupRows = ({ S, rows, later, look, primary = null, left = null, flash: lent = null, testid = "setup-rows" }) => {
   const [toastNode, own] = window.usePPToast();
   const flash = lent || own;
   const [chooser, setChooser] = React.useState(false);
@@ -425,7 +429,7 @@ const SetupRows = ({ S, rows, later, look, primary = null, flash: lent = null, t
   return (
     <div className="setup-rows" data-testid={testid}>
       <div className="tq-list">
-      {rows.map((r) => {
+      {rows.map((r, i) => {
         const cta = r.verb ? { label: r.verb.label, kind: primary === r.id ? "primary" : "ghost", onClick: () => act(r.verb), gate: setupGate(r.verb), busy: pending === r.verb.to } : null;
         const also = r.undo
           ? { label: r.undo.label, onClick: () => act(r.undo), gate: setupGate(r.undo), busy: pending === r.undo.to, testid: `setup-undo-${r.id}` }
@@ -436,7 +440,7 @@ const SetupRows = ({ S, rows, later, look, primary = null, flash: lent = null, t
         <div key={r.id} className={r.later ? "setup-later" : undefined}>
           {look === "card" ? (
             // The next row wears amber, as the one to do now; the rest their own state.
-            <SetupCardRow tone={primary === r.id ? "warn" : setupTone(r.state)} stateWords={r.stateWords} name={r.title} sentence={r.sentence} cta={cta} also={also} testid={`setup-row-${r.id}`} />
+            <SetupCardRow tone={primary === r.id ? "warn" : setupTone(r.state)} stateWords={r.stateWords} name={r.title} sentence={r.sentence} left={i === 0 ? left : null} cta={cta} also={also} testid={`setup-row-${r.id}`} />
           ) : (
           <window.AttnRow
             glyph={r.icon}

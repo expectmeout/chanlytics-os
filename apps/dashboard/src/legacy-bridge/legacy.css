@@ -93,6 +93,17 @@ html.legacy-on #root {
   html.legacy-on .ask-send::after {
     inset: -6px;
   }
+  /* Today's setup card on a phone is one compact row (canvas P9): its button keeps its small look beside the words
+     and grows its target, 30px tall and 44 with the margin around it. */
+  html.legacy-on .setup-card-btn {
+    position: relative;
+    min-height: 0;
+  }
+  html.legacy-on .setup-card-btn::after {
+    content: "";
+    position: absolute;
+    inset: -8px -4px;
+  }
 }
 
 /* A held draft has NOT been sent. It must not read like the messages above it
