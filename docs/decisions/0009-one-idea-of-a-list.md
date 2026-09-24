@@ -258,6 +258,17 @@ Phase 4 ships in three parts. The first, **honest lists**:
 - **Export follows the list that is open:** `GET contacts/export?list=<token>`, counted as a send counts it (every
   member, not the page's loaded rows), named in the file and on the ledger.
 
+The second, **rules you can see and change**:
+
+- **A smart list's rule is changed where it is shown**: "Change who" beside the rule on its title line opens the New
+  list box's parts -- the owner's words, drafted into chips with who they hold today -- and Save writes the rule
+  (`change_list_rule` on the ledger). On a phone, which draws no title line, the more-menu's "Who is on it" shows the
+  rule and changes it in a sheet.
+- **"Save these" keeps the rule behind the view** by default: one of People's lists, one of the workspace's smart
+  lists, or the standing filter. "Just these N" still freezes the people shown, as a search or a list kept by hand
+  always does. With one of People's lists open, that is the copy of a built-in an owner then changes (call 4).
+- **A profile's smart lists say why** they have the person, in the rule's words (`listRuleWhy`), on hover and focus.
+
 ### The four calls, as approved
 
 1. Quiet, New this week, Waiting on you and Booked this week take the meanings above.

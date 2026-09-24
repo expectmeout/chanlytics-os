@@ -9,8 +9,23 @@
  * the server's refusal. A smart list is made the same way with its rule,
  * drafted first from the owner's own words (draft, which changes nothing).
  */
-import { listMembers, listRuleParts, type ListRule, type PersonRowVM } from "@chanlytics/contracts";
+import {
+  PEOPLE_LISTS,
+  listMembers,
+  listRuleParts,
+  listRuleWhy,
+  type ListRule,
+  type PersonRowVM,
+} from "@chanlytics/contracts";
 import { api } from "./api";
+
+/** The People surface, as far as the verbs read it: its rows, and each saved list's name and parsed rule. */
+const peopleSurface = () =>
+  (
+    window as unknown as {
+      __PEOPLE?: { rows: PersonRowVM[]; saved?: { id: string; name: string; spec?: ListRule | null }[] };
+    }
+  ).__PEOPLE;
 
 /** How many people one request puts on a list (the route's LIST_BATCH_MAX). */
 const LIST_ADD_PART = 500;
@@ -46,6 +61,39 @@ export const lists = {
       viewer: !!(window as unknown as { __ME?: { id?: string | null } }).__ME?.id,
     });
     return m.state === "ok" ? m.ids.size : null;
+  },
+  /** A smart list's new rule (decision 0009): who is on it changes, on the ledger; a list kept by hand takes none. */
+  setRule: (id: string, rule: ListRule) => api()("PUT segments/[id]", { params: { id }, body: { rule } }),
+  /**
+   * The rule behind a view of People, for a list that keeps itself current instead of freezing who is shown today:
+   * one of People's lists (its rule, which the owner may then change), one of the workspace's smart lists (a copy of
+   * its rule), or the standing filter (Needs you, Waiting on you). Null for a view no rule says: a list kept by hand, a
+   * search, the other states.
+   */
+  ruleOf: (view: { builtin?: string | null; saved?: string | null; standing?: string | null }): ListRule | null => {
+    if (view.builtin) return PEOPLE_LISTS.find((l) => l.id === view.builtin)?.rule ?? null;
+    if (view.saved) return peopleSurface()?.saved?.find((s) => s.id === view.saved)?.spec ?? null;
+    if (view.standing === "needs_you" || view.standing === "waiting_on_you")
+      return { v: 2, all: [{ field: "standing", op: "is", value: view.standing }] };
+    return null;
+  },
+  /**
+   * Why a smart list of the workspace's own has this person, in its rule's words (contracts listRuleWhy): the profile's
+   * line for the chip. Null when either is not on the page People read.
+   */
+  why: (savedId: string, personId: string): string | null => {
+    const P = peopleSurface();
+    const spec = P?.saved?.find((s) => s.id === savedId)?.spec;
+    const row = P?.rows.find((r) => r.id === personId);
+    if (!spec || !row) return null;
+    const name = (token: string) => {
+      const at = token.indexOf(":");
+      const id = token.slice(at + 1);
+      return token.startsWith("list:")
+        ? (P?.saved?.find((s) => s.id === id)?.name ?? null)
+        : (PEOPLE_LISTS.find((l) => l.id === id)?.label ?? null);
+    };
+    return listRuleWhy(spec, row, name);
   },
   rename: (id: string, name: string) => api()("PUT segments/[id]", { params: { id }, body: { name } }),
   /** Deleted, or archived when a playbook or another list depends on it (the answer says which, and what paused). */

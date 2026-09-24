@@ -9693,7 +9693,7 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date(), viewerId = null) {
     ownMessages: ownMessagesOf(d, stamp),
     smartLists: PEOPLE_LISTS.filter(
       (l) => l.onProfile !== false && (!l.needsCalendar || d.visits?.state === "ok") && l.test(base)
-    ).map((l) => ({ id: l.id, label: l.label })),
+    ).map((l) => ({ id: l.id, label: l.label, why: listRuleWhy(l.rule, base) })),
     campaigns: campaignsOf(d, tz, nowMs),
     lead: d.lead ? {
       id: d.lead.id,

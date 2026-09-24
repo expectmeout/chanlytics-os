@@ -9568,11 +9568,13 @@ interface PersonVM extends PersonRowVM {
     ownMessages: OwnMessageVM[];
     /**
      * The People lists that keep themselves current and have them on today, by the rail's own tests (PEOPLE_LISTS): the
-     * ones this page does not already say another way, and a calendar's only with a calendar.
+     * ones this page does not already say another way, and a calendar's only with a calendar. Each says why it has them,
+     * in the rule's own words (listRuleWhy): the facts they meet today.
      */
     smartLists: {
         id: string;
         label: string;
+        why: string;
     }[];
     /** The runs that named them, newest first, each with what became of it. */
     campaigns: PersonCampaignVM[];

@@ -245,6 +245,7 @@ import {
   toDealReportVM,
   type DealReportVM,
   type CalendarVM,
+  type ListRule,
 } from "@chanlytics/contracts";
 import {
   BROADCAST_CHUNK,
@@ -802,6 +803,8 @@ export interface PeopleSurface {
     byHand: boolean;
     /** A smart list's rule as the chips its page shows; null for a list kept by hand, or a rule that can't be read. */
     rule: string[] | null;
+    /** The rule itself, as read (asListRule): what a copy keeps and a profile's "why" reads. Null as `rule` is. */
+    spec: ListRule | null;
     /** Why it can't be counted (lists.ts listUnknownWords); null when it was. Its count is then no one's, never 0. */
     unknown: string | null;
     /** Its line on the rail (contracts savedListTip): why it can't be counted, what a hand list is for, or its rule. */
@@ -949,6 +952,7 @@ function publishPeople(): void {
           action: savedListAction(l.id, members),
           byHand: l.rule == null,
           rule: rule ? listRuleParts(rule, listName) : null,
+          spec: rule,
           unknown: m.state === "unknown" ? listUnknownWords(m.reason, calendar.state) : null,
         };
       })
