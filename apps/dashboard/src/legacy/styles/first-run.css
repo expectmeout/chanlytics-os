@@ -2,7 +2,9 @@
    Full screen, the shell's chrome set aside (first-run.jsx). Desktop: a top bar with the four steps, the step at the
    prose measure, the receptionist beside it. At 900px and under: the step's line, a 2px bar, the receptionist as one
    line that opens, and the step's button held at the foot. Tokens only; the coral is the step's one action. */
-.fr-shell { min-height: 100dvh; background: var(--bg); color: var(--ink); }
+/* The shell is the page's scroll: the app holds html and body to the viewport (legacy.css, for its own panes'
+   scrolling), so a step taller than the screen was cut off. The phone's sticky head and the card stick inside it. */
+.fr-shell { height: 100vh; height: 100dvh; overflow-y: auto; overscroll-behavior-y: contain; background: var(--bg); color: var(--ink); }
 .fr-root { min-height: 100dvh; display: flex; flex-direction: column; background: var(--bg); color: var(--ink); }
 .fr-waiting { align-items: center; justify-content: center; padding: 32px var(--gutter-page); }
 .fr-reading { margin: 0; color: var(--ink-dim); font-size: 13px; }
