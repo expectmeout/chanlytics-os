@@ -744,6 +744,20 @@
       "rate": "profile_set",
       "spend": false
     },
+    "PUT me/devices": {
+      "kind": "write",
+      "scope": "account",
+      "role": null,
+      "rate": "device_register",
+      "spend": false
+    },
+    "DELETE me/devices": {
+      "kind": "write",
+      "scope": "account",
+      "role": null,
+      "rate": "device_register",
+      "spend": false
+    },
     "POST messages/[id]/cancel-send": {
       "kind": "write",
       "scope": "row",

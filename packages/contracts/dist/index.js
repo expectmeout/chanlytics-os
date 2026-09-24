@@ -286,7 +286,14 @@ var JOB_KINDS = [
    */
   "lead_round_start",
   "lead_collect",
-  "lead_check"
+  "lead_check",
+  /**
+   * One kept notification (00057) to every phone of the people it is for
+   * (00162). Scheduled by the edge's notify when the row's kind is one of
+   * contracts PUSH_KINDS; a transport failure throws and is tried again by
+   * RETRY_WAITS_MS. Internal work: a second claim runs it again.
+   */
+  "push_send"
 ];
 var JOB_STATES = ["scheduled", "fired", "done", "canceled", "failed"];
 var WABA_FIELDS = [
@@ -7941,6 +7948,48 @@ function campaignsOf(d, tz, nowMs) {
   });
 }
 
+// src/push.ts
+var PUSH_PLATFORMS = ["ios", "android"];
+var TOKEN_MAX = 200;
+var VERSION_MAX = 40;
+function parseDevice(body) {
+  const b = body && typeof body === "object" ? body : {};
+  const token = typeof b.token === "string" ? b.token.trim() : "";
+  if (!token) return { ok: false, reason: "A device needs its push token." };
+  if (token.length > TOKEN_MAX) return { ok: false, reason: "That push token is longer than any we know." };
+  const platform = PUSH_PLATFORMS.includes(String(b.platform)) ? b.platform : null;
+  if (!platform) return { ok: false, reason: "A device is an iPhone or an Android phone." };
+  const version = typeof b.app_version === "string" && b.app_version.trim() ? b.app_version.trim().slice(0, VERSION_MAX) : null;
+  return { ok: true, device: { token, platform, app_version: version } };
+}
+var PUSH_KINDS = [
+  "handoff",
+  "call",
+  "note_for_you",
+  "leads_ready",
+  "leads_question",
+  "broadcast_sent",
+  "broadcast_stopped",
+  "job_failed",
+  "billing",
+  "number",
+  "review"
+];
+var isPushKind = (kind) => PUSH_KINDS.includes(kind);
+function firstLine(body, max = 160) {
+  return body.split("\n").find((l) => l.trim())?.trim().slice(0, max) ?? "";
+}
+function pushFor(n, tokens) {
+  const body = firstLine(n.body);
+  return tokens.map((to) => ({
+    to,
+    title: n.title,
+    body,
+    sound: "default",
+    data: { route: n.route, notification_id: n.id, tenant_id: n.tenant_id }
+  }));
+}
+
 // src/notifications.ts
 var DAY_MS5 = 24 * 3600 * 1e3;
 function buildNotificationFeed(input) {
@@ -8129,7 +8178,7 @@ function serverNotificationRows(dto) {
       kind: SERVER_NOTIFICATION_KINDS.includes(n.kind) ? n.kind : "alert",
       at: at2,
       title: n.title,
-      message: n.body.split("\n").find((l) => l.trim())?.trim().slice(0, 160) ?? "",
+      message: firstLine(n.body),
       to: n.route ?? look.to,
       icon: look.icon,
       tone: look.tone,
@@ -17756,7 +17805,8 @@ var SCHEMA_SETS = {
     "email_ingest",
     "lead_round_start",
     "lead_collect",
-    "lead_check"
+    "lead_check",
+    "push_send"
   ],
   "jobs.state": ["scheduled", "fired", "done", "canceled", "failed"],
   "lead_counters.kind": ["allowance", "budget", "day"],
@@ -17881,6 +17931,7 @@ var SCHEMA_SETS = {
   "policies.class": ["reply", "booking", "faq", "reengage", "campaign", "money", "reviews"],
   "policies.mode": ["auto", "veto", "ask", "never"],
   "policies.subject_type": ["segment", "contact"],
+  "push_devices.platform": ["ios", "android"],
   "sweep_status.judged_by": ["request", "run"],
   "templates.category": ["marketing", "utility", "authentication"],
   "templates.channel": ["whatsapp", "voice", "sms", "email", "instagram"],
@@ -19546,6 +19597,8 @@ export {
   PROPOSAL_GATE,
   PROVISIONING_DEADLINE_MS,
   PURPOSE_REFUSALS,
+  PUSH_KINDS,
+  PUSH_PLATFORMS,
   PendingWorkspaceSchema,
   PolicyLimitsSchema,
   ProposeLeadSearchSchema,
@@ -19841,6 +19894,7 @@ export {
   filterOpenings,
   filterTimeline,
   findLanguages,
+  firstLine,
   firstNameOf,
   firstWorkspaceDoor,
   fmtClock,
@@ -19914,6 +19968,7 @@ export {
   isOptedOutContact,
   isOwned,
   isPipelineView,
+  isPushKind,
   isRealDate,
   isReplyTo,
   isSellsBy,
@@ -20049,6 +20104,7 @@ export {
   paramLabel,
   parseAmount,
   parseBrainOutput,
+  parseDevice,
   parseIcs,
   parseJudgeAnswer,
   parseLeadsRoute,
@@ -20131,6 +20187,7 @@ export {
   providerNameOf,
   purposeOfPlaybook,
   purposeOfTemplate,
+  pushFor,
   quantile,
   questionAfterProbe,
   ratingWords,

@@ -125,6 +125,8 @@ export const RATE = {
   profile_set: { limit: 10, windowMs: 3_600_000, noun: "name changes" },
   /** The native app's sign-in door (app/auth/native): per network, a token that does not verify costs a call each time. */
   native_sign_in: { limit: 20, windowMs: 3_600_000, noun: "sign-ins" },
+  /** The phone app registers its push token on launch (me/devices); sixty an hour is a loop, not a person. */
+  device_register: { limit: 60, windowMs: 3_600_000, noun: "device registrations" },
   /** A stranger at the door: per network they came from and per address they typed. */
   signup_ip: { limit: 5, windowMs: 3_600_000, noun: "sign-ups" },
   signup_email: { limit: 3, windowMs: 3_600_000, noun: "sign-ups" },

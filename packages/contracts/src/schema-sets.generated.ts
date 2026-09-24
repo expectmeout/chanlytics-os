@@ -54,7 +54,7 @@ export const SCHEMA_SETS = {
   "invitations.role": ["operator", "viewer"],
   "jobs.kind": [
     "outbound_send", "broadcast_send", "line_provision", "email_ingest", "lead_round_start",
-    "lead_collect", "lead_check",
+    "lead_collect", "lead_check", "push_send",
   ],
   "jobs.state": ["scheduled", "fired", "done", "canceled", "failed"],
   "lead_counters.kind": ["allowance", "budget", "day"],
@@ -122,6 +122,7 @@ export const SCHEMA_SETS = {
   "policies.class": ["reply", "booking", "faq", "reengage", "campaign", "money", "reviews"],
   "policies.mode": ["auto", "veto", "ask", "never"],
   "policies.subject_type": ["segment", "contact"],
+  "push_devices.platform": ["ios", "android"],
   "sweep_status.judged_by": ["request", "run"],
   "templates.category": ["marketing", "utility", "authentication"],
   "templates.channel": ["whatsapp", "voice", "sms", "email", "instagram"],

@@ -76,6 +76,13 @@ export const JOB_KINDS = [
   "lead_round_start",
   "lead_collect",
   "lead_check",
+  /**
+   * One kept notification (00057) to every phone of the people it is for
+   * (00162). Scheduled by the edge's notify when the row's kind is one of
+   * contracts PUSH_KINDS; a transport failure throws and is tried again by
+   * RETRY_WAITS_MS. Internal work: a second claim runs it again.
+   */
+  "push_send",
 ] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
 
