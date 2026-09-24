@@ -1398,8 +1398,9 @@ test("the page is three bands and nothing seeded: the standing line, the queue w
   const page = find(tree, (n) => classes(n).includes("dash-a-v2"));
   assert.deepEqual(
     page.props.children.map((c) => (typeof c.type === "function" ? c.type.name : String(c.props.className))),
-    // No band above the queue: on a phone Ask is the ✦'s full-screen takeover (ask-real.jsx), not a part of Today.
-    ["HeroBrief", "dash-a-v2-core", "TodayCard", "dash-a-v2-foot"],
+    // No band above the queue but what is left to set up (TodaySetup, drawn only while something is): on a phone Ask
+    // is the ✦'s full-screen takeover (ask-real.jsx), not a part of Today.
+    ["HeroBrief", "TodaySetup", "dash-a-v2-core", "TodayCard", "dash-a-v2-foot"],
   );
   const core = find(tree, (n) => classes(n).includes("dash-a-v2-core"));
   assert.deepEqual(

@@ -138,7 +138,6 @@ test("an empty workspace: nothing answers, every row reads its true state, the f
     row: "facts",
     title: "Business facts",
   });
-  assert.equal(vm.line, "Setup · 0 of 9 · Business facts: start in business");
   assert.equal(vm.tryIt, null);
   for (const r of vm.rows) assert.equal(r.stateWords, SETUP_STATE_WORDS[r.state]);
 });
@@ -157,10 +156,8 @@ test("a workspace that answers everywhere: eight of nine — the kept number is 
     row: "keep",
     title: "The number you already have",
   });
-  assert.equal(vm.line, "Setup · 8 of 9 · The number you already have: set up forwarding");
   const kept = setupSteps({ ...live(), later: ["keep"] }, NOW);
   assert.equal(kept.next, null, "put off for later: nothing is left to press");
-  assert.equal(kept.line, null);
   assert.deepEqual(vm.tryIt, {
     voice: VOICE,
     voiceLabel: formatPhoneDisplay(VOICE),
@@ -340,7 +337,6 @@ test("calls only: the sentence says what is missing, and WhatsApp can now wait f
   const later = setupSteps({ ...dto, later: ["whatsapp", "keep"] }, NOW);
   assert.equal(row(later, "whatsapp").later, true);
   assert.equal(later.next, null, "rows put off for later leave nothing to press");
-  assert.equal(later.line, null);
   assert.equal(later.done, 7);
 });
 
@@ -370,7 +366,6 @@ test("later is a preference for optional rows only; a required row ignores it", 
     row: "line",
     title: "A line for calls and texts",
   });
-  assert.equal(vm.line, "Setup · 2 of 9 · A line for calls and texts: ask for a line");
 });
 
 test("a line that was asked for waits on us and says when; one that exists but is not active says so", () => {
@@ -905,11 +900,7 @@ test("wiring: manifest, bridge, routes, rate bucket, event kind, migration", () 
     "window.SetupRows = SetupRows;",
   ])
     assert.ok(page.includes(pin), pin);
-  const brief = readCode("apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx");
-  assert.ok(
-    brief.includes('data-testid="brief-setup"') && brief.includes("<SetupLine nav={nav} />"),
-    "Today carries the one line",
-  );
+  // Today's card of what is left to set up is drawn and pressed in today-doors.test.mjs.
   assert.ok(readCode("packages/contracts/src/index.ts").includes('export * from "./setup";'));
 });
 

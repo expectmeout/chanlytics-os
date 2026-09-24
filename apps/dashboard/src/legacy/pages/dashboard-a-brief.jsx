@@ -7,7 +7,7 @@
 //
 // The card is about the day: four figures from the view model, each with the clause under it and the why behind it
 // on hover, focus or a tap, with one door; then the lines that are not numbers (a reply that never reached anyone,
-// what Setup still wants, a review that landed, what ran, the receipts); then the last seven days in one line with the
+// a review that landed, what ran, the receipts); then the last seven days in one line with the
 // one door to Reports on the page. Every sentence with a number is contracts' (toTodayVM, todayPeriodLine,
 // todayRunWords); this file draws them. A borrowed read that failed says so where its line would be (FailedRead).
 const useTcTick = (key) => {
@@ -49,22 +49,49 @@ const RunsDone = ({ nav }) => {
   });
 };
 
-// Setup's one line while something on the Setup page is open: the count and the next verb, from the Setup surface
-// (contracts/setup.ts). Rows the owner put off for later are not counted. Gone the moment everything is ready.
-const SetupLine = ({ nav }) => {
+// What is left to set up, as one card above the queue (the first run's Today card, canvas R10 and P9): while the
+// receptionist is not answering, the one row that opens the first run; after, Setup's own optional rows in the order
+// they help most, each with its act and a Skip this person keeps on every device (their saved view). Gone once nothing
+// is left. Every word is contracts' (first-run.ts setupCardOf, through window.__firstRun); the rows are Setup's own
+// (setup.jsx SetupRows). On a phone only the next row shows (mobile.css).
+const TodaySetup = () => {
   useTcTick("surface:setup");
   const S = window.__SETUP;
-  if (!S || !S.vm.line) return null;
+  const F = window.__firstRun;
+  if (!S || !F) return null;
+  const card = F.today(S.vm);
+  if (!card) return null;
+  const nav = (to) => window.appNavigate && window.appNavigate(to);
   return (
-    <div className="brief-beat" data-testid="brief-setup">
-      {/* Not answering yet is a warning, not live state: said by the words in amber, as the failed reply's line says its own
-          in red. The mark stays neutral, as every mark is. */}
-      <span className="mark brief-beat-glyph"><Icon name="settings" size={13} /></span>
-      <span className="brief-beat-text" style={S.vm.readiness.answering ? undefined : { color: "var(--warn-ink)" }}>{S.vm.line}</span>
-      <button className="brief-chip" onClick={() => nav("admin/setup")}>Open Setup <Icon name="arrow-right" size={10} /></button>
-    </div>
+    <section className="tq today-setup" data-testid="today-setup">
+      <div className="tq-head">
+        <span className="tq-title">{card.title}</span>
+        <span className="tq-sub">{card.left}</span>
+        {card.hide ? (
+          <button className="btn btn-ghost btn-sm" onClick={() => window.__setup && window.__setup.later(card.rows.map((r) => r.id), true)} data-testid="today-setup-hide">{card.hide}</button>
+        ) : null}
+      </div>
+      {card.start ? (
+        <div className="tq-list">
+          <window.AttnRow
+            glyph="flag"
+            name={card.start.name}
+            sentence={card.start.sentence}
+            status={[]}
+            tone="warn"
+            cta={{ label: card.start.cta, kind: "primary", onClick: () => nav(card.start.to) }}
+            onOpen={() => nav(card.start.to)}
+            testid="today-setup-start"
+            ctaTestid="today-setup-go"
+          />
+        </div>
+      ) : (
+        <window.SetupRows S={S} rows={card.rows} primary={card.rows[0].id} later={{ put: card.skip, undo: null }} testid="today-setup-rows" />
+      )}
+    </section>
   );
 };
+window.TodaySetup = TodaySetup;
 
 // A review on Google, the morning it lands: first seen in the last day and a half, written recently, not part of the
 // first read (contracts/google.ts reviewIsNew). From the Google surface, which boots with the rest. Gone once it is
@@ -198,7 +225,6 @@ const TodayCard = () => {
             {quiet.launchpad && <button className="brief-chip" onClick={() => nav(quiet.launchpad.to)}>{quiet.launchpad.label}</button>}
           </div>
         )}
-        <SetupLine nav={nav} />
         <ReviewLine nav={nav} />
         {/* Everything the figures do not carry, crucially a reply that failed to deliver: the one line that must never be quiet. */}
         {(recap ? recap.sentences : []).filter((sn) => !sn.traffic).map((sn, i) => (

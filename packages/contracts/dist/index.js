@@ -14767,7 +14767,6 @@ function setupSteps(i, nowMs = Date.now()) {
     next,
     done,
     total: rows.length,
-    line: next ? `Setup \xB7 ${done} of ${rows.length} \xB7 ${next.title}: ${next.label.toLowerCase()}` : null,
     tryIt: answering ? {
       voice: voiceReady ? voice.number : null,
       voiceLabel: voiceReady ? voiceNum : null,

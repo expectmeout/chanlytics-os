@@ -1,11 +1,12 @@
 /**
- * Setup — one page a new owner lands on until the receptionist is answering.
+ * Setup — the rows the first run draws a step at a time (first-run.ts), and
+ * Today's card draws after it.
  *
  * Every row here is read from the workspace: the config, the channels, the
  * templates, the calendar feed, the team, the consent rows. Nothing stores a
  * "done" flag; a row is ready because the thing it names exists. "Later" is
- * a preference on one device that hides an optional row from Today's line,
- * and nothing else.
+ * the member's own (their saved view, on every device): it puts an optional
+ * row off Today's card, and nothing else.
  *
  * Four words for every state, so the page reads the same way People and
  * Today do: Not started · Waiting on you · Waiting on carriers (or Meta, or
@@ -287,8 +288,6 @@ export interface SetupVM {
   next: { label: string; to: string; row: string; title: string } | null;
   done: number;
   total: number;
-  /** Today's one line while something is open: "Setup · 3 of 8 · Calendar: paste the feed". */
-  line: string | null;
   /** The numbers to try, once the receptionist answers somewhere. */
   tryIt: {
     voice: string | null;
@@ -1327,7 +1326,6 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
     next,
     done,
     total: rows.length,
-    line: next ? `Setup · ${done} of ${rows.length} · ${next.title}: ${next.label.toLowerCase()}` : null,
     tryIt: answering
       ? {
           voice: voiceReady ? voice.number : null,
