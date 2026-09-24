@@ -58,10 +58,10 @@ export type GoogleListingFacts = {
   time_zone: string | null;
   /**
    * Where customers book, as the listing's website says it (booking-page.ts): the website itself when it is a page on
-   * a booking platform, or the one its home page links to. Never Google's own answer: the edge reads the website
-   * with the listing's first read, and Places' parse says null. Check offers it for the owner to take.
+   * a booking platform, or the one its home page names. Never Google's own answer, so never in Places' parse: the edge
+   * reads the website when a listing is linked, and adds it. Check offers it for the owner to take.
    */
-  booking_page: string | null;
+  booking_page?: string | null;
 };
 
 /** A moment of Google's week as stored, or null for anything else. */
@@ -107,12 +107,21 @@ export function listingFactsOf(raw: unknown): GoogleListingFacts | null {
 }
 
 /**
- * What a later read of a listing keeps of the booking page its first read found: the page, while the listing's
- * website is the one it was found on. The website is read only with the first read (the edge's checkListing), so a
- * new website has none until the listing is linked again.
+ * What a later read of a listing keeps of the booking page the link found: the page, while the listing's website is
+ * the one it was found on. Only the link reads the website (the edge's checkListing), so a new website has none until
+ * the listing is linked again.
  */
 export function bookingPageKept(prev: GoogleListingFacts | null, website: string | null): string | null {
-  return prev && prev.website === website ? prev.booking_page : null;
+  return prev && prev.website === website ? (prev.booking_page ?? null) : null;
+}
+
+/**
+ * The booking page the website names, as Check offers it: only while the config holds no booking link. A link the
+ * owner has is theirs, whatever the website says. The one test, for the setup read and for the page, whose next save
+ * may hold a link the read has not seen yet.
+ */
+export function bookingPageOffered(found: string | null | undefined, holdsLink: boolean): string | null {
+  return holdsLink ? null : (found ?? null);
 }
 
 type Day = (typeof DAYS)[number];
@@ -278,8 +287,8 @@ export interface SetupGoogleFacts {
   /** Google's kind of place (the facts' primary_type, e.g. "moving_company"): what Check's service chips suggest by. */
   type?: string | null;
   /**
-   * Where customers book, as the listing's website says it (the facts' booking_page), while the record holds no
-   * booking link: Check offers it for the owner to take. Absent reads as none.
+   * Where customers book, as the listing's website says it (the facts' booking_page): Check offers it while the record
+   * holds no booking link (bookingPageOffered). Absent reads as none.
    */
   bookingPage?: string | null;
 }

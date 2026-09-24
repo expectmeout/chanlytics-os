@@ -20,7 +20,7 @@ import { CALENDAR_FEED_WORDS } from "./calendar";
 import type { FactConflict } from "./facts";
 import { agoWords, spanLabel } from "./time";
 import { CARRIER_WORDS, MODE_WORDS, forwardingTestOpen, type Carrier, type ForwardingMode } from "./forwarding";
-import { listingLine, type SetupGoogleFacts } from "./google";
+import { bookingPageOffered, listingLine, type SetupGoogleFacts } from "./google";
 import {
   dayWords,
   trialWords,
@@ -1361,7 +1361,7 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
       listed: !!i.google?.listing,
       unsure: i.google?.unsure ?? [],
       type: i.google?.type ?? null,
-      bookingPage: i.google?.bookingPage ?? null,
+      bookingPage: bookingPageOffered(i.google?.bookingPage, i.business.bookingLink),
     },
   };
 }

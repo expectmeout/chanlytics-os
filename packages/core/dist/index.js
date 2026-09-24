@@ -1269,6 +1269,8 @@ var RECORDING_NOTE = {
   purged: `Recording removed after ${RECORDING_RETENTION_DAYS} days`
 };
 var PRIVATE_HOST = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
+var CARRIER_NAT = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./;
+var PRIVATE_V6 = /^\[(::1?|f[cd][0-9a-f]{0,2}:.*|fe[89ab][0-9a-f]?:.*|::ffff:.*)\]$/i;
 function feedUrlOk(raw) {
   if (!raw) return null;
   const url = raw.trim().replace(/^webcal:\/\//i, "https://");
@@ -1279,7 +1281,9 @@ function feedUrlOk(raw) {
     return null;
   }
   if (u.protocol !== "https:" && u.protocol !== "http:") return null;
-  if (PRIVATE_HOST.test(u.hostname) || /^172\.(1[6-9]|2\d|3[01])\./.test(u.hostname)) return null;
+  const h = u.hostname;
+  if (PRIVATE_HOST.test(h) || /^172\.(1[6-9]|2\d|3[01])\./.test(h) || CARRIER_NAT.test(h) || PRIVATE_V6.test(h))
+    return null;
   return u.toString();
 }
 function feedProblemWords(reason, status) {
@@ -1773,6 +1777,13 @@ var SELLS_BY_WORDS = {
     sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
   }
 };
+var REVIEW_AUTO_REPLY_MAX_AGE_MS = 14 * 864e5;
+var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var REVIEW_NEWS_MS = 36 * 3600 * 1e3;
+var REVIEW_NEWS_MAX_AGE_MS = 14 * 864e5;
+var BOOTSTRAP_MS = 3600 * 1e3;
+var DATE_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var WEEK_MS2 = 7 * 864e5;
 var FIRST_RUN_ROUTE = "start";
 var FIND_PARAM = "find";
 var FIRST_RUN_FIND_ROUTE = `${FIRST_RUN_ROUTE}/${FIND_PARAM}`;
@@ -2476,7 +2487,7 @@ var PERSON_MODE_WORDS = {
   inherit: "Follow the workspace"
 };
 var DAY_MS4 = 864e5;
-var WEEK_MS2 = 7 * DAY_MS4;
+var WEEK_MS3 = 7 * DAY_MS4;
 var MONTH_MS = 30 * DAY_MS4;
 var NOTE_MAX = 600;
 var NOTE_REFUSALS = {
@@ -2657,13 +2668,6 @@ var LIMIT_TIERS = {
   TIER_UNLIMITED: Number.POSITIVE_INFINITY
 };
 var FORWARDING_TEST_WINDOW_MS = 30 * 6e4;
-var REVIEW_AUTO_REPLY_MAX_AGE_MS = 14 * 864e5;
-var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var REVIEW_NEWS_MS = 36 * 3600 * 1e3;
-var REVIEW_NEWS_MAX_AGE_MS = 14 * 864e5;
-var BOOTSTRAP_MS = 3600 * 1e3;
-var DATE_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var WEEK_MS3 = 7 * 864e5;
 var DATE_FMT3 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var SOLE_PROP_LIMITS = {
   campaignsPerBrand: 1,
@@ -3767,6 +3771,8 @@ var RECORDING_NOTE2 = {
   purged: `Recording removed after ${RECORDING_RETENTION_DAYS2} days`
 };
 var PRIVATE_HOST2 = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
+var CARRIER_NAT2 = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./;
+var PRIVATE_V62 = /^\[(::1?|f[cd][0-9a-f]{0,2}:.*|fe[89ab][0-9a-f]?:.*|::ffff:.*)\]$/i;
 function feedUrlOk2(raw) {
   if (!raw) return null;
   const url = raw.trim().replace(/^webcal:\/\//i, "https://");
@@ -3777,7 +3783,9 @@ function feedUrlOk2(raw) {
     return null;
   }
   if (u.protocol !== "https:" && u.protocol !== "http:") return null;
-  if (PRIVATE_HOST2.test(u.hostname) || /^172\.(1[6-9]|2\d|3[01])\./.test(u.hostname)) return null;
+  const h = u.hostname;
+  if (PRIVATE_HOST2.test(h) || /^172\.(1[6-9]|2\d|3[01])\./.test(h) || CARRIER_NAT2.test(h) || PRIVATE_V62.test(h))
+    return null;
   return u.toString();
 }
 function feedProblemWords2(reason, status) {
@@ -4614,6 +4622,9 @@ function visitStartTime(v, tz) {
 var REPLY_WINDOW_HOURS2 = 72;
 var REPLY_WINDOW_MS2 = REPLY_WINDOW_HOURS2 * 36e5;
 var REPLY_WINDOW_WORDS2 = `within ${REPLY_WINDOW_HOURS2 / 24} days`;
+function onDomain(host, domain) {
+  return host === domain || host.endsWith(`.${domain}`);
+}
 var BOOKING_PLATFORMS = [
   { host: "vagaro.com" },
   { host: "booksy.com" },
@@ -4626,13 +4637,27 @@ var BOOKING_PLATFORMS = [
   { host: "acuityscheduling.com" },
   { host: "as.me" },
   { host: "calendly.com" },
-  { host: "squareup.com", path: /^\/appointments\// },
+  { host: "book.squareup.com", path: /^\/appointments\// },
+  { host: "squareup.com", path: /^\/appointments\/book\// },
   { host: "simplybook.me" },
   { host: "youcanbook.me" },
   { host: "zocdoc.com" },
   { host: "janeapp.com" }
 ];
 var BOOKING_PLATFORM_HOSTS = /* @__PURE__ */ (() => BOOKING_PLATFORMS.map((p) => p.host))();
+var PLATFORM_OWN = /* @__PURE__ */ new Set([
+  "help",
+  "support",
+  "blog",
+  "docs",
+  "status",
+  "community",
+  "careers",
+  "developers",
+  "partners",
+  "press",
+  "legal"
+]);
 var BOOKING_PAGE_MAX = /* @__PURE__ */ (() => BrainConfigSchema2.shape.booking_link.unwrap().maxLength ?? Infinity)();
 function bookingPageOf(raw) {
   const s = String(raw ?? "").trim();
@@ -4645,10 +4670,12 @@ function bookingPageOf(raw) {
   }
   if (u.protocol !== "https:" && u.protocol !== "http:") return null;
   const host = u.hostname.toLowerCase().replace(/^www\./, "");
-  const platform = BOOKING_PLATFORMS.find((p) => host === p.host || host.endsWith(`.${p.host}`));
+  const platform = BOOKING_PLATFORMS.find((p) => onDomain(host, p.host));
   if (!platform) return null;
+  const sub = host === platform.host ? null : host.slice(0, -platform.host.length - 1);
+  if (sub !== null && PLATFORM_OWN.has(sub.slice(sub.lastIndexOf(".") + 1))) return null;
   if (platform.path && !platform.path.test(u.pathname)) return null;
-  if (host === platform.host && !u.pathname.split("/").some(Boolean)) return null;
+  if (sub === null && !u.pathname.split("/").some(Boolean)) return null;
   u.protocol = "https:";
   u.hash = "";
   const page = u.toString();
@@ -4973,11 +5000,9 @@ var LEAD_PLATFORM_HOSTS = /* @__PURE__ */ (() => [
   "yelp.com",
   "google.com"
 ])();
-var LEAD_JUNK_EMAIL_DOMAINS = [
-  "vagaro.com",
+var LEAD_JUNK_EMAIL_DOMAINS = /* @__PURE__ */ (() => [
+  ...BOOKING_PLATFORM_HOSTS,
   "square.site",
-  "squareup.com",
-  "glossgenius.com",
   "godaddy.com",
   "wix.com",
   "wixpress.com",
@@ -4986,7 +5011,7 @@ var LEAD_JUNK_EMAIL_DOMAINS = [
   "domain.com",
   "yourdomain.com",
   "email.com"
-];
+])();
 var LEAD_PLACEHOLDER_LOCALS = [
   "filler",
   "yourdomain",
@@ -5066,7 +5091,7 @@ function cleanEmailCandidates(emails, host) {
     }
     seen.add(address);
     const [local, domain] = address.split("@");
-    if (LEAD_JUNK_EMAIL_DOMAINS.some((d) => domain === d || domain.endsWith(`.${d}`))) {
+    if (LEAD_JUNK_EMAIL_DOMAINS.some((d) => onDomain(domain, d))) {
       dropped.push({ email: address, why: "junk_domain" });
       continue;
     }
@@ -5118,7 +5143,7 @@ function siteHost(url) {
   }
   host = host.replace(/^www\./, "");
   if (!host.includes(".") || host.length > LEAD_FACT_MAX) return null;
-  if (LEAD_PLATFORM_HOSTS.some((p) => host === p || host.endsWith(`.${p}`))) return null;
+  if (LEAD_PLATFORM_HOSTS.some((p) => onDomain(host, p))) return null;
   return host;
 }
 function stateCode(raw) {
@@ -5149,6 +5174,13 @@ function waitingOnProposal(r22, nowMs, pace) {
   if (nowMs - d.sinceMs < wait * DAY_MS3) return false;
   return !heardSinceProposal(r22);
 }
+var REVIEW_AUTO_REPLY_MAX_AGE_MS2 = 14 * 864e5;
+var DATE_FMT5 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var REVIEW_NEWS_MS2 = 36 * 3600 * 1e3;
+var REVIEW_NEWS_MAX_AGE_MS2 = 14 * 864e5;
+var BOOTSTRAP_MS2 = 3600 * 1e3;
+var DATE_FMT22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var WEEK_MS22 = 7 * 864e5;
 var FIRST_RUN_ROUTE2 = "start";
 var FIND_PARAM2 = "find";
 var FIRST_RUN_FIND_ROUTE2 = `${FIRST_RUN_ROUTE2}/${FIND_PARAM2}`;
@@ -5855,7 +5887,7 @@ var PERSON_MODE_WORDS2 = {
   inherit: "Follow the workspace"
 };
 var DAY_MS42 = 864e5;
-var WEEK_MS22 = 7 * DAY_MS42;
+var WEEK_MS32 = 7 * DAY_MS42;
 var MONTH_MS2 = 30 * DAY_MS42;
 var NOTE_MAX2 = 600;
 var NOTE_REFUSALS2 = {
@@ -6689,13 +6721,6 @@ function overLimitRefusal(h, audience) {
   return `This number can start up to ${h.limitPerDay.toLocaleString("en-US")} new conversations a day; this audience is ${audience.toLocaleString("en-US")}. Send to a smaller list or split it.`;
 }
 var FORWARDING_TEST_WINDOW_MS2 = 30 * 6e4;
-var REVIEW_AUTO_REPLY_MAX_AGE_MS2 = 14 * 864e5;
-var DATE_FMT5 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var REVIEW_NEWS_MS2 = 36 * 3600 * 1e3;
-var REVIEW_NEWS_MAX_AGE_MS2 = 14 * 864e5;
-var BOOTSTRAP_MS2 = 3600 * 1e3;
-var DATE_FMT22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var WEEK_MS32 = 7 * 864e5;
 var DATE_FMT32 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var SOLE_PROP_LIMITS2 = {
   campaignsPerBrand: 1,
@@ -7518,6 +7543,8 @@ var RECORDING_NOTE3 = {
   purged: `Recording removed after ${RECORDING_RETENTION_DAYS3} days`
 };
 var PRIVATE_HOST3 = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
+var CARRIER_NAT3 = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./;
+var PRIVATE_V63 = /^\[(::1?|f[cd][0-9a-f]{0,2}:.*|fe[89ab][0-9a-f]?:.*|::ffff:.*)\]$/i;
 function feedUrlOk3(raw) {
   if (!raw) return null;
   const url = raw.trim().replace(/^webcal:\/\//i, "https://");
@@ -7528,7 +7555,9 @@ function feedUrlOk3(raw) {
     return null;
   }
   if (u.protocol !== "https:" && u.protocol !== "http:") return null;
-  if (PRIVATE_HOST3.test(u.hostname) || /^172\.(1[6-9]|2\d|3[01])\./.test(u.hostname)) return null;
+  const h = u.hostname;
+  if (PRIVATE_HOST3.test(h) || /^172\.(1[6-9]|2\d|3[01])\./.test(h) || CARRIER_NAT3.test(h) || PRIVATE_V63.test(h))
+    return null;
   return u.toString();
 }
 function feedProblemWords3(reason, status) {
@@ -8022,6 +8051,13 @@ var SELLS_BY_WORDS3 = {
     sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
   }
 };
+var REVIEW_AUTO_REPLY_MAX_AGE_MS3 = 14 * 864e5;
+var DATE_FMT6 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var REVIEW_NEWS_MS3 = 36 * 3600 * 1e3;
+var REVIEW_NEWS_MAX_AGE_MS3 = 14 * 864e5;
+var BOOTSTRAP_MS3 = 3600 * 1e3;
+var DATE_FMT23 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var WEEK_MS23 = 7 * 864e5;
 var FIRST_RUN_ROUTE3 = "start";
 var FIND_PARAM3 = "find";
 var FIRST_RUN_FIND_ROUTE3 = `${FIRST_RUN_ROUTE3}/${FIND_PARAM3}`;
@@ -8725,7 +8761,7 @@ var PERSON_MODE_WORDS3 = {
   inherit: "Follow the workspace"
 };
 var DAY_MS43 = 864e5;
-var WEEK_MS23 = 7 * DAY_MS43;
+var WEEK_MS33 = 7 * DAY_MS43;
 var MONTH_MS3 = 30 * DAY_MS43;
 var NOTE_MAX3 = 600;
 var NOTE_REFUSALS3 = {
@@ -8906,13 +8942,6 @@ var LIMIT_TIERS3 = {
   TIER_UNLIMITED: Number.POSITIVE_INFINITY
 };
 var FORWARDING_TEST_WINDOW_MS3 = 30 * 6e4;
-var REVIEW_AUTO_REPLY_MAX_AGE_MS3 = 14 * 864e5;
-var DATE_FMT6 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var REVIEW_NEWS_MS3 = 36 * 3600 * 1e3;
-var REVIEW_NEWS_MAX_AGE_MS3 = 14 * 864e5;
-var BOOTSTRAP_MS3 = 3600 * 1e3;
-var DATE_FMT23 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var WEEK_MS33 = 7 * 864e5;
 var DATE_FMT33 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var SOLE_PROP_LIMITS3 = {
   campaignsPerBrand: 1,
@@ -45926,13 +45955,29 @@ ${openings}` : ""}`,
 }
 
 // src/booking-page.ts
-var SAYS_BOOK = /\b(book|schedul|appointment|reserv|cita|agend)/i;
-function bookingPageOn(html, pageUrl) {
-  let first = null;
-  const re = /<a\b([^>]*)>([\s\S]*?)<\/a\s*>/gi;
-  for (let m = re.exec(html); m; m = re.exec(html)) {
-    const attrs = attrsOf(m[1]);
+var SAYS_BOOK = /\b(book|booking|bookings|schedule|scheduling|appointments?|reserve|reservations?|reservar|reserva|citas?|agendar)\b/i;
+var TAG_MAX = 2e3;
+var WORDS_MAX = 600;
+function bookingPageLinkedFrom(html, pageUrl) {
+  const start = /<a[\s>]/gi;
+  for (let at = 0; ; ) {
+    start.lastIndex = at;
+    const m = start.exec(html);
+    if (!m) return null;
+    const close = html.indexOf(">", m.index);
+    if (close === -1) return null;
+    at = close + 1;
+    if (close - m.index > TAG_MAX) continue;
+    const attrs = attrsOf(html.slice(m.index + 2, close));
     if (!attrs.href) continue;
+    const tail = html.slice(at, at + WORDS_MAX);
+    const end = tail.search(/<\/a\s*>/i);
+    const inner = end === -1 ? "" : tail.slice(0, end);
+    const alts = inner.match(/\balt\s*=\s*("[^"]*"|'[^']*')/gi) ?? [];
+    const words4 = decodeEntities(
+      [inner.replace(/<[^>]*>/g, " "), ...alts, attrs["aria-label"] ?? "", attrs.title ?? ""].join(" ")
+    );
+    if (!SAYS_BOOK.test(words4)) continue;
     let resolved;
     try {
       resolved = new URL(decodeEntities(attrs.href), pageUrl).toString();
@@ -45940,12 +45985,8 @@ function bookingPageOn(html, pageUrl) {
       continue;
     }
     const page = bookingPageOf(resolved);
-    if (!page) continue;
-    const words4 = decodeEntities(`${m[2].replace(/<[^>]*>/g, " ")} ${attrs["aria-label"] ?? ""} ${attrs.title ?? ""}`);
-    if (SAYS_BOOK.test(words4)) return page;
-    first ??= page;
+    if (page) return page;
   }
-  return first;
 }
 export {
   BROADCAST_STALL_RETRY_MS,
@@ -46005,7 +46046,7 @@ export {
   archive,
   areaCenter,
   assembleRun,
-  bookingPageOn,
+  bookingPageLinkedFrom,
   cancelBroadcast,
   cancelSend,
   centerOf,

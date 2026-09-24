@@ -356,45 +356,56 @@ test("a business Google lists no kind for is offered no services, and still the 
 
 const FOUND = "https://calendly.com/harbor-moving-example/estimate";
 
-test("a business that books is offered the booking page its website names, and Use it saves it as the row would", () => {
+/** The booking link row's other answer, as the kit draws a disagreement: its words, and the press that takes it. */
+const offerOf = (tree) => {
+  const row = byTestId(tree, "rec-row-booking_link");
+  const said = row ? all(row, (n) => n.props && n.props.id === "rec-row-booking_link-other")[0] : null;
+  const use = row ? all(row, (n) => n.type === "button" && textOf(n) === "Use it")[0] : null;
+  return { said: said ? textOf(said) : null, use: use || null };
+};
+
+test("a business that books is offered the booking page its website names, in the row's own words, and Use it saves it through the row", () => {
   const sent = saving();
   let tree = draw({ setup: dto({}, { bookingPage: FOUND }) });
-  const offer = byTestId(tree, "fr-found-link");
-  assert.equal(textOf(offer).replace(FOUND, " "), "Found on your website Use it");
-  assert.equal(textOf(byTestId(tree, "fr-found-link-value")), FOUND);
-  press(byTestId(tree, "fr-found-link-use"));
-  assert.equal(sent.at(-1).config.brain.booking_link, FOUND, "the booking link, through the tab's one saver");
+  assert.deepEqual(offerOf(tree).said, `Found on your website: ${FOUND}`);
+  press(offerOf(tree).use);
+  assert.equal(
+    sent.at(-1).config.brain.booking_link,
+    FOUND,
+    "the row's own check and save, through the tab's one saver",
+  );
   tree = redraw();
-  assert.equal(byTestId(tree, "fr-found-link"), null, "gone at once: the link is on the config the next save goes on");
+  assert.deepEqual(
+    offerOf(tree),
+    { said: null, use: null },
+    "gone at once: the link is on the config the next save goes on",
+  );
 });
 
 test("nothing is offered over a link the record holds, or to a business that quotes and is asked for none", () => {
+  const none = { said: null, use: null };
+  assert.deepEqual(
+    offerOf(draw({ setup: dto({}, { bookingPage: FOUND }), link: "https://book.example.com/harbor" })),
+    none,
+  );
   assert.equal(
-    byTestId(
-      draw({ setup: dto({}, { bookingPage: FOUND }), link: "https://book.example.com/harbor" }),
-      "fr-found-link",
-    ),
+    byTestId(draw({ setup: dto({}, { bookingPage: FOUND }), sellsBy: "proposal" }), "rec-row-booking_link"),
     null,
   );
-  assert.equal(byTestId(draw({ setup: dto({}, { bookingPage: FOUND }), sellsBy: "proposal" }), "fr-found-link"), null);
-  assert.equal(byTestId(draw(), "fr-found-link"), null, "nothing found, nothing offered");
+  assert.deepEqual(offerOf(draw()), none, "nothing found, nothing offered");
 });
 
-test("a role that may not change the business sees Use it gated, and a press sends nothing", () => {
+test("a role that may not change the business reads what the website names, and is offered no press, as with any disagreement", () => {
   const sent = saving();
-  const was = { canDo: W.canDo, gate: W.gate };
-  const told = [];
+  const was = W.canDo;
   W.canDo = (a) => a !== "settings";
-  W.gate = (perm, doing) => (perm === "settings" ? { "aria-disabled": true, onClick: () => told.push(doing) } : {});
   try {
-    const tree = draw({ setup: dto({}, { bookingPage: FOUND }) });
-    const use = byTestId(tree, "fr-found-link-use");
-    assert.equal(use.props["aria-disabled"], true);
-    press(use);
+    const offer = offerOf(draw({ setup: dto({}, { bookingPage: FOUND }) }));
+    assert.equal(offer.said, `Found on your website: ${FOUND}`);
+    assert.equal(offer.use, null);
     assert.equal(sent.length, 0);
-    assert.deepEqual(told, ["change the booking link"], "the gate's own press, which says why");
   } finally {
-    Object.assign(W, was);
+    W.canDo = was;
   }
 });
 

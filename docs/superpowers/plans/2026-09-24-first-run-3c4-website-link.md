@@ -160,3 +160,47 @@ book at … Found on your website".
       suite.
 - [ ] Look at the offer on the probe, desktop and phone.
 - [ ] One review round and one fix round. Merge main, open the PR, watch CI, squash-merge, check main's run.
+
+## As built (24 September 2026)
+
+Tasks 1 to 6 as planned, with these differences:
+- The words a link says booking in include Spanish ("reservar", "cita", "agendar"), since the product's businesses
+  write their sites in both languages.
+- The platforms' constants are pure (`@__PURE__`), so a bundle that does not use them drops them. The db, channels
+  and jobs dists stay as they were.
+
+**Fixed in the review round** (one whole-branch review, standards and spec, then one fix round):
+- **The website read reaches no private network.**
+  - A shared reader, `apps/edge/lib/public-page.ts` (`publicPageText`), checks each address it asks through
+    `feedUrlOk`: the first, and each redirect, three at most. It reads HTML only, and no more than 256 KB, as the
+    page arrives.
+  - `feedUrlOk` now also refuses:
+    - IPv6's private ranges: unique local, link-local, the unspecified address, and an IPv4 address carried in one;
+    - the carriers' shared space, 100.64.0.0/10.
+  - Calendar feeds get the stricter rule too.
+- **Only the link reads the website.**
+  - `checkListing` takes `site: "read" | "keep"`, and it is required. The link reads; the refresh and the sweep
+    keep.
+  - A listing linked through the Business Profile is first read by the sweep, which has no room for a site.
+- **A page's booking link is one whose words say booking.**
+  - The words are its text, an image's alt, its aria-label or its title, matched as whole words. So a "Powered by"
+    badge, a gift card or a shop is not taken.
+  - Neither is a platform's own help, news or hiring subdomain, nor a Square page other than its appointments.
+  - The reader goes through a page in one pass. It is renamed `bookingPageLinkedFrom` (it was `bookingPageOn`).
+- **One test for the offer:** `bookingPageOffered(found, holdsLink)` in contracts `google.ts`. Setup's view model
+  and the page both ask it, and the setup read carries the facts' page as it is.
+- **The kit draws the offer.** It is the booking link row's disagreement (`other`), with the row's own check, save
+  and gate. Its press is offered only to a role that may change the business, like any disagreement's press.
+  `FrFoundLink` and its CSS are gone.
+- **Named once:**
+  - `onDomain` is the one host rule for the booking platforms, the lead finder's platforms and its junk email
+    domains. The junk email domains are now built from the booking platforms too.
+  - The bot's user agent is the public reader's; the lead marks import it.
+- **`booking_page` is not Google's,** so Places' parse no longer states it (it is optional on `GoogleListingFacts`).
+  The edge adds it.
+- **No counts in prose.**
+- **Left as it is:**
+  - `feedUrlOk` keeps its name, from the calendar feeds it guarded first.
+  - A host name that resolves to a private address is not caught: the rule reads addresses, not DNS, as it does for
+    calendar feeds.
+  - The lead finder's own page read (`pageText`) still follows redirects unchecked. It is flagged separately.

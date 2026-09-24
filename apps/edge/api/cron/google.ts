@@ -68,7 +68,7 @@ export async function POST(request: Request): Promise<Response> {
     await tzOf(due.map((d) => d.tenant_id));
     for (const row of due) {
       try {
-        const r = await checkListing(db, row, zones.get(row.tenant_id) ?? "America/New_York", now);
+        const r = await checkListing(db, row, zones.get(row.tenant_id) ?? "America/New_York", "keep", now);
         if (r.ok) {
           out.listings_read += 1;
           out.fresh += r.fresh;

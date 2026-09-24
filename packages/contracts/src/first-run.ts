@@ -17,6 +17,7 @@ import { openWeekWords, servicesWords, type ServiceWordsInput } from "./business
 import { DAY_NAMES, type Hours } from "./config";
 import { bookingLinkOptional } from "./deals";
 import { checkChipsOf } from "./check-chips";
+import { bookingPageOffered } from "./google";
 import type { SetupDto, SetupRowVM, SetupState, SetupVM } from "./setup";
 
 /** The first run's address: `#/start`, and `#/start/<step>` for a step already reached. */
@@ -176,7 +177,7 @@ export const FIRST_RUN_WORDS = {
       removed: (name: string) => `Removed ${name}`,
     },
     /** The booking page the business's website names, offered under the booking link row (3c-4). */
-    bookingPage: { found: "Found on your website", use: "Use it" },
+    bookingPage: { found: (page: string) => `Found on your website: ${page}`, use: "Use it" },
   },
 } as const;
 
@@ -589,6 +590,7 @@ export const FIRST_RUN_HELPERS = {
   receptionist: receptionistCardOf,
   todayCard: setupCardOf,
   chips: checkChipsOf,
+  bookingPageOffered,
   words: FIRST_RUN_WORDS,
   landedKey: FIRST_RUN_LANDED_KEY,
 } as const;

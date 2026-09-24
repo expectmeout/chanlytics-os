@@ -207,6 +207,14 @@ test("the address rule: the public internet over https, webcal in a hat, and not
     "http://172.31.255.1/x",
     "http://169.254.169.254/latest/meta-data",
     "http://[::1]/x",
+    "http://[::]/x",
+    "http://[::ffff:127.0.0.1]/x",
+    "http://[::ffff:a9fe:a9fe]/latest/meta-data",
+    "http://[fd00::1]/x",
+    "http://[fc12:3456::1]/x",
+    "http://[fe80::1]/x",
+    "http://100.64.0.1/x",
+    "http://100.127.255.255/x",
     "https://db.internal/x",
     "https://printer.local/x",
     "ftp://example.com/cal.ics",
@@ -218,6 +226,8 @@ test("the address rule: the public internet over https, webcal in a hat, and not
     assert.equal(feedUrlOk(bad), null, `${bad} is refused`);
   }
   assert.equal(feedUrlOk("http://172.32.0.1/x"), "http://172.32.0.1/x", "172.32 is not the private range");
+  assert.equal(feedUrlOk("http://100.128.0.1/x"), "http://100.128.0.1/x", "past the carriers' shared space");
+  assert.equal(feedUrlOk("https://[2606:4700::1111]/x"), "https://[2606:4700::1111]/x", "a public IPv6 address");
 });
 
 test("one sentence per way a feed fails, naming what to do", () => {

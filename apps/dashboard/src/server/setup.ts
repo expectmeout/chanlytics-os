@@ -339,8 +339,7 @@ export async function setupDtoFor(
           )
         : [],
       type: listingFacts?.facts?.primary_type ?? null,
-      // Offered only where the record holds no booking link: one the owner has is theirs, whatever the website says.
-      bookingPage: brain?.booking_link ? null : (listingFacts?.facts?.booking_page ?? null),
+      bookingPage: listingFacts?.facts?.booking_page ?? null,
     },
     billing: billingRow
       ? {

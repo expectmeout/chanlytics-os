@@ -210,7 +210,6 @@ test("F7: the listing's facts are read as Google says them -- the week, the numb
     primary_type_label: "Moving company",
     service_area_only: true,
     time_zone: "America/New_York",
-    booking_page: null,
   });
   // A listing that says none of it: nothing invented.
   assert.deepEqual(parsePlaceDetails({ id: PLACE.id, displayName: PLACE.displayName }).facts, {
@@ -222,7 +221,6 @@ test("F7: the listing's facts are read as Google says them -- the week, the numb
     primary_type_label: null,
     service_area_only: false,
     time_zone: null,
-    booking_page: null,
   });
   // Google drops a field at its zero (proto3): Sunday at midnight arrives as {}; a point that is not an object is no point.
   const odd = parsePlaceDetails({

@@ -378,17 +378,18 @@ test("what the first run's Check reads: whether a receptionist is set up, whethe
     "by the one test (receptionistOf)",
   );
   assert.equal(dto.google.type, "moving_company", "Google's kind of place, which Check's suggestions follow");
+  assert.equal(dto.google.bookingPage, "https://calendly.com/northside-movers-example/estimate");
   assert.equal(
-    dto.google.bookingPage,
+    setupSteps(dto, NOW).check.bookingPage,
     "https://calendly.com/northside-movers-example/estimate",
-    "the website's booking page, while the record holds no link",
+    "the website's booking page, offered while the record holds no link",
   );
   const linked = tables(null);
   linked.tenant_config[0].config.brain.booking_link = "https://northside.example.com/book";
   assert.equal(
-    (await setupDtoFor(fakeDb(linked), T, { kind: "back_office" }, new Date(NOW))).google.bookingPage,
+    setupSteps(await setupDtoFor(fakeDb(linked), T, { kind: "back_office" }, new Date(NOW)), NOW).check.bookingPage,
     null,
-    "a link the record holds is the owner's, whatever the website says",
+    "a link the record holds is the owner's, whatever the website says (bookingPageOffered)",
   );
   const none = await setupDtoFor(fakeDb({}), T, { kind: "back_office" }, new Date(NOW));
   assert.deepEqual([none.business.receptionist, none.business.broken], ["none", false]);

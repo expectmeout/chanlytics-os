@@ -154,7 +154,8 @@ export async function POST(request: Request): Promise<Response> {
     // A new listing forgets the old one's reviews and days: they were another place's.
     await db.from("google_reviews").delete().eq("tenant_id", tenantId);
     await db.from("google_listing_days").delete().eq("tenant_id", tenantId);
-    const read = await checkListing(db, saved.data, tz);
+    // The link reads the listing's website too, for the booking page it names: the only read that does.
+    const read = await checkListing(db, saved.data, tz, "read");
     await emitEvent(db, tenantId, "google.linked", "google", "listing", null, {
       place_id: details.place_id,
       name: details.name,
@@ -278,7 +279,7 @@ export async function POST(request: Request): Promise<Response> {
     }
     if (!row.data) return json(404, { ok: false, error: "no_listing" });
     if (!placesKey()) return json(503, { ok: false, error: "no_places_key" });
-    const read = await checkListing(db, row.data, tz);
+    const read = await checkListing(db, row.data, tz, "keep");
     return json(read.ok ? 200 : 502, { ok: read.ok, read, listing: await listingNow(), connection: null });
   }
 

@@ -14,6 +14,14 @@
 
 /** Hosts a feed is never fetched from: this machine, the private ranges, link-local, and local names. */
 const PRIVATE_HOST = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
+/** The shared space carriers put between a network and the internet (100.64.0.0/10): no more public than the rest. */
+const CARRIER_NAT = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./;
+/**
+ * The same for IPv6, as an address names it (bracketed, and normalised): the unspecified address and this machine,
+ * the unique local (fc00::/7) and link-local (fe80::/10) ranges, and an IPv4 address carried in one (::ffff:...),
+ * which reaches whatever that IPv4 address reaches.
+ */
+const PRIVATE_V6 = /^\[(::1?|f[cd][0-9a-f]{0,2}:.*|fe[89ab][0-9a-f]?:.*|::ffff:.*)\]$/i;
 
 /** Only an address on the public internet, over https or http; webcal is https in a hat. Null when it is not one. */
 export function feedUrlOk(raw: string | null | undefined): string | null {
@@ -26,7 +34,9 @@ export function feedUrlOk(raw: string | null | undefined): string | null {
     return null;
   }
   if (u.protocol !== "https:" && u.protocol !== "http:") return null;
-  if (PRIVATE_HOST.test(u.hostname) || /^172\.(1[6-9]|2\d|3[01])\./.test(u.hostname)) return null;
+  const h = u.hostname;
+  if (PRIVATE_HOST.test(h) || /^172\.(1[6-9]|2\d|3[01])\./.test(h) || CARRIER_NAT.test(h) || PRIVATE_V6.test(h))
+    return null;
   return u.toString();
 }
 
