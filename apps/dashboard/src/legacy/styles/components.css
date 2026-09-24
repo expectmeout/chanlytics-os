@@ -2678,10 +2678,11 @@ button.pb-tile-next::after,
 .bc-run-soon { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--accent-ink); background: var(--accent-soft); border-radius: var(--radius-sm); padding: 2px 7px; }
 /* Who it reached: the count with its bar beside it, the reasons on one line under them. */
 .bc-run-reach { min-width: 0; }
-.bc-run-reach .cm-reach { display: grid; grid-template-columns: auto minmax(32px, 1fr); column-gap: 10px; align-items: center; }
+.bc-run-reach .cm-reach { display: grid; grid-template-columns: auto minmax(32px, 1fr); column-gap: 10px; row-gap: 3px; align-items: center; }
 .bc-run-reach .cm-reach-bar { margin-top: 0; }
 .bc-run-reach .cm-reach-will { font-size: var(--text-sm); }
-.bc-run-reach .cm-reach-why { grid-column: 1 / -1; display: block; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bc-run-reach .cm-reach-of { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.bc-run-reach .cm-reach-why { grid-column: 1 / -1; display: block; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bc-run-reach .cm-reach-why li { display: inline; }
 .bc-run-reach .cm-reach-why li + li::before { content: "\00B7"; margin: 0 6px; color: var(--ink-faint); }
 .bc-run-reach .cm-reach-dot { display: none; }

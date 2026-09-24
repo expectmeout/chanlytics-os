@@ -1350,7 +1350,7 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
                 <BcHistoryStats rows={rows} more={data.more} replyWindow={data.replyWindow} origin={origin} onOrigin={setOrigin} counted />
               </>
             )}
-            right={<button className="btn btn-primary" onClick={() => setWriting(true)} data-testid="bc-new" {...window.gate("approve", "send a broadcast")}><Icon name="plus" size={12} /> New<span className="cm-act-noun"> broadcast</span></button>}
+            right={<button className="btn btn-primary" onClick={() => setWriting(true)} data-testid="bc-new" {...window.gate("approve", "send a broadcast")}><Icon name="plus" size={12} /> <span>New<span className="cm-act-noun"> broadcast</span></span></button>}
           />
           {rows.length > 0 && <BcWeek rows={rows} now={now} />}
           <div className="bc-runs" data-testid="bc-runs">
