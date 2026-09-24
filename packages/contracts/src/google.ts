@@ -253,6 +253,11 @@ export interface SetupGoogleFacts {
     check_error: string | null;
   } | null;
   connected?: boolean;
+  /**
+   * The days Google gives hours for in a way the record cannot hold (hoursFromGoogle's `unsure`: past midnight, around
+   * the clock) and the record does not state yet: the first run's Check asks about them. Absent reads as none.
+   */
+  unsure?: Day[];
 }
 
 /** Google shows this many reviews of a listing, the most relevant first. */

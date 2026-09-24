@@ -298,6 +298,16 @@ export interface SetupVM {
   } | null;
   /** Google can be searched on this deployment and nothing is linked yet: the first run's Find has something to find. */
   findable: boolean;
+  /**
+   * What the first run's Check reads (first-run.ts): whether the receptionist is set up (none yet, set up, or a
+   * config the parser refused, whose repair only Chanlytics can make), whether a Google listing is on record, and the
+   * days whose hours it asks about (the setup read's google.unsure).
+   */
+  check: {
+    receptionist: "none" | "set" | "broken";
+    listed: boolean;
+    unsure: NonNullable<SetupGoogleFacts["unsure"]>;
+  };
 }
 
 /**
@@ -1339,6 +1349,12 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
         }
       : null,
     findable: !!i.google?.ready && i.google.places !== false && !i.google.listing,
+    check: {
+      // The brain's name is required, so a name read is a receptionist set up (server setup.ts reads it off the brain).
+      receptionist: i.business.broken ? "broken" : i.business.name ? "set" : "none",
+      listed: !!i.google?.listing,
+      unsure: i.google?.unsure ?? [],
+    },
   };
 }
 

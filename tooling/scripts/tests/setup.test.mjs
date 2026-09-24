@@ -19,6 +19,7 @@ import {
   textingWords,
   GET_YES_ROUTE,
   NO_NUMBER_REACH,
+  newReceptionistDefaults,
 } from "@chanlytics/contracts";
 import { readCode, readRaw, importSrc } from "./_source.mjs";
 import { fakeDb } from "./_fake-db.mjs";
@@ -274,6 +275,69 @@ test("REGRESSION: a yes to offers with no number to send one to is a yes -- Setu
   assert.deepEqual(
     [one.state, one.sentence, one.verb],
     ["ready", "1 person said yes to offers.", { label: "Open Broadcasts", to: "broadcasts" }],
+  );
+});
+
+test("what the first run's Check reads: whether a receptionist is set up, whether a listing is on record, and the days whose hours Google gives in a way the record could not take and does not state", async () => {
+  assert.deepEqual(setupSteps(empty(), NOW).check, { receptionist: "none", listed: false, unsure: [] });
+  assert.equal(setupSteps(empty({ business: facts }), NOW).check.receptionist, "set");
+  assert.equal(
+    setupSteps(empty({ business: { ...empty().business, broken: true } }), NOW).check.receptionist,
+    "broken",
+    "only Chanlytics can repair it",
+  );
+  const listing = { name: "Northside Movers", rating: null, review_count: null, checked_at: null, check_error: null };
+  assert.deepEqual(
+    setupSteps(empty({ google: { ready: true, places: true, listing, connected: false, unsure: ["fri"] } }), NOW).check,
+    { receptionist: "none", listed: true, unsure: ["fri"] },
+  );
+
+  // The read: Google's week as the edge stored it (day 0 is Sunday), less the days the record states.
+  const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const late = (day) => ({ open: { day, hour: 18, minute: 0 }, close: { day: (day + 1) % 7, hour: 2, minute: 0 } });
+  const tables = (hours) => ({
+    google_listings: [
+      {
+        tenant_id: T,
+        place_id: "ChIJ-northside-movers",
+        name: "Northside Movers",
+        address: null,
+        maps_uri: null,
+        business_status: null,
+        rating: null,
+        review_count: null,
+        linked_at: "2026-09-07T14:00:00Z",
+        checked_at: null,
+        check_error: null,
+        facts: {
+          hours: [{ open: { day: 2, hour: 9, minute: 0 }, close: { day: 2, hour: 17, minute: 0 } }, late(5), late(6)],
+          website: null,
+          service_area_only: true,
+        },
+      },
+    ],
+    tenant_config: [
+      {
+        tenant_id: T,
+        version: 3,
+        config: {
+          brain: {
+            business_name: "Northside Movers",
+            ...newReceptionistDefaults("Northside Movers"),
+            ...(hours ? { profile: { hours } } : {}),
+          },
+        },
+      },
+    ],
+  });
+  const read = async (hours) =>
+    (await setupDtoFor(fakeDb(tables(hours)), T, { kind: "back_office" }, new Date(NOW))).google;
+  assert.deepEqual((await read(null)).unsure, ["fri", "sat"], "Friday and Saturday close after midnight");
+  assert.deepEqual((await read({ sat: {} })).unsure, ["fri"], "Saturday is stated, closed: it is not asked again");
+  assert.deepEqual(
+    (await setupDtoFor(fakeDb({}), T, { kind: "back_office" }, new Date(NOW))).google.unsure,
+    [],
+    "no listing, nothing to ask",
   );
 });
 

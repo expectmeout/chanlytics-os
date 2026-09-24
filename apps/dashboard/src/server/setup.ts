@@ -45,13 +45,14 @@ import {
   factConflicts,
   knownForwarding,
   channelFor,
+  hoursFromGoogle,
   type SetupDto,
   type CapabilityKind,
 } from "@chanlytics/contracts";
 import { calendarWeek } from "./calendar";
 import { teamRoster } from "./service";
 import { linesFor, linesStatus } from "./lines";
-import { listingFor, connectionFor, googleReadiness } from "./google";
+import { listingFor, listingFactsFor, connectionFor, googleReadiness } from "./google";
 import { billingFor, billingReadiness } from "./billing";
 import { emailSetupFor } from "./email";
 
@@ -124,6 +125,7 @@ export async function setupDtoFor(
     lineRows,
     lineStatus,
     listing,
+    listingFacts,
     google,
     connection,
     billingRow,
@@ -197,6 +199,8 @@ export async function setupDtoFor(
     linesFor(supabase, tenantId),
     linesStatus(),
     listingFor(supabase, tenantId),
+    // Google's facts, which no read above carries: the days the first run's Check asks about.
+    listingFactsFor(supabase, tenantId),
     googleReadiness(),
     connectionFor(supabase, tenantId),
     billingFor(supabase, tenantId),
@@ -324,6 +328,12 @@ export async function setupDtoFor(
           }
         : null,
       connected: !!connection?.location_name,
+      // A day the record states, closed included (`{}`), is answered: only the rest are asked about.
+      unsure: listingFacts?.facts
+        ? hoursFromGoogle(listingFacts.facts.hours).unsure.filter(
+            (d) => !Object.prototype.hasOwnProperty.call(profile?.hours ?? {}, d),
+          )
+        : [],
     },
     billing: billingRow
       ? {
