@@ -1868,6 +1868,31 @@ test("Save these keeps the rule behind the view by default -- a copy of one of P
   assert.match(textOf(flashes.at(-1).msg), /^My yeses made\. It keeps itself current/);
   tree = draw({ initialSegment: "opted_in" });
   assert.equal(byTestId(tree, "list-gone"), null, "the list on its way is not called missing");
+  // Once it has arrived it is a list like any other: gone again, it is said to be gone.
+  globalThis.window.__PEOPLE.saved = [
+    {
+      id: "s2",
+      name: "My yeses",
+      count: 1,
+      ids: ["p1"],
+      members: ["p1"],
+      byHand: false,
+      rule: ["Said yes to messages"],
+      spec: null,
+      unknown: null,
+      tip: "",
+    },
+  ];
+  draw({ initialSegment: "opted_in" });
+  draw({ initialSegment: "opted_in" });
+  globalThis.window.__PEOPLE.saved = [];
+  draw({ initialSegment: "opted_in" });
+  tree = draw({ initialSegment: "opted_in" });
+  assert.equal(
+    textOf(byTestId(tree, "list-gone")),
+    "This list isn't here",
+    "REGRESSION: the made list's guard never cleared",
+  );
 });
 
 test("on a phone a smart list's rule is shown and changed from the more-menu: the phone draws no title line", () =>

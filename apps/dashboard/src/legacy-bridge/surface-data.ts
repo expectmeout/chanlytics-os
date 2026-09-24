@@ -1585,7 +1585,7 @@ export const playbooksOverride: SurfaceOverride = {
         ...peopleLists.map((l) => ({ id: `seg:${l.key}`, name: l.label, smart: true, builtin: true })),
         // An archived list is offered to no new playbook (00169); the ones on it say so on their card.
         ...listsKept
-          .filter((l) => !l.archived)
+          .filter((l) => !l.archived && !l.viewer)
           .map((l) => ({ id: `list:${l.id}`, name: l.name, smart: l.smart, builtin: false })),
       ].map((l) => ({ ...l, candidates: pool(l.id), held: held(l.id), named: named(l.id) })),
       calendar: pb.calendar ?? "none",

@@ -524,3 +524,18 @@ export const PeopleExportQuerySchema = z.object({
     .refine((t) => parseListToken(t) !== null, "Name a list by its token.")
     .optional(),
 });
+
+/**
+ * Whether a saved list's rule is about whoever is looking (standing waiting on you, assigned to me or a teammate): a
+ * playbook's run has no one looking, so such a list is never one it runs on (decision 0009). A list kept by hand, or a
+ * rule this build can't read, is not.
+ */
+export function ruleNeedsViewer(rule: unknown): boolean {
+  if (rule == null) return false;
+  const r = asListRule(rule);
+  return !!r && ruleNeeds(r).includes("viewer");
+}
+
+/** What a playbook is told of a saved list whose rule is about whoever is looking. */
+export const viewerListWords = (name: string) =>
+  `${name} is about whoever is looking ("me"), and a playbook's run has no one looking. Pick a list that says who by what they did.`;

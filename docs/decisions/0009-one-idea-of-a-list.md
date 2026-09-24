@@ -268,6 +268,9 @@ The second, **rules you can see and change**:
   lists, or the standing filter. "Just these N" still freezes the people shown, as a search or a list kept by hand
   always does. With one of People's lists open, that is the copy of a built-in an owner then changes (call 4).
 - **A profile's smart lists say why** they have the person, in the rule's words (`listRuleWhy`), on hover and focus.
+- **A list about whoever is looking is never a playbook's**: a copy of Waiting on you, or a rule that reads "assigned
+  to me", is offered to no playbook and refused if named (`ruleNeedsViewer`), and a list a playbook runs on takes no
+  such rule.
 
 ### The four calls, as approved
 

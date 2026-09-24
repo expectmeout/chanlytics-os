@@ -2783,6 +2783,8 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
   // delete. It is said, and nobody is shown, rather than Everyone under its name. An archived one says how it comes back.
   const listGone = savedId && savedId === madeId ? null : plListGone({ listId, activeList, savedId, activeSaved, people });
   React.useEffect(() => { setRuleEditing(false); }, [savedId]);
+  // The list made here has arrived: from now on it is a list like any other, said to be gone if it goes.
+  React.useEffect(() => { if (madeId && activeSaved && activeSaved.id === madeId) setMadeId(null); }, [madeId, activeSaved]);
   // The rule behind the view, when one says it: what "Save these" keeps by default (decision 0009). One filter at a
   // time: a list and a state together, or words in the box, freeze who is shown.
   const viewRule = !q.trim() && window.__lists && window.__lists.ruleOf && !((listId || savedId) && tab !== "all")

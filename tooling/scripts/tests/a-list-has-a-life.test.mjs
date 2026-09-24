@@ -362,6 +362,63 @@ test("a playbook on an archived list is not resumed, and none is put on one; res
   assert.equal(resumed.state, "running");
 });
 
+test("a list about whoever is looking is never a playbook's: none is put on one, and a list a playbook runs on takes no such rule (decision 0009)", async () => {
+  const mine = { v: 2, all: [{ field: "assigned", op: "is", value: "me" }] };
+  const tables = {
+    memberships: operator,
+    segments: [
+      { id: S1, tenant_id: B, name: "Mine", rule: mine, archived_at: null },
+      {
+        id: S2,
+        tenant_id: B,
+        name: "VIP",
+        rule: { v: 2, all: [{ field: "calls", op: "at_least", n: 1 }] },
+        archived_at: null,
+      },
+    ],
+    segment_members: [],
+    playbooks: [pb(K1, { state: "paused" })],
+    templates: [
+      {
+        id: T1,
+        tenant_id: B,
+        channel: "whatsapp",
+        name: "winback_offer",
+        language: "en_US",
+        body_preview: "Come back",
+        variables: [],
+        category: "marketing",
+        meta_status: "approved",
+        quality: null,
+        rejected_reason: null,
+        synced_at: null,
+        source: "starter",
+        hidden_at: null,
+        title: null,
+      },
+    ],
+    decisions: [],
+  };
+  await refused(
+    playbook.PUT.run(
+      send("PUT", { name: "Win-back", trigger: "saved_list", list_id: S1, template_id: T1, params: [] }),
+      ctxFor(tables, { id: K1 }),
+    ),
+    "validation",
+    400,
+    'Mine is about whoever is looking ("me")',
+  );
+  // VIP has a playbook on it (K1): a rule about "me" would stop it every day, so it is refused, and nothing changes.
+  await refused(
+    list.PUT.run(send("PUT", { rule: mine }), ctxFor(tables, { id: S2 })),
+    "conflict",
+    409,
+    "Win-back runs on VIP",
+  );
+  assert.deepEqual(tables.segments[1].rule.all[0].field, "calls");
+  assert.deepEqual(ledger(tables), []);
+});
+
 test("either deploy order: on a database 00169 has not reached, every list reads as live, never as an error", async () => {
   const { savedListsFor, savedListFor, listRow } = await import(at("packages/db/src/repositories/lists.ts"));
   const base = fakeDb({

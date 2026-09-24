@@ -1042,6 +1042,8 @@ test("a playbook on an archived list says so on its card, one press from its lis
   const kept = [
     { id: "l1", name: "VIP", smart: false, archived: true },
     { id: "l2", name: "Regulars", smart: false, archived: false },
+    // About whoever is looking: a playbook's run has no one looking, so it is offered to none.
+    { id: "l3", name: "Mine", smart: true, archived: false, viewer: true },
   ];
   const answer = (data) =>
     new Response(JSON.stringify({ ok: true, data }), { status: 200, headers: { "content-type": "application/json" } });
