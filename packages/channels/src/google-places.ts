@@ -12,13 +12,24 @@
  * The key travels in a header and the field mask in another; without the
  * mask Google refuses the call. HTTP is a port, so the planner beside this
  * (google-sync.ts) and every test run without a network.
+ *
+ * Details also reads what the listing says beyond its name: the week, the
+ * numbers, the site, the kind of place, whether it serves an area rather
+ * than an address, and its zone -- kept on the listing for the first run to
+ * offer the owner (contracts GoogleListingFacts). None of those costs more:
+ * `reviews` already bills the read at the top tier. The names are Google's
+ * Place reference's own, checked on 24 Sep 2026; one wrong name and Google
+ * refuses the whole read, so the test pins them name by name.
  */
+import { E164, type GoogleListingFacts, type GooglePeriod, type GooglePoint } from "@chanlytics/contracts";
 
 export const PLACES_BASE = "https://places.googleapis.com/v1";
 export const PLACES_SEARCH_MASK =
   "places.id,places.displayName,places.formattedAddress,places.googleMapsUri,places.businessStatus";
 export const PLACES_DETAILS_MASK =
-  "id,displayName,formattedAddress,googleMapsUri,businessStatus,rating,userRatingCount,reviews";
+  "id,displayName,formattedAddress,googleMapsUri,businessStatus,rating,userRatingCount,reviews," +
+  "regularOpeningHours,internationalPhoneNumber,nationalPhoneNumber,websiteUri,primaryType,primaryTypeDisplayName," +
+  "pureServiceAreaBusiness,timeZone";
 /** Candidates shown to the owner: a handful, never a page of twenty. */
 export const PLACES_SEARCH_LIMIT = 5;
 export const PLACES_TIMEOUT_MS = 10_000;
@@ -72,6 +83,8 @@ export interface PlaceDetails {
   rating: number | null;
   review_count: number | null;
   reviews: PlaceReview[];
+  /** What the listing says beyond its name and address, for the owner to check. */
+  facts: GoogleListingFacts;
 }
 
 function headers(key: string, mask: string, json = false): Record<string, string> {
@@ -156,6 +169,52 @@ function reviewOf(r: Obj): PlaceReview | null {
   };
 }
 
+/** A moment in Google's week. A field Google left out is its zero: proto3 drops defaults, so Sunday at midnight is {}. */
+function pointOf(v: unknown): GooglePoint | null {
+  const o = obj(v);
+  if (!o) return null;
+  const day = num(o.day) ?? 0;
+  const hour = num(o.hour) ?? 0;
+  const minute = num(o.minute) ?? 0;
+  return day >= 0 && day <= 6 && hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59 ? { day, hour, minute } : null;
+}
+
+/** One opening period; no close is open around the clock, and a close that is not a moment is no period. */
+function periodOf(v: unknown): GooglePeriod | null {
+  const o = obj(v);
+  const open = pointOf(o?.open);
+  if (!o || !open) return null;
+  if (o.close === undefined) return { open, close: null };
+  const close = pointOf(o.close);
+  return close ? { open, close } : null;
+}
+
+/**
+ * The number as Google writes it for the world ("+44 20 7946 0958"), in E.164: its own digits after its own country
+ * code. Never normalizePhone's reading, which takes any ten digits for an American number and would give a
+ * ten-digit number from elsewhere a +1 it does not have.
+ */
+function e164Of(international: string | null): string | null {
+  if (!international || !international.trim().startsWith("+")) return null;
+  const e164 = `+${international.replace(/\D/g, "")}`;
+  return E164.test(e164) ? e164 : null;
+}
+
+/** What the listing says beyond its name and address, as Google says it; nothing invented where it says nothing. */
+function factsOf(p: Obj): GoogleListingFacts {
+  const periods = obj(p.regularOpeningHours)?.periods;
+  return {
+    hours: Array.isArray(periods) ? periods.map(periodOf).filter((x): x is GooglePeriod => x !== null) : null,
+    phone_e164: e164Of(str(p.internationalPhoneNumber)),
+    phone_display: str(p.nationalPhoneNumber),
+    website: str(p.websiteUri),
+    primary_type: str(p.primaryType),
+    primary_type_label: localized(p.primaryTypeDisplayName).text,
+    service_area_only: p.pureServiceAreaBusiness === true,
+    time_zone: str(obj(p.timeZone)?.id),
+  };
+}
+
 export function parsePlacesSearch(json: unknown): PlaceCandidate[] {
   const places = obj(json)?.places;
   if (!Array.isArray(places)) return [];
@@ -179,6 +238,7 @@ export function parsePlaceDetails(json: unknown): PlaceDetails {
     rating: num(p.rating),
     review_count: num(p.userRatingCount),
     reviews,
+    facts: factsOf(p),
   };
 }
 

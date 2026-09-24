@@ -1508,51 +1508,44 @@ var DAY_NAME = {
   sat: "Saturday",
   sun: "Sunday"
 };
-function checkDay(h, day, ctx) {
+function dayProblems(h, day) {
   const name = DAY_NAME[day] ?? day;
-  const at2 = (...rest) => ["brain", "profile", "hours", day, ...rest];
+  const out = [];
   const open = h.open ?? void 0;
   const close = h.close ?? void 0;
   if (!!open !== !!close) {
-    ctx.addIssue({
-      code: z3.ZodIssueCode.custom,
-      path: at2(open ? "close" : "open"),
+    out.push({
+      path: [open ? "close" : "open"],
       message: `${name} needs both an opening and a closing time, or neither.`
     });
   }
   if (open && close && close <= open) {
-    ctx.addIssue({
-      code: z3.ZodIssueCode.custom,
-      path: at2("close"),
-      message: `${name} closes at or before it opens.`
-    });
+    out.push({ path: ["close"], message: `${name} closes at or before it opens.` });
   }
   const iv = h.intervals ?? [];
   if (iv.length > MAX_INTERVALS_PER_DAY) {
-    ctx.addIssue({
-      code: z3.ZodIssueCode.custom,
-      path: at2("intervals"),
-      message: `${name} can be split into at most ${MAX_INTERVALS_PER_DAY} shifts.`
-    });
+    out.push({ path: ["intervals"], message: `${name} can be split into at most ${MAX_INTERVALS_PER_DAY} shifts.` });
   }
   iv.forEach((x, n) => {
     if (x.close <= x.open) {
-      ctx.addIssue({
-        code: z3.ZodIssueCode.custom,
-        path: at2("intervals", n, "close"),
-        message: `${name}: a shift has to close after it opens.`
-      });
+      out.push({ path: ["intervals", n, "close"], message: `${name}: a shift has to close after it opens.` });
     }
   });
   const sorted = [...iv].sort((a, b) => a.open < b.open ? -1 : a.open > b.open ? 1 : 0);
   for (let n = 1; n < sorted.length; n++) {
     if (sorted[n].open < sorted[n - 1].close) {
-      ctx.addIssue({
-        code: z3.ZodIssueCode.custom,
-        path: at2("intervals", n, "open"),
-        message: `${name}: two shifts overlap.`
-      });
+      out.push({ path: ["intervals", n, "open"], message: `${name}: two shifts overlap.` });
     }
+  }
+  return out;
+}
+function checkDay(h, day, ctx) {
+  for (const p of dayProblems(h, day)) {
+    ctx.addIssue({
+      code: z3.ZodIssueCode.custom,
+      path: ["brain", "profile", "hours", day, ...p.path],
+      message: p.message
+    });
   }
 }
 function checkClosure(c, n, ctx) {
@@ -2846,6 +2839,11 @@ function normalizePhone(raw) {
   if (digits2.length >= 8 && digits2.length <= 15) return `+${digits2}`;
   return null;
 }
+function samePhone(a, b) {
+  const x = normalizePhone(a);
+  const y = normalizePhone(b);
+  return !!x && !!y && x === y;
+}
 function shortCode(raw) {
   const digits2 = String(raw ?? "").replace(/[^\d]/g, "");
   return digits2.length >= 3 && digits2.length <= 6;
@@ -3345,11 +3343,7 @@ var activeChannel = (known, kind) => {
   const row2 = rows.find((c) => c.kind === kind && (c.status ?? "active") === "active");
   return trimmed(row2?.number_e164);
 };
-function samePhone(a, b) {
-  const x = normalizePhone(a);
-  const y = normalizePhone(b);
-  return !!x && !!y && x === y;
-}
+var keptReaching = (known, line) => line ? trimmed((known?.forwarding ?? []).find((r) => trimmed(r.from_e164) && samePhone(r.to_e164, line))?.from_e164) : null;
 function sameAddress(a, b) {
   const x = textKey(a).replace(/\b(usa|us|united states)\b/g, "").trim();
   const y = textKey(b).replace(/\b(usa|us|united states)\b/g, "").trim();
@@ -3376,6 +3370,8 @@ function resolveFacts(typed, known) {
   const p = typed?.profile ?? null;
   const voice = activeChannel(known, "voice");
   const whatsapp = activeChannel(known, "whatsapp");
+  const kept = keptReaching(known, voice);
+  const published = trimmed(typed?.phone_display);
   const strEq = (a, b) => a === b;
   return {
     business_name: typedOverKnown(
@@ -3390,19 +3386,18 @@ function resolveFacts(typed, known) {
     // written to customers -- "Phone: +13085550109" in a prompt becomes a
     // receptionist reading digits aloud -- so the provisioned line arrives as
     // "+1 (308) 555-0109", the way a person says a number.
-    phone_display: typedOverKnown(
-      trimmed(typed?.phone_display),
-      voice ? formatPhoneDisplay(voice) : null,
-      "provisioned",
-      samePhone
-    ),
+    //
+    // The number the business keeps and forwards to THIS line is the one typed value that is not a disagreement
+    // with it: customers call the number they know, and when nobody picks up they reach the receptionist.
+    phone_display: published && samePhone(published, kept) ? { value: published, source: "typed" } : typedOverKnown(published, voice ? formatPhoneDisplay(voice) : null, "provisioned", samePhone),
     booking_link: typedOverKnown(trimmed(typed?.booking_link), null, "absent", strEq),
     address: typedOverKnown(trimmed(p?.address), trimmed(known?.listing?.address), "verified", sameAddress),
     website: typedOverKnown(trimmed(p?.website), null, "absent", strEq),
     // Human-only by nature: nothing provisions "the person to put a caller through to".
     handoff_number: p?.handoff_number ? { value: p.handoff_number, source: "typed" } : { value: null, source: "absent" },
     voice_line: voice ? { value: voice, source: "provisioned" } : { value: null, source: "absent" },
-    whatsapp_line: whatsapp ? { value: whatsapp, source: "provisioned" } : { value: null, source: "absent" }
+    whatsapp_line: whatsapp ? { value: whatsapp, source: "provisioned" } : { value: null, source: "absent" },
+    kept_line: kept ? { value: kept, source: "provisioned" } : { value: null, source: "absent" }
   };
 }
 var POLICY_CLASS_WORDS2 = {
@@ -3663,51 +3658,44 @@ var DAY_NAME2 = {
   sat: "Saturday",
   sun: "Sunday"
 };
-function checkDay2(h, day, ctx) {
+function dayProblems2(h, day) {
   const name = DAY_NAME2[day] ?? day;
-  const at2 = (...rest) => ["brain", "profile", "hours", day, ...rest];
+  const out = [];
   const open = h.open ?? void 0;
   const close = h.close ?? void 0;
   if (!!open !== !!close) {
-    ctx.addIssue({
-      code: z32.ZodIssueCode.custom,
-      path: at2(open ? "close" : "open"),
+    out.push({
+      path: [open ? "close" : "open"],
       message: `${name} needs both an opening and a closing time, or neither.`
     });
   }
   if (open && close && close <= open) {
-    ctx.addIssue({
-      code: z32.ZodIssueCode.custom,
-      path: at2("close"),
-      message: `${name} closes at or before it opens.`
-    });
+    out.push({ path: ["close"], message: `${name} closes at or before it opens.` });
   }
   const iv = h.intervals ?? [];
   if (iv.length > MAX_INTERVALS_PER_DAY2) {
-    ctx.addIssue({
-      code: z32.ZodIssueCode.custom,
-      path: at2("intervals"),
-      message: `${name} can be split into at most ${MAX_INTERVALS_PER_DAY2} shifts.`
-    });
+    out.push({ path: ["intervals"], message: `${name} can be split into at most ${MAX_INTERVALS_PER_DAY2} shifts.` });
   }
   iv.forEach((x, n) => {
     if (x.close <= x.open) {
-      ctx.addIssue({
-        code: z32.ZodIssueCode.custom,
-        path: at2("intervals", n, "close"),
-        message: `${name}: a shift has to close after it opens.`
-      });
+      out.push({ path: ["intervals", n, "close"], message: `${name}: a shift has to close after it opens.` });
     }
   });
   const sorted = [...iv].sort((a, b) => a.open < b.open ? -1 : a.open > b.open ? 1 : 0);
   for (let n = 1; n < sorted.length; n++) {
     if (sorted[n].open < sorted[n - 1].close) {
-      ctx.addIssue({
-        code: z32.ZodIssueCode.custom,
-        path: at2("intervals", n, "open"),
-        message: `${name}: two shifts overlap.`
-      });
+      out.push({ path: ["intervals", n, "open"], message: `${name}: two shifts overlap.` });
     }
+  }
+  return out;
+}
+function checkDay2(h, day, ctx) {
+  for (const p of dayProblems2(h, day)) {
+    ctx.addIssue({
+      code: z32.ZodIssueCode.custom,
+      path: ["brain", "profile", "hours", day, ...p.path],
+      message: p.message
+    });
   }
 }
 function checkClosure2(c, n, ctx) {
@@ -6833,51 +6821,44 @@ var DAY_NAME3 = {
   sat: "Saturday",
   sun: "Sunday"
 };
-function checkDay3(h, day, ctx) {
+function dayProblems3(h, day) {
   const name = DAY_NAME3[day] ?? day;
-  const at2 = (...rest) => ["brain", "profile", "hours", day, ...rest];
+  const out = [];
   const open = h.open ?? void 0;
   const close = h.close ?? void 0;
   if (!!open !== !!close) {
-    ctx.addIssue({
-      code: z33.ZodIssueCode.custom,
-      path: at2(open ? "close" : "open"),
+    out.push({
+      path: [open ? "close" : "open"],
       message: `${name} needs both an opening and a closing time, or neither.`
     });
   }
   if (open && close && close <= open) {
-    ctx.addIssue({
-      code: z33.ZodIssueCode.custom,
-      path: at2("close"),
-      message: `${name} closes at or before it opens.`
-    });
+    out.push({ path: ["close"], message: `${name} closes at or before it opens.` });
   }
   const iv = h.intervals ?? [];
   if (iv.length > MAX_INTERVALS_PER_DAY3) {
-    ctx.addIssue({
-      code: z33.ZodIssueCode.custom,
-      path: at2("intervals"),
-      message: `${name} can be split into at most ${MAX_INTERVALS_PER_DAY3} shifts.`
-    });
+    out.push({ path: ["intervals"], message: `${name} can be split into at most ${MAX_INTERVALS_PER_DAY3} shifts.` });
   }
   iv.forEach((x, n) => {
     if (x.close <= x.open) {
-      ctx.addIssue({
-        code: z33.ZodIssueCode.custom,
-        path: at2("intervals", n, "close"),
-        message: `${name}: a shift has to close after it opens.`
-      });
+      out.push({ path: ["intervals", n, "close"], message: `${name}: a shift has to close after it opens.` });
     }
   });
   const sorted = [...iv].sort((a, b) => a.open < b.open ? -1 : a.open > b.open ? 1 : 0);
   for (let n = 1; n < sorted.length; n++) {
     if (sorted[n].open < sorted[n - 1].close) {
-      ctx.addIssue({
-        code: z33.ZodIssueCode.custom,
-        path: at2("intervals", n, "open"),
-        message: `${name}: two shifts overlap.`
-      });
+      out.push({ path: ["intervals", n, "open"], message: `${name}: two shifts overlap.` });
     }
+  }
+  return out;
+}
+function checkDay3(h, day, ctx) {
+  for (const p of dayProblems3(h, day)) {
+    ctx.addIssue({
+      code: z33.ZodIssueCode.custom,
+      path: ["brain", "profile", "hours", day, ...p.path],
+      message: p.message
+    });
   }
 }
 function checkClosure3(c, n, ctx) {

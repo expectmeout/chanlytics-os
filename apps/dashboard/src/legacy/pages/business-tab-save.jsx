@@ -336,7 +336,8 @@ const btCheckPublished = (d, line) => {
   if (bad) return bad;
   return !v && !line ? "There is no line yet, so the receptionist needs a number to give out." : null;
 };
-const btCheckTransfer = (d, line) => (window.__whyNotAHandoff ? window.__whyNotAHandoff(d, line) : null);
+// `kept` is the number the business keeps and forwards to the receptionist (contracts kept_line): a transfer there comes straight back.
+const btCheckTransfer = (d, line, kept) => (window.__whyNotAHandoff ? window.__whyNotAHandoff(d, line, kept) : null);
 const BT_CHECK_OF = {
   name: btCheckName,
   website: btCheckWebsite,

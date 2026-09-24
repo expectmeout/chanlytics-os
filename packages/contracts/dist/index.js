@@ -80,6 +80,11 @@ function normalizePhone(raw) {
   if (digits2.length >= 8 && digits2.length <= 15) return `+${digits2}`;
   return null;
 }
+function samePhone(a, b) {
+  const x = normalizePhone(a);
+  const y = normalizePhone(b);
+  return !!x && !!y && x === y;
+}
 function shortCode(raw) {
   const digits2 = String(raw ?? "").replace(/[^\d]/g, "");
   return digits2.length >= 3 && digits2.length <= 6;
@@ -94,17 +99,23 @@ function whyNotAPhone(raw) {
   if (digits2.length === 7) return "That looks like a local number. Add the area code.";
   return "That is not a phone number anyone can be reached on.";
 }
-function whyNotAHandoff(raw, ownLine) {
+function whyNotAHandoff(raw, ownLine, keptLine) {
   const typed = String(raw ?? "").trim();
   if (!typed) return null;
   const norm2 = "+" + typed.replace(/[^0-9]/g, "");
   if (!(/^\+/.test(typed) && /^\+[1-9][0-9]{6,14}$/.test(norm2))) {
     return "The transfer number needs the country code, like +1 212 555 0143.";
   }
-  if (ownLine && normalizePhone(norm2) && normalizePhone(norm2) === normalizePhone(ownLine)) {
+  if (samePhone(norm2, ownLine)) {
     return "That is the receptionist's own line \u2014 it would ring itself. Use a line a person answers.";
   }
+  if (samePhone(norm2, keptLine)) return HANDOFF_FORWARDS_BACK;
   return null;
+}
+var HANDOFF_FORWARDS_BACK = "That number sends the calls nobody picks up to your receptionist, so a caller put through to it would come straight back. Use a mobile or another line a person answers.";
+var FORWARD_IS_HANDOFF = "Your receptionist puts callers through to this number. Change the transfer number in Settings \u203A Business first \u2014 once this number forwards to the receptionist, a caller put through to it would come straight back.";
+function whyNotForward(number, handoff) {
+  return samePhone(number, handoff) ? FORWARD_IS_HANDOFF : null;
 }
 function handoffE164(raw) {
   const typed = String(raw ?? "").trim();
@@ -2321,10 +2332,14 @@ var activeChannel = (known, kind) => {
   const row2 = rows.find((c) => c.kind === kind && (c.status ?? "active") === "active");
   return trimmed(row2?.number_e164);
 };
-function samePhone(a, b) {
-  const x = normalizePhone(a);
-  const y = normalizePhone(b);
-  return !!x && !!y && x === y;
+var keptReaching = (known, line) => line ? trimmed((known?.forwarding ?? []).find((r) => trimmed(r.from_e164) && samePhone(r.to_e164, line))?.from_e164) : null;
+function knownForwarding(rows) {
+  const out = [];
+  for (const r of rows) {
+    const from = trimmed(r.e164);
+    if (r.kind === "forwarded" && from) out.push({ from_e164: from, to_e164: r.forwarding?.destination_e164 ?? null });
+  }
+  return out;
 }
 function sameAddress(a, b) {
   const x = textKey(a).replace(/\b(usa|us|united states)\b/g, "").trim();
@@ -2352,6 +2367,8 @@ function resolveFacts(typed, known) {
   const p = typed?.profile ?? null;
   const voice = activeChannel(known, "voice");
   const whatsapp = activeChannel(known, "whatsapp");
+  const kept = keptReaching(known, voice);
+  const published = trimmed(typed?.phone_display);
   const strEq = (a, b) => a === b;
   return {
     business_name: typedOverKnown(
@@ -2366,19 +2383,18 @@ function resolveFacts(typed, known) {
     // written to customers -- "Phone: +13085550109" in a prompt becomes a
     // receptionist reading digits aloud -- so the provisioned line arrives as
     // "+1 (308) 555-0109", the way a person says a number.
-    phone_display: typedOverKnown(
-      trimmed(typed?.phone_display),
-      voice ? formatPhoneDisplay(voice) : null,
-      "provisioned",
-      samePhone
-    ),
+    //
+    // The number the business keeps and forwards to THIS line is the one typed value that is not a disagreement
+    // with it: customers call the number they know, and when nobody picks up they reach the receptionist.
+    phone_display: published && samePhone(published, kept) ? { value: published, source: "typed" } : typedOverKnown(published, voice ? formatPhoneDisplay(voice) : null, "provisioned", samePhone),
     booking_link: typedOverKnown(trimmed(typed?.booking_link), null, "absent", strEq),
     address: typedOverKnown(trimmed(p?.address), trimmed(known?.listing?.address), "verified", sameAddress),
     website: typedOverKnown(trimmed(p?.website), null, "absent", strEq),
     // Human-only by nature: nothing provisions "the person to put a caller through to".
     handoff_number: p?.handoff_number ? { value: p.handoff_number, source: "typed" } : { value: null, source: "absent" },
     voice_line: voice ? { value: voice, source: "provisioned" } : { value: null, source: "absent" },
-    whatsapp_line: whatsapp ? { value: whatsapp, source: "provisioned" } : { value: null, source: "absent" }
+    whatsapp_line: whatsapp ? { value: whatsapp, source: "provisioned" } : { value: null, source: "absent" },
+    kept_line: kept ? { value: kept, source: "provisioned" } : { value: null, source: "absent" }
   };
 }
 function factConflicts(f) {
@@ -2393,6 +2409,18 @@ function factConflicts(f) {
       known: phone.disputed.value,
       knownSource: phone.disputed.source,
       sentence: isHandoff ? `Your receptionist tells customers to call ${phone.value}, which is the number it transfers to \u2014 so they reach a person directly and never the receptionist answering on ${phone.disputed.value}.` : `Your receptionist tells customers to call ${phone.value}, but it answers on ${phone.disputed.value}. Anyone who calls the published number does not reach it.`,
+      to: "admin/workspace"
+    });
+  }
+  if (f.handoff_number.value && f.kept_line.value && samePhone(f.handoff_number.value, f.kept_line.value)) {
+    const kept = formatPhoneDisplay(f.kept_line.value) ?? f.kept_line.value;
+    out.push({
+      fact: "handoff_number",
+      severity: "serious",
+      used: f.handoff_number.value,
+      known: kept,
+      knownSource: f.kept_line.source,
+      sentence: `Your receptionist puts callers who ask for a person through to ${kept}, which forwards the calls nobody picks up back to it \u2014 they would come straight back. Give a mobile or another line a person answers.`,
       to: "admin/workspace"
     });
   }
@@ -2817,51 +2845,44 @@ var DAY_NAME = {
   sat: "Saturday",
   sun: "Sunday"
 };
-function checkDay(h, day, ctx) {
+function dayProblems(h, day) {
   const name = DAY_NAME[day] ?? day;
-  const at2 = (...rest) => ["brain", "profile", "hours", day, ...rest];
+  const out = [];
   const open = h.open ?? void 0;
   const close = h.close ?? void 0;
   if (!!open !== !!close) {
-    ctx.addIssue({
-      code: z3.ZodIssueCode.custom,
-      path: at2(open ? "close" : "open"),
+    out.push({
+      path: [open ? "close" : "open"],
       message: `${name} needs both an opening and a closing time, or neither.`
     });
   }
   if (open && close && close <= open) {
-    ctx.addIssue({
-      code: z3.ZodIssueCode.custom,
-      path: at2("close"),
-      message: `${name} closes at or before it opens.`
-    });
+    out.push({ path: ["close"], message: `${name} closes at or before it opens.` });
   }
   const iv = h.intervals ?? [];
   if (iv.length > MAX_INTERVALS_PER_DAY) {
-    ctx.addIssue({
-      code: z3.ZodIssueCode.custom,
-      path: at2("intervals"),
-      message: `${name} can be split into at most ${MAX_INTERVALS_PER_DAY} shifts.`
-    });
+    out.push({ path: ["intervals"], message: `${name} can be split into at most ${MAX_INTERVALS_PER_DAY} shifts.` });
   }
   iv.forEach((x, n) => {
     if (x.close <= x.open) {
-      ctx.addIssue({
-        code: z3.ZodIssueCode.custom,
-        path: at2("intervals", n, "close"),
-        message: `${name}: a shift has to close after it opens.`
-      });
+      out.push({ path: ["intervals", n, "close"], message: `${name}: a shift has to close after it opens.` });
     }
   });
   const sorted = [...iv].sort((a, b) => a.open < b.open ? -1 : a.open > b.open ? 1 : 0);
   for (let n = 1; n < sorted.length; n++) {
     if (sorted[n].open < sorted[n - 1].close) {
-      ctx.addIssue({
-        code: z3.ZodIssueCode.custom,
-        path: at2("intervals", n, "open"),
-        message: `${name}: two shifts overlap.`
-      });
+      out.push({ path: ["intervals", n, "open"], message: `${name}: two shifts overlap.` });
     }
+  }
+  return out;
+}
+function checkDay(h, day, ctx) {
+  for (const p of dayProblems(h, day)) {
+    ctx.addIssue({
+      code: z3.ZodIssueCode.custom,
+      path: ["brain", "profile", "hours", day, ...p.path],
+      message: p.message
+    });
   }
 }
 function checkClosure(c, n, ctx) {
@@ -2919,6 +2940,17 @@ function parseTenantConfigResult(raw) {
 function parseTenantConfig(raw) {
   const r = parseTenantConfigResult(raw);
   return r.ok ? r.config : null;
+}
+function withFirstAlertAddress(config, email) {
+  const current = parseTenantConfigResult(config ?? {});
+  if (!current.ok || current.config.notifications) return null;
+  const address = normalizeEmail(email);
+  if (!address) return null;
+  const next = TenantConfigWriteSchema.safeParse({
+    ...current.config,
+    notifications: { escalation_emails: [address] }
+  });
+  return next.success ? next.data : null;
 }
 var DAY_LABEL = {
   mon: "Monday",
@@ -13270,6 +13302,31 @@ function reviewReplyWords(mode, canReply) {
 }
 
 // src/google.ts
+var hhmm2 = (h, m) => `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+function hoursFromGoogle(periods) {
+  if ((periods ?? []).some((p) => !p.close)) return { hours: {}, unsure: [...DAYS] };
+  const shifts = /* @__PURE__ */ new Map();
+  const unsure = /* @__PURE__ */ new Set();
+  for (const p of periods ?? []) {
+    const day = WEEKDAY_KEYS[p.open.day];
+    if (!day) continue;
+    if (!p.close || p.close.day !== p.open.day) {
+      unsure.add(day);
+      continue;
+    }
+    const shift = { open: hhmm2(p.open.hour, p.open.minute), close: hhmm2(p.close.hour, p.close.minute) };
+    shifts.set(day, [...shifts.get(day) ?? [], shift]);
+  }
+  const hours = {};
+  for (const day of DAYS) {
+    const list2 = (shifts.get(day) ?? []).sort((a, b) => a.open.localeCompare(b.open));
+    if (unsure.has(day) || !list2.length) continue;
+    const made = list2.length === 1 ? { open: list2[0].open, close: list2[0].close } : { intervals: list2 };
+    if (dayProblems(made, day).length) unsure.add(day);
+    else hours[day] = made;
+  }
+  return { hours, unsure: DAYS.filter((d) => unsure.has(d)) };
+}
 var GOOGLE_SHOWN_REVIEWS = 5;
 var REVIEW_NEWS_MS = 36 * 3600 * 1e3;
 var REVIEW_NEWS_MAX_AGE_MS = 14 * 864e5;
@@ -13716,6 +13773,11 @@ var INVOICE_STATUS_WORDS = {
 function invoiceStatusWords(status) {
   if (!status) return "\u2014";
   return Object.prototype.hasOwnProperty.call(INVOICE_STATUS_WORDS, status) ? INVOICE_STATUS_WORDS[status] : status;
+}
+var CHECKOUT_RETURNS = ["billing", "start"];
+var CHECKOUT_RETURN_ROUTE = { billing: "admin/billing", start: "start" };
+function isCheckoutReturn(v) {
+  return typeof v === "string" && CHECKOUT_RETURNS.includes(v);
 }
 var CHECKOUT_OUTCOME_WORDS = {
   success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
@@ -14279,8 +14341,11 @@ function setupSteps(i, nowMs = Date.now()) {
       state: "waiting_you",
       required: !answering,
       sentence: "Get a number for calls, or keep the one you have.",
+      // The number is part of the plan (Ruben, 24 Sep 2026; docs/superpowers/specs/2026-09-24-first-run-design.md):
+      // Checkout bills one price and nothing bills a number fee, so no row quotes one. The DTO still carries what a
+      // number costs Chanlytics (lines.costs); nothing an owner reads says it.
       details: [
-        `A local number is about $${lines.costs.local_number_month_usd.toFixed(2)} a month \xB7 your receptionist answers it \xB7 texting arrives when the carriers register it`
+        "A local number, included in your plan \xB7 your receptionist answers it \xB7 texting arrives when the carriers register it"
       ],
       verb: { label: "Get a line", to: "verb:choose-line" }
     }) : billingDoorOpen(i.billing) ? row2({
@@ -14290,10 +14355,7 @@ function setupSteps(i, nowMs = Date.now()) {
       state: "waiting_you",
       required: !answering,
       sentence: "Add a card, then get a number for calls.",
-      details: [
-        `A local number is about $${lines.costs.local_number_month_usd.toFixed(2)} a month, billed with your subscription`,
-        "Nothing is charged until your trial ends"
-      ],
+      details: ["A local number, included in your plan", "Nothing is charged until your trial ends"],
       verb: { label: "Open Billing", to: "admin/billing" }
     }) : (
       // CANNOT SPEND, AND THERE IS NO CARD TO ADD. Three states, not two: this
@@ -19172,6 +19234,8 @@ export {
   CHANNEL_KINDS,
   CHANNEL_KIND_WORDS,
   CHECKOUT_OUTCOME_WORDS,
+  CHECKOUT_RETURNS,
+  CHECKOUT_RETURN_ROUTE,
   CHIPS_SHOWN,
   COMPANY_TYPES,
   CONFIDENCE_STEPS,
@@ -19234,11 +19298,13 @@ export {
   FOLLOWUP_ECHO,
   FORWARDING_MODES,
   FORWARDING_TEST_WINDOW_MS,
+  FORWARD_IS_HANDOFF,
   FeaturesConfigSchema,
   GET_YES_ROUTE,
   GOOGLE_SHOWN_REVIEWS,
   GUARDRAIL_KEYS,
   GuardrailsSchema,
+  HANDOFF_FORWARDS_BACK,
   HELD_REASONS,
   HoursSchema,
   INSTRUCTIONS_MAX,
@@ -19563,6 +19629,7 @@ export {
   WABA_FIELDS,
   WAITING_AFTER_DAYS,
   WA_WINDOW_MS,
+  WEEKDAY_KEYS,
   WHATSAPP_LANGUAGES,
   abandonedCall,
   abilityRows,
@@ -19691,6 +19758,7 @@ export {
   dayInZone,
   dayIntervals,
   dayPlusInZone,
+  dayProblems,
   dayWords,
   dealCardsOf,
   dealFactsOf,
@@ -19787,6 +19855,7 @@ export {
   hasProfile,
   heardSinceProposal,
   heardWords,
+  hoursFromGoogle,
   hoursLines2 as hoursLines,
   hoursOf2 as hoursOf,
   hoursRuns,
@@ -19806,6 +19875,7 @@ export {
   isActivityNoise,
   isBaselinePrompt,
   isCarrier,
+  isCheckoutReturn,
   isConsultationTitle,
   isDayKey,
   isDealLostReason,
@@ -19832,6 +19902,7 @@ export {
   judgeOpId,
   judgeSystemPrompt,
   judgeUserContent,
+  knownForwarding,
   knownTimezones,
   languageLabel,
   languageLabels,
@@ -20252,9 +20323,11 @@ export {
   whyNotALocalPart,
   whyNotAPhone,
   whyNotAnEmail,
+  whyNotForward,
   whyNotLook,
   whyNotReceive,
   windowFor,
+  withFirstAlertAddress,
   workspaceHotkey,
   writtenChannelOf,
   writtenOutDetail,

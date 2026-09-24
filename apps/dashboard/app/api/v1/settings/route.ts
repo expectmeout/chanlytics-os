@@ -7,12 +7,16 @@ import {
   TenantConfigWriteSchema,
   resolveFacts,
   factConflicts,
+  knownForwarding,
+  samePhone,
+  whyNotAHandoff,
   changedConfigFields,
   type KnownFacts,
 } from "@chanlytics/contracts";
 import { getTenantConfig, putTenantConfig } from "@chanlytics/db";
 import type { Json } from "@chanlytics/db";
 import { promptPreview } from "@/server/prompt-preview";
+import { linesFor } from "@/server/lines";
 
 function maskFeedUrl(u: string): string {
   return u.length <= 30 ? "…" : `${u.slice(0, 24)}…${u.slice(-6)}`;
@@ -29,10 +33,14 @@ function maskFeedUrl(u: string): string {
  * is one answer — which is the whole point of facts.ts.
  */
 async function knownFacts(ctx: RouteContext, tenantId: string): Promise<KnownFacts> {
-  const [ws, ch, gl] = await Promise.all([
+  const [ws, ch, gl, lines] = await Promise.all([
     ctx.supabase.from("tenants").select("name, timezone").eq("id", tenantId).maybeSingle(),
     ctx.supabase.from("tenant_channels").select("kind, number_e164, status").eq("tenant_id", tenantId),
     ctx.supabase.from("google_listings").select("name, address").eq("tenant_id", tenantId).maybeSingle(),
+    // The number the business keeps and forwards: the same rows, read the same way, as Setup's line rows. A failed
+    // read is no forwarding, on purpose: the settings read and a save still go through, and a transfer number is
+    // then judged against the line alone, as it was before forwarding was known.
+    linesFor(ctx.supabase, tenantId).catch(() => []),
   ]);
   // None of these is worth failing the settings read for. A workspace whose
   // channels could not be listed sees its typed values unresolved, which is
@@ -41,6 +49,7 @@ async function knownFacts(ctx: RouteContext, tenantId: string): Promise<KnownFac
     workspace: ws.error ? null : ws.data,
     channels: ch.error ? [] : (ch.data ?? []),
     listing: gl.error ? null : gl.data,
+    forwarding: knownForwarding(lines),
   };
 }
 
@@ -146,6 +155,16 @@ export const PUT = write({
       throw new AppError("validation", `Config rejected — ${said.join(" ")}${more > 0 ? ` (and ${more} more)` : ""}`);
     }
     const before = await getTenantConfig(ctx.supabase, member.tenantId);
+    // The transfer number, judged again here when it changes. The page asks the same question as the owner types;
+    // this is the door, so a number that would ring the receptionist straight back cannot be saved from anywhere.
+    // Only a CHANGED number is judged, so saving something else never trips over a number stored before this rule.
+    const nextHandoff = parsed.data.brain?.profile?.handoff_number ?? null;
+    const prevHandoff = parseTenantConfig(before?.config ?? null)?.brain?.profile?.handoff_number ?? null;
+    if (nextHandoff && !samePhone(nextHandoff, prevHandoff)) {
+      const facts = resolveFacts(parsed.data.brain ?? null, await knownFacts(ctx, member.tenantId));
+      const why = whyNotAHandoff(nextHandoff, facts.voice_line.value, facts.kept_line.value);
+      if (why) throw new AppError("validation", why);
+    }
     const result = await putTenantConfig(ctx.supabase, member.tenantId, parsed.data as Json, body.version, ctx.userId);
     if (!result.ok) {
       // These are different failures and used to share one message. Telling an

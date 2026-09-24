@@ -34,7 +34,7 @@
  * fixed. So the typed value is used, the disagreement is RECORDED, and a
  * person decides. Detect and expose; never guess.
  */
-import { normalizePhone, formatPhoneDisplay } from "./phone";
+import { formatPhoneDisplay, samePhone } from "./phone";
 import { agoWords } from "./time";
 
 /** Where an answer came from, strongest claim first. */
@@ -68,6 +68,11 @@ export interface KnownFacts {
   }> | null;
   /** The linked Google Business Profile, when there is one. */
   listing?: { name?: string | null; address?: string | null } | null;
+  /**
+   * The numbers the business keeps that forward to one of its lines (lines of kind "forwarded"): the number
+   * customers already call, and the line those calls reach when nobody picks up.
+   */
+  forwarding?: ReadonlyArray<{ from_e164: string | null; to_e164?: string | null }> | null;
 }
 
 /** The brain fields this resolves over. A subset, so callers need not have parsed everything. */
@@ -95,6 +100,12 @@ export interface ResolvedFacts {
   voice_line: Fact<string>;
   /** The WhatsApp line. Provisioned or nothing. */
   whatsapp_line: Fact<string>;
+  /**
+   * The number the business keeps and forwards to the line the receptionist answers now. Provisioned by the
+   * forwarding the owner set up, never typed here -- and never a number to put a caller through to, since the call
+   * would come straight back.
+   */
+  kept_line: Fact<string>;
 }
 
 const trimmed = (v: unknown): string | null => {
@@ -108,11 +119,26 @@ const activeChannel = (known: KnownFacts | null | undefined, kind: string): stri
   return trimmed(row?.number_e164);
 };
 
-/** Two ways of writing one number. `(646) 555-0175` and `+16465550175` are the same fact. */
-export function samePhone(a: string | null | undefined, b: string | null | undefined): boolean {
-  const x = normalizePhone(a);
-  const y = normalizePhone(b);
-  return !!x && !!y && x === y;
+/**
+ * The kept number whose calls reach THIS line, when there is one. Forwarding is saved against the line it pointed
+ * at when the owner set it up (lines.facts.destination_e164); a line since replaced does not receive those calls,
+ * so that number is not the receptionist's to publish, and its forwarding is what needs fixing.
+ */
+const keptReaching = (known: KnownFacts | null | undefined, line: string | null): string | null =>
+  line
+    ? trimmed((known?.forwarding ?? []).find((r) => trimmed(r.from_e164) && samePhone(r.to_e164, line))?.from_e164)
+    : null;
+
+/** The forwarding the platform knows about, from a workspace's lines as Setup reads them (dashboard server/lines.ts). */
+export function knownForwarding(
+  rows: ReadonlyArray<{ kind: string; e164: string | null; forwarding?: { destination_e164: string | null } | null }>,
+): Array<{ from_e164: string; to_e164: string | null }> {
+  const out: Array<{ from_e164: string; to_e164: string | null }> = [];
+  for (const r of rows) {
+    const from = trimmed(r.e164);
+    if (r.kind === "forwarded" && from) out.push({ from_e164: from, to_e164: r.forwarding?.destination_e164 ?? null });
+  }
+  return out;
 }
 
 /**
@@ -182,6 +208,8 @@ export function resolveFacts(typed: TypedFacts | null | undefined, known?: Known
   const p = typed?.profile ?? null;
   const voice = activeChannel(known, "voice");
   const whatsapp = activeChannel(known, "whatsapp");
+  const kept = keptReaching(known, voice);
+  const published = trimmed(typed?.phone_display);
   const strEq = (a: string | null, b: string | null) => a === b;
 
   return {
@@ -197,12 +225,13 @@ export function resolveFacts(typed: TypedFacts | null | undefined, known?: Known
     // written to customers -- "Phone: +13085550109" in a prompt becomes a
     // receptionist reading digits aloud -- so the provisioned line arrives as
     // "+1 (308) 555-0109", the way a person says a number.
-    phone_display: typedOverKnown(
-      trimmed(typed?.phone_display),
-      voice ? formatPhoneDisplay(voice) : null,
-      "provisioned",
-      samePhone,
-    ),
+    //
+    // The number the business keeps and forwards to THIS line is the one typed value that is not a disagreement
+    // with it: customers call the number they know, and when nobody picks up they reach the receptionist.
+    phone_display:
+      published && samePhone(published, kept)
+        ? { value: published, source: "typed" }
+        : typedOverKnown(published, voice ? formatPhoneDisplay(voice) : null, "provisioned", samePhone),
     booking_link: typedOverKnown(trimmed(typed?.booking_link), null, "absent", strEq),
     address: typedOverKnown(trimmed(p?.address), trimmed(known?.listing?.address), "verified", sameAddress),
     website: typedOverKnown(trimmed(p?.website), null, "absent", strEq),
@@ -212,6 +241,7 @@ export function resolveFacts(typed: TypedFacts | null | undefined, known?: Known
       : { value: null, source: "absent" },
     voice_line: voice ? { value: voice, source: "provisioned" } : { value: null, source: "absent" },
     whatsapp_line: whatsapp ? { value: whatsapp, source: "provisioned" } : { value: null, source: "absent" },
+    kept_line: kept ? { value: kept, source: "provisioned" } : { value: null, source: "absent" },
   };
 }
 
@@ -256,6 +286,22 @@ export function factConflicts(f: ResolvedFacts): FactConflict[] {
       sentence: isHandoff
         ? `Your receptionist tells customers to call ${phone.value}, which is the number it transfers to — so they reach a person directly and never the receptionist answering on ${phone.disputed.value}.`
         : `Your receptionist tells customers to call ${phone.value}, but it answers on ${phone.disputed.value}. Anyone who calls the published number does not reach it.`,
+      to: "admin/workspace",
+    });
+  }
+
+  // The transfer number is the number the business keeps and forwards back to the receptionist: nobody picked up
+  // there -- that is why the receptionist answered -- so a caller put through to it rings out and comes straight
+  // back. The transfer row refuses this number now (phone.ts whyNotAHandoff); this says so of one stored before.
+  if (f.handoff_number.value && f.kept_line.value && samePhone(f.handoff_number.value, f.kept_line.value)) {
+    const kept = formatPhoneDisplay(f.kept_line.value) ?? f.kept_line.value;
+    out.push({
+      fact: "handoff_number",
+      severity: "serious",
+      used: f.handoff_number.value,
+      known: kept,
+      knownSource: f.kept_line.source,
+      sentence: `Your receptionist puts callers who ask for a person through to ${kept}, which forwards the calls nobody picks up back to it — they would come straight back. Give a mobile or another line a person answers.`,
       to: "admin/workspace",
     });
   }

@@ -107,7 +107,6 @@
     "voice-pipeline.test.mjs": 3,
     "voice-provision.test.mjs": 4,
     "voice-provisioning.test.mjs": 1,
-    "webhook-auth-evidence.test.mjs": 2,
     "whatsapp-connect.test.mjs": 11,
     "whatsapp-steps.test.mjs": 3,
     "whisper-framing.test.mjs": 1,
