@@ -10069,7 +10069,7 @@ function needsAnswer(w, language) {
     }))
   ];
   a.show.items = all.slice(0, ASK_ANSWER_CAPS.items);
-  const total = w.people.length + w.more;
+  const total = rightNowCounts(w).people;
   const shownPeople = a.show.items.filter((i) => i.source.kind !== "page").length;
   if (total > shownPeople)
     a.do.open = {

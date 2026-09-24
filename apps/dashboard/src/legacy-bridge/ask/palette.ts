@@ -208,7 +208,7 @@ export function askPalette(win: Window, storage: Storage | null) {
       return buildAskSuggestions({
         surface,
         language: lang ?? lastLanguage(),
-        needsYou: who ? who.people.length + who.more : 0,
+        needsYou: rightNowCounts(who).people,
         heldDrafts: feed.filter((i) => i.kind === "held_draft").length,
         missedToday: tz
           ? calls().filter((c) => c.missed && c.startedAtMs && zoneDayKey(c.startedAtMs, tz) === today).length
