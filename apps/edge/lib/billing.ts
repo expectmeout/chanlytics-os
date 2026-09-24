@@ -26,18 +26,13 @@ import {
 import { recordNotification } from "./ops/notify.js";
 import { logger, errField } from "./log.js";
 import { env } from "./env.js";
+import { DEFAULT_DASHBOARD_ORIGIN, dashboardOrigin } from "./dashboard-origin.js";
 
 type Db = SupabaseClient<Database>;
 export type BillingRow = Database["public"]["Tables"]["billing_accounts"]["Row"];
 
-/** The dashboard's address; what Stripe returns the browser to when DASHBOARD_ORIGIN is not set. */
-export const DEFAULT_DASHBOARD_ORIGIN = "https://app.chanlytics.com";
-
-/** Where the browser lands after Stripe: Settings › Billing on the dashboard's origin, with the outcome in a word the pane reads once. An origin only — no path, no trailing slash — or the default. */
-export function dashboardOrigin(): string {
-  const o = env.DASHBOARD_ORIGIN;
-  return o && /^https:\/\/[a-z0-9.-]+$/i.test(o) ? o : DEFAULT_DASHBOARD_ORIGIN;
-}
+/** The dashboard's address, where Stripe returns the browser (dashboard-origin.ts; kept exported here for its callers). */
+export { DEFAULT_DASHBOARD_ORIGIN, dashboardOrigin };
 
 /**
  * Back on the workspace's own page (/w/<slug>, plan 3.5), with the outcome in a word the page reads once: Settings ›

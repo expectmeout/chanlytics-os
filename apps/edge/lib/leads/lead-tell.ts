@@ -12,7 +12,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../packages/db.js";
 import { leadQuestionMail, leadQuestionRoute } from "../packages/contracts.js";
-import { dashboardOrigin } from "../billing.js";
+import { dashboardOrigin } from "../dashboard-origin.js";
 import { mail, reachesTenant, type NotifyPorts } from "../ops/notify.js";
 import { loadTenantNotifications } from "../tenant-runtime.js";
 import { logger, errField } from "../log.js";

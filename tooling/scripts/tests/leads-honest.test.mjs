@@ -3032,6 +3032,7 @@ test("Include opens the plan with that exclusion taken back and starts nothing; 
   assert.equal(f.stage, "plan");
   assert.deepEqual(f.plan.exclusions, [], "the thing it asked about is taken out of the plan");
   assert.equal(f.plan.version, 2, "which is a new version, and that is the one the route is given");
+  assert.equal(f.words, "", "the composer under it is the owner's answer, not what they first asked");
   await f.onApprove(f.plan);
   await settle();
   assert.deepEqual(calls.at(-1), ["answer", { id: SEARCH_B, answer: "include", plan: f.plan }]);
@@ -3109,6 +3110,14 @@ test("a fresh Find after an abandoned answer is a new search, not an answer", ()
   draw({ leadsRoute: `leads:s-${SEARCH_B}` });
   assert.equal(finders.at(-1).stage, "compose");
   assert.equal(finders.at(-1).answering, null, "F opens a finder that is not answering anything");
+  // Esc alone lets it go too: what the tab keeps of a half-written Find is never an answer, so Search again or the
+  // first day's composer (which never open through F) cannot answer a search that is no longer on screen.
+  strips.at(-1).onAction("change");
+  draw({ leadsRoute: `leads:s-${SEARCH_B}` });
+  press("Escape");
+  draw({ leadsRoute: `leads:s-${SEARCH_B}` });
+  const kept = globalThis.window.__tabMemory.draft("leads-find");
+  assert.equal(kept && kept.more ? kept.more.answer : null, null, "nothing of the answer is kept once it is closed");
 });
 
 // The question is only ever about places left out, and while it waits nothing is counted (under an email standard

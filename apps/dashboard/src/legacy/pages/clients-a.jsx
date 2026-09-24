@@ -3278,7 +3278,9 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
   };
   // A next step opens the plan card with what would run; nothing starts until the owner approves it there.
   const openPlanFor = (s, plan, how) => {
-    setFinderWords(s.asked);
+    // Answering, the composer behind the card (Change what I asked) is the owner's answer: what they first asked
+    // sent back as the answer amended nothing.
+    setFinderWords(how === "answer" ? "" : s.asked);
     setFinderProposal(null);
     setFinderPlan(plan);
     setFinderMore({ searchId: s.id, purpose: "topup", ...(how === "answer" ? answerOf(s) : { answer: false }) });
@@ -3345,6 +3347,7 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
     const dto = searchById(s.id);
     if (!dto) return;
     setFinderWords(dto.asked);
+    setFinderMore(null);
     setFinderProposal({ searchId: dto.id, plan: dto.plan, purpose: "renew" });
     setFinderRefusal(null);
     setFinderStage("plan");
@@ -3369,7 +3372,8 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
     // Columns menu, the selection.
     closePeek: () => leadPeekEscape({ mode: peekMode, armed, setMode: setPeekMode, setArmed, setPeekId, lightbox: lightboxId, setLightbox: setLightboxId }),
     finderOpen,
-    closeFinder: () => setFinderOpen(false),
+    // Esc lets an answer go as the close button does: what the tab keeps of a Find is never an answer.
+    closeFinder: () => { setFinderOpen(false); setFinderMore(null); },
     canFind,
     find: openFind,
     call: callLead,

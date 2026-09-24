@@ -320,6 +320,13 @@ test("an answer that changed the plan keeps every term, a yes drops the one the 
     assert.deepEqual(told, [], "not while the probe is still coming in");
     await collect(p("c2", { tell }), r2.id, "p0", "c2");
     assert.deepEqual(told, [{ kind: "question", roundId: w.round().id }], "told once, when it asks");
+    // The webhook's `final` collect arrives after the poll that already decided (apify-webhook.ts): the round is
+    // waiting, so it decides nothing -- no second email, the question and its day untouched.
+    const asked = w.round().question;
+    const since = w.round().waiting_since;
+    await collect(p("c3", { tell }), r2.id, "final", "c3");
+    assert.equal(told.length, 1, "a late collect of the finished probe does not ask again");
+    assert.deepEqual([w.round().question, w.round().waiting_since], [asked, since]);
     const plan = answer === "include" ? { ...w.round().plan, version: 2, exclusions: [] } : undefined;
     w.rpcs.lead_round_answer({ p_round_id: w.round().id, p_answer: answer, p_plan: plan });
     await startRound(p("job-3"), w.round().id, "job-3", true);

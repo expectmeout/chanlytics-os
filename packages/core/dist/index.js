@@ -43444,6 +43444,7 @@ async function roundDecision(p, round, run, phase, runState, members, itemsSeenN
     after: () => p.schedule("lead_check", { round_id: round.id, batch: 0 }, 0)
   };
   if (phase === "probe") {
+    if (round.state !== "queued" && round.state !== "probing") return null;
     if (counted >= targetOf(round)) return toChecks;
     const judged = members.filter(wasJudged);
     const a = afterProbe(
