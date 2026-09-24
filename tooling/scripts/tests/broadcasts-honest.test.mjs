@@ -1797,9 +1797,22 @@ test("A message is a row you scan, and the words open under it: what it is, ever
   // so a row IS the message, and shows what varies per person. A slot nothing
   // names on file is "value 1": never Meta's "{{1}}".
   assert.ok(textOf(row).includes("“Hi {value 1}, 20% off this week.”"), textOf(row));
-  assert.ok(textOf(row).includes("offer"), "and the name WhatsApp knows it by");
   assert.ok(textOf(byTestId(row, "template-users")).includes("Win-back"), "and what sends it, closed");
   assert.equal(byTestId(row, "template-open-body"), null, "the whole message is not drawn until it is asked for");
+  // The name WhatsApp knows it by is the open row's, in its foot beside its kind and where it was made: in type on
+  // every closed row ("winback_offer") it was a word nobody acts on (23 Sep, Campaigns made compact).
+  const opened = messagesOpen({
+    __TEMPLATES_ALL: [templateRow({ id: "t-en", name: "offer_spring", language: "en_US", meta_status: "approved" })],
+  });
+  assert.equal(
+    all(byTestId(opened, "custom-row"), (n) => n.props?.className === "msg-row-name mono").length,
+    0,
+    "no name in type on the row's line",
+  );
+  assert.ok(
+    textOf(byTestId(opened, "template-open-body")).includes("offer_spring"),
+    "and the name WhatsApp knows it by, in the open row",
+  );
 
   // ONE language control per message, where a slot per language stood ("EN ES"
   // on every row): the language in view, its state drawn, and no "+1" for a
