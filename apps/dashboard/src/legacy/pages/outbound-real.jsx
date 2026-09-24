@@ -127,7 +127,6 @@ const PlaybookTile = ({ p, canAct, onEdit, flash, open = false, onOpen, focus = 
   const status = pbStatus(p);
   const waiting = p.totals.waiting;
   const paused = p.state === "paused";
-  const warn = status === "approval" || paused;
   // Who a run reaches: the people on the list who said yes and have not heard
   // from a playbook this week. Paused, nobody -- and the bar says so. Waiting on
   // the owner, the run it holds.
@@ -171,7 +170,7 @@ const PlaybookTile = ({ p, canAct, onEdit, flash, open = false, onOpen, focus = 
   const hour = `${String(p.run_hour).padStart(2, "0")}:00`;
   const spark = (p.totals.history || PB_NONE).slice(0, 6).reverse().map((h) => h.sent || 0);
   return (
-    <section id={`pb-${p.id}`} className={`pb-row${warn ? " is-warn" : ""}${open ? " is-open" : ""}${focus ? " is-focus" : ""}`} data-testid="pb-card" data-state={status}>
+    <section id={`pb-${p.id}`} className={`pb-row${open ? " is-open" : ""}${focus ? " is-focus" : ""}`} data-testid="pb-card" data-state={status}>
       {/* A press anywhere on the line that is not one of its controls opens it (cmRowPress), as a person's row does. */}
       <div className="pb-row-line" onClick={window.cmRowPress}>
         <button type="button" className="pb-row-what" onClick={onOpen} aria-expanded={open} data-row-open data-testid="pb-open">
@@ -193,10 +192,15 @@ const PlaybookTile = ({ p, canAct, onEdit, flash, open = false, onOpen, focus = 
         <span className="pb-row-next">
           {/* A run waiting on the owner: the line says what the press does, and the
               press opens the row where Approve and Skip are. */}
-          {/* Paused, the pill beside it says so in its tone; the cell says what that means for the clock. */}
+          {/* Paused, the pill beside it says so in its tone; the cell says what that means for the clock. Waiting,
+              the words open the row where Approve and Skip are -- a press only while it is closed: open, they are
+              the row's words, and a press that closed the row took Approve away with it. The column's head is a
+              desk's and hidden from a screen reader, so "Next run" rides the words for both (a phone draws no head). */}
           {waiting
-            ? <button type="button" className="pb-tile-next is-warn" onClick={onOpen} data-testid="pb-tile-approve">Approve it and it goes at {hour}</button>
-            : <span className="pb-tile-next">{paused ? "Not running" : `Next run ${p.next}`}</span>}
+            ? (open
+                ? <span className="pb-tile-next">Approve it and it goes at {hour}</span>
+                : <button type="button" className="pb-tile-next" onClick={onOpen} data-testid="pb-tile-approve">Approve it and it goes at {hour}</button>)
+            : <span className="pb-tile-next">{paused ? "Not running" : <><span className="pb-next-k">Next run </span>{p.next}</>}</span>}
         </span>
         <span className="pb-row-runs">
           <window.CmSpark values={spark} label={spark.length ? `The last ${spark.length} runs sent ${spark.join(", ")}` : null} />
@@ -239,9 +243,11 @@ const PlaybookSlot = ({ t, onStart }) => (
       </span>
       <span className="pb-slot-hint">{t.hint}</span>
     </span>
+    {/* What the moment is for is the tile's hover, and Set up's description, so a keyboard and a screen reader have it. */}
     <button
       className="btn btn-sm pb-slot-start"
       onClick={() => onStart(t.id)}
+      aria-description={PB_BLURBS[t.id] || undefined}
       data-testid="pb-slot-start"
       {...window.gate("approve", "start a playbook")}
     >
@@ -994,15 +1000,15 @@ const PlaybooksReal = ({ initialPlaybook = null }) => {
                   ))}
               {reachesNobody > 0 && (
                 <>
-                  <window.CmDot />
-                  {/* One is named -- "Welcome has nobody to send to" says which row to open, where "One running
-                      with nobody to send to" left the owner to find it. */}
+                  {/* In its tone and a step apart, with no dot before it: where the line wraps, a dot was left at
+                      the end of the numbers pointing at nothing. One is named -- "Welcome has nobody to send to"
+                      says which row to open, where "One running with nobody to send to" left the owner to find it. */}
                   <span className="pb-standing-warn" data-testid="pb-reaches-nobody">{reachesNobody === 1 ? `${nobody[0].name} has nobody to send to` : reachesNobody === runningN + waitingN ? "None of them has anyone to send to" : `${pbSpell(reachesNobody, true)} have nobody to send to`}</span>
                 </>
               )}
             </span>
           )}
-          right={<button className="btn btn-primary" onClick={startNew} data-testid="pb-new" {...window.gate("approve", "start a playbook")}><Icon name="plus" size={12} /> New<span className="cm-act-noun"> playbook</span></button>}
+          right={<button className="btn btn-primary" onClick={startNew} data-testid="pb-new" {...window.gate("approve", "start a playbook")}><Icon name="plus" size={12} /> <span>New<span className="cm-act-noun"> playbook</span></span></button>}
         />
         {initialPlaybook && !rows.some((p) => p.id === initialPlaybook) && (
           <EmptyState kind="line" title="That playbook isn't here any more." body="Its runs stay in Broadcasts, with their numbers." testid="pb-gone" />
@@ -1060,18 +1066,22 @@ const PlaybooksReal = ({ initialPlaybook = null }) => {
         {(cards.length > 0 || unused.length > 0) && (
           <p className="pb-rules" data-testid="pb-always">
             <span className="pb-rules-k">Always on</span>
-            <span className="pb-rule" data-tip="A run that would land outside them waits for the morning">
-              <Icon name="clock" size={12} />
-              Sends {hours ? hours.range : "9:00–20:59"}
-            </span>
-            <span className="pb-rule" data-tip="Across every playbook, not per playbook">
-              <Icon name="wave" size={12} />
-              One a week, per person
-            </span>
-            <span className="pb-rule" data-tip={gaps.length === 1 ? "The same playbook will not reach the same person sooner" : "Each playbook keeps its own gap before reaching the same person again"}>
-              <Icon name="refresh" size={12} />
-              {gaps.length === 1 ? `${gaps[0]} days between repeats` : "Days between repeats"}
-            </span>
+            {/* Each rule's longer words are its hover, and a focus's: reachable from a keyboard and read to a screen
+                reader (aria-description), as the composer's Guardrails are. */}
+            {[
+              { icon: "clock", words: `Sends ${hours ? hours.range : "9:00–20:59"}`, more: "A run that would land outside them waits for the morning" },
+              { icon: "wave", words: "One a week, per person", more: "Across every playbook, not per playbook" },
+              {
+                icon: "refresh",
+                words: gaps.length === 1 ? `${gaps[0]} days between repeats` : "Days between repeats",
+                more: gaps.length === 1 ? "The same playbook will not reach the same person sooner" : "Each playbook keeps its own gap before reaching the same person again",
+              },
+            ].map((r) => (
+              <span key={r.icon} className="pb-rule" tabIndex={0} data-tip={r.more} aria-description={r.more}>
+                <Icon name={r.icon} size={12} />
+                {r.words}
+              </span>
+            ))}
           </p>
         )}
         {!canAct && rows.length > 0 && <div className="bc-excl-hint" data-testid="pb-role">{window.gateTitle("approve", "pause, run, change or delete a playbook")}</div>}

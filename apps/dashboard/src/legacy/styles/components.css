@@ -2326,9 +2326,8 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   /* Playbooks' line on a phone: the playbooks' states, and the one warning on a line of its own. "Not set up" is the
      group's own count under the rows, and a dot left at the end of a wrapped line points at nothing. */
   .pb-standing .pb-tally-cell[data-tone="dim"],
-  .pb-standing .cm-head-dot:has(+ .pb-tally-cell[data-tone="dim"]),
-  .pb-standing .cm-head-dot:has(+ .pb-standing-warn) { display: none; }
-  .pb-standing .pb-standing-warn { flex-basis: 100%; }
+  .pb-standing .cm-head-dot:has(+ .pb-tally-cell[data-tone="dim"]) { display: none; }
+  .pb-standing .pb-standing-warn { flex-basis: 100%; margin-left: 0; }
 }
 
 /* Being in step with WhatsApp is a state, so it is drawn as one, on the head's
@@ -2398,7 +2397,7 @@ html.legacy-on .tpl-fresh { min-height: 0; position: relative; }
 .pb-tally-cell[data-tone="warn"] .pb-tally-n,
 .pb-tally-cell[data-tone="warn"] .pb-tally-k { color: var(--warn-ink); }
 .pb-tally-cell[data-tone="dim"] .pb-tally-n { color: var(--ink-muted); }
-.pb-standing-warn { color: var(--warn-ink); }
+.pb-standing-warn { margin-left: 4px; color: var(--warn-ink); }
 /* The list: People's table (.cl-table-wrap) -- one hairline box, a sunken head of 10px capitals, hairline rows. */
 .pb-list { border: 1px solid var(--line); border-radius: var(--radius-md); overflow: clip; background: var(--bg); container-type: inline-size; }
 .pb-list-head,
@@ -2421,18 +2420,26 @@ html.legacy-on .tpl-fresh { min-height: 0; position: relative; }
 .pb-row-state, .pb-row-reach, .pb-row-next { min-width: 0; }
 /* Who it reaches: the count with its bar beside it, and the reasons on ONE line under them, the rest past an
    ellipsis; open, the row says them all. A card drew the count, the bar and three reasons as five lines. */
-.pb-row-reach .cm-reach { display: grid; grid-template-columns: auto minmax(32px, 1fr); column-gap: 10px; align-items: center; }
+.pb-row-reach .cm-reach { display: grid; grid-template-columns: auto minmax(32px, 1fr); column-gap: 10px; row-gap: 3px; align-items: center; }
 .pb-row-reach .cm-reach-bar { margin-top: 0; }
 .pb-row-reach .cm-reach-will { font-size: var(--text-sm); }
-.pb-row-reach .cm-reach-why { grid-column: 1 / -1; display: block; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A long "of" ("186 of 186 with a visit tomorrow") gives way to the bar in a narrow list rather than painting over it. */
+.pb-row-reach .cm-reach-of { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* The reason the row leads with is the most-first one, its door with it; the rest are the open row's. A one-line
+   ellipsis clipped the door's reach and hid a door that Tab still found. */
+.pb-row-reach .cm-reach-why { grid-column: 1 / -1; display: block; margin: 0; }
 .pb-row-reach .cm-reach-why li { display: inline; }
+.pb-row-reach .cm-reach-why li:nth-child(n + 2) { display: none; }
+.pb-row.is-open .pb-row-reach .cm-reach-why li:nth-child(n + 2) { display: inline; }
 .pb-row-reach .cm-reach-why li + li::before { content: "\00B7"; margin: 0 6px; color: var(--ink-faint); }
 .pb-row-reach .cm-reach-dot { display: none; }
 .pb-row-reach .cm-reach-door { margin-left: 6px; }
-.pb-row.is-open .pb-row-reach .cm-reach-why { white-space: normal; }
+/* The next run in the muted ink: a run waiting on you is the pill's amber already, beside it (the badge system). */
 .pb-tile-next { display: block; min-width: 0; font-size: var(--text-xs); color: var(--ink-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pb-tile-next.is-warn { color: var(--warn-ink); }
-button.pb-tile-next { max-width: 100%; padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-xs); text-align: left; cursor: pointer; }
+button.pb-tile-next { max-width: 100%; padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-xs); color: var(--ink-muted); text-align: left; white-space: normal; overflow: visible; cursor: pointer; }
+/* The column's head says "Next run" on a desk, so the words under it do not; a screen reader, which does not hear the
+   head, and a phone, which draws none, still do. */
+.pb-next-k { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 button.pb-tile-next:hover { text-decoration: underline; text-underline-offset: 2px; }
 button.pb-tile-next:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 2px; }
 .pb-row-runs { display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; }
@@ -2494,13 +2501,15 @@ button.pb-tile-next::after,
   .pb-row-reach .cm-reach-will { font-family: inherit; font-size: var(--row-facts); font-weight: var(--weight-medium); }
   .pb-row-reach .cm-reach-of { font-size: var(--row-facts); }
   .pb-row-reach .cm-reach-bar { display: none; }
-  .pb-row-reach .cm-reach-why { flex: 1 1 auto; min-width: 0; margin-top: 0; font-size: var(--row-facts); line-height: var(--row-facts-line); }
+  .pb-row-reach .cm-reach-why { flex: 1 1 auto; min-width: 0; font-size: var(--row-facts); line-height: var(--row-facts-line); }
   .pb-row-reach .cm-reach-why::before { content: "\00B7"; margin: 0 6px; color: var(--ink-faint); }
   .pb-row-reach .cm-reach-why li { font-size: var(--row-facts); }
   .pb-tile-next, button.pb-tile-next, .pb-tile-runs { font-size: var(--row-facts); line-height: var(--row-facts-line); }
+  .pb-next-k { position: static; width: auto; height: auto; overflow: visible; clip-path: none; }
   .pb-row-runs .cm-spark { display: none; }
   .pb-row-open { padding: 0 var(--row-pad-x) var(--row-pad-y); }
   .pb-more-list { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .pb-slot-hint { display: none; }
 }
 /* ---- The playbook composer (outbound-real.jsx PlaybookComposer) ----
    The record kit's sheet beside the page, read as a playbook is: who it is for,
