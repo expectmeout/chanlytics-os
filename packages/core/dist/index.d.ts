@@ -1477,6 +1477,16 @@ interface LeadPorts {
      * Answers the stored path (`<sha256>.<ext>`), or null when it could not be kept; the same bytes twice are one copy.
      */
     storeMark?(bytes: Uint8Array, image: MarkImage): Promise<string | null>;
+    /**
+     * Tell the workspace something happened that waits on a person: today, that a round stopped to ask its question
+     * (the bell's row is lead_rounds_notify's, written with the question; this is the email). Called after the commit
+     * that made it true, best effort: it answers nothing and a failure never reaches the collect. Absent in a runtime
+     * that tells nobody.
+     */
+    tell?(e: {
+        kind: "question";
+        roundId: string;
+    }): Promise<void>;
     /** Epoch ms: no provider or model call is started after this. */
     deadline: number;
 }

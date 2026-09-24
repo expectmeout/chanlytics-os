@@ -242,8 +242,6 @@ async function schedulePush(tenantId: string, kept: { id: string; kind: string }
 }
 
 export async function notify(target: NotifyTarget, msg: NotifyMessage, ports: NotifyPorts = {}): Promise<boolean> {
-  const L = logger({ tenant: target.tenantId });
-  const send = ports.send ?? post;
   // The row first: it is the workspace's own record, addressed or not.
   const db = ports.db === undefined ? pg() : ports.db;
   const kept = await recordNotification(
@@ -252,6 +250,21 @@ export async function notify(target: NotifyTarget, msg: NotifyMessage, ports: No
     db,
   );
   if (kept && target.tenantId) await schedulePush(target.tenantId, kept, db);
+  return mail(target, msg, ports);
+}
+
+/**
+ * The mail half of notify: who is told, and whether they may see the contents; no row is kept. For news whose row
+ * is already written elsewhere -- a lead search's question is kept by its own trigger, in the transaction that asked
+ * it -- so the bell does not get it twice.
+ */
+export async function mail(
+  target: NotifyTarget,
+  msg: Pick<NotifyMessage, "subject" | "body" | "redactedBody">,
+  ports: Pick<NotifyPorts, "send"> = {},
+): Promise<boolean> {
+  const L = logger({ tenant: target.tenantId });
+  const send = ports.send ?? post;
   const addressing = chooseAddressing(target, { to: platformTo(), from: platformFrom() });
 
   switch (addressing.kind) {
