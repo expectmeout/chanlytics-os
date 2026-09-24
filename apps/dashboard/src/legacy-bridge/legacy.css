@@ -94,12 +94,17 @@ html.legacy-on #root {
     inset: -6px;
   }
   /* Today's setup card on a phone is one compact row (canvas P9): its button keeps its small look beside the words
-     and grows its target, 30px tall and 44 with the margin around it. */
-  html.legacy-on .setup-card-btn {
+     and grows its target, 30px tall and 44 with the margin around it. The queue's Open Inbox is a link in its head
+     line, and the queue's row buttons keep their desktop size: each grows the same way. */
+  html.legacy-on .setup-card-btn,
+  html.legacy-on .tq-open,
+  html.legacy-on .today-queue .cl-attn-cta {
     position: relative;
     min-height: 0;
   }
-  html.legacy-on .setup-card-btn::after {
+  html.legacy-on .setup-card-btn::after,
+  html.legacy-on .tq-open::after,
+  html.legacy-on .today-queue .cl-attn-cta::after {
     content: "";
     position: absolute;
     inset: -8px -4px;

@@ -209,14 +209,14 @@ const TodayQueue = ({ vm }) => {
   const rowsCut = rows.length - drawn.length + vm.queue.more;
   const total = rows.length + runsCount + vm.queue.more;
   return (
-    <section className="tq" data-testid="today-queue">
+    <section className="tq today-queue" data-testid="today-queue">
       {/* No count over the rows: the sentence says what they hold, and the rows are right under it. */}
       <div className="tq-head">
         <span className="tq-title">Your queue</span>
         <span className="tq-sub">
           {[...vm.queue.parts, window.__today.runsSub(runsCount)].filter(Boolean).join(" · ") || vm.queue.empty.sub}
         </span>
-        <button className="btn btn-ghost btn-sm" onClick={() => nav("inbox")}>Open Inbox <Icon name="arrow-right" size={11} /></button>
+        <button type="button" className="tq-open" onClick={() => nav("inbox")}>Open Inbox</button>
       </div>
       <LiveRail nav={nav} />
       <div className="tq-list">

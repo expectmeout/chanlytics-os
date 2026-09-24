@@ -138,6 +138,9 @@
   .today-setup .setup-card-skip { display: none; }
   .today-setup .setup-card-long { display: none; }
   .today-setup .setup-card-short { display: inline; }
+  /* The queue on a phone, compact: a row's facts on one line (the row opens the thread with all of them), and its
+     buttons at their desktop size with a finger's target around them (legacy.css). */
+  :where(.dash-a-v2) .today-queue .cl-attn-status { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
   /* ---------- Inbox ---------- */
   .inbox, .inbox.with-rail { grid-template-columns: 1fr; grid-template-rows: minmax(0, 42vh) minmax(0, 1fr); }
