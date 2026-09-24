@@ -495,7 +495,9 @@ const bcByPlaybook = (r) => !!r.playbook_id;
 const BC_ORIGINS = [["playbook", "by a playbook"], ["hand", "by hand"]];
 const bcOrigin = (r) => (bcByPlaybook(r) ? "playbook" : "hand");
 
-const BcHistoryStats = ({ rows, more, replyWindow = null, origin = null, onOrigin = null }) => {
+// `counted`: the head's filters already say how many went ("4 sent"), so the line leaves its own count out and opens on
+// the split -- the two said the same number side by side.
+const BcHistoryStats = ({ rows, more, replyWindow = null, origin = null, onOrigin = null, counted = false }) => {
   const history = (rows || []).filter((r) => !r.open);
   const messages = history.reduce((a, r) => a + r.counts.sent, 0);
   const delivered = history.reduce((a, r) => a + r.counts.delivered, 0);
@@ -505,14 +507,18 @@ const BcHistoryStats = ({ rows, more, replyWindow = null, origin = null, onOrigi
   // The split, and each count its own filter -- the way the Playbooks line's are.
   const byOrigin = BC_ORIGINS.map(([id, words]) => [id, words, history.filter((r) => bcOrigin(r) === id).length]).filter(([, , n]) => n > 0);
   const split = onOrigin && byOrigin.length > 1;
+  // Whether anything stands before the numbers, so a dot never opens the line.
+  const opened = !counted || split;
   return (
     <div className="cm-standing" data-testid="bc-standing">
-      <span className="cm-standing-lead" data-tip="One approved template to the people who said yes. Replies land in the Inbox, where the receptionist answers them.">
-        {sent === 0 ? "Nothing sent yet" : `${sent} ${sent === 1 ? "broadcast" : "broadcasts"} sent`}
-      </span>
+      {!counted && (
+        <span className="cm-standing-lead" data-tip="One approved template to the people who said yes. Replies land in the Inbox, where the receptionist answers them.">
+          {sent === 0 ? "Nothing sent yet" : `${sent} ${sent === 1 ? "broadcast" : "broadcasts"} sent`}
+        </span>
+      )}
       {split && byOrigin.map(([id, words, n], i) => (
         <span className="cm-standing-part" key={id}>
-          {i === 0 ? <span className="cm-standing-dash" aria-hidden="true">&mdash;</span> : <span className="cm-standing-comma" aria-hidden="true">,</span>}
+          {i === 0 ? (counted ? null : <span className="cm-standing-dash" aria-hidden="true">&mdash;</span>) : <span className="cm-standing-comma" aria-hidden="true">,</span>}
           <button
             type="button"
             className={`cm-standing-tap ${origin === id ? "on" : ""}`}
@@ -526,17 +532,18 @@ const BcHistoryStats = ({ rows, more, replyWindow = null, origin = null, onOrigi
       ))}
       {messages > 0 && (
         <span className="cm-standing-part">
-          {dot}
+          {opened && dot}
           <span className="tabular" data-tip="Delivered or read, over sent — WhatsApp's own receipts">{messages.toLocaleString()} {messages === 1 ? "message" : "messages"}, {Math.round((delivered / messages) * 100)}% delivered</span>
         </span>
       )}
+      {/* Where a reply lands is the hover's, with what counts as one (the reply window). */}
       {messages > 0 && (
         <span className="cm-standing-part">
           {dot}
-          <span className="tabular" data-tip={replyWindow ? `Threads that heard from the customer ${replyWindow} of a broadcast` : "Threads that heard from the customer after a broadcast"}>{replied} {replied === 1 ? "reply" : "replies"} in the Inbox</span>
+          <span className="tabular" data-tip={replyWindow ? `Threads in the Inbox that heard from the customer ${replyWindow} of a broadcast` : "Threads in the Inbox that heard from the customer after a broadcast"}>{replied} {replied === 1 ? "reply" : "replies"}</span>
         </span>
       )}
-      {more && <span className="cm-standing-part">{dot}<span>the latest 50 broadcasts</span></span>}
+      {more && <span className="cm-standing-part">{(opened || messages > 0) && dot}<span>the latest 50 broadcasts</span></span>}
     </div>
   );
 };
@@ -556,27 +563,22 @@ const BC_BANDS = [
 ];
 
 /**
- * The band bar: every run on one bar, in its state's colour, and a legend that is
- * also the list's filter -- press "3 scheduled" and the runs under it are the three.
- * The same element Leads draws over its list. `summary` is what went out, at the right.
+ * The runs by state, as the list's filter: press "3 scheduled" and the runs under it
+ * are the three; press it again and they are all back. The head's first words, as
+ * the Inbox's buckets are its list's. It was a card of its own -- a bar of every run
+ * in its state's colour over this legend, 68px -- and the bar said again, in colour,
+ * the numbers the legend says in words.
  */
-const BcBand = ({ rows, band, onBand, summary = null }) => {
+const BcBand = ({ rows, band, onBand }) => {
   const parts = BC_BANDS.map((b) => ({ ...b, n: rows.filter((r) => r.state === b.id).length })).filter((b) => b.n > 0);
   if (!parts.length) return null;
   return (
-    <div className="bc-band" data-testid="bc-band">
-      <div className="bc-band-bar" aria-hidden="true">
-        {parts.map((b) => <span key={b.id} data-tone={b.tone} style={{ flexGrow: b.n }} />)}
-      </div>
-      <div className="bc-band-legend">
-        {parts.map((b) => (
-          <button key={b.id} type="button" className={`bc-band-part${band === b.id ? " on" : ""}`} data-tone={b.tone} aria-pressed={band === b.id} onClick={() => onBand(band === b.id ? null : b.id)} data-testid={`bc-band-${b.id}`}>
-            <span className="bc-band-n tabular">{b.n}</span> {b.words}
-          </button>
-        ))}
-        <span className="bc-band-spacer" />
-        {summary}
-      </div>
+    <div className="bc-band" role="group" aria-label="The runs by state" data-testid="bc-band">
+      {parts.map((b) => (
+        <button key={b.id} type="button" className={`bc-band-part${band === b.id ? " on" : ""}`} data-tone={b.tone} aria-pressed={band === b.id} onClick={() => onBand(band === b.id ? null : b.id)} data-testid={`bc-band-${b.id}`}>
+          <span className="bc-band-n tabular">{b.n}</span> {b.words}
+        </button>
+      ))}
     </div>
   );
 };
@@ -595,27 +597,28 @@ const bcWeekday = (day, i) => (i === 0 ? "Today" : new Date(`${day}T12:00:00Z`).
 const BC_WEEK_TONE = { pending_approval: "warn", scheduled: "info", sending: "accent", sent: "ok", failed: "danger" };
 
 /**
- * The week ahead: a row per day, a bar per run at the hour it goes, inside the
- * sending hours -- nothing sends outside 9:00-20:59, and a run that would waits
- * for the next morning, so the grid IS the hours a send can happen in. Runs already
- * on the ledger are drawn where they sit; a running playbook's runs to come are
- * drawn at its hour when the Playbooks surface has been read. The line on today is
- * now.
+ * The week ahead, as one strip: seven days side by side, a mark per run in its
+ * state's tone -- a ring for a running playbook's run to come -- and the day's runs
+ * by the hour they go on the day's hover or focus. Runs already on the ledger are
+ * the ones to come, going out, and today's that went; a running playbook's runs to
+ * come are counted at its hour when the Playbooks surface has been read. It was a
+ * row per day on a 9:00-21:00 track, 209px on a desk, where most tracks held the
+ * same two dashed marks every day.
  */
 const BcWeek = ({ rows, now }) => {
   const c = window.__clock;
   const today = c && c.dayKey ? c.dayKey(now) : new Date(now).toISOString().slice(0, 10);
   const days = Array.from({ length: 7 }, (_, i) => (c && c.dayKey ? c.dayKey(now + i * 86_400_000) : new Date(now + i * 86_400_000).toISOString().slice(0, 10)));
   const blocks = Object.fromEntries(days.map((d) => [d, []]));
+  // The hour a run goes, by the business's clock: "10:00".
+  const hm = (ms) => { const v = c && c.inputValue ? c.inputValue(ms) : new Date(ms).toISOString().slice(0, 16); return (v.split("T")[1] || "").slice(0, 5); };
   // Runs on the ledger: to come, going out, and today's that went.
   for (const r of rows) {
     const at = r.scheduled_for ? Date.parse(r.scheduled_for) : NaN;
     if (!Number.isFinite(at)) continue;
     const { day, x } = bcAt(at);
     if (!blocks[day] || (r.state === "sent" && day !== today) || r.state === "canceled") continue;
-    // A mark at the hour it goes. How long a send takes is not on the ledger, and a
-    // bar as long as a guess would say more than the page knows.
-    blocks[day].push({ id: r.id, name: r.name, x, w: 2.5, tone: BC_WEEK_TONE[r.state] || "info", playbook: r.playbook_id || null });
+    blocks[day].push({ id: r.id, name: r.name, x, at: hm(at), tone: BC_WEEK_TONE[r.state] || "info", playbook: r.playbook_id || null });
   }
   // A running playbook's runs to come, at its hour, every day it runs -- where the
   // ledger does not already hold that day's run.
@@ -626,40 +629,33 @@ const BcWeek = ({ rows, now }) => {
       if (i === 0 && p.last_run_for === today) return;
       if (blocks[d].some((b) => b.playbook === p.id)) return;
       const x = Math.max(0, Math.min(100, ((p.run_hour - ((c && c.hours && c.hours.min) || 9)) / 12) * 100));
-      blocks[d].push({ id: `${p.id}:${d}`, name: p.name, x, w: 2.5, tone: "plain", playbook: p.id, projected: true });
+      blocks[d].push({ id: `${p.id}:${d}`, name: p.name, x, at: `${String(p.run_hour).padStart(2, "0")}:00`, tone: "plain", playbook: p.id, projected: true });
     });
   }
-  const nowX = bcAt(now).x;
-  const hours = c && c.hours ? [c.hours.min, c.hours.min + 3, c.hours.min + 6, c.hours.min + 9, c.hours.min + 12] : [9, 12, 15, 18, 21];
+  const range = c && c.hours ? c.hours.range : "9:00–20:59";
   return (
     <div className="bc-week" data-testid="bc-week">
-      <div className="bc-week-head">
-        <span className="bc-week-k">The week ahead</span>
-        <span className="bc-week-note">nothing sends outside {c && c.hours ? c.hours.range : "9:00–20:59"} — a run that would waits for the next morning</span>
+      <span className="bc-week-k" tabIndex={0} data-tip={`Nothing sends outside ${range} — a run that would waits for the next morning`}>Week ahead</span>
+      <div className="bc-week-days">
+        {days.map((d, i) => {
+          const bs = blocks[d].slice().sort((a, b) => a.x - b.x);
+          const say = i === 0 && bs.some((b) => b.tone === "accent") ? "sending now"
+            : bs.length === 0 ? "—"
+            : bs.length === 1 ? bs[0].name
+            : `${bs.length} runs`;
+          // The day's runs by the hour they go, a playbook's still to come said so.
+          const tip = bs.map((b) => `${b.at} ${b.name}${b.projected ? " (to come)" : ""}`).join(" · ");
+          return (
+            <div key={d} className={`bc-week-cell${i === 0 ? " is-today" : ""}`} tabIndex={bs.length ? 0 : undefined} data-tip={tip || undefined} data-testid="bc-week-day">
+              <span className="bc-week-dname">{bcWeekday(d, i)}</span>
+              <span className="bc-week-marks" aria-hidden="true">
+                {bs.map((b) => <span key={b.id} className={`bc-week-run${b.projected ? " is-projected" : ""}`} data-tone={b.tone} />)}
+              </span>
+              <span className="bc-week-say">{say}</span>
+            </div>
+          );
+        })}
       </div>
-      <div className="bc-week-axis" aria-hidden="true">
-        <span className="bc-week-day" />
-        <span className="bc-week-hours">{hours.map((h) => <span key={h}>{h}:00</span>)}</span>
-        <span className="bc-week-say" />
-      </div>
-      {days.map((d, i) => {
-        const bs = blocks[d];
-        const live = bs.filter((b) => !b.projected);
-        const say = i === 0 && bs.some((b) => b.tone === "accent") ? "sending now"
-          : bs.length === 0 ? "—"
-          : bs.length === 1 ? bs[0].name
-          : `${bs.length} runs`;
-        return (
-          <div key={d} className={`bc-week-row${i === 0 ? " is-today" : ""}`} data-testid="bc-week-day">
-            <span className="bc-week-day">{bcWeekday(d, i)}</span>
-            <span className="bc-week-track">
-              {bs.map((b) => <span key={b.id} className={`bc-week-run${b.projected ? " is-projected" : ""}`} data-tone={b.tone} style={{ left: `${b.x}%`, width: `${b.w}%` }} title={b.name} />)}
-              {i === 0 && nowX > 0 && nowX < 100 && <span className="bc-week-now" style={{ left: `${nowX}%` }} aria-hidden="true" />}
-            </span>
-            <span className="bc-week-say" title={live.length !== bs.length ? "Including a playbook's run to come, at its hour" : undefined}>{say}</span>
-          </div>
-        );
-      })}
     </div>
   );
 };
@@ -676,11 +672,14 @@ const bcSoon = (row, now) => {
 };
 
 /**
- * One run on the ledger, as the canvas draws it: what it is and its state; what
- * sent it, to whom, with what; who it reaches, out of how many, with who it held
- * back; and the acts it has. It opens in place into its detail -- everyone it
- * touched, and why a run stopped. A run waiting on the owner has the urgency edge
- * (legacy/CLAUDE.md: urgency is the accent left edge) and its Approve first.
+ * One run on the ledger, as a row of People's table: what it is and its state; what
+ * sent it and to whom; when it goes or went; who it reaches, out of how many, with
+ * who it held back; and -- only while it is open -- the acts it has. A press
+ * anywhere on the row opens its report on a screen of its own. A run waiting on the
+ * owner has the urgency edge (legacy/CLAUDE.md: urgency is the accent left edge) and
+ * its Approve first. It was a card, and every card said the template's name and its
+ * language letters, a policy chip and an Open button: 66-76px on a desk and 203-231px
+ * on a phone.
  */
 // `renderDetail` draws the detail when the card is open -- a function, not an element, so a closed card
 // never mounts a detail that would read the run's recipients for nothing.
@@ -690,7 +689,6 @@ const BcRunCard = ({ row, canSend, onOpen, armed, onArm, stopping, approving = f
   const waiting = row.state === "pending_approval";
   const sending = row.state === "sending";
   const soon = bcSoon(row, now);
-  const lang = row.template_language ? String(row.template_language).slice(0, 2).toUpperCase() : null;
   const done = row.counts.sent + row.counts.skipped + row.counts.failed;
   const held = row.counts.skipped + row.counts.failed;
   // Open is the run's state, not a flag the row may not carry: to come, waiting, or going out.
@@ -710,28 +708,46 @@ const BcRunCard = ({ row, canSend, onOpen, armed, onArm, stopping, approving = f
     : [];
   const inner = (
     <>
-      <div className="bc-run-line">
+      {/* A press anywhere on the line that is not one of its controls opens the run (cmRowPress), as a person's row does. */}
+      <div className="bc-run-line" onClick={window.cmRowPress}>
         <span className="mark bc-run-mark" aria-hidden="true"><Icon name={byPb ? "repeat" : "send"} size={13} /></span>
         <div className="bc-run-what">
           <div className="bc-run-titles">
-            <button type="button" className="bc-run-name" onClick={onOpen} data-testid="bc-open-who">{row.name}</button>
+            <button type="button" className="bc-run-name" onClick={onOpen} data-row-open data-testid="bc-open-who">{row.name}</button>
             <StatePill kind="broadcast" value={row.state} label={row.stateLabel} />
-            {pb && <PolicyChip cls={pb.policy_class} />}
+            {/* The class's words say why a run waits on you ("Re-engage · asks you"); on a run that went they said
+                nothing anyone acts on. The template's name and language are the run's report's. */}
+            {waiting && pb && <PolicyChip cls={pb.policy_class} />}
           </div>
+          {/* What sent it, and to whom. A playbook's run is named for its playbook, and so is its list, so the list is
+              said only where it is something else: "Win-back · quiet 30 days" under "Win-back · quiet 30 days" was the
+              row saying its name twice. The word Playbook opens the playbook. */}
           <div className="bc-run-sub">
             {byPb
-              ? <>Playbook · <button type="button" className="bc-run-link" onClick={() => window.CHANLY.nav(`outbound/${row.playbook_id}`)} data-testid="bc-history-playbook">{row.audience.label}</button></>
+              ? <>
+                  <button type="button" className="bc-run-link" onClick={() => window.CHANLY.nav(`outbound/${row.playbook_id}`)} data-testid="bc-history-playbook">Playbook</button>
+                  {row.audience.label && row.audience.label !== row.name ? <> · {row.audience.label}</> : null}
+                </>
               : <>Broadcast · {row.audience.label}</>}
-            {" · "}<span className="mono">{row.template_name}</span>{lang ? ` · ${lang}` : ""} · {row.when}
           </div>
+        </div>
+        {/* When it goes or went; under an hour away, the minutes left, ticking, in the accent: it is happening. */}
+        <div className="bc-run-when">
+          {soon ? <span className="bc-run-soon tabular" data-testid="bc-soon" title="Until it goes">{soon}</span> : row.when}
         </div>
         <div className="bc-run-reach">
           <window.CmReach will={will} pool={pool} held={finished ? held : 0} reasons={reasons} size="sm" progress={sending ? row.progress || 0 : null} label={`${row.name}, sent so far`} />
         </div>
         <div className="bc-run-acts">
-          {soon && <span className="bc-run-soon tabular" data-testid="bc-soon" title="Until it goes">{soon}</span>}
           <BcRunVerbs row={row} canSend={canSend} armed={armed} onArm={onArm} stopping={stopping} approving={approving} approve={approve} cancel={cancel} />
-          {!(armed && canSend) && <button className="btn btn-sm" onClick={onOpen}>Open</button>}
+          {/* Where the row goes: its report, a screen of its own. The whole row presses it; this is its mark, and its
+              name for a keyboard and a screen reader. */}
+          {!(armed && canSend) && (
+            <button type="button" className="bc-run-go" onClick={onOpen} aria-label={`Open ${row.name}`}>
+              <Icon name="chevron-right" size={14} />
+              <span className="cm-sr">Open</span>
+            </button>
+          )}
         </div>
       </div>
     </>
@@ -834,9 +850,12 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
     if (at.top < 0 || at.top > window.innerHeight - 80) el.scrollIntoView({ block: "start" });
   }, [openId]);
   // broadcasts/get-yes: the section that answers "nobody has said yes to
-  // offers", brought into view -- it sits on the ledger under the runs, where a
-  // person sent here to find the QR would otherwise have to scroll for it.
+  // offers", opened and brought into view -- it sits on the ledger under the runs,
+  // folded to its one line, where a person sent here to find the QR would otherwise
+  // have to scroll for it and open it.
+  const [yesOpen, setYesOpen] = React.useState(!!initialYes);
   const showYes = () => {
+    setYesOpen(true);
     const el = typeof document !== "undefined" && document.getElementById ? document.getElementById("bc-optin") : null;
     if (el && el.scrollIntoView) el.scrollIntoView({ block: "start" });
   };
@@ -1041,7 +1060,6 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
   const recent = shownHistory.slice(0, 5);
   const runs = band ? rows.filter((r) => r.state === band && (r.open || !origin || bcOrigin(r) === origin)) : [...openRows, ...recent];
   const sentN = rows.filter((r) => r.state === "sent").length;
-  const waitingN = rows.filter((r) => r.state === "pending_approval").length;
   const runCard = (row) => (
     <BcRunCard
       key={row.id}
@@ -1149,9 +1167,9 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
         {/* The one screen in Campaigns that cannot be undone, opened on its own:
             who, what and when at once, with the people named rather than counted,
             and the send alone at the foot. */}
+        {/* The three columns say who, what and when; the sentence that said so over them went (23 Sep). */}
         <window.CmHead
           title="New broadcast"
-          sub="Who, what and when on one screen — and the people it reaches, by name. Replies land in the Inbox, where the receptionist answers them."
           right={work.asking
             ? <window.UnsavedAsk onYes={work.discard} onNo={work.stay} testid="bc-leave" />
             : <button className="btn btn-ghost" onClick={work.leave} data-testid="bc-compose-close">Cancel</button>}
@@ -1166,7 +1184,7 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
         <div className="bc-cols">
 
           <div className="bc-col" data-testid="bc-col-who">
-            <span className="bc-col-label">Who <span className="bc-col-sub">a list that keeps itself current</span></span>
+            <span className="bc-col-label">Who</span>
             <div className="bc-chips" style={{ flexWrap: "wrap" }}>
               {audiences.map((a) => (
                 <button key={bcKey(a)} className={"bc-chip" + (active && bcKey(active) === bcKey(a) ? " active" : "")} onClick={() => setAud(bcKey(a))} title={a.hint} data-testid="bc-audience">
@@ -1207,7 +1225,7 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
           </div>
 
           <div className="bc-col bc-col-what" data-testid="bc-col-what">
-            <span className="bc-col-label">What <span className="bc-col-sub">as a customer receives it, one person at a time</span></span>
+            <span className="bc-col-label">What</span>
             <div className="bc-chips" style={{ flexWrap: "wrap" }}>
               {!templatesRead && <FailedRead kind="line" what="your templates" surface="broadcasts" testid="bc-templates-failed" />}
               {templatesRead && templates.length === 0 && (
@@ -1274,7 +1292,7 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
           </div>
 
           <div className="bc-col" data-testid="bc-col-when">
-            <span className="bc-col-label">When <span className="bc-col-sub">by your clock, inside the sending hours</span></span>
+            <span className="bc-col-label">When</span>
             <BcWhenBox at={whenAt} maxDays={maxDays} onChange={setWhenAt} />
             <div id="bc-when-note" className={`bc-excl-hint${whenNote.tone === "warn" ? " bc-when-note-warn" : ""}`} data-testid="bc-when-note">{whenNote.words}</div>
             {number && (
@@ -1316,20 +1334,24 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
 
       ) : (
         <>
-          {/* A headline and one line under it, the runs waiting on you said at the
-              right, and the page's act beside them. */}
+          {/* One line, the way every Campaigns tab opens: the tab says "Broadcasts", so
+              the name is a screen reader's alone (CmHead quiet). The line is the runs
+              by state, each its own filter -- "1 waiting on you" is the first of them
+              -- then what went out, then the page's act. It was a headline, a sentence
+              about the ledger, a flag saying "1 waiting on you" and, under them, a
+              card saying it again beside a bar of the same numbers. */}
           <window.CmHead
             title="Broadcasts"
+            quiet
             testid="bc-head"
-            sub="Every run, once or standing — a playbook’s runs land here too, so there is one ledger."
-            right={(
+            sub={(
               <>
-                {waitingN > 0 && <window.CmFlag tone="warn" testid="bc-waiting">{waitingN} waiting on you</window.CmFlag>}
-                <button className="btn btn-primary" onClick={() => setWriting(true)} data-testid="bc-new" {...window.gate("approve", "send a broadcast")}><Icon name="plus" size={12} /> New broadcast</button>
+                <BcBand rows={rows} band={band} onBand={setBand} />
+                <BcHistoryStats rows={rows} more={data.more} replyWindow={data.replyWindow} origin={origin} onOrigin={setOrigin} counted />
               </>
             )}
+            right={<button className="btn btn-primary" onClick={() => setWriting(true)} data-testid="bc-new" {...window.gate("approve", "send a broadcast")}><Icon name="plus" size={12} /> New<span className="cm-act-noun"> broadcast</span></button>}
           />
-          <BcBand rows={rows} band={band} onBand={setBand} summary={<BcHistoryStats rows={rows} more={data.more} replyWindow={data.replyWindow} origin={origin} onOrigin={setOrigin} />} />
           {rows.length > 0 && <BcWeek rows={rows} now={now} />}
           <div className="bc-runs" data-testid="bc-runs">
             {runs.map(runCard)}
@@ -1350,16 +1372,22 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
           )}
       {data.optIn && data.optIn.link && (
         <section id="bc-optin" className="ct-section bc-optin" data-testid="bc-optin">
-          <div className="bc-yes-head">
-            <span className="bc-yes-k">Get their yes</span>
-            <span className="bc-yes-note">the only way onto a broadcast</span>
-          </div>
+          {/* Folded to its one line under the runs, open where the address asks for it (broadcasts/get-yes, which
+              every "nobody has said yes to offers" door lands on) or a press opens it. Open on every visit, it
+              was 194px of a desk and 543px of a phone under the runs. */}
+          <details className="bc-yes" open={yesOpen} onToggle={(e) => setYesOpen(!!(e && e.currentTarget && e.currentTarget.open))}>
+            <summary className="bc-yes-head" data-testid="bc-optin-toggle">
+              <span className="bc-yes-k">Get their yes</span>
+              <span className="bc-yes-note">the only way onto a broadcast — a QR, a desk sign and your sign-up page</span>
+              <Icon name="chevron-down" size={12} />
+            </summary>
           <div className="bc-optin-body">
             <img className="bc-optin-qr" src={data.optIn.qrPath} alt={`QR code that opens WhatsApp with “${data.optIn.phrase}” ready to send`} width={120} height={120} />
             <div className="bc-optin-text">
+              {/* What it does, in two short sentences where two paragraphs stood: the code, the words it sends, and how a
+                  yes is undone. */}
               <p>
-                Put this where customers look — a sign at the desk, the link in your bio. It opens WhatsApp with <b>{data.optIn.phrase}</b> ready to send;
-                sending it records their yes by their own message, and the receptionist thanks them. In Spanish, <b>{data.optIn.phraseEs}</b> works too. Reply STOP undoes it.
+                A scan or a tap opens WhatsApp with <b>{data.optIn.phrase}</b> ready to send, and sending it records their yes. <b>{data.optIn.phraseEs}</b> works in Spanish; STOP undoes it.
               </p>
               <div className="bc-chips">
                 {/* The code with the words a customer needs before scanning it, on one printable sheet: a bare
@@ -1371,15 +1399,14 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
               </div>
               {data.optIn.pageUrl && (
                 <p className="bc-optin-page" data-testid="bc-optin-page">
-                  Or share your sign-up page: <a className="cl-bucket-link" href={data.optIn.pageUrl} target="_blank" rel="noreferrer">{data.optIn.pageUrl.replace("https://", "")}</a>. It shows the same QR and the wording the phone carriers ask for before they let a business text. For a customer who would rather sign on paper, print <a className="cl-bucket-link" href={`${data.optIn.pageUrl}/form`} target="_blank" rel="noreferrer" data-testid="bc-optin-form">the sign-up form</a> — two separate boxes, each signed on its own — and record each signed box on their profile as “Sign-up form”.
+                  Your sign-up page, <a className="cl-bucket-link" href={data.optIn.pageUrl} target="_blank" rel="noreferrer">{data.optIn.pageUrl.replace("https://", "")}</a>, has the same code with the wording the phone carriers ask for. On paper, print <a className="cl-bucket-link" href={`${data.optIn.pageUrl}/form`} target="_blank" rel="noreferrer" data-testid="bc-optin-form">the sign-up form</a> and record each signed box on their profile as “Sign-up form”.
                 </p>
               )}
             </div>
           </div>
+          </details>
         </section>
       )}
-
-          <div className="ct-week-foot"><Icon name="chat" size={11} /> Replies never sit — the receptionist answers, books, or escalates to your Inbox.</div>
         </>
       )}
       </div>
