@@ -582,11 +582,11 @@ assertion message becomes "what a number costs Chanlytics a month". Rebuild; PAS
 
 ### Task 7: The gates, the review, the pull request
 
-- [ ] `corepack pnpm --filter "./packages/*" build && corepack pnpm -r typecheck && corepack pnpm lint && corepack pnpm format:check && corepack pnpm test`
-- [ ] `node tooling/scripts/check-dist.mjs` after the last commit (expect "dist in sync with src"); keep only dists
+- [x] `corepack pnpm --filter "./packages/*" build && corepack pnpm -r typecheck && corepack pnpm lint && corepack pnpm format:check && corepack pnpm test`
+- [x] `node tooling/scripts/check-dist.mjs` after the last commit (expect "dist in sync with src"); keep only dists
 with a real diff (`git diff -w --ignore-cr-at-eol`).
-- [ ] One whole-branch review (spec + quality), one fix round, the suite green again.
-- [ ] The PR says what changes for a customer (nothing visible except Setup's line no longer quoting a fee), what to
+- [x] One whole-branch review (spec + quality), one fix round, the suite green again.
+- [x] The PR says what changes for a customer (nothing visible except Setup's line no longer quoting a fee), what to
 set before merging (nothing), and the deploy order (either).
 
 ---
