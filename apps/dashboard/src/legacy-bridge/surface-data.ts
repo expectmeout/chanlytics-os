@@ -991,7 +991,7 @@ export const peopleOverride: SurfaceOverride = {
   refreshOnMessageInserts: true,
   // Deals too: a teammate's move, or a payment's, shows on the rows and the Pipeline without a reload (0008). The
   // tab's own moves already re-read People through the refresh map (POST contacts/[id]/deal).
-  // And notes: a teammate's step, set or done, moves a row's next step (00163).
+  // And notes: a teammate's step, set or done, moves a row's next step (00166).
   refreshOnTables: [...DEFAULT_REFRESH_TABLES, "deals", "person_notes"],
   apply: async () => {
     // A view saved while this read is out, or before it with its reply still to come, may be missing from what the read

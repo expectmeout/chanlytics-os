@@ -42,7 +42,7 @@ const WATCHED: Array<{ table: string; event: "INSERT" | "*" }> = [
   { table: "lead_search_members", event: "*" },
   // a deal recorded or moved by a teammate, or by a payment: People (and its Pipeline) repaints (00156, 0008)
   { table: "deals", event: "*" },
-  // a note written, a step set or done by a teammate: People's next steps and a person's page repaint (00157, 00163)
+  // a note written, a step set or done by a teammate: People's next steps and a person's page repaint (00157, 00166)
   { table: "person_notes", event: "*" },
 ];
 

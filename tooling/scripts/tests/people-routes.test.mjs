@@ -1452,7 +1452,7 @@ test("deal: the door answers the deal the person's People row shows now -- an op
   assert.deepEqual([out.deal.id, out.current], [D2, null]);
 });
 
-test("a step (00163): the note route takes a day and a deal only when named, judging the day first; one route marks it done by anyone who acts; People's rows say who each is for, reading the team only when one is for someone", async () => {
+test("a step (00166): the note route takes a day and a deal only when named, judging the day first; one route marks it done by anyone who acts; People's rows say who each is for, reading the team only when one is for someone", async () => {
   const noteDone = await import(at("apps/dashboard/app/api/v1/contacts/[id]/notes/done/route.ts"));
   assert.deepEqual(noteDone.POST.policy, {
     kind: "write",

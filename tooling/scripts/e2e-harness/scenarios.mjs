@@ -313,7 +313,7 @@ function personRow(who, thread, deal, visits, step = null) {
     queued_reply_at: null,
     came_from: "whatsapp",
     ...dealColumns(deal),
-    // Their next step (00163): the earliest open note with a day, every column null for someone with none.
+    // Their next step (00166): the earliest open note with a day, every column null for someone with none.
     step_id: step?.id ?? null,
     step_body: step?.body ?? null,
     step_due_on: step?.due_on ?? null,

@@ -14,7 +14,7 @@ const Body = z
     /** Absent: a new note. Present: its author's change, with the version the page saw. */
     note_id: z.string().uuid().optional(),
     version: z.number().int().min(1).optional(),
-    /** Its day, which makes it a step, and the team's (00163): a real day by the business's calendar. */
+    /** Its day, which makes it a step, and the team's (00166): a real day by the business's calendar. */
     due_on: z.string().refine(isRealDate, "A day, as 2026-09-30.").nullable().optional(),
     /** The person's own deal it moves, when it names one. */
     deal_id: z.string().uuid().nullable().optional(),

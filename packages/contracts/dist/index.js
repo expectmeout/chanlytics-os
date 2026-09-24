@@ -10692,7 +10692,9 @@ var STEP_SHEET_WORDS = {
   noStep: "This step is no longer here.",
   done: { add: "Next step set", edit: "Step saved" },
   failed: "Could not save this step.",
-  problems: { what: "Say what to do.", day: "Pick a day.", tooLong: `At most ${NOTE_MAX} characters.` },
+  // The limit is passed in rather than read here: a literal that reads another module's constant is kept by every
+  // package that bundles contracts, as tone.ts's tables were (people.ts NOTE_MAX is the one spelling of it).
+  problems: { what: "Say what to do.", day: "Pick a day.", tooLong: (max) => `At most ${max} characters.` },
   discard: {
     question: "Discard your changes?",
     detail: "Nothing here has been saved.",
@@ -10733,7 +10735,7 @@ function stepSheetBody(sheet, draft) {
   const P = STEP_SHEET_WORDS.problems;
   const what = draft.what.trim();
   if (!what) return { body: null, problem: { field: "what", words: P.what } };
-  if (what.length > NOTE_MAX) return { body: null, problem: { field: "what", words: P.tooLong } };
+  if (what.length > NOTE_MAX) return { body: null, problem: { field: "what", words: P.tooLong(NOTE_MAX) } };
   if (!draft.day || !isRealDate(draft.day)) return { body: null, problem: { field: "day", words: P.day } };
   return {
     problem: null,

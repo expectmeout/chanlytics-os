@@ -2464,7 +2464,7 @@ test("who may do what to a note: its author changes it, an owner or its author d
   }
 });
 
-/* ----------------------------------- steps (0007, amended; 00163) ----------------------------------- */
+/* ----------------------------------- steps (0007, amended; 00166) ----------------------------------- */
 
 /** A day by the business's calendar, some days from now: far enough from a midnight that no zone moves it. */
 const dayFrom = (days) => contracts.zoneDayKey(NOW + days * 86_400_000, ZONE);

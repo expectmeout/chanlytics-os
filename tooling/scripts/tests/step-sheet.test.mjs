@@ -1,5 +1,5 @@
 /**
- * The step sheet (0007, amended; 00163): where a next step is set or changed from outside the notes card. contracts
+ * The step sheet (0007, amended; 00166): where a next step is set or changed from outside the notes card. contracts
  * step-sheet.ts and the deal card's step (deal-sheet.ts dealStepOf), executed; then the sheet itself, drawn by the
  * shell's host (components/step-sheet.jsx) over the profile's real courier and a wire that answers the person read and
  * the notes route: it opens where it is asked for, reads the person, says what is wrong under its field before a
@@ -127,7 +127,10 @@ test("a Save sends the notes route a step -- its words, its day, for whom, the t
   const P = STEP_SHEET_WORDS.problems;
   const problem = (d) => stepSheetBody({ note: null, dealId: null }, { ...draft, ...d }).problem;
   assert.deepEqual(problem({ what: "   " }), { field: "what", words: P.what });
-  assert.deepEqual(problem({ what: "x".repeat(contracts.NOTE_MAX + 1) }), { field: "what", words: P.tooLong });
+  assert.deepEqual(problem({ what: "x".repeat(contracts.NOTE_MAX + 1) }), {
+    field: "what",
+    words: P.tooLong(contracts.NOTE_MAX),
+  });
   assert.deepEqual(problem({ day: null }), { field: "day", words: P.day });
   assert.deepEqual(problem({ day: "2026-02-30" }), { field: "day", words: P.day });
   // Changed is judged against what it opened with.

@@ -38,7 +38,7 @@ export const GET = read({
     // Each person with their appointments from the owner's calendar, when one is connected: Booked is a fact here,
     // not a stage. Never fatal to the list. In the same round trip, how this workspace's customers buy (0008): an
     // answer that cannot be read is not asked yet, and costs the deal lists, never the list.
-    // And who each next step is for (00163), from the team, read only when a step is for someone.
+    // And who each next step is for (00166), from the team, read only when a step is for someone.
     const [out, sellsBy, nameSteps] = await Promise.all([
       withVisits(ctx, tenantId, rows),
       sellsByOf(ctx, tenantId),

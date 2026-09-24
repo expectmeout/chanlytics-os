@@ -14,7 +14,7 @@ const Body = z
   .strict();
 
 /**
- * POST /api/v1/contacts/:id/notes/done — a step done, or open again (0007, amended; 00163).
+ * POST /api/v1/contacts/:id/notes/done — a step done, or open again (0007, amended; 00166).
  *
  * Any owner or operator, not only its author: a step for Maria is Maria's to do. Only a note with a day; the door
  * writes the event, and a press that changes nothing writes nothing.

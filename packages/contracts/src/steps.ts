@@ -1,5 +1,5 @@
 /**
- * A next step (0007, amended; 00163): a note with a day. What every page says of its day, the days a picker offers,
+ * A next step (0007, amended; 00166): a note with a day. What every page says of its day, the days a picker offers,
  * whose steps are due, and who a step is for -- one derivation each, for the person's page, the deal card, the
  * Pipeline, Today and the thread. The day is the business's calendar's. A step is the team's (the table holds it), so
  * none of this ever reaches the receptionist.

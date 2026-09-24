@@ -1,5 +1,5 @@
 /**
- * A next step (0007, amended; 00163): a note with a day. contracts steps.ts and the step's place in people.ts, executed:
+ * A next step (0007, amended; 00166): a note with a day. contracts steps.ts and the step's place in people.ts, executed:
  * the day as every page says it, the days a picker offers on each day of the week, whose steps Today shows, who a step
  * is for, a row's next step, a note's step once done, and the Steps due list.
  */

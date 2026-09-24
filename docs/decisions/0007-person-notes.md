@@ -1,7 +1,7 @@
 # 0007 · A note is a record
 
 **Status:** decided; phase 1 built (00157), phase 2 built (00159), phase 3 built (00158); amended 24 September, a
-note may have a day (00163), built on the person's page. Written against commit `18c79973`
+note may have a day (00166), built on the person's page. Written against commit `18c79973`
 (PR #918, 23 September 2026). Where this note and the code disagree, the code
 wins.
 
@@ -82,7 +82,7 @@ door still keeps and now copies into the log.
 
 The Pipeline, worked (plan `docs/superpowers/plans/2026-09-23-pipeline-worked.md`, decision 2): a next step is a
 note with a day, not a new kind of record. `person_notes` gains `due_on`, `done_at`, `done_by` and `deal_id`
-(00163).
+(00166).
 
 - **A step is the team's.** A day sets `team_only`, and a CHECK holds it (`person_notes_step_is_the_teams`), so
   the receptionist, which reads only notes not for the team, never reads a step. Only a step is done

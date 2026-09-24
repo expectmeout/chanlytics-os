@@ -67,7 +67,7 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "PUT contacts/[id]/details": people,
   // A deal moves People's row and lists, and Reports' Deals section counts it (0004).
   "POST contacts/[id]/deal": () => [peopleOverride, reportsOverride],
-  // A note may be a step, and a row carries the next one (00163): the Pipeline, Steps due and Today follow it.
+  // A note may be a step, and a row carries the next one (00166): the Pipeline, Steps due and Today follow it.
   "POST contacts/[id]/notes": people,
   "POST contacts/[id]/notes/done": people,
   "POST contacts/[id]/notes/remove": people,

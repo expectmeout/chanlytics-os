@@ -242,7 +242,8 @@ Built in two pull requests, each whole: **4a** (this branch) the schema, the doo
 bridge, the person's page (the notes card, the deal card, the step sheet) and Steps due in People's rail; **4b**
 (`design/steps-everywhere`) the Pipeline, Today, the thread and Ask.
 
-### Task 4.1 · Migration `00163_a_note_may_have_a_day.sql` (00162 went to the phone app, #959)
+### Task 4.1 · Migration `00166_a_note_may_have_a_day.sql` (00162 went to the phone app, #959; 00163 and 00164 to
+production first from other branches; #967 holds 00165)
 
 - [x] `person_notes`: `due_on date`, `done_at timestamptz`, `done_by uuid references auth.users (id) on delete set
   null`, `deal_id uuid references public.deals (id) on delete set null`; CHECK `due_on is null or team_only` (a step is

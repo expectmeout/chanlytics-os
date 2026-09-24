@@ -1,5 +1,5 @@
 /**
- * The step sheet (0007, amended; 00163): where a next step is set or changed from outside the notes card -- the deal
+ * The step sheet (0007, amended; 00166): where a next step is set or changed from outside the notes card -- the deal
  * card's "Set a next step" and its Change, and every surface that shows a step after it. What it says, what it opens
  * with, the days it offers, and the body the notes route takes; the page composes (components/step-sheet.jsx).
  */
@@ -21,7 +21,9 @@ export const STEP_SHEET_WORDS = {
   noStep: "This step is no longer here.",
   done: { add: "Next step set", edit: "Step saved" },
   failed: "Could not save this step.",
-  problems: { what: "Say what to do.", day: "Pick a day.", tooLong: `At most ${NOTE_MAX} characters.` },
+  // The limit is passed in rather than read here: a literal that reads another module's constant is kept by every
+  // package that bundles contracts, as tone.ts's tables were (people.ts NOTE_MAX is the one spelling of it).
+  problems: { what: "Say what to do.", day: "Pick a day.", tooLong: (max: number) => `At most ${max} characters.` },
   discard: {
     question: "Discard your changes?",
     detail: "Nothing here has been saved.",
@@ -124,7 +126,7 @@ export function stepSheetBody(
   const P = STEP_SHEET_WORDS.problems;
   const what = draft.what.trim();
   if (!what) return { body: null, problem: { field: "what", words: P.what } };
-  if (what.length > NOTE_MAX) return { body: null, problem: { field: "what", words: P.tooLong } };
+  if (what.length > NOTE_MAX) return { body: null, problem: { field: "what", words: P.tooLong(NOTE_MAX) } };
   if (!draft.day || !isRealDate(draft.day)) return { body: null, problem: { field: "day", words: P.day } };
   return {
     problem: null,

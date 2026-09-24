@@ -40,7 +40,7 @@ export function toNoteDto(n: NoteRow, names: Map<string, string>, me: string): P
     version: n.version,
     created_at: n.created_at,
     updated_at: n.updated_at,
-    // A note with a day is a step (00163): its day, who did it and when, and the deal it moves.
+    // A note with a day is a step (00166): its day, who did it and when, and the deal it moves.
     due_on: n.due_on ?? null,
     done_at: n.done_at ?? null,
     done_by_name: n.done_by ? (names.get(n.done_by) ?? null) : null,
@@ -143,7 +143,7 @@ export function writtenNote(ctx: RouteContext, n: NoteRow, forName: string | nul
   return toNoteDto(n, new Map(n.for_user_id && forName ? [[n.for_user_id, forName]] : []), ctx.userId);
 }
 
-/** Who a row's next step is for, by name and whether it is the reader (00163), from the team as a note's is. */
+/** Who a row's next step is for, by name and whether it is the reader (00166), from the team as a note's is. */
 export function stepFor(
   row: { step_for_user_id?: string | null },
   team: PersonNoteTeamDto[] | null | undefined,

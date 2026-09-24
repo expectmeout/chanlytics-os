@@ -491,7 +491,7 @@ test(
 );
 
 test(
-  "a note may have a day (00163): the team's, done by anyone who acts with the version they saw, on the person's own deal, their earliest open one in people_list, gone with them",
+  "a note may have a day (00166): the team's, done by anyone who acts with the version they saw, on the person's own deal, their earliest open one in people_list, gone with them",
   { skip },
   async () => {
     const id = await person({ display_name: "Ivo", phone_e164: "+15550100381" });

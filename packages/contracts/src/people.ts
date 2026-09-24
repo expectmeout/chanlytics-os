@@ -136,7 +136,7 @@ export interface PersonRowDto {
   deal_proposal_url?: string | null;
   deal_valid_until?: string | null;
   deal_lost_reason?: string | null;
-  /** Their next step (00163): the earliest open note with a day. Absent on a row read before the columns existed. */
+  /** Their next step (00166): the earliest open note with a day. Absent on a row read before the columns existed. */
   step_id?: StepColumns["step_id"];
   step_body?: StepColumns["step_body"];
   step_due_on?: StepColumns["step_due_on"];
@@ -550,7 +550,7 @@ export interface PersonNoteDto {
   version: number;
   created_at: string;
   updated_at: string;
-  /** Its day, when it is a step (00163): by the business's calendar. Absent on a read before the column existed. */
+  /** Its day, when it is a step (00166): by the business's calendar. Absent on a read before the column existed. */
   due_on?: string | null;
   /** When the step was done, and by whom: their name on the team, and whether it was the reader. */
   done_at?: string | null;

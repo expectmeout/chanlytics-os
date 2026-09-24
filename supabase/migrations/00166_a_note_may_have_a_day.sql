@@ -1,4 +1,4 @@
--- 00163 · A note may have a day.
+-- 00166 · A note may have a day.
 --
 -- docs/decisions/0007-person-notes.md, amended ("A note may have a day"), and
 -- the Pipeline, worked (plan 2026-09-23, PR 4). A next step is a note with a

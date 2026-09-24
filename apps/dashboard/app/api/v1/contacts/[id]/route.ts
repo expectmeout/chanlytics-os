@@ -509,7 +509,7 @@ export const GET = read({
       row: {
         ...row,
         effective_reply_mode: personPol.data?.mode ?? wsPol.data?.mode ?? null,
-        // Who their next step is for (00163), from the team the notes were read with.
+        // Who their next step is for (00166), from the team the notes were read with.
         ...stepFor(row, notes.team, ctx.userId),
       },
       identities: idents.data ?? [],
