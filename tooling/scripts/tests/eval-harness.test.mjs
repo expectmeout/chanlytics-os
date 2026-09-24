@@ -47,7 +47,7 @@ test("the judge: a price always fails, and each expectation names what it wanted
         intent: ["pricing", "services"],
         escalate: true,
         language: "es",
-        includes: ["Pitkin"],
+        includes: ["Maple"],
         excludes: ["open at"],
         min_confidence: 0.95,
       },
@@ -58,7 +58,7 @@ test("the judge: a price always fails, and each expectation names what it wanted
     "intent hours, wanted pricing|services",
     "escalate false, wanted true",
     "language en, wanted es",
-    "missing /Pitkin/",
+    "missing /Maple/",
     "must not say /open at/",
     "confidence 0.9 < 0.95",
   ]);

@@ -350,7 +350,7 @@ const courierOf = (over = {}) => {
             data: {
               to: "hello@travisheightscoaching.example",
               subject: "Missed calls at Travis Heights",
-              body: `Hi,\n\nI came across Travis Heights Coaching Co. on Google Maps.${leadDraftFooter("Melany's Beauty Salon", "1 Main St, Austin, TX 78701")}`,
+              body: `Hi,\n\nI came across Travis Heights Coaching Co. on Google Maps.${leadDraftFooter("Marisa's Beauty Salon", "1 Main St, Austin, TX 78701")}`,
               mailto: "mailto:hello%40travisheightscoaching.example?subject=Missed%20calls",
             },
           };

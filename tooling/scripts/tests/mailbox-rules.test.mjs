@@ -27,7 +27,7 @@ const MAILBOX = {
 };
 
 test("what may be an address: letters, numbers and hyphens, a letter or number at each end, forty at most, and not a word the mail system owns", () => {
-  for (const ok of ["bestmovers", "best-movers", "b", "a1", "melanys-beauty-salon", "  BestMovers  ", "x".repeat(40)])
+  for (const ok of ["bestmovers", "best-movers", "b", "a1", "marisas-beauty-salon", "  BestMovers  ", "x".repeat(40)])
     assert.equal(whyNotALocalPart(ok), null, ok);
   assert.equal(
     normalizeLocalPart("  BestMovers "),
@@ -53,8 +53,8 @@ test("the name beside it: something, and no longer than the table holds", () => 
 test("an address is offered from the business's name, and nothing is offered when nothing usable is left", () => {
   assert.equal(suggestLocalPart("Best Movers"), "best-movers");
   assert.equal(
-    suggestLocalPart("Melany's Beauty Salon"),
-    "melanys-beauty-salon",
+    suggestLocalPart("Marisa's Beauty Salon"),
+    "marisas-beauty-salon",
     "an apostrophe joins, it does not split",
   );
   assert.equal(suggestLocalPart("Café Nuño & Sons"), "cafe-nuno-sons");
@@ -64,7 +64,7 @@ test("an address is offered from the business's name, and nothing is offered whe
   );
   assert.equal(suggestLocalPart("Support"), null, "a reserved word is not offered");
   for (const none of [null, undefined, "", "!!!", "美容院"]) assert.equal(suggestLocalPart(none), null, String(none));
-  for (const name of ["Best Movers", "Melany's Beauty Salon", "The Very Long Name Of A Business That Goes On And On"])
+  for (const name of ["Best Movers", "Marisa's Beauty Salon", "The Very Long Name Of A Business That Goes On And On"])
     assert.equal(whyNotALocalPart(suggestLocalPart(name)), null, "what is offered is always accepted");
 });
 

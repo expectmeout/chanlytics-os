@@ -89,7 +89,7 @@ test("a switched-off channel says what the code does with what still arrives: a 
     {
       id: "c1",
       kind: "whatsapp",
-      number_e164: "+19177724072",
+      number_e164: "+13055550188",
       status: "disabled",
       created_at: "2026-09-01T00:00:00Z",
       last_inbound_at: null,
@@ -104,7 +104,7 @@ test("a switched-off channel says what the code does with what still arrives: a 
     {
       id: "c2",
       kind: "voice",
-      number_e164: "+13083368109",
+      number_e164: "+13055550123",
       status: "disabled",
       created_at: "2026-09-01T00:00:00Z",
       last_inbound_at: null,
@@ -119,7 +119,7 @@ test("a switched-off channel says what the code does with what still arrives: a 
     {
       id: "c3",
       kind: "whatsapp",
-      number_e164: "+19177724072",
+      number_e164: "+13055550188",
       status: "active",
       created_at: "2026-09-01T00:00:00Z",
       last_inbound_at: null,

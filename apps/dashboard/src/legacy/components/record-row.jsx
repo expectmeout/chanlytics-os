@@ -7,7 +7,7 @@
 // two presses, which have defaults ("Use Google's" and the like, "Keep mine") that the page replaces with useLabel and
 // keepLabel.
 //
-//   <RecordRow id="website" label="Website" value="melanys.com" source="typed"
+//   <RecordRow id="website" label="Website" value="marisas.example.com" source="typed"
 //              act={{ label: "Change", onClick, gate: window.gate("settings", "change the website") }} />
 //
 // - A `value` of null, "" or false is an empty row: it says `empty` in the dim ink and carries data-empty="true",

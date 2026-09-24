@@ -158,14 +158,14 @@ test("the stubs answer the way contracts answers", () => {
   assert.deepEqual(win.__tz.words("America/New_York", at), timezoneWords("America/New_York", at));
 
   assert.deepEqual(win.__FACT_WORDS, SOURCE_WORDS);
-  assert.equal(win.__samePhone("(646) 932-5775", "+16469325775"), samePhone("(646) 932-5775", "+16469325775"));
-  for (const n of ["", "12345", "9325775", "646 932 5775", "nonsense"]) {
+  assert.equal(win.__samePhone("(212) 555-0142", "+12125550142"), samePhone("(212) 555-0142", "+12125550142"));
+  for (const n of ["", "12345", "5550142", "212 555 0142", "nonsense"]) {
     assert.equal(win.__whyNotAPhone(n), whyNotAPhone(n), `whyNotAPhone(${JSON.stringify(n)})`);
   }
-  for (const n of ["", "6469325775", "+16469325775"]) {
+  for (const n of ["", "2125550142", "+12125550142"]) {
     assert.equal(
-      win.__whyNotAHandoff(n, "+16469325775"),
-      whyNotAHandoff(n, "+16469325775"),
+      win.__whyNotAHandoff(n, "+12125550142"),
+      whyNotAHandoff(n, "+12125550142"),
       `whyNotAHandoff(${JSON.stringify(n)})`,
     );
     assert.equal(win.__handoffE164(n), handoffE164(n), `handoffE164(${JSON.stringify(n)})`);

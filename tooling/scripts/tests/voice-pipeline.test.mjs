@@ -28,20 +28,20 @@ import {
 import { readCode, readRaw } from "./_source.mjs";
 
 const brain = {
-  business_name: "Melany's Beauty Salon",
-  phone_display: "(646) 932-5775",
-  booking_link: "https://booksy.com/en-us/1817434",
+  business_name: "Marisa's Beauty Salon",
+  phone_display: "(212) 555-0142",
+  booking_link: "https://book.example.com/en-us/4471902",
   system_prompt: "The hand-written prompt that is live right now. ".repeat(3),
   fallbacks: { greeting: "g", error: "e", non_text: "n" },
 };
 const profile = {
-  address: "2581 Pitkin Ave, Brooklyn",
+  address: "1200 Maple Ave, Brooklyn",
   hours: { mon: { open: "09:30", close: "18:00" }, sun: {} },
   services: [{ name: "Silk press", duration_min: 210 }],
   languages: ["English", "Spanish"],
-  escalate_when: ["They ask for Melany by name"],
-  website: "https://melanysbeautysalon.com",
-  notes: [{ title: "Chair rental", text: "Stylists can rent a chair by the week — ask for Melany." }],
+  escalate_when: ["They ask for Marisa by name"],
+  website: "https://marisasbeautysalon.example.com",
+  notes: [{ title: "Chair rental", text: "Stylists can rent a chair by the week — ask for Marisa." }],
 };
 
 /* ------------------------------- the fields ------------------------------- */
@@ -50,11 +50,11 @@ test("the new fields parse, and a handoff number that is not E.164 is refused by
   const ok = parseTenantConfigResult({
     brain: {
       ...brain,
-      profile: { ...profile, handoff_number: "+16469325775", guardrails: { no_health_advice: true } },
+      profile: { ...profile, handoff_number: "+12125550142", guardrails: { no_health_advice: true } },
     },
   });
   assert.equal(ok.ok, true);
-  const bad = parseTenantConfigResult({ brain: { ...brain, profile: { ...profile, handoff_number: "646-932-5775" } } });
+  const bad = parseTenantConfigResult({ brain: { ...brain, profile: { ...profile, handoff_number: "212-555-0142" } } });
   assert.equal(bad.ok, false);
   assert.ok(
     bad.issues.some((i) => i.startsWith("brain.profile.handoff_number")),
@@ -68,13 +68,13 @@ test("the new fields parse, and a handoff number that is not E.164 is refused by
   });
   assert.equal(many.ok, false);
   assert.ok(hasProfile({ website: "https://x.example" }), "a website is a fact worth composing from");
-  assert.ok(!hasProfile({ handoff_number: "+16469325775" }), "a handoff line alone is mechanics, not a profile");
+  assert.ok(!hasProfile({ handoff_number: "+12125550142" }), "a handoff line alone is mechanics, not a profile");
 });
 
 /* ------------------------------ the composer ------------------------------ */
 
 test("on the phone the composer names its tools; on WhatsApp it keeps the token and never names them", () => {
-  const voice = composeSystemPrompt(brain, { ...profile, handoff_number: "+16469325775" }, "voice");
+  const voice = composeSystemPrompt(brain, { ...profile, handoff_number: "+12125550142" }, "voice");
   assert.ok(
     voice.includes("Use transfer_to_staff during opening hours"),
     "REGRESSION: the phone agent was told WHEN to fetch a person and never HOW",
@@ -83,8 +83,8 @@ test("on the phone the composer names its tools; on WhatsApp it keeps the token 
   assert.ok(voice.includes("do not ask them for a number"), "the link goes to the number they are calling from");
   assert.ok(voice.includes("use end_call"));
   assert.ok(!voice.includes("[[HUMAN]]"), "a model reading the token aloud is worse than no handoff");
-  assert.ok(voice.includes("They ask for Melany by name"), "the owner's triggers still apply on the phone");
-  const wa = composeSystemPrompt(brain, { ...profile, handoff_number: "+16469325775" }, "whatsapp");
+  assert.ok(voice.includes("They ask for Marisa by name"), "the owner's triggers still apply on the phone");
+  const wa = composeSystemPrompt(brain, { ...profile, handoff_number: "+12125550142" }, "whatsapp");
   assert.ok(wa.includes("[[HUMAN]]"));
   for (const tool of ["transfer_to_staff", "send_booking_link", "end_call"])
     assert.ok(!wa.includes(tool), `${tool} is a phone tool`);
@@ -99,7 +99,7 @@ test("with no handoff line the phone agent takes a message instead of dialling n
 test("website, notes and the language rule reach both receptionists", () => {
   for (const channel of ["whatsapp", "voice"]) {
     const text = composeSystemPrompt(brain, profile, channel);
-    assert.ok(text.includes("Website: https://melanysbeautysalon.com"), `${channel}: website`);
+    assert.ok(text.includes("Website: https://marisasbeautysalon.example.com"), `${channel}: website`);
     assert.ok(
       text.includes("Other things to know:\n- Chair rental: Stylists can rent a chair by the week"),
       `${channel}: notes`,
@@ -161,8 +161,8 @@ test("the shell is only placeholders and tools, and the transfer dials the varia
 test("the converger's plan is complete against the hand-typed agent, and idempotent once applied", () => {
   const live = {
     general_prompt:
-      "You are the front desk for Melany's Beauty Salon at 2581 Pitkin Ave. Hours: Mon-Sat 9:30-18:00. Transfer complaints to staff.",
-    begin_message: "Thank you for calling Melany's Beauty Salon! How can I help?",
+      "You are the front desk for Marisa's Beauty Salon at 1200 Maple Ave. Hours: Mon-Sat 9:30-18:00. Transfer complaints to staff.",
+    begin_message: "Thank you for calling Marisa's Beauty Salon! How can I help?",
     default_dynamic_variables: { unrelated: "kept" },
     general_tools: [
       { type: "end_call", name: "end_call", description: "End the call." },

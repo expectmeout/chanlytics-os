@@ -542,11 +542,11 @@ function build(nowMs: number, day: SampleDay): TodaySample {
       .sort()
       .at(-1) ?? null;
   const metrics: MetricsSummaryDto = {
-    workspace: { name: "Melany's Studio", timezone: ZONE, status: "active" },
+    workspace: { name: "Marisa's Studio", timezone: ZONE, status: "active" },
     channels: [
       { kind: "whatsapp", status: "active", number: "+1 (305) 555-0100" },
       { kind: "voice", status: "active", number: "+1 (305) 555-0100" },
-      { kind: "email", status: "active", number: null, address: "hello@melanys.example" },
+      { kind: "email", status: "active", number: null, address: "hello@marisas.example" },
     ],
     window: { days: 1, since, since_local: `${today}T00:00:00`, now_local: naiveLocal(nowMs, ZONE) },
     now: {

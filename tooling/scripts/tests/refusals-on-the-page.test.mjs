@@ -199,7 +199,7 @@ test("REGRESSION: a template the route refuses says why under the form as a fiel
   cells = [];
   const render = () => {
     frames.begin();
-    return globalThis.window.TemplateComposer({ onDone() {}, onCancel() {}, businessName: "Melany's Beauty Salon" });
+    return globalThis.window.TemplateComposer({ onDone() {}, onCancel() {}, businessName: "Marisa's Beauty Salon" });
   };
   byTestId(render(), "tpl-name").props.onChange({ target: { value: "spring_offer" } });
   byTestId(render(), "tpl-body").props.onChange({ target: { value: "Twenty percent off this week." } });
@@ -218,7 +218,7 @@ await import("../../../apps/dashboard/src/legacy/pages/business-record.jsx");
 const bizApi = (over = {}) => ({
   read: async () => ({
     ok: true,
-    record: { legal_name: "Melany's Beauty Salon LLC", ein: "12-3456789" },
+    record: { legal_name: "Marisa's Beauty Salon LLC", ein: "12-3456789" },
     path: "standard",
     problems: {},
     message: "",
@@ -313,7 +313,7 @@ globalThis.window.__today = TODAY_HELPERS;
 
 const NOW = new Date("2026-09-06T14:00:00Z");
 const metrics = (oldest) => ({
-  workspace: { name: "Melany's Beauty Salon", timezone: "America/New_York", status: "active" },
+  workspace: { name: "Marisa's Beauty Salon", timezone: "America/New_York", status: "active" },
   channels: [{ kind: "whatsapp", status: "active", number: "+1 305" }],
   window: {
     days: 1,

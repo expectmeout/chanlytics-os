@@ -112,8 +112,8 @@ test("Reports: the chart's hit targets are not keyboard stops; the zone is a too
 
 const NOW = new Date("2026-08-27T12:00:00Z"); // 8:00 AM New York
 const metrics = (over = {}) => ({
-  workspace: { name: "Melany's Beauty Salon", timezone: "America/New_York", status: "active" },
-  channels: over.channels ?? [{ kind: "whatsapp", status: "active", number: "+19177724072" }],
+  workspace: { name: "Marisa's Beauty Salon", timezone: "America/New_York", status: "active" },
+  channels: over.channels ?? [{ kind: "whatsapp", status: "active", number: "+13055550188" }],
   window: {
     days: 1,
     since: "2026-08-27T04:00:00+00:00",

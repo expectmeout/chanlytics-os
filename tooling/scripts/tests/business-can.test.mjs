@@ -21,7 +21,7 @@ import {
   SETUP,
   W,
   drawTab,
-  melany,
+  marisa,
   openFold,
   openFolds,
   openRows,
@@ -31,8 +31,8 @@ import {
 
 after(() => unmount());
 
-/** Every input, as the page computes it for Melany (the plan's table under Task 4.1 step 3). */
-const MELANY_INPUTS = {
+/** Every input, as the page computes it for Marisa (the plan's table under Task 4.1 step 3). */
+const MARISA_INPUTS = {
   voiceLive: true,
   whatsappLive: true,
   hasCalendarFeed: true,
@@ -54,10 +54,10 @@ const saidAtRest = (row) => find(row, (n) => classes(n).includes("bt-can-why"));
 /* ------------------------------------ the plan's five ------------------------------------ */
 
 test("the card draws every ability, with the channel that has it", () => {
-  const card = canCard(drawTab({ profile: melany }));
+  const card = canCard(drawTab({ profile: marisa }));
   assert.ok(card, "the card is on the page");
   // abilityRows throws on a boolean left out, so a wiring slip fails here instead of drawing a card that lies.
-  for (const a of abilityRows(MELANY_INPUTS).rows) {
+  for (const a of abilityRows(MARISA_INPUTS).rows) {
     const row = byTestId(card, `rec-can-${a.id}`);
     assert.ok(row, `${a.id} is drawn`);
     assert.match(textOf(row), new RegExp(a.title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
@@ -67,7 +67,7 @@ test("the card draws every ability, with the channel that has it", () => {
 });
 
 test("an ability whose input is missing points at the row that supplies it", () => {
-  const thin = { ...melany, handoff_number: undefined };
+  const thin = { ...marisa, handoff_number: undefined };
   const card = canCard(drawTab({ profile: thin }));
   const transfer = byTestId(card, "rec-can-transfer");
   assert.match(textOf(transfer), /takes a message instead/i);
@@ -80,12 +80,12 @@ test("an ability whose input is missing points at the row that supplies it", () 
 test("the card reads the Autonomy tab: a pause nobody set is a day, and held bookings are said", () => {
   // Nothing under pause_hours is the common case. Passed as a number the page worked out, it
   // read "holds off for NaN hours"; passed as stored, abilityRows reads it as the pane does.
-  const card = canCard(drawTab({ profile: melany }));
+  const card = canCard(drawTab({ profile: marisa }));
   assert.match(textOf(byTestId(card, "rec-can-handoff")), /holds off for a day/);
   // Booking on ask: the page asks contracts' bookingHeld, the edge's own question, never a copy.
   const held = canCard(
     drawTab({
-      profile: melany,
+      profile: marisa,
       policies: {
         rows: [
           { class: "reply", mode: "auto", limits: {} },
@@ -101,12 +101,12 @@ test("the card reads the Autonomy tab: a pause nobody set is a day, and held boo
 test("a workspace with both lines and an approved booking-link message is told the call sends the link", () => {
   // hasBookingTemplate is contracts' bookingTemplate over the workspace's templates: left out,
   // every two-channel workspace was told the call can't send it.
-  const row = byTestId(canCard(drawTab({ profile: melany })), "rec-can-booking_link");
+  const row = byTestId(canCard(drawTab({ profile: marisa })), "rec-can-booking_link");
   assert.match(textOf(row), /caller's WhatsApp, when their number has one/);
 });
 
 test("what it cannot do carries no switch", () => {
-  const card = byTestId(drawTab({ profile: melany }), "rec-card-cannot");
+  const card = byTestId(drawTab({ profile: marisa }), "rec-card-cannot");
   for (const c of cannotRows({ smsLive: false })) {
     const row = byTestId(card, `rec-cannot-${c.id}`);
     assert.ok(row, `${c.id} is drawn`);
@@ -127,8 +127,8 @@ test("a whole ability is its title and two glyphs: the sentence is there to be r
   // paragraphs on a phone about a card nothing on which needs deciding. The sentence stays in the
   // row -- a screen reader reads it, a mouse gets it as the row's tip -- and only a row whose input
   // this page supplies draws it where it cannot be missed.
-  const card = canCard(drawTab({ profile: melany }));
-  const rows = Object.fromEntries(abilityRows(MELANY_INPUTS).rows.map((a) => [a.id, a]));
+  const card = canCard(drawTab({ profile: marisa }));
+  const rows = Object.fromEntries(abilityRows(MARISA_INPUTS).rows.map((a) => [a.id, a]));
   for (const id of ["answer", "open_times", "booking_link", "transfer", "handoff"]) {
     const row = byTestId(card, `rec-can-${id}`);
     assert.equal(saidAtRest(row), null, `${id} is whole, so it says nothing at rest`);
@@ -144,9 +144,9 @@ test("a whole ability is its title and two glyphs: the sentence is there to be r
 test("a row nothing does says so once: both glyphs dark, and the title in the dim ink", () => {
   // The card's one signal per row. Contracts folds each ability's input into its channels, so the
   // pair of glyphs IS the readiness; `data-ready` is what settings.css takes the title's ink from.
-  const thin = { ...melany, handoff_number: undefined };
+  const thin = { ...marisa, handoff_number: undefined };
   const card = canCard(drawTab({ profile: thin }));
-  for (const a of abilityRows({ ...MELANY_INPUTS, hasHandoffNumber: false }).rows) {
+  for (const a of abilityRows({ ...MARISA_INPUTS, hasHandoffNumber: false }).rows) {
     const row = byTestId(card, `rec-can-${a.id}`);
     assert.equal(row.props["data-ready"], a.ready ? "true" : "false", a.id);
     assert.equal(
@@ -167,7 +167,7 @@ test("a row nothing does says so once: both glyphs dark, and the title in the di
 test("a door opens the row that supplies what is missing", () => {
   // Every runsOn this card can offer, pressed: the fold or the inline editor behind it opens, by the
   // same registry the standing line's door goes through (so a row holding changes is asked first).
-  const nothing = { ...melany, handoff_number: undefined, escalate_when: [] };
+  const nothing = { ...marisa, handoff_number: undefined, escalate_when: [] };
   for (const [id, row] of [
     ["open_times", "calendar"],
     ["booking_link", "booking_link"],
@@ -187,9 +187,9 @@ test("a door opens the row that supplies what is missing", () => {
 });
 
 test("a glyph says which channel in words, so dim is never the only thing that said it", () => {
-  const card = canCard(drawTab({ profile: melany, setup: null }));
+  const card = canCard(drawTab({ profile: marisa, setup: null }));
   assert.ok(card, "the card is still drawn");
-  const lit = canCard(drawTab({ profile: melany }));
+  const lit = canCard(drawTab({ profile: marisa }));
   const named = chipsOf(byTestId(lit, "rec-can-transfer")).map((n) => n.props["aria-label"]);
   assert.deepEqual(named, [ABILITY_CHANNEL_WORDS.whatsapp.not, ABILITY_CHANNEL_WORDS.voice.has]);
   const both = chipsOf(byTestId(lit, "rec-can-answer")).map((n) => n.props["aria-label"]);
@@ -197,7 +197,7 @@ test("a glyph says which channel in words, so dim is never the only thing that s
 });
 
 test("nothing on the card is a pill, a switch or a count", () => {
-  const card = canCard(drawTab({ profile: melany }));
+  const card = canCard(drawTab({ profile: marisa }));
   assert.equal(
     all(card, (n) => classes(n).includes("pill")).length,
     0,
@@ -212,24 +212,24 @@ test("nothing on the card is a pill, a switch or a count", () => {
 test("with replies held, the card says so once, above the rows, and no row repeats it", () => {
   for (const mode of ["ask", "never"]) {
     const rows = POLICIES().rows.map((r) => (r.class === "reply" ? { ...r, mode } : r));
-    const tree = drawTab({ profile: melany, policies: { rows, role: "owner" } });
+    const tree = drawTab({ profile: marisa, policies: { rows, role: "owner" } });
     const card = canCard(tree);
     const held = byTestId(card, "rec-can-held");
     assert.ok(held, `${mode} is said`);
-    const sentence = abilityRows({ ...MELANY_INPUTS, replyMode: mode }).held.sentence;
+    const sentence = abilityRows({ ...MARISA_INPUTS, replyMode: mode }).held.sentence;
     assert.ok(textOf(held).includes(sentence), `${mode}: ${textOf(held)}`);
     assert.ok(sentence.includes(POLICY_MODE_WORDS[mode].chip), "in the pane's own words");
     // The door's words are contracts' too (held.door), never typed into the JSX.
     assert.equal(
       textOf(byTestId(card, "rec-can-held-door")),
-      abilityRows({ ...MELANY_INPUTS, replyMode: mode }).held.door,
+      abilityRows({ ...MARISA_INPUTS, replyMode: mode }).held.door,
     );
     // Once, and nowhere else: not on the six rows it holds.
-    for (const a of abilityRows({ ...MELANY_INPUTS, replyMode: mode }).rows) {
+    for (const a of abilityRows({ ...MARISA_INPUTS, replyMode: mode }).rows) {
       assert.ok(!textOf(byTestId(card, `rec-can-${a.id}`)).includes(sentence), `${a.id} does not repeat the hold`);
     }
     // And every chat glyph is dim, while a call is untouched.
-    for (const a of abilityRows({ ...MELANY_INPUTS, replyMode: mode }).rows) {
+    for (const a of abilityRows({ ...MARISA_INPUTS, replyMode: mode }).rows) {
       const chat = chipsOf(byTestId(card, `rec-can-${a.id}`))[0];
       assert.equal(chat.props["data-on"], "false", `${a.id} has no chat`);
       assert.equal(chat.props["aria-label"], ABILITY_CHANNEL_WORDS.whatsapp.not);
@@ -245,7 +245,7 @@ test("with replies held, the card says so once, above the rows, and no row repea
 });
 
 test("on the mode a workspace is provisioned with, the card says nothing about a hold", () => {
-  const card = canCard(drawTab({ profile: melany }));
+  const card = canCard(drawTab({ profile: marisa }));
   assert.equal(byTestId(card, "rec-can-held"), null);
   assert.equal(chipsOf(byTestId(card, "rec-can-handoff"))[0].props["data-on"], "true");
 });
@@ -261,7 +261,7 @@ test("a read that failed is said where the rows would be, and never guessed at",
     // narrows the call's row and the openings row's clause on a read that never happened.
     ["your approved messages", { templates: null }],
   ]) {
-    const card = canCard(drawTab({ profile: melany, ...over }));
+    const card = canCard(drawTab({ profile: marisa, ...over }));
     const said = byTestId(card, "rec-can-unread");
     assert.ok(said, what);
     assert.ok(textOf(said).includes(what), `${what}: ${textOf(said)}`);
@@ -271,14 +271,14 @@ test("a read that failed is said where the rows would be, and never guessed at",
     assert.ok(byTestId(card, "rec-cannot-book"), `${what}: what it cannot do still stands`);
   }
   // Both at once is still one sentence, naming both.
-  const both = canCard(drawTab({ profile: melany, policies: null, templates: null }));
+  const both = canCard(drawTab({ profile: marisa, policies: null, templates: null }));
   assert.match(textOf(byTestId(both, "rec-can-unread")), /the Autonomy tab and your approved messages/);
 });
 
 test("the connections gone is ONE failed read for the whole card, with one retry", () => {
   // Every row of it, the abilities and the limits alike, turns on the lines that answer. Said twice
   // it was two alarms and two Retries for one cause.
-  const tree = drawTab({ profile: melany, setup: null });
+  const tree = drawTab({ profile: marisa, setup: null });
   const card = canCard(tree);
   assert.match(textOf(byTestId(card, "rec-can-unread")), /the connections/);
   assert.equal(byTestId(card, "rec-cannot-unread"), null, "not a second failed read under it");
@@ -288,7 +288,7 @@ test("the connections gone is ONE failed read for the whole card, with one retry
   const was = W.__refreshSurface;
   try {
     W.__refreshSurface = () => {};
-    const again = canCard(drawTab({ profile: melany, setup: null }));
+    const again = canCard(drawTab({ profile: marisa, setup: null }));
     assert.equal(all(again, (n) => /-retry$/.test(n.props?.["data-testid"] || "")).length, 1, "one retry");
   } finally {
     W.__refreshSurface = was;
@@ -301,7 +301,7 @@ test("a surface still being read is not a surface that failed", () => {
   // connections" with a Retry until it arrived. The house says it the other way round
   // (pages/setup.jsx, pages/settings.jsx): null is a failure, undefined is still on its way.
   for (const global of ["__SETUP", "__POLICIES", "__TEMPLATES_ALL"]) {
-    drawTab({ profile: melany });
+    drawTab({ profile: marisa });
     const was = W[global];
     try {
       W[global] = undefined;
@@ -322,20 +322,20 @@ test("texting live takes its row out, and it is read from ready rather than live
   // true; `ready` is the active, non-rehearsal carrier line textingWords calls "Texting is on."
   const setup = SETUP();
   setup.dto.lines.rows[0].sms_state = "active";
-  const card = byTestId(drawTab({ profile: melany, setup }), "rec-card-cannot");
+  const card = byTestId(drawTab({ profile: marisa, setup }), "rec-card-cannot");
   assert.equal(byTestId(card, "rec-cannot-sms"), null, "it is sold on this line, so it is not a limit");
   assert.ok(byTestId(card, "rec-cannot-book"), "the two that are structural stay");
   // A rehearsal filing is not a line that texts (capabilities.ts), and the row comes back.
   const mock = SETUP();
   mock.dto.lines.rows[0].sms_state = "active";
   mock.dto.lines.rows[0].reg_mock = true;
-  assert.ok(byTestId(byTestId(drawTab({ profile: melany, setup: mock }), "rec-card-cannot"), "rec-cannot-sms"));
+  assert.ok(byTestId(byTestId(drawTab({ profile: marisa, setup: mock }), "rec-card-cannot"), "rec-cannot-sms"));
 });
 
 /* ------------------------------------ on the page ------------------------------------ */
 
 test("the card is drawn on every render, after How it answers and before the services sheet", () => {
-  const tree = drawTab({ profile: melany });
+  const tree = drawTab({ profile: marisa });
   const order = all(
     tree,
     (n) =>
@@ -360,7 +360,7 @@ test("a viewer reads the whole card and is offered no door", () => {
   const was = W.canDo;
   try {
     W.canDo = () => false;
-    const card = canCard(drawTab({ profile: { ...melany, handoff_number: undefined } }));
+    const card = canCard(drawTab({ profile: { ...marisa, handoff_number: undefined } }));
     const transfer = byTestId(card, "rec-can-transfer");
     assert.match(textOf(transfer), /takes a message instead/i, "the sentence is theirs to read");
     assert.equal(

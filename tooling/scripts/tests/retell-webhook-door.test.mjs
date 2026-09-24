@@ -197,7 +197,7 @@ test("call_started on a known agent: the normalised call reaches ingest_call, th
     tenant_id: w.T,
     kind: "forwarded",
     forwarding_state: "instructed",
-    e164: "+16469325775",
+    e164: "+12125550142",
     facts: {
       carrier: "verizon",
       mode: "unanswered",
@@ -253,7 +253,7 @@ test("call_started on a known agent: the normalised call reaches ingest_call, th
     [bells[0].tenant_id, bells[0].kind, bells[0].route, bells[0].subject_type, bells[0].subject_id],
     [w.T, "number", "admin/setup", "line", lineId],
   );
-  assert.equal(bells[0].title, "Forwarding works: calls to +1 (646) 932-5775 reach your receptionist");
+  assert.equal(bells[0].title, "Forwarding works: calls to +1 (212) 555-0142 reach your receptionist");
   const verified = kind(w.tables, "line.forwarding_verified");
   assert.equal(verified.length, 1);
   assert.deepEqual(

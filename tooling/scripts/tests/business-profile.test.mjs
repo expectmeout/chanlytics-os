@@ -24,15 +24,15 @@ import {
 } from "@chanlytics/contracts";
 
 const brain = {
-  business_name: "Melany's Beauty Salon",
-  phone_display: "(646) 932-5775",
-  booking_link: "https://booksy.com/en-us/1817434",
+  business_name: "Marisa's Beauty Salon",
+  phone_display: "(212) 555-0142",
+  booking_link: "https://book.example.com/en-us/4471902",
   system_prompt: "The hand-written prompt that is live right now. ".repeat(3),
   fallbacks: { greeting: "g", error: "e", non_text: "n" },
 };
 
 const profile = {
-  address: "2581 Pitkin Ave, Brooklyn",
+  address: "1200 Maple Ave, Brooklyn",
   hours: {
     mon: { open: "09:00", close: "18:00" },
     tue: { open: "09:00", close: "18:00" },
@@ -44,19 +44,19 @@ const profile = {
   },
   services: [{ name: "Haircut", duration_min: 150, price_note: "quoted at consult" }],
   languages: ["English", "Spanish"],
-  escalate_when: ["They ask for Melany by name"],
+  escalate_when: ["They ask for Marisa by name"],
 };
 
 /* ------------------------- nothing already working breaks ---------------- */
 
 test("a config written before profiles existed is still valid", () => {
-  // Melany's is live and answering real customers. If this ever fails, her
+  // The pilot's config has this shape, and it is live and answering real customers. If this ever fails, its
   // receptionist has gone silent.
   assert.equal(parseTenantConfigResult({ brain }).ok, true);
 });
 
 test("a workspace WITHOUT a profile keeps its prompt byte for byte", () => {
-  // A migration that changed what her receptionist says the moment the code
+  // A migration that changed what the pilot's receptionist says the moment the code
   // deployed would be a behaviour change nobody asked for.
   assert.equal(resolveSystemPrompt(brain, "whatsapp"), brain.system_prompt);
 });
@@ -70,7 +70,7 @@ test("an EMPTY profile object is not a profile", () => {
 test("a filled profile takes over", () => {
   const p = resolveSystemPrompt({ ...brain, profile }, "whatsapp");
   assert.notEqual(p, brain.system_prompt);
-  assert.match(p, /2581 Pitkin Ave/);
+  assert.match(p, /1200 Maple Ave/);
 });
 
 /* ------------------------ the same facts on both channels ---------------- */
@@ -78,7 +78,7 @@ test("a filled profile takes over", () => {
 test("channel changes the DELIVERY, never the facts", () => {
   const wa = composeSystemPrompt(brain, profile, "whatsapp");
   const voice = composeSystemPrompt(brain, profile, "voice");
-  for (const fact of ["2581 Pitkin Ave", "Monday–Thursday: 09:00–18:00", "Haircut", "(646) 932-5775"]) {
+  for (const fact of ["1200 Maple Ave", "Monday–Thursday: 09:00–18:00", "Haircut", "(212) 555-0142"]) {
     assert.ok(wa.includes(fact), `whatsapp missing ${fact}`);
     assert.ok(voice.includes(fact), `voice missing ${fact}`);
   }

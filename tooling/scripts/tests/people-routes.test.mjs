@@ -285,7 +285,7 @@ test("one person in full: the row with both reply modes, the notes, where they c
         created_at: "2026-08-05T00:00:00Z",
       },
     ],
-    tenant_config: [{ tenant_id: A, config: { brain: { booking_link: " https://book.example/melany " } } }],
+    tenant_config: [{ tenant_id: A, config: { brain: { booking_link: " https://book.example/marisa " } } }],
     tenants: [],
   };
   const rpcs = { people_list: (a) => (a.p_tenant_id === A && a.p_contact_id === P1 ? [personRow(P1)] : []) };
@@ -295,7 +295,7 @@ test("one person in full: the row with both reply modes, the notes, where they c
   assert.equal(p.receptionist_mode, "ask");
   assert.equal(p.workspace_reply_mode, "auto");
   assert.equal(p.notes, "Sees Sofia");
-  assert.equal(p.booking_link, "https://book.example/melany");
+  assert.equal(p.booking_link, "https://book.example/marisa");
   assert.deepEqual(p.added, { at: "2026-08-01T00:00:00Z", source: "calendar", title: "Colour" });
   assert.deepEqual(
     p.consent_history.map((c) => [

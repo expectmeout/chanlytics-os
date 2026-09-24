@@ -1,6 +1,6 @@
 /**
  * Settings › Business, the page, as every test of it draws it: the stub React, the app's globals as the bridge publishes
- * them, every legacy file both load lists carry, the bridge installed from its real module, Melany's record as the
+ * them, every legacy file both load lists carry, the bridge installed from its real module, Marisa's record as the
  * settings read hands it over, and the presses a person makes. Not named *.test.mjs, so the runner skips it: the page's
  * own tests (business-tab-page.test.mjs) and each card's (business-tab-open.test.mjs) import it and share one page.
  *
@@ -111,10 +111,10 @@ const { composePromptPreview } = await import("../../../apps/dashboard/src/serve
 
 /* ------------------------------------ the record ------------------------------------ */
 
-/** Melany's Beauty Salon, the live tenant, as the surface hands it over. */
-const melany = {
-  address: "2581 Pitkin Ave, Brooklyn, NY 11208",
-  website: "https://melanysbeautysalon.com",
+/** Marisa's Beauty Salon: the live tenant's record, in made-up details, as the surface hands it over. */
+const marisa = {
+  address: "1200 Maple Ave, Brooklyn, NY 11208",
+  website: "https://marisasbeautysalon.example.com",
   tone: "Warm and unhurried.",
   languages: ["English", "Spanish"],
   hours: {
@@ -131,7 +131,7 @@ const melany = {
     { name: "Highlights", duration_min: 45, price_note: "quoted at consult" },
   ],
   notes: [{ title: "Walk-ins", text: "Walk-ins are welcome; appointments are recommended for long services." }],
-  escalate_when: ["They ask for a person, for Melany or for the owner", "They are upset, or have a complaint"],
+  escalate_when: ["They ask for a person, for Marisa or for the owner", "They are upset, or have a complaint"],
   booking_rules: {
     lead_hours: 2,
     slot_min: 30,
@@ -140,14 +140,14 @@ const melany = {
     consult_first: ["Color correction", "Extensions"],
   },
   guardrails: { never_quote_prices: true, never_confirm_booking: true, disclose_ai: true, no_health_advice: true },
-  handoff_number: "+16469325775",
+  handoff_number: "+12125550142",
 };
 
 /** The brain as stored. It parses, as every saved one does, or consequenceOf resolves nothing from it. */
 const brainOf = (profile, over = {}) => ({
-  business_name: "Melany's Beauty Salon",
-  booking_link: "https://booksy.com/en-us/1817434",
-  system_prompt: "You are the WhatsApp assistant for Melany's Beauty Salon. Answer warmly and briefly.",
+  business_name: "Marisa's Beauty Salon",
+  booking_link: "https://book.example.com/en-us/4471902",
+  system_prompt: "You are the WhatsApp assistant for Marisa's Beauty Salon. Answer warmly and briefly.",
   fallbacks: {
     greeting: "Hi! Someone will be with you shortly.",
     error: "Sorry, something went wrong on our side.",
@@ -166,23 +166,23 @@ const brainOf = (profile, over = {}) => ({
 const SETUP = () => ({
   dto: {
     business: {
-      name: "Melany's Beauty Salon",
+      name: "Marisa's Beauty Salon",
       hours: true,
       services: 2,
       bookingLink: true,
       address: true,
-      handoff: "+16469325775",
+      handoff: "+12125550142",
       broken: false,
     },
     channels: {
       whatsapp: {
         present: true,
         active: true,
-        number: "+13083368109",
+        number: "+13055550123",
         quality: "GREEN",
         lastInboundAt: "2026-09-21T15:00:00.000Z",
       },
-      voice: { present: true, active: true, number: "+13083368109", lastInboundAt: "2026-09-21T15:00:00.000Z" },
+      voice: { present: true, active: true, number: "+13055550123", lastInboundAt: "2026-09-21T15:00:00.000Z" },
     },
     templates: { approved: 2, pending: 0, startersApproved: 2 },
     calendar: { state: "ok" },
@@ -192,11 +192,11 @@ const SETUP = () => ({
     lines: {
       rows: [
         {
-          id: "ln-melany",
-          e164: "+13083368109",
+          id: "ln-marisa",
+          e164: "+13055550123",
           kind: "local",
           provider: "twilio",
-          area_code: 308,
+          area_code: 305,
           voice_state: "answering",
           sms_state: "none",
           whatsapp_state: "connected",
@@ -257,12 +257,12 @@ const TEMPLATES = () => [
 
 /** What the platform knows: the voice line it provisioned, and the workspace. */
 const KNOWN = {
-  workspace: { name: "Melany's Beauty Salon", timezone: "America/New_York" },
-  channels: [{ kind: "voice", number_e164: "+13083368109", status: "active" }],
+  workspace: { name: "Marisa's Beauty Salon", timezone: "America/New_York" },
+  channels: [{ kind: "voice", number_e164: "+13055550123", status: "active" }],
   listing: null,
 };
 
-const settings = (profile = melany, over = {}, brain = {}, zone = "America/New_York") => ({
+const settings = (profile = marisa, over = {}, brain = {}, zone = "America/New_York") => ({
   version: 7,
   config: {
     brain: brainOf(profile, brain),
@@ -280,14 +280,14 @@ const settings = (profile = melany, over = {}, brain = {}, zone = "America/New_Y
 
 const facts = (over = {}) => ({
   facts: {
-    business_name: { value: "Melany's Beauty Salon", source: "verified" },
-    phone_display: { value: "+1 (308) 336-8109", source: "provisioned" },
-    booking_link: { value: "https://booksy.com/en-us/1817434", source: "typed" },
-    address: { value: "2581 Pitkin Ave, Brooklyn, NY 11208", source: "verified" },
-    website: { value: "https://melanysbeautysalon.com", source: "typed" },
-    handoff_number: { value: "+16469325775", source: "typed" },
-    voice_line: { value: "+13083368109", source: "provisioned" },
-    whatsapp_line: { value: "+13083368109", source: "provisioned" },
+    business_name: { value: "Marisa's Beauty Salon", source: "verified" },
+    phone_display: { value: "+1 (305) 555-0123", source: "provisioned" },
+    booking_link: { value: "https://book.example.com/en-us/4471902", source: "typed" },
+    address: { value: "1200 Maple Ave, Brooklyn, NY 11208", source: "verified" },
+    website: { value: "https://marisasbeautysalon.example.com", source: "typed" },
+    handoff_number: { value: "+12125550142", source: "typed" },
+    voice_line: { value: "+13055550123", source: "provisioned" },
+    whatsapp_line: { value: "+13055550123", source: "provisioned" },
     ...(over.facts ?? {}),
   },
   conflicts: over.conflicts ?? [],
@@ -304,7 +304,7 @@ const facts = (over = {}) => ({
  * customers buy (0008), as the workspace list carries it: null, never asked, unless a test says otherwise.
  */
 const drawTab = ({
-  profile = melany,
+  profile = marisa,
   conflicts = [],
   flash = () => {},
   brain = {},
@@ -330,8 +330,8 @@ const drawTab = ({
   } else {
     W.__FACTS = facts({ conflicts, facts: known });
   }
-  W.__WORKSPACES = [{ id: "t-melany", name: "Melany's Beauty Salon", timezone: zone, sells_by: sellsBy }];
-  W.__ACTIVE_WORKSPACE = "t-melany";
+  W.__WORKSPACES = [{ id: "t-marisa", name: "Marisa's Beauty Salon", timezone: zone, sells_by: sellsBy }];
+  W.__ACTIVE_WORKSPACE = "t-marisa";
   unmount();
   W.__recordFolds.reset();
   W.__businessTabSave.saver.reset();
@@ -453,7 +453,7 @@ export {
   foldOf,
   inline,
   labelled,
-  melany,
+  marisa,
   openFold,
   openFolds,
   openRows,

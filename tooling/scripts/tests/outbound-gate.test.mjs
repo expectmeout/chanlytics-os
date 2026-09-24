@@ -161,7 +161,7 @@ test("the workspace that confirms its own bookings does not have its link sent f
   // It is the workspace's own answer about bookings, so it outranks the generic
   // "automation is off" and is reported as itself: the caller is owed the true
   // reason, which is that a person will confirm.
-  const said = refusalScript("booking_needs_a_person", "(646) 932-5775");
+  const said = refusalScript("booking_needs_a_person", "(212) 555-0142");
   assert.match(said, /confirm/i);
   assert.match(said, /name/i, "the agent is told to take the caller's name, as the prompt says");
 });
@@ -187,7 +187,7 @@ test("no refusal leaks our internal state to the caller", () => {
     "booking_needs_a_person",
     "daily_cap",
   ]) {
-    const said = refusalScript(r, "(646) 932-5775");
+    const said = refusalScript(r, "(212) 555-0142");
     assert.ok(said.length > 20, `${r} must say something useful`);
     assert.doesNotMatch(said, /paused|policy_hold|opted_out|daily_cap|rate cap|tenant/i, r);
   }
@@ -204,7 +204,7 @@ test("every refusal offers the caller a way forward", () => {
     "daily_cap",
   ]) {
     assert.match(
-      refusalScript(r, "(646) 932-5775"),
+      refusalScript(r, "(212) 555-0142"),
       /offer|tell the caller|book/i,
       `${r} must name an alternative — the caller is waiting on the line`,
     );
@@ -221,7 +221,7 @@ test("every refusal a caller can hear calls the booking link a WhatsApp message,
   // prompt's own sentence (contracts policyRules). sms_carries_no_promotions
   // is the texting line's refusal, which a WhatsApp send never meets: the
   // door refuses it on channel "sms" only (core deliver).
-  const heard = (r) => [refusalScript(r, "(646) 932-5775"), refusalScript(r, null)];
+  const heard = (r) => [refusalScript(r, "(212) 555-0142"), refusalScript(r, null)];
   const whatsapp = [
     "opted_out",
     "not_opted_in",

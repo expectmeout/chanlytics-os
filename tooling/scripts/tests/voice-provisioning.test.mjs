@@ -33,7 +33,7 @@ test("no business fact is written into provisioning", () => {
   // belong in Settings where the owner can see and change them. The endpoint
   // sends this package's bodies byte for byte (run in voice-doors.test.mjs),
   // so what is held here holds for what reaches the provider.
-  const facts = ["9:30", "Pitkin", "Booksy", "booksy", "646-932", "Melany", "Brooklyn", "Beauty Academy", "balayage"];
+  const facts = ["9:30", "Maple", "Booksy", "booksy", "212-555", "Marisa", "Brooklyn", "Beauty Academy", "balayage"];
   for (const f of facts) {
     assert.ok(!module_.includes(f), `"${f}" is a fact and must not live in provisioning`);
   }

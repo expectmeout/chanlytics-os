@@ -89,7 +89,7 @@ test("the fallbacks name the owner's details, and a customer reads the owner's o
   );
   assert.ok(read.non_text.includes(PHONE), "the urgent path is the number they gave");
   for (const v of [...Object.values(f), ...Object.values(read)]) {
-    assert.ok(!/Melany|Booksy demo|example\.com/i.test(v), "no other business may appear");
+    assert.ok(!/Marisa|Booksy demo|example\.com/i.test(v), "no other business may appear");
   }
 });
 

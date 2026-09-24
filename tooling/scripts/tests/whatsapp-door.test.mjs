@@ -845,7 +845,7 @@ test("an owner's reply from the Business app pauses the receptionist for the wor
     id: `wamid.${w.i}.echo`,
     timestamp: now(),
     type: "text",
-    text: { body: "Hi Dana, this is Melany. I'll call you in five minutes." },
+    text: { body: "Hi Dana, this is Marisa. I'll call you in five minutes." },
   };
   await listening(async (log) => {
     const t0 = Date.now();

@@ -134,7 +134,7 @@ const live = (over = {}) => ({
   reg_mock: false,
   reg_sole_prop: false,
   line_error: null,
-  whatsapp_number: "+19177724072",
+  whatsapp_number: "+13055550188",
   whatsapp_active: true,
   voice_number: "+19296566623",
   voice_active: true,
@@ -156,7 +156,7 @@ const SETUP_FIXTURE = {
   },
   conflicts: [],
   channels: {
-    whatsapp: { present: true, active: true, number: "+19177724072", quality: "GREEN", lastInboundAt: ago(1) },
+    whatsapp: { present: true, active: true, number: "+13055550188", quality: "GREEN", lastInboundAt: ago(1) },
     voice: { present: true, active: true, number: "+19296566623", lastInboundAt: ago(2) },
   },
   templates: { approved: 5, pending: 0, startersApproved: 5 },
@@ -1347,15 +1347,15 @@ test("REGRESSION (S10): a read that throws is a failed read, not a page reading 
 test("finding a workspace by name or slug, because that is what a support call starts with", async () => {
   globalThis.window.__platform = api([
     live({ tenant_id: "a", slug: "harbor-moving", name: "Harbor Moving" }),
-    live({ tenant_id: "b", slug: "melanys-beauty-salon", name: "Melany's Beauty Salon" }),
+    live({ tenant_id: "b", slug: "marisas-beauty-salon", name: "Marisa's Beauty Salon" }),
   ]);
   const page = mount(Pane);
   await page.settle();
   assert.equal(attnRows(page.tree).length, 2);
-  page.type(byId(page.tree, "platform-find"), "melany");
+  page.type(byId(page.tree, "platform-find"), "marisa");
   assert.deepEqual(
     attnRows(page.tree).map((r) => r.props.name),
-    ["Melany's Beauty Salon"],
+    ["Marisa's Beauty Salon"],
   );
   page.type(byId(page.tree, "platform-find"), "harbor-mov");
   assert.deepEqual(
@@ -1589,7 +1589,7 @@ test("the back office does not tell the reader it changes nothing, in the file t
 const waiting = (over = {}) => ({
   id: "w1",
   email: "ana@example.com",
-  business: "Melany's Beauty Salon",
+  business: "Marisa's Beauty Salon",
   source: "https://chanlytics.com/pricing?utm_source=x",
   created_at: ago(3),
   ...over,
@@ -1617,7 +1617,7 @@ test("the queue says how many and how long, and an unreadable queue is not an em
 test("a row says who they are and where they came from, and never the query string", () => {
   const [row] = platformQueue({ waiting: [waiting()], total: 1 }, NOW).rows;
   assert.equal(row.email, "ana@example.com");
-  assert.equal(row.detail, "Melany's Beauty Salon · from chanlytics.com/pricing");
+  assert.equal(row.detail, "Marisa's Beauty Salon · from chanlytics.com/pricing");
   assert.equal(row.waited, "asked 3d ago");
 
   // Whichever half they gave, and nothing when they gave neither.
@@ -1627,7 +1627,7 @@ test("a row says who they are and where they came from, and never the query stri
   );
   assert.equal(
     platformQueue({ waiting: [waiting({ source: null })], total: 1 }, NOW).rows[0].detail,
-    "Melany's Beauty Salon",
+    "Marisa's Beauty Salon",
   );
   assert.equal(
     platformQueue({ waiting: [waiting({ business: "  ", source: "" })], total: 1 }, NOW).rows[0].detail,
@@ -1735,7 +1735,7 @@ test("the page draws who is waiting, and says the product sends nothing", async 
   });
   assert.equal(rows.length, 2);
   assert.match(textOf(rows[0]), /ana@example\.com/);
-  assert.match(textOf(rows[0]), /Melany's Beauty Salon · from chanlytics\.com\/pricing · asked 3d ago/);
+  assert.match(textOf(rows[0]), /Marisa's Beauty Salon · from chanlytics\.com\/pricing · asked 3d ago/);
   assert.match(
     textOf(rows[1]),
     /bea@example\.com asked 1d ago/,

@@ -20,18 +20,18 @@ import {
 } from "@chanlytics/contracts";
 
 const brain = {
-  business_name: "Melany's Beauty Salon",
-  phone_display: "+1 (308) 336-8109",
+  business_name: "Marisa's Beauty Salon",
+  phone_display: "+1 (305) 555-0123",
   booking_link: "https://booksy.com/x",
 };
 const profile = {
   tone: "Warm and unhurried.",
   languages: ["English", "Spanish"],
-  address: "2581 Pitkin Ave, Brooklyn, NY 11208",
+  address: "1200 Maple Ave, Brooklyn, NY 11208",
   hours: { mon: { open: "09:30", close: "18:00" }, sat: { open: "09:30", close: "19:00" } },
   services: [{ name: "Balayage", duration_min: 180, price_note: "quoted at consult" }],
   notes: [{ title: "Walk-ins", text: "Walk-ins are welcome." }],
-  escalate_when: ["They ask for Melany"],
+  escalate_when: ["They ask for Marisa"],
   guardrails: { never_quote_prices: true },
 };
 
@@ -39,13 +39,13 @@ const tz = "America/New_York";
 const own = "Never discuss competitors.\nA first name is all the personal data you need.";
 /** A prompt written before the workspace had fields, restating its hours and services under headings of its own. */
 const OLD =
-  "You are the WhatsApp assistant for Melany's Beauty Salon.\n\nServices:\n- Lashes, brows, nails.\n\nOpening hours: 9 to 6, closed Sundays.\n\nAlways end with [[HUMAN]] if unsure.";
+  "You are the WhatsApp assistant for Marisa's Beauty Salon.\n\nServices:\n- Lashes, brows, nails.\n\nOpening hours: 9 to 6, closed Sundays.\n\nAlways end with [[HUMAN]] if unsure.";
 /** The Autonomy tab's Booking and FAQ rows, both under "ask", so they compose into the prompt as rules. */
 const ASK = { booking: { mode: "ask" }, faq: { mode: "ask" } };
 const NOW = new Date("2026-09-21T15:00:00Z");
 /** The product's own opening lines, as a new workspace is given them, and as one named earlier would still have them. */
-const BASELINE = newReceptionistDefaults("Melany's Beauty Salon").system_prompt;
-const BASELINE_EARLIER_NAME = newReceptionistDefaults("Melany's Salon").system_prompt;
+const BASELINE = newReceptionistDefaults("Marisa's Beauty Salon").system_prompt;
+const BASELINE_EARLIER_NAME = newReceptionistDefaults("Marisa's Salon").system_prompt;
 
 /* ---- Whose words: the resolver's rule, stated once ---- */
 
@@ -278,13 +278,13 @@ test("the resolver composes the typed details with the owner's words as ownWords
     { ...profile, extra_instructions: BASELINE },
     {
       ...profile,
-      handoff_number: "+16469325775",
+      handoff_number: "+12125550142",
       closures: [{ date: "2026-12-24", until: "2026-12-26", note: "Holidays" }],
       booking_rules: { lead_hours: 0, party_max: 2 },
     },
   ];
   const prompts = [OLD, BASELINE, ""];
-  const phones = [undefined, "+1 (308) 336-8109", "  (646) 932-5775  "];
+  const phones = [undefined, "+1 (305) 555-0123", "  (212) 555-0142  "];
   const policies = [null, ASK, { booking: { mode: "ask" } }, { reply: { mode: "ask" } }];
   let composed = 0,
     asStored = 0;
@@ -357,12 +357,12 @@ test("the prompt is cut into blocks, each naming the row that wrote it", () => {
 test("every character belongs to exactly one block", () => {
   // The page draws a bar per block to show where the characters go. A bar that
   // quietly drops the separators is a small copy of the invisibility this exists to fix.
-  const drafts = [profile, { ...profile, extra_instructions: own }, { ...profile, handoff_number: "+16469325775" }, {}];
+  const drafts = [profile, { ...profile, extra_instructions: own }, { ...profile, handoff_number: "+12125550142" }, {}];
   const stored = [
     { ...brain, system_prompt: OLD, profile: { hours: profile.hours } },
     {
       ...brain,
-      system_prompt: newReceptionistDefaults("Melany's Beauty Salon").system_prompt,
+      system_prompt: newReceptionistDefaults("Marisa's Beauty Salon").system_prompt,
       profile: { hours: profile.hours },
     },
     { ...brain, system_prompt: OLD },
@@ -423,7 +423,7 @@ test("every block has an id of its own, and a row keeps its meaning", () => {
 /** Every section the composer can write, filled in, with the owner's own words and Autonomy's rules. */
 const everything = {
   ...profile,
-  website: "https://melanys.example",
+  website: "https://marisas.example",
   closures: [{ date: "2026-12-24", until: "2026-12-26", note: "Holidays" }],
   booking_rules: {
     lead_hours: 2,
@@ -431,7 +431,7 @@ const everything = {
     party_max: 4,
     notes: ["No children under five."],
   },
-  handoff_number: "+16469325775",
+  handoff_number: "+12125550142",
   extra_instructions: own,
 };
 
@@ -442,7 +442,7 @@ test("with every section present, the blocks are the composer's sections, in its
   const O = PROMPT_OPENINGS;
   const want = {
     whatsapp: [
-      ["identity", "You are the assistant for Melany's Beauty Salon"],
+      ["identity", "You are the assistant for Marisa's Beauty Salon"],
       ["hours", O.hours],
       ["closures", O.closures],
       ["services", O.services],
@@ -454,7 +454,7 @@ test("with every section present, the blocks are the composer's sections, in its
       ["guardrails", O.rules],
     ],
     voice: [
-      ["identity", "You are the assistant for Melany's Beauty Salon"],
+      ["identity", "You are the assistant for Marisa's Beauty Salon"],
       ["hours", O.hours],
       ["closures", O.closures],
       ["services", O.services],
@@ -635,7 +635,7 @@ test("the hand-off is one row on both channels, and carries the owner's reasons 
   // "Handing the caller to a person:". Charged to the transfer number, a reason typed
   // into the hand-off row went missing from that row on a call, and a fold asking for
   // it on the phone found nothing.
-  const withLine = { ...profile, handoff_number: "+16469325775" };
+  const withLine = { ...profile, handoff_number: "+12125550142" };
   for (const [channel, p] of [
     ["whatsapp", profile],
     ["voice", profile],
@@ -644,7 +644,7 @@ test("the hand-off is one row on both channels, and carries the owner's reasons 
     const blocks = promptBlocks(composeSystemPrompt(brain, p, channel, tz), channel, { profile: p });
     const h = blocks.filter((b) => b.row === "handoff");
     assert.equal(h.length, 1, `${channel}: one hand-off block`);
-    assert.match(h[0].text, /They ask for Melany/, `${channel}: the reasons are the hand-off's`);
+    assert.match(h[0].text, /They ask for Marisa/, `${channel}: the reasons are the hand-off's`);
     assert.ok(
       !blocks.some((b) => b.row === "escalate_when" || b.row === "handoff_number"),
       `${channel}: and it goes by one name`,
@@ -653,7 +653,7 @@ test("the hand-off is one row on both channels, and carries the owner's reasons 
       if (b.row !== "handoff")
         assert.doesNotMatch(
           b.text,
-          /They ask for Melany|Handing the (conversation|caller) to a person/,
+          /They ask for Marisa|Handing the (conversation|caller) to a person/,
           `${channel}: ${b.row} does not swallow it`,
         );
     }
@@ -712,7 +712,7 @@ test("the owner's own words are one block, on both channels", () => {
 });
 
 test("a prompt carried over from before the form is not mistaken for the rows it restates", () => {
-  // Melany's owner text is exactly this: a prompt written before the form existed,
+  // Marisa's owner text is exactly this: a prompt written before the form existed,
   // restating the hours and services under headings of its own. A cut on headings
   // would count the owner's old prose as the Hours and Services rows.
   const carried = {
@@ -785,7 +785,7 @@ test("the product's opening lines are not the owner's words, even where theirs w
   // them like any other until the owner writes their own. The owner's box shows them as
   // empty (instructionsDraft), so charging them to "In your own words" would give every
   // new workspace a share of words nobody there wrote.
-  const { system_prompt } = newReceptionistDefaults("Melany's Beauty Salon");
+  const { system_prompt } = newReceptionistDefaults("Marisa's Beauty Salon");
   for (const stored of [
     { ...brain, system_prompt, profile: { hours: profile.hours } },
     { ...brain, system_prompt },

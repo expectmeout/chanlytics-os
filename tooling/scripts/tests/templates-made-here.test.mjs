@@ -37,7 +37,7 @@ test("names Meta accepts, slots in order, one example each: what is refused is r
     category: "marketing",
     body: "Hi {{1}}, {{2}} is 20% off this week at {{3}}.",
     footer: "Reply STOP to opt out",
-    examples: ["Dani", "Balayage", "Melany's"],
+    examples: ["Dani", "Balayage", "Marisa's"],
   });
   assert.equal(ok.ok, true);
   assert.equal(ok.value.name, "spring_offer");
@@ -46,7 +46,7 @@ test("names Meta accepts, slots in order, one example each: what is refused is r
     {
       type: "BODY",
       text: "Hi {{1}}, {{2}} is 20% off this week at {{3}}.",
-      example: { body_text: [["Dani", "Balayage", "Melany's"]] },
+      example: { body_text: [["Dani", "Balayage", "Marisa's"]] },
     },
     { type: "FOOTER", text: "Reply STOP to opt out" },
   ]);
@@ -122,15 +122,15 @@ test("what fills a slot: typed text once, or the person's first name, the busine
     { kind: "booking_link" },
   ];
   assert.deepEqual(
-    resolveParams(specs, { firstName: "Dani", businessName: "Melany's", bookingLink: "https://b.example" }),
-    ["Dani", "Balayage", "Melany's", "https://b.example"],
+    resolveParams(specs, { firstName: "Dani", businessName: "Marisa's", bookingLink: "https://b.example" }),
+    ["Dani", "Balayage", "Marisa's", "https://b.example"],
   );
   assert.deepEqual(
-    resolveParams(specs, { firstName: null, businessName: "Melany's", bookingLink: null }),
-    ["there", "Balayage", "Melany's", ""],
+    resolveParams(specs, { firstName: null, businessName: "Marisa's", bookingLink: null }),
+    ["there", "Balayage", "Marisa's", ""],
     "no name reads 'there'; no link is empty, which the route refuses and the job holds",
   );
-  assert.deepEqual(exampleParams(specs, "Melany's"), ["Dani", "Balayage", "Melany's", "your booking link"]);
+  assert.deepEqual(exampleParams(specs, "Marisa's"), ["Dani", "Balayage", "Marisa's", "your booking link"]);
   assert.equal(paramLabel({ kind: "first_name" }), "their first name");
   assert.equal(paramLabel({ kind: "text", value: "20%" }), "20%");
 });

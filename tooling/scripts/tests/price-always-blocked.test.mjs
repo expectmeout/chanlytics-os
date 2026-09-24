@@ -14,9 +14,9 @@ import { spokenBreach, ruleStrength } from "@chanlytics/contracts";
 import { layerTwo } from "../../../packages/core/src/inbound/steps.ts";
 
 const brainCfg = (guardrails) => ({
-  business_name: "Melany's Beauty Salon",
-  phone_display: "+1 (308) 336-8109",
-  booking_link: "https://booksy.com/en-us/1817434",
+  business_name: "Marisa's Beauty Salon",
+  phone_display: "+1 (305) 555-0123",
+  booking_link: "https://book.example.com/en-us/4471902",
   profile: { services: [{ name: "Balayage", duration_min: 180 }], ...(guardrails === undefined ? {} : { guardrails }) },
 });
 

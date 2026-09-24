@@ -23,7 +23,7 @@ import {
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
 
-const salon = { businessName: "Melany's Beauty Salon", whatsappE164: "+19177724072", smsE164: null };
+const salon = { businessName: "Marisa's Beauty Salon", whatsappE164: "+13055550188", smsE164: null };
 
 test("two asks, not one — which is what error 30913 required", () => {
   // THE DEFECT. One control, three purposes: "Text YES OFFERS ... Sending it is
@@ -69,7 +69,7 @@ test("two asks, not one — which is what error 30913 required", () => {
 
   assert.equal(
     vm.qrLink,
-    optInLink("+19177724072", CONSENT_PHRASE),
+    optInLink("+13055550188", CONSENT_PHRASE),
     "the QR at the desk is the offers one, and only that one",
   );
 });
@@ -80,7 +80,7 @@ test("each ask carries the disclosures the carriers require of it, separately", 
   // repeats the whole disclosure on each checkbox for this reason.
   for (const ask of consentPageVM(salon).asks) {
     const said = ask.terms.join(" ");
-    assert.match(said, /Melany's Beauty Salon/, `${ask.purpose}: whose messages`);
+    assert.match(said, /Marisa's Beauty Salon/, `${ask.purpose}: whose messages`);
     assert.match(said, /frequency varies|A few messages a month/i, `${ask.purpose}: how often`);
     assert.ok(said.includes("Message and data rates may apply"), `${ask.purpose}: verbatim, as the carriers require`);
     assert.ok(
@@ -114,7 +114,7 @@ test("a texting line adds a second way to the appointment ask only: offers go by
   const sms = visit.ways[1];
   assert.equal(sms.sentence, `Text ${visit.ways[0].phrase} to +1 (305) 555-0100. Sending it is your yes.`);
   assert.equal(sms.href, `sms:+13055550100?&body=${encodeURIComponent(visit.ways[0].phrase)}`);
-  assert.equal(visit.ways[0].display, "+1 (917) 772-4072");
+  assert.equal(visit.ways[0].display, "+1 (305) 555-0188");
   assert.deepEqual(
     offers.ways.map((w) => w.kind),
     ["whatsapp"],
@@ -161,7 +161,7 @@ test("the paper form asks the same two questions, each its own unticked box with
     assert.equal(s.lead, page.asks[i].lead);
     assert.equal(s.optional, page.asks[i].optional);
     assert.deepEqual(s.terms, page.asks[i].terms, `${s.purpose}: the page's disclosures, not a copy of them`);
-    assert.ok(s.box.includes("Melany's Beauty Salon"), `${s.purpose}: whose texts`);
+    assert.ok(s.box.includes("Marisa's Beauty Salon"), `${s.purpose}: whose texts`);
     assert.ok(s.sign, `${s.purpose}: signed on its own`);
     // Printed, not filled in here: nothing on it is an input or arrives ticked.
     assert.ok(!("checked" in s) && !("value" in s), `${s.purpose}: a box that arrives ticked is not a yes`);
@@ -187,19 +187,19 @@ test("the desk sign asks the offers question alone, with the page's code and the
   // The code was on every page an owner looks at and on nothing a customer does: an .svg to download, which most
   // owners cannot open, and printed bare it says nothing about whose messages, what they are or how to stop them.
   // The sign is the code with those words -- the page's, never a copy that one edit forgets.
-  const sign = deskSignVM({ ...salon, slug: "melanys", businessPage: true });
-  const page = consentPageVM({ ...salon, slug: "melanys", businessPage: true });
+  const sign = deskSignVM({ ...salon, slug: "marisas", businessPage: true });
+  const page = consentPageVM({ ...salon, slug: "marisas", businessPage: true });
   const offers = page.asks.find((a) => a.purpose === "marketing");
   assert.equal(sign.empty, false);
   assert.equal(sign.qrLink, page.qrLink, "the code the page shows, and the only one: the offers link");
-  assert.equal(sign.qrLink, optInLink("+19177724072", CONSENT_PHRASE));
+  assert.equal(sign.qrLink, optInLink("+13055550188", CONSENT_PHRASE));
   assert.deepEqual(
     sign.terms,
     [...offers.terms, ...page.terms],
     "the offers ask's disclosures, then the foot's, in the page's words",
   );
   assert.deepEqual(sign.links, page.links, "the business's own privacy and terms, as the page links them");
-  assert.equal(sign.business, "Melany's Beauty Salon", "whose messages, first");
+  assert.equal(sign.business, "Marisa's Beauty Salon", "whose messages, first");
   assert.match(sign.headline, /offers and news/);
   assert.match(sign.headline, /WhatsApp/);
   assert.ok(
@@ -209,7 +209,7 @@ test("the desk sign asks the offers question alone, with the page's code and the
   );
   assert.equal(
     sign.byHand,
-    `Or send ${CONSENT_PHRASE} (en español, ${CONSENT_PHRASE_ES}) on WhatsApp to +1 (917) 772-4072.`,
+    `Or send ${CONSENT_PHRASE} (en español, ${CONSENT_PHRASE_ES}) on WhatsApp to +1 (305) 555-0188.`,
     "for a customer who cannot scan: the words and the number",
   );
   assert.match(sign.operator, /RJ Capital LLC/, "who is behind the number, as the form says");
@@ -223,7 +223,7 @@ test("the desk sign asks the offers question alone, with the page's code and the
   const withLine = deskSignVM({ ...salon, smsE164: "+13055550100" });
   assert.deepEqual(withLine, deskSignVM(salon), "REGRESSION: the texting line reached the sign");
   assert.ok(
-    !JSON.stringify(withLine).includes("305"),
+    !/555\D{0,2}0100/.test(JSON.stringify(withLine)),
     "REGRESSION: the texting number printed as a way to say yes to offers",
   );
 
@@ -234,7 +234,7 @@ test("the desk sign asks the offers question alone, with the page's code and the
   assert.equal(none.byHand, null);
   assert.equal(
     none.emptyLine,
-    "Melany's Beauty Salon has no WhatsApp number to say yes on yet, so there is no sign to print.",
+    "Marisa's Beauty Salon has no WhatsApp number to say yes on yet, so there is no sign to print.",
   );
   assert.equal(deskSignVM({ ...salon, businessName: "  " }).business, "This business");
 });
@@ -269,15 +269,15 @@ test("the sign's markup carries every word of its view model, the code as given,
   const byTestId = (tree, id) => nodes(tree).find((n) => n.props?.["data-testid"] === id);
   const svg = '<svg><path d="M0 0h1v1H0z"/></svg>';
 
-  const vm = deskSignVM({ ...salon, slug: "melanys", businessPage: true });
+  const vm = deskSignVM({ ...salon, slug: "marisas", businessPage: true });
   const tree = DeskSign({ vm, qr: svg, host: "app.chanlytics.com" });
   const sheet = byTestId(tree, "desk-sign");
   const said = textOf(sheet);
   for (const words of [vm.business, vm.headline, vm.how, vm.byHand, ...vm.terms, vm.operator])
     assert.ok(said.includes(words), `the sheet says: ${words}`);
   assert.ok(
-    said.includes("Privacy: app.chanlytics.com/b/melanys") &&
-      said.includes("Terms: app.chanlytics.com/b/melanys/terms"),
+    said.includes("Privacy: app.chanlytics.com/b/marisas") &&
+      said.includes("Terms: app.chanlytics.com/b/marisas/terms"),
     "the business's own pages, as addresses a person can type",
   );
   const code = byTestId(sheet, "desk-sign-qr");
@@ -302,7 +302,7 @@ test("the sign's markup carries every word of its view model, the code as given,
     nodes(DeskSign({ vm: deskSignVM({ ...salon, businessName: name }), qr: svg, host: "app.chanlytics.com" })).find(
       (n) => /\bsign-body\b/.test(n.props?.className ?? ""),
     ).props.className;
-  assert.equal(bodyClass("Melany's Beauty Salon"), "sign-body");
+  assert.equal(bodyClass("Marisa's Beauty Salon"), "sign-body");
   assert.equal(bodyClass("Harbor Moving & Storage Company of Greater Brooklyn and Queens"), "sign-body sign-long");
 
   // No WhatsApp: the page says so, and offers nothing to print.
@@ -400,15 +400,15 @@ test("the privacy and terms links beside the asks are the business's own, once i
   // company is its own refusal (30927). Chanlytics' own pages only until the
   // business has a page of its own to link.
   assert.deepEqual(consentPageVM(salon).links, { privacy: "/privacy", terms: "/terms" }, "no slug: Chanlytics' pages");
-  const own = consentPageVM({ ...salon, slug: "melanys", businessPage: true });
-  assert.deepEqual(own.links, { privacy: "/b/melanys", terms: "/b/melanys/terms" });
+  const own = consentPageVM({ ...salon, slug: "marisas", businessPage: true });
+  assert.deepEqual(own.links, { privacy: "/b/marisas", terms: "/b/marisas/terms" });
   assert.deepEqual(
-    consentPageVM({ ...salon, slug: "melanys", businessPage: false }).links,
+    consentPageVM({ ...salon, slug: "marisas", businessPage: false }).links,
     { privacy: "/privacy", terms: "/terms" },
     "a business that has not said who it is has no page to link",
   );
   assert.deepEqual(
-    consentFormVM({ ...salon, slug: "melanys", businessPage: true }).links,
+    consentFormVM({ ...salon, slug: "marisas", businessPage: true }).links,
     own.links,
     "the paper form prints the same addresses",
   );
@@ -418,10 +418,10 @@ test("the confirmation a yes receives names the program, the frequency, the rate
   // Every recurring program owes it, however the yes was given. The campaign
   // files these words as its opt-in message and the receptionist sends them, so
   // one function holds them.
-  const visit = optInConfirmation("Melany's Beauty Salon", "conversational");
-  const offers = optInConfirmation("Melany's Beauty Salon", "marketing");
+  const visit = optInConfirmation("Marisa's Beauty Salon", "conversational");
+  const offers = optInConfirmation("Marisa's Beauty Salon", "marketing");
   for (const said of [visit, offers]) {
-    assert.match(said, /^Melany's Beauty Salon: /, "whose program");
+    assert.match(said, /^Marisa's Beauty Salon: /, "whose program");
     assert.match(said, /Msg & data rates may apply/);
     assert.match(said, /Reply HELP for help, STOP to cancel/);
     assert.ok(said.length >= 20 && said.length <= 320, "Twilio's opt_in_message bounds");
@@ -444,10 +444,10 @@ test("what staff ask in person or on the phone is one sentence, with the call to
   // "recorded with the date" and no script, when the reviewers accept a verbal
   // opt-in only with "the exact script or flow in enough detail that a reviewer
   // can verify". The campaign quotes this sentence and the profile shows it.
-  const ask = verbalOptInScript("Melany's Beauty Salon");
+  const ask = verbalOptInScript("Marisa's Beauty Salon");
   assert.match(
     ask,
-    /^Would you like Melany's Beauty Salon to text you about your appointments and reply when you write\?/,
+    /^Would you like Marisa's Beauty Salon to text you about your appointments and reply when you write\?/,
     "the program, by the name the customer knows",
   );
   assert.match(ask, /Message frequency varies\./);

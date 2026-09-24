@@ -31,7 +31,7 @@ import { businessPageFor } from "@/server/business-page";
  *
  * This page is indexed and it is filed with the carriers as a business's
  * website. A reviewer's tab, a search result and a link preview all read the
- * title first, and "Chanlytics OS" on a page that exists to identify Melany's
+ * title first, and "Chanlytics OS" on a page that exists to identify Marisa's
  * Beauty Salon is the same failure as the page saying nothing at all.
  *
  * A page with nothing to show is named Not found and is not indexed, by the rule
