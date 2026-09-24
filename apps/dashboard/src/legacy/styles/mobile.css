@@ -120,6 +120,11 @@
   .tq-sub { flex-basis: 100%; white-space: normal; }
   .tq-live { flex-wrap: wrap; }
   .tq-live-text { white-space: normal; }
+  /* The day card's lines on a phone: the words take the row and the door goes under them, its words lined up with
+     theirs (the mark is 24px and the gap 10px; the door's own padding is 6px). Beside the words, a door that never
+     wraps left them a column one word wide, and they ran under it (24 Sep). */
+  :where(.dash-a-v2) .tc-beats .brief-beat-text { flex-basis: calc(100% - 34px); }
+  :where(.dash-a-v2) .tc-beats .brief-beat-text ~ .brief-chip { margin-left: 28px; }
   /* What is left to set up, on a phone: only the next thing, one line and one button; its head says how many are left.
      Skip and Hide wait for a wider screen. */
   .today-setup .setup-rows .tq-list > :not(:first-child) { display: none; }

@@ -9493,7 +9493,9 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
     kind: c.kind,
     label: channelKindWords(c.kind),
     on: c.status === "active",
-    where: c.address ?? c.number ?? null
+    // A number as a person reads it, "+1 (212) 555-0142": the quiet day's proof
+    // said the column's "+12125550142".
+    where: c.address ?? formatPhoneDisplay(c.number)
   }));
   const chips = wires.map((w) => ({ text: `${w.label} ${w.on ? "connected" : "disconnected"}`, ok: w.on }));
   const down = wires.filter((w) => !w.on);

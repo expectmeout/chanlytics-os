@@ -530,6 +530,16 @@ test("the count above the work sees every wire, and calls each one what the owne
     ["WhatsApp connected", "Texting connected", "Email connected"],
   );
   assert.equal(all.queue.empty.sub, "nothing needs you", "WhatsApp and texts are answered: the reassurance stands");
+  // REGRESSION (24 Sep): the quiet day's proof printed the column, "+13055550188 · on".
+  assert.deepEqual(
+    all.quiet.proof.map((p) => `${p.label}: ${p.value}`),
+    [
+      "WhatsApp: +1 (305) 555-0188 · on",
+      "Texting: +1 (305) 555-0123 · on",
+      "Email: bestmovers@mail.chanlytics.com · on",
+      "Checked: just now",
+    ],
+  );
 
   // REGRESSION: the sms row a provisioned line writes was printed as its column value.
   const smsOff = toTodayVM(

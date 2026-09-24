@@ -218,6 +218,8 @@ const busy = () => toTodayVM(metrics(), threads(), escalations(), calls(), NOW);
 const quietDay = () =>
   toTodayVM(
     metrics({
+      // The line as the database answers it, a bare E.164 number.
+      channels: [{ kind: "whatsapp", status: "active", number: "+12125550142" }],
       now: {
         escalations_open: 0,
         oldest_open_escalation_at: null,
@@ -647,8 +649,8 @@ test("a quiet day: the card says nothing came in, proves the lines are listening
     /^The last message arrived yesterday at 5:39 PM, and the receptionist answered 1m 18s later\.$/,
   );
   const proof = byTestId(tree, "brief-quiet-proof");
-  assert.match(textOf(proof), /WhatsApp/);
-  assert.match(textOf(proof), /· on/);
+  // REGRESSION (24 Sep): the proof printed the column, "WhatsApp: +12125550142 · on".
+  assert.ok(textOf(proof).includes("WhatsApp: +1 (212) 555-0142 · on"), textOf(proof));
   press(buttons(tree, "earlier conversation")[0]);
   assert.equal(went.at(-1), "conversations");
   // No traffic while a handoff waits: not a quiet day, and no figure to hang the proof on. The card still says it.
