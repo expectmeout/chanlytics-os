@@ -324,6 +324,7 @@ test("what the first run's Check reads: whether a receptionist is set up, whethe
           hours: [{ open: { day: 2, hour: 9, minute: 0 }, close: { day: 2, hour: 17, minute: 0 } }, late(5), late(6)],
           website: null,
           service_area_only: true,
+          primary_type: "moving_company",
         },
       },
     ],
@@ -350,8 +351,10 @@ test("what the first run's Check reads: whether a receptionist is set up, whethe
     ["set", false],
     "by the one test (receptionistOf)",
   );
+  assert.equal(dto.google.type, "moving_company", "Google's kind of place, which Check's suggestions follow");
   const none = await setupDtoFor(fakeDb({}), T, { kind: "back_office" }, new Date(NOW));
   assert.deepEqual([none.business.receptionist, none.business.broken], ["none", false]);
+  assert.equal(none.google.type, null, "no listing, no kind");
   assert.deepEqual((await read({ sat: {} })).unsure, ["fri"], "Saturday is stated, closed: it is not asked again");
   assert.deepEqual(
     (await setupDtoFor(fakeDb({}), T, { kind: "back_office" }, new Date(NOW))).google.unsure,
