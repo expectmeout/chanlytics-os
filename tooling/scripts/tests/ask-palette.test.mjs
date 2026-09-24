@@ -991,6 +991,144 @@ test("the band: one reading line says what Ask reads, Send fills with words, Sto
   await closes();
 });
 
+/* ------------------------------ the takeover (a phone) ------------------------------ */
+
+/** A phone: the window's width query answers true, and history records what the Line pushes and takes back. */
+const phoneWindow = () => {
+  const mm = globalThis.window.matchMedia;
+  const hist = globalThis.window.history;
+  const log = [];
+  globalThis.window.matchMedia = (q) => ({
+    matches: q === "(max-width: 720px)",
+    addEventListener() {},
+    removeEventListener() {},
+  });
+  globalThis.window.history = {
+    replaceState() {},
+    pushState: (s, t, u) => log.push(["push", s, u]),
+    back: () => {
+      log.push(["back"]);
+      globalThis.window.dispatchEvent(new Event("popstate"));
+    },
+  };
+  globalThis.window.location.href = "https://app.chanlytics.com/w/studio#/today";
+  return {
+    log,
+    restore: () => {
+      globalThis.window.matchMedia = mm;
+      globalThis.window.history = hist;
+    },
+  };
+};
+
+test("on a phone the Line is the screen: no focus on open, the three in the hero, one history entry, Back closes, × goes back", async () => {
+  const ph = phoneWindow();
+  let closed = 0;
+  const props = {
+    open: true,
+    onClose: () => {
+      closed++;
+    },
+  };
+  try {
+    ask([]);
+    render(Palette, props);
+    let tree = await later(Palette, props);
+    assert.ok(byTestId(tree, "ask-hero"), "the hero stands on a phone");
+    assert.ok(byTestId(byTestId(tree, "ask-hero"), "ask-line-face"), "the three are in the hero, not the band");
+    assert.equal(byTestId(byTestId(tree, "ask-line"), "ask-line-face"), null, "and not in the band");
+    assert.equal(byTestId(tree, "ask-real").props["aria-modal"], "true");
+    // The field is given something to focus; the Line's focus effect would reach it within 30ms on a desktop.
+    let focused = 0;
+    inputOf(tree).props.ref.current = {
+      focus: () => {
+        focused++;
+      },
+    };
+    await new Promise((r) => setTimeout(r, 60));
+    assert.equal(focused, 0, "no keyboard of its own: the field is not focused as the takeover opens (S10)");
+    assert.deepEqual(
+      ph.log,
+      [["push", null, "https://app.chanlytics.com/w/studio#/today"]],
+      "one entry, null state, same address (S8)",
+    );
+    // Back: the entry pops and the takeover closes, pushing nothing more. Drawn again, not rendered afresh, so the
+    // Line's cleanups run as it closes, as React's do.
+    globalThis.window.dispatchEvent(new Event("popstate"));
+    assert.equal(closed, 1);
+    draw(Palette, CLOSED);
+    await later(Palette, CLOSED);
+    assert.equal(ph.log.length, 1, "closing by Back goes back no further");
+    // Open again; × closes through history.back().
+    draw(Palette, props);
+    tree = await later(Palette, props);
+    press(byTestId(tree, "ask-close"));
+    assert.equal(closed, 2);
+    draw(Palette, CLOSED);
+    await later(Palette, CLOSED);
+    assert.deepEqual(ph.log.slice(1), [["push", null, "https://app.chanlytics.com/w/studio#/today"], ["back"]]);
+    assert.equal(closed, 2, "the entry taken back is not a second close");
+  } finally {
+    await closes();
+    ph.restore();
+  }
+});
+
+test("on a phone a place Ask goes to takes the takeover's entry: Back from there is the page Ask was opened over", async () => {
+  const ph = phoneWindow();
+  const went = [];
+  globalThis.window.appNavigate = (to, o) => went.push([to, o]);
+  try {
+    ask([]);
+    render(Palette, OPEN);
+    let tree = await later(Palette, OPEN);
+    typed(tree, "calendar");
+    tree = await later(Palette, OPEN);
+    press(byTestId(tree, "ask-row-jump"));
+    assert.deepEqual(went, [["calendar", { replace: true }]], "the entry becomes the place, not a second one");
+    await closes();
+    assert.deepEqual(
+      ph.log,
+      [["push", null, "https://app.chanlytics.com/w/studio#/today"]],
+      "and nothing goes back over the place",
+    );
+  } finally {
+    await closes();
+    delete globalThis.window.appNavigate;
+    ph.restore();
+  }
+});
+
+test("the phone's three listen to a press held a beat; a shorter press does nothing (S11)", async () => {
+  const said = [];
+  const talk = { start: () => said.push("start"), stop: () => said.push("stop") };
+  let press3 = null;
+  const Probe = () => {
+    press3 = globalThis.window.AskHooks.useHoldPress({ talk, onHold: () => said.push("buzz") });
+    return null;
+  };
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  render(Probe, {});
+  const down = pressOf();
+  press3.onPointerDown(down);
+  assert.equal(down.prevented, true, "the press opens no keyboard and selects nothing");
+  await wait(360);
+  assert.deepEqual(said, ["buzz", "start"], "held: a buzz, then listening");
+  press3.onPointerDown(pressOf());
+  assert.deepEqual(said, ["buzz", "start"], "a second down while held starts nothing");
+  press3.onPointerUp();
+  assert.deepEqual(said, ["buzz", "start", "stop"], "let go: it asks");
+
+  press3.onPointerDown(pressOf());
+  press3.onPointerUp();
+  await wait(360);
+  assert.deepEqual(said, ["buzz", "start", "stop"], "a tap started nothing");
+  press3.onPointerDown(pressOf());
+  press3.onPointerCancel();
+  await wait(360);
+  assert.deepEqual(said, ["buzz", "start", "stop"], "nor a press the browser took back");
+});
+
 test("a quick answer nods, and a failed turn shakes: the palette says how a turn ended", async () => {
   const { MASCOT } = await import("../../../apps/dashboard/src/legacy-bridge/mascot/index.ts");
   globalThis.window.__mascot = MASCOT;

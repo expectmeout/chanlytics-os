@@ -3174,7 +3174,7 @@ html.legacy-on .bc-nobody-door { position: relative; min-height: 0; }
 @keyframes pop-in { from { opacity: 0; scale: 0.97; } }
 
 /* Coming in. Ask's palette and the Calendar's dialog (.ask-overlay, .ask-modal) have their own fade and slide
-   (dashboard-a-v2.css); here they gain their leaving, and on a phone the palette rises as the sheet it is.
+   (dashboard-a-v2.css, and Ask's in ask.css); here they gain their leaving.
    A rule that tells the kit's sheets apart keeps its specificity at one class (:where), so the reduced-motion block at
    the end, later and equal, wins: written as :not(), it outranked that block and the sheet slid in under reduced motion
    (the Business journey caught it, 24 Sep). */
@@ -3209,8 +3209,9 @@ html.legacy-on .bc-nobody-door { position: relative; min-height: 0; }
 }
 
 /* On a phone a sheet sits on the bottom edge, so it rises from there and drops back to it. A tall one (the kit's
-   sheet, Ask's palette) travels its whole height; a short one (People's and Leads' sheets) the last 28px, as the
-   template list and the thread's Actions already do. */
+   sheet) travels its whole height; a short one (People's and Leads' sheets) the last 28px, as the template list and
+   the thread's Actions already do. Ask on a phone is no sheet but the whole screen (ask.css, the takeover): it fades
+   in, and leaves as a dialog does, by the kit's modal-out over its wash's wash-out, above. */
 @media (max-width: 900px) {
   .sb-sheet.pl-sheet, .sb-sheet.pp-sheet, .sb-sheet.pl-finder { animation: sheet-in 260ms var(--ease-out); }
   .sb-sheet.pl-sheet[data-leaving="true"], .sb-sheet.pp-sheet[data-leaving="true"], .sb-sheet.pl-finder[data-leaving="true"] {
@@ -3222,9 +3223,6 @@ html.legacy-on .bc-nobody-door { position: relative; min-height: 0; }
   .rec-sheet:not(.rec-fold-sheet)[data-leaving="true"] { animation: sheet-drop 220ms var(--ease-in) forwards; }
 }
 @media (max-width: 720px) {
-  .ask-modal.ask-real { animation: sheet-rise 300ms var(--ease-out); }
-  .ask-overlay[data-leaving="true"] { animation-duration: 220ms; }
-  .ask-overlay[data-leaving="true"] .ask-modal.ask-real { animation: sheet-drop 220ms var(--ease-in) forwards; }
   /* A sheet pulled by the finger moves, not its list: a list at its top does not stretch under the pull. */
   .rec-sheet-body, .sb-sheet, .pk-body, .ask-line-body { overscroll-behavior-y: none; }
 }

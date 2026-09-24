@@ -3,7 +3,9 @@
 // page with the three standing in it beside the field, and while Ask reads, one line under the field saying what it
 // reads (docs/superpowers/specs/2026-09-23-ask-the-stage-design.md, 4.1, 4.2); under the band the rows (home, typing,
 // Earlier), the question while Ask reads, or the answer, Say · Show · Do (ask-turn.jsx); a conversation folds above it.
-// Reopening resumes the conversation until Clear.
+// Reopening resumes the conversation until Clear. On a phone the Line is the whole screen (the Stage's spec, section 5):
+// a head, the three large in a hero that a held press talks to, the rows or the answer under them, the field at the
+// foot; ×, Esc, a pull down and Back close it.
 // This file is the shell: the state of one open Line, its keys and the turn runner. The rows are ask-home.jsx's, the
 // words ask-text.jsx's and the hooks ask-hooks.jsx's; everything that talks to the workspace goes through window.__ask.
 // No key symbol is drawn (D17): the Keyboard shortcuts sheet in the user menu lists the keys (contracts SHORTCUTS).
@@ -53,7 +55,7 @@ const arPhone = () => !!(window.matchMedia && window.matchMedia("(max-width: 720
 const arStill = () => !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
 
 // Where the three come from as the Line opens: the top bar's button, where it is drawn. On a phone the ✦ is gone
-// before the sheet rises (app-shell.jsx draws it only while Ask is closed), so the sheet's own rise is the motion.
+// before the takeover comes in (app-shell.jsx draws it only while Ask is closed), so the takeover's own fade is it.
 const arFaceFrom = () => {
   if (typeof document === "undefined" || !document.querySelector) return null;
   const el = document.querySelector('[data-testid="tb-ask-face"]');
@@ -115,6 +117,10 @@ const AskReal = ({ open, onClose }) => {
     empty: () => !query && !live,
     talk: { start: () => (talk.canTalk ? talk.start() : flash({ msg: <>{t.noVoice}</> })), stop: talk.stop },
   });
+  // A phone's three listen to a press held a beat, with a buzz where the browser has one (S11, S16); where the browser
+  // cannot listen, they say so as the mic does.
+  const buzz = (ms) => { try { if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(ms); } catch { /* none here */ } };
+  const holdThree = H.useHoldPress({ talk: { start: () => (talk.canTalk ? talk.start() : flash({ msg: <>{t.noVoice}</> })), stop: talk.stop }, onHold: () => buzz(8) });
 
   // Ask's mood, said once for every face: listening while held, reading until the first words, answering while they
   // stream or are read aloud, at rest otherwise. Said while the Line is closed too, so a turn left running still shows.
@@ -178,12 +184,32 @@ const AskReal = ({ open, onClose }) => {
     };
   }, [open]);
 
+  // Back closes the takeover (S8): one entry with a null state and the same address, so the shell's hash router
+  // never hears it and Next's app router, which reloads on a Back to a state it did not write (app-shell.jsx), ignores
+  // it. Whether the entry is ours is this ref, not the popped state. Closing any other way goes back over it; going
+  // somewhere takes it for the place (nav).
+  const pushed = useArRef(false);
+  useArEffect(() => {
+    const h = typeof window !== "undefined" ? window.history : null;
+    if (!open || !arPhone() || !h || !h.pushState) return;
+    h.pushState(null, "", window.location.href);
+    pushed.current = true;
+    const onPop = () => { if (pushed.current) { pushed.current = false; onClose(); } };
+    window.addEventListener("popstate", onPop);
+    return () => {
+      window.removeEventListener("popstate", onPop);
+      if (pushed.current) { pushed.current = false; if (h.back) h.back(); }
+    };
+  }, [open]);
+
   // Closed: nothing typed survives and nothing keeps reading; an open conversation comes back until Clear (D14).
   useArEffect(() => {
     if (!open) { setQuery(""); setQuick(null); setDoomed(null); setView("rows"); speech.stop(); }
   }, [open]);
 
-  H.useAskFocus(inputRef, open && !doomed, [open, live, active, doomed, view, quick]);
+  // The field takes focus on a desktop; a phone's takeover opens with focus on nothing, so no keyboard rises until a
+  // tap on the field asks for it (S10).
+  H.useAskFocus(inputRef, open && !doomed && !arPhone(), [open, live, active, doomed, view, quick]);
 
   // What the shell sends as it opens the Line: a question to ask or to finish, or a thread to open (Today's band). The
   // shell opens and sends in the same moment, so the Line listens while closed too and keeps the last request.
@@ -237,8 +263,13 @@ const AskReal = ({ open, onClose }) => {
   if (!open || !A) return null;
   const phone = arPhone();
 
-  // Going somewhere closes the Line; ⌘K brings the conversation back.
-  const nav = (to) => { onClose(); window.CHANLY.nav(to); };
+  // Going somewhere closes the Line; ⌘K brings the conversation back. On a phone the place takes the takeover's entry
+  // (replaced, never pushed over it and then gone back from), so Back from there is the page Ask was opened over.
+  const nav = (to) => {
+    if (pushed.current && window.appNavigate) { pushed.current = false; onClose(); window.appNavigate(to, { replace: true }); return; }
+    onClose();
+    window.CHANLY.nav(to);
+  };
   // Leaving the turn in flight, if any: whatever its stream sends after changes nothing on the line (its thread keeps
   // the answer). Every turn checks it is still the current one (turnSeq) before it writes.
   const moveOn = () => {
@@ -354,6 +385,7 @@ const AskReal = ({ open, onClose }) => {
     if (mine !== turnSeq.current) return;
     if (!final) final = arFailed("e-" + Date.now(), t.cutOff);
     setLive(null);
+    buzz(8);
     // Done: a failure shakes; an answer that streamed nods on its own as the row settles, one that did not nods here.
     if (M) {
       M.mood.set("idle");
@@ -378,7 +410,7 @@ const AskReal = ({ open, onClose }) => {
   const shownFolds = foldAll ? folded : folded.slice(-AR_FOLDED);
   const answerMsg = latest && latest.a ? latest.a : null;
   const showRows = !talk.listening && (view === "earlier" || !!query || (!live && !quick && !answerMsg));
-  const sections = showRows ? buildLineRows({ A, t, lang, query, surface, scope, threads, view }) : [];
+  const sections = showRows ? buildLineRows({ A, t, lang, query, surface, scope, threads, view, phone }) : [];
   const rows = flatRows(sections);
   const drawn = showRows || talk.listening || live
     ? null
@@ -469,11 +501,12 @@ const AskReal = ({ open, onClose }) => {
       <Icon name="arrow-up" size={15} />
     </button>
   );
+  // A phone's foot keeps the mic and Send beside an answer too; its Clear is the head's (spec 5.1, 5.5).
   const right = live ? (
     <button type="button" className="ask-send" onClick={stop} aria-label={t.stopAnswer} title={t.stopAnswer} data-testid="ask-stop">
       <Icon name="stop" size={14} />
     </button>
-  ) : drawn ? (
+  ) : drawn && !phone ? (
     <>
       <button type="button" className="ask-line-btn quiet" onClick={copy} aria-label={t.copy} title={t.copy} data-testid="ask-copy">
         <Icon name="content" size={14} />
@@ -547,101 +580,141 @@ const AskReal = ({ open, onClose }) => {
   // What a screen reader hears: the answer's headline (or a prose answer's words) once it is whole (spec 6.10).
   const said = drawn ? drawn.answer.say.headline || drawn.answer.say.detail : "";
 
+  // A phone's hero (spec 5.2-5.5): the three at Today's size, what they hear while held, the question and what Ask reads
+  // until the first words; once an answer is written they shrink to the top with its question under them, said once
+  // (ask.css hides the turn's own copy on a phone).
+  const heroSmall = !!(live && (live.say || live.text)) || !!answerMsg || !!(quick && quick.answer);
+  const heroQ = !heroSmall ? null : live ? live.q : quick && quick.answer ? quick.q : latest && latest.q ? latest.q.text : null;
+  const hero = phone ? (
+    <div className={`ask-hero${heroSmall ? " small" : ""}${talk.listening ? " listening" : ""}`} data-testid="ask-hero">
+      <span className="ask-hero-stage" ref={faceRef} {...holdThree} data-testid="ask-hero-stage">
+        {AskFace ? <AskFace className="ask-hero-canvas" testId="ask-line-face" /> : null}
+      </span>
+      {talk.listening ? (
+        <p className="ask-heard" aria-live="polite" data-testid="ask-heard">{query || t.listening}</p>
+      ) : (live || (quick && quick.pending)) && !heroSmall ? (
+        <>
+          <p className="ask-turn-q">{live ? live.q : quick.q}</p>
+          <p className="ask-reading" aria-live="polite" data-testid="ask-reading"><span className="ask-reading-dot" aria-hidden="true" />{live && live.traces.length ? live.traces[live.traces.length - 1] : t.thinking}</p>
+        </>
+      ) : heroQ ? (
+        <p className="ask-turn-q">{heroQ}</p>
+      ) : null}
+    </div>
+  ) : null;
+  // A conversation's earlier turns, folded above the band on a desktop and at the top of a phone's middle.
+  const folds = view === "rows" && folded.length ? (
+    <div className="ask-folds" data-testid="ask-folds">
+      {folded.length > shownFolds.length ? (
+        <button type="button" className="ask-fold-more" onClick={() => setFoldAll(true)}>{t.earlierFolded(folded.length - shownFolds.length)}</button>
+      ) : null}
+      {shownFolds.map((tn) => {
+        const k = folded.indexOf(tn);
+        const isOpen = unfolded === k;
+        return (
+          <div key={tn.q.id || k} className={`ask-fold${isOpen ? " open" : ""}`}>
+            <button type="button" className="ask-fold-row" aria-expanded={isOpen} onClick={() => setUnfolded(isOpen ? -1 : k)} data-testid="ask-fold">
+              <span className="ask-mark m1" aria-hidden="true" />
+              <span className="ask-fold-q">{tn.q.text}</span>
+              <span className="ask-fold-a">{A.answerText(A.answer(tn.a).answer)}</span>
+              <Icon name="chevron" size={12} className="ask-fold-chev" />
+            </button>
+            {isOpen ? <AskTurn m={tn.a} t={t} lang={lang} onNav={nav} onFollow={submit} onOutcome={noteOutcome} /> : null}
+          </div>
+        );
+      })}
+    </div>
+  ) : null;
+  // While a phone listens its foot is the pill to let go of, with a way back to typing (spec 5.3).
+  const foot = phone && talk.listening ? (
+    <div className="ask-letgo-wrap">
+      <button type="button" className="btn btn-ghost" onClick={() => { talk.stop(); setTimeout(() => inputRef.current && inputRef.current.focus(), 20); }}>{t.typeInstead}</button>
+      <button type="button" className="ask-letgo" aria-pressed="true" onPointerUp={talk.stop} data-testid="ask-letgo"><Icon name="wave" size={18} />{t.letGo}</button>
+    </div>
+  ) : null;
+
   return (
-    // It goes the way it came as it closes (data-bits leaving), and on a phone, where it is a sheet at the bottom
-    // (ask.css), a thumb pulls it down (touchSwipe). ask-overlay and ask-modal carry the motion (components.css, #922).
+    // It goes the way it came as it closes (data-bits leaving), and on a phone, where it is the whole screen (ask.css),
+    // a thumb pulls it down (touchSwipe). ask-overlay and ask-modal carry the motion (components.css, #922).
     <div className="ask-overlay ask-line-scrim" onClick={onClose} data-tick={tick} ref={window.leaving ? window.leaving("ask") : undefined}>
       <div
         className="ask-modal ask-real ask-line"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
+        aria-modal="true"
         aria-label="Ask Chanlytics"
         data-testid="ask-real"
         {...(window.touchSwipe ? window.touchSwipe({ onDown: onClose, when: arPhone }) : {})}
       >
         <p className="ask-said" role="status" aria-live="polite" data-testid="ask-said">{said}</p>
-        {/* A phone's sheet head: the grabber, Earlier, and a close within the thumb's reach. A desktop draws none. */}
+        {/* A phone's head: Earlier, Clear in a conversation, and a close within the thumb's reach; both wait while a
+            turn runs (spec 5.1, 5.4). A desktop draws none. */}
         <div className="ask-line-head">
-          <span className="ask-grabber" aria-hidden="true" />
-          <button type="button" className="ask-line-head-btn" aria-pressed={view === "earlier"} onClick={() => setView((v) => (v === "earlier" ? "rows" : "earlier"))} data-testid="ask-earlier">
+          <button type="button" className="btn btn-ghost" aria-pressed={view === "earlier"} disabled={!!live} onClick={() => setView((v) => (v === "earlier" ? "rows" : "earlier"))} data-testid="ask-earlier">
+            <Icon name="chat" size={13} />
             {t.earlier}
           </button>
+          {active ? <button type="button" className="btn btn-ghost" disabled={!!live} onClick={clearLine} data-testid="ask-clear-head">{t.clear}</button> : null}
           <button type="button" className="ask-line-btn quiet" onClick={onClose} aria-label={t.close} title={t.close} data-testid="ask-close">
             <Icon name="x" size={14} />
           </button>
         </div>
-        {view === "rows" && folded.length ? (
-          <div className="ask-folds" data-testid="ask-folds">
-            {folded.length > shownFolds.length ? (
-              <button type="button" className="ask-fold-more" onClick={() => setFoldAll(true)}>{t.earlierFolded(folded.length - shownFolds.length)}</button>
-            ) : null}
-            {shownFolds.map((tn) => {
-              const k = folded.indexOf(tn);
-              const isOpen = unfolded === k;
-              return (
-                <div key={tn.q.id || k} className={`ask-fold${isOpen ? " open" : ""}`}>
-                  <button type="button" className="ask-fold-row" aria-expanded={isOpen} onClick={() => setUnfolded(isOpen ? -1 : k)} data-testid="ask-fold">
-                    <span className="ask-mark m1" aria-hidden="true" />
-                    <span className="ask-fold-q">{tn.q.text}</span>
-                    <span className="ask-fold-a">{A.answerText(A.answer(tn.a).answer)}</span>
-                    <Icon name="chevron" size={12} className="ask-fold-chev" />
-                  </button>
-                  {isOpen ? <AskTurn m={tn.a} t={t} lang={lang} onNav={nav} onFollow={submit} onOutcome={noteOutcome} /> : null}
-                </div>
-              );
-            })}
-          </div>
-        ) : null}
+        {!phone ? folds : null}
         {/* The band (spec 4.1, 4.2): the three at 84px beside the field, the largest face in the app; under the field,
-            while Ask reads, one line in coral ink saying what it reads. A phone's face and line are Task 6's. */}
-        <div className={`ask-stage${talk.listening ? " listening" : ""}${live ? " live" : ""}`} data-testid="ask-line">
-          <div className="ask-stage-row">
-            {!phone ? (
-              <span className="ask-stage-face" ref={faceRef}>
-                {AskFace ? <AskFace className="ask-stage-canvas" testId="ask-line-face" /> : null}
-              </span>
+            while Ask reads, one line in coral ink saying what it reads. On a phone the face and the line are the hero's,
+            and the band is the field at the foot (ask.css orders it last), or the pill to let go of while it listens. */}
+        {foot || (
+          <div className={`ask-stage${talk.listening ? " listening" : ""}${live ? " live" : ""}`} data-testid="ask-line">
+            <div className="ask-stage-row">
+              {!phone ? (
+                <span className="ask-stage-face" ref={faceRef}>
+                  {AskFace ? <AskFace className="ask-stage-canvas" testId="ask-line-face" /> : null}
+                </span>
+              ) : null}
+              {scope ? (
+                <span className="ask-scope" title={`${scope.kind}: ${scope.label}`} data-testid="ask-scope">
+                  <Icon name={arScopeIcon(scope)} size={10} />
+                  <span>{scope.label}</span>
+                  <button type="button" onClick={() => setScope(null)} aria-label={t.clearScope}><Icon name="x" size={9} /></button>
+                </span>
+              ) : null}
+              <input
+                ref={inputRef}
+                className="ask-line-input"
+                placeholder={talk.listening ? t.listening : active ? t.follow : t.placeholder}
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={onKey}
+                onKeyUp={(e) => hold.onKeyUp(e)}
+                role="combobox"
+                aria-expanded={showRows && rows.length > 0}
+                aria-controls={showRows ? "ask-rows" : undefined}
+                aria-activedescendant={activeId}
+                aria-autocomplete="list"
+                aria-label="Ask Chanlytics"
+                data-testid="ask-input"
+                maxLength={1000}
+                enterKeyHint="send"
+                autoCapitalize="sentences"
+                autoComplete="off"
+                spellCheck={false}
+              />
+              <span className="ask-line-right">{right}</span>
+            </div>
+            {live && !phone ? (
+              <p className="ask-reading" aria-live="polite" data-testid="ask-reading">
+                <span className="ask-reading-dot" aria-hidden="true" />
+                {live.traces.length ? live.traces[live.traces.length - 1] : t.thinking}
+              </p>
             ) : null}
-            {scope ? (
-              <span className="ask-scope" title={`${scope.kind}: ${scope.label}`} data-testid="ask-scope">
-                <Icon name={arScopeIcon(scope)} size={10} />
-                <span>{scope.label}</span>
-                <button type="button" onClick={() => setScope(null)} aria-label={t.clearScope}><Icon name="x" size={9} /></button>
-              </span>
-            ) : null}
-            <input
-              ref={inputRef}
-              className="ask-line-input"
-              placeholder={talk.listening ? t.listening : active ? t.follow : t.placeholder}
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={onKey}
-              onKeyUp={(e) => hold.onKeyUp(e)}
-              role="combobox"
-              aria-expanded={showRows && rows.length > 0}
-              aria-controls={showRows ? "ask-rows" : undefined}
-              aria-activedescendant={activeId}
-              aria-autocomplete="list"
-              aria-label="Ask Chanlytics"
-              data-testid="ask-input"
-              maxLength={1000}
-              enterKeyHint="send"
-              autoCapitalize="sentences"
-              autoComplete="off"
-              spellCheck={false}
-            />
-            <span className="ask-line-right">{right}</span>
           </div>
-          {live && !phone ? (
-            <p className="ask-reading" aria-live="polite" data-testid="ask-reading">
-              <span className="ask-reading-dot" aria-hidden="true" />
-              {live.traces.length ? live.traces[live.traces.length - 1] : t.thinking}
-            </p>
-          ) : null}
-        </div>
+        )}
         {doomed ? (
           <Confirm question={t.deleteAsk} detail={doomed.title} yes={t.deleteYes} no={t.deleteKeep} danger block className="ask-confirm" onYes={() => removeThread(doomed)} onNo={() => setDoomed(null)} testid="ask-delete" />
         ) : null}
-        {body ? <div className="ask-line-body" ref={bodyRef}>{body}</div> : null}
+        {/* A phone's middle is one scroller (spec 5.1, 5.5): the folds, the hero and the rows or the answer scroll as one,
+            so a long answer is read with the three out of the way and the field stays at the foot. */}
+        {body || phone ? <div className="ask-line-body" ref={bodyRef}>{phone ? folds : null}{hero}{body}</div> : null}
       </div>
       {toastNode}
     </div>

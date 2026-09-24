@@ -1,8 +1,9 @@
 /* Ask as the Line (pages/ask-real.jsx; docs/superpowers/specs/2026-09-23-ask-the-line-design.md, section 6): one line
    over the page with the three in it, the rows or the answer under it, a conversation folded above it. The scrim and
    the panel keep the mockup's .ask-overlay and .ask-modal (their fade in dashboard-a-v2.css, their leaving in
-   components.css); what the Line changes is here, with the answer's parts, the cards, the mic and the phone's ✦, which
-   Today's band shares. Imported last, so its phone rules win over mobile.css. No key symbol is drawn (D17). */
+   components.css); what the Line changes is here, with the answer's parts, the cards, the mic, the phone's ✦, which
+   Today's band shares, and the phone's takeover. Imported last, so its phone rules win over mobile.css. No key symbol
+   is drawn (D17). */
 
 /* ---- The scrim and the panel: 720 wide, 80 from the top (the band is taller than the old bar), the page visible
    under it, no blur (the Stage's spec, 4.1) ---- */
@@ -17,7 +18,7 @@
   display: flex; flex-direction: column; overflow: hidden;
   border-color: var(--line-strong); border-radius: var(--radius-xl); box-shadow: var(--shadow-lg);
 }
-/* It fades in and rises 4px; a phone's sheet rises from the bottom edge instead (components.css). */
+/* It fades in and rises 4px; a phone's takeover fades in as the whole screen instead (the phone block, below). */
 @media (min-width: 721px) { .ask-modal.ask-line { animation: line-in 160ms var(--ease-out); } }
 @keyframes line-in { from { opacity: 0; translate: 0 4px; } }
 /* One character: while the Line is open the three stand in it, not also on the top bar's button. */
@@ -51,7 +52,7 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 .ask-scope button { display: inline-flex; padding: 2px; border: 0; background: transparent; color: var(--ink-dim); cursor: pointer; }
 .ask-scope button:hover { color: var(--ink); }
 .ask-line .ask-confirm { flex: none; margin: 0 16px 10px; max-width: none; }
-/* A phone's sheet head (the grabber, Earlier, a close); a desktop closes with a press outside or Esc. */
+/* A phone's head (Earlier, Clear, a close); a desktop closes with a press outside or Esc. */
 .ask-line-head { display: none; }
 /* What a screen reader hears once an answer is whole: its headline (spec 6.10). Not drawn. */
 .ask-said { position: absolute; width: 1px; height: 1px; margin: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
@@ -198,13 +199,9 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 .ask-card-receipt .ok { color: var(--ok); }
 .ask-card-undo { margin-left: auto; }
 
-@media (prefers-reduced-motion: reduce) {
-  .ask-cursor, .ask-reading, .ask-reading-dot, .ask-part.show, .ask-part.do, .ask-modal.ask-line { animation: none; }
-  .ask-fold-chev, .ask-stage, .ask-send { transition: none; }
-}
-
-/* ---- A phone: the ✦, and the Line docked at the thumb with what it answers rising above it ---- */
+/* ---- A phone: the takeover. The Line is the screen; the three in a hero; the field at the foot (spec 5) ---- */
 .phone-ask { display: none; }
+.ask-hero { display: none; }
 @media (max-width: 720px) {
   /* The ✦ sits in the tab bar's own row, at its right end, where the bar keeps a place for it (mobile.css). */
   .phone-ask {
@@ -222,33 +219,67 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
   body:has(.inbox.phone-thread) .phone-ask,
   body:has(.conversations.phone-detail) .phone-ask { display: none; }
 
-  /* Every dialog on the ask overlay sits on the bottom edge on a phone: the Line, and the Calendar's event panel
-     (calendar-real.jsx), which shares .ask-overlay and was docked here by this rule before the Line. */
+  /* Every dialog on the ask overlay sits on the bottom edge on a phone: the Calendar's event panel (calendar-real.jsx)
+     shares .ask-overlay and was docked here by this rule before the Line. The Line itself is the whole screen. */
   .ask-overlay { padding: 0; align-items: flex-end; }
-  /* The Line's sheet: at most 88% of the height, above the keyboard (--ask-kb, ask-real.jsx), the line at its foot. */
-  .ask-overlay.ask-line-scrim { padding: 0 0 var(--ask-kb, 0px); align-items: flex-end; }
+  .ask-overlay.ask-line-scrim { padding: 0; }
+  /* The screen: the head, the middle that scrolls, the foot above the keyboard (--ask-kb, ask-real.jsx) and the home
+     bar. It fades in over the kit's wash and leaves as a dialog does (components.css), never dropping as a sheet. */
   .ask-modal.ask-line {
-    max-width: 100%; width: 100%; max-height: calc(88dvh - var(--ask-kb, 0px));
-    border-radius: 20px 20px 0 0; border-bottom: 0;
-    padding-bottom: env(safe-area-inset-bottom);
+    position: fixed; inset: 0; max-width: none; width: auto; max-height: none; height: 100dvh;
+    padding-top: env(safe-area-inset-top); padding-bottom: calc(env(safe-area-inset-bottom) + var(--ask-kb, 0px));
+    border: 0; border-radius: 0; box-shadow: none; background: var(--bg);
+    animation: wash-in var(--duration-base) var(--ease-out);
   }
-  .ask-line-head { order: 0; position: relative; flex: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 52px; padding: 8px 6px 0 8px; }
-  .ask-grabber { position: absolute; top: 6px; left: 50%; translate: -50% 0; width: 36px; height: 4px; border-radius: 2px; background: var(--line-strong); }
-  .ask-line-head-btn { height: 44px; padding: 0 12px; border: 0; border-radius: var(--radius-md); background: transparent; font: inherit; font-size: 13px; color: var(--ink-muted); cursor: pointer; }
-  .ask-line-head-btn[aria-pressed="true"] { color: var(--ink); background: var(--bg-hover); }
-  .ask-line-head .ask-line-btn { width: 44px; height: 44px; }
-  .ask-line .ask-folds { order: 1; }
-  .ask-line .ask-line-body { order: 2; border-top: 0; }
-  .ask-line .ask-confirm { order: 3; margin: 8px 12px 0; }
-  /* The band stays the old field at the foot here, one flex row with no face and no reading line, until the phone's
-     own takeover replaces this block. */
-  .ask-line .ask-stage { order: 4; display: flex; align-items: center; height: 56px; margin: 8px 12px 12px; padding: 0 6px 0 8px; border: 1px solid var(--line-strong); border-radius: var(--radius-xl); background: var(--bg); }
-  .ask-line .ask-stage-row { flex: 1; min-width: 0; min-height: 0; }
-  .ask-line-input { font-size: 16px; }
-  .ask-talk { width: 40px; height: 40px; }
-  .ask-stage .ask-line-btn { width: 44px; height: 44px; }
+  /* The head: Earlier, and Clear in a conversation, at the left; the close at the right, a thumb's reach. */
+  .ask-line-head { position: relative; flex: none; display: flex; align-items: center; gap: 4px; min-height: 52px; padding: 4px 6px 0 8px; }
+  .ask-line-head .ask-line-btn { margin-left: auto; width: 44px; height: 44px; border-color: transparent; }
+  .ask-line-head .btn-ghost { height: 36px; }
+  .ask-line-head .btn-ghost[aria-pressed="true"] { color: var(--ink); background: var(--bg-hover); }
+  /* The middle is one scroller (ask-real.jsx draws the folds and the hero in it), so they scroll with the answer. */
+  .ask-line .ask-folds { order: 0; max-height: none; flex: none; border-bottom: 0; }
+  .ask-hero { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 4px 20px 0; }
+  /* The three: a hold listens (useHoldPress), so the stage takes no scroll, selection or tap flash of its own. The
+     canvas fits its box every frame, so the squares shrink with the stage as an answer is written (spec 5.5, R3). */
+  .ask-hero-stage { display: block; width: 100%; height: min(232px, 34dvh); border: 0; padding: 0; background: transparent; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; transition: height 200ms var(--ease-out); }
+  .ask-hero-canvas { display: block; width: 100%; height: 100%; }
+  .ask-hero.small .ask-hero-stage { height: 78px; }
+  .ask-hero .ask-turn-q { margin: 0; text-align: center; }
+  .ask-hero .ask-reading { padding: 0; justify-content: center; font-size: 13.5px; }
+  .ask-heard { margin: 8px 0 0; text-align: center; font-size: 26px; font-weight: 500; line-height: 1.25; letter-spacing: -0.02em; color: var(--ink); text-wrap: balance; }
+  .ask-line .ask-line-body { flex: 1 1 auto; }
+  /* The question is the hero's, said once: the turn's own copy and the one under it while Ask reads are not drawn. */
+  .ask-line-body > .ask-turn > .ask-turn-q, .ask-trace .ask-turn-q { display: none; }
+  /* At rest the home stands centred under the three: Right now, then the page's questions as chips (spec 5.2). A row
+     keeps the full width (Earlier, the words typed, the jumps), and Right now centres its own parts. */
+  .ask-rows { align-items: center; gap: 16px; padding: 8px 16px 12px; }
+  .ask-rows-sec { align-items: center; width: 100%; }
+  .ask-rows-sec > .ask-row { align-self: stretch; }
   .ask-row { min-height: 48px; }
+  .ask-row.now { flex-direction: column; align-items: center; gap: 10px; text-align: center; min-height: 0; padding: 0; }
+  .ask-row.now .ask-row-label { font-size: 14.5px; line-height: 1.45; max-width: 32ch; }
+  .ask-row.now.sel { background: transparent; }
+  .ask-chips { justify-content: center; }
+  /* The delete question sits under the middle, over the foot. */
+  .ask-line .ask-confirm { order: 8; margin: 8px 12px 0; }
+  /* The foot: the band as the field, last in the column, the mic and Send inside it (spec 5.1). */
+  .ask-line .ask-stage { order: 9; margin: 8px 12px 10px; padding: 0 8px 0 16px; border: 1px solid var(--line); border-bottom-color: var(--line); border-radius: var(--radius-xl); grid-template-rows: auto; }
+  .ask-stage-row { min-height: 56px; gap: 8px; }
+  .ask-line-input { font-size: 16px; height: 44px; }
+  .ask-talk { width: 40px; height: 40px; }
+  /* While it listens: "Let go to ask" where the field was, where the finger that held the mic lifts (spec 5.3). */
+  .ask-letgo-wrap { order: 9; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 0 16px 12px; }
+  .ask-letgo { display: inline-flex; align-items: center; justify-content: center; gap: 10px; width: 100%; height: 60px; border: 0; border-radius: 18px; background: var(--accent); color: var(--accent-fg); font: inherit; font-size: 16px; font-weight: 600; touch-action: none; user-select: none; }
+  /* The answer: two tiles across, 48px items. */
   .ask-figures { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ask-item { min-height: 48px; }
   .ask-turn { padding: 12px 16px 16px; }
-  .ask-trace { padding: 12px 16px 16px; }
+  .ask-part { column-gap: 14px; }
+  .ask-trace { padding: 0; }
+}
+
+/* Last, so it wins over the phone's own motion too: nothing moves but the finger's drag. */
+@media (prefers-reduced-motion: reduce) {
+  .ask-cursor, .ask-reading, .ask-reading-dot, .ask-part.show, .ask-part.do, .ask-modal.ask-line { animation: none; }
+  .ask-fold-chev, .ask-stage, .ask-send, .ask-hero-stage { transition: none; }
 }

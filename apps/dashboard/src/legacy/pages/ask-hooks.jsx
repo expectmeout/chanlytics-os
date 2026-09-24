@@ -1,6 +1,6 @@
 /* global React */
-// Ask's hooks: hold to talk, a held Space that talks, focus that returns to
-// the line, and reading aloud. Each does one thing and knows nothing about
+// Ask's hooks: hold to talk, a held Space that talks, a held press that
+// talks, focus that returns to the line, and reading aloud. Each does one thing and knows nothing about
 // the Line's state. Published as window.AskHooks.
 
 const useAhState = React.useState;
@@ -116,6 +116,28 @@ const useHoldSpace = ({ empty, talk }) => {
   return { onKeyDown, onKeyUp };
 };
 
+// A press held AH_HOLD_MS listens; a shorter one does nothing. Pointer events, so no keyboard opens and a touch's
+// mouse twin is not a second press. The phone's three take it (spec S11); the mic keeps its own down/up.
+const useHoldPress = ({ talk, onHold }) => {
+  const timer = useAhRef(null);
+  const held = useAhRef(false);
+  const end = () => {
+    if (timer.current) { clearTimeout(timer.current); timer.current = null; }
+    if (held.current) { held.current = false; talk.stop(); }
+  };
+  return {
+    onPointerDown: (e) => {
+      if (e && e.preventDefault) e.preventDefault();
+      if (timer.current || held.current) return;
+      timer.current = setTimeout(() => { timer.current = null; held.current = true; if (onHold) onHold(); talk.start(); }, AH_HOLD_MS);
+    },
+    onPointerUp: end,
+    onPointerLeave: end,
+    onPointerCancel: end,
+    onContextMenu: (e) => { if (e && e.preventDefault) e.preventDefault(); },
+  };
+};
+
 // The input is the way on: focus comes back to it whenever `when` is true
 // and any of `deps` changes, so typing never lands on a chip just clicked.
 const useAskFocus = (ref, when, deps) => {
@@ -141,4 +163,4 @@ const useAskSpeech = (A) => {
   return { canSpeak: !!(A && A.canSpeak()), speakingId, toggle, stop };
 };
 
-window.AskHooks = { useAskTalk, useHoldSpace, useAskFocus, useAskSpeech };
+window.AskHooks = { useAskTalk, useHoldSpace, useHoldPress, useAskFocus, useAskSpeech };
