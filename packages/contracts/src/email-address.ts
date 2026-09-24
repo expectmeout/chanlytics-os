@@ -47,3 +47,30 @@ export function whyNotAnEmail(raw: string | null | undefined): string | null {
   if (!/@[^@]*\./.test(s)) return "That needs a full domain after the @, like name@example.com.";
   return "That is not an email address anyone can be reached at.";
 }
+
+/** The words a person uses to hand over their own address, in the two languages the receptionist answers in. */
+const OWN_ADDRESS_WORDS = /\b(my|mine|it'?s|is|email|e-mail|mail|correo|mi|es|sure|here|aqu[ií])\b/i;
+
+/**
+ * The address a customer gives in their own words: a message that is an address and nothing else, or a short one (up
+ * to eight words) with exactly one address and a word that makes it theirs ("my email is …", "it's …", "mi correo
+ * es …"). Two addresses, a long message, or one address in a sentence about someone else give nothing: the
+ * receptionist asks again rather than keeps a guess. The address comes back in its stored spelling.
+ */
+export function addressInMessage(body: string | null | undefined): string | null {
+  const s = String(body ?? "").trim();
+  if (!s || s.length > 160) return null;
+  const tokens = s.split(/\s+/);
+  const found = new Set<string>();
+  for (const raw of tokens) {
+    const t = raw.replace(/^[("'<[]+|[)"'>\].,;:!?]+$/g, "");
+    if (!t.includes("@")) continue;
+    const e = normalizeEmail(t);
+    if (!e) return null;
+    found.add(e);
+  }
+  if (found.size !== 1) return null;
+  const alone = tokens.length === 1;
+  const theirs = tokens.length <= 8 && OWN_ADDRESS_WORDS.test(s);
+  return alone || theirs ? [...found][0] : null;
+}

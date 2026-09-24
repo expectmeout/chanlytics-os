@@ -167,6 +167,24 @@ function whyNotAnEmail(raw) {
   if (!/@[^@]*\./.test(s)) return "That needs a full domain after the @, like name@example.com.";
   return "That is not an email address anyone can be reached at.";
 }
+var OWN_ADDRESS_WORDS = /\b(my|mine|it'?s|is|email|e-mail|mail|correo|mi|es|sure|here|aqu[ií])\b/i;
+function addressInMessage(body) {
+  const s = String(body ?? "").trim();
+  if (!s || s.length > 160) return null;
+  const tokens = s.split(/\s+/);
+  const found = /* @__PURE__ */ new Set();
+  for (const raw of tokens) {
+    const t = raw.replace(/^[("'<[]+|[)"'>\].,;:!?]+$/g, "");
+    if (!t.includes("@")) continue;
+    const e = normalizeEmail(t);
+    if (!e) return null;
+    found.add(e);
+  }
+  if (found.size !== 1) return null;
+  const alone = tokens.length === 1;
+  const theirs = tokens.length <= 8 && OWN_ADDRESS_WORDS.test(s);
+  return alone || theirs ? [...found][0] : null;
+}
 
 // src/link.ts
 var MAX_LINK = 500;
@@ -21443,6 +21461,7 @@ export {
   activityTone,
   activityWords,
   addressAlreadyKnown,
+  addressInMessage,
   afterPersonRefused,
   agentFor,
   ago,
