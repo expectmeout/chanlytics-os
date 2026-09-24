@@ -14771,6 +14771,11 @@ function setupSteps(i, nowMs = Date.now()) {
 function setupRoute(hash) {
   return (hash || "#/today").replace(/^#\/?/, "");
 }
+function setupLaterOf(view) {
+  const later = view && typeof view === "object" ? view.later : null;
+  if (!Array.isArray(later)) return [];
+  return [...new Set(later.filter((x) => typeof x === "string" && x.length > 0 && x.length <= 40))];
+}
 function shouldLandOnSetup(role, answering, route, landed) {
   if (landed || role !== "owner" || answering) return false;
   return route === "" || route === "today";
@@ -19167,6 +19172,159 @@ function csvCell(v) {
   if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
+
+// src/greeting.ts
+function greetingFor(name) {
+  const who = name ? ` ${name}` : "";
+  return `Thank you for calling${who}! This call may be recorded. I'm the automated assistant \u2014 how can I help you today?`;
+}
+var GREETING_DEFAULT = /* @__PURE__ */ greetingFor(null);
+
+// src/first-run.ts
+var FIRST_RUN_ROUTE = "start";
+var FIRST_RUN_STEPS = [
+  {
+    key: "business",
+    name: "Your business",
+    lead: "What your receptionist says about you: your name, when you're open, what you offer.",
+    rows: ["facts", "google"],
+    needs: ["facts"]
+  },
+  {
+    key: "phone",
+    name: "Your phone",
+    lead: "The number your customers call, and how those calls reach your receptionist.",
+    rows: ["billing", "line", "keep"],
+    needs: ["billing", "line"]
+  },
+  {
+    key: "try",
+    name: "Try it",
+    lead: "Call it from your own phone and hear what your customers will hear.",
+    rows: ["receptionist", "handoff"],
+    needs: ["receptionist"]
+  },
+  { key: "live", name: "Live", lead: "", rows: [], needs: [] }
+];
+var LIVE_ROWS = ["whatsapp", "calendar", "team", "email", "yes"];
+var SETUP_CARD_ORDER = ["whatsapp", "calendar", "team", "handoff", "keep", "google", "email", "yes"];
+var FIRST_RUN_WORDS = {
+  title: "Setting up",
+  later: "Finish later",
+  laterShort: "Later",
+  back: "Back",
+  continue: "Continue",
+  finish: "Finish",
+  liveHeading: "Your receptionist is answering",
+  liveNext: "When you're ready",
+  reading: "Reading your workspace\u2026",
+  failedWhat: "your workspace",
+  failedBody: "This page can't read your workspace at the moment. Nothing you set up is lost.",
+  toToday: "Back to Today"
+};
+var rowOf = (vm, id) => vm.rows.find((r) => r.id === id) ?? null;
+var stepDone = (vm, def) => def.needs.every((id) => {
+  const r = rowOf(vm, id);
+  return !r || r.state === "ready";
+});
+function firstRunStepOf(param) {
+  const hit = FIRST_RUN_STEPS.find((s) => s.key === param);
+  return hit ? hit.key : null;
+}
+function firstRunOf(vm, at2) {
+  const open = FIRST_RUN_STEPS.find((s) => s.key !== "live" && !stepDone(vm, s));
+  const current = open ? open.key : "live";
+  const steps = FIRST_RUN_STEPS.map((def2, i) => ({
+    key: def2.key,
+    name: def2.name,
+    number: i + 1,
+    state: def2.key === current ? "current" : def2.key !== "live" && stepDone(vm, def2) ? "done" : "ahead",
+    rows: (def2.key === "live" ? LIVE_ROWS : def2.rows).map((id) => rowOf(vm, id)).filter((r) => r !== null)
+  }));
+  const asked = firstRunStepOf(at2);
+  const shown = steps.find((s) => s.key === asked && s.state !== "ahead") ?? steps.find((s) => s.key === current) ?? steps[0];
+  const def = FIRST_RUN_STEPS[shown.number - 1];
+  const live = shown.key === "live";
+  const primary = live ? null : shown.rows.find((r) => r.state !== "ready" && !r.later && r.verb) ?? null;
+  return {
+    steps,
+    current,
+    complete: !open,
+    shown,
+    heading: live ? FIRST_RUN_WORDS.liveHeading : def.name,
+    lead: live ? vm.readiness.sentence : def.lead,
+    phoneLine: `Step ${shown.number} of ${FIRST_RUN_STEPS.length} \xB7 ${shown.name}`,
+    progress: Math.round(shown.number / FIRST_RUN_STEPS.length * 100),
+    primaryRow: primary ? primary.id : null,
+    back: shown.number > 1 ? FIRST_RUN_STEPS[shown.number - 2].key : null,
+    onward: live ? { label: FIRST_RUN_WORDS.finish, to: "today" } : shown.state === "done" ? { label: FIRST_RUN_WORDS.continue, to: FIRST_RUN_ROUTE } : null
+  };
+}
+function setupCardOf(vm) {
+  const fr = firstRunOf(vm);
+  if (!fr.complete) {
+    const left = fr.steps.filter((s) => s.key !== "live" && s.state !== "done").length;
+    const next = fr.steps.find((s) => s.key === fr.current) ?? fr.steps[0];
+    return {
+      title: "Finish setting up",
+      left: `${left} ${left === 1 ? "step" : "steps"} left`,
+      start: {
+        name: "Your receptionist isn't answering yet",
+        sentence: `Next: ${next.name.toLowerCase()}.`,
+        cta: "Continue setting up",
+        to: FIRST_RUN_ROUTE
+      },
+      rows: [],
+      hide: null,
+      skip: "Skip"
+    };
+  }
+  const rows = SETUP_CARD_ORDER.map((id) => rowOf(vm, id)).filter(
+    (r) => r !== null && r.state !== "ready" && !r.later && !!r.verb
+  );
+  if (!rows.length) return null;
+  return { title: "Finish setting up", left: `${rows.length} left`, start: null, rows, hide: "Hide", skip: "Skip" };
+}
+var initialsOf3 = (name) => name.split(/\s+/).map((w) => w.match(/[\p{L}\p{N}]/u)?.[0] ?? "").filter(Boolean).slice(0, 2).join("").toUpperCase();
+var linkShown = (url) => url.replace(/^https?:\/\/(www\.)?/i, "").replace(/\/+$/, "");
+function receptionistCardOf(i) {
+  const b = i.brain;
+  const p = b?.profile ?? null;
+  const name = (b?.business_name || i.setup.business.name || i.workspaceName || "").trim();
+  const tried = !!(i.setup.channels.voice.lastInboundAt || i.setup.channels.whatsapp.lastInboundAt);
+  const status = !i.answering ? { tone: "plain", words: "Not answering yet" } : { tone: "ok", words: tried ? "Answering" : "Answering \xB7 not tried yet" };
+  const sv = servicesWords(p?.services ?? null);
+  const kept = i.numbers?.keptLine ?? null;
+  const line = i.numbers?.voiceLine ?? i.setup.channels.voice.number ?? null;
+  const through = i.numbers?.handoff ?? i.setup.business.handoff ?? null;
+  const show = (n) => n ? formatPhoneDisplay(n) ?? n : null;
+  return {
+    caption: "Your receptionist, so far",
+    initials: initialsOf3(name),
+    name: name || "Your receptionist",
+    status,
+    strip: `Your receptionist \xB7 ${status.words}`,
+    greetingLabel: "Greets every caller with",
+    greeting: greetingFor(name || null),
+    rows: [
+      { key: "open", label: "Open", value: i.setup.business.hours && p?.hours ? openWeekWords(p.hours, i.tz) : null },
+      {
+        key: "knows",
+        label: "Knows",
+        value: sv.count ? [sv.chips.map((c) => c.name).join(", "), sv.more].filter(Boolean).join(" ") : null
+      },
+      { key: "books", label: "Books with", value: b?.booking_link ? linkShown(b.booking_link) : null },
+      { key: "speaks", label: "Speaks", value: p?.languages?.length ? p.languages.join(", ") : null },
+      { key: "answers", label: "Answers", value: kept ? `${show(kept)} when nobody picks up` : show(line) },
+      { key: "through", label: "Puts through to", value: show(through) }
+    ],
+    foot: "Fills in as you go. You can change any of it later in Settings \u203A Business."
+  };
+}
+function shouldLandOnFirstRun(role, answering, route, landed) {
+  if (landed || role !== "owner" || answering) return false;
+  return route === "" || route === "today";
+}
 export {
   ABANDONED_MS,
   ABILITY_CHANNEL_WORDS,
@@ -19298,6 +19456,9 @@ export {
   FALLBACK_DEFAULTS,
   FALLBACK_DETAILS,
   FEED_MAX_BYTES,
+  FIRST_RUN_ROUTE,
+  FIRST_RUN_STEPS,
+  FIRST_RUN_WORDS,
   FOLLOWUP_ECHO,
   FORWARDING_MODES,
   FORWARDING_TEST_WINDOW_MS,
@@ -19305,6 +19466,7 @@ export {
   FeaturesConfigSchema,
   GET_YES_ROUTE,
   GOOGLE_SHOWN_REVIEWS,
+  GREETING_DEFAULT,
   GUARDRAIL_KEYS,
   GuardrailsSchema,
   HANDOFF_FORWARDS_BACK,
@@ -19580,6 +19742,7 @@ export {
   SENDING_HOURS_WORDS,
   SERVER_KEY_PREFIX,
   SERVER_NOTIFICATION_KINDS,
+  SETUP_CARD_ORDER,
   SETUP_REQUEST_KINDS,
   SETUP_STATE_WORDS,
   SHORTCUTS,
@@ -19823,6 +19986,8 @@ export {
   filterTimeline,
   findLanguages,
   firstNameOf,
+  firstRunOf,
+  firstRunStepOf,
   firstWorkspaceDoor,
   fmtClock,
   fmtDay,
@@ -19844,6 +20009,7 @@ export {
   gainedOver,
   googleAudienceWords,
   googleCallbackUrl,
+  greetingFor,
   groundCitations,
   groupTemplates,
   guardSpokenTurns,
@@ -20119,6 +20285,7 @@ export {
   reasonShort,
   receiptWords,
   recencyCells,
+  receptionistCardOf,
   receptionistOn,
   refusalOf,
   registrationPathOf,
@@ -20176,6 +20343,8 @@ export {
   servicesSaveWords,
   servicesToldWords,
   servicesWords,
+  setupCardOf,
+  setupLaterOf,
   setupRoute,
   setupSteps,
   sha256Hex,
@@ -20185,6 +20354,7 @@ export {
   shortCode,
   shortTime,
   shortcutGroups,
+  shouldLandOnFirstRun,
   shouldLandOnSetup,
   signupPosture,
   siteHost,

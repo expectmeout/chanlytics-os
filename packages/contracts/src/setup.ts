@@ -244,7 +244,7 @@ export const LINE_STEP_WORDS: Record<string, string> = {
 };
 
 export interface SetupInputs extends SetupDto {
-  /** Row ids marked Later on this device. */
+  /** Row ids this member put off: their saved Setup view (setupLaterOf), the same on every device. */
   later: string[];
 }
 
@@ -1342,6 +1342,16 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
 /** The hash route without "#/": "#/admin/setup" → "admin/setup"; nothing → "today". */
 export function setupRoute(hash: string): string {
   return (hash || "#/today").replace(/^#\/?/, "");
+}
+
+/**
+ * The rows a member put off, as their saved Setup view keeps them (`memberships.views.setup`, the door People's own
+ * view goes through): short ids, each once, nothing else. A view somebody hand-edited is no rows, never a throw.
+ */
+export function setupLaterOf(view: unknown): string[] {
+  const later = view && typeof view === "object" ? (view as { later?: unknown }).later : null;
+  if (!Array.isArray(later)) return [];
+  return [...new Set(later.filter((x): x is string => typeof x === "string" && x.length > 0 && x.length <= 40))];
 }
 
 /**

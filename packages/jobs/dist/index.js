@@ -8497,11 +8497,6 @@ var K2 = new Uint32Array([
   3329325298
 ]);
 var MEDIA_MAX_BYTES = 25 * 1024 * 1024;
-function greetingFor(name2) {
-  const who = name2 ? ` ${name2}` : "";
-  return `Thank you for calling${who}! This call may be recorded. I'm the automated assistant \u2014 how can I help you today?`;
-}
-var GREETING_DEFAULT = greetingFor(null);
 var CALL_ANALYSIS_FIELDS = [
   {
     type: "string",
@@ -11232,11 +11227,6 @@ var K3 = new Uint32Array([
   3329325298
 ]);
 var MEDIA_MAX_BYTES2 = 25 * 1024 * 1024;
-function greetingFor2(name2) {
-  const who = name2 ? ` ${name2}` : "";
-  return `Thank you for calling${who}! This call may be recorded. I'm the automated assistant \u2014 how can I help you today?`;
-}
-var GREETING_DEFAULT2 = greetingFor2(null);
 var CALL_ANALYSIS_FIELDS2 = [
   {
     type: "string",
