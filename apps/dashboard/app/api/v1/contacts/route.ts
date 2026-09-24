@@ -3,7 +3,7 @@ import { AppError, dealsAreOn, normalizePhone, whyNotAPhone } from "@chanlytics/
 import { read, write, workspace } from "@/server/route";
 import { PEOPLE_PAGE, countPeople, listPeople } from "@/server/people";
 import { withVisits } from "@/server/calendar";
-import { sellsByOf } from "@/server/deals";
+import { dealPaceRead, sellsByOf } from "@/server/deals";
 import { stepNamer } from "@/server/person-notes";
 
 const Query = z.object({
@@ -38,19 +38,24 @@ export const GET = read({
     // Each person with their appointments from the owner's calendar, when one is connected: Booked is a fact here,
     // not a stage. Never fatal to the list. In the same round trip, how this workspace's customers buy (0008): an
     // answer that cannot be read is not asked yet, and costs the deal lists, never the list.
-    // And who each next step is for (00166), from the team, read only when a step is for someone.
-    const [out, sellsBy, nameSteps] = await Promise.all([
+    // And who each next step is for (00166), from the team, read only when a step is for someone; and the
+    // workspace's pace (00167), said only where deals are on.
+    const [out, sellsBy, nameSteps, pace] = await Promise.all([
       withVisits(ctx, tenantId, rows),
       sellsByOf(ctx, tenantId),
       stepNamer(ctx, tenantId, rows),
+      dealPaceRead(ctx, tenantId),
     ]);
+    const dealsOn = dealsAreOn(sellsBy);
     return {
       ...out,
       people: out.people.map(nameSteps),
       // Deals are on where the workspace says some customers get a proposal first (dealsAreOn, 0008): the Journey's
       // deal lists, the thread's menu item, the column. Consult-first stays a booking rule, sent for its own list; the
       // names of the services stay on the server.
-      deals_on: dealsAreOn(sellsBy),
+      deals_on: dealsOn,
+      // How long this workspace's proposals usually take (0008, amended): when one is waiting, on every page.
+      deal_pace: dealsOn ? pace : null,
       consult_first: out.consult_first,
       page: { q, offset, limit: PEOPLE_PAGE, total, has_more: offset + rows.length < total },
     };

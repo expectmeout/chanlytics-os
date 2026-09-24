@@ -19,6 +19,11 @@ const {
   dealSentence,
   proposalsWaiting,
   waitingOnProposal,
+  dealPaceOf,
+  dealPaceWords,
+  waitAfterDays,
+  PACE_AFTER_DECIDED,
+  WAITING_AFTER_DAYS,
   consultationsWithoutProposal,
   CONSULT_FOLLOW_DAYS,
   dealsAreOn,
@@ -354,12 +359,13 @@ test("proposals waiting: out past a week with nothing back since", () => {
       { id: "none", deal: null, askedMs: null },
     ],
     NOW,
+    null,
   ).map((r) => r.id);
   assert.deepEqual(waiting, ["old-quiet", "never-asked"]);
   // The one rule, one row at a time: what Today's leak filters with and the Pipeline will ask.
-  assert.equal(waitingOnProposal(row("x", 11, 20), NOW), true);
-  assert.equal(waitingOnProposal(row("x", 11, 2), NOW), false);
-  assert.equal(waitingOnProposal({ deal: null, askedMs: null }, NOW), false);
+  assert.equal(waitingOnProposal(row("x", 11, 20), NOW, null), true);
+  assert.equal(waitingOnProposal(row("x", 11, 2), NOW, null), false);
+  assert.equal(waitingOnProposal({ deal: null, askedMs: null }, NOW, null), false);
 });
 
 test("consultations with no proposal after them: ended in the last week, and nothing open since", () => {
@@ -1031,5 +1037,45 @@ test("a row's second line says a waiting proposal after their words and before t
     ).sentence,
     /^Booked/,
     "a client's row keeps the visit",
+  );
+});
+
+test("a workspace's pace: said once five are decided, the median in whole days; waiting past it by a fifth, between three and thirty, a week without one", () => {
+  assert.equal(PACE_AFTER_DECIDED, 5);
+  assert.equal(dealPaceOf(null), null, "none read");
+  assert.equal(dealPaceOf({ median_days: null, decided: 0 }), null, "none decided");
+  assert.equal(dealPaceOf({ median_days: 9, decided: 4 }), null, "four is not yet a pace");
+  assert.deepEqual(dealPaceOf({ median_days: 12, decided: 5 }), {
+    medianDays: 12,
+    decided: 5,
+    waitDays: 14,
+    words: "Usually decided in 12 days",
+  });
+  assert.equal(dealPaceOf({ median_days: 8.6, decided: 7 }).medianDays, 9, "whole days");
+  assert.deepEqual([0, 1, 2].map(dealPaceWords), [
+    "Usually decided the same day",
+    "Usually decided in a day",
+    "Usually decided in 2 days",
+  ]);
+  assert.deepEqual(
+    [null, { medianDays: 10 }, { medianDays: 0 }, { medianDays: 1 }, { medianDays: 40 }].map(waitAfterDays),
+    [WAITING_AFTER_DAYS, 12, 3, 3, 30],
+  );
+  // The one rule takes the pace: a proposal out nine days with nothing back waits past a week, not past a
+  // twelve-day pace (14 days), and waits past a five-day one (6 days).
+  const deal = (days) => dealOf(cols({ deal_id: "d9", deal_proposed_at: daysAgo(days) }), TZ, NOW);
+  const row = { deal: deal(9), askedMs: null };
+  assert.equal(waitingOnProposal(row, NOW, null), true);
+  assert.equal(waitingOnProposal(row, NOW, dealPaceOf({ median_days: 12, decided: 6 })), false);
+  assert.equal(waitingOnProposal(row, NOW, dealPaceOf({ median_days: 5, decided: 6 })), true);
+  assert.equal(
+    waitingOnProposal({ deal: deal(15), askedMs: null }, NOW, dealPaceOf({ median_days: 12, decided: 6 })),
+    true,
+  );
+  assert.deepEqual(
+    proposalsWaiting([row, { deal: deal(15), askedMs: null }], NOW, dealPaceOf({ median_days: 12, decided: 6 })).map(
+      (r) => r.deal.sinceMs,
+    ),
+    [deal(15).sinceMs],
   );
 });

@@ -28,6 +28,7 @@ import {
   parseAmount,
   waitingOnProposal,
   type DealActId,
+  type DealPaceVM,
   type DealClearable,
   type DealLostReason,
   type DealPer,
@@ -61,6 +62,8 @@ export interface DealPerson {
   deal: DealVM | null;
   /** Every deal on them, newest first. */
   deals?: readonly DealVM[];
+  /** The workspace's pace, read with the person (dealPaceOf): when their proposal waits, and what its card says. */
+  dealPace: DealPaceVM | null;
   replyVia: "WhatsApp" | "Text" | "Email" | null;
   replyWindow: { open: boolean; hoursLeft: number } | null;
   consent: { state: string; dnc: boolean };
@@ -214,7 +217,7 @@ export function dealNextAct(p: DealPerson, nowMs: number, deal: DealVM | null = 
   const sent = sentOf(p, deal);
   const words = (text: string) => (send.can ? { text } : { hint: DEAL_ACT_HINTS.approved });
   if (!sent && send.reach) return act("send", words(proposalMessage(url)));
-  if (sent && send.reach && waitingOnProposal({ deal, askedMs: p.askedMs ?? null }, nowMs))
+  if (sent && send.reach && waitingOnProposal({ deal, askedMs: p.askedMs ?? null }, nowMs, p.dealPace ?? null))
     return act("follow-up", words(proposalFollowUp(url)));
   return act("won");
 }
@@ -455,10 +458,12 @@ function cardOf(p: DealPerson, deal: DealVM, nowMs: number, tz: string, consulta
             : DEAL_CARD_WORDS.notSent,
     );
     if (deal.validUntil && !deal.validUntil.lapsed) facts.push(deal.validUntil.words);
+    // How long this workspace's proposals usually take, once five are decided (0008, amended).
+    if (p.dealPace) facts.push(p.dealPace.words);
     if (deal.validUntil?.lapsed) flags.push({ words: deal.validUntil.words, tone: "warn" });
-    // Nothing back after a week: a proposal that went, or one recorded without a link (it went some other way). A
-    // link that never went has not waited on anyone.
-    if ((sent || !deal.proposal) && waitingOnProposal({ deal, askedMs: p.askedMs ?? null }, nowMs))
+    // Nothing back past the workspace's pace (a week without one): a proposal that went, or one recorded without a
+    // link (it went some other way). A link that never went has not waited on anyone.
+    if ((sent || !deal.proposal) && waitingOnProposal({ deal, askedMs: p.askedMs ?? null }, nowMs, p.dealPace ?? null))
       flags.push({ words: `Nothing back in ${deal.waitingDays ?? 0} days`, tone: "warn" });
   }
   const others: DealAct[] = won ? [act("ended")] : [act("won"), act("lost"), act("edit")];

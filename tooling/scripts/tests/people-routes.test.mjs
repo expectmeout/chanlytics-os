@@ -1587,3 +1587,56 @@ test("a step (00166): the note route takes a day and a deal only when named, jud
     ],
   );
 });
+
+test("both People reads answer the workspace's pace where deals are on (00167): the median whole days from proposal to yes over the last year, and how many; none where deals are off", async () => {
+  const now = Date.now();
+  const DAY = 86_400_000;
+  const iso = (ms) => new Date(ms).toISOString();
+  const deal = (n, days, stage = "won") => ({
+    id: `dddddddd-000${n}-4000-8000-dddddddddddd`,
+    tenant_id: A,
+    contact_id: P1,
+    service: `Service ${n}`,
+    stage,
+    proposed_at: iso(now - (days + 3) * DAY),
+    decided_at: iso(now - 3 * DAY),
+    ended_at: null,
+    amount_cents: null,
+    per: null,
+    currency: "USD",
+    note: null,
+    version: 1,
+    created_at: iso(now - 60 * DAY),
+    proposal_url: null,
+    valid_until: null,
+    lost_reason: null,
+  });
+  const world = (sellsBy) => ({
+    memberships: both("viewer", "viewer"),
+    policies: [],
+    tenant_config: [],
+    contacts: [contact(P1, A)],
+    deals: [deal(1, 4), deal(2, 10), deal(3, 12), deal(4, 20), deal(5, 6), deal(6, 2, "lost")],
+    tenants: [{ id: A, slug: "harbor", sells_by: sellsBy }],
+  });
+  const rpcs = {
+    people_list: (a) => (a.p_tenant_id === A && (!a.p_contact_id || a.p_contact_id === P1) ? [personRow(P1)] : []),
+  };
+  const list = async (s) => (await contacts.GET.run(get(inA), ctxFor(world(s), {}, rpcs))).deal_pace;
+  const page = async (s) => (await person.GET.run(get(inA), ctxFor(world(s), { id: P1 }, rpcs))).person.deal_pace;
+  // 4, 6, 10, 12 and 20 days: a pass is not a yes.
+  assert.deepEqual(await list("proposal"), { median_days: 10, decided: 5 });
+  assert.deepEqual(await page("proposal"), { median_days: 10, decided: 5 }, "the person's page reads the same pace");
+  assert.equal(await list("booking"), null, "deals off: no pace");
+  assert.equal(await page("booking"), null);
+  // A read that fails costs the pace, never the list.
+  const broken = {
+    ...rpcs,
+    deal_pace: () => {
+      throw new Error("statement timeout");
+    },
+  };
+  const r = await contacts.GET.run(get(inA), ctxFor(world("proposal"), {}, broken));
+  assert.equal(r.deal_pace, null);
+  assert.equal(r.people.length, 1);
+});

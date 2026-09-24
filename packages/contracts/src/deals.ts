@@ -144,6 +144,8 @@ export const DEAL_PER_WORDS: Record<DealPer, string> = { once: "once", month: "a
 export const DEAL_LINE_NONE = "No proposal yet";
 /** A proposal out this long with nothing back is Today's leak. */
 export const WAITING_AFTER_DAYS = 7;
+/** How many decided proposals a workspace needs before its pace is said (0008, amended; 00167). */
+export const PACE_AFTER_DECIDED = 5;
 /** A consultation this recent with no proposal after it is the next step to take. */
 export const CONSULT_FOLLOW_DAYS = 7;
 
@@ -559,17 +561,66 @@ export function heardSinceProposal(r: {
   return !!d && d.stage === "proposed" && d.sinceMs !== null && r.askedMs !== null && r.askedMs >= d.sinceMs;
 }
 
+/* ------------------------------------------------ a workspace's pace (0008, amended) */
+
+/** A workspace's pace as the server reads it (00167 deal_pace): the median whole days from proposal to yes, and how many. */
+export interface DealPaceDto {
+  median_days: number | null;
+  decided: number;
+}
+
+/** A workspace's pace once it has one: how long its proposals usually take to be decided, and when one is waiting. */
+export interface DealPaceVM {
+  medianDays: number;
+  decided: number;
+  /** How long a proposal out goes with nothing back before it waits on the owner (waitAfterDays). */
+  waitDays: number;
+  /** "Usually decided in 12 days". */
+  words: string;
+}
+
 /**
- * The one rule for a proposal waiting (0006, 0008): out past a week with nothing back since it went. Today's leak and
- * the Pipeline both ask it, one row at a time.
+ * The days a proposal out goes with nothing back before it waits on the owner: the workspace's pace and a fifth, kept
+ * between three and thirty; a week where it has none.
+ */
+export function waitAfterDays(pace: Pick<DealPaceVM, "medianDays"> | null | undefined): number {
+  if (!pace) return WAITING_AFTER_DAYS;
+  return Math.min(30, Math.max(3, Math.round(pace.medianDays * 1.2)));
+}
+
+/** "Usually decided in 12 days", "Usually decided in a day", "Usually decided the same day". */
+export function dealPaceWords(medianDays: number): string {
+  if (medianDays === 0) return "Usually decided the same day";
+  if (medianDays === 1) return "Usually decided in a day";
+  return `Usually decided in ${medianDays} days`;
+}
+
+/** A workspace's pace: null until five of its proposals are decided, or where none was read. */
+export function dealPaceOf(dto: DealPaceDto | null | undefined): DealPaceVM | null {
+  if (!dto || typeof dto.median_days !== "number" || !Number.isFinite(dto.median_days)) return null;
+  if (!(dto.decided >= PACE_AFTER_DECIDED)) return null;
+  const medianDays = Math.max(0, Math.round(dto.median_days));
+  return {
+    medianDays,
+    decided: dto.decided,
+    waitDays: waitAfterDays({ medianDays }),
+    words: dealPaceWords(medianDays),
+  };
+}
+
+/**
+ * The one rule for a proposal waiting (0006, 0008): out past the workspace's pace by a fifth -- a week while it has
+ * none (waitAfterDays) -- with nothing back since it went. Today's leak, the Pipeline and the deal card all ask it,
+ * one row at a time, and each hands it the workspace's pace: there is no pace a caller may leave out.
  */
 export function waitingOnProposal(
   r: { deal: Pick<DealVM, "stage" | "sinceMs"> | null; askedMs: number | null },
   nowMs: number,
+  pace: Pick<DealPaceVM, "medianDays"> | null,
 ): boolean {
   const d = r.deal;
   if (!d || d.stage !== "proposed" || d.sinceMs === null) return false;
-  if (nowMs - d.sinceMs < WAITING_AFTER_DAYS * DAY_MS) return false;
+  if (nowMs - d.sinceMs < waitAfterDays(pace) * DAY_MS) return false;
   return !heardSinceProposal(r);
 }
 
@@ -577,8 +628,9 @@ export function waitingOnProposal(
 export function proposalsWaiting<T extends { deal: DealVM | null; askedMs: number | null }>(
   rows: readonly T[],
   nowMs: number,
+  pace: Pick<DealPaceVM, "medianDays"> | null,
 ): T[] {
-  return rows.filter((r) => waitingOnProposal(r, nowMs));
+  return rows.filter((r) => waitingOnProposal(r, nowMs, pace));
 }
 
 /**

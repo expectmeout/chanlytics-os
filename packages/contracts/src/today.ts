@@ -34,7 +34,13 @@ import { waWindow } from "./policy";
 import { ANALYSIS_GRACE_MS } from "./live";
 import { NO_NUMBER_REACH, NOTE_WORDS, reasonShort, saidYesTo, type PersonRowVM } from "./people";
 import { TODAY_STEPS_MAX, todayStepsDue, type StepDue } from "./steps";
-import { consultationsWithoutProposal, consultsHeldWords, proposalsWaiting, type DealVM } from "./deals";
+import {
+  consultationsWithoutProposal,
+  consultsHeldWords,
+  proposalsWaiting,
+  type DealPaceVM,
+  type DealVM,
+} from "./deals";
 import { clipAtWord } from "./viewmodels";
 import { conversationOfNeedsKey, callOfKey, unreadCount } from "./notifications";
 import { channelKindWords, CHANNEL_ANSWERED } from "./channels";
@@ -1818,6 +1824,8 @@ export interface PeopleListsLike {
    * the same rows (pipeline-scope.jsx), so the two pages never say two numbers for one list.
    */
   fetchedAt?: number;
+  /** The workspace's pace (dealPaceOf), which says when a proposal out is waiting; none until five are decided. */
+  dealPace?: DealPaceVM | null;
 }
 
 /** At most this many; the rest is not an insight, it is a list. */
@@ -1953,11 +1961,19 @@ export function todayLeaks(
   const dealRows = (people?.rows ?? []).filter(
     (r): r is typeof r & { deal: DealVM | null; askedMs: number | null } => "deal" in r && "askedMs" in r,
   );
-  const waiting = proposalsWaiting(dealRows, dealsAt);
+  // Past the workspace's pace by a fifth once it has one (0008, amended), a week until then: the Pipeline's own rule.
+  const pace = people?.dealPace ?? null;
+  const waiting = proposalsWaiting(dealRows, dealsAt, pace);
   const po = list("proposal_out");
   if (people && people.dealsOn && waiting.length >= 1) {
-    const text = `${waiting.length} proposal${waiting.length === 1 ? "" : "s"} went out more than a week ago with nothing back.`;
-    const math = po ? `${po.count} on Proposal out · nothing heard since it went` : "nothing heard since it went";
+    const n = waiting.length;
+    const text = pace
+      ? `${n} proposal${n === 1 ? " has" : "s have"} waited longer than usual with nothing back.`
+      : `${n} proposal${n === 1 ? "" : "s"} went out more than a week ago with nothing back.`;
+    const since = pace
+      ? `${pace.words.charAt(0).toLowerCase()}${pace.words.slice(1)} · nothing heard since it went`
+      : "nothing heard since it went";
+    const math = po ? `${po.count} on Proposal out · ${since}` : since;
     found.set("proposals-waiting", {
       id: "proposals-waiting",
       tone: "warn",

@@ -32,6 +32,7 @@ import {
   waitingOnProposal,
   wholeDaysSince,
   type DealLostReason,
+  type DealPaceVM,
   type DealVM,
 } from "./deals";
 import { repliesWords, type PersonRowVM, type PersonVM } from "./people";
@@ -142,6 +143,8 @@ export interface PipelineVM<T extends PipelineSource = PersonRowVM> {
   groups: PipelineGroupVM<T>[];
   /** Nobody in any group: no deal, and no consultation to follow. */
   empty: boolean;
+  /** The workspace's pace (dealPaceOf), which every wait on this Pipeline was judged by; null without one. */
+  pace: DealPaceVM | null;
 }
 
 /**
@@ -219,6 +222,8 @@ export const PIPELINE_WORDS = {
   },
   /** A proposal out that has waited a week with nothing back: the row's In stage already says how long. */
   nothingBack: "Nothing back",
+  /** The line's part for the proposals waiting: past a week, or past the workspace's pace once it has one. */
+  waitingLine: (n: number, paced: boolean) => (paced ? `${n} waiting longer than usual` : `${n} waiting over a week`),
   /** The Pipeline's own rail: its groups, what waits on the owner, and each service. */
   rail: {
     /** A phone's sheet of the rail's rows, behind the bar's list button. */
@@ -227,6 +232,8 @@ export const PIPELINE_WORDS = {
     all: "All deals",
     waitingOnYou: "Waiting on you",
     waiting: "Nothing back in a week",
+    /** The same, once the workspace has a pace: past it by a fifth (waitAfterDays). */
+    waitingPaced: (days: number) => `Nothing back in ${days} days`,
     lapsed: "Lapsed",
     // A next step whose day has come (NOTE_WORDS.stepsDue, written out for the same reason).
     steps: "Steps due",
@@ -260,8 +267,14 @@ const zoneOf = (r: PipelineSource, tz: string): string => r.calendarTz || tz;
  * "Heard back", not "They wrote": what came back (`askedMs`) is the later of their last message and a call they placed.
  * The wait is said once: its number is the row's In stage, so the chip says "Nothing back" and no figure.
  */
-function proposalChip(r: PipelineSource, d: DealVM, tz: string, nowMs: number): PipelineChip | null {
-  if (waitingOnProposal(r, nowMs)) return { words: PIPELINE_WORDS.nothingBack, tone: "warn" };
+function proposalChip(
+  r: PipelineSource,
+  d: DealVM,
+  tz: string,
+  nowMs: number,
+  pace: DealPaceVM | null,
+): PipelineChip | null {
+  if (waitingOnProposal(r, nowMs, pace)) return { words: PIPELINE_WORDS.nothingBack, tone: "warn" };
   if (heardSinceProposal(r) && r.askedMs !== null)
     return { words: `Heard back ${clockNear(r.askedMs, tz, nowMs)}`, tone: "info" };
   if (d.validUntil) return { words: d.validUntil.words, tone: d.validUntil.lapsed ? "warn" : "plain" };
@@ -398,13 +411,15 @@ const worth = (xs: readonly { d: DealVM }[]): string | null =>
 
 /**
  * The Pipeline of these rows: the line over it, its groups and their rows, and whether it is empty. `rows` are People's
- * (PersonRowVM, as the People surface publishes them where deals are on); `tz` is the workspace's zone. `view` is the
- * rail's pick: the groups hold only its rows, and the line stays the whole Pipeline's.
+ * (PersonRowVM, as the People surface publishes them where deals are on); `tz` is the workspace's zone; `pace` is its
+ * pace (dealPaceOf, null without one), which says when a proposal out is waiting. `view` is the rail's pick: the
+ * groups hold only its rows, and the line stays the whole Pipeline's.
  */
 export function pipelineOf<T extends PipelineSource>(
   rows: readonly T[],
   nowMs: number,
   tz: string,
+  pace: DealPaceVM | null,
   view: PipelineView = "all",
 ): PipelineVM<T> {
   // Held with no proposal since, in the rule's own order (the oldest first): the group lists them as the rule gives
@@ -428,6 +443,7 @@ export function pipelineOf<T extends PipelineSource>(
   const waiting = proposalsWaiting(
     proposals.map((x) => x.r),
     nowMs,
+    pace,
   ).length;
   // What the view shows: one group, what waits on the owner, or one service's deals. A consultation has no deal yet,
   // so no service; it shows under its own group and under All deals.
@@ -444,7 +460,7 @@ export function pipelineOf<T extends PipelineSource>(
   const shownProposals = !shows("proposals")
     ? []
     : view === "waiting"
-      ? proposals.filter((x) => waitingOnProposal(x.r, nowMs))
+      ? proposals.filter((x) => waitingOnProposal(x.r, nowMs, pace))
       : view === "lapsed"
         ? lapsed
         : bySvc(proposals);
@@ -478,7 +494,7 @@ export function pipelineOf<T extends PipelineSource>(
     group(
       "proposals",
       inOrder(shownProposals, (x) => x.d.sinceMs).map((x) =>
-        dealRow(x.r, x.d, proposalChip(x.r, x.d, tz, nowMs), nowMs, "proposals"),
+        dealRow(x.r, x.d, proposalChip(x.r, x.d, tz, nowMs, pace), nowMs, "proposals"),
       ),
       worth(shownProposals),
     ),
@@ -500,12 +516,12 @@ export function pipelineOf<T extends PipelineSource>(
   const line = [
     part(proposals.length ? `${plural(proposals.length, "proposal", "proposals")} out` : null),
     part(proposals.length ? worth(proposals) : null),
-    part(waiting ? `${waiting} waiting over a week` : null, "waiting"),
+    part(waiting ? PIPELINE_WORDS.waitingLine(waiting, !!pace) : null, "waiting"),
     part(lapsed.length ? `${lapsed.length} lapsed` : null, "lapsed"),
     part(clients.length ? plural(clients.length, "client", "clients") : null),
     part(clients.length ? worth(clients) : null),
   ].filter((x): x is PipelineLinePart => !!x);
-  return { summary: line.map((p) => p.words), line, groups, empty: groups.length === 0 };
+  return { summary: line.map((p) => p.words), line, groups, empty: groups.length === 0, pace };
 }
 
 /* ------------------------------------------------ the Pipeline's own views: the rail and the address */
@@ -535,11 +551,15 @@ function serviceOf(view: PipelineView): string | null {
   return view.startsWith("svc:") ? view.slice(4) : null;
 }
 
+/** What waits on the owner, by the workspace's pace: past a week, or past its pace once it has one. */
+const waitingLabel = (pace: DealPaceVM | null): string =>
+  pace ? PIPELINE_WORDS.rail.waitingPaced(pace.waitDays) : PIPELINE_WORDS.rail.waiting;
+
 /** A view in the owner's words: the rail's own label for it, the phone's button says the same. */
-export function pipelineViewLabel(view: PipelineView): string {
+export function pipelineViewLabel(view: PipelineView, pace: DealPaceVM | null): string {
   const svc = serviceOf(view);
   if (svc !== null) return svc;
-  if (view === "waiting") return PIPELINE_WORDS.rail.waiting;
+  if (view === "waiting") return waitingLabel(pace);
   if (view === "lapsed") return PIPELINE_WORDS.rail.lapsed;
   if (view === "steps") return PIPELINE_WORDS.rail.steps;
   if (view === "all") return PIPELINE_WORDS.rail.all;
@@ -623,11 +643,11 @@ export function pipelineRail<T extends PipelineSource>(vm: PipelineVM<T>, nowMs:
     })),
   ];
   const proposals = vm.groups.find((g) => g.key === "proposals")?.rows ?? [];
-  const waiting = proposals.filter((r) => waitingOnProposal(r.person, nowMs)).length;
+  const waiting = proposals.filter((r) => waitingOnProposal(r.person, nowMs, vm.pace)).length;
   const lapsed = proposals.filter((r) => !!r.person.deal?.validUntil?.lapsed).length;
   const steps = vm.groups.reduce((n, g) => n + g.rows.filter(stepDue).length, 0);
   const waits: PipelineRailRow[] = [
-    { view: "waiting" as PipelineView, label: PIPELINE_WORDS.rail.waiting, count: waiting, tone: "warn" as const },
+    { view: "waiting" as PipelineView, label: waitingLabel(vm.pace), count: waiting, tone: "warn" as const },
     { view: "lapsed" as PipelineView, label: PIPELINE_WORDS.rail.lapsed, count: lapsed, tone: "warn" as const },
     // A next step whose day has come (0007, amended), on anyone the Pipeline holds.
     { view: "steps" as PipelineView, label: PIPELINE_WORDS.rail.steps, count: steps, tone: "warn" as const },

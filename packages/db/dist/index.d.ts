@@ -4109,6 +4109,15 @@ type Database = {
                 };
                 Returns: number;
             };
+            deal_pace: {
+                Args: {
+                    p_tenant_id: string;
+                };
+                Returns: {
+                    decided: number;
+                    median_days: number;
+                }[];
+            };
             deal_record: {
                 Args: {
                     p_amount_cents?: number;

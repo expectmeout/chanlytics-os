@@ -9,6 +9,7 @@ import {
   pickCurrentDeal,
   quantile,
   type DealDto,
+  type DealPaceDto,
   type DealReportDto,
   type PersonCameFrom,
   type PersonRowDto,
@@ -26,6 +27,18 @@ export async function sellsByOf(ctx: Pick<RouteContext, "supabase">, tenantId: s
   if (r.error || !r.data) return null;
   const answer: unknown = (r.data as { sells_by?: unknown }).sells_by;
   return isSellsBy(answer) ? answer : null;
+}
+
+/**
+ * The workspace's pace (00167 deal_pace, 0008 amended): the median whole days from proposal to yes over the last
+ * year's yeses, and how many. Null where it could not be read, as on a database 00167 has not reached: no pace is
+ * a week's wait, which costs the pace, never the page. The two People routes share it.
+ */
+export async function dealPaceRead(ctx: Pick<RouteContext, "supabase">, tenantId: string): Promise<DealPaceDto | null> {
+  const r = await ctx.supabase.rpc("deal_pace", { p_tenant_id: tenantId });
+  if (r.error) return null;
+  const row = (r.data ?? [])[0];
+  return row ? { median_days: row.median_days ?? null, decided: row.decided ?? 0 } : null;
 }
 
 /** The columns a deal is read with (contracts DealDto): a person's read of their deals, and the deal door's answer. */

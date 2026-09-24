@@ -7164,6 +7164,7 @@ var DEAL_STAGE_WORDS = {
 var DEAL_PER_WORDS = { once: "once", month: "a month", year: "a year" };
 var DEAL_LINE_NONE = "No proposal yet";
 var WAITING_AFTER_DAYS = 7;
+var PACE_AFTER_DECIDED = 5;
 var CONSULT_FOLLOW_DAYS = 7;
 var DAY_MS3 = 864e5;
 function isDealStage(s) {
@@ -7342,14 +7343,34 @@ function heardSinceProposal(r) {
   const d = r.deal;
   return !!d && d.stage === "proposed" && d.sinceMs !== null && r.askedMs !== null && r.askedMs >= d.sinceMs;
 }
-function waitingOnProposal(r, nowMs) {
+function waitAfterDays(pace) {
+  if (!pace) return WAITING_AFTER_DAYS;
+  return Math.min(30, Math.max(3, Math.round(pace.medianDays * 1.2)));
+}
+function dealPaceWords(medianDays) {
+  if (medianDays === 0) return "Usually decided the same day";
+  if (medianDays === 1) return "Usually decided in a day";
+  return `Usually decided in ${medianDays} days`;
+}
+function dealPaceOf(dto) {
+  if (!dto || typeof dto.median_days !== "number" || !Number.isFinite(dto.median_days)) return null;
+  if (!(dto.decided >= PACE_AFTER_DECIDED)) return null;
+  const medianDays = Math.max(0, Math.round(dto.median_days));
+  return {
+    medianDays,
+    decided: dto.decided,
+    waitDays: waitAfterDays({ medianDays }),
+    words: dealPaceWords(medianDays)
+  };
+}
+function waitingOnProposal(r, nowMs, pace) {
   const d = r.deal;
   if (!d || d.stage !== "proposed" || d.sinceMs === null) return false;
-  if (nowMs - d.sinceMs < WAITING_AFTER_DAYS * DAY_MS3) return false;
+  if (nowMs - d.sinceMs < waitAfterDays(pace) * DAY_MS3) return false;
   return !heardSinceProposal(r);
 }
-function proposalsWaiting(rows, nowMs) {
-  return rows.filter((r) => waitingOnProposal(r, nowMs));
+function proposalsWaiting(rows, nowMs, pace) {
+  return rows.filter((r) => waitingOnProposal(r, nowMs, pace));
 }
 function noProposalSince(deal, endedMs) {
   if (!deal) return true;
@@ -8845,6 +8866,7 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
     deal: current,
     deals,
     dealsOn,
+    dealPace: dealsOn ? dealPaceOf(d.deal_pace) : null,
     services: d.services ?? [],
     consultFirst: d.consult_first ?? []
   };
@@ -10164,11 +10186,14 @@ function todayLeaks(reports, people, noReply = [], max = TODAY_LEAK_MAX, nowMs =
   const dealRows = (people?.rows ?? []).filter(
     (r) => "deal" in r && "askedMs" in r
   );
-  const waiting = proposalsWaiting(dealRows, dealsAt);
+  const pace = people?.dealPace ?? null;
+  const waiting = proposalsWaiting(dealRows, dealsAt, pace);
   const po = list2("proposal_out");
   if (people && people.dealsOn && waiting.length >= 1) {
-    const text = `${waiting.length} proposal${waiting.length === 1 ? "" : "s"} went out more than a week ago with nothing back.`;
-    const math = po ? `${po.count} on Proposal out \xB7 nothing heard since it went` : "nothing heard since it went";
+    const n = waiting.length;
+    const text = pace ? `${n} proposal${n === 1 ? " has" : "s have"} waited longer than usual with nothing back.` : `${n} proposal${n === 1 ? "" : "s"} went out more than a week ago with nothing back.`;
+    const since = pace ? `${pace.words.charAt(0).toLowerCase()}${pace.words.slice(1)} \xB7 nothing heard since it went` : "nothing heard since it went";
+    const math = po ? `${po.count} on Proposal out \xB7 ${since}` : since;
     found.set("proposals-waiting", {
       id: "proposals-waiting",
       tone: "warn",
@@ -18649,7 +18674,7 @@ function dealNextAct(p, nowMs, deal = p.deal) {
   const sent = sentOf(p, deal);
   const words4 = (text) => send.can ? { text } : { hint: DEAL_ACT_HINTS.approved };
   if (!sent && send.reach) return act("send", words4(proposalMessage(url)));
-  if (sent && send.reach && waitingOnProposal({ deal, askedMs: p.askedMs ?? null }, nowMs))
+  if (sent && send.reach && waitingOnProposal({ deal, askedMs: p.askedMs ?? null }, nowMs, p.dealPace ?? null))
     return act("follow-up", words4(proposalFollowUp(url)));
   return act("won");
 }
@@ -18746,8 +18771,9 @@ function cardOf2(p, deal, nowMs, tz, consultation) {
       !deal.proposal ? DEAL_CARD_WORDS.noLink : deal.proposal.sending ? DEAL_CARD_WORDS.sending : sent ? sentWords(sent, tz, nowMs) : DEAL_CARD_WORDS.notSent
     );
     if (deal.validUntil && !deal.validUntil.lapsed) facts.push(deal.validUntil.words);
+    if (p.dealPace) facts.push(p.dealPace.words);
     if (deal.validUntil?.lapsed) flags.push({ words: deal.validUntil.words, tone: "warn" });
-    if ((sent || !deal.proposal) && waitingOnProposal({ deal, askedMs: p.askedMs ?? null }, nowMs))
+    if ((sent || !deal.proposal) && waitingOnProposal({ deal, askedMs: p.askedMs ?? null }, nowMs, p.dealPace ?? null))
       flags.push({ words: `Nothing back in ${deal.waitingDays ?? 0} days`, tone: "warn" });
   }
   const others = won ? [act("ended")] : [act("won"), act("lost"), act("edit")];
@@ -19182,6 +19208,8 @@ var PIPELINE_WORDS = {
   },
   /** A proposal out that has waited a week with nothing back: the row's In stage already says how long. */
   nothingBack: "Nothing back",
+  /** The line's part for the proposals waiting: past a week, or past the workspace's pace once it has one. */
+  waitingLine: (n, paced) => paced ? `${n} waiting longer than usual` : `${n} waiting over a week`,
   /** The Pipeline's own rail: its groups, what waits on the owner, and each service. */
   rail: {
     /** A phone's sheet of the rail's rows, behind the bar's list button. */
@@ -19190,6 +19218,8 @@ var PIPELINE_WORDS = {
     all: "All deals",
     waitingOnYou: "Waiting on you",
     waiting: "Nothing back in a week",
+    /** The same, once the workspace has a pace: past it by a fifth (waitAfterDays). */
+    waitingPaced: (days) => `Nothing back in ${days} days`,
     lapsed: "Lapsed",
     // A next step whose day has come (NOTE_WORDS.stepsDue, written out for the same reason).
     steps: "Steps due",
@@ -19214,8 +19244,8 @@ var plural10 = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 var upper2 = (s) => s ? `${s[0].toUpperCase()}${s.slice(1)}` : s;
 var daysWords = (days) => days === null ? "" : `${days} d`;
 var zoneOf = (r, tz) => r.calendarTz || tz;
-function proposalChip(r, d, tz, nowMs) {
-  if (waitingOnProposal(r, nowMs)) return { words: PIPELINE_WORDS.nothingBack, tone: "warn" };
+function proposalChip(r, d, tz, nowMs, pace) {
+  if (waitingOnProposal(r, nowMs, pace)) return { words: PIPELINE_WORDS.nothingBack, tone: "warn" };
   if (heardSinceProposal(r) && r.askedMs !== null)
     return { words: `Heard back ${clockNear(r.askedMs, tz, nowMs)}`, tone: "info" };
   if (d.validUntil) return { words: d.validUntil.words, tone: d.validUntil.lapsed ? "warn" : "plain" };
@@ -19300,7 +19330,7 @@ function inOrder(xs, at2, latest = false) {
   });
 }
 var worth = (xs) => amountTotalsWords(xs.map((x) => ({ amount_cents: x.d.amountCents, per: x.d.per, currency: x.d.currency })));
-function pipelineOf(rows, nowMs, tz, view = "all") {
+function pipelineOf(rows, nowMs, tz, pace, view = "all") {
   const held = consultationsWithoutProposal(rows, nowMs);
   const heldSet = new Set(held);
   const ahead = [];
@@ -19318,14 +19348,15 @@ function pipelineOf(rows, nowMs, tz, view = "all") {
   const lapsed = proposals.filter((x) => !!x.d.validUntil?.lapsed);
   const waiting = proposalsWaiting(
     proposals.map((x) => x.r),
-    nowMs
+    nowMs,
+    pace
   ).length;
   const svc = serviceOf2(view);
   const shows = (key) => view === "all" || view === "steps" || view === key || svc !== null || (view === "waiting" || view === "lapsed") && key === "proposals";
   const bySvc = (xs) => svc === null ? xs : xs.filter((x) => x.d.service === svc);
   const shownHeld = shows("consultations") && svc === null ? held : [];
   const shownAhead = shows("consultations") && svc === null ? ahead : [];
-  const shownProposals = !shows("proposals") ? [] : view === "waiting" ? proposals.filter((x) => waitingOnProposal(x.r, nowMs)) : view === "lapsed" ? lapsed : bySvc(proposals);
+  const shownProposals = !shows("proposals") ? [] : view === "waiting" ? proposals.filter((x) => waitingOnProposal(x.r, nowMs, pace)) : view === "lapsed" ? lapsed : bySvc(proposals);
   const shownClients = shows("clients") ? bySvc(clients) : [];
   const shownClosed = shows("closed") ? bySvc(closed) : [];
   const group = (key, body, meta) => {
@@ -19354,7 +19385,7 @@ function pipelineOf(rows, nowMs, tz, view = "all") {
     group(
       "proposals",
       inOrder(shownProposals, (x) => x.d.sinceMs).map(
-        (x) => dealRow(x.r, x.d, proposalChip(x.r, x.d, tz, nowMs), nowMs, "proposals")
+        (x) => dealRow(x.r, x.d, proposalChip(x.r, x.d, tz, nowMs, pace), nowMs, "proposals")
       ),
       worth(shownProposals)
     ),
@@ -19375,12 +19406,12 @@ function pipelineOf(rows, nowMs, tz, view = "all") {
   const line = [
     part(proposals.length ? `${plural10(proposals.length, "proposal", "proposals")} out` : null),
     part(proposals.length ? worth(proposals) : null),
-    part(waiting ? `${waiting} waiting over a week` : null, "waiting"),
+    part(waiting ? PIPELINE_WORDS.waitingLine(waiting, !!pace) : null, "waiting"),
     part(lapsed.length ? `${lapsed.length} lapsed` : null, "lapsed"),
     part(clients.length ? plural10(clients.length, "client", "clients") : null),
     part(clients.length ? worth(clients) : null)
   ].filter((x) => !!x);
-  return { summary: line.map((p) => p.words), line, groups, empty: groups.length === 0 };
+  return { summary: line.map((p) => p.words), line, groups, empty: groups.length === 0, pace };
 }
 var VIEW_KINDS = /* @__PURE__ */ (() => [
   "all",
@@ -19395,10 +19426,11 @@ function isPipelineView(s) {
 function serviceOf2(view) {
   return view.startsWith("svc:") ? view.slice(4) : null;
 }
-function pipelineViewLabel(view) {
+var waitingLabel = (pace) => pace ? PIPELINE_WORDS.rail.waitingPaced(pace.waitDays) : PIPELINE_WORDS.rail.waiting;
+function pipelineViewLabel(view, pace) {
   const svc = serviceOf2(view);
   if (svc !== null) return svc;
-  if (view === "waiting") return PIPELINE_WORDS.rail.waiting;
+  if (view === "waiting") return waitingLabel(pace);
   if (view === "lapsed") return PIPELINE_WORDS.rail.lapsed;
   if (view === "steps") return PIPELINE_WORDS.rail.steps;
   if (view === "all") return PIPELINE_WORDS.rail.all;
@@ -19448,11 +19480,11 @@ function pipelineRail(vm, nowMs) {
     }))
   ];
   const proposals = vm.groups.find((g) => g.key === "proposals")?.rows ?? [];
-  const waiting = proposals.filter((r) => waitingOnProposal(r.person, nowMs)).length;
+  const waiting = proposals.filter((r) => waitingOnProposal(r.person, nowMs, vm.pace)).length;
   const lapsed = proposals.filter((r) => !!r.person.deal?.validUntil?.lapsed).length;
   const steps = vm.groups.reduce((n, g) => n + g.rows.filter(stepDue).length, 0);
   const waits = [
-    { view: "waiting", label: PIPELINE_WORDS.rail.waiting, count: waiting, tone: "warn" },
+    { view: "waiting", label: waitingLabel(vm.pace), count: waiting, tone: "warn" },
     { view: "lapsed", label: PIPELINE_WORDS.rail.lapsed, count: lapsed, tone: "warn" },
     // A next step whose day has come (0007, amended), on anyone the Pipeline holds.
     { view: "steps", label: PIPELINE_WORDS.rail.steps, count: steps, tone: "warn" }
@@ -20200,6 +20232,7 @@ export {
   OPT_OUT_REFUSAL,
   OUTCOME_UNKNOWN,
   OWN_MESSAGE_REFUSALS,
+  PACE_AFTER_DECIDED,
   PARAM_SOURCES,
   PARAM_SOURCE_HINTS,
   PARAM_SOURCE_LABELS,
@@ -20497,6 +20530,8 @@ export {
   dealMenuActs,
   dealNextAct,
   dealOf,
+  dealPaceOf,
+  dealPaceWords,
   dealSendOf,
   dealSentence,
   dealSheetBody,
@@ -21078,6 +21113,7 @@ export {
   visitsIn,
   visitsOf,
   waWindow,
+  waitAfterDays,
   waitedLabel,
   waitingOnProposal,
   wallClockAt,

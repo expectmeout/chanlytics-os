@@ -178,12 +178,14 @@ const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null, pipelineRo
   const rows = people.rows;
   // The whole Pipeline says the line over the table and the rail's counts; the view and the words in the box choose
   // only which rows show under them.
-  const all = React.useMemo(() => P.of(rows, nowMs, tz), [P, rows, nowMs, tz]);
-  const inView = React.useMemo(() => (view === "all" ? all : P.of(rows, nowMs, tz, view)), [P, all, rows, nowMs, tz, view]);
+  // The workspace's pace (0008, amended), as People read it: when a proposal out is waiting, and how the line says so.
+  const pace = people.dealPace || null;
+  const all = React.useMemo(() => P.of(rows, nowMs, tz, pace), [P, rows, nowMs, tz, pace]);
+  const inView = React.useMemo(() => (view === "all" ? all : P.of(rows, nowMs, tz, pace, view)), [P, all, rows, nowMs, tz, pace, view]);
   const vm = React.useMemo(() => {
     const match = window.plMatcher(q);
-    return match ? P.of(rows.filter(match), nowMs, tz, view) : inView;
-  }, [P, inView, rows, nowMs, tz, view, q]);
+    return match ? P.of(rows.filter(match), nowMs, tz, pace, view) : inView;
+  }, [P, inView, rows, nowMs, tz, pace, view, q]);
   const rail = P.rail ? P.rail(all, nowMs) : [];
   const viewCount = inView.groups.reduce((n, g) => n + g.count, 0);
   // Past the people People holds (its fifty pages), the line counts only the loaded, and says so in People's words.
@@ -417,7 +419,7 @@ const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null, pipelineRo
               scope="pipeline"
               dealsOn
               onScope={onScope}
-              listLabel={P.viewLabel(view)}
+              listLabel={P.viewLabel(view, pace)}
               listCount={viewCount}
               onLists={() => setListsOpen(true)}
               listsOpen={listsOpen}

@@ -318,13 +318,18 @@ production first from other branches; #967 holds 00165)
 Branch `design/your-pace`. For a customer: once a workspace has five decided proposals, the peek and the deal card say
 "usually decided in N days", and "waiting" means past that pace by a fifth, with seven days until then, everywhere.
 
-- [ ] Migration: `deal_pace(p_tenant_id uuid) returns table (median_days integer, decided integer)` over the last 365
-  days' yeses (whole days from the proposal to the yes), security invoker, for members and the service role.
-- [ ] `GET contacts` answers `deal_pace` where deals are on; `packages/contracts` `dealPaceOf(dto)` (null under five)
-  and `waitAfterDays(pace)` (`round(median × 1.2)`, between 3 and 30; 7 without a pace).
-- [ ] `waitingOnProposal(row, nowMs, waitDays = WAITING_AFTER_DAYS)`: Today, the Pipeline, the deal card and People's
-  lists pass the workspace's; the line says "N waiting longer than usual" once a pace applies.
-- [ ] The words in the peek head and the card; tests; `0008` amended; the look; the gate; the PR; the push; merge.
+- [x] Migration: `deal_pace(p_tenant_id uuid) returns table (median_days integer, decided integer)` over the last 365
+  days' yeses (whole days from the proposal to the yes), security invoker, for members and the service role. Built as
+  00167: a yes is a deal standing won, or ended after a `deal.won`; the median rounds half up as numeric.
+- [x] `GET contacts` answers `deal_pace` where deals are on; `packages/contracts` `dealPaceOf(dto)` (null under five)
+  and `waitAfterDays(pace)` (`round(median × 1.2)`, between 3 and 30; 7 without a pace). Built: the person read
+  answers it too, so the deal card judges by it from its first draw.
+- [x] `waitingOnProposal(row, nowMs, waitDays = WAITING_AFTER_DAYS)`: Today, the Pipeline, the deal card and People's
+  lists pass the workspace's; the line says "N waiting longer than usual" once a pace applies. Built: the pace is a
+  REQUIRED argument (no default a caller could forget), `pipelineOf(rows, nowMs, tz, pace, view)`; no People list
+  asks the rule, so none takes it; the rail, its view's label and the crumb say "Nothing back in N days".
+- [x] The words in the peek head and the card; tests; `0008` amended; the look; the gate; the PR; the push; merge.
+  Built: the card says it, and the peek says it through the card it draws, so it is said once.
 
 ---
 

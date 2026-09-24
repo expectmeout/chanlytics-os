@@ -980,6 +980,38 @@ test("proposals waiting: out past a week with nothing back, said once, with the 
     undefined,
     "no proposal waiting: no row",
   );
+  // Once the workspace has a pace, past it by a fifth: nine days is not yet waiting on a twelve-day pace, fifteen is,
+  // and the words say longer than usual, with the pace.
+  const paced = (rows, pace) => ({ ...people(rows), dealPace: pace });
+  const twelve = { medianDays: 12, decided: 6, waitDays: 14, words: "Usually decided in 12 days" };
+  assert.equal(
+    todayLeaksV2(
+      reports({ booking: { present: false } }),
+      paced(rowsWith(3, true), twelve),
+      [],
+      4,
+      NOW.getTime(),
+    ).rows.find((r) => r.id === "proposals-waiting"),
+    undefined,
+  );
+  const late = rowsWith(2, true).map((r) => ({ ...r, deal: { ...r.deal, sinceMs: NOW.getTime() - 15 * 86_400_000 } }));
+  const lateLeak = todayLeaksV2(
+    reports({ booking: { present: false } }),
+    paced(late, twelve),
+    [],
+    4,
+    NOW.getTime(),
+  ).rows.find((r) => r.id === "proposals-waiting");
+  assert.equal(lateLeak.text, "2 proposals have waited longer than usual with nothing back.");
+  assert.equal(lateLeak.math, "2 on Proposal out · usually decided in 12 days · nothing heard since it went");
+  const lateOne = todayLeaksV2(
+    reports({ booking: { present: false } }),
+    paced(late.slice(0, 1), twelve),
+    [],
+    4,
+    NOW.getTime(),
+  ).rows.find((r) => r.id === "proposals-waiting");
+  assert.equal(lateOne.text, "1 proposal has waited longer than usual with nothing back.");
   // A proposal out six days is not waiting yet; one answered since it went is not either.
   const fresh = rowsWith(1, true).map((r) => ({ ...r, deal: { ...r.deal, sinceMs: NOW.getTime() - 6 * 86_400_000 } }));
   const answered = rowsWith(1, true).map((r) => ({ ...r, askedMs: NOW.getTime() - 86_400_000 }));
@@ -1140,7 +1172,7 @@ test("REGRESSION: one number, one clock and one sentence with the Pipeline -- th
   const edge = fetchedAt - 7 * 86_400_000 + HOUR;
   const rows = [consulted("p-a", "Abel Cruz", edge), consulted("p-b", "Bea Ortiz", daysBack(2))];
   const leak = consultsLeak(rows, { fetchedAt }, later);
-  const pipe = pipelineOf(rows, fetchedAt, "America/New_York").groups.find((g) => g.key === "consultations");
+  const pipe = pipelineOf(rows, fetchedAt, "America/New_York", null).groups.find((g) => g.key === "consultations");
   assert.equal(pipe.meta, "2 held in the last week, no proposal yet");
   assert.equal(leak.math, `${pipe.meta} · on Pipeline`, "the Pipeline's sentence, word for word");
   assert.equal(leak.text, "2 consultations in the last week ended with no proposal yet.");

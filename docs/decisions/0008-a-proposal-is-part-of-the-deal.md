@@ -445,3 +445,23 @@ many more it holds.
 - **A next step on every deal, "going cold" against the workspace's own pace,
   open tracking, accepting, paying** are the review's later phases and the
   owner's decisions, none of them started here.
+
+## Amended 24 September 2026 · Your pace
+
+The Pipeline, worked (plan `docs/superpowers/plans/2026-09-23-pipeline-worked.md`, PR 5): "waiting" was a
+week for every workspace, whatever its customers take to decide. It is now the workspace's own pace, once it has
+one (00167).
+
+- **The pace.** `deal_pace(tenant)` counts the workspace's yeses of the last 365 days, a deal standing won or one
+  that ended after a `deal.won`, and answers the median whole days from each proposal to its yes and how many there
+  were. It runs as the caller, so row security decides whose deals count. Both People reads answer it where deals
+  are on (`deal_pace`); the People surface publishes it and the person read carries it (contracts `dealPaceOf`,
+  null under five decided).
+- **Waiting.** A proposal out with nothing back waits once it is past the pace by a fifth, kept between three and
+  thirty days, and a week until there is a pace (contracts `waitAfterDays`). The one rule, `waitingOnProposal`,
+  takes the pace as a required argument, so no caller can leave it out: Today's leak, the Pipeline (its chip, its
+  line, its Waiting view and rail row, the crumb) and the deal card (its chip and its Follow up) all judge by it.
+- **The words.** A proposal's card says "Usually decided in N days" (the peek draws that card, so it says it there
+  too). The Pipeline's line says "N waiting longer than usual", its rail and crumb "Nothing back in N days", and
+  Today "N proposals have waited longer than usual with nothing back", with the pace beside it. Without a pace
+  every word is as before.

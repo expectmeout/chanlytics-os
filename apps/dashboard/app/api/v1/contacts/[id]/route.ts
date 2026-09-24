@@ -23,7 +23,7 @@ import { personLike, personVisits } from "@/server/calendar";
 import { personRuns } from "@/server/broadcasts";
 import { leadOfPerson } from "@/server/leads";
 import { personNotesRead, stepFor } from "@/server/person-notes";
-import { DEAL_DTO_COLUMNS, sellsByOf } from "@/server/deals";
+import { DEAL_DTO_COLUMNS, dealPaceRead, sellsByOf } from "@/server/deals";
 
 const digits = (s: string) => s.replace(/\D/g, "");
 
@@ -405,6 +405,7 @@ export const GET = read({
       thread,
       visits,
       notes,
+      pace,
     ] = await Promise.all([
       rowRead,
       sb.from("contact_identities").select("channel, external_id, created_at").eq("contact_id", id).order("created_at"),
@@ -477,6 +478,8 @@ export const GET = read({
       threadRead,
       visitsRead,
       notesRead,
+      // The workspace's pace (00167), for their deal card: when their proposal waits, and how long they usually take.
+      dealPaceRead(ctx, tenantId),
     ]);
     if (!row) throw new AppError("not_found", "This person is not in your workspace.", 404);
     if (history.error) throw new Error(history.error.message);
@@ -530,6 +533,7 @@ export const GET = read({
       lead,
       deals: deals ?? undefined,
       deals_on: dealsAreOn(sellsBy),
+      deal_pace: dealsAreOn(sellsBy) ? pace : null,
       services: (profile?.services ?? []).map((s) => s.name),
       consult_first: consultFirst,
       added: added.data
