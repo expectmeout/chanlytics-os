@@ -163,8 +163,11 @@ test("a question answered: the thread is made before the model is asked, the per
     },
     language: "en",
   });
+  // What the model was told each turn: the surface the palette sent must reach the prompt.
+  const systems = [];
   setAskPorts({
-    round: async (_call, onText) => {
+    round: async (call, onText) => {
+      systems.push(call.request.system.map((b) => b.text).join("\n"));
       onText(written);
       return {
         blocks: [{ type: "text", id: "", name: "", text: written, json: "" }],
@@ -234,6 +237,20 @@ test("a question answered: the thread is made before the model is asked, the per
     await again.text();
     assert.equal(tables.ask_threads.length, 1);
     assert.equal(tables.ask_messages.length, 4);
+    // Where they are rides into the turn, as contracts list the surfaces (ASK_SURFACES), Leads among them.
+    assert.ok(systems[0].includes("They are on the today page."), "the first turn's surface reached the prompt");
+    assert.ok(!systems[1].includes("They are on the"), "a follow-up sent without one names no page");
+    const onLeads = await ask.POST.run(
+      send("POST", { text: "100 nail salons in Queens, NY", surface: "leads" }, inA),
+      ctxFor(tables),
+    );
+    await onLeads.text();
+    assert.ok(systems[2].includes("They are on the Leads page"), "Leads is a surface the route accepts");
+    assert.ok(systems[2].includes("propose_lead_search"), "and the prompt steers a search there");
+    assert.equal(tables.ask_threads[1].title, "100 nail salons in Queens, NY", "titled by the owner's own words");
+    const elsewhere = await ask.POST.run(send("POST", { text: "And more?", surface: "clients" }, inA), ctxFor(tables));
+    await elsewhere.text();
+    assert.ok(!systems[3].includes("They are on the"), "a name the palette never sends is dropped, not refused");
   } finally {
     setAskPorts(null);
   }

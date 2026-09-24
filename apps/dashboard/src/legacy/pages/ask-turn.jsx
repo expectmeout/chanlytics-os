@@ -37,8 +37,10 @@ const answerMoves = (a) => [
 // what happened is also written into the conversation it holds (`onOutcome`):
 // a card drawn again from a stale outcome offered Send a second time. Its
 // Open is the contract's (cardOpenRoute), hidden where the answer already
-// offers the place (`hideOpen`, oneDoor).
-const AskCard = ({ p, messageId, t, onNav, hideOpen = false, onOutcome }) => {
+// offers the place (`hideOpen`, oneDoor). A lead search's "Change what I
+// asked" is the Line's (`onEdit`: the question back in the field, spec F4);
+// the reply editor is for replies.
+const AskCard = ({ p, messageId, t, onNav, hideOpen = false, onOutcome, onEdit }) => {
   const A = window.__ask;
   const [state, setState] = useAtState(p.outcome ? p.outcome.state : "idle");
   const [receipt, setReceipt] = useAtState(p.outcome ? p.outcome.receipt : "");
@@ -70,6 +72,11 @@ const AskCard = ({ p, messageId, t, onNav, hideOpen = false, onOutcome }) => {
       const at = Date.now();
       setState("done"); setReceipt(r.receipt); setUndoData(r.undo || null); setDoneAt(at);
       record({ state: "done", receipt: r.receipt, atMs: at, undo: r.undo || null });
+      // A search approved is opened (spec F4): the receipt's "Leads shows it" is kept true by going there.
+      if (p.kind === "lead_search" && r.undo && r.undo.search_id && onNav && A && A.cardOpenRoute) {
+        const to = A.cardOpenRoute({ ...p, outcome: { state: "done", receipt: r.receipt, atMs: at, undo: r.undo } });
+        if (to) onNav(to);
+      }
     } else {
       setState("failed"); setErr(r.message);
       record({ state: "failed", receipt: r.message, atMs: Date.now(), undo: null });
@@ -108,7 +115,7 @@ const AskCard = ({ p, messageId, t, onNav, hideOpen = false, onOutcome }) => {
           onPick: setPick,
           onChange: setEdited,
           onApprove: () => approveWith({ ...p, payload: { ...pl, plan: edited || pl.plan } }),
-          onBack: () => { if (A) A.editReply(p); },
+          onBack: () => { if (onEdit) onEdit(p); },
         })
         : <div className="ask-card-summary">{p.summary}</div>}
       {p.kind === "reply" && pl.price_warning && state === "idle" && <div className="ask-card-note">{t.priceNote}</div>}
@@ -194,7 +201,7 @@ const AskBreakdown = ({ b, t, onNav }) => {
 // names), Do (the cards, then one row: Try again, Open as the kit's button, the next questions as chips). `walk`: this
 // is the answer the keys walk, whose moves carry the ids the line points at (answerMoves' order) and `sel` is the one
 // they stand on; a folded answer has none.
-const AskAnswer = ({ answer, cardOpen, cards, messageId, retry, walk = false, sel = -1, t, onNav, onFollow, onOutcome }) => {
+const AskAnswer = ({ answer, cardOpen, cards, messageId, retry, walk = false, sel = -1, t, onNav, onFollow, onOutcome, onEdit }) => {
   const [receipt, setReceipt] = useAtState(-1);
   const a = answer;
   const hasShow = a.show.figures.length > 0 || a.show.items.length > 0 || !!a.show.breakdown;
@@ -266,7 +273,7 @@ const AskAnswer = ({ answer, cardOpen, cards, messageId, retry, walk = false, se
           <span className="ask-mark m3" aria-hidden="true" data-testid="ask-mark" />
           <div className="ask-do">
             {(cards || []).map((p) => (
-              <AskCard key={p.id} p={p} messageId={messageId} t={t} onNav={onNav} onOutcome={onOutcome} hideOpen={!!cardOpen && cardOpen[p.id] === false} />
+              <AskCard key={p.id} p={p} messageId={messageId} t={t} onNav={onNav} onOutcome={onOutcome} onEdit={onEdit} hideOpen={!!cardOpen && cardOpen[p.id] === false} />
             ))}
             {retry || a.do.open || a.do.next.length ? (
               <div className="ask-do-row">
@@ -293,7 +300,7 @@ const AskAnswer = ({ answer, cardOpen, cards, messageId, retry, walk = false, se
 // the detail, as the answer draws them) or a v1 turn's words, with a cursor after the last; Show and Do wait for the
 // final message (spec 7.4), and the Line says the answer once it is whole, not every piece (spec 6.10). A failed turn
 // says why and, on the latest only, offers Try again (N20). A quick answer (no model) is drawn the same way, from `quick`.
-const AskTurn = ({ m, q, quick, say, latest = false, streaming = false, walk = false, sel = -1, t, lang, onFollow, onNav, onRetry, onOutcome }) => {
+const AskTurn = ({ m, q, quick, say, latest = false, streaming = false, walk = false, sel = -1, t, lang, onFollow, onNav, onRetry, onOutcome, onEdit }) => {
   const A = window.__ask;
   if (streaming) {
     const cursor = <span className="ask-cursor" />;
@@ -335,6 +342,7 @@ const AskTurn = ({ m, q, quick, say, latest = false, streaming = false, walk = f
         onNav={onNav}
         onFollow={onFollow}
         onOutcome={onOutcome}
+        onEdit={onEdit}
       />
       {m && m.ungrounded ? <div className="ask-unverified"><Icon name="alert" size={11} /> {t.unverified}</div> : null}
     </div>
