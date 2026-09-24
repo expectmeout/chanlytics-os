@@ -15666,7 +15666,7 @@ function figuresOf(m, conversations, callsInWindow, escalations, tz, now) {
   };
   return [messages, answered, calls, newPeople];
 }
-function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ new Date()) {
+function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ new Date(), searches = null) {
   const tz = m.workspace.timezone;
   const p = m.period;
   const live = m.now;
@@ -16095,13 +16095,40 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       waitedMs: Number.NEGATIVE_INFINITY
     });
   }
+  const SEARCH_WARN_MS = 12 * 36e5;
+  for (const s of searches ?? []) {
+    const r2 = s.round;
+    if (!r2 || r2.state !== "waiting_on_owner" || !r2.question) continue;
+    const since = r2.waiting_since ? new Date(r2.waiting_since).getTime() : now.getTime();
+    const waitedMs = Math.max(0, now.getTime() - since);
+    queueAll.push({
+      id: `q-s-${s.id}`,
+      kind: "search",
+      conversationId: null,
+      callId: null,
+      who: s.name,
+      initials: initialsOf(s.name),
+      channel: "Leads",
+      when: `waited ${formatWaited(waitedMs)}`,
+      sentence: r2.question.sentence,
+      quoted: false,
+      status: ["Waiting for your answer", "nothing is spent while it waits"],
+      tone: "escalated",
+      warn: waitedMs > SEARCH_WARN_MS,
+      cta: { label: "Answer", to: leadQuestionRoute(s.id) },
+      also: null,
+      waitedMs
+    });
+  }
   queueAll.sort((a, b) => b.waitedMs - a.waitedMs);
   const countOf = (...kinds) => queueAll.filter((r2) => kinds.includes(r2.kind)).length;
   const needN = countOf("handoff", "callback");
   const winN = countOf("window");
   const earN = countOf("call");
+  const searchN = countOf("search");
   const parts2 = [
     needN ? `${needN} need you` : "",
+    searchN ? `${searchN} ${searchN === 1 ? "search" : "searches"} waiting for your answer` : "",
     winN ? `${winN} reply window${winN === 1 ? "" : "s"} closing` : "",
     earN ? `${earN} call${earN === 1 ? "" : "s"} worth a listen` : ""
   ].filter(Boolean);
@@ -16110,7 +16137,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
     more: Math.max(0, queueAll.length - TODAY_QUEUE_MAX),
     parts: parts2,
     empty: queueEmpty,
-    waiting: needN + winN
+    waiting: needN + winN + searchN
   };
   return {
     standing: {

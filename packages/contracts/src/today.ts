@@ -48,6 +48,7 @@ import { conversationOfNeedsKey, callOfKey, unreadCount } from "./notifications"
 import { channelKindWords, CHANNEL_ANSWERED } from "./channels";
 import { formatPhoneDisplay } from "./phone";
 import { EMAIL_NOT_ANSWERED_SENTENCE, type EmailSetupDto } from "./mailbox";
+import { leadQuestionRoute, type LeadSearchDto } from "./leads";
 
 /**
  * One wire a workspace can be reached on.
@@ -172,7 +173,7 @@ export interface TodaySentenceVM {
  */
 export interface TodayQueueRowVM {
   id: string;
-  kind: "handoff" | "callback" | "window" | "call";
+  kind: "handoff" | "callback" | "window" | "call" | "search";
   /** The thread this row is about; null for a call with no thread. The away card drops a bell row about the same thread. */
   conversationId: string | null;
   /** The call this row is about: a call-back's newest call, a call worth a listen; null otherwise. */
@@ -181,8 +182,9 @@ export interface TodayQueueRowVM {
   initials: string;
   /** The wire, in the words a row shows. It was `"WhatsApp" | "Phone"`, which is
    *  what let every escalation row be hard-coded to WhatsApp: the type could
-   *  not have held an email even if the code had tried to put one there. */
-  channel: "WhatsApp" | "Phone" | "Text" | "Email";
+   *  not have held an email even if the code had tried to put one there.
+   *  "Leads" is a search waiting on its owner (spec G6), the one row that is not a person. */
+  channel: "WhatsApp" | "Phone" | "Text" | "Email" | "Leads";
   /** "waited 2h" · "closes 5:10 PM · in 40m" · "2:14 PM · 1:35". */
   when: string;
   sentence: string;
@@ -719,6 +721,8 @@ export function toTodayVM(
   escalations: Array<EscalationDto & { conversation_id: string }>,
   calls: CallDto[] | null,
   now = new Date(),
+  // After `now`, so every caller that never read the searches stands; null is "not read", the queue says nothing.
+  searches: LeadSearchDto[] | null = null,
 ): TodayVM {
   const tz = m.workspace.timezone;
   const p = m.period;
@@ -1347,13 +1351,42 @@ export function toTodayVM(
       waitedMs: Number.NEGATIVE_INFINITY,
     });
   }
+  // A search that stopped to ask waits on the owner like a person does (spec G6): its name, its question, one
+  // button to answer it. Null: the searches were not read; the queue says nothing about them.
+  const SEARCH_WARN_MS = 12 * 3600000; // the sweep stops a question after a day
+  for (const s of searches ?? []) {
+    const r = s.round;
+    if (!r || r.state !== "waiting_on_owner" || !r.question) continue;
+    const since = r.waiting_since ? new Date(r.waiting_since).getTime() : now.getTime();
+    const waitedMs = Math.max(0, now.getTime() - since);
+    queueAll.push({
+      id: `q-s-${s.id}`,
+      kind: "search",
+      conversationId: null,
+      callId: null,
+      who: s.name,
+      initials: initialsOf(s.name),
+      channel: "Leads",
+      when: `waited ${formatWaited(waitedMs)}`,
+      sentence: r.question.sentence,
+      quoted: false,
+      status: ["Waiting for your answer", "nothing is spent while it waits"],
+      tone: "escalated",
+      warn: waitedMs > SEARCH_WARN_MS,
+      cta: { label: "Answer", to: leadQuestionRoute(s.id) },
+      also: null,
+      waitedMs,
+    });
+  }
   queueAll.sort((a, b) => b.waitedMs - a.waitedMs);
   const countOf = (...kinds: TodayQueueRowVM["kind"][]) => queueAll.filter((r) => kinds.includes(r.kind)).length;
   const needN = countOf("handoff", "callback");
   const winN = countOf("window");
   const earN = countOf("call");
+  const searchN = countOf("search");
   const parts = [
     needN ? `${needN} need you` : "",
+    searchN ? `${searchN} ${searchN === 1 ? "search" : "searches"} waiting for your answer` : "",
     winN ? `${winN} reply window${winN === 1 ? "" : "s"} closing` : "",
     earN ? `${earN} call${earN === 1 ? "" : "s"} worth a listen` : "",
   ].filter(Boolean);
@@ -1362,7 +1395,7 @@ export function toTodayVM(
     more: Math.max(0, queueAll.length - TODAY_QUEUE_MAX),
     parts,
     empty: queueEmpty,
-    waiting: needN + winN,
+    waiting: needN + winN + searchN,
   };
 
   return {

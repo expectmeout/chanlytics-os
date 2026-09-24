@@ -23,6 +23,7 @@ import {
   PEOPLE_LISTS,
   peopleListAction,
   stateOf,
+  leadQuestionRoute,
 } from "@chanlytics/contracts";
 import { installLegacyReact, fresh, again, all, find, byTestId, textOf, classes, press } from "./_legacy-react.mjs";
 
@@ -877,6 +878,52 @@ test("four rows: people take three while a run wants the fourth, and all four wh
     null,
     "with the fourth person drawn there is nothing left to count",
   );
+});
+
+test("a search waiting on you is a row of the queue like a person: its name, its wait, its question, one Answer that opens it", () => {
+  clear();
+  // Stopped to ask at 1 PM, three hours before NOW.
+  const waiting = {
+    id: "s-wait",
+    name: "Personal trainers in Austin",
+    asked: "personal trainers in Austin that are not big gyms",
+    asked_on: "2026-09-17T15:00:00Z",
+    plan: { version: 1, card: "local_businesses", name: "Personal trainers in Austin" },
+    plan_version: 1,
+    round: {
+      id: "rd1",
+      seq: 1,
+      purpose: "find",
+      state: "waiting_on_owner",
+      ending: null,
+      question: { sentence: "Most of the first 25 are chain gyms. Include them?", criterion_key: "chains" },
+      target: 20,
+      counted: 25,
+      qualified: 20,
+      review: 0,
+      excluded: 5,
+      emails_checked: 0,
+      with_phone: 18,
+      ending_pending: false,
+      waiting_since: "2026-09-18T17:00:00Z",
+      cost_usd: 1.2,
+      ended_at: null,
+      undo_op_id: null,
+      undo_version: null,
+      nearby: [],
+    },
+  };
+  const vm = toTodayVM(metrics(), threads(), escalations(), calls(), NOW, [waiting]);
+  set({ TODAY_DATA: vm, __BROADCASTS: { rows: [] } });
+  const queue = byTestId(draw(W.AgentCommand), "today-queue");
+  const row = byTestId(queue, "queue-search");
+  assert.ok(row, "the search is drawn by the same row as every person");
+  assert.equal(textOf(find(row, (n) => classes(n).includes("cl-attn-who"))), waiting.name);
+  assert.ok(textOf(row).includes("Leads, waited 3h"), textOf(row));
+  assert.ok(textOf(row).includes(waiting.round.question.sentence), "the question, as the search asked it");
+  assert.match(textOf(find(queue, (n) => classes(n).includes("tq-sub"))), /1 search waiting for your answer/);
+  press(buttons(row, "Answer")[0]);
+  assert.equal(went.at(-1), leadQuestionRoute("s-wait"), "straight to the search, open on its question");
 });
 
 /* ------------------------------------ the day ------------------------------------ */
