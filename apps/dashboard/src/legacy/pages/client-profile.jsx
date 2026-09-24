@@ -954,8 +954,13 @@ const PersonLists = ({ personId, canEdit, first, flash, smart = [] }) => {
     if (!r.ok) { flash({ tone: "danger", msg: <>{r.message || "Could not change the list."}</> }); return; }
     flash({ msg });
   };
+  // Not read yet is not "no lists": a profile opened straight from a link reads People after the person, and says so
+  // until it lands (surface:clients redraws this).
+  if (!window.__PEOPLE) {
+    return <div className="cl-prof-aut-hint" role="status" aria-busy="true" data-testid="person-lists-reading">Reading…</div>;
+  }
   // Lists that could not be read are not "no lists": the read failed, and the rest of the profile stands.
-  if (window.__PEOPLE && window.__PEOPLE.savedRead === false) {
+  if (window.__PEOPLE.savedRead === false) {
     return <FailedRead kind="line" what="their lists" surface="people" testid="person-lists-failed" />;
   }
   // The lists that keep themselves current and have them on today (contracts PersonVM.smartLists): each opens on People.
@@ -972,7 +977,7 @@ const PersonLists = ({ personId, canEdit, first, flash, smart = [] }) => {
       <div className="cl-prof-lists">
         {smartChips.length > 0 && <div className="cl-tag-stack cl-prof-list-chips">{smartChips}</div>}
         <div className="cl-prof-aut-hint">
-          No lists kept by hand yet.{" "}
+          {smartChips.length > 0 ? "No lists of your own yet." : "No lists yet."}{" "}
           <button type="button" className="cl-bucket-link" onClick={() => window.CHANLY.nav("clients/new-list")} data-testid="person-lists-make">Make one on People <Icon name="arrow-right" size={10} /></button>
         </div>
       </div>

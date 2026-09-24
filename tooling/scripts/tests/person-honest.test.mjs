@@ -931,6 +931,28 @@ test("a frame with nobody to draw has no rail column; History leads About; ten s
   assert.match(textOf(history), /1 call, 12 s/, textOf(history));
 });
 
+test("a profile opened before People is read says it is reading their lists -- it said there were none (decision 0009)", async () => {
+  const vm = toPersonVM(detail({ row: row({ visits: VISITS }) }), ZONE, new Date(NOW));
+  const saved = globalThis.window.__PEOPLE;
+  delete globalThis.window.__PEOPLE;
+  try {
+    // As the shell draws it in a real workspace (real), before People is read.
+    globalThis.window.__personDetail = async () => vm;
+    cells = [];
+    const draw = () => {
+      frames.begin();
+      return globalThis.window.ClientProfile({ id: vm.id, real: true, onBack: () => {} });
+    };
+    draw();
+    await settle();
+    const lists = byTestId(draw(), "person-lists");
+    assert.ok(byTestId(lists, "person-lists-reading"), "Reading…, until People lands");
+    assert.doesNotMatch(textOf(lists), /No lists/, "REGRESSION: a cold load said there were no lists");
+  } finally {
+    if (saved) globalThis.window.__PEOPLE = saved;
+  }
+});
+
 test("a person known by number is invited to name them; an empty Lists section is a door to Lists", async () => {
   const vm = toPersonVM(
     detail({ row: row({ visits: VISITS, display_name: null, wa_profile_name: null }) }),
@@ -950,7 +972,9 @@ test("a person known by number is invited to name them; an empty Lists section i
     );
     assert.ok(String(rename.props.className).includes("is-plain"));
     const lists = byTestId(tree, "person-lists");
-    assert.match(textOf(lists), /No lists kept by hand yet\./);
+    // Smart lists hold for them (Booked), so what is missing is a list of the workspace's own: never "kept by hand",
+    // which said nothing of a list with a rule.
+    assert.match(textOf(lists), /No lists of your own yet\./);
     went.length = 0;
     press(byTestId(lists, "person-lists-make"));
     assert.deepEqual(
