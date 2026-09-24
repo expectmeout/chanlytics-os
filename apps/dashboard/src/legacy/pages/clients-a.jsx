@@ -654,30 +654,6 @@ const ClientsASeed = ({ onOpenProfile = () => {}, initialSegment = null }) => {
 const PL_TABS = ["needs_you", "waiting_on_you", "new", "quiet", "active"];
 const PL_TAB_LABEL = { all: "All", needs_you: "Needs you", waiting_on_you: "Waiting on you", new: "New", quiet: "Quiet", active: "Active" };
 
-const PL_LIST_TIP = {
-  needs_you: "An open escalation, or a thread waiting for a person",
-  waiting_on_you: "You have the thread, or nobody does, and they wrote last — a teammate's waits on them",
-  // A note with a day (0007, amended): every workspace's.
-  steps_due: "Their next step's day has come, or gone by — a note with a day, for the team",
-  new_week: "First contact in the last 7 days, by evidence — imported history never counts",
-  quiet: "They haven't written or called in 30 days — your own messages don't count, and someone never heard from isn't quiet",
-  phoned_only: "Only ever phoned — no WhatsApp thread",
-  opted_in: "Said yes to hearing from you — replies and messages about their own visit",
-  // The list is who can RECEIVE an offer (contracts mayReceive): a yes with no number to send to is not on it.
-  offers_ok: "Said yes to OFFERS, separately, with a number to send to — the only people a promotional broadcast may reach",
-  opted_out: "Asked to stop; the receptionist stays silent, offers included",
-  booked: "An appointment ahead on your calendar — the booking is the conversion",
-  booked_week: "An appointment this week, Monday to Sunday",
-  asked_never_booked: "Wrote or called in the last 30 days, and nothing on your calendar since answers it — the people you can still win",
-  lapsed: "Forty-five days or more since their last visit, nothing ahead — the win-back list, from visits rather than silence",
-  // The journey past the booking (0004): drawn only where deals are a thing here.
-  consultation_booked: "A consultation coming up, or one this past week with no proposal since — the Pipeline's Consultations",
-  proposal_out: "A proposal went out and is waiting on their answer",
-  clients: "Said yes, or paid — the engagement is running",
-  deal_passed: "They passed on a proposal",
-  deal_ended: "An engagement that ended — the win-back list for clients",
-};
-
 // What the page remembers between visits on this device, per scope: the sort and the columns
 // ({ sortBy, sortDir, columns }), and under Leads the rail's list too ({ list, sortBy, sortDir, columns }).
 const PL_VIEW_KEYS = { people: "chanlytics-people-view", leads: "chanlytics-leads-view", pipeline: "chanlytics-pipeline-view" };
@@ -1115,9 +1091,11 @@ const PeopleListsSheet = ({ onClose, title = "Lists", children }) => {
 const plListRoute = (id) => {
   const people = window.__PEOPLE;
   if (!id || !people) return "clients";
-  if ((people.saved || []).some((s) => s.id === id)) return `clients/list:${id}`;
+  if ([...(people.saved || []), ...(people.archived || [])].some((s) => s.id === id)) return `clients/list:${id}`;
   if ((people.lists || []).some((l) => l.id === id)) return `clients/seg:${id}`;
-  return "clients";
+  // One People doesn't have: its own address all the same, where People says it isn't here rather than showing
+  // Everyone. A saved list's id is a uuid; a built-in's is a word.
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) ? `clients/list:${id}` : `clients/seg:${id}`;
 };
 window.__listRoute = plListRoute;
 
@@ -1171,10 +1149,29 @@ const RailSection = ({ label, icon = null, testid = null, children }) => (
  * empty or not, and so is the list of all of them. `quietOf` answers the rows that step back; `RailEmpty` says them.
  */
 const railQuiet = (rows, keep) => rows.filter((r) => r.count === 0 && !keep(r));
+// The list the address names when People doesn't have it: one of People's this workspace can't count (a calendar not
+// read, deals off), archived (it comes back from the rail's Archived line), or not here at all -- deleted, or from
+// another workspace. Null when the list is here, when none is named, or when the lists could not be read (the rail
+// says that).
+const plListGone = ({ listId, activeList, savedId, activeSaved, people }) => {
+  if (listId && !activeList) {
+    // One of People's this workspace doesn't show: a calendar that couldn't be read, deals off. Can't tell, not gone.
+    const hidden = (people.hidden || []).find((h) => h.id === listId);
+    return hidden
+      ? { title: `${hidden.label} can't be counted here`, body: hidden.why }
+      : { title: "This list isn't here", body: "People doesn't have a list by that name. The link may be old." };
+  }
+  if (!savedId || activeSaved || people.savedRead === false) return null;
+  const archived = (people.archived || []).find((a) => a.id === savedId);
+  return archived
+    ? { title: `${archived.name} is archived`, body: "It comes back from Archived under your lists.", archived }
+    : { title: "This list isn't here", body: "It was deleted, or the link is from another workspace." };
+};
+// The labels are words, or a list's own button (the Saved section's, which still open their lists).
 const RailEmpty = ({ labels, testid = null }) =>
   labels.length ? (
     <p className="cl-rail-empty" data-testid={testid || undefined}>
-      Empty now: {labels.join(" · ")}
+      Empty now: {labels.map((l, i) => <React.Fragment key={i}>{i > 0 ? " · " : null}{l}</React.Fragment>)}
     </p>
   ) : null;
 
@@ -1244,7 +1241,7 @@ const PeopleRail = ({ scope = "people", onScope = () => {}, scopeTabs = true, de
           <RailGroup key={g.id} label={g.label} testid={`rail-group-${g.id}`}>
             {own.filter((l) => !quiet.includes(l)).map((l) => (
               // A list of people who need you counts in amber (the tone map decides which: warn); every other count is a total.
-              <RailRow key={l.id} smart label={l.label} count={l.count} active={active === l.id} onPick={() => onPick(l.id)} tip={PL_LIST_TIP[l.id] || null} className={window.__chrome && window.__chrome.state && window.__chrome.state("person", l.id).tone === "warn" ? "asks" : ""} />
+              <RailRow key={l.id} smart label={l.label} count={l.count} active={active === l.id} onPick={() => onPick(l.id)} tip={l.tip || null} className={window.__chrome && window.__chrome.state && window.__chrome.state("person", l.id).tone === "warn" ? "asks" : ""} />
             ))}
           </RailGroup>
         );
@@ -1252,13 +1249,17 @@ const PeopleRail = ({ scope = "people", onScope = () => {}, scopeTabs = true, de
       {/* The sheet's one quiet line: every empty list, in the rail's own order (a line a group read as clutter). */}
       {compact ? <RailEmpty labels={railQuiet(lists, (l) => active === l.id).map((l) => l.label)} testid="rail-empty" /> : null}
     </RailSection>
-    <RailSection label="Saved" testid="saved-lists">
+    {/* On a phone's sheet an empty list of the workspace's own is a word in the quiet line, as a smart list's is (one
+        that can't be counted keeps its row and its dash); and a sheet with none of its own draws no Saved over nothing. */}
+    <RailSection label={compact && savedRead && saved.length === 0 && archived.length === 0 ? null : "Saved"} testid="saved-lists">
       {/* Lists that could not be read are not "no lists": the read failed, and the people above stand. */}
       {!savedRead && <FailedRead kind="line" what="your saved lists" surface="people" testid="people-lists-failed" />}
-      {saved.map((s) => (
+      {saved.filter((s) => !(compact && railQuiet(saved.filter((x) => !x.unknown), (x) => activeSaved === x.id).includes(s))).map((s) => (
         // A list that can't be counted here draws a dash and says why on hover: can't tell is not nobody.
-        <RailRow key={s.id} smart={!s.byHand} label={s.name} count={s.unknown ? "—" : s.count} active={activeSaved === s.id} onPick={() => onPickSaved(s.id)} tip={s.unknown || (s.byHand ? "A list kept by hand — add people from their profile" : `Keeps itself current: ${(s.rule || []).join(" · ")}`)} testid={s.byHand ? undefined : "saved-smart"} />
+        <RailRow key={s.id} smart={!s.byHand} label={s.name} count={s.unknown ? "—" : s.count} active={activeSaved === s.id} onPick={() => onPickSaved(s.id)} tip={s.tip} testid={s.byHand ? undefined : "saved-smart"} />
       ))}
+      {/* Each name opens its list: an empty list is still renamed, deleted and filled from its own page. */}
+      {compact ? <RailEmpty labels={railQuiet(saved.filter((x) => !x.unknown), (x) => activeSaved === x.id).map((s) => <button key={s.id} type="button" className="cl-bucket-link" onClick={() => onPickSaved(s.id)} data-testid="saved-empty-open">{s.name}</button>)} testid="saved-empty" /> : null}
       {savedRead && saved.length === 0 && !compact && (
         <div className="cl-rail-hint">No lists yet. Keep one by hand — regulars, one staff member's customers — or describe who, and it keeps itself current.</div>
       )}
@@ -2532,9 +2533,10 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
   // Whether deals are on here (the surface's dealsOn, 0008): the Deal column is offered, and the switch has the
   // Pipeline, only then.
   const dealsOn = !!people.dealsOn;
-  const listFor = (id) => (id && lists.some((l) => l.id === id) ? id : null);
-  const [listId, setListId] = useState(listFor(initialSegment));
-  React.useEffect(() => { setListId(listFor(initialSegment)); }, [initialSegment]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The list the address names, as it names it: one People doesn't have here is said to be missing (listGone, below),
+  // never swapped for Everyone.
+  const [listId, setListId] = useState(initialSegment || null);
+  React.useEffect(() => { setListId(initialSegment || null); }, [initialSegment]);
   const saved = people.saved || PL_NO_LISTS;
   const [savedId, setSavedId] = useState(initialSaved);
   React.useEffect(() => { setSavedId(initialSaved); }, [initialSaved]);
@@ -2588,8 +2590,11 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
   React.useEffect(() => {
     const cur = (window.location.hash || "").replace(/^#\/?/, "");
     if (!cur.startsWith("clients")) return;
-    if (/^clients\/(?!seg:|list:|state:|pipeline(:|$))./.test(cur)) return;
+    // The New list door's address stands while the box is what it opened; once a list is made (or any view picked),
+    // the address is that view's, so a reload opens the list and not the box again.
     const want = listId ? `seg:${listId}` : savedId ? `list:${savedId}` : tab !== "all" ? `state:${tab}` : "";
+    if (cur === "clients/new-list" && !want) return;
+    if (/^clients\/(?!seg:|list:|state:|pipeline(:|$)|new-list$)./.test(cur)) return;
     const next = want ? `#/clients/${want}` : "#/clients";
     if (window.location.hash !== next) window.history.replaceState(null, "", next);
   }, [listId, savedId, tab]);
@@ -2662,6 +2667,15 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
 
   const activeList = listId && lists.find((l) => l.id === listId);
   const activeSaved = savedId && saved.find((s) => s.id === savedId);
+  // A list the address names that People doesn't have (decision 0009): a link kept, an answer's jump, a teammate's
+  // delete. It is said, and nobody is shown, rather than Everyone under its name. An archived one says how it comes back.
+  const listGone = plListGone({ listId, activeList, savedId, activeSaved, people });
+  // Export follows the list that is open (decision 0009): the route counts it as a send does, every member; with no
+  // list open it is everyone.
+  const exportName = activeSaved ? activeSaved.name : activeList ? activeList.label : null;
+  // A list that can't be counted here, or isn't here, has no file to take: said on the button, never a refusal page.
+  const exportBlocked = activeSaved && activeSaved.unknown ? activeSaved.unknown : listGone ? listGone.title : null;
+  const exportHref = window.__href ? window.__href("GET contacts/export", undefined, exportName ? { list: activeSaved ? `list:${activeSaved.id}` : `seg:${activeList.id}` } : undefined) : null;
   const listStep = (activeSaved && activeSaved.action) || (activeList && activeList.action) || null;
   // One list open at a time: it is the page's title, so two open at once would be a title over a table it does
   // not describe. Picking the open one again shows everyone.
@@ -2791,7 +2805,7 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
     { header: "Sort" },
     ...PL_PHONE_SORTS.filter((s) => !s.needs || s.needs({ withCalendar })).map((s) => ({ label: s.label, checked: sortBy === s.by && sortDir === s.dir, onClick: () => pickSort(s.by, s.dir) })),
     // The route's file of everyone: a download (it answers as an attachment), so the page stays where it is.
-    ...(window.__href ? [{ divider: true }, { label: "Export everyone", icon: "external", meta: "CSV", onClick: () => window.location.assign(window.__href("GET contacts/export")), ...(canExport ? {} : { gate: window.gate("export") }) }] : []),
+    ...(window.__href && !exportBlocked ? [{ divider: true }, { label: exportName ? `Export ${exportName}` : "Export everyone", icon: "external", meta: "CSV", onClick: () => window.location.assign(exportHref), ...(canExport ? {} : { gate: window.gate("export") }) }] : []),
     ...(activeSaved && canEditLists && window.__lists ? [
       { divider: true },
       { label: "Rename this list", icon: "edit", onClick: () => { setListDraft({ ...PL_LIST_EMPTY, name: activeSaved.name }); setListAct("rename"); } },
@@ -2832,7 +2846,7 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
               scope="people"
               onScope={(to) => nav(plScopeRoute(to))}
               dealsOn={dealsOn}
-              listLabel={activeSaved ? activeSaved.name : activeList ? activeList.label : "Everyone"}
+              listLabel={activeSaved ? activeSaved.name : activeList ? activeList.label : listGone ? listGone.title : "Everyone"}
               onLists={() => setListsOpen(true)}
               listsOpen={listsOpen}
               q={q}
@@ -2866,7 +2880,9 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
               {window.__href && (
                 window.canDo && !window.canDo("export")
                   ? <button className="btn btn-ghost btn-sm" {...window.gate("export")}><Icon name="external" size={12} /> Export CSV</button>
-                  : <a className="btn btn-ghost btn-sm" href={window.__href("GET contacts/export")} download title="Download everyone as a CSV file"><Icon name="external" size={12} /> Export CSV</a>
+                  : exportBlocked
+                  ? <button className="btn btn-ghost btn-sm" disabled data-tip={exportBlocked} data-testid="people-export"><Icon name="external" size={12} /> Export CSV</button>
+                  : <a className="btn btn-ghost btn-sm" href={exportHref} download title={exportName ? `Download the people on ${exportName} as a CSV file` : "Download everyone as a CSV file"} data-testid="people-export"><Icon name="external" size={12} /> Export CSV</a>
               )}
               {/* No sort button: every heading that sorts is a button with its arrow (cl-th-sort), so "Z → A" beside
                   them only turned round an order the table already shows and changes. */}
@@ -2889,8 +2905,10 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
                   ? <ListTitle list={activeSaved} canEdit={canEditLists && !!window.__lists} onRenamed={(n) => plFlash({ msg: <>Renamed to <b>{n}</b></> })} />
                   : activeList
                     ? <span className="cl-section-title" data-testid="smart-filter"><Icon name="sparkle" size={12} />{activeList.label}</span>
-                    : <span className="cl-section-title">Everyone</span>}
-                {(activeList || activeSaved) && (
+                    : listGone
+                      ? <span className="cl-section-title" data-testid="list-gone">{listGone.title}</span>
+                      : <span className="cl-section-title">Everyone</span>}
+                {(activeList || activeSaved || listGone) && (
                   <button type="button" className="cl-bucket-link" onClick={() => { setListId(null); setSavedId(null); }} data-testid="show-everyone">Show everyone</button>
                 )}
                 {activeSaved && canEditLists && <DeleteListButton list={activeSaved} onDeleted={(r) => { if (r.archived) plFlash({ msg: plArchivedWords(activeSaved.name, r) }); setSavedId(null); }} />}
@@ -2948,7 +2966,7 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
             scrolled={scrolledX}
             onScrolled={setScrolledX}
             busy={searching}
-            empty={activeSaved && activeSaved.count === 0 && tab === "all" && !listId && !q.trim() ? (activeSaved.unknown ? { title: `${activeSaved.name} can't be counted right now`, body: activeSaved.unknown, action: { label: "Show everyone", onClick: () => setSavedId(null) } } : activeSaved.byHand ? { title: `Nobody on ${activeSaved.name} yet`, body: "Pick people and use Add to list, or add them from their profile.", action: { label: "Show everyone", onClick: () => setSavedId(null) } } : { title: `Nobody on ${activeSaved.name} right now`, body: "It keeps itself current: its people appear here when its rule holds for them.", action: { label: "Show everyone", onClick: () => setSavedId(null) } }) : null}
+            empty={listGone ? { title: listGone.title, body: listGone.body, action: listGone.archived && canEditLists && window.__lists ? { label: "Bring it back", onClick: () => restoreList(listGone.archived) } : { label: "Show everyone", onClick: () => { setListId(null); setSavedId(null); } } } : activeSaved && activeSaved.count === 0 && tab === "all" && !listId && !q.trim() ? (activeSaved.unknown ? { title: `${activeSaved.name} can't be counted right now`, body: activeSaved.unknown, action: { label: "Show everyone", onClick: () => setSavedId(null) } } : activeSaved.byHand ? { title: `Nobody on ${activeSaved.name} yet`, body: "Pick people and use Add to list, or add them from their profile.", action: { label: "Show everyone", onClick: () => setSavedId(null) } } : { title: `Nobody on ${activeSaved.name} right now`, body: "It keeps itself current: its people appear here when its rule holds for them.", action: { label: "Show everyone", onClick: () => setSavedId(null) } }) : null}
           />
           {hasMore && (
             <div className="cl-section-sub pl-more" data-testid="people-more">
