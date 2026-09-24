@@ -8454,6 +8454,12 @@ function savedListTip(list2) {
 var PeopleExportQuerySchema = z7.object({
   list: z7.string().max(80).refine((t) => parseListToken(t) !== null, "Name a list by its token.").optional()
 });
+function ruleNeedsViewer(rule) {
+  if (rule == null) return false;
+  const r2 = asListRule(rule);
+  return !!r2 && ruleNeeds(r2).includes("viewer");
+}
+var viewerListWords = (name) => `${name} is about whoever is looking ("me"), and a playbook's run has no one looking. Pick a list that says who by what they did.`;
 
 // src/people.ts
 var PERSON_MODES = ["auto", "ask", "never"];
@@ -9693,7 +9699,7 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date(), viewerId = null) {
     ownMessages: ownMessagesOf(d, stamp),
     smartLists: PEOPLE_LISTS.filter(
       (l) => l.onProfile !== false && (!l.needsCalendar || d.visits?.state === "ok") && l.test(base)
-    ).map((l) => ({ id: l.id, label: l.label })),
+    ).map((l) => ({ id: l.id, label: l.label, why: listRuleWhy(l.rule, base) })),
     campaigns: campaignsOf(d, tz, nowMs),
     lead: d.lead ? {
       id: d.lead.id,
@@ -22012,6 +22018,7 @@ export {
   ruleFacts,
   ruleLists,
   ruleNeeds,
+  ruleNeedsViewer,
   ruleParts,
   ruleStrength,
   rulesKept,
@@ -22182,6 +22189,7 @@ export {
   verbForRoute,
   verbalOptInScript,
   verifyCodeWords,
+  viewerListWords,
   violatesNoPrices,
   visitAnswersAsk,
   visitDateKey,

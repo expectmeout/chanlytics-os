@@ -1008,7 +1008,7 @@ const DeleteListButton = ({ list, onDeleted }) => {
 
 // A list kept by hand is named where it is shown: the title turns into the box, Enter saves, Escape leaves.
 // Lists had a Rename button of its own; here the list IS the page's title while it is open.
-const ListTitle = ({ list, canEdit, onRenamed }) => {
+const ListTitle = ({ list, canEdit, onRenamed, onEditRule = null }) => {
   const [editing, setEditing] = React.useState(false);
   const [name, setName] = React.useState("");
   const [busy, setBusy] = React.useState(false);
@@ -1033,6 +1033,7 @@ const ListTitle = ({ list, canEdit, onRenamed }) => {
             why instead (lists.ts listUnknownWords), never a 0. */}
         {list.rule && <span className="cl-list-rule" data-testid="list-rule">{list.rule.join(" · ")}</span>}
         {list.unknown && <span className="cl-list-rule" data-testid="list-unknown">{list.unknown}</span>}
+        {canEdit && list.rule && onEditRule && <button type="button" className="cl-bucket-link cl-list-rule-edit" onClick={onEditRule} data-testid="list-rule-edit">Change who</button>}
         {canEdit && (
           <button type="button" className="cl-list-rename" title="Rename the list" aria-label="Rename the list" onClick={() => { setName(list.name); setError(null); setEditing(true); }} data-testid="list-rename">
             <Icon name="edit" size={11} />
@@ -1059,6 +1060,72 @@ const ListTitle = ({ list, canEdit, onRenamed }) => {
       <button type="button" className="btn btn-sm btn-primary" disabled={busy || !name.trim()} onClick={save} data-testid="list-rename-save">{busy ? "Saving…" : "Save"}</button>
       <window.FieldError id="list-rename-error" message={error} testid="list-rename-error" />
     </span>
+  );
+};
+
+// Who a smart list of the workspace's own is (decision 0009): its rule now, and a new one drafted from the owner's words
+// the way a new list's is (window.__lists.draft), shown back as chips with who it holds for today before it is saved.
+// The desktop's title line opens it under the title; the phone's more-menu opens it in a sheet, which is where a phone
+// sees the rule at all.
+const RuleEditor = ({ list, flash, onDone }) => {
+  const [words, setWords] = React.useState("");
+  const [draft, setDraft] = React.useState(null);
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState(null);
+  const build = async () => {
+    const w = words.trim();
+    if (!w || busy || !window.__lists) return;
+    setBusy(true); setError(null);
+    const r = await window.__lists.draft(w);
+    setBusy(false);
+    if (!r.ok) { setError(r.message || "Could not draft the rule."); return; }
+    setDraft(r.data);
+  };
+  const save = async () => {
+    if (!draft || busy || !window.__lists) return;
+    setBusy(true); setError(null);
+    const r = await window.__lists.setRule(list.id, draft.rule);
+    setBusy(false);
+    if (!r.ok) { setError(r.message || "Could not change who is on it."); return; }
+    flash({ msg: <>Who is on <b>{list.name}</b> changed. It keeps itself current.</> });
+    onDone();
+  };
+  // Who the new rule holds for today, over the people the page has read, as the New list box counts a draft.
+  const holds = draft && window.__lists.count ? window.__lists.count(draft.rule) : null;
+  return (
+    <div className="cl-rule-edit" data-testid="rule-edit">
+      <div className="cl-rail-hint" data-testid="rule-edit-now">Now: {(list.rule || []).join(" · ")}</div>
+      {draft ? (
+        <div className="cl-rail-draft" data-testid="rule-edit-draft">
+          <div className="cl-tag-stack">{window.__lists.parts(draft.rule).map((part) => <span key={part} className="chip chip-wrap" data-testid="rule-edit-rule">{part}</span>)}</div>
+          {holds !== null && <div className="cl-rail-hint" data-testid="rule-edit-holds">{holds === 1 ? "1 person" : `${holds} people`} on it today with this rule.</div>}
+          {draft.cannot && <div className="cl-rail-hint">Left out: {draft.cannot}</div>}
+        </div>
+      ) : (
+        <div className="cl-rail-newlist">
+          <input
+            autoFocus
+            value={words}
+            placeholder="Describe who — “on WhatsApp, and quiet a month”"
+            maxLength={300}
+            disabled={busy}
+            aria-label="Describe who is on the list"
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error ? "rule-edit-error" : undefined}
+            data-testid="rule-edit-words"
+            onChange={(e) => setWords(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") build(); if (e.key === "Escape") onDone(); }}
+          />
+          <button type="button" className="btn btn-sm btn-primary" disabled={busy || !words.trim()} onClick={build} data-testid="rule-edit-build">{busy ? "Building…" : "Build"}</button>
+        </div>
+      )}
+      <window.FieldError id="rule-edit-error" message={error} testid="rule-edit-error" />
+      <div className="cl-rule-edit-acts">
+        {draft && <button type="button" className="cl-bucket-link" disabled={busy} onClick={() => { setDraft(null); setError(null); }} data-testid="rule-edit-redescribe">Describe it again</button>}
+        <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={onDone} data-testid="rule-edit-cancel">Cancel</button>
+        {draft && <button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={save} data-testid="rule-edit-save">{busy ? "Saving…" : "Save"}</button>}
+      </div>
+    </div>
   );
 };
 
@@ -1993,24 +2060,57 @@ const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport,
 };
 
 // Everyone shown, kept as a list by hand — a filter frozen into something a broadcast can reach later.
-const SaveShownAsList = ({ ids, suggested, flash }) => {
+// A view with a rule behind it -- one of People's lists, a smart list, Needs you -- is kept as a list that keeps itself
+// current by default (decision 0009): with one of People's open, that is the copy an owner then changes. "Just these"
+// freezes who is shown today, as a view no rule says (a search, a list kept by hand) always does.
+const plMakeRuleList = async (name, rule) => {
+  const made = await window.__lists.create(name, rule);
+  return made.ok ? { ok: true, id: plMadeId(made, name) } : { ok: false, error: made.message || "Could not make the list." };
+};
+const plRuleMadeWords = (name) => <><b>{name}</b> made. It keeps itself current — change who is on it any time.</>;
+const SaveModes = ({ mode, onMode, count, disabled }) => (
+  <span className="cl-save-mode" role="radiogroup" aria-label="What the list keeps">
+    <button type="button" role="radio" aria-checked={mode === "rule"} className={`cl-bucket-link${mode === "rule" ? " is-on" : ""}`} disabled={disabled} onClick={() => onMode("rule")} data-testid="save-shown-rule">Keeps itself current</button>
+    {" · "}
+    <button type="button" role="radio" aria-checked={mode === "people"} className={`cl-bucket-link${mode === "people" ? " is-on" : ""}`} disabled={disabled} onClick={() => onMode("people")} data-testid="save-shown-people">Just these {count}</button>
+  </span>
+);
+const SaveShownAsList = ({ ids, suggested, rule = null, flash, onMade = () => {} }) => {
   const [open, setOpen] = React.useState(false);
   const [name, setName] = React.useState("");
   const [busy, setBusy] = React.useState(false);
+  const [mode, setMode] = React.useState("rule");
+  const keepsRule = !!rule && (mode === "rule" || ids.length === 0);
   const submit = async () => {
     const n = name.trim();
     if (!n || busy || !window.__lists) return;
     setBusy(true);
+    if (keepsRule) {
+      const r = await plMakeRuleList(n, rule);
+      setBusy(false);
+      if (!r.ok) { flash({ tone: "danger", msg: <>{r.error}</> }); return; }
+      setOpen(false); setName("");
+      flash({ msg: plRuleMadeWords(n) });
+      if (r.id) onMade(r.id);
+      return;
+    }
     const { made, filled, id } = await plMakeListWith(n, ids);
     if (!made.ok) { setBusy(false); flash({ tone: "danger", msg: <>{made.message || "Could not make the list."}</> }); return; }
     setBusy(false); setOpen(false); setName("");
     flash(filled.ok ? { msg: <>{ids.length} kept as <b>{n}</b></>, undo: () => plUndoList(id, n, flash) } : window.refusalToast(filled, "Not kept as a list"));
   };
-  if (!open) return <button className="cl-bucket-link" onClick={() => { setName(suggested || ""); setOpen(true); }} data-testid="save-shown">Save these {ids.length} as a list <Icon name="arrow-right" size={10} /></button>;
+  if (!open) {
+    return (
+      <button className="cl-bucket-link" onClick={() => { setName(suggested || ""); setMode("rule"); setOpen(true); }} data-testid="save-shown">
+        {ids.length ? `Save these ${ids.length} as a list` : "Keep this list as yours"} <Icon name="arrow-right" size={10} />
+      </button>
+    );
+  }
   return (
-    <span className="cl-bulk-naming">
+    <span className={`cl-bulk-naming${rule && ids.length > 0 ? " has-modes" : ""}`}>
+      {rule && ids.length > 0 && <SaveModes mode={mode} onMode={setMode} count={ids.length} disabled={busy} />}
       <input autoFocus value={name} placeholder="Name the list" maxLength={60} disabled={busy} data-testid="save-shown-name" onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") submit(); if (e.key === "Escape") setOpen(false); }} />
-      <button className="btn btn-sm btn-primary" disabled={busy || !name.trim()} onClick={submit}>Keep it</button>
+      <button className="btn btn-sm btn-primary" disabled={busy || !name.trim()} onClick={submit} data-testid="save-shown-save">Keep it</button>
       <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => setOpen(false)}>Cancel</button>
     </span>
   );
@@ -2103,7 +2203,14 @@ const PeopleAddSheet = ({ draft, onDraft, onAdd, onClose }) => (
 
 // The open list's own acts on a phone, from the more-menu: rename it, delete it, or keep what is shown as a list. A
 // desktop does these on the list's title line, which a phone does not draw. The doors are the desktop's.
-const PeopleListActSheet = ({ act, list, count, draft, onDraft, onGo, onClose }) => {
+const PeopleListActSheet = ({ act, list, count, draft, onDraft, onGo, onClose, rule = null, flash = () => {} }) => {
+  if (act === "rule") {
+    return (
+      <PhoneSheet title="Who is on it" onClose={onClose} closeLabel={null} testid="list-act-sheet">
+        <RuleEditor list={list} flash={flash} onDone={onClose} />
+      </PhoneSheet>
+    );
+  }
   if (act === "delete") {
     return (
       <PhoneSheet title="Delete the list" onClose={onClose} closeLabel={null} testid="list-act-sheet">
@@ -2113,7 +2220,8 @@ const PeopleListActSheet = ({ act, list, count, draft, onDraft, onGo, onClose })
   }
   const renaming = act === "rename";
   return (
-    <PhoneSheet title={renaming ? "Rename the list" : `Save these ${count} as a list`} onClose={onClose} testid="list-act-sheet">
+    <PhoneSheet title={renaming ? "Rename the list" : count ? `Save these ${count} as a list` : "Keep this list as yours"} onClose={onClose} testid="list-act-sheet">
+      {!renaming && rule && count > 0 && <SaveModes mode={draft.mode || "rule"} onMode={(m) => onDraft({ mode: m })} count={count} disabled={draft.busy} />}
       <label className="pp-field">
         <span className="pp-field-label">{renaming ? "Its name" : "Name the list"}</span>
         <input className="pp-input" autoFocus value={draft.name} maxLength={60} disabled={draft.busy} aria-invalid={draft.error ? true : undefined} aria-describedby={draft.error ? "list-act-error" : undefined} onChange={(e) => onDraft({ name: e.target.value, error: null })} onKeyDown={(e) => { if (e.key === "Enter") onGo(); }} data-testid={renaming ? "list-rename-name" : "save-shown-name"} />
@@ -2554,6 +2662,10 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
   const [addOpen, setAddOpen] = useState(false);
   const [addDraft, setAddDraft] = useState(PL_ADD_EMPTY);
   const [listAct, setListAct] = useState(null);
+  // The open smart list's rule, being changed under its title (a desktop's; a phone's is a sheet, listAct "rule").
+  const [ruleEditing, setRuleEditing] = useState(false);
+  // A list made here, on its way from the server: not "a list that isn't here" while the surface re-reads.
+  const [madeId, setMadeId] = useState(null);
   const [listDraft, setListDraft] = useState(PL_LIST_EMPTY);
   React.useEffect(() => {
     const onNew = () => {
@@ -2579,7 +2691,7 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
     const r = await window.__lists.create(name, rule);
     if (r.ok) {
       plFlash({ msg: rule ? <><b>{name}</b> made. It keeps itself current.</> : <><b>{name}</b> made. Pick people and use Add to list, or add them from their profile.</> });
-      if (r.data && r.data.id) { setListId(null); setSavedId(r.data.id); }
+      if (r.data && r.data.id) { setListId(null); setSavedId(r.data.id); setMadeId(r.data.id); }
       setListsOpen(false);
     }
     return r;
@@ -2669,7 +2781,17 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
   const activeSaved = savedId && saved.find((s) => s.id === savedId);
   // A list the address names that People doesn't have (decision 0009): a link kept, an answer's jump, a teammate's
   // delete. It is said, and nobody is shown, rather than Everyone under its name. An archived one says how it comes back.
-  const listGone = plListGone({ listId, activeList, savedId, activeSaved, people });
+  const listGone = savedId && savedId === madeId ? null : plListGone({ listId, activeList, savedId, activeSaved, people });
+  React.useEffect(() => { setRuleEditing(false); }, [savedId]);
+  // The list made here has arrived: from now on it is a list like any other, said to be gone if it goes.
+  React.useEffect(() => { if (madeId && activeSaved && activeSaved.id === madeId) setMadeId(null); }, [madeId, activeSaved]);
+  // The rule behind the view, when one says it: what "Save these" keeps by default (decision 0009). One filter at a
+  // time: a list and a state together, or words in the box, freeze who is shown.
+  const viewRule = !q.trim() && window.__lists && window.__lists.ruleOf && !((listId || savedId) && tab !== "all")
+    ? window.__lists.ruleOf({ builtin: activeList ? activeList.id : null, saved: activeSaved && !activeSaved.byHand ? activeSaved.id : null, standing: !listId && !savedId ? tab : null })
+    : null;
+  // A list kept as a rule is opened, and its title is where it is changed.
+  const openMade = (id) => { setListId(null); setTab("all"); setSavedId(id); setMadeId(id); };
   // Export follows the list that is open (decision 0009): the route counts it as a send does, every member; with no
   // list open it is everyone.
   const exportName = activeSaved ? activeSaved.name : activeList ? activeList.label : null;
@@ -2776,6 +2898,14 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
       plFlash({ msg: <>Renamed to <b>{n}</b></> });
       return;
     }
+    if (viewRule && ((d.mode || "rule") === "rule" || shownIds.length === 0)) {
+      const r = await plMakeRuleList(n, viewRule);
+      if (!r.ok) { setListDraft((x) => ({ ...x, busy: false, error: r.error })); return; }
+      closePhoneSheet();
+      plFlash({ msg: plRuleMadeWords(n) });
+      if (r.id) openMade(r.id);
+      return;
+    }
     const ids = shownIds;
     const { made, filled, id } = await plMakeListWith(n, ids);
     if (!made.ok) { setListDraft((x) => ({ ...x, busy: false, error: made.message || "Could not make the list." })); return; }
@@ -2809,11 +2939,13 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
     ...(activeSaved && canEditLists && window.__lists ? [
       { divider: true },
       { label: "Rename this list", icon: "edit", onClick: () => { setListDraft({ ...PL_LIST_EMPTY, name: activeSaved.name }); setListAct("rename"); } },
+      // A smart list's rule, shown and changed: the phone draws no title line to show it on.
+      ...(activeSaved.rule ? [{ label: "Who is on it", icon: "sparkle", onClick: () => { setListDraft(PL_LIST_EMPTY); setListAct("rule"); } }] : []),
       { label: "Delete this list…", icon: "x", danger: true, onClick: () => { setListDraft(PL_LIST_EMPTY); setListAct("delete"); } },
     ] : []),
-    ...(!activeSaved && filtered && shown.length > 0 && canEditLists && window.__lists ? [
+    ...(!activeSaved && filtered && (shown.length > 0 || viewRule) && canEditLists && window.__lists ? [
       { divider: true },
-      { label: `Save these ${shown.length} as a list`, icon: "filter", onClick: () => { setListDraft({ ...PL_LIST_EMPTY, name: activeList ? activeList.label : tab !== "all" ? PL_TAB_LABEL[tab] : "" }); setListAct("save"); } },
+      { label: shown.length ? `Save these ${shown.length} as a list` : "Keep this list as yours", icon: "filter", onClick: () => { setListDraft({ ...PL_LIST_EMPTY, name: activeList ? activeList.label : tab !== "all" ? PL_TAB_LABEL[tab] : "" }); setListAct("save"); } },
     ] : []),
   ];
 
@@ -2902,7 +3034,7 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
                     the title, not a chip beside "Everyone": the table IS that list, so its name, its rename and its
                     delete sit on the one line, where the Lists page had them over a second table of the same people. */}
                 {activeSaved
-                  ? <ListTitle list={activeSaved} canEdit={canEditLists && !!window.__lists} onRenamed={(n) => plFlash({ msg: <>Renamed to <b>{n}</b></> })} />
+                  ? <ListTitle list={activeSaved} canEdit={canEditLists && !!window.__lists} onRenamed={(n) => plFlash({ msg: <>Renamed to <b>{n}</b></> })} onEditRule={() => setRuleEditing(true)} />
                   : activeList
                     ? <span className="cl-section-title" data-testid="smart-filter"><Icon name="sparkle" size={12} />{activeList.label}</span>
                     : listGone
@@ -2923,11 +3055,14 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
                 )}
               </div>
               <span className="cl-section-sub">
-                {filtered && shown.length > 0 && canEditLists && window.__lists
-                  ? <SaveShownAsList ids={shownIds} suggested={activeList ? activeList.label : activeSaved ? `${activeSaved.name} copy` : tab !== "all" ? PL_TAB_LABEL[tab] : ""} flash={plFlash} />
+                {filtered && (shown.length > 0 || viewRule) && canEditLists && window.__lists
+                  ? <SaveShownAsList ids={shownIds} rule={viewRule} onMade={openMade} suggested={activeList ? activeList.label : activeSaved ? `${activeSaved.name} copy` : tab !== "all" ? PL_TAB_LABEL[tab] : ""} flash={plFlash} />
                   : (filtered ? "Filtered" : "")}
               </span>
             </div>
+            )}
+            {!phone && ruleEditing && activeSaved && activeSaved.rule && canEditLists && (
+              <RuleEditor list={activeSaved} flash={plFlash} onDone={() => setRuleEditing(false)} />
             )}
             {/* The list's own step: a smart list's next move, or a kept list's one door, a broadcast to those on it who
                 said yes (contracts peopleListAction and savedListAction, the one sentence for both). */}
@@ -3009,7 +3144,7 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
           <PeopleAddSheet draft={addDraft} onDraft={(patch) => setAddDraft((d) => ({ ...d, ...patch }))} onAdd={addOnPhone} onClose={closePhoneSheet} />
         )}
         {phone && listAct && (listAct === "save" || activeSaved) && (
-          <PeopleListActSheet act={listAct} list={activeSaved} count={shown.length} draft={listDraft} onDraft={(patch) => setListDraft((d) => ({ ...d, ...patch }))} onGo={listActGo} onClose={closePhoneSheet} />
+          <PeopleListActSheet act={listAct} list={activeSaved} count={shown.length} rule={viewRule} flash={plFlash} draft={listDraft} onDraft={(patch) => setListDraft((d) => ({ ...d, ...patch }))} onGo={listActGo} onClose={closePhoneSheet} />
         )}
         {toastNode}
       </div>
