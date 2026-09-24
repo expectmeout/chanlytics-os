@@ -15565,6 +15565,7 @@ function emailWires(email) {
   return email?.ready && email.mailbox ? [{ kind: "email", status: "active", number: null, address: email.mailbox.address }] : [];
 }
 var TODAY_QUEUE_MAX = 6;
+var SEARCH_WARN_MS = 12 * 36e5;
 var QUOTE_MAX = 240;
 var NO_REPLY_AFTER_MS = 36e5;
 var andList = (xs) => xs.length < 3 ? xs.join(" and ") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`;
@@ -15816,7 +15817,7 @@ function figuresOf(m, conversations, callsInWindow, escalations, tz, now) {
   };
   return [messages, answered, calls, newPeople];
 }
-function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ new Date()) {
+function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ new Date(), searches = null) {
   const tz = m.workspace.timezone;
   const p = m.period;
   const live = m.now;
@@ -16245,13 +16246,39 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       waitedMs: Number.NEGATIVE_INFINITY
     });
   }
+  for (const s of searches ?? []) {
+    const r2 = s.round;
+    if (!r2 || r2.state !== "waiting_on_owner" || !r2.question) continue;
+    const since = r2.waiting_since ? new Date(r2.waiting_since).getTime() : now.getTime();
+    const waitedMs = Math.max(0, now.getTime() - since);
+    queueAll.push({
+      id: `q-s-${s.id}`,
+      kind: "search",
+      conversationId: null,
+      callId: null,
+      who: s.name,
+      initials: initialsOf(s.name),
+      channel: "Leads",
+      when: `waited ${formatWaited(waitedMs)}`,
+      sentence: r2.question.sentence,
+      quoted: false,
+      status: ["Waiting for your answer", "nothing is spent while it waits"],
+      tone: "escalated",
+      warn: waitedMs > SEARCH_WARN_MS,
+      cta: { label: "Answer", to: leadQuestionRoute(s.id) },
+      also: null,
+      waitedMs
+    });
+  }
   queueAll.sort((a, b) => b.waitedMs - a.waitedMs);
   const countOf = (...kinds) => queueAll.filter((r2) => kinds.includes(r2.kind)).length;
   const needN = countOf("handoff", "callback");
   const winN = countOf("window");
   const earN = countOf("call");
+  const searchN = countOf("search");
   const parts2 = [
     needN ? `${needN} need you` : "",
+    searchN ? `${searchN} ${searchN === 1 ? "search" : "searches"} waiting for your answer` : "",
     winN ? `${winN} reply window${winN === 1 ? "" : "s"} closing` : "",
     earN ? `${earN} call${earN === 1 ? "" : "s"} worth a listen` : ""
   ].filter(Boolean);
@@ -16260,7 +16287,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
     more: Math.max(0, queueAll.length - TODAY_QUEUE_MAX),
     parts: parts2,
     empty: queueEmpty,
-    waiting: needN + winN
+    waiting: needN + winN + searchN
   };
   return {
     standing: {
@@ -17379,6 +17406,8 @@ function cardOpenRoute(p) {
     case "playbook":
       return "outbound";
     case "lead_search": {
+      const am = pl.amends ?? null;
+      if (am && typeof am.search_id === "string" && am.search_id) return leadQuestionRoute(am.search_id);
       const undo = p.outcome?.undo ?? {};
       const sid = typeof undo.search_id === "string" && undo.search_id ? undo.search_id : null;
       return sid ? leadsRoute({ searchId: sid, list: "all", cls: null }) : "clients/leads";
@@ -17468,12 +17497,15 @@ function rightNowLine(w, language) {
   const people = total ? es ? `${names(who, total, true)} ${total === 1 ? "te espera" : "te esperan"}` : `${names(who, total, false)} ${total === 1 ? "is" : "are"} waiting on you` : "";
   const n = w.runs.length;
   const runs = n ? es ? `${n === 1 ? "un env\xEDo de playbook espera" : `${n} env\xEDos de playbook esperan`} tu aprobaci\xF3n` : `${n === 1 ? "one playbook run is" : `${n} playbook runs are`} waiting for your approval` : "";
-  if (!people && !runs) return es ? "Nadie te espera ahora mismo." : "Nobody is waiting on you right now.";
-  const s = [people, runs].filter(Boolean).join("; ");
+  const k = w.searches.length;
+  const searchesLine = k ? es ? k === 1 ? `tu b\xFAsqueda de ${w.searches[0].name} espera tu respuesta` : `${k} b\xFAsquedas esperan tu respuesta` : k === 1 ? `your search for ${w.searches[0].name} is waiting for your answer` : `${k} searches are waiting for your answer` : "";
+  if (!people && !runs && !searchesLine)
+    return es ? "Nadie te espera ahora mismo." : "Nobody is waiting on you right now.";
+  const s = [people, runs, searchesLine].filter(Boolean).join("; ");
   return `${s.charAt(0).toUpperCase()}${s.slice(1)}.`;
 }
 function rightNowCounts(w) {
-  return w ? { people: w.people.length + w.more, runs: w.runs.length } : { people: 0, runs: 0 };
+  return w ? { people: w.people.length + w.more, runs: w.runs.length, searches: w.searches.length } : { people: 0, runs: 0, searches: 0 };
 }
 function needsAnswer(w, language) {
   const es = language === "es";
@@ -17488,6 +17520,12 @@ function needsAnswer(w, language) {
       meta: `${p.channel} \xB7 ${p.when}`,
       line: p.line,
       source: { kind: p.kind, id: p.id, label: p.who, to: p.to, door: true }
+    })),
+    ...w.searches.map((x) => ({
+      title: x.name,
+      meta: "Leads",
+      line: x.question,
+      source: { kind: "page", id: x.to, label: x.name, to: x.to, door: true }
     })),
     ...w.runs.map((r2) => ({
       title: r2.label,

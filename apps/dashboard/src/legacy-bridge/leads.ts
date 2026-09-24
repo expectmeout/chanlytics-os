@@ -516,7 +516,7 @@ export async function bulkLeads(body: LeadsBulkInput) {
 export async function checkLeadsAgain(ids: string[]) {
   return call<{ scheduled: number; skipped: number; toast: string }>("POST leads/check-again", { body: { ids } });
 }
-/** Include amends the plan, so it carries the version the owner approved; Keep and Stop carry none (§7.2). */
+/** Include carries the plan the owner approved; the route sets its version and count (G1). Keep and Stop carry none (§7.2). */
 export async function answerSearch(id: string, answer: "keep" | "include" | "stop", plan?: LeadSearchPlan) {
   return api()("POST lead-searches/[id]/answer", { params: { id }, body: { answer, ...(plan ? { plan } : {}) } });
 }

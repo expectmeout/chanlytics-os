@@ -51,6 +51,8 @@ import {
   violatesNoPrices,
   replyWindow,
   type AskProposal,
+  AppError,
+  type LeadSearchPlan,
   PLAYBOOK_CLASS_LABEL,
   PLAYBOOK_TRIGGERS,
   ProposeLeadSearchSchema,
@@ -69,7 +71,8 @@ import {
 } from "@chanlytics/contracts";
 import { listPolicies } from "@chanlytics/db";
 import type { ToolContext, ToolDef } from "./tools";
-import { planFacts } from "../leads";
+import { answerPlanOf, planFacts, searchRow, waitingQuestionOf, type SearchViewRow } from "../leads";
+import { requireUuid } from "../request-guards";
 import { archivedListWords, audiencePoolOnce, poolList } from "../audience";
 import { dealPaceRead, sellsByOf } from "../deals";
 import { checkPlaybookInput, proposalFollowUps } from "../playbooks";
@@ -256,7 +259,7 @@ export const ACT_TOOLS: ToolDef[] = [
   {
     name: "propose_lead_search",
     description:
-      "Propose a search for businesses in the US the owner could reach: what kind (plural, and one of them), how many (50, 100, 200 or 500 unless they said a number), where (a city and its two-letter state, a ZIP, or a state), the contact standard (phone, or email checked), the criteria each with whether it must be seen or is likely from what Claude reads -- seen is only for what a listing shows (a rating or review count, a website, an email, a phone that matches the site, open or closed) and is judged from those facts alone; what a business IS or DOES (its kind, who owns it, what it serves or sells, who it treats) is likely, never seen, because a listing's name and category do not count as seeing it; and the kind of business itself is checked on every search without being written as a criterion -- who to leave out (chains, other kinds; short chips in plain words), up to three search terms (widest first). looking_for is local_businesses, or people, online_sellers or other when that is what was asked: those are answered in words, not searched. asked: the owner's words. It becomes a plan card the owner approves; nothing is searched or spent before that. Owner-only.",
+      "Propose a search for businesses in the US the owner could reach: what kind (plural, and one of them), how many (50, 100, 200 or 500 unless they said a number), where (a city and its two-letter state, a ZIP, or a state), the contact standard (phone, or email checked), the criteria each with whether it must be seen or is likely from what Claude reads -- seen is only for what a listing shows (a rating or review count, a website, an email, a phone that matches the site, open or closed) and is judged from those facts alone; what a business IS or DOES (its kind, who owns it, what it serves or sells, who it treats) is likely, never seen, because a listing's name and category do not count as seeing it; and the kind of business itself is checked on every search without being written as a criterion -- who to leave out (chains, other kinds; short chips in plain words), up to three search terms (widest first). looking_for is local_businesses, or people, online_sellers or other when that is what was asked: those are answered in words, not searched. asked: the owner's words. It becomes a plan card the owner approves; nothing is searched or spent before that. Owner-only. amends: the id of a search that stopped to ask (list_lead_searches shows its question) when the plan is that search with the owner's answer applied; the card then answers that search instead of starting a new one.",
     input_schema: obj(
       {
         looking_for: { type: "string", enum: ["local_businesses", "people", "online_sellers", "other"] },
@@ -283,6 +286,7 @@ export const ACT_TOOLS: ToolDef[] = [
         },
         leave_out: { type: "array", items: obj({ words: { type: "string" } }, ["words"]) },
         asked: { type: "string" },
+        amends: { type: "string" },
       },
       [
         "looking_for",
@@ -1046,7 +1050,9 @@ async function proposePlaybook(t: ToolContext, input: Record<string, unknown>): 
  * criterion and exclusion and checks the result against release A's own
  * schema, so what the card carries is a plan the door would accept. Nothing is
  * searched, reserved or spent here: the approval posts the plan, and the route
- * is the one that spends.
+ * is the one that spends. With `amends` (the id of a search that stopped to
+ * ask), the card answers that search instead: the plan is the same search with
+ * the owner's answer applied, at the version and count the server sets.
  */
 async function proposeLeadSearch(t: ToolContext, input: Record<string, unknown>): Promise<ProposalOutcome> {
   if (t.role !== "owner") return refuse("only an owner can start a lead search; say so, and that an owner can ask");
@@ -1079,10 +1085,32 @@ async function proposeLeadSearch(t: ToolContext, input: Record<string, unknown>)
     return refuse(
       `the plan is not complete: ${shaped.error.issues[0]?.path.join(".")} ${shaped.error.issues[0]?.message}`,
     );
-  const r = planLeadSearch(shaped.data);
+  const amends = str(input.amends, 40);
+  let row: SearchViewRow | null = null;
+  let question: string | null = null;
+  if (amends) {
+    // The search it answers is read, never trusted from the words: one not waiting (or not this workspace's) is a
+    // refusal in words, so the model says so instead of a card that would start a second search. A database
+    // error is not a missing search: it is thrown on, for buildProposal to log and say it could not be checked.
+    try {
+      row = await searchRow(t.ctx, t.tenantId, requireUuid(amends, "search"));
+    } catch (e) {
+      if (!(e instanceof AppError)) throw e;
+    }
+    if (!row) return refuse("that search is not in this workspace; propose a new search instead");
+    question = waitingQuestionOf(row);
+    if (!question) return refuse("that search is not waiting for an answer; propose a new search instead");
+  }
+  // An answer is planned at the count the search's plan reserved, so the title and the view say the same number
+  // as the plan the card carries; the model's count is only its own for a new search.
+  const storedCount = row ? (row.plan as LeadSearchPlan | null)?.count : undefined;
+  const r = planLeadSearch(typeof storedCount === "number" ? { ...shaped.data, count: storedCount } : shaped.data);
   // Outside the US, people rather than businesses, an ask no card fits: words
   // for the model to say, never a card with a problem in it.
   if (!r.ok) return refuse(r.refusal.text);
+  // The version and the count are the server's (answerPlanOf), the same as the answer route sets them.
+  const plan = row ? answerPlanOf(row, r.plan) : r.plan;
+  const answer = row && question ? { search_id: row.id, name: row.name, question } : null;
   // The facts under the sentence -- the month's leads left, the duplicates
   // already theirs, what past searches for this kind of business found -- are
   // one read, `planFacts` in server/leads.ts. It lives there and not here
@@ -1092,13 +1120,15 @@ async function proposeLeadSearch(t: ToolContext, input: Record<string, unknown>)
     kind: "lead_search",
     needs: "owner",
     title: r.view.title,
-    summary: planSentence(r.plan),
+    summary: answer ? `Answers “${answer.question}”: ${planSentence(plan)}` : planSentence(plan),
     payload: {
-      plan: r.plan,
+      plan,
       view: r.view,
       facts: await planFacts(t.ctx, t.tenantId, { categoryKey: shaped.data.category_key, now: t.now }),
+      ...(answer ? { amends: answer } : {}),
     },
-    undo: "Stop the search",
+    // An answer carries the round on; there is nothing to undo (Stop is the strip's).
+    undo: answer ? null : "Stop the search",
   });
 }
 

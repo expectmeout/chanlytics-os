@@ -9729,6 +9729,1502 @@ declare function toPersonVM(d: PersonDetailDto, tz: string, now?: Date,
 /** The member looking (toPersonRowVM's viewer). */
 viewerId?: string | null): PersonVM;
 
+type Tone = "accent" | "warn" | "info" | "ok" | "danger" | "plain";
+declare const TONES: readonly Tone[];
+/** The families of state a pill can name. */
+type StateKind = "thread" | "standing" | "call" | "person" | "consent" | "mode" | "broadcast" | "playbook" | "template" | "template_quality" | "setup" | "role" | "tone" | "calendar"
+/** Where a fact came from: the chip beside a value on the Business tab. */
+ | "fact" | "escalation" | "lead_class" | "lead_stage" | "lead_fit" | "reach" | "lead_call_outcome" | "lead_row_state" | "deal";
+/** The tone for a state, or plain for one this map has never heard of. */
+declare function stateTone(kind: StateKind, value: unknown): Tone;
+/** The words for a state, or the value itself when nobody has written any. */
+declare function stateLabel(kind: StateKind, value: unknown): string;
+/** Both at once: what the pill draws. */
+declare function stateOf(kind: StateKind, value: unknown): {
+    tone: Tone;
+    label: string;
+};
+/** What a pin needs to know about a lead to take a tone: its class, its fit, its row state, its two slots. */
+interface LeadPinnable {
+    cls: string;
+    fit: string | null;
+    state: string;
+    slots: {
+        phone: {
+            state: string;
+        };
+        mailbox: {
+            state: string;
+        };
+    };
+}
+/**
+ * The tone a lead's pin wears on the map, by what the map is coloured by.
+ *
+ * The map kept a table of its own, in leads.css, keyed by `strong`/`part`/`talking` -- words no tone vocabulary
+ * knows -- so it was a sixth colour family that this file could not reach. It had already drifted: a `look` fit
+ * drew amber on a pin while this map calls it plain. And because those rules named no element, and leads.css is
+ * imported after clients.css, `.tone-ok` painted EVERY `tone-ok` in the app solid green -- a Today attention row,
+ * and the peek's own Interested chip. Both now come through here.
+ *
+ * A pin is data, so by the chart kit's rule it never wears the accent, and none of these branches can return it.
+ */
+declare function leadPinTone(lead: LeadPinnable, by: "fit" | "reach" | "stage"): Tone;
+
+/**
+ * The Leads scope of People, in words (PRD 2026-09-17 v3 §6, §9; release B).
+ *
+ * Release A (`lead-search.ts`, `lead-judge.ts`) holds the plan, the stored sets
+ * and every rule with a right answer. This file is what the OWNER sees: the
+ * word a stored value wears, the shape a request takes, the view a route
+ * spells, and the view models the page draws a row, the rail and the standing
+ * line from. Pure -- nothing here reads a file, a database or a clock of its
+ * own; a caller hands in the workspace's zone and the moment.
+ *
+ * No word here names the vendor that runs the searches. Where a fact came from
+ * is said the way the owner would say it ("Google Maps listing"), never by the
+ * name of the service that fetched it.
+ */
+
+/** B's screen word for A's stored set (`lead_search_members.class`): one set, two names, never two lists. */
+declare const LEAD_CLASSES: readonly ["qualified", "review", "excluded"];
+type LeadClass = LeadMemberClass;
+declare const LEAD_LISTS: readonly ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
+declare const LEAD_SORTS: readonly ["fit", "found", "distance", "business", "rating", "stage"];
+declare const LEAD_CALL_OUTCOMES: readonly ["interested", "call_back", "not_interested", "voicemail", "no_answer", "wrong_number"];
+declare const LEAD_NOT_A_FIT_WHYS: readonly ["chain", "wrong_kind", "too_far", "customer", "other"];
+/** A's stored set has no type of its own; the word for one of its members is derived here, not a second list. */
+type LeadStage = (typeof LEAD_STAGES)[number];
+
+type LeadList = (typeof LEAD_LISTS)[number];
+type LeadSort = (typeof LEAD_SORTS)[number];
+type LeadCallOutcome = (typeof LEAD_CALL_OUTCOMES)[number];
+type LeadNotAFitWhy = (typeof LEAD_NOT_A_FIT_WHYS)[number];
+/** Stored values are never shown (§9.1). */
+declare const LEAD_STAGE_WORDS: Record<LeadStage, string>;
+declare const LEAD_CLOSED_WORDS: Record<(typeof LEAD_CLOSED_REASONS)[number], string>;
+declare const LEAD_FIT_WORDS: Record<(typeof LEAD_FITS)[number], string>;
+/** Claims only what the check saw (S12): a catch-all server accepts anything, so the check cannot tell. */
+declare const LEAD_EMAIL_WORDS: Record<(typeof LEAD_EMAIL_STATES)[number], string>;
+/** How an outcome reads at a glance (D5): the dot beside its word, never colour alone -- the word is always there. */
+/**
+ * What each outcome means, in the app's ONE tone vocabulary (tone.ts). This used to carry two words of its own --
+ * `quiet` and `bad` -- which no pill and no stylesheet could draw: `.tone-quiet` was never written, so a voicemail
+ * and a no-answer both fell through to the faintest grey, and a wrong number drew as if nothing had happened.
+ */
+declare const LEAD_CALL_OUTCOME_TONES: Record<(typeof LEAD_CALL_OUTCOMES)[number], Tone>;
+declare const LEAD_CALL_OUTCOME_WORDS: Record<(typeof LEAD_CALL_OUTCOMES)[number], string>;
+/** The rail's six lists, said once (§6.1). `leadRail` draws from here and nowhere else. */
+declare const LEAD_LIST_WORDS: Record<LeadList, string>;
+/** Where a lead's facts came from, in the owner's words. */
+declare const LEAD_SOURCE_WORD = "Google Maps listing";
+declare const LEAD_LOCKED_LINE = "Wait for their yes. Once they write back, they're in People and your yes page works for them.";
+declare const LEAD_DRAFT_NOTE = "Your business address and a way to say no are added at the foot, as US law asks.";
+declare const LEAD_NO_ADDRESS = "Add your business address in Settings first. US law asks for it at the foot of every email you send a business.";
+/** Both consent doors say this, permanently, for a person a lead is linked to (decision 19). */
+declare const LEAD_CONSENT_REFUSAL = "This person came from a lead you found. A yes has to come from them: their own message, or your yes page.";
+/** Not a fit's five whys, in the order the peek and the bulk bar offer them (§9.5). */
+declare const LEAD_NOT_A_FIT_WORDS: Record<LeadNotAFitWhy, string>;
+declare const LEAD_NOT_A_FIT_TITLE = "What makes it not a fit?";
+/** The one why that hides the place from every future search; the rest teach nothing in this release. */
+declare const LEAD_SUPPRESSING_WHY: LeadNotAFitWhy;
+declare const LEAD_REVIEW_WORD = "Needs review";
+declare const LEAD_LEFT_OUT_WORD = "Left out";
+/** What a lead's class is called. The page kept a second copy that said "Excluded" for the same state. */
+declare const LEAD_CLASS_WORDS: Record<LeadMemberClass, string>;
+/** The Excluded chip for a place with no phone and no email (lead-search.ts LEAD_UNREACHABLE_KEY). */
+declare const LEAD_UNREACHABLE_WORD = "No way to reach them";
+declare const LEAD_CHECK_UNSURE = "Couldn't tell";
+/** One label per check and answer; the particulars are the check's own reason. */
+declare const LEAD_CHECK_WORDS: Record<LeadCheckKey, Record<"yes" | "no" | "unknown", string>>;
+/** The mailbox check says the state it saw, never a word for it (§10.4, S12). */
+declare const LEAD_MAILBOX_WORDS: Record<LeadEmailState, string>;
+/** What the peek says under the email, from the plan's own contact standard (§0.1). */
+declare const LEAD_CONTACT_STANDARD_WORDS: Record<"phone" | "email", string>;
+/** The note under the email of a lead that came with none, and the one thing left to do. */
+declare const LEAD_NO_EMAIL_LINE = "Checked their home, contact and about pages. Call instead.";
+/** Both questions the peek asks when the owner comes back to the tab (§9.3, §9.4). */
+declare const LEAD_SENT_QUESTION = "Did you send it?";
+declare const LEAD_CALL_QUESTION = "How did the call go?";
+declare const LEAD_NOTE_PLACEHOLDER = "A note for next time, if you like";
+declare const LEAD_NOTE_MAX = 280;
+/** A stage click never converts (§9.6): the control says where the yes comes from. */
+declare const LEAD_TALKING_NOTE = "They join People when they write or call in, or when a call goes well.";
+/** How much of the note is left, said in the field (§9.4). */
+declare function leadNoteLeft(left: number, max: number): string;
+/** An unclaimed listing rarely watches its email; the peek says so, quietly (D2). */
+declare const LEAD_UNCLAIMED_NOTE = "Listing not claimed by the owner";
+/** Below this, the unhappy reviews are the ordinary few every business has, and saying so would be noise. */
+declare const LEAD_LOW_SHARE_FLOOR = 0.15;
+/**
+ * The one thing five bars said that the average cannot: how much of the score is carried by people who were unhappy.
+ * A 4.5 out of forty reviews and a 4.5 out of forty where a quarter gave one star are different businesses to call,
+ * and the mean hides it. So the peek says it in words, and only when it changes the picture -- under a sixth at one
+ * or two stars is the ordinary tail of any listing, and a line about it would be noise on every lead.
+ *
+ * Null when the listing published no breakdown, when it has no reviews, or when nothing is worth saying.
+ */
+declare function leadLowShare(dist: {
+    one: number;
+    two: number;
+    three: number;
+    four: number;
+    five: number;
+} | null): string | null;
+/** The first day of Leads, before a workspace has kept one search (§8.9). */
+declare const LEAD_FIRST_DAY_TITLE = "Your people gather here";
+declare const LEAD_FIRST_DAY_SUB = "Or have Claude find businesses worth reaching";
+/** What the finder does not do, said where it is offered. */
+declare const LEAD_FIRST_DAY_FOOT = "Claude finds businesses, not people at home.";
+/** When the suggestions cannot be written at all: a note on the page, never a page that fails (4.4's suggestionsFor). */
+declare const LEAD_SUGGEST_UNAVAILABLE = "Suggestions are not available right now.";
+/**
+ * Every word the Leads scope's own markup says, spelled once here and seeded onto the window as `window.__LEAD_WORDS`
+ * by `seed-globals.ts`, because the legacy pages import nothing. A words record is a global seeded once at boot, like
+ * `__FACT_WORDS`, not a courier's -- the courier carries acts. Task 19 adds the facts' own words (the stages, the
+ * endings, the guardrail sentences) to THIS record; there is one `LEAD_WORDS` and nothing else holds a lead's words.
+ * A sentence the server also says is not here: the routes' toasts are the routes' own.
+ */
+declare const LEAD_WORDS: {
+    /**
+     * The ways a lead can be rung, offered when Call is pressed rather than dialling on the spot. Pressing it rang a
+     * real business the moment a thumb landed on a row you might only have been skimming, and a call made from a
+     * desk phone could not be recorded at all -- the six outcomes are armed by that button alone.
+     *
+     * The receptionist is NOT one of the ways and must not become one here. It answers the line and never rings a
+     * customer (`business-tab.ts` CANNOT_ROWS, "outbound_call"), which the Business page states to the owner in
+     * those words. A menu item offering it would promise what the product says two pages away that it cannot do.
+     */
+    readonly callWays: {
+        readonly dial: {
+            readonly label: "Call from your phone";
+        };
+        readonly copy: {
+            readonly label: "Copy the number";
+        };
+        /** Rung from a desk phone or a softphone: no dial, straight to "How did the call go?". */
+        readonly log: {
+            readonly label: "Log a call you already made";
+            readonly meta: "how did it go?";
+        };
+    };
+    readonly close: "Close";
+    readonly open: "Open";
+    readonly stageLabel: "Stage";
+    readonly notFit: string;
+    readonly notFitTitle: "What makes it not a fit?";
+    readonly whys: {
+        id: "customer" | "other" | "chain" | "wrong_kind" | "too_far";
+        label: string;
+    }[];
+    readonly keep: "Keep";
+    readonly exclude: "Exclude";
+    readonly putBack: "Put back";
+    readonly leftOut: "Left out of this search. It doesn't count.";
+    readonly reach: "How you can reach them";
+    readonly checked: "Checked";
+    readonly found: "Found";
+    readonly call: "Call";
+    readonly copy: "Copy";
+    readonly copyAria: "Copy the email";
+    /** The peek's reach rows act with quiet marks; these are their names, heard and shown on hover (data-tip). */
+    readonly copyPhoneAria: "Copy the number";
+    readonly draftAria: "Draft an email";
+    readonly draft: "Draft";
+    readonly noWebsite: "No website listed";
+    readonly instagram: "Instagram";
+    readonly talkingNote: "They join People when they write or call in, or when a call goes well.";
+    readonly sentQuestion: "Did you send it?";
+    readonly sentYes: "Yes, mark contacted";
+    readonly sentNo: "Not yet";
+    readonly callQuestion: "How did the call go?";
+    readonly callSave: "Save";
+    readonly callCancel: "I didn't call";
+    readonly outcomes: {
+        id: "voicemail" | "interested" | "call_back" | "not_interested" | "no_answer" | "wrong_number";
+        label: string;
+        tone: Tone;
+    }[];
+    readonly noteLabel: "A note about the call";
+    readonly notePlaceholder: "A note for next time, if you like";
+    readonly noteMax: 280;
+    readonly noteLeft: typeof leadNoteLeft;
+    readonly backTo: "Back to";
+    readonly to: "To";
+    readonly subject: "Subject";
+    readonly draftRewrite: "Rewrite";
+    readonly tones: readonly [{
+        readonly id: "shorter";
+        readonly label: "Shorter";
+    }, {
+        readonly id: "warmer";
+        readonly label: "Warmer";
+    }];
+    readonly draftWriting: "Writing it…";
+    readonly draftNote: "Your business address and a way to say no are added at the foot, as US law asks.";
+    readonly draftOpen: "Open in your email";
+    readonly draftFrom: "Sent from your own inbox";
+    readonly copiedDraft: "Copied the email.";
+    readonly firstDay: {
+        readonly title: "Your people gather here";
+        readonly sub: "Or have Claude find businesses worth reaching";
+        readonly foot: "Claude finds businesses, not people at home.";
+    };
+    readonly about: "About";
+    readonly reachHeading: "Reach";
+    readonly unclaimed: "Listing not claimed by the owner";
+    readonly suggestUnavailable: "Suggestions are not available right now.";
+    readonly expand: "Expand";
+    readonly photos: "Photos";
+    readonly noPhoto: "No photo on the listing";
+    readonly whereSits: "Where it sits";
+    readonly openHours: "Open hours";
+    readonly fromListing: "From the listing";
+    readonly openMaps: "Open in Maps";
+    readonly ratedHeading: "What people say";
+    readonly closePhotos: "Close";
+    readonly deckOf: (at: number, of: number) => string;
+    readonly deckPrev: "The lead before";
+    readonly deckNext: "The next lead";
+    readonly callSaveNext: "Save and go to the next";
+    readonly callSavedNote: "Saving moves them to Talking. They join People when they write or call in.";
+};
+/** How long a workspace's suggestions stand before Claude is asked again (4.4's suggestionsFor). */
+declare const LEAD_SUGGEST_DAYS = 7;
+/** The platform-wide prior for a kind of business, as `lead_niche_prior()` answers it. */
+interface LeadNichePrior {
+    places: number;
+    matched: number;
+    with_email: number;
+}
+/** Under this many judged matches the share is noise, and the line says so instead. */
+declare const LEAD_PRIOR_MIN = 25;
+/**
+ * How reachable a kind of business is, in tenths, from what past searches
+ * measured (`lead_niche_priors`, A1's calibration). Never a percentage and
+ * never a promise: a kind nobody has searched says so, and the plan card says
+ * the same thing ("checked after the first 25").
+ */
+declare function leadReachLine(prior: LeadNichePrior | null | undefined): string;
+interface LeadWayFacts {
+    /** The workspace's own line, when this tab has read the setup surface; null when it has not. */
+    voice: {
+        active: boolean;
+        number: string | null;
+    } | null;
+    whatsapp: {
+        present: boolean;
+        active: boolean;
+    } | null;
+    calendar: "ok" | "unavailable" | "none";
+    people: number;
+}
+interface LeadWay {
+    id: "reach" | "calendar" | "yours";
+    title: string;
+    line: string;
+    /** Only ever what this tab has read: null claims nothing. */
+    status: string | null;
+    doors: {
+        id: string;
+        label: string;
+        to: string;
+    }[];
+}
+/**
+ * The three ways people arrive (§8.9), each claiming only what this tab has
+ * read. The People surface carries the calendar and the count; the line is the
+ * setup surface's, which this route does not load on a cold open -- so with no
+ * facts the way says what it is and points at Setup, and never says a number is
+ * live that nobody looked at. "Import a list" is Phase 2 and is not offered
+ * until it exists.
+ */
+declare function leadsFirstDayWays(f: LeadWayFacts): LeadWay[];
+/**
+ * The three things the planner says instead of a plan (§8.8). They are words for
+ * whoever asked -- the composer prints them under the input, Ask's tool hands
+ * them to the model to say -- and never a card with a problem in it.
+ */
+declare const LEAD_NO_CARD_LINE = "I can find local businesses for now.";
+declare const LEAD_OUTSIDE_US_LINE = "I can only find businesses in the US for now. The rules for emailing businesses in Canada, the UK and the EU are different, and Chanlytics follows the US ones.";
+/** The second: what the workspace sells, in the owner's own words, or "what you do". */
+declare function leadNotBusinessesLine(want: string | null): string;
+/** The third: what was asked for, named, and what the one card can do. The ask is logged as demand (§0.3). */
+declare function leadNoCardLine(what: string | null): string;
+/** The platform's switch, in the owner's words: nothing about a vendor, nothing about money. */
+declare const LEAD_PAUSED_TITLE = "Lead searches are paused for now";
+interface LeadEndingFacts {
+    /** The plan's subject in the owner's words: "personal trainers". */
+    name: string;
+    /** Where it looked, in the owner's words: "Austin". */
+    area: string;
+    counted: number;
+    target: number;
+    emails: number;
+    phones: number;
+    excluded: number;
+    /** A stopped round whose emails are still being checked (S12). */
+    checking: boolean;
+    /** question_unanswered: how many were counted before it asked. */
+    foundBefore: number;
+    /** few_new_matches / searched_everything: where to look next, in the owner's words. */
+    nearby: string[];
+    /** How many places the source returned at all, and what left them all out. */
+    seen: number;
+    leftOutBy: string | null;
+}
+interface LeadEndingLine {
+    /** A's word for the ending; the strip's accessible name, never its sentence. */
+    mark: string;
+    title: string;
+    parts: string[];
+    step: {
+        id: string;
+        label: string;
+    } | null;
+}
+/** "Alpine and Fort Davis"; "Round Rock, Pflugerville and Kyle". */
+/**
+ * Where the nearest areas are, as a sentence says it: "near 10005, 10464 and 10467" when every label is a ZIP's
+ * ("near 10005"), else "in Round Rock and Pflugerville". Joining the labels whole read "in near 10005, near 10464".
+ */
+declare function leadNearWhere(labels: readonly string[]): string;
+declare function leadAnd(items: readonly string[]): string;
+/**
+ * Every ending, said once (§8.8, the States artboard): what happened, what was
+ * kept, what was counted, and one next step. Two shapes only -- "Found N ..."
+ * when the round delivered what it was for, "Stopped ..." when it did not --
+ * because an owner reads the first word and must know which of the two this is.
+ * LEAD_ENDING_WORDS stays A's short name for the ending and rides along as
+ * `mark`, for the strip's accessible name and the kept-search menu.
+ *
+ * No dollar amount: the month's allowance and the searching budget are both
+ * spoken as leads (§0.2), and no line here names what any of it is bought from.
+ */
+declare function leadEndingLine(ending: LeadRoundEnding, f: LeadEndingFacts): LeadEndingLine;
+/** The plan card's and the strip's one unit: leads, never dollars (§0.2). */
+declare function leadAllowanceFact(left: number): string;
+/** What a call outcome does to the stage (§9.4). Only Interested converts; Wrong number keeps the stage. */
+declare function outcomeMove(o: (typeof LEAD_CALL_OUTCOMES)[number]): {
+    stage: LeadStage | null;
+    closedReason: string | null;
+    converts: boolean;
+};
+declare const LeadsQuerySchema: z.ZodObject<{
+    list: z.ZodDefault<z.ZodEnum<{
+        not_a_fit: "not_a_fit";
+        said_no: "said_no";
+        ready: "ready";
+        nurture: "nurture";
+        converted: "converted";
+        all: "all";
+    }>>;
+    search: z.ZodOptional<z.ZodString>;
+    class: z.ZodOptional<z.ZodEnum<{
+        review: "review";
+        qualified: "qualified";
+        excluded: "excluded";
+    }>>;
+    sort: z.ZodDefault<z.ZodEnum<{
+        stage: "stage";
+        business: "business";
+        rating: "rating";
+        fit: "fit";
+        found: "found";
+        distance: "distance";
+    }>>;
+    dir: z.ZodDefault<z.ZodEnum<{
+        asc: "asc";
+        desc: "desc";
+    }>>;
+    after_key: z.ZodOptional<z.ZodString>;
+    after_id: z.ZodOptional<z.ZodString>;
+    limit: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
+}, z.core.$strip>;
+type LeadsQuery = z.infer<typeof LeadsQuerySchema>;
+/** The view a bulk act names when the owner chose "Select all N that match" (S13): the same keys GET leads takes. */
+declare const LeadsViewSchema: z.ZodObject<{
+    list: z.ZodDefault<z.ZodEnum<{
+        not_a_fit: "not_a_fit";
+        said_no: "said_no";
+        ready: "ready";
+        nurture: "nurture";
+        converted: "converted";
+        all: "all";
+    }>>;
+    sort: z.ZodDefault<z.ZodEnum<{
+        stage: "stage";
+        business: "business";
+        rating: "rating";
+        fit: "fit";
+        found: "found";
+        distance: "distance";
+    }>>;
+    search: z.ZodOptional<z.ZodString>;
+    class: z.ZodOptional<z.ZodEnum<{
+        review: "review";
+        qualified: "qualified";
+        excluded: "excluded";
+    }>>;
+    dir: z.ZodDefault<z.ZodEnum<{
+        asc: "asc";
+        desc: "desc";
+    }>>;
+}, z.core.$strip>;
+/** POST leads/[id]/stage, the page's five acts made exclusive. */
+declare const LeadStageInputSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
+    kind: z.ZodLiteral<"stage">;
+    stage: z.ZodEnum<{
+        ready: "ready";
+        nurture: "nurture";
+        converted: "converted";
+    }>;
+}, z.core.$strip>, z.ZodObject<{
+    kind: z.ZodLiteral<"not_a_fit">;
+    why: z.ZodEnum<{
+        customer: "customer";
+        other: "other";
+        chain: "chain";
+        wrong_kind: "wrong_kind";
+        too_far: "too_far";
+    }>;
+}, z.core.$strip>, z.ZodObject<{
+    kind: z.ZodLiteral<"said_no">;
+}, z.core.$strip>, z.ZodObject<{
+    kind: z.ZodLiteral<"outcome">;
+    outcome: z.ZodEnum<{
+        voicemail: "voicemail";
+        interested: "interested";
+        call_back: "call_back";
+        not_interested: "not_interested";
+        no_answer: "no_answer";
+        wrong_number: "wrong_number";
+    }>;
+    note: z.ZodOptional<z.ZodString>;
+}, z.core.$strip>, z.ZodObject<{
+    kind: z.ZodLiteral<"emailed">;
+}, z.core.$strip>], "kind">;
+type LeadStageInput = z.infer<typeof LeadStageInputSchema>;
+/** The door's arguments (lead_set_stage). The door judges what converts; this only spells the ask. */
+declare function stageArgs(i: LeadStageInput): {
+    p_stage: string | null;
+    p_reason: string | null;
+    p_fit_reason: string | null;
+    p_outcome: string | null;
+    p_note: string | null;
+};
+declare const LeadsBulkSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
+    by: z.ZodLiteral<"ids">;
+    action: z.ZodEnum<{
+        not_a_fit: "not_a_fit";
+        keep: "keep";
+        exclude: "exclude";
+        contacted: "contacted";
+    }>;
+    ids: z.ZodArray<z.ZodString>;
+    search_id: z.ZodOptional<z.ZodString>;
+}, z.core.$strip>, z.ZodObject<{
+    by: z.ZodLiteral<"view">;
+    action: z.ZodEnum<{
+        not_a_fit: "not_a_fit";
+        contacted: "contacted";
+    }>;
+    view: z.ZodObject<{
+        list: z.ZodDefault<z.ZodEnum<{
+            not_a_fit: "not_a_fit";
+            said_no: "said_no";
+            ready: "ready";
+            nurture: "nurture";
+            converted: "converted";
+            all: "all";
+        }>>;
+        sort: z.ZodDefault<z.ZodEnum<{
+            stage: "stage";
+            business: "business";
+            rating: "rating";
+            fit: "fit";
+            found: "found";
+            distance: "distance";
+        }>>;
+        search: z.ZodOptional<z.ZodString>;
+        class: z.ZodOptional<z.ZodEnum<{
+            review: "review";
+            qualified: "qualified";
+            excluded: "excluded";
+        }>>;
+        dir: z.ZodDefault<z.ZodEnum<{
+            asc: "asc";
+            desc: "desc";
+        }>>;
+    }, z.core.$strip>;
+}, z.core.$strip>], "by">;
+type LeadsBulkInput = z.infer<typeof LeadsBulkSchema>;
+/** Check again (D3): the leads whose mailbox check did not answer, asked once more. */
+declare const LeadsCheckAgainSchema: z.ZodObject<{
+    ids: z.ZodArray<z.ZodString>;
+}, z.core.$strip>;
+type LeadsCheckAgainInput = z.infer<typeof LeadsCheckAgainSchema>;
+declare const LeadDraftInputSchema: z.ZodObject<{
+    tone: z.ZodDefault<z.ZodEnum<{
+        shorter: "shorter";
+        warmer: "warmer";
+        first: "first";
+    }>>;
+    previous: z.ZodOptional<z.ZodObject<{
+        subject: z.ZodString;
+        body: z.ZodString;
+    }, z.core.$strip>>;
+}, z.core.$strip>;
+declare const LeadExportQuerySchema: z.ZodObject<{
+    list: z.ZodDefault<z.ZodEnum<{
+        not_a_fit: "not_a_fit";
+        said_no: "said_no";
+        ready: "ready";
+        nurture: "nurture";
+        converted: "converted";
+        all: "all";
+    }>>;
+    sort: z.ZodDefault<z.ZodEnum<{
+        stage: "stage";
+        business: "business";
+        rating: "rating";
+        fit: "fit";
+        found: "found";
+        distance: "distance";
+    }>>;
+    search: z.ZodOptional<z.ZodString>;
+    class: z.ZodOptional<z.ZodEnum<{
+        review: "review";
+        qualified: "qualified";
+        excluded: "excluded";
+    }>>;
+    dir: z.ZodDefault<z.ZodEnum<{
+        asc: "asc";
+        desc: "desc";
+    }>>;
+}, z.core.$strip>;
+declare const RenameLeadSearchSchema: z.ZodObject<{
+    name: z.ZodString;
+}, z.core.$strip>;
+declare const BusinessLineSchema: z.ZodObject<{
+    business_line: z.ZodString;
+}, z.core.$strip>;
+declare const ProposeLeadSearchSchema: z.ZodObject<{
+    looking_for: z.ZodEnum<{
+        other: "other";
+        people: "people";
+        local_businesses: "local_businesses";
+        online_sellers: "online_sellers";
+    }>;
+    country: z.ZodString;
+    count: z.ZodNumber;
+    who: z.ZodString;
+    who_one: z.ZodString;
+    category_key: z.ZodString;
+    terms: z.ZodArray<z.ZodString>;
+    city: z.ZodDefault<z.ZodNullable<z.ZodString>>;
+    region: z.ZodString;
+    zip: z.ZodDefault<z.ZodNullable<z.ZodString>>;
+    contact: z.ZodEnum<{
+        email: "email";
+        phone: "phone";
+    }>;
+    criteria: z.ZodDefault<z.ZodArray<z.ZodObject<{
+        text: z.ZodString;
+        standard: z.ZodEnum<{
+            likely: "likely";
+            seen: "seen";
+        }>;
+        required: z.ZodBoolean;
+    }, z.core.$strip>>>;
+    leave_out: z.ZodDefault<z.ZodArray<z.ZodObject<{
+        words: z.ZodString;
+    }, z.core.$strip>>>;
+    asked: z.ZodString;
+}, z.core.$strip>;
+type ProposeLeadSearch = z.infer<typeof ProposeLeadSearchSchema>;
+/** The card's head. The rest of what the card draws is the plan itself and the workspace's facts. */
+interface LeadPlanView {
+    title: string;
+}
+type LeadPlanRefusalKind = "outside_us" | "not_businesses" | "no_card" | "not_a_plan";
+type LeadPlanned = {
+    ok: true;
+    plan: LeadSearchPlan;
+    view: LeadPlanView;
+} | {
+    ok: false;
+    refusal: {
+        kind: LeadPlanRefusalKind;
+        text: string;
+        what: string | null;
+    };
+};
+/**
+ * The ask as a plan, or one of the three refusals in words (§8.8): outside the
+ * US, people rather than businesses, and an ask no source card fits, which is
+ * logged as demand. Nothing here reads anything: the same function answers the
+ * composer and Ask's tool, so a plan made by typing and a plan made by asking
+ * are the same plan.
+ */
+declare function planLeadSearch(input: ProposeLeadSearch): LeadPlanned;
+/**
+ * The chips a view may carry. Release B parses none -- the route grammar keeps the key so the surface, the route and
+ * the bulk act agree on one shape, and release C fills it (`2026-09-19-lead-finder-C-extras.md`). It is a type, not a
+ * list: an empty record cannot be given a value by accident.
+ */
+type LeadChips = Record<string, never>;
+/**
+ * "clients/leads:s-<search>:l-<list>:c-<class>:p-<lead>" -- the grammar Ask's page citations admit (ask.ts PAGE_PREFIX).
+ * Chips join in release C. The lead that is open (`p-`) comes last, so a view's own route is a prefix of the route
+ * with a lead open over it: the view is what a read is keyed by, and the open lead is never part of that key.
+ */
+declare function leadsRoute(v: {
+    searchId?: string | null;
+    list?: LeadList | null;
+    cls?: LeadClass | null;
+    chips?: Record<string, unknown>;
+    peek?: string | null;
+}): string;
+declare function parseLeadsRoute(route: string): {
+    searchId: string | null;
+    list: LeadList;
+    cls: LeadClass | null;
+    chips: Record<string, unknown>;
+    peek: string | null;
+} | null;
+declare const LEAD_DRAFT_JSON_SCHEMA: {
+    readonly type: "object";
+    readonly additionalProperties: false;
+    readonly required: readonly ["subject", "body"];
+    readonly properties: {
+        readonly subject: {
+            readonly type: "string";
+        };
+        readonly body: {
+            readonly type: "string";
+        };
+    };
+};
+declare const LeadDraftAnswerSchema: z.ZodObject<{
+    subject: z.ZodString;
+    body: z.ZodString;
+}, z.core.$strip>;
+declare const LEAD_SUGGEST_JSON_SCHEMA: {
+    readonly type: "object";
+    readonly additionalProperties: false;
+    readonly required: readonly ["line", "items"];
+    readonly properties: {
+        readonly line: {
+            readonly type: "string";
+        };
+        readonly items: {
+            readonly type: "array";
+            readonly items: {
+                readonly type: "object";
+                readonly additionalProperties: false;
+                readonly required: readonly ["words", "who_for", "category_key"];
+                readonly properties: {
+                    readonly words: {
+                        readonly type: "string";
+                    };
+                    readonly who_for: {
+                        readonly type: "string";
+                    };
+                    readonly category_key: {
+                        readonly type: "string";
+                    };
+                };
+            };
+        };
+    };
+};
+declare const LeadSuggestAnswerSchema: z.ZodObject<{
+    line: z.ZodString;
+    items: z.ZodArray<z.ZodObject<{
+        words: z.ZodString;
+        who_for: z.ZodString;
+        category_key: z.ZodString;
+    }, z.core.$strip>>;
+}, z.core.$strip>;
+/** The foot every draft carries: the business's postal address and a way to say no (CAN-SPAM). */
+declare function leadDraftFooter(business: string, address: string): string;
+interface LeadPeekReach {
+    /** `tip` is what the phone's mark says when pointed at, focused or tapped: the note, as a sentence. */
+    phone: {
+        value: string;
+        note: string;
+        tip: string;
+        tel: string | null;
+        wrong: boolean;
+    } | null;
+    /** `standard` is null beside an address that checks out: there it would be a line saying nothing (D5). */
+    /** `tip` is everything the mailbox's mark says: the state where the note does not restate it, the note, the standard. */
+    email: {
+        value: string;
+        note: string;
+        tip: string;
+        standard: string | null;
+        state: LeadEmailState;
+        word: string;
+        address: string | null;
+        canDraft: boolean;
+    };
+    locked: {
+        title: string;
+        line: string;
+    };
+}
+interface LeadPeekVM {
+    id: string;
+    searchId: string | null;
+    mark: string;
+    name: string;
+    /** The first two words of the name, for "Back to Zilker Strength". */
+    short: string;
+    sub: string;
+    /** Who they are, from what the listing shows (D2): each null when the listing did not say. */
+    about: string | null;
+    where: {
+        line: string;
+        href: string | null;
+    } | null;
+    today: string | null;
+    claimedNote: string | null;
+    /**
+     * The business's face, in the same shape the row's tile wears it: the mark over the listing's photo over initials
+     * on a tint the kind decides. The photograph has ONE home, here -- the band paints it under the mark and the
+     * lightbox opens it on its own. While it rode beside the tile the two surfaces drifted over which one wins (D6).
+     */
+    tile: {
+        initials: string;
+        tint: number;
+        /** The listing's photo as the row's tile draws it (leadTileSrc): already in the browser from the list, so the
+         *  band shows it at once, softened, while its own size arrives. */
+        image: string | null;
+        /** The whole photograph at the listing's own size: the band and the photo expanded draw it. */
+        band: string | null;
+        logo: string | null;
+    };
+    /**
+     * "4.7" and "1,284", apart; null where the source does not rate. `low` is the one thing five bars said that an
+     * average cannot, and it is null unless it is worth saying: see `leadLowShare`.
+     */
+    rated: {
+        score: string;
+        count: string;
+        low: string | null;
+    } | null;
+    /** The two reach slots, as the row wears them. */
+    slots: {
+        phone: LeadSlot;
+        mailbox: LeadSlot;
+    };
+    /** The week's hours as bars, in the listing's own order, today marked; [] when the listing showed no hours. */
+    week: LeadWeekRow[];
+    /** "From the listing": the facts about the place the expanded photo lists beside it. */
+    facts: {
+        k: string;
+        v: string;
+    }[];
+    /** "Open every day · 11 AM to 10 PM": the head the week folds under; "" when the listing published no hours. */
+    weekSummary: string;
+    /** "5 checks passed · 2 couldn't tell": the name of the verdict's evidence bar. */
+    checksSummary: string;
+    /** One segment per check, in the order they were made: the verdict's evidence bar, so the shape of the evidence reads at a glance. */
+    checkDots: ("yes" | "unknown" | "no")[];
+    /** "#19 on Google Maps · Sep 20": the line the trace folds under. */
+    foundSummary: string;
+    /** "1.2 mi", from the search's centre; "" when the search has none. */
+    distance: string;
+    cls: LeadClass;
+    stage: LeadStage;
+    stages: {
+        id: "ready" | "nurture" | "converted";
+        label: string;
+        on: boolean;
+    }[];
+    canStage: boolean;
+    notFitWord: string;
+    fit: {
+        word: string;
+        cls: string;
+        sentence: string;
+    };
+    reach: LeadPeekReach;
+    /** What was seen, then what Claude read (P2, §0.1), told apart by a hairline and by their marks: nothing read wears a plain check. */
+    groups: {
+        how: "seen" | "read";
+        checks: {
+            key: LeadCheckKey;
+            label: string;
+            answer: "yes" | "no" | "unknown";
+            source: string;
+            reason: string | null;
+        }[];
+    }[];
+    others: {
+        summary: string;
+        picked: string | null;
+        items: {
+            email: string;
+            why: string;
+        }[];
+    } | null;
+    found: {
+        at: string;
+        what: string;
+    }[];
+    links: {
+        website: {
+            label: string;
+            href: string;
+        } | null;
+        instagram: {
+            label: string;
+            href: string;
+        } | null;
+        facebook: {
+            label: string;
+            href: string;
+        } | null;
+        linkedin: {
+            label: string;
+            href: string;
+        } | null;
+        tiktok: {
+            label: string;
+            href: string;
+        } | null;
+        maps: {
+            label: string;
+            href: string;
+        } | null;
+    };
+    version: number;
+}
+/**
+ * Today, as an owner about to call needs it: whether they are open NOW. "Open today · 11 AM to 5 PM" made them work
+ * it out; "Open until 5 PM" is the answer. Before opening it says when they open, after closing that they are closed,
+ * and a day the listing marks closed says so. Hours the parser cannot read keep their words, shortened. null when the
+ * listing showed no hours. The day and the clock are the business's own (tz).
+ */
+declare function leadTodayLine(hours: {
+    day: string;
+    hours: string;
+}[], tz: string, now: Date): string | null;
+/**
+ * Hours as few characters as say them. "10 AM to 6 PM" is "10–6": a range that runs from morning into afternoon needs
+ * neither half said. One inside a single half says it once ("5–10 PM"), and one that runs into the night keeps both
+ * ("5 PM–2 AM"). "Open 24 hours" is "24 hours". A line the parser cannot read keeps its words.
+ */
+declare function leadHoursShort(text: string): string;
+/**
+ * One day of the week's hours as a bar across the day (D5): x and w in percent of 24 hours; null for a day the parser
+ * cannot draw. `hours` is the listing's own words; `short` is what a surface shows ("10–6", leadHoursShort).
+ */
+interface LeadWeekRow {
+    day: string;
+    hours: string;
+    short: string;
+    bar: {
+        x: number;
+        w: number;
+    } | null;
+    today: boolean;
+}
+/**
+ * The week in one line, so the seven rows can fold away behind it: how many days they open, and the hours they keep
+ * on most of them. Nothing is claimed that the listing did not say -- a week with no two days alike says only how
+ * many days it opens, because "most days" would then be one day.
+ */
+declare function leadWeekSummary(week: LeadWeekRow[]): string;
+/**
+ * The week's hours as bars (D5): "9 AM to 6 PM" is a bar from 37.5% to 75% of the day, "Open 24 hours" the whole
+ * day, "Closed" no bar, and a line the parser cannot read keeps its words and draws nothing. Overnight hours run to
+ * the end of the day. The listing's own order is kept; today is the business's own day (tz).
+ */
+declare function leadWeekBars(hours: {
+    day: string;
+    hours: string;
+}[], tz: string, now: Date): LeadWeekRow[];
+/** "101 Biscayne Blvd, Miami, FL 33132", with the Maps page when the listing has one. */
+declare function leadWhere(r: Pick<LeadRowDto, "street" | "city" | "state" | "postal_code" | "maps_url">): {
+    line: string;
+    href: string | null;
+} | null;
+/** The owner's own word for the criterion a place was left out by; the plan holds it. */
+/** A day, from the round's end, in which the untouched leads may be removed and the month credited (§8.6). */
+declare const LEAD_UNDO_MS: number;
+/**
+ * Whether a search's latest round may still be undone: ended within the day,
+ * and not undone already. Read by the rail's menu, which is where the removal
+ * lives -- not the strip, where "Undo" beside "yours" read as deleting what was
+ * just paid for.
+ */
+declare function leadUndoable(s: {
+    round: {
+        undo_op_id: string | null;
+        ended_at: string | null;
+    } | null;
+} | null, now: Date): boolean;
+declare function leadExclusionWord(search: LeadSearchDto | null, key: string | null): string;
+/**
+ * The peek (§9.2, P2, S12): the sub-line, the fit sentence, how to reach them, the checks in two groups (what was
+ * seen, and what Claude read), the other addresses, Found, the site. Every sentence here, so the page says nothing
+ * of its own. The mark is `initialsOf`, the same derivation the row wears, never a second one.
+ */
+declare function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: string, now: Date): LeadPeekVM;
+/** What removing a search keeps: the leads already worked. Said before the press; the number comes after it. */
+declare const LEAD_REMOVE_KEEPS = "Keeps the ones you contacted or are talking to.";
+/**
+ * A kept search, in the owner's own words (§8.10): what they asked for, the day they asked, and what the plan
+ * leaves out. One derivation, because the rail's menu and the question before Remove both say it.
+ */
+declare function leadSearchWords(s: {
+    asked: string;
+    asked_on: string;
+    plan?: LeadSearchPlan;
+} | null, tz: string): {
+    askedLine: string;
+    keepsLine: string;
+};
+interface LeadCheck {
+    key: LeadCheckKey;
+    how: "seen" | "read";
+    answer: "yes" | "no" | "unknown";
+    source: string;
+    reason: string | null;
+}
+/** The seven checks §0.1 and the interface name, four seen and three read; §9.2's "six" is the PRD's count of one screen. */
+declare const LEAD_CHECK_KEYS: readonly ["on_maps", "in_area", "phone_two_sources", "mailbox", "independent", "right_kind", "own_address"];
+type LeadCheckKey = (typeof LEAD_CHECK_KEYS)[number];
+interface LeadRowDto {
+    id: string;
+    search_id: string;
+    place_id: string;
+    business_name: string;
+    category: string | null;
+    city: string | null;
+    state: string | null;
+    street: string | null;
+    /** `leads_page` answers it beside the city; the area cell reads "78704 · Austin, TX" from the pair. */
+    postal_code?: string | null;
+    /** Not the door's: `leads_page` returns the search's id, and 4.4 fills the name from the same read that loads the searches. */
+    search_name?: string | null;
+    phone: string | null;
+    phone_agrees: boolean;
+    phone_wrong: boolean;
+    email: string | null;
+    email_state: LeadEmailState;
+    email_checked_at: string | null;
+    website: string | null;
+    instagram: string | null;
+    rating: number | null;
+    reviews: number | null;
+    /** What the listing shows about the business (D2, 00144). Optional: a fixture from before carries none, and the view models read them as absent. */
+    about?: string | null;
+    hours?: {
+        day: string;
+        hours: string;
+    }[];
+    image_url?: string | null;
+    price?: string | null;
+    reviews_dist?: {
+        one: number;
+        two: number;
+        three: number;
+        four: number;
+        five: number;
+    } | null;
+    facebook_url?: string | null;
+    linkedin_url?: string | null;
+    tiktok_url?: string | null;
+    claimed?: boolean | null;
+    maps_url?: string | null;
+    rank?: number | null;
+    /** D5 (00146): the neighbourhood the listing names, and the coordinates leads_page returns, for the row's line about where and the map. */
+    neighborhood?: string | null;
+    lat?: number | null;
+    lng?: number | null;
+    /**
+     * D6 (00161): the business's own mark, as the copy we keep -- `leadMarkSrc` over the lead's `mark_path`. Never the
+     * address on its own site, which the dashboard's content policy blocks.
+     */
+    mark_url?: string | null;
+    stage: LeadStage;
+    closed_reason: string | null;
+    contact_id: string | null;
+    /** How the lead has been worked, from `leads_page` (4.2): a fixture copies the real shape even where B draws none of it. */
+    last_outcome: string | null;
+    last_note: string | null;
+    contacted_at: string | null;
+    converted_at: string | null;
+    places: number;
+    found_at: string;
+    exported_at: string | null;
+    version: number;
+    member: {
+        class: LeadClass;
+        fit: "strong" | "look" | "long" | null;
+        reason: string;
+        excluded_by: string | null;
+        distance_m: number | null;
+        counted: boolean;
+        checks: LeadCheck[];
+        other_emails: {
+            email: string;
+            why: string;
+        }[];
+        /** The class rule's reason tokens (D3): what Needs review is grouped by. Optional: a fixture from before carries none. */
+        reasons?: string[];
+    };
+}
+/** "Independent" -> "independent" for the middle of a sentence; a name that is capitals stays as it is. */
+declare const leadLowerFirst: (s: string) => string;
+declare const LEAD_REVIEW_GROUP_WORDS: {
+    readonly mailbox_waiting: "Waiting on the mailbox check";
+    readonly checks_out: "Their email checks out";
+    readonly mailbox_silent: "Their mail server wouldn't answer";
+    readonly bad_email: "Their email bounces";
+    readonly no_email: "No email on their site";
+    readonly no_phone: "No phone on their listing";
+    readonly catch_all: "Unconfirmed — the mailbox accepts any address";
+    readonly unsure: "Couldn't tell if";
+    readonly read_only: "Only the listing says so";
+    readonly out_of_area: "Just outside the area you asked for";
+};
+type LeadReviewGroupId = keyof typeof LEAD_REVIEW_GROUP_WORDS;
+type LeadReviewAct = "check_again" | "find_email" | "keep" | "exclude";
+declare const LEAD_REVIEW_ACT_WORDS: Record<LeadReviewAct, string>;
+/** Why a pile is waiting, in a sentence: what was looked at, and what is true of every lead in it. */
+declare const LEAD_REVIEW_GROUP_WHY: Record<LeadReviewGroupId, string>;
+/** A mailbox re-check, in cents an address (the source card's own price): what "Check again" says it costs. */
+declare const LEAD_CHECK_CENTS_EACH = 0.089;
+declare const leadCheckAgainCents: (n: number) => number;
+/**
+ * What each press on the bench does, and what it costs (D5). One derivation, because the bar offers the acts and
+ * the column beside it explains them: a Keep that spends a lead of the month says so with the number left.
+ */
+declare function leadReviewCosts(acts: LeadReviewAct[], n: number, month: LeadMonthDto | null): {
+    act: LeadReviewAct;
+    label: string;
+    line: string;
+}[];
+/** What a search asked for, in the owner's own words: its criteria, then what it leaves out (D5's right column). */
+declare function leadAskedFor(search: LeadSearchDto | null): {
+    text: string;
+    kind: "criterion" | "exclusion";
+}[];
+interface LeadReviewGroup {
+    id: LeadReviewGroupId;
+    key: string;
+    label: string;
+    ids: string[];
+    acts: LeadReviewAct[];
+}
+/**
+ * Needs review as a queue: one group per thing that would resolve it, each with the leads in it and the acts that
+ * resolve it. A lead with two reasons sits in the first group that fits it, in the order above; a group about one
+ * criterion names it in the owner's own words from the plan, and two criteria make two groups.
+ */
+declare function leadReviewGroups(rows: {
+    id: string;
+    cls: LeadClass;
+    reasons: string[];
+}[], search: LeadSearchDto | null): LeadReviewGroup[];
+interface LeadSearchRoundDto {
+    id: string;
+    seq: number;
+    purpose: string;
+    state: string;
+    ending: LeadRoundEnding | null;
+    question: {
+        sentence: string;
+        criterion_key: string;
+    } | null;
+    target: number;
+    counted: number;
+    qualified: number;
+    review: number;
+    excluded: number;
+    /** Counted leads whose address was found and checked: "88 you can email", and "41 emails checked" while it runs. */
+    emails_checked: number;
+    /** Counted leads reachable by phone: "72 by phone" (§8.6's sentence needs both, W2 put both on the view). */
+    with_phone: number;
+    /** The round is stopping and still checking what it found (S12): the only way to tell Stopping from Checking. */
+    ending_pending: boolean;
+    waiting_since: string | null;
+    cost_usd: number;
+    ended_at: string | null;
+    undo_op_id: string | null;
+    undo_version: number | null;
+    /** Where to look next when the round ran dry (D3, 00145): the nearest ZIP centres past its area, nearest first; [] otherwise. */
+    nearby: LeadArea[];
+    /** The qualified members by fit band (D5, 00146), for the band bar. Optional: a fixture from before carries none. */
+    fits?: {
+        strong: number;
+        look: number;
+        long: number;
+    };
+}
+interface LeadSearchDto {
+    id: string;
+    name: string;
+    asked: string;
+    asked_on: string;
+    plan: LeadSearchPlan;
+    plan_version: number;
+    round: LeadSearchRoundDto | null;
+}
+interface LeadMapPin {
+    id: string;
+    x: number;
+    y: number;
+}
+interface LeadMapPlot {
+    /** Every lead the door gave a place, in a square of 0..1 with 0,0 at the top left. */
+    pins: LeadMapPin[];
+    /** The area the search asked for, when it has a centre: where it sits in the same square, and how wide. */
+    ring: {
+        x: number;
+        y: number;
+        r: number;
+    } | null;
+    /** How many metres the square is across, for the scale bar; 0 when there was nothing to place. */
+    spanM: number;
+    /**
+     * True when these leads are not one place. Without an area to anchor on, the square is drawn from the leads
+     * themselves, so six searches in six cities produced one square four thousand miles across with every city
+     * collapsed into a dot. That is arithmetically honest and tells the owner nothing.
+     */
+    tooWide: boolean;
+    /** What the square is centred on, so "widen the area" asks about the ground the owner is looking at. */
+    center: {
+        lat: number;
+        lng: number;
+    } | null;
+}
+/**
+ * Where the leads sit on the ground, relative to each other and to the area the search asked for (D5). Everything
+ * is measured in metres from one centre and then scaled into a square, so the picture is honest at a town's size
+ * without a projection, a tile or a request to anyone. A lead the source placed nowhere is simply not on it.
+ */
+/** Past this, leads with no area to anchor them are not one place. Fifty miles: a city and the towns around it. */
+declare const LEAD_MAP_MAX_SPAN_M = 80000;
+declare function leadMapPlot(rows: {
+    id: string;
+    point: {
+        lat: number;
+        lng: number;
+    } | null;
+}[], area: LeadArea | null): LeadMapPlot;
+/** How wide the square is, in the owner's own unit: "3.4 mi across", and nothing when there was nothing to place. */
+declare const leadMapAcross: (spanM: number) => string;
+/**
+ * What the line under the plot says. A city ask has no centre until its probe measures one, so there is often no
+ * area to draw and the picture is only where the leads are -- which is worth saying rather than implying a ring
+ * that is not there.
+ */
+declare function leadMapNote(plot: LeadMapPlot, oneSearch: boolean): string;
+interface LeadCounts {
+    all: number;
+    ready: number;
+    nurture: number;
+    converted: number;
+    said_no: number;
+    not_a_fit: number;
+}
+/**
+ * The month, as a surface says it (D5): how many of its leads are spoken for, how many are left, and the day it
+ * renews. The workbench reads it to say what a press costs -- "5 of your 238 left" -- so a Keep is never a number
+ * nobody can see. The whole is contracts' LEAD_MONTHLY_ALLOWANCE, never a number a page invents.
+ */
+interface LeadMonthDto {
+    used: number;
+    left: number;
+    renewsOn: string;
+}
+interface LeadSuggestionsDto {
+    business_line: string;
+    by_owner: boolean;
+    made_at: string;
+    items: {
+        words: string;
+        who_for: string;
+        category_key: string;
+        reach: string | null;
+    }[];
+    note?: string;
+}
+/** What the card knows beyond the plan: the reads release A's doors answer, folded into one unit (§0.2). `planFacts` in `server/leads.ts` (4.4) builds exactly this. */
+interface LeadPlanFacts {
+    /** Places already in People or Leads this plan would skip: "Skips the 14 already yours". */
+    dupes: number;
+    /** Leads this month still covers, every limit folded in. */
+    leadsLeft: number;
+    /** Which limit made that number, when one of them binds before the plan's own count. A's counter kinds, never a word of its own. */
+    bound: "allowance" | "budget" | null;
+    /** The platform-wide prior for this kind of business (lead_niche_prior), or null when it was never searched. */
+    prior: {
+        places: number;
+        matched: number;
+        with_email: number;
+    } | null;
+    /** The kind of business the prior is for, in the owner's words: "trainers". */
+    priorOf: string | null;
+    /** A must-be-seen criterion the chosen card cannot see (§0.1), with the likely version offered. */
+    cannotSee: {
+        key: string;
+        text: string;
+        likely: string;
+    } | null;
+    /** The day the month's leads renew, in the workspace's zone: "Oct 1". */
+    renewsOn: string;
+    /** Claude's nearby areas, for the card's area picker and for a round further out. */
+    nearby: LeadArea[];
+}
+/**
+ * One row as the table draws it (§6.2). Every field is a word or a shape, and not one of them is a stored value:
+ * `stage` rides along only so the row's dot has a class. Task 2's `LEAD_COLUMNS` reads exactly these and nothing else.
+ */
+type LeadSlotState = "ok" | "part" | "none" | "bad" | "checking";
+/** One reach slot: the shape carries the meaning (state), the word repeats it, the tip gives the value back. */
+interface LeadSlot {
+    state: LeadSlotState;
+    value: string | null;
+    word: string;
+    tip: string;
+    copy: boolean;
+}
+declare const LEAD_SLOT_WORDS: Record<LeadSlotState, string>;
+/** The name card's facts (D5): the same derivations the peek draws from, so a hover decides without opening it. */
+interface LeadRowCard {
+    about: string | null;
+    today: string | null;
+    where: {
+        line: string;
+        href: string | null;
+    } | null;
+    site: {
+        label: string;
+        href: string;
+    } | null;
+    maps: {
+        label: string;
+        href: string;
+    } | null;
+    found: {
+        at: string;
+        what: string;
+    }[];
+}
+/** The band over the table (D5): the search's whole shape in one line, which is also the class tabs, and the qualified split by fit. */
+interface LeadBand {
+    classes: {
+        id: LeadClass;
+        label: string;
+        count: number;
+    }[];
+    fits: {
+        id: "strong" | "look" | "long";
+        label: string;
+        count: number;
+    }[];
+    /** Worth drawing the split only when the fits differ: a search whose every row is strong says nothing by it. */
+    mixed: boolean;
+}
+/**
+ * The two reach slots, phone then mailbox (D5): five states a shape can carry, so the column survives greyscale.
+ * A mail server that would not answer wears Unconfirmed's shape with its own sentence; a number the owner marked
+ * wrong is Bad; a source that gave nothing is Nothing found, never a failure.
+ */
+declare function leadSlots(r: Pick<LeadRowDto, "phone" | "phone_agrees" | "phone_wrong" | "email" | "email_state">): {
+    phone: LeadSlot;
+    mailbox: LeadSlot;
+};
+/** The tile's tint, one of six, from the kind of business: the same kind wears the same tint on every row and in the peek. */
+declare function leadTintOf(kind: string | null | undefined): number;
+declare function leadBand(search: LeadSearchDto | null): LeadBand | null;
+interface LeadRowVM {
+    id: string;
+    searchId: string;
+    searchName: string;
+    mark: string;
+    name: string;
+    places: number;
+    category: string;
+    area: string;
+    cls: LeadClass;
+    /** The fit band itself (D5), for the band bar's filter; null for a row that is not qualified. */
+    fit: "strong" | "look" | "long" | null;
+    fitLabel: string;
+    fitTitle: string;
+    email: string | null;
+    emailState: LeadEmailState;
+    emailLabel: string;
+    emailWord: string;
+    phone: string | null;
+    phoneAgrees: boolean;
+    phoneWrong: boolean;
+    /** The two contacts as one glance (D2's Reach column). */
+    reach: {
+        email: {
+            address: string;
+            state: LeadEmailState;
+            word: string;
+        } | null;
+        phone: {
+            number: string;
+            agrees: boolean;
+        } | null;
+    };
+    /** The class rule's reason tokens, for the Needs review queue (D3); [] on a row from before. */
+    reasons: string[];
+    why: string;
+    rating: string;
+    /** The spread of reviews, "5★ 30 · 4★ 8 · 3★ 2 · 2★ 0 · 1★ 1", for the Rating cell's title; blank when the listing did not say. */
+    reviewsTitle: string;
+    stage: LeadStage;
+    stageLabel: string;
+    /** The person this lead converted into (leads.contact_id), so a page can read People's row for them; null until then. */
+    contactId: string | null;
+    foundLabel: string;
+    /** "Found 2d ago", "Found just now", "Found Aug 29": when it was found, as a phone's row says it (People's row says when
+     *  they last wrote the same way). A desktop's Found column says `foundLabel` under its heading. */
+    foundLine: string;
+    foundAt: string;
+    distance: string;
+    source: string;
+    host: string;
+    excludedBy: string | null;
+    version: number;
+    /** "Book store · Hawthorne · 97214 · 1.2 mi": whatever the source gave, in that order; "" when it gave none. */
+    sub: string;
+    /** The two reach slots, phone then mailbox. */
+    slots: {
+        phone: LeadSlot;
+        mailbox: LeadSlot;
+    };
+    /** "4.7" and "1,284", apart, or null where the source does not rate. */
+    rated: {
+        score: string;
+        count: string;
+    } | null;
+    /** The spread of reviews, one to five stars, or null when the listing did not say. */
+    spread: [number, number, number, number, number] | null;
+    /** The tile: the business's own mark, else the listing's photo, else initials on a tint the kind decides. */
+    tile: {
+        initials: string;
+        tint: number;
+        image: string | null;
+        /** The whole photograph the peek's band draws, so the row can ask for it before it is opened. */
+        band: string | null;
+        logo: string | null;
+    };
+    /** A review row's line: what would resolve it, in the queue's own words; null for any other row. */
+    waitsOn: string | null;
+    /** The row's state mark: Ready is silent; the rest wear an edge and a tag. */
+    state: "ready" | "contacted" | "talking" | "review" | "out";
+    stateTag: string | null;
+    /** The name card's facts. */
+    card: LeadRowCard;
+    /** Where it sits, when the door gave coordinates. */
+    point: {
+        lat: number;
+        lng: number;
+    } | null;
+}
+/**
+ * The listing's photo at the size a row's tile draws it: Google's photo service takes a size after `=`, and the
+ * scraper's URL asks for 408 wide, which every row downloaded for a 48px box. `s96-c` is a 96px square crop, which
+ * the tile draws with object-fit anyway, and enough for a 2x screen. Any other host, or a URL with no size to
+ * replace, is left as it is. The peek's band and the photo expanded keep the whole photograph at the listing's own
+ * size (`tile.band`), untouched: Google's place-photo service answered other sizes and WebP (`-rw`) unevenly when
+ * probed on 23 Sep, the same photo refusing one variant and serving the next, so no variant is asked of it.
+ */
+declare const LEAD_TILE_PX = 96;
+declare function leadTileSrc(url: string | null | undefined, px?: number): string | null;
+/** 00161's public bucket: the copies of leads' marks we keep, each named by its own hash. */
+declare const LEAD_MARKS_BUCKET = "lead-marks";
+/** The only names the bucket holds, and the only ones 00161's CHECK lets a lead keep. */
+declare const LEAD_MARK_PATH: RegExp;
+/**
+ * Where a kept mark is served: the project's own storage, on the Supabase origin the dashboard's content policy
+ * already lets images in from (csp.ts reads the same variable). Null for no copy, for anything that is not a name we
+ * wrote, and without an https origin to serve it from.
+ */
+declare function leadMarkSrc(supabaseUrl: string | null | undefined, path: string | null | undefined): string | null;
+/**
+ * One row's words and shapes (§6.2). Nothing here is a stored value. The search is the row's own (D5): a review
+ * row names what it waits on in the queue's words, and the name card names the term it was found for.
+ */
+declare function toLeadRowVM(r: LeadRowDto, tz: string, now: Date, search?: LeadSearchDto | null): LeadRowVM;
+/** The rail's rows under Leads (§6.1): the six lists with counts, then the searches with their marks. */
+declare function leadRail(counts: LeadCounts, searches: LeadSearchDto[], now?: Date): {
+    lists: {
+        id: LeadList;
+        label: string;
+        count: number;
+    }[];
+    searches: {
+        id: string;
+        name: string;
+        count: number;
+        mark: "live" | "question" | null;
+        undoable: boolean;
+    }[];
+};
+/** "322 leads · 272 ready · 3 searches", and "1 search needs you" when one waits. */
+declare function leadsStanding(counts: LeadCounts, searches: LeadSearchDto[]): {
+    total: string;
+    parts: string[];
+    needsYou: {
+        count: number;
+        searchId: string;
+    } | null;
+};
+/** The bell's title and the email's subject when a search stops to ask (00163 writes the same words in SQL). */
+declare const leadQuestionTitle: (name: string) => string;
+/** What waiting costs and how long it lasts (the sweep ends a question after a day): the strip's line and the email's. */
+declare const LEAD_QUESTION_WAIT_LINE = "Nothing is spent while this waits. With no answer in a day, it stops and keeps what it found.";
+/** Where a question opens: its search, on the pile it asks about. A question is only ever asked about places left out. */
+declare const leadQuestionRoute: (searchId: string) => string;
+/** The email the runner sends when a search stops to ask: the question, what waiting means, and the way back. */
+declare function leadQuestionMail(x: {
+    name: string;
+    sentence: string;
+    link: string;
+}): {
+    subject: string;
+    body: string;
+};
+/** Under this many places judged, a prior is too thin to say a number from. */
+declare const LEAD_PRIOR_MIN_PLACES = 50;
+/**
+ * The Likely line and its two-part bar (§8.3): what past searches for this
+ * kind of business found, never a promise about this one. A kind never
+ * searched says the share is checked after the first 25 (P3).
+ */
+declare function leadPlanLikely(plan: LeadSearchPlan, facts: LeadPlanFacts): {
+    emailPct: number | null;
+    phonePct: number | null;
+    line: string;
+};
+/** The facts under the sentence (§8.3), in the one unit the owner has: leads. No dollar meter. */
+declare function leadPlanFacts(plan: LeadSearchPlan, facts: LeadPlanFacts): string[];
+/**
+ * What the card asks for, and how it says why it is not what was typed (§0.2,
+ * decision 27). When a limit binds the count is clamped to what is left, the
+ * button says that number, and one sentence says which limit and what else
+ * would fit. There is no dollar meter, and the word is always leads.
+ */
+declare function leadPlanAsk(plan: LeadSearchPlan, facts: LeadPlanFacts): {
+    count: number;
+    label: string;
+    covers: string | null;
+};
+
 /**
  * Today (Slice 4): the morning brief.
  *
@@ -9864,7 +11360,7 @@ interface TodaySentenceVM {
  */
 interface TodayQueueRowVM {
     id: string;
-    kind: "handoff" | "callback" | "window" | "call";
+    kind: "handoff" | "callback" | "window" | "call" | "search";
     /** The thread this row is about; null for a call with no thread. The away card drops a bell row about the same thread. */
     conversationId: string | null;
     /** The call this row is about: a call-back's newest call, a call worth a listen; null otherwise. */
@@ -9873,8 +11369,9 @@ interface TodayQueueRowVM {
     initials: string;
     /** The wire, in the words a row shows. It was `"WhatsApp" | "Phone"`, which is
      *  what let every escalation row be hard-coded to WhatsApp: the type could
-     *  not have held an email even if the code had tried to put one there. */
-    channel: "WhatsApp" | "Phone" | "Text" | "Email";
+     *  not have held an email even if the code had tried to put one there.
+     *  "Leads" is a search waiting on its owner (spec G6), the one row that is not a person. */
+    channel: "WhatsApp" | "Phone" | "Text" | "Email" | "Leads";
     /** "waited 2h" · "closes 5:10 PM · in 40m" · "2:14 PM · 1:35". */
     when: string;
     sentence: string;
@@ -10051,7 +11548,7 @@ declare function todayProof(live: {
 }, tz: string, now: Date): string;
 declare function toTodayVM(m: MetricsSummaryDto, conversations: ConversationDto[], escalations: Array<EscalationDto & {
     conversation_id: string;
-}>, calls: CallDto[] | null, now?: Date): TodayVM;
+}>, calls: CallDto[] | null, now?: Date, searches?: LeadSearchDto[] | null): TodayVM;
 /** What the day module reads, as the calendar surface publishes it. Minimal on purpose: the page hands the surface in. */
 interface DayFrameLike {
     key: string;
@@ -10804,17 +12301,31 @@ interface AskWaiting {
         reach: number;
         to: string;
     }>;
+    /** Searches that stopped to ask, waiting on the owner (Today's queue's search rows). */
+    searches: Array<{
+        id: string;
+        name: string;
+        question: string;
+        to: string;
+    }>;
 }
-/** Right now, in a sentence: the people waiting, then the runs waiting for a yes -- two populations, two clauses. */
+/**
+ * Right now, in a sentence: the people waiting, then the runs waiting for a yes, then the searches waiting for an
+ * answer -- three populations, three clauses.
+ */
 declare function rightNowLine(w: AskWaiting | null, language: AskLanguage): string;
-/** The counts rightNowLine's sentence is built from, so pills beside it never disagree: people waiting (drawn and past the rows) and runs waiting. */
+/**
+ * The counts rightNowLine's sentence is built from, so pills beside it never disagree: people waiting (drawn and past
+ * the rows), runs waiting and searches waiting.
+ */
 declare function rightNowCounts(w: AskWaiting | null): {
     people: number;
     runs: number;
+    searches: number;
 };
 /**
- * Who needs me: the sentence; the people, then the runs, as their own doors; the Inbox only for the people past what
- * is drawn. A queue not read yet says so, and points at Today.
+ * Who needs me: the sentence; the people, then the searches, then the runs, as their own doors; the Inbox only for
+ * the people past what is drawn. A queue not read yet says so, and points at Today.
  */
 declare function needsAnswer(w: AskWaiting | null, language: AskLanguage): AskAnswer;
 /** Did anyone call: today's missed calls as doors, or none, with the call on the line; Do opens Live. */
@@ -13456,48 +14967,6 @@ declare function toastShape(p: {
     ms?: unknown;
 }): ToastShape;
 
-type Tone = "accent" | "warn" | "info" | "ok" | "danger" | "plain";
-declare const TONES: readonly Tone[];
-/** The families of state a pill can name. */
-type StateKind = "thread" | "standing" | "call" | "person" | "consent" | "mode" | "broadcast" | "playbook" | "template" | "template_quality" | "setup" | "role" | "tone" | "calendar"
-/** Where a fact came from: the chip beside a value on the Business tab. */
- | "fact" | "escalation" | "lead_class" | "lead_stage" | "lead_fit" | "reach" | "lead_call_outcome" | "lead_row_state" | "deal";
-/** The tone for a state, or plain for one this map has never heard of. */
-declare function stateTone(kind: StateKind, value: unknown): Tone;
-/** The words for a state, or the value itself when nobody has written any. */
-declare function stateLabel(kind: StateKind, value: unknown): string;
-/** Both at once: what the pill draws. */
-declare function stateOf(kind: StateKind, value: unknown): {
-    tone: Tone;
-    label: string;
-};
-/** What a pin needs to know about a lead to take a tone: its class, its fit, its row state, its two slots. */
-interface LeadPinnable {
-    cls: string;
-    fit: string | null;
-    state: string;
-    slots: {
-        phone: {
-            state: string;
-        };
-        mailbox: {
-            state: string;
-        };
-    };
-}
-/**
- * The tone a lead's pin wears on the map, by what the map is coloured by.
- *
- * The map kept a table of its own, in leads.css, keyed by `strong`/`part`/`talking` -- words no tone vocabulary
- * knows -- so it was a sixth colour family that this file could not reach. It had already drifted: a `look` fit
- * drew amber on a pin while this map calls it plain. And because those rules named no element, and leads.css is
- * imported after clients.css, `.tone-ok` painted EVERY `tone-ok` in the app solid green -- a Today attention row,
- * and the peek's own Interested chip. Both now come through here.
- *
- * A pin is data, so by the chart kit's rule it never wears the accent, and none of these branches can return it.
- */
-declare function leadPinTone(lead: LeadPinnable, by: "fit" | "reach" | "stage"): Tone;
-
 /**
  * Connections — everything a workspace can be joined to, as one row shape.
  *
@@ -15520,1460 +16989,6 @@ declare function erasedEmailHash(tenantId: string, email: string): Promise<strin
  * is the one stored: E.164 with its "+", normalizeEmail's output, the place id.
  */
 declare function leadSuppressionHash(tenantId: string, value: string): Promise<string>;
-
-/**
- * The Leads scope of People, in words (PRD 2026-09-17 v3 §6, §9; release B).
- *
- * Release A (`lead-search.ts`, `lead-judge.ts`) holds the plan, the stored sets
- * and every rule with a right answer. This file is what the OWNER sees: the
- * word a stored value wears, the shape a request takes, the view a route
- * spells, and the view models the page draws a row, the rail and the standing
- * line from. Pure -- nothing here reads a file, a database or a clock of its
- * own; a caller hands in the workspace's zone and the moment.
- *
- * No word here names the vendor that runs the searches. Where a fact came from
- * is said the way the owner would say it ("Google Maps listing"), never by the
- * name of the service that fetched it.
- */
-
-/** B's screen word for A's stored set (`lead_search_members.class`): one set, two names, never two lists. */
-declare const LEAD_CLASSES: readonly ["qualified", "review", "excluded"];
-type LeadClass = LeadMemberClass;
-declare const LEAD_LISTS: readonly ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
-declare const LEAD_SORTS: readonly ["fit", "found", "distance", "business", "rating", "stage"];
-declare const LEAD_CALL_OUTCOMES: readonly ["interested", "call_back", "not_interested", "voicemail", "no_answer", "wrong_number"];
-declare const LEAD_NOT_A_FIT_WHYS: readonly ["chain", "wrong_kind", "too_far", "customer", "other"];
-/** A's stored set has no type of its own; the word for one of its members is derived here, not a second list. */
-type LeadStage = (typeof LEAD_STAGES)[number];
-
-type LeadList = (typeof LEAD_LISTS)[number];
-type LeadSort = (typeof LEAD_SORTS)[number];
-type LeadCallOutcome = (typeof LEAD_CALL_OUTCOMES)[number];
-type LeadNotAFitWhy = (typeof LEAD_NOT_A_FIT_WHYS)[number];
-/** Stored values are never shown (§9.1). */
-declare const LEAD_STAGE_WORDS: Record<LeadStage, string>;
-declare const LEAD_CLOSED_WORDS: Record<(typeof LEAD_CLOSED_REASONS)[number], string>;
-declare const LEAD_FIT_WORDS: Record<(typeof LEAD_FITS)[number], string>;
-/** Claims only what the check saw (S12): a catch-all server accepts anything, so the check cannot tell. */
-declare const LEAD_EMAIL_WORDS: Record<(typeof LEAD_EMAIL_STATES)[number], string>;
-/** How an outcome reads at a glance (D5): the dot beside its word, never colour alone -- the word is always there. */
-/**
- * What each outcome means, in the app's ONE tone vocabulary (tone.ts). This used to carry two words of its own --
- * `quiet` and `bad` -- which no pill and no stylesheet could draw: `.tone-quiet` was never written, so a voicemail
- * and a no-answer both fell through to the faintest grey, and a wrong number drew as if nothing had happened.
- */
-declare const LEAD_CALL_OUTCOME_TONES: Record<(typeof LEAD_CALL_OUTCOMES)[number], Tone>;
-declare const LEAD_CALL_OUTCOME_WORDS: Record<(typeof LEAD_CALL_OUTCOMES)[number], string>;
-/** The rail's six lists, said once (§6.1). `leadRail` draws from here and nowhere else. */
-declare const LEAD_LIST_WORDS: Record<LeadList, string>;
-/** Where a lead's facts came from, in the owner's words. */
-declare const LEAD_SOURCE_WORD = "Google Maps listing";
-declare const LEAD_LOCKED_LINE = "Wait for their yes. Once they write back, they're in People and your yes page works for them.";
-declare const LEAD_DRAFT_NOTE = "Your business address and a way to say no are added at the foot, as US law asks.";
-declare const LEAD_NO_ADDRESS = "Add your business address in Settings first. US law asks for it at the foot of every email you send a business.";
-/** Both consent doors say this, permanently, for a person a lead is linked to (decision 19). */
-declare const LEAD_CONSENT_REFUSAL = "This person came from a lead you found. A yes has to come from them: their own message, or your yes page.";
-/** Not a fit's five whys, in the order the peek and the bulk bar offer them (§9.5). */
-declare const LEAD_NOT_A_FIT_WORDS: Record<LeadNotAFitWhy, string>;
-declare const LEAD_NOT_A_FIT_TITLE = "What makes it not a fit?";
-/** The one why that hides the place from every future search; the rest teach nothing in this release. */
-declare const LEAD_SUPPRESSING_WHY: LeadNotAFitWhy;
-declare const LEAD_REVIEW_WORD = "Needs review";
-declare const LEAD_LEFT_OUT_WORD = "Left out";
-/** What a lead's class is called. The page kept a second copy that said "Excluded" for the same state. */
-declare const LEAD_CLASS_WORDS: Record<LeadMemberClass, string>;
-/** The Excluded chip for a place with no phone and no email (lead-search.ts LEAD_UNREACHABLE_KEY). */
-declare const LEAD_UNREACHABLE_WORD = "No way to reach them";
-declare const LEAD_CHECK_UNSURE = "Couldn't tell";
-/** One label per check and answer; the particulars are the check's own reason. */
-declare const LEAD_CHECK_WORDS: Record<LeadCheckKey, Record<"yes" | "no" | "unknown", string>>;
-/** The mailbox check says the state it saw, never a word for it (§10.4, S12). */
-declare const LEAD_MAILBOX_WORDS: Record<LeadEmailState, string>;
-/** What the peek says under the email, from the plan's own contact standard (§0.1). */
-declare const LEAD_CONTACT_STANDARD_WORDS: Record<"phone" | "email", string>;
-/** The note under the email of a lead that came with none, and the one thing left to do. */
-declare const LEAD_NO_EMAIL_LINE = "Checked their home, contact and about pages. Call instead.";
-/** Both questions the peek asks when the owner comes back to the tab (§9.3, §9.4). */
-declare const LEAD_SENT_QUESTION = "Did you send it?";
-declare const LEAD_CALL_QUESTION = "How did the call go?";
-declare const LEAD_NOTE_PLACEHOLDER = "A note for next time, if you like";
-declare const LEAD_NOTE_MAX = 280;
-/** A stage click never converts (§9.6): the control says where the yes comes from. */
-declare const LEAD_TALKING_NOTE = "They join People when they write or call in, or when a call goes well.";
-/** How much of the note is left, said in the field (§9.4). */
-declare function leadNoteLeft(left: number, max: number): string;
-/** An unclaimed listing rarely watches its email; the peek says so, quietly (D2). */
-declare const LEAD_UNCLAIMED_NOTE = "Listing not claimed by the owner";
-/** Below this, the unhappy reviews are the ordinary few every business has, and saying so would be noise. */
-declare const LEAD_LOW_SHARE_FLOOR = 0.15;
-/**
- * The one thing five bars said that the average cannot: how much of the score is carried by people who were unhappy.
- * A 4.5 out of forty reviews and a 4.5 out of forty where a quarter gave one star are different businesses to call,
- * and the mean hides it. So the peek says it in words, and only when it changes the picture -- under a sixth at one
- * or two stars is the ordinary tail of any listing, and a line about it would be noise on every lead.
- *
- * Null when the listing published no breakdown, when it has no reviews, or when nothing is worth saying.
- */
-declare function leadLowShare(dist: {
-    one: number;
-    two: number;
-    three: number;
-    four: number;
-    five: number;
-} | null): string | null;
-/** The first day of Leads, before a workspace has kept one search (§8.9). */
-declare const LEAD_FIRST_DAY_TITLE = "Your people gather here";
-declare const LEAD_FIRST_DAY_SUB = "Or have Claude find businesses worth reaching";
-/** What the finder does not do, said where it is offered. */
-declare const LEAD_FIRST_DAY_FOOT = "Claude finds businesses, not people at home.";
-/** When the suggestions cannot be written at all: a note on the page, never a page that fails (4.4's suggestionsFor). */
-declare const LEAD_SUGGEST_UNAVAILABLE = "Suggestions are not available right now.";
-/**
- * Every word the Leads scope's own markup says, spelled once here and seeded onto the window as `window.__LEAD_WORDS`
- * by `seed-globals.ts`, because the legacy pages import nothing. A words record is a global seeded once at boot, like
- * `__FACT_WORDS`, not a courier's -- the courier carries acts. Task 19 adds the facts' own words (the stages, the
- * endings, the guardrail sentences) to THIS record; there is one `LEAD_WORDS` and nothing else holds a lead's words.
- * A sentence the server also says is not here: the routes' toasts are the routes' own.
- */
-declare const LEAD_WORDS: {
-    /**
-     * The ways a lead can be rung, offered when Call is pressed rather than dialling on the spot. Pressing it rang a
-     * real business the moment a thumb landed on a row you might only have been skimming, and a call made from a
-     * desk phone could not be recorded at all -- the six outcomes are armed by that button alone.
-     *
-     * The receptionist is NOT one of the ways and must not become one here. It answers the line and never rings a
-     * customer (`business-tab.ts` CANNOT_ROWS, "outbound_call"), which the Business page states to the owner in
-     * those words. A menu item offering it would promise what the product says two pages away that it cannot do.
-     */
-    readonly callWays: {
-        readonly dial: {
-            readonly label: "Call from your phone";
-        };
-        readonly copy: {
-            readonly label: "Copy the number";
-        };
-        /** Rung from a desk phone or a softphone: no dial, straight to "How did the call go?". */
-        readonly log: {
-            readonly label: "Log a call you already made";
-            readonly meta: "how did it go?";
-        };
-    };
-    readonly close: "Close";
-    readonly open: "Open";
-    readonly stageLabel: "Stage";
-    readonly notFit: string;
-    readonly notFitTitle: "What makes it not a fit?";
-    readonly whys: {
-        id: "customer" | "other" | "chain" | "wrong_kind" | "too_far";
-        label: string;
-    }[];
-    readonly keep: "Keep";
-    readonly exclude: "Exclude";
-    readonly putBack: "Put back";
-    readonly leftOut: "Left out of this search. It doesn't count.";
-    readonly reach: "How you can reach them";
-    readonly checked: "Checked";
-    readonly found: "Found";
-    readonly call: "Call";
-    readonly copy: "Copy";
-    readonly copyAria: "Copy the email";
-    /** The peek's reach rows act with quiet marks; these are their names, heard and shown on hover (data-tip). */
-    readonly copyPhoneAria: "Copy the number";
-    readonly draftAria: "Draft an email";
-    readonly draft: "Draft";
-    readonly noWebsite: "No website listed";
-    readonly instagram: "Instagram";
-    readonly talkingNote: "They join People when they write or call in, or when a call goes well.";
-    readonly sentQuestion: "Did you send it?";
-    readonly sentYes: "Yes, mark contacted";
-    readonly sentNo: "Not yet";
-    readonly callQuestion: "How did the call go?";
-    readonly callSave: "Save";
-    readonly callCancel: "I didn't call";
-    readonly outcomes: {
-        id: "voicemail" | "interested" | "call_back" | "not_interested" | "no_answer" | "wrong_number";
-        label: string;
-        tone: Tone;
-    }[];
-    readonly noteLabel: "A note about the call";
-    readonly notePlaceholder: "A note for next time, if you like";
-    readonly noteMax: 280;
-    readonly noteLeft: typeof leadNoteLeft;
-    readonly backTo: "Back to";
-    readonly to: "To";
-    readonly subject: "Subject";
-    readonly draftRewrite: "Rewrite";
-    readonly tones: readonly [{
-        readonly id: "shorter";
-        readonly label: "Shorter";
-    }, {
-        readonly id: "warmer";
-        readonly label: "Warmer";
-    }];
-    readonly draftWriting: "Writing it…";
-    readonly draftNote: "Your business address and a way to say no are added at the foot, as US law asks.";
-    readonly draftOpen: "Open in your email";
-    readonly draftFrom: "Sent from your own inbox";
-    readonly copiedDraft: "Copied the email.";
-    readonly firstDay: {
-        readonly title: "Your people gather here";
-        readonly sub: "Or have Claude find businesses worth reaching";
-        readonly foot: "Claude finds businesses, not people at home.";
-    };
-    readonly about: "About";
-    readonly reachHeading: "Reach";
-    readonly unclaimed: "Listing not claimed by the owner";
-    readonly suggestUnavailable: "Suggestions are not available right now.";
-    readonly expand: "Expand";
-    readonly photos: "Photos";
-    readonly noPhoto: "No photo on the listing";
-    readonly whereSits: "Where it sits";
-    readonly openHours: "Open hours";
-    readonly fromListing: "From the listing";
-    readonly openMaps: "Open in Maps";
-    readonly ratedHeading: "What people say";
-    readonly closePhotos: "Close";
-    readonly deckOf: (at: number, of: number) => string;
-    readonly deckPrev: "The lead before";
-    readonly deckNext: "The next lead";
-    readonly callSaveNext: "Save and go to the next";
-    readonly callSavedNote: "Saving moves them to Talking. They join People when they write or call in.";
-};
-/** How long a workspace's suggestions stand before Claude is asked again (4.4's suggestionsFor). */
-declare const LEAD_SUGGEST_DAYS = 7;
-/** The platform-wide prior for a kind of business, as `lead_niche_prior()` answers it. */
-interface LeadNichePrior {
-    places: number;
-    matched: number;
-    with_email: number;
-}
-/** Under this many judged matches the share is noise, and the line says so instead. */
-declare const LEAD_PRIOR_MIN = 25;
-/**
- * How reachable a kind of business is, in tenths, from what past searches
- * measured (`lead_niche_priors`, A1's calibration). Never a percentage and
- * never a promise: a kind nobody has searched says so, and the plan card says
- * the same thing ("checked after the first 25").
- */
-declare function leadReachLine(prior: LeadNichePrior | null | undefined): string;
-interface LeadWayFacts {
-    /** The workspace's own line, when this tab has read the setup surface; null when it has not. */
-    voice: {
-        active: boolean;
-        number: string | null;
-    } | null;
-    whatsapp: {
-        present: boolean;
-        active: boolean;
-    } | null;
-    calendar: "ok" | "unavailable" | "none";
-    people: number;
-}
-interface LeadWay {
-    id: "reach" | "calendar" | "yours";
-    title: string;
-    line: string;
-    /** Only ever what this tab has read: null claims nothing. */
-    status: string | null;
-    doors: {
-        id: string;
-        label: string;
-        to: string;
-    }[];
-}
-/**
- * The three ways people arrive (§8.9), each claiming only what this tab has
- * read. The People surface carries the calendar and the count; the line is the
- * setup surface's, which this route does not load on a cold open -- so with no
- * facts the way says what it is and points at Setup, and never says a number is
- * live that nobody looked at. "Import a list" is Phase 2 and is not offered
- * until it exists.
- */
-declare function leadsFirstDayWays(f: LeadWayFacts): LeadWay[];
-/**
- * The three things the planner says instead of a plan (§8.8). They are words for
- * whoever asked -- the composer prints them under the input, Ask's tool hands
- * them to the model to say -- and never a card with a problem in it.
- */
-declare const LEAD_NO_CARD_LINE = "I can find local businesses for now.";
-declare const LEAD_OUTSIDE_US_LINE = "I can only find businesses in the US for now. The rules for emailing businesses in Canada, the UK and the EU are different, and Chanlytics follows the US ones.";
-/** The second: what the workspace sells, in the owner's own words, or "what you do". */
-declare function leadNotBusinessesLine(want: string | null): string;
-/** The third: what was asked for, named, and what the one card can do. The ask is logged as demand (§0.3). */
-declare function leadNoCardLine(what: string | null): string;
-/** The platform's switch, in the owner's words: nothing about a vendor, nothing about money. */
-declare const LEAD_PAUSED_TITLE = "Lead searches are paused for now";
-interface LeadEndingFacts {
-    /** The plan's subject in the owner's words: "personal trainers". */
-    name: string;
-    /** Where it looked, in the owner's words: "Austin". */
-    area: string;
-    counted: number;
-    target: number;
-    emails: number;
-    phones: number;
-    excluded: number;
-    /** A stopped round whose emails are still being checked (S12). */
-    checking: boolean;
-    /** question_unanswered: how many were counted before it asked. */
-    foundBefore: number;
-    /** few_new_matches / searched_everything: where to look next, in the owner's words. */
-    nearby: string[];
-    /** How many places the source returned at all, and what left them all out. */
-    seen: number;
-    leftOutBy: string | null;
-}
-interface LeadEndingLine {
-    /** A's word for the ending; the strip's accessible name, never its sentence. */
-    mark: string;
-    title: string;
-    parts: string[];
-    step: {
-        id: string;
-        label: string;
-    } | null;
-}
-/** "Alpine and Fort Davis"; "Round Rock, Pflugerville and Kyle". */
-/**
- * Where the nearest areas are, as a sentence says it: "near 10005, 10464 and 10467" when every label is a ZIP's
- * ("near 10005"), else "in Round Rock and Pflugerville". Joining the labels whole read "in near 10005, near 10464".
- */
-declare function leadNearWhere(labels: readonly string[]): string;
-declare function leadAnd(items: readonly string[]): string;
-/**
- * Every ending, said once (§8.8, the States artboard): what happened, what was
- * kept, what was counted, and one next step. Two shapes only -- "Found N ..."
- * when the round delivered what it was for, "Stopped ..." when it did not --
- * because an owner reads the first word and must know which of the two this is.
- * LEAD_ENDING_WORDS stays A's short name for the ending and rides along as
- * `mark`, for the strip's accessible name and the kept-search menu.
- *
- * No dollar amount: the month's allowance and the searching budget are both
- * spoken as leads (§0.2), and no line here names what any of it is bought from.
- */
-declare function leadEndingLine(ending: LeadRoundEnding, f: LeadEndingFacts): LeadEndingLine;
-/** The plan card's and the strip's one unit: leads, never dollars (§0.2). */
-declare function leadAllowanceFact(left: number): string;
-/** What a call outcome does to the stage (§9.4). Only Interested converts; Wrong number keeps the stage. */
-declare function outcomeMove(o: (typeof LEAD_CALL_OUTCOMES)[number]): {
-    stage: LeadStage | null;
-    closedReason: string | null;
-    converts: boolean;
-};
-declare const LeadsQuerySchema: z.ZodObject<{
-    list: z.ZodDefault<z.ZodEnum<{
-        not_a_fit: "not_a_fit";
-        said_no: "said_no";
-        ready: "ready";
-        nurture: "nurture";
-        converted: "converted";
-        all: "all";
-    }>>;
-    search: z.ZodOptional<z.ZodString>;
-    class: z.ZodOptional<z.ZodEnum<{
-        review: "review";
-        qualified: "qualified";
-        excluded: "excluded";
-    }>>;
-    sort: z.ZodDefault<z.ZodEnum<{
-        stage: "stage";
-        business: "business";
-        rating: "rating";
-        fit: "fit";
-        found: "found";
-        distance: "distance";
-    }>>;
-    dir: z.ZodDefault<z.ZodEnum<{
-        asc: "asc";
-        desc: "desc";
-    }>>;
-    after_key: z.ZodOptional<z.ZodString>;
-    after_id: z.ZodOptional<z.ZodString>;
-    limit: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
-}, z.core.$strip>;
-type LeadsQuery = z.infer<typeof LeadsQuerySchema>;
-/** The view a bulk act names when the owner chose "Select all N that match" (S13): the same keys GET leads takes. */
-declare const LeadsViewSchema: z.ZodObject<{
-    list: z.ZodDefault<z.ZodEnum<{
-        not_a_fit: "not_a_fit";
-        said_no: "said_no";
-        ready: "ready";
-        nurture: "nurture";
-        converted: "converted";
-        all: "all";
-    }>>;
-    sort: z.ZodDefault<z.ZodEnum<{
-        stage: "stage";
-        business: "business";
-        rating: "rating";
-        fit: "fit";
-        found: "found";
-        distance: "distance";
-    }>>;
-    search: z.ZodOptional<z.ZodString>;
-    class: z.ZodOptional<z.ZodEnum<{
-        review: "review";
-        qualified: "qualified";
-        excluded: "excluded";
-    }>>;
-    dir: z.ZodDefault<z.ZodEnum<{
-        asc: "asc";
-        desc: "desc";
-    }>>;
-}, z.core.$strip>;
-/** POST leads/[id]/stage, the page's five acts made exclusive. */
-declare const LeadStageInputSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
-    kind: z.ZodLiteral<"stage">;
-    stage: z.ZodEnum<{
-        ready: "ready";
-        nurture: "nurture";
-        converted: "converted";
-    }>;
-}, z.core.$strip>, z.ZodObject<{
-    kind: z.ZodLiteral<"not_a_fit">;
-    why: z.ZodEnum<{
-        customer: "customer";
-        other: "other";
-        chain: "chain";
-        wrong_kind: "wrong_kind";
-        too_far: "too_far";
-    }>;
-}, z.core.$strip>, z.ZodObject<{
-    kind: z.ZodLiteral<"said_no">;
-}, z.core.$strip>, z.ZodObject<{
-    kind: z.ZodLiteral<"outcome">;
-    outcome: z.ZodEnum<{
-        voicemail: "voicemail";
-        interested: "interested";
-        call_back: "call_back";
-        not_interested: "not_interested";
-        no_answer: "no_answer";
-        wrong_number: "wrong_number";
-    }>;
-    note: z.ZodOptional<z.ZodString>;
-}, z.core.$strip>, z.ZodObject<{
-    kind: z.ZodLiteral<"emailed">;
-}, z.core.$strip>], "kind">;
-type LeadStageInput = z.infer<typeof LeadStageInputSchema>;
-/** The door's arguments (lead_set_stage). The door judges what converts; this only spells the ask. */
-declare function stageArgs(i: LeadStageInput): {
-    p_stage: string | null;
-    p_reason: string | null;
-    p_fit_reason: string | null;
-    p_outcome: string | null;
-    p_note: string | null;
-};
-declare const LeadsBulkSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
-    by: z.ZodLiteral<"ids">;
-    action: z.ZodEnum<{
-        not_a_fit: "not_a_fit";
-        keep: "keep";
-        exclude: "exclude";
-        contacted: "contacted";
-    }>;
-    ids: z.ZodArray<z.ZodString>;
-    search_id: z.ZodOptional<z.ZodString>;
-}, z.core.$strip>, z.ZodObject<{
-    by: z.ZodLiteral<"view">;
-    action: z.ZodEnum<{
-        not_a_fit: "not_a_fit";
-        contacted: "contacted";
-    }>;
-    view: z.ZodObject<{
-        list: z.ZodDefault<z.ZodEnum<{
-            not_a_fit: "not_a_fit";
-            said_no: "said_no";
-            ready: "ready";
-            nurture: "nurture";
-            converted: "converted";
-            all: "all";
-        }>>;
-        sort: z.ZodDefault<z.ZodEnum<{
-            stage: "stage";
-            business: "business";
-            rating: "rating";
-            fit: "fit";
-            found: "found";
-            distance: "distance";
-        }>>;
-        search: z.ZodOptional<z.ZodString>;
-        class: z.ZodOptional<z.ZodEnum<{
-            review: "review";
-            qualified: "qualified";
-            excluded: "excluded";
-        }>>;
-        dir: z.ZodDefault<z.ZodEnum<{
-            asc: "asc";
-            desc: "desc";
-        }>>;
-    }, z.core.$strip>;
-}, z.core.$strip>], "by">;
-type LeadsBulkInput = z.infer<typeof LeadsBulkSchema>;
-/** Check again (D3): the leads whose mailbox check did not answer, asked once more. */
-declare const LeadsCheckAgainSchema: z.ZodObject<{
-    ids: z.ZodArray<z.ZodString>;
-}, z.core.$strip>;
-type LeadsCheckAgainInput = z.infer<typeof LeadsCheckAgainSchema>;
-declare const LeadDraftInputSchema: z.ZodObject<{
-    tone: z.ZodDefault<z.ZodEnum<{
-        shorter: "shorter";
-        warmer: "warmer";
-        first: "first";
-    }>>;
-    previous: z.ZodOptional<z.ZodObject<{
-        subject: z.ZodString;
-        body: z.ZodString;
-    }, z.core.$strip>>;
-}, z.core.$strip>;
-declare const LeadExportQuerySchema: z.ZodObject<{
-    list: z.ZodDefault<z.ZodEnum<{
-        not_a_fit: "not_a_fit";
-        said_no: "said_no";
-        ready: "ready";
-        nurture: "nurture";
-        converted: "converted";
-        all: "all";
-    }>>;
-    sort: z.ZodDefault<z.ZodEnum<{
-        stage: "stage";
-        business: "business";
-        rating: "rating";
-        fit: "fit";
-        found: "found";
-        distance: "distance";
-    }>>;
-    search: z.ZodOptional<z.ZodString>;
-    class: z.ZodOptional<z.ZodEnum<{
-        review: "review";
-        qualified: "qualified";
-        excluded: "excluded";
-    }>>;
-    dir: z.ZodDefault<z.ZodEnum<{
-        asc: "asc";
-        desc: "desc";
-    }>>;
-}, z.core.$strip>;
-declare const RenameLeadSearchSchema: z.ZodObject<{
-    name: z.ZodString;
-}, z.core.$strip>;
-declare const BusinessLineSchema: z.ZodObject<{
-    business_line: z.ZodString;
-}, z.core.$strip>;
-declare const ProposeLeadSearchSchema: z.ZodObject<{
-    looking_for: z.ZodEnum<{
-        other: "other";
-        people: "people";
-        local_businesses: "local_businesses";
-        online_sellers: "online_sellers";
-    }>;
-    country: z.ZodString;
-    count: z.ZodNumber;
-    who: z.ZodString;
-    who_one: z.ZodString;
-    category_key: z.ZodString;
-    terms: z.ZodArray<z.ZodString>;
-    city: z.ZodDefault<z.ZodNullable<z.ZodString>>;
-    region: z.ZodString;
-    zip: z.ZodDefault<z.ZodNullable<z.ZodString>>;
-    contact: z.ZodEnum<{
-        email: "email";
-        phone: "phone";
-    }>;
-    criteria: z.ZodDefault<z.ZodArray<z.ZodObject<{
-        text: z.ZodString;
-        standard: z.ZodEnum<{
-            likely: "likely";
-            seen: "seen";
-        }>;
-        required: z.ZodBoolean;
-    }, z.core.$strip>>>;
-    leave_out: z.ZodDefault<z.ZodArray<z.ZodObject<{
-        words: z.ZodString;
-    }, z.core.$strip>>>;
-    asked: z.ZodString;
-}, z.core.$strip>;
-type ProposeLeadSearch = z.infer<typeof ProposeLeadSearchSchema>;
-/** The card's head. The rest of what the card draws is the plan itself and the workspace's facts. */
-interface LeadPlanView {
-    title: string;
-}
-type LeadPlanRefusalKind = "outside_us" | "not_businesses" | "no_card" | "not_a_plan";
-type LeadPlanned = {
-    ok: true;
-    plan: LeadSearchPlan;
-    view: LeadPlanView;
-} | {
-    ok: false;
-    refusal: {
-        kind: LeadPlanRefusalKind;
-        text: string;
-        what: string | null;
-    };
-};
-/**
- * The ask as a plan, or one of the three refusals in words (§8.8): outside the
- * US, people rather than businesses, and an ask no source card fits, which is
- * logged as demand. Nothing here reads anything: the same function answers the
- * composer and Ask's tool, so a plan made by typing and a plan made by asking
- * are the same plan.
- */
-declare function planLeadSearch(input: ProposeLeadSearch): LeadPlanned;
-/**
- * The chips a view may carry. Release B parses none -- the route grammar keeps the key so the surface, the route and
- * the bulk act agree on one shape, and release C fills it (`2026-09-19-lead-finder-C-extras.md`). It is a type, not a
- * list: an empty record cannot be given a value by accident.
- */
-type LeadChips = Record<string, never>;
-/**
- * "clients/leads:s-<search>:l-<list>:c-<class>:p-<lead>" -- the grammar Ask's page citations admit (ask.ts PAGE_PREFIX).
- * Chips join in release C. The lead that is open (`p-`) comes last, so a view's own route is a prefix of the route
- * with a lead open over it: the view is what a read is keyed by, and the open lead is never part of that key.
- */
-declare function leadsRoute(v: {
-    searchId?: string | null;
-    list?: LeadList | null;
-    cls?: LeadClass | null;
-    chips?: Record<string, unknown>;
-    peek?: string | null;
-}): string;
-declare function parseLeadsRoute(route: string): {
-    searchId: string | null;
-    list: LeadList;
-    cls: LeadClass | null;
-    chips: Record<string, unknown>;
-    peek: string | null;
-} | null;
-declare const LEAD_DRAFT_JSON_SCHEMA: {
-    readonly type: "object";
-    readonly additionalProperties: false;
-    readonly required: readonly ["subject", "body"];
-    readonly properties: {
-        readonly subject: {
-            readonly type: "string";
-        };
-        readonly body: {
-            readonly type: "string";
-        };
-    };
-};
-declare const LeadDraftAnswerSchema: z.ZodObject<{
-    subject: z.ZodString;
-    body: z.ZodString;
-}, z.core.$strip>;
-declare const LEAD_SUGGEST_JSON_SCHEMA: {
-    readonly type: "object";
-    readonly additionalProperties: false;
-    readonly required: readonly ["line", "items"];
-    readonly properties: {
-        readonly line: {
-            readonly type: "string";
-        };
-        readonly items: {
-            readonly type: "array";
-            readonly items: {
-                readonly type: "object";
-                readonly additionalProperties: false;
-                readonly required: readonly ["words", "who_for", "category_key"];
-                readonly properties: {
-                    readonly words: {
-                        readonly type: "string";
-                    };
-                    readonly who_for: {
-                        readonly type: "string";
-                    };
-                    readonly category_key: {
-                        readonly type: "string";
-                    };
-                };
-            };
-        };
-    };
-};
-declare const LeadSuggestAnswerSchema: z.ZodObject<{
-    line: z.ZodString;
-    items: z.ZodArray<z.ZodObject<{
-        words: z.ZodString;
-        who_for: z.ZodString;
-        category_key: z.ZodString;
-    }, z.core.$strip>>;
-}, z.core.$strip>;
-/** The foot every draft carries: the business's postal address and a way to say no (CAN-SPAM). */
-declare function leadDraftFooter(business: string, address: string): string;
-interface LeadPeekReach {
-    /** `tip` is what the phone's mark says when pointed at, focused or tapped: the note, as a sentence. */
-    phone: {
-        value: string;
-        note: string;
-        tip: string;
-        tel: string | null;
-        wrong: boolean;
-    } | null;
-    /** `standard` is null beside an address that checks out: there it would be a line saying nothing (D5). */
-    /** `tip` is everything the mailbox's mark says: the state where the note does not restate it, the note, the standard. */
-    email: {
-        value: string;
-        note: string;
-        tip: string;
-        standard: string | null;
-        state: LeadEmailState;
-        word: string;
-        address: string | null;
-        canDraft: boolean;
-    };
-    locked: {
-        title: string;
-        line: string;
-    };
-}
-interface LeadPeekVM {
-    id: string;
-    searchId: string | null;
-    mark: string;
-    name: string;
-    /** The first two words of the name, for "Back to Zilker Strength". */
-    short: string;
-    sub: string;
-    /** Who they are, from what the listing shows (D2): each null when the listing did not say. */
-    about: string | null;
-    where: {
-        line: string;
-        href: string | null;
-    } | null;
-    today: string | null;
-    claimedNote: string | null;
-    /**
-     * The business's face, in the same shape the row's tile wears it: the mark over the listing's photo over initials
-     * on a tint the kind decides. The photograph has ONE home, here -- the band paints it under the mark and the
-     * lightbox opens it on its own. While it rode beside the tile the two surfaces drifted over which one wins (D6).
-     */
-    tile: {
-        initials: string;
-        tint: number;
-        /** The listing's photo as the row's tile draws it (leadTileSrc): already in the browser from the list, so the
-         *  band shows it at once, softened, while its own size arrives. */
-        image: string | null;
-        /** The whole photograph at the listing's own size: the band and the photo expanded draw it. */
-        band: string | null;
-        logo: string | null;
-    };
-    /**
-     * "4.7" and "1,284", apart; null where the source does not rate. `low` is the one thing five bars said that an
-     * average cannot, and it is null unless it is worth saying: see `leadLowShare`.
-     */
-    rated: {
-        score: string;
-        count: string;
-        low: string | null;
-    } | null;
-    /** The two reach slots, as the row wears them. */
-    slots: {
-        phone: LeadSlot;
-        mailbox: LeadSlot;
-    };
-    /** The week's hours as bars, in the listing's own order, today marked; [] when the listing showed no hours. */
-    week: LeadWeekRow[];
-    /** "From the listing": the facts about the place the expanded photo lists beside it. */
-    facts: {
-        k: string;
-        v: string;
-    }[];
-    /** "Open every day · 11 AM to 10 PM": the head the week folds under; "" when the listing published no hours. */
-    weekSummary: string;
-    /** "5 checks passed · 2 couldn't tell": the name of the verdict's evidence bar. */
-    checksSummary: string;
-    /** One segment per check, in the order they were made: the verdict's evidence bar, so the shape of the evidence reads at a glance. */
-    checkDots: ("yes" | "unknown" | "no")[];
-    /** "#19 on Google Maps · Sep 20": the line the trace folds under. */
-    foundSummary: string;
-    /** "1.2 mi", from the search's centre; "" when the search has none. */
-    distance: string;
-    cls: LeadClass;
-    stage: LeadStage;
-    stages: {
-        id: "ready" | "nurture" | "converted";
-        label: string;
-        on: boolean;
-    }[];
-    canStage: boolean;
-    notFitWord: string;
-    fit: {
-        word: string;
-        cls: string;
-        sentence: string;
-    };
-    reach: LeadPeekReach;
-    /** What was seen, then what Claude read (P2, §0.1), told apart by a hairline and by their marks: nothing read wears a plain check. */
-    groups: {
-        how: "seen" | "read";
-        checks: {
-            key: LeadCheckKey;
-            label: string;
-            answer: "yes" | "no" | "unknown";
-            source: string;
-            reason: string | null;
-        }[];
-    }[];
-    others: {
-        summary: string;
-        picked: string | null;
-        items: {
-            email: string;
-            why: string;
-        }[];
-    } | null;
-    found: {
-        at: string;
-        what: string;
-    }[];
-    links: {
-        website: {
-            label: string;
-            href: string;
-        } | null;
-        instagram: {
-            label: string;
-            href: string;
-        } | null;
-        facebook: {
-            label: string;
-            href: string;
-        } | null;
-        linkedin: {
-            label: string;
-            href: string;
-        } | null;
-        tiktok: {
-            label: string;
-            href: string;
-        } | null;
-        maps: {
-            label: string;
-            href: string;
-        } | null;
-    };
-    version: number;
-}
-/**
- * Today, as an owner about to call needs it: whether they are open NOW. "Open today · 11 AM to 5 PM" made them work
- * it out; "Open until 5 PM" is the answer. Before opening it says when they open, after closing that they are closed,
- * and a day the listing marks closed says so. Hours the parser cannot read keep their words, shortened. null when the
- * listing showed no hours. The day and the clock are the business's own (tz).
- */
-declare function leadTodayLine(hours: {
-    day: string;
-    hours: string;
-}[], tz: string, now: Date): string | null;
-/**
- * Hours as few characters as say them. "10 AM to 6 PM" is "10–6": a range that runs from morning into afternoon needs
- * neither half said. One inside a single half says it once ("5–10 PM"), and one that runs into the night keeps both
- * ("5 PM–2 AM"). "Open 24 hours" is "24 hours". A line the parser cannot read keeps its words.
- */
-declare function leadHoursShort(text: string): string;
-/**
- * One day of the week's hours as a bar across the day (D5): x and w in percent of 24 hours; null for a day the parser
- * cannot draw. `hours` is the listing's own words; `short` is what a surface shows ("10–6", leadHoursShort).
- */
-interface LeadWeekRow {
-    day: string;
-    hours: string;
-    short: string;
-    bar: {
-        x: number;
-        w: number;
-    } | null;
-    today: boolean;
-}
-/**
- * The week in one line, so the seven rows can fold away behind it: how many days they open, and the hours they keep
- * on most of them. Nothing is claimed that the listing did not say -- a week with no two days alike says only how
- * many days it opens, because "most days" would then be one day.
- */
-declare function leadWeekSummary(week: LeadWeekRow[]): string;
-/**
- * The week's hours as bars (D5): "9 AM to 6 PM" is a bar from 37.5% to 75% of the day, "Open 24 hours" the whole
- * day, "Closed" no bar, and a line the parser cannot read keeps its words and draws nothing. Overnight hours run to
- * the end of the day. The listing's own order is kept; today is the business's own day (tz).
- */
-declare function leadWeekBars(hours: {
-    day: string;
-    hours: string;
-}[], tz: string, now: Date): LeadWeekRow[];
-/** "101 Biscayne Blvd, Miami, FL 33132", with the Maps page when the listing has one. */
-declare function leadWhere(r: Pick<LeadRowDto, "street" | "city" | "state" | "postal_code" | "maps_url">): {
-    line: string;
-    href: string | null;
-} | null;
-/** The owner's own word for the criterion a place was left out by; the plan holds it. */
-/** A day, from the round's end, in which the untouched leads may be removed and the month credited (§8.6). */
-declare const LEAD_UNDO_MS: number;
-/**
- * Whether a search's latest round may still be undone: ended within the day,
- * and not undone already. Read by the rail's menu, which is where the removal
- * lives -- not the strip, where "Undo" beside "yours" read as deleting what was
- * just paid for.
- */
-declare function leadUndoable(s: {
-    round: {
-        undo_op_id: string | null;
-        ended_at: string | null;
-    } | null;
-} | null, now: Date): boolean;
-declare function leadExclusionWord(search: LeadSearchDto | null, key: string | null): string;
-/**
- * The peek (§9.2, P2, S12): the sub-line, the fit sentence, how to reach them, the checks in two groups (what was
- * seen, and what Claude read), the other addresses, Found, the site. Every sentence here, so the page says nothing
- * of its own. The mark is `initialsOf`, the same derivation the row wears, never a second one.
- */
-declare function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: string, now: Date): LeadPeekVM;
-/** What removing a search keeps: the leads already worked. Said before the press; the number comes after it. */
-declare const LEAD_REMOVE_KEEPS = "Keeps the ones you contacted or are talking to.";
-/**
- * A kept search, in the owner's own words (§8.10): what they asked for, the day they asked, and what the plan
- * leaves out. One derivation, because the rail's menu and the question before Remove both say it.
- */
-declare function leadSearchWords(s: {
-    asked: string;
-    asked_on: string;
-    plan?: LeadSearchPlan;
-} | null, tz: string): {
-    askedLine: string;
-    keepsLine: string;
-};
-interface LeadCheck {
-    key: LeadCheckKey;
-    how: "seen" | "read";
-    answer: "yes" | "no" | "unknown";
-    source: string;
-    reason: string | null;
-}
-/** The seven checks §0.1 and the interface name, four seen and three read; §9.2's "six" is the PRD's count of one screen. */
-declare const LEAD_CHECK_KEYS: readonly ["on_maps", "in_area", "phone_two_sources", "mailbox", "independent", "right_kind", "own_address"];
-type LeadCheckKey = (typeof LEAD_CHECK_KEYS)[number];
-interface LeadRowDto {
-    id: string;
-    search_id: string;
-    place_id: string;
-    business_name: string;
-    category: string | null;
-    city: string | null;
-    state: string | null;
-    street: string | null;
-    /** `leads_page` answers it beside the city; the area cell reads "78704 · Austin, TX" from the pair. */
-    postal_code?: string | null;
-    /** Not the door's: `leads_page` returns the search's id, and 4.4 fills the name from the same read that loads the searches. */
-    search_name?: string | null;
-    phone: string | null;
-    phone_agrees: boolean;
-    phone_wrong: boolean;
-    email: string | null;
-    email_state: LeadEmailState;
-    email_checked_at: string | null;
-    website: string | null;
-    instagram: string | null;
-    rating: number | null;
-    reviews: number | null;
-    /** What the listing shows about the business (D2, 00144). Optional: a fixture from before carries none, and the view models read them as absent. */
-    about?: string | null;
-    hours?: {
-        day: string;
-        hours: string;
-    }[];
-    image_url?: string | null;
-    price?: string | null;
-    reviews_dist?: {
-        one: number;
-        two: number;
-        three: number;
-        four: number;
-        five: number;
-    } | null;
-    facebook_url?: string | null;
-    linkedin_url?: string | null;
-    tiktok_url?: string | null;
-    claimed?: boolean | null;
-    maps_url?: string | null;
-    rank?: number | null;
-    /** D5 (00146): the neighbourhood the listing names, and the coordinates leads_page returns, for the row's line about where and the map. */
-    neighborhood?: string | null;
-    lat?: number | null;
-    lng?: number | null;
-    /**
-     * D6 (00161): the business's own mark, as the copy we keep -- `leadMarkSrc` over the lead's `mark_path`. Never the
-     * address on its own site, which the dashboard's content policy blocks.
-     */
-    mark_url?: string | null;
-    stage: LeadStage;
-    closed_reason: string | null;
-    contact_id: string | null;
-    /** How the lead has been worked, from `leads_page` (4.2): a fixture copies the real shape even where B draws none of it. */
-    last_outcome: string | null;
-    last_note: string | null;
-    contacted_at: string | null;
-    converted_at: string | null;
-    places: number;
-    found_at: string;
-    exported_at: string | null;
-    version: number;
-    member: {
-        class: LeadClass;
-        fit: "strong" | "look" | "long" | null;
-        reason: string;
-        excluded_by: string | null;
-        distance_m: number | null;
-        counted: boolean;
-        checks: LeadCheck[];
-        other_emails: {
-            email: string;
-            why: string;
-        }[];
-        /** The class rule's reason tokens (D3): what Needs review is grouped by. Optional: a fixture from before carries none. */
-        reasons?: string[];
-    };
-}
-/** "Independent" -> "independent" for the middle of a sentence; a name that is capitals stays as it is. */
-declare const leadLowerFirst: (s: string) => string;
-declare const LEAD_REVIEW_GROUP_WORDS: {
-    readonly mailbox_waiting: "Waiting on the mailbox check";
-    readonly checks_out: "Their email checks out";
-    readonly mailbox_silent: "Their mail server wouldn't answer";
-    readonly bad_email: "Their email bounces";
-    readonly no_email: "No email on their site";
-    readonly no_phone: "No phone on their listing";
-    readonly catch_all: "Unconfirmed — the mailbox accepts any address";
-    readonly unsure: "Couldn't tell if";
-    readonly read_only: "Only the listing says so";
-    readonly out_of_area: "Just outside the area you asked for";
-};
-type LeadReviewGroupId = keyof typeof LEAD_REVIEW_GROUP_WORDS;
-type LeadReviewAct = "check_again" | "find_email" | "keep" | "exclude";
-declare const LEAD_REVIEW_ACT_WORDS: Record<LeadReviewAct, string>;
-/** Why a pile is waiting, in a sentence: what was looked at, and what is true of every lead in it. */
-declare const LEAD_REVIEW_GROUP_WHY: Record<LeadReviewGroupId, string>;
-/** A mailbox re-check, in cents an address (the source card's own price): what "Check again" says it costs. */
-declare const LEAD_CHECK_CENTS_EACH = 0.089;
-declare const leadCheckAgainCents: (n: number) => number;
-/**
- * What each press on the bench does, and what it costs (D5). One derivation, because the bar offers the acts and
- * the column beside it explains them: a Keep that spends a lead of the month says so with the number left.
- */
-declare function leadReviewCosts(acts: LeadReviewAct[], n: number, month: LeadMonthDto | null): {
-    act: LeadReviewAct;
-    label: string;
-    line: string;
-}[];
-/** What a search asked for, in the owner's own words: its criteria, then what it leaves out (D5's right column). */
-declare function leadAskedFor(search: LeadSearchDto | null): {
-    text: string;
-    kind: "criterion" | "exclusion";
-}[];
-interface LeadReviewGroup {
-    id: LeadReviewGroupId;
-    key: string;
-    label: string;
-    ids: string[];
-    acts: LeadReviewAct[];
-}
-/**
- * Needs review as a queue: one group per thing that would resolve it, each with the leads in it and the acts that
- * resolve it. A lead with two reasons sits in the first group that fits it, in the order above; a group about one
- * criterion names it in the owner's own words from the plan, and two criteria make two groups.
- */
-declare function leadReviewGroups(rows: {
-    id: string;
-    cls: LeadClass;
-    reasons: string[];
-}[], search: LeadSearchDto | null): LeadReviewGroup[];
-interface LeadSearchRoundDto {
-    id: string;
-    seq: number;
-    purpose: string;
-    state: string;
-    ending: LeadRoundEnding | null;
-    question: {
-        sentence: string;
-        criterion_key: string;
-    } | null;
-    target: number;
-    counted: number;
-    qualified: number;
-    review: number;
-    excluded: number;
-    /** Counted leads whose address was found and checked: "88 you can email", and "41 emails checked" while it runs. */
-    emails_checked: number;
-    /** Counted leads reachable by phone: "72 by phone" (§8.6's sentence needs both, W2 put both on the view). */
-    with_phone: number;
-    /** The round is stopping and still checking what it found (S12): the only way to tell Stopping from Checking. */
-    ending_pending: boolean;
-    waiting_since: string | null;
-    cost_usd: number;
-    ended_at: string | null;
-    undo_op_id: string | null;
-    undo_version: number | null;
-    /** Where to look next when the round ran dry (D3, 00145): the nearest ZIP centres past its area, nearest first; [] otherwise. */
-    nearby: LeadArea[];
-    /** The qualified members by fit band (D5, 00146), for the band bar. Optional: a fixture from before carries none. */
-    fits?: {
-        strong: number;
-        look: number;
-        long: number;
-    };
-}
-interface LeadSearchDto {
-    id: string;
-    name: string;
-    asked: string;
-    asked_on: string;
-    plan: LeadSearchPlan;
-    plan_version: number;
-    round: LeadSearchRoundDto | null;
-}
-interface LeadMapPin {
-    id: string;
-    x: number;
-    y: number;
-}
-interface LeadMapPlot {
-    /** Every lead the door gave a place, in a square of 0..1 with 0,0 at the top left. */
-    pins: LeadMapPin[];
-    /** The area the search asked for, when it has a centre: where it sits in the same square, and how wide. */
-    ring: {
-        x: number;
-        y: number;
-        r: number;
-    } | null;
-    /** How many metres the square is across, for the scale bar; 0 when there was nothing to place. */
-    spanM: number;
-    /**
-     * True when these leads are not one place. Without an area to anchor on, the square is drawn from the leads
-     * themselves, so six searches in six cities produced one square four thousand miles across with every city
-     * collapsed into a dot. That is arithmetically honest and tells the owner nothing.
-     */
-    tooWide: boolean;
-    /** What the square is centred on, so "widen the area" asks about the ground the owner is looking at. */
-    center: {
-        lat: number;
-        lng: number;
-    } | null;
-}
-/**
- * Where the leads sit on the ground, relative to each other and to the area the search asked for (D5). Everything
- * is measured in metres from one centre and then scaled into a square, so the picture is honest at a town's size
- * without a projection, a tile or a request to anyone. A lead the source placed nowhere is simply not on it.
- */
-/** Past this, leads with no area to anchor them are not one place. Fifty miles: a city and the towns around it. */
-declare const LEAD_MAP_MAX_SPAN_M = 80000;
-declare function leadMapPlot(rows: {
-    id: string;
-    point: {
-        lat: number;
-        lng: number;
-    } | null;
-}[], area: LeadArea | null): LeadMapPlot;
-/** How wide the square is, in the owner's own unit: "3.4 mi across", and nothing when there was nothing to place. */
-declare const leadMapAcross: (spanM: number) => string;
-/**
- * What the line under the plot says. A city ask has no centre until its probe measures one, so there is often no
- * area to draw and the picture is only where the leads are -- which is worth saying rather than implying a ring
- * that is not there.
- */
-declare function leadMapNote(plot: LeadMapPlot, oneSearch: boolean): string;
-interface LeadCounts {
-    all: number;
-    ready: number;
-    nurture: number;
-    converted: number;
-    said_no: number;
-    not_a_fit: number;
-}
-/**
- * The month, as a surface says it (D5): how many of its leads are spoken for, how many are left, and the day it
- * renews. The workbench reads it to say what a press costs -- "5 of your 238 left" -- so a Keep is never a number
- * nobody can see. The whole is contracts' LEAD_MONTHLY_ALLOWANCE, never a number a page invents.
- */
-interface LeadMonthDto {
-    used: number;
-    left: number;
-    renewsOn: string;
-}
-interface LeadSuggestionsDto {
-    business_line: string;
-    by_owner: boolean;
-    made_at: string;
-    items: {
-        words: string;
-        who_for: string;
-        category_key: string;
-        reach: string | null;
-    }[];
-    note?: string;
-}
-/** What the card knows beyond the plan: the reads release A's doors answer, folded into one unit (§0.2). `planFacts` in `server/leads.ts` (4.4) builds exactly this. */
-interface LeadPlanFacts {
-    /** Places already in People or Leads this plan would skip: "Skips the 14 already yours". */
-    dupes: number;
-    /** Leads this month still covers, every limit folded in. */
-    leadsLeft: number;
-    /** Which limit made that number, when one of them binds before the plan's own count. A's counter kinds, never a word of its own. */
-    bound: "allowance" | "budget" | null;
-    /** The platform-wide prior for this kind of business (lead_niche_prior), or null when it was never searched. */
-    prior: {
-        places: number;
-        matched: number;
-        with_email: number;
-    } | null;
-    /** The kind of business the prior is for, in the owner's words: "trainers". */
-    priorOf: string | null;
-    /** A must-be-seen criterion the chosen card cannot see (§0.1), with the likely version offered. */
-    cannotSee: {
-        key: string;
-        text: string;
-        likely: string;
-    } | null;
-    /** The day the month's leads renew, in the workspace's zone: "Oct 1". */
-    renewsOn: string;
-    /** Claude's nearby areas, for the card's area picker and for a round further out. */
-    nearby: LeadArea[];
-}
-/**
- * One row as the table draws it (§6.2). Every field is a word or a shape, and not one of them is a stored value:
- * `stage` rides along only so the row's dot has a class. Task 2's `LEAD_COLUMNS` reads exactly these and nothing else.
- */
-type LeadSlotState = "ok" | "part" | "none" | "bad" | "checking";
-/** One reach slot: the shape carries the meaning (state), the word repeats it, the tip gives the value back. */
-interface LeadSlot {
-    state: LeadSlotState;
-    value: string | null;
-    word: string;
-    tip: string;
-    copy: boolean;
-}
-declare const LEAD_SLOT_WORDS: Record<LeadSlotState, string>;
-/** The name card's facts (D5): the same derivations the peek draws from, so a hover decides without opening it. */
-interface LeadRowCard {
-    about: string | null;
-    today: string | null;
-    where: {
-        line: string;
-        href: string | null;
-    } | null;
-    site: {
-        label: string;
-        href: string;
-    } | null;
-    maps: {
-        label: string;
-        href: string;
-    } | null;
-    found: {
-        at: string;
-        what: string;
-    }[];
-}
-/** The band over the table (D5): the search's whole shape in one line, which is also the class tabs, and the qualified split by fit. */
-interface LeadBand {
-    classes: {
-        id: LeadClass;
-        label: string;
-        count: number;
-    }[];
-    fits: {
-        id: "strong" | "look" | "long";
-        label: string;
-        count: number;
-    }[];
-    /** Worth drawing the split only when the fits differ: a search whose every row is strong says nothing by it. */
-    mixed: boolean;
-}
-/**
- * The two reach slots, phone then mailbox (D5): five states a shape can carry, so the column survives greyscale.
- * A mail server that would not answer wears Unconfirmed's shape with its own sentence; a number the owner marked
- * wrong is Bad; a source that gave nothing is Nothing found, never a failure.
- */
-declare function leadSlots(r: Pick<LeadRowDto, "phone" | "phone_agrees" | "phone_wrong" | "email" | "email_state">): {
-    phone: LeadSlot;
-    mailbox: LeadSlot;
-};
-/** The tile's tint, one of six, from the kind of business: the same kind wears the same tint on every row and in the peek. */
-declare function leadTintOf(kind: string | null | undefined): number;
-declare function leadBand(search: LeadSearchDto | null): LeadBand | null;
-interface LeadRowVM {
-    id: string;
-    searchId: string;
-    searchName: string;
-    mark: string;
-    name: string;
-    places: number;
-    category: string;
-    area: string;
-    cls: LeadClass;
-    /** The fit band itself (D5), for the band bar's filter; null for a row that is not qualified. */
-    fit: "strong" | "look" | "long" | null;
-    fitLabel: string;
-    fitTitle: string;
-    email: string | null;
-    emailState: LeadEmailState;
-    emailLabel: string;
-    emailWord: string;
-    phone: string | null;
-    phoneAgrees: boolean;
-    phoneWrong: boolean;
-    /** The two contacts as one glance (D2's Reach column). */
-    reach: {
-        email: {
-            address: string;
-            state: LeadEmailState;
-            word: string;
-        } | null;
-        phone: {
-            number: string;
-            agrees: boolean;
-        } | null;
-    };
-    /** The class rule's reason tokens, for the Needs review queue (D3); [] on a row from before. */
-    reasons: string[];
-    why: string;
-    rating: string;
-    /** The spread of reviews, "5★ 30 · 4★ 8 · 3★ 2 · 2★ 0 · 1★ 1", for the Rating cell's title; blank when the listing did not say. */
-    reviewsTitle: string;
-    stage: LeadStage;
-    stageLabel: string;
-    /** The person this lead converted into (leads.contact_id), so a page can read People's row for them; null until then. */
-    contactId: string | null;
-    foundLabel: string;
-    /** "Found 2d ago", "Found just now", "Found Aug 29": when it was found, as a phone's row says it (People's row says when
-     *  they last wrote the same way). A desktop's Found column says `foundLabel` under its heading. */
-    foundLine: string;
-    foundAt: string;
-    distance: string;
-    source: string;
-    host: string;
-    excludedBy: string | null;
-    version: number;
-    /** "Book store · Hawthorne · 97214 · 1.2 mi": whatever the source gave, in that order; "" when it gave none. */
-    sub: string;
-    /** The two reach slots, phone then mailbox. */
-    slots: {
-        phone: LeadSlot;
-        mailbox: LeadSlot;
-    };
-    /** "4.7" and "1,284", apart, or null where the source does not rate. */
-    rated: {
-        score: string;
-        count: string;
-    } | null;
-    /** The spread of reviews, one to five stars, or null when the listing did not say. */
-    spread: [number, number, number, number, number] | null;
-    /** The tile: the business's own mark, else the listing's photo, else initials on a tint the kind decides. */
-    tile: {
-        initials: string;
-        tint: number;
-        image: string | null;
-        /** The whole photograph the peek's band draws, so the row can ask for it before it is opened. */
-        band: string | null;
-        logo: string | null;
-    };
-    /** A review row's line: what would resolve it, in the queue's own words; null for any other row. */
-    waitsOn: string | null;
-    /** The row's state mark: Ready is silent; the rest wear an edge and a tag. */
-    state: "ready" | "contacted" | "talking" | "review" | "out";
-    stateTag: string | null;
-    /** The name card's facts. */
-    card: LeadRowCard;
-    /** Where it sits, when the door gave coordinates. */
-    point: {
-        lat: number;
-        lng: number;
-    } | null;
-}
-/**
- * The listing's photo at the size a row's tile draws it: Google's photo service takes a size after `=`, and the
- * scraper's URL asks for 408 wide, which every row downloaded for a 48px box. `s96-c` is a 96px square crop, which
- * the tile draws with object-fit anyway, and enough for a 2x screen. Any other host, or a URL with no size to
- * replace, is left as it is. The peek's band and the photo expanded keep the whole photograph at the listing's own
- * size (`tile.band`), untouched: Google's place-photo service answered other sizes and WebP (`-rw`) unevenly when
- * probed on 23 Sep, the same photo refusing one variant and serving the next, so no variant is asked of it.
- */
-declare const LEAD_TILE_PX = 96;
-declare function leadTileSrc(url: string | null | undefined, px?: number): string | null;
-/** 00161's public bucket: the copies of leads' marks we keep, each named by its own hash. */
-declare const LEAD_MARKS_BUCKET = "lead-marks";
-/** The only names the bucket holds, and the only ones 00161's CHECK lets a lead keep. */
-declare const LEAD_MARK_PATH: RegExp;
-/**
- * Where a kept mark is served: the project's own storage, on the Supabase origin the dashboard's content policy
- * already lets images in from (csp.ts reads the same variable). Null for no copy, for anything that is not a name we
- * wrote, and without an https origin to serve it from.
- */
-declare function leadMarkSrc(supabaseUrl: string | null | undefined, path: string | null | undefined): string | null;
-/**
- * One row's words and shapes (§6.2). Nothing here is a stored value. The search is the row's own (D5): a review
- * row names what it waits on in the queue's words, and the name card names the term it was found for.
- */
-declare function toLeadRowVM(r: LeadRowDto, tz: string, now: Date, search?: LeadSearchDto | null): LeadRowVM;
-/** The rail's rows under Leads (§6.1): the six lists with counts, then the searches with their marks. */
-declare function leadRail(counts: LeadCounts, searches: LeadSearchDto[], now?: Date): {
-    lists: {
-        id: LeadList;
-        label: string;
-        count: number;
-    }[];
-    searches: {
-        id: string;
-        name: string;
-        count: number;
-        mark: "live" | "question" | null;
-        undoable: boolean;
-    }[];
-};
-/** "322 leads · 272 ready · 3 searches", and "1 search needs you" when one waits. */
-declare function leadsStanding(counts: LeadCounts, searches: LeadSearchDto[]): {
-    total: string;
-    parts: string[];
-    needsYou: {
-        count: number;
-        searchId: string;
-    } | null;
-};
-/** The bell's title and the email's subject when a search stops to ask (00163 writes the same words in SQL). */
-declare const leadQuestionTitle: (name: string) => string;
-/** What waiting costs and how long it lasts (the sweep ends a question after a day): the strip's line and the email's. */
-declare const LEAD_QUESTION_WAIT_LINE = "Nothing is spent while this waits. With no answer in a day, it stops and keeps what it found.";
-/** Where a question opens: its search, on the pile it asks about. A question is only ever asked about places left out. */
-declare const leadQuestionRoute: (searchId: string) => string;
-/** The email the runner sends when a search stops to ask: the question, what waiting means, and the way back. */
-declare function leadQuestionMail(x: {
-    name: string;
-    sentence: string;
-    link: string;
-}): {
-    subject: string;
-    body: string;
-};
-/** Under this many places judged, a prior is too thin to say a number from. */
-declare const LEAD_PRIOR_MIN_PLACES = 50;
-/**
- * The Likely line and its two-part bar (§8.3): what past searches for this
- * kind of business found, never a promise about this one. A kind never
- * searched says the share is checked after the first 25 (P3).
- */
-declare function leadPlanLikely(plan: LeadSearchPlan, facts: LeadPlanFacts): {
-    emailPct: number | null;
-    phonePct: number | null;
-    line: string;
-};
-/** The facts under the sentence (§8.3), in the one unit the owner has: leads. No dollar meter. */
-declare function leadPlanFacts(plan: LeadSearchPlan, facts: LeadPlanFacts): string[];
-/**
- * What the card asks for, and how it says why it is not what was typed (§0.2,
- * decision 27). When a limit binds the count is clamped to what is left, the
- * button says that number, and one sentence says which limit and what else
- * would fit. There is no dollar meter, and the word is always leads.
- */
-declare function leadPlanAsk(plan: LeadSearchPlan, facts: LeadPlanFacts): {
-    count: number;
-    label: string;
-    covers: string | null;
-};
 
 /**
  * How long a workspace's yeses take (0004, 0008 amended): the one rule Reports' median and the workspace's pace both

@@ -38,8 +38,13 @@ const buildLineRows = ({ A, t, lang, query, surface, scope, threads, view, phone
   }
   // At rest: Right now is the first row, with the counts its sentence was built from as pills, and ↵ on the empty line
   // asks who needs you (the quick answer). On a phone Earlier is the head's, not a section here (spec 5.2).
-  const parts = A.rightNowParts ? A.rightNowParts(lang) : { sentence: A.rightNow(lang), people: 0, runs: 0 };
-  const sections = [{ key: "now", items: [{ type: "now", label: parts.sentence, q: t.needsQ, people: parts.people, runs: parts.runs }] }];
+  const parts = A.rightNowParts ? A.rightNowParts(lang) : { sentence: A.rightNow(lang), people: 0, runs: 0, searches: 0 };
+  const sections = [
+    {
+      key: "now",
+      items: [{ type: "now", label: parts.sentence, q: t.needsQ, people: parts.people, runs: parts.runs, searches: parts.searches }],
+    },
+  ];
   const asks = A.suggestions(surface, scope, lang).filter((s) => s.kind !== "act" && s.q !== t.needsQ).slice(0, 3);
   // On Leads the consent rule stands under the section's chips (spec F3), one dim line; nowhere else has a note.
   if (asks.length)
@@ -84,13 +89,14 @@ const AskRows = ({ sections, sel, setSel, onActivate, onDelete, t, empty }) => {
     };
     // With nothing needing anyone, the sentence alone (spec 4.3): no pill and no Brief me; the row still asks.
     if (it.type === "now") {
-      const waiting = !!(it.people || it.runs);
+      const waiting = !!(it.people || it.runs || it.searches);
       return (
         <div key={i} {...shared} className={`ask-row now${sel ? " sel" : ""}`}>
           {waiting ? (
             <span className="ask-now-pills">
               {it.people ? <span className="pill pill-warn" data-testid="ask-pill">{t.needYou(it.people)}</span> : null}
               {it.runs ? <span className="pill pill-warn" data-testid="ask-pill">{t.runsWaiting(it.runs)}</span> : null}
+              {it.searches ? <span className="pill pill-warn" data-testid="ask-pill">{t.searchWaiting(it.searches)}</span> : null}
             </span>
           ) : null}
           <span className="ask-row-label">{it.label}</span>
