@@ -2418,6 +2418,29 @@ export function leadsStanding(
   };
 }
 
+/* ------------------------------------------ the question after the probe -- */
+
+/** The bell's title and the email's subject when a search stops to ask (00163 writes the same words in SQL). */
+export const leadQuestionTitle = (name: string): string => `Your search for ${name} is waiting for your answer`;
+
+/** What waiting costs and how long it lasts (the sweep ends a question after a day): the strip's line and the email's. */
+export const LEAD_QUESTION_WAIT_LINE =
+  "Nothing is spent while this waits. With no answer in a day, it stops and keeps what it found.";
+
+/** Where a question opens: its search, on the pile it asks about. A question is only ever asked about places left out. */
+export const leadQuestionRoute = (searchId: string): string => leadsRoute({ searchId, cls: "excluded" });
+
+/** The email the runner sends when a search stops to ask: the question, what waiting means, and the way back. */
+export function leadQuestionMail(x: { name: string; sentence: string; link: string }): {
+  subject: string;
+  body: string;
+} {
+  return {
+    subject: leadQuestionTitle(x.name),
+    body: [x.sentence, "", LEAD_QUESTION_WAIT_LINE, "", `Answer it: ${x.link}`].join("\n"),
+  };
+}
+
 /* --------------------------------------------- the plan card (Task 9) -- */
 
 /** Under this many places judged, a prior is too thin to say a number from. */
