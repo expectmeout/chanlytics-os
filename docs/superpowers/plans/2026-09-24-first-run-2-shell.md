@@ -46,10 +46,10 @@ keeps on every device.
 
 **Files:** none.
 
-- [ ] **Step 1:** `corepack pnpm install --frozen-lockfile --prefer-offline`
-- [ ] **Step 2:** `corepack pnpm --filter "./packages/*" build`, then restore the dists whose diff is line endings only:
+- [x] **Step 1:** `corepack pnpm install --frozen-lockfile --prefer-offline`
+- [x] **Step 2:** `corepack pnpm --filter "./packages/*" build`, then restore the dists whose diff is line endings only:
   `for d in contracts db jobs channels core; do git diff -w --ignore-cr-at-eol --quiet -- packages/$d/dist && git checkout -- packages/$d/dist; done`
-- [ ] **Step 3:** `corepack pnpm test`, and record the pass / fail / skipped counts here as the baseline.
+- [x] **Step 3:** `corepack pnpm test`, and record the pass / fail / skipped counts here as the baseline.
 
 ---
 
@@ -64,7 +64,7 @@ browser may not import, so it moves to contracts, and channels re-exports it.
 - Modify: `packages/channels/src/voice-shell.ts` (remove the two definitions; import and re-export them)
 - Test: `tooling/scripts/tests/first-run.test.mjs` (new)
 
-- [ ] **Step 1: Write the failing test** at the top of the new `first-run.test.mjs`:
+- [x] **Step 1: Write the failing test** at the top of the new `first-run.test.mjs`:
 
 ```js
 /**
@@ -91,9 +91,9 @@ test("the phone greeting is one sentence, composed once: contracts', and the voi
 });
 ```
 
-- [ ] **Step 2:** `node --conditions=react-server --import tsx --test tooling/scripts/tests/first-run.test.mjs`.
+- [x] **Step 2:** `node --conditions=react-server --import tsx --test tooling/scripts/tests/first-run.test.mjs`.
   Expect FAIL: contracts has no `greetingFor`.
-- [ ] **Step 3: Move it.** Create `packages/contracts/src/greeting.ts` with the function and constant moved verbatim
+- [x] **Step 3: Move it.** Create `packages/contracts/src/greeting.ts` with the function and constant moved verbatim
   from `voice-shell.ts:57-81`, including its doc comment. Add one line to that comment: "Contracts' since the first
   run shows it to the owner; the voice shell re-exports it." In `voice-shell.ts`, delete the two definitions and add
   this beside its other contracts import:
@@ -104,10 +104,10 @@ export { greetingFor, GREETING_DEFAULT };
 ```
 
   Then add `export * from "./greeting";` to `packages/contracts/src/index.ts`.
-- [ ] **Step 4:** `corepack pnpm --filter @chanlytics/contracts build && corepack pnpm --filter @chanlytics/channels build`,
+- [x] **Step 4:** `corepack pnpm --filter @chanlytics/contracts build && corepack pnpm --filter @chanlytics/channels build`,
   then run the test. Expect PASS. Also run `voice-shell*.test.mjs` and `voice-*.test.mjs`. Expect PASS: the re-export
   keeps every caller.
-- [ ] **Step 5: Commit:** `refactor(greeting): the phone greeting is contracts', so the first run can show it`
+- [x] **Step 5: Commit:** `refactor(greeting): the phone greeting is contracts', so the first run can show it`
 
 ---
 
@@ -126,7 +126,7 @@ export { greetingFor, GREETING_DEFAULT };
 - Modify: `tooling/scripts/tests/setup.test.mjs`. Move the landing test to `first-run.test.mjs`, rewritten for
   `shouldLandOnFirstRun`, and drop the `shouldLandOnSetup` import.
 
-- [ ] **Step 1: Write the failing tests** (append to `first-run.test.mjs`; the fixtures are `setup.test.mjs`'s own):
+- [x] **Step 1: Write the failing tests** (append to `first-run.test.mjs`; the fixtures are `setup.test.mjs`'s own):
 
 ```js
 import {
@@ -327,8 +327,8 @@ test("the rows a member put off are ids from their saved view, and nothing else"
 });
 ```
 
-- [ ] **Step 2:** Run the file. Expect FAIL: `firstRunOf` is not a function.
-- [ ] **Step 3: Write `packages/contracts/src/first-run.ts`:**
+- [x] **Step 2:** Run the file. Expect FAIL: `firstRunOf` is not a function.
+- [x] **Step 3: Write `packages/contracts/src/first-run.ts`:**
 
 ```ts
 /**
@@ -658,10 +658,10 @@ export function setupLaterOf(view: unknown): string[] {
 
   Add `export * from "./first-run";` to `index.ts`. In `setup.test.mjs`, delete the landing test at lines 808-818
   (it moved here) and remove `shouldLandOnSetup` from its import.
-- [ ] **Step 4:** Build contracts, then run `first-run.test.mjs` and `setup.test.mjs`. Expect PASS on both. If
+- [x] **Step 4:** Build contracts, then run `first-run.test.mjs` and `setup.test.mjs`. Expect PASS on both. If
   `setup.test.mjs` asserts `vm.line` anywhere (`grep -n "\.line\b" tooling/scripts/tests/setup.test.mjs` showed none
   on 24 Sep), delete those lines too.
-- [ ] **Step 5: Commit:** `feat(first-run): the view model -- steps over Setup's rows, the receptionist card, Today's card, the landing`
+- [x] **Step 5: Commit:** `feat(first-run): the view model -- steps over Setup's rows, the receptionist card, Today's card, the landing`
 
 ---
 
@@ -673,7 +673,7 @@ export function setupLaterOf(view: unknown): string[] {
 - Modify: `tooling/scripts/tests/setup-page-activate.test.mjs`. `Page` draws `SetupRows` over every row, and the
   failed-read test moves to Task 5's page test.
 
-- [ ] **Step 1: Point the test at the component.** In `setup-page-activate.test.mjs`:
+- [x] **Step 1: Point the test at the component.** In `setup-page-activate.test.mjs`:
   - Replace `const Page = globalThis.window.PaneSetup;` with the lines below.
   - Delete the test "the page: a failed read draws a card with a retry, and the retry reads again" (lines 374-403).
     Task 5's page test has it now, on the first run.
@@ -704,8 +704,8 @@ test("the page: Later puts a row off through the bridge, and waits for it like a
 ```
 
   (If the file has no `textOf`, add the one `create-workspace-screen.test.mjs` defines.)
-- [ ] **Step 2:** Run it. Expect FAIL: `window.SetupRows` is not a function.
-- [ ] **Step 3: Rewrite the end of `setup.jsx`.** Change the header comment's first line to "Setup's rows: every fact
+- [x] **Step 2:** Run it. Expect FAIL: `window.SetupRows` is not a function.
+- [x] **Step 3: Rewrite the end of `setup.jsx`.** Change the header comment's first line to "Setup's rows: every fact
   the workspace holds, drawn wherever a page asks what is left to set up. The first run draws them one step at a
   time (first-run.jsx); Today draws what is left after (dashboard-a-brief.jsx)." Then replace lines 298-484 with:
 
@@ -793,8 +793,8 @@ window.SetupTry = SetupTry;
   for those moves, and only for moved code. Delete `useSetupTick`: the page that draws the rows re-reads on
   `surface:setup` itself.
 
-- [ ] **Step 4:** Run `setup-page-activate.test.mjs`. Expect PASS.
-- [ ] **Step 5: Commit:** `refactor(setup): Setup's rows are one component the first run and Today both draw`
+- [x] **Step 4:** Run `setup-page-activate.test.mjs`. Expect PASS.
+- [x] **Step 5: Commit:** `refactor(setup): Setup's rows are one component the first run and Today both draw`
 
 ---
 
@@ -812,7 +812,7 @@ window.SetupTry = SetupTry;
   - delete `laterKey`, `readLater`, `writeLater` and `safeStorage`.
 - Test: `tooling/scripts/tests/setup-later.test.mjs` (new): the bridge's `later`, run over a fake API.
 
-- [ ] **Step 1: Write the failing test:**
+- [x] **Step 1: Write the failing test:**
 
 ```js
 /**
@@ -907,8 +907,8 @@ test("the first run's helpers are published for the pages", () => {
   First run the file as it is. If `api.ts` needs globals the stub above lacks (the workspace id, the Supabase client,
   the fetch wrapper), copy the globals `checkout-return.test.mjs` or `surface-data*.test.mjs` set up for the same
   client, and keep the assertions unchanged.
-- [ ] **Step 2:** Run it. Expect FAIL: `__SETUP.later` is undefined.
-- [ ] **Step 3: Implement in `setup.ts`:**
+- [x] **Step 2:** Run it. Expect FAIL: `__SETUP.later` is undefined.
+- [x] **Step 3: Implement in `setup.ts`:**
 
 ```ts
 import {
@@ -1005,13 +1005,13 @@ function publish(dto: SetupDto, role: string, later: string[]): void {
   - **Removals:** delete `laterKey`, `readLater`, `writeLater` and `safeStorage`, and the `getActiveWorkspace` import
     if nothing else uses it.
 
-- [ ] **Step 4:** Run `setup-later.test.mjs`, `setup-page-activate.test.mjs` and `setup.test.mjs`.
+- [x] **Step 4:** Run `setup-later.test.mjs`, `setup-page-activate.test.mjs` and `setup.test.mjs`.
   - Expect PASS on the first two.
   - `setup.test.mjs`'s wiring test pins `"chanlytics.setup.later."` and the old landing call. Update the landing pin
     to `shouldLandOnFirstRun(s.role, s.vm.readiness.answering, setupRoute(win.location.hash), landed)`, and change the
     later/landed pin to `bridge.includes("chanlytics.setup.landed")` alone. The count stays the same or falls.
   - Expect PASS.
-- [ ] **Step 5: Commit:** `feat(setup): a row put off is the member's, on every device; the landing goes to the first run`
+- [x] **Step 5: Commit:** `feat(setup): a row put off is the member's, on every device; the landing goes to the first run`
 
 ---
 
@@ -1029,7 +1029,7 @@ function publish(dto: SetupDto, role: string, later: string[]): void {
 - Modify: `apps/dashboard/src/legacy-bridge/legacy.css`: `@import "../legacy/styles/first-run.css";` after `settings.css`.
 - Test: `tooling/scripts/tests/first-run-page.test.mjs` (new)
 
-- [ ] **Step 1: Write the failing test.** The harness is `setup-page-activate.test.mjs`'s: stub React over
+- [x] **Step 1: Write the failing test.** The harness is `setup-page-activate.test.mjs`'s: stub React over
   `_hook-frames.mjs`, with `data-bits.jsx`, `attention-bits.jsx`, `setup.jsx` and `first-run.jsx` loaded for real.
 
 ```js
@@ -1192,8 +1192,8 @@ test("a failed read says so, and the retry reads again; before the read, Reading
   (Copy the `mount`/`fresh`/`walk`/`byTestId` block from `setup-page-activate.test.mjs:207-283` into the comment's
   place. If `FailedRead` names its retry test id differently from `retryTestid`, read `data-bits.jsx:908` and use its
   prop.)
-- [ ] **Step 2:** Run it. Expect FAIL: `window.FirstRun` is not a function.
-- [ ] **Step 3: Write `first-run.jsx`:**
+- [x] **Step 2:** Run it. Expect FAIL: `window.FirstRun` is not a function.
+- [x] **Step 3: Write `first-run.jsx`:**
 
 ```jsx
 /* global React, Icon, FailedRead */
@@ -1368,7 +1368,7 @@ window.FirstRun = FirstRun;
   (`fr-rows` is on the list inside the card, so `byTestId(tree, "fr-rows")` finds the rows. The section's class is
   only for layout.)
 
-- [ ] **Step 4: Write `first-run.css`** (tokens only, `var(--measure-prose)` for the step, never a literal page width):
+- [x] **Step 4: Write `first-run.css`** (tokens only, `var(--measure-prose)` for the step, never a literal page width):
 
 ```css
 /* ── The first run (#/start) ─────────────────────────────────────────────────
@@ -1488,9 +1488,9 @@ button.fr-rail-btn:hover { background: var(--bg-sunken); color: var(--ink); }
 @media (prefers-reduced-motion: reduce) { .fr-bar > span { transition: none; } }
 ```
 
-- [ ] **Step 5:** Add the file to both load lists and the CSS to `legacy.css` and `Chanlytics.html`, as listed under
+- [x] **Step 5:** Add the file to both load lists and the CSS to `legacy.css` and `Chanlytics.html`, as listed under
   Files. Run `first-run-page.test.mjs` and `legacy-harness.test.mjs`. Expect PASS on both.
-- [ ] **Step 6: Commit:** `feat(first-run): the #/start page -- the rail, Setup's rows a step at a time, the receptionist card`
+- [x] **Step 6: Commit:** `feat(first-run): the #/start page -- the rail, Setup's rows a step at a time, the receptionist card`
 
 ---
 
@@ -1513,7 +1513,7 @@ button.fr-rail-btn:hover { background: var(--bg-sunken); color: var(--ink); }
 - Modify: `tooling/scripts/tests/calendar-people.test.mjs:984`. The pin's string becomes
   `if (retiredTo) window.location.replace("#/" + retiredTo);`.
 
-- [ ] **Step 1: Write the failing test** (append to `surface-registry.test.mjs`, importing `surfaceRetiredTo` beside
+- [x] **Step 1: Write the failing test** (append to `surface-registry.test.mjs`, importing `surfaceRetiredTo` beside
   its other imports from the registry):
 
 ```js
@@ -1525,8 +1525,8 @@ test("Setup's old address lands on the first run -- the bell rows the edge wrote
 });
 ```
 
-- [ ] **Step 2:** Run it. Expect FAIL: `surfaceRetiredTo("admin", "setup")` is undefined.
-- [ ] **Step 3: Registry:**
+- [x] **Step 2:** Run it. Expect FAIL: `surfaceRetiredTo("admin", "setup")` is undefined.
+- [x] **Step 3: Registry:**
 
 ```ts
 /**
@@ -1544,7 +1544,7 @@ export function surfaceRetiredTo(page: string, param?: string | null): string | 
 ```
 
   Change the `__surfaceRetired` type in `installSurfaceRegistry` to `(page: string, param?: string | null) => string | undefined`.
-- [ ] **Step 4: Shell.**
+- [x] **Step 4: Shell.**
   - Add `"start"` to `PARAM_FOLLOWED_AS_PROP`, so each step is the page already there.
   - In the route chain, before `} else if (page === "admin") {`, add:
 
@@ -1580,9 +1580,9 @@ export function surfaceRetiredTo(page: string, param?: string | null): string | 
   }
 ```
 
-- [ ] **Step 5:** Bump `app-shell.jsx`'s `?v=` in `Chanlytics.html`. Run `surface-registry.test.mjs`,
+- [x] **Step 5:** Bump `app-shell.jsx`'s `?v=` in `Chanlytics.html`. Run `surface-registry.test.mjs`,
   `calendar-people.test.mjs`, `chrome.test.mjs` and `phone-shell.test.mjs`. Expect PASS on all four.
-- [ ] **Step 6: Commit:** `feat(shell): #/start is full screen, and Setup's old address lands on it`
+- [x] **Step 6: Commit:** `feat(shell): #/start is full screen, and Setup's old address lands on it`
 
 ---
 
@@ -1607,7 +1607,7 @@ export function surfaceRetiredTo(page: string, param?: string | null): string | 
   `conversations-doors.test.mjs:391` take the new routes and words. Also update whatever `settings-words.test.mjs`
   and `setup.test.mjs`'s wiring test assert about Setup's tab.
 
-- [ ] **Step 1: Failing tests first.** Change the test expectations above to the new routes and words. For
+- [x] **Step 1: Failing tests first.** Change the test expectations above to the new routes and words. For
   `setup.test.mjs`'s wiring test:
   - delete the Settings-rail regex and the `PaneSetup` mount pin (the tab is gone);
   - delete the `"admin/setup"` registry pins (surface-registry.test covers `start` now);
@@ -1615,17 +1615,17 @@ export function surfaceRetiredTo(page: string, param?: string | null): string | 
   - delete the `data-testid="setup-next"` pin (the head card is gone).
 
   Run those files. Expect FAIL on the four product tests.
-- [ ] **Step 2: Make the changes** listed under Files, then rebuild contracts.
-- [ ] **Step 3:** Run the five test files. Expect PASS. Then
+- [x] **Step 2: Make the changes** listed under Files, then rebuild contracts.
+- [x] **Step 3:** Run the five test files. Expect PASS. Then
   `UPDATE_SOURCE_SCAN_BASELINE=1 node --conditions=react-server --import tsx --test tooling/scripts/tests/source-scan-ratchet.test.mjs`.
   Check with `git diff tooling/scripts/tests/source-scan-baseline.json` that only `setup.test.mjs` fell. Then run
   it again without the variable. Expect PASS.
-- [ ] **Step 4:** Remove the Setup pane's own styles, which nothing draws now: `.setup-head`, `.setup-meter`,
+- [x] **Step 4:** Remove the Setup pane's own styles, which nothing draws now: `.setup-head`, `.setup-meter`,
   `.setup-meter-fill`, `.setup-next`, `.setup-next-label`, `.setup-count` and `.setup-sentence` in `settings.css`.
   Keep `.setup-rows`, `.setup-try*`, `.setup-later` and the panels' rules, and bump `settings.css`'s `?v=`. Check
   with `grep -n "setup-meter\|setup-next\|setup-head" apps/dashboard/src/legacy -r`, which must be empty.
   `platform.jsx:143` reuses `.setup-meter`: if the grep shows it, keep `.setup-meter` and `.setup-meter-fill`.
-- [ ] **Step 5: Commit:** `feat(settings): Setup leaves Settings; every door to it opens the first run`
+- [x] **Step 5: Commit:** `feat(settings): Setup leaves Settings; every door to it opens the first run`
 
 ---
 
@@ -1641,7 +1641,7 @@ export function surfaceRetiredTo(page: string, param?: string | null): string | 
 - Modify: `apps/dashboard/src/legacy/Chanlytics.html` (bump `dashboard-a-brief.jsx`, `dashboard-a.jsx`, `mobile.css`)
 - Test: `tooling/scripts/tests/today-doors.test.mjs:421-446`
 
-- [ ] **Step 1: Rewrite the failing test.** The stub `__SETUP` becomes a real surface, and `window.__firstRun` is
+- [x] **Step 1: Rewrite the failing test.** The stub `__SETUP` becomes a real surface, and `window.__firstRun` is
   published. Draw the card with a `mountSetup` helper: the file's own `mountHero` shape, with `window.TodaySetup`
   as the component.
 
@@ -1720,8 +1720,8 @@ test("the card once it answers: Setup's own rows, the next one first, Skip for o
   `attention-bits.jsx` are loaded in this file's harness, the way it loads the other Today pages. The next test,
   email-only, keeps its stub without `line`: `{ vm: { readiness: { answering: false } } }` still draws no card,
   because `window.__firstRun` is absent there.
-- [ ] **Step 2:** Run it. Expect FAIL: `window.TodaySetup` is undefined.
-- [ ] **Step 3: Implement** in `dashboard-a-brief.jsx`, where `SetupLine` was:
+- [x] **Step 2:** Run it. Expect FAIL: `window.TodaySetup` is undefined.
+- [x] **Step 3: Implement** in `dashboard-a-brief.jsx`, where `SetupLine` was:
 
 ```jsx
 // What is left to set up, as one card above the queue (the first run's Today card, canvas R10 and P9): while the
@@ -1776,9 +1776,9 @@ window.TodaySetup = TodaySetup;
 ```
 
   (inside the file's existing `@media (max-width: 900px)` block for Today).
-- [ ] **Step 4:** Run `today-doors.test.mjs`, `today-page.test.mjs` and `layout-measure.test.mjs`. Expect PASS.
+- [x] **Step 4:** Run `today-doors.test.mjs`, `today-page.test.mjs` and `layout-measure.test.mjs`. Expect PASS.
   `today-page.test.mjs:424` names Setup: take the new card's words there too.
-- [ ] **Step 5: Commit:** `feat(today): what is left to set up is one card, with a Skip that is this person's`
+- [x] **Step 5: Commit:** `feat(today): what is left to set up is one card, with a Skip that is this person's`
 
 ---
 
@@ -1802,7 +1802,7 @@ window.TodaySetup = TodaySetup;
   - `create-workspace-screen.test.mjs` (made on arrival, and a refusal shows the form);
   - `signup.test.mjs` (update any pin on the stored metadata's shape).
 
-- [ ] **Step 1: Failing tests.**
+- [x] **Step 1: Failing tests.**
   - `first-run.test.mjs`:
 
 ```js
@@ -1835,8 +1835,8 @@ test("the invite code sign-up checked is kept beside the name, and never read ba
     - Test two: the same, where the fetch answers 403 `codeWrong`, settles to the form, with the name filled in and
       the error said.
     - Test three: with `onCancel` given ("another"), nothing is posted on arrival.
-- [ ] **Step 2:** Run them. Expect FAIL.
-- [ ] **Step 3: Implement.**
+- [x] **Step 2:** Run them. Expect FAIL.
+- [x] **Step 3: Implement.**
   - `signup.ts` (contracts), after `pendingWorkspaceOf`:
 
 ```ts
@@ -1920,10 +1920,10 @@ import { useEffect, useRef, useState } from "react";
     opens (`#/start` for one just made); a switch opens on Today."
   - `LegacyApp.tsx`: both handlers call `switchWorkspace(w.id, w.slug, "#/start")`. Their comments say "opens on the
     first run".
-- [ ] **Step 4:** Build contracts. Run `first-run.test.mjs`, `account-routes.test.mjs`,
+- [x] **Step 4:** Build contracts. Run `first-run.test.mjs`, `account-routes.test.mjs`,
   `create-workspace-screen.test.mjs`, `signup.test.mjs`, `workspace-creation.test.mjs` and
   `workspace-path.test.mjs`. Expect PASS.
-- [ ] **Step 5: Commit:** `feat(signup): create once -- sign-up's answers make the first workspace, and it opens on the first run`
+- [x] **Step 5: Commit:** `feat(signup): create once -- sign-up's answers make the first workspace, and it opens on the first run`
 
 ---
 
@@ -1939,7 +1939,7 @@ import { useEffect, useRef, useState } from "react";
 - Modify: `docs/system-prd.md`. Wherever it describes Settings › Setup (`grep -n "Setup" docs/system-prd.md`), say
   the first run and the Today card instead.
 
-- [ ] **Step 1: The specs.**
+- [x] **Step 1: The specs.**
   - `#/admin/setup` becomes `#/start`.
   - `setup-readiness` becomes `first-run`, and `setup-rows` becomes `fr-rows`. The rows on screen are the current
     step's: a spec that walked every row walks `fr.steps` by pressing `fr-rail-*` for the steps reached, or checks
@@ -1951,32 +1951,32 @@ import { useEffect, useRef, useState } from "react";
     it would have been sent.
 
   Read each file before editing, and keep every assertion's intent.
-- [ ] **Step 2:** `corepack pnpm exec tsc -p e2e --noEmit`, or the repository's e2e typecheck if it has its own
+- [x] **Step 2:** `corepack pnpm exec tsc -p e2e --noEmit`, or the repository's e2e typecheck if it has its own
   (see `package.json`). Expect exit 0. The specs run nightly against production after deploy.
-- [ ] **Step 3: The docs.** Make the `CLAUDE.md` and `system-prd.md` edits above.
-- [ ] **Step 4: Commit:** `docs(first-run): the nightly specs, the shell's conventions and the PRD follow Setup to #/start`
+- [x] **Step 3: The docs.** Make the `CLAUDE.md` and `system-prd.md` edits above.
+- [x] **Step 4: Commit:** `docs(first-run): the nightly specs, the shell's conventions and the PRD follow Setup to #/start`
 
 ---
 
 ### Task 11: The gates, the review, the pull request
 
-- [ ] `corepack pnpm --filter "./packages/*" build`. Restore the dists whose diff is line endings only. Format
+- [x] `corepack pnpm --filter "./packages/*" build`. Restore the dists whose diff is line endings only. Format
   first, then build again (a dist built before Prettier wraps a line drifts):
   `corepack pnpm format` on the changed files, then build.
-- [ ] `corepack pnpm -r typecheck && corepack pnpm lint && corepack pnpm format:check && corepack pnpm test`. Expect
+- [x] `corepack pnpm -r typecheck && corepack pnpm lint && corepack pnpm format:check && corepack pnpm test`. Expect
   exit 0 on all; record the counts against Task 0's baseline.
-- [ ] `node tooling/scripts/gen-route-types.mjs --check`. Expect "route types: current": no route changed shape.
-- [ ] Run the app and look (`reference_browser_pane_keys`, `feedback_run_the_real_app`):
+- [x] `node tooling/scripts/gen-route-types.mjs --check`. Expect "route types: current": no route changed shape.
+- [x] Run the app and look (`reference_browser_pane_keys`, `feedback_run_the_real_app`):
   - `corepack pnpm --filter @chanlytics/dashboard dev` in the worktree, then `/w/<workspace>/#/start` at a desktop
     width and at 375px;
   - Today with the card;
   - `#/admin/setup` redirecting.
 
   Screenshots are for the review, not for the PR. Afterwards, check `git status` for tsconfig rewrites.
-- [ ] One whole-branch review (standards and spec) with the code-review skill, and one fix round. Never re-review
+- [x] One whole-branch review (standards and spec) with the code-review skill, and one fix round. Never re-review
   the fixes.
-- [ ] Merge `origin/main` if it moved, rebuild the dists on the merged tree, and run the whole suite again.
-- [ ] The PR:
+- [x] Merge `origin/main` if it moved, rebuild the dists on the merged tree, and run the whole suite again.
+- [x] The PR:
   - **Title:** "First run 2 of 5: the shell — #/start, create once, Today's card".
   - **What changes for a customer:**
     - a new owner's workspace is made from sign-up's answers, and they land on the full-screen first run;
@@ -1985,4 +1985,39 @@ import { useEffect, useRef, useState } from "react";
     - old Setup links open the first run.
   - **Set before merging:** nothing.
   - **Deploy order:** either. The edge still writes `admin/setup`, which the dashboard redirects.
-- [ ] Squash-merge on green, check main's next CI run, and update the memory file.
+- [x] Squash-merge on green, check main's next CI run, and update the memory file.
+
+## As built (24 September 2026)
+
+One whole-branch review (standards and spec) and one fix round changed these from the steps above:
+
+- **A door names its step.** Connections' line verbs (Get a line, Ask for a line, Retry it) and Leads' number open
+  `start/phone`; Google's Find it, on Connections and on Reports, opens `start/business` (`firstRunStepRoute`). A
+  step not reached yet shows where the workspace is instead.
+- **The steps carry their addresses.** Each step's `to` is `start` for the current one and `start/<step>` for
+  another; `back` is an address; `onward.leaves` says whether it is a way out. A step's own move goes through the
+  shell's `navigate(to, { replace: true })`, so the browser's Back leaves the first run; Finish and Finish later
+  are new entries.
+- **One coral button a step.** A step done shows Continue and no primary row.
+- **Put-off rows save one at a time**, each with the list as it stands when it goes. A refusal takes back only its
+  own rows, a re-read while a save is out keeps what is on screen, and nothing is saved over a view that could not
+  be read (`SETUP_LATER_REFUSED`). The landing is run in `setup-later.test.mjs`, and its two source pins went.
+- **Today's card.** Skip and Hide say so in the card's own toast, which it lends its rows because a Skip can take
+  the card away, with an Undo. The start row says the step it opens on. On a phone the card is one line and one
+  button: Skip and Hide wait for a wider screen.
+- **The receptionist card.** Its status is Setup's own state, drawn as the `StatePill`. The greeting uses only the
+  receptionist's name, never the workspace's. Answers says the line, and the number forwarded to it when one is.
+- **A pane that moved redirects in a demo too.** `surfaceRetiredTo(page, param, demo)`: a moved pane and a page gone
+  from the tree move for everyone; a retired page the mockup still draws (the Deal board) stays in a demo.
+- **One spelling each:** `InviteCodeSchema` (sign-up, the kept answers, the create route), `FINISH_SETTING_UP`,
+  `FIRST_RUN_LANDED_KEY`, `FIRST_RUN_HELPERS`. The page has no words of its own when the bridge is absent.
+- **Setup's panel rules follow its rows out of Settings:** the 44px inputs on a phone, the inputs' edge and the press
+  feedback; the Try card takes Setup's type scale.
+
+Kept as built, on purpose:
+
+- The first run is called "Setting up" (the palette, the crumb, the bell's "Finish setting up"), and a stopped
+  line's verb stays "Retry it".
+- The create screen's create passes `refresh: false`: the tab leaves for the new workspace at once.
+- The step's button held at the foot on a phone waits for PRs 3–5, which rewrite each step's content.
+- The card's inputs are gathered in the page (`frCardInputs`), and `saveView` stays in `people-detail.ts`.
