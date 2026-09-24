@@ -20,7 +20,7 @@ const routeReady = (page, param) => !window.__surfaceGate || window.__surfaceGat
 /** Surfaces whose own route param is a prop they follow, not a new identity. Live writes the call it opens to the
  *  address (replaced), so each call being its own mount would tear the page down on every click; Conversations writes
  *  the row on its tab (`<tab>:<id>`) the same way. */
-const PARAM_FOLLOWED_AS_PROP = new Set(["admin", "inbox", "broadcasts", "live", "conversations"]);
+const PARAM_FOLLOWED_AS_PROP = new Set(["admin", "inbox", "broadcasts", "live", "conversations", "start"]);
 // What a route is MOUNTED under (the long note where it is used says why that is not the route). Leads follows its
 // address as a prop -- the page reads `leadsRoute` on every draw and its one read is keyed by it -- so every view of
 // Leads, and a lead opened over one, is the page already there. People's own views and a profile keep their whole
@@ -527,6 +527,10 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
       </button>
     );
     content = <SegmentsPage initialId={param} />;
+  } else if (page === "start") {
+    // The first run (first-run.jsx): drawn full screen below, after every hook; the crumb names the tab.
+    crumbs = [window.__firstRun ? window.__firstRun.words.title : "Setting up"];
+    content = null;
   } else if (page === "admin") {
     // The crumb names the pane Settings opens, by the rule Settings itself
     // uses (SET_TAB), so the two cannot say different things about one route:
@@ -537,7 +541,10 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
     activeNav = "admin";
     crumbs = tabMeta ? [{ label: "Settings", to: "admin" }, tabMeta.label] : ["Settings"];
     pane = true;
-    content = <SettingsPage tab={param || "workspace"} onTab={(t) => navigate(`admin/${t}`)} />;
+    // A pane that moved (surface-registry ROUTES_MOVED) draws nothing for the frame before the redirect below.
+    content = window.__surfaceRetired && window.__surfaceRetired(page, param)
+      ? null
+      : <SettingsPage tab={param || "workspace"} onTab={(t) => navigate(`admin/${t}`)} />;
   } else if (page === "tasks") {
     activeNav = "tasks";
     crumbs = ["Agents", "Tasks"];
@@ -731,10 +738,11 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
   // to Not found for a page that is only somewhere else.
   const seededPageGone = page === "leads";
   const retiredTo = window.__surfaceRetired && (!window.__DEMO_MODE || seededPageGone)
-    ? window.__surfaceRetired(page)
+    ? window.__surfaceRetired(page, param)
     : null;
   useShellEffect(() => {
-    if (retiredTo) window.location.hash = "/" + retiredTo;
+    // Replaced, so Back never lands on an address that only moves again.
+    if (retiredTo) window.location.replace("#/" + retiredTo);
   }, [retiredTo]);
   // A soon/ link to a page that has shipped: the address becomes the page's own, in place, so Back does not land on
   // the old link again.
@@ -832,6 +840,15 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
         <div className="shared-body">
           <ReportsPage />
         </div>
+      </div>
+    );
+  }
+
+  // The first run: full screen, the shell's chrome set aside, after all hooks as the shared viewer is (first-run.jsx).
+  if (page === "start" && !demoGated && window.FirstRun) {
+    return (
+      <div className="fr-shell" data-theme={theme}>
+        <window.FirstRun param={param} onNavigate={navigate} />
       </div>
     );
   }
