@@ -20,6 +20,8 @@
 import { clockDate, clockNear, clockNearWhen } from "./clock";
 import { DEAL_CARD_WORDS, type DealSheetMode } from "./deal-sheet";
 import {
+  DEAL_LOST_REASONS,
+  DEAL_LOST_REASON_WORDS,
   DEAL_STAGE_WORDS,
   amountTotalsWords,
   consultationsWithoutProposal,
@@ -28,9 +30,10 @@ import {
   proposalsWaiting,
   waitingOnProposal,
   wholeDaysSince,
+  type DealLostReason,
   type DealVM,
 } from "./deals";
-import type { PersonRowVM } from "./people";
+import { repliesWords, type PersonRowVM, type PersonVM } from "./people";
 import type { Tone } from "./tone";
 
 export type PipelineGroupKey = "consultations" | "proposals" | "clients" | "closed";
@@ -64,6 +67,20 @@ export interface PipelineRowVM<T extends PipelineSource = PersonRowVM> {
   /** How long it has stood where it is, "8 d"; "" for a consultation still ahead. */
   inStage: string;
   chip: PipelineChip | null;
+  /**
+   * The deal's steps, as the row, the card and the peek draw them: a consultation where one was held or is coming
+   * up, the proposal, the client. Empty for a pass or an end, whose chip says it. A picture of what the group head
+   * and the chip say in words, so a screen reader is not read it again.
+   */
+  track: PipelineStep[];
+}
+
+/** One step on a row's track: done, where the deal stands now, or still ahead. */
+export interface PipelineStep {
+  key: "consultation" | "proposal" | "client";
+  at: "done" | "current" | "ahead";
+  /** Where it stands, in the tone its chip is in (a proposal waiting on the owner is warn); plain either side of it. */
+  tone: Extract<Tone, "info" | "ok" | "warn" | "plain">;
 }
 
 export interface PipelineGroupVM<T extends PipelineSource = PersonRowVM> {
@@ -124,7 +141,17 @@ export const PIPELINE_WORDS = {
    * The table's headings, in the order it draws them. The chip's column shows none -- no one word is right for "Fri
    * 2:00 PM" and "Since Sep 18" alike -- and says this one to a screen reader.
    */
-  columns: { person: "Person", service: "Service", value: "Value", stage: "In stage", chip: "Where it stands" },
+  columns: {
+    person: "Person",
+    service: "Service",
+    value: "Value",
+    stage: "Stage",
+    came: "Came from",
+    valid: "Valid until",
+    chip: "Where it stands",
+    /** The row's own menu, as a screen reader hears its heading. */
+    acts: "More",
+  },
   /** What opens a folded group, whose head counts its rows already, and what folds it again. */
   show: "Show",
   hide: "Hide",
@@ -139,9 +166,23 @@ export const PIPELINE_WORDS = {
     thread: "Open the thread",
     reading: "Reading…",
     what: "this person",
+    /** How to reach them: the number (a call, a copy), the address (a copy), and what a reply may be. */
+    reach: { phone: "Phone", email: "Email", replies: "Replies", call: "Call", copy: "Copy", copied: "Copied" },
+    /** What happened with their deals, newest first. */
+    history: "History",
   },
-  /** The board: a column with nobody in it, and what a card says of itself to a screen reader. */
-  board: { nobody: "Nobody here", card: "Open" },
+  /** The board: a column with nobody in it, what a card says of itself to a screen reader, and a card's menu. */
+  board: { nobody: "Nobody here", card: "Open", menu: "More for", move: "Move to" },
+  /** The row's menu: the deal's own acts come from the deal sheet's words; these are its two doors. */
+  row: { menu: "More for" },
+  /** A selection's pass (Mark as passed · N): the one question, asked once for every proposal in it. */
+  pass: {
+    button: "Mark as passed",
+    ask: "Why did they pass?",
+    go: "Mark as passed",
+    cancel: "Cancel",
+    busy: "Marking…",
+  },
   /** A proposal out that has waited a week with nothing back: the row's In stage already says how long. */
   nothingBack: "Nothing back",
   /** The Pipeline's own rail: its groups, what waits on the owner, and each service. */
@@ -203,6 +244,28 @@ function closedChip(d: DealVM, tz: string, nowMs: number): PipelineChip {
   return { words: d.sinceMs === null ? what : `${what} · ${clockDate(d.sinceMs, tz, nowMs)}`, tone: "plain" };
 }
 
+const step = (
+  key: PipelineStep["key"],
+  at: PipelineStep["at"],
+  tone: PipelineStep["tone"] = "plain",
+): PipelineStep => ({
+  key,
+  at,
+  tone,
+});
+
+/**
+ * A deal's steps: the consultation where one was held, then the proposal and the client -- a proposal out is where it
+ * stands, in its chip's warn when it waits on the owner; a client has come through both. A pass or an end has none.
+ */
+function dealTrack(r: PipelineSource, d: DealVM, chip: PipelineChip | null): PipelineStep[] {
+  if (d.stage !== "proposed" && d.stage !== "won") return [];
+  const held = r.consultedMs !== null && Number.isFinite(r.consultedMs) ? [step("consultation", "done")] : [];
+  return d.stage === "proposed"
+    ? [...held, step("proposal", "current", chip?.tone === "warn" ? "warn" : "info"), step("client", "ahead")]
+    : [...held, step("proposal", "done"), step("client", "current", "ok")];
+}
+
 function dealRow<T extends PipelineSource>(
   r: T,
   d: DealVM,
@@ -218,6 +281,7 @@ function dealRow<T extends PipelineSource>(
     // A proposal's time in stage IS its wait, the number its chip says: the deal's own count, never a second one.
     inStage: daysWords(d.stage === "proposed" ? d.waitingDays : wholeDaysSince(d.sinceMs, nowMs)),
     chip,
+    track: dealTrack(r, d, chip),
   };
 }
 
@@ -235,6 +299,8 @@ function heldRow<T extends PipelineSource>(r: T, endMs: number, tz: string, nowM
     value: null,
     inStage: daysWords(wholeDaysSince(heldMs, nowMs)),
     chip: { words: `Held ${clockNear(heldMs, zoneOf(r, tz), nowMs)} · no proposal yet`, tone: "warn" },
+    // Held, and the proposal is the step now: in warn, as the chip says it, since it waits on the owner.
+    track: [step("consultation", "done"), step("proposal", "current", "warn"), step("client", "ahead")],
   };
 }
 
@@ -255,6 +321,7 @@ function aheadRow<T extends PipelineSource>(
     value: null,
     inStage: "",
     chip: { words: upper(when), tone: "info" },
+    track: [step("consultation", "current", "info"), step("proposal", "ahead"), step("client", "ahead")],
   };
 }
 
@@ -580,4 +647,138 @@ export function pipelinePeekOf(row: PipelineRowVM, group: PipelineGroupKey): Pip
     facts,
     thread: p.threadId,
   };
+}
+
+/* ------------------------------------------------ the row carries the deal: its order, a selection's pass, the peek */
+
+/**
+ * How the rows order within each group, by the table's sortable headings: Stage, the Pipeline's own order (reversed,
+ * the other way); Value, what each deal comes to over a year; Person, by name. The groups themselves never move.
+ */
+export const PIPELINE_SORTS = ["stage", "value", "name"] as const;
+export type PipelineSort = (typeof PIPELINE_SORTS)[number];
+
+/** A deal's worth over a year, to order by: a month's twelve times, a year's and a one-off's as they are; null for none. */
+function yearCents(d: DealVM | null): number | null {
+  if (!d || d.amountCents === null || !Number.isFinite(d.amountCents)) return null;
+  return d.per === "month" ? d.amountCents * 12 : d.amountCents;
+}
+
+/**
+ * The same Pipeline with each group's rows in the order the member picked. A tie keeps the Pipeline's own order, and a
+ * row with no value goes last whichever way value runs. An order it does not know is the Pipeline's own.
+ */
+export function pipelineSorted<T extends PipelineSource>(
+  vm: PipelineVM<T>,
+  by: string | null | undefined,
+  dir: "asc" | "desc",
+): PipelineVM<T> {
+  const sort: PipelineSort = (PIPELINE_SORTS as readonly string[]).includes(by ?? "") ? (by as PipelineSort) : "stage";
+  if (sort === "stage" && dir !== "desc") return vm;
+  const sign = dir === "desc" ? -1 : 1;
+  const groups = vm.groups.map((g) => {
+    const ranked = g.rows.map((r, i) => ({ r, i }));
+    ranked.sort((a, b) => {
+      if (sort === "stage") return sign * (a.i - b.i);
+      if (sort === "name") return sign * a.r.name.localeCompare(b.r.name) || a.i - b.i;
+      const x = yearCents(a.r.person.deal);
+      const y = yearCents(b.r.person.deal);
+      if (x === y) return a.i - b.i;
+      if (x === null) return 1;
+      if (y === null) return -1;
+      return sign * (x - y);
+    });
+    return { ...g, rows: ranked.map((x) => x.r) };
+  });
+  return { ...vm, groups };
+}
+
+/** A pass asked of a selection: the proposals out in it, why they passed, and those that stay as they are. */
+export interface PipelinePassManyVM {
+  deals: { personId: string; dealId: string }[];
+  /** "Mark 2 as passed"; null with no proposal out among them. */
+  words: string | null;
+  /** "1 is not a proposal out and stays as it is"; null when every one is. */
+  rest: string | null;
+  /** The reasons a pass is asked, in the deal sheet's own words and order. */
+  reasons: { code: DealLostReason; words: string }[];
+}
+
+/**
+ * Mark as passed for a selection (0008): only a proposal out can pass, so the rest are counted and left as they are,
+ * and the one question -- why -- is asked once for all of them. The page records each through the deal door in turn,
+ * with the version the person's own read says (a People row does not carry one).
+ */
+export function pipelinePassMany(rows: readonly PipelineSource[]): PipelinePassManyVM {
+  const deals = rows
+    .filter((r) => r.deal && r.deal.stage === "proposed" && r.deal.id)
+    .map((r) => ({ personId: r.id, dealId: r.deal!.id as string }));
+  const k = rows.length - deals.length;
+  return {
+    deals,
+    words: deals.length ? `Mark ${deals.length} as passed` : null,
+    rest: k
+      ? k === 1
+        ? "1 is not a proposal out and stays as it is"
+        : `${k} are not proposals out and stay as they are`
+      : null,
+    reasons: DEAL_LOST_REASONS.map((code) => ({ code, words: DEAL_LOST_REASON_WORDS[code] })),
+  };
+}
+
+/** What a selection's pass came to: how many were marked, and the ones the door would not take, said once. */
+export function pipelinePassDone(done: number, refused: number): { words: string; tone: "ok" | "warn" } {
+  const marked = done === 1 ? "1 marked as passed" : `${done} marked as passed`;
+  if (!refused) return { words: marked, tone: "ok" };
+  const left =
+    refused === 1 ? "1 had changed, and was left as it is" : `${refused} had changed, and were left as they are`;
+  return { words: done ? `${marked} · ${left}` : left, tone: "warn" };
+}
+
+/** One way to reach them in the peek: what it is, the thing itself, and what can be done with it. */
+export interface PipelinePeekReachVM {
+  id: "phone" | "email" | "replies";
+  label: string;
+  words: string;
+  /** A call's address (tel:), for the number only. */
+  call: string | null;
+  /** What a copy puts on the clipboard; null where there is nothing to copy. */
+  copy: string | null;
+}
+
+export interface PipelinePeekDetailVM {
+  reach: PipelinePeekReachVM[];
+  /** Their deals' moves, newest first, three at most, in the person page's own words: "Proposal out · SEO · $800". */
+  history: { id: string; words: string; when: string }[];
+}
+
+/**
+ * What the peek says once the person is read (0008, "the row carries the deal"): how to reach them -- the number, the
+ * address, and what a reply may be now (repliesWords, the person page's own sentence) -- and the last moves of their
+ * deals from their timeline. Nothing here is the peek's own: each word is the person page's.
+ */
+export function pipelinePeekDetail(p: PersonVM): PipelinePeekDetailVM {
+  const W = PIPELINE_WORDS.peek.reach;
+  const reach: PipelinePeekReachVM[] = [];
+  if (p.phone) {
+    const dial = p.phone.replace(/[^\d+]/g, "");
+    reach.push({ id: "phone", label: W.phone, words: p.phone, call: dial ? `tel:${dial}` : null, copy: p.phone });
+  }
+  if (p.email) reach.push({ id: "email", label: W.email, words: p.email, call: null, copy: p.email });
+  const replies = p.hasChat ? repliesWords(p.replyVia, p.replyWindow) : null;
+  if (replies) reach.push({ id: "replies", label: W.replies, words: replies, call: null, copy: null });
+  const history = p.timeline
+    .filter((t) => t.kind === "deal" && !t.ahead)
+    .sort((a, b) => b.ts - a.ts)
+    .slice(0, 3)
+    .map((t) => ({ id: t.id, words: t.text, when: t.day }));
+  return { reach, history };
+}
+
+/** A board column shows this many cards, then says how many more it holds. */
+export const PIPELINE_BOARD_CAP = 20;
+
+/** A board column's way to the rest of its cards: "Show 4 more". */
+export function pipelineBoardMore(n: number): string {
+  return `Show ${n} more`;
 }

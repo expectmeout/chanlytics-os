@@ -76,6 +76,8 @@ import "@/legacy/pages/clients-bits.jsx";
 import "@/legacy/pages/people-table.jsx";
 // People › Pipeline (0008), the third scope: its peek and its board before the scope, which draws them, and the
 // scope before clients-a.jsx, whose ClientsA draws it.
+// The pieces a row, a card and the peek share (the track, the row's menu, a selection's pass), before them.
+import "@/legacy/pages/pipeline-row.jsx";
 import "@/legacy/pages/pipeline-peek.jsx";
 import "@/legacy/pages/pipeline-board.jsx";
 // New proposal: who it is for, before the one deal sheet.

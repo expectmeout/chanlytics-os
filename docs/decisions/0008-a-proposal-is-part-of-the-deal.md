@@ -388,6 +388,47 @@ tab's own moves already re-read People through the refresh map. And the words
 in the box find a deal's service, on People as on the Pipeline
 (`plMatcher`).
 
+### The row carries the deal
+
+Every row and card wears the deal's steps (contracts `PipelineRowVM.track`): a
+consultation where one was held or is coming up, the proposal, the client; a
+3px bar each, done in the dim ink, where it stands in its chip's tone (a
+proposal waiting on the owner in warn), what is ahead the hairline. A pass or
+an end has none: its chip says it. It is a picture of what the group head and
+the chip say in words, so a screen reader is not read it again.
+
+The table sorts by its headings within each group (`pipelineSorted`): Stage is
+the Pipeline's own order, as it opens; Value orders by what a deal comes to
+over a year (a month twelve times), none last; Person by name. Came from and
+Valid until are columns a member shows with Columns. The sort, the columns
+and the layout are the member's saved view. A group's head holds under the
+table's own while its rows scroll.
+
+A row's menu holds the deal's own acts, as the thread's Deal group does
+(`dealMenuActs`), for a member who may record one, then their thread and
+their page; the send is the peek's, whose card holds the person the words are
+for. A selection on a desk is People's own bar, led by Mark as passed · N
+(`pipelinePassMany`): only a proposal out passes, why is asked once for all of
+them, and each is recorded through the one deal door in turn with the version
+the person's own read says, since a People row carries none; People is read
+again once, behind the last, and what it came to is said once
+(`pipelinePassDone`), the ones the door would not take left selected. Of
+People's own acts the Pipeline keeps its lists and its export.
+
+The peek says, once the person is read, how to reach them -- the number with
+Call and Copy, the address with Copy, and what a reply may be now, the person
+page's own sentence (`repliesWords`) -- and the last three moves of their
+deals from their timeline (`pipelinePeekDetail`). On a phone the deal's next
+act and Call are pinned under it. Beside an open peek on a desk the table
+makes room for it and keeps who and where they stand: at 1280, beside the
+sidebar and the rail, some 350px is left, which holds two columns; the peek's
+card says the value at its head.
+
+On the board each card wears its steps, and a Move to menu beside it (never
+inside the card, which is a button itself) asks for the same sheet a drop
+would, for a finger or a keyboard; a column shows twenty cards, then says how
+many more it holds.
+
 ### Still held
 
 - **One row per open deal.** `people_list` returns one deal per person (the

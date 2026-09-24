@@ -194,14 +194,14 @@ test("a proposal's link and the day it stands until, and why someone passed: eac
   const url = "https://docs.example.com/p/maria";
   const out = dealOf(cols({ deal_proposal_url: url, deal_valid_until: "2026-09-30" }), TZ, NOW);
   assert.deepEqual(out.proposal, { url, host: "docs.example.com" });
-  assert.deepEqual(out.validUntil, { day: "2026-09-30", words: "Valid until Sep 30", lapsed: false });
+  assert.deepEqual(out.validUntil, { day: "2026-09-30", date: "Sep 30", words: "Valid until Sep 30", lapsed: false });
   assert.equal(out.reason, null);
   // The day it stands is still a day it stands: lapsed only once it has passed, by the business's calendar. At 11 PM
   // in New York on the 22nd it is already the 23rd in UTC, and the proposal still stands.
   const lateOn22 = Date.parse("2026-09-23T03:00:00Z");
   assert.equal(dealOf(cols({ deal_valid_until: "2026-09-22" }), TZ, lateOn22).validUntil.lapsed, false);
   const lapsed = dealOf(cols({ deal_valid_until: "2026-09-20" }), TZ, NOW).validUntil;
-  assert.deepEqual(lapsed, { day: "2026-09-20", words: "Lapsed Sep 20", lapsed: true });
+  assert.deepEqual(lapsed, { day: "2026-09-20", date: "Sep 20", words: "Lapsed Sep 20", lapsed: true });
   assert.equal(dealOf(cols({ deal_valid_until: "2026-09-23" }), TZ, NOW).validUntil.lapsed, false, "today stands");
   assert.equal(dealOf(cols({ deal_valid_until: "2027-01-15" }), TZ, NOW).validUntil.words, "Valid until Jan 15, 2027");
   assert.equal(dealOf(cols({ deal_valid_until: "2026-02-31" }), TZ, NOW).validUntil, null, "not a day, not said");

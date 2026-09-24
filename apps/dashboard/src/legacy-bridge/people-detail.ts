@@ -311,6 +311,9 @@ export interface DealBody {
 export async function recordDeal(
   id: string,
   body: DealBody,
+  // One of several in turn (a selection's pass): each moves its row as the door answers, and only the last asks
+  // for People to be read again, behind it.
+  opts: { refresh?: false | "behind" } = {},
 ): Promise<ApiResult<{ deal: DealDto; from: string | null; decision_id: string; current: DealDto | null }>> {
   return api()("POST contacts/[id]/deal", {
     params: { id },
@@ -322,7 +325,7 @@ export async function recordDeal(
     onAccepted: (d) => {
       if (d && d.current) placeDeal(id, d.current);
     },
-    refresh: "behind",
+    refresh: opts.refresh === false ? false : "behind",
   });
 }
 
