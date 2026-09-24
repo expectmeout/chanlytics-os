@@ -86,10 +86,11 @@ answers…", and the three "Always on" rules as a 78px card.
   playbook's run to come), the runs named on the cell's hover. It was seven rows and 209px.
 - **The runs are rows** in one list, about 50px: the kind's mark, the name with its state, "Playbook · Win-back ·
   quiet 30 days" or "Broadcast · Everyone who said yes" under it, when it goes, who it reached with the reasons on one
-  line, and — only on a run waiting on you — Approve the run and Skip. The whole row opens the run; "Open" goes. The
-  template's code name and language leave the row (the run's report has them); the policy chip stays on a run that
-  waits (it says why it waits).
-- **Get their yes folds** to one line under the runs ("Get their yes — the QR, a desk sign and your sign-up page"),
+  line, and — only on a run waiting on you — Approve the run and Skip. A run to come or going out is cancelled or
+  stopped from its report. The whole row opens the run; "Open" goes. The template's code name and language leave the
+  row (the run's report has them); the policy chip stays on a run that waits (it says why it waits) where the list is
+  wide enough for it beside the name.
+- **Get their yes folds** to one line under the runs ("Get their yes — only people who said yes get a broadcast"),
   open when the address is `broadcasts/get-yes`, so every door that lands there still lands on it open.
 - The foot line about replies goes.
 

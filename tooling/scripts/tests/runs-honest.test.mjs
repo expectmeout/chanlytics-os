@@ -491,11 +491,12 @@ test("REGRESSION (C9): each of a playbook's runs opens that run -- the runs were
 test("REGRESSION (C9): a link to a run opens it on Broadcasts -- its report on a screen of its own, as the canvas draws it, whether the list holds it or not", async () => {
   globalThis.window.__BROADCASTS = broadcastsSurface();
   answers.set("b-sent", [{ ok: true, data: detailOf(dto()) }]);
-  // The ledger's own doors: a card's name and its Open are links to the run.
+  // The ledger's own doors: a row's name and its Open (the chevron, named "Open <run>" for a screen reader) are links
+  // to the run.
   let tree = page({ initialSegment: null, initialRun: null });
   const card = find(tree, (n) => n.props?.id === "bc-run-b-sent");
   press(byTestId(card, "bc-open-who"));
-  press(buttonsSaying(card, "Open")[0]);
+  press(find(card, (n) => n.type === "button" && /^Open /.test(n.props?.["aria-label"] || "")));
   assert.deepEqual(
     went,
     ["broadcasts/run:b-sent", "broadcasts/run:b-sent"],

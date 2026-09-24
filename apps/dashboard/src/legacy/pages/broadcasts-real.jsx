@@ -543,7 +543,7 @@ const BcHistoryStats = ({ rows, more, replyWindow = null, origin = null, onOrigi
           <span className="tabular" data-tip={replyWindow ? `Threads in the Inbox that heard from the customer ${replyWindow} of a broadcast` : "Threads in the Inbox that heard from the customer after a broadcast"}>{replied} {replied === 1 ? "reply" : "replies"}</span>
         </span>
       )}
-      {more && <span className="cm-standing-part">{(opened || messages > 0) && dot}<span>the latest 50 broadcasts</span></span>}
+      {more && <span className="cm-standing-part bc-latest">{(opened || messages > 0) && dot}<span>the latest 50 broadcasts</span></span>}
     </div>
   );
 };
@@ -633,9 +633,11 @@ const BcWeek = ({ rows, now }) => {
     });
   }
   const range = c && c.hours ? c.hours.range : "9:00–20:59";
+  const hours = `Nothing sends outside ${range} — a run that would waits for the next morning`;
+  // What the hover says is in the words too, unseen, so a screen reader hears it where the tip is drawn.
   return (
     <div className="bc-week" data-testid="bc-week">
-      <span className="bc-week-k" tabIndex={0} data-tip={`Nothing sends outside ${range} — a run that would waits for the next morning`}>Week ahead</span>
+      <span className="bc-week-k" tabIndex={0} data-tip={hours}>Week ahead<span className="cm-sr">. {hours}</span></span>
       <div className="bc-week-days">
         {days.map((d, i) => {
           const bs = blocks[d].slice().sort((a, b) => a.x - b.x);
@@ -652,6 +654,7 @@ const BcWeek = ({ rows, now }) => {
                 {bs.map((b) => <span key={b.id} className={`bc-week-run${b.projected ? " is-projected" : ""}`} data-tone={b.tone} />)}
               </span>
               <span className="bc-week-say">{say}</span>
+              {tip && <span className="cm-sr">: {tip}</span>}
             </div>
           );
         })}
@@ -674,12 +677,13 @@ const bcSoon = (row, now) => {
 /**
  * One run on the ledger, as a row of People's table: what it is and its state; what
  * sent it and to whom; when it goes or went; who it reaches, out of how many, with
- * who it held back; and -- only while it is open -- the acts it has. A press
- * anywhere on the row opens its report on a screen of its own. A run waiting on the
- * owner has the urgency edge (legacy/CLAUDE.md: urgency is the accent left edge) and
- * its Approve first. It was a card, and every card said the template's name and its
- * language letters, a policy chip and an Open button: 66-76px on a desk and 203-231px
- * on a phone.
+ * who it held back; and -- only on a run waiting on the owner -- Approve and Skip. A
+ * run to come or going out is cancelled or stopped from its report, which a press
+ * anywhere on the row opens on a screen of its own: a red Cancel on every run to come
+ * was a third line on a phone. A run waiting on the owner has the urgency edge
+ * (legacy/CLAUDE.md: urgency is the accent left edge). It was a card, and every card
+ * said the template's name and its language letters, a policy chip and an Open
+ * button: 66-76px on a desk and 203-231px on a phone.
  */
 // `renderDetail` draws the detail when the card is open -- a function, not an element, so a closed card
 // never mounts a detail that would read the run's recipients for nothing.
@@ -688,6 +692,8 @@ const BcRunCard = ({ row, canSend, onOpen, armed, onArm, stopping, approving = f
   const pb = byPb && window.__PLAYBOOKS && Array.isArray(window.__PLAYBOOKS.rows) ? window.__PLAYBOOKS.rows.find((p) => p.id === row.playbook_id) : null;
   const waiting = row.state === "pending_approval";
   const sending = row.state === "sending";
+  // Skip asked, on this row: the question is the acts' cell until it is answered.
+  const asking = waiting && armed && canSend;
   const soon = bcSoon(row, now);
   const done = row.counts.sent + row.counts.skipped + row.counts.failed;
   const held = row.counts.skipped + row.counts.failed;
@@ -721,14 +727,14 @@ const BcRunCard = ({ row, canSend, onOpen, armed, onArm, stopping, approving = f
           </div>
           {/* What sent it, and to whom. A playbook's run is named for its playbook, and so is its list, so the list is
               said only where it is something else: "Win-back · quiet 30 days" under "Win-back · quiet 30 days" was the
-              row saying its name twice. The word Playbook opens the playbook. */}
+              row saying its name twice. The word Playbook opens the playbook, and says which to a screen reader. */}
           <div className="bc-run-sub">
             {byPb
               ? <>
-                  <button type="button" className="bc-run-link" onClick={() => window.CHANLY.nav(`outbound/${row.playbook_id}`)} data-testid="bc-history-playbook">Playbook</button>
-                  {row.audience.label && row.audience.label !== row.name ? <> · {row.audience.label}</> : null}
+                  <button type="button" className="bc-run-link" onClick={() => window.CHANLY.nav(`outbound/${row.playbook_id}`)} aria-label={`Playbook ${pb ? pb.name : row.name}`} data-testid="bc-history-playbook">Playbook</button>
+                  {row.audience.label && row.audience.label !== row.name ? <span className="bc-run-aud"> · {row.audience.label}</span> : null}
                 </>
-              : <>Broadcast · {row.audience.label}</>}
+              : <span className="bc-run-aud">Broadcast · {row.audience.label}</span>}
           </div>
         </div>
         {/* When it goes or went; under an hour away, the minutes left, ticking, in the accent: it is happening. */}
@@ -738,14 +744,14 @@ const BcRunCard = ({ row, canSend, onOpen, armed, onArm, stopping, approving = f
         <div className="bc-run-reach">
           <window.CmReach will={will} pool={pool} held={finished ? held : 0} reasons={reasons} size="sm" progress={sending ? row.progress || 0 : null} label={`${row.name}, sent so far`} />
         </div>
-        <div className="bc-run-acts">
-          <BcRunVerbs row={row} canSend={canSend} armed={armed} onArm={onArm} stopping={stopping} approving={approving} approve={approve} cancel={cancel} />
+        {/* A question asked here is answered here: a press on its words, or just beside its Yes, is not the row's. */}
+        <div className="bc-run-acts" onClick={asking ? (e) => e.stopPropagation() : undefined}>
+          {waiting && <BcRunVerbs row={row} canSend={canSend} armed={armed} onArm={onArm} stopping={stopping} approving={approving} approve={approve} cancel={cancel} />}
           {/* Where the row goes: its report, a screen of its own. The whole row presses it; this is its mark, and its
               name for a keyboard and a screen reader. */}
-          {!(armed && canSend) && (
+          {!asking && (
             <button type="button" className="bc-run-go" onClick={onOpen} aria-label={`Open ${row.name}`}>
-              <Icon name="chevron-right" size={14} />
-              <span className="cm-sr">Open</span>
+              <Icon name="chevron" size={14} />
             </button>
           )}
         </div>
@@ -759,6 +765,8 @@ const BcRunCard = ({ row, canSend, onOpen, armed, onArm, stopping, approving = f
     : <div className={cls} id={`bc-run-${row.id}`} data-testid="bc-open" data-state={row.state}>{inner}</div>;
 };
 window.BcRunCard = BcRunCard;
+// And its verbs alone, as the run's report draws them for every run still open: drawn on their own by confirm.test.mjs.
+window.BcRunVerbs = BcRunVerbs;
 
 const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes = false }) => {
   const data = useBroadcasts();
@@ -857,6 +865,10 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
   const showYes = () => {
     setYesOpen(true);
     const el = typeof document !== "undefined" && document.getElementById ? document.getElementById("bc-optin") : null;
+    // Opened before it is brought into view: scrolled to while folded, the section is the page's last line, so the
+    // scroll stops at the page's end and it then opens below the screen's foot, under a phone's tab bar (#663).
+    const fold = el && el.querySelector ? el.querySelector("details") : null;
+    if (fold) fold.open = true;
     if (el && el.scrollIntoView) el.scrollIntoView({ block: "start" });
   };
   React.useEffect(() => { if (initialYes) showYes(); }, [initialYes]);
@@ -1378,7 +1390,7 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
           <details className="bc-yes" open={yesOpen} onToggle={(e) => setYesOpen(!!(e && e.currentTarget && e.currentTarget.open))}>
             <summary className="bc-yes-head" data-testid="bc-optin-toggle">
               <span className="bc-yes-k">Get their yes</span>
-              <span className="bc-yes-note">the only way onto a broadcast — a QR, a desk sign and your sign-up page</span>
+              <span className="bc-yes-note">only people who said yes get a broadcast</span>
               <Icon name="chevron-down" size={12} />
             </summary>
           <div className="bc-optin-body">

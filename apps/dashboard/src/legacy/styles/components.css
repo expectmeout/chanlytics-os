@@ -2277,7 +2277,6 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 .cm-head.is-quiet { align-items: center; gap: 12px 18px; min-height: 30px; }
 .cm-head.is-quiet .cm-head-sub { margin-top: 0; }
 .cm-head.is-quiet .cm-head-right .btn { height: 30px; }
-.cm-flag { flex: none; }
 /* The search box beside the head's act: the same height as the act, quiet until used. */
 .cm-search { display: inline-flex; align-items: center; gap: 7px; width: 180px; height: 30px; box-sizing: border-box; padding: 0 10px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-raised); color: var(--ink-faint); }
 .cm-search:focus-within { border-color: var(--line-strong); box-shadow: var(--focus-ring); }
@@ -2619,8 +2618,6 @@ button.pb-tile-next::after,
 .bc-band-n { font-weight: var(--weight-medium); color: var(--ink); font-variant-numeric: tabular-nums; }
 .bc-band-part[data-tone="warn"],
 .bc-band-part[data-tone="warn"] .bc-band-n { color: var(--warn-ink); }
-.bc-band-part[data-tone="info"] .bc-band-n { color: var(--info-ink); }
-.bc-band-part[data-tone="accent"] .bc-band-n { color: var(--accent-ink); }
 .bc-band-part[data-tone="danger"],
 .bc-band-part[data-tone="danger"] .bc-band-n { color: var(--danger-ink); }
 /* What went out, beside the filters: the standing line as a caption. */
@@ -2654,14 +2651,16 @@ button.pb-tile-next::after,
    what went is its foot. */
 /* One grid for the whole list, and each row a subgrid of it: a run waiting on you carries Approve and Skip where the
    others carry only their mark, and rows that were grids of their own set their columns each to its own acts. The first
-   track is the mark and the row's 14px inset (a subgrid's padding is taken from its edge tracks). */
-.bc-runs { display: grid; grid-template-columns: 38px minmax(0, 1.6fr) minmax(0, 150px) minmax(150px, 1fr) auto; column-gap: 14px; border: 1px solid var(--line); border-radius: var(--radius-md); overflow: clip; background: var(--bg); container-type: inline-size; }
+   track is the mark and the row's 14px inset (a subgrid's padding is taken from its edge tracks). The acts' track stops
+   at 220px, so a question asked on one row (Skip?) wraps in its cell: as `auto` it took every row's name while it asked. */
+.bc-runs { display: grid; grid-template-columns: 38px minmax(0, 1.6fr) minmax(0, 150px) minmax(150px, 1fr) fit-content(220px); column-gap: 14px; border: 1px solid var(--line); border-radius: var(--radius-md); overflow: clip; background: var(--bg); container-type: inline-size; }
 .bc-runs:empty { display: none; }
 .bc-runs > * { grid-column: 1 / -1; }
 .bc-runs > * + * { border-top: 1px solid var(--line); }
 .bc-run { display: grid; grid-template-columns: subgrid; }
-/* A run waiting on you: the urgency edge (legacy/CLAUDE.md), inside the row. */
-.bc-run.is-urgent { box-shadow: inset 2px 0 0 var(--accent); }
+/* A run waiting on you: the urgency edge (legacy/CLAUDE.md), inside the row -- on the line, so its hover's grey
+   paints under the edge rather than over it. */
+.bc-run.is-urgent > .bc-run-line { box-shadow: inset 2px 0 0 var(--accent); }
 .bc-run-line { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; align-items: center; min-height: 56px; box-sizing: border-box; padding: 8px 8px 8px 14px; cursor: pointer; }
 .bc-run-line:hover { background: var(--bg-hover); }
 /* A run's kind (a playbook's or a one-off send), as the one mark (.mark): neutral. The pill beside it says its state. */
@@ -2671,8 +2670,16 @@ button.pb-tile-next::after,
 .bc-run-name:hover { text-decoration: underline; text-underline-offset: 2px; }
 .bc-run-name:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 2px; }
 .bc-run-titles > .pill, .bc-run-titles > .pol-chip { flex: none; }
-.bc-run-sub { margin-top: 2px; font-size: var(--text-xs); color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bc-run-link { padding: 0; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; }
+/* Why a run waits is its sheet's and its report's too: where the list is too narrow for the name beside its pill and
+   the chip, the chip gives way (at 944px the name kept 74 of its 136px, at 744px none). */
+@container (max-width: 1100px) {
+  .bc-run-titles > .pol-chip { display: none; }
+}
+/* The line under the name clips nothing itself, so the link's reach (below) is whole; the words after it take the
+   ellipsis. */
+.bc-run-sub { display: flex; min-width: 0; margin-top: 2px; font-size: var(--text-xs); color: var(--ink-dim); white-space: nowrap; }
+.bc-run-aud { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: pre; }
+.bc-run-link { flex: none; padding: 0; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; }
 .bc-run-link:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 2px; }
 .bc-run-when { min-width: 0; font-size: var(--text-xs); color: var(--ink-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bc-run-soon { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--accent-ink); background: var(--accent-soft); border-radius: var(--radius-sm); padding: 2px 7px; }
@@ -2694,6 +2701,8 @@ button.pb-tile-next::after,
 .bc-run-go:focus-visible { outline: none; color: var(--ink); box-shadow: var(--focus-ring); }
 .bc-runs-more { display: flex; align-items: center; gap: 6px; width: 100%; padding: 9px 14px; border: 0; background: var(--bg-sunken); font: inherit; font-size: var(--text-xs); color: var(--ink-dim); text-align: left; cursor: pointer; }
 .bc-runs-more:hover { color: var(--ink); }
+/* A filter that leaves nothing: its line at the rows' inset, off the box's hairline. */
+.bc-runs > .empty { padding-inline: 14px; }
 /* A thumb's reach without a taller row (legacy.css gives every button on a touch screen 44px): the row is the
    opener (cmRowPress), and the words that are their own press take their reach from a box that takes no room. */
 html.legacy-on .bc-run-name,
@@ -2701,21 +2710,22 @@ html.legacy-on .bc-run-line .bc-run-link,
 html.legacy-on .bc-band .bc-band-part { min-height: 0; }
 html.legacy-on .bc-run-line .bc-run-link,
 html.legacy-on .bc-band .bc-band-part { position: relative; }
-.bc-run-line .bc-run-link::after { content: ""; position: absolute; inset: -12px -4px; }
+/* The link's reach grows down and to the sides, never up over the name, which opens the run. */
+.bc-run-line .bc-run-link::after { content: ""; position: absolute; inset: -2px -6px -8px; }
 .bc-band .bc-band-part::after { content: ""; position: absolute; inset: -9px -2px; }
 /* A phone's list: People's row, on the row tokens. The name with its state; what sent it; when, and who it reached,
    on one line, the bar left to the desk; and only on a run that waits, its acts. The row is the press, so the mark
    of where it goes is the desk's. */
 @container (max-width: 640px) {
-  .bc-runs { display: flex; flex-direction: column; }
   .bc-run { display: block; }
   .bc-run-line { grid-template-columns: var(--row-face) auto minmax(0, 1fr); grid-template-areas: "mark what what" ". when reach" ". acts acts"; column-gap: var(--row-gap); row-gap: var(--row-line-gap); min-height: 0; padding: var(--row-pad-y) var(--row-pad-x); }
   .bc-run-mark { grid-area: mark; align-self: start; }
   .bc-run-what { grid-area: what; }
   .bc-run-name { font-size: var(--text-base); line-height: var(--row-name-line); }
   .bc-run-sub { margin-top: var(--row-line-gap); font-size: var(--row-facts); line-height: var(--row-facts-line); }
-  /* Why a run waits is its sheet's and its report's; on a phone the chip took the name's room ("Win-ba…"). */
-  .bc-run-titles > .pol-chip { display: none; }
+  /* The row is a thumb's one press, as a person's is: the word Playbook is words here, and the run's report, a press
+     away, has the door to its playbook. As a 17px link between the name and the facts it was a target a thumb missed. */
+  .bc-run-line .bc-run-link { pointer-events: none; }
   .bc-run-when { grid-area: when; font-size: var(--row-facts); line-height: var(--row-facts-line); }
   .bc-run-when::after { content: "\00B7"; margin-left: 6px; color: var(--ink-faint); }
   /* The row's gap is the face's to the words; between when and who it reached, a dot's even 6px either side. */
@@ -2728,7 +2738,8 @@ html.legacy-on .bc-band .bc-band-part { position: relative; }
   .bc-run-reach .cm-reach-why { flex: 1 1 auto; min-width: 0; margin-top: 0; font-size: var(--row-facts); line-height: var(--row-facts-line); }
   .bc-run-reach .cm-reach-why:not(:empty)::before { content: "\00B7"; margin: 0 6px; color: var(--ink-faint); }
   .bc-run-acts { grid-area: acts; justify-content: flex-start; }
-  .bc-run-acts:empty { display: none; }
+  /* A run that does not wait has only the desk's mark of where it goes here, and no third line for it. */
+  .bc-run-acts:not(:has(> :not(.bc-run-go))) { display: none; }
   .bc-run-go { display: none; }
 }
 /* Get their yes: folded to its one line under the runs; open, the code beside what it does. */
@@ -2743,6 +2754,8 @@ html.legacy-on .bc-band .bc-band-part { position: relative; }
 .bc-yes-head > .icon { flex: none; margin-left: auto; color: var(--ink-dim); transition: rotate var(--duration-fast) var(--ease-out); }
 .bc-yes[open] > .bc-yes-head { border-radius: var(--radius-md) var(--radius-md) 0 0; border-bottom: 1px solid var(--line); }
 .bc-yes[open] > .bc-yes-head > .icon { rotate: 180deg; }
+/* Open, what the fold is for is what it shows. */
+.bc-yes[open] .bc-yes-note { display: none; }
 .bc-yes > .bc-optin-body { padding: 14px; }
 @media (prefers-reduced-motion: reduce) { .bc-yes-head > .icon, .bc-band-part { transition: none; } }
 /* The send, its own screen: three cards -- who, what, when -- and the act at the foot. */
@@ -2751,7 +2764,6 @@ html.legacy-on .bc-band .bc-band-part { position: relative; }
 .bc-send .bc-col { flex: 1 1 280px; gap: 12px; padding: 15px 16px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--bg-raised); }
 .bc-send .bc-col-what { flex: 1.35 1 380px; }
 .bc-send .bc-col-label { font-size: var(--text-xs); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-wide); }
-.bc-col-sub { margin-left: 9px; font-weight: 400; letter-spacing: normal; text-transform: none; color: var(--ink-dim); }
 .bc-send .bc-foot { position: sticky; bottom: 0; z-index: 2; margin: 0 calc(-1 * var(--gutter-page)); padding: 14px var(--gutter-page); border-top: 1px solid var(--line); background: var(--bg-raised); }
 .bc-send .bc-actions .btn { height: 36px; padding: 0 15px; border-radius: var(--radius-md); }
 .bc-send .bc-send-later { border-color: var(--line-strong); color: var(--ink-muted); }
@@ -2852,7 +2864,7 @@ html.legacy-on .bc-band .bc-band-part { position: relative; }
 .bc-sheet-body { display: flex; flex-direction: column; gap: 14px; padding: 16px; }
 .bc-sheet-titles { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; }
 .bc-sheet-title { margin: 0; min-width: 0; font-size: var(--text-lg); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-tight); line-height: 1.25; color: var(--ink); overflow-wrap: anywhere; }
-.bc-sheet-titles > .policy-chip { flex: none; }
+.bc-sheet-titles > .pol-chip { flex: none; }
 .bc-sheet-sub { margin-top: 3px; font-size: var(--text-xs); color: var(--ink-dim); }
 /* Who it reaches: the number it has, and the rules that made the list. */
 .bc-sheet-reach { padding: 13px 14px; border-radius: var(--radius-lg); background: var(--bg-sunken); }
@@ -2935,8 +2947,11 @@ html.legacy-on .bc-nobody-door { position: relative; min-height: 0; }
 }
 @media (max-width: 720px) {
   .bc-page { padding-top: 12px; }
-  /* A phone's line is the filters and the act: the filters are the counts, and what went out is the desk's. */
-  .cm-head-sub > .bc-band + .cm-standing { display: none; }
+  /* A phone's line is the filters and the act: the filters are the counts, and what went out is the desk's -- all
+     but "the latest 50 broadcasts", which says the counts are not everything. */
+  .cm-head-sub > .bc-band + .cm-standing:not(:has(> .bc-latest)),
+  .cm-head-sub > .bc-band + .cm-standing > :not(.bc-latest),
+  .cm-head-sub > .bc-band + .cm-standing > .bc-latest > .cm-standing-dot { display: none; }
   /* The strip: seven days under a thumb, each its name over its marks. */
   .bc-week { padding: 4px; gap: 0; }
   .bc-week-k { display: none; }
