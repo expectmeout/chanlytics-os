@@ -179,6 +179,110 @@ const frSendAnswer = (answer, flash, done = null) => {
   return true;
 };
 
+/** A name as the same name, however it is written: contracts' one rule (foldName), which the services sheet searches by. */
+const frFold = (s) => {
+  const fold = window.__businessTab && window.__businessTab.foldName;
+  const t = String(s == null ? "" : s).trim();
+  return fold ? fold(t) : t;
+};
+
+// The two lists a chip changes: what a row of each is, and the name it goes by.
+const FR_LISTS = {
+  services: { row: (name) => ({ name }), nameOf: (r) => (r && typeof r.name === "string" ? r.name : "") },
+  languages: { row: (name) => name, nameOf: (r) => (typeof r === "string" ? r : "") },
+};
+
+/**
+ * A chip's press, as a one-key change of the profile through the Business tab's one saver. Off, it adds the name at the
+ * end, quietly (the chip turns on); on, it takes the row of that name out, and the toast's Undo puts it back where it was,
+ * whole (a service keeps its minutes and its price). Each change is a pure patch of what is stored when it goes, as a
+ * row's is: a name already there is not added twice, and one already gone is not taken twice. Only a refusal is said,
+ * in the saver's words.
+ */
+const frChipPress = ({ list, chip, full, flash, W }) => {
+  const S = window.__businessTabSave;
+  const L = FR_LISTS[list];
+  const same = (r) => frFold(L.nameOf(r)) === frFold(chip.name);
+  const refusals = (f) => { if (f && f.tone === "danger") flash(f); };
+  const put = (row, at) => S.saver.save({
+    row: list,
+    change: (b, p) => {
+      const rows = Array.isArray(p[list]) ? p[list].slice() : [];
+      if (rows.some(same)) return b;
+      rows.splice(Math.min(at, rows.length), 0, row);
+      p[list] = rows;
+      b.profile = p;
+      return b;
+    },
+    said: null,
+    done: null,
+    flash: refusals,
+  });
+  if (!chip.on) {
+    if (full) {
+      flash({ tone: "warn", msg: <>{W.full[list]}</> });
+      return;
+    }
+    put(L.row(chip.name), Infinity);
+    return;
+  }
+  // The row as the next save finds it, and its place, for the Undo to put back whole.
+  const base = S.saver.base();
+  const stored = ((base && base.brain && base.brain.profile) || {})[list];
+  const rows = Array.isArray(stored) ? stored : [];
+  const at = rows.findIndex(same);
+  if (at < 0) return;
+  const gone = rows[at];
+  S.saver.save({
+    row: list,
+    change: (b, p) => {
+      const left = (Array.isArray(p[list]) ? p[list] : []).filter((r) => !same(r));
+      if (left.length) p[list] = left;
+      else delete p[list];
+      b.profile = p;
+      return b;
+    },
+    said: null,
+    done: () => flash({
+      msg: <>{W.removed(chip.name)}</>,
+      undo: () => { put(gone, at); return true; },
+    }),
+    flash: refusals,
+  });
+};
+
+/**
+ * One list of chips, under its own words: a toggle each (aria-pressed), and the way to the Business tab's own editor for
+ * what the chips do not name. Hookless, since the languages' is drawn as its fold's rest. A role that may not change the
+ * business reads them and cannot press them.
+ */
+const FrChips = ({ list, label, chips, full, canEdit, flash, W, more, moreTestid }) => (
+  <div className="fr-chips" role="group" aria-labelledby={`fr-chips-${list}-label`} data-testid={`fr-chips-${list}`}>
+    <span className="fr-chips-label" id={`fr-chips-${list}-label`} data-testid={`fr-chips-${list}-label`}>{label}</span>
+    <span className="fr-chips-list">
+      {chips.map((c) => (
+        <button
+          key={c.name}
+          type="button"
+          className="fr-chip"
+          aria-pressed={c.on}
+          aria-disabled={!canEdit || undefined}
+          onClick={() => { if (canEdit) frChipPress({ list, chip: c, full, flash, W }); }}
+          data-testid={`fr-chip-${list}-${c.name}`}
+        >
+          {c.on ? <Icon name="check" size={11} /> : null}
+          {c.name}
+        </button>
+      ))}
+      {more && canEdit ? (
+        <button type="button" className="fr-chip fr-chip-more" onClick={more.onClick} data-rec-act={more.act || undefined} data-testid={moreTestid}>
+          {more.label}
+        </button>
+      ) : null}
+    </span>
+  </div>
+);
+
 /**
  * Check (canvas R2, V2, P2): what the receptionist answers from, in the Business tab's own rows, over the settings read's
  * brain -- the week and its clock, where the business is, its website; how customers buy, the booking link (for a
@@ -223,6 +327,15 @@ const FrCheck = ({ check, W, flash, make, making, go, canEdit }) => {
   const quotes = !!(answer && tab.bookingLinkOptional && tab.bookingLinkOptional(answer.shown));
   const linkRow = !quotes || !!brain.booking_link;
   const note = check.unsure ? <span className="fr-check-unsure" data-testid="fr-check-unsure">{check.unsure}</span> : null;
+  // What it offers and the languages it speaks, as chips over the config the next save goes on: a tap is on at once.
+  const on = (base && base.brain) || brain;
+  const chips = window.__firstRun.chips({
+    type: check.type,
+    services: (on.profile || {}).services,
+    languages: (on.profile || {}).languages,
+  });
+  const C = W.chips;
+  const request = (id) => { if (window.__recordFolds) window.__recordFolds.request(id); };
   return (
     <div className="fr-check" data-testid="fr-check">
       <section className="rec-card fr-check-card" aria-label={W.groups.facts}>
@@ -253,7 +366,35 @@ const FrCheck = ({ check, W, flash, make, making, go, canEdit }) => {
       </section>
       <section className="rec-card fr-check-card" aria-label={W.groups.offer}>
         <window.BtServicesRow brain={brain} canEdit={canEdit} saver={saver} />
-        <window.BtLanguagesRow {...rows} />
+        {chips.services.length ? (
+          <FrChips
+            list="services"
+            label={C.services}
+            chips={chips.services}
+            full={chips.servicesFull}
+            canEdit={canEdit}
+            flash={flash}
+            W={C}
+            more={{ label: C.ownService, onClick: () => request("services") }}
+            moreTestid="fr-chip-own-service"
+          />
+        ) : null}
+        <window.BtLanguagesRow
+          {...rows}
+          rest={({ request: open, can }) => (
+            <FrChips
+              list="languages"
+              label={C.languages}
+              chips={chips.languages}
+              full={chips.languagesFull}
+              canEdit={canEdit}
+              flash={flash}
+              W={C}
+              more={can ? { label: C.otherLanguage, onClick: open, act: "languages" } : null}
+              moreTestid="fr-chip-other-language"
+            />
+          )}
+        />
       </section>
       {check.find ? (
         <p className="fr-check-note">

@@ -310,6 +310,8 @@ export interface SetupVM {
     receptionist: ReceptionistState;
     listed: boolean;
     unsure: NonNullable<SetupGoogleFacts["unsure"]>;
+    /** Google's kind of place, which Check's service chips suggest by (check-chips.ts); null without one. */
+    type: string | null;
   };
 }
 
@@ -1356,6 +1358,7 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
       receptionist: i.business.receptionist,
       listed: !!i.google?.listing,
       unsure: i.google?.unsure ?? [],
+      type: i.google?.type ?? null,
     },
   };
 }

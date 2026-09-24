@@ -491,8 +491,11 @@ const BtaFallbacks = ({ draft, update, press, problems, readOnly, brain }) => {
 
 /* ------------------------------------ the rows drawn elsewhere too ------------------------------------ */
 
-/** The languages it answers in, as its row states them and its fold edits them; the first run's Check draws it too. */
-const BtaLanguagesRow = ({ brain, canEdit, flash, saver }) => {
+/**
+ * The languages it answers in, as its row states them and its fold edits them; the first run's Check draws it too, with
+ * its chips at rest in the row's place (`rest`, BtFold's: hookless, and its act opens this same fold).
+ */
+const BtaLanguagesRow = ({ brain, canEdit, flash, saver, rest = null }) => {
   const profile = brain.profile || {};
   // A stored list that is not one (a hand-edited record) is none: joined as it stood, it threw as the card drew.
   const languages = (Array.isArray(profile.languages) ? profile.languages : []).filter((l) => typeof l === "string" && l.trim() !== "");
@@ -508,6 +511,7 @@ const BtaLanguagesRow = ({ brain, canEdit, flash, saver }) => {
       hint="It answers in whichever of these a customer uses."
       lines
       gate={window.gate("settings", "change the languages it speaks")}
+      rest={rest}
       row={{
         value: languages.length ? languages.join(", ") : null,
         empty: "Not set",

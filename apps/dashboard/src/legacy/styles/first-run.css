@@ -111,6 +111,21 @@ button.fr-rail-btn:hover { background: var(--bg-sunken); color: var(--ink); }
 .fr-check-note { margin: 0; font-size: 13px; line-height: var(--leading-relaxed); color: var(--ink-dim); }
 .fr-check-unsure { flex: 1 1 100%; font-size: 12.5px; line-height: var(--leading-normal); color: var(--ink-muted); }
 .fr-check-make { display: grid; gap: 14px; justify-items: start; }
+/* The chips (check-chips.ts): what it offers and the languages it speaks, a tap each. Ink when on, as the three are at
+   rest; the coral stays the step's one action. A row of its own, under a rule, as the record's rows are. */
+.fr-chips { display: grid; gap: 8px; padding: 11px 0 13px; border-top: 1px solid var(--line); }
+.fr-chips-label { font-size: 12.5px; color: var(--ink-dim); }
+.fr-chips-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.fr-chip {
+  display: inline-flex; align-items: center; gap: 5px; min-height: 28px; padding: 0 11px;
+  border: 1px solid var(--line-strong); border-radius: 999px; background: var(--bg-raised);
+  font: inherit; font-size: 12.5px; color: var(--ink); cursor: pointer;
+}
+.fr-chip:hover { background: var(--bg-sunken); }
+.fr-chip[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+.fr-chip[aria-disabled="true"] { cursor: default; opacity: 0.6; }
+.fr-chip-more { border-style: dashed; color: var(--ink-dim); }
+.fr-chip:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 /* Looks right, held until the step is done: in reach, with why beside it. */
 .fr-held { flex: 1 1 auto; font-size: 12.5px; line-height: var(--leading-normal); color: var(--ink-dim); text-align: right; }
 .fr-onward[aria-disabled="true"] { opacity: 0.5; cursor: default; }

@@ -63,7 +63,15 @@ const dto = (business = {}, google = {}) => ({
   team: { members: 1, invitesOpen: 0, alertEmails: 1 },
   consent: { yes: 0, offers: 0, offersSaidYes: 0 },
   requests: { line: null },
-  google: { ready: true, places: true, listing: LISTING, connected: false, unsure: [], ...google },
+  google: {
+    ready: true,
+    places: true,
+    listing: LISTING,
+    connected: false,
+    unsure: [],
+    type: "moving_company",
+    ...google,
+  },
 });
 const surface = (d, later = []) => ({
   dto: d,
@@ -86,10 +94,10 @@ const page = () =>
  * Draw the first run over a workspace, as React replaces a tree: the last one unmounted, the fold registry told nothing
  * is open, and the tab's saver and doors reset, since they outlive every page drawn in the tab (the harness says why).
  */
-const draw = ({ setup = dto(), sellsBy = null, at = null, later = [], link = undefined } = {}) => {
+const draw = ({ setup = dto(), sellsBy = null, at = null, later = [], link = undefined, profile = HARBOR } = {}) => {
   param = at;
   W.__SETUP = surface(setup, later);
-  W.__SETTINGS = settings(HARBOR, {}, { business_name: "Harbor Moving", booking_link: link });
+  W.__SETTINGS = settings(profile, {}, { business_name: "Harbor Moving", booking_link: link });
   W.__FACTS = facts({
     facts: {
       business_name: { value: "Harbor Moving", source: "typed" },
@@ -128,9 +136,11 @@ const answers = (tree) => all(byTestId(tree, "fr-sells-by-choice"), (n) => n.pro
 test("Check draws the Business tab's own rows over the settings read's brain, and how customers buy drawn open", () => {
   const tree = draw();
   assert.equal(textOf(byTestId(tree, "fr-heading")), "Here's what we found");
-  for (const id of ["hours", "timezone", "address", "website", "booking_link", "guardrails", "services", "languages"]) {
+  for (const id of ["hours", "timezone", "address", "website", "booking_link", "guardrails", "services"]) {
     assert.ok(byTestId(tree, `rec-row-${id}`), `the tab's ${id} row`);
   }
+  assert.equal(byTestId(tree, "rec-row-languages"), null, "the languages are chips, at rest in the row's place");
+  assert.ok(byTestId(tree, "fr-chips-languages"));
   assert.match(textOf(byTestId(tree, "rec-row-address")), /12 Pier Rd, Brooklyn, NY 11231/);
   assert.ok(byTestId(tree, "fr-sells-by"), "the choice, not a row to open");
   assert.equal(byTestId(tree, "fr-rows"), null, "not Setup's rows");
@@ -228,6 +238,82 @@ test("a role that may not change the business goes on with Looks right and sends
     W.canDo = was;
     delete W.__workspace;
   }
+});
+
+/* ------------------------------------ the chips ------------------------------------ */
+
+const chip = (tree, list, name) => byTestId(tree, `fr-chip-${list}-${name}`);
+
+test("a mover is offered what a mover offers: a tap adds the service through the tab's one saver, and its chip is on at once", () => {
+  const sent = saving();
+  let tree = draw();
+  assert.equal(textOf(byTestId(tree, "fr-chips-services-label")), "Tap what you offer. A few is enough.");
+  assert.equal(chip(tree, "services", "Local move").props["aria-pressed"], false);
+  press(chip(tree, "services", "Local move"));
+  assert.deepEqual(sent.at(-1).config.brain.profile.services, [{ name: "Local move" }]);
+  tree = redraw();
+  assert.equal(chip(tree, "services", "Local move").props["aria-pressed"], true, "on the config the next save goes on");
+});
+
+test("a tap on a chip that is on takes the service out, and the toast's Undo puts it back where it was, whole", () => {
+  const sent = saving();
+  const listed = { ...HARBOR, services: [{ name: "Local move", duration_min: 180 }, { name: "Packing" }] };
+  const tree = draw({ profile: listed });
+  assert.equal(chip(tree, "services", "Local move").props["aria-pressed"], true);
+  press(chip(tree, "services", "Local move"));
+  assert.deepEqual(sent.at(-1).config.brain.profile.services, [{ name: "Packing" }]);
+  const said = flashes.at(-1);
+  assert.equal(textOf(said.msg), "Removed Local move");
+  said.undo();
+  assert.deepEqual(
+    sent.at(-1).config.brain.profile.services,
+    [{ name: "Local move", duration_min: 180 }, { name: "Packing" }],
+    "back at its place, with what it held",
+  );
+});
+
+test("the languages are chips: a tap adds one, and + Other opens the tab's own languages editor", () => {
+  const sent = saving();
+  let tree = draw();
+  assert.equal(textOf(byTestId(tree, "fr-chips-languages-label")), "Languages it answers in");
+  press(chip(tree, "languages", "Spanish"));
+  assert.deepEqual(sent.at(-1).config.brain.profile.languages, ["Spanish"]);
+  press(byTestId(tree, "fr-chip-other-language"));
+  tree = redraw();
+  assert.ok(byTestId(tree, "rec-fold-languages"), "the Business tab's own editor, open over the first run");
+});
+
+test("+ Your own opens the services sheet", () => {
+  let tree = draw();
+  press(byTestId(tree, "fr-chip-own-service"));
+  tree = redraw();
+  assert.ok(byTestId(tree, "rec-sheet-services"));
+});
+
+test("a role that may not change the business reads the chips and cannot press them; a full list adds nothing, and says why", () => {
+  const sent = saving();
+  const was = W.canDo;
+  W.canDo = (a) => a !== "settings";
+  try {
+    const tree = draw();
+    const c = chip(tree, "services", "Packing");
+    assert.equal(c.props["aria-disabled"], true);
+    press(c);
+    assert.equal(sent.length, 0);
+  } finally {
+    W.canDo = was;
+  }
+  const full = { ...HARBOR, services: Array.from({ length: 60 }, (_, i) => ({ name: `Service ${i + 1}` })) };
+  const tree = draw({ profile: full });
+  press(chip(tree, "services", "Packing"));
+  assert.equal(sent.length, 0, "nothing past what the profile keeps");
+  assert.equal(textOf(flashes.at(-1).msg), "The receptionist keeps no more services. Take one out first.");
+});
+
+test("a business Google lists no kind for is offered no services, and still the languages", () => {
+  const tree = draw({ setup: dto({}, { type: null }) });
+  assert.equal(byTestId(tree, "fr-chips-services"), null);
+  assert.ok(byTestId(tree, "fr-chips-languages"));
 });
 
 test("the services row opens the Business tab's own sheet over the first run", () => {
