@@ -1598,7 +1598,7 @@ test("People › Pipeline is the page's third scope at clients/pipeline: its cru
       const keepPeople = win.__PEOPLE;
       win.__PEOPLE = {
         ...keepPeople,
-        dealPace: { medianDays: 8, decided: 6, waitDays: 10, words: "Usually decided in 8 days" },
+        dealPace: { medianDays: 8, yeses: 6, waitDays: 10, longerThanUsual: true, words: "Usually 8 days to a yes" },
       };
       assert.equal(crumbs(mount("#/clients/pipeline:v-waiting").tree).at(-1), "Nothing back in 10 days");
       win.__PEOPLE = keepPeople;

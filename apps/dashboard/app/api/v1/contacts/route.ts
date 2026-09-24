@@ -39,12 +39,13 @@ export const GET = read({
     // not a stage. Never fatal to the list. In the same round trip, how this workspace's customers buy (0008): an
     // answer that cannot be read is not asked yet, and costs the deal lists, never the list.
     // And who each next step is for (00166), from the team, read only when a step is for someone; and the
-    // workspace's pace (00167), said only where deals are on.
+    // workspace's pace (0008, amended), said only where deals are on, and read with the first page alone: People
+    // keeps that page's answer, and a later page or a search would read it again for nothing.
     const [out, sellsBy, nameSteps, pace] = await Promise.all([
       withVisits(ctx, tenantId, rows),
       sellsByOf(ctx, tenantId),
       stepNamer(ctx, tenantId, rows),
-      dealPaceRead(ctx, tenantId),
+      offset === 0 && !q ? dealPaceRead(ctx, tenantId) : Promise.resolve(null),
     ]);
     const dealsOn = dealsAreOn(sellsBy);
     return {
@@ -54,7 +55,7 @@ export const GET = read({
       // deal lists, the thread's menu item, the column. Consult-first stays a booking rule, sent for its own list; the
       // names of the services stay on the server.
       deals_on: dealsOn,
-      // How long this workspace's proposals usually take (0008, amended): when one is waiting, on every page.
+      // How long this workspace's yeses usually take (0008, amended): when a proposal is waiting, on every page.
       deal_pace: dealsOn ? pace : null,
       consult_first: out.consult_first,
       page: { q, offset, limit: PEOPLE_PAGE, total, has_more: offset + rows.length < total },

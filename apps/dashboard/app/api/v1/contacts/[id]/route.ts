@@ -478,7 +478,7 @@ export const GET = read({
       threadRead,
       visitsRead,
       notesRead,
-      // The workspace's pace (00167), for their deal card: when their proposal waits, and how long they usually take.
+      // The workspace's pace (0008, amended), for their deal card: when their proposal waits, and how long a yes takes.
       dealPaceRead(ctx, tenantId),
     ]);
     if (!row) throw new AppError("not_found", "This person is not in your workspace.", 404);

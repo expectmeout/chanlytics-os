@@ -144,8 +144,10 @@ export const DEAL_PER_WORDS: Record<DealPer, string> = { once: "once", month: "a
 export const DEAL_LINE_NONE = "No proposal yet";
 /** A proposal out this long with nothing back is Today's leak. */
 export const WAITING_AFTER_DAYS = 7;
-/** How many decided proposals a workspace needs before its pace is said (0008, amended; 00167). */
-export const PACE_AFTER_DECIDED = 5;
+/** How many yeses of the last year a workspace needs before its pace is said (0008, amended). */
+export const PACE_AFTER_YESES = 5;
+/** The days a workspace's pace is read over: its yeses decided in the last year (pace.ts dealPaceFrom). */
+export const PACE_WINDOW_DAYS = 365;
 /** A consultation this recent with no proposal after it is the next step to take. */
 export const CONSULT_FOLLOW_DAYS = 7;
 
@@ -563,19 +565,26 @@ export function heardSinceProposal(r: {
 
 /* ------------------------------------------------ a workspace's pace (0008, amended) */
 
-/** A workspace's pace as the server reads it (00167 deal_pace): the median whole days from proposal to yes, and how many. */
+/** Whether a deal is a yes (0004): it became a client, standing won or ended since -- an ended engagement was one. */
+export function isYes(d: { stage: string }): boolean {
+  return d.stage === "won" || d.stage === "ended";
+}
+
+/** A workspace's pace as the server works it out (pace.ts dealPaceFrom): the median whole days to a yes, over how many. */
 export interface DealPaceDto {
   median_days: number | null;
-  decided: number;
+  yeses: number;
 }
 
 /** A workspace's pace once it has one: how long its proposals usually take to be decided, and when one is waiting. */
 export interface DealPaceVM {
   medianDays: number;
-  decided: number;
+  yeses: number;
   /** How long a proposal out goes with nothing back before it waits on the owner (waitAfterDays). */
   waitDays: number;
-  /** "Usually decided in 12 days". */
+  /** Whether that wait is past the pace: false only where the thirty-day cap holds it at or under the median. */
+  longerThanUsual: boolean;
+  /** "Usually 12 days to a yes". */
   words: string;
 }
 
@@ -588,22 +597,27 @@ export function waitAfterDays(pace: Pick<DealPaceVM, "medianDays"> | null | unde
   return Math.min(30, Math.max(3, Math.round(pace.medianDays * 1.2)));
 }
 
-/** "Usually decided in 12 days", "Usually decided in a day", "Usually decided the same day". */
-export function dealPaceWords(medianDays: number): string {
-  if (medianDays === 0) return "Usually decided the same day";
-  if (medianDays === 1) return "Usually decided in a day";
-  return `Usually decided in ${medianDays} days`;
+/** How a wait for a yes is said, by Reports' median and the card's pace alike: "under a day", "1 day", "9 days". */
+export function yesWaitWords(days: number): string {
+  return days === 0 ? "under a day" : `${days} ${days === 1 ? "day" : "days"}`;
 }
 
-/** A workspace's pace: null until five of its proposals are decided, or where none was read. */
+/** "Usually 12 days to a yes", "Usually under a day to a yes". */
+export function dealPaceWords(medianDays: number): string {
+  return `Usually ${yesWaitWords(medianDays)} to a yes`;
+}
+
+/** A workspace's pace: null until five of its proposals became clients in the last year, or where none was read. */
 export function dealPaceOf(dto: DealPaceDto | null | undefined): DealPaceVM | null {
   if (!dto || typeof dto.median_days !== "number" || !Number.isFinite(dto.median_days)) return null;
-  if (!(dto.decided >= PACE_AFTER_DECIDED)) return null;
+  if (!(dto.yeses >= PACE_AFTER_YESES)) return null;
   const medianDays = Math.max(0, Math.round(dto.median_days));
+  const waitDays = waitAfterDays({ medianDays });
   return {
     medianDays,
-    decided: dto.decided,
-    waitDays: waitAfterDays({ medianDays }),
+    yeses: dto.yeses,
+    waitDays,
+    longerThanUsual: waitDays > medianDays,
     words: dealPaceWords(medianDays),
   };
 }
@@ -616,11 +630,13 @@ export function dealPaceOf(dto: DealPaceDto | null | undefined): DealPaceVM | nu
 export function waitingOnProposal(
   r: { deal: Pick<DealVM, "stage" | "sinceMs"> | null; askedMs: number | null },
   nowMs: number,
-  pace: Pick<DealPaceVM, "medianDays"> | null,
+  pace: Pick<DealPaceVM, "waitDays"> | null,
 ): boolean {
   const d = r.deal;
   if (!d || d.stage !== "proposed" || d.sinceMs === null) return false;
-  if (nowMs - d.sinceMs < waitAfterDays(pace) * DAY_MS) return false;
+  // The pace's own wait, the one its words say; a week where there is none, or none a number.
+  const wait = pace && Number.isFinite(pace.waitDays) ? pace.waitDays : WAITING_AFTER_DAYS;
+  if (nowMs - d.sinceMs < wait * DAY_MS) return false;
   return !heardSinceProposal(r);
 }
 
@@ -628,7 +644,7 @@ export function waitingOnProposal(
 export function proposalsWaiting<T extends { deal: DealVM | null; askedMs: number | null }>(
   rows: readonly T[],
   nowMs: number,
-  pace: Pick<DealPaceVM, "medianDays"> | null,
+  pace: Pick<DealPaceVM, "waitDays"> | null,
 ): T[] {
   return rows.filter((r) => waitingOnProposal(r, nowMs, pace));
 }
@@ -807,7 +823,7 @@ const upper = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 /** "Median 9 days to a yes."; one client's wait is theirs, not a median. */
 function medianLine(days: number | null, clients: number): string | null {
   if (days === null || !clients) return null;
-  const wait = days === 0 ? "under a day" : plural(days, "day", "days");
+  const wait = yesWaitWords(days);
   return clients === 1 ? `${upper(wait)} to a yes.` : `Median ${wait} to a yes.`;
 }
 

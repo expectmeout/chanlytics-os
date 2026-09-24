@@ -220,10 +220,18 @@ export const PIPELINE_WORDS = {
     cancel: "Cancel",
     busy: "Marking…",
   },
-  /** A proposal out that has waited a week with nothing back: the row's In stage already says how long. */
+  /** A proposal out waiting with nothing back (waitingOnProposal): the row's In stage already says how long. */
   nothingBack: "Nothing back",
-  /** The line's part for the proposals waiting: past a week, or past the workspace's pace once it has one. */
-  waitingLine: (n: number, paced: boolean) => (paced ? `${n} waiting longer than usual` : `${n} waiting over a week`),
+  /**
+   * The line's part for the proposals waiting: past a week; past the workspace's pace once it has one; and past the
+   * cap in its days, where thirty holds the wait at or under the pace and "longer than usual" would not be so.
+   */
+  waitingLine: (n: number, pace: DealPaceVM | null) =>
+    !pace
+      ? `${n} waiting over a week`
+      : pace.longerThanUsual
+        ? `${n} waiting longer than usual`
+        : `${n} waiting over ${pace.waitDays} days`,
   /** The Pipeline's own rail: its groups, what waits on the owner, and each service. */
   rail: {
     /** A phone's sheet of the rail's rows, behind the bar's list button. */
@@ -516,7 +524,7 @@ export function pipelineOf<T extends PipelineSource>(
   const line = [
     part(proposals.length ? `${plural(proposals.length, "proposal", "proposals")} out` : null),
     part(proposals.length ? worth(proposals) : null),
-    part(waiting ? PIPELINE_WORDS.waitingLine(waiting, !!pace) : null, "waiting"),
+    part(waiting ? PIPELINE_WORDS.waitingLine(waiting, pace) : null, "waiting"),
     part(lapsed.length ? `${lapsed.length} lapsed` : null, "lapsed"),
     part(clients.length ? plural(clients.length, "client", "clients") : null),
     part(clients.length ? worth(clients) : null),

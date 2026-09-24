@@ -124,7 +124,7 @@ export function dealSendOf(p: Pick<DealPerson, "consent" | "openThread" | "reply
   return { can: true, reach, why: null, label };
 }
 
-/** The words a follow-up carries into the composer, a week after the proposal went with nothing back. */
+/** The words a follow-up carries into the composer, once the proposal waited with nothing back (waitingOnProposal). */
 export function proposalFollowUp(url: string): string {
   return `Just checking the proposal reached you. Here it is again: ${url}`;
 }
@@ -200,7 +200,8 @@ function sentOf(p: DealPerson, deal: DealVM): { at: string; via: string | null }
 /**
  * The deal card's one next act, by stage (0008). A proposal with no link: edit it, to give it one. One on its way out
  * (a send still in the seconds it can be undone): the yes, and no second send. A link that never went, to someone
- * the page may reach: send it. Sent, a week with nothing back, to someone it may reach: follow up. Either opens their
+ * the page may reach: send it. Sent, waiting with nothing back (past the workspace's pace, a week without one), to
+ * someone it may reach: follow up. Either opens their
  * thread, with the words in the box where free text can go; where only an approved message can (WhatsApp's window
  * shut after a quiet week) it opens the thread with nothing in the box, and says so on hover. Otherwise the yes. A
  * client has none; a pass is proposed again; an end, or no deal at all, starts a proposal. `deal` is the card's (a
@@ -324,7 +325,8 @@ export interface DealCardVM {
   facts: string[];
   /**
    * What wants a look, each a state in its tone (the page draws a StatePill): the day it stood until, once it has
-   * passed; "Nothing back in 8 days", once a proposal has waited a week (waitingOnProposal).
+   * passed; "Nothing back in 8 days", once a proposal has waited past the workspace's pace, a week without one
+   * (waitingOnProposal).
    */
   flags: { words: string; tone: Tone }[];
   /** The one act the card leads with (dealNextAct); null for a client. */

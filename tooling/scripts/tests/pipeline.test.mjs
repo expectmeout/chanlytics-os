@@ -446,8 +446,8 @@ test("the rules the Pipeline asks are deals.ts's: heard since a proposal, and th
   assert.equal(dealOf(deal(NOW, "lost", { decided: 1 }), TZ, NOW).amountCents, null, "no amount, nothing to sum");
 });
 
-test("with a pace, a proposal waits past it by a fifth: the line says who is waiting longer than usual, the rail and the view say how long", () => {
-  const pace = { medianDays: 8, decided: 6, waitDays: 10, words: "Usually decided in 8 days" };
+test("with a pace, a proposal waits past it by a fifth: the line says who is waiting longer than usual, the rail and the view say how long; past the cap, the days", () => {
+  const pace = { medianDays: 8, yeses: 6, waitDays: 10, longerThanUsual: true, words: "Usually 8 days to a yes" };
   const vm = pipelineOf(fixture(), NOW, TZ, pace);
   assert.equal(vm.pace, pace, "the Pipeline carries the pace it was judged by");
   assert.ok(vm.summary.includes("1 waiting longer than usual"), vm.summary.join(" · "));
@@ -457,17 +457,18 @@ test("with a pace, a proposal waits past it by a fifth: the line says who is wai
   const waits = pipelineRail(vm, NOW).find((s) => s.key === "waiting");
   assert.deepEqual(
     waits.rows.find((r) => r.view === "waiting"),
-    {
-      view: "waiting",
-      label: "Nothing back in 10 days",
-      count: 1,
-      tone: "warn",
-    },
+    { view: "waiting", label: "Nothing back in 10 days", count: 1, tone: "warn" },
   );
   assert.equal(pipelineViewLabel("waiting", pace), "Nothing back in 10 days");
   assert.equal(pipelineViewLabel("waiting", null), PIPELINE_WORDS.rail.waiting);
   assert.notEqual(chipOf(vm, "nia").words, PIPELINE_WORDS.nothingBack, "Nia's is not Nothing back yet");
   assert.equal(chipOf(vm, "wes").words, PIPELINE_WORDS.nothingBack);
+  // REGRESSION: a forty-day pace waits thirty days (the cap), which is not longer than usual: the line says the days.
+  const capped = { medianDays: 40, yeses: 6, waitDays: 30, longerThanUsual: false, words: "Usually 40 days to a yes" };
+  const old = [personRow(NOW, "oli", "Oli", deal(NOW, "proposed", { proposed: 31 }))].map((r) =>
+    toPersonRowVM(r, TZ, new Date(NOW)),
+  );
+  assert.ok(pipelineOf(old, NOW, TZ, capped).summary.includes("1 waiting over 30 days"));
 });
 
 test("a row knows when its next visit is a consultation, and whether it takes the day", () => {
@@ -3024,23 +3025,58 @@ test("the peek hands the person's deals over once they are read: the step's fact
   );
 });
 
-test("the page waits by the workspace's pace as People reads it: the line, the rail and the view's own button say how long", async () => {
+test("the page waits by the workspace's pace as People reads it: the line, the rail, a search in the view and a phone's own button; none where deals are off", async () => {
   // Wes's proposal went eleven days ago, Nia's nine, and neither has heard back: past a week both wait; past an
   // eight-day pace and a fifth (ten days) only Wes does.
-  await fresh({ dealPace: { median_days: 8, decided: 6 } });
+  await fresh({ dealPace: { median_days: 8, yeses: 6 } });
   let tree = draw();
   assert.deepEqual(globalThis.window.__PEOPLE.dealPace, {
     medianDays: 8,
-    decided: 6,
+    yeses: 6,
     waitDays: 10,
-    words: "Usually decided in 8 days",
+    longerThanUsual: true,
+    words: "Usually 8 days to a yes",
   });
   assert.ok(lineParts(tree).includes("1 waiting longer than usual"), lineParts(tree).join(" · "));
-  const row = byTestId(tree, "pipeline-rail-row-waiting");
-  assert.match(textOf(row), /^Nothing back in 10 days/);
+  assert.match(textOf(byTestId(tree, "pipeline-rail-row-waiting")), /^Nothing back in 10 days/);
   tree = draw({ pipelineRoute: "pipeline:v-waiting" });
   assert.deepEqual(rowIds(tree), ["wes"], "the view holds those past the pace");
-  // Deals off, or under five decided: a week, as before.
-  await fresh({ dealPace: { median_days: 8, decided: 4 } });
+  // A search inside the view judges by the same pace: Nia is not waiting yet, Wes is.
+  byTestId(tree, "pipeline-search").props.onChange({ target: { value: "nia" } });
+  assert.deepEqual(rowIds(draw({ pipelineRoute: "pipeline:v-waiting" })), []);
+  byTestId(draw({ pipelineRoute: "pipeline:v-waiting" }), "pipeline-search").props.onChange({
+    target: { value: "wes" },
+  });
+  assert.deepEqual(rowIds(draw({ pipelineRoute: "pipeline:v-waiting" })), ["wes"]);
+  // On a phone the view's own button says it as the rail does.
+  await onPhone(async () => {
+    await fresh({ dealPace: { median_days: 8, yeses: 6 } });
+    const lists = byTestId(
+      byTestId(draw({ pipelineRoute: "pipeline:v-waiting" }), "pipeline-phone-bar"),
+      "pipeline-phone-lists",
+    );
+    assert.equal(textOf(byClass(lists, "pp-bar-pick-words")), "Nothing back in 10 days");
+  });
+  // Deals off: no pace, whatever the read said. Under five yeses: a week, as before.
+  await fresh({ dealsOn: false, dealPace: { median_days: 8, yeses: 6 } });
+  assert.equal(globalThis.window.__PEOPLE.dealPace, null);
+  await fresh({ dealPace: { median_days: 8, yeses: 4 } });
   assert.ok(lineParts(draw()).includes("2 waiting over a week"));
+});
+
+test("the peek's card judges its wait by People's pace, as the rows beside it do, not by the person read's own", async () => {
+  // People's pace is eight days (ten to wait); Nia's own read carries none, as one taken before a fifth yes would.
+  await fresh({ dealPace: { median_days: 8, yeses: 6 } });
+  const W = globalThis.window;
+  W.__peekPerson = () => null;
+  W.__personDetail = (id) => Promise.resolve({ ...personFor(id), dealPace: null });
+  W.openDealSheet = () => true;
+  let tree = draw();
+  find(tree, (n) => n.type === "tr" && n.props?.id === "person-nia").props.onClick();
+  draw();
+  await tick();
+  tree = draw();
+  const card = byTestId(peekOf(tree), "person-deal-card");
+  assert.ok(card, "the person page's own card, in the peek");
+  assert.equal(byTestId(card, "person-deal-flag"), null, "nine days is within People's pace: nothing back is not said");
 });

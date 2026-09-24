@@ -1350,19 +1350,19 @@ test("a proposal's card says the workspace's pace once it has one, and waits by 
   let [card] = dealCardsOf(person(nine), NOW, ZONE).cards;
   assert.deepEqual(card.flags, [{ words: "Nothing back in 9 days", tone: "warn" }], "no pace: past a week");
   assert.equal(card.next.id, "follow-up");
-  const paced = person({ ...nine, deal_pace: { median_days: 12, decided: 6 } });
-  assert.equal(paced.dealPace.words, "Usually decided in 12 days", "read with the person");
+  const paced = person({ ...nine, deal_pace: { median_days: 12, yeses: 6 } });
+  assert.equal(paced.dealPace.words, "Usually 12 days to a yes", "read with the person");
   [card] = dealCardsOf(paced, NOW, ZONE).cards;
-  assert.deepEqual(card.facts, ["Sent Sep 14 by email", "Usually decided in 12 days"]);
+  assert.deepEqual(card.facts, ["Sent Sep 14 by email", "Usually 12 days to a yes"]);
   assert.deepEqual(card.flags, [], "within the pace and a fifth: not waiting on anyone yet");
   assert.equal(card.next.id, "won", "and the follow-up waits for it");
-  // A client's card says no pace: it has been decided.
+  // A client's card says no pace: theirs is decided.
   [card] = dealCardsOf(
-    person({ deals: [dealDto({ stage: "won", decided_at: at(D) })], deal_pace: { median_days: 12, decided: 6 } }),
+    person({ deals: [dealDto({ stage: "won", decided_at: at(D) })], deal_pace: { median_days: 12, yeses: 6 } }),
     NOW,
     ZONE,
   ).cards;
-  assert.ok(!card.facts.includes("Usually decided in 12 days"));
+  assert.ok(!card.facts.includes("Usually 12 days to a yes"));
   // Where deals are off there is no pace to say, whatever the server sent.
-  assert.equal(person({ ...nine, deals_on: false, deal_pace: { median_days: 12, decided: 6 } }).dealPace, null);
+  assert.equal(person({ ...nine, deals_on: false, deal_pace: { median_days: 12, yeses: 6 } }).dealPace, null);
 });

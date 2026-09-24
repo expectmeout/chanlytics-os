@@ -148,33 +148,6 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       };
       return { allowance: of("allowance"), budget: of("budget") };
     },
-    /**
-     * `deal_pace` (00167) is the workspace's pace: its yeses of the last year (a deal standing won, or ended after a
-     * deal.won) and the median whole days from each proposal to its yes, half up between two. Modelled from the rows
-     * a fixture sets -- none decided is no median -- and a suite may still override it by name.
-     */
-    deal_pace: ({ p_tenant_id }) => {
-      const DAY = 86_400_000;
-      const since = Date.now() - 365 * DAY;
-      const won = (id) =>
-        (tables.events ?? []).some(
-          (e) =>
-            e.tenant_id === p_tenant_id && e.subject_type === "deal" && e.subject_id === id && e.kind === "deal.won",
-        );
-      const days = (tables.deals ?? [])
-        .filter(
-          (d) =>
-            d.tenant_id === p_tenant_id &&
-            d.decided_at &&
-            Date.parse(d.decided_at) >= since &&
-            (d.stage === "won" || (d.stage === "ended" && won(d.id))),
-        )
-        .map((d) => Math.max(0, Math.floor((Date.parse(d.decided_at) - Date.parse(d.proposed_at)) / DAY)))
-        .sort((a, b) => a - b);
-      const n = days.length;
-      const median = n === 0 ? null : n % 2 ? days[(n - 1) / 2] : Math.round((days[n / 2 - 1] + days[n / 2]) / 2);
-      return [{ median_days: median, decided: n }];
-    },
   };
 
   const from = (table) => {

@@ -983,35 +983,24 @@ test("proposals waiting: out past a week with nothing back, said once, with the 
   // Once the workspace has a pace, past it by a fifth: nine days is not yet waiting on a twelve-day pace, fifteen is,
   // and the words say longer than usual, with the pace.
   const paced = (rows, pace) => ({ ...people(rows), dealPace: pace });
-  const twelve = { medianDays: 12, decided: 6, waitDays: 14, words: "Usually decided in 12 days" };
-  assert.equal(
-    todayLeaksV2(
-      reports({ booking: { present: false } }),
-      paced(rowsWith(3, true), twelve),
-      [],
-      4,
-      NOW.getTime(),
-    ).rows.find((r) => r.id === "proposals-waiting"),
-    undefined,
-  );
+  const twelve = { medianDays: 12, yeses: 6, waitDays: 14, longerThanUsual: true, words: "Usually 12 days to a yes" };
+  const leakOf = (p) =>
+    todayLeaksV2(reports({ booking: { present: false } }), p, [], 4, NOW.getTime()).rows.find(
+      (r) => r.id === "proposals-waiting",
+    );
+  assert.equal(leakOf(paced(rowsWith(3, true), twelve)), undefined);
   const late = rowsWith(2, true).map((r) => ({ ...r, deal: { ...r.deal, sinceMs: NOW.getTime() - 15 * 86_400_000 } }));
-  const lateLeak = todayLeaksV2(
-    reports({ booking: { present: false } }),
-    paced(late, twelve),
-    [],
-    4,
-    NOW.getTime(),
-  ).rows.find((r) => r.id === "proposals-waiting");
+  const lateLeak = leakOf(paced(late, twelve));
   assert.equal(lateLeak.text, "2 proposals have waited longer than usual with nothing back.");
-  assert.equal(lateLeak.math, "2 on Proposal out · usually decided in 12 days · nothing heard since it went");
-  const lateOne = todayLeaksV2(
-    reports({ booking: { present: false } }),
-    paced(late.slice(0, 1), twelve),
-    [],
-    4,
-    NOW.getTime(),
-  ).rows.find((r) => r.id === "proposals-waiting");
-  assert.equal(lateOne.text, "1 proposal has waited longer than usual with nothing back.");
+  assert.equal(lateLeak.math, "2 on Proposal out · usually 12 days to a yes · nothing heard since it went");
+  assert.equal(
+    leakOf(paced(late.slice(0, 1), twelve)).text,
+    "1 proposal has waited longer than usual with nothing back.",
+  );
+  // REGRESSION: past the thirty-day cap the wait is not past the pace, and Today said "longer than usual" of it.
+  const forty = { medianDays: 40, yeses: 6, waitDays: 30, longerThanUsual: false, words: "Usually 40 days to a yes" };
+  const month = rowsWith(1, true).map((r) => ({ ...r, deal: { ...r.deal, sinceMs: NOW.getTime() - 31 * 86_400_000 } }));
+  assert.equal(leakOf(paced(month, forty)).text, "1 proposal went out more than 30 days ago with nothing back.");
   // A proposal out six days is not waiting yet; one answered since it went is not either.
   const fresh = rowsWith(1, true).map((r) => ({ ...r, deal: { ...r.deal, sinceMs: NOW.getTime() - 6 * 86_400_000 } }));
   const answered = rowsWith(1, true).map((r) => ({ ...r, askedMs: NOW.getTime() - 86_400_000 }));

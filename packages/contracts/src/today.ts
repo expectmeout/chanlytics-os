@@ -1967,9 +1967,11 @@ export function todayLeaks(
   const po = list("proposal_out");
   if (people && people.dealsOn && waiting.length >= 1) {
     const n = waiting.length;
-    const text = pace
+    // Longer than usual only where it is: the thirty-day cap can hold the wait at or under the pace itself.
+    const ago = pace ? `${pace.waitDays} days` : "a week";
+    const text = pace?.longerThanUsual
       ? `${n} proposal${n === 1 ? " has" : "s have"} waited longer than usual with nothing back.`
-      : `${n} proposal${n === 1 ? "" : "s"} went out more than a week ago with nothing back.`;
+      : `${n} proposal${n === 1 ? "" : "s"} went out more than ${ago} ago with nothing back.`;
     const since = pace
       ? `${pace.words.charAt(0).toLowerCase()}${pace.words.slice(1)} · nothing heard since it went`
       : "nothing heard since it went";

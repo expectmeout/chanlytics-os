@@ -400,7 +400,10 @@ const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null, pipelineRo
   const Peek = window.PipelinePeek;
   const New = window.PipelineNew;
   const onScope = (to) => nav(window.plScopeRoute(to));
-  const person = peek && peek.id === peekId ? peek.person : null;
+  // The peek's card judges its wait by People's pace, as the rows beside it do: the person read has its own, which
+  // a yes recorded on someone else since would leave behind.
+  const peekRead = peek && peek.id === peekId ? peek.person : null;
+  const person = React.useMemo(() => (peekRead ? { ...peekRead, dealPace: pace } : null), [peekRead, pace]);
   const line = loaded ? [...all.line, { words: loaded, view: null, tone: null }] : all.line;
   return (
     <div className="clients pipe-scope" data-testid="pipeline">

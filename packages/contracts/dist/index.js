@@ -7164,7 +7164,8 @@ var DEAL_STAGE_WORDS = {
 var DEAL_PER_WORDS = { once: "once", month: "a month", year: "a year" };
 var DEAL_LINE_NONE = "No proposal yet";
 var WAITING_AFTER_DAYS = 7;
-var PACE_AFTER_DECIDED = 5;
+var PACE_AFTER_YESES = 5;
+var PACE_WINDOW_DAYS = 365;
 var CONSULT_FOLLOW_DAYS = 7;
 var DAY_MS3 = 864e5;
 function isDealStage(s) {
@@ -7343,30 +7344,37 @@ function heardSinceProposal(r) {
   const d = r.deal;
   return !!d && d.stage === "proposed" && d.sinceMs !== null && r.askedMs !== null && r.askedMs >= d.sinceMs;
 }
+function isYes(d) {
+  return d.stage === "won" || d.stage === "ended";
+}
 function waitAfterDays(pace) {
   if (!pace) return WAITING_AFTER_DAYS;
   return Math.min(30, Math.max(3, Math.round(pace.medianDays * 1.2)));
 }
+function yesWaitWords(days) {
+  return days === 0 ? "under a day" : `${days} ${days === 1 ? "day" : "days"}`;
+}
 function dealPaceWords(medianDays) {
-  if (medianDays === 0) return "Usually decided the same day";
-  if (medianDays === 1) return "Usually decided in a day";
-  return `Usually decided in ${medianDays} days`;
+  return `Usually ${yesWaitWords(medianDays)} to a yes`;
 }
 function dealPaceOf(dto) {
   if (!dto || typeof dto.median_days !== "number" || !Number.isFinite(dto.median_days)) return null;
-  if (!(dto.decided >= PACE_AFTER_DECIDED)) return null;
+  if (!(dto.yeses >= PACE_AFTER_YESES)) return null;
   const medianDays = Math.max(0, Math.round(dto.median_days));
+  const waitDays = waitAfterDays({ medianDays });
   return {
     medianDays,
-    decided: dto.decided,
-    waitDays: waitAfterDays({ medianDays }),
+    yeses: dto.yeses,
+    waitDays,
+    longerThanUsual: waitDays > medianDays,
     words: dealPaceWords(medianDays)
   };
 }
 function waitingOnProposal(r, nowMs, pace) {
   const d = r.deal;
   if (!d || d.stage !== "proposed" || d.sinceMs === null) return false;
-  if (nowMs - d.sinceMs < waitAfterDays(pace) * DAY_MS3) return false;
+  const wait = pace && Number.isFinite(pace.waitDays) ? pace.waitDays : WAITING_AFTER_DAYS;
+  if (nowMs - d.sinceMs < wait * DAY_MS3) return false;
   return !heardSinceProposal(r);
 }
 function proposalsWaiting(rows, nowMs, pace) {
@@ -7446,7 +7454,7 @@ var plural3 = (count2, one, many) => `${count2} ${count2 === 1 ? one : many}`;
 var upper = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 function medianLine(days, clients) {
   if (days === null || !clients) return null;
-  const wait = days === 0 ? "under a day" : plural3(days, "day", "days");
+  const wait = yesWaitWords(days);
   return clients === 1 ? `${upper(wait)} to a yes.` : `Median ${wait} to a yes.`;
 }
 function sourcesLine(sources, clients) {
@@ -10191,7 +10199,8 @@ function todayLeaks(reports, people, noReply = [], max = TODAY_LEAK_MAX, nowMs =
   const po = list2("proposal_out");
   if (people && people.dealsOn && waiting.length >= 1) {
     const n = waiting.length;
-    const text = pace ? `${n} proposal${n === 1 ? " has" : "s have"} waited longer than usual with nothing back.` : `${n} proposal${n === 1 ? "" : "s"} went out more than a week ago with nothing back.`;
+    const ago4 = pace ? `${pace.waitDays} days` : "a week";
+    const text = pace?.longerThanUsual ? `${n} proposal${n === 1 ? " has" : "s have"} waited longer than usual with nothing back.` : `${n} proposal${n === 1 ? "" : "s"} went out more than ${ago4} ago with nothing back.`;
     const since = pace ? `${pace.words.charAt(0).toLowerCase()}${pace.words.slice(1)} \xB7 nothing heard since it went` : "nothing heard since it went";
     const math = po ? `${po.count} on Proposal out \xB7 ${since}` : since;
     found.set("proposals-waiting", {
@@ -18598,6 +18607,22 @@ function leadSuppressionHash(tenantId, value) {
   return keyedDigest(tenantId, value);
 }
 
+// src/pace.ts
+var DAY_MS9 = 864e5;
+var SAME_SITTING_MS = 36e5;
+function yesWaits(rows) {
+  return rows.filter(isYes).map((d) => d.decided_at ? Date.parse(d.decided_at) - Date.parse(d.proposed_at) : Number.NaN).filter((ms2) => Number.isFinite(ms2) && ms2 >= SAME_SITTING_MS).map((ms2) => Math.floor(ms2 / DAY_MS9)).sort((a, b) => a - b);
+}
+function medianWait(waits) {
+  const m = quantile([...waits], 0.5);
+  return m === null ? null : Math.round(m);
+}
+function dealPaceFrom(rows, nowMs) {
+  const since = nowMs - PACE_WINDOW_DAYS * DAY_MS9;
+  const waits = yesWaits(rows.filter((d) => d.decided_at !== null && Date.parse(d.decided_at) >= since));
+  return { median_days: medianWait(waits), yeses: waits.length };
+}
+
 // src/deal-sheet.ts
 var DEAL_SHEET_MODES = ["propose", "edit", "again", "won", "lost", "ended"];
 function isDealSheetMode(s) {
@@ -19206,10 +19231,13 @@ var PIPELINE_WORDS = {
     cancel: "Cancel",
     busy: "Marking\u2026"
   },
-  /** A proposal out that has waited a week with nothing back: the row's In stage already says how long. */
+  /** A proposal out waiting with nothing back (waitingOnProposal): the row's In stage already says how long. */
   nothingBack: "Nothing back",
-  /** The line's part for the proposals waiting: past a week, or past the workspace's pace once it has one. */
-  waitingLine: (n, paced) => paced ? `${n} waiting longer than usual` : `${n} waiting over a week`,
+  /**
+   * The line's part for the proposals waiting: past a week; past the workspace's pace once it has one; and past the
+   * cap in its days, where thirty holds the wait at or under the pace and "longer than usual" would not be so.
+   */
+  waitingLine: (n, pace) => !pace ? `${n} waiting over a week` : pace.longerThanUsual ? `${n} waiting longer than usual` : `${n} waiting over ${pace.waitDays} days`,
   /** The Pipeline's own rail: its groups, what waits on the owner, and each service. */
   rail: {
     /** A phone's sheet of the rail's rows, behind the bar's list button. */
@@ -19406,7 +19434,7 @@ function pipelineOf(rows, nowMs, tz, pace, view = "all") {
   const line = [
     part(proposals.length ? `${plural10(proposals.length, "proposal", "proposals")} out` : null),
     part(proposals.length ? worth(proposals) : null),
-    part(waiting ? PIPELINE_WORDS.waitingLine(waiting, !!pace) : null, "waiting"),
+    part(waiting ? PIPELINE_WORDS.waitingLine(waiting, pace) : null, "waiting"),
     part(lapsed.length ? `${lapsed.length} lapsed` : null, "lapsed"),
     part(clients.length ? plural10(clients.length, "client", "clients") : null),
     part(clients.length ? worth(clients) : null)
@@ -20232,7 +20260,8 @@ export {
   OPT_OUT_REFUSAL,
   OUTCOME_UNKNOWN,
   OWN_MESSAGE_REFUSALS,
-  PACE_AFTER_DECIDED,
+  PACE_AFTER_YESES,
+  PACE_WINDOW_DAYS,
   PARAM_SOURCES,
   PARAM_SOURCE_HINTS,
   PARAM_SOURCE_LABELS,
@@ -20328,6 +20357,7 @@ export {
   RUN_FILTERS,
   RUN_REPORT_STEPS,
   RenameLeadSearchSchema,
+  SAME_SITTING_MS,
   SCHEMA_SETS,
   SELLS_BY,
   SELLS_BY_FIRST,
@@ -20530,6 +20560,7 @@ export {
   dealMenuActs,
   dealNextAct,
   dealOf,
+  dealPaceFrom,
   dealPaceOf,
   dealPaceWords,
   dealSendOf,
@@ -20676,6 +20707,7 @@ export {
   isTypingTarget,
   isUngrounded,
   isUsablePassword,
+  isYes,
   judgeAsked,
   judgeOpId,
   judgeQuestions,
@@ -20756,6 +20788,7 @@ export {
   maySpend,
   mediaKind,
   mediaVM,
+  medianWait,
   memberWords,
   messageAt,
   messageAuthor,
@@ -21137,6 +21170,8 @@ export {
   workspaceHotkey,
   writtenChannelOf,
   writtenOutDetail,
+  yesWaitWords,
+  yesWaits,
   zoneDayKey,
   zoneMidnight,
   zoneOffsetMs,
