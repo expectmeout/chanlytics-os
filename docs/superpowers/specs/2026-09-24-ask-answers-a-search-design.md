@@ -43,3 +43,14 @@ The turn protocol; the plan card's pickers and sentence; the commit door's refus
 ## 5. Not in this phase
 
 A thread id on a search (the answer row's turn still opens a thread of its own); Keep and Stop from Ask (a second proposal kind); the three following a search's run.
+
+## 6. As built (24 Sep 2026, one PR)
+
+Built as the plan says, with these differences found in review:
+
+- **G2:** under `amends` the search row is read before the planner runs, and the plan is built at the stored plan's count, so the card's title and the plan say the same number; `answerPlanOf` still sets version and count. A database error while reading the search is not swallowed into "not in this workspace": only an `AppError` is (the outer catch logs the rest). `waitingQuestionOf` in `server/leads.ts` is the one reader of a waiting round's question (the list tool and the proposal).
+- **G3:** the prompt and the tool's note name the strip's real buttons, "Yes, keep going" and "Stop here".
+- **G5:** the panel refuses a card whose `amends` names a different search, not only a card without one.
+- **G6:** the warn threshold is a module constant; a missing `waiting_since` reads as a wait of zero rather than dropping the row.
+- **G8:** three pills wrap (`.ask-now-pills`), centred under the sentence on a phone: the Spanish words outgrow 375px.
+- **Not built:** unchanged from section 5.

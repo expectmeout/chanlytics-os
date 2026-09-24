@@ -235,3 +235,7 @@ const leadFinderAmendAsk = (a, words) =>
 - [ ] **Step 1:** `corepack pnpm test` (the whole node suite), `typecheck`, `lint`, `format:check`; fix what fails. `source-scan-ratchet.test.mjs` must pass with the baseline unchanged or lower.
 - [ ] **Step 2:** the spec gains a short "As built" section listing what differed; this plan's "As built" likewise.
 - [ ] **Step 3:** merge `origin/main` into the branch (Chanlytics.html versions: take the higher; one above main's for files this branch changed; contracts dist: take theirs, rebuild, restore line-ending-only dists); push; open the PR with the body's four parts (what changes for a member, what changes in the code, what to know before merging, proof); watch CI; squash-merge on green; delete the branch; check production (`app.chanlytics.com`: Today's queue and the Line at rest on the e2e workspace, where no search waits: nothing new is drawn and nothing broke).
+
+## As built
+
+Tasks 1–5 landed as nine commits on `feat/ask-answers-a-search` (one implementer, one combined review and one fix commit per task): 50361d46 + fe855db6 (Task 1), 9629aec5 (Task 2, approved as is), 19ea44df + ec413902 (Task 3), 9684b77c + 08d0ac45 (Task 4), bf6db1c3 + 82d8c3e1 (Task 5). The review fixes are listed in the spec's section 6. The sibling packages' dists (channels, core, db, jobs) carry the hoisted `SEARCH_WARN_MS` line because they bundle contracts.
