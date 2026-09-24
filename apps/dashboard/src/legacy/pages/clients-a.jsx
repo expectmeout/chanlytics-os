@@ -2549,6 +2549,8 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
   const [addDraft, setAddDraft] = useState(PL_ADD_EMPTY);
   const [listAct, setListAct] = useState(null);
   const [listDraft, setListDraft] = useState(PL_LIST_EMPTY);
+  // Import people: the owner's sheet over the page (people-import.jsx). The refresh-map re-reads People after each part.
+  const [importOpen, setImportOpen] = useState(false);
   React.useEffect(() => {
     const onNew = () => {
       setNewListSignal((n) => n + 1);
@@ -2777,6 +2779,8 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
     // A selection begun from here, with nobody picked yet, for whoever a selection could do something for.
     ...((canEditLists || canExport) && shown.length > 0 ? [{ label: "Select people", icon: "check", onClick: () => setSelectMode(true) }] : []),
     ...(canEditLists && window.__addPerson ? [{ label: "Add a person", icon: "plus", onClick: () => { setAddDraft(PL_ADD_EMPTY); setAddOpen(true); } }] : []),
+    // A client list as a file, for the owner (the import door is the owner's, as the export is).
+    ...(canExport && window.__importPeople && window.PeopleImportSheet ? [{ label: "Import people", icon: "download", meta: "CSV", onClick: () => setImportOpen(true) }] : []),
     { header: "Sort" },
     ...PL_PHONE_SORTS.filter((s) => !s.needs || s.needs({ withCalendar })).map((s) => ({ label: s.label, checked: sortBy === s.by && sortDir === s.dir, onClick: () => pickSort(s.by, s.dir) })),
     // The route's file of everyone: a download (it answers as an attachment), so the page stays where it is.
@@ -2848,6 +2852,11 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
             </div>
             <div className="cl-controls-right">
               {canEditLists && window.__addPerson && <AddPersonButton onAdded={onOpenProfile} flash={plFlash} />}
+              {/* A client list as a file, for the owner: read in the browser, counted, then written in parts of fifty
+                  (people-import.jsx). */}
+              {canExport && window.__importPeople && window.PeopleImportSheet && (
+                <button className="btn btn-ghost btn-sm" onClick={() => setImportOpen(true)} data-testid="import-people"><Icon name="download" size={12} /> Import</button>
+              )}
               {/* Everyone as a CSV, from the route: owner only, and the button
                   says so for anyone else instead of leading to a refusal. */}
               {window.__href && (
@@ -2977,6 +2986,11 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
         )}
         {phone && listAct && (listAct === "save" || activeSaved) && (
           <PeopleListActSheet act={listAct} list={activeSaved} count={shown.length} draft={listDraft} onDraft={(patch) => setListDraft((d) => ({ ...d, ...patch }))} onGo={listActGo} onClose={closePhoneSheet} />
+        )}
+        {/* Import people, at every width: the record kit's sheet, drawn in .app-root, where the page's keys hold still
+            while it is open (PL_OVERLAY) and it closes on its own Esc. */}
+        {importOpen && window.PeopleImportSheet && (
+          <window.PeopleImportSheet onClose={() => setImportOpen(false)} flash={plFlash} />
         )}
         {toastNode}
       </div>
