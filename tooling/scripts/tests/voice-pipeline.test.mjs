@@ -170,7 +170,7 @@ test("the converger's plan is complete against the hand-typed agent, and idempot
         type: "transfer_call",
         name: "transfer_to_staff",
         description: "x",
-        transfer_destination: { type: "predefined", number: "+19175746416" },
+        transfer_destination: { type: "predefined", number: "+12125550142" },
         transfer_option: { type: "warm_transfer" },
       },
       {
@@ -198,7 +198,7 @@ test("the converger's plan is complete against the hand-typed agent, and idempot
     plan.drift.join("\n"),
   );
   assert.ok(
-    plan.drift.some((l) => l.includes('live destination: "+19175746416"')),
+    plan.drift.some((l) => l.includes('live destination: "+12125550142"')),
     "the plan says what number the live tool dials today",
   );
   assert.deepEqual(
