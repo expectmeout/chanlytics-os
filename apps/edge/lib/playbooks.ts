@@ -41,7 +41,9 @@ import {
   parseTenantConfig,
   peopleVisitsOf,
   poolListContext,
+  consultFirstOf,
   poolRowsOf,
+  withVisitsOf,
   savedListIds,
   savedListLookup,
   type PersonRowDto,
@@ -186,13 +188,14 @@ export async function loadTenantRunContext(
     }
   }
   const dealsOn = dealsAreOn(isSellsBy(tenant?.sells_by) ? tenant.sells_by : null);
-  // Everyone as the pool reads them: no one looking (a run has no viewer), no deal where deals are off, and a calendar
-  // that could not be read said on every row, as the page says it.
-  const unread: PersonVisitsDto = { timezone: tz, source: "calendar", state: "unavailable", next: null, last: null };
-  const vms = poolRowsOf(
-    rows.map((r) => ({ ...r, visits: visits.get(r.id) ?? (calendar === "unavailable" ? unread : null) })),
-    { tz, now, viewer: null, dealsOn },
-  );
+  // Everyone as the pool reads them: no one looking (a run has no viewer), no deal where deals are off, and their
+  // visits attached the one way (withVisitsOf), as the People list and the Playbooks page attach them.
+  const vms = poolRowsOf(withVisitsOf(rows, visits, { state: calendar, timezone: tz, source: "calendar" }), {
+    tz,
+    now,
+    viewer: null,
+    dealsOn,
+  });
   return {
     db,
     tenantId,
@@ -209,7 +212,12 @@ export async function loadTenantRunContext(
         savedListIds(
           l,
           vms,
-          poolListContext({ calendar, dealsOn, rules: profile?.booking_rules, viewer: null }),
+          poolListContext({
+            calendar,
+            dealsOn,
+            consultFirst: consultFirstOf(profile?.booking_rules),
+            viewer: null,
+          }),
           savedListLookup(kept.data ?? []),
         ),
       ]),

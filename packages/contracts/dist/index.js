@@ -8358,7 +8358,7 @@ function listUnknownWords(reason, calendar) {
     case "viewer":
       return "This list is about whoever is looking, so only a person can count it.";
     case "rule":
-      return "This list's rule can't be read by this version. Reload the page.";
+      return "This list's rule was written by a newer version of Chanlytics and can't be read here.";
     case "list":
       return "A list this one reads is gone, or can't be counted itself.";
   }
@@ -17583,6 +17583,19 @@ function peopleVisitsOf(items, people, cal, nowMs) {
   }
   return out;
 }
+function withVisitsOf(people, visits, cal) {
+  const unread2 = {
+    timezone: cal.timezone,
+    source: cal.source,
+    state: "unavailable",
+    next: null,
+    last: null
+  };
+  return people.map((p) => ({
+    ...p,
+    visits: cal.state === "ok" ? visits.get(p.id) ?? null : cal.state === "unavailable" ? unread2 : null
+  }));
+}
 function poolRowOf(person, o) {
   const vm = toPersonRowVM(person, o.tz, o.now, o.viewer);
   return o.dealsOn ? vm : { ...vm, deal: null, dealStage: null };
@@ -17590,13 +17603,11 @@ function poolRowOf(person, o) {
 function poolRowsOf(people, o) {
   return people.map((p) => poolRowOf(p, o));
 }
+function consultFirstOf(rules) {
+  return (rules?.consult_first ?? []).length > 0;
+}
 function poolListContext(o) {
-  return {
-    calendar: o.calendar,
-    dealsOn: o.dealsOn,
-    consultFirst: (o.rules?.consult_first ?? []).length > 0,
-    viewer: o.viewer !== null
-  };
+  return { calendar: o.calendar, dealsOn: o.dealsOn, consultFirst: o.consultFirst, viewer: o.viewer !== null };
 }
 
 // src/refusal.ts
@@ -21375,6 +21386,7 @@ export {
   consentPageMetadata,
   consentPageVM,
   consentSourceLabel,
+  consultFirstOf,
   consultServiceOf,
   consultationHeld,
   consultationsWithoutProposal,
@@ -22047,6 +22059,7 @@ export {
   whyNotReceive,
   windowFor,
   withFirstAlertAddress,
+  withVisitsOf,
   workspaceHotkey,
   writtenChannelOf,
   writtenOutDetail,

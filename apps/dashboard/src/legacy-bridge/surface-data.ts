@@ -214,6 +214,7 @@ import {
   parseListToken,
   savedListIds,
   savedListLookup,
+  poolListContext,
   poolRowOf,
   poolRowsOf,
   type ListContext,
@@ -866,7 +867,12 @@ function publishPeople(): void {
   });
   const calendar = peopleLoaded.calendar;
   // What this workspace and this reader can give a list (lists.ts): a rule that needs more says why it can't be counted.
-  const listCtx: ListContext = { calendar: calendar.state, dealsOn, consultFirst, viewer: viewerId() !== null };
+  const listCtx: ListContext = poolListContext({
+    calendar: calendar.state,
+    dealsOn,
+    consultFirst,
+    viewer: viewerId(),
+  });
   const savedLists = peopleLoaded.saved ?? [];
   const lookup = savedListLookup(savedLists);
   const listName = (token: string): string | null => {
@@ -1284,12 +1290,12 @@ export const broadcastsOverride: SurfaceOverride = {
               savedListIds(
                 s,
                 rows,
-                {
+                poolListContext({
                   calendar: people.calendar?.state ?? "none",
                   dealsOn: !!people.deals_on,
                   consultFirst: !!people.consult_first,
-                  viewer: viewerId() !== null,
-                },
+                  viewer: viewerId(),
+                }),
                 savedListLookup(saved.lists),
               ),
             ),

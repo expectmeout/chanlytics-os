@@ -450,10 +450,24 @@ test("one pool: the edge and the dashboard read everyone the same way -- visits 
     "consultation",
     "a consultation ahead of someone who passed begins something new, the Pipeline's rule",
   );
-  assert.deepEqual(poolListContext({ calendar: "ok", dealsOn: true, rules: { consult_first: ["X"] }, viewer: null }), {
+  assert.deepEqual(poolListContext({ calendar: "ok", dealsOn: true, consultFirst: true, viewer: null }), {
     calendar: "ok",
     dealsOn: true,
     consultFirst: true,
     viewer: false,
   });
+  assert.equal(contracts.consultFirstOf({ consult_first: ["Ad management"] }), true);
+  assert.equal(contracts.consultFirstOf(null), false);
+  // Visits attached the one way, whichever app reads them: a calendar that could not be read says so on every row.
+  const { withVisitsOf } = contracts;
+  const read = (state) => ({ state, timezone: TZ, source: "calendar" });
+  assert.equal(withVisitsOf(people, visits, read("ok"))[0].visits.next.consultation, true);
+  assert.deepEqual(
+    withVisitsOf(people, visits, read("unavailable")).map((p) => p.visits.state),
+    ["unavailable", "unavailable"],
+  );
+  assert.deepEqual(
+    withVisitsOf(people, visits, read("none")).map((p) => p.visits),
+    [null, null],
+  );
 });

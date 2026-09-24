@@ -75,7 +75,11 @@ export async function createBroadcast(
   if (kind === "list" && (!audienceId || !BUILTIN_LISTS.some((l) => l.id === audienceId)))
     throw new AppError("validation", "Pick a list.");
   const ref: ListRef | null =
-    kind === "list" ? { kind: "builtin", id: audienceId! } : kind === "saved" ? { kind: "saved", id: audienceId! } : null;
+    kind === "list"
+      ? { kind: "builtin", id: audienceId! }
+      : kind === "saved"
+        ? { kind: "saved", id: audienceId! }
+        : null;
 
   // 1–2. The template, as Meta holds it; the values, as Meta will accept them.
   const { template: tpl, specs } = await templateValues(ports, {
@@ -116,7 +120,7 @@ export async function createBroadcast(
     const found = await ports.list(ref, now);
     if (!found) throw new AppError("not_found", "List not found.", 404);
     if ("unknown" in found)
-      throw new AppError("conflict", `${found.label} can't be counted right now. ${found.unknown}`, 409);
+      throw new AppError("conflict", `${found.label} can't be counted here. ${found.unknown}`, 409);
     members = new Set(found.memberIds);
     label = found.label;
   }
@@ -129,12 +133,7 @@ export async function createBroadcast(
   const eligible = eligibleFor(pool, "everyone", null, null, purpose);
   // Nobody to send to says which of its two causes it is: nobody on it said this yes, or the ones who did have no
   // number. So the refusal is handed everyone on the audience, before anyone is left out.
-  if (eligible.length === 0)
-    throw new AppError(
-      "conflict",
-      emptyAudienceRefusal(purpose, label, pool),
-      409,
-    );
+  if (eligible.length === 0) throw new AppError("conflict", emptyAudienceRefusal(purpose, label, pool), 409);
   if (eligible.length > BROADCAST_MAX_RECIPIENTS)
     throw new AppError("validation", `At most ${BROADCAST_MAX_RECIPIENTS} people in one broadcast.`);
   // An audience past the day's limit is split, not silently cut.

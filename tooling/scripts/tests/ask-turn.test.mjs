@@ -1594,7 +1594,7 @@ test("Ask reaches any list by its reference: a People list or one of the workspa
   assert.equal(byLabel["Phoned only"].list, "seg:phoned_only");
   assert.match(byLabel["Lapsed regulars"].cannot_count, /reads your calendar/);
   assert.equal(byLabel["Lapsed regulars"].can_be_sent_offers, undefined, "no count it can't stand behind");
-  assert.match(byLabel["From the future"].cannot_count, /can't be read by this version/);
+  assert.match(byLabel["From the future"].cannot_count, /written by a newer version/);
 
   // Search by any list: its token, or a People list's bare id.
   const regulars = await run("search_people", { query: "", list: `list:${S_REG}` });
@@ -1628,7 +1628,7 @@ test("Ask reaches any list by its reference: a People list or one of the workspa
   assert.deepEqual([toRegulars.proposal.payload.audience_label, toRegulars.proposal.payload.count], ["Regulars", 1]);
   const toCal = await propose("saved", S_CAL);
   assert.equal(toCal.isError, true);
-  assert.match(JSON.parse(toCal.result).error, /can't be counted right now: This list reads your calendar/);
+  assert.match(JSON.parse(toCal.result).error, /can't be counted here: This list reads your calendar/);
 });
 
 test("a gated list's refusal names the condition that failed: with a calendar and deals on but no consult-first service, Consultation booked is refused for the service alone", async () => {

@@ -237,7 +237,7 @@ test("a list the send can't count here is refused in its own words, never sent t
     make(f, { template_id: T1, audience: { kind: "saved", id: S1 } }),
     "conflict",
     409,
-    "Lapsed regulars can't be counted right now. This list reads your calendar, which can't be read right now.",
+    "Lapsed regulars can't be counted here. This list reads your calendar, which can't be read right now.",
   );
   assert.deepEqual(f.ops(), [], "nothing enrolled, nothing scheduled, nothing on the ledger");
   // Every People list is an audience now, not the five the refusal once named: resolved through the one port.

@@ -44,7 +44,9 @@ import {
   visitsIn,
   needsConsultation,
   ownAddressesOf,
+  consultFirstOf,
   peopleVisitsOf,
+  withVisitsOf,
   personLikeOf,
   type OwnAddresses,
 } from "@chanlytics/contracts";
@@ -649,27 +651,13 @@ export async function withVisits(
       booking_link: null,
       consult_first: false,
     };
-  // Each visit already says whether it is a consultation (0004): peopleVisits marked it (contracts peopleVisitsOf).
-  const marked = (x: PersonVisitsDto | undefined): PersonVisitsDto | null => x ?? null;
+  // Each visit already says whether it is a consultation (0004): peopleVisits marked it (contracts peopleVisitsOf), and
+  // they are attached by the pool's one rule (withVisitsOf), as the Playbooks page and the edge's run attach them.
   return {
-    people: rows.map((r) => ({
-      ...r,
-      visits:
-        pv.calendar.state === "ok"
-          ? marked(pv.visits.get(r.id))
-          : pv.calendar.state === "unavailable"
-            ? {
-                timezone: pv.calendar.timezone,
-                source: pv.calendar.source,
-                state: "unavailable",
-                next: null,
-                last: null,
-              }
-            : null,
-    })),
+    people: withVisitsOf(rows, pv.visits, pv.calendar),
     calendar: pv.calendar,
     booking_link: pv.bookingLink,
-    consult_first: (pv.rules?.consult_first ?? []).length > 0,
+    consult_first: consultFirstOf(pv.rules),
   };
 }
 

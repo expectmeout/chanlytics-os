@@ -10246,19 +10246,14 @@ async function createBroadcast(ports, cmd) {
     const found = await ports.list(ref, now);
     if (!found) throw new AppError("not_found", "List not found.", 404);
     if ("unknown" in found)
-      throw new AppError("conflict", `${found.label} can't be counted right now. ${found.unknown}`, 409);
+      throw new AppError("conflict", `${found.label} can't be counted here. ${found.unknown}`, 409);
     members = new Set(found.memberIds);
     label = found.label;
   }
   const pool = members ? rows.filter((r4) => members.has(r4.id)) : rows;
   const purpose = purposeOfTemplate(tpl.category);
   const eligible = eligibleFor(pool, "everyone", null, null, purpose);
-  if (eligible.length === 0)
-    throw new AppError(
-      "conflict",
-      emptyAudienceRefusal(purpose, label, pool),
-      409
-    );
+  if (eligible.length === 0) throw new AppError("conflict", emptyAudienceRefusal(purpose, label, pool), 409);
   if (eligible.length > BROADCAST_MAX_RECIPIENTS)
     throw new AppError("validation", `At most ${BROADCAST_MAX_RECIPIENTS} people in one broadcast.`);
   const over = overLimitRefusal(health, eligible.length);

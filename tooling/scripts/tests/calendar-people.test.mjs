@@ -962,7 +962,9 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
   assert.ok(
     svc.includes("const parsedFeeds = new Map<string, { text: string; tz: string; parsed: ParsedFeed }>();") &&
       svc.includes("export async function peopleVisits(") &&
-      svc.includes("const index = indexFeed(feed.parsed.items, own);"),
+      svc.includes(
+        "peopleVisitsOf(feed.parsed.items, rows, { timezone, source, own, services, rules }, now.getTime())",
+      ),
     "one parse, indexed once, for everyone",
   );
   assert.ok(svc.includes("export async function bookingReport(") && svc.includes("bookedAfterAsk("));

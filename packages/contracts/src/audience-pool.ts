@@ -76,6 +76,30 @@ export function peopleVisitsOf(
   return out;
 }
 
+/**
+ * Everyone with their appointments attached, the one way: a read calendar gives each person their visits (none found
+ * is no visit), a calendar that could not be read says so on every row, and no calendar leaves the rows without one.
+ * The People list, the Playbooks page's counts and the edge's run all attach them here, so a row read one place is the
+ * row read every place.
+ */
+export function withVisitsOf<T extends PersonRowDto>(
+  people: readonly T[],
+  visits: ReadonlyMap<string, PersonVisitsDto>,
+  cal: { state: "ok" | "unavailable" | "none"; timezone: string; source: string },
+): (T & { visits: PersonVisitsDto | null })[] {
+  const unread: PersonVisitsDto = {
+    timezone: cal.timezone,
+    source: cal.source,
+    state: "unavailable",
+    next: null,
+    last: null,
+  };
+  return people.map((p) => ({
+    ...p,
+    visits: cal.state === "ok" ? (visits.get(p.id) ?? null) : cal.state === "unavailable" ? unread : null,
+  }));
+}
+
 /** How a pool reads its people: at `now`, in the workspace's zone, for `viewer` (null: no one, a playbook's run). */
 export interface PoolOptions {
   tz: string;
@@ -99,17 +123,17 @@ export function poolRowsOf(people: readonly PersonRowDto[], o: PoolOptions): Per
   return people.map((p) => poolRowOf(p, o));
 }
 
+/** Whether the profile names a consult-first service (0004): a list that reads consultations can be counted only then. */
+export function consultFirstOf(rules: ConsultRules | null | undefined): boolean {
+  return (rules?.consult_first ?? []).length > 0;
+}
+
 /** What a pool can give a list (lists.ts ListContext): its calendar, deals, a consult-first service, and a viewer. */
 export function poolListContext(o: {
   calendar: ListContext["calendar"];
   dealsOn: boolean;
-  rules: ConsultRules | null | undefined;
+  consultFirst: boolean;
   viewer: string | null;
 }): ListContext {
-  return {
-    calendar: o.calendar,
-    dealsOn: o.dealsOn,
-    consultFirst: (o.rules?.consult_first ?? []).length > 0,
-    viewer: o.viewer !== null,
-  };
+  return { calendar: o.calendar, dealsOn: o.dealsOn, consultFirst: o.consultFirst, viewer: o.viewer !== null };
 }

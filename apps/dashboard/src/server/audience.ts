@@ -1,10 +1,13 @@
-import { savedListsFor } from "@chanlytics/db";
+import { savedListFor, savedListsFor } from "@chanlytics/db";
 import {
+  asListRule,
   dealsAreOn,
   listUnknownWords,
   membersOf,
+  poolListContext,
   poolRowsOf,
   resolveList,
+  ruleLists,
   type ListContext,
   type ListRef,
   type PersonRowDto,
@@ -54,8 +57,13 @@ export async function audiencePool(ctx: RouteContext, tenantId: string, tz: stri
     calendar,
     consult_first,
     deals_on,
-    // What the pool can give a list (lists.ts ListContext): the consult-first service is withVisits' reading of it.
-    listCtx: { calendar: calendar.state, dealsOn: deals_on, consultFirst: consult_first, viewer: viewer !== null },
+    // What the pool can give a list (contracts poolListContext), the consult-first service as withVisits read it.
+    listCtx: poolListContext({
+      calendar: calendar.state,
+      dealsOn: deals_on,
+      consultFirst: consult_first,
+      viewer,
+    }),
   };
 }
 
@@ -86,8 +94,15 @@ export async function poolList(
   pool: Pick<AudiencePool, "rows" | "listCtx">,
   ref: ListRef,
 ): Promise<{ label: string; memberIds: string[] } | { label: string; unknown: string } | null> {
-  // A saved list, and any list a rule reads, is the workspace's: every one of them, every member.
-  const saved = ref.kind === "saved" ? await savedListsFor(ctx.supabase, tenantId) : [];
+  // A saved list is read with every member; the workspace's other lists only when its rule reads one (in_list). No
+  // built-in reads a saved list.
+  let saved: Awaited<ReturnType<typeof savedListsFor>> = [];
+  if (ref.kind === "saved") {
+    const one = await savedListFor(ctx.supabase, tenantId, ref.id);
+    if (!one) return null;
+    const rule = one.rule == null ? null : asListRule(one.rule);
+    saved = rule && ruleLists(rule).length ? await savedListsFor(ctx.supabase, tenantId) : [one];
+  }
   const def = resolveList(ref, saved);
   if (!def) return null;
   const m = membersOf(def, pool.rows, pool.listCtx, saved);

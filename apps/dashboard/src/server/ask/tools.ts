@@ -169,7 +169,7 @@ export const READ_TOOLS: ToolDef[] = [
   {
     name: "list_audiences",
     description:
-      "The audiences a broadcast may go to — everyone who said yes, every People list, every list kept by hand — each with FOUR counts, because there are two consents and a yes needs a number to send to: can_be_sent_offers and can_be_sent_messages (who a promotional, or a utility or authentication, template reaches) and said_yes_to_offers and said_yes_to_messages (everyone who gave that yes, a number or not). Also the approved WhatsApp templates with their category and values, and whether the number may send. Read this before proposing a broadcast, and match the count to the template.",
+      "The audiences a broadcast may go to — everyone who said yes, every People list this workspace can count, and every list of the workspace's own (kept by hand, or by a rule) — each with its kind and audience_id (propose_broadcast's audience), its list token (search_people's list), and FOUR counts; a list of the workspace's own that can't be counted here carries cannot_count (why) and no counts, because there are two consents and a yes needs a number to send to: can_be_sent_offers and can_be_sent_messages (who a promotional, or a utility or authentication, template reaches) and said_yes_to_offers and said_yes_to_messages (everyone who gave that yes, a number or not). Also the approved WhatsApp templates with their category and values, and whether the number may send. Read this before proposing a broadcast, and match the count to the template.",
     input_schema: obj({}, []),
   },
   {
@@ -599,7 +599,9 @@ async function searchPeople(t: ToolContext, input: Record<string, unknown>): Pro
   const q = str(input.query, 80).toLowerCase();
   const listIn = str(input.list, 60);
   // Any list, one way (decision 0009): a token list_audiences gave, or a People list's bare id.
-  const ref = listIn ? (parseListToken(listIn) ?? parseListToken(`seg:${listIn}`)) : null;
+  const ref = listIn
+    ? (parseListToken(listIn) ?? parseListToken(`list:${listIn}`) ?? parseListToken(`seg:${listIn}`))
+    : null;
   if (listIn && !ref) return { error: "list must be a list token from list_audiences, or a People list's id" };
   // With their appointments, so "who asked but never booked?" and "who is
   // booked this week?" are answered from the calendar, not guessed.

@@ -810,7 +810,7 @@ async function proposeBroadcast(t: ToolContext, input: Record<string, unknown>):
       id: audienceId!,
     });
     if (!found) return refuse("no such list; list_audiences names them");
-    if ("unknown" in found) return refuse(`${found.label} can't be counted right now: ${found.unknown}`);
+    if ("unknown" in found) return refuse(`${found.label} can't be counted here: ${found.unknown}`);
     members = new Set(found.memberIds);
     label = found.label;
   }
