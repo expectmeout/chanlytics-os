@@ -70,7 +70,12 @@ One program, one review round per PR, each PR working on its own, either deploy 
 2. **PR 2, the shell:** the full-screen `#/start` mode, resuming from Setup's state, the landing and the one-press
    create, Settings › Setup removed, the Today card replacing Setup's line.
 3. **PR 3, your business:** Find and Check on the Business tab's record kit, Google's facts, category
-   suggestions, how customers buy, decision 2.
+   suggestions, how customers buy, decision 2. It ships as three parts, each on its own and in either deploy order:
+   3a Find (the search already run, one finder, V1); 3b decision 2's reading half (a receptionist with no booking
+   link parses, and the prompt, the voice tools and the Business tab say so; nothing saves one yet), because today a
+   config with no link parses as broken and silences the receptionist; 3c Check (Google's facts become the
+   receptionist's first config, the Business tab's own editors, how customers buy, category suggestions, languages,
+   and proposal sellers saving with no link).
 4. **PR 4, your phone:** the three ways, the trial with its price and return, the number getting ready, the codes,
    office systems.
 5. **PR 5, try it and live:** the three-moment test, the transfer choice, nothing-came-through, the activation, the

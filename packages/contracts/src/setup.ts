@@ -33,6 +33,7 @@ import { SOLE_PROP_LIMITS } from "./registration-path";
 import { capabilityStatus, type ActivationRecord, type CapabilityStatus } from "./capabilities";
 import { EMAIL_ELSEWHERE_SENTENCE, EMAIL_NOT_ANSWERED_SENTENCE, type EmailSetupDto } from "./mailbox";
 import { GET_YES_ROUTE, NO_NUMBER_REACH } from "./people";
+import { FIRST_RUN_FIND_ROUTE } from "./first-run";
 
 export interface SetupDto {
   business: {
@@ -295,6 +296,8 @@ export interface SetupVM {
     whatsapp: string | null;
     whatsappLabel: string | null;
   } | null;
+  /** Google can be searched on this deployment and nothing is linked yet: the first run's Find has something to find. */
+  findable: boolean;
 }
 
 /**
@@ -1284,7 +1287,8 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
             ? "Uses the name and address on record"
             : "Add your address in Settings › Business for a surer match",
         ],
-        verb: { label: "Find it", to: "verb:google-find" },
+        // One finder: the first run's Find, asked for by name (first-run.ts).
+        verb: { label: "Find it", to: FIRST_RUN_FIND_ROUTE },
       });
     } else {
       // Only the profile door is open here: the listing arrives with the connection.
@@ -1334,6 +1338,7 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
           whatsappLabel: waReady ? waNum : null,
         }
       : null,
+    findable: !!i.google?.ready && i.google.places !== false && !i.google.listing,
   };
 }
 

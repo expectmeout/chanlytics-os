@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { SIGNUP_WORDS, type PendingWorkspace, type SignupPosture } from "@chanlytics/contracts";
+import { SIGNUP_WORDS, firstRunKicker, type PendingWorkspace, type SignupPosture } from "@chanlytics/contracts";
 import { api } from "./api";
 import { joinWaitlistFrom } from "./waitlist";
 
@@ -24,6 +24,13 @@ import { joinWaitlistFrom } from "./waitlist";
  * them filled in once they have entered the code. One press, and the
  * workspace is theirs -- made by a session that has proved the inbox, through
  * the same door as every workspace after it.
+ *
+ * A first workspace with no name kept (an account that arrived through Google
+ * never saw the sign-up form) is the first run's first step begun (canvas V1):
+ * "What's your business called?", the invite code while sign-up is by
+ * invitation, and Find it, which makes the workspace and opens the first run
+ * on Find, already searched for that name. The clock is the device's, as
+ * email sign-up keeps it; the first run's business step shows it.
  */
 
 export interface CreatedWorkspace {
@@ -253,35 +260,35 @@ export default function CreateWorkspace({
     );
   }
 
+  // One form. A first workspace is the first run's first step, begun (V1): its step line, the business asked for, and
+  // the device's zone. Another, from inside the app, keeps its own head, its zone and Back.
   return (
     <div className="cw-screen" data-testid="create-workspace">
       <form className="cw-card" onSubmit={submit}>
-        <h1 className="cw-title">{another ? "New workspace" : "Create your workspace"}</h1>
-        <p className="cw-lede">
-          {another ? (
-            <>
-              Another business, another workspace: its own receptionist, conversations and team. You become its owner
-              {email ? (
-                <>
-                  {" "}
-                  as <b>{email}</b>
-                </>
-              ) : null}
-              .
-            </>
-          ) : (
-            <>
-              One business, one workspace. It holds your receptionist, your conversations and your team
-              {email ? (
-                <>
-                  {" "}
-                  — signed in as <b>{email}</b>
-                </>
-              ) : null}
-              .
-            </>
+        <div className="cw-head">
+          {!another && (
+            <p className="cw-kicker" data-testid="cw-kicker">
+              {firstRunKicker("business")}
+            </p>
           )}
-        </p>
+          <h1 className="cw-title">{another ? "New workspace" : SIGNUP_WORDS.nameTitle}</h1>
+          <p className="cw-lede">
+            {another ? (
+              <>
+                Another business, another workspace: its own receptionist, conversations and team. You become its owner
+                {email ? (
+                  <>
+                    {" "}
+                    as <b>{email}</b>
+                  </>
+                ) : null}
+                .
+              </>
+            ) : (
+              SIGNUP_WORDS.nameLead
+            )}
+          </p>
+        </div>
 
         <label className="cw-field">
           <span className="cw-label">Business name</span>
@@ -296,24 +303,26 @@ export default function CreateWorkspace({
           />
         </label>
 
-        <label className="cw-field">
-          <span className="cw-label">Timezone</span>
-          <select
-            className="cw-input"
-            value={timezone}
-            onChange={(e) => setTimezone(e.target.value)}
-            aria-label="Timezone"
-          >
-            {zones.map((z) => (
-              <option key={z} value={z}>
-                {z.replace(/_/g, " ")}
-              </option>
-            ))}
-          </select>
-          {/* Not a formality: this is the clock the receptionist answers
-              "are you open right now?" against. */}
-          <span className="cw-hint">Your opening hours are read in this timezone.</span>
-        </label>
+        {another && (
+          <label className="cw-field">
+            <span className="cw-label">Timezone</span>
+            <select
+              className="cw-input"
+              value={timezone}
+              onChange={(e) => setTimezone(e.target.value)}
+              aria-label="Timezone"
+            >
+              {zones.map((z) => (
+                <option key={z} value={z}>
+                  {z.replace(/_/g, " ")}
+                </option>
+              ))}
+            </select>
+            {/* Not a formality: this is the clock the receptionist answers
+                "are you open right now?" against. */}
+            <span className="cw-hint">Your opening hours are read in this timezone.</span>
+          </label>
+        )}
 
         {door === "invite" && (
           <label className="cw-field">
@@ -338,7 +347,7 @@ export default function CreateWorkspace({
         )}
 
         <button className="cw-submit" type="submit" disabled={busy}>
-          {busy ? "Creating…" : "Create workspace"}
+          {another ? (busy ? "Creating…" : "Create workspace") : busy ? SIGNUP_WORDS.making : SIGNUP_WORDS.nameCta}
         </button>
         {onCancel && (
           <button

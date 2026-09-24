@@ -614,9 +614,8 @@ test("the page: the forwarding card saves the number, the carrier and the mode t
   );
 });
 
-/* ---- the listing finder: Google is asked with the facts on record, and one tap links ---- */
-test("the page: the finder asks Google with the facts on record on arrival, and This is it links the listing through the bridge", async () => {
-  fresh();
+/* ---- one finder: Google's row opens the first run's Find, an owner's door ---- */
+test("the page: the Google row's Find it opens the first run's Find, and only an owner may press it", async () => {
   const google = { ...dto, google: { ready: true, places: true, listing: null } };
   globalThis.window.__SETUP = {
     dto: google,
@@ -624,26 +623,35 @@ test("the page: the finder asks Google with the facts on record on arrival, and 
     vm: setupSteps({ ...google, later: [] }, NOW),
     fetchedAt: NOW,
   };
-  let tree = mount();
-  const gRow = (() => {
+  const googleRow = () => {
     let r = null;
-    walk(tree, (n) => {
+    walk(mount(), (n) => {
       if (!r && n.props?.testid === "setup-row-google") r = n.props;
     });
     return r;
-  })();
+  };
+  fresh();
+  const gRow = googleRow();
   assert.ok(gRow, "the Google row is drawn when Places is ready");
   assert.equal(gRow.cta.label, "Find it");
   await gRow.cta.onClick();
-  tree = mount();
-  assert.ok(byTestId(tree, "setup-google-finder"), "the finder opens under the row");
-  await tick();
-  assert.deepEqual(calls.find, [null], "asked with the facts on record, no words of the owner's");
-  tree = mount();
-  const place = byTestId(tree, "setup-place");
-  assert.ok(place, "what Google found");
-  await byTestId(tree, "setup-place-link").props.onClick();
-  assert.deepEqual(calls.link, ["ChIJ-harbor"]);
+  assert.equal(calls.nav.at(-1), "start/find", "one finder: the business step's, which opens on Find");
+  assert.equal(calls.find.length, 0, "nothing is searched from the row");
+  const before = calls.nav.length;
+  Object.assign(globalThis.window, {
+    ST_STORE: { can: (a) => a === "approve" || a === "autonomy", myRole: () => "operator" },
+    __roleGate: roleGate,
+  });
+  try {
+    fresh();
+    const denied = googleRow();
+    assert.equal(denied.cta.gate["data-tip"], "Only an owner can find the business on Google.");
+    await denied.cta.onClick();
+    assert.equal(calls.nav.length, before, "reached any other way, the door goes nowhere for an operator");
+  } finally {
+    delete globalThis.window.ST_STORE;
+    delete globalThis.window.__roleGate;
+  }
 });
 
 /* ---- a verb on its way, the page's own checks, and the area code's Enter ---- */

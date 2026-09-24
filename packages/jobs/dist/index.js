@@ -938,6 +938,9 @@ var LeadSearchPlanSchema = z4.object({
 var US_NAMES = Object.fromEntries(
   Object.entries(US_STATES).map(([name2, code2]) => [code2, name2])
 );
+var FIRST_RUN_ROUTE = "start";
+var FIND_PARAM = "find";
+var FIRST_RUN_FIND_ROUTE = `${FIRST_RUN_ROUTE}/${FIND_PARAM}`;
 var LEAD_CLASSES = LEAD_MEMBER_CLASSES;
 var LEAD_LISTS = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
 var LEAD_SORTS = ["fit", "found", "distance", "business", "rating", "stage"];
@@ -7619,6 +7622,9 @@ var LeadSearchPlanSchema2 = z42.object({
 var US_NAMES2 = Object.fromEntries(
   Object.entries(US_STATES2).map(([name2, code2]) => [code2, name2])
 );
+var FIRST_RUN_ROUTE2 = "start";
+var FIND_PARAM2 = "find";
+var FIRST_RUN_FIND_ROUTE2 = `${FIRST_RUN_ROUTE2}/${FIND_PARAM2}`;
 var LEAD_CLASSES2 = LEAD_MEMBER_CLASSES2;
 var LEAD_LISTS2 = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
 var LEAD_SORTS2 = ["fit", "found", "distance", "business", "rating", "stage"];
@@ -10378,6 +10384,9 @@ var LeadSearchPlanSchema3 = z43.object({
 var US_NAMES3 = Object.fromEntries(
   Object.entries(US_STATES3).map(([name2, code2]) => [code2, name2])
 );
+var FIRST_RUN_ROUTE3 = "start";
+var FIND_PARAM3 = "find";
+var FIRST_RUN_FIND_ROUTE3 = `${FIRST_RUN_ROUTE3}/${FIND_PARAM3}`;
 var LEAD_CLASSES3 = LEAD_MEMBER_CLASSES3;
 var LEAD_LISTS3 = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
 var LEAD_SORTS3 = ["fit", "found", "distance", "business", "rating", "stage"];
@@ -12166,6 +12175,9 @@ var LeadSearchPlanSchema22 = z422.object({
 var US_NAMES22 = Object.fromEntries(
   Object.entries(US_STATES22).map(([name2, code2]) => [code2, name2])
 );
+var FIRST_RUN_ROUTE22 = "start";
+var FIND_PARAM22 = "find";
+var FIRST_RUN_FIND_ROUTE22 = `${FIRST_RUN_ROUTE22}/${FIND_PARAM22}`;
 var LEAD_CLASSES22 = LEAD_MEMBER_CLASSES22;
 var LEAD_LISTS22 = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
 var LEAD_SORTS22 = ["fit", "found", "distance", "business", "rating", "stage"];
@@ -13927,6 +13939,9 @@ var LeadSearchPlanSchema32 = z432.object({
 var US_NAMES32 = Object.fromEntries(
   Object.entries(US_STATES32).map(([name2, code2]) => [code2, name2])
 );
+var FIRST_RUN_ROUTE32 = "start";
+var FIND_PARAM32 = "find";
+var FIRST_RUN_FIND_ROUTE32 = `${FIRST_RUN_ROUTE32}/${FIND_PARAM32}`;
 var LEAD_CLASSES32 = LEAD_MEMBER_CLASSES32;
 var LEAD_LISTS32 = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
 var LEAD_SORTS32 = ["fit", "found", "distance", "business", "rating", "stage"];
@@ -16208,6 +16223,9 @@ var LeadSearchPlanSchema4 = z44.object({
 var US_NAMES4 = Object.fromEntries(
   Object.entries(US_STATES4).map(([name2, code2]) => [code2, name2])
 );
+var FIRST_RUN_ROUTE4 = "start";
+var FIND_PARAM4 = "find";
+var FIRST_RUN_FIND_ROUTE4 = `${FIRST_RUN_ROUTE4}/${FIND_PARAM4}`;
 var LEAD_CLASSES4 = LEAD_MEMBER_CLASSES4;
 var LEAD_LISTS4 = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
 var LEAD_SORTS4 = ["fit", "found", "distance", "business", "rating", "stage"];

@@ -33,13 +33,30 @@ test.describe("Google on a real workspace", () => {
     const ready: boolean = data.google.ready.places;
     const profile: boolean = data.google.ready.profile;
     const linked = !!data.google.listing;
+    // Google's row put off by this member ("We're not on Google"), in their saved view.
+    const views = (await (await apiGet(page, "/api/v1/views")).json()).data?.views ?? {};
+    const putOff = Array.isArray(views.setup?.later) && views.setup.later.includes("google");
 
     // The listing is the first step's, which every workspace has reached.
     await page.goto("/#/start/business");
     await page.waitForLoadState("networkidle");
     await expect(page.getByTestId("first-run")).toBeVisible();
     const row = page.getByTestId("setup-row-google");
+    const find = page.getByTestId("fr-find");
     if (!ready && !profile) {
+      await expect(row).toHaveCount(0);
+      await expect(find).toHaveCount(0);
+    } else if (ready && !linked && !putOff) {
+      // The owner, nothing linked: the step opens on Find, Google's answer for the name on record. Nothing is linked here.
+      await expect(find).toBeVisible();
+      await expect(page.getByTestId("fr-heading")).toContainText(/^Is this |^Which one is your business\?/);
+      await expect(
+        find
+          .getByTestId("fr-find-hit")
+          .first()
+          .or(find.getByTestId("fr-find-none"))
+          .or(find.getByTestId("fr-find-failed")),
+      ).toBeVisible({ timeout: 20000 });
       await expect(row).toHaveCount(0);
     } else {
       await expect(row).toBeVisible();

@@ -256,8 +256,12 @@ test("a refresh, a draft and a reply are an operator's, each judged in its words
   assert.equal(tables.decisions.length, 0, "a reply that did not go through is not a decision");
 });
 
-test("a search is the owner's: with no words of its own it uses the facts on record, and with none of those it asks for them; with words it stops at the edge's credential", async () => {
-  const tables = { memberships: both("operator", "owner"), tenant_config: [] };
+test("a search is the owner's: with no words of its own it uses the facts on record, then the name typed at sign-up, and with none of those it asks for them; with words it stops at the edge's credential", async () => {
+  const tables = {
+    memberships: both("operator", "owner"),
+    tenant_config: [],
+    tenants: [{ id: B, name: "Al", timezone: "America/Chicago" }],
+  };
   await refused(
     search.POST.run(send("POST", { query: "Bayside Salon, Chicago" }, inA), ctxFor(tables)),
     "forbidden",
@@ -268,6 +272,14 @@ test("a search is the owner's: with no words of its own it uses the facts on rec
     "validation",
     400,
     "Give the business name and where it is",
+  );
+  // A new workspace has no receptionist yet: the name typed at sign-up is the workspace's own, and the search asks it.
+  tables.tenants[0].name = "Bayside Studio";
+  await refused(
+    search.POST.run(send("POST", {}, inB), ctxFor(tables)),
+    "internal",
+    502,
+    "Google could not be searched just now",
   );
   await refused(
     search.POST.run(send("POST", { query: "Bayside Salon, Chicago" }, inB), ctxFor(tables)),

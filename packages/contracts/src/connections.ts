@@ -21,7 +21,7 @@ import { checkedWords, connectionWords, listingLine } from "./google";
 import { formatPhoneDisplay } from "./phone";
 import { CALENDAR_FEED_WORDS } from "./calendar";
 import { EMAIL_NOT_ANSWERED_SENTENCE, type EmailSetupDto } from "./mailbox";
-import { firstRunStepRoute } from "./first-run";
+import { firstRunStepRoute, FIRST_RUN_FIND_ROUTE } from "./first-run";
 
 export type ConnectionKind =
   "whatsapp" | "phone" | "sms" | "google_listing" | "google_profile" | "calendar" | "instagram" | "email" | "deposits";
@@ -521,7 +521,7 @@ export function connectionRows(i: ConnectionInputs, nowMs = Date.now()): Connect
         state: "none",
         stateWords: "Not watched",
         sentence: "Find it from the name and address on record; new reviews then reach your bell and Reports.",
-        verb: { label: "Find it", to: firstRunStepRoute("business"), who: "owner" },
+        verb: { label: "Find it", to: FIRST_RUN_FIND_ROUTE, who: "owner" },
       }),
     );
   } else {

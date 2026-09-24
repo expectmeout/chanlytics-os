@@ -154,11 +154,7 @@ test("the wiring: the pill is retired, the shell bridge carries its two actions 
     app.includes('window.addEventListener("shell:create-workspace", on);') &&
       app.includes("onCancel={() => setCreating(false)}"),
   );
-  const create = readCode("apps/dashboard/src/legacy-bridge/CreateWorkspace.tsx");
-  assert.ok(
-    create.includes('{another ? "New workspace" : "Create your workspace"}') &&
-      create.includes('data-testid="create-workspace-back"'),
-  );
+  // Another workspace's own title and its Back: create-workspace-screen.test.mjs draws the screen and presses them.
   assert.ok(bridge.includes("statusLine: shellStatusLine,") && bridge.includes("themes: THEME_OPTIONS,"));
 
   const shell = readCode("apps/dashboard/src/legacy/pages/app-shell.jsx");

@@ -9,7 +9,8 @@ const setupTone = (state) => (window.__chrome && window.__chrome.state ? window.
 
 
 // Who may press a row's verb, and what pressing does, for the gate's sentence
-// (contracts refusal.ts roleGate). A verb that opens a panel or a page is anyone's;
+// (contracts refusal.ts roleGate). A verb that opens a panel or a page is anyone's,
+// but for a page that is only an owner's (Find, where searching and linking are);
 // these reach doors that refuse everyone else (requireRole), and the button says so
 // before the press -- it used to say so after, in a toast.
 const SETUP_GATES = [
@@ -21,6 +22,9 @@ const SETUP_GATES = [
   ["verb:retry-line:", "team", "retry a line"],
   ["verb:activate:", "team", "activate a capability"],
   ["verb:deactivate:", "team", "withdraw an activation"],
+  // Google's row opens the first run's Find (contracts FIRST_RUN_FIND_ROUTE), and searching and linking are an
+  // owner's (the routes say so too).
+  ["start/find", "team", "find the business on Google"],
 ];
 const setupGate = (verb) => {
   const hit = verb && verb.to ? SETUP_GATES.find(([to]) => (to.endsWith(":") ? verb.to.startsWith(to) : verb.to === to)) : null;
@@ -221,71 +225,6 @@ const ForwardingCard = ({ S, flash, onDone }) => {
   );
 };
 
-// The finder under the Google row: what Google finds for the name and
-// address on record, one tap to confirm; a few words of your own when the
-// first search misses. Linking is an owner's move; the route says so too.
-const ListingFinder = ({ flash, onDone }) => {
-  const [query, setQuery] = React.useState("");
-  const [busy, setBusy] = React.useState(true);
-  const [result, setResult] = React.useState(null);
-  React.useEffect(() => {
-    let on = true;
-    if (!window.__google) { setBusy(false); return undefined; }
-    window.__google.find().then((r) => {
-      if (!on) return;
-      setBusy(false);
-      setResult(r.ok ? { candidates: r.candidates, query: r.query, fromFacts: r.fromFacts, failed: "" } : { candidates: [], query: "", fromFacts: true, failed: r.message });
-    });
-    return () => { on = false; };
-  }, []);
-  const search = async () => {
-    const words = query.replace(/\s+/g, " ").trim();
-    if (!window.__google || busy || words.length < 3) return;
-    setBusy(true);
-    const r = await window.__google.find(words);
-    setBusy(false);
-    setResult(r.ok ? { candidates: r.candidates, query: r.query, fromFacts: false, failed: "" } : { candidates: [], query: words, fromFacts: false, failed: r.message });
-  };
-  const link = async (c) => {
-    if (!(window.canDo && window.canDo("team"))) return;
-    if (!window.__google || busy) return;
-    setBusy(true);
-    const r = await window.__google.link(c.place_id);
-    setBusy(false);
-    flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <><b>{c.name}</b> is your listing on Google{r.read ? " — read just now" : " — Google will be read within the hour"}.</> : <>{r.message}</> });
-    if (r.ok) onDone();
-  };
-  let lead;
-  if (result === null) lead = "Looking on Google…";
-  else if (result.failed) lead = result.failed;
-  else if (result.candidates.length) lead = result.fromFacts ? "Found with the name and address on record — is one of these you?" : `Found for “${result.query}” — is one of these you?`;
-  else lead = result.fromFacts ? "Nothing found with the name and address on record. Try a few words of your own:" : `Nothing found for “${result.query}”. Try other words:`;
-  return (
-    <section className="setup-chooser setup-google" data-testid="setup-google-finder">
-      <div className="setup-ask"><span className="setup-ask-text" data-testid="setup-google-lead">{lead}</span></div>
-      {result && result.candidates.length > 0 && (
-        <div className="setup-places" data-testid="setup-places">
-          {result.candidates.map((c) => (
-            <div key={c.place_id} className="setup-place" data-testid="setup-place">
-              <span className="setup-place-body">
-                <span className="setup-place-name">{c.name}</span>
-                <span className="setup-place-where">{c.address || "no address on Google"}</span>
-              </span>
-              {c.maps_uri && <a className="cl-bucket-link" href={c.maps_uri} target="_blank" rel="noreferrer">See it on Maps</a>}
-              <button className="btn btn-primary btn-sm" onClick={() => link(c)} disabled={busy} data-testid="setup-place-link" {...window.gate("team", "link the listing")}>This is it</button>
-            </div>
-          ))}
-        </div>
-      )}
-      <div className="setup-google-row">
-        <input className="setup-area setup-fw-input" placeholder="Name and city, like Northside Movers Brooklyn" value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") search(); }} data-testid="setup-google-query" />
-        <button className="btn btn-sm" onClick={search} disabled={busy || query.trim().length < 3} data-testid="setup-google-search">{busy ? "Looking…" : "Search again"}</button>
-        <button className="cl-bucket-link" onClick={onDone}>Close</button>
-      </div>
-    </section>
-  );
-};
-
 /**
  * One of Setup's rows as Today's card draws it (canvas R10): its state as a dot (the word is the dot's name), its name
  * and sentence, and its acts at the right: the next one coral, the others outlined, putting it off a quiet link.
@@ -317,7 +256,7 @@ const SetupCardRow = ({ tone, stateWords, name, sentence, left = null, cta = nul
 
 /**
  * Setup's rows, as attention rows, with everything a row does: a route, a dial, or one of the rows' own acts (asking a
- * person, the line chooser, forwarding, the Google finder, activation, billing), each behind its door's role
+ * person, the line chooser, forwarding, activation, billing), each behind its door's role
  * (SETUP_GATES). `rows` are Setup's (contracts setupSteps), in the order to draw them; `primary` names the row whose
  * button is the one coral action; `later` is what a row's second button says, the caller's (contracts): the first
  * run's Later keeps the row drawn with its undo, Today's Skip takes it off the card and says so in a toast with Undo
@@ -331,7 +270,6 @@ const SetupRows = ({ S, rows, later, look, primary = null, left = null, flash: l
   const flash = lent || own;
   const [chooser, setChooser] = React.useState(false);
   const [forwarding, setForwarding] = React.useState(false);
-  const [finder, setFinder] = React.useState(false);
   // The verb on its way, if any. Its button shows busy, and a second press -- the same row's or another row's --
   // waits for it to land instead of sending again (S23).
   const [pending, setPending] = React.useState(null);
@@ -367,7 +305,6 @@ const SetupRows = ({ S, rows, later, look, primary = null, left = null, flash: l
     }
     if (verb.to === "verb:choose-line") { setChooser((v) => !v); return; }
     if (verb.to === "verb:forwarding") { setForwarding((v) => !v); return; }
-    if (verb.to === "verb:google-find") { setFinder((v) => !v); return; }
     if (verb.to === "verb:billing-checkout" || verb.to === "verb:billing-portal") {
       if (!(window.canDo && window.canDo("billing"))) return;
       if (!window.__billing) return;
@@ -414,6 +351,8 @@ const SetupRows = ({ S, rows, later, look, primary = null, left = null, flash: l
       return;
     }
     if (verb.to.startsWith("tel:")) { window.location.href = verb.to; return; }
+    // A route behind a gate (Google's row, Find) goes nowhere for a role that may not press it, however it is reached.
+    if (setupGated(verb)) return;
     nav(verb.to);
   };
   // Put off, or taken back: this member's, saved to their view (legacy-bridge/setup.ts later), and said when it was not.
@@ -462,7 +401,6 @@ const SetupRows = ({ S, rows, later, look, primary = null, left = null, flash: l
           )}
           {r.id === "line" && chooser && <LineChooser S={S} flash={flash} onDone={() => setChooser(false)} onKeep={() => setForwarding(true)} />}
           {r.id === "keep" && forwarding && <ForwardingCard S={S} flash={flash} onDone={() => setForwarding(false)} />}
-          {r.id === "google" && finder && <ListingFinder flash={flash} onDone={() => setFinder(false)} />}
         </div>
         );
       })}

@@ -205,7 +205,7 @@ test("Google's doors: Connect where open with the audience said, choose where se
     !open.google_profile.sentence.includes("Google is reviewing"),
     "nothing to say when the audience is not set",
   );
-  assert.deepEqual(open.google_listing.verb, { label: "Find it", to: "start/business", who: "owner" });
+  assert.deepEqual(open.google_listing.verb, { label: "Find it", to: "start/find", who: "owner" });
   const testing = by(
     connectionRows(
       {

@@ -20,6 +20,7 @@ import { reviewReplyWords, type ReviewReplyMode } from "./review-reply";
 import { dayDate, fmtDay, deltaOf, type ReportTileVM } from "./reports";
 import { DAYS, dayProblems, type Hours } from "./config";
 import { WEEKDAY_KEYS } from "./availability";
+import { normalizePhone } from "./phone";
 
 /** A moment in Google's week: day 0 is Sunday. */
 export type GooglePoint = {
@@ -167,11 +168,22 @@ export interface GoogleDto {
 }
 
 /** What a search found: what the owner confirms with one tap. */
+/**
+ * The owner's words as Google's search should read them: a phone number, written any way, goes whole and with its
+ * country (E.164), which Google needs to match a listing by its number; anything with a letter in it goes as typed.
+ */
+export function placesQueryOf(words: string): string {
+  const w = words.replace(/\s+/g, " ").trim();
+  return /^[\d\s().+-]+$/.test(w) ? (normalizePhone(w) ?? w) : w;
+}
+
 export interface GoogleCandidateDto {
   place_id: string;
   name: string;
   address: string | null;
   maps_uri: string | null;
+  /** Google's name for the kind of place ("Moving company"), when it gives one: it tells two listings of one name apart. */
+  category: string | null;
 }
 
 /** A location of the connected account, for the owner to choose. */

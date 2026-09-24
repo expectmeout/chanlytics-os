@@ -12,6 +12,10 @@ import {
   firstRunOf,
   firstRunStepOf,
   firstRunStepRoute,
+  firstRunKicker,
+  FIRST_RUN_WORDS,
+  FIRST_RUN_FIND_ROUTE,
+  businessNameOf,
   setupCardOf,
   receptionistCardOf,
   shouldLandOnFirstRun,
@@ -156,6 +160,80 @@ test("answering: Live is current, with what is left after, and Finish goes to To
   assert.equal(fr.primaryRow, null, "on Live the one action is Finish");
   assert.deepEqual(fr.onward, { label: "Finish", to: "today", leaves: true }, "Finish is a way out");
   assert.equal(fr.progress, 100);
+});
+
+test("Find is the business step for an owner while Google can be searched and nothing is linked or put off", () => {
+  const g = (over = {}) => empty({ google: { ready: true, places: true, listing: null, connected: false }, ...over });
+  // A new workspace's owner: no receptionist's name yet, the one typed at sign-up.
+  const owner = { owner: true, receptionistName: null, workspaceName: "Harbor Moving" };
+  const fr = firstRunOf(setupSteps(g(), NOW), null, owner);
+  assert.equal(fr.find, true);
+  assert.equal(fr.shown.key, "business");
+  assert.equal(fr.heading, "Is this Harbor Moving?", "the name typed at sign-up");
+  assert.equal(fr.lead, "We looked you up on Google with the name you signed up with.");
+  assert.equal(fr.primaryRow, null, "Find's rows are not drawn, so none of them carries the coral button");
+  assert.equal(fr.findDone, null, "the plain address: Find goes by itself once Google is put off");
+  assert.equal(
+    firstRunOf(setupSteps(g(), NOW), null, { ...owner, owner: false }).find,
+    false,
+    "search and link are the owner's",
+  );
+  assert.equal(firstRunOf(setupSteps(g(), NOW)).find, false, "and nobody is an owner unless the page says so");
+  const named = firstRunOf(setupSteps(g(), NOW), null, { ...owner, receptionistName: "Harbor Moving & Storage" });
+  assert.equal(named.heading, "Is this Harbor Moving & Storage?", "the receptionist's own name first");
+  assert.equal(named.lead, "We looked you up on Google with the name and address on record.", "as the search asks it");
+  const putOff = setupSteps(g({ later: ["google"] }), NOW);
+  assert.equal(firstRunOf(putOff, null, owner).find, false, "said: not on Google");
+  const asked = firstRunOf(putOff, "find", owner);
+  assert.equal(asked.find, true, "but Find it asks for Find, whatever was said before");
+  assert.equal(asked.shown.key, "business");
+  assert.equal(asked.findDone, "start", "and not on Google, again, goes to the step's own address");
+  const linked = g({
+    google: {
+      ready: true,
+      places: true,
+      listing: { name: "Harbor Moving", rating: 4.8, review_count: 12, checked_at: null, check_error: null },
+      connected: false,
+    },
+  });
+  assert.equal(firstRunOf(setupSteps(linked, NOW), "find", owner).find, false, "a listing linked is found");
+  const profileOnly = g({ google: { ready: true, places: false, listing: null, connected: false } });
+  assert.equal(
+    firstRunOf(setupSteps(profileOnly, NOW), "find", owner).find,
+    false,
+    "no search here: the profile's door",
+  );
+  assert.equal(firstRunOf(setupSteps(empty(), NOW), "find", owner).find, false, "no Google on this deployment");
+  const done = setupSteps(g({ business: facts }), NOW);
+  assert.equal(firstRunOf(done, null, owner).find, false, "the phone step, once the facts are in");
+  const again = firstRunOf(done, "business", owner);
+  assert.equal(again.find, true, "the business step looked at again still finds");
+  assert.equal(again.onward, null, "one coral button a step: Find's, not Continue beside it");
+});
+
+test("what the business goes by is one rule: the receptionist's name, else the one typed at sign-up", () => {
+  assert.equal(businessNameOf("  Harbor Moving ", "harbor"), "Harbor Moving");
+  assert.equal(businessNameOf("", "Harbor Moving"), "Harbor Moving");
+  assert.equal(businessNameOf(null, "  "), null);
+});
+
+test("Find says only what Google said, in the owner's words", () => {
+  const W = FIRST_RUN_WORDS.find;
+  assert.equal(W.heading("Harbor Moving"), "Is this Harbor Moving?");
+  assert.equal(W.heading(null), "Which one is your business?");
+  assert.equal(W.none("Harbor Moving"), "Nothing on Google for “Harbor Moving”.");
+  assert.equal(W.linked("Harbor Moving", true), "Harbor Moving is your listing on Google — read just now.");
+  assert.equal(
+    W.linked("Harbor Moving", false),
+    "Harbor Moving is your listing on Google — Google will be read within the hour.",
+  );
+  assert.equal(FIRST_RUN_FIND_ROUTE, "start/find");
+});
+
+test("the step line is one sentence wherever it is said", () => {
+  assert.equal(firstRunKicker("business"), "Step 1 of 4 · Your business");
+  assert.equal(firstRunKicker("live"), "Step 4 of 4 · Live");
+  assert.equal(firstRunOf(setupSteps(empty(), NOW)).phoneLine, firstRunKicker("business"));
 });
 
 test("an address names a step or nothing", () => {
