@@ -564,7 +564,8 @@ Object.assign(window, { touchSwipe, leaving, leaveOverlay });
 //   needed, so no blank stays at the foot;
 // - a control that moved anyway (what changed was above it: a list shrinking over its "Show fewer") is scrolled back to
 //   where it was.
-// Where nothing scrolls, or the control is gone after the change, the change just runs.
+// A control the change took with it (Mark all read, a form's "Not right?") still has the page held where it stood.
+// Where nothing scrolls, the change just runs. A change that lands later (after a server answers) is not held.
 const holdScroller = (from) => {
   for (let n = from && from.parentElement; n && n !== document.body && n !== document.documentElement; n = n.parentElement) {
     const over = window.getComputedStyle ? window.getComputedStyle(n).overflowY : "visible";
@@ -608,13 +609,14 @@ const holdStill = (control, change) => {
   // Drawn now, so where the page and the control landed are read before anything is painted.
   const flush = window.ReactDOM && window.ReactDOM.flushSync;
   if (flush) flush(run); else run();
-  if (!box || !control.isConnected) return;
+  if (!box) return;
   // Pulled back: the page came out shorter than where it stood. The difference goes under everything, and the page back.
   const pulled = Math.ceil(at - box.scrollTop);
   if (pulled >= 1) {
     holdRoom(box, pulled);
     box.scrollTop = at;
   }
+  if (!control.isConnected) return;
   const moved = control.getBoundingClientRect().top - was;
   if (Math.abs(moved) >= 1) box.scrollTop += moved;
 };

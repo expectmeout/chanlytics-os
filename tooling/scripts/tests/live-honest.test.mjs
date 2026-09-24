@@ -257,6 +257,22 @@ test("REGRESSION (A20, L8): an ended call's card leads with what the caller want
   assert.ok(!textOf(tree).includes("Open client"));
 });
 
+test("REGRESSION: who is calling opens their page, and their number rings them -- the name was words beside an Open profile button, and the number words to type again", () => {
+  withLive([ended()]);
+  const tree = mount();
+  const who = byTestId(tree, "lm-head-person");
+  assert.ok(who, "the caller's name is a link");
+  assert.equal(who.type, "a");
+  assert.equal(who.props.href, "#/clients/c7", "to their page");
+  assert.equal(textOf(who), "Emily Chen");
+  const tel = find(tree, (n) => n.type === "a" && String(n.props?.href || "").startsWith("tel:"));
+  assert.ok(tel, "the number is a link that rings them");
+  assert.equal(tel.props.href, "tel:+19175550106");
+  // Nobody behind the call: the name stays words.
+  withLive([ended({ contact_id: null, contact: null })]);
+  assert.ok(!byTestId(mount(), "lm-head-person"), "no link where there is no page");
+});
+
 test("REGRESSION (A20, A25): a caller's row shows their initials, and the rows take the keyboard -- Tab reaches them, Enter opens one, arrows move", () => {
   const ada = call({
     id: "c-live-2",

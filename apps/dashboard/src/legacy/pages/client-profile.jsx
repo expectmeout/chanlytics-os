@@ -966,10 +966,9 @@ const PersonTimeline = ({ items, initials, filter = "all", onFilter = null, show
   // A fold of three rows is not worth a press.
   const visible = showAll || shown.length <= TL_CAP + 3 ? shown : shown.slice(0, TL_CAP);
   const older = shown.length - visible.length;
-  // The app's routes are hashes (`/#/inbox/th-…`). NOT window.__href: that is the bridge's API URL builder
+  // A row's door is the app's one link (data-bits routeDoor): its hash route in the href, so a new tab or a long press
+  // opens it, and the app's own way there on a plain press. NOT window.__href: that is the bridge's API URL builder
   // ("GET contacts/export" → a route table → `.path`), and handed a route it threw, and the whole pane with it.
-  const href = (to) => `#/${to}`;
-  const go = (to) => (e) => { if (e && e.preventDefault) e.preventDefault(); window.CHANLY.nav(to); };
   return (
     <>
       {offered.length > 2 && (
@@ -1016,7 +1015,7 @@ const PersonTimeline = ({ items, initials, filter = "all", onFilter = null, show
               <React.Fragment key={e.id}>
                 {dayHead}
                 {e.link ? (
-                  <a className="cl-tl-row cl-tl-row-door" href={href(e.link.to)} onClick={go(e.link.to)} title={e.link.label} data-testid="timeline-open">{body}</a>
+                  <a className="cl-tl-row cl-tl-row-door" {...window.routeDoor(e.link.to)} title={e.link.label} data-testid="timeline-open">{body}</a>
                 ) : (
                   <div className="cl-tl-row">{body}</div>
                 )}

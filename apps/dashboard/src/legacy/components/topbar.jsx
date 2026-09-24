@@ -425,7 +425,7 @@ const Topbar = ({
               {/* A crumb may carry the page's own way there (`go`): a person's People is their page's Back, to the list
                   they were opened from with its place, as the arrow on the page was. */}
               {to && !last
-                ? <button className="crumb-link" onClick={() => (c.go ? c.go() : window.CHANLY.nav(to))}>{label}</button>
+                ? <button className="crumb-link" onClick={() => (c.go ? c.go() : window.CHANLY.nav(to))} aria-label={c.go ? `Back to ${label}` : undefined}>{label}</button>
                 : <span className={last ? "crumb-active" : ""}>{label}</span>}
             </React.Fragment>
           );

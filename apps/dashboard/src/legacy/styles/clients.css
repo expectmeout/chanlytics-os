@@ -1491,10 +1491,12 @@
    words took two lines and the gap between them. */
 .cl-prof-deal:has(> .cl-prof-deal-none) { flex-direction: row; align-items: baseline; flex-wrap: wrap; column-gap: 12px; }
 /* The deal's quiet words keep a thumb's press around them, not a box of it: a 44px box made each line of words as
-   tall as a button. */
+   tall as a button. The 26px words and 9px above and below are the 44px; the acts' rows stand 18px apart when they
+   wrap, so no press reaches into the row above it (at 4px apart, "They passed" took a press meant for "Follow up"). */
 @media (pointer: coarse) {
+  html.legacy-on .cl-prof-deal-acts { row-gap: 18px; }
   html.legacy-on .cl-prof-deal-act { min-height: 0; position: relative; }
-  html.legacy-on .cl-prof-deal-act::after { content: ""; position: absolute; inset: -12px -8px; }
+  html.legacy-on .cl-prof-deal-act::after { content: ""; position: absolute; inset: -9px -8px; }
 }
 .cl-prof-deal-said { margin: 0; min-width: 0; font-size: 12.5px; line-height: 1.5; color: var(--ink-muted); }
 .cl-prof-deal-sub { color: var(--ink-dim); }

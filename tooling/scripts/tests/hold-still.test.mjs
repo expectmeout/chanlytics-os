@@ -156,6 +156,16 @@ test("a second switch adds to the room it already has, and back to a long list t
   assert.equal(p.box.style.paddingBottom, "", "a page long enough on its own needs no room");
 });
 
+test("REGRESSION: a control the change takes with it still has the page held -- Mark all read and a form's Not right? left the page to be pulled back", () => {
+  const p = page();
+  holdStill(p.control, () => {
+    p.control.isConnected = false; // the last row read: the button goes with the list
+    p.at.content = 1760;
+  });
+  assert.equal(p.box.scrollTop, 1326, "the page stands where it stood");
+  assert.equal(p.box.style.paddingBottom, "262px", "with the room it lacked at its foot");
+});
+
 test("a control that moved anyway (what changed was above it) is scrolled back to where it was", () => {
   const p = page({ top: 800, controlAt: 1200 });
   const before = p.screenTop();

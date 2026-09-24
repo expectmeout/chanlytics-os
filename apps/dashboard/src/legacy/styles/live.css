@@ -198,9 +198,13 @@
 .lm-head-who, .lm-head-tel { color: inherit; text-decoration: none; border-radius: var(--radius-xs); -webkit-tap-highlight-color: transparent; }
 .lm-head-who:hover, .lm-head-tel:hover { text-decoration: underline; text-decoration-color: var(--ink-faint); text-underline-offset: 3px; }
 .lm-head-who:focus-visible, .lm-head-tel:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+/* The name's reach grows up, into the head's padding, and the number's down, so the two never share a pixel: both
+   reaching 12px each way, a press on the name's lower edge rang the number. */
 @media (pointer: coarse) {
   .lm-head-who, .lm-head-tel { position: relative; }
-  .lm-head-who::after, .lm-head-tel::after { content: ""; position: absolute; inset: -12px -6px; }
+  .lm-head-who::after, .lm-head-tel::after { content: ""; position: absolute; }
+  .lm-head-who::after { inset: -12px -6px -2px; }
+  .lm-head-tel::after { inset: -2px -6px -12px; }
 }
 .lm-callid { font-size: 10.5px; color: var(--ink-faint); }
 /* The controls are a row that can wrap -- the confirmation "End the call? … Yes, end it" is wider than a
