@@ -612,6 +612,78 @@ test("Find N leads commits the card through the route, and a refusal is said und
   );
 });
 
+/* ------------------------------------------ answering a search's question -- */
+
+/** What the page hands the finder when it opens under a waiting search's question (clients-a.jsx answerOf). */
+const ANSWERING = {
+  searchId: "s-b",
+  purpose: "topup",
+  answer: true,
+  question: "Most of the first 25 are chain gyms, which I'm leaving out. Is that what you meant?",
+  baseVersion: 1,
+  count: 200,
+  name: "personal trainers",
+  asked: PLAN.asked,
+  leavingOut: ["Chain gyms"],
+};
+
+test("answering: the composer says the question, sends one turn that names the search and the answer, and the card comes back as the next version at the same count", async () => {
+  const sent = [];
+  const amended = { ...PLAN, count: 50, exclusions: [], asked: "include the chains too" };
+  globalThis.window.__ask = {
+    send: async (input, on) => {
+      sent.push(input);
+      on({ t: "final", message: { text: "", proposals: [{ ...CARD, payload: { ...CARD.payload, plan: amended } }] } });
+    },
+  };
+  const { st, set } = page({ words: "include the chains too" });
+  set.more = ANSWERING;
+  const tree = drawFinder(st, { answering: ANSWERING });
+  assert.equal(textOf(byTestId(tree, "finder-answering")), ANSWERING.question, "the question stays in view");
+  assert.equal(byTestId(tree, "finder-input").props.placeholder, "Tell Claude what you meant");
+  assert.equal(byTestId(tree, "lead-finder").props["aria-label"], "Change the search");
+  assert.equal(byTestId(tree, "finder-suggestions"), null, "no suggestions while answering");
+  await globalThis.window.leadFinderPlan(st.words, set);
+  assert.equal(sent.length, 1, "one turn");
+  assert.match(sent[0].text, /my search for personal trainers stopped to ask/);
+  assert.match(sent[0].text, /Most of the first 25 are chain gyms/);
+  assert.match(sent[0].text, /leaving out Chain gyms/);
+  assert.match(sent[0].text, /My answer: include the chains too\./);
+  assert.match(sent[0].text, /keep everything I did not change/);
+  assert.deepEqual(
+    [st.stage, st.plan.version, st.plan.count, st.plan.exclusions],
+    ["plan", 2, 200, []],
+    "the round's next version, at the count the round reserved",
+  );
+});
+
+test("answering: the card's count is words, its button updates the search, and approving answers include at the next version even from Ask's card and after picks", async () => {
+  const st = { plan: { ...PLAN, version: 2, exclusions: [] }, pick: null, refusal: null };
+  const tree = drawCard(st, { answering: ANSWERING, facts: { ...FACTS, leadsLeft: 3, bound: "allowance" } });
+  assert.equal(byTestId(tree, "plan-count"), null, "the reservation was made for this count: it is not a picker");
+  assert.match(textOf(byTestId(tree, "plan-sentence")), /200/);
+  assert.match(textOf(byTestId(tree, "plan-approve")), /Update the search/);
+  assert.equal(byTestId(tree, "plan-approve").props.disabled, false, "the month's clamp is not this round's");
+  assert.equal(byTestId(tree, "plan-covers"), null);
+  assert.equal(byTestId(tree, "plan-title"), null, "no Find N title over an answer");
+  const answered = [];
+  globalThis.window.__leadSearchAnswer = async (id, a, plan) => {
+    answered.push([id, a, plan.version, plan.count]);
+    return { ok: true };
+  };
+  globalThis.window.__ask = {
+    commit: async () => {
+      throw new Error("an answer never starts a new search");
+    },
+  };
+  const { st: s2, set } = page({ stage: "plan", proposal: CARD, plan: { ...PLAN, version: 4, count: 50 } });
+  set.more = ANSWERING;
+  const r = await globalThis.window.leadFinderApprove(s2.proposal, s2.plan, set);
+  assert.equal(r.ok, true);
+  assert.deepEqual(answered, [["s-b", "include", 2, 200]], "the version after the round's, the count it reserved");
+  assert.deepEqual([s2.open, s2.stage], [false, "compose"]);
+});
+
 test("near the month's limit the card offers what is left and says when the leads renew", () => {
   const st = { plan: PLAN, pick: null, refusal: null };
   const month = drawCard(st, { facts: { ...FACTS, leadsLeft: 36, bound: "allowance" } });

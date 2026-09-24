@@ -138,6 +138,8 @@
    the question in the accent, or one of the nine endings. The phone's own
    stacking of these is in the 900px block at the foot of this file. */
 
+/* The question a search asked, over the input that answers it (Change what I asked). */
+.lf-answering { margin: 0 0 8px; color: var(--ink-dim); font-size: var(--text-sm); line-height: 1.4; }
 .lf-strip {
   position: relative; margin: 10px var(--gutter-page) 0; display: flex; align-items: center; flex-wrap: wrap;
   gap: 6px 10px; padding: 4px 6px 4px 14px; min-height: 44px; border: 1px solid var(--line); border-radius: 10px;
