@@ -109,15 +109,16 @@ answers…", and the three "Always on" rules as a 78px card.
   ("Welcome has nobody to send to") takes a line of its own under them, and "not set up" is left to the group.
 - Every list row is **People's row**, on the row tokens (`--row-pad-y/x`, `--row-gap`, the three lines):
   a playbook — name and state; who it reaches; the next run and the runs. A run — name and state; how it was sent,
-  when, who it reached; Approve and Skip only when it waits. A template — title and language; the quote; what sends it
-  and what went out.
+  when, who it reached; Approve and Skip only when it waits. A template — its title; the quote; what sends it
+  and what went out (its languages are its open row's).
 - Not set up is a list of one-line rows; the week strip keeps its seven cells.
 
 ## 4. What does not change
 
 Every sentence a number sits in is still the view model's or the bridge's; no count is added, none is derived here.
 The composers (the playbook sheet, the send screen, a template), the run's report and its approval sheet, the routes,
-the doors, the gates and the test ids keep their shape.
+the doors and the gates keep their shape, and so do the test ids, but for two a design change retired: `bc-waiting`
+(the flag that repeated the filter) and `template-origin` (the chip that is now the open row's foot).
 
 ## 5. PRs
 

@@ -1,9 +1,9 @@
 /* global React, Icon, Confirm, EmptyState, FailedRead, StatePill */
 // Campaigns › Templates: the wording the receptionist and the campaigns send on
-// WhatsApp, shown as the customer sees it. One card per message — the
+// WhatsApp, shown as the customer sees it. One row per message — the
 // starter set in the library's order, then what the workspace wrote or
-// synced — with the bubble for the language in view, the languages beside
-// it (approved, in review, or one tap to add), and the verbs an operator
+// synced — opening on the bubble for the language in view, its languages
+// (approved, in review, or one tap to add), and the verbs an operator
 // has under a menu. Meta's own sample is never shown; a template the
 // workspace hid sits under a fold, still on file. Written here or in
 // WhatsApp Manager, WhatsApp approves either way; a marketing template can
@@ -24,10 +24,10 @@ const tplAgo = (iso) => {
 // under the messages named English and Spanish in the markup, so a workspace
 // that answers in neither read a sentence about two languages it does not have.
 const tplAnd = (words) => (words.length < 2 ? words[0] || "" : `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}`);
-// A number said as a word inside a sentence -- "Three of the starter set", "the
-// missing two" -- the way a person says it; past twelve, the figure.
+// A number said as a word inside a sentence -- "the starter set is eight messages"
+// -- the way a person says it; past twelve, the figure.
 const TPL_WORDS = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"];
-const tplSpell = (n, capital = false) => { const w = TPL_WORDS[n] || String(n); return capital ? w[0].toUpperCase() + w.slice(1) : w; };
+const tplSpell = (n) => TPL_WORDS[n] || String(n);
 // Words for people: a starter's title, the workspace's own, or the name with its underscores made spaces.
 const tplTitle = (t) => (window.__starters ? window.__starters.title(t) : (t && t.name) || "");
 // Meta's own sample lives in every account and is nobody's message: never shown, whatever the sync keeps.
@@ -73,9 +73,9 @@ const tplChoices = (S, input) => (S && S.languageChoices
   ? S.languageChoices(input)
   : input.onFile.map((r) => ({ id: r.language, label: r.language, name: r.language, native: "", group: "on", status: r.meta_status || "approved" })));
 
-// One message, as a row: what it is, what each of its languages is doing, what
-// sends it and how much of it went out — the things you scan sixteen of at once.
-// The message itself, and the verbs that change it, are in the row it opens.
+// One message, as a row: what it is, what sends it and how much of it went out —
+// the things you scan sixteen of at once. The message itself, its languages and
+// the verbs that change it are in the row it opens.
 //
 // It was a card carrying the whole bubble, and sixteen of those is about three
 // thousand pixels of chat nobody can compare. The words are still the point, so
@@ -162,17 +162,29 @@ const MessageRow = ({ g, langs, bizName, canAct, canAdd = false, addWhy = null, 
   // Said in words beside the title, once per MESSAGE, when a language of it is
   // not simply approved: "Spanish in review", "Spanish rejected". It was the state
   // of whichever language was in view, so a message half in review read as fine
-  // until its other language was pressed. Otherwise a message from WhatsApp
-  // Manager says so, the one fact about where it came from worth a pill.
+  // until its other language was pressed. It is the ONE place a language rides the
+  // closed row: the languages themselves are the open row's, where a message is
+  // read and written, and where it came from (WhatsApp Manager) is its foot's.
   const flagged = g.rows.map(({ lang, row: r }) => { const said = r && r.meta_status !== "approved" ? tplSaid(r.meta_status) : null; return said ? { lang, said } : null; }).find(Boolean);
-  const tag = flagged ? { words: `${flagged.lang.label} ${flagged.said.label.toLowerCase()}`, tone: flagged.said.tone, state: true }
-    : named && named.row.source !== "chanlytics" && named.row.source !== "starter" ? { words: "from WhatsApp Manager", tone: "plain", state: false } : null;
-  // The row asks for attention when something sends this message and a language
-  // of it is missing or not approved: that is a customer getting nothing. A message
+  // The languages a running playbook sends this message in (a run sends its one
+  // `template_language` to everyone on it, run-playbook.ts), and the first of them
+  // WhatsApp does not hold approved: every run of that playbook is skipped until it
+  // is. Null when the playbooks were not read.
+  const sentIn = pbRows && gName ? [...new Set(pbRows.filter((p) => p.template_name === gName && p.state === "running").map((p) => p.template_language))] : null;
+  const skipped = sentIn ? sentIn.find((id) => { const r = g.rows.find((x) => x.lang.id === id); return !r || !r.row || r.row.meta_status !== "approved"; }) || null : null;
+  const skippedAt = skipped ? g.rows.find((x) => x.lang.id === skipped) || null : null;
+  const skippedMissing = !!skipped && !(skippedAt && skippedAt.row);
+  const tag = flagged ? { words: `${flagged.lang.label} ${flagged.said.label.toLowerCase()}`, tone: flagged.said.tone }
+    : skippedMissing ? { words: `${skippedAt ? skippedAt.lang.label : tplLangLabel(skipped)} missing`, tone: "warn" } : null;
+  // The row asks for attention when a language something sends is not one WhatsApp
+  // holds approved: those sends are refused or skipped. A language nobody sends is
+  // not that -- written or not, it holds nobody back -- and neither is a language in
+  // review beside the approved one a playbook sends. Without the playbooks read, a
+  // language on file that is not approved, on a message something sends. A message
   // nothing sends is the other way round -- quiet, its title dimmed -- because
-  // nothing is going wrong with it; nothing is happening with it at all.
-  const incomplete = g.rows.some(({ row: r }) => !r || r.meta_status !== "approved");
-  const attn = !!(use && !use.unused && incomplete);
+  // nothing is happening with it at all.
+  const refused = g.rows.some(({ row: r }) => r && r.meta_status !== "approved");
+  const attn = sentIn ? !!skipped : !!(use && !use.unused && refused);
   const dim = !!(use && use.unused);
   // A line of the words with its slots NAMED -- "Hi {first name} -- it's been a
   // while" -- in quotes, so a row reads as the message it is and shows at a glance
@@ -204,20 +216,41 @@ const MessageRow = ({ g, langs, bizName, canAct, canAdd = false, addWhy = null, 
     // Picked from "Translate into": the one language this row may now write.
     setAdding(choice && choice.group === "add" ? id : null);
     closeMenu();
-    if (!open) onOpen();
   };
   const cancelNew = () => {
     setLangId(back || (present[0] ? present[0].lang.id : langs[0] ? langs[0].id : "en_US"));
     setBack(null);
     setAdding(null);
   };
+  // The one control for a message's languages, where the message is read and written: the language in view with its
+  // state drawn (filled approved, dotted in review, struck refused, a dashed ring for none), "+1" for the rest, and
+  // every language there is behind it -- one WhatsApp holds, one the library wrote, or a new one to write. It was a
+  // column of every closed row ("● EN ⌄" sixteen times), for a choice that changes nothing about who a run reaches:
+  // a run sends one language to everyone on it.
+  const langBar = (
+    <div className="msg-lang">
+      <span className="msg-lang-k" aria-hidden="true">Language</span>
+      <window.LanguagePicker
+        value={view}
+        choices={choices}
+        groups={S && S.languageGroups ? S.languageGroups : {}}
+        status={row ? row.meta_status : null}
+        tag={tplTag(view, codes)}
+        more={codes.filter((c) => c !== view).length}
+        label={`Language for ${g.title}`}
+        note={note}
+        onPick={pick}
+        testid="template-lang"
+      />
+    </div>
+  );
   return (
     <div className={`msg-row${open ? " is-open" : ""}${attn ? " is-attn" : ""}${dim ? " is-dim" : ""}${row && row.hidden_at ? " is-hidden" : ""}`} data-template={gName || undefined} data-testid={g.starter ? "starter-row" : "custom-row"}>
       {/* A press anywhere on the line that is not one of its controls opens it (cmRowPress), as a person's row does. */}
       <div className="msg-row-line" onClick={window.cmRowPress}>
         {/* The press that opens it covers the mark and the words -- the part of a
-            row that is not already something you can press. The languages and
-            what sends it are their own acts, in their own cells. */}
+            row that is not already something you can press. What sends it is its
+            own act, in its own cell; the languages are the open row's. */}
         <button type="button" className="msg-row-what" onClick={onOpen} aria-expanded={open} data-row-open data-testid="template-open">
           <span className="mark msg-row-mark" data-kind={offer ? "offer" : "note"} data-tip={offer ? "An offer — WhatsApp calls this marketing, so it only reaches people who said yes to offers." : "A note — WhatsApp calls this utility, so it reaches anyone it is sent to."}>
             <Icon name={offer ? "gift" : "bell"} size={13} />
@@ -227,36 +260,11 @@ const MessageRow = ({ g, langs, bizName, canAct, canAdd = false, addWhy = null, 
               {/* The name WhatsApp knows it by is the open row's (its foot), not every row's: an owner reads the
                   title and the words, and "winback_offer" in type is nothing they act on. */}
               <span className="msg-row-title">{g.title}</span>
-              {/* A template's state is a pill in its tone; where it came from is a name, a chip. */}
-              {tag && (tag.state
-                ? <span className={`pill${tag.tone && tag.tone !== "plain" ? ` pill-${tag.tone}` : ""} msg-tag`} data-tone={tag.tone} data-testid="template-status">{tag.words}</span>
-                : <span className="chip msg-tag" data-testid="template-origin">{tag.words}</span>)}
+              {tag && <span className={`pill${tag.tone && tag.tone !== "plain" ? ` pill-${tag.tone}` : ""} msg-tag`} data-tone={tag.tone} data-testid="template-status">{tag.words}</span>}
             </span>
             <span className="msg-row-words">{words ? `“${words}”` : g.purpose}</span>
           </span>
         </button>
-        {/* One control for a message's languages. It was a slot per language,
-            "EN ES" on every row -- the same message twice over, and a third
-            language would have been a third slot on sixteen rows. The chip says
-            the language in view with its state drawn (filled approved, dotted in
-            review, struck refused, a dashed ring for none) and "+1" for the rest;
-            it opens every language there is, and picking one puts it in view: one
-            WhatsApp holds, one the library wrote, or a new one to write. A
-            language that is not simply approved is also the pill beside the title. */}
-        <span className="msg-row-langs">
-          <window.LanguagePicker
-            value={view}
-            choices={choices}
-            groups={S && S.languageGroups ? S.languageGroups : {}}
-            status={row ? row.meta_status : null}
-            tag={tplTag(view, codes)}
-            more={codes.filter((c) => c !== view).length}
-            label={`Language for ${g.title}`}
-            note={note}
-            onPick={pick}
-            testid="template-lang"
-          />
-        </span>
         {/* What sends it -- every source, not only the playbooks -- and under it,
             what that thing is doing: "runs daily at 10:00", "a run is waiting on
             you", the latest two broadcasts a person sent with it. The server joins
@@ -307,30 +315,34 @@ const MessageRow = ({ g, langs, bizName, canAct, canAdd = false, addWhy = null, 
       {row && row.meta_status === "rejected" && row.rejected_reason && (
         <p className="bc-excl-hint danger" data-testid="template-rejected">WhatsApp refused this one: {String(row.rejected_reason).toLowerCase().replace(/_/g, " ")}. Change the words and send it back.</p>
       )}
-      {/* A language nobody has written: the message is written in it here, from
-          the words of the language that was in view -- by the assistant, as a
-          draft to read and change -- and goes to WhatsApp as the same message in
-          one more language, the same name, slots and button. Picked, it starts;
-          Cancel goes back to the language that was in view. */}
-      {open && !row && !starterText && (
+      {/* The open row: its one language control first, where it stays whichever
+          language is picked -- one panel, so the control keeps its place and its
+          focus when a pick moves between a language on file and one being written
+          (two panels remounted it, and a keyboard's focus fell to the page). */}
+      {open && (
         <div className="msg-row-open" data-testid="template-open-body">
-          {sentLang === view ? (
-            <p className="msg-new-sent" role="status" data-testid="template-new-sent"><Icon name="check" size={13} /> {cur.lang.label} went to WhatsApp for review — it shows here in a moment.</p>
-          ) : mayAdd && adding === view && window.TemplateComposer ? (
-            <window.TemplateComposer
-              key={view}
-              businessName={bizName || ""}
-              translate={{ ref: source.ref, from: source.from, name: source.name, language: view, title: g.title }}
-              onCancel={cancelNew}
-              onDone={(made) => { setSentLang(view); setAdding(null); setBack(null); if (onWritten) onWritten(g, cur.lang, made); }}
-            />
+          {langBar}
+          {/* A language nobody has written: the message is written in it here, from
+              the words of the language that was in view -- by the assistant, as a
+              draft to read and change -- and goes to WhatsApp as the same message in
+              one more language, the same name, slots and button. Picked, it starts;
+              Cancel goes back to the language that was in view. */}
+          {!row && !starterText ? (
+            sentLang === view ? (
+              <p className="msg-new-sent" role="status" data-testid="template-new-sent"><Icon name="check" size={13} /> {cur.lang.label} went to WhatsApp for review — it shows here in a moment.</p>
+            ) : mayAdd && adding === view && window.TemplateComposer ? (
+              <window.TemplateComposer
+                key={view}
+                businessName={bizName || ""}
+                translate={{ ref: source.ref, from: source.from, name: source.name, language: view, title: g.title }}
+                onCancel={cancelNew}
+                onDone={(made) => { setSentLang(view); setAdding(null); setBack(null); if (onWritten) onWritten(g, cur.lang, made); }}
+              />
+            ) : (
+              <p className="bc-excl-hint" data-testid="template-new-refused">Not on WhatsApp in {cur.lang.label}.{note ? ` ${note}` : ""}</p>
+            )
           ) : (
-            <p className="bc-excl-hint" data-testid="template-new-refused">Not on WhatsApp in {cur.lang.label}.{note ? ` ${note}` : ""}</p>
-          )}
-        </div>
-      )}
-      {open && (row || starterText) && (
-        <div className="msg-row-open" data-testid="template-open-body">
+          <>
           <window.MessagePreview from={bizName || "Your business"} body={body} values={values} header={row ? row.header : null} footer={footer} buttons={row ? row.buttons : null} compact />
           <div className="msg-card-foot">
             {row
@@ -373,6 +385,8 @@ const MessageRow = ({ g, langs, bizName, canAct, canAdd = false, addWhy = null, 
                 </>
               )}
             </div>
+          )}
+          </>
           )}
         </div>
       )}
@@ -450,8 +464,11 @@ const MessagesReal = () => {
   const missing = langs.map((l) => ({ lang: l, n: starters.filter((g) => !g.rows.find((r) => r.lang.id === l.id).row).length }));
   const missingTotal = missing.reduce((a, m) => a + m.n, 0);
   // A workspace with none of the set is starting, not broken: it is offered the
-  // set, while one part-way through is told what the hole costs.
+  // set. One part-way through has what is left to add at the list's foot.
   const allMissing = missingTotal > 0 && missingTotal === starters.length * langs.length;
+  const partialSet = !!(hasWhatsApp && S && missingTotal > 0 && !allMissing);
+  // What is left of the set, by language -- "3 in English and 7 in Spanish" -- the foot's act's detail.
+  const leftToAdd = tplAnd(missing.filter((m) => m.n > 0).map((m) => `${m.n} in ${m.lang.label}`));
   const addingAll = doing === `add:all:${langs.map((l) => l.id).join(",")}`;
   const shown = list.filter((t) => !t.hidden_at);
   const approved = shown.filter((t) => t.meta_status === "approved").length;
@@ -484,33 +501,20 @@ const MessagesReal = () => {
 
   // The search box: a message's title, the name WhatsApp knows it by, and its words
   // in every language on file or in the library. Rows that do not match stand down;
-  // the gap banner and the fold stay, because they are about the set, not the search.
+  // the starter set's notice and the fold stay, because they are about the set, not the search.
   const needle = q.trim().toLowerCase();
   const matches = (g) => !needle
     || [g.title, g.starter ? g.starter.name : "", ...g.rows.map(({ row: r }) => (r ? `${r.name} ${r.body_preview || ""}` : ""))].join(" ").toLowerCase().includes(needle)
     || !!(g.starter && S && langs.some((l) => String((S.text(g.starter, l.id) || {}).body || "").toLowerCase().includes(needle)));
   const listStarters = hasWhatsApp ? starters.filter(matches) : [];
   const listCustom = customGroups.filter(matches);
-  // Which missing language costs a customer something: a starter that a playbook
-  // sends, missing a language. "The Save our number playbook is sending nothing to
-  // your Spanish-speaking customers" -- the consequence, where the old line gave a
-  // count per language. The first such in the library's order; none, no clause.
-  const U = window.__TEMPLATE_USE || null;
-  const missingMsgs = starters.filter((g) => g.rows.some((r) => !r.row)).length;
-  const costly = U ? starters.map((g) => {
-    const hole = g.rows.find((r) => !r.row);
-    const u = U[g.starter.name];
-    // A RUNNING playbook: a paused one sends nothing to anyone, which is not this.
-    return hole && u && u.running && u.playbook ? { words: u.words, lang: hole.lang } : null;
-  }).find(Boolean) : null;
-
   return (
     <div className="reports tpl-page" data-testid="messages-real">
       <div className="rp-body cm-page">
         {/* One line, the way every Campaigns tab opens: the tab says "Templates", so the
             name is a screen reader's alone (CmHead quiet). The line is the page's
             numbers -- how many, how many approved, how many
-            WhatsApp is still reading -- and being in step with WhatsApp, which is a
+            WhatsApp is still reading -- and when it last synced with WhatsApp, which is a
             STATE the page is in, not a chore the owner remembers: it says when it
             last looked and presses to look again, and while it looks it is the only
             control that says it is working (C20). Templates, never "messages": that
@@ -527,7 +531,8 @@ const MessagesReal = () => {
               {shown.length > 0 && (
                 <>
                   <window.CmDot />
-                  <span className="tabular"><span className="cm-head-ok">{approved} approved</span>{pending ? <>, <span className="cm-head-info">{pending} in review</span></> : null}</span>
+                  {/* "7 templates · 7 approved" said the number twice: all of them is "all approved". */}
+                  <span className="tabular"><span className="cm-head-ok">{approved === shown.length ? "all approved" : `${approved} approved`}</span>{pending ? <>, <span className="cm-head-info">{pending} in review</span></> : null}</span>
                 </>
               )}
               {hasWhatsApp && (
@@ -538,12 +543,12 @@ const MessagesReal = () => {
                     onClick={sync}
                     disabled={busy}
                     data-testid="sync-templates"
-                    aria-label="Check WhatsApp for changes"
+                    aria-description="Check WhatsApp for changes"
                     {...window.gate("approve", "sync from WhatsApp")}
                   >
                     <span className={`tpl-fresh-dot${lastSync ? "" : " never"}`} aria-hidden="true" />
-                    {/* On a phone the dot and the age say it, so the line stays one line (the button's label says the rest). */}
-                    {doing === "sync" ? "Checking WhatsApp…" : lastSync ? <><span className="tpl-fresh-words">In step with WhatsApp</span> <span className="tpl-fresh-age">{tplAgo(lastSync)}</span></> : "Never checked with WhatsApp"}
+                    {/* "Synced 16d ago", the words every tool says it in; "In step with WhatsApp" took the line's room. */}
+                    {doing === "sync" ? "Checking WhatsApp…" : lastSync ? <>Synced <span className="tpl-fresh-age">{tplAgo(lastSync)}</span></> : "Never synced"}
                     <span className="tpl-fresh-again" aria-hidden="true"><Icon name="refresh" size={12} /></span>
                   </button>
                 </>
@@ -578,40 +583,32 @@ const MessagesReal = () => {
             />
           </section>
         )}
-        {/* The gap, where the gap is, in one sentence -- said as what it costs.
-            It was two buttons in the toolbar doing arithmetic -- "Add the 3 in
-            English", "Add the 7 in Spanish" -- whose labels were a remainder that
-            changed each time they were pressed, and whose asymmetry read as
-            breakage when it only meant English was added first. Meta's model is
-            one template per name PER LANGUAGE; that is the product's problem, not
-            the owner's. A workspace with none of the set is starting, not broken:
-            it is offered the set. One with all of it hears nothing. */}
-        {hasWhatsApp && S && missingTotal > 0 && (
+        {/* A workspace with none of the starter set is starting, not broken: it is
+            offered the set, in one notice with its one act. A workspace part-way
+            through (the set in English, Spanish never added) hears no notice: a run
+            sends one language to everyone on it, so a language never added holds
+            nobody back -- the notice that said "your Spanish-speaking customers get
+            nothing from Win-back" said what the product does not do. What is left to
+            add is a quiet line at the list's foot, and each message's own languages
+            are in its open row. */}
+        {hasWhatsApp && S && allMissing && (
           <div className="msg-starters" data-testid="starters">
             <window.CmBanner
-              tone={allMissing ? "plain" : "warn"}
-              lead={allMissing
-                ? `The starter set is ${tplSpell(S.list.length)} messages for the moments Chanlytics acts on.`
-                : `${tplSpell(missingMsgs, true)} of the starter set ${missingMsgs === 1 ? "is" : "are"} missing a language.`}
+              tone="plain"
+              lead={`The starter set is ${tplSpell(S.list.length)} messages for the moments Chanlytics acts on.`}
               act={(
                 <button
-                  className={`btn${allMissing ? " btn-primary" : ""}`}
+                  className="btn btn-primary"
                   disabled={busy}
                   onClick={() => addStarters(null, langs.map((l) => l.id))}
                   data-testid="starter-add-all"
                   {...window.gate("approve", "add a starter template")}
                 >
-                  {addingAll ? "Adding…" : allMissing ? "Add the starter set" : `Add the missing ${tplSpell(missingMsgs)}`}
+                  {addingAll ? "Adding…" : "Add the starter set"}
                 </button>
               )}
             >
-              {/* What the hole costs, in one clause: who gets nothing, from what. Why a language is missing (the set
-                  comes in two) is the lead's own news, and the sentence that explained it doubled the notice. */}
-              {allMissing
-                ? <>In {tplAnd(langs.map((l) => l.label))} — WhatsApp reviews each, usually within minutes.</>
-                : costly
-                  ? <>Your {costly.lang.label}-speaking customers get nothing from {costly.words}.</>
-                  : <>The set comes in {tplAnd(langs.map((l) => l.label))}, so a message in one reaches only the customers who read it.</>}
+              In {tplAnd(langs.map((l) => l.label))} — WhatsApp reviews each, usually within minutes.
             </window.CmBanner>
           </div>
         )}
@@ -625,7 +622,6 @@ const MessagesReal = () => {
               <div className="msg-list-head" aria-hidden="true">
                 <span />
                 <span>The message</span>
-                <span>Languages</span>
                 <span>What sends it</span>
                 <span className="msg-list-head-sent">Sent</span>
               </div>
@@ -638,17 +634,32 @@ const MessagesReal = () => {
           )}
           {!hasWhatsApp && customGroups.length === 0 && <EmptyState kind="line" title="Nothing on file yet." />}
         </section>
-        {/* The foot of the list: what the workspace kept out of the composers, folded
-            and still on file. How long WhatsApp takes to read a new one is the head's
+        {/* The foot of the list: the starter set's languages not yet added, as one
+            quiet act, and what the workspace kept out of the composers, folded and
+            still on file. How long WhatsApp takes to read a new one is the head's
             hover and the composer's line; said here too, it was the page's third time. */}
-        {hiddenGroups.length > 0 && (
+        {(partialSet || hiddenGroups.length > 0) && (
           <footer className="msg-foot">
-            <span className="msg-foot-fold" data-testid="templates-fold">
+            {partialSet && (
+              <button
+                className="msg-fold-toggle"
+                disabled={busy}
+                onClick={() => addStarters(null, langs.map((l) => l.id))}
+                data-tip={leftToAdd}
+                aria-description={leftToAdd}
+                data-testid="starter-add-all"
+                {...window.gate("approve", "add a starter template")}
+              >
+                <Icon name="plus" size={12} />
+                {addingAll ? "Adding…" : "Add the rest of the starter set"}
+              </button>
+            )}
+            {hiddenGroups.length > 0 && <span className="msg-foot-fold" data-testid="templates-fold">
               <button className="msg-fold-toggle" onClick={() => setShowHidden((v) => !v)} aria-expanded={showHidden} data-testid="templates-hidden">
                 <Icon name={showHidden ? "chevron-up" : "chevron-down"} size={12} />
                 Not in the composers · <span className="tabular">{hiddenRows.length}</span> · still on file
               </button>
-            </span>
+            </span>}
           </footer>
         )}
         {showHidden && hiddenGroups.length > 0 && <div className="msg-list msg-list-hidden">{hiddenGroups.map(card)}</div>}
