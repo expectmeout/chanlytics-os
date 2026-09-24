@@ -160,15 +160,18 @@ export const workspaceOverride: SurfaceOverride & { current: () => Workspace | n
  * read corrected the address -- and Setup's once-a-session landing could fire
  * on the first boot and be lost with it (the nightly's workspace-create spec,
  * 13 Sep 2026).
+ *
+ * `after` is where the workspace opens: a hash for one just made (the first
+ * run, `#/start`); nothing, and a switch opens on Today.
  */
-export function switchWorkspace(id: string, knownSlug?: string): void {
+export function switchWorkspace(id: string, knownSlug?: string, after = ""): void {
   const target = (window as unknown as { __WORKSPACES?: Workspace[] }).__WORKSPACES?.find((t) => t.id === id);
   const slug = target?.slug ?? knownSlug ?? id;
   const here = getActiveWorkspace();
   if (here === slug || here === id) return;
   clearSurfaceCache();
   rememberWorkspace(slug);
-  window.location.assign(workspaceHref(slug));
+  window.location.assign(workspaceHref(slug, after));
 }
 
 /**

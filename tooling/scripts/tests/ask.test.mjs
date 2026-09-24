@@ -94,7 +94,7 @@ test("the jump: two words reach a page, a person, a thread or a call; a question
   assert.deepEqual(askJump("tell rosa we are late today", index), [], "four words are a sentence");
   assert.deepEqual(
     askJump("set", index).map((j) => j.label),
-    ["Settings", "Setup"],
+    ["Settings", "Setting up"],
   );
   assert.deepEqual(
     askJump("lea", index).map((j) => j.to),

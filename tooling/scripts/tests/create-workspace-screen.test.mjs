@@ -40,6 +40,20 @@ react.useState = (init) => {
     },
   ];
 };
+// An effect runs once per mount, on arrival, as React runs it; a ref keeps its box across draws. Both sit in the
+// same cells as the state, so `render` (a fresh mount) starts them over.
+react.useEffect = (fn) => {
+  const k = at++;
+  if (!(k in cells)) {
+    cells[k] = true;
+    fn();
+  }
+};
+react.useRef = (v) => {
+  const k = at++;
+  if (!(k in cells)) cells[k] = { current: v };
+  return cells[k];
+};
 globalThis.React = {
   Fragment: "Fragment",
   createElement: (type, props, ...kids) => {
@@ -277,4 +291,82 @@ test("REGRESSION (N2): every first-workspace screen offers Sign out, the terms a
     "another workspace, opened from inside the app, keeps Back and the app's own menu",
   );
   assert.ok(byTestId(another, "create-workspace-back"));
+});
+
+/* ------------------------------ create once (F5) ------------------------------ */
+
+const MADE = {
+  status: 200,
+  body: {
+    ok: true,
+    data: {
+      workspace: {
+        id: "w1",
+        slug: "luna-studio",
+        name: "Luna Studio",
+        status: "active",
+        timezone: "America/New_York",
+        locale: "en",
+      },
+    },
+  },
+};
+const KEPT = { name: "Luna Studio", timezone: "America/New_York" };
+
+test("create once (F5): a first workspace whose name sign-up kept is made as the screen opens -- nothing asked twice", async () => {
+  const w = standIn(MADE);
+  globalThis.window = w;
+  const created = [];
+  const props = { email: "owner@luna.example", posture: "open", initial: KEPT, onCreated: (x) => created.push(x) };
+  let tree = render(props);
+  const making = byTestId(tree, "cw-making");
+  assert.ok(making, "the screen says the workspace is being made");
+  assert.equal(textOf(making), `Luna Studio${SIGNUP_WORDS.making}`);
+  assert.equal(
+    find(tree, (n) => n.type === "form"),
+    null,
+    "and asks nothing: the name and the clock are sign-up's",
+  );
+  tree = await settle(props);
+  assert.deepEqual(
+    w.asked.map((a) => [a.url, a.method, a.body]),
+    [["/api/v1/workspaces/create", "POST", { name: "Luna Studio", timezone: "America/New_York" }]],
+    "one create, from sign-up's answers",
+  );
+  assert.deepEqual(
+    created.map((x) => x.slug),
+    ["luna-studio"],
+  );
+});
+
+test("create once: a refusal leaves the form, filled in, with the server's sentence, and the owner can press again", async () => {
+  const w = standIn({
+    status: 403,
+    body: { ok: false, error: { code: "forbidden", message: SIGNUP_WORDS.codeWrong } },
+  });
+  globalThis.window = w;
+  const props = { email: "owner@luna.example", posture: "invite", initial: KEPT, onCreated() {} };
+  render(props);
+  const tree = await settle(props);
+  assert.equal(byTestId(tree, "cw-making"), null, "the making screen gives way to the form");
+  assert.ok(
+    find(tree, (n) => n.type === "form"),
+    "the form, to press again",
+  );
+  assert.ok(
+    find(tree, (n) => n.type === "input" && n.props.value === "Luna Studio"),
+    "with sign-up's name in it",
+  );
+  assert.equal(textOf(find(tree, (n) => n.props?.role === "alert")), SIGNUP_WORDS.codeWrong);
+  assert.equal(w.asked.length, 1, "asked once on arrival, and not again by itself");
+});
+
+test("create once: another workspace, from inside the app, is never made on arrival", async () => {
+  const w = standIn(MADE);
+  globalThis.window = w;
+  const props = { email: "owner@luna.example", initial: KEPT, onCreated() {}, onCancel() {} };
+  const tree = render(props);
+  await settle(props);
+  assert.equal(byTestId(tree, "cw-making"), null);
+  assert.deepEqual(w.asked, [], "nothing posted until it is pressed");
 });

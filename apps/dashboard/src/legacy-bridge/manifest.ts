@@ -116,6 +116,7 @@ import "@/legacy/pages/reports-sections.jsx";
 import "@/legacy/pages/reports.jsx";
 import "@/legacy/pages/tasks.jsx";
 import "@/legacy/pages/setup.jsx";
+import "@/legacy/pages/first-run.jsx";
 // Before the Business tab, and so before settings.jsx: what the tab's saves write, the one saver they go through, the
 // one-key save and how a number is written, which the old card in settings.jsx uses too.
 import "@/legacy/pages/business-tab-save.jsx";

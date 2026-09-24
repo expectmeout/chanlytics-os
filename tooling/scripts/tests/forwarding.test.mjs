@@ -275,6 +275,5 @@ test("the wiring: the migration, the forwarding event kind, and the bridge and t
     'data-testid="setup-keep-go"',
   ])
     assert.ok(page.includes(pin), pin);
-  const e2e = readRaw("e2e/setup.spec.ts");
-  assert.ok(e2e.includes("/^\\d+ of \\d+ ready$/"), "the count is not pinned to eight rows");
+  // The nightly spec walks the first run a step at a time (e2e/setup.spec.ts) and counts no rows at all.
 });

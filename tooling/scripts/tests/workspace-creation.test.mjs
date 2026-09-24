@@ -127,11 +127,11 @@ test("the create screen waits for the fetch before claiming there is nothing", (
   );
 });
 
-test("a created workspace becomes the active one", () => {
+test("a created workspace becomes the active one, and opens on its first run", () => {
   // Otherwise the owner creates a workspace and stays looking at nothing.
   assert.ok(
-    boot.includes("switchWorkspace(w.id, w.slug)"),
-    "by its slug: a new workspace is not in __WORKSPACES yet, and an id address boots the app twice",
+    boot.includes("switchWorkspace(w.id, w.slug, `#/${FIRST_RUN_ROUTE}`)"),
+    "by its slug: a new workspace is not in __WORKSPACES yet, and an id address boots the app twice; at #/start, its first run",
   );
 });
 

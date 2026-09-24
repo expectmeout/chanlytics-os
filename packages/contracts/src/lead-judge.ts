@@ -99,6 +99,37 @@ export const JUDGE_OUTPUT_SCHEMA: Record<string, unknown> = {
 /* ---------------------------------------------------------- the rubric -- */
 
 /**
+ * What the rubric asks under each key, in the order it asks: the kind (worded with the plan's name), every criterion
+ * with its standard, every exclusion. judgeSystemPrompt's lines, and what judgeAsked fingerprints.
+ */
+export function judgeQuestions(plan: LeadSearchPlan): Record<string, string> {
+  const out: Record<string, string> = {};
+  out[LEAD_KIND_KEY] =
+    `the place is one of the ${plan.name} the search is for -- that kind of business itself, not a neighbour, supplier, competitor or a business that merely serves them [required; Claude's read of the name and category is enough (likely)]`;
+  for (const c of plan.criteria) {
+    const bar =
+      c.standard === "seen"
+        ? "must be SEEN in the facts: pass only when a fact you cite shows it; a read from the name or category alone is unknown"
+        : "Claude's read of the facts is enough (likely)";
+    out[c.key] = `${c.text} [${c.required ? "required" : "preferred"}; ${bar}]`;
+  }
+  for (const e of plan.exclusions)
+    out[e.key] = `the place is NOT ${e.text} [required; fail when the place is what is left out]`;
+  return out;
+}
+
+/**
+ * A short digest of each key's question, kept with an answer: a later plan reuses the answer only where it asks the
+ * very same question. A key alone is not enough -- "Change what I asked" can keep every key and change the kind of
+ * business, or a criterion's words, and an answer to the old question would stand for the new one.
+ */
+export function judgeAsked(plan: LeadSearchPlan): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, q] of Object.entries(judgeQuestions(plan))) out[key] = sha256Hex(q).slice(0, 16);
+  return out;
+}
+
+/**
  * The criteria with their standards, and the exclusions as criteria the place
  * must not be. A seen standard must cite a fact key; a likely one may be
  * Claude's read of the facts. Unknown when the facts do not say.
@@ -118,19 +149,7 @@ export function judgeSystemPrompt(plan: LeadSearchPlan): string {
   lines.push(
     "A fail may cite a fact that is missing (its absence is the evidence); a pass must cite a fact that is actually there.",
   );
-  lines.push(
-    `- ${LEAD_KIND_KEY}: the place is one of the ${plan.name} the search is for -- that kind of business itself, not a neighbour, supplier, competitor or a business that merely serves them [required; Claude's read of the name and category is enough (likely)]`,
-  );
-  for (const c of plan.criteria) {
-    const bar =
-      c.standard === "seen"
-        ? "must be SEEN in the facts: pass only when a fact you cite shows it; a read from the name or category alone is unknown"
-        : "Claude's read of the facts is enough (likely)";
-    lines.push(`- ${c.key}: ${c.text} [${c.required ? "required" : "preferred"}; ${bar}]`);
-  }
-  for (const e of plan.exclusions) {
-    lines.push(`- ${e.key}: the place is NOT ${e.text} [required; fail when the place is what is left out]`);
-  }
+  for (const [key, q] of Object.entries(judgeQuestions(plan))) lines.push(`- ${key}: ${q}`);
   lines.push(
     "email_index: the index of the business's own address among its emails, or null when none is theirs (a person's own inbox at a free-mail domain counts as theirs for a sole trader).",
   );

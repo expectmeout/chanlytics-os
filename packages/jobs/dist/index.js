@@ -1688,6 +1688,7 @@ var SOLE_PROP_CEILING_SENTENCE = `This is the sole-proprietor registration: one 
 var SOLE_PROP_TEXTING_SENTENCE = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE}`;
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
+var InviteCodeSchema = z8.string().trim().max(80);
 var SignupSchema = z8.object({
   name: z8.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
   email: z8.string().trim().toLowerCase().email("Enter a work email address.").max(254),
@@ -1708,7 +1709,7 @@ var SignupSchema = z8.object({
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
   timezone: z8.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
-  code: z8.string().trim().max(80).optional()
+  code: InviteCodeSchema.optional()
 }).strict();
 var PendingWorkspaceSchema = z8.object({
   name: z8.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
@@ -8331,6 +8332,7 @@ var SOLE_PROP_CEILING_SENTENCE2 = `This is the sole-proprietor registration: one
 var SOLE_PROP_TEXTING_SENTENCE2 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE2}`;
 var SIGNUP_NAME_MIN2 = 2;
 var SIGNUP_NAME_MAX2 = 120;
+var InviteCodeSchema2 = z82.string().trim().max(80);
 var SignupSchema2 = z82.object({
   name: z82.string().trim().min(SIGNUP_NAME_MIN2, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX2, "That name is too long \u2014 120 characters at most."),
   email: z82.string().trim().toLowerCase().email("Enter a work email address.").max(254),
@@ -8351,7 +8353,7 @@ var SignupSchema2 = z82.object({
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
   timezone: z82.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
-  code: z82.string().trim().max(80).optional()
+  code: InviteCodeSchema2.optional()
 }).strict();
 var PendingWorkspaceSchema2 = z82.object({
   name: z82.string().trim().min(SIGNUP_NAME_MIN2).max(SIGNUP_NAME_MAX2),
@@ -8518,11 +8520,6 @@ var K2 = new Uint32Array([
   3329325298
 ]);
 var MEDIA_MAX_BYTES = 25 * 1024 * 1024;
-function greetingFor(name2) {
-  const who = name2 ? ` ${name2}` : "";
-  return `Thank you for calling${who}! This call may be recorded. I'm the automated assistant \u2014 how can I help you today?`;
-}
-var GREETING_DEFAULT = greetingFor(null);
 var CALL_ANALYSIS_FIELDS = [
   {
     type: "string",
@@ -11070,6 +11067,7 @@ var SOLE_PROP_CEILING_SENTENCE3 = `This is the sole-proprietor registration: one
 var SOLE_PROP_TEXTING_SENTENCE3 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE3}`;
 var SIGNUP_NAME_MIN3 = 2;
 var SIGNUP_NAME_MAX3 = 120;
+var InviteCodeSchema3 = z83.string().trim().max(80);
 var SignupSchema3 = z83.object({
   name: z83.string().trim().min(SIGNUP_NAME_MIN3, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX3, "That name is too long \u2014 120 characters at most."),
   email: z83.string().trim().toLowerCase().email("Enter a work email address.").max(254),
@@ -11090,7 +11088,7 @@ var SignupSchema3 = z83.object({
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
   timezone: z83.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
-  code: z83.string().trim().max(80).optional()
+  code: InviteCodeSchema3.optional()
 }).strict();
 var PendingWorkspaceSchema3 = z83.object({
   name: z83.string().trim().min(SIGNUP_NAME_MIN3).max(SIGNUP_NAME_MAX3),
@@ -11257,11 +11255,6 @@ var K3 = new Uint32Array([
   3329325298
 ]);
 var MEDIA_MAX_BYTES2 = 25 * 1024 * 1024;
-function greetingFor2(name2) {
-  const who = name2 ? ` ${name2}` : "";
-  return `Thank you for calling${who}! This call may be recorded. I'm the automated assistant \u2014 how can I help you today?`;
-}
-var GREETING_DEFAULT2 = greetingFor2(null);
 var CALL_ANALYSIS_FIELDS2 = [
   {
     type: "string",
@@ -12888,6 +12881,7 @@ var SOLE_PROP_CEILING_SENTENCE22 = `This is the sole-proprietor registration: on
 var SOLE_PROP_TEXTING_SENTENCE22 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE22}`;
 var SIGNUP_NAME_MIN22 = 2;
 var SIGNUP_NAME_MAX22 = 120;
+var InviteCodeSchema22 = z822.string().trim().max(80);
 var SignupSchema22 = z822.object({
   name: z822.string().trim().min(SIGNUP_NAME_MIN22, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX22, "That name is too long \u2014 120 characters at most."),
   email: z822.string().trim().toLowerCase().email("Enter a work email address.").max(254),
@@ -12908,7 +12902,7 @@ var SignupSchema22 = z822.object({
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
   timezone: z822.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
-  code: z822.string().trim().max(80).optional()
+  code: InviteCodeSchema22.optional()
 }).strict();
 var PendingWorkspaceSchema22 = z822.object({
   name: z822.string().trim().min(SIGNUP_NAME_MIN22).max(SIGNUP_NAME_MAX22),
@@ -14572,6 +14566,7 @@ var SOLE_PROP_CEILING_SENTENCE32 = `This is the sole-proprietor registration: on
 var SOLE_PROP_TEXTING_SENTENCE32 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE32}`;
 var SIGNUP_NAME_MIN32 = 2;
 var SIGNUP_NAME_MAX32 = 120;
+var InviteCodeSchema32 = z832.string().trim().max(80);
 var SignupSchema32 = z832.object({
   name: z832.string().trim().min(SIGNUP_NAME_MIN32, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX32, "That name is too long \u2014 120 characters at most."),
   email: z832.string().trim().toLowerCase().email("Enter a work email address.").max(254),
@@ -14592,7 +14587,7 @@ var SignupSchema32 = z832.object({
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
   timezone: z832.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
-  code: z832.string().trim().max(80).optional()
+  code: InviteCodeSchema32.optional()
 }).strict();
 var PendingWorkspaceSchema32 = z832.object({
   name: z832.string().trim().min(SIGNUP_NAME_MIN32).max(SIGNUP_NAME_MAX32),
@@ -16826,6 +16821,7 @@ var SOLE_PROP_CEILING_SENTENCE4 = `This is the sole-proprietor registration: one
 var SOLE_PROP_TEXTING_SENTENCE4 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE4}`;
 var SIGNUP_NAME_MIN4 = 2;
 var SIGNUP_NAME_MAX4 = 120;
+var InviteCodeSchema4 = z84.string().trim().max(80);
 var SignupSchema4 = z84.object({
   name: z84.string().trim().min(SIGNUP_NAME_MIN4, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX4, "That name is too long \u2014 120 characters at most."),
   email: z84.string().trim().toLowerCase().email("Enter a work email address.").max(254),
@@ -16846,7 +16842,7 @@ var SignupSchema4 = z84.object({
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
   timezone: z84.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
-  code: z84.string().trim().max(80).optional()
+  code: InviteCodeSchema4.optional()
 }).strict();
 var PendingWorkspaceSchema4 = z84.object({
   name: z84.string().trim().min(SIGNUP_NAME_MIN4).max(SIGNUP_NAME_MAX4),

@@ -19,6 +19,7 @@
  * (window.__DEMO_MODE). Flipping a surface to real later is a one-line change
  * here, made in the same directory as the override that makes it true.
  */
+import { FIRST_RUN_ROUTE } from "@chanlytics/contracts";
 
 import { isSurfaceFailed, isSurfaceReady, onSurfaceStatusChange } from "./surface-status";
 
@@ -55,9 +56,9 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
   content: "demo",
   broadcasts: "real", // one approved template to the people who said yes; SMS and email stay not available
   messages: "real", // Campaigns › Messages: what the receptionist and the campaigns send, as the customer sees it
+  start: "real", // the first run: Setup's rows a step at a time, read from the workspace (contracts/first-run.ts)
   admin: "demo", // the page itself: every pane below is classified, and a
   // pane nobody has listed inherits this honest default
-  "admin/setup": "real", // read from the workspace: contracts/setup.ts over /api/v1/setup
   "admin/profile": "real", // you: name, the address you signed in with, your role
   "admin/workspace": "real",
   "admin/team": "real", // split out of workspace: the people, their roles, invites
@@ -102,10 +103,11 @@ export const ROUTE_SURFACE: Record<string, string> = {
   messages: "settings",
   outbound: "playbooks",
   calendar: "calendar",
+  // The first run is Setup's rows, so it waits for Setup's read.
+  start: "setup",
   // The pane is fed by settingsOverride, so the route gate waits for it the
   // same way the other real routes do — otherwise it paints the mockup's
   // fabricated business for a frame before the truth arrives.
-  "admin/setup": "setup",
   "admin/profile": "settings",
   "admin/workspace": "settings",
   "admin/team": "settings",
@@ -159,6 +161,8 @@ export function personRouteId(page: string, param?: string | null): string | nul
 export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   today: ["calendar", "broadcasts", "reports", "playbooks", "notifications", "live", "setup", "google", "people"],
   calendar: ["people"],
+  // The first run's receptionist card fills in from the settings read: the brain and the resolved numbers.
+  start: ["settings"],
   // A person's page reads its own person (people-detail.ts); People's row gives it their name in the crumbs and the
   // head while that read is out, so People is read next.
   [PERSON_ROUTE]: ["people"],
@@ -262,14 +266,33 @@ export const SURFACE_RETIRED: Record<string, string> = {
   pipeline: "clients",
 };
 
-export function surfaceRetiredTo(page: string): string | undefined {
-  return SURFACE_RETIRED[page];
+/**
+ * Addresses of one pane that moved elsewhere. Setup left Settings for the first run (docs/superpowers/specs/
+ * 2026-09-24-first-run-design.md): bell rows written before then, by the edge and by migrations 00065 and 00123, carry
+ * `admin/setup`, so the address stays good and lands where Setup is now.
+ */
+export const ROUTES_MOVED: Record<string, string> = {
+  "admin/setup": FIRST_RUN_ROUTE,
+};
+
+/** Retired pages the mockup no longer has either: the seeded Leads page was deleted when Leads became a scope of People. */
+const GONE_FROM_THE_TREE = new Set(["leads"]);
+
+/**
+ * Where a retired page, or a pane that moved, lands now; undefined for an address that is where it always was. A pane
+ * that moved and a page gone from the tree move for everyone; a retired page the mockup still has (the Deal board)
+ * stays where it is in a demo session (`demo`), which is the one place it is still drawn.
+ */
+export function surfaceRetiredTo(page: string, param?: string | null, demo = false): string | undefined {
+  const moved = param ? ROUTES_MOVED[`${page}/${param}`] : undefined;
+  if (moved) return moved;
+  return demo && !GONE_FROM_THE_TREE.has(page) ? undefined : SURFACE_RETIRED[page];
 }
 
 export function installSurfaceRegistry(): void {
   const w = window as unknown as {
     __surfaceState?: (page: string, param?: string | null) => SurfaceState | undefined;
-    __surfaceRetired?: (page: string) => string | undefined;
+    __surfaceRetired?: (page: string, param?: string | null, demo?: boolean) => string | undefined;
   };
   w.__surfaceState = surfaceStateFor;
   w.__surfaceRetired = surfaceRetiredTo;

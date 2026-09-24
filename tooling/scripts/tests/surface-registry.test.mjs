@@ -24,15 +24,15 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const DASH = path.join(here, "../../../apps/dashboard/src");
 const registry = await import(pathToFileURL(path.join(DASH, "legacy-bridge/surface-registry.ts")).href);
-const { SURFACE_STATES, ROUTE_SURFACE, surfaceStateFor, routeSurfaceFor } = await import(
+const { SURFACE_STATES, ROUTE_SURFACE, surfaceStateFor, routeSurfaceFor, surfaceRetiredTo } = await import(
   pathToFileURL(path.join(DASH, "legacy-bridge/surface-registry.ts")).href
 );
 
 const shell = fs.readFileSync(path.join(DASH, "legacy/pages/app-shell.jsx"), "utf8");
 
-/** Every page key the shell's router matches on. */
+/** Every page key the shell's router matches on, and the retired pages it routes by their move (surfaceRetiredTo). */
 function routedPages() {
-  const pages = new Set();
+  const pages = new Set(Object.keys(registry.SURFACE_RETIRED));
   for (const m of shell.matchAll(/page === "([a-z-]+)"/g)) pages.add(m[1]);
   return pages;
 }
@@ -85,7 +85,6 @@ test("the real set is exactly the converted surfaces", () => {
     "admin/notifications",
     "admin/platform",
     "admin/profile",
-    "admin/setup",
     "admin/team",
     "admin/workspace",
     "broadcasts",
@@ -99,6 +98,7 @@ test("the real set is exactly the converted surfaces", () => {
     "outbound",
     "reports",
     "segments",
+    "start",
     "today",
   ]);
   // The back office tab, asked the way the shell asks: by page and pane. It
@@ -377,4 +377,16 @@ test("the tab bar offers what the registry says is real, and only that", () => {
   // And the bar's own floor: a group whose real tabs number fewer than two
   // renders nothing, so a group with exactly one real tab is a bar nobody sees.
   assert.ok(tabsSrc.includes("if (tabs.length < 2) return null;"), "the two-tab minimum still holds");
+});
+
+test("Setup's old address lands on the first run -- the bell rows the edge wrote still carry it -- and a pane moves alone", () => {
+  assert.equal(surfaceRetiredTo("admin", "setup"), "start");
+  assert.equal(surfaceRetiredTo("admin", "workspace"), undefined, "the rest of Settings stays where it is");
+  assert.equal(surfaceRetiredTo("pipeline", null), "clients", "a retired page still moves as a page");
+  // A demo session: a pane that moved and a page gone from the tree move there too; a retired page it still draws stays.
+  assert.equal(surfaceRetiredTo("admin", "setup", true), "start", "the mockup has no Setup pane either");
+  assert.equal(surfaceRetiredTo("leads", null, true), "clients/leads");
+  assert.equal(surfaceRetiredTo("pipeline", null, true), undefined, "the demo keeps the Deal board it still draws");
+  assert.equal(surfaceStateFor("start", null), "real");
+  assert.equal(routeSurfaceFor("start", null), "setup", "the first run waits for Setup's read");
 });

@@ -91,7 +91,6 @@ window.INT_STORE = window.INT_STORE || {
  */
 const SET_TABS = [
   { id: "profile",       label: "Profile",       icon: "user",     group: "You" },
-  { id: "setup",         label: "Setup",         icon: "flag",     group: "Workspace" },
   { id: "workspace",     label: "Business",      icon: "home",     group: "Workspace" },
   { id: "team",          label: "Team",          icon: "users",    group: "Workspace" },
   { id: "autonomy",      label: "Autonomy",      icon: "shield",   group: "Workspace" },
@@ -1779,7 +1778,6 @@ const SettingsPage = ({ tab = "workspace", onTab = () => {} }) => {
         )}
         {active.id === "profile" && <PaneProfile flash={flash} />}
         {active.id === "team" && <TeamSection flash={flash} />}
-        {active.id === "setup" && window.PaneSetup && <window.PaneSetup />}
         {active.id === "workspace" && <PaneWorkspace flash={flash} />}
         {active.id === "autonomy" && (window.__POLICIES === undefined ? <PaneAutonomy flash={flash} /> : <PaneAutonomyReal flash={flash} />)}
         {active.id === "integrations" && (window.__CHANNELS === undefined ? <PaneIntegrations flash={flash} /> : <window.PaneIntegrationsReal />)}

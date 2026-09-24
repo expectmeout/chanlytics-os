@@ -5,6 +5,8 @@ import {
   signupPosture,
   PENDING_WORKSPACE_KEY,
   pendingWorkspaceOf,
+  pendingCodeOf,
+  InviteCodeSchema,
 } from "@chanlytics/contracts";
 import { z } from "zod";
 import { inviteCodeMatches, notifyPlatformSignup } from "@/server/signup";
@@ -49,7 +51,7 @@ const Body = z
     /** IANA zone. Optional — the function defaults it and validates it. */
     timezone: z.string().trim().min(1).max(64).optional(),
     /** The invite code, asked of a first workspace when sign-up is by invitation. */
-    code: z.string().trim().max(80).optional(),
+    code: InviteCodeSchema.optional(),
   })
   .strict();
 
@@ -84,7 +86,9 @@ export const POST = write({
     const door = firstWorkspaceDoor({
       posture: signupPosture(process.env.SIGNUP_CODE),
       memberships: count ?? 0,
-      codeMatches: inviteCodeMatches(parsed.data.code),
+      // The code typed here, or the one sign-up checked and kept (pendingCodeOf): so the first workspace is made
+      // from sign-up's answers with nothing typed twice, and a code that stopped being right stops opening it.
+      codeMatches: inviteCodeMatches(parsed.data.code) || inviteCodeMatches(pendingCodeOf(ctx.metadata)),
     });
     if (!door.open) throw new AppError(door.code, door.message);
 

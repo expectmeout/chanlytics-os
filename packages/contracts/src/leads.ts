@@ -38,6 +38,7 @@ import {
   type LeadSearchPlan,
 } from "./lead-search";
 import { initialsOf } from "./viewmodels";
+import { firstRunStepRoute } from "./first-run";
 import type { Tone } from "./tone";
 import { agoShort, agoWords } from "./time";
 import { formatPhoneDisplay } from "./phone";
@@ -407,7 +408,9 @@ export interface LeadWay {
  */
 export function leadsFirstDayWays(f: LeadWayFacts): LeadWay[] {
   const live = !!(f.voice && f.voice.active && f.voice.number);
-  const reachDoors = [{ id: "line", label: live ? "Your number" : "Set up your number", to: "admin/setup" }];
+  const reachDoors = [
+    { id: "line", label: live ? "Your number" : "Set up your number", to: firstRunStepRoute("phone") },
+  ];
   if (!f.whatsapp || !f.whatsapp.active)
     reachDoors.push({ id: "whatsapp", label: "Connect WhatsApp", to: "admin/integrations" });
   return [

@@ -1135,6 +1135,12 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 :where(.dash-a-v2) .tq .cl-attn-status { font-size: 12.5px; line-height: 1.45; color: var(--ink-muted); white-space: normal; overflow: visible; text-overflow: clip; }
 :where(.dash-a-v2) .tq .cl-attn-acts { justify-self: start; display: inline-flex; gap: 8px; padding-top: 2px; }
 :where(.dash-a-v2) .tq .cl-attn-cta { font-size: 12.5px; padding: 8px 12px; border-radius: 8px; }
+/* Today's card of what is left to set up draws Setup's own rows (setup.jsx SetupRows), in the queue's grammar. Setup's
+   rules (settings.css .setup-rows, loaded after these) give a row a glyph column and, on a phone, put its acts in a
+   second one; Today hides the glyph, so here the row is one column, as the queue's are. */
+:where(.dash-a-v2) .today-setup .setup-rows { padding: 0; }
+:where(.dash-a-v2) .today-setup .setup-rows .cl-attn-row { grid-template-columns: minmax(0, 1fr); padding: 12px 18px; }
+:where(.dash-a-v2) .today-setup .setup-rows .cl-attn-acts { grid-column: auto; justify-self: start; }
 
 /* One surface, not a bar over a list: the head loses its sunken fill and its rule,
    and the sentence sits under the title instead of beside it. */

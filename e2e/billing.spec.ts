@@ -77,12 +77,15 @@ test.describe("Billing on a real workspace", () => {
     expect(body.error.message).toContain("direct arrangement");
   });
 
-  test("Setup shows no billing row for a direct arrangement", async ({ page }) => {
+  test("the first run shows no billing row for a direct arrangement, on any step it has reached", async ({ page }) => {
     const { data } = await (await apiGet(page, "/api/v1/billing")).json();
     test.skip(data.billing.account.mode !== "direct", "a card-paying workspace has the row");
-    await page.goto("/#/admin/setup");
+    await page.goto("/#/start");
     await page.waitForLoadState("networkidle");
-    await expect(page.getByTestId("setup-readiness")).toBeVisible();
-    await expect(page.getByTestId("setup-row-billing")).toHaveCount(0);
+    await expect(page.getByTestId("first-run")).toBeVisible();
+    for (const b of await page.locator('[data-testid^="fr-rail-"]').all()) {
+      await b.click();
+      await expect(page.getByTestId("setup-row-billing")).toHaveCount(0);
+    }
   });
 });

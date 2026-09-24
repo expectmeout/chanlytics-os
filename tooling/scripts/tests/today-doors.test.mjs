@@ -12,7 +12,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toTodayVM, toLiveVM } from "@chanlytics/contracts";
+import { toTodayVM, toLiveVM, setupSteps, FIRST_RUN_HELPERS } from "@chanlytics/contracts";
 import { hookFrames } from "./_hook-frames.mjs";
 
 const ZONE = "America/New_York";
@@ -216,6 +216,7 @@ for (const k of ["StatePill", "EmptyState", "FailedRead", "PolicyChip", "StatStr
 globalThis.useHotkey = () => {};
 globalThis.window.usePPToast = () => [null, (m) => flashes.push(m)];
 await import("../../../apps/dashboard/src/legacy/pages/attention-bits.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/setup.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/dashboard-a-command.jsx");
 const { TODAY_HELPERS } = await import("../../../apps/dashboard/src/legacy-bridge/today.ts");
@@ -264,6 +265,12 @@ const mountCard = (vm) => {
   cells = [];
   frames.begin();
   return globalThis.window.TodayCard();
+};
+// What is left to set up, one card above the queue (TodaySetup): it reads Setup's surface, not the day's.
+const mountSetup = () => {
+  cells = [];
+  frames.begin();
+  return globalThis.window.TodaySetup();
 };
 const mountQueue = (vm) => {
   globalThis.window.TODAY_DATA = vm;
@@ -418,30 +425,108 @@ test("a quiet day shows its proof -- which lines are on -- and the way to the co
   assert.equal(went.at(-1), "conversations");
 });
 
-test("REGRESSION: with no line connected, Today does not say the receptionist is answering -- one sentence, and one door to Setup", () => {
-  globalThis.window.__SETUP = {
-    vm: { line: "3 things left to set up before customers can reach you", readiness: { answering: false } },
+/** A workspace's Setup read, as the bridge publishes it: Setup's own view model over a DTO. */
+const setupSurface = (over = {}) => {
+  const dto = {
+    business: {
+      name: null,
+      hours: false,
+      services: 0,
+      bookingLink: false,
+      address: false,
+      handoff: null,
+      broken: false,
+    },
+    channels: {
+      whatsapp: { present: false, active: false, number: null, quality: null, lastInboundAt: null },
+      voice: { present: false, active: false, number: null, lastInboundAt: null },
+    },
+    templates: { approved: 0, pending: 0, startersApproved: 0 },
+    calendar: { state: "none" },
+    team: { members: 1, invitesOpen: 0, alertEmails: 1 },
+    consent: { yes: 0, offers: 0, offersSaidYes: 0 },
+    requests: { line: null },
+    ...over,
   };
+  return { dto, role: "owner", later: [], vm: setupSteps({ ...dto, later: [] }, NOW.getTime()) };
+};
+const firstRun = FIRST_RUN_HELPERS;
+
+test("REGRESSION: with no line connected, Today does not say the receptionist is answering -- one sentence, and one door to finishing setting up", () => {
+  globalThis.window.__SETUP = setupSurface();
+  globalThis.window.__firstRun = firstRun;
   try {
     const vm = todayWith([]);
     const hero = mountHero(vm);
     const recap = mountCard(vm);
     const queue = mountQueue(vm);
-    const said = textOf(hero) + textOf(recap) + textOf(queue);
+    const setup = mountSetup();
+    const said = textOf(hero) + textOf(recap) + textOf(queue) + textOf(setup);
     assert.ok(
       !said.includes("answering on its own"),
       "REGRESSION: the queue said the receptionist was answering, with no line to answer on",
     );
     assert.ok(!said.includes("Queue clear — nothing needs you"), "nor that the queue was clear, as if all were well");
+    assert.equal(buttonsSaying(setup, "Continue setting up").length, 1, "one door to the first run");
+    assert.ok(textOf(setup).includes("Next: your business"), "and the step it opens on");
     assert.equal(
-      buttonsSaying(hero, "Open Setup").length +
-        buttonsSaying(recap, "Open Setup").length +
-        buttonsSaying(queue, "Open Setup").length,
-      1,
-      "one door to Setup",
+      [hero, recap, queue, setup].reduce((n, t) => n + buttonsSaying(t, "Open Setup").length, 0),
+      0,
+      "and none to the tab that is gone",
     );
+    buttonsSaying(setup, "Continue setting up")[0].props.onClick();
+    assert.equal(went.at(-1), "start");
   } finally {
     delete globalThis.window.__SETUP;
+    delete globalThis.window.__firstRun;
+  }
+});
+
+test("the card once it answers: Setup's own rows, WhatsApp first, and Hide puts them all off for this person", async () => {
+  const put = [];
+  globalThis.window.__SETUP = setupSurface({
+    business: {
+      name: "Harbor Moving",
+      hours: true,
+      services: 2,
+      bookingLink: true,
+      address: true,
+      handoff: null,
+      broken: false,
+    },
+    channels: {
+      whatsapp: { present: false, active: false, number: null, quality: null, lastInboundAt: null },
+      voice: { present: true, active: true, number: "+13055550123", lastInboundAt: null },
+    },
+  });
+  globalThis.window.__firstRun = firstRun;
+  globalThis.window.__setup = {
+    later: async (ids, on) => {
+      put.push([ids, on]);
+      return { ok: true, message: "" };
+    },
+  };
+  try {
+    const card = mountSetup();
+    const rows = findAll(card, (n) => /^setup-row-/.test(n.props?.["data-testid"] ?? ""));
+    assert.equal(rows[0].props["data-testid"], "setup-row-whatsapp", "WhatsApp leads: it sends the booking link");
+    assert.ok(rows.length > 1, "and what else is left follows it");
+    const hide = find(card, (n) => n.props?.["data-testid"] === "today-setup-hide");
+    await hide.props.onClick();
+    assert.equal(put.at(-1)[1], true);
+    const ids = rows.map((r) => r.props["data-testid"].slice("setup-row-".length));
+    assert.deepEqual(put.at(-1)[0], ids, "Hide puts every row on the card off at once");
+    assert.equal(
+      textOf(flashes.at(-1).msg),
+      `All ${ids.length} put off. They stay in Setting up for when you're ready.`,
+      "and says so",
+    );
+    await flashes.at(-1).undo();
+    assert.deepEqual(put.at(-1), [ids, false], "its Undo takes them all back");
+  } finally {
+    delete globalThis.window.__SETUP;
+    delete globalThis.window.__firstRun;
+    delete globalThis.window.__setup;
   }
 });
 

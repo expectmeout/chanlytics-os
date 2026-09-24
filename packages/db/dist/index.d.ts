@@ -4469,6 +4469,15 @@ type Database = {
                 };
                 Returns: boolean;
             };
+            lead_round_rejudge: {
+                Args: {
+                    p_judgment?: Json;
+                    p_places: Json;
+                    p_plan_version: number;
+                    p_round_id: string;
+                };
+                Returns: Json;
+            };
             lead_round_stop: {
                 Args: {
                     p_search_id: string;

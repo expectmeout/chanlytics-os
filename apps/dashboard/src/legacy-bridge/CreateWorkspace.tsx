@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { SIGNUP_WORDS, type PendingWorkspace, type SignupPosture } from "@chanlytics/contracts";
 import { api } from "./api";
 import { joinWaitlistFrom } from "./waitlist";
@@ -109,6 +109,46 @@ export default function CreateWorkspace({
   // Behind a waitlist: the list's own sentence, once it has taken them.
   const [joined, setJoined] = useState<string | null>(null);
 
+  // CREATE ONCE (F5): a first workspace whose name sign-up kept is made as the
+  // screen opens, from that name and clock -- and the invite code sign-up
+  // checked, which the create route reads for itself -- so there is no second
+  // screen. A refusal (a name taken, a code that changed since) leaves the
+  // form, filled in, with the server's sentence, as a press on it would.
+  const kept = !another && door !== "waitlist" ? (initial?.name ?? "").trim() : "";
+  const [making, setMaking] = useState(kept.length >= 2);
+  const started = useRef(false);
+
+  /** Make the workspace: the press's and the arrival's one way. True once it is made. */
+  const create = async (trimmed: string, typedCode: string): Promise<boolean> => {
+    setBusy(true);
+    setError(null);
+    const r = await api()("POST workspaces/create", {
+      body: { name: trimmed, timezone, ...(door === "invite" && typedCode ? { code: typedCode } : {}) },
+      // Nothing here is read again: the tab leaves for the new workspace at once (onCreated).
+      refresh: false,
+    });
+    if (!r.ok) {
+      // The server's message is written for a person to read — "Unknown
+      // timezone: Mars/Olympus", "This account already owns 10 workspaces" —
+      // so it is shown rather than replaced with something generic.
+      setError(r.message);
+      setBusy(false);
+      return false;
+    }
+    onCreated(r.data.workspace);
+    return true;
+  };
+
+  useEffect(() => {
+    if (!making || started.current) return;
+    started.current = true;
+    void create(kept, "").then((made) => {
+      if (!made) setMaking(false);
+    });
+    // Once, on arrival: its inputs are sign-up's, and they do not change while the screen is open.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (busy) return;
@@ -119,20 +159,7 @@ export default function CreateWorkspace({
       setError("Give the workspace a name — the receptionist introduces itself with it.");
       return;
     }
-    setBusy(true);
-    setError(null);
-    const r = await api()("POST workspaces/create", {
-      body: { name: trimmed, timezone, ...(door === "invite" ? { code: code.trim() } : {}) },
-    });
-    if (!r.ok) {
-      // The server's message is written for a person to read — "Unknown
-      // timezone: Mars/Olympus", "This account already owns 10 workspaces" —
-      // so it is shown rather than replaced with something generic.
-      setError(r.message);
-      setBusy(false);
-      return;
-    }
-    onCreated(r.data.workspace);
+    await create(trimmed, code.trim());
   };
 
   // Joining the list, from here. The button sent a signed-in person to /signup,
@@ -170,6 +197,18 @@ export default function CreateWorkspace({
       <a href="/privacy">Privacy policy</a>
     </p>
   );
+
+  // Being made, from what sign-up kept: nothing to ask, so nothing asked.
+  if (making) {
+    return (
+      <div className="cw-screen">
+        <div className="cw-card" role="status" aria-live="polite" data-testid="cw-making">
+          <h1 className="cw-title">{kept}</h1>
+          <p className="cw-lede">{SIGNUP_WORDS.making}</p>
+        </div>
+      </div>
+    );
+  }
 
   // The list, not the workspace form: a waitlist takes details and makes
   // nothing, and a first workspace behind one is refused by the route anyway.

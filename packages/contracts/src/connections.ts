@@ -21,6 +21,7 @@ import { checkedWords, connectionWords, listingLine } from "./google";
 import { formatPhoneDisplay } from "./phone";
 import { CALENDAR_FEED_WORDS } from "./calendar";
 import { EMAIL_NOT_ANSWERED_SENTENCE, type EmailSetupDto } from "./mailbox";
+import { firstRunStepRoute } from "./first-run";
 
 export type ConnectionKind =
   "whatsapp" | "phone" | "sms" | "google_listing" | "google_profile" | "calendar" | "instagram" | "email" | "deposits";
@@ -47,7 +48,7 @@ export type ConnectionWho = "owner" | "operator";
 
 export interface ConnectionVerb {
   label: string;
-  /** A route ("admin/setup", "messages") or a `verb:` id the page runs. */
+  /** A route ("start", "messages") or a `verb:` id the page runs. */
   to: string;
   who: ConnectionWho;
 }
@@ -390,8 +391,8 @@ export function connectionRows(i: ConnectionInputs, nowMs = Date.now()): Connect
         detail: formatPhoneDisplay(own.e164),
         state: "waiting_them",
         stateWords: "Waiting on us",
-        sentence: "Setting up stopped. A person at Chanlytics has it; retry from Setup.",
-        verb: { label: "Open Setup", to: "admin/setup", who: "owner" },
+        sentence: "Setting up stopped. A person at Chanlytics has it, or you can retry it.",
+        verb: { label: "Retry it", to: firstRunStepRoute("phone"), who: "owner" },
       }),
     );
   } else if (i.lineRequestedAt) {
@@ -417,7 +418,7 @@ export function connectionRows(i: ConnectionInputs, nowMs = Date.now()): Connect
         state: "none",
         stateWords: "Not connected",
         sentence: "Get a number the receptionist answers, or keep the one you have.",
-        verb: { label: "Get a line", to: "admin/setup", who: "owner" },
+        verb: { label: "Get a line", to: firstRunStepRoute("phone"), who: "owner" },
       }),
     );
   } else {
@@ -430,7 +431,7 @@ export function connectionRows(i: ConnectionInputs, nowMs = Date.now()): Connect
         state: "none",
         stateWords: "Not connected",
         sentence: "We set up your phone line with you.",
-        verb: { label: "Ask for a line", to: "admin/setup", who: "owner" },
+        verb: { label: "Ask for a line", to: firstRunStepRoute("phone"), who: "owner" },
       }),
     );
   }
@@ -520,7 +521,7 @@ export function connectionRows(i: ConnectionInputs, nowMs = Date.now()): Connect
         state: "none",
         stateWords: "Not watched",
         sentence: "Find it from the name and address on record; new reviews then reach your bell and Reports.",
-        verb: { label: "Find it on Setup", to: "admin/setup", who: "owner" },
+        verb: { label: "Find it", to: firstRunStepRoute("business"), who: "owner" },
       }),
     );
   } else {

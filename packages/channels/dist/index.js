@@ -793,6 +793,11 @@ var LeadSearchPlanSchema = z4.object({
 var US_NAMES = Object.fromEntries(
   Object.entries(US_STATES).map(([name, code2]) => [code2, name])
 );
+function greetingFor(name) {
+  const who = name ? ` ${name}` : "";
+  return `Thank you for calling${who}! This call may be recorded. I'm the automated assistant \u2014 how can I help you today?`;
+}
+var GREETING_DEFAULT = /* @__PURE__ */ greetingFor(null);
 var LEAD_CLASSES = LEAD_MEMBER_CLASSES;
 var LEAD_LISTS = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
 var LEAD_SORTS = ["fit", "found", "distance", "business", "rating", "stage"];
@@ -1552,6 +1557,7 @@ var SOLE_PROP_CEILING_SENTENCE = `This is the sole-proprietor registration: one 
 var SOLE_PROP_TEXTING_SENTENCE = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE}`;
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
+var InviteCodeSchema = z8.string().trim().max(80);
 var SignupSchema = z8.object({
   name: z8.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
   email: z8.string().trim().toLowerCase().email("Enter a work email address.").max(254),
@@ -1572,7 +1578,7 @@ var SignupSchema = z8.object({
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
   timezone: z8.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
-  code: z8.string().trim().max(80).optional()
+  code: InviteCodeSchema.optional()
 }).strict();
 var PendingWorkspaceSchema = z8.object({
   name: z8.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
@@ -1718,6 +1724,17 @@ var JUDGE_OUTPUT_SCHEMA = {
   required: ["places"],
   additionalProperties: false
 };
+function judgeQuestions(plan) {
+  const out = {};
+  out[LEAD_KIND_KEY] = `the place is one of the ${plan.name} the search is for -- that kind of business itself, not a neighbour, supplier, competitor or a business that merely serves them [required; Claude's read of the name and category is enough (likely)]`;
+  for (const c of plan.criteria) {
+    const bar = c.standard === "seen" ? "must be SEEN in the facts: pass only when a fact you cite shows it; a read from the name or category alone is unknown" : "Claude's read of the facts is enough (likely)";
+    out[c.key] = `${c.text} [${c.required ? "required" : "preferred"}; ${bar}]`;
+  }
+  for (const e of plan.exclusions)
+    out[e.key] = `the place is NOT ${e.text} [required; fail when the place is what is left out]`;
+  return out;
+}
 function judgeSystemPrompt(plan) {
   const lines = [];
   lines.push(
@@ -1733,16 +1750,7 @@ function judgeSystemPrompt(plan) {
   lines.push(
     "A fail may cite a fact that is missing (its absence is the evidence); a pass must cite a fact that is actually there."
   );
-  lines.push(
-    `- ${LEAD_KIND_KEY}: the place is one of the ${plan.name} the search is for -- that kind of business itself, not a neighbour, supplier, competitor or a business that merely serves them [required; Claude's read of the name and category is enough (likely)]`
-  );
-  for (const c of plan.criteria) {
-    const bar = c.standard === "seen" ? "must be SEEN in the facts: pass only when a fact you cite shows it; a read from the name or category alone is unknown" : "Claude's read of the facts is enough (likely)";
-    lines.push(`- ${c.key}: ${c.text} [${c.required ? "required" : "preferred"}; ${bar}]`);
-  }
-  for (const e of plan.exclusions) {
-    lines.push(`- ${e.key}: the place is NOT ${e.text} [required; fail when the place is what is left out]`);
-  }
+  for (const [key, q] of Object.entries(judgeQuestions(plan))) lines.push(`- ${key}: ${q}`);
   lines.push(
     "email_index: the index of the business's own address among its emails, or null when none is theirs (a person's own inbox at a free-mail domain counts as theirs for a sole trader)."
   );
@@ -2310,11 +2318,6 @@ var VOICE_SHELL_BEGIN = "{{greeting}}";
 var HANDOFF_VAR = "{{handoff_number}}";
 var FACTS_UNAVAILABLE = "The business's details could not be loaded for this call. Do not state opening hours, prices, services or an address from memory \u2014 you do not have them. Say you will have someone confirm, offer to take a message, and offer to send the booking link to the caller's WhatsApp.";
 var CALLER_UNKNOWN = "New caller - no prior interactions on record.";
-function greetingFor(name) {
-  const who = name ? ` ${name}` : "";
-  return `Thank you for calling${who}! This call may be recorded. I'm the automated assistant \u2014 how can I help you today?`;
-}
-var GREETING_DEFAULT = greetingFor(null);
 var DEFAULT_FN_URL = "https://chanlytics-messaging.vercel.app/api/retell-fn";
 function availabilityUrl(fnUrl) {
   return /\/api\/retell-fn$/.test(fnUrl) ? fnUrl.replace(/\/api\/retell-fn$/, "/api/retell-availability") : `${fnUrl}-availability`;
