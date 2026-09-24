@@ -618,9 +618,8 @@ test("a first ask reaches the platform mailbox through the edge; a repeat does n
   // in mail-doors.test.mjs.
 });
 
-test("the primary verb belongs to the next row alone; mobile tabs keep their labels", () => {
-  const page = readCode("apps/dashboard/src/legacy/pages/setup.jsx");
-  assert.ok(page.includes('kind: vm.next && vm.next.row === r.id ? "primary" : "ghost"'));
+// Which row's verb is the one coral button is the caller's to name, and setup-page-activate.test.mjs presses it.
+test("mobile tabs keep their labels, and a row's sentence wraps on a phone", () => {
   const mobile = readRaw("apps/dashboard/src/legacy/styles/mobile.css");
   assert.ok(mobile.includes(".set-nav-row { grid-template-columns: auto auto; white-space: nowrap; flex: 0 0 auto; }"));
   assert.ok(
@@ -927,9 +926,8 @@ test("wiring: Settings tab, manifest, bridge, routes, registry, rate bucket, eve
     "testid={`setup-row-${r.id}`}",
     'ctaTestid="setup-verb"',
     "testid: `setup-later-${r.id}`",
-    'data-testid="setup-next"',
     'window.canDo("approve")',
-    "window.PaneSetup = PaneSetup;",
+    "window.SetupRows = SetupRows;",
   ])
     assert.ok(page.includes(pin), pin);
   const brief = readCode("apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx");

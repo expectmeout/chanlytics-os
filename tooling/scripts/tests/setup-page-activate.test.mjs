@@ -89,6 +89,7 @@ test("the contract: a tested, unactivated receptionist offers Activate and says 
 
 /* ---- the page itself, rendered without a browser ---- */
 const calls = {
+  later: [],
   activate: [],
   deactivate: [],
   refresh: 0,
@@ -107,6 +108,10 @@ globalThis.window = {
   location: { origin: "https://app.chanlytics.com", hash: "#/admin/setup" },
   __SETUP: { dto, role: "owner", vm, fetchedAt: NOW },
   __setup: {
+    later: async (ids, on) => {
+      calls.later.push([ids, on]);
+      return { ok: true, message: "" };
+    },
     activate: async (kind) => {
       calls.activate.push(kind);
       return { ok: true, message: "" };
@@ -202,7 +207,13 @@ globalThis.EmptyState = globalThis.window.EmptyState;
 // data-bits also publishes the shell's toast hook; this harness keeps its own flash.
 globalThis.window.usePPToast = () => [null, (m) => calls.flash.push(m)];
 await import("../../../apps/dashboard/src/legacy/pages/setup.jsx");
-const Page = globalThis.window.PaneSetup;
+// Setup's rows as the first run and Today draw them (setup.jsx SetupRows): every row, the next one primary.
+const Page = () =>
+  globalThis.window.SetupRows({
+    S: globalThis.window.__SETUP,
+    rows: globalThis.window.__SETUP.vm.rows,
+    primary: globalThis.window.__SETUP.vm.next ? globalThis.window.__SETUP.vm.next.row : null,
+  });
 
 /** The component's cells live across renders, as React's do, so a click that sets state shows on the next mount; `fresh()` starts a component over. */
 let cells = [];
@@ -371,17 +382,56 @@ test("the page: a row that dials is not itself a dial; an activated row offers t
   globalThis.window.__SETUP = { dto, role: "owner", vm, fetchedAt: NOW };
 });
 
-test("the page: a failed read draws a card with a retry, and the retry reads again", async () => {
-  globalThis.window.__SETUP = null;
+// A failed read, and its retry, are the first run's page now: first-run-page.test.mjs.
+
+test("the page: Later puts a row off through the bridge, and waits for it like any other press", async () => {
+  // The fixture, as the failed-read test used to leave it for the tests after it.
+  globalThis.window.__SETUP = { dto, role: "owner", later: [], vm, fetchedAt: NOW };
+  fresh();
   const tree = mount();
-  let retry = null;
+  let row = null;
   walk(tree, (n) => {
-    if (!retry && n.props?.["data-testid"] === "setup-retry") retry = n.props;
+    if (!row && n.props?.testid === "setup-row-keep") row = n.props;
   });
-  assert.ok(retry, "a retry on the failed card");
-  await retry.onClick();
-  assert.equal(calls.refresh, 1);
-  globalThis.window.__SETUP = { dto, role: "owner", vm, fetchedAt: NOW };
+  assert.ok(row, "the kept number's row is drawn");
+  assert.equal(row.also.label, "Later", "an optional row that is not ready can be put off");
+  assert.equal(row.also.testid, "setup-later-keep");
+  await row.also.onClick();
+  assert.deepEqual(calls.later.at(-1), ["keep", true]);
+  let facts = null;
+  walk(tree, (n) => {
+    if (!facts && n.props?.testid === "setup-row-facts") facts = n.props;
+  });
+  assert.equal(facts.also, null, "a row the receptionist needs is never put off");
+});
+
+test("the page: the one coral button is the row the caller names, and every other verb is quiet", () => {
+  const kinds = (primary) => {
+    // The harness's page names `vm.next`'s row as the primary one, as the first run names its step's first open row.
+    const next = primary ? { label: "Set up forwarding", to: "verb:forwarding", row: primary, title: "Keep" } : null;
+    globalThis.window.__SETUP = { dto, role: "owner", later: [], vm: { ...vm, next }, fetchedAt: NOW };
+    fresh();
+    const tree = mount();
+    const out = {};
+    walk(tree, (n) => {
+      const t = n.props?.testid;
+      if (typeof t === "string" && t.startsWith("setup-row-") && n.props.cta) out[t.slice(10)] = n.props.cta.kind;
+    });
+    return out;
+  };
+  const named = kinds("keep");
+  assert.equal(named.keep, "primary");
+  assert.deepEqual(
+    Object.entries(named)
+      .filter(([, k]) => k === "primary")
+      .map(([id]) => id),
+    ["keep"],
+    "one coral button, the named row's",
+  );
+  assert.ok(
+    Object.values(kinds(null)).every((k) => k === "ghost"),
+    "none named, none coral: Live's rows leave the one action to Finish",
+  );
 });
 
 /* ---- the chooser: find numbers in an area code, pick one, get it ---- */
