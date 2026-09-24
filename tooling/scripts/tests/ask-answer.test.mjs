@@ -25,6 +25,7 @@ import {
   openingsAnswer,
   partialSay,
   proseAnswer,
+  rightNowCounts,
   rightNowLine,
   v1FromAnswer,
 } from "@chanlytics/contracts";
@@ -197,6 +198,23 @@ test("Right now is Today's queue in a sentence: the people waiting, then the run
     "REGRESSION: a queue not read yet said nobody was waiting",
   );
   assert.equal(rightNowLine(null, "es"), "La cola de hoy aún no se ha leído.");
+});
+
+test("rightNowCounts: the people and the runs the sentence counts; zeros for a queue not read", () => {
+  assert.deepEqual(rightNowCounts(null), { people: 0, runs: 0 });
+  const w = {
+    people: [
+      { id: "c1", kind: "thread", who: "Nora", channel: "WhatsApp", when: "2h", line: "", to: "inbox/th-c1" },
+      { id: "c2", kind: "call", who: "Emily", channel: "Phone", when: "3d", line: "", to: "conversations/cv-c2" },
+    ],
+    more: 1,
+    runs: [{ id: "r1", label: "Win-back", reach: 1, to: "broadcasts/run:r1" }],
+  };
+  assert.deepEqual(rightNowCounts(w), { people: 3, runs: 1 });
+  assert.equal(
+    rightNowLine(w, "en"),
+    "Nora, Emily and 1 other are waiting on you; one playbook run is waiting for your approval.",
+  );
 });
 
 test("who needs me: the sentence, then the people and the runs as their own doors, and the Inbox only for the people past the cap", () => {

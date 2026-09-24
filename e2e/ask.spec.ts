@@ -230,3 +230,30 @@ test.describe("Ask on a real workspace", () => {
     await expect(page.getByTestId("ask-row-now")).toBeVisible();
   });
 });
+
+test.describe("Ask on a phone", () => {
+  test.skip(!HAVE_SESSION, WHY_SKIPPED);
+  test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  test.beforeEach(async ({ page }) => {
+    await signIn(page);
+  });
+
+  test("the ✦ opens the takeover; words typed survive a close by Back and come back on the next open", async ({
+    page,
+  }) => {
+    await page.goto("/#/today");
+    await page.waitForLoadState("networkidle");
+    await page.getByTestId("phone-ask").tap();
+    const ask = page.getByTestId("ask-real");
+    await expect(ask).toBeVisible();
+    await ask.getByTestId("ask-input").fill("how did the");
+    // The takeover pushed one entry of its own as it opened (ask-real.jsx, S8): Back closes it and stays on Today.
+    await page.goBack();
+    await expect(ask).toHaveCount(0);
+    await expect(page).toHaveURL(/#\/today$/);
+    // The words are kept as typed (S9) and are back in the field on the next open.
+    await page.getByTestId("phone-ask").tap();
+    await expect(ask).toBeVisible();
+    await expect(ask.getByTestId("ask-input")).toHaveValue("how did the");
+  });
+});

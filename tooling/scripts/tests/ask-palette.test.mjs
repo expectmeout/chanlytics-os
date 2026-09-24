@@ -395,7 +395,7 @@ test("REGRESSION (N3): what the shell sends as the Line opens is taken -- a seed
 test("a seed that names a thread opens that thread, its last answer under the line", async () => {
   const calls = ask([TH(1), TH(2)]);
   render(Palette, CLOSED);
-  // Today's band hands its conversation over as the Line opens (today-face.jsx, Continue in Ask).
+  // Any caller may hand a conversation over as Ask opens: askAbout({ thread }) stays on the shell.
   sent("ask:seed", { thread: TH(2).id });
   const tree = await opens();
   assert.deepEqual(calls.opened, [TH(2).id], "the thread was read");
@@ -429,17 +429,24 @@ test("the Line at rest: Right now is Today's queue, then questions about the pag
     const calls = ask([TH(1), TH(2), TH(3), TH(4)]);
     render(Palette, OPEN);
     let tree = await later(Palette, OPEN);
-    assert.equal(textOf(byTestId(tree, "ask-row-now")), "Nora is waiting on you.");
-    assert.ok(
-      textOf(tree).includes("Ask about Today") && byTestId(tree, "ask-row-sug"),
-      "questions about the page, under its name",
-    );
+    assert.equal(textOf(byClass(byTestId(tree, "ask-row-now"), "ask-row-label")[0]), "Nora is waiting on you.");
+    // The pills beside the sentence say its counts (rightNowParts): one person waiting, no run.
+    assert.deepEqual(all(tree, (n) => n.props?.["data-testid"] === "ask-pill").map(textOf), ["1 needs you"]);
+    assert.equal(textOf(byTestId(tree, "ask-row-brief")), "Brief me");
+    assert.ok(textOf(tree).includes("Ask about Today"), "questions about the page, under its name");
+    assert.equal(all(tree, (n) => n.props?.["data-testid"] === "ask-row-sug").length, 3, "three questions, as chips");
+    assert.ok(byTestId(tree, "ask-row-sug").props.className.split(" ").includes("ask-chip"));
     assert.equal(
       all(tree, (n) => n.props?.["data-testid"] === "ask-row-thread").length,
       3,
-      "three earlier conversations, and a row for the rest",
+      "three earlier conversations",
     );
-    assert.ok(byTestId(tree, "ask-row-all"));
+    assert.equal(
+      textOf(byClass(byTestId(tree, "ask-row-thread"), "ask-row-meta")[0]),
+      "1h ago",
+      "each one line, its time at the right",
+    );
+    assert.ok(byTestId(tree, "ask-row-all").props.className.split(" ").includes("ask-chip"), "and the rest as a chip");
     assert.ok(!/[↵⌘↑↓]|\bEsc\b|\bdel\b/.test(textOf(tree)), `no key is drawn (D17): ${textOf(tree)}`);
     // ↵ on the empty line runs the row it stands on: Right now's own question, answered without a model.
     keyed(tree, "Enter");
@@ -486,6 +493,9 @@ test("a follow-up folds the answer above the line; Clear ends the conversation, 
   tree = await later(Palette, OPEN);
   assert.equal(byTestId(tree, "ask-turn"), null, "home again");
   assert.ok(byTestId(tree, "ask-row-now"));
+  // Nobody waits here (no queue): Right now is the sentence alone, no pill and no Brief me (spec 4.3).
+  assert.equal(byTestId(tree, "ask-pill"), null);
+  assert.equal(byTestId(tree, "ask-row-brief"), null, "a quiet queue is the sentence alone");
   await closes();
 });
 
@@ -509,7 +519,7 @@ test("Esc while Ask reads stops waiting: the turn says so, and what the stream s
   tree = await later(Palette, props);
   keyed(tree, "Enter");
   tree = await later(Palette, props);
-  assert.ok(textOf(byTestId(tree, "ask-trace")).includes("Reading the inbox…"), "reading, in the tools' words");
+  assert.ok(textOf(byTestId(tree, "ask-reading")).includes("Reading the inbox…"), "reading, in the tools' words");
   assert.ok(byTestId(tree, "ask-stop"), "the line offers Stop while Ask reads");
   keyed(tree, "Escape");
   tree = await later(Palette, props);
@@ -712,6 +722,101 @@ test("a turn since the Line: Say is drawn as it is written, the headline then th
   await closes();
 });
 
+test("the answer on the rail: tiles with the receipt inside, items with a kind mark, one Open button and chips", async () => {
+  const calls = ask([]);
+  const final = {
+    id: "m-r",
+    role: "assistant",
+    atMs: Date.now(),
+    failed: false,
+    citations: [],
+    followups: [],
+    proposals: [],
+    text: "6 of 16 went unanswered.",
+    answer: {
+      v: 2,
+      form: "structured",
+      language: "en",
+      say: { headline: "6 of 16 went unanswered.", detail: "Mostly after hours." },
+      show: {
+        figures: [
+          {
+            value: "5",
+            label: "needed you",
+            note: "up from 1",
+            source: { kind: "page", id: "reports", label: "Reports, past 7 days", to: "reports", door: true },
+          },
+          { value: "20s", label: "median reply", note: "stayed fast", source: null },
+        ],
+        items: [
+          {
+            title: "Nora",
+            meta: "WhatsApp · 2h",
+            line: "Can I come at 3?",
+            source: { kind: "thread", id: "c1", label: "Nora", to: "inbox/th-c1", door: true },
+          },
+        ],
+        breakdown: null,
+      },
+      do: {
+        open: { to: "reports", label: "Open the week in Reports", now: false },
+        next: ["What caused it?", "Who still needs me?"],
+      },
+    },
+  };
+  globalThis.window.__ask.send = async (input, on) => {
+    calls.sent.push(input.text);
+    on({ t: "thread", id: TH(1).id, title: input.text });
+    on({ t: "final", message: final });
+  };
+  render(Palette, OPEN);
+  let tree = await later(Palette, OPEN);
+  typed(tree, "how did the week go?");
+  tree = await later(Palette, OPEN);
+  keyed(tree, "Enter");
+  for (let i = 0; i < 3; i++) tree = await later(Palette, OPEN);
+  assert.deepEqual(calls.sent, ["how did the week go?"]);
+  assert.equal(all(tree, (n) => n.props?.["data-testid"] === "ask-mark").length, 3, "the rail's three squares");
+  const tiles = all(tree, (n) => n.props?.["data-testid"] === "ask-tile");
+  assert.equal(tiles.length, 2);
+  assert.equal(byTestId(tiles[0], "ask-tile-from").props["data-open"], "false", "the receipt waits inside the tile");
+  press(byTestId(tiles[0], "ask-figure"));
+  tree = await later(Palette, OPEN);
+  const opened = all(tree, (n) => n.props?.["data-testid"] === "ask-tile")[0];
+  assert.equal(byTestId(opened, "ask-tile-from").props["data-open"], "true");
+  assert.match(textOf(byTestId(opened, "ask-tile-from")), /From Reports, past 7 days/);
+  assert.equal(
+    byTestId(byTestId(opened, "ask-tile-from"), "ask-tile-door"),
+    null,
+    "Open already offers Reports, so the receipt draws no second door (oneDoor)",
+  );
+  assert.equal(
+    byTestId(all(tree, (n) => n.props?.["data-testid"] === "ask-tile")[1], "ask-figure"),
+    null,
+    "a figure with no source is words",
+  );
+  assert.ok(byTestId(tree, "ask-item-mark"), "a row carries its kind");
+  const open = byTestId(tree, "ask-open");
+  assert.ok(open.props.className.split(" ").includes("btn"), "Open is the kit's button");
+  assert.deepEqual(
+    all(tree, (n) => n.props?.["data-testid"] === "ask-next").map((n) =>
+      n.props.className.split(" ").includes("ask-chip"),
+    ),
+    [true, true],
+  );
+  // The reports door is offered once: the tile's receipt has no door beside Open (oneDoor), and the keys walk item, Open, next, next.
+  keyed(tree, "ArrowDown");
+  keyed(tree, "ArrowDown");
+  keyed(tree, "ArrowDown");
+  tree = await later(Palette, OPEN);
+  assert.ok(
+    all(tree, (n) => n.props?.["data-testid"] === "ask-next")[0]
+      .props.className.split(" ")
+      .includes("sel"),
+  );
+  await closes();
+});
+
 test("the Line takes back a Say the server set aside and shows the reads again; a later row to a place an earlier one opens is drawn as a row, never a second door", async () => {
   const calls = ask([]);
   let land = () => {};
@@ -746,7 +851,8 @@ test("the Line takes back a Say the server set aside and shows the reads again; 
   keyed(tree, "Enter");
   tree = await later(Palette, OPEN);
   assert.equal(byClass(tree, "ask-headline").length, 0, "the Say taken back is not drawn");
-  assert.ok(textOf(byTestId(tree, "ask-trace")).includes("Reading the calendar…"), "the read is shown again");
+  assert.ok(textOf(byTestId(tree, "ask-reading")).includes("Reading the calendar…"), "the read is shown again");
+  assert.ok(byTestId(tree, "ask-trace"), "the body is the question again");
   land();
   tree = await later(Palette, OPEN);
   assert.deepEqual(
@@ -839,6 +945,313 @@ test("the Line draws Ask's face in the line, and says Ask's mood as a turn runs"
   }
 });
 
+test("the band: one reading line says what Ask reads, Send fills with words, Stop while a turn runs", async () => {
+  const calls = ask([]);
+  const tick = () => new Promise((r) => setImmediate(r));
+  let release;
+  globalThis.window.__ask.send = async (input, on) => {
+    calls.sent.push(input.text);
+    on({ t: "thread", id: TH(1).id, title: input.text });
+    on({ t: "trace", text: "Reading the inbox…" });
+    on({ t: "trace", text: "Reading this week's calls…" });
+    await new Promise((r) => {
+      release = r;
+    });
+    on({
+      t: "final",
+      message: {
+        id: "m-b",
+        role: "assistant",
+        text: "Done.",
+        atMs: Date.now(),
+        failed: false,
+        citations: [],
+        followups: [],
+        proposals: [],
+      },
+    });
+  };
+  render(Palette, OPEN);
+  let tree = await later(Palette, OPEN);
+  assert.equal(byTestId(tree, "ask-send").props.disabled, true, "nothing to send yet");
+  assert.equal(byTestId(tree, "ask-reading"), null, "no reading line at rest");
+  typed(tree, "how did the week go?");
+  tree = await later(Palette, OPEN);
+  assert.equal(byTestId(tree, "ask-send").props.disabled, false);
+  press(byTestId(tree, "ask-send"));
+  await tick();
+  tree = await later(Palette, OPEN);
+  assert.deepEqual(calls.sent, ["how did the week go?"]);
+  assert.equal(textOf(byTestId(tree, "ask-reading")), "Reading this week's calls…", "the latest trace, one line");
+  assert.ok(byTestId(tree, "ask-stop"), "Stop while it reads");
+  assert.equal(byTestId(tree, "ask-send"), null);
+  release();
+  for (let i = 0; i < 3; i++) tree = await later(Palette, OPEN);
+  assert.equal(byTestId(tree, "ask-reading"), null, "the line goes with the answer");
+  await closes();
+});
+
+/* ------------------------------ the takeover (a phone) ------------------------------ */
+
+/** A phone: the window's width query answers true, and history records what the Line pushes and takes back. */
+const phoneWindow = () => {
+  const mm = globalThis.window.matchMedia;
+  const hist = globalThis.window.history;
+  const log = [];
+  globalThis.window.matchMedia = (q) => ({
+    matches: q === "(max-width: 720px)",
+    addEventListener() {},
+    removeEventListener() {},
+  });
+  globalThis.window.history = {
+    replaceState() {},
+    pushState: (s, t, u) => log.push(["push", s, u]),
+    back: () => {
+      log.push(["back"]);
+      globalThis.window.dispatchEvent(new Event("popstate"));
+    },
+  };
+  globalThis.window.location.href = "https://app.chanlytics.com/w/studio#/today";
+  return {
+    log,
+    restore: () => {
+      globalThis.window.matchMedia = mm;
+      globalThis.window.history = hist;
+      delete globalThis.window.location.href;
+    },
+  };
+};
+
+test("on a phone the Line is the screen: focus on the dialog, not the field, the three in the hero, one history entry, Back closes, × goes back", async () => {
+  const ph = phoneWindow();
+  let closed = 0;
+  const props = {
+    open: true,
+    onClose: () => {
+      closed++;
+    },
+  };
+  try {
+    ask([]);
+    render(Palette, props);
+    let tree = await later(Palette, props);
+    assert.ok(byTestId(tree, "ask-hero"), "the hero stands on a phone");
+    assert.ok(byTestId(byTestId(tree, "ask-hero"), "ask-line-face"), "the three are in the hero, not the band");
+    assert.equal(byTestId(byTestId(tree, "ask-line"), "ask-line-face"), null, "and not in the band");
+    assert.equal(byTestId(tree, "ask-real").props["aria-modal"], "true");
+    // The field and the dialog are given something to focus; the Line's focus effects reach them within 30ms.
+    let focused = 0;
+    let dialogFocused = 0;
+    inputOf(tree).props.ref.current = {
+      focus: () => {
+        focused++;
+      },
+    };
+    byTestId(tree, "ask-real").props.ref.current = {
+      focus: () => {
+        dialogFocused++;
+      },
+    };
+    await new Promise((r) => setTimeout(r, 60));
+    assert.equal(focused, 0, "no keyboard of its own: the field is not focused as the takeover opens (S10)");
+    assert.equal(dialogFocused, 1, "the dialog is (S10)");
+    assert.deepEqual(
+      ph.log,
+      [["push", null, "https://app.chanlytics.com/w/studio#/today"]],
+      "one entry, null state, same address (S8)",
+    );
+    // Back: the entry pops and the takeover closes, pushing nothing more. Drawn again, not rendered afresh, so the
+    // Line's cleanups run as it closes, as React's do.
+    globalThis.window.dispatchEvent(new Event("popstate"));
+    assert.equal(closed, 1);
+    draw(Palette, CLOSED);
+    await later(Palette, CLOSED);
+    assert.equal(ph.log.length, 1, "closing by Back goes back no further");
+    // Open again; × closes through history.back().
+    draw(Palette, props);
+    tree = await later(Palette, props);
+    press(byTestId(tree, "ask-close"));
+    assert.equal(closed, 2);
+    draw(Palette, CLOSED);
+    await later(Palette, CLOSED);
+    assert.deepEqual(ph.log.slice(1), [["push", null, "https://app.chanlytics.com/w/studio#/today"], ["back"]]);
+    assert.equal(closed, 2, "the entry taken back is not a second close");
+  } finally {
+    await closes();
+    ph.restore();
+  }
+});
+
+test("on a phone a place Ask goes to takes the takeover's entry: Back from there is the page Ask was opened over", async () => {
+  const ph = phoneWindow();
+  const went = [];
+  globalThis.window.appNavigate = (to, o) => went.push([to, o]);
+  try {
+    ask([]);
+    render(Palette, OPEN);
+    let tree = await later(Palette, OPEN);
+    typed(tree, "calendar");
+    tree = await later(Palette, OPEN);
+    press(byTestId(tree, "ask-row-jump"));
+    assert.deepEqual(went, [["calendar", { replace: true }]], "the entry becomes the place, not a second one");
+    await closes();
+    assert.deepEqual(
+      ph.log,
+      [["push", null, "https://app.chanlytics.com/w/studio#/today"]],
+      "and nothing goes back over the place",
+    );
+  } finally {
+    await closes();
+    delete globalThis.window.appNavigate;
+    ph.restore();
+  }
+});
+
+test("on a desktop Ask pushes no entry of its own and focuses the field; a place it goes to is the shell's own push", async () => {
+  const hist = globalThis.window.history;
+  const nav = globalThis.window.CHANLY.nav;
+  const log = [];
+  const went = [];
+  globalThis.window.history = {
+    replaceState() {},
+    pushState: (s, t, u) => log.push(["push", s, u]),
+    back: () => log.push(["back"]),
+  };
+  globalThis.window.appNavigate = (to, o) => went.push([to, o]);
+  // As constants.jsx has it: CHANLY.nav is the shell's navigate, which pushes.
+  globalThis.window.CHANLY.nav = (to) => globalThis.window.appNavigate(to);
+  try {
+    ask([]);
+    render(Palette, OPEN);
+    let tree = await later(Palette, OPEN);
+    let focused = 0;
+    let dialogFocused = 0;
+    inputOf(tree).props.ref.current = {
+      focus: () => {
+        focused++;
+      },
+    };
+    byTestId(tree, "ask-real").props.ref.current = {
+      focus: () => {
+        dialogFocused++;
+      },
+    };
+    await new Promise((r) => setTimeout(r, 60));
+    assert.equal(focused, 1, "the field takes focus on a desktop");
+    assert.equal(dialogFocused, 0, "not the dialog");
+    assert.equal(byTestId(tree, "ask-hero"), null, "and no hero stands");
+    typed(tree, "calendar");
+    tree = await later(Palette, OPEN);
+    press(byTestId(tree, "ask-row-jump"));
+    assert.deepEqual(went, [["calendar", undefined]], "the shell's own push, never a replace");
+    await closes();
+    assert.deepEqual(log, [], "no entry of Ask's own, and nothing taken back");
+  } finally {
+    await closes();
+    globalThis.window.history = hist;
+    globalThis.window.CHANLY.nav = nav;
+    delete globalThis.window.appNavigate;
+  }
+});
+
+test("on a phone the mic keeps the finger: the lift asks what was heard, and Type instead leaves it in the field", async () => {
+  const ph = phoneWindow();
+  const recs = [];
+  // The browser's recogniser, as far as the Line uses it: stopping it ends it, and what it heard comes back then.
+  globalThis.window.SpeechRecognition = class {
+    constructor() {
+      recs.push(this);
+    }
+    start() {}
+    stop() {
+      this.onend();
+    }
+  };
+  const hears = (rec, words) => {
+    const r = [{ transcript: words }];
+    r.isFinal = true;
+    rec.onresult({ results: [r] });
+  };
+  const captured = [];
+  const down = () => ({ ...pressOf(), pointerId: 7, currentTarget: { setPointerCapture: (id) => captured.push(id) } });
+  try {
+    const calls = ask([]);
+    render(Palette, OPEN);
+    let tree = await later(Palette, OPEN);
+    byTestId(tree, "ask-talk").props.onPointerDown(down());
+    hears(recs[0], "how did the week go");
+    tree = await later(Palette, OPEN);
+    assert.deepEqual(captured, [7], "the mic holds the finger");
+    assert.ok(byTestId(tree, "ask-letgo"), "Let go to ask, while it listens");
+    assert.ok(byTestId(tree, "ask-talk"), "over the band, still drawn, so the lift reaches the mic");
+    let focused = 0;
+    inputOf(tree).props.ref.current = {
+      focus: () => {
+        focused++;
+      },
+    };
+    press(byTestId(tree, "ask-type-instead"));
+    tree = await later(Palette, OPEN);
+    assert.deepEqual(calls.sent, [], "REGRESSION: Type instead asked what was heard");
+    assert.equal(inputOf(tree).props.value, "how did the week go", "the words are the field's, to finish");
+    assert.equal(focused, 1, "and the field takes focus");
+    assert.equal(byTestId(tree, "ask-letgo"), null);
+
+    byTestId(tree, "ask-talk").props.onPointerDown(down());
+    hears(recs[1], "how did the weekend go");
+    tree = await later(Palette, OPEN);
+    byTestId(tree, "ask-talk").props.onPointerUp();
+    for (let i = 0; i < 3; i++) tree = await later(Palette, OPEN);
+    assert.deepEqual(calls.sent, ["how did the weekend go"], "the lift off the mic asks");
+  } finally {
+    await closes();
+    delete globalThis.window.SpeechRecognition;
+    ph.restore();
+  }
+});
+
+test("the phone's three listen to a press held a beat; a shorter press, or one that drags, does nothing (S11, S7)", async () => {
+  const said = [];
+  const talk = { start: () => said.push("start"), stop: () => said.push("stop") };
+  let press3 = null;
+  const Probe = () => {
+    press3 = globalThis.window.AskHooks.useHoldPress({ talk, onHold: () => said.push("buzz") });
+    return null;
+  };
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  render(Probe, {});
+  const down = pressOf();
+  press3.onPointerDown(down);
+  assert.equal(down.prevented, true, "the press opens no keyboard and selects nothing");
+  await wait(360);
+  assert.deepEqual(said, ["buzz", "start"], "held: a buzz, then listening");
+  press3.onPointerDown(pressOf());
+  assert.deepEqual(said, ["buzz", "start"], "a second down while held starts nothing");
+  press3.onPointerUp();
+  assert.deepEqual(said, ["buzz", "start", "stop"], "let go: it asks");
+
+  press3.onPointerDown(pressOf());
+  press3.onPointerUp();
+  await wait(360);
+  assert.deepEqual(said, ["buzz", "start", "stop"], "a tap started nothing");
+  press3.onPointerDown(pressOf());
+  press3.onPointerCancel();
+  await wait(360);
+  assert.deepEqual(said, ["buzz", "start", "stop"], "nor a press the browser took back");
+  // A pull down that starts on the three closes the takeover; it is never a hold.
+  press3.onPointerDown({ ...pressOf(), clientX: 195, clientY: 200 });
+  press3.onPointerMove({ clientX: 196, clientY: 204 });
+  press3.onPointerMove({ clientX: 196, clientY: 240 });
+  await wait(360);
+  assert.deepEqual(said, ["buzz", "start", "stop"], "nor a press that drags");
+  press3.onPointerUp();
+  press3.onPointerDown({ ...pressOf(), clientX: 195, clientY: 200 });
+  press3.onPointerMove({ clientX: 197, clientY: 205 });
+  await wait(360);
+  assert.deepEqual(said, ["buzz", "start", "stop", "buzz", "start"], "a finger that trembles still holds");
+  press3.onPointerUp();
+});
+
 test("a quick answer nods, and a failed turn shakes: the palette says how a turn ended", async () => {
   const { MASCOT } = await import("../../../apps/dashboard/src/legacy-bridge/mascot/index.ts");
   globalThis.window.__mascot = MASCOT;
@@ -870,6 +1283,67 @@ test("a quick answer nods, and a failed turn shakes: the palette says how a turn
     stop();
     MASCOT.mood.set("idle");
     delete globalThis.window.__mascot;
+  }
+});
+
+/* ------------------------------ what the tab keeps ------------------------------ */
+
+test("what was typed comes back on the next open; the open conversation's id is kept and opened again (spec S9)", async () => {
+  const drafts = new Map();
+  globalThis.window.__tabMemory = {
+    draft: (k) => (drafts.has(k) ? drafts.get(k) : null),
+    keepDraft: (k, v) => drafts.set(k, v),
+    dropDraft: (k) => drafts.delete(k),
+    place: () => null,
+    keepPlace() {},
+  };
+  try {
+    const calls = ask([TH(1), TH(2)]);
+    globalThis.window.__ask.send = async (input, on) => {
+      calls.sent.push(input.text);
+      on({ t: "thread", id: TH(1).id, title: input.text });
+      on({ t: "final", message: said("m-1", "Answer 1.") });
+    };
+    render(Palette, OPEN);
+    let tree = await later(Palette, OPEN);
+    typed(tree, "how did the");
+    tree = await later(Palette, OPEN);
+    assert.equal(drafts.get("ask"), "how did the", "kept as typed");
+    await closes();
+    tree = await opens();
+    assert.equal(inputOf(tree).props.value, "how did the", "back on the next open");
+    keyed(tree, "Enter");
+    for (let i = 0; i < 3; i++) tree = await later(Palette, OPEN);
+    assert.deepEqual(calls.sent, ["how did the"]);
+    assert.equal(drafts.has("ask"), false, "gone once sent");
+    assert.equal(drafts.get("ask-thread"), TH(1).id, "the conversation's id is kept");
+    press(byTestId(tree, "ask-clear"));
+    tree = await later(Palette, OPEN);
+    assert.equal(drafts.has("ask-thread"), false, "and forgotten at Clear");
+    // A reload: the Line is made again, closed, over a tab that kept a conversation's id and words half-typed in it.
+    // Being made forgets neither; the first open reads the conversation and puts the words back in the field. (Closed
+    // first, so the window's listeners go with the old Line, as they do with a page.)
+    await closes();
+    drafts.set("ask-thread", TH(1).id);
+    drafts.set("ask", "and the week before");
+    render(Palette, CLOSED);
+    assert.equal(drafts.get("ask-thread"), TH(1).id, "a Line made closed forgets nothing");
+    tree = await opens();
+    assert.deepEqual(calls.opened, [TH(1).id], "opened again after a reload");
+    assert.equal(inputOf(tree).props.value, "and the week before", "with the words typed in it");
+    assert.equal(drafts.get("ask"), "and the week before", "which stay kept");
+    await closes();
+    // A reload whose first open is a request (a caller handing a conversation over with askAbout({ thread })): the
+    // request wins, and the kept conversation is not read as well.
+    drafts.set("ask-thread", TH(1).id);
+    render(Palette, CLOSED);
+    sent("ask:seed", { thread: TH(2).id });
+    tree = await opens();
+    assert.deepEqual(calls.opened, [TH(1).id, TH(2).id], "only the conversation asked for is read");
+    assert.equal(drafts.get("ask-thread"), TH(2).id, "and it is the one kept");
+    await closes();
+  } finally {
+    delete globalThis.window.__tabMemory;
   }
 });
 
