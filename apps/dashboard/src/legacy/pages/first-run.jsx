@@ -154,7 +154,7 @@ const FirstRun = ({ param = null, onNavigate }) => {
             <div className="fr-part">
               {step.key === "live" ? <h2 className="fr-sub">{W.liveNext}</h2> : null}
               <section className="tq fr-rows">
-                <window.SetupRows S={S} rows={step.rows} primary={fr.primaryRow} later={W.putOff} testid="fr-rows" />
+                <window.SetupRows S={S} rows={step.rows} look="row" primary={fr.primaryRow} later={W.putOff} testid="fr-rows" />
               </section>
             </div>
           ) : null}

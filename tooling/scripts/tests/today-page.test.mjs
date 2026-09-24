@@ -1491,15 +1491,15 @@ test("the page is three bands and nothing seeded: the standing line, the queue w
   const page = find(tree, (n) => classes(n).includes("dash-a-v2"));
   assert.deepEqual(
     page.props.children.map((c) => (typeof c.type === "function" ? c.type.name : String(c.props.className))),
-    // No band above the queue but what is left to set up (TodaySetup, drawn only while something is): on a phone Ask
-    // is the ✦'s full-screen takeover (ask-real.jsx), not a part of Today.
-    ["HeroBrief", "TodaySetup", "dash-a-v2-core", "TodayCard", "dash-a-v2-foot"],
+    // No band above the queue: on a phone Ask is the ✦'s full-screen takeover (ask-real.jsx), not a part of Today.
+    ["HeroBrief", "dash-a-v2-core", "TodayCard", "dash-a-v2-foot"],
   );
+  const name = (c) => (typeof c.type === "function" ? c.type.name : String(c.props.className));
   const core = find(tree, (n) => classes(n).includes("dash-a-v2-core"));
-  assert.deepEqual(
-    core.props.children.filter((c) => c && typeof c.type === "function").map((c) => c.type.name),
-    ["AgentCommand", "TodayDay"],
-  );
+  assert.deepEqual(core.props.children.map(name), ["dash-a-v2-work", "TodayDay"]);
+  // What is left to set up sits above the queue in its column, never across the page (canvas R10).
+  const work = find(tree, (n) => classes(n).includes("dash-a-v2-work"));
+  assert.deepEqual(work.props.children.map(name), ["TodaySetup", "AgentCommand"]);
   const foot = find(tree, (n) => classes(n).includes("dash-a-v2-foot"));
   assert.deepEqual(
     foot.props.children.filter((c) => c && typeof c.type === "function").map((c) => c.type.name),

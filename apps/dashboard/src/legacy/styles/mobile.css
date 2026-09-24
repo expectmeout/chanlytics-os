@@ -120,11 +120,13 @@
   .tq-sub { flex-basis: 100%; white-space: normal; }
   .tq-live { flex-wrap: wrap; }
   .tq-live-text { white-space: normal; }
-  /* What is left to set up, on a phone: only the next thing, one line and one button; its head says how many are left.
-     Skip and Hide wait for a wider screen. */
-  .today-setup .setup-rows .tq-list > :not(:first-child) { display: none; }
-  .today-setup .tq-list .cl-attn-sentence { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .today-setup .cl-attn-cta.ghost, .today-setup .today-setup-hide { display: none; }
+  /* What is left to set up, on a phone: only the next thing, one line and one button under it; its head says how many
+     are left. Skip and Hide wait for a wider screen. */
+  .today-setup .tq-list > :not(:first-child) { display: none; }
+  .setup-card-row { grid-template-columns: 14px minmax(0, 1fr); row-gap: 10px; }
+  .setup-card-acts { grid-column: 2; }
+  .today-setup .setup-card-said { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .today-setup .setup-card-skip { display: none; }
 
   /* ---------- Inbox ---------- */
   .inbox, .inbox.with-rail { grid-template-columns: 1fr; grid-template-rows: minmax(0, 42vh) minmax(0, 1fr); }
