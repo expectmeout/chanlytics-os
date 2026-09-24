@@ -10044,6 +10044,9 @@ function rightNowLine(w, language) {
   const s = [people, runs].filter(Boolean).join("; ");
   return `${s.charAt(0).toUpperCase()}${s.slice(1)}.`;
 }
+function rightNowCounts(w) {
+  return w ? { people: w.people.length + w.more, runs: w.runs.length } : { people: 0, runs: 0 };
+}
 function needsAnswer(w, language) {
   const es = language === "es";
   const a = structured(rightNowLine(w, language), language);
@@ -19932,6 +19935,7 @@ export {
   reviewReplyWords,
   reviewSnippet,
   reviewsWords,
+  rightNowCounts,
   rightNowLine,
   roleGate,
   ruleNeedsCalendar,

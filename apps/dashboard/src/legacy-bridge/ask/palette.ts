@@ -17,6 +17,7 @@ import {
   needsAnswer,
   oneDoor,
   openingsAnswer,
+  rightNowCounts,
   rightNowLine,
   sameQuestion,
   scopeFromRoute,
@@ -193,6 +194,11 @@ export function askPalette(win: Window, storage: Storage | null) {
     waiting,
     /** Right now, in a sentence: Today's queue itself (the Line, D7), on every page. */
     rightNow: (lang?: AskLanguage) => rightNowLine(waiting(), lang ?? lastLanguage()),
+    /** The sentence and the counts it was built from (the Stage's pills, spec 4.3). */
+    rightNowParts: (lang?: AskLanguage): { sentence: string; people: number; runs: number } => {
+      const w = waiting();
+      return { sentence: rightNowLine(w, lang ?? lastLanguage()), ...rightNowCounts(w) };
+    },
     suggestions: (surface: AskSurface, scope: AskScope | null, lang?: AskLanguage): AskSuggestion[] => {
       const feed = feedFromGlobals(w as Parameters<typeof feedFromGlobals>[0], Date.now());
       const who = waiting();

@@ -293,6 +293,11 @@ export function rightNowLine(w: AskWaiting | null, language: AskLanguage): strin
   return `${s.charAt(0).toUpperCase()}${s.slice(1)}.`;
 }
 
+/** The counts rightNowLine's sentence is built from, so pills beside it never disagree: people waiting (drawn and past the rows) and runs waiting. */
+export function rightNowCounts(w: AskWaiting | null): { people: number; runs: number } {
+  return w ? { people: w.people.length + w.more, runs: w.runs.length } : { people: 0, runs: 0 };
+}
+
 /**
  * Who needs me: the sentence; the people, then the runs, as their own doors; the Inbox only for the people past what
  * is drawn. A queue not read yet says so, and points at Today.
