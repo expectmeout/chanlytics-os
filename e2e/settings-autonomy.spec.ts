@@ -63,10 +63,11 @@ test.describe("Settings → Autonomy on a real workspace", () => {
       // mark's tip says what each mode does and on which lines.
       await expect(row.locator(".set-mark")).toHaveAttribute("data-tip", /on WhatsApp and on the phone/);
     }
-    // The rows that run playbooks say what each mode does to a run, and their dots are live.
+    // The rows that run playbooks say what each mode does to a run -- behind the row's info mark, as every note is
+    // since #620 -- and their dots are live.
     for (const label of ["Re-engage quiet customers", "Standing offers"]) {
       const row = rows.filter({ hasText: label });
-      await expect(row).toContainText("ask leaves it waiting on Today");
+      await expect(row.locator(".set-mark")).toHaveAttribute("data-tip", /ask leaves it waiting on Today/);
       await expect(row.locator(".pol-dot").first()).toBeEnabled();
     }
 

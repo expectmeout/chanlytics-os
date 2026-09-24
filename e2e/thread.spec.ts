@@ -233,16 +233,14 @@ test.describe("The thread, in the nightly's own workspace", () => {
         await page.setViewportSize(size);
         await freshLoad(page, `#/inbox/th-${id}`);
         const pane = page.locator(".ix-thread-pane");
-        // The thread is yours since the reply: the owned bar carries the decision and its words (I1), never the
-        // take banner beside it.
-        await expect(pane.locator(".ix-take, .ix-owned")).toBeVisible();
+        // The thread is yours since the reply: the state bar (IxState, ix-yours) carries the decision and its words
+        // (I1), never the take banner beside it; the old take and owned divs draw only for a thread that is not real.
+        await expect(pane.getByTestId("ix-yours")).toBeVisible();
         // Measured, not asked: toBeVisible passes a box an overflow has cut to nothing.
         const fit = await pane.evaluate((el) => {
           const edge = el.getBoundingClientRect();
-          const words = el.querySelector(".ix-take-body")?.getBoundingClientRect();
-          const inside = [
-            ...el.querySelectorAll(".ix-take .btn, .ix-owned .cl-bucket-link, .ix-th-actions .btn"),
-          ].every((b) => {
+          const words = el.querySelector(".ix-state-says")?.getBoundingClientRect();
+          const inside = [...el.querySelectorAll(".ix-state-acts .btn, .ix-th-actions .btn")].every((b) => {
             const r = b.getBoundingClientRect();
             return r.width === 0 || (r.left >= edge.left - 1 && r.right <= edge.right + 1);
           });
