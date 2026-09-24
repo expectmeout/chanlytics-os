@@ -429,17 +429,24 @@ test("the Line at rest: Right now is Today's queue, then questions about the pag
     const calls = ask([TH(1), TH(2), TH(3), TH(4)]);
     render(Palette, OPEN);
     let tree = await later(Palette, OPEN);
-    assert.equal(textOf(byTestId(tree, "ask-row-now")), "Nora is waiting on you.");
-    assert.ok(
-      textOf(tree).includes("Ask about Today") && byTestId(tree, "ask-row-sug"),
-      "questions about the page, under its name",
-    );
+    assert.equal(textOf(byClass(byTestId(tree, "ask-row-now"), "ask-row-label")[0]), "Nora is waiting on you.");
+    // The pills beside the sentence say its counts (rightNowParts): one person waiting, no run.
+    assert.deepEqual(all(tree, (n) => n.props?.["data-testid"] === "ask-pill").map(textOf), ["1 needs you"]);
+    assert.equal(textOf(byTestId(tree, "ask-row-brief")), "Brief me");
+    assert.ok(textOf(tree).includes("Ask about Today"), "questions about the page, under its name");
+    assert.equal(all(tree, (n) => n.props?.["data-testid"] === "ask-row-sug").length, 3, "three questions, as chips");
+    assert.ok(byTestId(tree, "ask-row-sug").props.className.split(" ").includes("ask-chip"));
     assert.equal(
       all(tree, (n) => n.props?.["data-testid"] === "ask-row-thread").length,
       3,
-      "three earlier conversations, and a row for the rest",
+      "three earlier conversations",
     );
-    assert.ok(byTestId(tree, "ask-row-all"));
+    assert.equal(
+      textOf(byClass(byTestId(tree, "ask-row-thread"), "ask-row-meta")[0]),
+      "1h ago",
+      "each one line, its time at the right",
+    );
+    assert.ok(byTestId(tree, "ask-row-all").props.className.split(" ").includes("ask-chip"), "and the rest as a chip");
     assert.ok(!/[↵⌘↑↓]|\bEsc\b|\bdel\b/.test(textOf(tree)), `no key is drawn (D17): ${textOf(tree)}`);
     // ↵ on the empty line runs the row it stands on: Right now's own question, answered without a model.
     keyed(tree, "Enter");

@@ -58,21 +58,37 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 .ask-follow-chip { font: inherit; font-size: 12px; color: var(--ink); background: var(--bg-sunken); border: 1px solid var(--line); border-radius: var(--radius-full); padding: 5px 11px; cursor: pointer; text-align: left; }
 .ask-follow-chip:hover { border-color: var(--line-strong); background: var(--bg-hover); }
 
-/* ---- Under the line: the rows, and the trace while Ask reads ---- */
+/* ---- Under the band: Right now, chips for the questions, compact rows for the conversations; the trace while Ask reads ---- */
 .ask-line-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; border-top: 1px solid var(--line); scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
-.ask-rows { display: flex; flex-direction: column; padding: 8px; }
-.ask-rows-label { padding: 12px 12px 4px; font-size: 12px; color: var(--ink-dim); }
-.ask-row { display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 8px 12px; border-radius: var(--radius-md); color: var(--ink-muted); cursor: pointer; }
-.ask-row.sel { background: var(--bg-hover); color: var(--ink); }
-.ask-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.ask-row-label { font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; }
-.ask-row.now { color: var(--ink); }
-.ask-row.now .ask-row-label { font-size: 14.5px; line-height: 1.45; }
-.ask-row-sub { font-size: 12px; color: var(--ink-dim); }
-.ask-row-meta { flex: none; font-size: 12px; color: var(--ink-dim); }
+.ask-rows { display: flex; flex-direction: column; gap: 14px; padding: 10px 10px 14px; }
+/* A section: its label, its rows, its chips (ask-home.jsx). The gap above is between sections, never between rows. */
+.ask-rows-sec { display: flex; flex-direction: column; }
+.ask-rows-label { padding: 0 6px 6px; font-size: 12px; color: var(--ink-dim); }
+.ask-row { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 0 8px 0 10px; border-radius: var(--radius-md); color: var(--ink); cursor: pointer; }
+.ask-row.sel { background: var(--bg-hover); }
+.ask-row-glyph { flex: none; color: var(--ink-dim); }
+.ask-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.ask-row-label { font-size: 13.5px; line-height: 1.4; overflow-wrap: anywhere; }
+.ask-row.thread .ask-row-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ask-row-sub, .ask-row-meta { flex: none; font-size: 12px; color: var(--ink-dim); }
+.ask-row.now { align-items: center; gap: 8px; min-height: 44px; padding: 6px 6px 6px 8px; }
+.ask-row.now .ask-row-label { flex: 1; }
+.ask-now-pills { display: inline-flex; flex: none; gap: 6px; }
+.ask-now-brief { flex: none; }
 .ask-row-del { display: none; flex: none; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--ink-faint); cursor: pointer; }
 .ask-row.thread:hover .ask-row-del, .ask-row.thread.sel .ask-row-del { display: inline-flex; }
 .ask-row-del:hover { color: var(--danger); background: var(--danger-soft); }
+.ask-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 6px; }
+/* Earlier's chip for the rest sits under its rows, a breath below the last. */
+.ask-row + .ask-chips { padding-top: 6px; }
+.ask-chip { display: inline-flex; align-items: center; gap: 7px; max-width: 100%; height: 28px; padding: 0 11px; border: 1px solid var(--line); border-radius: var(--radius-full); background: var(--bg-raised); font: inherit; font-size: 12.5px; color: var(--ink); white-space: nowrap; cursor: pointer; text-align: left; }
+/* An act's words run to sixty letters: a chip never grows past its wrap, a phone's included. */
+.ask-chip > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.ask-chip.door { padding-right: 9px; }
+.ask-chip .icon, .ask-chip-meta { color: var(--ink-dim); }
+.ask-chip-meta { font-size: 11px; }
+.ask-chip:hover, .ask-chip.sel { border-color: var(--line-strong); background: var(--bg-hover); }
+.ask-chip.next::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 2px; background: color-mix(in oklab, var(--ink) 34%, var(--bg-raised)); }
 .ask-rows-empty { padding: 18px 20px; font-size: 13px; color: var(--ink-dim); }
 .ask-trace { display: flex; flex-direction: column; gap: 10px; padding: 18px 24px 20px 22px; font-size: 13.5px; color: var(--ink); }
 .ask-trace .ask-turn-q { margin-bottom: 2px; }
