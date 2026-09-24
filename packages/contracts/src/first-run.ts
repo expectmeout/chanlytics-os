@@ -16,6 +16,7 @@ import { initialsOf } from "./viewmodels";
 import { openWeekWords, servicesWords, type ServiceWordsInput } from "./business-tab";
 import { DAY_NAMES, type Hours } from "./config";
 import { bookingLinkOptional } from "./deals";
+import { checkChipsOf } from "./check-chips";
 import type { SetupDto, SetupRowVM, SetupState, SetupVM } from "./setup";
 
 /** The first run's address: `#/start`, and `#/start/<step>` for a step already reached. */
@@ -571,6 +572,7 @@ export const FIRST_RUN_HELPERS = {
   of: firstRunOf,
   receptionist: receptionistCardOf,
   todayCard: setupCardOf,
+  chips: checkChipsOf,
   words: FIRST_RUN_WORDS,
   landedKey: FIRST_RUN_LANDED_KEY,
 } as const;

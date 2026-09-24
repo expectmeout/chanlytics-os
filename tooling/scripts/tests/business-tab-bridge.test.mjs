@@ -60,6 +60,7 @@ import {
   bookingLinkOptional,
   bookingLinkRowWords,
   BOOKING_LINK_NEEDED,
+  COMMON_LANGUAGES,
 } from "@chanlytics/contracts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -147,6 +148,7 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     "BOOKING_LINK_NEEDED",
     "BOOKING_RULE_HINTS",
     "CHIPS_SHOWN",
+    "COMMON_LANGUAGES",
     "GUARDRAIL_KEYS",
     "POLICY_MODES",
     "PROFILE_LIMITS",
@@ -212,6 +214,8 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     assert.equal(tab.hasProfile(p), hasProfile(p), JSON.stringify(p));
   }
   assert.deepEqual(tab.TONE_PRESETS, TONE_PRESETS);
+  // The languages the box offers are the first run's chips' too: one list.
+  assert.deepEqual(tab.COMMON_LANGUAGES, COMMON_LANGUAGES);
   // What you offer's first row, how customers buy (0008): its row, its choice and what it switches, and the toast.
   for (const answer of [null, "booking", "proposal", "banana"])
     assert.deepEqual(tab.sellsByVM(answer), sellsByVM(answer), String(answer));

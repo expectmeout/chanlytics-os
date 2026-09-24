@@ -21,17 +21,14 @@
 // RecordBox and plain buttons. Its top-level names are
 // bta-prefixed, and no pattern in it holds an object rest, for the reasons business-tab-save.jsx gives.
 //
-// Two lists here are the old form's too, until Task 3.7 deletes it: the languages it offers and the three messages'
-// labels. They moved here, and settings.jsx reads them through window as it loads (this file loads first in both
-// lists), so there is one copy of each.
+// The languages it offers are contracts' (COMMON_LANGUAGES, through window.__businessTab), the first run's chips' too:
+// one list. The three messages' labels are this card's own.
 
-/* ------------------------------------ the lists the old form shares ------------------------------------ */
+/* ------------------------------------ the lists ------------------------------------ */
 
-// Offered rather than typed. A comma-separated box asks someone to guess both
-// the spelling and the separator, and "Espanol" and "Spanish" would then be two
-// different languages to anything reading this later. Anything not listed can
-// still be added by hand.
-const BTA_LANGUAGES = ["English", "Spanish", "Portuguese", "French", "Haitian Creole", "Mandarin", "Cantonese", "Arabic", "Russian", "Polish", "Italian", "Hindi"];
+// Offered rather than typed (contracts COMMON_LANGUAGES says why), read as the box draws; without the bridge, the box
+// offers none and still takes a name typed.
+const btaLanguagesOffered = () => ((window.__businessTab || {}).COMMON_LANGUAGES) || [];
 
 // The three messages sent in the business's name when the receptionist cannot answer (S5), in the order an owner meets
 // them, each with when it goes out -- the edge's own conditions (whatsapp/inbound.ts), in an owner's words.
@@ -118,7 +115,8 @@ const BtaLanguages = ({ draft, rows, press, problems, readOnly }) => {
     if (!v || chosen.some((l) => btaSameWord(l, v))) return;
     list(v).add();
   };
-  const offered = BTA_LANGUAGES.filter((l) => !chosen.some((c) => btaSameWord(c, l))).map((l) => ({ value: l, label: l }));
+  const common = btaLanguagesOffered();
+  const offered = common.filter((l) => !chosen.some((c) => btaSameWord(c, l))).map((l) => ({ value: l, label: l }));
   return (
     <div className="bt-languages" data-testid="rec-languages">
       {chosen.length ? (
@@ -140,14 +138,14 @@ const BtaLanguages = ({ draft, rows, press, problems, readOnly }) => {
           value={null}
           options={offered}
           onChange={add}
-          typed={(words) => (BTA_LANGUAGES.concat(chosen).some((l) => btaSameWord(l, words)) ? null : { value: words, label: `Add “${words}”` })}
+          typed={(words) => (common.concat(chosen).some((l) => btaSameWord(l, words)) ? null : { value: words, label: `Add “${words}”` })}
           onKeyDown={(e) => {
             if (e.key === "Backspace" && e.target && e.target.value === "" && chosen.length) { e.preventDefault(); remove(chosen.length - 1); }
           }}
           // Words typed and left in the box are added as focus leaves it, as the old form's box did: a listed one as the
           // list spells it, anything else as typed (add refuses one already chosen). Closed over them, the box lost the
           // language, and the fold saved without it.
-          onLeave={(words) => add(BTA_LANGUAGES.find((l) => btaSameWord(l, words)) || words)}
+          onLeave={(words) => add(common.find((l) => btaSameWord(l, words)) || words)}
           // The words the box is named by, on screen in it: a placeholder of other words left the name unseen.
           placeholder="Add a language"
           readOnly={readOnly}
