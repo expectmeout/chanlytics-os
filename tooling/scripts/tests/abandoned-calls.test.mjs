@@ -34,7 +34,7 @@ const call = (over = {}) => ({
   direction: "inbound",
   call_type: "phone_call",
   status: "ended",
-  from_e164: "+19175746416",
+  from_e164: "+19175550137",
   from_raw: null,
   to_e164: "+13055550123",
   started_at: ago(3_600_000),
@@ -56,7 +56,7 @@ const call = (over = {}) => ({
   message_id: null,
   created_at: ago(600_000),
   updated_at: ago(594_000),
-  contact: { display_name: "Daniela Ruiz", wa_profile_name: null, phone_e164: "+19175746416" },
+  contact: { display_name: "Daniela Ruiz", wa_profile_name: null, phone_e164: "+19175550137" },
   ...over,
 });
 
