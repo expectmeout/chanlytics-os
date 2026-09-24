@@ -597,6 +597,15 @@ export function buildAskSuggestions(input: SuggestionInput): AskSuggestion[] {
     if (s.kind === "thread") add(t.why, "ask", "sparkle");
   }
   if (s && s.kind === "call") add(t.live, "ask", "phone");
+  // On Leads the page's own chips come first: the first day's ideas, each a search to propose, or the latest
+  // searches' own words to find more. The section under the field keeps three, and they must be these.
+  if (input.surface === "leads") {
+    const ideas = (input.leadIdeas ?? []).filter(Boolean).slice(0, 3);
+    for (const w of ideas) add(w, "ask", "search");
+    if (!ideas.length)
+      for (const a of (input.leadSearches ?? []).filter(Boolean).slice(0, 2))
+        add(t.moreLike.replace("{asked}", a), "ask", "search");
+  }
   if (input.needsYou > 0) add(t.needs, "ask", "inbox", true);
   if (input.heldDrafts > 0) add(t.held, "ask", "clock");
   if (input.liveNow > 0) add(t.live, "ask", "phone");
@@ -614,15 +623,9 @@ export function buildAskSuggestions(input: SuggestionInput): AskSuggestion[] {
     case "people":
       add(t.who, "ask", "users");
       break;
-    case "leads": {
-      // The first day's ideas are each a search to propose; after that, the latest searches' own words, to find more.
-      const ideas = (input.leadIdeas ?? []).filter(Boolean).slice(0, 3);
-      for (const w of ideas) add(w, "ask", "search");
-      if (!ideas.length)
-        for (const a of (input.leadSearches ?? []).filter(Boolean).slice(0, 2))
-          add(t.moreLike.replace("{asked}", a), "ask", "search");
+    case "leads":
+      // Its chips are above: nothing of the other pages' is added here.
       break;
-    }
     case "reports":
       add(t.week, "ask", "trending-up");
       break;

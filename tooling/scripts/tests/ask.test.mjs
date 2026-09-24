@@ -203,6 +203,21 @@ test("on Leads, the chips are the first day's ideas, each a search; after that, 
     !ideas.some((s) => /Florists|more like/.test(s.q)),
     "a fourth idea, and the searches beside ideas, are not offered",
   );
+  const busy = buildAskSuggestions({
+    ...quiet,
+    needsYou: 2,
+    heldDrafts: 1,
+    missedToday: 1,
+    liveNow: 1,
+    surface: "leads",
+    language: "en",
+    leadIdeas: ["100 nail salons in Queens, NY"],
+  });
+  assert.equal(
+    busy[0].q,
+    "100 nail salons in Queens, NY",
+    "on a busy day the page's own chip still comes first: the section under the field keeps three",
+  );
   const more = buildAskSuggestions({
     ...quiet,
     surface: "leads",

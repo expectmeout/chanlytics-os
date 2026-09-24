@@ -225,7 +225,7 @@ export function askPalette(win: Window, storage: Storage | null) {
         dealsOn: !!w.__PEOPLE?.dealsOn,
         // On Leads: the first day's ideas, else the latest two searches' own words; the leads bridge publishes both.
         leadIdeas: (w.__LEADS?.suggestions?.items ?? []).map((i) => i.words),
-        leadSearches: (w.__LEADS?.searches ?? []).slice(0, 2).map((s) => s.asked),
+        leadSearches: (w.__LEADS?.searches ?? []).map((s) => s.asked),
       });
     },
     /** Which of the three quick questions this is, if any; the answer is quickAnswer's. */
