@@ -370,3 +370,39 @@ test("create once: another workspace, from inside the app, is never made on arri
   assert.equal(byTestId(tree, "cw-making"), null);
   assert.deepEqual(w.asked, [], "nothing posted until it is pressed");
 });
+
+test("V1: a first workspace with no name kept from sign-up (a Google sign-up) is asked for the business, and nothing else", () => {
+  globalThis.window = standIn(MADE);
+  const tree = render({ email: "owner@luna.example", posture: "open", onCreated() {} });
+  assert.equal(textOf(byTestId(tree, "cw-kicker")), "Step 1 of 4 · Your business", "the first run's first step, begun");
+  assert.equal(textOf(find(tree, (n) => n.type === "h1")), SIGNUP_WORDS.nameTitle);
+  assert.equal(
+    find(tree, (n) => n.type === "select"),
+    null,
+    "the zone is the device's, as email sign-up keeps it",
+  );
+  assert.equal(textOf(find(tree, (n) => n.type === "button" && n.props.type === "submit")), SIGNUP_WORDS.nameCta);
+  assert.equal(
+    find(tree, (n) => n.props?.["aria-label"] === "Invite code"),
+    null,
+    "no code while sign-up is open",
+  );
+  const invite = render({ email: "owner@luna.example", posture: "invite", onCreated() {} });
+  assert.ok(
+    find(invite, (n) => n.props?.["aria-label"] === "Invite code"),
+    "the code is asked here while sign-up is by invitation",
+  );
+  assert.ok(byTestId(invite, "create-workspace-signout"), "and the way out stays");
+});
+
+test("V1: another workspace, from inside the app, keeps its own form -- its title, its zone and Back", () => {
+  globalThis.window = standIn(MADE);
+  const tree = render({ email: "owner@luna.example", onCreated() {}, onCancel() {} });
+  assert.equal(byTestId(tree, "cw-kicker"), null);
+  assert.equal(textOf(find(tree, (n) => n.type === "h1")), "New workspace");
+  assert.ok(
+    find(tree, (n) => n.type === "select"),
+    "the zone is asked",
+  );
+  assert.ok(byTestId(tree, "create-workspace-back"));
+});

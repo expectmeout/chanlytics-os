@@ -774,6 +774,8 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
   display: grid;
   gap: 18px;
 }
+/* A first workspace is the first run's first step, begun (CreateWorkspace.tsx, canvas V1): its step line over the title. */
+.cw-kicker { margin: 0 0 -10px; font-size: 12px; font-weight: 500; color: var(--ink-dim); }
 .cw-title { margin: 0; font-size: 22px; font-weight: 600; color: var(--ink); letter-spacing: -0.01em; }
 .cw-lede { margin: -8px 0 4px; font-size: 13px; color: var(--ink-dim); line-height: var(--leading-relaxed); }
 .cw-field { display: grid; gap: 6px; }

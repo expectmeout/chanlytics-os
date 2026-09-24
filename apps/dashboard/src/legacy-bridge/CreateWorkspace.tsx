@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { SIGNUP_WORDS, type PendingWorkspace, type SignupPosture } from "@chanlytics/contracts";
+import { SIGNUP_WORDS, firstRunKicker, type PendingWorkspace, type SignupPosture } from "@chanlytics/contracts";
 import { api } from "./api";
 import { joinWaitlistFrom } from "./waitlist";
 
@@ -24,6 +24,13 @@ import { joinWaitlistFrom } from "./waitlist";
  * them filled in once they have entered the code. One press, and the
  * workspace is theirs -- made by a session that has proved the inbox, through
  * the same door as every workspace after it.
+ *
+ * A first workspace with no name kept (an account that arrived through Google
+ * never saw the sign-up form) is the first run's first step begun (canvas V1):
+ * "What's your business called?", the invite code while sign-up is by
+ * invitation, and Find it, which makes the workspace and opens the first run
+ * on Find, already searched for that name. The clock is the device's, as
+ * email sign-up keeps it; the first run's business step shows it.
  */
 
 export interface CreatedWorkspace {
@@ -247,6 +254,61 @@ export default function CreateWorkspace({
               </button>
             </>
           )}
+          {leave}
+        </form>
+      </div>
+    );
+  }
+
+  // A first workspace: the first run's first step, begun (V1).
+  if (!another) {
+    return (
+      <div className="cw-screen" data-testid="create-workspace">
+        <form className="cw-card" onSubmit={submit}>
+          <p className="cw-kicker" data-testid="cw-kicker">
+            {firstRunKicker("business")}
+          </p>
+          <h1 className="cw-title">{SIGNUP_WORDS.nameTitle}</h1>
+          <p className="cw-lede">{SIGNUP_WORDS.nameLead}</p>
+          <label className="cw-field">
+            <span className="cw-label">Business name</span>
+            <input
+              className="cw-input"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="The name customers know you by"
+              autoFocus
+              maxLength={120}
+              aria-label="Business name"
+            />
+          </label>
+          {door === "invite" && (
+            <label className="cw-field">
+              <span className="cw-label">Invite code</span>
+              <input
+                className="cw-input"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                placeholder="From your Chanlytics contact"
+                autoComplete="off"
+                maxLength={80}
+                aria-label="Invite code"
+              />
+              <span className="cw-hint">{SIGNUP_WORDS.firstWorkspaceCode}</span>
+            </label>
+          )}
+          {error && (
+            <div className="cw-error" role="alert">
+              {error}
+            </div>
+          )}
+          <button className="cw-submit" type="submit" disabled={busy}>
+            {busy ? SIGNUP_WORDS.making : SIGNUP_WORDS.nameCta}
+          </button>
+          <p className="cw-foot">
+            Been invited to a workspace? Ask whoever invited you to send it again — an invitation is accepted the first
+            time you sign in.
+          </p>
           {leave}
         </form>
       </div>
