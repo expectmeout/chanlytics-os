@@ -164,7 +164,7 @@ test("two public PREFIXES, and only a workspace's own two pages live under them"
   );
 });
 
-test("only these twelve paths are reachable without a session", () => {
+test("only these thirteen paths are reachable without a session", () => {
   const block = /PUBLIC_PATHS\s*=\s*new Set\(\[([^\]]*)\]/.exec(middleware);
   assert.ok(block, "PUBLIC_PATHS must be a literal Set so this test can read it");
   const paths = [...block[1].matchAll(/["']([^"']+)["']/g)].map((m) => m[1]).sort();
@@ -189,11 +189,15 @@ test("only these twelve paths are reachable without a session", () => {
   // filler's people points its calendar address at this feed, and the calendar
   // reader fetches it from the server with no session, the way it fetches any
   // feed. It is generated from the clock, names nobody real, and reads nothing.
+  // The native app's door joined with the phone app: the app posts an identity
+  // token from Apple or Google and has no session yet, exactly as the callback
+  // has none. Exact path; it answers only a redirect.
   assert.deepEqual(paths, [
     "/api/v1/calendar/filler.ics",
     "/api/v1/signup",
     "/api/version",
     "/auth/callback",
+    "/auth/native",
     "/auth/signout",
     "/data-deletion",
     "/login",

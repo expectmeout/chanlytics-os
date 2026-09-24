@@ -32,6 +32,7 @@ const PUBLIC_PATHS = new Set([
   "/login",
   "/auth/signout",
   "/auth/callback",
+  "/auth/native",
   "/api/version",
   "/manifest.webmanifest",
   "/signup",
