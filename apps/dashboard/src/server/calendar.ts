@@ -293,7 +293,8 @@ async function addPeopleSeen(
     const out = data as { contact_id: string; existed: boolean };
     // The appointment's one address, for a person just made from its number: the door refuses a taken or malformed
     // address (23505, 22023) and the person keeps none; never fatal to the board. One the door already had keeps
-    // whatever address they have, and the board matches the new person by the address only when it was kept.
+    // whatever address they have, and the board matches the new person by the address only when it was kept. The
+    // door runs with the member's session, so History names the member who opened the board as the one who set it.
     let email: string | null = null;
     if (r.email && !out.existed) {
       const { error: eErr } = await ctx.supabase.rpc("set_person_email", {

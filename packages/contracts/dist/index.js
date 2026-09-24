@@ -4247,6 +4247,7 @@ function peopleFromItems(items, services, nowMs, window = {}) {
   const from = nowMs - (window.backDays ?? 30) * 864e5;
   const to = nowMs + (window.aheadDays ?? 90) * 864e5;
   const byPhone = /* @__PURE__ */ new Map();
+  const ridersOf = /* @__PURE__ */ new Map();
   const better = (a, b) => {
     const aUp = a.start >= nowMs;
     const bUp = b.start >= nowMs;
@@ -4258,6 +4259,11 @@ function peopleFromItems(items, services, nowMs, window = {}) {
     const found = extractContacts(it, NO_OWN_ADDRESSES);
     const phones = found.phones;
     if (!phones.length) continue;
+    for (const e of found.emails) {
+      const riders = ridersOf.get(e) ?? /* @__PURE__ */ new Set();
+      for (const phone of phones) riders.add(phone);
+      ridersOf.set(e, riders);
+    }
     const email = phones.length === 1 && found.emails.length === 1 ? normalizeEmail(found.emails[0]) : null;
     const name = guessName(it, services);
     for (const phone of phones) {
@@ -4271,7 +4277,7 @@ function peopleFromItems(items, services, nowMs, window = {}) {
       byPhone.set(phone, { ...keep, name: keep.name ?? other.name, email: keep.email ?? other.email });
     }
   }
-  return [...byPhone.values()].sort((a, b) => a.start - b.start);
+  return [...byPhone.values()].map((r2) => r2.email && (ridersOf.get(r2.email)?.size ?? 0) > 1 ? { ...r2, email: null } : r2).sort((a, b) => a.start - b.start);
 }
 function afterPersonRefused(code2) {
   return code2 === "22023" ? "skip" : "stop";

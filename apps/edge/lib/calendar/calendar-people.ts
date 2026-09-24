@@ -66,7 +66,10 @@ export async function addPeopleFromCalendar(
         if (!uErr) out.named += 1;
       }
       // An address we did not have, from the appointment that named them by number; one we have is never
-      // overwritten, and one another person here holds stays theirs (23505, contacts_tenant_email_uq).
+      // overwritten, and one another person here holds stays theirs (23505, contacts_tenant_email_uq). A direct
+      // write, so no contact.email_set event: the no-session door (00171) would name the source customer_message,
+      // which this is not, and a source of the door's own is a door change -- accepted for Part 0, as the email
+      // intake's write is.
       if (!have.email && r.email) {
         const { error: eErr } = await db
           .from("contacts")

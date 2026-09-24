@@ -6553,7 +6553,8 @@ interface CalendarPerson {
  * months ahead — one row per number, so the sweep and the page create each
  * person once. A name is taken from the appointment that keys the row; a
  * later appointment with a name fills in for one without, and so does the
- * one address an appointment carried beside its one number.
+ * one address an appointment carried beside its one number — unless that
+ * address rode beside another number anywhere in the feed, when it is nobody's.
  */
 declare function peopleFromItems(items: FeedItem[], services: string[], nowMs: number, window?: {
     backDays?: number;

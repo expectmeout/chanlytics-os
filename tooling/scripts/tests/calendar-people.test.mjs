@@ -696,6 +696,30 @@ test("an appointment with one number and one address carries the address to the 
     ["u4", "ana@example.com"],
     "the upcoming one keys the row; the address rides along",
   );
+  // Two numbers and one address on ONE event: whose is it? Neither's.
+  const pair = { ...one, uid: "u5", description: "+1 (646) 555-0199" };
+  assert.deepEqual(
+    peopleFromItems([pair], ["Gel manicure"], at - 86_400_000).map((r) => r.email),
+    [null, null],
+    "two numbers on one event: the address is neither's",
+  );
+  // The same rule across the feed: an address beside one number on one appointment and beside another on the
+  // next is a co-host's or the booking page's, not the first customer's with a refusal for everyone after.
+  const otherNumber = {
+    ...one,
+    uid: "u6",
+    title: "Gel manicure — Bea (646) 555-0199 ana@example.com",
+    start: at + 86_400_000,
+    end: at + 86_400_000 + 3_600_000,
+  };
+  assert.deepEqual(
+    peopleFromItems([one, otherNumber], ["Gel manicure"], at - 86_400_000).map((r) => [r.phone, r.email]),
+    [
+      ["+16465550101", null],
+      ["+16465550199", null],
+    ],
+    "an address that rode with two numbers across the feed is nobody's",
+  );
 });
 
 test("one refused number costs one person, never everyone behind them", () => {
