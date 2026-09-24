@@ -33,6 +33,12 @@ const FEED_FAIL_TTL_MS = 60 * 1000;
  * once. Past it, a fresh read skips the caches above -- the board's only way to see a change was to wait them out.
  */
 const FEED_FRESH_FLOOR_MS = 15 * 1000;
+/**
+ * How old a good read may be and still be handed back at once to a reader that asked for it (`stale`), while the fetch
+ * goes on behind it for whoever asks next: a person's page, whose next visit waited on the calendar's own server every
+ * five minutes. Past this, that reader waits for the fetch like anyone else.
+ */
+const FEED_STALE_MAX_MS = 30 * 60 * 1000;
 
 interface FeedEntry {
   /** The last good text and when it was read; null when there has never been one. */
@@ -45,6 +51,8 @@ interface FeedEntry {
   status: number | null;
 }
 const feeds = new Map<string, FeedEntry>();
+/** A fetch going on behind a stale read, by workspace: one at a time. */
+const refreshing = new Map<string, Promise<FeedRead>>();
 
 /** What a read of the feed gave: the text (fresh, or the last good one when the latest try failed) and, when it failed, why. */
 export interface FeedRead {
@@ -79,8 +87,16 @@ const asRead = (e: FeedEntry): FeedRead => ({
  * Setup can say so instead of "could not be read". The address is held to
  * the same rule the preview applies (feedUrlOk): a private address saved
  * before the rule reached the write path is refused here, never fetched.
+ *
+ * `stale`: past the cache, a good read under half an hour old is handed back now and the fetch goes on behind it. Only
+ * for a reader that says what was booked (a person's visits); availability never takes it -- an opening offered from
+ * an old week is a double booking -- and neither does a Refresh.
  */
-export async function loadFeed(tenantId: string, url: string, opts: { fresh?: boolean } = {}): Promise<FeedRead> {
+export async function loadFeed(
+  tenantId: string,
+  url: string,
+  opts: { fresh?: boolean; stale?: boolean } = {},
+): Promise<FeedRead> {
   // The filler's calendar is made here, never fetched: it is this deployment's own address, and a
   // serverless function asking its own domain for a file it can write from memory is a round trip that
   // can time out or be refused. When it failed the day card went silent, because a feed that cannot be
@@ -94,6 +110,20 @@ export async function loadFeed(tenantId: string, url: string, opts: { fresh?: bo
   // A fresh read (the board's Refresh) waits out only the floor; everything else, the cache.
   const ttl = opts.fresh ? FEED_FRESH_FLOOR_MS : hit?.reason ? FEED_FAIL_TTL_MS : FEED_TTL_MS;
   if (hit && Date.now() - hit.checkedAt < ttl) return asRead(hit);
+  if (opts.stale && !opts.fresh && hit?.text && hit.at !== null && Date.now() - hit.at < FEED_STALE_MAX_MS) {
+    if (!refreshing.has(tenantId)) {
+      const behind = fetchInto(tenantId, url, hit).finally(() => refreshing.delete(tenantId));
+      refreshing.set(tenantId, behind);
+      // fetchInto answers a failure as a read; nothing awaits this one.
+      behind.catch(() => {});
+    }
+    return asRead(hit);
+  }
+  return fetchInto(tenantId, url, hit);
+}
+
+/** Fetch the feed now and keep what came back: the text, or why not beside the last good text. */
+async function fetchInto(tenantId: string, url: string, hit: FeedEntry | undefined): Promise<FeedRead> {
   const now = Date.now();
   try {
     const safe = feedUrlOk(url);
@@ -123,9 +153,10 @@ export async function loadFeed(tenantId: string, url: string, opts: { fresh?: bo
   }
 }
 
-/** Tests: forget every cached feed. */
+/** Tests: forget every cached feed, and any fetch still going on behind one. */
 export function forgetFeeds(): void {
   feeds.clear();
+  refreshing.clear();
 }
 
 async function fetchFeed(tenantId: string, url: string): Promise<string | null> {

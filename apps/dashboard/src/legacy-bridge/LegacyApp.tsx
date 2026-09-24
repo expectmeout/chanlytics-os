@@ -58,7 +58,7 @@ import {
 } from "./surface-runner";
 import { hydrateSurfaceCache } from "./surface-cache";
 import { installInboxVerbs } from "./inbox-verbs";
-import { installPeopleCourier } from "./people-detail";
+import { installPeopleCourier, warmPersonOnScreen } from "./people-detail";
 import { installLeadsCourier, leadsOverride } from "./leads";
 import { installLeadMap } from "./lead-map";
 import { installTabMemory } from "./tab-memory";
@@ -142,6 +142,8 @@ if (typeof window !== "undefined" && "serviceWorker" in navigator && process.env
 // paints real data from the previous visit instead of a frame of mockup
 // numbers that get corrected a moment later.
 markHydrated(hydrateSurfaceCache());
+// A tab opened on a person's page asks for them now, ahead of every surface's boot: the page is their read alone.
+warmPersonOnScreen();
 
 // The mockup's own data-before-mount contract (boot gate).
 const REQUIRED = ["CHANLY", "INBOX_DATA", "CLIENTS", "FLEET_DATA", "CHANLY_DATA", "POLICY", "ChanlyticsApp"] as const;

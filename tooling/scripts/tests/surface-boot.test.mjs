@@ -449,6 +449,27 @@ test("what the page on screen draws from other surfaces follows its own surface,
   assert.equal(new Set(order).size, keys.length, "and every other surface still boots");
 });
 
+test("a person's page waits only for who is looking, then reads People for their name: never the whole list first", async () => {
+  // Measured on production (23 Sep 2026): a new tab on a person held Reading… until People's 29 rows were in (0.87 s),
+  // and only then asked for the person (1.5 s). The page reads its own person (people-detail.ts warmPersonOnScreen);
+  // the gate waits for the workspace, which carries the role the page's acts depend on.
+  const reg = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
+  const ID = "ed2244f3-9f88-49c5-863e-fbdea4b60e12";
+  assert.equal(reg.routeSurfaceFor("clients", ID), "workspace", "the gate waits for who is looking");
+  assert.equal(reg.routeSurfaceFor("clients", "c-ana"), "people", "the mockup's seeded people keep the list's gate");
+  assert.equal(reg.routeSurfaceFor("clients", null), "people", "People itself waits for its rows");
+  assert.equal(reg.routeSurfaceFor("clients", "leads:c-review"), "leads", "and the Leads scope for its own");
+  assert.deepEqual(reg.routeDrawsFor("clients", ID), ["people"]);
+  assert.deepEqual(reg.routeDrawsFor("clients", null), [], "the list draws nothing beside its own surface");
+  const keys = ["conversations", "inbox", "today", "settings", "people", "leads", "reports", "workspace", "calendar"];
+  const { order, overrides } = crowd(keys, { hash: `#/clients/${ID}` });
+  const stop = startSurfaces(overrides);
+  await settle(80);
+  stop();
+  assert.deepEqual(order.slice(0, 2), ["workspace", "people"], "who is looking, then the row that names them");
+  assert.equal(new Set(order).size, keys.length, "and every other surface still boots");
+});
+
 test("(0008) a cold Calendar reads People right after its own surface: an appointment's peek says the person's deal", async () => {
   // The peek draws the person's deal stage and "Start a proposal" from People, and whether deals are on at all; read
   // in the runner's fixed order, People came after Settings, and the pill arrived late on a cold Calendar.
