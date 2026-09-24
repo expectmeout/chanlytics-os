@@ -468,6 +468,41 @@ test("a routed number runs its own workspace's receptionist: the channel the dat
   });
 });
 
+test("an image captioned with an address keeps nothing, and the same words typed keep it: a caption is not an answer", async () => {
+  const w = world();
+  w.open();
+  const seen = receptionist();
+  const from = w.customer();
+  const words = "my email is ana@example.com";
+  await listening(async () => {
+    const captioned = await deliver(
+      w.change({
+        contacts: [{ wa_id: from, profile: { name: "Dana" } }],
+        messages: [
+          {
+            from,
+            id: `wamid.${w.i}.captioned`,
+            timestamp: now(),
+            type: "image",
+            image: { id: `media-${w.i}`, mime_type: "image/jpeg", caption: words },
+          },
+        ],
+      }),
+    );
+    assert.deepEqual(await answer(captioned), [200, { ok: true }]);
+    assert.deepEqual(seen.emails, [], "a caption is not an answer");
+
+    const typed = await deliver(
+      w.change({
+        contacts: [{ wa_id: from, profile: { name: "Dana" } }],
+        messages: [text(from, `wamid.${w.i}.typed`, words)],
+      }),
+    );
+    assert.deepEqual(await answer(typed), [200, { ok: true }]);
+    assert.deepEqual(seen.emails, ["ana@example.com"], "the same words typed are the customer's own");
+  });
+});
+
 test("a number the database answers is not ours: dead-lettered under the platform, the platform told once a window, 200, and no receptionist runs", async () => {
   const w = world();
   w.tables.tenant_channels[0].status = "disabled";

@@ -45492,7 +45492,7 @@ async function answerInbound(input, ports) {
     ...carrier ? { sms: (to, p) => carrier.send(to, p.body) } : {}
   };
   const sink = ports.persist.sink(db, tenantId, ing, rt, channel, wires);
-  if (ing && n.type === "text") {
+  if (ing && n.kind === "text") {
     const given = addressInMessage(n.body);
     if (given) await sink.noteEmail(given);
   }

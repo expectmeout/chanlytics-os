@@ -215,8 +215,9 @@ export async function answerInbound(input: InboundInput, ports: InboundPorts): P
   const sink = ports.persist.sink(db, tenantId, ing, rt, channel, wires);
   // An address a customer gives in their own words is kept, the way YES OFFERS is read from their words: the message
   // that is an address and nothing else, or a few words with one address that is theirs (contracts addressInMessage).
+  // Their words are the typed or tapped ones (kind), never a caption, a location or a card that happens to carry one.
   // Only where none is on file; the sink says nothing when it is taken (Part 0 of the campaigns-on-every-channel spec).
-  if (ing && n.type === "text") {
+  if (ing && n.kind === "text") {
     const given = addressInMessage(n.body);
     if (given) await sink.noteEmail(given);
   }
