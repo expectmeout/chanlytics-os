@@ -359,9 +359,9 @@ declare const ESCALATION_REASONS: readonly ["human_token", "non_text", "refusal"
 type EscalationReason = (typeof ESCALATION_REASONS)[number];
 declare const ESCALATION_STATES: readonly ["open", "resolved"];
 type EscalationState = (typeof ESCALATION_STATES)[number];
-declare const DECISION_VERBS: readonly ["approve", "edit", "decline", "snooze", "wake", "take_over", "hand_back", "resolve", "archive", "reply", "cancel_send", "pause_agent", "resume_agent", "invite", "revoke_invite", "change_role", "remove_member", "erase", "whisper", "connect_channel", "consent_change", "send_broadcast", "cancel_broadcast", "start_playbook", "pause_playbook", "reply_review", "export", "end_call", "record_deal"];
+declare const DECISION_VERBS: readonly ["approve", "edit", "decline", "snooze", "wake", "take_over", "hand_back", "resolve", "archive", "reply", "cancel_send", "pause_agent", "resume_agent", "invite", "revoke_invite", "change_role", "remove_member", "erase", "whisper", "connect_channel", "consent_change", "send_broadcast", "cancel_broadcast", "start_playbook", "pause_playbook", "reply_review", "export", "end_call", "record_deal", "make_list", "rename_list", "change_list_rule", "add_to_list", "drop_from_list", "archive_list", "restore_list", "delete_list"];
 type DecisionVerb = (typeof DECISION_VERBS)[number];
-declare const DECISION_SUBJECTS: readonly ["conversation", "escalation", "draft", "lead", "message", "agent", "membership", "invitation", "contact", "call", "channel", "broadcast", "playbook", "review", "workspace", "deal"];
+declare const DECISION_SUBJECTS: readonly ["conversation", "escalation", "draft", "lead", "message", "agent", "membership", "invitation", "contact", "call", "channel", "broadcast", "playbook", "review", "workspace", "deal", "list"];
 type DecisionSubject = (typeof DECISION_SUBJECTS)[number];
 declare const ACTOR_TYPES: readonly ["user", "ai", "system", "owner_phone"];
 type ActorType = (typeof ACTOR_TYPES)[number];
@@ -1557,8 +1557,8 @@ declare const SCHEMA_SETS: {
     readonly "deals.source": readonly ["person", "payment"];
     readonly "deals.stage": readonly ["proposed", "won", "lost", "ended"];
     readonly "decisions.actor_type": readonly ["user", "ai", "system", "owner_phone"];
-    readonly "decisions.subject_type": readonly ["conversation", "escalation", "draft", "lead", "message", "agent", "membership", "invitation", "contact", "call", "channel", "broadcast", "playbook", "review", "workspace", "deal"];
-    readonly "decisions.verb": readonly ["approve", "edit", "decline", "snooze", "wake", "take_over", "hand_back", "resolve", "archive", "reply", "cancel_send", "pause_agent", "resume_agent", "invite", "revoke_invite", "change_role", "remove_member", "erase", "whisper", "connect_channel", "consent_change", "send_broadcast", "cancel_broadcast", "start_playbook", "pause_playbook", "reply_review", "export", "end_call", "record_deal"];
+    readonly "decisions.subject_type": readonly ["conversation", "escalation", "draft", "lead", "message", "agent", "membership", "invitation", "contact", "call", "channel", "broadcast", "playbook", "review", "workspace", "deal", "list"];
+    readonly "decisions.verb": readonly ["approve", "edit", "decline", "snooze", "wake", "take_over", "hand_back", "resolve", "archive", "reply", "cancel_send", "pause_agent", "resume_agent", "invite", "revoke_invite", "change_role", "remove_member", "erase", "whisper", "connect_channel", "consent_change", "send_broadcast", "cancel_broadcast", "start_playbook", "pause_playbook", "reply_review", "export", "end_call", "record_deal", "make_list", "rename_list", "change_list_rule", "add_to_list", "drop_from_list", "archive_list", "restore_list", "delete_list"];
     readonly "escalations.reason": readonly ["human_token", "non_text", "refusal", "rate_cap", "policy_block", "send_failed", "deadman", "brain_error", "manual", "opt_out", "state_unavailable", "stale", "person_hold", "budget", "policy_ask", "callback", "paused", "carriers", "email_review"];
     readonly "escalations.state": readonly ["open", "resolved"];
     readonly "google_reviews.origin": readonly ["places", "profile"];
@@ -4381,6 +4381,16 @@ interface Audience {
      * on a broadcast a person sent, and on a run made before runs kept it.
      */
     reach?: RunReach;
+    /**
+     * The list it went to, as it was counted (decision 0009, "sends remember"): its token, and its rule then -- null for
+     * a list kept by hand, whose people are the recipients -- so a rule edited later never changes what a send meant.
+     * Absent on everyone, and on a send made before sends kept it.
+     */
+    list?: {
+        token: string;
+        rule: unknown;
+        counted_at: string;
+    };
 }
 /**
  * The audience of everyone in People, named for its pool as every other audience is ("Regulars", "Lapsed"); its
@@ -15766,14 +15776,6 @@ declare const LeadsQuerySchema: z.ZodObject<{
 type LeadsQuery = z.infer<typeof LeadsQuerySchema>;
 /** The view a bulk act names when the owner chose "Select all N that match" (S13): the same keys GET leads takes. */
 declare const LeadsViewSchema: z.ZodObject<{
-    sort: z.ZodDefault<z.ZodEnum<{
-        stage: "stage";
-        business: "business";
-        rating: "rating";
-        fit: "fit";
-        found: "found";
-        distance: "distance";
-    }>>;
     list: z.ZodDefault<z.ZodEnum<{
         not_a_fit: "not_a_fit";
         said_no: "said_no";
@@ -15781,6 +15783,14 @@ declare const LeadsViewSchema: z.ZodObject<{
         nurture: "nurture";
         converted: "converted";
         all: "all";
+    }>>;
+    sort: z.ZodDefault<z.ZodEnum<{
+        stage: "stage";
+        business: "business";
+        rating: "rating";
+        fit: "fit";
+        found: "found";
+        distance: "distance";
     }>>;
     search: z.ZodOptional<z.ZodString>;
     class: z.ZodOptional<z.ZodEnum<{
@@ -15852,14 +15862,6 @@ declare const LeadsBulkSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
         contacted: "contacted";
     }>;
     view: z.ZodObject<{
-        sort: z.ZodDefault<z.ZodEnum<{
-            stage: "stage";
-            business: "business";
-            rating: "rating";
-            fit: "fit";
-            found: "found";
-            distance: "distance";
-        }>>;
         list: z.ZodDefault<z.ZodEnum<{
             not_a_fit: "not_a_fit";
             said_no: "said_no";
@@ -15867,6 +15869,14 @@ declare const LeadsBulkSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
             nurture: "nurture";
             converted: "converted";
             all: "all";
+        }>>;
+        sort: z.ZodDefault<z.ZodEnum<{
+            stage: "stage";
+            business: "business";
+            rating: "rating";
+            fit: "fit";
+            found: "found";
+            distance: "distance";
         }>>;
         search: z.ZodOptional<z.ZodString>;
         class: z.ZodOptional<z.ZodEnum<{
@@ -15898,14 +15908,6 @@ declare const LeadDraftInputSchema: z.ZodObject<{
     }, z.core.$strip>>;
 }, z.core.$strip>;
 declare const LeadExportQuerySchema: z.ZodObject<{
-    sort: z.ZodDefault<z.ZodEnum<{
-        stage: "stage";
-        business: "business";
-        rating: "rating";
-        fit: "fit";
-        found: "found";
-        distance: "distance";
-    }>>;
     list: z.ZodDefault<z.ZodEnum<{
         not_a_fit: "not_a_fit";
         said_no: "said_no";
@@ -15913,6 +15915,14 @@ declare const LeadExportQuerySchema: z.ZodObject<{
         nurture: "nurture";
         converted: "converted";
         all: "all";
+    }>>;
+    sort: z.ZodDefault<z.ZodEnum<{
+        stage: "stage";
+        business: "business";
+        rating: "rating";
+        fit: "fit";
+        found: "found";
+        distance: "distance";
     }>>;
     search: z.ZodOptional<z.ZodString>;
     class: z.ZodOptional<z.ZodEnum<{

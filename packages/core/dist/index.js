@@ -1150,7 +1150,19 @@ var DECISION_VERBS = [
   "export",
   /** A call in progress ended from the Live page (00118). Passing one to the business is take_over, the Inbox's word for the same intent. */
   "end_call",
-  "record_deal"
+  "record_deal",
+  /**
+   * A list's life (00169, decision 0009): made, renamed, its rule changed, people put on or taken off, archived (a
+   * playbook or another list depends on it), restored, deleted. Subject 'list'; the payload says what changed.
+   */
+  "make_list",
+  "rename_list",
+  "change_list_rule",
+  "add_to_list",
+  "drop_from_list",
+  "archive_list",
+  "restore_list",
+  "delete_list"
 ];
 var DAY_MS = 864e5;
 var WEEK_MS = 7 * DAY_MS;
@@ -3454,7 +3466,19 @@ var DECISION_VERBS2 = [
   "export",
   /** A call in progress ended from the Live page (00118). Passing one to the business is take_over, the Inbox's word for the same intent. */
   "end_call",
-  "record_deal"
+  "record_deal",
+  /**
+   * A list's life (00169, decision 0009): made, renamed, its rule changed, people put on or taken off, archived (a
+   * playbook or another list depends on it), restored, deleted. Subject 'list'; the payload says what changed.
+   */
+  "make_list",
+  "rename_list",
+  "change_list_rule",
+  "add_to_list",
+  "drop_from_list",
+  "archive_list",
+  "restore_list",
+  "delete_list"
 ];
 function isOptedOutContact(c) {
   return c.consent === "opted_out" || c.dnc === true;
@@ -5580,6 +5604,9 @@ var ListDraftAnswerSchema2 = z62.object({
   cannot: z62.string().trim().max(200),
   all: z62.array(z62.unknown()).max(LIST_RULE_MAX2)
 });
+function listToken(ref) {
+  return ref.kind === "builtin" ? `seg:${ref.id}` : `list:${ref.id}`;
+}
 var r2 = (...all) => ({ v: 2, all });
 var BUILTIN_LISTS2 = [
   {
@@ -7277,7 +7304,19 @@ var DECISION_VERBS3 = [
   "export",
   /** A call in progress ended from the Live page (00118). Passing one to the business is take_over, the Inbox's word for the same intent. */
   "end_call",
-  "record_deal"
+  "record_deal",
+  /**
+   * A list's life (00169, decision 0009): made, renamed, its rule changed, people put on or taken off, archived (a
+   * playbook or another list depends on it), restored, deleted. Subject 'list'; the payload says what changed.
+   */
+  "make_list",
+  "rename_list",
+  "change_list_rule",
+  "add_to_list",
+  "drop_from_list",
+  "archive_list",
+  "restore_list",
+  "delete_list"
 ];
 var DAY_MS8 = 864e5;
 var WEEK_MS5 = 7 * DAY_MS8;
@@ -10051,12 +10090,14 @@ async function runPlaybook(ports, cmd) {
   const trig = triggerOf(p.trigger);
   if ((trig?.kind === "visit" || trig?.id === "lapsed") && ctx.calendar !== "ok") return off("no_calendar");
   let listIds = null;
+  let kept;
   if (trig?.kind === "saved") {
     const ref = playbookListRef(p);
     const m = ref ? ctx.listMembers(ref) : null;
-    if (!m) return off("no_list");
+    if (!m || !ref) return off("no_list");
     if (m.state === "unknown") return off(m.reason === "calendar" ? "no_calendar" : "list_uncounted");
     listIds = m.ids;
+    kept = { token: listToken(ref), rule: m.rule ?? null, counted_at: now.toISOString() };
   }
   if (trig && !triggerOffered(trig, ctx.dealsOn)) return off("deals_off");
   const drawn = playbookRunReach(
@@ -10110,7 +10151,7 @@ async function runPlaybook(ports, cmd) {
       template_language: p.template_language,
       params: specs,
       // The run's own audience: the playbook, and who its moment named and left out.
-      audience: { kind: "playbook", id: p.id, label: p.name, reach },
+      audience: { kind: "playbook", id: p.id, label: p.name, reach, ...kept ? { list: kept } : {} },
       state: plan.state,
       scheduled_for: (open ? open.at : now).toISOString(),
       recipient_count: n,
@@ -10253,6 +10294,7 @@ async function createBroadcast(ports, cmd) {
   const rows = await ports.people(now);
   let members = null;
   let label = EVERYONE_LABEL;
+  let kept;
   if (ref) {
     const found = await ports.list(ref, now);
     if (!found) throw new AppError("not_found", "List not found.", 404);
@@ -10260,6 +10302,7 @@ async function createBroadcast(ports, cmd) {
       throw new AppError("conflict", `${found.label} can't be counted here. ${found.unknown}`, 409);
     members = new Set(found.memberIds);
     label = found.label;
+    kept = { token: listToken(ref), rule: found.rule ?? null, counted_at: now.toISOString() };
   }
   const pool = members ? rows.filter((r4) => members.has(r4.id)) : rows;
   const purpose = purposeOfTemplate(tpl.category);
@@ -10276,7 +10319,7 @@ async function createBroadcast(ports, cmd) {
   if (when.getTime() > now.getTime() + BROADCAST_SCHEDULE_MAX_DAYS * 864e5)
     throw new AppError("validation", `Schedule within ${BROADCAST_SCHEDULE_MAX_DAYS} days.`);
   const name = typeof body?.name === "string" && body.name.trim() ? body.name.trim().slice(0, BROADCAST_NAME_MAX) : broadcastName(tpl.name, tz, now, tpl.title);
-  const audience = { kind, id: audienceId, label };
+  const audience = { kind, id: audienceId, label, ...kept ? { list: kept } : {} };
   const made = await assembleRun(ports, {
     broadcast: {
       name,
@@ -10312,7 +10355,8 @@ async function createBroadcast(ports, cmd) {
     name,
     template: `${tpl.name}/${tpl.language}`,
     category: tpl.category,
-    audience: { kind: audience.kind, id: audience.id, label: audience.label },
+    // The ledger names the list by its token; the send's own row keeps the rule it was counted by.
+    audience: { kind: audience.kind, id: audience.id, label: audience.label, ...kept ? { list: kept.token } : {} },
     values: specs.map(paramLabel),
     recipients: eligible.length,
     scheduled_for: when.toISOString(),

@@ -541,7 +541,19 @@ var DECISION_VERBS = [
   "export",
   /** A call in progress ended from the Live page (00118). Passing one to the business is take_over, the Inbox's word for the same intent. */
   "end_call",
-  "record_deal"
+  "record_deal",
+  /**
+   * A list's life (00169, decision 0009): made, renamed, its rule changed, people put on or taken off, archived (a
+   * playbook or another list depends on it), restored, deleted. Subject 'list'; the payload says what changed.
+   */
+  "make_list",
+  "rename_list",
+  "change_list_rule",
+  "add_to_list",
+  "drop_from_list",
+  "archive_list",
+  "restore_list",
+  "delete_list"
 ];
 var DECISION_SUBJECTS = [
   "conversation",
@@ -560,7 +572,9 @@ var DECISION_SUBJECTS = [
   "review",
   /** The workspace itself: an export of everyone, or of everything. Its id is the tenant's. */
   "workspace",
-  "deal"
+  "deal",
+  /** One of the workspace's own lists (segments): its life, in the ledger (00169). */
+  "list"
 ];
 var ACTOR_TYPES = ["user", "ai", "system", "owner_phone"];
 var TEMPLATE_STATUSES = ["approved", "pending", "rejected", "paused", "disabled"];
@@ -19387,6 +19401,14 @@ var WORDS = {
   export: "Exported data",
   end_call: "Ended a call",
   record_deal: "Recorded a deal",
+  make_list: "Made a list",
+  rename_list: "Renamed a list",
+  change_list_rule: "Changed who is on a list",
+  add_to_list: "Put people on a list",
+  drop_from_list: "Took people off a list",
+  archive_list: "Archived a list",
+  restore_list: "Restored a list",
+  delete_list: "Deleted a list",
   // events
   "message.received": "A customer wrote",
   "message.sent": "A message went out",
@@ -20314,7 +20336,8 @@ var SCHEMA_SETS = {
     "playbook",
     "review",
     "workspace",
-    "deal"
+    "deal",
+    "list"
   ],
   "decisions.verb": [
     "approve",
@@ -20345,7 +20368,15 @@ var SCHEMA_SETS = {
     "reply_review",
     "export",
     "end_call",
-    "record_deal"
+    "record_deal",
+    "make_list",
+    "rename_list",
+    "change_list_rule",
+    "add_to_list",
+    "drop_from_list",
+    "archive_list",
+    "restore_list",
+    "delete_list"
   ],
   "escalations.reason": [
     "human_token",

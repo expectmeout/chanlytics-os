@@ -571,10 +571,10 @@ test("lists: one workspace's with their members' ids; a viewer may not make one;
     ],
   };
   assert.deepEqual(await lists.GET.run(get(inA), ctxFor(tables)), {
-    lists: [{ id: S1, name: "Regulars", ids: [P1], rule: null }],
+    lists: [{ id: S1, name: "Regulars", ids: [P1], rule: null, archived_at: null }],
   });
   assert.deepEqual(await lists.GET.run(get(`?workspace=${B}`), ctxFor(tables)), {
-    lists: [{ id: S2, name: "VIP", ids: [P2], rule: null }],
+    lists: [{ id: S2, name: "VIP", ids: [P2], rule: null, archived_at: null }],
   });
   await refused(
     lists.POST.run(send("POST", { name: "Colour club" }, `?workspace=${A}`), ctxFor(tables)),
@@ -583,7 +583,7 @@ test("lists: one workspace's with their members' ids; a viewer may not make one;
   );
   await refused(lists.POST.run(send("POST", { name: "   " }, `?workspace=${B}`), ctxFor(tables)), "validation", 400);
   const made = await lists.POST.run(send("POST", { name: "  Colour   club " }, `?workspace=${B}`), ctxFor(tables));
-  assert.deepEqual(made, { id: made.id, name: "Colour club", ids: [], rule: null });
+  assert.deepEqual(made, { id: made.id, name: "Colour club", ids: [], rule: null, archived_at: null });
   assert.deepEqual(
     tables.segments.filter((s) => s.id === made.id).map((s) => [s.tenant_id, s.created_by]),
     [[B, USER]],
@@ -604,12 +604,12 @@ test("one list: an operator where it lives; rename, add and remove in one reques
   await refused(list.PUT.run(send("PUT", { add: ["nope"] }), ctxFor(tables, { id: S2 })), "validation", 400);
   assert.deepEqual(
     await list.PUT.run(send("PUT", { name: " Best ", add: [P3, P3], remove: [P2] }), ctxFor(tables, { id: S2 })),
-    { id: S2, name: "Best", ids: [P3], rule: null },
+    { id: S2, name: "Best", ids: [P3], rule: null, archived_at: null },
   );
   assert.equal(tables.segments.find((s) => s.id === S2).name, "Best");
   assert.deepEqual(
     await list.PUT.run(send("PUT", { add: [P3] }), ctxFor(tables, { id: S2 })),
-    { id: S2, name: "Best", ids: [P3], rule: null },
+    { id: S2, name: "Best", ids: [P3], rule: null, archived_at: null },
     "adding someone twice is not an error",
   );
   assert.equal(tables.segment_members.length, 1);

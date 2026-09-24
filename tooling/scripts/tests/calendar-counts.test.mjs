@@ -565,8 +565,8 @@ test("each list a playbook may run on is counted as a run on it would count it, 
   });
   const { pools, lists } = await triggerPools(ctxFor(t, { people_list: pagedList(all) }), T, {}, TZ, NOW, NO_DEALS);
   assert.deepEqual(lists, [
-    { id: "l-hand", name: "Regulars", smart: false },
-    { id: "l-smart", name: "Said yes", smart: true },
+    { id: "l-hand", name: "Regulars", smart: false, archived: false },
+    { id: "l-smart", name: "Said yes", smart: true, archived: false },
   ]);
   assert.deepEqual([pools["list:l-hand"].pool, pools["list:l-hand"].candidates], [1, 1], "the one kept on it");
   assert.deepEqual(

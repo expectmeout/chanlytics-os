@@ -83,6 +83,10 @@ export function audiencePoolOnce(
   return p;
 }
 
+/** What a new send or playbook is told of an archived list (00169). */
+export const archivedListWords = (name: string, to: "send" | "run") =>
+  `${name} is archived. Restore it on People to ${to === "send" ? "send to it" : "run a playbook on it"}.`;
+
 /**
  * One list over a pool (decision 0009): resolved by its reference (contracts resolveList), counted the one way
  * (membersOf) with the saved lists its rule may read, and, when it can't be counted here, why, in the page's words.
@@ -93,20 +97,28 @@ export async function poolList(
   tenantId: string,
   pool: Pick<AudiencePool, "rows" | "listCtx">,
   ref: ListRef,
-): Promise<{ label: string; memberIds: string[] } | { label: string; unknown: string } | null> {
+): Promise<
+  | { label: string; memberIds: string[]; rule: unknown; archived?: true }
+  | { label: string; unknown: string; archived?: true }
+  | null
+> {
   // A saved list is read with every member; the workspace's other lists only when its rule reads one (in_list). No
   // built-in reads a saved list.
   let saved: Awaited<ReturnType<typeof savedListsFor>> = [];
+  // Archived (00169): still counted, for what already names it, and said, for a send or a proposal to refuse.
+  let archived = false;
   if (ref.kind === "saved") {
     const one = await savedListFor(ctx.supabase, tenantId, ref.id);
     if (!one) return null;
+    archived = !!one.archived_at;
     const rule = one.rule == null ? null : asListRule(one.rule);
     saved = rule && ruleLists(rule).length ? await savedListsFor(ctx.supabase, tenantId) : [one];
   }
   const def = resolveList(ref, saved);
   if (!def) return null;
   const m = membersOf(def, pool.rows, pool.listCtx, saved);
+  const said = archived ? { archived: true as const } : {};
   return m.state === "ok"
-    ? { label: def.label, memberIds: [...m.ids] }
-    : { label: def.label, unknown: listUnknownWords(m.reason, pool.listCtx.calendar) };
+    ? { label: def.label, memberIds: [...m.ids], rule: def.rule, ...said }
+    : { label: def.label, unknown: listUnknownWords(m.reason, pool.listCtx.calendar), ...said };
 }

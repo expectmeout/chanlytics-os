@@ -218,7 +218,19 @@ var DECISION_VERBS = [
   "export",
   /** A call in progress ended from the Live page (00118). Passing one to the business is take_over, the Inbox's word for the same intent. */
   "end_call",
-  "record_deal"
+  "record_deal",
+  /**
+   * A list's life (00169, decision 0009): made, renamed, its rule changed, people put on or taken off, archived (a
+   * playbook or another list depends on it), restored, deleted. Subject 'list'; the payload says what changed.
+   */
+  "make_list",
+  "rename_list",
+  "change_list_rule",
+  "add_to_list",
+  "drop_from_list",
+  "archive_list",
+  "restore_list",
+  "delete_list"
 ];
 var DAY_MS = 864e5;
 var WEEK_MS = 7 * DAY_MS;
@@ -2909,21 +2921,33 @@ async function readAllRows(what, page, cap = DEFAULT_ROW_CAP, onCapped = (w, c) 
 }
 
 // src/repositories/lists.ts
-var noRuleColumn = (message) => /\brule\b/.test(message) && /does not exist|could not find/i.test(message);
-async function listRows(db, tenantId) {
-  const read = (columns) => readAllRows(
-    "segments",
-    (from, to) => (
-      // The columns are chosen at run time, past the client's typed parser: the rows are the columns named.
-      db.from("segments").select(columns).eq("tenant_id", tenantId).order("name").order("id").range(from, to)
-    )
-  );
-  try {
-    return (await read("id, name, rule")).map((l) => ({ id: l.id, name: l.name, rule: l.rule ?? null }));
-  } catch (e) {
-    if (!(e instanceof Error) || !noRuleColumn(e.message)) throw e;
-    return (await read("id, name")).map((l) => ({ id: l.id, name: l.name, rule: null }));
+var missingColumn = (message, column) => new RegExp(`\\b${column}\\b`).test(message) && /does not exist|could not find/i.test(message);
+var LIST_COLUMNS = ["rule, archived_at", "rule", ""];
+async function readWithFallback(read, base) {
+  let last = null;
+  for (const extra of LIST_COLUMNS) {
+    try {
+      return await read(extra ? `${base}, ${extra}` : base);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      if (!missingColumn(message, "archived_at") && !missingColumn(message, "rule")) throw e;
+      last = e;
+    }
   }
+  throw last;
+}
+async function listRows(db, tenantId) {
+  const rows = await readWithFallback(
+    (columns) => readAllRows(
+      "segments",
+      (from, to) => (
+        // The columns are chosen at run time, past the client's typed parser: the rows are the columns named.
+        db.from("segments").select(columns).eq("tenant_id", tenantId).order("name").order("id").range(from, to)
+      )
+    ),
+    "id, name"
+  );
+  return rows.map((l) => ({ id: l.id, name: l.name, rule: l.rule ?? null, archived_at: l.archived_at ?? null }));
 }
 async function savedListsFor(db, tenantId) {
   const [lists, members] = await Promise.all([
@@ -2939,7 +2963,13 @@ async function savedListsFor(db, tenantId) {
     ids.push(m.contact_id);
     byList.set(m.segment_id, ids);
   }
-  return lists.map((l) => ({ id: l.id, name: l.name, ids: byList.get(l.id) ?? [], rule: l.rule ?? null }));
+  return lists.map((l) => ({
+    id: l.id,
+    name: l.name,
+    ids: byList.get(l.id) ?? [],
+    rule: l.rule ?? null,
+    archived_at: l.archived_at
+  }));
 }
 async function listMemberIds(db, listId) {
   const rows = await readAllRows(
@@ -2949,26 +2979,33 @@ async function listMemberIds(db, listId) {
   return rows.map((m) => m.contact_id);
 }
 async function savedListFor(db, tenantId, id) {
-  const read = (columns) => db.from("segments").select(columns).eq("id", id).eq("tenant_id", tenantId).maybeSingle();
-  let { data, error } = await read("id, name, rule");
-  if (error && noRuleColumn(error.message))
-    ({ data, error } = await read("id, name"));
-  if (error) throw new Error(`segments: ${error.message}`);
+  const data = await readWithFallback(async (columns) => {
+    const { data: data2, error } = await db.from("segments").select(columns).eq("id", id).eq("tenant_id", tenantId).maybeSingle();
+    if (error) throw new Error(`segments: ${error.message}`);
+    return data2;
+  }, "id, name");
   if (!data) return null;
   return {
     id: data.id,
     name: data.name,
     ids: data.rule == null ? await listMemberIds(db, data.id) : [],
-    rule: data.rule ?? null
+    rule: data.rule ?? null,
+    archived_at: data.archived_at ?? null
   };
 }
 async function listRow(db, id) {
-  const read = (columns) => db.from("segments").select(columns).eq("id", id).maybeSingle();
-  let { data, error } = await read("id, tenant_id, name, rule");
-  if (error && noRuleColumn(error.message))
-    ({ data, error } = await read("id, tenant_id, name"));
-  if (error) throw new Error(`segments: ${error.message}`);
-  return data ? { id: data.id, tenant_id: data.tenant_id, name: data.name, rule: data.rule ?? null } : null;
+  const data = await readWithFallback(async (columns) => {
+    const { data: data2, error } = await db.from("segments").select(columns).eq("id", id).maybeSingle();
+    if (error) throw new Error(`segments: ${error.message}`);
+    return data2;
+  }, "id, tenant_id, name");
+  return data ? {
+    id: data.id,
+    tenant_id: data.tenant_id,
+    name: data.name,
+    rule: data.rule ?? null,
+    archived_at: data.archived_at ?? null
+  } : null;
 }
 async function createList(db, tenantId, name, userId, rule = null) {
   const { data, error } = await db.from("segments").insert({ tenant_id: tenantId, name, created_by: userId, ...rule ? { rule } : {} }).select("id, name").single();
@@ -2995,6 +3032,18 @@ async function addToList(db, list, contactIds, userId) {
 async function dropFromList(db, listId, contactIds) {
   const { error } = await db.from("segment_members").delete().eq("segment_id", listId).in("contact_id", [...contactIds]);
   return { error };
+}
+async function archiveList(db, id, at, name) {
+  const { data, error } = await db.from("segments").update({ archived_at: at ? at.toISOString() : null, ...name ? { name } : {} }).eq("id", id).select("id");
+  return { error, count: data?.length ?? 0 };
+}
+async function playbooksOnList(db, tenantId, listId) {
+  const { data, error } = await db.from("playbooks").select("id, name, state").eq("tenant_id", tenantId).eq("list_id", listId).order("name");
+  if (error) {
+    if (missingColumn(error.message, "list_id")) return [];
+    throw new Error(`playbooks: ${error.message}`);
+  }
+  return data ?? [];
 }
 async function deleteList(db, id) {
   const { error, count } = await db.from("segments").delete({ count: "exact" }).eq("id", id);
@@ -3117,8 +3166,14 @@ var WATCHED = [
   // a deal recorded or moved by a teammate, or by a payment: People (and its Pipeline) repaints (00156, 0008)
   { table: "deals", event: "*" },
   // a note written, a step set or done by a teammate: People's next steps and a person's page repaint (00157, 00166)
-  { table: "person_notes", event: "*" }
+  { table: "person_notes", event: "*" },
+  // a list made, renamed, archived, or people put on and taken off by a teammate: People's rail repaints (00169)
+  { table: "segments", event: "*" },
+  { table: "segment_members", event: "*" }
 ];
+function watchedTables() {
+  return WATCHED.map((w) => w.table);
+}
 function subscribeMessagesInserts(client, onInsert, opts = {}) {
   const topic = `db-changes:${opts.topic ?? "bridge"}`;
   let removed = false;
@@ -3164,6 +3219,7 @@ export {
   MAX_ROWS,
   PEOPLE_PAGE,
   addToList,
+  archiveList,
   assembleHistory,
   claimCallNotification,
   claimControl,
@@ -3193,6 +3249,7 @@ export {
   pauseConversation,
   peoplePage,
   personReplyMode,
+  playbooksOnList,
   putTenantConfig,
   readAllRows,
   readDealForPhone,
@@ -3222,5 +3279,6 @@ export {
   templatesFor,
   touchIndex,
   touchesSince,
+  watchedTables,
   yesesSince
 };

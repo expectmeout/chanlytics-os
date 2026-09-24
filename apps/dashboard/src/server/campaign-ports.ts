@@ -6,7 +6,7 @@
  * people, and update a broadcast's `state` (00046) and `scheduled_for` (00119).
  */
 import type { Json } from "@chanlytics/db";
-import { numberHealth, parseTenantConfig } from "@chanlytics/contracts";
+import { AppError, numberHealth, parseTenantConfig } from "@chanlytics/contracts";
 import type {
   ApproveRunPorts,
   AssemblePorts,
@@ -18,7 +18,7 @@ import type { RouteContext } from "./with-route";
 import { changed } from "./core-ports";
 import { recordDecision } from "./verbs";
 import { cancelKindFor, schedule } from "./service";
-import { audiencePool, poolList, type AudiencePool } from "./audience";
+import { archivedListWords, audiencePool, poolList, type AudiencePool } from "./audience";
 import { tenantFacts } from "./tenant";
 
 /** PostgREST takes a payload this size in one statement. */
@@ -104,7 +104,12 @@ export function createBroadcastPorts(ctx: RouteContext, tenantId: string): Creat
     people: async (now) => (await poolAt(now)).rows,
     // One list over the pool the send enrols from (audience.ts poolList): a built-in or a saved list, every member,
     // not the first thousand, or why it can't be counted.
-    list: async (ref, now) => poolList(ctx, tenantId, await poolAt(now), ref),
+    // An archived list (00169) is sent to no new broadcast: it is off People's rail.
+    list: async (ref, now) => {
+      const found = await poolList(ctx, tenantId, await poolAt(now), ref);
+      if (found?.archived) throw new AppError("validation", archivedListWords(found.label, "send"));
+      return found;
+    },
     number: async () => {
       const { data: ch, error: chErr } = await ctx.supabase
         .from("tenant_channels")

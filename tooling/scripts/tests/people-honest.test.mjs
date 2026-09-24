@@ -532,6 +532,36 @@ test("REGRESSION (B22): a list made on the rail says so and is the one shown -- 
   assert.ok(chip && textOf(chip).includes("Regulars"), "the new list is the one shown");
 });
 
+test("an archived list leaves the rail for one quiet line, and one press brings it back (00169, decision 0009)", async () => {
+  await freshPage({
+    people: [person(1)],
+    lists: [
+      { id: "s1", name: "Regulars", ids: ["p1"] },
+      { id: "s2", name: "VIP", ids: ["p1"], archived_at: "2026-09-20T12:00:00.000Z" },
+    ],
+  });
+  const P = globalThis.window.__PEOPLE;
+  assert.deepEqual(
+    P.saved.map((l) => l.id),
+    ["s1"],
+    "off the rail",
+  );
+  assert.deepEqual(P.archived, [{ id: "s2", name: "VIP" }]);
+  const calls = [];
+  globalThis.window.__lists = lists({
+    restore: async (id) => {
+      calls.push(id);
+      return { ok: true, data: {} };
+    },
+  });
+  const line = byTestId(draw(), "rail-archived");
+  assert.ok(line && /Archived:\s*VIP/.test(textOf(line)), line && textOf(line));
+  await byTestId(line, "rail-restore").props.onClick();
+  await settle();
+  assert.deepEqual(calls, ["s2"]);
+  assert.match(textOf(flashes.at(-1).msg), /^VIP is back on your lists/);
+});
+
 test("REGRESSION: adding people to a list counts who was added, and Undo takes only them off -- it counted everyone selected and could not be undone", async () => {
   await freshPage({ people: [person(1), person(2), person(3)], lists: [{ id: "s1", name: "Regulars", ids: ["p1"] }] });
   const calls = [];

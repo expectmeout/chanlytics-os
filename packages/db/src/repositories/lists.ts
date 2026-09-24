@@ -22,6 +22,8 @@ export interface SavedListRow {
   name: string;
   ids: string[];
   rule: unknown;
+  /** When it was archived (00169): it leaves People's rail and still resolves for the playbooks that name it. */
+  archived_at: string | null;
 }
 
 /** A list as a verb acts on it: the workspace it belongs to is the one its role is judged in. */
@@ -31,6 +33,8 @@ export interface ListRow {
   name: string;
   /** A smart list's rule, or null for a list kept by hand: nobody is put on or taken off a rule by hand. */
   rule: unknown;
+  /** When it was archived (00169); null for a live list. */
+  archived_at: string | null;
 }
 
 export interface WriteError {
@@ -39,32 +43,53 @@ export interface WriteError {
 }
 
 /**
- * A read that names `rule` on a database 00155 has not reached yet answers "column does not exist": read again without
- * it, and every list is one kept by hand, as it was. Either deploy order works.
+ * A read that names a column a database has not reached yet -- `rule` (00155), `archived_at` (00169) -- answers
+ * "column does not exist": read again without it, and every list is one kept by hand, or live, as it was. Either deploy
+ * order works.
  */
-const noRuleColumn = (message: string): boolean =>
-  /\brule\b/.test(message) && /does not exist|could not find/i.test(message);
+const missingColumn = (message: string, column: string): boolean =>
+  new RegExp(`\\b${column}\\b`).test(message) && /does not exist|could not find/i.test(message);
 
-async function listRows(db: Db, tenantId: string): Promise<{ id: string; name: string; rule: unknown }[]> {
-  const read = (columns: string) =>
-    readAllRows<{ id: string; name: string; rule?: unknown }>(
-      "segments",
-      (from, to) =>
-        // The columns are chosen at run time, past the client's typed parser: the rows are the columns named.
-        db
-          .from("segments")
-          .select(columns)
-          .eq("tenant_id", tenantId)
-          .order("name")
-          .order("id")
-          .range(from, to) as unknown as PromiseLike<Page<{ id: string; name: string; rule?: unknown }>>,
-    );
-  try {
-    return (await read("id, name, rule")).map((l) => ({ id: l.id, name: l.name, rule: l.rule ?? null }));
-  } catch (e) {
-    if (!(e instanceof Error) || !noRuleColumn(e.message)) throw e;
-    return (await read("id, name")).map((l) => ({ id: l.id, name: l.name, rule: null }));
+/** The columns a list is read with, the newest first; each read that misses one tries the next. */
+const LIST_COLUMNS = ["rule, archived_at", "rule", ""] as const;
+
+async function readWithFallback<T>(read: (columns: string) => Promise<T>, base: string): Promise<T> {
+  let last: unknown = null;
+  for (const extra of LIST_COLUMNS) {
+    try {
+      return await read(extra ? `${base}, ${extra}` : base);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      if (!missingColumn(message, "archived_at") && !missingColumn(message, "rule")) throw e;
+      last = e;
+    }
   }
+  throw last;
+}
+
+type ListCols = { id: string; name: string; rule?: unknown; archived_at?: string | null };
+
+async function listRows(
+  db: Db,
+  tenantId: string,
+): Promise<{ id: string; name: string; rule: unknown; archived_at: string | null }[]> {
+  const rows = await readWithFallback(
+    (columns) =>
+      readAllRows<ListCols>(
+        "segments",
+        (from, to) =>
+          // The columns are chosen at run time, past the client's typed parser: the rows are the columns named.
+          db
+            .from("segments")
+            .select(columns)
+            .eq("tenant_id", tenantId)
+            .order("name")
+            .order("id")
+            .range(from, to) as unknown as PromiseLike<Page<ListCols>>,
+      ),
+    "id, name",
+  );
+  return rows.map((l) => ({ id: l.id, name: l.name, rule: l.rule ?? null, archived_at: l.archived_at ?? null }));
 }
 
 /** Every saved list of one workspace with every id on it, by name. Scoped by tenant, not by row security alone. */
@@ -87,7 +112,13 @@ export async function savedListsFor(db: Db, tenantId: string): Promise<SavedList
     ids.push(m.contact_id);
     byList.set(m.segment_id, ids);
   }
-  return lists.map((l) => ({ id: l.id, name: l.name, ids: byList.get(l.id) ?? [], rule: l.rule ?? null }));
+  return lists.map((l) => ({
+    id: l.id,
+    name: l.name,
+    ids: byList.get(l.id) ?? [],
+    rule: l.rule ?? null,
+    archived_at: l.archived_at,
+  }));
 }
 
 /** Every id on one list. */
@@ -100,41 +131,45 @@ export async function listMemberIds(db: Db, listId: string): Promise<string[]> {
 
 /** One saved list of this workspace with every id on it, or null when it has no such list: what a send to it enrols. */
 export async function savedListFor(db: Db, tenantId: string, id: string): Promise<SavedListRow | null> {
-  const read = (columns: string) =>
-    db.from("segments").select(columns).eq("id", id).eq("tenant_id", tenantId).maybeSingle();
-  let { data, error } = (await read("id, name, rule")) as unknown as {
-    data: { id: string; name: string; rule?: unknown } | null;
-    error: { message: string } | null;
-  };
-  if (error && noRuleColumn(error.message))
-    ({ data, error } = (await read("id, name")) as unknown as {
-      data: { id: string; name: string } | null;
-      error: null;
-    });
-  if (error) throw new Error(`segments: ${error.message}`);
+  const data = await readWithFallback(async (columns) => {
+    const { data, error } = (await db
+      .from("segments")
+      .select(columns)
+      .eq("id", id)
+      .eq("tenant_id", tenantId)
+      .maybeSingle()) as unknown as { data: ListCols | null; error: { message: string } | null };
+    if (error) throw new Error(`segments: ${error.message}`);
+    return data;
+  }, "id, name");
   if (!data) return null;
   return {
     id: data.id,
     name: data.name,
     ids: data.rule == null ? await listMemberIds(db, data.id) : [],
     rule: data.rule ?? null,
+    archived_at: data.archived_at ?? null,
   };
 }
 
 /** The list a verb acts on, read under row security alone: one the caller cannot see is no list. */
 export async function listRow(db: Db, id: string): Promise<ListRow | null> {
-  const read = (columns: string) => db.from("segments").select(columns).eq("id", id).maybeSingle();
-  let { data, error } = (await read("id, tenant_id, name, rule")) as unknown as {
-    data: { id: string; tenant_id: string; name: string; rule?: unknown } | null;
-    error: { message: string } | null;
-  };
-  if (error && noRuleColumn(error.message))
-    ({ data, error } = (await read("id, tenant_id, name")) as unknown as {
-      data: { id: string; tenant_id: string; name: string } | null;
-      error: null;
-    });
-  if (error) throw new Error(`segments: ${error.message}`);
-  return data ? { id: data.id, tenant_id: data.tenant_id, name: data.name, rule: data.rule ?? null } : null;
+  const data = await readWithFallback(async (columns) => {
+    const { data, error } = (await db.from("segments").select(columns).eq("id", id).maybeSingle()) as unknown as {
+      data: (ListCols & { tenant_id: string }) | null;
+      error: { message: string } | null;
+    };
+    if (error) throw new Error(`segments: ${error.message}`);
+    return data;
+  }, "id, tenant_id, name");
+  return data
+    ? {
+        id: data.id,
+        tenant_id: data.tenant_id,
+        name: data.name,
+        rule: data.rule ?? null,
+        archived_at: data.archived_at ?? null,
+      }
+    : null;
 }
 
 /**
@@ -202,6 +237,46 @@ export async function dropFromList(
     .eq("segment_id", listId)
     .in("contact_id", [...contactIds]);
   return { error };
+}
+
+/**
+ * A list archived (a moment) or restored (null): the column a member may change (00169's grant). A restore under a name
+ * a live list now has is the database's 23505.
+ */
+export async function archiveList(
+  db: Db,
+  id: string,
+  at: Date | null,
+  /** A new name to come back under, in the same write: a restore and its rename land together or not at all. */
+  name?: string,
+): Promise<{ error: WriteError | null; count: number }> {
+  // RLS hides a row it will not let change, without an error: the row is read back and counted.
+  const { data, error } = await db
+    .from("segments")
+    .update({ archived_at: at ? at.toISOString() : null, ...(name ? { name } : {}) })
+    .eq("id", id)
+    .select("id");
+  return { error, count: data?.length ?? 0 };
+}
+
+/** The playbooks that name a list: what archiving it pauses. */
+export async function playbooksOnList(
+  db: Db,
+  tenantId: string,
+  listId: string,
+): Promise<{ id: string; name: string; state: string }[]> {
+  const { data, error } = await db
+    .from("playbooks")
+    .select("id, name, state")
+    .eq("tenant_id", tenantId)
+    .eq("list_id", listId)
+    .order("name");
+  if (error) {
+    // A database 00155 has not reached has no list_id: no playbook names a list there.
+    if (missingColumn(error.message, "list_id")) return [];
+    throw new Error(`playbooks: ${error.message}`);
+  }
+  return (data ?? []) as { id: string; name: string; state: string }[];
 }
 
 /** A list and its member rows. `count` says whether anything was removed: a delete that removed nothing is no delete. */

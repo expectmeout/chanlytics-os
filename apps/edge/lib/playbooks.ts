@@ -216,7 +216,10 @@ export async function loadTenantRunContext(
     listMembers: (ref) => {
       const saved = kept.data ?? [];
       const def = resolveList(ref, saved);
-      return def ? membersOf(def, vms, listCtx, saved) : null;
+      if (!def) return null;
+      // Counted, it carries the rule it was counted by, for the run to keep (decision 0009, "sends remember").
+      const m = membersOf(def, vms, listCtx, saved);
+      return m.state === "ok" ? { ...m, rule: def.rule } : m;
     },
     modes: new Map(policies.map((r) => [r.class, r.mode])),
     health: numberHealth({ quality: s("quality_rating"), event: s("quality_event"), limit: s("messaging_limit") }),
