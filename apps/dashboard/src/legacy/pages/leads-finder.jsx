@@ -125,22 +125,25 @@ const LeadsFirstDay = ({
 /* ---------------------------------------------------------- the amend turn */
 
 /**
- * The one turn that amends a search waiting on its question: which search, what it asked, what the owner first
- * asked for, and their answer. The card that comes back is the same search with the answer applied; the page sends
- * it as the round's next version (leadFinderApprove), never as a new search.
+ * The one turn that amends a search waiting on its question: which search (by id, so the model can name it in
+ * `amends`), what it asked, what the owner first asked for, and their answer. The card that comes back carries
+ * `amends` and commits through Ask's door as any card (leadFinderApprove); the answer route sets the version and
+ * the count, so it is never a new search.
  */
 const leadFinderAmendAsk = (a, words) =>
-  `On People › Leads, my search for ${a.name} stopped to ask: “${a.question}” ` +
+  `On People › Leads, my search for ${a.name} (search id ${a.searchId}) stopped to ask: “${a.question}” ` +
   `I had asked for: “${a.asked}”${a.leavingOut && a.leavingOut.length ? `, leaving out ${a.leavingOut.join(", ")}` : ""}. ` +
-  `My answer: ${String(words || "").trim()}. Propose the same search with my answer applied, and keep everything I did not change.`;
+  `My answer: ${String(words || "").trim()}. Propose the same search with my answer applied (propose_lead_search with amends set to that id), and keep everything I did not change.`;
 
 /**
  * The answer to a search's question, as one Ask turn on the Leads surface
  * through window.__ask.send (legacy-bridge/ask/api.ts). The SendEvent shapes
  * are that file's: thread, trace, delta, final, error. The panel listens for
  * the trace line while it waits and for the `final` message: a lead_search
- * proposal is the plan card, and words with no card are a refusal said under
- * the input. It only ever amends the search the page opened it under (`more`,
+ * proposal carrying `amends` is the plan card, taken as it comes (the server
+ * already set its version and count, spec G1); one without `amends` would
+ * start a new search, so it is refused under the input, as words with no
+ * card are. It only ever amends the search the page opened it under (`more`,
  * answer mode): a fresh Find is Ask's own turn (spec F2) and never comes
  * through here. The page hands its setters in, so this is a plain function
  * the tests can run.
@@ -174,11 +177,16 @@ const leadAnswerPlan = async (words, set) => {
       card = (m.proposals || []).filter((p) => p && p.kind === "lead_search")[0] || null;
     } else if (ev.t === "error") said = ev.text || "";
   });
+  if (card && !(card.payload || {}).amends) {
+    // The model proposed a search of its own instead of amending this one: committing it would start a second
+    // search while the first waited a day and died.
+    set.refusal("That would start a new search. Say your answer to the question instead.");
+    set.stage("compose");
+    return null;
+  }
   if (card) {
-    const p = (card.payload || {}).plan || null;
     set.proposal(card);
-    // An answer is the round's next version at the count the round reserved: the card shows what will be sent.
-    set.plan(p ? { ...p, version: answering.baseVersion + 1, count: answering.count } : p);
+    set.plan(card.payload.plan || null);
     set.stage("plan");
     return card;
   }
@@ -189,31 +197,28 @@ const leadAnswerPlan = async (words, set) => {
 
 /**
  * Find N leads. An Ask card goes through commitProposal (legacy-bridge
- * ask/commit.ts), which posts the plan to POST lead-searches marked as Ask's;
- * a plan the panel opened from a strip's next step goes through
- * __leadSearchMore on that search, or, when that step was Include on a round
- * still waiting for its answer, through __leadSearchAnswer. Either way the
- * route's own sentence on a refusal (402, 409, 429) is said under the button,
- * in its words, and nothing on the page says it started.
+ * ask/commit.ts), which posts the plan to POST lead-searches marked as Ask's,
+ * or, when the card carries `amends`, answers the search it amends: an answer
+ * that came back from Ask commits as its card. An Include opened on the page
+ * (a strip's step on a round still waiting, no card) posts the plan through
+ * __leadSearchAnswer and the route versions it; any other plan the panel
+ * opened from a strip's next step goes through __leadSearchMore. Either way
+ * the route's own sentence on a refusal (402, 409, 429) is said under the
+ * button, in its words, and nothing on the page says it started.
  */
 const leadFinderApprove = async (proposal, plan, set) => {
   set.stage("starting");
   set.refusal(null);
   let r;
-  if (set.more && set.more.answer && window.__leadSearchAnswer) {
-    // An answer amends the round that is waiting, whatever card it came from: Change what I asked comes back from
-    // Ask as a proposal, and committing that started a second search while the first waited a day and died. It is
-    // sent as the version after the round's, at the count the round reserved, however many words were picked on
-    // the card (each pick made a version of its own, which the door refused). If the round stopped waiting
-    // meanwhile the route says so, and that is what is shown (section 7.2).
-    const m = set.more;
-    const base = typeof m.baseVersion === "number" ? m.baseVersion : plan.version - 1;
-    r = await window.__leadSearchAnswer(m.searchId, "include", { ...plan, version: base + 1, count: m.count || plan.count });
-  } else if (proposal) {
+  if (proposal) {
     const A = window.__ask;
     r = A && typeof A.commit === "function"
       ? await A.commit({ ...proposal, payload: { ...(proposal.payload || {}), plan } })
       : { ok: false, message: "Claude isn't available here yet — try again in a moment." };
+  } else if (set.more && set.more.answer && window.__leadSearchAnswer) {
+    // The plan is sent as the owner saw it; the route sets the version and the count the round reserved (G1). If
+    // the round stopped waiting meanwhile the route says so, and that is what is shown (section 7.2).
+    r = await window.__leadSearchAnswer(set.more.searchId, "include", plan);
   } else if (set.more && window.__leadSearchMore) {
     r = await window.__leadSearchMore(set.more.searchId, set.more.purpose || "topup", plan);
   } else {

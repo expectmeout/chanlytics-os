@@ -3461,13 +3461,12 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
     if (started && !leadView.searchId && window.__leadsRouteOf) nav(window.__leadsRouteOf({ searchId: started, list: "all", cls: null }));
     return r;
   };
-  // What answering a search's question carries (leadFinderAmendAsk, leadFinderApprove): the question, the round's
-  // version and the count it reserved, and what was first asked, so one Ask turn can amend the same search.
+  // What answering a search's question carries (leadFinderAmendAsk, leadFinderApprove): the question, the search's
+  // id and name, what was first asked and what it leaves out, so one Ask turn can amend the same search; the
+  // version and count are the route's.
   const answerOf = (s) => ({
     answer: true,
     question: s.round && s.round.question ? s.round.question.sentence : "",
-    baseVersion: s.plan_version || (s.plan && s.plan.version) || 1,
-    count: s.plan.count,
     name: s.name,
     asked: s.asked,
     leavingOut: (s.plan.exclusions || []).map((x) => x.text),

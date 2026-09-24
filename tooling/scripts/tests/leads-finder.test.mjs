@@ -473,22 +473,27 @@ const ANSWERING = {
   purpose: "topup",
   answer: true,
   question: "Most of the first 25 are chain gyms, which I'm leaving out. Is that what you meant?",
-  baseVersion: 1,
-  count: 200,
   name: "personal trainers",
   asked: PLAN.asked,
   leavingOut: ["Chain gyms"],
 };
 
-test("answering: the panel says the question, sends one turn on the Leads surface that names the search and the answer, and the card comes back as the next version at the same count", async () => {
+test("answering: the panel says the question, sends one turn on the Leads surface that names the search and the answer, and the card comes back carrying amends at the server's version and count", async () => {
   const sent = [];
   const amended = { ...PLAN, count: 50, exclusions: [], asked: "include the chains too" };
+  const amends = { search_id: "s-b", name: "personal trainers", question: ANSWERING.question };
   globalThis.window.__ask = {
     send: async (input, on) => {
       sent.push(input);
       on({ t: "trace", text: "Reading what you asked" });
       on({ t: "trace", text: "Sizing the search" });
-      on({ t: "final", message: { text: "", proposals: [{ ...CARD, payload: { ...CARD.payload, plan: amended } }] } });
+      on({
+        t: "final",
+        message: {
+          text: "",
+          proposals: [{ ...CARD, payload: { ...CARD.payload, plan: { ...amended, version: 2, count: 200 }, amends } }],
+        },
+      });
     },
   };
   const { st, set } = page({ words: "include the chains too" });
@@ -504,24 +509,40 @@ test("answering: the panel says the question, sends one turn on the Leads surfac
     [null, "leads", null],
     "the Leads surface, no scope and no thread: the sentence names the search itself",
   );
-  assert.match(sent[0].text, /my search for personal trainers stopped to ask/);
+  assert.match(sent[0].text, /my search for personal trainers \(search id s-b\) stopped to ask/);
   assert.match(sent[0].text, /Most of the first 25 are chain gyms/);
   assert.match(sent[0].text, /leaving out Chain gyms/);
   assert.match(sent[0].text, /My answer: include the chains too\./);
+  assert.match(sent[0].text, /propose_lead_search with amends set to that id/);
   assert.match(sent[0].text, /keep everything I did not change/);
   assert.deepEqual(
     [st.stage, st.trace, st.refusal, card.id, st.plan.version, st.plan.count, st.plan.exclusions],
     ["plan", "Sizing the search", null, "p1", 2, 200, []],
-    "the round's next version, at the count the round reserved",
+    "the server's version and count, as the card carries them",
   );
+  assert.deepEqual(st.proposal.payload.amends, amends, "the card keeps what it amends for the commit door");
   const planned = drawFinder(st, { answering: ANSWERING });
   assert.ok(byTestId(planned, "lead-plan"), "the card is drawn");
   assert.equal(byTestId(planned, "plan-answer-input"), null, "and the row is gone until Change what I asked");
   assert.equal(byTestId(planned, "plan-thinking"), null);
+  // A card without amends is a new search, not an answer: refused under the input, nothing to approve.
+  globalThis.window.__ask = {
+    send: async (input, on) => {
+      sent.push(input);
+      on({ t: "final", message: { text: "", proposals: [{ ...CARD, payload: { ...CARD.payload, plan: amended } }] } });
+    },
+  };
+  const fresh = page({ words: "include the chains too" });
+  fresh.set.more = ANSWERING;
+  assert.equal(await globalThis.window.leadAnswerPlan(fresh.st.words, fresh.set), null);
+  assert.deepEqual(
+    [fresh.st.refusal, fresh.st.stage, fresh.st.proposal, fresh.st.plan, sent.length],
+    ["That would start a new search. Say your answer to the question instead.", "compose", null, null, 2],
+  );
   // Nothing to answer: the panel never composes a fresh Find (that is Ask's), so it refuses rather than sending.
   const idle = page({ words: "gyms in Denver" });
   assert.equal(await globalThis.window.leadAnswerPlan(idle.st.words, idle.set), null);
-  assert.deepEqual([idle.st.refusal, idle.st.stage, sent.length], ["Nothing to answer here.", "compose", 1]);
+  assert.deepEqual([idle.st.refusal, idle.st.stage, sent.length], ["Nothing to answer here.", "compose", 2]);
 });
 
 test("answering: a refusal is words under the input and no card, with what was typed still there; Enter and Send my answer send, nothing typed sends nothing, and the panel is the page's own overlay", async () => {
@@ -597,7 +618,7 @@ test("answering: a refusal is words under the input and no card, with what was t
   assert.equal(drawFinder({ ...page().st, open: false }), null, "closed, it draws nothing");
 });
 
-test("answering: the card's count is words, its button updates the search, and approving answers include at the next version even from Ask's card and after picks", async () => {
+test("answering: the card's count is words, its button updates the search, an answer's card commits through Ask's door, and the page's Include posts the plan as given", async () => {
   const st = { plan: { ...PLAN, version: 2, exclusions: [] }, pick: null, refusal: null };
   const tree = drawCard(st, { answering: ANSWERING, facts: { ...FACTS, leadsLeft: 3, bound: "allowance" } });
   assert.equal(byTestId(tree, "plan-count"), null, "the reservation was made for this count: it is not a picker");
@@ -606,22 +627,51 @@ test("answering: the card's count is words, its button updates the search, and a
   assert.equal(byTestId(tree, "plan-approve").props.disabled, false, "the month's clamp is not this round's");
   assert.equal(byTestId(tree, "plan-covers"), null);
   assert.equal(byTestId(tree, "plan-title"), null, "no Find N title over an answer");
+  // The card that came back from Ask carries amends: it commits as any card, and the page never posts the answer.
+  const amends = { search_id: "s-b", name: "personal trainers", question: ANSWERING.question };
+  const committed = [];
+  globalThis.window.__leadSearchAnswer = async () => {
+    throw new Error("an answer from Ask never posts from the page");
+  };
+  globalThis.window.__ask = {
+    commit: async (p) => {
+      committed.push(p);
+      return {
+        ok: true,
+        receipt: "Answered. Personal trainers carries on with your answer; Leads shows it.",
+        undo: null,
+      };
+    },
+  };
+  const approved = { ...PLAN, version: 2, count: 200, exclusions: [] };
+  const { st: s2, set } = page({
+    stage: "plan",
+    proposal: { ...CARD, payload: { ...CARD.payload, plan: approved, amends } },
+    plan: approved,
+  });
+  set.more = ANSWERING;
+  const r = await globalThis.window.leadFinderApprove(s2.proposal, s2.plan, set);
+  assert.equal(r.ok, true);
+  assert.equal(committed.length, 1, "one commit");
+  assert.deepEqual(committed[0].payload.plan, approved, "the plan approved is the plan committed");
+  assert.deepEqual(committed[0].payload.amends, amends, "with what it amends intact");
+  assert.deepEqual([s2.open, s2.stage], [false, "compose"]);
+  // The page's Include (a strip's step, no card): the plan is sent as given and the route versions it.
   const answered = [];
   globalThis.window.__leadSearchAnswer = async (id, a, plan) => {
-    answered.push([id, a, plan.version, plan.count]);
+    answered.push([id, a, plan.version]);
     return { ok: true };
   };
   globalThis.window.__ask = {
     commit: async () => {
-      throw new Error("an answer never starts a new search");
+      throw new Error("a plan opened on the page is not a card");
     },
   };
-  const { st: s2, set } = page({ stage: "plan", proposal: CARD, plan: { ...PLAN, version: 4, count: 50 } });
-  set.more = ANSWERING;
-  const r = await globalThis.window.leadFinderApprove(s2.proposal, s2.plan, set);
-  assert.equal(r.ok, true);
-  assert.deepEqual(answered, [["s-b", "include", 2, 200]], "the version after the round's, the count it reserved");
-  assert.deepEqual([s2.open, s2.stage], [false, "compose"]);
+  const { st: s3, set: set3 } = page({ stage: "plan", proposal: null, plan: { ...PLAN, version: 4, count: 50 } });
+  set3.more = ANSWERING;
+  assert.equal((await globalThis.window.leadFinderApprove(s3.proposal, s3.plan, set3)).ok, true);
+  assert.deepEqual(answered, [["s-b", "include", 4]], "the plan as given: the route versions it");
+  assert.deepEqual([s3.open, s3.stage], [false, "compose"]);
 });
 
 test("near the month's limit the card offers what is left and says when the leads renew", () => {
