@@ -20,6 +20,7 @@ import {
   FALLBACK_DEFAULTS,
   frameGuardrail,
   NO_LINK_DETAILS,
+  offersBookingLink,
   parseTenantConfigResult,
   resolveSystemPrompt,
   standingLine,
@@ -167,4 +168,14 @@ test("the Business tab says so: the one gap it names first is the link, and it c
   const s = standingLine(read.config.brain, true);
   assert.deepEqual(s.missing, { sentence: "It has no booking link to send anyone.", row: "booking_link" });
   assert.doesNotMatch(s.can, /how to book/);
+});
+
+test("the link is offered unless the config is known to hold none: with no receptionist config, a call is told to offer it", () => {
+  assert.equal(offersBookingLink(QUOTES), false);
+  assert.equal(offersBookingLink(BOOKS), true);
+  assert.equal(
+    offersBookingLink(null),
+    true,
+    "nothing known: FACTS_UNAVAILABLE offers the link, and so does all said beside it",
+  );
 });

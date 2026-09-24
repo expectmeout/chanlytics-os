@@ -8,6 +8,7 @@ import {
   offerFor,
   offerLead,
   offeringHorizon,
+  offersBookingLink,
   parseIcs,
   parseTenantConfig,
   type FeedFailure,
@@ -231,7 +232,7 @@ export async function openingsFor(
   const described = describeOpenings(picked, timezone, {
     maxDays: 3,
     daysAhead,
-    hasBookingLink: !!cfg?.brain?.booking_link,
+    hasBookingLink: offersBookingLink(cfg?.brain),
   });
   return {
     state: "ok",

@@ -21,6 +21,7 @@ import {
   filterOpenings,
   NO_LINK_DETAILS,
   normalizePhone,
+  offersBookingLink,
   offerFor,
   offerLead,
   policyAskClass,
@@ -116,7 +117,7 @@ export async function POST(request: Request): Promise<Response> {
     L.info("retell_availability_booking_held", { tenant: routed.tenantId });
     return json(200, { result: BOOKING_HELD });
   }
-  const hasBookingLink = !!rt.brain?.booking_link;
+  const hasBookingLink = offersBookingLink(rt.brain);
   if (!rt.calendar?.ical_url) {
     L.info("retell_availability_no_calendar", { tenant: routed.tenantId });
     return json(200, { result: hasBookingLink ? NO_CALENDAR : NO_CALENDAR_NO_LINK });
