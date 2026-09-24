@@ -3637,8 +3637,9 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
     if (id === "stop") return leadAct(() => window.__leadSearchStop(s.id), <>Stopping. The emails of what was found are still being checked.</>);
     if (id === "keep") return leadAct(() => window.__leadSearchAnswer(s.id, "keep"), <>Carrying on.</>);
     if (id === "stop_here") return leadAct(() => window.__leadSearchAnswer(s.id, "stop"), <>Stopped. The ones already found are yours.</>);
-    // The no that changes the search: the plan panel opens its answer row under the question, empty, and what comes
-    // back from Ask is this round's next version (leadFinderApprove answers it; it never starts a second search).
+    // The no that changes the search: the plan panel opens its answer row under the question, empty; what comes
+    // back from Ask is a card that amends this search, and approving it commits through Ask's door, which answers
+    // the round; it never starts a second search.
     if (id === "change") {
       setFinderWords("");
       setFinderProposal(null);
@@ -3651,7 +3652,7 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
       return undefined;
     }
     // Include takes the thing it asked about back out of the plan, which planVersionOf makes a new version of:
-    // the route is given the version the owner approved, not the one the round started on.
+    // the plan goes as the owner approved it; the route sets the version and the count the round reserved (G1).
     if (id === "include") {
       const V = window.__LEAD_VM || {};
       const plan = V.planVersionOf ? V.planVersionOf(s.plan, { exclusions: s.plan.exclusions.filter((x) => x.key !== arg) }) : s.plan;

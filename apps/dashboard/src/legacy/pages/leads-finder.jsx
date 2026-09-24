@@ -177,9 +177,10 @@ const leadAnswerPlan = async (words, set) => {
       card = (m.proposals || []).filter((p) => p && p.kind === "lead_search")[0] || null;
     } else if (ev.t === "error") said = ev.text || "";
   });
-  if (card && !(card.payload || {}).amends) {
-    // The model proposed a search of its own instead of amending this one: committing it would start a second
-    // search while the first waited a day and died.
+  if (card && (!(card.payload || {}).amends || card.payload.amends.search_id !== answering.searchId)) {
+    // The model proposed a search of its own, or one amending some other search, instead of amending this one:
+    // committing it would start a second search while the first waited a day and died, or answer a round this
+    // panel was not opened under.
     set.refusal("That would start a new search. Say your answer to the question instead.");
     set.stage("compose");
     return null;

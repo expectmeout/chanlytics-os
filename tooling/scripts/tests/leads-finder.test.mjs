@@ -525,24 +525,30 @@ test("answering: the panel says the question, sends one turn on the Leads surfac
   assert.ok(byTestId(planned, "lead-plan"), "the card is drawn");
   assert.equal(byTestId(planned, "plan-answer-input"), null, "and the row is gone until Change what I asked");
   assert.equal(byTestId(planned, "plan-thinking"), null);
-  // A card without amends is a new search, not an answer: refused under the input, nothing to approve.
-  globalThis.window.__ask = {
-    send: async (input, on) => {
-      sent.push(input);
-      on({ t: "final", message: { text: "", proposals: [{ ...CARD, payload: { ...CARD.payload, plan: amended } }] } });
-    },
-  };
-  const fresh = page({ words: "include the chains too" });
-  fresh.set.more = ANSWERING;
-  assert.equal(await globalThis.window.leadAnswerPlan(fresh.st.words, fresh.set), null);
-  assert.deepEqual(
-    [fresh.st.refusal, fresh.st.stage, fresh.st.proposal, fresh.st.plan, sent.length],
-    ["That would start a new search. Say your answer to the question instead.", "compose", null, null, 2],
-  );
+  // A card without amends is a new search, not an answer, and one amending some other search is not this
+  // panel's: both are refused under the input, nothing to approve.
+  const refused = "That would start a new search. Say your answer to the question instead.";
+  for (const payload of [{ plan: amended }, { plan: amended, amends: { ...amends, search_id: "s-other" } }]) {
+    globalThis.window.__ask = {
+      send: async (input, on) => {
+        sent.push(input);
+        on({ t: "final", message: { text: "", proposals: [{ ...CARD, payload: { ...CARD.payload, ...payload } }] } });
+      },
+    };
+    const fresh = page({ words: "include the chains too" });
+    fresh.set.more = ANSWERING;
+    assert.equal(await globalThis.window.leadAnswerPlan(fresh.st.words, fresh.set), null);
+    assert.deepEqual(
+      [fresh.st.refusal, fresh.st.stage, fresh.st.proposal, fresh.st.plan],
+      [refused, "compose", null, null],
+      payload.amends ? "a card for another search" : "a card with no amends",
+    );
+  }
+  assert.equal(sent.length, 3);
   // Nothing to answer: the panel never composes a fresh Find (that is Ask's), so it refuses rather than sending.
   const idle = page({ words: "gyms in Denver" });
   assert.equal(await globalThis.window.leadAnswerPlan(idle.st.words, idle.set), null);
-  assert.deepEqual([idle.st.refusal, idle.st.stage, sent.length], ["Nothing to answer here.", "compose", 2]);
+  assert.deepEqual([idle.st.refusal, idle.st.stage, sent.length], ["Nothing to answer here.", "compose", 3]);
 });
 
 test("answering: a refusal is words under the input and no card, with what was typed still there; Enter and Send my answer send, nothing typed sends nothing, and the panel is the page's own overlay", async () => {
