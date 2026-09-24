@@ -694,12 +694,13 @@ const useBtEditor = ({ id, canEdit = true, gate = null, flash = () => {}, saver 
  * the phone's rule, record.css, for the whole tab -- a desktop read "It answers in whichever of these a customer
  * uses." under every list of languages). A BtRow's hint is the same. `act` and `name` replace the
  * act's words and its name where "Change" or "Add one" and the label say nothing together. `rest({ request, can })`
- * draws something else at rest in the row's place, for a fold with no fact to state yet (the create card's empty
- * state): hookless, and its act carries the fold's id as `data-rec-act`, where the fold gives focus back as it closes.
- * `can` is whether there is anything to open it onto, as a row's act asks before it offers one; NOT whether the role
- * may, since what a `rest` draws is a card's primary act, which is shown to a role that may not press it and says why
- * at the press, where a row's own act is simply absent. A fold with a `rest` states no fact yet, so its untouched Save
- * is judged rather than closed (useBtEditor's `nothingYet`).
+ * draws something else at rest in the row's place: the create card's empty state, for a fold with no fact to state
+ * yet, or the first run's language chips, which state the row's facts their own way. Hookless, and its act carries the
+ * fold's id as `data-rec-act`, where the fold gives focus back as it closes. `can` is whether there is anything to open
+ * it onto, as a row's act asks before it offers one; NOT whether the role may: the create card's act is its primary
+ * one, shown to a role that may not press it and saying why at the press, where a row's own act is simply absent. A
+ * fold with a `rest` and no fact in its row (`row.value`) states nothing yet, so its untouched Save is judged rather
+ * than closed (useBtEditor's `nothingYet`); one whose row holds its fact closes on it, as a row's does.
  * `check(draft)` is the card's own check, beside problemsOf: { fieldKey: sentence } for what the draft does not hold.
  * `door` is for a fold the settings save does not write (how customers buy, which is the workspace's as the zone is):
  * { initial, save(draft, done), pending() }, the fold's own way out in place of the tab's saver, as a row's door is
@@ -720,9 +721,9 @@ const BtFold = ({
   id, label, hint = null, row = {}, rest = null, wide = false, lines = false, saveLabel = "Save", said = BT_SAVED, footNote = null, channel = "whatsapp",
   canEdit = true, gate = null, flash = () => {}, saver = null, check = null, door = null, after = null, body,
 }) => {
-  const e = useBtEditor({ id, canEdit, gate, flash, saver, said, channel, check, door, after, nothingYet: !!rest || !!(door && door.initial == null), prefix: `rec-fold-${id}` });
-  const found = e.fields.problems;
   const has = !(row.value == null || row.value === "" || row.value === false);
+  const e = useBtEditor({ id, canEdit, gate, flash, saver, said, channel, check, door, after, nothingYet: (!!rest && !has) || !!(door && door.initial == null), prefix: `rec-fold-${id}` });
+  const found = e.fields.problems;
   const will = e.will;
   const note = will ? [will.note, lines ? null : will.caveat].filter(Boolean).join(" ") || null : null;
   const says = will ? (lines ? will.added : will.whole) : null;

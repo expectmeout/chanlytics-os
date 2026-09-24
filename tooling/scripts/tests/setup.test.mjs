@@ -289,7 +289,7 @@ test("REGRESSION: a yes to offers with no number to send one to is a yes -- Setu
 });
 
 test("what the first run's Check reads: whether a receptionist is set up, whether a listing is on record, and the days whose hours Google gives in a way the record could not take and does not state", async () => {
-  assert.deepEqual(setupSteps(empty(), NOW).check, { receptionist: "none", listed: false, unsure: [] });
+  assert.deepEqual(setupSteps(empty(), NOW).check, { receptionist: "none", listed: false, unsure: [], type: null });
   assert.equal(setupSteps(empty({ business: facts }), NOW).check.receptionist, "set");
   assert.equal(
     setupSteps(empty({ business: { ...empty().business, broken: true, receptionist: "broken" } }), NOW).check
@@ -299,8 +299,13 @@ test("what the first run's Check reads: whether a receptionist is set up, whethe
   );
   const listing = { name: "Northside Movers", rating: null, review_count: null, checked_at: null, check_error: null };
   assert.deepEqual(
-    setupSteps(empty({ google: { ready: true, places: true, listing, connected: false, unsure: ["fri"] } }), NOW).check,
-    { receptionist: "none", listed: true, unsure: ["fri"] },
+    setupSteps(
+      empty({
+        google: { ready: true, places: true, listing, connected: false, unsure: ["fri"], type: "moving_company" },
+      }),
+      NOW,
+    ).check,
+    { receptionist: "none", listed: true, unsure: ["fri"], type: "moving_company" },
   );
 
   // The read: Google's week as the edge stored it (day 0 is Sunday), less the days the record states.
@@ -324,6 +329,7 @@ test("what the first run's Check reads: whether a receptionist is set up, whethe
           hours: [{ open: { day: 2, hour: 9, minute: 0 }, close: { day: 2, hour: 17, minute: 0 } }, late(5), late(6)],
           website: null,
           service_area_only: true,
+          primary_type: "moving_company",
         },
       },
     ],
@@ -350,8 +356,17 @@ test("what the first run's Check reads: whether a receptionist is set up, whethe
     ["set", false],
     "by the one test (receptionistOf)",
   );
+  assert.equal(dto.google.type, "moving_company", "Google's kind of place, which Check's suggestions follow");
   const none = await setupDtoFor(fakeDb({}), T, { kind: "back_office" }, new Date(NOW));
   assert.deepEqual([none.business.receptionist, none.business.broken], ["none", false]);
+  assert.equal(none.google.type, null, "no listing, no kind");
+  const bare = tables();
+  bare.google_listings[0].facts = {};
+  assert.equal(
+    (await setupDtoFor(fakeDb(bare), T, { kind: "back_office" }, new Date(NOW))).google.type,
+    null,
+    "a listing Google said nothing of kind about",
+  );
   assert.deepEqual((await read({ sat: {} })).unsure, ["fri"], "Saturday is stated, closed: it is not asked again");
   assert.deepEqual(
     (await setupDtoFor(fakeDb({}), T, { kind: "back_office" }, new Date(NOW))).google.unsure,

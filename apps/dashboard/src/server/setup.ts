@@ -338,6 +338,7 @@ export async function setupDtoFor(
             (d) => !Object.prototype.hasOwnProperty.call(profile?.hours ?? {}, d),
           )
         : [],
+      type: listingFacts?.facts?.primary_type ?? null,
     },
     billing: billingRow
       ? {

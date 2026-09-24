@@ -86,3 +86,4 @@ export * from "./csv";
 export * from "./greeting";
 export * from "./first-run";
 export * from "./first-receptionist";
+export * from "./check-chips";
