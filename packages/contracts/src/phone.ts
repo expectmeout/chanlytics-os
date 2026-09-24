@@ -68,10 +68,19 @@ export function whyNotAPhone(raw: string | null | undefined): string | null {
  * transferred to the number they are already on, which answers as the
  * receptionist again.
  *
+ * The third is the same loop one step removed: the number the business keeps
+ * and FORWARDS to the receptionist. Nobody picks up there -- that is why the
+ * call reached the receptionist -- so the transfer rings out and forwards
+ * straight back to it.
+ *
  * Returns the owner's sentence, or null when the number is usable. Lives here
  * rather than in the form because the number is now edited where it is read.
  */
-export function whyNotAHandoff(raw: string | null | undefined, ownLine?: string | null): string | null {
+export function whyNotAHandoff(
+  raw: string | null | undefined,
+  ownLine?: string | null,
+  keptLine?: string | null,
+): string | null {
   const typed = String(raw ?? "").trim();
   if (!typed) return null; // Empty is a choice: take a message instead.
   const norm = "+" + typed.replace(/[^0-9]/g, "");
@@ -81,7 +90,21 @@ export function whyNotAHandoff(raw: string | null | undefined, ownLine?: string 
   if (ownLine && normalizePhone(norm) && normalizePhone(norm) === normalizePhone(ownLine)) {
     return "That is the receptionist's own line — it would ring itself. Use a line a person answers.";
   }
+  if (keptLine && normalizePhone(norm) && normalizePhone(norm) === normalizePhone(keptLine)) {
+    return "That number sends the calls nobody picks up to your receptionist, so a caller put through to it would come straight back. Use a mobile or another line a person answers.";
+  }
   return null;
+}
+
+/**
+ * The same loop from the other side: forwarding a number to the receptionist
+ * when that number is where the receptionist puts callers through. Returns the
+ * owner's sentence, or null when the number may forward.
+ */
+export function whyNotForward(number: string | null | undefined, handoff: string | null | undefined): string | null {
+  const n = normalizePhone(number);
+  if (!n || !handoff || n !== normalizePhone(handoff)) return null;
+  return "Your receptionist puts callers through to this number. Change the transfer number in Settings › Business first — once this number forwards to the receptionist, a caller put through to it would come straight back.";
 }
 
 /** What a typed handoff is STORED as: E.164, or nothing at all. */

@@ -8,6 +8,8 @@ import {
   resolveFacts,
   factConflicts,
   knownForwarding,
+  samePhone,
+  whyNotAHandoff,
   changedConfigFields,
   type KnownFacts,
 } from "@chanlytics/contracts";
@@ -151,6 +153,16 @@ export const PUT = write({
       throw new AppError("validation", `Config rejected — ${said.join(" ")}${more > 0 ? ` (and ${more} more)` : ""}`);
     }
     const before = await getTenantConfig(ctx.supabase, member.tenantId);
+    // The transfer number, judged again here when it changes. The page asks the same question as the owner types;
+    // this is the door, so a number that would ring the receptionist straight back cannot be saved from anywhere.
+    // Only a CHANGED number is judged, so saving something else never trips over a number stored before this rule.
+    const nextHandoff = parsed.data.brain?.profile?.handoff_number ?? null;
+    const prevHandoff = parseTenantConfig(before?.config ?? null)?.brain?.profile?.handoff_number ?? null;
+    if (nextHandoff && !samePhone(nextHandoff, prevHandoff)) {
+      const facts = resolveFacts(parsed.data.brain ?? null, await knownFacts(ctx, member.tenantId));
+      const why = whyNotAHandoff(nextHandoff, facts.voice_line.value, facts.kept_line.value);
+      if (why) throw new AppError("validation", why);
+    }
     const result = await putTenantConfig(ctx.supabase, member.tenantId, parsed.data as Json, body.version, ctx.userId);
     if (!result.ok) {
       // These are different failures and used to share one message. Telling an

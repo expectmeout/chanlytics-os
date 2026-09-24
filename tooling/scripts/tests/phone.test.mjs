@@ -17,7 +17,15 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { normalizePhone, formatPhoneDisplay, whyNotAPhone, shortCode, EVENT_KINDS } from "@chanlytics/contracts";
+import {
+  normalizePhone,
+  formatPhoneDisplay,
+  whyNotAPhone,
+  whyNotAHandoff,
+  whyNotForward,
+  shortCode,
+  EVENT_KINDS,
+} from "@chanlytics/contracts";
 import { readCode } from "./_source.mjs";
 
 test("normalizePhone, pinned by value so the four layers can be compared", () => {
@@ -132,4 +140,23 @@ test("the receptionist records a short code and does not answer it", () => {
   assert.ok(
     persist.includes('emitEvent(db!, tenantId!, "ingest.unreachable_sender", "ingest", "message", ing!.message_id)'),
   );
+});
+
+test("F2: a transfer number that forwards to the receptionist is refused, and so is forwarding the transfer number", () => {
+  const LINE = "+13083368109";
+  const KEPT = "+16469325775";
+  assert.equal(whyNotAHandoff("+1 917 555 0100", LINE, KEPT), null, "a cell a person answers is fine");
+  assert.match(
+    whyNotAHandoff("+1 (646) 932-5775", LINE, KEPT),
+    /come straight back/,
+    "the number that forwards here would ring the receptionist again",
+  );
+  assert.match(whyNotAHandoff("+13083368109", LINE, KEPT), /own line/, "the own-line refusal is unchanged");
+  assert.equal(whyNotAHandoff("+16469325775", LINE, null), null, "no forwarding, no loop");
+  assert.equal(whyNotAHandoff("", LINE, KEPT), null, "empty is a choice: take a message");
+  assert.match(whyNotAHandoff("6469325775", LINE, KEPT), /country code/, "the country code is still asked first");
+  assert.match(whyNotForward("+16469325775", "+1 646 932 5775"), /transfer number/);
+  assert.equal(whyNotForward("+16469325775", "+19175550100"), null, "a different transfer number is no loop");
+  assert.equal(whyNotForward("+16469325775", null), null, "no transfer number, no loop");
+  assert.equal(whyNotForward(null, "+16469325775"), null);
 });

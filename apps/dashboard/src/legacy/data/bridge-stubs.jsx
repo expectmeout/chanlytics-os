@@ -189,7 +189,7 @@
   // bare ten-digit number is a guess about the country, and a transfer tool
   // dialling a guess rings a stranger.
   if (!has("__whyNotAHandoff")) {
-    window.__whyNotAHandoff = (raw, ownLine) => {
+    window.__whyNotAHandoff = (raw, ownLine, keptLine) => {
       const typed = String(raw ?? "").trim();
       if (!typed) return null; // Empty is a choice: take a message instead.
       const norm = "+" + typed.replace(/[^0-9]/g, "");
@@ -198,6 +198,9 @@
       }
       if (ownLine && normalizePhone(norm) && normalizePhone(norm) === normalizePhone(ownLine)) {
         return "That is the receptionist's own line — it would ring itself. Use a line a person answers.";
+      }
+      if (keptLine && normalizePhone(norm) && normalizePhone(norm) === normalizePhone(keptLine)) {
+        return "That number sends the calls nobody picks up to your receptionist, so a caller put through to it would come straight back. Use a mobile or another line a person answers.";
       }
       return null;
     };

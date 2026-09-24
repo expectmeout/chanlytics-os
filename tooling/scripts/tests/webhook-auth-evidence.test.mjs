@@ -67,7 +67,7 @@ test("The transfer number is compared with the receptionist's own line, not the 
   // Since Task 3.7 the transfer number is a row of the Business page, and its check is the page's one table of them
   // (business-tab-save.jsx CHECK_OF), asked with the line the Who you are card read off the settings read.
   const row = readRaw("apps/dashboard/src/legacy/pages/business-tab-save.jsx");
-  assert.ok(row.includes("window.__whyNotAHandoff(d, line)"));
+  assert.ok(row.includes("window.__whyNotAHandoff(d, line, kept)"));
   // What the row hands it is the PROVISIONED line the settings read resolved, never phone_display: the Who you are
   // card reads F.voice_line and asks the check with it, which business-tab-page.test.mjs presses.
   const phone = readCode("packages/contracts/src/phone.ts");

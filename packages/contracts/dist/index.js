@@ -94,7 +94,7 @@ function whyNotAPhone(raw) {
   if (digits2.length === 7) return "That looks like a local number. Add the area code.";
   return "That is not a phone number anyone can be reached on.";
 }
-function whyNotAHandoff(raw, ownLine) {
+function whyNotAHandoff(raw, ownLine, keptLine) {
   const typed = String(raw ?? "").trim();
   if (!typed) return null;
   const norm2 = "+" + typed.replace(/[^0-9]/g, "");
@@ -104,7 +104,15 @@ function whyNotAHandoff(raw, ownLine) {
   if (ownLine && normalizePhone(norm2) && normalizePhone(norm2) === normalizePhone(ownLine)) {
     return "That is the receptionist's own line \u2014 it would ring itself. Use a line a person answers.";
   }
+  if (keptLine && normalizePhone(norm2) && normalizePhone(norm2) === normalizePhone(keptLine)) {
+    return "That number sends the calls nobody picks up to your receptionist, so a caller put through to it would come straight back. Use a mobile or another line a person answers.";
+  }
   return null;
+}
+function whyNotForward(number, handoff) {
+  const n = normalizePhone(number);
+  if (!n || !handoff || n !== normalizePhone(handoff)) return null;
+  return "Your receptionist puts callers through to this number. Change the transfer number in Settings \u203A Business first \u2014 once this number forwards to the receptionist, a caller put through to it would come straight back.";
 }
 function handoffE164(raw) {
   const typed = String(raw ?? "").trim();
@@ -20127,6 +20135,7 @@ export {
   whyNotALocalPart,
   whyNotAPhone,
   whyNotAnEmail,
+  whyNotForward,
   whyNotLook,
   whyNotReceive,
   windowFor,

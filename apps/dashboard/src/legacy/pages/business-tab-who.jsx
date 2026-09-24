@@ -138,6 +138,8 @@ const BtWho = ({ brain, base = null, canEdit, flash, saver }) => {
   const line = F.voice_line || null;
   const voiceLine = (line && line.value) || "";
   const lineShown = phoneShown(voiceLine);
+  // The number the business keeps and forwards to the receptionist, which a transfer must never ring.
+  const keptLine = (F.kept_line && F.kept_line.value) || null;
   const pub = factOf("phone_display", brain.phone_display);
   const transfer = factOf("handoff_number", profile.handoff_number);
   const handoff = transfer.value || null;
@@ -292,7 +294,7 @@ const BtWho = ({ brain, base = null, canEdit, flash, saver }) => {
         gate={gate("transfer number")}
         initial={phoneShown(profile.handoff_number) || ""}
         storedAs={transferOf}
-        check={(d) => S.CHECK_OF.handoff_number(d, voiceLine)}
+        check={(d) => S.CHECK_OF.handoff_number(d, voiceLine, keptLine)}
         commit={(d) => {
           const v = transferOf(d);
           return {
