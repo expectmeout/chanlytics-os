@@ -122,6 +122,10 @@ export const SIGNUP_WORDS = {
   title: "Create your workspace",
   /** The create screen while it makes the workspace from what sign-up kept: nothing is asked twice. */
   making: "Making your workspace…",
+  /** V1: a first workspace with no name kept from sign-up (a Google sign-up) is asked for the business, then Find. */
+  nameTitle: "What's your business called?",
+  nameLead: "We'll look it up on Google next.",
+  nameCta: "Find it",
   lead: "Your business gets its own workspace: the receptionist, the inbox, the numbers. You become its owner.",
   sent: (email: string) => `If ${email} can receive email, a 6-digit code is on its way. Enter it below to finish.`,
   codeRequired: "Sign-up is by invitation right now. Enter the invite code you were given.",

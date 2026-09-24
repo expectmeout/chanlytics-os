@@ -92,6 +92,26 @@ export const FIRST_RUN_WORDS = {
   toToday: "Back to Today",
   /** A row's second button on the first run, and what it says once pressed. */
   putOff: { put: "Later", undo: "Undo later" },
+  /** Find, the business step while there is a listing to link (canvas R1, P1): only what Google said, and the owner's words. */
+  find: {
+    heading: (name: string | null) => (name ? `Is this ${name}?` : "Which one is your business?"),
+    lead: "We looked you up on Google with the name you signed up with.",
+    typed: (q: string) => `What Google has for “${q}”.`,
+    reading: "Looking on Google…",
+    pick: "Your listing on Google",
+    best: "Best match",
+    maps: "See it on Maps",
+    noAddress: "No address on Google",
+    none: (q: string) => `Nothing on Google for “${q}”.`,
+    search: "Not these? Search by name or phone number",
+    searchCta: "Search",
+    yes: "Yes, this is us",
+    notOnGoogle: "We're not on Google",
+    linked: (name: string, read: boolean) =>
+      `${name} is your listing on Google — ${read ? "read just now" : "Google will be read within the hour"}.`,
+    notLinked: "Not linked",
+    retry: "Try again",
+  },
 } as const;
 
 export type FirstRunStepState = "done" | "current" | "ahead";
@@ -126,6 +146,11 @@ export interface FirstRunVM {
   /** Where Back goes: the step before the shown one. */
   back: string | null;
   /**
+   * The business step is Find: an owner, Google searchable on this deployment, nothing linked, and Google not put off.
+   * The page draws Find in place of the step's rows (first-run.jsx FrFind), and Setup's Google row opens it.
+   */
+  find: boolean;
+  /**
    * Once the shown step asks nothing more: on to where the workspace is, or Finish to Today from Live. `leaves` is a
    * way out of the first run; a step's own move is not one, and replaces the address so Back leaves.
    */
@@ -145,8 +170,17 @@ export function firstRunStepOf(param: string | null | undefined): FirstRunStepKe
   return hit ? hit.key : null;
 }
 
-/** Where the workspace is in the first run, and what the step on screen draws. `at` is the address's step. */
-export function firstRunOf(vm: SetupVM, at?: string | null): FirstRunVM {
+/** "Step 2 of 4 · Your phone": where a step stands in the first run, said the one way (the phone's header, sign-up's name screen). */
+export function firstRunKicker(key: FirstRunStepKey): string {
+  const i = FIRST_RUN_STEPS.findIndex((s) => s.key === key);
+  return `Step ${i + 1} of ${FIRST_RUN_STEPS.length} · ${FIRST_RUN_STEPS[i].name}`;
+}
+
+/**
+ * Where the workspace is in the first run, and what the step on screen draws. `at` is the address's step; `owner` is
+ * whether the member may search Google and link a listing, which only an owner may.
+ */
+export function firstRunOf(vm: SetupVM, at?: string | null, owner = false): FirstRunVM {
   const last = FIRST_RUN_STEPS[FIRST_RUN_STEPS.length - 1];
   const open = FIRST_RUN_STEPS.find((s) => s !== last && !stepDone(vm, s));
   const current: FirstRunStepKey = open ? open.key : last.key;
@@ -168,8 +202,17 @@ export function firstRunOf(vm: SetupVM, at?: string | null): FirstRunVM {
     : shown.state === "done"
       ? { label: FIRST_RUN_WORDS.continue, to: FIRST_RUN_ROUTE, leaves: false }
       : null;
-  // One coral button a step: its first open row's while it asks something, else Continue or Finish.
-  const primary = onward ? null : (shown.rows.find((r) => r.state !== "ready" && !r.later && r.verb) ?? null);
+  // Find, while an owner can link a listing: Setup's Google row names this step, and only while it is open.
+  const google = rowOf(vm, "google");
+  const find =
+    shown.key === "business" &&
+    owner &&
+    !!google &&
+    google.state === "not_started" &&
+    !google.later &&
+    google.verb?.to === firstRunStepRoute("business");
+  // One coral button a step: its first open row's while it asks something, else Continue or Finish. Find draws no rows.
+  const primary = onward || find ? null : (shown.rows.find((r) => r.state !== "ready" && !r.later && r.verb) ?? null);
   return {
     steps,
     current,
@@ -177,11 +220,12 @@ export function firstRunOf(vm: SetupVM, at?: string | null): FirstRunVM {
     shown,
     heading: final ? FIRST_RUN_WORDS.liveHeading : def.name,
     lead: final ? vm.readiness.sentence : def.lead,
-    phoneLine: `Step ${shown.number} of ${FIRST_RUN_STEPS.length} · ${shown.name}`,
+    phoneLine: firstRunKicker(shown.key),
     progress: Math.round((shown.number / FIRST_RUN_STEPS.length) * 100),
     primaryRow: primary ? primary.id : null,
     back: shown.number > 1 ? steps[shown.number - 2].to : null,
     onward,
+    find,
   };
 }
 

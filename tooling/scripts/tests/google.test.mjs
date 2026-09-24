@@ -162,6 +162,7 @@ test("the parsers read what Google returns and refuse what it does not", () => {
       address: PLACE.formattedAddress,
       maps_uri: PLACE.googleMapsUri,
       business_status: "OPERATIONAL",
+      category: "Moving company",
     },
   ]);
   assert.deepEqual(parsePlacesSearch({}), []);
@@ -623,7 +624,11 @@ test("Setup's Google row: absent until the platform can look listings up; then F
   assert.equal(row(find, "google").required, false, "optional, and can be put off");
   assert.equal(row(find, "google").sentence, "Find your business on Google so new reviews reach you here.");
   assert.deepEqual(row(find, "google").details, ["Uses the name and address on record"]);
-  assert.deepEqual(row(find, "google").verb, { label: "Find it", to: "verb:google-find" });
+  assert.deepEqual(
+    row(find, "google").verb,
+    { label: "Find it", to: "start/business" },
+    "one finder: the first run's business step, which opens on Find",
+  );
   const noAddress = setup(
     { ready: true, places: true, listing: null },
     {
@@ -841,12 +846,7 @@ test("the dashboard: owners link and search, operators read, members look; the p
     rt.includes('{ table: "google_listings", event: "*" }') &&
       rt.includes('{ table: "google_reviews", event: "INSERT" }'),
   );
-  const page = readCode("apps/dashboard/src/legacy/pages/setup.jsx");
-  assert.ok(
-    page.includes('if (verb.to === "verb:google-find") { setFinder((v) => !v); return; }') &&
-      page.includes('r.id === "google" && finder && <ListingFinder'),
-  );
-  assert.ok(page.includes('window.canDo("team")'), "linking is an owner's move on the page too");
+  // The finder is the first run's Find (first-run-page.test.mjs runs it); Setup's row opens it.
   const reports = readCode("apps/dashboard/src/legacy/pages/reports.jsx");
   assert.ok(
     reports.includes("<GoogleSection days={R.days} />") &&

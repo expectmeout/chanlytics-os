@@ -5635,7 +5635,26 @@ var FIRST_RUN_WORDS = {
   failedBody: "This page can't read your workspace at the moment. Nothing you set up is lost.",
   toToday: "Back to Today",
   /** A row's second button on the first run, and what it says once pressed. */
-  putOff: { put: "Later", undo: "Undo later" }
+  putOff: { put: "Later", undo: "Undo later" },
+  /** Find, the business step while there is a listing to link (canvas R1, P1): only what Google said, and the owner's words. */
+  find: {
+    heading: (name) => name ? `Is this ${name}?` : "Which one is your business?",
+    lead: "We looked you up on Google with the name you signed up with.",
+    typed: (q) => `What Google has for \u201C${q}\u201D.`,
+    reading: "Looking on Google\u2026",
+    pick: "Your listing on Google",
+    best: "Best match",
+    maps: "See it on Maps",
+    noAddress: "No address on Google",
+    none: (q) => `Nothing on Google for \u201C${q}\u201D.`,
+    search: "Not these? Search by name or phone number",
+    searchCta: "Search",
+    yes: "Yes, this is us",
+    notOnGoogle: "We're not on Google",
+    linked: (name, read) => `${name} is your listing on Google \u2014 ${read ? "read just now" : "Google will be read within the hour"}.`,
+    notLinked: "Not linked",
+    retry: "Try again"
+  }
 };
 var rowOf = (vm, id) => vm.rows.find((r) => r.id === id) ?? null;
 var stepDone = (vm, def) => def.needs.every((id) => {
@@ -5646,7 +5665,11 @@ function firstRunStepOf(param) {
   const hit = FIRST_RUN_STEPS.find((s) => s.key === param);
   return hit ? hit.key : null;
 }
-function firstRunOf(vm, at2) {
+function firstRunKicker(key) {
+  const i = FIRST_RUN_STEPS.findIndex((s) => s.key === key);
+  return `Step ${i + 1} of ${FIRST_RUN_STEPS.length} \xB7 ${FIRST_RUN_STEPS[i].name}`;
+}
+function firstRunOf(vm, at2, owner = false) {
   const last = FIRST_RUN_STEPS[FIRST_RUN_STEPS.length - 1];
   const open = FIRST_RUN_STEPS.find((s) => s !== last && !stepDone(vm, s));
   const current = open ? open.key : last.key;
@@ -5663,7 +5686,9 @@ function firstRunOf(vm, at2) {
   const def = FIRST_RUN_STEPS[shown.number - 1];
   const final = def === last;
   const onward = final ? { label: FIRST_RUN_WORDS.finish, to: "today", leaves: true } : shown.state === "done" ? { label: FIRST_RUN_WORDS.continue, to: FIRST_RUN_ROUTE, leaves: false } : null;
-  const primary = onward ? null : shown.rows.find((r) => r.state !== "ready" && !r.later && r.verb) ?? null;
+  const google = rowOf(vm, "google");
+  const find = shown.key === "business" && owner && !!google && google.state === "not_started" && !google.later && google.verb?.to === firstRunStepRoute("business");
+  const primary = onward || find ? null : shown.rows.find((r) => r.state !== "ready" && !r.later && r.verb) ?? null;
   return {
     steps,
     current,
@@ -5671,11 +5696,12 @@ function firstRunOf(vm, at2) {
     shown,
     heading: final ? FIRST_RUN_WORDS.liveHeading : def.name,
     lead: final ? vm.readiness.sentence : def.lead,
-    phoneLine: `Step ${shown.number} of ${FIRST_RUN_STEPS.length} \xB7 ${shown.name}`,
+    phoneLine: firstRunKicker(shown.key),
     progress: Math.round(shown.number / FIRST_RUN_STEPS.length * 100),
     primaryRow: primary ? primary.id : null,
     back: shown.number > 1 ? steps[shown.number - 2].to : null,
-    onward
+    onward,
+    find
   };
 }
 var CARD_SKIP = { put: "Skip", said: "Put off. It stays in Setting up for when you're ready." };
@@ -12870,7 +12896,8 @@ function setupSteps(i, nowMs = Date.now()) {
         details: [
           i.business.address ? "Uses the name and address on record" : "Add your address in Settings \u203A Business for a surer match"
         ],
-        verb: { label: "Find it", to: "verb:google-find" }
+        // One finder: the first run's business step, which opens on Find for an owner (first-run.ts).
+        verb: { label: "Find it", to: firstRunStepRoute("business") }
       });
     } else {
       row2({
@@ -17374,6 +17401,10 @@ var SIGNUP_WORDS = {
   title: "Create your workspace",
   /** The create screen while it makes the workspace from what sign-up kept: nothing is asked twice. */
   making: "Making your workspace\u2026",
+  /** V1: a first workspace with no name kept from sign-up (a Google sign-up) is asked for the business, then Find. */
+  nameTitle: "What's your business called?",
+  nameLead: "We'll look it up on Google next.",
+  nameCta: "Find it",
   lead: "Your business gets its own workspace: the receptionist, the inbox, the numbers. You become its owner.",
   sent: (email) => `If ${email} can receive email, a 6-digit code is on its way. Enter it below to finish.`,
   codeRequired: "Sign-up is by invitation right now. Enter the invite code you were given.",
@@ -20810,6 +20841,7 @@ export {
   findLanguages,
   firstLine,
   firstNameOf,
+  firstRunKicker,
   firstRunOf,
   firstRunStepOf,
   firstRunStepRoute,
