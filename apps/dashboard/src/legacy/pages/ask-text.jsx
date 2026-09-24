@@ -6,7 +6,7 @@
 
 const ASK_TEXT = {
   en: {
-    placeholder: "Ask, or jump to a page, person or thread…",
+    placeholder: "Ask anything",
     follow: "Follow up…",
     jump: "Jump to",
     nothing: "Nothing matches. Ask it as a question.",
@@ -55,7 +55,15 @@ const ASK_TEXT = {
     micFailed: "Couldn't hear you — try again or type it.",
     micBlocked: "The microphone is blocked for this site. Allow it in the browser’s site settings — the lock beside the address, or on iPhone the aA menu, Website Settings — then press again.",
     noVoice: "Voice needs Chrome, Edge or Safari; this browser can't listen. Type instead.",
-    // Today's band (today-face.jsx): the three, asking on the page.
+    askAnything: "Ask anything",
+    send: "Ask",
+    briefMe: "Brief me",
+    letGo: "Let go to ask",
+    typeInstead: "Type instead",
+    needYou: (n) => (n === 1 ? "1 needs you" : `${n} need you`),
+    runsWaiting: (n) => (n === 1 ? "1 run waiting" : `${n} runs waiting`),
+    // Today's band (today-face.jsx): the three, asking on the page. Task 8 removes
+    // these three with the file; kept until then (today-face.test.mjs reads them).
     todayPlaceholder: "Ask about today…",
     continueInAsk: "Continue in Ask",
     reviewInAsk: "Review in Ask",
@@ -75,7 +83,7 @@ const ASK_TEXT = {
     kReply: "reply", kSteer: "rewrite", kInbox: "inbox", kPerson: "receptionist", kAutonomy: "autonomy", kSettings: "settings", kWhisper: "whisper", kTeam: "team", kBroadcast: "broadcast", kPlaybook: "playbook", kLeads: "Leads", kDeal: "deal",
   },
   es: {
-    placeholder: "Pregunta, o salta a una página, persona o hilo…",
+    placeholder: "Pregunta lo que quieras",
     follow: "Sigue preguntando…",
     jump: "Ir a",
     nothing: "Nada coincide. Pregúntalo.",
@@ -124,6 +132,13 @@ const ASK_TEXT = {
     micFailed: "No te oí — inténtalo de nuevo o escríbelo.",
     micBlocked: "El micrófono está bloqueado para este sitio. Permítelo en los ajustes del sitio del navegador — el candado junto a la dirección, o en iPhone el menú aA, Ajustes del sitio web — y vuelve a pulsar.",
     noVoice: "La voz necesita Chrome, Edge o Safari; este navegador no puede escuchar. Escríbelo.",
+    askAnything: "Pregunta lo que quieras",
+    send: "Preguntar",
+    briefMe: "Resúmeme",
+    letGo: "Suelta para preguntar",
+    typeInstead: "Escribir",
+    needYou: (n) => (n === 1 ? "1 te necesita" : `${n} te necesitan`),
+    runsWaiting: (n) => (n === 1 ? "1 envío en espera" : `${n} envíos en espera`),
     todayPlaceholder: "Pregunta sobre hoy…",
     continueInAsk: "Seguir en Ask",
     reviewInAsk: "Revisar en Ask",
