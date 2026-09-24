@@ -18,11 +18,17 @@ import { readAllRows } from "../paged";
 
 type Db = SupabaseClient<Database>;
 
-/** One person touched by one run: the run's playbook, if it was a playbook's, when (sent, or due), and whether the run was a proposal follow-up. */
+/**
+ * One person touched by one run: the run's playbook, if it was a playbook's, when (sent, or due), whether it went
+ * (sent, rather than on its way or waiting), and whether the run was a proposal follow-up.
+ */
 export interface Touch {
   contact_id: string;
   playbook_id: string | null;
   at: string;
+  sent: boolean;
+  /** Its run was made to wait for a person (pending_approval), today's, which may still go. */
+  held: boolean;
   follow_up: boolean;
 }
 
@@ -51,6 +57,22 @@ const STOPPED = new Set(["canceled", "failed"]);
  * still holds its people, which never messages anyone twice either.
  */
 export async function touchesSince(db: Db, tenantId: string, since: Date, now: Date): Promise<Touch[]> {
+  return touchesOf(db, tenantId, since, now, false);
+}
+
+/**
+ * The proposal follow-ups' touches alone since `since` (0006): the runs whose values carry a proposal's link, from
+ * any playbook, one since deleted too. The window a follow-up needs is as long as a proposal waits, far longer than
+ * the week's breath, so it is read for that one kind of run.
+ */
+export async function followUpTouchesSince(db: Db, tenantId: string, since: Date, now: Date): Promise<Touch[]> {
+  return touchesOf(db, tenantId, since, now, true);
+}
+
+/** A run's values carrying a proposal's link, as PostgREST's jsonb containment asks it. */
+const FOLLOW_UP_PARAMS = '[{"kind":"proposal_link"}]';
+
+async function touchesOf(db: Db, tenantId: string, since: Date, now: Date, followUpsOnly: boolean): Promise<Touch[]> {
   const [all, zone] = await Promise.all([
     readAllRows<{
       id: string;
@@ -60,15 +82,14 @@ export async function touchesSince(db: Db, tenantId: string, since: Date, now: D
       created_at: string;
       run_for: string | null;
       params: unknown;
-    }>("broadcasts", (from, to) =>
-      db
+    }>("broadcasts", (from, to) => {
+      const q = db
         .from("broadcasts")
         .select("id, playbook_id, state, scheduled_for, created_at, run_for, params")
         .eq("tenant_id", tenantId)
-        .gte("created_at", since.toISOString())
-        .order("id")
-        .range(from, to),
-    ),
+        .gte("created_at", since.toISOString());
+      return (followUpsOnly ? q.contains("params", FOLLOW_UP_PARAMS) : q).order("id").range(from, to);
+    }),
     db
       .from("tenants")
       .select("timezone")
@@ -110,7 +131,14 @@ export async function touchesSince(db: Db, tenantId: string, since: Date, now: D
       if (STOPPED.has(run.state) && r.state !== "sent") continue;
       const at = r.sent_at ?? run.scheduled_for ?? run.created_at;
       if (Date.parse(at) < sinceMs) continue;
-      out.push({ contact_id: r.contact_id, playbook_id: run.playbook_id, at, follow_up: followUp.has(run.id) });
+      out.push({
+        contact_id: r.contact_id,
+        playbook_id: run.playbook_id,
+        at,
+        sent: r.state === "sent",
+        held: run.state === "pending_approval",
+        follow_up: followUp.has(run.id),
+      });
     }
   }
   return out;

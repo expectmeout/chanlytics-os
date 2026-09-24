@@ -1649,3 +1649,188 @@ test("both People reads answer the workspace's pace where deals are on: its last
     logged.join("\n"),
   );
 });
+
+test("the proposal follow-up's facts (0006): answered with People's first page where deals are on and its run would send -- its clock, whether it asks, what its template is for, and of who holds a proposal out, who had theirs, who is in a run on its way or waiting for a person, who heard this week; null otherwise", async () => {
+  const now = Date.now();
+  const DAY = 86_400_000;
+  const iso = (ms) => new Date(ms).toISOString();
+  const P4 = "44444444-4444-4444-8444-444444444444";
+  const P5 = "55555555-5555-4555-8555-555555555555";
+  const P6 = "66666666-6666-4666-8666-666666666666";
+  const link = [{ kind: "first_name" }, { kind: "business_name" }, { kind: "proposal_link" }];
+  const run = (id, over) => ({
+    id,
+    tenant_id: A,
+    playbook_id: "pb-follow",
+    state: "sent",
+    scheduled_for: iso(now - 2 * DAY),
+    created_at: iso(now - 2 * DAY),
+    run_for: null,
+    params: link,
+    ...over,
+  });
+  const policy = (mode) => ({
+    tenant_id: A,
+    class: "follow_up",
+    mode,
+    subject_type: null,
+    subject_id: null,
+    limits: {},
+  });
+  const playbook = (over = {}) => ({
+    id: "pb-follow",
+    tenant_id: A,
+    trigger: "proposal_waiting",
+    state: "running",
+    run_hour: 10,
+    last_run_for: null,
+    template_name: "proposal_follow_up",
+    template_language: "en_US",
+    ...over,
+  });
+  const tenant = (over = {}) => ({
+    id: A,
+    slug: "harbor",
+    sells_by: "proposal",
+    timezone: "America/New_York",
+    status: "active",
+    ...over,
+  });
+  const template = (over = {}) => ({
+    id: "tpl-follow",
+    tenant_id: A,
+    channel: "whatsapp",
+    name: "proposal_follow_up",
+    language: "en_US",
+    meta_status: "approved",
+    category: "utility",
+    ...over,
+  });
+  const number = (config = { quality_rating: "GREEN" }) => ({
+    tenant_id: A,
+    kind: "whatsapp",
+    status: "active",
+    config,
+  });
+  const deal = (id, contact_id) => ({
+    id,
+    tenant_id: A,
+    contact_id,
+    stage: "proposed",
+    proposed_at: iso(now - 20 * DAY),
+  });
+  const sent = (broadcast_id, contact_id, ms) => ({
+    tenant_id: A,
+    broadcast_id,
+    contact_id,
+    state: "sent",
+    sent_at: iso(ms),
+  });
+  const queued = (broadcast_id, contact_id) => ({
+    tenant_id: A,
+    broadcast_id,
+    contact_id,
+    state: "queued",
+    sent_at: null,
+  });
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(new Date(now));
+  const world = (over = {}) => ({
+    memberships: both("viewer", "viewer"),
+    policies: [policy("ask")],
+    tenant_config: [],
+    contacts: [contact(P1, A)],
+    tenants: [tenant()],
+    tenant_channels: [number()],
+    templates: [template()],
+    playbooks: [playbook()],
+    // Who holds a proposal out: everyone here but P3.
+    deals: [deal(D1, P1), deal("d-2", P2), deal("d-4", P4), deal("d-5", P5), deal("d-6", P6)],
+    broadcasts: [
+      run("sent-run", {}),
+      run("queued-run", { state: "scheduled", scheduled_for: iso(now + 3_600_000) }),
+      run("held-run", { state: "pending_approval", scheduled_for: iso(now), created_at: iso(now), run_for: today }),
+      // Twelve days ago: past the week's breath, since the proposals went.
+      run("old-run", { scheduled_for: iso(now - 12 * DAY), created_at: iso(now - 12 * DAY) }),
+      run("winback", { playbook_id: "pb-win", params: [{ kind: "first_name" }] }),
+    ],
+    broadcast_recipients: [
+      sent("sent-run", P1, now - 2 * DAY),
+      // Followed up on a proposal since decided: nothing of theirs is out now.
+      sent("sent-run", P3, now - 2 * DAY),
+      queued("queued-run", P2),
+      queued("held-run", P4),
+      sent("old-run", P6, now - 12 * DAY),
+      sent("winback", P3, now - 2 * DAY),
+      sent("winback", P5, now - 2 * DAY),
+    ],
+    ...over,
+  });
+  const rpcs = { people_list: (a) => (a.p_tenant_id === A ? [personRow(P1)] : []) };
+  const read = async (w, q = "") => (await contacts.GET.run(get(inA + q), ctxFor(w, {}, rpcs))).follow_up;
+  const f = await read(world());
+  assert.deepEqual([f.run_hour, f.last_run_for, f.asks, f.purpose], [10, null, true, "conversational"]);
+  assert.deepEqual(
+    Object.keys(f.had).sort(),
+    [P1, P6].sort(),
+    "the follow-ups that went, however long ago, since the proposals did; a win-back is none",
+  );
+  assert.deepEqual(Object.keys(f.queued), [P2], "the one in a run on its way");
+  assert.deepEqual(Object.keys(f.held), [P4], "the one in a run waiting for a person");
+  assert.deepEqual(
+    Object.keys(f.heard).sort(),
+    [P1, P2, P4, P5].sort(),
+    "whom any run reached this week, of who holds a proposal out: the week's breath",
+  );
+  assert.equal((await read(world({ policies: [policy("auto")] }))).asks, false, "auto: its runs go");
+  assert.equal((await read(world({ policies: [] }))).asks, true, "a class with no row runs as ask");
+  assert.equal(
+    (await read(world({ templates: [template({ category: "marketing" })] }))).purpose,
+    "marketing",
+    "Meta filed it as marketing: it reaches only a yes to offers too",
+  );
+  assert.equal(
+    (await read(world({ templates: [template({ category: null })] }))).purpose,
+    "marketing",
+    "never synced: read as marketing, as the send reads it",
+  );
+  // Wherever its run would send nothing whoever it drew: no facts, and every row says what it said. A stop is the
+  // rule, never a read that failed: a failure answers null too, and says so in the log.
+  const stopped = [];
+  const was = console.error;
+  console.error = (...a) => stopped.push(a.join(" "));
+  try {
+    for (const [over, why] of [
+      [{ policies: [policy("never")] }, "its class set to never"],
+      [{ playbooks: [playbook({ state: "paused" })] }, "paused"],
+      [{ playbooks: [] }, "none made"],
+      [{ deals: [] }, "no proposal out: nobody to say anything of"],
+      [{ tenants: [tenant({ sells_by: "booking" })] }, "deals off"],
+      [{ tenants: [tenant({ status: "paused" })] }, "the workspace paused: the sweep runs nothing"],
+      [{ tenant_channels: [] }, "no WhatsApp number"],
+      [{ templates: [] }, "its template gone"],
+      [{ templates: [template({ meta_status: "pending" })] }, "its template not one Meta approved"],
+      [{ tenant_channels: [number({ quality_rating: "RED" })] }, "its number flagged"],
+    ])
+      assert.equal(await read(world(over)), null, why);
+  } finally {
+    console.error = was;
+  }
+  assert.deepEqual(stopped, [], "every stop is the rule's, none a failure");
+  assert.equal(await read(world(), "&q=ro"), null, "a search reads none: People keeps its first page's");
+  // A read that fails costs the facts, never the list, and says so in the log.
+  const logged = [];
+  const keep = console.error;
+  console.error = (...a) => logged.push(a.join(" "));
+  try {
+    for (const fail of ["playbooks.select", "templates.select", "tenant_channels.select"]) {
+      const r = await contacts.GET.run(get(inA), {
+        ...ctxFor(world(), {}, rpcs),
+        supabase: fakeDb(world(), { [fail]: { message: "statement timeout" } }, rpcs),
+      });
+      assert.deepEqual([r.follow_up, r.people.length], [null, 1], fail);
+    }
+  } finally {
+    console.error = keep;
+  }
+  assert.equal(logged.filter((l) => l.startsWith("follow_up_facts_failed")).length, 3, logged.join("\n"));
+});

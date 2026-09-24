@@ -6127,11 +6127,17 @@ declare function deleteList(db: Db$2, id: string): Promise<{
  */
 
 type Db$1 = SupabaseClient<Database>;
-/** One person touched by one run: the run's playbook, if it was a playbook's, when (sent, or due), and whether the run was a proposal follow-up. */
+/**
+ * One person touched by one run: the run's playbook, if it was a playbook's, when (sent, or due), whether it went
+ * (sent, rather than on its way or waiting), and whether the run was a proposal follow-up.
+ */
 interface Touch {
     contact_id: string;
     playbook_id: string | null;
     at: string;
+    sent: boolean;
+    /** Its run was made to wait for a person (pending_approval), today's, which may still go. */
+    held: boolean;
     follow_up: boolean;
 }
 /**
@@ -6152,6 +6158,12 @@ interface TouchIndex {
  * still holds its people, which never messages anyone twice either.
  */
 declare function touchesSince(db: Db$1, tenantId: string, since: Date, now: Date): Promise<Touch[]>;
+/**
+ * The proposal follow-ups' touches alone since `since` (0006): the runs whose values carry a proposal's link, from
+ * any playbook, one since deleted too. The window a follow-up needs is as long as a proposal waits, far longer than
+ * the week's breath, so it is read for that one kind of run.
+ */
+declare function followUpTouchesSince(db: Db$1, tenantId: string, since: Date, now: Date): Promise<Touch[]>;
 /** The touches by person, the way a run draws with them: the latest by any run, by each playbook, and follow-up. */
 declare function touchIndex(touches: readonly Touch[]): TouchIndex;
 
@@ -6244,4 +6256,4 @@ interface Page<T> {
  */
 declare function readAllRows<T>(what: string, page: (from: number, to: number) => PromiseLike<Page<T>>, cap?: number, onCapped?: (what: string, cap: number) => void): Promise<T[]>;
 
-export { CALL_CONTROL_S, type ChannelLookup, type ControlHolder, type ControlOutcome, DEFAULT_ROW_CAP, type Database, HISTORY_COLUMNS, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type ListRow, MAX_ROWS, type MailboxRow, type NormalizedCallInput, type OutboundTarget, PEOPLE_PAGE, type Page, type PgThreadState, type PolicyRecord, type PutTenantConfigResult, type RoutedChannel, type SavedListRow, type ServiceClientConfig, type SubscribeOptions, type TemplateRow, type TenantConfigRow, type ThreadTurn, type Touch, type TouchIndex, type WriteError, type YesRow, addToList, assembleHistory, claimCallNotification, claimControl, countSentToday, createList, createServiceClient, deleteList, describeLead, dropFromList, emitEvent, everyoneIn, getTenantConfig, ingestCall, ingestInbound, ingestInboundEmail, lastInboundEmail, linkCallMessage, listMemberIds, listPolicies, listRow, mailboxById, mailboxFor, mailboxOfTenant, markProcessed, notesForReceptionist, pauseConversation, peoplePage, personReplyMode, putTenantConfig, readAllRows, readDealForPhone, readLeadContext, readThreadState, recordCallNote, recordEchoAndPause, recordEmailStatus, recordOutbound, recordStatusByExternalId, releaseControl, renameList, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, savedListFor, savedListsFor, sentEmailWithMessageId, setCallRecording, setListRule, setPersonReplyMode, setPolicyMode, stampEmailSent, stampMailboxReceived, subscribeMessagesInserts, suppressEmailOf, templatesFor, touchIndex, touchesSince, yesesSince };
+export { CALL_CONTROL_S, type ChannelLookup, type ControlHolder, type ControlOutcome, DEFAULT_ROW_CAP, type Database, HISTORY_COLUMNS, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type ListRow, MAX_ROWS, type MailboxRow, type NormalizedCallInput, type OutboundTarget, PEOPLE_PAGE, type Page, type PgThreadState, type PolicyRecord, type PutTenantConfigResult, type RoutedChannel, type SavedListRow, type ServiceClientConfig, type SubscribeOptions, type TemplateRow, type TenantConfigRow, type ThreadTurn, type Touch, type TouchIndex, type WriteError, type YesRow, addToList, assembleHistory, claimCallNotification, claimControl, countSentToday, createList, createServiceClient, deleteList, describeLead, dropFromList, emitEvent, everyoneIn, followUpTouchesSince, getTenantConfig, ingestCall, ingestInbound, ingestInboundEmail, lastInboundEmail, linkCallMessage, listMemberIds, listPolicies, listRow, mailboxById, mailboxFor, mailboxOfTenant, markProcessed, notesForReceptionist, pauseConversation, peoplePage, personReplyMode, putTenantConfig, readAllRows, readDealForPhone, readLeadContext, readThreadState, recordCallNote, recordEchoAndPause, recordEmailStatus, recordOutbound, recordStatusByExternalId, releaseControl, renameList, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, savedListFor, savedListsFor, sentEmailWithMessageId, setCallRecording, setListRule, setPersonReplyMode, setPolicyMode, stampEmailSent, stampMailboxReceived, subscribeMessagesInserts, suppressEmailOf, templatesFor, touchIndex, touchesSince, yesesSince };

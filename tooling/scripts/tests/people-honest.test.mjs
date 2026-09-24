@@ -185,6 +185,7 @@ const wire = ({
   views = {},
   bookingLink = null,
   dealsOn = false,
+  followUp = null,
 } = {}) => {
   const seen = { offsets: [], queries: [], viewSaves: [] };
   const cal = { state: calendar, source: calendar === "ok" ? "Google Calendar" : "your calendar" };
@@ -222,6 +223,7 @@ const wire = ({
           calendar: cal,
           booking_link: bookingLink,
           deals_on: dealsOn,
+          ...(offset === 0 ? { follow_up: followUp } : {}),
         },
       });
     }
@@ -3284,4 +3286,44 @@ test("a person's lists are chips: a list is a name, at the pill's size and in no
   );
   assert.ok(x, "the chip's × takes them off");
   assert.equal(x.props["aria-label"], "Take Person off Regulars");
+});
+
+test("each row's standing with the proposal follow-up (0006): worked out where the rows are held, from the first page's facts, by the run's own rules, and only where deals are on", async () => {
+  const now = Date.now();
+  const DAY = 86_400_000;
+  const iso = (ms) => new Date(ms).toISOString();
+  const out = (n, over = {}) =>
+    person(n, {
+      phone_e164: `+1917555020${n}`,
+      consent: "opted_in",
+      last_inbound_at: iso(now - 40 * DAY),
+      latest_wa_inbound_at: iso(now - 40 * DAY),
+      last_inbound_call_at: null,
+      deal_id: `d${n}`,
+      deal_stage: "proposed",
+      deal_proposed_at: iso(now - 10 * DAY),
+      deal_proposal_url: `https://docs.example.com/proposal/${n}`,
+      ...over,
+    });
+  const facts = {
+    run_hour: 10,
+    last_run_for: null,
+    asks: true,
+    purpose: "conversational",
+    had: { p2: iso(now - DAY) },
+    queued: {},
+    held: {},
+    heard: {},
+  };
+  const people = [out(1), out(2), out(3, { deal_proposal_url: null })];
+  wire({ people, per: 2, dealsOn: true, followUp: facts });
+  await peopleOverride.apply();
+  const by = Object.fromEntries(globalThis.window.__PEOPLE.rows.map((r) => [r.id, r.followUp]));
+  assert.deepEqual([by.p1?.kind, by.p1?.asks], ["will", true], "waiting, with its link and a yes: in a run to come");
+  assert.equal(by.p2?.kind, "had", "its one nudge went");
+  assert.equal(by.p3, null, "no link: the follow-up does not reach them");
+  // Deals off: no standing, whatever the facts say.
+  wire({ people, dealsOn: false, followUp: facts });
+  await peopleOverride.apply();
+  assert.ok(globalThis.window.__PEOPLE.rows.every((r) => r.followUp === null));
 });

@@ -359,9 +359,24 @@ workspace's pace (PR 5) rather than a fixed week. The Pipeline then says when a 
   for every playbook, a run stopped after it sent still holds whoever it reached, and a waiting run whose day has
   passed holds nobody, as the approval sheet always said. Ask lists the moment in 6b, with its proposal. The look:
   the Playbooks page, its composer and a follow-up's row on the mockup with a deals-on surface.
-- [ ] (6b) Today's leak counts only the people the playbook will not reach; Ask's `propose_playbook` gains it
+- [x] (6b) Today's leak counts only the people the playbook will not reach; Ask's `propose_playbook` gains it
   where deals are on; the Pipeline says when a proposal's follow-up goes, in words true under ask; its tests, the
-  look, the gate, the PR, the push, merge; 0006's status: built.
+  look, the gate, the PR, the push, merge; 0006's status: built. Built: one rule, contracts `followUpStandOf`
+  (named by `followUpNames`, the run's own; a yes and a number, and a yes to offers where Meta filed its template
+  as marketing; had it; in a run made, which goes if on its way and waits if waiting for a person; else the first
+  run the sweep makes that finds them clear of the week's breath, `followUpRunAt`, stepping its :05 ticks through
+  `runDueNow`), over facts the People read answers with its first page where deals are on and a follow-up would
+  send (server `followUpFacts`: null where its class is never, it is paused, the workspace is paused, there is no
+  WhatsApp number, or the run's own stop says so, contracts `playbookRunStop`, which core's run now asks; and only
+  of who holds a proposal out). Two light reads: the follow-up runs alone back to the oldest proposal out
+  (packages/db `followUpTouchesSince`, by jsonb containment; server `proposalFollowUps`, which the Playbooks counts
+  and Ask share), and the week's touches for the breath. One spelling each of the breath (`breathEndsAt`,
+  `breathHolds`) and of the follow-up a proposal was owed (`followUpIsFor`). The People surface lays each row's
+  standing on it; the Pipeline's chip, Today's leak and the deal card on the peek and the person page read it
+  there. The chip and the card say the day, never the hour, since the breath and the cap can move a person a run;
+  under ask, "to approve"; and the card leads with no follow-up of its own. The leak names two of the ones it will
+  not reach, never someone who asked to stop, "Yours to follow up", and opens the Pipeline's waiting view. Ask
+  lists the moment counted the page's way and proposes one, refused where deals are off and where one exists.
 
 ---
 

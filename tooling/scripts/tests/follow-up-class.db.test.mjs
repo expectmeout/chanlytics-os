@@ -11,8 +11,13 @@
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { createClient } from "@supabase/supabase-js";
 import { POLICY_CLASSES } from "@chanlytics/contracts";
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
+const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -124,5 +129,73 @@ test(
     const second = await db.from("playbooks").insert(row({ name: "Proposal follow-up, again" }));
     assert.equal(second.error?.code, "23505", second.error?.message);
     assert.match(second.error?.message ?? "", /playbooks_one_follow_up/, "the name the route says it in words by");
+  },
+);
+
+test(
+  "the follow-ups' own read (packages/db followUpTouchesSince): the runs that carry a proposal's link, by the database's own jsonb containment, and whether a run waits for a person",
+  { skip },
+  async () => {
+    const { followUpTouchesSince, touchesSince } = await import(at("packages/db/src/repositories/touches.ts"));
+    const person = async (phone) => {
+      const { data, error } = await db
+        .from("contacts")
+        .insert({ tenant_id: tenantId, phone_e164: phone })
+        .select("id")
+        .single();
+      assert.equal(error, null, error?.message);
+      return data.id;
+    };
+    const a = await person("+15550100101");
+    const b = await person("+15550100102");
+    const c = await person("+15550100103");
+    const now = new Date();
+    const run = async (params, state, contactId, recipientState) => {
+      const made = await db
+        .from("broadcasts")
+        .insert({
+          tenant_id: tenantId,
+          name: `A run, ${state}`,
+          template_id: templateId,
+          template_name: "proposal_follow_up",
+          template_language: "en_US",
+          params,
+          state,
+          scheduled_for: now.toISOString(),
+        })
+        .select("id")
+        .single();
+      assert.equal(made.error, null, made.error?.message);
+      const r = await db.from("broadcast_recipients").insert({
+        tenant_id: tenantId,
+        broadcast_id: made.data.id,
+        contact_id: contactId,
+        state: recipientState,
+        sent_at: recipientState === "sent" ? now.toISOString() : null,
+      });
+      assert.equal(r.error, null, r.error?.message);
+    };
+    // A follow-up that went to a, one waiting for the owner with b in it, and a win-back that went to c.
+    await run([{ kind: "first_name" }, { kind: "business_name" }, { kind: "proposal_link" }], "sent", a, "sent");
+    await run([{ kind: "proposal_link" }], "pending_approval", b, "queued");
+    await run([{ kind: "first_name" }], "sent", c, "sent");
+    const since = new Date(now.getTime() - 60_000);
+    const later = new Date(now.getTime() + 60_000);
+    const byId = (x, y) => (x[0] < y[0] ? -1 : x[0] > y[0] ? 1 : 0);
+    assert.deepEqual(
+      (await followUpTouchesSince(db, tenantId, since, later))
+        .map((t) => [t.contact_id, t.sent, t.held, t.follow_up])
+        .sort(byId),
+      [
+        [a, true, false, true],
+        [b, false, true, true],
+      ].sort(byId),
+      "the follow-ups alone: the win-back stays in the database",
+    );
+    assert.deepEqual(
+      (await touchesSince(db, tenantId, since, later)).map((t) => t.contact_id).sort(),
+      [a, b, c].sort(),
+      "every run's, for the breath",
+    );
   },
 );

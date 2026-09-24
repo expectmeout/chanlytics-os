@@ -37,6 +37,7 @@ import {
 } from "./deals";
 import { repliesWords, type PersonRowVM, type PersonVM } from "./people";
 import { stepDayOf, stepIsDue, type StepDue } from "./steps";
+import { followUpWords } from "./playbooks";
 import type { Tone } from "./tone";
 
 export type PipelineGroupKey = "consultations" | "proposals" | "clients" | "closed";
@@ -49,7 +50,16 @@ export const PIPELINE_GROUPS: readonly PipelineGroupKey[] = ["consultations", "p
  */
 export type PipelineSource = Pick<
   PersonRowVM,
-  "id" | "name" | "deal" | "askedMs" | "consultedMs" | "lastVisitMs" | "consultAhead" | "calendarTz" | "nextStep"
+  | "id"
+  | "name"
+  | "deal"
+  | "askedMs"
+  | "consultedMs"
+  | "lastVisitMs"
+  | "consultAhead"
+  | "calendarTz"
+  | "nextStep"
+  | "followUp"
 >;
 
 /** The one thing a row says beside its facts: warn where something waits on the owner, info for what is on its way, plain for a fact. */
@@ -282,7 +292,10 @@ function proposalChip(
   nowMs: number,
   pace: DealPaceVM | null,
 ): PipelineChip | null {
-  if (waitingOnProposal(r, nowMs, pace)) return { words: PIPELINE_WORDS.nothingBack, tone: "warn" };
+  if (waitingOnProposal(r, nowMs, pace))
+    return r.followUp?.kind === "will"
+      ? { words: followUpWords(r.followUp, tz, nowMs), tone: "info" }
+      : { words: PIPELINE_WORDS.nothingBack, tone: "warn" };
   if (heardSinceProposal(r) && r.askedMs !== null)
     return { words: `Heard back ${clockNear(r.askedMs, tz, nowMs)}`, tone: "info" };
   if (d.validUntil) return { words: d.validUntil.words, tone: d.validUntil.lapsed ? "warn" : "plain" };

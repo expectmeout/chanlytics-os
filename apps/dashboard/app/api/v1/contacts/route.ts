@@ -5,6 +5,7 @@ import { PEOPLE_PAGE, countPeople, listPeople } from "@/server/people";
 import { withVisits } from "@/server/calendar";
 import { dealPaceRead, sellsByOf } from "@/server/deals";
 import { stepNamer } from "@/server/person-notes";
+import { followUpFacts } from "@/server/playbooks";
 
 const Query = z.object({
   q: z.string().max(80).optional(),
@@ -41,11 +42,25 @@ export const GET = read({
     // And who each next step is for (00166), from the team, read only when a step is for someone; and the
     // workspace's pace (0008, amended), said only where deals are on, and read with the first page alone: People
     // keeps that page's answer, and a later page or a search would read it again for nothing.
-    const [out, sellsBy, nameSteps, pace] = await Promise.all([
+    // And the proposal follow-up's facts (0006), where deals are on, with the first page alone as the pace is: each
+    // row's standing is worked out from them where the rows are held. Unreadable, every row says what it said.
+    const buys = sellsByOf(ctx, tenantId);
+    const [out, sellsBy, nameSteps, pace, followUp] = await Promise.all([
       withVisits(ctx, tenantId, rows),
-      sellsByOf(ctx, tenantId),
+      buys,
       stepNamer(ctx, tenantId, rows),
       offset === 0 && !q ? dealPaceRead(ctx, tenantId) : Promise.resolve(null),
+      buys.then((s) =>
+        dealsAreOn(s) && offset === 0 && !q
+          ? followUpFacts(ctx, tenantId, new Date()).catch((e: unknown) => {
+              console.error(
+                "follow_up_facts_failed",
+                JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
+              );
+              return null;
+            })
+          : null,
+      ),
     ]);
     const dealsOn = dealsAreOn(sellsBy);
     return {
@@ -57,6 +72,8 @@ export const GET = read({
       deals_on: dealsOn,
       // How long this workspace's yeses usually take (0008, amended): when a proposal is waiting, on every page.
       deal_pace: dealsOn ? pace : null,
+      // The proposal follow-up, where one runs (0006): who it has in hand and when, row by row, on People and Today.
+      follow_up: dealsOn ? followUp : null,
       consult_first: out.consult_first,
       page: { q, offset, limit: PEOPLE_PAGE, total, has_more: offset + rows.length < total },
     };

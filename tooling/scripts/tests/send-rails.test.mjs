@@ -316,7 +316,9 @@ test("the week's touches: who any broadcast reached, or is about to, within the 
 });
 
 test("a proposal's follow-up is a touch of its own (0006): from any playbook's run, one since deleted too, and never a run that only carried other words", async () => {
-  const { touchesSince, touchIndex } = await import(at("packages/db/src/repositories/touches.ts"));
+  const { touchesSince, touchIndex, followUpTouchesSince } = await import(
+    at("packages/db/src/repositories/touches.ts")
+  );
   const now = new Date("2026-09-12T16:00:00Z");
   const link = [{ kind: "first_name" }, { kind: "business_name" }, { kind: "proposal_link" }];
   const tables = {
@@ -347,6 +349,16 @@ test("a proposal's follow-up is a touch of its own (0006): from any playbook's r
   assert.equal(idx.followUps.get("a"), Date.parse("2026-09-05T14:00:03Z"));
   assert.deepEqual([...idx.byAny.keys()].sort(), ["a", "b"], "and both count for the breath");
   assert.equal(idx.byThis.get("p1")?.get("b"), Date.parse("2026-09-06T14:00:03Z"), "the win-back for its own gap");
+  // The follow-ups' own read (0006), as long as a proposal waits: their runs alone, the win-back left unread.
+  assert.deepEqual(
+    (await followUpTouchesSince(fakeDb(tables), T, new Date("2026-09-01T00:00:00Z"), now)).map((t) => [
+      t.contact_id,
+      t.follow_up,
+      t.sent,
+      t.held,
+    ]),
+    [["a", true, true, false]],
+  );
   // The workspace's zone cannot be read: every waiting run still holds its people, the reading that messages nobody twice.
   const waiting = {
     ...tables,
@@ -367,8 +379,9 @@ test("a proposal's follow-up is a touch of its own (0006): from any playbook's r
     now,
   );
   assert.deepEqual(
-    blind.map((t) => t.contact_id),
-    ["c"],
+    blind.map((t) => [t.contact_id, t.sent, t.held]),
+    [["c", false, true]],
+    "waiting for a person: not sent, and held for them",
   );
   const seen = await touchesSince(fakeDb(waiting), T, new Date("2026-09-01T00:00:00Z"), now);
   assert.deepEqual(seen, [], "read, the 10th's run can never be approved on the 12th: it holds nobody");

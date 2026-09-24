@@ -1210,6 +1210,197 @@ var PERSON_CAME_FROM_WORDS = {
   import: "Imported history",
   lead: "A lead you found"
 };
+var L = (id, name2, region, native) => ({
+  id,
+  label: region ? `${name2} (${region})` : name2,
+  name: name2,
+  region,
+  native
+});
+var WHATSAPP_LANGUAGES = [
+  L("af", "Afrikaans", null, "Afrikaans"),
+  L("sq", "Albanian", null, "Shqip"),
+  L("ar", "Arabic", null, "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L("ar_EG", "Arabic", "Egypt", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L("ar_LB", "Arabic", "Lebanon", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L("ar_MA", "Arabic", "Morocco", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L("ar_QA", "Arabic", "Qatar", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L("ar_AE", "Arabic", "UAE", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L("az", "Azerbaijani", null, "Az\u0259rbaycan"),
+  L("be_BY", "Belarusian", null, "\u0411\u0435\u043B\u0430\u0440\u0443\u0441\u043A\u0430\u044F"),
+  L("bn", "Bengali", null, "\u09AC\u09BE\u0982\u09B2\u09BE"),
+  L("bn_IN", "Bengali", "India", "\u09AC\u09BE\u0982\u09B2\u09BE"),
+  L("bg", "Bulgarian", null, "\u0411\u044A\u043B\u0433\u0430\u0440\u0441\u043A\u0438"),
+  L("ca", "Catalan", null, "Catal\xE0"),
+  L("zh_CN", "Chinese", "China", "\u7B80\u4F53\u4E2D\u6587"),
+  L("zh_HK", "Chinese", "Hong Kong", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u9999\u6E2F\uFF09"),
+  L("zh_TW", "Chinese", "Taiwan", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u53F0\u7063\uFF09"),
+  L("hr", "Croatian", null, "Hrvatski"),
+  L("cs", "Czech", null, "\u010Ce\u0161tina"),
+  L("da", "Danish", null, "Dansk"),
+  L("prs_AF", "Dari", null, "\u062F\u0631\u06CC"),
+  L("nl", "Dutch", null, "Nederlands"),
+  L("nl_BE", "Dutch", "Belgium", "Nederlands"),
+  L("en", "English", null, "English"),
+  L("en_AU", "English", "Australia", "English"),
+  L("en_CA", "English", "Canada", "English"),
+  L("en_GH", "English", "Ghana", "English"),
+  L("en_IN", "English", "India", "English"),
+  L("en_IE", "English", "Ireland", "English"),
+  L("en_JM", "English", "Jamaica", "English"),
+  L("en_MY", "English", "Malaysia", "English"),
+  L("en_NZ", "English", "New Zealand", "English"),
+  L("en_QA", "English", "Qatar", "English"),
+  L("en_SG", "English", "Singapore", "English"),
+  L("en_ZA", "English", "South Africa", "English"),
+  L("en_AE", "English", "UAE", "English"),
+  L("en_UG", "English", "Uganda", "English"),
+  L("en_GB", "English", "UK", "English"),
+  L("en_US", "English", "US", "English"),
+  L("et", "Estonian", null, "Eesti"),
+  L("fil", "Filipino", null, "Filipino"),
+  L("fi", "Finnish", null, "Suomi"),
+  L("fr", "French", null, "Fran\xE7ais"),
+  L("fr_BE", "French", "Belgium", "Fran\xE7ais"),
+  L("fr_CA", "French", "Canada", "Fran\xE7ais"),
+  L("fr_CI", "French", "C\xF4te d\u2019Ivoire", "Fran\xE7ais"),
+  L("fr_MA", "French", "Morocco", "Fran\xE7ais"),
+  L("fr_CH", "French", "Switzerland", "Fran\xE7ais"),
+  L("ka", "Georgian", null, "\u10E5\u10D0\u10E0\u10D7\u10E3\u10DA\u10D8"),
+  L("de", "German", null, "Deutsch"),
+  L("de_AT", "German", "Austria", "Deutsch"),
+  L("de_CH", "German", "Switzerland", "Deutsch"),
+  L("el", "Greek", null, "\u0395\u03BB\u03BB\u03B7\u03BD\u03B9\u03BA\u03AC"),
+  L("gu", "Gujarati", null, "\u0A97\u0AC1\u0A9C\u0AB0\u0ABE\u0AA4\u0AC0"),
+  L("ha", "Hausa", null, "Hausa"),
+  L("he", "Hebrew", null, "\u05E2\u05D1\u05E8\u05D9\u05EA"),
+  L("hi", "Hindi", null, "\u0939\u093F\u0928\u094D\u0926\u0940"),
+  L("hu", "Hungarian", null, "Magyar"),
+  L("id", "Indonesian", null, "Bahasa Indonesia"),
+  L("ga", "Irish", null, "Gaeilge"),
+  L("it", "Italian", null, "Italiano"),
+  L("ja", "Japanese", null, "\u65E5\u672C\u8A9E"),
+  L("kn", "Kannada", null, "\u0C95\u0CA8\u0CCD\u0CA8\u0CA1"),
+  L("kk", "Kazakh", null, "\u049A\u0430\u0437\u0430\u049B \u0442\u0456\u043B\u0456"),
+  L("rw_RW", "Kinyarwanda", null, "Ikinyarwanda"),
+  L("ko", "Korean", null, "\uD55C\uAD6D\uC5B4"),
+  L("ky_KG", "Kyrgyz", "Kyrgyzstan", "\u041A\u044B\u0440\u0433\u044B\u0437\u0447\u0430"),
+  L("lo", "Lao", null, "\u0EA5\u0EB2\u0EA7"),
+  L("lv", "Latvian", null, "Latvie\u0161u"),
+  L("lt", "Lithuanian", null, "Lietuvi\u0173"),
+  L("mk", "Macedonian", null, "\u041C\u0430\u043A\u0435\u0434\u043E\u043D\u0441\u043A\u0438"),
+  L("ms", "Malay", null, "Bahasa Melayu"),
+  L("ml", "Malayalam", null, "\u0D2E\u0D32\u0D2F\u0D3E\u0D33\u0D02"),
+  L("mr", "Marathi", null, "\u092E\u0930\u093E\u0920\u0940"),
+  L("nb", "Norwegian", null, "Norsk bokm\xE5l"),
+  L("ps_AF", "Pashto", null, "\u067E\u069A\u062A\u0648"),
+  L("fa", "Persian", null, "\u0641\u0627\u0631\u0633\u06CC"),
+  L("pl", "Polish", null, "Polski"),
+  L("pt_BR", "Portuguese", "Brazil", "Portugu\xEAs"),
+  L("pt_PT", "Portuguese", "Portugal", "Portugu\xEAs"),
+  L("pa", "Punjabi", null, "\u0A2A\u0A70\u0A1C\u0A3E\u0A2C\u0A40"),
+  L("ro", "Romanian", null, "Rom\xE2n\u0103"),
+  L("ru", "Russian", null, "\u0420\u0443\u0441\u0441\u043A\u0438\u0439"),
+  L("sr", "Serbian", null, "\u0421\u0440\u043F\u0441\u043A\u0438"),
+  L("si_LK", "Sinhala", null, "\u0DC3\u0DD2\u0D82\u0DC4\u0DBD"),
+  L("sk", "Slovak", null, "Sloven\u010Dina"),
+  L("sl", "Slovenian", null, "Sloven\u0161\u010Dina"),
+  L("es", "Spanish", null, "Espa\xF1ol"),
+  L("es_AR", "Spanish", "Argentina", "Espa\xF1ol"),
+  L("es_CL", "Spanish", "Chile", "Espa\xF1ol"),
+  L("es_CO", "Spanish", "Colombia", "Espa\xF1ol"),
+  L("es_CR", "Spanish", "Costa Rica", "Espa\xF1ol"),
+  L("es_DO", "Spanish", "Dominican Republic", "Espa\xF1ol"),
+  L("es_EC", "Spanish", "Ecuador", "Espa\xF1ol"),
+  L("es_HN", "Spanish", "Honduras", "Espa\xF1ol"),
+  L("es_MX", "Spanish", "Mexico", "Espa\xF1ol"),
+  L("es_PA", "Spanish", "Panama", "Espa\xF1ol"),
+  L("es_PE", "Spanish", "Peru", "Espa\xF1ol"),
+  L("es_ES", "Spanish", "Spain", "Espa\xF1ol"),
+  L("es_UY", "Spanish", "Uruguay", "Espa\xF1ol"),
+  L("sw", "Swahili", null, "Kiswahili"),
+  L("sv", "Swedish", null, "Svenska"),
+  L("ta", "Tamil", null, "\u0BA4\u0BAE\u0BBF\u0BB4\u0BCD"),
+  L("te", "Telugu", null, "\u0C24\u0C46\u0C32\u0C41\u0C17\u0C41"),
+  L("th", "Thai", null, "\u0E44\u0E17\u0E22"),
+  L("tr", "Turkish", null, "T\xFCrk\xE7e"),
+  L("uk", "Ukrainian", null, "\u0423\u043A\u0440\u0430\u0457\u043D\u0441\u044C\u043A\u0430"),
+  L("ur", "Urdu", null, "\u0627\u0631\u062F\u0648"),
+  L("uz", "Uzbek", null, "O\u02BBzbek"),
+  L("vi", "Vietnamese", null, "Ti\u1EBFng Vi\u1EC7t"),
+  L("zu", "Zulu", null, "isiZulu")
+];
+var BY_ID = new Map(WHATSAPP_LANGUAGES.map((l2) => [l2.id.toLowerCase(), l2]));
+var DAY_MS5 = 864e5;
+var PLAYBOOK_HOURS = { min: 9, max: 20 };
+var SENDING_HOURS_WORDS = {
+  min: PLAYBOOK_HOURS.min,
+  max: PLAYBOOK_HOURS.max,
+  first: `${PLAYBOOK_HOURS.min}:00`,
+  range: `${PLAYBOOK_HOURS.min}:00\u2013${PLAYBOOK_HOURS.max}:59`,
+  between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
+};
+var PLAYBOOK_BREATH_MS = 7 * DAY_MS5;
+var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
+var FOLLOW_UP_NEEDS_DEALS = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION}\u201D with \u201C${SELLS_BY_WORDS.proposal.label}\u201D.`;
+var PLAYBOOK_TOUCH_WINDOW_MS = (365 + 7) * DAY_MS5;
+var SWEEP_TICK_MS = 5 * 6e4;
+var PLAYBOOK_CLASS_LABEL = {
+  reengage: POLICY_CLASS_WORDS.reengage.short,
+  campaign: POLICY_CLASS_WORDS.campaign.short,
+  booking: POLICY_CLASS_WORDS.booking.short,
+  follow_up: POLICY_CLASS_WORDS.follow_up.short
+};
+var FIRST = { kind: "first_name", label: "First name", example: "Dani" };
+var BUSINESS = { kind: "business_name", label: "Business name", example: "Luna Studio" };
+var LINK = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
+var FIRST_ES = { ...FIRST, label: "Nombre" };
+var BUSINESS_ES = { ...BUSINESS, label: "Nombre del negocio" };
+var LINK_ES = { ...LINK, label: "Enlace de reservas" };
+var WHEN = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" };
+var SERVICE = { kind: "visit_service", label: "Service", example: "a consultation" };
+var WHEN_ES = { ...WHEN, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
+var SERVICE_ES = { ...SERVICE, label: "Servicio", example: "una consulta" };
+var PROPOSAL = {
+  kind: "proposal_link",
+  label: "Proposal link",
+  example: "https://docs.example.com/proposal"
+};
+var PROPOSAL_ES = { ...PROPOSAL, label: "Enlace de la propuesta" };
+var LIMIT_TIERS = {
+  TIER_50: 50,
+  TIER_250: 250,
+  TIER_1K: 1e3,
+  TIER_10K: 1e4,
+  TIER_100K: 1e5,
+  TIER_UNLIMITED: Number.POSITIVE_INFINITY
+};
+var FORWARDING_TEST_WINDOW_MS = 30 * 6e4;
+var REVIEW_AUTO_REPLY_MAX_AGE_MS = 14 * 864e5;
+var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var REVIEW_NEWS_MS = 36 * 3600 * 1e3;
+var REVIEW_NEWS_MAX_AGE_MS = 14 * 864e5;
+var BOOTSTRAP_MS = 3600 * 1e3;
+var DATE_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var WEEK_MS3 = 7 * 864e5;
+var DATE_FMT3 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var SOLE_PROP_LIMITS = {
+  campaignsPerBrand: 1,
+  numbersPerCampaign: 1,
+  messagesPerSecond: 1,
+  perDayTMobile: 1e3,
+  perMinuteAtt: 15,
+  mobileUsesEver: 3,
+  emailUsesEver: 10,
+  addressUsesEver: 10
+};
+var REGISTRATION_COST_WORDS = {
+  standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
+  sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second.`
+};
+var PROVISIONING_DEADLINE_MS = 5 * 6e4;
+var SOLE_PROP_CEILING_SENTENCE = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
+var SOLE_PROP_TEXTING_SENTENCE = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE}`;
 function firstLine(body, max = 160) {
   return body.split("\n").find((l2) => l2.trim())?.trim().slice(0, max) ?? "";
 }
@@ -1223,10 +1414,10 @@ function pushFor(n2, tokens) {
     data: { route: n2.route, notification_id: n2.id, tenant_id: n2.tenant_id }
   }));
 }
-var DAY_MS5 = 24 * 3600 * 1e3;
-var DAY_MS6 = 864e5;
-var QUIET_AFTER_MS2 = 7 * DAY_MS6;
-var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var DAY_MS6 = 24 * 3600 * 1e3;
+var DAY_MS7 = 864e5;
+var QUIET_AFTER_MS2 = 7 * DAY_MS7;
+var DATE_FMT4 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var CHANNEL_KIND_WORDS = {
   whatsapp: "WhatsApp",
   voice: "Phone line",
@@ -1441,170 +1632,6 @@ var ASK_ANSWER_FORMAT = {
   required: ["say", "show", "do", "language"],
   additionalProperties: false
 };
-var L = (id, name2, region, native) => ({
-  id,
-  label: region ? `${name2} (${region})` : name2,
-  name: name2,
-  region,
-  native
-});
-var WHATSAPP_LANGUAGES = [
-  L("af", "Afrikaans", null, "Afrikaans"),
-  L("sq", "Albanian", null, "Shqip"),
-  L("ar", "Arabic", null, "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L("ar_EG", "Arabic", "Egypt", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L("ar_LB", "Arabic", "Lebanon", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L("ar_MA", "Arabic", "Morocco", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L("ar_QA", "Arabic", "Qatar", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L("ar_AE", "Arabic", "UAE", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L("az", "Azerbaijani", null, "Az\u0259rbaycan"),
-  L("be_BY", "Belarusian", null, "\u0411\u0435\u043B\u0430\u0440\u0443\u0441\u043A\u0430\u044F"),
-  L("bn", "Bengali", null, "\u09AC\u09BE\u0982\u09B2\u09BE"),
-  L("bn_IN", "Bengali", "India", "\u09AC\u09BE\u0982\u09B2\u09BE"),
-  L("bg", "Bulgarian", null, "\u0411\u044A\u043B\u0433\u0430\u0440\u0441\u043A\u0438"),
-  L("ca", "Catalan", null, "Catal\xE0"),
-  L("zh_CN", "Chinese", "China", "\u7B80\u4F53\u4E2D\u6587"),
-  L("zh_HK", "Chinese", "Hong Kong", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u9999\u6E2F\uFF09"),
-  L("zh_TW", "Chinese", "Taiwan", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u53F0\u7063\uFF09"),
-  L("hr", "Croatian", null, "Hrvatski"),
-  L("cs", "Czech", null, "\u010Ce\u0161tina"),
-  L("da", "Danish", null, "Dansk"),
-  L("prs_AF", "Dari", null, "\u062F\u0631\u06CC"),
-  L("nl", "Dutch", null, "Nederlands"),
-  L("nl_BE", "Dutch", "Belgium", "Nederlands"),
-  L("en", "English", null, "English"),
-  L("en_AU", "English", "Australia", "English"),
-  L("en_CA", "English", "Canada", "English"),
-  L("en_GH", "English", "Ghana", "English"),
-  L("en_IN", "English", "India", "English"),
-  L("en_IE", "English", "Ireland", "English"),
-  L("en_JM", "English", "Jamaica", "English"),
-  L("en_MY", "English", "Malaysia", "English"),
-  L("en_NZ", "English", "New Zealand", "English"),
-  L("en_QA", "English", "Qatar", "English"),
-  L("en_SG", "English", "Singapore", "English"),
-  L("en_ZA", "English", "South Africa", "English"),
-  L("en_AE", "English", "UAE", "English"),
-  L("en_UG", "English", "Uganda", "English"),
-  L("en_GB", "English", "UK", "English"),
-  L("en_US", "English", "US", "English"),
-  L("et", "Estonian", null, "Eesti"),
-  L("fil", "Filipino", null, "Filipino"),
-  L("fi", "Finnish", null, "Suomi"),
-  L("fr", "French", null, "Fran\xE7ais"),
-  L("fr_BE", "French", "Belgium", "Fran\xE7ais"),
-  L("fr_CA", "French", "Canada", "Fran\xE7ais"),
-  L("fr_CI", "French", "C\xF4te d\u2019Ivoire", "Fran\xE7ais"),
-  L("fr_MA", "French", "Morocco", "Fran\xE7ais"),
-  L("fr_CH", "French", "Switzerland", "Fran\xE7ais"),
-  L("ka", "Georgian", null, "\u10E5\u10D0\u10E0\u10D7\u10E3\u10DA\u10D8"),
-  L("de", "German", null, "Deutsch"),
-  L("de_AT", "German", "Austria", "Deutsch"),
-  L("de_CH", "German", "Switzerland", "Deutsch"),
-  L("el", "Greek", null, "\u0395\u03BB\u03BB\u03B7\u03BD\u03B9\u03BA\u03AC"),
-  L("gu", "Gujarati", null, "\u0A97\u0AC1\u0A9C\u0AB0\u0ABE\u0AA4\u0AC0"),
-  L("ha", "Hausa", null, "Hausa"),
-  L("he", "Hebrew", null, "\u05E2\u05D1\u05E8\u05D9\u05EA"),
-  L("hi", "Hindi", null, "\u0939\u093F\u0928\u094D\u0926\u0940"),
-  L("hu", "Hungarian", null, "Magyar"),
-  L("id", "Indonesian", null, "Bahasa Indonesia"),
-  L("ga", "Irish", null, "Gaeilge"),
-  L("it", "Italian", null, "Italiano"),
-  L("ja", "Japanese", null, "\u65E5\u672C\u8A9E"),
-  L("kn", "Kannada", null, "\u0C95\u0CA8\u0CCD\u0CA8\u0CA1"),
-  L("kk", "Kazakh", null, "\u049A\u0430\u0437\u0430\u049B \u0442\u0456\u043B\u0456"),
-  L("rw_RW", "Kinyarwanda", null, "Ikinyarwanda"),
-  L("ko", "Korean", null, "\uD55C\uAD6D\uC5B4"),
-  L("ky_KG", "Kyrgyz", "Kyrgyzstan", "\u041A\u044B\u0440\u0433\u044B\u0437\u0447\u0430"),
-  L("lo", "Lao", null, "\u0EA5\u0EB2\u0EA7"),
-  L("lv", "Latvian", null, "Latvie\u0161u"),
-  L("lt", "Lithuanian", null, "Lietuvi\u0173"),
-  L("mk", "Macedonian", null, "\u041C\u0430\u043A\u0435\u0434\u043E\u043D\u0441\u043A\u0438"),
-  L("ms", "Malay", null, "Bahasa Melayu"),
-  L("ml", "Malayalam", null, "\u0D2E\u0D32\u0D2F\u0D3E\u0D33\u0D02"),
-  L("mr", "Marathi", null, "\u092E\u0930\u093E\u0920\u0940"),
-  L("nb", "Norwegian", null, "Norsk bokm\xE5l"),
-  L("ps_AF", "Pashto", null, "\u067E\u069A\u062A\u0648"),
-  L("fa", "Persian", null, "\u0641\u0627\u0631\u0633\u06CC"),
-  L("pl", "Polish", null, "Polski"),
-  L("pt_BR", "Portuguese", "Brazil", "Portugu\xEAs"),
-  L("pt_PT", "Portuguese", "Portugal", "Portugu\xEAs"),
-  L("pa", "Punjabi", null, "\u0A2A\u0A70\u0A1C\u0A3E\u0A2C\u0A40"),
-  L("ro", "Romanian", null, "Rom\xE2n\u0103"),
-  L("ru", "Russian", null, "\u0420\u0443\u0441\u0441\u043A\u0438\u0439"),
-  L("sr", "Serbian", null, "\u0421\u0440\u043F\u0441\u043A\u0438"),
-  L("si_LK", "Sinhala", null, "\u0DC3\u0DD2\u0D82\u0DC4\u0DBD"),
-  L("sk", "Slovak", null, "Sloven\u010Dina"),
-  L("sl", "Slovenian", null, "Sloven\u0161\u010Dina"),
-  L("es", "Spanish", null, "Espa\xF1ol"),
-  L("es_AR", "Spanish", "Argentina", "Espa\xF1ol"),
-  L("es_CL", "Spanish", "Chile", "Espa\xF1ol"),
-  L("es_CO", "Spanish", "Colombia", "Espa\xF1ol"),
-  L("es_CR", "Spanish", "Costa Rica", "Espa\xF1ol"),
-  L("es_DO", "Spanish", "Dominican Republic", "Espa\xF1ol"),
-  L("es_EC", "Spanish", "Ecuador", "Espa\xF1ol"),
-  L("es_HN", "Spanish", "Honduras", "Espa\xF1ol"),
-  L("es_MX", "Spanish", "Mexico", "Espa\xF1ol"),
-  L("es_PA", "Spanish", "Panama", "Espa\xF1ol"),
-  L("es_PE", "Spanish", "Peru", "Espa\xF1ol"),
-  L("es_ES", "Spanish", "Spain", "Espa\xF1ol"),
-  L("es_UY", "Spanish", "Uruguay", "Espa\xF1ol"),
-  L("sw", "Swahili", null, "Kiswahili"),
-  L("sv", "Swedish", null, "Svenska"),
-  L("ta", "Tamil", null, "\u0BA4\u0BAE\u0BBF\u0BB4\u0BCD"),
-  L("te", "Telugu", null, "\u0C24\u0C46\u0C32\u0C41\u0C17\u0C41"),
-  L("th", "Thai", null, "\u0E44\u0E17\u0E22"),
-  L("tr", "Turkish", null, "T\xFCrk\xE7e"),
-  L("uk", "Ukrainian", null, "\u0423\u043A\u0440\u0430\u0457\u043D\u0441\u044C\u043A\u0430"),
-  L("ur", "Urdu", null, "\u0627\u0631\u062F\u0648"),
-  L("uz", "Uzbek", null, "O\u02BBzbek"),
-  L("vi", "Vietnamese", null, "Ti\u1EBFng Vi\u1EC7t"),
-  L("zu", "Zulu", null, "isiZulu")
-];
-var BY_ID = new Map(WHATSAPP_LANGUAGES.map((l2) => [l2.id.toLowerCase(), l2]));
-var DAY_MS7 = 864e5;
-var PLAYBOOK_HOURS = { min: 9, max: 20 };
-var SENDING_HOURS_WORDS = {
-  min: PLAYBOOK_HOURS.min,
-  max: PLAYBOOK_HOURS.max,
-  first: `${PLAYBOOK_HOURS.min}:00`,
-  range: `${PLAYBOOK_HOURS.min}:00\u2013${PLAYBOOK_HOURS.max}:59`,
-  between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
-};
-var PLAYBOOK_BREATH_MS = 7 * DAY_MS7;
-var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
-var FOLLOW_UP_NEEDS_DEALS = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION}\u201D with \u201C${SELLS_BY_WORDS.proposal.label}\u201D.`;
-var PLAYBOOK_TOUCH_WINDOW_MS = (365 + 7) * DAY_MS7;
-var PLAYBOOK_CLASS_LABEL = {
-  reengage: POLICY_CLASS_WORDS.reengage.short,
-  campaign: POLICY_CLASS_WORDS.campaign.short,
-  booking: POLICY_CLASS_WORDS.booking.short,
-  follow_up: POLICY_CLASS_WORDS.follow_up.short
-};
-var FIRST = { kind: "first_name", label: "First name", example: "Dani" };
-var BUSINESS = { kind: "business_name", label: "Business name", example: "Luna Studio" };
-var LINK = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
-var FIRST_ES = { ...FIRST, label: "Nombre" };
-var BUSINESS_ES = { ...BUSINESS, label: "Nombre del negocio" };
-var LINK_ES = { ...LINK, label: "Enlace de reservas" };
-var WHEN = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" };
-var SERVICE = { kind: "visit_service", label: "Service", example: "a consultation" };
-var WHEN_ES = { ...WHEN, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
-var SERVICE_ES = { ...SERVICE, label: "Servicio", example: "una consulta" };
-var PROPOSAL = {
-  kind: "proposal_link",
-  label: "Proposal link",
-  example: "https://docs.example.com/proposal"
-};
-var PROPOSAL_ES = { ...PROPOSAL, label: "Enlace de la propuesta" };
-var LIMIT_TIERS = {
-  TIER_50: 50,
-  TIER_250: 250,
-  TIER_1K: 1e3,
-  TIER_10K: 1e4,
-  TIER_100K: 1e5,
-  TIER_UNLIMITED: Number.POSITIVE_INFINITY
-};
 var LIST_RULE_FIELDS = [
   { id: "last_visit", label: "Last visit", kind: "days", needsCalendar: true },
   { id: "next_visit", label: "Next visit", kind: "days", needsCalendar: true },
@@ -1682,33 +1709,7 @@ var ListDraftAnswerSchema = z7.object({
   cannot: z7.string().trim().max(200),
   all: z7.array(ListConditionSchema).max(8)
 });
-var DATE_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var FORWARDING_TEST_WINDOW_MS = 30 * 6e4;
-var REVIEW_AUTO_REPLY_MAX_AGE_MS = 14 * 864e5;
-var REVIEW_NEWS_MS = 36 * 3600 * 1e3;
-var REVIEW_NEWS_MAX_AGE_MS = 14 * 864e5;
-var BOOTSTRAP_MS = 3600 * 1e3;
-var DATE_FMT3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var WEEK_MS3 = 7 * 864e5;
-var DATE_FMT4 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
-var SOLE_PROP_LIMITS = {
-  campaignsPerBrand: 1,
-  numbersPerCampaign: 1,
-  messagesPerSecond: 1,
-  perDayTMobile: 1e3,
-  perMinuteAtt: 15,
-  mobileUsesEver: 3,
-  emailUsesEver: 10,
-  addressUsesEver: 10
-};
-var REGISTRATION_COST_WORDS = {
-  standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
-  sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second.`
-};
-var PROVISIONING_DEADLINE_MS = 5 * 6e4;
-var SOLE_PROP_CEILING_SENTENCE = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
-var SOLE_PROP_TEXTING_SENTENCE = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE}`;
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
 var InviteCodeSchema = z8.string().trim().max(80);
@@ -7890,10 +7891,201 @@ var PERSON_CAME_FROM_WORDS2 = {
   import: "Imported history",
   lead: "A lead you found"
 };
-var DAY_MS52 = 24 * 3600 * 1e3;
-var DAY_MS62 = 864e5;
-var QUIET_AFTER_MS22 = 7 * DAY_MS62;
+var L2 = (id, name2, region, native) => ({
+  id,
+  label: region ? `${name2} (${region})` : name2,
+  name: name2,
+  region,
+  native
+});
+var WHATSAPP_LANGUAGES2 = [
+  L2("af", "Afrikaans", null, "Afrikaans"),
+  L2("sq", "Albanian", null, "Shqip"),
+  L2("ar", "Arabic", null, "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L2("ar_EG", "Arabic", "Egypt", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L2("ar_LB", "Arabic", "Lebanon", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L2("ar_MA", "Arabic", "Morocco", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L2("ar_QA", "Arabic", "Qatar", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L2("ar_AE", "Arabic", "UAE", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L2("az", "Azerbaijani", null, "Az\u0259rbaycan"),
+  L2("be_BY", "Belarusian", null, "\u0411\u0435\u043B\u0430\u0440\u0443\u0441\u043A\u0430\u044F"),
+  L2("bn", "Bengali", null, "\u09AC\u09BE\u0982\u09B2\u09BE"),
+  L2("bn_IN", "Bengali", "India", "\u09AC\u09BE\u0982\u09B2\u09BE"),
+  L2("bg", "Bulgarian", null, "\u0411\u044A\u043B\u0433\u0430\u0440\u0441\u043A\u0438"),
+  L2("ca", "Catalan", null, "Catal\xE0"),
+  L2("zh_CN", "Chinese", "China", "\u7B80\u4F53\u4E2D\u6587"),
+  L2("zh_HK", "Chinese", "Hong Kong", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u9999\u6E2F\uFF09"),
+  L2("zh_TW", "Chinese", "Taiwan", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u53F0\u7063\uFF09"),
+  L2("hr", "Croatian", null, "Hrvatski"),
+  L2("cs", "Czech", null, "\u010Ce\u0161tina"),
+  L2("da", "Danish", null, "Dansk"),
+  L2("prs_AF", "Dari", null, "\u062F\u0631\u06CC"),
+  L2("nl", "Dutch", null, "Nederlands"),
+  L2("nl_BE", "Dutch", "Belgium", "Nederlands"),
+  L2("en", "English", null, "English"),
+  L2("en_AU", "English", "Australia", "English"),
+  L2("en_CA", "English", "Canada", "English"),
+  L2("en_GH", "English", "Ghana", "English"),
+  L2("en_IN", "English", "India", "English"),
+  L2("en_IE", "English", "Ireland", "English"),
+  L2("en_JM", "English", "Jamaica", "English"),
+  L2("en_MY", "English", "Malaysia", "English"),
+  L2("en_NZ", "English", "New Zealand", "English"),
+  L2("en_QA", "English", "Qatar", "English"),
+  L2("en_SG", "English", "Singapore", "English"),
+  L2("en_ZA", "English", "South Africa", "English"),
+  L2("en_AE", "English", "UAE", "English"),
+  L2("en_UG", "English", "Uganda", "English"),
+  L2("en_GB", "English", "UK", "English"),
+  L2("en_US", "English", "US", "English"),
+  L2("et", "Estonian", null, "Eesti"),
+  L2("fil", "Filipino", null, "Filipino"),
+  L2("fi", "Finnish", null, "Suomi"),
+  L2("fr", "French", null, "Fran\xE7ais"),
+  L2("fr_BE", "French", "Belgium", "Fran\xE7ais"),
+  L2("fr_CA", "French", "Canada", "Fran\xE7ais"),
+  L2("fr_CI", "French", "C\xF4te d\u2019Ivoire", "Fran\xE7ais"),
+  L2("fr_MA", "French", "Morocco", "Fran\xE7ais"),
+  L2("fr_CH", "French", "Switzerland", "Fran\xE7ais"),
+  L2("ka", "Georgian", null, "\u10E5\u10D0\u10E0\u10D7\u10E3\u10DA\u10D8"),
+  L2("de", "German", null, "Deutsch"),
+  L2("de_AT", "German", "Austria", "Deutsch"),
+  L2("de_CH", "German", "Switzerland", "Deutsch"),
+  L2("el", "Greek", null, "\u0395\u03BB\u03BB\u03B7\u03BD\u03B9\u03BA\u03AC"),
+  L2("gu", "Gujarati", null, "\u0A97\u0AC1\u0A9C\u0AB0\u0ABE\u0AA4\u0AC0"),
+  L2("ha", "Hausa", null, "Hausa"),
+  L2("he", "Hebrew", null, "\u05E2\u05D1\u05E8\u05D9\u05EA"),
+  L2("hi", "Hindi", null, "\u0939\u093F\u0928\u094D\u0926\u0940"),
+  L2("hu", "Hungarian", null, "Magyar"),
+  L2("id", "Indonesian", null, "Bahasa Indonesia"),
+  L2("ga", "Irish", null, "Gaeilge"),
+  L2("it", "Italian", null, "Italiano"),
+  L2("ja", "Japanese", null, "\u65E5\u672C\u8A9E"),
+  L2("kn", "Kannada", null, "\u0C95\u0CA8\u0CCD\u0CA8\u0CA1"),
+  L2("kk", "Kazakh", null, "\u049A\u0430\u0437\u0430\u049B \u0442\u0456\u043B\u0456"),
+  L2("rw_RW", "Kinyarwanda", null, "Ikinyarwanda"),
+  L2("ko", "Korean", null, "\uD55C\uAD6D\uC5B4"),
+  L2("ky_KG", "Kyrgyz", "Kyrgyzstan", "\u041A\u044B\u0440\u0433\u044B\u0437\u0447\u0430"),
+  L2("lo", "Lao", null, "\u0EA5\u0EB2\u0EA7"),
+  L2("lv", "Latvian", null, "Latvie\u0161u"),
+  L2("lt", "Lithuanian", null, "Lietuvi\u0173"),
+  L2("mk", "Macedonian", null, "\u041C\u0430\u043A\u0435\u0434\u043E\u043D\u0441\u043A\u0438"),
+  L2("ms", "Malay", null, "Bahasa Melayu"),
+  L2("ml", "Malayalam", null, "\u0D2E\u0D32\u0D2F\u0D3E\u0D33\u0D02"),
+  L2("mr", "Marathi", null, "\u092E\u0930\u093E\u0920\u0940"),
+  L2("nb", "Norwegian", null, "Norsk bokm\xE5l"),
+  L2("ps_AF", "Pashto", null, "\u067E\u069A\u062A\u0648"),
+  L2("fa", "Persian", null, "\u0641\u0627\u0631\u0633\u06CC"),
+  L2("pl", "Polish", null, "Polski"),
+  L2("pt_BR", "Portuguese", "Brazil", "Portugu\xEAs"),
+  L2("pt_PT", "Portuguese", "Portugal", "Portugu\xEAs"),
+  L2("pa", "Punjabi", null, "\u0A2A\u0A70\u0A1C\u0A3E\u0A2C\u0A40"),
+  L2("ro", "Romanian", null, "Rom\xE2n\u0103"),
+  L2("ru", "Russian", null, "\u0420\u0443\u0441\u0441\u043A\u0438\u0439"),
+  L2("sr", "Serbian", null, "\u0421\u0440\u043F\u0441\u043A\u0438"),
+  L2("si_LK", "Sinhala", null, "\u0DC3\u0DD2\u0D82\u0DC4\u0DBD"),
+  L2("sk", "Slovak", null, "Sloven\u010Dina"),
+  L2("sl", "Slovenian", null, "Sloven\u0161\u010Dina"),
+  L2("es", "Spanish", null, "Espa\xF1ol"),
+  L2("es_AR", "Spanish", "Argentina", "Espa\xF1ol"),
+  L2("es_CL", "Spanish", "Chile", "Espa\xF1ol"),
+  L2("es_CO", "Spanish", "Colombia", "Espa\xF1ol"),
+  L2("es_CR", "Spanish", "Costa Rica", "Espa\xF1ol"),
+  L2("es_DO", "Spanish", "Dominican Republic", "Espa\xF1ol"),
+  L2("es_EC", "Spanish", "Ecuador", "Espa\xF1ol"),
+  L2("es_HN", "Spanish", "Honduras", "Espa\xF1ol"),
+  L2("es_MX", "Spanish", "Mexico", "Espa\xF1ol"),
+  L2("es_PA", "Spanish", "Panama", "Espa\xF1ol"),
+  L2("es_PE", "Spanish", "Peru", "Espa\xF1ol"),
+  L2("es_ES", "Spanish", "Spain", "Espa\xF1ol"),
+  L2("es_UY", "Spanish", "Uruguay", "Espa\xF1ol"),
+  L2("sw", "Swahili", null, "Kiswahili"),
+  L2("sv", "Swedish", null, "Svenska"),
+  L2("ta", "Tamil", null, "\u0BA4\u0BAE\u0BBF\u0BB4\u0BCD"),
+  L2("te", "Telugu", null, "\u0C24\u0C46\u0C32\u0C41\u0C17\u0C41"),
+  L2("th", "Thai", null, "\u0E44\u0E17\u0E22"),
+  L2("tr", "Turkish", null, "T\xFCrk\xE7e"),
+  L2("uk", "Ukrainian", null, "\u0423\u043A\u0440\u0430\u0457\u043D\u0441\u044C\u043A\u0430"),
+  L2("ur", "Urdu", null, "\u0627\u0631\u062F\u0648"),
+  L2("uz", "Uzbek", null, "O\u02BBzbek"),
+  L2("vi", "Vietnamese", null, "Ti\u1EBFng Vi\u1EC7t"),
+  L2("zu", "Zulu", null, "isiZulu")
+];
+var BY_ID2 = new Map(WHATSAPP_LANGUAGES2.map((l2) => [l2.id.toLowerCase(), l2]));
+var DAY_MS52 = 864e5;
+var PLAYBOOK_HOURS2 = { min: 9, max: 20 };
+var SENDING_HOURS_WORDS2 = {
+  min: PLAYBOOK_HOURS2.min,
+  max: PLAYBOOK_HOURS2.max,
+  first: `${PLAYBOOK_HOURS2.min}:00`,
+  range: `${PLAYBOOK_HOURS2.min}:00\u2013${PLAYBOOK_HOURS2.max}:59`,
+  between: `between ${PLAYBOOK_HOURS2.min}:00 and ${PLAYBOOK_HOURS2.max}:59`
+};
+var PLAYBOOK_BREATH_MS2 = 7 * DAY_MS52;
+var PLAYBOOK_VETO_DELAY_MS2 = 30 * 6e4;
+var FOLLOW_UP_NEEDS_DEALS2 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION2}\u201D with \u201C${SELLS_BY_WORDS2.proposal.label}\u201D.`;
+var PLAYBOOK_TOUCH_WINDOW_MS2 = (365 + 7) * DAY_MS52;
+var SWEEP_TICK_MS2 = 5 * 6e4;
+var PLAYBOOK_CLASS_LABEL2 = {
+  reengage: POLICY_CLASS_WORDS2.reengage.short,
+  campaign: POLICY_CLASS_WORDS2.campaign.short,
+  booking: POLICY_CLASS_WORDS2.booking.short,
+  follow_up: POLICY_CLASS_WORDS2.follow_up.short
+};
+var FIRST2 = { kind: "first_name", label: "First name", example: "Dani" };
+var BUSINESS2 = { kind: "business_name", label: "Business name", example: "Luna Studio" };
+var LINK2 = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
+var FIRST_ES2 = { ...FIRST2, label: "Nombre" };
+var BUSINESS_ES2 = { ...BUSINESS2, label: "Nombre del negocio" };
+var LINK_ES2 = { ...LINK2, label: "Enlace de reservas" };
+var WHEN3 = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" };
+var SERVICE2 = { kind: "visit_service", label: "Service", example: "a consultation" };
+var WHEN_ES2 = { ...WHEN3, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
+var SERVICE_ES2 = { ...SERVICE2, label: "Servicio", example: "una consulta" };
+var PROPOSAL2 = {
+  kind: "proposal_link",
+  label: "Proposal link",
+  example: "https://docs.example.com/proposal"
+};
+var PROPOSAL_ES2 = { ...PROPOSAL2, label: "Enlace de la propuesta" };
+var LIMIT_TIERS2 = {
+  TIER_50: 50,
+  TIER_250: 250,
+  TIER_1K: 1e3,
+  TIER_10K: 1e4,
+  TIER_100K: 1e5,
+  TIER_UNLIMITED: Number.POSITIVE_INFINITY
+};
+var FORWARDING_TEST_WINDOW_MS2 = 30 * 6e4;
+var REVIEW_AUTO_REPLY_MAX_AGE_MS2 = 14 * 864e5;
 var DATE_FMT5 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var REVIEW_NEWS_MS2 = 36 * 3600 * 1e3;
+var REVIEW_NEWS_MAX_AGE_MS2 = 14 * 864e5;
+var BOOTSTRAP_MS2 = 3600 * 1e3;
+var DATE_FMT22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var WEEK_MS32 = 7 * 864e5;
+var DATE_FMT32 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var SOLE_PROP_LIMITS2 = {
+  campaignsPerBrand: 1,
+  numbersPerCampaign: 1,
+  messagesPerSecond: 1,
+  perDayTMobile: 1e3,
+  perMinuteAtt: 15,
+  mobileUsesEver: 3,
+  emailUsesEver: 10,
+  addressUsesEver: 10
+};
+var REGISTRATION_COST_WORDS2 = {
+  standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
+  sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS2.messagesPerSecond} message a second.`
+};
+var PROVISIONING_DEADLINE_MS2 = 5 * 6e4;
+var SOLE_PROP_CEILING_SENTENCE2 = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS2.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
+var SOLE_PROP_TEXTING_SENTENCE2 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE2}`;
+var DAY_MS62 = 24 * 3600 * 1e3;
+var DAY_MS72 = 864e5;
+var QUIET_AFTER_MS22 = 7 * DAY_MS72;
+var DATE_FMT42 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var CHANNEL_KIND_WORDS2 = {
   whatsapp: "WhatsApp",
   voice: "Phone line",
@@ -8108,170 +8300,6 @@ var ASK_ANSWER_FORMAT2 = {
   required: ["say", "show", "do", "language"],
   additionalProperties: false
 };
-var L2 = (id, name2, region, native) => ({
-  id,
-  label: region ? `${name2} (${region})` : name2,
-  name: name2,
-  region,
-  native
-});
-var WHATSAPP_LANGUAGES2 = [
-  L2("af", "Afrikaans", null, "Afrikaans"),
-  L2("sq", "Albanian", null, "Shqip"),
-  L2("ar", "Arabic", null, "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L2("ar_EG", "Arabic", "Egypt", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L2("ar_LB", "Arabic", "Lebanon", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L2("ar_MA", "Arabic", "Morocco", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L2("ar_QA", "Arabic", "Qatar", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L2("ar_AE", "Arabic", "UAE", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L2("az", "Azerbaijani", null, "Az\u0259rbaycan"),
-  L2("be_BY", "Belarusian", null, "\u0411\u0435\u043B\u0430\u0440\u0443\u0441\u043A\u0430\u044F"),
-  L2("bn", "Bengali", null, "\u09AC\u09BE\u0982\u09B2\u09BE"),
-  L2("bn_IN", "Bengali", "India", "\u09AC\u09BE\u0982\u09B2\u09BE"),
-  L2("bg", "Bulgarian", null, "\u0411\u044A\u043B\u0433\u0430\u0440\u0441\u043A\u0438"),
-  L2("ca", "Catalan", null, "Catal\xE0"),
-  L2("zh_CN", "Chinese", "China", "\u7B80\u4F53\u4E2D\u6587"),
-  L2("zh_HK", "Chinese", "Hong Kong", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u9999\u6E2F\uFF09"),
-  L2("zh_TW", "Chinese", "Taiwan", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u53F0\u7063\uFF09"),
-  L2("hr", "Croatian", null, "Hrvatski"),
-  L2("cs", "Czech", null, "\u010Ce\u0161tina"),
-  L2("da", "Danish", null, "Dansk"),
-  L2("prs_AF", "Dari", null, "\u062F\u0631\u06CC"),
-  L2("nl", "Dutch", null, "Nederlands"),
-  L2("nl_BE", "Dutch", "Belgium", "Nederlands"),
-  L2("en", "English", null, "English"),
-  L2("en_AU", "English", "Australia", "English"),
-  L2("en_CA", "English", "Canada", "English"),
-  L2("en_GH", "English", "Ghana", "English"),
-  L2("en_IN", "English", "India", "English"),
-  L2("en_IE", "English", "Ireland", "English"),
-  L2("en_JM", "English", "Jamaica", "English"),
-  L2("en_MY", "English", "Malaysia", "English"),
-  L2("en_NZ", "English", "New Zealand", "English"),
-  L2("en_QA", "English", "Qatar", "English"),
-  L2("en_SG", "English", "Singapore", "English"),
-  L2("en_ZA", "English", "South Africa", "English"),
-  L2("en_AE", "English", "UAE", "English"),
-  L2("en_UG", "English", "Uganda", "English"),
-  L2("en_GB", "English", "UK", "English"),
-  L2("en_US", "English", "US", "English"),
-  L2("et", "Estonian", null, "Eesti"),
-  L2("fil", "Filipino", null, "Filipino"),
-  L2("fi", "Finnish", null, "Suomi"),
-  L2("fr", "French", null, "Fran\xE7ais"),
-  L2("fr_BE", "French", "Belgium", "Fran\xE7ais"),
-  L2("fr_CA", "French", "Canada", "Fran\xE7ais"),
-  L2("fr_CI", "French", "C\xF4te d\u2019Ivoire", "Fran\xE7ais"),
-  L2("fr_MA", "French", "Morocco", "Fran\xE7ais"),
-  L2("fr_CH", "French", "Switzerland", "Fran\xE7ais"),
-  L2("ka", "Georgian", null, "\u10E5\u10D0\u10E0\u10D7\u10E3\u10DA\u10D8"),
-  L2("de", "German", null, "Deutsch"),
-  L2("de_AT", "German", "Austria", "Deutsch"),
-  L2("de_CH", "German", "Switzerland", "Deutsch"),
-  L2("el", "Greek", null, "\u0395\u03BB\u03BB\u03B7\u03BD\u03B9\u03BA\u03AC"),
-  L2("gu", "Gujarati", null, "\u0A97\u0AC1\u0A9C\u0AB0\u0ABE\u0AA4\u0AC0"),
-  L2("ha", "Hausa", null, "Hausa"),
-  L2("he", "Hebrew", null, "\u05E2\u05D1\u05E8\u05D9\u05EA"),
-  L2("hi", "Hindi", null, "\u0939\u093F\u0928\u094D\u0926\u0940"),
-  L2("hu", "Hungarian", null, "Magyar"),
-  L2("id", "Indonesian", null, "Bahasa Indonesia"),
-  L2("ga", "Irish", null, "Gaeilge"),
-  L2("it", "Italian", null, "Italiano"),
-  L2("ja", "Japanese", null, "\u65E5\u672C\u8A9E"),
-  L2("kn", "Kannada", null, "\u0C95\u0CA8\u0CCD\u0CA8\u0CA1"),
-  L2("kk", "Kazakh", null, "\u049A\u0430\u0437\u0430\u049B \u0442\u0456\u043B\u0456"),
-  L2("rw_RW", "Kinyarwanda", null, "Ikinyarwanda"),
-  L2("ko", "Korean", null, "\uD55C\uAD6D\uC5B4"),
-  L2("ky_KG", "Kyrgyz", "Kyrgyzstan", "\u041A\u044B\u0440\u0433\u044B\u0437\u0447\u0430"),
-  L2("lo", "Lao", null, "\u0EA5\u0EB2\u0EA7"),
-  L2("lv", "Latvian", null, "Latvie\u0161u"),
-  L2("lt", "Lithuanian", null, "Lietuvi\u0173"),
-  L2("mk", "Macedonian", null, "\u041C\u0430\u043A\u0435\u0434\u043E\u043D\u0441\u043A\u0438"),
-  L2("ms", "Malay", null, "Bahasa Melayu"),
-  L2("ml", "Malayalam", null, "\u0D2E\u0D32\u0D2F\u0D3E\u0D33\u0D02"),
-  L2("mr", "Marathi", null, "\u092E\u0930\u093E\u0920\u0940"),
-  L2("nb", "Norwegian", null, "Norsk bokm\xE5l"),
-  L2("ps_AF", "Pashto", null, "\u067E\u069A\u062A\u0648"),
-  L2("fa", "Persian", null, "\u0641\u0627\u0631\u0633\u06CC"),
-  L2("pl", "Polish", null, "Polski"),
-  L2("pt_BR", "Portuguese", "Brazil", "Portugu\xEAs"),
-  L2("pt_PT", "Portuguese", "Portugal", "Portugu\xEAs"),
-  L2("pa", "Punjabi", null, "\u0A2A\u0A70\u0A1C\u0A3E\u0A2C\u0A40"),
-  L2("ro", "Romanian", null, "Rom\xE2n\u0103"),
-  L2("ru", "Russian", null, "\u0420\u0443\u0441\u0441\u043A\u0438\u0439"),
-  L2("sr", "Serbian", null, "\u0421\u0440\u043F\u0441\u043A\u0438"),
-  L2("si_LK", "Sinhala", null, "\u0DC3\u0DD2\u0D82\u0DC4\u0DBD"),
-  L2("sk", "Slovak", null, "Sloven\u010Dina"),
-  L2("sl", "Slovenian", null, "Sloven\u0161\u010Dina"),
-  L2("es", "Spanish", null, "Espa\xF1ol"),
-  L2("es_AR", "Spanish", "Argentina", "Espa\xF1ol"),
-  L2("es_CL", "Spanish", "Chile", "Espa\xF1ol"),
-  L2("es_CO", "Spanish", "Colombia", "Espa\xF1ol"),
-  L2("es_CR", "Spanish", "Costa Rica", "Espa\xF1ol"),
-  L2("es_DO", "Spanish", "Dominican Republic", "Espa\xF1ol"),
-  L2("es_EC", "Spanish", "Ecuador", "Espa\xF1ol"),
-  L2("es_HN", "Spanish", "Honduras", "Espa\xF1ol"),
-  L2("es_MX", "Spanish", "Mexico", "Espa\xF1ol"),
-  L2("es_PA", "Spanish", "Panama", "Espa\xF1ol"),
-  L2("es_PE", "Spanish", "Peru", "Espa\xF1ol"),
-  L2("es_ES", "Spanish", "Spain", "Espa\xF1ol"),
-  L2("es_UY", "Spanish", "Uruguay", "Espa\xF1ol"),
-  L2("sw", "Swahili", null, "Kiswahili"),
-  L2("sv", "Swedish", null, "Svenska"),
-  L2("ta", "Tamil", null, "\u0BA4\u0BAE\u0BBF\u0BB4\u0BCD"),
-  L2("te", "Telugu", null, "\u0C24\u0C46\u0C32\u0C41\u0C17\u0C41"),
-  L2("th", "Thai", null, "\u0E44\u0E17\u0E22"),
-  L2("tr", "Turkish", null, "T\xFCrk\xE7e"),
-  L2("uk", "Ukrainian", null, "\u0423\u043A\u0440\u0430\u0457\u043D\u0441\u044C\u043A\u0430"),
-  L2("ur", "Urdu", null, "\u0627\u0631\u062F\u0648"),
-  L2("uz", "Uzbek", null, "O\u02BBzbek"),
-  L2("vi", "Vietnamese", null, "Ti\u1EBFng Vi\u1EC7t"),
-  L2("zu", "Zulu", null, "isiZulu")
-];
-var BY_ID2 = new Map(WHATSAPP_LANGUAGES2.map((l2) => [l2.id.toLowerCase(), l2]));
-var DAY_MS72 = 864e5;
-var PLAYBOOK_HOURS2 = { min: 9, max: 20 };
-var SENDING_HOURS_WORDS2 = {
-  min: PLAYBOOK_HOURS2.min,
-  max: PLAYBOOK_HOURS2.max,
-  first: `${PLAYBOOK_HOURS2.min}:00`,
-  range: `${PLAYBOOK_HOURS2.min}:00\u2013${PLAYBOOK_HOURS2.max}:59`,
-  between: `between ${PLAYBOOK_HOURS2.min}:00 and ${PLAYBOOK_HOURS2.max}:59`
-};
-var PLAYBOOK_BREATH_MS2 = 7 * DAY_MS72;
-var PLAYBOOK_VETO_DELAY_MS2 = 30 * 6e4;
-var FOLLOW_UP_NEEDS_DEALS2 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION2}\u201D with \u201C${SELLS_BY_WORDS2.proposal.label}\u201D.`;
-var PLAYBOOK_TOUCH_WINDOW_MS2 = (365 + 7) * DAY_MS72;
-var PLAYBOOK_CLASS_LABEL2 = {
-  reengage: POLICY_CLASS_WORDS2.reengage.short,
-  campaign: POLICY_CLASS_WORDS2.campaign.short,
-  booking: POLICY_CLASS_WORDS2.booking.short,
-  follow_up: POLICY_CLASS_WORDS2.follow_up.short
-};
-var FIRST2 = { kind: "first_name", label: "First name", example: "Dani" };
-var BUSINESS2 = { kind: "business_name", label: "Business name", example: "Luna Studio" };
-var LINK2 = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
-var FIRST_ES2 = { ...FIRST2, label: "Nombre" };
-var BUSINESS_ES2 = { ...BUSINESS2, label: "Nombre del negocio" };
-var LINK_ES2 = { ...LINK2, label: "Enlace de reservas" };
-var WHEN3 = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" };
-var SERVICE2 = { kind: "visit_service", label: "Service", example: "a consultation" };
-var WHEN_ES2 = { ...WHEN3, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
-var SERVICE_ES2 = { ...SERVICE2, label: "Servicio", example: "una consulta" };
-var PROPOSAL2 = {
-  kind: "proposal_link",
-  label: "Proposal link",
-  example: "https://docs.example.com/proposal"
-};
-var PROPOSAL_ES2 = { ...PROPOSAL2, label: "Enlace de la propuesta" };
-var LIMIT_TIERS2 = {
-  TIER_50: 50,
-  TIER_250: 250,
-  TIER_1K: 1e3,
-  TIER_10K: 1e4,
-  TIER_100K: 1e5,
-  TIER_UNLIMITED: Number.POSITIVE_INFINITY
-};
 var LIST_RULE_FIELDS2 = [
   { id: "last_visit", label: "Last visit", kind: "days", needsCalendar: true },
   { id: "next_visit", label: "Next visit", kind: "days", needsCalendar: true },
@@ -8349,33 +8377,7 @@ var ListDraftAnswerSchema2 = z72.object({
   cannot: z72.string().trim().max(200),
   all: z72.array(ListConditionSchema2).max(8)
 });
-var DATE_FMT22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WHEN22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var FORWARDING_TEST_WINDOW_MS2 = 30 * 6e4;
-var REVIEW_AUTO_REPLY_MAX_AGE_MS2 = 14 * 864e5;
-var REVIEW_NEWS_MS2 = 36 * 3600 * 1e3;
-var REVIEW_NEWS_MAX_AGE_MS2 = 14 * 864e5;
-var BOOTSTRAP_MS2 = 3600 * 1e3;
-var DATE_FMT32 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var WEEK_MS32 = 7 * 864e5;
-var DATE_FMT42 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
-var SOLE_PROP_LIMITS2 = {
-  campaignsPerBrand: 1,
-  numbersPerCampaign: 1,
-  messagesPerSecond: 1,
-  perDayTMobile: 1e3,
-  perMinuteAtt: 15,
-  mobileUsesEver: 3,
-  emailUsesEver: 10,
-  addressUsesEver: 10
-};
-var REGISTRATION_COST_WORDS2 = {
-  standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
-  sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS2.messagesPerSecond} message a second.`
-};
-var PROVISIONING_DEADLINE_MS2 = 5 * 6e4;
-var SOLE_PROP_CEILING_SENTENCE2 = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS2.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
-var SOLE_PROP_TEXTING_SENTENCE2 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE2}`;
 var SIGNUP_NAME_MIN2 = 2;
 var SIGNUP_NAME_MAX2 = 120;
 var InviteCodeSchema2 = z82.string().trim().max(80);
@@ -10648,10 +10650,201 @@ var PERSON_CAME_FROM_WORDS3 = {
   import: "Imported history",
   lead: "A lead you found"
 };
-var DAY_MS53 = 24 * 3600 * 1e3;
-var DAY_MS63 = 864e5;
-var QUIET_AFTER_MS23 = 7 * DAY_MS63;
+var L3 = (id, name2, region, native) => ({
+  id,
+  label: region ? `${name2} (${region})` : name2,
+  name: name2,
+  region,
+  native
+});
+var WHATSAPP_LANGUAGES3 = [
+  L3("af", "Afrikaans", null, "Afrikaans"),
+  L3("sq", "Albanian", null, "Shqip"),
+  L3("ar", "Arabic", null, "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L3("ar_EG", "Arabic", "Egypt", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L3("ar_LB", "Arabic", "Lebanon", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L3("ar_MA", "Arabic", "Morocco", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L3("ar_QA", "Arabic", "Qatar", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L3("ar_AE", "Arabic", "UAE", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L3("az", "Azerbaijani", null, "Az\u0259rbaycan"),
+  L3("be_BY", "Belarusian", null, "\u0411\u0435\u043B\u0430\u0440\u0443\u0441\u043A\u0430\u044F"),
+  L3("bn", "Bengali", null, "\u09AC\u09BE\u0982\u09B2\u09BE"),
+  L3("bn_IN", "Bengali", "India", "\u09AC\u09BE\u0982\u09B2\u09BE"),
+  L3("bg", "Bulgarian", null, "\u0411\u044A\u043B\u0433\u0430\u0440\u0441\u043A\u0438"),
+  L3("ca", "Catalan", null, "Catal\xE0"),
+  L3("zh_CN", "Chinese", "China", "\u7B80\u4F53\u4E2D\u6587"),
+  L3("zh_HK", "Chinese", "Hong Kong", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u9999\u6E2F\uFF09"),
+  L3("zh_TW", "Chinese", "Taiwan", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u53F0\u7063\uFF09"),
+  L3("hr", "Croatian", null, "Hrvatski"),
+  L3("cs", "Czech", null, "\u010Ce\u0161tina"),
+  L3("da", "Danish", null, "Dansk"),
+  L3("prs_AF", "Dari", null, "\u062F\u0631\u06CC"),
+  L3("nl", "Dutch", null, "Nederlands"),
+  L3("nl_BE", "Dutch", "Belgium", "Nederlands"),
+  L3("en", "English", null, "English"),
+  L3("en_AU", "English", "Australia", "English"),
+  L3("en_CA", "English", "Canada", "English"),
+  L3("en_GH", "English", "Ghana", "English"),
+  L3("en_IN", "English", "India", "English"),
+  L3("en_IE", "English", "Ireland", "English"),
+  L3("en_JM", "English", "Jamaica", "English"),
+  L3("en_MY", "English", "Malaysia", "English"),
+  L3("en_NZ", "English", "New Zealand", "English"),
+  L3("en_QA", "English", "Qatar", "English"),
+  L3("en_SG", "English", "Singapore", "English"),
+  L3("en_ZA", "English", "South Africa", "English"),
+  L3("en_AE", "English", "UAE", "English"),
+  L3("en_UG", "English", "Uganda", "English"),
+  L3("en_GB", "English", "UK", "English"),
+  L3("en_US", "English", "US", "English"),
+  L3("et", "Estonian", null, "Eesti"),
+  L3("fil", "Filipino", null, "Filipino"),
+  L3("fi", "Finnish", null, "Suomi"),
+  L3("fr", "French", null, "Fran\xE7ais"),
+  L3("fr_BE", "French", "Belgium", "Fran\xE7ais"),
+  L3("fr_CA", "French", "Canada", "Fran\xE7ais"),
+  L3("fr_CI", "French", "C\xF4te d\u2019Ivoire", "Fran\xE7ais"),
+  L3("fr_MA", "French", "Morocco", "Fran\xE7ais"),
+  L3("fr_CH", "French", "Switzerland", "Fran\xE7ais"),
+  L3("ka", "Georgian", null, "\u10E5\u10D0\u10E0\u10D7\u10E3\u10DA\u10D8"),
+  L3("de", "German", null, "Deutsch"),
+  L3("de_AT", "German", "Austria", "Deutsch"),
+  L3("de_CH", "German", "Switzerland", "Deutsch"),
+  L3("el", "Greek", null, "\u0395\u03BB\u03BB\u03B7\u03BD\u03B9\u03BA\u03AC"),
+  L3("gu", "Gujarati", null, "\u0A97\u0AC1\u0A9C\u0AB0\u0ABE\u0AA4\u0AC0"),
+  L3("ha", "Hausa", null, "Hausa"),
+  L3("he", "Hebrew", null, "\u05E2\u05D1\u05E8\u05D9\u05EA"),
+  L3("hi", "Hindi", null, "\u0939\u093F\u0928\u094D\u0926\u0940"),
+  L3("hu", "Hungarian", null, "Magyar"),
+  L3("id", "Indonesian", null, "Bahasa Indonesia"),
+  L3("ga", "Irish", null, "Gaeilge"),
+  L3("it", "Italian", null, "Italiano"),
+  L3("ja", "Japanese", null, "\u65E5\u672C\u8A9E"),
+  L3("kn", "Kannada", null, "\u0C95\u0CA8\u0CCD\u0CA8\u0CA1"),
+  L3("kk", "Kazakh", null, "\u049A\u0430\u0437\u0430\u049B \u0442\u0456\u043B\u0456"),
+  L3("rw_RW", "Kinyarwanda", null, "Ikinyarwanda"),
+  L3("ko", "Korean", null, "\uD55C\uAD6D\uC5B4"),
+  L3("ky_KG", "Kyrgyz", "Kyrgyzstan", "\u041A\u044B\u0440\u0433\u044B\u0437\u0447\u0430"),
+  L3("lo", "Lao", null, "\u0EA5\u0EB2\u0EA7"),
+  L3("lv", "Latvian", null, "Latvie\u0161u"),
+  L3("lt", "Lithuanian", null, "Lietuvi\u0173"),
+  L3("mk", "Macedonian", null, "\u041C\u0430\u043A\u0435\u0434\u043E\u043D\u0441\u043A\u0438"),
+  L3("ms", "Malay", null, "Bahasa Melayu"),
+  L3("ml", "Malayalam", null, "\u0D2E\u0D32\u0D2F\u0D3E\u0D33\u0D02"),
+  L3("mr", "Marathi", null, "\u092E\u0930\u093E\u0920\u0940"),
+  L3("nb", "Norwegian", null, "Norsk bokm\xE5l"),
+  L3("ps_AF", "Pashto", null, "\u067E\u069A\u062A\u0648"),
+  L3("fa", "Persian", null, "\u0641\u0627\u0631\u0633\u06CC"),
+  L3("pl", "Polish", null, "Polski"),
+  L3("pt_BR", "Portuguese", "Brazil", "Portugu\xEAs"),
+  L3("pt_PT", "Portuguese", "Portugal", "Portugu\xEAs"),
+  L3("pa", "Punjabi", null, "\u0A2A\u0A70\u0A1C\u0A3E\u0A2C\u0A40"),
+  L3("ro", "Romanian", null, "Rom\xE2n\u0103"),
+  L3("ru", "Russian", null, "\u0420\u0443\u0441\u0441\u043A\u0438\u0439"),
+  L3("sr", "Serbian", null, "\u0421\u0440\u043F\u0441\u043A\u0438"),
+  L3("si_LK", "Sinhala", null, "\u0DC3\u0DD2\u0D82\u0DC4\u0DBD"),
+  L3("sk", "Slovak", null, "Sloven\u010Dina"),
+  L3("sl", "Slovenian", null, "Sloven\u0161\u010Dina"),
+  L3("es", "Spanish", null, "Espa\xF1ol"),
+  L3("es_AR", "Spanish", "Argentina", "Espa\xF1ol"),
+  L3("es_CL", "Spanish", "Chile", "Espa\xF1ol"),
+  L3("es_CO", "Spanish", "Colombia", "Espa\xF1ol"),
+  L3("es_CR", "Spanish", "Costa Rica", "Espa\xF1ol"),
+  L3("es_DO", "Spanish", "Dominican Republic", "Espa\xF1ol"),
+  L3("es_EC", "Spanish", "Ecuador", "Espa\xF1ol"),
+  L3("es_HN", "Spanish", "Honduras", "Espa\xF1ol"),
+  L3("es_MX", "Spanish", "Mexico", "Espa\xF1ol"),
+  L3("es_PA", "Spanish", "Panama", "Espa\xF1ol"),
+  L3("es_PE", "Spanish", "Peru", "Espa\xF1ol"),
+  L3("es_ES", "Spanish", "Spain", "Espa\xF1ol"),
+  L3("es_UY", "Spanish", "Uruguay", "Espa\xF1ol"),
+  L3("sw", "Swahili", null, "Kiswahili"),
+  L3("sv", "Swedish", null, "Svenska"),
+  L3("ta", "Tamil", null, "\u0BA4\u0BAE\u0BBF\u0BB4\u0BCD"),
+  L3("te", "Telugu", null, "\u0C24\u0C46\u0C32\u0C41\u0C17\u0C41"),
+  L3("th", "Thai", null, "\u0E44\u0E17\u0E22"),
+  L3("tr", "Turkish", null, "T\xFCrk\xE7e"),
+  L3("uk", "Ukrainian", null, "\u0423\u043A\u0440\u0430\u0457\u043D\u0441\u044C\u043A\u0430"),
+  L3("ur", "Urdu", null, "\u0627\u0631\u062F\u0648"),
+  L3("uz", "Uzbek", null, "O\u02BBzbek"),
+  L3("vi", "Vietnamese", null, "Ti\u1EBFng Vi\u1EC7t"),
+  L3("zu", "Zulu", null, "isiZulu")
+];
+var BY_ID3 = new Map(WHATSAPP_LANGUAGES3.map((l2) => [l2.id.toLowerCase(), l2]));
+var DAY_MS53 = 864e5;
+var PLAYBOOK_HOURS3 = { min: 9, max: 20 };
+var SENDING_HOURS_WORDS3 = {
+  min: PLAYBOOK_HOURS3.min,
+  max: PLAYBOOK_HOURS3.max,
+  first: `${PLAYBOOK_HOURS3.min}:00`,
+  range: `${PLAYBOOK_HOURS3.min}:00\u2013${PLAYBOOK_HOURS3.max}:59`,
+  between: `between ${PLAYBOOK_HOURS3.min}:00 and ${PLAYBOOK_HOURS3.max}:59`
+};
+var PLAYBOOK_BREATH_MS3 = 7 * DAY_MS53;
+var PLAYBOOK_VETO_DELAY_MS3 = 30 * 6e4;
+var FOLLOW_UP_NEEDS_DEALS3 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION3}\u201D with \u201C${SELLS_BY_WORDS3.proposal.label}\u201D.`;
+var PLAYBOOK_TOUCH_WINDOW_MS3 = (365 + 7) * DAY_MS53;
+var SWEEP_TICK_MS3 = 5 * 6e4;
+var PLAYBOOK_CLASS_LABEL3 = {
+  reengage: POLICY_CLASS_WORDS3.reengage.short,
+  campaign: POLICY_CLASS_WORDS3.campaign.short,
+  booking: POLICY_CLASS_WORDS3.booking.short,
+  follow_up: POLICY_CLASS_WORDS3.follow_up.short
+};
+var FIRST3 = { kind: "first_name", label: "First name", example: "Dani" };
+var BUSINESS3 = { kind: "business_name", label: "Business name", example: "Luna Studio" };
+var LINK3 = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
+var FIRST_ES3 = { ...FIRST3, label: "Nombre" };
+var BUSINESS_ES3 = { ...BUSINESS3, label: "Nombre del negocio" };
+var LINK_ES3 = { ...LINK3, label: "Enlace de reservas" };
+var WHEN4 = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" };
+var SERVICE3 = { kind: "visit_service", label: "Service", example: "a consultation" };
+var WHEN_ES3 = { ...WHEN4, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
+var SERVICE_ES3 = { ...SERVICE3, label: "Servicio", example: "una consulta" };
+var PROPOSAL3 = {
+  kind: "proposal_link",
+  label: "Proposal link",
+  example: "https://docs.example.com/proposal"
+};
+var PROPOSAL_ES3 = { ...PROPOSAL3, label: "Enlace de la propuesta" };
+var LIMIT_TIERS3 = {
+  TIER_50: 50,
+  TIER_250: 250,
+  TIER_1K: 1e3,
+  TIER_10K: 1e4,
+  TIER_100K: 1e5,
+  TIER_UNLIMITED: Number.POSITIVE_INFINITY
+};
+var FORWARDING_TEST_WINDOW_MS3 = 30 * 6e4;
+var REVIEW_AUTO_REPLY_MAX_AGE_MS3 = 14 * 864e5;
 var DATE_FMT6 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var REVIEW_NEWS_MS3 = 36 * 3600 * 1e3;
+var REVIEW_NEWS_MAX_AGE_MS3 = 14 * 864e5;
+var BOOTSTRAP_MS3 = 3600 * 1e3;
+var DATE_FMT23 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var WEEK_MS33 = 7 * 864e5;
+var DATE_FMT33 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var SOLE_PROP_LIMITS3 = {
+  campaignsPerBrand: 1,
+  numbersPerCampaign: 1,
+  messagesPerSecond: 1,
+  perDayTMobile: 1e3,
+  perMinuteAtt: 15,
+  mobileUsesEver: 3,
+  emailUsesEver: 10,
+  addressUsesEver: 10
+};
+var REGISTRATION_COST_WORDS3 = {
+  standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
+  sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS3.messagesPerSecond} message a second.`
+};
+var PROVISIONING_DEADLINE_MS3 = 5 * 6e4;
+var SOLE_PROP_CEILING_SENTENCE3 = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS3.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
+var SOLE_PROP_TEXTING_SENTENCE3 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE3}`;
+var DAY_MS63 = 24 * 3600 * 1e3;
+var DAY_MS73 = 864e5;
+var QUIET_AFTER_MS23 = 7 * DAY_MS73;
+var DATE_FMT43 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var CHANNEL_KIND_WORDS3 = {
   whatsapp: "WhatsApp",
   voice: "Phone line",
@@ -10866,170 +11059,6 @@ var ASK_ANSWER_FORMAT3 = {
   required: ["say", "show", "do", "language"],
   additionalProperties: false
 };
-var L3 = (id, name2, region, native) => ({
-  id,
-  label: region ? `${name2} (${region})` : name2,
-  name: name2,
-  region,
-  native
-});
-var WHATSAPP_LANGUAGES3 = [
-  L3("af", "Afrikaans", null, "Afrikaans"),
-  L3("sq", "Albanian", null, "Shqip"),
-  L3("ar", "Arabic", null, "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L3("ar_EG", "Arabic", "Egypt", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L3("ar_LB", "Arabic", "Lebanon", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L3("ar_MA", "Arabic", "Morocco", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L3("ar_QA", "Arabic", "Qatar", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L3("ar_AE", "Arabic", "UAE", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L3("az", "Azerbaijani", null, "Az\u0259rbaycan"),
-  L3("be_BY", "Belarusian", null, "\u0411\u0435\u043B\u0430\u0440\u0443\u0441\u043A\u0430\u044F"),
-  L3("bn", "Bengali", null, "\u09AC\u09BE\u0982\u09B2\u09BE"),
-  L3("bn_IN", "Bengali", "India", "\u09AC\u09BE\u0982\u09B2\u09BE"),
-  L3("bg", "Bulgarian", null, "\u0411\u044A\u043B\u0433\u0430\u0440\u0441\u043A\u0438"),
-  L3("ca", "Catalan", null, "Catal\xE0"),
-  L3("zh_CN", "Chinese", "China", "\u7B80\u4F53\u4E2D\u6587"),
-  L3("zh_HK", "Chinese", "Hong Kong", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u9999\u6E2F\uFF09"),
-  L3("zh_TW", "Chinese", "Taiwan", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u53F0\u7063\uFF09"),
-  L3("hr", "Croatian", null, "Hrvatski"),
-  L3("cs", "Czech", null, "\u010Ce\u0161tina"),
-  L3("da", "Danish", null, "Dansk"),
-  L3("prs_AF", "Dari", null, "\u062F\u0631\u06CC"),
-  L3("nl", "Dutch", null, "Nederlands"),
-  L3("nl_BE", "Dutch", "Belgium", "Nederlands"),
-  L3("en", "English", null, "English"),
-  L3("en_AU", "English", "Australia", "English"),
-  L3("en_CA", "English", "Canada", "English"),
-  L3("en_GH", "English", "Ghana", "English"),
-  L3("en_IN", "English", "India", "English"),
-  L3("en_IE", "English", "Ireland", "English"),
-  L3("en_JM", "English", "Jamaica", "English"),
-  L3("en_MY", "English", "Malaysia", "English"),
-  L3("en_NZ", "English", "New Zealand", "English"),
-  L3("en_QA", "English", "Qatar", "English"),
-  L3("en_SG", "English", "Singapore", "English"),
-  L3("en_ZA", "English", "South Africa", "English"),
-  L3("en_AE", "English", "UAE", "English"),
-  L3("en_UG", "English", "Uganda", "English"),
-  L3("en_GB", "English", "UK", "English"),
-  L3("en_US", "English", "US", "English"),
-  L3("et", "Estonian", null, "Eesti"),
-  L3("fil", "Filipino", null, "Filipino"),
-  L3("fi", "Finnish", null, "Suomi"),
-  L3("fr", "French", null, "Fran\xE7ais"),
-  L3("fr_BE", "French", "Belgium", "Fran\xE7ais"),
-  L3("fr_CA", "French", "Canada", "Fran\xE7ais"),
-  L3("fr_CI", "French", "C\xF4te d\u2019Ivoire", "Fran\xE7ais"),
-  L3("fr_MA", "French", "Morocco", "Fran\xE7ais"),
-  L3("fr_CH", "French", "Switzerland", "Fran\xE7ais"),
-  L3("ka", "Georgian", null, "\u10E5\u10D0\u10E0\u10D7\u10E3\u10DA\u10D8"),
-  L3("de", "German", null, "Deutsch"),
-  L3("de_AT", "German", "Austria", "Deutsch"),
-  L3("de_CH", "German", "Switzerland", "Deutsch"),
-  L3("el", "Greek", null, "\u0395\u03BB\u03BB\u03B7\u03BD\u03B9\u03BA\u03AC"),
-  L3("gu", "Gujarati", null, "\u0A97\u0AC1\u0A9C\u0AB0\u0ABE\u0AA4\u0AC0"),
-  L3("ha", "Hausa", null, "Hausa"),
-  L3("he", "Hebrew", null, "\u05E2\u05D1\u05E8\u05D9\u05EA"),
-  L3("hi", "Hindi", null, "\u0939\u093F\u0928\u094D\u0926\u0940"),
-  L3("hu", "Hungarian", null, "Magyar"),
-  L3("id", "Indonesian", null, "Bahasa Indonesia"),
-  L3("ga", "Irish", null, "Gaeilge"),
-  L3("it", "Italian", null, "Italiano"),
-  L3("ja", "Japanese", null, "\u65E5\u672C\u8A9E"),
-  L3("kn", "Kannada", null, "\u0C95\u0CA8\u0CCD\u0CA8\u0CA1"),
-  L3("kk", "Kazakh", null, "\u049A\u0430\u0437\u0430\u049B \u0442\u0456\u043B\u0456"),
-  L3("rw_RW", "Kinyarwanda", null, "Ikinyarwanda"),
-  L3("ko", "Korean", null, "\uD55C\uAD6D\uC5B4"),
-  L3("ky_KG", "Kyrgyz", "Kyrgyzstan", "\u041A\u044B\u0440\u0433\u044B\u0437\u0447\u0430"),
-  L3("lo", "Lao", null, "\u0EA5\u0EB2\u0EA7"),
-  L3("lv", "Latvian", null, "Latvie\u0161u"),
-  L3("lt", "Lithuanian", null, "Lietuvi\u0173"),
-  L3("mk", "Macedonian", null, "\u041C\u0430\u043A\u0435\u0434\u043E\u043D\u0441\u043A\u0438"),
-  L3("ms", "Malay", null, "Bahasa Melayu"),
-  L3("ml", "Malayalam", null, "\u0D2E\u0D32\u0D2F\u0D3E\u0D33\u0D02"),
-  L3("mr", "Marathi", null, "\u092E\u0930\u093E\u0920\u0940"),
-  L3("nb", "Norwegian", null, "Norsk bokm\xE5l"),
-  L3("ps_AF", "Pashto", null, "\u067E\u069A\u062A\u0648"),
-  L3("fa", "Persian", null, "\u0641\u0627\u0631\u0633\u06CC"),
-  L3("pl", "Polish", null, "Polski"),
-  L3("pt_BR", "Portuguese", "Brazil", "Portugu\xEAs"),
-  L3("pt_PT", "Portuguese", "Portugal", "Portugu\xEAs"),
-  L3("pa", "Punjabi", null, "\u0A2A\u0A70\u0A1C\u0A3E\u0A2C\u0A40"),
-  L3("ro", "Romanian", null, "Rom\xE2n\u0103"),
-  L3("ru", "Russian", null, "\u0420\u0443\u0441\u0441\u043A\u0438\u0439"),
-  L3("sr", "Serbian", null, "\u0421\u0440\u043F\u0441\u043A\u0438"),
-  L3("si_LK", "Sinhala", null, "\u0DC3\u0DD2\u0D82\u0DC4\u0DBD"),
-  L3("sk", "Slovak", null, "Sloven\u010Dina"),
-  L3("sl", "Slovenian", null, "Sloven\u0161\u010Dina"),
-  L3("es", "Spanish", null, "Espa\xF1ol"),
-  L3("es_AR", "Spanish", "Argentina", "Espa\xF1ol"),
-  L3("es_CL", "Spanish", "Chile", "Espa\xF1ol"),
-  L3("es_CO", "Spanish", "Colombia", "Espa\xF1ol"),
-  L3("es_CR", "Spanish", "Costa Rica", "Espa\xF1ol"),
-  L3("es_DO", "Spanish", "Dominican Republic", "Espa\xF1ol"),
-  L3("es_EC", "Spanish", "Ecuador", "Espa\xF1ol"),
-  L3("es_HN", "Spanish", "Honduras", "Espa\xF1ol"),
-  L3("es_MX", "Spanish", "Mexico", "Espa\xF1ol"),
-  L3("es_PA", "Spanish", "Panama", "Espa\xF1ol"),
-  L3("es_PE", "Spanish", "Peru", "Espa\xF1ol"),
-  L3("es_ES", "Spanish", "Spain", "Espa\xF1ol"),
-  L3("es_UY", "Spanish", "Uruguay", "Espa\xF1ol"),
-  L3("sw", "Swahili", null, "Kiswahili"),
-  L3("sv", "Swedish", null, "Svenska"),
-  L3("ta", "Tamil", null, "\u0BA4\u0BAE\u0BBF\u0BB4\u0BCD"),
-  L3("te", "Telugu", null, "\u0C24\u0C46\u0C32\u0C41\u0C17\u0C41"),
-  L3("th", "Thai", null, "\u0E44\u0E17\u0E22"),
-  L3("tr", "Turkish", null, "T\xFCrk\xE7e"),
-  L3("uk", "Ukrainian", null, "\u0423\u043A\u0440\u0430\u0457\u043D\u0441\u044C\u043A\u0430"),
-  L3("ur", "Urdu", null, "\u0627\u0631\u062F\u0648"),
-  L3("uz", "Uzbek", null, "O\u02BBzbek"),
-  L3("vi", "Vietnamese", null, "Ti\u1EBFng Vi\u1EC7t"),
-  L3("zu", "Zulu", null, "isiZulu")
-];
-var BY_ID3 = new Map(WHATSAPP_LANGUAGES3.map((l2) => [l2.id.toLowerCase(), l2]));
-var DAY_MS73 = 864e5;
-var PLAYBOOK_HOURS3 = { min: 9, max: 20 };
-var SENDING_HOURS_WORDS3 = {
-  min: PLAYBOOK_HOURS3.min,
-  max: PLAYBOOK_HOURS3.max,
-  first: `${PLAYBOOK_HOURS3.min}:00`,
-  range: `${PLAYBOOK_HOURS3.min}:00\u2013${PLAYBOOK_HOURS3.max}:59`,
-  between: `between ${PLAYBOOK_HOURS3.min}:00 and ${PLAYBOOK_HOURS3.max}:59`
-};
-var PLAYBOOK_BREATH_MS3 = 7 * DAY_MS73;
-var PLAYBOOK_VETO_DELAY_MS3 = 30 * 6e4;
-var FOLLOW_UP_NEEDS_DEALS3 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION3}\u201D with \u201C${SELLS_BY_WORDS3.proposal.label}\u201D.`;
-var PLAYBOOK_TOUCH_WINDOW_MS3 = (365 + 7) * DAY_MS73;
-var PLAYBOOK_CLASS_LABEL3 = {
-  reengage: POLICY_CLASS_WORDS3.reengage.short,
-  campaign: POLICY_CLASS_WORDS3.campaign.short,
-  booking: POLICY_CLASS_WORDS3.booking.short,
-  follow_up: POLICY_CLASS_WORDS3.follow_up.short
-};
-var FIRST3 = { kind: "first_name", label: "First name", example: "Dani" };
-var BUSINESS3 = { kind: "business_name", label: "Business name", example: "Luna Studio" };
-var LINK3 = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
-var FIRST_ES3 = { ...FIRST3, label: "Nombre" };
-var BUSINESS_ES3 = { ...BUSINESS3, label: "Nombre del negocio" };
-var LINK_ES3 = { ...LINK3, label: "Enlace de reservas" };
-var WHEN4 = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" };
-var SERVICE3 = { kind: "visit_service", label: "Service", example: "a consultation" };
-var WHEN_ES3 = { ...WHEN4, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
-var SERVICE_ES3 = { ...SERVICE3, label: "Servicio", example: "una consulta" };
-var PROPOSAL3 = {
-  kind: "proposal_link",
-  label: "Proposal link",
-  example: "https://docs.example.com/proposal"
-};
-var PROPOSAL_ES3 = { ...PROPOSAL3, label: "Enlace de la propuesta" };
-var LIMIT_TIERS3 = {
-  TIER_50: 50,
-  TIER_250: 250,
-  TIER_1K: 1e3,
-  TIER_10K: 1e4,
-  TIER_100K: 1e5,
-  TIER_UNLIMITED: Number.POSITIVE_INFINITY
-};
 var LIST_RULE_FIELDS3 = [
   { id: "last_visit", label: "Last visit", kind: "days", needsCalendar: true },
   { id: "next_visit", label: "Next visit", kind: "days", needsCalendar: true },
@@ -11107,33 +11136,7 @@ var ListDraftAnswerSchema3 = z73.object({
   cannot: z73.string().trim().max(200),
   all: z73.array(ListConditionSchema3).max(8)
 });
-var DATE_FMT23 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WHEN23 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var FORWARDING_TEST_WINDOW_MS3 = 30 * 6e4;
-var REVIEW_AUTO_REPLY_MAX_AGE_MS3 = 14 * 864e5;
-var REVIEW_NEWS_MS3 = 36 * 3600 * 1e3;
-var REVIEW_NEWS_MAX_AGE_MS3 = 14 * 864e5;
-var BOOTSTRAP_MS3 = 3600 * 1e3;
-var DATE_FMT33 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var WEEK_MS33 = 7 * 864e5;
-var DATE_FMT43 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
-var SOLE_PROP_LIMITS3 = {
-  campaignsPerBrand: 1,
-  numbersPerCampaign: 1,
-  messagesPerSecond: 1,
-  perDayTMobile: 1e3,
-  perMinuteAtt: 15,
-  mobileUsesEver: 3,
-  emailUsesEver: 10,
-  addressUsesEver: 10
-};
-var REGISTRATION_COST_WORDS3 = {
-  standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
-  sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS3.messagesPerSecond} message a second.`
-};
-var PROVISIONING_DEADLINE_MS3 = 5 * 6e4;
-var SOLE_PROP_CEILING_SENTENCE3 = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS3.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
-var SOLE_PROP_TEXTING_SENTENCE3 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE3}`;
 var SIGNUP_NAME_MIN3 = 2;
 var SIGNUP_NAME_MAX3 = 120;
 var InviteCodeSchema3 = z83.string().trim().max(80);
@@ -12435,10 +12438,253 @@ var PERSON_CAME_FROM_WORDS22 = {
   import: "Imported history",
   lead: "A lead you found"
 };
-var DAY_MS522 = 24 * 3600 * 1e3;
-var DAY_MS622 = 864e5;
-var QUIET_AFTER_MS222 = 7 * DAY_MS622;
+var L22 = (id, name2, region, native) => ({
+  id,
+  label: region ? `${name2} (${region})` : name2,
+  name: name2,
+  region,
+  native
+});
+var WHATSAPP_LANGUAGES22 = [
+  L22("af", "Afrikaans", null, "Afrikaans"),
+  L22("sq", "Albanian", null, "Shqip"),
+  L22("ar", "Arabic", null, "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L22("ar_EG", "Arabic", "Egypt", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L22("ar_LB", "Arabic", "Lebanon", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L22("ar_MA", "Arabic", "Morocco", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L22("ar_QA", "Arabic", "Qatar", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L22("ar_AE", "Arabic", "UAE", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L22("az", "Azerbaijani", null, "Az\u0259rbaycan"),
+  L22("be_BY", "Belarusian", null, "\u0411\u0435\u043B\u0430\u0440\u0443\u0441\u043A\u0430\u044F"),
+  L22("bn", "Bengali", null, "\u09AC\u09BE\u0982\u09B2\u09BE"),
+  L22("bn_IN", "Bengali", "India", "\u09AC\u09BE\u0982\u09B2\u09BE"),
+  L22("bg", "Bulgarian", null, "\u0411\u044A\u043B\u0433\u0430\u0440\u0441\u043A\u0438"),
+  L22("ca", "Catalan", null, "Catal\xE0"),
+  L22("zh_CN", "Chinese", "China", "\u7B80\u4F53\u4E2D\u6587"),
+  L22("zh_HK", "Chinese", "Hong Kong", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u9999\u6E2F\uFF09"),
+  L22("zh_TW", "Chinese", "Taiwan", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u53F0\u7063\uFF09"),
+  L22("hr", "Croatian", null, "Hrvatski"),
+  L22("cs", "Czech", null, "\u010Ce\u0161tina"),
+  L22("da", "Danish", null, "Dansk"),
+  L22("prs_AF", "Dari", null, "\u062F\u0631\u06CC"),
+  L22("nl", "Dutch", null, "Nederlands"),
+  L22("nl_BE", "Dutch", "Belgium", "Nederlands"),
+  L22("en", "English", null, "English"),
+  L22("en_AU", "English", "Australia", "English"),
+  L22("en_CA", "English", "Canada", "English"),
+  L22("en_GH", "English", "Ghana", "English"),
+  L22("en_IN", "English", "India", "English"),
+  L22("en_IE", "English", "Ireland", "English"),
+  L22("en_JM", "English", "Jamaica", "English"),
+  L22("en_MY", "English", "Malaysia", "English"),
+  L22("en_NZ", "English", "New Zealand", "English"),
+  L22("en_QA", "English", "Qatar", "English"),
+  L22("en_SG", "English", "Singapore", "English"),
+  L22("en_ZA", "English", "South Africa", "English"),
+  L22("en_AE", "English", "UAE", "English"),
+  L22("en_UG", "English", "Uganda", "English"),
+  L22("en_GB", "English", "UK", "English"),
+  L22("en_US", "English", "US", "English"),
+  L22("et", "Estonian", null, "Eesti"),
+  L22("fil", "Filipino", null, "Filipino"),
+  L22("fi", "Finnish", null, "Suomi"),
+  L22("fr", "French", null, "Fran\xE7ais"),
+  L22("fr_BE", "French", "Belgium", "Fran\xE7ais"),
+  L22("fr_CA", "French", "Canada", "Fran\xE7ais"),
+  L22("fr_CI", "French", "C\xF4te d\u2019Ivoire", "Fran\xE7ais"),
+  L22("fr_MA", "French", "Morocco", "Fran\xE7ais"),
+  L22("fr_CH", "French", "Switzerland", "Fran\xE7ais"),
+  L22("ka", "Georgian", null, "\u10E5\u10D0\u10E0\u10D7\u10E3\u10DA\u10D8"),
+  L22("de", "German", null, "Deutsch"),
+  L22("de_AT", "German", "Austria", "Deutsch"),
+  L22("de_CH", "German", "Switzerland", "Deutsch"),
+  L22("el", "Greek", null, "\u0395\u03BB\u03BB\u03B7\u03BD\u03B9\u03BA\u03AC"),
+  L22("gu", "Gujarati", null, "\u0A97\u0AC1\u0A9C\u0AB0\u0ABE\u0AA4\u0AC0"),
+  L22("ha", "Hausa", null, "Hausa"),
+  L22("he", "Hebrew", null, "\u05E2\u05D1\u05E8\u05D9\u05EA"),
+  L22("hi", "Hindi", null, "\u0939\u093F\u0928\u094D\u0926\u0940"),
+  L22("hu", "Hungarian", null, "Magyar"),
+  L22("id", "Indonesian", null, "Bahasa Indonesia"),
+  L22("ga", "Irish", null, "Gaeilge"),
+  L22("it", "Italian", null, "Italiano"),
+  L22("ja", "Japanese", null, "\u65E5\u672C\u8A9E"),
+  L22("kn", "Kannada", null, "\u0C95\u0CA8\u0CCD\u0CA8\u0CA1"),
+  L22("kk", "Kazakh", null, "\u049A\u0430\u0437\u0430\u049B \u0442\u0456\u043B\u0456"),
+  L22("rw_RW", "Kinyarwanda", null, "Ikinyarwanda"),
+  L22("ko", "Korean", null, "\uD55C\uAD6D\uC5B4"),
+  L22("ky_KG", "Kyrgyz", "Kyrgyzstan", "\u041A\u044B\u0440\u0433\u044B\u0437\u0447\u0430"),
+  L22("lo", "Lao", null, "\u0EA5\u0EB2\u0EA7"),
+  L22("lv", "Latvian", null, "Latvie\u0161u"),
+  L22("lt", "Lithuanian", null, "Lietuvi\u0173"),
+  L22("mk", "Macedonian", null, "\u041C\u0430\u043A\u0435\u0434\u043E\u043D\u0441\u043A\u0438"),
+  L22("ms", "Malay", null, "Bahasa Melayu"),
+  L22("ml", "Malayalam", null, "\u0D2E\u0D32\u0D2F\u0D3E\u0D33\u0D02"),
+  L22("mr", "Marathi", null, "\u092E\u0930\u093E\u0920\u0940"),
+  L22("nb", "Norwegian", null, "Norsk bokm\xE5l"),
+  L22("ps_AF", "Pashto", null, "\u067E\u069A\u062A\u0648"),
+  L22("fa", "Persian", null, "\u0641\u0627\u0631\u0633\u06CC"),
+  L22("pl", "Polish", null, "Polski"),
+  L22("pt_BR", "Portuguese", "Brazil", "Portugu\xEAs"),
+  L22("pt_PT", "Portuguese", "Portugal", "Portugu\xEAs"),
+  L22("pa", "Punjabi", null, "\u0A2A\u0A70\u0A1C\u0A3E\u0A2C\u0A40"),
+  L22("ro", "Romanian", null, "Rom\xE2n\u0103"),
+  L22("ru", "Russian", null, "\u0420\u0443\u0441\u0441\u043A\u0438\u0439"),
+  L22("sr", "Serbian", null, "\u0421\u0440\u043F\u0441\u043A\u0438"),
+  L22("si_LK", "Sinhala", null, "\u0DC3\u0DD2\u0D82\u0DC4\u0DBD"),
+  L22("sk", "Slovak", null, "Sloven\u010Dina"),
+  L22("sl", "Slovenian", null, "Sloven\u0161\u010Dina"),
+  L22("es", "Spanish", null, "Espa\xF1ol"),
+  L22("es_AR", "Spanish", "Argentina", "Espa\xF1ol"),
+  L22("es_CL", "Spanish", "Chile", "Espa\xF1ol"),
+  L22("es_CO", "Spanish", "Colombia", "Espa\xF1ol"),
+  L22("es_CR", "Spanish", "Costa Rica", "Espa\xF1ol"),
+  L22("es_DO", "Spanish", "Dominican Republic", "Espa\xF1ol"),
+  L22("es_EC", "Spanish", "Ecuador", "Espa\xF1ol"),
+  L22("es_HN", "Spanish", "Honduras", "Espa\xF1ol"),
+  L22("es_MX", "Spanish", "Mexico", "Espa\xF1ol"),
+  L22("es_PA", "Spanish", "Panama", "Espa\xF1ol"),
+  L22("es_PE", "Spanish", "Peru", "Espa\xF1ol"),
+  L22("es_ES", "Spanish", "Spain", "Espa\xF1ol"),
+  L22("es_UY", "Spanish", "Uruguay", "Espa\xF1ol"),
+  L22("sw", "Swahili", null, "Kiswahili"),
+  L22("sv", "Swedish", null, "Svenska"),
+  L22("ta", "Tamil", null, "\u0BA4\u0BAE\u0BBF\u0BB4\u0BCD"),
+  L22("te", "Telugu", null, "\u0C24\u0C46\u0C32\u0C41\u0C17\u0C41"),
+  L22("th", "Thai", null, "\u0E44\u0E17\u0E22"),
+  L22("tr", "Turkish", null, "T\xFCrk\xE7e"),
+  L22("uk", "Ukrainian", null, "\u0423\u043A\u0440\u0430\u0457\u043D\u0441\u044C\u043A\u0430"),
+  L22("ur", "Urdu", null, "\u0627\u0631\u062F\u0648"),
+  L22("uz", "Uzbek", null, "O\u02BBzbek"),
+  L22("vi", "Vietnamese", null, "Ti\u1EBFng Vi\u1EC7t"),
+  L22("zu", "Zulu", null, "isiZulu")
+];
+var BY_ID22 = new Map(WHATSAPP_LANGUAGES22.map((l2) => [l2.id.toLowerCase(), l2]));
+function parseParamSpec(raw) {
+  if (typeof raw === "string") {
+    const m = /^@(first_name|business_name|booking_link|visit_when|visit_service|proposal_link)$/.exec(raw.trim());
+    if (m) return { kind: m[1] };
+    return { kind: "text", value: raw };
+  }
+  if (raw && typeof raw === "object") {
+    const o2 = raw;
+    if (o2.kind === "text") return typeof o2.value === "string" ? { kind: "text", value: o2.value } : null;
+    if (o2.kind === "first_name" || o2.kind === "business_name" || o2.kind === "booking_link" || o2.kind === "visit_when" || o2.kind === "visit_service" || o2.kind === "proposal_link")
+      return { kind: o2.kind };
+  }
+  return null;
+}
+function parseParamSpecs(raw) {
+  return Array.isArray(raw) ? raw.map((p) => parseParamSpec(p) ?? { kind: "text", value: String(p) }) : [];
+}
+function firstNameOf(displayName, waProfileName) {
+  const raw = (displayName || waProfileName || "").trim();
+  if (!raw || /^[+\d(]/.test(raw)) return null;
+  const first = raw.split(/\s+/)[0].replace(/[^\p{L}\p{M}'’-]/gu, "");
+  return first ? first.slice(0, 30) : null;
+}
+function resolveParams(specs, f) {
+  return specs.map((s2) => {
+    switch (s2.kind) {
+      case "text":
+        return s2.value;
+      case "first_name":
+        return f.firstName || "there";
+      case "business_name":
+        return f.businessName;
+      case "booking_link":
+        return f.bookingLink ?? "";
+      case "visit_when":
+        return f.visitWhen ?? "";
+      case "visit_service":
+        return f.visitService ?? "";
+      case "proposal_link":
+        return f.proposalLink ?? "";
+    }
+  });
+}
+var DAY_MS522 = 864e5;
+var PLAYBOOK_HOURS22 = { min: 9, max: 20 };
+var SENDING_HOURS_WORDS22 = {
+  min: PLAYBOOK_HOURS22.min,
+  max: PLAYBOOK_HOURS22.max,
+  first: `${PLAYBOOK_HOURS22.min}:00`,
+  range: `${PLAYBOOK_HOURS22.min}:00\u2013${PLAYBOOK_HOURS22.max}:59`,
+  between: `between ${PLAYBOOK_HOURS22.min}:00 and ${PLAYBOOK_HOURS22.max}:59`
+};
+var PLAYBOOK_BREATH_MS22 = 7 * DAY_MS522;
+var PLAYBOOK_VETO_DELAY_MS22 = 30 * 6e4;
+var FOLLOW_UP_NEEDS_DEALS22 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION22}\u201D with \u201C${SELLS_BY_WORDS22.proposal.label}\u201D.`;
+var PLAYBOOK_TOUCH_WINDOW_MS22 = (365 + 7) * DAY_MS522;
+var SWEEP_TICK_MS22 = 5 * 6e4;
+var PLAYBOOK_CLASS_LABEL22 = {
+  reengage: POLICY_CLASS_WORDS22.reengage.short,
+  campaign: POLICY_CLASS_WORDS22.campaign.short,
+  booking: POLICY_CLASS_WORDS22.booking.short,
+  follow_up: POLICY_CLASS_WORDS22.follow_up.short
+};
+var FIRST22 = { kind: "first_name", label: "First name", example: "Dani" };
+var BUSINESS22 = { kind: "business_name", label: "Business name", example: "Luna Studio" };
+var LINK22 = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
+var FIRST_ES22 = { ...FIRST22, label: "Nombre" };
+var BUSINESS_ES22 = { ...BUSINESS22, label: "Nombre del negocio" };
+var LINK_ES22 = { ...LINK22, label: "Enlace de reservas" };
+var WHEN32 = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" };
+var SERVICE22 = { kind: "visit_service", label: "Service", example: "a consultation" };
+var WHEN_ES22 = { ...WHEN32, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
+var SERVICE_ES22 = { ...SERVICE22, label: "Servicio", example: "una consulta" };
+var PROPOSAL22 = {
+  kind: "proposal_link",
+  label: "Proposal link",
+  example: "https://docs.example.com/proposal"
+};
+var PROPOSAL_ES22 = { ...PROPOSAL22, label: "Enlace de la propuesta" };
+var BROADCAST_CHUNK = 25;
+var BROADCAST_GAP_MS = 300;
+function renderTemplate(body, params) {
+  return String(body ?? "").replace(/\{\{(\d+)\}\}/g, (m, n2) => {
+    const v = params[Number(n2) - 1];
+    return typeof v === "string" && v !== "" ? v : m;
+  });
+}
+var OUTCOME_UNKNOWN = "outcome_unknown";
+var LIMIT_TIERS22 = {
+  TIER_50: 50,
+  TIER_250: 250,
+  TIER_1K: 1e3,
+  TIER_10K: 1e4,
+  TIER_100K: 1e5,
+  TIER_UNLIMITED: Number.POSITIVE_INFINITY
+};
+var FORWARDING_TEST_WINDOW_MS22 = 30 * 6e4;
+var REVIEW_AUTO_REPLY_MAX_AGE_MS22 = 14 * 864e5;
 var DATE_FMT52 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var REVIEW_NEWS_MS22 = 36 * 3600 * 1e3;
+var REVIEW_NEWS_MAX_AGE_MS22 = 14 * 864e5;
+var BOOTSTRAP_MS22 = 3600 * 1e3;
+var DATE_FMT222 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var WEEK_MS322 = 7 * 864e5;
+var DATE_FMT322 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var SOLE_PROP_LIMITS22 = {
+  campaignsPerBrand: 1,
+  numbersPerCampaign: 1,
+  messagesPerSecond: 1,
+  perDayTMobile: 1e3,
+  perMinuteAtt: 15,
+  mobileUsesEver: 3,
+  emailUsesEver: 10,
+  addressUsesEver: 10
+};
+var REGISTRATION_COST_WORDS22 = {
+  standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
+  sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS22.messagesPerSecond} message a second.`
+};
+var PROVISIONING_DEADLINE_MS22 = 5 * 6e4;
+var SOLE_PROP_CEILING_SENTENCE22 = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS22.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
+var SOLE_PROP_TEXTING_SENTENCE22 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE22}`;
+var DAY_MS622 = 24 * 3600 * 1e3;
+var DAY_MS722 = 864e5;
+var QUIET_AFTER_MS222 = 7 * DAY_MS722;
+var DATE_FMT422 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var CHANNEL_KIND_WORDS22 = {
   whatsapp: "WhatsApp",
   voice: "Phone line",
@@ -12653,222 +12899,6 @@ var ASK_ANSWER_FORMAT22 = {
   required: ["say", "show", "do", "language"],
   additionalProperties: false
 };
-var L22 = (id, name2, region, native) => ({
-  id,
-  label: region ? `${name2} (${region})` : name2,
-  name: name2,
-  region,
-  native
-});
-var WHATSAPP_LANGUAGES22 = [
-  L22("af", "Afrikaans", null, "Afrikaans"),
-  L22("sq", "Albanian", null, "Shqip"),
-  L22("ar", "Arabic", null, "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L22("ar_EG", "Arabic", "Egypt", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L22("ar_LB", "Arabic", "Lebanon", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L22("ar_MA", "Arabic", "Morocco", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L22("ar_QA", "Arabic", "Qatar", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L22("ar_AE", "Arabic", "UAE", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L22("az", "Azerbaijani", null, "Az\u0259rbaycan"),
-  L22("be_BY", "Belarusian", null, "\u0411\u0435\u043B\u0430\u0440\u0443\u0441\u043A\u0430\u044F"),
-  L22("bn", "Bengali", null, "\u09AC\u09BE\u0982\u09B2\u09BE"),
-  L22("bn_IN", "Bengali", "India", "\u09AC\u09BE\u0982\u09B2\u09BE"),
-  L22("bg", "Bulgarian", null, "\u0411\u044A\u043B\u0433\u0430\u0440\u0441\u043A\u0438"),
-  L22("ca", "Catalan", null, "Catal\xE0"),
-  L22("zh_CN", "Chinese", "China", "\u7B80\u4F53\u4E2D\u6587"),
-  L22("zh_HK", "Chinese", "Hong Kong", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u9999\u6E2F\uFF09"),
-  L22("zh_TW", "Chinese", "Taiwan", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u53F0\u7063\uFF09"),
-  L22("hr", "Croatian", null, "Hrvatski"),
-  L22("cs", "Czech", null, "\u010Ce\u0161tina"),
-  L22("da", "Danish", null, "Dansk"),
-  L22("prs_AF", "Dari", null, "\u062F\u0631\u06CC"),
-  L22("nl", "Dutch", null, "Nederlands"),
-  L22("nl_BE", "Dutch", "Belgium", "Nederlands"),
-  L22("en", "English", null, "English"),
-  L22("en_AU", "English", "Australia", "English"),
-  L22("en_CA", "English", "Canada", "English"),
-  L22("en_GH", "English", "Ghana", "English"),
-  L22("en_IN", "English", "India", "English"),
-  L22("en_IE", "English", "Ireland", "English"),
-  L22("en_JM", "English", "Jamaica", "English"),
-  L22("en_MY", "English", "Malaysia", "English"),
-  L22("en_NZ", "English", "New Zealand", "English"),
-  L22("en_QA", "English", "Qatar", "English"),
-  L22("en_SG", "English", "Singapore", "English"),
-  L22("en_ZA", "English", "South Africa", "English"),
-  L22("en_AE", "English", "UAE", "English"),
-  L22("en_UG", "English", "Uganda", "English"),
-  L22("en_GB", "English", "UK", "English"),
-  L22("en_US", "English", "US", "English"),
-  L22("et", "Estonian", null, "Eesti"),
-  L22("fil", "Filipino", null, "Filipino"),
-  L22("fi", "Finnish", null, "Suomi"),
-  L22("fr", "French", null, "Fran\xE7ais"),
-  L22("fr_BE", "French", "Belgium", "Fran\xE7ais"),
-  L22("fr_CA", "French", "Canada", "Fran\xE7ais"),
-  L22("fr_CI", "French", "C\xF4te d\u2019Ivoire", "Fran\xE7ais"),
-  L22("fr_MA", "French", "Morocco", "Fran\xE7ais"),
-  L22("fr_CH", "French", "Switzerland", "Fran\xE7ais"),
-  L22("ka", "Georgian", null, "\u10E5\u10D0\u10E0\u10D7\u10E3\u10DA\u10D8"),
-  L22("de", "German", null, "Deutsch"),
-  L22("de_AT", "German", "Austria", "Deutsch"),
-  L22("de_CH", "German", "Switzerland", "Deutsch"),
-  L22("el", "Greek", null, "\u0395\u03BB\u03BB\u03B7\u03BD\u03B9\u03BA\u03AC"),
-  L22("gu", "Gujarati", null, "\u0A97\u0AC1\u0A9C\u0AB0\u0ABE\u0AA4\u0AC0"),
-  L22("ha", "Hausa", null, "Hausa"),
-  L22("he", "Hebrew", null, "\u05E2\u05D1\u05E8\u05D9\u05EA"),
-  L22("hi", "Hindi", null, "\u0939\u093F\u0928\u094D\u0926\u0940"),
-  L22("hu", "Hungarian", null, "Magyar"),
-  L22("id", "Indonesian", null, "Bahasa Indonesia"),
-  L22("ga", "Irish", null, "Gaeilge"),
-  L22("it", "Italian", null, "Italiano"),
-  L22("ja", "Japanese", null, "\u65E5\u672C\u8A9E"),
-  L22("kn", "Kannada", null, "\u0C95\u0CA8\u0CCD\u0CA8\u0CA1"),
-  L22("kk", "Kazakh", null, "\u049A\u0430\u0437\u0430\u049B \u0442\u0456\u043B\u0456"),
-  L22("rw_RW", "Kinyarwanda", null, "Ikinyarwanda"),
-  L22("ko", "Korean", null, "\uD55C\uAD6D\uC5B4"),
-  L22("ky_KG", "Kyrgyz", "Kyrgyzstan", "\u041A\u044B\u0440\u0433\u044B\u0437\u0447\u0430"),
-  L22("lo", "Lao", null, "\u0EA5\u0EB2\u0EA7"),
-  L22("lv", "Latvian", null, "Latvie\u0161u"),
-  L22("lt", "Lithuanian", null, "Lietuvi\u0173"),
-  L22("mk", "Macedonian", null, "\u041C\u0430\u043A\u0435\u0434\u043E\u043D\u0441\u043A\u0438"),
-  L22("ms", "Malay", null, "Bahasa Melayu"),
-  L22("ml", "Malayalam", null, "\u0D2E\u0D32\u0D2F\u0D3E\u0D33\u0D02"),
-  L22("mr", "Marathi", null, "\u092E\u0930\u093E\u0920\u0940"),
-  L22("nb", "Norwegian", null, "Norsk bokm\xE5l"),
-  L22("ps_AF", "Pashto", null, "\u067E\u069A\u062A\u0648"),
-  L22("fa", "Persian", null, "\u0641\u0627\u0631\u0633\u06CC"),
-  L22("pl", "Polish", null, "Polski"),
-  L22("pt_BR", "Portuguese", "Brazil", "Portugu\xEAs"),
-  L22("pt_PT", "Portuguese", "Portugal", "Portugu\xEAs"),
-  L22("pa", "Punjabi", null, "\u0A2A\u0A70\u0A1C\u0A3E\u0A2C\u0A40"),
-  L22("ro", "Romanian", null, "Rom\xE2n\u0103"),
-  L22("ru", "Russian", null, "\u0420\u0443\u0441\u0441\u043A\u0438\u0439"),
-  L22("sr", "Serbian", null, "\u0421\u0440\u043F\u0441\u043A\u0438"),
-  L22("si_LK", "Sinhala", null, "\u0DC3\u0DD2\u0D82\u0DC4\u0DBD"),
-  L22("sk", "Slovak", null, "Sloven\u010Dina"),
-  L22("sl", "Slovenian", null, "Sloven\u0161\u010Dina"),
-  L22("es", "Spanish", null, "Espa\xF1ol"),
-  L22("es_AR", "Spanish", "Argentina", "Espa\xF1ol"),
-  L22("es_CL", "Spanish", "Chile", "Espa\xF1ol"),
-  L22("es_CO", "Spanish", "Colombia", "Espa\xF1ol"),
-  L22("es_CR", "Spanish", "Costa Rica", "Espa\xF1ol"),
-  L22("es_DO", "Spanish", "Dominican Republic", "Espa\xF1ol"),
-  L22("es_EC", "Spanish", "Ecuador", "Espa\xF1ol"),
-  L22("es_HN", "Spanish", "Honduras", "Espa\xF1ol"),
-  L22("es_MX", "Spanish", "Mexico", "Espa\xF1ol"),
-  L22("es_PA", "Spanish", "Panama", "Espa\xF1ol"),
-  L22("es_PE", "Spanish", "Peru", "Espa\xF1ol"),
-  L22("es_ES", "Spanish", "Spain", "Espa\xF1ol"),
-  L22("es_UY", "Spanish", "Uruguay", "Espa\xF1ol"),
-  L22("sw", "Swahili", null, "Kiswahili"),
-  L22("sv", "Swedish", null, "Svenska"),
-  L22("ta", "Tamil", null, "\u0BA4\u0BAE\u0BBF\u0BB4\u0BCD"),
-  L22("te", "Telugu", null, "\u0C24\u0C46\u0C32\u0C41\u0C17\u0C41"),
-  L22("th", "Thai", null, "\u0E44\u0E17\u0E22"),
-  L22("tr", "Turkish", null, "T\xFCrk\xE7e"),
-  L22("uk", "Ukrainian", null, "\u0423\u043A\u0440\u0430\u0457\u043D\u0441\u044C\u043A\u0430"),
-  L22("ur", "Urdu", null, "\u0627\u0631\u062F\u0648"),
-  L22("uz", "Uzbek", null, "O\u02BBzbek"),
-  L22("vi", "Vietnamese", null, "Ti\u1EBFng Vi\u1EC7t"),
-  L22("zu", "Zulu", null, "isiZulu")
-];
-var BY_ID22 = new Map(WHATSAPP_LANGUAGES22.map((l2) => [l2.id.toLowerCase(), l2]));
-function parseParamSpec(raw) {
-  if (typeof raw === "string") {
-    const m = /^@(first_name|business_name|booking_link|visit_when|visit_service|proposal_link)$/.exec(raw.trim());
-    if (m) return { kind: m[1] };
-    return { kind: "text", value: raw };
-  }
-  if (raw && typeof raw === "object") {
-    const o2 = raw;
-    if (o2.kind === "text") return typeof o2.value === "string" ? { kind: "text", value: o2.value } : null;
-    if (o2.kind === "first_name" || o2.kind === "business_name" || o2.kind === "booking_link" || o2.kind === "visit_when" || o2.kind === "visit_service" || o2.kind === "proposal_link")
-      return { kind: o2.kind };
-  }
-  return null;
-}
-function parseParamSpecs(raw) {
-  return Array.isArray(raw) ? raw.map((p) => parseParamSpec(p) ?? { kind: "text", value: String(p) }) : [];
-}
-function firstNameOf(displayName, waProfileName) {
-  const raw = (displayName || waProfileName || "").trim();
-  if (!raw || /^[+\d(]/.test(raw)) return null;
-  const first = raw.split(/\s+/)[0].replace(/[^\p{L}\p{M}'’-]/gu, "");
-  return first ? first.slice(0, 30) : null;
-}
-function resolveParams(specs, f) {
-  return specs.map((s2) => {
-    switch (s2.kind) {
-      case "text":
-        return s2.value;
-      case "first_name":
-        return f.firstName || "there";
-      case "business_name":
-        return f.businessName;
-      case "booking_link":
-        return f.bookingLink ?? "";
-      case "visit_when":
-        return f.visitWhen ?? "";
-      case "visit_service":
-        return f.visitService ?? "";
-      case "proposal_link":
-        return f.proposalLink ?? "";
-    }
-  });
-}
-var DAY_MS722 = 864e5;
-var PLAYBOOK_HOURS22 = { min: 9, max: 20 };
-var SENDING_HOURS_WORDS22 = {
-  min: PLAYBOOK_HOURS22.min,
-  max: PLAYBOOK_HOURS22.max,
-  first: `${PLAYBOOK_HOURS22.min}:00`,
-  range: `${PLAYBOOK_HOURS22.min}:00\u2013${PLAYBOOK_HOURS22.max}:59`,
-  between: `between ${PLAYBOOK_HOURS22.min}:00 and ${PLAYBOOK_HOURS22.max}:59`
-};
-var PLAYBOOK_BREATH_MS22 = 7 * DAY_MS722;
-var PLAYBOOK_VETO_DELAY_MS22 = 30 * 6e4;
-var FOLLOW_UP_NEEDS_DEALS22 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION22}\u201D with \u201C${SELLS_BY_WORDS22.proposal.label}\u201D.`;
-var PLAYBOOK_TOUCH_WINDOW_MS22 = (365 + 7) * DAY_MS722;
-var PLAYBOOK_CLASS_LABEL22 = {
-  reengage: POLICY_CLASS_WORDS22.reengage.short,
-  campaign: POLICY_CLASS_WORDS22.campaign.short,
-  booking: POLICY_CLASS_WORDS22.booking.short,
-  follow_up: POLICY_CLASS_WORDS22.follow_up.short
-};
-var FIRST22 = { kind: "first_name", label: "First name", example: "Dani" };
-var BUSINESS22 = { kind: "business_name", label: "Business name", example: "Luna Studio" };
-var LINK22 = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
-var FIRST_ES22 = { ...FIRST22, label: "Nombre" };
-var BUSINESS_ES22 = { ...BUSINESS22, label: "Nombre del negocio" };
-var LINK_ES22 = { ...LINK22, label: "Enlace de reservas" };
-var WHEN32 = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" };
-var SERVICE22 = { kind: "visit_service", label: "Service", example: "a consultation" };
-var WHEN_ES22 = { ...WHEN32, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
-var SERVICE_ES22 = { ...SERVICE22, label: "Servicio", example: "una consulta" };
-var PROPOSAL22 = {
-  kind: "proposal_link",
-  label: "Proposal link",
-  example: "https://docs.example.com/proposal"
-};
-var PROPOSAL_ES22 = { ...PROPOSAL22, label: "Enlace de la propuesta" };
-var BROADCAST_CHUNK = 25;
-var BROADCAST_GAP_MS = 300;
-function renderTemplate(body, params) {
-  return String(body ?? "").replace(/\{\{(\d+)\}\}/g, (m, n2) => {
-    const v = params[Number(n2) - 1];
-    return typeof v === "string" && v !== "" ? v : m;
-  });
-}
-var OUTCOME_UNKNOWN = "outcome_unknown";
-var LIMIT_TIERS22 = {
-  TIER_50: 50,
-  TIER_250: 250,
-  TIER_1K: 1e3,
-  TIER_10K: 1e4,
-  TIER_100K: 1e5,
-  TIER_UNLIMITED: Number.POSITIVE_INFINITY
-};
 var LIST_RULE_FIELDS22 = [
   { id: "last_visit", label: "Last visit", kind: "days", needsCalendar: true },
   { id: "next_visit", label: "Next visit", kind: "days", needsCalendar: true },
@@ -12946,33 +12976,7 @@ var ListDraftAnswerSchema22 = z722.object({
   cannot: z722.string().trim().max(200),
   all: z722.array(ListConditionSchema22).max(8)
 });
-var DATE_FMT222 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WHEN222 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var FORWARDING_TEST_WINDOW_MS22 = 30 * 6e4;
-var REVIEW_AUTO_REPLY_MAX_AGE_MS22 = 14 * 864e5;
-var REVIEW_NEWS_MS22 = 36 * 3600 * 1e3;
-var REVIEW_NEWS_MAX_AGE_MS22 = 14 * 864e5;
-var BOOTSTRAP_MS22 = 3600 * 1e3;
-var DATE_FMT322 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var WEEK_MS322 = 7 * 864e5;
-var DATE_FMT422 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
-var SOLE_PROP_LIMITS22 = {
-  campaignsPerBrand: 1,
-  numbersPerCampaign: 1,
-  messagesPerSecond: 1,
-  perDayTMobile: 1e3,
-  perMinuteAtt: 15,
-  mobileUsesEver: 3,
-  emailUsesEver: 10,
-  addressUsesEver: 10
-};
-var REGISTRATION_COST_WORDS22 = {
-  standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
-  sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS22.messagesPerSecond} message a second.`
-};
-var PROVISIONING_DEADLINE_MS22 = 5 * 6e4;
-var SOLE_PROP_CEILING_SENTENCE22 = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS22.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
-var SOLE_PROP_TEXTING_SENTENCE22 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE22}`;
 var SIGNUP_NAME_MIN22 = 2;
 var SIGNUP_NAME_MAX22 = 120;
 var InviteCodeSchema22 = z822.string().trim().max(80);
@@ -14195,10 +14199,201 @@ var PERSON_CAME_FROM_WORDS32 = {
   import: "Imported history",
   lead: "A lead you found"
 };
-var DAY_MS532 = 24 * 3600 * 1e3;
-var DAY_MS632 = 864e5;
-var QUIET_AFTER_MS232 = 7 * DAY_MS632;
+var L32 = (id, name2, region, native) => ({
+  id,
+  label: region ? `${name2} (${region})` : name2,
+  name: name2,
+  region,
+  native
+});
+var WHATSAPP_LANGUAGES32 = [
+  L32("af", "Afrikaans", null, "Afrikaans"),
+  L32("sq", "Albanian", null, "Shqip"),
+  L32("ar", "Arabic", null, "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L32("ar_EG", "Arabic", "Egypt", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L32("ar_LB", "Arabic", "Lebanon", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L32("ar_MA", "Arabic", "Morocco", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L32("ar_QA", "Arabic", "Qatar", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L32("ar_AE", "Arabic", "UAE", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L32("az", "Azerbaijani", null, "Az\u0259rbaycan"),
+  L32("be_BY", "Belarusian", null, "\u0411\u0435\u043B\u0430\u0440\u0443\u0441\u043A\u0430\u044F"),
+  L32("bn", "Bengali", null, "\u09AC\u09BE\u0982\u09B2\u09BE"),
+  L32("bn_IN", "Bengali", "India", "\u09AC\u09BE\u0982\u09B2\u09BE"),
+  L32("bg", "Bulgarian", null, "\u0411\u044A\u043B\u0433\u0430\u0440\u0441\u043A\u0438"),
+  L32("ca", "Catalan", null, "Catal\xE0"),
+  L32("zh_CN", "Chinese", "China", "\u7B80\u4F53\u4E2D\u6587"),
+  L32("zh_HK", "Chinese", "Hong Kong", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u9999\u6E2F\uFF09"),
+  L32("zh_TW", "Chinese", "Taiwan", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u53F0\u7063\uFF09"),
+  L32("hr", "Croatian", null, "Hrvatski"),
+  L32("cs", "Czech", null, "\u010Ce\u0161tina"),
+  L32("da", "Danish", null, "Dansk"),
+  L32("prs_AF", "Dari", null, "\u062F\u0631\u06CC"),
+  L32("nl", "Dutch", null, "Nederlands"),
+  L32("nl_BE", "Dutch", "Belgium", "Nederlands"),
+  L32("en", "English", null, "English"),
+  L32("en_AU", "English", "Australia", "English"),
+  L32("en_CA", "English", "Canada", "English"),
+  L32("en_GH", "English", "Ghana", "English"),
+  L32("en_IN", "English", "India", "English"),
+  L32("en_IE", "English", "Ireland", "English"),
+  L32("en_JM", "English", "Jamaica", "English"),
+  L32("en_MY", "English", "Malaysia", "English"),
+  L32("en_NZ", "English", "New Zealand", "English"),
+  L32("en_QA", "English", "Qatar", "English"),
+  L32("en_SG", "English", "Singapore", "English"),
+  L32("en_ZA", "English", "South Africa", "English"),
+  L32("en_AE", "English", "UAE", "English"),
+  L32("en_UG", "English", "Uganda", "English"),
+  L32("en_GB", "English", "UK", "English"),
+  L32("en_US", "English", "US", "English"),
+  L32("et", "Estonian", null, "Eesti"),
+  L32("fil", "Filipino", null, "Filipino"),
+  L32("fi", "Finnish", null, "Suomi"),
+  L32("fr", "French", null, "Fran\xE7ais"),
+  L32("fr_BE", "French", "Belgium", "Fran\xE7ais"),
+  L32("fr_CA", "French", "Canada", "Fran\xE7ais"),
+  L32("fr_CI", "French", "C\xF4te d\u2019Ivoire", "Fran\xE7ais"),
+  L32("fr_MA", "French", "Morocco", "Fran\xE7ais"),
+  L32("fr_CH", "French", "Switzerland", "Fran\xE7ais"),
+  L32("ka", "Georgian", null, "\u10E5\u10D0\u10E0\u10D7\u10E3\u10DA\u10D8"),
+  L32("de", "German", null, "Deutsch"),
+  L32("de_AT", "German", "Austria", "Deutsch"),
+  L32("de_CH", "German", "Switzerland", "Deutsch"),
+  L32("el", "Greek", null, "\u0395\u03BB\u03BB\u03B7\u03BD\u03B9\u03BA\u03AC"),
+  L32("gu", "Gujarati", null, "\u0A97\u0AC1\u0A9C\u0AB0\u0ABE\u0AA4\u0AC0"),
+  L32("ha", "Hausa", null, "Hausa"),
+  L32("he", "Hebrew", null, "\u05E2\u05D1\u05E8\u05D9\u05EA"),
+  L32("hi", "Hindi", null, "\u0939\u093F\u0928\u094D\u0926\u0940"),
+  L32("hu", "Hungarian", null, "Magyar"),
+  L32("id", "Indonesian", null, "Bahasa Indonesia"),
+  L32("ga", "Irish", null, "Gaeilge"),
+  L32("it", "Italian", null, "Italiano"),
+  L32("ja", "Japanese", null, "\u65E5\u672C\u8A9E"),
+  L32("kn", "Kannada", null, "\u0C95\u0CA8\u0CCD\u0CA8\u0CA1"),
+  L32("kk", "Kazakh", null, "\u049A\u0430\u0437\u0430\u049B \u0442\u0456\u043B\u0456"),
+  L32("rw_RW", "Kinyarwanda", null, "Ikinyarwanda"),
+  L32("ko", "Korean", null, "\uD55C\uAD6D\uC5B4"),
+  L32("ky_KG", "Kyrgyz", "Kyrgyzstan", "\u041A\u044B\u0440\u0433\u044B\u0437\u0447\u0430"),
+  L32("lo", "Lao", null, "\u0EA5\u0EB2\u0EA7"),
+  L32("lv", "Latvian", null, "Latvie\u0161u"),
+  L32("lt", "Lithuanian", null, "Lietuvi\u0173"),
+  L32("mk", "Macedonian", null, "\u041C\u0430\u043A\u0435\u0434\u043E\u043D\u0441\u043A\u0438"),
+  L32("ms", "Malay", null, "Bahasa Melayu"),
+  L32("ml", "Malayalam", null, "\u0D2E\u0D32\u0D2F\u0D3E\u0D33\u0D02"),
+  L32("mr", "Marathi", null, "\u092E\u0930\u093E\u0920\u0940"),
+  L32("nb", "Norwegian", null, "Norsk bokm\xE5l"),
+  L32("ps_AF", "Pashto", null, "\u067E\u069A\u062A\u0648"),
+  L32("fa", "Persian", null, "\u0641\u0627\u0631\u0633\u06CC"),
+  L32("pl", "Polish", null, "Polski"),
+  L32("pt_BR", "Portuguese", "Brazil", "Portugu\xEAs"),
+  L32("pt_PT", "Portuguese", "Portugal", "Portugu\xEAs"),
+  L32("pa", "Punjabi", null, "\u0A2A\u0A70\u0A1C\u0A3E\u0A2C\u0A40"),
+  L32("ro", "Romanian", null, "Rom\xE2n\u0103"),
+  L32("ru", "Russian", null, "\u0420\u0443\u0441\u0441\u043A\u0438\u0439"),
+  L32("sr", "Serbian", null, "\u0421\u0440\u043F\u0441\u043A\u0438"),
+  L32("si_LK", "Sinhala", null, "\u0DC3\u0DD2\u0D82\u0DC4\u0DBD"),
+  L32("sk", "Slovak", null, "Sloven\u010Dina"),
+  L32("sl", "Slovenian", null, "Sloven\u0161\u010Dina"),
+  L32("es", "Spanish", null, "Espa\xF1ol"),
+  L32("es_AR", "Spanish", "Argentina", "Espa\xF1ol"),
+  L32("es_CL", "Spanish", "Chile", "Espa\xF1ol"),
+  L32("es_CO", "Spanish", "Colombia", "Espa\xF1ol"),
+  L32("es_CR", "Spanish", "Costa Rica", "Espa\xF1ol"),
+  L32("es_DO", "Spanish", "Dominican Republic", "Espa\xF1ol"),
+  L32("es_EC", "Spanish", "Ecuador", "Espa\xF1ol"),
+  L32("es_HN", "Spanish", "Honduras", "Espa\xF1ol"),
+  L32("es_MX", "Spanish", "Mexico", "Espa\xF1ol"),
+  L32("es_PA", "Spanish", "Panama", "Espa\xF1ol"),
+  L32("es_PE", "Spanish", "Peru", "Espa\xF1ol"),
+  L32("es_ES", "Spanish", "Spain", "Espa\xF1ol"),
+  L32("es_UY", "Spanish", "Uruguay", "Espa\xF1ol"),
+  L32("sw", "Swahili", null, "Kiswahili"),
+  L32("sv", "Swedish", null, "Svenska"),
+  L32("ta", "Tamil", null, "\u0BA4\u0BAE\u0BBF\u0BB4\u0BCD"),
+  L32("te", "Telugu", null, "\u0C24\u0C46\u0C32\u0C41\u0C17\u0C41"),
+  L32("th", "Thai", null, "\u0E44\u0E17\u0E22"),
+  L32("tr", "Turkish", null, "T\xFCrk\xE7e"),
+  L32("uk", "Ukrainian", null, "\u0423\u043A\u0440\u0430\u0457\u043D\u0441\u044C\u043A\u0430"),
+  L32("ur", "Urdu", null, "\u0627\u0631\u062F\u0648"),
+  L32("uz", "Uzbek", null, "O\u02BBzbek"),
+  L32("vi", "Vietnamese", null, "Ti\u1EBFng Vi\u1EC7t"),
+  L32("zu", "Zulu", null, "isiZulu")
+];
+var BY_ID32 = new Map(WHATSAPP_LANGUAGES32.map((l2) => [l2.id.toLowerCase(), l2]));
+var DAY_MS532 = 864e5;
+var PLAYBOOK_HOURS32 = { min: 9, max: 20 };
+var SENDING_HOURS_WORDS32 = {
+  min: PLAYBOOK_HOURS32.min,
+  max: PLAYBOOK_HOURS32.max,
+  first: `${PLAYBOOK_HOURS32.min}:00`,
+  range: `${PLAYBOOK_HOURS32.min}:00\u2013${PLAYBOOK_HOURS32.max}:59`,
+  between: `between ${PLAYBOOK_HOURS32.min}:00 and ${PLAYBOOK_HOURS32.max}:59`
+};
+var PLAYBOOK_BREATH_MS32 = 7 * DAY_MS532;
+var PLAYBOOK_VETO_DELAY_MS32 = 30 * 6e4;
+var FOLLOW_UP_NEEDS_DEALS32 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION32}\u201D with \u201C${SELLS_BY_WORDS32.proposal.label}\u201D.`;
+var PLAYBOOK_TOUCH_WINDOW_MS32 = (365 + 7) * DAY_MS532;
+var SWEEP_TICK_MS32 = 5 * 6e4;
+var PLAYBOOK_CLASS_LABEL32 = {
+  reengage: POLICY_CLASS_WORDS32.reengage.short,
+  campaign: POLICY_CLASS_WORDS32.campaign.short,
+  booking: POLICY_CLASS_WORDS32.booking.short,
+  follow_up: POLICY_CLASS_WORDS32.follow_up.short
+};
+var FIRST32 = { kind: "first_name", label: "First name", example: "Dani" };
+var BUSINESS32 = { kind: "business_name", label: "Business name", example: "Luna Studio" };
+var LINK32 = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
+var FIRST_ES32 = { ...FIRST32, label: "Nombre" };
+var BUSINESS_ES32 = { ...BUSINESS32, label: "Nombre del negocio" };
+var LINK_ES32 = { ...LINK32, label: "Enlace de reservas" };
+var WHEN42 = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" };
+var SERVICE32 = { kind: "visit_service", label: "Service", example: "a consultation" };
+var WHEN_ES32 = { ...WHEN42, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
+var SERVICE_ES32 = { ...SERVICE32, label: "Servicio", example: "una consulta" };
+var PROPOSAL32 = {
+  kind: "proposal_link",
+  label: "Proposal link",
+  example: "https://docs.example.com/proposal"
+};
+var PROPOSAL_ES32 = { ...PROPOSAL32, label: "Enlace de la propuesta" };
+var LIMIT_TIERS32 = {
+  TIER_50: 50,
+  TIER_250: 250,
+  TIER_1K: 1e3,
+  TIER_10K: 1e4,
+  TIER_100K: 1e5,
+  TIER_UNLIMITED: Number.POSITIVE_INFINITY
+};
+var FORWARDING_TEST_WINDOW_MS32 = 30 * 6e4;
+var REVIEW_AUTO_REPLY_MAX_AGE_MS32 = 14 * 864e5;
 var DATE_FMT62 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var REVIEW_NEWS_MS32 = 36 * 3600 * 1e3;
+var REVIEW_NEWS_MAX_AGE_MS32 = 14 * 864e5;
+var BOOTSTRAP_MS32 = 3600 * 1e3;
+var DATE_FMT232 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var WEEK_MS332 = 7 * 864e5;
+var DATE_FMT332 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var SOLE_PROP_LIMITS32 = {
+  campaignsPerBrand: 1,
+  numbersPerCampaign: 1,
+  messagesPerSecond: 1,
+  perDayTMobile: 1e3,
+  perMinuteAtt: 15,
+  mobileUsesEver: 3,
+  emailUsesEver: 10,
+  addressUsesEver: 10
+};
+var REGISTRATION_COST_WORDS32 = {
+  standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
+  sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS32.messagesPerSecond} message a second.`
+};
+var PROVISIONING_DEADLINE_MS32 = 5 * 6e4;
+var SOLE_PROP_CEILING_SENTENCE32 = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS32.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
+var SOLE_PROP_TEXTING_SENTENCE32 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE32}`;
+var DAY_MS632 = 24 * 3600 * 1e3;
+var DAY_MS732 = 864e5;
+var QUIET_AFTER_MS232 = 7 * DAY_MS732;
+var DATE_FMT432 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var CHANNEL_KIND_WORDS32 = {
   whatsapp: "WhatsApp",
   voice: "Phone line",
@@ -14413,170 +14608,6 @@ var ASK_ANSWER_FORMAT32 = {
   required: ["say", "show", "do", "language"],
   additionalProperties: false
 };
-var L32 = (id, name2, region, native) => ({
-  id,
-  label: region ? `${name2} (${region})` : name2,
-  name: name2,
-  region,
-  native
-});
-var WHATSAPP_LANGUAGES32 = [
-  L32("af", "Afrikaans", null, "Afrikaans"),
-  L32("sq", "Albanian", null, "Shqip"),
-  L32("ar", "Arabic", null, "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L32("ar_EG", "Arabic", "Egypt", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L32("ar_LB", "Arabic", "Lebanon", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L32("ar_MA", "Arabic", "Morocco", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L32("ar_QA", "Arabic", "Qatar", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L32("ar_AE", "Arabic", "UAE", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L32("az", "Azerbaijani", null, "Az\u0259rbaycan"),
-  L32("be_BY", "Belarusian", null, "\u0411\u0435\u043B\u0430\u0440\u0443\u0441\u043A\u0430\u044F"),
-  L32("bn", "Bengali", null, "\u09AC\u09BE\u0982\u09B2\u09BE"),
-  L32("bn_IN", "Bengali", "India", "\u09AC\u09BE\u0982\u09B2\u09BE"),
-  L32("bg", "Bulgarian", null, "\u0411\u044A\u043B\u0433\u0430\u0440\u0441\u043A\u0438"),
-  L32("ca", "Catalan", null, "Catal\xE0"),
-  L32("zh_CN", "Chinese", "China", "\u7B80\u4F53\u4E2D\u6587"),
-  L32("zh_HK", "Chinese", "Hong Kong", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u9999\u6E2F\uFF09"),
-  L32("zh_TW", "Chinese", "Taiwan", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u53F0\u7063\uFF09"),
-  L32("hr", "Croatian", null, "Hrvatski"),
-  L32("cs", "Czech", null, "\u010Ce\u0161tina"),
-  L32("da", "Danish", null, "Dansk"),
-  L32("prs_AF", "Dari", null, "\u062F\u0631\u06CC"),
-  L32("nl", "Dutch", null, "Nederlands"),
-  L32("nl_BE", "Dutch", "Belgium", "Nederlands"),
-  L32("en", "English", null, "English"),
-  L32("en_AU", "English", "Australia", "English"),
-  L32("en_CA", "English", "Canada", "English"),
-  L32("en_GH", "English", "Ghana", "English"),
-  L32("en_IN", "English", "India", "English"),
-  L32("en_IE", "English", "Ireland", "English"),
-  L32("en_JM", "English", "Jamaica", "English"),
-  L32("en_MY", "English", "Malaysia", "English"),
-  L32("en_NZ", "English", "New Zealand", "English"),
-  L32("en_QA", "English", "Qatar", "English"),
-  L32("en_SG", "English", "Singapore", "English"),
-  L32("en_ZA", "English", "South Africa", "English"),
-  L32("en_AE", "English", "UAE", "English"),
-  L32("en_UG", "English", "Uganda", "English"),
-  L32("en_GB", "English", "UK", "English"),
-  L32("en_US", "English", "US", "English"),
-  L32("et", "Estonian", null, "Eesti"),
-  L32("fil", "Filipino", null, "Filipino"),
-  L32("fi", "Finnish", null, "Suomi"),
-  L32("fr", "French", null, "Fran\xE7ais"),
-  L32("fr_BE", "French", "Belgium", "Fran\xE7ais"),
-  L32("fr_CA", "French", "Canada", "Fran\xE7ais"),
-  L32("fr_CI", "French", "C\xF4te d\u2019Ivoire", "Fran\xE7ais"),
-  L32("fr_MA", "French", "Morocco", "Fran\xE7ais"),
-  L32("fr_CH", "French", "Switzerland", "Fran\xE7ais"),
-  L32("ka", "Georgian", null, "\u10E5\u10D0\u10E0\u10D7\u10E3\u10DA\u10D8"),
-  L32("de", "German", null, "Deutsch"),
-  L32("de_AT", "German", "Austria", "Deutsch"),
-  L32("de_CH", "German", "Switzerland", "Deutsch"),
-  L32("el", "Greek", null, "\u0395\u03BB\u03BB\u03B7\u03BD\u03B9\u03BA\u03AC"),
-  L32("gu", "Gujarati", null, "\u0A97\u0AC1\u0A9C\u0AB0\u0ABE\u0AA4\u0AC0"),
-  L32("ha", "Hausa", null, "Hausa"),
-  L32("he", "Hebrew", null, "\u05E2\u05D1\u05E8\u05D9\u05EA"),
-  L32("hi", "Hindi", null, "\u0939\u093F\u0928\u094D\u0926\u0940"),
-  L32("hu", "Hungarian", null, "Magyar"),
-  L32("id", "Indonesian", null, "Bahasa Indonesia"),
-  L32("ga", "Irish", null, "Gaeilge"),
-  L32("it", "Italian", null, "Italiano"),
-  L32("ja", "Japanese", null, "\u65E5\u672C\u8A9E"),
-  L32("kn", "Kannada", null, "\u0C95\u0CA8\u0CCD\u0CA8\u0CA1"),
-  L32("kk", "Kazakh", null, "\u049A\u0430\u0437\u0430\u049B \u0442\u0456\u043B\u0456"),
-  L32("rw_RW", "Kinyarwanda", null, "Ikinyarwanda"),
-  L32("ko", "Korean", null, "\uD55C\uAD6D\uC5B4"),
-  L32("ky_KG", "Kyrgyz", "Kyrgyzstan", "\u041A\u044B\u0440\u0433\u044B\u0437\u0447\u0430"),
-  L32("lo", "Lao", null, "\u0EA5\u0EB2\u0EA7"),
-  L32("lv", "Latvian", null, "Latvie\u0161u"),
-  L32("lt", "Lithuanian", null, "Lietuvi\u0173"),
-  L32("mk", "Macedonian", null, "\u041C\u0430\u043A\u0435\u0434\u043E\u043D\u0441\u043A\u0438"),
-  L32("ms", "Malay", null, "Bahasa Melayu"),
-  L32("ml", "Malayalam", null, "\u0D2E\u0D32\u0D2F\u0D3E\u0D33\u0D02"),
-  L32("mr", "Marathi", null, "\u092E\u0930\u093E\u0920\u0940"),
-  L32("nb", "Norwegian", null, "Norsk bokm\xE5l"),
-  L32("ps_AF", "Pashto", null, "\u067E\u069A\u062A\u0648"),
-  L32("fa", "Persian", null, "\u0641\u0627\u0631\u0633\u06CC"),
-  L32("pl", "Polish", null, "Polski"),
-  L32("pt_BR", "Portuguese", "Brazil", "Portugu\xEAs"),
-  L32("pt_PT", "Portuguese", "Portugal", "Portugu\xEAs"),
-  L32("pa", "Punjabi", null, "\u0A2A\u0A70\u0A1C\u0A3E\u0A2C\u0A40"),
-  L32("ro", "Romanian", null, "Rom\xE2n\u0103"),
-  L32("ru", "Russian", null, "\u0420\u0443\u0441\u0441\u043A\u0438\u0439"),
-  L32("sr", "Serbian", null, "\u0421\u0440\u043F\u0441\u043A\u0438"),
-  L32("si_LK", "Sinhala", null, "\u0DC3\u0DD2\u0D82\u0DC4\u0DBD"),
-  L32("sk", "Slovak", null, "Sloven\u010Dina"),
-  L32("sl", "Slovenian", null, "Sloven\u0161\u010Dina"),
-  L32("es", "Spanish", null, "Espa\xF1ol"),
-  L32("es_AR", "Spanish", "Argentina", "Espa\xF1ol"),
-  L32("es_CL", "Spanish", "Chile", "Espa\xF1ol"),
-  L32("es_CO", "Spanish", "Colombia", "Espa\xF1ol"),
-  L32("es_CR", "Spanish", "Costa Rica", "Espa\xF1ol"),
-  L32("es_DO", "Spanish", "Dominican Republic", "Espa\xF1ol"),
-  L32("es_EC", "Spanish", "Ecuador", "Espa\xF1ol"),
-  L32("es_HN", "Spanish", "Honduras", "Espa\xF1ol"),
-  L32("es_MX", "Spanish", "Mexico", "Espa\xF1ol"),
-  L32("es_PA", "Spanish", "Panama", "Espa\xF1ol"),
-  L32("es_PE", "Spanish", "Peru", "Espa\xF1ol"),
-  L32("es_ES", "Spanish", "Spain", "Espa\xF1ol"),
-  L32("es_UY", "Spanish", "Uruguay", "Espa\xF1ol"),
-  L32("sw", "Swahili", null, "Kiswahili"),
-  L32("sv", "Swedish", null, "Svenska"),
-  L32("ta", "Tamil", null, "\u0BA4\u0BAE\u0BBF\u0BB4\u0BCD"),
-  L32("te", "Telugu", null, "\u0C24\u0C46\u0C32\u0C41\u0C17\u0C41"),
-  L32("th", "Thai", null, "\u0E44\u0E17\u0E22"),
-  L32("tr", "Turkish", null, "T\xFCrk\xE7e"),
-  L32("uk", "Ukrainian", null, "\u0423\u043A\u0440\u0430\u0457\u043D\u0441\u044C\u043A\u0430"),
-  L32("ur", "Urdu", null, "\u0627\u0631\u062F\u0648"),
-  L32("uz", "Uzbek", null, "O\u02BBzbek"),
-  L32("vi", "Vietnamese", null, "Ti\u1EBFng Vi\u1EC7t"),
-  L32("zu", "Zulu", null, "isiZulu")
-];
-var BY_ID32 = new Map(WHATSAPP_LANGUAGES32.map((l2) => [l2.id.toLowerCase(), l2]));
-var DAY_MS732 = 864e5;
-var PLAYBOOK_HOURS32 = { min: 9, max: 20 };
-var SENDING_HOURS_WORDS32 = {
-  min: PLAYBOOK_HOURS32.min,
-  max: PLAYBOOK_HOURS32.max,
-  first: `${PLAYBOOK_HOURS32.min}:00`,
-  range: `${PLAYBOOK_HOURS32.min}:00\u2013${PLAYBOOK_HOURS32.max}:59`,
-  between: `between ${PLAYBOOK_HOURS32.min}:00 and ${PLAYBOOK_HOURS32.max}:59`
-};
-var PLAYBOOK_BREATH_MS32 = 7 * DAY_MS732;
-var PLAYBOOK_VETO_DELAY_MS32 = 30 * 6e4;
-var FOLLOW_UP_NEEDS_DEALS32 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION32}\u201D with \u201C${SELLS_BY_WORDS32.proposal.label}\u201D.`;
-var PLAYBOOK_TOUCH_WINDOW_MS32 = (365 + 7) * DAY_MS732;
-var PLAYBOOK_CLASS_LABEL32 = {
-  reengage: POLICY_CLASS_WORDS32.reengage.short,
-  campaign: POLICY_CLASS_WORDS32.campaign.short,
-  booking: POLICY_CLASS_WORDS32.booking.short,
-  follow_up: POLICY_CLASS_WORDS32.follow_up.short
-};
-var FIRST32 = { kind: "first_name", label: "First name", example: "Dani" };
-var BUSINESS32 = { kind: "business_name", label: "Business name", example: "Luna Studio" };
-var LINK32 = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
-var FIRST_ES32 = { ...FIRST32, label: "Nombre" };
-var BUSINESS_ES32 = { ...BUSINESS32, label: "Nombre del negocio" };
-var LINK_ES32 = { ...LINK32, label: "Enlace de reservas" };
-var WHEN42 = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" };
-var SERVICE32 = { kind: "visit_service", label: "Service", example: "a consultation" };
-var WHEN_ES32 = { ...WHEN42, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
-var SERVICE_ES32 = { ...SERVICE32, label: "Servicio", example: "una consulta" };
-var PROPOSAL32 = {
-  kind: "proposal_link",
-  label: "Proposal link",
-  example: "https://docs.example.com/proposal"
-};
-var PROPOSAL_ES32 = { ...PROPOSAL32, label: "Enlace de la propuesta" };
-var LIMIT_TIERS32 = {
-  TIER_50: 50,
-  TIER_250: 250,
-  TIER_1K: 1e3,
-  TIER_10K: 1e4,
-  TIER_100K: 1e5,
-  TIER_UNLIMITED: Number.POSITIVE_INFINITY
-};
 var LIST_RULE_FIELDS32 = [
   { id: "last_visit", label: "Last visit", kind: "days", needsCalendar: true },
   { id: "next_visit", label: "Next visit", kind: "days", needsCalendar: true },
@@ -14654,33 +14685,7 @@ var ListDraftAnswerSchema32 = z732.object({
   cannot: z732.string().trim().max(200),
   all: z732.array(ListConditionSchema32).max(8)
 });
-var DATE_FMT232 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WHEN232 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var FORWARDING_TEST_WINDOW_MS32 = 30 * 6e4;
-var REVIEW_AUTO_REPLY_MAX_AGE_MS32 = 14 * 864e5;
-var REVIEW_NEWS_MS32 = 36 * 3600 * 1e3;
-var REVIEW_NEWS_MAX_AGE_MS32 = 14 * 864e5;
-var BOOTSTRAP_MS32 = 3600 * 1e3;
-var DATE_FMT332 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var WEEK_MS332 = 7 * 864e5;
-var DATE_FMT432 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
-var SOLE_PROP_LIMITS32 = {
-  campaignsPerBrand: 1,
-  numbersPerCampaign: 1,
-  messagesPerSecond: 1,
-  perDayTMobile: 1e3,
-  perMinuteAtt: 15,
-  mobileUsesEver: 3,
-  emailUsesEver: 10,
-  addressUsesEver: 10
-};
-var REGISTRATION_COST_WORDS32 = {
-  standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
-  sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS32.messagesPerSecond} message a second.`
-};
-var PROVISIONING_DEADLINE_MS32 = 5 * 6e4;
-var SOLE_PROP_CEILING_SENTENCE32 = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS32.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
-var SOLE_PROP_TEXTING_SENTENCE32 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE32}`;
 var SIGNUP_NAME_MIN32 = 2;
 var SIGNUP_NAME_MAX32 = 120;
 var InviteCodeSchema32 = z832.string().trim().max(80);
@@ -16475,10 +16480,201 @@ var PERSON_CAME_FROM_WORDS4 = {
   import: "Imported history",
   lead: "A lead you found"
 };
-var DAY_MS54 = 24 * 3600 * 1e3;
-var DAY_MS64 = 864e5;
-var QUIET_AFTER_MS24 = 7 * DAY_MS64;
+var L4 = (id, name2, region, native) => ({
+  id,
+  label: region ? `${name2} (${region})` : name2,
+  name: name2,
+  region,
+  native
+});
+var WHATSAPP_LANGUAGES4 = [
+  L4("af", "Afrikaans", null, "Afrikaans"),
+  L4("sq", "Albanian", null, "Shqip"),
+  L4("ar", "Arabic", null, "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L4("ar_EG", "Arabic", "Egypt", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L4("ar_LB", "Arabic", "Lebanon", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L4("ar_MA", "Arabic", "Morocco", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L4("ar_QA", "Arabic", "Qatar", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L4("ar_AE", "Arabic", "UAE", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L4("az", "Azerbaijani", null, "Az\u0259rbaycan"),
+  L4("be_BY", "Belarusian", null, "\u0411\u0435\u043B\u0430\u0440\u0443\u0441\u043A\u0430\u044F"),
+  L4("bn", "Bengali", null, "\u09AC\u09BE\u0982\u09B2\u09BE"),
+  L4("bn_IN", "Bengali", "India", "\u09AC\u09BE\u0982\u09B2\u09BE"),
+  L4("bg", "Bulgarian", null, "\u0411\u044A\u043B\u0433\u0430\u0440\u0441\u043A\u0438"),
+  L4("ca", "Catalan", null, "Catal\xE0"),
+  L4("zh_CN", "Chinese", "China", "\u7B80\u4F53\u4E2D\u6587"),
+  L4("zh_HK", "Chinese", "Hong Kong", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u9999\u6E2F\uFF09"),
+  L4("zh_TW", "Chinese", "Taiwan", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u53F0\u7063\uFF09"),
+  L4("hr", "Croatian", null, "Hrvatski"),
+  L4("cs", "Czech", null, "\u010Ce\u0161tina"),
+  L4("da", "Danish", null, "Dansk"),
+  L4("prs_AF", "Dari", null, "\u062F\u0631\u06CC"),
+  L4("nl", "Dutch", null, "Nederlands"),
+  L4("nl_BE", "Dutch", "Belgium", "Nederlands"),
+  L4("en", "English", null, "English"),
+  L4("en_AU", "English", "Australia", "English"),
+  L4("en_CA", "English", "Canada", "English"),
+  L4("en_GH", "English", "Ghana", "English"),
+  L4("en_IN", "English", "India", "English"),
+  L4("en_IE", "English", "Ireland", "English"),
+  L4("en_JM", "English", "Jamaica", "English"),
+  L4("en_MY", "English", "Malaysia", "English"),
+  L4("en_NZ", "English", "New Zealand", "English"),
+  L4("en_QA", "English", "Qatar", "English"),
+  L4("en_SG", "English", "Singapore", "English"),
+  L4("en_ZA", "English", "South Africa", "English"),
+  L4("en_AE", "English", "UAE", "English"),
+  L4("en_UG", "English", "Uganda", "English"),
+  L4("en_GB", "English", "UK", "English"),
+  L4("en_US", "English", "US", "English"),
+  L4("et", "Estonian", null, "Eesti"),
+  L4("fil", "Filipino", null, "Filipino"),
+  L4("fi", "Finnish", null, "Suomi"),
+  L4("fr", "French", null, "Fran\xE7ais"),
+  L4("fr_BE", "French", "Belgium", "Fran\xE7ais"),
+  L4("fr_CA", "French", "Canada", "Fran\xE7ais"),
+  L4("fr_CI", "French", "C\xF4te d\u2019Ivoire", "Fran\xE7ais"),
+  L4("fr_MA", "French", "Morocco", "Fran\xE7ais"),
+  L4("fr_CH", "French", "Switzerland", "Fran\xE7ais"),
+  L4("ka", "Georgian", null, "\u10E5\u10D0\u10E0\u10D7\u10E3\u10DA\u10D8"),
+  L4("de", "German", null, "Deutsch"),
+  L4("de_AT", "German", "Austria", "Deutsch"),
+  L4("de_CH", "German", "Switzerland", "Deutsch"),
+  L4("el", "Greek", null, "\u0395\u03BB\u03BB\u03B7\u03BD\u03B9\u03BA\u03AC"),
+  L4("gu", "Gujarati", null, "\u0A97\u0AC1\u0A9C\u0AB0\u0ABE\u0AA4\u0AC0"),
+  L4("ha", "Hausa", null, "Hausa"),
+  L4("he", "Hebrew", null, "\u05E2\u05D1\u05E8\u05D9\u05EA"),
+  L4("hi", "Hindi", null, "\u0939\u093F\u0928\u094D\u0926\u0940"),
+  L4("hu", "Hungarian", null, "Magyar"),
+  L4("id", "Indonesian", null, "Bahasa Indonesia"),
+  L4("ga", "Irish", null, "Gaeilge"),
+  L4("it", "Italian", null, "Italiano"),
+  L4("ja", "Japanese", null, "\u65E5\u672C\u8A9E"),
+  L4("kn", "Kannada", null, "\u0C95\u0CA8\u0CCD\u0CA8\u0CA1"),
+  L4("kk", "Kazakh", null, "\u049A\u0430\u0437\u0430\u049B \u0442\u0456\u043B\u0456"),
+  L4("rw_RW", "Kinyarwanda", null, "Ikinyarwanda"),
+  L4("ko", "Korean", null, "\uD55C\uAD6D\uC5B4"),
+  L4("ky_KG", "Kyrgyz", "Kyrgyzstan", "\u041A\u044B\u0440\u0433\u044B\u0437\u0447\u0430"),
+  L4("lo", "Lao", null, "\u0EA5\u0EB2\u0EA7"),
+  L4("lv", "Latvian", null, "Latvie\u0161u"),
+  L4("lt", "Lithuanian", null, "Lietuvi\u0173"),
+  L4("mk", "Macedonian", null, "\u041C\u0430\u043A\u0435\u0434\u043E\u043D\u0441\u043A\u0438"),
+  L4("ms", "Malay", null, "Bahasa Melayu"),
+  L4("ml", "Malayalam", null, "\u0D2E\u0D32\u0D2F\u0D3E\u0D33\u0D02"),
+  L4("mr", "Marathi", null, "\u092E\u0930\u093E\u0920\u0940"),
+  L4("nb", "Norwegian", null, "Norsk bokm\xE5l"),
+  L4("ps_AF", "Pashto", null, "\u067E\u069A\u062A\u0648"),
+  L4("fa", "Persian", null, "\u0641\u0627\u0631\u0633\u06CC"),
+  L4("pl", "Polish", null, "Polski"),
+  L4("pt_BR", "Portuguese", "Brazil", "Portugu\xEAs"),
+  L4("pt_PT", "Portuguese", "Portugal", "Portugu\xEAs"),
+  L4("pa", "Punjabi", null, "\u0A2A\u0A70\u0A1C\u0A3E\u0A2C\u0A40"),
+  L4("ro", "Romanian", null, "Rom\xE2n\u0103"),
+  L4("ru", "Russian", null, "\u0420\u0443\u0441\u0441\u043A\u0438\u0439"),
+  L4("sr", "Serbian", null, "\u0421\u0440\u043F\u0441\u043A\u0438"),
+  L4("si_LK", "Sinhala", null, "\u0DC3\u0DD2\u0D82\u0DC4\u0DBD"),
+  L4("sk", "Slovak", null, "Sloven\u010Dina"),
+  L4("sl", "Slovenian", null, "Sloven\u0161\u010Dina"),
+  L4("es", "Spanish", null, "Espa\xF1ol"),
+  L4("es_AR", "Spanish", "Argentina", "Espa\xF1ol"),
+  L4("es_CL", "Spanish", "Chile", "Espa\xF1ol"),
+  L4("es_CO", "Spanish", "Colombia", "Espa\xF1ol"),
+  L4("es_CR", "Spanish", "Costa Rica", "Espa\xF1ol"),
+  L4("es_DO", "Spanish", "Dominican Republic", "Espa\xF1ol"),
+  L4("es_EC", "Spanish", "Ecuador", "Espa\xF1ol"),
+  L4("es_HN", "Spanish", "Honduras", "Espa\xF1ol"),
+  L4("es_MX", "Spanish", "Mexico", "Espa\xF1ol"),
+  L4("es_PA", "Spanish", "Panama", "Espa\xF1ol"),
+  L4("es_PE", "Spanish", "Peru", "Espa\xF1ol"),
+  L4("es_ES", "Spanish", "Spain", "Espa\xF1ol"),
+  L4("es_UY", "Spanish", "Uruguay", "Espa\xF1ol"),
+  L4("sw", "Swahili", null, "Kiswahili"),
+  L4("sv", "Swedish", null, "Svenska"),
+  L4("ta", "Tamil", null, "\u0BA4\u0BAE\u0BBF\u0BB4\u0BCD"),
+  L4("te", "Telugu", null, "\u0C24\u0C46\u0C32\u0C41\u0C17\u0C41"),
+  L4("th", "Thai", null, "\u0E44\u0E17\u0E22"),
+  L4("tr", "Turkish", null, "T\xFCrk\xE7e"),
+  L4("uk", "Ukrainian", null, "\u0423\u043A\u0440\u0430\u0457\u043D\u0441\u044C\u043A\u0430"),
+  L4("ur", "Urdu", null, "\u0627\u0631\u062F\u0648"),
+  L4("uz", "Uzbek", null, "O\u02BBzbek"),
+  L4("vi", "Vietnamese", null, "Ti\u1EBFng Vi\u1EC7t"),
+  L4("zu", "Zulu", null, "isiZulu")
+];
+var BY_ID4 = new Map(WHATSAPP_LANGUAGES4.map((l2) => [l2.id.toLowerCase(), l2]));
+var DAY_MS54 = 864e5;
+var PLAYBOOK_HOURS4 = { min: 9, max: 20 };
+var SENDING_HOURS_WORDS4 = {
+  min: PLAYBOOK_HOURS4.min,
+  max: PLAYBOOK_HOURS4.max,
+  first: `${PLAYBOOK_HOURS4.min}:00`,
+  range: `${PLAYBOOK_HOURS4.min}:00\u2013${PLAYBOOK_HOURS4.max}:59`,
+  between: `between ${PLAYBOOK_HOURS4.min}:00 and ${PLAYBOOK_HOURS4.max}:59`
+};
+var PLAYBOOK_BREATH_MS4 = 7 * DAY_MS54;
+var PLAYBOOK_VETO_DELAY_MS4 = 30 * 6e4;
+var FOLLOW_UP_NEEDS_DEALS4 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION4}\u201D with \u201C${SELLS_BY_WORDS4.proposal.label}\u201D.`;
+var PLAYBOOK_TOUCH_WINDOW_MS4 = (365 + 7) * DAY_MS54;
+var SWEEP_TICK_MS4 = 5 * 6e4;
+var PLAYBOOK_CLASS_LABEL4 = {
+  reengage: POLICY_CLASS_WORDS4.reengage.short,
+  campaign: POLICY_CLASS_WORDS4.campaign.short,
+  booking: POLICY_CLASS_WORDS4.booking.short,
+  follow_up: POLICY_CLASS_WORDS4.follow_up.short
+};
+var FIRST4 = { kind: "first_name", label: "First name", example: "Dani" };
+var BUSINESS4 = { kind: "business_name", label: "Business name", example: "Luna Studio" };
+var LINK4 = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
+var FIRST_ES4 = { ...FIRST4, label: "Nombre" };
+var BUSINESS_ES4 = { ...BUSINESS4, label: "Nombre del negocio" };
+var LINK_ES4 = { ...LINK4, label: "Enlace de reservas" };
+var WHEN5 = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" };
+var SERVICE4 = { kind: "visit_service", label: "Service", example: "a consultation" };
+var WHEN_ES4 = { ...WHEN5, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
+var SERVICE_ES4 = { ...SERVICE4, label: "Servicio", example: "una consulta" };
+var PROPOSAL4 = {
+  kind: "proposal_link",
+  label: "Proposal link",
+  example: "https://docs.example.com/proposal"
+};
+var PROPOSAL_ES4 = { ...PROPOSAL4, label: "Enlace de la propuesta" };
+var LIMIT_TIERS4 = {
+  TIER_50: 50,
+  TIER_250: 250,
+  TIER_1K: 1e3,
+  TIER_10K: 1e4,
+  TIER_100K: 1e5,
+  TIER_UNLIMITED: Number.POSITIVE_INFINITY
+};
+var FORWARDING_TEST_WINDOW_MS4 = 30 * 6e4;
+var REVIEW_AUTO_REPLY_MAX_AGE_MS4 = 14 * 864e5;
 var DATE_FMT7 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var REVIEW_NEWS_MS4 = 36 * 3600 * 1e3;
+var REVIEW_NEWS_MAX_AGE_MS4 = 14 * 864e5;
+var BOOTSTRAP_MS4 = 3600 * 1e3;
+var DATE_FMT24 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var WEEK_MS34 = 7 * 864e5;
+var DATE_FMT34 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var SOLE_PROP_LIMITS4 = {
+  campaignsPerBrand: 1,
+  numbersPerCampaign: 1,
+  messagesPerSecond: 1,
+  perDayTMobile: 1e3,
+  perMinuteAtt: 15,
+  mobileUsesEver: 3,
+  emailUsesEver: 10,
+  addressUsesEver: 10
+};
+var REGISTRATION_COST_WORDS4 = {
+  standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
+  sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS4.messagesPerSecond} message a second.`
+};
+var PROVISIONING_DEADLINE_MS4 = 5 * 6e4;
+var SOLE_PROP_CEILING_SENTENCE4 = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS4.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
+var SOLE_PROP_TEXTING_SENTENCE4 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE4}`;
+var DAY_MS64 = 24 * 3600 * 1e3;
+var DAY_MS74 = 864e5;
+var QUIET_AFTER_MS24 = 7 * DAY_MS74;
+var DATE_FMT44 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var CHANNEL_KIND_WORDS4 = {
   whatsapp: "WhatsApp",
   voice: "Phone line",
@@ -16693,170 +16889,6 @@ var ASK_ANSWER_FORMAT4 = {
   required: ["say", "show", "do", "language"],
   additionalProperties: false
 };
-var L4 = (id, name2, region, native) => ({
-  id,
-  label: region ? `${name2} (${region})` : name2,
-  name: name2,
-  region,
-  native
-});
-var WHATSAPP_LANGUAGES4 = [
-  L4("af", "Afrikaans", null, "Afrikaans"),
-  L4("sq", "Albanian", null, "Shqip"),
-  L4("ar", "Arabic", null, "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L4("ar_EG", "Arabic", "Egypt", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L4("ar_LB", "Arabic", "Lebanon", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L4("ar_MA", "Arabic", "Morocco", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L4("ar_QA", "Arabic", "Qatar", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L4("ar_AE", "Arabic", "UAE", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L4("az", "Azerbaijani", null, "Az\u0259rbaycan"),
-  L4("be_BY", "Belarusian", null, "\u0411\u0435\u043B\u0430\u0440\u0443\u0441\u043A\u0430\u044F"),
-  L4("bn", "Bengali", null, "\u09AC\u09BE\u0982\u09B2\u09BE"),
-  L4("bn_IN", "Bengali", "India", "\u09AC\u09BE\u0982\u09B2\u09BE"),
-  L4("bg", "Bulgarian", null, "\u0411\u044A\u043B\u0433\u0430\u0440\u0441\u043A\u0438"),
-  L4("ca", "Catalan", null, "Catal\xE0"),
-  L4("zh_CN", "Chinese", "China", "\u7B80\u4F53\u4E2D\u6587"),
-  L4("zh_HK", "Chinese", "Hong Kong", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u9999\u6E2F\uFF09"),
-  L4("zh_TW", "Chinese", "Taiwan", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u53F0\u7063\uFF09"),
-  L4("hr", "Croatian", null, "Hrvatski"),
-  L4("cs", "Czech", null, "\u010Ce\u0161tina"),
-  L4("da", "Danish", null, "Dansk"),
-  L4("prs_AF", "Dari", null, "\u062F\u0631\u06CC"),
-  L4("nl", "Dutch", null, "Nederlands"),
-  L4("nl_BE", "Dutch", "Belgium", "Nederlands"),
-  L4("en", "English", null, "English"),
-  L4("en_AU", "English", "Australia", "English"),
-  L4("en_CA", "English", "Canada", "English"),
-  L4("en_GH", "English", "Ghana", "English"),
-  L4("en_IN", "English", "India", "English"),
-  L4("en_IE", "English", "Ireland", "English"),
-  L4("en_JM", "English", "Jamaica", "English"),
-  L4("en_MY", "English", "Malaysia", "English"),
-  L4("en_NZ", "English", "New Zealand", "English"),
-  L4("en_QA", "English", "Qatar", "English"),
-  L4("en_SG", "English", "Singapore", "English"),
-  L4("en_ZA", "English", "South Africa", "English"),
-  L4("en_AE", "English", "UAE", "English"),
-  L4("en_UG", "English", "Uganda", "English"),
-  L4("en_GB", "English", "UK", "English"),
-  L4("en_US", "English", "US", "English"),
-  L4("et", "Estonian", null, "Eesti"),
-  L4("fil", "Filipino", null, "Filipino"),
-  L4("fi", "Finnish", null, "Suomi"),
-  L4("fr", "French", null, "Fran\xE7ais"),
-  L4("fr_BE", "French", "Belgium", "Fran\xE7ais"),
-  L4("fr_CA", "French", "Canada", "Fran\xE7ais"),
-  L4("fr_CI", "French", "C\xF4te d\u2019Ivoire", "Fran\xE7ais"),
-  L4("fr_MA", "French", "Morocco", "Fran\xE7ais"),
-  L4("fr_CH", "French", "Switzerland", "Fran\xE7ais"),
-  L4("ka", "Georgian", null, "\u10E5\u10D0\u10E0\u10D7\u10E3\u10DA\u10D8"),
-  L4("de", "German", null, "Deutsch"),
-  L4("de_AT", "German", "Austria", "Deutsch"),
-  L4("de_CH", "German", "Switzerland", "Deutsch"),
-  L4("el", "Greek", null, "\u0395\u03BB\u03BB\u03B7\u03BD\u03B9\u03BA\u03AC"),
-  L4("gu", "Gujarati", null, "\u0A97\u0AC1\u0A9C\u0AB0\u0ABE\u0AA4\u0AC0"),
-  L4("ha", "Hausa", null, "Hausa"),
-  L4("he", "Hebrew", null, "\u05E2\u05D1\u05E8\u05D9\u05EA"),
-  L4("hi", "Hindi", null, "\u0939\u093F\u0928\u094D\u0926\u0940"),
-  L4("hu", "Hungarian", null, "Magyar"),
-  L4("id", "Indonesian", null, "Bahasa Indonesia"),
-  L4("ga", "Irish", null, "Gaeilge"),
-  L4("it", "Italian", null, "Italiano"),
-  L4("ja", "Japanese", null, "\u65E5\u672C\u8A9E"),
-  L4("kn", "Kannada", null, "\u0C95\u0CA8\u0CCD\u0CA8\u0CA1"),
-  L4("kk", "Kazakh", null, "\u049A\u0430\u0437\u0430\u049B \u0442\u0456\u043B\u0456"),
-  L4("rw_RW", "Kinyarwanda", null, "Ikinyarwanda"),
-  L4("ko", "Korean", null, "\uD55C\uAD6D\uC5B4"),
-  L4("ky_KG", "Kyrgyz", "Kyrgyzstan", "\u041A\u044B\u0440\u0433\u044B\u0437\u0447\u0430"),
-  L4("lo", "Lao", null, "\u0EA5\u0EB2\u0EA7"),
-  L4("lv", "Latvian", null, "Latvie\u0161u"),
-  L4("lt", "Lithuanian", null, "Lietuvi\u0173"),
-  L4("mk", "Macedonian", null, "\u041C\u0430\u043A\u0435\u0434\u043E\u043D\u0441\u043A\u0438"),
-  L4("ms", "Malay", null, "Bahasa Melayu"),
-  L4("ml", "Malayalam", null, "\u0D2E\u0D32\u0D2F\u0D3E\u0D33\u0D02"),
-  L4("mr", "Marathi", null, "\u092E\u0930\u093E\u0920\u0940"),
-  L4("nb", "Norwegian", null, "Norsk bokm\xE5l"),
-  L4("ps_AF", "Pashto", null, "\u067E\u069A\u062A\u0648"),
-  L4("fa", "Persian", null, "\u0641\u0627\u0631\u0633\u06CC"),
-  L4("pl", "Polish", null, "Polski"),
-  L4("pt_BR", "Portuguese", "Brazil", "Portugu\xEAs"),
-  L4("pt_PT", "Portuguese", "Portugal", "Portugu\xEAs"),
-  L4("pa", "Punjabi", null, "\u0A2A\u0A70\u0A1C\u0A3E\u0A2C\u0A40"),
-  L4("ro", "Romanian", null, "Rom\xE2n\u0103"),
-  L4("ru", "Russian", null, "\u0420\u0443\u0441\u0441\u043A\u0438\u0439"),
-  L4("sr", "Serbian", null, "\u0421\u0440\u043F\u0441\u043A\u0438"),
-  L4("si_LK", "Sinhala", null, "\u0DC3\u0DD2\u0D82\u0DC4\u0DBD"),
-  L4("sk", "Slovak", null, "Sloven\u010Dina"),
-  L4("sl", "Slovenian", null, "Sloven\u0161\u010Dina"),
-  L4("es", "Spanish", null, "Espa\xF1ol"),
-  L4("es_AR", "Spanish", "Argentina", "Espa\xF1ol"),
-  L4("es_CL", "Spanish", "Chile", "Espa\xF1ol"),
-  L4("es_CO", "Spanish", "Colombia", "Espa\xF1ol"),
-  L4("es_CR", "Spanish", "Costa Rica", "Espa\xF1ol"),
-  L4("es_DO", "Spanish", "Dominican Republic", "Espa\xF1ol"),
-  L4("es_EC", "Spanish", "Ecuador", "Espa\xF1ol"),
-  L4("es_HN", "Spanish", "Honduras", "Espa\xF1ol"),
-  L4("es_MX", "Spanish", "Mexico", "Espa\xF1ol"),
-  L4("es_PA", "Spanish", "Panama", "Espa\xF1ol"),
-  L4("es_PE", "Spanish", "Peru", "Espa\xF1ol"),
-  L4("es_ES", "Spanish", "Spain", "Espa\xF1ol"),
-  L4("es_UY", "Spanish", "Uruguay", "Espa\xF1ol"),
-  L4("sw", "Swahili", null, "Kiswahili"),
-  L4("sv", "Swedish", null, "Svenska"),
-  L4("ta", "Tamil", null, "\u0BA4\u0BAE\u0BBF\u0BB4\u0BCD"),
-  L4("te", "Telugu", null, "\u0C24\u0C46\u0C32\u0C41\u0C17\u0C41"),
-  L4("th", "Thai", null, "\u0E44\u0E17\u0E22"),
-  L4("tr", "Turkish", null, "T\xFCrk\xE7e"),
-  L4("uk", "Ukrainian", null, "\u0423\u043A\u0440\u0430\u0457\u043D\u0441\u044C\u043A\u0430"),
-  L4("ur", "Urdu", null, "\u0627\u0631\u062F\u0648"),
-  L4("uz", "Uzbek", null, "O\u02BBzbek"),
-  L4("vi", "Vietnamese", null, "Ti\u1EBFng Vi\u1EC7t"),
-  L4("zu", "Zulu", null, "isiZulu")
-];
-var BY_ID4 = new Map(WHATSAPP_LANGUAGES4.map((l2) => [l2.id.toLowerCase(), l2]));
-var DAY_MS74 = 864e5;
-var PLAYBOOK_HOURS4 = { min: 9, max: 20 };
-var SENDING_HOURS_WORDS4 = {
-  min: PLAYBOOK_HOURS4.min,
-  max: PLAYBOOK_HOURS4.max,
-  first: `${PLAYBOOK_HOURS4.min}:00`,
-  range: `${PLAYBOOK_HOURS4.min}:00\u2013${PLAYBOOK_HOURS4.max}:59`,
-  between: `between ${PLAYBOOK_HOURS4.min}:00 and ${PLAYBOOK_HOURS4.max}:59`
-};
-var PLAYBOOK_BREATH_MS4 = 7 * DAY_MS74;
-var PLAYBOOK_VETO_DELAY_MS4 = 30 * 6e4;
-var FOLLOW_UP_NEEDS_DEALS4 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION4}\u201D with \u201C${SELLS_BY_WORDS4.proposal.label}\u201D.`;
-var PLAYBOOK_TOUCH_WINDOW_MS4 = (365 + 7) * DAY_MS74;
-var PLAYBOOK_CLASS_LABEL4 = {
-  reengage: POLICY_CLASS_WORDS4.reengage.short,
-  campaign: POLICY_CLASS_WORDS4.campaign.short,
-  booking: POLICY_CLASS_WORDS4.booking.short,
-  follow_up: POLICY_CLASS_WORDS4.follow_up.short
-};
-var FIRST4 = { kind: "first_name", label: "First name", example: "Dani" };
-var BUSINESS4 = { kind: "business_name", label: "Business name", example: "Luna Studio" };
-var LINK4 = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
-var FIRST_ES4 = { ...FIRST4, label: "Nombre" };
-var BUSINESS_ES4 = { ...BUSINESS4, label: "Nombre del negocio" };
-var LINK_ES4 = { ...LINK4, label: "Enlace de reservas" };
-var WHEN5 = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" };
-var SERVICE4 = { kind: "visit_service", label: "Service", example: "a consultation" };
-var WHEN_ES4 = { ...WHEN5, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
-var SERVICE_ES4 = { ...SERVICE4, label: "Servicio", example: "una consulta" };
-var PROPOSAL4 = {
-  kind: "proposal_link",
-  label: "Proposal link",
-  example: "https://docs.example.com/proposal"
-};
-var PROPOSAL_ES4 = { ...PROPOSAL4, label: "Enlace de la propuesta" };
-var LIMIT_TIERS4 = {
-  TIER_50: 50,
-  TIER_250: 250,
-  TIER_1K: 1e3,
-  TIER_10K: 1e4,
-  TIER_100K: 1e5,
-  TIER_UNLIMITED: Number.POSITIVE_INFINITY
-};
 var LIST_RULE_FIELDS4 = [
   { id: "last_visit", label: "Last visit", kind: "days", needsCalendar: true },
   { id: "next_visit", label: "Next visit", kind: "days", needsCalendar: true },
@@ -16934,33 +16966,7 @@ var ListDraftAnswerSchema4 = z74.object({
   cannot: z74.string().trim().max(200),
   all: z74.array(ListConditionSchema4).max(8)
 });
-var DATE_FMT24 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WHEN24 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var FORWARDING_TEST_WINDOW_MS4 = 30 * 6e4;
-var REVIEW_AUTO_REPLY_MAX_AGE_MS4 = 14 * 864e5;
-var REVIEW_NEWS_MS4 = 36 * 3600 * 1e3;
-var REVIEW_NEWS_MAX_AGE_MS4 = 14 * 864e5;
-var BOOTSTRAP_MS4 = 3600 * 1e3;
-var DATE_FMT34 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var WEEK_MS34 = 7 * 864e5;
-var DATE_FMT44 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
-var SOLE_PROP_LIMITS4 = {
-  campaignsPerBrand: 1,
-  numbersPerCampaign: 1,
-  messagesPerSecond: 1,
-  perDayTMobile: 1e3,
-  perMinuteAtt: 15,
-  mobileUsesEver: 3,
-  emailUsesEver: 10,
-  addressUsesEver: 10
-};
-var REGISTRATION_COST_WORDS4 = {
-  standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
-  sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS4.messagesPerSecond} message a second.`
-};
-var PROVISIONING_DEADLINE_MS4 = 5 * 6e4;
-var SOLE_PROP_CEILING_SENTENCE4 = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS4.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
-var SOLE_PROP_TEXTING_SENTENCE4 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE4}`;
 var SIGNUP_NAME_MIN4 = 2;
 var SIGNUP_NAME_MAX4 = 120;
 var InviteCodeSchema4 = z84.string().trim().max(80);

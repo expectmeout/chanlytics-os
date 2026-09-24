@@ -64,6 +64,20 @@ function matches(row, filters) {
                       op === "contains"
                       ? (() => {
                           const have = cell(row, col);
+                          // jsonb's @> for an array of flat objects, as `.contains(col, '[{...}]')` sends it: each
+                          // element named is in the column, key for key. Modelled for the proposal follow-ups' runs
+                          // (packages/db followUpTouchesSince), whose values carry a proposal's link.
+                          if (typeof val === "string" && val.trim().startsWith("[")) {
+                            const want = JSON.parse(val);
+                            return (
+                              Array.isArray(have) &&
+                              want.every((w) =>
+                                have.some(
+                                  (h) => h && typeof h === "object" && Object.entries(w).every(([k, v]) => h[k] === v),
+                                ),
+                              )
+                            );
+                          }
                           if (Array.isArray(val) || Object.values(val).some((v) => v !== null && typeof v === "object"))
                             throw new Error("fakeDb: contains(" + col + ") with a nested value is not modelled");
                           return (

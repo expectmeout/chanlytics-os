@@ -41,8 +41,11 @@ import {
   POLICY_CLASSES,
   POLICY_MODES,
   FOLLOW_UP_NEEDS_DEALS,
+  FOLLOW_UP_ONE,
+  dealPaceOf,
   dealsAreOn,
   policyClassOffered,
+  triggerOffered,
   contactName,
   describeSettingsChange,
   isHeldDraft,
@@ -69,8 +72,8 @@ import { listPolicies, savedListFor } from "@chanlytics/db";
 import type { ToolContext, ToolDef } from "./tools";
 import { planFacts } from "../leads";
 import { audiencePoolOnce } from "../audience";
-import { sellsByOf } from "../deals";
-import { checkPlaybookInput } from "../playbooks";
+import { dealPaceRead, sellsByOf } from "../deals";
+import { checkPlaybookInput, proposalFollowUps } from "../playbooks";
 import { replyChannelOf } from "../verbs";
 
 /**
@@ -226,14 +229,11 @@ export const ACT_TOOLS: ToolDef[] = [
   {
     name: "propose_playbook",
     description:
-      "Propose a playbook: a standing rule that sends one approved WhatsApp template to newly eligible people who said yes. trigger: quiet_30 (win-back), new_week (welcome), phoned_only (save our number) or everyone_monthly (the month's offer). template_id: an approved template, or omit it for the trigger's starter when the workspace holds it. params: the template's values in order (typed text, or @first_name, @business_name, @booking_link); a starter's are filled in, except a typed one such as the month's offer. run_hour 9–20 by the business's clock (default 10), cap_per_run (default 25). Read list_playbooks first. It becomes a card the person approves; it then runs under its class's autonomy mode.",
+      "Propose a playbook: a standing rule that sends one approved WhatsApp template to newly eligible people who said yes. trigger: quiet_30 (win-back), new_week (welcome), phoned_only (save our number), everyone_monthly (the month's offer), or, where deals are on, proposal_waiting (the proposal follow-up: one nudge per proposal waiting past the workspace's pace, one such playbook per workspace, its message carrying the proposal's link as @proposal_link). template_id: an approved template, or omit it for the trigger's starter when the workspace holds it. params: the template's values in order (typed text, or @first_name, @business_name, @booking_link, @proposal_link); a starter's are filled in, except a typed one such as the month's offer. run_hour 9–20 by the business's clock (default 10), cap_per_run (default 25). Read list_playbooks first. It becomes a card the person approves; it then runs under its class's autonomy mode.",
     input_schema: obj(
       {
-        // Every trigger except the two that follow the calendar, and a proposal's, which the Playbooks page sets up.
-        trigger: {
-          type: "string",
-          enum: PLAYBOOK_TRIGGERS.filter((t) => t.kind !== "visit" && t.kind !== "deal").map((t) => t.id),
-        },
+        // Every trigger except the two that follow the calendar; a proposal's is refused where deals are off.
+        trigger: { type: "string", enum: PLAYBOOK_TRIGGERS.filter((t) => t.kind !== "visit").map((t) => t.id) },
         template_id: { type: "string" },
         params: { type: "array", items: { type: "string" } },
         run_hour: { type: "number" },
@@ -865,8 +865,21 @@ const MODE_WORDS: Record<string, string> = {
 async function proposePlaybook(t: ToolContext, input: Record<string, unknown>): Promise<ProposalOutcome> {
   const trig = triggerOf(str(input.trigger, 30));
   if (!trig) return refuse("trigger must be quiet_30, new_week, phoned_only or everyone_monthly");
-  // A proposal's follow-up is made on the Playbooks page, which counts it by the workspace's pace.
-  if (trig.kind === "deal") return refuse("the proposal follow-up is set up on the Playbooks page");
+  // The proposal follow-up (0006): only where deals are on, and one per workspace (00167).
+  if (trig.kind === "deal") {
+    const [sellsBy, one] = await Promise.all([
+      sellsByOf(t.ctx, t.tenantId),
+      t.ctx.supabase
+        .from("playbooks")
+        .select("id")
+        .eq("tenant_id", t.tenantId)
+        .eq("trigger", trig.id)
+        .limit(1)
+        .maybeSingle(),
+    ]);
+    if (!triggerOffered(trig, dealsAreOn(sellsBy))) return refuse(FOLLOW_UP_NEEDS_DEALS);
+    if (one.data) return refuse(FOLLOW_UP_ONE);
+  }
   let templateId = str(input.template_id, 40);
   if (templateId && !UUID.test(templateId))
     return refuse("template_id must be an id list_audiences returned, or omitted for the trigger's starter");
@@ -909,7 +922,10 @@ async function proposePlaybook(t: ToolContext, input: Record<string, unknown>): 
     specs = [];
     for (const p of given) {
       const spec = parseParamSpec(p);
-      if (!spec) return refuse("each value is text, or @first_name, @business_name or @booking_link");
+      if (!spec)
+        return refuse(
+          "each value is text, or @first_name, @business_name or @booking_link, or @proposal_link on the proposal follow-up",
+        );
       if (spec.kind === "text") {
         const v = cleanParam(spec.value);
         if (v === null)
@@ -943,14 +959,20 @@ async function proposePlaybook(t: ToolContext, input: Record<string, unknown>): 
     return refuse(e instanceof Error ? e.message : String(e));
   }
 
-  const [rows, policies] = await Promise.all([
+  const deal = trig.kind === "deal";
+  const [rows, policies, paceRead, followUps] = await Promise.all([
     audiencePoolOnce(t.memo, t.ctx, t.tenantId, t.timezone, t.now).then((pool) => pool.rows),
     listPolicies(t.ctx.supabase, t.tenantId).catch(() => []),
+    // A proposal's moment is counted as the page counts it (0006): by the pace, less whoever had their follow-up.
+    deal ? dealPaceRead(t.ctx, t.tenantId, t.now) : Promise.resolve(null),
+    deal ? proposalFollowUps(t.ctx, t.tenantId, t.now).catch(() => null) : Promise.resolve(new Map<string, number>()),
   ]);
+  if (!followUps)
+    return refuse("who already had a proposal follow-up could not be read just now; say so, and try again in a moment");
   const untouched = {
     byThis: new Map<string, number>(),
     byAny: new Map<string, number>(),
-    followUps: new Map<string, number>(),
+    followUps,
   };
   // Who a run reaches now, and who its moment names said the yes it needs: the card said "0 on the list said yes
   // now" about a list whose yes had no number to send to. Said in the send screen's words (saidYesWords).
@@ -959,8 +981,7 @@ async function proposePlaybook(t: ToolContext, input: Record<string, unknown>): 
     { trigger: trig.id, cap_per_run: 100_000, gap_days: 0, cadence_days: 0 },
     untouched,
     t.now.getTime(),
-    // No proposal's moment is proposed here (above), so none waits on a pace.
-    null,
+    dealPaceOf(paceRead),
   );
   const candidates = drawn.reach.will;
   const mode = policies.find((r) => r.class === trig.cls)?.mode ?? "ask";

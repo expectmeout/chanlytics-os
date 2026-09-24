@@ -20,6 +20,7 @@ import { personName } from "./person-name";
 import { mayMessageFor, type ConsentChange, type SendPurpose } from "./consent";
 import { replyWindow, waWindow } from "./policy";
 import { tidyCallSummary } from "./call-words";
+import type { FollowUpStand } from "./playbooks";
 import { visitDateKey, visitDay, visitLine, visitTime, type PersonVisitsDto } from "./calendar-people";
 import {
   forWords,
@@ -1302,6 +1303,11 @@ export interface PersonRowVM {
   consultAhead: { startMs: number; allDay: boolean } | null;
   /** Their next step (0007, amended): the earliest open note with a day; null without one. */
   nextStep: PersonNextStepVM | null;
+  /**
+   * Where they stand with the proposal follow-up (0006, playbooks.ts followUpStandOf): laid on by the People surface
+   * from the follow-up's facts, where one runs; null otherwise, and on a row read anywhere else.
+   */
+  followUp: FollowUpStand | null;
 }
 
 /**
@@ -1434,6 +1440,7 @@ export function toPersonRowVM(r: PersonRowDto, tz: string, now = new Date()): Pe
         ? { startMs: nextVisitMs, allDay: !!v.next.all_day }
         : null,
     nextStep: nextStepOf(r, tz, nowMs),
+    followUp: null,
   };
 }
 

@@ -343,9 +343,9 @@ test("the pages link to the routes, and only where the bridge can name the works
   assert.ok(
     list.includes("listPeople(ctx, tenantId, { q, offset, limit: PEOPLE_PAGE })") &&
       [
-        "const [out, sellsBy, nameSteps, pace] = await Promise.all([",
+        "const [out, sellsBy, nameSteps, pace, followUp] = await Promise.all([",
         "withVisits(ctx, tenantId, rows),",
-        "sellsByOf(ctx, tenantId),",
+        "const buys = sellsByOf(ctx, tenantId);",
       ].every((line) => list.includes(line)),
     "the same reading of who exists as the export, with their appointments, a page at a time",
   );
