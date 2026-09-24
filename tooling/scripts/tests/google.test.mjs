@@ -27,6 +27,8 @@ import {
   FRESH_SLACK_MS,
 } from "@chanlytics/channels";
 import {
+  hoursFromGoogle,
+  TenantConfigWriteSchema,
   toGoogleVM,
   gainedOver,
   reviewIsNew,
@@ -85,6 +87,18 @@ test("Place Details asks by id with the reviews in the mask, the id encoded, the
     "reviews",
   ])
     assert.ok(PLACES_DETAILS_MASK.split(",").includes(f), f);
+  // F7: what the listing says beyond its name, for the first run to offer. Each name as Google's Place reference
+  // spells it (checked 24 Sep 2026): one wrong name and Google refuses the whole read, reviews and all.
+  assert.deepEqual(PLACES_DETAILS_MASK.split(",").slice(-8), [
+    "regularOpeningHours",
+    "internationalPhoneNumber",
+    "nationalPhoneNumber",
+    "websiteUri",
+    "primaryType",
+    "primaryTypeDisplayName",
+    "pureServiceAreaBusiness",
+    "timeZone",
+  ]);
   assert.equal(r.body, undefined);
   assert.ok(
     PLACE_ID.test("ChIJN1t_tDeuEmsRUsoyG83frY4") && !PLACE_ID.test("short") && !PLACE_ID.test("has spaces in it here"),
@@ -99,6 +113,21 @@ const PLACE = {
   businessStatus: "OPERATIONAL",
   rating: 4.8,
   userRatingCount: 213,
+  regularOpeningHours: {
+    openNow: true,
+    periods: [2, 3, 4, 5, 6].map((day) => ({
+      open: { day, hour: 9, minute: 0 },
+      close: { day, hour: 19, minute: 0 },
+    })),
+    weekdayDescriptions: ["Tuesday: 9:00 AM – 7:00 PM"],
+  },
+  internationalPhoneNumber: "+1 718-555-0142",
+  nationalPhoneNumber: "(718) 555-0142",
+  websiteUri: "https://northsidemovers.example",
+  primaryType: "moving_company",
+  primaryTypeDisplayName: { text: "Moving company", languageCode: "en" },
+  pureServiceAreaBusiness: true,
+  timeZone: { id: "America/New_York" },
   reviews: [
     {
       name: "places/ChIJN1t_tDeuEmsRUsoyG83frY4/reviews/r-ana",
@@ -158,6 +187,103 @@ test("the parsers read what Google returns and refuse what it does not", () => {
   assert.throws(() => parsePlaceDetails({ id: "x" }), PlacesError);
 });
 
+test("F7: the listing's facts are read as Google says them -- the week, the numbers, the site, the kind, the area, the zone", () => {
+  assert.deepEqual(parsePlaceDetails(PLACE).facts, {
+    hours: [2, 3, 4, 5, 6].map((day) => ({ open: { day, hour: 9, minute: 0 }, close: { day, hour: 19, minute: 0 } })),
+    phone_e164: "+17185550142",
+    phone_display: "(718) 555-0142",
+    website: "https://northsidemovers.example",
+    primary_type: "moving_company",
+    primary_type_label: "Moving company",
+    service_area_only: true,
+    time_zone: "America/New_York",
+  });
+  // A listing that says none of it: nothing invented.
+  assert.deepEqual(parsePlaceDetails({ id: PLACE.id, displayName: PLACE.displayName }).facts, {
+    hours: null,
+    phone_e164: null,
+    phone_display: null,
+    website: null,
+    primary_type: null,
+    primary_type_label: null,
+    service_area_only: false,
+    time_zone: null,
+  });
+  // Google drops a field at its zero (proto3): Sunday at midnight arrives as {}; a point that is not an object is no point.
+  const odd = parsePlaceDetails({
+    ...PLACE,
+    regularOpeningHours: {
+      periods: [{ open: {} }, { open: { day: 1, hour: 9 }, close: { day: 1, hour: 17 } }, { open: 5 }],
+    },
+  }).facts.hours;
+  assert.deepEqual(odd, [
+    { open: { day: 0, hour: 0, minute: 0 }, close: null },
+    { open: { day: 1, hour: 9, minute: 0 }, close: { day: 1, hour: 17, minute: 0 } },
+  ]);
+});
+
+test("F7: Google's week becomes the Business record's, and what the record cannot hold is named, never guessed", () => {
+  const p = (day, oh, om, ch, cm, cday = day) => ({
+    open: { day, hour: oh, minute: om },
+    close: { day: cday, hour: ch, minute: cm },
+  });
+  // Tuesday to Saturday, nine to seven: a salon's week, Sunday and Monday closed by being absent.
+  const week = hoursFromGoogle([2, 3, 4, 5, 6].map((d) => p(d, 9, 0, 19, 0)));
+  assert.deepEqual(week, {
+    hours: {
+      tue: { open: "09:00", close: "19:00" },
+      wed: { open: "09:00", close: "19:00" },
+      thu: { open: "09:00", close: "19:00" },
+      fri: { open: "09:00", close: "19:00" },
+      sat: { open: "09:00", close: "19:00" },
+    },
+    unsure: [],
+  });
+  // A lunch break is two shifts, in order, whatever order Google sent them in.
+  assert.deepEqual(hoursFromGoogle([p(1, 15, 0, 19, 0), p(1, 9, 30, 13, 0)]).hours, {
+    mon: {
+      intervals: [
+        { open: "09:30", close: "13:00" },
+        { open: "15:00", close: "19:00" },
+      ],
+    },
+  });
+  // Past midnight, around the clock, five shifts, two that overlap: each day is left out and named.
+  assert.deepEqual(hoursFromGoogle([p(5, 18, 0, 2, 0, 6)]), { hours: {}, unsure: ["fri"] });
+  assert.deepEqual(hoursFromGoogle([{ open: { day: 0, hour: 0, minute: 0 }, close: null }]), {
+    hours: {},
+    unsure: ["sun"],
+  });
+  assert.deepEqual(
+    hoursFromGoogle([8, 10, 12, 14, 16].map((h) => p(3, h, 0, h + 1, 0))),
+    { hours: {}, unsure: ["wed"] },
+    "a fifth shift is more than the record holds",
+  );
+  assert.deepEqual(hoursFromGoogle([p(4, 9, 0, 13, 0), p(4, 12, 0, 17, 0)]), { hours: {}, unsure: ["thu"] });
+  // One unsure day never takes the others with it.
+  assert.deepEqual(hoursFromGoogle([p(1, 9, 0, 17, 0), p(5, 18, 0, 2, 0, 6)]), {
+    hours: { mon: { open: "09:00", close: "17:00" } },
+    unsure: ["fri"],
+  });
+  assert.deepEqual(hoursFromGoogle(null), { hours: {}, unsure: [] }, "no hours on the listing, nothing to offer");
+  // Shifts that touch are an ordinary two-stylist day, as the record's own check has it.
+  const touching = hoursFromGoogle([p(2, 9, 0, 13, 0), p(2, 13, 0, 19, 0)]);
+  assert.deepEqual(touching.unsure, []);
+  // Every week it makes is one the record's write rules accept: offered, it can be saved as it stands.
+  const accepts = (hours) =>
+    TenantConfigWriteSchema.safeParse({
+      brain: {
+        business_name: "Northside Movers",
+        booking_link: "https://book.example/northside",
+        system_prompt: "Answer as the front desk of Northside Movers: brief, warm, never a price.",
+        fallbacks: { greeting: "g", error: "e", non_text: "n" },
+        profile: { hours },
+      },
+    }).success;
+  for (const made of [week, touching, hoursFromGoogle([p(1, 15, 0, 19, 0), p(1, 9, 30, 13, 0)])])
+    assert.equal(accepts(made.hours), true, JSON.stringify(made.hours));
+});
+
 test("the client turns Google's refusal into its own words and never swallows a bad status", async () => {
   const calls = [];
   const http = async (req) => {
@@ -215,6 +341,8 @@ test("the first read after linking is history: the rows are written, nothing is 
     review_count: 213,
     checked_at: new Date(NOW).toISOString(),
     check_error: null,
+    // F7: every good read keeps what the listing says now, for the first run to offer.
+    facts: parsePlaceDetails(PLACE).facts,
   });
 });
 

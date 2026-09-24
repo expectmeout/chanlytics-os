@@ -9,6 +9,14 @@ import { z as z7 } from "zod";
 import { z as z8 } from "zod";
 import { z as z9 } from "zod";
 z.config({ jitless: true });
+function normalizePhone(raw) {
+  if (raw == null) return null;
+  const digits2 = String(raw).replace(/[^\d]/g, "");
+  if (!digits2) return null;
+  if (digits2.length === 10) return `+1${digits2}`;
+  if (digits2.length >= 8 && digits2.length <= 15) return `+${digits2}`;
+  return null;
+}
 var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE = new RegExp(`^(${LOCAL})@(${LABEL}(?:\\.${LABEL})+)$`);
@@ -4350,7 +4358,7 @@ async function runA2PSaga(start, p) {
 // src/google-places.ts
 var PLACES_BASE = "https://places.googleapis.com/v1";
 var PLACES_SEARCH_MASK = "places.id,places.displayName,places.formattedAddress,places.googleMapsUri,places.businessStatus";
-var PLACES_DETAILS_MASK = "id,displayName,formattedAddress,googleMapsUri,businessStatus,rating,userRatingCount,reviews";
+var PLACES_DETAILS_MASK = "id,displayName,formattedAddress,googleMapsUri,businessStatus,rating,userRatingCount,reviews,regularOpeningHours,internationalPhoneNumber,nationalPhoneNumber,websiteUri,primaryType,primaryTypeDisplayName,pureServiceAreaBusiness,timeZone";
 var PLACES_SEARCH_LIMIT = 5;
 var PLACES_TIMEOUT_MS = 1e4;
 var PlacesError = class extends Error {
@@ -4423,6 +4431,35 @@ function reviewOf(r) {
     maps_uri: str2(r.googleMapsUri)
   };
 }
+function pointOf(v) {
+  const o = obj(v);
+  if (!o) return null;
+  const day = num(o.day) ?? 0;
+  const hour = num(o.hour) ?? 0;
+  const minute = num(o.minute) ?? 0;
+  return day >= 0 && day <= 6 && hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59 ? { day, hour, minute } : null;
+}
+function periodOf(v) {
+  const o = obj(v);
+  const open = pointOf(o?.open);
+  if (!o || !open) return null;
+  if (o.close === void 0) return { open, close: null };
+  const close = pointOf(o.close);
+  return close ? { open, close } : null;
+}
+function factsOf(p) {
+  const periods = obj(p.regularOpeningHours)?.periods;
+  return {
+    hours: Array.isArray(periods) ? periods.map(periodOf).filter((x) => x !== null) : null,
+    phone_e164: normalizePhone(str2(p.internationalPhoneNumber)),
+    phone_display: str2(p.nationalPhoneNumber),
+    website: str2(p.websiteUri),
+    primary_type: str2(p.primaryType),
+    primary_type_label: localized(p.primaryTypeDisplayName).text,
+    service_area_only: p.pureServiceAreaBusiness === true,
+    time_zone: str2(obj(p.timeZone)?.id)
+  };
+}
 function parsePlacesSearch(json) {
   const places = obj(json)?.places;
   if (!Array.isArray(places)) return [];
@@ -4442,7 +4479,8 @@ function parsePlaceDetails(json) {
     business_status: str2(p.businessStatus),
     rating: num(p.rating),
     review_count: num(p.userRatingCount),
-    reviews
+    reviews,
+    facts: factsOf(p)
   };
 }
 function refusal2(status, body) {
@@ -4542,7 +4580,8 @@ function planListingCheck(before, knownIds, fresh, day, nowMs, opts = {}) {
       rating: fresh.rating,
       review_count: fresh.review_count,
       checked_at: now,
-      check_error: null
+      check_error: null,
+      facts: fresh.facts
     },
     day: { day, rating: fresh.rating, review_count: fresh.review_count ?? 0 },
     reviews: carriesReviews ? fresh.reviews.map((r) => ({ ...r, last_seen_at: now })) : [],

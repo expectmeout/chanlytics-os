@@ -13299,6 +13299,34 @@ function reviewReplyWords(mode, canReply) {
 }
 
 // src/google.ts
+var GOOGLE_DAY = { 0: "sun", 1: "mon", 2: "tue", 3: "wed", 4: "thu", 5: "fri", 6: "sat" };
+var hhmm2 = (h, m) => `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+function hoursFromGoogle(periods) {
+  const shifts = /* @__PURE__ */ new Map();
+  const unsure = /* @__PURE__ */ new Set();
+  for (const p of periods ?? []) {
+    const day = GOOGLE_DAY[p.open.day];
+    if (!day) continue;
+    const open = hhmm2(p.open.hour, p.open.minute);
+    const close = p.close ? hhmm2(p.close.hour, p.close.minute) : null;
+    if (!p.close || !close || p.close.day !== p.open.day || close <= open) {
+      unsure.add(day);
+      continue;
+    }
+    shifts.set(day, [...shifts.get(day) ?? [], { open, close }]);
+  }
+  const hours = {};
+  for (const day of DAYS) {
+    const list2 = (shifts.get(day) ?? []).sort((a, b) => a.open.localeCompare(b.open));
+    if (unsure.has(day) || !list2.length) continue;
+    if (list2.length > MAX_INTERVALS_PER_DAY || list2.some((s, i) => i > 0 && s.open < list2[i - 1].close)) {
+      unsure.add(day);
+      continue;
+    }
+    hours[day] = list2.length === 1 ? { open: list2[0].open, close: list2[0].close } : { intervals: list2 };
+  }
+  return { hours, unsure: DAYS.filter((d) => unsure.has(d)) };
+}
 var GOOGLE_SHOWN_REVIEWS = 5;
 var REVIEW_NEWS_MS = 36 * 3600 * 1e3;
 var REVIEW_NEWS_MAX_AGE_MS = 14 * 864e5;
@@ -19692,6 +19720,7 @@ export {
   hasProfile,
   heardSinceProposal,
   heardWords,
+  hoursFromGoogle,
   hoursLines2 as hoursLines,
   hoursOf2 as hoursOf,
   hoursRuns,

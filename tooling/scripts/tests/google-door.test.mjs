@@ -306,6 +306,20 @@ const place = (id, over = {}) => ({
   rating: 4.6,
   userRatingCount: 11,
   reviews: [],
+  // What the listing says beyond its name (F7): a mover's week, its numbers and site, and the area it serves.
+  regularOpeningHours: {
+    periods: [1, 2, 3, 4, 5, 6].map((day) => ({
+      open: { day, hour: 7, minute: 0 },
+      close: { day, hour: 19, minute: 0 },
+    })),
+  },
+  internationalPhoneNumber: "+1 718-555-0142",
+  nationalPhoneNumber: "(718) 555-0142",
+  websiteUri: "https://harbormoving.example",
+  primaryType: "moving_company",
+  primaryTypeDisplayName: { text: "Moving company", languageCode: "en" },
+  pureServiceAreaBusiness: true,
+  timeZone: { id: "America/New_York" },
   ...over,
 });
 /** A review as Places shows it: Rosa, two hours ago. */
@@ -708,6 +722,23 @@ test("link: the place is read BEFORE any row is written -- a wrong id is a 502 a
   assert.deepEqual(
     [row.tenant_id, row.place_id, row.name, row.linked_by, row.rating, row.review_count, row.check_error],
     [A, PLACE, "Harbor Moving", U, 4.6, 11, null],
+  );
+  assert.deepEqual(
+    row.facts,
+    {
+      hours: [1, 2, 3, 4, 5, 6].map((day) => ({
+        open: { day, hour: 7, minute: 0 },
+        close: { day, hour: 19, minute: 0 },
+      })),
+      phone_e164: "+17185550142",
+      phone_display: "(718) 555-0142",
+      website: "https://harbormoving.example",
+      primary_type: "moving_company",
+      primary_type_label: "Moving company",
+      service_area_only: true,
+      time_zone: "America/New_York",
+    },
+    "F7: what the listing says beyond its name is kept on the row, read at once, for the first run to offer",
   );
   assert.deepEqual(
     tables.google_reviews.map((r) => [r.tenant_id, r.review_id, r.origin, r.author, r.body]),
