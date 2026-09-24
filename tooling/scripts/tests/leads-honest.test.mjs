@@ -426,6 +426,8 @@ globalThis.MoreMenu = (p) => {
   menus.push(p);
   return null;
 };
+/** A kept search's menu, as the rail drew it. */
+const menuOf = (name) => menus.find((m) => m.title === `More for ${name}`);
 globalThis.Confirm = (p) => {
   confirms.push(p);
   return null;
@@ -460,6 +462,8 @@ for (const k of ["PeopleRail", "PeopleStanding", "PeopleScopeTabs", "RailSection
 const finders = [];
 const strips = [];
 const peeks = [];
+// Find leads is Ask's (spec F1, F7): every door on the page hands Ask a detail, and that detail is what is pinned.
+const asks = [];
 globalThis.LeadFinder = (p) => {
   finders.push(p);
   return null;
@@ -638,6 +642,8 @@ const install = ({ role = "owner", refuse = null } = {}) => {
       leadMapNote,
       leadPinTone,
     },
+    // The shell's door to Ask (dashboard-a-ask.jsx), recorded: what the page hands it is read back.
+    askAbout: (detail) => asks.push(detail),
     __ask: {
       language: () => "en",
       send: async () => {
@@ -759,6 +765,7 @@ const fresh = ({ leads = surface(), views = {}, role = "owner", refuse = null, p
   finders.length = 0;
   strips.length = 0;
   peeks.length = 0;
+  asks.length = 0;
   recs.length = 0;
   uploads.length = 0;
   for (const k of Object.keys(listeners)) delete listeners[k];
@@ -780,6 +787,19 @@ const draw = (props = {}) => {
     onOpenProfile: (id) => opened.push(id),
     ...props,
   });
+};
+/**
+ * The composer, through the one door the page keeps for it now that Find leads is Ask's: a kept search's Search
+ * again, changed, then Change what I asked on its card. What it composes is still the page's own (Task 4 retires it).
+ */
+const openComposer = (name = "Personal trainers · Austin") => {
+  draw();
+  menuOf(name)
+    .items.find((i) => i.label === "Search again, changed")
+    .onClick();
+  draw();
+  finders.at(-1).onBack();
+  draw();
 };
 
 test("a fresh mount of Leads draws its first rows and the next draw every row", () => {
@@ -938,7 +958,7 @@ test("with no search kept the first day stands where the table would, and claims
   );
 });
 
-test("suggestions the page could not read say so, and the composer still works", () => {
+test("suggestions the page could not read say so, and Find leads is still offered", () => {
   fresh({ leads: surface({ searches: [], rows: [], suggestions: null }) });
   const fd = byTestId(draw(), "leads-first-day");
   assert.ok(fd, "the first day is still drawn");
@@ -948,21 +968,38 @@ test("suggestions the page could not read say so, and the composer still works",
     "the space where they go says why it is empty",
   );
   assert.equal(textOf(byTestId(fd, "ld-line")), "", "and nothing claims a business line that was never read");
-  assert.equal(finders.length, 1, "the composer is drawn either way: the owner can still describe what they want");
+  assert.ok(
+    byTestId(fd, "leads-first-find"),
+    "the door is drawn either way: the owner can still describe what they want",
+  );
 });
 
-test("a suggestion picked on the first day fills the composer, and the composer is inside the first day", () => {
+test("the first day offers Find leads, which opens Ask; a suggestion picked opens Ask with its words", () => {
   fresh({ leads: surface({ searches: [], rows: [], suggestions: SUGGESTIONS }) });
-  let tree = draw();
-  // The composer is a recorder here (globalThis.LeadFinder), so what this pins is that it is drawn once with
-  // nobody having opened it -- on the first day it is part of the page, not a fold-out over an empty table.
-  assert.equal(finders.length, 1, "the composer is drawn without the owner opening anything");
-  find(byTestId(tree, "leads-first-day"), (n) => n.type === "button" && n.props?.className === "q").props.onClick();
-  tree = draw();
-  assert.equal(
-    finders[finders.length - 1].words,
-    "gyms in Denver",
-    "the words land in the composer the owner then edits",
+  const fd = byTestId(draw(), "leads-first-day");
+  // The composer's slot is one button (spec F1): the page draws no composer of its own on the first day.
+  assert.equal(finders.length, 0, "no composer is drawn: Ask is the finder");
+  const door = byTestId(fd, "leads-first-find");
+  assert.match(textOf(door), /Find leads/);
+  assert.ok(
+    find(door, (n) => n.type === "Icon" && n.props?.name === "three"),
+    "wearing the three's still mark, Ask's face at rest",
+  );
+  click(door);
+  assert.deepEqual(asks.at(-1), { mode: "compose", prompt: "" }, "Find leads opens Ask with the field empty");
+  find(fd, (n) => n.type === "button" && n.props?.className === "q").props.onClick();
+  assert.deepEqual(
+    asks.at(-1),
+    { mode: "compose", prompt: "gyms in Denver" },
+    "a suggestion's words are in the field, ready to send",
+  );
+  assert.equal(finders.length, 0, "and still no composer");
+  // The button is gated as the bar's square was: an operator sees it refuse in the gate's sentence.
+  fresh({ role: "operator", leads: surface({ searches: [], rows: [], suggestions: SUGGESTIONS }) });
+  const gated = byTestId(byTestId(draw(), "leads-first-day"), "leads-first-find");
+  assert.deepEqual(
+    [gated.props["aria-disabled"], gated.props["aria-description"]],
+    [true, "Only an owner can find businesses for you."],
   );
 });
 
@@ -1594,7 +1631,7 @@ test("the search box filters the leads loaded, by name, kind and area, and sends
 const cursorRow = (tree) =>
   find(tree, (n) => n.type === "tr" && /\bfocused\b/.test(n.props?.className || ""))?.props.id ?? null;
 
-test("the keys: J and K move, Enter peeks, x selects, C calls, F finds; one listener before and after the scope draws", () => {
+test("the keys: J and K move, Enter peeks, x selects, C calls, F opens Ask; one listener before and after the scope draws", () => {
   fresh();
   draw();
   assert.equal(listeners.keydown?.size, 1, "one listener for the page's life");
@@ -1622,7 +1659,16 @@ test("the keys: J and K move, Enter peeks, x selects, C calls, F finds; one list
     "C dials the lead under the cursor from the owner's own phone",
   );
   assert.equal(press("f"), true);
-  assert.equal(draw() && finders.at(-1).open, true, "F opens the finder");
+  assert.deepEqual(asks.at(-1), { mode: "compose", prompt: "" }, "F opens Ask, the finder on this page (spec F7)");
+  assert.equal(finders.length, 0, "and no composer of the page's own");
+  // The button is the same door, wearing the three's mark; its click event is not words.
+  const door = byTestId(draw(), "leads-find");
+  assert.ok(
+    find(door, (n) => n.type === "Icon" && n.props?.name === "three"),
+    "the mark",
+  );
+  click(door);
+  assert.deepEqual(asks.at(-1), { mode: "compose", prompt: "" }, "the field is empty, not an event");
 });
 
 test("Esc closes the peek, then the finder, then the Columns menu, then the selection -- one press each, in that order", () => {
@@ -1633,7 +1679,10 @@ test("Esc closes the peek, then the finder, then the Columns menu, then the sele
   draw();
   press("Enter", { tagName: "TR", isContentEditable: false, closest: () => null });
   draw();
-  press("f");
+  // The finder's door left on the page: a kept search's Search again, changed (F is Ask's now, spec F7).
+  menuOf("Personal trainers · Austin")
+    .items.find((i) => i.label === "Search again, changed")
+    .onClick();
   draw();
   click(byTestId(draw(), "people-columns"));
   // Everything the page can have open at once, opened: the peek, the finder, the Columns menu and a selection.
@@ -2229,9 +2278,7 @@ const finderAfter = (fn) => {
 
 test("a Find half-written is still there after a refresh and after a rail pick: the words, and the plan Claude wrote, open as they were left", async () => {
   fresh();
-  draw();
-  press("f");
-  draw();
+  openComposer();
   finders.at(-1).onWords("personal trainers in Austin with a website");
   draw();
   // Down the rail and back: the page stayed, so the finder did.
@@ -2263,9 +2310,7 @@ test("a Find half-written is still there after a refresh and after a rail pick: 
 
 test("a Find keeps only what can still be used: a turn that was still being read comes back as its words, and one that started leaves nothing", async () => {
   fresh();
-  draw();
-  press("f");
-  draw();
+  openComposer();
   finders.at(-1).onWords("gyms in Denver");
   draw();
   globalThis.window.__ask.send = () => new Promise(() => {});
@@ -2553,6 +2598,7 @@ test("an operator sees Find leads, Keep, Exclude and Put back refusing in the ga
   ]);
   assert.equal(press("f"), false, "and the key is not theirs either");
   assert.equal(finders.length, 0);
+  assert.equal(asks.length, 0, "Ask is not opened for them");
 });
 
 test("the Excluded view's chips count by criterion, and each narrows the rows", () => {
@@ -2580,8 +2626,6 @@ test("the Excluded view's chips count by criterion, and each narrows the rows", 
 });
 
 /* --------------------------------- a search, kept --------------------------------- */
-
-const menuOf = (name) => menus.find((m) => m.title === `More for ${name}`);
 
 test("a kept search's menu says what was asked and when, and offers Rename, Find new ones, Search again, Export and Remove", async () => {
   fresh();
@@ -2756,13 +2800,11 @@ const bar = (over = {}) => {
     searchRef: { current: null },
     searchOpen: false,
     onSearchOpen() {},
-    onFind() {},
-    canFind: true,
     ...over,
   });
 };
 
-test("on a phone the switch, the list, search and Find are one bar; search is a button that opens the bar into the field", () => {
+test("on a phone the switch, the list and search are one bar with no Find square; search is a button that opens the bar into the field", () => {
   fresh();
   const t = bar();
   const tabs = all(t, (n) => n.props?.role === "tab");
@@ -2775,7 +2817,11 @@ test("on a phone the switch, the list, search and Find are one bar; search is a 
   );
   assert.equal(byTestId(t, "leads-phone-search-open").props["aria-label"], "Search leads");
   assert.equal(byTestId(t, "leads-phone-search"), null, "REGRESSION: the box was 64px wide on a phone and said 'Sear'");
-  assert.equal(byTestId(t, "leads-phone-find").props["aria-label"], "Find leads");
+  assert.equal(
+    byTestId(t, "leads-phone-find"),
+    null,
+    "no find square: Find leads is Ask on a phone, and the shell's ✦ is its one door (spec F1)",
+  );
   // The name gives way before the count: "All leads · 96" was one string, and a 375px phone drew it "All leads · …".
   const pick = byTestId(t, "leads-phone-lists");
   assert.equal(textOf(find(pick, (n) => n.props?.className === "pp-bar-pick-words")), "All leads");
@@ -2816,14 +2862,7 @@ test("where deals are on, a phone's bar has the Pipeline beside People and Leads
     ],
   );
   assert.equal(textOf(byTestId(byTestId(t, "leads-phone-lists"), "leads-phone-lists-count")), "322");
-  assert.ok(byTestId(t, "leads-phone-find"));
-});
-
-test("Find on a phone is the gate's for anyone who may not find", () => {
-  fresh({ role: "operator" });
-  const t = bar({ canFind: false });
-  assert.equal(byTestId(t, "leads-phone-find").props["aria-disabled"], true);
-  assert.equal(byTestId(t, "leads-phone-find").props["aria-description"], "Only an owner can find businesses for you.");
+  assert.equal(byTestId(t, "leads-phone-find"), null, "and still no find square");
 });
 
 test("the finder's sheet is the page's own dialog and registers no listener of its own", () => {
@@ -3021,9 +3060,7 @@ test("approving a new plan lands on the search it started, where the strip is; a
   fresh();
   const NEW = "3d1d5c1e-0000-4000-8000-00000000c0de";
   globalThis.window.__ask.commit = async () => ({ ok: true, receipt: "Finding 50 gyms.", undo: { search_id: NEW } });
-  draw();
-  press("f");
-  draw();
+  openComposer();
   const f = finders.at(-1);
   assert.equal(f.open, true);
   // Ask answers the turn with a card, as the real loop does; the finder then approves it through the commit.
@@ -3137,21 +3174,27 @@ test("Change what I asked opens the finder under the question, and approving ans
   assert.equal(textOf(flashes.at(-1).msg), "Carrying on with your change.");
 });
 
-test("a fresh Find after an abandoned answer is a new search, not an answer", () => {
+test("a fresh Find after an abandoned answer is Ask's, and a plan opened after it is not an answer", () => {
   fresh();
   draw({ leadsRoute: `leads:s-${SEARCH_B}` });
   strips.at(-1).onAction("change");
   draw({ leadsRoute: `leads:s-${SEARCH_B}` });
   assert.ok(finders.at(-1).answering, "answering");
-  // Left half-done: Esc closes the finder (and keeps what was typed, as a Find does), then F starts a new one.
+  // Left half-done: Esc closes the finder (and keeps what was typed, as a Find does), then F is Ask's (spec F7):
+  // it opens no finder, so nothing of the answer can ride on it.
   press("Escape");
   draw({ leadsRoute: `leads:s-${SEARCH_B}` });
   press("f");
   draw({ leadsRoute: `leads:s-${SEARCH_B}` });
-  assert.equal(finders.at(-1).stage, "compose");
-  assert.equal(finders.at(-1).answering, null, "F opens a finder that is not answering anything");
-  // Esc alone lets it go too: what the tab keeps of a half-written Find is never an answer, so Search again or the
-  // first day's composer (which never open through F) cannot answer a search that is no longer on screen.
+  assert.deepEqual(asks.at(-1), { mode: "compose", prompt: "" }, "F opens Ask, not a finder");
+  menuOf("Chiropractors · Round Rock")
+    .items.find((i) => i.label === "Search again, changed")
+    .onClick();
+  draw({ leadsRoute: `leads:s-${SEARCH_B}` });
+  assert.equal(finders.at(-1).stage, "plan");
+  assert.equal(finders.at(-1).answering, null, "Search again opens a plan that is not answering anything");
+  // Esc alone lets it go too: what the tab keeps of a half-written Find is never an answer, so Search again (which
+  // never opens through F) cannot answer a search that is no longer on screen.
   strips.at(-1).onAction("change");
   draw({ leadsRoute: `leads:s-${SEARCH_B}` });
   press("Escape");
@@ -3271,9 +3314,7 @@ test("the search menu removes the untouched leads and credits the month, named f
 
 test("the composer's mic is held to talk: it fills the input with what the browser heard, and uploads nothing", () => {
   fresh();
-  draw();
-  press("f");
-  draw();
+  openComposer();
   const talk = finders.at(-1).talk;
   assert.ok(talk && talk.canTalk, "a browser with a recogniser is offered the mic; `talk: null` offers nothing");
   talk.start({ preventDefault() {} });
@@ -3312,17 +3353,13 @@ test("the composer's mic is held to talk: it fills the input with what the brows
 
 test("with no recogniser there is no mic, and a page drawn without Ask's hooks keeps one hook order", () => {
   fresh();
-  draw();
-  press("f");
-  draw();
+  openComposer();
   const SR = globalThis.window.SpeechRecognition;
   const H = globalThis.window.AskHooks;
   try {
     delete globalThis.window.SpeechRecognition;
     fresh();
-    draw();
-    press("f");
-    draw();
+    openComposer();
     assert.equal(finders.at(-1).talk.canTalk, false, "a browser that cannot hear is offered nothing");
     fresh();
     draw();

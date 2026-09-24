@@ -3307,15 +3307,9 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
     asked: s.asked,
     leavingOut: (s.plan.exclusions || []).map((x) => x.text),
   });
-  // A fresh Find is never an answer: an answer left half-done must not turn the next search into one.
-  const openFind = () => {
-    setFinderMore(null);
-    setFinderProposal(null);
-    setFinderPlan(null);
-    setFinderRefusal(null);
-    setFinderStage("compose");
-    setFinderOpen(true);
-  };
+  // Find leads is Ask on this page (spec F1, F2): the takeover on a phone, the Stage on a desktop, the words ready.
+  // A button's click event is not words: only a string (a suggestion's) reaches the field.
+  const openFind = (words = "") => window.askAbout({ mode: "compose", prompt: typeof words === "string" ? words : "" });
   // A next step opens the plan card with what would run; nothing starts until the owner approves it there.
   const openPlanFor = (s, plan, how) => {
     // Answering, the composer behind the card (Change what I asked) is the owner's answer: what they first asked

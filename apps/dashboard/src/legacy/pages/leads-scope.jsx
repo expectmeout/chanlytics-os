@@ -938,10 +938,11 @@ const LeadsBulkBar = ({ sel, rows, total, view, canFind, canExport, busy, whyNot
 /* ---------------------------------------------------------------- the phone */
 
 // The phone's top (<=900px, the band People's own rows begin at), Leads' way: People's (PeoplePhoneBar, clients-a.jsx),
-// the scopes as the Inbox's tab strip over the bar, with Find as its last control. The same top on every scope, and
-// nothing else sits above the rows -- no title, no sub-headline, no stat cards and no second control row
-// (legacy/CLAUDE.md, the phone shows the work first).
-const LeadsPhoneBar = ({ scope, onScope, dealsOn = false, listLabel, listCount = null, onLists, listsOpen, q, onQ, searchRef, searchOpen = false, onSearchOpen = () => {}, onFind, canFind }) => {
+// the scopes as the Inbox's tab strip over the bar: lists and search, nothing after them. Find leads is Ask on a
+// phone, and the shell's ✦ is its one door (spec F1), so the bar carries no square of its own. The same top on
+// every scope, and nothing else sits above the rows -- no title, no sub-headline, no stat cards and no second
+// control row (legacy/CLAUDE.md, the phone shows the work first).
+const LeadsPhoneBar = ({ scope, onScope, dealsOn = false, listLabel, listCount = null, onLists, listsOpen, q, onQ, searchRef, searchOpen = false, onSearchOpen = () => {} }) => {
   const Bar = window.PeoplePhoneBar;
   return (
     <Bar
@@ -959,18 +960,6 @@ const LeadsPhoneBar = ({ scope, onScope, dealsOn = false, listLabel, listCount =
       onSearchOpen={onSearchOpen}
       searchLabel="Search leads"
       testid="leads"
-      trailing={(
-        <button
-          type="button"
-          className="ld-bar-find"
-          aria-label="Find leads"
-          data-testid="leads-phone-find"
-          onClick={onFind}
-          {...(canFind ? {} : window.gate("find", "find businesses for you"))}
-        >
-          <Icon name="sparkle" size={20} />
-        </button>
-      )}
     />
   );
 };
@@ -1054,8 +1043,6 @@ const LeadsScope = (p) => {
               searchRef={p.searchRef}
               searchOpen={p.searchOpen}
               onSearchOpen={p.onSearchOpen}
-              onFind={p.onFind}
-              canFind={p.canFind}
             />
           ) : (
             <>
@@ -1076,8 +1063,9 @@ const LeadsScope = (p) => {
                   {p.canExport
                     ? <a className="btn btn-ghost btn-sm" href={p.exportHref} download title="Download these leads as a CSV file" data-testid="leads-export"><Icon name="external" size={12} /> Export</a>
                     : <button type="button" className="btn btn-ghost btn-sm" {...window.gate("export", "export these leads")} data-testid="leads-export"><Icon name="external" size={12} /> Export</button>}
+                  {/* Ask's door on a desktop (spec F1): the three's still mark, never a second live canvas. */}
                   <button type="button" className="btn btn-primary btn-sm" onClick={p.onFind} data-testid="leads-find" {...(p.canFind ? {} : window.gate("find", "find leads"))}>
-                    <Icon name="sparkle" size={12} /> Find leads <span className="kbd">F</span>
+                    <Icon name="three" size={12} /> Find leads <span className="kbd">F</span>
                   </button>
                 </div>
               </div>
@@ -1184,35 +1172,18 @@ const LeadsScope = (p) => {
                 lineDraft={p.lineDraft}
                 lineError={p.lineError}
                 lineBusy={p.lineBusy}
-                onPick={(words) => { p.onFinderWords(words); p.onFind(); }}
+                // A suggestion picked opens Ask with its words in the field, ready to send (spec F1).
+                onPick={(words) => p.onFind(words)}
                 onGo={p.onGo}
                 onOpenLine={p.onOpenLine}
                 onLineDraft={p.onLineDraft}
                 onSaveLine={p.onSaveLine}
                 onCancelLine={p.onCancelLine}
+                // The composer's slot holds the one door on the first day: Find leads, wearing the mark, opening Ask.
                 composer={
-                  <LeadFinder
-                    open
-                    inline
-                    phone={phone}
-                    stage={p.finderStage}
-                    words={p.finderWords}
-                    proposal={p.finderProposal}
-                    plan={p.finderPlan}
-                    trace={p.finderTrace}
-                    pick={p.finderPick}
-                    refusal={p.finderRefusal}
-                    busy={p.finderBusy}
-                    suggestions={L.suggestions}
-                    talk={p.talk}
-                    onWords={p.onFinderWords}
-                    onPlan={p.onFinderPlan}
-                    onChangePlan={p.onFinderChangePlan}
-                    onPick={p.onFinderPick}
-                    onApprove={p.onFinderApprove}
-                    onBack={p.onFinderBack}
-                    onClose={p.onCloseFinder}
-                  />
+                  <button type="button" className="btn btn-primary fr-find" onClick={() => p.onFind()} data-testid="leads-first-find" {...(p.canFind ? {} : window.gate("find", "find businesses for you"))}>
+                    <Icon name="three" size={13} /> Find leads
+                  </button>
                 }
               />
             )

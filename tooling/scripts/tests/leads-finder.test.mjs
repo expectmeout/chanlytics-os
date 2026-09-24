@@ -272,7 +272,7 @@ const drawFinder = (st, over = {}) => {
 
 /* -------------------------------------------------- Task 8: the composer */
 
-test("every icon these three name draws a shape of its own, not the fallback circle", () => {
+test("every icon these three and the Leads doors name draws a shape of its own, not the fallback circle", () => {
   const Real = globalThis.window.Icon;
   const kids = (n) => (n.props.children || []).filter(Boolean);
   const fallback = (n) => kids(n).length === 1 && kids(n)[0].type === "circle" && kids(n)[0].props.r === "3";
@@ -287,6 +287,7 @@ test("every icon these three name draws a shape of its own, not the fallback cir
     "ban",
     "globe",
     "sparkle",
+    "three",
     "search",
     "check",
     "x",
