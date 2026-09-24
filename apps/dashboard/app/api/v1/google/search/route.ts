@@ -2,11 +2,14 @@ import { write, workspace } from "@/server/route";
 import { AppError, parseTenantConfigResult, type GoogleCandidateDto } from "@chanlytics/contracts";
 import { getTenantConfig } from "@chanlytics/db";
 import { edgeGoogle } from "@/server/google";
+import { tenantFacts } from "@/server/tenant";
 
 /**
  * POST /api/v1/google/search — {query?}: what Google finds for the
  * business. Without words of its own the search uses the name and address
- * on record, which is the point: the owner already typed them once. Owners
+ * on record, which is the point: the owner already typed them once. A new
+ * workspace has no receptionist yet, so its name is the one typed at
+ * sign-up, the workspace's own: the first run's Find asks with it. Owners
  * only (linking is theirs); the edge asks Google.
  */
 export const POST = write({
@@ -21,7 +24,7 @@ export const POST = write({
       const row = await getTenantConfig(ctx.supabase, member.tenantId);
       const parsed = row ? parseTenantConfigResult(row.config) : null;
       const cfg = parsed && parsed.ok ? parsed.config : null;
-      const name = cfg?.brain?.business_name?.trim() ?? "";
+      const name = cfg?.brain?.business_name?.trim() || (await tenantFacts(ctx.supabase, member.tenantId)).name.trim();
       const address = cfg?.brain?.profile?.address?.trim() ?? "";
       query = [name, address].filter(Boolean).join(", ");
       fromFacts = true;
