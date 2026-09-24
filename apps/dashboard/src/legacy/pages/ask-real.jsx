@@ -108,7 +108,8 @@ const AskReal = ({ open, onClose }) => {
   const held = useArRef(false);
   const t = window.askText(lang);
   const route = arRoute();
-  const surface = A ? A.surfaceFor(route.page) : "other";
+  // With the param: Leads is People's `leads` param, and the Line on it is the finder (spec F2, F3).
+  const surface = A ? A.surfaceFor(route.page, route.param) : "other";
 
   const talk = H.useAskTalk({
     lang,
@@ -322,6 +323,12 @@ const AskReal = ({ open, onClose }) => {
     if (pushed.current && window.appNavigate) { pushed.current = false; onClose(); window.appNavigate(to, { replace: true }); return; }
     onClose();
     window.CHANLY.nav(to);
+  };
+  // "Change what I asked" on a card: the turn's own question back in the field, to change (spec F4).
+  const editWords = () => {
+    const last = active ? [...active.messages].reverse().find((m) => m.role === "user") : null;
+    setQuery(last ? last.text : "");
+    setTimeout(() => inputRef.current && inputRef.current.focus(), 20);
   };
   // Leaving the turn in flight, if any: whatever its stream sends after changes nothing on the line (its thread keeps
   // the answer). Every turn checks it is still the current one (turnSeq) before it writes.
@@ -621,7 +628,7 @@ const AskReal = ({ open, onClose }) => {
       />
     );
   else if (live && (live.say || live.text))
-    body = <AskTurn m={{ id: "live", role: "assistant", text: live.text, citations: [], followups: [], proposals: [] }} say={live.say} q={live.q} streaming t={t} lang={lang} onNav={nav} onFollow={submit} />;
+    body = <AskTurn m={{ id: "live", role: "assistant", text: live.text, citations: [], followups: [], proposals: [] }} say={live.say} q={live.q} streaming t={t} lang={lang} onNav={nav} onFollow={submit} onEdit={editWords} />;
   else if (live || (quick && quick.pending)) {
     // While Ask reads, only the question is under the band; what it reads is the band's one line (ask-reading).
     body = (
@@ -629,7 +636,7 @@ const AskReal = ({ open, onClose }) => {
         <p className="ask-turn-q">{live ? live.q : quick.q}</p>
       </div>
     );
-  } else if (quick && quick.answer) body = <AskTurn quick={quick.answer} q={quick.q} latest walk sel={move} t={t} lang={lang} onNav={nav} onFollow={submit} />;
+  } else if (quick && quick.answer) body = <AskTurn quick={quick.answer} q={quick.q} latest walk sel={move} t={t} lang={lang} onNav={nav} onFollow={submit} onEdit={editWords} />;
   else if (answerMsg)
     body = (
       <AskTurn
@@ -643,6 +650,7 @@ const AskReal = ({ open, onClose }) => {
         onNav={nav}
         onFollow={submit}
         onOutcome={noteOutcome}
+        onEdit={editWords}
         onRetry={answerMsg.failed && latest.q ? () => submit(latest.q.text) : undefined}
       />
     );
@@ -691,7 +699,7 @@ const AskReal = ({ open, onClose }) => {
               <span className="ask-fold-a">{A.answerText(A.answer(tn.a).answer)}</span>
               <Icon name="chevron" size={12} className="ask-fold-chev" />
             </button>
-            {isOpen ? <AskTurn m={tn.a} t={t} lang={lang} onNav={nav} onFollow={submit} onOutcome={noteOutcome} /> : null}
+            {isOpen ? <AskTurn m={tn.a} t={t} lang={lang} onNav={nav} onFollow={submit} onOutcome={noteOutcome} onEdit={editWords} /> : null}
           </div>
         );
       })}
@@ -757,7 +765,7 @@ const AskReal = ({ open, onClose }) => {
             <input
               ref={inputRef}
               className="ask-line-input"
-              placeholder={talk.listening ? t.listening : phone && live ? live.q : phone && quick && quick.pending ? quick.q : active ? t.follow : t.placeholder}
+              placeholder={talk.listening ? t.listening : phone && live ? live.q : phone && quick && quick.pending ? quick.q : active ? t.follow : surface === "leads" ? t.describeLeads : t.placeholder}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={onKey}
