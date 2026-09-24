@@ -1,8 +1,8 @@
 /* Ask as the Line (pages/ask-real.jsx; docs/superpowers/specs/2026-09-23-ask-the-line-design.md, section 6): one line
    over the page with the three in it, the rows or the answer under it, a conversation folded above it. The scrim and
    the panel keep the mockup's .ask-overlay and .ask-modal (their fade in dashboard-a-v2.css, their leaving in
-   components.css); what the Line changes is here, with the answer's parts, the cards, the mic, the phone's ✦, which
-   Today's band shares, and the phone's takeover. Imported last, so its phone rules win over mobile.css. No key symbol
+   components.css); what the Line changes is here, with the answer's parts, the cards, the mic, the phone's ✦ and
+   the phone's takeover. Imported last, so its phone rules win over mobile.css. No key symbol
    is drawn (D17). */
 
 /* ---- The scrim and the panel: 720 wide, 80 from the top (the band is taller than the old bar), the page visible
@@ -57,16 +57,12 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 /* What a screen reader hears once an answer is whole: its headline (spec 6.10). Not drawn. */
 .ask-said { position: absolute; width: 1px; height: 1px; margin: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
-/* Hold to talk: the Line's, and Today's band's (today-face.jsx). */
+/* Hold to talk: the Stage's. */
 .ask-talk { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: var(--radius-md); border: 0; background: transparent; color: var(--ink-dim); cursor: pointer; touch-action: none; user-select: none; -webkit-user-select: none; }
 .ask-talk:hover { color: var(--ink); background: var(--bg-hover); }
 .ask-talk.on { background: var(--accent-soft); color: var(--accent); }
 .ask-talk.off { opacity: .5; }
 .ask-talk:disabled { opacity: .4; cursor: default; }
-/* A quiet tool beside an answer: Today's band reads aloud with it. */
-.ask-tool { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 7px; border: 0; background: transparent; color: var(--ink-faint); cursor: pointer; }
-.ask-tool:hover, .ask-tool:focus-visible { color: var(--ink); background: var(--bg-hover); outline: none; }
-.ask-tool.on { color: var(--accent); background: var(--accent-soft); }
 /* A chip of words to pick (the peek's tones, leads-peek.jsx). */
 .ask-follow-chip { font: inherit; font-size: 12px; color: var(--ink); background: var(--bg-sunken); border: 1px solid var(--line); border-radius: var(--radius-full); padding: 5px 11px; cursor: pointer; text-align: left; }
 .ask-follow-chip:hover { border-color: var(--line-strong); background: var(--bg-hover); }

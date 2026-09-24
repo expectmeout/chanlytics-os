@@ -61,11 +61,6 @@ const ASK_TEXT = {
     typeInstead: "Type instead",
     needYou: (n) => (n === 1 ? "1 needs you" : `${n} need you`),
     runsWaiting: (n) => (n === 1 ? "1 run waiting" : `${n} runs waiting`),
-    // Today's band (today-face.jsx): the three, asking on the page. Task 8 removes
-    // these three with the file; kept until then (today-face.test.mjs reads them).
-    todayPlaceholder: "Ask about today…",
-    continueInAsk: "Continue in Ask",
-    reviewInAsk: "Review in Ask",
     clear: "Clear",
     noSpeech: "This browser can't read aloud.",
     cutOff: "The answer was cut off. Try again.",
@@ -137,9 +132,6 @@ const ASK_TEXT = {
     typeInstead: "Escribir",
     needYou: (n) => (n === 1 ? "1 te necesita" : `${n} te necesitan`),
     runsWaiting: (n) => (n === 1 ? "1 envío en espera" : `${n} envíos en espera`),
-    todayPlaceholder: "Pregunta sobre hoy…",
-    continueInAsk: "Seguir en Ask",
-    reviewInAsk: "Revisar en Ask",
     clear: "Borrar",
     noSpeech: "Este navegador no puede leer en voz alta.",
     cutOff: "Se cortó la respuesta. Inténtalo de nuevo.",

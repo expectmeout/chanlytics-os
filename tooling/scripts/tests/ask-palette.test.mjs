@@ -395,7 +395,7 @@ test("REGRESSION (N3): what the shell sends as the Line opens is taken -- a seed
 test("a seed that names a thread opens that thread, its last answer under the line", async () => {
   const calls = ask([TH(1), TH(2)]);
   render(Palette, CLOSED);
-  // Today's band hands its conversation over as the Line opens (today-face.jsx, Continue in Ask).
+  // Any caller may hand a conversation over as Ask opens: askAbout({ thread }) stays on the shell.
   sent("ask:seed", { thread: TH(2).id });
   const tree = await opens();
   assert.deepEqual(calls.opened, [TH(2).id], "the thread was read");

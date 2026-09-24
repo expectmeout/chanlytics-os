@@ -69,8 +69,8 @@ const SAMPLES = {
     globalName: "__BT",
     footer: "__BT.installBusinessTab();",
   },
-  // Not a sample either: the three (legacy-bridge/mascot), the character Today's band draws (pages/today-face.jsx),
-  // so the mockup's Today has its face. With no Ask behind the mockup, the band's field seeds the palette.
+  // Not a sample either: the three (legacy-bridge/mascot), the character Ask's face draws (components/ask-face.jsx:
+  // the top bar's button, the Stage and the phone's ✦), so the mockup's Ask has its face.
   "/data/mascot.js": {
     entry: path.join(REPO, "apps/dashboard/src/legacy-bridge/mascot/index.ts"),
     globalName: "__MS",

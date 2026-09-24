@@ -142,8 +142,8 @@ test.describe("Today on a real workspace", () => {
   });
 
   test("the three are the Ask button's face on a desktop: nothing stands above the queue", async ({ page }) => {
-    // Wider than a phone the band is not drawn; Ask's face is the top bar's button, and the palette's stage.
-    await expect(page.getByTestId("today-face")).toBeHidden();
+    // Today draws no band of its own; Ask's face is the top bar's button, and the Stage's.
+    await expect(page.getByTestId("today-face")).toHaveCount(0);
     await expect(page.getByTestId("tb-ask").getByTestId("tb-ask-face")).toBeVisible();
     // The queue is the first thing on the page, or the second under a line that is down, and it has room under the
     // bar: with the standing line gone nothing else gave it any, and the card's edge sat on the bar's rule.
@@ -188,12 +188,7 @@ test.describe("Today on a phone", () => {
     await page.waitForLoadState("networkidle");
     const queue = page.getByTestId("today-queue");
     await expect(queue).toBeVisible();
-    // The three stand above the queue at their full size, with no field until they are woken, and never widen the page.
-    const band = page.getByTestId("today-face");
-    await expect(band).toBeVisible();
-    await expect(band).toHaveAttribute("data-open", "false");
-    await expect(band.getByTestId("today-face-input")).toHaveCount(0);
-    expect((await band.getByTestId("today-face-stage").boundingBox())!.height, "the full face").toBeGreaterThan(200);
+    // Nothing widens the page.
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     const box = await queue.boundingBox();
     expect(box!.y, "the queue's head is on the first screen").toBeLessThan(844 - 120);
@@ -211,29 +206,30 @@ test.describe("Today on a phone", () => {
     expect(position).toBe("static");
   });
 
-  test("the three on a phone: a tap slides the field in, a quick question settles without a model turn, Clear folds it", async ({
+  test("the ✦ opens Ask over the whole screen; no band stands above the queue; a swipe down closes it", async ({
     page,
   }) => {
     await signIn(page);
     await page.goto("/#/today");
     await page.waitForLoadState("networkidle");
-    const band = page.getByTestId("today-face");
-    await expect(band).toBeVisible();
-    await expect(band).toHaveAttribute("data-phase", "rest");
-    await band.getByTestId("today-face-stage").tap();
-    await expect(band).toHaveAttribute("data-open", "true");
-    await expect(band.getByTestId("today-face-input")).toBeFocused();
-    // The local harness installs no Ask client (there the field seeds the palette); only a workspace answers.
+    await expect(page.getByTestId("today-face")).toHaveCount(0);
+    // The local harness installs no Ask client, so it has no takeover to open; only a workspace does.
     test.skip(!(await page.evaluate(() => !!(window as { __ask?: unknown }).__ask)), "no Ask on this harness");
-    // The Line's own quick question (contracts askIntent, kind "needs"): no model turn, no cost.
-    await band.getByTestId("today-face-input").fill("who needs me?");
-    await band.getByTestId("today-face-input").press("Enter");
-    await expect(band).toHaveAttribute("data-phase", "settled", { timeout: 10_000 });
-    await expect(band.getByTestId("today-face-exchange")).toContainText(/need|waiting/i);
-    await expect(band.getByTestId("today-face-continue")).toHaveCount(0);
-    await band.getByTestId("today-face-clear").tap();
-    await expect(band).toHaveAttribute("data-phase", "rest");
-    await expect(band).toHaveAttribute("data-open", "false");
-    await expect(band.getByTestId("today-face-input")).toHaveCount(0);
+    await page.getByTestId("phone-ask").tap();
+    const ask = page.getByTestId("ask-real");
+    await expect(ask).toBeVisible();
+    const box = await ask.boundingBox();
+    expect(box?.width).toBe(390);
+    expect(box?.height).toBeGreaterThan(800);
+    await expect(ask.getByTestId("ask-hero")).toBeVisible();
+    await expect(ask.getByTestId("ask-input")).not.toBeFocused();
+    // A pull down past the threshold from the head closes it, following the finger (data-bits touchSwipe): a let-go
+    // past a third of the screen, 160px at most, leaves; this one travels 220px.
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: 195, y: 40 }] });
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: 195, y: 120 }] });
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: 195, y: 260 }] });
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await expect(ask).toHaveCount(0);
   });
 });
