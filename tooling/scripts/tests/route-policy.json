@@ -331,6 +331,13 @@
       "rate": "export",
       "spend": false
     },
+    "POST contacts/import": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "person_import",
+      "spend": false
+    },
     "PUT contacts/marketing-consent": {
       "kind": "write",
       "scope": "workspace",

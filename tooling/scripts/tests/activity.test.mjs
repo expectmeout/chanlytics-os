@@ -440,3 +440,20 @@ test("a deal's verb and kinds have the owner's words", () => {
   assert.equal(activityWords("deal.ended", {}), "An engagement ended");
   assert.equal(activityTone("deal.won"), "ok");
 });
+
+test("an import says what its part of the list did, in counts", () => {
+  assert.equal(
+    activityWords("import", { rows: 50, added: 41, existed: 7, skipped: 2 }),
+    "Imported 50 rows from a spreadsheet: 41 new, 7 already here, 2 skipped",
+  );
+  assert.equal(
+    activityWords("import", {}),
+    "Imported 0 rows from a spreadsheet: 0 new, 0 already here, 0 skipped",
+    "a count the payload does not carry is none",
+  );
+  assert.equal(
+    activityWords("import", { rows: 50, added: 10, existed: 0, skipped: 0, failed: 1 }),
+    "Imported 50 rows from a spreadsheet: 10 new, 0 already here, 0 skipped, then stopped at a fault",
+    "a part that stopped at a fault does not read as a clean import",
+  );
+});

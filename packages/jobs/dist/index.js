@@ -372,7 +372,9 @@ var DECISION_VERBS = [
   "drop_from_list",
   "archive_list",
   "restore_list",
-  "delete_list"
+  "delete_list",
+  /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
+  "import"
 ];
 var DAY_MS = 864e5;
 var WEEK_MS = 7 * DAY_MS;
@@ -854,7 +856,7 @@ var PERSON_CAME_FROM_WORDS = {
   call: PERSON_CHANNEL_WORDS.voice,
   calendar: "Your calendar",
   manual: "Added by hand",
-  import: "Imported history",
+  import: "Imported",
   lead: "A lead you found"
 };
 var REPLY_WINDOW_HOURS = 72;
@@ -7476,7 +7478,9 @@ var DECISION_VERBS2 = [
   "drop_from_list",
   "archive_list",
   "restore_list",
-  "delete_list"
+  "delete_list",
+  /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
+  "import"
 ];
 var DAY_MS2 = 864e5;
 var WEEK_MS4 = 7 * DAY_MS2;
@@ -7954,7 +7958,7 @@ var PERSON_CAME_FROM_WORDS2 = {
   call: PERSON_CHANNEL_WORDS2.voice,
   calendar: "Your calendar",
   manual: "Added by hand",
-  import: "Imported history",
+  import: "Imported",
   lead: "A lead you found"
 };
 var REPLY_WINDOW_HOURS2 = 72;
@@ -10656,7 +10660,9 @@ var DECISION_VERBS3 = [
   "drop_from_list",
   "archive_list",
   "restore_list",
-  "delete_list"
+  "delete_list",
+  /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
+  "import"
 ];
 var DAY_MS3 = 864e5;
 var WEEK_MS5 = 7 * DAY_MS3;
@@ -11134,7 +11140,7 @@ var PERSON_CAME_FROM_WORDS3 = {
   call: PERSON_CHANNEL_WORDS3.voice,
   calendar: "Your calendar",
   manual: "Added by hand",
-  import: "Imported history",
+  import: "Imported",
   lead: "A lead you found"
 };
 var REPLY_WINDOW_HOURS3 = 72;
@@ -12856,7 +12862,9 @@ var DECISION_VERBS22 = [
   "drop_from_list",
   "archive_list",
   "restore_list",
-  "delete_list"
+  "delete_list",
+  /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
+  "import"
 ];
 function isOptedOutContact(c2) {
   return c2.consent === "opted_out" || c2.dnc === true;
@@ -13340,7 +13348,7 @@ var PERSON_CAME_FROM_WORDS22 = {
   call: PERSON_CHANNEL_WORDS22.voice,
   calendar: "Your calendar",
   manual: "Added by hand",
-  import: "Imported history",
+  import: "Imported",
   lead: "A lead you found"
 };
 var REPLY_WINDOW_HOURS22 = 72;
@@ -15049,7 +15057,9 @@ var DECISION_VERBS32 = [
   "drop_from_list",
   "archive_list",
   "restore_list",
-  "delete_list"
+  "delete_list",
+  /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
+  "import"
 ];
 var DAY_MS8 = 864e5;
 var WEEK_MS52 = 7 * DAY_MS8;
@@ -15519,7 +15529,7 @@ var PERSON_CAME_FROM_WORDS32 = {
   call: PERSON_CHANNEL_WORDS32.voice,
   calendar: "Your calendar",
   manual: "Added by hand",
-  import: "Imported history",
+  import: "Imported",
   lead: "A lead you found"
 };
 var REPLY_WINDOW_HOURS32 = 72;
@@ -17749,7 +17759,9 @@ var DECISION_VERBS4 = [
   "drop_from_list",
   "archive_list",
   "restore_list",
-  "delete_list"
+  "delete_list",
+  /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
+  "import"
 ];
 var DAY_MS9 = 864e5;
 var WEEK_MS6 = 7 * DAY_MS9;
@@ -18219,7 +18231,7 @@ var PERSON_CAME_FROM_WORDS4 = {
   call: PERSON_CHANNEL_WORDS4.voice,
   calendar: "Your calendar",
   manual: "Added by hand",
-  import: "Imported history",
+  import: "Imported",
   lead: "A lead you found"
 };
 var REPLY_WINDOW_HOURS4 = 72;

@@ -358,11 +358,13 @@ export function consentFormVM(
       sections.length > 1
         ? "Two separate boxes. Tick and sign only the ones you want: signing one does not sign you up for the other, and either one can be had without the other."
         : "One box. Tick and sign it if you want messages about your appointments: a reply when you write, and reminders and confirmations.",
-    fields: ["Name", "Mobile number"],
+    // An email line, for the messages a business will send by email once it can (the campaigns-on-every-channel
+    // spec, Part 0): typed in on the person's page as the signed boxes are recorded. Nothing on paper is a yes to email.
+    fields: ["Name", "Mobile number", "Email"],
     sections,
     terms: bothTerms(name),
     links: policyLinks(f),
-    office: `For ${name}: record each signed box on the customer's profile, under its own answer, as “Sign-up form”, and keep this sheet. Recorded on __________ by __________`,
+    office: `For ${name}: record each signed box on the customer's profile, under its own answer, as “Sign-up form”, type the email on their page, and keep this sheet. Recorded on __________ by __________`,
   };
 }
 

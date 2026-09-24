@@ -555,6 +555,7 @@ test("in a browser, the pipeline record's page has every global the People pages
       "clients-a.jsx",
       "clients-bits.jsx",
       "people-table.jsx",
+      "people-import.jsx",
       "pipeline-scope.jsx",
       "pipeline-row.jsx",
       "pipeline-peek.jsx",
