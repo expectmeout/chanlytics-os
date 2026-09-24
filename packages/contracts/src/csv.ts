@@ -21,7 +21,9 @@ export function csvCell(v: CsvCell): string {
 
 /** The delimiter a file uses: a semicolon when its first line has more of them than commas (a European export). */
 function delimiterOf(text: string): "," | ";" {
-  const first = text.split(/\r?\n/, 1)[0] ?? "";
+  // A quoted comma or semicolon is part of a value, not the delimiter; strip quoted spans before counting, or a file
+  // like `"Name, Jr.";"Mobile"` ties the vote on the wrong character.
+  const first = (text.split(/\r?\n/, 1)[0] ?? "").replace(/"[^"]*"/g, "");
   return (first.match(/;/g) ?? []).length > (first.match(/,/g) ?? []).length ? ";" : ",";
 }
 
@@ -63,7 +65,11 @@ export function parseCsv(text: string): string[][] {
       continue;
     }
     if (ch === '"') {
-      quoted = true;
+      if (cell === "") {
+        quoted = true;
+        continue;
+      }
+      cell += ch; // a quote after other characters (5'4") is a character, not the start of a quoted field
       continue;
     }
     if (ch === sep) {
@@ -104,6 +110,16 @@ const PHONE_WORDS =
   /^(phone|mobile|cell|cell ?phone|tel|telephone|phone ?number|mobile ?number|number|tel[eé]fono|m[oó]vil|celular)$/i;
 const EMAIL_WORDS = /^(e-?mail|email ?address|e-?mail ?address|correo|correo electr[oó]nico)$/i;
 
+/**
+ * A cell LOOKS like a phone number: digits (and the usual punctuation) with at least 10 of them. Stricter than
+ * normalizePhone's 8-digit floor on purpose — this decides which COLUMN is the phone column, and the looser floor
+ * (meant for a value already known to be a phone) would let a Birthday, a Zip+4 or a visit count win it instead.
+ * normalizePhone still decides the stored value once the column is found.
+ */
+function phoneShaped(v: string): boolean {
+  return /^\+?[\d\s().-]+$/.test(v) && v.replace(/\D/g, "").length >= 10;
+}
+
 /** The share of a column's non-empty cells that `is` accepts. */
 function share(rows: string[][], col: number, is: (v: string) => boolean): number {
   let seen = 0;
@@ -125,8 +141,8 @@ function share(rows: string[][], col: number, is: (v: string) => boolean): numbe
  */
 export function matchColumns(rows: string[][]): { columns: ImportColumns; header: boolean } {
   const first = rows[0] ?? [];
-  const width = Math.max(0, ...rows.map((r) => r.length));
-  const header = first.length > 0 && !first.some((c) => normalizePhone(c) !== null || normalizeEmail(c) !== null);
+  const width = rows.reduce((w, r) => Math.max(w, r.length), 0); // not Math.max(...spread): overflows near 150k rows
+  const header = first.length > 0 && !first.some((c) => phoneShaped(c) || normalizeEmail(c) !== null);
   const body = header ? rows.slice(1) : rows;
   const columns: ImportColumns = { name: null, last: null, phone: null, email: null };
   if (header) {
@@ -141,7 +157,7 @@ export function matchColumns(rows: string[][]): { columns: ImportColumns; header
   for (let i = 0; i < width; i++) {
     if (Object.values(columns).includes(i)) continue;
     if (columns.email === null && share(body, i, (v) => normalizeEmail(v) !== null) >= 0.6) columns.email = i;
-    else if (columns.phone === null && share(body, i, (v) => normalizePhone(v) !== null) >= 0.6) columns.phone = i;
+    else if (columns.phone === null && share(body, i, phoneShaped) >= 0.6) columns.phone = i;
   }
   if (columns.name === null) {
     for (let i = 0; i < width; i++) {
@@ -167,11 +183,14 @@ export interface ImportRow {
 export function importRowsOf(rows: string[][], columns: ImportColumns, header: boolean): ImportRow[] {
   const cell = (r: string[], i: number | null): string => (i === null ? "" : (r[i] ?? "").trim());
   return (header ? rows.slice(1) : rows).map((r, n) => {
-    const name = [cell(r, columns.name), cell(r, columns.last)]
-      .filter(Boolean)
-      .join(" ")
-      .replace(/\s+/g, " ")
-      .slice(0, 80);
+    // Array.from, not .slice: an 80th code point landing mid-emoji must not cut the surrogate pair in half. trim:
+    // truncation can land exactly on the space the join above put between the two names.
+    const name = Array.from(
+      [cell(r, columns.name), cell(r, columns.last)].filter(Boolean).join(" ").replace(/\s+/g, " "),
+    )
+      .slice(0, 80)
+      .join("")
+      .trim();
     // parseCsv carries the file's own 1-based line on each row it returns; a row built some other way (or a future
     // caller that hand-assembles string[][]) falls back to counting from the header instead of losing the field.
     const carried = (r as { line?: number }).line;

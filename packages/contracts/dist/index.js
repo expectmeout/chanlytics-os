@@ -20692,7 +20692,7 @@ function csvCell(v) {
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 function delimiterOf(text) {
-  const first = text.split(/\r?\n/, 1)[0] ?? "";
+  const first = (text.split(/\r?\n/, 1)[0] ?? "").replace(/"[^"]*"/g, "");
   return (first.match(/;/g) ?? []).length > (first.match(/,/g) ?? []).length ? ";" : ",";
 }
 function parseCsv(text) {
@@ -20723,7 +20723,11 @@ function parseCsv(text) {
       continue;
     }
     if (ch === '"') {
-      quoted = true;
+      if (cell === "") {
+        quoted = true;
+        continue;
+      }
+      cell += ch;
       continue;
     }
     if (ch === sep) {
@@ -20753,6 +20757,9 @@ var NAME_WORDS = /^(name|full ?name|client|client ?name|customer|customer ?name|
 var LAST_WORDS = /^(last ?name|surname|family ?name|apellidos?)$/i;
 var PHONE_WORDS = /^(phone|mobile|cell|cell ?phone|tel|telephone|phone ?number|mobile ?number|number|tel[eé]fono|m[oó]vil|celular)$/i;
 var EMAIL_WORDS = /^(e-?mail|email ?address|e-?mail ?address|correo|correo electr[oó]nico)$/i;
+function phoneShaped(v) {
+  return /^\+?[\d\s().-]+$/.test(v) && v.replace(/\D/g, "").length >= 10;
+}
 function share(rows, col, is) {
   let seen = 0;
   let hit = 0;
@@ -20766,8 +20773,8 @@ function share(rows, col, is) {
 }
 function matchColumns(rows) {
   const first = rows[0] ?? [];
-  const width = Math.max(0, ...rows.map((r2) => r2.length));
-  const header = first.length > 0 && !first.some((c) => normalizePhone(c) !== null || normalizeEmail(c) !== null);
+  const width = rows.reduce((w, r2) => Math.max(w, r2.length), 0);
+  const header = first.length > 0 && !first.some((c) => phoneShaped(c) || normalizeEmail(c) !== null);
   const body = header ? rows.slice(1) : rows;
   const columns = { name: null, last: null, phone: null, email: null };
   if (header) {
@@ -20782,7 +20789,7 @@ function matchColumns(rows) {
   for (let i = 0; i < width; i++) {
     if (Object.values(columns).includes(i)) continue;
     if (columns.email === null && share(body, i, (v) => normalizeEmail(v) !== null) >= 0.6) columns.email = i;
-    else if (columns.phone === null && share(body, i, (v) => normalizePhone(v) !== null) >= 0.6) columns.phone = i;
+    else if (columns.phone === null && share(body, i, phoneShaped) >= 0.6) columns.phone = i;
   }
   if (columns.name === null) {
     for (let i = 0; i < width; i++) {
@@ -20798,7 +20805,9 @@ function matchColumns(rows) {
 function importRowsOf(rows, columns, header) {
   const cell = (r2, i) => i === null ? "" : (r2[i] ?? "").trim();
   return (header ? rows.slice(1) : rows).map((r2, n) => {
-    const name = [cell(r2, columns.name), cell(r2, columns.last)].filter(Boolean).join(" ").replace(/\s+/g, " ").slice(0, 80);
+    const name = Array.from(
+      [cell(r2, columns.name), cell(r2, columns.last)].filter(Boolean).join(" ").replace(/\s+/g, " ")
+    ).slice(0, 80).join("").trim();
     const carried = r2.line;
     return {
       line: carried ?? n + (header ? 2 : 1),
