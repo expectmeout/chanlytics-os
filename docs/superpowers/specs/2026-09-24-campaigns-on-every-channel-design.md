@@ -324,7 +324,7 @@ Each part is complete on its own, in either deploy order, and leaves no half-bui
 **Part 0 — capture customers' emails.** Without addresses nothing else has anyone to reach. Two PRs. Nothing here
 records a yes: an address on file is not consent (decision 2 decides who gets offers).
 
-1. **Import from a spreadsheet.** People › ⋯ › *Import people*: a CSV of the business's own client list (a Booksy
+1. **In PR #999 (24 Sep).** **Import from a spreadsheet.** People › *Import* (the owner; on a phone More › Import people): a CSV of the business's own client list (a Booksy
    or Square export) read in the browser by a hand-rolled parser (quotes, commas, CRLF; no new dependency), its
    columns matched to *Name*, *Mobile*, *Email* by header and by the values, previewed (the first rows, and the
    counts: new, already here, nothing to reach them by, unreadable), then written in parts of 50 through
@@ -332,8 +332,10 @@ records a yes: an address on file is not consent (decision 2 decides who gets of
    `import_person(name, phone, email)`: refuses an erased person's digests; finds by number, then by address; fills
    only what is empty (a name, an address), never overwrites; inserts an email-only person where there is no number
    (the shape lead conversion already inserts, 00142:212-223); writes `contact.added {source: 'import'}` once per new
-   person (the label "Imported history" already exists). One `decisions` row per import with its counts. Never sets a
-   consent. The paper form gains an *Email* line, typed in on the person's page as the signed boxes are.
+   person (the label reads "Imported"). One `decisions` row per part of fifty, all under one import id. Never sets a
+   consent. The door's refusal of someone who asked to be forgotten has its own SQLSTATE (`PE001`), so a lost grant
+   stops a part instead of skipping every row; the migration is `00170` and appends `import` to the verb CHECK as it
+   stands, so it lands after the Lists program's 00169 in either order. The paper form gains an *Email* line, typed in on the person's page as the signed boxes are.
 2. **Addresses customers give.** (a) A switch on the receptionist, *Ask for an email when sending the booking link*
    (a `booking_rules` field, written into the prompt beside consult-first, `config.ts:1335-1353`; `describeLead`
    gains "email on file" so it never asks twice). (b) An inbound WhatsApp or text that is an address and nothing
