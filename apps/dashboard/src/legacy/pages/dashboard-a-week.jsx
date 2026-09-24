@@ -59,16 +59,16 @@ const TodayLeaks = () => {
       <div className="tl-list">
         {rows.map((l) => (
           <div key={l.id} className={`tl-row tl-${l.tone}`} data-testid={`today-leak-${l.id}`}>
-            <span className="tl-body">
-              {/* The row's tone, once: the one pill, in front of its sentence. A tinted tile and an amber word said it twice. */}
-              <span className="tl-line">
-                <StatePill kind="tone" value={l.tone} label={l.tag} className="tl-tag" />
-                {phone ? (
-                  <button type="button" className="tl-text tl-text-door" aria-expanded={open === l.id} aria-controls={`today-leak-math-${l.id}`} onClick={() => setOpen(open === l.id ? null : l.id)} data-testid={`today-leak-text-${l.id}`}>{l.text}</button>
-                ) : (
-                  <span className="tl-text">{l.text}</span>
-                )}
-              </span>
+            {/* The row's tone, once: the one pill, in the row's corner (dashboard-a-v2.css), so every sentence starts at
+                one edge and the pills stand in one column. First in the markup, so a reader hears it before the sentence. */}
+            <StatePill kind="tone" value={l.tone} label={l.tag} className="tl-tag" />
+            {phone ? (
+              <button type="button" className="tl-text tl-text-door" aria-expanded={open === l.id} aria-controls={`today-leak-math-${l.id}`} onClick={() => setOpen(open === l.id ? null : l.id)} data-testid={`today-leak-text-${l.id}`}>{l.text}</button>
+            ) : (
+              <span className="tl-text">{l.text}</span>
+            )}
+            {/* The foot: the arithmetic, who the row names, and its doors at the right, on one line where there is room. */}
+            <div className="tl-foot">
               <span className="tl-math tabular" id={`today-leak-math-${l.id}`} hidden={phone && open !== l.id}>{l.math}</span>
               {/* Who the row names, and the lead that says who they are: on the unanswered row, who is waiting right now, from
                   the threads Today holds (not the count's own subjects: the count is Reports' over its period); on the
@@ -80,12 +80,13 @@ const TodayLeaks = () => {
                   {l.people.map((p) => <button key={p.id} type="button" className="chip tl-person" onClick={() => twNav(p.to)} title={p.title}>{p.name}</button>)}
                 </span>
               )}
-            </span>
-            <span className="tl-acts">
-              <button className="btn btn-sm btn-ghost" onClick={() => window.askAbout && window.askAbout({ prompt: l.ask })} data-testid={`today-leak-ask-${l.id}`}>Ask why</button>
-              {l.also && <button className="btn btn-sm btn-ghost" onClick={() => twNav(l.also.to)}>{l.also.label}</button>}
-              <button className="btn btn-sm btn-ghost" onClick={() => twNav(l.cta.to)}>{l.cta.label} <Icon name="arrow-right" size={11} /></button>
-            </span>
+              {/* The doors are words: Ask why quiet, the row's own door in ink with its arrow. */}
+              <span className="tl-acts">
+                <button type="button" className="tl-act" onClick={() => window.askAbout && window.askAbout({ prompt: l.ask })} data-testid={`today-leak-ask-${l.id}`}>Ask why</button>
+                {l.also && <button type="button" className="tl-act" onClick={() => twNav(l.also.to)}>{l.also.label}</button>}
+                <button type="button" className="tl-act tl-act-go" onClick={() => twNav(l.cta.to)}>{l.cta.label} <Icon name="arrow-right" size={11} /></button>
+              </span>
+            </div>
           </div>
         ))}
       </div>

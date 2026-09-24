@@ -1052,18 +1052,41 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 /* ---- Worth a look: the page's one place where two numbers meet ------------- */
 /* Deliberately quiet. A red panel shouting at a salon owner every morning is noise within a week; one pill for the
    tone, the sentence, and the arithmetic under it is read once and believed. */
+/* A row is its sentence with its pill in the corner, then a foot: the arithmetic, who is waiting, and the row's doors
+   at the right. The arithmetic shares the doors' line where there is room, and stands above the names where a row has
+   them. The pill stood in front of the sentence, so every sentence started at its own x and a two-line one wrapped
+   around it; the doors were ghost buttons on a line of their own, their words inset by the button's padding (Ruben,
+   24 Sep: "one row has multiple lines, the badges can be better placed"). */
 .tl-list { display: flex; flex-direction: column; }
-.tl-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 0 12px; padding: 12px 14px 12px 16px; border-top: 1px solid var(--line); }
+.tl-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "text tag" "foot foot";
+  align-items: start;
+  gap: 0 12px;
+  padding: 14px 18px;
+  border-top: 1px solid var(--line);
+}
 .tl-row:first-child { border-top: none; }
-.tl-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-/* The pill, then the sentence; on a narrow card the sentence wraps under its pill. */
-.tl-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
-.tl-line > .tl-text, .tl-line > .tl-text-door { flex: 1 1 12rem; min-width: 0; }
+.tl-row > .tl-tag { grid-area: tag; margin-top: 1px; }
+.tl-row > .tl-text, .tl-row > .tl-text-door { grid-area: text; min-width: 0; }
 .tl-text { font-size: 13.5px; line-height: 1.45; color: var(--ink); font-weight: 500; max-width: 78ch; }
-.tl-math { font-size: 11.5px; line-height: 1.4; color: var(--ink-dim); }
-.tl-people { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 3px; }
+.tl-foot { grid-area: foot; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-top: 6px; min-width: 0; }
+.tl-math { flex: 1 1 16rem; min-width: 0; font-size: 11.5px; line-height: 1.4; color: var(--ink-dim); }
+.tl-foot:has(> .tl-people) > .tl-math { flex-basis: 100%; }
+.tl-people { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
 .tl-people-lead { font-size: 11px; color: var(--ink-dim); }
-.tl-acts { display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex: none; flex-wrap: wrap; }
+/* The doors are words, at the foot's right: Ask why quiet, the row's own door in ink with its arrow. */
+.tl-acts { display: flex; align-items: center; gap: 16px; margin-left: auto; }
+.tl-act { display: inline-flex; align-items: center; gap: 4px; padding: 0; border: 0; background: none; font: inherit; font-size: 12px; line-height: 20px; color: var(--ink-muted); white-space: nowrap; cursor: pointer; }
+.tl-act:hover { color: var(--ink); }
+.tl-act-go { color: var(--ink); }
+.tl-act:focus-visible { outline: none; border-radius: 4px; box-shadow: var(--focus-ring); }
+/* A thumb's target without a taller foot: the words keep their line, the press reaches past them. */
+@media (pointer: coarse) {
+  html.legacy-on .tl-act { position: relative; min-height: 0; }
+  .tl-act::after { content: ""; position: absolute; inset: -12px -8px; }
+}
 .tl-failed { padding: 10px 16px; }
 
 /* ---- While you were away: the bell, grouped, warnings first ---------------- */
@@ -1111,10 +1134,6 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   .tc-receipt { position: static; grid-column: 1 / -1; width: auto; max-width: none; box-shadow: none; background: var(--bg-sunken); border-color: var(--line); }
   .tc-receipt[data-last="true"] { right: auto; }
   .tc-foot { flex-wrap: wrap; }
-}
-@media (max-width: 640px) {
-  .tl-row { grid-template-columns: minmax(0, 1fr); }
-  .tl-acts { grid-column: 1; justify-content: flex-start; padding-top: 8px; }
 }
 
 /* ---- The canvas's proportions ("Today, redesigned") ------------------------
@@ -1267,7 +1286,6 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 .tsec-head { background: transparent; border-bottom: none; padding: 14px 18px 8px; }
 .tsec-title { font-size: 13.5px; }
 .tq-count.calm { display: none; }
-.tl-row { padding: 12px 18px; }
 
 /* The day's rows read across: the time, who, and what on the right. The rail
    goes; now is the time in the accent, in weight. */
