@@ -1728,6 +1728,11 @@ test("a link to a list People doesn't have says so and shows nobody; an archived
     tree = draw(props);
     assert.equal(byTestId(tree, "list-gone"), null, "Show everyone leaves it");
   }
+  // One of People's this workspace doesn't show (no calendar read here): can't be counted, not gone.
+  draw({ initialSegment: "booked" });
+  const hidden = draw({ initialSegment: "booked" });
+  assert.equal(textOf(byTestId(hidden, "list-gone")), "Booked can't be counted here");
+  assert.equal(tableEmpty(hidden).props.body, globalThis.window.__PEOPLE.hidden.find((h) => h.id === "booked").why);
   const restored = [];
   globalThis.window.__lists = lists({
     restore: async (id) => {
@@ -1743,6 +1748,30 @@ test("a link to a list People doesn't have says so and shows nobody; an archived
   assert.equal(empty.props.action.label, "Bring it back");
   await empty.props.action.onClick();
   assert.deepEqual(restored, ["s2"]);
+});
+
+test("export follows the list that is open, and is not offered for a list that can't be counted or isn't here", async () => {
+  await freshPage({
+    people: [person(1)],
+    lists: [{ id: "s3", name: "Booked soon", ids: [], rule: { all: [{ field: "booked", op: "is", yes: true }] } }],
+  });
+  globalThis.window.__href = (key, params, query) => `/x?${new URLSearchParams(query || {})}`;
+  try {
+    const everyone = byTestId(draw(), "people-export");
+    assert.equal(everyone.props.href, "/x?", "no list open: everyone");
+    draw({ initialSegment: "opted_in" });
+    const one = byTestId(draw({ initialSegment: "opted_in" }), "people-export");
+    assert.equal(one.props.href, "/x?list=seg%3Aopted_in");
+    assert.equal(one.props.title, "Download the people on Said yes to messages as a CSV file");
+    // A smart list that reads visits, with no calendar read: the route would refuse it, so the button says why.
+    draw({ initialSaved: "s3" });
+    const blocked = byTestId(draw({ initialSaved: "s3" }), "people-export");
+    assert.equal(blocked.type, "button");
+    assert.equal(blocked.props.disabled, true);
+    assert.equal(blocked.props["data-tip"], globalThis.window.__PEOPLE.saved[0].unknown);
+  } finally {
+    delete globalThis.window.__href;
+  }
 });
 
 test("the New list door's address stands until a list is made, then is that list's: a reload opens the list, not the box", async () => {
@@ -1810,6 +1839,14 @@ test("on a phone an empty list of your own is said in the quiet line, and a shee
     );
     assert.ok(!rows.some((t) => t.startsWith("Walk-ins")), "REGRESSION: an empty one kept a full row");
     assert.match(textOf(byTestId(saved, "saved-empty")), /^Empty now: Walk-ins/);
+    // Still one tap from its own page, where an empty list is renamed, deleted and filled.
+    click(byTestId(saved, "saved-empty-open"));
+    const tree = draw();
+    assert.equal(
+      textOf(byTestId(tree, "people-phone-lists")).trim(),
+      "Walk-ins",
+      "REGRESSION: an empty list could not be opened",
+    );
     await freshPage({ people: [person(1)], lists: [] });
     saved = byTestId(sheetOf(), "saved-lists");
     assert.equal(

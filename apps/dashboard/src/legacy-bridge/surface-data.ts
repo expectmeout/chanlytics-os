@@ -211,6 +211,8 @@ import {
   listMembers,
   listRuleParts,
   listUnknownWords,
+  ruleNeeds,
+  unmetNeed,
   parseListToken,
   savedListIds,
   savedListLookup,
@@ -781,6 +783,11 @@ export interface PeopleSurface {
     action: { text: string; cta: string; to: string; enabled: boolean } | null;
   }[];
   groups: { id: string; label: string }[];
+  /**
+   * People's lists this workspace doesn't show, each with why (lists.ts listUnknownWords): a calendar not read, deals
+   * off. A door to one says it can't be counted here, never that it isn't a list.
+   */
+  hidden: { id: string; label: string; why: string }[];
   /** The lists kept by hand (segments), counted over the rows on the page so
    *  an erased person never counts; `members` is every id the server keeps on
    *  the list, so an Undo can tell who an add really added. */
@@ -913,6 +920,10 @@ function publishPeople(): void {
       };
     }),
     groups: PEOPLE_LIST_GROUPS.map((g) => ({ id: g.id, label: g.label })),
+    hidden: PEOPLE_LISTS.flatMap((l) => {
+      const need = unmetNeed(ruleNeeds(l.rule), listCtx);
+      return need ? [{ id: l.id, label: l.label, why: listUnknownWords(need, calendar.state) }] : [];
+    }),
     calendar,
     bookingLink: peopleLoaded.bookingLink,
     dealsOn,

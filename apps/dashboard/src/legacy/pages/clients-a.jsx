@@ -1149,12 +1149,17 @@ const RailSection = ({ label, icon = null, testid = null, children }) => (
  * empty or not, and so is the list of all of them. `quietOf` answers the rows that step back; `RailEmpty` says them.
  */
 const railQuiet = (rows, keep) => rows.filter((r) => r.count === 0 && !keep(r));
-// The list the address names when People doesn't have it: archived (it comes back from the rail's Archived line), or
-// not here at all -- deleted, from another workspace, or one of People's that this workspace doesn't show. Null when
-// the list is here, when none is named, or when the lists could not be read (the rail says that).
+// The list the address names when People doesn't have it: one of People's this workspace can't count (a calendar not
+// read, deals off), archived (it comes back from the rail's Archived line), or not here at all -- deleted, or from
+// another workspace. Null when the list is here, when none is named, or when the lists could not be read (the rail
+// says that).
 const plListGone = ({ listId, activeList, savedId, activeSaved, people }) => {
   if (listId && !activeList) {
-    return { title: "This list isn't here", body: "People doesn't show it in this workspace: some of its lists need a calendar that is read, or deals." };
+    // One of People's this workspace doesn't show: a calendar that couldn't be read, deals off. Can't tell, not gone.
+    const hidden = (people.hidden || []).find((h) => h.id === listId);
+    return hidden
+      ? { title: `${hidden.label} can't be counted here`, body: hidden.why }
+      : { title: "This list isn't here", body: "People doesn't have a list by that name. The link may be old." };
   }
   if (!savedId || activeSaved || people.savedRead === false) return null;
   const archived = (people.archived || []).find((a) => a.id === savedId);
@@ -1162,12 +1167,11 @@ const plListGone = ({ listId, activeList, savedId, activeSaved, people }) => {
     ? { title: `${archived.name} is archived`, body: "It comes back from Archived under your lists.", archived }
     : { title: "This list isn't here", body: "It was deleted, or the link is from another workspace." };
 };
-// A list of the workspace's own with nobody on it now, and not the one open: counted, so a dash is never "empty".
-const plSavedQuiet = (s, activeSaved) => !s.unknown && s.count === 0 && activeSaved !== s.id;
+// The labels are words, or a list's own button (the Saved section's, which still open their lists).
 const RailEmpty = ({ labels, testid = null }) =>
   labels.length ? (
     <p className="cl-rail-empty" data-testid={testid || undefined}>
-      Empty now: {labels.join(" · ")}
+      Empty now: {labels.map((l, i) => <React.Fragment key={i}>{i > 0 ? " · " : null}{l}</React.Fragment>)}
     </p>
   ) : null;
 
@@ -1250,11 +1254,12 @@ const PeopleRail = ({ scope = "people", onScope = () => {}, scopeTabs = true, de
     <RailSection label={compact && savedRead && saved.length === 0 && archived.length === 0 ? null : "Saved"} testid="saved-lists">
       {/* Lists that could not be read are not "no lists": the read failed, and the people above stand. */}
       {!savedRead && <FailedRead kind="line" what="your saved lists" surface="people" testid="people-lists-failed" />}
-      {saved.filter((s) => !(compact && plSavedQuiet(s, activeSaved))).map((s) => (
+      {saved.filter((s) => !(compact && railQuiet(saved.filter((x) => !x.unknown), (x) => activeSaved === x.id).includes(s))).map((s) => (
         // A list that can't be counted here draws a dash and says why on hover: can't tell is not nobody.
         <RailRow key={s.id} smart={!s.byHand} label={s.name} count={s.unknown ? "—" : s.count} active={activeSaved === s.id} onPick={() => onPickSaved(s.id)} tip={s.tip} testid={s.byHand ? undefined : "saved-smart"} />
       ))}
-      {compact ? <RailEmpty labels={saved.filter((s) => plSavedQuiet(s, activeSaved)).map((s) => s.name)} testid="saved-empty" /> : null}
+      {/* Each name opens its list: an empty list is still renamed, deleted and filled from its own page. */}
+      {compact ? <RailEmpty labels={railQuiet(saved.filter((x) => !x.unknown), (x) => activeSaved === x.id).map((s) => <button key={s.id} type="button" className="cl-bucket-link" onClick={() => onPickSaved(s.id)} data-testid="saved-empty-open">{s.name}</button>)} testid="saved-empty" /> : null}
       {savedRead && saved.length === 0 && !compact && (
         <div className="cl-rail-hint">No lists yet. Keep one by hand — regulars, one staff member's customers — or describe who, and it keeps itself current.</div>
       )}
@@ -2668,6 +2673,8 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
   // Export follows the list that is open (decision 0009): the route counts it as a send does, every member; with no
   // list open it is everyone.
   const exportName = activeSaved ? activeSaved.name : activeList ? activeList.label : null;
+  // A list that can't be counted here, or isn't here, has no file to take: said on the button, never a refusal page.
+  const exportBlocked = activeSaved && activeSaved.unknown ? activeSaved.unknown : listGone ? listGone.title : null;
   const exportHref = window.__href ? window.__href("GET contacts/export", undefined, exportName ? { list: activeSaved ? `list:${activeSaved.id}` : `seg:${activeList.id}` } : undefined) : null;
   const listStep = (activeSaved && activeSaved.action) || (activeList && activeList.action) || null;
   // One list open at a time: it is the page's title, so two open at once would be a title over a table it does
@@ -2798,7 +2805,7 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
     { header: "Sort" },
     ...PL_PHONE_SORTS.filter((s) => !s.needs || s.needs({ withCalendar })).map((s) => ({ label: s.label, checked: sortBy === s.by && sortDir === s.dir, onClick: () => pickSort(s.by, s.dir) })),
     // The route's file of everyone: a download (it answers as an attachment), so the page stays where it is.
-    ...(window.__href ? [{ divider: true }, { label: exportName ? `Export ${exportName}` : "Export everyone", icon: "external", meta: "CSV", onClick: () => window.location.assign(exportHref), ...(canExport ? {} : { gate: window.gate("export") }) }] : []),
+    ...(window.__href && !exportBlocked ? [{ divider: true }, { label: exportName ? `Export ${exportName}` : "Export everyone", icon: "external", meta: "CSV", onClick: () => window.location.assign(exportHref), ...(canExport ? {} : { gate: window.gate("export") }) }] : []),
     ...(activeSaved && canEditLists && window.__lists ? [
       { divider: true },
       { label: "Rename this list", icon: "edit", onClick: () => { setListDraft({ ...PL_LIST_EMPTY, name: activeSaved.name }); setListAct("rename"); } },
@@ -2873,6 +2880,8 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
               {window.__href && (
                 window.canDo && !window.canDo("export")
                   ? <button className="btn btn-ghost btn-sm" {...window.gate("export")}><Icon name="external" size={12} /> Export CSV</button>
+                  : exportBlocked
+                  ? <button className="btn btn-ghost btn-sm" disabled data-tip={exportBlocked} data-testid="people-export"><Icon name="external" size={12} /> Export CSV</button>
                   : <a className="btn btn-ghost btn-sm" href={exportHref} download title={exportName ? `Download the people on ${exportName} as a CSV file` : "Download everyone as a CSV file"} data-testid="people-export"><Icon name="external" size={12} /> Export CSV</a>
               )}
               {/* No sort button: every heading that sorts is a button with its arrow (cl-th-sort), so "Z → A" beside

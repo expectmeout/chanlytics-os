@@ -949,6 +949,32 @@ test("everyone as a CSV: owners only, the file, and the ledger row that says who
     (e) => e.status === 404 && e.message === "That list isn't here.",
   );
   assert.equal(listed.decisions.length, 1, "nothing on the ledger for a copy not taken");
+  // One of People's, by its token: who said yes to messages.
+  const saidYes = await csv.GET.run(
+    new Request(`http://localhost/api/v1/contacts/export?workspace=${T}&list=seg:opted_in`),
+    { supabase: fakeDb(listed, {}, rpcs), userId: "u1", email: "ada@example.com", params: {} },
+  );
+  const saidText = new TextDecoder().decode(new Uint8Array(await saidYes.arrayBuffer()).slice(3));
+  assert.ok(saidText.includes("Dani") && !saidText.includes("Bo"), saidText);
+  // A list that can't be counted here (it reads visits; no calendar is read) is refused in its words, and not taken.
+  const U = "dddddddd-1111-4111-8111-dddddddddddd";
+  listed.segments.push({
+    id: U,
+    tenant_id: T,
+    name: "Booked soon",
+    rule: { v: 2, all: [{ field: "booked", op: "is", yes: true }] },
+    archived_at: null,
+  });
+  await assert.rejects(
+    csv.GET.run(new Request(`http://localhost/api/v1/contacts/export?workspace=${T}&list=list:${U}`), {
+      supabase: fakeDb(listed, {}, rpcs),
+      userId: "u1",
+      email: "ada@example.com",
+      params: {},
+    }),
+    (e) => e.status === 409 && e.message.startsWith("Booked soon can't be counted here."),
+  );
+  assert.equal(listed.decisions.length, 2, "the one list taken, and nothing for the refused one");
   await assert.rejects(
     csv.GET.run(new Request(`http://localhost/api/v1/contacts/export?workspace=${T}`), {
       supabase: fakeDb(tables("operator"), {}, rpcs),

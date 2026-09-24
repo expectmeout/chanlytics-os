@@ -948,7 +948,13 @@ test("a profile opened before People is read says it is reading their lists -- i
     const lists = byTestId(draw(), "person-lists");
     assert.ok(byTestId(lists, "person-lists-reading"), "Reading…, until People lands");
     assert.doesNotMatch(textOf(lists), /No lists/, "REGRESSION: a cold load said there were no lists");
+    // And a read that failed says so, rather than reading for ever.
+    globalThis.window.__surfaceFailed = (page) => page === "clients";
+    const failed = byTestId(draw(), "person-lists");
+    assert.ok(byTestId(failed, "person-lists-failed"));
+    assert.equal(byTestId(failed, "person-lists-reading"), null);
   } finally {
+    delete globalThis.window.__surfaceFailed;
     if (saved) globalThis.window.__PEOPLE = saved;
   }
 });
