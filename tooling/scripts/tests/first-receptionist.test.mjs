@@ -104,6 +104,7 @@ test("with a listing linked and no receptionist, the receptionist is Google's: w
     [["settings.changed", T, ["address", "business_name", "fallbacks", "hours", "system_prompt", "website"], USER, 5]],
     "the keys that changed, never their values",
   );
+  assert.deepEqual(Object.keys(t.events[0].data).sort(), ["by", "fields", "version"]);
 });
 
 test("not on Google, the receptionist is the name typed at sign-up, with the product's own prompt and messages", async () => {
