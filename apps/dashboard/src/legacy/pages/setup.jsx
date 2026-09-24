@@ -394,7 +394,8 @@ const SetupRows = ({ S, rows, primary = null, later = SETUP_LATER_WORDS, testid 
     });
   const laterLabel = (r) => (r.later ? later.undo : later.put);
   return (
-    <div className="tq-list setup-rows" data-testid={testid}>
+    <div className="setup-rows" data-testid={testid}>
+      <div className="tq-list">
       {rows.map((r) => (
         <div key={r.id} className={r.later ? "setup-later" : undefined}>
           <window.AttnRow
@@ -423,6 +424,7 @@ const SetupRows = ({ S, rows, primary = null, later = SETUP_LATER_WORDS, testid 
           {r.id === "google" && finder && <ListingFinder flash={flash} onDone={() => setFinder(false)} />}
         </div>
       ))}
+      </div>
       {toastNode}
     </div>
   );

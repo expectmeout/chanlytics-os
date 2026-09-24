@@ -121,7 +121,7 @@
   .tq-live { flex-wrap: wrap; }
   .tq-live-text { white-space: normal; }
   /* What is left to set up, on a phone: only the next thing, one line and one button; its head says how many are left. */
-  .today-setup .setup-rows > :not(:first-child) { display: none; }
+  .today-setup .setup-rows .tq-list > :not(:first-child) { display: none; }
 
   /* ---------- Inbox ---------- */
   .inbox, .inbox.with-rail { grid-template-columns: 1fr; grid-template-rows: minmax(0, 42vh) minmax(0, 1fr); }
@@ -200,6 +200,7 @@
   /* ---------- Settings ---------- */
   /* The leading tile at the phone row's face size (tokens.css --row-face). */
   .settings { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); --set-lead: var(--row-face, 32px); }
+  .setup-rows { --set-lead: var(--row-face, 32px); }
   /* The rail is one strip of tabs: no scrollbar drawn under it, and its two
      groups are a hairline between Profile and the workspace's tabs rather than
      two words in capitals scrolling by with them. The open tab is brought into

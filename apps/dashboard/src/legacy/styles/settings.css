@@ -4,23 +4,28 @@
    cl-tabs, cl-prof-attr, st-bullets, stat-strip primitives.
    ==================================================================== */
 
-.settings {
-  flex: 1;
-  display: grid;
-  grid-template-columns: var(--rail-nav) minmax(0, 1fr);
-  min-width: 0;
-  overflow: hidden;
-  /* The settings column's own scale, named once. Three sizes of type (a
-     section's title, a row's label, the sentence under it), one row height,
-     one leading tile. The panes had grown five kinds of row at 7, 8, 9, 10 and
-     12px of padding and seven sizes of type between 10 and 13px, which is what
-     "cluttered" was: nothing wrong with any one row, no two alike. */
+/* The settings column's own scale, named once. Three sizes of type (a
+   section's title, a row's label, the sentence under it), one row height,
+   one leading tile. The panes had grown five kinds of row at 7, 8, 9, 10 and
+   12px of padding and seven sizes of type between 10 and 13px, which is what
+   "cluttered" was: nothing wrong with any one row, no two alike. Setup's rows
+   keep it wherever they are drawn (the first run, Today's card), so their
+   rules read one scale inside Settings and out. */
+.settings, .setup-rows {
   --set-title: var(--text-md);
   --set-label: var(--text-base);
   --set-hint: var(--text-sm);
   --set-row-y: 11px;
   --set-lead: 36px;
   --set-lead-gap: 14px;
+}
+
+.settings {
+  flex: 1;
+  display: grid;
+  grid-template-columns: var(--rail-nav) minmax(0, 1fr);
+  min-width: 0;
+  overflow: hidden;
   /* The second voice (the sentence under every label, a card sub, a fact name)
      is the token --ink-dim, which #761 made 4.5:1 on every surface: what this
      block once held for Settings alone, and more weakly. */
