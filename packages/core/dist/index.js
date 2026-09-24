@@ -1524,7 +1524,7 @@ function isRealDate(key) {
   const at2 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
   return !Number.isNaN(at2.getTime()) && at2.toISOString().slice(0, 10) === key;
 }
-var DAY_NAME = {
+var DAY_NAMES2 = {
   mon: "Monday",
   tue: "Tuesday",
   wed: "Wednesday",
@@ -1533,6 +1533,7 @@ var DAY_NAME = {
   sat: "Saturday",
   sun: "Sunday"
 };
+var DAY_NAME = DAY_NAMES2;
 function dayProblems(h, day) {
   const name = DAY_NAME[day] ?? day;
   const out = [];
@@ -4083,7 +4084,7 @@ function isRealDate2(key) {
   const at2 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
   return !Number.isNaN(at2.getTime()) && at2.toISOString().slice(0, 10) === key;
 }
-var DAY_NAME2 = {
+var DAY_NAMES22 = {
   mon: "Monday",
   tue: "Tuesday",
   wed: "Wednesday",
@@ -4092,6 +4093,7 @@ var DAY_NAME2 = {
   sat: "Saturday",
   sun: "Sunday"
 };
+var DAY_NAME2 = DAY_NAMES22;
 function dayProblems2(h, day) {
   const name = DAY_NAME2[day] ?? day;
   const out = [];
@@ -4176,15 +4178,7 @@ var TenantConfigWriteSchema2 = TenantConfigSchema2.superRefine((cfg, ctx) => {
   }
   (p.closures ?? []).forEach((c, n) => checkClosure2(c, n, ctx));
 });
-var DAY_LABEL = {
-  mon: "Monday",
-  tue: "Tuesday",
-  wed: "Wednesday",
-  thu: "Thursday",
-  fri: "Friday",
-  sat: "Saturday",
-  sun: "Sunday"
-};
+var DAY_LABEL = DAY_NAMES22;
 function dayIntervals2(h) {
   return dayIntervals(h).map(([open, close]) => ({ open, close }));
 }
@@ -7670,7 +7664,7 @@ function isRealDate3(key) {
   const at2 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
   return !Number.isNaN(at2.getTime()) && at2.toISOString().slice(0, 10) === key;
 }
-var DAY_NAME3 = {
+var DAY_NAMES23 = {
   mon: "Monday",
   tue: "Tuesday",
   wed: "Wednesday",
@@ -7679,6 +7673,7 @@ var DAY_NAME3 = {
   sat: "Saturday",
   sun: "Sunday"
 };
+var DAY_NAME3 = DAY_NAMES23;
 function dayProblems3(h, day) {
   const name = DAY_NAME3[day] ?? day;
   const out = [];

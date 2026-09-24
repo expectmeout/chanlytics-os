@@ -595,7 +595,7 @@ function isRealDate(key) {
   const at2 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
   return !Number.isNaN(at2.getTime()) && at2.toISOString().slice(0, 10) === key;
 }
-var DAY_NAME = {
+var DAY_NAMES2 = {
   mon: "Monday",
   tue: "Tuesday",
   wed: "Wednesday",
@@ -604,6 +604,7 @@ var DAY_NAME = {
   sat: "Saturday",
   sun: "Sunday"
 };
+var DAY_NAME = DAY_NAMES2;
 function dayProblems(h, day) {
   const name = DAY_NAME[day] ?? day;
   const out = [];
