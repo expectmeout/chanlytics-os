@@ -12428,37 +12428,33 @@ interface ServiceWordsInput {
 interface ServicesWordsVM {
     /** How many are on record. */
     count: number;
-    /** "33 on record"; null with none, and the row says it has none. */
+    /** "33"; null with none, and the row says it has none. The key says what it counts. */
     line: string | null;
-    /** How they are priced, in one sentence; null with none. */
-    priced: string | null;
-    /** The first four in the stored order, which is the order the receptionist reads them in: each name, and "180 min" where it has a duration ("180m" a screen reader may say as metres). */
+    /** The first three in the stored order, which is the order the receptionist reads them in: each name, and "180 min" where it has a duration ("180m" a screen reader may say as metres). */
     chips: {
         name: string;
         takes: string | null;
     }[];
-    /** "+29 more" past the four; null when every one is a chip. */
+    /** "+30" past the three; null when every one is a chip. */
     more: string | null;
 }
 /**
  * How many chips a row of the record draws at rest, and how the rest of them are said.
  *
  * One number and one spelling for every list of chips on the page -- the services, the notes, the rules -- because
- * three of them with their own caps is three rows that wrap to different depths on the same phone. Four is the
- * canvas's Record board, measured at 390px: four chips and "+N more" is two lines, and a fifth is a third.
+ * three of them with their own caps is three rows that wrap to different depths on the same phone. Three (24 Sep):
+ * the chips are words on the row's own line now (record.css .rec-chips), and three names with "+N" after the count is
+ * one line at a desktop's width and two at a phone's; four was two and three.
  */
-declare const CHIPS_SHOWN = 4;
-/** "+3 more": the rest of a list of chips, said once, wherever a row cuts one. */
+declare const CHIPS_SHOWN = 3;
+/** "+30": the rest of a list of chips, said once, wherever a row cuts one. It said "+30 more"; the "more" is the plus. */
 declare function chipsMoreWords(n: number): string;
 /**
- * The services row at rest: how many are on record, the first few by name with how long each takes, and ONE sentence
- * about how they are priced.
+ * The services row at rest: how many are on record, and the first few by name with how long each takes.
  *
- * A note "names a price" when the detector the replies are checked by would take it for one (policy.ts
- * violatesNoPrices), never a second test of what a price looks like: a note that names one is composed into the prompt
- * as written, and the detector swaps it out of every reply, so the owner is told how many there are. With none that
- * does, a list that sends every price to a consultation says so ("Every one quoted at consult — none names a price.",
- * the canvas's words, in the owner's own note); any other says only that none names one. A service with no name is a
+ * It said how they were priced too, in a sentence of its own under the names ("None names a price.", judged by the
+ * detector the replies are checked by), which on nearly every record was a line about nothing (24 Sep): a row states
+ * its fact and stops, and the sheet's own line says when a price note is one to write. A service with no name is a
  * row nobody finished, which no save writes, and is not counted.
  */
 declare function servicesWords(services: readonly ServiceWordsInput[] | null | undefined): ServicesWordsVM;
@@ -12627,26 +12623,28 @@ declare function handoffCallWords(i: {
     hasHandoffNumber: boolean;
     hasEscalateWhen: boolean;
 }): string;
-/** The hand-off row at rest: one line for each channel, under its chip. */
+/** The hand-off row at rest, and what a call does, which its fold says under Phone. */
 interface HandoffWordsVM {
-    /** "on 2 reasons — They ask for a person, for the owner · They are upset…"; with none, when it hands over anyway. */
-    chat: string;
+    /** One line: "For 2 reasons · on a call, transfers to +1 (646) 932-5775"; with no reasons, when it hands over anyway. */
+    line: string;
     /** "transfers to +1 (646) 932-5775", or "takes a message" with no number. */
     phone: string;
 }
 /**
- * The hand-off row at rest (the canvas's Record board): how many reasons the owner gave and the opening of them, and
- * what a call does. `transfer` is the transfer number as the page shows it (the settings read's resolved fact, written
- * for people); the row only states it, and the Who you are row is where it is changed. A stored list that is not one
- * (a hand-edited record) is no reasons, never a throw: the page draws this as it draws.
+ * The hand-off row at rest: how many reasons the owner gave, and what a call does, on one line. It quoted the opening
+ * of the reasons too, under a WhatsApp word, with the call's words under a Phone word ("on 2 reasons — They ask for a
+ * person, for the owner · They are upset, or have a…"), which was two lines and an ellipsis on a row that states one
+ * fact (24 Sep); the fold holds the reasons whole. `transfer` is the transfer number as the page shows it (the settings
+ * read's resolved fact, written for people); the row only states it, and the Who you are row is where it is changed.
+ * A stored list that is not one (a hand-edited record) is no reasons, never a throw: the page draws this as it draws.
  */
 declare function handoffWords(reasons: readonly string[] | null | undefined, transfer: string | null | undefined): HandoffWordsVM;
 /** The notes row at rest: the first titles as chips, and how many more. */
 interface NotesWordsVM {
     count: number;
-    /** The first four titles, in the stored order, which is the order the receptionist reads them in. */
+    /** The first three titles, in the stored order, which is the order the receptionist reads them in. */
     chips: string[];
-    /** "+3 more" past the four; null when every one is a chip. */
+    /** "+3" past the three; null when every one is a chip. */
     more: string | null;
 }
 /**

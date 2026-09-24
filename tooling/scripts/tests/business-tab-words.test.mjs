@@ -149,12 +149,13 @@ test("every phrase §10 kept is drawn where it belongs", () => {
   assert.equal(textOf(find(byTestId(tree, "bt-head"), (n) => classes(n).includes("bt-title"))), "Business");
   // Changed by you, 7m ago: never the address.
   assert.match(textOf(byTestId(tree, "bt-head")), /Changed by you, 7m ago/);
-  // Hands you a customer: ONE row, both channels named in it.
+  // Hands you a customer: ONE row, one line, the reasons counted and what a call does (24 Sep: it named both
+  // channels, each on a line of its own).
   const hands = all(tree, (n) => classes(n).includes("rec-row-key") && textOf(n) === "Hands you a customer");
   assert.equal(hands.length, 1, "one row");
   const handoff = byTestId(tree, "rec-row-escalate_when");
-  assert.match(textOf(handoff), /WhatsApp/);
-  assert.match(textOf(handoff), /Phone/);
+  assert.match(textOf(handoff), /reasons? · on a call, /);
+  assert.doesNotMatch(textOf(handoff), /WhatsApp|Phone/);
   // Calendar it reads: the row in When you're open.
   assert.equal(
     textOf(find(byTestId(tree, "rec-row-calendar"), (n) => classes(n).includes("rec-row-key"))),

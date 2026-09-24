@@ -260,10 +260,10 @@ test("a fact that is not the owner's says where it came from; one they set says 
     /\+1 \(646\) 932-5775/,
     "written as people write it, never as it is stored",
   );
-  assert.match(
+  assert.doesNotMatch(
     textOf(byTestId(tree, "rec-row-booking_link")),
-    /Sent instead of confirming an appointment itself\./,
-    "the old form's note, under the link",
+    /Sent instead of confirming/,
+    "a row that has its link states it and stops (24 Sep): what a link is for is an empty row's sentence",
   );
   // What only Google says is Google's: no address typed, and the one it lists.
   tree = drawTab({
