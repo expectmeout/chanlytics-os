@@ -1647,6 +1647,26 @@ var PERSON_CAME_FROM_WORDS = {
 var REPLY_WINDOW_HOURS = 72;
 var REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * 36e5;
 var REPLY_WINDOW_WORDS = `within ${REPLY_WINDOW_HOURS / 24} days`;
+var BOOKING_PLATFORMS = [
+  { host: "vagaro.com" },
+  { host: "booksy.com" },
+  { host: "fresha.com" },
+  { host: "glossgenius.com" },
+  { host: "styleseat.com" },
+  { host: "schedulicity.com" },
+  { host: "mindbodyonline.com" },
+  { host: "setmore.com" },
+  { host: "acuityscheduling.com" },
+  { host: "as.me" },
+  { host: "calendly.com" },
+  { host: "squareup.com", path: /^\/appointments\// },
+  { host: "simplybook.me" },
+  { host: "youcanbook.me" },
+  { host: "zocdoc.com" },
+  { host: "janeapp.com" }
+];
+var BOOKING_PLATFORM_HOSTS = BOOKING_PLATFORMS.map((p) => p.host);
+var BOOKING_PAGE_MAX = BrainConfigSchema.shape.booking_link.unwrap().maxLength ?? Infinity;
 var LEAD_MEMBER_CLASSES = ["qualified", "review", "excluded"];
 var LEAD_MAX_PLACES = 1e3;
 var LEAD_QUESTION_WAIT_MS = 24 * 36e5;
@@ -1765,6 +1785,18 @@ var LeadSearchPlanSchema = z4.object({
 var US_NAMES = Object.fromEntries(
   Object.entries(US_STATES).map(([name, code2]) => [code2, name])
 );
+var LEAD_PLATFORM_HOSTS = [
+  ...BOOKING_PLATFORM_HOSTS,
+  "square.site",
+  "godaddysites.com",
+  "wixsite.com",
+  "business.site",
+  "facebook.com",
+  "instagram.com",
+  "linktr.ee",
+  "yelp.com",
+  "google.com"
+];
 var SELLS_BY_QUESTION = "How customers buy";
 var SELLS_BY_WORDS = {
   booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
@@ -4614,6 +4646,46 @@ function visitStartTime(v, tz) {
 var REPLY_WINDOW_HOURS2 = 72;
 var REPLY_WINDOW_MS2 = REPLY_WINDOW_HOURS2 * 36e5;
 var REPLY_WINDOW_WORDS2 = `within ${REPLY_WINDOW_HOURS2 / 24} days`;
+var BOOKING_PLATFORMS2 = [
+  { host: "vagaro.com" },
+  { host: "booksy.com" },
+  { host: "fresha.com" },
+  { host: "glossgenius.com" },
+  { host: "styleseat.com" },
+  { host: "schedulicity.com" },
+  { host: "mindbodyonline.com" },
+  { host: "setmore.com" },
+  { host: "acuityscheduling.com" },
+  { host: "as.me" },
+  { host: "calendly.com" },
+  { host: "squareup.com", path: /^\/appointments\// },
+  { host: "simplybook.me" },
+  { host: "youcanbook.me" },
+  { host: "zocdoc.com" },
+  { host: "janeapp.com" }
+];
+var BOOKING_PLATFORM_HOSTS2 = BOOKING_PLATFORMS2.map((p) => p.host);
+var BOOKING_PAGE_MAX2 = BrainConfigSchema2.shape.booking_link.unwrap().maxLength ?? Infinity;
+function bookingPageOf(raw) {
+  const s = String(raw ?? "").trim();
+  if (!s) return null;
+  let u;
+  try {
+    u = new URL(s);
+  } catch {
+    return null;
+  }
+  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+  const host = u.hostname.toLowerCase().replace(/^www\./, "");
+  const platform = BOOKING_PLATFORMS2.find((p) => host === p.host || host.endsWith(`.${p.host}`));
+  if (!platform) return null;
+  if (platform.path && !platform.path.test(u.pathname)) return null;
+  if (host === platform.host && !u.pathname.split("/").some(Boolean)) return null;
+  u.protocol = "https:";
+  u.hash = "";
+  const page = u.toString();
+  return page.length <= BOOKING_PAGE_MAX2 ? page : null;
+}
 var LEAD_MEMBER_CLASSES2 = ["qualified", "review", "excluded"];
 var LEAD_QUESTION_THRESHOLD = 0.6;
 var LEAD_QUESTION_MIN_EVIDENCE = 10;
@@ -4921,11 +4993,9 @@ function questionAfterProbe(plan, members) {
     dropTerm
   };
 }
-var LEAD_PLATFORM_HOSTS = [
-  "vagaro.com",
+var LEAD_PLATFORM_HOSTS2 = [
+  ...BOOKING_PLATFORM_HOSTS2,
   "square.site",
-  "squareup.com",
-  "glossgenius.com",
   "godaddysites.com",
   "wixsite.com",
   "business.site",
@@ -4933,13 +5003,6 @@ var LEAD_PLATFORM_HOSTS = [
   "instagram.com",
   "linktr.ee",
   "yelp.com",
-  "booksy.com",
-  "fresha.com",
-  "styleseat.com",
-  "schedulicity.com",
-  "mindbodyonline.com",
-  "setmore.com",
-  "acuityscheduling.com",
   "google.com"
 ];
 var LEAD_JUNK_EMAIL_DOMAINS = [
@@ -5087,7 +5150,7 @@ function siteHost(url) {
   }
   host = host.replace(/^www\./, "");
   if (!host.includes(".") || host.length > LEAD_FACT_MAX) return null;
-  if (LEAD_PLATFORM_HOSTS.some((p) => host === p || host.endsWith(`.${p}`))) return null;
+  if (LEAD_PLATFORM_HOSTS2.some((p) => host === p || host.endsWith(`.${p}`))) return null;
   return host;
 }
 function stateCode(raw) {
@@ -7865,6 +7928,26 @@ var PERSON_CAME_FROM_WORDS3 = {
 var REPLY_WINDOW_HOURS3 = 72;
 var REPLY_WINDOW_MS3 = REPLY_WINDOW_HOURS3 * 36e5;
 var REPLY_WINDOW_WORDS3 = `within ${REPLY_WINDOW_HOURS3 / 24} days`;
+var BOOKING_PLATFORMS3 = [
+  { host: "vagaro.com" },
+  { host: "booksy.com" },
+  { host: "fresha.com" },
+  { host: "glossgenius.com" },
+  { host: "styleseat.com" },
+  { host: "schedulicity.com" },
+  { host: "mindbodyonline.com" },
+  { host: "setmore.com" },
+  { host: "acuityscheduling.com" },
+  { host: "as.me" },
+  { host: "calendly.com" },
+  { host: "squareup.com", path: /^\/appointments\// },
+  { host: "simplybook.me" },
+  { host: "youcanbook.me" },
+  { host: "zocdoc.com" },
+  { host: "janeapp.com" }
+];
+var BOOKING_PLATFORM_HOSTS3 = BOOKING_PLATFORMS3.map((p) => p.host);
+var BOOKING_PAGE_MAX3 = BrainConfigSchema3.shape.booking_link.unwrap().maxLength ?? Infinity;
 var LEAD_MEMBER_CLASSES3 = ["qualified", "review", "excluded"];
 var LEAD_MAX_PLACES3 = 1e3;
 var LEAD_QUESTION_WAIT_MS3 = 24 * 36e5;
@@ -7983,6 +8066,18 @@ var LeadSearchPlanSchema3 = z43.object({
 var US_NAMES3 = Object.fromEntries(
   Object.entries(US_STATES3).map(([name, code2]) => [code2, name])
 );
+var LEAD_PLATFORM_HOSTS3 = [
+  ...BOOKING_PLATFORM_HOSTS3,
+  "square.site",
+  "godaddysites.com",
+  "wixsite.com",
+  "business.site",
+  "facebook.com",
+  "instagram.com",
+  "linktr.ee",
+  "yelp.com",
+  "google.com"
+];
 var SELLS_BY_QUESTION3 = "How customers buy";
 var SELLS_BY_WORDS3 = {
   booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
@@ -44197,6 +44292,19 @@ function discoveryEnding(round, runs, x) {
   });
 }
 
+// src/html.ts
+function attrsOf(tag) {
+  const out = {};
+  const re = /([a-zA-Z-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s">]+))/g;
+  for (let m = re.exec(tag); m; m = re.exec(tag)) out[m[1].toLowerCase()] = (m[2] ?? m[3] ?? m[4] ?? "").trim();
+  return out;
+}
+function decodeEntities(s) {
+  if (!s.includes("&")) return s;
+  const chr = (n, had) => n > 0 && n < 1114112 ? String.fromCodePoint(n) : had;
+  return s.replace(/&#x([0-9a-f]+);/gi, (had, h) => chr(parseInt(h, 16), had)).replace(/&#(\d+);/g, (had, d) => chr(Number(d), had)).replace(/&amp;/gi, "&").replace(/&quot;/gi, '"').replace(/&apos;/gi, "'").replace(/&lt;/gi, "<").replace(/&gt;/gi, ">");
+}
+
 // src/leads/mark.ts
 var HEAD_MAX = 96e3;
 var HREF_MAX = 500;
@@ -44204,12 +44312,6 @@ function headOf(html) {
   const start = html.slice(0, HEAD_MAX);
   const end = start.search(/<\/head\s*>/i);
   return end === -1 ? start : start.slice(0, end);
-}
-function attrsOf(tag) {
-  const out = {};
-  const re = /([a-zA-Z-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s">]+))/g;
-  for (let m = re.exec(tag); m; m = re.exec(tag)) out[m[1].toLowerCase()] = (m[2] ?? m[3] ?? m[4] ?? "").trim();
-  return out;
 }
 function sideOf(sizes) {
   if (!sizes) return 0;
@@ -44232,11 +44334,6 @@ function holdsUnsafe(url) {
   for (const ch of url)
     if (UNSAFE_IN_AN_ADDRESS.includes(ch) || ch.charCodeAt(0) < 32 || ch.charCodeAt(0) === 127) return true;
   return false;
-}
-function decodeEntities(s) {
-  if (!s.includes("&")) return s;
-  const chr = (n, had) => n > 0 && n < 1114112 ? String.fromCodePoint(n) : had;
-  return s.replace(/&#x([0-9a-f]+);/gi, (had, h) => chr(parseInt(h, 16), had)).replace(/&#(\d+);/g, (had, d) => chr(Number(d), had)).replace(/&amp;/gi, "&").replace(/&quot;/gi, '"').replace(/&apos;/gi, "'").replace(/&lt;/gi, "<").replace(/&gt;/gi, ">");
 }
 function absolute(href, origin) {
   const raw = decodeEntities(href.trim());
@@ -45891,6 +45988,29 @@ ${openings}` : ""}`,
     post_ms: Date.now() - tSent
   });
 }
+
+// src/booking-page.ts
+var SAYS_BOOK = /\b(book|schedul|appointment|reserv|cita|agend)/i;
+function bookingPageOn(html, pageUrl) {
+  let first = null;
+  const re = /<a\b([^>]*)>([\s\S]*?)<\/a\s*>/gi;
+  for (let m = re.exec(html); m; m = re.exec(html)) {
+    const attrs = attrsOf(m[1]);
+    if (!attrs.href) continue;
+    let resolved;
+    try {
+      resolved = new URL(decodeEntities(attrs.href), pageUrl).toString();
+    } catch {
+      continue;
+    }
+    const page = bookingPageOf(resolved);
+    if (!page) continue;
+    const words4 = decodeEntities(`${m[2].replace(/<[^>]*>/g, " ")} ${attrs["aria-label"] ?? ""} ${attrs.title ?? ""}`);
+    if (SAYS_BOOK.test(words4)) return page;
+    first ??= page;
+  }
+  return first;
+}
 export {
   BROADCAST_STALL_RETRY_MS,
   CARDS,
@@ -45949,6 +46069,7 @@ export {
   archive,
   areaCenter,
   assembleRun,
+  bookingPageOn,
   cancelBroadcast,
   cancelSend,
   centerOf,

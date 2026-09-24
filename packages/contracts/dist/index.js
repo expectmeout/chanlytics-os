@@ -4434,6 +4434,50 @@ import { z as z5 } from "zod";
 
 // src/lead-search.ts
 import { z as z4 } from "zod";
+
+// src/booking-page.ts
+var BOOKING_PLATFORMS = [
+  { host: "vagaro.com" },
+  { host: "booksy.com" },
+  { host: "fresha.com" },
+  { host: "glossgenius.com" },
+  { host: "styleseat.com" },
+  { host: "schedulicity.com" },
+  { host: "mindbodyonline.com" },
+  { host: "setmore.com" },
+  { host: "acuityscheduling.com" },
+  { host: "as.me" },
+  { host: "calendly.com" },
+  { host: "squareup.com", path: /^\/appointments\// },
+  { host: "simplybook.me" },
+  { host: "youcanbook.me" },
+  { host: "zocdoc.com" },
+  { host: "janeapp.com" }
+];
+var BOOKING_PLATFORM_HOSTS = BOOKING_PLATFORMS.map((p) => p.host);
+var BOOKING_PAGE_MAX = BrainConfigSchema.shape.booking_link.unwrap().maxLength ?? Infinity;
+function bookingPageOf(raw) {
+  const s = String(raw ?? "").trim();
+  if (!s) return null;
+  let u;
+  try {
+    u = new URL(s);
+  } catch {
+    return null;
+  }
+  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+  const host = u.hostname.toLowerCase().replace(/^www\./, "");
+  const platform = BOOKING_PLATFORMS.find((p) => host === p.host || host.endsWith(`.${p.host}`));
+  if (!platform) return null;
+  if (platform.path && !platform.path.test(u.pathname)) return null;
+  if (host === platform.host && !u.pathname.split("/").some(Boolean)) return null;
+  u.protocol = "https:";
+  u.hash = "";
+  const page = u.toString();
+  return page.length <= BOOKING_PAGE_MAX ? page : null;
+}
+
+// src/lead-search.ts
 var LEAD_SEARCH_VIAS = ["people", "ask"];
 var LEAD_ROUND_PURPOSES = ["probe", "main", "topup", "renew"];
 var LEAD_ROUND_STATES = ["queued", "probing", "waiting_on_owner", "running", "checking", "ended"];
@@ -4884,10 +4928,8 @@ function questionAfterProbe(plan, members) {
   };
 }
 var LEAD_PLATFORM_HOSTS = [
-  "vagaro.com",
+  ...BOOKING_PLATFORM_HOSTS,
   "square.site",
-  "squareup.com",
-  "glossgenius.com",
   "godaddysites.com",
   "wixsite.com",
   "business.site",
@@ -4895,13 +4937,6 @@ var LEAD_PLATFORM_HOSTS = [
   "instagram.com",
   "linktr.ee",
   "yelp.com",
-  "booksy.com",
-  "fresha.com",
-  "styleseat.com",
-  "schedulicity.com",
-  "mindbodyonline.com",
-  "setmore.com",
-  "acuityscheduling.com",
   "google.com"
 ];
 var LEAD_JUNK_EMAIL_DOMAINS = [
@@ -21276,6 +21311,7 @@ export {
   BILLING_TRIAL_DAYS,
   BOOKING_DEFAULTS,
   BOOKING_LINK_NEEDED,
+  BOOKING_PLATFORM_HOSTS,
   BOOKING_RULE_HINTS,
   BRAIN_INTENTS,
   BRAIN_LANGUAGES,
@@ -21793,6 +21829,7 @@ export {
   bookingLinkAction,
   bookingLinkOptional,
   bookingLinkRowWords,
+  bookingPageOf,
   bookingRuleRefusal,
   bookingRulesWords,
   bookingTemplate,
