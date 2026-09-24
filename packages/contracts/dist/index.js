@@ -167,6 +167,24 @@ function whyNotAnEmail(raw) {
   if (!/@[^@]*\./.test(s)) return "That needs a full domain after the @, like name@example.com.";
   return "That is not an email address anyone can be reached at.";
 }
+var OWN_ADDRESS_WORDS = /\b(my|mine|it'?s|is|email|e-mail|mail|correo|mi|es|sure|here|aqu[ií])\b/i;
+function addressInMessage(body) {
+  const s = String(body ?? "").trim();
+  if (!s || s.length > 160) return null;
+  const tokens = s.split(/\s+/);
+  const found = /* @__PURE__ */ new Set();
+  for (const raw of tokens) {
+    const t = raw.replace(/^[("'<[]+|[)"'>\].,;:!?]+$/g, "");
+    if (!t.includes("@")) continue;
+    const e = normalizeEmail(t);
+    if (!e) return null;
+    found.add(e);
+  }
+  if (found.size !== 1) return null;
+  const alone = tokens.length === 1;
+  const theirs = tokens.length <= 8 && OWN_ADDRESS_WORDS.test(s);
+  return alone || theirs ? [...found][0] : null;
+}
 
 // src/link.ts
 var MAX_LINK = 500;
@@ -2257,6 +2275,7 @@ function toCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
   if (outcomeWords) bullets.push(outcomeWords);
   if (dto.follow_up?.trim()) bullets.push(`To do: ${dto.follow_up.trim()}`);
   if (dto.caller_name?.trim()) bullets.push(`Gave their name as ${dto.caller_name.trim()}`);
+  if (dto.caller_email) bullets.push(`Gave their email as ${dto.caller_email}`);
   const recState = dto.recording?.fetch_state === "stored" ? "ready" : dto.recording?.fetch_state === "failed" ? "failed" : dto.recording?.fetch_state === "purged" ? "purged" : dto.recording ? "pending" : "none";
   if (!missed) {
     bullets.push(
@@ -2785,6 +2804,11 @@ var BookingRulesSchema = z3.object({
   /** Services that need a consultation before they can be booked. */
   consult_first: z3.array(z3.string().min(1).max(80)).max(20).optional(),
   party_max: z3.number().int().min(1).max(20).optional(),
+  /**
+   * Ask, once, for an email when sending the booking link -- for the confirmation, and for the campaigns that follow
+   * (Part 0 of the campaigns-on-every-channel spec). Absent = no.
+   */
+  ask_email: z3.boolean().optional(),
   /** Anything else about booking, one short line each. */
   notes: z3.array(z3.string().min(1).max(200)).max(10).optional()
 }).strict();
@@ -3222,7 +3246,7 @@ ${PROMPT_OPENINGS.notes}
 ${profile.notes.map((n) => `- ${n.title}: ${n.text}`).join("\n")}`);
   }
   const br = profile.booking_rules;
-  if (br && (br.lead_hours !== void 0 || br.consult_first?.length || br.party_max || br.notes?.length)) {
+  if (br && (br.lead_hours !== void 0 || br.consult_first?.length || br.party_max || br.notes?.length || br.ask_email)) {
     const lines = [];
     if (br.lead_hours !== void 0) {
       lines.push(
@@ -3234,6 +3258,10 @@ ${profile.notes.map((n) => `- ${n.title}: ${n.text}`).join("\n")}`);
     if (br.party_max)
       lines.push(
         `Up to ${br.party_max} ${br.party_max === 1 ? "person" : "people"} per booking; larger groups go to a person.`
+      );
+    if (br.ask_email)
+      lines.push(
+        "When you send the booking link and no email address is on file for them, ask once for the best email for their booking confirmation, then move on. Never insist; thank them if they give one."
       );
     for (const n of br.notes ?? []) lines.push(n);
     s.push(`
@@ -4226,6 +4254,7 @@ function peopleFromItems(items, services, nowMs, window = {}) {
   const from = nowMs - (window.backDays ?? 30) * 864e5;
   const to = nowMs + (window.aheadDays ?? 90) * 864e5;
   const byPhone = /* @__PURE__ */ new Map();
+  const ridersOf = /* @__PURE__ */ new Map();
   const better = (a, b) => {
     const aUp = a.start >= nowMs;
     const bUp = b.start >= nowMs;
@@ -4234,21 +4263,28 @@ function peopleFromItems(items, services, nowMs, window = {}) {
   };
   for (const it of items) {
     if (it.end < from || it.start > to) continue;
-    const phones = extractContacts(it, NO_OWN_ADDRESSES).phones;
+    const found = extractContacts(it, NO_OWN_ADDRESSES);
+    const phones = found.phones;
     if (!phones.length) continue;
+    for (const e of found.emails) {
+      const riders = ridersOf.get(e) ?? /* @__PURE__ */ new Set();
+      for (const phone of phones) riders.add(phone);
+      ridersOf.set(e, riders);
+    }
+    const email = phones.length === 1 && found.emails.length === 1 ? normalizeEmail(found.emails[0]) : null;
     const name = guessName(it, services);
     for (const phone of phones) {
-      const row2 = { phone, name, title: it.title || "Busy", uid: it.uid, start: it.start };
+      const row2 = { phone, name, title: it.title || "Busy", uid: it.uid, start: it.start, email };
       const have = byPhone.get(phone);
       if (!have) {
         byPhone.set(phone, row2);
         continue;
       }
-      if (better(row2, have)) byPhone.set(phone, { ...row2, name: row2.name ?? have.name });
-      else if (!have.name && row2.name) byPhone.set(phone, { ...have, name: row2.name });
+      const [keep, other] = better(row2, have) ? [row2, have] : [have, row2];
+      byPhone.set(phone, { ...keep, name: keep.name ?? other.name, email: keep.email ?? other.email });
     }
   }
-  return [...byPhone.values()].sort((a, b) => a.start - b.start);
+  return [...byPhone.values()].map((r2) => r2.email && (ridersOf.get(r2.email)?.size ?? 0) > 1 ? { ...r2, email: null } : r2).sort((a, b) => a.start - b.start);
 }
 function afterPersonRefused(code2) {
   return code2 === "22023" ? "skip" : "stop";
@@ -5810,6 +5846,7 @@ function bookingRulesWords(rules) {
     );
   if (isNumber(r2.max_days_ahead)) parts2.push(`up to ${plural2(r2.max_days_ahead, "day", "days")} ahead`);
   if (isNumber(r2.party_max)) parts2.push(`up to ${plural2(r2.party_max, "person", "people")}`);
+  if (r2.ask_email) parts2.push("asks for an email when sending the booking link");
   const joined = parts2.join(" \xB7 ");
   const notes = (Array.isArray(r2.notes) ? r2.notes : []).filter((x) => typeof x === "string" && x.trim() !== "").map((x) => {
     const t = x.trim();
@@ -22012,6 +22049,7 @@ export {
   activityTone,
   activityWords,
   addressAlreadyKnown,
+  addressInMessage,
   afterPersonRefused,
   agentFor,
   ago,

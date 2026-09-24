@@ -1166,8 +1166,52 @@ test("the booking rules fold holds the five numbers, each with its unit and what
     "One per line.",
   ]);
   assert.equal(heardBox(tree, "Anything else about booking").type, "textarea");
-  assert.match(textOf(fold), /Saves these five rules and the notes, and nothing else on the page\./);
+  assert.match(textOf(fold), /Saves these five rules, the switch and the notes, and nothing else on the page\./);
   assert.match(textOf(fold), /It never books\. It says which times are open and sends the link\./);
+});
+
+test("the booking rules fold's switch asks for an email when the link goes out: off unless stored, and saved as true or as no key", () => {
+  const sent = saving();
+  let tree = drawTab();
+  openFold(tree, "booking_rules");
+  tree = redrawTab();
+  let fold = foldOf(tree, "booking_rules");
+  let sw = byTestId(fold, "rec-rule-ask-email");
+  assert.equal(sw.props.role, "switch");
+  assert.equal(sw.props["aria-checked"], false, "off by default: nothing stored is no");
+  // Named by the words beside it, which a person using speech can say (as the guardrails' switches are).
+  assert.equal(heard(tree, sw), "Ask for an email when sending the booking link");
+  // Under the five numbers, above the notes.
+  assert.deepEqual(
+    all(fold, (n) => n === sw || n.type === "input" || n.type === "textarea").map((n) =>
+      n === sw ? "switch" : n.type,
+    ),
+    ["input", "input", "input", "input", "input", "switch", "textarea"],
+  );
+  press(sw);
+  tree = redrawTab();
+  assert.equal(byTestId(tree, "rec-rule-ask-email").props["aria-checked"], true);
+  // The block of what a save will say carries the ask at once: it is composed from the fold's own save.
+  assert.match(textOf(byTestId(tree, "rec-fold-says-booking_rules")), /ask once for the best email/);
+  saveFoldOf(tree, "booking_rules");
+  tree = redrawTab();
+  assert.deepEqual(
+    sent[0].config.brain.profile.booking_rules,
+    { ...marisa.booking_rules, ask_email: true },
+    "on is stored as true, beside the rules as they were",
+  );
+  // Stored on, the switch is on; off again, the key goes rather than a false being written.
+  tree = drawTab({ profile: { ...marisa, booking_rules: { ...marisa.booking_rules, ask_email: true } } });
+  openFold(tree, "booking_rules");
+  tree = redrawTab();
+  fold = foldOf(tree, "booking_rules");
+  sw = byTestId(fold, "rec-rule-ask-email");
+  assert.equal(sw.props["aria-checked"], true, "as stored");
+  press(sw);
+  tree = redrawTab();
+  saveFoldOf(tree, "booking_rules");
+  tree = redrawTab();
+  assert.deepEqual(sent[1].config.brain.profile.booking_rules, marisa.booking_rules, "off is no key at all");
 });
 
 test("each booking rule saves within its range; outside it, or not a whole number, it is refused under its box with its sentence", () => {

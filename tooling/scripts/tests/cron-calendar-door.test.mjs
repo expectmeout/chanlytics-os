@@ -174,7 +174,16 @@ test("the rotation, and what a read leaves behind: the never-read workspace firs
   try {
     const [status, body] = await answer(await w.tick());
     assert.equal(status, 200);
-    assert.deepEqual(body, { ok: true, tenants: 2, seen: 4, added: 3, named: 1, failed: 0, remaining: 0 });
+    assert.deepEqual(body, {
+      ok: true,
+      tenants: 2,
+      seen: 4,
+      added: 3,
+      named: 1,
+      emailed: 0,
+      failed: 0,
+      remaining: 0,
+    });
     assert.deepEqual(
       read(line),
       [urlN, urlO],
@@ -253,7 +262,16 @@ test("a feed that cannot be read fails that workspace only and leaves it due: no
   try {
     const [status, body] = await answer(await w.tick());
     assert.equal(status, 200);
-    assert.deepEqual(body, { ok: true, tenants: 2, seen: 1, added: 1, named: 0, failed: 1, remaining: 0 });
+    assert.deepEqual(body, {
+      ok: true,
+      tenants: 2,
+      seen: 1,
+      added: 1,
+      named: 0,
+      emailed: 0,
+      failed: 1,
+      remaining: 0,
+    });
     assert.deepEqual(read(line), [urlG, urlK]);
     assert.equal(checkedAt(w, G), null, "not stamped: still due, retried next tick");
     assert.ok(fresh(checkedAt(w, K)));
@@ -296,6 +314,7 @@ test("more due than a tick takes: forty are read, the two read most recently wai
       seen: 0,
       added: 0,
       named: 0,
+      emailed: 0,
       failed: 0,
       remaining: 2,
     });
@@ -334,6 +353,7 @@ test("three ticks in a row with work left behind: the sweep says so with a 503, 
       seen: 0,
       added: 0,
       named: 0,
+      emailed: 0,
       failed: 0,
       remaining: 1,
     });

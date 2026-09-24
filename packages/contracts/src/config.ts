@@ -464,6 +464,11 @@ export const BookingRulesSchema = z
     /** Services that need a consultation before they can be booked. */
     consult_first: z.array(z.string().min(1).max(80)).max(20).optional(),
     party_max: z.number().int().min(1).max(20).optional(),
+    /**
+     * Ask, once, for an email when sending the booking link -- for the confirmation, and for the campaigns that follow
+     * (Part 0 of the campaigns-on-every-channel spec). Absent = no.
+     */
+    ask_email: z.boolean().optional(),
     /** Anything else about booking, one short line each. */
     notes: z.array(z.string().min(1).max(200)).max(10).optional(),
   })
@@ -1364,7 +1369,10 @@ function composeSystemPromptWith(
   }
 
   const br = profile.booking_rules;
-  if (br && (br.lead_hours !== undefined || br.consult_first?.length || br.party_max || br.notes?.length)) {
+  if (
+    br &&
+    (br.lead_hours !== undefined || br.consult_first?.length || br.party_max || br.notes?.length || br.ask_email)
+  ) {
     const lines: string[] = [];
     if (br.lead_hours !== undefined) {
       lines.push(
@@ -1378,6 +1386,12 @@ function composeSystemPromptWith(
     if (br.party_max)
       lines.push(
         `Up to ${br.party_max} ${br.party_max === 1 ? "person" : "people"} per booking; larger groups go to a person.`,
+      );
+    // The receptionist never books: the visit is made on the business's own site, so "ask when booking" is "ask when
+    // the link goes out". Once, and only where no address is on file (what is on file is the lead's description).
+    if (br.ask_email)
+      lines.push(
+        "When you send the booking link and no email address is on file for them, ask once for the best email for their booking confirmation, then move on. Never insist; thank them if they give one.",
       );
     for (const n of br.notes ?? []) lines.push(n);
     s.push(`\n${PROMPT_OPENINGS.bookingRules}\n${lines.map((l) => `- ${l}`).join("\n")}`);

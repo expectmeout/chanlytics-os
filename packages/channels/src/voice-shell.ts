@@ -328,10 +328,13 @@ const RETELL_DEFAULT_EVENTS = ["call_started", "call_ended", "call_analyzed"];
 /**
  * What the agent's post-call analysis fills in after every call, in the
  * caller's own terms: what they wanted, how it ended, what a person should
- * do next, the name they gave. The provider's default summary ("The user
- * called Marisa's Beauty Salon to inquire about…") is kept beside it; these
- * are what the strip, the profile and the call card say. The webhook files
- * them through ingest_call (migration 00061).
+ * do next, the name they gave, the email address they spelled out. The
+ * provider's default summary ("The user called Marisa's Beauty Salon to
+ * inquire about…") is kept beside it; these are what the strip, the profile
+ * and the call card say. The webhook files them through ingest_call
+ * (migration 00061): the first four as columns, the address inside the
+ * analysis it keeps whole. The name and the address are suggestions for the
+ * person's page, never applied to the contact by themselves.
  */
 export const CALL_ANALYSIS_FIELDS = [
   {
@@ -364,6 +367,13 @@ export const CALL_ANALYSIS_FIELDS = [
     name: "caller_name",
     description: "The caller's name exactly as they gave it. Leave empty if they did not say one.",
     examples: ["Ana", "Daniela R."],
+  },
+  {
+    type: "string",
+    name: "caller_email",
+    description:
+      "The email address the caller gave, exactly as they spelled it out. Leave empty if they did not give one.",
+    examples: ["ana.ruiz@example.com", "daniela.r@example.net"],
   },
 ] as const;
 

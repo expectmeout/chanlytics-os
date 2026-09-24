@@ -226,6 +226,34 @@ test("booking rules and the calendar feed are config the schemas accept, and the
   assert.ok(text.includes("These need a consultation before they can be booked: Color correction."));
   assert.ok(text.includes("Up to 4 people per booking; larger groups go to a person."));
   assert.ok(text.includes("No chemical services after 4 PM"));
+  // The email switch (Part 0 of the campaigns-on-every-channel spec): the strict schema takes it, and on it is one
+  // line of the booking rules -- asked once when the link goes out, never insisted on.
+  const askingRules = { ...cfg.brain.profile.booking_rules, ask_email: true };
+  const asking = { ...cfg, brain: { ...cfg.brain, profile: { ...cfg.brain.profile, booking_rules: askingRules } } };
+  assert.equal(TenantConfigWriteSchema.safeParse(asking).success, true, "the switch is a key the strict schema takes");
+  const textAsking = composeSystemPrompt(brain, asking.brain.profile, "whatsapp");
+  assert.ok(
+    textAsking.includes(
+      "- When you send the booking link and no email address is on file for them, ask once for the best email for their booking confirmation, then move on. Never insist; thank them if they give one.",
+    ),
+  );
+  assert.ok(
+    !text.includes("ask once for the best email"),
+    "off by default: the switch adds the line, nothing else does",
+  );
+  // The switch alone opens the block, and it is the block's one line; off, with no other rule set, there is no block.
+  const alone = composeSystemPrompt(brain, { hours, booking_rules: { ask_email: true } }, "whatsapp");
+  const at = alone.indexOf("Booking rules:\n");
+  assert.ok(at >= 0, "the switch alone opens the block");
+  const end = alone.indexOf("\n\n", at);
+  assert.equal(
+    alone.slice(at, end < 0 ? undefined : end),
+    "Booking rules:\n- When you send the booking link and no email address is on file for them, ask once for the best email for their booking confirmation, then move on. Never insist; thank them if they give one.",
+  );
+  assert.ok(
+    !composeSystemPrompt(brain, { hours, booking_rules: { ask_email: false } }, "whatsapp").includes("Booking rules:"),
+    "off, with no other rule, is no block at all",
+  );
   assert.ok(
     text.includes("If open times are listed after these instructions, offer up to three that fit"),
     "both channels are told how to use the openings",

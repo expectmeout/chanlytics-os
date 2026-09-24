@@ -178,6 +178,10 @@ test(
         events.every((e) => !JSON.stringify(e.data).includes("@")),
         "an event outlives an erasure, so it names no address",
       );
+      assert.ok(
+        events.every((e) => e.data.by === userId && e.data.source === "member"),
+        "a member's own write names them and says so",
+      );
 
       const { data: other } = await db
         .from("tenants")
@@ -205,5 +209,30 @@ test(
     } finally {
       await db.auth.admin.deleteUser(userId);
     }
+  },
+);
+
+test(
+  "set_person_email: with no session (the edge, holding the service key) the address a customer gave is kept, and the event says it came from their message",
+  { skip },
+  async () => {
+    const { id } = await person({ phone_e164: "+15550100151" });
+    const { data, error } = await db.rpc("set_person_email", { p_contact_id: id, p_email: "Given@Example.com" });
+    assert.equal(error, null, error?.message);
+    assert.deepEqual(data, { contact_id: id, email: "given@example.com" }, "stored trimmed and lower-cased");
+    const { data: ev, error: evErr } = await db
+      .from("events")
+      .select("data")
+      .eq("tenant_id", tenantId)
+      .eq("subject_id", id)
+      .eq("kind", "contact.email_set")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single();
+    assert.equal(evErr, null, evErr?.message);
+    assert.equal(ev.data.by, null, "nobody was signed in");
+    assert.equal(ev.data.source, "customer_message", "the address came from their own message");
+    assert.equal(JSON.stringify(ev.data).includes("example.com"), false, "never the address itself");
+    // A member's own write names them and says source 'member': the signed-in case above asserts it.
   },
 );

@@ -16,7 +16,7 @@
  * (docs/conversation-flow.md §5.1).
  */
 import { isThreadUnknown, type ThreadState } from "./thread";
-import { shortCode, optInConfirmation, phoneTail } from "@chanlytics/contracts";
+import { shortCode, optInConfirmation, phoneTail, addressInMessage } from "@chanlytics/contracts";
 import type { BrainConfig, BrainMeta, NotificationsConfig, SendPurpose } from "@chanlytics/contracts";
 import { isOptedOutContact, resolveSystemPrompt, describeNow, fallbackMessages } from "@chanlytics/contracts";
 // TYPES ONLY: the normalised message is the channels package's shape and this
@@ -213,6 +213,14 @@ export async function answerInbound(input: InboundInput, ports: InboundPorts): P
     ...(carrier ? { sms: (to: string, p: { body: string }) => carrier.send(to, p.body) } : {}),
   };
   const sink = ports.persist.sink(db, tenantId, ing, rt, channel, wires);
+  // An address a customer gives in their own words is kept, the way YES OFFERS is read from their words: the message
+  // that is an address and nothing else, or a few words with one address that is theirs (contracts addressInMessage).
+  // Their words are the typed or tapped ones (kind), never a caption, a location or a card that happens to carry one.
+  // Only where none is on file; the sink says nothing when it is taken (Part 0 of the campaigns-on-every-channel spec).
+  if (ing && n.kind === "text") {
+    const given = addressInMessage(n.body);
+    if (given) await sink.noteEmail(given);
+  }
   // One door out: the carrier shapes the words for its wire (the footer on
   // the first reply to a person), and the sink's door sends them -- re-reading
   // consent, the pause and the workspace's status the moment before.

@@ -5806,6 +5806,8 @@ interface LeadContext {
     history: ThreadTurn[];
     /** They asked us to stop. Carried so no caller has to look it up separately. */
     optedOut: boolean;
+    /** Whether an email address is on file for them: the receptionist asks for one only when there is none (the booking rule ask_email). Undefined for a reader that never learned it, which says nothing. */
+    hasEmail?: boolean;
     /** The owner's notes on them — facts for the receptionist, never read aloud. The field 00157 superseded: said only
      *  where the notes themselves could not be read (`noteList` null or absent). */
     notes?: string | null;

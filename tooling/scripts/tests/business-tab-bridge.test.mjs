@@ -276,6 +276,13 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     tab.bookingRulesWords(STORED.profile.booking_rules),
     bookingRulesWords(STORED.profile.booking_rules),
   );
+  // The email switch is a part of the row's line too, and off is not said at all (capture-emails Part 0, Task 8).
+  assert.match(
+    bookingRulesWords({ lead_hours: 2, ask_email: true }).line,
+    /asks for an email when sending the booking link/,
+  );
+  assert.equal(bookingRulesWords({ ask_email: false }).line, null);
+  assert.deepEqual(tab.bookingRulesWords({ ask_email: true }), bookingRulesWords({ ask_email: true }));
   assert.deepEqual(tab.BOOKING_RULE_HINTS, BOOKING_RULE_HINTS);
   for (const key of ["lead_hours", "slot_min", "buffer_min", "max_days_ahead", "party_max"])
     assert.equal(tab.bookingRuleRefusal(key), bookingRuleRefusal(key), key);

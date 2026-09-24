@@ -62,7 +62,7 @@ const btfSame = (a, b) => window.__businessTabSave.same(a, b);
  *   services            service-<i>-name, service-<i>-duration_min, service-<i>-price_note, services (too many)
  *   languages           languages
  *   escalate_when       escalate_when
- *   booking_rules       lead_hours, slot_min, buffer_min, max_days_ahead, party_max, notes: the draft's own keys
+ *   booking_rules       lead_hours, slot_min, buffer_min, max_days_ahead, party_max, ask_email, notes: the draft's own keys
  *   consult_first       consult_first
  *   notes               note-<i>, notes (too many)
  *   extra_instructions  extra_instructions
@@ -181,7 +181,10 @@ const BT_PATHS_OF = {
   languages: ["brain.profile.languages"],
   notes: ["brain.profile.notes"],
   escalate_when: ["brain.profile.escalate_when"],
-  booking_rules: BT_RULES.map(([key]) => `brain.profile.booking_rules.${key}`).concat(["brain.profile.booking_rules.notes"]),
+  booking_rules: BT_RULES.map(([key]) => `brain.profile.booking_rules.${key}`).concat([
+    "brain.profile.booking_rules.notes",
+    "brain.profile.booking_rules.ask_email",
+  ]),
   consult_first: ["brain.profile.booking_rules.consult_first"],
   guardrails: BT_GUARDRAILS.map((key) => `brain.profile.guardrails.${key}`).concat(["features.vision"]),
   extra_instructions: ["brain.profile.extra_instructions", "brain.system_prompt"],
@@ -231,12 +234,14 @@ const BT_DRAFT_OF = {
   languages: (p) => (p.languages || []).slice(),
   notes: (p) => (p.notes || []).map((x) => ({ ...x })),
   escalate_when: (p) => (p.escalate_when || []).join("\n"),
-  // Each number as its box holds it, "" where there is no rule; the notes one to a line.
+  // Each number as its box holds it, "" where there is no rule; the notes one to a line; the email switch off unless
+  // it is stored on (the schema's absent means no).
   booking_rules: (p) => {
     const rules = p.booking_rules || {};
     const draft = {};
     BT_RULES.forEach(([key]) => { draft[key] = rules[key] !== undefined ? String(rules[key]) : ""; });
     draft.notes = (rules.notes || []).join("\n");
+    draft.ask_email = !!rules.ask_email;
     return draft;
   },
   consult_first: (p) => ((p.booking_rules || {}).consult_first || []).join("\n"),
@@ -359,6 +364,8 @@ const BT_WRITE = {
     BT_RULES.forEach(([key, lo, hi]) => btPut(rules, key, btRuleNumber(d[key], lo, hi)));
     const notes = btLines(d.notes);
     btPut(rules, "notes", notes.length ? notes : undefined);
+    // Off is no key at all, as an empty box is no rule: a stored false would read as a choice the owner made.
+    btPut(rules, "ask_email", d.ask_email ? true : undefined);
     btPutProfile(next, "booking_rules", Object.keys(rules).length ? rules : undefined);
   },
   // The one key of booking_rules that is its own fold (it had no label in the form this replaces), and every other rule

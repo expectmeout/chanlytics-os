@@ -89,6 +89,7 @@ const contact = (w) => ({
   consent: "opted_in",
   dnc: false,
   notes: null,
+  email: null,
   erased_at: null,
 });
 const conversation = (w) => ({ id: C1, tenant_id: w.tenant, contact_id: P1 });
@@ -187,7 +188,7 @@ test("a routed call: the facts are the workspace's own composition with the cloc
   assert.deepEqual(
     r.variables.caller_context.split("\n"),
     [
-      "Name on record: Rosa. Returning contact. Last in touch today.",
+      "Name on record: Rosa. No email address on file. Returning contact. Last in touch today.",
       VISITS,
       "Recent interactions on this number (calls and messages):",
       "Customer: Are you open Saturday?",

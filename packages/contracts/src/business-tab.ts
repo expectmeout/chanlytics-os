@@ -650,11 +650,15 @@ export interface BookingRulesWordsInput {
   buffer_min?: number | null;
   max_days_ahead?: number | null;
   party_max?: number | null;
+  ask_email?: boolean | null;
   notes?: readonly string[] | null;
 }
 
 export interface BookingRulesWordsVM {
-  /** "At least 2 hours' notice · 30-minute slots · up to 14 days ahead · up to 4 people": the rules that are set; null with none. */
+  /**
+   * "At least 2 hours' notice · 30-minute slots · up to 14 days ahead · up to 4 people · asks for an email when sending
+   * the booking link": the rules that are set; null with none.
+   */
   line: string | null;
   /** "No chemical services after 4 PM. Bridal parties are booked by phone.": the notes, as sentences; null with none. */
   notes: string | null;
@@ -666,8 +670,9 @@ const isNumber = (v: unknown): v is number => typeof v === "number" && Number.is
 const plural = (n: number, one: string, many: string): string => `${count(n)} ${n === 1 ? one : many}`;
 
 /**
- * The booking rules at rest, in ONE sentence: each of the five that is set, joined by " · " in the fold's order (the
- * canvas's Record board). A rule left empty is not said as if the owner had set it; with none set, `none` says what
+ * The booking rules at rest, in ONE sentence: each of the five numbers that is set, and the email switch where it is
+ * on, joined by " · " in the fold's order (the canvas's Record board). A rule left empty is not said as if the owner
+ * had set it, and a switch that is off is not said at all; with none set, `none` says what
  * the calendar offers by (availability.ts BOOKING_DEFAULTS, which freeWindows applies to every opening it hands the
  * receptionist): at least two hours' notice, fourteen days ahead, half-hour slots, no gap. "No rule" would not be true.
  * The notes are the owner's own lines, each said as a sentence.
@@ -690,6 +695,7 @@ export function bookingRulesWords(rules: BookingRulesWordsInput | null | undefin
     );
   if (isNumber(r.max_days_ahead)) parts.push(`up to ${plural(r.max_days_ahead, "day", "days")} ahead`);
   if (isNumber(r.party_max)) parts.push(`up to ${plural(r.party_max, "person", "people")}`);
+  if (r.ask_email) parts.push("asks for an email when sending the booking link");
   const joined = parts.join(" · ");
   // A stored list that is not one (a hand-edited record) is none, never a throw: the row is drawn from what is stored.
   const notes = (Array.isArray(r.notes) ? r.notes : [])

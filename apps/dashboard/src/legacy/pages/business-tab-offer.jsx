@@ -183,6 +183,23 @@ const BtwRules = ({ draft, update, problems, readOnly }) => {
           />
         ))}
       </div>
+      {/* Off by default: the receptionist asks for an email only where the owner wants the campaigns that follow (Part 0
+          of the campaigns-on-every-channel spec). Drawn as the guardrails fold draws its switches (bt-rule): the words
+          beside the switch name it, so a person saying them can press it. */}
+      <div className="bt-rule">
+        <span className="bt-rule-words">
+          <span className="bt-rule-head">
+            <span className="bt-rule-label" id="bt-rule-ask_email-label">Ask for an email when sending the booking link</span>
+          </span>
+        </span>
+        <window.RecordSwitch
+          on={!!draft.ask_email}
+          onChange={(v) => update((d) => ({ ...d, ask_email: v }), ["ask_email"])}
+          labelledBy="bt-rule-ask_email-label"
+          readOnly={readOnly}
+          testid="rec-rule-ask-email"
+        />
+      </div>
       <window.RecordField
         id="bt-rule-notes"
         label="Anything else about booking"
@@ -263,7 +280,7 @@ const BtOfferCard = ({ brain, canEdit, flash, saver }) => {
         id="booking_rules"
         label="Booking rules"
         hint={btwOffers ? "It never books. It says which times are open and sends the link." : "It never books. It says which times are open and takes their details."}
-        footNote="Saves these five rules and the notes, and nothing else on the page."
+        footNote="Saves these five rules, the switch and the notes, and nothing else on the page."
         gate={gate("the booking rules")}
         row={{
           // The notes follow the sentence on its line, in the dim ink (24 Sep): under it they were a second line on a

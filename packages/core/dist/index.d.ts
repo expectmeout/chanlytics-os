@@ -2295,6 +2295,8 @@ interface InboundSink {
     allowlistSkip(): Promise<unknown>;
     /** The sender cannot receive a reply (a short code). Recorded like any other message, and not answered. */
     unreachableSender(): Promise<unknown>;
+    /** An address the customer gave in their own words: kept only where none is on file; a taken address is said, never moved. */
+    noteEmail(address: string): Promise<unknown>;
     /** A veto window this workspace CONFIGURED did not happen, and the customer has the words already. */
     vetoFallback(delayMs: number, source?: "veto_window" | "low_confidence"): Promise<unknown>;
     /** The thread handed to a person; its held drafts go with it, all but the one this handoff queued. */
