@@ -211,9 +211,12 @@ import {
   listMembers,
   listRuleParts,
   listUnknownWords,
+  ruleNeeds,
+  unmetNeed,
   parseListToken,
   savedListIds,
   savedListLookup,
+  savedListTip,
   poolListContext,
   poolRowOf,
   poolRowsOf,
@@ -242,6 +245,7 @@ import {
   toDealReportVM,
   type DealReportVM,
   type CalendarVM,
+  type ListRule,
 } from "@chanlytics/contracts";
 import {
   BROADCAST_CHUNK,
@@ -773,11 +777,18 @@ export interface PeopleSurface {
     id: string;
     label: string;
     group: string;
+    /** What it holds, in one line (contracts BUILTIN_LISTS): the rail's tip. */
+    tip: string;
     count: number;
     ids: string[];
     action: { text: string; cta: string; to: string; enabled: boolean } | null;
   }[];
   groups: { id: string; label: string }[];
+  /**
+   * People's lists this workspace doesn't show, each with why (lists.ts listUnknownWords): a calendar not read, deals
+   * off. A door to one says it can't be counted here, never that it isn't a list.
+   */
+  hidden: { id: string; label: string; why: string }[];
   /** The lists kept by hand (segments), counted over the rows on the page so
    *  an erased person never counts; `members` is every id the server keeps on
    *  the list, so an Undo can tell who an add really added. */
@@ -792,8 +803,12 @@ export interface PeopleSurface {
     byHand: boolean;
     /** A smart list's rule as the chips its page shows; null for a list kept by hand, or a rule that can't be read. */
     rule: string[] | null;
+    /** The rule itself, as read (asListRule): what a copy keeps and a profile's "why" reads. Null as `rule` is. */
+    spec: ListRule | null;
     /** Why it can't be counted (lists.ts listUnknownWords); null when it was. Its count is then no one's, never 0. */
     unknown: string | null;
+    /** Its line on the rail (contracts savedListTip): why it can't be counted, what a hand list is for, or its rule. */
+    tip: string;
   }[];
   /** Whether the saved lists were read: false leaves People standing without them, and the rail and the profile say so. */
   savedRead: boolean;
@@ -820,6 +835,11 @@ export interface PeopleSurface {
   page: { q: string | null; offset: number; limit: number; total: number; has_more: boolean } | null;
   /** What this member's pages remember in this workspace (memberships.views). */
   views: Record<string, unknown>;
+  /**
+   * Whether they were read: false when the read failed, and `views` is then none of them. A save of one page replaces
+   * its whole view, so Today's pins are not changed over a read that failed (it would wipe the ones not shown).
+   */
+  viewsRead: boolean;
   fetchedAt: number;
 }
 
@@ -841,6 +861,7 @@ let peopleLoaded: {
   /** The proposal follow-up, as the list read answered it (0006); null where none runs. */
   followUp: FollowUpFactsDto | null;
   views: Record<string, unknown>;
+  viewsRead: boolean;
 } | null = null;
 
 /**
@@ -901,12 +922,17 @@ function publishPeople(): void {
         id: l.id,
         label: l.label,
         group: l.group,
+        tip: l.tip,
         count: members.length,
         ids: members.map((r) => r.id),
         action: peopleListAction(l.id, members),
       };
     }),
     groups: PEOPLE_LIST_GROUPS.map((g) => ({ id: g.id, label: g.label })),
+    hidden: PEOPLE_LISTS.flatMap((l) => {
+      const need = unmetNeed(ruleNeeds(l.rule), listCtx);
+      return need ? [{ id: l.id, label: l.label, why: listUnknownWords(need, calendar.state) }] : [];
+    }),
     calendar,
     bookingLink: peopleLoaded.bookingLink,
     dealsOn,
@@ -932,9 +958,11 @@ function publishPeople(): void {
           action: savedListAction(l.id, members),
           byHand: l.rule == null,
           rule: rule ? listRuleParts(rule, listName) : null,
+          spec: rule,
           unknown: m.state === "unknown" ? listUnknownWords(m.reason, calendar.state) : null,
         };
-      }),
+      })
+      .map((s) => ({ ...s, tip: savedListTip(s) })),
     savedRead: peopleLoaded.saved !== null,
     archived: savedLists.filter((l) => !!l.archived_at).map((l) => ({ id: l.id, name: l.name })),
     // The total is the server's: past the first page the rows here are not everyone.
@@ -943,6 +971,7 @@ function publishPeople(): void {
     attention: Object.fromEntries(rows.map((r) => [r.id, attentionRow(r, tz, now.getTime())])),
     page: peopleLoaded.page,
     views: peopleLoaded.views,
+    viewsRead: peopleLoaded.viewsRead,
     fetchedAt: now.getTime(),
   };
 }
@@ -1092,7 +1121,7 @@ export const peopleOverride: SurfaceOverride = {
       // them took the whole surface down, and with it People, every profile and Lists.
       read("GET segments").catch((e: unknown) => e as Error),
       // A member's own views; a route that is not there yet reads as none.
-      read("GET views").catch(() => ({ views: {} as Record<string, unknown> })),
+      read("GET views").catch(() => ({ views: {} as Record<string, unknown>, failed: true as const })),
       workspaceZone(),
     ]);
     if (savedData instanceof Error) console.error("people_lists_fetch_failed", savedData.message);
@@ -1113,6 +1142,7 @@ export const peopleOverride: SurfaceOverride = {
         overlapped || keptViews.made !== savesBefore
           ? { ...(viewsData.views ?? {}), ...keptViews.views }
           : (viewsData.views ?? {}),
+      viewsRead: !("failed" in viewsData),
     };
     const w = window as unknown as {
       __peopleMore?: () => Promise<void>;
@@ -1527,10 +1557,15 @@ export const playbooksOverride: SurfaceOverride = {
     const peopleLists = pb.people_lists ?? [];
     const keyOf = (p: { trigger: string; list_id?: string | null; list_key?: string | null }) =>
       p.trigger !== "saved_list" ? p.trigger : p.list_key ? `seg:${p.list_key}` : `list:${p.list_id ?? ""}`;
+    // A built-in is named by contracts when the route's People read failed: it is never deleted. One of the
+    // workspace's own is named by the lists read; unread, it is a list that could not be read, never a deleted one.
     const listNameOf = (p: { list_id?: string | null; list_key?: string | null }) =>
       p.list_key
-        ? (peopleLists.find((l) => l.key === p.list_key)?.label ?? null)
+        ? (peopleLists.find((l) => l.key === p.list_key)?.label ??
+          PEOPLE_LISTS.find((l) => l.id === p.list_key)?.label ??
+          null)
         : (listsKept.find((l) => l.id === p.list_id)?.name ?? null);
+    const unnamed = pb.lists === null ? "A list that could not be read" : "A list that was deleted";
     // The moments offered here (0006): a proposal's only where deals are on, as the route counts them.
     const offered = PLAYBOOK_TRIGGERS.filter((t) => triggerOffered(t, !!pb.deals_on));
     (window as unknown as { __PLAYBOOKS?: PlaybooksSurface }).__PLAYBOOKS = {
@@ -1541,8 +1576,7 @@ export const playbooksOverride: SurfaceOverride = {
           ...p,
           // Its list was archived (00169): paused until the list is restored or the playbook moved to another.
           listArchived: onArchived,
-          triggerLabel:
-            p.trigger === "saved_list" ? (listNameOf(p) ?? "A list that was deleted") : (t?.label ?? p.trigger),
+          triggerLabel: p.trigger === "saved_list" ? (listNameOf(p) ?? unnamed) : (t?.label ?? p.trigger),
           triggerHint: t?.hint ?? "",
           schedule: scheduleLine(p),
           next: nextRunLabel(p, tz, now),
@@ -1559,7 +1593,7 @@ export const playbooksOverride: SurfaceOverride = {
         ...peopleLists.map((l) => ({ id: `seg:${l.key}`, name: l.label, smart: true, builtin: true })),
         // An archived list is offered to no new playbook (00169); the ones on it say so on their card.
         ...listsKept
-          .filter((l) => !l.archived)
+          .filter((l) => !l.archived && !l.viewer)
           .map((l) => ({ id: `list:${l.id}`, name: l.name, smart: l.smart, builtin: false })),
       ].map((l) => ({ ...l, candidates: pool(l.id), held: held(l.id), named: named(l.id) })),
       calendar: pb.calendar ?? "none",

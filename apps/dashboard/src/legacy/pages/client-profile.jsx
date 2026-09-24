@@ -931,6 +931,17 @@ const PersonNotes = ({ p, canEdit, isOwner, flash, onChanged }) => {
   );
 };
 
+// Why a smart list of the workspace's own has them, in its rule's words (window.__lists.why, contracts listRuleWhy): the
+// chip's line on hover and focus. A list kept by hand has no why; it has them because someone put them there.
+const plWhyTip = (s, personId) => {
+  const why = !s.byHand && window.__lists && window.__lists.why ? window.__lists.why(s.id, personId) : null;
+  return why ? `Because: ${why}` : undefined;
+};
+const plWhyTitle = (s, personId) => {
+  const tip = plWhyTip(s, personId);
+  return tip ? `${tip} — open it on People` : `Open ${s.name} on People`;
+};
+
 // The person's saved lists, read from the People surface; a change goes
 // through window.__lists and the surface is re-fetched, so the chips are the
 // server's. Owner or operator may change them.
@@ -938,7 +949,12 @@ const PersonLists = ({ personId, canEdit, first, flash, smart = [] }) => {
   const [, bump] = React.useReducer((n) => n + 1, 0);
   useEffectP(() => {
     window.addEventListener("surface:clients", bump);
-    return () => window.removeEventListener("surface:clients", bump);
+    // A read of People that failed is heard too, so "Reading…" gives way to saying so.
+    const off = window.__onSurfaceReady ? window.__onSurfaceReady(bump) : null;
+    return () => {
+      window.removeEventListener("surface:clients", bump);
+      if (off) off();
+    };
   }, []);
   const [busy, setBusy] = useStateP(false);
   const saved = (window.__PEOPLE && window.__PEOPLE.saved) || [];
@@ -962,9 +978,22 @@ const PersonLists = ({ personId, canEdit, first, flash, smart = [] }) => {
   // No cross: nobody is taken off a list that is a rule. A list is a name, not a state: the one chip, in no tone.
   const smartChips = smart.map((l) => (
     <span key={l.id} className="chip chip-wrap" data-testid="person-smart-chip">
-      <button type="button" onClick={() => window.CHANLY.nav(window.CHANLY.R.clientSeg(l.id))} title={`${l.label} keeps itself current — open it on People`}>{l.label}</button>
+      <button type="button" onClick={() => window.CHANLY.nav(window.CHANLY.R.clientSeg(l.id))} title={l.why ? `Because: ${l.why} — open it on People` : `${l.label} keeps itself current — open it on People`} data-tip={l.why ? `Because: ${l.why}` : undefined}>{l.label}</button>
     </span>
   ));
+  // Not read yet is not "no lists": a profile opened straight from a link reads People after the person, and says so
+  // until it lands (surface:clients redraws this), or that it failed. The smart lists are the person's own read's.
+  if (!window.__PEOPLE) {
+    const failed = !!(window.__surfaceFailed && window.__surfaceFailed("clients"));
+    return (
+      <div className="cl-prof-lists">
+        {smartChips.length > 0 && <div className="cl-tag-stack cl-prof-list-chips">{smartChips}</div>}
+        {failed
+          ? <FailedRead kind="line" what="their lists" surface="people" testid="person-lists-failed" />
+          : <div className="cl-prof-aut-hint" role="status" aria-busy="true" data-testid="person-lists-reading">Reading…</div>}
+      </div>
+    );
+  }
   if (saved.length === 0) {
     // "The People rail" is not on a phone; the Lists page is, from here.
     // The lists live on People: the door lands there with the New list box open (clients/new-list, app-shell.jsx).
@@ -972,7 +1001,7 @@ const PersonLists = ({ personId, canEdit, first, flash, smart = [] }) => {
       <div className="cl-prof-lists">
         {smartChips.length > 0 && <div className="cl-tag-stack cl-prof-list-chips">{smartChips}</div>}
         <div className="cl-prof-aut-hint">
-          No lists kept by hand yet.{" "}
+          {smartChips.length > 0 ? "No lists of your own yet." : "No lists yet."}{" "}
           <button type="button" className="cl-bucket-link" onClick={() => window.CHANLY.nav("clients/new-list")} data-testid="person-lists-make">Make one on People <Icon name="arrow-right" size={10} /></button>
         </div>
       </div>
@@ -984,7 +1013,7 @@ const PersonLists = ({ personId, canEdit, first, flash, smart = [] }) => {
         {smartChips}
         {on.map((s) => (
           <span key={s.id} className="chip chip-wrap" data-testid="person-list-chip">
-            <button type="button" onClick={() => window.CHANLY.nav(`clients/list:${s.id}`)} title={`Open ${s.name} on People`} data-testid="person-list-open">{s.name}</button>
+            <button type="button" onClick={() => window.CHANLY.nav(`clients/list:${s.id}`)} title={plWhyTitle(s, personId)} data-tip={s.byHand ? undefined : plWhyTip(s, personId)} data-testid="person-list-open">{s.name}</button>
             {canEdit && s.byHand && (
               <button
                 type="button"

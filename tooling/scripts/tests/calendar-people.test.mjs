@@ -25,6 +25,7 @@ import {
   toPersonVM,
   afterPersonRefused,
   personActs,
+  PEOPLE_LISTS,
 } from "@chanlytics/contracts";
 import { readCode } from "./_source.mjs";
 
@@ -1011,7 +1012,8 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
   );
   // Booked was a stat card above the table as well as a list on the rail; the rail keeps it.
   assert.ok(
-    PEOPLE_PAGE.includes('data-testid="row-next-visit"') && PEOPLE_PAGE.includes("asked_never_booked:"),
+    PEOPLE_PAGE.includes('data-testid="row-next-visit"') &&
+      /nothing on your calendar since answers it/.test(PEOPLE_LISTS.find((l) => l.id === "asked_never_booked").tip),
     "the column and the tips",
   );
   assert.ok(!PEOPLE_PAGE.includes('<StatCell label="Booked"'), "REGRESSION: the rail said it and a card said it again");

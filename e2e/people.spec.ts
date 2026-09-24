@@ -471,12 +471,13 @@ test.describe("People on a real workspace", () => {
       const said = (await needs.innerText()).trim();
       const n = Number(said.split(" ")[0]);
       await needs.click();
-      await expect(page.getByTestId("state-filter")).toBeVisible();
+      // Needs you is a list (decision 0009): the count opens it, by its own address.
+      await expect.poll(() => new URL(page.url()).hash).toBe("#/clients/seg:needs_you");
       await expect(page.locator(".cl-table tbody tr:not(:has(.empty))")).toHaveCount(n);
       for (const p of await page.locator(".cl-row-bucket-pill").allInnerTexts())
         expect(p.trim().toLowerCase()).toBe("needs you");
       await needs.click();
-      await expect(page.getByTestId("state-filter")).toHaveCount(0);
+      await expect.poll(() => new URL(page.url()).hash).toBe("#/clients");
     }
 
     // Every row still says its own words and its own state -- what the strip said.

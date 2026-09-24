@@ -651,32 +651,12 @@ const ClientsASeed = ({ onOpenProfile = () => {}, initialSegment = null }) => {
 // seam and derived by the tested rule in contracts. Nothing here scores,
 // estimates or invents: no health, no LTV, no visits, no therapist.
 
-const PL_TABS = ["needs_you", "waiting_on_you", "new", "quiet", "active"];
+// The states an address may still name (state:<x>). Needs you and Waiting on you are lists (decision 0009): their state
+// address opens the list, as the standing line's count does.
+const PL_TABS = ["new", "quiet", "active"];
+const PL_STANDING_LISTS = ["needs_you", "waiting_on_you"];
+const plStandingList = (state) => (PL_STANDING_LISTS.includes(state) ? state : null);
 const PL_TAB_LABEL = { all: "All", needs_you: "Needs you", waiting_on_you: "Waiting on you", new: "New", quiet: "Quiet", active: "Active" };
-
-const PL_LIST_TIP = {
-  needs_you: "An open escalation, or a thread waiting for a person",
-  waiting_on_you: "You have the thread, or nobody does, and they wrote last — a teammate's waits on them",
-  // A note with a day (0007, amended): every workspace's.
-  steps_due: "Their next step's day has come, or gone by — a note with a day, for the team",
-  new_week: "First contact in the last 7 days, by evidence — imported history never counts",
-  quiet: "They haven't written or called in 30 days — your own messages don't count, and someone never heard from isn't quiet",
-  phoned_only: "Only ever phoned — no WhatsApp thread",
-  opted_in: "Said yes to hearing from you — replies and messages about their own visit",
-  // The list is who can RECEIVE an offer (contracts mayReceive): a yes with no number to send to is not on it.
-  offers_ok: "Said yes to OFFERS, separately, with a number to send to — the only people a promotional broadcast may reach",
-  opted_out: "Asked to stop; the receptionist stays silent, offers included",
-  booked: "An appointment ahead on your calendar — the booking is the conversion",
-  booked_week: "An appointment this week, Monday to Sunday",
-  asked_never_booked: "Wrote or called in the last 30 days, and nothing on your calendar since answers it — the people you can still win",
-  lapsed: "Forty-five days or more since their last visit, nothing ahead — the win-back list, from visits rather than silence",
-  // The journey past the booking (0004): drawn only where deals are a thing here.
-  consultation_booked: "A consultation coming up, or one this past week with no proposal since — the Pipeline's Consultations",
-  proposal_out: "A proposal went out and is waiting on their answer",
-  clients: "Said yes, or paid — the engagement is running",
-  deal_passed: "They passed on a proposal",
-  deal_ended: "An engagement that ended — the win-back list for clients",
-};
 
 // What the page remembers between visits on this device, per scope: the sort and the columns
 // ({ sortBy, sortDir, columns }), and under Leads the rail's list too ({ list, sortBy, sortDir, columns }).
@@ -1032,7 +1012,7 @@ const DeleteListButton = ({ list, onDeleted }) => {
 
 // A list kept by hand is named where it is shown: the title turns into the box, Enter saves, Escape leaves.
 // Lists had a Rename button of its own; here the list IS the page's title while it is open.
-const ListTitle = ({ list, canEdit, onRenamed }) => {
+const ListTitle = ({ list, canEdit, onRenamed, onEditRule = null }) => {
   const [editing, setEditing] = React.useState(false);
   const [name, setName] = React.useState("");
   const [busy, setBusy] = React.useState(false);
@@ -1057,6 +1037,7 @@ const ListTitle = ({ list, canEdit, onRenamed }) => {
             why instead (lists.ts listUnknownWords), never a 0. */}
         {list.rule && <span className="cl-list-rule" data-testid="list-rule">{list.rule.join(" · ")}</span>}
         {list.unknown && <span className="cl-list-rule" data-testid="list-unknown">{list.unknown}</span>}
+        {canEdit && list.rule && onEditRule && <button type="button" className="cl-bucket-link cl-list-rule-edit" onClick={onEditRule} data-testid="list-rule-edit">Change who</button>}
         {canEdit && (
           <button type="button" className="cl-list-rename" title="Rename the list" aria-label="Rename the list" onClick={() => { setName(list.name); setError(null); setEditing(true); }} data-testid="list-rename">
             <Icon name="edit" size={11} />
@@ -1083,6 +1064,72 @@ const ListTitle = ({ list, canEdit, onRenamed }) => {
       <button type="button" className="btn btn-sm btn-primary" disabled={busy || !name.trim()} onClick={save} data-testid="list-rename-save">{busy ? "Saving…" : "Save"}</button>
       <window.FieldError id="list-rename-error" message={error} testid="list-rename-error" />
     </span>
+  );
+};
+
+// Who a smart list of the workspace's own is (decision 0009): its rule now, and a new one drafted from the owner's words
+// the way a new list's is (window.__lists.draft), shown back as chips with who it holds for today before it is saved.
+// The desktop's title line opens it under the title; the phone's more-menu opens it in a sheet, which is where a phone
+// sees the rule at all.
+const RuleEditor = ({ list, flash, onDone }) => {
+  const [words, setWords] = React.useState("");
+  const [draft, setDraft] = React.useState(null);
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState(null);
+  const build = async () => {
+    const w = words.trim();
+    if (!w || busy || !window.__lists) return;
+    setBusy(true); setError(null);
+    const r = await window.__lists.draft(w);
+    setBusy(false);
+    if (!r.ok) { setError(r.message || "Could not draft the rule."); return; }
+    setDraft(r.data);
+  };
+  const save = async () => {
+    if (!draft || busy || !window.__lists) return;
+    setBusy(true); setError(null);
+    const r = await window.__lists.setRule(list.id, draft.rule);
+    setBusy(false);
+    if (!r.ok) { setError(r.message || "Could not change who is on it."); return; }
+    flash({ msg: <>Who is on <b>{list.name}</b> changed. It keeps itself current.</> });
+    onDone();
+  };
+  // Who the new rule holds for today, over the people the page has read, as the New list box counts a draft.
+  const holds = draft && window.__lists.count ? window.__lists.count(draft.rule) : null;
+  return (
+    <div className="cl-rule-edit" data-testid="rule-edit">
+      <div className="cl-rail-hint" data-testid="rule-edit-now">Now: {(list.rule || []).join(" · ")}</div>
+      {draft ? (
+        <div className="cl-rail-draft" data-testid="rule-edit-draft">
+          <div className="cl-tag-stack">{window.__lists.parts(draft.rule).map((part) => <span key={part} className="chip chip-wrap" data-testid="rule-edit-rule">{part}</span>)}</div>
+          {holds !== null && <div className="cl-rail-hint" data-testid="rule-edit-holds">{holds === 1 ? "1 person" : `${holds} people`} on it today with this rule.</div>}
+          {draft.cannot && <div className="cl-rail-hint">Left out: {draft.cannot}</div>}
+        </div>
+      ) : (
+        <div className="cl-rail-newlist">
+          <input
+            autoFocus
+            value={words}
+            placeholder="Describe who — “on WhatsApp, and quiet a month”"
+            maxLength={300}
+            disabled={busy}
+            aria-label="Describe who is on the list"
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error ? "rule-edit-error" : undefined}
+            data-testid="rule-edit-words"
+            onChange={(e) => setWords(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") build(); if (e.key === "Escape") onDone(); }}
+          />
+          <button type="button" className="btn btn-sm btn-primary" disabled={busy || !words.trim()} onClick={build} data-testid="rule-edit-build">{busy ? "Building…" : "Build"}</button>
+        </div>
+      )}
+      <window.FieldError id="rule-edit-error" message={error} testid="rule-edit-error" />
+      <div className="cl-rule-edit-acts">
+        {draft && <button type="button" className="cl-bucket-link" disabled={busy} onClick={() => { setDraft(null); setError(null); }} data-testid="rule-edit-redescribe">Describe it again</button>}
+        <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={onDone} data-testid="rule-edit-cancel">Cancel</button>
+        {draft && <button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={save} data-testid="rule-edit-save">{busy ? "Saving…" : "Save"}</button>}
+      </div>
+    </div>
   );
 };
 
@@ -1115,9 +1162,11 @@ const PeopleListsSheet = ({ onClose, title = "Lists", children }) => {
 const plListRoute = (id) => {
   const people = window.__PEOPLE;
   if (!id || !people) return "clients";
-  if ((people.saved || []).some((s) => s.id === id)) return `clients/list:${id}`;
+  if ([...(people.saved || []), ...(people.archived || [])].some((s) => s.id === id)) return `clients/list:${id}`;
   if ((people.lists || []).some((l) => l.id === id)) return `clients/seg:${id}`;
-  return "clients";
+  // One People doesn't have: its own address all the same, where People says it isn't here rather than showing
+  // Everyone. A saved list's id is a uuid; a built-in's is a word.
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) ? `clients/list:${id}` : `clients/seg:${id}`;
 };
 window.__listRoute = plListRoute;
 
@@ -1171,10 +1220,29 @@ const RailSection = ({ label, icon = null, testid = null, children }) => (
  * empty or not, and so is the list of all of them. `quietOf` answers the rows that step back; `RailEmpty` says them.
  */
 const railQuiet = (rows, keep) => rows.filter((r) => r.count === 0 && !keep(r));
+// The list the address names when People doesn't have it: one of People's this workspace can't count (a calendar not
+// read, deals off), archived (it comes back from the rail's Archived line), or not here at all -- deleted, or from
+// another workspace. Null when the list is here, when none is named, or when the lists could not be read (the rail
+// says that).
+const plListGone = ({ listId, activeList, savedId, activeSaved, people }) => {
+  if (listId && !activeList) {
+    // One of People's this workspace doesn't show: a calendar that couldn't be read, deals off. Can't tell, not gone.
+    const hidden = (people.hidden || []).find((h) => h.id === listId);
+    return hidden
+      ? { title: `${hidden.label} can't be counted here`, body: hidden.why }
+      : { title: "This list isn't here", body: "People doesn't have a list by that name. The link may be old." };
+  }
+  if (!savedId || activeSaved || people.savedRead === false) return null;
+  const archived = (people.archived || []).find((a) => a.id === savedId);
+  return archived
+    ? { title: `${archived.name} is archived`, body: "It comes back from Archived under your lists.", archived }
+    : { title: "This list isn't here", body: "It was deleted, or the link is from another workspace." };
+};
+// The labels are words, or a list's own button (the Saved section's, which still open their lists).
 const RailEmpty = ({ labels, testid = null }) =>
   labels.length ? (
     <p className="cl-rail-empty" data-testid={testid || undefined}>
-      Empty now: {labels.join(" · ")}
+      Empty now: {labels.map((l, i) => <React.Fragment key={i}>{i > 0 ? " · " : null}{l}</React.Fragment>)}
     </p>
   ) : null;
 
@@ -1244,7 +1312,7 @@ const PeopleRail = ({ scope = "people", onScope = () => {}, scopeTabs = true, de
           <RailGroup key={g.id} label={g.label} testid={`rail-group-${g.id}`}>
             {own.filter((l) => !quiet.includes(l)).map((l) => (
               // A list of people who need you counts in amber (the tone map decides which: warn); every other count is a total.
-              <RailRow key={l.id} smart label={l.label} count={l.count} active={active === l.id} onPick={() => onPick(l.id)} tip={PL_LIST_TIP[l.id] || null} className={window.__chrome && window.__chrome.state && window.__chrome.state("person", l.id).tone === "warn" ? "asks" : ""} />
+              <RailRow key={l.id} smart label={l.label} count={l.count} active={active === l.id} onPick={() => onPick(l.id)} tip={l.tip || null} className={window.__chrome && window.__chrome.state && window.__chrome.state("person", l.id).tone === "warn" ? "asks" : ""} />
             ))}
           </RailGroup>
         );
@@ -1252,13 +1320,17 @@ const PeopleRail = ({ scope = "people", onScope = () => {}, scopeTabs = true, de
       {/* The sheet's one quiet line: every empty list, in the rail's own order (a line a group read as clutter). */}
       {compact ? <RailEmpty labels={railQuiet(lists, (l) => active === l.id).map((l) => l.label)} testid="rail-empty" /> : null}
     </RailSection>
-    <RailSection label="Saved" testid="saved-lists">
+    {/* On a phone's sheet an empty list of the workspace's own is a word in the quiet line, as a smart list's is (one
+        that can't be counted keeps its row and its dash); and a sheet with none of its own draws no Saved over nothing. */}
+    <RailSection label={compact && savedRead && saved.length === 0 && archived.length === 0 ? null : "Saved"} testid="saved-lists">
       {/* Lists that could not be read are not "no lists": the read failed, and the people above stand. */}
       {!savedRead && <FailedRead kind="line" what="your saved lists" surface="people" testid="people-lists-failed" />}
-      {saved.map((s) => (
+      {saved.filter((s) => !(compact && railQuiet(saved.filter((x) => !x.unknown), (x) => activeSaved === x.id).includes(s))).map((s) => (
         // A list that can't be counted here draws a dash and says why on hover: can't tell is not nobody.
-        <RailRow key={s.id} smart={!s.byHand} label={s.name} count={s.unknown ? "—" : s.count} active={activeSaved === s.id} onPick={() => onPickSaved(s.id)} tip={s.unknown || (s.byHand ? "A list kept by hand — add people from their profile" : `Keeps itself current: ${(s.rule || []).join(" · ")}`)} testid={s.byHand ? undefined : "saved-smart"} />
+        <RailRow key={s.id} smart={!s.byHand} label={s.name} count={s.unknown ? "—" : s.count} active={activeSaved === s.id} onPick={() => onPickSaved(s.id)} tip={s.tip} testid={s.byHand ? undefined : "saved-smart"} />
       ))}
+      {/* Each name opens its list: an empty list is still renamed, deleted and filled from its own page. */}
+      {compact ? <RailEmpty labels={railQuiet(saved.filter((x) => !x.unknown), (x) => activeSaved === x.id).map((s) => <button key={s.id} type="button" className="cl-bucket-link" onClick={() => onPickSaved(s.id)} data-testid="saved-empty-open">{s.name}</button>)} testid="saved-empty" /> : null}
       {savedRead && saved.length === 0 && !compact && (
         <div className="cl-rail-hint">No lists yet. Keep one by hand — regulars, one staff member's customers — or describe who, and it keeps itself current.</div>
       )}
@@ -1992,24 +2064,57 @@ const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport,
 };
 
 // Everyone shown, kept as a list by hand — a filter frozen into something a broadcast can reach later.
-const SaveShownAsList = ({ ids, suggested, flash }) => {
+// A view with a rule behind it -- one of People's lists, a smart list, Needs you -- is kept as a list that keeps itself
+// current by default (decision 0009): with one of People's open, that is the copy an owner then changes. "Just these"
+// freezes who is shown today, as a view no rule says (a search, a list kept by hand) always does.
+const plMakeRuleList = async (name, rule) => {
+  const made = await window.__lists.create(name, rule);
+  return made.ok ? { ok: true, id: plMadeId(made, name) } : { ok: false, error: made.message || "Could not make the list." };
+};
+const plRuleMadeWords = (name) => <><b>{name}</b> made. It keeps itself current — change who is on it any time.</>;
+const SaveModes = ({ mode, onMode, count, disabled }) => (
+  <span className="cl-save-mode" role="radiogroup" aria-label="What the list keeps">
+    <button type="button" role="radio" aria-checked={mode === "rule"} className={`cl-bucket-link${mode === "rule" ? " is-on" : ""}`} disabled={disabled} onClick={() => onMode("rule")} data-testid="save-shown-rule">Keeps itself current</button>
+    {" · "}
+    <button type="button" role="radio" aria-checked={mode === "people"} className={`cl-bucket-link${mode === "people" ? " is-on" : ""}`} disabled={disabled} onClick={() => onMode("people")} data-testid="save-shown-people">Just these {count}</button>
+  </span>
+);
+const SaveShownAsList = ({ ids, suggested, rule = null, flash, onMade = () => {} }) => {
   const [open, setOpen] = React.useState(false);
   const [name, setName] = React.useState("");
   const [busy, setBusy] = React.useState(false);
+  const [mode, setMode] = React.useState("rule");
+  const keepsRule = !!rule && (mode === "rule" || ids.length === 0);
   const submit = async () => {
     const n = name.trim();
     if (!n || busy || !window.__lists) return;
     setBusy(true);
+    if (keepsRule) {
+      const r = await plMakeRuleList(n, rule);
+      setBusy(false);
+      if (!r.ok) { flash({ tone: "danger", msg: <>{r.error}</> }); return; }
+      setOpen(false); setName("");
+      flash({ msg: plRuleMadeWords(n) });
+      if (r.id) onMade(r.id);
+      return;
+    }
     const { made, filled, id } = await plMakeListWith(n, ids);
     if (!made.ok) { setBusy(false); flash({ tone: "danger", msg: <>{made.message || "Could not make the list."}</> }); return; }
     setBusy(false); setOpen(false); setName("");
     flash(filled.ok ? { msg: <>{ids.length} kept as <b>{n}</b></>, undo: () => plUndoList(id, n, flash) } : window.refusalToast(filled, "Not kept as a list"));
   };
-  if (!open) return <button className="cl-bucket-link" onClick={() => { setName(suggested || ""); setOpen(true); }} data-testid="save-shown">Save these {ids.length} as a list <Icon name="arrow-right" size={10} /></button>;
+  if (!open) {
+    return (
+      <button className="cl-bucket-link" onClick={() => { setName(suggested || ""); setMode("rule"); setOpen(true); }} data-testid="save-shown">
+        {ids.length ? `Save these ${ids.length} as a list` : "Keep this list as yours"} <Icon name="arrow-right" size={10} />
+      </button>
+    );
+  }
   return (
-    <span className="cl-bulk-naming">
+    <span className={`cl-bulk-naming${rule && ids.length > 0 ? " has-modes" : ""}`}>
+      {rule && ids.length > 0 && <SaveModes mode={mode} onMode={setMode} count={ids.length} disabled={busy} />}
       <input autoFocus value={name} placeholder="Name the list" maxLength={60} disabled={busy} data-testid="save-shown-name" onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") submit(); if (e.key === "Escape") setOpen(false); }} />
-      <button className="btn btn-sm btn-primary" disabled={busy || !name.trim()} onClick={submit}>Keep it</button>
+      <button className="btn btn-sm btn-primary" disabled={busy || !name.trim()} onClick={submit} data-testid="save-shown-save">Keep it</button>
       <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => setOpen(false)}>Cancel</button>
     </span>
   );
@@ -2102,7 +2207,14 @@ const PeopleAddSheet = ({ draft, onDraft, onAdd, onClose }) => (
 
 // The open list's own acts on a phone, from the more-menu: rename it, delete it, or keep what is shown as a list. A
 // desktop does these on the list's title line, which a phone does not draw. The doors are the desktop's.
-const PeopleListActSheet = ({ act, list, count, draft, onDraft, onGo, onClose }) => {
+const PeopleListActSheet = ({ act, list, count, draft, onDraft, onGo, onClose, rule = null, flash = () => {} }) => {
+  if (act === "rule") {
+    return (
+      <PhoneSheet title="Who is on it" onClose={onClose} closeLabel={null} testid="list-act-sheet">
+        <RuleEditor list={list} flash={flash} onDone={onClose} />
+      </PhoneSheet>
+    );
+  }
   if (act === "delete") {
     return (
       <PhoneSheet title="Delete the list" onClose={onClose} closeLabel={null} testid="list-act-sheet">
@@ -2112,7 +2224,8 @@ const PeopleListActSheet = ({ act, list, count, draft, onDraft, onGo, onClose })
   }
   const renaming = act === "rename";
   return (
-    <PhoneSheet title={renaming ? "Rename the list" : `Save these ${count} as a list`} onClose={onClose} testid="list-act-sheet">
+    <PhoneSheet title={renaming ? "Rename the list" : count ? `Save these ${count} as a list` : "Keep this list as yours"} onClose={onClose} testid="list-act-sheet">
+      {!renaming && rule && count > 0 && <SaveModes mode={draft.mode || "rule"} onMode={(m) => onDraft({ mode: m })} count={count} disabled={draft.busy} />}
       <label className="pp-field">
         <span className="pp-field-label">{renaming ? "Its name" : "Name the list"}</span>
         <input className="pp-input" autoFocus value={draft.name} maxLength={60} disabled={draft.busy} aria-invalid={draft.error ? true : undefined} aria-describedby={draft.error ? "list-act-error" : undefined} onChange={(e) => onDraft({ name: e.target.value, error: null })} onKeyDown={(e) => { if (e.key === "Enter") onGo(); }} data-testid={renaming ? "list-rename-name" : "save-shown-name"} />
@@ -2532,9 +2645,10 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
   // Whether deals are on here (the surface's dealsOn, 0008): the Deal column is offered, and the switch has the
   // Pipeline, only then.
   const dealsOn = !!people.dealsOn;
-  const listFor = (id) => (id && lists.some((l) => l.id === id) ? id : null);
-  const [listId, setListId] = useState(listFor(initialSegment));
-  React.useEffect(() => { setListId(listFor(initialSegment)); }, [initialSegment]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The list the address names, as it names it: one People doesn't have here is said to be missing (listGone, below),
+  // never swapped for Everyone.
+  const [listId, setListId] = useState(initialSegment || plStandingList(initialState) || null);
+  React.useEffect(() => { setListId(initialSegment || plStandingList(initialState) || null); }, [initialSegment, initialState]);
   const saved = people.saved || PL_NO_LISTS;
   const [savedId, setSavedId] = useState(initialSaved);
   React.useEffect(() => { setSavedId(initialSaved); }, [initialSaved]);
@@ -2552,6 +2666,10 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
   const [addOpen, setAddOpen] = useState(false);
   const [addDraft, setAddDraft] = useState(PL_ADD_EMPTY);
   const [listAct, setListAct] = useState(null);
+  // The open smart list's rule, being changed under its title (a desktop's; a phone's is a sheet, listAct "rule").
+  const [ruleEditing, setRuleEditing] = useState(false);
+  // A list made here, on its way from the server: not "a list that isn't here" while the surface re-reads.
+  const [madeId, setMadeId] = useState(null);
   const [listDraft, setListDraft] = useState(PL_LIST_EMPTY);
   React.useEffect(() => {
     const onNew = () => {
@@ -2577,7 +2695,7 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
     const r = await window.__lists.create(name, rule);
     if (r.ok) {
       plFlash({ msg: rule ? <><b>{name}</b> made. It keeps itself current.</> : <><b>{name}</b> made. Pick people and use Add to list, or add them from their profile.</> });
-      if (r.data && r.data.id) { setListId(null); setSavedId(r.data.id); }
+      if (r.data && r.data.id) { setListId(null); setSavedId(r.data.id); setMadeId(r.data.id); }
       setListsOpen(false);
     }
     return r;
@@ -2588,8 +2706,11 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
   React.useEffect(() => {
     const cur = (window.location.hash || "").replace(/^#\/?/, "");
     if (!cur.startsWith("clients")) return;
-    if (/^clients\/(?!seg:|list:|state:|pipeline(:|$))./.test(cur)) return;
+    // The New list door's address stands while the box is what it opened; once a list is made (or any view picked),
+    // the address is that view's, so a reload opens the list and not the box again.
     const want = listId ? `seg:${listId}` : savedId ? `list:${savedId}` : tab !== "all" ? `state:${tab}` : "";
+    if (cur === "clients/new-list" && !want) return;
+    if (/^clients\/(?!seg:|list:|state:|pipeline(:|$)|new-list$)./.test(cur)) return;
     const next = want ? `#/clients/${want}` : "#/clients";
     if (window.location.hash !== next) window.history.replaceState(null, "", next);
   }, [listId, savedId, tab]);
@@ -2662,6 +2783,41 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
 
   const activeList = listId && lists.find((l) => l.id === listId);
   const activeSaved = savedId && saved.find((s) => s.id === savedId);
+  // A list the address names that People doesn't have (decision 0009): a link kept, an answer's jump, a teammate's
+  // delete. It is said, and nobody is shown, rather than Everyone under its name. An archived one says how it comes back.
+  const listGone = savedId && savedId === madeId ? null : plListGone({ listId, activeList, savedId, activeSaved, people });
+  React.useEffect(() => { setRuleEditing(false); }, [savedId]);
+  // The list made here has arrived: from now on it is a list like any other, said to be gone if it goes.
+  React.useEffect(() => { if (madeId && activeSaved && activeSaved.id === madeId) setMadeId(null); }, [madeId, activeSaved]);
+  // The rule behind the view, when one says it: what "Save these" keeps by default (decision 0009). One filter at a
+  // time: a list and a state together, or words in the box, freeze who is shown.
+  const viewRule = !q.trim() && window.__lists && window.__lists.ruleOf && !((listId || savedId) && tab !== "all")
+    ? window.__lists.ruleOf({ builtin: activeList ? activeList.id : null, saved: activeSaved && !activeSaved.byHand ? activeSaved.id : null, standing: !listId && !savedId ? tab : null })
+    : null;
+  // Any list open is a door Today can keep (decision 0009): pinned for this member (memberships.views.today), said on the
+  // list's title line and in a phone's more-menu. The page holds the answer until the surface's copy has it.
+  const openToken = activeSaved ? `list:${activeSaved.id}` : activeList ? `seg:${activeList.id}` : null;
+  const canPin = !!(openToken && window.__lists && window.__lists.pin && window.__saveView);
+  // One press at a time: a second one waits for the first's answer, so the saves land in the order pressed.
+  const [pinBusy, setPinBusy] = useState(false);
+  const pinned = canPin && window.__lists.isPinned(openToken);
+  const togglePin = async () => {
+    if (!canPin || pinBusy) return;
+    const was = window.__lists.isPinned(openToken);
+    const name = activeSaved ? activeSaved.name : activeList.label;
+    setPinBusy(true);
+    const r = await window.__lists.pin(openToken);
+    setPinBusy(false);
+    plFlash(r.ok ? { msg: was ? <><b>{name}</b> is off Today</> : <><b>{name}</b> is on Today</> } : { tone: "danger", msg: <>{r.message || "Could not change Today's lists."}</> });
+  };
+  // A list kept as a rule is opened, and its title is where it is changed.
+  const openMade = (id) => { setListId(null); setTab("all"); setSavedId(id); setMadeId(id); };
+  // Export follows the list that is open (decision 0009): the route counts it as a send does, every member; with no
+  // list open it is everyone.
+  const exportName = activeSaved ? activeSaved.name : activeList ? activeList.label : null;
+  // A list that can't be counted here, or isn't here, has no file to take: said on the button, never a refusal page.
+  const exportBlocked = activeSaved && activeSaved.unknown ? activeSaved.unknown : listGone ? listGone.title : null;
+  const exportHref = window.__href ? window.__href("GET contacts/export", undefined, exportName ? { list: activeSaved ? `list:${activeSaved.id}` : `seg:${activeList.id}` } : undefined) : null;
   const listStep = (activeSaved && activeSaved.action) || (activeList && activeList.action) || null;
   // One list open at a time: it is the page's title, so two open at once would be a title over a table it does
   // not describe. Picking the open one again shows everyone.
@@ -2762,6 +2918,14 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
       plFlash({ msg: <>Renamed to <b>{n}</b></> });
       return;
     }
+    if (viewRule && ((d.mode || "rule") === "rule" || shownIds.length === 0)) {
+      const r = await plMakeRuleList(n, viewRule);
+      if (!r.ok) { setListDraft((x) => ({ ...x, busy: false, error: r.error })); return; }
+      closePhoneSheet();
+      plFlash({ msg: plRuleMadeWords(n) });
+      if (r.id) openMade(r.id);
+      return;
+    }
     const ids = shownIds;
     const { made, filled, id } = await plMakeListWith(n, ids);
     if (!made.ok) { setListDraft((x) => ({ ...x, busy: false, error: made.message || "Could not make the list." })); return; }
@@ -2791,15 +2955,18 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
     { header: "Sort" },
     ...PL_PHONE_SORTS.filter((s) => !s.needs || s.needs({ withCalendar })).map((s) => ({ label: s.label, checked: sortBy === s.by && sortDir === s.dir, onClick: () => pickSort(s.by, s.dir) })),
     // The route's file of everyone: a download (it answers as an attachment), so the page stays where it is.
-    ...(window.__href ? [{ divider: true }, { label: "Export everyone", icon: "external", meta: "CSV", onClick: () => window.location.assign(window.__href("GET contacts/export")), ...(canExport ? {} : { gate: window.gate("export") }) }] : []),
+    ...(window.__href && !exportBlocked ? [{ divider: true }, { label: exportName ? `Export ${exportName}` : "Export everyone", icon: "external", meta: "CSV", onClick: () => window.location.assign(exportHref), ...(canExport ? {} : { gate: window.gate("export") }) }] : []),
+    ...(canPin ? [{ divider: true }, { label: pinned ? "Take off Today" : "Pin to Today", icon: "pin", onClick: togglePin }] : []),
     ...(activeSaved && canEditLists && window.__lists ? [
       { divider: true },
       { label: "Rename this list", icon: "edit", onClick: () => { setListDraft({ ...PL_LIST_EMPTY, name: activeSaved.name }); setListAct("rename"); } },
+      // A smart list's rule, shown and changed: the phone draws no title line to show it on.
+      ...(activeSaved.rule ? [{ label: "Who is on it", icon: "sparkle", onClick: () => { setListDraft(PL_LIST_EMPTY); setListAct("rule"); } }] : []),
       { label: "Delete this list…", icon: "x", danger: true, onClick: () => { setListDraft(PL_LIST_EMPTY); setListAct("delete"); } },
     ] : []),
-    ...(!activeSaved && filtered && shown.length > 0 && canEditLists && window.__lists ? [
+    ...(!activeSaved && filtered && (shown.length > 0 || viewRule) && canEditLists && window.__lists ? [
       { divider: true },
-      { label: `Save these ${shown.length} as a list`, icon: "filter", onClick: () => { setListDraft({ ...PL_LIST_EMPTY, name: activeList ? activeList.label : tab !== "all" ? PL_TAB_LABEL[tab] : "" }); setListAct("save"); } },
+      { label: shown.length ? `Save these ${shown.length} as a list` : "Keep this list as yours", icon: "filter", onClick: () => { setListDraft({ ...PL_LIST_EMPTY, name: activeList ? activeList.label : tab !== "all" ? PL_TAB_LABEL[tab] : "" }); setListAct("save"); } },
     ] : []),
   ];
 
@@ -2832,7 +2999,7 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
               scope="people"
               onScope={(to) => nav(plScopeRoute(to))}
               dealsOn={dealsOn}
-              listLabel={activeSaved ? activeSaved.name : activeList ? activeList.label : "Everyone"}
+              listLabel={activeSaved ? activeSaved.name : activeList ? activeList.label : listGone ? listGone.title : "Everyone"}
               onLists={() => setListsOpen(true)}
               listsOpen={listsOpen}
               q={q}
@@ -2848,8 +3015,8 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
           <PeopleStanding
             scope="people"
             agg={agg}
-            needsShown={tab === "needs_you"}
-            onNeeds={() => setTab((t) => (t === "needs_you" ? "all" : "needs_you"))}
+            needsShown={listId === "needs_you"}
+            onNeeds={() => { setSavedId(null); setTab("all"); setListId((l) => (l === "needs_you" ? null : "needs_you")); }}
           />
 
           {!phone && (
@@ -2866,7 +3033,9 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
               {window.__href && (
                 window.canDo && !window.canDo("export")
                   ? <button className="btn btn-ghost btn-sm" {...window.gate("export")}><Icon name="external" size={12} /> Export CSV</button>
-                  : <a className="btn btn-ghost btn-sm" href={window.__href("GET contacts/export")} download title="Download everyone as a CSV file"><Icon name="external" size={12} /> Export CSV</a>
+                  : exportBlocked
+                  ? <button className="btn btn-ghost btn-sm" disabled data-tip={exportBlocked} data-testid="people-export"><Icon name="external" size={12} /> Export CSV</button>
+                  : <a className="btn btn-ghost btn-sm" href={exportHref} download title={exportName ? `Download the people on ${exportName} as a CSV file` : "Download everyone as a CSV file"} data-testid="people-export"><Icon name="external" size={12} /> Export CSV</a>
               )}
               {/* No sort button: every heading that sorts is a button with its arrow (cl-th-sort), so "Z → A" beside
                   them only turned round an order the table already shows and changes. */}
@@ -2886,12 +3055,19 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
                     the title, not a chip beside "Everyone": the table IS that list, so its name, its rename and its
                     delete sit on the one line, where the Lists page had them over a second table of the same people. */}
                 {activeSaved
-                  ? <ListTitle list={activeSaved} canEdit={canEditLists && !!window.__lists} onRenamed={(n) => plFlash({ msg: <>Renamed to <b>{n}</b></> })} />
+                  ? <ListTitle list={activeSaved} canEdit={canEditLists && !!window.__lists} onRenamed={(n) => plFlash({ msg: <>Renamed to <b>{n}</b></> })} onEditRule={() => setRuleEditing(true)} />
                   : activeList
                     ? <span className="cl-section-title" data-testid="smart-filter"><Icon name="sparkle" size={12} />{activeList.label}</span>
-                    : <span className="cl-section-title">Everyone</span>}
-                {(activeList || activeSaved) && (
+                    : listGone
+                      ? <span className="cl-section-title" data-testid="list-gone">{listGone.title}</span>
+                      : <span className="cl-section-title">Everyone</span>}
+                {(activeList || activeSaved || listGone) && (
                   <button type="button" className="cl-bucket-link" onClick={() => { setListId(null); setSavedId(null); }} data-testid="show-everyone">Show everyone</button>
+                )}
+                {canPin && (
+                  <button type="button" className={`cl-bucket-link cl-list-pin${pinned ? " is-on" : ""}`} aria-pressed={pinned} disabled={pinBusy} onClick={togglePin} data-testid="list-pin">
+                    {pinned ? "On Today" : "Pin to Today"}
+                  </button>
                 )}
                 {activeSaved && canEditLists && <DeleteListButton list={activeSaved} onDeleted={(r) => { if (r.archived) plFlash({ msg: plArchivedWords(activeSaved.name, r) }); setSavedId(null); }} />}
                 {tab !== "all" && (
@@ -2905,11 +3081,14 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
                 )}
               </div>
               <span className="cl-section-sub">
-                {filtered && shown.length > 0 && canEditLists && window.__lists
-                  ? <SaveShownAsList ids={shownIds} suggested={activeList ? activeList.label : activeSaved ? `${activeSaved.name} copy` : tab !== "all" ? PL_TAB_LABEL[tab] : ""} flash={plFlash} />
+                {filtered && (shown.length > 0 || viewRule) && canEditLists && window.__lists
+                  ? <SaveShownAsList ids={shownIds} rule={viewRule} onMade={openMade} suggested={activeList ? activeList.label : activeSaved ? `${activeSaved.name} copy` : tab !== "all" ? PL_TAB_LABEL[tab] : ""} flash={plFlash} />
                   : (filtered ? "Filtered" : "")}
               </span>
             </div>
+            )}
+            {!phone && ruleEditing && activeSaved && activeSaved.rule && canEditLists && (
+              <RuleEditor list={activeSaved} flash={plFlash} onDone={() => setRuleEditing(false)} />
             )}
             {/* The list's own step: a smart list's next move, or a kept list's one door, a broadcast to those on it who
                 said yes (contracts peopleListAction and savedListAction, the one sentence for both). */}
@@ -2948,7 +3127,7 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
             scrolled={scrolledX}
             onScrolled={setScrolledX}
             busy={searching}
-            empty={activeSaved && activeSaved.count === 0 && tab === "all" && !listId && !q.trim() ? (activeSaved.unknown ? { title: `${activeSaved.name} can't be counted right now`, body: activeSaved.unknown, action: { label: "Show everyone", onClick: () => setSavedId(null) } } : activeSaved.byHand ? { title: `Nobody on ${activeSaved.name} yet`, body: "Pick people and use Add to list, or add them from their profile.", action: { label: "Show everyone", onClick: () => setSavedId(null) } } : { title: `Nobody on ${activeSaved.name} right now`, body: "It keeps itself current: its people appear here when its rule holds for them.", action: { label: "Show everyone", onClick: () => setSavedId(null) } }) : null}
+            empty={listGone ? { title: listGone.title, body: listGone.body, action: listGone.archived && canEditLists && window.__lists ? { label: "Bring it back", onClick: () => restoreList(listGone.archived) } : { label: "Show everyone", onClick: () => { setListId(null); setSavedId(null); } } } : activeSaved && activeSaved.count === 0 && tab === "all" && !listId && !q.trim() ? (activeSaved.unknown ? { title: `${activeSaved.name} can't be counted right now`, body: activeSaved.unknown, action: { label: "Show everyone", onClick: () => setSavedId(null) } } : activeSaved.byHand ? { title: `Nobody on ${activeSaved.name} yet`, body: "Pick people and use Add to list, or add them from their profile.", action: { label: "Show everyone", onClick: () => setSavedId(null) } } : { title: `Nobody on ${activeSaved.name} right now`, body: "It keeps itself current: its people appear here when its rule holds for them.", action: { label: "Show everyone", onClick: () => setSavedId(null) } }) : null}
           />
           {hasMore && (
             <div className="cl-section-sub pl-more" data-testid="people-more">
@@ -2991,7 +3170,7 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
           <PeopleAddSheet draft={addDraft} onDraft={(patch) => setAddDraft((d) => ({ ...d, ...patch }))} onAdd={addOnPhone} onClose={closePhoneSheet} />
         )}
         {phone && listAct && (listAct === "save" || activeSaved) && (
-          <PeopleListActSheet act={listAct} list={activeSaved} count={shown.length} draft={listDraft} onDraft={(patch) => setListDraft((d) => ({ ...d, ...patch }))} onGo={listActGo} onClose={closePhoneSheet} />
+          <PeopleListActSheet act={listAct} list={activeSaved} count={shown.length} rule={viewRule} flash={plFlash} draft={listDraft} onDraft={(patch) => setListDraft((d) => ({ ...d, ...patch }))} onGo={listActGo} onClose={closePhoneSheet} />
         )}
         {toastNode}
       </div>
