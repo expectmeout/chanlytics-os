@@ -15,7 +15,7 @@ import { ApiError } from "../client/api";
 import { api } from "./api";
 import { cachedTenant, clearSurfaceCache, snapshotSurface } from "./surface-cache";
 import { isSurfaceReady, setConnection, setStatus } from "./surface-status";
-import { ROUTE_DRAWS, routeSurfaceFor } from "./surface-registry";
+import { routeDrawsFor, routeSurfaceFor } from "./surface-registry";
 import { feedWatch, REALTIME_GRACE_MS, subscribesToRealtime, wantsRefresh } from "./surface-realtime";
 import { getActiveWorkspace, signInHref } from "./workspace";
 
@@ -98,7 +98,7 @@ function screenRank(win: Window): (o: SurfaceOverride) => number {
   const raw = (win.location.hash || "#/today").replace(/^#[/]?/, "");
   const [page, param] = raw.split("/");
   const wanted = routeSurfaceFor(page || "today", param || null);
-  const drawn = ROUTE_DRAWS[page || "today"] ?? [];
+  const drawn = routeDrawsFor(page || "today", param || null);
   return (o) => (o.key === wanted ? 0 : drawn.includes(o.key) ? 1 + drawn.indexOf(o.key) : 1 + drawn.length);
 }
 

@@ -1214,8 +1214,12 @@
 .cl-prof-hero > .cl-prof-id { grid-area: id; min-width: 0; }
 .cl-prof-hero > .cl-prof-queue-actions { grid-area: acts; }
 .cl-prof-hero > .cl-prof-danger { grid-area: danger; }
-/* Nothing to name the person with yet (loading, missing, a failed read): what is said takes the row. */
-.cl-profile--solo .cl-prof-hero { grid-template-columns: minmax(0, 1fr); grid-template-areas: none; }
+/* A person on the way, from their People row: their head stands where the page's own will, so nothing moves when the
+   rest lands. The frame keeps the page's grid; with the areas taken away, the way back was put in a column of its own
+   (a grid-area naming no area makes one), 670px to the right of where it lands and 117px under it. */
+.cl-prof-hero > .cl-prof-known { grid-area: id; min-width: 0; }
+/* Nothing to name the person with yet (a bare Reading…, gone, a failed read): what is said takes the row under the way back. */
+.cl-profile--solo .cl-prof-hero > :not(.cl-prof-back):not(.cl-prof-known) { grid-column: 1 / -1; }
 .cl-prof-back {
   display: inline-flex;
   align-items: center;

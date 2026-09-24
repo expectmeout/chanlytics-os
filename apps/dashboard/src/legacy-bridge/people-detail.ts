@@ -34,6 +34,8 @@ import { ApiError, type ApiResult } from "../client/api";
 import { workspaceZone } from "./zone";
 import { readCache } from "./read-cache";
 import { keepSavedView } from "./surface-data";
+import { personRouteId } from "./surface-registry";
+import { getActiveWorkspace } from "./workspace";
 
 /**
  * The profile courier: `window.__personDetail(id)`.
@@ -53,7 +55,11 @@ export function personDetail(id: string): Promise<PersonVM | null> {
     // Its days and times by the business's clock (zone.ts), read beside the person rather than after.
     const [r, tz] = await Promise.all([api()("GET contacts/[id]", { params: { id } }), workspaceZone()]);
     if (r.ok) return toPersonVM(r.data.person, tz);
-    if (r.status === 404) return null;
+    // Gone: the copy this tab kept of them goes too, or the next open would paint someone who is not there.
+    if (r.status === 404) {
+      people.forget(id);
+      return null;
+    }
     throw new ApiError(r.code, r.status, r.message);
   });
 }
@@ -72,6 +78,19 @@ export function warmPerson(id: string): void {
   people.warm(id, () => personDetail(id));
 }
 
+/**
+ * A tab opened on a person's page reads them before anything else: called once, at module scope, before React and
+ * the surfaces' boot (LegacyApp.tsx). The page's own read, a moment later, shares this one (client/api.ts). Measured
+ * on production (23 Sep 2026): on a reload their read went out beside eight of the boot's and took 1.4 s, against
+ * 0.3-0.7 s alone. Off a workspace page nothing is read: a read that names no workspace is refused.
+ */
+export function warmPersonOnScreen(win: Window = window): void {
+  if (!getActiveWorkspace()) return;
+  const [page, param] = (win.location.hash || "").replace(/^#[/]?/, "").split("/");
+  const id = personRouteId(page, param);
+  if (id) warmPerson(id);
+}
+
 /** The client's answer, as the pages read it: `ok`, `data`, or the refusal's `message`. */
 export type DeleteResult = ApiResult<unknown>;
 
@@ -86,17 +105,23 @@ export type DeleteResult = ApiResult<unknown>;
  * keeps showing someone who no longer exists.
  */
 /**
- * The people this tab has opened.
+ * The people this tab has opened, kept in the tab as the surfaces are
+ * (read-cache.ts `tab`), so a reload paints the page whole and reads it again
+ * behind, as Today and Leads do. After a write they are still painted and read
+ * again as they open (every reader of this cache reads behind its paint:
+ * the page, the deal sheet). Gone at sign-out with the surfaces.
  *
  * A "not in your workspace" is not held: it is the one answer that changes the
  * moment somebody adds them, and painting it from memory would say they are
- * gone when they are not. Every write clears this along with every other
- * on-demand answer (legacy-bridge/api.ts).
+ * gone when they are not. A person the server no longer has, or one deleted
+ * here, is let go of.
  */
-const people = readCache<PersonVM | null>("person", (vm) => vm !== null);
+const people = readCache<PersonVM | null>("person", (vm) => vm !== null, { tab: true });
 
 export async function deletePerson(id: string): Promise<DeleteResult> {
-  return api()("DELETE contacts/[id]", { params: { id } });
+  const r = await api()("DELETE contacts/[id]", { params: { id } });
+  if (r.ok) people.forget(id);
+  return r;
 }
 
 /**
