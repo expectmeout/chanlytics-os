@@ -65,11 +65,13 @@ const person = (id, over = {}) => ({
     marketingSub: "",
   },
   lastContact: { ts: NOW.getTime() - 40 * D, label: "" },
+  // Last heard from forty of the workspace's days ago: Quiet 30+ days reads this (lists.ts).
+  heardDays: 40,
   ...over,
 });
 const people = [
   person("a"),
-  person("b", { state: "active" }),
+  person("b", { state: "active", heardDays: 3 }),
   person("c", { consent: { state: "opted_in", dnc: false, marketing: "unknown" } }),
   person("d", { consent: { state: "unknown", dnc: false, marketing: "unknown" } }),
 ];

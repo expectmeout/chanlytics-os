@@ -33,7 +33,11 @@ export const POST = write({
   handle: async ({ ctx, req, member }) => {
     const body = (await jsonBody(req)) as { name?: unknown; rule?: unknown } | null;
     const name = cleanListName(body?.name);
-    const rule = cleanListRule(body?.rule);
+    // A rule may read the workspace's other lists (in_list): they are read to check it can (cleanListRule).
+    const rule = cleanListRule(
+      body?.rule,
+      body?.rule != null ? await savedListsFor(ctx.supabase, member.tenantId) : [],
+    );
     const { list, error } = await createList(ctx.supabase, member.tenantId, name, ctx.userId, rule);
     if (error || !list) {
       if (error?.code === "23505") throw new AppError("conflict", "A list with that name already exists.", 409);

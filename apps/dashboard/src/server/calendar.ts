@@ -646,7 +646,7 @@ export async function withVisits(
   people: PersonRowDto[];
   calendar: PeopleVisits["calendar"];
   booking_link: string | null;
-  /** The profile lists a consult-first service (0004): the "Consultation booked" list exists only then. */
+  /** The profile lists a consult-first service (0004): the Consultations list can be counted only then. */
   consult_first: boolean;
 }> {
   const pv = await peopleVisits(ctx, tenantId, rows, now).catch((e: unknown) => {

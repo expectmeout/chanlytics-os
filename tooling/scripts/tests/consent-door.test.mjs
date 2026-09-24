@@ -20,6 +20,7 @@ import {
   verbalOptInScript,
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
+import { personRow } from "./_person-row.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -71,27 +72,25 @@ test("TWO lists, because there are two answers: one for messages, one for offers
   // The id is unchanged: a saved broadcast's audience refers to it by id.
   const talk = PEOPLE_LISTS.find((l) => l.id === "opted_in");
   assert.equal(talk.label, "Said yes to messages");
-  assert.equal(talk.test({ consent: { state: "opted_in", marketing: "unknown" } }), true);
-  assert.equal(talk.test({ consent: { state: "unknown", marketing: "opted_in" } }), false, "not asked is not a yes");
+  // A row as People reads it (_person-row.mjs): the list's rule reads the yes its builder works out (saidYesTo).
+  const said = (consent, marketing, phone = "+13055550100") =>
+    personRow({ consent, marketing_consent: marketing, phone_e164: phone });
+  assert.equal(talk.test(said("opted_in", "unknown")), true);
+  assert.equal(talk.test(said("unknown", "opted_in")), false, "not asked is not a yes");
 
   const offers = PEOPLE_LISTS.find((l) => l.id === "offers_ok");
   assert.equal(offers.label, "Can receive offers");
-  const phone = "+13055550100";
-  assert.equal(offers.test({ phone, consent: { state: "opted_in", marketing: "opted_in" } }), true);
-  assert.equal(
-    offers.test({ phone, consent: { state: "opted_in", marketing: "unknown" } }),
-    false,
-    "a yes to messages is not a yes to offers",
-  );
-  assert.equal(offers.test({ phone, consent: { state: "opted_in", marketing: "opted_out" } }), false);
+  assert.equal(offers.test(said("opted_in", "opted_in")), true);
+  assert.equal(offers.test(said("opted_in", "unknown")), false, "a yes to messages is not a yes to offers");
+  assert.equal(offers.test(said("opted_in", "opted_out")), false);
   // consentOf folds a STOP or a do-not-contact into BOTH answers, so this list can
   // never hold somebody who asked us to stop.
-  assert.equal(offers.test({ phone, consent: { state: "opted_out", marketing: "opted_out" } }), false);
+  assert.equal(offers.test(said("opted_out", "opted_out")), false);
   // CAN receive: the broadcast's own rule, number included. This list tested the
   // bare answer, so it showed people the route would then leave out of the very
   // broadcast the list's own button opens.
   assert.equal(
-    offers.test({ phone: null, consent: { state: "opted_in", marketing: "opted_in" } }),
+    offers.test(said("opted_in", "opted_in", null)),
     false,
     "a yes to offers with no number to send to is not somebody a broadcast can reach",
   );

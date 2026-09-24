@@ -248,6 +248,8 @@ const leadRow = (over = {}) => ({
     marketingSub: "",
   },
   lastContact: { ts: Date.parse("2026-08-01T10:00:00Z"), label: "" },
+  // They last wrote on Aug 1, fifty of the workspace's days before the run: Quiet 30+ days reads this (lists.ts).
+  heardDays: 50,
   ...over,
 });
 /** Somebody who walked in and said yes to both: the control, so a green test means the rule and not an empty list. */

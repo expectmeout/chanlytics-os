@@ -77,7 +77,7 @@ test("the three surfaces agree on the filler's cases", () => {
     last_call_at: null,
     latest_snooze_until: null,
   };
-  assert.equal(personStateFor(person, NOW), "needs_you");
+  assert.equal(personStateFor(person, NOW, "UTC"), "needs_you");
   // Marcus: you replied, the receptionist paused, they wrote last → yours / waiting on you.
   const mine = threadStanding(
     {
@@ -105,6 +105,8 @@ test("the three surfaces agree on the filler's cases", () => {
         latest_assignee_user_id: "me",
       },
       NOW,
+      "UTC",
+      "me",
     ),
     "waiting_on_you",
   );

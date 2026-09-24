@@ -675,6 +675,27 @@ var SHORT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" })
 var LIVE_STALE_MS = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS = 30 * 60 * 1e3;
 var ANALYSIS_GRACE_MS = 10 * 60 * 1e3;
+var REPLY_VIA = {
+  whatsapp: "WhatsApp",
+  sms: "Text",
+  email: "Email"
+};
+var PERSON_CHANNEL_WORDS = {
+  whatsapp: "WhatsApp",
+  sms: "Text",
+  voice: "Phone",
+  email: "Email"
+};
+var PERSON_CAME_FROM_WORDS = {
+  whatsapp: REPLY_VIA.whatsapp,
+  sms: REPLY_VIA.sms,
+  email: REPLY_VIA.email,
+  call: PERSON_CHANNEL_WORDS.voice,
+  calendar: "Your calendar",
+  manual: "Added by hand",
+  import: "Imported history",
+  lead: "A lead you found"
+};
 var REPLY_WINDOW_HOURS = 72;
 var REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * 36e5;
 var REPLY_WINDOW_WORDS = `within ${REPLY_WINDOW_HOURS / 24} days`;
@@ -1035,6 +1056,443 @@ var SELLS_BY_WORDS = {
     sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
   }
 };
+var LIST_NEEDS = ["calendar", "consult", "deals", "viewer"];
+var LIST_RULE_FIELDS = [
+  {
+    id: "last_visit",
+    label: "Last visit",
+    kind: "days",
+    needs: ["calendar"],
+    draft: "days since their last appointment on the calendar"
+  },
+  {
+    id: "next_visit",
+    label: "Next visit",
+    kind: "days",
+    needs: ["calendar"],
+    draft: "days until their next appointment; op this_week is Monday to Sunday of this week"
+  },
+  { id: "booked", label: "A visit booked", kind: "yesno", needs: ["calendar"], draft: "an appointment booked ahead" },
+  {
+    id: "asked_not_booked",
+    label: "Asked, never booked",
+    kind: "yesno",
+    needs: ["calendar"],
+    draft: "wrote or called in the last 30 days and nothing on the calendar answers it"
+  },
+  {
+    id: "last_heard",
+    label: "Last heard from",
+    kind: "days",
+    needs: [],
+    draft: "days since THEY last wrote or called"
+  },
+  { id: "first_contact", label: "First contact", kind: "days", needs: [], draft: "days since they first got in touch" },
+  {
+    id: "channel",
+    label: "Reaches you by",
+    kind: "channel",
+    needs: [],
+    draft: "a way they reach the business: whatsapp, sms, voice (phone calls) or email"
+  },
+  {
+    id: "came_from",
+    label: "Came from",
+    kind: "came_from",
+    needs: [],
+    draft: "how they first came: whatsapp, sms, email, call, calendar, manual, import or lead"
+  },
+  { id: "calls", label: "Calls", kind: "count", needs: [], draft: "how many calls" },
+  { id: "conversations", label: "Conversations", kind: "count", needs: [], draft: "how many conversations" },
+  {
+    id: "has_chat",
+    label: "Has written with you",
+    kind: "yesno",
+    needs: [],
+    draft: "a written conversation either way (no means they have only phoned)"
+  },
+  {
+    id: "said_yes",
+    label: "Said yes to",
+    kind: "purpose",
+    needs: [],
+    draft: "said yes to offers, or to messages (to: offers or messages)"
+  },
+  {
+    id: "can_receive",
+    label: "Can be sent",
+    kind: "purpose",
+    needs: [],
+    draft: "can be sent offers or messages: the yes and a number to send to (to: offers or messages)"
+  },
+  { id: "stopped", label: "Asked to stop", kind: "yesno", needs: [], draft: "asked to stop, or on do-not-contact" },
+  {
+    id: "standing",
+    label: "Standing",
+    kind: "standing",
+    needs: [],
+    draft: "value needs_you (waiting for a person) or waiting_on_you (you have the thread and they wrote last)"
+  },
+  {
+    id: "assigned",
+    label: "Thread is with",
+    kind: "assigned",
+    needs: [],
+    draft: "who has their thread: value me, teammate or nobody"
+  },
+  {
+    id: "deal_stage",
+    label: "Deal",
+    kind: "deal_stage",
+    needs: ["deals"],
+    draft: "where they are on the way to a deal: value consultation, proposed, won, lost (passed) or ended"
+  },
+  {
+    id: "consultation",
+    label: "A consultation",
+    kind: "yesno",
+    needs: ["calendar", "consult"],
+    draft: "their next or last visit is a consultation"
+  },
+  { id: "step_due", label: "A next step due", kind: "yesno", needs: [], draft: "a next step whose day has come" },
+  {
+    id: "in_list",
+    label: "On the list",
+    kind: "list",
+    needs: [],
+    draft: "on another list, by its token (list); never use it in a draft"
+  }
+];
+var FIELD_IDS = LIST_RULE_FIELDS.map((f) => f.id);
+var fieldOf = (id) => LIST_RULE_FIELDS.find((f) => f.id === id);
+var CHANNELS = ["whatsapp", "sms", "voice", "email"];
+var CAME_FROM = [
+  "whatsapp",
+  "sms",
+  "email",
+  "call",
+  "calendar",
+  "manual",
+  "import",
+  "lead"
+];
+var LIST_PURPOSES = ["offers", "messages"];
+var LIST_STANDINGS = ["needs_you", "waiting_on_you"];
+var LIST_ASSIGNED = ["me", "teammate", "nobody"];
+var LIST_DEAL_STAGES = ["consultation", "proposed", "won", "lost", "ended"];
+var LIST_RULE_MAX = 12;
+var LIST_ANY_MAX = 6;
+var DAY_OPS = ["more_than", "within", "never", "ever", "this_week"];
+var Days = { op: z6.enum(DAY_OPS), days: z6.number().int().min(1).max(3650).optional() };
+var YesNo = { op: z6.literal("is"), yes: z6.boolean() };
+var Count = { op: z6.enum(["at_least", "at_most"]), n: z6.number().int().min(0).max(1e4) };
+var IsOrNot = z6.enum(["is", "is_not"]);
+var Token = z6.string().regex(/^(seg:[a-z_]{1,40}|list:[0-9a-f-]{36})$/i);
+var fact = (shape) => z6.object(shape).strict();
+var ListFactSchema = z6.discriminatedUnion("field", [
+  fact({ field: z6.literal("last_visit"), ...Days }),
+  fact({ field: z6.literal("next_visit"), ...Days }),
+  fact({ field: z6.literal("booked"), ...YesNo }),
+  fact({ field: z6.literal("asked_not_booked"), ...YesNo }),
+  fact({ field: z6.literal("last_heard"), ...Days }),
+  fact({ field: z6.literal("first_contact"), ...Days }),
+  fact({ field: z6.literal("channel"), op: IsOrNot, channel: z6.enum(CHANNELS) }),
+  fact({ field: z6.literal("came_from"), op: IsOrNot, from: z6.enum(CAME_FROM) }),
+  fact({ field: z6.literal("calls"), ...Count }),
+  fact({ field: z6.literal("conversations"), ...Count }),
+  fact({ field: z6.literal("has_chat"), ...YesNo }),
+  fact({ field: z6.literal("said_yes"), ...YesNo, to: z6.enum(LIST_PURPOSES) }),
+  fact({ field: z6.literal("can_receive"), ...YesNo, to: z6.enum(LIST_PURPOSES) }),
+  fact({ field: z6.literal("stopped"), ...YesNo }),
+  fact({ field: z6.literal("standing"), op: IsOrNot, value: z6.enum(LIST_STANDINGS) }),
+  fact({ field: z6.literal("assigned"), op: IsOrNot, value: z6.enum(LIST_ASSIGNED) }),
+  fact({ field: z6.literal("deal_stage"), op: IsOrNot, value: z6.enum(LIST_DEAL_STAGES) }),
+  fact({ field: z6.literal("consultation"), ...YesNo }),
+  fact({ field: z6.literal("step_due"), ...YesNo }),
+  fact({ field: z6.literal("in_list"), op: IsOrNot, list: Token })
+]);
+var AnySchema = z6.object({ any: z6.array(ListFactSchema).min(2).max(LIST_ANY_MAX) }).strict();
+var ListConditionSchema = z6.union([AnySchema, ListFactSchema]);
+function factProblem(f) {
+  if (f.field !== "last_visit" && f.field !== "next_visit" && f.field !== "last_heard" && f.field !== "first_contact")
+    return null;
+  if ((f.op === "more_than" || f.op === "within") && f.days === void 0) return `${f.field} ${f.op} needs days`;
+  if (f.op === "this_week" && f.field !== "next_visit") return "only the next visit can be this week";
+  return null;
+}
+var ListRuleSchema = z6.object({
+  v: z6.literal(2).optional(),
+  all: z6.array(ListConditionSchema).min(1).max(LIST_RULE_MAX)
+}).strict().superRefine((r2, ctx) => {
+  for (const f of r2.all.flatMap((c) => "any" in c ? c.any : [c])) {
+    const p = factProblem(f);
+    if (p) ctx.addIssue({ code: z6.ZodIssueCode.custom, message: p });
+  }
+});
+function ruleFacts(rule) {
+  return rule.all.flatMap((c) => "any" in c ? c.any : [c]);
+}
+function factNeeds(f) {
+  const needs = new Set(fieldOf(f.field).needs);
+  if (f.field === "standing" && f.value === "waiting_on_you") needs.add("viewer");
+  if (f.field === "assigned" && f.value !== "nobody") needs.add("viewer");
+  if (f.field === "deal_stage" && f.value === "consultation") {
+    needs.add("calendar");
+    needs.add("consult");
+  }
+  return LIST_NEEDS.filter((n) => needs.has(n));
+}
+function ruleNeeds(rule) {
+  const needs = new Set(ruleFacts(rule).flatMap(factNeeds));
+  return LIST_NEEDS.filter((n) => needs.has(n));
+}
+function dayHolds(days, op, n) {
+  switch (op) {
+    case "never":
+      return days === null;
+    case "ever":
+      return days !== null;
+    case "within":
+      return days !== null && days <= (n ?? 0);
+    case "more_than":
+      return days !== null && days > (n ?? 0);
+    case "this_week":
+      return false;
+  }
+}
+function holds(f, v, inList) {
+  const is = "op" in f && f.op === "is";
+  switch (f.field) {
+    case "last_visit":
+      return dayHolds(v.lastVisitDays, f.op, f.days);
+    case "next_visit":
+      return f.op === "this_week" ? v.nextVisitThisWeek : dayHolds(v.nextVisitDays, f.op, f.days);
+    case "last_heard":
+      return dayHolds(v.heardDays, f.op, f.days);
+    case "first_contact":
+      return f.op === "within" && !v.firstContact.evidence ? false : dayHolds(v.firstDays, f.op, f.days);
+    case "booked":
+      return v.booked === f.yes;
+    case "asked_not_booked":
+      return v.askedNotBooked === f.yes;
+    case "has_chat":
+      return v.hasChat === f.yes;
+    case "stopped":
+      return v.stopped === f.yes;
+    case "consultation":
+      return v.consultationVisit === f.yes;
+    case "step_due":
+      return v.stepDue === f.yes;
+    case "said_yes":
+      return v.saidYes[f.to] === f.yes;
+    case "can_receive":
+      return v.canReceive[f.to] === f.yes;
+    case "channel":
+      return v.channels.includes(f.channel) === is;
+    case "came_from":
+      return v.cameFrom?.key === f.from === is;
+    case "calls":
+      return f.op === "at_least" ? v.calls >= f.n : v.calls <= f.n;
+    case "conversations":
+      return f.op === "at_least" ? v.threads >= f.n : v.threads <= f.n;
+    case "standing":
+      return v.standing === f.value === is;
+    case "assigned":
+      return v.assigned === f.value === is;
+    case "deal_stage":
+      return v.dealStage === f.value === is;
+    case "in_list":
+      return inList(f.list, v.id) === is;
+  }
+}
+var noLists = () => false;
+function listRuleMatches(rule, v, inList = noLists) {
+  return rule.all.every((c) => "any" in c ? c.any.some((f) => holds(f, v, inList)) : holds(c, v, inList));
+}
+var LEAF_PROPERTIES = {
+  field: { type: "string", enum: FIELD_IDS.filter((id) => id !== "in_list") },
+  op: { type: "string", enum: [...DAY_OPS, "at_least", "at_most", "is", "is_not"] },
+  days: { type: "integer" },
+  n: { type: "integer" },
+  yes: { type: "boolean" },
+  channel: { type: "string", enum: [...CHANNELS] },
+  from: { type: "string", enum: [...CAME_FROM] },
+  to: { type: "string", enum: [...LIST_PURPOSES] },
+  value: { type: "string", enum: [.../* @__PURE__ */ new Set([...LIST_STANDINGS, ...LIST_ASSIGNED, ...LIST_DEAL_STAGES])] }
+};
+var LIST_DRAFT_JSON_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["name", "all", "cannot"],
+  properties: {
+    name: { type: "string" },
+    cannot: { type: "string" },
+    all: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          ...LEAF_PROPERTIES,
+          any: {
+            type: "array",
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: ["field", "op"],
+              properties: LEAF_PROPERTIES
+            }
+          }
+        }
+      }
+    }
+  }
+};
+var ListDraftAnswerSchema = z6.object({
+  name: z6.string().trim().min(1).max(60),
+  cannot: z6.string().trim().max(200),
+  all: z6.array(z6.unknown()).max(LIST_RULE_MAX)
+});
+var r = (...all) => ({ v: 2, all });
+var BUILTIN_LISTS = [
+  {
+    id: "needs_you",
+    label: "Needs you",
+    group: "attention",
+    onProfile: false,
+    rule: r({ field: "standing", op: "is", value: "needs_you" })
+  },
+  // Yours, or nobody's: a teammate's thread waits on them (standing.ts).
+  {
+    id: "waiting_on_you",
+    label: "Waiting on you",
+    group: "attention",
+    onProfile: false,
+    rule: r({ field: "standing", op: "is", value: "waiting_on_you" })
+  },
+  // Their next step's day has come (0007, amended): every workspace, deals or not. The page says the step itself.
+  {
+    id: "steps_due",
+    label: "Steps due",
+    group: "attention",
+    onProfile: false,
+    rule: r({ field: "step_due", op: "is", yes: true })
+  },
+  // New by the date they first got in touch, whatever their standing: someone new who needs you is both.
+  {
+    id: "new_week",
+    label: "New this week",
+    group: "journey",
+    rule: r({ field: "first_contact", op: "within", days: 7 })
+  },
+  // This week, Monday to Sunday, by the workspace's clock.
+  {
+    id: "booked_week",
+    label: "Booked this week",
+    group: "journey",
+    rule: r({ field: "next_visit", op: "this_week" })
+  },
+  { id: "booked", label: "Booked", group: "journey", rule: r({ field: "booked", op: "is", yes: true }) },
+  // Reports' rule (calendar-people.ts visitAnswersAsk): asked in 30 days and nothing on the calendar answers it.
+  {
+    id: "asked_never_booked",
+    label: "Asked, never booked",
+    group: "journey",
+    rule: r({ field: "asked_not_booked", op: "is", yes: true })
+  },
+  // Forty-five days since the chair, nothing ahead: the win-back list, from visits rather than silence.
+  {
+    id: "lapsed",
+    label: "Lapsed",
+    group: "journey",
+    rule: r({ field: "booked", op: "is", yes: false }, { field: "last_visit", op: "more_than", days: 44 })
+  },
+  // The journey past the booking (0004), as the Pipeline groups it (deals.ts dealStageOf).
+  {
+    id: "consultation_booked",
+    label: "Consultations",
+    group: "journey",
+    onProfile: false,
+    rule: r({ field: "deal_stage", op: "is", value: "consultation" })
+  },
+  {
+    id: "proposal_out",
+    label: "Proposal out",
+    group: "journey",
+    onProfile: false,
+    rule: r({ field: "deal_stage", op: "is", value: "proposed" })
+  },
+  {
+    id: "clients",
+    label: "Clients",
+    group: "journey",
+    onProfile: false,
+    rule: r({ field: "deal_stage", op: "is", value: "won" })
+  },
+  {
+    id: "deal_passed",
+    label: "Passed",
+    group: "journey",
+    onProfile: false,
+    rule: r({ field: "deal_stage", op: "is", value: "lost" })
+  },
+  {
+    id: "deal_ended",
+    label: "Ended",
+    group: "journey",
+    onProfile: false,
+    rule: r({ field: "deal_stage", op: "is", value: "ended" })
+  },
+  // Heard from them, then nothing for thirty days: someone we never heard from is not quiet, and our own sends are
+  // not their word.
+  {
+    id: "quiet",
+    label: "Quiet 30+ days",
+    group: "reach",
+    rule: r({ field: "last_heard", op: "more_than", days: 30 })
+  },
+  {
+    id: "phoned_only",
+    label: "Phoned only",
+    group: "reach",
+    rule: r({ field: "has_chat", op: "is", yes: false }, { field: "calls", op: "at_least", n: 1 })
+  },
+  // TWO LISTS, BECAUSE THERE ARE TWO ANSWERS. This one is the yes to hearing from the business, which says nothing
+  // about offers; the next is the promotional audience, who a marketing broadcast may reach: the yes AND a number.
+  {
+    id: "opted_in",
+    label: "Said yes to messages",
+    group: "reach",
+    onProfile: false,
+    rule: r({ field: "said_yes", op: "is", to: "messages", yes: true })
+  },
+  {
+    id: "offers_ok",
+    label: "Can receive offers",
+    group: "reach",
+    onProfile: false,
+    rule: r({ field: "can_receive", op: "is", to: "offers", yes: true })
+  },
+  // A fact, not the state: someone who opted out AND needs you is in both lists.
+  {
+    id: "opted_out",
+    label: "Opted out",
+    group: "reach",
+    onProfile: false,
+    rule: r({ field: "stopped", op: "is", yes: true })
+  }
+];
+var PEOPLE_LISTS = BUILTIN_LISTS.map((l) => {
+  const needs = ruleNeeds(l.rule);
+  return {
+    ...l,
+    ...needs.includes("calendar") ? { needsCalendar: true } : {},
+    ...needs.includes("consult") ? { needsConsultFirst: true } : {},
+    ...needs.includes("deals") ? { needsDeals: true } : {},
+    ...needs.includes("viewer") ? { needsViewer: true } : {},
+    test: (vm) => listRuleMatches(l.rule, vm)
+  };
+});
 var PERSON_MODE_LABELS = { auto: "Answer", ask: "Ask me first", never: "Never" };
 var PERSON_MODE_WORDS = {
   ...PERSON_MODE_LABELS,
@@ -1043,8 +1501,6 @@ var PERSON_MODE_WORDS = {
 var DAY_MS4 = 864e5;
 var WEEK_MS2 = 7 * DAY_MS4;
 var MONTH_MS = 30 * DAY_MS4;
-var NEW_WINDOW_MS = 7 * DAY_MS4;
-var QUIET_AFTER_MS = 30 * DAY_MS4;
 var NOTE_MAX = 600;
 var NOTE_REFUSALS = {
   empty: "Write something first.",
@@ -1057,27 +1513,6 @@ var NOTE_REFUSALS = {
   bad_source: "Could not save this note.",
   bad_deal: "That deal is not this person's.",
   not_a_step: "Only a note with a day can be done."
-};
-var REPLY_VIA = {
-  whatsapp: "WhatsApp",
-  sms: "Text",
-  email: "Email"
-};
-var PERSON_CHANNEL_WORDS = {
-  whatsapp: "WhatsApp",
-  sms: "Text",
-  voice: "Phone",
-  email: "Email"
-};
-var PERSON_CAME_FROM_WORDS = {
-  whatsapp: REPLY_VIA.whatsapp,
-  sms: REPLY_VIA.sms,
-  email: REPLY_VIA.email,
-  call: PERSON_CHANNEL_WORDS.voice,
-  calendar: "Your calendar",
-  manual: "Added by hand",
-  import: "Imported history",
-  lead: "A lead you found"
 };
 var L = (id, name, region, native) => ({
   id,
@@ -1288,7 +1723,7 @@ var SOLE_PROP_CEILING_SENTENCE = `This is the sole-proprietor registration: one 
 var SOLE_PROP_TEXTING_SENTENCE = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE}`;
 var DAY_MS6 = 24 * 3600 * 1e3;
 var DAY_MS7 = 864e5;
-var QUIET_AFTER_MS2 = 7 * DAY_MS7;
+var QUIET_AFTER_MS = 7 * DAY_MS7;
 var DATE_FMT4 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var CHANNEL_KIND_WORDS = {
   whatsapp: "WhatsApp",
@@ -1329,30 +1764,30 @@ var NOTE_SUGGEST_SCHEMA = {
 var ASK_CITATION_KINDS = ["thread", "conversation", "call", "person", "page"];
 var ASK_LANGUAGES = ["en", "es", "other"];
 var ASK_UNDO_MS = 10 * 6e4;
-var AskProposalOutcomeSchema = z6.object({
-  state: z6.enum(["done", "dismissed", "failed", "undone"]),
-  receipt: z6.string().max(300).catch(""),
-  atMs: z6.number().catch(0),
-  undo: z6.record(z6.string(), z6.unknown()).nullable().optional()
+var AskProposalOutcomeSchema = z7.object({
+  state: z7.enum(["done", "dismissed", "failed", "undone"]),
+  receipt: z7.string().max(300).catch(""),
+  atMs: z7.number().catch(0),
+  undo: z7.record(z7.string(), z7.unknown()).nullable().optional()
 });
-var AskSettingsChangeSchema = z6.discriminatedUnion("op", [
-  z6.object({
-    op: z6.literal("add_closure"),
-    date: z6.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    until: z6.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-    note: z6.string().max(200).optional()
+var AskSettingsChangeSchema = z7.discriminatedUnion("op", [
+  z7.object({
+    op: z7.literal("add_closure"),
+    date: z7.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    until: z7.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    note: z7.string().max(200).optional()
   }),
-  z6.object({
-    op: z6.literal("set_hours"),
-    day: z6.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
-    open: z6.string().regex(/^\d{2}:\d{2}$/).nullable(),
-    close: z6.string().regex(/^\d{2}:\d{2}$/).nullable()
+  z7.object({
+    op: z7.literal("set_hours"),
+    day: z7.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
+    open: z7.string().regex(/^\d{2}:\d{2}$/).nullable(),
+    close: z7.string().regex(/^\d{2}:\d{2}$/).nullable()
   }),
-  z6.object({ op: z6.literal("add_note"), title: z6.string().min(1).max(80), text: z6.string().min(1).max(1200) }),
-  z6.object({
-    op: z6.literal("add_service"),
-    name: z6.string().min(1).max(80),
-    duration_min: z6.number().int().min(1).max(1440).optional()
+  z7.object({ op: z7.literal("add_note"), title: z7.string().min(1).max(80), text: z7.string().min(1).max(1200) }),
+  z7.object({
+    op: z7.literal("add_service"),
+    name: z7.string().min(1).max(80),
+    duration_min: z7.number().int().min(1).max(1440).optional()
   })
 ]);
 var ASK_ANSWER_CAPS = {
@@ -1504,83 +1939,6 @@ var ASK_ANSWER_FORMAT = {
   required: ["say", "show", "do", "language"],
   additionalProperties: false
 };
-var LIST_RULE_FIELDS = [
-  { id: "last_visit", label: "Last visit", kind: "days", needsCalendar: true },
-  { id: "next_visit", label: "Next visit", kind: "days", needsCalendar: true },
-  { id: "booked", label: "A visit booked", kind: "yesno", needsCalendar: true },
-  { id: "asked_not_booked", label: "Asked, never booked", kind: "yesno", needsCalendar: true },
-  { id: "last_heard", label: "Last heard from", kind: "days", needsCalendar: false },
-  { id: "first_contact", label: "First contact", kind: "days", needsCalendar: false },
-  { id: "channel", label: "Reaches you by", kind: "channel", needsCalendar: false },
-  { id: "came_from", label: "Came from", kind: "came_from", needsCalendar: false },
-  { id: "calls", label: "Calls", kind: "count", needsCalendar: false },
-  { id: "conversations", label: "Conversations", kind: "count", needsCalendar: false },
-  { id: "offers_yes", label: "Said yes to offers", kind: "yesno", needsCalendar: false }
-];
-var CHANNELS = ["whatsapp", "sms", "voice", "email"];
-var CAME_FROM = [
-  "whatsapp",
-  "sms",
-  "email",
-  "call",
-  "calendar",
-  "manual",
-  "import",
-  "lead"
-];
-var Days = z7.object({
-  op: z7.enum(["more_than", "within"]),
-  days: z7.number().int().min(1).max(3650)
-});
-var Count = z7.object({ op: z7.enum(["at_least", "at_most"]), n: z7.number().int().min(0).max(1e4) });
-var YesNo = z7.object({ op: z7.literal("is"), yes: z7.boolean() });
-var ListConditionSchema = z7.discriminatedUnion("field", [
-  z7.object({ field: z7.literal("last_visit"), ...Days.shape }),
-  z7.object({ field: z7.literal("next_visit"), ...Days.shape }),
-  z7.object({ field: z7.literal("booked"), ...YesNo.shape }),
-  z7.object({ field: z7.literal("asked_not_booked"), ...YesNo.shape }),
-  z7.object({ field: z7.literal("last_heard"), ...Days.shape }),
-  z7.object({ field: z7.literal("first_contact"), ...Days.shape }),
-  z7.object({ field: z7.literal("channel"), op: z7.enum(["is", "is_not"]), channel: z7.enum(CHANNELS) }),
-  z7.object({ field: z7.literal("came_from"), op: z7.enum(["is", "is_not"]), from: z7.enum(CAME_FROM) }),
-  z7.object({ field: z7.literal("calls"), ...Count.shape }),
-  z7.object({ field: z7.literal("conversations"), ...Count.shape }),
-  z7.object({ field: z7.literal("offers_yes"), ...YesNo.shape })
-]);
-var ListRuleSchema = z7.object({
-  all: z7.array(ListConditionSchema).min(1).max(8)
-});
-var LIST_DRAFT_JSON_SCHEMA = {
-  type: "object",
-  additionalProperties: false,
-  required: ["name", "all", "cannot"],
-  properties: {
-    name: { type: "string" },
-    cannot: { type: "string" },
-    all: {
-      type: "array",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: ["field", "op"],
-        properties: {
-          field: { type: "string", enum: LIST_RULE_FIELDS.map((f) => f.id) },
-          op: { type: "string", enum: ["more_than", "within", "at_least", "at_most", "is", "is_not"] },
-          days: { type: "integer" },
-          n: { type: "integer" },
-          yes: { type: "boolean" },
-          channel: { type: "string", enum: [...CHANNELS] },
-          from: { type: "string", enum: [...CAME_FROM] }
-        }
-      }
-    }
-  }
-};
-var ListDraftAnswerSchema = z7.object({
-  name: z7.string().trim().min(1).max(60),
-  cannot: z7.string().trim().max(200),
-  all: z7.array(ListConditionSchema).max(8)
-});
 var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
@@ -1940,10 +2298,10 @@ function chosenReply(m) {
     const id = m.button.payload ?? "";
     return label || id ? { label, id } : null;
   }
-  const r = m.interactive?.button_reply ?? m.interactive?.list_reply;
-  if (r) {
-    const label = r.title ?? "";
-    const id = r.id ?? "";
+  const r2 = m.interactive?.button_reply ?? m.interactive?.list_reply;
+  if (r2) {
+    const label = r2.title ?? "";
+    const id = r2.id ?? "";
     return label || id ? { label, id } : null;
   }
   return null;
@@ -2008,18 +2366,18 @@ function normalizeInbound(m, value) {
 var SEND_TIMEOUT_MS = 15e3;
 async function postGraph(cfg, payload) {
   try {
-    const r = await fetch(`${GRAPH}/${cfg.phoneId}/messages`, {
+    const r2 = await fetch(`${GRAPH}/${cfg.phoneId}/messages`, {
       method: "POST",
       headers: { Authorization: `Bearer ${cfg.accessToken}`, "Content-Type": "application/json" },
       body: JSON.stringify(payload),
       signal: AbortSignal.timeout(SEND_TIMEOUT_MS)
     });
-    const out = await r.json().catch(() => ({}));
+    const out = await r2.json().catch(() => ({}));
     return {
-      ok: r.ok,
+      ok: r2.ok,
       wamid: out.messages?.[0]?.id ?? null,
-      status: r.status,
-      errorBody: r.ok ? void 0 : JSON.stringify(out).slice(0, 200)
+      status: r2.status,
+      errorBody: r2.ok ? void 0 : JSON.stringify(out).slice(0, 200)
     };
   } catch (e) {
     return { ok: false, wamid: null, status: 0, errorBody: e instanceof Error ? e.message : String(e) };
@@ -2165,13 +2523,13 @@ async function listCalls(cfg, opts) {
     ...opts.paginationKey ? { pagination_key: opts.paginationKey } : {},
     ...opts.includeTotal ? { include_total: true } : {}
   };
-  const r = await fetch(`${API}/v3/list-calls`, {
+  const r2 = await fetch(`${API}/v3/list-calls`, {
     method: "POST",
     headers: { Authorization: `Bearer ${cfg.apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify(body)
   });
-  if (!r.ok) throw new Error(`list-calls ${r.status}: ${(await r.text()).slice(0, 200)}`);
-  const out = await r.json();
+  if (!r2.ok) throw new Error(`list-calls ${r2.status}: ${(await r2.text()).slice(0, 200)}`);
+  const out = await r2.json();
   const calls = out.items ?? [];
   return {
     calls,
@@ -2180,18 +2538,18 @@ async function listCalls(cfg, opts) {
   };
 }
 async function getCall(cfg, callId) {
-  const r = await fetch(`${API}/v2/get-call/${callId}`, {
+  const r2 = await fetch(`${API}/v2/get-call/${callId}`, {
     headers: { Authorization: `Bearer ${cfg.apiKey}` }
   });
-  if (!r.ok) return null;
-  return await r.json();
+  if (!r2.ok) return null;
+  return await r2.json();
 }
 async function getAgent(cfg, agentId) {
-  const r = await fetch(`${API}/get-agent/${agentId}`, {
+  const r2 = await fetch(`${API}/get-agent/${agentId}`, {
     headers: { Authorization: `Bearer ${cfg.apiKey}` }
   });
-  if (!r.ok) return null;
-  const a = await r.json();
+  if (!r2.ok) return null;
+  const a = await r2.json();
   const str5 = (k) => typeof a[k] === "string" ? a[k] : null;
   const num3 = (k) => typeof a[k] === "number" ? a[k] : null;
   const bool = (k) => typeof a[k] === "boolean" ? a[k] : null;
@@ -2217,22 +2575,22 @@ async function getAgent(cfg, agentId) {
   };
 }
 async function getAgentRaw(cfg, agentId) {
-  const r = await fetch(`${API}/get-agent/${agentId}`, {
+  const r2 = await fetch(`${API}/get-agent/${agentId}`, {
     headers: { Authorization: `Bearer ${cfg.apiKey}` },
     signal: AbortSignal.timeout(8e3)
   });
-  if (!r.ok) return null;
-  const a = await r.json();
+  if (!r2.ok) return null;
+  const a = await r2.json();
   return a !== null && typeof a === "object" && !Array.isArray(a) ? a : null;
 }
 async function writeRetell(cfg, method, path, payload) {
-  const r = await fetch(`${API}${path}`, {
+  const r2 = await fetch(`${API}${path}`, {
     method,
     headers: { Authorization: `Bearer ${cfg.apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify(payload),
     signal: AbortSignal.timeout(8e3)
   });
-  const text = await r.text();
+  const text = await r2.text();
   let body = null;
   try {
     const parsed2 = JSON.parse(text);
@@ -2240,7 +2598,7 @@ async function writeRetell(cfg, method, path, payload) {
   } catch {
     body = text ? { text: text.slice(0, 300) } : null;
   }
-  return { ok: r.ok, status: r.status, body };
+  return { ok: r2.ok, status: r2.status, body };
 }
 function createAgentVersion(cfg, agentId, baseVersion) {
   return writeRetell(cfg, "POST", `/create-agent-version/${agentId}`, { base_version: baseVersion });
@@ -2267,16 +2625,16 @@ function updatePhoneNumber(cfg, number, patch) {
   return writeRetell(cfg, "PATCH", `/update-phone-number/${encodeURIComponent(number)}`, patch);
 }
 async function getPhoneNumber(cfg, number) {
-  const r = await fetch(`${API}/get-phone-number/${encodeURIComponent(number)}`, {
+  const r2 = await fetch(`${API}/get-phone-number/${encodeURIComponent(number)}`, {
     headers: { Authorization: `Bearer ${cfg.apiKey}` },
     signal: AbortSignal.timeout(8e3)
   });
-  if (!r.ok) return null;
-  const n = await r.json();
+  if (!r2.ok) return null;
+  const n = await r2.json();
   return n !== null && typeof n === "object" && !Array.isArray(n) ? n : null;
 }
 async function updateLiveCall(cfg, callId, control) {
-  const r = await fetch(`${API}/v2/update-live-call/${encodeURIComponent(callId)}`, {
+  const r2 = await fetch(`${API}/v2/update-live-call/${encodeURIComponent(callId)}`, {
     method: "PATCH",
     headers: { Authorization: `Bearer ${cfg.apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -2288,23 +2646,23 @@ async function updateLiveCall(cfg, callId, control) {
     }),
     signal: AbortSignal.timeout(8e3)
   });
-  return { ok: r.ok, status: r.status };
+  return { ok: r2.ok, status: r2.status };
 }
 async function stopCall(cfg, callId) {
-  const r = await fetch(`${API}/v2/stop-call/${encodeURIComponent(callId)}`, {
+  const r2 = await fetch(`${API}/v2/stop-call/${encodeURIComponent(callId)}`, {
     method: "POST",
     headers: { Authorization: `Bearer ${cfg.apiKey}` },
     signal: AbortSignal.timeout(8e3)
   });
-  return { ok: r.ok, status: r.status };
+  return { ok: r2.ok, status: r2.status };
 }
 async function getRetellLlm(cfg, llmId, version) {
   const q = version === void 0 || version === null ? "" : `?version=${version}`;
-  const r = await fetch(`${API}/get-retell-llm/${llmId}${q}`, {
+  const r2 = await fetch(`${API}/get-retell-llm/${llmId}${q}`, {
     headers: { Authorization: `Bearer ${cfg.apiKey}` }
   });
-  if (!r.ok) return null;
-  const l = await r.json();
+  if (!r2.ok) return null;
+  const l = await r2.json();
   const str5 = (k) => typeof l[k] === "string" ? l[k] : null;
   return {
     llm_id: str5("llm_id") ?? llmId,
@@ -2323,9 +2681,9 @@ function needsHydration(c) {
 }
 async function fetchRecording(url, opts = {}) {
   const signal = opts.timeoutMs ? AbortSignal.timeout(opts.timeoutMs) : void 0;
-  const r = await fetch(url, signal ? { signal } : void 0);
-  if (!r.ok) return { ok: false, status: r.status };
-  return { ok: true, bytes: await r.arrayBuffer(), mime: r.headers.get("content-type") };
+  const r2 = await fetch(url, signal ? { signal } : void 0);
+  if (!r2.ok) return { ok: false, status: r2.status };
+  return { ok: true, bytes: await r2.arrayBuffer(), mime: r2.headers.get("content-type") };
 }
 function verifyRetellSignature(rawBody, header, apiKey) {
   if (!header || !apiKey) return false;
@@ -2675,15 +3033,15 @@ function voiceNumberBindBody(o, s, fnUrl = DEFAULT_FN_URL) {
 var E1643 = /^\+[1-9]\d{6,14}$/;
 function planVoiceProvision(st) {
   const errors = [];
-  const r = st.request;
-  const number = r.number ?? null;
-  const area = r.areaCode ?? null;
+  const r2 = st.request;
+  const number = r2.number ?? null;
+  const area = r2.areaCode ?? null;
   if (number !== null && !E1643.test(number)) errors.push("number must be E.164, like +13055550100");
   if (area !== null && !(Number.isInteger(area) && area >= 200 && area <= 999))
     errors.push("area_code must be three digits, like 305");
   if (number !== null && area !== null) errors.push("give a number to bind or an area code to buy in, not both");
-  if (r.llmId && !/^llm_[a-z0-9]+$/i.test(r.llmId)) errors.push("llm_id does not look like a Retell LLM id");
-  if (r.agentId && !/^agent_[a-z0-9]+$/i.test(r.agentId)) errors.push("agent_id does not look like a Retell agent id");
+  if (r2.llmId && !/^llm_[a-z0-9]+$/i.test(r2.llmId)) errors.push("llm_id does not look like a Retell LLM id");
+  if (r2.agentId && !/^agent_[a-z0-9]+$/i.test(r2.agentId)) errors.push("agent_id does not look like a Retell agent id");
   const names = { agent: `${st.tenant.name} front desk`, nickname: `${st.tenant.name} \xB7 Chanlytics` };
   if (errors.length) return { ok: false, errors, nothing: true, reason: null, steps: [], names };
   if (st.channel) {
@@ -2698,12 +3056,12 @@ function planVoiceProvision(st) {
     };
   }
   const steps = [];
-  if (r.agentId) {
+  if (r2.agentId) {
     steps.push({ id: "llm", action: "skip", detail: "the adopted agent brings its own LLM" });
-    steps.push({ id: "agent", action: "adopt", detail: `${r.agentId}, read from the provider first` });
+    steps.push({ id: "agent", action: "adopt", detail: `${r2.agentId}, read from the provider first` });
   } else {
     steps.push(
-      r.llmId ? { id: "llm", action: "reuse", detail: `${r.llmId}, read from the provider first` } : {
+      r2.llmId ? { id: "llm", action: "reuse", detail: `${r2.llmId}, read from the provider first` } : {
         id: "llm",
         action: "create",
         detail: `the shell: placeholders, the four tools, spoken defaults; ${VOICE_LLM_DEFAULTS.model} at temperature ${VOICE_LLM_DEFAULTS.model_temperature}`
@@ -2824,7 +3182,7 @@ var TwilioError = class extends Error {
   }
 };
 var fetchTwilio = async (acct, method, url, form2) => {
-  const r = await fetch(url, {
+  const r2 = await fetch(url, {
     method,
     headers: {
       Authorization: `Basic ${Buffer.from(`${acct.sid}:${acct.token}`).toString("base64")}`,
@@ -2833,7 +3191,7 @@ var fetchTwilio = async (acct, method, url, form2) => {
     body: form2 ? new URLSearchParams(form2).toString() : void 0,
     signal: AbortSignal.timeout(15e3)
   });
-  const text = await r.text();
+  const text = await r2.text();
   let body = null;
   try {
     const parsed2 = JSON.parse(text);
@@ -2841,7 +3199,7 @@ var fetchTwilio = async (acct, method, url, form2) => {
   } catch {
     body = text ? { text: text.slice(0, 300) } : null;
   }
-  return { status: r.status, body };
+  return { status: r2.status, body };
 };
 var str = (o, k) => typeof o?.[k] === "string" ? o[k] : null;
 function need(a, what) {
@@ -3157,7 +3515,7 @@ async function runLineSaga(start, ports) {
     line = { ...line, ...patch, facts: patch.facts ? { ...patch.facts } : line.facts };
     await ports.store.save(patch);
   };
-  const fact = async (k, v) => save({ facts: { ...line.facts, [k]: v } });
+  const fact2 = async (k, v) => save({ facts: { ...line.facts, [k]: v } });
   if (line.voice_state === "answering" && nextLineStep(line) === null) return { ok: true, line };
   if (!line.e164) {
     await save({ voice_state: "failed", step: "number", last_error: "no number chosen", state_since: ports.now() });
@@ -3213,20 +3571,20 @@ async function runLineSaga(start, ports) {
           }
           if (line.facts.credential_list_attached !== true) {
             await ports.provider.attachCredentialList(acct, line.trunk_sid, line.credential_list_sid);
-            await fact("credential_list_attached", true);
+            await fact2("credential_list_attached", true);
           }
           if (typeof line.facts.origination_sid !== "string") {
             const o = await ports.provider.addOrigination(acct, line.trunk_sid, {
               sipUrl: RETELL_ORIGINATION,
               friendlyName: "Retell"
             });
-            await fact("origination_sid", o.sid);
+            await fact2("origination_sid", o.sid);
           }
           if (line.facts.number_attached !== true) {
             await ports.provider.attachNumber(acct, line.trunk_sid, line.number_sid);
-            await fact("number_attached", true);
+            await fact2("number_attached", true);
           }
-          await fact("trunk_ready", true);
+          await fact2("trunk_ready", true);
           break;
         }
         case "agent": {
@@ -3247,16 +3605,16 @@ async function runLineSaga(start, ports) {
             nickname: ports.nickname,
             inboundWebhookUrl: ports.inboundWebhookUrl
           });
-          const r = await ports.retell.importNumber(body);
-          if (!r.ok) {
-            const msg = typeof r.body?.message === "string" ? r.body.message : JSON.stringify(r.body ?? {}).slice(0, 200);
-            throw new Error(`Retell import: HTTP ${r.status} ${msg}`);
+          const r2 = await ports.retell.importNumber(body);
+          if (!r2.ok) {
+            const msg = typeof r2.body?.message === "string" ? r2.body.message : JSON.stringify(r2.body ?? {}).slice(0, 200);
+            throw new Error(`Retell import: HTTP ${r2.status} ${msg}`);
           }
           await save({
             facts: {
               ...line.facts,
               retell_imported: true,
-              retell_number_type: typeof r.body?.phone_number_type === "string" ? r.body.phone_number_type : "custom"
+              retell_number_type: typeof r2.body?.phone_number_type === "string" ? r2.body.phone_number_type : "custom"
             }
           });
           break;
@@ -3272,14 +3630,14 @@ async function runLineSaga(start, ports) {
           }
           if (line.facts.number_in_service !== true) {
             await ports.provider.addNumberToService(acct, line.messaging_service_sid, line.number_sid);
-            await fact("number_in_service", true);
+            await fact2("number_in_service", true);
           }
           break;
         }
         case "channel": {
           if (typeof line.facts.channel_id !== "string") {
             const c = await ports.channel.ensure({ agentId: line.retell_agent_id, e164: line.e164, lineId: line.id });
-            await fact("channel_id", c.channelId);
+            await fact2("channel_id", c.channelId);
           }
           if (typeof line.facts.sms_channel_id !== "string") {
             const s = await ports.smsChannel.ensure({
@@ -3287,7 +3645,7 @@ async function runLineSaga(start, ports) {
               lineId: line.id,
               serviceSid: line.messaging_service_sid
             });
-            await fact("sms_channel_id", s.channelId);
+            await fact2("sms_channel_id", s.channelId);
           }
           break;
         }
@@ -3503,9 +3861,9 @@ function buildEmailRequest(i) {
 }
 function isEmailRequest(v) {
   if (!v || typeof v !== "object") return false;
-  const r = v;
+  const r2 = v;
   const strings = (x) => Array.isArray(x) && x.length > 0 && x.every((s) => typeof s === "string" && s.length > 0);
-  return typeof r.from === "string" && strings(r.to) && strings(r.reply_to) && typeof r.subject === "string" && typeof r.text === "string" && typeof r.html === "string" && !!r.headers && typeof r.headers === "object" && Array.isArray(r.tags) && typeof r.idempotency_key === "string" && r.idempotency_key.length > 0;
+  return typeof r2.from === "string" && strings(r2.to) && strings(r2.reply_to) && typeof r2.subject === "string" && typeof r2.text === "string" && typeof r2.html === "string" && !!r2.headers && typeof r2.headers === "object" && Array.isArray(r2.tags) && typeof r2.idempotency_key === "string" && r2.idempotency_key.length > 0;
 }
 var bytesOfBase64 = (s) => {
   const raw = atob(s);
@@ -3567,7 +3925,7 @@ function addressOf(header) {
 var stringsOf = (v) => (Array.isArray(v) ? v : typeof v === "string" ? [v] : []).filter(
   (x) => typeof x === "string" && x.length > 0
 );
-var addressesOf = (v) => stringsOf(v).map((r) => addressOf(r)?.address).filter((a) => !!a);
+var addressesOf = (v) => stringsOf(v).map((r2) => addressOf(r2)?.address).filter((a) => !!a);
 function emailReceivedEventFrom(payload) {
   const p = payload;
   if (!p || p.type !== "email.received" || !p.data || typeof p.data !== "object") return null;
@@ -3661,13 +4019,13 @@ function emailReceiptFrom(payload) {
     detail: { kind: str5(said.type) ?? str5(said.reason), subKind: str5(said.subType), message: str5(said.message) }
   };
 }
-function emailReceiptEffect(r) {
-  const error = { provider: r.type, kind: r.detail.kind, sub_kind: r.detail.subKind, message: r.detail.message };
-  switch (r.type) {
+function emailReceiptEffect(r2) {
+  const error = { provider: r2.type, kind: r2.detail.kind, sub_kind: r2.detail.subKind, message: r2.detail.message };
+  switch (r2.type) {
     case "delivered":
       return { status: "delivered", error: null, suppress: null };
     case "bounced":
-      return { status: "failed", error, suppress: /^permanent$/i.test(r.detail.kind ?? "") ? "hard_bounce" : null };
+      return { status: "failed", error, suppress: /^permanent$/i.test(r2.detail.kind ?? "") ? "hard_bounce" : null };
     case "failed":
       return { status: "failed", error, suppress: null };
     case "suppressed":
@@ -3692,8 +4050,8 @@ function mailDomainsFrom(body) {
   const rows = body?.data;
   if (!Array.isArray(rows)) return null;
   const out = [];
-  for (const r of rows) {
-    const d = r ?? {};
+  for (const r2 of rows) {
+    const d = r2 ?? {};
     const caps = d.capabilities ?? {};
     if (typeof d.name !== "string" || !d.name) continue;
     out.push({
@@ -3728,7 +4086,7 @@ var SEND_TIMEOUT_MS2 = 15e3;
 async function sendEmail(cfg, request) {
   const { idempotency_key, ...body } = request;
   try {
-    const r = await fetch(RESEND_EMAILS, {
+    const r2 = await fetch(RESEND_EMAILS, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${cfg.apiKey}`,
@@ -3738,8 +4096,8 @@ async function sendEmail(cfg, request) {
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(SEND_TIMEOUT_MS2)
     });
-    const raw = await r.text().catch(() => "");
-    if (r.ok) {
+    const raw = await r2.text().catch(() => "");
+    if (r2.ok) {
       const id = (() => {
         try {
           return JSON.parse(raw).id;
@@ -3747,9 +4105,9 @@ async function sendEmail(cfg, request) {
           return null;
         }
       })();
-      return { ok: true, wamid: typeof id === "string" ? id : null, status: r.status };
+      return { ok: true, wamid: typeof id === "string" ? id : null, status: r2.status };
     }
-    return { ok: false, wamid: null, status: r.status, errorBody: raw.slice(0, 500) };
+    return { ok: false, wamid: null, status: r2.status, errorBody: raw.slice(0, 500) };
   } catch (e) {
     return { ok: false, wamid: null, status: 0, errorBody: e instanceof Error ? e.message : String(e) };
   }
@@ -3757,13 +4115,13 @@ async function sendEmail(cfg, request) {
 var RESEND_RECEIVED = "https://api.resend.com/emails/receiving";
 var FETCH_TIMEOUT_MS = 15e3;
 async function fetchReceivedEmail(cfg, receivedId) {
-  const r = await fetch(`${RESEND_RECEIVED}/${encodeURIComponent(receivedId)}`, {
+  const r2 = await fetch(`${RESEND_RECEIVED}/${encodeURIComponent(receivedId)}`, {
     headers: { Authorization: `Bearer ${cfg.apiKey}` },
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
   });
-  if (r.status === 404) return null;
-  const raw = await r.text();
-  if (!r.ok) throw new Error(`resend: received email ${receivedId} answered ${r.status}: ${raw.slice(0, 200)}`);
+  if (r2.status === 404) return null;
+  const raw = await r2.text();
+  if (!r2.ok) throw new Error(`resend: received email ${receivedId} answered ${r2.status}: ${raw.slice(0, 200)}`);
   let body;
   try {
     body = JSON.parse(raw);
@@ -3776,12 +4134,12 @@ async function fetchReceivedEmail(cfg, receivedId) {
 }
 var RESEND_DOMAINS = "https://api.resend.com/domains";
 async function fetchMailDomains(cfg) {
-  const r = await fetch(RESEND_DOMAINS, {
+  const r2 = await fetch(RESEND_DOMAINS, {
     headers: { Authorization: `Bearer ${cfg.apiKey}` },
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
   });
-  const raw = await r.text();
-  if (!r.ok) throw new Error(`resend: domains answered ${r.status}: ${raw.slice(0, 200)}`);
+  const raw = await r2.text();
+  if (!r2.ok) throw new Error(`resend: domains answered ${r2.status}: ${raw.slice(0, 200)}`);
   let body;
   try {
     body = JSON.parse(raw);
@@ -3816,8 +4174,8 @@ var A2P_POLICIES = {
 };
 var TRUSTHUB = "https://trusthub.twilio.com/v1";
 var MESSAGING2 = "https://messaging.twilio.com/v1";
-function brandTypeFor(r) {
-  return registrationPathOf(r) === "sole_proprietor" ? "SOLE_PROPRIETOR" : "STANDARD";
+function brandTypeFor(r2) {
+  return registrationPathOf(r2) === "sole_proprietor" ? "SOLE_PROPRIETOR" : "STANDARD";
 }
 function encodeForm(form2) {
   const q = new URLSearchParams();
@@ -3854,18 +4212,18 @@ function starterProfileRequest(o) {
     }
   };
 }
-function starterEndUserRequest(r) {
+function starterEndUserRequest(r2) {
   return {
     url: `${TRUSTHUB}/EndUsers`,
     method: "POST",
     form: {
-      FriendlyName: `${r.contactFirstName} ${r.contactLastName}`.trim().slice(0, 64),
+      FriendlyName: `${r2.contactFirstName} ${r2.contactLastName}`.trim().slice(0, 64),
       Type: "starter_customer_profile_information",
       Attributes: attrs({
-        first_name: r.contactFirstName,
-        last_name: r.contactLastName,
-        email: r.contactEmail,
-        phone_number: r.contactPhone
+        first_name: r2.contactFirstName,
+        last_name: r2.contactLastName,
+        email: r2.contactEmail,
+        phone_number: r2.contactPhone
       })
     }
   };
@@ -3882,73 +4240,73 @@ function soleProprietorProfileRequest(o) {
     }
   };
 }
-function soleProprietorEndUserRequest(r, industry) {
+function soleProprietorEndUserRequest(r2, industry) {
   return {
     url: `${TRUSTHUB}/EndUsers`,
     method: "POST",
     form: {
-      FriendlyName: `${r.tradeName || r.legalName} \xB7 sole proprietor`.slice(0, 64),
+      FriendlyName: `${r2.tradeName || r2.legalName} \xB7 sole proprietor`.slice(0, 64),
       Type: "sole_proprietor_information",
       Attributes: attrs({
-        brand_name: r.tradeName || r.legalName,
-        mobile_phone_number: r.contactPhone,
+        brand_name: r2.tradeName || r2.legalName,
+        mobile_phone_number: r2.contactPhone,
         vertical: industry
       })
     }
   };
 }
-function businessEndUserRequest(r) {
+function businessEndUserRequest(r2) {
   return {
     url: `${TRUSTHUB}/EndUsers`,
     method: "POST",
     form: {
-      FriendlyName: `${r.legalName} \xB7 business`.slice(0, 64),
+      FriendlyName: `${r2.legalName} \xB7 business`.slice(0, 64),
       Type: "customer_profile_business_information",
       Attributes: attrs({
-        business_name: r.legalName,
+        business_name: r2.legalName,
         social_media_profile_urls: "",
-        website_url: r.websiteUrl,
+        website_url: r2.websiteUrl,
         business_regions_of_operation: "USA_AND_CANADA",
-        business_type: businessTypeOf(r.businessType),
+        business_type: businessTypeOf(r2.businessType),
         business_registration_identifier: "EIN",
         business_identity: "direct_customer",
-        business_industry: industryOf(r.industry),
-        business_registration_number: r.ein ?? ""
+        business_industry: industryOf(r2.industry),
+        business_registration_number: r2.ein ?? ""
       })
     }
   };
 }
-function representativeEndUserRequest(r) {
+function representativeEndUserRequest(r2) {
   return {
     url: `${TRUSTHUB}/EndUsers`,
     method: "POST",
     form: {
-      FriendlyName: `${r.contactFirstName} ${r.contactLastName}`.slice(0, 64),
+      FriendlyName: `${r2.contactFirstName} ${r2.contactLastName}`.slice(0, 64),
       Type: "authorized_representative_1",
       Attributes: attrs({
-        job_position: r.contactJobPosition,
-        last_name: r.contactLastName,
-        phone_number: r.contactPhone,
-        first_name: r.contactFirstName,
-        email: r.contactEmail,
-        business_title: r.contactTitle
+        job_position: r2.contactJobPosition,
+        last_name: r2.contactLastName,
+        phone_number: r2.contactPhone,
+        first_name: r2.contactFirstName,
+        email: r2.contactEmail,
+        business_title: r2.contactTitle
       })
     }
   };
 }
-function addressRequest(accountSid, r) {
+function addressRequest(accountSid, r2) {
   return {
     url: `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Addresses.json`,
     method: "POST",
     form: {
-      FriendlyName: r.legalName.slice(0, 64),
-      CustomerName: r.legalName.slice(0, 64),
-      Street: r.street,
-      ...r.streetSecondary ? { StreetSecondary: r.streetSecondary } : {},
-      City: r.city,
-      Region: r.region,
-      PostalCode: r.postalCode,
-      IsoCountry: r.country
+      FriendlyName: r2.legalName.slice(0, 64),
+      CustomerName: r2.legalName.slice(0, 64),
+      Street: r2.street,
+      ...r2.streetSecondary ? { StreetSecondary: r2.streetSecondary } : {},
+      City: r2.city,
+      Region: r2.region,
+      PostalCode: r2.postalCode,
+      IsoCountry: r2.country
     }
   };
 }
@@ -3967,14 +4325,14 @@ function updateEndUserRequest(sid2, attributes) {
   return { url: `${TRUSTHUB}/EndUsers/${sid2}`, method: "POST", form: { Attributes: attrs(attributes) } };
 }
 var parsed = (req) => JSON.parse(String(req.form?.Attributes ?? "{}"));
-function businessAttributes(r) {
-  return parsed(businessEndUserRequest(r));
+function businessAttributes(r2) {
+  return parsed(businessEndUserRequest(r2));
 }
-function starterAttributes(r) {
-  return parsed(starterEndUserRequest(r));
+function starterAttributes(r2) {
+  return parsed(starterEndUserRequest(r2));
 }
-function representativeAttributes(r) {
-  return parsed(representativeEndUserRequest(r));
+function representativeAttributes(r2) {
+  return parsed(representativeEndUserRequest(r2));
 }
 function assignRequest(bundleSid, objectSid) {
   return {
@@ -4434,21 +4792,21 @@ function reviewIdOf(name) {
   const last = s.split("/").pop();
   return last && last.length > 0 ? last : null;
 }
-function reviewOf(r) {
-  const id = reviewIdOf(r.name);
+function reviewOf(r2) {
+  const id = reviewIdOf(r2.name);
   if (!id) return null;
-  const author = obj(r.authorAttribution);
-  const text = localized(r.text);
+  const author = obj(r2.authorAttribution);
+  const text = localized(r2.text);
   return {
     review_id: id,
-    rating: num(r.rating),
+    rating: num(r2.rating),
     author: str2(author?.displayName),
     author_uri: str2(author?.uri),
     author_photo_uri: str2(author?.photoUri),
     text: text.text,
     language_code: text.languageCode,
-    published_at: str2(r.publishTime),
-    maps_uri: str2(r.googleMapsUri)
+    published_at: str2(r2.publishTime),
+    maps_uri: str2(r2.googleMapsUri)
   };
 }
 function pointOf(v) {
@@ -4495,7 +4853,7 @@ function parsePlaceDetails(json) {
   const id = str2(p?.id);
   const name = localized(p?.displayName).text;
   if (!p || !id || !name) throw new PlacesError(502, "Google answered without a place");
-  const reviews = Array.isArray(p.reviews) ? p.reviews.map((r) => obj(r) ? reviewOf(obj(r)) : null).filter((r) => r !== null) : [];
+  const reviews = Array.isArray(p.reviews) ? p.reviews.map((r2) => obj(r2) ? reviewOf(obj(r2)) : null).filter((r2) => r2 !== null) : [];
   return {
     place_id: id,
     name,
@@ -4520,10 +4878,10 @@ function refusal2(status, body) {
   return new PlacesError(status, message);
 }
 async function call(http, req) {
-  const r = await http(req);
-  if (r.status < 200 || r.status >= 300) throw refusal2(r.status, r.body);
+  const r2 = await http(req);
+  if (r2.status < 200 || r2.status >= 300) throw refusal2(r2.status, r2.body);
   try {
-    return JSON.parse(r.body);
+    return JSON.parse(r2.body);
   } catch {
     throw new PlacesError(502, "Google answered with something other than JSON");
   }
@@ -4536,13 +4894,13 @@ async function getPlace(http, key, placeId, opts = {}) {
 }
 function placesFetch(fetchImpl = fetch, timeoutMs = PLACES_TIMEOUT_MS) {
   return async (req) => {
-    const r = await fetchImpl(req.url, {
+    const r2 = await fetchImpl(req.url, {
       method: req.method,
       headers: req.headers,
       body: req.body,
       signal: AbortSignal.timeout(timeoutMs)
     });
-    return { status: r.status, body: await r.text() };
+    return { status: r2.status, body: await r2.text() };
   };
 }
 var PLACE_ID = /^[A-Za-z0-9_-]{10,300}$/;
@@ -4556,15 +4914,15 @@ function overall(rating, count) {
 }
 function reviewBells(news, counted, listing) {
   if (news.length > 0 && news.length <= REVIEW_BELL_MAX) {
-    return news.map((r) => ({
-      title: `New on Google: ${starsOf(r.rating)} from ${r.author?.trim() || "a customer"}`,
-      body: `${r.text?.trim() ? `\u201C${reviewSnippet(r.text, 280)}\u201D` : "A rating without words."}
+    return news.map((r2) => ({
+      title: `New on Google: ${starsOf(r2.rating)} from ${r2.author?.trim() || "a customer"}`,
+      body: `${r2.text?.trim() ? `\u201C${reviewSnippet(r2.text, 280)}\u201D` : "A rating without words."}
 ${overall(listing.rating, listing.review_count)}.`,
-      review_id: r.review_id
+      review_id: r2.review_id
     }));
   }
   if (news.length > REVIEW_BELL_MAX) {
-    const who = news.map((r) => r.author?.trim() || "a customer").slice(0, 5).join(", ");
+    const who = news.map((r2) => r2.author?.trim() || "a customer").slice(0, 5).join(", ");
     return [
       {
         title: `${news.length} new reviews on Google`,
@@ -4593,8 +4951,8 @@ function planListingCheck(before, knownIds, fresh, day, nowMs, opts = {}) {
   const first = !before.checked_at;
   const sinceMs = before.checked_at ? Date.parse(before.checked_at) : NaN;
   const carriesReviews = opts.reviews !== false;
-  const unseen = carriesReviews ? fresh.reviews.filter((r) => !knownIds.has(r.review_id)) : [];
-  const news = first || Number.isNaN(sinceMs) ? [] : unseen.filter((r) => writtenSince(r.published_at, sinceMs));
+  const unseen = carriesReviews ? fresh.reviews.filter((r2) => !knownIds.has(r2.review_id)) : [];
+  const news = first || Number.isNaN(sinceMs) ? [] : unseen.filter((r2) => writtenSince(r2.published_at, sinceMs));
   const counted = first || typeof before.review_count !== "number" || typeof fresh.review_count !== "number" ? 0 : Math.max(0, fresh.review_count - before.review_count);
   return {
     listing: {
@@ -4609,7 +4967,7 @@ function planListingCheck(before, knownIds, fresh, day, nowMs, opts = {}) {
       facts: fresh.facts
     },
     day: { day, rating: fresh.rating, review_count: fresh.review_count ?? 0 },
-    reviews: carriesReviews ? fresh.reviews.map((r) => ({ ...r, last_seen_at: now })) : [],
+    reviews: carriesReviews ? fresh.reviews.map((r2) => ({ ...r2, last_seen_at: now })) : [],
     fresh: news,
     counted,
     bells: carriesReviews ? reviewBells(news, counted, fresh) : []
@@ -4619,12 +4977,12 @@ function planProfileSync(before, known, page, day, nowMs) {
   const now = new Date(nowMs).toISOString();
   const first = !before.last_synced_at;
   const sinceMs = before.last_synced_at ? Date.parse(before.last_synced_at) : NaN;
-  const unseen = page.reviews.filter((r) => !known.has(r.review_id));
-  const news = first || Number.isNaN(sinceMs) ? [] : unseen.filter((r) => writtenSince(r.created_at, sinceMs));
-  const replied = page.reviews.filter((r) => {
-    const k = known.get(r.review_id);
-    return !!k && !!r.reply_text && r.reply_text !== k.reply_text;
-  }).map((r) => r.review_id);
+  const unseen = page.reviews.filter((r2) => !known.has(r2.review_id));
+  const news = first || Number.isNaN(sinceMs) ? [] : unseen.filter((r2) => writtenSince(r2.created_at, sinceMs));
+  const replied = page.reviews.filter((r2) => {
+    const k = known.get(r2.review_id);
+    return !!k && !!r2.reply_text && r2.reply_text !== k.reply_text;
+  }).map((r2) => r2.review_id);
   const rating = page.average_rating;
   const count = page.total_count;
   const listing = typeof count === "number" || typeof rating === "number" ? {
@@ -4636,7 +4994,7 @@ function planProfileSync(before, known, page, day, nowMs) {
   return {
     listing,
     day: typeof count === "number" ? { day, rating: listing?.rating ?? null, review_count: count } : null,
-    reviews: page.reviews.map((r) => ({ ...r, last_seen_at: now })),
+    reviews: page.reviews.map((r2) => ({ ...r2, last_seen_at: now })),
     fresh: news,
     replied,
     bells: reviewBells(news, 0, { rating: listing?.rating ?? null, review_count: count }),
@@ -4864,26 +5222,26 @@ function starRatingNumber(v) {
 function parseReviewsPage(json) {
   const o = obj2(json);
   const list = Array.isArray(o?.reviews) ? o.reviews : [];
-  const reviews = list.map((r) => obj2(r)).filter((r) => !!r).map((r) => {
-    const name = str3(r.name);
-    const id = str3(r.reviewId) ?? (name ? name.split("/").pop() ?? null : null);
+  const reviews = list.map((r2) => obj2(r2)).filter((r2) => !!r2).map((r2) => {
+    const name = str3(r2.name);
+    const id = str3(r2.reviewId) ?? (name ? name.split("/").pop() ?? null : null);
     if (!name || !id) return null;
-    const who = obj2(r.reviewer);
-    const reply = obj2(r.reviewReply);
+    const who = obj2(r2.reviewer);
+    const reply = obj2(r2.reviewReply);
     return {
       name,
       review_id: id,
-      rating: starRatingNumber(r.starRating),
+      rating: starRatingNumber(r2.starRating),
       author: who?.isAnonymous === true ? null : str3(who?.displayName),
       author_photo_uri: str3(who?.profilePhotoUrl),
       anonymous: who?.isAnonymous === true,
-      text: str3(r.comment),
-      created_at: str3(r.createTime),
-      updated_at: str3(r.updateTime),
+      text: str3(r2.comment),
+      created_at: str3(r2.createTime),
+      updated_at: str3(r2.updateTime),
       reply_text: str3(reply?.comment),
       replied_at: str3(reply?.updateTime)
     };
-  }).filter((r) => r !== null);
+  }).filter((r2) => r2 !== null);
   const avg = typeof o?.averageRating === "number" ? o.averageRating : null;
   const total = typeof o?.totalReviewCount === "number" ? o.totalReviewCount : null;
   return { reviews, average_rating: avg, total_count: total, next_page_token: str3(o?.nextPageToken) };
@@ -4900,11 +5258,11 @@ function refusal3(status, body) {
   return new PlacesError(status, message);
 }
 async function call2(http, req) {
-  const r = await http(req);
-  if (r.status < 200 || r.status >= 300) throw refusal3(r.status, r.body);
-  if (!r.body.trim()) return {};
+  const r2 = await http(req);
+  if (r2.status < 200 || r2.status >= 300) throw refusal3(r2.status, r2.body);
+  if (!r2.body.trim()) return {};
   try {
-    return JSON.parse(r.body);
+    return JSON.parse(r2.body);
   } catch {
     throw new PlacesError(502, "Google answered with something other than JSON");
   }
@@ -4913,9 +5271,9 @@ async function listAccounts(http, token) {
   const out = [];
   let page = null;
   for (let i = 0; i < 5; i++) {
-    const r = parseAccounts(await call2(http, accountsRequest(token, page)));
-    out.push(...r.accounts);
-    page = r.next;
+    const r2 = parseAccounts(await call2(http, accountsRequest(token, page)));
+    out.push(...r2.accounts);
+    page = r2.next;
     if (!page) break;
   }
   return out;
@@ -4924,9 +5282,9 @@ async function listLocations(http, token, accountName) {
   const out = [];
   let page = null;
   for (let i = 0; i < 5; i++) {
-    const r = parseLocations(await call2(http, locationsRequest(token, accountName, page)));
-    out.push(...r.locations);
-    page = r.next;
+    const r2 = parseLocations(await call2(http, locationsRequest(token, accountName, page)));
+    out.push(...r2.locations);
+    page = r2.next;
     if (!page) break;
   }
   return out;
@@ -4937,13 +5295,13 @@ async function listReviews(http, token, parent, maxPages = GBP_REVIEWS_MAX_PAGES
   let avg = null;
   let total = null;
   for (let i = 0; i < Math.max(1, maxPages); i++) {
-    const r = parseReviewsPage(await call2(http, reviewsRequest(token, parent, page)));
-    all.push(...r.reviews);
+    const r2 = parseReviewsPage(await call2(http, reviewsRequest(token, parent, page)));
+    all.push(...r2.reviews);
     if (i === 0) {
-      avg = r.average_rating;
-      total = r.total_count;
+      avg = r2.average_rating;
+      total = r2.total_count;
     }
-    page = r.next_page_token;
+    page = r2.next_page_token;
     if (!page) break;
   }
   return { reviews: all, average_rating: avg, total_count: total, next_page_token: page };

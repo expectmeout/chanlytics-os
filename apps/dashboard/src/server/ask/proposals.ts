@@ -24,6 +24,9 @@ import {
   EVERYONE_LABEL,
   PEOPLE_LISTS,
   savedListIds,
+  savedListLookup,
+  ruleLists,
+  asListRule,
   PERSON_MODES,
   audienceMembers,
   broadcastName,
@@ -68,7 +71,7 @@ import {
   triggerOf,
   zoneMidnight,
 } from "@chanlytics/contracts";
-import { listPolicies, savedListFor } from "@chanlytics/db";
+import { listPolicies, savedListFor, savedListsFor } from "@chanlytics/db";
 import type { ToolContext, ToolDef } from "./tools";
 import { planFacts } from "../leads";
 import { audiencePoolOnce } from "../audience";
@@ -802,14 +805,16 @@ async function proposeBroadcast(t: ToolContext, input: Record<string, unknown>):
 
   // The audience, counted the way the route will count it.
   // The pool and the list the route will read, so the count here is the count it enrols.
-  const { rows, calendar } = await audiencePoolOnce(t.memo, t.ctx, t.tenantId, t.timezone, t.now);
+  const { rows, listCtx } = await audiencePoolOnce(t.memo, t.ctx, t.tenantId, t.timezone, t.now);
   let savedIds: Set<string> | null = null;
   let label = EVERYONE_LABEL;
   if (kind === "saved") {
     const seg = await savedListFor(t.ctx.supabase, t.tenantId, audienceId!);
     if (!seg) return refuse("no such list; list_audiences names them");
-    // A smart list's people by its rule, the way the send finds them (savedListIds).
-    savedIds = savedListIds(seg, rows, t.now.getTime(), calendar.state === "ok");
+    // A smart list's people by its rule, the way the send finds them (savedListIds), with the lists it reads.
+    const rule = asListRule(seg.rule);
+    const others = rule && ruleLists(rule).length ? await savedListsFor(t.ctx.supabase, t.tenantId) : [];
+    savedIds = savedListIds(seg, rows, listCtx, savedListLookup(others));
     label = seg.name;
   } else if (kind === "list") {
     label = PEOPLE_LISTS.find((l) => l.id === audienceId)!.label;

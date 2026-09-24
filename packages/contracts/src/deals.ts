@@ -662,6 +662,46 @@ export function noProposalSince(deal: Pick<DealVM, "stage" | "sinceMs"> | null |
 }
 
 /**
+ * One person's consultation waits on the business (0008): it ended in the last CONSULT_FOLLOW_DAYS days and no proposal
+ * came after it (noProposalSince). The one row-level rule the week's count (consultationsWithoutProposal) and the deal
+ * stage a list reads (dealStageOf) both ask.
+ */
+export function consultationHeld(
+  r: { consultedMs: number | null; deal: Pick<DealVM, "stage" | "sinceMs"> | null },
+  nowMs: number,
+): boolean {
+  const at = r.consultedMs;
+  if (typeof at !== "number" || !Number.isFinite(at)) return false;
+  if (at > nowMs || nowMs - at > CONSULT_FOLLOW_DAYS * DAY_MS) return false;
+  return noProposalSince(r.deal, at);
+}
+
+/** Where a person stands on the way to a deal, as the Pipeline groups them: a consultation, or their deal's stage. */
+export type DealStandingStage = "consultation" | DealStage;
+
+/**
+ * Which of the Pipeline's groups a person is in (pipeline.ts pipelineOf), and so what a list's deal stage fact reads
+ * (decision 0009): a consultation held with no proposal since, then a proposal out or a client, then a consultation
+ * ahead of someone with nothing open (something new begins, whatever they passed on or ended before), then the stage of
+ * a deal that passed or ended. Null for someone with none of these. One rule, so the Pipeline's Consultations and
+ * People's Consultations list are one set of people.
+ */
+export function dealStageOf(
+  r: {
+    consultedMs: number | null;
+    deal: Pick<DealVM, "stage" | "sinceMs"> | null;
+    consultAhead: { startMs: number; allDay: boolean } | null;
+  },
+  nowMs: number,
+): DealStandingStage | null {
+  if (consultationHeld(r, nowMs)) return "consultation";
+  const d = r.deal;
+  if (d && (d.stage === "proposed" || d.stage === "won")) return d.stage;
+  if (r.consultAhead) return "consultation";
+  return d ? d.stage : null;
+}
+
+/**
  * The next step nobody has taken (0008): a consultation that ended in the last CONSULT_FOLLOW_DAYS days with no
  * proposal since (noProposalSince), the oldest first, a tie by name and then id, which is the order the Pipeline lists
  * them in and Today names its first two. `consultedMs` is when their last visit, a consultation, ended; a row without
@@ -677,12 +717,7 @@ export function consultationsWithoutProposal<
 >(rows: readonly T[], nowMs: number): T[] {
   const endOf = (r: T): number => r.consultedMs as number;
   return rows
-    .filter((r) => {
-      const at = r.consultedMs;
-      if (typeof at !== "number" || !Number.isFinite(at)) return false;
-      if (at > nowMs || nowMs - at > CONSULT_FOLLOW_DAYS * DAY_MS) return false;
-      return noProposalSince(r.deal, at);
-    })
+    .filter((r) => consultationHeld(r, nowMs))
     .sort(
       (a, b) =>
         endOf(a) - endOf(b) ||

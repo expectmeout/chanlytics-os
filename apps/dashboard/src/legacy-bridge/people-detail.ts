@@ -65,7 +65,9 @@ export function personDetail(id: string): Promise<PersonVM | null> {
   return people.through(id, async () => {
     // Its days and times by the business's clock (zone.ts), read beside the person rather than after.
     const [r, tz] = await Promise.all([api()("GET contacts/[id]", { params: { id } }), workspaceZone()]);
-    if (r.ok) return toPersonVM(r.data.person, tz);
+    // For the member looking (__ME): a teammate's thread is theirs, not waiting on you.
+    const me = (window as unknown as { __ME?: { id?: string | null } }).__ME?.id ?? null;
+    if (r.ok) return toPersonVM(r.data.person, tz, new Date(), me);
     // Gone: the copy this tab kept of them goes too, or the next open would paint someone who is not there.
     if (r.status === 404) {
       people.forget(id);

@@ -109,6 +109,11 @@ function shiftDay(key: string, days: number): string {
     .slice(0, 10);
 }
 
+/** The weekday of a business day, 0 Sunday to 6 Saturday: the date alone, never a clock. */
+function dayOfWeek(key: string): number {
+  return new Date(Date.UTC(Number(key.slice(0, 4)), Number(key.slice(5, 7)) - 1, Number(key.slice(8, 10)))).getUTCDay();
+}
+
 /** The business's day at an instant: "2026-09-06". */
 export function zoneDayKey(atMs: number, tz: string): string {
   return wall(atMs, tz).key;
@@ -162,6 +167,23 @@ function daysBetween(fromKey: string, toKey: string): number {
 /** How many business days a moment is from today: 0 today, -1 yesterday, 1 tomorrow. */
 function daysFromToday(atMs: number, tz: string, nowMs: number): number {
   return daysBetween(zoneDayKey(nowMs, tz), zoneDayKey(atMs, tz));
+}
+
+/**
+ * Whole days from one moment to another by the business's calendar: the dates each falls on, never a count of 24-hour
+ * blocks. Eleven at night yesterday is 1 day ago at one in the morning. What a list's day fact counts in
+ * (list-rules.ts): one clock, the workspace's zone (decision 0009).
+ */
+export function localDaysBetween(fromMs: number, toMs: number, tz: string): number {
+  return daysBetween(zoneDayKey(fromMs, tz), zoneDayKey(toMs, tz));
+}
+
+/** Whether a moment falls in the business's week, Monday to Sunday, that `nowMs` is in. */
+export function inLocalWeek(atMs: number, tz: string, nowMs: number): boolean {
+  const today = zoneDayKey(nowMs, tz);
+  const monday = shiftDay(today, -((dayOfWeek(today) + 6) % 7));
+  const d = daysBetween(monday, zoneDayKey(atMs, tz));
+  return d >= 0 && d <= 6;
 }
 
 /**
