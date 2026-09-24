@@ -547,6 +547,78 @@ test("a workspace that confirms its own bookings is not given times to read out"
   }
 });
 
+test("a business with no booking link (one that quotes each job): no calendar is the caller's details taken, and the times it does read end in them", async () => {
+  const T = "cccccccc-0000-4000-8000-00000000b3b2";
+  const AGENT = "agent_availability_no_link";
+  setPg(
+    fakeDb(
+      {
+        tenants: [{ id: T, name: "Harbor Moving", timezone: TZ, status: "active" }],
+        tenant_channels: [
+          {
+            id: "voice-nl",
+            tenant_id: T,
+            kind: "voice",
+            external_id: AGENT,
+            number_e164: "+13055550100",
+            status: "active",
+            credentials_ref: null,
+            config: {},
+          },
+        ],
+        tenant_config: [
+          {
+            tenant_id: T,
+            config: {
+              brain: {
+                business_name: "Harbor Moving",
+                system_prompt: "Answer as the front desk of Harbor Moving, which quotes each move before it is booked.",
+                fallbacks: { greeting: "g", error: "e", non_text: "n" },
+              },
+            },
+          },
+        ],
+        policies: [],
+        google_listings: [],
+      },
+      {},
+      { runtime_stamp: () => "stamp-no-link" },
+    ),
+  );
+  try {
+    const res = await door.POST(
+      new Request("https://chanlytics-messaging.vercel.app/api/retell-availability", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-fn-secret": process.env.RETELL_FN_SECRET },
+        body: JSON.stringify({ call: { call_id: "call_no_link", agent_id: AGENT }, args: {} }),
+      }),
+    );
+    assert.equal(res.status, 200);
+    assert.equal(
+      (await res.json()).result,
+      "There is no calendar to check. Take their name, what they need, and where and when, and say the team will follow up.",
+    );
+  } finally {
+    setPg(null);
+  }
+  const now = new Date(ny(2026, 9, 9, 8));
+  const openings = freeWindows({
+    hours: { wed: { open: "09:00", close: "18:00" } },
+    tz: TZ,
+    busy: [],
+    rules: { lead_hours: 0, max_days_ahead: 1 },
+    now,
+  });
+  const said = availabilityAnswer({ openings, tz: TZ, daysAhead: 14 }, undefined, {}, { hasBookingLink: false }).result;
+  assert.ok(
+    said.endsWith(
+      "then take their name, what they need, and where and when so the team can confirm one. Never confirm a slot yourself; the calendar decides.",
+    ),
+    said,
+  );
+  assert.doesNotMatch(said, /booking link/);
+});
+
 test("a client is offered the service itself; a stranger the consultation; the answer takes the flag", () => {
   const services = [
     { name: "Ad management", duration_min: 60 },

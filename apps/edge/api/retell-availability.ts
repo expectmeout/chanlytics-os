@@ -19,6 +19,7 @@ import { openingsData } from "../lib/calendar/availability.js";
 import {
   describeOpenings,
   filterOpenings,
+  NO_LINK_DETAILS,
   normalizePhone,
   offerFor,
   offerLead,
@@ -34,6 +35,12 @@ const CANNOT_SEE =
   "I can't see the calendar right now. Offer to send the booking link to the caller's WhatsApp — it shows the open times — or to have someone call back.";
 const NO_CALENDAR =
   "There is no calendar to check. Offer to send the booking link to the caller's WhatsApp — it shows the open times.";
+/**
+ * The same two for a business with no booking link (the first run's decision 2): with nothing to send, a caller who
+ * cannot be offered times is offered a call back, or has their details taken for the team.
+ */
+const CANNOT_SEE_NO_LINK = "I can't see the calendar right now. Offer to have someone call back.";
+const NO_CALENDAR_NO_LINK = `There is no calendar to check. Take ${NO_LINK_DETAILS}, and say the team will follow up.`;
 /**
  * The workspace confirms its own bookings (Autonomy -> Booking -> Ask me first).
  *
@@ -112,7 +119,7 @@ export async function POST(request: Request): Promise<Response> {
   const hasBookingLink = !!rt.brain?.booking_link;
   if (!rt.calendar?.ical_url) {
     L.info("retell_availability_no_calendar", { tenant: routed.tenantId });
-    return json(200, { result: NO_CALENDAR });
+    return json(200, { result: hasBookingLink ? NO_CALENDAR : NO_CALENDAR_NO_LINK });
   }
   // The caller, by the number the booking-link door reads from the same body shape (retell-fn): a client is offered the
   // service itself, not a consultation (0004). Never fatal: no deal is the stranger's answer. Read beside the feed, not
@@ -124,7 +131,7 @@ export async function POST(request: Request): Promise<Response> {
   ]);
   if (!data) {
     L.info("retell_availability_unavailable", { tenant: routed.tenantId });
-    return json(200, { result: CANNOT_SEE });
+    return json(200, { result: hasBookingLink ? CANNOT_SEE : CANNOT_SEE_NO_LINK });
   }
   const answer = availabilityAnswer(data, rt.brain?.profile, args, { client: deal?.stage === "won", hasBookingLink });
   L.info("retell_availability", {
