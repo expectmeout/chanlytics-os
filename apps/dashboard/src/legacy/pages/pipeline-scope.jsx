@@ -22,8 +22,10 @@
 // The table's columns: People's own person cell, then the deal's service, its value in tabular figures, where it stands
 // (its steps, `track`, and how long it has stood there), where they came from and the day a proposal stands until
 // (a member shows those two with Columns), its one chip, whose heading only a screen reader hears (the house's
-// .rec-sr: no one word is right for "Fri 2:00 PM" and "Since Sep 18" alike), and the row's own menu. Person, Value
-// and Stage sort within each group (contracts pipelineSorted); Stage is the Pipeline's own order, as the page opens.
+// .rec-sr: no one word is right for "Fri 2:00 PM" and "Since Sep 18" alike), and the row's own menu. Their next
+// step (0007, amended) stands after Stage: what, then when, the day in the warn ink once it has come. Person, Value,
+// Stage and Next step sort within each group (contracts pipelineSorted); Stage is the Pipeline's own order, as the
+// page opens.
 // Made once, from contracts' headings, so the list page's memo sees one list from one draw to the next.
 let PIPE_COLUMNS = null;
 const pipeColumns = () => {
@@ -36,6 +38,11 @@ const pipeColumns = () => {
     { key: "stage", label: w.stage, sortable: true, cell: (r) => (
       <td key="stage" className="shrink dim tabular pipe-stage">
         <span className="pipe-stage-in">{window.PipelineTrack ? <window.PipelineTrack steps={r.track} /> : null}<span data-testid="pipe-in-stage">{r.inStage}</span></span>
+      </td>
+    ) },
+    { key: "next", label: w.next, sortable: true, cell: (r) => (
+      <td key="next" className="pipe-next" data-due={r.next ? r.next.due : undefined} data-testid="pipe-next">
+        {r.next ? <span className="pipe-next-in"><span className="pipe-next-words">{r.next.words}</span><span className="pipe-next-when">{r.next.when}</span></span> : null}
       </td>
     ) },
     { key: "came", label: w.came, sortable: false, on: false, cell: (r) => <td key="came" className="dim pipe-came" data-testid="pipe-came">{r.person.cameFrom ? r.person.cameFrom.label : ""}</td> },
@@ -52,7 +59,7 @@ const pipeColumns = () => {
 };
 
 // A row on a phone is People's card (plRowCard): the face and the name with the chip beside them; the service under
-// them; then the deal's steps, the value and the time in stage.
+// them; then the deal's steps, the value and the time in stage, and their next step.
 const pipeCardCell = (r) => {
   const p = r.person;
   return window.plRowCard({
@@ -66,6 +73,7 @@ const pipeCardCell = (r) => {
       r.track.length && window.PipelineTrack ? <window.PipelineTrack key="track" steps={r.track} /> : null,
       r.value ? <span key="value" className="pipe-card-value" data-testid="pipe-value">{r.value}</span> : null,
       r.inStage ? <span key="stage" className="pl-card-last" data-testid="pipe-in-stage">{r.inStage}</span> : null,
+      r.next ? <span key="next" className="pipe-row-next" data-due={r.next.due} data-testid="pipe-next">{`${r.next.words} · ${r.next.when}`}</span> : null,
     ],
   });
 };

@@ -34,6 +34,7 @@ import {
   type DealVM,
 } from "./deals";
 import { repliesWords, type PersonRowVM, type PersonVM } from "./people";
+import { stepDayOf, type StepDue } from "./steps";
 import type { Tone } from "./tone";
 
 export type PipelineGroupKey = "consultations" | "proposals" | "clients" | "closed";
@@ -46,7 +47,7 @@ export const PIPELINE_GROUPS: readonly PipelineGroupKey[] = ["consultations", "p
  */
 export type PipelineSource = Pick<
   PersonRowVM,
-  "id" | "name" | "deal" | "askedMs" | "consultedMs" | "lastVisitMs" | "consultAhead" | "calendarTz"
+  "id" | "name" | "deal" | "askedMs" | "consultedMs" | "lastVisitMs" | "consultAhead" | "calendarTz" | "nextStep"
 >;
 
 /** The one thing a row says beside its facts: warn where something waits on the owner, info for what is on its way, plain for a fact. */
@@ -75,6 +76,24 @@ export interface PipelineRowVM<T extends PipelineSource = PersonRowVM> {
    * and the chip say in words, so a screen reader is not read it again.
    */
   track: PipelineStep[];
+  /**
+   * Their next step (0007, amended): the earliest open note with a day, as People's row carries it, its day judged
+   * again as the Pipeline is drawn. Null without one.
+   */
+  next: PipelineNextVM | null;
+}
+
+/** A row's next step, as its column, its card and the peek say it. */
+export interface PipelineNextVM {
+  id: string;
+  words: string;
+  /** The day itself, "2026-09-26", for the order; `when` is how it is said: "Due Thu", "Overdue since Mon". */
+  day: string;
+  when: string;
+  due: StepDue;
+  forWho: string | null;
+  /** The deal it moves, when it names one. */
+  dealId: string | null;
 }
 
 /** One step on a row's track: done, where the deal stands now, or still ahead. */
@@ -150,6 +169,9 @@ export const PIPELINE_WORDS = {
     stage: "Stage",
     came: "Came from",
     valid: "Valid until",
+    // The notes card's own words (NOTE_WORDS.next), written out: read off it, this table would be kept in every
+    // package that bundles contracts, as GROUP_WORDS would (pipeline.test.mjs holds the two together).
+    next: "Next step",
     chip: "Where it stands",
     /** The row's own menu, as a screen reader hears its heading. */
     acts: "More",
@@ -205,6 +227,8 @@ export const PIPELINE_WORDS = {
     waitingOnYou: "Waiting on you",
     waiting: "Nothing back in a week",
     lapsed: "Lapsed",
+    // A next step whose day has come (NOTE_WORDS.stepsDue, written out for the same reason).
+    steps: "Steps due",
     services: "Services",
   },
   /** New proposal: the button, and the picker it opens before the deal sheet. */
@@ -277,13 +301,28 @@ function dealTrack(r: PipelineSource, d: DealVM, chip: PipelineChip | null): Pip
     : [...held, step("proposal", "done"), step("client", "current", "ok")];
 }
 
+/** A row as its group's builder makes it; the group gives it its next step (pipelineOf). */
+type PipelineRowBody<T extends PipelineSource> = Omit<PipelineRowVM<T>, "next">;
+
+/** A row's next step, from People's row, its day judged again at `nowMs`; null without one. */
+function nextOf(p: PipelineSource, tz: string, nowMs: number): PipelineNextVM | null {
+  const s = p.nextStep;
+  if (!s) return null;
+  const day = stepDayOf(s.day.day, tz, nowMs);
+  if (!day) return null;
+  return { id: s.id, words: s.words, day: day.day, when: day.words, due: day.due, forWho: s.forWho, dealId: s.dealId };
+}
+
+/** A row whose next step's day has come: today, or before it. */
+const stepDue = (r: { next: PipelineNextVM | null }): boolean => !!r.next && r.next.due !== "ahead";
+
 function dealRow<T extends PipelineSource>(
   r: T,
   d: DealVM,
   chip: PipelineChip | null,
   nowMs: number,
   group: PipelineGroupKey,
-): PipelineRowVM<T> {
+): PipelineRowBody<T> {
   return {
     id: r.id,
     group,
@@ -302,7 +341,7 @@ function dealRow<T extends PipelineSource>(
  * A consultation held with no proposal since: when, and the step not taken yet. The rule measures from its end
  * (`consultedMs`); the words date it from its start, the day it was held, so one that took Monday reads Monday.
  */
-function heldRow<T extends PipelineSource>(r: T, endMs: number, tz: string, nowMs: number): PipelineRowVM<T> {
+function heldRow<T extends PipelineSource>(r: T, endMs: number, tz: string, nowMs: number): PipelineRowBody<T> {
   const heldMs = r.lastVisitMs !== null && Number.isFinite(r.lastVisitMs) ? r.lastVisitMs : endMs;
   return {
     id: r.id,
@@ -324,7 +363,7 @@ function aheadRow<T extends PipelineSource>(
   c: { startMs: number; allDay: boolean },
   tz: string,
   nowMs: number,
-): PipelineRowVM<T> {
+): PipelineRowBody<T> {
   const zone = zoneOf(r, tz);
   const when = c.allDay ? clockNear(c.startMs, zone, nowMs) : clockNearWhen(c.startMs, zone, nowMs);
   return {
@@ -394,6 +433,7 @@ export function pipelineOf<T extends PipelineSource>(
   const svc = serviceOf(view);
   const shows = (key: PipelineGroupKey): boolean =>
     view === "all" ||
+    view === "steps" ||
     view === key ||
     svc !== null ||
     ((view === "waiting" || view === "lapsed") && key === "proposals");
@@ -409,15 +449,21 @@ export function pipelineOf<T extends PipelineSource>(
         : bySvc(proposals);
   const shownClients = shows("clients") ? bySvc(clients) : [];
   const shownClosed = shows("closed") ? bySvc(closed) : [];
-  const group = (key: PipelineGroupKey, rs: PipelineRowVM<T>[], meta: string | null): PipelineGroupVM<T> => ({
-    key,
-    label: GROUP_WORDS[key],
-    count: rs.length,
-    meta,
-    // Folded on the whole Pipeline only: a view someone picked shows what they picked.
-    collapsed: key === "closed" && view === "all",
-    rows: rs,
-  });
+  // Each row with its next step, its day said against now; under Steps due, only the rows whose step's day has come,
+  // and a group's meta (what its deals come to) is the whole group's, so it is not said of a part of it.
+  const group = (key: PipelineGroupKey, body: PipelineRowBody<T>[], meta: string | null): PipelineGroupVM<T> => {
+    const all = body.map((x) => ({ ...x, next: nextOf(x.person, tz, nowMs) }));
+    const rs = view === "steps" ? all.filter(stepDue) : all;
+    return {
+      key,
+      label: GROUP_WORDS[key],
+      count: rs.length,
+      meta: view === "steps" ? null : meta,
+      // Folded on the whole Pipeline only: a view someone picked shows what they picked.
+      collapsed: key === "closed" && view === "all",
+      rows: rs,
+    };
+  };
   const groups = [
     group(
       "consultations",
@@ -467,11 +513,17 @@ export function pipelineOf<T extends PipelineSource>(
  * What the rail picks and the address carries: the whole Pipeline, one group, what waits on the owner (nothing back in
  * a week, lapsed), or one service's deals (`svc:<its name>`).
  */
-export type PipelineView = "all" | PipelineGroupKey | "waiting" | "lapsed" | `svc:${string}`;
+export type PipelineView = "all" | PipelineGroupKey | "waiting" | "lapsed" | "steps" | `svc:${string}`;
 
 // Built inside a call marked pure, as GROUP_WORDS is: a spread is a side effect to the bundler, and unmarked this
 // list, and the groups with it, stayed in the channels, core, db and jobs dists.
-const VIEW_KINDS: readonly string[] = /* @__PURE__ */ (() => ["all", ...PIPELINE_GROUPS, "waiting", "lapsed"])();
+const VIEW_KINDS: readonly string[] = /* @__PURE__ */ (() => [
+  "all",
+  ...PIPELINE_GROUPS,
+  "waiting",
+  "lapsed",
+  "steps",
+])();
 
 export function isPipelineView(s: unknown): s is PipelineView {
   return typeof s === "string" && (VIEW_KINDS.includes(s) || (s.startsWith("svc:") && s.slice(4).trim() !== ""));
@@ -488,6 +540,7 @@ export function pipelineViewLabel(view: PipelineView): string {
   if (svc !== null) return svc;
   if (view === "waiting") return PIPELINE_WORDS.rail.waiting;
   if (view === "lapsed") return PIPELINE_WORDS.rail.lapsed;
+  if (view === "steps") return PIPELINE_WORDS.rail.steps;
   if (view === "all") return PIPELINE_WORDS.rail.all;
   return GROUP_WORDS[view as PipelineGroupKey];
 }
@@ -571,9 +624,12 @@ export function pipelineRail<T extends PipelineSource>(vm: PipelineVM<T>, nowMs:
   const proposals = vm.groups.find((g) => g.key === "proposals")?.rows ?? [];
   const waiting = proposals.filter((r) => waitingOnProposal(r.person, nowMs)).length;
   const lapsed = proposals.filter((r) => !!r.person.deal?.validUntil?.lapsed).length;
+  const steps = vm.groups.reduce((n, g) => n + g.rows.filter(stepDue).length, 0);
   const waits: PipelineRailRow[] = [
     { view: "waiting" as PipelineView, label: PIPELINE_WORDS.rail.waiting, count: waiting, tone: "warn" as const },
     { view: "lapsed" as PipelineView, label: PIPELINE_WORDS.rail.lapsed, count: lapsed, tone: "warn" as const },
+    // A next step whose day has come (0007, amended), on anyone the Pipeline holds.
+    { view: "steps" as PipelineView, label: PIPELINE_WORDS.rail.steps, count: steps, tone: "warn" as const },
   ].filter((r) => r.count > 0);
   const bySvc = new Map<string, number>();
   for (const g of vm.groups) {
@@ -627,7 +683,7 @@ export function pipelineMove(
 
 /** One quiet fact under the peek's deal: when they were last heard, their words, or what is coming up. */
 export interface PipelinePeekFact {
-  id: "heard" | "quote" | "next";
+  id: "heard" | "quote" | "next" | "step";
   words: string;
 }
 
@@ -655,6 +711,10 @@ export function pipelinePeekOf(row: PipelineRowVM, group: PipelineGroupKey): Pip
   if (p.lastContact.label) facts.push({ id: "heard", words: p.lastContact.label });
   if (p.quote) facts.push({ id: "quote", words: `“${p.quote}”` });
   if (p.nextVisit) facts.push({ id: "next", words: `Coming up · ${p.nextVisit}` });
+  // Their next step, said once: one that names their deal is the deal card's (dealStepOf), which the peek draws.
+  const n = row.next;
+  if (n && (!n.dealId || n.dealId !== p.deal?.id))
+    facts.push({ id: "step", words: `${PIPELINE_WORDS.columns.next} · ${n.words} · ${n.when}` });
   return {
     id: row.id,
     name: row.name,
@@ -672,7 +732,7 @@ export function pipelinePeekOf(row: PipelineRowVM, group: PipelineGroupKey): Pip
  * How the rows order within each group, by the table's sortable headings: Stage, the Pipeline's own order (reversed,
  * the other way); Value, what each deal comes to over a year; Person, by name. The groups themselves never move.
  */
-export const PIPELINE_SORTS = ["stage", "value", "name"] as const;
+export const PIPELINE_SORTS = ["stage", "value", "name", "next"] as const;
 export type PipelineSort = (typeof PIPELINE_SORTS)[number];
 
 /** A deal's worth over a year, to order by: a month's twelve times, a year's and a one-off's as they are; null for none. */
@@ -698,6 +758,15 @@ export function pipelineSorted<T extends PipelineSource>(
     ranked.sort((a, b) => {
       if (sort === "stage") return sign * (a.i - b.i);
       if (sort === "name") return sign * a.r.name.localeCompare(b.r.name) || a.i - b.i;
+      // Next step: by its day, the soonest first; a row with none goes last whichever way it runs.
+      if (sort === "next") {
+        const x = a.r.next?.day ?? null;
+        const y = b.r.next?.day ?? null;
+        if (x === y) return a.i - b.i;
+        if (x === null) return 1;
+        if (y === null) return -1;
+        return sign * x.localeCompare(y);
+      }
       // What the row shows: a consultation's row shows no value, whatever a deal of theirs that closed came to.
       const x = a.r.value === null ? null : yearCents(a.r.person.deal);
       const y = b.r.value === null ? null : yearCents(b.r.person.deal);

@@ -11,6 +11,11 @@
 // Calendar; nothing is booked or changed from here. Five rows at most, the
 // rest a line to the Calendar (contracts TODAY_DAY_MAX); a calendar read that
 // failed says so where the day would be.
+//
+// At its head, the steps due (0007, amended): whose next step's day has come
+// or gone, the oldest first, three at most and a line to People's Steps due
+// for the rest (contracts todaySteps, TODAY_STEPS_MAX). In every workspace,
+// calendar or not: with no day to draw, the panel is the steps alone.
 const useTdTick = (key) => {
   const [, bump] = React.useReducer((n) => n + 1, 0);
   React.useEffect(() => {
@@ -23,20 +28,51 @@ const useTdTick = (key) => {
 // The bridge's surface, or the mockup's sample of it (dashboard-a-brief.jsx todaySurface); the global itself where that file is not loaded.
 const tdSurface = (key) => (window.todaySurface ? window.todaySurface(key) : window[key]);
 
+// The steps due, as contracts says them, in the day's own frame: each opens its person. Hookless.
+const TodaySteps = ({ vm, nav }) => (
+  <div className="td-frame td-steps" data-testid="today-steps">
+    <div className="td-frame-head"><span className="td-frame-label">{vm.title}</span></div>
+    <ul className="td-steps-list">
+      {vm.items.map((s) => (
+        <li key={s.personId}>
+          <button type="button" className="td-step" onClick={() => nav(`clients/${s.personId}`)} data-testid="today-step">
+            <span className="td-step-who">{s.name}</span>
+            <span className="td-step-words">{s.words}</span>
+            <span className="td-step-when" data-due={s.due}>{s.when}</span>
+          </button>
+        </li>
+      ))}
+    </ul>
+    {vm.more ? (
+      <button type="button" className="td-day-more" onClick={() => nav(vm.more.to)} data-testid="today-steps-more">
+        <span>{vm.more.words}</span>
+        <Icon name="arrow-right" size={10} />
+      </button>
+    ) : null}
+  </div>
+);
+
 const TodayDay = () => {
   useTdTick("surface:calendar,surface:playbooks,surface:clients");
   const C = tdSurface("__CALENDAR");
   const P = tdSurface("__PLAYBOOKS");
   const people = tdSurface("__PEOPLE");
+  const go = (to) => window.appNavigate && window.appNavigate(to);
+  const tz = window.__clock && window.__clock.zone ? window.__clock.zone() : "UTC";
+  const stepsVm = people && window.__today && window.__today.steps ? window.__today.steps(people.rows, Date.now(), tz) : null;
+  const steps = stepsVm ? <TodaySteps vm={stepsVm} nav={go} /> : null;
+  // No day to draw: the panel is the steps alone, where any are due.
+  const stepsOnly = steps ? <section className="td-day" data-testid="today-day-steps">{steps}</section> : null;
   // The read failed, and the module would otherwise be silent about it: FailedRead, with the one Retry, where the day goes.
   if (!C && window.__surfaceFailed && window.__surfaceFailed("calendar")) {
     return (
       <section className="td-day" data-testid="today-day-failed">
+        {steps}
         <FailedRead kind="card" what="the calendar" body="The queue and the day's numbers are current." surface="calendar" testid="today-day-failed-read" />
       </section>
     );
   }
-  if (!C || !C.vm || !window.__today) return null;
+  if (!C || !C.vm || !window.__today) return stepsOnly;
   const nav = (to) => window.appNavigate && window.appNavigate(to);
   // A calendar IS connected and could not be read. This returned null, and the card was simply not there --
   // a working day and a broken feed looked identical, which is how a bad address went two rounds unnoticed.
@@ -45,6 +81,7 @@ const TodayDay = () => {
   if (C.vm.feed.state === "unavailable") {
     return (
       <section className="td-day" data-testid="today-day-unreadable">
+        {steps}
         <FailedRead
           kind="card"
           what="the calendar"
@@ -59,9 +96,9 @@ const TodayDay = () => {
   }
   // No calendar connected: silent on purpose. Nothing has failed, there is nothing to retry, and the invitation
   // to connect one is the Calendar page's card to make -- not a fault reported on a page about today's work.
-  if (C.vm.feed.state !== "ok") return null;
+  if (C.vm.feed.state !== "ok") return stepsOnly;
   const vm = window.__today.day(C.vm, P ? P.rows : null, people || null);
-  if (!vm.frames.length) return null;
+  if (!vm.frames.length) return stepsOnly;
   const open = (b) => nav(b.person ? `clients/${b.person.id}` : "calendar");
   // The channel a known person uses, as People knows it: a chat, or calls only.
   const peopleRows = people ? people.rows : [];
@@ -77,6 +114,7 @@ const TodayDay = () => {
         <span className="td-day-sub">{vm.nextOpening ? `next open time ${vm.nextOpening}` : ""}</span>
         <button className="btn btn-ghost btn-sm" onClick={() => nav("calendar")}>Open Calendar <Icon name="arrow-right" size={11} /></button>
       </div>
+      {steps}
       {vm.frames.map((d) => (
         <div key={d.key} className={`td-frame ${d.today ? "today" : ""}`} data-testid="today-day-frame">
           <div className="td-frame-head">

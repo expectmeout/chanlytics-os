@@ -8,6 +8,7 @@
 import {
   todayDay,
   todayAwayGrouped,
+  todaySteps,
   todayLeaks,
   todayPeriodLine,
   todayRunWords,
@@ -23,6 +24,8 @@ export const TODAY_HELPERS = {
   runApproved: todayRunApproved,
   leaks: todayLeaks,
   awayGrouped: todayAwayGrouped,
+  // The steps due at the head of the day (0007, amended).
+  steps: todaySteps,
 };
 export type TodayHelpers = typeof TODAY_HELPERS;
 

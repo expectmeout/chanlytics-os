@@ -11,6 +11,10 @@ import {
   isDealLostReason,
   isRealDate,
   linkHost,
+  NOTE_MAX,
+  NOTE_WORDS,
+  clipAtWord,
+  stepDayOf,
   normalizeLink,
   whyNotALink,
   foldName,
@@ -136,7 +140,7 @@ export const ACT_TOOLS: ToolDef[] = [
   {
     name: "propose_deal",
     description:
-      "Propose recording a deal on a person (0004, 0008): stage proposed (a proposal went out: a new engagement), won (they said yes or paid: a client), lost (they passed), ended (the engagement ended). Optional service, amount_cents with per (once, month, year: a proposal's value, or a client's agreed amount), a note, the proposal's web address (proposal_url), the last day it stands (valid_until, YYYY-MM-DD) and, with lost only, why they passed (lost_reason). This records what a person told you; it never decides money.",
+      "Propose recording a deal on a person (0004, 0008): stage proposed (a proposal went out: a new engagement), won (they said yes or paid: a client), lost (they passed), ended (the engagement ended). Optional service, amount_cents with per (once, month, year: a proposal's value, or a client's agreed amount), a note, the proposal's web address (proposal_url), the last day it stands (valid_until, YYYY-MM-DD) and, with lost only, why they passed (lost_reason). Optionally the next step on it: what (next_step, for the team) with its day (next_step_due, YYYY-MM-DD, today or later), a note with a day the team sees on the deal, written after it. This records what a person told you; it never decides money.",
     input_schema: obj(
       {
         contact_id: { type: "string" },
@@ -148,6 +152,8 @@ export const ACT_TOOLS: ToolDef[] = [
         proposal_url: { type: "string" },
         valid_until: { type: "string" },
         lost_reason: { type: "string", enum: [...DEAL_LOST_REASONS] },
+        next_step: { type: "string" },
+        next_step_due: { type: "string" },
       },
       ["contact_id", "stage"],
     ),
@@ -536,6 +542,16 @@ async function proposeDeal(t: ToolContext, input: Record<string, unknown>): Prom
   const reason = str(input.lost_reason, 20);
   if (reason && !isDealLostReason(reason)) return refuse(`lost_reason must be one of ${DEAL_LOST_REASONS.join(", ")}`);
   if (reason && stage !== "lost") return refuse("lost_reason goes only with stage lost");
+  // Its next step (0007, amended): the words and their day together, a real day from the business's today on. It is
+  // a note with a day, the team's, which the commit writes after the deal, naming it (commit.ts).
+  const stepWords = typeof input.next_step === "string" ? input.next_step.trim() : "";
+  if (stepWords.length > NOTE_MAX) return refuse(`next_step is at most ${NOTE_MAX} characters`);
+  const stepDue = str(input.next_step_due, 10);
+  if (stepWords && !stepDue) return refuse("next_step needs next_step_due, the day it is due, like 2026-09-30");
+  if (stepDue && !stepWords) return refuse("next_step_due goes only with next_step");
+  const stepDay = stepDue ? stepDayOf(stepDue, t.timezone, t.now.getTime()) : null;
+  if (stepDue && !stepDay) return refuse("next_step_due must be a day, like 2026-09-30");
+  if (stepDay && stepDay.due === "past") return refuse("next_step_due must be today or later");
   const { data: c, error } = await t.ctx.supabase
     .from("contacts")
     .select("id, display_name, wa_profile_name, phone_e164, email, erased_at")
@@ -589,11 +605,13 @@ async function proposeDeal(t: ToolContext, input: Record<string, unknown>): Prom
   // A proposal's value is said as a client's is (0008), and the card says where the link lives and why they passed.
   const money = amount !== null ? amountWords(amount, per) : null;
   const why = reason && isDealLostReason(reason) ? DEAL_LOST_REASON_WORDS[reason] : null;
+  // The step as the card says it: "Next step: send the quote, due Fri" (its words clipped; the note keeps them whole).
+  const next = stepDay ? `${NOTE_WORDS.next}: ${clipAtWord(stepWords, 80)}, due ${stepDay.near}` : null;
   return propose({
     kind: "deal",
     needs: "operator",
     title: `${who} · ${words}`,
-    summary: [words, service, money, url ? linkHost(url) : null, why].filter((x): x is string => !!x).join(" · "),
+    summary: [words, service, money, url ? linkHost(url) : null, why, next].filter((x): x is string => !!x).join(" · "),
     payload: {
       contact_id: id,
       stage,
@@ -605,6 +623,7 @@ async function proposeDeal(t: ToolContext, input: Record<string, unknown>): Prom
       ...(url ? { proposal_url: url } : {}),
       ...(day ? { valid_until: day } : {}),
       ...(reason ? { lost_reason: reason } : {}),
+      ...(stepDay ? { next_step: stepWords, next_step_due: stepDay.day } : {}),
       who,
     },
     undo: null,

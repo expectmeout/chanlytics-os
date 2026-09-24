@@ -430,6 +430,48 @@ const IxWho = ({ to = null, go = null, who, avatar, priority = null, children })
   );
 };
 
+// A step due under the head (0007, amended): their next step once its day has come, with Done, so whoever answers
+// them ticks it where they are. People's row carries it, and its day is judged again now (contracts stepDayOf,
+// through __personNotes); one ahead is not said -- the head says who they are, and a step waits for its day. Done is
+// an owner's or an operator's (the door's rule; the gate says so to anyone else) and answers in its own toast, with
+// Set the next one, as the deal card's does; a second press while the first is on its way waits for it.
+const IX_STEP_PRESSED = new Set();
+const IxThreadStep = ({ personId, step }) => {
+  const [toastNode, flash] = window.usePPToast();
+  const [gone, setGone] = React.useState(null);
+  const N = window.__personNotes && window.__personNotes.dayOf ? window.__personNotes : null;
+  const tz = window.__clock && window.__clock.zone ? window.__clock.zone() : "UTC";
+  const day = N && step ? N.dayOf(step.day.day, tz, Date.now()) : null;
+  const shown = !!day && day.due !== "ahead" && gone !== step.id;
+  const done = async () => {
+    if (IX_STEP_PRESSED.has(step.id)) return;
+    IX_STEP_PRESSED.add(step.id);
+    let r;
+    try { r = await N.done(personId, step.id, true); } finally { IX_STEP_PRESSED.delete(step.id); }
+    if (r && r.ok) {
+      setGone(step.id);
+      const next = window.openStepSheet ? () => window.openStepSheet({ personId, dealId: step.dealId || null }) : null;
+      flash({ msg: <>{N.words.stepDone}</>, ...(next ? { action: { label: N.words.setTheNext, onClick: next } } : {}) });
+    } else if (r) {
+      flash({ tone: "danger", msg: <>{r.message}</> });
+    }
+    window.dispatchEvent(new CustomEvent("note:saved", { detail: { personId } }));
+  };
+  return (
+    <>
+      {shown ? (
+        <div className="ix-th-step" data-due={day.due} data-testid="ix-th-step">
+          <span className="ix-th-step-label">{N.words.next}</span>
+          <span className="ix-th-step-words" data-testid="ix-th-step-words">{step.words}</span>
+          <span className="ix-th-step-when" data-testid="ix-th-step-when">{day.words}</span>
+          <button type="button" className="ix-th-step-done" onClick={done} data-testid="ix-th-step-done" {...window.gate("approve", "mark a step done")}>{N.words.done}</button>
+        </div>
+      ) : null}
+      {toastNode}
+    </>
+  );
+};
+
 // =============== HEADER ===============
 const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze = () => {}, onMarkUnread = () => {}, onBack = null, onArchive = null }) => {
   const channelIcon = (c) => c === "phone" ? "phone" : c === "instagram" ? "instagram" : c === "mail" || c === "email" ? "mail" : "chat";
@@ -605,6 +647,7 @@ const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze
           window.__DEMO_MODE ? [{ label: "Block sender", icon: "x", danger: true, onClick: () => window.askAbout({ mode: "compose", prompt: "Block this sender because " }) }] : [],
         ])} />
       </div>
+      {person && person.nextStep && !window.__DEMO_MODE ? <IxThreadStep key={person.nextStep.id} personId={person.id} step={person.nextStep} /> : null}
     </header>
   );
 };

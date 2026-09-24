@@ -370,6 +370,52 @@ test("a deal: the card's body to the person's deal route without the card's own 
   assert.deepEqual(one(l).body, { stage: "lost", deal_id: DEAL1, version: 4, lost_reason: "price" });
 });
 
+test("a deal with its next step: the deal first, then the step as a note of the team's that names the row the door wrote, with its day; a step the door refused is said on the receipt, and the deal stands", async () => {
+  const deal = `POST /api/v1/contacts/${P1}/deal`;
+  const notes = `POST /api/v1/contacts/${P1}/notes`;
+  const withStep = card("deal", {
+    contact_id: P1,
+    stage: "won",
+    deal_id: DEAL1,
+    version: 3,
+    next_step: "Send the onboarding form",
+    next_step_due: "2026-09-18",
+    who: "Maria",
+  });
+  const t = tab((key) =>
+    key === deal ? envelope(ANSWERS[deal]) : key === notes ? envelope({ note: { id: "n1" } }) : null,
+  );
+  assert.deepEqual(await commitProposal(t.win, withStep, t.client), {
+    ok: true,
+    receipt: "Maria · Client · Step added",
+    undo: null,
+  });
+  assert.deepEqual(t.sent, [
+    { key: deal, body: { stage: "won", deal_id: DEAL1, version: 3 }, via: "ask", undoOf: undefined },
+    {
+      key: notes,
+      body: { body: "Send the onboarding form", due_on: "2026-09-18", team_only: true, deal_id: DEAL1 },
+      via: "ask",
+      undoOf: undefined,
+    },
+  ]);
+  assert.ok(t.events.indexOf("event:surface:clients") < t.events.indexOf("event:note:saved"), "People, then the page");
+  const r = tab((key) =>
+    key === deal ? envelope(ANSWERS[deal]) : refusal(400, "validation", "A note is at most 600 characters."),
+  );
+  assert.deepEqual(await commitProposal(r.win, withStep, r.client), {
+    ok: true,
+    receipt: "Maria · Client · the next step was not saved: A note is at most 600 characters.",
+    undo: null,
+  });
+  assert.equal(r.sent.length, 2);
+  assert.ok(!r.events.includes("event:note:saved"), "nothing saved, nothing said");
+  // A deal the door refused writes no step.
+  const no = tab(() => refusal(409, "conflict", "Someone moved this deal."));
+  assert.equal((await commitProposal(no.win, withStep, no.client)).ok, false);
+  assert.equal(no.sent.length, 1);
+});
+
 test("a policy: the class with the mode or the dial, whichever the card carries; undo holds the previous values, or says it cannot", async () => {
   const t = tab();
   const r = await commitProposal(

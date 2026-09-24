@@ -4,6 +4,7 @@ import {
   EVERYONE_LABEL,
   NO_NUMBER_REACH,
   PEOPLE_LISTS,
+  nextStepOf,
   savedListIds,
   audiencePreview,
   type AudienceKind,
@@ -120,7 +121,7 @@ export const READ_TOOLS: ToolDef[] = [
   {
     name: "search_people",
     description:
-      "Find people (customers and callers) by name or phone digits. Returns their state, last contact, receptionist mode and their next appointment when the calendar is connected. Empty query lists the most recent people. list narrows to one of People's smart lists: needs_you, waiting_on_you, new_week, booked, asked_never_booked (wrote or called this month, never on the calendar), quiet, phoned_only, opted_in, opted_out, consultation_booked, proposal_out (a proposal waiting on their answer), clients, deal_ended (where deals are on here).",
+      "Find people (customers and callers) by name or phone digits. Returns their state, last contact, receptionist mode and their next appointment when the calendar is connected. Empty query lists the most recent people. list narrows to one of People's smart lists: needs_you, waiting_on_you, new_week, booked, asked_never_booked (wrote or called this month, never on the calendar), quiet, phoned_only, opted_in, opted_out, steps_due (a next step whose day has come), consultation_booked, proposal_out (a proposal waiting on their answer), clients, deal_ended (where deals are on here). Each person says their next step, when they have one.",
     input_schema: obj({ query: { type: "string" }, list: { type: "string" } }, ["query"]),
   },
   {
@@ -555,6 +556,11 @@ async function getThread(t: ToolContext, input: Record<string, unknown>): Promis
   };
 }
 
+function stepLine(r: PersonRowDto, tz: string, nowMs: number): string | null {
+  const s = nextStepOf(r, tz, nowMs);
+  return s ? `${s.words} · ${s.day.words}` : null;
+}
+
 function personLine(r: PersonRowDto, tz: string, nowMs: number) {
   const stateKey = r.dnc ? "opted_out" : r.needs_human ? "needs_you" : "active";
   return {
@@ -577,6 +583,8 @@ function personLine(r: PersonRowDto, tz: string, nowMs: number) {
     next_visit: r.visits?.next
       ? `${visitLine(r.visits.next, r.visits.timezone, nowMs)} · ${r.visits.next.title}`
       : null,
+    // Their earliest open step (0007, amended), its day as the pages say it: "Send the quote · Due Fri".
+    next_step: stepLine(r, tz, nowMs),
     last_visit: r.visits?.last
       ? `${visitLine(r.visits.last, r.visits.timezone, nowMs)} · ${r.visits.last.title}`
       : null,

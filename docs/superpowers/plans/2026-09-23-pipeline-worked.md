@@ -297,12 +297,17 @@ production first from other branches; #967 holds 00165)
   saves with the version it opened over; `step-sheet.test.mjs`.
 - [x] The deal card: Next · words · day · for whom, with Done and Change; Set a next step (dashed) with none. The
   step is contracts `dealStepOf`: the earliest open one that names the deal; a step about the person stays in the notes.
-- [ ] (4b) The Pipeline: the Next step column (sortable, `next`), the Steps due view in the rail, the peek's next row, the
-  board card's line.
-- [ ] (4b) Today (`dashboard-a-day.jsx`): steps due at the head of the day panel, three at most, "and N more" to
-  `clients/seg:steps_due`.
-- [ ] (4b) The thread: a step due under the deal chip, with Done.
-- [ ] (4b) Ask: `propose_deal` gains `next_step` and `next_step_due`; the commit writes the note after the deal.
+- [x] (4b) The Pipeline: the Next step column (sortable, `next`), the Steps due view in the rail, the peek's next row, the
+  board card's line. Built: the heading opens the soonest first, as a visit's does; the phone's card says it too; the
+  peek's row is for a step about the person, since one that names the deal is the deal card's.
+- [x] (4b) Today (`dashboard-a-day.jsx`): steps due at the head of the day panel, three at most, "and N more" to
+  `clients/seg:steps_due`. Built: in every workspace, calendar or not; with no day to draw, the panel is the steps
+  alone (contracts `todaySteps`).
+- [x] (4b) The thread: a step due under the deal chip, with Done. Built: under the head, across it, since Done cannot sit
+  inside the link to their page; said once its day has come; Done answers in a toast with Set the next one.
+- [x] (4b) Ask: `propose_deal` gains `next_step` and `next_step_due`; the commit writes the note after the deal. Built:
+  the day is today or later; a step the door refuses is said on the receipt and the deal stands; `search_people` says
+  each person's next step and lists `steps_due`.
 - [x] `0007` amended ("A note may have a day"); the look (the person's page at 1280 and 390 on the harness's
   pipeline record, which now carries a step); the gate; the PR; the push; merge. (4a)
 

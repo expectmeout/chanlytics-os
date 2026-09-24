@@ -395,9 +395,9 @@ test("full-fledged: month and agenda views, a date to jump to, windows that fit 
   const dayModule = readCode("apps/dashboard/src/legacy/pages/dashboard-a-day.jsx");
   assert.ok(
     dayModule.includes('data-testid="today-day"') &&
-      dayModule.includes('if (C.vm.feed.state !== "ok") return null;') &&
+      dayModule.includes('if (C.vm.feed.state !== "ok") return stepsOnly;') &&
       dayModule.includes('data-testid="today-day-unreadable"'),
-    "Today shows the day on the calendar, nothing without a feed, and says so about a feed it has and could not read (today-unreadable.test.mjs walks it)",
+    "Today shows the day on the calendar, without a feed only the steps due, and says so about a feed it has and could not read (today-unreadable.test.mjs walks it)",
   );
   const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
   assert.ok(

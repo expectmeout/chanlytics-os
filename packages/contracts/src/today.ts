@@ -32,7 +32,8 @@ import {
 } from "./viewmodels";
 import { waWindow } from "./policy";
 import { ANALYSIS_GRACE_MS } from "./live";
-import { NO_NUMBER_REACH, reasonShort, saidYesTo, type PersonRowVM } from "./people";
+import { NO_NUMBER_REACH, NOTE_WORDS, reasonShort, saidYesTo, type PersonRowVM } from "./people";
+import { todayStepsDue, type StepDue } from "./steps";
 import { consultationsWithoutProposal, consultsHeldWords, proposalsWaiting, type DealVM } from "./deals";
 import { clipAtWord } from "./viewmodels";
 import { conversationOfNeedsKey, callOfKey, unreadCount } from "./notifications";
@@ -2261,4 +2262,54 @@ export function todayAwayGrouped<T extends AwayRowLike>(
       ? { icon: "check", text: AWAY_EMPTY_CLEAR }
       : { icon: "arrow-up", text: AWAY_EMPTY_QUEUED };
   return { groups: shown, total, more, queued, foot: awayFoot(more, queued, shown.length > 0), empty };
+}
+
+/* ------------------------------------------------ the steps due (0007, amended) */
+
+/** How many steps due Today names at the head of the day, the rest a line to People's Steps due. */
+export const TODAY_STEPS_MAX = 3;
+
+/** One step due as Today names it: who, what, and when it was due, the oldest first. */
+export interface TodayStepVM {
+  personId: string;
+  name: string;
+  words: string;
+  /** "Due today", "Overdue since Mon". */
+  when: string;
+  due: StepDue;
+  forWho: string | null;
+}
+
+export interface TodayStepsVM {
+  title: string;
+  items: TodayStepVM[];
+  /** "and 2 more", to People's Steps due; null when every one is named. */
+  more: { words: string; to: string } | null;
+}
+
+/**
+ * The steps due at the head of the day (0007, amended), in every workspace, calendar or not: whose next step's day has
+ * come or gone, the oldest first, three at most, and a line to People's Steps due for the rest. Null with none due.
+ * Each day is judged again at `nowMs`, so a list read yesterday says today's.
+ */
+export function todaySteps(
+  rows: readonly Pick<PersonRowVM, "id" | "name" | "nextStep">[] | null | undefined,
+  nowMs: number,
+  tz: string,
+  max = TODAY_STEPS_MAX,
+): TodayStepsVM | null {
+  const due = todayStepsDue(rows ?? [], nowMs, tz, max);
+  if (!due.count) return null;
+  return {
+    title: NOTE_WORDS.stepsDue,
+    items: due.rows.map(({ row, step }) => ({
+      personId: row.id,
+      name: row.name,
+      words: step.words,
+      when: step.day.words,
+      due: step.due,
+      forWho: step.forWho,
+    })),
+    more: due.more ? { words: due.more, to: "clients/seg:steps_due" } : null,
+  };
 }

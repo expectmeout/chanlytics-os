@@ -51,6 +51,9 @@ import {
   repliesWords,
   stateOf,
   toPersonRowVM,
+  NOTE_WORDS,
+  stepDayOf,
+  zoneDayKey,
 } from "@chanlytics/contracts";
 import { hookFrames } from "./_hook-frames.mjs";
 import { pipelineHelpers } from "../../../apps/dashboard/src/legacy-bridge/pipeline-helpers.ts";
@@ -360,6 +363,7 @@ test("nobody to follow is an empty Pipeline, with its words for it", () => {
     stage: "Stage",
     came: "Came from",
     valid: "Valid until",
+    next: "Next step",
     chip: "Where it stands",
     acts: "More",
   });
@@ -461,6 +465,114 @@ test("a day near today, as a chip says it: its name within the week either side,
   assert.equal(clockNear(Date.parse("2026-09-24T03:30:00Z"), TZ, NOW), "today");
   assert.equal(clockNear(Date.parse("2026-12-31T17:00:00Z"), TZ, NOW), "Dec 31");
   assert.equal(clockNear(Date.parse("2027-01-04T17:00:00Z"), TZ, NOW), "Jan 4, 2027", "another year says its year");
+});
+
+/* ------------------------------------------------------------------------ the next step (0007, amended) */
+
+/** A next step's columns on the row (people_list v5, 00166): its day `d` days from `now` in the workspace's zone. */
+const stepCols = (now, id, d, o = {}) => ({
+  step_id: `s-${id}`,
+  step_body: o.body ?? `Call ${id} back`,
+  step_due_on: zoneDayKey(now + d * DAY, TZ),
+  step_for_user_id: null,
+  step_deal_id: o.dealId ?? null,
+});
+
+const stepFixture = (readAt = NOW) =>
+  [
+    personRow(NOW, "wes", "Wes", {
+      ...deal(NOW, "proposed", { proposed: 11, cents: 120_000, per: "once" }),
+      ...stepCols(NOW, "wes", -2),
+    }),
+    personRow(NOW, "nia", "Nia", { ...deal(NOW, "proposed", { proposed: 9 }), ...stepCols(NOW, "nia", 3) }),
+    personRow(NOW, "fay", "Fay", deal(NOW, "proposed", { proposed: 1 })),
+    personRow(NOW, "cat", "Cat", {
+      ...deal(NOW, "won", { proposed: 12, decided: 5, cents: 100_000, per: "month" }),
+      ...stepCols(NOW, "cat", 0),
+    }),
+    personRow(NOW, "cy", "Cy", deal(NOW, "won", { proposed: 40, decided: 30 })),
+  ].map((r) => toPersonRowVM(r, TZ, new Date(readAt)));
+
+test("each row carries its next step, its day said as the pages say it and judged again as the Pipeline is drawn", () => {
+  const vm = pipelineOf(stepFixture(), NOW, TZ);
+  assert.deepEqual(rowOf(vm, "wes").next, {
+    id: "s-wes",
+    words: "Call wes back",
+    day: "2026-09-21",
+    when: "Overdue since Mon",
+    due: "past",
+    forWho: null,
+    dealId: null,
+  });
+  assert.deepEqual(
+    ["nia", "cat", "fay"].map((id) => rowOf(vm, id).next && [rowOf(vm, id).next.when, rowOf(vm, id).next.due]),
+    [["Due Sat", "ahead"], ["Due today", "today"], null],
+  );
+  // Read three days before: Wes's step was ahead then. The Pipeline says it as it stands now.
+  const early = stepFixture(NOW - 3 * DAY);
+  assert.equal(early.find((r) => r.id === "wes").nextStep.due, "ahead", "as the row was read");
+  assert.equal(rowOf(pipelineOf(early, NOW, TZ), "wes").next.due, "past", "as the Pipeline is drawn");
+});
+
+test("Steps due holds only the rows whose step's day has come, in every group, without a group's worth; the rail counts them, in warn", () => {
+  const vm = pipelineOf(stepFixture(), NOW, TZ, "steps");
+  assert.deepEqual(
+    vm.groups.map((g) => [g.key, ids(g), g.count, g.meta]),
+    [
+      ["proposals", ["wes"], 1, null],
+      ["clients", ["cat"], 1, null],
+    ],
+    "Nia's step is ahead and Fay has none; what a group comes to is the whole group's, so a part does not say it",
+  );
+  const rail = pipelineRail(pipelineOf(stepFixture(), NOW, TZ), NOW);
+  const waits = rail.find((s) => s.key === "waiting");
+  assert.deepEqual(
+    waits.rows.find((r) => r.view === "steps"),
+    { view: "steps", label: "Steps due", count: 2, tone: "warn" },
+  );
+  assert.equal(
+    pipelineRail(pipelineOf(fixture(), NOW, TZ), NOW)
+      .flatMap((s) => s.rows)
+      .some((r) => r.view === "steps"),
+    false,
+    "with none due the rail does not offer it",
+  );
+  // A view of its own, in the address and in words; the Pipeline's own words are the notes card's.
+  assert.equal(isPipelineView("steps"), true);
+  assert.equal(pipelineViewLabel("steps"), NOTE_WORDS.stepsDue);
+  assert.deepEqual(parsePipelineRoute(pipelineRoute({ view: "steps" })), { view: "steps", peek: null });
+  assert.equal(PIPELINE_WORDS.rail.steps, NOTE_WORDS.stepsDue);
+  assert.equal(PIPELINE_WORDS.columns.next, NOTE_WORDS.next);
+});
+
+test("Next step sorts within each group by its day, the soonest first; a row with none goes last whichever way it runs", () => {
+  const vm = pipelineOf(stepFixture(), NOW, TZ);
+  const order = (dir) =>
+    pipelineSorted(vm, "next", dir)
+      .groups.map((g) => [g.key, ids(g)])
+      .filter(([k]) => k === "proposals" || k === "clients");
+  assert.deepEqual(order("asc"), [
+    ["proposals", ["wes", "nia", "fay"]],
+    ["clients", ["cat", "cy"]],
+  ]);
+  assert.deepEqual(order("desc"), [
+    ["proposals", ["nia", "wes", "fay"]],
+    ["clients", ["cat", "cy"]],
+  ]);
+});
+
+test("the peek says a step about the person as a fact; one that moves their deal is the deal card's, said there once", () => {
+  const rows = [
+    personRow(NOW, "wes", "Wes", { ...deal(NOW, "proposed", { proposed: 11 }), ...stepCols(NOW, "wes", -2) }),
+    personRow(NOW, "nia", "Nia", {
+      ...deal(NOW, "proposed", { proposed: 9 }),
+      ...stepCols(NOW, "nia", 3, { dealId: "d-proposed-9" }),
+    }),
+  ].map((r) => toPersonRowVM(r, TZ, new Date(NOW)));
+  const vm = pipelineOf(rows, NOW, TZ);
+  const facts = (id) => pipelinePeekOf(rowOf(vm, id), "proposals").facts.filter((f) => f.id === "step");
+  assert.deepEqual(facts("wes"), [{ id: "step", words: "Next step · Call wes back · Overdue since Mon" }]);
+  assert.deepEqual(facts("nia"), [], "Nia's step names her deal: the card the peek draws says it");
 });
 
 test("the Pipeline's route waits for People's rows: it reads nothing else", async () => {
@@ -870,7 +982,7 @@ test("the Pipeline has its own rail with People's switch at its head, the line, 
   const head = find(tree, (n) => n.type === "tr" && String(n.props?.className || "").includes("pl-sec-head"));
   assert.equal(head.props.id, undefined);
   const th = find(head, (n) => n.type === "th");
-  assert.deepEqual([th.props.scope, th.props.colSpan], ["rowgroup", 7]);
+  assert.deepEqual([th.props.scope, th.props.colSpan], ["rowgroup", 8]);
   // The headings are contracts', after the selection's box, People's person cell first; Stage is the order it
   // opens in. Came from and Valid until are the member's to show (Columns).
   assert.deepEqual(
@@ -878,7 +990,7 @@ test("the Pipeline has its own rail with People's switch at its head, the line, 
       find(tree, (n) => n.type === "thead"),
       (n) => n.type === "th",
     ).map((n) => textOf(n)),
-    ["", "Person", "Service", "Value", "Stage▲", "Where it stands", "More"],
+    ["", "Person", "Service", "Value", "Stage▲", "Next step", "Where it stands", "More"],
   );
   // The chip's column says its name to a screen reader only: no one word is right above every chip.
   const chipHead = all(
@@ -892,7 +1004,7 @@ test("the Pipeline has its own rail with People's switch at its head, the line, 
   );
   assert.deepEqual(
     all(tree, (n) => n.props?.className === "cl-th-sort").map(textOf),
-    ["Person", "Value", "Stage▲"],
+    ["Person", "Value", "Stage▲", "Next step"],
     "the headings that sort are buttons, and Stage is the order it opens in",
   );
   // Each row: People's own person cell, the service, the value, the time in stage, and the chip in its tone.
@@ -1343,7 +1455,7 @@ test("each row wears its deal's steps: a consultation where one was held or is c
 test("the rows order by the member's pick within each group: value over a year with none last, name, or the Pipeline's own reversed", () => {
   const vm = pipelineOf(fixture(), NOW, TZ);
   const order = (v, key) => byKey(v)[key].rows.map((r) => r.id);
-  assert.deepEqual(PIPELINE_SORTS, ["stage", "value", "name"]);
+  assert.deepEqual(PIPELINE_SORTS, ["stage", "value", "name", "next"]);
   // The Pipeline's own order is the table as it opens, and an order it does not know is that one.
   assert.equal(pipelineSorted(vm, "stage", "asc"), vm);
   assert.deepEqual(order(pipelineSorted(vm, "nonsense", "asc"), "proposals"), order(vm, "proposals"));
@@ -2312,6 +2424,7 @@ test("Columns shows where they came from and the day a proposal stands until, as
       ["service", true],
       ["value", true],
       ["stage", true],
+      ["next", true],
       ["came", false],
       ["valid", false],
     ],
@@ -2492,7 +2605,7 @@ test("beside an open peek on a desk the table keeps who and where they stand; th
       find(tree, (n) => n.type === "thead"),
       (n) => n.type === "th",
     ).length,
-    7,
+    8,
   );
 });
 
@@ -2721,4 +2834,86 @@ test("the bridge publishes the deal kit the pages read, the card's next act with
   } finally {
     for (const k of names) globalThis.window[k] = keep[k];
   }
+});
+
+test("their next step on the page: a column after Stage that sorts by its day, in the warn ink once it has come; the phone's card and the board's say it, and Steps due holds only theirs", async () => {
+  const now = Date.now();
+  const day = (d) => zoneDayKey(now + d * DAY, ZONE);
+  const withStep = (id, d, over = {}) => ({
+    step_id: `s-${id}`,
+    step_body: over.body,
+    step_due_on: day(d),
+    step_for_user_id: null,
+    step_deal_id: over.dealId ?? null,
+  });
+  const people = () =>
+    peopleNow().map((r) =>
+      r.id === "wes"
+        ? { ...r, ...withStep("wes", -2, { body: "Send the revised quote" }) }
+        : r.id === "nia"
+          ? { ...r, ...withStep("nia", 5, { body: "Ask about the date", dealId: r.deal_id }) }
+          : r,
+    );
+  const seen = await fresh({ people: people() });
+  let tree = draw();
+  const heads = all(tree, (n) => n.props?.className === "cl-th-sort").map((n) => textOf(n).trim());
+  const at = (w) => heads.findIndex((h) => h.startsWith(w));
+  assert.ok(at("Next step") === at("Stage") + 1, `after Stage: ${heads.join(", ")}`);
+  const cell = (id) => byTestId(rowNode(tree, id), "pipe-next");
+  const wesWhen = stepDayOf(day(-2), ZONE, now).words;
+  assert.equal(textOf(byClass(cell("wes"), "pipe-next-words")), "Send the revised quote");
+  assert.equal(textOf(byClass(cell("wes"), "pipe-next-when")), wesWhen);
+  assert.equal(cell("wes").props["data-due"], "past", "the warn ink is the stylesheet's, keyed on this");
+  assert.equal(cell("nia").props["data-due"], "ahead");
+  assert.equal(textOf(cell("cat")), "", "no step: an empty cell, never a word for nothing");
+  // The heading sorts by the day, within each group, and the member's view keeps it.
+  const nextHead = (t) => find(t, (n) => n.props?.className === "cl-th-sort" && textOf(n).startsWith("Next step"));
+  click(nextHead(tree));
+  tree = draw();
+  await tick();
+  assert.deepEqual(
+    [seen.viewSaves.at(-1).view.sortBy, seen.viewSaves.at(-1).view.sortDir],
+    ["next", "asc"],
+    "the soonest day first, as a visit is",
+  );
+  assert.deepEqual(rowIds(tree), ["hana", "sara", "wes", "nia", "cat"]);
+  click(nextHead(tree));
+  tree = draw();
+  assert.deepEqual(rowIds(tree), ["hana", "sara", "nia", "wes", "cat"], "then the other way");
+  await tick();
+  assert.deepEqual([seen.viewSaves.at(-1).view.sortBy, seen.viewSaves.at(-1).view.sortDir], ["next", "desc"]);
+  // Steps due in the rail: Wes alone, whose day has come; the view holds only him.
+  const railRow = byTestId(tree, "pipeline-rail-row-steps");
+  assert.ok(railRow, "the rail offers it while a step is due");
+  click(railRow);
+  assert.equal(went.at(-1), "clients/pipeline:v-steps");
+  assert.deepEqual(rowIds(draw({ pipelineRoute: "pipeline:v-steps" })), ["wes"]);
+  // The board's card: one quiet line under the chip.
+  await fresh({ people: people() });
+  click(byTestId(draw(), "pipeline-view-board"));
+  const cards = all(byTestId(draw(), "pipeline-col-proposals"), (n) => n.props?.["data-testid"] === "pipeline-card");
+  const wesCard = cards.find((c) => textOf(c).includes("Wes"));
+  const line = byTestId(wesCard, "pipe-next");
+  assert.deepEqual(
+    [textOf(byClass(line, "pipe-next-words")), textOf(byClass(line, "pipe-next-when")), line.props["data-due"]],
+    ["Send the revised quote", wesWhen, "past"],
+  );
+  const niaCard = cards.find((c) => textOf(c).includes("Nia"));
+  assert.equal(byTestId(niaCard, "pipe-next").props["data-due"], "ahead", "a day ahead, in the quiet ink");
+  const clients = all(byTestId(draw(), "pipeline-col-clients"), (n) => n.props?.["data-testid"] === "pipeline-card");
+  assert.equal(
+    byTestId(
+      clients.find((c) => textOf(c).includes("Cat")),
+      "pipe-next",
+    ),
+    null,
+    "no step, no line",
+  );
+  // The phone's card: a fact after the time in stage.
+  await onPhone(async () => {
+    await fresh({ people: people() });
+    const card = find(draw(), (n) => n.type === "tr" && n.props?.id === "person-wes");
+    assert.equal(textOf(byTestId(card, "pipe-next")), `Send the revised quote · ${wesWhen}`);
+    assert.equal(byTestId(card, "pipe-next").props["data-due"], "past");
+  });
 });

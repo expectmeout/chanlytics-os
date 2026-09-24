@@ -7675,8 +7675,7 @@ var NOTE_WORDS = {
   stepSaved: "Step saved",
   stepDone: "Step done",
   stepReopened: "Step open again",
-  setTheNext: "Set the next one",
-  andMore: (n) => `and ${n} more`
+  setTheNext: "Set the next one"
 };
 var NOTE_REFUSALS = {
   empty: "Write something first.",
@@ -10306,6 +10305,23 @@ function todayAwayGrouped(rows, inQueue = [], max = 5) {
   const more = Math.max(0, total - stoodFor);
   const empty = fresh.length ? null : total === 0 ? { icon: "check", text: AWAY_EMPTY_CLEAR } : { icon: "arrow-up", text: AWAY_EMPTY_QUEUED };
   return { groups: shown, total, more, queued, foot: awayFoot(more, queued, shown.length > 0), empty };
+}
+var TODAY_STEPS_MAX = 3;
+function todaySteps(rows, nowMs, tz, max = TODAY_STEPS_MAX) {
+  const due = todayStepsDue(rows ?? [], nowMs, tz, max);
+  if (!due.count) return null;
+  return {
+    title: NOTE_WORDS.stepsDue,
+    items: due.rows.map(({ row: row2, step: step2 }) => ({
+      personId: row2.id,
+      name: row2.name,
+      words: step2.words,
+      when: step2.day.words,
+      due: step2.due,
+      forWho: step2.forWho
+    })),
+    more: due.more ? { words: due.more, to: "clients/seg:steps_due" } : null
+  };
 }
 
 // src/note-suggest.ts
@@ -19108,6 +19124,9 @@ var PIPELINE_WORDS = {
     stage: "Stage",
     came: "Came from",
     valid: "Valid until",
+    // The notes card's own words (NOTE_WORDS.next), written out: read off it, this table would be kept in every
+    // package that bundles contracts, as GROUP_WORDS would (pipeline.test.mjs holds the two together).
+    next: "Next step",
     chip: "Where it stands",
     /** The row's own menu, as a screen reader hears its heading. */
     acts: "More"
@@ -19163,6 +19182,8 @@ var PIPELINE_WORDS = {
     waitingOnYou: "Waiting on you",
     waiting: "Nothing back in a week",
     lapsed: "Lapsed",
+    // A next step whose day has come (NOTE_WORDS.stepsDue, written out for the same reason).
+    steps: "Steps due",
     services: "Services"
   },
   /** New proposal: the button, and the picker it opens before the deal sheet. */
@@ -19207,6 +19228,14 @@ function dealTrack(r, d, chip) {
   const held = r.consultedMs !== null && Number.isFinite(r.consultedMs) ? [step("consultation", "done")] : [];
   return d.stage === "proposed" ? [...held, step("proposal", "current", chip?.tone === "warn" ? "warn" : "info"), step("client", "ahead")] : [...held, step("proposal", "done"), step("client", "current", "ok")];
 }
+function nextOf(p, tz, nowMs) {
+  const s = p.nextStep;
+  if (!s) return null;
+  const day = stepDayOf(s.day.day, tz, nowMs);
+  if (!day) return null;
+  return { id: s.id, words: s.words, day: day.day, when: day.words, due: day.due, forWho: s.forWho, dealId: s.dealId };
+}
+var stepDue = (r) => !!r.next && r.next.due !== "ahead";
 function dealRow(r, d, chip, nowMs, group) {
   return {
     id: r.id,
@@ -19283,22 +19312,26 @@ function pipelineOf(rows, nowMs, tz, view = "all") {
     nowMs
   ).length;
   const svc = serviceOf2(view);
-  const shows = (key) => view === "all" || view === key || svc !== null || (view === "waiting" || view === "lapsed") && key === "proposals";
+  const shows = (key) => view === "all" || view === "steps" || view === key || svc !== null || (view === "waiting" || view === "lapsed") && key === "proposals";
   const bySvc = (xs) => svc === null ? xs : xs.filter((x) => x.d.service === svc);
   const shownHeld = shows("consultations") && svc === null ? held : [];
   const shownAhead = shows("consultations") && svc === null ? ahead : [];
   const shownProposals = !shows("proposals") ? [] : view === "waiting" ? proposals.filter((x) => waitingOnProposal(x.r, nowMs)) : view === "lapsed" ? lapsed : bySvc(proposals);
   const shownClients = shows("clients") ? bySvc(clients) : [];
   const shownClosed = shows("closed") ? bySvc(closed) : [];
-  const group = (key, rs, meta) => ({
-    key,
-    label: GROUP_WORDS[key],
-    count: rs.length,
-    meta,
-    // Folded on the whole Pipeline only: a view someone picked shows what they picked.
-    collapsed: key === "closed" && view === "all",
-    rows: rs
-  });
+  const group = (key, body, meta) => {
+    const all = body.map((x) => ({ ...x, next: nextOf(x.person, tz, nowMs) }));
+    const rs = view === "steps" ? all.filter(stepDue) : all;
+    return {
+      key,
+      label: GROUP_WORDS[key],
+      count: rs.length,
+      meta: view === "steps" ? null : meta,
+      // Folded on the whole Pipeline only: a view someone picked shows what they picked.
+      collapsed: key === "closed" && view === "all",
+      rows: rs
+    };
+  };
   const groups = [
     group(
       "consultations",
@@ -19340,7 +19373,13 @@ function pipelineOf(rows, nowMs, tz, view = "all") {
   ].filter((x) => !!x);
   return { summary: line.map((p) => p.words), line, groups, empty: groups.length === 0 };
 }
-var VIEW_KINDS = /* @__PURE__ */ (() => ["all", ...PIPELINE_GROUPS, "waiting", "lapsed"])();
+var VIEW_KINDS = /* @__PURE__ */ (() => [
+  "all",
+  ...PIPELINE_GROUPS,
+  "waiting",
+  "lapsed",
+  "steps"
+])();
 function isPipelineView(s) {
   return typeof s === "string" && (VIEW_KINDS.includes(s) || s.startsWith("svc:") && s.slice(4).trim() !== "");
 }
@@ -19352,6 +19391,7 @@ function pipelineViewLabel(view) {
   if (svc !== null) return svc;
   if (view === "waiting") return PIPELINE_WORDS.rail.waiting;
   if (view === "lapsed") return PIPELINE_WORDS.rail.lapsed;
+  if (view === "steps") return PIPELINE_WORDS.rail.steps;
   if (view === "all") return PIPELINE_WORDS.rail.all;
   return GROUP_WORDS[view];
 }
@@ -19401,9 +19441,12 @@ function pipelineRail(vm, nowMs) {
   const proposals = vm.groups.find((g) => g.key === "proposals")?.rows ?? [];
   const waiting = proposals.filter((r) => waitingOnProposal(r.person, nowMs)).length;
   const lapsed = proposals.filter((r) => !!r.person.deal?.validUntil?.lapsed).length;
+  const steps = vm.groups.reduce((n, g) => n + g.rows.filter(stepDue).length, 0);
   const waits = [
     { view: "waiting", label: PIPELINE_WORDS.rail.waiting, count: waiting, tone: "warn" },
-    { view: "lapsed", label: PIPELINE_WORDS.rail.lapsed, count: lapsed, tone: "warn" }
+    { view: "lapsed", label: PIPELINE_WORDS.rail.lapsed, count: lapsed, tone: "warn" },
+    // A next step whose day has come (0007, amended), on anyone the Pipeline holds.
+    { view: "steps", label: PIPELINE_WORDS.rail.steps, count: steps, tone: "warn" }
   ].filter((r) => r.count > 0);
   const bySvc = /* @__PURE__ */ new Map();
   for (const g of vm.groups) {
@@ -19436,6 +19479,9 @@ function pipelinePeekOf(row2, group) {
   if (p.lastContact.label) facts.push({ id: "heard", words: p.lastContact.label });
   if (p.quote) facts.push({ id: "quote", words: `\u201C${p.quote}\u201D` });
   if (p.nextVisit) facts.push({ id: "next", words: `Coming up \xB7 ${p.nextVisit}` });
+  const n = row2.next;
+  if (n && (!n.dealId || n.dealId !== p.deal?.id))
+    facts.push({ id: "step", words: `${PIPELINE_WORDS.columns.next} \xB7 ${n.words} \xB7 ${n.when}` });
   return {
     id: row2.id,
     name: row2.name,
@@ -19446,7 +19492,7 @@ function pipelinePeekOf(row2, group) {
     thread: p.threadId
   };
 }
-var PIPELINE_SORTS = ["stage", "value", "name"];
+var PIPELINE_SORTS = ["stage", "value", "name", "next"];
 function yearCents(d) {
   if (!d || d.amountCents === null || !Number.isFinite(d.amountCents)) return null;
   return d.per === "month" ? d.amountCents * 12 : d.amountCents;
@@ -19460,6 +19506,14 @@ function pipelineSorted(vm, by, dir) {
     ranked.sort((a, b) => {
       if (sort === "stage") return sign * (a.i - b.i);
       if (sort === "name") return sign * a.r.name.localeCompare(b.r.name) || a.i - b.i;
+      if (sort === "next") {
+        const x2 = a.r.next?.day ?? null;
+        const y2 = b.r.next?.day ?? null;
+        if (x2 === y2) return a.i - b.i;
+        if (x2 === null) return 1;
+        if (y2 === null) return -1;
+        return sign * x2.localeCompare(y2);
+      }
       const x = a.r.value === null ? null : yearCents(a.r.person.deal);
       const y = b.r.value === null ? null : yearCents(b.r.person.deal);
       if (x === y) return a.i - b.i;
@@ -20287,6 +20341,7 @@ export {
   TODAY_DAY_MAX,
   TODAY_LEAK_MAX,
   TODAY_QUEUE_MAX,
+  TODAY_STEPS_MAX,
   TONES2 as TONES,
   TONE_PRESETS,
   TenantConfigSchema,
@@ -20983,6 +21038,7 @@ export {
   todayRunApproved,
   todayRunWords,
   todayRunsSub,
+  todaySteps,
   todayStepsDue,
   tomorrowAtIn,
   trialOffer,

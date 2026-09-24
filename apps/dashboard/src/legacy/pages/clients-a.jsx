@@ -2238,9 +2238,9 @@ const usePlControls = ({ scope, cols, phoneCols, colCtx, people, sortFirst, rail
   const onSort = (key) => {
     viewTouched.current = true;
     if (sortBy === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    // A name starts at A, the soonest visit first, and the Pipeline's Stage in its own order (Leads' stage column is a
-    // rank of its own, most first); any other number, most first.
-    else { setSortBy(key); setSortDir(key === "name" || key === "visits" || (key === "stage" && scope === "pipeline") ? "asc" : "desc"); }
+    // A name starts at A, the soonest visit first, and the Pipeline's Stage in its own order and its next step the
+    // soonest first (Leads' stage column is a rank of its own, most first); any other number, most first.
+    else { setSortBy(key); setSortDir(key === "name" || key === "visits" || (scope === "pipeline" && (key === "stage" || key === "next")) ? "asc" : "desc"); }
   };
   // A sort the member picked from a menu rather than a heading (a phone's more-menu): theirs, like a heading's.
   const pickSort = (by, dir) => { viewTouched.current = true; setSortBy(by); setSortDir(dir); };

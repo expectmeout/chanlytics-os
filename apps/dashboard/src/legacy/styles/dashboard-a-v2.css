@@ -991,6 +991,15 @@
 /* The cap's tail: the rest of the day is on the Calendar, one line, one door. */
 .td-day-more { display: inline-flex; align-items: center; gap: 5px; align-self: flex-start; padding: 2px 0; border: none; background: transparent; font: inherit; font-size: 11.5px; color: var(--ink-muted); cursor: pointer; }
 .td-day-more:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 2px; }
+/* The steps due at the head of the day (0007, amended), a frame of their own: who, what, and when it was due, each
+   row a press to their page, the day in the warn ink; the rest a line to People's Steps due. */
+.td-steps-list { list-style: none; margin: -4px 0; padding: 0; display: flex; flex-direction: column; }
+.td-step { display: flex; align-items: baseline; gap: 8px; width: 100%; min-width: 0; padding: 4px 0; border: 0; background: none; font: inherit; font-size: 12.5px; text-align: left; color: var(--ink); cursor: pointer; }
+.td-step:hover .td-step-who { text-decoration: underline; text-underline-offset: 2px; }
+.td-step:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 6px; }
+.td-step-who { flex: none; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.td-step-words { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-muted); }
+.td-step-when { flex: none; font-size: 11.5px; color: var(--warn-ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .td-day-foot { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 10px 16px; border: none; border-top: 1px solid var(--line); background: var(--bg-sunken); color: var(--ink-muted); font-size: 11.5px; cursor: pointer; }
 .td-day-foot span { flex: 1; min-width: 0; }
 .td-day-foot:hover { color: var(--ink); }

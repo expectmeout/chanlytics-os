@@ -2676,6 +2676,15 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
 .pipe-step[data-at="current"][data-tone="ok"] { background: var(--ok); }
 .cl-table td.pipe-came { max-width: 18ch; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cl-table td.pipe-valid.is-lapsed { color: var(--warn-ink); }
+/* Their next step (0007, amended): what, then when in the dim small type the table keeps for dates, the day in the
+   warn ink once it has come. The list's cell, the phone card's fact and the board card's line say it alike. */
+.pipe-next-in { display: inline-flex; align-items: baseline; gap: 6px; min-width: 0; max-width: 32ch; vertical-align: baseline; }
+.pipe-next-words { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+.pipe-next-when { flex: none; font-size: 11.5px; color: var(--ink-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pipe-card-next { display: flex; align-items: baseline; gap: 6px; min-width: 0; font-size: 12px; }
+.pipe-row-next { color: var(--ink-muted); }
+:is(.pipe-next, .pipe-card-next)[data-due]:not([data-due="ahead"]) .pipe-next-when,
+.pipe-row-next[data-due]:not([data-due="ahead"]) { color: var(--warn-ink); font-weight: 500; }
 .pipe-card .pipe-track { margin-top: 2px; }
 .pl-card-facts .pipe-track { align-self: center; }
 @media (min-width: 901px) {

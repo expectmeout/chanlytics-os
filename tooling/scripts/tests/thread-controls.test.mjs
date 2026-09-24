@@ -11,7 +11,17 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toInboxThreadVM, stateOf, memberWords, dealMenuActs, DEAL_ACT_WORDS } from "@chanlytics/contracts";
+import {
+  toInboxThreadVM,
+  stateOf,
+  memberWords,
+  dealMenuActs,
+  DEAL_ACT_WORDS,
+  NOTE_WORDS,
+  nextStepOf,
+  stepDayOf,
+  zoneDayKey,
+} from "@chanlytics/contracts";
 import { hookFrames } from "./_hook-frames.mjs";
 
 const ZONE = "America/New_York";
@@ -591,6 +601,109 @@ test("the chip beside the wires says the deal before the visit: a client, a prop
     assert.equal(find(tree, byTestId("ix-th-deal")), undefined);
   } finally {
     delete globalThis.window.__PEOPLE;
+  }
+});
+
+test("a step due under the head: what, and when it was due, with Done outside the link -- one ahead is not said; Done answers in a toast with Set the next one, and the line goes", async () => {
+  const vm = toInboxThreadVM(conv(), asked, ZONE, NOW);
+  // The line judges the day against the real clock, as the page does.
+  const now = Date.now();
+  const day = (d) => zoneDayKey(now + d * 86_400_000, ZONE);
+  const stepOf = (d, dealId = null) =>
+    nextStepOf(
+      { step_id: "s1", step_body: "Send the revised quote", step_due_on: day(d), step_deal_id: dealId },
+      ZONE,
+      now,
+    );
+  const pressed = [];
+  let answer = { ok: true, data: { note: null } };
+  let hold = null;
+  const events = [];
+  const sheets = [];
+  const w = globalThis.window;
+  const keep = { dispatchEvent: w.dispatchEvent, gate: w.gate };
+  Object.assign(w, {
+    __clock: { zone: () => ZONE },
+    __personNotes: {
+      dayOf: stepDayOf,
+      words: NOTE_WORDS,
+      done: async (...a) => {
+        pressed.push(a);
+        if (hold) await hold;
+        return answer;
+      },
+    },
+    openStepSheet: (a) => sheets.push(a),
+    dispatchEvent: (e) => {
+      events.push([e.type, e.detail]);
+      return true;
+    },
+  });
+  const redraw = () => {
+    frames.begin();
+    return InboxThread({ thread: vm, channelLabels: labels, onArchive: () => {} });
+  };
+  try {
+    w.__PEOPLE = { rows: [{ id: "k1", deal: null, nextStep: stepOf(-2) }] };
+    let tree = draw(vm);
+    const line = find(tree, byTestId("ix-th-step"));
+    assert.ok(line, "a step whose day has gone is said");
+    assert.deepEqual(
+      [
+        textOf(find(line, hasClass("ix-th-step-label"))),
+        textOf(find(line, byTestId("ix-th-step-words"))),
+        textOf(find(line, byTestId("ix-th-step-when"))),
+        textOf(find(line, byTestId("ix-th-step-done"))),
+      ],
+      [NOTE_WORDS.next, "Send the revised quote", stepDayOf(day(-2), ZONE, now).words, NOTE_WORDS.done],
+    );
+    assert.equal(line.props["data-due"], "past");
+    assert.equal(
+      find(find(tree, byTestId("ix-th-person")), byTestId("ix-th-step-done")),
+      undefined,
+      "Done is not inside the link to their page",
+    );
+    // A second press while the first is on its way waits for it: one reaches the door.
+    let release;
+    hold = new Promise((r) => (release = r));
+    const done = find(tree, byTestId("ix-th-step-done")).props.onClick;
+    const first = done();
+    await done();
+    release();
+    await first;
+    hold = null;
+    assert.deepEqual(pressed, [["k1", "s1", true]]);
+    assert.deepEqual(events.at(-1), ["note:saved", { personId: "k1" }], "the person's page and the peek hear it");
+    tree = redraw();
+    assert.equal(find(tree, byTestId("ix-th-step")), undefined, "done: the line goes before People is read again");
+    assert.equal(textOf(find(tree, hasClass("pp-toast-msg"))), NOTE_WORDS.stepDone);
+    const next = find(tree, (n) => hasClass("pp-toast-cta")(n) && textOf(n) === NOTE_WORDS.setTheNext);
+    next.props.onClick();
+    assert.deepEqual(sheets, [{ personId: "k1", dealId: null }], "Set the next one opens the one step sheet");
+    // A refusal is said in the door's words, and the line stays.
+    answer = { ok: false, message: "Only a note with a day can be done." };
+    tree = draw(vm);
+    await find(tree, byTestId("ix-th-step-done")).props.onClick();
+    tree = redraw();
+    assert.ok(find(tree, byTestId("ix-th-step")), "refused: the line stays");
+    assert.equal(textOf(find(tree, hasClass("pp-toast-msg"))), "Only a note with a day can be done.");
+    // One whose day is ahead waits for it; one today is said.
+    w.__PEOPLE = { rows: [{ id: "k1", deal: null, nextStep: stepOf(3) }] };
+    assert.equal(find(draw(vm), byTestId("ix-th-step")), undefined, "ahead: not said");
+    w.__PEOPLE = { rows: [{ id: "k1", deal: null, nextStep: stepOf(0) }] };
+    assert.equal(find(draw(vm), byTestId("ix-th-step")).props["data-due"], "today");
+    // A viewer's Done refuses at the control, and says why: the gate's handlers are the button's.
+    const refused = [];
+    w.gate = (a) => (a === "approve" ? { "aria-disabled": true, onClick: () => refused.push(a) } : {});
+    pressed.length = 0;
+    find(draw(vm), byTestId("ix-th-step-done")).props.onClick();
+    assert.deepEqual([refused, pressed], [["approve"], []]);
+  } finally {
+    Object.assign(w, keep);
+    delete w.__PEOPLE;
+    delete w.__personNotes;
+    delete w.__clock;
+    delete w.openStepSheet;
   }
 });
 

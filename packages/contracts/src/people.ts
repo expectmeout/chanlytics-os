@@ -647,7 +647,6 @@ export const NOTE_WORDS = {
   stepDone: "Step done",
   stepReopened: "Step open again",
   setTheNext: "Set the next one",
-  andMore: (n: number) => `and ${n} more`,
 } as const;
 
 /** A door's refusal, in the owner's words (00157's error keys). */

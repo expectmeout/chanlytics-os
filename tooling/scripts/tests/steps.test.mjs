@@ -16,6 +16,8 @@ import {
   stepDays,
   toPersonRowVM,
   todayStepsDue,
+  todaySteps,
+  TODAY_STEPS_MAX,
 } from "@chanlytics/contracts";
 
 const TZ = "America/New_York";
@@ -143,6 +145,42 @@ test("Today shows the steps due, today or before: the oldest day first, three at
   assert.equal(then.rows.find((x) => x.row.name === "Cy").step.day.words, "Due today");
 });
 
+test("Today's block says each step due as the page draws it -- who, what, when -- and sends the rest to People's Steps due; none due, no block", () => {
+  const rows = [
+    ["b", "Ben", "2026-09-21"],
+    ["d", "Dee", "2026-09-22"],
+    ["f", "Fay", "2026-09-22"],
+    ["a", "Ada", "2026-09-24"],
+    ["c", "Cy", "2026-09-30"],
+    ["e", "Eli", null],
+  ].map(([id, name, day]) =>
+    toPersonRowVM(
+      row(id, name, day ? { step_id: `n-${id}`, step_body: "Call", step_due_on: day } : {}),
+      TZ,
+      new Date(NOW),
+    ),
+  );
+  const vm = todaySteps(rows, NOW, TZ);
+  assert.equal(vm.title, NOTE_WORDS.stepsDue);
+  assert.deepEqual(
+    vm.items.map((s) => [s.personId, s.name, s.words, s.when, s.due]),
+    [
+      ["b", "Ben", "Call", "Overdue since Mon", "past"],
+      ["d", "Dee", "Call", "Overdue since Tue", "past"],
+      ["f", "Fay", "Call", "Overdue since Tue", "past"],
+    ],
+  );
+  assert.equal(TODAY_STEPS_MAX, 3);
+  assert.deepEqual(vm.more, { words: "and 1 more", to: "clients/seg:steps_due" });
+  assert.ok(
+    PEOPLE_LISTS.some((l) => l.id === "steps_due"),
+    "the list the line opens is People's own",
+  );
+  assert.equal(todaySteps(rows, NOW, TZ, 4).more, null);
+  assert.equal(todaySteps(rows.slice(4), NOW, TZ), null, "none due: no block");
+  assert.equal(todaySteps(null, NOW, TZ), null, "People not read yet: no block");
+});
+
 test("a note with a day is a step on the page: its day, and once done, who did it and when", () => {
   const note = (over) => ({
     id: "n",
@@ -189,7 +227,6 @@ test("a note with a day is a step on the page: its day, and once done, who did i
   );
   // The notes card's words for a step, and the doors' refusals, are contracts'.
   assert.equal(NOTE_WORDS.stepTeamOnly, "A step is for the team only");
-  assert.equal(NOTE_WORDS.andMore(2), "and 2 more");
   assert.ok(NOTE_REFUSALS.bad_deal && NOTE_REFUSALS.not_a_step);
 });
 

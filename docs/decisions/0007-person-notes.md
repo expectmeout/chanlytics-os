@@ -101,9 +101,15 @@ note with a day, not a new kind of record. `person_notes` gains `due_on`, `done_
   for its author, Change; with none, Set a next step. Both open one step sheet (`components/step-sheet.jsx`,
   `window.openStepSheet`). People's rail gains Steps due, in every workspace. Every word and rule is contracts'
   (`steps.ts`, `step-sheet.ts`, `deal-sheet.ts dealStepOf`).
-- **Next.** The Pipeline (a Next step column, a Steps due view, the peek's row, the board card's line), Today's
-  day panel, the thread's step under the deal chip, and Ask's `propose_deal` writing one: the plan's PR 4, second
-  half.
+- **Everywhere else.** The Pipeline: a Next step column after Stage, the soonest first on its first press; Steps
+  due among what waits, over every group, saying no group's worth; the peek's fact for a step about the person
+  (one that names their deal is the deal card's, said there once); a line on the board's card and a fact on the
+  phone's. Today: the steps due at the head of the day panel, three at most, the rest a line to People's Steps
+  due, in every workspace, calendar or not (`today.ts todaySteps`). The thread: a step whose day has come, under
+  the head, with Done, which answers as the deal card's does. Ask: `propose_deal` takes `next_step` with
+  `next_step_due` (today or later), and the commit writes the step after the deal, naming the row the door wrote;
+  a step the door refuses is said on the receipt, and the deal stands. `search_people` says each person's next
+  step and lists `steps_due`. Each day is judged again as it is drawn, so a list read yesterday says today's.
 
 ## What earns a suggestion (phase 2)
 
