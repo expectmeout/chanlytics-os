@@ -583,7 +583,10 @@
 .cal-views { flex: none; }
 .cal-views .cl-tab { justify-content: center; padding: 4px 12px; font-size: 12px; }
 /* The foot: the legend and the toggle on one line, and what the toggle shows under them. */
-.cal-foot { display: flex; flex-direction: column; flex-shrink: 0; padding: var(--space-2) var(--cal-gutter) var(--space-3); border-top: 1px solid var(--line); }
+/* Never the scroll's anchor (overflow-anchor): at the page's foot the browser anchored to it, so when Hours and rules
+   opened it moved the page in one jump before its smooth scroll could run (measured on production at 390px, 24 Sep: one
+   step, against 18 with the foot left out). The days above stay the anchor, as they are everywhere else on the page. */
+.cal-foot { display: flex; flex-direction: column; flex-shrink: 0; padding: var(--space-2) var(--cal-gutter) var(--space-3); border-top: 1px solid var(--line); overflow-anchor: none; }
 .cal-foot-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); }
 .cal-about-toggle { flex: none; gap: var(--space-1); margin-left: auto; color: var(--ink-muted); }
 .cal-about-toggle .icon { transition: transform 160ms var(--ease-out); }
