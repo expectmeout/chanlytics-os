@@ -104,7 +104,8 @@ answers…", and the three "Always on" rules as a 78px card.
 ### 3.5 On a phone (720px and under)
 
 - The top bar says **Campaigns** once (as it says Inbox once); the tabs say which.
-- The head is one slim line: the numbers (one line, ellipsis) and the act.
+- The head is one slim bar: the numbers and the act ("New", its whole name kept for a screen reader); a warning
+  ("Welcome has nobody to send to") takes a line of its own under them, and "not set up" is left to the group.
 - Every list row is **People's row**, on the row tokens (`--row-pad-y/x`, `--row-gap`, the three lines):
   a playbook — name and state; who it reaches; the next run and the runs. A run — name and state; how it was sent,
   when, who it reached; Approve and Skip only when it waits. A template — title and language; the quote; what sends it

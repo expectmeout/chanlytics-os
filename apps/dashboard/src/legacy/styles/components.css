@@ -2313,6 +2313,8 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   .cm-head.is-quiet .cm-head-text { flex: 1 1 160px; }
   .cm-head.is-quiet .cm-head-right { flex: 0 1 auto; }
   .cm-head.is-quiet .cm-head-right:has(.cm-search) { flex: 1 1 100%; }
+  /* The act says "New" on a phone, and its whole name to a screen reader: the tab above says what it makes. */
+  .cm-act-noun { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   /* A tab is a thumb tall on a touch screen already (legacy.css), so the bar adds nothing over it. */
   .stabs.stabs-campaigns { padding: 0 16px; }
   /* A notice is its sentence and its act: what it costs is the desk's (it was five lines of a phone). */
@@ -2321,6 +2323,11 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   .cm-banner-more { display: none; }
   .cm-banner > .btn { margin-left: 25px; }
   .tpl-fresh-words { display: none; }
+  /* Playbooks' line on a phone: the playbooks' states, and the one warning on a line of its own. "Not set up" is the
+     group's own count under the rows, and a dot left at the end of a wrapped line points at nothing. */
+  .pb-standing .pb-tally-cell[data-tone="dim"],
+  .pb-standing .cm-head-dot:has(+ .pb-tally-cell[data-tone="dim"]) { display: none; }
+  .pb-standing .pb-standing-warn { flex-basis: 100%; margin-left: 0; }
 }
 
 /* Being in step with WhatsApp is a state, so it is drawn as one, on the head's
@@ -2374,57 +2381,136 @@ html.legacy-on .tpl-fresh { min-height: 0; position: relative; }
 .cm-spark { display: inline-flex; align-items: flex-end; gap: 2px; height: 15px; }
 .cm-spark-bar { width: 5px; border-radius: 1px; background: var(--line-strong); }
 
-/* ---- Playbooks: six moments, not a list ----
-   The canvas's grid: a card per moment, three across, the empty ones dashed. A
-   card says what starts it and its state, the message and its languages, who it
-   will actually reach and who it holds back, and when it runs next beside the
-   shape of its last runs. Pressed, it opens across the grid into its detail. */
-.rp-body.pb-body { gap: 16px; container-type: inline-size; }
-.pb-tally { display: flex; gap: 14px; }
-.pb-tally-cell { display: flex; flex-direction: column; align-items: flex-end; }
-.pb-tally-n { font-family: var(--font-mono); font-size: var(--text-xl); font-weight: var(--weight-medium); line-height: 1.3; color: var(--ink); }
-.pb-tally-n[data-tone="ok"] { color: var(--ok-ink); }
-.pb-tally-n[data-tone="warn"] { color: var(--warn-ink); }
-.pb-tally-n[data-tone="plain"] { color: var(--ink-dim); }
-.pb-tally-k { font-size: var(--text-xs); color: var(--ink-dim); white-space: nowrap; }
-.pb-standing-warn { color: var(--warn-ink); }
-.pb-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: stretch; }
-.pb-tile { box-sizing: border-box; min-width: 0; display: flex; flex-direction: column; gap: 11px; padding: 15px 16px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--bg-raised); }
-.pb-tile.is-empty { border-style: dashed; background: var(--bg-sunken); }
-.pb-tile.is-open { grid-column: 1 / -1; }
-/* Where a link landed: marked, in ink -- the accent is the live agent's. */
-.pb-tile.is-focus { box-shadow: 0 0 0 2px var(--line-strong); }
-.pb-tile-head { display: flex; align-items: flex-start; gap: 10px; width: 100%; min-width: 0; padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: left; }
-button.pb-tile-head { cursor: pointer; }
-button.pb-tile-head:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-md); }
-.pb-tile-titles { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-.pb-tile-name { font-size: var(--text-md); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-tight); color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pb-tile-hint { font-size: var(--text-xs); color: var(--ink-dim); }
-.pb-tile-head > .pill { flex: none; }
-/* The message it sends and its languages, on a sunken strip. */
-.pb-tile-tpl { display: flex; align-items: center; gap: 9px; min-width: 0; padding: 8px 10px; border-radius: var(--radius-md); background: var(--bg-sunken); }
-.pb-tile-tpl-name { flex: 1 1 auto; min-width: 0; font-size: var(--text-xs); color: var(--ink-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pb-tile-lang { flex: none; display: inline-flex; align-items: center; gap: 4px; font-size: 10px; color: var(--ink-dim); }
-.pb-tile-foot { margin-top: auto; display: flex; align-items: center; gap: 8px; padding-top: 9px; border-top: 1px solid var(--line); }
-.pb-tile-next { min-width: 0; font-size: var(--text-xs); color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-button.pb-tile-next { padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-xs); cursor: pointer; }
+/* ---- Playbooks: the moments as People's table ----
+   The playbooks are rows under columns named once (Playbook, State, Reaches, Next
+   run, Runs), and the moments nothing is doing yet a compact group under them. A
+   row says what starts it and the one language its runs go out in, its state, who
+   it will actually reach with who it holds back named, when it runs next and the
+   shape of its last runs. Pressed, it opens under itself into its detail. It was a
+   3-up grid of cards -- 689px for the salon's eight at 1440, five of them empty. */
+.rp-body.pb-body { container-type: inline-size; }
+/* The head's line: how the moments stand, each number in ink beside its words. */
+.pb-standing { display: inline-flex; align-items: baseline; flex-wrap: wrap; gap: 4px 9px; min-width: 0; }
+.pb-tally-cell { display: inline-flex; align-items: baseline; gap: 4px; white-space: nowrap; }
+.pb-tally-n { font-weight: var(--weight-medium); color: var(--ink); font-variant-numeric: tabular-nums; }
+.pb-tally-k { color: var(--ink-dim); }
+.pb-tally-cell[data-tone="warn"] .pb-tally-n,
+.pb-tally-cell[data-tone="warn"] .pb-tally-k { color: var(--warn-ink); }
+.pb-tally-cell[data-tone="dim"] .pb-tally-n { color: var(--ink-muted); }
+.pb-standing-warn { margin-left: 4px; color: var(--warn-ink); }
+/* The list: People's table (.cl-table-wrap) -- one hairline box, a sunken head of 10px capitals, hairline rows. */
+.pb-list { border: 1px solid var(--line); border-radius: var(--radius-md); overflow: clip; background: var(--bg); container-type: inline-size; }
+.pb-list-head,
+.pb-row-line { display: grid; grid-template-columns: minmax(0, 1.5fr) 118px minmax(0, 1.25fr) minmax(0, 1fr) 96px; column-gap: 16px; align-items: center; }
+.pb-list-head { padding: 9px 14px; border-bottom: 1px solid var(--line); background: var(--bg-sunken); font-size: 10px; font-weight: var(--weight-medium); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-dim); }
+.pb-list-head-runs { text-align: right; }
+.pb-row { border-bottom: 1px solid var(--line); }
+.pb-row:last-child { border-bottom: 0; }
+.pb-row-line { min-height: 58px; padding: 9px 14px; cursor: pointer; }
+.pb-row-line:hover { background: var(--bg-hover); }
+.pb-row.is-open { background: var(--bg-sunken); }
+/* Where a link landed: marked in ink at the row's edge -- the accent is the live agent's. */
+.pb-row.is-focus { box-shadow: inset 2px 0 0 var(--ink); }
+/* The press that opens a row covers its mark and its words; a press on the rest of the line lands there too (cmRowPress). */
+.pb-row-what { display: grid; grid-template-columns: 24px minmax(0, 1fr); column-gap: 12px; align-items: center; min-width: 0; padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.pb-row-what:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-sm); }
+.pb-row-titles { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.pb-row-name { font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pb-row-hint { min-width: 0; font-size: var(--text-xs); color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pb-row-state, .pb-row-reach, .pb-row-next { min-width: 0; }
+/* Who it reaches: the count with its bar beside it, and the reasons on ONE line under them, the rest past an
+   ellipsis; open, the row says them all. A card drew the count, the bar and three reasons as five lines. */
+.pb-row-reach .cm-reach { display: grid; grid-template-columns: auto minmax(32px, 1fr); column-gap: 10px; row-gap: 3px; align-items: center; }
+.pb-row-reach .cm-reach-bar { margin-top: 0; }
+.pb-row-reach .cm-reach-will { font-size: var(--text-sm); }
+/* A long "of" ("186 of 186 with a visit tomorrow") gives way to the bar in a narrow list rather than painting over it. */
+.pb-row-reach .cm-reach-of { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* The reason the row leads with is the most-first one, its door with it; the rest are the open row's. A one-line
+   ellipsis clipped the door's reach and hid a door that Tab still found. */
+.pb-row-reach .cm-reach-why { grid-column: 1 / -1; display: block; margin: 0; }
+.pb-row-reach .cm-reach-why li { display: inline; }
+.pb-row-reach .cm-reach-why li:nth-child(n + 2) { display: none; }
+.pb-row.is-open .pb-row-reach .cm-reach-why li:nth-child(n + 2) { display: inline; }
+.pb-row-reach .cm-reach-why li + li::before { content: "\00B7"; margin: 0 6px; color: var(--ink-faint); }
+.pb-row-reach .cm-reach-dot { display: none; }
+.pb-row-reach .cm-reach-door { margin-left: 6px; }
+/* The next run in the muted ink: a run waiting on you is the pill's amber already, beside it (the badge system). */
+.pb-tile-next { display: block; min-width: 0; font-size: var(--text-xs); color: var(--ink-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+button.pb-tile-next { max-width: 100%; padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-xs); color: var(--ink-muted); text-align: left; white-space: normal; overflow: visible; cursor: pointer; }
+/* The column's head says "Next run" on a desk, so the words under it do not; a screen reader, which does not hear the
+   head, and a phone, which draws none, still do. */
+.pb-next-k { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 button.pb-tile-next:hover { text-decoration: underline; text-underline-offset: 2px; }
-.pb-tile-spacer { flex: 1 1 auto; }
-.pb-tile-runs { flex: none; font-size: var(--text-xs); color: var(--ink-dim); }
-/* A moment nothing is doing: what it is for, who it would reach, one press. */
-.pb-tile-empty { flex: 1 1 auto; display: flex; flex-direction: column; justify-content: center; gap: 10px; }
-.pb-tile-blurb { margin: 0; font-size: var(--text-sm); line-height: 1.5; color: var(--ink-dim); }
-.pb-tile-setup { align-self: flex-start; border-color: var(--line-strong); color: var(--ink-muted); }
-/* Open, the card's detail sits under its head: what it sends, its runs, its verbs. */
-.pb-tile .ob-card-detail { display: flex; flex-direction: column; gap: var(--space-3); container-type: inline-size; }
+button.pb-tile-next:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 2px; }
+.pb-row-runs { display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; }
+.pb-tile-runs { flex: none; font-size: var(--text-xs); color: var(--ink-dim); white-space: nowrap; }
+/* Open, the detail sits under the row's words: the message beside its sentence, its runs, its verbs. */
+.pb-row-open { padding: 2px 14px 16px 50px; }
+.pb-row-open .ob-card-detail { display: flex; flex-direction: column; gap: var(--space-3); container-type: inline-size; }
 .ob-head-bare { justify-content: flex-start; }
-/* The three rules that quietly shape every run. */
-.pb-rules { display: flex; align-items: center; gap: 22px; padding: 13px 16px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--bg-raised); }
-.pb-rules-k { flex: none; font-size: var(--text-xs); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--ink-dim); }
-.pb-rule { flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 9px; }
+/* The moments nothing is doing yet: two lines each -- the moment, what starts it and who it would reach today --
+   and Set up. What each is for is its hover. */
+.pb-more { display: flex; flex-direction: column; gap: 8px; }
+.pb-more-head { display: flex; align-items: center; gap: 6px; font-size: var(--text-xs); font-weight: var(--weight-medium); color: var(--ink-muted); }
+.pb-more-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 8px; }
+.pb-slot { box-sizing: border-box; min-width: 0; display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; column-gap: 10px; align-items: center; padding: 8px 8px 8px 10px; border: 1px dashed var(--line-strong); border-radius: var(--radius-md); }
+.pb-slot-titles { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.pb-slot-name { display: flex; align-items: baseline; gap: 8px; min-width: 0; font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink); }
+.pb-slot-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pb-slot-who { flex: none; font-size: var(--text-xs); font-weight: var(--weight-regular); color: var(--ink-dim); white-space: nowrap; }
+.pb-slot-hint { font-size: var(--text-xs); color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pb-slot-start { height: 28px; padding: 0 10px; border-color: var(--line-strong); color: var(--ink-muted); }
+/* The three rules every run keeps: one quiet line under the lists, each rule's longer words its hover. */
+.pb-rules { margin: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 6px 16px; font-size: var(--text-xs); color: var(--ink-dim); }
+.pb-rules-k { font-weight: var(--weight-medium); color: var(--ink-muted); }
+.pb-rule { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .pb-rule > .icon { flex: none; color: var(--ink-faint); }
-.pb-rule b { display: block; font-size: var(--text-xs); font-weight: var(--weight-medium); color: var(--ink); }
-.pb-rule span { display: block; font-size: var(--text-xs); color: var(--ink-dim); }
+/* A thumb's reach without a taller row (legacy.css gives every button on a touch screen 44px): the opener is the
+   whole line (cmRowPress), and the words that are their own press take their reach from a box that takes no room. */
+html.legacy-on .pb-row-what,
+html.legacy-on button.pb-tile-next,
+html.legacy-on .pb-row-reach .cm-reach-door,
+html.legacy-on .pb-slot .pb-slot-start { min-height: 0; }
+html.legacy-on button.pb-tile-next,
+html.legacy-on .pb-row-reach .cm-reach-door,
+html.legacy-on .pb-slot .pb-slot-start { position: relative; }
+button.pb-tile-next::after,
+.pb-row-reach .cm-reach-door::after { content: ""; position: absolute; inset: -12px -4px; }
+.pb-slot-start::after { content: ""; position: absolute; inset: -8px -4px; }
+/* A narrower list: the runs' shape goes and their count stays. */
+@container (max-width: 900px) {
+  .pb-list-head,
+  .pb-row-line { grid-template-columns: minmax(0, 1.4fr) 108px minmax(0, 1.2fr) minmax(0, 1fr) 56px; column-gap: 14px; }
+  .pb-row-runs .cm-spark { display: none; }
+}
+/* A phone's list: People's row, on the row tokens. The name with its state at the right; who it reaches on one
+   line, the bar left to the desk; when it runs next beside how many runs. What starts it is the open row's
+   sentence. */
+@container (max-width: 640px) {
+  .pb-list-head { display: none; }
+  .pb-row-line { grid-template-columns: var(--row-face) minmax(0, 1fr) auto; grid-template-areas: "what what state" ". reach reach" ". next runs"; column-gap: var(--row-gap); row-gap: var(--row-line-gap); min-height: 0; padding: var(--row-pad-y) var(--row-pad-x); }
+  .pb-row-what { grid-area: what; grid-template-columns: var(--row-face) minmax(0, 1fr); column-gap: var(--row-gap); }
+  .pb-row-name { font-size: var(--text-base); line-height: var(--row-name-line); }
+  .pb-row-hint { display: none; }
+  .pb-row-state { grid-area: state; }
+  .pb-row-reach { grid-area: reach; }
+  .pb-row-next { grid-area: next; }
+  .pb-row-runs { grid-area: runs; }
+  .pb-row-reach .cm-reach { display: flex; align-items: baseline; min-width: 0; }
+  .pb-row-reach .cm-reach-n { flex: none; gap: 4px; }
+  .pb-row-reach .cm-reach-will { font-family: inherit; font-size: var(--row-facts); font-weight: var(--weight-medium); }
+  .pb-row-reach .cm-reach-of { font-size: var(--row-facts); }
+  .pb-row-reach .cm-reach-bar { display: none; }
+  .pb-row-reach .cm-reach-why { flex: 1 1 auto; min-width: 0; font-size: var(--row-facts); line-height: var(--row-facts-line); }
+  .pb-row-reach .cm-reach-why::before { content: "\00B7"; margin: 0 6px; color: var(--ink-faint); }
+  .pb-row-reach .cm-reach-why li { font-size: var(--row-facts); }
+  .pb-tile-next, button.pb-tile-next, .pb-tile-runs { font-size: var(--row-facts); line-height: var(--row-facts-line); }
+  .pb-next-k { position: static; width: auto; height: auto; overflow: visible; clip-path: none; }
+  .pb-row-runs .cm-spark { display: none; }
+  .pb-row-open { padding: 0 var(--row-pad-x) var(--row-pad-y); }
+  .pb-more-list { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .pb-slot-hint { display: none; }
+}
 /* ---- The playbook composer (outbound-real.jsx PlaybookComposer) ----
    The record kit's sheet beside the page, read as a playbook is: who it is for,
    what it says, when it runs. Two controls open lists (a moment, a message),
@@ -2513,15 +2599,6 @@ button.pb-tile-next:hover { text-decoration: underline; text-underline-offset: 2
 }
 @media (prefers-reduced-motion: reduce) {
   .pb-title, .pb-title-wrap > .icon, .pb-fill-src, .pb-tok > select { transition: none; }
-}
-/* The grid follows the pane, not the window (#735): three across where three fit,
-   two, then one; the rules stack under their heading. */
-@container (max-width: 980px) {
-  .pb-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-@container (max-width: 640px) {
-  .pb-grid { grid-template-columns: minmax(0, 1fr); }
-  .pb-rules { flex-direction: column; align-items: flex-start; gap: 10px; }
 }
 
 /* ---- Broadcasts: the one ledger ----
