@@ -241,6 +241,19 @@ test("booking rules and the calendar feed are config the schemas accept, and the
     !text.includes("ask once for the best email"),
     "off by default: the switch adds the line, nothing else does",
   );
+  // The switch alone opens the block, and it is the block's one line; off, with no other rule set, there is no block.
+  const alone = composeSystemPrompt(brain, { hours, booking_rules: { ask_email: true } }, "whatsapp");
+  const at = alone.indexOf("Booking rules:\n");
+  assert.ok(at >= 0, "the switch alone opens the block");
+  const end = alone.indexOf("\n\n", at);
+  assert.equal(
+    alone.slice(at, end < 0 ? undefined : end),
+    "Booking rules:\n- When you send the booking link and no email address is on file for them, ask once for the best email for their booking confirmation, then move on. Never insist; thank them if they give one.",
+  );
+  assert.ok(
+    !composeSystemPrompt(brain, { hours, booking_rules: { ask_email: false } }, "whatsapp").includes("Booking rules:"),
+    "off, with no other rule, is no block at all",
+  );
   assert.ok(
     text.includes("If open times are listed after these instructions, offer up to three that fit"),
     "both channels are told how to use the openings",

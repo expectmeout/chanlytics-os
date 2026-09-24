@@ -1191,6 +1191,8 @@ test("the booking rules fold's switch asks for an email when the link goes out: 
   press(sw);
   tree = redrawTab();
   assert.equal(byTestId(tree, "rec-rule-ask-email").props["aria-checked"], true);
+  // The block of what a save will say carries the ask at once: it is composed from the fold's own save.
+  assert.match(textOf(byTestId(tree, "rec-fold-says-booking_rules")), /ask once for the best email/);
   saveFoldOf(tree, "booking_rules");
   tree = redrawTab();
   assert.deepEqual(
