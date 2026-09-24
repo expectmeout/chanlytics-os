@@ -137,15 +137,22 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 .ask-show { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 .ask-figures { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 .ask-tile { display: flex; flex-direction: column; gap: 3px; min-width: 0; padding: 10px 12px 9px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg-raised); transition: background-color var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out); }
-.ask-tile:hover, .ask-tile:has(:focus-visible), .ask-tile.open { background: var(--bg-hover); border-color: var(--line-strong); }
+.ask-tile:has(:focus-visible), .ask-tile.open { background: var(--bg-hover); border-color: var(--line-strong); }
 .ask-tile-value { align-self: flex-start; padding: 0; border: 0; background: transparent; font: inherit; font-size: 20px; font-weight: 500; letter-spacing: -0.02em; line-height: 1.15; font-variant-numeric: tabular-nums; color: var(--ink); cursor: pointer; }
 .ask-tile-value.plain { cursor: default; }
 .ask-tile-label { font-size: 12px; color: var(--ink-muted); }
 .ask-tile-note { font-size: 11.5px; color: var(--ink-dim); }
 .ask-tile-from { display: none; align-items: center; gap: 5px; font-size: 11.5px; color: var(--ink-dim); }
 /* Hover, the keys' focus (the value is a button) or a press: the note gives way to where the figure comes from (S4). */
-.ask-tile:hover .ask-tile-from, .ask-tile:has(:focus-visible) .ask-tile-from, .ask-tile-from[data-open="true"] { display: inline-flex; }
-.ask-tile:hover .ask-tile-note, .ask-tile:has(:focus-visible) .ask-tile-note, .ask-tile.open .ask-tile-note { display: none; }
+.ask-tile:has(:focus-visible) .ask-tile-from, .ask-tile-from[data-open="true"] { display: inline-flex; }
+.ask-tile:has(:focus-visible) .ask-tile-note, .ask-tile.open .ask-tile-note { display: none; }
+/* Hover only where a pointer hovers: a tile with no source stays still, and a tap leaves no hover behind, so a second
+   tap closes the receipt. */
+@media (hover: hover) {
+  .ask-tile:has(.ask-tile-from):hover { background: var(--bg-hover); border-color: var(--line-strong); }
+  .ask-tile:hover .ask-tile-from { display: inline-flex; }
+  .ask-tile:has(.ask-tile-from):hover .ask-tile-note { display: none; }
+}
 .ask-tile-door { display: inline-flex; padding: 2px; border: 0; background: transparent; color: var(--ink-muted); cursor: pointer; }
 .ask-tile-door:hover { color: var(--ink); }
 .ask-breakdown { display: flex; flex-direction: column; gap: 6px; }
@@ -172,7 +179,7 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 .ask-answer.compact .ask-figures { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
 /* ---- Cards: a proposal the person approves (no coloured edge: coral is only for Ask at work) ---- */
-.ask-card { margin: 0 0 8px 12px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--bg); padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+.ask-card { margin: 0; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--bg); padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
 .ask-card.dismissed, .ask-card.undone { opacity: .6; }
 .ask-card-head { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; color: var(--ink); }
 .ask-card-kind { margin-left: auto; font-size: 11px; color: var(--ink-dim); }

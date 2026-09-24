@@ -276,10 +276,9 @@ const AskAnswer = ({ answer, cardOpen, cards, messageId, retry, walk = false, se
                     <Icon name="arrow-right" size={14} />{a.do.open.label}
                   </button>
                 ) : null}
-                {/* Where the keys walk this answer from the line, they walk its chips as they walk the home's, so Tab
-                    passes them; a folded answer's are Tab's. A long question ends in an ellipsis inside its chip. */}
+                {/* A long question ends in an ellipsis inside its chip. */}
                 {a.do.next.map((q, k) => (
-                  <button key={q} type="button" tabIndex={walk ? -1 : undefined} {...moveProps(nextAt + k, "ask-chip next")} onClick={() => onFollow(q)} data-testid="ask-next"><span>{q}</span></button>
+                  <button key={q} type="button" {...moveProps(nextAt + k, "ask-chip next")} onClick={() => onFollow(q)} data-testid="ask-next"><span>{q}</span></button>
                 ))}
               </div>
             ) : null}

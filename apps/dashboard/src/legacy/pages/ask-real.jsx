@@ -226,8 +226,8 @@ const AskReal = ({ open, onClose }) => {
     const b = bodyRef.current;
     if (!b || !b.querySelector) return;
     const el = b.querySelector(".ask-row.sel, .ask-chip.sel, .ask-item.sel, .ask-open.sel");
-    if (!el) return;
-    const top = el.offsetTop, h = el.offsetHeight;
+    if (!el || !el.getBoundingClientRect) return;
+    const top = el.getBoundingClientRect().top - b.getBoundingClientRect().top - b.clientTop + b.scrollTop, h = el.offsetHeight;
     if (top < b.scrollTop) b.scrollTop = Math.max(0, top - 8);
     else if (top + h > b.scrollTop + b.clientHeight) b.scrollTop = top + h - b.clientHeight + 8;
   }, [sel, move]);
