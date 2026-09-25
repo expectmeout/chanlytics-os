@@ -23,8 +23,6 @@ import {
   syncProfile,
 } from "../../lib/google/google.js";
 
-export const config = { maxDuration: 60 };
-
 /** A bound per tick; a backlog drains over successive hours rather than one long call. */
 const MAX_PER_TICK = 40;
 

@@ -17,8 +17,6 @@ import { env } from "../../lib/env.js";
 import { logger } from "../../lib/log.js";
 import { askNoteModel, suggestNotes } from "../../lib/notes/suggest.js";
 
-export const config = { maxDuration: 60 };
-
 export async function POST(request: Request): Promise<Response> {
   const L = logger({ sweep: "notes" });
   const db = pg();

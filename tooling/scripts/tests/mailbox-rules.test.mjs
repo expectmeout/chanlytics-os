@@ -15,6 +15,7 @@ import {
   EMAIL_ELSEWHERE_SENTENCE,
   EMAIL_NOT_ANSWERED_SENTENCE,
   MAILBOX_RESERVED,
+  emailDomainOf,
 } from "@chanlytics/contracts";
 
 const NOW = Date.parse("2026-09-17T15:00:00Z");
@@ -203,4 +204,11 @@ test("Setup keeps saying the channel is set up, because it is, and carries the t
     mailbox: { ...MAILBOX, last_received_at: null, last_error: TROUBLE },
   });
   assert.deepEqual(never.details, [TROUBLE, "Nothing received yet", EMAIL_ELSEWHERE_SENTENCE]);
+});
+
+test("the deployment's mail domain: one reading for the edge and the dashboard, lower-cased, or off", () => {
+  assert.equal(emailDomainOf("mail.chanlytics.com"), "mail.chanlytics.com");
+  assert.equal(emailDomainOf("  Mail.Chanlytics.COM \n"), "mail.chanlytics.com", "as a variable is often pasted");
+  for (const off of [undefined, null, "", "   ", "localhost", "https://mail.chanlytics.com", "sam@mail.chanlytics.com"])
+    assert.equal(emailDomainOf(off), null, String(off));
 });

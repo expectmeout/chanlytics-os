@@ -43,8 +43,6 @@ interface Body {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export const config = { maxDuration: 30 };
-
 const STATUS_OF: Record<string, number> = {
   not_ready: 503,
   no_account: 404,

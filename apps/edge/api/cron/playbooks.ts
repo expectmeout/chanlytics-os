@@ -14,8 +14,6 @@ import { playbooksDue, noteBacklog, PLAYBOOKS_PER_TICK } from "../../lib/ops/swe
 import { loadTenantRunContext, runPlaybook, type PlaybookRow } from "../../lib/playbooks.js";
 import { localDate, runDueNow, type PlaybookDto } from "../../lib/packages/contracts.js";
 
-export const config = { maxDuration: 60 };
-
 export async function POST(request: Request): Promise<Response> {
   const L = logger({ sweep: "playbooks" });
   const db = pg();

@@ -20,8 +20,6 @@ import { addPeopleFromCalendar } from "../../lib/calendar/calendar-people.js";
 import { recordNotification } from "../../lib/ops/notify.js";
 import { parseTenantConfig, peopleFromItems } from "../../lib/packages/contracts.js";
 
-export const config = { maxDuration: 60 };
-
 export async function POST(request: Request): Promise<Response> {
   const L = logger({ sweep: "calendar" });
   const db = pg();

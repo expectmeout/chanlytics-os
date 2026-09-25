@@ -60,8 +60,6 @@ import { logger, errField } from "../lib/log.js";
 
 const L = logger();
 
-export const config = { maxDuration: 60 };
-
 const PLATFORM_TENANT = "00000000-0000-0000-0000-000000000000";
 
 /**

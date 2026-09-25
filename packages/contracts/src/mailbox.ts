@@ -32,6 +32,17 @@ export const MAILBOX_RESERVED: ReadonlySet<string> = new Set([
 export const MAILBOX_LOCAL_PART_MAX = 40;
 export const MAILBOX_FROM_NAME_MAX = 80;
 
+/**
+ * The deployment's mail domain (EMAIL_DOMAIN, the subdomain workspaces' addresses are on), lower-cased; null when email
+ * is off here: unset, blank, or not a domain. The one reading: the edge (lib/email/email.ts) and the dashboard
+ * (server/email.ts) each hand it their own variable, and must agree on it, since a reply the dashboard freezes is
+ * sent by the edge.
+ */
+export function emailDomainOf(value: string | null | undefined): string | null {
+  const d = (value || "").trim().toLowerCase();
+  return /^[a-z0-9.-]+\.[a-z]{2,}$/.test(d) ? d : null;
+}
+
 /** What an owner typed, as the table would store it: lower-case, no spaces around it. Nothing is guessed or stripped. */
 export function normalizeLocalPart(typed: string): string {
   return typed.trim().toLowerCase();

@@ -17,8 +17,6 @@ import { checkSendingDomain, type DomainPorts } from "../../lib/email/sending-do
 import { watchColdReceipts } from "../../lib/email/cold-receipts.js";
 import { pageOperator } from "../../lib/ops/page-operator.js";
 
-export const config = { maxDuration: 60 };
-
 /**
  * The most a tick reads from the table. The time budget below is what bounds the work: a tick reads every due domain
  * it has time for, longest unread first, and what is left is first in line next tick.

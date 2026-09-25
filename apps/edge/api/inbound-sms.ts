@@ -32,8 +32,6 @@ import { IngestFailed } from "../lib/whatsapp/persist.js";
 import { logger } from "../lib/log.js";
 import { phoneTail } from "../lib/packages/contracts.js";
 
-export const config = { maxDuration: 60 };
-
 const EMPTY_TWIML = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>';
 const twiml = (status: number) => text(status, EMPTY_TWIML, { "content-type": "text/xml" });
 

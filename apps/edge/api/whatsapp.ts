@@ -49,8 +49,6 @@ import { logger, errField } from "../lib/log.js";
 
 const L = logger();
 
-export const config = { maxDuration: 60 };
-
 export async function GET(request: Request): Promise<Response> {
   const q = new URL(request.url).searchParams;
   if (q.get("hub.mode") === "subscribe" && q.get("hub.verify_token") === env.WHATSAPP_VERIFY_TOKEN) {

@@ -7,7 +7,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readRaw } from "./_source.mjs";
+import { execFileSync } from "node:child_process";
+import { ROOT, readRaw } from "./_source.mjs";
 import { LEASE_SECONDS, YIELD_AT_MS } from "../../../packages/jobs/src/ledger.ts";
 import { EVENT_EVIDENCE_KINDS, RETENTION_DAYS } from "@chanlytics/contracts";
 
@@ -75,6 +76,23 @@ test("a claimed job's lease outlives the function that runs it", () => {
   assert.equal(typeof ceiling, "number", "api/jobs/tick.ts has an explicit ceiling in vercel.json");
   assert.ok(LEASE_SECONDS > ceiling, `a ${LEASE_SECONDS}s lease must outlive the ${ceiling}s ceiling`);
   assert.ok(YIELD_AT_MS < ceiling * 1000, "and a looping handler yields before the ceiling");
+});
+
+test("an edge door's time limit is set in one place: vercel.json, never in the door too", () => {
+  // Twelve doors once said their limit twice (an `export const config` and a vercel.json entry), eight only in the
+  // door, six only in vercel.json: two places that agreed only by care (Reach out Part 2.5). vercel.json is the one
+  // the tests above already read. A door with no entry takes the platform's default, which is not written down here.
+  const functions = JSON.parse(readRaw("apps/edge/vercel.json")).functions;
+  const doors = execFileSync("git", ["ls-files", "apps/edge/api"], { cwd: ROOT, encoding: "utf8" })
+    .split("\n")
+    .filter((f) => f.endsWith(".ts"));
+  assert.ok(doors.length > 20, "the doors are listed");
+  for (const f of doors)
+    assert.doesNotMatch(readRaw(f), /^export const config\b/m, `${f}: its limit belongs in apps/edge/vercel.json`);
+  for (const [key, entry] of Object.entries(functions)) {
+    assert.ok(doors.includes(`apps/edge/${key}`), `vercel.json names ${key}, which is no door`);
+    assert.ok(Number.isInteger(entry.maxDuration) && entry.maxDuration > 0, `${key}: a limit in seconds`);
+  }
 });
 
 test("a log line on the message path carries a phone tail, never the number or the words", () => {

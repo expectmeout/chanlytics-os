@@ -30,8 +30,6 @@ import { emitEvent, type Json } from "../lib/packages/db.js";
 import { scheduleJobOnce } from "../lib/packages/jobs.js";
 import { env } from "../lib/env.js";
 
-export const config = { maxDuration: 30 };
-
 /** The event is metadata: ids, addresses, a subject. Anything larger is not one. */
 const MAX_BODY_BYTES = 256 * 1024;
 /** Mail for nobody is counted at most this often per instance: spam to a made-up address must not become a row per message. */

@@ -28,8 +28,6 @@ import {
 import { receptionistOn } from "../lib/packages/contracts.js";
 import { env } from "../lib/env.js";
 
-export const config = { maxDuration: 30 };
-
 const idOf = (x: string | { id: string } | null | undefined): string | null =>
   typeof x === "string" ? x : (x?.id ?? null);
 

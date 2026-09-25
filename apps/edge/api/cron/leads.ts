@@ -18,7 +18,6 @@ import { scheduleJobOnce } from "../../lib/packages/jobs.js";
 import { leadDb } from "../../lib/leads/lead-db.js";
 import type { Json } from "../../lib/packages/db.js";
 
-export const config = { maxDuration: 60 };
 /** Reconciliation calls the provider per unknown run; the rest of a backlog waits for the next tick. */
 const RECONCILE_PER_TICK = 10;
 

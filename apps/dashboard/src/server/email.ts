@@ -14,6 +14,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildEmailRequest, hostedAddress, hostedIdentity } from "@chanlytics/channels";
 import {
   AppError,
+  emailDomainOf,
   normalizeLocalPart,
   whyNotAFromName,
   whyNotALocalPart,
@@ -25,10 +26,9 @@ import type { EmailReplyPorts } from "@chanlytics/core";
 import type { RouteContext } from "./with-route";
 import { domainsReadiness, sendingDomainsFor } from "./sending-domains";
 
-/** The deployment's mail domain, lower-cased; null when email is off here. The edge's lib/email.ts reads it the same way. */
+/** The deployment's mail domain, lower-cased; null when email is off here (contracts emailDomainOf, as the edge reads it). */
 export function emailDomain(): string | null {
-  const d = (process.env.EMAIL_DOMAIN || "").trim().toLowerCase();
-  return /^[a-z0-9.-]+\.[a-z]{2,}$/.test(d) ? d : null;
+  return emailDomainOf(process.env.EMAIL_DOMAIN);
 }
 
 /**

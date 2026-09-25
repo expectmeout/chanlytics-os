@@ -305,7 +305,7 @@ export async function checkListing(
       .from("google_listings")
       .update({ check_error: error })
       .eq("tenant_id", row.tenant_id);
-    if (upErr) throw new Error(upErr.message);
+    if (upErr) throw new Error(upErr.message, { cause: e });
     L.warn("google_check_failed", { error });
     return { ok: false, error };
   }
