@@ -108,6 +108,7 @@ globalThis.StatePill = globalThis.window.StatePill;
 // data-bits publishes the shell's toast hook; this harness keeps its own, which remembers what was said.
 const flashes = [];
 globalThis.window.usePPToast = () => [null, (m) => flashes.push(m)];
+await import("../../../apps/dashboard/src/legacy/components/record-field.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/setup.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/first-run.jsx");
 
@@ -829,4 +830,256 @@ test("your phone: a buy refused (the number was taken) says so, and the next pre
   await tick();
   await tick();
   assert.deepEqual(asked.buy.at(-1), ["+13055550142", "305"], "the second press buys");
+});
+
+/* ---- 4b: the two questions while the number gets ready, and the code ---- */
+const VOICE_LINE = "+13055550142";
+const answeringLine = (extra = []) => ({
+  ...phoneReady({ status: "trialing", trial_end: "2026-09-21T15:00:00Z" }),
+  channels: { ...withFacts.channels, voice: { present: true, active: true, number: VOICE_LINE, lastInboundAt: null } },
+  lines: {
+    rows: [
+      {
+        id: "line-1",
+        e164: VOICE_LINE,
+        kind: "chanlytics",
+        provider: "twilio",
+        area_code: 305,
+        voice_state: "answering",
+        sms_state: "none",
+        whatsapp_state: "none",
+        port_state: "none",
+        forwarding_state: "none",
+        step: null,
+        last_error: null,
+        state_since: "2026-09-07T14:00:00Z",
+        created_at: "2026-09-07T14:00:00Z",
+      },
+      ...extra,
+    ],
+    ready: true,
+    provider: "twilio",
+    costs: { local_number_month_usd: 1.15 },
+  },
+});
+const forwardedRow = (carrier) => ({
+  id: "fw-1",
+  e164: "+13055550100",
+  kind: "forwarded",
+  provider: "carrier",
+  area_code: 305,
+  voice_state: "none",
+  sms_state: "none",
+  whatsapp_state: "none",
+  port_state: "none",
+  forwarding_state: "instructed",
+  step: null,
+  last_error: null,
+  state_since: "2026-09-07T14:30:00Z",
+  created_at: "2026-09-07T14:30:00Z",
+  forwarding: {
+    carrier,
+    mode: "unanswered",
+    destination_e164: VOICE_LINE,
+    test_from: null,
+    test_until: null,
+    verified_at: null,
+  },
+});
+/** A question's answer pressed, by its words: the record kit's radiogroup, as the page draws it. */
+const choose = (tree, key, words) => {
+  let hit = null;
+  walk(byTestId(tree, `fr-q-${key}`), (n) => {
+    if (!hit && n.props?.role === "radio" && textOf(n) === words) hit = n;
+  });
+  assert.ok(hit, `no ${words} under ${key}`);
+  hit.props.onClick();
+  return hit;
+};
+const chosen = (tree, key) => {
+  let hit = null;
+  walk(byTestId(tree, `fr-q-${key}`), (n) => {
+    if (!hit && n.props?.role === "radio" && n.props["aria-checked"]) hit = textOf(n);
+  });
+  return hit;
+};
+const forwardingSays = () => {
+  const saved = [];
+  globalThis.window.__setup.forwarding = {
+    set: async (o) => {
+      saved.push(o);
+      return { ok: true, message: "" };
+    },
+  };
+  return saved;
+};
+
+test("your phone (canvas R4): while the number gets ready, the two questions, kept as they are answered, the buy still on", async () => {
+  const { drafts } = phoneWorld();
+  globalThis.window.__tabMemory.keepDraft("first-run-phone", {
+    way: "keep",
+    number: null,
+    pick: null,
+    pending: true,
+    sent: Date.now(),
+  });
+  globalThis.window.__SETUP = surface(phoneReady({ status: "trialing", trial_end: "2026-09-21T15:00:00Z" }));
+  param = "phone";
+  fresh();
+  let tree = mount();
+  assert.equal(byTestId(tree, "fr-phone").props["data-stage"], "buying");
+  assert.equal(
+    textOf(byTestId(tree, "fr-phone-questions")),
+    "Which phone rings when customers call +1 (305) 555-0100?A mobileA landline",
+  );
+  assert.equal(textOf(byTestId(tree, "fr-phone-held")), "Ready in a moment");
+  choose(tree, "rings", "A mobile");
+  tree = mount();
+  choose(tree, "company", "T-Mobile");
+  tree = mount();
+  assert.equal(chosen(tree, "company"), "T-Mobile");
+  const kept = drafts["first-run-phone"];
+  assert.deepEqual(
+    [kept.rings, kept.company, kept.pending],
+    ["mobile", "tmobile", true],
+    "the buy is still on its way",
+  );
+  assert.equal(byTestId(tree, "fr-back") !== null, true, "the step's own foot, with Back");
+});
+
+test("your phone: the line answers, and Show me what to dial saves the forwarding the answers choose", async () => {
+  phoneWorld();
+  const saved = forwardingSays();
+  globalThis.window.__tabMemory.keepDraft("first-run-phone", {
+    way: "keep",
+    number: null,
+    pick: null,
+    pending: false,
+    rings: "landline",
+  });
+  globalThis.window.__SETUP = surface(answeringLine());
+  param = "phone";
+  fresh();
+  const tree = mount();
+  assert.equal(byTestId(tree, "fr-phone").props["data-stage"], "ask");
+  const go = byTestId(tree, "fr-phone-go");
+  assert.equal(textOf(go), "Show me what to dial");
+  await go.props.onClick();
+  assert.deepEqual(
+    saved,
+    [{ number: "+13055550100", carrier: "other", mode: "unanswered", test_from: "" }],
+    "a landline's codes",
+  );
+});
+
+test("your phone (canvas R5, P5): the code from the forwarding saved, its help, changing the answers, and on to Try it", async () => {
+  phoneWorld();
+  forwardingSays();
+  globalThis.window.__tabMemory.keepDraft("first-run-phone", {
+    way: "keep",
+    number: null,
+    pick: null,
+    pending: false,
+    rings: "mobile",
+    company: "tmobile",
+  });
+  globalThis.window.__SETUP = surface(answeringLine([forwardedRow("tmobile")]));
+  param = "phone";
+  fresh();
+  let tree = mount();
+  assert.equal(byTestId(tree, "fr-phone").props["data-stage"], "code");
+  assert.equal(textOf(byTestId(tree, "fr-heading")), "Dial this on the phone customers call");
+  const dial = byTestId(tree, "fr-phone-dial");
+  assert.equal(textOf(dial), "**004*+13055550142#");
+  assert.equal(
+    dial.props.href,
+    undefined,
+    "words to dial: an iPhone refuses a link with * or #, and a desk has no dialer",
+  );
+  assert.equal(byTestId(tree, "fr-phone-tap"), null, "no tap where the phone cannot dial one");
+  const ua = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+  Object.defineProperty(globalThis, "navigator", {
+    value: { userAgent: "Mozilla/5.0 (Linux; Android 14)" },
+    configurable: true,
+  });
+  try {
+    assert.equal(
+      byTestId(mount(), "fr-phone-tap").props.href,
+      "tel:**004*%2B13055550142%23",
+      "Android's dialer takes it",
+    );
+  } finally {
+    if (ua) Object.defineProperty(globalThis, "navigator", ua);
+    else delete globalThis.navigator;
+  }
+  assert.match(textOf(byTestId(tree, "fr-phone-warn")), /^Voicemail on this phone\?/);
+  assert.equal(byTestId(tree, "fr-phone-notes"), null);
+  byTestId(tree, "fr-phone-help").props.onClick();
+  tree = mount();
+  assert.match(textOf(byTestId(tree, "fr-phone-notes")), /T-Mobile takes the number with \+1 in front\./);
+  const done = byTestId(tree, "fr-phone-go");
+  assert.equal(textOf(done), "Done, let's try it");
+  await done.props.onClick();
+  assert.equal(replaced.at(-1), "start", "on to where the workspace is: Try it");
+  byTestId(tree, "fr-phone-change").props.onClick();
+  tree = mount();
+  assert.equal(byTestId(tree, "fr-phone").props["data-stage"], "ask", "the answers asked again");
+  // The same answers again: nothing is saved (it would drop what a test call proved), and the code comes back.
+  const saved = forwardingSays();
+  await byTestId(tree, "fr-phone-go").props.onClick();
+  assert.deepEqual(saved, []);
+  assert.equal(byTestId(mount(), "fr-phone").props["data-stage"], "code");
+});
+
+test("your phone: asked again with the answers lost, the questions are about the number forwarded, and Keep the code goes back", async () => {
+  phoneWorld();
+  const saved = forwardingSays();
+  globalThis.window.__tabMemory.keepDraft("first-run-phone", { way: "keep", number: null, pick: null, pending: false });
+  const row = { ...forwardedRow("other"), e164: "+13055550177" };
+  globalThis.window.__SETUP = surface(answeringLine([row]));
+  param = "phone";
+  fresh();
+  let tree = mount();
+  assert.equal(
+    textOf(byTestId(tree, "fr-phone-code")).startsWith("Another carrier or a landline"),
+    true,
+    "neither said",
+  );
+  byTestId(tree, "fr-phone-change").props.onClick();
+  tree = mount();
+  assert.match(textOf(byTestId(tree, "fr-q-rings")), /\+1 \(305\) 555-0177/, "the forwarded number, not the listing's");
+  choose(tree, "rings", "A mobile");
+  tree = mount();
+  choose(tree, "company", "Verizon");
+  tree = mount();
+  await byTestId(tree, "fr-phone-go").props.onClick();
+  assert.deepEqual(saved, [{ number: "+13055550177", carrier: "verizon", mode: "unanswered", test_from: "" }]);
+  globalThis.window.__tabMemory.keepDraft("first-run-phone", {
+    way: "keep",
+    number: null,
+    pick: null,
+    pending: false,
+    redo: true,
+  });
+  fresh();
+  tree = mount();
+  byTestId(tree, "fr-phone-keep").props.onClick();
+  assert.equal(byTestId(mount(), "fr-phone").props["data-stage"], "code", "back to the code, nothing saved");
+});
+
+test("your phone: a role that may not save the forwarding sees the questions with the page's own foot, and goes on", () => {
+  phoneWorld();
+  globalThis.window.__tabMemory.keepDraft("first-run-phone", { way: "keep", number: null, pick: null, pending: false });
+  globalThis.window.__SETUP = surface(answeringLine());
+  globalThis.window.canDo = (what) => what !== "team";
+  try {
+    param = "phone";
+    fresh();
+    const tree = mount();
+    assert.equal(byTestId(tree, "fr-phone").props["data-stage"], "ask");
+    assert.equal(byTestId(tree, "fr-phone-go"), null, "no button it may not press");
+    assert.equal(textOf(byTestId(tree, "fr-onward")), "Continue", "the step is done: its line answers");
+  } finally {
+    globalThis.window.canDo = () => true;
+  }
 });

@@ -9,6 +9,7 @@ import {
   setupSteps,
   firstRunPhoneOf,
   areaCodeOf,
+  forwardingCarrierOf,
   FIRST_RUN_PHONE_WORDS as W,
   FIRST_RUN_HELPERS,
 } from "@chanlytics/contracts";
@@ -102,7 +103,7 @@ test("choosing (canvas R3): keeping the listing's number first and recommended, 
     offer: "14 days free, then $49.00 a month",
     note: "We ask for a card now, and nothing is charged for 14 days. You can cancel anytime from Billing.",
   });
-  assert.deepEqual(vm.cta, { label: "Start my free trial", held: null });
+  assert.deepEqual(vm.cta, { label: "Start my free trial", held: null, act: "trial" });
   assert.equal(vm.status, null);
   assert.equal(vm.started, null);
 });
@@ -121,7 +122,10 @@ test("the trial says only what it knows: no price read, the days alone; no trial
 
 test("each way names its button, and holds it until there is a number to keep or one picked", () => {
   const pick = { e164: "+13055550142", friendly: "(305) 555-0142" };
-  const trial = (choice) => phone(dtoOf(), { pick: null, number: null, pending: false, ...choice }).cta;
+  const trial = (choice) => {
+    const { label, held } = phone(dtoOf(), { pick: null, number: null, pending: false, ...choice }).cta;
+    return { label, held };
+  };
   assert.deepEqual(trial({ way: "new" }), { label: "Start my free trial", held: "Pick a number first." });
   assert.deepEqual(
     trial({ way: "new", pick }),
@@ -253,5 +257,182 @@ test("everything this step does not draw is Setup's rows, which already say it",
     rowsFor({ billing: { ...dtoOf().billing, ready: false } }),
     "rows",
     "a card workspace where this deployment cannot charge: the line row's own sentence",
+  );
+});
+
+/* ---- 4b: the two questions and the code ---- */
+const VOICE = "+13055550142";
+const answeringDto = (over = {}) =>
+  dtoOf({
+    billing: trialing,
+    channels: { ...dtoOf().channels, voice: { present: true, active: true, number: VOICE, lastInboundAt: null } },
+    lines: { ...dtoOf().lines, rows: [lineOf({ voice_state: "answering" })] },
+    ...over,
+  });
+const forwardedLine = (carrier, state = "instructed") =>
+  lineOf({
+    id: "fw-1",
+    e164: LISTED,
+    kind: "forwarded",
+    provider: "carrier",
+    voice_state: "none",
+    forwarding_state: state,
+    forwarding: {
+      carrier,
+      mode: "unanswered",
+      destination_e164: VOICE,
+      test_from: null,
+      test_until: null,
+      verified_at: state === "verified" ? "2026-09-24T14:00:00Z" : null,
+    },
+  });
+const kept = (over = {}) => ({ way: "keep", number: null, pick: null, pending: false, ...over });
+
+test("the carrier a phone's code comes from: a mobile's company, a landline's landline codes, nothing unanswered", () => {
+  assert.equal(forwardingCarrierOf("mobile", "tmobile"), "tmobile");
+  assert.equal(forwardingCarrierOf("landline", "verizon"), "other", "a landline takes the landline codes");
+  assert.equal(forwardingCarrierOf("landline", null), "other");
+  assert.equal(forwardingCarrierOf("mobile", null), null, "a mobile needs its company");
+  assert.equal(forwardingCarrierOf(null, "att"), null);
+  assert.equal(FIRST_RUN_HELPERS.forwardingCarrierOf, forwardingCarrierOf);
+});
+
+test("while the number is on its way (canvas R4): the two questions for a number kept, the button held until the line answers", () => {
+  const buying = phone(dtoOf({ billing: trialing }), kept({ pending: true }));
+  assert.equal(buying.stage, "buying");
+  assert.equal(buying.questions.rings.label, "Which phone rings when customers call +1 (305) 555-0100?");
+  assert.deepEqual(
+    buying.questions.rings.options.map((o) => o.label),
+    ["A mobile", "A landline"],
+  );
+  assert.equal(buying.questions.company, null, "a company is asked of a mobile only");
+  assert.deepEqual(buying.cta, { label: "Show me what to dial", held: "Ready in a moment", act: "forward" });
+  const mobile = phone(dtoOf({ billing: trialing }), kept({ pending: true, rings: "mobile" }));
+  assert.deepEqual(
+    mobile.questions.company.options.map((o) => o.label),
+    ["Verizon", "AT&T", "T-Mobile", "Another company"],
+  );
+  const getting = phone(
+    dtoOf({ billing: trialing, lines: { ...dtoOf().lines, rows: [lineOf()] } }),
+    kept({ rings: "mobile", company: "att" }),
+  );
+  assert.equal(getting.stage, "getting");
+  assert.equal(getting.questions.company.value, "att");
+  assert.equal(getting.cta.held, "Ready in a moment");
+  const fresh = phone(dtoOf({ billing: trialing }), {
+    way: "new",
+    number: null,
+    pick: { e164: VOICE, friendly: "" },
+    pending: true,
+  });
+  assert.equal(fresh.questions, null, "a new number is called directly: nothing to forward");
+  assert.equal(fresh.cta, null);
+});
+
+test("the line answers and nothing is forwarded yet: the questions, and the button saves once both are answered", () => {
+  const unanswered = phone(answeringDto(), kept());
+  assert.equal(unanswered.stage, "ask");
+  assert.deepEqual(unanswered.cta, {
+    label: "Show me what to dial",
+    held: "Answer the questions first.",
+    act: "forward",
+  });
+  assert.equal(phone(answeringDto(), kept({ rings: "mobile" })).cta.held, "Answer the questions first.");
+  assert.equal(phone(answeringDto(), kept({ rings: "mobile", company: "verizon" })).cta.held, null);
+  assert.equal(phone(answeringDto(), kept({ rings: "landline" })).cta.held, null, "a landline needs no company");
+  assert.equal(phone(answeringDto(), null).stage, "rows", "a tab that lost the choice: Setup's keep row, as before");
+  assert.equal(
+    phone(answeringDto(), { way: "new", number: null, pick: null, pending: false }).stage,
+    "rows",
+    "a new number answers: the step is done",
+  );
+});
+
+test("the code (canvas R5, P5): from the forwarding saved, with the steps, the warning and the way to switch it off", () => {
+  const dto = answeringDto({
+    lines: { ...dtoOf().lines, rows: [lineOf({ voice_state: "answering" }), forwardedLine("verizon")] },
+  });
+  const vm = phone(dto, kept({ rings: "landline" }));
+  assert.equal(vm.stage, "code");
+  assert.equal(vm.heading, "Dial this on the phone customers call");
+  assert.deepEqual(vm.cta, { label: "Done, let's try it", held: null, act: "onward" });
+  assert.equal(vm.code.label, "A landline");
+  assert.deepEqual([vm.code.dial, vm.code.tap], ["*713055550142", null], "the carrier saved decides the code");
+  assert.deepEqual(vm.code.steps, [
+    "Pick up the phone customers call.",
+    "Dial the code above.",
+    "Wait for the tone, then hang up.",
+  ]);
+  assert.match(vm.code.warn, /answering machine/);
+  assert.equal(vm.code.off, "To switch it off later, dial *73.");
+  assert.equal(vm.code.help.label, "The code didn't work");
+  assert.ok(vm.code.help.notes.length >= 2, "forwarding's own words for a refused code");
+  assert.equal(vm.code.verified, null);
+
+  const tmobile = answeringDto({
+    lines: { ...dtoOf().lines, rows: [lineOf({ voice_state: "answering" }), forwardedLine("tmobile")] },
+  });
+  const mobile = phone(tmobile, kept({ rings: "mobile", company: "tmobile" }));
+  assert.equal(mobile.code.label, "T-Mobile · a mobile");
+  assert.equal(mobile.code.dial, "**004*+13055550142#");
+  assert.equal(mobile.code.tel, "tel:**004*%2B13055550142%23");
+  assert.equal(mobile.code.tap, "Tap to dial");
+  assert.match(mobile.code.warn, /^Voicemail on this phone\?/);
+  assert.equal(
+    phone(tmobile, null).code.label,
+    "T-Mobile",
+    "a tab that lost the answers names the carrier saved, not what rings",
+  );
+
+  const verified = phone(
+    answeringDto({
+      lines: { ...dtoOf().lines, rows: [lineOf({ voice_state: "answering" }), forwardedLine("verizon", "verified")] },
+    }),
+    null,
+  );
+  assert.match(verified.code.verified, /reach your receptionist/, "Setup's keep row's own sentence");
+
+  const redo = phone(dto, kept({ rings: "landline", redo: true }));
+  assert.equal(redo.stage, "ask", "changing the answers asks them again");
+  assert.deepEqual(
+    [redo.forwardFrom, redo.saved, redo.keepCode],
+    [LISTED, { carrier: "verizon" }, "Keep the code I have"],
+  );
+});
+
+test("the code follows what was saved: every call when Setup's card saved that, and neutral words when the answers are lost", () => {
+  const always = forwardedLine("verizon");
+  always.forwarding = { ...always.forwarding, mode: "always" };
+  const vm = phone(
+    answeringDto({ lines: { ...dtoOf().lines, rows: [lineOf({ voice_state: "answering" }), always] } }),
+    null,
+  );
+  assert.deepEqual([vm.code.dial, vm.code.off], ["*723055550142", "To switch it off later, dial *73."]);
+  assert.equal(vm.lead, "It tells your phone company to send every call to your receptionist. You only do this once.");
+  const other = phone(
+    answeringDto({ lines: { ...dtoOf().lines, rows: [lineOf({ voice_state: "answering" }), forwardedLine("other")] } }),
+    null,
+  );
+  assert.equal(
+    other.code.label,
+    "Another carrier or a landline",
+    "a mobile with another company is `other` too: neither said",
+  );
+  assert.deepEqual(other.code.steps, W.stepsAny);
+  assert.equal(other.code.warn, W.warnAny);
+  assert.equal(other.code.tap, null);
+  const nowhere = forwardedLine("other");
+  nowhere.e164 = null;
+  const lost = phone(
+    answeringDto({ lines: { ...dtoOf().lines, rows: [lineOf({ voice_state: "answering" }), nowhere] } }),
+    null,
+  );
+  assert.equal(lost.code.change, null, "nothing to ask about: no way to change the answers");
+  assert.equal(
+    phone(
+      answeringDto({ lines: { ...dtoOf().lines, rows: [lineOf({ voice_state: "answering" }), nowhere] } }),
+      kept({ redo: true }),
+    ).stage,
+    "code",
   );
 });

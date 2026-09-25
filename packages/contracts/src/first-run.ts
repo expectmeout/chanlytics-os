@@ -18,7 +18,7 @@ import { DAY_NAMES, type Hours } from "./config";
 import { bookingLinkOptional } from "./deals";
 import { checkChipsOf } from "./check-chips";
 import { bookingPageOffered } from "./google";
-import { areaCodeOf, firstRunPhoneOf, FIRST_RUN_PHONE_WORDS } from "./first-run-phone";
+import { areaCodeOf, firstRunPhoneOf, forwardingCarrierOf, FIRST_RUN_PHONE_WORDS } from "./first-run-phone";
 import type { SetupDto, SetupRowVM, SetupState, SetupVM } from "./setup";
 
 /** The first run's address: `#/start`, and `#/start/<step>` for a step already reached. */
@@ -596,6 +596,8 @@ export const FIRST_RUN_HELPERS = {
   phone: firstRunPhoneOf,
   phoneWords: FIRST_RUN_PHONE_WORDS,
   areaCodeOf,
+  /** The carrier whose codes the answers choose (first-run-phone.ts), which the forwarding is saved with. */
+  forwardingCarrierOf,
   /** A number as the app writes one (phone.ts): the numbers offered to pick are said this way, never Twilio's. */
   numberWords: formatPhoneDisplay,
   words: FIRST_RUN_WORDS,

@@ -12,6 +12,7 @@
  */
 import { billingDoorOpen, dayWords, maySpend, priceWords, CHECKOUT_OUTCOME_WORDS } from "./billing";
 import { formatPhoneDisplay, normalizePhone } from "./phone";
+import { CARRIER_WORDS, forwardingCodes, isCarrier, isForwardingMode, type Carrier } from "./forwarding";
 import { lineStuckProvisioning, SETUP_STATE_WORDS, type SetupDto, type SetupState, type SetupVM } from "./setup";
 
 export const PHONE_WAYS = ["keep", "new", "move"] as const;
@@ -23,18 +24,67 @@ export interface PhonePick {
   friendly: string;
 }
 
+/** Which phone rings when customers call the number kept (canvas R4). An office phone system is 4c's. */
+export const PHONE_RINGS = ["mobile", "landline"] as const;
+export type PhoneRings = (typeof PHONE_RINGS)[number];
+
 /**
  * What the owner chose, as the tab keeps it: the way, the number they keep or move (as typed), the new number picked,
- * and whether they pressed the step's button, so the buy goes on once the trial lets it.
+ * and whether they pressed the step's button, so the buy goes on once the trial lets it. For a number kept or moved,
+ * the two answers that choose its code (which phone rings, and a mobile's phone company), and `redo` once the owner
+ * asked to change them after the code was shown.
  */
 export interface PhoneChoice {
   way: PhoneWay;
   number: string | null;
   pick: PhonePick | null;
   pending: boolean;
+  rings?: PhoneRings | null;
+  company?: Carrier | null;
+  redo?: boolean;
 }
 
-export type FirstRunPhoneStage = "choose" | "starting" | "buying" | "getting" | "rows";
+/**
+ * The carrier whose codes a phone takes: a mobile's own company's; a landline's the landline codes whoever runs it
+ * (forwarding.ts `other`: most landlines take *92 and *72), since the mobile networks' codes are not a landline's.
+ */
+export function forwardingCarrierOf(
+  rings: PhoneRings | null | undefined,
+  company: Carrier | null | undefined,
+): Carrier | null {
+  if (rings === "landline") return "other";
+  if (rings === "mobile") return company ?? null;
+  return null;
+}
+
+export type FirstRunPhoneStage = "choose" | "starting" | "buying" | "getting" | "ask" | "code" | "rows";
+
+/** One question with its answers as a row of choices (canvas R4), and the one picked. */
+export interface FirstRunPhoneQuestion<K extends string> {
+  label: string;
+  options: { key: K; label: string }[];
+  value: K | null;
+}
+
+/** The code to dial (canvas R5, P5), from the forwarding saved on the workspace's line. */
+export interface FirstRunPhoneCodeVM {
+  /** "Verizon · a mobile", "A landline". */
+  label: string;
+  dial: string;
+  tel: string;
+  /** A mobile can take the code as a tap, on the phone in hand (the page offers it where the phone dials one). */
+  tap: string | null;
+  steps: string[];
+  /** What answers before the receptionist can: voicemail, an answering machine. */
+  warn: string;
+  off: string;
+  /** Forwarding's own words for a code the carrier refuses (forwarding.ts notes), behind "The code didn't work". */
+  help: { label: string; notes: string[] };
+  /** Back to the questions, to save the answers again; null where the saved forwarding has no number to ask about. */
+  change: string | null;
+  /** Said once a call proved it: Setup's keep row's own sentence. */
+  verified: string | null;
+}
 
 export interface FirstRunPhoneWayVM {
   key: PhoneWay;
@@ -60,8 +110,24 @@ export interface FirstRunPhoneVM {
   area: string | null;
   /** The trial, where a card is still to be given: its offer and what it means. */
   trial: { offer: string; note: string } | null;
-  /** The step's one coral button while choosing, `held` with why it cannot go yet. */
-  cta: { label: string; held: string | null } | null;
+  /**
+   * The step's one coral button, `held` with why it cannot go yet, and what it does: start the trial, buy the number,
+   * save the forwarding (the answers' code), or go on to Try it.
+   */
+  cta: { label: string; held: string | null; act: "trial" | "buy" | "forward" | "onward" } | null;
+  /** The two questions, for a number kept or moved, from the moment the number is on its way. */
+  questions: { rings: FirstRunPhoneQuestion<PhoneRings>; company: FirstRunPhoneQuestion<Carrier> | null } | null;
+  /** The code to dial, once the forwarding is saved. */
+  code: FirstRunPhoneCodeVM | null;
+  /**
+   * The number the answers are saved for, E.164: the one kept or moved, or, asked again after the code was shown, the
+   * number the saved forwarding is for (never the listing's in its place); null where nothing is asked.
+   */
+  forwardFrom: string | null;
+  /** Asked again after the code was shown: the carrier saved then, so the same answers save nothing. */
+  saved: { carrier: Carrier } | null;
+  /** Asked again: the way back to the code without saving. */
+  keepCode: string | null;
   /** What is happening, while the number is on its way: the state (a pill, its word) and the sentence under it. */
   status: { state: SetupState; words: string; sentence: string; detail: string } | null;
   /** The trial that started, said once it has; null before, and where the workspace does not pay by card. */
@@ -127,6 +193,45 @@ export const FIRST_RUN_PHONE_WORDS = {
   moveAsked: "We'll move your number with you and reach you by email. Until then, it forwards.",
   moveNotAsked: "The move wasn't asked for. Ask again from Settings later; your number forwards meanwhile.",
   cancelled: CHECKOUT_OUTCOME_WORDS.cancel,
+  /** The two questions while the number is on its way (canvas R4), and the button they lead to. */
+  ringsLabel: (display: string | null) =>
+    display ? `Which phone rings when customers call ${display}?` : "Which phone rings when customers call?",
+  rings: { mobile: "A mobile", landline: "A landline" } as Record<PhoneRings, string>,
+  companyLabel: "Who's the phone company?",
+  company: { verizon: "Verizon", att: "AT&T", tmobile: "T-Mobile", other: "Another company" } as Record<
+    Carrier,
+    string
+  >,
+  show: "Show me what to dial",
+  readySoon: "Ready in a moment",
+  answerFirst: "Answer the questions first.",
+  askHeading: "One more thing before the code",
+  askLead: "Your phone company decides the code, so it depends on the phone that rings.",
+  /** The code (canvas R5, P5). */
+  codeHeading: "Dial this on the phone customers call",
+  codeLead:
+    "It tells your phone company to send the calls nobody picks up to your receptionist. You only do this once.",
+  codeLeadAll: "It tells your phone company to send every call to your receptionist. You only do this once.",
+  codeLabel: (company: string | null, rings: PhoneRings) =>
+    rings === "landline" ? "A landline" : company ? `${company} · a mobile` : "A mobile",
+  stepsLandline: ["Pick up the phone customers call.", "Dial the code above.", "Wait for the tone, then hang up."],
+  stepsMobile: ["On the phone customers call, dial the code above.", "Wait for the tone, then hang up."],
+  /** A tab that lost the answers: what rings is not known, so neither is said. */
+  stepsAny: ["Dial the code above on the phone customers call.", "Wait for the tone, then hang up."],
+  // Not a promise the code replaces voicemail: forwarding.ts says a voicemail that picks up first keeps calls away.
+  warnMobile:
+    "Voicemail on this phone? If it still picks up after you dial the code, calls never reach your receptionist: see The code didn't work.",
+  warnLandline:
+    "If an answering machine is on this line, turn it off. Otherwise it answers before your receptionist can.",
+  warnAny:
+    "Voicemail or an answering machine on that phone? If it picks up first, calls never reach your receptionist: see The code didn't work.",
+  off: (code: string) => `To switch it off later, dial ${code}.`,
+  tap: "Tap to dial",
+  done: "Done, let's try it",
+  help: "The code didn't work",
+  change: "Change the answers",
+  keepCode: "Keep the code I have",
+  notForwarded: "Forwarding not saved",
 } as const;
 
 /** The three digits a US number is bought in: `+13055550100` → `305`; null for anything else. */
@@ -194,11 +299,129 @@ export function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }: FirstRunPh
     lead: !choice ? "" : forwarded ? W.readyLeadForwarded : W.readyLeadNew,
     trial: null,
     cta: null,
+    questions: null,
+    code: null,
+    forwardFrom: null,
+    saved: null,
+    keepCode: null,
   };
   const rows: FirstRunPhoneVM = { ...base, ...ready, stage: "rows", status: null };
 
-  // A line that answers, or one switched off: Setup's rows say it, and the step is done or asks Connections.
-  if (dto.channels.voice.present) return rows;
+  // The two questions, for a number kept or moved (a choice this tab holds, with a number to forward from).
+  const rings = choice?.rings ?? null;
+  const company = choice?.company ?? null;
+  const asking = !!choice && forwarded && !!number;
+  const questionsFor = (about: string): NonNullable<FirstRunPhoneVM["questions"]> => ({
+    rings: {
+      label: W.ringsLabel(formatPhoneDisplay(about)),
+      options: PHONE_RINGS.map((k) => ({ key: k, label: W.rings[k] })),
+      value: rings,
+    },
+    // A landline takes the landline codes whoever runs it, so only a mobile is asked its company.
+    company:
+      rings === "mobile"
+        ? {
+            label: W.companyLabel,
+            options: (["verizon", "att", "tmobile", "other"] as const).map((k) => ({
+              key: k,
+              label: W.company[k],
+            })),
+            value: company,
+          }
+        : null,
+  });
+  const questions = asking && number ? questionsFor(number) : null;
+  const answered = !!forwardingCarrierOf(rings, company);
+  const show = (lineAnswers: boolean) => ({
+    label: W.show,
+    held: !lineAnswers ? W.readySoon : answered ? null : W.answerFirst,
+    act: "forward" as const,
+  });
+
+  // A line that answers: the code, once the forwarding is saved; the questions, while a number kept or moved has none
+  // yet (or the owner asked to change the answers); Setup's rows otherwise. One switched off is the rows' to say.
+  if (dto.channels.voice.present) {
+    const dest = dto.channels.voice.active ? dto.channels.voice.number : null;
+    const fw = lines?.rows.find((l) => l.kind === "forwarded") ?? null;
+    const f = fw?.forwarding ?? null;
+    const saved =
+      !!fw &&
+      !!f &&
+      isCarrier(f.carrier) &&
+      (fw.forwarding_state === "instructed" || fw.forwarding_state === "verified");
+    if (!dest) return rows;
+    const savedFrom = saved ? normalizePhone(fw!.e164) : null;
+    // Asked again after the code was shown: about the number the saved forwarding is for, whatever the tab holds.
+    if (saved && choice?.redo && savedFrom) {
+      return {
+        ...base,
+        stage: "ask",
+        heading: W.askHeading,
+        lead: W.askLead,
+        trial: null,
+        status: null,
+        questions: questionsFor(savedFrom),
+        cta: show(true),
+        code: null,
+        forwardFrom: savedFrom,
+        saved: { carrier: f!.carrier as Carrier },
+        keepCode: W.keepCode,
+      };
+    }
+    if (saved) {
+      const carrier = f!.carrier as Carrier;
+      // The mode saved, which Setup's own card may have set to every call: the code and the lead follow it.
+      const mode = isForwardingMode(f!.mode) ? f!.mode : "unanswered";
+      const codes = forwardingCodes(carrier, mode, f!.destination_e164 ?? dest);
+      // What rings, as answered; a tab that lost the answers says neither (a mobile with another company is `other` too).
+      const said: PhoneRings | null = rings;
+      const keepRow = vm.rows.find((r) => r.id === "keep") ?? null;
+      return {
+        ...base,
+        stage: "code",
+        heading: W.codeHeading,
+        lead: mode === "always" ? W.codeLeadAll : W.codeLead,
+        trial: null,
+        status: null,
+        questions: null,
+        cta: { label: W.done, held: null, act: "onward" },
+        code: {
+          label: said
+            ? W.codeLabel(said === "mobile" && carrier !== "other" ? W.company[carrier] : null, said)
+            : CARRIER_WORDS[carrier],
+          dial: codes.on.code,
+          tel: codes.on.tel,
+          tap: said === "mobile" ? W.tap : null,
+          steps: said === "mobile" ? [...W.stepsMobile] : said === "landline" ? [...W.stepsLandline] : [...W.stepsAny],
+          warn: said === "mobile" ? W.warnMobile : said === "landline" ? W.warnLandline : W.warnAny,
+          off: W.off(codes.off.code),
+          help: { label: W.help, notes: codes.notes },
+          change: savedFrom ? W.change : null,
+          verified: fw!.forwarding_state === "verified" && keepRow ? keepRow.sentence : null,
+        },
+        forwardFrom: null,
+        saved: null,
+        keepCode: null,
+      };
+    }
+    if (questions) {
+      return {
+        ...base,
+        stage: "ask",
+        heading: W.askHeading,
+        lead: W.askLead,
+        trial: null,
+        status: null,
+        questions,
+        cta: show(true),
+        code: null,
+        forwardFrom: number,
+        saved: null,
+        keepCode: null,
+      };
+    }
+    return rows;
+  }
   if (ownLine) {
     // On its way: the line row's own words (canvas R4, "the step words are Setup's own"). Stopped: the row's Retry.
     const onItsWay =
@@ -215,6 +438,8 @@ export function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }: FirstRunPh
             sentence: lineRow.sentence,
             detail: lineRow.details[0] ?? "",
           },
+          questions,
+          cta: questions ? show(false) : null,
         }
       : rows;
   }
@@ -237,13 +462,16 @@ export function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }: FirstRunPh
       status: waiting(W.starting, W.startingDetail),
     };
   }
-  // Pressed, and the workspace may spend: the page buys, once, and this is what it says meanwhile.
+  // Pressed, and the workspace may spend: the page buys, once, and this is what it says meanwhile, with the questions
+  // for a number kept or moved (canvas R4: the owner answers while the number gets ready).
   if (canSpend && choice?.pending) {
     return {
       ...base,
       ...ready,
       stage: "buying",
       status: waiting(way === "new" && picked ? W.buyingNew(picked) : W.buyingIn(forwarded ? area : null), W.usually),
+      questions,
+      cta: questions ? show(false) : null,
     };
   }
   // A number to keep or move is forwarded from, so it must be one a US phone company forwards: a US number with its
@@ -267,7 +495,12 @@ export function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }: FirstRunPh
     heading: W.chooseHeading,
     lead: W.chooseLead,
     trial,
-    cta: { label, held },
+    cta: { label, held, act: trial ? "trial" : "buy" },
     status: null,
+    questions: null,
+    code: null,
+    forwardFrom: null,
+    saved: null,
+    keepCode: null,
   };
 }
