@@ -28,22 +28,43 @@ Each is one PR, merged on green, measured again on production after it lands.
    (`bootWaitsFor`) are in, or after the route's wait. — this PR
 2. **Nothing waits for hydration to start**: the legacy chunk preloaded as the framework's chunks load; the route's
    own reads started from the document head and adopted by the bridge.
-3. **The session verified locally**: `getClaims()` in the proxy, the route wrapper and the layout, over asymmetric
-   signing keys (Ruben enables the keys in the Supabase dashboard; the code path works either way).
+3. **The session verified locally**: `getClaims()` in the proxy, the route wrapper and the layout, over the project's
+   asymmetric signing keys (it already had them; `getUser()` was paying a round trip it never needed).
 4. **MapLibre out of the boot chunk**: imported when the Leads map opens.
-5. **One person, fewer round trips**: `contacts/[id]` runs its id-keyed queries in the first wave, not the third;
-   `Server-Timing` on the answer.
+5. **`Server-Timing` on every answer**: the session check and the handler, apart (the person route already ran its
+   id-keyed queries in one round; only the thread reads wait for the conversation ids).
 6. **A shell summary** for the badge and the bell, instead of three lists.
 7. **Field data**: web vitals from real devices (Ruben's call on Speed Insights).
 
 The structural one — a real server route for a person, streamed — is Ruben's.
 
+## What it looks like now
+
+Measured again on production after 1, 2, 3 and 5 landed (f38665a4; the tab in front, an empty cache, one place):
+
+| Moment                    |        Before |                                           Now |
+| ------------------------- | ------------: | --------------------------------------------: |
+| First API request leaves  |      2,033 ms |          1,097 ms, with the HTML (the head's) |
+| Shell chunk downloads     | 1,361–1,806 ms |                                 1,223–1,516 ms |
+| Person read               | 3,236 ms among ten |                       1,709 ms, read once |
+| The person lands          |        ~5.3 s |                                        ~2.8 s |
+| Boot                      | 25 surfaces at once | the page's own first; the rest at 3.5 s |
+
+`Server-Timing` on a warm function instance: `auth;dur=2, app;dur=205` for the person, so the session check is already
+local (the project signs with asymmetric keys; the first call on a fresh instance pays the JWKS fetch, ~120 ms) and the
+handler itself is a fifth of a second. The cold-load figures above were taken right after a deploy, on cold function
+instances; a warm read of the person answers the browser in ~300 ms.
+
+Still to be had: the HTML completes ~1.1 s after its 30 ms first byte (a cold page function; the layout's check is no
+longer the reason), the person's ~18 queries run in one round from `iad1` against the database's region, and the
+shell's badge and bell still read three full lists (6).
+
 ## Status
 
-- [x] 1. Boot discipline
-- [ ] 2. Preload and prefetch
-- [ ] 3. getClaims
-- [ ] 4. MapLibre lazy
-- [ ] 5. Person in fewer waves
+- [x] 1. Boot discipline (#1070)
+- [x] 2. Preload and prefetch (#1071)
+- [x] 3. getClaims (#1072); the project already signs with asymmetric keys, so it is local from the first deploy
+- [x] 4. MapLibre lazy (#1074)
+- [x] 5. Server-Timing (#1075); the person route already ran in one round, so this is the visibility, not fewer waves
 - [ ] 6. Shell summary
 - [ ] 7. Field data
