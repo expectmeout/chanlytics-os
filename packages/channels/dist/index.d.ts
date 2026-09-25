@@ -1278,6 +1278,11 @@ interface EmailCampaign {
     unsubscribeMailto?: string;
     /** Why they are hearing from us, the business's name and postal address, the way to say no. Composed by the caller; never empty. */
     footer: string;
+    /**
+     * The same foot in HTML (contracts campaignFooterHtml), the link reading "Unsubscribe" as the canvas draws it. When
+     * given it ends the HTML twin in place of the text foot, and it must carry the unsubscribe link itself.
+     */
+    footerHtml?: string;
 }
 interface EmailRequestInput {
     identity: EmailIdentity;

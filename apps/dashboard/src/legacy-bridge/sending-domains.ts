@@ -7,7 +7,12 @@
  * clock's changes arrive the same way, by realtime (sending_domains is watched).
  */
 import {
+  checkResultWords,
   domainDailyCap,
+  domainRecordRows,
+  domainRecordsIntro,
+  domainRegistrarHint,
+  sendingDomainsFootWords,
   domainHoldWords,
   sendingDomainActs,
   sendingDomainWords,
@@ -30,6 +35,14 @@ export interface SendingDomainsApi {
   whyNotAFromLocal: typeof whyNotAFromLocal;
   whyNotAFromName: typeof whyNotAFromName;
   words: typeof sendingDomainWords;
+  /** The records as rows a registrar wants, and the two sentences said above them. */
+  recordRows: typeof domainRecordRows;
+  recordsIntro: typeof domainRecordsIntro;
+  registrarHint: typeof domainRegistrarHint;
+  /** What a Check found, in its own tone. */
+  checkWords: typeof checkResultWords;
+  /** The foot of the block. */
+  footWords: typeof sendingDomainsFootWords;
   /** What the owner may do with a domain, from its state (contracts): the page decides none of it again. */
   acts: typeof sendingDomainActs;
   /** Why it was held, as a clause: what Resume's Confirm asks the owner to have fixed. */
@@ -60,6 +73,11 @@ export function installSendingDomains(win: Window = window): void {
     words: sendingDomainWords,
     holdWords: domainHoldWords,
     acts: sendingDomainActs,
+    recordRows: domainRecordRows,
+    recordsIntro: domainRecordsIntro,
+    registrarHint: domainRegistrarHint,
+    checkWords: checkResultWords,
+    footWords: sendingDomainsFootWords,
     cap: domainDailyCap,
     dmarc: DMARC_RECOMMENDED,
     max: SENDING_DOMAINS_MAX,

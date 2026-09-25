@@ -524,3 +524,42 @@ test("a WhatsApp number Meta flagged needs attention on Connections, in the word
   ).find((r) => r.kind === "whatsapp");
   assert.deepEqual([off.state, off.stateWords], ["off", "Off"], "off is off, whatever Meta said before");
 });
+
+test("the Email row says a domain is held, so a hold is not a green 'On' above it", async () => {
+  const { connectionRows } = await import("@chanlytics/contracts");
+  const mailbox = {
+    id: "mb1",
+    address: "harbor@mail.chanlytics.com",
+    from_name: "Harbor",
+    last_received_at: null,
+    last_error: null,
+  };
+  const held = { id: "d1", state: "held", held_why: "complaint" };
+  const rows = connectionRows(
+    {
+      ...base(),
+      email: {
+        ready: true,
+        domain: "mail.chanlytics.com",
+        mailbox,
+        sending: { ready: true, domains: [held, { id: "d2", state: "verified" }] },
+      },
+    },
+    NOW,
+  );
+  const email = rows.find((r) => r.kind === "email");
+  assert.deepEqual([email.state, email.stateWords], ["attention", "On · 1 domain held"]);
+  const calm = connectionRows(
+    {
+      ...base(),
+      email: {
+        ready: true,
+        domain: "mail.chanlytics.com",
+        mailbox,
+        sending: { ready: true, domains: [{ id: "d2", state: "verified" }] },
+      },
+    },
+    NOW,
+  ).find((r) => r.kind === "email");
+  assert.deepEqual([calm.state, calm.stateWords], ["connected", "On"]);
+});

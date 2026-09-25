@@ -165,6 +165,7 @@ const { installBilling } = await import("../../../apps/dashboard/src/legacy-brid
 installBilling(globalThis.window);
 await import("../../../apps/dashboard/src/legacy/pages/billing-real.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/business-record.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/sending-domains.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/integrations-real.jsx");
 
 const walk = (n, fn) => {
@@ -808,12 +809,11 @@ test("the domains you send from: under the Email row, each in contracts' words, 
   assert.match(textOf(pending), /Not sending yet/);
   assert.ok(byTestId(tree, "domain-check-getharbor.com"), "a domain with records to add can be checked");
   const records = byTestId(tree, "domain-records-getharbor.com");
-  assert.match(
-    textOf(records),
-    /resend\._domainkey\.getharbor\.com/,
-    "the name written out in full, as a registrar asks",
-  );
-  assert.match(textOf(records), /_dmarc\.getharbor\.com/, "and the DMARC record we recommend while it has none");
+  // The part before the domain, as most registrars ask for it (they add the domain), and the hint that says so.
+  assert.match(textOf(records), /resend\._domainkey/);
+  assert.doesNotMatch(textOf(records), /resend\._domainkey\.getharbor\.com/, "never the domain twice");
+  assert.match(textOf(records), /Some registrars add getharbor\.com for you/);
+  assert.match(textOf(records), /_dmarc/, "and the DMARC record we recommend while it has none");
   assert.match(textOf(records), /v=DMARC1; p=none;/);
 
   const verified = byTestId(tree, "domain-harbor-mail.com");
@@ -950,4 +950,84 @@ test("a held domain: a DNS hold shows its records and Check, a reputation hold o
   assert.match(textOf(block), /add, check, resume or remove a domain/i, "the reason, said once");
   assert.equal(byTestId(tree, "domain-remove-broke.example"), null);
   asRole("owner");
+});
+
+test("the records draw as a table a registrar can take: each name and value copied on its own, labelled for a screen reader", () => {
+  const now = Date.now();
+  const iso = (d) => new Date(now - d * 86_400_000).toISOString();
+  globalThis.window.__SETUP = {
+    dto: {
+      business: { name: "Harbor" },
+      lines: { rows: [], ready: false },
+      requests: { line: null },
+      calendar: null,
+      email: {
+        ready: true,
+        domain: "mail.chanlytics.com",
+        mailbox: {
+          id: "mb1",
+          address: "harbor@mail.chanlytics.com",
+          from_name: "Harbor",
+          last_received_at: null,
+          last_error: null,
+        },
+        sending: {
+          ready: true,
+          domains: [
+            {
+              id: "r1",
+              host: "getharbor.com",
+              address: "sam@getharbor.com",
+              from_local: "sam",
+              from_name: "Sam",
+              state: "records",
+              held_why: null,
+              held_at: null,
+              provider_status: "not_started",
+              dmarc: "missing",
+              verified_at: null,
+              clean_since: null,
+              counted_since: null,
+              checked_at: null,
+              created_at: iso(1),
+              sent_recent: null,
+              bounced_recent: null,
+              complaints: null,
+              records: [
+                {
+                  label: "SPF",
+                  type: "MX",
+                  name: "send",
+                  value: "feedback-smtp.us-east-1.amazonses.com",
+                  priority: 10,
+                  status: "not_started",
+                },
+                {
+                  label: "DKIM",
+                  type: "TXT",
+                  name: "resend._domainkey",
+                  value: "p=MIGf",
+                  priority: null,
+                  status: "verified",
+                },
+              ],
+            },
+          ],
+        },
+      },
+    },
+  };
+  asRole("owner");
+  const tree = render(Connections);
+  const table = byTestId(tree, "domain-records-getharbor.com");
+  assert.ok(table, "the records are drawn");
+  const text = textOf(table);
+  assert.match(text, /Return path/);
+  assert.match(text, /Signing \(DKIM\)/);
+  assert.match(text, /Policy \(DMARC\)/);
+  assert.match(text, /These records tell Gmail and others/);
+  assert.ok(byTestId(tree, "domain-copy-name-send-MX"), "the name has its own Copy");
+  assert.ok(byTestId(tree, "domain-copy-value-send-MX"), "and so does the value");
+  assert.equal(byTestId(tree, "domain-copy-value-send-MX").props["aria-label"], "Copy the Return path value");
+  assert.ok(byTestId(tree, "domain-found-resend._domainkey-TXT"), "a record the provider reads says so");
 });

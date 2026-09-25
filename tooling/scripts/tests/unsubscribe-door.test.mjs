@@ -232,3 +232,56 @@ test("with no secret the door cannot tell a link from a guess, and says so witho
     process.env.UNSUBSCRIBE_SECRET = SECRET;
   }
 });
+
+test("the page names the address the email came from; a press the database could not take offers Try again", async () => {
+  const withSender = fakeDb(
+    {
+      tenants: [{ id: A, name: "Best Movers" }],
+      messages: [
+        {
+          id: M,
+          tenant_id: A,
+          channel: "email",
+          direction: "outbound",
+          meta: { email: { request: { from: '"Sam" <sam@harbor-mail.com>' } } },
+        },
+      ],
+    },
+    {},
+    {
+      set_email_marketing: () => {
+        throw new Error("the database is not answering");
+      },
+    },
+  );
+  setServiceClient(withSender);
+  const asked = await (await get()).text();
+  assert.match(asked, /emails like the one from sam@harbor-mail\.com again/);
+  const press = await post("unsubscribe=yes");
+  assert.equal(press.status, 503);
+  const html = await press.text();
+  assert.match(html, /<button type="submit">Try again<\/button>/);
+  assert.match(html, /Or reply to the email and ask them to stop\./);
+});
+
+test("a link names only its own workspace's email: a message of another workspace is never read for its sender", async () => {
+  const other = "44444444-4444-4444-8444-444444444444";
+  setServiceClient(
+    fakeDb({
+      tenants: [{ id: A, name: "Best Movers" }],
+      // The token names M in workspace A; the only M here belongs to another workspace.
+      messages: [
+        {
+          id: M,
+          tenant_id: other,
+          channel: "email",
+          direction: "outbound",
+          meta: { email: { request: { from: "boss@other.example" } } },
+        },
+      ],
+    }),
+  );
+  const html = await (await get()).text();
+  assert.doesNotMatch(html, /other\.example/);
+  assert.match(html, /emails like that one again/);
+});

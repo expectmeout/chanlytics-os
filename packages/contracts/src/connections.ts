@@ -609,14 +609,20 @@ export function connectionRows(i: ConnectionInputs, nowMs = Date.now()): Connect
     // keeps the verb it had; the next email that arrives clears it, so this is
     // never an old alarm about mail that has since been flowing for a week.
     const working = `Customers write to this address and you reply from the Inbox, as ${mailbox.from_name}.${last}`;
+    // A domain held below it is said here too: an owner looking at "On" would not look further.
+    const heldDomains = (i.email?.sending?.domains ?? []).filter((d) => d.state === "held").length;
     out.push(
       row({
         kind: "email",
         icon: "mail",
         title: "Email",
         detail: mailbox.address,
-        state: mailbox.last_error ? "attention" : "connected",
-        stateWords: mailbox.last_error ? "Waiting on us" : "On",
+        state: mailbox.last_error || heldDomains ? "attention" : "connected",
+        stateWords: mailbox.last_error
+          ? "Waiting on us"
+          : heldDomains
+            ? `On · ${heldDomains} domain${heldDomains === 1 ? "" : "s"} held`
+            : "On",
         sentence: mailbox.last_error ? `${mailbox.last_error} ${working}` : working,
         verb: { label: "Change the name", to: "verb:email-setup", who: "owner" },
         body: "email_setup",

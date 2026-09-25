@@ -399,6 +399,10 @@ export interface SendingDomainWords {
   tone: Tone;
   /** The line under the host. */
   line: string;
+  /** How its mail has done, on a line of its own: a verified domain that has sent some; null otherwise. */
+  stats: string | null;
+  /** What to do about a hold, said the same on the row, in the Resume confirm and in the owner's notice; null unheld. */
+  fix: string | null;
   /** The right-hand column: the cap, or that it is not sending. */
   cap: string;
   /** What comes next, when anything does. */
@@ -416,13 +420,15 @@ export function sendingDomainWords(d: SendingDomainDto, nowMs: number): SendingD
           : d.provider_status === "failed" || d.provider_status === "partially_failed"
             ? "The records weren't found. Check each one below at your registrar, then Check again."
             : "Add the records below at your registrar, then Check.";
-    return { pill: "Records to add", tone: "warn", line, cap: "Not sending yet", next: null };
+    return { pill: "Records to add", tone: "warn", line, stats: null, fix: null, cap: "Not sending yet", next: null };
   }
   if (d.state === "verifying")
     return {
       pill: "Checking",
       tone: "info",
-      line: "Checking the records. It usually takes minutes, and can take a few hours.",
+      line: "Checking the records. It usually takes minutes, and can take a few hours. We look again every ten minutes.",
+      stats: null,
+      fix: null,
       cap: "Not sending yet",
       next: null,
     };
@@ -433,23 +439,170 @@ export function sendingDomainWords(d: SendingDomainDto, nowMs: number): SendingD
     return {
       pill: "Verified",
       tone: "ok",
-      line: [`${who} · ${days} clean day${days === 1 ? "" : "s"}`, domainStatsWords(d)].filter(Boolean).join(" · "),
+      line: `${who} · ${days} clean day${days === 1 ? "" : "s"}`,
+      stats: domainStatsWords(d),
+      fix: null,
       cap: `Up to ${cap} a day`,
-      next: step ? `${step.perDay} a day after ${step.days} clean days` : null,
+      // The next step as the day it comes, if the days stay clean (the canvas's "200 a day from Oct 15").
+      next:
+        step && d.clean_since
+          ? `${step.perDay} a day from ${DAY_FMT.format(new Date(Date.parse(d.clean_since) + step.days * DAY_MS))}`
+          : null,
     };
   }
   const why = domainHoldWords(d.held_why);
   const since = d.held_at ? DAY_FMT.format(new Date(d.held_at)) : null;
+  // What the hold costs: the day's share it had when it was held.
+  const was = domainDailyCap(d.clean_since, d.held_at ? Date.parse(d.held_at) : nowMs);
   return {
     pill: "Held",
     tone: "warn",
     line: `${since ? `Held since ${since}` : "Held"} · ${why}`,
-    cap: "Sending nothing",
+    stats: null,
+    // Only a hold the owner lifts says what to do: a DNS hold shows its records just below, and a provider hold lifts
+    // itself (its line says so), so neither says anything twice or tells the owner to remove what will come back.
+    fix: d.held_why && SELF_LIFTING_HOLDS.includes(d.held_why) ? null : domainHoldFixWords(d.held_why),
+    cap: was > 0 ? `Sending nothing · was ${was} a day` : "Sending nothing",
     next:
       d.held_why === "provider"
         ? "We've been told. If it doesn't come back on its own, remove it and add it again."
         : d.held_why && DNS_HOLDS.includes(d.held_why)
-          ? "Nothing leaves from it until Check passes."
+          ? `It sends again by itself once the records read right, starting at ${DOMAIN_RAMP[0].perDay} a day.`
           : "Nothing leaves from it until you resume it.",
   };
+}
+
+/** What to do about a hold, on the row and in the Resume confirm, beside the reason (never the reason again). */
+const HOLD_FIX_WORDS: Record<DomainHold, string> = {
+  verification: "One of its records stopped reading right at your registrar: check them below.",
+  dmarc: "Its DMARC record is missing: add the one below.",
+  bounces: "Check the addresses you write to before you resume it.",
+  complaint: "Read the email again before you resume it: a clear reason for writing, and fewer a day.",
+  provider: "It usually comes back by itself.",
+};
+
+export function domainHoldFixWords(why: string | null | undefined): string | null {
+  return (why && HOLD_FIX_WORDS[why as DomainHold]) || null;
+}
+
+/** What to do about a hold, in the owner's email: said where it can be done, since nothing sits "below" in an email. */
+const HOLD_NOTICE_WORDS: Record<DomainHold, string> = {
+  verification: "One of its records stopped reading right at your registrar: Connections shows which, under Email.",
+  dmarc: "Its DMARC record is missing: Connections shows the one to add, under Email.",
+  bounces: "Check the addresses you write to, then resume it on Connections, under Email.",
+  complaint:
+    "Read the email again (a clear reason for writing, and fewer a day), then resume it on Connections, under Email.",
+  provider: "It usually comes back by itself; if it doesn't, remove it and add it again on Connections, under Email.",
+};
+
+export function domainHoldNoticeWords(why: string | null | undefined): string | null {
+  return (why && HOLD_NOTICE_WORDS[why as DomainHold]) || null;
+}
+
+/** One record as a registrar's form wants it. */
+export interface DomainRecordRow {
+  /** What it is for, in words: never the provider's group name alone (its MX is filed under SPF). */
+  kind: string;
+  type: string;
+  /** The part before the domain ("send", "_dmarc"), or "@" for the domain itself: many registrars add the domain. */
+  name: string;
+  value: string;
+  priority: number | null;
+  /** The provider reads it already. */
+  found: boolean;
+  /** Stable per record, for the page's keys and test ids. */
+  key: string;
+}
+
+const KIND_OF_RECORD: Record<string, string> = { DKIM: "Signing (DKIM)", SPF: "Sender (SPF)", DMARC: "Policy (DMARC)" };
+
+/** The records to publish, as rows: the provider's, then the DMARC one we recommend while the domain has none. */
+export function domainRecordRows(d: Pick<SendingDomainDto, "host" | "records" | "dmarc">): DomainRecordRow[] {
+  const host = d.host.toLowerCase();
+  const relative = (name: string): string => {
+    const n = name.trim().toLowerCase().replace(/\.$/, "");
+    if (n === host) return "@";
+    return n.endsWith(`.${host}`) ? n.slice(0, -(host.length + 1)) : n;
+  };
+  const rows: DomainRecordRow[] = d.records.map((r) => {
+    const name = relative(r.name);
+    return {
+      kind: r.type === "MX" ? "Return path" : (KIND_OF_RECORD[r.label] ?? r.label),
+      type: r.type,
+      name,
+      value: r.value,
+      priority: r.priority,
+      found: r.status === "verified",
+      key: `${name}-${r.type}`,
+    };
+  });
+  if (d.dmarc !== "found")
+    rows.push({
+      kind: "Policy (DMARC)",
+      type: "TXT",
+      name: "_dmarc",
+      value: DMARC_RECOMMENDED,
+      priority: null,
+      found: false,
+      key: "_dmarc-TXT",
+    });
+  return rows;
+}
+
+/** Said once above the records: what they are for, for an owner who has never touched DNS. */
+export function domainRecordsIntro(host: string): string {
+  return `These records tell Gmail and others that Chanlytics may send as ${host}. Add each one where you bought the domain, then press Check.`;
+}
+
+/** The one thing that trips a first-timer: a registrar that adds the domain to the name by itself. */
+export function domainRegistrarHint(host: string): string {
+  return `Some registrars add ${host} for you. If yours does, type only the part shown.`;
+}
+
+/**
+ * What a Check found, in its own tone: never a success for records not there yet. `before` is the row as it was
+ * before the press, so a hold that lifted says it sends again rather than that the domain is new.
+ */
+export function checkResultWords(
+  d: SendingDomainDto,
+  nowMs: number,
+  before?: Pick<SendingDomainDto, "state"> | null,
+): { tone: Tone; msg: string } {
+  if (d.state === "verified") {
+    const cap = domainDailyCap(d.clean_since, nowMs);
+    const again = before?.state === "held" || cap !== DOMAIN_RAMP[0].perDay;
+    return {
+      tone: "ok",
+      msg: again
+        ? `${d.host} is sending again, ${cap === DOMAIN_RAMP[0].perDay ? "starting at" : "up to"} ${cap} a day.`
+        : `${d.host} is verified. It starts at ${cap} a day.`,
+    };
+  }
+  if (d.state === "verifying")
+    return { tone: "info", msg: `${d.host}: checking the records. We look again every ten minutes; nothing to press.` };
+  if (d.state === "records")
+    return {
+      tone: "warn",
+      msg:
+        d.provider_status === "not_found"
+          ? `${d.host}: the mail provider no longer has this domain. Remove it and add it again.`
+          : `${d.host}: not found yet. DNS changes can take a few hours. Press Check again later.`,
+    };
+  const why = domainHoldWords(d.held_why);
+  if (d.held_why && DNS_HOLDS.includes(d.held_why))
+    return {
+      tone: "warn",
+      msg: `${d.host} is still held: ${why}. It sends again by itself once the records read right.`,
+    };
+  return { tone: "warn", msg: `${d.host} is held: ${why}.` };
+}
+
+/** The foot of the block: the rule once, the most there can be, and where replies and mail sent straight go. */
+export function sendingDomainsFootWords(count: number, max: number): string {
+  const where =
+    "Replies come back to the Inbox. Mail sent straight to a domain's own address goes wherever that domain's mail goes.";
+  if (count >= max) return `${max === 5 ? "Five" : max} is the most. Remove one to add another. ${where}`;
+  if (count === 0)
+    return "Cold email to the businesses you find leaves only from a domain you own, so cold email's reputation stays apart from your everyday email's. No spare domain? Buy one like get<yourbusiness>.com, then add it here.";
+  return `A new domain starts at ${DOMAIN_RAMP[0].perDay} a day and grows as the days stay clean. ${where}`;
 }

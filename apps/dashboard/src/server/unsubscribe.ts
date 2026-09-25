@@ -16,7 +16,7 @@ import "server-only";
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServiceClient, type Database } from "@chanlytics/db";
-import { verifyUnsubscribeToken } from "@chanlytics/channels";
+import { addressOf, verifyUnsubscribeToken } from "@chanlytics/channels";
 import { unsubscribePageWords, type UnsubscribeView } from "@chanlytics/contracts";
 
 /** The largest body a one click or the page's button sends. Anything larger is not one. */
@@ -95,13 +95,34 @@ async function businessName(db: SupabaseClient<Database>, tenantId: string): Pro
   }
 }
 
+/** The address the email this link came in left from (its frozen request's From), so the page can name it; null unread. */
+async function senderOf(db: SupabaseClient<Database>, tenantId: string, messageId: string): Promise<string | null> {
+  try {
+    const { data, error } = await db
+      .from("messages")
+      .select("meta")
+      .eq("id", messageId)
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
+    if (error || !data) return null;
+    const from = (data.meta as { email?: { request?: { from?: unknown } } } | null)?.email?.request?.from;
+    return typeof from === "string" ? (addressOf(from)?.address ?? null) : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function unsubscribeGet(token: string): Promise<Response> {
   const key = secret();
   const db = serviceDb();
   if (!key || !db) return page(503, { kind: "unavailable" });
   const claims = verifyUnsubscribeToken(key, token);
   if (!claims) return page(404, { kind: "bad_link" });
-  return page(200, { kind: "ask", business: await businessName(db, claims.tenantId) });
+  const [business, sender] = await Promise.all([
+    businessName(db, claims.tenantId),
+    senderOf(db, claims.tenantId, claims.messageId),
+  ]);
+  return page(200, { kind: "ask", business, sender });
 }
 
 /**
@@ -176,9 +197,15 @@ export async function unsubscribePost(token: string, req: Request): Promise<Resp
       "unsubscribe_not_recorded",
       JSON.stringify({ tenant: claims.tenantId, message: claims.messageId, error: error.message }),
     );
-    return oneClick ? text(503, "Not recorded. Try again in a minute.") : page(503, { kind: "unavailable" });
+    return oneClick
+      ? text(503, "Not recorded. Try again in a minute.")
+      : page(503, { kind: "unavailable", retry: true });
   }
   if (oneClick) return text(200, "Unsubscribed.");
   const said = (data ?? null) as { business?: unknown } | null;
-  return page(200, { kind: "done", business: typeof said?.business === "string" ? said.business : null });
+  return page(200, {
+    kind: "done",
+    business: typeof said?.business === "string" ? said.business : null,
+    sender: await senderOf(db, claims.tenantId, claims.messageId),
+  });
 }

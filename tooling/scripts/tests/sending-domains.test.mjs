@@ -23,6 +23,13 @@ import {
   domainPatchOf,
   domainHoldWords,
   isFreeMail,
+  domainRecordRows,
+  domainRecordsIntro,
+  domainRegistrarHint,
+  checkResultWords,
+  domainHoldFixWords,
+  sendingDomainsFootWords,
+  domainHoldNoticeWords,
 } from "@chanlytics/contracts";
 
 const PLATFORM = { mailDomain: "mail.chanlytics.com" };
@@ -257,15 +264,18 @@ test("the row's words, for every state: the pill, what is left to do, and the ca
   assert.deepEqual([checking.pill, checking.tone], ["Checking", "info"]);
 
   for (const [days, cap, next] of [
-    [3, "Up to 30 a day", "100 a day after 14 clean days"],
-    [20, "Up to 100 a day", "200 a day after 30 clean days"],
+    // The next step as the day it comes, if the days stay clean.
+    [3, "Up to 30 a day", /^100 a day from Oct 6$/],
+    [20, "Up to 100 a day", /^200 a day from Oct 5$/],
     [40, "Up to 200 a day", null],
   ]) {
     const w = sendingDomainWords(
       dto({ state: "verified", verified_at: daysAgo(days), clean_since: daysAgo(days) }),
       NOW,
     );
-    assert.deepEqual([w.pill, w.tone, w.cap, w.next], ["Verified", "ok", cap, next], `${days} days`);
+    assert.deepEqual([w.pill, w.tone, w.cap], ["Verified", "ok", cap], `${days} days`);
+    if (next) assert.match(w.next, next, `${days} days`);
+    else assert.equal(w.next, null, `${days} days`);
     assert.match(w.line, new RegExp(`^Sam at Best Movers · sam@getbestmovers\\.com · ${days} clean days$`));
   }
   assert.match(
@@ -274,8 +284,8 @@ test("the row's words, for every state: the pill, what is left to do, and the ca
   );
 
   for (const [why, words, next] of [
-    ["verification", "it stopped verifying", "until Check passes"],
-    ["dmarc", "its DMARC record is missing", "until Check passes"],
+    ["verification", "it stopped verifying", "sends again by itself once the records read right"],
+    ["dmarc", "its DMARC record is missing", "sends again by itself once the records read right"],
     ["bounces", "more than 2% of its recent emails bounced", "until you resume it"],
     ["complaint", "someone marked an email from it as spam", "until you resume it"],
   ]) {
@@ -289,7 +299,8 @@ test("the row's words, for every state: the pill, what is left to do, and the ca
       }),
       NOW,
     );
-    assert.deepEqual([w.pill, w.tone, w.cap], ["Held", "warn", "Sending nothing"], why);
+    // What the hold costs: the day's share it had when it was held (clean six days by then: 30 a day).
+    assert.deepEqual([w.pill, w.tone, w.cap], ["Held", "warn", "Sending nothing · was 30 a day"], why);
     assert.equal(w.line, `Held since Sep 22 · ${words}`);
     assert.match(w.next, new RegExp(next));
   }
@@ -369,7 +380,8 @@ test("a verified domain's line says how its mail has done, once it has sent some
     dto({ state: "verified", clean_since: daysAgo(3), sent_recent: 250, bounced_recent: 1, complaints: 0 }),
     NOW,
   );
-  assert.match(w.line, /3 clean days · 0\.4% bounced · none marked as spam$/);
+  assert.match(w.line, /3 clean days$/);
+  assert.equal(w.stats, "0.4% bounced · none marked as spam", "how its mail has done, on its own line");
   const held = sendingDomainWords(dto({ state: "held", held_why: "bounces", held_at: daysAgo(1) }), NOW);
   assert.equal(held.next, "Nothing leaves from it until you resume it.");
   assert.match(held.line, /more than 2% of its recent emails bounced/);
@@ -498,4 +510,141 @@ test("a provider hold that lifts keeps the ramp: the account's blip is not the d
 test("a domain being set up that the provider no longer has says to add it again", () => {
   const w = sendingDomainWords(dto({ state: "records", provider_status: "not_found" }), NOW);
   assert.match(w.line, /no longer has this domain\. Remove it and add it again\./);
+});
+
+test("the records as a registrar wants them: named from the domain, labelled by what they do, each saying whether it reads", () => {
+  const d = dto({
+    host: "getharbor.com",
+    dmarc: "missing",
+    records: [
+      {
+        label: "SPF",
+        type: "MX",
+        name: "send",
+        value: "feedback-smtp.us-east-1.amazonses.com",
+        priority: 10,
+        status: "verified",
+      },
+      {
+        label: "SPF",
+        type: "TXT",
+        name: "send.getharbor.com",
+        value: "v=spf1 include:amazonses.com ~all",
+        priority: null,
+        status: "not_started",
+      },
+      { label: "DKIM", type: "TXT", name: "resend._domainkey", value: "p=MIGf", priority: null, status: "failed" },
+    ],
+  });
+  const rows = domainRecordRows(d);
+  assert.deepEqual(
+    rows.map((r) => [r.kind, r.type, r.name, r.priority, r.found]),
+    [
+      ["Return path", "MX", "send", 10, true],
+      ["Sender (SPF)", "TXT", "send", null, false],
+      ["Signing (DKIM)", "TXT", "resend._domainkey", null, false],
+      ["Policy (DMARC)", "TXT", "_dmarc", null, false],
+    ],
+  );
+  assert.equal(rows[3].value, "v=DMARC1; p=none;");
+  assert.equal(domainRecordRows({ ...d, dmarc: "found" }).length, 3, "no DMARC row once it has one");
+  assert.match(
+    domainRecordsIntro("getharbor.com"),
+    /^These records tell Gmail and others that Chanlytics may send as getharbor\.com\./,
+  );
+  assert.match(domainRegistrarHint("getharbor.com"), /Some registrars add getharbor\.com for you/);
+});
+
+test("a Check says what it found, in its own tone: never a success for records not there yet", () => {
+  const verified = checkResultWords(dto({ state: "verified", clean_since: NOW_ISO, verified_at: NOW_ISO }), NOW);
+  assert.deepEqual([verified.tone, verified.msg], ["ok", "getbestmovers.com is verified. It starts at 30 a day."]);
+  const records = checkResultWords(dto({ state: "records" }), NOW);
+  assert.equal(records.tone, "warn");
+  assert.match(records.msg, /not found yet\. DNS changes can take a few hours\. Press Check again later\./);
+  const verifying = checkResultWords(dto({ state: "verifying" }), NOW);
+  assert.equal(verifying.tone, "info");
+  assert.match(verifying.msg, /We look again every ten minutes; nothing to press\./);
+  const dnsHeld = checkResultWords(dto({ state: "held", held_why: "dmarc", held_at: daysAgo(1) }), NOW);
+  assert.equal(dnsHeld.tone, "warn");
+  assert.match(dnsHeld.msg, /sends again by itself once the records read right/);
+});
+
+test("a row says what a hold costs and how to fix it; a verified row says how its mail has done on a line of its own", () => {
+  const held = sendingDomainWords(
+    dto({ state: "held", held_why: "bounces", held_at: daysAgo(1), clean_since: daysAgo(20) }),
+    NOW,
+  );
+  assert.equal(held.cap, "Sending nothing · was 100 a day");
+  assert.equal(held.fix, "Check the addresses you write to before you resume it.", "what to do, not the reason again");
+  assert.equal(
+    sendingDomainWords(dto({ state: "held", held_why: "provider", held_at: daysAgo(1) }), NOW).fix,
+    null,
+    "a provider hold lifts itself: nothing tells the owner to remove it",
+  );
+  const dns = sendingDomainWords(
+    dto({ state: "held", held_why: "dmarc", held_at: daysAgo(1), clean_since: daysAgo(3) }),
+    NOW,
+  );
+  assert.equal(dns.next, "It sends again by itself once the records read right, starting at 30 a day.");
+  for (const why of ["verification", "dmarc", "bounces", "complaint", "provider"])
+    assert.ok(domainHoldFixWords(why), why);
+  const ok = sendingDomainWords(
+    dto({ state: "verified", clean_since: daysAgo(3), sent_recent: 250, bounced_recent: 1, complaints: 0 }),
+    NOW,
+  );
+  assert.doesNotMatch(ok.line, /bounced/, "the stats are their own line");
+  assert.equal(ok.stats, "0.4% bounced · none marked as spam");
+  assert.equal(ok.next, "100 a day from Oct 6", "the next step as the day it comes");
+});
+
+test("the foot says the rule once, the most there can be, and where replies and direct mail go", () => {
+  const none = sendingDomainsFootWords(0, 5);
+  assert.match(none, /No spare domain\? Buy one like get<yourbusiness>\.com, then add it here\./);
+  assert.doesNotMatch(none, /never at risk/);
+  assert.match(
+    sendingDomainsFootWords(2, 5),
+    /Mail sent straight to a domain's own address goes wherever that domain's mail goes\./,
+  );
+  assert.match(sendingDomainsFootWords(5, 5), /^Five is the most\. Remove one to add another\./);
+});
+
+test("a record's name, however the provider spells it: the domain itself is @, a trailing dot and capitals are the same name", () => {
+  const rows = domainRecordRows(
+    dto({
+      host: "getharbor.com",
+      dmarc: "found",
+      records: [
+        { label: "SPF", type: "TXT", name: "getharbor.com", value: "v=spf1 ~all", priority: null, status: "verified" },
+        {
+          label: "DKIM",
+          type: "TXT",
+          name: "Resend._DomainKey.GetHarbor.com.",
+          value: "p=x",
+          priority: null,
+          status: "verified",
+        },
+        { label: "SPF", type: "MX", name: "send.other.example", value: "mx.example", priority: 10, status: "verified" },
+      ],
+    }),
+  );
+  assert.deepEqual(
+    rows.map((r) => r.name),
+    ["@", "resend._domainkey", "send.other.example"],
+  );
+  assert.equal(new Set(rows.map((r) => r.key)).size, rows.length, "each row its own key");
+});
+
+test("Check after a DNS hold lifts says it sends again, not that it is new", () => {
+  const before = dto({ state: "held", held_why: "dmarc", held_at: daysAgo(1), clean_since: daysAgo(20) });
+  const after = dto({ state: "verified", clean_since: NOW_ISO, verified_at: daysAgo(20) });
+  assert.equal(checkResultWords(after, NOW, before).msg, "getbestmovers.com is sending again, starting at 30 a day.");
+  assert.equal(checkResultWords(after, NOW).msg, "getbestmovers.com is verified. It starts at 30 a day.");
+});
+
+test("the owner's email says where to look, never 'below'", () => {
+  for (const why of ["verification", "dmarc", "bounces", "complaint", "provider"]) {
+    const words = domainHoldNoticeWords(why);
+    assert.ok(words, why);
+    assert.doesNotMatch(words, /below/, why);
+  }
 });
