@@ -817,4 +817,39 @@ Branch `reach-out-2q-docs` from main after PR 11. Docs only.
 
 ## As built
 
-(Filled in by PR 12.)
+All twelve shipped on 25 Sep 2026. Each was squash-merged on green; each migration went to production after a dry run
+and before its PR merged, and was read back.
+
+| PR | # | Merge | Migration on production | What differed from the plan |
+|---|---|---|---|---|
+| 1 The door holds cold email to every rule | #1046 | `5b25c714` | 00177 | A timeout whose re-post is in flight, 0 or 5xx stays `unknown`; the backfill reads `contacts.erased_email_hash`; the 403-domain rule is cold-only; a complaint suppresses before the no |
+| 2 The domains engine | #1051 | `3a171e2b` | 00178 | D10 became the self-lifting `provider` hold instead of a breaker; the sweep is paced at five reads a second, not a fixed thirty |
+| 3 Connections, the unsubscribe page, the footer | #1056 | `ef40271f` | none | The footer's second line, "This is a marketing email." (Ruben's call, 25 Sep), in the text and the HTML |
+| 4 The switches and the watch | #1062 | `9f976058` | **00179** (planned as none) | The watch needed a SQL read by the host an email left from, over 00176's index; it became one spelling of "left" (`email_left`), re-creating 00176's count and 00177's door over it, unchanged in what they answer; its window is when an email was sent, not queued |
+| 5 Split playbooks.ts, broadcasts.ts | #1064 | `3a77ef1e` | none | `renderTemplate`, `cleanParam`, `broadcastName` stayed; `broadcast-failures` added; `playbook-time` internal |
+| 6 Split people.ts | #1066 | `31fb30b3` | none | `person-consent` added; `person-attention` also exported from `index.ts`; `mayReach` stayed |
+| 7 Split leads.ts, and the cycle break | #1067 | `db2c4e85` | none | `lead-facts` added (the peek and the row read each other); the route moved into `lead-plan`; **`first-run-route.ts`** added: with only the plan's two moves, the setup↔first-run cycle was entered from `setup.ts` and `FIRST_RUN_HELPERS` read `TRY_SKIPPED` before it was made. Contracts' value-import cycles: 12 + 4 + 2 modules before, 2 after (`signup.ts`↔`workspace.ts`) |
+| 8 Split jobs handlers.ts, server/leads.ts | #1069 | `c309c1e1` | none | `context.ts` and `broadcast-send.ts` internal, their public names re-exported by name |
+| 9 Split the Leads page | #1073 | `6e43a867` | none | As planned; `leads-real.jsx` reads People's hooks from window when it draws |
+| 10 Split the Playbooks and Broadcasts pages | #1076 | `05d126e8` | none | Three pins no render test drew are now run in `playbook-composer.test.mjs`; the ratchet fell 26 → 25 |
+| 11 The runtime and the toolchain | #1080 | `e70bf3d8` | none | `engines` stays `>=22` and the types Node 22's (pinning 24 stops a Node 22 install); `@eslint/js` 10's `no-useless-assignment` is off over 93 existing hits, its own task; the edge needed no new dependency |
+| 12 The documents | this PR | | none | |
+
+**How a split was proven** (PRs 5–10): the package's export list byte-identical; the original's lines the same lines
+in the new files; every exported value of the built bundle equal to main's (the check that caught PR 7's cycle). The
+moves were made by a script over the TypeScript compiler API that moves top-level declarations by name with their
+comments, computes each file's imports, and refuses a move that would make a private name public, import a value
+through a re-export, or read a name before it is made.
+
+**The repo's other large files, known and not Reach out's** (measured 25 Sep 2026 at `e70bf3d8`, source only):
+`legacy/styles/components.css` 3,549 · `legacy/pages/clients-a.jsx` 3,168 (People) · `legacy/styles/clients.css` 2,772 ·
+`contracts/src/today.ts` 2,474 · `legacy/styles/inbox.css` 2,158 · `legacy-bridge/surface-data.ts` 1,896 ·
+`legacy/pages/settings.jsx` 1,870 · `legacy/styles/settings.css` 1,841 · `legacy/pages/client-profile.jsx` 1,838 ·
+`contracts/src/config.ts` 1,808 · `legacy/pages/inbox-thread.jsx` 1,754 (Part 5's) · `tooling/scripts/filler.mjs` 1,679 ·
+`contracts/src/business-tab.ts` 1,593 · `contracts/src/setup.ts` 1,455 · `contracts/src/viewmodels.ts` 1,449 ·
+`tooling/scripts/e2e-workspace.mjs` 1,434 · `server/ask/tools.ts` 1,332. Deliberately left, as planned:
+`core/leads/runner.ts`, `core/deliver.ts`, `channels/email.ts`, `server/playbooks.ts`, `server/broadcasts.ts`.
+
+**Still Ruben's before Part 3 sends anything:** the secrets (`UNSUBSCRIBE_SECRET`, `RESEND_COLD_API_KEY`,
+`RESEND_COLD_WEBHOOK_SECRET`) and the cold Resend account (`docs/runbook.md`, "Turn on cold email"); a yes for the one
+DKIM send; D14, a support address; and his approval of Part 3 itself.

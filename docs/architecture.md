@@ -136,6 +136,16 @@ wire is missing. A workspace's wires are bound by the edge from that
 workspace's own credentials; the environment's keys never send for another
 business.
 
+A cold email (the `outreach` purpose, Reach out) is always a broadcast, and
+asks more of the door. One call, `outreach_facts` (00177), answers whether the
+business is a lead still being written to, whether its address is on the
+never-again list, and what its From domain is and has sent in the last day;
+the refusals are words in contracts (`PURPOSE_REFUSALS`). Email leaves by one
+of two lanes (`emailSender`): the hosted lane, the workspace's mailbox on the
+platform's mail account, for everything else; the own lane, a verified sending
+domain on the cold account, for outreach only. A cold send never moves its
+thread, and a failure is recorded on its row rather than flagged.
+
 A send that happens later is a job: `packages/jobs` is the ledger (`claim_due_jobs`, a lease, a heartbeat, `settle`), `apps/edge/api/jobs/tick.ts` runs it, and `packages/jobs/src/handlers.ts` maps each kind to a core verb. Every clock is a timestamp on a row that a sweep acts on, and every sweep is registered in `sweep_status` and judged by `/api/cron/health`.
 
 ## The packages, and the direction of dependency

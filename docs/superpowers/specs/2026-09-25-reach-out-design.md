@@ -1,6 +1,7 @@
 # Reach out: design spec
 
-**Date:** 25 Sep 2026 · **Owner:** Ruben · **Status:** proposed; decisions 1–8 in §9 are his ·
+**Date:** 25 Sep 2026 · **Owner:** Ruben · **Status:** Parts 1–2 shipped; 2.5 (the hardening) shipped; Part 3 next,
+on Ruben's approval. The eight decisions in §9 were approved 25 Sep ·
 **Canvas:** https://claude.ai/artifact/AdMCtQTkWUoDhXz8SewiZg (23 boards; the builder is `Claude Video/reach-out-design/canvas`) ·
 **Supersedes:** §4.7 "Leads" of `2026-09-24-campaigns-on-every-channel-design.md` · **Re-sequences:** steps 2–11 of
 `docs/plans/2026-09-24-every-business-every-channel.md` §4 · **Follows:** Part 0 of the campaigns spec (#999, #1005,
@@ -173,21 +174,36 @@ the future `send_at`s; resuming rebuilds them.
 
 ### 4.6 The wire
 
-`sending_domains`: `tenant_id`, `host` (unique across the platform), `from_name`, `from_local`, `provider_domain_id`,
-`records jsonb` (SPF, DKIM as Resend returns them, and the DMARC record we recommend), `state` (`records | verifying |
-verified | held`), `held_why`, `held_at`, `clean_since`, `cap` (30 → 100 → 200 by clean days), `bounced_500`,
-`complaints_1000`, `dnsbl_listed`, `checked_at`. Resend creates the domain by API; Connections › Email shows the records
-with *Check*; a ten-minute sweep (a new clock, `domains`) reads verification and DMARC, counts bounces and complaints
-from receipts, looks the host up on the DNS blocklists once a day, and holds the domain when any rule trips.
+**As built (Parts 2 and 2.5; 00175, 00176, 00178, 00179).** `sending_domains`: `tenant_id`, `host` (lower-case, unique
+across the platform), `from_local`, `from_name`, `provider_domain_id`, `records jsonb` (as Resend returns them),
+`state` (`records | verifying | verified | held`), `provider_status` (the provider's own word, judged in contracts
+`judgeDomain`), `dmarc` (`found | missing`, at the host or a parent), `held_why` (`verification | dmarc | bounces |
+complaint | provider`), `held_at`, `verified_at`, `clean_since` (the ramp's clock: 30 → 100 → 200 a day, contracts
+`domainDailyCap`), `counted_since` (the reputation window's own clock, moved only by verification and Resume, never by a
+DNS release), `sent_recent`, `bounced_recent`, `complaints` (what the sweep last counted), `checked_at`; five per
+workspace. The edge's admin door (`/api/admin/sending-domains`, ops `status | add | check | remove | resume`) is the
+only writer, and the dashboard's `/api/v1/sending-domains` routes call it; Connections › Email shows the records with
+*Check* and *Resume*. The `domains` clock (every ten minutes, 00175's `trigger_domains_sweep`, only when a domain is
+due) reads each domain at the cold account and in DNS: a failed verification holds it at once (the provider's
+`temporary_failure` only on a second read), a DMARC record missing on two reads in a row holds it, and the hold lifts
+itself when both read good; a provider that no longer knows the domain holds it on a second read as `provider`,
+which lifts itself too, emails no owner and pages the platform; a permanent bounce over 2% of the last 500 sends since
+`counted_since`, or any complaint, holds it until its owner resumes it, and a complaint does so at its receipt, not at the next tick. The same
+sweep pages the platform (`email_cold_receipts_missing`) when a verified domain's three or more emails sent 26 to 2
+hours ago have heard nothing back: a cold webhook secret set wrong. DNS blocklists are not read: Spamhaus refuses cloud
+resolvers (Part 2's "not in this part").
 
-Every cold email is a queued row written before the send with a minted id, built by `buildEmailRequest` given `parent:
-null` and its own subject (W0), `From` the domain's identity, `Reply-To` the mailbox's token address so the reply lands in
-the Inbox, `List-Unsubscribe` (mailto and https) and `List-Unsubscribe-Post: List-Unsubscribe=One-Click`,
-`Auto-Submitted: auto-generated`, plain text with a minimal HTML twin and no images; `Idempotency-Key` the recipient row's
-id; tags `cl_message`, `cl_tenant`; the second Resend key. Receipts land on that row: delivered, bounced (the address
-dropped on the lead: `email_state = 'invalid'`; the domain's counter), complained (the address suppressed; the domain
-held), suppressed. `deliver()` gains the `outreach` purpose: allowed only for a recipient made from a lead, from an own
-domain, with the footer.
+Every cold email is a queued row written before the send, built by `buildEmailRequest` given `parent: null` and its
+own subject (W0), `From` the domain's identity, `Reply-To` the mailbox's token address so the reply lands in the Inbox,
+`List-Unsubscribe` (https) and `List-Unsubscribe-Post: List-Unsubscribe=One-Click`, `Auto-Submitted: auto-generated`,
+plain text with a minimal HTML twin whose footer carries the link, and no images; tags `cl_message`, `cl_tenant`; the
+second Resend account's key (`RESEND_COLD_API_KEY`). Cold routes bind only when that key and its webhook's secret
+(`RESEND_COLD_WEBHOOK_SECRET`) are both set, so no cold email leaves while its receipts would be refused;
+`/api/resend-webhook` verifies either account's signature. Receipts land on that row: delivered moves it; a permanent
+bounce counts toward its domain; a complaint on any email is the person's no (`set_email_marketing`, source
+`complaint`) and holds the domain; a send that timed out stays `failed` with outcome `unknown` until a receipt settles
+it. The door's `outreach` purpose and its checks are §4.8's. Part 3 writes the rows (C8: the recipient-derived id as the
+idempotency key), mints the unsubscribe token (C9) and freezes the footer and the identity into the request (C10).
 
 ### 4.7 Stops, pauses, and what a reply means
 
@@ -213,9 +229,19 @@ undoable for seven days on the lead ("read as no · undo").
 - **The law:** the Business record's address on every email (a workspace without one cannot start a reach-out, and the
   sheet says why); "why you are hearing from us"; one-click unsubscribe honoured within seconds; a reply meaning no
   honoured the same way; US leads only while the finder is.
-- **The domain:** own domains only; verification, SPF, DKIM and DMARC read every ten minutes; bounces over 2% of the
-  last 500 or any complaint hold the domain and its runs; a held domain sends nothing until Check passes; a DNS blocklist
-  hit is shown and holds.
+- **The domain:** own domains only; verification, SPF, DKIM and DMARC read every ten minutes; permanent bounces over 2%
+  of the last 500 or any complaint hold the domain and its runs; a held domain sends nothing until it reads good again
+  (a DNS or provider hold) or its owner resumes it (bounces, a complaint). DNS blocklists are not read (§4.6).
+- **The door, as built (Part 2.5, core `deliver.ts` over 00177's `outreach_facts`, one call).** A cold email (the
+  `outreach` purpose) is always a broadcast, whoever the row says wrote it: the workspace's pause, the thread's pause
+  and a live hold stop it. It never moves its thread, and a failure is recorded on its row, never flagged per email.
+  It is refused, each in words (contracts `PURPOSE_REFUSALS`), when the person said no (`unsubscribed`), when it is not
+  email (`outreach_is_email_only`), not to a business a search found (`outreach_not_a_lead`), to a lead no longer
+  `ready` or `nurture` (`outreach_lead_closed`), to an address on the never-again list (`outreach_suppressed`), built
+  without its unsubscribe link (`outreach_without_unsubscribe`), not from the workspace's own domain by its whole From
+  (`outreach_needs_own_domain`), from one not verified (`sending_domain_not_ready`), or past the domain's day: its
+  rolling 24 hours against the ramp (`sending_domain_at_cap`). The day's count is the backstop; Part 3's batch writer
+  claims within it (C7).
 - **Volume:** the ramp per domain; the gap; the lead's hours; the month's allowance per workspace (cold sends counted
   from `messages` where `meta.source = 'reach_out'`, beside `maySpend`); the Campaigns head says "1,940 of 2,000 emails
   this month" once half is used.
@@ -281,18 +307,40 @@ Each to 100% before the next, and each shippable in either deploy order unless s
 1. **Shipped 25 Sep 2026 in #1018 (the wire) and #1020 (the door).** **W0 — the send path** (the PRD's four hazards): every email a pre-written queued row; purpose and `proactive` in the
    payload; the recipient id as the idempotency key; `buildEmailRequest` with `parent: null`, a subject, and the
    unsubscribe headers as arguments; 429 read and waited out. 2 PRs.
-2. **The wire:** `sending_domains`, the `domains` clock and sweep, Connections › Email's domains block, the second Resend
+2. **Shipped 25 Sep 2026 in #1024, #1028, #1032, #1036 and #1040 (five PRs, not three; 00174–00176 on production).**
+   **The wire:** `sending_domains`, the `domains` clock and sweep, Connections › Email's domains block, the second Resend
    key in `env.ts`; the unsubscribe door (`GET/POST /u/<token>`) and the footer; `set_email_marketing` with the
-   `unsubscribe` source; `lead_suppressions` written; the `outreach` purpose at the door; the gates. Migration first.
-   3 PRs.
+   `unsubscribe` source; `lead_suppressions` written; the `outreach` purpose at the door; the gates.
+
+   **2.5, shipped 25 Sep 2026 (#1046, #1051, #1056, #1062, #1064, #1066, #1067, #1069, #1073, #1076, #1080 and the
+   docs; 00177–00179 on production).** The hardening an end-to-end audit (6.5/10) asked for before Part 3: the door
+   holds a cold email to every rule (§4.8), the domains engine answers for what it knows (§4.6), Connections, the
+   unsubscribe page and the footer speak plainly (the footer says "This is a marketing email.", Ruben's call), the
+   switches and the watch on them, the big files split by pure moves, the runtime and the toolchain aligned.
+   `docs/superpowers/plans/2026-09-25-reach-out-part-2-5-hardening.md` has the decisions (D1–D14) and what was built.
 3. **The engine:** the `playbooks` columns and CHECKs, the `leads` audience kind, sending creates the person, `after_step`
    and `lead_first`, the stops, the timetable and the US zones, the ticker's due claim and re-check, metering. Migration
-   first. 3 PRs.
+   first. 3 PRs. It also owes what Part 2.5 carried here, none of it built yet:
+   - **C1** the footer's "Reply 'no thanks'" kept: no email to an address after any human reply to a reach-out;
+   - **C2** the stop keyed by lead, with In-Reply-To and References matching;
+   - **C3** auto-replies excluded from "replied";
+   - **C4** any bounce stops the chain;
+   - **C5** a held or removed domain defers a send, never cancels it;
+   - **C6** `maySpend` and metering per cold send;
+   - **C7** the atomic daily claim for the batch writer (the door's 24-hour count is the backstop);
+   - **C8** the rows-first batch writer, with a recipient-derived row id;
+   - **C9** token minting, the edge's `UNSUBSCRIBE_SECRET` getter, and a probe that both apps hold the same secret;
+   - **C10** `campaignFooter` and `ownDomainIdentity` frozen into the request;
+   - **C11** a bounce marks the lead's `email_state`;
+   - **C12** the broadcast batch's email branch;
+   - **C13** a cold send refused while the cold webhook secret is unset (the route is already refused);
+   - **C14** Resend's real rate limit, read from its `ratelimit-*` headers.
 4. **The words and the pages:** email template rows and their validator, the slots, the opening and check jobs, the
    sheet, the Leads door and the bulk door, the approval sheet's words, the Playbooks open row, Templates' switch.
    2 PRs.
 5. **Replies:** the intent classifier, pause and resume, said no, the dated-step door, notifications, Today's rows, the
-   Inbox strips; the first use of draft mode on a lead thread. 2 PRs.
+   Inbox strips; the first use of draft mode on a lead thread. 2 PRs. Carried from Part 2.5: **C15**, the owner's reply
+   leaves from the thread's own domain.
 6. **What comes back:** Reports by step, angle and domain; the person page's rows. 1 PR.
 7. **Later:** bring your own list (leads from a CSV, checked first, as a search). 1 PR.
 
@@ -315,6 +363,14 @@ without hours (9–17 local); a state map that is wrong for the few split-zone c
 the law's differences outside the US (the finder is US-only today; a non-US lead card brings its own rules).
 
 ## 9. Decisions for Ruben
+
+**All eight approved by Ruben on 25 Sep 2026, as recommended.** Part 2.5 then took D1–D13 (its plan's first table:
+a cold email is always a broadcast; what the door checks at send; a cold send never moves the Inbox; a cold failure
+recorded, not flagged; a timed-out send re-posted once under its key; cold routes need both secrets; a complaint is a
+no; only permanent bounces count; the reputation window's own clock; a provider hold that lifts itself; mail typed to
+the From address goes where that domain's mail goes; the footer's "no thanks" kept, by Part 3; the unsubscribe secret
+verified under the current and the previous value). **Still his:** D14, a support address the product can name (until
+then no refusal prints one: it says the platform was told, and pages it).
 
 1. Pull Reach out ahead of Part 1 and W1–W3 of the PRD. Recommended: yes.
 2. Several own domains per workspace, rotated (§4.6), or E4's one. Recommended: several.
