@@ -2612,8 +2612,12 @@ interface UnsubscribeClaims {
 /** Where the page lives on the dashboard's origin. */
 declare const UNSUBSCRIBE_PATH = "/u/";
 declare function signUnsubscribeToken(secret: string, c: UnsubscribeClaims): string;
-/** The claims a token seals, or null for anything that is not a token this secret made. Never throws. */
-declare function verifyUnsubscribeToken(secret: string | null | undefined, token: string): UnsubscribeClaims | null;
+/**
+ * The claims a token seals, or null for anything that is not a token one of these secrets made. Never throws.
+ * `secrets` is the current secret and, while a rotation settles, the one before it: a link already in somebody's
+ * inbox must keep working for at least thirty days (CAN-SPAM), so a rotation never closes one. A blank is skipped.
+ */
+declare function verifyUnsubscribeToken(secrets: readonly (string | null | undefined)[], token: string): UnsubscribeClaims | null;
 /** The link, on an origin: what the footer shows and List-Unsubscribe carries. */
 declare function unsubscribeUrl(origin: string, token: string): string;
 

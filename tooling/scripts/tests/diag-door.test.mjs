@@ -46,6 +46,10 @@ for (const k of [
   "RETELL_API_KEY",
   "META_ES_CONFIG_ID",
   "WHATSAPP_TEST_ALLOWLIST",
+  "EMAIL_DOMAIN",
+  "RESEND_WEBHOOK_SECRET",
+  "RESEND_COLD_API_KEY",
+  "RESEND_COLD_WEBHOOK_SECRET",
 ])
   delete process.env[k];
 
@@ -193,6 +197,11 @@ test("the environment report is booleans only and carries no value; the memory i
     SUPABASE_URL: "https://xyz.supabase.co",
     SUPABASE_SERVICE_ROLE_KEY: "service-role-value-nobody-may-see",
     META_APP_SECRET: "meta-secret-value-nobody-may-see",
+    // Email's switches (Reach out): the mail domain, and the cold account's key and webhook secret. The platform
+    // account's webhook secret is left unset, so one of the four reads false.
+    EMAIL_DOMAIN: "mail.value-nobody-may-see.example",
+    RESEND_COLD_API_KEY: "re_cold_value_nobody_may_see",
+    RESEND_COLD_WEBHOOK_SECRET: "whsec_cold_value_nobody_may_see",
   };
   const body = await withEnv(secrets, read);
   // Postgres, always. It used to be read off PG_READS and BLOB_SHADOW and
@@ -209,6 +218,10 @@ test("the environment report is booleans only and carries no value; the memory i
     metaSecret: true,
     retellKey: false,
     diagKey: true,
+    emailDomain: true,
+    resendWebhook: false,
+    resendCold: true,
+    resendColdWebhook: true,
   });
   const printed = JSON.stringify(body);
   for (const v of Object.values(secrets))

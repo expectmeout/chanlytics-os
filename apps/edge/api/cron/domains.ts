@@ -14,6 +14,7 @@ import { env } from "../../lib/env.js";
 import { dueSendingDomains } from "../../lib/packages/db.js";
 import { readDmarc } from "../../lib/email/dmarc.js";
 import { checkSendingDomain, type DomainPorts } from "../../lib/email/sending-domains.js";
+import { watchColdReceipts } from "../../lib/email/cold-receipts.js";
 import { pageOperator } from "../../lib/ops/page-operator.js";
 
 export const config = { maxDuration: 60 };
@@ -58,18 +59,24 @@ export async function POST(request: Request): Promise<Response> {
   }
   if (!rows.length) return json(200, { ok: true, checked: 0 });
 
+  const page = (key: string, subject: string, body: string) => pageOperator({ db }, key, subject, body);
   const ports: DomainPorts = {
     db,
     cfg: { apiKey: coldKey },
     dmarc: (h) => readDmarc(h),
     now: Date.now,
     log: L,
-    page: (key, subject, body) => pageOperator({ db }, key, subject, body),
+    page,
   };
   // How stale the oldest due read was when this tick began: what a person reading the sweep's answer judges it by.
   // Null when the oldest due domain was never read at all.
   const oldestReadS = rows[0]?.checked_at ? Math.round((Date.now() - Date.parse(rows[0].checked_at)) / 1000) : null;
   const started = Date.now();
+  // Whether cold email's receipts reach us at all (lib/email/cold-receipts.ts): one read, and a page to the platform
+  // when a domain's emails of the last day heard nothing back. First, inside the tick's time budget, so a tick with
+  // hundreds of domains to read still asks it. It is the platform's to act on: the sweep's answer is about the
+  // domains, and a watch that could not be read changes nothing below.
+  await watchColdReceipts({ db, now: Date.now, log: L, page });
   const counts = { checked: 0, verified: 0, held: 0, released: 0, unreadable: 0, refused: 0 };
   for (let i = 0; i < rows.length; i += AT_ONCE) {
     // What is left is read next tick, the longest unread first.

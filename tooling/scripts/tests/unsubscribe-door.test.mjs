@@ -217,8 +217,11 @@ test("a database that cannot take it is said, never taken for done", async () =>
   assert.match(await press.text(), /That didn&#39;t go through\./);
 });
 
-test("with no secret the door cannot tell a link from a guess, and says so without asking anything", async () => {
+test("with no secret the door cannot tell a link from a guess, says so without asking anything, and tells the platform once", async () => {
   const w = world();
+  const said = [];
+  const was = console.error;
+  console.error = (...a) => said.push(a.map(String).join(" "));
   delete process.env.UNSUBSCRIBE_SECRET;
   try {
     const g = await get();
@@ -227,10 +230,18 @@ test("with no secret the door cannot tell a link from a guess, and says so witho
     assert.match(await g.text(), /That didn&#39;t go through\./);
     const p = await post("List-Unsubscribe=One-Click");
     assert.equal(p.status, 503);
+    assert.equal((await get()).status, 503);
     assert.equal(w.db.seen.length, 0);
   } finally {
+    console.error = was;
     process.env.UNSUBSCRIBE_SECRET = SECRET;
   }
+  // The first link fetched this minute says it; a mail client retrying, or a scanner, does not repeat it. The line
+  // is once a minute for the whole module, so this must stay the file's first test to find the door unset.
+  const lines = said.filter((l) => l.startsWith("unsubscribe_unavailable"));
+  assert.equal(lines.length, 1, "one line a minute at most");
+  assert.match(lines[0], /"why":"no_secret"/);
+  assert.ok(!lines[0].includes(TOKEN), "never the link");
 });
 
 test("the page names the address the email came from; a press the database could not take offers Try again", async () => {
@@ -284,4 +295,37 @@ test("a link names only its own workspace's email: a message of another workspac
   const html = await (await get()).text();
   assert.doesNotMatch(html, /other\.example/);
   assert.match(html, /emails like that one again/);
+});
+
+test("a rotation breaks no link: one sealed under UNSUBSCRIBE_SECRET_PREVIOUS still asks, and records", async () => {
+  const PREVIOUS = "the-secret-before-this-file-rotated";
+  const old = signUnsubscribeToken(PREVIOUS, { tenantId: A, contactId: P, messageId: M });
+  const { pressed } = world();
+  process.env.UNSUBSCRIBE_SECRET_PREVIOUS = PREVIOUS;
+  try {
+    assert.equal((await get(old)).status, 200, "the page asks");
+    assert.equal((await post("List-Unsubscribe=One-Click", { token: old })).status, 200, "and the one click records");
+    assert.equal(pressed.length, 1);
+  } finally {
+    delete process.env.UNSUBSCRIBE_SECRET_PREVIOUS;
+  }
+  assert.equal((await get(old)).status, 404, "unset, its links are no longer ours");
+  assert.equal((await get(TOKEN)).status, 200, "and the current secret's are");
+});
+
+test("a previous secret alone opens nothing: the current one is what the door needs", async () => {
+  const PREVIOUS = "the-secret-before-this-file-rotated";
+  const old = signUnsubscribeToken(PREVIOUS, { tenantId: A, contactId: P, messageId: M });
+  world();
+  delete process.env.UNSUBSCRIBE_SECRET;
+  process.env.UNSUBSCRIBE_SECRET_PREVIOUS = PREVIOUS;
+  const was = console.error;
+  console.error = () => {};
+  try {
+    assert.equal((await get(old)).status, 503);
+  } finally {
+    console.error = was;
+    delete process.env.UNSUBSCRIBE_SECRET_PREVIOUS;
+    process.env.UNSUBSCRIBE_SECRET = SECRET;
+  }
 });

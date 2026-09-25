@@ -5957,13 +5957,16 @@ function signUnsubscribeToken(secret, c) {
   ]);
   return Buffer.concat([payload, macOf(secret, payload)]).toString("base64url");
 }
-function verifyUnsubscribeToken(secret, token) {
-  if (!secret || typeof token !== "string" || !TOKEN.test(token)) return null;
+function verifyUnsubscribeToken(secrets, token) {
+  if (!Array.isArray(secrets)) return null;
+  const keys = secrets.filter((s) => typeof s === "string" && s.length > 0);
+  if (!keys.length || typeof token !== "string" || !TOKEN.test(token)) return null;
   const raw = Buffer.from(token, "base64url");
   if (raw.length !== PAYLOAD_BYTES + MAC_BYTES || raw[0] !== VERSION || raw.toString("base64url") !== token)
     return null;
   const payload = raw.subarray(0, PAYLOAD_BYTES);
-  if (!timingSafeEqual2(raw.subarray(PAYLOAD_BYTES), macOf(secret, payload))) return null;
+  const mac = raw.subarray(PAYLOAD_BYTES);
+  if (!keys.some((k) => timingSafeEqual2(mac, macOf(k, payload)))) return null;
   return {
     tenantId: uuidOf(payload.subarray(1, 17)),
     contactId: uuidOf(payload.subarray(17, 33)),

@@ -4149,6 +4149,15 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      cold_receipts_owed: {
+        Args: { p_from: string; p_to: string }
+        Returns: {
+          host: string
+          sent: number
+          tenant_id: string
+          unanswered: number
+        }[]
+      }
       create_mailbox: {
         Args: { p_from_name: string; p_local_part: string; p_tenant_id: string }
         Returns: Json
@@ -4222,6 +4231,10 @@ export type Database = {
         Returns: boolean
       }
       email_from_host: { Args: { p_meta: Json }; Returns: string }
+      email_left: {
+        Args: { p_error: Json; p_status: string }
+        Returns: boolean
+      }
       ensure_events_partition: { Args: { p_month: string }; Returns: undefined }
       erase_contact: {
         Args: { p_contact_id: string; p_legs?: Json }
