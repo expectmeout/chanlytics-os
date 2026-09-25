@@ -1307,10 +1307,11 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 /* The page's top gutter is the gap between its bands, 12px: the queue's card sits
    under the bar as it sits under any card above it, and a line that is down
    (TodayAlert, 2px of its own) lands its words 14px down, where the Inbox's first
-   words land (13px: .stabs sits flush under the bar with 6px of its own and the
-   tab's 7px). The standing line used to own this room; at 0 without it, the card's
-   edge sat on the bar's rule (23 Sep). 28px would land them lower than every other
-   page. The sides keep the gutter; a phone keeps its own 16px (mobile.css). */
+   words land (13.5px: .stabs sits flush under the bar with 6px of its own, and
+   its tab sets its words in the middle of 34px). The standing line used to own
+   this room; at 0 without it, the card's edge sat on the bar's rule (23 Sep). 28px
+   would land them lower than every other page. The sides keep the gutter; a phone
+   keeps its own 16px (mobile.css). */
 .dash-a-v2 { padding-top: 12px; }
 
 /* A run is not a customer's words: it reads in one glance, verbs on the right,

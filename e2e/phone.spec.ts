@@ -462,6 +462,65 @@ test.describe("Phone shell on a real workspace", () => {
   });
 
   /**
+   * One strip for every page's views (25 Sep). On a phone the Inbox's and People's tabs stood in a strip 4px taller
+   * than Campaigns', 2px apart where Campaigns' were 4px, with their words a pixel above the middle and the strip's
+   * side at 12px where the rows' gutter is 16; and Campaigns' underline was ink where theirs is the accent. Ruben kept
+   * Campaigns' spacing and the others' accent. This holds the three to one strip: its height and side, a tab's height
+   * and where its words sit, the step to the next tab, and the underline under the one picked.
+   */
+  test("the section tabs are one strip: the Inbox's views, People's scopes and Campaigns' tabs", async ({ page }) => {
+    const shapeOf = async (strip: Locator) =>
+      await strip.evaluate((el) => {
+        const s = el.getBoundingClientRect();
+        const tabs = [...el.querySelectorAll<HTMLElement>(".stabs-tab")];
+        const t = tabs[0].getBoundingClientRect();
+        // Where the words are, not the box: a Range over the label's own text (a tab can carry a count after it).
+        const label = [...tabs[0].childNodes].find((n) => n.nodeType === Node.TEXT_NODE && n.textContent!.trim())!;
+        const range = document.createRange();
+        range.selectNodeContents(label);
+        const w = range.getBoundingClientRect();
+        const picked = tabs.find((b) => b.classList.contains("active"));
+        return {
+          height: Math.round(s.height),
+          side: Math.round(t.left - s.left),
+          tab: Math.round(t.height),
+          words: Math.round(w.left - t.left),
+          middle: Math.round((w.top + w.bottom) / 2 - t.top),
+          step: Math.round(tabs[1].getBoundingClientRect().left - t.right),
+          underline: picked ? getComputedStyle(picked).borderBottomColor : null,
+        };
+      });
+    const shapes: [string, Awaited<ReturnType<typeof shapeOf>>][] = [];
+    for (const [label, hash, strip] of [
+      ["the Inbox", "inbox", page.locator(".stabs.stabs-inbox")],
+      ["People", "clients", page.getByTestId("people-phone-scopes")],
+      ["Campaigns", "outbound", page.locator(".stabs.stabs-campaigns")],
+    ] as const) {
+      await page.goto(`/#/${hash}`);
+      await page.waitForLoadState("networkidle");
+      await expect(strip, `${label} draws its strip`).toBeVisible();
+      shapes.push([label, await shapeOf(strip)]);
+    }
+    // The accent as the page resolves it, in the notation getComputedStyle gives a border.
+    const accent = await page.evaluate(() => {
+      const probe = document.createElement("i");
+      probe.style.color = "var(--accent)";
+      document.querySelector(".app-root")!.appendChild(probe);
+      const colour = getComputedStyle(probe).color;
+      probe.remove();
+      return colour;
+    });
+    const [first, firstShape] = shapes[0];
+    for (const [label, shape] of shapes.slice(1))
+      expect(shape, `the strip on ${label} is the one on ${first}`).toEqual(firstShape);
+    expect(firstShape.side, "the strip starts at the rows' gutter (--row-pad-x)").toBe(16);
+    expect(firstShape.middle, "a tab's words sit in the middle of it, over its 2px underline").toBe(
+      Math.round((firstShape.tab - 2) / 2),
+    );
+    expect(firstShape.underline, "the tab picked is underlined in the accent").toBe(accent);
+  });
+
+  /**
    * A switch holds still (23 Sep). With History's tabs parked under the top bar, Consent put them 328px further down a
    * phone and Visits 439px: a shorter list made the page shorter and the browser pulled the scroll back to fit
    * (data-bits holdStill now holds it). And the head starts at the page's edge: the way back is the top bar's crumb.
