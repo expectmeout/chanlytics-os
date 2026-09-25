@@ -9973,8 +9973,8 @@ function emailSender(routes) {
   };
 }
 function kindOf(d) {
-  if (d.kind) return d.kind;
   if (d.purpose === "outreach") return "broadcast";
+  if (d.kind) return d.kind;
   if (d.sender === "human") return d.proactive ? "broadcast" : "reply";
   return d.messageId ? "draft" : "answer";
 }

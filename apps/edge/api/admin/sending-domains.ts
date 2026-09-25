@@ -17,7 +17,7 @@ import { pg } from "../../lib/pg.js";
 import { logger } from "../../lib/log.js";
 import { env } from "../../lib/env.js";
 import { sendingDomainOf } from "../../lib/packages/db.js";
-import { readDmarc } from "../../lib/email/dmarc.js";
+import { dkimPublished, readDmarc } from "../../lib/email/dmarc.js";
 import { pageOperator } from "../../lib/ops/page-operator.js";
 import {
   addSendingDomain,
@@ -74,6 +74,7 @@ export async function POST(request: Request): Promise<Response> {
     db,
     cfg: { apiKey: coldKey },
     dmarc: (h) => readDmarc(h),
+    dkim: (h, records) => dkimPublished(h, records),
     now: Date.now,
     log: L,
     page: (key, subject, body) => pageOperator({ db }, key, subject, body),

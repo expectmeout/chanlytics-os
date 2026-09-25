@@ -648,3 +648,31 @@ test("the owner's email says where to look, never 'below'", () => {
     assert.doesNotMatch(words, /below/, why);
   }
 });
+
+test("a held domain still answers for its reputation: a complaint during a DNS hold holds it for its owner, and outranks bounces (Part 2.6)", () => {
+  const c = (sent, bounced, complained = 0) => ({ sent, bounced, complained });
+  const since = new Date(NOW - 86_400_000).toISOString();
+  // Held for DNS, the records now good, and a complaint arrived meanwhile: held for the complaint, not released.
+  const dns = sending({ state: "held", held_why: "dmarc", held_at: since, dmarc: "missing" });
+  const j = judgeDomain(dns, { provider: "verified", dmarc: "found", counts: c(40, 0, 1) }, NOW_ISO);
+  assert.deepEqual([j.state, j.held_why, j.held_at, j.change], ["held", "complaint", NOW_ISO, "held"]);
+  // A provider hold with bounces past the line: the owner's to resume now, not the provider's to lift.
+  const lost = sending({ state: "held", held_why: "provider", held_at: since });
+  assert.equal(
+    judgeDomain(lost, { provider: "verified", dmarc: "found", counts: c(150, 4) }, NOW_ISO).held_why,
+    "bounces",
+  );
+  // Held for bounces, then a complaint: held for the complaint, which is what Resume must weigh.
+  const bounced = sending({ state: "held", held_why: "bounces", held_at: since });
+  const worse = judgeDomain(bounced, { provider: null, dmarc: null, counts: c(150, 4, 1) }, NOW_ISO);
+  assert.deepEqual([worse.held_why, worse.change], ["complaint", "held"]);
+  // The same reason again changes nothing; a complaint hold is the last word until its owner resumes it.
+  assert.equal(judgeDomain(bounced, { provider: null, dmarc: null, counts: c(150, 4) }, NOW_ISO).change, null);
+  const complained = sending({ state: "held", held_why: "complaint", held_at: since });
+  assert.equal(judgeDomain(complained, { provider: null, dmarc: null, counts: c(150, 9, 2) }, NOW_ISO).change, null);
+  // A clean held domain lifts as before.
+  assert.equal(
+    judgeDomain(dns, { provider: "verified", dmarc: "found", counts: c(40, 0) }, NOW_ISO).change,
+    "released",
+  );
+});

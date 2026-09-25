@@ -15,6 +15,7 @@
  * either way. That condition, not `certain`, is what makes this safe to run on
  * a job whose outcome is unknown.
  */
+import { isCampaignEmail } from "@chanlytics/channels";
 import { upsertEscalation, type EscalationOutcome } from "./escalate";
 import { MAX_RESUMES, type Db } from "./ledger";
 import { scheduleJob } from "./schedule";
@@ -189,18 +190,30 @@ export async function settleJob(db: Db, job: TerminalJob, certain: boolean): Pro
     // that row already says 'sent', and saying otherwise would be a lie about a
     // message that reached a real person. Only a row still claiming to be on
     // its way is touched.
+    // A run that died mid-send may have sent: its outcome is unknown, which is what lets an email's receipt still
+    // settle it (00177's messages_guard) and what counts it toward its domain's day (outreach_facts).
     const { data, error } = await db
       .from("messages")
-      .update({ status: "failed", error: { reason, note: certain ? NEVER_SENT : MAY_HAVE_SENT } })
+      .update({
+        status: "failed",
+        error: { reason, note: certain ? NEVER_SENT : MAY_HAVE_SENT, ...(certain ? {} : { outcome: "unknown" }) },
+      })
       .eq("id", messageId)
       .eq("tenant_id", job.tenant_id)
       .eq("status", "queued")
-      .select("id, conversation_id, sender");
+      .select("id, conversation_id, sender, channel, meta");
     // A reply that never left is a customer with no answer: the thread is flagged for a person, as a failed
-    // delivery flags it (core send.ts). A job that died marked the row failed and flagged nothing (I5).
-    const row = (data?.[0] ?? null) as { conversation_id?: string | null; sender?: string | null } | null;
+    // delivery flags it (core send.ts). A job that died marked the row failed and flagged nothing (I5). A campaign's
+    // email is not a reply to anyone waiting: it is recorded on its row and flags nothing (Reach out D4).
+    const row = (data?.[0] ?? null) as {
+      conversation_id?: string | null;
+      sender?: string | null;
+      channel?: string | null;
+      meta?: { email?: { request?: unknown } } | null;
+    } | null;
+    const campaign = row?.channel === "email" && isCampaignEmail(row.meta?.email?.request);
     const flagged =
-      !error && row?.conversation_id
+      !error && row?.conversation_id && !campaign
         ? await upsertEscalation(
             db,
             job.tenant_id,

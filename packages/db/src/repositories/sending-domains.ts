@@ -83,10 +83,13 @@ export async function countSendingDomains(db: Db, tenantId: string): Promise<num
   return r.count ?? 0;
 }
 
-/** Who holds a host a reservation found taken: enough to say whose it is, and whether it was ever verified. */
+/**
+ * Who holds a host a reservation found taken: enough to say whose it is, whether it was ever verified, and the records
+ * it was given, whose DKIM key in DNS says the holder did the work at their registrar.
+ */
 export type SendingDomainHolder = Pick<
   SendingDomainRow,
-  "id" | "tenant_id" | "state" | "created_at" | "provider_domain_id" | "provider_status" | "updated_at"
+  "id" | "tenant_id" | "state" | "created_at" | "provider_domain_id" | "provider_status" | "updated_at" | "records"
 >;
 
 /**
@@ -122,7 +125,7 @@ export async function reserveSendingDomain(
       "read who holds a host",
       await db
         .from("sending_domains")
-        .select("id, tenant_id, state, created_at, provider_domain_id, provider_status, updated_at")
+        .select("id, tenant_id, state, created_at, provider_domain_id, provider_status, updated_at, records")
         .eq("host", i.host)
         .maybeSingle(),
     );

@@ -216,9 +216,14 @@ const CHECKING: ReadonlySet<string> = new Set(["pending", "temporary_failure", "
  */
 export function judgeDomain(row: DomainRowState, facts: DomainFacts, nowIso: string): DomainJudgement {
   const same: DomainJudgement = { ...row, dmarc: facts.dmarc ?? row.dmarc, change: null };
-  // Reputation is counted from our own rows, so it holds a verified domain whatever the provider answered, or did not.
-  const reputation = row.state === "verified" ? reputationHoldOf(facts.counts) : null;
-  if (reputation) return { ...same, state: "held", held_why: reputation, held_at: nowIso, change: "held" };
+  // Reputation is counted from our own rows, so it holds whatever the provider answered, or did not: a verified domain,
+  // and a held one too. A complaint made while a domain was held for its records holds it for its owner, rather than
+  // letting it release and send for a tick first; a complaint after bounces is what Resume must weigh. The same reason
+  // again changes nothing, and a complaint hold is the last word until its owner resumes it (Part 2.6).
+  const judgeable = row.state === "verified" || (row.state === "held" && row.held_why !== "complaint");
+  const reputation = judgeable ? reputationHoldOf(facts.counts) : null;
+  if (reputation && !(row.state === "held" && row.held_why === reputation))
+    return { ...same, state: "held", held_why: reputation, held_at: nowIso, change: "held" };
   if (facts.provider === null) return { ...row, change: null };
   const verified = facts.provider === "verified";
   if (row.state === "records" || row.state === "verifying") {

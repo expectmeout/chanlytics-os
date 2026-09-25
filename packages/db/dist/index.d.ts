@@ -4275,6 +4275,14 @@ type Database = {
                 };
                 Returns: boolean;
             };
+            email_sent_at: {
+                Args: {
+                    p_created_at: string;
+                    p_meta: Json;
+                    p_status_updated_at: string;
+                };
+                Returns: string;
+            };
             ensure_events_partition: {
                 Args: {
                     p_month: string;
@@ -5763,6 +5771,15 @@ declare function stampEmailSent(db: Db$b, p: {
     conversationId: string;
 } | null>;
 /**
+ * The request an outbound email was frozen with (its row's meta.email.request), or null when there is no such row or
+ * it froze none: what a receipt reads to know whether the email was a reply or a campaign's (channels
+ * isCampaignEmail). A read that fails throws; the receipt comes again.
+ */
+declare function sentEmailRequestOf(db: Db$b, p: {
+    tenantId: string;
+    messageId: string;
+}): Promise<unknown | null>;
+/**
  * A complaint, stamped once on the row it is about (00176), so the domain it left from answers for it. True when this
  * stamped it; false when it was stamped before or is no such row.
  */
@@ -5833,8 +5850,11 @@ type ColdReceiptsOwed = Database["public"]["Functions"]["cold_receipts_owed"]["R
  */
 declare function coldReceiptsOwed(db: Db$a, from: Date, to: Date): Promise<ColdReceiptsOwed[]>;
 declare function countSendingDomains(db: Db$a, tenantId: string): Promise<number>;
-/** Who holds a host a reservation found taken: enough to say whose it is, and whether it was ever verified. */
-type SendingDomainHolder = Pick<SendingDomainRow, "id" | "tenant_id" | "state" | "created_at" | "provider_domain_id" | "provider_status" | "updated_at">;
+/**
+ * Who holds a host a reservation found taken: enough to say whose it is, whether it was ever verified, and the records
+ * it was given, whose DKIM key in DNS says the holder did the work at their registrar.
+ */
+type SendingDomainHolder = Pick<SendingDomainRow, "id" | "tenant_id" | "state" | "created_at" | "provider_domain_id" | "provider_status" | "updated_at" | "records">;
 /**
  * The host, held for this workspace before the provider is asked: unique across the platform (00175). Taken names
  * the holder; five already is the table's own limit (sending_domains_within_limit), which a count before the insert
@@ -6607,4 +6627,4 @@ interface Page<T> {
  */
 declare function readAllRows<T>(what: string, page: (from: number, to: number) => PromiseLike<Page<T>>, cap?: number, onCapped?: (what: string, cap: number) => void): Promise<T[]>;
 
-export { CALL_CONTROL_S, type ChannelLookup, type ColdReceiptsOwed, type ControlHolder, type ControlOutcome, DEFAULT_ROW_CAP, type Database, HISTORY_COLUMNS, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type ListRow, MAX_ROWS, type MailboxRow, type NormalizedCallInput, type OutboundTarget, type OutreachFactsRow, PEOPLE_PAGE, type Page, type PgThreadState, type PolicyRecord, type PutTenantConfigResult, type RoutedChannel, type SavedListRow, type SendingDomainHolder, type SendingDomainRow, type ServiceClientConfig, type SubscribeOptions, type TemplateRow, type TenantConfigRow, type ThreadTurn, type Touch, type TouchIndex, type WriteError, type YesRow, addToList, applyDomainCheck, archiveList, assembleHistory, claimCallNotification, claimControl, coldReceiptsOwed, countSendingDomains, countSentToday, createList, createServiceClient, deleteList, deleteSendingDomain, deleteSendingDomainAsRead, describeLead, domainHeldSince, dropFromList, dueSendingDomains, emitEvent, everyoneIn, followUpTouchesSince, getTenantConfig, ingestCall, ingestInbound, ingestInboundEmail, lastInboundEmail, linkCallMessage, listMemberIds, listPolicies, listRow, mailboxById, mailboxFor, mailboxOfTenant, markProcessed, notesForReceptionist, outreachFactsOf, pauseConversation, peoplePage, personReplyMode, playbooksOnList, putTenantConfig, readAllRows, readDealForPhone, readLeadContext, readThreadState, recordCallNote, recordEchoAndPause, recordEmailNo, recordEmailStatus, recordOutbound, recordProviderDomain, recordStatusByExternalId, releaseControl, renameList, reserveSendingDomain, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, savedListFor, savedListsFor, sendingDomainByHost, sendingDomainCounts, sendingDomainOf, sendingDomainsOf, sentEmailWithMessageId, setCallRecording, setListRule, setPersonReplyMode, setPolicyMode, stampEmailComplaint, stampEmailSent, stampMailboxReceived, subscribeMessagesInserts, suppressEmailOf, templatesFor, touchIndex, touchSendingDomain, touchesSince, watchedTables, yesesSince };
+export { CALL_CONTROL_S, type ChannelLookup, type ColdReceiptsOwed, type ControlHolder, type ControlOutcome, DEFAULT_ROW_CAP, type Database, HISTORY_COLUMNS, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type ListRow, MAX_ROWS, type MailboxRow, type NormalizedCallInput, type OutboundTarget, type OutreachFactsRow, PEOPLE_PAGE, type Page, type PgThreadState, type PolicyRecord, type PutTenantConfigResult, type RoutedChannel, type SavedListRow, type SendingDomainHolder, type SendingDomainRow, type ServiceClientConfig, type SubscribeOptions, type TemplateRow, type TenantConfigRow, type ThreadTurn, type Touch, type TouchIndex, type WriteError, type YesRow, addToList, applyDomainCheck, archiveList, assembleHistory, claimCallNotification, claimControl, coldReceiptsOwed, countSendingDomains, countSentToday, createList, createServiceClient, deleteList, deleteSendingDomain, deleteSendingDomainAsRead, describeLead, domainHeldSince, dropFromList, dueSendingDomains, emitEvent, everyoneIn, followUpTouchesSince, getTenantConfig, ingestCall, ingestInbound, ingestInboundEmail, lastInboundEmail, linkCallMessage, listMemberIds, listPolicies, listRow, mailboxById, mailboxFor, mailboxOfTenant, markProcessed, notesForReceptionist, outreachFactsOf, pauseConversation, peoplePage, personReplyMode, playbooksOnList, putTenantConfig, readAllRows, readDealForPhone, readLeadContext, readThreadState, recordCallNote, recordEchoAndPause, recordEmailNo, recordEmailStatus, recordOutbound, recordProviderDomain, recordStatusByExternalId, releaseControl, renameList, reserveSendingDomain, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, savedListFor, savedListsFor, sendingDomainByHost, sendingDomainCounts, sendingDomainOf, sendingDomainsOf, sentEmailRequestOf, sentEmailWithMessageId, setCallRecording, setListRule, setPersonReplyMode, setPolicyMode, stampEmailComplaint, stampEmailSent, stampMailboxReceived, subscribeMessagesInserts, suppressEmailOf, templatesFor, touchIndex, touchSendingDomain, touchesSince, watchedTables, yesesSince };

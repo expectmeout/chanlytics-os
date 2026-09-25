@@ -202,6 +202,18 @@ function unsubscribeHeaders(c: EmailCampaign): Record<string, string> {
   };
 }
 
+/**
+ * Whether an email, as its request was frozen, was a campaign's (a broadcast or a reach-out, which carries the way to
+ * stop it) rather than a reply to someone who wrote. What its failure may say hangs on it: a reply that never arrived
+ * is a customer with no answer, and flags the thread for a person; a campaign email that bounced is the campaign's to
+ * count, and flags nothing (Reach out D4). Read from the one header only a campaign's request is built with.
+ */
+export function isCampaignEmail(request: unknown): boolean {
+  const headers = (request as { headers?: Record<string, unknown> } | null | undefined)?.headers;
+  const v = headers?.["List-Unsubscribe"];
+  return typeof v === "string" && v.trim() !== "";
+}
+
 /** A subject that claims to answer or pass on an email. A first email a program sends never carries one: that subject deceives. */
 const ANSWER_OR_FORWARD = /^\s*(?:re|aw|sv|rv|antw|fwd?)\s*:/i;
 

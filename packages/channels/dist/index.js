@@ -4210,6 +4210,11 @@ function unsubscribeHeaders(c) {
     "List-Unsubscribe-Post": "List-Unsubscribe=One-Click"
   };
 }
+function isCampaignEmail(request) {
+  const headers2 = request?.headers;
+  const v = headers2?.["List-Unsubscribe"];
+  return typeof v === "string" && v.trim() !== "";
+}
 var ANSWER_OR_FORWARD = /^\s*(?:re|aw|sv|rv|antw|fwd?)\s*:/i;
 function buildEmailRequest(i) {
   const subject = i.parent ? replySubject(i.parent.subject) : oneLine(i.subject ?? "").slice(0, SUBJECT_MAX);
@@ -4657,7 +4662,8 @@ function providerDomainFrom(body) {
     id: d.id,
     name: d.name.trim().toLowerCase(),
     status: typeof d.status === "string" && d.status.trim() ? d.status.trim() : "unknown",
-    records
+    records,
+    createdAt: typeof d.created_at === "string" && Number.isFinite(Date.parse(d.created_at)) ? d.created_at : null
   };
 }
 async function call(cfg, method, path, body) {
@@ -6323,6 +6329,7 @@ export {
   importPhoneNumber,
   isAreaCode,
   isBrandNotReady,
+  isCampaignEmail,
   isE164,
   isEmailRequest,
   isValidSipPassword,

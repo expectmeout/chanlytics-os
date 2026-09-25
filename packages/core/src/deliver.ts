@@ -184,10 +184,11 @@ export interface Delivery {
 
 /** The policy a send goes under: as declared, or as the door always derived it from who wrote the words. */
 function kindOf(d: Delivery): SendKind {
-  if (d.kind) return d.kind;
-  // A cold email is a broadcast whoever wrote its words: the workspace's pause, the thread's and a live hold all stop
-  // it. Read from `sender`, a row a person had edited would pass as their reply and skip every pause.
+  // A cold email is a broadcast whoever wrote its words and whatever its caller names it: the workspace's pause, the
+  // thread's and a live hold all stop it. Read from `sender`, a row a person had edited would pass as their reply; read
+  // from a caller's `kind`, "reply" or "system" would skip the pauses (Part 2.6).
   if (d.purpose === "outreach") return "broadcast";
+  if (d.kind) return d.kind;
   if (d.sender === "human") return d.proactive ? "broadcast" : "reply";
   return d.messageId ? "draft" : "answer";
 }

@@ -103,7 +103,7 @@ const lead = (stage, over = {}) =>
     .single();
 
 /** One outbound email from the own domain, frozen as the send path freezes it. */
-async function sent({ status = "sent", error = null, tenant = A } = {}) {
+async function sent({ status = "sent", error = null, tenant = A, writtenAt = null, sentAt = null } = {}) {
   const id = crypto.randomUUID();
   const request = buildEmailRequest({
     identity: ownDomainIdentity({ host: HOST, from_local: "sam", from_name: "Sam" }, MAILBOX, "mail.chanlytics.com"),
@@ -151,7 +151,12 @@ async function sent({ status = "sent", error = null, tenant = A } = {}) {
       body: "Saw your shop on the map.",
       status,
       error,
-      meta: { email: { subject: request.subject, to: request.to[0], request } },
+      ...(writtenAt ? { created_at: writtenAt } : {}),
+      meta: {
+        email: { subject: request.subject, to: request.to[0], request },
+        // messages_guard's stamp, as a queued row that later went out carries it (00111).
+        ...(sentAt ? { status_at: { sent: sentAt } } : {}),
+      },
     }),
   );
   return id;
@@ -233,5 +238,20 @@ test(
       p_since: new Date().toISOString(),
     });
     assert.ok(r.error, "refused without the service role");
+  },
+);
+
+test(
+  "the day's share is counted by when an email left, not when it was queued: a run held for its approval counts on the day it sends (00180)",
+  { skip },
+  async () => {
+    const hoursAgo = (h) => new Date(Date.now() - h * 3_600_000).toISOString();
+    const base = (await facts()).sent_since;
+    // Queued a day and more ago behind the first run's approval, sent an hour ago: today's.
+    await sent({ writtenAt: hoursAgo(30), sentAt: hoursAgo(1) });
+    await sent({ writtenAt: hoursAgo(30), sentAt: hoursAgo(1) });
+    // Queued and sent 26 hours ago: yesterday's.
+    await sent({ writtenAt: hoursAgo(26), sentAt: hoursAgo(26) });
+    assert.equal((await facts()).sent_since - base, 2);
   },
 );

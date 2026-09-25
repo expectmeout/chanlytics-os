@@ -9739,6 +9739,11 @@ function messageIdHeader(id) {
   const bare = s2.replace(/^<|>$/g, "");
   return /^[^\s<>@]+@[^\s<>@]+$/.test(bare) ? `<${bare}>` : null;
 }
+function isCampaignEmail(request) {
+  const headers2 = request?.headers;
+  const v = headers2?.["List-Unsubscribe"];
+  return typeof v === "string" && v.trim() !== "";
+}
 function isEmailRequest(v) {
   if (!v || typeof v !== "object") return false;
   const r23 = v;
@@ -17745,8 +17750,8 @@ var NEG_TTL_MS = 60 * 1e3;
 var DAY_MS222 = 24 * 3600 * 1e3;
 var CALL_CONTROL_S = 15 * 60;
 function kindOf(d) {
-  if (d.kind) return d.kind;
   if (d.purpose === "outreach") return "broadcast";
+  if (d.kind) return d.kind;
   if (d.sender === "human") return d.proactive ? "broadcast" : "reply";
   return d.messageId ? "draft" : "answer";
 }
@@ -21181,9 +21186,13 @@ async function settleJob(db, job, certain) {
   if (job.kind === "outbound_send") {
     const messageId = idFrom(job.payload, "message_id");
     if (!messageId) return [{ what: "message", changed: false, error: "no message_id on the job" }];
-    const { data, error } = await db.from("messages").update({ status: "failed", error: { reason, note: certain ? NEVER_SENT : MAY_HAVE_SENT } }).eq("id", messageId).eq("tenant_id", job.tenant_id).eq("status", "queued").select("id, conversation_id, sender");
+    const { data, error } = await db.from("messages").update({
+      status: "failed",
+      error: { reason, note: certain ? NEVER_SENT : MAY_HAVE_SENT, ...certain ? {} : { outcome: "unknown" } }
+    }).eq("id", messageId).eq("tenant_id", job.tenant_id).eq("status", "queued").select("id, conversation_id, sender, channel, meta");
     const row = data?.[0] ?? null;
-    const flagged = !error && row?.conversation_id ? await upsertEscalation(
+    const campaign = row?.channel === "email" && isCampaignEmail(row.meta?.email?.request);
+    const flagged = !error && row?.conversation_id && !campaign ? await upsertEscalation(
       db,
       job.tenant_id,
       row.conversation_id,

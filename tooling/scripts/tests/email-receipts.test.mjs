@@ -13,6 +13,7 @@ import { pathToFileURL, fileURLToPath } from "node:url";
 import { fakeDb } from "./_fake-db.mjs";
 import {
   buildEmailRequest,
+  ownDomainIdentity,
   emailReceiptFrom,
   emailReceiptEffect,
   emailReceivedEventFrom,
@@ -451,4 +452,36 @@ test("a complaint stops the address first: a no that cannot be recorded sends th
   const code = await post(receipt("complained"));
   assert.equal(code, 503, "sent back, so Resend delivers it again");
   assert.equal(t.contacts[0].email_suppressed_reason, "complaint", "the address stopped before the no was asked");
+});
+
+test("a campaign's email that bounces fails its row and stops the address, and flags no thread: nobody there wrote (Part 2.6, D4)", async () => {
+  // Frozen as the send path freezes a reach-out: a first email from an own domain, with its unsubscribe.
+  const request = buildEmailRequest({
+    identity: ownDomainIdentity(
+      { host: "getharbor.example", from_local: "sam", from_name: "Sam at Harbor" },
+      { local_part: "harbor", reply_token: "a".repeat(24), from_name: "Harbor" },
+      "mail.chanlytics.com",
+    ),
+    to: ADDRESS,
+    parent: null,
+    subject: "Your moving quotes",
+    body: "Saw your shop on the map.",
+    signature: null,
+    actor: "ai",
+    campaign: {
+      unsubscribeUrl: "https://app.chanlytics.com/u/t",
+      footer: "Unsubscribe: https://app.chanlytics.com/u/t",
+    },
+    messageId: M,
+    tenantId: T,
+  });
+  const t = world({ meta: { email: { subject: request.subject, to: request.to[0], request } } });
+  assert.equal(await post(receipt("bounced", BOUNCE)), 200);
+  assert.deepEqual(t.escalations, [], "no thread is flagged for a campaign's bounce");
+  assert.deepEqual(
+    [t.messages[0].status, t.messages[0].error.provider],
+    ["failed", "bounced"],
+    "the row says it, and counts",
+  );
+  assert.equal(t.contacts[0].email_suppressed_reason, "hard_bounce", "and the address stops, as for any email");
 });
