@@ -98,6 +98,13 @@
   scrollbar-color: var(--line-strong) transparent;
 }
 @media (prefers-reduced-motion: reduce) { .set-pane { animation: none; } }
+/* The sections as every page's strip is a phone's (settings.jsx, mobile.css); a desk has the rail. */
+.stabs-settings { display: none; }
+/* A section opened on a phone comes in from its side (settings.jsx set-slide-*), as a page from the tab beside does. */
+@media (max-width: 720px) and (prefers-reduced-motion: no-preference) {
+  .set-pane.set-slide-next { animation: route-slide-next 220ms var(--ease-out); }
+  .set-pane.set-slide-prev { animation: route-slide-prev 220ms var(--ease-out); }
+}
 
 /* The settings column. Every section on this surface takes it -- including
    the Setup rows, which had no measure at all and so ran to the pane edge

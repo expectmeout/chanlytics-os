@@ -1732,13 +1732,42 @@ const SettingsPage = ({ tab = "workspace", onTab = () => {} }) => {
   };
   // Grouped, and derived rather than written twice: the rail can only ever
   // offer what SET_TABS holds, in the order it holds it.
-  const groups = [...SET_TABS, ...(isPlatformAdmin() ? SET_TABS_PLATFORM : [])].reduce((acc, t) => {
+  const listed = [...SET_TABS, ...(isPlatformAdmin() ? SET_TABS_PLATFORM : [])];
+  const groups = listed.reduce((acc, t) => {
     const g = acc[acc.length - 1];
     if (g && g.name === t.group) g.tabs.push(t); else acc.push({ name: t.group, tabs: [t] });
     return acc;
   }, []);
+  // A section opened comes in from its side on a phone (settings.css set-slide-*), tapped or swiped: decided as it opens
+  // and kept for its life, since the page draws again while it stands (a toast, a save) and a class taken away mid-way
+  // stops the slide. The shell's own slide (route-slide-*) never plays here: every section is one mount of this page.
+  const opened = React.useRef({ id: null, slide: null });
+  if (opened.current.id !== active.id) {
+    const was = listed.findIndex((t) => t.id === opened.current.id);
+    const at = listed.findIndex((t) => t.id === active.id);
+    opened.current = { id: active.id, slide: was < 0 || at < 0 ? null : at > was ? "next" : "prev" };
+  }
+  const slide = opened.current.slide;
   return (
     <div className="settings">
+      {/* On a phone the sections are every page's strip (components.css .stabs): the words alone, the one open underlined
+          in the accent, and a swipe across the pane walks them (surface-tabs.jsx stripSwipe). The desk keeps its rail. */}
+      <nav className="stabs stabs-settings" aria-label="Settings sections">
+        {listed.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            ref={active.id === t.id ? setTabIntoView : undefined}
+            className={`stabs-tab${active.id === t.id ? " active" : ""}`}
+            aria-current={active.id === t.id ? "page" : undefined}
+            onPointerEnter={t.warm}
+            onFocus={t.warm}
+            onClick={() => go(t.id)}
+          >
+            {t.label}
+          </button>
+        ))}
+      </nav>
       <aside className="set-nav">
         <div className="fl-roster-head"><span className="fl-roster-label">Settings</span></div>
         {groups.map(g => (
@@ -1761,7 +1790,7 @@ const SettingsPage = ({ tab = "workspace", onTab = () => {} }) => {
           </React.Fragment>
         ))}
       </aside>
-      <div className="set-pane" key={active.id}>
+      <div className={`set-pane${slide ? ` set-slide-${slide}` : ""}`} key={active.id}>
         {leaving && (
           <Confirm
             question={leaving.saving ? "Leave while this saves?" : "Leave without saving?"}

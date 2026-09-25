@@ -749,9 +749,10 @@ test("a first ask reaches the platform mailbox through the edge; a repeat does n
 });
 
 // Which row's verb is the one coral button is the caller's to name, and setup-page-activate.test.mjs presses it.
-test("mobile tabs keep their labels, and a row's sentence wraps on a phone", () => {
+// The sections on a phone keep their words: they are every page's strip since 25 Sep, drawn and read in
+// settings-editor.test.mjs ("on a phone the sections are every page's strip").
+test("a Settings card keeps its height, and a row's sentence wraps on a phone", () => {
   const mobile = readRaw("apps/dashboard/src/legacy/styles/mobile.css");
-  assert.ok(mobile.includes(".set-nav-row { grid-template-columns: auto auto; white-space: nowrap; flex: 0 0 auto; }"));
   assert.ok(
     mobile.includes(".set-pane > * { flex: 0 0 auto; }"),
     "a Settings card never shrinks to fit the pane on a phone",
