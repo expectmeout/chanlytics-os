@@ -21,7 +21,6 @@ import {
   type LeadEmailState,
   type LeadFit,
 } from "./lead-search";
-import { firstRunStepRoute } from "./first-run";
 import {
   LEAD_CALL_OUTCOME_TONES,
   LEAD_CALL_OUTCOME_WORDS,
@@ -203,49 +202,4 @@ export interface LeadWay {
   /** Only ever what this tab has read: null claims nothing. */
   status: string | null;
   doors: { id: string; label: string; to: string }[];
-}
-
-/**
- * The three ways people arrive (§8.9), each claiming only what this tab has
- * read. The People surface carries the calendar and the count; the line is the
- * setup surface's, which this route does not load on a cold open -- so with no
- * facts the way says what it is and points at Setup, and never says a number is
- * live that nobody looked at. "Import a list" is Phase 2 and is not offered
- * until it exists.
- */
-export function leadsFirstDayWays(f: LeadWayFacts): LeadWay[] {
-  const live = !!(f.voice && f.voice.active && f.voice.number);
-  const reachDoors = [
-    { id: "line", label: live ? "Your number" : "Set up your number", to: firstRunStepRoute("phone") },
-  ];
-  if (!f.whatsapp || !f.whatsapp.active)
-    reachDoors.push({ id: "whatsapp", label: "Connect WhatsApp", to: "admin/integrations" });
-  return [
-    {
-      id: "reach",
-      title: "They reach you",
-      line: live
-        ? `Calls and texts to ${f.voice!.number} are answered, and each person lands here.`
-        : "Calls and texts to your number are answered, and each person lands here.",
-      status: live ? "Your number is live" : null,
-      doors: reachDoors,
-    },
-    {
-      id: "calendar",
-      title: "Your calendar",
-      line: "Anyone with an appointment is added, with their visits, so regulars aren't strangers.",
-      status: f.calendar === "ok" ? "Your calendar is connected" : null,
-      doors:
-        f.calendar === "ok"
-          ? [{ id: "calendar", label: "Open the calendar", to: "calendar" }]
-          : [{ id: "calendar", label: "Connect your calendar", to: "admin/integrations" }],
-    },
-    {
-      id: "yours",
-      title: "Clients you already have",
-      line: "Add them one at a time, and they gather here with everyone else.",
-      status: f.people > 0 ? `${f.people} ${f.people === 1 ? "person" : "people"} here already` : null,
-      doors: [{ id: "add", label: "Add someone", to: "clients" }],
-    },
-  ];
 }

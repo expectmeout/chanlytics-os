@@ -11451,15 +11451,6 @@ interface LeadWay {
         to: string;
     }[];
 }
-/**
- * The three ways people arrive (§8.9), each claiming only what this tab has
- * read. The People surface carries the calendar and the count; the line is the
- * setup surface's, which this route does not load on a cold open -- so with no
- * facts the way says what it is and points at Setup, and never says a number is
- * live that nobody looked at. "Import a list" is Phase 2 and is not offered
- * until it exists.
- */
-declare function leadsFirstDayWays(f: LeadWayFacts): LeadWay[];
 
 /**
  * Today (Slice 4): the morning brief.
@@ -17543,6 +17534,16 @@ declare function erasedEmailHash(tenantId: string, email: string): Promise<strin
 declare function leadSuppressionHash(tenantId: string, value: string): Promise<string>;
 
 /**
+ * The three ways people arrive (§8.9), each claiming only what this tab has
+ * read. The People surface carries the calendar and the count; the line is the
+ * setup surface's, which this route does not load on a cold open -- so with no
+ * facts the way says what it is and points at Setup, and never says a number is
+ * live that nobody looked at. "Import a list" is Phase 2 and is not offered
+ * until it exists.
+ */
+declare function leadsFirstDayWays(f: LeadWayFacts): LeadWay[];
+
+/**
  * How long a workspace's yeses take (0004, 0008 amended): the one rule Reports' median and the workspace's pace both
  * read (yesWaits), and the pace from the workspace's own deals (dealPaceFrom), which says when a proposal out is
  * waiting everywhere (deals.ts dealPaceOf, waitingOnProposal). Pure.
@@ -19061,6 +19062,12 @@ interface FirstRunTryInput {
 }
 declare function firstRunTryOf({ dto, vm, calls, since, nowMs }: FirstRunTryInput): FirstRunTryVM;
 
+/**
+ * The first run's addresses, with nothing else: setup.ts reads Find's from here, not from first-run.ts, so the two
+ * never import each other and no load order can find a constant not yet made. Moved whole from first-run.ts (Reach
+ * out Part 2.5), which re-exports its public names.
+ */
+
 /** The first run's address: `#/start`, and `#/start/<step>` for a step already reached. */
 declare const FIRST_RUN_ROUTE = "start";
 /** Where one step opens: a door that names a row sends the owner to the step that draws it. */
@@ -19070,6 +19077,7 @@ declare function firstRunStepRoute(key: FirstRunStepKey): string;
  * for, even after the owner said they are not on Google, since pressing it says otherwise.
  */
 declare const FIRST_RUN_FIND_ROUTE = "start/find";
+
 /** What the business goes by here: the receptionist's own name, else the workspace's (typed at sign-up). */
 declare function businessNameOf(receptionistName: string | null | undefined, workspaceName: string | null | undefined): string | null;
 /** The tab's own memory that this session has landed on the first run once: Today does not send it back again. */

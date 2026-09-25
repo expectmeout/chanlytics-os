@@ -79,6 +79,7 @@ export * from "./tone";
 export * from "./erasure";
 export * from "./lead-search";
 export * from "./leads";
+export * from "./lead-first-day";
 export * from "./deals";
 export * from "./pace";
 export * from "./deal-sheet";
