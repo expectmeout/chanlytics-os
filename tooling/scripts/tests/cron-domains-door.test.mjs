@@ -65,12 +65,13 @@ beforeEach(() => {
 });
 
 /** The provider's word per domain id; "500" for an answer that is not one. */
-function provider(statusById) {
+function provider(statusById, onRead = () => {}) {
   return wire((url, init) => {
     const m = /\/domains\/([^/]+)$/.exec(url);
     if (m && (init?.method ?? "GET") === "GET") {
+      onRead(decodeURIComponent(m[1]));
       const s = statusById[decodeURIComponent(m[1])];
-      if (s === "500") return new Response("upstream", { status: 500 });
+      if (/^\d{3}$/.test(s ?? "")) return new Response("upstream", { status: Number(s) });
       return new Response(JSON.stringify({ id: m[1], name: "x.example", status: s ?? "verified", records: [] }), {
         status: 200,
       });
@@ -188,24 +189,79 @@ test("DNS that does not answer holds nothing: we could not look is not a fact ab
   }
 });
 
-test("a provider that answers nothing for every domain is a red sweep; one readable among them is a 200", async () => {
+test("a blip is not a red sweep: every domain unreadable for a 5xx or a 429 is a 200, read again next tick", async () => {
+  for (const code of ["500", "429"]) {
+    const w = world([domain("d1"), domain("d2")]);
+    const net = provider({ "pd-d1": code, "pd-d2": code });
+    try {
+      const [status, body] = await answer(await knock(POST, "domains"));
+      assert.equal(status, 200, code);
+      assert.deepEqual([body.unreadable, body.refused], [2, 0]);
+      assert.equal(w.row("d1").state, "verified", "an unreadable domain is left as it was");
+      assert.equal(w.tables.notifications.length, 0);
+    } finally {
+      net.restore();
+    }
+  }
+});
+
+test("the key refused for every domain is a red sweep: ours, not the domains'", async () => {
   world([domain("d1"), domain("d2")]);
-  let net = provider({ "pd-d1": "500", "pd-d2": "500" });
+  const net = provider({ "pd-d1": "401", "pd-d2": "403" });
   try {
     const [status, body] = await answer(await knock(POST, "domains"));
     assert.equal(status, 503);
     assert.equal(body.error, "no_domain_readable");
+    assert.equal(body.refused, 2);
   } finally {
     net.restore();
   }
+});
+
+test("one domain readable among unreadable ones is a 200, and the unreadable one is left as it was", async () => {
   const w = world([domain("d1"), domain("d2")]);
   dns["d2.example"] = "found";
-  net = provider({ "pd-d1": "500", "pd-d2": "verified" });
+  const net = provider({ "pd-d1": "401", "pd-d2": "verified" });
   try {
     const [status, body] = await answer(await knock(POST, "domains"));
     assert.equal(status, 200);
     assert.equal(body.unreadable, 1);
-    assert.equal(w.row("d1").state, "verified", "the unreadable one is left as it was");
+    assert.equal(w.row("d1").state, "verified");
+  } finally {
+    net.restore();
+  }
+});
+
+test("a missing DMARC record holds a sending domain on the second read in a row, not the first", async () => {
+  const w = world([domain("d1")]);
+  dns["d1.example"] = "missing";
+  const net = provider({ "pd-d1": "verified" });
+  try {
+    await answer(await knock(POST, "domains"));
+    assert.deepEqual([w.row("d1").state, w.row("d1").dmarc], ["verified", "missing"], "stored, not held");
+    assert.equal(w.tables.notifications.length, 0);
+    await answer(await knock(POST, "domains"));
+    assert.deepEqual([w.row("d1").state, w.row("d1").held_why], ["held", "dmarc"]);
+    assert.equal(w.tables.events.filter((e) => e.kind === "sending_domain.held").length, 1);
+    assert.equal(w.tables.notifications.length, 1);
+  } finally {
+    net.restore();
+  }
+});
+
+test("a check that raced another writer writes nothing: the row as it was read is not the row any more", async () => {
+  const w = world([domain("d1")]);
+  dns["d1.example"] = "found";
+  // An owner's Check, or a removal, lands while the sweep's read is on its way.
+  const net = provider({ "pd-d1": "failed" }, () => {
+    w.row("d1").updated_at = new Date().toISOString();
+  });
+  try {
+    const [status] = await answer(await knock(POST, "domains"));
+    assert.equal(status, 200);
+    assert.equal(w.row("d1").state, "verified", "the stale read held nothing");
+    assert.equal(w.tables.events.length, 0);
+    assert.equal(w.tables.notifications.length, 0, "and told nobody");
   } finally {
     net.restore();
   }

@@ -4659,6 +4659,31 @@ async function getMailDomain(cfg, id) {
   const d = providerDomainFrom(r2.json);
   return d ? { ok: true, value: d } : { ok: false, status: r2.status, message: "the provider answered a shape that is not a domain" };
 }
+var FIND_PAGES_MAX = 20;
+async function findMailDomain(cfg, name) {
+  const want = name.trim().toLowerCase();
+  let after = null;
+  for (let page = 0; page < FIND_PAGES_MAX; page++) {
+    const r2 = await call(cfg, "GET", `?limit=100${after ? `&after=${encodeURIComponent(after)}` : ""}`);
+    if (r2.status < 200 || r2.status >= 300) return refusal(r2.status, r2.json, r2.raw);
+    const body = r2.json ?? {};
+    if (!Array.isArray(body.data))
+      return { ok: false, status: r2.status, message: "the provider answered a shape that is not a list" };
+    let last = null;
+    for (const d of body.data) {
+      if (typeof d?.id !== "string") continue;
+      last = d.id;
+      if (typeof d.name === "string" && d.name.trim().toLowerCase() === want)
+        return {
+          ok: true,
+          value: { id: d.id, name: want, status: typeof d.status === "string" && d.status ? d.status : "unknown" }
+        };
+    }
+    if (body.has_more !== true || !last) return { ok: true, value: null };
+    after = last;
+  }
+  return { ok: false, status: 0, message: `more than ${FIND_PAGES_MAX * 100} domains to look through` };
+}
 async function verifyMailDomain(cfg, id) {
   const r2 = await call(cfg, "POST", `/${encodeURIComponent(id)}/verify`);
   if (r2.status < 200 || r2.status >= 300) return refusal(r2.status, r2.json, r2.raw);
@@ -6245,6 +6270,7 @@ export {
   fetchReceivedEmail,
   fetchRecording,
   fetchTwilio,
+  findMailDomain,
   getAgent,
   getAgentRaw,
   getCall,

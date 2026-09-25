@@ -52,7 +52,7 @@
       "maxDuration": 60
     },
     "api/admin/sending-domains.ts": {
-      "maxDuration": 30
+      "maxDuration": 60
     }
   }
 }

@@ -20692,8 +20692,8 @@ function whyNotAFromLocal(typed) {
 }
 var CHECKING = /* @__PURE__ */ new Set(["pending", "temporary_failure", "partially_verified"]);
 function judgeDomain(row2, facts, nowIso) {
-  const same2 = { ...row2, change: null };
-  if (facts.provider === null) return same2;
+  const same2 = { ...row2, dmarc: facts.dmarc ?? row2.dmarc, change: null };
+  if (facts.provider === null) return { ...row2, change: null };
   const verified = facts.provider === "verified";
   if (row2.state === "records" || row2.state === "verifying") {
     if (verified && facts.dmarc === "found")
@@ -20703,18 +20703,29 @@ function judgeDomain(row2, facts, nowIso) {
         held_at: null,
         verified_at: nowIso,
         clean_since: nowIso,
+        dmarc: "found",
         change: "verified"
       };
     if (verified) return facts.dmarc === "missing" ? { ...same2, state: "records" } : same2;
     return { ...same2, state: CHECKING.has(facts.provider) ? "verifying" : "records" };
   }
   if (row2.state === "verified") {
-    if (!verified) return { ...row2, state: "held", held_why: "verification", held_at: nowIso, change: "held" };
-    if (facts.dmarc === "missing") return { ...row2, state: "held", held_why: "dmarc", held_at: nowIso, change: "held" };
+    if (!verified && facts.provider !== "pending")
+      return { ...same2, state: "held", held_why: "verification", held_at: nowIso, change: "held" };
+    if (facts.dmarc === "missing" && row2.dmarc === "missing")
+      return { ...same2, state: "held", held_why: "dmarc", held_at: nowIso, change: "held" };
     return same2;
   }
   if (row2.held_why && DNS_HOLDS.includes(row2.held_why) && verified && facts.dmarc === "found")
-    return { ...row2, state: "verified", held_why: null, held_at: null, clean_since: nowIso, change: "released" };
+    return {
+      ...row2,
+      state: "verified",
+      held_why: null,
+      held_at: null,
+      clean_since: nowIso,
+      dmarc: "found",
+      change: "released"
+    };
   return same2;
 }
 var HOLD_WORDS = {

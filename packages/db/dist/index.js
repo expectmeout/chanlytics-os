@@ -2740,8 +2740,22 @@ async function reserveSendingDomain(db, i) {
     // Where every domain starts: its records to publish. Said, not left to the column's default.
     state: "records"
   }).select("*").single();
-  if (r2.error && r2.error.code === "23505") return { ok: false, reason: "taken" };
+  const code = r2.error?.code;
+  if (code === "P0001" && r2.error.hint === "too_many") return { ok: false, reason: "too_many" };
+  if (code === "23505") {
+    const holder = must(
+      "read who holds a host",
+      await db.from("sending_domains").select("id, tenant_id, state, created_at, provider_domain_id").eq("host", i.host).maybeSingle()
+    );
+    return { ok: false, reason: "taken", holder: holder ?? null };
+  }
   return { ok: true, row: must("reserve a domain", r2) };
+}
+async function touchSendingDomain(db, row) {
+  return must(
+    "touch a domain",
+    await db.from("sending_domains").update({ checked_at: row.checked_at }).eq("id", row.id).eq("tenant_id", row.tenant_id).select("*").maybeSingle()
+  );
 }
 async function recordProviderDomain(db, id, p) {
   return must(
@@ -3521,6 +3535,7 @@ export {
   suppressEmailOf,
   templatesFor,
   touchIndex,
+  touchSendingDomain,
   touchesSince,
   watchedTables,
   yesesSince

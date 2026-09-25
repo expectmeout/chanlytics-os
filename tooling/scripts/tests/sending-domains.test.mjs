@@ -74,9 +74,11 @@ const row = (over = {}) => ({
   held_at: null,
   verified_at: null,
   clean_since: null,
+  dmarc: null,
   ...over,
 });
-const sending = (over = {}) => row({ state: "verified", verified_at: daysAgo(20), clean_since: daysAgo(20), ...over });
+const sending = (over = {}) =>
+  row({ state: "verified", verified_at: daysAgo(20), clean_since: daysAgo(20), dmarc: "found", ...over });
 
 test("a domain being checked: verified with DMARC sends from now; anything short of that says what is left", () => {
   for (const state of ["records", "verifying"]) {
@@ -86,6 +88,7 @@ test("a domain being checked: verified with DMARC sends from now; anything short
       held_at: null,
       verified_at: NOW_ISO,
       clean_since: NOW_ISO,
+      dmarc: "found",
       change: "verified",
     });
     assert.equal(judgeDomain(row({ state }), { provider: "verified", dmarc: "missing" }, NOW_ISO).state, "records");
@@ -102,21 +105,41 @@ test("a domain being checked: verified with DMARC sends from now; anything short
 });
 
 test("a sending domain that stops verifying or loses DMARC is held; one that reads well is left as it was", () => {
-  assert.deepEqual(judgeDomain(sending(), { provider: "temporary_failure", dmarc: "found" }, NOW_ISO), {
-    ...sending(),
-    state: "held",
-    held_why: "verification",
-    held_at: NOW_ISO,
-    change: "held",
-  });
-  const dmarc = judgeDomain(sending(), { provider: "verified", dmarc: "missing" }, NOW_ISO);
-  assert.equal(dmarc.state, "held");
-  assert.equal(dmarc.held_why, "dmarc");
-  assert.equal(dmarc.clean_since, sending().clean_since, "the clean days stop counting only once it is released");
+  for (const p of [
+    "temporary_failure",
+    "failed",
+    "partially_verified",
+    "partially_failed",
+    "not_found",
+    "a word never heard",
+  ])
+    assert.deepEqual(
+      judgeDomain(sending(), { provider: p, dmarc: "found" }, NOW_ISO),
+      { ...sending(), state: "held", held_why: "verification", held_at: NOW_ISO, change: "held" },
+      p,
+    );
   assert.deepEqual(judgeDomain(sending(), { provider: "verified", dmarc: "found" }, NOW_ISO), {
     ...sending(),
     change: null,
   });
+});
+
+test("a check in progress is not a failure: a verified domain reading 'pending' stays verified, the owner's Check included", () => {
+  // The provider marks a domain pending whatever it was when it is asked to verify (resend-node #823).
+  assert.deepEqual(judgeDomain(sending(), { provider: "pending", dmarc: "found" }, NOW_ISO), {
+    ...sending(),
+    change: null,
+  });
+});
+
+test("a missing DMARC record holds a domain only on the second read in a row: one read from a nameserver mid-move is not", () => {
+  const first = judgeDomain(sending(), { provider: "verified", dmarc: "missing" }, NOW_ISO);
+  assert.deepEqual(first, { ...sending(), dmarc: "missing", change: null }, "stored, not held");
+  const second = judgeDomain(first, { provider: "verified", dmarc: "missing" }, NOW_ISO);
+  assert.deepEqual([second.state, second.held_why, second.change], ["held", "dmarc", "held"]);
+  assert.equal(second.clean_since, sending().clean_since, "the clean days stop counting only once it is released");
+  const back = judgeDomain(first, { provider: "verified", dmarc: "found" }, NOW_ISO);
+  assert.deepEqual(back, { ...sending(), change: null }, "the second read cleared it: nothing happened");
 });
 
 test("we could not look is not a fact about the domain: an unreadable provider or DNS changes nothing", () => {
@@ -136,15 +159,26 @@ test("we could not look is not a fact about the domain: an unreadable provider o
 
 test("a DNS hold lifts itself when both read good, and the ramp starts again; a reputation hold waits for its owner", () => {
   for (const why of ["verification", "dmarc"]) {
-    const held = sending({ state: "held", held_why: why, held_at: daysAgo(1) });
+    const held = sending({
+      state: "held",
+      held_why: why,
+      held_at: daysAgo(1),
+      dmarc: why === "dmarc" ? "missing" : "found",
+    });
     assert.deepEqual(judgeDomain(held, { provider: "verified", dmarc: "found" }, NOW_ISO), {
       ...held,
       state: "verified",
       held_why: null,
       held_at: null,
       clean_since: NOW_ISO,
+      dmarc: "found",
       change: "released",
     });
+    assert.equal(
+      judgeDomain(held, { provider: "pending", dmarc: "found" }, NOW_ISO).state,
+      "held",
+      "a check in progress lifts nothing",
+    );
     assert.equal(judgeDomain(held, { provider: "verified", dmarc: "missing" }, NOW_ISO).state, "held");
   }
   for (const why of ["bounces", "complaint"]) {

@@ -147,7 +147,11 @@ export interface DomainFacts {
   dmarc: DmarcState | null;
 }
 
-export type DomainRowState = Pick<SendingDomainDto, "state" | "held_why" | "held_at" | "verified_at" | "clean_since">;
+/** The row as it stands, with the DMARC answer it last stored: a missing record holds only when it was missing before. */
+export type DomainRowState = Pick<
+  SendingDomainDto,
+  "state" | "held_why" | "held_at" | "verified_at" | "clean_since" | "dmarc"
+>;
 
 export interface DomainJudgement extends DomainRowState {
   /** What changed, for the event and the owner; null when nothing did. */
@@ -162,16 +166,22 @@ const CHECKING: ReadonlySet<string> = new Set(["pending", "temporary_failure", "
  *                      provider verified + DMARC missing    → records
  *                      provider pending/partly/temporarily  → verifying
  *                      anything else                        → records
- *   verified           provider not verified                → held, verification            change "held"
- *                      DMARC missing                        → held, dmarc                   change "held"
+ *   verified           provider pending                     → unchanged: a check in progress, the owner's own
+ *                                                               Check included (the provider marks a domain
+ *                                                               pending whatever it was), is not a failure
+ *                      provider anything else not verified  → held, verification            change "held"
+ *                      DMARC missing, and missing last read → held, dmarc                   change "held"
+ *                      DMARC missing for the first time     → unchanged (the missing answer is stored, and the
+ *                                                               next read, ten minutes on, confirms or clears it:
+ *                                                               nameservers that disagree mid-move are one bad read)
  *   held (DNS)         provider verified + DMARC found      → verified (clean from now)       change "released"
  *   held (reputation)  unchanged: only the owner resumes it (PR 5).
  * An unreadable provider changes nothing, and an unreadable DMARC neither holds nor verifies: "we could not look"
  * is not a fact about the domain.
  */
 export function judgeDomain(row: DomainRowState, facts: DomainFacts, nowIso: string): DomainJudgement {
-  const same: DomainJudgement = { ...row, change: null };
-  if (facts.provider === null) return same;
+  const same: DomainJudgement = { ...row, dmarc: facts.dmarc ?? row.dmarc, change: null };
+  if (facts.provider === null) return { ...row, change: null };
   const verified = facts.provider === "verified";
   if (row.state === "records" || row.state === "verifying") {
     if (verified && facts.dmarc === "found")
@@ -181,19 +191,30 @@ export function judgeDomain(row: DomainRowState, facts: DomainFacts, nowIso: str
         held_at: null,
         verified_at: nowIso,
         clean_since: nowIso,
+        dmarc: "found",
         change: "verified",
       };
     if (verified) return facts.dmarc === "missing" ? { ...same, state: "records" } : same;
     return { ...same, state: CHECKING.has(facts.provider) ? "verifying" : "records" };
   }
   if (row.state === "verified") {
-    if (!verified) return { ...row, state: "held", held_why: "verification", held_at: nowIso, change: "held" };
-    if (facts.dmarc === "missing") return { ...row, state: "held", held_why: "dmarc", held_at: nowIso, change: "held" };
+    if (!verified && facts.provider !== "pending")
+      return { ...same, state: "held", held_why: "verification", held_at: nowIso, change: "held" };
+    if (facts.dmarc === "missing" && row.dmarc === "missing")
+      return { ...same, state: "held", held_why: "dmarc", held_at: nowIso, change: "held" };
     return same;
   }
   // held
   if (row.held_why && DNS_HOLDS.includes(row.held_why) && verified && facts.dmarc === "found")
-    return { ...row, state: "verified", held_why: null, held_at: null, clean_since: nowIso, change: "released" };
+    return {
+      ...row,
+      state: "verified",
+      held_why: null,
+      held_at: null,
+      clean_since: nowIso,
+      dmarc: "found",
+      change: "released",
+    };
   return same;
 }
 

@@ -112,9 +112,36 @@ beforeEach(() => {
   });
 });
 
+/** 00175's unique index on the host, which the fake has none of: a second insert of a host answers PostgREST's 23505. */
+function uniqueHosts(db, tables) {
+  const from = db.from.bind(db);
+  db.from = (table) => {
+    const b = from(table);
+    if (table !== "sending_domains") return b;
+    const insert = b.insert.bind(b);
+    b.insert = (values) => {
+      const v = Array.isArray(values) ? values[0] : values;
+      if (!tables.sending_domains.some((r) => r.host === v.host)) return insert(values);
+      const refused = {
+        data: null,
+        error: { code: "23505", message: 'duplicate key value violates unique constraint "sending_domains_host_uq"' },
+      };
+      const chain = {
+        select: () => chain,
+        single: () => chain,
+        maybeSingle: () => chain,
+        then: (ok, no) => Promise.resolve(refused).then(ok, no),
+      };
+      return chain;
+    };
+    return b;
+  };
+  return db;
+}
+
 function world(rows = [], faults = {}) {
   const tables = { sending_domains: rows, events: [], notifications: [], tenant_config: [], tenant_channels: [] };
-  const db = fakeDb(tables, faults, {});
+  const db = uniqueHosts(fakeDb(tables, faults, {}), tables);
   setPg(db);
   return { db, tables };
 }
@@ -187,16 +214,92 @@ test("what may not be added is refused in words before the provider is asked", a
   }
 });
 
-test("a host another workspace sends from is taken, and the provider is never asked", async () => {
-  const w = world([], {
-    "sending_domains.insert": { message: "duplicate key value violates unique constraint", code: "23505" },
-  });
+test("a host already held is refused in words that say whose, and the provider is never asked", async () => {
+  const w = world([
+    row(D1, { host: "getharbor.com", tenant_id: A }),
+    row(D2, { host: "busy-elsewhere.com", tenant_id: B }),
+  ]);
   const net = provider(() => reply(201, PROVIDER_DOMAIN("pd-x", "getharbor.com")));
   try {
-    const [s, b] = await answer(await knock(ADD));
-    assert.deepEqual([s, b.error, b.message], [409, "host_taken", "Another workspace already sends from that domain."]);
+    const [s1, b1] = await answer(await knock(ADD));
+    assert.deepEqual([s1, b1.error, b1.message], [409, "host_taken", "This workspace already sends from that domain."]);
+    const [s2, b2] = await answer(await knock({ ...ADD, host: "busy-elsewhere.com" }));
+    assert.deepEqual(
+      [s2, b2.error, b2.message],
+      [409, "host_taken", "That domain is already in use. If it's yours, write to us and we'll sort it out."],
+      "a fresh reservation elsewhere is its holder's for the provider's verification window",
+    );
     assert.equal(net.calls.length, 0);
-    assert.equal(w.tables.sending_domains.length, 0);
+    assert.equal(w.tables.sending_domains.length, 2);
+  } finally {
+    net.restore();
+  }
+});
+
+test("a host another workspace reserved and never verified is taken over after three days: theirs removed, and said to them", async () => {
+  const stale = new Date(Date.now() - 4 * 86_400_000).toISOString();
+  const w = world([row(D2, { host: "getharbor.com", tenant_id: B, created_at: stale, provider_domain_id: "pd-old" })]);
+  const net = provider((url, init) =>
+    init.method === "DELETE" && url.endsWith("/domains/pd-old")
+      ? reply(200, { deleted: true })
+      : init.method === "POST" && url === "https://api.resend.com/domains"
+        ? reply(201, PROVIDER_DOMAIN("pd-new", "getharbor.com"))
+        : reply(404, {}),
+  );
+  try {
+    const [s, b] = await answer(await knock(ADD));
+    assert.equal(s, 200, JSON.stringify(b));
+    assert.deepEqual(
+      net.calls.map((c) => c.method + " " + c.url.replace("https://api.resend.com", "")),
+      ["DELETE /domains/pd-old", "POST /domains"],
+    );
+    assert.deepEqual(
+      w.tables.sending_domains.map((r) => [r.tenant_id, r.provider_domain_id]),
+      [[A, "pd-new"]],
+    );
+    assert.deepEqual(
+      w.tables.events.map((e) => [e.tenant_id, e.kind, e.data]),
+      [
+        [B, "sending_domain.removed", { host: "getharbor.com", why: "unverified" }],
+        [A, "sending_domain.added", { host: "getharbor.com" }],
+      ],
+    );
+  } finally {
+    net.restore();
+  }
+  // A host that ever verified is its holder's until they remove it, however old.
+  const w2 = world([
+    row(D2, {
+      host: "getharbor.com",
+      tenant_id: B,
+      created_at: stale,
+      state: "held",
+      held_why: "dmarc",
+      held_at: stale,
+      verified_at: stale,
+      clean_since: stale,
+    }),
+  ]);
+  const net2 = provider(() => reply(500, {}));
+  try {
+    const [s, b] = await answer(await knock(ADD));
+    assert.deepEqual([s, b.error], [409, "host_taken"]);
+    assert.equal(net2.calls.length, 0);
+    assert.equal(w2.tables.sending_domains.length, 1);
+  } finally {
+    net2.restore();
+  }
+});
+
+test("two adds pressed at once cannot make a sixth: the table's own limit is said as the count's", async () => {
+  world([], {
+    "sending_domains.insert": { message: "A workspace sends from 5 domains at most.", code: "P0001", hint: "too_many" },
+  });
+  const net = provider(() => reply(500, {}));
+  try {
+    const [s, b] = await answer(await knock(ADD));
+    assert.deepEqual([s, b.error, b.message], [409, "too_many", "A workspace sends from 5 domains at most."]);
+    assert.equal(net.calls.length, 0);
   } finally {
     net.restore();
   }
@@ -323,6 +426,126 @@ test("remove: gone at the provider (already gone is gone), then gone here; a pro
     const [s, b] = await answer(await knock({ op: "remove", domain_id: D1 }));
     assert.deepEqual([s, b.error], [502, "provider"]);
     assert.equal(w2.tables.sending_domains.length, 1, "the row stays, so it can be removed again");
+  } finally {
+    net.restore();
+  }
+});
+
+test("a create whose answer was lost adopts the domain the account made, rather than leaving it where nothing lists it", async () => {
+  const w = world();
+  const net = provider((url, init) => {
+    if (init.method === "POST" && url === "https://api.resend.com/domains")
+      throw new TypeError("fetch failed: the network went away");
+    if (url.startsWith("https://api.resend.com/domains?limit=100"))
+      return reply(200, {
+        object: "list",
+        has_more: false,
+        data: [{ id: "pd-made", name: "getharbor.com", status: "not_started" }],
+      });
+    if (url === "https://api.resend.com/domains/pd-made")
+      return reply(200, PROVIDER_DOMAIN("pd-made", "getharbor.com"));
+    return reply(404, {});
+  });
+  try {
+    const [s, b] = await answer(await knock(ADD));
+    assert.equal(s, 200, JSON.stringify(b));
+    assert.equal(b.domain.records.length, 3);
+    assert.equal(w.tables.sending_domains[0].provider_domain_id, "pd-made");
+  } finally {
+    net.restore();
+  }
+});
+
+test("a create that failed and made nothing leaves nothing: the reservation goes, and the owner is told to try again", async () => {
+  const w = world();
+  const net = provider((url) =>
+    url.startsWith("https://api.resend.com/domains?limit=100")
+      ? reply(200, { object: "list", has_more: false, data: [] })
+      : reply(503, { message: "Service Unavailable" }),
+  );
+  try {
+    const [s, b] = await answer(await knock(ADD));
+    assert.deepEqual(
+      [s, b.error, b.message],
+      [502, "provider", "The mail provider didn't answer. Try again in a minute."],
+    );
+    assert.equal(w.tables.sending_domains.length, 0);
+  } finally {
+    net.restore();
+  }
+});
+
+test("a row that cannot be written takes the provider's domain with it", async () => {
+  const w = world([], { "sending_domains.update": { message: "the database went away" } });
+  const net = provider((url, init) =>
+    init.method === "POST" && url === "https://api.resend.com/domains"
+      ? reply(201, PROVIDER_DOMAIN("pd-new", "getharbor.com"))
+      : reply(200, { deleted: true }),
+  );
+  try {
+    const [s] = await answer(await knock(ADD));
+    assert.equal(s, 503);
+    assert.ok(
+      net.calls.some((c) => c.method === "DELETE" && c.url.endsWith("/domains/pd-new")),
+      "the provider's domain is removed",
+    );
+    assert.equal(w.tables.sending_domains.length, 0, "and the reservation");
+  } finally {
+    net.restore();
+  }
+});
+
+test("Check on a verified domain never asks the provider to verify: that marks it pending, which would read as a hold", async () => {
+  const stale = new Date(Date.now() - 20 * 86_400_000).toISOString();
+  const w = world([
+    row(D1, { state: "verified", provider_status: "verified", dmarc: "found", verified_at: stale, clean_since: stale }),
+  ]);
+  dns["hd111.example"] = "found";
+  const net = provider((url) =>
+    url.endsWith("/verify") ? reply(200, {}) : reply(200, PROVIDER_DOMAIN("pd-d111", "hd111.example", "verified")),
+  );
+  try {
+    const [s, b] = await answer(await knock({ op: "check", domain_id: D1 }));
+    assert.equal(s, 200);
+    assert.ok(!net.calls.some((c) => c.url.endsWith("/verify")));
+    assert.deepEqual([b.domain.state, b.domain.clean_since], ["verified", stale], "the ramp keeps its days");
+    assert.equal(w.tables.notifications.length, 0);
+  } finally {
+    net.restore();
+  }
+  // A domain still being checked is asked, and the pending the provider then says is "still checking", not a hold.
+  const w2 = world([row(D2, { state: "verifying", provider_status: "pending" })]);
+  const net2 = provider((url) =>
+    url.endsWith("/verify") ? reply(200, {}) : reply(200, PROVIDER_DOMAIN("pd-d222", "hd222.example", "pending")),
+  );
+  try {
+    const [s, b] = await answer(await knock({ op: "check", domain_id: D2 }));
+    assert.equal(s, 200);
+    assert.ok(net2.calls.some((c) => c.url.endsWith("/verify")));
+    assert.equal(b.domain.state, "verifying");
+    assert.equal(w2.tables.events.length, 0);
+  } finally {
+    net2.restore();
+  }
+});
+
+test("a reservation that never learned its provider id is found by name when it is checked", async () => {
+  const w = world([row(D1, { provider_domain_id: null })]);
+  const net = provider((url) =>
+    url.startsWith("https://api.resend.com/domains?limit=100")
+      ? reply(200, {
+          object: "list",
+          has_more: false,
+          data: [{ id: "pd-found", name: "hd111.example", status: "not_started" }],
+        })
+      : url.endsWith("/verify")
+        ? reply(200, {})
+        : reply(200, PROVIDER_DOMAIN("pd-found", "hd111.example")),
+  );
+  try {
+    const [s, b] = await answer(await knock({ op: "check", domain_id: D1 }));
+    assert.equal(s, 200, JSON.stringify(b));
+    assert.equal(w.tables.sending_domains[0].provider_domain_id, "pd-found");
   } finally {
     net.restore();
   }

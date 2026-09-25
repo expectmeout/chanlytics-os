@@ -131,6 +131,42 @@ export async function getMailDomain(cfg: ResendConfig, id: string): Promise<Prov
     : { ok: false, status: r.status, message: "the provider answered a shape that is not a domain" };
 }
 
+/** At most this many pages of 100 are read looking for one name: an account with more domains than that is a finding. */
+const FIND_PAGES_MAX = 20;
+
+/**
+ * The account's own domain by that name, or null when the account has none: the truth about whether a create whose
+ * answer was lost (a timeout, a 5xx, a shape that is not a domain) made one anyway, and what an adoption reads. The
+ * list carries no records; the caller reads the domain by its id for them.
+ */
+export async function findMailDomain(
+  cfg: ResendConfig,
+  name: string,
+): Promise<ProviderAnswer<{ id: string; name: string; status: string } | null>> {
+  const want = name.trim().toLowerCase();
+  let after: string | null = null;
+  for (let page = 0; page < FIND_PAGES_MAX; page++) {
+    const r = await call(cfg, "GET", `?limit=100${after ? `&after=${encodeURIComponent(after)}` : ""}`);
+    if (r.status < 200 || r.status >= 300) return refusal(r.status, r.json, r.raw);
+    const body = (r.json ?? {}) as { data?: unknown; has_more?: unknown };
+    if (!Array.isArray(body.data))
+      return { ok: false, status: r.status, message: "the provider answered a shape that is not a list" };
+    let last: string | null = null;
+    for (const d of body.data as Array<Record<string, unknown>>) {
+      if (typeof d?.id !== "string") continue;
+      last = d.id;
+      if (typeof d.name === "string" && d.name.trim().toLowerCase() === want)
+        return {
+          ok: true,
+          value: { id: d.id, name: want, status: typeof d.status === "string" && d.status ? d.status : "unknown" },
+        };
+    }
+    if (body.has_more !== true || !last) return { ok: true, value: null };
+    after = last;
+  }
+  return { ok: false, status: 0, message: `more than ${FIND_PAGES_MAX * 100} domains to look through` };
+}
+
 /** Ask the provider to check the records now. Asynchronous at the provider: the answer is read by getMailDomain. */
 export async function verifyMailDomain(cfg: ResendConfig, id: string): Promise<ProviderAnswer<true>> {
   const r = await call(cfg, "POST", `/${encodeURIComponent(id)}/verify`);

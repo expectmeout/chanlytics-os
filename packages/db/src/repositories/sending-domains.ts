@@ -52,11 +52,25 @@ export async function countSendingDomains(db: Db, tenantId: string): Promise<num
   return r.count ?? 0;
 }
 
-/** The host, held for this workspace before the provider is asked: unique across the platform (00175). */
+/** Who holds a host a reservation found taken: enough to say whose it is, and whether it was ever verified. */
+export type SendingDomainHolder = Pick<
+  SendingDomainRow,
+  "id" | "tenant_id" | "state" | "created_at" | "provider_domain_id"
+>;
+
+/**
+ * The host, held for this workspace before the provider is asked: unique across the platform (00175). Taken names
+ * the holder; five already is the table's own limit (sending_domains_within_limit), which a count before the insert
+ * could not hold against two adds pressed at once.
+ */
 export async function reserveSendingDomain(
   db: Db,
   i: { tenantId: string; host: string; fromLocal: string; fromName: string; by: string | null },
-): Promise<{ ok: true; row: SendingDomainRow } | { ok: false; reason: "taken" }> {
+): Promise<
+  | { ok: true; row: SendingDomainRow }
+  | { ok: false; reason: "taken"; holder: SendingDomainHolder | null }
+  | { ok: false; reason: "too_many" }
+> {
   const r = await db
     .from("sending_domains")
     .insert({
@@ -70,8 +84,37 @@ export async function reserveSendingDomain(
     })
     .select("*")
     .single();
-  if (r.error && (r.error as { code?: string }).code === "23505") return { ok: false, reason: "taken" };
+  const code = (r.error as { code?: string; hint?: string } | null)?.code;
+  if (code === "P0001" && (r.error as { hint?: string }).hint === "too_many") return { ok: false, reason: "too_many" };
+  if (code === "23505") {
+    const holder = must(
+      "read who holds a host",
+      await db
+        .from("sending_domains")
+        .select("id, tenant_id, state, created_at, provider_domain_id")
+        .eq("host", i.host)
+        .maybeSingle(),
+    );
+    return { ok: false, reason: "taken", holder: holder ?? null };
+  }
   return { ok: true, row: must("reserve a domain", r) };
+}
+
+/**
+ * A write that changes nothing but the row's `updated_at` (moddatetime): a removal fences off a check already in
+ * flight, whose write names the row as it was read and now finds it moved (applyDomainCheck). Null when the row is gone.
+ */
+export async function touchSendingDomain(db: Db, row: SendingDomainRow): Promise<SendingDomainRow | null> {
+  return must(
+    "touch a domain",
+    await db
+      .from("sending_domains")
+      .update({ checked_at: row.checked_at })
+      .eq("id", row.id)
+      .eq("tenant_id", row.tenant_id)
+      .select("*")
+      .maybeSingle(),
+  );
 }
 
 /** The provider's id, records and word, on the row reserved for them. */

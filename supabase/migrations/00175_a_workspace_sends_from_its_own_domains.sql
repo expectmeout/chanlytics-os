@@ -39,7 +39,9 @@ create table if not exists public.sending_domains (
   created_by         uuid references auth.users (id) on delete set null,
   created_at         timestamptz not null default now(),
   updated_at         timestamptz not null default now(),
-  constraint sending_domains_held_is_whole check ((state = 'held') = (held_why is not null and held_at is not null)),
+  -- Held, and only held, carries a reason and a time, both or neither.
+  constraint sending_domains_held_is_whole
+    check ((state = 'held') = (held_why is not null) and (held_why is null) = (held_at is null)),
   constraint sending_domains_sending_is_dated
     check (state not in ('verified', 'held') or (verified_at is not null and clean_since is not null))
 );
@@ -55,6 +57,27 @@ drop trigger if exists sending_domains_set_updated_at on public.sending_domains;
 create trigger sending_domains_set_updated_at
   before update on public.sending_domains
   for each row execute function extensions.moddatetime('updated_at');
+
+-- Five domains per workspace at most (contracts SENDING_DOMAINS_MAX; sending-domains.db.test.mjs holds the two to
+-- one number). Held here rather than only counted before the insert: two adds pressed at once would both count
+-- four. The lock is the workspace's own, for this transaction, so nobody else waits on it.
+create or replace function public.sending_domains_within_limit()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  perform pg_advisory_xact_lock(hashtext('sending_domains:' || new.tenant_id::text));
+  if (select count(*) from public.sending_domains d where d.tenant_id = new.tenant_id) >= 5 then
+    raise exception 'A workspace sends from 5 domains at most.' using errcode = 'P0001', hint = 'too_many';
+  end if;
+  return new;
+end $$;
+revoke execute on function public.sending_domains_within_limit() from public, anon, authenticated;
+drop trigger if exists sending_domains_within_limit on public.sending_domains;
+create trigger sending_domains_within_limit
+  before insert on public.sending_domains
+  for each row execute function public.sending_domains_within_limit();
 
 alter table public.sending_domains enable row level security;
 drop policy if exists sending_domains_member_select on public.sending_domains;

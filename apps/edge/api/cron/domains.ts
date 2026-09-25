@@ -21,6 +21,8 @@ export const config = { maxDuration: 60 };
 const MAX_PER_TICK = 30;
 /** How many are read at once: the provider allows ten requests a second per account. */
 const AT_ONCE = 5;
+/** No batch starts after this: one of five 15-second reads must still end inside the function's 60 seconds. */
+const YIELD_AT_MS = 40_000;
 
 export async function POST(request: Request): Promise<Response> {
   const L = logger({ sweep: "domains" });
@@ -47,14 +49,21 @@ export async function POST(request: Request): Promise<Response> {
   if (!rows.length) return json(200, { ok: true, checked: 0 });
 
   const ports: DomainPorts = { db, cfg: { apiKey: coldKey }, dmarc: (h) => readDmarc(h), now: Date.now, log: L };
-  const counts = { checked: rows.length, verified: 0, held: 0, released: 0, unreadable: 0 };
+  const started = Date.now();
+  const counts = { checked: 0, verified: 0, held: 0, released: 0, unreadable: 0, refused: 0 };
   for (let i = 0; i < rows.length; i += AT_ONCE) {
+    // What is left is read next tick, the longest unread first.
+    if (Date.now() - started > YIELD_AT_MS) break;
+    const batch = rows.slice(i, i + AT_ONCE);
+    counts.checked += batch.length;
     await Promise.all(
-      rows.slice(i, i + AT_ONCE).map(async (row) => {
+      batch.map(async (row) => {
         try {
           const out = await checkSendingDomain(ports, row, { verify: false });
-          if (out.unreadable) counts.unreadable++;
-          else if (out.change) counts[out.change]++;
+          if (out.unreadable) {
+            counts.unreadable++;
+            if (out.status === 401 || out.status === 403) counts.refused++;
+          } else if (out.change) counts[out.change]++;
         } catch (e) {
           counts.unreadable++;
           L.error("domains_row_failed", { domain: row.id, error: e instanceof Error ? e.message : String(e) });
@@ -63,8 +72,10 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
   L.info("domains_swept", counts);
-  // Every domain unreadable is the sweep learning nothing -- our key or the provider, not the domains -- and 503 is
-  // how sweep_health turns that red. Some readable is a 200: the rest are tried again next tick.
-  if (counts.unreadable === rows.length) return json(503, { ok: false, error: "no_domain_readable", ...counts });
+  // The key refused for every domain read is the sweep learning nothing -- ours, not the domains' -- and 503 is how
+  // sweep_health turns that red. A blip (a 5xx, a slow second, a 429) is not: those domains are read next tick, and
+  // with one or two domains a single blip must not page the platform (registrations.ts judges the same way).
+  if (counts.checked > 0 && counts.refused === counts.checked)
+    return json(503, { ok: false, error: "no_domain_readable", ...counts });
   return json(200, { ok: true, ...counts });
 }

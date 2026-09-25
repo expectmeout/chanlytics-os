@@ -5738,7 +5738,13 @@ declare function sendingDomainOf(db: Db$9, tenantId: string, id: string): Promis
 /** What the clock reads: every domain being checked or able to send, the longest unread first. */
 declare function dueSendingDomains(db: Db$9, limit: number): Promise<SendingDomainRow[]>;
 declare function countSendingDomains(db: Db$9, tenantId: string): Promise<number>;
-/** The host, held for this workspace before the provider is asked: unique across the platform (00175). */
+/** Who holds a host a reservation found taken: enough to say whose it is, and whether it was ever verified. */
+type SendingDomainHolder = Pick<SendingDomainRow, "id" | "tenant_id" | "state" | "created_at" | "provider_domain_id">;
+/**
+ * The host, held for this workspace before the provider is asked: unique across the platform (00175). Taken names
+ * the holder; five already is the table's own limit (sending_domains_within_limit), which a count before the insert
+ * could not hold against two adds pressed at once.
+ */
 declare function reserveSendingDomain(db: Db$9, i: {
     tenantId: string;
     host: string;
@@ -5751,7 +5757,16 @@ declare function reserveSendingDomain(db: Db$9, i: {
 } | {
     ok: false;
     reason: "taken";
+    holder: SendingDomainHolder | null;
+} | {
+    ok: false;
+    reason: "too_many";
 }>;
+/**
+ * A write that changes nothing but the row's `updated_at` (moddatetime): a removal fences off a check already in
+ * flight, whose write names the row as it was read and now finds it moved (applyDomainCheck). Null when the row is gone.
+ */
+declare function touchSendingDomain(db: Db$9, row: SendingDomainRow): Promise<SendingDomainRow | null>;
 /** The provider's id, records and word, on the row reserved for them. */
 declare function recordProviderDomain(db: Db$9, id: string, p: {
     providerDomainId: string;
@@ -6452,4 +6467,4 @@ interface Page<T> {
  */
 declare function readAllRows<T>(what: string, page: (from: number, to: number) => PromiseLike<Page<T>>, cap?: number, onCapped?: (what: string, cap: number) => void): Promise<T[]>;
 
-export { CALL_CONTROL_S, type ChannelLookup, type ControlHolder, type ControlOutcome, DEFAULT_ROW_CAP, type Database, HISTORY_COLUMNS, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type ListRow, MAX_ROWS, type MailboxRow, type NormalizedCallInput, type OutboundTarget, PEOPLE_PAGE, type Page, type PgThreadState, type PolicyRecord, type PutTenantConfigResult, type RoutedChannel, type SavedListRow, type SendingDomainRow, type ServiceClientConfig, type SubscribeOptions, type TemplateRow, type TenantConfigRow, type ThreadTurn, type Touch, type TouchIndex, type WriteError, type YesRow, addToList, applyDomainCheck, archiveList, assembleHistory, claimCallNotification, claimControl, countSendingDomains, countSentToday, createList, createServiceClient, deleteList, deleteSendingDomain, describeLead, dropFromList, dueSendingDomains, emitEvent, everyoneIn, followUpTouchesSince, getTenantConfig, ingestCall, ingestInbound, ingestInboundEmail, lastInboundEmail, linkCallMessage, listMemberIds, listPolicies, listRow, mailboxById, mailboxFor, mailboxOfTenant, markProcessed, notesForReceptionist, pauseConversation, peoplePage, personReplyMode, playbooksOnList, putTenantConfig, readAllRows, readDealForPhone, readLeadContext, readThreadState, recordCallNote, recordEchoAndPause, recordEmailStatus, recordOutbound, recordProviderDomain, recordStatusByExternalId, releaseControl, renameList, reserveSendingDomain, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, savedListFor, savedListsFor, sendingDomainOf, sendingDomainsOf, sentEmailWithMessageId, setCallRecording, setListRule, setPersonReplyMode, setPolicyMode, stampEmailSent, stampMailboxReceived, subscribeMessagesInserts, suppressEmailOf, templatesFor, touchIndex, touchesSince, watchedTables, yesesSince };
+export { CALL_CONTROL_S, type ChannelLookup, type ControlHolder, type ControlOutcome, DEFAULT_ROW_CAP, type Database, HISTORY_COLUMNS, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type ListRow, MAX_ROWS, type MailboxRow, type NormalizedCallInput, type OutboundTarget, PEOPLE_PAGE, type Page, type PgThreadState, type PolicyRecord, type PutTenantConfigResult, type RoutedChannel, type SavedListRow, type SendingDomainHolder, type SendingDomainRow, type ServiceClientConfig, type SubscribeOptions, type TemplateRow, type TenantConfigRow, type ThreadTurn, type Touch, type TouchIndex, type WriteError, type YesRow, addToList, applyDomainCheck, archiveList, assembleHistory, claimCallNotification, claimControl, countSendingDomains, countSentToday, createList, createServiceClient, deleteList, deleteSendingDomain, describeLead, dropFromList, dueSendingDomains, emitEvent, everyoneIn, followUpTouchesSince, getTenantConfig, ingestCall, ingestInbound, ingestInboundEmail, lastInboundEmail, linkCallMessage, listMemberIds, listPolicies, listRow, mailboxById, mailboxFor, mailboxOfTenant, markProcessed, notesForReceptionist, pauseConversation, peoplePage, personReplyMode, playbooksOnList, putTenantConfig, readAllRows, readDealForPhone, readLeadContext, readThreadState, recordCallNote, recordEchoAndPause, recordEmailStatus, recordOutbound, recordProviderDomain, recordStatusByExternalId, releaseControl, renameList, reserveSendingDomain, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, savedListFor, savedListsFor, sendingDomainOf, sendingDomainsOf, sentEmailWithMessageId, setCallRecording, setListRule, setPersonReplyMode, setPolicyMode, stampEmailSent, stampMailboxReceived, subscribeMessagesInserts, suppressEmailOf, templatesFor, touchIndex, touchSendingDomain, touchesSince, watchedTables, yesesSince };

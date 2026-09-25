@@ -5997,7 +5997,8 @@ interface DomainFacts {
     provider: string | null;
     dmarc: DmarcState | null;
 }
-type DomainRowState = Pick<SendingDomainDto, "state" | "held_why" | "held_at" | "verified_at" | "clean_since">;
+/** The row as it stands, with the DMARC answer it last stored: a missing record holds only when it was missing before. */
+type DomainRowState = Pick<SendingDomainDto, "state" | "held_why" | "held_at" | "verified_at" | "clean_since" | "dmarc">;
 interface DomainJudgement extends DomainRowState {
     /** What changed, for the event and the owner; null when nothing did. */
     change: null | "verified" | "held" | "released";
@@ -6008,8 +6009,14 @@ interface DomainJudgement extends DomainRowState {
  *                      provider verified + DMARC missing    → records
  *                      provider pending/partly/temporarily  → verifying
  *                      anything else                        → records
- *   verified           provider not verified                → held, verification            change "held"
- *                      DMARC missing                        → held, dmarc                   change "held"
+ *   verified           provider pending                     → unchanged: a check in progress, the owner's own
+ *                                                               Check included (the provider marks a domain
+ *                                                               pending whatever it was), is not a failure
+ *                      provider anything else not verified  → held, verification            change "held"
+ *                      DMARC missing, and missing last read → held, dmarc                   change "held"
+ *                      DMARC missing for the first time     → unchanged (the missing answer is stored, and the
+ *                                                               next read, ten minutes on, confirms or clears it:
+ *                                                               nameservers that disagree mid-move are one bad read)
  *   held (DNS)         provider verified + DMARC found      → verified (clean from now)       change "released"
  *   held (reputation)  unchanged: only the owner resumes it (PR 5).
  * An unreadable provider changes nothing, and an unreadable DMARC neither holds nor verifies: "we could not look"
