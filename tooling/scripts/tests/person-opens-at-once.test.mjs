@@ -176,6 +176,35 @@ test("a tab opened on a person's page asks for them before anything else, and th
   assert.equal(bridge.peekPerson(ID).name, "Zoe Martin", "and the next first paint has them");
 });
 
+test("the surfaces nobody is looking at wait for the person the page opens on (25 Sep 2026)", async () => {
+  globalThis.window.location.hash = `#/clients/${ID}`;
+  let release = () => {};
+  answer = () =>
+    new Promise((r) => {
+      release = () => r(json(200, { ok: true, data: { person: detail() } }));
+    });
+  bridge.warmPersonOnScreen(globalThis.window);
+  const order = [];
+  const stop = startSurfaces([
+    {
+      key: "settings",
+      apply: async () => {
+        order.push("settings");
+      },
+    },
+  ]);
+  await settle();
+  await settle();
+  assert.deepEqual(order, [], "a stranger's read waits for the person's");
+  release();
+  await settle();
+  await settle();
+  await settle();
+  stop();
+  assert.deepEqual(order, ["settings"], "and goes once it has landed");
+  assert.equal(reads(), 1);
+});
+
 test("nothing is asked off a person's page: a list, a lead, a seeded id, or a page that names no workspace", async () => {
   for (const hash of ["#/clients", "#/clients/leads", "#/clients/pipeline", "#/clients/c-ana", "#/today", ""]) {
     globalThis.window.location.hash = hash;

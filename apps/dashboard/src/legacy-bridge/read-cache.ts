@@ -46,8 +46,8 @@ export interface ReadCache<T> {
   peek(key: string): T | null;
   /** Read, remember the answer, hand it back. A refusal is never remembered. */
   through(key: string, fresh: () => Promise<T>): Promise<T>;
-  /** Start a read now, so a peek that follows hits. Never throws, never awaited. Held and current: nothing to read. */
-  warm(key: string, fresh: () => Promise<T>): void;
+  /** Start a read now, so a peek that follows hits, and say which (never throws): null held and current, nothing to read. */
+  warm(key: string, fresh: () => Promise<T>): Promise<T> | null;
   /** Let go of one answer: what it described is gone (a person deleted, a person the server no longer has). */
   forget(key: string): void;
   /** A write landed. A memory cache lets go of everything; a tab-kept one keeps its answers to paint and reads each again before it warms it. */
@@ -197,10 +197,12 @@ export function readCache<T>(
     warm(key, fresh) {
       load();
       const at = scoped(key);
-      if (store.has(at) && !old.has(at)) return;
+      if (store.has(at) && !old.has(at)) return null;
       // The client already shares an identical read that is still in flight
       // (client/api.ts), so warming twice costs one request, not two.
-      cache.through(key, fresh).catch(() => {});
+      const read = cache.through(key, fresh);
+      read.catch(() => {});
+      return read;
     },
     forget(key) {
       load();
