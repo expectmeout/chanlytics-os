@@ -37,7 +37,7 @@ import {
   type DealStage,
   type PersonNoteDto,
   type PersonVM,
-  type SendPurpose,
+  type AskedPurpose,
 } from "@chanlytics/contracts";
 import { api } from "./api";
 import { ApiError, type ApiResult } from "../client/api";
@@ -216,12 +216,12 @@ export interface ConsentBody {
 
 /** One transport, the route chosen by purpose, so neither answer can be posted to the other's door by a typo in a page. */
 type ConsentRoute = "PUT contacts/[id]/consent" | "PUT contacts/[id]/marketing-consent";
-const CONSENT_ROUTE: Record<SendPurpose, ConsentRoute> = {
+const CONSENT_ROUTE: Record<AskedPurpose, ConsentRoute> = {
   conversational: "PUT contacts/[id]/consent",
   marketing: "PUT contacts/[id]/marketing-consent",
 };
 
-async function recordOne(id: string, body: ConsentBody, purpose: SendPurpose): Promise<DeleteResult> {
+async function recordOne(id: string, body: ConsentBody, purpose: AskedPurpose): Promise<DeleteResult> {
   return api()(CONSENT_ROUTE[purpose], { params: { id }, body });
 }
 
@@ -250,7 +250,7 @@ export interface ManyResult {
 }
 
 type ManyRoute = "PUT contacts/consent" | "PUT contacts/marketing-consent";
-const MANY_ROUTE: Record<SendPurpose, ManyRoute> = {
+const MANY_ROUTE: Record<AskedPurpose, ManyRoute> = {
   conversational: "PUT contacts/consent",
   marketing: "PUT contacts/marketing-consent",
 };
@@ -269,7 +269,7 @@ function manyResult(r: ApiResult<unknown>, asked: number, verb = "recorded"): Ma
   };
 }
 
-async function recordMany(ids: string[], body: ConsentBody, purpose: SendPurpose): Promise<ManyResult> {
+async function recordMany(ids: string[], body: ConsentBody, purpose: AskedPurpose): Promise<ManyResult> {
   const take = [...new Set(ids)].slice(0, 50);
   return manyResult(await api()(MANY_ROUTE[purpose], { body: { ids: take, ...body } }), take.length);
 }

@@ -13,9 +13,9 @@
  * address to be written to, so nothing arrives and nothing is answered.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { mailboxOfTenant, type Database } from "../packages/db.js";
-import { emailSender, type Sender } from "../packages/core.js";
-import { fetchReceivedEmail, sendsAs } from "../packages/channels.js";
+import { mailboxOfTenant, sendingDomainsOf, type Database } from "../packages/db.js";
+import { emailSender, type EmailRoute, type Sender } from "../packages/core.js";
+import { fetchReceivedEmail, sendsAs, sendsAsOwnDomain } from "../packages/channels.js";
 import type { JobContext } from "../packages/jobs.js";
 import { erasedBeforeEmail } from "../erased.js";
 import { notify, type NotifyMessage } from "../ops/notify.js";
@@ -35,9 +35,13 @@ export function emailDomain(): string | null {
  * One workspace's email wire. undefined: no email on this runtime. null: email
  * is on and this workspace cannot send, because the deployment holds no
  * provider key or the workspace has no mailbox. Otherwise a wire that sends
- * only as that mailbox: the provider key is shared by every workspace, so what
- * keeps one business's email from leaving as another's is this binding, the
- * way the WhatsApp wire is bound to the tenant's own credentials.
+ * only as that workspace's addresses: the provider keys are shared by every
+ * workspace, so what keeps one business's email from leaving as another's is
+ * this binding, the way the WhatsApp wire is bound to the tenant's own
+ * credentials. The hosted mailbox leaves on the platform's account; each own
+ * domain the workspace has verified leaves on the cold account (Reach out),
+ * when this deployment holds its key. Replies to either come back to the
+ * mailbox, so a workspace with no mailbox has no email line at all.
  */
 export async function emailWireFor(db: Db, tenantId: string): Promise<Sender | null | undefined> {
   const domain = emailDomain();
@@ -45,7 +49,14 @@ export async function emailWireFor(db: Db, tenantId: string): Promise<Sender | n
   const apiKey = env.RESEND_API_KEY;
   if (!apiKey) return null;
   const mailbox = await mailboxOfTenant(db, tenantId);
-  return emailSender({ apiKey }, mailbox ? sendsAs(mailbox, domain) : null);
+  if (!mailbox) return null;
+  const routes: EmailRoute[] = [{ cfg: { apiKey }, as: sendsAs(mailbox, domain) }];
+  const coldKey = env.RESEND_COLD_API_KEY;
+  if (coldKey) {
+    for (const d of await sendingDomainsOf(db, tenantId))
+      if (d.state === "verified") routes.push({ cfg: { apiKey: coldKey }, as: sendsAsOwnDomain(d, mailbox, domain) });
+  }
+  return emailSender(routes);
 }
 
 type EmailWaiting = Parameters<NonNullable<JobContext["email"]>["tell"]>[1];

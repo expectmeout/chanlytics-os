@@ -673,6 +673,35 @@ export function sendsAs(
 }
 
 /**
+ * What one of a workspace's own domains sends as (Reach out): From on the
+ * workspace's domain, answered at the mailbox's own reply routes, so a reply
+ * to a cold email lands in the same Inbox as every other.
+ */
+export function sendsAsOwnDomain(
+  domain: { host: string; from_local: string },
+  mailbox: { local_part: string; reply_token: string; reply_token_prev: string | null },
+  mailDomain: string,
+): EmailSendsAs {
+  return {
+    address: `${domain.from_local}@${domain.host}`.toLowerCase(),
+    replyRoutes: sendsAs(mailbox, mailDomain).replyRoutes,
+  };
+}
+
+/** The identity a cold email is frozen with: the own domain's name and address, and the mailbox's live reply route. */
+export function ownDomainIdentity(
+  domain: { host: string; from_local: string; from_name: string },
+  mailbox: { reply_token: string },
+  mailDomain: string,
+): EmailIdentity {
+  return {
+    fromName: domain.from_name,
+    fromAddress: `${domain.from_local}@${domain.host}`.toLowerCase(),
+    replyTo: replyRouteAddress(mailbox.reply_token, mailDomain),
+  };
+}
+
+/**
  * Does this frozen request leave as this workspace and nobody else? The
  * request is JSON on a row; the wire is bound to a workspace's mailbox. A
  * request whose From or Reply-To is another's is refused rather than sent, the

@@ -38,7 +38,11 @@ type Db = SupabaseClient<Database>;
 export interface ResendIngressInput {
   rawBody: string;
   headers: SvixHeaders;
-  secret: string | undefined;
+  /**
+   * Every endpoint secret that may have signed it: the platform account's and the cold account's (Reach out). Each
+   * account's webhook points at this one door; a delivery either signed is proven. None set, every delivery is refused.
+   */
+  secrets: string[];
   /** The deployment's mail domain (email.ts emailDomain). */
   domain: string;
   db: Db;
@@ -54,8 +58,8 @@ export type ResendVerdict =
   | { kind: "intake"; receivedId: string; jobs: Array<{ tenantId: string; mailboxId: string }>; unroutable: number };
 
 export async function planResendEvent(i: ResendIngressInput): Promise<ResendVerdict> {
-  if (!(await verifyResendWebhook(i.secret, i.headers, i.rawBody, i.nowMs)))
-    return { kind: "refuse", status: 401, log: "resend_webhook_bad_signature" };
+  const proven = await Promise.all(i.secrets.map((s) => verifyResendWebhook(s, i.headers, i.rawBody, i.nowMs)));
+  if (!proven.includes(true)) return { kind: "refuse", status: 401, log: "resend_webhook_bad_signature" };
   let payload: unknown;
   try {
     payload = JSON.parse(i.rawBody);

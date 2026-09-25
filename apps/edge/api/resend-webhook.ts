@@ -57,7 +57,7 @@ export async function POST(request: Request): Promise<Response> {
         timestamp: request.headers.get("svix-timestamp"),
         signature: request.headers.get("svix-signature"),
       },
-      secret: env.RESEND_WEBHOOK_SECRET,
+      secrets: [env.RESEND_WEBHOOK_SECRET, env.RESEND_COLD_WEBHOOK_SECRET].filter((s): s is string => !!s),
       domain,
       db,
       nowMs: Date.now(),

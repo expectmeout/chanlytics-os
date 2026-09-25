@@ -337,19 +337,24 @@ export async function POST(request: Request): Promise<Response> {
       // The wire found what the gate could not see a moment ago. An erased
       // person is spoken of as one who asked us to stop, which is what they did.
       L.info("retell_fn_refused_at_wire", { tenant: routed.tenantId, reason: out.reason });
-      // This send is on WhatsApp, so email's three refusals cannot arise here; the
-      // compiler cannot know that, and if one ever did, "it could not be sent" is
-      // the true thing to say on a call.
+      // This send is on WhatsApp, so email's refusals and outreach's cannot arise
+      // here; the compiler cannot know that. The call names the refusals it has
+      // words for, and for any other one, "it could not be sent" is the true
+      // thing to say on a call.
+      const r = out.reason;
       const script: OutboundRefusal =
-        out.reason === "erased"
+        r === "erased"
           ? "opted_out"
-          : out.reason === "superseded_by_human"
+          : r === "superseded_by_human"
             ? "human_has_it"
-            : out.reason === "email_marketing_disabled" ||
-                out.reason === "email_suppressed" ||
-                out.reason === "recipient_changed"
-              ? "policy_hold"
-              : out.reason;
+            : r === "opted_out" ||
+                r === "not_opted_in" ||
+                r === "no_marketing_consent" ||
+                r === "paused" ||
+                r === "human_has_it" ||
+                r === "sms_carries_no_promotions"
+              ? r
+              : "policy_hold";
       return json(200, { result: refusalScript(script, publishedNumber) });
     }
     if (out.outcome === "failed") {

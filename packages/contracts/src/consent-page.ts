@@ -40,7 +40,7 @@
  */
 import { OFFERS_OPT_IN_PHRASES, optInLink } from "./enums";
 import { formatPhoneDisplay } from "./phone";
-import type { SendPurpose } from "./consent";
+import type { AskedPurpose } from "./consent";
 import { notFoundPageMetadata, type PublicPageMetadata } from "./chrome";
 
 export interface ConsentPageFacts {
@@ -78,7 +78,7 @@ export interface ConsentWay {
  * and not the other without hunting for how.
  */
 export interface ConsentAsk {
-  purpose: SendPurpose;
+  purpose: AskedPurpose;
   title: string;
   /** What this yes is for, in one line. */
   lead: string;
@@ -135,7 +135,7 @@ export function policyLinks(f: Pick<ConsentPageFacts, "slug" | "businessPage">):
  * confirms the other -- the live campaign was refused three times over a
  * confirmation that said "offers and news" for the appointment keyword.
  */
-export function optInConfirmation(businessName: string, purpose: SendPurpose): string {
+export function optInConfirmation(businessName: string, purpose: AskedPurpose): string {
   const name = businessName.trim() || "This business";
   return purpose === "marketing"
     ? `${name}: you're signed up for offers and news. A few messages a month. Msg & data rates may apply. Reply HELP for help, STOP to cancel.`
@@ -211,7 +211,7 @@ function waysFor(f: ConsentPageFacts, phrase: string): ConsentWay[] {
  */
 function askWords(
   name: string,
-): Record<SendPurpose, { title: string; lead: string; optional: string | null; terms: string[] }> {
+): Record<AskedPurpose, { title: string; lead: string; optional: string | null; terms: string[] }> {
   return {
     conversational: {
       title: "Messages about your visit",
@@ -286,7 +286,7 @@ export function consentPageVM(f: ConsentPageFacts): ConsentPageVM {
  * its own signature.
  */
 export interface ConsentFormSection {
-  purpose: SendPurpose;
+  purpose: AskedPurpose;
   title: string;
   lead: string;
   /** What ticking the box says, in the customer's own voice. Printed unticked: a box that arrives ticked is not a yes. */

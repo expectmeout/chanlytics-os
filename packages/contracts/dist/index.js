@@ -613,6 +613,8 @@ function isOptedOutContact(c) {
 var OPT_OUT_REFUSAL = "This customer asked to stop receiving messages. They can text START to opt back in.";
 function mayMessageFor(c, purpose, opts = {}) {
   if (isOptedOutContact(c)) return { ok: false, reason: "opted_out" };
+  if (purpose === "outreach")
+    return c.email_marketing === "opted_out" ? { ok: false, reason: "unsubscribed" } : { ok: true, reason: null };
   if (purpose === "marketing") {
     return c.marketing_consent === "opted_in" ? { ok: true, reason: null } : { ok: false, reason: "no_marketing_consent" };
   }
@@ -632,7 +634,14 @@ var PURPOSE_REFUSALS = {
   // email are a release of their own; a suppression is a fact about the address.
   email_marketing_disabled: "Offers and news do not go by email yet. This customer hears about offers on WhatsApp, once they have said yes to them there.",
   email_suppressed: "Email to this address has stopped: it bounced for good, or the person marked a message as spam. Correct the address on their page, or reach them another way.",
-  recipient_changed: "This person's email address changed after the reply was written, so it was not sent. Write it again and it goes to the address on file now."
+  recipient_changed: "This person's email address changed after the reply was written, so it was not sent. Write it again and it goes to the address on file now.",
+  // Reach out's, at the wire (deliver.ts): a cold email goes only as the rules it was built under allow.
+  unsubscribed: "This person unsubscribed from your emails. Nothing more is sent to them by email.",
+  outreach_is_email_only: "Cold messages go only by email: never by text or WhatsApp.",
+  outreach_not_a_lead: "Cold email goes only to a business your searches found, never to a person already in People.",
+  outreach_without_unsubscribe: "This email was built without its unsubscribe link, so it was not sent.",
+  outreach_needs_own_domain: "Cold email leaves only from a domain you own. Add one on Connections, under Email.",
+  sending_domain_not_ready: "The domain this email was to leave from isn't sending right now. Connections, under Email, says why."
 };
 var OFFERS_BY_WHATSAPP_NOTE = "Offers and news go by WhatsApp only. The text line is registered with the carriers for replies and appointment messages, so nothing promotional is sent by text; someone who has only ever texted you hears about offers once they say yes on WhatsApp.";
 function consentChangeOf(e) {

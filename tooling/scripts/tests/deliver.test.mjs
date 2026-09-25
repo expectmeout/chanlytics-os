@@ -622,7 +622,9 @@ test("a wire that cannot be read is a failure with its own name, never a throw p
 /* ------------------------------------------------------------------ email */
 
 const { emailSender } = await import(pathToFileURL(path.join(ROOT, "packages/core/dist/index.js")).href);
-const { buildEmailRequest } = await import(pathToFileURL(path.join(ROOT, "packages/channels/dist/index.js")).href);
+const { buildEmailRequest, ownDomainIdentity, sendsAsOwnDomain, sendsAs } = await import(
+  pathToFileURL(path.join(ROOT, "packages/channels/dist/index.js")).href
+);
 
 const ADDRESS = "ana@example.com";
 const frozen = (over = {}) =>
@@ -718,9 +720,8 @@ test("email's wire is one workspace's: it sends the frozen request and nothing i
     address: "bestmovers@mail.chanlytics.com",
     replyRoutes: ["r+abcdefghijklmnopqrstuvwx@mail.chanlytics.com", "r+zyxwvutsrqponmlkjihgfedc@mail.chanlytics.com"],
   };
-  assert.equal(emailSender(null, AS), null, "no provider key: the channel exists and this runtime cannot send on it");
-  assert.equal(emailSender({ apiKey: "test-key" }, null), null, "no mailbox: this workspace has no email line");
-  const send = emailSender({ apiKey: "test-key" }, AS);
+  assert.equal(emailSender([]), null, "no key or no mailbox: no route, and this workspace has no email line");
+  const send = emailSender([{ cfg: { apiKey: "test-key" }, as: AS }]);
   const real = globalThis.fetch;
   const posted = [];
   globalThis.fetch = async (url, init) => {
@@ -850,5 +851,179 @@ test("a row the door writes after the send is on the channel it went out on: a t
     await deliver(ports(t, { wire: { sms: async () => result } }), words({ channel: "sms" }));
     assert.equal(t.messages.length, 1, JSON.stringify(result));
     assert.deepEqual([t.messages[0].channel, t.messages[0].status], ["sms", status], JSON.stringify(result));
+  }
+});
+
+/* --------------------------------------------------------------- outreach */
+
+const MAILBOX = {
+  local_part: "bestmovers",
+  reply_token: "abcdefghijklmnopqrstuvwx",
+  reply_token_prev: null,
+};
+const OWN = { host: "getharbor.com", from_local: "sam", from_name: "Sam at Harbor" };
+const OWNER = "owner@example.com";
+/** A cold email as Part 3's writer freezes it: the own domain's identity, a campaign's unsubscribe and footer. */
+const coldRequest = (over = {}) =>
+  buildEmailRequest({
+    identity: ownDomainIdentity(OWN, MAILBOX, "mail.chanlytics.com"),
+    to: OWNER,
+    parent: null,
+    subject: "Your moving quotes",
+    body: "Saw your shop on the map.",
+    signature: null,
+    actor: "ai",
+    campaign: {
+      unsubscribeUrl: "https://app.chanlytics.com/u/token",
+      footer:
+        "You're hearing from us because your business is listed on Maps. Unsubscribe: https://app.chanlytics.com/u/token",
+    },
+    messageId: "m1",
+    tenantId: T,
+    ...over,
+  });
+const coldWorld = ({ who = {}, leads, domains } = {}) =>
+  tables({
+    conversations: [thread({ contact_id: "k1", contacts: onEmail({ email: OWNER, consent: "unknown", ...who }) })],
+    messages: [queuedEmail({ sender: "ai" })],
+    leads: leads ?? [{ id: "l1", tenant_id: T, contact_id: "k1" }],
+    sending_domains: domains ?? [{ tenant_id: T, host: "getharbor.com", state: "verified" }],
+  });
+const cold = (over = {}) =>
+  words({
+    to: OWNER,
+    channel: "email",
+    sender: "ai",
+    purpose: "outreach",
+    proactive: true,
+    email: coldRequest(),
+    body: "Saw your shop on the map.",
+    messageId: "m1",
+    ...over,
+  });
+
+test("outreach goes by email and nothing else: on a phone's wire it is refused before anything of email's is asked", async () => {
+  for (const channel of ["sms", "whatsapp"]) {
+    const t = tables();
+    const w = wireOf();
+    const out = await deliver(ports(t, w), words({ channel, purpose: "outreach", proactive: true }));
+    assert.deepEqual([out.outcome, out.reason], ["refused", "outreach_is_email_only"], channel);
+    assert.equal(w.calls.length, 0);
+  }
+});
+
+test("a cold email goes only as its rules allow: each refusal, in order, cancels the row with its reason and says it once", async () => {
+  const hosted = {
+    fromName: "Best Movers",
+    fromAddress: "bestmovers@mail.chanlytics.com",
+    replyTo: "r+abcdefghijklmnopqrstuvwx@mail.chanlytics.com",
+  };
+  const cases = [
+    // The person's own no outranks every wire rule, a domain on hold included.
+    [
+      "unsubscribed",
+      { who: { email_marketing: "opted_out" }, domains: [{ tenant_id: T, host: "getharbor.com", state: "held" }] },
+      {},
+    ],
+    ["opted_out", { who: { dnc: true } }, {}],
+    ["outreach_not_a_lead", { leads: [{ id: "l1", tenant_id: T, contact_id: "someone-else" }] }, {}],
+    ["outreach_not_a_lead", { leads: [{ id: "l1", tenant_id: "another-workspace", contact_id: "k1" }] }, {}],
+    ["outreach_without_unsubscribe", {}, { email: coldRequest({ campaign: undefined }) }],
+    ["outreach_needs_own_domain", {}, { email: coldRequest({ identity: hosted }) }],
+    [
+      "outreach_needs_own_domain",
+      { domains: [{ tenant_id: "another-workspace", host: "getharbor.com", state: "verified" }] },
+      {},
+    ],
+    ["sending_domain_not_ready", { domains: [{ tenant_id: T, host: "getharbor.com", state: "records" }] }, {}],
+    ["sending_domain_not_ready", { domains: [{ tenant_id: T, host: "getharbor.com", state: "held" }] }, {}],
+    // Email's own facts still hold for a cold email.
+    ["email_suppressed", { who: { email_suppressed_at: "2026-09-01T00:00:00Z" } }, {}],
+  ];
+  for (const [reason, world, over] of cases) {
+    const t = coldWorld(world);
+    const w = emailWire();
+    const out = await deliver(ports(t, w), cold(over));
+    assert.deepEqual([out.outcome, out.reason], ["refused", reason], JSON.stringify(world));
+    assert.equal(w.calls.length, 0, `${reason}: nothing reaches the wire`);
+    assert.deepEqual([t.messages[0].status, t.messages[0].error], ["canceled", { reason }]);
+    const blocked = t.events.filter((e) => e.kind === "message.send_blocked");
+    assert.equal(blocked.length, 1, `${reason}: said once`);
+    assert.equal(blocked[0].data.purpose, "outreach");
+  }
+});
+
+test("a cold email to a business the finder found, from the workspace's own verified domain, is sent; a reply never reads outreach's facts", async () => {
+  const t = coldWorld();
+  const w = emailWire();
+  const d = cold();
+  const out = await deliver(ports(t, w), d);
+  assert.equal(out.outcome, "sent");
+  assert.equal(w.calls[0].p.email, d.email);
+  assert.equal(t.messages[0].status, "sent");
+
+  const r = tables({ conversations: [thread({ contact_id: "k1", contacts: onEmail() })], messages: [queuedEmail()] });
+  const db = fakeDb(r);
+  const replied = await deliver({ db, wire: emailWire().wire, now: () => NOW }, emailed());
+  assert.equal(replied.outcome, "sent");
+  assert.deepEqual(
+    db.seen.filter((s) => s.table === "leads" || s.table === "sending_domains"),
+    [],
+    "a conversational send pays for no outreach read",
+  );
+});
+
+test("a read of outreach's facts that fails is not a yes: the door throws and the row is left for the retry", async () => {
+  for (const fault of ["leads.select", "sending_domains.select"]) {
+    const t = coldWorld();
+    const w = emailWire();
+    await assert.rejects(
+      deliver(
+        { db: fakeDb(t, { [fault]: { message: "the database went away" } }), wire: w.wire, now: () => NOW },
+        cold(),
+      ),
+      /cannot read the/,
+      fault,
+    );
+    assert.equal(w.calls.length, 0);
+    assert.equal(t.messages[0].status, "queued", `${fault}: left for the retry`);
+  }
+});
+
+test("email's wire picks its route by the request's From: the hosted mailbox on the platform's key, an own domain on the cold key, and nothing else", async () => {
+  const hosted = { cfg: { apiKey: "platform-key" }, as: sendsAs(MAILBOX, "mail.chanlytics.com") };
+  const own = { cfg: { apiKey: "cold-key" }, as: sendsAsOwnDomain(OWN, MAILBOX, "mail.chanlytics.com") };
+  assert.deepEqual(own.as, {
+    address: "sam@getharbor.com",
+    replyRoutes: ["r+abcdefghijklmnopqrstuvwx@mail.chanlytics.com"],
+  });
+  const send = emailSender([hosted, own]);
+  const real = globalThis.fetch;
+  const keys = [];
+  globalThis.fetch = async (_url, init) => {
+    keys.push(init.headers.Authorization);
+    return new Response(JSON.stringify({ id: "re_9" }), { status: 200 });
+  };
+  const refused = { ok: false, wamid: null, status: 0, errorBody: "request_leaves_as_another_sender" };
+  try {
+    assert.equal((await send(OWNER, { body: "x", email: coldRequest() })).ok, true);
+    assert.equal((await send(ADDRESS, { body: "x", email: frozen() })).ok, true);
+    assert.deepEqual(keys, ["Bearer cold-key", "Bearer platform-key"], "each leaves on its own account");
+    // A domain this workspace has no route for (not verified, or somebody else's) is not sent from.
+    const elsewhere = coldRequest({
+      identity: ownDomainIdentity({ ...OWN, host: "other.example" }, MAILBOX, "mail.chanlytics.com"),
+    });
+    assert.deepEqual(await send(OWNER, { body: "x", email: elsewhere }), refused);
+    // The chosen route's own Reply-To rule still holds: an answer must come back to this mailbox.
+    const strayReply = coldRequest({
+      identity: {
+        ...ownDomainIdentity(OWN, MAILBOX, "mail.chanlytics.com"),
+        replyTo: "r+aaaaaaaaaaaaaaaaaaaaaaaa@mail.chanlytics.com",
+      },
+    });
+    assert.deepEqual(await send(OWNER, { body: "x", email: strayReply }), refused);
+    assert.equal(keys.length, 2, "neither refusal reached a provider");
+  } finally {
+    globalThis.fetch = real;
   }
 });

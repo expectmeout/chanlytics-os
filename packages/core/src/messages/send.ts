@@ -15,7 +15,8 @@ export interface SendQueuedCommand {
     /**
      * What the send IS, when the job knows better than a template can: an offer is marketing whatever its words, and a
      * first email starts a conversation. Both can only make the door stricter: a payload never makes a template's
-     * purpose looser, and only `true` makes a send proactive.
+     * purpose looser, and only `true` makes a send proactive. "outreach" (a cold email, Reach out) is its own lane,
+     * which the door holds to its own rules.
      */
     purpose?: SendPurpose;
     proactive?: boolean;
@@ -49,7 +50,10 @@ export async function sendQueued(ports: SendQueuedPorts, cmd: SendQueuedCommand)
   // tighten. Proactive likewise: only a job that says so starts a conversation; everything else on this queue answers
   // a thread that exists.
   const fromTemplate = await ports.purposeOf(p.template);
-  const purpose: SendPurpose = p.purpose === "marketing" ? "marketing" : fromTemplate;
+  // Outreach is its own lane (a cold email to a business the finder found): it loosens nothing, because the door
+  // refuses it anywhere outside its own rules (email only, a lead, an unsubscribe, an own verified domain).
+  const purpose: SendPurpose =
+    p.purpose === "outreach" ? "outreach" : p.purpose === "marketing" ? "marketing" : fromTemplate;
   // A channel this runtime has no wire for finds none at the door and fails
   // loudly, leaving the customer un-messaged rather than reached over the
   // wrong wire.
@@ -84,18 +88,23 @@ export async function sendQueued(ports: SendQueuedPorts, cmd: SendQueuedCommand)
   // /api/diag); the page's own mail rides the same key and cannot leave until the quota resets. "Slow down" is one
   // second's problem, and a try still in flight may yet arrive: neither pages anyone.
   const limit = out.limit ?? null;
+  // Cold email leaves through an account of its own (deliver.ts emailSender), so its limits and its key are paged
+  // under their own name, and say what they do not stop.
+  const outreach = channel === "email" && purpose === "outreach";
   if (limit === "daily" || limit === "monthly") {
     await ports.page?.(
-      "provider_quota:email",
-      `email: the ${limit} sending limit is used up`,
-      `Tenant ${cmd.tenantId}, message ${p.message_id}. Every workspace's email is refused until it resets or the plan grows.`,
+      outreach ? "provider_quota:email_outreach" : "provider_quota:email",
+      `${outreach ? "cold email" : "email"}: the ${limit} sending limit is used up`,
+      outreach
+        ? `Tenant ${cmd.tenantId}, message ${p.message_id}. Cold email is refused until it resets. Replies and reminders are not affected.`
+        : `Tenant ${cmd.tenantId}, message ${p.message_id}. Every workspace's email is refused until it resets or the plan grows.`,
     );
   }
   // A 401 or 403 from the provider is the platform's problem, not this
   // thread's: the credentials are wrong for every send on this wire.
   if (out.reason === "provider" && (out.status === 401 || out.status === 403)) {
     await ports.page?.(
-      `provider_auth:${channel}`,
+      `provider_auth:${outreach ? "email_outreach" : channel}`,
       `${channel} rejected a send with ${out.status}`,
       `Tenant ${cmd.tenantId}, message ${p.message_id}. Credentials, not content.`,
     );

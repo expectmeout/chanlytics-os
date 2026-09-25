@@ -267,7 +267,7 @@ import {
   type AudiencePreview,
   type BroadcastVM,
   type NumberHealth,
-  type SendPurpose,
+  type AskedPurpose,
 } from "@chanlytics/contracts";
 import {
   FOLLOW_UP_NEEDS_DEALS,
@@ -1188,7 +1188,7 @@ export interface AudienceOption {
    * while both were wrong in the same direction. The page now indexes by the
    * purpose of the template actually selected.
    */
-  counts: Record<SendPurpose, number>;
+  counts: Record<AskedPurpose, number>;
   /**
    * A handful of the people the count is a length of, per purpose, so the
    * composer can show one of them at a time beside the message.
@@ -1202,7 +1202,7 @@ export interface AudienceOption {
    * It says how many on the list said yes, too (`saidYes`), a number or not: a
    * count of 0 is "nobody said yes" only when that is 0 as well.
    */
-  preview: Record<SendPurpose, AudiencePreview>;
+  preview: Record<AskedPurpose, AudiencePreview>;
   hint: string;
 }
 
@@ -1214,7 +1214,7 @@ export interface AudienceOption {
  * route and the send job all read `purposeOfTemplate` of the same column and no
  * third rule can appear in a `.jsx` file where the compiler cannot see it.
  */
-export type BroadcastTemplate = TemplateDto & { purpose: SendPurpose };
+export type BroadcastTemplate = TemplateDto & { purpose: AskedPurpose };
 
 export interface BroadcastsSurface {
   rows: BroadcastVM[];
@@ -1294,7 +1294,7 @@ export const broadcastsOverride: SurfaceOverride = {
       kind: AudienceKind,
       id: string | null,
       ids: Set<string> | null,
-    ): Record<SendPurpose, AudiencePreview> => ({
+    ): Record<AskedPurpose, AudiencePreview> => ({
       conversational: audiencePreview(rows, kind, id, ids, "conversational", 5, touched),
       marketing: audiencePreview(rows, kind, id, ids, "marketing", 5, touched),
     });

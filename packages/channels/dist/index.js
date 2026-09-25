@@ -4424,6 +4424,19 @@ function sendsAs(mailbox, domain) {
     replyRoutes: [mailbox.reply_token, mailbox.reply_token_prev].filter((t) => !!t).map((t) => replyRouteAddress(t, domain))
   };
 }
+function sendsAsOwnDomain(domain, mailbox, mailDomain) {
+  return {
+    address: `${domain.from_local}@${domain.host}`.toLowerCase(),
+    replyRoutes: sendsAs(mailbox, mailDomain).replyRoutes
+  };
+}
+function ownDomainIdentity(domain, mailbox, mailDomain) {
+  return {
+    fromName: domain.from_name,
+    fromAddress: `${domain.from_local}@${domain.host}`.toLowerCase(),
+    replyTo: replyRouteAddress(mailbox.reply_token, mailDomain)
+  };
+}
 function requestLeavesAs(request, as) {
   return addressOf(request.from)?.address === as.address && request.reply_to.length === 1 && as.replyRoutes.includes(request.reply_to[0].trim().toLowerCase());
 }
@@ -6307,6 +6320,7 @@ export {
   nextLineStep,
   normalizeCall,
   normalizeInbound,
+  ownDomainIdentity,
   parseAccounts,
   parseLocations,
   parsePlaceDetails,
@@ -6353,6 +6367,7 @@ export {
   sendTemplate,
   sendText,
   sendsAs,
+  sendsAsOwnDomain,
   signEdgeToken,
   signState,
   signUnsubscribeToken,

@@ -48,10 +48,19 @@ export const OPT_OUT_REFUSAL = "This customer asked to stop receiving messages. 
  * not a request to stop hearing about your own appointment.
  * -------------------------------------------------------------------------- */
 
-export type SendPurpose = "conversational" | "marketing";
+/**
+ * "outreach" is a cold email to a business the finder found (Reach out): its own lane, with its own rules at the
+ * wire (deliver.ts), and never on a phone's channel.
+ */
+export type SendPurpose = "conversational" | "marketing" | "outreach";
+
+/** The two questions a person is asked, and answers (the consent page, their profile, an audience). Outreach asks nobody. */
+export type AskedPurpose = Exclude<SendPurpose, "outreach">;
 
 export interface PurposeBearing extends ConsentBearing {
   marketing_consent?: string | null;
+  /** Email's own answer (00174): opted_out once the person pressed Unsubscribe. */
+  email_marketing?: string | null;
 }
 
 /**
@@ -69,7 +78,7 @@ export interface PurposeBearing extends ConsentBearing {
  * silence a reply, and must never authorise a promotion.
  */
 /** Why the predicate said no: a closed set, so a door cannot admit a reason that has no words. */
-export type PurposeRefusal = "opted_out" | "no_marketing_consent" | "not_opted_in";
+export type PurposeRefusal = "opted_out" | "no_marketing_consent" | "not_opted_in" | "unsubscribed";
 
 export function mayMessageFor(
   c: PurposeBearing,
@@ -77,6 +86,11 @@ export function mayMessageFor(
   opts: { proactive?: boolean } = {},
 ): { ok: true; reason: null } | { ok: false; reason: PurposeRefusal } {
   if (isOptedOutContact(c)) return { ok: false, reason: "opted_out" };
+  // Cold email to a business: US law lets a business write until it is told to stop (CAN-SPAM), so no recorded yes
+  // is asked for. What is asked: that they did not stop everything, and did not unsubscribe from this business's
+  // email. The wire's own rules (email only, a lead, an own domain, the unsubscribe) are the door's.
+  if (purpose === "outreach")
+    return c.email_marketing === "opted_out" ? { ok: false, reason: "unsubscribed" } : { ok: true, reason: null };
   if (purpose === "marketing") {
     return c.marketing_consent === "opted_in"
       ? { ok: true, reason: null }
@@ -105,6 +119,14 @@ export const PURPOSE_REFUSALS: Record<string, string> = {
     "Email to this address has stopped: it bounced for good, or the person marked a message as spam. Correct the address on their page, or reach them another way.",
   recipient_changed:
     "This person's email address changed after the reply was written, so it was not sent. Write it again and it goes to the address on file now.",
+  // Reach out's, at the wire (deliver.ts): a cold email goes only as the rules it was built under allow.
+  unsubscribed: "This person unsubscribed from your emails. Nothing more is sent to them by email.",
+  outreach_is_email_only: "Cold messages go only by email: never by text or WhatsApp.",
+  outreach_not_a_lead: "Cold email goes only to a business your searches found, never to a person already in People.",
+  outreach_without_unsubscribe: "This email was built without its unsubscribe link, so it was not sent.",
+  outreach_needs_own_domain: "Cold email leaves only from a domain you own. Add one on Connections, under Email.",
+  sending_domain_not_ready:
+    "The domain this email was to leave from isn't sending right now. Connections, under Email, says why.",
 };
 
 /**
@@ -186,7 +208,7 @@ export function consentChangeOf(e: {
  * So only the two categories that are POSITIVELY not marketing count as
  * conversational, and everything else, NULL included, is treated as marketing.
  */
-export function purposeOfTemplate(category: string | null | undefined): SendPurpose {
+export function purposeOfTemplate(category: string | null | undefined): AskedPurpose {
   return category === "utility" || category === "authentication" ? "conversational" : "marketing";
 }
 
@@ -200,6 +222,6 @@ export function purposeOfTemplate(category: string | null | undefined): SendPurp
  * quiet, or running an offer. Unknown classes are marketing, for the same
  * fail-closed reason as templates.
  */
-export function purposeOfPlaybook(policyClass: string | null | undefined): SendPurpose {
+export function purposeOfPlaybook(policyClass: string | null | undefined): AskedPurpose {
   return policyClass === "booking" || policyClass === "follow_up" ? "conversational" : "marketing";
 }
