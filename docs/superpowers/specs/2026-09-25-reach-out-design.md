@@ -278,7 +278,7 @@ source-rights record; the lead stages' words.
 
 Each to 100% before the next, and each shippable in either deploy order unless said.
 
-1. **W0 — the send path** (the PRD's four hazards): every email a pre-written queued row; purpose and `proactive` in the
+1. **Shipped 25 Sep 2026 in #1018 (the wire) and #1020 (the door).** **W0 — the send path** (the PRD's four hazards): every email a pre-written queued row; purpose and `proactive` in the
    payload; the recipient id as the idempotency key; `buildEmailRequest` with `parent: null`, a subject, and the
    unsubscribe headers as arguments; 429 read and waited out. 2 PRs.
 2. **The wire:** `sending_domains`, the `domains` clock and sweep, Connections › Email's domains block, the second Resend
