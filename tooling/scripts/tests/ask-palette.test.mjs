@@ -1884,6 +1884,77 @@ test("on Today the Line is as it was: Ask anything, questions about the page, an
   await closes();
 });
 
+/* ------------------------------ the takeover composes ------------------------------ */
+
+test("on a phone the field in use composes: the home fades and leaves, the three come down small and listen, a key heard lifts them, and letting go brings the home back", async () => {
+  const ph = phoneWindow();
+  const moods = [];
+  let heard = 0;
+  const had = globalThis.window.__mascot;
+  globalThis.window.__mascot = {
+    mood: {
+      state: "idle",
+      set: (s) => moods.push(s),
+      hear: () => heard++,
+      react() {},
+      beat() {},
+      pulse() {},
+      subscribe: () => () => {},
+    },
+    mount: () => null,
+    follow: () => () => {},
+  };
+  const props = { open: true, onClose() {} };
+  try {
+    ask([]);
+    render(Palette, props);
+    let tree = await later(Palette, props);
+    assert.ok(
+      find(tree, (n) => n.props?.id === "ask-rows"),
+      "the home stands",
+    );
+    assert.equal(byTestId(tree, "ask-hero").props.className, "ask-hero");
+    inputOf(tree).props.onFocus();
+    tree = await later(Palette, props);
+    assert.equal(byTestId(tree, "ask-hero").props.className, "ask-hero small", "the three come down small");
+    assert.ok(byClass(tree, "composing").length, "the middle composes");
+    assert.ok(byClass(tree, "home-fading").length, "the home fades");
+    assert.equal(moods.at(-1), "listening", "and the three listen");
+    await new Promise((r) => setTimeout(r, 220));
+    tree = await later(Palette, props);
+    assert.equal(
+      find(tree, (n) => n.props?.id === "ask-rows"),
+      null,
+      "then the home is gone",
+    );
+    assert.equal(inputOf(tree).props["aria-expanded"], false);
+    typed(tree, "in");
+    tree = await later(Palette, props);
+    assert.ok(heard >= 1, "a key heard lifts the three");
+    assert.equal(
+      find(tree, (n) => n.props?.id === "ask-rows"),
+      null,
+      "the words' own rows wait for the keyboard to go",
+    );
+    assert.equal(byClass(tree, "home-fading").length, 0);
+    assert.equal(inputOf(tree).props["aria-controls"], undefined);
+    inputOf(tree).props.onBlur();
+    tree = await later(Palette, props);
+    assert.equal(byTestId(tree, "ask-hero").props.className, "ask-hero", "let go, the three stand tall again");
+    assert.ok(
+      find(tree, (n) => n.props?.id === "ask-rows"),
+      "and the rows are back, the words' own now",
+    );
+    assert.equal(moods.at(-1), "idle");
+    typed(tree, "");
+    await closes();
+  } finally {
+    ph.restore();
+    if (had === undefined) delete globalThis.window.__mascot;
+    else globalThis.window.__mascot = had;
+  }
+});
+
 /* ------------------------------ the phone's ✦: the beam ------------------------------ */
 
 test("the beam says the usage while Ask works: the AI's own colours with no usage surface or under 80%, amber from 80%, red at 100%; and it works when the mood is not at rest", () => {

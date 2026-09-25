@@ -138,6 +138,17 @@ The ✦ (`.phone-ask`, the three on coral) opens it with a tap; it hides while t
 
 `TodayFace` is not rendered and its file, styles, sample wiring and tests go (S14). The queue is Today's first band on a phone. The `askAbout({ thread })` seed the band used stays on the shell for any caller.
 
+### 5.9 Composing (added 25 Sep 2026)
+
+A tap on the field raises the keyboard, which takes about 300px of the screen (the Line reads it as `--ask-kb`, 5.1). Until now the middle kept its home (Right now, Brief me, the page's questions) and scrolled, so the three left the screen exactly as the person began to write to them. Now the field in use (focused) composes:
+
+- The home fades (140ms) and then leaves the middle; the middle stands at its foot instead of centred.
+- The three come down small (the hero's 78px, as over an answer) to sit just above the field, and listen: the mood is `listening` while the field is in use with no turn running, and each key heard lifts them a little (`mood.hear`), as a word heard does.
+- Nothing is drawn under the three while the field is in use: the words' own rows and the jumps wait for the keyboard to go (with it up there is no room for them); Enter sends.
+- Letting go (the field blurred, the keyboard down) brings the home back at once and the three stand tall again; a turn sent from here goes on as 5.4.
+- Reduced motion: no fade; the home leaves and returns at once.
+
+Ruben, 25 Sep: "when users tap to type, chat moves up; it would be nice if the ask can detect the user is going to type and the brief, ask about this page, who's waiting should all fade and the ask comes down into view into listening state." Code: `ask-real.jsx` `composing`/`homeGone`, `ask.css` `.ask-line-body.composing`, `.home-fading`.
 ## 6. Persistence and the practices, in one place
 
 | Practice | Where | How |
