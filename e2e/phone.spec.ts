@@ -1,4 +1,4 @@
-import { test, expect, type Locator } from "@playwright/test";
+import { test, expect, type Locator, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
 
 /**
@@ -28,6 +28,17 @@ test.describe("Installable shell, no session", () => {
     expect(icon.headers()["content-type"]).toContain("image/png");
   });
 });
+
+/** A thumb across the screen, through the browser's own input (CDP): six moves from one x to another, then let go. */
+const swipeAcross = async (page: Page, from: number, to: number, y = 560) => {
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: from, y }] });
+  for (let i = 1; i <= 6; i += 1) {
+    const x = from + ((to - from) * i) / 6;
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y }] });
+  }
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+};
 
 test.describe("Phone shell on a real workspace", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
@@ -606,6 +617,45 @@ test.describe("Phone shell on a real workspace", () => {
   });
 
   /**
+   * The Calendar holds its bar and walks its days (25 Sep). Its range, steps and views scrolled away with the days, and
+   * a pull dragged them, as People's strip did before #1041: now only the days scroll and pull, and a swipe across them
+   * walks to the next or previous days, as the steps do. The views keep their 38px look, with 44px to press.
+   */
+  test("the Calendar's bar stays over its days, a swipe walks them, and its views are a thumb tall to press", async ({
+    page,
+  }) => {
+    await page.goto("/#/calendar");
+    await page.waitForLoadState("networkidle");
+    const range = page.getByTestId("cal-range");
+    await expect(range).toBeVisible();
+    const barScrolls = await page.getByTestId("cal-bar").evaluate((el) => {
+      for (let n = el.parentElement; n; n = n.parentElement) {
+        const oy = getComputedStyle(n).overflowY;
+        if (oy === "auto" || oy === "scroll") return true;
+      }
+      return false;
+    });
+    expect(barScrolls, "the bar stands over what scrolls").toBe(false);
+    const pulls = await page
+      .getByTestId("cal-pane")
+      .evaluate((el) => getComputedStyle(el).overflowY === "auto" && el.scrollHeight > el.clientHeight);
+    expect(pulls, "the days scroll, and pull however few").toBe(true);
+    const tall = await page.getByTestId("cal-view-week").evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      const x = r.left + r.width / 2;
+      return (
+        el.contains(document.elementFromPoint(x, r.top - 2)) && el.contains(document.elementFromPoint(x, r.bottom + 2))
+      );
+    });
+    expect(tall, "a view is pressed 2px over and under its edge").toBe(true);
+    const before = await range.innerText();
+    await swipeAcross(page, 300, 90, 520);
+    await expect(range, "a swipe left is the next days").not.toHaveText(before);
+    await swipeAcross(page, 90, 300, 520);
+    await expect(range, "and a swipe right comes back").toHaveText(before);
+  });
+
+  /**
    * A swipe across the page walks its strip (25 Sep, docs/superpowers/specs/2026-09-25-swipe-between-tabs-design.md):
    * the page follows the thumb, and let go past a third of the screen the tab beside is pressed; before the first tab
    * there is nothing to go to. Real touches through the browser's own input (CDP), as today.spec.ts pulls Ask down.
@@ -613,15 +663,7 @@ test.describe("Phone shell on a real workspace", () => {
   test("a swipe across the page walks its strip: the Inbox, People and Campaigns, and never past an end", async ({
     page,
   }) => {
-    const cdp = await page.context().newCDPSession(page);
-    const swipe = async (from: number, to: number, y = 560) => {
-      await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: from, y }] });
-      for (let i = 1; i <= 6; i += 1) {
-        const x = from + ((to - from) * i) / 6;
-        await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y }] });
-      }
-      await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-    };
+    const swipe = (from: number, to: number) => swipeAcross(page, from, to);
     const inbox = page.locator(".stabs.stabs-inbox .stabs-tab.active");
     await page.goto("/#/inbox");
     await page.waitForLoadState("networkidle");

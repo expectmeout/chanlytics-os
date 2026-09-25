@@ -548,6 +548,22 @@ const CalendarReal = ({ initialDay = null }) => {
   const monthKey = view === "month" ? anchor.slice(0, 7) : null;
 
   const move = (n) => setAnchorKey(crStep(view, anchor, n, cal));
+  // A swipe across the days walks them on a phone (data-bits touchSwipe, a page that stays): the step ‹ and › take,
+  // drawn at once so the next days are what comes in. Never from what keeps its own touch: the strips' one list
+  // (surface-tabs.jsx ST_OWN_TOUCH -- a dialog, a sheet, a menu, a toast).
+  const swipePages = (el, from) =>
+    from && from.closest && window.ST_OWN_TOUCH && from.closest(window.ST_OWN_TOUCH)
+      ? null
+      : {
+          prev: true,
+          next: true,
+          stays: true,
+          go: (step) => {
+            const flush = window.ReactDOM && window.ReactDOM.flushSync;
+            if (flush) flush(() => move(step));
+            else move(step);
+          },
+        };
   const copyLink = async () => {
     try { await navigator.clipboard.writeText(vm.bookingLink); flash({ msg: <>Booking link copied.</> }); }
     catch { flash({ tone: "warn", msg: <>Could not copy — the link is {vm.bookingLink}</> }); }
@@ -613,6 +629,10 @@ const CalendarReal = ({ initialDay = null }) => {
           </div>
         </div>
       </div>
+      {/* On a phone the bar stands over the days and only they scroll and pull (mobile.css .cal-pane), as every page's
+          strip does, and a swipe across them walks to the next or previous days; on a desk this box is display:
+          contents and the page scrolls as one. */}
+      <div className="cal-pane" data-testid="cal-pane" {...(window.touchSwipe ? window.touchSwipe({ pages: swipePages, when: crPhone }) : {})}>
       {service && service.consultFirst && (
         <div className="cal-feed-card" data-testid="cal-consult-note">
           <Icon name="shield" size={14} />
@@ -743,6 +763,7 @@ const CalendarReal = ({ initialDay = null }) => {
             </div>
           </div>
         </div>
+      </div>
       </div>
 
       {openBlock && <CrPanel b={openBlock.b} day={openBlock.d} todayKey={vm.today} source={vm.feed.source || "your calendar"} bookingLink={vm.bookingLink} onCopyLink={copyLink} onClose={() => setOpenId(null)} />}

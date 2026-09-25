@@ -11,6 +11,9 @@
   overflow-x: hidden;
   overflow-y: auto;
 }
+/* The days under the bar (calendar-real.jsx): on a desk part of the page's one scroll, on a phone their own scroller
+   under a bar that stays (mobile.css). */
+.cal-pane { display: contents; }
 
 .cal-weeklabel {
   display: flex;
@@ -605,6 +608,9 @@
   .cal-steps .btn-icon { width: 44px; }
   .cal-title { min-height: 44px; }
   html.legacy-on .cal-views .cl-tab { min-height: 38px; }
+  /* The views keep their 38px look; a thumb gets the 44px it needs from a press area 3px over and under each. */
+  .cal-views .cl-tab { position: relative; }
+  .cal-views .cl-tab::after { content: ""; position: absolute; inset: -3px 0; }
   .cal-tools .cal-service { height: 44px; }
 }
 

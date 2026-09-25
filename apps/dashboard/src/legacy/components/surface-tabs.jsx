@@ -199,4 +199,5 @@ const stripPager = (view, from) => {
 };
 const stripSwipe = () => (window.touchSwipe ? window.touchSwipe({ pages: stripPager, when: stripPhone }) : {});
 
-Object.assign(window, { SurfaceTabs, stripPlace, stripSlide, stripSwipe });
+// ST_OWN_TOUCH is the one list of what keeps its own touch: the Calendar's days refuse the same (calendar-real.jsx).
+Object.assign(window, { SurfaceTabs, stripPlace, stripSlide, stripSwipe, ST_OWN_TOUCH });

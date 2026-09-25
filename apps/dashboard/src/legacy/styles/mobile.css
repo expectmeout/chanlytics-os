@@ -356,6 +356,10 @@
   /* On a phone the whole Calendar scrolls as one page: the agenda and the month at their own height, a week in a box
      three quarters of the screen tall with its day heads at the top. */
   .cal-body { flex: none; min-height: 0; overflow: visible; }
+  /* The bar stands over the days, as every page's strip does: only the days scroll and pull, and scrolling them never
+     takes the range, the steps and the views off the screen (25 Sep). */
+  .calendar { overflow-y: hidden; }
+  .cal-pane { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow-x: hidden; overflow-y: auto; }
   .cal-scroll { max-height: 75vh; max-height: 75dvh; }
   /* The head on a phone: the range and the steps on one row, the views on the next, the counts as one muted line under
      them, and then the first day. The steps keep the right edge, so a thumb finds them wherever the range's words
@@ -692,6 +696,11 @@
   .route-view:has(> .bc-page)::after {
     content: ""; position: absolute; top: 0; left: 0; width: 1px; height: calc(100% + 1px); visibility: hidden; pointer-events: none;
   }
+}
+/* The Calendar's days are a scroller only on a phone (above, .cal-pane); wider, the box is display: contents. */
+@media (max-width: 720px) and (pointer: coarse) {
+  .cal-pane { position: relative; }
+  .cal-pane::after { content: ""; position: absolute; top: 0; left: 0; width: 1px; height: calc(100% + 1px); visibility: hidden; pointer-events: none; }
 }
 
 /* ====================================================================
