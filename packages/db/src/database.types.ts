@@ -4681,6 +4681,16 @@ export type Database = {
           tenant_id: string
         }[]
       }
+      outreach_facts: {
+        Args: {
+          p_contact_id: string
+          p_host: string
+          p_since: string
+          p_tenant_id: string
+          p_to: string
+        }
+        Returns: Json
+      }
       people_list: {
         Args: {
           p_contact_id?: string

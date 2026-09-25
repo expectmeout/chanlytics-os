@@ -15,7 +15,8 @@ const { emailWireFor } = await import(pathToFileURL(path.join(ROOT, "apps/edge/l
 process.env.EMAIL_DOMAIN = "mail.chanlytics.com";
 process.env.RESEND_API_KEY = "platform-key";
 after(() => {
-  for (const k of ["EMAIL_DOMAIN", "RESEND_API_KEY", "RESEND_COLD_API_KEY"]) delete process.env[k];
+  for (const k of ["EMAIL_DOMAIN", "RESEND_API_KEY", "RESEND_COLD_API_KEY", "RESEND_COLD_WEBHOOK_SECRET"])
+    delete process.env[k];
 });
 
 const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -59,6 +60,7 @@ function provider() {
 
 test("the hosted mailbox leaves on the platform's key, a verified own domain on the cold key, and a domain not yet verified on none", async () => {
   process.env.RESEND_COLD_API_KEY = "cold-key";
+  process.env.RESEND_COLD_WEBHOOK_SECRET = "whsec_cold";
   const db = fakeDb({
     mailboxes: [MAILBOX],
     sending_domains: [domain("getharbor.com", "verified"), domain("harbor-new.com", "records")],
@@ -97,6 +99,25 @@ test("without the cold key no own domain is a route; a domains read that fails k
     assert.deepEqual(net.keys, ["Bearer platform-key"]);
 
     assert.equal(await emailWireFor(fakeDb({ mailboxes: [], sending_domains: tables.sending_domains }), T), null);
+  } finally {
+    net.restore();
+    delete process.env.RESEND_COLD_API_KEY;
+  }
+});
+
+test("cold mail never leaves while its receipts would be refused: the cold key without the cold webhook secret binds no own route (Part 2.5 D6)", async () => {
+  process.env.RESEND_COLD_API_KEY = "cold-key";
+  delete process.env.RESEND_COLD_WEBHOOK_SECRET;
+  const net = provider();
+  try {
+    const wire = await emailWireFor(
+      fakeDb({ mailboxes: [MAILBOX], sending_domains: [domain("getharbor.com", "verified")] }),
+      T,
+    );
+    const out = await wire("owner@example.com", { body: "x", email: own("getharbor.com"), purpose: "outreach" });
+    assert.equal(out.errorBody, "request_leaves_as_another_sender");
+    assert.deepEqual(net.keys, [], "nothing reached a provider");
+    assert.equal((await wire("owner@example.com", { body: "x", email: hosted() })).ok, true, "replies still leave");
   } finally {
     net.restore();
     delete process.env.RESEND_COLD_API_KEY;

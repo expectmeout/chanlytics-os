@@ -31,6 +31,19 @@ export async function sendingDomainOf(db: Db, tenantId: string, id: string): Pro
   );
 }
 
+/** One of a workspace's domains by its host (lower-cased, 00175); null when it owns none by that name. */
+export async function sendingDomainByHost(db: Db, tenantId: string, host: string): Promise<SendingDomainRow | null> {
+  return must(
+    "read a domain by host",
+    await db
+      .from("sending_domains")
+      .select("*")
+      .eq("tenant_id", tenantId)
+      .eq("host", host.trim().toLowerCase())
+      .maybeSingle(),
+  );
+}
+
 /** What the clock reads: every domain being checked or able to send, the longest unread first. */
 export async function dueSendingDomains(db: Db, limit: number): Promise<SendingDomainRow[]> {
   return (

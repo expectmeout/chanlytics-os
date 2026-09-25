@@ -14,6 +14,7 @@ import {
   emitEvent,
   recordProviderDomain,
   reserveSendingDomain,
+  sendingDomainByHost,
   sendingDomainCounts,
   touchSendingDomain,
   type Database,
@@ -309,7 +310,7 @@ export async function checkSendingDomain(
 
 /** A check's change, said: one event, and the owner told when it was a hold. Nothing when nothing changed. */
 async function sayDomainChange(
-  p: DomainPorts,
+  p: Pick<DomainPorts, "db" | "log">,
   row: SendingDomainRow,
   written: SendingDomainRow,
   judged: { change: DomainJudgementChange; held_why: DomainHold | null },
@@ -331,6 +332,36 @@ async function sayDomainChange(
     );
     if (judged.change === "held" && judged.held_why) await tellDomainHeld(p, written, judged.held_why);
   }
+}
+
+/**
+ * A complaint just landed on an email from one of this workspace's own domains: the domain is judged now, from its
+ * own counts, rather than at the next ten-minute sweep, so a domain drawing complaints stops at the first. Only a
+ * verified domain can be held for its reputation; anything else is left to the sweep. Best-effort by contract: the
+ * receipt is already applied, and the sweep holds the domain anyway.
+ */
+export async function holdForComplaint(
+  p: Pick<DomainPorts, "db" | "log" | "now">,
+  tenantId: string,
+  host: string,
+): Promise<"held" | "unchanged"> {
+  const row = await sendingDomainByHost(p.db, tenantId, host);
+  if (!row || row.state !== "verified") return "unchanged";
+  const nowIso = new Date(p.now()).toISOString();
+  const counts = await sendingDomainCounts(p.db, row.tenant_id, row.host, row.clean_since);
+  const judged = judgeDomain(stateOf(row), { provider: null, dmarc: null, counts }, nowIso);
+  if (judged.change !== "held") return "unchanged";
+  const written = await applyDomainCheck(p.db, row, {
+    state: judged.state,
+    held_why: judged.held_why,
+    held_at: judged.held_at,
+    sent_recent: counts.sent,
+    bounced_recent: counts.bounced,
+    complaints: counts.complained,
+  });
+  if (!written) return "unchanged";
+  await sayDomainChange(p, row, written, judged);
+  return "held";
 }
 
 /**
@@ -359,7 +390,11 @@ export async function resumeSendingDomain(p: DomainPorts, row: SendingDomainRow)
 }
 
 /** The owner, told: the bell, and email where the workspace has somebody on file. Best effort: the row already says it. */
-async function tellDomainHeld(p: DomainPorts, row: SendingDomainRow, why: DomainHold): Promise<void> {
+async function tellDomainHeld(
+  p: Pick<DomainPorts, "db" | "log">,
+  row: SendingDomainRow,
+  why: DomainHold,
+): Promise<void> {
   const because = domainHoldWords(why);
   try {
     const addressing = await loadTenantNotifications(p.db, row.tenant_id);

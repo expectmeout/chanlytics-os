@@ -642,3 +642,15 @@ test("a cold email to a business asks no yes: only that they did not stop everyt
   ])
     assert.ok(PURPOSE_REFUSALS[r], r);
 });
+
+test("every refusal the door can give has words for the thread and for a run's report (a closed list, 00177)", async () => {
+  const { DELIVERY_REFUSALS, HELD_REASONS } = await import("@chanlytics/contracts");
+  assert.ok(Array.isArray(DELIVERY_REFUSALS) && DELIVERY_REFUSALS.length >= 20);
+  for (const r of DELIVERY_REFUSALS) {
+    assert.ok(PURPOSE_REFUSALS[r], `thread words for ${r}`);
+    assert.ok(HELD_REASONS[r], `run words for ${r}`);
+  }
+  // Said plainly, the audit's corrections: an unsubscribe stops what the business starts, not their own replies.
+  assert.match(PURPOSE_REFUSALS.unsubscribed, /unless they write first/);
+  assert.doesNotMatch(PURPOSE_REFUSALS.outreach_not_a_lead, /People/);
+});

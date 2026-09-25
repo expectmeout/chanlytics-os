@@ -444,7 +444,7 @@ test("the provider's 'not this second' is waited out once, briefly, and the same
   try {
     const r = buildEmailRequest(input());
     answers = [limited("rate_limit_exceeded"), ok];
-    assert.deepEqual(await sendEmail({ apiKey: "k" }, r, wait), { ok: true, wamid: "re_2", status: 200 });
+    assert.deepEqual(await sendEmail({ apiKey: "k" }, r, { wait }), { ok: true, wamid: "re_2", status: 200 });
     assert.deepEqual(waits, [1000], "as long as it asked, once");
     assert.equal(posted.length, 2);
     assert.equal(posted[1].body, posted[0].body, "the same bytes");
@@ -460,7 +460,7 @@ test("the provider's 'not this second' is waited out once, briefly, and the same
     ]) {
       again();
       answers = [limited("rate_limit_exceeded", headers), ok];
-      await sendEmail({ apiKey: "k" }, r, wait);
+      await sendEmail({ apiKey: "k" }, r, { wait });
       assert.deepEqual(waits, expected, why);
       assert.equal(posted.length, expected.length ? 2 : 1, `${why}: posts`);
     }
@@ -468,7 +468,7 @@ test("the provider's 'not this second' is waited out once, briefly, and the same
     again();
     answers = [limited("concurrent_idempotent_requests", {}, 409), ok];
     assert.equal(
-      (await sendEmail({ apiKey: "k" }, r, wait)).ok,
+      (await sendEmail({ apiKey: "k" }, r, { wait })).ok,
       true,
       "the first is still being worked (409, as Resend documents it): its answer is ours",
     );
@@ -476,7 +476,7 @@ test("the provider's 'not this second' is waited out once, briefly, and the same
 
     again();
     answers = [limited("rate_limit_exceeded", { "retry-after": "30" })];
-    const long = await sendEmail({ apiKey: "k" }, r, wait);
+    const long = await sendEmail({ apiKey: "k" }, r, { wait });
     assert.deepEqual(
       [long.ok, long.status, posted.length, waits.length],
       [false, 429, 1, 0],
@@ -485,7 +485,7 @@ test("the provider's 'not this second' is waited out once, briefly, and the same
 
     again();
     answers = [limited("daily_quota_exceeded", {})];
-    const quota = await sendEmail({ apiKey: "k" }, r, wait);
+    const quota = await sendEmail({ apiKey: "k" }, r, { wait });
     assert.deepEqual(
       [resendLimitOf(quota), posted.length, waits.length],
       ["daily", 1, 0],
@@ -494,9 +494,93 @@ test("the provider's 'not this second' is waited out once, briefly, and the same
 
     again();
     answers = [limited("rate_limit_exceeded"), limited("rate_limit_exceeded")];
-    const twice = await sendEmail({ apiKey: "k" }, r, wait);
+    const twice = await sendEmail({ apiKey: "k" }, r, { wait });
     assert.deepEqual([twice.status, posted.length, waits.length], [429, 2, 1], "once, never a loop");
   } finally {
     globalThis.fetch = real;
+  }
+});
+
+test("a send that timed out goes once more under the same key, inside its deadline; twice timed out is 'timeout' (Part 2.5 D5)", async () => {
+  const real = globalThis.fetch;
+  const posted = [];
+  let answers = [];
+  globalThis.fetch = async (_url, init) => {
+    posted.push(init);
+    const a = answers.shift();
+    if (a === "timeout")
+      throw Object.assign(new Error("The operation was aborted due to timeout"), { name: "TimeoutError" });
+    return new Response(a.body, { status: a.status, headers: a.headers ?? {} });
+  };
+  let clock = 0;
+  const now = () => clock;
+  try {
+    const r = buildEmailRequest(input());
+    answers = ["timeout", { status: 200, body: JSON.stringify({ id: "re_7" }) }];
+    assert.deepEqual(await sendEmail({ apiKey: "k" }, r, { now }), { ok: true, wamid: "re_7", status: 200 });
+    assert.equal(posted.length, 2, "posted again");
+    assert.equal(posted[1].headers["Idempotency-Key"], posted[0].headers["Idempotency-Key"], "under the same key");
+    assert.equal(posted[1].body, posted[0].body, "the same bytes");
+
+    posted.length = 0;
+    answers = ["timeout", "timeout"];
+    assert.deepEqual(await sendEmail({ apiKey: "k" }, r, { now }), {
+      ok: false,
+      wamid: null,
+      status: 0,
+      errorBody: "timeout",
+    });
+    assert.equal(posted.length, 2);
+
+    // Too little time left for a second try: the first timeout is the answer.
+    posted.length = 0;
+    answers = ["timeout", { status: 200, body: "{}" }];
+    const late = await sendEmail({ apiKey: "k" }, r, { now, deadlineMs: 4_000 });
+    assert.deepEqual([late.status, late.errorBody, posted.length], [0, "timeout", 1]);
+
+    // A limit that would wait past the deadline is handed back, not waited for.
+    posted.length = 0;
+    const waits = [];
+    answers = [
+      {
+        status: 429,
+        body: JSON.stringify({ statusCode: 429, name: "rate_limit_exceeded" }),
+        headers: { "retry-after": "2" },
+      },
+      { status: 200, body: "{}" },
+    ];
+    const handed = await sendEmail({ apiKey: "k" }, r, { now, deadlineMs: 1_500, wait: async (ms) => waits.push(ms) });
+    assert.deepEqual([handed.status, waits, posted.length], [429, [], 1]);
+
+    // A network failure that is not a timeout is not posted again: it never left.
+    posted.length = 0;
+    globalThis.fetch = async (_u, init) => {
+      posted.push(init);
+      throw new Error("getaddrinfo ENOTFOUND api.resend.com");
+    };
+    const down = await sendEmail({ apiKey: "k" }, r, { now });
+    assert.deepEqual([down.status, down.errorBody, posted.length], [0, "getaddrinfo ENOTFOUND api.resend.com", 1]);
+  } finally {
+    globalThis.fetch = real;
+  }
+});
+
+test("each try's timeout is the smaller of fifteen seconds and what is left of the deadline", async () => {
+  const real = globalThis.fetch;
+  const realTimeout = AbortSignal.timeout;
+  const asked = [];
+  AbortSignal.timeout = (ms) => {
+    asked.push(ms);
+    return realTimeout.call(AbortSignal, ms);
+  };
+  globalThis.fetch = async () => new Response(JSON.stringify({ id: "re_8" }), { status: 200 });
+  try {
+    const r = buildEmailRequest(input());
+    await sendEmail({ apiKey: "k" }, r, { now: () => 0, deadlineMs: 9_000 });
+    await sendEmail({ apiKey: "k" }, r, { now: () => 0 });
+    assert.deepEqual(asked, [9_000, 15_000]);
+  } finally {
+    globalThis.fetch = real;
+    AbortSignal.timeout = realTimeout;
   }
 });

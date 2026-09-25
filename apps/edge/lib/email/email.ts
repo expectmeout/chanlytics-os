@@ -52,9 +52,12 @@ export async function emailWireFor(db: Db, tenantId: string): Promise<Sender | n
   if (!mailbox) return null;
   const routes: EmailRoute[] = [{ lane: "hosted", cfg: { apiKey }, as: sendsAs(mailbox, domain) }];
   const coldKey = env.RESEND_COLD_API_KEY;
-  if (coldKey) {
+  // Cold mail leaves only while its receipts can be read: without the cold account's webhook secret every bounce and
+  // complaint would be refused at the door (email-ingress.ts), and no domain would ever be held for them.
+  if (coldKey && env.RESEND_COLD_WEBHOOK_SECRET) {
     // This wire is built for every job the workspace runs, a text's and a WhatsApp's too: a domains read that fails
-    // costs cold email its routes for this tick (its sends fail at the wire and retry), never every other job.
+    // costs cold email its routes for this tick (its sends fail at the wire, and a cold failure is recorded on its
+    // row, send.ts), never every other job.
     try {
       for (const d of await sendingDomainsOf(db, tenantId))
         if (d.state === "verified")

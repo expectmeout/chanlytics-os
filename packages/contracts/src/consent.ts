@@ -100,8 +100,38 @@ export function mayMessageFor(
   return { ok: true, reason: null };
 }
 
-/** Why a send was withheld, in the operator's words. */
-export const PURPOSE_REFUSALS: Record<string, string> = {
+/**
+ * Every reason the send door (core deliver.ts) stays shut: a closed list, so a reason cannot reach a thread or a run's
+ * report without its words (both maps below are typed against it). Each is a fact about the person, the thread or
+ * the workspace, never about us.
+ */
+export const DELIVERY_REFUSALS = [
+  "opted_out",
+  "not_opted_in",
+  "no_marketing_consent",
+  "erased",
+  "paused",
+  "human_has_it",
+  "superseded_by_human",
+  "sms_carries_no_promotions",
+  "email_marketing_disabled",
+  "email_suppressed",
+  "recipient_changed",
+  // Reach out's (a cold email to a business the finder found): the person's own no, then the rules the lane is built on.
+  "unsubscribed",
+  "outreach_is_email_only",
+  "outreach_not_a_lead",
+  "outreach_lead_closed",
+  "outreach_suppressed",
+  "outreach_without_unsubscribe",
+  "outreach_needs_own_domain",
+  "sending_domain_not_ready",
+  "sending_domain_at_cap",
+] as const;
+export type DeliveryRefusal = (typeof DELIVERY_REFUSALS)[number];
+
+/** Why a send was withheld, in the operator's words: every door refusal (the compiler holds it), and the job's own. */
+export const PURPOSE_REFUSALS: Record<DeliveryRefusal, string> & Record<string, string> = {
   opted_out: OPT_OUT_REFUSAL,
   not_opted_in: "This customer has not said yes to messages yet.",
   no_marketing_consent: "This customer has not said yes to OFFERS. Appointment messages are fine; promotions are not.",
@@ -119,15 +149,23 @@ export const PURPOSE_REFUSALS: Record<string, string> = {
     "Email to this address has stopped: it bounced for good, or the person marked a message as spam. Correct the address on their page, or reach them another way.",
   recipient_changed:
     "This person's email address changed after the reply was written, so it was not sent. Write it again and it goes to the address on file now.",
+  // The door's own, said the way a person reads them in a thread.
+  erased: "This person asked to be forgotten. Nothing is sent to them.",
+  paused: "The workspace is paused, so nothing automatic was sent.",
+  human_has_it: "Someone on your team has this conversation, so nothing automatic was sent.",
+  superseded_by_human: "Someone on your team answered first, so this was not sent.",
   // Reach out's, at the wire (deliver.ts): a cold email goes only as the rules it was built under allow.
-  unsubscribed:
-    "This person unsubscribed from your emails. No more cold email goes to them; a reply to what they write still does.",
+  unsubscribed: "This person unsubscribed from your emails. Nothing goes to them by email unless they write first.",
   outreach_is_email_only: "Cold messages go only by email: never by text or WhatsApp.",
-  outreach_not_a_lead: "Cold email goes only to a business your searches found, never to a person already in People.",
+  outreach_not_a_lead: "Cold email goes only to a business your searches found.",
+  outreach_lead_closed: "This business is no longer being written to: it said no, became a customer, or was set aside.",
+  outreach_suppressed: "This address is on the never-again list: it unsubscribed, complained, or was erased.",
   outreach_without_unsubscribe: "This email was built without its unsubscribe link, so it was not sent.",
   outreach_needs_own_domain: "Cold email leaves only from a domain you own. Add one on Connections, under Email.",
   sending_domain_not_ready:
     "The domain this email was to leave from isn't sending right now. Connections, under Email, says why.",
+  sending_domain_at_cap:
+    "The domain this email was to leave from has sent its day's share. It goes when there is room.",
 };
 
 /**

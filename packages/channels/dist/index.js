@@ -4491,8 +4491,10 @@ function emailPlainText(e) {
 }
 
 // src/email-resend.ts
-var RESEND_EMAILS = "https://api.resend.com/emails";
+var RESEND_API = "https://api.resend.com";
 var SEND_TIMEOUT_MS2 = 15e3;
+var SEND_DEADLINE_MS = 32e3;
+var RETRY_NEEDS_MS = 5e3;
 var LIMIT_WAIT_MAX_MS = 2e3;
 var LIMIT_WAIT_DEFAULT_MS = 1e3;
 var sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -4504,51 +4506,79 @@ function waitAskedMs(h) {
   }
   return null;
 }
-async function postEmail(cfg, request) {
-  const { idempotency_key, ...body } = request;
+async function resendRequest(cfg, method, path, opts = {}) {
   try {
-    const r2 = await fetch(RESEND_EMAILS, {
-      method: "POST",
+    const r2 = await fetch(`${RESEND_API}${path}`, {
+      method,
       headers: {
         Authorization: `Bearer ${cfg.apiKey}`,
-        "Content-Type": "application/json",
-        "Idempotency-Key": idempotency_key
+        ...opts.body !== void 0 ? { "Content-Type": "application/json" } : {},
+        ...opts.idempotencyKey ? { "Idempotency-Key": opts.idempotencyKey } : {}
       },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(SEND_TIMEOUT_MS2)
+      ...opts.body !== void 0 ? { body: JSON.stringify(opts.body) } : {},
+      signal: AbortSignal.timeout(opts.timeoutMs ?? SEND_TIMEOUT_MS2)
     });
     const raw = await r2.text().catch(() => "");
-    if (r2.ok) {
-      const id = (() => {
-        try {
-          return JSON.parse(raw).id;
-        } catch {
-          return null;
-        }
-      })();
-      return { result: { ok: true, wamid: typeof id === "string" ? id : null, status: r2.status }, waitMs: null };
+    let json = null;
+    try {
+      json = raw ? JSON.parse(raw) : null;
+    } catch {
+      json = null;
     }
-    return {
-      result: { ok: false, wamid: null, status: r2.status, errorBody: raw.slice(0, 500) },
-      waitMs: waitAskedMs(r2.headers)
-    };
+    return { status: r2.status, json, raw, headers: r2.headers, timedOut: false };
   } catch (e) {
+    const name = e?.name;
+    const timedOut = name === "TimeoutError" || name === "AbortError";
     return {
-      result: { ok: false, wamid: null, status: 0, errorBody: e instanceof Error ? e.message : String(e) },
-      waitMs: null
+      status: 0,
+      json: null,
+      raw: e instanceof Error ? e.message : String(e),
+      headers: null,
+      timedOut
     };
   }
 }
-async function sendEmail(cfg, request, wait = sleep) {
-  const first = await postEmail(cfg, request);
+async function postEmail(cfg, request, timeoutMs) {
+  const { idempotency_key, ...body } = request;
+  const a = await resendRequest(cfg, "POST", "/emails", { body, timeoutMs, idempotencyKey: idempotency_key });
+  if (a.status >= 200 && a.status < 300) {
+    const id = a.json?.id;
+    return {
+      result: { ok: true, wamid: typeof id === "string" ? id : null, status: a.status },
+      waitMs: null,
+      timedOut: false
+    };
+  }
+  if (a.status === 0)
+    return {
+      result: { ok: false, wamid: null, status: 0, errorBody: a.timedOut ? "timeout" : a.raw },
+      waitMs: null,
+      timedOut: a.timedOut
+    };
+  return {
+    result: { ok: false, wamid: null, status: a.status, errorBody: a.raw.slice(0, 500) },
+    waitMs: a.headers ? waitAskedMs(a.headers) : null,
+    timedOut: false
+  };
+}
+async function sendEmail(cfg, request, opts = {}) {
+  const wait = opts.wait ?? sleep;
+  const now = opts.now ?? Date.now;
+  const deadline = now() + (opts.deadlineMs ?? SEND_DEADLINE_MS);
+  const left = () => Math.max(0, deadline - now());
+  const first = await postEmail(cfg, request, Math.min(SEND_TIMEOUT_MS2, left()));
+  if (first.timedOut) {
+    if (left() < RETRY_NEEDS_MS) return first.result;
+    return (await postEmail(cfg, request, Math.min(SEND_TIMEOUT_MS2, left()))).result;
+  }
   const limit = resendLimitOf(first.result);
   if (limit !== "rate" && limit !== "in_flight") return first.result;
   const ms = first.waitMs ?? LIMIT_WAIT_DEFAULT_MS;
-  if (ms > LIMIT_WAIT_MAX_MS) return first.result;
+  if (ms > LIMIT_WAIT_MAX_MS || ms >= left()) return first.result;
   await wait(ms);
-  return (await postEmail(cfg, request)).result;
+  return (await postEmail(cfg, request, Math.min(SEND_TIMEOUT_MS2, left()))).result;
 }
-var RESEND_RECEIVED = "https://api.resend.com/emails/receiving";
+var RESEND_RECEIVED = `${RESEND_API}/emails/receiving`;
 var FETCH_TIMEOUT_MS = 15e3;
 async function fetchReceivedEmail(cfg, receivedId) {
   const r2 = await fetch(`${RESEND_RECEIVED}/${encodeURIComponent(receivedId)}`, {
@@ -4568,7 +4598,7 @@ async function fetchReceivedEmail(cfg, receivedId) {
   if (!email) throw new Error(`resend: received email ${receivedId} answered a shape that is not an email`);
   return email;
 }
-var RESEND_DOMAINS = "https://api.resend.com/domains";
+var RESEND_DOMAINS = `${RESEND_API}/domains`;
 async function fetchMailDomains(cfg) {
   const r2 = await fetch(RESEND_DOMAINS, {
     headers: { Authorization: `Bearer ${cfg.apiKey}` },
@@ -4588,8 +4618,6 @@ async function fetchMailDomains(cfg) {
 }
 
 // src/email-domains.ts
-var RESEND_DOMAINS2 = "https://api.resend.com/domains";
-var TIMEOUT_MS = 15e3;
 var unquote = (s) => {
   const t = s.trim();
   return t.length >= 2 && t.startsWith('"') && t.endsWith('"') ? t.slice(1, -1) : t;
@@ -4624,27 +4652,8 @@ function providerDomainFrom(body) {
   };
 }
 async function call(cfg, method, path, body) {
-  try {
-    const r2 = await fetch(`${RESEND_DOMAINS2}${path}`, {
-      method,
-      headers: {
-        Authorization: `Bearer ${cfg.apiKey}`,
-        ...body !== void 0 ? { "Content-Type": "application/json" } : {}
-      },
-      ...body !== void 0 ? { body: JSON.stringify(body) } : {},
-      signal: AbortSignal.timeout(TIMEOUT_MS)
-    });
-    const raw = await r2.text().catch(() => "");
-    let json = null;
-    try {
-      json = raw ? JSON.parse(raw) : null;
-    } catch {
-      json = null;
-    }
-    return { status: r2.status, json, raw };
-  } catch (e) {
-    return { status: 0, json: null, raw: e instanceof Error ? e.message : String(e) };
-  }
+  const a = await resendRequest(cfg, method, `/domains${path}`, body !== void 0 ? { body } : {});
+  return { status: a.status, json: a.json, raw: a.raw };
 }
 function refusal(status, json, raw) {
   const m = json?.message;
@@ -6219,8 +6228,10 @@ export {
   PLACE_ID,
   PROFILE_SCOPES,
   PlacesError,
+  RESEND_API,
   RETELL_ORIGINATION,
   REVIEW_BELL_MAX,
+  SEND_DEADLINE_MS,
   SMS_FOOTER,
   SMS_HELD_DETAILS,
   SMS_HELD_REASON,
@@ -6354,6 +6365,7 @@ export {
   representativeEndUserRequest,
   requestLeavesAs,
   resendLimitOf,
+  resendRequest,
   resendWebhookSignature,
   retellImportBody,
   reviewBells,

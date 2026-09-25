@@ -10,10 +10,7 @@
  * ask" (status 0) is kept apart from any answer it gave.
  */
 import type { DomainRecord } from "@chanlytics/contracts";
-import type { ResendConfig } from "./email-resend";
-
-const RESEND_DOMAINS = "https://api.resend.com/domains";
-const TIMEOUT_MS = 15_000;
+import { resendRequest, type ResendConfig } from "./email-resend";
 
 /** One domain as the provider holds it: its id, the word for where it stands, and the records to publish. */
 export interface ProviderDomain {
@@ -71,27 +68,8 @@ async function call(
   path: string,
   body?: unknown,
 ): Promise<{ status: number; json: unknown; raw: string }> {
-  try {
-    const r = await fetch(`${RESEND_DOMAINS}${path}`, {
-      method,
-      headers: {
-        Authorization: `Bearer ${cfg.apiKey}`,
-        ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
-      },
-      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-    });
-    const raw = await r.text().catch(() => "");
-    let json: unknown = null;
-    try {
-      json = raw ? JSON.parse(raw) : null;
-    } catch {
-      json = null;
-    }
-    return { status: r.status, json, raw };
-  } catch (e) {
-    return { status: 0, json: null, raw: e instanceof Error ? e.message : String(e) };
-  }
+  const a = await resendRequest(cfg, method, `/domains${path}`, body !== undefined ? { body } : {});
+  return { status: a.status, json: a.json, raw: a.raw };
 }
 
 /** What went wrong, in the provider's own words when it gave some. */
