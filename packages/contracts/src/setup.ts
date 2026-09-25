@@ -36,7 +36,7 @@ import { SOLE_PROP_LIMITS } from "./registration-path";
 import { capabilityStatus, type ActivationRecord, type CapabilityStatus } from "./capabilities";
 import { EMAIL_ELSEWHERE_SENTENCE, EMAIL_NOT_ANSWERED_SENTENCE, type EmailSetupDto } from "./mailbox";
 import { GET_YES_ROUTE, NO_NUMBER_REACH } from "./people";
-import { FIRST_RUN_FIND_ROUTE } from "./first-run";
+import { FIRST_RUN_FIND_ROUTE } from "./first-run-route";
 import type { ReceptionistState } from "./config";
 
 export interface SetupDto {

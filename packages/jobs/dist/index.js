@@ -159,8 +159,8 @@ async function cancelJobsFor(db, tenantId, kind, payloadKey, payloadValue) {
 import { z } from "zod";
 import { z as z2 } from "zod";
 import { z as z3 } from "zod";
-import { z as z5 } from "zod";
 import { z as z4 } from "zod";
+import { z as z5 } from "zod";
 import { z as z7 } from "zod";
 import { z as z6 } from "zod";
 import { z as z8 } from "zod";
@@ -995,141 +995,6 @@ var LeadSearchPlanSchema = z4.object({
 var US_NAMES = Object.fromEntries(
   Object.entries(US_STATES).map(([name2, code2]) => [code2, name2])
 );
-var REVIEW_AUTO_REPLY_MAX_AGE_MS = 14 * 864e5;
-var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var REVIEW_NEWS_MS = 36 * 3600 * 1e3;
-var REVIEW_NEWS_MAX_AGE_MS = 14 * 864e5;
-var BOOTSTRAP_MS = 3600 * 1e3;
-var DATE_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var WEEK_MS2 = 7 * 864e5;
-var FORWARDING_TEST_WINDOW_MS = 30 * 6e4;
-var DATE_FMT3 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
-var CHECKOUT_OUTCOME_WORDS = {
-  success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
-  cancel: "Checkout was closed before finishing; nothing was charged.",
-  portal: "Back from Stripe. Any change you made there shows here within a minute."
-};
-var SOLE_PROP_LIMITS = {
-  campaignsPerBrand: 1,
-  numbersPerCampaign: 1,
-  messagesPerSecond: 1,
-  perDayTMobile: 1e3,
-  perMinuteAtt: 15,
-  mobileUsesEver: 3,
-  emailUsesEver: 10,
-  addressUsesEver: 10
-};
-var REGISTRATION_COST_WORDS = {
-  standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
-  sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second.`
-};
-var PROVISIONING_DEADLINE_MS = 5 * 6e4;
-var SOLE_PROP_CEILING_SENTENCE = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
-var SOLE_PROP_TEXTING_SENTENCE = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE}`;
-var TRY_QUIET_AFTER_MS = 3 * 6e4;
-var FIRST_RUN_PHONE_WORDS = {
-  chooseHeading: "How should calls reach your receptionist?",
-  chooseLead: "Most businesses keep the number customers already know. Your team still answers first, and your receptionist gets the rest.",
-  readyHeading: "Getting your receptionist's number ready",
-  readyLeadForwarded: "Customers never see this number: the calls nobody picks up at yours are sent to it.",
-  readyLeadNew: "Customers call this number directly. Put it on your website and your Google listing.",
-  recommended: "Recommended",
-  keepTitle: (display2) => display2 ? `Keep ${display2}` : "Keep the number you have",
-  keepListed: "The number on your Google listing. Calls nobody picks up go to your receptionist. Same phone, same phone company.",
-  keepTyped: "Calls nobody picks up go to your receptionist. Same phone, same phone company.",
-  newTitle: "Get a new number",
-  newSentence: "For a business that doesn't have one yet. Customers call it directly.",
-  moveTitle: "Move my number to Chanlytics",
-  moveSentence: "Takes 7\u201314 business days. Your number forwards in the meantime, so nothing changes for customers.",
-  numberLabel: "The number customers call",
-  numberPlaceholder: "(305) 555-0100",
-  areaLabel: "Area code",
-  areaPlaceholder: "305",
-  find: "Find numbers",
-  finding: "Looking\u2026",
-  pickLabel: "Pick your receptionist's number",
-  noneFree: (area) => `Nothing free in ${area} right now. Try a nearby area code.`,
-  threeDigits: "Three digits, like 305.",
-  local: "Local",
-  held: {
-    number: "Type the number customers call.",
-    us: "Forwarding works for a US number: type it with its area code.",
-    pick: "Pick a number first."
-  },
-  cta: {
-    planKeep: "Start my plan",
-    planNew: (number) => number ? `Start my plan with ${number}` : "Start my plan",
-    planMove: "Start my plan and ask for the move",
-    keep: "Keep this number",
-    new: (number) => number ? `Get ${number}` : "Get this number",
-    move: "Ask for the move"
-  },
-  planOffer: (price) => price ? `${price}, starting today` : "Your plan, starting today",
-  planNote: "Your number is included. The first charge is today, and you can cancel anytime from Billing.",
-  /** A workspace on a free trial: the trial covers no number, so getting one starts the plan early. */
-  planNoteTrial: "Your free trial ends today and your plan starts, on the card you gave. Your number is included.",
-  starting: "Starting your plan\u2026",
-  startingDetail: "Your card is on file. This page updates as Stripe confirms it.",
-  buyingIn: (area) => area ? `Getting your receptionist's number in ${area}\u2026` : "Getting your receptionist's number\u2026",
-  buyingNew: (number) => `Getting ${number}\u2026`,
-  usually: "Usually a minute or two; this page updates by itself",
-  /** What the page says when a buy or a search is refused, over the door's own sentence. */
-  notBought: "No number yet",
-  moveAsked: "We'll move your number with you and reach you by email. Until then, it forwards.",
-  moveNotAsked: "The move wasn't asked for. Ask again from Settings later; your number forwards meanwhile.",
-  cancelled: CHECKOUT_OUTCOME_WORDS.cancel,
-  /** The two questions while the number is on its way (canvas R4), and the button they lead to. */
-  ringsLabel: (display2) => display2 ? `Which phone rings when customers call ${display2}?` : "Which phone rings when customers call?",
-  rings: { mobile: "A mobile", landline: "A landline", office: "An office phone system" },
-  companyLabel: "Who's the phone company?",
-  company: { verizon: "Verizon", att: "AT&T", tmobile: "T-Mobile", other: "Another company" },
-  show: "Show me what to dial",
-  showOffice: "Show me where to forward",
-  readySoon: "Ready in a moment",
-  answerFirst: "Answer the questions first.",
-  askHeading: "One more thing",
-  askLead: "How the calls are sent to your receptionist depends on the phone that rings.",
-  /** The code (canvas R5, P5). */
-  codeHeading: "Dial this on the phone customers call",
-  codeLead: "It tells your phone company to send the calls nobody picks up to your receptionist. You only do this once.",
-  codeLeadAll: "It tells your phone company to send every call to your receptionist. You only do this once.",
-  codeLabel: (company, rings) => rings === "landline" ? "A landline" : company ? `${company} \xB7 a mobile` : "A mobile",
-  stepsLandline: ["Pick up the phone customers call.", "Dial the code above.", "Wait for the tone, then hang up."],
-  stepsMobile: ["On the phone customers call, dial the code above.", "Wait for the tone, then hang up."],
-  /** A tab that lost the answers: what rings is not known, so neither is said. */
-  stepsAny: ["Dial the code above on the phone customers call.", "Wait for the tone, then hang up."],
-  // Not a promise the code replaces voicemail: forwarding.ts says a voicemail that picks up first keeps calls away.
-  warnMobile: "Voicemail on this phone? If it still picks up after you dial the code, calls never reach your receptionist: see The code didn't work.",
-  warnLandline: "If an answering machine is on this line, turn it off. Otherwise it answers before your receptionist can.",
-  warnAny: "Voicemail or an answering machine on that phone? If it picks up first, calls never reach your receptionist: see The code didn't work.",
-  off: (code2) => `To switch it off later, dial ${code2}.`,
-  tap: "Tap to dial",
-  done: "Done, let's try it",
-  help: "The code didn't work",
-  change: "Change the answers",
-  keepCode: "Keep what I have",
-  /** An office phone system (canvas V6): the number to forward to, and a person to do it with. */
-  officeHeading: "Forward missed calls in your phone system",
-  officeLead: "Office phone systems set this in their own settings, under \u201Cforwarding\u201D or \u201Cwhen no one answers\u201D.",
-  officeLabel: (always) => always ? "Forward every call to" : "Forward unanswered calls to",
-  officeSteps: [
-    "Open your phone system's settings.",
-    "Find forwarding, or what happens when no one answers.",
-    "Forward the calls to the number above: your receptionist's number. Customers never see it."
-  ],
-  officeWarn: "Voicemail in the system? The forwarding has to come before it, or calls never reach your receptionist.",
-  officeOff: "To switch it off later, take the forwarding out in the same settings.",
-  withMe: "Not sure where it is? A person at Chanlytics can do it with you on a call.",
-  withMeLabel: "Do it with me",
-  helpOffice: "It didn't work",
-  withMeAsked: (ago3) => `Asked ${ago3}: a person at Chanlytics will email you to find a time.`,
-  withMeFailed: "Not asked",
-  withMeSent: "We'll email you to find a time for a call.",
-  notForwarded: "Forwarding not saved"
-};
-var FIRST_RUN_ROUTE = "start";
-var FIND_PARAM = "find";
-var FIRST_RUN_FIND_ROUTE = `${FIRST_RUN_ROUTE}/${FIND_PARAM}`;
 var LEAD_CLASSES = LEAD_MEMBER_CLASSES;
 var LEAD_LISTS = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
 var LEAD_SORTS = ["fit", "found", "distance", "business", "rating", "stage"];
@@ -1183,6 +1048,80 @@ function leadNoteLeft(left2, max) {
   return left2 >= max ? `Up to ${max} characters` : `${left2} left`;
 }
 var LEAD_UNCLAIMED_NOTE = "Listing not claimed by the owner";
+var LeadsQuerySchema = z5.object({
+  list: z5.enum(LEAD_LISTS).default("all"),
+  search: z5.string().uuid().optional(),
+  class: z5.enum(LEAD_CLASSES).optional(),
+  sort: z5.enum(LEAD_SORTS).default("fit"),
+  dir: z5.enum(["asc", "desc"]).default("asc"),
+  after_key: z5.string().max(80).optional(),
+  after_id: z5.string().uuid().optional(),
+  limit: z5.coerce.number().int().min(1).max(500).default(500)
+});
+var LeadsViewSchema = LeadsQuerySchema.omit({ after_key: true, after_id: true, limit: true });
+var LeadStageInputSchema = z5.discriminatedUnion("kind", [
+  z5.object({ kind: z5.literal("stage"), stage: z5.enum(["ready", "nurture", "converted"]) }),
+  z5.object({ kind: z5.literal("not_a_fit"), why: z5.enum(LEAD_NOT_A_FIT_WHYS) }),
+  z5.object({ kind: z5.literal("said_no") }),
+  z5.object({
+    kind: z5.literal("outcome"),
+    outcome: z5.enum(LEAD_CALL_OUTCOMES),
+    note: z5.string().trim().max(280).optional()
+  }),
+  /** "Did you send it?" Yes. */
+  z5.object({ kind: z5.literal("emailed") })
+]);
+var LeadsBulkSchema = z5.discriminatedUnion("by", [
+  // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
+  z5.object({
+    by: z5.literal("ids"),
+    action: z5.enum(["contacted", "not_a_fit", "keep", "exclude"]),
+    ids: z5.array(z5.string().uuid()).min(1).max(500),
+    search_id: z5.string().uuid().optional()
+  }),
+  z5.object({ by: z5.literal("view"), action: z5.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema })
+]);
+var LeadsCheckAgainSchema = z5.object({ ids: z5.array(z5.string().uuid()).min(1).max(500) });
+var LeadDraftInputSchema = z5.object({
+  tone: z5.enum(["first", "shorter", "warmer"]).default("first"),
+  previous: z5.object({ subject: z5.string().max(200), body: z5.string().max(4e3) }).optional()
+});
+var RenameLeadSearchSchema = z5.object({ name: z5.string().trim().min(1).max(80) });
+var BusinessLineSchema = z5.object({ business_line: z5.string().trim().min(3).max(160) });
+var planChip = (max) => z5.string().trim().min(2).max(max);
+var ProposeLeadSearchSchema = z5.object({
+  looking_for: z5.enum(["local_businesses", "people", "online_sellers", "other"]),
+  country: z5.string().trim().min(2).max(40),
+  count: z5.number().int().min(1).max(LEAD_MAX_PLACES),
+  /** Plural, as the sentence says it: "personal trainers". */
+  who: planChip(60),
+  /** One of them, for the question and the judge's rubric: "personal trainer". */
+  who_one: planChip(60),
+  category_key: z5.string().regex(/^[a-z][a-z0-9_]{0,39}$/),
+  terms: z5.array(planChip(60)).min(1).max(5),
+  city: z5.string().trim().max(60).nullable().default(null),
+  region: z5.string().trim().min(2).max(40),
+  zip: z5.string().regex(/^\d{5}$/).nullable().default(null),
+  contact: z5.enum(["phone", "email"]),
+  criteria: z5.array(z5.object({ text: planChip(120), standard: z5.enum(["likely", "seen"]), required: z5.boolean() })).max(6).default([]),
+  leave_out: z5.array(z5.object({ words: planChip(40) })).max(6).default([]),
+  asked: z5.string().trim().min(1).max(400)
+});
+var LeadDraftAnswerSchema = z5.object({
+  subject: z5.string().trim().min(3).max(120),
+  body: z5.string().trim().min(20).max(2e3)
+});
+var LeadSuggestAnswerSchema = z5.object({
+  line: z5.string().trim().min(3).max(160),
+  items: z5.array(
+    z5.object({
+      words: z5.string().trim().min(3).max(80),
+      who_for: z5.string().trim().min(3).max(120),
+      category_key: z5.string().regex(/^[a-z_]{2,40}$/)
+    })
+  ).min(1).max(4)
+});
+var LEAD_UNDO_MS = 24 * 60 * 6e4;
 var LEAD_FIRST_DAY_TITLE = "Your people gather here";
 var LEAD_FIRST_DAY_SUB = "Or have Claude find businesses worth reaching";
 var LEAD_FIRST_DAY_FOOT = "Claude finds businesses, not people at home.";
@@ -1276,80 +1215,6 @@ var LEAD_WORDS = {
   callSaveNext: "Save and go to the next",
   callSavedNote: "Saving moves them to Talking. They join People when they write or call in."
 };
-var LeadsQuerySchema = z5.object({
-  list: z5.enum(LEAD_LISTS).default("all"),
-  search: z5.string().uuid().optional(),
-  class: z5.enum(LEAD_CLASSES).optional(),
-  sort: z5.enum(LEAD_SORTS).default("fit"),
-  dir: z5.enum(["asc", "desc"]).default("asc"),
-  after_key: z5.string().max(80).optional(),
-  after_id: z5.string().uuid().optional(),
-  limit: z5.coerce.number().int().min(1).max(500).default(500)
-});
-var LeadsViewSchema = LeadsQuerySchema.omit({ after_key: true, after_id: true, limit: true });
-var LeadStageInputSchema = z5.discriminatedUnion("kind", [
-  z5.object({ kind: z5.literal("stage"), stage: z5.enum(["ready", "nurture", "converted"]) }),
-  z5.object({ kind: z5.literal("not_a_fit"), why: z5.enum(LEAD_NOT_A_FIT_WHYS) }),
-  z5.object({ kind: z5.literal("said_no") }),
-  z5.object({
-    kind: z5.literal("outcome"),
-    outcome: z5.enum(LEAD_CALL_OUTCOMES),
-    note: z5.string().trim().max(280).optional()
-  }),
-  /** "Did you send it?" Yes. */
-  z5.object({ kind: z5.literal("emailed") })
-]);
-var LeadsBulkSchema = z5.discriminatedUnion("by", [
-  // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
-  z5.object({
-    by: z5.literal("ids"),
-    action: z5.enum(["contacted", "not_a_fit", "keep", "exclude"]),
-    ids: z5.array(z5.string().uuid()).min(1).max(500),
-    search_id: z5.string().uuid().optional()
-  }),
-  z5.object({ by: z5.literal("view"), action: z5.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema })
-]);
-var LeadsCheckAgainSchema = z5.object({ ids: z5.array(z5.string().uuid()).min(1).max(500) });
-var LeadDraftInputSchema = z5.object({
-  tone: z5.enum(["first", "shorter", "warmer"]).default("first"),
-  previous: z5.object({ subject: z5.string().max(200), body: z5.string().max(4e3) }).optional()
-});
-var RenameLeadSearchSchema = z5.object({ name: z5.string().trim().min(1).max(80) });
-var BusinessLineSchema = z5.object({ business_line: z5.string().trim().min(3).max(160) });
-var planChip = (max) => z5.string().trim().min(2).max(max);
-var ProposeLeadSearchSchema = z5.object({
-  looking_for: z5.enum(["local_businesses", "people", "online_sellers", "other"]),
-  country: z5.string().trim().min(2).max(40),
-  count: z5.number().int().min(1).max(LEAD_MAX_PLACES),
-  /** Plural, as the sentence says it: "personal trainers". */
-  who: planChip(60),
-  /** One of them, for the question and the judge's rubric: "personal trainer". */
-  who_one: planChip(60),
-  category_key: z5.string().regex(/^[a-z][a-z0-9_]{0,39}$/),
-  terms: z5.array(planChip(60)).min(1).max(5),
-  city: z5.string().trim().max(60).nullable().default(null),
-  region: z5.string().trim().min(2).max(40),
-  zip: z5.string().regex(/^\d{5}$/).nullable().default(null),
-  contact: z5.enum(["phone", "email"]),
-  criteria: z5.array(z5.object({ text: planChip(120), standard: z5.enum(["likely", "seen"]), required: z5.boolean() })).max(6).default([]),
-  leave_out: z5.array(z5.object({ words: planChip(40) })).max(6).default([]),
-  asked: z5.string().trim().min(1).max(400)
-});
-var LeadDraftAnswerSchema = z5.object({
-  subject: z5.string().trim().min(3).max(120),
-  body: z5.string().trim().min(20).max(2e3)
-});
-var LeadSuggestAnswerSchema = z5.object({
-  line: z5.string().trim().min(3).max(160),
-  items: z5.array(
-    z5.object({
-      words: z5.string().trim().min(3).max(80),
-      who_for: z5.string().trim().min(3).max(120),
-      category_key: z5.string().regex(/^[a-z_]{2,40}$/)
-    })
-  ).min(1).max(4)
-});
-var LEAD_UNDO_MS = 24 * 60 * 6e4;
 var SELLS_BY_QUESTION = "How customers buy";
 var SELLS_BY_WORDS = {
   booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
@@ -1359,7 +1224,7 @@ var SELLS_BY_WORDS = {
   }
 };
 var DAY_MS4 = 864e5;
-var WEEK_MS3 = 7 * DAY_MS4;
+var WEEK_MS2 = 7 * DAY_MS4;
 var MONTH_MS = 30 * DAY_MS4;
 var NOTE_MAX = 600;
 var NOTE_REFUSALS = {
@@ -1512,14 +1377,6 @@ var SENDING_HOURS_WORDS = {
 };
 var PLAYBOOK_BREATH_MS = 7 * DAY_MS5;
 var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
-var FOLLOW_UP_NEEDS_DEALS = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION}\u201D with \u201C${SELLS_BY_WORDS.proposal.label}\u201D.`;
-var PLAYBOOK_TOUCH_WINDOW_MS = (365 + 7) * DAY_MS5;
-var PLAYBOOK_CLASS_LABEL = {
-  reengage: POLICY_CLASS_WORDS.reengage.short,
-  campaign: POLICY_CLASS_WORDS.campaign.short,
-  booking: POLICY_CLASS_WORDS.booking.short,
-  follow_up: POLICY_CLASS_WORDS.follow_up.short
-};
 var FIRST = { kind: "first_name", label: "First name", example: "Dani" };
 var BUSINESS = { kind: "business_name", label: "Business name", example: "Luna Studio" };
 var LINK = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
@@ -2021,6 +1878,149 @@ var LIMIT_TIERS = {
 var REPLY_WINDOW_HOURS = 72;
 var REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * 36e5;
 var REPLY_WINDOW_WORDS = `within ${REPLY_WINDOW_HOURS / 24} days`;
+var FORWARDING_TEST_WINDOW_MS = 30 * 6e4;
+var REVIEW_AUTO_REPLY_MAX_AGE_MS = 14 * 864e5;
+var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var REVIEW_NEWS_MS = 36 * 3600 * 1e3;
+var REVIEW_NEWS_MAX_AGE_MS = 14 * 864e5;
+var BOOTSTRAP_MS = 3600 * 1e3;
+var DATE_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var WEEK_MS3 = 7 * 864e5;
+var DATE_FMT3 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var CHECKOUT_OUTCOME_WORDS = {
+  success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
+  cancel: "Checkout was closed before finishing; nothing was charged.",
+  portal: "Back from Stripe. Any change you made there shows here within a minute."
+};
+var SOLE_PROP_LIMITS = {
+  campaignsPerBrand: 1,
+  numbersPerCampaign: 1,
+  messagesPerSecond: 1,
+  perDayTMobile: 1e3,
+  perMinuteAtt: 15,
+  mobileUsesEver: 3,
+  emailUsesEver: 10,
+  addressUsesEver: 10
+};
+var REGISTRATION_COST_WORDS = {
+  standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
+  sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second.`
+};
+var FIRST_RUN_ROUTE = "start";
+var FIND_PARAM = "find";
+var FIRST_RUN_FIND_ROUTE = `${FIRST_RUN_ROUTE}/${FIND_PARAM}`;
+var PROVISIONING_DEADLINE_MS = 5 * 6e4;
+var SOLE_PROP_CEILING_SENTENCE = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
+var SOLE_PROP_TEXTING_SENTENCE = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE}`;
+var FOLLOW_UP_NEEDS_DEALS = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION}\u201D with \u201C${SELLS_BY_WORDS.proposal.label}\u201D.`;
+var PLAYBOOK_TOUCH_WINDOW_MS = (365 + 7) * DAY_MS5;
+var PLAYBOOK_CLASS_LABEL = {
+  reengage: POLICY_CLASS_WORDS.reengage.short,
+  campaign: POLICY_CLASS_WORDS.campaign.short,
+  booking: POLICY_CLASS_WORDS.booking.short,
+  follow_up: POLICY_CLASS_WORDS.follow_up.short
+};
+var TRY_QUIET_AFTER_MS = 3 * 6e4;
+var FIRST_RUN_PHONE_WORDS = {
+  chooseHeading: "How should calls reach your receptionist?",
+  chooseLead: "Most businesses keep the number customers already know. Your team still answers first, and your receptionist gets the rest.",
+  readyHeading: "Getting your receptionist's number ready",
+  readyLeadForwarded: "Customers never see this number: the calls nobody picks up at yours are sent to it.",
+  readyLeadNew: "Customers call this number directly. Put it on your website and your Google listing.",
+  recommended: "Recommended",
+  keepTitle: (display2) => display2 ? `Keep ${display2}` : "Keep the number you have",
+  keepListed: "The number on your Google listing. Calls nobody picks up go to your receptionist. Same phone, same phone company.",
+  keepTyped: "Calls nobody picks up go to your receptionist. Same phone, same phone company.",
+  newTitle: "Get a new number",
+  newSentence: "For a business that doesn't have one yet. Customers call it directly.",
+  moveTitle: "Move my number to Chanlytics",
+  moveSentence: "Takes 7\u201314 business days. Your number forwards in the meantime, so nothing changes for customers.",
+  numberLabel: "The number customers call",
+  numberPlaceholder: "(305) 555-0100",
+  areaLabel: "Area code",
+  areaPlaceholder: "305",
+  find: "Find numbers",
+  finding: "Looking\u2026",
+  pickLabel: "Pick your receptionist's number",
+  noneFree: (area) => `Nothing free in ${area} right now. Try a nearby area code.`,
+  threeDigits: "Three digits, like 305.",
+  local: "Local",
+  held: {
+    number: "Type the number customers call.",
+    us: "Forwarding works for a US number: type it with its area code.",
+    pick: "Pick a number first."
+  },
+  cta: {
+    planKeep: "Start my plan",
+    planNew: (number) => number ? `Start my plan with ${number}` : "Start my plan",
+    planMove: "Start my plan and ask for the move",
+    keep: "Keep this number",
+    new: (number) => number ? `Get ${number}` : "Get this number",
+    move: "Ask for the move"
+  },
+  planOffer: (price) => price ? `${price}, starting today` : "Your plan, starting today",
+  planNote: "Your number is included. The first charge is today, and you can cancel anytime from Billing.",
+  /** A workspace on a free trial: the trial covers no number, so getting one starts the plan early. */
+  planNoteTrial: "Your free trial ends today and your plan starts, on the card you gave. Your number is included.",
+  starting: "Starting your plan\u2026",
+  startingDetail: "Your card is on file. This page updates as Stripe confirms it.",
+  buyingIn: (area) => area ? `Getting your receptionist's number in ${area}\u2026` : "Getting your receptionist's number\u2026",
+  buyingNew: (number) => `Getting ${number}\u2026`,
+  usually: "Usually a minute or two; this page updates by itself",
+  /** What the page says when a buy or a search is refused, over the door's own sentence. */
+  notBought: "No number yet",
+  moveAsked: "We'll move your number with you and reach you by email. Until then, it forwards.",
+  moveNotAsked: "The move wasn't asked for. Ask again from Settings later; your number forwards meanwhile.",
+  cancelled: CHECKOUT_OUTCOME_WORDS.cancel,
+  /** The two questions while the number is on its way (canvas R4), and the button they lead to. */
+  ringsLabel: (display2) => display2 ? `Which phone rings when customers call ${display2}?` : "Which phone rings when customers call?",
+  rings: { mobile: "A mobile", landline: "A landline", office: "An office phone system" },
+  companyLabel: "Who's the phone company?",
+  company: { verizon: "Verizon", att: "AT&T", tmobile: "T-Mobile", other: "Another company" },
+  show: "Show me what to dial",
+  showOffice: "Show me where to forward",
+  readySoon: "Ready in a moment",
+  answerFirst: "Answer the questions first.",
+  askHeading: "One more thing",
+  askLead: "How the calls are sent to your receptionist depends on the phone that rings.",
+  /** The code (canvas R5, P5). */
+  codeHeading: "Dial this on the phone customers call",
+  codeLead: "It tells your phone company to send the calls nobody picks up to your receptionist. You only do this once.",
+  codeLeadAll: "It tells your phone company to send every call to your receptionist. You only do this once.",
+  codeLabel: (company, rings) => rings === "landline" ? "A landline" : company ? `${company} \xB7 a mobile` : "A mobile",
+  stepsLandline: ["Pick up the phone customers call.", "Dial the code above.", "Wait for the tone, then hang up."],
+  stepsMobile: ["On the phone customers call, dial the code above.", "Wait for the tone, then hang up."],
+  /** A tab that lost the answers: what rings is not known, so neither is said. */
+  stepsAny: ["Dial the code above on the phone customers call.", "Wait for the tone, then hang up."],
+  // Not a promise the code replaces voicemail: forwarding.ts says a voicemail that picks up first keeps calls away.
+  warnMobile: "Voicemail on this phone? If it still picks up after you dial the code, calls never reach your receptionist: see The code didn't work.",
+  warnLandline: "If an answering machine is on this line, turn it off. Otherwise it answers before your receptionist can.",
+  warnAny: "Voicemail or an answering machine on that phone? If it picks up first, calls never reach your receptionist: see The code didn't work.",
+  off: (code2) => `To switch it off later, dial ${code2}.`,
+  tap: "Tap to dial",
+  done: "Done, let's try it",
+  help: "The code didn't work",
+  change: "Change the answers",
+  keepCode: "Keep what I have",
+  /** An office phone system (canvas V6): the number to forward to, and a person to do it with. */
+  officeHeading: "Forward missed calls in your phone system",
+  officeLead: "Office phone systems set this in their own settings, under \u201Cforwarding\u201D or \u201Cwhen no one answers\u201D.",
+  officeLabel: (always) => always ? "Forward every call to" : "Forward unanswered calls to",
+  officeSteps: [
+    "Open your phone system's settings.",
+    "Find forwarding, or what happens when no one answers.",
+    "Forward the calls to the number above: your receptionist's number. Customers never see it."
+  ],
+  officeWarn: "Voicemail in the system? The forwarding has to come before it, or calls never reach your receptionist.",
+  officeOff: "To switch it off later, take the forwarding out in the same settings.",
+  withMe: "Not sure where it is? A person at Chanlytics can do it with you on a call.",
+  withMeLabel: "Do it with me",
+  helpOffice: "It didn't work",
+  withMeAsked: (ago3) => `Asked ${ago3}: a person at Chanlytics will email you to find a time.`,
+  withMeFailed: "Not asked",
+  withMeSent: "We'll email you to find a time for a call.",
+  notForwarded: "Forwarding not saved"
+};
 function firstLine(body, max = 160) {
   return body.split("\n").find((l2) => l2.trim())?.trim().slice(0, max) ?? "";
 }
@@ -2466,8 +2466,8 @@ var NAME_MAX = BrainConfigSchema.shape.business_name.maxLength ?? Infinity;
 import { z as z11 } from "zod";
 import { z as z22 } from "zod";
 import { z as z32 } from "zod";
-import { z as z52 } from "zod";
 import { z as z42 } from "zod";
+import { z as z52 } from "zod";
 import { z as z72 } from "zod";
 import { z as z62 } from "zod";
 import { z as z82 } from "zod";
@@ -8238,141 +8238,6 @@ var LeadSearchPlanSchema2 = z42.object({
 var US_NAMES2 = Object.fromEntries(
   Object.entries(US_STATES2).map(([name2, code2]) => [code2, name2])
 );
-var REVIEW_AUTO_REPLY_MAX_AGE_MS2 = 14 * 864e5;
-var DATE_FMT5 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var REVIEW_NEWS_MS2 = 36 * 3600 * 1e3;
-var REVIEW_NEWS_MAX_AGE_MS2 = 14 * 864e5;
-var BOOTSTRAP_MS2 = 3600 * 1e3;
-var DATE_FMT22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var WEEK_MS22 = 7 * 864e5;
-var FORWARDING_TEST_WINDOW_MS2 = 30 * 6e4;
-var DATE_FMT32 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
-var CHECKOUT_OUTCOME_WORDS2 = {
-  success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
-  cancel: "Checkout was closed before finishing; nothing was charged.",
-  portal: "Back from Stripe. Any change you made there shows here within a minute."
-};
-var SOLE_PROP_LIMITS2 = {
-  campaignsPerBrand: 1,
-  numbersPerCampaign: 1,
-  messagesPerSecond: 1,
-  perDayTMobile: 1e3,
-  perMinuteAtt: 15,
-  mobileUsesEver: 3,
-  emailUsesEver: 10,
-  addressUsesEver: 10
-};
-var REGISTRATION_COST_WORDS2 = {
-  standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
-  sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS2.messagesPerSecond} message a second.`
-};
-var PROVISIONING_DEADLINE_MS2 = 5 * 6e4;
-var SOLE_PROP_CEILING_SENTENCE2 = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS2.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
-var SOLE_PROP_TEXTING_SENTENCE2 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE2}`;
-var TRY_QUIET_AFTER_MS2 = 3 * 6e4;
-var FIRST_RUN_PHONE_WORDS2 = {
-  chooseHeading: "How should calls reach your receptionist?",
-  chooseLead: "Most businesses keep the number customers already know. Your team still answers first, and your receptionist gets the rest.",
-  readyHeading: "Getting your receptionist's number ready",
-  readyLeadForwarded: "Customers never see this number: the calls nobody picks up at yours are sent to it.",
-  readyLeadNew: "Customers call this number directly. Put it on your website and your Google listing.",
-  recommended: "Recommended",
-  keepTitle: (display2) => display2 ? `Keep ${display2}` : "Keep the number you have",
-  keepListed: "The number on your Google listing. Calls nobody picks up go to your receptionist. Same phone, same phone company.",
-  keepTyped: "Calls nobody picks up go to your receptionist. Same phone, same phone company.",
-  newTitle: "Get a new number",
-  newSentence: "For a business that doesn't have one yet. Customers call it directly.",
-  moveTitle: "Move my number to Chanlytics",
-  moveSentence: "Takes 7\u201314 business days. Your number forwards in the meantime, so nothing changes for customers.",
-  numberLabel: "The number customers call",
-  numberPlaceholder: "(305) 555-0100",
-  areaLabel: "Area code",
-  areaPlaceholder: "305",
-  find: "Find numbers",
-  finding: "Looking\u2026",
-  pickLabel: "Pick your receptionist's number",
-  noneFree: (area) => `Nothing free in ${area} right now. Try a nearby area code.`,
-  threeDigits: "Three digits, like 305.",
-  local: "Local",
-  held: {
-    number: "Type the number customers call.",
-    us: "Forwarding works for a US number: type it with its area code.",
-    pick: "Pick a number first."
-  },
-  cta: {
-    planKeep: "Start my plan",
-    planNew: (number) => number ? `Start my plan with ${number}` : "Start my plan",
-    planMove: "Start my plan and ask for the move",
-    keep: "Keep this number",
-    new: (number) => number ? `Get ${number}` : "Get this number",
-    move: "Ask for the move"
-  },
-  planOffer: (price) => price ? `${price}, starting today` : "Your plan, starting today",
-  planNote: "Your number is included. The first charge is today, and you can cancel anytime from Billing.",
-  /** A workspace on a free trial: the trial covers no number, so getting one starts the plan early. */
-  planNoteTrial: "Your free trial ends today and your plan starts, on the card you gave. Your number is included.",
-  starting: "Starting your plan\u2026",
-  startingDetail: "Your card is on file. This page updates as Stripe confirms it.",
-  buyingIn: (area) => area ? `Getting your receptionist's number in ${area}\u2026` : "Getting your receptionist's number\u2026",
-  buyingNew: (number) => `Getting ${number}\u2026`,
-  usually: "Usually a minute or two; this page updates by itself",
-  /** What the page says when a buy or a search is refused, over the door's own sentence. */
-  notBought: "No number yet",
-  moveAsked: "We'll move your number with you and reach you by email. Until then, it forwards.",
-  moveNotAsked: "The move wasn't asked for. Ask again from Settings later; your number forwards meanwhile.",
-  cancelled: CHECKOUT_OUTCOME_WORDS2.cancel,
-  /** The two questions while the number is on its way (canvas R4), and the button they lead to. */
-  ringsLabel: (display2) => display2 ? `Which phone rings when customers call ${display2}?` : "Which phone rings when customers call?",
-  rings: { mobile: "A mobile", landline: "A landline", office: "An office phone system" },
-  companyLabel: "Who's the phone company?",
-  company: { verizon: "Verizon", att: "AT&T", tmobile: "T-Mobile", other: "Another company" },
-  show: "Show me what to dial",
-  showOffice: "Show me where to forward",
-  readySoon: "Ready in a moment",
-  answerFirst: "Answer the questions first.",
-  askHeading: "One more thing",
-  askLead: "How the calls are sent to your receptionist depends on the phone that rings.",
-  /** The code (canvas R5, P5). */
-  codeHeading: "Dial this on the phone customers call",
-  codeLead: "It tells your phone company to send the calls nobody picks up to your receptionist. You only do this once.",
-  codeLeadAll: "It tells your phone company to send every call to your receptionist. You only do this once.",
-  codeLabel: (company, rings) => rings === "landline" ? "A landline" : company ? `${company} \xB7 a mobile` : "A mobile",
-  stepsLandline: ["Pick up the phone customers call.", "Dial the code above.", "Wait for the tone, then hang up."],
-  stepsMobile: ["On the phone customers call, dial the code above.", "Wait for the tone, then hang up."],
-  /** A tab that lost the answers: what rings is not known, so neither is said. */
-  stepsAny: ["Dial the code above on the phone customers call.", "Wait for the tone, then hang up."],
-  // Not a promise the code replaces voicemail: forwarding.ts says a voicemail that picks up first keeps calls away.
-  warnMobile: "Voicemail on this phone? If it still picks up after you dial the code, calls never reach your receptionist: see The code didn't work.",
-  warnLandline: "If an answering machine is on this line, turn it off. Otherwise it answers before your receptionist can.",
-  warnAny: "Voicemail or an answering machine on that phone? If it picks up first, calls never reach your receptionist: see The code didn't work.",
-  off: (code2) => `To switch it off later, dial ${code2}.`,
-  tap: "Tap to dial",
-  done: "Done, let's try it",
-  help: "The code didn't work",
-  change: "Change the answers",
-  keepCode: "Keep what I have",
-  /** An office phone system (canvas V6): the number to forward to, and a person to do it with. */
-  officeHeading: "Forward missed calls in your phone system",
-  officeLead: "Office phone systems set this in their own settings, under \u201Cforwarding\u201D or \u201Cwhen no one answers\u201D.",
-  officeLabel: (always) => always ? "Forward every call to" : "Forward unanswered calls to",
-  officeSteps: [
-    "Open your phone system's settings.",
-    "Find forwarding, or what happens when no one answers.",
-    "Forward the calls to the number above: your receptionist's number. Customers never see it."
-  ],
-  officeWarn: "Voicemail in the system? The forwarding has to come before it, or calls never reach your receptionist.",
-  officeOff: "To switch it off later, take the forwarding out in the same settings.",
-  withMe: "Not sure where it is? A person at Chanlytics can do it with you on a call.",
-  withMeLabel: "Do it with me",
-  helpOffice: "It didn't work",
-  withMeAsked: (ago3) => `Asked ${ago3}: a person at Chanlytics will email you to find a time.`,
-  withMeFailed: "Not asked",
-  withMeSent: "We'll email you to find a time for a call.",
-  notForwarded: "Forwarding not saved"
-};
-var FIRST_RUN_ROUTE2 = "start";
-var FIND_PARAM2 = "find";
-var FIRST_RUN_FIND_ROUTE2 = `${FIRST_RUN_ROUTE2}/${FIND_PARAM2}`;
 var LEAD_CLASSES2 = LEAD_MEMBER_CLASSES2;
 var LEAD_LISTS2 = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
 var LEAD_SORTS2 = ["fit", "found", "distance", "business", "rating", "stage"];
@@ -8426,6 +8291,80 @@ function leadNoteLeft2(left2, max) {
   return left2 >= max ? `Up to ${max} characters` : `${left2} left`;
 }
 var LEAD_UNCLAIMED_NOTE2 = "Listing not claimed by the owner";
+var LeadsQuerySchema2 = z52.object({
+  list: z52.enum(LEAD_LISTS2).default("all"),
+  search: z52.string().uuid().optional(),
+  class: z52.enum(LEAD_CLASSES2).optional(),
+  sort: z52.enum(LEAD_SORTS2).default("fit"),
+  dir: z52.enum(["asc", "desc"]).default("asc"),
+  after_key: z52.string().max(80).optional(),
+  after_id: z52.string().uuid().optional(),
+  limit: z52.coerce.number().int().min(1).max(500).default(500)
+});
+var LeadsViewSchema2 = LeadsQuerySchema2.omit({ after_key: true, after_id: true, limit: true });
+var LeadStageInputSchema2 = z52.discriminatedUnion("kind", [
+  z52.object({ kind: z52.literal("stage"), stage: z52.enum(["ready", "nurture", "converted"]) }),
+  z52.object({ kind: z52.literal("not_a_fit"), why: z52.enum(LEAD_NOT_A_FIT_WHYS2) }),
+  z52.object({ kind: z52.literal("said_no") }),
+  z52.object({
+    kind: z52.literal("outcome"),
+    outcome: z52.enum(LEAD_CALL_OUTCOMES2),
+    note: z52.string().trim().max(280).optional()
+  }),
+  /** "Did you send it?" Yes. */
+  z52.object({ kind: z52.literal("emailed") })
+]);
+var LeadsBulkSchema2 = z52.discriminatedUnion("by", [
+  // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
+  z52.object({
+    by: z52.literal("ids"),
+    action: z52.enum(["contacted", "not_a_fit", "keep", "exclude"]),
+    ids: z52.array(z52.string().uuid()).min(1).max(500),
+    search_id: z52.string().uuid().optional()
+  }),
+  z52.object({ by: z52.literal("view"), action: z52.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema2 })
+]);
+var LeadsCheckAgainSchema2 = z52.object({ ids: z52.array(z52.string().uuid()).min(1).max(500) });
+var LeadDraftInputSchema2 = z52.object({
+  tone: z52.enum(["first", "shorter", "warmer"]).default("first"),
+  previous: z52.object({ subject: z52.string().max(200), body: z52.string().max(4e3) }).optional()
+});
+var RenameLeadSearchSchema2 = z52.object({ name: z52.string().trim().min(1).max(80) });
+var BusinessLineSchema2 = z52.object({ business_line: z52.string().trim().min(3).max(160) });
+var planChip2 = (max) => z52.string().trim().min(2).max(max);
+var ProposeLeadSearchSchema2 = z52.object({
+  looking_for: z52.enum(["local_businesses", "people", "online_sellers", "other"]),
+  country: z52.string().trim().min(2).max(40),
+  count: z52.number().int().min(1).max(LEAD_MAX_PLACES2),
+  /** Plural, as the sentence says it: "personal trainers". */
+  who: planChip2(60),
+  /** One of them, for the question and the judge's rubric: "personal trainer". */
+  who_one: planChip2(60),
+  category_key: z52.string().regex(/^[a-z][a-z0-9_]{0,39}$/),
+  terms: z52.array(planChip2(60)).min(1).max(5),
+  city: z52.string().trim().max(60).nullable().default(null),
+  region: z52.string().trim().min(2).max(40),
+  zip: z52.string().regex(/^\d{5}$/).nullable().default(null),
+  contact: z52.enum(["phone", "email"]),
+  criteria: z52.array(z52.object({ text: planChip2(120), standard: z52.enum(["likely", "seen"]), required: z52.boolean() })).max(6).default([]),
+  leave_out: z52.array(z52.object({ words: planChip2(40) })).max(6).default([]),
+  asked: z52.string().trim().min(1).max(400)
+});
+var LeadDraftAnswerSchema2 = z52.object({
+  subject: z52.string().trim().min(3).max(120),
+  body: z52.string().trim().min(20).max(2e3)
+});
+var LeadSuggestAnswerSchema2 = z52.object({
+  line: z52.string().trim().min(3).max(160),
+  items: z52.array(
+    z52.object({
+      words: z52.string().trim().min(3).max(80),
+      who_for: z52.string().trim().min(3).max(120),
+      category_key: z52.string().regex(/^[a-z_]{2,40}$/)
+    })
+  ).min(1).max(4)
+});
+var LEAD_UNDO_MS2 = 24 * 60 * 6e4;
 var LEAD_FIRST_DAY_TITLE2 = "Your people gather here";
 var LEAD_FIRST_DAY_SUB2 = "Or have Claude find businesses worth reaching";
 var LEAD_FIRST_DAY_FOOT2 = "Claude finds businesses, not people at home.";
@@ -8519,80 +8458,6 @@ var LEAD_WORDS2 = {
   callSaveNext: "Save and go to the next",
   callSavedNote: "Saving moves them to Talking. They join People when they write or call in."
 };
-var LeadsQuerySchema2 = z52.object({
-  list: z52.enum(LEAD_LISTS2).default("all"),
-  search: z52.string().uuid().optional(),
-  class: z52.enum(LEAD_CLASSES2).optional(),
-  sort: z52.enum(LEAD_SORTS2).default("fit"),
-  dir: z52.enum(["asc", "desc"]).default("asc"),
-  after_key: z52.string().max(80).optional(),
-  after_id: z52.string().uuid().optional(),
-  limit: z52.coerce.number().int().min(1).max(500).default(500)
-});
-var LeadsViewSchema2 = LeadsQuerySchema2.omit({ after_key: true, after_id: true, limit: true });
-var LeadStageInputSchema2 = z52.discriminatedUnion("kind", [
-  z52.object({ kind: z52.literal("stage"), stage: z52.enum(["ready", "nurture", "converted"]) }),
-  z52.object({ kind: z52.literal("not_a_fit"), why: z52.enum(LEAD_NOT_A_FIT_WHYS2) }),
-  z52.object({ kind: z52.literal("said_no") }),
-  z52.object({
-    kind: z52.literal("outcome"),
-    outcome: z52.enum(LEAD_CALL_OUTCOMES2),
-    note: z52.string().trim().max(280).optional()
-  }),
-  /** "Did you send it?" Yes. */
-  z52.object({ kind: z52.literal("emailed") })
-]);
-var LeadsBulkSchema2 = z52.discriminatedUnion("by", [
-  // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
-  z52.object({
-    by: z52.literal("ids"),
-    action: z52.enum(["contacted", "not_a_fit", "keep", "exclude"]),
-    ids: z52.array(z52.string().uuid()).min(1).max(500),
-    search_id: z52.string().uuid().optional()
-  }),
-  z52.object({ by: z52.literal("view"), action: z52.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema2 })
-]);
-var LeadsCheckAgainSchema2 = z52.object({ ids: z52.array(z52.string().uuid()).min(1).max(500) });
-var LeadDraftInputSchema2 = z52.object({
-  tone: z52.enum(["first", "shorter", "warmer"]).default("first"),
-  previous: z52.object({ subject: z52.string().max(200), body: z52.string().max(4e3) }).optional()
-});
-var RenameLeadSearchSchema2 = z52.object({ name: z52.string().trim().min(1).max(80) });
-var BusinessLineSchema2 = z52.object({ business_line: z52.string().trim().min(3).max(160) });
-var planChip2 = (max) => z52.string().trim().min(2).max(max);
-var ProposeLeadSearchSchema2 = z52.object({
-  looking_for: z52.enum(["local_businesses", "people", "online_sellers", "other"]),
-  country: z52.string().trim().min(2).max(40),
-  count: z52.number().int().min(1).max(LEAD_MAX_PLACES2),
-  /** Plural, as the sentence says it: "personal trainers". */
-  who: planChip2(60),
-  /** One of them, for the question and the judge's rubric: "personal trainer". */
-  who_one: planChip2(60),
-  category_key: z52.string().regex(/^[a-z][a-z0-9_]{0,39}$/),
-  terms: z52.array(planChip2(60)).min(1).max(5),
-  city: z52.string().trim().max(60).nullable().default(null),
-  region: z52.string().trim().min(2).max(40),
-  zip: z52.string().regex(/^\d{5}$/).nullable().default(null),
-  contact: z52.enum(["phone", "email"]),
-  criteria: z52.array(z52.object({ text: planChip2(120), standard: z52.enum(["likely", "seen"]), required: z52.boolean() })).max(6).default([]),
-  leave_out: z52.array(z52.object({ words: planChip2(40) })).max(6).default([]),
-  asked: z52.string().trim().min(1).max(400)
-});
-var LeadDraftAnswerSchema2 = z52.object({
-  subject: z52.string().trim().min(3).max(120),
-  body: z52.string().trim().min(20).max(2e3)
-});
-var LeadSuggestAnswerSchema2 = z52.object({
-  line: z52.string().trim().min(3).max(160),
-  items: z52.array(
-    z52.object({
-      words: z52.string().trim().min(3).max(80),
-      who_for: z52.string().trim().min(3).max(120),
-      category_key: z52.string().regex(/^[a-z_]{2,40}$/)
-    })
-  ).min(1).max(4)
-});
-var LEAD_UNDO_MS2 = 24 * 60 * 6e4;
 var SELLS_BY_QUESTION2 = "How customers buy";
 var SELLS_BY_WORDS2 = {
   booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
@@ -8602,7 +8467,7 @@ var SELLS_BY_WORDS2 = {
   }
 };
 var DAY_MS42 = 864e5;
-var WEEK_MS32 = 7 * DAY_MS42;
+var WEEK_MS22 = 7 * DAY_MS42;
 var MONTH_MS2 = 30 * DAY_MS42;
 var NOTE_MAX2 = 600;
 var NOTE_REFUSALS2 = {
@@ -8755,14 +8620,6 @@ var SENDING_HOURS_WORDS2 = {
 };
 var PLAYBOOK_BREATH_MS2 = 7 * DAY_MS52;
 var PLAYBOOK_VETO_DELAY_MS2 = 30 * 6e4;
-var FOLLOW_UP_NEEDS_DEALS2 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION2}\u201D with \u201C${SELLS_BY_WORDS2.proposal.label}\u201D.`;
-var PLAYBOOK_TOUCH_WINDOW_MS2 = (365 + 7) * DAY_MS52;
-var PLAYBOOK_CLASS_LABEL2 = {
-  reengage: POLICY_CLASS_WORDS2.reengage.short,
-  campaign: POLICY_CLASS_WORDS2.campaign.short,
-  booking: POLICY_CLASS_WORDS2.booking.short,
-  follow_up: POLICY_CLASS_WORDS2.follow_up.short
-};
 var FIRST2 = { kind: "first_name", label: "First name", example: "Dani" };
 var BUSINESS2 = { kind: "business_name", label: "Business name", example: "Luna Studio" };
 var LINK2 = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
@@ -9264,6 +9121,149 @@ var LIMIT_TIERS2 = {
 var REPLY_WINDOW_HOURS2 = 72;
 var REPLY_WINDOW_MS2 = REPLY_WINDOW_HOURS2 * 36e5;
 var REPLY_WINDOW_WORDS2 = `within ${REPLY_WINDOW_HOURS2 / 24} days`;
+var FORWARDING_TEST_WINDOW_MS2 = 30 * 6e4;
+var REVIEW_AUTO_REPLY_MAX_AGE_MS2 = 14 * 864e5;
+var DATE_FMT5 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var REVIEW_NEWS_MS2 = 36 * 3600 * 1e3;
+var REVIEW_NEWS_MAX_AGE_MS2 = 14 * 864e5;
+var BOOTSTRAP_MS2 = 3600 * 1e3;
+var DATE_FMT22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var WEEK_MS32 = 7 * 864e5;
+var DATE_FMT32 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var CHECKOUT_OUTCOME_WORDS2 = {
+  success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
+  cancel: "Checkout was closed before finishing; nothing was charged.",
+  portal: "Back from Stripe. Any change you made there shows here within a minute."
+};
+var SOLE_PROP_LIMITS2 = {
+  campaignsPerBrand: 1,
+  numbersPerCampaign: 1,
+  messagesPerSecond: 1,
+  perDayTMobile: 1e3,
+  perMinuteAtt: 15,
+  mobileUsesEver: 3,
+  emailUsesEver: 10,
+  addressUsesEver: 10
+};
+var REGISTRATION_COST_WORDS2 = {
+  standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
+  sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS2.messagesPerSecond} message a second.`
+};
+var FIRST_RUN_ROUTE2 = "start";
+var FIND_PARAM2 = "find";
+var FIRST_RUN_FIND_ROUTE2 = `${FIRST_RUN_ROUTE2}/${FIND_PARAM2}`;
+var PROVISIONING_DEADLINE_MS2 = 5 * 6e4;
+var SOLE_PROP_CEILING_SENTENCE2 = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS2.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
+var SOLE_PROP_TEXTING_SENTENCE2 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE2}`;
+var FOLLOW_UP_NEEDS_DEALS2 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION2}\u201D with \u201C${SELLS_BY_WORDS2.proposal.label}\u201D.`;
+var PLAYBOOK_TOUCH_WINDOW_MS2 = (365 + 7) * DAY_MS52;
+var PLAYBOOK_CLASS_LABEL2 = {
+  reengage: POLICY_CLASS_WORDS2.reengage.short,
+  campaign: POLICY_CLASS_WORDS2.campaign.short,
+  booking: POLICY_CLASS_WORDS2.booking.short,
+  follow_up: POLICY_CLASS_WORDS2.follow_up.short
+};
+var TRY_QUIET_AFTER_MS2 = 3 * 6e4;
+var FIRST_RUN_PHONE_WORDS2 = {
+  chooseHeading: "How should calls reach your receptionist?",
+  chooseLead: "Most businesses keep the number customers already know. Your team still answers first, and your receptionist gets the rest.",
+  readyHeading: "Getting your receptionist's number ready",
+  readyLeadForwarded: "Customers never see this number: the calls nobody picks up at yours are sent to it.",
+  readyLeadNew: "Customers call this number directly. Put it on your website and your Google listing.",
+  recommended: "Recommended",
+  keepTitle: (display2) => display2 ? `Keep ${display2}` : "Keep the number you have",
+  keepListed: "The number on your Google listing. Calls nobody picks up go to your receptionist. Same phone, same phone company.",
+  keepTyped: "Calls nobody picks up go to your receptionist. Same phone, same phone company.",
+  newTitle: "Get a new number",
+  newSentence: "For a business that doesn't have one yet. Customers call it directly.",
+  moveTitle: "Move my number to Chanlytics",
+  moveSentence: "Takes 7\u201314 business days. Your number forwards in the meantime, so nothing changes for customers.",
+  numberLabel: "The number customers call",
+  numberPlaceholder: "(305) 555-0100",
+  areaLabel: "Area code",
+  areaPlaceholder: "305",
+  find: "Find numbers",
+  finding: "Looking\u2026",
+  pickLabel: "Pick your receptionist's number",
+  noneFree: (area) => `Nothing free in ${area} right now. Try a nearby area code.`,
+  threeDigits: "Three digits, like 305.",
+  local: "Local",
+  held: {
+    number: "Type the number customers call.",
+    us: "Forwarding works for a US number: type it with its area code.",
+    pick: "Pick a number first."
+  },
+  cta: {
+    planKeep: "Start my plan",
+    planNew: (number) => number ? `Start my plan with ${number}` : "Start my plan",
+    planMove: "Start my plan and ask for the move",
+    keep: "Keep this number",
+    new: (number) => number ? `Get ${number}` : "Get this number",
+    move: "Ask for the move"
+  },
+  planOffer: (price) => price ? `${price}, starting today` : "Your plan, starting today",
+  planNote: "Your number is included. The first charge is today, and you can cancel anytime from Billing.",
+  /** A workspace on a free trial: the trial covers no number, so getting one starts the plan early. */
+  planNoteTrial: "Your free trial ends today and your plan starts, on the card you gave. Your number is included.",
+  starting: "Starting your plan\u2026",
+  startingDetail: "Your card is on file. This page updates as Stripe confirms it.",
+  buyingIn: (area) => area ? `Getting your receptionist's number in ${area}\u2026` : "Getting your receptionist's number\u2026",
+  buyingNew: (number) => `Getting ${number}\u2026`,
+  usually: "Usually a minute or two; this page updates by itself",
+  /** What the page says when a buy or a search is refused, over the door's own sentence. */
+  notBought: "No number yet",
+  moveAsked: "We'll move your number with you and reach you by email. Until then, it forwards.",
+  moveNotAsked: "The move wasn't asked for. Ask again from Settings later; your number forwards meanwhile.",
+  cancelled: CHECKOUT_OUTCOME_WORDS2.cancel,
+  /** The two questions while the number is on its way (canvas R4), and the button they lead to. */
+  ringsLabel: (display2) => display2 ? `Which phone rings when customers call ${display2}?` : "Which phone rings when customers call?",
+  rings: { mobile: "A mobile", landline: "A landline", office: "An office phone system" },
+  companyLabel: "Who's the phone company?",
+  company: { verizon: "Verizon", att: "AT&T", tmobile: "T-Mobile", other: "Another company" },
+  show: "Show me what to dial",
+  showOffice: "Show me where to forward",
+  readySoon: "Ready in a moment",
+  answerFirst: "Answer the questions first.",
+  askHeading: "One more thing",
+  askLead: "How the calls are sent to your receptionist depends on the phone that rings.",
+  /** The code (canvas R5, P5). */
+  codeHeading: "Dial this on the phone customers call",
+  codeLead: "It tells your phone company to send the calls nobody picks up to your receptionist. You only do this once.",
+  codeLeadAll: "It tells your phone company to send every call to your receptionist. You only do this once.",
+  codeLabel: (company, rings) => rings === "landline" ? "A landline" : company ? `${company} \xB7 a mobile` : "A mobile",
+  stepsLandline: ["Pick up the phone customers call.", "Dial the code above.", "Wait for the tone, then hang up."],
+  stepsMobile: ["On the phone customers call, dial the code above.", "Wait for the tone, then hang up."],
+  /** A tab that lost the answers: what rings is not known, so neither is said. */
+  stepsAny: ["Dial the code above on the phone customers call.", "Wait for the tone, then hang up."],
+  // Not a promise the code replaces voicemail: forwarding.ts says a voicemail that picks up first keeps calls away.
+  warnMobile: "Voicemail on this phone? If it still picks up after you dial the code, calls never reach your receptionist: see The code didn't work.",
+  warnLandline: "If an answering machine is on this line, turn it off. Otherwise it answers before your receptionist can.",
+  warnAny: "Voicemail or an answering machine on that phone? If it picks up first, calls never reach your receptionist: see The code didn't work.",
+  off: (code2) => `To switch it off later, dial ${code2}.`,
+  tap: "Tap to dial",
+  done: "Done, let's try it",
+  help: "The code didn't work",
+  change: "Change the answers",
+  keepCode: "Keep what I have",
+  /** An office phone system (canvas V6): the number to forward to, and a person to do it with. */
+  officeHeading: "Forward missed calls in your phone system",
+  officeLead: "Office phone systems set this in their own settings, under \u201Cforwarding\u201D or \u201Cwhen no one answers\u201D.",
+  officeLabel: (always) => always ? "Forward every call to" : "Forward unanswered calls to",
+  officeSteps: [
+    "Open your phone system's settings.",
+    "Find forwarding, or what happens when no one answers.",
+    "Forward the calls to the number above: your receptionist's number. Customers never see it."
+  ],
+  officeWarn: "Voicemail in the system? The forwarding has to come before it, or calls never reach your receptionist.",
+  officeOff: "To switch it off later, take the forwarding out in the same settings.",
+  withMe: "Not sure where it is? A person at Chanlytics can do it with you on a call.",
+  withMeLabel: "Do it with me",
+  helpOffice: "It didn't work",
+  withMeAsked: (ago3) => `Asked ${ago3}: a person at Chanlytics will email you to find a time.`,
+  withMeFailed: "Not asked",
+  withMeSent: "We'll email you to find a time for a call.",
+  notForwarded: "Forwarding not saved"
+};
 var DAY_MS62 = 24 * 3600 * 1e3;
 var DAY_MS72 = 864e5;
 var QUIET_AFTER_MS2 = 7 * DAY_MS72;
@@ -9785,8 +9785,8 @@ var PAYLOAD_BYTES = 1 + 16 * 3;
 import { z as z12 } from "zod";
 import { z as z23 } from "zod";
 import { z as z33 } from "zod";
-import { z as z53 } from "zod";
 import { z as z43 } from "zod";
+import { z as z53 } from "zod";
 import { z as z73 } from "zod";
 import { z as z63 } from "zod";
 import { z as z83 } from "zod";
@@ -9795,8 +9795,8 @@ import { z as z103 } from "zod";
 import { z as z112 } from "zod";
 import { z as z222 } from "zod";
 import { z as z322 } from "zod";
-import { z as z522 } from "zod";
 import { z as z422 } from "zod";
+import { z as z522 } from "zod";
 import { z as z722 } from "zod";
 import { z as z622 } from "zod";
 import { z as z822 } from "zod";
@@ -9805,8 +9805,8 @@ import { z as z1022 } from "zod";
 import { z as z122 } from "zod";
 import { z as z232 } from "zod";
 import { z as z332 } from "zod";
-import { z as z532 } from "zod";
 import { z as z432 } from "zod";
+import { z as z532 } from "zod";
 import { z as z732 } from "zod";
 import { z as z632 } from "zod";
 import { z as z832 } from "zod";
@@ -11556,141 +11556,6 @@ var LeadSearchPlanSchema3 = z43.object({
 var US_NAMES3 = Object.fromEntries(
   Object.entries(US_STATES3).map(([name2, code2]) => [code2, name2])
 );
-var REVIEW_AUTO_REPLY_MAX_AGE_MS3 = 14 * 864e5;
-var DATE_FMT6 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var REVIEW_NEWS_MS3 = 36 * 3600 * 1e3;
-var REVIEW_NEWS_MAX_AGE_MS3 = 14 * 864e5;
-var BOOTSTRAP_MS3 = 3600 * 1e3;
-var DATE_FMT23 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var WEEK_MS23 = 7 * 864e5;
-var FORWARDING_TEST_WINDOW_MS3 = 30 * 6e4;
-var DATE_FMT33 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
-var CHECKOUT_OUTCOME_WORDS3 = {
-  success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
-  cancel: "Checkout was closed before finishing; nothing was charged.",
-  portal: "Back from Stripe. Any change you made there shows here within a minute."
-};
-var SOLE_PROP_LIMITS3 = {
-  campaignsPerBrand: 1,
-  numbersPerCampaign: 1,
-  messagesPerSecond: 1,
-  perDayTMobile: 1e3,
-  perMinuteAtt: 15,
-  mobileUsesEver: 3,
-  emailUsesEver: 10,
-  addressUsesEver: 10
-};
-var REGISTRATION_COST_WORDS3 = {
-  standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
-  sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS3.messagesPerSecond} message a second.`
-};
-var PROVISIONING_DEADLINE_MS3 = 5 * 6e4;
-var SOLE_PROP_CEILING_SENTENCE3 = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS3.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
-var SOLE_PROP_TEXTING_SENTENCE3 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE3}`;
-var TRY_QUIET_AFTER_MS3 = 3 * 6e4;
-var FIRST_RUN_PHONE_WORDS3 = {
-  chooseHeading: "How should calls reach your receptionist?",
-  chooseLead: "Most businesses keep the number customers already know. Your team still answers first, and your receptionist gets the rest.",
-  readyHeading: "Getting your receptionist's number ready",
-  readyLeadForwarded: "Customers never see this number: the calls nobody picks up at yours are sent to it.",
-  readyLeadNew: "Customers call this number directly. Put it on your website and your Google listing.",
-  recommended: "Recommended",
-  keepTitle: (display2) => display2 ? `Keep ${display2}` : "Keep the number you have",
-  keepListed: "The number on your Google listing. Calls nobody picks up go to your receptionist. Same phone, same phone company.",
-  keepTyped: "Calls nobody picks up go to your receptionist. Same phone, same phone company.",
-  newTitle: "Get a new number",
-  newSentence: "For a business that doesn't have one yet. Customers call it directly.",
-  moveTitle: "Move my number to Chanlytics",
-  moveSentence: "Takes 7\u201314 business days. Your number forwards in the meantime, so nothing changes for customers.",
-  numberLabel: "The number customers call",
-  numberPlaceholder: "(305) 555-0100",
-  areaLabel: "Area code",
-  areaPlaceholder: "305",
-  find: "Find numbers",
-  finding: "Looking\u2026",
-  pickLabel: "Pick your receptionist's number",
-  noneFree: (area) => `Nothing free in ${area} right now. Try a nearby area code.`,
-  threeDigits: "Three digits, like 305.",
-  local: "Local",
-  held: {
-    number: "Type the number customers call.",
-    us: "Forwarding works for a US number: type it with its area code.",
-    pick: "Pick a number first."
-  },
-  cta: {
-    planKeep: "Start my plan",
-    planNew: (number) => number ? `Start my plan with ${number}` : "Start my plan",
-    planMove: "Start my plan and ask for the move",
-    keep: "Keep this number",
-    new: (number) => number ? `Get ${number}` : "Get this number",
-    move: "Ask for the move"
-  },
-  planOffer: (price) => price ? `${price}, starting today` : "Your plan, starting today",
-  planNote: "Your number is included. The first charge is today, and you can cancel anytime from Billing.",
-  /** A workspace on a free trial: the trial covers no number, so getting one starts the plan early. */
-  planNoteTrial: "Your free trial ends today and your plan starts, on the card you gave. Your number is included.",
-  starting: "Starting your plan\u2026",
-  startingDetail: "Your card is on file. This page updates as Stripe confirms it.",
-  buyingIn: (area) => area ? `Getting your receptionist's number in ${area}\u2026` : "Getting your receptionist's number\u2026",
-  buyingNew: (number) => `Getting ${number}\u2026`,
-  usually: "Usually a minute or two; this page updates by itself",
-  /** What the page says when a buy or a search is refused, over the door's own sentence. */
-  notBought: "No number yet",
-  moveAsked: "We'll move your number with you and reach you by email. Until then, it forwards.",
-  moveNotAsked: "The move wasn't asked for. Ask again from Settings later; your number forwards meanwhile.",
-  cancelled: CHECKOUT_OUTCOME_WORDS3.cancel,
-  /** The two questions while the number is on its way (canvas R4), and the button they lead to. */
-  ringsLabel: (display2) => display2 ? `Which phone rings when customers call ${display2}?` : "Which phone rings when customers call?",
-  rings: { mobile: "A mobile", landline: "A landline", office: "An office phone system" },
-  companyLabel: "Who's the phone company?",
-  company: { verizon: "Verizon", att: "AT&T", tmobile: "T-Mobile", other: "Another company" },
-  show: "Show me what to dial",
-  showOffice: "Show me where to forward",
-  readySoon: "Ready in a moment",
-  answerFirst: "Answer the questions first.",
-  askHeading: "One more thing",
-  askLead: "How the calls are sent to your receptionist depends on the phone that rings.",
-  /** The code (canvas R5, P5). */
-  codeHeading: "Dial this on the phone customers call",
-  codeLead: "It tells your phone company to send the calls nobody picks up to your receptionist. You only do this once.",
-  codeLeadAll: "It tells your phone company to send every call to your receptionist. You only do this once.",
-  codeLabel: (company, rings) => rings === "landline" ? "A landline" : company ? `${company} \xB7 a mobile` : "A mobile",
-  stepsLandline: ["Pick up the phone customers call.", "Dial the code above.", "Wait for the tone, then hang up."],
-  stepsMobile: ["On the phone customers call, dial the code above.", "Wait for the tone, then hang up."],
-  /** A tab that lost the answers: what rings is not known, so neither is said. */
-  stepsAny: ["Dial the code above on the phone customers call.", "Wait for the tone, then hang up."],
-  // Not a promise the code replaces voicemail: forwarding.ts says a voicemail that picks up first keeps calls away.
-  warnMobile: "Voicemail on this phone? If it still picks up after you dial the code, calls never reach your receptionist: see The code didn't work.",
-  warnLandline: "If an answering machine is on this line, turn it off. Otherwise it answers before your receptionist can.",
-  warnAny: "Voicemail or an answering machine on that phone? If it picks up first, calls never reach your receptionist: see The code didn't work.",
-  off: (code2) => `To switch it off later, dial ${code2}.`,
-  tap: "Tap to dial",
-  done: "Done, let's try it",
-  help: "The code didn't work",
-  change: "Change the answers",
-  keepCode: "Keep what I have",
-  /** An office phone system (canvas V6): the number to forward to, and a person to do it with. */
-  officeHeading: "Forward missed calls in your phone system",
-  officeLead: "Office phone systems set this in their own settings, under \u201Cforwarding\u201D or \u201Cwhen no one answers\u201D.",
-  officeLabel: (always) => always ? "Forward every call to" : "Forward unanswered calls to",
-  officeSteps: [
-    "Open your phone system's settings.",
-    "Find forwarding, or what happens when no one answers.",
-    "Forward the calls to the number above: your receptionist's number. Customers never see it."
-  ],
-  officeWarn: "Voicemail in the system? The forwarding has to come before it, or calls never reach your receptionist.",
-  officeOff: "To switch it off later, take the forwarding out in the same settings.",
-  withMe: "Not sure where it is? A person at Chanlytics can do it with you on a call.",
-  withMeLabel: "Do it with me",
-  helpOffice: "It didn't work",
-  withMeAsked: (ago3) => `Asked ${ago3}: a person at Chanlytics will email you to find a time.`,
-  withMeFailed: "Not asked",
-  withMeSent: "We'll email you to find a time for a call.",
-  notForwarded: "Forwarding not saved"
-};
-var FIRST_RUN_ROUTE3 = "start";
-var FIND_PARAM3 = "find";
-var FIRST_RUN_FIND_ROUTE3 = `${FIRST_RUN_ROUTE3}/${FIND_PARAM3}`;
 var LEAD_CLASSES3 = LEAD_MEMBER_CLASSES3;
 var LEAD_LISTS3 = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
 var LEAD_SORTS3 = ["fit", "found", "distance", "business", "rating", "stage"];
@@ -11744,6 +11609,80 @@ function leadNoteLeft3(left2, max) {
   return left2 >= max ? `Up to ${max} characters` : `${left2} left`;
 }
 var LEAD_UNCLAIMED_NOTE3 = "Listing not claimed by the owner";
+var LeadsQuerySchema3 = z53.object({
+  list: z53.enum(LEAD_LISTS3).default("all"),
+  search: z53.string().uuid().optional(),
+  class: z53.enum(LEAD_CLASSES3).optional(),
+  sort: z53.enum(LEAD_SORTS3).default("fit"),
+  dir: z53.enum(["asc", "desc"]).default("asc"),
+  after_key: z53.string().max(80).optional(),
+  after_id: z53.string().uuid().optional(),
+  limit: z53.coerce.number().int().min(1).max(500).default(500)
+});
+var LeadsViewSchema3 = LeadsQuerySchema3.omit({ after_key: true, after_id: true, limit: true });
+var LeadStageInputSchema3 = z53.discriminatedUnion("kind", [
+  z53.object({ kind: z53.literal("stage"), stage: z53.enum(["ready", "nurture", "converted"]) }),
+  z53.object({ kind: z53.literal("not_a_fit"), why: z53.enum(LEAD_NOT_A_FIT_WHYS3) }),
+  z53.object({ kind: z53.literal("said_no") }),
+  z53.object({
+    kind: z53.literal("outcome"),
+    outcome: z53.enum(LEAD_CALL_OUTCOMES3),
+    note: z53.string().trim().max(280).optional()
+  }),
+  /** "Did you send it?" Yes. */
+  z53.object({ kind: z53.literal("emailed") })
+]);
+var LeadsBulkSchema3 = z53.discriminatedUnion("by", [
+  // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
+  z53.object({
+    by: z53.literal("ids"),
+    action: z53.enum(["contacted", "not_a_fit", "keep", "exclude"]),
+    ids: z53.array(z53.string().uuid()).min(1).max(500),
+    search_id: z53.string().uuid().optional()
+  }),
+  z53.object({ by: z53.literal("view"), action: z53.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema3 })
+]);
+var LeadsCheckAgainSchema3 = z53.object({ ids: z53.array(z53.string().uuid()).min(1).max(500) });
+var LeadDraftInputSchema3 = z53.object({
+  tone: z53.enum(["first", "shorter", "warmer"]).default("first"),
+  previous: z53.object({ subject: z53.string().max(200), body: z53.string().max(4e3) }).optional()
+});
+var RenameLeadSearchSchema3 = z53.object({ name: z53.string().trim().min(1).max(80) });
+var BusinessLineSchema3 = z53.object({ business_line: z53.string().trim().min(3).max(160) });
+var planChip3 = (max) => z53.string().trim().min(2).max(max);
+var ProposeLeadSearchSchema3 = z53.object({
+  looking_for: z53.enum(["local_businesses", "people", "online_sellers", "other"]),
+  country: z53.string().trim().min(2).max(40),
+  count: z53.number().int().min(1).max(LEAD_MAX_PLACES3),
+  /** Plural, as the sentence says it: "personal trainers". */
+  who: planChip3(60),
+  /** One of them, for the question and the judge's rubric: "personal trainer". */
+  who_one: planChip3(60),
+  category_key: z53.string().regex(/^[a-z][a-z0-9_]{0,39}$/),
+  terms: z53.array(planChip3(60)).min(1).max(5),
+  city: z53.string().trim().max(60).nullable().default(null),
+  region: z53.string().trim().min(2).max(40),
+  zip: z53.string().regex(/^\d{5}$/).nullable().default(null),
+  contact: z53.enum(["phone", "email"]),
+  criteria: z53.array(z53.object({ text: planChip3(120), standard: z53.enum(["likely", "seen"]), required: z53.boolean() })).max(6).default([]),
+  leave_out: z53.array(z53.object({ words: planChip3(40) })).max(6).default([]),
+  asked: z53.string().trim().min(1).max(400)
+});
+var LeadDraftAnswerSchema3 = z53.object({
+  subject: z53.string().trim().min(3).max(120),
+  body: z53.string().trim().min(20).max(2e3)
+});
+var LeadSuggestAnswerSchema3 = z53.object({
+  line: z53.string().trim().min(3).max(160),
+  items: z53.array(
+    z53.object({
+      words: z53.string().trim().min(3).max(80),
+      who_for: z53.string().trim().min(3).max(120),
+      category_key: z53.string().regex(/^[a-z_]{2,40}$/)
+    })
+  ).min(1).max(4)
+});
+var LEAD_UNDO_MS3 = 24 * 60 * 6e4;
 var LEAD_FIRST_DAY_TITLE3 = "Your people gather here";
 var LEAD_FIRST_DAY_SUB3 = "Or have Claude find businesses worth reaching";
 var LEAD_FIRST_DAY_FOOT3 = "Claude finds businesses, not people at home.";
@@ -11837,80 +11776,6 @@ var LEAD_WORDS3 = {
   callSaveNext: "Save and go to the next",
   callSavedNote: "Saving moves them to Talking. They join People when they write or call in."
 };
-var LeadsQuerySchema3 = z53.object({
-  list: z53.enum(LEAD_LISTS3).default("all"),
-  search: z53.string().uuid().optional(),
-  class: z53.enum(LEAD_CLASSES3).optional(),
-  sort: z53.enum(LEAD_SORTS3).default("fit"),
-  dir: z53.enum(["asc", "desc"]).default("asc"),
-  after_key: z53.string().max(80).optional(),
-  after_id: z53.string().uuid().optional(),
-  limit: z53.coerce.number().int().min(1).max(500).default(500)
-});
-var LeadsViewSchema3 = LeadsQuerySchema3.omit({ after_key: true, after_id: true, limit: true });
-var LeadStageInputSchema3 = z53.discriminatedUnion("kind", [
-  z53.object({ kind: z53.literal("stage"), stage: z53.enum(["ready", "nurture", "converted"]) }),
-  z53.object({ kind: z53.literal("not_a_fit"), why: z53.enum(LEAD_NOT_A_FIT_WHYS3) }),
-  z53.object({ kind: z53.literal("said_no") }),
-  z53.object({
-    kind: z53.literal("outcome"),
-    outcome: z53.enum(LEAD_CALL_OUTCOMES3),
-    note: z53.string().trim().max(280).optional()
-  }),
-  /** "Did you send it?" Yes. */
-  z53.object({ kind: z53.literal("emailed") })
-]);
-var LeadsBulkSchema3 = z53.discriminatedUnion("by", [
-  // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
-  z53.object({
-    by: z53.literal("ids"),
-    action: z53.enum(["contacted", "not_a_fit", "keep", "exclude"]),
-    ids: z53.array(z53.string().uuid()).min(1).max(500),
-    search_id: z53.string().uuid().optional()
-  }),
-  z53.object({ by: z53.literal("view"), action: z53.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema3 })
-]);
-var LeadsCheckAgainSchema3 = z53.object({ ids: z53.array(z53.string().uuid()).min(1).max(500) });
-var LeadDraftInputSchema3 = z53.object({
-  tone: z53.enum(["first", "shorter", "warmer"]).default("first"),
-  previous: z53.object({ subject: z53.string().max(200), body: z53.string().max(4e3) }).optional()
-});
-var RenameLeadSearchSchema3 = z53.object({ name: z53.string().trim().min(1).max(80) });
-var BusinessLineSchema3 = z53.object({ business_line: z53.string().trim().min(3).max(160) });
-var planChip3 = (max) => z53.string().trim().min(2).max(max);
-var ProposeLeadSearchSchema3 = z53.object({
-  looking_for: z53.enum(["local_businesses", "people", "online_sellers", "other"]),
-  country: z53.string().trim().min(2).max(40),
-  count: z53.number().int().min(1).max(LEAD_MAX_PLACES3),
-  /** Plural, as the sentence says it: "personal trainers". */
-  who: planChip3(60),
-  /** One of them, for the question and the judge's rubric: "personal trainer". */
-  who_one: planChip3(60),
-  category_key: z53.string().regex(/^[a-z][a-z0-9_]{0,39}$/),
-  terms: z53.array(planChip3(60)).min(1).max(5),
-  city: z53.string().trim().max(60).nullable().default(null),
-  region: z53.string().trim().min(2).max(40),
-  zip: z53.string().regex(/^\d{5}$/).nullable().default(null),
-  contact: z53.enum(["phone", "email"]),
-  criteria: z53.array(z53.object({ text: planChip3(120), standard: z53.enum(["likely", "seen"]), required: z53.boolean() })).max(6).default([]),
-  leave_out: z53.array(z53.object({ words: planChip3(40) })).max(6).default([]),
-  asked: z53.string().trim().min(1).max(400)
-});
-var LeadDraftAnswerSchema3 = z53.object({
-  subject: z53.string().trim().min(3).max(120),
-  body: z53.string().trim().min(20).max(2e3)
-});
-var LeadSuggestAnswerSchema3 = z53.object({
-  line: z53.string().trim().min(3).max(160),
-  items: z53.array(
-    z53.object({
-      words: z53.string().trim().min(3).max(80),
-      who_for: z53.string().trim().min(3).max(120),
-      category_key: z53.string().regex(/^[a-z_]{2,40}$/)
-    })
-  ).min(1).max(4)
-});
-var LEAD_UNDO_MS3 = 24 * 60 * 6e4;
 var SELLS_BY_QUESTION3 = "How customers buy";
 var SELLS_BY_WORDS3 = {
   booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
@@ -11920,7 +11785,7 @@ var SELLS_BY_WORDS3 = {
   }
 };
 var DAY_MS43 = 864e5;
-var WEEK_MS33 = 7 * DAY_MS43;
+var WEEK_MS23 = 7 * DAY_MS43;
 var MONTH_MS3 = 30 * DAY_MS43;
 var NOTE_MAX3 = 600;
 var NOTE_REFUSALS3 = {
@@ -12073,14 +11938,6 @@ var SENDING_HOURS_WORDS3 = {
 };
 var PLAYBOOK_BREATH_MS3 = 7 * DAY_MS53;
 var PLAYBOOK_VETO_DELAY_MS3 = 30 * 6e4;
-var FOLLOW_UP_NEEDS_DEALS3 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION3}\u201D with \u201C${SELLS_BY_WORDS3.proposal.label}\u201D.`;
-var PLAYBOOK_TOUCH_WINDOW_MS3 = (365 + 7) * DAY_MS53;
-var PLAYBOOK_CLASS_LABEL3 = {
-  reengage: POLICY_CLASS_WORDS3.reengage.short,
-  campaign: POLICY_CLASS_WORDS3.campaign.short,
-  booking: POLICY_CLASS_WORDS3.booking.short,
-  follow_up: POLICY_CLASS_WORDS3.follow_up.short
-};
 var FIRST3 = { kind: "first_name", label: "First name", example: "Dani" };
 var BUSINESS3 = { kind: "business_name", label: "Business name", example: "Luna Studio" };
 var LINK3 = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
@@ -12582,6 +12439,149 @@ var LIMIT_TIERS3 = {
 var REPLY_WINDOW_HOURS3 = 72;
 var REPLY_WINDOW_MS3 = REPLY_WINDOW_HOURS3 * 36e5;
 var REPLY_WINDOW_WORDS3 = `within ${REPLY_WINDOW_HOURS3 / 24} days`;
+var FORWARDING_TEST_WINDOW_MS3 = 30 * 6e4;
+var REVIEW_AUTO_REPLY_MAX_AGE_MS3 = 14 * 864e5;
+var DATE_FMT6 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var REVIEW_NEWS_MS3 = 36 * 3600 * 1e3;
+var REVIEW_NEWS_MAX_AGE_MS3 = 14 * 864e5;
+var BOOTSTRAP_MS3 = 3600 * 1e3;
+var DATE_FMT23 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var WEEK_MS33 = 7 * 864e5;
+var DATE_FMT33 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var CHECKOUT_OUTCOME_WORDS3 = {
+  success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
+  cancel: "Checkout was closed before finishing; nothing was charged.",
+  portal: "Back from Stripe. Any change you made there shows here within a minute."
+};
+var SOLE_PROP_LIMITS3 = {
+  campaignsPerBrand: 1,
+  numbersPerCampaign: 1,
+  messagesPerSecond: 1,
+  perDayTMobile: 1e3,
+  perMinuteAtt: 15,
+  mobileUsesEver: 3,
+  emailUsesEver: 10,
+  addressUsesEver: 10
+};
+var REGISTRATION_COST_WORDS3 = {
+  standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
+  sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS3.messagesPerSecond} message a second.`
+};
+var FIRST_RUN_ROUTE3 = "start";
+var FIND_PARAM3 = "find";
+var FIRST_RUN_FIND_ROUTE3 = `${FIRST_RUN_ROUTE3}/${FIND_PARAM3}`;
+var PROVISIONING_DEADLINE_MS3 = 5 * 6e4;
+var SOLE_PROP_CEILING_SENTENCE3 = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS3.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
+var SOLE_PROP_TEXTING_SENTENCE3 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE3}`;
+var FOLLOW_UP_NEEDS_DEALS3 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION3}\u201D with \u201C${SELLS_BY_WORDS3.proposal.label}\u201D.`;
+var PLAYBOOK_TOUCH_WINDOW_MS3 = (365 + 7) * DAY_MS53;
+var PLAYBOOK_CLASS_LABEL3 = {
+  reengage: POLICY_CLASS_WORDS3.reengage.short,
+  campaign: POLICY_CLASS_WORDS3.campaign.short,
+  booking: POLICY_CLASS_WORDS3.booking.short,
+  follow_up: POLICY_CLASS_WORDS3.follow_up.short
+};
+var TRY_QUIET_AFTER_MS3 = 3 * 6e4;
+var FIRST_RUN_PHONE_WORDS3 = {
+  chooseHeading: "How should calls reach your receptionist?",
+  chooseLead: "Most businesses keep the number customers already know. Your team still answers first, and your receptionist gets the rest.",
+  readyHeading: "Getting your receptionist's number ready",
+  readyLeadForwarded: "Customers never see this number: the calls nobody picks up at yours are sent to it.",
+  readyLeadNew: "Customers call this number directly. Put it on your website and your Google listing.",
+  recommended: "Recommended",
+  keepTitle: (display2) => display2 ? `Keep ${display2}` : "Keep the number you have",
+  keepListed: "The number on your Google listing. Calls nobody picks up go to your receptionist. Same phone, same phone company.",
+  keepTyped: "Calls nobody picks up go to your receptionist. Same phone, same phone company.",
+  newTitle: "Get a new number",
+  newSentence: "For a business that doesn't have one yet. Customers call it directly.",
+  moveTitle: "Move my number to Chanlytics",
+  moveSentence: "Takes 7\u201314 business days. Your number forwards in the meantime, so nothing changes for customers.",
+  numberLabel: "The number customers call",
+  numberPlaceholder: "(305) 555-0100",
+  areaLabel: "Area code",
+  areaPlaceholder: "305",
+  find: "Find numbers",
+  finding: "Looking\u2026",
+  pickLabel: "Pick your receptionist's number",
+  noneFree: (area) => `Nothing free in ${area} right now. Try a nearby area code.`,
+  threeDigits: "Three digits, like 305.",
+  local: "Local",
+  held: {
+    number: "Type the number customers call.",
+    us: "Forwarding works for a US number: type it with its area code.",
+    pick: "Pick a number first."
+  },
+  cta: {
+    planKeep: "Start my plan",
+    planNew: (number) => number ? `Start my plan with ${number}` : "Start my plan",
+    planMove: "Start my plan and ask for the move",
+    keep: "Keep this number",
+    new: (number) => number ? `Get ${number}` : "Get this number",
+    move: "Ask for the move"
+  },
+  planOffer: (price) => price ? `${price}, starting today` : "Your plan, starting today",
+  planNote: "Your number is included. The first charge is today, and you can cancel anytime from Billing.",
+  /** A workspace on a free trial: the trial covers no number, so getting one starts the plan early. */
+  planNoteTrial: "Your free trial ends today and your plan starts, on the card you gave. Your number is included.",
+  starting: "Starting your plan\u2026",
+  startingDetail: "Your card is on file. This page updates as Stripe confirms it.",
+  buyingIn: (area) => area ? `Getting your receptionist's number in ${area}\u2026` : "Getting your receptionist's number\u2026",
+  buyingNew: (number) => `Getting ${number}\u2026`,
+  usually: "Usually a minute or two; this page updates by itself",
+  /** What the page says when a buy or a search is refused, over the door's own sentence. */
+  notBought: "No number yet",
+  moveAsked: "We'll move your number with you and reach you by email. Until then, it forwards.",
+  moveNotAsked: "The move wasn't asked for. Ask again from Settings later; your number forwards meanwhile.",
+  cancelled: CHECKOUT_OUTCOME_WORDS3.cancel,
+  /** The two questions while the number is on its way (canvas R4), and the button they lead to. */
+  ringsLabel: (display2) => display2 ? `Which phone rings when customers call ${display2}?` : "Which phone rings when customers call?",
+  rings: { mobile: "A mobile", landline: "A landline", office: "An office phone system" },
+  companyLabel: "Who's the phone company?",
+  company: { verizon: "Verizon", att: "AT&T", tmobile: "T-Mobile", other: "Another company" },
+  show: "Show me what to dial",
+  showOffice: "Show me where to forward",
+  readySoon: "Ready in a moment",
+  answerFirst: "Answer the questions first.",
+  askHeading: "One more thing",
+  askLead: "How the calls are sent to your receptionist depends on the phone that rings.",
+  /** The code (canvas R5, P5). */
+  codeHeading: "Dial this on the phone customers call",
+  codeLead: "It tells your phone company to send the calls nobody picks up to your receptionist. You only do this once.",
+  codeLeadAll: "It tells your phone company to send every call to your receptionist. You only do this once.",
+  codeLabel: (company, rings) => rings === "landline" ? "A landline" : company ? `${company} \xB7 a mobile` : "A mobile",
+  stepsLandline: ["Pick up the phone customers call.", "Dial the code above.", "Wait for the tone, then hang up."],
+  stepsMobile: ["On the phone customers call, dial the code above.", "Wait for the tone, then hang up."],
+  /** A tab that lost the answers: what rings is not known, so neither is said. */
+  stepsAny: ["Dial the code above on the phone customers call.", "Wait for the tone, then hang up."],
+  // Not a promise the code replaces voicemail: forwarding.ts says a voicemail that picks up first keeps calls away.
+  warnMobile: "Voicemail on this phone? If it still picks up after you dial the code, calls never reach your receptionist: see The code didn't work.",
+  warnLandline: "If an answering machine is on this line, turn it off. Otherwise it answers before your receptionist can.",
+  warnAny: "Voicemail or an answering machine on that phone? If it picks up first, calls never reach your receptionist: see The code didn't work.",
+  off: (code2) => `To switch it off later, dial ${code2}.`,
+  tap: "Tap to dial",
+  done: "Done, let's try it",
+  help: "The code didn't work",
+  change: "Change the answers",
+  keepCode: "Keep what I have",
+  /** An office phone system (canvas V6): the number to forward to, and a person to do it with. */
+  officeHeading: "Forward missed calls in your phone system",
+  officeLead: "Office phone systems set this in their own settings, under \u201Cforwarding\u201D or \u201Cwhen no one answers\u201D.",
+  officeLabel: (always) => always ? "Forward every call to" : "Forward unanswered calls to",
+  officeSteps: [
+    "Open your phone system's settings.",
+    "Find forwarding, or what happens when no one answers.",
+    "Forward the calls to the number above: your receptionist's number. Customers never see it."
+  ],
+  officeWarn: "Voicemail in the system? The forwarding has to come before it, or calls never reach your receptionist.",
+  officeOff: "To switch it off later, take the forwarding out in the same settings.",
+  withMe: "Not sure where it is? A person at Chanlytics can do it with you on a call.",
+  withMeLabel: "Do it with me",
+  helpOffice: "It didn't work",
+  withMeAsked: (ago3) => `Asked ${ago3}: a person at Chanlytics will email you to find a time.`,
+  withMeFailed: "Not asked",
+  withMeSent: "We'll email you to find a time for a call.",
+  notForwarded: "Forwarding not saved"
+};
 var DAY_MS63 = 24 * 3600 * 1e3;
 var DAY_MS73 = 864e5;
 var QUIET_AFTER_MS3 = 7 * DAY_MS73;
@@ -13925,141 +13925,6 @@ var LeadSearchPlanSchema22 = z422.object({
 var US_NAMES22 = Object.fromEntries(
   Object.entries(US_STATES22).map(([name2, code2]) => [code2, name2])
 );
-var REVIEW_AUTO_REPLY_MAX_AGE_MS22 = 14 * 864e5;
-var DATE_FMT52 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var REVIEW_NEWS_MS22 = 36 * 3600 * 1e3;
-var REVIEW_NEWS_MAX_AGE_MS22 = 14 * 864e5;
-var BOOTSTRAP_MS22 = 3600 * 1e3;
-var DATE_FMT222 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var WEEK_MS222 = 7 * 864e5;
-var FORWARDING_TEST_WINDOW_MS22 = 30 * 6e4;
-var DATE_FMT322 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
-var CHECKOUT_OUTCOME_WORDS22 = {
-  success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
-  cancel: "Checkout was closed before finishing; nothing was charged.",
-  portal: "Back from Stripe. Any change you made there shows here within a minute."
-};
-var SOLE_PROP_LIMITS22 = {
-  campaignsPerBrand: 1,
-  numbersPerCampaign: 1,
-  messagesPerSecond: 1,
-  perDayTMobile: 1e3,
-  perMinuteAtt: 15,
-  mobileUsesEver: 3,
-  emailUsesEver: 10,
-  addressUsesEver: 10
-};
-var REGISTRATION_COST_WORDS22 = {
-  standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
-  sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS22.messagesPerSecond} message a second.`
-};
-var PROVISIONING_DEADLINE_MS22 = 5 * 6e4;
-var SOLE_PROP_CEILING_SENTENCE22 = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS22.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
-var SOLE_PROP_TEXTING_SENTENCE22 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE22}`;
-var TRY_QUIET_AFTER_MS22 = 3 * 6e4;
-var FIRST_RUN_PHONE_WORDS22 = {
-  chooseHeading: "How should calls reach your receptionist?",
-  chooseLead: "Most businesses keep the number customers already know. Your team still answers first, and your receptionist gets the rest.",
-  readyHeading: "Getting your receptionist's number ready",
-  readyLeadForwarded: "Customers never see this number: the calls nobody picks up at yours are sent to it.",
-  readyLeadNew: "Customers call this number directly. Put it on your website and your Google listing.",
-  recommended: "Recommended",
-  keepTitle: (display2) => display2 ? `Keep ${display2}` : "Keep the number you have",
-  keepListed: "The number on your Google listing. Calls nobody picks up go to your receptionist. Same phone, same phone company.",
-  keepTyped: "Calls nobody picks up go to your receptionist. Same phone, same phone company.",
-  newTitle: "Get a new number",
-  newSentence: "For a business that doesn't have one yet. Customers call it directly.",
-  moveTitle: "Move my number to Chanlytics",
-  moveSentence: "Takes 7\u201314 business days. Your number forwards in the meantime, so nothing changes for customers.",
-  numberLabel: "The number customers call",
-  numberPlaceholder: "(305) 555-0100",
-  areaLabel: "Area code",
-  areaPlaceholder: "305",
-  find: "Find numbers",
-  finding: "Looking\u2026",
-  pickLabel: "Pick your receptionist's number",
-  noneFree: (area) => `Nothing free in ${area} right now. Try a nearby area code.`,
-  threeDigits: "Three digits, like 305.",
-  local: "Local",
-  held: {
-    number: "Type the number customers call.",
-    us: "Forwarding works for a US number: type it with its area code.",
-    pick: "Pick a number first."
-  },
-  cta: {
-    planKeep: "Start my plan",
-    planNew: (number) => number ? `Start my plan with ${number}` : "Start my plan",
-    planMove: "Start my plan and ask for the move",
-    keep: "Keep this number",
-    new: (number) => number ? `Get ${number}` : "Get this number",
-    move: "Ask for the move"
-  },
-  planOffer: (price) => price ? `${price}, starting today` : "Your plan, starting today",
-  planNote: "Your number is included. The first charge is today, and you can cancel anytime from Billing.",
-  /** A workspace on a free trial: the trial covers no number, so getting one starts the plan early. */
-  planNoteTrial: "Your free trial ends today and your plan starts, on the card you gave. Your number is included.",
-  starting: "Starting your plan\u2026",
-  startingDetail: "Your card is on file. This page updates as Stripe confirms it.",
-  buyingIn: (area) => area ? `Getting your receptionist's number in ${area}\u2026` : "Getting your receptionist's number\u2026",
-  buyingNew: (number) => `Getting ${number}\u2026`,
-  usually: "Usually a minute or two; this page updates by itself",
-  /** What the page says when a buy or a search is refused, over the door's own sentence. */
-  notBought: "No number yet",
-  moveAsked: "We'll move your number with you and reach you by email. Until then, it forwards.",
-  moveNotAsked: "The move wasn't asked for. Ask again from Settings later; your number forwards meanwhile.",
-  cancelled: CHECKOUT_OUTCOME_WORDS22.cancel,
-  /** The two questions while the number is on its way (canvas R4), and the button they lead to. */
-  ringsLabel: (display2) => display2 ? `Which phone rings when customers call ${display2}?` : "Which phone rings when customers call?",
-  rings: { mobile: "A mobile", landline: "A landline", office: "An office phone system" },
-  companyLabel: "Who's the phone company?",
-  company: { verizon: "Verizon", att: "AT&T", tmobile: "T-Mobile", other: "Another company" },
-  show: "Show me what to dial",
-  showOffice: "Show me where to forward",
-  readySoon: "Ready in a moment",
-  answerFirst: "Answer the questions first.",
-  askHeading: "One more thing",
-  askLead: "How the calls are sent to your receptionist depends on the phone that rings.",
-  /** The code (canvas R5, P5). */
-  codeHeading: "Dial this on the phone customers call",
-  codeLead: "It tells your phone company to send the calls nobody picks up to your receptionist. You only do this once.",
-  codeLeadAll: "It tells your phone company to send every call to your receptionist. You only do this once.",
-  codeLabel: (company, rings) => rings === "landline" ? "A landline" : company ? `${company} \xB7 a mobile` : "A mobile",
-  stepsLandline: ["Pick up the phone customers call.", "Dial the code above.", "Wait for the tone, then hang up."],
-  stepsMobile: ["On the phone customers call, dial the code above.", "Wait for the tone, then hang up."],
-  /** A tab that lost the answers: what rings is not known, so neither is said. */
-  stepsAny: ["Dial the code above on the phone customers call.", "Wait for the tone, then hang up."],
-  // Not a promise the code replaces voicemail: forwarding.ts says a voicemail that picks up first keeps calls away.
-  warnMobile: "Voicemail on this phone? If it still picks up after you dial the code, calls never reach your receptionist: see The code didn't work.",
-  warnLandline: "If an answering machine is on this line, turn it off. Otherwise it answers before your receptionist can.",
-  warnAny: "Voicemail or an answering machine on that phone? If it picks up first, calls never reach your receptionist: see The code didn't work.",
-  off: (code2) => `To switch it off later, dial ${code2}.`,
-  tap: "Tap to dial",
-  done: "Done, let's try it",
-  help: "The code didn't work",
-  change: "Change the answers",
-  keepCode: "Keep what I have",
-  /** An office phone system (canvas V6): the number to forward to, and a person to do it with. */
-  officeHeading: "Forward missed calls in your phone system",
-  officeLead: "Office phone systems set this in their own settings, under \u201Cforwarding\u201D or \u201Cwhen no one answers\u201D.",
-  officeLabel: (always) => always ? "Forward every call to" : "Forward unanswered calls to",
-  officeSteps: [
-    "Open your phone system's settings.",
-    "Find forwarding, or what happens when no one answers.",
-    "Forward the calls to the number above: your receptionist's number. Customers never see it."
-  ],
-  officeWarn: "Voicemail in the system? The forwarding has to come before it, or calls never reach your receptionist.",
-  officeOff: "To switch it off later, take the forwarding out in the same settings.",
-  withMe: "Not sure where it is? A person at Chanlytics can do it with you on a call.",
-  withMeLabel: "Do it with me",
-  helpOffice: "It didn't work",
-  withMeAsked: (ago3) => `Asked ${ago3}: a person at Chanlytics will email you to find a time.`,
-  withMeFailed: "Not asked",
-  withMeSent: "We'll email you to find a time for a call.",
-  notForwarded: "Forwarding not saved"
-};
-var FIRST_RUN_ROUTE22 = "start";
-var FIND_PARAM22 = "find";
-var FIRST_RUN_FIND_ROUTE22 = `${FIRST_RUN_ROUTE22}/${FIND_PARAM22}`;
 var LEAD_CLASSES22 = LEAD_MEMBER_CLASSES22;
 var LEAD_LISTS22 = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
 var LEAD_SORTS22 = ["fit", "found", "distance", "business", "rating", "stage"];
@@ -14113,6 +13978,80 @@ function leadNoteLeft22(left2, max) {
   return left2 >= max ? `Up to ${max} characters` : `${left2} left`;
 }
 var LEAD_UNCLAIMED_NOTE22 = "Listing not claimed by the owner";
+var LeadsQuerySchema22 = z522.object({
+  list: z522.enum(LEAD_LISTS22).default("all"),
+  search: z522.string().uuid().optional(),
+  class: z522.enum(LEAD_CLASSES22).optional(),
+  sort: z522.enum(LEAD_SORTS22).default("fit"),
+  dir: z522.enum(["asc", "desc"]).default("asc"),
+  after_key: z522.string().max(80).optional(),
+  after_id: z522.string().uuid().optional(),
+  limit: z522.coerce.number().int().min(1).max(500).default(500)
+});
+var LeadsViewSchema22 = LeadsQuerySchema22.omit({ after_key: true, after_id: true, limit: true });
+var LeadStageInputSchema22 = z522.discriminatedUnion("kind", [
+  z522.object({ kind: z522.literal("stage"), stage: z522.enum(["ready", "nurture", "converted"]) }),
+  z522.object({ kind: z522.literal("not_a_fit"), why: z522.enum(LEAD_NOT_A_FIT_WHYS22) }),
+  z522.object({ kind: z522.literal("said_no") }),
+  z522.object({
+    kind: z522.literal("outcome"),
+    outcome: z522.enum(LEAD_CALL_OUTCOMES22),
+    note: z522.string().trim().max(280).optional()
+  }),
+  /** "Did you send it?" Yes. */
+  z522.object({ kind: z522.literal("emailed") })
+]);
+var LeadsBulkSchema22 = z522.discriminatedUnion("by", [
+  // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
+  z522.object({
+    by: z522.literal("ids"),
+    action: z522.enum(["contacted", "not_a_fit", "keep", "exclude"]),
+    ids: z522.array(z522.string().uuid()).min(1).max(500),
+    search_id: z522.string().uuid().optional()
+  }),
+  z522.object({ by: z522.literal("view"), action: z522.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema22 })
+]);
+var LeadsCheckAgainSchema22 = z522.object({ ids: z522.array(z522.string().uuid()).min(1).max(500) });
+var LeadDraftInputSchema22 = z522.object({
+  tone: z522.enum(["first", "shorter", "warmer"]).default("first"),
+  previous: z522.object({ subject: z522.string().max(200), body: z522.string().max(4e3) }).optional()
+});
+var RenameLeadSearchSchema22 = z522.object({ name: z522.string().trim().min(1).max(80) });
+var BusinessLineSchema22 = z522.object({ business_line: z522.string().trim().min(3).max(160) });
+var planChip22 = (max) => z522.string().trim().min(2).max(max);
+var ProposeLeadSearchSchema22 = z522.object({
+  looking_for: z522.enum(["local_businesses", "people", "online_sellers", "other"]),
+  country: z522.string().trim().min(2).max(40),
+  count: z522.number().int().min(1).max(LEAD_MAX_PLACES22),
+  /** Plural, as the sentence says it: "personal trainers". */
+  who: planChip22(60),
+  /** One of them, for the question and the judge's rubric: "personal trainer". */
+  who_one: planChip22(60),
+  category_key: z522.string().regex(/^[a-z][a-z0-9_]{0,39}$/),
+  terms: z522.array(planChip22(60)).min(1).max(5),
+  city: z522.string().trim().max(60).nullable().default(null),
+  region: z522.string().trim().min(2).max(40),
+  zip: z522.string().regex(/^\d{5}$/).nullable().default(null),
+  contact: z522.enum(["phone", "email"]),
+  criteria: z522.array(z522.object({ text: planChip22(120), standard: z522.enum(["likely", "seen"]), required: z522.boolean() })).max(6).default([]),
+  leave_out: z522.array(z522.object({ words: planChip22(40) })).max(6).default([]),
+  asked: z522.string().trim().min(1).max(400)
+});
+var LeadDraftAnswerSchema22 = z522.object({
+  subject: z522.string().trim().min(3).max(120),
+  body: z522.string().trim().min(20).max(2e3)
+});
+var LeadSuggestAnswerSchema22 = z522.object({
+  line: z522.string().trim().min(3).max(160),
+  items: z522.array(
+    z522.object({
+      words: z522.string().trim().min(3).max(80),
+      who_for: z522.string().trim().min(3).max(120),
+      category_key: z522.string().regex(/^[a-z_]{2,40}$/)
+    })
+  ).min(1).max(4)
+});
+var LEAD_UNDO_MS22 = 24 * 60 * 6e4;
 var LEAD_FIRST_DAY_TITLE22 = "Your people gather here";
 var LEAD_FIRST_DAY_SUB22 = "Or have Claude find businesses worth reaching";
 var LEAD_FIRST_DAY_FOOT22 = "Claude finds businesses, not people at home.";
@@ -14206,80 +14145,6 @@ var LEAD_WORDS22 = {
   callSaveNext: "Save and go to the next",
   callSavedNote: "Saving moves them to Talking. They join People when they write or call in."
 };
-var LeadsQuerySchema22 = z522.object({
-  list: z522.enum(LEAD_LISTS22).default("all"),
-  search: z522.string().uuid().optional(),
-  class: z522.enum(LEAD_CLASSES22).optional(),
-  sort: z522.enum(LEAD_SORTS22).default("fit"),
-  dir: z522.enum(["asc", "desc"]).default("asc"),
-  after_key: z522.string().max(80).optional(),
-  after_id: z522.string().uuid().optional(),
-  limit: z522.coerce.number().int().min(1).max(500).default(500)
-});
-var LeadsViewSchema22 = LeadsQuerySchema22.omit({ after_key: true, after_id: true, limit: true });
-var LeadStageInputSchema22 = z522.discriminatedUnion("kind", [
-  z522.object({ kind: z522.literal("stage"), stage: z522.enum(["ready", "nurture", "converted"]) }),
-  z522.object({ kind: z522.literal("not_a_fit"), why: z522.enum(LEAD_NOT_A_FIT_WHYS22) }),
-  z522.object({ kind: z522.literal("said_no") }),
-  z522.object({
-    kind: z522.literal("outcome"),
-    outcome: z522.enum(LEAD_CALL_OUTCOMES22),
-    note: z522.string().trim().max(280).optional()
-  }),
-  /** "Did you send it?" Yes. */
-  z522.object({ kind: z522.literal("emailed") })
-]);
-var LeadsBulkSchema22 = z522.discriminatedUnion("by", [
-  // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
-  z522.object({
-    by: z522.literal("ids"),
-    action: z522.enum(["contacted", "not_a_fit", "keep", "exclude"]),
-    ids: z522.array(z522.string().uuid()).min(1).max(500),
-    search_id: z522.string().uuid().optional()
-  }),
-  z522.object({ by: z522.literal("view"), action: z522.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema22 })
-]);
-var LeadsCheckAgainSchema22 = z522.object({ ids: z522.array(z522.string().uuid()).min(1).max(500) });
-var LeadDraftInputSchema22 = z522.object({
-  tone: z522.enum(["first", "shorter", "warmer"]).default("first"),
-  previous: z522.object({ subject: z522.string().max(200), body: z522.string().max(4e3) }).optional()
-});
-var RenameLeadSearchSchema22 = z522.object({ name: z522.string().trim().min(1).max(80) });
-var BusinessLineSchema22 = z522.object({ business_line: z522.string().trim().min(3).max(160) });
-var planChip22 = (max) => z522.string().trim().min(2).max(max);
-var ProposeLeadSearchSchema22 = z522.object({
-  looking_for: z522.enum(["local_businesses", "people", "online_sellers", "other"]),
-  country: z522.string().trim().min(2).max(40),
-  count: z522.number().int().min(1).max(LEAD_MAX_PLACES22),
-  /** Plural, as the sentence says it: "personal trainers". */
-  who: planChip22(60),
-  /** One of them, for the question and the judge's rubric: "personal trainer". */
-  who_one: planChip22(60),
-  category_key: z522.string().regex(/^[a-z][a-z0-9_]{0,39}$/),
-  terms: z522.array(planChip22(60)).min(1).max(5),
-  city: z522.string().trim().max(60).nullable().default(null),
-  region: z522.string().trim().min(2).max(40),
-  zip: z522.string().regex(/^\d{5}$/).nullable().default(null),
-  contact: z522.enum(["phone", "email"]),
-  criteria: z522.array(z522.object({ text: planChip22(120), standard: z522.enum(["likely", "seen"]), required: z522.boolean() })).max(6).default([]),
-  leave_out: z522.array(z522.object({ words: planChip22(40) })).max(6).default([]),
-  asked: z522.string().trim().min(1).max(400)
-});
-var LeadDraftAnswerSchema22 = z522.object({
-  subject: z522.string().trim().min(3).max(120),
-  body: z522.string().trim().min(20).max(2e3)
-});
-var LeadSuggestAnswerSchema22 = z522.object({
-  line: z522.string().trim().min(3).max(160),
-  items: z522.array(
-    z522.object({
-      words: z522.string().trim().min(3).max(80),
-      who_for: z522.string().trim().min(3).max(120),
-      category_key: z522.string().regex(/^[a-z_]{2,40}$/)
-    })
-  ).min(1).max(4)
-});
-var LEAD_UNDO_MS22 = 24 * 60 * 6e4;
 var SELLS_BY_QUESTION22 = "How customers buy";
 var SELLS_BY_WORDS22 = {
   booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
@@ -14289,7 +14154,7 @@ var SELLS_BY_WORDS22 = {
   }
 };
 var DAY_MS422 = 864e5;
-var WEEK_MS322 = 7 * DAY_MS422;
+var WEEK_MS222 = 7 * DAY_MS422;
 var MONTH_MS22 = 30 * DAY_MS422;
 var NOTE_MAX22 = 600;
 var NOTE_REFUSALS22 = {
@@ -14485,14 +14350,6 @@ var SENDING_HOURS_WORDS22 = {
 };
 var PLAYBOOK_BREATH_MS22 = 7 * DAY_MS522;
 var PLAYBOOK_VETO_DELAY_MS22 = 30 * 6e4;
-var FOLLOW_UP_NEEDS_DEALS22 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION22}\u201D with \u201C${SELLS_BY_WORDS22.proposal.label}\u201D.`;
-var PLAYBOOK_TOUCH_WINDOW_MS22 = (365 + 7) * DAY_MS522;
-var PLAYBOOK_CLASS_LABEL22 = {
-  reengage: POLICY_CLASS_WORDS22.reengage.short,
-  campaign: POLICY_CLASS_WORDS22.campaign.short,
-  booking: POLICY_CLASS_WORDS22.booking.short,
-  follow_up: POLICY_CLASS_WORDS22.follow_up.short
-};
 var FIRST22 = { kind: "first_name", label: "First name", example: "Dani" };
 var BUSINESS22 = { kind: "business_name", label: "Business name", example: "Luna Studio" };
 var LINK22 = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
@@ -15003,6 +14860,149 @@ function renderTemplate(body, params) {
   });
 }
 var OUTCOME_UNKNOWN = "outcome_unknown";
+var FORWARDING_TEST_WINDOW_MS22 = 30 * 6e4;
+var REVIEW_AUTO_REPLY_MAX_AGE_MS22 = 14 * 864e5;
+var DATE_FMT52 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var REVIEW_NEWS_MS22 = 36 * 3600 * 1e3;
+var REVIEW_NEWS_MAX_AGE_MS22 = 14 * 864e5;
+var BOOTSTRAP_MS22 = 3600 * 1e3;
+var DATE_FMT222 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var WEEK_MS322 = 7 * 864e5;
+var DATE_FMT322 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var CHECKOUT_OUTCOME_WORDS22 = {
+  success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
+  cancel: "Checkout was closed before finishing; nothing was charged.",
+  portal: "Back from Stripe. Any change you made there shows here within a minute."
+};
+var SOLE_PROP_LIMITS22 = {
+  campaignsPerBrand: 1,
+  numbersPerCampaign: 1,
+  messagesPerSecond: 1,
+  perDayTMobile: 1e3,
+  perMinuteAtt: 15,
+  mobileUsesEver: 3,
+  emailUsesEver: 10,
+  addressUsesEver: 10
+};
+var REGISTRATION_COST_WORDS22 = {
+  standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
+  sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS22.messagesPerSecond} message a second.`
+};
+var FIRST_RUN_ROUTE22 = "start";
+var FIND_PARAM22 = "find";
+var FIRST_RUN_FIND_ROUTE22 = `${FIRST_RUN_ROUTE22}/${FIND_PARAM22}`;
+var PROVISIONING_DEADLINE_MS22 = 5 * 6e4;
+var SOLE_PROP_CEILING_SENTENCE22 = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS22.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
+var SOLE_PROP_TEXTING_SENTENCE22 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE22}`;
+var FOLLOW_UP_NEEDS_DEALS22 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION22}\u201D with \u201C${SELLS_BY_WORDS22.proposal.label}\u201D.`;
+var PLAYBOOK_TOUCH_WINDOW_MS22 = (365 + 7) * DAY_MS522;
+var PLAYBOOK_CLASS_LABEL22 = {
+  reengage: POLICY_CLASS_WORDS22.reengage.short,
+  campaign: POLICY_CLASS_WORDS22.campaign.short,
+  booking: POLICY_CLASS_WORDS22.booking.short,
+  follow_up: POLICY_CLASS_WORDS22.follow_up.short
+};
+var TRY_QUIET_AFTER_MS22 = 3 * 6e4;
+var FIRST_RUN_PHONE_WORDS22 = {
+  chooseHeading: "How should calls reach your receptionist?",
+  chooseLead: "Most businesses keep the number customers already know. Your team still answers first, and your receptionist gets the rest.",
+  readyHeading: "Getting your receptionist's number ready",
+  readyLeadForwarded: "Customers never see this number: the calls nobody picks up at yours are sent to it.",
+  readyLeadNew: "Customers call this number directly. Put it on your website and your Google listing.",
+  recommended: "Recommended",
+  keepTitle: (display2) => display2 ? `Keep ${display2}` : "Keep the number you have",
+  keepListed: "The number on your Google listing. Calls nobody picks up go to your receptionist. Same phone, same phone company.",
+  keepTyped: "Calls nobody picks up go to your receptionist. Same phone, same phone company.",
+  newTitle: "Get a new number",
+  newSentence: "For a business that doesn't have one yet. Customers call it directly.",
+  moveTitle: "Move my number to Chanlytics",
+  moveSentence: "Takes 7\u201314 business days. Your number forwards in the meantime, so nothing changes for customers.",
+  numberLabel: "The number customers call",
+  numberPlaceholder: "(305) 555-0100",
+  areaLabel: "Area code",
+  areaPlaceholder: "305",
+  find: "Find numbers",
+  finding: "Looking\u2026",
+  pickLabel: "Pick your receptionist's number",
+  noneFree: (area) => `Nothing free in ${area} right now. Try a nearby area code.`,
+  threeDigits: "Three digits, like 305.",
+  local: "Local",
+  held: {
+    number: "Type the number customers call.",
+    us: "Forwarding works for a US number: type it with its area code.",
+    pick: "Pick a number first."
+  },
+  cta: {
+    planKeep: "Start my plan",
+    planNew: (number) => number ? `Start my plan with ${number}` : "Start my plan",
+    planMove: "Start my plan and ask for the move",
+    keep: "Keep this number",
+    new: (number) => number ? `Get ${number}` : "Get this number",
+    move: "Ask for the move"
+  },
+  planOffer: (price) => price ? `${price}, starting today` : "Your plan, starting today",
+  planNote: "Your number is included. The first charge is today, and you can cancel anytime from Billing.",
+  /** A workspace on a free trial: the trial covers no number, so getting one starts the plan early. */
+  planNoteTrial: "Your free trial ends today and your plan starts, on the card you gave. Your number is included.",
+  starting: "Starting your plan\u2026",
+  startingDetail: "Your card is on file. This page updates as Stripe confirms it.",
+  buyingIn: (area) => area ? `Getting your receptionist's number in ${area}\u2026` : "Getting your receptionist's number\u2026",
+  buyingNew: (number) => `Getting ${number}\u2026`,
+  usually: "Usually a minute or two; this page updates by itself",
+  /** What the page says when a buy or a search is refused, over the door's own sentence. */
+  notBought: "No number yet",
+  moveAsked: "We'll move your number with you and reach you by email. Until then, it forwards.",
+  moveNotAsked: "The move wasn't asked for. Ask again from Settings later; your number forwards meanwhile.",
+  cancelled: CHECKOUT_OUTCOME_WORDS22.cancel,
+  /** The two questions while the number is on its way (canvas R4), and the button they lead to. */
+  ringsLabel: (display2) => display2 ? `Which phone rings when customers call ${display2}?` : "Which phone rings when customers call?",
+  rings: { mobile: "A mobile", landline: "A landline", office: "An office phone system" },
+  companyLabel: "Who's the phone company?",
+  company: { verizon: "Verizon", att: "AT&T", tmobile: "T-Mobile", other: "Another company" },
+  show: "Show me what to dial",
+  showOffice: "Show me where to forward",
+  readySoon: "Ready in a moment",
+  answerFirst: "Answer the questions first.",
+  askHeading: "One more thing",
+  askLead: "How the calls are sent to your receptionist depends on the phone that rings.",
+  /** The code (canvas R5, P5). */
+  codeHeading: "Dial this on the phone customers call",
+  codeLead: "It tells your phone company to send the calls nobody picks up to your receptionist. You only do this once.",
+  codeLeadAll: "It tells your phone company to send every call to your receptionist. You only do this once.",
+  codeLabel: (company, rings) => rings === "landline" ? "A landline" : company ? `${company} \xB7 a mobile` : "A mobile",
+  stepsLandline: ["Pick up the phone customers call.", "Dial the code above.", "Wait for the tone, then hang up."],
+  stepsMobile: ["On the phone customers call, dial the code above.", "Wait for the tone, then hang up."],
+  /** A tab that lost the answers: what rings is not known, so neither is said. */
+  stepsAny: ["Dial the code above on the phone customers call.", "Wait for the tone, then hang up."],
+  // Not a promise the code replaces voicemail: forwarding.ts says a voicemail that picks up first keeps calls away.
+  warnMobile: "Voicemail on this phone? If it still picks up after you dial the code, calls never reach your receptionist: see The code didn't work.",
+  warnLandline: "If an answering machine is on this line, turn it off. Otherwise it answers before your receptionist can.",
+  warnAny: "Voicemail or an answering machine on that phone? If it picks up first, calls never reach your receptionist: see The code didn't work.",
+  off: (code2) => `To switch it off later, dial ${code2}.`,
+  tap: "Tap to dial",
+  done: "Done, let's try it",
+  help: "The code didn't work",
+  change: "Change the answers",
+  keepCode: "Keep what I have",
+  /** An office phone system (canvas V6): the number to forward to, and a person to do it with. */
+  officeHeading: "Forward missed calls in your phone system",
+  officeLead: "Office phone systems set this in their own settings, under \u201Cforwarding\u201D or \u201Cwhen no one answers\u201D.",
+  officeLabel: (always) => always ? "Forward every call to" : "Forward unanswered calls to",
+  officeSteps: [
+    "Open your phone system's settings.",
+    "Find forwarding, or what happens when no one answers.",
+    "Forward the calls to the number above: your receptionist's number. Customers never see it."
+  ],
+  officeWarn: "Voicemail in the system? The forwarding has to come before it, or calls never reach your receptionist.",
+  officeOff: "To switch it off later, take the forwarding out in the same settings.",
+  withMe: "Not sure where it is? A person at Chanlytics can do it with you on a call.",
+  withMeLabel: "Do it with me",
+  helpOffice: "It didn't work",
+  withMeAsked: (ago3) => `Asked ${ago3}: a person at Chanlytics will email you to find a time.`,
+  withMeFailed: "Not asked",
+  withMeSent: "We'll email you to find a time for a call.",
+  notForwarded: "Forwarding not saved"
+};
 var DAY_MS622 = 24 * 3600 * 1e3;
 var DAY_MS722 = 864e5;
 var QUIET_AFTER_MS22 = 7 * DAY_MS722;
@@ -16244,141 +16244,6 @@ var LeadSearchPlanSchema32 = z432.object({
 var US_NAMES32 = Object.fromEntries(
   Object.entries(US_STATES32).map(([name2, code2]) => [code2, name2])
 );
-var REVIEW_AUTO_REPLY_MAX_AGE_MS32 = 14 * 864e5;
-var DATE_FMT62 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var REVIEW_NEWS_MS32 = 36 * 3600 * 1e3;
-var REVIEW_NEWS_MAX_AGE_MS32 = 14 * 864e5;
-var BOOTSTRAP_MS32 = 3600 * 1e3;
-var DATE_FMT232 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var WEEK_MS232 = 7 * 864e5;
-var FORWARDING_TEST_WINDOW_MS32 = 30 * 6e4;
-var DATE_FMT332 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
-var CHECKOUT_OUTCOME_WORDS32 = {
-  success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
-  cancel: "Checkout was closed before finishing; nothing was charged.",
-  portal: "Back from Stripe. Any change you made there shows here within a minute."
-};
-var SOLE_PROP_LIMITS32 = {
-  campaignsPerBrand: 1,
-  numbersPerCampaign: 1,
-  messagesPerSecond: 1,
-  perDayTMobile: 1e3,
-  perMinuteAtt: 15,
-  mobileUsesEver: 3,
-  emailUsesEver: 10,
-  addressUsesEver: 10
-};
-var REGISTRATION_COST_WORDS32 = {
-  standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
-  sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS32.messagesPerSecond} message a second.`
-};
-var PROVISIONING_DEADLINE_MS32 = 5 * 6e4;
-var SOLE_PROP_CEILING_SENTENCE32 = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS32.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
-var SOLE_PROP_TEXTING_SENTENCE32 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE32}`;
-var TRY_QUIET_AFTER_MS32 = 3 * 6e4;
-var FIRST_RUN_PHONE_WORDS32 = {
-  chooseHeading: "How should calls reach your receptionist?",
-  chooseLead: "Most businesses keep the number customers already know. Your team still answers first, and your receptionist gets the rest.",
-  readyHeading: "Getting your receptionist's number ready",
-  readyLeadForwarded: "Customers never see this number: the calls nobody picks up at yours are sent to it.",
-  readyLeadNew: "Customers call this number directly. Put it on your website and your Google listing.",
-  recommended: "Recommended",
-  keepTitle: (display2) => display2 ? `Keep ${display2}` : "Keep the number you have",
-  keepListed: "The number on your Google listing. Calls nobody picks up go to your receptionist. Same phone, same phone company.",
-  keepTyped: "Calls nobody picks up go to your receptionist. Same phone, same phone company.",
-  newTitle: "Get a new number",
-  newSentence: "For a business that doesn't have one yet. Customers call it directly.",
-  moveTitle: "Move my number to Chanlytics",
-  moveSentence: "Takes 7\u201314 business days. Your number forwards in the meantime, so nothing changes for customers.",
-  numberLabel: "The number customers call",
-  numberPlaceholder: "(305) 555-0100",
-  areaLabel: "Area code",
-  areaPlaceholder: "305",
-  find: "Find numbers",
-  finding: "Looking\u2026",
-  pickLabel: "Pick your receptionist's number",
-  noneFree: (area) => `Nothing free in ${area} right now. Try a nearby area code.`,
-  threeDigits: "Three digits, like 305.",
-  local: "Local",
-  held: {
-    number: "Type the number customers call.",
-    us: "Forwarding works for a US number: type it with its area code.",
-    pick: "Pick a number first."
-  },
-  cta: {
-    planKeep: "Start my plan",
-    planNew: (number) => number ? `Start my plan with ${number}` : "Start my plan",
-    planMove: "Start my plan and ask for the move",
-    keep: "Keep this number",
-    new: (number) => number ? `Get ${number}` : "Get this number",
-    move: "Ask for the move"
-  },
-  planOffer: (price) => price ? `${price}, starting today` : "Your plan, starting today",
-  planNote: "Your number is included. The first charge is today, and you can cancel anytime from Billing.",
-  /** A workspace on a free trial: the trial covers no number, so getting one starts the plan early. */
-  planNoteTrial: "Your free trial ends today and your plan starts, on the card you gave. Your number is included.",
-  starting: "Starting your plan\u2026",
-  startingDetail: "Your card is on file. This page updates as Stripe confirms it.",
-  buyingIn: (area) => area ? `Getting your receptionist's number in ${area}\u2026` : "Getting your receptionist's number\u2026",
-  buyingNew: (number) => `Getting ${number}\u2026`,
-  usually: "Usually a minute or two; this page updates by itself",
-  /** What the page says when a buy or a search is refused, over the door's own sentence. */
-  notBought: "No number yet",
-  moveAsked: "We'll move your number with you and reach you by email. Until then, it forwards.",
-  moveNotAsked: "The move wasn't asked for. Ask again from Settings later; your number forwards meanwhile.",
-  cancelled: CHECKOUT_OUTCOME_WORDS32.cancel,
-  /** The two questions while the number is on its way (canvas R4), and the button they lead to. */
-  ringsLabel: (display2) => display2 ? `Which phone rings when customers call ${display2}?` : "Which phone rings when customers call?",
-  rings: { mobile: "A mobile", landline: "A landline", office: "An office phone system" },
-  companyLabel: "Who's the phone company?",
-  company: { verizon: "Verizon", att: "AT&T", tmobile: "T-Mobile", other: "Another company" },
-  show: "Show me what to dial",
-  showOffice: "Show me where to forward",
-  readySoon: "Ready in a moment",
-  answerFirst: "Answer the questions first.",
-  askHeading: "One more thing",
-  askLead: "How the calls are sent to your receptionist depends on the phone that rings.",
-  /** The code (canvas R5, P5). */
-  codeHeading: "Dial this on the phone customers call",
-  codeLead: "It tells your phone company to send the calls nobody picks up to your receptionist. You only do this once.",
-  codeLeadAll: "It tells your phone company to send every call to your receptionist. You only do this once.",
-  codeLabel: (company, rings) => rings === "landline" ? "A landline" : company ? `${company} \xB7 a mobile` : "A mobile",
-  stepsLandline: ["Pick up the phone customers call.", "Dial the code above.", "Wait for the tone, then hang up."],
-  stepsMobile: ["On the phone customers call, dial the code above.", "Wait for the tone, then hang up."],
-  /** A tab that lost the answers: what rings is not known, so neither is said. */
-  stepsAny: ["Dial the code above on the phone customers call.", "Wait for the tone, then hang up."],
-  // Not a promise the code replaces voicemail: forwarding.ts says a voicemail that picks up first keeps calls away.
-  warnMobile: "Voicemail on this phone? If it still picks up after you dial the code, calls never reach your receptionist: see The code didn't work.",
-  warnLandline: "If an answering machine is on this line, turn it off. Otherwise it answers before your receptionist can.",
-  warnAny: "Voicemail or an answering machine on that phone? If it picks up first, calls never reach your receptionist: see The code didn't work.",
-  off: (code2) => `To switch it off later, dial ${code2}.`,
-  tap: "Tap to dial",
-  done: "Done, let's try it",
-  help: "The code didn't work",
-  change: "Change the answers",
-  keepCode: "Keep what I have",
-  /** An office phone system (canvas V6): the number to forward to, and a person to do it with. */
-  officeHeading: "Forward missed calls in your phone system",
-  officeLead: "Office phone systems set this in their own settings, under \u201Cforwarding\u201D or \u201Cwhen no one answers\u201D.",
-  officeLabel: (always) => always ? "Forward every call to" : "Forward unanswered calls to",
-  officeSteps: [
-    "Open your phone system's settings.",
-    "Find forwarding, or what happens when no one answers.",
-    "Forward the calls to the number above: your receptionist's number. Customers never see it."
-  ],
-  officeWarn: "Voicemail in the system? The forwarding has to come before it, or calls never reach your receptionist.",
-  officeOff: "To switch it off later, take the forwarding out in the same settings.",
-  withMe: "Not sure where it is? A person at Chanlytics can do it with you on a call.",
-  withMeLabel: "Do it with me",
-  helpOffice: "It didn't work",
-  withMeAsked: (ago3) => `Asked ${ago3}: a person at Chanlytics will email you to find a time.`,
-  withMeFailed: "Not asked",
-  withMeSent: "We'll email you to find a time for a call.",
-  notForwarded: "Forwarding not saved"
-};
-var FIRST_RUN_ROUTE32 = "start";
-var FIND_PARAM32 = "find";
-var FIRST_RUN_FIND_ROUTE32 = `${FIRST_RUN_ROUTE32}/${FIND_PARAM32}`;
 var LEAD_CLASSES32 = LEAD_MEMBER_CLASSES32;
 var LEAD_LISTS32 = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
 var LEAD_SORTS32 = ["fit", "found", "distance", "business", "rating", "stage"];
@@ -16432,6 +16297,80 @@ function leadNoteLeft32(left2, max) {
   return left2 >= max ? `Up to ${max} characters` : `${left2} left`;
 }
 var LEAD_UNCLAIMED_NOTE32 = "Listing not claimed by the owner";
+var LeadsQuerySchema32 = z532.object({
+  list: z532.enum(LEAD_LISTS32).default("all"),
+  search: z532.string().uuid().optional(),
+  class: z532.enum(LEAD_CLASSES32).optional(),
+  sort: z532.enum(LEAD_SORTS32).default("fit"),
+  dir: z532.enum(["asc", "desc"]).default("asc"),
+  after_key: z532.string().max(80).optional(),
+  after_id: z532.string().uuid().optional(),
+  limit: z532.coerce.number().int().min(1).max(500).default(500)
+});
+var LeadsViewSchema32 = LeadsQuerySchema32.omit({ after_key: true, after_id: true, limit: true });
+var LeadStageInputSchema32 = z532.discriminatedUnion("kind", [
+  z532.object({ kind: z532.literal("stage"), stage: z532.enum(["ready", "nurture", "converted"]) }),
+  z532.object({ kind: z532.literal("not_a_fit"), why: z532.enum(LEAD_NOT_A_FIT_WHYS32) }),
+  z532.object({ kind: z532.literal("said_no") }),
+  z532.object({
+    kind: z532.literal("outcome"),
+    outcome: z532.enum(LEAD_CALL_OUTCOMES32),
+    note: z532.string().trim().max(280).optional()
+  }),
+  /** "Did you send it?" Yes. */
+  z532.object({ kind: z532.literal("emailed") })
+]);
+var LeadsBulkSchema32 = z532.discriminatedUnion("by", [
+  // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
+  z532.object({
+    by: z532.literal("ids"),
+    action: z532.enum(["contacted", "not_a_fit", "keep", "exclude"]),
+    ids: z532.array(z532.string().uuid()).min(1).max(500),
+    search_id: z532.string().uuid().optional()
+  }),
+  z532.object({ by: z532.literal("view"), action: z532.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema32 })
+]);
+var LeadsCheckAgainSchema32 = z532.object({ ids: z532.array(z532.string().uuid()).min(1).max(500) });
+var LeadDraftInputSchema32 = z532.object({
+  tone: z532.enum(["first", "shorter", "warmer"]).default("first"),
+  previous: z532.object({ subject: z532.string().max(200), body: z532.string().max(4e3) }).optional()
+});
+var RenameLeadSearchSchema32 = z532.object({ name: z532.string().trim().min(1).max(80) });
+var BusinessLineSchema32 = z532.object({ business_line: z532.string().trim().min(3).max(160) });
+var planChip32 = (max) => z532.string().trim().min(2).max(max);
+var ProposeLeadSearchSchema32 = z532.object({
+  looking_for: z532.enum(["local_businesses", "people", "online_sellers", "other"]),
+  country: z532.string().trim().min(2).max(40),
+  count: z532.number().int().min(1).max(LEAD_MAX_PLACES32),
+  /** Plural, as the sentence says it: "personal trainers". */
+  who: planChip32(60),
+  /** One of them, for the question and the judge's rubric: "personal trainer". */
+  who_one: planChip32(60),
+  category_key: z532.string().regex(/^[a-z][a-z0-9_]{0,39}$/),
+  terms: z532.array(planChip32(60)).min(1).max(5),
+  city: z532.string().trim().max(60).nullable().default(null),
+  region: z532.string().trim().min(2).max(40),
+  zip: z532.string().regex(/^\d{5}$/).nullable().default(null),
+  contact: z532.enum(["phone", "email"]),
+  criteria: z532.array(z532.object({ text: planChip32(120), standard: z532.enum(["likely", "seen"]), required: z532.boolean() })).max(6).default([]),
+  leave_out: z532.array(z532.object({ words: planChip32(40) })).max(6).default([]),
+  asked: z532.string().trim().min(1).max(400)
+});
+var LeadDraftAnswerSchema32 = z532.object({
+  subject: z532.string().trim().min(3).max(120),
+  body: z532.string().trim().min(20).max(2e3)
+});
+var LeadSuggestAnswerSchema32 = z532.object({
+  line: z532.string().trim().min(3).max(160),
+  items: z532.array(
+    z532.object({
+      words: z532.string().trim().min(3).max(80),
+      who_for: z532.string().trim().min(3).max(120),
+      category_key: z532.string().regex(/^[a-z_]{2,40}$/)
+    })
+  ).min(1).max(4)
+});
+var LEAD_UNDO_MS32 = 24 * 60 * 6e4;
 var LEAD_FIRST_DAY_TITLE32 = "Your people gather here";
 var LEAD_FIRST_DAY_SUB32 = "Or have Claude find businesses worth reaching";
 var LEAD_FIRST_DAY_FOOT32 = "Claude finds businesses, not people at home.";
@@ -16525,80 +16464,6 @@ var LEAD_WORDS32 = {
   callSaveNext: "Save and go to the next",
   callSavedNote: "Saving moves them to Talking. They join People when they write or call in."
 };
-var LeadsQuerySchema32 = z532.object({
-  list: z532.enum(LEAD_LISTS32).default("all"),
-  search: z532.string().uuid().optional(),
-  class: z532.enum(LEAD_CLASSES32).optional(),
-  sort: z532.enum(LEAD_SORTS32).default("fit"),
-  dir: z532.enum(["asc", "desc"]).default("asc"),
-  after_key: z532.string().max(80).optional(),
-  after_id: z532.string().uuid().optional(),
-  limit: z532.coerce.number().int().min(1).max(500).default(500)
-});
-var LeadsViewSchema32 = LeadsQuerySchema32.omit({ after_key: true, after_id: true, limit: true });
-var LeadStageInputSchema32 = z532.discriminatedUnion("kind", [
-  z532.object({ kind: z532.literal("stage"), stage: z532.enum(["ready", "nurture", "converted"]) }),
-  z532.object({ kind: z532.literal("not_a_fit"), why: z532.enum(LEAD_NOT_A_FIT_WHYS32) }),
-  z532.object({ kind: z532.literal("said_no") }),
-  z532.object({
-    kind: z532.literal("outcome"),
-    outcome: z532.enum(LEAD_CALL_OUTCOMES32),
-    note: z532.string().trim().max(280).optional()
-  }),
-  /** "Did you send it?" Yes. */
-  z532.object({ kind: z532.literal("emailed") })
-]);
-var LeadsBulkSchema32 = z532.discriminatedUnion("by", [
-  // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
-  z532.object({
-    by: z532.literal("ids"),
-    action: z532.enum(["contacted", "not_a_fit", "keep", "exclude"]),
-    ids: z532.array(z532.string().uuid()).min(1).max(500),
-    search_id: z532.string().uuid().optional()
-  }),
-  z532.object({ by: z532.literal("view"), action: z532.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema32 })
-]);
-var LeadsCheckAgainSchema32 = z532.object({ ids: z532.array(z532.string().uuid()).min(1).max(500) });
-var LeadDraftInputSchema32 = z532.object({
-  tone: z532.enum(["first", "shorter", "warmer"]).default("first"),
-  previous: z532.object({ subject: z532.string().max(200), body: z532.string().max(4e3) }).optional()
-});
-var RenameLeadSearchSchema32 = z532.object({ name: z532.string().trim().min(1).max(80) });
-var BusinessLineSchema32 = z532.object({ business_line: z532.string().trim().min(3).max(160) });
-var planChip32 = (max) => z532.string().trim().min(2).max(max);
-var ProposeLeadSearchSchema32 = z532.object({
-  looking_for: z532.enum(["local_businesses", "people", "online_sellers", "other"]),
-  country: z532.string().trim().min(2).max(40),
-  count: z532.number().int().min(1).max(LEAD_MAX_PLACES32),
-  /** Plural, as the sentence says it: "personal trainers". */
-  who: planChip32(60),
-  /** One of them, for the question and the judge's rubric: "personal trainer". */
-  who_one: planChip32(60),
-  category_key: z532.string().regex(/^[a-z][a-z0-9_]{0,39}$/),
-  terms: z532.array(planChip32(60)).min(1).max(5),
-  city: z532.string().trim().max(60).nullable().default(null),
-  region: z532.string().trim().min(2).max(40),
-  zip: z532.string().regex(/^\d{5}$/).nullable().default(null),
-  contact: z532.enum(["phone", "email"]),
-  criteria: z532.array(z532.object({ text: planChip32(120), standard: z532.enum(["likely", "seen"]), required: z532.boolean() })).max(6).default([]),
-  leave_out: z532.array(z532.object({ words: planChip32(40) })).max(6).default([]),
-  asked: z532.string().trim().min(1).max(400)
-});
-var LeadDraftAnswerSchema32 = z532.object({
-  subject: z532.string().trim().min(3).max(120),
-  body: z532.string().trim().min(20).max(2e3)
-});
-var LeadSuggestAnswerSchema32 = z532.object({
-  line: z532.string().trim().min(3).max(160),
-  items: z532.array(
-    z532.object({
-      words: z532.string().trim().min(3).max(80),
-      who_for: z532.string().trim().min(3).max(120),
-      category_key: z532.string().regex(/^[a-z_]{2,40}$/)
-    })
-  ).min(1).max(4)
-});
-var LEAD_UNDO_MS32 = 24 * 60 * 6e4;
 var SELLS_BY_QUESTION32 = "How customers buy";
 var SELLS_BY_WORDS32 = {
   booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
@@ -16608,7 +16473,7 @@ var SELLS_BY_WORDS32 = {
   }
 };
 var DAY_MS432 = 864e5;
-var WEEK_MS332 = 7 * DAY_MS432;
+var WEEK_MS232 = 7 * DAY_MS432;
 var MONTH_MS32 = 30 * DAY_MS432;
 var NOTE_MAX32 = 600;
 var NOTE_REFUSALS32 = {
@@ -16761,14 +16626,6 @@ var SENDING_HOURS_WORDS32 = {
 };
 var PLAYBOOK_BREATH_MS32 = 7 * DAY_MS532;
 var PLAYBOOK_VETO_DELAY_MS32 = 30 * 6e4;
-var FOLLOW_UP_NEEDS_DEALS32 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION32}\u201D with \u201C${SELLS_BY_WORDS32.proposal.label}\u201D.`;
-var PLAYBOOK_TOUCH_WINDOW_MS32 = (365 + 7) * DAY_MS532;
-var PLAYBOOK_CLASS_LABEL32 = {
-  reengage: POLICY_CLASS_WORDS32.reengage.short,
-  campaign: POLICY_CLASS_WORDS32.campaign.short,
-  booking: POLICY_CLASS_WORDS32.booking.short,
-  follow_up: POLICY_CLASS_WORDS32.follow_up.short
-};
 var FIRST32 = { kind: "first_name", label: "First name", example: "Dani" };
 var BUSINESS32 = { kind: "business_name", label: "Business name", example: "Luna Studio" };
 var LINK32 = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
@@ -17270,6 +17127,149 @@ var LIMIT_TIERS32 = {
 var REPLY_WINDOW_HOURS32 = 72;
 var REPLY_WINDOW_MS32 = REPLY_WINDOW_HOURS32 * 36e5;
 var REPLY_WINDOW_WORDS32 = `within ${REPLY_WINDOW_HOURS32 / 24} days`;
+var FORWARDING_TEST_WINDOW_MS32 = 30 * 6e4;
+var REVIEW_AUTO_REPLY_MAX_AGE_MS32 = 14 * 864e5;
+var DATE_FMT62 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var REVIEW_NEWS_MS32 = 36 * 3600 * 1e3;
+var REVIEW_NEWS_MAX_AGE_MS32 = 14 * 864e5;
+var BOOTSTRAP_MS32 = 3600 * 1e3;
+var DATE_FMT232 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var WEEK_MS332 = 7 * 864e5;
+var DATE_FMT332 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var CHECKOUT_OUTCOME_WORDS32 = {
+  success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
+  cancel: "Checkout was closed before finishing; nothing was charged.",
+  portal: "Back from Stripe. Any change you made there shows here within a minute."
+};
+var SOLE_PROP_LIMITS32 = {
+  campaignsPerBrand: 1,
+  numbersPerCampaign: 1,
+  messagesPerSecond: 1,
+  perDayTMobile: 1e3,
+  perMinuteAtt: 15,
+  mobileUsesEver: 3,
+  emailUsesEver: 10,
+  addressUsesEver: 10
+};
+var REGISTRATION_COST_WORDS32 = {
+  standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
+  sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS32.messagesPerSecond} message a second.`
+};
+var FIRST_RUN_ROUTE32 = "start";
+var FIND_PARAM32 = "find";
+var FIRST_RUN_FIND_ROUTE32 = `${FIRST_RUN_ROUTE32}/${FIND_PARAM32}`;
+var PROVISIONING_DEADLINE_MS32 = 5 * 6e4;
+var SOLE_PROP_CEILING_SENTENCE32 = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS32.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
+var SOLE_PROP_TEXTING_SENTENCE32 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE32}`;
+var FOLLOW_UP_NEEDS_DEALS32 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION32}\u201D with \u201C${SELLS_BY_WORDS32.proposal.label}\u201D.`;
+var PLAYBOOK_TOUCH_WINDOW_MS32 = (365 + 7) * DAY_MS532;
+var PLAYBOOK_CLASS_LABEL32 = {
+  reengage: POLICY_CLASS_WORDS32.reengage.short,
+  campaign: POLICY_CLASS_WORDS32.campaign.short,
+  booking: POLICY_CLASS_WORDS32.booking.short,
+  follow_up: POLICY_CLASS_WORDS32.follow_up.short
+};
+var TRY_QUIET_AFTER_MS32 = 3 * 6e4;
+var FIRST_RUN_PHONE_WORDS32 = {
+  chooseHeading: "How should calls reach your receptionist?",
+  chooseLead: "Most businesses keep the number customers already know. Your team still answers first, and your receptionist gets the rest.",
+  readyHeading: "Getting your receptionist's number ready",
+  readyLeadForwarded: "Customers never see this number: the calls nobody picks up at yours are sent to it.",
+  readyLeadNew: "Customers call this number directly. Put it on your website and your Google listing.",
+  recommended: "Recommended",
+  keepTitle: (display2) => display2 ? `Keep ${display2}` : "Keep the number you have",
+  keepListed: "The number on your Google listing. Calls nobody picks up go to your receptionist. Same phone, same phone company.",
+  keepTyped: "Calls nobody picks up go to your receptionist. Same phone, same phone company.",
+  newTitle: "Get a new number",
+  newSentence: "For a business that doesn't have one yet. Customers call it directly.",
+  moveTitle: "Move my number to Chanlytics",
+  moveSentence: "Takes 7\u201314 business days. Your number forwards in the meantime, so nothing changes for customers.",
+  numberLabel: "The number customers call",
+  numberPlaceholder: "(305) 555-0100",
+  areaLabel: "Area code",
+  areaPlaceholder: "305",
+  find: "Find numbers",
+  finding: "Looking\u2026",
+  pickLabel: "Pick your receptionist's number",
+  noneFree: (area) => `Nothing free in ${area} right now. Try a nearby area code.`,
+  threeDigits: "Three digits, like 305.",
+  local: "Local",
+  held: {
+    number: "Type the number customers call.",
+    us: "Forwarding works for a US number: type it with its area code.",
+    pick: "Pick a number first."
+  },
+  cta: {
+    planKeep: "Start my plan",
+    planNew: (number) => number ? `Start my plan with ${number}` : "Start my plan",
+    planMove: "Start my plan and ask for the move",
+    keep: "Keep this number",
+    new: (number) => number ? `Get ${number}` : "Get this number",
+    move: "Ask for the move"
+  },
+  planOffer: (price) => price ? `${price}, starting today` : "Your plan, starting today",
+  planNote: "Your number is included. The first charge is today, and you can cancel anytime from Billing.",
+  /** A workspace on a free trial: the trial covers no number, so getting one starts the plan early. */
+  planNoteTrial: "Your free trial ends today and your plan starts, on the card you gave. Your number is included.",
+  starting: "Starting your plan\u2026",
+  startingDetail: "Your card is on file. This page updates as Stripe confirms it.",
+  buyingIn: (area) => area ? `Getting your receptionist's number in ${area}\u2026` : "Getting your receptionist's number\u2026",
+  buyingNew: (number) => `Getting ${number}\u2026`,
+  usually: "Usually a minute or two; this page updates by itself",
+  /** What the page says when a buy or a search is refused, over the door's own sentence. */
+  notBought: "No number yet",
+  moveAsked: "We'll move your number with you and reach you by email. Until then, it forwards.",
+  moveNotAsked: "The move wasn't asked for. Ask again from Settings later; your number forwards meanwhile.",
+  cancelled: CHECKOUT_OUTCOME_WORDS32.cancel,
+  /** The two questions while the number is on its way (canvas R4), and the button they lead to. */
+  ringsLabel: (display2) => display2 ? `Which phone rings when customers call ${display2}?` : "Which phone rings when customers call?",
+  rings: { mobile: "A mobile", landline: "A landline", office: "An office phone system" },
+  companyLabel: "Who's the phone company?",
+  company: { verizon: "Verizon", att: "AT&T", tmobile: "T-Mobile", other: "Another company" },
+  show: "Show me what to dial",
+  showOffice: "Show me where to forward",
+  readySoon: "Ready in a moment",
+  answerFirst: "Answer the questions first.",
+  askHeading: "One more thing",
+  askLead: "How the calls are sent to your receptionist depends on the phone that rings.",
+  /** The code (canvas R5, P5). */
+  codeHeading: "Dial this on the phone customers call",
+  codeLead: "It tells your phone company to send the calls nobody picks up to your receptionist. You only do this once.",
+  codeLeadAll: "It tells your phone company to send every call to your receptionist. You only do this once.",
+  codeLabel: (company, rings) => rings === "landline" ? "A landline" : company ? `${company} \xB7 a mobile` : "A mobile",
+  stepsLandline: ["Pick up the phone customers call.", "Dial the code above.", "Wait for the tone, then hang up."],
+  stepsMobile: ["On the phone customers call, dial the code above.", "Wait for the tone, then hang up."],
+  /** A tab that lost the answers: what rings is not known, so neither is said. */
+  stepsAny: ["Dial the code above on the phone customers call.", "Wait for the tone, then hang up."],
+  // Not a promise the code replaces voicemail: forwarding.ts says a voicemail that picks up first keeps calls away.
+  warnMobile: "Voicemail on this phone? If it still picks up after you dial the code, calls never reach your receptionist: see The code didn't work.",
+  warnLandline: "If an answering machine is on this line, turn it off. Otherwise it answers before your receptionist can.",
+  warnAny: "Voicemail or an answering machine on that phone? If it picks up first, calls never reach your receptionist: see The code didn't work.",
+  off: (code2) => `To switch it off later, dial ${code2}.`,
+  tap: "Tap to dial",
+  done: "Done, let's try it",
+  help: "The code didn't work",
+  change: "Change the answers",
+  keepCode: "Keep what I have",
+  /** An office phone system (canvas V6): the number to forward to, and a person to do it with. */
+  officeHeading: "Forward missed calls in your phone system",
+  officeLead: "Office phone systems set this in their own settings, under \u201Cforwarding\u201D or \u201Cwhen no one answers\u201D.",
+  officeLabel: (always) => always ? "Forward every call to" : "Forward unanswered calls to",
+  officeSteps: [
+    "Open your phone system's settings.",
+    "Find forwarding, or what happens when no one answers.",
+    "Forward the calls to the number above: your receptionist's number. Customers never see it."
+  ],
+  officeWarn: "Voicemail in the system? The forwarding has to come before it, or calls never reach your receptionist.",
+  officeOff: "To switch it off later, take the forwarding out in the same settings.",
+  withMe: "Not sure where it is? A person at Chanlytics can do it with you on a call.",
+  withMeLabel: "Do it with me",
+  helpOffice: "It didn't work",
+  withMeAsked: (ago3) => `Asked ${ago3}: a person at Chanlytics will email you to find a time.`,
+  withMeFailed: "Not asked",
+  withMeSent: "We'll email you to find a time for a call.",
+  notForwarded: "Forwarding not saved"
+};
 var DAY_MS632 = 24 * 3600 * 1e3;
 var DAY_MS732 = 864e5;
 var QUIET_AFTER_MS32 = 7 * DAY_MS732;
@@ -18341,8 +18341,8 @@ var STALE_REPLY_MS = 2 * 60 * 60 * 1e3;
 import { z as z13 } from "zod";
 import { z as z24 } from "zod";
 import { z as z34 } from "zod";
-import { z as z54 } from "zod";
 import { z as z44 } from "zod";
+import { z as z54 } from "zod";
 import { z as z74 } from "zod";
 import { z as z64 } from "zod";
 import { z as z84 } from "zod";
@@ -19173,141 +19173,6 @@ var LeadSearchPlanSchema4 = z44.object({
 var US_NAMES4 = Object.fromEntries(
   Object.entries(US_STATES4).map(([name2, code2]) => [code2, name2])
 );
-var REVIEW_AUTO_REPLY_MAX_AGE_MS4 = 14 * 864e5;
-var DATE_FMT7 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var REVIEW_NEWS_MS4 = 36 * 3600 * 1e3;
-var REVIEW_NEWS_MAX_AGE_MS4 = 14 * 864e5;
-var BOOTSTRAP_MS4 = 3600 * 1e3;
-var DATE_FMT24 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var WEEK_MS24 = 7 * 864e5;
-var FORWARDING_TEST_WINDOW_MS4 = 30 * 6e4;
-var DATE_FMT34 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
-var CHECKOUT_OUTCOME_WORDS4 = {
-  success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
-  cancel: "Checkout was closed before finishing; nothing was charged.",
-  portal: "Back from Stripe. Any change you made there shows here within a minute."
-};
-var SOLE_PROP_LIMITS4 = {
-  campaignsPerBrand: 1,
-  numbersPerCampaign: 1,
-  messagesPerSecond: 1,
-  perDayTMobile: 1e3,
-  perMinuteAtt: 15,
-  mobileUsesEver: 3,
-  emailUsesEver: 10,
-  addressUsesEver: 10
-};
-var REGISTRATION_COST_WORDS4 = {
-  standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
-  sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS4.messagesPerSecond} message a second.`
-};
-var PROVISIONING_DEADLINE_MS4 = 5 * 6e4;
-var SOLE_PROP_CEILING_SENTENCE4 = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS4.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
-var SOLE_PROP_TEXTING_SENTENCE4 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE4}`;
-var TRY_QUIET_AFTER_MS4 = 3 * 6e4;
-var FIRST_RUN_PHONE_WORDS4 = {
-  chooseHeading: "How should calls reach your receptionist?",
-  chooseLead: "Most businesses keep the number customers already know. Your team still answers first, and your receptionist gets the rest.",
-  readyHeading: "Getting your receptionist's number ready",
-  readyLeadForwarded: "Customers never see this number: the calls nobody picks up at yours are sent to it.",
-  readyLeadNew: "Customers call this number directly. Put it on your website and your Google listing.",
-  recommended: "Recommended",
-  keepTitle: (display2) => display2 ? `Keep ${display2}` : "Keep the number you have",
-  keepListed: "The number on your Google listing. Calls nobody picks up go to your receptionist. Same phone, same phone company.",
-  keepTyped: "Calls nobody picks up go to your receptionist. Same phone, same phone company.",
-  newTitle: "Get a new number",
-  newSentence: "For a business that doesn't have one yet. Customers call it directly.",
-  moveTitle: "Move my number to Chanlytics",
-  moveSentence: "Takes 7\u201314 business days. Your number forwards in the meantime, so nothing changes for customers.",
-  numberLabel: "The number customers call",
-  numberPlaceholder: "(305) 555-0100",
-  areaLabel: "Area code",
-  areaPlaceholder: "305",
-  find: "Find numbers",
-  finding: "Looking\u2026",
-  pickLabel: "Pick your receptionist's number",
-  noneFree: (area) => `Nothing free in ${area} right now. Try a nearby area code.`,
-  threeDigits: "Three digits, like 305.",
-  local: "Local",
-  held: {
-    number: "Type the number customers call.",
-    us: "Forwarding works for a US number: type it with its area code.",
-    pick: "Pick a number first."
-  },
-  cta: {
-    planKeep: "Start my plan",
-    planNew: (number) => number ? `Start my plan with ${number}` : "Start my plan",
-    planMove: "Start my plan and ask for the move",
-    keep: "Keep this number",
-    new: (number) => number ? `Get ${number}` : "Get this number",
-    move: "Ask for the move"
-  },
-  planOffer: (price) => price ? `${price}, starting today` : "Your plan, starting today",
-  planNote: "Your number is included. The first charge is today, and you can cancel anytime from Billing.",
-  /** A workspace on a free trial: the trial covers no number, so getting one starts the plan early. */
-  planNoteTrial: "Your free trial ends today and your plan starts, on the card you gave. Your number is included.",
-  starting: "Starting your plan\u2026",
-  startingDetail: "Your card is on file. This page updates as Stripe confirms it.",
-  buyingIn: (area) => area ? `Getting your receptionist's number in ${area}\u2026` : "Getting your receptionist's number\u2026",
-  buyingNew: (number) => `Getting ${number}\u2026`,
-  usually: "Usually a minute or two; this page updates by itself",
-  /** What the page says when a buy or a search is refused, over the door's own sentence. */
-  notBought: "No number yet",
-  moveAsked: "We'll move your number with you and reach you by email. Until then, it forwards.",
-  moveNotAsked: "The move wasn't asked for. Ask again from Settings later; your number forwards meanwhile.",
-  cancelled: CHECKOUT_OUTCOME_WORDS4.cancel,
-  /** The two questions while the number is on its way (canvas R4), and the button they lead to. */
-  ringsLabel: (display2) => display2 ? `Which phone rings when customers call ${display2}?` : "Which phone rings when customers call?",
-  rings: { mobile: "A mobile", landline: "A landline", office: "An office phone system" },
-  companyLabel: "Who's the phone company?",
-  company: { verizon: "Verizon", att: "AT&T", tmobile: "T-Mobile", other: "Another company" },
-  show: "Show me what to dial",
-  showOffice: "Show me where to forward",
-  readySoon: "Ready in a moment",
-  answerFirst: "Answer the questions first.",
-  askHeading: "One more thing",
-  askLead: "How the calls are sent to your receptionist depends on the phone that rings.",
-  /** The code (canvas R5, P5). */
-  codeHeading: "Dial this on the phone customers call",
-  codeLead: "It tells your phone company to send the calls nobody picks up to your receptionist. You only do this once.",
-  codeLeadAll: "It tells your phone company to send every call to your receptionist. You only do this once.",
-  codeLabel: (company, rings) => rings === "landline" ? "A landline" : company ? `${company} \xB7 a mobile` : "A mobile",
-  stepsLandline: ["Pick up the phone customers call.", "Dial the code above.", "Wait for the tone, then hang up."],
-  stepsMobile: ["On the phone customers call, dial the code above.", "Wait for the tone, then hang up."],
-  /** A tab that lost the answers: what rings is not known, so neither is said. */
-  stepsAny: ["Dial the code above on the phone customers call.", "Wait for the tone, then hang up."],
-  // Not a promise the code replaces voicemail: forwarding.ts says a voicemail that picks up first keeps calls away.
-  warnMobile: "Voicemail on this phone? If it still picks up after you dial the code, calls never reach your receptionist: see The code didn't work.",
-  warnLandline: "If an answering machine is on this line, turn it off. Otherwise it answers before your receptionist can.",
-  warnAny: "Voicemail or an answering machine on that phone? If it picks up first, calls never reach your receptionist: see The code didn't work.",
-  off: (code2) => `To switch it off later, dial ${code2}.`,
-  tap: "Tap to dial",
-  done: "Done, let's try it",
-  help: "The code didn't work",
-  change: "Change the answers",
-  keepCode: "Keep what I have",
-  /** An office phone system (canvas V6): the number to forward to, and a person to do it with. */
-  officeHeading: "Forward missed calls in your phone system",
-  officeLead: "Office phone systems set this in their own settings, under \u201Cforwarding\u201D or \u201Cwhen no one answers\u201D.",
-  officeLabel: (always) => always ? "Forward every call to" : "Forward unanswered calls to",
-  officeSteps: [
-    "Open your phone system's settings.",
-    "Find forwarding, or what happens when no one answers.",
-    "Forward the calls to the number above: your receptionist's number. Customers never see it."
-  ],
-  officeWarn: "Voicemail in the system? The forwarding has to come before it, or calls never reach your receptionist.",
-  officeOff: "To switch it off later, take the forwarding out in the same settings.",
-  withMe: "Not sure where it is? A person at Chanlytics can do it with you on a call.",
-  withMeLabel: "Do it with me",
-  helpOffice: "It didn't work",
-  withMeAsked: (ago3) => `Asked ${ago3}: a person at Chanlytics will email you to find a time.`,
-  withMeFailed: "Not asked",
-  withMeSent: "We'll email you to find a time for a call.",
-  notForwarded: "Forwarding not saved"
-};
-var FIRST_RUN_ROUTE4 = "start";
-var FIND_PARAM4 = "find";
-var FIRST_RUN_FIND_ROUTE4 = `${FIRST_RUN_ROUTE4}/${FIND_PARAM4}`;
 var LEAD_CLASSES4 = LEAD_MEMBER_CLASSES4;
 var LEAD_LISTS4 = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
 var LEAD_SORTS4 = ["fit", "found", "distance", "business", "rating", "stage"];
@@ -19361,6 +19226,80 @@ function leadNoteLeft4(left2, max) {
   return left2 >= max ? `Up to ${max} characters` : `${left2} left`;
 }
 var LEAD_UNCLAIMED_NOTE4 = "Listing not claimed by the owner";
+var LeadsQuerySchema4 = z54.object({
+  list: z54.enum(LEAD_LISTS4).default("all"),
+  search: z54.string().uuid().optional(),
+  class: z54.enum(LEAD_CLASSES4).optional(),
+  sort: z54.enum(LEAD_SORTS4).default("fit"),
+  dir: z54.enum(["asc", "desc"]).default("asc"),
+  after_key: z54.string().max(80).optional(),
+  after_id: z54.string().uuid().optional(),
+  limit: z54.coerce.number().int().min(1).max(500).default(500)
+});
+var LeadsViewSchema4 = LeadsQuerySchema4.omit({ after_key: true, after_id: true, limit: true });
+var LeadStageInputSchema4 = z54.discriminatedUnion("kind", [
+  z54.object({ kind: z54.literal("stage"), stage: z54.enum(["ready", "nurture", "converted"]) }),
+  z54.object({ kind: z54.literal("not_a_fit"), why: z54.enum(LEAD_NOT_A_FIT_WHYS4) }),
+  z54.object({ kind: z54.literal("said_no") }),
+  z54.object({
+    kind: z54.literal("outcome"),
+    outcome: z54.enum(LEAD_CALL_OUTCOMES4),
+    note: z54.string().trim().max(280).optional()
+  }),
+  /** "Did you send it?" Yes. */
+  z54.object({ kind: z54.literal("emailed") })
+]);
+var LeadsBulkSchema4 = z54.discriminatedUnion("by", [
+  // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
+  z54.object({
+    by: z54.literal("ids"),
+    action: z54.enum(["contacted", "not_a_fit", "keep", "exclude"]),
+    ids: z54.array(z54.string().uuid()).min(1).max(500),
+    search_id: z54.string().uuid().optional()
+  }),
+  z54.object({ by: z54.literal("view"), action: z54.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema4 })
+]);
+var LeadsCheckAgainSchema4 = z54.object({ ids: z54.array(z54.string().uuid()).min(1).max(500) });
+var LeadDraftInputSchema4 = z54.object({
+  tone: z54.enum(["first", "shorter", "warmer"]).default("first"),
+  previous: z54.object({ subject: z54.string().max(200), body: z54.string().max(4e3) }).optional()
+});
+var RenameLeadSearchSchema4 = z54.object({ name: z54.string().trim().min(1).max(80) });
+var BusinessLineSchema4 = z54.object({ business_line: z54.string().trim().min(3).max(160) });
+var planChip4 = (max) => z54.string().trim().min(2).max(max);
+var ProposeLeadSearchSchema4 = z54.object({
+  looking_for: z54.enum(["local_businesses", "people", "online_sellers", "other"]),
+  country: z54.string().trim().min(2).max(40),
+  count: z54.number().int().min(1).max(LEAD_MAX_PLACES4),
+  /** Plural, as the sentence says it: "personal trainers". */
+  who: planChip4(60),
+  /** One of them, for the question and the judge's rubric: "personal trainer". */
+  who_one: planChip4(60),
+  category_key: z54.string().regex(/^[a-z][a-z0-9_]{0,39}$/),
+  terms: z54.array(planChip4(60)).min(1).max(5),
+  city: z54.string().trim().max(60).nullable().default(null),
+  region: z54.string().trim().min(2).max(40),
+  zip: z54.string().regex(/^\d{5}$/).nullable().default(null),
+  contact: z54.enum(["phone", "email"]),
+  criteria: z54.array(z54.object({ text: planChip4(120), standard: z54.enum(["likely", "seen"]), required: z54.boolean() })).max(6).default([]),
+  leave_out: z54.array(z54.object({ words: planChip4(40) })).max(6).default([]),
+  asked: z54.string().trim().min(1).max(400)
+});
+var LeadDraftAnswerSchema4 = z54.object({
+  subject: z54.string().trim().min(3).max(120),
+  body: z54.string().trim().min(20).max(2e3)
+});
+var LeadSuggestAnswerSchema4 = z54.object({
+  line: z54.string().trim().min(3).max(160),
+  items: z54.array(
+    z54.object({
+      words: z54.string().trim().min(3).max(80),
+      who_for: z54.string().trim().min(3).max(120),
+      category_key: z54.string().regex(/^[a-z_]{2,40}$/)
+    })
+  ).min(1).max(4)
+});
+var LEAD_UNDO_MS4 = 24 * 60 * 6e4;
 var LEAD_FIRST_DAY_TITLE4 = "Your people gather here";
 var LEAD_FIRST_DAY_SUB4 = "Or have Claude find businesses worth reaching";
 var LEAD_FIRST_DAY_FOOT4 = "Claude finds businesses, not people at home.";
@@ -19454,80 +19393,6 @@ var LEAD_WORDS4 = {
   callSaveNext: "Save and go to the next",
   callSavedNote: "Saving moves them to Talking. They join People when they write or call in."
 };
-var LeadsQuerySchema4 = z54.object({
-  list: z54.enum(LEAD_LISTS4).default("all"),
-  search: z54.string().uuid().optional(),
-  class: z54.enum(LEAD_CLASSES4).optional(),
-  sort: z54.enum(LEAD_SORTS4).default("fit"),
-  dir: z54.enum(["asc", "desc"]).default("asc"),
-  after_key: z54.string().max(80).optional(),
-  after_id: z54.string().uuid().optional(),
-  limit: z54.coerce.number().int().min(1).max(500).default(500)
-});
-var LeadsViewSchema4 = LeadsQuerySchema4.omit({ after_key: true, after_id: true, limit: true });
-var LeadStageInputSchema4 = z54.discriminatedUnion("kind", [
-  z54.object({ kind: z54.literal("stage"), stage: z54.enum(["ready", "nurture", "converted"]) }),
-  z54.object({ kind: z54.literal("not_a_fit"), why: z54.enum(LEAD_NOT_A_FIT_WHYS4) }),
-  z54.object({ kind: z54.literal("said_no") }),
-  z54.object({
-    kind: z54.literal("outcome"),
-    outcome: z54.enum(LEAD_CALL_OUTCOMES4),
-    note: z54.string().trim().max(280).optional()
-  }),
-  /** "Did you send it?" Yes. */
-  z54.object({ kind: z54.literal("emailed") })
-]);
-var LeadsBulkSchema4 = z54.discriminatedUnion("by", [
-  // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
-  z54.object({
-    by: z54.literal("ids"),
-    action: z54.enum(["contacted", "not_a_fit", "keep", "exclude"]),
-    ids: z54.array(z54.string().uuid()).min(1).max(500),
-    search_id: z54.string().uuid().optional()
-  }),
-  z54.object({ by: z54.literal("view"), action: z54.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema4 })
-]);
-var LeadsCheckAgainSchema4 = z54.object({ ids: z54.array(z54.string().uuid()).min(1).max(500) });
-var LeadDraftInputSchema4 = z54.object({
-  tone: z54.enum(["first", "shorter", "warmer"]).default("first"),
-  previous: z54.object({ subject: z54.string().max(200), body: z54.string().max(4e3) }).optional()
-});
-var RenameLeadSearchSchema4 = z54.object({ name: z54.string().trim().min(1).max(80) });
-var BusinessLineSchema4 = z54.object({ business_line: z54.string().trim().min(3).max(160) });
-var planChip4 = (max) => z54.string().trim().min(2).max(max);
-var ProposeLeadSearchSchema4 = z54.object({
-  looking_for: z54.enum(["local_businesses", "people", "online_sellers", "other"]),
-  country: z54.string().trim().min(2).max(40),
-  count: z54.number().int().min(1).max(LEAD_MAX_PLACES4),
-  /** Plural, as the sentence says it: "personal trainers". */
-  who: planChip4(60),
-  /** One of them, for the question and the judge's rubric: "personal trainer". */
-  who_one: planChip4(60),
-  category_key: z54.string().regex(/^[a-z][a-z0-9_]{0,39}$/),
-  terms: z54.array(planChip4(60)).min(1).max(5),
-  city: z54.string().trim().max(60).nullable().default(null),
-  region: z54.string().trim().min(2).max(40),
-  zip: z54.string().regex(/^\d{5}$/).nullable().default(null),
-  contact: z54.enum(["phone", "email"]),
-  criteria: z54.array(z54.object({ text: planChip4(120), standard: z54.enum(["likely", "seen"]), required: z54.boolean() })).max(6).default([]),
-  leave_out: z54.array(z54.object({ words: planChip4(40) })).max(6).default([]),
-  asked: z54.string().trim().min(1).max(400)
-});
-var LeadDraftAnswerSchema4 = z54.object({
-  subject: z54.string().trim().min(3).max(120),
-  body: z54.string().trim().min(20).max(2e3)
-});
-var LeadSuggestAnswerSchema4 = z54.object({
-  line: z54.string().trim().min(3).max(160),
-  items: z54.array(
-    z54.object({
-      words: z54.string().trim().min(3).max(80),
-      who_for: z54.string().trim().min(3).max(120),
-      category_key: z54.string().regex(/^[a-z_]{2,40}$/)
-    })
-  ).min(1).max(4)
-});
-var LEAD_UNDO_MS4 = 24 * 60 * 6e4;
 var SELLS_BY_QUESTION4 = "How customers buy";
 var SELLS_BY_WORDS4 = {
   booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
@@ -19537,7 +19402,7 @@ var SELLS_BY_WORDS4 = {
   }
 };
 var DAY_MS44 = 864e5;
-var WEEK_MS34 = 7 * DAY_MS44;
+var WEEK_MS24 = 7 * DAY_MS44;
 var MONTH_MS4 = 30 * DAY_MS44;
 var NOTE_MAX4 = 600;
 var NOTE_REFUSALS4 = {
@@ -19690,14 +19555,6 @@ var SENDING_HOURS_WORDS4 = {
 };
 var PLAYBOOK_BREATH_MS4 = 7 * DAY_MS54;
 var PLAYBOOK_VETO_DELAY_MS4 = 30 * 6e4;
-var FOLLOW_UP_NEEDS_DEALS4 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION4}\u201D with \u201C${SELLS_BY_WORDS4.proposal.label}\u201D.`;
-var PLAYBOOK_TOUCH_WINDOW_MS4 = (365 + 7) * DAY_MS54;
-var PLAYBOOK_CLASS_LABEL4 = {
-  reengage: POLICY_CLASS_WORDS4.reengage.short,
-  campaign: POLICY_CLASS_WORDS4.campaign.short,
-  booking: POLICY_CLASS_WORDS4.booking.short,
-  follow_up: POLICY_CLASS_WORDS4.follow_up.short
-};
 var FIRST4 = { kind: "first_name", label: "First name", example: "Dani" };
 var BUSINESS4 = { kind: "business_name", label: "Business name", example: "Luna Studio" };
 var LINK4 = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
@@ -20199,6 +20056,149 @@ var LIMIT_TIERS4 = {
 var REPLY_WINDOW_HOURS4 = 72;
 var REPLY_WINDOW_MS4 = REPLY_WINDOW_HOURS4 * 36e5;
 var REPLY_WINDOW_WORDS4 = `within ${REPLY_WINDOW_HOURS4 / 24} days`;
+var FORWARDING_TEST_WINDOW_MS4 = 30 * 6e4;
+var REVIEW_AUTO_REPLY_MAX_AGE_MS4 = 14 * 864e5;
+var DATE_FMT7 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var REVIEW_NEWS_MS4 = 36 * 3600 * 1e3;
+var REVIEW_NEWS_MAX_AGE_MS4 = 14 * 864e5;
+var BOOTSTRAP_MS4 = 3600 * 1e3;
+var DATE_FMT24 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var WEEK_MS34 = 7 * 864e5;
+var DATE_FMT34 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var CHECKOUT_OUTCOME_WORDS4 = {
+  success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
+  cancel: "Checkout was closed before finishing; nothing was charged.",
+  portal: "Back from Stripe. Any change you made there shows here within a minute."
+};
+var SOLE_PROP_LIMITS4 = {
+  campaignsPerBrand: 1,
+  numbersPerCampaign: 1,
+  messagesPerSecond: 1,
+  perDayTMobile: 1e3,
+  perMinuteAtt: 15,
+  mobileUsesEver: 3,
+  emailUsesEver: 10,
+  addressUsesEver: 10
+};
+var REGISTRATION_COST_WORDS4 = {
+  standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
+  sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS4.messagesPerSecond} message a second.`
+};
+var FIRST_RUN_ROUTE4 = "start";
+var FIND_PARAM4 = "find";
+var FIRST_RUN_FIND_ROUTE4 = `${FIRST_RUN_ROUTE4}/${FIND_PARAM4}`;
+var PROVISIONING_DEADLINE_MS4 = 5 * 6e4;
+var SOLE_PROP_CEILING_SENTENCE4 = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS4.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
+var SOLE_PROP_TEXTING_SENTENCE4 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE4}`;
+var FOLLOW_UP_NEEDS_DEALS4 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION4}\u201D with \u201C${SELLS_BY_WORDS4.proposal.label}\u201D.`;
+var PLAYBOOK_TOUCH_WINDOW_MS4 = (365 + 7) * DAY_MS54;
+var PLAYBOOK_CLASS_LABEL4 = {
+  reengage: POLICY_CLASS_WORDS4.reengage.short,
+  campaign: POLICY_CLASS_WORDS4.campaign.short,
+  booking: POLICY_CLASS_WORDS4.booking.short,
+  follow_up: POLICY_CLASS_WORDS4.follow_up.short
+};
+var TRY_QUIET_AFTER_MS4 = 3 * 6e4;
+var FIRST_RUN_PHONE_WORDS4 = {
+  chooseHeading: "How should calls reach your receptionist?",
+  chooseLead: "Most businesses keep the number customers already know. Your team still answers first, and your receptionist gets the rest.",
+  readyHeading: "Getting your receptionist's number ready",
+  readyLeadForwarded: "Customers never see this number: the calls nobody picks up at yours are sent to it.",
+  readyLeadNew: "Customers call this number directly. Put it on your website and your Google listing.",
+  recommended: "Recommended",
+  keepTitle: (display2) => display2 ? `Keep ${display2}` : "Keep the number you have",
+  keepListed: "The number on your Google listing. Calls nobody picks up go to your receptionist. Same phone, same phone company.",
+  keepTyped: "Calls nobody picks up go to your receptionist. Same phone, same phone company.",
+  newTitle: "Get a new number",
+  newSentence: "For a business that doesn't have one yet. Customers call it directly.",
+  moveTitle: "Move my number to Chanlytics",
+  moveSentence: "Takes 7\u201314 business days. Your number forwards in the meantime, so nothing changes for customers.",
+  numberLabel: "The number customers call",
+  numberPlaceholder: "(305) 555-0100",
+  areaLabel: "Area code",
+  areaPlaceholder: "305",
+  find: "Find numbers",
+  finding: "Looking\u2026",
+  pickLabel: "Pick your receptionist's number",
+  noneFree: (area) => `Nothing free in ${area} right now. Try a nearby area code.`,
+  threeDigits: "Three digits, like 305.",
+  local: "Local",
+  held: {
+    number: "Type the number customers call.",
+    us: "Forwarding works for a US number: type it with its area code.",
+    pick: "Pick a number first."
+  },
+  cta: {
+    planKeep: "Start my plan",
+    planNew: (number) => number ? `Start my plan with ${number}` : "Start my plan",
+    planMove: "Start my plan and ask for the move",
+    keep: "Keep this number",
+    new: (number) => number ? `Get ${number}` : "Get this number",
+    move: "Ask for the move"
+  },
+  planOffer: (price) => price ? `${price}, starting today` : "Your plan, starting today",
+  planNote: "Your number is included. The first charge is today, and you can cancel anytime from Billing.",
+  /** A workspace on a free trial: the trial covers no number, so getting one starts the plan early. */
+  planNoteTrial: "Your free trial ends today and your plan starts, on the card you gave. Your number is included.",
+  starting: "Starting your plan\u2026",
+  startingDetail: "Your card is on file. This page updates as Stripe confirms it.",
+  buyingIn: (area) => area ? `Getting your receptionist's number in ${area}\u2026` : "Getting your receptionist's number\u2026",
+  buyingNew: (number) => `Getting ${number}\u2026`,
+  usually: "Usually a minute or two; this page updates by itself",
+  /** What the page says when a buy or a search is refused, over the door's own sentence. */
+  notBought: "No number yet",
+  moveAsked: "We'll move your number with you and reach you by email. Until then, it forwards.",
+  moveNotAsked: "The move wasn't asked for. Ask again from Settings later; your number forwards meanwhile.",
+  cancelled: CHECKOUT_OUTCOME_WORDS4.cancel,
+  /** The two questions while the number is on its way (canvas R4), and the button they lead to. */
+  ringsLabel: (display2) => display2 ? `Which phone rings when customers call ${display2}?` : "Which phone rings when customers call?",
+  rings: { mobile: "A mobile", landline: "A landline", office: "An office phone system" },
+  companyLabel: "Who's the phone company?",
+  company: { verizon: "Verizon", att: "AT&T", tmobile: "T-Mobile", other: "Another company" },
+  show: "Show me what to dial",
+  showOffice: "Show me where to forward",
+  readySoon: "Ready in a moment",
+  answerFirst: "Answer the questions first.",
+  askHeading: "One more thing",
+  askLead: "How the calls are sent to your receptionist depends on the phone that rings.",
+  /** The code (canvas R5, P5). */
+  codeHeading: "Dial this on the phone customers call",
+  codeLead: "It tells your phone company to send the calls nobody picks up to your receptionist. You only do this once.",
+  codeLeadAll: "It tells your phone company to send every call to your receptionist. You only do this once.",
+  codeLabel: (company, rings) => rings === "landline" ? "A landline" : company ? `${company} \xB7 a mobile` : "A mobile",
+  stepsLandline: ["Pick up the phone customers call.", "Dial the code above.", "Wait for the tone, then hang up."],
+  stepsMobile: ["On the phone customers call, dial the code above.", "Wait for the tone, then hang up."],
+  /** A tab that lost the answers: what rings is not known, so neither is said. */
+  stepsAny: ["Dial the code above on the phone customers call.", "Wait for the tone, then hang up."],
+  // Not a promise the code replaces voicemail: forwarding.ts says a voicemail that picks up first keeps calls away.
+  warnMobile: "Voicemail on this phone? If it still picks up after you dial the code, calls never reach your receptionist: see The code didn't work.",
+  warnLandline: "If an answering machine is on this line, turn it off. Otherwise it answers before your receptionist can.",
+  warnAny: "Voicemail or an answering machine on that phone? If it picks up first, calls never reach your receptionist: see The code didn't work.",
+  off: (code2) => `To switch it off later, dial ${code2}.`,
+  tap: "Tap to dial",
+  done: "Done, let's try it",
+  help: "The code didn't work",
+  change: "Change the answers",
+  keepCode: "Keep what I have",
+  /** An office phone system (canvas V6): the number to forward to, and a person to do it with. */
+  officeHeading: "Forward missed calls in your phone system",
+  officeLead: "Office phone systems set this in their own settings, under \u201Cforwarding\u201D or \u201Cwhen no one answers\u201D.",
+  officeLabel: (always) => always ? "Forward every call to" : "Forward unanswered calls to",
+  officeSteps: [
+    "Open your phone system's settings.",
+    "Find forwarding, or what happens when no one answers.",
+    "Forward the calls to the number above: your receptionist's number. Customers never see it."
+  ],
+  officeWarn: "Voicemail in the system? The forwarding has to come before it, or calls never reach your receptionist.",
+  officeOff: "To switch it off later, take the forwarding out in the same settings.",
+  withMe: "Not sure where it is? A person at Chanlytics can do it with you on a call.",
+  withMeLabel: "Do it with me",
+  helpOffice: "It didn't work",
+  withMeAsked: (ago3) => `Asked ${ago3}: a person at Chanlytics will email you to find a time.`,
+  withMeFailed: "Not asked",
+  withMeSent: "We'll email you to find a time for a call.",
+  notForwarded: "Forwarding not saved"
+};
 var DAY_MS64 = 24 * 3600 * 1e3;
 var DAY_MS74 = 864e5;
 var QUIET_AFTER_MS4 = 7 * DAY_MS74;

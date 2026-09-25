@@ -22,23 +22,8 @@ import { firstRunLiveOf, FIRST_RUN_LIVE_WORDS } from "./first-run-live";
 import { firstRunTryOf, FIRST_RUN_TRY_WORDS, TRY_QUIET_AFTER_MS } from "./first-run-try";
 import { areaCodeOf, firstRunPhoneOf, forwardingCarrierOf, FIRST_RUN_PHONE_WORDS } from "./first-run-phone";
 import { TRY_SKIPPED, type SetupDto, type SetupRowVM, type SetupState, type SetupVM } from "./setup";
-
-/** The first run's address: `#/start`, and `#/start/<step>` for a step already reached. */
-export const FIRST_RUN_ROUTE = "start";
-
-/** Where one step opens: a door that names a row sends the owner to the step that draws it. */
-export function firstRunStepRoute(key: FirstRunStepKey): string {
-  return `${FIRST_RUN_ROUTE}/${key}`;
-}
-
-/** The address's word for Find asked for by name ("Find it"), whether or not Google was put off. */
-const FIND_PARAM = "find";
-
-/**
- * Where "Find it" goes, wherever it is (Setup's Google row, Connections, Reports): the business step with Find asked
- * for, even after the owner said they are not on Google, since pressing it says otherwise.
- */
-export const FIRST_RUN_FIND_ROUTE = `${FIRST_RUN_ROUTE}/${FIND_PARAM}`;
+import { FIND_PARAM, FIRST_RUN_FIND_ROUTE, FIRST_RUN_ROUTE, firstRunStepRoute } from "./first-run-route";
+export { FIRST_RUN_ROUTE, firstRunStepRoute, FIRST_RUN_FIND_ROUTE } from "./first-run-route";
 
 /** What the business goes by here: the receptionist's own name, else the workspace's (typed at sign-up). */
 export function businessNameOf(

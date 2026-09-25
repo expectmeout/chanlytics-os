@@ -19,7 +19,7 @@ import {
   type TemplateLanguage,
 } from "./template-languages";
 import { PARAM_SOURCES, type ParamSourceKind, type ParamSpec } from "./templates";
-import { triggerOf, triggerOffered, type PlaybookTrigger } from "./playbooks";
+import { triggerOf, triggerOffered, type PlaybookTrigger } from "./playbook-triggers";
 
 export type StarterSlotKind =
   "first_name" | "business_name" | "booking_link" | "visit_when" | "visit_service" | "proposal_link" | "text";

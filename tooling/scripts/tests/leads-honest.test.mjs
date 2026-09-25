@@ -29,10 +29,10 @@ import {
   leadRail,
   leadsRoute,
   leadsStanding,
-  leadsFirstDayWays,
   parseLeadsRoute,
   toLeadRowVM,
 } from "../../../packages/contracts/src/leads.ts";
+import { leadsFirstDayWays } from "../../../packages/contracts/src/lead-first-day.ts";
 import { leadPinTone, stateOf } from "../../../packages/contracts/src/tone.ts";
 import {
   planArea,
