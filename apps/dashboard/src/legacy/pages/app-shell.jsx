@@ -930,7 +930,7 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
             {/* the disc with the beam on its rim (ask-face.jsx AskBeam), the three over it on the same surface */}
             {window.AskBeam ? <window.AskBeam testId="phone-ask-beam" /> : null}
             {PhoneFace
-              ? <PhoneFace className="phone-ask-face" ground="raised" testId="phone-ask-face" />
+              ? <PhoneFace className="phone-ask-face" ground="raised" side={12.5} testId="phone-ask-face" />
               : <Icon name="sparkle" size={20} />}
           </button>
         )}

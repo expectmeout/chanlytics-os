@@ -16,13 +16,18 @@ const groundTokens = (ground) => () => {
   return { bg: v(ground === "raised" ? "--bg-raised" : "--bg"), ink: v("--ink"), accent: v("--accent"), accentFg: v("--accent-fg") };
 };
 
-const AskFace = ({ className, tone = "page", ground = "page", testId }) => {
+// `side` sets one tile in CSS px instead of fitting the whole of what the three do into the canvas (driver.ts
+// MountOptions.side): the phone's ✦ draws them larger than the fit would, its ring just reaching the rim.
+const AskFace = ({ className, tone = "page", ground = "page", side, testId }) => {
   const ref = useAfRef(null);
   useAfEffect(() => {
     const M = window.__mascot;
     const canvas = ref.current;
     if (!M || !canvas) return undefined;
-    const m = M.mount(canvas, ground === "raised" ? { tone, env: { tokens: groundTokens(ground) } } : { tone });
+    const opts = { tone };
+    if (side) opts.side = side;
+    if (ground === "raised") opts.env = { tokens: groundTokens(ground) };
+    const m = M.mount(canvas, opts);
     if (!m) return undefined;
     const stop = M.follow(m, M.mood);
     return () => {
