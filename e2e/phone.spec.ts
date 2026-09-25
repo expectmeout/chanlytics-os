@@ -744,6 +744,34 @@ test.describe("Phone shell on a real workspace", () => {
   });
 
   /**
+   * Settings holds still under a pull (25 Sep, Ruben): a thumb moves a Settings page sideways, to the tab beside it,
+   * and never down. Each page still scrolls through what it holds, but none stretches past its top or its foot, and
+   * while Settings is open the screen around it does not either (a short page, or the strip, would otherwise hand the
+   * pull to the screen: iOS bounces it, Android reloads it). Every list elsewhere gives way under a thumb on purpose
+   * ("every list pulls"), so the screen is left as it was on every other page.
+   */
+  test("no Settings page gives way under a pull: its pane stops at its top and foot, and so does the screen", async ({
+    page,
+  }) => {
+    const held = () =>
+      page.evaluate(() =>
+        [document.querySelector(".set-pane"), document.documentElement, document.body].map((n) =>
+          n ? getComputedStyle(n).overscrollBehaviorY : "missing",
+        ),
+      );
+    for (const pane of ["workspace", "team", "notifications"]) {
+      await page.goto(`/#/admin/${pane}`);
+      await page.waitForLoadState("networkidle");
+      await expect(page.locator(".set-pane")).toBeVisible();
+      expect(await held(), pane).toEqual(["none", "none", "none"]);
+    }
+    await page.goto("/#/clients");
+    await page.waitForLoadState("networkidle");
+    await expect(page.locator(".set-pane")).toHaveCount(0);
+    expect(await held(), "People: the screen as it was").toEqual(["missing", "auto", "auto"]);
+  });
+
+  /**
    * A switch holds still (23 Sep). With History's tabs parked under the top bar, Consent put them 328px further down a
    * phone and Visits 439px: a shorter list made the page shorter and the browser pulled the scroll back to fit
    * (data-bits holdStill now holds it). And the head starts at the page's edge: the way back is the top bar's crumb.
