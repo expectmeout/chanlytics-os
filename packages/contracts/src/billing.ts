@@ -229,6 +229,13 @@ export interface BillingPlan {
  * status is copied verbatim; the switch follows receptionistOn; a bell
  * rings only when the receptionist's state changes, never on every update.
  */
+/**
+ * What a paused workspace does, said the one way (the bell, the shell's status line): calls are still picked up, only
+ * to take a message (pausedVoiceFacts), and every other message waits in the Inbox for a person.
+ */
+export const PAUSED_WORDS =
+  "Calls are answered only to take a message, and new messages wait in the Inbox for you to answer.";
+
 export function planBilling(
   before: { mode: BillingMode; status: BillingStatus; tenant_status: string },
   sub: SubscriptionFacts,
@@ -257,8 +264,8 @@ export function planBilling(
       title: "Your receptionist is paused",
       body:
         sub.status === "paused"
-          ? "The trial ended without a card on file. Messages still land in the Inbox; nothing is answered until you resume from Billing."
-          : "The subscription ended. Messages still land in the Inbox; nothing is answered until you resume from Billing.",
+          ? `The trial ended without a card on file. ${PAUSED_WORDS} Resume from Billing.`
+          : `The subscription ended. ${PAUSED_WORDS} Resume from Billing.`,
     };
   } else if (switched === "resumed") {
     bell = { title: "Your receptionist is back", body: "Billing is in order; the receptionist answers again." };

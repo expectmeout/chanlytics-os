@@ -4,6 +4,7 @@
  * shortcuts sheet. Pure, so the sidebar, the shell and a test read the same
  * thing.
  */
+import { PAUSED_WORDS } from "./billing";
 
 export type ThemePref = "light" | "dark" | "system";
 export type Theme = "light" | "dark";
@@ -230,7 +231,7 @@ export function shellStatusLine(s: ShellStatus | null | undefined): ShellStatusL
       kind: "paused",
       tone: "danger",
       text: "Your receptionist is paused",
-      detail: "New messages still land in the Inbox, for you to answer.",
+      detail: PAUSED_WORDS,
       action: "billing",
       cta: "Billing",
       busy: null,

@@ -340,7 +340,7 @@ export const ESCALATION_REASONS = [
   "policy_ask",
   /** The phone receptionist could not finish the call: a person calls them back. What to do rides in the details. */
   "callback",
-  /** The workspace is paused (billing): messages land, nothing is answered until it resumes. */
+  /** The workspace is paused (billing): calls only take a message and messages wait for a person, until it resumes. */
   "paused",
   /** A text arrived on a line the carriers have not approved for texting yet: kept, a person answers. */
   "carriers",
