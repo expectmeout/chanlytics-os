@@ -46,9 +46,9 @@ body {
    once, for every page this layout draws; a mouse keeps the density. It is
    !important because fields are sized by two-class rules (.settings .sd-input)
    that a bare `input` would lose to. The two already drawn larger (a person's
-   name being renamed, Ask's line) keep their size. Pinned by
-   tooling/scripts/tests/fields-no-zoom.test.mjs; never solve this with
-   maximum-scale in the viewport, which takes pinch-zoom away on Android. */
+   name being renamed, Ask's line) keep their size. Measured by
+   e2e/fields-no-zoom.spec.ts; never solve this with maximum-scale in the
+   viewport, which takes pinch-zoom away on Android. */
 @media (pointer: coarse) {
   input:not(
     [type="checkbox"],
