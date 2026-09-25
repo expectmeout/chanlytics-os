@@ -3725,7 +3725,9 @@ test("at a phone's width Needs review is rows in groups: the group's acts on its
     card.props.onTouchStart({ touches: [{ clientX: 100, clientY: 300 }], currentTarget: el, target: el });
     card.props.onTouchMove({ touches: [{ clientX: 180, clientY: 302 }], currentTarget: el });
     card.props.onTouchEnd({ changedTouches: [{ clientX: 260, clientY: 304 }], currentTarget: el });
-    await new Promise((r) => setTimeout(r, 220));
+    // The kit leaves in 180ms, presses the door, then settles the still-drawn row 60ms on; a Linux timer lands these
+    // to the millisecond, a Windows one ~15ms late -- 400ms covers both.
+    await new Promise((r) => setTimeout(r, 400));
     await settle();
     assert.deepEqual(
       calls.at(-1),
