@@ -33,7 +33,7 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { emptyBusinessRecord, RECORDING_RETENTION_DAYS } from "@chanlytics/contracts";
+import { emptyBusinessRecord, RECORDING_RETENTION_DAYS, newReceptionistDefaults } from "@chanlytics/contracts";
 import { LOW_VOLUME_USECASE } from "@chanlytics/channels";
 import { fakeDb } from "./_fake-db.mjs";
 
@@ -1392,6 +1392,9 @@ test("lines: a tick that cannot provision says so — no line provider, no recep
   assert.equal(net.calls.length, 0);
 });
 
+/** The sweep's second half with no workspace that stopped paying: nothing ended, and (the grace unset) only reporting. */
+const NONE_ENDED = { ended: 0, due: 0, warned: 0, released: 0, failed: 0, report_only: true };
+
 test("lines: a line 'setting up' past its deadline is taken and resumed by scheduling a line_provision job — two a tick, oldest first — and the platform hears once; one past its three automatic tries is handed to a person: the workspace's bell, the platform's mail, the ledger", async () => {
   const T = tenant(301);
   const worn = uuid(311),
@@ -1422,7 +1425,7 @@ test("lines: a line 'setting up' past its deadline is taken and resumed by sched
   const [status, body] = await answer(await knock("lines"));
   assert.deepEqual(
     [status, body],
-    [200, { ok: true, stuck: 2, resumed: 1, failed: 0, gaveUp: 1, skipped: 0, unreadable: 0 }],
+    [200, { ok: true, stuck: 2, resumed: 1, failed: 0, gaveUp: 1, skipped: 0, unreadable: 0, release: NONE_ENDED }],
   );
 
   // Handed to a person: `failed` is the state every Retry button already knows what to do with.
@@ -1523,7 +1526,7 @@ test("lines: a line 'setting up' past its deadline is taken and resumed by sched
   const [s2, b2] = await answer(await knock("lines"));
   assert.deepEqual(
     [s2, b2],
-    [200, { ok: true, stuck: 2, resumed: 2, failed: 0, gaveUp: 0, skipped: 0, unreadable: 0 }],
+    [200, { ok: true, stuck: 2, resumed: 2, failed: 0, gaveUp: 0, skipped: 0, unreadable: 0, release: NONE_ENDED }],
     "a backlog drains over successive ticks rather than being half-run and killed again",
   );
   assert.deepEqual(
@@ -1558,6 +1561,218 @@ test("lines: a stuck line whose workspace cannot be read is left untouched for t
   assert.deepEqual(tables.lines[0], lineRow(T, id), "not taken, not counted, not failed");
   assert.deepEqual([tables.jobs, tables.notifications, tables.events], [[], [], []]);
   assert.equal(net.calls.length, 0);
+});
+
+/* ------------------------------------- lines: a number whose subscription ended */
+
+/**
+ * A workspace that stopped paying 40 days ago, with its own number (answering, imported into Retell, routed), its
+ * office phone forwarding to it, and an address for its alerts. Beside it, every workspace whose number is never
+ * ours to give back: one that pays, one on a direct arrangement, one put back on by hand, and a ported number.
+ */
+function endedWorld(n) {
+  const T = tenant(n);
+  const [paying, direct, handOn] = [tenant(n + 1), tenant(n + 2), tenant(n + 3)];
+  const own = uuid(n * 10);
+  const answering = { voice_state: "answering", step: null, state_since: ago(60 * DAY) };
+  const bill = (tenant_id, over) => ({
+    tenant_id,
+    mode: "stripe",
+    status: "canceled",
+    current_period_end: null,
+    trial_end: null,
+    cancel_at: null,
+    last_payment_failed_at: null,
+    updated_at: ago(DAY),
+    ...over,
+  });
+  const tables = {
+    tenants: [
+      tenantRow(T, { status: "paused" }),
+      tenantRow(paying, { slug: "paying" }),
+      tenantRow(direct, { slug: "direct" }),
+      tenantRow(handOn, { slug: "hand-on" }),
+    ],
+    billing_accounts: [
+      bill(T, { current_period_end: ago(40 * DAY), trial_end: ago(70 * DAY), updated_at: ago(40 * DAY) }),
+      bill(paying, { status: "active", current_period_end: iso(NOW + 9 * DAY) }),
+      bill(direct, { mode: "direct", status: "none", updated_at: ago(400 * DAY) }),
+      bill(handOn, { current_period_end: ago(90 * DAY) }),
+    ],
+    tenant_config: [
+      {
+        tenant_id: T,
+        config: {
+          brain: { business_name: "Harbor Moving", ...newReceptionistDefaults("Harbor Moving") },
+          notifications: { escalation_emails: ["owner@example.com"] },
+        },
+      },
+    ],
+    tenant_channels: [
+      {
+        id: "ch-voice",
+        tenant_id: T,
+        kind: "voice",
+        status: "active",
+        external_id: "agent_x",
+        number_e164: "+13055550100",
+      },
+    ],
+    lines: [
+      lineRow(T, own, { ...answering, facts: { retell_imported: true, channel_id: "ch-voice", trunk_ready: true } }),
+      // The office phone that forwards to it: the owner's own, read only to tell them.
+      lineRow(T, uuid(n * 10 + 1), {
+        ...answering,
+        kind: "forwarded",
+        provider: "carrier",
+        e164: "+13055550111",
+        voice_state: "none",
+        forwarding_state: "verified",
+        subaccount_sid: null,
+        number_sid: null,
+        facts: { carrier: "tmobile", mode: "unanswered", destination_e164: "+13055550100" },
+      }),
+      // A number the business brought with it: never ours to give back.
+      lineRow(T, uuid(n * 10 + 2), { ...answering, kind: "ported", e164: "+13055550122", number_sid: "PNported" }),
+      lineRow(paying, uuid(n * 10 + 3), { ...answering, e164: "+13055550133" }),
+      lineRow(direct, uuid(n * 10 + 4), { ...answering, e164: "+13055550144" }),
+      lineRow(handOn, uuid(n * 10 + 5), { ...answering, e164: "+13055550155" }),
+    ],
+    jobs: [],
+    notifications: [],
+    events: [],
+  };
+  return { T, own, tables };
+}
+const VAULT_TOKEN = { get_line_credentials: () => ({ auth_token: "sub-token" }) };
+
+test("lines (A2): with no grace set, a number whose subscription ended is only reported -- no warning, no release, nothing written -- and nobody else's number is even counted", async () => {
+  const { own, tables } = endedWorld(340);
+  const before = structuredClone(tables);
+  use(tables, VAULT_TOKEN);
+  const net = silent("a sweep that only reports reaches nobody");
+  for (const grace of [undefined, "3", "thirty"]) {
+    await withEnv({ LINE_RELEASE_AFTER_DAYS: grace }, async () => {
+      const [status, body] = await answer(await knock("lines"));
+      assert.equal(status, 200);
+      assert.deepEqual(
+        body.release,
+        { ended: 1, due: 1, warned: 0, released: 0, failed: 0, report_only: true },
+        `LINE_RELEASE_AFTER_DAYS=${grace}: under the least grace, or not a number, is unset`,
+      );
+    });
+  }
+  assert.deepEqual(tables, before, "not a row touched");
+  assert.equal(net.calls.length, 0);
+  assert.ok(tables.lines.some((l) => l.id === own));
+});
+
+test("lines (A2): with a grace set, the owner is warned once -- the day, the forwarding to switch off, where to resume -- and a week later the number goes back: Retell's copy, the carrier's, the routing, the row; the ledger and the owner told", async () => {
+  const { T, own, tables } = endedWorld(350);
+  use(tables, VAULT_TOKEN);
+  const net = wired((req) => {
+    if (req.url === "https://api.resend.com/emails") return { status: 200, body: { id: "email-1" } };
+    if (req.method === "DELETE" && req.url === "https://api.retellai.com/delete-phone-number/%2B13055550100")
+      return { status: 204 };
+    throw new Error(`unexpected ${req.method} ${req.url}`);
+  });
+  await withEnv({ LINE_RELEASE_AFTER_DAYS: "30" }, async () => {
+    // Ended 40 days ago against a 30-day grace: past it, and never warned -- so warned first, never released at once.
+    const [s1, b1] = await answer(await knock("lines"));
+    assert.equal(s1, 200);
+    assert.deepEqual(b1.release, { ended: 1, due: 0, warned: 1, released: 0, failed: 0, report_only: false });
+    const warned = tables.lines.find((l) => l.id === own).facts.release_warning;
+    assert.equal(warned.ended_at, ago(40 * DAY), "the latest the billing row says it stopped paying");
+    const on = Date.parse(warned.on);
+    assert.ok(on >= Date.parse(warned.at) + 7 * DAY - 1000, "a week after the warning, at the soonest");
+    const day = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(new Date(on));
+    assert.equal(tables.notifications.length, 1);
+    const bell = tables.notifications[0];
+    assert.deepEqual([bell.tenant_id, bell.kind, bell.route], [T, "billing", "admin/billing"]);
+    assert.equal(bell.title, `Your number +1 (305) 555-0100 goes back on ${day}`);
+    assert.equal(
+      bell.body,
+      `Your subscription ended, so your receptionist's number, +1 (305) 555-0100, goes back to the phone company on ${day}. After that it can't be got back, and callers to it reach nobody.\n\n` +
+        `+1 (305) 555-0111 forwards its calls to it. Switch that forwarding off before ${day}, or those calls will go nowhere.\n\n` +
+        "To keep the number, resume from Billing: https://dash.test/w/harbor-moving#/admin/billing\n",
+    );
+    assert.deepEqual(
+      net.mail().map((m) => [m.to, m.subject]),
+      [[["owner@example.com"], bell.title]],
+      "to the workspace's own address",
+    );
+
+    // The next quarter hour: warned already, and the week not over.
+    const [, b2] = await answer(await knock("lines"));
+    assert.deepEqual(b2.release, { ended: 1, due: 0, warned: 0, released: 0, failed: 0, report_only: false });
+    assert.equal(tables.notifications.length, 1, "warned once");
+
+    // A week on.
+    const line = tables.lines.find((l) => l.id === own);
+    line.facts = { ...line.facts, release_warning: { ...warned, at: ago(8 * DAY) } };
+    const [, b3] = await answer(await knock("lines"));
+    assert.deepEqual(b3.release, { ended: 1, due: 1, warned: 0, released: 1, failed: 0, report_only: false });
+  });
+  assert.deepEqual(
+    net.to("retellai").map((r) => [r.method, r.url, r.headers.Authorization]),
+    [["DELETE", "https://api.retellai.com/delete-phone-number/%2B13055550100", "Bearer retell-key-for-this-file"]],
+    "Retell stops answering for a number that may be somebody else's next month",
+  );
+  assert.equal(
+    tables.lines.find((l) => l.id === own),
+    undefined,
+    "the line is forgotten",
+  );
+  assert.deepEqual(
+    tables.lines.map((l) => l.e164).sort(),
+    ["+13055550111", "+13055550122", "+13055550133", "+13055550144", "+13055550155"],
+    "the office phone, the ported number, and every other workspace's number stay",
+  );
+  assert.equal(tables.tenant_channels[0].status, "disabled", "switched off, never deleted: calls keep their history");
+  const ev = tables.events.find((e) => e.kind === "line.released");
+  assert.deepEqual(ev.data, {
+    e164: "+13055550100",
+    provider: "dry",
+    retell_number: "+13055550100",
+    number: "PN0001",
+    channel_disabled: "ch-voice",
+    by: "sweep",
+    ended_at: ago(40 * DAY),
+  });
+  const told = tables.notifications[1];
+  assert.equal(told.title, "Your number +1 (305) 555-0100 was released");
+  assert.equal(
+    told.body,
+    "+1 (305) 555-0100 went back to the phone company, as we wrote a week ago. Your receptionist no longer answers on it.\n\n" +
+      "If +1 (305) 555-0111 still forwards to it, switch that forwarding off: those calls go nowhere now.\n\n" +
+      "If you resume, Setup picks a new number with you.\n",
+  );
+});
+
+test("lines (A2): a release Retell refuses stops before the carrier, keeps the row for the next quarter hour, and the platform hears", async () => {
+  const { own, tables } = endedWorld(360);
+  const line = tables.lines.find((l) => l.id === own);
+  line.facts = { ...line.facts, release_warning: { at: ago(8 * DAY), ended_at: ago(40 * DAY), on: ago(DAY) } };
+  use(tables, VAULT_TOKEN);
+  const net = wired((req) => {
+    if (req.url === "https://api.resend.com/emails") return { status: 200, body: { id: "email-1" } };
+    if (req.url.startsWith("https://api.retellai.com/")) return { status: 500, body: { message: "down" } };
+    throw new Error(`unexpected ${req.method} ${req.url}`);
+  });
+  await withEnv({ LINE_RELEASE_AFTER_DAYS: "30" }, async () => {
+    const [, body] = await answer(await knock("lines"));
+    assert.deepEqual(body.release, { ended: 1, due: 1, warned: 0, released: 0, failed: 1, report_only: false });
+  });
+  assert.ok(
+    tables.lines.some((l) => l.id === own),
+    "the row stands until every step answers",
+  );
+  assert.equal(tables.tenant_channels[0].status, "active");
+  assert.deepEqual(
+    net.mail().map((m) => [m.to, m.subject]),
+    [[["ops@platform.test"], `A number could not be given back (workspace ${tenant(360)})`]],
+  );
+  assert.match(net.mail()[0].text, /Retell delete-phone-number: HTTP 500/);
 });
 
 /* ---------------------------------------------------------- registrations */

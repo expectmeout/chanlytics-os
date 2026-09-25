@@ -13,6 +13,17 @@ this order, each merged on green before the next.
 - **A2:** a number whose subscription ended is released after a grace period. It is a sweep beside the lines sweep,
   and it only reports until `LINE_RELEASE_AFTER_DAYS` is set (releasing a number cannot be undone). It warns the owner
   first, and the release also cleans Retell's phone import.
+  - _As built:_ the second half of the quarter-hourly lines sweep (`lib/lines/line-release.ts`), so there is no new
+    clock and no migration. The rule is contracts' `lineReleaseStep`. The grace counts from the latest end the
+    billing row records: the trial's end, the paid period's end (left out for `unpaid`, whose periods keep moving),
+    a cancellation or the last failed payment. The owner is warned once per end: the bell and an email naming the
+    day, the office phone to switch off if it forwards there, and Billing. The release comes a week after the
+    warning at the soonest. Only `kind = 'chanlytics'` numbers go, never ported or hosted ones, and only for a
+    workspace that is `paused`. Billing is re-read just before each release. At most 2 releases a tick.
+  - One `releaseLine` serves both the platform's `release` op and the sweep. It now takes the number off Retell
+    first (`DELETE /delete-phone-number`), and a refusal there stops it before the carrier.
+  - `LINE_RELEASE_AFTER_DAYS` unset (or under 14): the sweep only logs `line_release_report` for each line past
+    30 days. To turn it on, set it in the edge's Vercel environment, then redeploy.
 
 ## B. The calendar
 

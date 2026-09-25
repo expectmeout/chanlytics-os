@@ -408,6 +408,20 @@ export function importPhoneNumber(cfg: RetellConfig, body: Record<string, unknow
   return writeRetell(cfg, "POST", "/import-phone-number", body);
 }
 
+/**
+ * DELETE /delete-phone-number — an imported number taken off Retell (a line released: the carrier has it back, and
+ * Retell must stop answering for a number that may be somebody else's next month). Gone already (404) is gone.
+ */
+export async function deletePhoneNumber(cfg: RetellConfig, number: string): Promise<{ ok: boolean; status: number }> {
+  const r = await fetch(`${API}/delete-phone-number/${encodeURIComponent(number)}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${cfg.apiKey}` },
+    signal: AbortSignal.timeout(8000),
+  });
+  await r.body?.cancel().catch(() => undefined);
+  return { ok: r.ok || r.status === 404, status: r.status };
+}
+
 /** PATCH /update-phone-number — the agents on a number, its inbound webhook, its nickname. */
 export function updatePhoneNumber(
   cfg: RetellConfig,
