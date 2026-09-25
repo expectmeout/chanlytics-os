@@ -320,7 +320,7 @@ Object.assign(window, { trapTab, tabStops: tabStopsIn });
 
 // ---- A thumb's gestures ------------------------------------------------------------------------
 // One reader of a touch, for what a thumb walks or lets go of: a lead's peek walks its pile across; a sheet on a phone,
-// the peek and an open thread are let go of. touchSwipe({ onLeft, onRight, onDown, onBack, min, when, onGrab }) gives the
+// the peek and an open thread are let go of. touchSwipe({ onLeft, onRight, onDown, onBack, onAway, min, when, onGrab }) gives the
 // handlers for the element the gesture is on. Nothing is kept between draws: a touch's state is held against the
 // element the browser hands back.
 //
@@ -329,6 +329,9 @@ Object.assign(window, { trapTab, tabStops: tabStopsIn });
 // pull), and where `when` says (a phone's width), the element moves with the finger and the wash behind it (its
 // previous sibling, when that is a backdrop) fades as it goes. `onBack` is the same, across to the right: an open
 // thread on a phone goes back to its list, and `onGrab(el, on)` lets the page show what is under it while it moves.
+// `onAway` is the same across to the left, with its wash fading as a sheet's does: the phone's drawer slides back where
+// it came from. Nothing opens one by a swipe (from the screen's edge that is the phone's own back). A drawer is slid
+// shut by its own rules rather than taken away, so after the close its inline styles go and those rules take it on.
 // Let go past a third of the element (160px at most) or with a flick, it leaves the way it was pulled and then the
 // close is called; short of that, or when the page kept it open (it asks first about what was typed), it settles back.
 // Under reduced motion it still follows the finger, which is the person's own motion, and the rest happens at once.
@@ -448,6 +451,16 @@ const swipeLeave = (g, close) => {
       swipeArrive(g);
       return;
     }
+    if (way === "away") {
+      setTimeout(() => {
+        if (g.onGrab) g.onGrab(el, false);
+        if (!el.style) return;
+        el.style.transition = "";
+        el.style.transform = "";
+        if (wash && wash.style) { wash.style.transition = ""; wash.style.opacity = ""; }
+      }, KEPT_AFTER_MS);
+      return;
+    }
     setTimeout(() => {
       const shown = el.isConnected !== false && (!el.getClientRects || el.getClientRects().length > 0);
       if (shown) { swipeSettle(g); return; }
@@ -464,7 +477,11 @@ const swipeLeave = (g, close) => {
   const w = el.offsetWidth || 600;
   for (const m of them) {
     m.style.transition = `transform ${LEAVE_MS}ms var(--ease-in)`;
-    m.style.transform = way === "down" ? "translate3d(0, 100%, 0)" : way === "page" ? `translate3d(${-g.step * w}px, 0, 0)` : "translate3d(100%, 0, 0)";
+    m.style.transform =
+      way === "down" ? "translate3d(0, 100%, 0)"
+      : way === "away" ? "translate3d(-100%, 0, 0)"
+      : way === "page" ? `translate3d(${-g.step * w}px, 0, 0)`
+      : "translate3d(100%, 0, 0)";
   }
   if (wash && wash.style) {
     wash.style.transition = `opacity ${LEAVE_MS}ms var(--ease-in)`;
@@ -472,7 +489,7 @@ const swipeLeave = (g, close) => {
   }
   setTimeout(done, LEAVE_MS);
 };
-const touchSwipe = ({ onLeft = null, onRight = null, onDown = null, onBack = null, pages = null, min = 80, when = null, onGrab = null }) => ({
+const touchSwipe = ({ onLeft = null, onRight = null, onDown = null, onBack = null, onAway = null, pages = null, min = 80, when = null, onGrab = null }) => ({
   onTouchStart: (e) => {
     const t = e && e.touches && e.touches[0];
     const el = e && e.currentTarget;
@@ -495,6 +512,7 @@ const touchSwipe = ({ onLeft = null, onRight = null, onDown = null, onBack = nul
       const allowed = !when || when();
       if (Math.abs(dy) > Math.abs(dx)) g.way = dy > 0 && g.top && onDown && allowed ? "down" : "none";
       else if (dx > 0 && onBack && allowed && g.x > EDGE) g.way = "back";
+      else if (dx < 0 && onAway && allowed) g.way = "away";
       else if (pages && allowed && g.x > EDGE && g.x < screenWide(el) - EDGE) {
         g.pages = pages(el, g.from);
         g.way = g.pages && (g.pages.prev || g.pages.next) ? "page" : "none";
@@ -513,6 +531,10 @@ const touchSwipe = ({ onLeft = null, onRight = null, onDown = null, onBack = nul
       if (g.wash && g.wash.style) g.wash.style.opacity = String(Math.max(0, 1 - d / (el.offsetHeight || 600)));
     } else if (g.way === "back") {
       el.style.transform = `translate3d(${Math.max(0, dx)}px, 0, 0)`;
+    } else if (g.way === "away") {
+      const d = Math.min(0, dx);
+      el.style.transform = `translate3d(${d}px, 0, 0)`;
+      if (g.wash && g.wash.style) g.wash.style.opacity = String(Math.max(0, 1 + d / (el.offsetWidth || 600)));
     } else if (g.way === "page") {
       const step = pageStep(dx);
       const open = pageOpen(g.pages, step);
@@ -529,11 +551,11 @@ const touchSwipe = ({ onLeft = null, onRight = null, onDown = null, onBack = nul
     touches.delete(el);
     const dx = t.clientX - g.x;
     const dy = t.clientY - g.y;
-    if (g.way === "down" || g.way === "back") {
-      const d = g.way === "down" ? dy : dx;
+    if (g.way === "down" || g.way === "back" || g.way === "away") {
+      const d = g.way === "down" ? dy : g.way === "away" ? -dx : dx;
       const size = (g.way === "down" ? el.offsetHeight : el.offsetWidth) || 600;
       const flick = d > 24 && d / Math.max(1, Date.now() - g.at) > 0.5;
-      if (d > Math.min(size / 3, 160) || flick) swipeLeave(g, g.way === "down" ? onDown : onBack);
+      if (d > Math.min(size / 3, 160) || flick) swipeLeave(g, g.way === "down" ? onDown : g.way === "away" ? onAway : onBack);
       else swipeSettle(g);
       return;
     }
@@ -563,7 +585,8 @@ const touchSwipe = ({ onLeft = null, onRight = null, onDown = null, onBack = nul
           return;
         }
       }
-      const way = dx < 0 ? onLeft : back ? onBack : onRight;
+      const away = dx < 0 && onAway && (!when || when());
+      const way = away ? onAway : dx < 0 ? onLeft : back ? onBack : onRight;
       if (way) way();
       return;
     }
@@ -577,7 +600,7 @@ const touchSwipe = ({ onLeft = null, onRight = null, onDown = null, onBack = nul
     if (!g) return;
     touches.delete(el);
     if (g.way === "page" && g.pages.follow) g.pages.follow(0, g.step || 1, "settle");
-    if (g.way === "down" || g.way === "back" || g.way === "page") swipeSettle(g);
+    if (g.way === "down" || g.way === "back" || g.way === "away" || g.way === "page") swipeSettle(g);
   },
 });
 

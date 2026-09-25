@@ -140,6 +140,46 @@ test("a thread swipes back across, following the finger, and the page is told wh
   assert.equal(left.style.transform, undefined);
 });
 
+test("a drawer slides away to the left under the finger, its wash fading, and its own rules take it after the close", async () => {
+  const closed = [];
+  const w = wash();
+  const el = element({ offsetWidth: 248, previousElementSibling: w });
+  const h = touchSwipe({ onAway: () => closed.push(1), when: () => true });
+  h.onTouchStart({ touches: [{ clientX: 200, clientY: 300 }], currentTarget: el, target: el });
+  h.onTouchMove({ touches: [{ clientX: 138, clientY: 304 }], currentTarget: el });
+  assert.equal(el.style.transform, "translate3d(-62px, 0, 0)");
+  assert.equal(w.style.opacity, "0.75", "a quarter of its width away, a quarter of the wash gone");
+  h.onTouchMove({ touches: [{ clientX: 260, clientY: 304 }], currentTarget: el });
+  assert.equal(el.style.transform, "translate3d(0px, 0, 0)", "never past where it stands open");
+  h.onTouchEnd({ changedTouches: [{ clientX: 180, clientY: 304 }], currentTarget: el });
+  assert.equal(el.style.transform, "translate3d(0, 0, 0)", "20px: back where it was");
+  assert.deepEqual(closed, []);
+  await wait(280);
+
+  drag(h, el, [200, 300], [150, 302], [100, 304]);
+  assert.equal(el.style.transform, "translate3d(-100%, 0, 0)", "100px of 248, past a third: away");
+  assert.equal(w.style.opacity, "0");
+  await wait(200);
+  assert.deepEqual(closed, [1]);
+  await wait(80);
+  // A drawer is slid shut by its own rules (mobile.css), not taken away, so they take it from where it was let go.
+  assert.equal(el.style.transform, "");
+  assert.equal(el.style.transition, "");
+  assert.equal(w.style.opacity, "");
+
+  const ends = element({ offsetWidth: 248 });
+  h.onTouchStart({ touches: [{ clientX: 220, clientY: 300 }], currentTarget: ends, target: ends });
+  h.onTouchEnd({ changedTouches: [{ clientX: 120, clientY: 302 }], currentTarget: ends });
+  assert.deepEqual(closed, [1, 1], "a slide the browser reports only at its ends still closes it");
+
+  // A scroll down its list is never a slide, and nothing opens a drawer: a swipe to the right is nothing to it.
+  const list = element({ offsetWidth: 248 });
+  drag(h, list, [120, 300], [124, 360], [126, 460]);
+  drag(h, list, [10, 300], [120, 300], [220, 300]);
+  assert.equal(list.style.transform, undefined);
+  assert.deepEqual(closed, [1, 1]);
+});
+
 test("what takes a drag of its own keeps it: a field, a row that scrolls across, a list scrolled down", () => {
   const closed = [];
   const h = touchSwipe({ onDown: () => closed.push(1), onBack: () => closed.push(2) });
