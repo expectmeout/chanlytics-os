@@ -788,3 +788,15 @@ test("Try it waits for a call: Setup's row names the number to call, the skip le
     "Call +1 (305) 555-0100 from your cell and don't pick up.",
   );
 });
+
+test("(D) the question before a move while typing is unsaved, and the other one while a save is out", async () => {
+  const { FIRST_RUN_WORDS, zoneSearchWords } = await import("@chanlytics/contracts");
+  const L = FIRST_RUN_WORDS.leave;
+  assert.deepEqual([L.question, L.yes, L.no], ["Leave without saving?", "Yes, leave", "Stay"]);
+  assert.match(L.detail, /not been saved/);
+  assert.equal(L.savingQuestion, "Leave while this saves?");
+  assert.doesNotMatch(L.savingDetail, /without saving|not been saved/, "untrue of a change already sent");
+  // And a zone is found by the cities it covers, beside its own name.
+  assert.match(zoneSearchWords("America/New_York"), /^America\/New York .*Miami/);
+  assert.equal(zoneSearchWords("Asia/Tokyo"), "Asia/Tokyo", "a zone with no list is its own name");
+});

@@ -9164,7 +9164,9 @@ function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }) {
       cta: questions ? show(false) : null
     };
   }
-  const held = way === "new" ? pick ? null : W.held.pick : !number ? W.held.number : areaCodeOf(number) ? null : W.held.us;
+  const typedSome = !!choice && typeof choice.number === "string" && choice.number.trim() !== "";
+  const boxProblem = way !== "new" && typedSome && !(number && areaCodeOf(number)) ? W.held.us : null;
+  const held = way === "new" ? pick ? null : W.held.pick : boxProblem ?? (!number ? W.held.number : areaCodeOf(number) ? null : W.held.us);
   const label = trial ? way === "keep" ? W.cta.trialKeep : way === "new" ? W.cta.trialNew(picked) : W.cta.trialMove : way === "keep" ? W.cta.keep : way === "new" ? W.cta.new(picked) : W.cta.move;
   return {
     ...base,
@@ -9172,6 +9174,7 @@ function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }) {
     heading: W.chooseHeading,
     lead: W.chooseLead,
     trial,
+    boxProblem,
     cta: { label, held, act: trial ? "trial" : "buy" },
     status: null,
     questions: null,
@@ -9246,6 +9249,18 @@ var FIRST_RUN_WORDS = {
   toToday: "Back to Today",
   /** Finish's activation refused: said, and Finish still goes on to Today. */
   notFinished: "Calls were not switched on",
+  /**
+   * Asked before the page moves on while a row on it holds typing never saved (the record kit's open fold), or while
+   * a save is on its way, which asks in other words: "without saving" is untrue of a change already sent.
+   */
+  leave: {
+    question: "Leave without saving?",
+    detail: "What you typed on this step has not been saved.",
+    savingQuestion: "Leave while this saves?",
+    savingDetail: "Your change is on its way and carries on without this step. If it does not go through you are told.",
+    yes: "Yes, leave",
+    no: "Stay"
+  },
   /** A row's second button on the first run, and what it says once pressed. */
   putOff: { put: "Later", undo: "Undo later" },
   /** Find, the business step while there is a listing to link (canvas R1, P1): only what Google said, and the owner's words. */
@@ -19512,6 +19527,26 @@ function timezoneWords(tz, nowMs = Date.now()) {
   }
   return { city, zone, timeThere, line: timeThere ? `${city} \xB7 ${timeThere} there now` : city };
 }
+var ZONE_ALSO = {
+  "America/New_York": "Miami Orlando Tampa Jacksonville Florida Atlanta Georgia Boston Massachusetts Philadelphia Pittsburgh Pennsylvania Washington DC Baltimore Maryland Charlotte Raleigh North Carolina South Carolina Virginia Richmond Newark New Jersey Brooklyn Queens Bronx Buffalo Connecticut Ohio Columbus Cleveland Cincinnati Michigan Maine Vermont New Hampshire Rhode Island Delaware West Virginia",
+  "America/Detroit": "Detroit Michigan",
+  "America/Indiana/Indianapolis": "Indianapolis Indiana",
+  "America/Kentucky/Louisville": "Louisville Kentucky",
+  "America/Chicago": "Houston Dallas Austin San Antonio Fort Worth Texas Nashville Memphis Tennessee New Orleans Louisiana Minneapolis Minnesota St. Louis Kansas City Missouri Milwaukee Wisconsin Oklahoma City Tulsa Oklahoma Omaha Nebraska Iowa Des Moines Alabama Birmingham Mississippi Arkansas Illinois Kansas Wichita",
+  "America/Denver": "Colorado Colorado Springs Salt Lake City Utah Albuquerque New Mexico El Paso Boise Idaho Montana Wyoming",
+  "America/Phoenix": "Arizona Phoenix Tucson Scottsdale Mesa",
+  "America/Los_Angeles": "California San Francisco San Diego San Jose Oakland Sacramento Fresno Seattle Washington State Portland Oregon Las Vegas Nevada",
+  "America/Anchorage": "Alaska",
+  "Pacific/Honolulu": "Hawaii",
+  "America/Puerto_Rico": "San Juan Puerto Rico",
+  "America/Toronto": "Toronto Ontario Ottawa Montreal Quebec",
+  "America/Vancouver": "Vancouver British Columbia",
+  "America/Mexico_City": "Mexico Guadalajara Monterrey",
+  "Europe/London": "England UK United Kingdom Manchester Birmingham"
+};
+function zoneSearchWords(zone) {
+  return [zone.replace(/_/g, " "), ZONE_ALSO[zone] ?? ""].join(" ").trim();
+}
 function knownTimezones() {
   const intl = Intl;
   try {
@@ -24006,5 +24041,6 @@ export {
   zoneDayKey,
   zoneMidnight,
   zoneOffsetMs,
+  zoneSearchWords,
   zonedInputValue
 };

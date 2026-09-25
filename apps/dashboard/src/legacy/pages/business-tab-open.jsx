@@ -298,7 +298,8 @@ const btoZoneBox = (T) => ({ draft, set, field, readOnly, open }) => {
         id={field.id}
         label="Timezone"
         value={draft}
-        options={zones.map((z) => ({ value: z, label: z.replace(/_/g, " ") }))}
+        // Found by the cities and states it covers too (contracts zoneSearchWords): "Miami" finds America/New York.
+        options={zones.map((z) => ({ value: z, label: z.replace(/_/g, " "), also: T.also ? T.also(z) : "" }))}
         onChange={set}
         placeholder="Search for a city"
         readOnly={readOnly}

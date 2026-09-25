@@ -16,6 +16,7 @@ import {
   whyNotAPhone,
   whyNotAnEmail,
   linkHost,
+  normalizeLink,
   proposalMessage,
   proposalLinkOf,
   whyNotAHandoff,
@@ -75,6 +76,7 @@ declare global {
     __whyNotAPhone: typeof whyNotAPhone;
     __whyNotAnEmail: typeof whyNotAnEmail;
     __linkHost: typeof linkHost;
+    __normalizeLink: typeof normalizeLink;
     __proposalMessage: typeof proposalMessage;
     __proposalLinkOf: typeof proposalLinkOf;
     __pipeline: PipelineHelpers;
@@ -159,6 +161,9 @@ if (typeof window !== "undefined") {
   // Where a stored link lives (its host), for a row or a menu hint; and the words a one-step send of the proposal
   // carries into the composer, once for the page and the thread.
   window.__linkHost = linkHost;
+  // THE web-address normalizer (contracts link.ts): the Business tab's website and booking link are stored as it
+  // stores them, "harbormoving.example" with its https:// supplied, and refused where it refuses.
+  window.__normalizeLink = normalizeLink;
   window.__proposalMessage = proposalMessage;
   // And which link is a person's now (0008): their deal's while it is a proposal out, none for any other deal, their
   // own only with no deal. The thread reads it off People's row, so its send never offers a client a proposal.

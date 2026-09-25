@@ -158,6 +158,41 @@ const FrFind = ({ W, flash, done, go, make }) => {
  * workspace), and the answer shown, which is the stored one or, until one is said, the first (contracts sellsByVM, whose
  * words the choice draws). Null without the bridge.
  */
+/**
+ * How long a choice in a radiogroup waits before it is saved: arrow keys move the choice AND change it, so arrowing
+ * past two answers to the third was three saves (and, with the answer's door read-only while one was out, the second
+ * and third swallowed). The choice is shown at once and saved once the keys settle, the last one.
+ */
+const FR_SETTLE_MS = 600;
+
+/**
+ * A choice's save, held until the keys settle (FR_SETTLE_MS) -- and sent at once if the step goes first: Continue,
+ * Back or Later within the wait must not lose what was chosen. `held` is the ref the choice is held in, so the page
+ * can take it for its own press (Check's Continue sends the answer being chosen, not the one stored).
+ */
+const useFrSettled = (held) => {
+  const timer = React.useRef(null);
+  React.useEffect(
+    () => () => {
+      clearTimeout(timer.current);
+      const p = held.current;
+      held.current = null;
+      if (p) p.send();
+    },
+    // A ref: the same object on every draw, so this runs as the step goes and at no other time.
+    [held],
+  );
+  return (entry) => {
+    clearTimeout(timer.current);
+    held.current = entry;
+    timer.current = setTimeout(() => {
+      if (held.current !== entry) return;
+      held.current = null;
+      entry.send();
+    }, FR_SETTLE_MS);
+  };
+};
+
 const frAnswer = () => {
   const tab = window.__businessTab || {};
   const stored = (frWorkspace() || {}).sells_by || null;
@@ -272,7 +307,11 @@ const FrChips = ({ list, label, set, doing, canEdit, flash, words, more, moreTes
  * the first answer is shown, and Looks right sends it (FirstRun). With no receptionist yet: an owner's one press, or
  * who sets it up. `canEdit` is whether the role may change the business, as the tab asks it.
  */
-const FrCheck = ({ check, W, flash, make, making, go, canEdit }) => {
+const FrCheck = ({ check, W, flash, make, making, go, canEdit, held }) => {
+  // How customers buy, as the owner is choosing it: shown at once, sent once the keys settle (FR_SETTLE_MS), and let
+  // go of once the answer is taken or refused.
+  const [soon, setSoon] = React.useState(null);
+  const settled = useFrSettled(held);
   const settings = window.__SETTINGS || null;
   const brain = (settings && settings.config && settings.config.brain) || null;
   if (!brain) {
@@ -333,8 +372,12 @@ const FrCheck = ({ check, W, flash, make, making, go, canEdit }) => {
             {window.btSellsByChoice({
               id: "fr-sells-by",
               vm: answer.vm,
-              value: answer.shown,
-              set: (next) => frSendAnswer(next, flash),
+              value: soon || answer.shown,
+              set: (next) => {
+                setSoon(next);
+                const refused = (f) => { if (f && f.tone === "danger") setSoon(null); flash(f); };
+                settled({ next, send: () => { if (!frSendAnswer(next, refused, () => setSoon(null))) setSoon(null); } });
+              },
               readOnly: !canEdit || !door || door.pending(),
               label: true,
               testid: "fr-sells-by",
@@ -432,6 +475,10 @@ const FrPhone = ({ ph, choice, setChoice, W, flash, go, back, backLabel, ownFoot
   const [busy, setBusy] = React.useState(false);
   const [numbers, setNumbers] = React.useState(null);
   const [area, setArea] = React.useState(ph.area || "");
+  // What is wrong with the area code, said under it once Find is pressed, and gone as it is typed again.
+  const [areaProblem, setAreaProblem] = React.useState(null);
+  // Whether the owner has left the number box: what is wrong with it is said then, not at the first keystroke.
+  const [boxLeft, setBoxLeft] = React.useState(false);
   // The buy this mount sent: a second draw before the line reaches Setup never sends another. A refusal lets go of it.
   const sent = React.useRef(false);
   // Draws the step again once a buy's mark goes stale, so a buy that never landed is sent again (FR_PHONE_SENT_MS).
@@ -492,7 +539,7 @@ const FrPhone = ({ ph, choice, setChoice, W, flash, go, back, backLabel, ownFoot
   const find = async (e) => {
     if (e) e.preventDefault();
     if (!P || busy || !(window.canDo && window.canDo("team"))) return;
-    if (!/^\d{3}$/.test(area)) { flash({ tone: "warn", msg: <>{W.threeDigits}</> }); return; }
+    if (!/^\d{3}$/.test(area)) { setAreaProblem(W.threeDigits); return; }
     setBusy(true);
     const r = await P.lines.search(area);
     setBusy(false);
@@ -662,9 +709,21 @@ const FrPhone = ({ ph, choice, setChoice, W, flash, go, back, backLabel, ownFoot
         <div className="fr-line-new">
           <form className="fr-find-search" onSubmit={find}>
             <label className="fr-line-label" htmlFor="fr-phone-area">{W.areaLabel}</label>
-            <input id="fr-phone-area" className="fr-find-input fr-line-area" inputMode="numeric" maxLength={3} placeholder={W.areaPlaceholder} value={area} onChange={(e) => setArea(e.target.value.replace(/\D/g, "").slice(0, 3))} data-testid="fr-phone-area" />
+            <input
+              id="fr-phone-area"
+              className="fr-find-input fr-line-area"
+              inputMode="numeric"
+              maxLength={3}
+              placeholder={W.areaPlaceholder}
+              value={area}
+              onChange={(e) => { setArea(e.target.value.replace(/\D/g, "").slice(0, 3)); setAreaProblem(null); }}
+              aria-invalid={areaProblem ? true : undefined}
+              aria-describedby={areaProblem ? "fr-phone-area-problem" : undefined}
+              data-testid="fr-phone-area"
+            />
             <button type="submit" className="btn btn-sm" disabled={busy} data-testid="fr-phone-find" {...window.gate("team", "find a number")}>{busy ? W.finding : W.find}</button>
           </form>
+          <window.FieldError id="fr-phone-area-problem" message={areaProblem} testid="fr-phone-area-problem" />
           {numbers && numbers.length ? (
             <div className="fr-find-hits" role="radiogroup" aria-label={W.pickLabel} data-testid="fr-phone-numbers">
               {numbers.map((n) => (
@@ -682,7 +741,19 @@ const FrPhone = ({ ph, choice, setChoice, W, flash, go, back, backLabel, ownFoot
       ) : (
         <label className="fr-line-field">
           <span className="fr-line-label">{W.numberLabel}</span>
-          <input className="fr-find-input" inputMode="tel" autoComplete="tel" placeholder={W.numberPlaceholder} value={shown} onChange={(e) => change({ number: e.target.value })} data-testid="fr-phone-number-box" />
+          <input
+            className="fr-find-input"
+            inputMode="tel"
+            autoComplete="tel"
+            placeholder={W.numberPlaceholder}
+            value={shown}
+            onChange={(e) => change({ number: e.target.value })}
+            onBlur={() => setBoxLeft(true)}
+            aria-invalid={boxLeft && ph.boxProblem ? true : undefined}
+            aria-describedby={boxLeft && ph.boxProblem ? "fr-phone-number-problem" : undefined}
+            data-testid="fr-phone-number-box"
+          />
+          <window.FieldError id="fr-phone-number-problem" message={boxLeft ? ph.boxProblem : null} testid="fr-phone-number-problem" />
         </label>
       )}
       {ph.trial ? (
@@ -726,8 +797,10 @@ const FrTry = ({ tr, W, flash, go, leave, back, backLabel }) => {
   const F = window.__firstRun;
   const [nudged, setNudged] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
-  // The choice pressed, shown until Setup's read says the same (the save re-reads it), or let go on a refusal.
+  // The choice pressed, shown until Setup's read says the same (the save re-reads it), or let go on a refusal. Saved once
+  // the keys settle (FR_SETTLE_MS): arrowing through the three is one save, of the last.
   const [picked, setPicked] = React.useState(null);
+  const settled = useFrSettled(React.useRef(null));
   const t0 = tr.transfer;
   React.useEffect(() => { if (picked && t0 && t0.value === picked) setPicked(null); }, [t0 && t0.value]);
   // The test window, as the screen opens and again once it runs out while the owner is still listening (the call
@@ -763,12 +836,15 @@ const FrTry = ({ tr, W, flash, go, leave, back, backLabel }) => {
     // The saver goes on the settings read's config: without it, nothing would be sent, so it says so instead.
     if (!S.saver.base()) { flash({ tone: "danger", msg: <>{W.notReadYet}</> }); return; }
     setPicked(o.key);
-    S.saver.save({
-      row: "handoff_number",
-      change: S.PATCH_OF.handoff_number(o.to || ""),
-      said: null,
-      done: () => flash({ tone: "ok", msg: <>{W.saved}</> }),
-      flash: (f) => { if (f && f.tone === "danger") { setPicked(null); flash(f); } },
+    settled({
+      send: () =>
+        S.saver.save({
+          row: "handoff_number",
+          change: S.PATCH_OF.handoff_number(o.to || ""),
+          said: null,
+          done: () => flash({ tone: "ok", msg: <>{W.saved}</> }),
+          flash: (f) => { if (f && f.tone === "danger") { setPicked(null); flash(f); } },
+        }),
     });
   };
   const turns = tr.call ? (
@@ -929,6 +1005,20 @@ const FirstRun = ({ param = null, onNavigate }) => {
   useFrTick("surface:setup");
   useFrTick("surface:settings");
   const [cardOpen, setCardOpen] = React.useState(false);
+  // The step's heading takes focus when the step changes, so a screen reader says where the owner is now and the keys
+  // start from the top of it; not on the page's first draw, which is its own arrival.
+  const drawnParam = React.useRef(param);
+  React.useEffect(() => {
+    if (drawnParam.current === param) return;
+    drawnParam.current = param;
+    const h = document.getElementById ? document.getElementById("fr-heading") : null;
+    if (h && h.focus) h.focus({ preventScroll: true });
+  }, [param]);
+  // A move asked while a row on the page holds typing never saved, or a save still out (the record kit's registry,
+  // which the Settings rail asks too): the move waits on the owner's answer.
+  const [leaving, setLeaving] = React.useState(null);
+  // How customers buy, while Check's choice of it waits for the keys to settle: Continue sends that one (useFrSettled).
+  const heldAnswer = React.useRef(null);
   // The page's toast, lent to Find and Check: a link ends Find as the surfaces repaint, and what it says outlives it.
   const [toastNode, flash] = window.usePPToast();
   // The ask for the receptionist, held here and lent to Find and Check: Find is gone by the time it answers.
@@ -984,7 +1074,15 @@ const FirstRun = ({ param = null, onNavigate }) => {
   if (!F) return <div className="fr-root fr-waiting" data-testid="first-run" />;
   const W = F.words;
   const S = window.__SETUP;
-  const leave = (to) => onNavigate(to);
+  // Asked first while typing on the page was never saved (the record kit's own answer, __settingsUnsaved).
+  const askFirst = (move) => {
+    if (window.__settingsUnsaved && window.__settingsUnsaved()) {
+      setLeaving({ move, saving: !!(window.__settingsSaving && window.__settingsSaving()) });
+      return;
+    }
+    move();
+  };
+  const leave = (to) => askFirst(() => onNavigate(to));
   if (S === null) {
     return (
       <div className="fr-root fr-waiting" data-testid="first-run">
@@ -1065,13 +1163,14 @@ const FirstRun = ({ param = null, onNavigate }) => {
   const canEdit = !window.canDo || window.canDo("settings");
   // The step on screen is the address's, replaced rather than pushed, so the browser's Back leaves the first run. A
   // move opens the next step at its top: the shell is the page's scroll (first-run.css).
-  const go = (to) => {
-    onCheck.current = false;
-    onTry.current = false;
-    onNavigate(to, { replace: true });
-    const shell = document.querySelector ? document.querySelector(".fr-shell") : null;
-    if (shell && shell.scrollTo) shell.scrollTo(0, 0);
-  };
+  const go = (to) =>
+    askFirst(() => {
+      onCheck.current = false;
+      onTry.current = false;
+      onNavigate(to, { replace: true });
+      const shell = document.querySelector ? document.querySelector(".fr-shell") : null;
+      if (shell && shell.scrollTo) shell.scrollTo(0, 0);
+    });
   // Set the receptionist up from what is known, where none is: once at a time, and a refusal said in its words.
   const make = async () => {
     if (making || !window.__setup || !window.__setup.receptionist) return;
@@ -1112,8 +1211,12 @@ const FirstRun = ({ param = null, onNavigate }) => {
     // Looks right: the answer to how customers buy, as Check shows it, is sent where none is stored (as the create card
     // sends it), and the step goes on once it is taken. A role that may not change the workspace sends nothing: the
     // door would refuse it, and the step goes on as it is.
+    // The answer being chosen, if one waits for the keys to settle, goes now in its place.
     const a = frAnswer();
-    if (!canEdit || !a || a.stored || !frSendAnswer(a.shown, flash, () => go(o.to))) go(o.to);
+    const chosen = heldAnswer.current;
+    heldAnswer.current = null;
+    const answer = chosen ? chosen.next : a && !a.stored ? a.shown : null;
+    if (!canEdit || !a || !answer || !frSendAnswer(answer, flash, () => go(o.to))) go(o.to);
   };
   return (
     <div className="fr-root" data-testid="first-run" data-step={step.key}>
@@ -1137,11 +1240,11 @@ const FirstRun = ({ param = null, onNavigate }) => {
       <div className="fr-body">
         <main className="fr-step" aria-labelledby="fr-heading">
           <div className="fr-step-head">
-            <h1 className="fr-heading" id="fr-heading" data-testid="fr-heading">{phoneDrawn ? ph.heading : tryDrawn ? tr.heading : lv ? lv.heading : fr.heading}</h1>
+            <h1 className="fr-heading" id="fr-heading" tabIndex={-1} data-testid="fr-heading">{phoneDrawn ? ph.heading : tryDrawn ? tr.heading : lv ? lv.heading : fr.heading}</h1>
             {(phoneDrawn ? ph.lead : tryDrawn ? tr.lead : lv ? lv.lead : fr.lead) ? <p className="fr-lead">{phoneDrawn ? ph.lead : tryDrawn ? tr.lead : lv ? lv.lead : fr.lead}</p> : null}
           </div>
           {fr.find ? <FrFind W={W.find} flash={flash} done={fr.findDone} go={go} make={make} /> : null}
-          {fr.check ? <FrCheck check={fr.check} W={W.check} flash={flash} make={make} making={making} go={go} canEdit={canEdit} /> : null}
+          {fr.check ? <FrCheck check={fr.check} W={W.check} flash={flash} make={make} making={making} go={go} canEdit={canEdit} held={heldAnswer} /> : null}
           {phoneDrawn ? <FrPhone ph={ph} choice={phoneChoice} setChoice={setPhoneChoice} W={F.phoneWords} flash={flash} go={go} back={fr.back} backLabel={W.back} ownFoot={phoneFoot} /> : null}
           {tryDrawn ? <FrTry tr={tr} W={F.tryWords} flash={flash} go={go} leave={leave} back={fr.back} backLabel={W.back} /> : null}
           {step.key === "try" && !tryDrawn && S.vm.tryIt ? <window.SetupTry tryIt={S.vm.tryIt} /> : null}
@@ -1181,6 +1284,18 @@ const FirstRun = ({ param = null, onNavigate }) => {
       {/* The services list opens in a sheet, as it does on the Business tab, which draws it last of everything there. */}
       {fr.check && window.__SETTINGS && window.__SETTINGS.config && window.__SETTINGS.config.brain && window.BtServicesSheet ? (
         <window.BtServicesSheet brain={window.__SETTINGS.config.brain} canEdit={canEdit} flash={flash} saver={window.__businessTabSave.saver} />
+      ) : null}
+      {leaving ? (
+        <window.Confirm
+          question={leaving.saving ? W.leave.savingQuestion : W.leave.question}
+          detail={leaving.saving ? W.leave.savingDetail : W.leave.detail}
+          yes={W.leave.yes}
+          no={W.leave.no}
+          danger={!leaving.saving}
+          onYes={() => { const { move } = leaving; setLeaving(null); move(); }}
+          onNo={() => setLeaving(null)}
+          testid="fr-leave"
+        />
       ) : null}
       {toastNode}
     </div>

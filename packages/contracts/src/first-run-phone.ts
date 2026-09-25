@@ -117,6 +117,12 @@ export interface FirstRunPhoneVM {
   listed: string | null;
   /** What the number box shows before the owner types in it: the listing's number, as the app writes one; "" for none. */
   box: string;
+  /**
+   * What is wrong with what the owner typed in the number box, said on the box itself (the button's `held` says it
+   * too): something typed that is not a US number with its area code. Null before anything is typed, and in every
+   * stage but choosing.
+   */
+  boxProblem?: string | null;
   /** The area code a number is bought in: the kept or moved number's, else the listing's; null for neither. */
   area: string | null;
   /** The trial, where a card is still to be given: its offer and what it means. */
@@ -546,8 +552,14 @@ export function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }: FirstRunPh
   }
   // A number to keep or move is forwarded from, so it must be one a US phone company forwards: a US number with its
   // area code, which is also where the receptionist's own is bought.
+  const typedSome = !!choice && typeof choice.number === "string" && choice.number.trim() !== "";
+  const boxProblem = way !== "new" && typedSome && !(number && areaCodeOf(number)) ? W.held.us : null;
   const held =
-    way === "new" ? (pick ? null : W.held.pick) : !number ? W.held.number : areaCodeOf(number) ? null : W.held.us;
+    way === "new"
+      ? pick
+        ? null
+        : W.held.pick
+      : (boxProblem ?? (!number ? W.held.number : areaCodeOf(number) ? null : W.held.us));
   const label = trial
     ? way === "keep"
       ? W.cta.trialKeep
@@ -565,6 +577,7 @@ export function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }: FirstRunPh
     heading: W.chooseHeading,
     lead: W.chooseLead,
     trial,
+    boxProblem,
     cta: { label, held, act: trial ? "trial" : "buy" },
     status: null,
     questions: null,

@@ -98,12 +98,20 @@ installBusinessTab();
 
 /* ---- identity.ts, seed-globals.ts and inbox-verbs.ts, as the unit harness publishes them ---- */
 w.__identity = { words: C.identityWords, member: C.memberWords, initials: C.personInitials };
-w.__tz = { words: C.timezoneWords, city: C.timezoneCity, known: C.knownTimezones, device: C.usableDeviceTimezone };
+w.__tz = {
+  words: C.timezoneWords,
+  city: C.timezoneCity,
+  known: C.knownTimezones,
+  device: C.usableDeviceTimezone,
+  also: C.zoneSearchWords,
+};
 w.DEFAULT_TIMEZONE = C.DEFAULT_TIMEZONE;
 w.__phoneDisplay = C.formatPhoneDisplay;
 w.__whyNotAPhone = C.whyNotAPhone;
 w.__whyNotAHandoff = C.whyNotAHandoff;
 w.__samePhone = C.samePhone;
+// THE web-address normalizer, which the website and booking link rows store and check by (seed-globals.ts).
+w.__normalizeLink = C.normalizeLink;
 // The name the page reads (business-tab-save.jsx), which is the bridge's own (seed-globals.ts). Published under
 // any other name, the transfer row falls through to the mockup's ported copy in data/bridge-stubs.jsx.
 w.__handoffE164 = C.handoffE164;

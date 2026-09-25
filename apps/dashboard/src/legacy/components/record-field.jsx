@@ -245,7 +245,10 @@ const RecordCombobox = ({ id, label, value = null, options = [], onChange, place
   const refused = readOnly || !!(gate && gate["aria-disabled"]);
   const chosen = options.find((o) => o.value === value) || null;
   const q = query.trim().toLowerCase();
-  const matched = q ? options.filter((o) => String(o.label).toLowerCase().includes(q) || String(o.value).toLowerCase().includes(q)) : options;
+  // An option is found by its label, its value, and `also`: words it goes by that it does not show (a zone's cities).
+  const matched = q
+    ? options.filter((o) => [o.label, o.value, o.also || ""].some((t) => String(t).toLowerCase().includes(q)))
+    : options;
   const offer = q && typeof typed === "function" ? typed(query.trim()) : null;
   const shown = offer && !options.some((o) => o.value === offer.value) ? matched.concat([offer]) : matched;
   const expanded = open && !refused && shown.length > 0;

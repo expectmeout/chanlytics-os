@@ -28,6 +28,7 @@ import {
   GUARDRAIL_KEYS,
   PROFILE_LIMITS,
   profileRefusal,
+  normalizeLink,
 } from "@chanlytics/contracts";
 import { installLegacyReact } from "./_legacy-react.mjs";
 
@@ -39,6 +40,8 @@ installLegacyReact({
   __fallbackDefaults: FALLBACK_DEFAULTS,
   __unknownDetails: unknownDetails,
   __instructionsMax: INSTRUCTIONS_MAX,
+  // THE web-address normalizer, as seed-globals.ts publishes it: a link is stored and checked by it.
+  __normalizeLink: normalizeLink,
 });
 await import("../../../apps/dashboard/src/legacy/pages/business-tab-save.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/business-tab-folds.jsx");
