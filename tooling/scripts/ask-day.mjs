@@ -37,25 +37,40 @@ async function rest(path) {
   return res.json();
 }
 
+/** Every row of a query, a thousand at a time (PostgREST's max_rows), at most ten pages. */
+async function page(path) {
+  const rows = [];
+  for (let i = 0; i < 10; i++) {
+    const got = await rest(`${path}&limit=1000&offset=${i * 1000}`);
+    rows.push(...got);
+    if (got.length < 1000) break;
+  }
+  return rows;
+}
+
 const since = new Date(Date.now() - HOURS * 3600 * 1000).toISOString();
 const tenantFilter = TENANT ? `&tenant_id=eq.${TENANT}` : "";
-/** Every assistant turn in the window that carries a shape (turns from before Phase 0 carry none and are not counted). */
-const turns = (
-  await rest(
+/** Every assistant turn in the window and the model that answered it; turns from before Phase 0 carry no shape. */
+const all = (
+  await page(
     `ask_messages?role=eq.assistant&created_at=gte.${encodeURIComponent(since)}${tenantFilter}` +
-      `&select=tenant_id,content,created_at&order=created_at.asc&limit=5000`,
+      `&select=tenant_id,content,created_at&order=created_at.asc`,
   )
-)
-  .map((r) => ({
-    tenant: r.tenant_id,
-    at: r.created_at,
-    shape: r.content?.shape ?? null,
-    failed: r.content?.failed === true,
-  }))
-  .filter((t) => t.shape && t.shape.v === 1);
+).map((r) => ({
+  tenant: r.tenant_id,
+  at: r.created_at,
+  model: r.content?.model ?? "?",
+  shape: r.content?.shape ?? null,
+  failed: r.content?.failed === true,
+}));
+/** The turns that carry a shape: the table's rows. */
+const turns = all.filter((t) => t.shape && t.shape.v === 1);
+/** Every assistant turn per model, a shape or none: the usage rows priced them all, so a turn's cost divides by all. */
+const turnsByModelAll = {};
+for (const t of all) turnsByModelAll[t.model] = (turnsByModelAll[t.model] ?? 0) + 1;
 const usage = (
-  await rest(
-    `events?kind=eq.usage.ask_tokens&created_at=gte.${encodeURIComponent(since)}${tenantFilter}&select=data&order=created_at.asc&limit=5000`,
+  await page(
+    `events?kind=eq.usage.ask_tokens&created_at=gte.${encodeURIComponent(since)}${tenantFilter}&select=data&order=created_at.asc`,
   )
 )
   .map((r) => r.data ?? {})
@@ -107,7 +122,7 @@ const line = (name, s, dollars) =>
   `${String(s.cap_hits).padStart(4)} ${ms(s.opened.median).padStart(9)} ${(dollars === undefined ? "" : dollars === null ? "unpriced" : `$${dollars.toFixed(3)}`).padStart(9)}`;
 
 console.log(
-  `Ask, the last ${HOURS} h${TENANT ? ` in ${TENANT}` : ""}: ${turns.length} turns with a shape, ${usage.length} usage rows\n`,
+  `Ask, the last ${HOURS} h${TENANT ? ` in ${TENANT}` : ""}: ${turns.length} turns with a shape, ${all.length - turns.length} without a shape, ${usage.length} usage rows\n`,
 );
 console.log(
   `${"model · surface".padEnd(34)} ${"turns".padStart(5)} ${"fail".padStart(4)} ${"1-rd".padStart(5)} ${"f-up".padStart(5)} ` +
@@ -116,7 +131,8 @@ console.log(
 );
 for (const [model, group] of Object.entries(byModel)) {
   const c = cost[model];
-  const perTurn = c && c.dollars !== null && group.length ? c.dollars / group.length : c ? null : undefined;
+  const n = turnsByModelAll[model];
+  const perTurn = c && c.dollars !== null && n ? c.dollars / n : c ? null : undefined;
   console.log(line(model, summarise(group), perTurn));
   for (const [k, g] of Object.entries(groups)
     .filter(([k]) => k.startsWith(`${model} · `))
