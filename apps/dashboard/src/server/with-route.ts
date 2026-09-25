@@ -91,14 +91,15 @@ export function withRoute<T>(
       }
       const params = routeCtx?.params ? await routeCtx.params : {};
       const supabase = await createClient();
-      const {
-        data: { user },
-        error: authErr,
-      } = await supabase.auth.getUser();
+      // The token's signature verified (proxy.ts says how: locally over the project's public key, or over the Auth
+      // server where the project still signs with its shared secret), and its claims: who this is, their address
+      // and what they set at sign-up, as the Auth server's user record carried them. Never getSession().
+      const { data: verified, error: authErr } = await supabase.auth.getClaims();
+      const user = verified?.claims ?? null;
       if (!user) {
         // "We could not ask" is not "you are not signed in".
         //
-        // getUser() returns no user for BOTH a missing session and a network
+        // The check returns no claims for BOTH a missing session and a network
         // or 5xx failure against Supabase Auth, and this reported 401 either
         // way. The client treats a 401 as a sign-out: it wipes the surface
         // cache — real customer transcripts — and hard-redirects to /login. So
@@ -123,14 +124,14 @@ export function withRoute<T>(
       const metadata = (user.user_metadata ?? {}) as Record<string, unknown>;
       const data = await handler(req, {
         supabase,
-        userId: user.id,
-        email: user.email,
+        userId: user.sub,
+        email: typeof user.email === "string" ? user.email : undefined,
         metadata,
         params,
         ...(via ? { via } : {}),
         ...(undoOf ? { undoOf } : {}),
       });
-      console.log(JSON.stringify({ level: "info", route, user: user.id, ms: Date.now() - started }));
+      console.log(JSON.stringify({ level: "info", route, user: user.sub, ms: Date.now() - started }));
       // A handler that built its own Response — a file to download — passes
       // through as it is. Its cache-control is overwritten with the no-store
       // rule every other exit uses, UNLESS the handler asked for a private

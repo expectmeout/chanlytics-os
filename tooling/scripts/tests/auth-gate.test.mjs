@@ -8,9 +8,13 @@
  *
  *   1. a new route under /auth shipping public because the gate matched a PREFIX
  *   2. a new /api/v1 route shipping without the wrapper that verifies the user
- *   3. the layout's own getUser() being deleted as "redundant with middleware"
+ *   3. the layout's own check being deleted as "redundant with middleware"
  *      (it is not — middleware bypass is a recurring Next.js CVE class)
- *   4. getSession() replacing getUser(), which trusts an unverified cookie
+ *   4. getSession() replacing the verified check, which trusts an unverified cookie.
+ *      The check is getClaims() (25 Sep 2026): the token's SIGNATURE verified, locally over
+ *      the project's public signing key where it signs asymmetrically, over the Auth server
+ *      where it still signs with the shared secret -- as getUser() always did, and paid a
+ *      round trip for on every request, twice.
  *   5. the login form going back to confirming which emails have accounts
  *   6. the sign-out CSRF check going back to being skippable by omitting a header
  *   7. the hosted auth settings drifting back to their unsafe defaults
@@ -260,15 +264,16 @@ test("the three legal pages are static, read nothing, and point at each other", 
 });
 
 test("the session is VERIFIED, never read from the cookie", () => {
-  // getSession() decodes the cookie without asking the auth server whether it is
-  // still valid — a revoked or forged session passes.
+  // getSession() decodes the cookie without checking its signature — a forged session passes. getClaims() verifies
+  // the signature (locally over the public key, or over the Auth server), and getUser() asks the Auth server; either
+  // is a verification, and the gate takes the one that costs no round trip.
   for (const [name, src] of [
     ["middleware", middleware],
     ["withRoute", withRoute],
     ["(os) layout", osLayout],
   ]) {
     assert.ok(!/getSession\(/.test(src), `${name} must not use getSession()`);
-    assert.match(src, /getUser\(/, `${name} must verify with getUser()`);
+    assert.match(src, /getClaims\(/, `${name} must verify with getClaims()`);
   }
 });
 
@@ -304,7 +309,7 @@ test("every /api/v1 route verifies the user itself", () => {
 test("the signed-in layout gates independently of middleware", () => {
   // If middleware is bypassed (CVE-2025-29927 and its successors), this is the
   // gate that still holds. It is not redundant.
-  assert.match(osLayout, /getUser\(/);
+  assert.match(osLayout, /getClaims\(/);
   assert.match(osLayout, /redirect\(\s*["']\/login["']\s*\)/);
 });
 

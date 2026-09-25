@@ -146,11 +146,15 @@ export async function proxy(request: NextRequest) {
     },
   );
 
-  // getUser() validates the JWT server-side — never trust getSession() here.
-  const {
-    data: { user },
-    error: authErr,
-  } = await supabase.auth.getUser();
+  // getClaims() VERIFIES the token's signature -- locally, over the project's public signing key (the JWKS, fetched
+  // once per process and kept ten minutes), where the project signs with an asymmetric key; over the Auth server,
+  // as getUser() did, where it still signs with the shared secret. Never getSession(), which reads the cookie and
+  // asks nobody. Measured on production (25 Sep 2026): every request paid this round trip here and again in the
+  // route wrapper, twice on a page, some fifty times on a cold load of a person's page. What the local check does
+  // not see is a session revoked before its token expires (an hour at most): the route's own reads run under RLS
+  // with that same token either way.
+  const { data: verified, error: authErr } = await supabase.auth.getClaims();
+  const user = verified?.claims ?? null;
 
   const path = request.nextUrl.pathname;
   // Exact paths, not prefixes. `path.startsWith("/auth")` made every future
