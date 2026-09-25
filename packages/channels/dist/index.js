@@ -2797,6 +2797,15 @@ function createPhoneNumber(cfg, body) {
 function importPhoneNumber(cfg, body) {
   return writeRetell(cfg, "POST", "/import-phone-number", body);
 }
+async function deletePhoneNumber(cfg, number) {
+  const r2 = await fetch(`${API}/delete-phone-number/${encodeURIComponent(number)}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${cfg.apiKey}` },
+    signal: AbortSignal.timeout(8e3)
+  });
+  await r2.body?.cancel().catch(() => void 0);
+  return { ok: r2.ok || r2.status === 404, status: r2.status };
+}
 function updatePhoneNumber(cfg, number, patch) {
   return writeRetell(cfg, "PATCH", `/update-phone-number/${encodeURIComponent(number)}`, patch);
 }
@@ -5902,6 +5911,7 @@ export {
   createRetellLlm,
   customerProfileRequest,
   deleteCampaignRequest,
+  deletePhoneNumber,
   deleteReplyRequest,
   desiredVoiceShell,
   dryProvider,
