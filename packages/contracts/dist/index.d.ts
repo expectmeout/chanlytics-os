@@ -178,6 +178,156 @@ declare function whyNotALink(raw: string | null | undefined): string | null;
  */
 declare function linkHost(url: string): string;
 
+type Tone = "accent" | "warn" | "info" | "ok" | "danger" | "plain";
+declare const TONES: readonly Tone[];
+/** The families of state a pill can name. */
+type StateKind = "thread" | "standing" | "call" | "person" | "consent" | "mode" | "broadcast" | "playbook" | "template" | "template_quality" | "setup" | "role" | "tone" | "calendar"
+/** Where a fact came from: the chip beside a value on the Business tab. */
+ | "fact" | "escalation" | "lead_class" | "lead_stage" | "lead_fit" | "reach" | "lead_call_outcome" | "lead_row_state" | "deal";
+/** The tone for a state, or plain for one this map has never heard of. */
+declare function stateTone(kind: StateKind, value: unknown): Tone;
+/** The words for a state, or the value itself when nobody has written any. */
+declare function stateLabel(kind: StateKind, value: unknown): string;
+/** Both at once: what the pill draws. */
+declare function stateOf(kind: StateKind, value: unknown): {
+    tone: Tone;
+    label: string;
+};
+/** What a pin needs to know about a lead to take a tone: its class, its fit, its row state, its two slots. */
+interface LeadPinnable {
+    cls: string;
+    fit: string | null;
+    state: string;
+    slots: {
+        phone: {
+            state: string;
+        };
+        mailbox: {
+            state: string;
+        };
+    };
+}
+/**
+ * The tone a lead's pin wears on the map, by what the map is coloured by.
+ *
+ * The map kept a table of its own, in leads.css, keyed by `strong`/`part`/`talking` -- words no tone vocabulary
+ * knows -- so it was a sixth colour family that this file could not reach. It had already drifted: a `look` fit
+ * drew amber on a pin while this map calls it plain. And because those rules named no element, and leads.css is
+ * imported after clients.css, `.tone-ok` painted EVERY `tone-ok` in the app solid green -- a Today attention row,
+ * and the peek's own Interested chip. Both now come through here.
+ *
+ * A pin is data, so by the chart kit's rule it never wears the accent, and none of these branches can return it.
+ */
+declare function leadPinTone(lead: LeadPinnable, by: "fit" | "reach" | "stage"): Tone;
+
+/**
+ * A workspace's own sending domains: what may be added, the ramp, how a domain's facts become its state, and what
+ * the Connections row says. Pure; the edge (lib/email/sending-domains.ts) reads the facts and writes the row, the
+ * page (integrations-real.jsx) draws these words (docs/superpowers/specs/2026-09-25-reach-out-design.md §4.6, §4.8).
+ */
+
+declare const SENDING_DOMAIN_STATES: readonly ["records", "verifying", "verified", "held"];
+type SendingDomainState = (typeof SENDING_DOMAIN_STATES)[number];
+declare const DOMAIN_HOLDS: readonly ["verification", "dmarc", "bounces", "complaint"];
+type DomainHold = (typeof DOMAIN_HOLDS)[number];
+declare const DMARC_STATES: readonly ["found", "missing"];
+type DmarcState = (typeof DMARC_STATES)[number];
+/** The holds that lift themselves when the domain reads good again; the rest wait for the owner (PR 5). */
+declare const DNS_HOLDS: readonly DomainHold[];
+declare const SENDING_DOMAINS_MAX = 5;
+/** What we recommend when a domain has no DMARC: accepted by Gmail and Yahoo, and harmless to other mail it sends. */
+declare const DMARC_RECOMMENDED = "v=DMARC1; p=none;";
+/** The ramp (decision 8): per domain, by clean days. */
+declare const DOMAIN_RAMP: ReadonlyArray<{
+    days: number;
+    perDay: number;
+}>;
+declare function cleanDays(cleanSince: string | null, nowMs: number): number;
+/** How many a day this domain may send: 0 until it is verified; the ramp's step by clean days after. */
+declare function domainDailyCap(cleanSince: string | null, nowMs: number): number;
+/** Free mail: nobody can publish records there, and a cold email from one is the spam it looks like. */
+declare const FREE_MAIL_DOMAINS: ReadonlySet<string>;
+declare function normalizeHost(typed: string): string;
+/** Why this cannot be a sending domain, in a sentence; null when it can (whether it is free is the table's to say). */
+declare function whyNotASendingHost(typed: string, platform: {
+    mailDomain: string | null;
+}): string | null;
+declare function normalizeFromLocal(typed: string): string;
+/** Why this cannot be the part before the @, in a sentence; null when it can. */
+declare function whyNotAFromLocal(typed: string): string | null;
+interface DomainRecord {
+    /** The provider's group for it: SPF, DKIM, or the return path's MX. */
+    label: string;
+    type: string;
+    name: string;
+    value: string;
+    priority: number | null;
+    status: string;
+}
+/** A sending domain as the page is told about it (dashboard server/sending-domains.ts). No provider id. */
+interface SendingDomainDto {
+    id: string;
+    host: string;
+    from_local: string;
+    from_name: string;
+    /** sam@getbestmovers.com. */
+    address: string;
+    state: SendingDomainState;
+    held_why: DomainHold | null;
+    held_at: string | null;
+    verified_at: string | null;
+    clean_since: string | null;
+    provider_status: string | null;
+    dmarc: DmarcState | null;
+    records: DomainRecord[];
+    checked_at: string | null;
+    created_at: string;
+}
+/** What the edge just read: the provider's word (null: could not ask) and DMARC (null: could not read). */
+interface DomainFacts {
+    provider: string | null;
+    dmarc: DmarcState | null;
+}
+/** The row as it stands, with the DMARC answer it last stored: a missing record holds only when it was missing before. */
+type DomainRowState = Pick<SendingDomainDto, "state" | "held_why" | "held_at" | "verified_at" | "clean_since" | "dmarc">;
+interface DomainJudgement extends DomainRowState {
+    /** What changed, for the event and the owner; null when nothing did. */
+    change: null | "verified" | "held" | "released";
+}
+/**
+ * The next state, from the row and what was just read. The table:
+ *   records|verifying  provider verified + DMARC found      → verified (clean from now)       change "verified"
+ *                      provider verified + DMARC missing    → records
+ *                      provider pending/partly/temporarily  → verifying
+ *                      anything else                        → records
+ *   verified           provider pending                     → unchanged: a check in progress, the owner's own
+ *                                                               Check included (the provider marks a domain
+ *                                                               pending whatever it was), is not a failure
+ *                      provider anything else not verified  → held, verification            change "held"
+ *                      DMARC missing, and missing last read → held, dmarc                   change "held"
+ *                      DMARC missing for the first time     → unchanged (the missing answer is stored, and the
+ *                                                               next read, ten minutes on, confirms or clears it:
+ *                                                               nameservers that disagree mid-move are one bad read)
+ *   held (DNS)         provider verified + DMARC found      → verified (clean from now)       change "released"
+ *   held (reputation)  unchanged: only the owner resumes it (PR 5).
+ * An unreadable provider changes nothing, and an unreadable DMARC neither holds nor verifies: "we could not look"
+ * is not a fact about the domain.
+ */
+declare function judgeDomain(row: DomainRowState, facts: DomainFacts, nowIso: string): DomainJudgement;
+/** Why a domain was held, as a clause ("it stopped verifying"): the row, the Activity log and the owner's notice say it alike. */
+declare function domainHoldWords(why: string | null | undefined): string;
+interface SendingDomainWords {
+    pill: string;
+    tone: Tone;
+    /** The line under the host. */
+    line: string;
+    /** The right-hand column: the cap, or that it is not sending. */
+    cap: string;
+    /** What comes next, when anything does. */
+    next: string | null;
+}
+declare function sendingDomainWords(d: SendingDomainDto, nowMs: number): SendingDomainWords;
+
 /**
  * A workspace's email address: the rules for choosing one, in the owner's
  * words, and what the pages are told about it.
@@ -189,6 +339,7 @@ declare function linkHost(url: string): string;
  * a worse sentence, never a wrong row; mailbox.db.test.mjs runs both lists
  * against each other.
  */
+
 /** Addresses a mail system or a person expects to mean something else; "r" is the reply route (r+<token>@). 00126's list. */
 declare const MAILBOX_RESERVED: ReadonlySet<string>;
 declare const MAILBOX_LOCAL_PART_MAX = 40;
@@ -226,6 +377,14 @@ interface EmailSetupDto {
     ready: boolean;
     domain: string | null;
     mailbox: MailboxDto | null;
+    /**
+     * The domains this workspace sends cold email from (Reach out): whether this deployment can add them at all (the
+     * edge holds the cold mail account's key), and the ones it has. Null where email is off here.
+     */
+    sending?: {
+        ready: boolean;
+        domains: SendingDomainDto[];
+    } | null;
 }
 /** What Setup and Connections both say while the receptionist does not answer email: one sentence, so the two pages cannot drift apart. */
 declare const EMAIL_NOT_ANSWERED_SENTENCE = "The receptionist does not answer email yet: every email waits for you in the Inbox.";
@@ -584,9 +743,9 @@ declare const BrainOutputSchema: z.ZodObject<{
     confidence: z.ZodPipe<z.ZodCatch<z.ZodNumber>, z.ZodTransform<number, number>>;
     facts_used: z.ZodPipe<z.ZodCatch<z.ZodArray<z.ZodString>>, z.ZodTransform<string[], string[]>>;
     language: z.ZodCatch<z.ZodEnum<{
-        other: "other";
         en: "en";
         es: "es";
+        other: "other";
     }>>;
 }, z.core.$strip>;
 type BrainOutput = z.infer<typeof BrainOutputSchema>;
@@ -5904,156 +6063,6 @@ declare function pushFor(n: {
     route: string | null;
 }, tokens: readonly string[]): PushMessage[];
 
-type Tone = "accent" | "warn" | "info" | "ok" | "danger" | "plain";
-declare const TONES: readonly Tone[];
-/** The families of state a pill can name. */
-type StateKind = "thread" | "standing" | "call" | "person" | "consent" | "mode" | "broadcast" | "playbook" | "template" | "template_quality" | "setup" | "role" | "tone" | "calendar"
-/** Where a fact came from: the chip beside a value on the Business tab. */
- | "fact" | "escalation" | "lead_class" | "lead_stage" | "lead_fit" | "reach" | "lead_call_outcome" | "lead_row_state" | "deal";
-/** The tone for a state, or plain for one this map has never heard of. */
-declare function stateTone(kind: StateKind, value: unknown): Tone;
-/** The words for a state, or the value itself when nobody has written any. */
-declare function stateLabel(kind: StateKind, value: unknown): string;
-/** Both at once: what the pill draws. */
-declare function stateOf(kind: StateKind, value: unknown): {
-    tone: Tone;
-    label: string;
-};
-/** What a pin needs to know about a lead to take a tone: its class, its fit, its row state, its two slots. */
-interface LeadPinnable {
-    cls: string;
-    fit: string | null;
-    state: string;
-    slots: {
-        phone: {
-            state: string;
-        };
-        mailbox: {
-            state: string;
-        };
-    };
-}
-/**
- * The tone a lead's pin wears on the map, by what the map is coloured by.
- *
- * The map kept a table of its own, in leads.css, keyed by `strong`/`part`/`talking` -- words no tone vocabulary
- * knows -- so it was a sixth colour family that this file could not reach. It had already drifted: a `look` fit
- * drew amber on a pin while this map calls it plain. And because those rules named no element, and leads.css is
- * imported after clients.css, `.tone-ok` painted EVERY `tone-ok` in the app solid green -- a Today attention row,
- * and the peek's own Interested chip. Both now come through here.
- *
- * A pin is data, so by the chart kit's rule it never wears the accent, and none of these branches can return it.
- */
-declare function leadPinTone(lead: LeadPinnable, by: "fit" | "reach" | "stage"): Tone;
-
-/**
- * A workspace's own sending domains: what may be added, the ramp, how a domain's facts become its state, and what
- * the Connections row says. Pure; the edge (lib/email/sending-domains.ts) reads the facts and writes the row, the
- * page (integrations-real.jsx) draws these words (docs/superpowers/specs/2026-09-25-reach-out-design.md §4.6, §4.8).
- */
-
-declare const SENDING_DOMAIN_STATES: readonly ["records", "verifying", "verified", "held"];
-type SendingDomainState = (typeof SENDING_DOMAIN_STATES)[number];
-declare const DOMAIN_HOLDS: readonly ["verification", "dmarc", "bounces", "complaint"];
-type DomainHold = (typeof DOMAIN_HOLDS)[number];
-declare const DMARC_STATES: readonly ["found", "missing"];
-type DmarcState = (typeof DMARC_STATES)[number];
-/** The holds that lift themselves when the domain reads good again; the rest wait for the owner (PR 5). */
-declare const DNS_HOLDS: readonly DomainHold[];
-declare const SENDING_DOMAINS_MAX = 5;
-/** What we recommend when a domain has no DMARC: accepted by Gmail and Yahoo, and harmless to other mail it sends. */
-declare const DMARC_RECOMMENDED = "v=DMARC1; p=none;";
-/** The ramp (decision 8): per domain, by clean days. */
-declare const DOMAIN_RAMP: ReadonlyArray<{
-    days: number;
-    perDay: number;
-}>;
-declare function cleanDays(cleanSince: string | null, nowMs: number): number;
-/** How many a day this domain may send: 0 until it is verified; the ramp's step by clean days after. */
-declare function domainDailyCap(cleanSince: string | null, nowMs: number): number;
-/** Free mail: nobody can publish records there, and a cold email from one is the spam it looks like. */
-declare const FREE_MAIL_DOMAINS: ReadonlySet<string>;
-declare function normalizeHost(typed: string): string;
-/** Why this cannot be a sending domain, in a sentence; null when it can (whether it is free is the table's to say). */
-declare function whyNotASendingHost(typed: string, platform: {
-    mailDomain: string | null;
-}): string | null;
-declare function normalizeFromLocal(typed: string): string;
-/** Why this cannot be the part before the @, in a sentence; null when it can. */
-declare function whyNotAFromLocal(typed: string): string | null;
-interface DomainRecord {
-    /** The provider's group for it: SPF, DKIM, or the return path's MX. */
-    label: string;
-    type: string;
-    name: string;
-    value: string;
-    priority: number | null;
-    status: string;
-}
-/** A sending domain as the page is told about it (dashboard server/sending-domains.ts). No provider id. */
-interface SendingDomainDto {
-    id: string;
-    host: string;
-    from_local: string;
-    from_name: string;
-    /** sam@getbestmovers.com. */
-    address: string;
-    state: SendingDomainState;
-    held_why: DomainHold | null;
-    held_at: string | null;
-    verified_at: string | null;
-    clean_since: string | null;
-    provider_status: string | null;
-    dmarc: DmarcState | null;
-    records: DomainRecord[];
-    checked_at: string | null;
-    created_at: string;
-}
-/** What the edge just read: the provider's word (null: could not ask) and DMARC (null: could not read). */
-interface DomainFacts {
-    provider: string | null;
-    dmarc: DmarcState | null;
-}
-/** The row as it stands, with the DMARC answer it last stored: a missing record holds only when it was missing before. */
-type DomainRowState = Pick<SendingDomainDto, "state" | "held_why" | "held_at" | "verified_at" | "clean_since" | "dmarc">;
-interface DomainJudgement extends DomainRowState {
-    /** What changed, for the event and the owner; null when nothing did. */
-    change: null | "verified" | "held" | "released";
-}
-/**
- * The next state, from the row and what was just read. The table:
- *   records|verifying  provider verified + DMARC found      → verified (clean from now)       change "verified"
- *                      provider verified + DMARC missing    → records
- *                      provider pending/partly/temporarily  → verifying
- *                      anything else                        → records
- *   verified           provider pending                     → unchanged: a check in progress, the owner's own
- *                                                               Check included (the provider marks a domain
- *                                                               pending whatever it was), is not a failure
- *                      provider anything else not verified  → held, verification            change "held"
- *                      DMARC missing, and missing last read → held, dmarc                   change "held"
- *                      DMARC missing for the first time     → unchanged (the missing answer is stored, and the
- *                                                               next read, ten minutes on, confirms or clears it:
- *                                                               nameservers that disagree mid-move are one bad read)
- *   held (DNS)         provider verified + DMARC found      → verified (clean from now)       change "released"
- *   held (reputation)  unchanged: only the owner resumes it (PR 5).
- * An unreadable provider changes nothing, and an unreadable DMARC neither holds nor verifies: "we could not look"
- * is not a fact about the domain.
- */
-declare function judgeDomain(row: DomainRowState, facts: DomainFacts, nowIso: string): DomainJudgement;
-/** Why a domain was held, as a clause ("it stopped verifying"): the row, the Activity log and the owner's notice say it alike. */
-declare function domainHoldWords(why: string | null | undefined): string;
-interface SendingDomainWords {
-    pill: string;
-    tone: Tone;
-    /** The line under the host. */
-    line: string;
-    /** The right-hand column: the cap, or that it is not sending. */
-    cap: string;
-    /** What comes next, when anything does. */
-    next: string | null;
-}
-declare function sendingDomainWords(d: SendingDomainDto, nowMs: number): SendingDomainWords;
-
 /** One place, as the judge is shown it. Every string is capped at LEAD_FACT_MAX and stripped of control characters by judgeUserContent. */
 interface PlaceFacts {
     ref: number;
@@ -6990,8 +6999,8 @@ declare const ListFactSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
         is_not: "is_not";
     }>;
     channel: z.ZodEnum<{
-        whatsapp: "whatsapp";
         voice: "voice";
+        whatsapp: "whatsapp";
         sms: "sms";
         email: "email";
     }>;
@@ -7005,10 +7014,10 @@ declare const ListFactSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
         whatsapp: "whatsapp";
         sms: "sms";
         email: "email";
-        manual: "manual";
-        import: "import";
         lead: "lead";
         call: "call";
+        import: "import";
+        manual: "manual";
         calendar: "calendar";
     }>;
 }, z.core.$strict>, z.ZodObject<{
@@ -7031,16 +7040,16 @@ declare const ListFactSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
     field: z.ZodLiteral<"has_chat">;
 }, z.core.$strict>, z.ZodObject<{
     to: z.ZodEnum<{
-        offers: "offers";
         messages: "messages";
+        offers: "offers";
     }>;
     op: z.ZodLiteral<"is">;
     yes: z.ZodBoolean;
     field: z.ZodLiteral<"said_yes">;
 }, z.core.$strict>, z.ZodObject<{
     to: z.ZodEnum<{
-        offers: "offers";
         messages: "messages";
+        offers: "offers";
     }>;
     op: z.ZodLiteral<"is">;
     yes: z.ZodBoolean;
@@ -7157,8 +7166,8 @@ declare const AnySchema: z.ZodObject<{
             is_not: "is_not";
         }>;
         channel: z.ZodEnum<{
-            whatsapp: "whatsapp";
             voice: "voice";
+            whatsapp: "whatsapp";
             sms: "sms";
             email: "email";
         }>;
@@ -7172,10 +7181,10 @@ declare const AnySchema: z.ZodObject<{
             whatsapp: "whatsapp";
             sms: "sms";
             email: "email";
-            manual: "manual";
-            import: "import";
             lead: "lead";
             call: "call";
+            import: "import";
+            manual: "manual";
             calendar: "calendar";
         }>;
     }, z.core.$strict>, z.ZodObject<{
@@ -7198,16 +7207,16 @@ declare const AnySchema: z.ZodObject<{
         field: z.ZodLiteral<"has_chat">;
     }, z.core.$strict>, z.ZodObject<{
         to: z.ZodEnum<{
-            offers: "offers";
             messages: "messages";
+            offers: "offers";
         }>;
         op: z.ZodLiteral<"is">;
         yes: z.ZodBoolean;
         field: z.ZodLiteral<"said_yes">;
     }, z.core.$strict>, z.ZodObject<{
         to: z.ZodEnum<{
-            offers: "offers";
             messages: "messages";
+            offers: "offers";
         }>;
         op: z.ZodLiteral<"is">;
         yes: z.ZodBoolean;
@@ -7324,8 +7333,8 @@ declare const ListConditionSchema: z.ZodUnion<readonly [z.ZodObject<{
             is_not: "is_not";
         }>;
         channel: z.ZodEnum<{
-            whatsapp: "whatsapp";
             voice: "voice";
+            whatsapp: "whatsapp";
             sms: "sms";
             email: "email";
         }>;
@@ -7339,10 +7348,10 @@ declare const ListConditionSchema: z.ZodUnion<readonly [z.ZodObject<{
             whatsapp: "whatsapp";
             sms: "sms";
             email: "email";
-            manual: "manual";
-            import: "import";
             lead: "lead";
             call: "call";
+            import: "import";
+            manual: "manual";
             calendar: "calendar";
         }>;
     }, z.core.$strict>, z.ZodObject<{
@@ -7365,16 +7374,16 @@ declare const ListConditionSchema: z.ZodUnion<readonly [z.ZodObject<{
         field: z.ZodLiteral<"has_chat">;
     }, z.core.$strict>, z.ZodObject<{
         to: z.ZodEnum<{
-            offers: "offers";
             messages: "messages";
+            offers: "offers";
         }>;
         op: z.ZodLiteral<"is">;
         yes: z.ZodBoolean;
         field: z.ZodLiteral<"said_yes">;
     }, z.core.$strict>, z.ZodObject<{
         to: z.ZodEnum<{
-            offers: "offers";
             messages: "messages";
+            offers: "offers";
         }>;
         op: z.ZodLiteral<"is">;
         yes: z.ZodBoolean;
@@ -7488,8 +7497,8 @@ declare const ListConditionSchema: z.ZodUnion<readonly [z.ZodObject<{
         is_not: "is_not";
     }>;
     channel: z.ZodEnum<{
-        whatsapp: "whatsapp";
         voice: "voice";
+        whatsapp: "whatsapp";
         sms: "sms";
         email: "email";
     }>;
@@ -7503,10 +7512,10 @@ declare const ListConditionSchema: z.ZodUnion<readonly [z.ZodObject<{
         whatsapp: "whatsapp";
         sms: "sms";
         email: "email";
-        manual: "manual";
-        import: "import";
         lead: "lead";
         call: "call";
+        import: "import";
+        manual: "manual";
         calendar: "calendar";
     }>;
 }, z.core.$strict>, z.ZodObject<{
@@ -7529,16 +7538,16 @@ declare const ListConditionSchema: z.ZodUnion<readonly [z.ZodObject<{
     field: z.ZodLiteral<"has_chat">;
 }, z.core.$strict>, z.ZodObject<{
     to: z.ZodEnum<{
-        offers: "offers";
         messages: "messages";
+        offers: "offers";
     }>;
     op: z.ZodLiteral<"is">;
     yes: z.ZodBoolean;
     field: z.ZodLiteral<"said_yes">;
 }, z.core.$strict>, z.ZodObject<{
     to: z.ZodEnum<{
-        offers: "offers";
         messages: "messages";
+        offers: "offers";
     }>;
     op: z.ZodLiteral<"is">;
     yes: z.ZodBoolean;
@@ -7657,8 +7666,8 @@ declare const ListRuleSchema: z.ZodObject<{
                 is_not: "is_not";
             }>;
             channel: z.ZodEnum<{
-                whatsapp: "whatsapp";
                 voice: "voice";
+                whatsapp: "whatsapp";
                 sms: "sms";
                 email: "email";
             }>;
@@ -7672,10 +7681,10 @@ declare const ListRuleSchema: z.ZodObject<{
                 whatsapp: "whatsapp";
                 sms: "sms";
                 email: "email";
-                manual: "manual";
-                import: "import";
                 lead: "lead";
                 call: "call";
+                import: "import";
+                manual: "manual";
                 calendar: "calendar";
             }>;
         }, z.core.$strict>, z.ZodObject<{
@@ -7698,16 +7707,16 @@ declare const ListRuleSchema: z.ZodObject<{
             field: z.ZodLiteral<"has_chat">;
         }, z.core.$strict>, z.ZodObject<{
             to: z.ZodEnum<{
-                offers: "offers";
                 messages: "messages";
+                offers: "offers";
             }>;
             op: z.ZodLiteral<"is">;
             yes: z.ZodBoolean;
             field: z.ZodLiteral<"said_yes">;
         }, z.core.$strict>, z.ZodObject<{
             to: z.ZodEnum<{
-                offers: "offers";
                 messages: "messages";
+                offers: "offers";
             }>;
             op: z.ZodLiteral<"is">;
             yes: z.ZodBoolean;
@@ -7821,8 +7830,8 @@ declare const ListRuleSchema: z.ZodObject<{
             is_not: "is_not";
         }>;
         channel: z.ZodEnum<{
-            whatsapp: "whatsapp";
             voice: "voice";
+            whatsapp: "whatsapp";
             sms: "sms";
             email: "email";
         }>;
@@ -7836,10 +7845,10 @@ declare const ListRuleSchema: z.ZodObject<{
             whatsapp: "whatsapp";
             sms: "sms";
             email: "email";
-            manual: "manual";
-            import: "import";
             lead: "lead";
             call: "call";
+            import: "import";
+            manual: "manual";
             calendar: "calendar";
         }>;
     }, z.core.$strict>, z.ZodObject<{
@@ -7862,16 +7871,16 @@ declare const ListRuleSchema: z.ZodObject<{
         field: z.ZodLiteral<"has_chat">;
     }, z.core.$strict>, z.ZodObject<{
         to: z.ZodEnum<{
-            offers: "offers";
             messages: "messages";
+            offers: "offers";
         }>;
         op: z.ZodLiteral<"is">;
         yes: z.ZodBoolean;
         field: z.ZodLiteral<"said_yes">;
     }, z.core.$strict>, z.ZodObject<{
         to: z.ZodEnum<{
-            offers: "offers";
             messages: "messages";
+            offers: "offers";
         }>;
         op: z.ZodLiteral<"is">;
         yes: z.ZodBoolean;
@@ -10123,7 +10132,7 @@ declare const LEAD_WORDS: {
     readonly notFit: string;
     readonly notFitTitle: "What makes it not a fit?";
     readonly whys: {
-        id: "customer" | "other" | "chain" | "wrong_kind" | "too_far";
+        id: "other" | "chain" | "wrong_kind" | "too_far" | "customer";
         label: string;
     }[];
     readonly keep: "Keep";
@@ -10391,11 +10400,11 @@ declare const LeadStageInputSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
 }, z.core.$strip>, z.ZodObject<{
     kind: z.ZodLiteral<"not_a_fit">;
     why: z.ZodEnum<{
-        customer: "customer";
         other: "other";
         chain: "chain";
         wrong_kind: "wrong_kind";
         too_far: "too_far";
+        customer: "customer";
     }>;
 }, z.core.$strip>, z.ZodObject<{
     kind: z.ZodLiteral<"said_no">;

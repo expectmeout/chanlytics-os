@@ -176,7 +176,7 @@ test("where the deployment names no mail domain, email is off: nothing can be ma
       /not available here yet/,
     );
     const db = fakeDb({ mailboxes: [row(A)] });
-    assert.deepEqual(await emailSetupFor(db, A), { ready: false, domain: null, mailbox: null });
+    assert.deepEqual(await emailSetupFor(db, A), { ready: false, domain: null, mailbox: null, sending: null });
     assert.deepEqual(db.seen, []);
   } finally {
     process.env.EMAIL_DOMAIN = "mail.chanlytics.com";
@@ -192,6 +192,8 @@ test("where the deployment names no mail domain, email is off: nothing can be ma
       last_received_at: "2026-09-17T12:00:00Z",
       last_error: null,
     },
+    // Own domains are the edge's to switch on (the cold key); with no edge here, the block is not drawn.
+    sending: { ready: false, domains: [] },
   });
   assert.deepEqual(
     (await emailSetupFor(db, B)).mailbox,
