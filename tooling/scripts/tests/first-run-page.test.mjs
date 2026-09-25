@@ -46,7 +46,10 @@ const withFacts = {
 };
 const answering = {
   ...withFacts,
-  channels: { ...blank.channels, voice: { present: true, active: true, number: "+13055550123", lastInboundAt: null } },
+  channels: {
+    ...blank.channels,
+    voice: { present: true, active: true, number: "+13055550123", lastInboundAt: "2026-09-07T14:00:00Z" },
+  },
   calendar: { state: "ok" },
 };
 const surface = (dto) => ({
@@ -257,7 +260,7 @@ test("answering: Live, with what is left, and Finish goes to Today", () => {
   assert.equal(textOf(onward), "Finish");
   onward.props.onClick();
   assert.equal(went.at(-1), "today");
-  assert.equal(textOf(byTestId(tree, "fr-card-status")), "Answering · not tried yet");
+  assert.equal(textOf(byTestId(tree, "fr-card-status")), "Answering", "Live comes after a call came in");
 });
 
 test("Finish later leaves for Today", () => {
@@ -588,6 +591,10 @@ const heldWaits = [];
 const shortTimeout = globalThis.setTimeout;
 globalThis.setTimeout = (fn, ms, ...rest) =>
   ms > 1000 ? (heldWaits.push({ fn, ms }), 0) : shortTimeout(fn, ms, ...rest);
+// Try it's clock ticks each second while a call is on screen; the stub never clears it, so the interval is held too.
+const heldTicks = [];
+globalThis.setInterval = (fn, ms) => (heldTicks.push({ fn, ms }), 0);
+globalThis.clearInterval = () => {};
 const PRICE = { id: "price_example", currency: "usd", unit_amount: 4900, interval: "month", product_name: "Plan" };
 const phoneReady = (billing = {}) => ({
   ...withFacts,
@@ -1113,4 +1120,141 @@ test("your phone (canvas V6): an office phone system is shown the number, and Do
   const asked2 = mount();
   assert.equal(byTestId(asked2, "fr-phone-with-me-go"), null);
   assert.match(textOf(byTestId(asked2, "fr-phone-with-me-asked")), /^Asked /);
+});
+
+/* ---- PR 5a: Try it ---- */
+const untried = {
+  ...withFacts,
+  channels: { ...blank.channels, voice: { present: true, active: true, number: "+13055550123", lastInboundAt: null } },
+  lines: { rows: [], ready: true, provider: "twilio", costs: { local_number_month_usd: 1.15 } },
+};
+const liveCall = (over = {}) => ({
+  callId: "c1",
+  cvId: "cv-c1",
+  number: "+1 (786) 555-0199",
+  from: "+17865550199",
+  direction: "inbound",
+  status: "ongoing",
+  live: true,
+  missed: false,
+  startedAtMs: Date.now() - 20_000,
+  startedLabel: "2:59 PM",
+  duration: null,
+  lengthWords: null,
+  transcript: [
+    { speaker: "agent", text: "Thank you for calling Harbor Moving!", t: "0:01" },
+    { speaker: "client", text: "Are you open on Sunday?", t: "0:05" },
+  ],
+  ...over,
+});
+const tryWorld = () => {
+  const asked = { later: [], saves: [], request: [] };
+  const drafts = {};
+  globalThis.window.__tabMemory = {
+    draft: (k) => drafts[k] ?? null,
+    keepDraft: (k, v) => {
+      drafts[k] = v;
+    },
+    dropDraft: (k) => {
+      delete drafts[k];
+    },
+  };
+  globalThis.window.__setup.later = async (id, on) => {
+    asked.later.push([id, on]);
+    return { ok: true, message: "" };
+  };
+  globalThis.window.__setup.request = async (what) => {
+    asked.request.push(what);
+    return { ok: true, already: false, message: "" };
+  };
+  globalThis.window.__businessTabSave = {
+    saver: { save: (job) => asked.saves.push(job), subscribe: () => () => {}, base: () => ({ brain: {} }) },
+    PATCH_OF: {
+      handoff_number: (value) => (b, p) => {
+        if (value) p.handoff_number = value;
+        else delete p.handoff_number;
+        b.profile = p;
+        return b;
+      },
+    },
+  };
+  return asked;
+};
+
+test("Try it (canvas R6): calls answered and none yet, the step listens for the test call, and skipping asks once first", async () => {
+  const asked = tryWorld();
+  globalThis.window.__LIVE = { now: [], recent: [] };
+  globalThis.window.__SETUP = surface(untried);
+  param = null;
+  fresh();
+  let tree = mount();
+  assert.equal(textOf(byTestId(tree, "fr-heading")), "Call your receptionist from your cell.");
+  assert.equal(byTestId(tree, "fr-try").props["data-stage"], "listen");
+  assert.equal(textOf(byTestId(tree, "fr-try-number")), "+1 (305) 555-0123");
+  await byTestId(tree, "fr-try-skip-go").props.onClick();
+  tree = mount();
+  assert.match(textOf(byTestId(tree, "fr-try-nudge")), /^Most owners call once/);
+  assert.deepEqual(asked.later, [], "one nudge first");
+  await byTestId(tree, "fr-try-skip-go").props.onClick();
+  assert.deepEqual(asked.later, [["try-skipped", true]], "then the wait is put off for this member");
+  assert.equal(replaced.at(-1), "start");
+});
+
+test("Try it (canvas R7, R8): it picked up with the words, then the call and the transfer saved through the Business tab's saver", async () => {
+  const asked = tryWorld();
+  globalThis.window.__SETUP = surface(untried);
+  globalThis.window.__LIVE = { now: [liveCall()], recent: [] };
+  param = "try";
+  fresh();
+  let tree = mount();
+  assert.equal(textOf(byTestId(tree, "fr-heading")), "It picked up.");
+  assert.match(textOf(byTestId(tree, "fr-try-proof")), /^Your receptionist answered · on the call now · 0:[12]\d$/);
+  assert.equal(
+    textOf(byTestId(tree, "fr-try-turns")),
+    "ReceptionistThank you for calling Harbor Moving!YouAre you open on Sunday?",
+  );
+  globalThis.window.__LIVE = { now: [], recent: [liveCall({ live: false, status: "ended", duration: "0:48" })] };
+  tree = mount();
+  assert.equal(textOf(byTestId(tree, "fr-heading")), "That's your receptionist.");
+  assert.equal(textOf(byTestId(tree, "fr-try-meta")), "0:48 · from +1 (786) 555-0199 · 2:59 PM");
+  const caller = byTestId(tree, "fr-try-transfer-caller");
+  caller.props.children.find((k) => k && k.type === "input").props.onChange();
+  assert.equal(asked.saves.length, 1);
+  assert.equal(asked.saves[0].row, "handoff_number");
+  const brain = asked.saves[0].change({}, {});
+  assert.equal(brain.profile.handoff_number, "+17865550199", "the phone they called from");
+  byTestId(tree, "fr-try-inbox").props.onClick();
+  assert.equal(went.at(-1), "conversations/cv-c1", "the call itself, in the Inbox");
+  byTestId(tree, "fr-try-go").props.onClick();
+  assert.equal(replaced.at(-1), "start", "on to Live");
+  // The settings read not in yet: the saver would send nothing, so the page says so rather than showing a choice.
+  globalThis.window.__businessTabSave.saver.base = () => null;
+  flashes.length = 0;
+  fresh();
+  tree = mount();
+  byTestId(tree, "fr-try-transfer-caller")
+    .props.children.find((k) => k && k.type === "input")
+    .props.onChange();
+  assert.equal(asked.saves.length, 1, "nothing sent");
+  assert.equal(textOf(flashes.at(-1).msg), "Your settings are still being read. Try again in a moment.");
+  delete globalThis.window.__LIVE;
+});
+
+test("Try it stays on screen at the bare address when Setup learns of the call mid-call: the words and the transfer are still to come", () => {
+  tryWorld();
+  globalThis.window.__SETUP = surface(untried);
+  globalThis.window.__LIVE = { now: [liveCall()], recent: [] };
+  param = null;
+  fresh();
+  assert.equal(textOf(byTestId(mount(), "fr-heading")), "It picked up.");
+  // The call reached the receptionist: Setup reads it, and the step is done (Live is where #/start now opens).
+  globalThis.window.__SETUP = surface({
+    ...untried,
+    channels: { ...untried.channels, voice: { ...untried.channels.voice, lastInboundAt: new Date().toISOString() } },
+  });
+  globalThis.window.__LIVE = { now: [], recent: [liveCall({ live: false, status: "ended", duration: "0:48" })] };
+  const after = mount();
+  assert.equal(textOf(byTestId(after, "fr-heading")), "That's your receptionist.", "not jumped on to Live");
+  assert.ok(byTestId(after, "fr-try-transfer"), "where transfers go is asked");
+  delete globalThis.window.__LIVE;
 });

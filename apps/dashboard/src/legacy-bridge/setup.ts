@@ -135,6 +135,8 @@ export const setupOverride: SurfaceOverride = {
   // business record the carriers read; Stripe's answer; the Google profile.
   // Each is published by the database (00057, 00066, 00108, 00075, 00073,
   // 00070, 00117), so a change in another tab, or by a webhook, repaints here.
+  // A call reaching the receptionist makes Try it's row ready (the first run's third step and Today's card): read
+  // again when a call ends, until one has reached it, and never for each turn of a call or what follows its end.
   refreshOnTables: [
     "lines",
     "notifications",
@@ -143,7 +145,11 @@ export const setupOverride: SurfaceOverride = {
     "business_records",
     "billing_accounts",
     "google_connections",
+    "calls",
   ],
+  refreshWhen: (c) =>
+    c.table !== "calls" ||
+    (c.event === "UPDATE" && c.row.status === "ended" && !window.__SETUP?.dto?.channels?.voice?.lastInboundAt),
   apply: async () => {
     try {
       // The rows this member put off ride on their own saved view (the door People's view goes through), read beside

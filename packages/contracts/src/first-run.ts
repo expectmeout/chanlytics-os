@@ -18,8 +18,9 @@ import { DAY_NAMES, type Hours } from "./config";
 import { bookingLinkOptional } from "./deals";
 import { checkChipsOf } from "./check-chips";
 import { bookingPageOffered } from "./google";
+import { firstRunTryOf, FIRST_RUN_TRY_WORDS, TRY_QUIET_AFTER_MS } from "./first-run-try";
 import { areaCodeOf, firstRunPhoneOf, forwardingCarrierOf, FIRST_RUN_PHONE_WORDS } from "./first-run-phone";
-import type { SetupDto, SetupRowVM, SetupState, SetupVM } from "./setup";
+import { TRY_SKIPPED, type SetupDto, type SetupRowVM, type SetupState, type SetupVM } from "./setup";
 
 /** The first run's address: `#/start`, and `#/start/<step>` for a step already reached. */
 export const FIRST_RUN_ROUTE = "start";
@@ -88,19 +89,30 @@ export const FIRST_RUN_STEPS: readonly FirstRunStepDef[] = [
     key: "try",
     name: "Try it",
     lead: "Call it from your own phone and hear what your customers will hear.",
-    rows: ["receptionist", "handoff"],
-    needs: ["receptionist"],
+    rows: ["try", "handoff"],
+    needs: ["receptionist", "try"],
   },
   // The last step is where the others lead: nothing to finish, only what is left after it.
   { key: "live", name: "Live", lead: "", rows: LIVE_ROWS, needs: [] },
 ];
 
 /**
- * Today's card, in the order each row helps most: WhatsApp first, because the booking link goes out by WhatsApp on a
+ * Today's card, in the order each row helps most: the test call first, until one has come in (the first run lets it be
+ * skipped, Today does not forget it); then WhatsApp, because the booking link goes out by WhatsApp on a
  * call; then the calendar, so it can say which times are open; then someone to back the owner up; then the rows a
  * step offered and nobody took.
  */
-export const SETUP_CARD_ORDER = ["whatsapp", "calendar", "team", "handoff", "keep", "google", "email", "yes"] as const;
+export const SETUP_CARD_ORDER = [
+  "try",
+  "whatsapp",
+  "calendar",
+  "team",
+  "handoff",
+  "keep",
+  "google",
+  "email",
+  "yes",
+] as const;
 
 export const FIRST_RUN_WORDS = {
   title: "Setting up",
@@ -279,7 +291,9 @@ const rowOf = (vm: SetupVM, id: string): SetupRowVM | null => vm.rows.find((r) =
 const stepDone = (vm: SetupVM, def: FirstRunStepDef): boolean =>
   def.needs.every((id) => {
     const r = rowOf(vm, id);
-    return !r || r.state === "ready";
+    // The test call is waited for until it came in, or the member skipped it: in the first run (TRY_SKIPPED, which
+    // Today's row outlives) or on Today's card (the row itself put off).
+    return !r || r.state === "ready" || (id === "try" && (vm.trySkipped || r.later));
   });
 
 /** The step a `#/start/<step>` address names, or null for anything else. */
@@ -423,7 +437,9 @@ const CARD_SKIP = { put: "Skip", said: "Put off. It stays in Setting up for when
 /** Today's card: what is left to set up, or null when nothing is. */
 export function setupCardOf(vm: SetupVM): SetupCardVM | null {
   const fr = firstRunOf(vm);
-  if (!fr.complete) {
+  // Calls answered and only the test call left: Setup's own rows, Try it first, each with its Skip and the card's Hide,
+  // as after the first run -- a workspace that answers is never held to a card it cannot put away.
+  if (!fr.complete && fr.current !== "try") {
     // The steps that ask something: every one but the last, which is where they lead.
     const left = fr.steps.slice(0, -1).filter((s) => s.state !== "done").length;
     const next = fr.steps.find((s) => s.key === fr.current) ?? fr.steps[0];
@@ -596,6 +612,11 @@ export const FIRST_RUN_HELPERS = {
   phone: firstRunPhoneOf,
   phoneWords: FIRST_RUN_PHONE_WORDS,
   areaCodeOf,
+  /** Try it (first-run-try.ts): what the step says over Setup and the Live page's calls, its words, and when it asks why. */
+  tryIt: firstRunTryOf,
+  tryWords: FIRST_RUN_TRY_WORDS,
+  tryQuietAfterMs: TRY_QUIET_AFTER_MS,
+  trySkipped: TRY_SKIPPED,
   /** The carrier whose codes the answers choose (first-run-phone.ts), which the forwarding is saved with. */
   forwardingCarrierOf,
   /** A number as the app writes one (phone.ts): the numbers offered to pick are said this way, never Twilio's. */

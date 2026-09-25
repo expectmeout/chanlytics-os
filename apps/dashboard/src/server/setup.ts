@@ -155,6 +155,8 @@ export async function setupDtoFor(
       .select("started_at")
       .eq("tenant_id", tenantId)
       .eq("direction", "inbound")
+      // A dial that never connected reached nobody: it is no test of the receptionist.
+      .neq("status", "not_connected")
       .order("started_at", { ascending: false, nullsFirst: false })
       .limit(1)
       .maybeSingle(),

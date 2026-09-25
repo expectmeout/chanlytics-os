@@ -17,6 +17,7 @@ import {
   FIRST_RUN_FIND_ROUTE,
   businessNameOf,
   setupCardOf,
+  TRY_SKIPPED,
   receptionistCardOf,
   shouldLandOnFirstRun,
   setupLaterOf,
@@ -138,7 +139,11 @@ test("a new workspace starts on its business: one step current, the rest ahead, 
     ["line", "keep"],
     "no billing row without billing",
   );
-  assert.deepEqual(ids(fr.steps.find((s) => s.key === "try").rows), ["receptionist", "handoff"]);
+  assert.deepEqual(
+    ids(fr.steps.find((s) => s.key === "try").rows),
+    ["handoff"],
+    "Setup's Try it row arrives with calls answered: nothing to try before",
+  );
 });
 
 test("the facts are in: the phone is current, the business can be looked at again, and a step ahead cannot", () => {
@@ -722,5 +727,64 @@ test("the receptionist card says how a business that quotes, with no link, is re
         tz: "America/New_York",
       }),
     TypeError,
+  );
+});
+
+test("Try it waits for a call: Setup's row names the number to call, the skip lets the first run go on, and Today keeps the row", () => {
+  const untried = (over = {}) =>
+    live({
+      channels: {
+        ...live().channels,
+        voice: { present: true, active: true, number: VOICE, lastInboundAt: null },
+      },
+      ...over,
+    });
+  const vm = setupSteps(untried(), NOW);
+  const row = vm.rows.find((r) => r.id === "try");
+  assert.deepEqual(
+    [row.state, row.required, row.sentence],
+    ["waiting_you", false, "Call +1 (305) 555-0124 from your cell."],
+  );
+  assert.deepEqual(row.verb, { label: "Try it", to: firstRunStepRoute("try") }, "the first run's own step");
+  assert.equal(firstRunOf(vm).current, "try", "answering is not tried: the step waits for a call");
+  const card = setupCardOf(vm);
+  assert.equal(card.start, null, "only the test call left: Setup's rows, not a card that cannot be put away");
+  assert.equal(card.rows[0].id, "try");
+  assert.ok(card.hide, "and the card can be hidden");
+  const putOff = setupSteps(untried({ later: ["try"] }), NOW);
+  assert.equal(firstRunOf(putOff).current, "live", "Today's Skip on Try it is a skip too");
+  assert.equal(TRY_SKIPPED, "try-skipped");
+  const skipped = setupSteps(untried({ later: [TRY_SKIPPED] }), NOW);
+  assert.equal(skipped.trySkipped, true);
+  assert.equal(firstRunOf(skipped).current, "live", "skipped: the first run goes on");
+  assert.equal(setupCardOf(skipped).rows[0].id, "try", "Today keeps Try it, first, until a call comes in");
+  const tried = setupSteps(live(), NOW);
+  assert.equal(tried.rows.find((r) => r.id === "try").state, "ready");
+  assert.equal(tried.rows.find((r) => r.id === "try").verb, null);
+  assert.equal(firstRunOf(tried).current, "live");
+  // Kept, the number to call is the one customers call, and nobody is to pick up.
+  const kept = {
+    id: "fw",
+    e164: "+13055550100",
+    kind: "forwarded",
+    provider: "carrier",
+    area_code: 305,
+    voice_state: "none",
+    sms_state: "none",
+    whatsapp_state: "none",
+    port_state: "none",
+    forwarding_state: "instructed",
+    step: null,
+    last_error: null,
+    state_since: "2026-09-07T14:00:00Z",
+    created_at: "2026-09-07T14:00:00Z",
+  };
+  const forwarded = setupSteps(
+    untried({ lines: { rows: [kept], ready: true, provider: "twilio", costs: { local_number_month_usd: 1.15 } } }),
+    NOW,
+  );
+  assert.equal(
+    forwarded.rows.find((r) => r.id === "try").sentence,
+    "Call +1 (305) 555-0100 from your cell and don't pick up.",
   );
 });

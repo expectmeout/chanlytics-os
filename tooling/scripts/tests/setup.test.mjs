@@ -153,14 +153,14 @@ test("an empty workspace: nothing answers, every row reads its true state, the f
   for (const r of vm.rows) assert.equal(r.stateWords, SETUP_STATE_WORDS[r.state]);
 });
 
-test("a workspace that answers everywhere: eight of nine — the kept number is the one thing left to offer — both numbers to try", () => {
+test("a workspace that answers everywhere: nine of ten — the kept number is the one thing left to offer — both numbers to try", () => {
   const vm = setupSteps(live(), NOW);
   assert.equal(vm.readiness.answering, true);
   assert.equal(
     vm.readiness.sentence,
     `Your receptionist answers calls on ${formatPhoneDisplay(VOICE)} and WhatsApp on ${formatPhoneDisplay(WA)}. Texting is not available yet.`,
   );
-  assert.equal(vm.done, 8);
+  assert.equal(vm.done, 9);
   assert.deepEqual(vm.next, {
     label: "Set up forwarding",
     to: "verb:forwarding",
@@ -473,7 +473,7 @@ test("calls only: the sentence says what is missing, and WhatsApp can now wait f
   const later = setupSteps({ ...dto, later: ["whatsapp", "keep"] }, NOW);
   assert.equal(row(later, "whatsapp").later, true);
   assert.equal(later.next, null, "rows put off for later leave nothing to press");
-  assert.equal(later.done, 7);
+  assert.equal(later.done, 8);
 });
 
 test("WhatsApp only: no phone line yet, and the line row still asks", () => {
@@ -911,7 +911,7 @@ test("the wiring for lines: routes owner-only and rate-limited, the setup route 
   );
   const bridge = readCode("apps/dashboard/src/legacy-bridge/setup.ts");
   assert.ok(
-    /refreshOnTables: \[\s*"lines",\s*"notifications",\s*"tenant_channels",\s*"capability_activations",\s*"business_records",\s*"billing_accounts",\s*"google_connections",?\s*\]/.test(
+    /refreshOnTables: \[\s*"lines",\s*"notifications",\s*"tenant_channels",\s*"capability_activations",\s*"business_records",\s*"billing_accounts",\s*"google_connections",\s*"calls",?\s*\]/.test(
       bridge,
     ),
     "every table a row derives from repaints the page",

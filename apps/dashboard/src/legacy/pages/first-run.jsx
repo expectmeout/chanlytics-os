@@ -696,6 +696,165 @@ const FrPhone = ({ ph, choice, setChoice, W, flash, go, back, backLabel, ownFoot
   );
 };
 
+// When Try it opened, kept in the tab (the loading standard's drafts): a call from before it is not the test, and a
+// reload keeps listening from the same moment. A mark older than FR_TRY_FRESH_MS is a visit long gone, and the step
+// listens from now.
+const FR_TRY_DRAFT = "first-run-try";
+const FR_TRY_FRESH_MS = 2 * 3600_000;
+/** The test window's length (line_forwarding_test): opened again only once this has passed. */
+const FR_TRY_WINDOW_MS = 30 * 60_000;
+const frTrySince = () => {
+  const now = Date.now();
+  try {
+    const kept = window.__tabMemory && window.__tabMemory.draft(FR_TRY_DRAFT);
+    if (kept && typeof kept.since === "number" && now - kept.since < FR_TRY_FRESH_MS) return kept.since;
+    if (window.__tabMemory) window.__tabMemory.keepDraft(FR_TRY_DRAFT, { since: now });
+  } catch { /* the tab keeps nothing: listen from now */ }
+  return now;
+};
+
+/**
+ * Try it (canvas R6–R8, P6, P7, V7, V8; contracts first-run-try.ts): the owner calls the number customers call, from
+ * their cell, and the page follows the call on the Live page's own read -- listening, "It picked up" the moment it
+ * starts, the words a turn behind, then the whole call and where a caller who asks for a person goes. `tr` is the step
+ * as contracts say it. For a kept number not yet proven, the test window opens as the screen does (the call webhook
+ * proves forwarding only inside one). The transfer saves through the Business tab's one saver, as that tab's row does;
+ * the skip asks once (V8), then puts the wait off for this member (TRY_SKIPPED), and Today keeps its row.
+ */
+const FrTry = ({ tr, W, flash, go, leave, back, backLabel }) => {
+  const P = window.__setup;
+  const F = window.__firstRun;
+  const [nudged, setNudged] = React.useState(false);
+  const [busy, setBusy] = React.useState(false);
+  // The choice pressed, shown until Setup's read says the same (the save re-reads it), or let go on a refusal.
+  const [picked, setPicked] = React.useState(null);
+  const t0 = tr.transfer;
+  React.useEffect(() => { if (picked && t0 && t0.value === picked) setPicked(null); }, [t0 && t0.value]);
+  // The test window, as the screen opens and again once it runs out while the owner is still listening (the call
+  // webhook proves forwarding only inside one). At most once a window: FR_TRY_WINDOW_MS apart.
+  const opened = React.useRef(0);
+  React.useEffect(() => {
+    const listening = tr.stage === "listen" || tr.stage === "quiet";
+    if (!tr.openTest || !listening || Date.now() - opened.current < FR_TRY_WINDOW_MS) return;
+    if (!P || !P.forwarding || !(window.canDo && window.canDo("team"))) return;
+    opened.current = Date.now();
+    P.forwarding.test(tr.openTest).then((r) => { if (!r.ok) flash({ tone: "danger", msg: <>{r.message}</> }); });
+  }, [tr.openTest, tr.stage]);
+  const skip = async () => {
+    if (!nudged) { setNudged(true); return; }
+    if (busy || !P) return;
+    setBusy(true);
+    const r = await P.later(F.trySkipped, true);
+    setBusy(false);
+    if (!r.ok) { flash(window.refusalToast(r, W.notSaved)); return; }
+    go("start");
+  };
+  const help = async () => {
+    if (busy || !P || !(window.canDo && window.canDo("approve"))) return;
+    setBusy(true);
+    const r = await P.request("forwarding");
+    setBusy(false);
+    flash(r.ok ? { tone: "ok", msg: <>{W.helpSent}</> } : window.refusalToast(r, W.helpFailed));
+  };
+  // Where a caller who asks for a person goes: the Business tab's own row and patch (an empty number takes a message).
+  const choose = (o) => {
+    const S = window.__businessTabSave;
+    if (!S || !(window.canDo && window.canDo("settings"))) return;
+    // The saver goes on the settings read's config: without it, nothing would be sent, so it says so instead.
+    if (!S.saver.base()) { flash({ tone: "danger", msg: <>{W.notReadYet}</> }); return; }
+    setPicked(o.key);
+    S.saver.save({
+      row: "handoff_number",
+      change: S.PATCH_OF.handoff_number(o.to || ""),
+      said: null,
+      done: () => flash({ tone: "ok", msg: <>{W.saved}</> }),
+      flash: (f) => { if (f && f.tone === "danger") { setPicked(null); flash(f); } },
+    });
+  };
+  const turns = tr.call ? (
+    <ol className="fr-try-turns" data-testid="fr-try-turns">
+      {tr.call.turns.map((t, i) => (
+        <li key={i} className={t.agent ? "fr-try-turn is-agent" : "fr-try-turn"}>
+          <span className="fr-try-who">{t.who}</span>
+          <span className="fr-try-said">{t.text}</span>
+        </li>
+      ))}
+    </ol>
+  ) : null;
+  const skipper = (
+    <div className="fr-try-skip" data-testid="fr-try-skip">
+      {nudged ? <p className="fr-check-note" data-testid="fr-try-nudge">{tr.skip.nudge}</p> : null}
+      <div className="fr-code-links">
+        {nudged ? <button type="button" className="fr-find-link" onClick={() => setNudged(false)} data-testid="fr-try-stay">{tr.skip.stay}</button> : null}
+        <button type="button" className="fr-find-link" onClick={skip} disabled={busy} data-testid="fr-try-skip-go">{nudged ? tr.skip.anyway : tr.skip.label}</button>
+      </div>
+    </div>
+  );
+  if (tr.stage === "listen" || tr.stage === "quiet") {
+    const l = tr.listening;
+    return (
+      <div className="fr-line-step" data-testid="fr-try" data-stage={tr.stage}>
+        <span className="fr-code-dial tabular" data-testid="fr-try-number">{tr.number}</span>
+        <div className="fr-try-listen" role="status">
+          <span className="fr-try-pulse" aria-hidden="true" />
+          <span className="fr-line-sentence">{l.sentence}</span>
+          <span className="fr-line-detail">{l.detail}</span>
+        </div>
+        {l.route ? <p className="fr-code-off" data-testid="fr-try-route">{l.route}</p> : null}
+        {tr.causes.length ? (
+          <dl className="fr-try-causes" data-testid="fr-try-causes">
+            {tr.causes.map((c) => (
+              <div key={c.question}><dt>{c.question}</dt><dd>{c.answer}</dd></div>
+            ))}
+          </dl>
+        ) : null}
+        {tr.stage === "quiet" ? (
+          <div className="fr-code-links">
+            {tr.forwarded ? <button type="button" className="fr-find-link" onClick={() => go("start/phone")} data-testid="fr-try-code">{W.showCode}</button> : null}
+            {tr.help ? <button type="button" className="fr-find-link" onClick={help} disabled={busy} data-testid="fr-try-help" {...window.gate("approve", "ask for help")}>{tr.help}</button> : null}
+          </div>
+        ) : null}
+        {skipper}
+      </div>
+    );
+  }
+  if (tr.stage === "call") {
+    return (
+      <div className="fr-line-step" data-testid="fr-try" data-stage="call">
+        <p className="fr-line-started" data-testid="fr-try-proof"><Icon name="check" size={12} />{tr.call.line}</p>
+        {turns}
+        <p className="fr-line-detail">{tr.call.behind}</p>
+      </div>
+    );
+  }
+  const t = tr.transfer;
+  const value = picked || t.value;
+  return (
+    <div className="fr-line-step" data-testid="fr-try" data-stage="done">
+      <p className="fr-line-detail" data-testid="fr-try-meta">{tr.call.line}</p>
+      {turns}
+      <span className="fr-line-label" id="fr-try-transfer-label">{t.label}</span>
+      <div className="fr-find-hits" role="radiogroup" aria-labelledby="fr-try-transfer-label" data-testid="fr-try-transfer">
+        {t.options.map((o) => (
+          <label key={o.key} className="fr-find-hit" data-testid={`fr-try-transfer-${o.key}`}>
+            <input type="radio" name="fr-try-transfer" value={o.key} checked={value === o.key} onChange={() => choose(o)} {...window.gate("settings", "choose where callers are put through")} />
+            <span className="fr-find-body">
+              <span className="fr-find-name">{o.label}</span>
+              <span className="fr-find-where">{o.sentence}</span>
+            </span>
+          </label>
+        ))}
+      </div>
+      {t.note ? <p className="fr-code-off" data-testid="fr-try-note">{t.note}</p> : null}
+      <div className="fr-foot">
+        {back ? <button type="button" className="btn btn-ghost btn-sm" onClick={() => go(back)} data-testid="fr-back">{backLabel}</button> : <span />}
+        <button type="button" className="fr-find-link" onClick={() => leave(tr.call.to)} data-testid="fr-try-inbox">{W.inbox}</button>
+        <button type="button" className="fr-onward" onClick={() => go("start")} data-testid="fr-try-go">{W.continue}</button>
+      </div>
+    </div>
+  );
+};
+
 /** The four steps across the top: a step done or on screen opens in place; a step not reached is only its name. */
 const FrRail = ({ fr, go, label }) => (
   <ol className="fr-rail" aria-label={label}>
@@ -780,6 +939,15 @@ const FirstRun = ({ param = null, onNavigate }) => {
       flash({ msg: <>{window.__firstRun.phoneWords.cancelled}</> });
     }
   }, []);
+  useFrTick("surface:live");
+  // When Try it opened (FR_TRY_DRAFT): set as it is first drawn, so a call before it is not the test.
+  const trySince = React.useRef(null);
+  // Whether Try it is on screen, so it stays there (below) and its clock and quiet turn move each second.
+  const onTry = React.useRef(false);
+  React.useEffect(() => {
+    const t = setInterval(() => { if (onTry.current) redraw(); }, 1000);
+    return () => clearInterval(t);
+  }, []);
   const F = window.__firstRun;
   // Being here is the landing: Today does not send this tab back again this session.
   React.useEffect(() => {
@@ -823,13 +991,35 @@ const FirstRun = ({ param = null, onNavigate }) => {
   // its sheet), and the first run, which opens where the workspace is, would go on to the phone under them; they go on
   // with Looks right instead. So once Check is drawn, the business step is asked for by name until the owner moves.
   const asked = F.of(S.vm, param, who);
-  const fr = !param && onCheck.current && asked.shown.key !== "business" ? F.of(S.vm, "business", who) : asked;
+  // Try it stays on screen too: its step is done the moment the test call reaches the receptionist (Setup reads it as
+  // the call starts or ends), and the call, its words and where transfers go are still to be shown.
+  const fr =
+    !param && onCheck.current && asked.shown.key !== "business"
+      ? F.of(S.vm, "business", who)
+      : !param && onTry.current && asked.shown.key !== "try"
+        ? F.of(S.vm, "try", who)
+        : asked;
   onCheck.current = !!fr.check;
   const card = F.receptionist(frCardInputs(S));
   const step = fr.shown;
   // The phone step as contracts say it over Setup and the owner's choice (first-run-phone.ts); `rows` is Setup's own.
   const ph = step.key === "phone" ? F.phone({ dto: S.dto, vm: S.vm, choice: phoneChoice, returned: frReturned(phoneChoice), nowMs: Date.now() }) : null;
   const phoneDrawn = !!ph && ph.stage !== "rows";
+  // Try it as contracts say it over Setup and the Live page's calls (first-run-try.ts); `rows` is Setup's own.
+  const liveNow = window.__LIVE || null;
+  if (step.key === "try" && trySince.current === null) trySince.current = frTrySince();
+  const tr =
+    step.key === "try"
+      ? F.tryIt({
+          dto: S.dto,
+          vm: S.vm,
+          calls: liveNow ? [...(liveNow.now || []), ...(liveNow.recent || [])] : [],
+          since: trySince.current,
+          nowMs: Date.now(),
+        })
+      : null;
+  const tryDrawn = !!tr && tr.stage !== "rows";
+  onTry.current = tryDrawn;
   // The step's foot is the phone step's own while its button is the one to press. A role that may not save the
   // forwarding has nothing to press in the questions, and the step is done then (its line answers): the page's own
   // foot, with Continue.
@@ -840,6 +1030,7 @@ const FirstRun = ({ param = null, onNavigate }) => {
   // move opens the next step at its top: the shell is the page's scroll (first-run.css).
   const go = (to) => {
     onCheck.current = false;
+    onTry.current = false;
     onNavigate(to, { replace: true });
     const shell = document.querySelector ? document.querySelector(".fr-shell") : null;
     if (shell && shell.scrollTo) shell.scrollTo(0, 0);
@@ -888,14 +1079,15 @@ const FirstRun = ({ param = null, onNavigate }) => {
       <div className="fr-body">
         <main className="fr-step" aria-labelledby="fr-heading">
           <div className="fr-step-head">
-            <h1 className="fr-heading" id="fr-heading" data-testid="fr-heading">{phoneDrawn ? ph.heading : fr.heading}</h1>
-            {(phoneDrawn ? ph.lead : fr.lead) ? <p className="fr-lead">{phoneDrawn ? ph.lead : fr.lead}</p> : null}
+            <h1 className="fr-heading" id="fr-heading" data-testid="fr-heading">{phoneDrawn ? ph.heading : tryDrawn ? tr.heading : fr.heading}</h1>
+            {(phoneDrawn ? ph.lead : tryDrawn ? tr.lead : fr.lead) ? <p className="fr-lead">{phoneDrawn ? ph.lead : tryDrawn ? tr.lead : fr.lead}</p> : null}
           </div>
           {fr.find ? <FrFind W={W.find} flash={flash} done={fr.findDone} go={go} make={make} /> : null}
           {fr.check ? <FrCheck check={fr.check} W={W.check} flash={flash} make={make} making={making} go={go} canEdit={canEdit} /> : null}
           {phoneDrawn ? <FrPhone ph={ph} choice={phoneChoice} setChoice={setPhoneChoice} W={F.phoneWords} flash={flash} go={go} back={fr.back} backLabel={W.back} ownFoot={phoneFoot} /> : null}
-          {step.key === "try" && S.vm.tryIt ? <window.SetupTry tryIt={S.vm.tryIt} /> : null}
-          {!fr.find && !fr.check && !phoneDrawn && step.rows.length ? (
+          {tryDrawn ? <FrTry tr={tr} W={F.tryWords} flash={flash} go={go} leave={leave} back={fr.back} backLabel={W.back} /> : null}
+          {step.key === "try" && !tryDrawn && S.vm.tryIt ? <window.SetupTry tryIt={S.vm.tryIt} /> : null}
+          {!fr.find && !fr.check && !phoneDrawn && !tryDrawn && step.rows.length ? (
             <div className="fr-part">
               {step.key === "live" ? <h2 className="fr-sub">{W.liveNext}</h2> : null}
               <section className="tq fr-rows">
@@ -903,7 +1095,7 @@ const FirstRun = ({ param = null, onNavigate }) => {
               </section>
             </div>
           ) : null}
-          {(fr.back || fr.onward) && !phoneFoot ? (
+          {(fr.back || fr.onward) && !phoneFoot && !(tryDrawn && tr.stage === "done") ? (
             <div className="fr-foot">
               {fr.back ? <button type="button" className="btn btn-ghost btn-sm" onClick={() => go(fr.back)} data-testid="fr-back">{W.back}</button> : <span />}
               {fr.onward && fr.onward.held ? <span className="fr-held" id="fr-held" data-testid="fr-held">{fr.onward.held}</span> : null}
