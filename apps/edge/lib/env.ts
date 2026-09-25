@@ -68,6 +68,9 @@ export const env = {
   get RETELL_FN_SECRET() {
     return read(process.env.RETELL_FN_SECRET);
   },
+  get RETELL_DOORS_SIGNED() {
+    return read(process.env.RETELL_DOORS_SIGNED);
+  },
   get TWILIO_ACCOUNT_SID() {
     return read(process.env.TWILIO_ACCOUNT_SID);
   },
