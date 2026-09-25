@@ -46,7 +46,10 @@ const withFacts = {
 };
 const answering = {
   ...withFacts,
-  channels: { ...blank.channels, voice: { present: true, active: true, number: "+13055550123", lastInboundAt: null } },
+  channels: {
+    ...blank.channels,
+    voice: { present: true, active: true, number: "+13055550123", lastInboundAt: "2026-09-07T14:00:00Z" },
+  },
   calendar: { state: "ok" },
 };
 const surface = (dto) => ({
@@ -257,7 +260,7 @@ test("answering: Live, with what is left, and Finish goes to Today", () => {
   assert.equal(textOf(onward), "Finish");
   onward.props.onClick();
   assert.equal(went.at(-1), "today");
-  assert.equal(textOf(byTestId(tree, "fr-card-status")), "Answering · not tried yet");
+  assert.equal(textOf(byTestId(tree, "fr-card-status")), "Answering", "Live comes after a call came in");
 });
 
 test("Finish later leaves for Today", () => {

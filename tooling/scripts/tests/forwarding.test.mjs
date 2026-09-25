@@ -223,8 +223,8 @@ test("the row: nothing to forward to yet, then set it up, dial and test, testing
   assert.deepEqual(row(fresh, "keep").verb, { label: "Set up forwarding", to: "verb:forwarding" });
   assert.deepEqual(
     fresh.rows.map((r) => r.id),
-    ["facts", "handoff", "line", "receptionist", "keep", "whatsapp", "calendar", "team", "yes"],
-    "nine rows, the kept number after the receptionist",
+    ["facts", "handoff", "line", "receptionist", "try", "keep", "whatsapp", "calendar", "team", "yes"],
+    "ten rows: the test call after the receptionist, then the kept number",
   );
   const dial = setupSteps({ ...base(), lines: lines([fwLine()]) }, NOW);
   assert.equal(row(dial, "keep").state, "waiting_you");

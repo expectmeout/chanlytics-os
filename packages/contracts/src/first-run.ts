@@ -88,19 +88,30 @@ export const FIRST_RUN_STEPS: readonly FirstRunStepDef[] = [
     key: "try",
     name: "Try it",
     lead: "Call it from your own phone and hear what your customers will hear.",
-    rows: ["receptionist", "handoff"],
-    needs: ["receptionist"],
+    rows: ["try", "handoff"],
+    needs: ["receptionist", "try"],
   },
   // The last step is where the others lead: nothing to finish, only what is left after it.
   { key: "live", name: "Live", lead: "", rows: LIVE_ROWS, needs: [] },
 ];
 
 /**
- * Today's card, in the order each row helps most: WhatsApp first, because the booking link goes out by WhatsApp on a
+ * Today's card, in the order each row helps most: the test call first, until one has come in (the first run lets it be
+ * skipped, Today does not forget it); then WhatsApp, because the booking link goes out by WhatsApp on a
  * call; then the calendar, so it can say which times are open; then someone to back the owner up; then the rows a
  * step offered and nobody took.
  */
-export const SETUP_CARD_ORDER = ["whatsapp", "calendar", "team", "handoff", "keep", "google", "email", "yes"] as const;
+export const SETUP_CARD_ORDER = [
+  "try",
+  "whatsapp",
+  "calendar",
+  "team",
+  "handoff",
+  "keep",
+  "google",
+  "email",
+  "yes",
+] as const;
 
 export const FIRST_RUN_WORDS = {
   title: "Setting up",
@@ -279,7 +290,8 @@ const rowOf = (vm: SetupVM, id: string): SetupRowVM | null => vm.rows.find((r) =
 const stepDone = (vm: SetupVM, def: FirstRunStepDef): boolean =>
   def.needs.every((id) => {
     const r = rowOf(vm, id);
-    return !r || r.state === "ready";
+    // The test call is waited for until it came in, or the member skipped it (TRY_SKIPPED).
+    return !r || r.state === "ready" || (id === "try" && vm.trySkipped);
   });
 
 /** The step a `#/start/<step>` address names, or null for anything else. */

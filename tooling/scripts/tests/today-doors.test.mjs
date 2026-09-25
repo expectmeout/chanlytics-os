@@ -498,7 +498,7 @@ test("the card once it answers: Setup's own rows, WhatsApp first, and Hide puts 
     },
     channels: {
       whatsapp: { present: false, active: false, number: null, quality: null, lastInboundAt: null },
-      voice: { present: true, active: true, number: "+13055550123", lastInboundAt: null },
+      voice: { present: true, active: true, number: "+13055550123", lastInboundAt: "2026-09-07T14:00:00Z" },
     },
   });
   globalThis.window.__firstRun = firstRun;

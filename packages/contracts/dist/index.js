@@ -8132,6 +8132,21 @@ function setupSteps(i, nowMs = Date.now()) {
       verb: null
     });
   }
+  if (voiceReady) {
+    const fwTry = lines.rows.find((l) => l.kind === "forwarded" && l.forwarding_state !== "none") ?? null;
+    const through = fwTry?.e164 ? display(fwTry.e164) ?? fwTry.e164 : voiceNum;
+    row2({
+      id: "try",
+      icon: "phone",
+      title: "Try it",
+      state: voice.lastInboundAt ? "ready" : "waiting_you",
+      required: false,
+      sentence: voice.lastInboundAt ? `A call reached your receptionist ${agoWords(Date.parse(voice.lastInboundAt), nowMs)}.` : fwTry ? `Call ${through} from your cell and don't pick up.` : `Call ${through} from your cell.`,
+      details: [],
+      // The first run's own step (first-run.ts firstRunStepRoute("try")), spelled here: that file reads this one.
+      verb: voice.lastInboundAt ? null : { label: "Try it", to: "start/try" }
+    });
+  }
   {
     const fw = lines.rows.find((l) => l.kind === "forwarded") ?? null;
     const f = fw?.forwarding ?? null;
@@ -8434,6 +8449,7 @@ function setupSteps(i, nowMs = Date.now()) {
       whatsappLabel: waReady ? waNum : null
     } : null,
     findable: !!i.google?.ready && i.google.places !== false && !i.google.listing,
+    trySkipped: later.has(TRY_SKIPPED),
     check: {
       receptionist: i.business.receptionist,
       listed: !!i.google?.listing,
@@ -8451,6 +8467,7 @@ function setupLaterOf(view) {
   if (!Array.isArray(later)) return [];
   return [...new Set(later.filter((x) => typeof x === "string" && x.length > 0 && x.length <= 40))];
 }
+var TRY_SKIPPED = "try-skipped";
 var SETUP_LATER_REFUSED = {
   reading: "Setting up is still being read. Try again in a moment.",
   unread: "What you put off could not be read just now, so nothing changed. Try again in a moment."
@@ -8850,13 +8867,23 @@ var FIRST_RUN_STEPS = [
     key: "try",
     name: "Try it",
     lead: "Call it from your own phone and hear what your customers will hear.",
-    rows: ["receptionist", "handoff"],
-    needs: ["receptionist"]
+    rows: ["try", "handoff"],
+    needs: ["receptionist", "try"]
   },
   // The last step is where the others lead: nothing to finish, only what is left after it.
   { key: "live", name: "Live", lead: "", rows: LIVE_ROWS, needs: [] }
 ];
-var SETUP_CARD_ORDER = ["whatsapp", "calendar", "team", "handoff", "keep", "google", "email", "yes"];
+var SETUP_CARD_ORDER = [
+  "try",
+  "whatsapp",
+  "calendar",
+  "team",
+  "handoff",
+  "keep",
+  "google",
+  "email",
+  "yes"
+];
 var FIRST_RUN_WORDS = {
   title: "Setting up",
   later: "Finish later",
@@ -8944,7 +8971,7 @@ function unsureHoursWords(days) {
 var rowOf = (vm, id) => vm.rows.find((r2) => r2.id === id) ?? null;
 var stepDone = (vm, def) => def.needs.every((id) => {
   const r2 = rowOf(vm, id);
-  return !r2 || r2.state === "ready";
+  return !r2 || r2.state === "ready" || id === "try" && vm.trySkipped;
 });
 function firstRunStepOf(param) {
   const hit = FIRST_RUN_STEPS.find((s) => s.key === param);
@@ -22424,6 +22451,7 @@ export {
   TODAY_STEPS_MAX,
   TONES,
   TONE_PRESETS,
+  TRY_SKIPPED,
   TenantConfigSchema,
   TenantConfigWriteSchema,
   VISION_STRENGTH,

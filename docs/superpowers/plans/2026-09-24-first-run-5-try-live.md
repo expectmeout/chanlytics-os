@@ -1,0 +1,71 @@
+# The first run, PR 5: try it, and live
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** The last two steps become the canvas's screens (R6–R9, P6–P8, V7, V8, C2).
+- **Try it:** the owner calls from their cell and doesn't pick up. The page moves the moment the call starts ("It
+  picked up", which is forwarding proven), shows the words a turn behind the voice, then the whole call, and asks
+  where transfers go: the phone they called from, or take a message.
+- **Live:** what it answers, where it puts callers through and emails the owner, and what it knows; the real greeting;
+  "It will / Not yet". Finish records the activation and sends the "you're live" email.
+
+**PR 5 in two parts, each shippable on its own and in either deploy order:**
+- **5a Try it** (R6, R7, R8, P6, P7, V7, V8). No migration.
+- **5b Live** (R9, P8, C2's email). No migration expected: the email goes out through the edge's `notify`. A new
+  notification kind would need its CHECK.
+
+**What is true today (checked against `origin/main` at `8b6be0c1`):**
+- The try step's `needs` is `receptionist`, and that row is ready once the line answers and the name and hours are
+  saved. No call is needed, so the step finishes itself.
+- Nothing opens the forwarding test window. `markForwardingVerified` (edge, on every inbound call) only matches
+  inside one (`line_forwarding_test`, 30 minutes), so the first run never proves a kept number.
+- Calls are in `supabase_realtime`. `liveOverride` reads them on every page (`window.__LIVE`, `toLiveVM`).
+  `LiveCallVM.number` is display only; `CallDto.from_e164` is the raw number. The Setup surface does not refresh on
+  `calls`.
+- The transfer number is `brain.profile.handoff_number`. Empty means take a message (voice-shell). It is saved
+  through the Business tab's saver (`PATCH_OF.handoff_number`) and checked by `whyNotAHandoff` (never the receptionist's
+  own line, never the kept one).
+- Finish on Live only goes to Today. `POST capabilities/voice` records the activation (00108).
+
+## 5a: Try it
+
+- **A new Setup row, `try`** ("Try it"). It is present once calls are answered, and ready once a call has reached the
+  receptionist (`voice.lastInboundAt`). Its sentence names the number to call: the kept one while forwarding is saved,
+  else the receptionist's own. It is not required.
+  - Today's card shows it first until a call comes in (`SETUP_CARD_ORDER`).
+  - The try step needs `receptionist` and `try`.
+  - Skipping the test (after one nudge, V8) puts off `try-skipped` in the member's own Setup view. That counts the step
+    as done in the first run, and Today's row stays.
+- **Contracts `first-run-try.ts`, `firstRunTryOf`,** over the Setup DTO, its VM, `__LIVE`'s calls, when the screen
+  opened, and whether the nudge was shown.
+  - `listen` (R6): the number to call, large; for a kept number, the route line and the test window's minutes.
+  - `call` (R7, P6): "It picked up." with "Forwarding works" (a kept number), the call's clock, and the turns.
+  - `done` (R8, P7): "That's your receptionist." with the length, the caller and the number it came through, the
+    turns, and the transfer choice. The choice is "Put them through to <the caller>", offered only where
+    `whyNotAHandoff` allows it, or "Take a message and email me". For a kept number it says why not the business's own
+    number.
+  - `quiet` (V7): after three minutes with no call, the three causes of a missed call, "Show the code again" (a kept
+    number) and "Ask Chanlytics for help" (`setup_request('forwarding')`).
+  - A call counts if it is inbound and started no earlier than a minute before the screen opened.
+- **The page (`FrTry`).**
+  - On arrival, for a kept number not verified and with no open window, it opens the test window
+    (`__setup.forwarding.test`). When the screen opened is kept in the tab (`first-run-try`).
+  - The transfer choice saves through the Business tab's saver.
+  - Continue goes on to Live.
+  - "It's in your Inbox too" goes to the Inbox.
+- **Setup reads again when a call ends** (`calls` on setupOverride, only for an update to `ended`), so the step and
+  Today's row follow.
+- **`LiveCallVM.from`:** the caller's number as stored (E.164), beside `number` (display).
+
+## 5b: Live
+
+- The summary (R9, P8): answers, puts callers through to, emails you at, knows. The real greeting. "It will / Not
+  yet" in the Business tab's own sentences (`abilityRows`, `cannotRows`).
+- Finish records the voice activation and asks the edge for the "you're live" email (C2), then goes to Today.
+
+## Tasks (5a)
+
+- [ ] Setup's `try` row, the step's needs, the skip, the card order; tests.
+- [ ] `firstRunTryOf` and `LiveCallVM.from`; tests.
+- [ ] `FrTry`, the test window, the transfer save, Setup's refresh on an ended call; tests.
+- [ ] The gates, the look on the probe, one review round, the PR.

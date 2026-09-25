@@ -302,6 +302,11 @@ export interface SetupVM {
   /** Google can be searched on this deployment and nothing is linked yet: the first run's Find has something to find. */
   findable: boolean;
   /**
+   * The member skipped the first run's test call (TRY_SKIPPED in their put-off rows): the first run goes on to Live,
+   * and Today's "Try it" row stays until a call comes in.
+   */
+  trySkipped: boolean;
+  /**
    * What the first run's Check reads (first-run.ts): whether the receptionist is set up (none yet, set up, or a
    * config the parser refused, whose repair only Chanlytics can make), whether a Google listing is on record, and the
    * days whose hours it asks about (the setup read's google.unsure).
@@ -974,6 +979,28 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
     });
   }
 
+  // 4a. Try it (the first run's third step): once calls are answered, until one has reached the receptionist. The number
+  // to call is the one customers call: the kept number while its forwarding is saved, else the receptionist's own.
+  if (voiceReady) {
+    const fwTry = lines.rows.find((l) => l.kind === "forwarded" && l.forwarding_state !== "none") ?? null;
+    const through = fwTry?.e164 ? (display(fwTry.e164) ?? fwTry.e164) : voiceNum;
+    row({
+      id: "try",
+      icon: "phone",
+      title: "Try it",
+      state: voice.lastInboundAt ? "ready" : "waiting_you",
+      required: false,
+      sentence: voice.lastInboundAt
+        ? `A call reached your receptionist ${agoWords(Date.parse(voice.lastInboundAt), nowMs)}.`
+        : fwTry
+          ? `Call ${through} from your cell and don't pick up.`
+          : `Call ${through} from your cell.`,
+      details: [],
+      // The first run's own step (first-run.ts firstRunStepRoute("try")), spelled here: that file reads this one.
+      verb: voice.lastInboundAt ? null : { label: "Try it", to: "start/try" },
+    });
+  }
+
   // 4b. The number you already have — forwarded to the receptionist's line, proven by a test call.
   {
     const fw = lines.rows.find((l) => l.kind === "forwarded") ?? null;
@@ -1359,6 +1386,7 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
         }
       : null,
     findable: !!i.google?.ready && i.google.places !== false && !i.google.listing,
+    trySkipped: later.has(TRY_SKIPPED),
     check: {
       receptionist: i.business.receptionist,
       listed: !!i.google?.listing,
@@ -1383,6 +1411,12 @@ export function setupLaterOf(view: unknown): string[] {
   if (!Array.isArray(later)) return [];
   return [...new Set(later.filter((x): x is string => typeof x === "string" && x.length > 0 && x.length <= 40))];
 }
+
+/**
+ * What skipping the first run's test call puts off (the member's own, as a row put off is): not the `try` row itself,
+ * which Today keeps showing until a call comes in, but the first run's wait for it.
+ */
+export const TRY_SKIPPED = "try-skipped";
 
 /** Why putting a row off, or back, did not start: nothing was saved, and the rows stay as they were. */
 export const SETUP_LATER_REFUSED = {
