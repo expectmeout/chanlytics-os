@@ -62,35 +62,84 @@ const tbOverlay = (n) => {
 
 // On a phone the notes are a sheet from the bottom, as every other sheet there is (components.css, the bell's sheet).
 const tbnPhone = () => !!(window.matchMedia && window.matchMedia("(max-width: 720px)").matches);
+/**
+ * The bell's notes: each one a single press that does what it says, two lines and a time, the way the Inbox's rows
+ * read. Every note used to carry its own 44px row of boxed buttons ("Open Leads", "Open the Inbox") saying where
+ * the press on it would have gone anyway, a 12px title wrapped to two lines, and a count beside the head that the
+ * sections already said: on the salon's phone, 48 notes at 114 to 182px each, a list 6,677px long (25 Sep). Notes of
+ * one kind are said once ("9 calls", contracts bellSections through the bell's own `sections`) and open with a press.
+ */
+const tbnVerb = (n) => (n.actions || []).find((a) => a.primary) || (n.actions || [])[0] || null;
+const tbnSections = (items) => {
+  if (window.__notifs && window.__notifs.sections) return window.__notifs.sections(items);
+  // The mockup's own bell has no grouping: its notes stand one to a line, new above earlier.
+  const one = (n) => ({ key: n.id, row: n, count: 1, title: null, members: [n] });
+  return [
+    { label: "New", lines: items.filter((n) => n.unread).map(one) },
+    { label: "Earlier", lines: items.filter((n) => !n.unread).map(one) },
+  ].filter((s) => s.lines.length > 0);
+};
 
 const NotifPopover = ({ items, onAction, onReadAll, onDismiss, onClose, alerts = null, onAlerts = () => {} }) => {
-  const fresh = items.filter(n => n.unread);
-  const earlier = items.filter(n => !n.unread);
-  const row = (n) => (
-    <div key={n.id} className={`tbn-item ${n.unread ? "unread" : ""}`} data-tone={n.tone}>
-      <button className="tbn-x" title="Dismiss" aria-label={`Dismiss “${n.title}”`} onClick={() => onDismiss(n.id)}>
-        <Icon name="x" size={10} />
-      </button>
-      {n.unread && <span className="tbn-dot" />}
-      {/* The mark says what kind of note this is, never its tone: a warning's title says that (components.css). */}
-      <span className="mark tbn-icon"><Icon name={n.icon} size={13} /></span>
-      <div className="tbn-body">
-        <div className="tbn-line1">
-          <span className="tbn-item-title">{n.title}</span>
-          {n.seg && <span className={`sp-dir ${n.seg.dir}`} style={{ fontSize: 9.5, padding: "1px 6px", minWidth: 0 }}>{n.seg.dir === "in" ? "entered" : "left"}</span>}
-          <span className="tbn-time tabular">{n.time}</span>
-        </div>
-        <div className="tbn-msg">{n.message}</div>
-        <div className="tbn-actions">
-          {n.actions.map(a => (
-            <button key={a.label} className={`btn btn-sm ${a.primary ? "" : "btn-ghost"}`} onClick={() => onAction(n.id, a.to)}>
-              {a.label}{a.primary && <Icon name="arrow-right" size={10} />}
-            </button>
-          ))}
-        </div>
+  const [openGroup, setOpenGroup] = React.useState(null);
+  const note = (n, inGroup) => {
+    const verb = tbnVerb(n);
+    return (
+      <div key={n.id} className={`tbn-item${n.unread ? " unread" : ""}${inGroup ? " in-group" : ""}`} data-tone={n.tone}>
+        <button
+          type="button"
+          className="tbn-open"
+          aria-label={verb ? `${verb.label}: ${n.title}` : n.title}
+          onClick={() => onAction(n.id, verb ? verb.to : null)}
+        >
+          {n.unread && <span className="tbn-dot" />}
+          {/* The mark says what kind of note this is, never its tone: a warning's title says that (components.css). */}
+          {!inGroup && <span className="mark tbn-icon"><Icon name={n.icon} size={13} /></span>}
+          <span className="tbn-body">
+            <span className="tbn-line1">
+              <span className="tbn-item-title">{n.title}</span>
+              <span className="tbn-time tabular">{n.time}</span>
+            </span>
+            {n.message && <span className="tbn-msg">{n.message}</span>}
+          </span>
+        </button>
+        <button className="tbn-x" title="Dismiss" aria-label={`Dismiss “${n.title}”`} onClick={() => onDismiss(n.id)}>
+          <Icon name="x" size={10} />
+        </button>
       </div>
-    </div>
-  );
+    );
+  };
+  const line = (l) => {
+    if (l.count < 2) return note(l.row, false);
+    const open = openGroup === l.key;
+    const unread = l.members.some((m) => m.unread);
+    return (
+      <div key={l.key} className={`tbn-group${open ? " open" : ""}`} data-testid="bell-group">
+        <div className={`tbn-item tbn-item-group${unread ? " unread" : ""}`} data-tone={l.row.tone}>
+          <button
+            type="button"
+            className="tbn-open"
+            aria-expanded={open}
+            aria-label={`${l.title}: ${open ? "hide them" : "show them"}`}
+            onClick={(e) => (window.holdStill || ((_, f) => f()))(e && e.currentTarget, () => setOpenGroup(open ? null : l.key))}
+          >
+            {unread && <span className="tbn-dot" />}
+            <span className="mark tbn-icon"><Icon name={l.row.icon} size={13} /></span>
+            <span className="tbn-body">
+              <span className="tbn-line1">
+                <span className="tbn-item-title">{l.title}</span>
+                <span className="tbn-time tabular">{l.row.time}</span>
+              </span>
+              <span className="tbn-msg">{l.row.title}</span>
+            </span>
+            <span className="tbn-chev" aria-hidden="true"><Icon name="chevron-down" size={12} /></span>
+          </button>
+        </div>
+        {open && l.members.map((m) => note(m, true))}
+      </div>
+    );
+  };
+  const sections = tbnSections(items);
   return (
     <>
       <div className="tbn-backdrop" onClick={onClose} />
@@ -106,8 +155,7 @@ const NotifPopover = ({ items, onAction, onReadAll, onDismiss, onClose, alerts =
         <div className="tbn-handle" aria-hidden="true" />
         <header className="tbn-head">
           <span className="tbn-title">Notifications</span>
-          {fresh.length > 0 && <span className="tbn-count tally">{fresh.length} new</span>}
-          <button className="tbn-readall" onClick={onReadAll}>Mark all read</button>
+          {items.some((n) => n.unread) && <button className="tbn-readall" onClick={onReadAll}>Mark all read</button>}
         </header>
         <div className="tbn-list">
           {items.length === 0 && (
@@ -116,10 +164,12 @@ const NotifPopover = ({ items, onAction, onReadAll, onDismiss, onClose, alerts =
               <span>All caught up</span>
             </div>
           )}
-          {fresh.length > 0 && <div className="tbn-sec">New</div>}
-          {fresh.map(row)}
-          {earlier.length > 0 && <div className="tbn-sec">Earlier</div>}
-          {earlier.map(row)}
+          {sections.map((sec) => (
+            <React.Fragment key={sec.label}>
+              <div className="tbn-sec">{sec.label}</div>
+              {sec.lines.map(line)}
+            </React.Fragment>
+          ))}
         </div>
         {/* Device alerts, outside a demo: a system notification when something
             new needs the owner while the app is in the background. */}
@@ -609,3 +659,4 @@ const ShellStatusBar = () => {
 
 window.LiveCallBar = LiveCallBar;
 window.ShellStatusBar = ShellStatusBar;
+window.NotifPopover = NotifPopover; // drawn on its own by bell-rows.test

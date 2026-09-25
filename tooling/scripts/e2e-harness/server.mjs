@@ -91,6 +91,10 @@ export function answer(method, pathname, params, record) {
       }),
     };
   }
+  // The bell's kept rows (scenarios.mjs bellNotes), as the route hands them over, with no seen moment yet.
+  if (pathname === "/api/v1/notifications" && record.notifications) {
+    return { status: 200, body: ok({ notifications: record.notifications, seen_at: null }) };
+  }
   if (pathname === "/api/v1/settings") {
     return {
       status: 200,

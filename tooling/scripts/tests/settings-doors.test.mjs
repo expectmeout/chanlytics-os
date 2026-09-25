@@ -500,6 +500,65 @@ test("REGRESSION (one gate): the business record shows Save and File to a role t
 
 const Connections = (props) => globalThis.window.PaneIntegrationsReal(props);
 
+test("a connection on a phone offers its acts behind the row: one act is the row's press, two are its menu, Later offers nothing, and a desktop keeps the buttons", async () => {
+  // 25 Sep: rows were 77 to 145px on a phone, each over a line of boxed buttons, Remove a thumb from Check now.
+  asRole("owner");
+  Object.assign(globalThis.window, {
+    __CHANNELS: [],
+    __SETUP: null,
+    __GOOGLE: {
+      dto: {
+        ready: { places: true, profile: false },
+        listing: {
+          place_id: "p1",
+          name: "Northside Studio",
+          address: "1 Main St, Springfield",
+          maps_uri: null,
+          business_status: "OPERATIONAL",
+          rating: 4.8,
+          review_count: 31,
+          linked_at: "2026-09-15T14:00:00Z",
+          checked_at: "2026-09-25T09:00:00Z",
+          check_error: null,
+        },
+        connection: null,
+      },
+    },
+    __connections: { rows: connectionRows, groupWords: CONNECTION_GROUP_WORDS },
+    __waConnect: { config: async () => null },
+    __google: { outcome: () => null, outcomeWords: {}, unlink: async () => ({ ok: true, message: "" }) },
+    MoreMenu: (p) => ({ type: "MoreMenu", props: p }),
+  });
+  render(Connections);
+  await flush();
+  const tree = settle(Connections);
+  const listing = byTestId(tree, "connection-google_listing");
+  assert.equal(listing.props["data-offers"], "menu", "Check now and Remove: two acts, a menu");
+  const menu = find(listing, (n) => n.type === "MoreMenu");
+  assert.deepEqual(
+    menu.props.items.map((i) => [i.label, !!i.danger]),
+    [
+      ["Remove", true],
+      ["Check now", false],
+    ],
+  );
+  assert.equal(menu.props.testid, "connection-google_listing-more");
+  // The desktop's buttons are still the row's, with their names: the phone hides them (settings.css).
+  assert.ok(byTestId(listing, "google-remove") && byTestId(listing, "google-check"));
+  // The detail is its own line on a phone: the " · " is a desktop's, in a span of its own.
+  const detail = find(listing, (n) => String(n.props?.className || "").includes("set-int-detail"));
+  assert.match(textOf(detail), /1 Main St, Springfield/);
+  for (const k of ["google_profile", "instagram", "deposits"]) {
+    const later = byTestId(tree, `connection-${k}`);
+    assert.equal(later.props["data-offers"], "none", `${k}: a Later row offers a thumb nothing`);
+    assert.equal(later.props.onClick, undefined, `${k}: and is no press`);
+  }
+  // Pressing the menu's Remove asks first, as the row's own Remove does.
+  menu.props.items[0].onClick();
+  await flush();
+  assert.match(textOf(settle(Connections)), /Remove the listing\?/);
+});
+
 test("REGRESSION (S17): 'Disconnect instead' asks first, as the row's own Disconnect does -- it disconnected Google at once", async () => {
   asRole("owner");
   const done = [];

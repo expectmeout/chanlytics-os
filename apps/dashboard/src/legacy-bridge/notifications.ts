@@ -25,6 +25,8 @@ import {
   EMPTY_READ_STATE,
   agoLabel,
   applyReadState,
+  bellSections,
+  type BellSectionVM,
   buildNotificationFeed,
   type FeedCall,
   type FeedInvite,
@@ -35,6 +37,7 @@ import {
   type NotificationsDto,
   SERVER_KEY_PREFIX,
   dedupeFeed,
+  nameKnownCustomers,
   serverNotificationRows,
   unreadCount,
 } from "@chanlytics/contracts";
@@ -153,6 +156,8 @@ export interface BellApi {
   setAlerts(on: boolean): Promise<{ on: boolean; permission: string }>;
   /** Subscribe to changes of the feed or the read state; returns unsubscribe. */
   onChange(cb: () => void): () => void;
+  /** The rows as the bell draws them: new above earlier, notes of one kind said once (contracts bellSections). */
+  sections(rows: BellRow[]): Array<BellSectionVM<BellRow>>;
 }
 
 /**
@@ -202,11 +207,16 @@ export function installNotifications(
   // What the surfaces derive (read marks on this device, the seen moment
   // the server's) beside what the workspace keeps (marks on the server),
   // newest first.
+  // A kept row that names its customer by number takes their name when the Inbox or the calls here know it.
+  const named = <T extends NotificationRow>(list: T[]): T[] =>
+    nameKnownCustomers(list, win.INBOX_DATA?.THREADS, [...(win.__LIVE?.now ?? []), ...(win.__LIVE?.recent ?? [])]);
   const rows = () =>
-    dedupeFeed([
-      ...applyReadState(feedFromGlobals(win, Date.now()), deviceState()),
-      ...serverNotificationRows(win.__NOTIFICATIONS?.dto),
-    ]).sort((a, b) => b.at - a.at);
+    named(
+      dedupeFeed([
+        ...applyReadState(feedFromGlobals(win, Date.now()), deviceState()),
+        ...serverNotificationRows(win.__NOTIFICATIONS?.dto),
+      ]).sort((a, b) => b.at - a.at),
+    );
   const isKept = (key: string) => key.startsWith(SERVER_KEY_PREFIX);
   // A kept row's marks go to the server, and the refresh map re-reads the
   // surface after one lands, so every device agrees; a failure here loses a
@@ -322,6 +332,7 @@ export function installNotifications(
       listeners.add(cb);
       return () => listeners.delete(cb);
     },
+    sections: (list) => bellSections(list),
   };
   (win as unknown as { __notifs?: BellApi }).__notifs = api;
   return api;

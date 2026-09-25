@@ -728,7 +728,7 @@ test.describe("Phone shell on a real workspace", () => {
     await page.getByRole("button", { name: /^Notifications/ }).click();
     const pop = page.getByRole("dialog", { name: "Notifications" });
     await expect(pop).toBeVisible();
-    const row = pop.locator(".tbn-item").first();
+    const row = pop.locator(".tbn-item:not(.tbn-item-group)").first();
     test.skip((await row.count()) === 0, "all caught up on this workspace");
     const shape = await row.locator(".tbn-x").evaluate((el) => {
       const r = el.getBoundingClientRect();
@@ -780,6 +780,36 @@ test.describe("Phone shell on a real workspace", () => {
     await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
     await expect(pop).toHaveCount(0);
     await expect(bell).toHaveAttribute("aria-expanded", "false");
+  });
+
+  /**
+   * A note is a list row (25 Sep): two single lines and a time at the Inbox's numbers, the note itself the press, no
+   * row of buttons under it. They were 114 to 182px each, 48 of them in a 6,677px list, each with its own boxed button.
+   */
+  test("the bell's notes are rows a thumb scans: one press each, two lines, no taller than the Inbox's", async ({
+    page,
+  }) => {
+    await page.goto("/#/today");
+    await page.waitForLoadState("networkidle");
+    await page.getByRole("button", { name: /^Notifications/ }).click();
+    const pop = page.getByRole("dialog", { name: "Notifications" });
+    await expect(pop).toBeVisible();
+    test.skip((await pop.locator(".tbn-item").count()) === 0, "all caught up on this workspace");
+    const shape = await pop.evaluate((el) =>
+      [...el.querySelectorAll(".tbn-item")].map((n) => ({
+        h: Math.round(n.getBoundingClientRect().height),
+        presses: n.querySelectorAll("button:not(.tbn-x)").length,
+      })),
+    );
+    for (const n of shape) {
+      expect(n.h, "a note is no taller than an Inbox row").toBeLessThanOrEqual(80);
+      expect(n.presses, "and is one press").toBe(1);
+    }
+    const head = await pop
+      .locator(".tbn-sec")
+      .first()
+      .evaluate((el) => getComputedStyle(el).textTransform);
+    expect(head, "a section says its name in sentence case").toBe("none");
   });
 
   /**

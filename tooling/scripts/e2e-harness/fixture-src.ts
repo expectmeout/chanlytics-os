@@ -33,6 +33,7 @@ import { installRouteGate, installSurfaceRegistry } from "@/legacy-bridge/surfac
 import { setStatus } from "@/legacy-bridge/surface-status";
 import { pipelineHelpers } from "@/legacy-bridge/pipeline-helpers";
 import { installTabMemory } from "@/legacy-bridge/tab-memory";
+import { installNotifications } from "@/legacy-bridge/notifications";
 
 interface Scenario {
   name: string;
@@ -46,6 +47,8 @@ interface Scenario {
   people?: unknown[];
   /** How its customers buy (tenants.sells_by), where the record says: the pipeline's is "proposal". */
   sellsBy?: string;
+  /** The bell's kept rows, as GET notifications hands them over (scenarios.mjs bellNotes). */
+  notifications?: C.NotificationDto[];
 }
 
 const w = window as unknown as Record<string, any>;
@@ -260,6 +263,16 @@ if (S.people && typeof w.fetch === "function" && w.location && w.history) {
   installRouteGate();
   // No live feed here: nothing writes, so there is nothing to hear.
   startSurfaces([peopleOverride], () => () => {});
+}
+
+/* ---- the bell ----
+ * The kept rows as the notifications surface publishes them, and the app's own bell over them (legacy-bridge/
+ * notifications.ts), so the top bar draws the real feed. A mark would be a write, which the harness refuses: the bell
+ * says nothing of it, as in the app when a mark fails. Only in a browser, as People's are.
+ */
+if (S.notifications && typeof w.addEventListener === "function") {
+  w.__NOTIFICATIONS = { dto: { notifications: S.notifications, seen_at: null } };
+  installNotifications(w as unknown as Window & Record<string, unknown>, null);
 }
 
 // The app's fonts and the class that turns on its touch floor, which the mockup's document lacks.

@@ -428,16 +428,31 @@
 .set-conn > .set-row-stack { padding-left: calc(var(--set-lead) + var(--set-lead-gap)); border-top: none; padding-top: 0; }
 /* A note about the group, after its rows. */
 .set-card-foot { margin: 0; padding: 14px max(0px, calc(100% - 68ch)) 10px 0; border-top: 1px solid var(--line); font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); text-wrap: pretty; }
-/* On a phone a row's words keep the width; its state and acts take the next line, under the words. */
+/* A row's phone pieces (integrations-real.jsx ConnectionRow): a desktop keeps its acts in the group's column. A row
+   with one act is that act's press at every width, as a record row is. */
+.set-int-chev, .set-int-more { display: none; }
+.set-conn > .set-int-row[data-offers="one"] { cursor: pointer; }
+/* On a phone a connection is a row of People's kind (25 Sep; they were 77 to 145px): the tile, its name over what it
+   is attached to, its state, and its acts behind the row -- a row with one act is that act's press with a chevron, a
+   row with two keeps them in its ⋯ -- never a line of boxed buttons under the words. A row that wants something
+   (Connect Google) keeps its one button, in the state's place; a Later row is its name. */
 @media (max-width: 640px) {
-  .set-conn { grid-template-columns: var(--set-lead) minmax(0, 1fr); }
-  .set-conn > .set-int-row { row-gap: 8px; align-items: start; }
-  /* A connected row on a phone is its name, its state and its acts: the sentence under it (last message 3d ago) is
-     a desktop's. A row that wants something keeps its sentence, which says what. */
-  .set-conn > .set-int-row[data-state="connected"] .set-team-mail { display: none; }
-  .set-conn > .set-int-row > .pill { grid-column: 2; grid-row: 2; align-self: center; }
-  .set-conn > .set-int-row > .set-int-actions { grid-column: 2; grid-row: 2; justify-content: flex-end; }
+  .set-conn > .set-int-row { align-items: center; min-height: 56px; padding: 10px 0; }
+  .set-conn > .set-int-row > .set-int-tile { align-self: start; }
+  .set-int-detail { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--set-hint); line-height: 1.45; }
+  .set-int-sep { display: none; }
+  /* A connected row is its name, what it is attached to and its state: the sentence under it (last message 3d ago)
+     is a desktop's. A row that wants something keeps its sentence, which says what. */
+  .set-conn > .set-int-row[data-state="connected"] .set-team-mail,
+  .set-conn > .set-int-row[data-state="later"] .set-team-mail { display: none; }
+  .set-conn > .set-int-row:is([data-offers="one"], [data-offers="menu"], [data-offers="none"]) > .set-int-actions { display: none; }
+  .set-conn > .set-int-row[data-offers="primary"] > .pill { display: none; }
+  .set-conn > .set-int-row[data-offers="one"] > .set-int-chev { display: inline-flex; justify-self: end; color: var(--ink-faint); }
+  .set-conn > .set-int-row[data-offers="menu"] > .set-int-more { display: inline-flex; justify-self: end; }
+  .set-conn > .set-int-row[data-state="later"] { min-height: 48px; padding: 6px 0; }
   .set-conn > .set-row-stack { padding-left: 0; }
+  /* The listing's note is a desktop's paragraph: on a phone it was 100px under a group whose rows say what they are. */
+  .set-conn > .set-card-foot { display: none; }
 }
 
 /* ---- What a connection looks like ----------------------------------------
@@ -708,7 +723,7 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
    rules under this for the table itself stay for the mockup's pane, which keeps the table at every width. */
 .pol-phone { display: flex; flex-direction: column; margin: 0 0 4px; }
 .pol-phone-row { min-height: 44px; }
-.pol-phone-mode { font-size: var(--set-label); white-space: nowrap; }
+.pol-phone-mode, .set-dial { font-size: var(--set-label); white-space: nowrap; }
 .pol-phone-locked { display: inline-flex; align-items: center; gap: 6px; }
 .pol-phone-locked .icon { color: var(--warn-ink); flex: none; }
 @media (max-width: 640px) {
@@ -1092,6 +1107,47 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
 
 [data-testid="platform-rows"] .cl-attn-sentence {
   white-space: normal; overflow: visible; text-overflow: clip; text-wrap: pretty;
+}
+/* On a phone a workspace is a row of People's kind (25 Sep; they were 143 to 160px, an Open button wider than the
+   column it sat in): its mark, its name with its verdict beside it, what is up in one line, and the slug, the people
+   in it and its age under that, at the list row's numbers (tokens.css). The row is the press that opens it; the
+   facts behind the mark are the opened workspace's to show. The sort's sentence goes, and the find box takes the
+   width. */
+@media (max-width: 720px) {
+  [data-testid="platform-rows"] .cl-attn-row {
+    grid-template-columns: var(--row-face) minmax(0, 1fr);
+    align-items: start;
+    column-gap: var(--row-gap);
+    height: auto;
+    padding: var(--row-pad-y) 0;
+  }
+  [data-testid="platform-rows"] .cl-attn-avatar { width: var(--row-face); height: var(--row-face); }
+  [data-testid="platform-rows"] .cl-attn-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "who state" "said said" "meta meta";
+    column-gap: 8px;
+    row-gap: var(--row-line-gap);
+  }
+  [data-testid="platform-rows"] .cl-attn-name { display: contents; }
+  [data-testid="platform-rows"] .cl-attn-who {
+    grid-area: who; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-size: var(--text-base); font-weight: var(--weight-medium); line-height: var(--row-name-line); color: var(--ink);
+  }
+  [data-testid="platform-rows"] .cl-attn-status { grid-area: state; align-self: center; font-size: var(--row-facts); }
+  [data-testid="platform-rows"] .cl-attn-status .set-mark { display: none; }
+  [data-testid="platform-rows"] .cl-attn-sentence {
+    grid-area: said; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    font-size: var(--text-sm); line-height: var(--row-said-line); color: var(--ink-muted);
+  }
+  [data-testid="platform-rows"] .cl-attn-meta {
+    grid-area: meta; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-size: var(--row-facts); line-height: var(--row-facts-line); color: var(--ink-dim);
+  }
+  [data-testid="platform-rows"] .cl-attn-acts { display: none; }
+  .pf-find-row .set-row-info { display: none; }
+  .pf-find-row .pf-find { max-width: none; width: 100%; }
+  .pf-warn { padding-bottom: 10px; }
 }
 
 /* ---- One line, on a workspace support has opened -----------------------

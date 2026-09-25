@@ -472,8 +472,53 @@ function pipeline(name, nowMs) {
 
 /** One scenario, built now. Plain data, so the server can hand the page the very object it answers reads from. */
 export function scenario(name, nowMs = Date.now()) {
-  if (name === "nightly") return nightly(name);
-  if (name === "salon") return salon(name, nowMs);
-  if (name === "pipeline") return pipeline(name, nowMs);
-  throw new Error(`no scenario "${name}": ${SCENARIOS.join(", ")}`);
+  const record =
+    name === "nightly"
+      ? nightly(name)
+      : name === "salon"
+        ? salon(name, nowMs)
+        : name === "pipeline"
+          ? pipeline(name, nowMs)
+          : null;
+  if (!record) throw new Error(`no scenario "${name}": ${SCENARIOS.join(", ")}`);
+  return { ...record, notifications: bellNotes(nowMs) };
+}
+
+/**
+ * The bell's kept rows, as GET notifications hands them over (contracts NotificationDto), for every record: what a
+ * morning's bell holds -- a run of calls, two searches done, a job the runner wrote in its old words (a uuid and all),
+ * a customer named by their number, a rating -- so the phone's bell specs have rows to measure (25 Sep). Made-up
+ * numbers, as every fixture's are.
+ */
+function bellNotes(nowMs) {
+  const at = (h) => new Date(nowMs - h * 3_600_000).toISOString();
+  const note = (id, kind, title, body, route, h, about = null) => ({
+    id,
+    kind,
+    title,
+    body,
+    route,
+    subject_type: about ? about.type : null,
+    subject_id: about ? about.id : null,
+    created_at: at(h),
+    read: false,
+    dismissed: false,
+  });
+  return [
+    note("hx-n1", "call", "+1 (555) 010-0101 phoned · 12 s", "No conversation happened.", "conversations/phone", 1),
+    note("hx-n2", "leads_ready", "Your search for florists is done", "31 found.", "clients/leads", 2),
+    note("hx-n3", "call", "+1 (555) 010-0102 phoned · 3 min", "Asked about Saturday.", "conversations/phone", 3),
+    note(
+      "hx-n4",
+      "job_failed",
+      "A lead_collect job failed",
+      "Job 00000000-0000-4000-8000-000000000001 (lead_collect) failed and will not retry on its own.\n\nboom",
+      "inbox",
+      4,
+    ),
+    note("hx-n5", "leads_ready", "Your search for bakeries is done", "7 found.", "clients/leads", 5),
+    note("hx-n6", "call", "+1 (555) 010-0103 phoned · 1 min", "Booked a visit.", "conversations/phone", 6),
+    note("hx-n7", "handoff", "WhatsApp handoff needed: +15550100104", "Asked for a discount.", "inbox", 7),
+    note("hx-n8", "review", "1 new rating on Google", "Five stars.", "reports", 30),
+  ];
 }
