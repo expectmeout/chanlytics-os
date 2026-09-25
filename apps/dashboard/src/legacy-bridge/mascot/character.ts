@@ -12,6 +12,8 @@
  * - At rest: the exact mark. Now and then a tile turns a quarter in place, lifted a little as it turns: any of the
  *   three, a cascade down the stack, two turning opposite ways like gears, or the top tile half round.
  * - Listening: the middle tile comes forward and rises toward you with your voice, the other two tucked behind it.
+ *   While nothing is heard for a moment (the person thinking, or typing slowly) it waits alive: now and then a tile
+ *   behind turns, the two turn like gears, the one held forward rises or turns half round, or it glances aside.
  * - Reading: an orbit. The three circle a ring tilted toward you, the nearest the largest, lifted and lightest, the
  *   farthest small and deep; the ring's axis sways, so the path traces a sphere. Leaving it, each tile keeps its speed.
  * - Answering: the tiles side by side, each word lifting one toward you and lighting it.
@@ -552,6 +554,32 @@ export function createCharacter(options: CharacterOptions = {}): Character {
     }
   }
 
+  // Listening with nothing heard for a while: a move fit for the pose, so the three look alive while they wait
+  // (Ruben, 25 Sep: "while typing or thinking what to type"). The tiles tucked behind turn as they do at rest, alone
+  // or as gears; the one held forward rises a little or, rarely, turns half round; or a glance. More often than at
+  // rest, since the person is looking at them.
+  function waiting(): void {
+    const r = rand();
+    const dir = rand() < 0.5 ? -1 : 1;
+    if (r < 0.45) {
+      turnOne(rand() < 0.5 ? 0 : 2, dir);
+      note("turn");
+    } else if (r < 0.65) {
+      turnOne(0, dir);
+      turnOne(2, -dir);
+      note("gears");
+    } else if (r < 0.8) {
+      move("rise", { whoStep: 1, amp: 0.5, dur: 0.6 });
+      note("rise");
+    } else if (r < 0.95) {
+      move("look");
+      note("look");
+    } else {
+      turnOne(1, dir, 2);
+      note("half turn");
+    }
+  }
+
   // The beats: a lift at each onset of a real voice, a rhythm of its own when there is none, a bow after a phrase.
   function rhythm(dt: number): void {
     if (state === "speaking") {
@@ -587,10 +615,14 @@ export function createCharacter(options: CharacterOptions = {}): Character {
   }
 
   function schedule(): void {
-    if (fidgets && state === "idle" && clock >= nextFidgetAt && !moves.length && W.idle > 0.95) {
+    if (!fidgets || moves.length || clock < nextFidgetAt) return;
+    if (state === "idle" && W.idle > 0.95) {
       const quiet = awake < 0.5;
       fidget(quiet);
       nextFidgetAt = clock + (quiet ? 14 + rand() * 10 : 6 + rand() * 5);
+    } else if (state === "listening" && W.listening > 0.95 && quietFor > 1.2) {
+      waiting();
+      nextFidgetAt = clock + 3 + rand() * 3;
     }
   }
 
@@ -850,6 +882,7 @@ export function createCharacter(options: CharacterOptions = {}): Character {
         note("perk");
         loud = false;
         quietFor = 0;
+        nextFidgetAt = clock + 2.5 + rand() * 2;
       }
       if (next === "thinking") join();
       if (next === "speaking") {
