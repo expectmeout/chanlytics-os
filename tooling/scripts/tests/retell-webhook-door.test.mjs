@@ -243,8 +243,13 @@ test("call_started on a known agent: the normalised call reaches ingest_call, th
   assert.equal(line.forwarding_state, "verified");
   assert.deepEqual(
     [line.facts.verified_call_id, line.facts.verified_from, line.facts.destination_e164],
-    [row.id, CALLER, LINE],
-    "the facts keep the call that proved it",
+    [id, CALLER, LINE],
+    "the facts keep the call that proved it, by Retell's id",
+  );
+  assert.equal(
+    line.facts.verified_by,
+    "window",
+    "the call webhook never sees the diversion headers: the window proved it",
   );
   assert.ok(line.facts.verified_at && line.state_since, "and when");
   const bells = w.tables.notifications;
@@ -258,7 +263,7 @@ test("call_started on a known agent: the normalised call reaches ingest_call, th
   assert.equal(verified.length, 1);
   assert.deepEqual(
     [verified[0].tenant_id, verified[0].subject_type, verified[0].subject_id, verified[0].data],
-    [w.T, "line", lineId, { from: CALLER, call_id: row.id }],
+    [w.T, "line", lineId, { from: CALLER, call_id: id, proof: "unseen" }],
   );
 
   // The delivery row: what the provider sent and what the ingest did, as

@@ -174,6 +174,40 @@ export function forwardingMatch(
   return true;
 }
 
+/**
+ * The numbers a call's diversion headers name, in E.164: SIP's Diversion and History-Info, as Retell's inbound-call
+ * webhook hands them over (`custom_sip_headers`, lowercase keys). A carrier that forwards a call names the number it
+ * forwarded from in one of them; Twilio's trunk adds the number that was dialed to every call it hands on. Null when
+ * the call carried neither header.
+ */
+export function divertedNumbers(headers: Record<string, unknown> | null | undefined): string[] | null {
+  if (!headers || typeof headers !== "object") return null;
+  const values = ["diversion", "history-info"]
+    .map((k) => headers[k])
+    .filter((v): v is string => typeof v === "string" && v.trim() !== "");
+  if (!values.length) return null;
+  const out: string[] = [];
+  for (const v of values)
+    for (const m of v.matchAll(/(?:sips?|tel):(\+?\d{7,15})/gi)) {
+      const n = normalizePhone(m[1]);
+      if (n && !out.includes(n)) out.push(n);
+    }
+  return out;
+}
+
+/**
+ * What a test call's headers prove about the kept number. `carrier`: they name it, so the carrier forwarded this call
+ * from it. `not_shown`: they name other numbers only -- a call dialled straight to the receptionist's line, or a
+ * carrier that forwards without saying so, which the headers cannot tell apart. `unseen`: the call carried no
+ * diversion header. Only `carrier` is proof; the other two are what the test window alone decides, as it always has.
+ */
+export type ForwardingProof = "carrier" | "not_shown" | "unseen";
+export function forwardingProof(keptE164: string | null, diverted: string[] | null): ForwardingProof {
+  if (diverted === null) return "unseen";
+  const kept = keptE164 ? normalizePhone(keptE164) : null;
+  return kept && diverted.includes(kept) ? "carrier" : "not_shown";
+}
+
 /** Whether a test window is open at `nowMs`. */
 export function forwardingTestOpen(facts: ForwardingFacts, nowMs: number = Date.now()): boolean {
   const until = typeof facts.test_until === "string" ? Date.parse(facts.test_until) : NaN;

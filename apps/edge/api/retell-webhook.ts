@@ -26,7 +26,6 @@ import { pg } from "../lib/pg.js";
 import {
   normalizeCall,
   callSummaryLine,
-  verifyRetellSignature,
   parseTranscriptText,
   updateLiveCall,
   type RetellCall,
@@ -56,6 +55,7 @@ import {
 } from "../lib/packages/contracts.js";
 import type { RoutedChannel } from "../lib/packages/db.js";
 import { env } from "../lib/env.js";
+import { retellSigned } from "../lib/voice/voice-door-auth.js";
 import { logger, errField } from "../lib/log.js";
 
 const L = logger();
@@ -176,25 +176,14 @@ export async function POST(request: Request): Promise<Response> {
   // the badged key for verification alone; empty, the API key is tried, as
   // before, so nothing moves until it is set.
   const signature = request.headers.get("x-retell-signature");
-  const webhookKey = env.RETELL_WEBHOOK_KEY || env.RETELL_API_KEY;
   if (!env.RETELL_WEBHOOK_KEY) {
     // Named, every delivery, so the one configuration step that stands between
     // this door and a real signature is not a thing someone has to already
     // know. The API key is tried underneath, as before.
     L.warn("retell_webhook_key_unset", { trying: "RETELL_API_KEY", fix: "set RETELL_WEBHOOK_KEY to the badged key" });
   }
-  const sigRaw = verifyRetellSignature(raw, signature, webhookKey);
-  let restringified: string | null = null;
-  try {
-    restringified = JSON.stringify(JSON.parse(raw));
-  } catch {
-    /* not JSON: nothing to re-serialise */
-  }
-  const sigRestringified =
-    !sigRaw && restringified !== null && restringified !== raw
-      ? verifyRetellSignature(restringified, signature, webhookKey)
-      : sigRaw;
-  const sigOk = sigRaw || sigRestringified;
+  // The check itself is voice-door-auth.ts's `retellSigned`, which the other three voice doors use too.
+  const { ok: sigOk, raw: sigRaw, restringified: sigRestringified } = retellSigned(raw, signature);
   // The signature is the only credential. The `?key=` that once opened this
   // door beside it was a secret in Retell's dashboard and in access logs, and
   // anyone holding it could forge a call_analyzed — a fabricated transcript
@@ -335,7 +324,9 @@ export async function POST(request: Request): Promise<Response> {
             fromE164: n.fromE164,
             toE164: n.toE164,
             startedAtIso: n.startedAtIso,
-            callId: res.call_id,
+            // Retell's id, as the inbound-call webhook records it: that door proves most tests first, before the call
+            // has a row of ours.
+            callId: n.retellCallId,
           });
         if (res.skipped) {
           // Older than the row: a retried call_started after call_ended, or a

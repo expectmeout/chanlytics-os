@@ -61,8 +61,33 @@ this order, each merged on green before the next.
     number, messaging) are also unchanged.
 - **C2:** the three unsigned voice doors (`retell-inbound`, `retell-fn`, `retell-availability`) signed as the call
   webhook is, plus rate limits.
+  - _As built:_ the signature is reported before it is required. `lib/voice/voice-door-auth.ts` holds the one check,
+    `retellSigned`, which the webhook now uses too: the badged key, over the raw body and then the re-serialised
+    body. Each voice door logs `voice_door_auth { door, sig }` for every knock it lets in. The shared secret still
+    opens the doors, now compared in constant time.
+  - `RETELL_DOORS_SIGNED=1` makes the signature alone open them, as it does the webhook, and then refusals are
+    logged too. Set it once the log shows `sig: true` on all three doors. `retell-fn.ts` said Retell does not sign
+    custom-function calls, and the webhook once turned away 127 real deliveries over a wrong key, so this waits for
+    evidence rather than a guess.
+  - Rate limits were not added. The only spend behind these doors, texting the booking link, already has its
+    per-day cap, and open times read through the feed cache. A limiter that holds across serverless instances needs
+    shared state, which is a new mechanism, and once required the signature closes the door a limit would only
+    narrow.
 - **C3:** forwarding proof that tells a forwarded call from a direct dial (the called number and the carrier's
   forwarding header), and the called number handed to the receptionist.
+  - _As built:_ a test call is now proven as it arrives, in the inbound-call webhook, the one door that sees the
+    call's SIP diversion headers (Retell's `custom_sip_headers`: Diversion, History-Info). Contracts'
+    `divertedNumbers` reads the numbers they name, and `forwardingProof` judges them:
+    - `carrier` when they name the kept number;
+    - `not_shown` when they name only others;
+    - `unseen` when there are none.
+  - A direct dial is still not refused. Twilio's trunk names the dialled number on every call, so headers without
+    the kept number are either a direct dial or a carrier that forwards silently, and refusing them would fail
+    owners who did it right. Instead the proof is recorded (`facts.verified_by`: `carrier` or `window`; the event
+    carries `proof`) and each test call logs `forwarding_evidence`. Whether to require `carrier` is decided on how
+    often real carriers show it.
+  - Not done: handing the called number to the receptionist. No prompt reads such a variable, and the call row
+    already keeps `to_e164`.
 
 ## D. The first run's polish
 

@@ -10,6 +10,8 @@ import {
   forwardingCodes,
   forwardingMatch,
   forwardingTestOpen,
+  divertedNumbers,
+  forwardingProof,
   telHref,
   CARRIERS,
   forwardingDialLabel,
@@ -201,6 +203,32 @@ const fwLine = (over = {}, facts = {}) => ({
 });
 const lines = (rows) => ({ rows, ready: false, provider: null, costs: { local_number_month_usd: 1.15 } });
 const row = (vm, id) => vm.rows.find((r) => r.id === id);
+
+test("(C3) the diversion headers: the numbers a call was forwarded through, and what they prove about the kept number", () => {
+  const KEPT = "+12125550142";
+  // A carrier's forward, and Twilio's own note of the number dialled, as Retell hands them over (lowercase keys).
+  const forwarded = {
+    diversion: `<sip:+12125550142@carrier.example;user=phone>;reason=no-answer;counter=1,<sip:${DEST}@chanlytics.pstn.twilio.com>;reason=unconditional`,
+  };
+  assert.deepEqual(divertedNumbers(forwarded), [KEPT, DEST]);
+  assert.equal(forwardingProof(KEPT, divertedNumbers(forwarded)), "carrier");
+  // History-Info names them too, in its own form; a tel: URI and a national number are the same number.
+  assert.deepEqual(
+    divertedNumbers({
+      "history-info": "<sip:2125550142@a.example?Reason=SIP%3Bcause%3D408>;index=1,<tel:+13055550123>;index=1.1",
+    }),
+    [KEPT, DEST],
+  );
+  // Only the number dialled: a call straight to the line, or a carrier that forwards without saying so.
+  const direct = { diversion: `<sip:${DEST}@chanlytics.pstn.twilio.com>;reason=unconditional`, "x-other": "1" };
+  assert.equal(forwardingProof(KEPT, divertedNumbers(direct)), "not_shown");
+  // No diversion header at all, or no headers.
+  for (const h of [null, undefined, {}, { "x-twilio-callsid": "CA1" }, { diversion: "  " }]) {
+    assert.equal(divertedNumbers(h), null, JSON.stringify(h));
+    assert.equal(forwardingProof(KEPT, divertedNumbers(h)), "unseen");
+  }
+  assert.equal(forwardingProof(null, [KEPT]), "not_shown", "no kept number is nothing to prove");
+});
 
 test("the row: nothing to forward to yet, then set it up, dial and test, testing, verified", () => {
   const noLine = setupSteps(

@@ -26,6 +26,7 @@ export const SCHEMA_SETS = {
   "capability_activations.capability": ["voice", "whatsapp", "sms"],
   "contact_identities.channel": ["whatsapp", "voice", "sms", "email", "instagram"],
   "contacts.consent": ["unknown", "opted_in", "opted_out"],
+  "contacts.email_marketing": ["unknown", "opted_in", "opted_out"],
   "contacts.marketing_consent": ["unknown", "opted_in", "opted_out"],
   "conversations.state": ["open", "needs_human", "snoozed", "archived"],
   "deals.lost_reason": ["price", "timing", "elsewhere", "no_reply", "not_a_fit", "other"],

@@ -54,7 +54,7 @@ import {
 } from "../lib/packages/contracts.js";
 import { deliver, whatsappSender } from "../lib/packages/core.js";
 import { outboundGate, refusalScript, type OutboundRefusal } from "../lib/receptionist/outbound-gate.js";
-import { env } from "../lib/env.js";
+import { voiceDoorAuth } from "../lib/voice/voice-door-auth.js";
 import { logger, errField } from "../lib/log.js";
 
 /**
@@ -102,12 +102,9 @@ const NO_LINK = `This business has no booking link, so nothing was sent. Take ${
 
 export async function POST(request: Request): Promise<Response> {
   const raw = await request.text();
-  // Retell custom-function calls are authenticated via the shared-secret header
-  // configured on the tool (Retell does not HMAC-sign these like webhooks). An
-  // unset or empty secret matches nothing, as in retell-webhook.ts: an empty
-  // header must never open the door because the secret is empty too.
-  const secret = env.RETELL_FN_SECRET;
-  if (!secret || request.headers.get("x-fn-secret") !== secret) {
+  // The signature, or the tool's x-fn-secret header until the signature is required. Whether Retell signs
+  // custom-function calls is what the log answers (voice-door-auth.ts); this file used to say it did not.
+  if (!voiceDoorAuth("fn", request, raw, request.headers.get("x-fn-secret")).ok) {
     return json(401, { ok: false, error: "bad_secret" });
   }
 

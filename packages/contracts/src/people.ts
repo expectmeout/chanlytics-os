@@ -1870,6 +1870,14 @@ export function filterTimeline<T extends { kind: TimelineKind }>(items: readonly
  * ones the page has, so an owner reads "how do we know" without a database.
  */
 export function consentChangeWords(c: ConsentChange): { who: string; text: string; sub?: string } {
+  // Marketing email is its own answer (00174), and the one thing a person says to it is no: a press of the
+  // Unsubscribe link in a campaign email. Texting and WhatsApp are untouched by it.
+  if (c.purpose === "email_marketing")
+    return {
+      who: "Email",
+      text: c.consent === "opted_out" ? "Unsubscribed from your emails" : "Marketing email: back to not asked",
+      ...(c.source === "unsubscribe" ? { sub: "Pressed Unsubscribe in an email" } : {}),
+    };
   const offers = c.purpose === "marketing";
   const text =
     c.consent === "opted_in"

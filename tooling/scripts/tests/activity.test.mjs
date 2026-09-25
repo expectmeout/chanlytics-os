@@ -45,6 +45,17 @@ test("the words: a sentence per kind, the one or two fields a reader wants, noth
     }),
     "A consent answer changed · no to offers · customer message",
   );
+  // An unsubscribe (00174) is no to marketing email, never to messages about their visit.
+  assert.equal(
+    activityWords("contact.consent_changed", {
+      purpose: "email_marketing",
+      consent: "opted_out",
+      source: "unsubscribe",
+      via: "one_click",
+      message_id: "11111111-1111-4111-8111-111111111111",
+    }),
+    "A consent answer changed · no to marketing email · unsubscribe",
+  );
   assert.equal(activityWords("export", { what: "workspace" }), "Exported data · everything");
   assert.equal(activityWords("export", { what: "people", rows: 312 }), "Exported data · everyone as a CSV · 312 rows");
   assert.equal(activityWords("export", { what: "conversation", messages: 40 }), "Exported data · a conversation");
