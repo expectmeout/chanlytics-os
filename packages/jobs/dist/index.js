@@ -1978,6 +1978,7 @@ var WHATSAPP_LANGUAGES = [
 ];
 var BY_ID = new Map(WHATSAPP_LANGUAGES.map((l2) => [l2.id.toLowerCase(), l2]));
 var DAY_MS5 = 864e5;
+var SWEEP_TICK_MS = 5 * 6e4;
 var PLAYBOOK_HOURS = { min: 9, max: 20 };
 var SENDING_HOURS_WORDS = {
   min: PLAYBOOK_HOURS.min,
@@ -1990,7 +1991,6 @@ var PLAYBOOK_BREATH_MS = 7 * DAY_MS5;
 var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
 var FOLLOW_UP_NEEDS_DEALS = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION}\u201D with \u201C${SELLS_BY_WORDS.proposal.label}\u201D.`;
 var PLAYBOOK_TOUCH_WINDOW_MS = (365 + 7) * DAY_MS5;
-var SWEEP_TICK_MS = 5 * 6e4;
 var PLAYBOOK_CLASS_LABEL = {
   reengage: POLICY_CLASS_WORDS.reengage.short,
   campaign: POLICY_CLASS_WORDS.campaign.short,
@@ -9221,6 +9221,7 @@ var WHATSAPP_LANGUAGES2 = [
 ];
 var BY_ID2 = new Map(WHATSAPP_LANGUAGES2.map((l2) => [l2.id.toLowerCase(), l2]));
 var DAY_MS52 = 864e5;
+var SWEEP_TICK_MS2 = 5 * 6e4;
 var PLAYBOOK_HOURS2 = { min: 9, max: 20 };
 var SENDING_HOURS_WORDS2 = {
   min: PLAYBOOK_HOURS2.min,
@@ -9233,7 +9234,6 @@ var PLAYBOOK_BREATH_MS2 = 7 * DAY_MS52;
 var PLAYBOOK_VETO_DELAY_MS2 = 30 * 6e4;
 var FOLLOW_UP_NEEDS_DEALS2 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION2}\u201D with \u201C${SELLS_BY_WORDS2.proposal.label}\u201D.`;
 var PLAYBOOK_TOUCH_WINDOW_MS2 = (365 + 7) * DAY_MS52;
-var SWEEP_TICK_MS2 = 5 * 6e4;
 var PLAYBOOK_CLASS_LABEL2 = {
   reengage: POLICY_CLASS_WORDS2.reengage.short,
   campaign: POLICY_CLASS_WORDS2.campaign.short,
@@ -12539,6 +12539,7 @@ var WHATSAPP_LANGUAGES3 = [
 ];
 var BY_ID3 = new Map(WHATSAPP_LANGUAGES3.map((l2) => [l2.id.toLowerCase(), l2]));
 var DAY_MS53 = 864e5;
+var SWEEP_TICK_MS3 = 5 * 6e4;
 var PLAYBOOK_HOURS3 = { min: 9, max: 20 };
 var SENDING_HOURS_WORDS3 = {
   min: PLAYBOOK_HOURS3.min,
@@ -12551,7 +12552,6 @@ var PLAYBOOK_BREATH_MS3 = 7 * DAY_MS53;
 var PLAYBOOK_VETO_DELAY_MS3 = 30 * 6e4;
 var FOLLOW_UP_NEEDS_DEALS3 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION3}\u201D with \u201C${SELLS_BY_WORDS3.proposal.label}\u201D.`;
 var PLAYBOOK_TOUCH_WINDOW_MS3 = (365 + 7) * DAY_MS53;
-var SWEEP_TICK_MS3 = 5 * 6e4;
 var PLAYBOOK_CLASS_LABEL3 = {
   reengage: POLICY_CLASS_WORDS3.reengage.short,
   campaign: POLICY_CLASS_WORDS3.campaign.short,
@@ -14951,6 +14951,7 @@ function resolveParams(specs, f) {
   });
 }
 var DAY_MS522 = 864e5;
+var SWEEP_TICK_MS22 = 5 * 6e4;
 var PLAYBOOK_HOURS22 = { min: 9, max: 20 };
 var SENDING_HOURS_WORDS22 = {
   min: PLAYBOOK_HOURS22.min,
@@ -14963,7 +14964,6 @@ var PLAYBOOK_BREATH_MS22 = 7 * DAY_MS522;
 var PLAYBOOK_VETO_DELAY_MS22 = 30 * 6e4;
 var FOLLOW_UP_NEEDS_DEALS22 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION22}\u201D with \u201C${SELLS_BY_WORDS22.proposal.label}\u201D.`;
 var PLAYBOOK_TOUCH_WINDOW_MS22 = (365 + 7) * DAY_MS522;
-var SWEEP_TICK_MS22 = 5 * 6e4;
 var PLAYBOOK_CLASS_LABEL22 = {
   reengage: POLICY_CLASS_WORDS22.reengage.short,
   campaign: POLICY_CLASS_WORDS22.campaign.short,
@@ -14986,6 +14986,14 @@ var PROPOSAL22 = {
   example: "https://docs.example.com/proposal"
 };
 var PROPOSAL_ES22 = { ...PROPOSAL22, label: "Enlace de la propuesta" };
+var LIMIT_TIERS22 = {
+  TIER_50: 50,
+  TIER_250: 250,
+  TIER_1K: 1e3,
+  TIER_10K: 1e4,
+  TIER_100K: 1e5,
+  TIER_UNLIMITED: Number.POSITIVE_INFINITY
+};
 var BROADCAST_CHUNK = 25;
 var BROADCAST_GAP_MS = 300;
 function renderTemplate(body, params) {
@@ -14995,14 +15003,6 @@ function renderTemplate(body, params) {
   });
 }
 var OUTCOME_UNKNOWN = "outcome_unknown";
-var LIMIT_TIERS22 = {
-  TIER_50: 50,
-  TIER_250: 250,
-  TIER_1K: 1e3,
-  TIER_10K: 1e4,
-  TIER_100K: 1e5,
-  TIER_UNLIMITED: Number.POSITIVE_INFINITY
-};
 var DAY_MS622 = 24 * 3600 * 1e3;
 var DAY_MS722 = 864e5;
 var QUIET_AFTER_MS22 = 7 * DAY_MS722;
@@ -17227,6 +17227,7 @@ var WHATSAPP_LANGUAGES32 = [
 ];
 var BY_ID32 = new Map(WHATSAPP_LANGUAGES32.map((l2) => [l2.id.toLowerCase(), l2]));
 var DAY_MS532 = 864e5;
+var SWEEP_TICK_MS32 = 5 * 6e4;
 var PLAYBOOK_HOURS32 = { min: 9, max: 20 };
 var SENDING_HOURS_WORDS32 = {
   min: PLAYBOOK_HOURS32.min,
@@ -17239,7 +17240,6 @@ var PLAYBOOK_BREATH_MS32 = 7 * DAY_MS532;
 var PLAYBOOK_VETO_DELAY_MS32 = 30 * 6e4;
 var FOLLOW_UP_NEEDS_DEALS32 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION32}\u201D with \u201C${SELLS_BY_WORDS32.proposal.label}\u201D.`;
 var PLAYBOOK_TOUCH_WINDOW_MS32 = (365 + 7) * DAY_MS532;
-var SWEEP_TICK_MS32 = 5 * 6e4;
 var PLAYBOOK_CLASS_LABEL32 = {
   reengage: POLICY_CLASS_WORDS32.reengage.short,
   campaign: POLICY_CLASS_WORDS32.campaign.short,
@@ -20156,6 +20156,7 @@ var WHATSAPP_LANGUAGES4 = [
 ];
 var BY_ID4 = new Map(WHATSAPP_LANGUAGES4.map((l2) => [l2.id.toLowerCase(), l2]));
 var DAY_MS54 = 864e5;
+var SWEEP_TICK_MS4 = 5 * 6e4;
 var PLAYBOOK_HOURS4 = { min: 9, max: 20 };
 var SENDING_HOURS_WORDS4 = {
   min: PLAYBOOK_HOURS4.min,
@@ -20168,7 +20169,6 @@ var PLAYBOOK_BREATH_MS4 = 7 * DAY_MS54;
 var PLAYBOOK_VETO_DELAY_MS4 = 30 * 6e4;
 var FOLLOW_UP_NEEDS_DEALS4 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION4}\u201D with \u201C${SELLS_BY_WORDS4.proposal.label}\u201D.`;
 var PLAYBOOK_TOUCH_WINDOW_MS4 = (365 + 7) * DAY_MS54;
-var SWEEP_TICK_MS4 = 5 * 6e4;
 var PLAYBOOK_CLASS_LABEL4 = {
   reengage: POLICY_CLASS_WORDS4.reengage.short,
   campaign: POLICY_CLASS_WORDS4.campaign.short,

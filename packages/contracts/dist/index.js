@@ -13516,8 +13516,15 @@ function templateSentWords(s, tz, nowMs) {
   };
 }
 
-// src/playbooks.ts
+// src/playbook-time.ts
 var DAY_MS5 = 864e5;
+var SWEEP_TICK_MS = 5 * 6e4;
+var HOUR_MS2 = 36e5;
+function sweepTickAtOrAfter(ms2) {
+  return Math.ceil((ms2 - SWEEP_TICK_MS) / HOUR_MS2) * HOUR_MS2 + SWEEP_TICK_MS;
+}
+
+// src/playbook-triggers.ts
 var PLAYBOOK_TRIGGERS = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
   {
@@ -13614,6 +13621,82 @@ function policyClassOffered(cls, dealsOn) {
   const runs = PLAYBOOK_TRIGGERS.filter((t) => t.cls === cls);
   return runs.length === 0 || runs.some((t) => triggerOffered(t, dealsOn));
 }
+
+// src/playbook-schedule.ts
+function planRun(mode, now) {
+  switch (mode) {
+    case "auto":
+      return { kind: "send", state: "scheduled", at: now };
+    case "veto":
+      return { kind: "send", state: "scheduled", at: new Date(now.getTime() + PLAYBOOK_VETO_DELAY_MS) };
+    case "ask":
+      return { kind: "hold", state: "pending_approval" };
+    default:
+      return { kind: "off" };
+  }
+}
+function parts(tz, now) {
+  try {
+    const f = new Intl.DateTimeFormat("en-CA", {
+      timeZone: tz,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      hour12: false
+    });
+    const p = Object.fromEntries(f.formatToParts(now).map((x) => [x.type, x.value]));
+    const hour = Number(p.hour) % 24;
+    return { date: `${p.year}-${p.month}-${p.day}`, hour };
+  } catch {
+    return { date: now.toISOString().slice(0, 10), hour: now.getUTCHours() };
+  }
+}
+function localDate(tz, now) {
+  return parts(tz, now).date;
+}
+function localHour(tz, now) {
+  return parts(tz, now).hour;
+}
+function nextOpenMoment(tz, when) {
+  const { date, hour } = parts(tz, when);
+  if (hour >= PLAYBOOK_HOURS.min && hour <= PLAYBOOK_HOURS.max) return { at: when, moved: false };
+  const day = hour < PLAYBOOK_HOURS.min ? date : shiftKey(date, 1);
+  let at2 = zoneMidnight(tz, day) + PLAYBOOK_HOURS.min * 36e5;
+  const landed = parts(tz, new Date(at2)).hour;
+  if (landed !== PLAYBOOK_HOURS.min) at2 += (PLAYBOOK_HOURS.min - landed) * 36e5;
+  return { at: new Date(at2), moved: true };
+}
+function runDueNow(p, tz, now) {
+  if (p.state !== "running") return false;
+  const { date, hour } = parts(tz, now);
+  return hour >= p.run_hour && hour <= PLAYBOOK_HOURS.max && p.last_run_for !== date;
+}
+var two2 = (n) => String(n).padStart(2, "0");
+function scheduleLine(p) {
+  const at2 = `${two2(p.run_hour)}:00`;
+  if (triggerOf(p.trigger)?.kind === "visit")
+    return `Daily ${at2} \xB7 ${p.trigger === "visit_tomorrow" ? "everyone with a visit tomorrow" : "everyone who visited yesterday"} \xB7 up to ${p.cap_per_run}`;
+  if (p.trigger === "everyone_monthly") return `Every ${p.cadence_days} days at ${at2} \xB7 up to ${p.cap_per_run} a day`;
+  if (triggerOf(p.trigger)?.kind === "deal") return `Daily ${at2} \xB7 up to ${p.cap_per_run} \xB7 once per proposal`;
+  return `Daily ${at2} \xB7 up to ${p.cap_per_run} \xB7 once per person, again after ${p.gap_days} days`;
+}
+function runsWords(p) {
+  const at2 = `${two2(p.run_hour)}:00`;
+  return p.trigger === "everyone_monthly" ? `runs every ${p.cadence_days} days at ${at2}` : `runs daily at ${at2}`;
+}
+function nextRunLabel(p, tz, now) {
+  if (p.state !== "running") return "paused";
+  const { date, hour } = parts(tz, now);
+  const at2 = `${two2(p.run_hour)}:00`;
+  if (p.last_run_for !== date) {
+    if (hour < p.run_hour) return `today ${at2}`;
+    if (hour <= PLAYBOOK_HOURS.max) return "today, within the hour";
+  }
+  return `tomorrow ${at2}`;
+}
+
+// src/playbook-follow-ups.ts
 var FOLLOW_UP_NEEDS_DEALS = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION}\u201D with \u201C${SELLS_BY_WORDS.proposal.label}\u201D.`;
 var FOLLOW_UP_NEEDS_LINK = "A proposal follow-up carries the proposal's link: pick a message with a slot for it, and fill that slot with their proposal's link.";
 var FOLLOW_UP_ONE = "This workspace already has a proposal follow-up. Change that one rather than starting another.";
@@ -13635,13 +13718,44 @@ function playbookRunStop(o) {
   if (!o.canSend) return "number_flagged";
   return null;
 }
-function playbookListRef(p) {
-  if (triggerOf(p.trigger)?.kind !== "saved") return null;
-  if (p.list_key) return { kind: "builtin", id: p.list_key };
-  if (p.list_id) return { kind: "saved", id: p.list_id };
-  return null;
+function followUpRunAt(f, tz, fromMs, nowMs) {
+  const today = zoneDayKey(nowMs, tz);
+  const p = { state: "running", run_hour: f.run_hour, last_run_for: f.last_run_for };
+  if (f.last_run_for !== today) {
+    const tick = sweepTickAtOrAfter(Math.max(nowMs, wallClockAt(tz, today, f.run_hour, 0)));
+    if (zoneDayKey(tick, tz) === today && runDueNow(p, tz, new Date(tick)) && fromMs <= tick) return tick;
+  }
+  let day = shiftKey(today, 1);
+  for (let i = 0; i < 400; i++, day = shiftKey(day, 1)) {
+    const tick = sweepTickAtOrAfter(wallClockAt(tz, day, f.run_hour, 0));
+    if (fromMs <= tick) return tick;
+  }
+  return sweepTickAtOrAfter(fromMs);
 }
-var LIST_PLAYBOOK_CLASSES = ["campaign", "reengage"];
+function followUpStandOf(r2, f, tz, nowMs, pace) {
+  if (!followUpNames(r2, nowMs, pace)) return null;
+  if (whyNotReceive(r2, purposeOfPlaybook("follow_up")) !== null) return null;
+  if (f.purpose === "marketing" && whyNotReceive(r2, "marketing") !== null) return null;
+  const when = (m) => {
+    const ms2 = m[r2.id] ? Date.parse(m[r2.id]) : Number.NaN;
+    return Number.isFinite(ms2) ? ms2 : null;
+  };
+  const had = when(f.had);
+  if (had !== null && followUpIsFor(r2, had)) return { kind: "had", atMs: had };
+  const queued = when(f.queued);
+  if (queued !== null && followUpIsFor(r2, queued)) return { kind: "will", atMs: queued, asks: false };
+  const held = when(f.held);
+  if (held !== null && followUpIsFor(r2, held)) return { kind: "will", atMs: held, asks: true };
+  const heard = when(f.heard);
+  const free = heard !== null ? breathEndsAt(heard) : nowMs;
+  return { kind: "will", atMs: followUpRunAt(f, tz, free, nowMs), asks: f.asks };
+}
+function followUpWords(s, tz, nowMs) {
+  const day = clockNear(s.atMs, tz, nowMs);
+  return s.asks ? `Follow-up to approve ${day}` : `Follow-up ${day}`;
+}
+
+// src/playbook-reach.ts
 function eligibleForPlaybook(rows, p, touches, nowMs, pace, listIds = null) {
   return playbookRunReach(rows, p, touches, nowMs, pace, listIds).eligible;
 }
@@ -13707,119 +13821,6 @@ function playbookRunReach(rows, p, touches, nowMs, pace, listIds = null) {
   reach.will = eligible.length;
   return { eligible, reach, saidYes };
 }
-function planRun(mode, now) {
-  switch (mode) {
-    case "auto":
-      return { kind: "send", state: "scheduled", at: now };
-    case "veto":
-      return { kind: "send", state: "scheduled", at: new Date(now.getTime() + PLAYBOOK_VETO_DELAY_MS) };
-    case "ask":
-      return { kind: "hold", state: "pending_approval" };
-    default:
-      return { kind: "off" };
-  }
-}
-function parts(tz, now) {
-  try {
-    const f = new Intl.DateTimeFormat("en-CA", {
-      timeZone: tz,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      hour12: false
-    });
-    const p = Object.fromEntries(f.formatToParts(now).map((x) => [x.type, x.value]));
-    const hour = Number(p.hour) % 24;
-    return { date: `${p.year}-${p.month}-${p.day}`, hour };
-  } catch {
-    return { date: now.toISOString().slice(0, 10), hour: now.getUTCHours() };
-  }
-}
-function localDate(tz, now) {
-  return parts(tz, now).date;
-}
-function localHour(tz, now) {
-  return parts(tz, now).hour;
-}
-var SWEEP_TICK_MS = 5 * 6e4;
-var HOUR_MS2 = 36e5;
-function sweepTickAtOrAfter(ms2) {
-  return Math.ceil((ms2 - SWEEP_TICK_MS) / HOUR_MS2) * HOUR_MS2 + SWEEP_TICK_MS;
-}
-function followUpRunAt(f, tz, fromMs, nowMs) {
-  const today = zoneDayKey(nowMs, tz);
-  const p = { state: "running", run_hour: f.run_hour, last_run_for: f.last_run_for };
-  if (f.last_run_for !== today) {
-    const tick = sweepTickAtOrAfter(Math.max(nowMs, wallClockAt(tz, today, f.run_hour, 0)));
-    if (zoneDayKey(tick, tz) === today && runDueNow(p, tz, new Date(tick)) && fromMs <= tick) return tick;
-  }
-  let day = shiftKey(today, 1);
-  for (let i = 0; i < 400; i++, day = shiftKey(day, 1)) {
-    const tick = sweepTickAtOrAfter(wallClockAt(tz, day, f.run_hour, 0));
-    if (fromMs <= tick) return tick;
-  }
-  return sweepTickAtOrAfter(fromMs);
-}
-function followUpStandOf(r2, f, tz, nowMs, pace) {
-  if (!followUpNames(r2, nowMs, pace)) return null;
-  if (whyNotReceive(r2, purposeOfPlaybook("follow_up")) !== null) return null;
-  if (f.purpose === "marketing" && whyNotReceive(r2, "marketing") !== null) return null;
-  const when = (m) => {
-    const ms2 = m[r2.id] ? Date.parse(m[r2.id]) : Number.NaN;
-    return Number.isFinite(ms2) ? ms2 : null;
-  };
-  const had = when(f.had);
-  if (had !== null && followUpIsFor(r2, had)) return { kind: "had", atMs: had };
-  const queued = when(f.queued);
-  if (queued !== null && followUpIsFor(r2, queued)) return { kind: "will", atMs: queued, asks: false };
-  const held = when(f.held);
-  if (held !== null && followUpIsFor(r2, held)) return { kind: "will", atMs: held, asks: true };
-  const heard = when(f.heard);
-  const free = heard !== null ? breathEndsAt(heard) : nowMs;
-  return { kind: "will", atMs: followUpRunAt(f, tz, free, nowMs), asks: f.asks };
-}
-function followUpWords(s, tz, nowMs) {
-  const day = clockNear(s.atMs, tz, nowMs);
-  return s.asks ? `Follow-up to approve ${day}` : `Follow-up ${day}`;
-}
-function nextOpenMoment(tz, when) {
-  const { date, hour } = parts(tz, when);
-  if (hour >= PLAYBOOK_HOURS.min && hour <= PLAYBOOK_HOURS.max) return { at: when, moved: false };
-  const day = hour < PLAYBOOK_HOURS.min ? date : shiftKey(date, 1);
-  let at2 = zoneMidnight(tz, day) + PLAYBOOK_HOURS.min * 36e5;
-  const landed = parts(tz, new Date(at2)).hour;
-  if (landed !== PLAYBOOK_HOURS.min) at2 += (PLAYBOOK_HOURS.min - landed) * 36e5;
-  return { at: new Date(at2), moved: true };
-}
-function runDueNow(p, tz, now) {
-  if (p.state !== "running") return false;
-  const { date, hour } = parts(tz, now);
-  return hour >= p.run_hour && hour <= PLAYBOOK_HOURS.max && p.last_run_for !== date;
-}
-var two2 = (n) => String(n).padStart(2, "0");
-function scheduleLine(p) {
-  const at2 = `${two2(p.run_hour)}:00`;
-  if (triggerOf(p.trigger)?.kind === "visit")
-    return `Daily ${at2} \xB7 ${p.trigger === "visit_tomorrow" ? "everyone with a visit tomorrow" : "everyone who visited yesterday"} \xB7 up to ${p.cap_per_run}`;
-  if (p.trigger === "everyone_monthly") return `Every ${p.cadence_days} days at ${at2} \xB7 up to ${p.cap_per_run} a day`;
-  if (triggerOf(p.trigger)?.kind === "deal") return `Daily ${at2} \xB7 up to ${p.cap_per_run} \xB7 once per proposal`;
-  return `Daily ${at2} \xB7 up to ${p.cap_per_run} \xB7 once per person, again after ${p.gap_days} days`;
-}
-function runsWords(p) {
-  const at2 = `${two2(p.run_hour)}:00`;
-  return p.trigger === "everyone_monthly" ? `runs every ${p.cadence_days} days at ${at2}` : `runs daily at ${at2}`;
-}
-function nextRunLabel(p, tz, now) {
-  if (p.state !== "running") return "paused";
-  const { date, hour } = parts(tz, now);
-  const at2 = `${two2(p.run_hour)}:00`;
-  if (p.last_run_for !== date) {
-    if (hour < p.run_hour) return `today ${at2}`;
-    if (hour <= PLAYBOOK_HOURS.max) return "today, within the hour";
-  }
-  return `tomorrow ${at2}`;
-}
 function playbookReach(p) {
   if (p.waiting) return "waiting";
   if (p.state !== "running") return "paused";
@@ -13850,33 +13851,8 @@ var PLAYBOOK_CLASS_LABEL = {
   booking: POLICY_CLASS_WORDS.booking.short,
   follow_up: POLICY_CLASS_WORDS.follow_up.short
 };
-function proposalFactsFor(trigger, row2) {
-  const t = triggerOf(trigger);
-  const url = row2?.deal?.proposal?.url ?? null;
-  return t && t.kind === "deal" && url ? { proposal_link: url } : null;
-}
-function visitFactsFor(trigger, visit, tz, sendAt) {
-  const t = triggerOf(trigger);
-  if (!t || t.kind !== "visit" || !visit) return null;
-  return {
-    visit_when: trigger === "visit_tomorrow" ? `${visitDayWord(visit, tz, sendAt, "tomorrow")} at ${visitStartTime(visit, tz)}` : visitDayWord(visit, tz, sendAt, "yesterday"),
-    visit_service: visit.title.trim() || "your appointment"
-  };
-}
-function visitDayWord(visit, tz, sendAt, assumed) {
-  if (!sendAt) return assumed;
-  const visitDay2 = localDate(tz, new Date(visit.start));
-  const sendDay = localDate(tz, sendAt);
-  const delta = Math.round((Date.parse(`${visitDay2}T00:00:00Z`) - Date.parse(`${sendDay}T00:00:00Z`)) / DAY_MS5);
-  if (delta === 1) return "tomorrow";
-  if (delta === 0) return "today";
-  if (delta === -1) return "yesterday";
-  try {
-    return `on ${new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long" }).format(new Date(visit.start))}`;
-  } catch {
-    return delta > 0 ? "soon" : "recently";
-  }
-}
+
+// src/playbook-approval.ts
 function poolWords(trigger) {
   const t = triggerOf(trigger);
   if (!t) return "";
@@ -13991,6 +13967,42 @@ function toApprovalVM(d, opts) {
     goes: late ? `made for ${opts.day(b.run_for)}` : opts.open.moved ? `goes at ${opts.open.time} once you approve it` : "goes the moment you approve it",
     skip: "Skipping loses this run only \u2014 the playbook keeps running."
   };
+}
+
+// src/playbooks.ts
+function playbookListRef(p) {
+  if (triggerOf(p.trigger)?.kind !== "saved") return null;
+  if (p.list_key) return { kind: "builtin", id: p.list_key };
+  if (p.list_id) return { kind: "saved", id: p.list_id };
+  return null;
+}
+var LIST_PLAYBOOK_CLASSES = ["campaign", "reengage"];
+function proposalFactsFor(trigger, row2) {
+  const t = triggerOf(trigger);
+  const url = row2?.deal?.proposal?.url ?? null;
+  return t && t.kind === "deal" && url ? { proposal_link: url } : null;
+}
+function visitFactsFor(trigger, visit, tz, sendAt) {
+  const t = triggerOf(trigger);
+  if (!t || t.kind !== "visit" || !visit) return null;
+  return {
+    visit_when: trigger === "visit_tomorrow" ? `${visitDayWord(visit, tz, sendAt, "tomorrow")} at ${visitStartTime(visit, tz)}` : visitDayWord(visit, tz, sendAt, "yesterday"),
+    visit_service: visit.title.trim() || "your appointment"
+  };
+}
+function visitDayWord(visit, tz, sendAt, assumed) {
+  if (!sendAt) return assumed;
+  const visitDay2 = localDate(tz, new Date(visit.start));
+  const sendDay = localDate(tz, sendAt);
+  const delta = Math.round((Date.parse(`${visitDay2}T00:00:00Z`) - Date.parse(`${sendDay}T00:00:00Z`)) / DAY_MS5);
+  if (delta === 1) return "tomorrow";
+  if (delta === 0) return "today";
+  if (delta === -1) return "yesterday";
+  try {
+    return `on ${new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long" }).format(new Date(visit.start))}`;
+  } catch {
+    return delta > 0 ? "soon" : "recently";
+  }
 }
 
 // src/template-library.ts
@@ -14622,23 +14634,35 @@ function slotToWrite(t) {
   return slotLabels({ name: t.name, language: t.language ?? "en_US", variables: t.variables })[at2] ?? `Value ${at2 + 1}`;
 }
 
-// src/broadcasts.ts
-var BROADCAST_STATES = ["pending_approval", "scheduled", "sending", "sent", "canceled", "failed"];
-var RECIPIENT_STATES = ["queued", "sent", "skipped", "failed"];
-var BROADCAST_STATE_LABELS = {
-  pending_approval: "Needs you",
-  scheduled: "Scheduled",
-  sending: "Sending",
-  sent: "Sent",
-  canceled: "Canceled",
-  failed: "Failed"
+// src/broadcast-failures.ts
+var BROADCAST_FAILURE_WORDS = {
+  paused: "the workspace was paused",
+  template_not_approved: "WhatsApp no longer approves its template",
+  wire_unavailable: "WhatsApp could not be reached",
+  run_interrupted: "its send stopped partway and did not start again"
 };
-var BROADCAST_CHUNK = 25;
-var BROADCAST_GAP_MS = 300;
-var BROADCAST_MAX_RECIPIENTS = 2e3;
-var BROADCAST_PARAM_MAX = 1024;
-var BROADCAST_SCHEDULE_MAX_DAYS = 30;
-var BROADCAST_NAME_MAX = 80;
+var BROADCAST_FAILURE_FIX = {
+  paused: "Unpause it under Settings, then send it again.",
+  template_not_approved: "Open it in Templates \u2014 it can be resubmitted.",
+  wire_unavailable: "Nothing was charged and nobody was written to. Try again.",
+  run_interrupted: "Nobody got it, so sending it again reaches nobody twice."
+};
+var BROADCAST_FAILURE_FIX_AFTER = {
+  paused: (n) => `Unpause it under Settings. Sending it again reaches the whole list, ${n === 1 ? "the one" : `the ${n}`} who got it included.`,
+  wire_unavailable: (n) => `The first ${n === 1 ? "one" : n} got it, then WhatsApp stopped answering. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`,
+  run_interrupted: (n) => `${n === 1 ? "One" : n} got it and the rest did not. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`
+};
+function broadcastFailureFix(failure, reached = 0) {
+  if (!failure) return null;
+  const after = reached > 0 ? BROADCAST_FAILURE_FIX_AFTER[failure] : void 0;
+  return after ? after(reached) : BROADCAST_FAILURE_FIX[failure] || null;
+}
+function broadcastFailureWords(failure) {
+  if (!failure) return "no reason was recorded";
+  return BROADCAST_FAILURE_WORDS[failure] ?? "it could not finish";
+}
+
+// src/broadcast-audience.ts
 var AUDIENCE_KINDS = ["everyone", "list", "saved"];
 var EVERYONE_LABEL = "Everyone";
 function eligibleFor(rows, kind, id, savedIds, purpose) {
@@ -14684,72 +14708,8 @@ function audiencePreview(rows, kind, id, savedIds, purpose, limit = 5, touched =
     heard: sending.filter((r2) => touched.has(r2.id)).length
   };
 }
-function renderTemplate(body, params) {
-  return String(body ?? "").replace(/\{\{(\d+)\}\}/g, (m, n) => {
-    const v = params[Number(n) - 1];
-    return typeof v === "string" && v !== "" ? v : m;
-  });
-}
-function cleanParam(raw) {
-  if (typeof raw !== "string") return null;
-  const v = raw.trim();
-  if (!v || v.length > BROADCAST_PARAM_MAX) return null;
-  if (/[\n\r\t]/.test(v) || /\s{4,}/.test(v)) return null;
-  return v;
-}
-function broadcastName(templateName, tz, now = /* @__PURE__ */ new Date(), title) {
-  const day = clockDate(now.getTime(), tz, now.getTime());
-  return `${templateTitle(templateName, title)} \xB7 ${day}`.slice(0, BROADCAST_NAME_MAX);
-}
-var BROADCAST_FAILURE_WORDS = {
-  paused: "the workspace was paused",
-  template_not_approved: "WhatsApp no longer approves its template",
-  wire_unavailable: "WhatsApp could not be reached",
-  run_interrupted: "its send stopped partway and did not start again"
-};
-var BROADCAST_FAILURE_FIX = {
-  paused: "Unpause it under Settings, then send it again.",
-  template_not_approved: "Open it in Templates \u2014 it can be resubmitted.",
-  wire_unavailable: "Nothing was charged and nobody was written to. Try again.",
-  run_interrupted: "Nobody got it, so sending it again reaches nobody twice."
-};
-var BROADCAST_FAILURE_FIX_AFTER = {
-  paused: (n) => `Unpause it under Settings. Sending it again reaches the whole list, ${n === 1 ? "the one" : `the ${n}`} who got it included.`,
-  wire_unavailable: (n) => `The first ${n === 1 ? "one" : n} got it, then WhatsApp stopped answering. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`,
-  run_interrupted: (n) => `${n === 1 ? "One" : n} got it and the rest did not. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`
-};
-function broadcastFailureFix(failure, reached = 0) {
-  if (!failure) return null;
-  const after = reached > 0 ? BROADCAST_FAILURE_FIX_AFTER[failure] : void 0;
-  return after ? after(reached) : BROADCAST_FAILURE_FIX[failure] || null;
-}
-function broadcastFailureWords(failure) {
-  if (!failure) return "no reason was recorded";
-  return BROADCAST_FAILURE_WORDS[failure] ?? "it could not finish";
-}
-function whenLabel(iso, tz, now = /* @__PURE__ */ new Date()) {
-  const ms2 = Date.parse(iso);
-  return Number.isFinite(ms2) ? clockWhen(ms2, tz, now.getTime()) : "";
-}
-function toBroadcastVM(d, tz, now = /* @__PURE__ */ new Date()) {
-  const c = d.counts;
-  const attempted = c.sent + c.skipped + c.failed;
-  return {
-    ...d,
-    stateLabel: BROADCAST_STATE_LABELS[d.state] ?? d.state,
-    when: whenLabel(d.finished_at ?? d.started_at ?? d.scheduled_for, tz, now),
-    deliveredPct: c.sent > 0 ? Math.round(c.delivered / c.sent * 100) : null,
-    readPct: c.sent > 0 ? Math.round(c.read / c.sent * 100) : null,
-    open: d.state === "scheduled" || d.state === "sending" || d.state === "pending_approval",
-    progress: d.recipient_count > 0 ? Math.min(1, attempted / d.recipient_count) : 0,
-    failureLabel: d.state === "failed" ? broadcastFailureWords(d.failure) : null
-  };
-}
-var OUTCOME_UNKNOWN = "outcome_unknown";
-function emptyAudienceRefusal(purpose, label, pool) {
-  if (pool.some((r2) => saidYesTo(r2, purpose))) return noNumberWords(`\u201C${label}\u201D`, purpose);
-  return purpose === "marketing" ? "Nobody there has said yes to offers yet \u2014 that is a separate answer from saying yes to messages, and only it puts somebody on a promotional broadcast. Record it under \u201COffers and news\u201D on a person's profile, or get their yes with the phrase and the QR on Broadcasts." : "Nobody there has said yes to messages yet. Even a reminder about their own visit needs their recorded yes. Record it on a person's profile, or get their yes with the phrase and the QR on Broadcasts.";
-}
+
+// src/broadcast-number.ts
 var LIMIT_TIERS = {
   TIER_50: 50,
   TIER_250: 250,
@@ -14805,6 +14765,8 @@ function overLimitRefusal(h, audience) {
   if (h.limitPerDay === null || audience <= h.limitPerDay) return null;
   return `This number can start up to ${h.limitPerDay.toLocaleString("en-US")} new conversations a day; this audience is ${audience.toLocaleString("en-US")}. Send to a smaller list or split it.`;
 }
+
+// src/run-report.ts
 var RUN_REPORT_STEPS = 8;
 var RUN_REPORT_SPANS_H = [1, 2, 4, 8, 12, 24, 48, 72];
 var RUN_FILTERS = [
@@ -14981,6 +14943,64 @@ function toRunReportVM(d, opts) {
       }
     ]
   };
+}
+
+// src/broadcasts.ts
+var BROADCAST_STATES = ["pending_approval", "scheduled", "sending", "sent", "canceled", "failed"];
+var RECIPIENT_STATES = ["queued", "sent", "skipped", "failed"];
+var BROADCAST_STATE_LABELS = {
+  pending_approval: "Needs you",
+  scheduled: "Scheduled",
+  sending: "Sending",
+  sent: "Sent",
+  canceled: "Canceled",
+  failed: "Failed"
+};
+var BROADCAST_CHUNK = 25;
+var BROADCAST_GAP_MS = 300;
+var BROADCAST_MAX_RECIPIENTS = 2e3;
+var BROADCAST_PARAM_MAX = 1024;
+var BROADCAST_SCHEDULE_MAX_DAYS = 30;
+var BROADCAST_NAME_MAX = 80;
+function renderTemplate(body, params) {
+  return String(body ?? "").replace(/\{\{(\d+)\}\}/g, (m, n) => {
+    const v = params[Number(n) - 1];
+    return typeof v === "string" && v !== "" ? v : m;
+  });
+}
+function cleanParam(raw) {
+  if (typeof raw !== "string") return null;
+  const v = raw.trim();
+  if (!v || v.length > BROADCAST_PARAM_MAX) return null;
+  if (/[\n\r\t]/.test(v) || /\s{4,}/.test(v)) return null;
+  return v;
+}
+function broadcastName(templateName, tz, now = /* @__PURE__ */ new Date(), title) {
+  const day = clockDate(now.getTime(), tz, now.getTime());
+  return `${templateTitle(templateName, title)} \xB7 ${day}`.slice(0, BROADCAST_NAME_MAX);
+}
+function whenLabel(iso, tz, now = /* @__PURE__ */ new Date()) {
+  const ms2 = Date.parse(iso);
+  return Number.isFinite(ms2) ? clockWhen(ms2, tz, now.getTime()) : "";
+}
+function toBroadcastVM(d, tz, now = /* @__PURE__ */ new Date()) {
+  const c = d.counts;
+  const attempted = c.sent + c.skipped + c.failed;
+  return {
+    ...d,
+    stateLabel: BROADCAST_STATE_LABELS[d.state] ?? d.state,
+    when: whenLabel(d.finished_at ?? d.started_at ?? d.scheduled_for, tz, now),
+    deliveredPct: c.sent > 0 ? Math.round(c.delivered / c.sent * 100) : null,
+    readPct: c.sent > 0 ? Math.round(c.read / c.sent * 100) : null,
+    open: d.state === "scheduled" || d.state === "sending" || d.state === "pending_approval",
+    progress: d.recipient_count > 0 ? Math.min(1, attempted / d.recipient_count) : 0,
+    failureLabel: d.state === "failed" ? broadcastFailureWords(d.failure) : null
+  };
+}
+var OUTCOME_UNKNOWN = "outcome_unknown";
+function emptyAudienceRefusal(purpose, label, pool) {
+  if (pool.some((r2) => saidYesTo(r2, purpose))) return noNumberWords(`\u201C${label}\u201D`, purpose);
+  return purpose === "marketing" ? "Nobody there has said yes to offers yet \u2014 that is a separate answer from saying yes to messages, and only it puts somebody on a promotional broadcast. Record it under \u201COffers and news\u201D on a person's profile, or get their yes with the phrase and the QR on Broadcasts." : "Nobody there has said yes to messages yet. Even a reminder about their own visit needs their recorded yes. Record it on a person's profile, or get their yes with the phrase and the QR on Broadcasts.";
 }
 
 // src/identity.ts
