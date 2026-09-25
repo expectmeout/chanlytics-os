@@ -462,6 +462,7 @@ for (const k of [
   "PL_FIRST_ROWS",
 ])
   globalThis[k] = globalThis.window[k];
+await import("../../../apps/dashboard/src/legacy/pages/leads-real.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/clients-a.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/client-profile.jsx");
 

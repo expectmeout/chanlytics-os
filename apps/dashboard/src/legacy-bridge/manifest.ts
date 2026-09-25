@@ -85,10 +85,16 @@ import "@/legacy/pages/pipeline-new.jsx";
 import "@/legacy/pages/pipeline-scope.jsx";
 // Import people: the owner's sheet, before clients-a.jsx, whose People page opens it.
 import "@/legacy/pages/people-import.jsx";
+// People › Leads, the real surface (moved whole from clients-a.jsx): before clients-a.jsx, whose ClientsA draws it.
+import "@/legacy/pages/leads-real.jsx";
 import "@/legacy/pages/clients-a.jsx";
 // A person's deal (0008): the card the profile draws first in its left column.
 import "@/legacy/pages/person-deal.jsx";
 import "@/legacy/pages/client-profile.jsx";
+// The Leads scope's cells, bench and map (moved whole from leads-scope.jsx): before the scope, which draws them.
+import "@/legacy/pages/leads-cells.jsx";
+import "@/legacy/pages/leads-bench.jsx";
+import "@/legacy/pages/leads-map.jsx";
 import "@/legacy/pages/leads-scope.jsx";
 import "@/legacy/pages/leads-finder.jsx";
 import "@/legacy/pages/leads-peek.jsx";

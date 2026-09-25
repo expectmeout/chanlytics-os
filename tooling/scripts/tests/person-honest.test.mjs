@@ -376,6 +376,7 @@ for (const k of [
   "PL_FIRST_ROWS",
 ])
   globalThis[k] = globalThis.window[k];
+await import("../../../apps/dashboard/src/legacy/pages/leads-real.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/clients-a.jsx");
 // The record kit, as both load lists put it before the pages: the profile's card draws its rows and folds.
 for (const f of ["record-row", "record-field", "record-fold", "record-sheet"])

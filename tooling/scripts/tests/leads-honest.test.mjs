@@ -454,8 +454,21 @@ for (const k of [
   globalThis[k] = globalThis.window[k];
 // People › Pipeline, the third view over the same table, in the order both lists load it: before the page that draws it.
 await import("../../../apps/dashboard/src/legacy/pages/pipeline-scope.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/leads-real.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/clients-a.jsx");
-for (const k of ["PeopleRail", "PeopleStanding", "PeopleScopeTabs", "RailSection", "RailRow"])
+// People's hooks, which LeadsReal (leads-real.jsx) reads from window when it draws, as a browser reads a global.
+for (const k of [
+  "PeopleRail",
+  "PeopleStanding",
+  "PeopleScopeTabs",
+  "RailSection",
+  "RailRow",
+  "usePeople",
+  "usePlControls",
+  "usePlPlace",
+  "railToggle",
+  "plScopeRoute",
+])
   globalThis[k] = globalThis.window[k];
 // The boards this task does not write: the plan panel (spec F5), the strip (Task 10) and the peek (Task 12).
 // Drawn here as their props, so what THIS task hands them is what is pinned. The first day is NOT among them: it
@@ -519,6 +532,9 @@ for (const k of [
   "leadArmOnReturn",
 ])
   globalThis[k] = globalThis.window[k];
+await import("../../../apps/dashboard/src/legacy/pages/leads-cells.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/leads-bench.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/leads-map.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/leads-scope.jsx");
 for (const k of [
   "LeadsScope",
