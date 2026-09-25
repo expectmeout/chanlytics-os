@@ -1,9 +1,18 @@
 {
   "functions": {
-    "api/whatsapp.ts": {
+    "api/admin/billing.ts": {
+      "maxDuration": 30
+    },
+    "api/admin/google.ts": {
+      "maxDuration": 60
+    },
+    "api/admin/lines.ts": {
       "maxDuration": 60
     },
     "api/admin/llm.ts": {
+      "maxDuration": 60
+    },
+    "api/admin/sending-domains.ts": {
       "maxDuration": 60
     },
     "api/admin/voice-converge.ts": {
@@ -12,46 +21,61 @@
     "api/admin/voice-provision.ts": {
       "maxDuration": 60
     },
-    "api/admin/lines.ts": {
-      "maxDuration": 60
-    },
-    "api/admin/google.ts": {
-      "maxDuration": 60
-    },
-    "api/cron/google.ts": {
-      "maxDuration": 60
-    },
-    "api/stripe-webhook.ts": {
-      "maxDuration": 30
-    },
-    "api/admin/billing.ts": {
-      "maxDuration": 30
-    },
-    "api/inbound-sms.ts": {
-      "maxDuration": 60
-    },
-    "api/resend-webhook.ts": {
-      "maxDuration": 30
-    },
-    "api/cron/registrations.ts": {
-      "maxDuration": 60
-    },
-    "api/cron/lines.ts": {
-      "maxDuration": 60
-    },
-    "api/jobs/tick.ts": {
-      "maxDuration": 60
-    },
     "api/apify-webhook.ts": {
       "maxDuration": 30
     },
-    "api/cron/leads.ts": {
+    "api/cron/calendar.ts": {
+      "maxDuration": 60
+    },
+    "api/cron/calls.ts": {
+      "maxDuration": 60
+    },
+    "api/cron/deadman.ts": {
       "maxDuration": 60
     },
     "api/cron/domains.ts": {
       "maxDuration": 60
     },
-    "api/admin/sending-domains.ts": {
+    "api/cron/google.ts": {
+      "maxDuration": 60
+    },
+    "api/cron/health.ts": {
+      "maxDuration": 60
+    },
+    "api/cron/leads.ts": {
+      "maxDuration": 60
+    },
+    "api/cron/lines.ts": {
+      "maxDuration": 60
+    },
+    "api/cron/notes.ts": {
+      "maxDuration": 60
+    },
+    "api/cron/playbooks.ts": {
+      "maxDuration": 60
+    },
+    "api/cron/registrations.ts": {
+      "maxDuration": 60
+    },
+    "api/inbound-sms.ts": {
+      "maxDuration": 60
+    },
+    "api/jobs/tick.ts": {
+      "maxDuration": 60
+    },
+    "api/resend-webhook.ts": {
+      "maxDuration": 30
+    },
+    "api/retell-webhook.ts": {
+      "maxDuration": 60
+    },
+    "api/sms-status.ts": {
+      "maxDuration": 30
+    },
+    "api/stripe-webhook.ts": {
+      "maxDuration": 30
+    },
+    "api/whatsapp.ts": {
       "maxDuration": 60
     }
   }

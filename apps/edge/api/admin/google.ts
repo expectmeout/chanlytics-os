@@ -59,8 +59,6 @@ interface Body {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export const config = { maxDuration: 60 };
-
 export async function POST(request: Request): Promise<Response> {
   const auth = authorizeAdmin(request, "/api/admin/google");
   if (!auth.ok) return auth.response;

@@ -251,6 +251,10 @@ var MAILBOX_RESERVED = /* @__PURE__ */ new Set([
 ]);
 var MAILBOX_LOCAL_PART_MAX = 40;
 var MAILBOX_FROM_NAME_MAX = 80;
+function emailDomainOf(value) {
+  const d = (value || "").trim().toLowerCase();
+  return /^[a-z0-9.-]+\.[a-z]{2,}$/.test(d) ? d : null;
+}
 function normalizeLocalPart(typed) {
   return typed.trim().toLowerCase();
 }
@@ -23852,6 +23856,7 @@ export {
   durationLabel,
   eligibleFor,
   eligibleForPlaybook,
+  emailDomainOf,
   emailLeftOutOf,
   emailNotConfirmed,
   emailWires,

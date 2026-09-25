@@ -64,8 +64,6 @@ const MAX_RECORDINGS_PER_TICK = 2;
  *  drains within a day. */
 const MAX_PURGE_PER_TICK = 50;
 
-export const config = { maxDuration: 60 };
-
 export async function POST(request: Request): Promise<Response> {
   const L = logger({ sweep: "calls" });
   const db = pg();

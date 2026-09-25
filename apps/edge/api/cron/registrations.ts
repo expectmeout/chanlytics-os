@@ -16,8 +16,6 @@ import { logger } from "../../lib/log.js";
 import { dashboardOrigin } from "../../lib/billing.js";
 import { registerLine, syncRegistration } from "../../lib/lines/a2p.js";
 
-export const config = { maxDuration: 60 };
-
 /** A bound per tick; a backlog drains over successive hours rather than one long call. */
 const MAX_PER_TICK = 20;
 

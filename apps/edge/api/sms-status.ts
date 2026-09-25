@@ -27,8 +27,6 @@ import { lineByNumber, lineAccount } from "../lib/sms/sms.js";
 import { logger } from "../lib/log.js";
 import { phoneTail } from "../lib/packages/contracts.js";
 
-export const config = { maxDuration: 30 };
-
 const empty = (status: number) => text(status, "", { "content-type": "text/plain" });
 
 export async function POST(request: Request): Promise<Response> {

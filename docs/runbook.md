@@ -15,7 +15,8 @@ is right.
 
 Both Vercel projects deploy production from `main` on every merge and a
 preview for every pull request, independently of each other. Vercel builds
-with Node 24; CI runs Node 22.
+with Node 24, and so does CI. Node 22 still runs everything locally: `engines`
+says `>=22`, and the types are Node 22's, so nothing may call an API only 24 has.
 
 ## Run it locally
 

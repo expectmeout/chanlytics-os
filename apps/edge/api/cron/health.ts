@@ -33,8 +33,6 @@ import { checkMailDomain, describeMailDomainTrouble } from "../../lib/email/mail
 import { emailDomain } from "../../lib/email/email.js";
 import { env } from "../../lib/env.js";
 
-export const config = { maxDuration: 60 };
-
 export async function POST(request: Request): Promise<Response> {
   const L = logger({ sweep: "health" });
   const db = pg();

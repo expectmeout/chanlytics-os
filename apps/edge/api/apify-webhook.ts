@@ -25,7 +25,6 @@ import { leadDb } from "../lib/leads/lead-db.js";
 import { leadWires } from "../lib/leads/lead-wires.js";
 import { scheduleJobOnce } from "../lib/packages/jobs.js";
 
-export const config = { maxDuration: 30 };
 /** The delivery is a pointer: ids and a status. Anything larger is not one. */
 const MAX_BODY = 64_000;
 

@@ -333,7 +333,9 @@ async function outreachFacts(db: Db, d: Delivery, f: WireFacts, nowMs: number): 
       since: new Date(nowMs - SHARE_WINDOW_MS).toISOString(),
     });
   } catch (e) {
-    throw new Error(`deliver: ${e instanceof Error ? e.message : String(e)} (conversation ${d.conversationId})`);
+    throw new Error(`deliver: ${e instanceof Error ? e.message : String(e)} (conversation ${d.conversationId})`, {
+      cause: e,
+    });
   }
   // The whole address, as the wire will hold it (emailSender): another name on an own domain is not the address the
   // workspace set up, and would only fail at the wire rather than be refused here with its reason.

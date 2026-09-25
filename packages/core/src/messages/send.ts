@@ -42,6 +42,7 @@ export async function sendQueued(ports: SendQueuedPorts, cmd: SendQueuedCommand)
     // so it is visibly stuck rather than invisibly lost.
     throw new Error(
       `outbound_send: cannot read message ${p.message_id}: ${e instanceof Error ? e.message : String(e)}`,
+      { cause: e },
     );
   }
   if (!msg || msg.status !== "queued") return; // canceled or already handled: no-op

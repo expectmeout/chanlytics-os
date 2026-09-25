@@ -34,8 +34,6 @@ import { markProcessed } from "../../lib/packages/db.js";
 import { upsertEscalation } from "../../lib/packages/jobs.js";
 import { sweepUnfinished } from "../../lib/receptionist/unfinished.js";
 
-export const config = { maxDuration: 60 };
-
 /** How long a customer may wait on a human before this is a problem. */
 const UNANSWERED_AFTER = "2 hours";
 

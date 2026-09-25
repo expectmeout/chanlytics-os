@@ -16,6 +16,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { mailboxOfTenant, sendingDomainsOf, type Database } from "../packages/db.js";
 import { emailSender, type EmailRoute, type Sender } from "../packages/core.js";
 import { fetchReceivedEmail, sendsAs, sendsAsOwnDomain } from "../packages/channels.js";
+import { emailDomainOf } from "../packages/contracts.js";
 import type { JobContext } from "../packages/jobs.js";
 import { erasedBeforeEmail } from "../erased.js";
 import { notify, type NotifyMessage } from "../ops/notify.js";
@@ -25,10 +26,9 @@ import { env } from "../env.js";
 
 type Db = SupabaseClient<Database>;
 
-/** The deployment's mail domain, lower-cased; null when email is off here. */
+/** The deployment's mail domain, lower-cased; null when email is off here (contracts emailDomainOf, as the dashboard reads it). */
 export function emailDomain(): string | null {
-  const d = (env.EMAIL_DOMAIN || "").trim().toLowerCase();
-  return /^[a-z0-9.-]+\.[a-z]{2,}$/.test(d) ? d : null;
+  return emailDomainOf(env.EMAIL_DOMAIN);
 }
 
 /**

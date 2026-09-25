@@ -10021,7 +10021,9 @@ async function outreachFacts(db, d, f, nowMs) {
       since: new Date(nowMs - SHARE_WINDOW_MS).toISOString()
     });
   } catch (e) {
-    throw new Error(`deliver: ${e instanceof Error ? e.message : String(e)} (conversation ${d.conversationId})`);
+    throw new Error(`deliver: ${e instanceof Error ? e.message : String(e)} (conversation ${d.conversationId})`, {
+      cause: e
+    });
   }
   const own = host && facts.domain && `${facts.domain.from_local}@${host}` === from ? facts.domain : null;
   return {
@@ -10491,7 +10493,8 @@ async function sendQueued(ports, cmd) {
     msg = await ports.queued(p.message_id);
   } catch (e) {
     throw new Error(
-      `outbound_send: cannot read message ${p.message_id}: ${e instanceof Error ? e.message : String(e)}`
+      `outbound_send: cannot read message ${p.message_id}: ${e instanceof Error ? e.message : String(e)}`,
+      { cause: e }
     );
   }
   if (!msg || msg.status !== "queued") return;

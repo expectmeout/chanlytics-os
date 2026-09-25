@@ -46,8 +46,6 @@ import { scheduleJob } from "../../lib/packages/jobs.js";
 import { sweepStuckLines } from "../../lib/lines/line-resume.js";
 import { env } from "../../lib/env.js";
 
-export const config = { maxDuration: 60 };
-
 /**
  * A bound per tick, and a small one.
  *
