@@ -1,4 +1,4 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 
 /**
  * What the product tells an owner they could not have seen, checked the way a
@@ -190,13 +190,28 @@ export async function expectPeekSeenVersusRead(page: Page): Promise<void> {
   ).toBe(0);
 }
 
-/** A row put back by Undo is the row that was there, word for word. */
+/**
+ * A lead row as Undo must give it back: every cell word for word, except the Found cell's relative age ("7m"), which
+ * ticks with the clock and turned a minute during a run (25 Sep). That cell is read by its tip instead, the absolute
+ * time the place was found, so a changed found_at still fails.
+ */
+export async function leadRowWords(row: Locator): Promise<string> {
+  return row.evaluate((tr) =>
+    [...tr.children]
+      .map((td) =>
+        td.getAttribute("data-testid") === "lead-found"
+          ? `found ${(td.querySelector("[data-testid=lead-tip-found]")?.textContent ?? "").trim()}`
+          : (td as HTMLElement).innerText.trim(),
+      )
+      .join("\t"),
+  );
+}
+
+/** A row put back by Undo is the row that was there, word for word (leadRowWords). */
 export async function expectRowUnchangedAfterUndo(page: Page, name: string, before: string): Promise<void> {
   const row = page.locator(".cl-table tbody tr", { hasText: name });
   await expect(row).toHaveCount(1);
-  await expect
-    .poll(async () => (await row.innerText()).trim(), { message: `${name} came back changed` })
-    .toBe(before.trim());
+  await expect.poll(() => leadRowWords(row), { message: `${name} came back changed` }).toBe(before);
 }
 
 /* --------------------------------------------- Focus, and the width of a page */
