@@ -532,6 +532,41 @@ test.describe("Phone shell on a real workspace", () => {
   });
 
   /**
+   * Every list pulls under a thumb, however short (25 Sep). A list rubber-bands on a touch screen only when it holds
+   * more than its box: Needs you with two threads and Live with no calls could not be pulled at all, where
+   * Conversations could, and Live's panel cut its last lines off with no way to scroll to them. Each list's scroller
+   * holds a pixel more than its box (mobile.css, "Every list pulls"), so a short list gives way as a long one does.
+   */
+  test("every list pulls under a thumb, however short: the Inbox's views, People's scopes and Campaigns' tabs", async ({
+    page,
+  }) => {
+    const pulls: Record<string, boolean> = {};
+    for (const [hash, sel] of [
+      ["inbox", ".ix-threads"],
+      ["conversations", ".cv-rows"],
+      ["live", ".lm-list"],
+      ["live", ".lm-panel"],
+      ["clients", ".cl-main-scroll"],
+      ["clients/leads", ".cl-main-scroll"],
+      ["clients/pipeline", ".cl-main-scroll"],
+      ["outbound", ".rp-body"],
+      ["broadcasts", ".route-view:has(> .bc-page)"],
+      ["messages", ".rp-body"],
+    ] as const) {
+      await page.goto(`/#/${hash}`);
+      await page.waitForLoadState("networkidle");
+      const box = page.locator(sel).first();
+      if ((await box.count()) === 0) continue; // a surface this workspace (or the local harness) does not draw
+      pulls[`${hash} ${sel}`] = await box.evaluate((el) => {
+        const oy = getComputedStyle(el).overflowY;
+        return (oy === "auto" || oy === "scroll") && el.scrollHeight > el.clientHeight;
+      });
+    }
+    test.skip(Object.keys(pulls).length === 0, "no list drawn here");
+    for (const [where, ok] of Object.entries(pulls)) expect(ok, `${where} gives way under a thumb`).toBe(true);
+  });
+
+  /**
    * A swipe across the page walks its strip (25 Sep, docs/superpowers/specs/2026-09-25-swipe-between-tabs-design.md):
    * the page follows the thumb, and let go past a third of the screen the tab beside is pressed; before the first tab
    * there is nothing to go to. Real touches through the browser's own input (CDP), as today.spec.ts pulls Ask down.
