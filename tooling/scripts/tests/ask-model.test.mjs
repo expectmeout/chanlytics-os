@@ -37,11 +37,15 @@ test("the lookup: a name in the list is its profile; unset, empty or unknown is 
   assert.equal(askModelProfile("claude-9").id, ASK_MODEL);
 });
 
-test("the edge allows every profile and defaults to the same name, so the loop and the gateway cannot disagree", async () => {
-  const { GATEWAY_MODELS, validateGatewayRequest } = await import(at("apps/edge/lib/ask-gateway.ts"));
+test("the edge allows every profile, and a request that names no model gets the fallback an older dashboard expects, never a refusal", async () => {
+  const { GATEWAY_MODELS, GATEWAY_FALLBACK_MODEL, validateGatewayRequest } = await import(
+    at("apps/edge/lib/ask-gateway.ts")
+  );
   for (const id of ASK_MODELS) assert.ok(GATEWAY_MODELS.includes(id), `${id} allowed on the edge`);
   const ok = validateGatewayRequest({ max_tokens: 100, messages: [{ role: "user", content: "hi" }] });
-  assert.ok(ok.ok && ok.request.model === ASK_MODEL);
+  assert.ok(ok.ok, "an unnamed model is not refused");
+  assert.equal(ok.request.model, GATEWAY_FALLBACK_MODEL, "it gets the edge's fallback, never Ask's default");
+  assert.equal(GATEWAY_FALLBACK_MODEL, "claude-sonnet-5", "what every caller ran on before each named its own");
 });
 
 test("the dashboard picks by environment: unset is the default, a name in the list is that profile, an unknown name is the default and a warning once", async () => {

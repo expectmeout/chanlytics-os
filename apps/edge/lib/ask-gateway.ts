@@ -10,7 +10,7 @@
  * and nothing else).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { ASK_MAX_TOKENS, ASK_MODEL, ASK_MODELS } from "./packages/contracts.js";
+import { ASK_MAX_TOKENS, ASK_MODELS } from "./packages/contracts.js";
 import type { Database, Json } from "./packages/db.js";
 import { emitEvent } from "./packages/db.js";
 import { logger, errField } from "./log.js";
@@ -176,11 +176,16 @@ function formatOf(raw: unknown): { type: "json_schema"; schema: Record<string, u
 }
 
 /**
- * The models a request may name: Ask's profiles (contracts ASK_MODELS; ASK_MODEL is the loop's default and this door's
- * when a request names none) and Opus 5, which nothing on main names today. The lead purposes name their own model
- * (JSON_MODEL, the dashboard's model-json.ts), so a move of this default moves Ask alone.
+ * The models a request may name: Ask's profiles (contracts ASK_MODELS, the list the dashboard's ASK_MODEL picks from)
+ * and Opus 5, which nothing on main names today.
  */
 export const GATEWAY_MODELS = ["claude-opus-5", ...ASK_MODELS] as const;
+/**
+ * What a request that names no model gets: the model every caller ran on before each named its own (Ask its profile,
+ * the lead purposes JSON_MODEL). Only a dashboard older than that sends none, and it expects this; Ask's default
+ * (contracts ASK_MODEL) moves Ask alone.
+ */
+export const GATEWAY_FALLBACK_MODEL = "claude-sonnet-5" as const;
 /** The lead purposes' ceiling. Ask's own is ASK_MAX_TOKENS (contracts), the number its loop asks for. */
 export const GATEWAY_MAX_TOKENS = 2000;
 export const GATEWAY_MAX_MESSAGES = 60;
@@ -193,7 +198,7 @@ export function validateGatewayRequest(
 ): { ok: true; request: GatewayRequest } | { ok: false; error: string } {
   const r = raw as Partial<GatewayRequest> | null;
   if (!r || typeof r !== "object") return { ok: false, error: "request required" };
-  const model = typeof r.model === "string" ? r.model : ASK_MODEL;
+  const model = typeof r.model === "string" ? r.model : GATEWAY_FALLBACK_MODEL;
   if (!(GATEWAY_MODELS as readonly string[]).includes(model)) return { ok: false, error: "unknown model" };
   const cap = purpose === "ask" ? ASK_MAX_TOKENS : GATEWAY_MAX_TOKENS;
   const maxTokens = Math.min(cap, Math.max(64, Math.round(num(r.max_tokens) || 800)));

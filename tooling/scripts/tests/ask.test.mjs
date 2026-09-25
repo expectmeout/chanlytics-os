@@ -36,7 +36,6 @@ import {
   groundCitations,
   isUngrounded,
   scopeFromRoute,
-  ASK_MODEL,
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
 
@@ -665,8 +664,8 @@ test("the gateway's usage tee reads the counts out of a passing stream and repor
   assert.equal(bad.ok, false);
   const ok = mod.validateGatewayRequest({ max_tokens: 99999, messages: [{ role: "user", content: "hi" }], tools: [] });
   assert.ok(
-    ok.ok && ok.request.max_tokens === 2000 && ok.request.model === ASK_MODEL,
-    "a request that names no model gets the one the loop sends, never a second name",
+    ok.ok && ok.request.max_tokens === 2000 && ok.request.model === mod.GATEWAY_FALLBACK_MODEL,
+    "a request that names no model gets the fallback every older caller expects; Ask's profile moves Ask alone",
   );
 });
 

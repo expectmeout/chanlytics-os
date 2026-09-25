@@ -6,9 +6,11 @@
  * it is asked at. What differs between the models Ask may name lives here,
  * once, so a switch is one environment variable and a redeploy, never a code
  * change. The dashboard picks the profile (server/ask/model.ts: ASK_MODEL in
- * its environment, this list's default when unset or unknown); the edge
- * gateway allows the same names (GATEWAY_MODELS is built from this list) and
- * defaults to the same one, so the two cannot drift apart.
+ * its environment, this list's default when unset or unknown) and names it in
+ * every request; the edge gateway allows the same names (GATEWAY_MODELS is
+ * built from this list), so the two cannot drift apart. A request that names
+ * no model gets the edge's own fallback (GATEWAY_FALLBACK_MODEL), for a
+ * dashboard older than this profile, never this list's default.
  *
  * Opus 5.5 is the default by Ruben's decision at approval (25 Sep 2026). On
  * the Line's gate (23 Sep, spec 8.3: three runs each, low effort on both) it

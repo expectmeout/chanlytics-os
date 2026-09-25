@@ -82,6 +82,7 @@ const {
   GATEWAY_MAX_TOOLS,
   GATEWAY_MAX_MESSAGES,
   ASK_USAGE_KIND,
+  GATEWAY_FALLBACK_MODEL,
   validateGatewayRequest,
 } = await import(at("apps/edge/lib/ask-gateway.ts"));
 const door = await import(at("apps/edge/api/admin/llm.ts"));
@@ -472,8 +473,14 @@ test("under the budget: the day's usage is read once for this workspace and Ask'
   );
   assert.deepEqual(
     net.calls[1].body,
-    { model: ASK_MODEL, max_tokens: ASK_MAX_TOKENS, messages: REQUEST.messages, temperature: 1, stream: true },
-    "no model named is the one the loop sends; max_tokens is clamped to Ask's ceiling, temperature to one; nothing the dashboard did not send is added",
+    {
+      model: GATEWAY_FALLBACK_MODEL,
+      max_tokens: ASK_MAX_TOKENS,
+      messages: REQUEST.messages,
+      temperature: 1,
+      stream: true,
+    },
+    "no model named is the fallback an older dashboard expects; max_tokens is clamped to Ask's ceiling, temperature to one; nothing the dashboard did not send is added",
   );
 });
 
