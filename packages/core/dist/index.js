@@ -3391,6 +3391,7 @@ var FRESH_SLACK_MS = 2 * 864e5;
 var STATE_TTL_MS = 10 * 6e4;
 var enc2 = new TextEncoder();
 var dec = new TextDecoder();
+var PAYLOAD_BYTES = 1 + 16 * 3;
 var APIFY_RUN_END_EVENTS = [
   "ACTOR.RUN.SUCCEEDED",
   "ACTOR.RUN.FAILED",
@@ -45225,8 +45226,10 @@ async function collectHeld(p, round, run, owner, gen) {
         round.tenant_id,
         cleans.map((c) => c.raw.placeId)
       ),
+      // Every address a place carries, free mail included: a share key leaves gmail.com out because it names no
+      // business, but a person at a gmail.com address can still have said stop (00174's unsubscribe).
       p.db.suppressed(round.tenant_id, {
-        emails: keys.flatMap((k) => k.emails),
+        emails: cleans.flatMap((c) => c.emails),
         placeIds: cleans.map((c) => c.raw.placeId)
       }),
       p.db.sharesOf(round.tenant_id, {
@@ -45452,7 +45455,8 @@ async function rejudgeProbe(p, round) {
   });
   if (!found.length) return out;
   const supp = await p.db.suppressed(round.tenant_id, {
-    emails: found.flatMap((x) => shareKeysOf(x.clean).emails),
+    // Every address, free mail included, as the collect asks (a stop is a person's, whatever their domain).
+    emails: found.flatMap((x) => x.clean.emails),
     placeIds: found.map((x) => x.clean.raw.placeId)
   });
   const geo = { center: areaCenter(plan), radiusM: plan.area.radius_m };

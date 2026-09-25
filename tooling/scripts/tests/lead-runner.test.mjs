@@ -973,3 +973,30 @@ test("the mark we keep: without the image wires (a runtime that stores nothing) 
   const one = w.T.leads.find((l) => l.place_id === "ChIJfixture0001");
   assert.deepEqual([one.logo_url, one.mark_path], ["https://place0001.example/t.png", null]);
 });
+
+// A person at a free-mail address who said stop (00174's unsubscribe) is never offered again by a later search. A
+// share key leaves gmail.com out because it names no business, so the never-again list is asked about every address
+// a place carries, not only its share keys.
+test("an address that said stop is never offered again, free mail included", async () => {
+  const GMAIL = "joesplumbing@gmail.com";
+  const carry = (w) => {
+    for (const items of Object.values(w.apify.state.datasets))
+      for (const item of items)
+        if (item.placeId === "ChIJfixture0001") item.emails = [GMAIL, "hello@place0001.example"];
+  };
+  const seen = (w) => JSON.stringify([w.T.leads, w.T.lead_search_members]).includes(GMAIL);
+
+  // Without a stop, the fixture does carry the address through: the test below is about the list, not the fixture.
+  const free = await probed();
+  carry(free.w);
+  assert.equal((await collect(free.p("c1"), free.w.runs()[0].id, "p0", "c1")).kind, "committed");
+  assert.ok(seen(free.w), "a free-mail address a listing shows is kept on its lead");
+
+  const stopped = await probed();
+  carry(stopped.w);
+  await stopped.w.suppress("email", GMAIL, "email_opt_out");
+  assert.equal((await collect(stopped.p("c1"), stopped.w.runs()[0].id, "p0", "c1")).kind, "committed");
+  assert.ok(!seen(stopped.w), "the address that said stop is on no lead and no member");
+  const lead = stopped.w.T.leads.find((l) => l.place_id === "ChIJfixture0001");
+  assert.equal(lead.email, "hello@place0001.example", "the place itself is still found, with its other address");
+});

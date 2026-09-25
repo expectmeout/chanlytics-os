@@ -17,5 +17,6 @@ export * from "./google-sync";
 export * from "./google-oauth";
 export * from "./google-profile";
 export * from "./edge-token";
+export * from "./unsubscribe-token";
 export * from "./apify";
 export * from "./lead-judge";

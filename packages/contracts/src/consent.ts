@@ -129,8 +129,8 @@ export interface ConsentChange {
   id: string;
   contact_id: string | null;
   at: string;
-  /** Which question: messages about their visit, or offers. */
-  purpose: "conversational" | "marketing";
+  /** Which question: messages about their visit, offers, or marketing email (an unsubscribe, 00174). */
+  purpose: "conversational" | "marketing" | "email_marketing";
   consent: string | null;
   previous: string | null;
   /** How it was given: in person, on the phone, a signed form, their own message; "operator" is the reset. */
@@ -158,7 +158,9 @@ export function consentChangeOf(e: {
     id: e.id,
     contact_id: e.subject_id,
     at: e.created_at,
-    purpose: d.purpose === "marketing" ? "marketing" : "conversational",
+    // Email's answer is its own (00174): read as the conversational one, an unsubscribe said "nothing goes out".
+    purpose:
+      d.purpose === "marketing" ? "marketing" : d.purpose === "email_marketing" ? "email_marketing" : "conversational",
     consent: str("consent"),
     previous: str("previous"),
     source: str("source"),
