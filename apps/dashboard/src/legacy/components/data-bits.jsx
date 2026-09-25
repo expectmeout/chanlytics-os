@@ -333,6 +333,14 @@ Object.assign(window, { trapTab, tabStops: tabStopsIn });
 // close is called; short of that, or when the page kept it open (it asks first about what was typed), it settles back.
 // Under reduced motion it still follows the finger, which is the person's own motion, and the rest happens at once.
 //
+// `pages(el, from)` is the third that follows: a page under a strip, walked across (surface-tabs.jsx stripPager). It is
+// asked once, as a touch is taken across (never from 24px of either edge, which is the phone's own back), with where
+// the touch began: `{ prev, next, moving, follow(progress, step, how), go(step) }`, or null for no page. The page moves
+// with the finger both ways; toward a side with no page it gives a quarter of the drag, 48px at most. `moving` names
+// what moves when it is not the element itself (People's strip is inside its page: all around it moves, it stays). Let go past a third (160px at most) or with a flick toward a page, it
+// leaves that way and then `go(step)`; otherwise it settles. `follow` hears every move ("move") and the end ("leave",
+// "settle"). The answer is kept with the touch, so a page drawn again mid-gesture loses nothing. `back` goes first.
+//
 // A swipe across, with nothing following, is `onLeft`/`onRight`: `min` of travel (80px) along the axis it went
 // further on, so a scroll is never a move and a move never a scroll. A touch the browser reports only at its ends is
 // read the same way, down included.
@@ -372,28 +380,42 @@ const SETTLE_MS = 240;
 // Long enough for React to have taken it away after the close: judged sooner, a sheet on its way out read as kept,
 // and settled back into view for a frame before it went.
 const KEPT_AFTER_MS = 60;
+// A page's switch is a navigation, which lands a task or two after the press, later than a sheet's close.
+const PAGE_KEPT_MS = 400;
+const EDGE = 24;
+const RESIST = 0.25;
+const RESIST_MAX = 48;
+const screenWide = (el) => (typeof window.innerWidth === "number" && window.innerWidth) || (el && el.offsetWidth) || 0;
+const pageStep = (dx) => (dx < 0 ? 1 : -1);
+const pageOpen = (p, step) => !!(p && (step > 0 ? p.next : p.prev));
 // Back where it was, on the settle's own curve; its inline styles go when it is there, so the page's own rules
 // (an entrance, a sheet's frame) own it again.
 const swipeSettle = (g) => {
   const { el, wash } = g;
+  const them = (g.moving || [el]).filter((m) => m && m.style);
   if (g.onGrab) g.onGrab(el, false);
   if (!el.style) return;
   const now = motionReduced();
-  el.style.transition = now ? "none" : `transform ${SETTLE_MS}ms var(--ease-out)`;
-  el.style.transform = "translate3d(0, 0, 0)";
+  for (const m of them) {
+    m.style.transition = now ? "none" : `transform ${SETTLE_MS}ms var(--ease-out)`;
+    m.style.transform = "translate3d(0, 0, 0)";
+  }
   if (wash && wash.style) {
     wash.style.transition = now ? "none" : `opacity ${SETTLE_MS}ms var(--ease-out)`;
     wash.style.opacity = "";
   }
   setTimeout(() => {
-    el.style.transition = "";
-    el.style.transform = "";
+    for (const m of them) {
+      m.style.transition = "";
+      m.style.transform = "";
+    }
     if (wash && wash.style) wash.style.transition = "";
   }, now ? 0 : SETTLE_MS + 20);
 };
 // Away the way it was pulled, then the close; still on screen after it (the page asked first), it settles back.
 const swipeLeave = (g, close) => {
   const { el, wash, way } = g;
+  const them = (g.moving || [el]).filter((m) => m && m.style);
   const done = () => {
     close();
     setTimeout(() => {
@@ -401,21 +423,26 @@ const swipeLeave = (g, close) => {
       if (shown) { swipeSettle(g); return; }
       if (g.onGrab) g.onGrab(el, false);
       if (!el.style) return;
-      el.style.transition = "";
-      el.style.transform = "";
+      for (const m of them) {
+        m.style.transition = "";
+        m.style.transform = "";
+      }
       if (wash && wash.style) { wash.style.transition = ""; wash.style.opacity = ""; }
-    }, KEPT_AFTER_MS);
+    }, way === "page" ? PAGE_KEPT_MS : KEPT_AFTER_MS);
   };
   if (!el.style || motionReduced()) { done(); return; }
-  el.style.transition = `transform ${LEAVE_MS}ms var(--ease-in)`;
-  el.style.transform = way === "down" ? "translate3d(0, 100%, 0)" : "translate3d(100%, 0, 0)";
+  const w = el.offsetWidth || 600;
+  for (const m of them) {
+    m.style.transition = `transform ${LEAVE_MS}ms var(--ease-in)`;
+    m.style.transform = way === "down" ? "translate3d(0, 100%, 0)" : way === "page" ? `translate3d(${-g.step * w}px, 0, 0)` : "translate3d(100%, 0, 0)";
+  }
   if (wash && wash.style) {
     wash.style.transition = `opacity ${LEAVE_MS}ms var(--ease-in)`;
     wash.style.opacity = "0";
   }
   setTimeout(done, LEAVE_MS);
 };
-const touchSwipe = ({ onLeft = null, onRight = null, onDown = null, onBack = null, min = 80, when = null, onGrab = null }) => ({
+const touchSwipe = ({ onLeft = null, onRight = null, onDown = null, onBack = null, pages = null, min = 80, when = null, onGrab = null }) => ({
   onTouchStart: (e) => {
     const t = e && e.touches && e.touches[0];
     const el = e && e.currentTarget;
@@ -424,7 +451,7 @@ const touchSwipe = ({ onLeft = null, onRight = null, onDown = null, onBack = nul
       touches.delete(el);
       return;
     }
-    touches.set(el, { el, x: t.clientX, y: t.clientY, at: Date.now(), top: swipeScrollerAtTop(e.target, el), way: null, onGrab, wash: null });
+    touches.set(el, { el, x: t.clientX, y: t.clientY, at: Date.now(), top: swipeScrollerAtTop(e.target, el), way: null, onGrab, wash: null, from: e.target, pages: null, moving: null, step: 0 });
   },
   onTouchMove: (e) => {
     const t = e && e.touches && e.touches[0];
@@ -437,10 +464,15 @@ const touchSwipe = ({ onLeft = null, onRight = null, onDown = null, onBack = nul
       if (Math.max(Math.abs(dx), Math.abs(dy)) < GRAB_AT) return;
       const allowed = !when || when();
       if (Math.abs(dy) > Math.abs(dx)) g.way = dy > 0 && g.top && onDown && allowed ? "down" : "none";
-      else g.way = dx > 0 && onBack && allowed && g.x > 24 ? "back" : "none";
+      else if (dx > 0 && onBack && allowed && g.x > EDGE) g.way = "back";
+      else if (pages && allowed && g.x > EDGE && g.x < screenWide(el) - EDGE) {
+        g.pages = pages(el, g.from);
+        g.way = g.pages && (g.pages.prev || g.pages.next) ? "page" : "none";
+      } else g.way = "none";
       if (g.way === "none") return;
       g.wash = washBehind(el);
-      if (el.style) el.style.transition = "none";
+      g.moving = g.way === "page" && g.pages.moving ? g.pages.moving : null;
+      for (const m of g.moving || [el]) if (m && m.style) m.style.transition = "none";
       if (g.wash && g.wash.style) g.wash.style.transition = "none";
       if (onGrab) onGrab(el, true);
     }
@@ -451,6 +483,12 @@ const touchSwipe = ({ onLeft = null, onRight = null, onDown = null, onBack = nul
       if (g.wash && g.wash.style) g.wash.style.opacity = String(Math.max(0, 1 - d / (el.offsetHeight || 600)));
     } else if (g.way === "back") {
       el.style.transform = `translate3d(${Math.max(0, dx)}px, 0, 0)`;
+    } else if (g.way === "page") {
+      const step = pageStep(dx);
+      const open = pageOpen(g.pages, step);
+      const d = open ? dx : Math.sign(dx) * Math.min(RESIST_MAX, Math.abs(dx) * RESIST);
+      for (const m of g.moving || [el]) if (m && m.style) m.style.transform = `translate3d(${d}px, 0, 0)`;
+      if (g.pages.follow) g.pages.follow(open ? Math.min(1, Math.abs(dx) / (el.offsetWidth || 600)) : 0, step, "move");
     }
   },
   onTouchEnd: (e) => {
@@ -469,10 +507,32 @@ const touchSwipe = ({ onLeft = null, onRight = null, onDown = null, onBack = nul
       else swipeSettle(g);
       return;
     }
-    // Nothing followed: read at its ends, along the axis it went further on, `min` of travel.
+    if (g.way === "page") {
+      const step = pageStep(dx);
+      const size = el.offsetWidth || 600;
+      const flick = Math.abs(dx) > 24 && Math.abs(dx) / Math.max(1, Date.now() - g.at) > 0.5;
+      if (pageOpen(g.pages, step) && (Math.abs(dx) > Math.min(size / 3, 160) || flick)) {
+        g.step = step;
+        if (g.pages.follow) g.pages.follow(1, step, "leave");
+        swipeLeave(g, () => g.pages.go(step));
+      } else {
+        if (g.pages.follow) g.pages.follow(0, step, "settle");
+        swipeSettle(g);
+      }
+      return;
+    }
+    // Nothing followed: read at its ends, along the axis it went further on, `min` of travel. A page is walked here too,
+    // for a touch the browser reported only at its ends.
     if (Math.abs(dx) >= Math.abs(dy)) {
       if (Math.abs(dx) < min) return;
-      const back = dx > 0 && onBack && (!when || when()) && g.x > 24;
+      const back = dx > 0 && onBack && (!when || when()) && g.x > EDGE;
+      if (!back && g.way === null && pages && (!when || when()) && g.x > EDGE && g.x < screenWide(el) - EDGE) {
+        const p = pages(el, g.from);
+        if (pageOpen(p, pageStep(dx))) {
+          p.go(pageStep(dx));
+          return;
+        }
+      }
       const way = dx < 0 ? onLeft : back ? onBack : onRight;
       if (way) way();
       return;
@@ -486,7 +546,8 @@ const touchSwipe = ({ onLeft = null, onRight = null, onDown = null, onBack = nul
     const g = el && touches.get(el);
     if (!g) return;
     touches.delete(el);
-    if (g.way === "down" || g.way === "back") swipeSettle(g);
+    if (g.way === "page" && g.pages.follow) g.pages.follow(0, g.step || 1, "settle");
+    if (g.way === "down" || g.way === "back" || g.way === "page") swipeSettle(g);
   },
 });
 

@@ -818,12 +818,23 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
   // frame in.
   const viewKey = routeLoading ? `${mountKey}/reading` : mountKey;
   const family = page === "clients" && param && !/^(leads(:|$)|pipeline(:|$)|seg:|list:|state:)/.test(param) ? "clients/person" : page;
-  const viewRef = useShellRef({ key: null, family: null, reading: false, stay: false });
+  // Where the view stands on a strip (surface-tabs.jsx stripPlace): a view from the tab beside comes in from its side on
+  // a phone, whether the tab was tapped or the page swiped (components.css route-slide-*), never after a reading pane.
+  const place = window.stripPlace ? window.stripPlace(page, param) : null;
+  const viewRef = useShellRef({ key: null, family: null, reading: false, stay: false, place: null, slide: null });
   if (viewRef.current.key !== viewKey) {
     const prev = viewRef.current;
-    viewRef.current = { key: viewKey, family, reading: routeLoading, stay: !routeLoading && prev.key !== null && prev.family === family && !prev.reading };
+    viewRef.current = {
+      key: viewKey,
+      family,
+      reading: routeLoading,
+      place,
+      stay: !routeLoading && prev.key !== null && prev.family === family && !prev.reading,
+      slide: prev.key !== null && !prev.reading && window.stripSlide ? window.stripSlide(prev.place, place) : null,
+    };
   }
   const routeStay = viewRef.current.stay;
+  const routeSlide = viewRef.current.slide;
 
   // Shared read-only viewer — chrome-less, rendered AFTER all hooks so the
   // hook order stays identical on every route (no early return between hooks).
@@ -893,10 +904,12 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
         <LiveCallBar />
         <ShellStatusBar />
         <SurfaceTabs page={page} param={param} onNavigate={navigate} />
+        {/* On a phone a swipe across the page walks the strip over it (surface-tabs.jsx stripSwipe). */}
         <div
           key={viewKey}
-          className={`main-scroll route-view ${pane ? "pane" : ""} ${routeStay ? "route-stay" : ""}`}
+          className={`main-scroll route-view ${pane ? "pane" : ""} ${routeStay ? "route-stay" : ""} ${routeSlide ? `route-slide-${routeSlide}` : ""}`}
           aria-busy={routeLoading ? "true" : undefined}
+          {...(window.stripSwipe ? window.stripSwipe() : {})}
         >
           <ShellErrorBoundary>
             {routeLoading

@@ -186,6 +186,112 @@ test("under reduced motion the finger still carries it, and the rest happens at 
   }
 });
 
+/* ------------------------------------ a page ------------------------------------ */
+// A page under a strip, walked across on a phone (surface-tabs.jsx stripPager answers `pages`).
+
+const pager = (over = {}) => ({ prev: true, next: true, go() {}, ...over });
+
+test("a page follows the thumb across, both ways, and says how far toward the tab beside it is", () => {
+  const seen = [];
+  const el = element();
+  const h = touchSwipe({ pages: () => pager({ follow: (p, step, how) => seen.push([p, step, how]) }) });
+  h.onTouchStart({ touches: [{ clientX: 200, clientY: 300 }], currentTarget: el, target: el });
+  h.onTouchMove({ touches: [{ clientX: 125, clientY: 304 }], currentTarget: el });
+  assert.equal(el.style.transform, "translate3d(-75px, 0, 0)");
+  assert.deepEqual(seen.at(-1), [0.2, 1, "move"], "75px of 375: a fifth of the way to the next");
+  h.onTouchMove({ touches: [{ clientX: 275, clientY: 304 }], currentTarget: el });
+  assert.equal(el.style.transform, "translate3d(75px, 0, 0)");
+  assert.deepEqual(seen.at(-1), [0.2, -1, "move"]);
+  h.onTouchCancel({ currentTarget: el });
+  assert.equal(seen.at(-1)[2], "settle");
+  assert.equal(el.style.transform, "translate3d(0, 0, 0)");
+});
+
+test("past the last tab a page gives a quarter of the drag, 48px at most, and settles back", () => {
+  const went = [];
+  const el = element();
+  const h = touchSwipe({ pages: () => pager({ next: false, go: (s) => went.push(s) }) });
+  h.onTouchStart({ touches: [{ clientX: 300, clientY: 300 }], currentTarget: el, target: el });
+  h.onTouchMove({ touches: [{ clientX: 220, clientY: 300 }], currentTarget: el });
+  assert.equal(el.style.transform, "translate3d(-20px, 0, 0)");
+  h.onTouchMove({ touches: [{ clientX: 40, clientY: 300 }], currentTarget: el });
+  assert.equal(el.style.transform, "translate3d(-48px, 0, 0)");
+  h.onTouchEnd({ changedTouches: [{ clientX: 40, clientY: 300 }], currentTarget: el });
+  assert.equal(el.style.transform, "translate3d(0, 0, 0)", "a flick at a dead end is still nothing");
+  assert.deepEqual(went, []);
+});
+
+test("let go past a third, a page leaves the way it went, and then the tab beside is pressed", async () => {
+  const went = [];
+  const hows = [];
+  const el = element();
+  const h = touchSwipe({
+    pages: () => pager({ prev: false, follow: (p, s, how) => hows.push(how), go: (s) => went.push(s) }),
+  });
+  drag(h, el, [300, 300], [240, 300], [160, 300]);
+  assert.equal(el.style.transform, "translate3d(-375px, 0, 0)", "away, a page's width");
+  assert.equal(hows.at(-1), "leave");
+  assert.deepEqual(went, [], "the tab waits for the leaving");
+  await wait(220);
+  assert.deepEqual(went, [1]);
+  // Short of a flick and of a third, it settles back.
+  const near = element();
+  drag(h, near, [300, 300], [285, 300], [280, 300]);
+  assert.equal(near.style.transform, "translate3d(0, 0, 0)");
+  assert.deepEqual(went, [1]);
+});
+
+test("a page whose strip is inside it moves everything but the strip: what it names moves, the view itself stays", async () => {
+  const el = element();
+  const bar = element();
+  const rows = element();
+  const h = touchSwipe({ pages: () => pager({ moving: [bar, rows] }) });
+  h.onTouchStart({ touches: [{ clientX: 300, clientY: 300 }], currentTarget: el, target: el });
+  h.onTouchMove({ touches: [{ clientX: 200, clientY: 300 }], currentTarget: el });
+  assert.equal(bar.style.transform, "translate3d(-100px, 0, 0)");
+  assert.equal(rows.style.transform, "translate3d(-100px, 0, 0)");
+  assert.equal(el.style.transform, undefined, "the view, and the strip in it, stay where they are");
+  h.onTouchEnd({ changedTouches: [{ clientX: 60, clientY: 300 }], currentTarget: el });
+  assert.equal(rows.style.transform, "translate3d(-375px, 0, 0)");
+  await wait(220);
+  assert.equal(el.style.transform, undefined);
+});
+
+test("a page never moves from the screen's edges, where the page refuses the touch, or where a thread goes back", () => {
+  const went = [];
+  const h = touchSwipe({ pages: (el, from) => (from && from.__own ? null : pager({ go: (s) => went.push(s) })) });
+  const left = element();
+  drag(h, left, [10, 300], [120, 300], [200, 300]);
+  const right = element();
+  drag(h, right, [365, 300], [250, 300], [150, 300]);
+  const own = element();
+  own.__target = element({ __own: true, parentElement: own });
+  drag(h, own, [200, 300], [100, 300], [20, 300]);
+  assert.deepEqual(went, []);
+  for (const el of [left, right, own]) assert.equal(el.style.transform, undefined);
+  const both = touchSwipe({ onBack: () => {}, when: () => true, pages: () => pager({ go: (s) => went.push(s) }) });
+  const thread = element();
+  drag(both, thread, [60, 300], [140, 300], [260, 300]);
+  assert.equal(thread.style.transform, "translate3d(100%, 0, 0)", "a swipe right in a thread is its Back");
+  assert.deepEqual(went, []);
+});
+
+test("under reduced motion a page still follows, and the switch is at once; a swipe read only at its ends switches too", () => {
+  reduced = true;
+  try {
+    const went = [];
+    const h = touchSwipe({ pages: () => pager({ go: (s) => went.push(s) }) });
+    drag(h, element(), [300, 300], [200, 300], [100, 300]);
+    assert.deepEqual(went, [1]);
+    const ends = element();
+    h.onTouchStart({ touches: [{ clientX: 100, clientY: 300 }], currentTarget: ends, target: ends });
+    h.onTouchEnd({ changedTouches: [{ clientX: 220, clientY: 302 }], currentTarget: ends });
+    assert.deepEqual(went, [1, -1]);
+  } finally {
+    reduced = false;
+  }
+});
+
 /* ------------------------------------ leaving ------------------------------------ */
 
 /** A node that can be copied and put back, and says what was done with it. */
