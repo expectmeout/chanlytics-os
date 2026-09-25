@@ -69,3 +69,26 @@
 - [ ] `firstRunTryOf` and `LiveCallVM.from`; tests.
 - [ ] `FrTry`, the test window, the transfer save, Setup's refresh on an ended call; tests.
 - [ ] The gates, the look on the probe, one review round, the PR.
+
+## As built, 5a (24 Sep 2026)
+
+- **As planned:** Setup's `try` row, `TRY_SKIPPED`, `firstRunTryOf` over `__LIVE` (`LiveCallVM.from`), and FrTry. The
+  test window is opened for a kept number not yet proven. The transfer goes through the Business tab's saver. The
+  start route reads Live.
+- **What the review round fixed:**
+  - Try it stays on screen once drawn, as Check does. Setup learns of the call as it starts or ends, which would have
+    moved `#/start` on to Live before the words and the transfer were shown.
+  - The page ticks each second while Try it is drawn, so the quiet turn (V7), the window's minutes and the call's
+    clock move. The clock is contracts'.
+  - "Forwarding works", and "through" the kept number, are said only once the forwarding is proven (`verified`).
+  - A call from before the screen opened is shown with its caller as "Caller" and is never offered as the transfer.
+    The screen's moment is set when Try it is first drawn.
+  - Today's card: while only the test call is left, it is Setup's rows with Try it first, Skip and Hide, never the
+    start row a workspace that answers cannot put away. Putting the `try` row off counts as the skip.
+  - A call that never connected is not a test (`neq not_connected` on the last-call read).
+  - Setup re-reads on `calls` only for an update to `ended`, and only until a call has reached the receptionist.
+  - The transfer says when the settings are not read yet, keeps the pick until Setup agrees, and says it saved.
+  - The test window reopens once it runs out while the owner is still listening.
+  - "Ask Chanlytics for help" is offered only for a kept number.
+  - "It's in your Inbox too" opens the call.
+  - One kept-line rule: `forwardedLineOf`.

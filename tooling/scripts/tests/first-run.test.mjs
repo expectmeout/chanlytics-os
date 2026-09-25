@@ -747,6 +747,12 @@ test("Try it waits for a call: Setup's row names the number to call, the skip le
   );
   assert.deepEqual(row.verb, { label: "Try it", to: firstRunStepRoute("try") }, "the first run's own step");
   assert.equal(firstRunOf(vm).current, "try", "answering is not tried: the step waits for a call");
+  const card = setupCardOf(vm);
+  assert.equal(card.start, null, "only the test call left: Setup's rows, not a card that cannot be put away");
+  assert.equal(card.rows[0].id, "try");
+  assert.ok(card.hide, "and the card can be hidden");
+  const putOff = setupSteps(untried({ later: ["try"] }), NOW);
+  assert.equal(firstRunOf(putOff).current, "live", "Today's Skip on Try it is a skip too");
   assert.equal(TRY_SKIPPED, "try-skipped");
   const skipped = setupSteps(untried({ later: [TRY_SKIPPED] }), NOW);
   assert.equal(skipped.trySkipped, true);

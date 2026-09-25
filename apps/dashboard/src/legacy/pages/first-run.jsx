@@ -701,6 +701,8 @@ const FrPhone = ({ ph, choice, setChoice, W, flash, go, back, backLabel, ownFoot
 // listens from now.
 const FR_TRY_DRAFT = "first-run-try";
 const FR_TRY_FRESH_MS = 2 * 3600_000;
+/** The test window's length (line_forwarding_test): opened again only once this has passed. */
+const FR_TRY_WINDOW_MS = 30 * 60_000;
 const frTrySince = () => {
   const now = Date.now();
   try {
@@ -709,11 +711,6 @@ const frTrySince = () => {
     if (window.__tabMemory) window.__tabMemory.keepDraft(FR_TRY_DRAFT, { since: now });
   } catch { /* the tab keeps nothing: listen from now */ }
   return now;
-};
-/** The clock of a call in progress, "0:21", from when it started. */
-const frClock = (startedAtMs) => {
-  const s = Math.max(0, Math.floor((Date.now() - (startedAtMs || Date.now())) / 1000));
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 };
 
 /**
@@ -729,21 +726,20 @@ const FrTry = ({ tr, W, flash, go, leave, back, backLabel }) => {
   const F = window.__firstRun;
   const [nudged, setNudged] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
+  // The choice pressed, shown until Setup's read says the same (the save re-reads it), or let go on a refusal.
   const [picked, setPicked] = React.useState(null);
-  // The clock and the quiet turn move with time, not with a read: draw again each second while there is one to show.
-  const [, tick] = React.useReducer((n) => n + 1, 0);
+  const t0 = tr.transfer;
+  React.useEffect(() => { if (picked && t0 && t0.value === picked) setPicked(null); }, [t0 && t0.value]);
+  // The test window, as the screen opens and again once it runs out while the owner is still listening (the call
+  // webhook proves forwarding only inside one). At most once a window: FR_TRY_WINDOW_MS apart.
+  const opened = React.useRef(0);
   React.useEffect(() => {
-    if (tr.stage === "done") return undefined;
-    const t = setInterval(tick, 1000);
-    return () => clearInterval(t);
-  }, [tr.stage]);
-  // The test window, once, as the screen opens.
-  const opened = React.useRef(false);
-  React.useEffect(() => {
-    if (!tr.openTest || opened.current || !P || !P.forwarding || !(window.canDo && window.canDo("team"))) return;
-    opened.current = true;
+    const listening = tr.stage === "listen" || tr.stage === "quiet";
+    if (!tr.openTest || !listening || Date.now() - opened.current < FR_TRY_WINDOW_MS) return;
+    if (!P || !P.forwarding || !(window.canDo && window.canDo("team"))) return;
+    opened.current = Date.now();
     P.forwarding.test(tr.openTest).then((r) => { if (!r.ok) flash({ tone: "danger", msg: <>{r.message}</> }); });
-  }, [tr.openTest]);
+  }, [tr.openTest, tr.stage]);
   const skip = async () => {
     if (!nudged) { setNudged(true); return; }
     if (busy || !P) return;
@@ -764,12 +760,14 @@ const FrTry = ({ tr, W, flash, go, leave, back, backLabel }) => {
   const choose = (o) => {
     const S = window.__businessTabSave;
     if (!S || !(window.canDo && window.canDo("settings"))) return;
+    // The saver goes on the settings read's config: without it, nothing would be sent, so it says so instead.
+    if (!S.saver.base()) { flash({ tone: "danger", msg: <>{W.notReadYet}</> }); return; }
     setPicked(o.key);
     S.saver.save({
       row: "handoff_number",
       change: S.PATCH_OF.handoff_number(o.to || ""),
       said: null,
-      done: () => setPicked(null),
+      done: () => flash({ tone: "ok", msg: <>{W.saved}</> }),
       flash: (f) => { if (f && f.tone === "danger") { setPicked(null); flash(f); } },
     });
   };
@@ -800,7 +798,7 @@ const FrTry = ({ tr, W, flash, go, leave, back, backLabel }) => {
         <div className="fr-try-listen" role="status">
           <span className="fr-try-pulse" aria-hidden="true" />
           <span className="fr-line-sentence">{l.sentence}</span>
-          <span className="fr-line-detail">{[l.detail, l.window].filter(Boolean).join(" ")}</span>
+          <span className="fr-line-detail">{l.detail}</span>
         </div>
         {l.route ? <p className="fr-code-off" data-testid="fr-try-route">{l.route}</p> : null}
         {tr.causes.length ? (
@@ -813,7 +811,7 @@ const FrTry = ({ tr, W, flash, go, leave, back, backLabel }) => {
         {tr.stage === "quiet" ? (
           <div className="fr-code-links">
             {tr.forwarded ? <button type="button" className="fr-find-link" onClick={() => go("start/phone")} data-testid="fr-try-code">{W.showCode}</button> : null}
-            <button type="button" className="fr-find-link" onClick={help} disabled={busy} data-testid="fr-try-help" {...window.gate("approve", "ask for help")}>{W.help}</button>
+            {tr.help ? <button type="button" className="fr-find-link" onClick={help} disabled={busy} data-testid="fr-try-help" {...window.gate("approve", "ask for help")}>{tr.help}</button> : null}
           </div>
         ) : null}
         {skipper}
@@ -823,7 +821,7 @@ const FrTry = ({ tr, W, flash, go, leave, back, backLabel }) => {
   if (tr.stage === "call") {
     return (
       <div className="fr-line-step" data-testid="fr-try" data-stage="call">
-        <p className="fr-line-started" data-testid="fr-try-proof"><Icon name="check" size={12} />{`${tr.call.proof} · ${tr.call.meta} · ${frClock(tr.call.startedAtMs)}`}</p>
+        <p className="fr-line-started" data-testid="fr-try-proof"><Icon name="check" size={12} />{tr.call.line}</p>
         {turns}
         <p className="fr-line-detail">{tr.call.behind}</p>
       </div>
@@ -833,7 +831,7 @@ const FrTry = ({ tr, W, flash, go, leave, back, backLabel }) => {
   const value = picked || t.value;
   return (
     <div className="fr-line-step" data-testid="fr-try" data-stage="done">
-      <p className="fr-line-detail" data-testid="fr-try-meta">{tr.call.meta}</p>
+      <p className="fr-line-detail" data-testid="fr-try-meta">{tr.call.line}</p>
       {turns}
       <span className="fr-line-label" id="fr-try-transfer-label">{t.label}</span>
       <div className="fr-find-hits" role="radiogroup" aria-labelledby="fr-try-transfer-label" data-testid="fr-try-transfer">
@@ -850,7 +848,7 @@ const FrTry = ({ tr, W, flash, go, leave, back, backLabel }) => {
       {t.note ? <p className="fr-code-off" data-testid="fr-try-note">{t.note}</p> : null}
       <div className="fr-foot">
         {back ? <button type="button" className="btn btn-ghost btn-sm" onClick={() => go(back)} data-testid="fr-back">{backLabel}</button> : <span />}
-        <button type="button" className="fr-find-link" onClick={() => leave("inbox")} data-testid="fr-try-inbox">{W.inbox}</button>
+        <button type="button" className="fr-find-link" onClick={() => leave(tr.call.to)} data-testid="fr-try-inbox">{W.inbox}</button>
         <button type="button" className="fr-onward" onClick={() => go("start")} data-testid="fr-try-go">{W.continue}</button>
       </div>
     </div>
@@ -942,8 +940,14 @@ const FirstRun = ({ param = null, onNavigate }) => {
     }
   }, []);
   useFrTick("surface:live");
-  // When Try it opened (FR_TRY_DRAFT): read once, as the page opens.
-  const [trySince] = React.useState(frTrySince);
+  // When Try it opened (FR_TRY_DRAFT): set as it is first drawn, so a call before it is not the test.
+  const trySince = React.useRef(null);
+  // Whether Try it is on screen, so it stays there (below) and its clock and quiet turn move each second.
+  const onTry = React.useRef(false);
+  React.useEffect(() => {
+    const t = setInterval(() => { if (onTry.current) redraw(); }, 1000);
+    return () => clearInterval(t);
+  }, []);
   const F = window.__firstRun;
   // Being here is the landing: Today does not send this tab back again this session.
   React.useEffect(() => {
@@ -987,7 +991,14 @@ const FirstRun = ({ param = null, onNavigate }) => {
   // its sheet), and the first run, which opens where the workspace is, would go on to the phone under them; they go on
   // with Looks right instead. So once Check is drawn, the business step is asked for by name until the owner moves.
   const asked = F.of(S.vm, param, who);
-  const fr = !param && onCheck.current && asked.shown.key !== "business" ? F.of(S.vm, "business", who) : asked;
+  // Try it stays on screen too: its step is done the moment the test call reaches the receptionist (Setup reads it as
+  // the call starts or ends), and the call, its words and where transfers go are still to be shown.
+  const fr =
+    !param && onCheck.current && asked.shown.key !== "business"
+      ? F.of(S.vm, "business", who)
+      : !param && onTry.current && asked.shown.key !== "try"
+        ? F.of(S.vm, "try", who)
+        : asked;
   onCheck.current = !!fr.check;
   const card = F.receptionist(frCardInputs(S));
   const step = fr.shown;
@@ -996,17 +1007,19 @@ const FirstRun = ({ param = null, onNavigate }) => {
   const phoneDrawn = !!ph && ph.stage !== "rows";
   // Try it as contracts say it over Setup and the Live page's calls (first-run-try.ts); `rows` is Setup's own.
   const liveNow = window.__LIVE || null;
+  if (step.key === "try" && trySince.current === null) trySince.current = frTrySince();
   const tr =
     step.key === "try"
       ? F.tryIt({
           dto: S.dto,
           vm: S.vm,
           calls: liveNow ? [...(liveNow.now || []), ...(liveNow.recent || [])] : [],
-          since: trySince,
+          since: trySince.current,
           nowMs: Date.now(),
         })
       : null;
   const tryDrawn = !!tr && tr.stage !== "rows";
+  onTry.current = tryDrawn;
   // The step's foot is the phone step's own while its button is the one to press. A role that may not save the
   // forwarding has nothing to press in the questions, and the step is done then (its line answers): the page's own
   // foot, with Continue.
@@ -1017,6 +1030,7 @@ const FirstRun = ({ param = null, onNavigate }) => {
   // move opens the next step at its top: the shell is the page's scroll (first-run.css).
   const go = (to) => {
     onCheck.current = false;
+    onTry.current = false;
     onNavigate(to, { replace: true });
     const shell = document.querySelector ? document.querySelector(".fr-shell") : null;
     if (shell && shell.scrollTo) shell.scrollTo(0, 0);

@@ -982,7 +982,7 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
   // 4a. Try it (the first run's third step): once calls are answered, until one has reached the receptionist. The number
   // to call is the one customers call: the kept number while its forwarding is saved, else the receptionist's own.
   if (voiceReady) {
-    const fwTry = lines.rows.find((l) => l.kind === "forwarded" && l.forwarding_state !== "none") ?? null;
+    const fwTry = forwardedLineOf(lines);
     const through = fwTry?.e164 ? (display(fwTry.e164) ?? fwTry.e164) : voiceNum;
     row({
       id: "try",
@@ -1410,6 +1410,14 @@ export function setupLaterOf(view: unknown): string[] {
   const later = view && typeof view === "object" ? (view as { later?: unknown }).later : null;
   if (!Array.isArray(later)) return [];
   return [...new Set(later.filter((x): x is string => typeof x === "string" && x.length > 0 && x.length <= 40))];
+}
+
+/**
+ * The number the business keeps and forwards, while its forwarding is saved (instructed or proven): the line customers
+ * call, which Try it asks the owner to call. The one test, for Setup's row and the first run's step.
+ */
+export function forwardedLineOf(lines: SetupDto["lines"] | null | undefined): LineDto | null {
+  return lines?.rows.find((l) => l.kind === "forwarded" && l.forwarding_state !== "none") ?? null;
 }
 
 /**

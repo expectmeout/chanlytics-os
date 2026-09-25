@@ -1168,7 +1168,7 @@ const tryWorld = () => {
     return { ok: true, already: false, message: "" };
   };
   globalThis.window.__businessTabSave = {
-    saver: { save: (job) => asked.saves.push(job), subscribe: () => () => {} },
+    saver: { save: (job) => asked.saves.push(job), subscribe: () => () => {}, base: () => ({ brain: {} }) },
     PATCH_OF: {
       handoff_number: (value) => (b, p) => {
         if (value) p.handoff_number = value;
@@ -1208,7 +1208,7 @@ test("Try it (canvas R7, R8): it picked up with the words, then the call and the
   fresh();
   let tree = mount();
   assert.equal(textOf(byTestId(tree, "fr-heading")), "It picked up.");
-  assert.match(textOf(byTestId(tree, "fr-try-proof")), /^Your receptionist answered · on the call now · 0:2\d$/);
+  assert.match(textOf(byTestId(tree, "fr-try-proof")), /^Your receptionist answered · on the call now · 0:[12]\d$/);
   assert.equal(
     textOf(byTestId(tree, "fr-try-turns")),
     "ReceptionistThank you for calling Harbor Moving!YouAre you open on Sunday?",
@@ -1223,7 +1223,38 @@ test("Try it (canvas R7, R8): it picked up with the words, then the call and the
   assert.equal(asked.saves[0].row, "handoff_number");
   const brain = asked.saves[0].change({}, {});
   assert.equal(brain.profile.handoff_number, "+17865550199", "the phone they called from");
+  byTestId(tree, "fr-try-inbox").props.onClick();
+  assert.equal(went.at(-1), "conversations/cv-c1", "the call itself, in the Inbox");
   byTestId(tree, "fr-try-go").props.onClick();
   assert.equal(replaced.at(-1), "start", "on to Live");
+  // The settings read not in yet: the saver would send nothing, so the page says so rather than showing a choice.
+  globalThis.window.__businessTabSave.saver.base = () => null;
+  flashes.length = 0;
+  fresh();
+  tree = mount();
+  byTestId(tree, "fr-try-transfer-caller")
+    .props.children.find((k) => k && k.type === "input")
+    .props.onChange();
+  assert.equal(asked.saves.length, 1, "nothing sent");
+  assert.equal(textOf(flashes.at(-1).msg), "Your settings are still being read. Try again in a moment.");
+  delete globalThis.window.__LIVE;
+});
+
+test("Try it stays on screen at the bare address when Setup learns of the call mid-call: the words and the transfer are still to come", () => {
+  tryWorld();
+  globalThis.window.__SETUP = surface(untried);
+  globalThis.window.__LIVE = { now: [liveCall()], recent: [] };
+  param = null;
+  fresh();
+  assert.equal(textOf(byTestId(mount(), "fr-heading")), "It picked up.");
+  // The call reached the receptionist: Setup reads it, and the step is done (Live is where #/start now opens).
+  globalThis.window.__SETUP = surface({
+    ...untried,
+    channels: { ...untried.channels, voice: { ...untried.channels.voice, lastInboundAt: new Date().toISOString() } },
+  });
+  globalThis.window.__LIVE = { now: [], recent: [liveCall({ live: false, status: "ended", duration: "0:48" })] };
+  const after = mount();
+  assert.equal(textOf(byTestId(after, "fr-heading")), "That's your receptionist.", "not jumped on to Live");
+  assert.ok(byTestId(after, "fr-try-transfer"), "where transfers go is asked");
   delete globalThis.window.__LIVE;
 });

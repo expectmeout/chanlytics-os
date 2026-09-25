@@ -11,7 +11,7 @@
 import { formatPhoneDisplay, normalizePhone, samePhone, whyNotAHandoff } from "./phone";
 import { forwardingTestOpen } from "./forwarding";
 import type { LiveCallVM } from "./live";
-import type { SetupDto, SetupVM } from "./setup";
+import { forwardedLineOf, type SetupDto, type SetupVM } from "./setup";
 
 export type FirstRunTryStage = "listen" | "quiet" | "call" | "done" | "rows";
 
@@ -30,27 +30,32 @@ export interface FirstRunTryVM {
   number: string | null;
   /** A kept number that forwards: the test proves the forwarding. */
   forwarded: boolean;
+  /** "Ask Chanlytics for help" (a person sets the forwarding up with them): only for a kept number. */
+  help: string | null;
   /**
    * The forwarded line whose test window the page opens as the screen does (line_forwarding_test, 30 minutes): a kept
    * number not yet proven, with no window open. The call webhook proves forwarding only inside one.
    */
   openTest: string | null;
   /** Listening: what the page is doing, the test window, and the route a call takes (a kept number). */
-  listening: { sentence: string; detail: string; window: string | null; route: string | null } | null;
+  listening: { sentence: string; detail: string; route: string | null } | null;
   /** V7: why nothing may have come through, and what to do about each. */
   causes: { question: string; answer: string }[];
   /** The call, once there is one. */
   call: {
-    /** "Forwarding works", or "Your receptionist answered" for a number it answers itself. */
-    proof: string;
-    /** "on the call now" while it is live; the length, the caller, the number it came through and when, after. */
-    meta: string;
+    /**
+     * While live, "Forwarding works · on the call now · 0:21" (forwarding said only once a call proved it); after, the
+     * length, the caller, the number it came through (proven) and when.
+     */
+    line: string;
     live: boolean;
-    startedAtMs: number | null;
+    /** The owner's own test call (it started once the screen was open): its caller is "You" and may be the transfer. */
+    test: boolean;
     turns: { who: string; text: string; agent: boolean }[];
     /** While live: the words come a turn behind the voice. */
     behind: string | null;
-    cvId: string;
+    /** The call's address in the Inbox (Conversations), for "It's in your Inbox too". */
+    to: string;
   } | null;
   /** After the call: where a caller who asks for a person goes. */
   transfer: {
@@ -70,7 +75,8 @@ export const FIRST_RUN_TRY_WORDS = {
   lead: "Ask what a customer would, like “Are you open on Sunday?”",
   listening: "Listening for your call",
   listeningDetail: "This page changes the moment it picks up.",
-  window: (minutes: number) => `Open for ${minutes} more ${minutes === 1 ? "minute" : "minutes"}`,
+  listeningWindow: (minutes: number) =>
+    `This page changes the moment it picks up. Open for ${minutes} more ${minutes === 1 ? "minute" : "minutes"}.`,
   route: (kept: string) => `Your cell calls ${kept} → nobody picks up → your receptionist answers`,
   quietHeading: "No call has reached your receptionist yet",
   stillListening: "Still listening",
@@ -106,6 +112,7 @@ export const FIRST_RUN_TRY_WORDS = {
   through: (number: string) => `through ${number}`,
   receptionist: "Receptionist",
   caller: "You",
+  someone: "Caller",
   transferLabel: "When a caller asks for a person",
   putThrough: (number: string) => `Put them through to ${number}`,
   putThroughCaller: "The phone you just called from. It rings during opening hours; outside them, it takes a message.",
@@ -114,8 +121,9 @@ export const FIRST_RUN_TRY_WORDS = {
   message: "Take a message and email me",
   messageSentence: "Nobody is put through. You get the message right away.",
   notKept: (kept: string) => `Not ${kept}: while it forwards, that call would ring straight back here.`,
-  saved: "Saved",
+  saved: "Saved. Your receptionist puts callers through as you chose.",
   notSaved: "Not saved",
+  notReadYet: "Your settings are still being read. Try again in a moment.",
   inbox: "It's in your Inbox too",
   continue: "Continue",
   skip: "Can't call right now? Skip for now",
@@ -139,9 +147,11 @@ export function firstRunTryOf({ dto, vm, calls, since, nowMs }: FirstRunTryInput
   const W = FIRST_RUN_TRY_WORDS;
   const voice = dto.channels.voice;
   const own = voice.active ? normalizePhone(voice.number) : null;
-  const fw = dto.lines?.rows.find((l) => l.kind === "forwarded" && l.forwarding_state !== "none") ?? null;
+  const fw = forwardedLineOf(dto.lines);
   const kept = fw ? normalizePhone(fw.e164) : null;
   const forwarded = !!kept;
+  // Forwarding is said to work only once a call proved it (the webhook marks it inside the test window).
+  const proven = forwarded && fw!.forwarding_state === "verified";
   const shown = formatPhoneDisplay(kept ?? own);
   const skip = { label: W.skip, nudge: W.nudge, stay: W.stay, anyway: W.anyway };
   const f0 = fw?.forwarding ?? null;
@@ -149,6 +159,7 @@ export function firstRunTryOf({ dto, vm, calls, since, nowMs }: FirstRunTryInput
   const base = {
     number: shown,
     forwarded,
+    help: forwarded ? W.help : null,
     openTest,
     listening: null,
     causes: [],
@@ -177,8 +188,7 @@ export function firstRunTryOf({ dto, vm, calls, since, nowMs }: FirstRunTryInput
       lead: quiet ? "" : W.lead,
       listening: {
         sentence: quiet ? W.stillListening : W.listening,
-        detail: W.listeningDetail,
-        window: left !== null ? W.window(left) : null,
+        detail: left !== null ? W.listeningWindow(left) : W.listeningDetail,
         route: forwarded ? W.route(shown ?? "") : null,
       },
       causes: quiet
@@ -189,29 +199,27 @@ export function firstRunTryOf({ dto, vm, calls, since, nowMs }: FirstRunTryInput
     };
   }
 
+  // The owner's own test call started once the screen was open; an older one (shown once one has reached the
+  // receptionist) may be a customer's, so its caller is neither "You" nor offered as the transfer.
+  const test = (call.startedAtMs ?? 0) >= since - TRY_SLACK_MS;
   const turns = call.transcript
     .filter((t) => t.speaker === "agent" || t.speaker === "client")
     .map((t) => ({
-      who: t.speaker === "agent" ? W.receptionist : W.caller,
+      who: t.speaker === "agent" ? W.receptionist : test ? W.caller : W.someone,
       text: t.text,
       agent: t.speaker === "agent",
     }));
-  const proof = forwarded ? W.proofForwarded : W.proofOwn;
+  const proof = proven ? W.proofForwarded : W.proofOwn;
+  const to = `conversations/${call.cvId}`;
   if (call.live) {
+    const secs = Math.max(0, Math.floor((nowMs - (call.startedAtMs ?? nowMs)) / 1000));
+    const clock = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
     return {
       ...base,
       stage: "call",
       heading: W.pickedUp,
       lead: "",
-      call: {
-        proof,
-        meta: W.onTheCall,
-        live: true,
-        startedAtMs: call.startedAtMs,
-        turns,
-        behind: W.behind,
-        cvId: call.cvId,
-      },
+      call: { line: [proof, W.onTheCall, clock].join(" · "), live: true, test, turns, behind: W.behind, to },
     };
   }
 
@@ -220,7 +228,7 @@ export function firstRunTryOf({ dto, vm, calls, since, nowMs }: FirstRunTryInput
   // the number on record when there is another, or a message.
   const caller = normalizePhone(call.from);
   const current = normalizePhone(dto.business.handoff);
-  const callerOk = !!caller && whyNotAHandoff(caller, own, kept) === null;
+  const callerOk = test && !!caller && whyNotAHandoff(caller, own, kept) === null;
   const options: NonNullable<FirstRunTryVM["transfer"]>["options"] = [];
   if (callerOk) {
     options.push({
@@ -240,10 +248,10 @@ export function firstRunTryOf({ dto, vm, calls, since, nowMs }: FirstRunTryInput
   }
   options.push({ key: "message", label: W.message, sentence: W.messageSentence, to: null });
   const value: TryTransferKey = !current ? "message" : samePhone(current, caller) && callerOk ? "caller" : "current";
-  const meta = [
+  const line = [
     call.duration ?? call.lengthWords,
     call.number ? W.from(call.number) : null,
-    forwarded && shown ? W.through(shown) : null,
+    proven && shown ? W.through(shown) : null,
     call.startedLabel,
   ]
     .filter(Boolean)
@@ -253,7 +261,7 @@ export function firstRunTryOf({ dto, vm, calls, since, nowMs }: FirstRunTryInput
     stage: "done",
     heading: W.doneHeading,
     lead: "",
-    call: { proof, meta, live: false, startedAtMs: call.startedAtMs, turns, behind: null, cvId: call.cvId },
+    call: { line, live: false, test, turns, behind: null, to },
     transfer: {
       label: W.transferLabel,
       options,

@@ -291,8 +291,9 @@ const rowOf = (vm: SetupVM, id: string): SetupRowVM | null => vm.rows.find((r) =
 const stepDone = (vm: SetupVM, def: FirstRunStepDef): boolean =>
   def.needs.every((id) => {
     const r = rowOf(vm, id);
-    // The test call is waited for until it came in, or the member skipped it (TRY_SKIPPED).
-    return !r || r.state === "ready" || (id === "try" && vm.trySkipped);
+    // The test call is waited for until it came in, or the member skipped it: in the first run (TRY_SKIPPED, which
+    // Today's row outlives) or on Today's card (the row itself put off).
+    return !r || r.state === "ready" || (id === "try" && (vm.trySkipped || r.later));
   });
 
 /** The step a `#/start/<step>` address names, or null for anything else. */
@@ -436,7 +437,9 @@ const CARD_SKIP = { put: "Skip", said: "Put off. It stays in Setting up for when
 /** Today's card: what is left to set up, or null when nothing is. */
 export function setupCardOf(vm: SetupVM): SetupCardVM | null {
   const fr = firstRunOf(vm);
-  if (!fr.complete) {
+  // Calls answered and only the test call left: Setup's own rows, Try it first, each with its Skip and the card's Hide,
+  // as after the first run -- a workspace that answers is never held to a card it cannot put away.
+  if (!fr.complete && fr.current !== "try") {
     // The steps that ask something: every one but the last, which is where they lead.
     const left = fr.steps.slice(0, -1).filter((s) => s.state !== "done").length;
     const next = fr.steps.find((s) => s.key === fr.current) ?? fr.steps[0];

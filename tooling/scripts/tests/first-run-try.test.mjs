@@ -113,14 +113,23 @@ test("listening (canvas R6): a kept number is called and not picked up, with its
   assert.deepEqual([vm.number, vm.forwarded], ["+1 (305) 555-0100", true]);
   assert.deepEqual(vm.listening, {
     sentence: "Listening for your call",
-    detail: "This page changes the moment it picks up.",
-    window: "Open for 24 more minutes",
+    detail: "This page changes the moment it picks up. Open for 24 more minutes.",
     route: "Your cell calls +1 (305) 555-0100 → nobody picks up → your receptionist answers",
   });
+  assert.equal(vm.help, "Ask Chanlytics for help", "a person can set a kept number's forwarding up with them");
+  assert.equal(vm.openTest, null, "a window is open: nothing to open");
+  assert.equal(tryOf(forwarded("instructed")).openTest, "fw-1", "no window yet: the page opens one");
+  assert.equal(tryOf(forwarded("verified")).openTest, null, "proven: nothing to open");
   const own = tryOf(dtoOf());
   assert.deepEqual(
-    [own.heading, own.number, own.listening.route, own.listening.window],
-    ["Call your receptionist from your cell.", "+1 (305) 555-0142", null, null],
+    [own.heading, own.number, own.listening.route, own.listening.detail, own.help],
+    [
+      "Call your receptionist from your cell.",
+      "+1 (305) 555-0142",
+      null,
+      "This page changes the moment it picks up.",
+      null,
+    ],
   );
 });
 
@@ -143,8 +152,13 @@ test("it picked up (canvas R7, P6): forwarding works, on the call now, the turns
   assert.equal(vm.stage, "call");
   assert.equal(vm.heading, "It picked up.");
   assert.deepEqual(
-    [vm.call.proof, vm.call.meta, vm.call.behind],
-    ["Forwarding works", "on the call now", "Words arrive a moment behind the call."],
+    [vm.call.line, vm.call.behind, vm.call.test, vm.call.to],
+    [
+      "Forwarding works · on the call now · 0:20",
+      "Words arrive a moment behind the call.",
+      true,
+      "conversations/cv-c1",
+    ],
   );
   assert.deepEqual(
     vm.call.turns.map((t) => [t.who, t.text]),
@@ -154,7 +168,12 @@ test("it picked up (canvas R7, P6): forwarding works, on the call now, the turns
     ],
     "the two voices only: what Chanlytics told the agent is not the call",
   );
-  assert.equal(tryOf(dtoOf(), [callOf()]).call.proof, "Your receptionist answered", "no forwarding to prove");
+  assert.equal(tryOf(dtoOf(), [callOf()]).call.line, "Your receptionist answered · on the call now · 0:20");
+  assert.match(
+    tryOf(forwarded("instructed"), [callOf()]).call.line,
+    /^Your receptionist answered/,
+    "forwarding is said to work only once a call proved it: this one may have dialed the receptionist itself",
+  );
   assert.equal(
     tryOf(dtoOf(), [callOf({ startedAtMs: SINCE - 5 * 60_000 })]).stage,
     "listen",
@@ -168,7 +187,12 @@ test("after the call (canvas R8, P7): the call said, and the phone it came from 
   const vm = tryOf(forwarded("verified"), [ended]);
   assert.equal(vm.stage, "done");
   assert.equal(vm.heading, "That's your receptionist.");
-  assert.equal(vm.call.meta, "0:48 · from +1 (786) 555-0199 · through +1 (305) 555-0100 · 2:59 PM");
+  assert.equal(vm.call.line, "0:48 · from +1 (786) 555-0199 · through +1 (305) 555-0100 · 2:59 PM");
+  assert.equal(
+    tryOf(forwarded("instructed"), [ended]).call.line,
+    "0:48 · from +1 (786) 555-0199 · 2:59 PM",
+    "not proven: not said to have come through the kept number",
+  );
   assert.deepEqual(
     vm.transfer.options.map((o) => [o.key, o.label, o.to]),
     [
@@ -205,7 +229,19 @@ test("a call that came in before: shown again, once one has reached the receptio
   const tried = dtoOf({
     channels: { ...dtoOf().channels, voice: { ...dtoOf().channels.voice, lastInboundAt: "2026-09-24T14:00:00Z" } },
   });
-  assert.equal(tryOf(tried, [before]).stage, "done");
+  const shown = tryOf(tried, [before]);
+  assert.equal(shown.stage, "done");
+  assert.equal(shown.call.test, false, "it may be a customer's");
+  assert.deepEqual(
+    shown.call.turns.map((t) => t.who),
+    ["Receptionist", "Caller", "Receptionist"].slice(0, shown.call.turns.length),
+    "never called You",
+  );
+  assert.deepEqual(
+    shown.transfer.options.map((o) => o.key),
+    ["message"],
+    "a caller who may be a customer is never offered as the transfer",
+  );
 });
 
 test("no line that answers: Setup's rows", () => {
