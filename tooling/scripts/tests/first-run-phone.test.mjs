@@ -11,7 +11,6 @@ import {
   areaCodeOf,
   FIRST_RUN_PHONE_WORDS as W,
   FIRST_RUN_HELPERS,
-  CHECKOUT_OUTCOME_WORDS,
 } from "@chanlytics/contracts";
 
 const NOW = Date.parse("2026-09-24T15:00:00Z");
@@ -98,6 +97,7 @@ test("choosing (canvas R3): keeping the listing's number first and recommended, 
   );
   assert.equal(vm.ways[0].sentence, W.keepListed, "the listing's number says where it came from");
   assert.deepEqual([vm.number, vm.listed, vm.area], [LISTED, LISTED, "305"]);
+  assert.equal(vm.box, "+1 (305) 555-0100", "the box starts from the listing's number, as the app writes one");
   assert.deepEqual(vm.trial, {
     offer: "14 days free, then $49.00 a month",
     note: "We ask for a card now, and nothing is charged until Oct 8. You can cancel anytime from Billing.",
@@ -149,15 +149,18 @@ test("each way names its button, and holds it until there is a number to keep or
 
 test("no listing number: the keep card asks for one, and a new number's area code is the owner's to type", () => {
   const vm = phone(dtoOf({ google: { ready: true, places: true, listing: null } }));
-  assert.deepEqual([vm.number, vm.listed, vm.area], [null, null, null]);
+  assert.deepEqual([vm.number, vm.listed, vm.area, vm.box], [null, null, null, ""]);
   assert.equal(vm.ways[0].title, "Keep the number you have");
   assert.equal(vm.cta.held, "Type the number customers call.");
 });
 
-test("back from checkout before the trial lands: starting, in Billing's own words", () => {
+test("back from checkout before the trial lands: starting, until Stripe confirms it", () => {
   const vm = phone(dtoOf(), { way: "keep", number: null, pick: null, pending: true }, true);
   assert.equal(vm.stage, "starting");
-  assert.deepEqual(vm.status, { sentence: "Starting your trial…", detail: CHECKOUT_OUTCOME_WORDS.success });
+  assert.deepEqual(vm.status, {
+    sentence: "Starting your trial…",
+    detail: "Your card is on file. This page updates as Stripe confirms it.",
+  });
   assert.equal(vm.cta, null);
 });
 
@@ -188,6 +191,8 @@ test("a number on its way (canvas R4): the line row's own words", () => {
   assert.equal(vm.stage, "getting");
   assert.deepEqual(vm.status, { sentence: row.sentence, detail: row.details[0] });
   assert.match(vm.status.sentence, /^Setting up \+1 \(305\) 555-0142 — buying the number/);
+  assert.equal(vm.lead, W.readyLeadForwarded);
+  assert.equal(phone(dto).lead, "", "a tab that lost the choice does not say who sees the number");
   const connecting = phone(
     dtoOf({ billing: trialing, lines: { ...dtoOf().lines, rows: [lineOf({ voice_state: "answering" })] } }),
   );

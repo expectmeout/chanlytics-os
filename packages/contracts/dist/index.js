@@ -8485,6 +8485,7 @@ var FIRST_RUN_PHONE_WORDS = {
   trialNote: (day) => day ? `We ask for a card now, and nothing is charged until ${day}. You can cancel anytime from Billing.` : "We ask for a card now, and the first charge is today. You can cancel anytime from Billing.",
   started: (day) => `Your trial has started. Nothing is charged until ${day}.`,
   starting: "Starting your trial\u2026",
+  startingDetail: "Your card is on file. This page updates as Stripe confirms it.",
   buyingIn: (area) => area ? `Getting your receptionist's number in ${area}\u2026` : "Getting your receptionist's number\u2026",
   buyingNew: (friendly) => `Getting ${friendly}\u2026`,
   usually: "Usually a minute or two; this page updates by itself",
@@ -8527,12 +8528,13 @@ function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }) {
     ],
     number,
     listed,
+    box: formatPhoneDisplay(listed) ?? "",
     area,
     started
   };
   const ready = {
     heading: W.readyHeading,
-    lead: forwarded ? W.readyLeadForwarded : W.readyLeadNew,
+    lead: !choice ? "" : forwarded ? W.readyLeadForwarded : W.readyLeadNew,
     trial: null,
     cta: null
   };
@@ -8540,7 +8542,12 @@ function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }) {
   if (dto.channels.voice.present) return rows;
   if (ownLine) {
     const onItsWay = ownLine.voice_state === "provisioning" && !lineStuckProvisioning(ownLine, nowMs) || ownLine.voice_state === "answering";
-    return onItsWay && lineRow ? { ...base, ...ready, stage: "getting", status: { sentence: lineRow.sentence, detail: lineRow.details[0] ?? "" } } : rows;
+    return onItsWay && lineRow ? {
+      ...base,
+      ...ready,
+      stage: "getting",
+      status: { sentence: lineRow.sentence, detail: lineRow.details[0] ?? "" }
+    } : rows;
   }
   if (!lines?.ready || dto.requests.line || dto.requests.port) return rows;
   const trial = billingDoorOpen(billing) && billing.status === "none" ? (() => {
@@ -8554,7 +8561,7 @@ function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }) {
       ...base,
       ...ready,
       stage: "starting",
-      status: { sentence: W.starting, detail: CHECKOUT_OUTCOME_WORDS.success }
+      status: { sentence: W.starting, detail: W.startingDetail }
     };
   }
   if (canSpend && choice?.pending) {

@@ -52,8 +52,10 @@ export interface FirstRunPhoneVM {
   ways: FirstRunPhoneWayVM[];
   /** The number to keep or move, E.164: the one typed, else the listing's; null for neither. */
   number: string | null;
-  /** The listing's number, E.164, which the number box starts from; null for none. */
+  /** The listing's number, E.164; null for none. */
   listed: string | null;
+  /** What the number box shows before the owner types in it: the listing's number, as the app writes one; "" for none. */
+  box: string;
   /** The area code a number is bought in: the kept or moved number's, else the listing's; null for neither. */
   area: string | null;
   /** The trial, where a card is still to be given: its offer and what it means. */
@@ -112,6 +114,7 @@ export const FIRST_RUN_PHONE_WORDS = {
       : "We ask for a card now, and the first charge is today. You can cancel anytime from Billing.",
   started: (day: string) => `Your trial has started. Nothing is charged until ${day}.`,
   starting: "Starting your trial…",
+  startingDetail: "Your card is on file. This page updates as Stripe confirms it.",
   buyingIn: (area: string | null) =>
     area ? `Getting your receptionist's number in ${area}…` : "Getting your receptionist's number…",
   buyingNew: (friendly: string) => `Getting ${friendly}…`,
@@ -170,12 +173,14 @@ export function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }: FirstRunPh
     ],
     number,
     listed,
+    box: formatPhoneDisplay(listed) ?? "",
     area,
     started,
   };
+  // Who sees the number depends on the way chosen; a tab that lost the choice says neither.
   const ready = {
     heading: W.readyHeading,
-    lead: forwarded ? W.readyLeadForwarded : W.readyLeadNew,
+    lead: !choice ? "" : forwarded ? W.readyLeadForwarded : W.readyLeadNew,
     trial: null,
     cta: null,
   };
@@ -214,7 +219,7 @@ export function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }: FirstRunPh
       ...base,
       ...ready,
       stage: "starting",
-      status: { sentence: W.starting, detail: CHECKOUT_OUTCOME_WORDS.success },
+      status: { sentence: W.starting, detail: W.startingDetail },
     };
   }
   // Pressed, and the workspace may spend: the page buys, once, and this is what it says meanwhile.

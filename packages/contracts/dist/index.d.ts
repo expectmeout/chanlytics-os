@@ -18123,8 +18123,10 @@ interface FirstRunPhoneVM {
     ways: FirstRunPhoneWayVM[];
     /** The number to keep or move, E.164: the one typed, else the listing's; null for neither. */
     number: string | null;
-    /** The listing's number, E.164, which the number box starts from; null for none. */
+    /** The listing's number, E.164; null for none. */
     listed: string | null;
+    /** What the number box shows before the owner types in it: the listing's number, as the app writes one; "" for none. */
+    box: string;
     /** The area code a number is bought in: the kept or moved number's, else the listing's; null for neither. */
     area: string | null;
     /** The trial, where a card is still to be given: its offer and what it means. */
@@ -18185,6 +18187,7 @@ declare const FIRST_RUN_PHONE_WORDS: {
     readonly trialNote: (day: string | null) => string;
     readonly started: (day: string) => string;
     readonly starting: "Starting your trial…";
+    readonly startingDetail: "Your card is on file. This page updates as Stripe confirms it.";
     readonly buyingIn: (area: string | null) => string;
     readonly buyingNew: (friendly: string) => string;
     readonly usually: "Usually a minute or two; this page updates by itself";
@@ -18565,6 +18568,7 @@ declare const FIRST_RUN_HELPERS: {
         readonly trialNote: (day: string | null) => string;
         readonly started: (day: string) => string;
         readonly starting: "Starting your trial…";
+        readonly startingDetail: "Your card is on file. This page updates as Stripe confirms it.";
         readonly buyingIn: (area: string | null) => string;
         readonly buyingNew: (friendly: string) => string;
         readonly usually: "Usually a minute or two; this page updates by itself";

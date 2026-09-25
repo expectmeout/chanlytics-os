@@ -579,3 +579,198 @@ test("without the bridge the page says nothing of its own: every word is contrac
     globalThis.window.__firstRun = F;
   }
 });
+
+/* ---- Your phone (PR 4a): the three ways, the trial, and the buy once the trial lets it ---- */
+const PRICE = { id: "price_example", currency: "usd", unit_amount: 4900, interval: "month", product_name: "Plan" };
+const phoneReady = (billing = {}) => ({
+  ...withFacts,
+  lines: { rows: [], ready: true, provider: "twilio", costs: { local_number_month_usd: 1.15 } },
+  google: { ready: true, places: true, listing: null, connected: false, phone: "+13055550100" },
+  billing: {
+    ready: true,
+    livemode: true,
+    mode: "stripe",
+    status: "none",
+    trial_end: null,
+    current_period_end: null,
+    trial_days: 14,
+    price: PRICE,
+    ...billing,
+  },
+});
+/** The tab's drafts, Stripe and the line doors, each remembering what it was asked. */
+const phoneWorld = ({ outcome = null, numbers = [{ e164: "+13055550142", friendly: "(305) 555-0142" }] } = {}) => {
+  const drafts = {};
+  const asked = { checkout: [], search: [], buy: [], request: [] };
+  globalThis.window.__tabMemory = {
+    draft: (k) => drafts[k] ?? null,
+    keepDraft: (k, v) => {
+      drafts[k] = v;
+    },
+    dropDraft: (k) => {
+      delete drafts[k];
+    },
+  };
+  globalThis.window.__billing = {
+    outcome: () => outcome,
+    checkout: async (back) => {
+      asked.checkout.push(back);
+      return { ok: true, message: "" };
+    },
+  };
+  globalThis.window.__setup.lines = {
+    search: async (area) => {
+      asked.search.push(area);
+      return { ok: true, numbers, message: "" };
+    },
+    buy: async (e164, area) => {
+      asked.buy.push([e164, area]);
+      return { ok: true, queued: true, message: "" };
+    },
+  };
+  globalThis.window.__setup.request = async (what) => {
+    asked.request.push(what);
+    return { ok: true, already: false, message: "" };
+  };
+  return { drafts, asked };
+};
+const radioIn = (label) => label.props.children.find((k) => k && k.type === "input");
+
+test("your phone (canvas R3): keeping the listing's number first, the trial with Stripe's price, and the button goes to Stripe and back to this step", async () => {
+  const { drafts, asked } = phoneWorld();
+  globalThis.window.__SETUP = surface(phoneReady());
+  param = null;
+  fresh();
+  const tree = mount();
+  assert.equal(textOf(byTestId(tree, "fr-heading")), "How should calls reach your receptionist?");
+  assert.equal(byTestId(tree, "fr-rows"), null, "the step's own screen, not Setup's rows");
+  assert.equal(radioIn(byTestId(tree, "fr-way-keep")).props.checked, true, "keeping is the default");
+  assert.match(textOf(byTestId(tree, "fr-way-keep")), /^Keep \+1 \(305\) 555-0100/);
+  assert.equal(byTestId(tree, "fr-phone-number-box").props.value, "+1 (305) 555-0100", "from the listing");
+  assert.match(textOf(byTestId(tree, "fr-trial")), /^14 days free, then \$49\.00 a monthWe ask for a card now/);
+  const go = byTestId(tree, "fr-phone-go");
+  assert.equal(textOf(go), "Start my free trial");
+  assert.ok(byTestId(tree, "fr-back"), "Back, in the step's own foot");
+  await go.props.onClick();
+  assert.deepEqual(asked.checkout, ["start"], "Stripe comes back to the first run");
+  assert.equal(replaced.at(-1), "start/phone", "the step's own address, so it stays once its line answers");
+  assert.equal(drafts["first-run-phone"].pending, true, "the choice waits in the tab for Stripe's round trip");
+  assert.deepEqual(asked.buy, [], "nothing is bought before the trial");
+});
+
+test("your phone: back from Stripe before the trial lands, then the buy in the kept number's area code, once", async () => {
+  const { asked } = phoneWorld({ outcome: "success" });
+  globalThis.window.__tabMemory.keepDraft("first-run-phone", { way: "keep", number: null, pick: null, pending: true });
+  globalThis.window.__SETUP = surface(phoneReady());
+  param = "phone";
+  fresh();
+  mount();
+  // Stripe's answer is read in an effect, after the first draw, as React draws again once it is kept.
+  const starting = mount();
+  assert.equal(byTestId(starting, "fr-phone").props["data-stage"], "starting");
+  assert.match(textOf(byTestId(starting, "fr-phone-status")), /Starting your trial…/);
+  assert.deepEqual(asked.buy, []);
+  // The webhook lands: the trial is on, and the page buys. (This stub runs an effect on a component's first draw only,
+  // where React runs it again when the stage it depends on moves: a fresh draw stands in for that.)
+  globalThis.window.__SETUP = surface(phoneReady({ status: "trialing", trial_end: "2026-09-21T15:00:00Z" }));
+  fresh();
+  const buying = mount();
+  await tick();
+  await tick();
+  assert.equal(byTestId(buying, "fr-phone").props["data-stage"], "buying");
+  assert.equal(
+    textOf(byTestId(buying, "fr-phone-started")),
+    "Your trial has started. Nothing is charged until Sep 21.",
+  );
+  assert.deepEqual(asked.search, ["305"]);
+  assert.deepEqual(asked.buy, [["+13055550142", "305"]], "the first number offered: customers never see it");
+  // A new draw of the page (the tab reloaded, the step opened again) before the line reaches Setup: the tab says the buy
+  // went out, so nothing is sent again.
+  fresh();
+  mount();
+  await tick();
+  assert.equal(asked.buy.length, 1, "a draw before the line reaches Setup sends nothing again");
+  assert.deepEqual(asked.request, [], "keeping asks nobody to move anything");
+});
+
+test("your phone: a new number is picked from its area code; moving one buys a line too, and asks a person", async () => {
+  const { asked } = phoneWorld();
+  globalThis.window.__SETUP = surface(phoneReady({ status: "trialing", trial_end: "2026-09-21T15:00:00Z" }));
+  param = "phone";
+  fresh();
+  let tree = mount();
+  radioIn(byTestId(tree, "fr-way-new")).props.onChange();
+  tree = mount();
+  assert.equal(textOf(byTestId(tree, "fr-phone-held")), "Pick a number first.");
+  assert.equal(byTestId(tree, "fr-phone-area").props.value, "305", "the listing's area code");
+  let form = null;
+  walk(tree, (n) => {
+    if (!form && n.type === "form") form = n;
+  });
+  await form.props.onSubmit({ preventDefault() {} });
+  tree = mount();
+  radioIn(byTestId(tree, "fr-phone-number")).props.onChange();
+  tree = mount();
+  const go = byTestId(tree, "fr-phone-go");
+  assert.equal(textOf(go), "Get (305) 555-0142", "no trial to start: the button buys, named for the result");
+  await go.props.onClick();
+  fresh();
+  mount();
+  await tick();
+  await tick();
+  assert.deepEqual(asked.buy, [["+13055550142", "305"]]);
+
+  const moving = phoneWorld();
+  globalThis.window.__tabMemory.keepDraft("first-run-phone", { way: "move", number: null, pick: null, pending: true });
+  fresh();
+  mount();
+  await tick();
+  await tick();
+  await tick();
+  assert.deepEqual(moving.asked.buy, [["+13055550142", "305"]], "a move forwards meanwhile, so it buys a line too");
+  assert.deepEqual(moving.asked.request, ["port"], "and asks a person to file the move");
+});
+
+test("your phone: Stripe closed before finishing says so, and the choice waits for another press", () => {
+  const { drafts } = phoneWorld({ outcome: "cancel" });
+  globalThis.window.__tabMemory.keepDraft("first-run-phone", { way: "keep", number: null, pick: null, pending: true });
+  flashes.length = 0;
+  globalThis.window.__SETUP = surface(phoneReady());
+  param = "phone";
+  fresh();
+  mount();
+  const tree = mount();
+  assert.equal(drafts["first-run-phone"].pending, false);
+  assert.equal(textOf(flashes.at(-1).msg), "Checkout was closed before finishing; nothing was charged.");
+  assert.equal(byTestId(tree, "fr-phone").props["data-stage"], "choose");
+});
+
+test("your phone: what the step does not draw is Setup's rows, under the page's own foot", () => {
+  phoneWorld();
+  globalThis.window.__SETUP = surface({ ...phoneReady(), lines: { ...phoneReady().lines, ready: false } });
+  param = null;
+  fresh();
+  const tree = mount();
+  assert.equal(byTestId(tree, "fr-phone"), null);
+  assert.ok(byTestId(tree, "fr-rows"), "no line provider here: a person sets it up, as the row says");
+  assert.equal(textOf(byTestId(tree, "fr-heading")), "Your phone");
+});
+
+test("your phone: a buy marked sent long ago never landed (its tab closed on it), so the step sends it again", async () => {
+  const { asked } = phoneWorld();
+  const choice = { way: "keep", number: null, pick: null, pending: true };
+  globalThis.window.__tabMemory.keepDraft("first-run-phone", { ...choice, sent: Date.now() - 10_000 });
+  globalThis.window.__SETUP = surface(phoneReady({ status: "trialing", trial_end: "2026-09-21T15:00:00Z" }));
+  param = "phone";
+  fresh();
+  mount();
+  await tick();
+  await tick();
+  assert.deepEqual(asked.buy, [], "sent seconds ago: on its way");
+  globalThis.window.__tabMemory.keepDraft("first-run-phone", { ...choice, sent: Date.now() - 600_000 });
+  fresh();
+  mount();
+  await tick();
+  await tick();
+  assert.deepEqual(asked.buy, [["+13055550142", "305"]], "ten minutes and no line: it never landed");
+});
