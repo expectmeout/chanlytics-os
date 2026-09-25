@@ -10,7 +10,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "./_source.mjs";
 
-globalThis.window = { location: { origin: "https://app.example.com" } };
+const win = { location: { origin: "https://app.example.com" } };
+globalThis.window = win;
 // The archive's header is read over fetch; here there is no archive and no network, and the page keeps its square.
 globalThis.fetch = async () => {
   throw new Error("no network in a test");
@@ -52,10 +53,10 @@ const fakeStreets = () => {
 test("the door is published at boot and the streets' module is asked for on the first mount, once, prepared once", async () => {
   const s = fakeStreets();
   installLeadMap("/maps/", s.load);
-  assert.ok(window.__LEAD_MAP, "the page's door");
+  assert.ok(win.__LEAD_MAP, "the page's door");
   assert.equal(s.loads(), 0, "nothing loaded at boot");
-  const a = window.__LEAD_MAP.mount({ id: "box-a" }, { onPick() {}, onOpen() {} });
-  const b = window.__LEAD_MAP.mount({ id: "box-b" }, { onPick() {}, onOpen() {} });
+  const a = win.__LEAD_MAP.mount({ id: "box-a" }, { onPick() {}, onOpen() {} });
+  const b = win.__LEAD_MAP.mount({ id: "box-b" }, { onPick() {}, onOpen() {} });
   assert.equal(typeof a.setPins, "function", "a handle at once");
   assert.equal(s.loads(), 1, "asked for once for both");
   a.setPins([{ id: "l1", lat: 1, lng: 2, tone: "ok", label: "L1" }], null);
@@ -82,7 +83,7 @@ test("the door is published at boot and the streets' module is asked for on the 
 test("a handle destroyed before the streets land destroys them on arrival and replays nothing", async () => {
   const s = fakeStreets();
   installLeadMap("/maps", s.load);
-  const h = window.__LEAD_MAP.mount({ id: "box" }, { onPick() {}, onOpen() {} });
+  const h = win.__LEAD_MAP.mount({ id: "box" }, { onPick() {}, onOpen() {} });
   h.setPins([], null);
   h.destroy();
   h.setPins([{ id: "late", lat: 0, lng: 0, tone: "ok", label: "" }], null);
@@ -104,10 +105,10 @@ test("streets that never come leave the page on its square: every call is nothin
 });
 
 test("with no basemap nothing is published and nothing is asked for", () => {
-  delete window.__LEAD_MAP;
+  delete win.__LEAD_MAP;
   const s = fakeStreets();
   installLeadMap("", s.load);
   installLeadMap(undefined, s.load);
-  assert.equal(window.__LEAD_MAP, undefined);
+  assert.equal(win.__LEAD_MAP, undefined);
   assert.equal(s.loads(), 0);
 });
