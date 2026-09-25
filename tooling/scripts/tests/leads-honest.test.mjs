@@ -3725,20 +3725,24 @@ test("at a phone's width Needs review is rows in groups: the group's acts on its
     card.props.onTouchStart({ touches: [{ clientX: 100, clientY: 300 }], currentTarget: el, target: el });
     card.props.onTouchMove({ touches: [{ clientX: 180, clientY: 302 }], currentTarget: el });
     card.props.onTouchEnd({ changedTouches: [{ clientX: 260, clientY: 304 }], currentTarget: el });
-    // The kit leaves in 180ms, presses the door, then settles the still-drawn row 60ms on; a Linux timer lands these
-    // to the millisecond, a Windows one ~15ms late -- 400ms covers both.
-    await new Promise((r) => setTimeout(r, 400));
-    await settle();
-    assert.deepEqual(
-      calls.at(-1),
-      ["keep", { search_id: SEARCH_A, id }],
-      "slid right past a third: the row's own Keep",
-    );
-    assert.equal(
-      el.style.transform,
-      "translate3d(0, 0, 0)",
+    assert.equal(el.style.transform, "translate3d(100%, 0, 0)", "180px of 343: gone right");
+    // The kit leaves (180ms), presses the door, then settles the still-drawn row (60ms on) and clears its inline
+    // styles once settled (240ms more): watched for, never read at a fixed moment, since a Linux timer lands these to
+    // the millisecond and a Windows one ~15ms late.
+    const until = async (f) => {
+      for (const t0 = Date.now(); !f();) {
+        if (Date.now() - t0 > 2000) return false;
+        await new Promise((r) => setTimeout(r, 20));
+      }
+      return true;
+    };
+    assert.ok(await until(() => calls.at(-1)?.[0] === "keep"), "slid right past a third: the row's own Keep");
+    assert.deepEqual(calls.at(-1), ["keep", { search_id: SEARCH_A, id }]);
+    assert.ok(
+      await until(() => el.style.transform === "" || el.style.transform === "translate3d(0, 0, 0)"),
       "and the row, still in the pile until the surface says, settles back",
     );
+    await settle();
   } finally {
     globalThis.__phone = false;
   }
