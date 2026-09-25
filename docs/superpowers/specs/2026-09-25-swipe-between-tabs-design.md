@@ -44,20 +44,24 @@ What a person does today keeps working, because the page swipe only starts where
 **One reader of a touch** (`components/data-bits.jsx`, touchSwipe) gets a third way that follows the finger, beside
 `down` and `back`:
 
-- `pages(el, from)` is asked once, as a touch is taken across: `{ prev, next }` (booleans) or `null` for no page way.
-  `from` is where the touch began, so the page can refuse it.
-- `onFollow(offset, progress, step)` is told on every move: how far the page is drawn (resistance applied), how far
-  toward the neighbour (0..1), and which way (`1` next, `-1` previous).
-- `onPage(step)` is called once the page has left (or at once under reduced motion).
-- The page way moves `el` by `transform` only (no opacity: People's strip is inside what moves), leaves to
-  `translate3d(∓100%, 0, 0)` on the leave's curve, and settles as the others do. `onGrab(el, on)` is told as for `back`.
+- `pages(el, from)` is asked once, as a touch is taken across: `null` for no page way, or
+  `{ prev, next, held, follow(progress, step, how), go(step) }`. `from` is where the touch began, so the page can
+  refuse it. Everything the gesture needs rides in that answer, kept with the touch, so a shell that draws again
+  mid-gesture (new handlers) cannot lose it.
+- `follow` hears every move (`"move"`: how far toward the neighbour, 0..1, and which way, `1` next, `-1` previous) and
+  the end (`"leave"` at 1, `"settle"` at 0). `go(step)` is called once the page has left (at once under reduced motion).
+- The page way moves `el` by `transform` only (no opacity: People's strip is inside what moves), leaves a page's width
+  on the leave's curve, and settles as the others do; `held` takes the opposite transform on the same curves. A switch
+  is a navigation, so the page is judged kept (and settled back) only 400ms after `go`, not a sheet's 60.
 - `back` keeps its precedence where both are given.
 
 **The strip owns its swipe** (`components/surface-tabs.jsx`):
 
-- `stripSwipe(when)` returns the touchSwipe handlers for the shell's route view. It finds the visible `.stabs` in
-  the route view's `.main` (the shell's strip, or People's own inside the page), its `.stabs-tab` buttons and the
-  `.active` one; the neighbour is the button beside it. On `onPage` it presses that button (`.click()`).
+- `stripSwipe()` returns the touchSwipe handlers for the shell's route view, on a phone. Its `pages` (`stripPager`)
+  finds the visible `.stabs` in the route view's `.main` (the shell's strip, or People's own inside the page), its
+  `.stabs-tab` buttons and the `.active` one; the neighbour is the button beside it, and `go` presses it (`.click()`).
+- The strip's rule is drawn inside it (an inset shadow, no border), so the picked tab's 2px underline and the glide lie
+  over it in a strip that scrolls across as in one that does not.
 - The underline glides as one `::after` on the strip, placed by `--glide-x` and `--glide-w` (interpolated between the
   picked tab's and the neighbour's `offsetLeft` and `offsetWidth`) while `[data-glide]` is on the strip; the picked
   tab's own underline is clear meanwhile. On a settle it goes back and is cleared; after a switch it is cleared once
@@ -79,7 +83,7 @@ reduced motion) `route-slide-next/prev`: a 220ms entrance from 32px on that side
 ## Tests
 
 - `it-moves.test.mjs`, against data-bits itself: the page follows both ways; resists where there is no page (a
-  quarter, 48px at most); past a third it leaves and then `onPage(1)`; short of it it settles; nothing from 24px of
+  quarter, 48px at most); past a third it leaves and then `go(1)`; short of it it settles; nothing from 24px of
   either edge or where `pages` answers null; `back` keeps precedence; reduced motion switches at once.
 - A node test of `stripPlace`/`stripSlide` on the stub (the strips' orders, a person's page on none).
 - `e2e/phone.spec.ts`, real touches through CDP (`Input.dispatchTouchEvent`, as `today.spec.ts` does): on the Inbox a
