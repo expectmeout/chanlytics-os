@@ -308,22 +308,16 @@ test("the wiring: the CHECKs, the facts column, the runner attaching the calenda
     sd.includes("kind: t.kind") && sd.includes('calendar: pb.calendar ?? "none"'),
     "the page knows which triggers need the calendar, and whether there is one -- from the route that counts the pools",
   );
-  const page = readCode("apps/dashboard/src/legacy/pages/outbound-real.jsx");
+  // The composer is playbook-composer.jsx (moved whole from outbound-real.jsx, Reach out Part 2.5).
+  const page = readCode("apps/dashboard/src/legacy/pages/playbook-composer.jsx");
   assert.ok(
     page.includes("<PolicyChip cls={trig.cls} />") &&
       page.includes('trig.kind === "visit"') &&
       page.includes("A visit moment reads the calendar"),
     "the composer says it plainly",
   );
-  assert.ok(
-    page.includes("One message per visit. Anyone who asked to stop") &&
-      page.includes("the day's visits are picked from them"),
-    "no gap and no breath are promised for a visit trigger",
-  );
-  assert.ok(
-    page.includes('visit_when: "tomorrow at 2:00 PM"') && page.includes('visit_service: "a consultation"'),
-    "the preview shows the visit's words",
-  );
+  // No gap and no breath promised for a visit trigger, and the card's count of the day's visits, are run in
+  // playbook-composer.test.mjs; the preview's visit words are drawn there too.
   const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
   assert.ok(
     tools.includes('booking: modeOf("booking")') &&

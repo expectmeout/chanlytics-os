@@ -107,11 +107,18 @@ import "@/legacy/pages/agent-store.jsx";
 import "@/legacy/pages/agent-fleet.jsx";
 import "@/legacy/pages/agent-studio.jsx";
 import "@/legacy/pages/outbound.jsx";
+// A playbook's words, card and composer (moved whole from outbound-real.jsx): before the page, which draws them.
+import "@/legacy/pages/playbook-bits.jsx";
+import "@/legacy/pages/playbook-card.jsx";
+import "@/legacy/pages/playbook-composer.jsx";
 import "@/legacy/pages/outbound-real.jsx";
 import "@/legacy/pages/content-cal.jsx";
 import "@/legacy/pages/templates-real.jsx";
 import "@/legacy/pages/messages.jsx";
 import "@/legacy/pages/broadcasts.jsx";
+// A run and the ledger of runs (moved whole from broadcasts-real.jsx): before the page, which draws them.
+import "@/legacy/pages/broadcasts-run.jsx";
+import "@/legacy/pages/broadcasts-ledger.jsx";
 import "@/legacy/pages/broadcasts-real.jsx";
 import "@/legacy/pages/pipeline.jsx";
 import "@/legacy/pages/conversations.jsx";

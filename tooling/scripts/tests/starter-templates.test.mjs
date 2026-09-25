@@ -331,7 +331,8 @@ test("the pages: titles not names, the starter set in Settings, one click on Bro
     "and it walks the real people the count is a length of, not an example",
   );
   assert.ok(!b.includes('<span className="bc-row-label">Template</span>'), "the row label fits");
-  const p = readCode("apps/dashboard/src/legacy/pages/outbound-real.jsx");
+  // The composer is playbook-composer.jsx (moved whole from outbound-real.jsx, Reach out Part 2.5).
+  const p = readCode("apps/dashboard/src/legacy/pages/playbook-composer.jsx");
   assert.ok(p.includes('data-testid="pb-starter"') && p.includes('data-testid="pb-add-starter"'));
   assert.ok(
     p.includes("window.__starters.forTrigger(trigger)") &&
