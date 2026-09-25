@@ -598,6 +598,8 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
       // area the search asked for. A view whose leads the source placed nowhere has no map to draw.
       mapOpen={mapOpen}
       onMap={setMapOpen}
+      // The phone's bar shows the map's pin only where the rows the source placed give it something to draw.
+      canMap={leadShown.some((l) => !!l.point)}
       mapBy={mapBy}
       onMapBy={setMapBy}
       mapPick={mapPick}

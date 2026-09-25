@@ -191,7 +191,7 @@ const LeadsBulkBar = ({ sel, rows, total, view, canFind, canExport, busy, whyNot
 // 721px to 900px the controls row is gone and the shell draws no ✦, so the mark is the page's one door. The same
 // top on every scope, and nothing else sits above the rows -- no title, no sub-headline, no stat cards and no
 // second control row (legacy/CLAUDE.md, the phone shows the work first).
-const LeadsPhoneBar = ({ scope, onScope, dealsOn = false, listLabel, listCount = null, onLists, listsOpen, q, onQ, searchRef, searchOpen = false, onSearchOpen = () => {}, onFind = () => {}, canFind = false }) => {
+const LeadsPhoneBar = ({ scope, onScope, dealsOn = false, listLabel, listCount = null, onLists, listsOpen, q, onQ, searchRef, searchOpen = false, onSearchOpen = () => {}, onFind = () => {}, canFind = false, mapOn = false, onMap = () => {}, canMap = false }) => {
   const Bar = window.PeoplePhoneBar;
   return (
     <Bar
@@ -210,17 +210,34 @@ const LeadsPhoneBar = ({ scope, onScope, dealsOn = false, listLabel, listCount =
       searchLabel="Search leads"
       testid="leads"
       trailing={(
-        <button
-          type="button"
-          className="pp-bar-icon ld-bar-find"
-          aria-label="Find leads"
-          title="Find leads"
-          data-testid="leads-bar-find"
-          onClick={() => onFind()}
-          {...(canFind ? {} : window.gate("find", "find businesses for you"))}
-        >
-          <Icon name="three" size={16} />
-        </button>
+        <>
+          {/* The map, from the bar (Ruben, 25 Sep): the desktop's toggle stood in the controls row, which a phone never
+              draws, so the streets had no door here. The pin stands only where the rows have places to draw. */}
+          {canMap ? (
+            <button
+              type="button"
+              className={`pp-bar-icon ld-bar-map${mapOn ? " on" : ""}`}
+              aria-pressed={mapOn}
+              aria-label={mapOn ? "Show the list" : "Show the map"}
+              title={mapOn ? "Show the list" : "Show the map"}
+              data-testid="leads-map-toggle"
+              onClick={() => onMap(!mapOn)}
+            >
+              <Icon name="pin" size={16} />
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="pp-bar-icon ld-bar-find"
+            aria-label="Find leads"
+            title="Find leads"
+            data-testid="leads-bar-find"
+            onClick={() => onFind()}
+            {...(canFind ? {} : window.gate("find", "find businesses for you"))}
+          >
+            <Icon name="three" size={16} />
+          </button>
+        </>
       )}
     />
   );
@@ -240,6 +257,37 @@ const LeadPlanSheet = ({ onClose, children }) => (
   </>
 );
 
+// Needs review on a phone is rows, like every other list (Ruben, 25 Sep): the same cards, in the pile's order, in
+// groups under one quiet line each -- the group's words, its count and its acts -- with no bench, no card restating
+// the reason and no buttons on rows. A row's own act is a slide (leads-cells.jsx ldCardCell) or a selection into the
+// bar; a group's acts press the doors the bench and the bar press. The desktop keeps its workbench.
+const ldReviewSections = (p) => {
+  const V = window.__LEAD_VM || {};
+  const words = V.LEAD_REVIEW_ACT_WORDS || {};
+  const review = p.review || {};
+  const x = p.cellCtx || {};
+  const can = (a) => (a === "check_again" ? !!review.canCheckAgain : a === "find_email" ? !!review.canFindEmail : true);
+  const press = (a, ids) => (a === "check_again" ? review.onCheckAgain(ids) : a === "find_email" ? review.onFindEmail(ids) : a === "keep" ? review.onKeep(ids) : review.onExclude(ids));
+  const gate = x.canFind ? {} : window.gate("find", "work these leads");
+  return p.benchGroups.map((g) => {
+    const acts = g.acts.filter(can);
+    return {
+      key: g.key,
+      label: g.label,
+      rows: p.rows.filter((l) => g.ids.indexOf(l.id) >= 0),
+      meta: acts.length ? (
+        <span className="ld-sec-acts">
+          {acts.map((a) => (
+            <button key={a} type="button" className="ld-sec-act" onClick={() => press(a, g.ids)} data-testid={`review-sec-${a}`} {...gate}>
+              {a === "keep" || a === "exclude" ? `${words[a] || a} all` : words[a] || a}
+            </button>
+          ))}
+        </span>
+      ) : null,
+    };
+  });
+};
+
 /* ------------------------------------------------------------ the scope itself */
 
 const LeadsScope = (p) => {
@@ -253,6 +301,8 @@ const LeadsScope = (p) => {
   // draws the other shape at once, where this read it on every draw and drew the other shape only on the next state
   // change. Nothing here is a hook.
   const phone = !!p.phone;
+  // Needs review on a phone: the pile as the table's own sections (ldReviewSections), never the bench.
+  const sections = phone && p.view.cls === "review" && p.benchGroups.length ? ldReviewSections(p) : null;
   const railRows = (
     <LeadsRailRows
           compact={phone}
@@ -296,6 +346,9 @@ const LeadsScope = (p) => {
           <LeadsPhoneBar
             scope="leads"
             onScope={p.onScope}
+            mapOn={!!p.mapOpen}
+            onMap={p.onMap}
+            canMap={!!p.canMap}
             dealsOn={!!p.dealsOn}
             listLabel={p.railLabel}
             listCount={p.railCount}
@@ -412,7 +465,7 @@ const LeadsScope = (p) => {
                 canFind={p.canFind}
               />
             )
-            : p.view.cls === "review" && p.benchGroups.length
+            : p.view.cls === "review" && p.benchGroups.length && !phone
             ? (
               <LeadReviewBench
                 groups={p.benchGroups}
@@ -457,9 +510,10 @@ const LeadsScope = (p) => {
                 budget={p.rowBudget}
                 noun="lead"
                 columns={p.columns}
-                ctx={p.cellCtx}
+                ctx={sections ? { ...p.cellCtx, sectioned: true } : p.cellCtx}
                 rows={p.rows}
                 rowClass={phone ? ldCardRowClass : ldRowClass}
+                sections={sections}
                 total={p.total}
                 sortBy={p.sortBy}
                 sortDir={p.sortDir}
