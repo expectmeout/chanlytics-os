@@ -12,6 +12,7 @@ import {
   forwardingTestOpen,
   telHref,
   CARRIERS,
+  forwardingDialLabel,
   FORWARDING_MODES,
   CARRIER_WORDS,
   MODE_WORDS,
@@ -51,7 +52,7 @@ test("the codes: every carrier and mode dials the receptionist's line; each card
   assert.equal(o.on.code, "*923055550123");
   assert.equal(o.off.code, "*93");
   assert.ok(o.notes.some((n) => /ask your carrier/i.test(n)));
-  for (const c of CARRIERS)
+  for (const c of CARRIERS.filter((k) => k !== "office"))
     for (const m of FORWARDING_MODES) {
       const codes = forwardingCodes(c, m, DEST);
       assert.ok(
@@ -66,12 +67,28 @@ test("the codes: every carrier and mode dials the receptionist's line; each card
       assert.ok(!codes.on.code.includes("+1305") || c === "tmobile", `${c}: ten digits unless the carrier wants +1`);
     }
   assert.equal(telHref("**21*+1#"), "tel:**21*%2B1%23");
-  assert.deepEqual([...CARRIERS], ["verizon", "att", "tmobile", "other"]);
+  // An office phone system takes no code: the receptionist's number, set in its own settings (00173).
+  const office = forwardingCodes("office", "unanswered", DEST);
+  assert.deepEqual(office.on, { code: "+13055550123", tel: "tel:%2B13055550123" });
+  assert.equal(office.off.code, "", "switched off in the same settings, not by a code");
+  assert.match(office.notes[0], /^An office phone system takes no code/);
+  assert.ok(
+    office.notes.some((n) => /voicemail/.test(n)),
+    "and what keeps calls away",
+  );
+  assert.equal(forwardingCodes("office", "always", DEST).notes.length, 1, "no voicemail race when every call goes");
+  assert.equal(forwardingDialLabel("verizon", "+1 (212) 555-0142"), "Dial on the phone with +1 (212) 555-0142");
+  assert.equal(
+    forwardingDialLabel("office", "+1 (212) 555-0142"),
+    "In the phone system for +1 (212) 555-0142, forward the calls to",
+  );
+  assert.deepEqual([...CARRIERS], ["verizon", "att", "tmobile", "other", "office"]);
   assert.deepEqual(CARRIER_WORDS, {
     verizon: "Verizon",
     att: "AT&T",
     tmobile: "T-Mobile",
     other: "Another carrier or a landline",
+    office: "An office phone system",
   });
   assert.deepEqual(MODE_WORDS, { unanswered: "Only calls you don't answer", always: "Every call" });
   assert.equal(FORWARDING_TEST_WINDOW_MS, 30 * 60_000);
@@ -220,6 +237,13 @@ test("the row: nothing to forward to yet, then set it up, dial and test, testing
     label: "Test it",
     to: "verb:forwarding-test:0f3c2a1e-1111-4222-8333-444455556666",
   });
+  const office = setupSteps({ ...base(), lines: lines([fwLine({}, { carrier: "office" })]) }, NOW);
+  assert.equal(
+    row(office, "keep").sentence,
+    `Forward ${formatPhoneDisplay("+12125550142")} to your receptionist in your phone system's settings, then test it.`,
+    "no code to dial in an office phone system",
+  );
+  assert.deepEqual(row(office, "keep").details, ["Only calls you don't answer · An office phone system"]);
   const testing = setupSteps({ ...base(), lines: lines([fwLine({}, { test_until: "2026-09-07T15:30:00Z" })]) }, NOW);
   assert.equal(row(testing, "keep").state, "waiting_you");
   assert.match(row(testing, "keep").sentence, /^Testing — call \+1 \(212\) 555-0142 from another phone/);
@@ -276,4 +300,18 @@ test("the wiring: the migration, the forwarding event kind, and the bridge and t
   ])
     assert.ok(page.includes(pin), pin);
   // The nightly spec walks the first run a step at a time (e2e/setup.spec.ts) and counts no rows at all.
+});
+
+test("00173: an office phone system and a request to set forwarding up with a person, each one more value and nothing else", () => {
+  const mig = readRaw("supabase/migrations/00173_an_office_phone_forwards.sql");
+  for (const pin of [
+    "p_carrier not in ('verizon', 'att', 'tmobile', 'other', 'office')",
+    "p_what not in ('line', 'port', 'repair', 'forwarding')",
+    "v_route := 'start/phone';",
+    "grant execute on function public.line_forwarding_set(uuid, text, text, text, text) to authenticated;",
+    "grant execute on function public.setup_request(uuid, text) to authenticated;",
+    "Your receptionist has no line to forward to yet.",
+    "interval '1 day'",
+  ])
+    assert.ok(mig.includes(pin), pin);
 });

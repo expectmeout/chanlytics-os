@@ -12,6 +12,7 @@
  */
 import { billingDoorOpen, dayWords, maySpend, priceWords, CHECKOUT_OUTCOME_WORDS } from "./billing";
 import { formatPhoneDisplay, normalizePhone } from "./phone";
+import { agoWords } from "./time";
 import { CARRIER_WORDS, forwardingCodes, isCarrier, isForwardingMode, type Carrier } from "./forwarding";
 import { lineStuckProvisioning, SETUP_STATE_WORDS, type SetupDto, type SetupState, type SetupVM } from "./setup";
 
@@ -24,8 +25,8 @@ export interface PhonePick {
   friendly: string;
 }
 
-/** Which phone rings when customers call the number kept (canvas R4). An office phone system is 4c's. */
-export const PHONE_RINGS = ["mobile", "landline"] as const;
+/** Which phone rings when customers call the number kept (canvas R4, V6). */
+export const PHONE_RINGS = ["mobile", "landline", "office"] as const;
 export type PhoneRings = (typeof PHONE_RINGS)[number];
 
 /**
@@ -40,18 +41,23 @@ export interface PhoneChoice {
   pick: PhonePick | null;
   pending: boolean;
   rings?: PhoneRings | null;
-  company?: Carrier | null;
+  company?: PhoneCompany | null;
   redo?: boolean;
 }
 
+/** A mobile's phone company, as the question asks it. */
+export type PhoneCompany = Exclude<Carrier, "office">;
+
 /**
  * The carrier whose codes a phone takes: a mobile's own company's; a landline's the landline codes whoever runs it
- * (forwarding.ts `other`: most landlines take *92 and *72), since the mobile networks' codes are not a landline's.
+ * (forwarding.ts `other`: most landlines take *92 and *72), since the mobile networks' codes are not a landline's; an
+ * office phone system's none, since it forwards in its own settings (`office`, 00173).
  */
 export function forwardingCarrierOf(
   rings: PhoneRings | null | undefined,
-  company: Carrier | null | undefined,
+  company: PhoneCompany | null | undefined,
 ): Carrier | null {
+  if (rings === "office") return "office";
   if (rings === "landline") return "other";
   if (rings === "mobile") return company ?? null;
   return null;
@@ -84,6 +90,11 @@ export interface FirstRunPhoneCodeVM {
   change: string | null;
   /** Said once a call proved it: Setup's keep row's own sentence. */
   verified: string | null;
+  /**
+   * An office phone system (canvas V6, decision 3): a person at Chanlytics offered to set it up with the owner on a
+   * call, and, once asked, when; null for a phone with a code.
+   */
+  withMe: { sentence: string; label: string; asked: string | null } | null;
 }
 
 export interface FirstRunPhoneWayVM {
@@ -116,7 +127,7 @@ export interface FirstRunPhoneVM {
    */
   cta: { label: string; held: string | null; act: "trial" | "buy" | "forward" | "onward" } | null;
   /** The two questions, for a number kept or moved, from the moment the number is on its way. */
-  questions: { rings: FirstRunPhoneQuestion<PhoneRings>; company: FirstRunPhoneQuestion<Carrier> | null } | null;
+  questions: { rings: FirstRunPhoneQuestion<PhoneRings>; company: FirstRunPhoneQuestion<PhoneCompany> | null } | null;
   /** The code to dial, once the forwarding is saved. */
   code: FirstRunPhoneCodeVM | null;
   /**
@@ -196,10 +207,10 @@ export const FIRST_RUN_PHONE_WORDS = {
   /** The two questions while the number is on its way (canvas R4), and the button they lead to. */
   ringsLabel: (display: string | null) =>
     display ? `Which phone rings when customers call ${display}?` : "Which phone rings when customers call?",
-  rings: { mobile: "A mobile", landline: "A landline" } as Record<PhoneRings, string>,
+  rings: { mobile: "A mobile", landline: "A landline", office: "An office phone system" } as Record<PhoneRings, string>,
   companyLabel: "Who's the phone company?",
   company: { verizon: "Verizon", att: "AT&T", tmobile: "T-Mobile", other: "Another company" } as Record<
-    Carrier,
+    PhoneCompany,
     string
   >,
   show: "Show me what to dial",
@@ -231,6 +242,22 @@ export const FIRST_RUN_PHONE_WORDS = {
   help: "The code didn't work",
   change: "Change the answers",
   keepCode: "Keep the code I have",
+  /** An office phone system (canvas V6): the number to forward to, and a person to do it with. */
+  officeHeading: "Forward missed calls in your phone system",
+  officeLead: "Office phone systems set this in their own settings, under “forwarding” or “when no one answers”.",
+  officeLabel: (always: boolean) => (always ? "Forward every call to" : "Forward unanswered calls to"),
+  officeSteps: [
+    "Open your phone system's settings.",
+    "Find forwarding, or what happens when no one answers.",
+    "Forward the calls to the number above: your receptionist's number. Customers never see it.",
+  ],
+  officeWarn: "Voicemail in the system? The forwarding has to come before it, or calls never reach your receptionist.",
+  officeOff: "To switch it off later, take the forwarding out in the same settings.",
+  withMe: "Not sure where it is? A person at Chanlytics can do it with you on a call.",
+  withMeLabel: "Do it with me",
+  helpOffice: "It didn't work",
+  withMeAsked: (ago: string) => `Asked ${ago}: a person at Chanlytics will email you to find a time.`,
+  withMeSent: "We'll email you to find a time for a call.",
   notForwarded: "Forwarding not saved",
 } as const;
 
@@ -368,13 +395,51 @@ export function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }: FirstRunPh
         keepCode: W.keepCode,
       };
     }
+    if (saved && f!.carrier === "office") {
+      const mode = isForwardingMode(f!.mode) ? f!.mode : "unanswered";
+      const codes = forwardingCodes("office", mode, f!.destination_e164 ?? dest);
+      const keepRow = vm.rows.find((r) => r.id === "keep") ?? null;
+      const asked = dto.requests.forwarding ?? null;
+      return {
+        ...base,
+        stage: "code",
+        heading: W.officeHeading,
+        lead: W.officeLead,
+        trial: null,
+        status: null,
+        questions: null,
+        cta: { label: W.done, held: null, act: "onward" },
+        code: {
+          label: W.officeLabel(mode === "always"),
+          dial: formatPhoneDisplay(f!.destination_e164 ?? dest) ?? dest,
+          tel: codes.on.tel,
+          tap: null,
+          steps: [...W.officeSteps],
+          warn: W.officeWarn,
+          off: W.officeOff,
+          help: { label: W.helpOffice, notes: codes.notes },
+          change: savedFrom ? W.change : null,
+          verified: fw!.forwarding_state === "verified" && keepRow ? keepRow.sentence : null,
+          withMe: {
+            sentence: W.withMe,
+            label: W.withMeLabel,
+            asked: asked ? W.withMeAsked(agoWords(Date.parse(asked), nowMs)) : null,
+          },
+        },
+        forwardFrom: null,
+        saved: null,
+        keepCode: null,
+      };
+    }
     if (saved) {
-      const carrier = f!.carrier as Carrier;
+      // Not an office phone system (drawn above): a company with its codes.
+      const carrier = f!.carrier as PhoneCompany;
       // The mode saved, which Setup's own card may have set to every call: the code and the lead follow it.
       const mode = isForwardingMode(f!.mode) ? f!.mode : "unanswered";
       const codes = forwardingCodes(carrier, mode, f!.destination_e164 ?? dest);
       // What rings, as answered; a tab that lost the answers says neither (a mobile with another company is `other` too).
-      const said: PhoneRings | null = rings;
+      // An office answer the saved forwarding does not bear out (another tab changed it) is not said either.
+      const said = rings === "office" ? null : rings;
       const keepRow = vm.rows.find((r) => r.id === "keep") ?? null;
       return {
         ...base,
@@ -398,6 +463,7 @@ export function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }: FirstRunPh
           help: { label: W.help, notes: codes.notes },
           change: savedFrom ? W.change : null,
           verified: fw!.forwarding_state === "verified" && keepRow ? keepRow.sentence : null,
+          withMe: null,
         },
         forwardFrom: null,
         saved: null,

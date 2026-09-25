@@ -930,7 +930,7 @@ test("your phone (canvas R4): while the number gets ready, the two questions, ke
   assert.equal(byTestId(tree, "fr-phone").props["data-stage"], "buying");
   assert.equal(
     textOf(byTestId(tree, "fr-phone-questions")),
-    "Which phone rings when customers call +1 (305) 555-0100?A mobileA landline",
+    "Which phone rings when customers call +1 (305) 555-0100?A mobileA landlineAn office phone system",
   );
   assert.equal(textOf(byTestId(tree, "fr-phone-held")), "Ready in a moment");
   choose(tree, "rings", "A mobile");
@@ -1082,4 +1082,35 @@ test("your phone: a role that may not save the forwarding sees the questions wit
   } finally {
     globalThis.window.canDo = () => true;
   }
+});
+
+test("your phone (canvas V6): an office phone system is shown the number, and Do it with me asks a person", async () => {
+  const { asked } = phoneWorld();
+  forwardingSays();
+  flashes.length = 0;
+  globalThis.window.__tabMemory.keepDraft("first-run-phone", {
+    way: "keep",
+    number: null,
+    pick: null,
+    pending: false,
+    rings: "office",
+  });
+  globalThis.window.__SETUP = surface(answeringLine([forwardedRow("office")]));
+  param = "phone";
+  fresh();
+  const tree = mount();
+  assert.equal(textOf(byTestId(tree, "fr-heading")), "Forward missed calls in your phone system");
+  assert.equal(textOf(byTestId(tree, "fr-phone-dial")), "+1 (305) 555-0142");
+  await byTestId(tree, "fr-phone-with-me-go").props.onClick();
+  assert.deepEqual(asked.request, ["forwarding"]);
+  assert.equal(textOf(flashes.at(-1).msg), "We'll email you to find a time for a call.");
+  const later = surface({
+    ...answeringLine([forwardedRow("office")]),
+    requests: { line: null, forwarding: "2026-09-07T14:00:00Z" },
+  });
+  globalThis.window.__SETUP = later;
+  fresh();
+  const asked2 = mount();
+  assert.equal(byTestId(asked2, "fr-phone-with-me-go"), null);
+  assert.match(textOf(byTestId(asked2, "fr-phone-with-me-asked")), /^Asked /);
 });

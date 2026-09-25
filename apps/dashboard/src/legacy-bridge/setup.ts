@@ -23,6 +23,7 @@ import {
   forwardingCodes,
   forwardingTestOpen,
   CARRIERS,
+  forwardingDialLabel,
   FORWARDING_MODES,
   CARRIER_WORDS,
   MODE_WORDS,
@@ -84,6 +85,7 @@ export interface SetupApi {
 /** The words and the codes the forwarding card needs, published for the classic page. */
 export interface ForwardingWords {
   codes: typeof forwardingCodes;
+  dialLabel: typeof forwardingDialLabel;
   testOpen: typeof forwardingTestOpen;
   carriers: readonly string[];
   modes: readonly string[];
@@ -162,6 +164,7 @@ export const setupOverride: SurfaceOverride = {
 export function installSetup(win: Window = window): void {
   win.__forwarding = {
     codes: forwardingCodes,
+    dialLabel: forwardingDialLabel,
     testOpen: forwardingTestOpen,
     carriers: CARRIERS,
     modes: FORWARDING_MODES,

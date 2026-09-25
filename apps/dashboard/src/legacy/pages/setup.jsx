@@ -208,16 +208,16 @@ const ForwardingCard = ({ S, flash, onDone }) => {
       </div>
       {codes && (
         <div className="setup-fw-code" data-testid="setup-fw-code">
-          <span className="setup-find-label">Dial on the phone with {W.display(fw.e164)}</span>
+          <span className="setup-find-label">{W.dialLabel(f.carrier, W.display(fw.e164))}</span>
           <a className="setup-fw-dial tabular" href={codes.on.tel} data-testid="setup-fw-dial">{codes.on.code}</a>
           <ul className="setup-fw-notes">{codes.notes.map((n, i) => <li key={i}>{n}</li>)}</ul>
           <div className="setup-fw-actions">
             {fw.forwarding_state === "verified"
-              ? <span className="setup-fw-ok">Verified {f.verified_at ? W.ago(f.verified_at) : ""} · to switch it off, dial <b className="tabular">{codes.off.code}</b></span>
+              ? <span className="setup-fw-ok">Verified {f.verified_at ? W.ago(f.verified_at) : ""}{codes.off.code ? <> · to switch it off, dial <b className="tabular">{codes.off.code}</b></> : null}</span>
               : testing
                 ? <span className="setup-fw-ok">The window is open — call {W.display(fw.e164)} from another phone. This page updates by itself.</span>
                 : <button className="btn btn-sm" onClick={test} disabled={busy} data-testid="setup-fw-test" {...window.gate("team", "test forwarding")}>Test it</button>}
-            {fw.forwarding_state !== "verified" && <span className="setup-fw-off">Off again: <b className="tabular">{codes.off.code}</b></span>}
+            {fw.forwarding_state !== "verified" && codes.off.code && <span className="setup-fw-off">Off again: <b className="tabular">{codes.off.code}</b></span>}
           </div>
         </div>
       )}

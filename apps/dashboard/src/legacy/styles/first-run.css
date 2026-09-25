@@ -166,6 +166,7 @@ button.fr-rail-btn:hover { background: var(--bg-sunken); color: var(--ink); }
 /* A tap dials only on a phone: a desk's screen says the code and nothing to press. */
 .fr-code-tap { display: none; }
 .fr-code-links { display: flex; flex-wrap: wrap; gap: 16px; }
+.fr-code-with { display: grid; justify-items: start; gap: 8px; }
 
 /* Looks right, held until the step is done: in reach, with why beside it. */
 .fr-held { flex: 1 1 auto; font-size: 12.5px; line-height: var(--leading-normal); color: var(--ink-dim); text-align: right; }

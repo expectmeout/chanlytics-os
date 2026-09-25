@@ -170,3 +170,25 @@ FrPhone in `choose` and the rows in `rows`).
     row stays on Today's card for an owner who left before dialling.
   - Setup's ForwardingCard stays as it is for Settings' own path. The first run draws its own card from the same
     contracts (`forwardingCodes`).
+
+## As built, 4c (24 Sep 2026)
+
+- **Migration `00173_an_office_phone_forwards.sql`.** 00172 was already taken by another branch. It redefines
+  `line_forwarding_set` (00067) and `setup_request` (00123) whole, each with one more value: carrier `office`, and
+  request `forwarding` (its bell opens `start/phone`). Signatures are unchanged.
+- **Contracts.**
+  - `Carrier` gains `office` ("An office phone system"). Its `forwardingCodes` is the receptionist's number with no
+    switch-off code, and notes on where to set it and what keeps calls away.
+  - `forwardingDialLabel` says what to do for every card, Setup's ForwardingCard included, which also hides an empty
+    switch-off code.
+  - Setup's keep row says "Forward … in your phone system's settings" for an office system.
+  - `SETUP_REQUEST_KINDS` gains `forwarding`, and `SetupDto.requests.forwarding` carries its newest ask.
+- **The first run.**
+  - "An office phone system" is the third answer to which phone rings. It asks no company and saves carrier
+    `office`.
+  - The code screen is V6: the number to forward to, the steps in the system's settings, the voicemail warning, how
+    to switch it off, and "Do it with me" (`setup_request('forwarding')`, gated as an operator's ask). Once asked,
+    the screen says when, from Setup's own read.
+- **The edge** emails the platform what to do for a `forwarding` ask.
+- **Deploy order:** apply 00173 before merging. A dashboard with this change on a database without it refuses the
+  office answer with "Unknown carrier." and the ask with "Unknown request."; nothing else changes.
