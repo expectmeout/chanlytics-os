@@ -233,7 +233,7 @@ test("the cache is keyed on the ACTIVE workspace", () => {
     // public-suffix list. Both stop being true on a shared custom domain.
     const at = wrapper.indexOf("isSameOrigin(req)");
     assert.ok(at > -1, "withRoute must make the check");
-    assert.ok(at < wrapper.indexOf("getUser()"), "and make it before the session lookup");
+    assert.ok(at < wrapper.indexOf("getClaims()"), "and make it before the session lookup");
     assert.match(wrapper, /status: 403/);
   });
 
