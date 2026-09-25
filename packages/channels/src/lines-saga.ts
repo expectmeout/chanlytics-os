@@ -16,7 +16,7 @@
  * and never onto the row's facts.
  */
 import type { SchemaSet } from "@chanlytics/contracts";
-import { RETELL_ORIGINATION, isValidSipPassword, sipPassword, sipUsername, trunkDomain } from "./lines";
+import { RETELL_ORIGINATION, isValidSipPassword, sipPassword, sipUsername, subaccountName, trunkDomain } from "./lines";
 import type { LineProvider, ProviderAccount } from "./lines";
 
 export type LineStep = SchemaSet<"lines.step">;
@@ -95,9 +95,32 @@ export interface LinePorts {
   /** Where the line's texts arrive (no key: the provider signs every request). */
   smsInboundUrl: string;
   nickname: string;
+  /**
+   * Milliseconds until the run must start no more provider calls (the job's deadline). A carrier call's own timeout
+   * fits in the gap between that deadline and the function's ceiling; a step that makes more than one is asked for
+   * the difference first. At zero the saga stops between two calls, the row says where, and the job hands the rest
+   * to the next one. Absent: the run goes to the end, as it always did.
+   */
+  timeLeft?: () => number;
 }
 
-export type SagaResult = { ok: true; line: LineRow } | { ok: false; step: LineStep; error: string; line: LineRow };
+/**
+ * `later`: the run stopped at its deadline between two provider calls, nothing failed, and the rest is the next run's
+ * (the row stays "provisioning" at `step`, and every receipt so far is on it).
+ */
+export type SagaResult =
+  | { ok: true; line: LineRow; later?: undefined }
+  | { ok: true; later: true; step: LineStep; line: LineRow }
+  | { ok: false; step: LineStep; error: string; line: LineRow };
+
+/** Thrown between two calls when the run is out of time; caught below as `later`, never as a failure. */
+const OUT_OF_TIME = Symbol("out of time");
+
+/**
+ * The receptionist's step is three Retell calls at 8 s (the LLM, the agent, its publish): 24 s against the 15 s a
+ * single carrier call is given after the deadline. It starts only with this much more left.
+ */
+const AGENT_STEP_MORE_MS = 10_000;
 
 /** The body Retell's import takes — pure, so a test can pin it. */
 export function retellImportBody(o: {
@@ -145,6 +168,29 @@ export async function runLineSaga(start: LineRow, ports: LinePorts): Promise<Sag
     await ports.store.save(patch);
   };
   const fact = async (k: string, v: unknown) => save({ facts: { ...line.facts, [k]: v } });
+  /** Before every provider call: stop here if the run is out of time (`more`: what a longer step needs besides). */
+  const room = (more = 0) => {
+    if (ports.timeLeft && ports.timeLeft() <= more) throw OUT_OF_TIME;
+  };
+  /**
+   * Make a thing once. The receipt of a create is written after the provider answers, so a run killed in between left
+   * it made and the row silent -- and two of them cost nothing but for the trunk (its domain is the line's, so a second
+   * is refused, for ever) and the SIP credential (its username is the line's). So the ask is marked first, and a run
+   * that finds the mark with no receipt looks before asking again. A fresh line makes no extra call.
+   */
+  const once = async <T>(key: string, look: () => Promise<T | null>, make: () => Promise<T>): Promise<T> => {
+    const asked = `asked_${key}`;
+    room();
+    if (line.facts[asked] === true) {
+      const found = await look();
+      if (found) return found;
+      room();
+    } else {
+      // Marked only once the run has time to ask: a mark with no ask behind it costs the next run a look.
+      await fact(asked, true);
+    }
+    return make();
+  };
 
   if (line.voice_state === "answering" && nextLineStep(line) === null) return { ok: true, line };
   if (!line.e164) {
@@ -168,10 +214,16 @@ export async function runLineSaga(start: LineRow, ports: LinePorts): Promise<Sag
 
   try {
     while ((step = nextLineStep(line)) !== null) {
+      room();
       await save({ step });
       switch (step) {
         case "subaccount": {
-          const acct = await ports.provider.createSubaccount(ports.master, `${ports.tenant.name} · Chanlytics`);
+          const name = subaccountName(ports.tenant.name, line.id);
+          const acct = await once(
+            "subaccount",
+            () => ports.provider.findSubaccount(ports.master, name),
+            () => ports.provider.createSubaccount(ports.master, name),
+          );
           await putSecrets({ auth_token: acct.token });
           await save({ subaccount_sid: acct.sid });
           break;
@@ -185,6 +237,7 @@ export async function runLineSaga(start: LineRow, ports: LinePorts): Promise<Sag
           //
           // Idempotent now, which is the property every other step already had.
           const held = await ports.provider.ownedNumber(sub(), line.e164);
+          if (!held) room();
           const bought =
             held ?? (await ports.provider.buyNumber(sub(), line.e164, `${ports.tenant.name} · Chanlytics`));
           await save({ number_sid: bought.sid, e164: bought.e164 });
@@ -193,35 +246,61 @@ export async function runLineSaga(start: LineRow, ports: LinePorts): Promise<Sag
         case "trunk": {
           const acct = sub();
           if (!line.trunk_sid) {
-            const t = await ports.provider.createTrunk(acct, {
-              friendlyName: `${ports.tenant.name} · Chanlytics`,
-              domainName: trunkDomain(line.id),
-            });
+            const domainName = trunkDomain(line.id);
+            const t = await once(
+              "trunk",
+              () => ports.provider.findTrunk(acct, domainName),
+              () => ports.provider.createTrunk(acct, { friendlyName: `${ports.tenant.name} · Chanlytics`, domainName }),
+            );
             await save({ trunk_sid: t.sid, termination_uri: t.domainName });
           }
           if (!line.credential_list_sid) {
-            const cl = await ports.provider.createCredentialList(acct, `${ports.tenant.name} · Chanlytics`);
+            const name = `${ports.tenant.name} · Chanlytics`;
+            const cl = await once(
+              "credential_list",
+              () => ports.provider.findCredentialList(acct, name),
+              () => ports.provider.createCredentialList(acct, name),
+            );
             await save({ credential_list_sid: cl.sid });
           }
           if (!secrets.sip_password || !secrets.sip_username) {
             const username = sipUsername(line.id);
             const password = sipPassword(ports.random);
             if (!isValidSipPassword(password)) throw new Error("generated SIP password failed Twilio's rule");
-            await ports.provider.addCredential(acct, line.credential_list_sid!, username, password);
+            // Its password went with the run that made it, and a list holds a username once: removed, made again.
+            await once(
+              "credential",
+              async () => {
+                const lost = await ports.provider.findCredential(acct, line.credential_list_sid!, username);
+                if (lost) {
+                  room();
+                  await ports.provider.deleteCredential(acct, line.credential_list_sid!, lost.sid);
+                }
+                return null;
+              },
+              () => ports.provider.addCredential(acct, line.credential_list_sid!, username, password),
+            );
             await putSecrets({ sip_username: username, sip_password: password });
           }
           if (line.facts.credential_list_attached !== true) {
+            room();
             await ports.provider.attachCredentialList(acct, line.trunk_sid!, line.credential_list_sid!);
             await fact("credential_list_attached", true);
           }
           if (typeof line.facts.origination_sid !== "string") {
-            const o = await ports.provider.addOrigination(acct, line.trunk_sid!, {
-              sipUrl: RETELL_ORIGINATION,
-              friendlyName: "Retell",
-            });
+            const o = await once(
+              "origination",
+              () => ports.provider.findOrigination(acct, line.trunk_sid!, RETELL_ORIGINATION),
+              () =>
+                ports.provider.addOrigination(acct, line.trunk_sid!, {
+                  sipUrl: RETELL_ORIGINATION,
+                  friendlyName: "Retell",
+                }),
+            );
             await fact("origination_sid", o.sid);
           }
           if (line.facts.number_attached !== true) {
+            room();
             await ports.provider.attachNumber(acct, line.trunk_sid!, line.number_sid!);
             await fact("number_attached", true);
           }
@@ -229,6 +308,7 @@ export async function runLineSaga(start: LineRow, ports: LinePorts): Promise<Sag
           break;
         }
         case "agent": {
+          room(AGENT_STEP_MORE_MS);
           const a = await ports.agent.ensure();
           await save({ retell_agent_id: a.agentId, facts: { ...line.facts, llm_id: a.llmId, agent_pinned: a.pinned } });
           break;
@@ -271,6 +351,7 @@ export async function runLineSaga(start: LineRow, ports: LinePorts): Promise<Sag
             await save({ messaging_service_sid: svc.sid });
           }
           if (line.facts.number_in_service !== true) {
+            room();
             await ports.provider.addNumberToService(acct, line.messaging_service_sid!, line.number_sid!);
             await fact("number_in_service", true);
           }
@@ -296,6 +377,9 @@ export async function runLineSaga(start: LineRow, ports: LinePorts): Promise<Sag
     await save({ voice_state: "answering", step: null, last_error: null, state_since: ports.now() });
     return { ok: true, line };
   } catch (e) {
+    // Out of time is not a failure: the row keeps "provisioning" and its step, and the next run goes on from there.
+    if (e === OUT_OF_TIME)
+      return { ok: true, later: true, step: (line.step ?? step ?? "subaccount") as LineStep, line };
     const error = errorWords(e);
     const at = (line.step ?? step ?? "subaccount") as LineStep;
     await save({ voice_state: "failed", step: at, last_error: error, state_since: ports.now() });

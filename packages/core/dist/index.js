@@ -3293,6 +3293,7 @@ var twilioUrls = {
   incomingNumber: (sid2, numberSid) => `${API2}/Accounts/${sid2}/IncomingPhoneNumbers/${numberSid}.json`,
   credentialLists: (sid2) => `${API2}/Accounts/${sid2}/SIP/CredentialLists.json`,
   credentials: (sid2, listSid) => `${API2}/Accounts/${sid2}/SIP/CredentialLists/${listSid}/Credentials.json`,
+  credential: (sid2, listSid, credentialSid) => `${API2}/Accounts/${sid2}/SIP/CredentialLists/${listSid}/Credentials/${credentialSid}.json`,
   trunks: `${TRUNKING}/Trunks`,
   trunk: (trunkSid) => `${TRUNKING}/Trunks/${trunkSid}`,
   trunkCredentialLists: (trunkSid) => `${TRUNKING}/Trunks/${trunkSid}/CredentialLists`,
@@ -10377,8 +10378,12 @@ async function provisionLine(ports, cmd) {
   const by = cmd.payload.by === "sweep" || cmd.payload.by === "support" ? cmd.payload.by : "owner";
   if (!lineId) throw new Error("line_provision: payload.line_id is required");
   if (!ports.provision) throw new Error("line_provision: this runtime holds no line provider");
-  const r4 = await ports.provision(lineId, by);
+  const r4 = await ports.provision(lineId, by, ports.deadline);
   if (!r4.ok) throw new Error(`line_provision: stopped at ${r4.step ?? "?"}: ${r4.error ?? "unknown"}`);
+  if (r4.more) {
+    if (!ports.next) throw new Error(`line_provision: stopped for time at ${r4.step ?? "?"}, and nothing continues it`);
+    await ports.next({ line_id: lineId, by });
+  }
 }
 
 // src/messages/email-ingest.ts

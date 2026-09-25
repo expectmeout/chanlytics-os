@@ -32,6 +32,8 @@ export interface LineProvisionOutcome {
   ok: boolean;
   step?: string;
   error?: string;
+  /** The run stopped at its deadline with steps left: the job hands the rest to the next one. */
+  more?: boolean;
   /** What the run did, for the log: ran, resumed, nothing (and why). */
   did: "ran" | "resumed" | "nothing";
   why?: string;
@@ -58,6 +60,8 @@ export async function provisionLineJob(
   lineId: string,
   by: ResumedBy,
   deps: LineProvisionDeps = realLineProvisionDeps(),
+  /** The job's deadline (JobContext.deadline): no provider call starts after it. */
+  deadline?: number,
 ): Promise<LineProvisionOutcome> {
   const choice = deps.provider();
   if (!choice) return { ok: false, error: "no_line_provider", did: "nothing", why: "no provider" };
@@ -113,6 +117,7 @@ export async function provisionLineJob(
     did = "resumed";
   }
 
-  const r = await deps.provision(db, choice, { apiKey }, { fnSecret }, tenant.data, rowToLine(line), by);
+  const r = await deps.provision(db, choice, { apiKey }, { fnSecret }, tenant.data, rowToLine(line), by, deadline);
+  if (r.ok && r.later) return { ok: true, did, more: true, step: r.step };
   return r.ok ? { ok: true, did } : { ok: false, step: r.step, error: r.error, did };
 }
