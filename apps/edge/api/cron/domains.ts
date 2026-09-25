@@ -14,6 +14,7 @@ import { env } from "../../lib/env.js";
 import { dueSendingDomains } from "../../lib/packages/db.js";
 import { readDmarc } from "../../lib/email/dmarc.js";
 import { checkSendingDomain, type DomainPorts } from "../../lib/email/sending-domains.js";
+import { watchColdReceipts } from "../../lib/email/cold-receipts.js";
 import { pageOperator } from "../../lib/ops/page-operator.js";
 
 export const config = { maxDuration: 60 };
@@ -58,13 +59,14 @@ export async function POST(request: Request): Promise<Response> {
   }
   if (!rows.length) return json(200, { ok: true, checked: 0 });
 
+  const page = (key: string, subject: string, body: string) => pageOperator({ db }, key, subject, body);
   const ports: DomainPorts = {
     db,
     cfg: { apiKey: coldKey },
     dmarc: (h) => readDmarc(h),
     now: Date.now,
     log: L,
-    page: (key, subject, body) => pageOperator({ db }, key, subject, body),
+    page,
   };
   // How stale the oldest due read was when this tick began: what a person reading the sweep's answer judges it by.
   // Null when the oldest due domain was never read at all.
@@ -94,6 +96,10 @@ export async function POST(request: Request): Promise<Response> {
     const spent = Date.now() - batchStarted;
     if (i + AT_ONCE < rows.length && spent < BATCH_AT_LEAST_MS) await sleep(BATCH_AT_LEAST_MS - spent);
   }
+  // Whether cold email's receipts reach us at all (lib/email/cold-receipts.ts): one read, and a page to the platform
+  // when a domain's emails of the last day heard nothing back. It is the platform's to act on, not this sweep's: its
+  // answer below is about the domains, which were read either way.
+  await watchColdReceipts({ db, now: Date.now, log: L, page });
   L.info("domains_swept", { ...counts, due: rows.length, oldest_read_s: oldestReadS });
   // The key refused for every domain read is the sweep learning nothing -- ours, not the domains' -- and 503 is how
   // sweep_health turns that red. A blip (a 5xx, a slow second, a 429) is not: those domains are read next tick, and

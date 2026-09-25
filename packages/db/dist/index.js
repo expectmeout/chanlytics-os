@@ -2759,6 +2759,12 @@ async function dueSendingDomains(db, limit) {
     await db.from("sending_domains").select("*").in("state", ["verifying", "verified", "held"]).or("held_why.is.null,held_why.eq.verification,held_why.eq.dmarc,held_why.eq.provider").order("checked_at", { ascending: true, nullsFirst: true }).limit(limit)
   ) ?? [];
 }
+async function coldReceiptsOwed(db, from, to) {
+  return must(
+    "count the receipts owed",
+    await db.rpc("cold_receipts_owed", { p_from: from.toISOString(), p_to: to.toISOString() })
+  ) ?? [];
+}
 async function countSendingDomains(db, tenantId) {
   const r2 = await db.from("sending_domains").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId);
   if (r2.error) throw new Error(`sending_domains: count a workspace's domains: ${r2.error.message}`);
@@ -3548,6 +3554,7 @@ export {
   assembleHistory,
   claimCallNotification,
   claimControl,
+  coldReceiptsOwed,
   countSendingDomains,
   countSentToday,
   createList,

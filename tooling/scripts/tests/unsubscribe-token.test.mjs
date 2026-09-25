@@ -25,7 +25,7 @@ const CLAIMS = {
 test("a token seals the workspace, the person and the email, in 87 url-safe characters, and gives them back", () => {
   const t = signUnsubscribeToken(SECRET, CLAIMS);
   assert.match(t, /^[A-Za-z0-9_-]{87}$/);
-  assert.deepEqual(verifyUnsubscribeToken(SECRET, t), CLAIMS);
+  assert.deepEqual(verifyUnsubscribeToken([SECRET], t), CLAIMS);
   // Upper-case ids are the same ids: the bytes are what is sealed.
   const upper = signUnsubscribeToken(SECRET, { ...CLAIMS, tenantId: CLAIMS.tenantId.toUpperCase() });
   assert.equal(upper, t);
@@ -33,29 +33,34 @@ test("a token seals the workspace, the person and the email, in 87 url-safe char
 
 test("anything this secret did not make is null, never a throw", () => {
   const t = signUnsubscribeToken(SECRET, CLAIMS);
-  assert.equal(verifyUnsubscribeToken("another-secret", t), null, "another secret");
-  assert.equal(verifyUnsubscribeToken("", t), null, "no secret");
-  assert.equal(verifyUnsubscribeToken(undefined, t), null, "an unset secret");
+  assert.equal(verifyUnsubscribeToken(["another-secret"], t), null, "another secret");
+  assert.equal(verifyUnsubscribeToken([], t), null, "no secret");
+  assert.equal(verifyUnsubscribeToken([""], t), null, "a blank secret");
+  assert.equal(verifyUnsubscribeToken([undefined, null], t), null, "unset secrets");
   for (let i = 0; i < t.length; i++) {
     const c = t[i] === "A" ? "B" : "A";
     const bent = t.slice(0, i) + c + t.slice(i + 1);
-    assert.equal(verifyUnsubscribeToken(SECRET, bent), null, `a character changed at ${i}`);
+    assert.equal(verifyUnsubscribeToken([SECRET], bent), null, `a character changed at ${i}`);
   }
-  assert.equal(verifyUnsubscribeToken(SECRET, t.slice(0, -1)), null, "cut short");
-  assert.equal(verifyUnsubscribeToken(SECRET, `${t}A`), null, "too long");
+  assert.equal(verifyUnsubscribeToken([SECRET], t.slice(0, -1)), null, "cut short");
+  assert.equal(verifyUnsubscribeToken([SECRET], `${t}A`), null, "too long");
   const plain = Buffer.from(t, "base64url").toString("base64");
   assert.notEqual(plain, t);
-  assert.equal(verifyUnsubscribeToken(SECRET, plain), null, "the same bytes in plain base64, padded");
-  assert.equal(verifyUnsubscribeToken(SECRET, `${t.slice(0, 40)}+${t.slice(41)}`), null, "a plain-base64 character");
-  assert.equal(verifyUnsubscribeToken(SECRET, ""), null, "empty");
-  assert.equal(verifyUnsubscribeToken(SECRET, null), null, "not a string");
+  assert.equal(verifyUnsubscribeToken([SECRET], plain), null, "the same bytes in plain base64, padded");
+  assert.equal(verifyUnsubscribeToken([SECRET], `${t.slice(0, 40)}+${t.slice(41)}`), null, "a plain-base64 character");
+  assert.equal(verifyUnsubscribeToken([SECRET], ""), null, "empty");
+  assert.equal(verifyUnsubscribeToken([SECRET], null), null, "not a string");
 
   // A token of another version, sealed properly under this very secret, is still not one this code reads.
   const raw = Buffer.from(t, "base64url");
   const payload = Buffer.from(raw.subarray(0, 49));
   payload[0] = 2;
   const mac = createHmac("sha256", SECRET).update("chanlytics-unsubscribe:").update(payload).digest().subarray(0, 16);
-  assert.equal(verifyUnsubscribeToken(SECRET, Buffer.concat([payload, mac]).toString("base64url")), null, "version 2");
+  assert.equal(
+    verifyUnsubscribeToken([SECRET], Buffer.concat([payload, mac]).toString("base64url")),
+    null,
+    "version 2",
+  );
 });
 
 test("only uuids are sealed, and never without a secret", () => {
@@ -86,4 +91,20 @@ test("the link is one a campaign email carries: List-Unsubscribe and One-Click, 
   assert.equal(request.headers["List-Unsubscribe"], `<${url}>`);
   assert.equal(request.headers["List-Unsubscribe-Post"], "List-Unsubscribe=One-Click");
   assert.ok(request.text.endsWith(`Unsubscribe: ${url}`));
+});
+
+test("a rotation breaks no link: one sealed under the secret before still opens, one under neither does not", () => {
+  const OLD = "the-secret-before-the-rotation";
+  const NEW = "the-secret-after-the-rotation";
+  const before = signUnsubscribeToken(OLD, CLAIMS);
+  const after = signUnsubscribeToken(NEW, CLAIMS);
+  assert.deepEqual(verifyUnsubscribeToken([NEW, OLD], before), CLAIMS, "a link already in an inbox");
+  assert.deepEqual(verifyUnsubscribeToken([NEW, OLD], after), CLAIMS, "a link minted since");
+  assert.deepEqual(
+    verifyUnsubscribeToken([NEW, "", undefined, OLD], before),
+    CLAIMS,
+    "a blank between them is skipped",
+  );
+  assert.equal(verifyUnsubscribeToken([NEW], before), null, "once the previous secret is unset, its links close");
+  assert.equal(verifyUnsubscribeToken([NEW, "yet-another"], before), null, "a secret it was never sealed under");
 });

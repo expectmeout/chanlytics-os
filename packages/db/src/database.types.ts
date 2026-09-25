@@ -4149,6 +4149,15 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      cold_receipts_owed: {
+        Args: { p_from: string; p_to: string }
+        Returns: {
+          host: string
+          sent: number
+          tenant_id: string
+          unanswered: number
+        }[]
+      }
       create_mailbox: {
         Args: { p_from_name: string; p_local_part: string; p_tenant_id: string }
         Returns: Json

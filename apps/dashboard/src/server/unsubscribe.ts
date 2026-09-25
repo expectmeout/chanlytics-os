@@ -36,7 +36,43 @@ export function setServiceClient(db: SupabaseClient<Database> | null): void {
   svc = db;
 }
 
-const secret = (): string | null => process.env.UNSUBSCRIBE_SECRET?.trim() || null;
+/**
+ * The secrets a link may be sealed under: the current one first, then the one before it while a rotation settles.
+ * Null without the current one, whatever the previous says: the door is either set up or it is not.
+ */
+function secrets(): string[] | null {
+  const current = process.env.UNSUBSCRIBE_SECRET?.trim();
+  if (!current) return null;
+  const previous = process.env.UNSUBSCRIBE_SECRET_PREVIOUS?.trim();
+  return previous ? [current, previous] : [current];
+}
+
+/** How often at most the door says it cannot answer: a scanner fetching every link must not flood the log. */
+const UNAVAILABLE_SAID_EVERY_MS = 60_000;
+let unavailableSaidAt = 0;
+
+/** A door that cannot answer, said to the platform (never the link, which is the authority to stop). */
+function sayUnavailable(why: "no_secret" | "no_database"): void {
+  const now = Date.now();
+  if (now - unavailableSaidAt < UNAVAILABLE_SAID_EVERY_MS) return;
+  unavailableSaidAt = now;
+  console.error("unsubscribe_unavailable", JSON.stringify({ why }));
+}
+
+/** The secrets and the database, or null once the platform has been told which is missing. */
+function door(): { keys: string[]; db: SupabaseClient<Database> } | null {
+  const keys = secrets();
+  if (!keys) {
+    sayUnavailable("no_secret");
+    return null;
+  }
+  const db = serviceDb();
+  if (!db) {
+    sayUnavailable("no_database");
+    return null;
+  }
+  return { keys, db };
+}
 
 const HEADERS = {
   "cache-control": "no-store",
@@ -113,10 +149,10 @@ async function senderOf(db: SupabaseClient<Database>, tenantId: string, messageI
 }
 
 export async function unsubscribeGet(token: string): Promise<Response> {
-  const key = secret();
-  const db = serviceDb();
-  if (!key || !db) return page(503, { kind: "unavailable" });
-  const claims = verifyUnsubscribeToken(key, token);
+  const open = door();
+  if (!open) return page(503, { kind: "unavailable" });
+  const { db } = open;
+  const claims = verifyUnsubscribeToken(open.keys, token);
   if (!claims) return page(404, { kind: "bad_link" });
   const [business, sender] = await Promise.all([
     businessName(db, claims.tenantId),
@@ -168,12 +204,12 @@ async function readFields(req: Request): Promise<Map<string, string> | "too_larg
 }
 
 export async function unsubscribePost(token: string, req: Request): Promise<Response> {
-  const key = secret();
-  const db = serviceDb();
-  if (!key || !db) return text(503, "Unsubscribe is not available right now. Try again in a minute.");
+  const open = door();
+  if (!open) return text(503, "Unsubscribe is not available right now. Try again in a minute.");
+  const { db } = open;
   // The link first: one we did not make is refused before its body is read or the database asked. Our own page
   // never draws the button under a bad link, so no person pressing lands here.
-  const claims = verifyUnsubscribeToken(key, token);
+  const claims = verifyUnsubscribeToken(open.keys, token);
   if (!claims) return text(400, "This link doesn't work.");
   if (Number(req.headers.get("content-length") ?? 0) > MAX_BODY_BYTES) return text(413, "Too large.");
   const fields = await readFields(req);

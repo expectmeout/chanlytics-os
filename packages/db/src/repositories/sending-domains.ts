@@ -61,6 +61,22 @@ export async function dueSendingDomains(db: Db, limit: number): Promise<SendingD
   );
 }
 
+/** One verified own domain's emails in a window: how many left it, and how many no delivery receipt has reached. */
+export type ColdReceiptsOwed = Database["public"]["Functions"]["cold_receipts_owed"]["Returns"][number];
+
+/**
+ * Every verified own domain that sent in [from, to), across the platform (00179): what the domains sweep reads to find
+ * a cold webhook whose receipts never arrive. A domain that sent nothing in the window is not listed.
+ */
+export async function coldReceiptsOwed(db: Db, from: Date, to: Date): Promise<ColdReceiptsOwed[]> {
+  return (
+    must(
+      "count the receipts owed",
+      await db.rpc("cold_receipts_owed", { p_from: from.toISOString(), p_to: to.toISOString() }),
+    ) ?? []
+  );
+}
+
 export async function countSendingDomains(db: Db, tenantId: string): Promise<number> {
   const r = await db.from("sending_domains").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId);
   if (r.error) throw new Error(`sending_domains: count a workspace's domains: ${r.error.message}`);

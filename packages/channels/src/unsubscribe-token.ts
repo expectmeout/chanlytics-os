@@ -8,7 +8,8 @@
  *
  * 65 bytes as base64url, 87 characters: a version, three uuids of 16 bytes each, and the first 16 bytes of an
  * HMAC-SHA256 over them under UNSUBSCRIBE_SECRET, which the edge (minting, Reach out Part 3) and the dashboard (the
- * page, apps/dashboard/app/u/[token]) share.
+ * page, apps/dashboard/app/u/[token]) share. The page also opens a link sealed under UNSUBSCRIBE_SECRET_PREVIOUS, so
+ * the secret can be rotated without closing a link already sent.
  */
 import { createHmac, timingSafeEqual } from "node:crypto";
 
@@ -48,16 +49,25 @@ export function signUnsubscribeToken(secret: string, c: UnsubscribeClaims): stri
   return Buffer.concat([payload, macOf(secret, payload)]).toString("base64url");
 }
 
-/** The claims a token seals, or null for anything that is not a token this secret made. Never throws. */
-export function verifyUnsubscribeToken(secret: string | null | undefined, token: string): UnsubscribeClaims | null {
-  if (!secret || typeof token !== "string" || !TOKEN.test(token)) return null;
+/**
+ * The claims a token seals, or null for anything that is not a token one of these secrets made. Never throws.
+ * `secrets` is the current secret and, while a rotation settles, the one before it: a link already in somebody's
+ * inbox must keep working for at least thirty days (CAN-SPAM), so a rotation never closes one. A blank is skipped.
+ */
+export function verifyUnsubscribeToken(
+  secrets: readonly (string | null | undefined)[],
+  token: string,
+): UnsubscribeClaims | null {
+  const keys = secrets.filter((s): s is string => typeof s === "string" && s.length > 0);
+  if (!keys.length || typeof token !== "string" || !TOKEN.test(token)) return null;
   const raw = Buffer.from(token, "base64url");
   // Only the one spelling this code writes: the decoder ignores a last character's spare bits, and a link that
   // differs from the one sent is not that link.
   if (raw.length !== PAYLOAD_BYTES + MAC_BYTES || raw[0] !== VERSION || raw.toString("base64url") !== token)
     return null;
   const payload = raw.subarray(0, PAYLOAD_BYTES);
-  if (!timingSafeEqual(raw.subarray(PAYLOAD_BYTES), macOf(secret, payload))) return null;
+  const mac = raw.subarray(PAYLOAD_BYTES);
+  if (!keys.some((k) => timingSafeEqual(mac, macOf(k, payload)))) return null;
   return {
     tenantId: uuidOf(payload.subarray(1, 17)),
     contactId: uuidOf(payload.subarray(17, 33)),

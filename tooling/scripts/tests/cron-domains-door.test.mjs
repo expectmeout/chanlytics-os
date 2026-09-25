@@ -80,6 +80,12 @@ function provider(statusById, onRead = () => {}) {
   });
 }
 
+/** 00179's cold_receipts_owed as the watch reads it: each row a verified domain that sent in the window. */
+let owed = () => [];
+beforeEach(() => {
+  owed = () => [];
+});
+
 function world(rows, counts) {
   const tables = {
     sending_domains: rows,
@@ -89,7 +95,7 @@ function world(rows, counts) {
     events: [],
     operator_pages: [],
   };
-  const rpcs = { ...vault };
+  const rpcs = { ...vault, cold_receipts_owed: (a) => owed(a) };
   // 00176's count, answered per host; a host answering an Error is a read that failed.
   if (counts)
     rpcs.sending_domain_counts = (a) => {
@@ -495,6 +501,83 @@ test("a complaint hold always tells its owner: only they can resume it (Part 2.5
     await answer(await knock(POST, "domains"));
     assert.deepEqual([w.row("d1").state, w.row("d1").held_why], ["held", "complaint"]);
     assert.equal(w.tables.notifications.length, 1);
+  } finally {
+    net.restore();
+  }
+});
+
+/* --------------------------------------------- the watch on cold receipts (Part 2.5) */
+
+const pagesSent = (net) => net.to("/emails").map((c) => JSON.parse(c.init.body));
+
+test("a domain whose emails of the last day heard nothing back pages the platform, in counts, never an address", async () => {
+  const w = world([domain("d1"), domain("d2")]);
+  dns["d1.example"] = "found";
+  dns["d2.example"] = "found";
+  const asked = [];
+  owed = (a) => {
+    asked.push(a);
+    return [
+      { tenant_id: A, host: "d1.example", sent: 5, unanswered: 5 },
+      // Heard back about one: its receipts arrive, whatever became of the other three.
+      { tenant_id: A, host: "d2.example", sent: 4, unanswered: 3 },
+    ];
+  };
+  const net = provider({ "pd-d1": "verified", "pd-d2": "verified" });
+  try {
+    const [status, body] = await answer(await knock(POST, "domains"));
+    assert.equal(status, 200, "the domains were read: the sweep is green, the page is the signal");
+    assert.equal(body.checked, 2);
+    assert.deepEqual(
+      w.tables.operator_pages.map((p) => p.key),
+      ["email_cold_receipts_missing"],
+    );
+    const [page] = pagesSent(net);
+    assert.equal(page.subject, "[Chanlytics] Cold email: no receipts are arriving");
+    assert.match(page.text, /^5 emails left one own domain between 2 and 26 hours ago/);
+    assert.match(page.text, /RESEND_COLD_WEBHOOK_SECRET/);
+    assert.doesNotMatch(page.text, /d1\.example|d2\.example|@/, "no domain, no address");
+    assert.equal(w.tables.notifications.length, 0, "no owner is told: the account is the platform's");
+    // The window it asked about: 26 to 2 hours back.
+    const [a] = asked;
+    assert.ok(Math.abs(Date.parse(a.p_from) - (Date.now() - 26 * 3600_000)) < 60_000, a.p_from);
+    assert.ok(Math.abs(Date.parse(a.p_to) - (Date.now() - 2 * 3600_000)) < 60_000, a.p_to);
+  } finally {
+    net.restore();
+  }
+});
+
+test("a few emails, or any that heard back, page nothing: one slow server is not a secret set wrong", async () => {
+  const w = world([domain("d1")]);
+  dns["d1.example"] = "found";
+  owed = () => [
+    { tenant_id: A, host: "d1.example", sent: 2, unanswered: 2 },
+    { tenant_id: A, host: "d2.example", sent: 30, unanswered: 29 },
+  ];
+  const net = provider({ "pd-d1": "verified" });
+  try {
+    assert.equal((await knock(POST, "domains")).status, 200);
+    assert.deepEqual(w.tables.operator_pages, []);
+    assert.deepEqual(pagesSent(net), []);
+  } finally {
+    net.restore();
+  }
+});
+
+test("a watch that could not be read changes nothing else: the domains were still read", async () => {
+  // The first read that found no DMARC was stored; this is the second, which holds it.
+  const w = world([domain("d1", { dmarc: "missing" })]);
+  dns["d1.example"] = "missing";
+  owed = () => {
+    throw new Error("the database is not answering");
+  };
+  const net = provider({ "pd-d1": "verified" });
+  try {
+    const [status, body] = await answer(await knock(POST, "domains"));
+    assert.equal(status, 200);
+    assert.equal(body.held, 1, "the sweep's own work stands");
+    assert.deepEqual([w.row("d1").state, w.row("d1").held_why], ["held", "dmarc"]);
+    assert.deepEqual(w.tables.operator_pages, []);
   } finally {
     net.restore();
   }
