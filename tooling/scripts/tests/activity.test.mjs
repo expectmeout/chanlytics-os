@@ -56,6 +56,16 @@ test("the words: a sentence per kind, the one or two fields a reader wants, noth
     }),
     "A consent answer changed · no to marketing email · unsubscribe",
   );
+  // A sending domain (00175): the host, and why when it was held, in the words Connections says.
+  assert.equal(
+    activityWords("sending_domain.held", { host: "getharbor.com", why: "dmarc" }),
+    "A domain to send from was held · getharbor.com · its DMARC record is missing",
+  );
+  assert.equal(
+    activityWords("sending_domain.added", { host: "getharbor.com", provider_domain_id: "pd-1" }),
+    "A domain to send from was added · getharbor.com",
+    "the host, never the provider's id",
+  );
   assert.equal(activityWords("export", { what: "workspace" }), "Exported data · everything");
   assert.equal(activityWords("export", { what: "people", rows: 312 }), "Exported data · everyone as a CSV · 312 rows");
   assert.equal(activityWords("export", { what: "conversation", messages: 40 }), "Exported data · a conversation");
@@ -133,7 +143,7 @@ test("the words: a sentence per kind, the one or two fields a reader wants, noth
   );
 });
 
-const TONED_KINDS = 43;
+const TONED_KINDS = 46;
 test("the tone: said only where the product knows one, and never for a kind that does not exist", () => {
   // A log where every line is the same grey is read rather than scanned, and
   // the line an owner opens it to find is the one that went wrong.

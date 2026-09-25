@@ -413,6 +413,13 @@ var EVENT_KINDS = [
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",
   "mailbox.renamed",
+  /** A workspace's own sending domain (Reach out, 00175): added, verified, held by the domains clock, sending again,
+   * removed. The host and the reason, never the provider's id. */
+  "sending_domain.added",
+  "sending_domain.verified",
+  "sending_domain.held",
+  "sending_domain.released",
+  "sending_domain.removed",
   /** A lead search's round started, waited, or ended with one of the nine endings (00140). */
   "lead.round",
   /** An ask no source card fits, logged as demand (§0.3): the words asked, never a place. */
@@ -20637,6 +20644,171 @@ function deskSignMetadata(f) {
   return f ? { title: `Desk sign: ${deskSignVM(f).business}`, robots: { index: false, follow: false } } : notFoundPageMetadata();
 }
 
+// src/sending-domains.ts
+var DAY_FMT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var SENDING_DOMAIN_STATES = ["records", "verifying", "verified", "held"];
+var DOMAIN_HOLDS = ["verification", "dmarc", "bounces", "complaint"];
+var DMARC_STATES = ["found", "missing"];
+var DNS_HOLDS = ["verification", "dmarc"];
+var SENDING_DOMAINS_MAX = 5;
+var DMARC_RECOMMENDED = "v=DMARC1; p=none;";
+var DOMAIN_RAMP = [
+  { days: 0, perDay: 30 },
+  { days: 14, perDay: 100 },
+  { days: 30, perDay: 200 }
+];
+var DAY_MS8 = 864e5;
+function cleanDays(cleanSince, nowMs) {
+  if (!cleanSince) return 0;
+  return Math.max(0, Math.floor((nowMs - Date.parse(cleanSince)) / DAY_MS8));
+}
+function domainDailyCap(cleanSince, nowMs) {
+  if (!cleanSince) return 0;
+  const days = (nowMs - Date.parse(cleanSince)) / DAY_MS8;
+  let cap2 = 0;
+  for (const step2 of DOMAIN_RAMP) if (days >= step2.days) cap2 = step2.perDay;
+  return cap2;
+}
+var FREE_MAIL_DOMAINS = /* @__PURE__ */ new Set([
+  "gmail.com",
+  "googlemail.com",
+  "yahoo.com",
+  "ymail.com",
+  "outlook.com",
+  "hotmail.com",
+  "live.com",
+  "msn.com",
+  "icloud.com",
+  "me.com",
+  "mac.com",
+  "aol.com",
+  "proton.me",
+  "protonmail.com",
+  "gmx.com",
+  "zoho.com",
+  "yandex.com",
+  "mail.com"
+]);
+function normalizeHost(typed) {
+  return typed.trim().toLowerCase().replace(/\.$/, "");
+}
+var HOST2 = /^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
+function whyNotASendingHost(typed, platform) {
+  const h = normalizeHost(typed);
+  if (!h) return "Write the domain you'll send from, like getyourbusiness.com.";
+  if (/[/:@\s]/.test(h)) return "Write the domain alone, like getyourbusiness.com: no https://, no address, no path.";
+  if (h.startsWith("www.")) return "Write the domain without www.";
+  if (h.length > 253 || !HOST2.test(h)) return "That isn't a domain name. It looks like getyourbusiness.com.";
+  if (FREE_MAIL_DOMAINS.has(h)) return `${h} is free mail: nobody can add records to it. Use a domain you own.`;
+  const mine = platform.mailDomain?.toLowerCase() ?? null;
+  const parent = mine ? mine.split(".").slice(-2).join(".") : null;
+  if (mine && (h === mine || h === parent || h.endsWith(`.${parent}`)))
+    return "That domain is Chanlytics' own. Use a domain your business owns.";
+  return null;
+}
+var RESERVED_FROM = /* @__PURE__ */ new Set([
+  "r",
+  "postmaster",
+  "abuse",
+  "mailer-daemon",
+  "noreply",
+  "no-reply"
+]);
+function normalizeFromLocal(typed) {
+  return typed.trim().toLowerCase();
+}
+function whyNotAFromLocal(typed) {
+  const s = normalizeFromLocal(typed);
+  if (!s) return "Write the part before the @, like your first name.";
+  if (s.length > 40) return "Keep it to 40 characters or fewer.";
+  if (!/^[a-z0-9]+([.-][a-z0-9]+)*$/.test(s)) return "Use letters and numbers, with dots or hyphens between them.";
+  if (RESERVED_FROM.has(s)) return `\u201C${s}\u201D is kept for the mail system. Use a name people can write back to.`;
+  return null;
+}
+var CHECKING = /* @__PURE__ */ new Set(["pending", "temporary_failure", "partially_verified"]);
+function judgeDomain(row2, facts, nowIso) {
+  const same2 = { ...row2, dmarc: facts.dmarc ?? row2.dmarc, change: null };
+  if (facts.provider === null) return { ...row2, change: null };
+  const verified = facts.provider === "verified";
+  if (row2.state === "records" || row2.state === "verifying") {
+    if (verified && facts.dmarc === "found")
+      return {
+        state: "verified",
+        held_why: null,
+        held_at: null,
+        verified_at: nowIso,
+        clean_since: nowIso,
+        dmarc: "found",
+        change: "verified"
+      };
+    if (verified) return facts.dmarc === "missing" ? { ...same2, state: "records" } : same2;
+    return { ...same2, state: CHECKING.has(facts.provider) ? "verifying" : "records" };
+  }
+  if (row2.state === "verified") {
+    if (!verified && facts.provider !== "pending")
+      return { ...same2, state: "held", held_why: "verification", held_at: nowIso, change: "held" };
+    if (facts.dmarc === "missing" && row2.dmarc === "missing")
+      return { ...same2, state: "held", held_why: "dmarc", held_at: nowIso, change: "held" };
+    return same2;
+  }
+  if (row2.held_why && DNS_HOLDS.includes(row2.held_why) && verified && facts.dmarc === "found")
+    return {
+      ...row2,
+      state: "verified",
+      held_why: null,
+      held_at: null,
+      clean_since: nowIso,
+      dmarc: "found",
+      change: "released"
+    };
+  return same2;
+}
+var HOLD_WORDS = {
+  verification: "it stopped verifying",
+  dmarc: "its DMARC record is missing",
+  bounces: "more than 2% of its recent emails bounced",
+  complaint: "someone marked an email from it as spam"
+};
+function domainHoldWords(why) {
+  return why && HOLD_WORDS[why] || "it was held";
+}
+function sendingDomainWords(d, nowMs) {
+  const who = `${d.from_name} \xB7 ${d.address}`;
+  if (d.state === "records") {
+    const line = d.provider_status === "verified" && d.dmarc === "missing" ? "SPF and DKIM pass. Add the DMARC record below, then Check." : d.provider_status === "failed" || d.provider_status === "partially_failed" ? "The records weren't found. Check each one below at your registrar, then Check again." : "Add the records below at your registrar, then Check.";
+    return { pill: "Records to add", tone: "warn", line, cap: "Not sending yet", next: null };
+  }
+  if (d.state === "verifying")
+    return {
+      pill: "Checking",
+      tone: "info",
+      line: "Checking the records. It usually takes minutes, and can take a few hours.",
+      cap: "Not sending yet",
+      next: null
+    };
+  if (d.state === "verified") {
+    const days = cleanDays(d.clean_since, nowMs);
+    const cap2 = domainDailyCap(d.clean_since, nowMs);
+    const step2 = DOMAIN_RAMP.find((s) => s.perDay > cap2);
+    return {
+      pill: "Verified",
+      tone: "ok",
+      line: `${who} \xB7 ${days} clean day${days === 1 ? "" : "s"}`,
+      cap: `Up to ${cap2} a day`,
+      next: step2 ? `${step2.perDay} a day after ${step2.days} clean days` : null
+    };
+  }
+  const why = domainHoldWords(d.held_why);
+  const since = d.held_at ? DAY_FMT.format(new Date(d.held_at)) : null;
+  return {
+    pill: "Held",
+    tone: "warn",
+    line: `${since ? `Held since ${since}` : "Held"} \xB7 ${why}`,
+    cap: "Sending nothing",
+    next: d.held_why && DNS_HOLDS.includes(d.held_why) ? "Nothing leaves from it until Check passes." : "Nothing leaves from it until you resume it."
+  };
+}
+
 // src/activity.ts
 var ACTIVITY_NOISE_PREFIXES = ["usage.", "webhook.", "ingest."];
 var WORDS = {
@@ -20732,6 +20904,11 @@ var WORDS = {
   "google.replied": "A Google review was answered",
   "mailbox.created": "The workspace's email address was set up",
   "mailbox.renamed": "The name on the workspace's email changed",
+  "sending_domain.added": "A domain to send from was added",
+  "sending_domain.verified": "A domain to send from was verified",
+  "sending_domain.held": "A domain to send from was held",
+  "sending_domain.released": "A domain to send from is sending again",
+  "sending_domain.removed": "A domain to send from was removed",
   "lead.round": "A search for businesses",
   "lead.no_card": "An ask no source covers yet",
   "workspace.created": "The workspace was created",
@@ -20765,6 +20942,17 @@ function activityWords(kind, payload) {
   switch (kind) {
     case "take_over": {
       if (str(p, "how") === "transfer") bits2.push("passed to the business's line");
+      break;
+    }
+    case "sending_domain.added":
+    case "sending_domain.verified":
+    case "sending_domain.held":
+    case "sending_domain.released":
+    case "sending_domain.removed": {
+      const host = str(p, "host");
+      if (host) bits2.push(host);
+      const why = str(p, "why");
+      if (kind === "sending_domain.held" && why) bits2.push(domainHoldWords(why));
       break;
     }
     case "consent_change":
@@ -20899,6 +21087,8 @@ var TONES2 = {
   "broadcast.sent": "ok",
   "billing.resumed": "ok",
   "mailbox.created": "ok",
+  "sending_domain.verified": "ok",
+  "sending_domain.released": "ok",
   "workspace.created": "ok",
   approve: "ok",
   resolve: "ok",
@@ -20910,6 +21100,7 @@ var TONES2 = {
   "line.released": "warn",
   "google.unlinked": "warn",
   "google.disconnected": "warn",
+  "sending_domain.held": "warn",
   "message.send_raced_cancel": "warn",
   "ingest.allowlist_skip": "warn",
   pause_agent: "warn",
@@ -21815,6 +22006,9 @@ var SCHEMA_SETS = {
   "policies.mode": ["auto", "veto", "ask", "never"],
   "policies.subject_type": ["segment", "contact"],
   "push_devices.platform": ["ios", "android"],
+  "sending_domains.dmarc": ["found", "missing"],
+  "sending_domains.held_why": ["verification", "dmarc", "bounces", "complaint"],
+  "sending_domains.state": ["records", "verifying", "verified", "held"],
   "sweep_status.judged_by": ["request", "run"],
   "templates.category": ["marketing", "utility", "authentication"],
   "templates.channel": ["whatsapp", "voice", "sms", "email", "instagram"],
@@ -21843,17 +22037,17 @@ function leadSuppressionHash(tenantId, value) {
 }
 
 // src/pace.ts
-var DAY_MS8 = 864e5;
+var DAY_MS9 = 864e5;
 var SAME_SITTING_MS = 36e5;
 function yesWaits(rows) {
-  return rows.filter(isYes).map((d) => d.decided_at ? Date.parse(d.decided_at) - Date.parse(d.proposed_at) : Number.NaN).filter((ms2) => Number.isFinite(ms2) && ms2 >= SAME_SITTING_MS).map((ms2) => Math.floor(ms2 / DAY_MS8)).sort((a, b) => a - b);
+  return rows.filter(isYes).map((d) => d.decided_at ? Date.parse(d.decided_at) - Date.parse(d.proposed_at) : Number.NaN).filter((ms2) => Number.isFinite(ms2) && ms2 >= SAME_SITTING_MS).map((ms2) => Math.floor(ms2 / DAY_MS9)).sort((a, b) => a - b);
 }
 function medianWait(waits) {
   const m = quantile([...waits], 0.5);
   return m === null ? null : Math.round(m);
 }
 function dealPaceFrom(rows, nowMs) {
-  const since = nowMs - PACE_WINDOW_DAYS * DAY_MS8;
+  const since = nowMs - PACE_WINDOW_DAYS * DAY_MS9;
   const waits = yesWaits(rows.filter((d) => d.decided_at !== null && Date.parse(d.decided_at) >= since));
   return { median_days: medianWait(waits), yeses: waits.length };
 }
@@ -22294,7 +22488,7 @@ function importCounts(rows) {
 var LINE_RELEASE_WARN_DAYS = 7;
 var LINE_RELEASE_MIN_DAYS = 14;
 var LINE_RELEASE_REPORT_DAYS = 30;
-var DAY_MS9 = 864e5;
+var DAY_MS10 = 864e5;
 function lineReleaseAfterDays(raw) {
   if (!raw || !/^\d+$/.test(raw.trim())) return null;
   const n = Number(raw.trim());
@@ -22321,16 +22515,16 @@ function billingEndedAt(b) {
 function lineReleaseStep(billing, afterDays, warned, nowMs) {
   const endedAt = billingEndedAt(billing);
   if (endedAt === null) return { step: "keep" };
-  const releaseAt = endedAt + afterDays * DAY_MS9;
+  const releaseAt = endedAt + afterDays * DAY_MS10;
   const warnedAt = warned && msOf(warned.ended_at) === endedAt ? msOf(warned.at) : null;
   if (warnedAt === null) {
-    return nowMs >= releaseAt - LINE_RELEASE_WARN_DAYS * DAY_MS9 ? { step: "warn", endedAt, releaseAt } : { step: "wait", endedAt, releaseAt };
+    return nowMs >= releaseAt - LINE_RELEASE_WARN_DAYS * DAY_MS10 ? { step: "warn", endedAt, releaseAt } : { step: "wait", endedAt, releaseAt };
   }
-  const due = Math.max(releaseAt, warnedAt + LINE_RELEASE_WARN_DAYS * DAY_MS9);
+  const due = Math.max(releaseAt, warnedAt + LINE_RELEASE_WARN_DAYS * DAY_MS10);
   return nowMs >= due ? { step: "release", endedAt, releaseAt: due } : { step: "wait", endedAt, releaseAt: due };
 }
 function lineReleaseDay(releaseAt, nowMs) {
-  return Math.max(releaseAt, nowMs + LINE_RELEASE_WARN_DAYS * DAY_MS9);
+  return Math.max(releaseAt, nowMs + LINE_RELEASE_WARN_DAYS * DAY_MS10);
 }
 function lineReleaseWarning(i) {
   const number = formatPhoneDisplay(i.number) ?? i.number;
@@ -22579,6 +22773,11 @@ export {
   DEVICE_PREFS_STORAGE,
   DISCONNECTION_LABELS,
   DISPLAY_NAME_MAX,
+  DMARC_RECOMMENDED,
+  DMARC_STATES,
+  DNS_HOLDS,
+  DOMAIN_HOLDS,
+  DOMAIN_RAMP,
   E164,
   EARLIER_FALLBACK_DEFAULTS,
   EMAIL_ELSEWHERE_SENTENCE,
@@ -22613,6 +22812,7 @@ export {
   FORWARDING_MODES,
   FORWARDING_TEST_WINDOW_MS,
   FORWARD_IS_HANDOFF,
+  FREE_MAIL_DOMAINS,
   FeaturesConfigSchema,
   GET_YES_ROUTE,
   GOOGLE_SHOWN_REVIEWS,
@@ -22919,6 +23119,8 @@ export {
   SELLS_BY_QUESTION,
   SELLS_BY_REFUSAL,
   SELLS_BY_WORDS,
+  SENDING_DOMAINS_MAX,
+  SENDING_DOMAIN_STATES,
   SENDING_HOURS_WORDS,
   SERVER_KEY_PREFIX,
   SERVER_NOTIFICATION_KINDS,
@@ -23075,6 +23277,7 @@ export {
   citationRoute,
   classify,
   cleanAnswer,
+  cleanDays,
   cleanDisplayName,
   cleanDraft,
   cleanEmailCandidates,
@@ -23165,6 +23368,8 @@ export {
   detectLanguage,
   deviceTimezone,
   divertedNumbers,
+  domainDailyCap,
+  domainHoldWords,
   draftListRule,
   draftSendsAtMs,
   dueStepDay,
@@ -23309,6 +23514,7 @@ export {
   isUsablePassword,
   isYes,
   judgeAsked,
+  judgeDomain,
   judgeOpId,
   judgeQuestions,
   judgeSystemPrompt,
@@ -23430,6 +23636,8 @@ export {
   noProposalSince,
   normalizeAnswer,
   normalizeEmail,
+  normalizeFromLocal,
+  normalizeHost,
   normalizeLink,
   normalizeLocalPart,
   normalizePhone,
@@ -23635,6 +23843,7 @@ export {
   sellsByVM,
   sendFailureIsOurs,
   sendableTemplates,
+  sendingDomainWords,
   serverNotificationRows,
   serviceOf,
   serviceSuggestionsOf,
@@ -23809,11 +24018,13 @@ export {
   wholeDaysSince,
   whoseWords,
   whyCannotSpend,
+  whyNotAFromLocal,
   whyNotAFromName,
   whyNotAHandoff,
   whyNotALink,
   whyNotALocalPart,
   whyNotAPhone,
+  whyNotASendingHost,
   whyNotAnEmail,
   whyNotForward,
   whyNotLook,

@@ -46,6 +46,7 @@ import type { SERVER_NOTIFICATION_KINDS } from "./notifications";
 import type { PLAYBOOK_STATES, PLAYBOOK_TRIGGERS } from "./playbooks";
 import type { TEMPLATE_CATEGORIES } from "./templates";
 import type { PUSH_PLATFORMS } from "./push";
+import type { DMARC_STATES, DOMAIN_HOLDS, SENDING_DOMAIN_STATES } from "./sending-domains";
 import type {
   LEAD_CLOSED_REASONS,
   LEAD_COUNTER_KINDS,
@@ -165,4 +166,8 @@ export type SchemaAgreement = [
   // A proposal is part of the deal (00160): why they passed, and how the workspace's customers buy.
   Holds<Exactly<Of<typeof DEAL_LOST_REASONS>, SchemaSet<"deals.lost_reason">>>,
   Holds<Exactly<Of<typeof SELLS_BY>, SchemaSet<"tenants.sells_by">>>,
+  // A workspace sends cold email from its own domains (00175): where each stands, why one is held, and its DMARC.
+  Holds<Exactly<Of<typeof SENDING_DOMAIN_STATES>, SchemaSet<"sending_domains.state">>>,
+  Holds<Exactly<Of<typeof DOMAIN_HOLDS>, SchemaSet<"sending_domains.held_why">>>,
+  Holds<Exactly<Of<typeof DMARC_STATES>, SchemaSet<"sending_domains.dmarc">>>,
 ];

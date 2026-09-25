@@ -1,0 +1,81 @@
+/**
+ * The domains sweep (Reach out, Part 2): every ten minutes, every sending domain that is being checked or can send
+ * is read at the cold mail account and in DNS, and judged (contracts sending-domains.ts judgeDomain). A domain that
+ * stopped verifying or lost its DMARC record is held, and its owner told; one held for DNS is sent again once both
+ * read good. pg_cron calls this from the database (00175's trigger_domains_sweep), only when a domain is due.
+ *
+ * Auth: x-cron-key against the Vault-held sweep key, like every sweep (cron-auth.ts).
+ */
+import { json } from "../../lib/http.js";
+import { authorizeCron } from "../../lib/cron-auth.js";
+import { pg } from "../../lib/pg.js";
+import { logger } from "../../lib/log.js";
+import { env } from "../../lib/env.js";
+import { dueSendingDomains } from "../../lib/packages/db.js";
+import { readDmarc } from "../../lib/email/dmarc.js";
+import { checkSendingDomain, type DomainPorts } from "../../lib/email/sending-domains.js";
+
+export const config = { maxDuration: 60 };
+
+/** A bound per tick: a backlog drains over successive ticks rather than one long call. */
+const MAX_PER_TICK = 30;
+/** How many are read at once: the provider allows ten requests a second per account. */
+const AT_ONCE = 5;
+/** No batch starts after this: one of five 15-second reads must still end inside the function's 60 seconds. */
+const YIELD_AT_MS = 40_000;
+
+export async function POST(request: Request): Promise<Response> {
+  const L = logger({ sweep: "domains" });
+  const db = pg();
+  if (!db) {
+    L.error("domains_no_db");
+    return json(503, { ok: false, error: "no_database" });
+  }
+  const denied = await authorizeCron(request, db, L);
+  if (denied) return denied;
+  // Domains exist only where the key did; a key that went missing leaves them unwatched, which is red, not quiet.
+  const coldKey = env.RESEND_COLD_API_KEY;
+  if (!coldKey) {
+    L.error("domains_no_cold_key");
+    return json(503, { ok: false, error: "no_cold_key" });
+  }
+  let rows;
+  try {
+    rows = await dueSendingDomains(db, MAX_PER_TICK);
+  } catch (e) {
+    L.error("domains_unreadable", { error: e instanceof Error ? e.message : String(e) });
+    return json(503, { ok: false, error: "no_database" });
+  }
+  if (!rows.length) return json(200, { ok: true, checked: 0 });
+
+  const ports: DomainPorts = { db, cfg: { apiKey: coldKey }, dmarc: (h) => readDmarc(h), now: Date.now, log: L };
+  const started = Date.now();
+  const counts = { checked: 0, verified: 0, held: 0, released: 0, unreadable: 0, refused: 0 };
+  for (let i = 0; i < rows.length; i += AT_ONCE) {
+    // What is left is read next tick, the longest unread first.
+    if (Date.now() - started > YIELD_AT_MS) break;
+    const batch = rows.slice(i, i + AT_ONCE);
+    counts.checked += batch.length;
+    await Promise.all(
+      batch.map(async (row) => {
+        try {
+          const out = await checkSendingDomain(ports, row, { verify: false });
+          if (out.unreadable) {
+            counts.unreadable++;
+            if (out.status === 401 || out.status === 403) counts.refused++;
+          } else if (out.change) counts[out.change]++;
+        } catch (e) {
+          counts.unreadable++;
+          L.error("domains_row_failed", { domain: row.id, error: e instanceof Error ? e.message : String(e) });
+        }
+      }),
+    );
+  }
+  L.info("domains_swept", counts);
+  // The key refused for every domain read is the sweep learning nothing -- ours, not the domains' -- and 503 is how
+  // sweep_health turns that red. A blip (a 5xx, a slow second, a 429) is not: those domains are read next tick, and
+  // with one or two domains a single blip must not page the platform (registrations.ts judges the same way).
+  if (counts.checked > 0 && counts.refused === counts.checked)
+    return json(503, { ok: false, error: "no_domain_readable", ...counts });
+  return json(200, { ok: true, ...counts });
+}

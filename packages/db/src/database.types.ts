@@ -3699,6 +3699,77 @@ export type Database = {
           },
         ]
       }
+      sending_domains: {
+        Row: {
+          checked_at: string | null
+          clean_since: string | null
+          created_at: string
+          created_by: string | null
+          dmarc: string | null
+          from_local: string
+          from_name: string
+          held_at: string | null
+          held_why: string | null
+          host: string
+          id: string
+          provider_domain_id: string | null
+          provider_status: string | null
+          records: Json
+          state: string
+          tenant_id: string
+          updated_at: string
+          verified_at: string | null
+        }
+        Insert: {
+          checked_at?: string | null
+          clean_since?: string | null
+          created_at?: string
+          created_by?: string | null
+          dmarc?: string | null
+          from_local: string
+          from_name: string
+          held_at?: string | null
+          held_why?: string | null
+          host: string
+          id?: string
+          provider_domain_id?: string | null
+          provider_status?: string | null
+          records?: Json
+          state?: string
+          tenant_id: string
+          updated_at?: string
+          verified_at?: string | null
+        }
+        Update: {
+          checked_at?: string | null
+          clean_since?: string | null
+          created_at?: string
+          created_by?: string | null
+          dmarc?: string | null
+          from_local?: string
+          from_name?: string
+          held_at?: string | null
+          held_why?: string | null
+          host?: string
+          id?: string
+          provider_domain_id?: string | null
+          provider_status?: string | null
+          records?: Json
+          state?: string
+          tenant_id?: string
+          updated_at?: string
+          verified_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sending_domains_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sweep_status: {
         Row: {
           alerted_at: string | null
@@ -4970,6 +5041,7 @@ export type Database = {
       trigger_calendar_sweep: { Args: never; Returns: number }
       trigger_call_reconcile: { Args: never; Returns: number }
       trigger_deadman_sweep: { Args: never; Returns: number }
+      trigger_domains_sweep: { Args: never; Returns: number }
       trigger_google_sweep: { Args: never; Returns: number }
       trigger_jobs_tick: { Args: never; Returns: number }
       trigger_leads_sweep: { Args: never; Returns: number }

@@ -10,6 +10,7 @@ export * from "./sms";
 export * from "./email";
 export * from "./email-text";
 export * from "./email-resend";
+export * from "./email-domains";
 export * from "./a2p";
 export * from "./a2p-saga";
 export * from "./google-places";

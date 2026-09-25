@@ -120,6 +120,13 @@ var EVENT_KINDS = [
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",
   "mailbox.renamed",
+  /** A workspace's own sending domain (Reach out, 00175): added, verified, held by the domains clock, sending again,
+   * removed. The host and the reason, never the provider's id. */
+  "sending_domain.added",
+  "sending_domain.verified",
+  "sending_domain.held",
+  "sending_domain.released",
+  "sending_domain.removed",
   /** A lead search's round started, waited, or ended with one of the nine endings (00140). */
   "lead.round",
   /** An ask no source card fits, logged as demand (§0.3): the words asked, never a place. */
@@ -2254,6 +2261,7 @@ function isTimezone(raw) {
 }
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
 var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
+var DAY_FMT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var ACTIVITY_KINDS = [...DECISION_VERBS, ...EVENT_KINDS];
 var PASSWORD_MIN = 12;
 var PASSWORD_WORDS = {
@@ -2692,6 +2700,79 @@ async function suppressEmailOf(db, p) {
   const { data, error } = await db.from("contacts").update({ email_suppressed_at: p.at, email_suppressed_reason: p.reason }).eq("id", sent.data.contact_id).eq("tenant_id", p.tenantId).in("email", p.addresses).is("email_suppressed_at", null).select("id");
   if (error) throw new Error(`email receipt: cannot stop sends to the address: ${error.message}`);
   return data?.[0]?.id ?? null;
+}
+
+// src/repositories/sending-domains.ts
+var must = (what, r2) => {
+  if (r2.error) throw new Error(`sending_domains: ${what}: ${r2.error.message}`);
+  return r2.data;
+};
+async function sendingDomainsOf(db, tenantId) {
+  return must(
+    "read a workspace's domains",
+    await db.from("sending_domains").select("*").eq("tenant_id", tenantId).order("created_at", { ascending: true })
+  ) ?? [];
+}
+async function sendingDomainOf(db, tenantId, id) {
+  return must(
+    "read a domain",
+    await db.from("sending_domains").select("*").eq("tenant_id", tenantId).eq("id", id).maybeSingle()
+  );
+}
+async function dueSendingDomains(db, limit) {
+  return must(
+    "read the due domains",
+    await db.from("sending_domains").select("*").in("state", ["verifying", "verified", "held"]).order("checked_at", { ascending: true, nullsFirst: true }).limit(limit)
+  ) ?? [];
+}
+async function countSendingDomains(db, tenantId) {
+  const r2 = await db.from("sending_domains").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId);
+  if (r2.error) throw new Error(`sending_domains: count a workspace's domains: ${r2.error.message}`);
+  return r2.count ?? 0;
+}
+async function reserveSendingDomain(db, i) {
+  const r2 = await db.from("sending_domains").insert({
+    tenant_id: i.tenantId,
+    host: i.host,
+    from_local: i.fromLocal,
+    from_name: i.fromName,
+    created_by: i.by,
+    // Where every domain starts: its records to publish. Said, not left to the column's default.
+    state: "records"
+  }).select("*").single();
+  const code = r2.error?.code;
+  if (code === "P0001" && r2.error.hint === "too_many") return { ok: false, reason: "too_many" };
+  if (code === "23505") {
+    const holder = must(
+      "read who holds a host",
+      await db.from("sending_domains").select("id, tenant_id, state, created_at, provider_domain_id").eq("host", i.host).maybeSingle()
+    );
+    return { ok: false, reason: "taken", holder: holder ?? null };
+  }
+  return { ok: true, row: must("reserve a domain", r2) };
+}
+async function touchSendingDomain(db, row) {
+  return must(
+    "touch a domain",
+    await db.from("sending_domains").update({ checked_at: row.checked_at }).eq("id", row.id).eq("tenant_id", row.tenant_id).select("*").maybeSingle()
+  );
+}
+async function recordProviderDomain(db, id, p) {
+  return must(
+    "record the provider's domain",
+    await db.from("sending_domains").update({ provider_domain_id: p.providerDomainId, records: p.records, provider_status: p.providerStatus }).eq("id", id).select("*").single()
+  );
+}
+async function applyDomainCheck(db, row, patch) {
+  const r2 = await db.from("sending_domains").update(patch).eq("id", row.id).eq("updated_at", row.updated_at).select("*").maybeSingle();
+  return must("write a domain's check", r2);
+}
+async function deleteSendingDomain(db, tenantId, id) {
+  const r2 = must(
+    "remove a domain",
+    await db.from("sending_domains").delete().eq("tenant_id", tenantId).eq("id", id).select("id")
+  );
+  return (r2 ?? []).length > 0;
 }
 
 // src/repositories/routing.ts
@@ -3324,6 +3405,8 @@ var WATCHED = [
   // the record the carriers read, saved on Connections: Setup repaints (00075)
   { table: "google_connections", event: "*" },
   // the profile connected, synced or failing by the hourly sweep: Connections repaints (00070)
+  { table: "sending_domains", event: "*" },
+  // a domain added, checked, verified or held by the ten-minute clock: Connections repaints (00175)
   // a round's page committed, a check landed, a class changed: the Leads scope repaints (00140)
   { table: "leads", event: "*" },
   { table: "lead_searches", event: "*" },
@@ -3385,16 +3468,20 @@ export {
   MAX_ROWS,
   PEOPLE_PAGE,
   addToList,
+  applyDomainCheck,
   archiveList,
   assembleHistory,
   claimCallNotification,
   claimControl,
+  countSendingDomains,
   countSentToday,
   createList,
   createServiceClient,
   deleteList,
+  deleteSendingDomain,
   describeLead,
   dropFromList,
+  dueSendingDomains,
   emitEvent,
   everyoneIn,
   followUpTouchesSince,
@@ -3425,14 +3512,18 @@ export {
   recordEchoAndPause,
   recordEmailStatus,
   recordOutbound,
+  recordProviderDomain,
   recordStatusByExternalId,
   releaseControl,
   renameList,
+  reserveSendingDomain,
   resolveChannel,
   resolveChannelDetailed,
   resolveOutboundTarget,
   savedListFor,
   savedListsFor,
+  sendingDomainOf,
+  sendingDomainsOf,
   sentEmailWithMessageId,
   setCallRecording,
   setListRule,
@@ -3444,6 +3535,7 @@ export {
   suppressEmailOf,
   templatesFor,
   touchIndex,
+  touchSendingDomain,
   touchesSince,
   watchedTables,
   yesesSince
