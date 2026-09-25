@@ -469,7 +469,7 @@ var ESCALATION_REASONS = [
   "policy_ask",
   /** The phone receptionist could not finish the call: a person calls them back. What to do rides in the details. */
   "callback",
-  /** The workspace is paused (billing): messages land, nothing is answered until it resumes. */
+  /** The workspace is paused (billing): calls only take a message and messages wait for a person, until it resumes. */
   "paused",
   /** A text arrived on a line the carriers have not approved for texting yet: kept, a person answers. */
   "carriers",
@@ -5164,6 +5164,10 @@ function greetingFor(name) {
   const who = name ? ` ${name}` : "";
   return `Thank you for calling${who}! This call may be recorded. I'm the automated assistant \u2014 how can I help you today?`;
 }
+function pausedGreetingFor(name) {
+  const who = name ? ` ${name}` : "";
+  return `Thank you for calling${who}! This call may be recorded. I'm the automated assistant, and today I can only take a message for the team.`;
+}
 var GREETING_DEFAULT = /* @__PURE__ */ greetingFor(null);
 
 // src/deals.ts
@@ -7256,6 +7260,7 @@ function tenantStatusFor(mode, status) {
   if (mode !== "stripe") return null;
   return receptionistOn(status) ? "active" : "paused";
 }
+var PAUSED_WORDS = "Calls are answered only to take a message, and new messages wait in the Inbox for you to answer.";
 function planBilling(before, sub, nowMs) {
   const row2 = {
     stripe_subscription_id: sub.id,
@@ -7277,7 +7282,7 @@ function planBilling(before, sub, nowMs) {
   if (switched === "paused") {
     bell = {
       title: "Your receptionist is paused",
-      body: sub.status === "paused" ? "The trial ended without a card on file. Messages still land in the Inbox; nothing is answered until you resume from Billing." : "The subscription ended. Messages still land in the Inbox; nothing is answered until you resume from Billing."
+      body: sub.status === "paused" ? `The trial ended without a card on file. ${PAUSED_WORDS} Resume from Billing.` : `The subscription ended. ${PAUSED_WORDS} Resume from Billing.`
     };
   } else if (switched === "resumed") {
     bell = { title: "Your receptionist is back", body: "Billing is in order; the receptionist answers again." };
@@ -19543,7 +19548,7 @@ function shellStatusLine(s) {
       kind: "paused",
       tone: "danger",
       text: "Your receptionist is paused",
-      detail: "New messages still land in the Inbox, for you to answer.",
+      detail: PAUSED_WORDS,
       action: "billing",
       cta: "Billing",
       busy: null
@@ -22580,6 +22585,7 @@ export {
   PASSWORD_MAX_BYTES,
   PASSWORD_MIN,
   PASSWORD_WORDS,
+  PAUSED_WORDS,
   PAUSE_HOURS_DEFAULT,
   PENDING_WORKSPACE_KEY,
   PEOPLE_LISTS,
@@ -23223,6 +23229,7 @@ export {
   parseTenantConfigResult,
   partialSay,
   passwordProblem,
+  pausedGreetingFor,
   pausedVoiceFacts,
   pendingCodeOf,
   pendingWorkspaceOf,

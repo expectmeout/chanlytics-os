@@ -25,6 +25,15 @@ export function greetingFor(name: string | null): string {
 }
 
 /**
+ * The opening line while the workspace is paused (billing stopped): the same two disclosures, and, before the caller
+ * asks for anything, that today it only takes a message -- rather than "how can I help you today?" and a refusal after.
+ */
+export function pausedGreetingFor(name: string | null): string {
+  const who = name ? ` ${name}` : "";
+  return `Thank you for calling${who}! This call may be recorded. I'm the automated assistant, and today I can only take a message for the team.`;
+}
+
+/**
  * The greeting with no business named -- never wrong, never a placeholder. Marked pure so a bundle that never says it
  * (db, core, jobs bundle contracts) leaves it out.
  */

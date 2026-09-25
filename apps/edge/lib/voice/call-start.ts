@@ -31,7 +31,13 @@ import type { Database } from "../packages/db.js";
 import { resolveChannelDetailed, readLeadContext, describeLead } from "../packages/db.js";
 import { loadTenantRuntime, type TenantRuntime } from "../tenant-runtime.js";
 import { openingsFor, visitsFor } from "../calendar/availability.js";
-import { normalizePhone, resolveSystemPrompt, describeNow, pausedVoiceFacts } from "../packages/contracts.js";
+import {
+  normalizePhone,
+  resolveSystemPrompt,
+  describeNow,
+  pausedVoiceFacts,
+  pausedGreetingFor,
+} from "../packages/contracts.js";
 import { FACTS_UNAVAILABLE, CALLER_UNKNOWN, greetingFor } from "../packages/channels.js";
 
 type Db = SupabaseClient<Database>;
@@ -176,6 +182,8 @@ export async function planCallStart(o: CallStartInput): Promise<CallStart> {
             // promises a call back, nothing more -- its whole prompt for the call.
             facts = "paused";
             businessFacts = pausedVoiceFacts(businessName);
+            // Nobody is put through while paused (the script says so): the transfer tool is given no number to dial.
+            handoff = null;
           } else if (rt.brain) {
             // The SAME composition the WhatsApp receptionist is given, asked
             // for in its spoken form. Not a copy of the hours kept in Retell's
@@ -245,7 +253,8 @@ export async function planCallStart(o: CallStartInput): Promise<CallStart> {
       // The first sentence of the call, composed from the business's name so
       // a rename never leaves the phone greeting saying the old one; nameless
       // when the business is unknown, which is never wrong.
-      greeting: greetingFor(businessName),
+      // Paused, it says before anything else that it only takes a message today.
+      greeting: facts === "paused" ? pausedGreetingFor(businessName) : greetingFor(businessName),
     },
     facts,
     memory,

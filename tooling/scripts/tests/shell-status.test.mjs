@@ -77,7 +77,7 @@ test("the shell's one line says the one thing that is wrong, what it means for y
     kind: "paused",
     tone: "danger",
     text: "Your receptionist is paused",
-    detail: "New messages still land in the Inbox, for you to answer.",
+    detail: "Calls are answered only to take a message, and new messages wait in the Inbox for you to answer.",
     action: "billing",
     cta: "Billing",
     busy: null,

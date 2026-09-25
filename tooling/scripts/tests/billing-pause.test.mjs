@@ -64,7 +64,7 @@ test("the shell's one line: a pause outranks a newer build, and points at Billin
   assert.equal(paused.action, "billing");
   assert.equal(
     paused.detail,
-    "New messages still land in the Inbox, for you to answer.",
+    "Calls are answered only to take a message, and new messages wait in the Inbox for you to answer.",
     "and what it means while it lasts",
   );
   assert.deepEqual(shellStatusLine({ stale: false, degraded: [], paused: false }), null);

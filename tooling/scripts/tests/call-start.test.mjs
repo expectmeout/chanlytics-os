@@ -25,7 +25,13 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { resolveSystemPrompt, describeNow, pausedVoiceFacts, parseTenantConfigResult } from "@chanlytics/contracts";
+import {
+  pausedGreetingFor,
+  resolveSystemPrompt,
+  describeNow,
+  pausedVoiceFacts,
+  parseTenantConfigResult,
+} from "@chanlytics/contracts";
 import {
   FACTS_UNAVAILABLE,
   CALLER_UNKNOWN,
@@ -249,7 +255,16 @@ test("billing stopped: the take-a-message script replaces the prompt and nothing
   assert.deepEqual([r.facts, r.memory, r.alert, r.error], ["paused", "known", false, null]);
   assert.equal(r.variables.business_facts, pausedVoiceFacts("Harbor Moving"));
   assert.equal(cal.asked.openings.length, 0, "no open times are offered by a receptionist that cannot book");
-  assert.equal(r.variables.greeting, greetingFor("Harbor Moving"), "the business is still named at the door");
+  assert.equal(
+    r.variables.greeting,
+    pausedGreetingFor("Harbor Moving"),
+    "the business is still named at the door, and the caller hears first that it only takes a message today",
+  );
+  assert.equal(
+    "handoff_number" in r.variables,
+    false,
+    "nobody is put through while paused: the transfer tool has no number to dial",
+  );
 });
 
 test("an agent nobody routes: no facts, no memory, a greeting that names nobody, the platform told -- and not one row of any workspace read", async () => {
