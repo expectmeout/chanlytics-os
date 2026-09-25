@@ -85,6 +85,7 @@ export * from "./lead-judge";
 export * from "./csv";
 export * from "./greeting";
 export * from "./first-run";
+export * from "./first-run-phone";
 export * from "./first-receptionist";
 export * from "./check-chips";
 export * from "./booking-page";

@@ -506,6 +506,8 @@ export interface SetupBillingFacts {
   /** Set when the subscription is cancelled ahead: it runs out on that day. */
   cancel_at?: string | null;
   cancel_at_period_end?: boolean;
+  /** The plan as Stripe states it (billingReadiness): the first run's trial says its price. Absent reads as unknown. */
+  price?: BillingPriceDto | null;
 }
 
 /**

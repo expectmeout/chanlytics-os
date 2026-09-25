@@ -291,6 +291,11 @@ export interface SetupGoogleFacts {
    * holds no booking link (bookingPageOffered). Absent reads as none.
    */
   bookingPage?: string | null;
+  /**
+   * The number on the listing, E.164 (the facts' phone_e164): the first run's phone step offers to keep it, and buys
+   * the receptionist's own number in its area code. Absent reads as none.
+   */
+  phone?: string | null;
 }
 
 /** Google shows this many reviews of a listing, the most relevant first. */

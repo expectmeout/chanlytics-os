@@ -393,6 +393,211 @@ const FrCheck = ({ check, W, flash, make, making, go, canEdit }) => {
   );
 };
 
+// The owner's choice on the phone step, kept in the tab (window.__tabMemory, the loading standard's drafts): Stripe's
+// round trip reloads the page, and the choice has to be there when it comes back. Nothing about it is stored anywhere
+// else; a tab that lost it asks again. Besides contracts' PhoneChoice it carries `sent`, when the buy went out from
+// this tab, so a draw while the line is on its way to the page does not send it twice. A buy answers in seconds and
+// its line reaches Setup within a minute; a mark older than FR_PHONE_SENT_MS is a buy that never landed (the tab closed
+// on it), and the step sends it again. It also carries `returnedAt`, when this tab came back from Stripe with a card
+// given: until the trial lands the step says it is starting, a reload included, and never offers checkout twice; a
+// return older than FR_PHONE_RETURN_MS with no trial is one Stripe never confirmed, and the step offers it again.
+const FR_PHONE_DRAFT = "first-run-phone";
+const FR_PHONE_SENT_MS = 120_000;
+const FR_PHONE_RETURN_MS = 15 * 60_000;
+const frReturned = (c) => !!(c && c.pending && c.returnedAt && Date.now() - c.returnedAt < FR_PHONE_RETURN_MS);
+const frPhoneChoiceKept = () => {
+  try { return (window.__tabMemory && window.__tabMemory.draft(FR_PHONE_DRAFT)) || null; } catch { return null; }
+};
+const frKeepPhoneChoice = (c) => {
+  try {
+    if (!window.__tabMemory) return;
+    if (c) window.__tabMemory.keepDraft(FR_PHONE_DRAFT, c);
+    else window.__tabMemory.dropDraft(FR_PHONE_DRAFT);
+  } catch { /* the tab keeps nothing; the step asks again */ }
+};
+
+/**
+ * Your phone (canvas R3, V4, V5, P3; contracts first-run-phone.ts): how calls reach the receptionist -- keep the number
+ * customers know, a new one, or move it here -- and the trial with the plan's own price, then the number on its way.
+ * `ph` is the step as contracts say it over Setup and the owner's `choice`, which the page holds and keeps in the tab.
+ *
+ * The button, where a card is still to be given, goes to Stripe (checkout returns to the first run); once the workspace
+ * may spend, the buy goes on by itself, once: a number kept or moved buys the receptionist one in its area code (the
+ * first offered: customers never see it), a new number buys the one picked, and a move asks a person to file it. Each
+ * press asks its door's own role first, as the doors do.
+ */
+const FrPhone = ({ ph, choice, setChoice, W, flash, go, back, backLabel }) => {
+  const F = window.__firstRun;
+  const P = window.__setup;
+  const [busy, setBusy] = React.useState(false);
+  const [numbers, setNumbers] = React.useState(null);
+  const [area, setArea] = React.useState(ph.area || "");
+  // The buy this mount sent: a second draw before the line reaches Setup never sends another. A refusal lets go of it.
+  const sent = React.useRef(false);
+  // Draws the step again once a buy's mark goes stale, so a buy that never landed is sent again (FR_PHONE_SENT_MS).
+  const [, recheck] = React.useReducer((n) => n + 1, 0);
+  const c = choice || { way: ph.way, number: null, pick: null, pending: false };
+  const change = (patch) => setChoice({ ...c, ...patch, pending: false, sent: false, returnedAt: null });
+  const failed = (r, words) => {
+    sent.current = false;
+    setChoice({ ...c, pending: false, sent: false });
+    flash(r ? window.refusalToast(r, W.notBought) : { tone: "warn", msg: <>{words}</> });
+  };
+  const buy = async () => {
+    // A role that may not buy (View-as, or a teammate's tab) sends nothing, and the step goes back to its choice.
+    if (!P || !(window.canDo && window.canDo("team"))) {
+      sent.current = false;
+      setChoice({ ...c, pending: false, sent: false });
+      return;
+    }
+    let e164 = c.pick ? c.pick.e164 : null;
+    let code = c.pick ? F.areaCodeOf(c.pick.e164) : null;
+    if (c.way !== "new") {
+      code = ph.area;
+      if (!code) { failed(null, W.held.number); return; }
+      const found = await P.lines.search(code);
+      if (!found.ok) { failed(found); return; }
+      if (!found.numbers.length) { failed(null, W.noneFree(code)); return; }
+      e164 = found.numbers[0].e164;
+    }
+    if (!e164) { failed(null, W.held.pick); return; }
+    const r = await P.lines.buy(e164, code || "");
+    // Refused (a card, a line already there): said, and the owner chooses again. Bought and stopped part-way: the line
+    // row has it, with its Retry.
+    if (!r.ok && r.message) { failed(r); return; }
+    if (c.way === "move" && window.canDo && window.canDo("approve")) {
+      const q = await P.request("port");
+      flash({ tone: q.ok ? "ok" : "warn", msg: <>{q.ok ? W.moveAsked : W.moveNotAsked}</> });
+    }
+  };
+  const sentAge = c.sent ? Date.now() - c.sent : null;
+  const fresh = sentAge !== null && sentAge < FR_PHONE_SENT_MS;
+  React.useEffect(() => {
+    if (ph.stage === "buying" && !sent.current && !fresh) {
+      sent.current = true;
+      setChoice({ ...c, sent: Date.now() });
+      buy();
+    }
+    // The line is here: what is left of the choice is the way, for the steps after.
+    if (ph.stage === "getting" && c.pending) setChoice({ ...c, pending: false, sent: false, returnedAt: null });
+    // Sent from another draw and not landed yet: look again when its mark goes stale.
+    if (ph.stage === "buying" && fresh && !sent.current) {
+      const t = setTimeout(recheck, FR_PHONE_SENT_MS - sentAge + 50);
+      return () => clearTimeout(t);
+    }
+    return undefined;
+  }, [ph.stage, fresh]);
+  const find = async (e) => {
+    if (e) e.preventDefault();
+    if (!P || busy || !(window.canDo && window.canDo("team"))) return;
+    if (!/^\d{3}$/.test(area)) { flash({ tone: "warn", msg: <>{W.threeDigits}</> }); return; }
+    setBusy(true);
+    const r = await P.lines.search(area);
+    setBusy(false);
+    if (!r.ok) { flash(window.refusalToast(r, W.notBought)); return; }
+    setNumbers(r.numbers.slice(0, 3));
+    if (!r.numbers.length) flash({ tone: "info", msg: <>{W.noneFree(area)}</> });
+  };
+  const press = async () => {
+    const cta = ph.cta;
+    if (!cta || cta.held || busy) return;
+    const next = { ...c, way: ph.way, pending: true, sent: false, returnedAt: null };
+    if (ph.trial) {
+      if (!(window.canDo && window.canDo("billing")) || !window.__billing) return;
+      setChoice(next);
+      // The step's own address, so it stays on screen once its line answers.
+      go("start/phone");
+      setBusy(true);
+      const r = await window.__billing.checkout("start");
+      setBusy(false);
+      if (!r.ok) { setChoice({ ...next, pending: false }); flash({ tone: "danger", msg: <>{r.message}</> }); }
+      return;
+    }
+    if (!(window.canDo && window.canDo("team"))) return;
+    setChoice(next);
+    go("start/phone");
+  };
+  if (ph.stage !== "choose") {
+    return (
+      <div className="fr-line-step" data-testid="fr-phone" data-stage={ph.stage}>
+        {ph.started ? <p className="fr-line-started" data-testid="fr-phone-started"><Icon name="check" size={12} />{ph.started}</p> : null}
+        <div className="fr-line-status" role="status" data-testid="fr-phone-status">
+          <StatePill kind="setup" value={ph.status.state} label={ph.status.words} />
+          <span className="fr-line-sentence">{ph.status.sentence}</span>
+          <span className="fr-line-detail">{ph.status.detail}</span>
+        </div>
+      </div>
+    );
+  }
+  const shown = c.number !== null ? c.number : ph.box;
+  return (
+    <div className="fr-line-step" data-testid="fr-phone" data-stage="choose">
+      <div className="fr-find-hits" role="radiogroup" aria-label={ph.heading}>
+        {ph.ways.map((w) => (
+          <label key={w.key} className="fr-find-hit" data-testid={`fr-way-${w.key}`}>
+            <input type="radio" name="fr-way" value={w.key} checked={ph.way === w.key} onChange={() => change({ way: w.key })} disabled={busy} />
+            <span className="fr-find-body">
+              <span className="fr-find-name">{w.title}</span>
+              <span className="fr-find-where">{w.sentence}</span>
+            </span>
+            {w.recommended ? <span className="pill pill-ok fr-find-best">{w.recommended}</span> : null}
+          </label>
+        ))}
+      </div>
+      {ph.way === "new" ? (
+        <div className="fr-line-new">
+          <form className="fr-find-search" onSubmit={find}>
+            <label className="fr-line-label" htmlFor="fr-phone-area">{W.areaLabel}</label>
+            <input id="fr-phone-area" className="fr-find-input fr-line-area" inputMode="numeric" maxLength={3} placeholder={W.areaPlaceholder} value={area} onChange={(e) => setArea(e.target.value.replace(/\D/g, "").slice(0, 3))} data-testid="fr-phone-area" />
+            <button type="submit" className="btn btn-sm" disabled={busy} data-testid="fr-phone-find" {...window.gate("team", "find a number")}>{busy ? W.finding : W.find}</button>
+          </form>
+          {numbers && numbers.length ? (
+            <div className="fr-find-hits" role="radiogroup" aria-label={W.pickLabel} data-testid="fr-phone-numbers">
+              {numbers.map((n) => (
+                <label key={n.e164} className="fr-find-hit" data-testid="fr-phone-number">
+                  <input type="radio" name="fr-phone-pick" value={n.e164} checked={!!c.pick && c.pick.e164 === n.e164} onChange={() => change({ pick: { e164: n.e164, friendly: n.friendly } })} />
+                  <span className="fr-find-body">
+                    <span className="fr-find-name tabular">{F.numberWords(n.e164) || n.friendly}</span>
+                    <span className="fr-find-where">{[n.locality, n.region].filter(Boolean).join(", ") || W.local}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : (
+        <label className="fr-line-field">
+          <span className="fr-line-label">{W.numberLabel}</span>
+          <input className="fr-find-input" inputMode="tel" autoComplete="tel" placeholder={W.numberPlaceholder} value={shown} onChange={(e) => change({ number: e.target.value })} data-testid="fr-phone-number-box" />
+        </label>
+      )}
+      {ph.trial ? (
+        <div className="fr-trial" data-testid="fr-trial">
+          <span className="fr-trial-offer">{ph.trial.offer}</span>
+          <span className="fr-trial-note">{ph.trial.note}</span>
+        </div>
+      ) : null}
+      {/* The step's foot, drawn here while choosing, since its button is this one (FirstRun draws no other). */}
+      <div className="fr-foot">
+        {back ? <button type="button" className="btn btn-ghost btn-sm" onClick={() => go(back)} data-testid="fr-back">{backLabel}</button> : <span />}
+        {ph.cta.held ? <span className="fr-held" id="fr-phone-held" data-testid="fr-phone-held">{ph.cta.held}</span> : null}
+        <button
+          type="button"
+          className="fr-onward"
+          onClick={press}
+          aria-disabled={ph.cta.held ? true : undefined}
+          aria-describedby={ph.cta.held ? "fr-phone-held" : undefined}
+          aria-busy={busy || undefined}
+          data-testid="fr-phone-go"
+          {...(ph.trial ? window.gate("billing", "start the trial") : window.gate("team", "get a number"))}
+        >
+          {ph.cta.label}
+        </button>
+      </div>
+    </div>
+  );
+};
+
 /** The four steps across the top: a step done or on screen opens in place; a step not reached is only its name. */
 const FrRail = ({ fr, go, label }) => (
   <ol className="fr-rail" aria-label={label}>
@@ -459,6 +664,24 @@ const FirstRun = ({ param = null, onNavigate }) => {
     const stops = doors.map((d) => (d && d.subscribe ? d.subscribe(redraw) : null));
     return () => stops.forEach((stop) => { if (stop) stop(); });
   }, []);
+  // The phone step's choice, as the tab keeps it (FR_PHONE_DRAFT), and whether this tab came back from checkout with a
+  // card given: Stripe's answer is read once, on arrival.
+  const [phoneChoice, setPhoneChoiceState] = React.useState(frPhoneChoiceKept);
+  const setPhoneChoice = (c) => { frKeepPhoneChoice(c); setPhoneChoiceState(c); };
+  React.useEffect(() => {
+    const out = window.__billing && window.__billing.outcome ? window.__billing.outcome() : null;
+    const kept = frPhoneChoiceKept();
+    // Back with a card: Stripe returns to the first run's bare address, and the step it left is the phone's, which
+    // stays on screen once its line answers (a number kept still has its forwarding to set).
+    if (out === "success" && kept && kept.pending) {
+      setPhoneChoice({ ...kept, returnedAt: Date.now() });
+      if (param !== "phone") onNavigate("start/phone", { replace: true });
+    }
+    if (out === "cancel" && window.__firstRun) {
+      if (kept) setPhoneChoice({ ...kept, pending: false, sent: false, returnedAt: null });
+      flash({ msg: <>{window.__firstRun.phoneWords.cancelled}</> });
+    }
+  }, []);
   const F = window.__firstRun;
   // Being here is the landing: Today does not send this tab back again this session.
   React.useEffect(() => {
@@ -506,6 +729,9 @@ const FirstRun = ({ param = null, onNavigate }) => {
   onCheck.current = !!fr.check;
   const card = F.receptionist(frCardInputs(S));
   const step = fr.shown;
+  // The phone step as contracts say it over Setup and the owner's choice (first-run-phone.ts); `rows` is Setup's own.
+  const ph = step.key === "phone" ? F.phone({ dto: S.dto, vm: S.vm, choice: phoneChoice, returned: frReturned(phoneChoice), nowMs: Date.now() }) : null;
+  const phoneDrawn = !!ph && ph.stage !== "rows";
   // Whether this role may change the business, as the Business tab asks it: its rows' acts, and the answer's door.
   const canEdit = !window.canDo || window.canDo("settings");
   // The step on screen is the address's, replaced rather than pushed, so the browser's Back leaves the first run. A
@@ -560,13 +786,14 @@ const FirstRun = ({ param = null, onNavigate }) => {
       <div className="fr-body">
         <main className="fr-step" aria-labelledby="fr-heading">
           <div className="fr-step-head">
-            <h1 className="fr-heading" id="fr-heading" data-testid="fr-heading">{fr.heading}</h1>
-            {fr.lead ? <p className="fr-lead">{fr.lead}</p> : null}
+            <h1 className="fr-heading" id="fr-heading" data-testid="fr-heading">{phoneDrawn ? ph.heading : fr.heading}</h1>
+            {(phoneDrawn ? ph.lead : fr.lead) ? <p className="fr-lead">{phoneDrawn ? ph.lead : fr.lead}</p> : null}
           </div>
           {fr.find ? <FrFind W={W.find} flash={flash} done={fr.findDone} go={go} make={make} /> : null}
           {fr.check ? <FrCheck check={fr.check} W={W.check} flash={flash} make={make} making={making} go={go} canEdit={canEdit} /> : null}
+          {phoneDrawn ? <FrPhone ph={ph} choice={phoneChoice} setChoice={setPhoneChoice} W={F.phoneWords} flash={flash} go={go} back={fr.back} backLabel={W.back} /> : null}
           {step.key === "try" && S.vm.tryIt ? <window.SetupTry tryIt={S.vm.tryIt} /> : null}
-          {!fr.find && !fr.check && step.rows.length ? (
+          {!fr.find && !fr.check && !phoneDrawn && step.rows.length ? (
             <div className="fr-part">
               {step.key === "live" ? <h2 className="fr-sub">{W.liveNext}</h2> : null}
               <section className="tq fr-rows">
@@ -574,7 +801,7 @@ const FirstRun = ({ param = null, onNavigate }) => {
               </section>
             </div>
           ) : null}
-          {fr.back || fr.onward ? (
+          {(fr.back || fr.onward) && !(phoneDrawn && ph.stage === "choose") ? (
             <div className="fr-foot">
               {fr.back ? <button type="button" className="btn btn-ghost btn-sm" onClick={() => go(fr.back)} data-testid="fr-back">{W.back}</button> : <span />}
               {fr.onward && fr.onward.held ? <span className="fr-held" id="fr-held" data-testid="fr-held">{fr.onward.held}</span> : null}

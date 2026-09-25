@@ -129,6 +129,26 @@ button.fr-rail-btn:hover { background: var(--bg-sunken); color: var(--ink); }
 .fr-chips-full { font-size: 12.5px; color: var(--ink-dim); }
 .fr-chip:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .fr-chip[aria-pressed="true"]:focus-visible { box-shadow: inset 0 0 0 1px var(--ink), var(--focus-ring); }
+
+/* Your phone (canvas R3, V4, V5, P3): the three ways as Find's radio cards, the number or the area code under them, the
+   trial, and, once pressed, what is happening in Setup's own words. */
+.fr-line-step { display: grid; gap: 16px; }
+.fr-line-field { display: grid; gap: 6px; max-width: 320px; }
+.fr-line-label { font-size: 12.5px; color: var(--ink-dim); }
+.fr-line-new { display: grid; gap: 12px; }
+.fr-line-new .fr-find-search { align-items: center; }
+.fr-line-area { flex: 0 0 72px; }
+.fr-trial {
+  display: grid; gap: 4px; padding: 12px 16px;
+  border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--bg-raised);
+}
+.fr-trial-offer { font-size: 14px; font-weight: 500; }
+.fr-trial-note { font-size: 12.5px; line-height: var(--leading-normal); color: var(--ink-dim); }
+.fr-line-started { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 13px; color: var(--ink-dim); }
+.fr-line-status { display: grid; justify-items: start; gap: 6px; }
+.fr-line-sentence { font-size: 14px; line-height: var(--leading-normal); }
+.fr-line-detail { font-size: 12.5px; line-height: var(--leading-normal); color: var(--ink-dim); }
+
 /* Looks right, held until the step is done: in reach, with why beside it. */
 .fr-held { flex: 1 1 auto; font-size: 12.5px; line-height: var(--leading-normal); color: var(--ink-dim); text-align: right; }
 .fr-onward[aria-disabled="true"] { opacity: 0.5; cursor: default; }
@@ -177,6 +197,7 @@ button.fr-rail-btn:hover { background: var(--bg-sunken); color: var(--ink); }
   .fr-heading { font-size: 20px; }
   .fr-find-hit { padding: 12px 14px; }
   .fr-find-search { max-width: none; }
+  .fr-line-field { max-width: none; }
   /* Find on a phone (canvas P1): the best match alone until "Not this one? Search again", and its two acts held at the
      foot, as Back and Continue are. */
   .fr-find[data-hits]:not([data-more]) .fr-find-hit:not(.is-best),
