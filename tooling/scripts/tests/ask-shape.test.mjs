@@ -83,3 +83,10 @@ test("a round keeps its timing (first event, first text, the whole) and its usag
   const n = await runRound({ tenantId: A, userId: USER, request: {} }, () => {}, nothing);
   assert.deepEqual([n.streamError, n.usage, n.timing.firstTextMs], ["gone", null, null]);
 });
+
+test("the cache hit ratio: cache reads over everything the model was fed; nothing fed is null, not zero", async () => {
+  const { cacheHitOf } = await import("@chanlytics/contracts");
+  assert.equal(cacheHitOf({ input: 100, cache_read: 900, cache_creation: 0, output: 40 }), 0.9);
+  assert.equal(cacheHitOf({ input: 0, cache_read: 0, cache_creation: 0, output: 0 }), null);
+  assert.equal(cacheHitOf({ input: 100, cache_read: 0, cache_creation: 900, output: 40 }), 0, "a write is not a hit");
+});
