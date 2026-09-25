@@ -4,7 +4,13 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { campaignFooter, unsubscribePageWords, WHY_FROM_MAPS } from "@chanlytics/contracts";
+import {
+  campaignFooter,
+  campaignFooterHtml,
+  unsubscribePageWords,
+  whyFrom,
+  WHY_FROM_MAPS,
+} from "@chanlytics/contracts";
 import { buildEmailRequest, hostedIdentity } from "@chanlytics/channels";
 
 const URL_ =
@@ -79,4 +85,66 @@ test("the page's words: only the page that asks has a button, and nothing reads 
   assert.equal(unsubscribePageWords(views[3]).lead, "You're unsubscribed.");
   assert.match(unsubscribePageWords(views[3]).body, /^Best Movers won't send you emails like that one again\.$/);
   assert.match(unsubscribePageWords(views[0]).body, /they can still answer you/);
+});
+
+test("in HTML the foot is the canvas's: one line to say no, the link reading Unsubscribe; the text keeps the address", () => {
+  const html = campaignFooterHtml(FOOT);
+  assert.match(
+    html,
+    /Not interested\? Reply &quot;no thanks&quot; and I won&#39;t write again · <a href="https:\/\/app\.chanlytics\.com\/u\/[^"]+">Unsubscribe<\/a>/,
+  );
+  assert.doesNotMatch(html.replace(/href="[^"]+"/, ""), /app\.chanlytics\.com/, "the address shows only as the link");
+  assert.match(campaignFooterHtml({ ...FOOT, business: "Best <Movers>" }), /Best &lt;Movers&gt;/, "escaped");
+  const r = buildEmailRequest({
+    identity: hostedIdentity(
+      { local_part: "chanlytics", reply_token: "abcdefghijklmnopqrstuvwx", from_name: "Ruben" },
+      "mail.chanlytics.com",
+    ),
+    to: "coach@example.com",
+    parent: null,
+    subject: "The calls you miss",
+    body: "A 4.9 from 212 reviews says people find you.",
+    signature: null,
+    actor: "ai",
+    campaign: { unsubscribeUrl: URL_, footer: campaignFooter(FOOT), footerHtml: campaignFooterHtml(FOOT) },
+    messageId: "11111111-1111-4111-8111-111111111111",
+    tenantId: "22222222-2222-4222-8222-222222222222",
+  });
+  assert.ok(r.html.endsWith(campaignFooterHtml(FOOT)), "the HTML ends with the foot as the canvas draws it");
+  assert.ok(r.text.endsWith(campaignFooter(FOOT)), "the text keeps the address, which plain text needs");
+  assert.throws(
+    () =>
+      buildEmailRequest({
+        identity: hostedIdentity(
+          { local_part: "c", reply_token: "abcdefghijklmnopqrstuvwx", from_name: "R" },
+          "mail.chanlytics.com",
+        ),
+        to: "coach@example.com",
+        parent: null,
+        subject: "Hi",
+        body: "x",
+        signature: null,
+        actor: "ai",
+        campaign: { unsubscribeUrl: URL_, footer: campaignFooter(FOOT), footerHtml: "<p>no link</p>" },
+        messageId: "11111111-1111-4111-8111-111111111111",
+        tenantId: "22222222-2222-4222-8222-222222222222",
+      }),
+    /footer carries its unsubscribe link/,
+  );
+});
+
+test("why they hear from you comes from where the business was found", () => {
+  assert.equal(whyFrom("maps"), WHY_FROM_MAPS);
+  assert.equal(whyFrom("something new"), "I came across your business online.");
+});
+
+test("the page names the email it is about, and a press that did not go through can be pressed again", () => {
+  const ask = unsubscribePageWords({ kind: "ask", business: "Best Movers", sender: "sam@harbor-mail.com" });
+  assert.match(ask.body, /emails like the one from sam@harbor-mail\.com again/);
+  const done = unsubscribePageWords({ kind: "done", business: "Best Movers", sender: "sam@harbor-mail.com" });
+  assert.match(done.lead, /You're unsubscribed from emails from sam@harbor-mail\.com\./);
+  const failed = unsubscribePageWords({ kind: "unavailable", retry: true });
+  assert.equal(failed.button, "Try again");
+  assert.match(failed.body, /Or reply to the email and ask them to stop\./);
+  assert.equal(unsubscribePageWords({ kind: "unavailable" }).button, null, "no secret: nothing a press could do");
 });

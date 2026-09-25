@@ -4219,6 +4219,11 @@ function buildEmailRequest(i) {
   if (i.campaign && !i.campaign.footer.trim()) throw new Error("buildEmailRequest: a campaign's footer is never empty");
   const unsubscribe = i.campaign ? unsubscribeHeaders(i.campaign) : {};
   const text = [i.body.trim(), i.signature?.trim(), i.campaign?.footer.trim()].filter(Boolean).join("\n\n");
+  const footerHtml = i.campaign?.footerHtml?.trim() || null;
+  if (footerHtml && !footerHtml.includes(`href="${escapeHtml(i.campaign.unsubscribeUrl.trim())}"`))
+    throw new Error("buildEmailRequest: a campaign's HTML footer carries its unsubscribe link");
+  const html = footerHtml ? `${emailHtml([i.body.trim(), i.signature?.trim()].filter(Boolean).join("\n\n"))}
+${footerHtml}` : emailHtml(text);
   const inReplyTo = i.parent ? messageIdHeader(i.parent.rfcMessageId) : null;
   const references = i.parent ? referencesFor(i.parent) : [];
   const autoSubmitted = i.campaign || i.actor === "ai" && !i.parent ? "auto-generated" : i.actor === "ai" ? "auto-replied" : null;
@@ -4234,7 +4239,7 @@ function buildEmailRequest(i) {
     reply_to: [i.identity.replyTo],
     subject,
     text,
-    html: emailHtml(text),
+    html,
     headers: headers2,
     tags: [
       { name: "cl_message", value: i.messageId },

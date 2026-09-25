@@ -57,6 +57,11 @@ export interface EmailCampaign {
   unsubscribeMailto?: string;
   /** Why they are hearing from us, the business's name and postal address, the way to say no. Composed by the caller; never empty. */
   footer: string;
+  /**
+   * The same foot in HTML (contracts campaignFooterHtml), the link reading "Unsubscribe" as the canvas draws it. When
+   * given it ends the HTML twin in place of the text foot, and it must carry the unsubscribe link itself.
+   */
+  footerHtml?: string;
 }
 
 export interface EmailRequestInput {
@@ -232,6 +237,12 @@ export function buildEmailRequest(i: EmailRequestInput): EmailRequest {
   if (i.campaign && !i.campaign.footer.trim()) throw new Error("buildEmailRequest: a campaign's footer is never empty");
   const unsubscribe = i.campaign ? unsubscribeHeaders(i.campaign) : {};
   const text = [i.body.trim(), i.signature?.trim(), i.campaign?.footer.trim()].filter(Boolean).join("\n\n");
+  const footerHtml = i.campaign?.footerHtml?.trim() || null;
+  if (footerHtml && !footerHtml.includes(`href="${escapeHtml(i.campaign!.unsubscribeUrl.trim())}"`))
+    throw new Error("buildEmailRequest: a campaign's HTML footer carries its unsubscribe link");
+  const html = footerHtml
+    ? `${emailHtml([i.body.trim(), i.signature?.trim()].filter(Boolean).join("\n\n"))}\n${footerHtml}`
+    : emailHtml(text);
   const inReplyTo = i.parent ? messageIdHeader(i.parent.rfcMessageId) : null;
   const references = i.parent ? referencesFor(i.parent) : [];
   const autoSubmitted =
@@ -248,7 +259,7 @@ export function buildEmailRequest(i: EmailRequestInput): EmailRequest {
     reply_to: [i.identity.replyTo],
     subject,
     text,
-    html: emailHtml(text),
+    html,
     headers,
     tags: [
       { name: "cl_message", value: i.messageId },

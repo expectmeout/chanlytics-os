@@ -20303,14 +20303,15 @@ function connectionRows(i, nowMs = Date.now()) {
   if (mailbox) {
     const last = mailbox.last_received_at ? ` Last email ${agoWords(Date.parse(mailbox.last_received_at), nowMs)}.` : "";
     const working = `Customers write to this address and you reply from the Inbox, as ${mailbox.from_name}.${last}`;
+    const heldDomains = (i.email?.sending?.domains ?? []).filter((d) => d.state === "held").length;
     out.push(
       row({
         kind: "email",
         icon: "mail",
         title: "Email",
         detail: mailbox.address,
-        state: mailbox.last_error ? "attention" : "connected",
-        stateWords: mailbox.last_error ? "Waiting on us" : "On",
+        state: mailbox.last_error || heldDomains ? "attention" : "connected",
+        stateWords: mailbox.last_error ? "Waiting on us" : heldDomains ? `On \xB7 ${heldDomains} domain${heldDomains === 1 ? "" : "s"} held` : "On",
         sentence: mailbox.last_error ? `${mailbox.last_error} ${working}` : working,
         verb: { label: "Change the name", to: "verb:email-setup", who: "owner" },
         body: "email_setup"
@@ -20959,13 +20960,15 @@ function sendingDomainWords(d, nowMs) {
   const who = `${d.from_name} \xB7 ${d.address}`;
   if (d.state === "records") {
     const line = d.provider_status === "not_found" ? "The mail provider no longer has this domain. Remove it and add it again." : d.provider_status === "verified" && d.dmarc === "missing" ? "SPF and DKIM pass. Add the DMARC record below, then Check." : d.provider_status === "failed" || d.provider_status === "partially_failed" ? "The records weren't found. Check each one below at your registrar, then Check again." : "Add the records below at your registrar, then Check.";
-    return { pill: "Records to add", tone: "warn", line, cap: "Not sending yet", next: null };
+    return { pill: "Records to add", tone: "warn", line, stats: null, fix: null, cap: "Not sending yet", next: null };
   }
   if (d.state === "verifying")
     return {
       pill: "Checking",
       tone: "info",
-      line: "Checking the records. It usually takes minutes, and can take a few hours.",
+      line: "Checking the records. It usually takes minutes, and can take a few hours. We look again every ten minutes.",
+      stats: null,
+      fix: null,
       cap: "Not sending yet",
       next: null
     };
@@ -20976,20 +20979,105 @@ function sendingDomainWords(d, nowMs) {
     return {
       pill: "Verified",
       tone: "ok",
-      line: [`${who} \xB7 ${days} clean day${days === 1 ? "" : "s"}`, domainStatsWords(d)].filter(Boolean).join(" \xB7 "),
+      line: `${who} \xB7 ${days} clean day${days === 1 ? "" : "s"}`,
+      stats: domainStatsWords(d),
+      fix: null,
       cap: `Up to ${cap2} a day`,
-      next: step2 ? `${step2.perDay} a day after ${step2.days} clean days` : null
+      // The next step as the day it comes, if the days stay clean (the canvas's "200 a day from Oct 15").
+      next: step2 && d.clean_since ? `${step2.perDay} a day from ${DAY_FMT.format(new Date(Date.parse(d.clean_since) + step2.days * DAY_MS8))}` : null
     };
   }
   const why = domainHoldWords(d.held_why);
   const since = d.held_at ? DAY_FMT.format(new Date(d.held_at)) : null;
+  const was = domainDailyCap(d.clean_since, d.held_at ? Date.parse(d.held_at) : nowMs);
   return {
     pill: "Held",
     tone: "warn",
     line: `${since ? `Held since ${since}` : "Held"} \xB7 ${why}`,
-    cap: "Sending nothing",
-    next: d.held_why === "provider" ? "We've been told. If it doesn't come back on its own, remove it and add it again." : d.held_why && DNS_HOLDS.includes(d.held_why) ? "Nothing leaves from it until Check passes." : "Nothing leaves from it until you resume it."
+    stats: null,
+    // A hold its records fix shows them just below, so the row does not say the reason twice; the rest say what to do.
+    fix: d.held_why && DNS_HOLDS.includes(d.held_why) ? null : domainHoldFixWords(d.held_why),
+    cap: was > 0 ? `Sending nothing \xB7 was ${was} a day` : "Sending nothing",
+    next: d.held_why === "provider" ? "We've been told. If it doesn't come back on its own, remove it and add it again." : d.held_why && DNS_HOLDS.includes(d.held_why) ? `It sends again by itself once the records read right, starting at ${DOMAIN_RAMP[0].perDay} a day.` : "Nothing leaves from it until you resume it."
   };
+}
+var HOLD_FIX_WORDS = {
+  verification: "One of its records stopped reading right at your registrar: check them below.",
+  dmarc: "Its DMARC record is missing: add the one below.",
+  bounces: "Check the addresses you write to: more than 2% of recent emails bounced.",
+  complaint: "Someone marked an email as spam. Read the email again: a clear reason for writing, and fewer a day.",
+  provider: "Remove it and add it again."
+};
+function domainHoldFixWords(why) {
+  return why && HOLD_FIX_WORDS[why] || null;
+}
+var KIND_OF_RECORD = { DKIM: "Signing (DKIM)", SPF: "Sender (SPF)", DMARC: "Policy (DMARC)" };
+function domainRecordRows(d) {
+  const host = d.host.toLowerCase();
+  const relative = (name) => {
+    const n = name.trim().toLowerCase().replace(/\.$/, "");
+    if (n === host) return "@";
+    return n.endsWith(`.${host}`) ? n.slice(0, -(host.length + 1)) : n;
+  };
+  const rows = d.records.map((r2) => {
+    const name = relative(r2.name);
+    return {
+      kind: r2.type === "MX" ? "Return path" : KIND_OF_RECORD[r2.label] ?? r2.label,
+      type: r2.type,
+      name,
+      value: r2.value,
+      priority: r2.priority,
+      found: r2.status === "verified",
+      key: `${name}-${r2.type}`
+    };
+  });
+  if (d.dmarc !== "found")
+    rows.push({
+      kind: "Policy (DMARC)",
+      type: "TXT",
+      name: "_dmarc",
+      value: DMARC_RECOMMENDED,
+      priority: null,
+      found: false,
+      key: "_dmarc-TXT"
+    });
+  return rows;
+}
+function domainRecordsIntro(host) {
+  return `These records tell Gmail and others that Chanlytics may send as ${host}. Add each one where you bought the domain, then press Check.`;
+}
+function domainRegistrarHint(host) {
+  return `Some registrars add ${host} for you. If yours does, type only the part shown.`;
+}
+function checkResultWords(d, nowMs) {
+  if (d.state === "verified") {
+    const cap2 = domainDailyCap(d.clean_since, nowMs);
+    return {
+      tone: "ok",
+      msg: cap2 === DOMAIN_RAMP[0].perDay ? `${d.host} is verified. It starts at ${cap2} a day.` : `${d.host} is sending again, up to ${cap2} a day.`
+    };
+  }
+  if (d.state === "verifying")
+    return { tone: "info", msg: `${d.host}: checking the records. We look again every ten minutes; nothing to press.` };
+  if (d.state === "records")
+    return {
+      tone: "warn",
+      msg: d.provider_status === "not_found" ? `${d.host}: the mail provider no longer has this domain. Remove it and add it again.` : `${d.host}: not found yet. DNS changes can take a few hours. Press Check again later.`
+    };
+  const why = domainHoldWords(d.held_why);
+  if (d.held_why && DNS_HOLDS.includes(d.held_why))
+    return {
+      tone: "warn",
+      msg: `${d.host} is still held: ${why}. It sends again by itself once the records read right.`
+    };
+  return { tone: "warn", msg: `${d.host} is held: ${why}.` };
+}
+function sendingDomainsFootWords(count2, max) {
+  const where = "Replies come back to the Inbox. Mail sent straight to a domain's own address goes wherever that domain's mail goes.";
+  if (count2 >= max) return `${max === 5 ? "Five" : max} is the most. Remove one to add another. ${where}`;
+  if (count2 === 0)
+    return "Cold email to the businesses you find leaves only from a domain you own, so cold email's reputation stays apart from your everyday email's. No spare domain? Buy one like get<yourbusiness>.com, then add it here.";
+  return `A new domain starts at ${DOMAIN_RAMP[0].perDay} a day and grows as the days stay clean. ${where}`;
 }
 
 // src/activity.ts
@@ -22781,6 +22869,10 @@ function googleFillsOf(brain, listing) {
 
 // src/reach-out.ts
 var WHY_FROM_MAPS = "I found your business on Google Maps.";
+function whyFrom(source) {
+  return source === "maps" ? WHY_FROM_MAPS : "I came across your business online.";
+}
+var escapeHtml = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 function campaignFooter(f) {
   const why = f.why.trim();
   const business = f.business.trim();
@@ -22795,24 +22887,30 @@ function campaignFooter(f) {
     `Unsubscribe: ${url}`
   ].join("\n");
 }
+function campaignFooterHtml(f) {
+  campaignFooter(f);
+  return `<p>${escapeHtml(f.why.trim())}<br>${escapeHtml(f.business.trim())} \xB7 ${escapeHtml(f.address.trim())}<br>${escapeHtml(`Not interested? Reply "no thanks" and I won't write again`)} \xB7 <a href="${escapeHtml(f.unsubscribeUrl.trim())}">Unsubscribe</a></p>`;
+}
 function unsubscribePageWords(v) {
   switch (v.kind) {
     case "ask": {
       const b = v.business?.trim() || null;
+      const like = v.sender?.trim() ? `the one from ${v.sender.trim()}` : "that one";
       return {
         title: "Unsubscribe",
         lead: b ? `Stop emails from ${b}?` : "Stop these emails?",
-        body: `Press the button and ${b ?? "this business"} won't send you emails like that one again. If you write to them, they can still answer you.`,
+        body: `Press the button and ${b ?? "this business"} won't send you emails like ${like} again. If you write to them, they can still answer you.`,
         button: "Unsubscribe",
         foot: `${b ?? "This business"} sends its email with Chanlytics.`
       };
     }
     case "done": {
       const b = v.business?.trim() || null;
+      const sender = v.sender?.trim() || null;
       return {
         title: "Unsubscribed",
-        lead: "You're unsubscribed.",
-        body: `${b ?? "This business"} won't send you emails like that one again.`,
+        lead: sender ? `You're unsubscribed from emails from ${sender}.` : "You're unsubscribed.",
+        body: `${b ?? "This business"} won't send you emails like ${sender ? `the one from ${sender}` : "that one"} again.`,
         button: null,
         foot: `${b ?? "This business"} sends its email with Chanlytics.`
       };
@@ -22829,8 +22927,8 @@ function unsubscribePageWords(v) {
       return {
         title: "Unsubscribe",
         lead: "That didn't go through.",
-        body: "We couldn't record it just now. Try the link again in a minute.",
-        button: null,
+        body: v.retry ? "We couldn't record it just now. Press Try again. Or reply to the email and ask them to stop." : "We couldn't record it just now. Try the link again in a minute. Or reply to the email and ask them to stop.",
+        button: v.retry ? "Try again" : null,
         foot: null
       };
   }
@@ -23454,6 +23552,7 @@ export {
   callsToday,
   cameFromOf,
   campaignFooter,
+  campaignFooterHtml,
   cannotRows,
   capabilityStatus,
   cardOpenRoute,
@@ -23463,6 +23562,7 @@ export {
   channelsOf,
   checkChipsOf,
   checkNoteSuggestion,
+  checkResultWords,
   checkedWords,
   chipsMoreWords,
   citationRoute,
@@ -23560,8 +23660,12 @@ export {
   deviceTimezone,
   divertedNumbers,
   domainDailyCap,
+  domainHoldFixWords,
   domainHoldWords,
   domainPatchOf,
+  domainRecordRows,
+  domainRecordsIntro,
+  domainRegistrarHint,
   domainStatsWords,
   draftListRule,
   draftSendsAtMs,
@@ -24045,6 +24149,7 @@ export {
   sendingDomainActs,
   sendingDomainDtoOf,
   sendingDomainWords,
+  sendingDomainsFootWords,
   serverNotificationRows,
   serviceOf,
   serviceSuggestionsOf,
@@ -24219,6 +24324,7 @@ export {
   wholeDaysSince,
   whoseWords,
   whyCannotSpend,
+  whyFrom,
   whyNotAFromLocal,
   whyNotAFromName,
   whyNotAHandoff,

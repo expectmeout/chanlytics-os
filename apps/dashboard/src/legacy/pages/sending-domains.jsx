@@ -8,40 +8,55 @@
  * decided; the records to publish are the provider's, as the edge stored them, with the DMARC one we recommend while
  * the domain has none. The owner adds, checks and removes; anyone may read.
  */
-const SD_FULL_NAME = (name, host) => (name === host || name.endsWith(`.${host}`) ? name : `${name}.${host}`);
-
 const SendingDomainRecords = ({ d, flash }) => {
   const API = window.__sendingDomains;
-  const copy = (value) => {
-    if (navigator.clipboard)
-      navigator.clipboard.writeText(value).then(
-        () => flash({ msg: <>Copied</> }),
-        () => flash({ tone: "danger", msg: <>Couldn't copy: select the value and copy it by hand</> }),
-      );
+  // Copy, or, where the browser gives no clipboard, the words selected so a person can copy them by hand.
+  const copy = (value, id) => {
+    const byHand = () => {
+      const node = document.getElementById(id);
+      if (node && window.getSelection && document.createRange) {
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+      flash({ tone: "danger", msg: <>Couldn't copy. It's selected: copy it by hand</> });
+    };
+    if (navigator.clipboard) navigator.clipboard.writeText(value).then(() => flash({ msg: <>Copied</> }), byHand);
+    else byHand();
   };
-  const rows = d.records.map((r) => ({
-    key: `${r.label}-${r.type}-${r.name}`,
-    label: r.label,
-    name: SD_FULL_NAME(r.name, d.host),
-    type: r.type,
-    value: r.priority != null ? `${r.priority} ${r.value}` : r.value,
-    copyValue: r.value,
-  }));
-  if (d.dmarc !== "found")
-    rows.push({ key: "dmarc", label: "DMARC", name: `_dmarc.${d.host}`, type: "TXT", value: API.dmarc, copyValue: API.dmarc });
+  const rows = API.recordRows(d);
+  const idOf = (r, part) => `rec-${d.id}-${part}-${r.key}`;
   return (
     <div className="set-records" data-testid={`domain-records-${d.host}`}>
-      {rows.map((r) => (
-        <React.Fragment key={r.key}>
-          <span className="k">{r.label}</span>
-          <span className="v" title={`${r.name} ${r.type} ${r.value}`}>
-            <span className="n">{r.name}</span> <span className="dim">{r.type}</span> {r.value}
-          </span>
-          <button type="button" className="cl-bucket-link" onClick={() => copy(r.copyValue)} data-testid={`domain-copy-${r.key}`}>
-            Copy
-          </button>
-        </React.Fragment>
-      ))}
+      <p className="set-records-intro">
+        {API.recordsIntro(d.host)} <span className="dim">{API.registrarHint(d.host)}</span>
+      </p>
+      <div className="set-records-table" role="table" aria-label={`The records for ${d.host}`}>
+        <div className="set-records-row set-records-head" role="row">
+          <span role="columnheader">Record</span>
+          <span role="columnheader">Name</span>
+          <span role="columnheader">Value</span>
+        </div>
+        {rows.map((r) => (
+          <div className="set-records-row" role="row" key={r.key}>
+            <span role="cell" className="k">
+              <span className="rec-dot" data-found={r.found ? "yes" : "no"} title={r.found ? "Found" : "Not found yet"} aria-label={r.found ? "Found" : "Not found yet"} {...(r.found ? { "data-testid": `domain-found-${r.key}` } : {})} />
+              {r.kind}
+              <span className="ty-inline"> · {r.type}{r.priority != null ? ` · ${r.priority}` : ""}</span>
+            </span>
+            <span role="cell" className="n">
+              <code id={idOf(r, "name")}>{r.name}</code>
+              <button type="button" className="cl-bucket-link rec-copy" onClick={() => copy(r.name, idOf(r, "name"))} aria-label={`Copy the ${r.kind} name`} data-testid={`domain-copy-name-${r.key}`}>Copy</button>
+            </span>
+            <span role="cell" className="v">
+              <code id={idOf(r, "value")}>{r.value}</code>
+              <button type="button" className="cl-bucket-link rec-copy" onClick={() => copy(r.value, idOf(r, "value"))} aria-label={`Copy the ${r.kind} value`} data-testid={`domain-copy-value-${r.key}`}>Copy</button>
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 };
@@ -77,7 +92,7 @@ const SendingDomainAdd = ({ mailDomain, fromName, flash, onClose }) => {
   };
   const shownHost = host.trim().toLowerCase() || "yourdomain.com";
   return (
-    <div className="set-row set-row-stack biz" data-testid="domain-add">
+    <div className="set-row set-row-stack biz set-domain-add" data-testid="domain-add">
       <div className="biz-fields">
         <label className="biz-field" data-testid="domain-host">
           <span className="biz-label">The domain you'll send from</span>
@@ -121,8 +136,9 @@ const SendingDomains = ({ email, flash }) => {
     const r = await API.check(d.id);
     setBusy(null);
     if (!r.ok) { flash(window.refusalToast(r, "Not checked")); return; }
-    const w = API.words(r.data.domain, Date.now());
-    flash({ msg: <>{d.host}: {w.pill.toLowerCase()} — {w.line}</> });
+    // What the Check found, in its own tone: records not there yet are not a success.
+    const said = API.checkWords(r.data.domain, Date.now());
+    flash({ tone: said.tone === "ok" ? undefined : said.tone === "warn" ? "warn" : "info", msg: <>{said.msg}</> });
   };
   const remove = async (d) => {
     setBusy(d.id);
@@ -163,12 +179,14 @@ const SendingDomains = ({ email, flash }) => {
               <span className="t">
                 <b>{d.host}</b>
                 <span>{w.line}</span>
+                {w.stats ? <span className="dim">{w.stats}</span> : null}
+                {w.fix ? <span>{w.fix}</span> : null}
                 {w.next ? <span>{w.next}</span> : null}
                 {armed(d, "remove") && (
                   <Confirm question={`Remove ${d.host}?`} detail="Nothing more is sent from it; what was sent stays in its threads." yes="Yes, remove" danger busy={busy === d.id} onYes={() => remove(d)} onNo={() => setArm(null)} testid={`domain-remove-${d.host}`} />
                 )}
                 {armed(d, "resume") && (
-                  <Confirm question={`Resume ${d.host}?`} detail={`It starts again at ${firstStep} a day. It was held because ${API.holdWords(d.held_why)}: fix that first.`} yes="Yes, resume" busy={busy === d.id} onYes={() => resume(d)} onNo={() => setArm(null)} testid={`domain-resume-${d.host}`} />
+                  <Confirm question={`Resume ${d.host}?`} detail={`It starts again at ${firstStep} a day. It was held because ${API.holdWords(d.held_why)}. ${w.fix ?? ""}`.trim()} yes="Yes, resume" busy={busy === d.id} onYes={() => resume(d)} onNo={() => setArm(null)} testid={`domain-resume-${d.host}`} />
                 )}
               </span>
               <span className="cap"><span>{w.cap}</span></span>
@@ -195,11 +213,7 @@ const SendingDomains = ({ email, flash }) => {
         <div className="set-dom set-dom-foot">
           <span />
           <span className="t">
-            <span>
-              {domains.length
-                ? "Add the records at your registrar, then Check. A new domain starts at 30 a day and grows as the days stay clean; a held one sends nothing until it's fixed."
-                : "Cold email to the businesses you find leaves only from a domain you own, so your everyday email is never at risk."}
-            </span>
+            <span>{API.footWords(domains.length, API.max)}</span>
           </span>
           <span />
           <span />

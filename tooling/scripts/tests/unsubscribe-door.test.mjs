@@ -232,3 +232,34 @@ test("with no secret the door cannot tell a link from a guess, and says so witho
     process.env.UNSUBSCRIBE_SECRET = SECRET;
   }
 });
+
+test("the page names the address the email came from; a press the database could not take offers Try again", async () => {
+  const withSender = fakeDb(
+    {
+      tenants: [{ id: A, name: "Best Movers" }],
+      messages: [
+        {
+          id: M,
+          tenant_id: A,
+          channel: "email",
+          direction: "outbound",
+          meta: { email: { request: { from: '"Sam" <sam@harbor-mail.com>' } } },
+        },
+      ],
+    },
+    {},
+    {
+      set_email_marketing: () => {
+        throw new Error("the database is not answering");
+      },
+    },
+  );
+  setServiceClient(withSender);
+  const asked = await (await get()).text();
+  assert.match(asked, /emails like the one from sam@harbor-mail\.com again/);
+  const press = await post("unsubscribe=yes");
+  assert.equal(press.status, 503);
+  const html = await press.text();
+  assert.match(html, /<button type="submit">Try again<\/button>/);
+  assert.match(html, /Or reply to the email and ask them to stop\./);
+});
