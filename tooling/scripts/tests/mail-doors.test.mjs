@@ -360,6 +360,14 @@ test("setup-request: a port and a repair each tell the platform what was asked f
     assert.match(port.text, /keep their current service/, "and the one thing that loses a number");
     assert.equal(repair.subject, "Harbor Moving asked for their business settings to be repaired");
     assert.match(repair.text, /broken\.issues/, "where the problems are listed");
+    // An office phone system's forwarding, set up with a person on a call (00173).
+    assert.deepEqual(await answer(await knock(SETUP, { what: "forwarding", by: "ada@example.com" })), [
+      200,
+      { ok: true, what: "forwarding", tenant: "harbor-moving" },
+    ]);
+    const forwarding = net.mail()[2];
+    assert.equal(forwarding.subject, "Harbor Moving asked for help setting up forwarding in their office phone system");
+    assert.match(forwarding.text, /before any voicemail/, "the one thing that keeps calls away");
   } finally {
     net.restore();
   }

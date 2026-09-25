@@ -99,7 +99,7 @@ export interface SetupDto {
    * ask of each thing (00123 added bringing a number and a repair). Optional
    * beyond the line, so a reader built before them still parses.
    */
-  requests: { line: string | null; port?: string | null; repair?: string | null };
+  requests: { line: string | null; port?: string | null; repair?: string | null; forwarding?: string | null };
   /** The workspace's own lines, and whether this deployment can get one. */
   lines?: { rows: LineDto[]; ready: boolean; provider: string | null; costs: { local_number_month_usd: number } };
   /** The business on Google: whether it can be found here, and the listing once it is. */
@@ -388,7 +388,7 @@ export const BROKEN_CONFIG_WORDS = {
  * lines provision themselves; bringing the number they have over (S14); and a
  * repair of a configuration the receptionist can no longer read (S8).
  */
-export const SETUP_REQUEST_KINDS = ["line", "port", "repair"] as const;
+export const SETUP_REQUEST_KINDS = ["line", "port", "repair", "forwarding"] as const;
 export type SetupRequestKind = (typeof SETUP_REQUEST_KINDS)[number];
 
 /**
@@ -1013,7 +1013,10 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
         title,
         state: "waiting_you",
         required: false,
-        sentence: `Dial the code on the phone with ${kept}, then test it.`,
+        sentence:
+          f.carrier === "office"
+            ? `Forward ${kept} to your receptionist in your phone system's settings, then test it.`
+            : `Dial the code on the phone with ${kept}, then test it.`,
         details: [how],
         verb: { label: "Test it", to: `verb:forwarding-test:${fw.id}` },
       });

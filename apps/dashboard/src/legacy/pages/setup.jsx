@@ -166,7 +166,7 @@ const ForwardingCard = ({ S, flash, onDone }) => {
     setBusy(true);
     const r = await window.__setup.forwarding.set({ number, carrier, mode, test_from: testFrom });
     setBusy(false);
-    flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <>Saved. Dial the code on the phone with {number}, then test it.</> : <>{r.message}</> });
+    flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? (carrier === "office" ? <>Saved. Forward {number} in the settings of your phone system, then test it.</> : <>Saved. Dial the code on the phone with {number}, then test it.</>) : <>{r.message}</> });
   };
   const test = async () => {
     if (!owner) return;
@@ -208,16 +208,20 @@ const ForwardingCard = ({ S, flash, onDone }) => {
       </div>
       {codes && (
         <div className="setup-fw-code" data-testid="setup-fw-code">
-          <span className="setup-find-label">Dial on the phone with {W.display(fw.e164)}</span>
-          <a className="setup-fw-dial tabular" href={codes.on.tel} data-testid="setup-fw-dial">{codes.on.code}</a>
+          <span className="setup-find-label">{W.dialLabel(f.carrier, W.display(fw.e164))}</span>
+          {/* For an office phone system the number to forward to is the receptionist line itself: drawn as words, never
+              as a call to it, which a test window would take for proof that forwarding works. */}
+          {f.carrier === "office"
+            ? <span className="setup-fw-dial tabular" data-testid="setup-fw-dial">{W.display(codes.on.code)}</span>
+            : <a className="setup-fw-dial tabular" href={codes.on.tel} data-testid="setup-fw-dial">{codes.on.code}</a>}
           <ul className="setup-fw-notes">{codes.notes.map((n, i) => <li key={i}>{n}</li>)}</ul>
           <div className="setup-fw-actions">
             {fw.forwarding_state === "verified"
-              ? <span className="setup-fw-ok">Verified {f.verified_at ? W.ago(f.verified_at) : ""} · to switch it off, dial <b className="tabular">{codes.off.code}</b></span>
+              ? <span className="setup-fw-ok">Verified {f.verified_at ? W.ago(f.verified_at) : ""}{codes.off.code ? <> · to switch it off, dial <b className="tabular">{codes.off.code}</b></> : null}</span>
               : testing
                 ? <span className="setup-fw-ok">The window is open — call {W.display(fw.e164)} from another phone. This page updates by itself.</span>
                 : <button className="btn btn-sm" onClick={test} disabled={busy} data-testid="setup-fw-test" {...window.gate("team", "test forwarding")}>Test it</button>}
-            {fw.forwarding_state !== "verified" && <span className="setup-fw-off">Off again: <b className="tabular">{codes.off.code}</b></span>}
+            {fw.forwarding_state !== "verified" && codes.off.code && <span className="setup-fw-off">Off again: <b className="tabular">{codes.off.code}</b></span>}
           </div>
         </div>
       )}

@@ -769,7 +769,7 @@ test("REGRESSION (S8, S14): a port and a repair are asked for through the same d
     },
   };
   const tables = { memberships: both("viewer", "operator") };
-  for (const what of ["port", "repair"]) {
+  for (const what of ["port", "repair", "forwarding"]) {
     const r = await setupRequest.POST.run(send("POST", { what }, inB), ctxFor(tables, {}, rpcs));
     assert.equal(r.told, false, "not production: the mailbox is not reached");
   }
@@ -778,6 +778,7 @@ test("REGRESSION (S8, S14): a port and a repair are asked for through the same d
     [
       { p_tenant_id: B, p_what: "port" },
       { p_tenant_id: B, p_what: "repair" },
+      { p_tenant_id: B, p_what: "forwarding" },
     ],
     "REGRESSION: refused before the database was asked",
   );

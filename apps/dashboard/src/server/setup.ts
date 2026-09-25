@@ -95,7 +95,12 @@ async function teamCounts(
 function requestsFrom(rows: ReadonlyArray<{ created_at: string; data: unknown }> | null): SetupDto["requests"] {
   const newest = (what: string) =>
     (rows ?? []).find((r) => (r.data as { what?: unknown } | null)?.what === what)?.created_at ?? null;
-  return { line: newest("line"), port: newest("port"), repair: newest("repair") };
+  return {
+    line: newest("line"),
+    port: newest("port"),
+    repair: newest("repair"),
+    forwarding: newest("forwarding"),
+  };
 }
 
 /**

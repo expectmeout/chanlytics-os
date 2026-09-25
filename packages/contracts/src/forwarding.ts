@@ -14,10 +14,14 @@
  */
 import { normalizePhone } from "./phone";
 
-export type Carrier = "verizon" | "att" | "tmobile" | "other";
+/**
+ * Who forwards the calls: a mobile or landline company, by its star codes, or an office phone system (RingCentral,
+ * Vonage and the like), which takes no code and is set in its own settings (00173).
+ */
+export type Carrier = "verizon" | "att" | "tmobile" | "other" | "office";
 export type ForwardingMode = "unanswered" | "always";
 
-export const CARRIERS: readonly Carrier[] = ["verizon", "att", "tmobile", "other"];
+export const CARRIERS: readonly Carrier[] = ["verizon", "att", "tmobile", "other", "office"];
 export const FORWARDING_MODES: readonly ForwardingMode[] = ["unanswered", "always"];
 
 export const CARRIER_WORDS: Record<Carrier, string> = {
@@ -25,6 +29,7 @@ export const CARRIER_WORDS: Record<Carrier, string> = {
   att: "AT&T",
   tmobile: "T-Mobile",
   other: "Another carrier or a landline",
+  office: "An office phone system",
 };
 
 export const MODE_WORDS: Record<ForwardingMode, string> = {
@@ -64,12 +69,33 @@ const code = (c: string): ForwardingCode => ({ code: c, tel: telHref(c) });
 const UNANSWERED_NOTE =
   "Your phone rings first. After your carrier's timer, usually 15 to 30 seconds, the call comes to the receptionist. If voicemail picks up first, calls never arrive: ask your carrier to lengthen the ring time, or forward every call.";
 const DIAL_NOTE = "Dial it on the phone that has the number you keep, wait for the tone or the message, then hang up.";
+const OFFICE_NOTE =
+  "An office phone system takes no code: in its settings, under forwarding or what happens when no one answers, forward the calls to the number above.";
+const OFFICE_VOICEMAIL_NOTE =
+  "If the system sends unanswered calls to voicemail, the forwarding has to come before it, or calls never reach the receptionist. Its support can set it for you.";
+
+/**
+ * What the owner is told to dial, or, for an office phone system, where to forward: said once, for every card.
+ * `kept` is the number kept, as the app writes one.
+ */
+export function forwardingDialLabel(carrier: Carrier, kept: string): string {
+  return carrier === "office"
+    ? `In the phone system for ${kept}, forward the calls to`
+    : `Dial on the phone with ${kept}`;
+}
 
 export function forwardingCodes(carrier: Carrier, mode: ForwardingMode, destinationE164: string): ForwardingCodes {
   const n10 = national(destinationE164);
   const full = normalizePhone(destinationE164) ?? destinationE164;
   const conditional = mode === "unanswered";
   switch (carrier) {
+    // No code: the receptionist's number, set in the system's own settings, and taken out there to switch it off.
+    case "office":
+      return {
+        on: code(full),
+        off: code(""),
+        notes: [OFFICE_NOTE, ...(conditional ? [OFFICE_VOICEMAIL_NOTE] : [])],
+      };
     case "verizon":
       return {
         on: code(conditional ? `*71${n10}` : `*72${n10}`),

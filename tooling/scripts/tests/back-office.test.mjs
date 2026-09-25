@@ -735,7 +735,7 @@ test("REGRESSION (S14): Setup reads what was asked for per thing, from the event
   const setup = await setupDtoFor(db, TENANT, { kind: "back_office" });
   assert.deepEqual(
     setup.requests,
-    { line: null, port: "2026-09-07T13:00:00Z", repair: "2026-09-07T14:00:00Z" },
+    { line: null, port: "2026-09-07T13:00:00Z", repair: "2026-09-07T14:00:00Z", forwarding: null },
     "REGRESSION: the newest setup bell of any kind read as a line request",
   );
 });

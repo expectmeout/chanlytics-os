@@ -516,6 +516,15 @@ const FrPhone = ({ ph, choice, setChoice, W, flash, go, back, backLabel, ownFoot
     setChoice({ ...c, redo: false });
     setHelp(false);
   };
+  // An office phone system's "Do it with me": a person at Chanlytics asked to set the forwarding up on a call (the
+  // request's own door, an operator's, as asking for a line is).
+  const withMe = async () => {
+    if (!P || busy || !(window.canDo && window.canDo("approve"))) return;
+    setBusy(true);
+    const r = await P.request("forwarding");
+    setBusy(false);
+    flash(r.ok ? { tone: "ok", msg: <>{W.withMeSent}</> } : window.refusalToast(r, W.withMeFailed));
+  };
   const press = async () => {
     const cta = ph.cta;
     if (!cta || cta.held || busy) return;
@@ -597,8 +606,20 @@ const FrPhone = ({ ph, choice, setChoice, W, flash, go, back, backLabel, ownFoot
         <p className="fr-code-off">{k.off}</p>
         {/* Outlined: the step's one coral button is Done, the press after the tap. */}
         {k.tap && tapDials ? <a className="btn fr-code-tap" href={k.tel} data-testid="fr-phone-tap">{k.tap}</a> : null}
+        {k.withMe ? (
+          <div className="fr-code-with" data-testid="fr-phone-with-me">
+            {k.withMe.asked ? (
+              <p className="fr-code-off" data-testid="fr-phone-with-me-asked">{k.withMe.asked}</p>
+            ) : (
+              <>
+                <p className="fr-code-off">{k.withMe.sentence}</p>
+                <button type="button" className="btn btn-sm" onClick={withMe} aria-busy={busy || undefined} data-testid="fr-phone-with-me-go" {...window.gate("approve", "ask for help with forwarding")}>{k.withMe.label}</button>
+              </>
+            )}
+          </div>
+        ) : null}
         <div className="fr-code-links">
-          <button type="button" className="fr-find-link" aria-expanded={help} onClick={() => setHelp((v) => !v)} data-testid="fr-phone-help">{k.help.label}</button>
+          {k.help.notes.length ? <button type="button" className="fr-find-link" aria-expanded={help} onClick={() => setHelp((v) => !v)} data-testid="fr-phone-help">{k.help.label}</button> : null}
           {k.change ? <button type="button" className="fr-find-link" onClick={() => answer({ redo: true })} data-testid="fr-phone-change" {...window.gate("team", "set up forwarding")}>{k.change}</button> : null}
         </div>
         {help ? <ul className="fr-code-notes" data-testid="fr-phone-notes">{k.help.notes.map((t) => <li key={t}>{t}</li>)}</ul> : null}

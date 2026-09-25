@@ -7386,13 +7386,14 @@ function pausedVoiceFacts(businessName) {
 }
 
 // src/forwarding.ts
-var CARRIERS = ["verizon", "att", "tmobile", "other"];
+var CARRIERS = ["verizon", "att", "tmobile", "other", "office"];
 var FORWARDING_MODES = ["unanswered", "always"];
 var CARRIER_WORDS = {
   verizon: "Verizon",
   att: "AT&T",
   tmobile: "T-Mobile",
-  other: "Another carrier or a landline"
+  other: "Another carrier or a landline",
+  office: "An office phone system"
 };
 var MODE_WORDS = {
   unanswered: "Only calls you don't answer",
@@ -7409,11 +7410,23 @@ function national(e164) {
 var code = (c) => ({ code: c, tel: telHref(c) });
 var UNANSWERED_NOTE = "Your phone rings first. After your carrier's timer, usually 15 to 30 seconds, the call comes to the receptionist. If voicemail picks up first, calls never arrive: ask your carrier to lengthen the ring time, or forward every call.";
 var DIAL_NOTE = "Dial it on the phone that has the number you keep, wait for the tone or the message, then hang up.";
+var OFFICE_NOTE = "An office phone system takes no code: in its settings, under forwarding or what happens when no one answers, forward the calls to the number above.";
+var OFFICE_VOICEMAIL_NOTE = "If the system sends unanswered calls to voicemail, the forwarding has to come before it, or calls never reach the receptionist. Its support can set it for you.";
+function forwardingDialLabel(carrier, kept) {
+  return carrier === "office" ? `In the phone system for ${kept}, forward the calls to` : `Dial on the phone with ${kept}`;
+}
 function forwardingCodes(carrier, mode, destinationE164) {
   const n10 = national(destinationE164);
   const full = normalizePhone(destinationE164) ?? destinationE164;
   const conditional = mode === "unanswered";
   switch (carrier) {
+    // No code: the receptionist's number, set in the system's own settings, and taken out there to switch it off.
+    case "office":
+      return {
+        on: code(full),
+        off: code(""),
+        notes: [OFFICE_NOTE, ...conditional ? [OFFICE_VOICEMAIL_NOTE] : []]
+      };
     case "verizon":
       return {
         on: code(conditional ? `*71${n10}` : `*72${n10}`),
@@ -7638,7 +7651,7 @@ var BROKEN_CONFIG_WORDS = {
   /** Once asked: when, and what happens next, on Setup's row and on the pane's card alike. */
   requested: (at2, nowMs) => `Requested ${agoWords(Date.parse(at2), nowMs)} \u2014 a person at Chanlytics will repair them and reach you by email.`
 };
-var SETUP_REQUEST_KINDS = ["line", "port", "repair"];
+var SETUP_REQUEST_KINDS = ["line", "port", "repair", "forwarding"];
 function textingWords(l) {
   if (!l) return { sentence: "Texting is not available yet.", done: false };
   if (l.reg_mock) return { sentence: MOCK_TEXTING_SENTENCE, done: false };
@@ -8155,7 +8168,7 @@ function setupSteps(i, nowMs = Date.now()) {
         title,
         state: "waiting_you",
         required: false,
-        sentence: `Dial the code on the phone with ${kept}, then test it.`,
+        sentence: f.carrier === "office" ? `Forward ${kept} to your receptionist in your phone system's settings, then test it.` : `Dial the code on the phone with ${kept}, then test it.`,
         details: [how],
         verb: { label: "Test it", to: `verb:forwarding-test:${fw.id}` }
       });
@@ -8445,8 +8458,9 @@ var SETUP_LATER_REFUSED = {
 
 // src/first-run-phone.ts
 var PHONE_WAYS = ["keep", "new", "move"];
-var PHONE_RINGS = ["mobile", "landline"];
+var PHONE_RINGS = ["mobile", "landline", "office"];
 function forwardingCarrierOf(rings, company) {
+  if (rings === "office") return "office";
   if (rings === "landline") return "other";
   if (rings === "mobile") return company ?? null;
   return null;
@@ -8505,14 +8519,15 @@ var FIRST_RUN_PHONE_WORDS = {
   cancelled: CHECKOUT_OUTCOME_WORDS.cancel,
   /** The two questions while the number is on its way (canvas R4), and the button they lead to. */
   ringsLabel: (display2) => display2 ? `Which phone rings when customers call ${display2}?` : "Which phone rings when customers call?",
-  rings: { mobile: "A mobile", landline: "A landline" },
+  rings: { mobile: "A mobile", landline: "A landline", office: "An office phone system" },
   companyLabel: "Who's the phone company?",
   company: { verizon: "Verizon", att: "AT&T", tmobile: "T-Mobile", other: "Another company" },
   show: "Show me what to dial",
+  showOffice: "Show me where to forward",
   readySoon: "Ready in a moment",
   answerFirst: "Answer the questions first.",
-  askHeading: "One more thing before the code",
-  askLead: "Your phone company decides the code, so it depends on the phone that rings.",
+  askHeading: "One more thing",
+  askLead: "How the calls are sent to your receptionist depends on the phone that rings.",
   /** The code (canvas R5, P5). */
   codeHeading: "Dial this on the phone customers call",
   codeLead: "It tells your phone company to send the calls nobody picks up to your receptionist. You only do this once.",
@@ -8531,7 +8546,24 @@ var FIRST_RUN_PHONE_WORDS = {
   done: "Done, let's try it",
   help: "The code didn't work",
   change: "Change the answers",
-  keepCode: "Keep the code I have",
+  keepCode: "Keep what I have",
+  /** An office phone system (canvas V6): the number to forward to, and a person to do it with. */
+  officeHeading: "Forward missed calls in your phone system",
+  officeLead: "Office phone systems set this in their own settings, under \u201Cforwarding\u201D or \u201Cwhen no one answers\u201D.",
+  officeLabel: (always) => always ? "Forward every call to" : "Forward unanswered calls to",
+  officeSteps: [
+    "Open your phone system's settings.",
+    "Find forwarding, or what happens when no one answers.",
+    "Forward the calls to the number above: your receptionist's number. Customers never see it."
+  ],
+  officeWarn: "Voicemail in the system? The forwarding has to come before it, or calls never reach your receptionist.",
+  officeOff: "To switch it off later, take the forwarding out in the same settings.",
+  withMe: "Not sure where it is? A person at Chanlytics can do it with you on a call.",
+  withMeLabel: "Do it with me",
+  helpOffice: "It didn't work",
+  withMeAsked: (ago3) => `Asked ${ago3}: a person at Chanlytics will email you to find a time.`,
+  withMeFailed: "Not asked",
+  withMeSent: "We'll email you to find a time for a call.",
   notForwarded: "Forwarding not saved"
 };
 function areaCodeOf(raw) {
@@ -8613,7 +8645,7 @@ function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }) {
   const questions = asking && number ? questionsFor(number) : null;
   const answered = !!forwardingCarrierOf(rings, company);
   const show = (lineAnswers) => ({
-    label: W.show,
+    label: rings === "office" ? W.showOffice : W.show,
     held: !lineAnswers ? W.readySoon : answered ? null : W.answerFirst,
     act: "forward"
   });
@@ -8640,11 +8672,48 @@ function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }) {
         keepCode: W.keepCode
       };
     }
+    if (saved && f.carrier === "office") {
+      const mode = isForwardingMode(f.mode) ? f.mode : "unanswered";
+      const codes = forwardingCodes("office", mode, f.destination_e164 ?? dest);
+      const keepRow = vm.rows.find((r2) => r2.id === "keep") ?? null;
+      const askedAt = dto.requests.forwarding ? Date.parse(dto.requests.forwarding) : NaN;
+      const asked = !Number.isNaN(askedAt) && nowMs - askedAt < 864e5 ? askedAt : null;
+      return {
+        ...base,
+        stage: "code",
+        heading: W.officeHeading,
+        lead: W.officeLead,
+        trial: null,
+        status: null,
+        questions: null,
+        cta: { label: W.done, held: null, act: "onward" },
+        code: {
+          label: W.officeLabel(mode === "always"),
+          dial: formatPhoneDisplay(f.destination_e164 ?? dest) ?? dest,
+          tel: codes.on.tel,
+          tap: null,
+          steps: [...W.officeSteps],
+          warn: W.officeWarn,
+          off: W.officeOff,
+          help: { label: W.helpOffice, notes: codes.notes },
+          change: savedFrom ? W.change : null,
+          verified: fw.forwarding_state === "verified" && keepRow ? keepRow.sentence : null,
+          withMe: {
+            sentence: W.withMe,
+            label: W.withMeLabel,
+            asked: asked !== null ? W.withMeAsked(agoWords(asked, nowMs)) : null
+          }
+        },
+        forwardFrom: null,
+        saved: null,
+        keepCode: null
+      };
+    }
     if (saved) {
       const carrier = f.carrier;
       const mode = isForwardingMode(f.mode) ? f.mode : "unanswered";
       const codes = forwardingCodes(carrier, mode, f.destination_e164 ?? dest);
-      const said = rings;
+      const said = rings === "office" ? null : rings;
       const keepRow = vm.rows.find((r2) => r2.id === "keep") ?? null;
       return {
         ...base,
@@ -8665,7 +8734,8 @@ function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }) {
           off: W.off(codes.off.code),
           help: { label: W.help, notes: codes.notes },
           change: savedFrom ? W.change : null,
-          verified: fw.forwarding_state === "verified" && keepRow ? keepRow.sentence : null
+          verified: fw.forwarding_state === "verified" && keepRow ? keepRow.sentence : null,
+          withMe: null
         },
         forwardFrom: null,
         saved: null,
@@ -22596,6 +22666,7 @@ export {
   formatWaited,
   forwardingCarrierOf,
   forwardingCodes,
+  forwardingDialLabel,
   forwardingMatch,
   forwardingTestOpen,
   frameGuardrail,

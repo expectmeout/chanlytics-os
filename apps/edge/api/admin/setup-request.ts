@@ -41,6 +41,13 @@ const WHAT: Record<string, { subject: string; how: string }> = {
       "Reply for what the losing carrier asks for: the number, the carrier, the account holder's name and service address as the carrier has them, the account number and the port-out PIN, and a recent bill.\n" +
       "File the port with Twilio, and tell them to keep their current service until it completes -- cancelling it first can lose the number. Their Setup row says so meanwhile.",
   },
+  // Forwarding in an office phone system (00173, the first run's decision 3): no star code, so a person does it with them.
+  forwarding: {
+    subject: "asked for help setting up forwarding in their office phone system",
+    how:
+      "Reply to find a time for a call. Their phone system (RingCentral, Vonage, 8x8 and the like) forwards calls in its own settings, under forwarding or what happens when no one answers: forward the calls (unanswered, or every call, as their Setup row for the number they keep says) to the receptionist's number, which their first run and Setup show.\n" +
+      "Put the forwarding before any voicemail. Then have them press Test it on Setup's row for the number they keep.",
+  },
   // A configuration the receptionist can no longer read (S8): only a person can repair it.
   repair: {
     subject: "asked for their business settings to be repaired",
