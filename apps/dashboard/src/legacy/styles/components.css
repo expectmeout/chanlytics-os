@@ -1284,7 +1284,9 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
 .tbn-title { font-size: var(--text-base); font-weight: 600; color: var(--ink); }
 .tbn-readall { background: none; border: none; font: inherit; font-size: var(--text-sm); color: var(--ink-dim); cursor: pointer; padding: 2px 4px; border-radius: 4px; }
 .tbn-readall:hover { color: var(--ink); background: var(--bg-hover); }
-.tbn-list { overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+/* The list scrolls down and nowhere else: a × reaching 3px past the edge made it 378px wide in 375, and a phone let a
+   thumb drag the whole list sideways (25 Sep). */
+.tbn-list { overflow-x: hidden; overflow-y: auto; touch-action: pan-y; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
 .tbn-empty { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 32px; color: var(--ink-dim); font-size: 12px; }
 .tbn-empty .icon { color: var(--ok); }
 /* A note is one press: its mark, two lines and a time, at the list row's own numbers (tokens.css, "one row for every
@@ -1373,8 +1375,8 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
   .tbn-handle { display: block; flex: none; width: 36px; height: 4px; margin: 8px auto 2px; border-radius: var(--radius-full); background: var(--line-strong); }
   .tbn-head { padding: 6px 16px 10px; }
   .tbn-title { font-size: var(--text-lg); font-weight: var(--weight-semibold); }
-  /* The sheet moves under a pull at the top, not its list (components.css, the other sheets: none, not contain). */
-  .tbn-list { overscroll-behavior-y: none; }
+  /* The sheet moves under a pull at the top, not its list, and the list has no rubber band at either end (#1063). */
+  .tbn-list { overscroll-behavior: none; }
   .tbn-pop[data-leaving="true"] { animation: sheet-out 180ms var(--ease-in) forwards; }
   .tbn-backdrop[data-leaving="true"] { animation: wash-out 160ms var(--ease-in) forwards; }
 }
@@ -1971,9 +1973,10 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
    could only Mark all read, 25 Sep). It keeps its size; its press area is a thumb wide, and the time moves over for it. */
 @media (hover: none) {
   .tbn-x { opacity: 1; pointer-events: auto; transform: none; }
-  /* Its own 22px (the touch floor stretched it to 22 by 44); the press area is the thumb's 44 square. */
+  /* Its own 22px (the touch floor stretched it to 22 by 44); the press area is the thumb's 44 square, but no wider
+     than the note: 8px of it past the × on the note's side, 14 before it, so the list is never wider than itself. */
   html.legacy-on .tbn-x { min-height: 22px; }
-  .tbn-x::after { content: ""; position: absolute; inset: -11px; }
+  .tbn-x::after { content: ""; position: absolute; inset: -11px -8px -11px -14px; }
   .tbn-item:not(.tbn-item-group) .tbn-line1 { padding-right: 24px; }
 }
 /* Only where a pointer hovers (iOS keeps :hover on what lands under the finger, see .tbn-open). The × takes the time's
