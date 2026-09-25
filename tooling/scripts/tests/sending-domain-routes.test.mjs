@@ -267,7 +267,7 @@ test("Resume reaches the edge's door for this domain, and its refusals are the o
     net.restore();
   }
   for (const [error, message] of [
-    ["dns_hold", "Press Check: this one lifts itself when its records pass."],
+    ["dns_hold", "Press Check: this one lifts itself when it reads right again."],
     ["not_held", "getharbor.com isn't held."],
     ["moved", "getharbor.com changed just now. Look again, then resume it."],
   ]) {

@@ -18,6 +18,7 @@ import { logger } from "../../lib/log.js";
 import { env } from "../../lib/env.js";
 import { sendingDomainOf } from "../../lib/packages/db.js";
 import { readDmarc } from "../../lib/email/dmarc.js";
+import { pageOperator } from "../../lib/ops/page-operator.js";
 import {
   addSendingDomain,
   checkSendingDomain,
@@ -69,7 +70,14 @@ export async function POST(request: Request): Promise<Response> {
   if (!UUID.test(tenantId)) return json(400, { ok: false, error: "tenant_id (a workspace id) is required" });
 
   const L = logger({ door: "sending-domains", tenant: tenantId, op });
-  const ports: DomainPorts = { db, cfg: { apiKey: coldKey }, dmarc: (h) => readDmarc(h), now: Date.now, log: L };
+  const ports: DomainPorts = {
+    db,
+    cfg: { apiKey: coldKey },
+    dmarc: (h) => readDmarc(h),
+    now: Date.now,
+    log: L,
+    page: (key, subject, body) => pageOperator({ db }, key, subject, body),
+  };
   try {
     if (op === "add") {
       const out = await addSendingDomain(ports, {

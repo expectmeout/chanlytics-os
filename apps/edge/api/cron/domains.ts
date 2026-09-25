@@ -14,11 +14,15 @@ import { env } from "../../lib/env.js";
 import { dueSendingDomains } from "../../lib/packages/db.js";
 import { readDmarc } from "../../lib/email/dmarc.js";
 import { checkSendingDomain, type DomainPorts } from "../../lib/email/sending-domains.js";
+import { pageOperator } from "../../lib/ops/page-operator.js";
 
 export const config = { maxDuration: 60 };
 
-/** A bound per tick: a backlog drains over successive ticks rather than one long call. */
-const MAX_PER_TICK = 30;
+/**
+ * The most a tick reads from the table. The time budget below is what bounds the work: a tick reads every due domain
+ * it has time for, longest unread first, and what is left is first in line next tick.
+ */
+const MAX_DUE = 500;
 /** How many are read at once: the provider allows ten requests a second per account. */
 const AT_ONCE = 5;
 /** No batch starts after this: one of five 15-second reads must still end inside the function's 60 seconds. */
@@ -41,14 +45,23 @@ export async function POST(request: Request): Promise<Response> {
   }
   let rows;
   try {
-    rows = await dueSendingDomains(db, MAX_PER_TICK);
+    rows = await dueSendingDomains(db, MAX_DUE);
   } catch (e) {
     L.error("domains_unreadable", { error: e instanceof Error ? e.message : String(e) });
     return json(503, { ok: false, error: "no_database" });
   }
   if (!rows.length) return json(200, { ok: true, checked: 0 });
 
-  const ports: DomainPorts = { db, cfg: { apiKey: coldKey }, dmarc: (h) => readDmarc(h), now: Date.now, log: L };
+  const ports: DomainPorts = {
+    db,
+    cfg: { apiKey: coldKey },
+    dmarc: (h) => readDmarc(h),
+    now: Date.now,
+    log: L,
+    page: (key, subject, body) => pageOperator({ db }, key, subject, body),
+  };
+  // How stale the oldest due read was when this tick began: what a person reading the sweep's answer judges it by.
+  const oldestReadS = rows[0]?.checked_at ? Math.round((Date.now() - Date.parse(rows[0].checked_at)) / 1000) : null;
   const started = Date.now();
   const counts = { checked: 0, verified: 0, held: 0, released: 0, unreadable: 0, refused: 0 };
   for (let i = 0; i < rows.length; i += AT_ONCE) {
@@ -71,11 +84,11 @@ export async function POST(request: Request): Promise<Response> {
       }),
     );
   }
-  L.info("domains_swept", counts);
+  L.info("domains_swept", { ...counts, due: rows.length, oldest_read_s: oldestReadS });
   // The key refused for every domain read is the sweep learning nothing -- ours, not the domains' -- and 503 is how
   // sweep_health turns that red. A blip (a 5xx, a slow second, a 429) is not: those domains are read next tick, and
   // with one or two domains a single blip must not page the platform (registrations.ts judges the same way).
   if (counts.checked > 0 && counts.refused === counts.checked)
     return json(503, { ok: false, error: "no_domain_readable", ...counts });
-  return json(200, { ok: true, ...counts });
+  return json(200, { ok: true, ...counts, due: rows.length, oldest_read_s: oldestReadS ?? 0 });
 }

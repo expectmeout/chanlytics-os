@@ -126,7 +126,7 @@ export const SCHEMA_SETS = {
   "policies.subject_type": ["segment", "contact"],
   "push_devices.platform": ["ios", "android"],
   "sending_domains.dmarc": ["found", "missing"],
-  "sending_domains.held_why": ["verification", "dmarc", "bounces", "complaint"],
+  "sending_domains.held_why": ["verification", "dmarc", "bounces", "complaint", "provider"],
   "sending_domains.state": ["records", "verifying", "verified", "held"],
   "sweep_status.judged_by": ["request", "run"],
   "templates.category": ["marketing", "utility", "authentication"],

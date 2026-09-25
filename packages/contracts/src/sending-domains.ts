@@ -4,19 +4,39 @@
  * page (integrations-real.jsx) draws these words (docs/superpowers/specs/2026-09-25-reach-out-design.md §4.6, §4.8).
  */
 import type { Tone } from "./tone";
+import { FREE_MAIL_DOMAINS } from "./free-mail";
 
 /** "Sep 22": the day a hold began, as billing.ts says its dates. */
 const DAY_FMT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 
 export const SENDING_DOMAIN_STATES = ["records", "verifying", "verified", "held"] as const;
 export type SendingDomainState = (typeof SENDING_DOMAIN_STATES)[number];
-export const DOMAIN_HOLDS = ["verification", "dmarc", "bounces", "complaint"] as const;
+export const DOMAIN_HOLDS = ["verification", "dmarc", "bounces", "complaint", "provider"] as const;
 export type DomainHold = (typeof DOMAIN_HOLDS)[number];
 export const DMARC_STATES = ["found", "missing"] as const;
 export type DmarcState = (typeof DMARC_STATES)[number];
 
-/** The holds that lift themselves when the domain reads good again; the rest wait for the owner (PR 5). */
+/** The holds its records fix: they are shown, and Check is offered. */
 export const DNS_HOLDS: readonly DomainHold[] = ["verification", "dmarc"];
+/**
+ * The holds that lift themselves when the domain reads good again: its records (DNS_HOLDS), and the provider
+ * knowing it again (00178). The rest -- bounces, a complaint -- wait for the owner's Resume.
+ */
+export const SELF_LIFTING_HOLDS: readonly DomainHold[] = ["verification", "dmarc", "provider"];
+/**
+ * What the provider can say of a domain, as its API documents it. Anything else -- a word it has not documented, or
+ * "not_found", which the edge writes when the provider no longer has the domain -- is a fact about the account, not
+ * the records: held as `provider`, which lifts itself if the provider knows it again.
+ */
+export const PROVIDER_STATUSES: ReadonlySet<string> = new Set([
+  "not_started",
+  "pending",
+  "verified",
+  "partially_verified",
+  "partially_failed",
+  "failed",
+  "temporary_failure",
+]);
 
 export const SENDING_DOMAINS_MAX = 5;
 /** What we recommend when a domain has no DMARC: accepted by Gmail and Yahoo, and harmless to other mail it sends. */
@@ -44,28 +64,6 @@ export function domainDailyCap(cleanSince: string | null, nowMs: number): number
   for (const step of DOMAIN_RAMP) if (days >= step.days) cap = step.perDay;
   return cap;
 }
-
-/** Free mail: nobody can publish records there, and a cold email from one is the spam it looks like. */
-export const FREE_MAIL_DOMAINS: ReadonlySet<string> = new Set([
-  "gmail.com",
-  "googlemail.com",
-  "yahoo.com",
-  "ymail.com",
-  "outlook.com",
-  "hotmail.com",
-  "live.com",
-  "msn.com",
-  "icloud.com",
-  "me.com",
-  "mac.com",
-  "aol.com",
-  "proton.me",
-  "protonmail.com",
-  "gmx.com",
-  "zoho.com",
-  "yandex.com",
-  "mail.com",
-]);
 
 export function normalizeHost(typed: string): string {
   return typed.trim().toLowerCase().replace(/\.$/, "");
@@ -139,7 +137,9 @@ export interface SendingDomainDto {
   records: DomainRecord[];
   checked_at: string | null;
   created_at: string;
-  /** What the clock last counted since the domain was clean (00176): sends, bounces among the last 500, complaints. Null until counted. */
+  /** Where the reputation count starts (00178): first verified, or last resumed. A DNS release does not move it. */
+  counted_since: string | null;
+  /** What the clock last counted since counted_since (00176): sends, bounces among the last 500, complaints. Null until counted. */
   sent_recent: number | null;
   bounced_recent: number | null;
   complaints: number | null;
@@ -176,7 +176,7 @@ export interface DomainFacts {
 /** The row as it stands, with the DMARC answer it last stored: a missing record holds only when it was missing before. */
 export type DomainRowState = Pick<
   SendingDomainDto,
-  "state" | "held_why" | "held_at" | "verified_at" | "clean_since" | "dmarc"
+  "state" | "held_why" | "held_at" | "verified_at" | "clean_since" | "counted_since" | "dmarc" | "provider_status"
 >;
 
 export interface DomainJudgement extends DomainRowState {
@@ -194,16 +194,23 @@ const CHECKING: ReadonlySet<string> = new Set(["pending", "temporary_failure", "
  *                      anything else                        → records
  *   verified           a complaint, or bounces past 2%       → held, complaint | bounces       change "held"
  *                                                               (reputationHoldOf; first, and only the owner lifts it)
+ *                      provider no longer knows it, or a    → held, provider                change "held"
+ *                      word it has not documented             (lifts itself if the provider knows it again)
  *                      provider pending                     → unchanged: a check in progress, the owner's own
  *                                                               Check included (the provider marks a domain
  *                                                               pending whatever it was), is not a failure
+ *                      temporary_failure for the first time → unchanged (stored; the provider rechecks on its own,
+ *                                                               and the next read confirms or clears it)
  *                      provider anything else not verified  → held, verification            change "held"
  *                      DMARC missing, and missing last read → held, dmarc                   change "held"
  *                      DMARC missing for the first time     → unchanged (the missing answer is stored, and the
  *                                                               next read, ten minutes on, confirms or clears it:
  *                                                               nameservers that disagree mid-move are one bad read)
- *   held (DNS)         provider verified + DMARC found      → verified (clean from now)       change "released"
+ *   held (DNS, provider) provider verified + DMARC found    → verified (the ramp starts again, clean from now; the
+ *                                                               reputation count does not: counted_since stays)
+ *                                                                                              change "released"
  *   held (reputation)  unchanged: only the owner resumes it (resumeDomain).
+ * Verification sets both clocks, the ramp's (clean_since) and the count's (counted_since).
  * An unreadable provider changes nothing but a reputation hold, which is counted from our own rows, and an
  * unreadable DMARC neither holds nor verifies: "we could not look" is not a fact about the domain.
  */
@@ -217,11 +224,13 @@ export function judgeDomain(row: DomainRowState, facts: DomainFacts, nowIso: str
   if (row.state === "records" || row.state === "verifying") {
     if (verified && facts.dmarc === "found")
       return {
+        ...row,
         state: "verified",
         held_why: null,
         held_at: null,
         verified_at: nowIso,
         clean_since: nowIso,
+        counted_since: nowIso,
         dmarc: "found",
         change: "verified",
       };
@@ -229,6 +238,10 @@ export function judgeDomain(row: DomainRowState, facts: DomainFacts, nowIso: str
     return { ...same, state: CHECKING.has(facts.provider) ? "verifying" : "records" };
   }
   if (row.state === "verified") {
+    if (!PROVIDER_STATUSES.has(facts.provider))
+      return { ...same, state: "held", held_why: "provider", held_at: nowIso, change: "held" };
+    // The provider's own recheck state: one read of it is not a failure, two in a row are.
+    if (facts.provider === "temporary_failure" && row.provider_status !== "temporary_failure") return same;
     if (!verified && facts.provider !== "pending")
       return { ...same, state: "held", held_why: "verification", held_at: nowIso, change: "held" };
     if (facts.dmarc === "missing" && row.dmarc === "missing")
@@ -236,7 +249,7 @@ export function judgeDomain(row: DomainRowState, facts: DomainFacts, nowIso: str
     return same;
   }
   // held
-  if (row.held_why && DNS_HOLDS.includes(row.held_why) && verified && facts.dmarc === "found")
+  if (row.held_why && SELF_LIFTING_HOLDS.includes(row.held_why) && verified && facts.dmarc === "found")
     return {
       ...row,
       state: "verified",
@@ -254,8 +267,103 @@ export function judgeDomain(row: DomainRowState, facts: DomainFacts, nowIso: str
  * A DNS hold lifts itself when Check passes, and a domain that is not held has nothing to resume: both unchanged.
  */
 export function resumeDomain(row: DomainRowState, nowIso: string): DomainJudgement {
-  if (row.state !== "held" || !row.held_why || DNS_HOLDS.includes(row.held_why)) return { ...row, change: null };
-  return { ...row, state: "verified", held_why: null, held_at: null, clean_since: nowIso, change: "resumed" };
+  if (row.state !== "held" || !row.held_why || SELF_LIFTING_HOLDS.includes(row.held_why))
+    return { ...row, change: null };
+  // Both clocks start again: the ramp at its first step, and the count, so what held it is answered for once.
+  return {
+    ...row,
+    state: "verified",
+    held_why: null,
+    held_at: null,
+    clean_since: nowIso,
+    counted_since: nowIso,
+    change: "resumed",
+  };
+}
+
+/** A judgement as the row's patch: every column the judge decides, in one place, so no write path drops one. */
+export function domainPatchOf(j: DomainJudgement): Omit<DomainRowState, "provider_status"> {
+  return {
+    state: j.state,
+    held_why: j.held_why,
+    held_at: j.held_at,
+    verified_at: j.verified_at,
+    clean_since: j.clean_since,
+    counted_since: j.counted_since,
+    dmarc: j.dmarc,
+  };
+}
+
+/** sam@getbestmovers.com: the one spelling of an own domain's address (the door, the wire, the page). */
+export function ownDomainAddress(d: { from_local: string; host: string }): string {
+  return `${d.from_local}@${d.host}`.toLowerCase();
+}
+
+/**
+ * What the page may do with a domain, from its state: the rules the door already holds (Resume refuses a hold that
+ * lifts itself), said once so the page does not decide them again. Remove is always offered; the page gates it to
+ * the owner, as it gates the rest.
+ */
+export function sendingDomainActs(d: Pick<SendingDomainDto, "state" | "held_why">): {
+  check: boolean;
+  resume: boolean;
+  remove: true;
+  records: boolean;
+} {
+  const held = d.state === "held" && !!d.held_why;
+  const dnsHold = held && DNS_HOLDS.includes(d.held_why!);
+  const selfLifting = held && SELF_LIFTING_HOLDS.includes(d.held_why!);
+  const waiting = d.state === "records" || d.state === "verifying";
+  return {
+    check: waiting || selfLifting,
+    resume: held && !selfLifting,
+    remove: true,
+    records: waiting || dnsHold,
+  };
+}
+
+/** A sending_domains row, as either app reads it: the page's DTO, which never carries the provider's id. */
+export function sendingDomainDtoOf(r: {
+  id: string;
+  host: string;
+  from_local: string;
+  from_name: string;
+  state: string;
+  held_why: string | null;
+  held_at: string | null;
+  verified_at: string | null;
+  clean_since: string | null;
+  counted_since?: string | null;
+  provider_status: string | null;
+  dmarc: string | null;
+  records: unknown;
+  checked_at: string | null;
+  created_at: string;
+  sent_recent: number | null;
+  bounced_recent: number | null;
+  complaints: number | null;
+}): SendingDomainDto {
+  return {
+    id: r.id,
+    host: r.host,
+    from_local: r.from_local,
+    from_name: r.from_name,
+    address: ownDomainAddress(r),
+    state: r.state as SendingDomainState,
+    held_why: (r.held_why ?? null) as DomainHold | null,
+    held_at: r.held_at,
+    verified_at: r.verified_at,
+    clean_since: r.clean_since,
+    counted_since: r.counted_since ?? null,
+    provider_status: r.provider_status,
+    dmarc: (r.dmarc ?? null) as DmarcState | null,
+    records: Array.isArray(r.records) ? (r.records as DomainRecord[]) : [],
+    checked_at: r.checked_at,
+    created_at: r.created_at,
+    sent_recent: r.sent_recent,
+    bounced_recent: r.bounced_recent,
+    complaints: r.complaints,
+  };
 }
 
 /** "0.4% bounced · none marked as spam", once the domain has been counted with something sent; null before. */
@@ -273,6 +381,7 @@ const HOLD_WORDS: Record<DomainHold, string> = {
   dmarc: "its DMARC record is missing",
   bounces: "more than 2% of its recent emails bounced",
   complaint: "someone marked an email from it as spam",
+  provider: "the mail provider no longer has it",
 };
 
 /** Why a domain was held, as a clause ("it stopped verifying"): the row, the Activity log and the owner's notice say it alike. */
@@ -330,8 +439,10 @@ export function sendingDomainWords(d: SendingDomainDto, nowMs: number): SendingD
     line: `${since ? `Held since ${since}` : "Held"} · ${why}`,
     cap: "Sending nothing",
     next:
-      d.held_why && DNS_HOLDS.includes(d.held_why)
-        ? "Nothing leaves from it until Check passes."
-        : "Nothing leaves from it until you resume it.",
+      d.held_why === "provider"
+        ? "We've been told. If it doesn't come back on its own, remove it and add it again."
+        : d.held_why && DNS_HOLDS.includes(d.held_why)
+          ? "Nothing leaves from it until Check passes."
+          : "Nothing leaves from it until you resume it.",
   };
 }

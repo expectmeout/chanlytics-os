@@ -265,10 +265,10 @@ const SendingDomains = ({ email, flash }) => {
       )}
       {domains.map((d) => {
         const w = API.words(d, now);
-        const dnsHold = d.state === "held" && API.dnsHolds.includes(d.held_why);
-        const checkable = d.state === "records" || d.state === "verifying" || dnsHold;
-        const resumable = d.state === "held" && !dnsHold;
-        const showRecords = d.state === "records" || d.state === "verifying" || dnsHold;
+        const acts = API.acts(d);
+        const checkable = acts.check;
+        const resumable = acts.resume;
+        const showRecords = acts.records;
         return (
           <React.Fragment key={d.id}>
             <div className="set-dom" data-testid={`domain-${d.host}`} data-state={d.state}>

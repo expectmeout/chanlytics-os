@@ -4590,6 +4590,31 @@ var HELD_REASONS = {
 // src/leads.ts
 import { z as z5 } from "zod";
 
+// src/free-mail.ts
+var FREE_MAIL_DOMAINS = /* @__PURE__ */ new Set([
+  "gmail.com",
+  "googlemail.com",
+  "yahoo.com",
+  "ymail.com",
+  "outlook.com",
+  "hotmail.com",
+  "live.com",
+  "msn.com",
+  "icloud.com",
+  "me.com",
+  "mac.com",
+  "aol.com",
+  "proton.me",
+  "protonmail.com",
+  "gmx.com",
+  "zoho.com",
+  "yandex.com",
+  "mail.com"
+]);
+function isFreeMail(host) {
+  return !!host && FREE_MAIL_DOMAINS.has(host.trim().toLowerCase());
+}
+
 // src/lead-search.ts
 import { z as z4 } from "zod";
 
@@ -5165,19 +5190,6 @@ var LEAD_ROLE_LOCALS = [
   "abuse",
   "postmaster"
 ];
-var LEAD_FREE_MAIL = [
-  "gmail.com",
-  "yahoo.com",
-  "outlook.com",
-  "hotmail.com",
-  "icloud.com",
-  "aol.com",
-  "live.com",
-  "msn.com",
-  "me.com",
-  "protonmail.com",
-  "proton.me"
-];
 var DESK_LOCALS = [
   "intake",
   "info",
@@ -5230,7 +5242,7 @@ function cleanEmailCandidates(emails, host) {
       continue;
     }
     const isOwn2 = !!host && (domain === host || domain.endsWith(`.${host}`));
-    (isOwn2 ? own : has(LEAD_FREE_MAIL, domain) ? free : foreign).push(address);
+    (isOwn2 ? own : isFreeMail(domain) ? free : foreign).push(address);
   }
   const deskRank = (a) => {
     const i = DESK_LOCALS.indexOf(a.split("@")[0]);
@@ -20745,9 +20757,19 @@ function deskSignMetadata(f) {
 // src/sending-domains.ts
 var DAY_FMT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var SENDING_DOMAIN_STATES = ["records", "verifying", "verified", "held"];
-var DOMAIN_HOLDS = ["verification", "dmarc", "bounces", "complaint"];
+var DOMAIN_HOLDS = ["verification", "dmarc", "bounces", "complaint", "provider"];
 var DMARC_STATES = ["found", "missing"];
 var DNS_HOLDS = ["verification", "dmarc"];
+var SELF_LIFTING_HOLDS = ["verification", "dmarc", "provider"];
+var PROVIDER_STATUSES = /* @__PURE__ */ new Set([
+  "not_started",
+  "pending",
+  "verified",
+  "partially_verified",
+  "partially_failed",
+  "failed",
+  "temporary_failure"
+]);
 var SENDING_DOMAINS_MAX = 5;
 var DMARC_RECOMMENDED = "v=DMARC1; p=none;";
 var DOMAIN_RAMP = [
@@ -20767,26 +20789,6 @@ function domainDailyCap(cleanSince, nowMs) {
   for (const step2 of DOMAIN_RAMP) if (days >= step2.days) cap2 = step2.perDay;
   return cap2;
 }
-var FREE_MAIL_DOMAINS = /* @__PURE__ */ new Set([
-  "gmail.com",
-  "googlemail.com",
-  "yahoo.com",
-  "ymail.com",
-  "outlook.com",
-  "hotmail.com",
-  "live.com",
-  "msn.com",
-  "icloud.com",
-  "me.com",
-  "mac.com",
-  "aol.com",
-  "proton.me",
-  "protonmail.com",
-  "gmx.com",
-  "zoho.com",
-  "yandex.com",
-  "mail.com"
-]);
 function normalizeHost(typed) {
   return typed.trim().toLowerCase().replace(/\.$/, "");
 }
@@ -20839,11 +20841,13 @@ function judgeDomain(row2, facts, nowIso) {
   if (row2.state === "records" || row2.state === "verifying") {
     if (verified && facts.dmarc === "found")
       return {
+        ...row2,
         state: "verified",
         held_why: null,
         held_at: null,
         verified_at: nowIso,
         clean_since: nowIso,
+        counted_since: nowIso,
         dmarc: "found",
         change: "verified"
       };
@@ -20851,13 +20855,16 @@ function judgeDomain(row2, facts, nowIso) {
     return { ...same2, state: CHECKING.has(facts.provider) ? "verifying" : "records" };
   }
   if (row2.state === "verified") {
+    if (!PROVIDER_STATUSES.has(facts.provider))
+      return { ...same2, state: "held", held_why: "provider", held_at: nowIso, change: "held" };
+    if (facts.provider === "temporary_failure" && row2.provider_status !== "temporary_failure") return same2;
     if (!verified && facts.provider !== "pending")
       return { ...same2, state: "held", held_why: "verification", held_at: nowIso, change: "held" };
     if (facts.dmarc === "missing" && row2.dmarc === "missing")
       return { ...same2, state: "held", held_why: "dmarc", held_at: nowIso, change: "held" };
     return same2;
   }
-  if (row2.held_why && DNS_HOLDS.includes(row2.held_why) && verified && facts.dmarc === "found")
+  if (row2.held_why && SELF_LIFTING_HOLDS.includes(row2.held_why) && verified && facts.dmarc === "found")
     return {
       ...row2,
       state: "verified",
@@ -20870,8 +20877,66 @@ function judgeDomain(row2, facts, nowIso) {
   return same2;
 }
 function resumeDomain(row2, nowIso) {
-  if (row2.state !== "held" || !row2.held_why || DNS_HOLDS.includes(row2.held_why)) return { ...row2, change: null };
-  return { ...row2, state: "verified", held_why: null, held_at: null, clean_since: nowIso, change: "resumed" };
+  if (row2.state !== "held" || !row2.held_why || SELF_LIFTING_HOLDS.includes(row2.held_why))
+    return { ...row2, change: null };
+  return {
+    ...row2,
+    state: "verified",
+    held_why: null,
+    held_at: null,
+    clean_since: nowIso,
+    counted_since: nowIso,
+    change: "resumed"
+  };
+}
+function domainPatchOf(j) {
+  return {
+    state: j.state,
+    held_why: j.held_why,
+    held_at: j.held_at,
+    verified_at: j.verified_at,
+    clean_since: j.clean_since,
+    counted_since: j.counted_since,
+    dmarc: j.dmarc
+  };
+}
+function ownDomainAddress(d) {
+  return `${d.from_local}@${d.host}`.toLowerCase();
+}
+function sendingDomainActs(d) {
+  const held = d.state === "held" && !!d.held_why;
+  const dnsHold = held && DNS_HOLDS.includes(d.held_why);
+  const selfLifting = held && SELF_LIFTING_HOLDS.includes(d.held_why);
+  const waiting = d.state === "records" || d.state === "verifying";
+  return {
+    check: waiting || selfLifting,
+    resume: held && !selfLifting,
+    remove: true,
+    records: waiting || dnsHold
+  };
+}
+function sendingDomainDtoOf(r2) {
+  return {
+    id: r2.id,
+    host: r2.host,
+    from_local: r2.from_local,
+    from_name: r2.from_name,
+    address: ownDomainAddress(r2),
+    state: r2.state,
+    held_why: r2.held_why ?? null,
+    held_at: r2.held_at,
+    verified_at: r2.verified_at,
+    clean_since: r2.clean_since,
+    counted_since: r2.counted_since ?? null,
+    provider_status: r2.provider_status,
+    dmarc: r2.dmarc ?? null,
+    records: Array.isArray(r2.records) ? r2.records : [],
+    checked_at: r2.checked_at,
+    created_at: r2.created_at,
+    sent_recent: r2.sent_recent,
+    bounced_recent: r2.bounced_recent,
+    complaints: r2.complaints
+  };
 }
 function domainStatsWords(d) {
   if (!d.sent_recent) return null;
@@ -20883,7 +20948,8 @@ var HOLD_WORDS = {
   verification: "it stopped verifying",
   dmarc: "its DMARC record is missing",
   bounces: "more than 2% of its recent emails bounced",
-  complaint: "someone marked an email from it as spam"
+  complaint: "someone marked an email from it as spam",
+  provider: "the mail provider no longer has it"
 };
 function domainHoldWords(why) {
   return why && HOLD_WORDS[why] || "it was held";
@@ -20921,7 +20987,7 @@ function sendingDomainWords(d, nowMs) {
     tone: "warn",
     line: `${since ? `Held since ${since}` : "Held"} \xB7 ${why}`,
     cap: "Sending nothing",
-    next: d.held_why && DNS_HOLDS.includes(d.held_why) ? "Nothing leaves from it until Check passes." : "Nothing leaves from it until you resume it."
+    next: d.held_why === "provider" ? "We've been told. If it doesn't come back on its own, remove it and add it again." : d.held_why && DNS_HOLDS.includes(d.held_why) ? "Nothing leaves from it until Check passes." : "Nothing leaves from it until you resume it."
   };
 }
 
@@ -22126,7 +22192,7 @@ var SCHEMA_SETS = {
   "policies.subject_type": ["segment", "contact"],
   "push_devices.platform": ["ios", "android"],
   "sending_domains.dmarc": ["found", "missing"],
-  "sending_domains.held_why": ["verification", "dmarc", "bounces", "complaint"],
+  "sending_domains.held_why": ["verification", "dmarc", "bounces", "complaint", "provider"],
   "sending_domains.state": ["records", "verifying", "verified", "held"],
   "sweep_status.judged_by": ["request", "run"],
   "templates.category": ["marketing", "utility", "authentication"],
@@ -22988,7 +23054,6 @@ export {
   LEAD_FIRST_DAY_TITLE,
   LEAD_FITS,
   LEAD_FIT_WORDS,
-  LEAD_FREE_MAIL,
   LEAD_JUDGE_BATCH,
   LEAD_JUNK_EMAIL_DOMAINS,
   LEAD_KIND_KEY,
@@ -23183,6 +23248,7 @@ export {
   PROMPT_OPENINGS,
   PROMPT_READERS,
   PROPOSAL_GATE,
+  PROVIDER_STATUSES,
   PROVISIONING_DEADLINE_MS,
   PURPOSE_REFUSALS,
   PUSH_KINDS,
@@ -23234,6 +23300,7 @@ export {
   RenameLeadSearchSchema,
   SAME_SITTING_MS,
   SCHEMA_SETS,
+  SELF_LIFTING_HOLDS,
   SELLS_BY,
   SELLS_BY_FIRST,
   SELLS_BY_QUESTION,
@@ -23493,6 +23560,7 @@ export {
   divertedNumbers,
   domainDailyCap,
   domainHoldWords,
+  domainPatchOf,
   domainStatsWords,
   draftListRule,
   draftSendsAtMs,
@@ -23618,6 +23686,7 @@ export {
   isDealSheetMode,
   isDealStage,
   isForwardingMode,
+  isFreeMail,
   isHeldDraft,
   isIdentifierName,
   isLiveCall,
@@ -23787,6 +23856,7 @@ export {
   outcomeMove,
   overLimitRefusal,
   ownAddressesOf,
+  ownDomainAddress,
   ownMessageRefusal,
   ownWordsOf,
   pageTitle,
@@ -23971,6 +24041,8 @@ export {
   sellsByVM,
   sendFailureIsOurs,
   sendableTemplates,
+  sendingDomainActs,
+  sendingDomainDtoOf,
   sendingDomainWords,
   serverNotificationRows,
   serviceOf,

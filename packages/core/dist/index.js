@@ -4879,6 +4879,29 @@ function visitStartTime(v, tz) {
 var REPLY_WINDOW_HOURS2 = 72;
 var REPLY_WINDOW_MS2 = REPLY_WINDOW_HOURS2 * 36e5;
 var REPLY_WINDOW_WORDS2 = `within ${REPLY_WINDOW_HOURS2 / 24} days`;
+var FREE_MAIL_DOMAINS = /* @__PURE__ */ new Set([
+  "gmail.com",
+  "googlemail.com",
+  "yahoo.com",
+  "ymail.com",
+  "outlook.com",
+  "hotmail.com",
+  "live.com",
+  "msn.com",
+  "icloud.com",
+  "me.com",
+  "mac.com",
+  "aol.com",
+  "proton.me",
+  "protonmail.com",
+  "gmx.com",
+  "zoho.com",
+  "yandex.com",
+  "mail.com"
+]);
+function isFreeMail(host) {
+  return !!host && FREE_MAIL_DOMAINS.has(host.trim().toLowerCase());
+}
 function onDomain(host, domain) {
   return host === domain || host.endsWith(`.${domain}`);
 }
@@ -5306,19 +5329,6 @@ var LEAD_ROLE_LOCALS = [
   "abuse",
   "postmaster"
 ];
-var LEAD_FREE_MAIL = [
-  "gmail.com",
-  "yahoo.com",
-  "outlook.com",
-  "hotmail.com",
-  "icloud.com",
-  "aol.com",
-  "live.com",
-  "msn.com",
-  "me.com",
-  "protonmail.com",
-  "proton.me"
-];
 var DESK_LOCALS = [
   "intake",
   "info",
@@ -5371,7 +5381,7 @@ function cleanEmailCandidates(emails, host) {
       continue;
     }
     const isOwn2 = !!host && (domain === host || domain.endsWith(`.${host}`));
-    (isOwn2 ? own : has(LEAD_FREE_MAIL, domain) ? free : foreign).push(address);
+    (isOwn2 ? own : isFreeMail(domain) ? free : foreign).push(address);
   }
   const deskRank = (a) => {
     const i = DESK_LOCALS.indexOf(a.split("@")[0]);
@@ -44658,9 +44668,9 @@ function cleanPlace(raw) {
 }
 
 // src/leads/identity.ts
-function isFreeMail(email) {
+function isFreeMail2(email) {
   const host = (email.split("@")[1] ?? "").toLowerCase();
-  return LEAD_FREE_MAIL.includes(host);
+  return isFreeMail(host);
 }
 var norm = (s) => (s ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 function foldDuplicates(places) {
@@ -44686,7 +44696,7 @@ function foldDuplicates(places) {
 function shareKeysOf(p) {
   return {
     phones: p.phone ? [p.phone] : [],
-    emails: p.emails.filter((e) => !isFreeMail(e)),
+    emails: p.emails.filter((e) => !isFreeMail2(e)),
     hosts: p.host ? [p.host] : []
   };
 }
@@ -46701,7 +46711,7 @@ export {
   inArea,
   ingestEmail,
   isAgainRun,
-  isFreeMail,
+  isFreeMail2 as isFreeMail,
   isThreadUnknown,
   isVisionMime,
   judgeBatch,

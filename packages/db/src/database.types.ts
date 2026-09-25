@@ -3705,6 +3705,7 @@ export type Database = {
           checked_at: string | null
           clean_since: string | null
           complaints: number | null
+          counted_since: string | null
           created_at: string
           created_by: string | null
           dmarc: string | null
@@ -3728,6 +3729,7 @@ export type Database = {
           checked_at?: string | null
           clean_since?: string | null
           complaints?: number | null
+          counted_since?: string | null
           created_at?: string
           created_by?: string | null
           dmarc?: string | null
@@ -3751,6 +3753,7 @@ export type Database = {
           checked_at?: string | null
           clean_since?: string | null
           complaints?: number | null
+          counted_since?: string | null
           created_at?: string
           created_by?: string | null
           dmarc?: string | null

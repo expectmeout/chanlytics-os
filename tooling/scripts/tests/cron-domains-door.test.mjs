@@ -136,13 +136,13 @@ test("only a domain being checked or able to send is read; one waiting on its re
 test("a sending domain that stops verifying is held, said, and its owner told once", async () => {
   const w = world([domain("d1")]);
   dns["d1.example"] = "found";
-  const net = provider({ "pd-d1": "temporary_failure" });
+  const net = provider({ "pd-d1": "failed" });
   try {
     const [status, body] = await answer(await knock(POST, "domains"));
     assert.equal(status, 200);
     assert.equal(body.held, 1);
     const d = w.row("d1");
-    assert.deepEqual([d.state, d.held_why, d.provider_status], ["held", "verification", "temporary_failure"]);
+    assert.deepEqual([d.state, d.held_why, d.provider_status], ["held", "verification", "failed"]);
     assert.ok(d.held_at);
     const held = w.tables.events.filter((e) => e.kind === "sending_domain.held");
     assert.equal(held.length, 1);
@@ -350,6 +350,103 @@ test("a complaint holds a domain even on a tick the provider could not be asked"
     assert.deepEqual([w.row("d1").state, w.row("d1").held_why, w.row("d1").complaints], ["held", "complaint", 1]);
     assert.equal(w.tables.events.filter((e) => e.kind === "sending_domain.held").length, 1);
     assert.equal(w.tables.notifications.length, 1);
+  } finally {
+    net.restore();
+  }
+});
+
+test("a domain the provider no longer knows is held as provider: its owner is not emailed, the platform is (Part 2.5 D10)", async () => {
+  const w = world([domain("d1"), domain("d2")]);
+  dns["d1.example"] = "found";
+  dns["d2.example"] = "found";
+  const net = provider({ "pd-d1": "404", "pd-d2": "verified" });
+  try {
+    const [status, body] = await answer(await knock(POST, "domains"));
+    assert.equal(status, 200);
+    assert.deepEqual([w.row("d1").state, w.row("d1").held_why], ["held", "provider"]);
+    assert.equal(w.row("d2").state, "verified");
+    assert.equal(w.tables.notifications.length, 0, "no owner is told of the platform's account");
+    assert.deepEqual(
+      w.tables.operator_pages.map((p) => p.key),
+      ["sending_domain_provider_lost"],
+    );
+    assert.equal(body.held, 1);
+    // It lifts itself when the provider knows it again.
+    const net2 = provider({ "pd-d1": "verified", "pd-d2": "verified" });
+    try {
+      await answer(await knock(POST, "domains"));
+      assert.equal(w.row("d1").state, "verified");
+    } finally {
+      net2.restore();
+    }
+  } finally {
+    net.restore();
+  }
+});
+
+test("a domain the provider could not be asked about is stamped read, so it waits its turn next tick (Part 2.5)", async () => {
+  const w = world([domain("d1", { checked_at: ago(3 * 3600_000) })]);
+  dns["d1.example"] = "found";
+  const net = provider({ "pd-d1": "500" });
+  try {
+    await answer(await knock(POST, "domains"));
+    assert.ok(Date.parse(w.row("d1").checked_at) > Date.now() - 60_000, "the attempt is its read time");
+    assert.equal(w.row("d1").state, "verified", "and nothing else changed");
+  } finally {
+    net.restore();
+  }
+});
+
+test("a reputation hold is not read: only its owner lifts it (Part 2.5)", async () => {
+  world([domain("d1", { state: "held", held_why: "complaint", held_at: ago(DAY) }), domain("d2")]);
+  dns["d2.example"] = "found";
+  const read = [];
+  const net = provider({}, (id) => read.push(id));
+  try {
+    await answer(await knock(POST, "domains"));
+    assert.deepEqual(read, ["pd-d2"]);
+  } finally {
+    net.restore();
+  }
+});
+
+test("every due domain a tick has time for is read: sixty in one tick, not thirty (Part 2.5)", async () => {
+  const rows = Array.from({ length: 60 }, (_, i) => domain(`d${i}`));
+  for (const r of rows) dns[r.host] = "found";
+  const w = world(rows);
+  const read = [];
+  const net = provider({}, (id) => read.push(id));
+  try {
+    const [status, body] = await answer(await knock(POST, "domains"));
+    assert.equal(status, 200);
+    assert.equal(read.length, 60);
+    assert.equal(body.checked, 60);
+    assert.equal(typeof body.oldest_read_s, "number", "the answer says how stale the oldest read was");
+    assert.ok(w.tables.sending_domains.every((r) => r.checked_at && Date.parse(r.checked_at) > Date.now() - 60_000));
+  } finally {
+    net.restore();
+  }
+});
+
+test("a domain held again within a day tells its owner once (Part 2.5)", async () => {
+  const w = world([domain("d1")]);
+  w.tables.events.push({
+    id: "e0",
+    tenant_id: A,
+    kind: "sending_domain.held",
+    category: "setup",
+    subject_type: "sending_domain",
+    subject_id: "d1",
+    data: { host: "d1.example", why: "verification" },
+    created_at: ago(3 * 3600_000),
+  });
+  dns["d1.example"] = "found";
+  const net = provider({ "pd-d1": "failed" });
+  try {
+    await answer(await knock(POST, "domains"));
+    assert.equal(w.row("d1").state, "held");
+    assert.equal(w.tables.events.filter((e) => e.kind === "sending_domain.held").length, 2, "the hold is said");
+    assert.equal(w.tables.notifications.length, 0, "but its owner was told three hours ago");
   } finally {
     net.restore();
   }
