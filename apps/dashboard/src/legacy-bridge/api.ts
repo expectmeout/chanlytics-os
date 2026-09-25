@@ -9,6 +9,7 @@ import { createApi, unwrap, type Api, type ApiOptions, type RouteKey } from "../
 import { clearReadCaches, staleReadCaches } from "./read-cache";
 import { clearSurfaceCache } from "./surface-cache";
 import { getActiveWorkspace, rememberWorkspace, signInHref } from "./workspace";
+import { PREFETCH_SLOT } from "@chanlytics/contracts";
 
 let instance: Api | null = null;
 
@@ -38,6 +39,19 @@ function forgetWorkspaceAndReboot(win: Window): void {
 }
 
 /**
+ * What the document head started for a URL (contracts routePrefetchScript), taken once: the slot forgets it as it is
+ * handed over, so a later read of the same URL asks the server.
+ */
+function takePrefetched(win: Window, url: string): Promise<Response> | null {
+  const slot = (win as unknown as Record<string, unknown>)[PREFETCH_SLOT];
+  if (!slot || typeof slot !== "object") return null;
+  const held = (slot as Record<string, unknown>)[url];
+  if (!held || typeof (held as Promise<Response>).then !== "function") return null;
+  delete (slot as Record<string, unknown>)[url];
+  return held as Promise<Response>;
+}
+
+/**
  * A read the runner treats as the surface's own: a refusal throws, and the
  * ApiError it throws carries the code the runner reads (a 401 signs the tab
  * out; anything else leaves the surface seeded).
@@ -55,6 +69,7 @@ export function apiFor(win: Window): Api {
   if (typeof window !== "undefined" && win === window) return api();
   return createApi({
     fetch: (url, init) => win.fetch(url, init),
+    prefetched: (url) => takePrefetched(win, url),
     workspace: getActiveWorkspace,
     onSignedOut: () => {
       clearSurfaceCache();
@@ -78,6 +93,7 @@ export function apiFor(win: Window): Api {
 export function api(): Api {
   instance ??= createApi({
     fetch: (url, init) => window.fetch(url, init),
+    prefetched: (url) => takePrefetched(window, url),
     workspace: getActiveWorkspace,
     onSignedOut: () => {
       // Clear BEFORE redirecting: the surface cache holds real customer

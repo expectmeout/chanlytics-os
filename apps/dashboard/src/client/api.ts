@@ -94,17 +94,29 @@ export interface ApiDeps {
   /** After a 2xx write: which surfaces to re-read, by the refresh map. */
   refresh: (key: RouteKey) => Promise<void>;
   now?: () => number;
+  /**
+   * A response the document head started for this exact URL (contracts routePrefetchScript), handed over once: the
+   * read takes it in place of its own fetch. Null for a URL the head did not start.
+   */
+  prefetched?: (url: string) => Promise<Response> | null;
 }
 
 /** Identical reads inside this window share one request: three overrides asking for the same list at boot. */
 const INFLIGHT_MS = 2_000;
+/**
+ * A read the document head started (`prefetched`) is shared this long from when it was taken: the page it was
+ * started for mounts a second or two later on a fast desktop and longer on a phone, and its own read of the same
+ * URL should find the head's answer, not ask again. Short enough that nothing a person does in the meantime is
+ * answered from it; a write clears every held read anyway (forget).
+ */
+const PREFETCH_SHARE_MS = 10_000;
 const READ_TIMEOUT_MS = 15_000;
 const WRITE_TIMEOUT_MS = 30_000;
 
 export function createApi(deps: ApiDeps) {
   const now = deps.now ?? (() => Date.now());
   // `kept`: settled, answered, and held (holdAnswers) -- shared whatever its age until the hold is let go.
-  const inFlight = new Map<string, { p: Promise<unknown>; at: number; kept?: boolean }>();
+  const inFlight = new Map<string, { p: Promise<unknown>; at: number; kept?: boolean; early?: boolean }>();
   let holds = 0;
 
   function urlFor<K extends RouteKey>(key: K, opts: ApiOptions<K> = {} as ApiOptions<K>): string {
@@ -142,12 +154,17 @@ export function createApi(deps: ApiDeps) {
     const url = urlFor(key, opts);
     if (isRead) {
       const hit = inFlight.get(url);
-      if (hit && (hit.kept || now() - hit.at < INFLIGHT_MS)) return hit.p as Promise<ApiResult<OutputOf<Routes[K]>>>;
+      if (hit && (hit.kept || now() - hit.at < (hit.early ? PREFETCH_SHARE_MS : INFLIGHT_MS)))
+        return hit.p as Promise<ApiResult<OutputOf<Routes[K]>>>;
     }
+    // What the head started for this URL, else the read's own fetch; a prefetch that failed is asked again.
+    const early = isRead ? (deps.prefetched?.(url) ?? null) : null;
     const p = (async (): Promise<ApiResult<OutputOf<Routes[K]>>> => {
       let res: Response;
       try {
-        res = await deps.fetch(url, initFor(key, opts));
+        res = early
+          ? await early.catch(() => deps.fetch(url, initFor(key, opts)))
+          : await deps.fetch(url, initFor(key, opts));
       } catch (e) {
         // A request that never left changed nothing; one that timed out may
         // still be doing its work on the server, and a write must not be told
@@ -193,13 +210,17 @@ export function createApi(deps: ApiDeps) {
     if (isRead) {
       // A refusal must not be shared beyond its burst, and neither is an answer unless answers are held: drop the
       // entry as it settles, or keep it for whoever asks next while the hold lasts.
-      const entry: { p: Promise<unknown>; at: number; kept?: boolean } = { p, at: now() };
+      const entry: { p: Promise<unknown>; at: number; kept?: boolean; early?: boolean } = {
+        p,
+        at: now(),
+        early: !!early,
+      };
       inFlight.set(url, entry);
       p.then(
         (r) => {
           if (inFlight.get(url) !== entry) return;
           if (holds > 0 && r.ok) entry.kept = true;
-          else inFlight.delete(url);
+          else if (!(entry.early && r.ok)) inFlight.delete(url);
         },
         () => {
           if (inFlight.get(url) === entry) inFlight.delete(url);

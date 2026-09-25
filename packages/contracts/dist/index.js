@@ -19844,6 +19844,22 @@ function inAppBootScript() {
     "}catch(e){}"
   ].join("");
 }
+var PREFETCH_UUID = "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$";
+var PREFETCH_SLOT = "__prefetched";
+function routePrefetchScript() {
+  return [
+    "try{",
+    'var p=/^\\/w\\/([^\\/?#]+)/.exec(location.pathname||"");',
+    "if(p){",
+    "var w=encodeURIComponent(decodeURIComponent(p[1]));",
+    'var u=["/api/v1/workspaces?workspace="+w];',
+    'var h=(location.hash||"").replace(/^#\\/?/,"").split("/");',
+    `if(h[0]==="clients"&&new RegExp(${JSON.stringify(PREFETCH_UUID)},"i").test(h[1]||""))u.push("/api/v1/contacts/"+h[1]+"?workspace="+w);`,
+    `var f=window[${JSON.stringify(PREFETCH_SLOT)}]=window[${JSON.stringify(PREFETCH_SLOT)}]||{};`,
+    'for(var i=0;i<u.length;i++)if(!f[u[i]])f[u[i]]=fetch(u[i],{credentials:"same-origin"});',
+    "}}catch(e){}"
+  ].join("");
+}
 var isSidebarPref = (v) => v === "open" || v === "rail";
 function workspaceHotkey(index) {
   return Number.isInteger(index) && index >= 0 && index < 9 ? `\u2318${index + 1}` : null;
@@ -23501,6 +23517,7 @@ export {
   POLICY_CLASS_WORDS,
   POLICY_MODES,
   POLICY_MODE_WORDS,
+  PREFETCH_SLOT,
   PROFILE_CROSSING_WORDS,
   PROFILE_LIMITS,
   PROMPT_NOW,
@@ -24280,6 +24297,7 @@ export {
   rightNowCounts,
   rightNowLine,
   roleGate,
+  routePrefetchScript,
   ruleFacts,
   ruleLists,
   ruleNeeds,
