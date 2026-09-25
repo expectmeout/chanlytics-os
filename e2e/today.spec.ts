@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
 import { apiGet } from "./workspace";
 import { expectAwayAddsUp, expectLeaksWellFormed, expectNoQueueRepeat, expectWarningsFirst } from "./signals";
+import { WAITING_PLACES, WAITING_QUESTION, WAITING_SEARCH_NAME, refuseAnswers, waitingSearch } from "./waiting-search";
 
 /**
  * Today on a real workspace: the work first, then the day's own card (four figures, each with its receipt), then
@@ -162,6 +163,40 @@ test.describe("Today on a real workspace", () => {
     await expect(pal.getByTestId("ask-line-face")).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(pal).toBeHidden();
+  });
+
+  test("a search waiting on its answer is one row of the queue: its name, its wait, its question, and Answer opens the pile it asks about", async ({
+    page,
+  }) => {
+    // The seed's second search stopped after its first places to ask (e2e-workspace.mjs, WAITING_ROUND). Answer only
+    // opens the search; nothing here may answer it, which would start paid work.
+    const attempts = await refuseAnswers(page);
+    const search = await waitingSearch(page);
+    const queue = page.getByTestId("today-queue");
+    await expect(queue.locator(".tq-sub")).toContainText("1 search waiting for your answer");
+    const row = queue.getByTestId("queue-search");
+    await expect(row).toHaveCount(1);
+    await expect(row).toBeInViewport({ ratio: 1 });
+    await expect(row.locator(".cl-attn-who")).toHaveText(WAITING_SEARCH_NAME);
+    // Waited three hours when the seed ran: the number moves with the clock, the words do not.
+    await expect(row.locator(".cl-attn-meta")).toHaveText(/^Leads, waited \d+h$/);
+    await expect(row.locator(".cl-attn-sentence")).toHaveText(WAITING_QUESTION);
+    await expect(row.locator(".cl-attn-status")).toHaveText(
+      "Waiting for your answer · nothing is spent while it waits",
+    );
+    const answer = row.getByRole("button", { name: "Answer", exact: true });
+    await expect(answer).toBeInViewport({ ratio: 1 });
+    await answer.click();
+    await expect.poll(() => new URL(page.url()).hash).toBe(`#/${search.route}`);
+    // Landed on this search's left-out pile, with its question over it: the three places it asks about, and no
+    // place from the other search.
+    const strip = page.getByTestId("lead-strip");
+    await expect(strip).toBeInViewport({ ratio: 1 });
+    await expect(strip.getByTestId("strip-title")).toHaveText(WAITING_QUESTION);
+    const rows = page.locator(".cl-table tbody tr");
+    await expect(rows).toHaveCount(WAITING_PLACES.length);
+    for (const name of WAITING_PLACES) await expect(rows.filter({ hasText: name })).toHaveCount(1);
+    expect(attempts, "opening a waiting search answers nothing").toEqual([]);
   });
 
   test("while you were away: nothing in the queue is said twice, the count adds up, and a warning is never below good news", async ({

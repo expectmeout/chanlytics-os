@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
 import { apiGet } from "./workspace";
 import { expectLeadsScope, expectPeekSeenVersusRead, expectRowUnchangedAfterUndo, expectStripEnding } from "./signals";
+import { WAITING_PLACES, WAITING_QUESTION, WAITING_SEARCH_NAME, refuseAnswers, waitingSearch } from "./waiting-search";
 
 /**
  * Leads, on the nightly's own workspace.
@@ -45,9 +46,10 @@ const SEEDED = [ZILKER, TRAVIS, MUELLER, KETTLEBELL, FITCORP, HYDE_PARK];
 /**
  * The seed's own arithmetic, as `leadsStanding` counts it: the rail's numbers
  * are the COUNTED Qualified leads (lead_list_counts), so the six seeded places
- * stand as three leads -- two Ready and one Contacted -- under one kept search.
+ * stand as three leads -- two Ready and one Contacted -- and the waiting
+ * search's three left-out places count for nothing: two kept searches.
  */
-const STANDING = "3 leads · 2 ready · 1 search";
+const STANDING = "3 leads · 2 ready · 2 searches";
 /** contracts LEAD_NOT_A_FIT_WORDS.chain: the why the peek offers first (§9.5). */
 const WHY_CHAIN = "A chain or franchise";
 
@@ -97,7 +99,7 @@ test.describe("Leads on a real workspace", () => {
     };
     const qualified = await named("qualified");
     const held = [...qualified, ...(await named("review")), ...(await named("excluded"))];
-    expect([...held].sort()).toEqual([...SEEDED].sort());
+    expect([...held].sort()).toEqual([...SEEDED, ...WAITING_PLACES].sort());
     // Strongest fit first is the database's order, not the page's: the seed
     // dates the six a minute apart so the band's tie-break is not a coin toss.
     expect(qualified, "strongest fit first").toEqual([ZILKER, TRAVIS, HYDE_PARK]);
@@ -121,6 +123,54 @@ test.describe("Leads on a real workspace", () => {
     await expect(left).toContainText(FITCORP);
     await expect(left).toContainText("Chain");
     await expect(left).toContainText("Not checked");
+  });
+
+  test("a search waiting on its answer: the standing says it needs you, its door opens the pile it asks about, and the strip asks with the answer row one press away", async ({
+    page,
+  }) => {
+    // Read-only by construction: Yes, keep going, Include and Stop here all answer the round (paid work starts), so
+    // they are read and never pressed, and refuseAnswers refuses and counts anything that would answer.
+    const attempts = await refuseAnswers(page);
+    await page.goto("/#/clients/leads");
+    await page.waitForLoadState("networkidle");
+    const search = await waitingSearch(page);
+    const needs = page.getByTestId("leads-standing-needs");
+    await expect(needs).toBeInViewport({ ratio: 1 });
+    await expect(needs).toHaveText("1 search needs you");
+    await needs.click();
+    await expect.poll(() => new URL(page.url()).hash).toBe(`#/${search.route}`);
+    await expect(page.locator(".cl-rail-row", { hasText: WAITING_SEARCH_NAME })).toBeVisible();
+
+    const strip = page.getByTestId("lead-strip");
+    await expect(strip).toBeInViewport({ ratio: 1 });
+    await expect(strip).toHaveAttribute("role", "alert");
+    await expect(strip.getByTestId("strip-title")).toHaveText(WAITING_QUESTION);
+    // contracts LEAD_QUESTION_WAIT_LINE: what waiting costs, and that it ends after a day.
+    await expect(strip.getByTestId("strip-parts")).toHaveText(
+      "Nothing is spent while this waits. With no answer in a day, it stops and keeps what it found.",
+    );
+    await expect(strip.getByTestId("strip-keep")).toHaveText("Yes, keep going");
+    // The question is about the plan's own exclusion, so the strip can offer to lift it.
+    await expect(strip.getByTestId("strip-include")).toHaveText("Include franchise studios");
+    await expect(strip.getByTestId("strip-stop_here")).toHaveText("Stop here");
+    const rows = page.locator(".cl-table tbody tr");
+    await expect(rows).toHaveCount(WAITING_PLACES.length);
+    for (const name of WAITING_PLACES) await expect(rows.filter({ hasText: name })).toHaveCount(1);
+
+    // The no that changes the search: the answer row opens under the question, empty, with nothing to send yet.
+    await strip.getByTestId("strip-change").click();
+    const panel = page.getByTestId("lead-plan-panel");
+    await expect(panel).toBeVisible();
+    await expect(panel.getByTestId("plan-answering")).toHaveText(WAITING_QUESTION);
+    const input = panel.getByTestId("plan-answer-input");
+    await expect(input).toBeInViewport({ ratio: 1 });
+    await expect(input).toHaveValue("");
+    await expect(panel.getByTestId("plan-answer-send")).toBeDisabled();
+    await panel.getByTestId("plan-close").click();
+    await expect(panel).toHaveCount(0);
+
+    expect(attempts, "reading a waiting search answers nothing").toEqual([]);
+    await waitingSearch(page);
   });
 
   test("no page of Leads says a dollar amount, and nothing on it names where the places came from", async ({
@@ -354,9 +404,10 @@ test.describe("Leads on a phone", () => {
     const ask = page.getByTestId("ask-real");
     await expect(ask).toBeVisible();
     await expect(ask.getByTestId("ask-input")).toHaveAttribute("placeholder", "Describe the businesses you want");
-    // The Find businesses section draws only with chips: on this workspace, more like its one kept search (the seed's
-    // `asked`), so a seed without one fails here, on the cause, and not on the note under it.
-    await expect(ask.getByText(/Find more like/)).toBeVisible();
+    // The Find businesses section draws only with chips: on this workspace, more like its two kept searches (the
+    // seed's `asked`), so a seed without them fails here, on the cause, and not on the note under it.
+    await expect(ask.getByText(/Find more like/)).toHaveCount(2);
+    await expect(ask.getByText(/Find more like: personal trainers in Austin/)).toBeVisible();
     // The section's one dim line: the consent rule (spec F3), under its chips.
     await expect(ask.getByTestId("ask-rows-note")).toBeVisible();
     await page.keyboard.press("Escape");

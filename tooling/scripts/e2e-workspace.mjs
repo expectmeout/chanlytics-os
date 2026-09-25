@@ -36,6 +36,11 @@
  *     send has an audience at all. Three, because a list the product calls a
  *     list starts at three (contracts todayLeaks) -- the seed meets the product's
  *     floor rather than the product meeting the seed's;
+ *   - the lead finder holds two searches of fictional places: one ended, and one
+ *     whose round is waiting on the owner's answer -- nothing is spent while a
+ *     round waits, no job or sweep moves it but the sweep's end after a day, and
+ *     the seed writes the bell's row for each round itself, so 00163's trigger
+ *     queues no push (convergeLeads says how);
  *   - and there is no job, escalation, line, playbook, broadcast or Google row.
  *
  * It refuses an owner or teammate address outside example.com, so it can never
@@ -50,7 +55,14 @@
  * Usage: node tooling/scripts/e2e-workspace.mjs [--apply]
  */
 import { createClient } from "@supabase/supabase-js";
-import { TenantConfigWriteSchema, leadMonth, newReceptionistDefaults } from "@chanlytics/contracts";
+import {
+  TenantConfigWriteSchema,
+  leadMonth,
+  leadQuestionRoute,
+  leadQuestionTitle,
+  leadsRoute,
+  newReceptionistDefaults,
+} from "@chanlytics/contracts";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -268,6 +280,96 @@ export const LEADS = [
 ];
 /** What the three counted leads used of the month's allowance. */
 export const LEAD_COUNTED = LEADS.filter((l) => l.member.counted).length;
+
+/**
+ * A second search, stopped after its first places to ask its question: the state Today's queue ("Leads, waited
+ * 3h" with one button, Answer), Ask's Right now ("1 search waiting") and the Leads strip exist to answer, and the
+ * one a real search reaches only by spending. Nothing is spent while it waits and nothing here can start: the
+ * round is `waiting_on_owner`, which no job or sweep moves on but an answer (never pressed by a spec) and the
+ * sweep's end_question after a day (planLeadSweep; the seed runs every morning, three hours into the wait).
+ * Its three places are what it asks about -- all left out as franchises -- in another trade, another city and
+ * another area code from the Austin six, so no spec reading those finds these.
+ */
+export const WAITING_SEARCH = {
+  name: "Pilates studios · Denver",
+  asked: "independent pilates studios in Denver, then find their email",
+  via: "people",
+  card: "local_businesses",
+};
+export const WAITING_PLAN = {
+  version: 1,
+  card: "local_businesses",
+  name: "pilates studios",
+  asked: WAITING_SEARCH.asked,
+  terms: ["pilates studio"],
+  area: {
+    kind: "city",
+    label: "Denver, CO",
+    state: "CO",
+    center: { lat: 39.7392, lng: -104.9903 },
+    radius_m: 15000,
+    query: "Denver, CO",
+  },
+  count: 10,
+  contact: "email",
+  criteria: [
+    { key: "independent", text: "independent, not a franchise", standard: "likely", required: true },
+    { key: "website", text: "has a website", standard: "seen", required: true },
+  ],
+  exclusions: [{ key: "franchise", text: "franchise studios", origin: "claude" }],
+};
+/** How long the question has waited when the seed runs: under Today's twelve-hour warn and the sweep's day. */
+export const WAITING_FOR_MS = 3 * 3_600_000;
+/**
+ * The probe that stopped to ask, and the question in core's RoundQuestion shape (packages/core/src/leads/ports.ts:
+ * camelCase, as the runner writes it). The sentence is in contracts questionAfterProbe's words, said of the three
+ * places seeded below (the engine asks only after ten; three is the least that makes the pile the question opens
+ * on hold what it says).
+ */
+export const WAITING_ROUND = {
+  seq: 1,
+  purpose: "probe",
+  target: 10,
+  plan_version: 1,
+  cost_usd: "0.0300",
+  judge_tokens: 900,
+  question: {
+    sentence: "Most of the first 3 are franchise studios, which I'm leaving out. Is that what you meant?",
+    criterionKey: "franchise",
+    dropTerm: null,
+  },
+};
+export const WAITING_LEADS = [
+  {
+    place_id: "ChIJfixture0101",
+    business_name: "Mile High Reformer Co. LoDo",
+    street: "1600 Wazee St",
+    phone_e164: "+17205550111",
+    website_host: "milehighreformer.example",
+    rating: "4.3",
+    reviews: 210,
+  },
+  {
+    place_id: "ChIJfixture0102",
+    business_name: "Summit Pilates Cherry Creek",
+    street: "250 Steele St",
+    phone_e164: "+17205550112",
+    website_host: "summitpilates.example",
+    rating: "4.5",
+    reviews: 340,
+  },
+  {
+    place_id: "ChIJfixture0103",
+    business_name: "Peak Core Pilates Highlands",
+    street: "3300 W 32nd Ave",
+    phone_e164: "+17205550113",
+    website_host: "peakcorepilates.example",
+    rating: "4.6",
+    reviews: 150,
+  },
+];
+/** Every place the seed owns: verify() and e2e/leads.spec.ts read this whole set. */
+export const ALL_LEAD_PLACES = [...LEADS.map((l) => l.place_id), ...WAITING_LEADS.map((l) => l.place_id)];
 
 /**
  * Every person's two answers, in force after each run: a yes to messages, taken
@@ -836,7 +938,16 @@ export async function converge(db, { ownerEmail, memberEmail, apply = false, now
  *
  * A round may not be inserted ended (00140's lead_rounds_guard: a round starts
  * queued), so it is written queued and then ended in one update, which is the
- * transition the guard allows.
+ * transition the guard allows. The waiting search's round is walked the same
+ * way: queued, probing, then waiting_on_owner, the path the runner takes.
+ *
+ * Each move into waiting_on_owner or ended fires 00163's lead_rounds_notify,
+ * which keeps a bell row and queues a push_send job for it -- unless a row of
+ * that kind for that round is already there. The seed writes that row first,
+ * in the trigger's own words, so the bell holds what production would hold and
+ * no push job is ever queued: nothing is left for the job runner to carry to a
+ * phone, whatever phone is signed in as a test user. Last night's rows go
+ * first, with the rounds they were about.
  */
 async function convergeLeads(db, T, ownerId, now) {
   const stamp = new Date(now).toISOString();
@@ -869,6 +980,25 @@ async function convergeLeads(db, T, ownerId, now) {
   must("clearing lead operations", await db.from("lead_operations").delete().eq("tenant_id", T));
   must("clearing leads", await db.from("leads").delete().eq("tenant_id", T));
   must("clearing the lead counters", await db.from("lead_counters").delete().eq("tenant_id", T));
+  must(
+    "clearing the bell's lead rows",
+    await db.from("notifications").delete().eq("tenant_id", T).eq("subject_type", "lead_round"),
+  );
+  // The bell's row for a round, written before the move that would make 00163's trigger write it with a push job.
+  const bell = async (kind, round, title, body, route) =>
+    must(
+      `the bell's ${kind} row`,
+      await db.from("notifications").insert({
+        tenant_id: T,
+        kind,
+        title,
+        body,
+        route,
+        subject_type: "lead_round",
+        subject_id: round.id,
+        created_at: stamp,
+      }),
+    );
 
   const search = must(
     "the search",
@@ -915,6 +1045,13 @@ async function convergeLeads(db, T, ownerId, now) {
       })
       .select("id")
       .single(),
+  );
+  await bell(
+    "leads_ready",
+    round,
+    `Your search for ${LEAD_SEARCH.name} is done`,
+    `${LEADS.filter((l) => l.member.class === "qualified").length} found.`,
+    leadsRoute({ searchId: search.id }),
   );
   must(
     "ending the round",
@@ -988,11 +1125,144 @@ async function convergeLeads(db, T, ownerId, now) {
     );
   }
 
+  // The search that stopped to ask. Its round is made now, so that while it is queued and probing no sweep could
+  // call it stuck (planLeadSweep: an hour old with nothing live), and is dated back only once it waits, a state the
+  // sweep ends only after a day (end_question, from waiting_since).
+  const waitingSince = new Date(now - WAITING_FOR_MS).toISOString();
+  const asked = new Date(now - WAITING_FOR_MS - 5 * 60_000).toISOString();
+  const waiting = must(
+    "the waiting search",
+    await db
+      .from("lead_searches")
+      .insert({
+        tenant_id: T,
+        created_by: ownerId,
+        via: WAITING_SEARCH.via,
+        card: WAITING_SEARCH.card,
+        name: WAITING_SEARCH.name,
+        asked: WAITING_SEARCH.asked,
+        plan: WAITING_PLAN,
+        created_at: asked,
+      })
+      .select("id")
+      .single(),
+  );
+  const probe = must(
+    "the waiting round",
+    await db
+      .from("lead_rounds")
+      .insert({
+        tenant_id: T,
+        search_id: waiting.id,
+        seq: WAITING_ROUND.seq,
+        purpose: WAITING_ROUND.purpose,
+        plan: WAITING_PLAN,
+        plan_version: WAITING_ROUND.plan_version,
+        target: WAITING_ROUND.target,
+        state: "queued",
+        allowance_reserved: 0,
+        allowance_used: 0,
+        cost_reserved_usd: 0,
+        cost_usd: WAITING_ROUND.cost_usd,
+        judge_tokens: WAITING_ROUND.judge_tokens,
+        judge_model: "seed",
+        month,
+        day,
+        platform_day: new Date(now).toISOString().slice(0, 10),
+        started_at: stamp,
+        created_at: stamp,
+      })
+      .select("id")
+      .single(),
+  );
+  must("probing the waiting round", await db.from("lead_rounds").update({ state: "probing" }).eq("id", probe.id));
+  for (const [i, lead] of WAITING_LEADS.entries()) {
+    const foundAt = new Date(now - WAITING_FOR_MS - i * 60_000).toISOString();
+    const row = must(
+      "a place the question is about",
+      await db
+        .from("leads")
+        .insert({
+          tenant_id: T,
+          place_id: lead.place_id,
+          business_name: lead.business_name,
+          category: "Pilates studio",
+          street: lead.street,
+          city: "Denver",
+          region: "CO",
+          country: "US",
+          website_host: lead.website_host,
+          phone_e164: lead.phone_e164,
+          phone_sources: 2,
+          email: null,
+          email_state: "none",
+          email_checked_at: null,
+          rating: lead.rating,
+          reviews: lead.reviews,
+          stage: "ready",
+          found_at: foundAt,
+        })
+        .select("id")
+        .single(),
+    );
+    must(
+      "its membership",
+      await db.from("lead_search_members").insert({
+        search_id: waiting.id,
+        lead_id: row.id,
+        round_id: probe.id,
+        tenant_id: T,
+        judgment: {
+          answer: {
+            ref: lead.place_id,
+            criteria: [
+              { key: "independent", answer: "fail", facts: ["name", "category"] },
+              { key: "website", answer: "pass", facts: ["name", "category"] },
+              { key: "franchise", answer: "fail", facts: ["name", "category"] },
+            ],
+            email_index: null,
+            reason: "One of a franchise's studios",
+          },
+          reasons: [],
+          shares: [],
+        },
+        class: "excluded",
+        excluded_by: "franchise",
+        fit: null,
+        reason: "One of a franchise's studios",
+        counted: false,
+        counted_month: null,
+        created_at: foundAt,
+      }),
+    );
+  }
+  const question = { ...WAITING_ROUND.question, asked_at: waitingSince };
+  await bell(
+    "leads_question",
+    probe,
+    leadQuestionTitle(WAITING_SEARCH.name),
+    question.sentence,
+    leadQuestionRoute(waiting.id),
+  );
+  must(
+    "stopping the waiting round to ask",
+    await db
+      .from("lead_rounds")
+      .update({ state: "waiting_on_owner", question, waiting_since: waitingSince, created_at: asked })
+      .eq("id", probe.id),
+  );
+
   must(
     "the month's counters",
     await db.from("lead_counters").insert([
       { tenant_id: T, kind: "allowance", period: month, used: LEAD_COUNTED, reserved: 0 },
-      { tenant_id: T, kind: "budget", period: month, used: LEAD_ROUND.cost_usd, reserved: 0 },
+      {
+        tenant_id: T,
+        kind: "budget",
+        period: month,
+        used: (Number(LEAD_ROUND.cost_usd) + Number(WAITING_ROUND.cost_usd)).toFixed(4),
+        reserved: 0,
+      },
     ]),
   );
 }
@@ -1070,15 +1340,16 @@ export async function verify(db, T, ownerId) {
     problems.push("fewer than three people have said yes to messages");
   // The state e2e/leads.spec.ts reads. Not a stage or a class: the specs change
   // those and undo them, and a spec that failed halfway leaves one moved. What
-  // must hold is that this workspace's leads ARE the six fixtures, that none of
-  // them is a real business, and that the workspace may search.
+  // must hold is that this workspace's leads ARE the nine fixtures (the six and
+  // the three the waiting search asks about), that none of them is a real
+  // business, that one search waits on its owner, and that the workspace may search.
   const leads = await read(
     "the leads",
     db.from("leads").select("place_id, business_name, email, phone_e164, website_host").eq("tenant_id", T),
   );
-  const wanted = LEADS.map((l) => l.place_id).sort();
+  const wanted = [...ALL_LEAD_PLACES].sort();
   if (JSON.stringify(leads.map((l) => l.place_id).sort()) !== JSON.stringify(wanted))
-    problems.push(`the workspace's leads are not the ${LEADS.length} fixtures`);
+    problems.push(`the workspace's leads are not the ${ALL_LEAD_PLACES.length} fixtures`);
   for (const l of leads) {
     if (l.email && !/@[\w.-]+\.example$/.test(l.email)) problems.push(`a lead's address is not fictional: ${l.email}`);
     if (l.website_host && !/\.example$/.test(l.website_host))
@@ -1090,8 +1361,28 @@ export async function verify(db, T, ownerId) {
     "the searches",
     db.from("lead_searches").select("id, name, removed_at").eq("tenant_id", T),
   );
-  if (searches.length !== 1 || searches[0].name !== LEAD_SEARCH.name || searches[0].removed_at)
-    problems.push("the workspace should hold exactly one kept search, the seeded one");
+  const named = searches
+    .filter((x) => !x.removed_at)
+    .map((x) => x.name)
+    .sort();
+  if (searches.length !== 2 || JSON.stringify(named) !== JSON.stringify([LEAD_SEARCH.name, WAITING_SEARCH.name].sort()))
+    problems.push("the workspace should hold exactly two kept searches, the seeded ones");
+  const waitingId = searches.find((x) => x.name === WAITING_SEARCH.name)?.id;
+  const rounds = waitingId
+    ? await read(
+        "the waiting search's rounds",
+        db.from("lead_rounds").select("state, question, waiting_since").eq("search_id", waitingId),
+      )
+    : [];
+  if (
+    rounds.length !== 1 ||
+    rounds[0].state !== "waiting_on_owner" ||
+    rounds[0].question?.sentence !== WAITING_ROUND.question.sentence ||
+    !rounds[0].waiting_since
+  )
+    problems.push("the waiting search's one round is not waiting on the owner with its question");
+  const pushes = await read("the push jobs", db.from("jobs").select("id").eq("tenant_id", T).eq("kind", "push_send"));
+  if (pushes.length) problems.push(`${pushes.length} push job(s) queued in the workspace, for a phone to hear`);
   const platform = await read(
     "the platform switch",
     db.from("lead_platform").select("tenants_on").eq("id", true).maybeSingle(),

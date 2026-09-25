@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
 import { activeWorkspace, scoped, apiGet } from "./workspace";
+import { WAITING_QUESTION, WAITING_SEARCH_NAME, refuseAnswers, waitingSearch } from "./waiting-search";
 
 /**
  * Ask on a real workspace, as the Line: it opens from ⌘K and the top bar's
@@ -74,6 +75,37 @@ test.describe("Ask on a real workspace", () => {
     await expect(say).toContainText(/waiting/);
     await expect(page.getByTestId("ask-trace")).toHaveCount(0);
     await page.screenshot({ path: "test-results/ask-quick.png" });
+  });
+
+  test("Right now says a search is waiting: its pill and its clause, and Brief me names it with a door to the pile it asks about", async ({
+    page,
+  }) => {
+    // Brief me asks "Who needs me right now?", which the Line answers from what the page holds, without a model;
+    // refuseAnswers holds that to it (a turn that reached the model would be refused and counted).
+    const attempts = await refuseAnswers(page);
+    await page.goto("/#/today");
+    await page.waitForLoadState("networkidle");
+    const search = await waitingSearch(page);
+    await page.keyboard.press("Control+k");
+    const pal = page.getByTestId("ask-real");
+    const now = pal.getByTestId("ask-row-now");
+    await expect(now).toBeInViewport({ ratio: 1 });
+    await expect(now.getByTestId("ask-pill").filter({ hasText: /search/ })).toHaveText("1 search waiting");
+    // The search's clause of the sentence: first, capitalised, when nobody else is waiting; after a "; " otherwise.
+    await expect(now.locator(".ask-row-label")).toContainText(
+      new RegExp(`(^|; )[Yy]our search for ${WAITING_SEARCH_NAME} is waiting for your answer[.;]`),
+    );
+    await now.getByTestId("ask-row-brief").click();
+    await expect(pal.getByTestId("ask-say")).toBeVisible();
+    await expect(pal.getByTestId("ask-trace")).toHaveCount(0);
+    const item = pal.getByTestId("ask-item").filter({ hasText: WAITING_SEARCH_NAME });
+    await expect(item).toHaveCount(1);
+    await expect(item).toContainText("Leads");
+    await expect(item).toContainText(WAITING_QUESTION);
+    await item.click();
+    await expect.poll(() => new URL(page.url()).hash).toBe(`#/${search.route}`);
+    await expect(page.getByTestId("lead-strip").getByTestId("strip-title")).toHaveText(WAITING_QUESTION);
+    expect(attempts, "Brief me spent no turn and answered nothing").toEqual([]);
   });
 
   test("a real turn reads the workspace and answers with what it read", async ({ page }) => {
