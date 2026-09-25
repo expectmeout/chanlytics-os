@@ -187,3 +187,18 @@ test(
     assert.deepEqual(await counts(host, since), { sent: 0, bounced: 0, complained: 1 });
   },
 );
+
+test(
+  "only a permanent bounce counts toward the 2%: a full mailbox says nothing about the domain that wrote (00178)",
+  { skip },
+  async () => {
+    const host = `f-${stamp}.example`;
+    await sent({
+      host,
+      status: "failed",
+      error: { provider: "bounced", kind: "Transient", sub_kind: "MailboxFull", message: "452 mailbox full" },
+    });
+    await sent({ host, status: "failed", error: BOUNCED });
+    assert.deepEqual(await counts(host), { sent: 2, bounced: 1, complained: 0 });
+  },
+);

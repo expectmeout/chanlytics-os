@@ -17,6 +17,12 @@ import {
   reputationHoldOf,
   resumeDomain,
   domainStatsWords,
+  sendingDomainActs,
+  ownDomainAddress,
+  sendingDomainDtoOf,
+  domainPatchOf,
+  domainHoldWords,
+  isFreeMail,
 } from "@chanlytics/contracts";
 
 const PLATFORM = { mailDomain: "mail.chanlytics.com" };
@@ -91,6 +97,7 @@ test("a domain being checked: verified with DMARC sends from now; anything short
       held_at: null,
       verified_at: NOW_ISO,
       clean_since: NOW_ISO,
+      counted_since: NOW_ISO,
       dmarc: "found",
       change: "verified",
     });
@@ -108,19 +115,45 @@ test("a domain being checked: verified with DMARC sends from now; anything short
 });
 
 test("a sending domain that stops verifying or loses DMARC is held; one that reads well is left as it was", () => {
-  for (const p of [
-    "temporary_failure",
-    "failed",
-    "partially_verified",
-    "partially_failed",
-    "not_found",
-    "a word never heard",
-  ])
+  for (const p of ["failed", "partially_verified", "partially_failed", "not_started"])
     assert.deepEqual(
       judgeDomain(sending(), { provider: p, dmarc: "found" }, NOW_ISO),
       { ...sending(), state: "held", held_why: "verification", held_at: NOW_ISO, change: "held" },
       p,
     );
+  // The provider no longer knowing the domain, or a word it never documented, is the account's fact: held as
+  // provider on the second read in a row, as one bad answer is not a fact about anything.
+  for (const p of ["not_found", "a word never heard"]) {
+    assert.deepEqual(
+      judgeDomain(sending(), { provider: p, dmarc: "found" }, NOW_ISO),
+      { ...sending(), change: null },
+      `${p}: once`,
+    );
+    assert.deepEqual(
+      judgeDomain(sending({ provider_status: "unknown" }), { provider: p, dmarc: "found" }, NOW_ISO),
+      {
+        ...sending({ provider_status: "unknown" }),
+        state: "held",
+        held_why: "provider",
+        held_at: NOW_ISO,
+        change: "held",
+      },
+      `${p}: twice`,
+    );
+  }
+  // The provider's own recheck state: one read is stored and waited on, two in a row hold (Part 2.5).
+  assert.deepEqual(judgeDomain(sending(), { provider: "temporary_failure", dmarc: "found" }, NOW_ISO), {
+    ...sending(),
+    change: null,
+  });
+  assert.equal(
+    judgeDomain(
+      sending({ provider_status: "temporary_failure" }),
+      { provider: "temporary_failure", dmarc: "found" },
+      NOW_ISO,
+    ).held_why,
+    "verification",
+  );
   assert.deepEqual(judgeDomain(sending(), { provider: "verified", dmarc: "found" }, NOW_ISO), {
     ...sending(),
     change: null,
@@ -161,6 +194,7 @@ test("we could not look is not a fact about the domain: an unreadable provider o
 });
 
 test("a DNS hold lifts itself when both read good, and the ramp starts again; a reputation hold waits for its owner", () => {
+  // A provider hold lifts the same way and keeps its ramp (its own test below).
   for (const why of ["verification", "dmarc"]) {
     const held = sending({
       state: "held",
@@ -306,6 +340,7 @@ test("Resume lifts a reputation hold only, and the ramp starts again from today"
       held_why: null,
       held_at: null,
       clean_since: NOW_ISO,
+      counted_since: NOW_ISO,
       change: "resumed",
     });
   }
@@ -338,4 +373,129 @@ test("a verified domain's line says how its mail has done, once it has sent some
   const held = sendingDomainWords(dto({ state: "held", held_why: "bounces", held_at: daysAgo(1) }), NOW);
   assert.equal(held.next, "Nothing leaves from it until you resume it.");
   assert.match(held.line, /more than 2% of its recent emails bounced/);
+});
+
+test("the reputation count keeps its own clock: a DNS release restarts the ramp, never the count; verification and Resume set both (D9)", () => {
+  const counted = daysAgo(20);
+  const held = sending({
+    state: "held",
+    held_why: "dmarc",
+    held_at: daysAgo(1),
+    counted_since: counted,
+    dmarc: "missing",
+  });
+  const released = judgeDomain(held, { provider: "verified", dmarc: "found", counts: null }, NOW_ISO);
+  assert.deepEqual([released.change, released.clean_since, released.counted_since], ["released", NOW_ISO, counted]);
+  const resumed = resumeDomain(
+    sending({ state: "held", held_why: "complaint", held_at: daysAgo(1), counted_since: counted }),
+    NOW_ISO,
+  );
+  assert.deepEqual([resumed.clean_since, resumed.counted_since], [NOW_ISO, NOW_ISO]);
+  // A provider hold lifts itself, so the owner has nothing to resume.
+  assert.equal(
+    resumeDomain(sending({ state: "held", held_why: "provider", held_at: daysAgo(1) }), NOW_ISO).change,
+    null,
+  );
+});
+
+test("what the page may do with a domain comes from its state, once", () => {
+  const cases = [
+    [
+      { state: "records", held_why: null },
+      { check: true, resume: false, remove: true, records: true },
+    ],
+    [
+      { state: "verifying", held_why: null },
+      { check: true, resume: false, remove: true, records: true },
+    ],
+    [
+      { state: "verified", held_why: null },
+      { check: false, resume: false, remove: true, records: false },
+    ],
+    [
+      { state: "held", held_why: "verification" },
+      { check: true, resume: false, remove: true, records: true },
+    ],
+    [
+      { state: "held", held_why: "dmarc" },
+      { check: true, resume: false, remove: true, records: true },
+    ],
+    [
+      { state: "held", held_why: "provider" },
+      { check: true, resume: false, remove: true, records: false },
+    ],
+    [
+      { state: "held", held_why: "bounces" },
+      { check: false, resume: true, remove: true, records: false },
+    ],
+    [
+      { state: "held", held_why: "complaint" },
+      { check: false, resume: true, remove: true, records: false },
+    ],
+  ];
+  for (const [d, acts] of cases) assert.deepEqual(sendingDomainActs(d), acts, JSON.stringify(d));
+});
+
+test("one spelling of an own domain's address, one DTO that never carries the provider's id, one patch of a judgement", () => {
+  assert.equal(ownDomainAddress({ from_local: "Sam", host: "GetHarbor.com" }), "sam@getharbor.com");
+  const dtoRow = {
+    id: "d1",
+    host: "getharbor.com",
+    from_local: "sam",
+    from_name: "Sam",
+    state: "verified",
+    held_why: null,
+    held_at: null,
+    verified_at: daysAgo(3),
+    clean_since: daysAgo(3),
+    counted_since: daysAgo(3),
+    provider_status: "verified",
+    dmarc: "found",
+    records: [],
+    checked_at: null,
+    created_at: daysAgo(4),
+    sent_recent: 3,
+    bounced_recent: 0,
+    complaints: 0,
+    provider_domain_id: "pd-secret",
+  };
+  const d = sendingDomainDtoOf(dtoRow);
+  assert.equal("provider_domain_id" in d, false);
+  assert.equal(d.address, "sam@getharbor.com");
+  const j = judgeDomain(sending(), { provider: "failed", dmarc: "found" }, NOW_ISO);
+  assert.deepEqual(Object.keys(domainPatchOf(j)).sort(), [
+    "clean_since",
+    "counted_since",
+    "dmarc",
+    "held_at",
+    "held_why",
+    "state",
+    "verified_at",
+  ]);
+  assert.equal(domainHoldWords("provider"), "the mail provider no longer has it");
+});
+
+test("free mail is one list: the finder and the domains read the same", () => {
+  for (const h of ["gmail.com", "GMAIL.com ", "zoho.com", "proton.me", "mac.com"]) assert.equal(isFreeMail(h), true, h);
+  assert.equal(isFreeMail("getharbor.com"), false);
+  assert.equal(isFreeMail(null), false);
+  assert.match(whyNotASendingHost("zoho.com", PLATFORM) ?? "", /free mail/);
+});
+
+test("a provider hold that lifts keeps the ramp: the account's blip is not the domain's fault (Part 2.5 review)", () => {
+  const clean = daysAgo(20);
+  const held = sending({
+    state: "held",
+    held_why: "provider",
+    held_at: daysAgo(1),
+    clean_since: clean,
+    provider_status: "not_found",
+  });
+  const back = judgeDomain(held, { provider: "verified", dmarc: "found", counts: null }, NOW_ISO);
+  assert.deepEqual([back.change, back.clean_since], ["released", clean]);
+});
+
+test("a domain being set up that the provider no longer has says to add it again", () => {
+  const w = sendingDomainWords(dto({ state: "records", provider_status: "not_found" }), NOW);
+  assert.match(w.line, /no longer has this domain\. Remove it and add it again\./);
 });

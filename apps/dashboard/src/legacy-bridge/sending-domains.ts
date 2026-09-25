@@ -9,6 +9,7 @@
 import {
   domainDailyCap,
   domainHoldWords,
+  sendingDomainActs,
   sendingDomainWords,
   whyNotAFromLocal,
   whyNotAFromName,
@@ -29,6 +30,8 @@ export interface SendingDomainsApi {
   whyNotAFromLocal: typeof whyNotAFromLocal;
   whyNotAFromName: typeof whyNotAFromName;
   words: typeof sendingDomainWords;
+  /** What the owner may do with a domain, from its state (contracts): the page decides none of it again. */
+  acts: typeof sendingDomainActs;
   /** Why it was held, as a clause: what Resume's Confirm asks the owner to have fixed. */
   holdWords: typeof domainHoldWords;
   cap: typeof domainDailyCap;
@@ -56,6 +59,7 @@ export function installSendingDomains(win: Window = window): void {
     whyNotAFromName,
     words: sendingDomainWords,
     holdWords: domainHoldWords,
+    acts: sendingDomainActs,
     cap: domainDailyCap,
     dmarc: DMARC_RECOMMENDED,
     max: SENDING_DOMAINS_MAX,

@@ -11,6 +11,7 @@
  * to cost. No word here names the vendor that runs the searches: the owner
  * sees Claude finding businesses, and where each fact came from.
  */
+import { isFreeMail } from "./free-mail";
 import { z } from "zod";
 import { normalizeEmail } from "./email-address";
 import { phoneDialable, normalizePhone } from "./phone";
@@ -891,19 +892,6 @@ export const LEAD_ROLE_LOCALS = [
   "abuse",
   "postmaster",
 ] as const;
-export const LEAD_FREE_MAIL = [
-  "gmail.com",
-  "yahoo.com",
-  "outlook.com",
-  "hotmail.com",
-  "icloud.com",
-  "aol.com",
-  "live.com",
-  "msn.com",
-  "me.com",
-  "protonmail.com",
-  "proton.me",
-] as const;
 /** A front desk's addresses, first among a business's own. */
 const DESK_LOCALS = [
   "intake",
@@ -977,7 +965,7 @@ export function cleanEmailCandidates(emails: string[], host: string | null): Cle
       continue;
     }
     const isOwn = !!host && (domain === host || domain.endsWith(`.${host}`));
-    (isOwn ? own : has(LEAD_FREE_MAIL, domain) ? free : foreign).push(address);
+    (isOwn ? own : isFreeMail(domain) ? free : foreign).push(address);
   }
   const deskRank = (a: string) => {
     const i = DESK_LOCALS.indexOf(a.split("@")[0]);

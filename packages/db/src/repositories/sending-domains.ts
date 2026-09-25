@@ -53,6 +53,8 @@ export async function dueSendingDomains(db: Db, limit: number): Promise<SendingD
         .from("sending_domains")
         .select("*")
         .in("state", ["verifying", "verified", "held"])
+        // A reputation hold (bounces, a complaint) waits for its owner's Resume: reading it would change nothing.
+        .or("held_why.is.null,held_why.eq.verification,held_why.eq.dmarc,held_why.eq.provider")
         .order("checked_at", { ascending: true, nullsFirst: true })
         .limit(limit),
     ) ?? []
@@ -68,7 +70,7 @@ export async function countSendingDomains(db: Db, tenantId: string): Promise<num
 /** Who holds a host a reservation found taken: enough to say whose it is, and whether it was ever verified. */
 export type SendingDomainHolder = Pick<
   SendingDomainRow,
-  "id" | "tenant_id" | "state" | "created_at" | "provider_domain_id"
+  "id" | "tenant_id" | "state" | "created_at" | "provider_domain_id" | "provider_status" | "updated_at"
 >;
 
 /**
@@ -104,7 +106,7 @@ export async function reserveSendingDomain(
       "read who holds a host",
       await db
         .from("sending_domains")
-        .select("id, tenant_id, state, created_at, provider_domain_id")
+        .select("id, tenant_id, state, created_at, provider_domain_id, provider_status, updated_at")
         .eq("host", i.host)
         .maybeSingle(),
     );
@@ -176,6 +178,47 @@ export async function sendingDomainCounts(
   const c = (must("count a domain's sends", r) ?? {}) as Record<string, unknown>;
   const n = (k: string): number => (typeof c[k] === "number" ? (c[k] as number) : Number(c[k] ?? 0) || 0);
   return { sent: n("sent"), bounced: n("bounced"), complained: n("complained") };
+}
+
+/** A domain removed only as it was read: another writer since (its owner checking it, say) wins. */
+export async function deleteSendingDomainAsRead(
+  db: Db,
+  row: Pick<SendingDomainRow, "id" | "tenant_id" | "updated_at">,
+): Promise<boolean> {
+  const r = must(
+    "remove a domain as it was read",
+    await db
+      .from("sending_domains")
+      .delete()
+      .eq("tenant_id", row.tenant_id)
+      .eq("id", row.id)
+      .eq("updated_at", row.updated_at)
+      .select("id"),
+  );
+  return (r ?? []).length > 0;
+}
+
+/**
+ * Whether this domain was held since `sinceIso` for one of `whys` (its sending_domain.held events): what the once-a-day
+ * notice asks, of the holds it covers only, so a hold that told nobody never quiets one that must.
+ */
+export async function domainHeldSince(
+  db: Db,
+  tenantId: string,
+  domainId: string,
+  sinceIso: string,
+  whys: readonly string[],
+): Promise<boolean> {
+  const r = await db
+    .from("events")
+    .select("data")
+    .eq("tenant_id", tenantId)
+    .eq("kind", "sending_domain.held")
+    .eq("subject_id", domainId)
+    .gte("created_at", sinceIso)
+    .limit(20);
+  if (r.error) throw new Error(`sending_domains: read a domain's holds: ${r.error.message}`);
+  return (r.data ?? []).some((e) => whys.includes(String((e.data as { why?: unknown } | null)?.why ?? "")));
 }
 
 export async function deleteSendingDomain(db: Db, tenantId: string, id: string): Promise<boolean> {

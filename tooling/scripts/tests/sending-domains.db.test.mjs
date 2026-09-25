@@ -64,8 +64,12 @@ test("every state the judge writes is one the table takes, walked on a real row"
   const facts = [
     { provider: "pending", dmarc: "missing" }, // verifying
     { provider: "verified", dmarc: "found" }, // verified
-    { provider: "temporary_failure", dmarc: "found" }, // held, verification
+    { provider: "temporary_failure", dmarc: "found" }, // once: stored, waited on
+    { provider: "temporary_failure", dmarc: "found" }, // twice: held, verification
     { provider: "verified", dmarc: "found" }, // released
+    { provider: "not_found", dmarc: "found" }, // the account answers nothing once: stored, waited on
+    { provider: "not_found", dmarc: "found" }, // twice: held, provider (00178)
+    { provider: "verified", dmarc: "found" }, // it has it again: released
     { provider: "verified", dmarc: "missing" }, // missing once: stored
     { provider: "verified", dmarc: "missing" }, // missing twice: held, dmarc
     { provider: "verified", dmarc: "found" }, // released
@@ -74,13 +78,25 @@ test("every state the judge writes is one the table takes, walked on a real row"
   for (const f of facts) {
     const j = judgeDomain(row, f, new Date().toISOString());
     const { change, ...patch } = j;
-    row = ok(await db.from("sending_domains").update(patch).eq("id", row.id).select("*").single());
+    // What the edge writes beside the judgement: the provider's word, which the next read's two-read rule reads.
+    row = ok(
+      await db
+        .from("sending_domains")
+        .update({ ...patch, provider_status: f.provider })
+        .eq("id", row.id)
+        .select("*")
+        .single(),
+    );
     seen.push(`${row.state}${row.held_why ? `:${row.held_why}` : ""}${change ? ` (${change})` : ""}`);
   }
   assert.deepEqual(seen, [
     "verifying",
     "verified (verified)",
+    "verified",
     "held:verification (held)",
+    "verified (released)",
+    "verified",
+    "held:provider (held)",
     "verified (released)",
     "verified",
     "held:dmarc (held)",

@@ -2756,7 +2756,7 @@ async function sendingDomainByHost(db, tenantId, host) {
 async function dueSendingDomains(db, limit) {
   return must(
     "read the due domains",
-    await db.from("sending_domains").select("*").in("state", ["verifying", "verified", "held"]).order("checked_at", { ascending: true, nullsFirst: true }).limit(limit)
+    await db.from("sending_domains").select("*").in("state", ["verifying", "verified", "held"]).or("held_why.is.null,held_why.eq.verification,held_why.eq.dmarc,held_why.eq.provider").order("checked_at", { ascending: true, nullsFirst: true }).limit(limit)
   ) ?? [];
 }
 async function countSendingDomains(db, tenantId) {
@@ -2779,7 +2779,7 @@ async function reserveSendingDomain(db, i) {
   if (code === "23505") {
     const holder = must(
       "read who holds a host",
-      await db.from("sending_domains").select("id, tenant_id, state, created_at, provider_domain_id").eq("host", i.host).maybeSingle()
+      await db.from("sending_domains").select("id, tenant_id, state, created_at, provider_domain_id, provider_status, updated_at").eq("host", i.host).maybeSingle()
     );
     return { ok: false, reason: "taken", holder: holder ?? null };
   }
@@ -2806,6 +2806,18 @@ async function sendingDomainCounts(db, tenantId, host, since) {
   const c = must("count a domain's sends", r2) ?? {};
   const n = (k) => typeof c[k] === "number" ? c[k] : Number(c[k] ?? 0) || 0;
   return { sent: n("sent"), bounced: n("bounced"), complained: n("complained") };
+}
+async function deleteSendingDomainAsRead(db, row) {
+  const r2 = must(
+    "remove a domain as it was read",
+    await db.from("sending_domains").delete().eq("tenant_id", row.tenant_id).eq("id", row.id).eq("updated_at", row.updated_at).select("id")
+  );
+  return (r2 ?? []).length > 0;
+}
+async function domainHeldSince(db, tenantId, domainId, sinceIso, whys) {
+  const r2 = await db.from("events").select("data").eq("tenant_id", tenantId).eq("kind", "sending_domain.held").eq("subject_id", domainId).gte("created_at", sinceIso).limit(20);
+  if (r2.error) throw new Error(`sending_domains: read a domain's holds: ${r2.error.message}`);
+  return (r2.data ?? []).some((e) => whys.includes(String(e.data?.why ?? "")));
 }
 async function deleteSendingDomain(db, tenantId, id) {
   const r2 = must(
@@ -3542,7 +3554,9 @@ export {
   createServiceClient,
   deleteList,
   deleteSendingDomain,
+  deleteSendingDomainAsRead,
   describeLead,
+  domainHeldSince,
   dropFromList,
   dueSendingDomains,
   emitEvent,

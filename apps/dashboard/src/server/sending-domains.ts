@@ -5,7 +5,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db";
-import { AppError, type DomainRecord, type SendingDomainDto } from "@chanlytics/contracts";
+import { AppError, sendingDomainDtoOf, type SendingDomainDto } from "@chanlytics/contracts";
 import { edgeConfigured, edgeHeaders, edgeUrl } from "./edge";
 import { deployment } from "./deployment";
 import type { EdgeAnswer } from "./lines";
@@ -14,7 +14,7 @@ const AUD = "/api/admin/sending-domains";
 
 /** The columns the page may see: every one but the provider's id. */
 export const SENDING_DOMAIN_COLUMNS =
-  "id, host, from_local, from_name, records, state, provider_status, dmarc, held_why, held_at, verified_at, clean_since, checked_at, created_at, sent_recent, bounced_recent, complaints";
+  "id, host, from_local, from_name, records, state, provider_status, dmarc, held_why, held_at, verified_at, clean_since, counted_since, checked_at, created_at, sent_recent, bounced_recent, complaints";
 
 export async function sendingDomainsFor(db: SupabaseClient<Database>, tenantId: string): Promise<SendingDomainDto[]> {
   const { data, error } = await db
@@ -23,26 +23,7 @@ export async function sendingDomainsFor(db: SupabaseClient<Database>, tenantId: 
     .eq("tenant_id", tenantId)
     .order("created_at", { ascending: true });
   if (error) throw new Error(error.message);
-  return (data ?? []).map((r) => ({
-    id: r.id,
-    host: r.host,
-    from_local: r.from_local,
-    from_name: r.from_name,
-    address: `${r.from_local}@${r.host}`,
-    state: r.state as SendingDomainDto["state"],
-    held_why: (r.held_why ?? null) as SendingDomainDto["held_why"],
-    held_at: r.held_at,
-    verified_at: r.verified_at,
-    clean_since: r.clean_since,
-    provider_status: r.provider_status,
-    dmarc: (r.dmarc ?? null) as SendingDomainDto["dmarc"],
-    records: Array.isArray(r.records) ? (r.records as unknown as DomainRecord[]) : [],
-    checked_at: r.checked_at,
-    created_at: r.created_at,
-    sent_recent: r.sent_recent,
-    bounced_recent: r.bounced_recent,
-    complaints: r.complaints,
-  }));
+  return (data ?? []).map((r) => sendingDomainDtoOf(r));
 }
 
 /** One call to the edge's sending-domains door. Never throws: a failure is a status the caller reads. */
