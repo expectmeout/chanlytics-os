@@ -193,6 +193,29 @@ const SetSeg = ({ value, options, onChange, ...rest }) => {
   );
 };
 
+/**
+ * A dial of a few steps (the hold window, the confidence, the budget, the reply cap, the pause): the segmented control
+ * on a desktop, and on a phone its value as a word that opens a menu of the steps, as the policy's rows do there
+ * (PolPhoneRows). Five of them put a 50px strip of 44px buttons under every label, 110px a row (25 Sep). Hookless:
+ * the pane says which it is, from the one `useSetPhone` it reads.
+ */
+const SetDial = ({ phone = false, value, options, onChange, gate = null, label = "", ...rest }) => {
+  if (!phone) return <SetSeg value={value} options={options} onChange={onChange} gate={gate} {...rest} />;
+  const gated = gate && gate["aria-disabled"] ? gate["data-tip"] : null;
+  return (
+    <MoreMenu
+      items={options.map((o) => ({ label: o, checked: value === o, onClick: () => onChange(o) }))}
+      label={value}
+      title={label ? `${label}: ${value}` : value}
+      btnClass="bt-link set-dial"
+      align="right"
+      escape
+      gated={gated}
+      testid={rest["data-testid"] || null}
+    />
+  );
+};
+
 // Veto window — the third autonomy mode (ask-first < veto < auto); ST_STORE-backed
 const VetoModeRow = () => {
   const [v, setV] = useSetState(window.ST_STORE.get("vetoMode", "Veto 30s"));
@@ -1178,7 +1201,9 @@ const PaneAutonomyReal = ({ flash }) => {
           <span className="fl-card-sub">The hold window applies under Veto, and under Auto below the confidence dial.</span>
         </div>
         <SetRow label="Hold window" note="How long a reply waits before it sends, so you can stop or change it from the Inbox. A booking link asked for on the phone goes out at once.">
-          <SetSeg
+          <SetDial
+            phone={phone}
+            label="Hold window"
             gate={window.gate("autonomy")}
             value={delayLabel}
             options={AUT_DELAYS.map((d) => d[0])}
@@ -1186,7 +1211,9 @@ const PaneAutonomyReal = ({ flash }) => {
           />
         </SetRow>
         <SetRow label="Send on its own only when it's sure" note="Under Auto, a reply less certain than this waits in the hold window instead of going out. Off sends everything, and so does a reply with no confidence on record.">
-          <SetSeg
+          <SetDial
+            phone={phone}
+            label="Send on its own only when it's sure"
             gate={window.gate("autonomy")}
             value={confLabel}
             options={AUT_CONF.map((c) => c[0])}
@@ -1194,7 +1221,9 @@ const PaneAutonomyReal = ({ flash }) => {
           />
         </SetRow>
         <SetRow label="Day's model budget" note="Model tokens it may spend in a rolling 24 hours, in and out. Over the budget it stops answering for the day, and every new message lands in Needs you.">
-          <SetSeg
+          <SetDial
+            phone={phone}
+            label="Day's model budget"
             gate={window.gate("autonomy")}
             value={budgetLabel}
             options={AUT_BUDGET.map((b) => b[0])}
@@ -1211,7 +1240,9 @@ const PaneAutonomyReal = ({ flash }) => {
         </ul>
         {/* The last two were Chanlytics' and could not be changed here (S6): the owner's dials now, through the same door as the three above. */}
         <SetRow label="Replies to one person in 24 hours" hint={hard.replies}>
-          <SetSeg
+          <SetDial
+            phone={phone}
+            label="Replies to one person in 24 hours"
             gate={window.gate("autonomy")}
             value={capLabel}
             options={capSteps.map((s) => s[0])}
@@ -1220,7 +1251,9 @@ const PaneAutonomyReal = ({ flash }) => {
           />
         </SetRow>
         <SetRow label="Stays out after a person steps in" hint={hard.pause}>
-          <SetSeg
+          <SetDial
+            phone={phone}
+            label="Stays out after a person steps in"
             gate={window.gate("autonomy")}
             value={pauseLabel}
             options={pauseSteps.map((s) => s[0])}

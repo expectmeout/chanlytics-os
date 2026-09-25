@@ -14,7 +14,7 @@
  * at a time keeps "claimed" meaning "started", which is the fact verdictFor
  * stands on.
  */
-import type { JobNews } from "@chanlytics/contracts";
+import { jobNewsWords, type JobEnd, type JobNews } from "@chanlytics/contracts";
 import { verdictFor, retryWait, RUN_INTERRUPTED, type LedgerRow } from "./ledger";
 import { saySettled, type Settled } from "./settle";
 
@@ -77,17 +77,7 @@ export async function runTick(ports: TickPorts, opts: TickOptions): Promise<Tick
     c.claimed += 1;
 
     if (verdictFor(job) === "give_up") {
-      await conclude(
-        ports,
-        job,
-        RUN_INTERRUPTED,
-        false,
-        `A ${job.kind} job did not finish`,
-        `Job ${job.id} (${job.kind}) started and never reported back, so ${RUN_INTERRUPTED}.` +
-          (job.kind === "outbound_send"
-            ? " If this was a reply, it may or may not have reached the customer; check the conversation before sending it again."
-            : ""),
-      );
+      await conclude(ports, job, RUN_INTERRUPTED, false, "unfinished");
       c.gaveUp += 1;
       continue;
     }
@@ -123,27 +113,13 @@ export async function runTick(ports: TickPorts, opts: TickOptions): Promise<Tick
         c.deferred += 1;
         continue;
       }
-      await conclude(
-        ports,
-        job,
-        msg,
-        false,
-        `A ${job.kind} job failed`,
-        `Job ${job.id} (${job.kind}) failed${job.attempts > 1 ? ` after ${job.attempts} tries` : ""} and will not retry on its own.\n\n${msg}`,
-      );
+      await conclude(ports, job, msg, false, "failed");
       c.failed += 1;
       continue;
     }
 
     if (outcome === "unknown_kind") {
-      await conclude(
-        ports,
-        job,
-        `unknown job kind ${job.kind}`,
-        true,
-        `A ${job.kind} job could not run`,
-        `Job ${job.id} has a kind this runner does not know (${job.kind}), so nothing ran.`,
-      );
+      await conclude(ports, job, `unknown job kind ${job.kind}`, true, "unknown_kind");
       c.failed += 1;
       continue;
     }
@@ -167,14 +143,19 @@ export async function runTick(ports: TickPorts, opts: TickOptions): Promise<Tick
  * Each step is best effort relative to the one before, because a recorded
  * failure must never turn into an unrecorded one: a settlement that could not
  * be written is said in the alert, and an alert that could not be sent is logged.
+ *
+ * The owner is told in their own words, on the page the work belongs to
+ * (contracts jobNewsWords). It used to be `A lead_collect job failed`, over
+ * the job's id, with a door to the Inbox whatever the job was. The id, the
+ * kind and the error still travel, as the body's last line, for whoever reads
+ * the email to the end; the bell shows only the first.
  */
 async function conclude(
   ports: TickPorts,
   job: LedgerRow,
   reason: string,
   certain: boolean,
-  subject: string,
-  lead: string,
+  end: JobEnd,
 ): Promise<void> {
   let failed: boolean;
   try {
@@ -216,11 +197,13 @@ async function conclude(
   try {
     // conclude() is only ever reached for a job that failed or never came
     // back, so this is the one place job_failed is the truth.
+    const words = jobNewsWords(job.kind, end, job.attempts);
+    const reference = `Reference: job ${job.id} (${job.kind}): ${reason}.`;
     await ports.alert(job, {
       kind: "job_failed",
-      route: "inbox",
-      subject,
-      body: wreckage ? `${lead}\n\n${wreckage}` : lead,
+      route: words.to,
+      subject: words.title,
+      body: [words.lead, wreckage, reference].filter(Boolean).join("\n\n"),
     });
   } catch (e) {
     ports.log.error("job_alert_failed", { job_id: job.id, error: errText(e) });

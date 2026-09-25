@@ -1,6 +1,7 @@
 import { agoShort as spanAgo } from "./time";
 import { FINISH_SETTING_UP } from "./first-run";
 import { firstLine } from "./push";
+import type { JobKind } from "./enums";
 /**
  * The bell: what needs the owner, from what the browser already holds.
  *
@@ -284,6 +285,71 @@ export interface NotificationsDto {
   seen_at: string | null;
 }
 
+/* ------------------------------------------------- a job's news, in an owner's words */
+
+/** How a background job ended, when it ended badly: it threw, it never came back, or nothing knew how to run it. */
+export type JobEnd = "failed" | "unfinished" | "unknown_kind";
+
+/**
+ * What each kind of job was doing, said as the owner's work, and the page that work lives on.
+ *
+ * The runner used to title every one `A lead_collect job failed`, open its body with the job's id, and send it to
+ * the Inbox. On the salon's phone the bell's first screen was eight of those: an internal name, a uuid, and a door
+ * to a page that had nothing to do with a search.
+ */
+const JOB_WORK: Record<JobKind, { stopped: string; to: string }> = {
+  outbound_send: { stopped: "A message may not have been sent", to: "inbox" },
+  broadcast_send: { stopped: "A broadcast stopped partway", to: "broadcasts" },
+  line_provision: { stopped: "Setting up a phone line stopped", to: "admin/integrations" },
+  email_ingest: { stopped: "An email could not be taken in", to: "inbox" },
+  lead_round_start: { stopped: "A search could not start", to: "clients/leads" },
+  lead_collect: { stopped: "A search stopped partway", to: "clients/leads" },
+  lead_check: { stopped: "Checking a search's emails stopped", to: "clients/leads" },
+  push_send: { stopped: "An alert to your phone was not sent", to: "admin/notifications" },
+};
+
+/** A job this runner has no words for: said as what it is, on the page that says what happened today. */
+const JOB_WORK_OTHER = { stopped: "Something in the background did not finish", to: "today" };
+
+/**
+ * A job's news: its title, the one line under it, and its door. The job's id and kind are for whoever reads the
+ * email to the end, so the runner keeps them as the body's last line, never its first (the bell shows the first).
+ */
+export function jobNewsWords(jobKind: string, end: JobEnd, attempts = 1): { title: string; lead: string; to: string } {
+  const w = (JOB_WORK as Record<string, typeof JOB_WORK_OTHER>)[jobKind] ?? JOB_WORK_OTHER;
+  const lead =
+    end === "unfinished"
+      ? jobKind === "outbound_send"
+        ? "It started and never reported back, so it may or may not have reached the customer. Check the conversation before sending it again."
+        : "It started and never reported back, so how it ended is unknown."
+      : end === "unknown_kind"
+        ? "Nothing ran: this is work the app does not know how to do."
+        : `It stopped${attempts > 1 ? ` after ${attempts} tries` : ""} and will not start again on its own.`;
+  return { title: w.stopped, lead, to: w.to };
+}
+
+/**
+ * A row the runner wrote before it had these words: `A lead_collect job failed`, over `Job 3f2e… (lead_collect)
+ * failed and will not retry on its own.` Kept rows are a month deep, so the bell says them in the new words rather
+ * than waiting for them to age out. Only a job_failed row whose title is exactly that sentence is touched.
+ */
+const OLD_JOB_TITLE = /^A ([a-z_]+) job (failed|did not finish|could not run)$/;
+const OLD_JOB_END: Record<string, JobEnd> = {
+  failed: "failed",
+  "did not finish": "unfinished",
+  "could not run": "unknown_kind",
+};
+
+function jobRowWords(n: NotificationDto): { title: string; message: string; route: string } | null {
+  if (n.kind !== "job_failed") return null;
+  const m = OLD_JOB_TITLE.exec(n.title.trim());
+  if (!m) return null;
+  const tries = /after (\d+) tries/.exec(n.body);
+  const w = jobNewsWords(m[1], OLD_JOB_END[m[2]], tries ? Number(tries[1]) : 1);
+  // The old rows all said "inbox", whatever the job was; a row that named another page keeps it.
+  return { title: w.title, message: w.lead, route: n.route && n.route !== "inbox" ? n.route : w.to };
+}
+
 /**
  * How a kept kind reads. `own` keeps the kind's verb over the route's: a question asks for an answer, and "Open
  * Leads" would say where it is without saying what it wants.
@@ -400,18 +466,20 @@ export function serverNotificationRows(dto: NotificationsDto | null | undefined)
     .map((n) => {
       const look = SERVER_LOOK[n.kind] ?? SERVER_LOOK.alert;
       const at = Date.parse(n.created_at);
+      const job = jobRowWords(n);
+      const route = job ? job.route : n.route;
       return {
         key: `${SERVER_KEY_PREFIX}${n.id}`,
         kind: (SERVER_NOTIFICATION_KINDS as readonly string[]).includes(n.kind)
           ? (n.kind as NotificationKind)
           : "alert",
         at,
-        title: n.title,
-        message: firstLine(n.body),
-        to: n.route ?? look.to,
+        title: job ? job.title : n.title,
+        message: job ? job.message : firstLine(n.body),
+        to: route ?? look.to,
         icon: look.icon,
         tone: look.tone,
-        action: look.own ? look.action : (verbForRoute(n.route) ?? look.action),
+        action: look.own ? look.action : (verbForRoute(route) ?? look.action),
         unread: at > seen && !n.read,
         about: n.subject_type && n.subject_id ? { type: n.subject_type, id: n.subject_id } : null,
       };
@@ -434,4 +502,40 @@ export function dedupeFeed(rows: NotificationRow[]): NotificationRow[] {
   return rows.filter(
     (r) => !(r.key.startsWith(SERVER_KEY_PREFIX) && r.about?.type === "conversation" && covered.has(r.about.id)),
   );
+}
+
+/** A phone number inside a line of words: what the edge writes when it knew no name. */
+const NUMBER_IN_WORDS = /\+?\d[\d ().-]{6,}\d/;
+
+/**
+ * A kept row names its customer by number when the edge knew no name ("WhatsApp handoff needed: +1917…"), and the
+ * Inbox or the calls this browser holds may know them by name since. A row that says what it is about takes that
+ * name in place of the number; a name that is itself a number, or a row about nothing, is left as the edge wrote it.
+ */
+export function nameKnownCustomers<T extends NotificationRow>(
+  rows: readonly T[],
+  threads: readonly FeedThread[] | null | undefined,
+  calls: readonly FeedCall[] | null | undefined,
+): T[] {
+  const named = (who: string | undefined) => (who && !/\d{4}/.test(who) ? who.trim() : null);
+  const byConversation = new Map<string, string>();
+  for (const t of threads ?? []) {
+    const who = named(t.who);
+    if (who && t.id.startsWith("th-")) byConversation.set(t.id.slice(3), who);
+  }
+  const byCall = new Map<string, string>();
+  for (const c of calls ?? []) {
+    const who = named(c.who);
+    if (who) byCall.set(c.callId, who);
+  }
+  return rows.map((r) => {
+    if (!r.about || !NUMBER_IN_WORDS.test(r.title)) return r;
+    const who =
+      r.about.type === "conversation"
+        ? byConversation.get(r.about.id)
+        : r.about.type === "call"
+          ? byCall.get(r.about.id)
+          : undefined;
+    return who ? { ...r, title: r.title.replace(NUMBER_IN_WORDS, who) } : r;
+  });
 }

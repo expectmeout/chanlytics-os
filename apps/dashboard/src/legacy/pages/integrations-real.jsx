@@ -118,15 +118,48 @@ const EmailSetupForm = ({ email, businessName, flash, onClose }) => {
   );
 };
 
+/**
+ * On a phone a connection is a row of People's kind (25 Sep): the tile, its name over what it is attached to, its
+ * state, and its acts behind the row rather than on a line of boxed buttons under it. A row with one act is that
+ * act's press, whole, with a chevron; a row with two (the listing's Check now and Remove) keeps them in its ⋯, where
+ * Remove no longer sits a thumb's width from Check now. A row that wants something (Connect Google) keeps its button.
+ * On a desktop the acts stand in the group's column, as they always have. Rows were 77 to 145px on a phone.
+ */
+const connRowPress = (e) => {
+  const row = e && e.currentTarget;
+  const t = e && e.target;
+  if (!row || !t || !t.closest || !row.querySelector) return;
+  if (t.closest("button, a[href], input, select, textarea, [role='button'], .set-row-stack")) return;
+  const picked = typeof window.getSelection === "function" ? window.getSelection() : null;
+  if (picked && String(picked)) return;
+  const act = row.querySelector(".set-int-actions button");
+  if (act && typeof act.click === "function") act.click();
+};
+
 const ConnectionRow = ({ r, run, busy, arm, setArm, confirm }) => {
   const owner = window.canDo ? window.canDo("team") : false;
   const armed = arm && arm.kind === r.kind ? arm.what : null;
   const primary = r.state === "none" || r.state === "waiting_you";
+  const removable = r.kind === "google_listing" && owner && !armed && (r.state === "connected" || r.state === "attention");
+  const verbGate = r.verb && !(mayPress(r.verb) || !window.gate) ? window.gate(r.verb.who === "owner" ? "team" : "approve", VERB_DOING[r.verb.to]) : {};
+  const press = r.verb ? () => (r.verb.to.startsWith("verb:") ? run(r) : window.CHANLY.nav(r.verb.to)) : null;
+  // What the row offers a thumb: nothing (a Later row, a row asking a question), its one act, or a menu of two.
+  const acts = [
+    ...(removable ? [{ label: "Remove", danger: true, onClick: () => setArm({ kind: r.kind, what: "remove" }) }] : []),
+    ...(r.verb && !armed ? [{ label: r.verb.label, onClick: press, gate: verbGate }] : []),
+  ];
+  const offers = armed || r.state === "later" ? "none" : r.verb && primary ? "primary" : acts.length > 1 ? "menu" : acts.length === 1 ? "one" : "none";
   return (
-    <div className="set-int-row" data-testid={`connection-${r.kind}`} data-state={r.state}>
+    <div
+      className="set-int-row"
+      data-testid={`connection-${r.kind}`}
+      data-state={r.state}
+      data-offers={offers}
+      onClick={offers === "one" ? connRowPress : undefined}
+    >
       <span className={`st-tile ${r.group === "connected" ? "installed " : ""}set-int-tile`} data-kind={r.kind}><Icon name={r.icon} size={15} /></span>
       <span className="set-team-body">
-        <span className="set-team-name">{r.title}{r.detail ? <span className="dim"> · {r.detail}</span> : null}</span>
+        <span className="set-team-name">{r.title}{r.detail ? <span className="dim set-int-detail"><span className="set-int-sep"> · </span>{r.detail}</span> : null}</span>
         <span className="set-team-mail">{r.sentence}</span>
         {armed === "remove" && (
           <Confirm question="Remove the listing?" detail="What was read from it goes with it." yes="Yes, remove" danger busy={busy} onYes={() => confirm("remove")} onNo={() => setArm(null)} testid="google-remove" />
@@ -155,6 +188,12 @@ const ConnectionRow = ({ r, run, busy, arm, setArm, confirm }) => {
             : <button className={primary ? "btn btn-sm btn-primary" : "cl-bucket-link"} onClick={() => window.CHANLY.nav(r.verb.to)} data-testid={VERB_TESTID[r.verb.to] || `connection-${r.kind}-verb`} title={r.kind === "whatsapp" ? "What the receptionist and your campaigns send on this number" : undefined}>{r.verb.label}</button>
         )}
       </span>
+      {offers === "one" && <span className="set-int-chev" aria-hidden="true"><Icon name="chevron" size={11} /></span>}
+      {offers === "menu" && window.MoreMenu && (
+        <span className="set-int-more">
+          <window.MoreMenu items={acts} title={`${r.title}: more`} escape testid={`connection-${r.kind}-more`} />
+        </span>
+      )}
     </div>
   );
 };

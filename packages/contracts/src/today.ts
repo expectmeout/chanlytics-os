@@ -2170,6 +2170,8 @@ const AWAY_NOUN: Record<string, [one: string, many: string]> = {
   note_for_you: ["note left for you", "notes left for you"],
   // A search that stopped to ask: it waits a day for the answer, then stops and keeps what it found.
   leads_question: ["search is waiting for your answer", "searches are waiting for your answer"],
+  // Searches finish in runs (a morning's round of eight), and eight "is done" rows buried the bell's first screen.
+  leads_ready: ["search finished", "searches finished"],
 };
 
 /** A warning outranks good news, whatever their clocks say. */
@@ -2344,6 +2346,83 @@ export function todayAwayGrouped<T extends AwayRowLike>(
       ? { icon: "check", text: AWAY_EMPTY_CLEAR }
       : { icon: "arrow-up", text: AWAY_EMPTY_QUEUED };
   return { groups: shown, total, more, queued, foot: awayFoot(more, queued, shown.length > 0), empty };
+}
+
+/** What the bell's grouping reads of a note: who it is, what kind, and whether it is new. */
+export interface BellNoteLike {
+  id?: string;
+  key?: string;
+  kind?: string;
+  unread: boolean;
+}
+
+/** One line of the bell: a note, or several notes of one kind said once ("9 calls"), which open with a tap. */
+export interface BellLineVM<T extends BellNoteLike> {
+  /** Stable across repaints: the note's own id, or the section and kind for a group. */
+  key: string;
+  /** The note itself when it stands alone; the newest of the group otherwise. */
+  row: T;
+  /** How many notes this stands for. 1 is an ordinary note. */
+  count: number;
+  /** The group's words when it stands for more than one. */
+  title: string | null;
+  /** Every note it stands for, newest first: what the group shows when it is opened. */
+  members: T[];
+}
+
+export interface BellSectionVM<T extends BellNoteLike> {
+  label: "New" | "Earlier";
+  lines: Array<BellLineVM<T>>;
+}
+
+/**
+ * The bell, read the way the away card reads it: new above earlier, and notes of one kind said once, where the
+ * newest of them stood. On the salon's phone the bell was 48 notes and 6,677px, nine of them "… phoned · 12 s" and
+ * eight "Your search for … is done", every one a card with its own button. The nouns are the away card's, so the
+ * bell and Today say "9 calls" about the same nine calls. A kind with no noun (a thread that needs you) is never
+ * folded: each of those is its own decision.
+ */
+export function bellSections<T extends BellNoteLike>(rows: readonly T[]): Array<BellSectionVM<T>> {
+  const idOf = (r: T) => r.id ?? r.key ?? "";
+  const part = (label: BellSectionVM<T>["label"], list: T[]): BellSectionVM<T> => {
+    const order: string[] = [];
+    const byKind = new Map<string, T[]>();
+    for (const r of list) {
+      const k = r.kind && AWAY_NOUN[r.kind] ? r.kind : `@${idOf(r)}`;
+      if (!byKind.has(k)) {
+        byKind.set(k, []);
+        order.push(k);
+      }
+      byKind.get(k)!.push(r);
+    }
+    const lines: Array<BellLineVM<T>> = [];
+    for (const k of order) {
+      const members = byKind.get(k) ?? [];
+      const noun = AWAY_NOUN[k];
+      if (!noun || members.length < AWAY_GROUP_MIN) {
+        for (const r of members) lines.push({ key: idOf(r), row: r, count: 1, title: null, members: [r] });
+        continue;
+      }
+      lines.push({
+        key: `${label}:${k}`,
+        row: members[0],
+        count: members.length,
+        title: `${members.length} ${noun[1]}`,
+        members,
+      });
+    }
+    return { label, lines };
+  };
+  return [
+    part(
+      "New",
+      rows.filter((r) => r.unread),
+    ),
+    part(
+      "Earlier",
+      rows.filter((r) => !r.unread),
+    ),
+  ].filter((s) => s.lines.length > 0);
 }
 
 /* ------------------------------------------------ the steps due (0007, amended) */

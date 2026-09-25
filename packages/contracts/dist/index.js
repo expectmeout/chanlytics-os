@@ -16372,6 +16372,36 @@ var SERVER_NOTIFICATION_KINDS = [
   /** A note left for one member (0007, 00158): addressed to them alone. */
   "note_for_you"
 ];
+var JOB_WORK = {
+  outbound_send: { stopped: "A message may not have been sent", to: "inbox" },
+  broadcast_send: { stopped: "A broadcast stopped partway", to: "broadcasts" },
+  line_provision: { stopped: "Setting up a phone line stopped", to: "admin/integrations" },
+  email_ingest: { stopped: "An email could not be taken in", to: "inbox" },
+  lead_round_start: { stopped: "A search could not start", to: "clients/leads" },
+  lead_collect: { stopped: "A search stopped partway", to: "clients/leads" },
+  lead_check: { stopped: "Checking a search's emails stopped", to: "clients/leads" },
+  push_send: { stopped: "An alert to your phone was not sent", to: "admin/notifications" }
+};
+var JOB_WORK_OTHER = { stopped: "Something in the background did not finish", to: "today" };
+function jobNewsWords(jobKind, end, attempts = 1) {
+  const w = JOB_WORK[jobKind] ?? JOB_WORK_OTHER;
+  const lead = end === "unfinished" ? jobKind === "outbound_send" ? "It started and never reported back, so it may or may not have reached the customer. Check the conversation before sending it again." : "It started and never reported back, so how it ended is unknown." : end === "unknown_kind" ? "Nothing ran: this is work the app does not know how to do." : `It stopped${attempts > 1 ? ` after ${attempts} tries` : ""} and will not start again on its own.`;
+  return { title: w.stopped, lead, to: w.to };
+}
+var OLD_JOB_TITLE = /^A ([a-z_]+) job (failed|did not finish|could not run)$/;
+var OLD_JOB_END = {
+  failed: "failed",
+  "did not finish": "unfinished",
+  "could not run": "unknown_kind"
+};
+function jobRowWords(n) {
+  if (n.kind !== "job_failed") return null;
+  const m = OLD_JOB_TITLE.exec(n.title.trim());
+  if (!m) return null;
+  const tries = /after (\d+) tries/.exec(n.body);
+  const w = jobNewsWords(m[1], OLD_JOB_END[m[2]], tries ? Number(tries[1]) : 1);
+  return { title: w.title, message: w.lead, route: n.route && n.route !== "inbox" ? n.route : w.to };
+}
 var SERVER_LOOK = {
   handoff: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
   deadman: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
@@ -16456,16 +16486,18 @@ function serverNotificationRows(dto) {
   return dto.notifications.filter((n) => !n.dismissed).map((n) => {
     const look = SERVER_LOOK[n.kind] ?? SERVER_LOOK.alert;
     const at2 = Date.parse(n.created_at);
+    const job = jobRowWords(n);
+    const route = job ? job.route : n.route;
     return {
       key: `${SERVER_KEY_PREFIX}${n.id}`,
       kind: SERVER_NOTIFICATION_KINDS.includes(n.kind) ? n.kind : "alert",
       at: at2,
-      title: n.title,
-      message: firstLine(n.body),
-      to: n.route ?? look.to,
+      title: job ? job.title : n.title,
+      message: job ? job.message : firstLine(n.body),
+      to: route ?? look.to,
       icon: look.icon,
       tone: look.tone,
-      action: look.own ? look.action : verbForRoute(n.route) ?? look.action,
+      action: look.own ? look.action : verbForRoute(route) ?? look.action,
       unread: at2 > seen && !n.read,
       about: n.subject_type && n.subject_id ? { type: n.subject_type, id: n.subject_id } : null
     };
@@ -16478,6 +16510,25 @@ function dedupeFeed(rows) {
   return rows.filter(
     (r2) => !(r2.key.startsWith(SERVER_KEY_PREFIX) && r2.about?.type === "conversation" && covered.has(r2.about.id))
   );
+}
+var NUMBER_IN_WORDS = /\+?\d[\d ().-]{6,}\d/;
+function nameKnownCustomers(rows, threads, calls) {
+  const named = (who) => who && !/\d{4}/.test(who) ? who.trim() : null;
+  const byConversation = /* @__PURE__ */ new Map();
+  for (const t of threads ?? []) {
+    const who = named(t.who);
+    if (who && t.id.startsWith("th-")) byConversation.set(t.id.slice(3), who);
+  }
+  const byCall = /* @__PURE__ */ new Map();
+  for (const c of calls ?? []) {
+    const who = named(c.who);
+    if (who) byCall.set(c.callId, who);
+  }
+  return rows.map((r2) => {
+    if (!r2.about || !NUMBER_IN_WORDS.test(r2.title)) return r2;
+    const who = r2.about.type === "conversation" ? byConversation.get(r2.about.id) : r2.about.type === "call" ? byCall.get(r2.about.id) : void 0;
+    return who ? { ...r2, title: r2.title.replace(NUMBER_IN_WORDS, who) } : r2;
+  });
 }
 
 // src/channels.ts
@@ -17629,7 +17680,9 @@ var AWAY_NOUN = {
   broadcast_stopped: ["broadcast did not go out", "broadcasts did not go out"],
   note_for_you: ["note left for you", "notes left for you"],
   // A search that stopped to ask: it waits a day for the answer, then stops and keeps what it found.
-  leads_question: ["search is waiting for your answer", "searches are waiting for your answer"]
+  leads_question: ["search is waiting for your answer", "searches are waiting for your answer"],
+  // Searches finish in runs (a morning's round of eight), and eight "is done" rows buried the bell's first screen.
+  leads_ready: ["search finished", "searches finished"]
 };
 var AWAY_TONE_RANK = { warn: 0, "": 1, ok: 2 };
 var AWAY_GROUP_MIN = 2;
@@ -17702,6 +17755,48 @@ function todayAwayGrouped(rows, inQueue = [], max = 5) {
   const more = Math.max(0, total - stoodFor);
   const empty = fresh.length ? null : total === 0 ? { icon: "check", text: AWAY_EMPTY_CLEAR } : { icon: "arrow-up", text: AWAY_EMPTY_QUEUED };
   return { groups: shown, total, more, queued, foot: awayFoot(more, queued, shown.length > 0), empty };
+}
+function bellSections(rows) {
+  const idOf = (r2) => r2.id ?? r2.key ?? "";
+  const part = (label, list2) => {
+    const order = [];
+    const byKind = /* @__PURE__ */ new Map();
+    for (const r2 of list2) {
+      const k = r2.kind && AWAY_NOUN[r2.kind] ? r2.kind : `@${idOf(r2)}`;
+      if (!byKind.has(k)) {
+        byKind.set(k, []);
+        order.push(k);
+      }
+      byKind.get(k).push(r2);
+    }
+    const lines = [];
+    for (const k of order) {
+      const members = byKind.get(k) ?? [];
+      const noun = AWAY_NOUN[k];
+      if (!noun || members.length < AWAY_GROUP_MIN) {
+        for (const r2 of members) lines.push({ key: idOf(r2), row: r2, count: 1, title: null, members: [r2] });
+        continue;
+      }
+      lines.push({
+        key: `${label}:${k}`,
+        row: members[0],
+        count: members.length,
+        title: `${members.length} ${noun[1]}`,
+        members
+      });
+    }
+    return { label, lines };
+  };
+  return [
+    part(
+      "New",
+      rows.filter((r2) => r2.unread)
+    ),
+    part(
+      "Earlier",
+      rows.filter((r2) => !r2.unread)
+    )
+  ].filter((s) => s.lines.length > 0);
 }
 function todaySteps(rows, nowMs, tz, max = TODAY_STEPS_MAX) {
   const due = todayStepsDue(rows ?? [], nowMs, tz, max);
@@ -23524,6 +23619,7 @@ export {
   audiencePreview,
   autoReplyBell,
   autoReplyCandidates,
+  bellSections,
   billingAccountDto,
   billingDoorOpen,
   billingEndedAt,
@@ -23827,6 +23923,7 @@ export {
   isUngrounded,
   isUsablePassword,
   isYes,
+  jobNewsWords,
   judgeAsked,
   judgeDomain,
   judgeOpId,
@@ -23939,6 +24036,7 @@ export {
   moneyWords,
   monthLabelOf,
   monthSpan,
+  nameKnownCustomers,
   navigateLabel,
   needsAnswer,
   needsConsultation,

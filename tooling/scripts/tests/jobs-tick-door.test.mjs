@@ -589,7 +589,8 @@ test("an email intake that throws is claimed again five minutes later, then thir
     [[ws.owner]],
     "the owner, once",
   );
-  assert.match(told[0].text, /failed after 3 tries and will not retry on its own/);
+  assert.match(told[0].text, /It stopped after 3 tries and will not start again on its own/);
+  assert.match(told[0].subject ?? told[0].text, /An email could not be taken in/);
 });
 
 /* --------------------------------------------------------- mass failure */
