@@ -378,7 +378,11 @@ test("the code (canvas R5, P5): from the forwarding saved, with the steps, the w
   assert.equal(mobile.code.tel, "tel:**004*%2B13055550142%23");
   assert.equal(mobile.code.tap, "Tap to dial");
   assert.match(mobile.code.warn, /^Voicemail on this phone\?/);
-  assert.equal(phone(tmobile, null).code.label, "T-Mobile · a mobile", "a tab that lost the answers reads the carrier");
+  assert.equal(
+    phone(tmobile, null).code.label,
+    "T-Mobile",
+    "a tab that lost the answers names the carrier saved, not what rings",
+  );
 
   const verified = phone(
     answeringDto({
@@ -390,4 +394,45 @@ test("the code (canvas R5, P5): from the forwarding saved, with the steps, the w
 
   const redo = phone(dto, kept({ rings: "landline", redo: true }));
   assert.equal(redo.stage, "ask", "changing the answers asks them again");
+  assert.deepEqual(
+    [redo.forwardFrom, redo.saved, redo.keepCode],
+    [LISTED, { carrier: "verizon" }, "Keep the code I have"],
+  );
+});
+
+test("the code follows what was saved: every call when Setup's card saved that, and neutral words when the answers are lost", () => {
+  const always = forwardedLine("verizon");
+  always.forwarding = { ...always.forwarding, mode: "always" };
+  const vm = phone(
+    answeringDto({ lines: { ...dtoOf().lines, rows: [lineOf({ voice_state: "answering" }), always] } }),
+    null,
+  );
+  assert.deepEqual([vm.code.dial, vm.code.off], ["*723055550142", "To switch it off later, dial *73."]);
+  assert.equal(vm.lead, "It tells your phone company to send every call to your receptionist. You only do this once.");
+  const other = phone(
+    answeringDto({ lines: { ...dtoOf().lines, rows: [lineOf({ voice_state: "answering" }), forwardedLine("other")] } }),
+    null,
+  );
+  assert.equal(
+    other.code.label,
+    "Another carrier or a landline",
+    "a mobile with another company is `other` too: neither said",
+  );
+  assert.deepEqual(other.code.steps, W.stepsAny);
+  assert.equal(other.code.warn, W.warnAny);
+  assert.equal(other.code.tap, null);
+  const nowhere = forwardedLine("other");
+  nowhere.e164 = null;
+  const lost = phone(
+    answeringDto({ lines: { ...dtoOf().lines, rows: [lineOf({ voice_state: "answering" }), nowhere] } }),
+    null,
+  );
+  assert.equal(lost.code.change, null, "nothing to ask about: no way to change the answers");
+  assert.equal(
+    phone(
+      answeringDto({ lines: { ...dtoOf().lines, rows: [lineOf({ voice_state: "answering" }), nowhere] } }),
+      kept({ redo: true }),
+    ).stage,
+    "code",
+  );
 });

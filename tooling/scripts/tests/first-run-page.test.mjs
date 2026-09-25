@@ -108,6 +108,7 @@ globalThis.StatePill = globalThis.window.StatePill;
 // data-bits publishes the shell's toast hook; this harness keeps its own, which remembers what was said.
 const flashes = [];
 globalThis.window.usePPToast = () => [null, (m) => flashes.push(m)];
+await import("../../../apps/dashboard/src/legacy/components/record-field.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/setup.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/first-run.jsx");
 
@@ -885,6 +886,23 @@ const forwardedRow = (carrier) => ({
     verified_at: null,
   },
 });
+/** A question's answer pressed, by its words: the record kit's radiogroup, as the page draws it. */
+const choose = (tree, key, words) => {
+  let hit = null;
+  walk(byTestId(tree, `fr-q-${key}`), (n) => {
+    if (!hit && n.props?.role === "radio" && textOf(n) === words) hit = n;
+  });
+  assert.ok(hit, `no ${words} under ${key}`);
+  hit.props.onClick();
+  return hit;
+};
+const chosen = (tree, key) => {
+  let hit = null;
+  walk(byTestId(tree, `fr-q-${key}`), (n) => {
+    if (!hit && n.props?.role === "radio" && n.props["aria-checked"]) hit = textOf(n);
+  });
+  return hit;
+};
 const forwardingSays = () => {
   const saved = [];
   globalThis.window.__setup.forwarding = {
@@ -910,16 +928,16 @@ test("your phone (canvas R4): while the number gets ready, the two questions, ke
   fresh();
   let tree = mount();
   assert.equal(byTestId(tree, "fr-phone").props["data-stage"], "buying");
-  assert.match(
+  assert.equal(
     textOf(byTestId(tree, "fr-phone-questions")),
-    /^Which phone rings when customers call \+1 \(305\) 555-0100\?A mobileA landline$/,
+    "Which phone rings when customers call +1 (305) 555-0100?A mobileA landline",
   );
   assert.equal(textOf(byTestId(tree, "fr-phone-held")), "Ready in a moment");
-  byTestId(tree, "fr-q-rings-mobile").props.onClick();
+  choose(tree, "rings", "A mobile");
   tree = mount();
-  byTestId(tree, "fr-q-company-tmobile").props.onClick();
+  choose(tree, "company", "T-Mobile");
   tree = mount();
-  assert.equal(byTestId(tree, "fr-q-company-tmobile").props["aria-checked"], true);
+  assert.equal(chosen(tree, "company"), "T-Mobile");
   const kept = drafts["first-run-phone"];
   assert.deepEqual(
     [kept.rings, kept.company, kept.pending],
@@ -973,8 +991,27 @@ test("your phone (canvas R5, P5): the code from the forwarding saved, its help, 
   assert.equal(textOf(byTestId(tree, "fr-heading")), "Dial this on the phone customers call");
   const dial = byTestId(tree, "fr-phone-dial");
   assert.equal(textOf(dial), "**004*+13055550142#");
-  assert.equal(dial.props.href, "tel:**004*%2B13055550142%23");
-  assert.equal(byTestId(tree, "fr-phone-tap").props.href, dial.props.href, "a tap dials it on the phone in hand");
+  assert.equal(
+    dial.props.href,
+    undefined,
+    "words to dial: an iPhone refuses a link with * or #, and a desk has no dialer",
+  );
+  assert.equal(byTestId(tree, "fr-phone-tap"), null, "no tap where the phone cannot dial one");
+  const ua = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+  Object.defineProperty(globalThis, "navigator", {
+    value: { userAgent: "Mozilla/5.0 (Linux; Android 14)" },
+    configurable: true,
+  });
+  try {
+    assert.equal(
+      byTestId(mount(), "fr-phone-tap").props.href,
+      "tel:**004*%2B13055550142%23",
+      "Android's dialer takes it",
+    );
+  } finally {
+    if (ua) Object.defineProperty(globalThis, "navigator", ua);
+    else delete globalThis.navigator;
+  }
   assert.match(textOf(byTestId(tree, "fr-phone-warn")), /^Voicemail on this phone\?/);
   assert.equal(byTestId(tree, "fr-phone-notes"), null);
   byTestId(tree, "fr-phone-help").props.onClick();
@@ -987,4 +1024,62 @@ test("your phone (canvas R5, P5): the code from the forwarding saved, its help, 
   byTestId(tree, "fr-phone-change").props.onClick();
   tree = mount();
   assert.equal(byTestId(tree, "fr-phone").props["data-stage"], "ask", "the answers asked again");
+  // The same answers again: nothing is saved (it would drop what a test call proved), and the code comes back.
+  const saved = forwardingSays();
+  await byTestId(tree, "fr-phone-go").props.onClick();
+  assert.deepEqual(saved, []);
+  assert.equal(byTestId(mount(), "fr-phone").props["data-stage"], "code");
+});
+
+test("your phone: asked again with the answers lost, the questions are about the number forwarded, and Keep the code goes back", async () => {
+  phoneWorld();
+  const saved = forwardingSays();
+  globalThis.window.__tabMemory.keepDraft("first-run-phone", { way: "keep", number: null, pick: null, pending: false });
+  const row = { ...forwardedRow("other"), e164: "+13055550177" };
+  globalThis.window.__SETUP = surface(answeringLine([row]));
+  param = "phone";
+  fresh();
+  let tree = mount();
+  assert.equal(
+    textOf(byTestId(tree, "fr-phone-code")).startsWith("Another carrier or a landline"),
+    true,
+    "neither said",
+  );
+  byTestId(tree, "fr-phone-change").props.onClick();
+  tree = mount();
+  assert.match(textOf(byTestId(tree, "fr-q-rings")), /\+1 \(305\) 555-0177/, "the forwarded number, not the listing's");
+  choose(tree, "rings", "A mobile");
+  tree = mount();
+  choose(tree, "company", "Verizon");
+  tree = mount();
+  await byTestId(tree, "fr-phone-go").props.onClick();
+  assert.deepEqual(saved, [{ number: "+13055550177", carrier: "verizon", mode: "unanswered", test_from: "" }]);
+  globalThis.window.__tabMemory.keepDraft("first-run-phone", {
+    way: "keep",
+    number: null,
+    pick: null,
+    pending: false,
+    redo: true,
+  });
+  fresh();
+  tree = mount();
+  byTestId(tree, "fr-phone-keep").props.onClick();
+  assert.equal(byTestId(mount(), "fr-phone").props["data-stage"], "code", "back to the code, nothing saved");
+});
+
+test("your phone: a role that may not save the forwarding sees the questions with the page's own foot, and goes on", () => {
+  phoneWorld();
+  globalThis.window.__tabMemory.keepDraft("first-run-phone", { way: "keep", number: null, pick: null, pending: false });
+  globalThis.window.__SETUP = surface(answeringLine());
+  globalThis.window.canDo = (what) => what !== "team";
+  try {
+    param = "phone";
+    fresh();
+    const tree = mount();
+    assert.equal(byTestId(tree, "fr-phone").props["data-stage"], "ask");
+    assert.equal(byTestId(tree, "fr-phone-go"), null, "no button it may not press");
+    assert.equal(textOf(byTestId(tree, "fr-onward")), "Continue", "the step is done: its line answers");
+  } finally {
+    globalThis.window.canDo = () => true;
+  }
 });

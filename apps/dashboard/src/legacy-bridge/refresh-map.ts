@@ -137,7 +137,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST lines/buy": setup,
   "POST lines/retry": setup,
   "POST lines/register": setup,
-  "POST lines/forwarding": setup,
+  // Forwarding saved: Setup's row, and the settings read's kept number (facts.ts kept_line), which the card shows.
+  "POST lines/forwarding": () => [setupOverride, settingsOverride],
   "POST lines/forwarding/test": setup,
   "POST setup/request": setup,
   "PUT business-record": setup,

@@ -12,7 +12,7 @@
  */
 import { billingDoorOpen, dayWords, maySpend, priceWords, CHECKOUT_OUTCOME_WORDS } from "./billing";
 import { formatPhoneDisplay, normalizePhone } from "./phone";
-import { forwardingCodes, isCarrier, type Carrier } from "./forwarding";
+import { CARRIER_WORDS, forwardingCodes, isCarrier, isForwardingMode, type Carrier } from "./forwarding";
 import { lineStuckProvisioning, SETUP_STATE_WORDS, type SetupDto, type SetupState, type SetupVM } from "./setup";
 
 export const PHONE_WAYS = ["keep", "new", "move"] as const;
@@ -72,7 +72,7 @@ export interface FirstRunPhoneCodeVM {
   label: string;
   dial: string;
   tel: string;
-  /** A mobile can take the code as a tap, on the phone in hand. */
+  /** A mobile can take the code as a tap, on the phone in hand (the page offers it where the phone dials one). */
   tap: string | null;
   steps: string[];
   /** What answers before the receptionist can: voicemail, an answering machine. */
@@ -80,8 +80,8 @@ export interface FirstRunPhoneCodeVM {
   off: string;
   /** Forwarding's own words for a code the carrier refuses (forwarding.ts notes), behind "The code didn't work". */
   help: { label: string; notes: string[] };
-  /** Back to the questions, to save the answers again. */
-  change: string;
+  /** Back to the questions, to save the answers again; null where the saved forwarding has no number to ask about. */
+  change: string | null;
   /** Said once a call proved it: Setup's keep row's own sentence. */
   verified: string | null;
 }
@@ -119,6 +119,15 @@ export interface FirstRunPhoneVM {
   questions: { rings: FirstRunPhoneQuestion<PhoneRings>; company: FirstRunPhoneQuestion<Carrier> | null } | null;
   /** The code to dial, once the forwarding is saved. */
   code: FirstRunPhoneCodeVM | null;
+  /**
+   * The number the answers are saved for, E.164: the one kept or moved, or, asked again after the code was shown, the
+   * number the saved forwarding is for (never the listing's in its place); null where nothing is asked.
+   */
+  forwardFrom: string | null;
+  /** Asked again after the code was shown: the carrier saved then, so the same answers save nothing. */
+  saved: { carrier: Carrier } | null;
+  /** Asked again: the way back to the code without saving. */
+  keepCode: string | null;
   /** What is happening, while the number is on its way: the state (a pill, its word) and the sentence under it. */
   status: { state: SetupState; words: string; sentence: string; detail: string } | null;
   /** The trial that started, said once it has; null before, and where the workspace does not pay by card. */
@@ -202,23 +211,27 @@ export const FIRST_RUN_PHONE_WORDS = {
   codeHeading: "Dial this on the phone customers call",
   codeLead:
     "It tells your phone company to send the calls nobody picks up to your receptionist. You only do this once.",
+  codeLeadAll: "It tells your phone company to send every call to your receptionist. You only do this once.",
   codeLabel: (company: string | null, rings: PhoneRings) =>
     rings === "landline" ? "A landline" : company ? `${company} · a mobile` : "A mobile",
   stepsLandline: ["Pick up the phone customers call.", "Dial the code above.", "Wait for the tone, then hang up."],
-  stepsMobile: [
-    "On the phone customers call, dial the code above, or tap it there.",
-    "Wait for the tone, then hang up.",
-  ],
+  stepsMobile: ["On the phone customers call, dial the code above.", "Wait for the tone, then hang up."],
+  /** A tab that lost the answers: what rings is not known, so neither is said. */
+  stepsAny: ["Dial the code above on the phone customers call.", "Wait for the tone, then hang up."],
   // Not a promise the code replaces voicemail: forwarding.ts says a voicemail that picks up first keeps calls away.
   warnMobile:
     "Voicemail on this phone? If it still picks up after you dial the code, calls never reach your receptionist: see The code didn't work.",
   warnLandline:
     "If an answering machine is on this line, turn it off. Otherwise it answers before your receptionist can.",
+  warnAny:
+    "Voicemail or an answering machine on that phone? If it picks up first, calls never reach your receptionist: see The code didn't work.",
   off: (code: string) => `To switch it off later, dial ${code}.`,
   tap: "Tap to dial",
   done: "Done, let's try it",
   help: "The code didn't work",
   change: "Change the answers",
+  keepCode: "Keep the code I have",
+  notForwarded: "Forwarding not saved",
 } as const;
 
 /** The three digits a US number is bought in: `+13055550100` → `305`; null for anything else. */
@@ -288,6 +301,9 @@ export function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }: FirstRunPh
     cta: null,
     questions: null,
     code: null,
+    forwardFrom: null,
+    saved: null,
+    keepCode: null,
   };
   const rows: FirstRunPhoneVM = { ...base, ...ready, stage: "rows", status: null };
 
@@ -295,27 +311,26 @@ export function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }: FirstRunPh
   const rings = choice?.rings ?? null;
   const company = choice?.company ?? null;
   const asking = !!choice && forwarded && !!number;
-  const questions: FirstRunPhoneVM["questions"] = asking
-    ? {
-        rings: {
-          label: W.ringsLabel(formatPhoneDisplay(number)),
-          options: PHONE_RINGS.map((k) => ({ key: k, label: W.rings[k] })),
-          value: rings,
-        },
-        // A landline takes the landline codes whoever runs it, so only a mobile is asked its company.
-        company:
-          rings === "mobile"
-            ? {
-                label: W.companyLabel,
-                options: (["verizon", "att", "tmobile", "other"] as const).map((k) => ({
-                  key: k,
-                  label: W.company[k],
-                })),
-                value: company,
-              }
-            : null,
-      }
-    : null;
+  const questionsFor = (about: string): NonNullable<FirstRunPhoneVM["questions"]> => ({
+    rings: {
+      label: W.ringsLabel(formatPhoneDisplay(about)),
+      options: PHONE_RINGS.map((k) => ({ key: k, label: W.rings[k] })),
+      value: rings,
+    },
+    // A landline takes the landline codes whoever runs it, so only a mobile is asked its company.
+    company:
+      rings === "mobile"
+        ? {
+            label: W.companyLabel,
+            options: (["verizon", "att", "tmobile", "other"] as const).map((k) => ({
+              key: k,
+              label: W.company[k],
+            })),
+            value: company,
+          }
+        : null,
+  });
+  const questions = asking && number ? questionsFor(number) : null;
   const answered = !!forwardingCarrierOf(rings, company);
   const show = (lineAnswers: boolean) => ({
     label: W.show,
@@ -335,33 +350,58 @@ export function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }: FirstRunPh
       isCarrier(f.carrier) &&
       (fw.forwarding_state === "instructed" || fw.forwarding_state === "verified");
     if (!dest) return rows;
-    if (saved && !(choice?.redo && questions)) {
+    const savedFrom = saved ? normalizePhone(fw!.e164) : null;
+    // Asked again after the code was shown: about the number the saved forwarding is for, whatever the tab holds.
+    if (saved && choice?.redo && savedFrom) {
+      return {
+        ...base,
+        stage: "ask",
+        heading: W.askHeading,
+        lead: W.askLead,
+        trial: null,
+        status: null,
+        questions: questionsFor(savedFrom),
+        cta: show(true),
+        code: null,
+        forwardFrom: savedFrom,
+        saved: { carrier: f!.carrier as Carrier },
+        keepCode: W.keepCode,
+      };
+    }
+    if (saved) {
       const carrier = f!.carrier as Carrier;
-      const codes = forwardingCodes(carrier, "unanswered", f!.destination_e164 ?? dest);
-      // What rings, as answered; for a tab that lost the answers, as the carrier says (a landline's codes are `other`'s).
-      const said: PhoneRings = rings ?? (carrier === "other" ? "landline" : "mobile");
+      // The mode saved, which Setup's own card may have set to every call: the code and the lead follow it.
+      const mode = isForwardingMode(f!.mode) ? f!.mode : "unanswered";
+      const codes = forwardingCodes(carrier, mode, f!.destination_e164 ?? dest);
+      // What rings, as answered; a tab that lost the answers says neither (a mobile with another company is `other` too).
+      const said: PhoneRings | null = rings;
       const keepRow = vm.rows.find((r) => r.id === "keep") ?? null;
       return {
         ...base,
         stage: "code",
         heading: W.codeHeading,
-        lead: W.codeLead,
+        lead: mode === "always" ? W.codeLeadAll : W.codeLead,
         trial: null,
         status: null,
         questions: null,
         cta: { label: W.done, held: null, act: "onward" },
         code: {
-          label: W.codeLabel(said === "mobile" && carrier !== "other" ? W.company[carrier] : null, said),
+          label: said
+            ? W.codeLabel(said === "mobile" && carrier !== "other" ? W.company[carrier] : null, said)
+            : CARRIER_WORDS[carrier],
           dial: codes.on.code,
           tel: codes.on.tel,
           tap: said === "mobile" ? W.tap : null,
-          steps: said === "mobile" ? [...W.stepsMobile] : [...W.stepsLandline],
-          warn: said === "mobile" ? W.warnMobile : W.warnLandline,
+          steps: said === "mobile" ? [...W.stepsMobile] : said === "landline" ? [...W.stepsLandline] : [...W.stepsAny],
+          warn: said === "mobile" ? W.warnMobile : said === "landline" ? W.warnLandline : W.warnAny,
           off: W.off(codes.off.code),
           help: { label: W.help, notes: codes.notes },
-          change: W.change,
+          change: savedFrom ? W.change : null,
           verified: fw!.forwarding_state === "verified" && keepRow ? keepRow.sentence : null,
         },
+        forwardFrom: null,
+        saved: null,
+        keepCode: null,
       };
     }
     if (questions) {
@@ -375,6 +415,9 @@ export function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }: FirstRunPh
         questions,
         cta: show(true),
         code: null,
+        forwardFrom: number,
+        saved: null,
+        keepCode: null,
       };
     }
     return rows;
@@ -456,5 +499,8 @@ export function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }: FirstRunPh
     status: null,
     questions: null,
     code: null,
+    forwardFrom: null,
+    saved: null,
+    keepCode: null,
   };
 }

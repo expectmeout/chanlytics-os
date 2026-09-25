@@ -8516,20 +8516,23 @@ var FIRST_RUN_PHONE_WORDS = {
   /** The code (canvas R5, P5). */
   codeHeading: "Dial this on the phone customers call",
   codeLead: "It tells your phone company to send the calls nobody picks up to your receptionist. You only do this once.",
+  codeLeadAll: "It tells your phone company to send every call to your receptionist. You only do this once.",
   codeLabel: (company, rings) => rings === "landline" ? "A landline" : company ? `${company} \xB7 a mobile` : "A mobile",
   stepsLandline: ["Pick up the phone customers call.", "Dial the code above.", "Wait for the tone, then hang up."],
-  stepsMobile: [
-    "On the phone customers call, dial the code above, or tap it there.",
-    "Wait for the tone, then hang up."
-  ],
+  stepsMobile: ["On the phone customers call, dial the code above.", "Wait for the tone, then hang up."],
+  /** A tab that lost the answers: what rings is not known, so neither is said. */
+  stepsAny: ["Dial the code above on the phone customers call.", "Wait for the tone, then hang up."],
   // Not a promise the code replaces voicemail: forwarding.ts says a voicemail that picks up first keeps calls away.
   warnMobile: "Voicemail on this phone? If it still picks up after you dial the code, calls never reach your receptionist: see The code didn't work.",
   warnLandline: "If an answering machine is on this line, turn it off. Otherwise it answers before your receptionist can.",
+  warnAny: "Voicemail or an answering machine on that phone? If it picks up first, calls never reach your receptionist: see The code didn't work.",
   off: (code2) => `To switch it off later, dial ${code2}.`,
   tap: "Tap to dial",
   done: "Done, let's try it",
   help: "The code didn't work",
-  change: "Change the answers"
+  change: "Change the answers",
+  keepCode: "Keep the code I have",
+  notForwarded: "Forwarding not saved"
 };
 function areaCodeOf(raw) {
   const e164 = normalizePhone(raw);
@@ -8582,15 +8585,18 @@ function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }) {
     trial: null,
     cta: null,
     questions: null,
-    code: null
+    code: null,
+    forwardFrom: null,
+    saved: null,
+    keepCode: null
   };
   const rows = { ...base, ...ready, stage: "rows", status: null };
   const rings = choice?.rings ?? null;
   const company = choice?.company ?? null;
   const asking = !!choice && forwarded && !!number;
-  const questions = asking ? {
+  const questionsFor = (about) => ({
     rings: {
-      label: W.ringsLabel(formatPhoneDisplay(number)),
+      label: W.ringsLabel(formatPhoneDisplay(about)),
       options: PHONE_RINGS.map((k) => ({ key: k, label: W.rings[k] })),
       value: rings
     },
@@ -8603,7 +8609,8 @@ function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }) {
       })),
       value: company
     } : null
-  } : null;
+  });
+  const questions = asking && number ? questionsFor(number) : null;
   const answered = !!forwardingCarrierOf(rings, company);
   const show = (lineAnswers) => ({
     label: W.show,
@@ -8616,32 +8623,53 @@ function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }) {
     const f = fw?.forwarding ?? null;
     const saved = !!fw && !!f && isCarrier(f.carrier) && (fw.forwarding_state === "instructed" || fw.forwarding_state === "verified");
     if (!dest) return rows;
-    if (saved && !(choice?.redo && questions)) {
+    const savedFrom = saved ? normalizePhone(fw.e164) : null;
+    if (saved && choice?.redo && savedFrom) {
+      return {
+        ...base,
+        stage: "ask",
+        heading: W.askHeading,
+        lead: W.askLead,
+        trial: null,
+        status: null,
+        questions: questionsFor(savedFrom),
+        cta: show(true),
+        code: null,
+        forwardFrom: savedFrom,
+        saved: { carrier: f.carrier },
+        keepCode: W.keepCode
+      };
+    }
+    if (saved) {
       const carrier = f.carrier;
-      const codes = forwardingCodes(carrier, "unanswered", f.destination_e164 ?? dest);
-      const said = rings ?? (carrier === "other" ? "landline" : "mobile");
+      const mode = isForwardingMode(f.mode) ? f.mode : "unanswered";
+      const codes = forwardingCodes(carrier, mode, f.destination_e164 ?? dest);
+      const said = rings;
       const keepRow = vm.rows.find((r2) => r2.id === "keep") ?? null;
       return {
         ...base,
         stage: "code",
         heading: W.codeHeading,
-        lead: W.codeLead,
+        lead: mode === "always" ? W.codeLeadAll : W.codeLead,
         trial: null,
         status: null,
         questions: null,
         cta: { label: W.done, held: null, act: "onward" },
         code: {
-          label: W.codeLabel(said === "mobile" && carrier !== "other" ? W.company[carrier] : null, said),
+          label: said ? W.codeLabel(said === "mobile" && carrier !== "other" ? W.company[carrier] : null, said) : CARRIER_WORDS[carrier],
           dial: codes.on.code,
           tel: codes.on.tel,
           tap: said === "mobile" ? W.tap : null,
-          steps: said === "mobile" ? [...W.stepsMobile] : [...W.stepsLandline],
-          warn: said === "mobile" ? W.warnMobile : W.warnLandline,
+          steps: said === "mobile" ? [...W.stepsMobile] : said === "landline" ? [...W.stepsLandline] : [...W.stepsAny],
+          warn: said === "mobile" ? W.warnMobile : said === "landline" ? W.warnLandline : W.warnAny,
           off: W.off(codes.off.code),
           help: { label: W.help, notes: codes.notes },
-          change: W.change,
+          change: savedFrom ? W.change : null,
           verified: fw.forwarding_state === "verified" && keepRow ? keepRow.sentence : null
-        }
+        },
+        forwardFrom: null,
+        saved: null,
+        keepCode: null
       };
     }
     if (questions) {
@@ -8654,7 +8682,10 @@ function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }) {
         status: null,
         questions,
         cta: show(true),
-        code: null
+        code: null,
+        forwardFrom: number,
+        saved: null,
+        keepCode: null
       };
     }
     return rows;
@@ -8710,7 +8741,10 @@ function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }) {
     cta: { label, held, act: trial ? "trial" : "buy" },
     status: null,
     questions: null,
-    code: null
+    code: null,
+    forwardFrom: null,
+    saved: null,
+    keepCode: null
   };
 }
 

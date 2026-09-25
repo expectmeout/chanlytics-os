@@ -150,8 +150,8 @@ button.fr-rail-btn:hover { background: var(--bg-sunken); color: var(--ink); }
 .fr-line-detail { font-size: 12.5px; line-height: var(--leading-normal); color: var(--ink-dim); }
 /* The two questions (canvas R4), in the chips' own look, and the code (R5, P5): the code large, dialled by a tap where a
    phone can, the steps under it, what picks up first, and the way to switch it off. */
-.fr-line-questions { display: grid; }
-.fr-line-question { border-top: 0; padding: 8px 0; }
+.fr-line-questions { display: grid; gap: 14px; justify-items: start; }
+.fr-line-question { display: grid; gap: 8px; }
 .fr-code {
   display: grid; justify-items: start; gap: 8px; padding: 14px 16px;
   border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--bg-raised);

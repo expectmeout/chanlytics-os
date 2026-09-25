@@ -141,3 +141,32 @@ FrPhone in `choose` and the rows in `rows`).
     exported by `setupSteps`. Exporting one means reshaping the line row, which is not this PR's.
   - `billing.price` is passed through from `billingReadiness`, which reads the edge; `setup.test.mjs` pins `google.phone`
     only.
+
+## As built, 4b (24 Sep 2026)
+
+- **The questions.** They are asked while the number is on its way (`buying`, `getting`) and once it answers (`ask`).
+  - They are drawn in the record kit's radiogroup (`RecordToggleGroup`) and kept in the tab's choice (`rings`,
+    `company`).
+  - A mobile is asked its company. A landline takes the landline codes (`forwardingCarrierOf` → `other`), as
+    `forwardingCodes` has always treated one.
+  - "Show me what to dial" is held with "Ready in a moment" until the line answers. After that it saves through
+    `POST lines/forwarding`, which now re-reads the settings as well as Setup (the card's kept number).
+- **The code** is drawn from the saved forwarded row, so it survives a reload and follows a mode Setup's card saved
+  (every call).
+  - The code is words, not a link: an iPhone refuses a `tel:` with `*` or `#`, and a desk has no dialer. An outlined
+    "Tap to dial" shows on Android only, and the step's one coral button stays "Done, let's try it".
+  - "The code didn't work" opens forwarding's own notes.
+  - "Change the answers" asks about the number the saved forwarding is for. The same answers save nothing (saving again
+    would drop a verified test), and "Keep the code I have" goes back.
+  - A tab that lost the answers names the saved carrier and says neither mobile nor landline.
+- **A role that may not save the forwarding** gets the page's own foot, with Continue.
+- **What the review round fixed:** the saved mode; the landline guessed from `other`; "Change the answers" that was a
+  dead link or pointed at the listing's number; re-saving a verified row; a non-owner stuck at the questions; `tel:`
+  links on an iPhone and a desk; the radiogroup's keys; the stale `kept_line` after a save; a double press while Setup
+  was read again.
+- **Left as it is on purpose:**
+  - The phone step's `needs` stays billing and line, so the step is done once the line answers. The code shows while
+    the address is `start/phone` (the page goes there on every press and on the return from Stripe). Setup's keep
+    row stays on Today's card for an owner who left before dialling.
+  - Setup's ForwardingCard stays as it is for Settings' own path. The first run draws its own card from the same
+    contracts (`forwardingCodes`).

@@ -18106,7 +18106,7 @@ interface FirstRunPhoneCodeVM {
     label: string;
     dial: string;
     tel: string;
-    /** A mobile can take the code as a tap, on the phone in hand. */
+    /** A mobile can take the code as a tap, on the phone in hand (the page offers it where the phone dials one). */
     tap: string | null;
     steps: string[];
     /** What answers before the receptionist can: voicemail, an answering machine. */
@@ -18117,8 +18117,8 @@ interface FirstRunPhoneCodeVM {
         label: string;
         notes: string[];
     };
-    /** Back to the questions, to save the answers again. */
-    change: string;
+    /** Back to the questions, to save the answers again; null where the saved forwarding has no number to ask about. */
+    change: string | null;
     /** Said once a call proved it: Setup's keep row's own sentence. */
     verified: string | null;
 }
@@ -18164,6 +18164,17 @@ interface FirstRunPhoneVM {
     } | null;
     /** The code to dial, once the forwarding is saved. */
     code: FirstRunPhoneCodeVM | null;
+    /**
+     * The number the answers are saved for, E.164: the one kept or moved, or, asked again after the code was shown, the
+     * number the saved forwarding is for (never the listing's in its place); null where nothing is asked.
+     */
+    forwardFrom: string | null;
+    /** Asked again after the code was shown: the carrier saved then, so the same answers save nothing. */
+    saved: {
+        carrier: Carrier;
+    } | null;
+    /** Asked again: the way back to the code without saving. */
+    keepCode: string | null;
     /** What is happening, while the number is on its way: the state (a pill, its word) and the sentence under it. */
     status: {
         state: SetupState;
@@ -18237,16 +18248,22 @@ declare const FIRST_RUN_PHONE_WORDS: {
     /** The code (canvas R5, P5). */
     readonly codeHeading: "Dial this on the phone customers call";
     readonly codeLead: "It tells your phone company to send the calls nobody picks up to your receptionist. You only do this once.";
+    readonly codeLeadAll: "It tells your phone company to send every call to your receptionist. You only do this once.";
     readonly codeLabel: (company: string | null, rings: PhoneRings) => string;
     readonly stepsLandline: readonly ["Pick up the phone customers call.", "Dial the code above.", "Wait for the tone, then hang up."];
-    readonly stepsMobile: readonly ["On the phone customers call, dial the code above, or tap it there.", "Wait for the tone, then hang up."];
+    readonly stepsMobile: readonly ["On the phone customers call, dial the code above.", "Wait for the tone, then hang up."];
+    /** A tab that lost the answers: what rings is not known, so neither is said. */
+    readonly stepsAny: readonly ["Dial the code above on the phone customers call.", "Wait for the tone, then hang up."];
     readonly warnMobile: "Voicemail on this phone? If it still picks up after you dial the code, calls never reach your receptionist: see The code didn't work.";
     readonly warnLandline: "If an answering machine is on this line, turn it off. Otherwise it answers before your receptionist can.";
+    readonly warnAny: "Voicemail or an answering machine on that phone? If it picks up first, calls never reach your receptionist: see The code didn't work.";
     readonly off: (code: string) => string;
     readonly tap: "Tap to dial";
     readonly done: "Done, let's try it";
     readonly help: "The code didn't work";
     readonly change: "Change the answers";
+    readonly keepCode: "Keep the code I have";
+    readonly notForwarded: "Forwarding not saved";
 };
 /** The three digits a US number is bought in: `+13055550100` → `305`; null for anything else. */
 declare function areaCodeOf(raw: string | null | undefined): string | null;
@@ -18673,16 +18690,21 @@ declare const FIRST_RUN_HELPERS: {
         readonly askLead: "Your phone company decides the code, so it depends on the phone that rings.";
         readonly codeHeading: "Dial this on the phone customers call";
         readonly codeLead: "It tells your phone company to send the calls nobody picks up to your receptionist. You only do this once.";
+        readonly codeLeadAll: "It tells your phone company to send every call to your receptionist. You only do this once.";
         readonly codeLabel: (company: string | null, rings: PhoneRings) => string;
         readonly stepsLandline: readonly ["Pick up the phone customers call.", "Dial the code above.", "Wait for the tone, then hang up."];
-        readonly stepsMobile: readonly ["On the phone customers call, dial the code above, or tap it there.", "Wait for the tone, then hang up."];
+        readonly stepsMobile: readonly ["On the phone customers call, dial the code above.", "Wait for the tone, then hang up."];
+        readonly stepsAny: readonly ["Dial the code above on the phone customers call.", "Wait for the tone, then hang up."];
         readonly warnMobile: "Voicemail on this phone? If it still picks up after you dial the code, calls never reach your receptionist: see The code didn't work.";
         readonly warnLandline: "If an answering machine is on this line, turn it off. Otherwise it answers before your receptionist can.";
+        readonly warnAny: "Voicemail or an answering machine on that phone? If it picks up first, calls never reach your receptionist: see The code didn't work.";
         readonly off: (code: string) => string;
         readonly tap: "Tap to dial";
         readonly done: "Done, let's try it";
         readonly help: "The code didn't work";
         readonly change: "Change the answers";
+        readonly keepCode: "Keep the code I have";
+        readonly notForwarded: "Forwarding not saved";
     };
     readonly areaCodeOf: typeof areaCodeOf;
     /** The carrier whose codes the answers choose (first-run-phone.ts), which the forwarding is saved with. */
