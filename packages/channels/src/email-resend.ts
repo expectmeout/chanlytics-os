@@ -171,7 +171,14 @@ export async function sendEmail(
   const first = await postEmail(cfg, request, Math.min(SEND_TIMEOUT_MS, left()));
   if (first.timedOut) {
     if (left() < RETRY_NEEDS_MS) return first.result;
-    return (await postEmail(cfg, request, Math.min(SEND_TIMEOUT_MS, left()))).result;
+    const second = await postEmail(cfg, request, Math.min(SEND_TIMEOUT_MS, left()));
+    // The first may have been taken. A second answer that cannot say otherwise -- no answer, the first still being
+    // worked under this key, the provider's own error -- leaves the outcome unknown, so the row stays settleable by its
+    // receipt (deliver.ts). A plain answer (sent, or refused for a reason) is what became of it.
+    const s = second.result;
+    if (!s.ok && (s.status === 0 || s.status >= 500 || resendLimitOf(s) === "in_flight"))
+      return { ok: false, wamid: null, status: 0, errorBody: "timeout" };
+    return s;
   }
   const limit = resendLimitOf(first.result);
   if (limit !== "rate" && limit !== "in_flight") return first.result;

@@ -104,7 +104,7 @@ export async function sendQueued(ports: SendQueuedPorts, cmd: SendQueuedCommand)
   // thread's: the credentials are wrong for every send on this wire.
   // A 403 that names a domain is the provider refusing to send from one that stopped verifying at its end: the domain's
   // fact, which the domains sweep holds, never our credentials.
-  const domainRefused = channel === "email" && out.status === 403 && /domain/i.test(out.errorBody ?? "");
+  const domainRefused = outreach && out.status === 403 && /domain/i.test(out.errorBody ?? "");
   if (out.reason === "provider" && (out.status === 401 || (out.status === 403 && !domainRefused))) {
     await ports.page?.(
       `provider_auth:${outreach ? "email_outreach" : channel}`,

@@ -42,15 +42,17 @@ as $$
       select jsonb_build_object('state', d.state, 'from_local', d.from_local, 'clean_since', d.clean_since)
         from public.sending_domains d
        where d.tenant_id = p_tenant_id and d.host = lower(btrim(p_host))),
-    -- What left from the domain in the window: sent, delivered, read, or failed by the provider's own receipt or a
-    -- send whose outcome is unknown. A refusal at the door, or a send the provider never took, is not the domain's.
+    -- What left from the domain in the window: sent, delivered, read, failed by a bounce or a failure receipt (00176's
+    -- own definition), or a send whose outcome is unknown. A refusal at the door, a send the provider never took, or
+    -- one it suppressed, never left.
     'sent_since', (
       select count(*) from public.messages m
        where m.tenant_id = p_tenant_id and m.channel = 'email' and m.direction = 'outbound'
          and public.email_from_host(m.meta) = lower(btrim(p_host))
          and m.created_at >= p_since
          and (m.status in ('sent', 'delivered', 'read')
-              or (m.status = 'failed' and (m.error ? 'provider' or coalesce(m.error->>'outcome', '') = 'unknown'))))
+              or (m.status = 'failed'
+                  and (m.error->>'provider' in ('bounced', 'failed') or coalesce(m.error->>'outcome', '') = 'unknown'))))
   )
 $$;
 revoke execute on function public.outreach_facts(uuid, uuid, text, text, timestamptz) from public, anon, authenticated;
@@ -147,6 +149,8 @@ end $$;
 
 revoke execute on function public.set_email_marketing(uuid, uuid, text, text, uuid, jsonb) from public, anon, authenticated;
 grant execute on function public.set_email_marketing(uuid, uuid, text, text, uuid, jsonb) to service_role;
+comment on function public.set_email_marketing(uuid, uuid, text, text, uuid, jsonb) is
+  'The door a no from email goes through: an unsubscribe pressed, or a complaint the provider reported (00177). Records opted_out once, puts the address and the one the email went to on the never-again list, closes the leads still being written to as said no. Service role only.';
 
 -- 3. An erased person keeps no email answer, and the address they had is on the never-again list as erased. Before
 --    the row is written, beside 00125's contact_email_on_erase (which clears the address): OLD still holds it.
@@ -207,13 +211,18 @@ begin
 end $$;
 revoke execute on function public.leads_erase_on_contact() from public, anon, authenticated;
 
+-- What exists, upgraded. A lead's own address is blanked when it is erased (lead_blank), so the erased address is read
+-- from the contact's erased_email_hash (00125), which is the same keyed digest as lead_suppression_hash.
 update public.lead_suppressions s
    set what = 'erased'
-  from public.leads l
- where l.erased_at is not null and l.email is not null
-   and s.tenant_id = l.tenant_id and s.kind = 'email'
-   and s.hash = public.lead_suppression_hash(l.tenant_id, l.email)
+  from public.contacts c
+ where c.erased_at is not null and c.erased_email_hash is not null
+   and s.tenant_id = c.tenant_id and s.kind = 'email' and s.hash = c.erased_email_hash
    and s.what <> 'erased';
+-- And an erased person erased before this keeps no email answer either, as 00101 did for the offers answer.
+update public.contacts
+   set email_marketing = 'unknown', email_marketing_source = 'erasure', email_marketing_updated_at = now()
+ where erased_at is not null and email_marketing is distinct from 'unknown';
 
 -- 4. An email whose send timed out may still be settled by its receipt (00111's guard, with one exception).
 create or replace function public.messages_guard() returns trigger

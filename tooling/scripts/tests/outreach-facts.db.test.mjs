@@ -219,16 +219,19 @@ test(
   },
 );
 
-test("no signed-in member may ask it: it is the send door's question", { skip }, async () => {
-  const anon = process.env.SUPABASE_ANON_KEY;
-  if (!anon) return;
-  const pub = createClient(URL_, anon, { auth: { persistSession: false } });
-  const r = await pub.rpc("outreach_facts", {
-    p_tenant_id: A,
-    p_contact_id: person,
-    p_to: TO,
-    p_host: HOST,
-    p_since: new Date().toISOString(),
-  });
-  assert.ok(r.error, "refused without the service role");
-});
+test(
+  "no one without the service role may ask it: it is the send door's question",
+  { skip: skip || (!process.env.SUPABASE_ANON_KEY && "no SUPABASE_ANON_KEY in env") },
+  async () => {
+    const anon = process.env.SUPABASE_ANON_KEY;
+    const pub = createClient(URL_, anon, { auth: { persistSession: false } });
+    const r = await pub.rpc("outreach_facts", {
+      p_tenant_id: A,
+      p_contact_id: person,
+      p_to: TO,
+      p_host: HOST,
+      p_since: new Date().toISOString(),
+    });
+    assert.ok(r.error, "refused without the service role");
+  },
+);

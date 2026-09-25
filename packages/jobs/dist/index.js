@@ -17764,7 +17764,7 @@ async function outreachFacts(db, d, f, nowMs) {
   const unsubscribable = !!headers["List-Unsubscribe"] && headers["List-Unsubscribe-Post"] === "List-Unsubscribe=One-Click";
   const from = addressOf(d.email?.from)?.address ?? null;
   const host = from ? from.slice(from.lastIndexOf("@") + 1) : null;
-  if (!f.contactId || !host)
+  if (!f.contactId)
     return { leadStage: null, suppressed: false, unsubscribable, domainState: null, cleanSince: null, sentSince: 0 };
   let facts;
   try {
@@ -17772,13 +17772,14 @@ async function outreachFacts(db, d, f, nowMs) {
       tenantId: d.tenantId,
       contactId: f.contactId,
       to: d.to,
-      host,
+      // A From that cannot be read names no domain: the lead is still asked, and the door refuses the domain.
+      host: host ?? "",
       since: new Date(nowMs - SHARE_WINDOW_MS).toISOString()
     });
   } catch (e2) {
     throw new Error(`deliver: ${e2 instanceof Error ? e2.message : String(e2)} (conversation ${d.conversationId})`);
   }
-  const own = facts.domain && `${facts.domain.from_local}@${host}` === from ? facts.domain : null;
+  const own = host && facts.domain && `${facts.domain.from_local}@${host}` === from ? facts.domain : null;
   return {
     leadStage: facts.lead_stage,
     suppressed: facts.suppressed,
@@ -18016,7 +18017,7 @@ async function sendQueued(ports, cmd) {
       outreach ? `Tenant ${cmd.tenantId}, message ${p.message_id}. Cold email is refused until it resets. Replies and reminders are not affected.` : `Tenant ${cmd.tenantId}, message ${p.message_id}. Every workspace's email is refused until it resets or the plan grows.`
     );
   }
-  const domainRefused = channel === "email" && out.status === 403 && /domain/i.test(out.errorBody ?? "");
+  const domainRefused = outreach && out.status === 403 && /domain/i.test(out.errorBody ?? "");
   if (out.reason === "provider" && (out.status === 401 || out.status === 403 && !domainRefused)) {
     await ports.page?.(
       `provider_auth:${outreach ? "email_outreach" : channel}`,

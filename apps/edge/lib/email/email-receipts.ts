@@ -72,10 +72,17 @@ export async function applyEmailReceipt(db: Db, r: EmailReceipt, nowIso: string)
   if (effect.status) await recordEmailStatus(db, { ...row, status: effect.status, error: effect.error as Json | null });
   // A complaint arrives after delivery and moves no status: the row is stamped, so the domain it left from counts it
   // (00176). Before the suppression, so a retry of a half-applied receipt still counts it once.
+  if (r.type === "complained") await stampEmailComplaint(db, { ...row, at: nowIso });
+  if (effect.suppress) {
+    const contactId = await suppressEmailOf(db, { ...row, addresses: r.to, reason: effect.suppress, at: nowIso });
+    const stopped = { reason: effect.suppress };
+    if (contactId)
+      await emitEvent(db, r.tenantId, "contact.email_suppressed", "contact", "contact", contactId, stopped);
+  }
   if (r.type === "complained") {
-    await stampEmailComplaint(db, { ...row, at: nowIso });
     // A complaint is the person's no, as an unsubscribe is (00177): their address on the never-again list, their
-    // leads closed. Then the domain it left from is judged now, not at the next sweep.
+    // leads closed. After the address stops (above), so a no that cannot be recorded -- the receipt then comes again --
+    // has already stopped what it could. Then the domain it left from is judged now, not at the next sweep.
     const no = await recordEmailNo(db, { ...row, source: "complaint" });
     const host = addressOf(no.from)?.address.split("@")[1] ?? null;
     if (host) {
@@ -84,12 +91,6 @@ export async function applyEmailReceipt(db: Db, r: EmailReceipt, nowIso: string)
         log.error("sending_domain_complaint_hold_failed", { host, error: errField(e) }),
       );
     }
-  }
-  if (effect.suppress) {
-    const contactId = await suppressEmailOf(db, { ...row, addresses: r.to, reason: effect.suppress, at: nowIso });
-    const stopped = { reason: effect.suppress };
-    if (contactId)
-      await emitEvent(db, r.tenantId, "contact.email_suppressed", "contact", "contact", contactId, stopped);
   }
   return "applied";
 }

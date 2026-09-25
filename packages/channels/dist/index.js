@@ -4569,7 +4569,11 @@ async function sendEmail(cfg, request, opts = {}) {
   const first = await postEmail(cfg, request, Math.min(SEND_TIMEOUT_MS2, left()));
   if (first.timedOut) {
     if (left() < RETRY_NEEDS_MS) return first.result;
-    return (await postEmail(cfg, request, Math.min(SEND_TIMEOUT_MS2, left()))).result;
+    const second = await postEmail(cfg, request, Math.min(SEND_TIMEOUT_MS2, left()));
+    const s = second.result;
+    if (!s.ok && (s.status === 0 || s.status >= 500 || resendLimitOf(s) === "in_flight"))
+      return { ok: false, wamid: null, status: 0, errorBody: "timeout" };
+    return s;
   }
   const limit = resendLimitOf(first.result);
   if (limit !== "rate" && limit !== "in_flight") return first.result;

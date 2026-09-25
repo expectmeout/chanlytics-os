@@ -227,6 +227,8 @@ function world({ status = "sent", email = ADDRESS, faults = {}, meta = null, dom
     },
     // 00177: a complaint is a no through the unsubscribe's own door; recorded here, proved on a database.
     set_email_marketing: (a) => {
+      if (tables.emailNoesRefuse)
+        throw new Error("set_email_marketing records an unsubscribe: opted_out, from unsubscribe");
       tables.emailNoes.push(a);
       return { changed: true, found: true };
     },
@@ -430,8 +432,23 @@ test("a complaint on an email from the workspace's own domain holds that domain 
   assert.equal(t.events.filter((e) => e.kind === "sending_domain.held").length, 1);
   assert.equal(t.notifications.length, 1, "its owner told once");
 
-  // A complaint on an email that did not leave from an own domain holds nothing.
-  const hosted = world({ status: "delivered", counts: { sent: 1, bounced: 0, complained: 1 } });
+  // A complaint on an email that did not leave from an own domain holds nothing, even with a domain there to hold.
+  const hosted = world({
+    status: "delivered",
+    domains: [{ ...t.sending_domains[0], state: "verified", held_why: null, held_at: null }],
+    counts: { sent: 1, bounced: 0, complained: 1 },
+  });
   assert.equal(await post(receipt("complained")), 200);
   assert.equal(hosted.events.filter((e) => e.kind === "sending_domain.held").length, 0);
+  assert.equal(hosted.sending_domains[0].state, "verified");
+});
+
+test("a complaint stops the address first: a no that cannot be recorded sends the receipt back, with the address already stopped", async () => {
+  const t = world({ status: "delivered" });
+  // The door refuses (say, the edge deployed before 00177): the receipt comes back, and the stop it could make, it made.
+  const refusing = t;
+  refusing.emailNoesRefuse = true;
+  const code = await post(receipt("complained"));
+  assert.equal(code, 503, "sent back, so Resend delivers it again");
+  assert.equal(t.contacts[0].email_suppressed_reason, "complaint", "the address stopped before the no was asked");
 });

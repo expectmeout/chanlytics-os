@@ -584,3 +584,57 @@ test("each try's timeout is the smaller of fifteen seconds and what is left of t
     AbortSignal.timeout = realTimeout;
   }
 });
+
+test("after a timeout, a retry that finds the first still in flight, gets no answer, or a 5xx is still an unknown outcome", async () => {
+  const real = globalThis.fetch;
+  const r = buildEmailRequest(input());
+  const timeout = () => {
+    throw Object.assign(new Error("aborted"), { name: "TimeoutError" });
+  };
+  const cases = [
+    [
+      () => new Response(JSON.stringify({ statusCode: 409, name: "concurrent_idempotent_requests" }), { status: 409 }),
+      "in flight",
+    ],
+    [() => new Response("upstream", { status: 502 }), "a 5xx"],
+    [
+      () => {
+        throw new Error("socket hang up");
+      },
+      "no answer",
+    ],
+  ];
+  try {
+    for (const [second, why] of cases) {
+      let n = 0;
+      globalThis.fetch = async () => (++n === 1 ? timeout() : second());
+      const out = await sendEmail({ apiKey: "k" }, r, { now: () => 0 });
+      assert.deepEqual([out.ok, out.status, out.errorBody], [false, 0, "timeout"], why);
+    }
+    // A plain refusal on the retry is the provider's answer: it saw the email and said no.
+    let n = 0;
+    globalThis.fetch = async () =>
+      ++n === 1 ? timeout() : new Response(JSON.stringify({ name: "validation_error" }), { status: 422 });
+    const refused = await sendEmail({ apiKey: "k" }, r, { now: () => 0 });
+    assert.equal(refused.status, 422);
+  } finally {
+    globalThis.fetch = real;
+  }
+});
+
+test("the deadline counts the time the first try took: a first try that used most of it leaves no second", async () => {
+  const real = globalThis.fetch;
+  let clock = 0;
+  let posts = 0;
+  globalThis.fetch = async () => {
+    posts++;
+    clock += 28_000; // the first try took 28 of the 32 seconds before it gave up
+    throw Object.assign(new Error("aborted"), { name: "TimeoutError" });
+  };
+  try {
+    const out = await sendEmail({ apiKey: "k" }, buildEmailRequest(input()), { now: () => clock });
+    assert.deepEqual([out.errorBody, posts], ["timeout", 1], "4 s left is less than a second try needs");
+  } finally {
+    globalThis.fetch = real;
+  }
+});

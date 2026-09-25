@@ -320,7 +320,7 @@ async function outreachFacts(db: Db, d: Delivery, f: WireFacts, nowMs: number): 
     !!headers["List-Unsubscribe"] && headers["List-Unsubscribe-Post"] === "List-Unsubscribe=One-Click";
   const from = addressOf(d.email?.from)?.address ?? null;
   const host = from ? from.slice(from.lastIndexOf("@") + 1) : null;
-  if (!f.contactId || !host)
+  if (!f.contactId)
     return { leadStage: null, suppressed: false, unsubscribable, domainState: null, cleanSince: null, sentSince: 0 };
   let facts;
   try {
@@ -328,7 +328,8 @@ async function outreachFacts(db: Db, d: Delivery, f: WireFacts, nowMs: number): 
       tenantId: d.tenantId,
       contactId: f.contactId,
       to: d.to,
-      host,
+      // A From that cannot be read names no domain: the lead is still asked, and the door refuses the domain.
+      host: host ?? "",
       since: new Date(nowMs - SHARE_WINDOW_MS).toISOString(),
     });
   } catch (e) {
@@ -336,7 +337,7 @@ async function outreachFacts(db: Db, d: Delivery, f: WireFacts, nowMs: number): 
   }
   // The whole address, as the wire will hold it (emailSender): another name on an own domain is not the address the
   // workspace set up, and would only fail at the wire rather than be refused here with its reason.
-  const own = facts.domain && `${facts.domain.from_local}@${host}` === from ? facts.domain : null;
+  const own = host && facts.domain && `${facts.domain.from_local}@${host}` === from ? facts.domain : null;
   return {
     leadStage: facts.lead_stage,
     suppressed: facts.suppressed,

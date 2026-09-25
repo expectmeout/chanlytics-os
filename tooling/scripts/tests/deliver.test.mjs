@@ -1154,3 +1154,11 @@ test("a send that timed out is failed with its outcome unknown, so its receipt m
   assert.equal(t.messages[0].error.outcome, "unknown");
   assert.equal("outcome" in u.messages[0].error, false, "a request that never left is plainly failed");
 });
+
+test("a cold email whose From cannot be read is refused for its domain, not as a person the finder never found", async () => {
+  const t = coldWorld();
+  const unreadable = cold();
+  unreadable.email = { ...unreadable.email, from: "not an address" };
+  const out = await deliver(ports(t, emailWire()), unreadable);
+  assert.deepEqual([out.outcome, out.reason], ["refused", "outreach_needs_own_domain"]);
+});
