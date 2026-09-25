@@ -687,7 +687,7 @@ test("the dashboard's stream parser: blocks, deltas, thinking and its signature,
   );
   assert.deepEqual(
     mod.parseFrame('data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":3}}'),
-    { type: "stop", stopReason: "end_turn" },
+    { type: "stop", stopReason: "end_turn", outputTokens: 3 },
   );
   assert.deepEqual(
     mod.parseFrame('data: {"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}'),

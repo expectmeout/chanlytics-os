@@ -43,6 +43,22 @@ export interface GatewayBlockStop {
 export interface GatewayStop {
   type: "stop";
   stopReason: string | null;
+  /** The output side of the usage, on message_delta; null when the frame carried none (never zero: unknown is not free). */
+  outputTokens: number | null;
+}
+/**
+ * What a round costs, read off message_start: the input side and the cache
+ * counts. The output side arrives with the stop. The edge tees the same frames
+ * for the usage row (ask-gateway.ts teeUsage); this is the loop's own copy, so
+ * a turn can say what it was fed without a database read.
+ */
+export interface GatewayUsage {
+  type: "usage";
+  /** The API's own id for the message; a later request's cache diagnostics (Phase 6) name it. */
+  messageId: string | null;
+  inputTokens: number;
+  cacheReadTokens: number;
+  cacheCreationTokens: number;
 }
 export interface GatewayError {
   type: "error";
@@ -56,6 +72,7 @@ export type GatewayEvent =
   | GatewaySignatureDelta
   | GatewayBlockStop
   | GatewayStop
+  | GatewayUsage
   | GatewayError;
 
 /** Whether a 400 from the API names the strict-tool or format feature, so the loop can retry without it. */
@@ -75,8 +92,12 @@ interface RawEvent {
     signature?: string;
     stop_reason?: string;
   };
+  message?: { id?: unknown; usage?: Record<string, unknown> };
+  usage?: { output_tokens?: unknown };
   error?: { message?: string; type?: string };
 }
+
+const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
 
 /** One SSE frame → one event, or nothing for pings and the frames the loop does not use. */
 export function parseFrame(frame: string): GatewayEvent | null {
@@ -121,8 +142,25 @@ export function parseFrame(frame: string): GatewayEvent | null {
     }
     case "content_block_stop":
       return typeof ev.index === "number" ? { type: "block_stop", index: ev.index } : null;
-    case "message_delta":
-      return { type: "stop", stopReason: ev.delta?.stop_reason ?? null };
+    case "message_start": {
+      const u = ev.message?.usage;
+      if (!u) return null;
+      return {
+        type: "usage",
+        messageId: typeof ev.message?.id === "string" ? ev.message.id : null,
+        inputTokens: num(u.input_tokens),
+        cacheReadTokens: num(u.cache_read_input_tokens),
+        cacheCreationTokens: num(u.cache_creation_input_tokens),
+      };
+    }
+    case "message_delta": {
+      const out = ev.usage?.output_tokens;
+      return {
+        type: "stop",
+        stopReason: ev.delta?.stop_reason ?? null,
+        outputTokens: typeof out === "number" && Number.isFinite(out) ? out : null,
+      };
+    }
     case "error":
       return { type: "error", message: ev.error?.message ?? ev.error?.type ?? "model error" };
     default:
