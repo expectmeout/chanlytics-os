@@ -90,3 +90,151 @@ test("the cache hit ratio: cache reads over everything the model was fed; nothin
   assert.equal(cacheHitOf({ input: 0, cache_read: 0, cache_creation: 0, output: 0 }), null);
   assert.equal(cacheHitOf({ input: 100, cache_read: 0, cache_creation: 900, output: 40 }), 0, "a write is not a hit");
 });
+
+const { runAskTurn } = await import(at("apps/dashboard/src/server/ask/loop.ts"));
+const { buildProposal } = await import(at("apps/dashboard/src/server/ask/proposals.ts"));
+const { workspaceFacts } = await import(at("apps/dashboard/src/server/ask/prompt.ts"));
+
+const NONE = { kind: "none", id: "", label: "" };
+const answerJson = (headline) =>
+  JSON.stringify({
+    say: { headline, detail: "" },
+    show: { figures: [], items: [], breakdown: { label: "", total: 0, parts: [], source: NONE } },
+    do: { open: { source: NONE, label: "", now: false }, next: [] },
+    language: "en",
+  });
+const text = (t) => ({ type: "text", id: "", name: "", text: t, json: "" });
+const tool = (name, input, id = `t-${name}`) => ({ type: "tool_use", id, name, text: "", json: JSON.stringify(input) });
+/** A scripted round with the timing and usage a real one carries. */
+const ROUND = (blocks, extra = {}) => ({
+  blocks,
+  stopReason: "tool_use",
+  streamError: null,
+  usage: { messageId: "m", inputTokens: 100, cacheReadTokens: 900, cacheCreationTokens: 0, outputTokens: 50 },
+  timing: { firstEventMs: 3, firstTextMs: 7, totalMs: 20 },
+  ...extra,
+});
+function scripted(rounds) {
+  const requests = [];
+  const round = async (c, onText) => {
+    requests.push(c.request);
+    const r = rounds.shift();
+    if (!r) throw new Error("the loop asked for a round the script does not have");
+    return typeof r === "function" ? r(c, onText) : r;
+  };
+  return { round, requests };
+}
+/** What the loop logged under one event name, parsed. */
+async function loggedInfo(event, fn) {
+  const lines = [];
+  const was = console.log;
+  console.log = (s) => {
+    try {
+      const j = JSON.parse(s);
+      if (j.event === event) lines.push(j);
+    } catch {
+      /* not ours */
+    }
+  };
+  try {
+    return { result: await fn(), lines };
+  } finally {
+    console.log = was;
+  }
+}
+const turnInput = (over = {}) => ({
+  ctx: { supabase: fakeDb({}), userId: USER, email: "ada@example.com", params: {} },
+  tenantId: A,
+  role: "operator",
+  facts: workspaceFacts("Harbor", "America/New_York", null, []),
+  timezone: "America/New_York",
+  personLabel: "ada@example.com (operator)",
+  language: "en",
+  scope: null,
+  surface: "today",
+  history: [],
+  text: "Who needs me?",
+  emit: () => {},
+  now: new Date("2026-09-14T14:00:00Z"),
+  ...over,
+});
+/** The ports with the model scripted and every read answered at once, so no fixture is needed. */
+const portsOf = (round) => ({
+  round,
+  snapshot: async () => "The day: nothing yet.",
+  tool: async () => ({ result: JSON.stringify({ threads: [] }), isError: false }),
+  propose: buildProposal,
+});
+
+test("the loop fills the shape: a read then an answer is two rounds with their times and summed tokens, the tool timed, the first byte and text from round one, the first Say when it streamed, the surface, the scope kind, the follow-up and the palette's opened_ms; logged as ask_turn_shape and returned", async () => {
+  const s = scripted([
+    ROUND([tool("list_threads", { filter: "recent" })]),
+    (c, onText) => {
+      const json = answerJson("Nobody is waiting.");
+      onText(json);
+      return ROUND([text(json)], { stopReason: "end_turn" });
+    },
+  ]);
+  const { result: r, lines } = await loggedInfo("ask_turn_shape", () =>
+    runAskTurn(
+      turnInput({
+        surface: "reports",
+        scope: { kind: "call", id: "c1", label: "a call" },
+        history: [
+          { role: "user", text: "earlier" },
+          { role: "assistant", text: "an answer" },
+        ],
+        openedMs: 4200,
+        sinceLastMs: 30_000,
+      }),
+      portsOf(s.round),
+    ),
+  );
+  assert.equal(r.failed, false, r.failure ?? "");
+  const sh = r.shape;
+  assert.equal(sh.v, 1);
+  assert.deepEqual(
+    [sh.surface, sh.scope_kind, sh.follow_up, sh.since_last_ms, sh.opened_ms],
+    ["reports", "call", true, 30_000, 4200],
+  );
+  assert.deepEqual([sh.rounds, sh.rounds_ms], [2, [20, 20]]);
+  assert.deepEqual(
+    sh.tokens,
+    { input: 200, cache_read: 1800, cache_creation: 0, output: 100 },
+    "summed over the rounds",
+  );
+  assert.equal(sh.cache_hit, 0.9);
+  assert.equal(sh.cap_hits, 0);
+  assert.equal(sh.format, true);
+  assert.deepEqual(
+    sh.tools_ms.map((t) => t.name),
+    ["list_threads"],
+  );
+  assert.ok(sh.tools_ms[0].ms >= 0);
+  assert.ok(sh.first_byte_ms >= 3 && sh.first_byte_ms < 5_000, "round one's first event, from the turn's start");
+  assert.ok(
+    sh.first_text_ms >= 7 && sh.first_text_ms >= sh.first_byte_ms,
+    "round one's first text, from the turn's start",
+  );
+  assert.ok(typeof sh.first_say_ms === "number" && sh.first_say_ms >= 0, "the Say streamed in round two");
+  assert.ok(sh.final_ms >= sh.first_say_ms);
+  assert.equal(sh.snapshot_ms >= 0, true);
+  assert.deepEqual(sh.prefetched, []);
+  assert.equal(typeof sh.model, "string");
+  assert.equal(sh.effort, "low");
+  assert.equal(lines.length, 1, "logged once");
+  assert.deepEqual([lines[0].tenant, lines[0].rounds, lines[0].cache_hit, lines[0].opened_ms], [A, 2, 0.9, 4200]);
+  assert.deepEqual(lines[0].tools, ["list_threads"], "the log keeps the tools list it always had");
+});
+
+test("a turn answered without a Say has none; a scripted round without timing or usage leaves the shape honest, not zero", async () => {
+  const s = scripted([{ blocks: [text(answerJson("Nobody is waiting."))], stopReason: "end_turn", streamError: null }]);
+  const r = await runAskTurn(turnInput(), portsOf(s.round));
+  assert.equal(r.failed, false, r.failure ?? "");
+  const sh = r.shape;
+  assert.deepEqual([sh.first_byte_ms, sh.first_text_ms, sh.first_say_ms], [null, null, null]);
+  assert.deepEqual(sh.tokens, { input: 0, cache_read: 0, cache_creation: 0, output: 0 });
+  assert.equal(sh.cache_hit, null);
+  assert.equal(sh.rounds_ms.length, 1, "a round without timing is still timed by the loop's own clock");
+  assert.deepEqual([sh.follow_up, sh.since_last_ms, sh.opened_ms], [false, null, null]);
+});
