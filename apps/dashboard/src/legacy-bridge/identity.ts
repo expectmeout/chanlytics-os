@@ -13,6 +13,7 @@ import {
   type IdentityInput,
   timezoneWords,
   timezoneCity,
+  zoneSearchWords,
   knownTimezones,
   usableDeviceTimezone,
   DEFAULT_TIMEZONE,
@@ -36,6 +37,8 @@ export interface TzApi {
   city: typeof timezoneCity;
   known: typeof knownTimezones;
   device: typeof usableDeviceTimezone;
+  /** What a zone is also found by in the picker: the cities and states people type ("Miami"). */
+  also: typeof zoneSearchWords;
 }
 
 /** What the active workspace's owner may change about it: its zone, how its customers buy (0008). At least one. */
@@ -63,7 +66,13 @@ declare global {
 
 export function installIdentity(win: Window = window): void {
   win.__identity = { words: identityWords, member: memberWords, initials: personInitials };
-  win.__tz = { words: timezoneWords, city: timezoneCity, known: knownTimezones, device: usableDeviceTimezone };
+  win.__tz = {
+    words: timezoneWords,
+    city: timezoneCity,
+    known: knownTimezones,
+    device: usableDeviceTimezone,
+    also: zoneSearchWords,
+  };
   win.DEFAULT_TIMEZONE = DEFAULT_TIMEZONE;
   win.__me = {
     async setName(name) {

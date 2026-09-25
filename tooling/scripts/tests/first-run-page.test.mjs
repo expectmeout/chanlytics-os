@@ -675,6 +675,51 @@ test("your phone (canvas R3): keeping the listing's number first, the trial with
   assert.deepEqual(asked.buy, [], "nothing is bought before the trial");
 });
 
+test("(D) your phone: what is wrong is said on the field it is about -- the area code once Find is pressed, the number once the box is left -- not in a toast", async () => {
+  phoneWorld();
+  globalThis.window.__SETUP = surface(phoneReady({ status: "trialing", trial_end: "2026-09-21T15:00:00Z" }));
+  param = "phone";
+  fresh();
+  flashes.length = 0;
+  let tree = mount();
+  // The number kept: something typed that is not a US number with its area code.
+  const box = () => byTestId(tree, "fr-phone-number-box");
+  box().props.onChange({ target: { value: "12" } });
+  tree = mount();
+  assert.equal(byTestId(tree, "fr-phone-number-problem"), null, "not at the first keystroke");
+  assert.equal(box().props["aria-invalid"], undefined);
+  box().props.onBlur();
+  tree = mount();
+  const us = FIRST_RUN_HELPERS.phoneWords.held.us;
+  assert.equal(textOf(byTestId(tree, "fr-phone-number-problem")), us, "left: said under the box");
+  assert.deepEqual([box().props["aria-invalid"], box().props["aria-describedby"]], [true, "fr-phone-number-problem"]);
+  assert.equal(textOf(byTestId(tree, "fr-phone-held")), us, "and beside the button, the same words");
+  box().props.onChange({ target: { value: "(305) 555-0177" } });
+  tree = mount();
+  assert.equal(byTestId(tree, "fr-phone-number-problem"), null, "a number it can forward says nothing");
+
+  // A new number: the area code, checked as Find is pressed.
+  radioIn(byTestId(tree, "fr-way-new")).props.onChange();
+  tree = mount();
+  byTestId(tree, "fr-phone-area").props.onChange({ target: { value: "30" } });
+  tree = mount();
+  let form = null;
+  walk(tree, (n) => {
+    if (!form && n.type === "form") form = n;
+  });
+  await form.props.onSubmit({ preventDefault() {} });
+  tree = mount();
+  assert.equal(textOf(byTestId(tree, "fr-phone-area-problem")), FIRST_RUN_HELPERS.phoneWords.threeDigits);
+  assert.deepEqual(
+    [byTestId(tree, "fr-phone-area").props["aria-invalid"], byTestId(tree, "fr-phone-area").props["aria-describedby"]],
+    [true, "fr-phone-area-problem"],
+  );
+  assert.deepEqual(flashes, [], "nothing said in a toast");
+  byTestId(tree, "fr-phone-area").props.onChange({ target: { value: "305" } });
+  tree = mount();
+  assert.equal(byTestId(tree, "fr-phone-area-problem"), null, "typing again takes it away");
+});
+
 test("your phone: back from Stripe before the trial lands, then the buy in the kept number's area code, once", async () => {
   const { asked } = phoneWorld({ outcome: "success" });
   globalThis.window.__tabMemory.keepDraft("first-run-phone", { way: "keep", number: null, pick: null, pending: true });
@@ -1217,9 +1262,22 @@ test("Try it (canvas R7, R8): it picked up with the words, then the call and the
   tree = mount();
   assert.equal(textOf(byTestId(tree, "fr-heading")), "That's your receptionist.");
   assert.equal(textOf(byTestId(tree, "fr-try-meta")), "0:48 · from +1 (786) 555-0199 · 2:59 PM");
-  const caller = byTestId(tree, "fr-try-transfer-caller");
-  caller.props.children.find((k) => k && k.type === "input").props.onChange();
-  assert.equal(asked.saves.length, 1);
+  // Arrow keys move the choice and change it: shown at once, saved once they settle, the last one only.
+  const choose = (key) =>
+    byTestId(mount(), `fr-try-transfer-${key}`)
+      .props.children.find((k) => k && k.type === "input")
+      .props.onChange();
+  choose("message");
+  choose("caller");
+  tree = mount();
+  assert.equal(
+    byTestId(tree, "fr-try-transfer-caller").props.children.find((k) => k && k.type === "input").props.checked,
+    true,
+    "shown at once",
+  );
+  assert.equal(asked.saves.length, 0, "nothing sent while the keys still move");
+  await new Promise((r) => setTimeout(r, 650));
+  assert.equal(asked.saves.length, 1, "one save, of the last choice");
   assert.equal(asked.saves[0].row, "handoff_number");
   const brain = asked.saves[0].change({}, {});
   assert.equal(brain.profile.handoff_number, "+17865550199", "the phone they called from");

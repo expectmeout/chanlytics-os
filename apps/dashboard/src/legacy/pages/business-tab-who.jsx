@@ -128,11 +128,12 @@ const btConflictOn = (key) => (((window.__FACTS || {}).conflicts) || []).find((k
 const btSourceOf = (f) => (f.value ? f.source : null);
 // A row's act, gated as the role gate says, named for the thing it changes.
 const btChangeGate = (thing) => window.gate("settings", `change the ${thing}`);
-// A row of words: its draft, trimmed, through the row's patch, and the words every such row says once it is saved.
-const btWordsSaved = (id) => (d) => ({
-  change: window.__businessTabSave.PATCH_OF[id](window.__businessTabSave.trimmed(d)),
-  said: window.BT_SAVED,
-});
+// A row of words: its draft as the row stores it (STORED_AS: trimmed, and a web address with the https:// an owner left
+// off), through the row's patch, and the words every such row says once it is saved.
+const btWordsSaved = (id) => (d) => {
+  const S = window.__businessTabSave;
+  return { change: S.PATCH_OF[id](S.STORED_AS[id] ? S.STORED_AS[id](d) : S.trimmed(d)), said: window.BT_SAVED };
+};
 
 /** Where the business is, as the settings read resolved it: Google's, until one is typed. */
 const BtAddressRow = ({ brain, base = null, canEdit, flash, saver }) => {

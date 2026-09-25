@@ -3445,3 +3445,33 @@ test("a sheet React lets go of leaves the way it came, with the wash that stood 
     W.leaveOverlay = kept;
   }
 });
+
+test('(D) a combobox option is found by the words it goes by and does not show: a zone by its cities ("Miami")', async () => {
+  const { zoneSearchWords } = await import("@chanlytics/contracts");
+  const zones = ["America/New_York", "America/Chicago", "America/Los_Angeles", "Europe/London"];
+  const props = {
+    id: "tz-cities",
+    label: "Timezone",
+    value: "America/Chicago",
+    options: zones.map((z) => ({ value: z, label: z.replace(/_/g, " "), also: zoneSearchWords(z) })),
+    onChange: () => {},
+  };
+  const box = (tree) => find(tree, (n) => n.props?.role === "combobox");
+  const opts = (tree) => all(tree, (n) => n.props?.role === "option").map((o) => textOf(o));
+  let tree = draw(W.RecordCombobox, props);
+  for (const [typed, found] of [
+    ["Miami", ["America/New York"]],
+    ["houston", ["America/Chicago"]],
+    ["seattle", ["America/Los Angeles"]],
+    ["Manchester", ["Europe/London"]],
+    ["new york", ["America/New York"]],
+  ]) {
+    box(tree).props.onChange({ target: { value: typed } });
+    tree = redraw(W.RecordCombobox, props);
+    assert.deepEqual(opts(tree), found, typed);
+  }
+  // What it goes by is searched, never shown: the option says its own name.
+  box(tree).props.onChange({ target: { value: "miami" } });
+  tree = redraw(W.RecordCombobox, props);
+  assert.doesNotMatch(opts(tree).join(" "), /Miami/);
+});

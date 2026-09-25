@@ -95,6 +95,24 @@ Focus moves to the step's heading when the step changes, and the change is annou
 guarded. Phone errors show on the field. A radiogroup saves once per choice, not once per arrow key. The time zone
 search finds a city ("Miami"). Web addresses get `https://` added for the owner.
 
+- _As built:_
+  - **Focus.** The step's `h1` (`tabIndex=-1`) takes focus when `param` changes, not on the page's arrival, so a screen
+    reader says the new step.
+  - **Leaving.** Every move (`go`, `leave`: Continue, Back, the rail, Finish later) first asks the record kit's
+    registry (`__settingsUnsaved`, the question the Settings rail asks). With unsaved typing it asks "Leave without
+    saving?", or "Leave while this saves?" while a save is out (`FIRST_RUN_WORDS.leave`).
+  - **The phone step.** The area code's "Three digits" and the number box's `boxProblem` (contracts: typed, and not a
+    forwardable US number) are said on their fields, with `aria-invalid` and `aria-describedby`. The box's problem
+    shows once the box is left, not at the first keystroke.
+  - **Radiogroups.** How customers buy and where transfers go show a choice at once and save it once the keys settle
+    (`useFrSettled`, 600 ms): arrowing is one save, of the last choice. A step that goes within the wait sends the
+    choice first, and Check's Continue sends the answer being chosen.
+  - **Time zones.** Contracts' `zoneSearchWords` lists the cities and states each common zone covers.
+    `RecordCombobox` matches an option's `also` words, which it never shows.
+  - **Web addresses.** The Business tab's website and booking link are stored and checked by contracts' one
+    normalizer, `normalizeLink`, now published as `__normalizeLink`, instead of the rows' own regex. It supplies a
+    missing `https://`, and the create card's put stores the same form.
+
 ## E. Later, each its own decision
 
 WhatsApp keeping the Business app (coexistence), or honest words on the row. Spam calls filtered. The Gmail forwarding

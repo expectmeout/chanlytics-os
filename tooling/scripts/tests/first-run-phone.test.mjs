@@ -161,6 +161,24 @@ test("each way names its button, and holds it until there is a number to keep or
   assert.deepEqual([direct.stage, direct.trial], ["choose", null], "a workspace that does not pay by card");
 });
 
+test("(D) the number box's own problem: something typed that cannot be forwarded, said on the box -- nothing before anything is typed", () => {
+  const box = (choice) => phone(dtoOf(), { pick: null, number: null, pending: false, ...choice });
+  assert.equal(box({ way: "keep" }).boxProblem, null, "the listing's number, untouched");
+  assert.equal(
+    box({ way: "keep", number: "" }).boxProblem,
+    null,
+    "an emptied box asks through the button, not as a fault",
+  );
+  for (const typed of ["12", "+44 20 7183 8750", "5550 0100"]) {
+    const vm = box({ way: "keep", number: typed });
+    assert.equal(vm.boxProblem, W.held.us, typed);
+    assert.equal(vm.cta.held, vm.boxProblem, "the button says the same");
+  }
+  assert.equal(box({ way: "move", number: "12" }).boxProblem, W.held.us, "a number moved, the same");
+  assert.equal(box({ way: "keep", number: "(786) 555-0113" }).boxProblem, null);
+  assert.equal(box({ way: "new", number: "12" }).boxProblem, null, "a new number has no box");
+});
+
 test("no listing number: the keep card asks for one, and a new number's area code is the owner's to type", () => {
   const vm = phone(dtoOf({ google: { ready: true, places: true, listing: null } }));
   assert.deepEqual([vm.number, vm.listed, vm.area, vm.box], [null, null, null, ""]);
