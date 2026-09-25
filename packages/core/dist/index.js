@@ -2765,6 +2765,7 @@ var WHATSAPP_LANGUAGES = [
 ];
 var BY_ID = new Map(WHATSAPP_LANGUAGES.map((l) => [l.id.toLowerCase(), l]));
 var DAY_MS5 = 864e5;
+var SWEEP_TICK_MS = 5 * 6e4;
 var PLAYBOOK_HOURS = { min: 9, max: 20 };
 var SENDING_HOURS_WORDS = {
   min: PLAYBOOK_HOURS.min,
@@ -2777,7 +2778,6 @@ var PLAYBOOK_BREATH_MS = 7 * DAY_MS5;
 var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
 var FOLLOW_UP_NEEDS_DEALS = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION}\u201D with \u201C${SELLS_BY_WORDS.proposal.label}\u201D.`;
 var PLAYBOOK_TOUCH_WINDOW_MS = (365 + 7) * DAY_MS5;
-var SWEEP_TICK_MS = 5 * 6e4;
 var PLAYBOOK_CLASS_LABEL = {
   reengage: POLICY_CLASS_WORDS.reengage.short,
   campaign: POLICY_CLASS_WORDS.campaign.short,
@@ -6501,6 +6501,7 @@ function resolveParams(specs, f) {
   });
 }
 var DAY_MS52 = 864e5;
+var SWEEP_TICK_MS2 = 5 * 6e4;
 var PLAYBOOK_TRIGGERS = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
   {
@@ -6592,6 +6593,47 @@ function triggerOf(id) {
 function triggerOffered(t, dealsOn) {
   return t.kind !== "deal" || dealsOn;
 }
+function planRun(mode, now) {
+  switch (mode) {
+    case "auto":
+      return { kind: "send", state: "scheduled", at: now };
+    case "veto":
+      return { kind: "send", state: "scheduled", at: new Date(now.getTime() + PLAYBOOK_VETO_DELAY_MS2) };
+    case "ask":
+      return { kind: "hold", state: "pending_approval" };
+    default:
+      return { kind: "off" };
+  }
+}
+function parts(tz, now) {
+  try {
+    const f = new Intl.DateTimeFormat("en-CA", {
+      timeZone: tz,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      hour12: false
+    });
+    const p = Object.fromEntries(f.formatToParts(now).map((x) => [x.type, x.value]));
+    const hour = Number(p.hour) % 24;
+    return { date: `${p.year}-${p.month}-${p.day}`, hour };
+  } catch {
+    return { date: now.toISOString().slice(0, 10), hour: now.getUTCHours() };
+  }
+}
+function localDate(tz, now) {
+  return parts(tz, now).date;
+}
+function nextOpenMoment(tz, when) {
+  const { date, hour } = parts(tz, when);
+  if (hour >= PLAYBOOK_HOURS2.min && hour <= PLAYBOOK_HOURS2.max) return { at: when, moved: false };
+  const day = hour < PLAYBOOK_HOURS2.min ? date : shiftKey(date, 1);
+  let at2 = zoneMidnight(tz, day) + PLAYBOOK_HOURS2.min * 36e5;
+  const landed = parts(tz, new Date(at2)).hour;
+  if (landed !== PLAYBOOK_HOURS2.min) at2 += (PLAYBOOK_HOURS2.min - landed) * 36e5;
+  return { at: new Date(at2), moved: true };
+}
 var FOLLOW_UP_NEEDS_DEALS2 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION2}\u201D with \u201C${SELLS_BY_WORDS2.proposal.label}\u201D.`;
 var FOLLOW_UP_NEEDS_LINK = "A proposal follow-up carries the proposal's link: pick a message with a slot for it, and fill that slot with their proposal's link.";
 var PLAYBOOK_TOUCH_WINDOW_MS2 = (365 + 7) * DAY_MS52;
@@ -6612,13 +6654,6 @@ function playbookRunStop(o) {
   if (!o.canSend) return "number_flagged";
   return null;
 }
-function playbookListRef(p) {
-  if (triggerOf(p.trigger)?.kind !== "saved") return null;
-  if (p.list_key) return { kind: "builtin", id: p.list_key };
-  if (p.list_id) return { kind: "saved", id: p.list_id };
-  return null;
-}
-var LIST_PLAYBOOK_CLASSES = ["campaign", "reengage"];
 function playbookRunReach(rows, p, touches, nowMs, pace, listIds = null) {
   const reach = {
     pool: 0,
@@ -6681,54 +6716,19 @@ function playbookRunReach(rows, p, touches, nowMs, pace, listIds = null) {
   reach.will = eligible.length;
   return { eligible, reach, saidYes };
 }
-function planRun(mode, now) {
-  switch (mode) {
-    case "auto":
-      return { kind: "send", state: "scheduled", at: now };
-    case "veto":
-      return { kind: "send", state: "scheduled", at: new Date(now.getTime() + PLAYBOOK_VETO_DELAY_MS2) };
-    case "ask":
-      return { kind: "hold", state: "pending_approval" };
-    default:
-      return { kind: "off" };
-  }
-}
-function parts(tz, now) {
-  try {
-    const f = new Intl.DateTimeFormat("en-CA", {
-      timeZone: tz,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      hour12: false
-    });
-    const p = Object.fromEntries(f.formatToParts(now).map((x) => [x.type, x.value]));
-    const hour = Number(p.hour) % 24;
-    return { date: `${p.year}-${p.month}-${p.day}`, hour };
-  } catch {
-    return { date: now.toISOString().slice(0, 10), hour: now.getUTCHours() };
-  }
-}
-function localDate(tz, now) {
-  return parts(tz, now).date;
-}
-var SWEEP_TICK_MS2 = 5 * 6e4;
-function nextOpenMoment(tz, when) {
-  const { date, hour } = parts(tz, when);
-  if (hour >= PLAYBOOK_HOURS2.min && hour <= PLAYBOOK_HOURS2.max) return { at: when, moved: false };
-  const day = hour < PLAYBOOK_HOURS2.min ? date : shiftKey(date, 1);
-  let at2 = zoneMidnight(tz, day) + PLAYBOOK_HOURS2.min * 36e5;
-  const landed = parts(tz, new Date(at2)).hour;
-  if (landed !== PLAYBOOK_HOURS2.min) at2 += (PLAYBOOK_HOURS2.min - landed) * 36e5;
-  return { at: new Date(at2), moved: true };
-}
 var PLAYBOOK_CLASS_LABEL2 = {
   reengage: POLICY_CLASS_WORDS2.reengage.short,
   campaign: POLICY_CLASS_WORDS2.campaign.short,
   booking: POLICY_CLASS_WORDS2.booking.short,
   follow_up: POLICY_CLASS_WORDS2.follow_up.short
 };
+function playbookListRef(p) {
+  if (triggerOf(p.trigger)?.kind !== "saved") return null;
+  if (p.list_key) return { kind: "builtin", id: p.list_key };
+  if (p.list_id) return { kind: "saved", id: p.list_id };
+  return null;
+}
+var LIST_PLAYBOOK_CLASSES = ["campaign", "reengage"];
 function proposalFactsFor(trigger, row2) {
   const t = triggerOf(trigger);
   const url = row2?.deal?.proposal?.url ?? null;
@@ -7065,12 +7065,6 @@ function slotToWrite(t) {
   if (at2 < 0) return null;
   return slotLabels({ name: t.name, language: t.language ?? "en_US", variables: t.variables })[at2] ?? `Value ${at2 + 1}`;
 }
-var BROADCAST_CHUNK = 25;
-var BROADCAST_GAP_MS = 300;
-var BROADCAST_MAX_RECIPIENTS = 2e3;
-var BROADCAST_PARAM_MAX = 1024;
-var BROADCAST_SCHEDULE_MAX_DAYS = 30;
-var BROADCAST_NAME_MAX = 80;
 var AUDIENCE_KINDS = ["everyone", "list", "saved"];
 var EVERYONE_LABEL = "Everyone";
 function eligibleFor(rows, kind, id, savedIds, purpose) {
@@ -7084,6 +7078,24 @@ function audienceMembers(rows, kind, id, savedIds) {
   if (kind === "saved") return savedIds ? rows.filter((r22) => savedIds.has(r22.id)) : [];
   return rows;
 }
+var LIMIT_TIERS2 = {
+  TIER_50: 50,
+  TIER_250: 250,
+  TIER_1K: 1e3,
+  TIER_10K: 1e4,
+  TIER_100K: 1e5,
+  TIER_UNLIMITED: Number.POSITIVE_INFINITY
+};
+function overLimitRefusal(h, audience) {
+  if (h.limitPerDay === null || audience <= h.limitPerDay) return null;
+  return `This number can start up to ${h.limitPerDay.toLocaleString("en-US")} new conversations a day; this audience is ${audience.toLocaleString("en-US")}. Send to a smaller list or split it.`;
+}
+var BROADCAST_CHUNK = 25;
+var BROADCAST_GAP_MS = 300;
+var BROADCAST_MAX_RECIPIENTS = 2e3;
+var BROADCAST_PARAM_MAX = 1024;
+var BROADCAST_SCHEDULE_MAX_DAYS = 30;
+var BROADCAST_NAME_MAX = 80;
 function renderTemplate(body, params) {
   return String(body ?? "").replace(/\{\{(\d+)\}\}/g, (m, n) => {
     const v = params[Number(n) - 1];
@@ -7105,18 +7117,6 @@ var OUTCOME_UNKNOWN = "outcome_unknown";
 function emptyAudienceRefusal(purpose, label, pool) {
   if (pool.some((r22) => saidYesTo(r22, purpose))) return noNumberWords(`\u201C${label}\u201D`, purpose);
   return purpose === "marketing" ? "Nobody there has said yes to offers yet \u2014 that is a separate answer from saying yes to messages, and only it puts somebody on a promotional broadcast. Record it under \u201COffers and news\u201D on a person's profile, or get their yes with the phrase and the QR on Broadcasts." : "Nobody there has said yes to messages yet. Even a reminder about their own visit needs their recorded yes. Record it on a person's profile, or get their yes with the phrase and the QR on Broadcasts.";
-}
-var LIMIT_TIERS2 = {
-  TIER_50: 50,
-  TIER_250: 250,
-  TIER_1K: 1e3,
-  TIER_10K: 1e4,
-  TIER_100K: 1e5,
-  TIER_UNLIMITED: Number.POSITIVE_INFINITY
-};
-function overLimitRefusal(h, audience) {
-  if (h.limitPerDay === null || audience <= h.limitPerDay) return null;
-  return `This number can start up to ${h.limitPerDay.toLocaleString("en-US")} new conversations a day; this audience is ${audience.toLocaleString("en-US")}. Send to a smaller list or split it.`;
 }
 var DAY_MS62 = 24 * 3600 * 1e3;
 var DAY_MS72 = 864e5;
@@ -9433,6 +9433,7 @@ var WHATSAPP_LANGUAGES3 = [
 ];
 var BY_ID3 = new Map(WHATSAPP_LANGUAGES3.map((l) => [l.id.toLowerCase(), l]));
 var DAY_MS53 = 864e5;
+var SWEEP_TICK_MS3 = 5 * 6e4;
 var PLAYBOOK_HOURS3 = { min: 9, max: 20 };
 var SENDING_HOURS_WORDS3 = {
   min: PLAYBOOK_HOURS3.min,
@@ -9445,7 +9446,6 @@ var PLAYBOOK_BREATH_MS3 = 7 * DAY_MS53;
 var PLAYBOOK_VETO_DELAY_MS3 = 30 * 6e4;
 var FOLLOW_UP_NEEDS_DEALS3 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION3}\u201D with \u201C${SELLS_BY_WORDS3.proposal.label}\u201D.`;
 var PLAYBOOK_TOUCH_WINDOW_MS3 = (365 + 7) * DAY_MS53;
-var SWEEP_TICK_MS3 = 5 * 6e4;
 var PLAYBOOK_CLASS_LABEL3 = {
   reengage: POLICY_CLASS_WORDS3.reengage.short,
   campaign: POLICY_CLASS_WORDS3.campaign.short,

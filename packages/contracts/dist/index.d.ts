@@ -1842,6 +1842,276 @@ type PersonCameFrom = "whatsapp" | "sms" | "email" | "call" | "calendar" | "manu
 declare const PERSON_CAME_FROM_WORDS: Record<PersonCameFrom, string>;
 
 /**
+ * The languages a template may be written in: every one WhatsApp takes
+ * (template-languages.ts). It was six, so a business writing to its customers
+ * in French or Vietnamese was told to "pick a language from the list".
+ */
+declare const TEMPLATE_LANGUAGES: readonly {
+    id: string;
+    label: string;
+}[];
+declare const TEMPLATE_CATEGORIES: readonly ["marketing", "utility"];
+type TemplateCategoryChoice = (typeof TEMPLATE_CATEGORIES)[number];
+declare const TEMPLATE_BODY_MAX = 1024;
+declare const TEMPLATE_FOOTER_MAX = 60;
+declare const TEMPLATE_EXAMPLE_MAX = 100;
+declare const TEMPLATE_NAME_MAX = 60;
+/** Meta's ceiling for the words on a button. */
+declare const TEMPLATE_BUTTON_TEXT_MAX = 25;
+declare function templateNameOk(name: string): boolean;
+/** A name Meta accepts, from anything a person typed: lowercase, digits and underscores. */
+declare function slugTemplateName(raw: string): string;
+/** The numbered slots a body names, sorted and unique. */
+declare function placeholdersOf(body: string): number[];
+/** Meta wants {{1}}, {{2}}, … with no gaps and nothing else. */
+declare function placeholdersSequential(positions: number[]): boolean;
+interface TemplateDraftInput {
+    name: string;
+    language: string;
+    category: string;
+    body: string;
+    footer?: string | null;
+    /** One example per slot, in order — Meta's reviewers read these. */
+    examples?: string[];
+    /**
+     * One button under the words, opening a fixed address — the business's own
+     * booking link. STATIC on purpose: a button whose URL takes a value needs a
+     * parameter at send time, and `sendTemplate` puts the body on the wire and
+     * nothing else, so such a template is refused by Meta for every recipient
+     * (template-library.ts templateBlocked). A fixed link needs no parameter, so
+     * this one sends exactly as it is written.
+     */
+    button?: {
+        text: string;
+        url: string;
+    } | null;
+}
+interface TemplateDraft {
+    name: string;
+    language: string;
+    category: TemplateCategoryChoice;
+    body: string;
+    footer: string | null;
+    examples: string[];
+    button: {
+        text: string;
+        url: string;
+    } | null;
+}
+type TemplateDraftCheck = {
+    ok: true;
+    value: TemplateDraft;
+    warnings: string[];
+} | {
+    ok: false;
+    error: string;
+};
+/**
+ * What Meta refuses at the wire, refused here in the person's words. The
+ * warnings are things reviewers frown on but do not always reject.
+ */
+declare function validateTemplateDraft(d: TemplateDraftInput): TemplateDraftCheck;
+/** The components Meta's create call takes, from a checked draft. */
+declare function templateComponents(v: TemplateDraft): Array<Record<string, unknown>>;
+declare const PARAM_SOURCES: readonly ["text", "first_name", "business_name", "booking_link", "visit_when", "visit_service", "proposal_link"];
+type ParamSourceKind = (typeof PARAM_SOURCES)[number];
+type ParamSpec = {
+    kind: "text";
+    value: string;
+} | {
+    kind: "first_name";
+} | {
+    kind: "business_name";
+} | {
+    kind: "booking_link";
+}
+/** A visit playbook's own words: "tomorrow at 2:00 PM", and the service. */
+ | {
+    kind: "visit_when";
+} | {
+    kind: "visit_service";
+}
+/** A follow-up's own words: the link of the proposal the person's deal waits on (0006). */
+ | {
+    kind: "proposal_link";
+};
+declare const PARAM_SOURCE_LABELS: Record<ParamSourceKind, string>;
+/**
+ * Where a filled slot's words come from, beside the words themselves in a
+ * composer: the example says what one person reads, this says what every
+ * person's is.
+ */
+declare const PARAM_SOURCE_HINTS: Record<Exclude<ParamSourceKind, "text">, string>;
+/**
+ * A slot's spec from what a route or a card was given: a plain string is
+ * typed text; "@first_name" and the like are the sources; an object with a
+ * kind is itself. Null means "not a spec".
+ */
+declare function parseParamSpec(raw: unknown): ParamSpec | null;
+/**
+ * Every slot's spec from a stored row, leniently: a value nothing recognises
+ * stays as typed text, so a row written before the specs were typed still
+ * renders. The one reader for the four places that used to spell this out.
+ */
+declare function parseParamSpecs(raw: unknown): ParamSpec[];
+declare function paramLabel(spec: ParamSpec): string;
+/**
+ * The running playbooks that still send a template, as a refusal says it: "“Win-back” still sends this message.
+ * Pause it, or give it another message, first." Deleting it would leave every later run skipped.
+ */
+declare function playbooksStillSending(names: readonly string[]): string;
+interface ParamFacts {
+    firstName: string | null;
+    businessName: string;
+    bookingLink: string | null;
+    /** A visit playbook's words for this person, resolved when the run was made; absent elsewhere. */
+    visitWhen?: string | null;
+    visitService?: string | null;
+    /** A follow-up's link for this person, frozen when the run was made (0006); absent elsewhere. */
+    proposalLink?: string | null;
+}
+/** The first name a message may use, or null when all that is on file is a number. */
+declare function firstNameOf(displayName: string | null | undefined, waProfileName: string | null | undefined): string | null;
+/**
+ * The words that go into the slots for one person. A first name nobody has
+ * on file becomes "there" ("Hi there"); a booking link the workspace has not
+ * set becomes empty, which the route refuses before any broadcast is made.
+ */
+declare function resolveParams(specs: readonly ParamSpec[], f: ParamFacts): string[];
+/** Example words for a preview: what a real person would see. */
+declare function exampleParams(specs: readonly ParamSpec[], businessName: string): string[];
+/**
+ * What actually sends a template.
+ *
+ * Every send names its template: a playbook keeps `template_name`, a broadcast
+ * keeps `template_name`, and the Inbox picks the booking one by rule
+ * (`bookingTemplate`). So the answer to "which of my messages does anything"
+ * was one join away and nobody made it -- a workspace could carry a message
+ * written in WhatsApp Manager a year ago that nothing has ever sent, and the
+ * page that lists every template was the one place that could not say so.
+ *
+ * Keyed by NAME rather than by row, because a template is one message in
+ * several languages and the thing that sends it names the message.
+ */
+interface TemplateUse {
+    /**
+     * The playbooks that send it, by the name the owner gave them: whether each is
+     * paused, whether one of its runs is waiting on the owner, and its clock in
+     * words ("runs daily at 10:00") when the source gave one.
+     */
+    playbooks: {
+        id: string;
+        name: string;
+        paused: boolean;
+        waiting: boolean;
+        runs: string | null;
+    }[];
+    /** How many broadcasts a PERSON sent with it; a playbook's runs are its own. */
+    broadcasts: number;
+    /** The latest of those broadcasts, newest first, by the names they were given: at most two. */
+    recent: string[];
+    /** The Inbox sends this one when somebody asks to book. */
+    booking: boolean;
+}
+interface TemplateUseSource {
+    /** `runs` is the playbook's clock in words (playbooks.ts `runsWords`), worded by the caller. */
+    playbooks: readonly {
+        id: string;
+        name: string;
+        template_name: string;
+        state?: string | null;
+        runs?: string | null;
+    }[];
+    /**
+     * Every broadcast. A playbook's runs carry its id: they are not counted as broadcasts, but a
+     * run `pending_approval` is how a playbook comes to be waiting on the owner.
+     */
+    broadcasts: readonly {
+        template_name: string;
+        playbook_id?: string | null;
+        name?: string | null;
+        state?: string | null;
+        created_at?: string | null;
+    }[];
+    /** The name the Inbox books with, from `bookingTemplate`; null when the workspace has none. */
+    bookingName: string | null;
+}
+/** One entry per template name that anything sends. A name absent from the map is sent by nothing. */
+declare function templateUsage(src: TemplateUseSource): Record<string, TemplateUse>;
+/**
+ * What sends it, in one line. "Nothing sends it" is the answer worth showing:
+ * it is the only one that asks the owner to do something about the message. A
+ * message that ONE playbook sends says "Win-back playbook", because under a
+ * heading called "What sends it" a bare name reads as a person.
+ */
+declare function templateUseWords(use: TemplateUse | null | undefined): string;
+/**
+ * The line under what sends it: what that thing is doing. A run waiting on the
+ * owner outranks everything; one playbook says its clock or that it is paused;
+ * a message people send by hand names the latest two; the Inbox's says what it
+ * is for. Null when the first line already said all there is.
+ */
+declare function templateUseNote(use: TemplateUse | null | undefined): string | null;
+/** True when nothing sends it: the one state the page draws differently. */
+declare function templateUnused(use: TemplateUse | null | undefined): boolean;
+/**
+ * How many times a template actually went out, and when the latest did.
+ *
+ * Not a broadcast's `recipient_count`: that is the audience a run was scheduled
+ * for, and the wire holds people back from it (no yes to offers, asked to stop,
+ * no number, a person had the thread) while a run can stop part-way. Reports ›
+ * Campaigns counts "Messages sent" apart from "Delivered" off the recipient rows
+ * (campaign_series), and a Sent column summed from the audience would contradict
+ * the page beside it. So this counts what that page counts -- a person a run
+ * marked `sent` -- and the one door that page does not cover: a template the
+ * Inbox sent into a thread whose window had closed, which left when WhatsApp
+ * took it and the row got its wamid.
+ *
+ * Keyed by NAME, as `templateUsage` is: a run names its template, not a
+ * language's row.
+ */
+interface TemplateSends {
+    /** Messages that left with it: sent, which is not delivered and not read. */
+    count: number;
+    /** When the latest of them left (ISO), or null when none kept its time. */
+    lastAt: string | null;
+}
+interface TemplateSendSource {
+    /** Every broadcast -- one a person sent, or a playbook's run -- and the template it sent. */
+    runs: readonly {
+        id: string;
+        template_name: string;
+    }[];
+    /** The people on those runs (`broadcast_recipients`). Only the ones in state `sent` went out. */
+    recipients: readonly {
+        broadcast_id: string;
+        state: string;
+        sent_at: string | null;
+    }[];
+    /** What the Inbox sent on a template (`messages.template_name`). Only the ones WhatsApp took -- a wamid -- went out. */
+    inbox: readonly {
+        template_name: string | null;
+        external_id: string | null;
+        created_at: string;
+    }[];
+}
+/** One entry per template name that has gone out. A name absent from the map never has. */
+declare function templateSends(src: TemplateSendSource): Record<string, TemplateSends>;
+interface TemplateSentWords {
+    /** "1,204": how many went out; null when none has. */
+    count: string | null;
+    /** "2d ago", "Jul 31" or "Never sent"; null when none of them kept its time. */
+    when: string | null;
+}
+/**
+ * The Sent cell. How long ago is said the way every page says it (time.ts):
+ * "just now" · "3h ago" · "2d ago", and past a week the business's date.
+ * A message that never went out says so in words: a "0" in a column of counts
+ * reads as a quantity to compare with the others, and never is not one.
+ */
+declare function templateSentWords(s: TemplateSends | null | undefined, tz: string, nowMs: number): TemplateSentWords;
+
+/**
  * GENERATED by tooling/scripts/gen-schema-sets.mjs from the database's own CHECK
  * constraints: every closed set Postgres enforces, one entry per column, values
  * in the constraint's order. Do not edit. Change the migration, then run
@@ -2486,925 +2756,6 @@ declare function speedOf(replies: readonly {
 /** A caller's mood as the voice provider reads it ("Positive", "Neutral", "Negative", "Unknown"), as a status tone. */
 declare function callMoodTone(sentiment: string): "" | "ok" | "danger";
 declare function toReportVM(dto: ReportDto): ReportVM;
-
-/**
- * Control plane types (PRD E1/E3/E4) — the single source every boundary
- * imports: the Settings form, the /v1 routes, and the edge runtime all parse
- * the same schemas, so an option that exists in the UI exists in the runtime
- * by construction (anti-junk rule R1).
- */
-
-declare const ROLES: readonly ["owner", "operator", "viewer"];
-type Role = (typeof ROLES)[number];
-/** What each role may do. Mirrors the mockup's ST_PERMS exactly — the client
- *  gate() chips read this shape; the server re-checks via requireRole. */
-declare const ROLE_PERMS: Record<Role, {
-    approve: boolean;
-    autonomy: boolean;
-    disconnect: boolean;
-    billing: boolean;
-    team: boolean;
-    settings: boolean;
-    export: boolean;
-    find: boolean;
-}>;
-declare const POLICY_CLASSES: readonly ["reply", "booking", "faq", "reengage", "campaign", "reviews", "money", "follow_up"];
-type PolicyClass = (typeof POLICY_CLASSES)[number];
-/**
- * The words for each class, said once. The Autonomy matrix rows, a playbook's
- * "runs under" chip and the assistant's proposals all read these; three maps
- * used to name the same row three ways ("Campaigns" on a playbook for the row
- * the matrix called "Standing offers").
- */
-declare const POLICY_CLASS_WORDS: Record<PolicyClass, {
-    name: string;
-    short: string;
-    note: string;
-}>;
-/** The four modes. 'veto' is honoured where there is something to hold: a
- *  reply waits in the hold window as a draft, a playbook run waits thirty
- *  minutes; POLICY_CLASS_MODES says which classes offer it. The runtime
- *  treats an unexpected mode as 'ask' (fail safe). */
-declare const POLICY_MODES: readonly ["auto", "veto", "ask", "never"];
-type PolicyMode = (typeof POLICY_MODES)[number];
-/**
- * What each mode DOES, in the owner's words — the matrix's column headings, the
- * name a phone puts over each dot, and the words a policy chip says after the
- * dot.
- *
- * The stored values stay `auto | veto | ask | never`: those are filing words. A
- * salon owner does not say "veto", and the plain sentence for each mode existed
- * only as a hover tip on the column heading — which a phone has no way to
- * trigger and a mouse has no reason to look for. The heading says it instead.
- *
- * `head` is verb-first with the receptionist as its subject, `sub` is the one
- * clause that tells it apart from its neighbour, `chip` is the same fact small
- * enough for a pill, `does` is the whole sentence for a control's title. No
- * heading names a duration: how long a hold lasts belongs to the class (a reply
- * waits the workspace's hold window, a playbook run waits thirty minutes), and a
- * heading that said "30s" would be wrong on four of the six rows.
- */
-declare const POLICY_MODE_WORDS: Record<PolicyMode, {
-    head: string;
-    sub: string;
-    chip: string;
-    does: string;
-}>;
-/**
- * The modes each class can honour — a switch nothing enforces is a switch
- * that lies. Replies can wait (veto), wait for a person (ask) or stay silent
- * (never). Booking and service questions are answered by the receptionist
- * or by a person: there is no "never" for a salon that takes bookings, and
- * no draft to hold for review. The playbook classes run, wait, wait for a
- * person, or do not run. Reviews are answered, drafted for a person, or
- * left alone — there is no draft to hold on a countdown. Money is the
- * charter's.
- */
-declare const POLICY_CLASS_MODES: Record<PolicyClass, readonly PolicyMode[]>;
-/** The class a customer's intent falls under, when the Autonomy pane has a row for it. */
-declare function policyClassOfIntent(intent: string | null | undefined): "booking" | "faq" | null;
-/** The class that is set to "ask" and that this intent falls under, or null. An unknown mode counts as ask, fail safe. */
-declare function policyAskClass(policy: Record<string, {
-    mode: string;
-}> | null | undefined, intent: string | null | undefined): "booking" | "faq" | null;
-/**
- * The Autonomy tab's Booking row holds the booking link back: it is not on
- * "auto", so a person confirms instead. An unknown mode counts, fail safe, as it
- * does in policyAskClass.
- *
- * The edge asks this question inline, through policyAskClass, and this must keep
- * agreeing with every place it does: apps/edge/api/retell-fn.ts (its
- * `bookingHeld`, which outbound-gate.ts refuses as booking_needs_a_person),
- * apps/edge/api/retell-availability.ts (which then offers a caller no times) and
- * apps/edge/lib/whatsapp/steps.ts layerTwo (which takes the link back out of a
- * chat reply classed as a booking -- a price or services reply still carries it).
- * Stated here so the Business tab reads the rule instead of keeping a copy of it.
- */
-declare function bookingHeld(policy: Record<string, {
-    mode: string;
-}> | null | undefined): boolean;
-/**
- * What the Booking and FAQ rows say in the prompt, per channel. "auto" says
- * nothing — the profile already tells the receptionist how to book and what
- * it offers. "ask" hands the matter to a person, in words the customer can
- * hear on the phone and read on WhatsApp.
- */
-declare function policyRules(policy: Record<string, {
-    mode: string;
-}> | null | undefined, channel: "whatsapp" | "voice"): string[];
-declare const PolicyLimitsSchema: z.ZodObject<{
-    max_replies_day: z.ZodOptional<z.ZodNumber>;
-    pause_hours: z.ZodOptional<z.ZodNumber>;
-    reply_delay_ms: z.ZodOptional<z.ZodNumber>;
-    min_confidence: z.ZodOptional<z.ZodNumber>;
-    max_llm_tokens_day: z.ZodOptional<z.ZodNumber>;
-}, z.core.$strict>;
-type PolicyLimits = z.infer<typeof PolicyLimitsSchema>;
-interface PolicyRow {
-    id: string;
-    class: PolicyClass;
-    mode: PolicyMode;
-    subject_type: SchemaSet<"policies.subject_type"> | null;
-    subject_id: string | null;
-    limits: PolicyLimits;
-    updated_at: string;
-}
-/**
- * One stretch of the day the doors are open.
- *
- * DELIBERATELY LENIENT — no .strict(), no .refine(), no length bounds.
- *
- * This schema is on the READ path: apps/edge parses it out of the database on
- * every inbound message, and a parse failure there is not a warning. It sets
- * configBroken, the WhatsApp receptionist stops replying, and the voice agent
- * is handed no facts at all. Rules that reject a stored row are rules that
- * mute a live line, so the shape is all that lives here. Everything that can
- * be WRONG rather than malformed — reversed times, overlapping shifts, a
- * calendar date that does not exist — is checked on the way IN, and the
- * composer is written to tell the truth about whatever is already stored.
- */
-declare const IntervalSchema: z.ZodObject<{
-    open: z.ZodString;
-    close: z.ZodString;
-}, z.core.$strip>;
-declare const HoursSchema: z.ZodObject<{
-    open: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-    close: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-    intervals: z.ZodOptional<z.ZodArray<z.ZodObject<{
-        open: z.ZodString;
-        close: z.ZodString;
-    }, z.core.$strip>>>;
-}, z.core.$strict>;
-/**
- * A day the business is shut whatever the weekly grid says.
- *
- * `until` because "closed 24 December to 2 January" is ONE decision an owner
- * makes, and ten separate rows is how a holiday week ends up half-entered.
- *
- * Lenient for the same reason as IntervalSchema. Note the date regex accepts
- * 2026-11-31, which is not a day; the renderer checks that it round-trips and
- * prints the raw string when it does not, rather than confidently naming the
- * wrong date.
- */
-declare const ClosureSchema: z.ZodObject<{
-    date: z.ZodString;
-    until: z.ZodOptional<z.ZodString>;
-    note: z.ZodOptional<z.ZodString>;
-}, z.core.$strip>;
-declare const DAYS: readonly ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
-declare const ServiceSchema: z.ZodObject<{
-    name: z.ZodString;
-    duration_min: z.ZodOptional<z.ZodNumber>;
-    price_note: z.ZodOptional<z.ZodString>;
-}, z.core.$strict>;
-/**
- * The rules that must survive editing.
- *
- * Flags, never prose. A free-text prompt box hands an owner the ability to
- * delete the price policy, the never-confirm-a-booking rule and the AI
- * disclosure without knowing they have — and nothing downstream could tell.
- * Composed in every time, and default ON: the safe reading of an absent value.
- */
-declare const GuardrailsSchema: z.ZodObject<{
-    never_quote_prices: z.ZodOptional<z.ZodBoolean>;
-    never_confirm_booking: z.ZodOptional<z.ZodBoolean>;
-    disclose_ai: z.ZodOptional<z.ZodBoolean>;
-    no_health_advice: z.ZodOptional<z.ZodBoolean>;
-}, z.core.$strict>;
-/**
- * Which rules are in force, with each rule's default applied.
- *
- * Read here by whoever says what the receptionist follows, because two readings
- * drifted: the composer took the health rule as opt-in and Ask took it as on
- * when absent, so Ask told an owner "gives no health advice" on a workspace
- * whose receptionist was never given that line. Typed over the schema's keys:
- * a fifth rule fails to compile until its default is said here.
- */
-type GuardrailsInForce = Record<keyof z.infer<typeof GuardrailsSchema>, boolean>;
-declare function guardrailsInForce(g: z.infer<typeof GuardrailsSchema> | null | undefined): GuardrailsInForce;
-/**
- * A thing the receptionist should know that fits no field — the academy, the
- * chair rental, the parking. One topic each, said by BOTH receptionists. The
- * long tail that a knowledge base would hold later; never the hours or the
- * booking link, which have fields.
- */
-declare const NoteSchema: z.ZodObject<{
-    title: z.ZodString;
-    text: z.ZodString;
-}, z.core.$strict>;
-type Note = z.infer<typeof NoteSchema>;
-/**
- * How bookings may be OFFERED — never made. The receptionist sends the link;
- * these shape which open times it names first and what it says about them.
- */
-declare const BookingRulesSchema: z.ZodObject<{
-    lead_hours: z.ZodOptional<z.ZodNumber>;
-    buffer_min: z.ZodOptional<z.ZodNumber>;
-    max_days_ahead: z.ZodOptional<z.ZodNumber>;
-    slot_min: z.ZodOptional<z.ZodNumber>;
-    consult_first: z.ZodOptional<z.ZodArray<z.ZodString>>;
-    party_max: z.ZodOptional<z.ZodNumber>;
-    ask_email: z.ZodOptional<z.ZodBoolean>;
-    notes: z.ZodOptional<z.ZodArray<z.ZodString>>;
-}, z.core.$strict>;
-type BookingRules = z.infer<typeof BookingRulesSchema>;
-/** E.164: a plus, then 7–15 digits, no leading zero. */
-declare const E164: RegExp;
-/**
- * The most either set of the receptionist's instructions holds: the prompt a
- * workspace wrote before it had fields, and the owner's own instructions that
- * prompt is carried into. One number, so a carried prompt always fits. The
- * owner's held 8,000 characters against the prompt's 20,000, and a longer
- * prompt failed every save of the form on a box nobody had touched (the
- * wiring audit's S4).
- */
-declare const INSTRUCTIONS_MAX = 20000;
-declare const BusinessProfileSchema: z.ZodObject<{
-    address: z.ZodOptional<z.ZodString>;
-    hours: z.ZodOptional<z.ZodRecord<z.ZodEnum<{
-        mon: "mon";
-        tue: "tue";
-        wed: "wed";
-        thu: "thu";
-        fri: "fri";
-        sat: "sat";
-        sun: "sun";
-    }> & z.core.$partial, z.ZodObject<{
-        open: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-        close: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-        intervals: z.ZodOptional<z.ZodArray<z.ZodObject<{
-            open: z.ZodString;
-            close: z.ZodString;
-        }, z.core.$strip>>>;
-    }, z.core.$strict>>>;
-    closures: z.ZodOptional<z.ZodArray<z.ZodObject<{
-        date: z.ZodString;
-        until: z.ZodOptional<z.ZodString>;
-        note: z.ZodOptional<z.ZodString>;
-    }, z.core.$strip>>>;
-    services: z.ZodOptional<z.ZodArray<z.ZodObject<{
-        name: z.ZodString;
-        duration_min: z.ZodOptional<z.ZodNumber>;
-        price_note: z.ZodOptional<z.ZodString>;
-    }, z.core.$strict>>>;
-    languages: z.ZodOptional<z.ZodArray<z.ZodString>>;
-    guardrails: z.ZodOptional<z.ZodObject<{
-        never_quote_prices: z.ZodOptional<z.ZodBoolean>;
-        never_confirm_booking: z.ZodOptional<z.ZodBoolean>;
-        disclose_ai: z.ZodOptional<z.ZodBoolean>;
-        no_health_advice: z.ZodOptional<z.ZodBoolean>;
-    }, z.core.$strict>>;
-    escalate_when: z.ZodOptional<z.ZodArray<z.ZodString>>;
-    tone: z.ZodOptional<z.ZodString>;
-    handoff_number: z.ZodOptional<z.ZodString>;
-    website: z.ZodOptional<z.ZodString>;
-    notes: z.ZodOptional<z.ZodArray<z.ZodObject<{
-        title: z.ZodString;
-        text: z.ZodString;
-    }, z.core.$strict>>>;
-    booking_rules: z.ZodOptional<z.ZodObject<{
-        lead_hours: z.ZodOptional<z.ZodNumber>;
-        buffer_min: z.ZodOptional<z.ZodNumber>;
-        max_days_ahead: z.ZodOptional<z.ZodNumber>;
-        slot_min: z.ZodOptional<z.ZodNumber>;
-        consult_first: z.ZodOptional<z.ZodArray<z.ZodString>>;
-        party_max: z.ZodOptional<z.ZodNumber>;
-        ask_email: z.ZodOptional<z.ZodBoolean>;
-        notes: z.ZodOptional<z.ZodArray<z.ZodString>>;
-    }, z.core.$strict>>;
-    extra_instructions: z.ZodOptional<z.ZodString>;
-}, z.core.$strict>;
-type BusinessProfile = z.infer<typeof BusinessProfileSchema>;
-type Hours = z.infer<typeof HoursSchema>;
-type Service = z.infer<typeof ServiceSchema>;
-type Interval = z.infer<typeof IntervalSchema>;
-type Closure = z.infer<typeof ClosureSchema>;
-declare const BrainConfigSchema: z.ZodObject<{
-    business_name: z.ZodString;
-    phone_display: z.ZodOptional<z.ZodString>;
-    booking_link: z.ZodOptional<z.ZodString>;
-    system_prompt: z.ZodString;
-    profile: z.ZodOptional<z.ZodObject<{
-        address: z.ZodOptional<z.ZodString>;
-        hours: z.ZodOptional<z.ZodRecord<z.ZodEnum<{
-            mon: "mon";
-            tue: "tue";
-            wed: "wed";
-            thu: "thu";
-            fri: "fri";
-            sat: "sat";
-            sun: "sun";
-        }> & z.core.$partial, z.ZodObject<{
-            open: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-            close: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-            intervals: z.ZodOptional<z.ZodArray<z.ZodObject<{
-                open: z.ZodString;
-                close: z.ZodString;
-            }, z.core.$strip>>>;
-        }, z.core.$strict>>>;
-        closures: z.ZodOptional<z.ZodArray<z.ZodObject<{
-            date: z.ZodString;
-            until: z.ZodOptional<z.ZodString>;
-            note: z.ZodOptional<z.ZodString>;
-        }, z.core.$strip>>>;
-        services: z.ZodOptional<z.ZodArray<z.ZodObject<{
-            name: z.ZodString;
-            duration_min: z.ZodOptional<z.ZodNumber>;
-            price_note: z.ZodOptional<z.ZodString>;
-        }, z.core.$strict>>>;
-        languages: z.ZodOptional<z.ZodArray<z.ZodString>>;
-        guardrails: z.ZodOptional<z.ZodObject<{
-            never_quote_prices: z.ZodOptional<z.ZodBoolean>;
-            never_confirm_booking: z.ZodOptional<z.ZodBoolean>;
-            disclose_ai: z.ZodOptional<z.ZodBoolean>;
-            no_health_advice: z.ZodOptional<z.ZodBoolean>;
-        }, z.core.$strict>>;
-        escalate_when: z.ZodOptional<z.ZodArray<z.ZodString>>;
-        tone: z.ZodOptional<z.ZodString>;
-        handoff_number: z.ZodOptional<z.ZodString>;
-        website: z.ZodOptional<z.ZodString>;
-        notes: z.ZodOptional<z.ZodArray<z.ZodObject<{
-            title: z.ZodString;
-            text: z.ZodString;
-        }, z.core.$strict>>>;
-        booking_rules: z.ZodOptional<z.ZodObject<{
-            lead_hours: z.ZodOptional<z.ZodNumber>;
-            buffer_min: z.ZodOptional<z.ZodNumber>;
-            max_days_ahead: z.ZodOptional<z.ZodNumber>;
-            slot_min: z.ZodOptional<z.ZodNumber>;
-            consult_first: z.ZodOptional<z.ZodArray<z.ZodString>>;
-            party_max: z.ZodOptional<z.ZodNumber>;
-            ask_email: z.ZodOptional<z.ZodBoolean>;
-            notes: z.ZodOptional<z.ZodArray<z.ZodString>>;
-        }, z.core.$strict>>;
-        extra_instructions: z.ZodOptional<z.ZodString>;
-    }, z.core.$strict>>;
-    fallbacks: z.ZodObject<{
-        greeting: z.ZodString;
-        error: z.ZodString;
-        non_text: z.ZodString;
-    }, z.core.$strict>;
-}, z.core.$strict>;
-type BrainConfig = z.infer<typeof BrainConfigSchema>;
-/**
- * The parts of a brand-new receptionist nobody should have to write.
- *
- * BrainConfigSchema requires a system_prompt and three fallback messages, and
- * until this existed there was no way to produce them from inside the product:
- * provisioning inserts an empty tenant_config row and the settings form only
- * ever edited the profile ON an existing brain. Onboarding a business meant
- * hand-writing its config into the database.
- *
- * It lives HERE, beside the schema it has to satisfy, because a default that
- * drifts out of spec does not fail in review — it fails for the next business
- * that tries to set itself up.
- *
- * The prompt states no facts on purpose. The address, hours and services are
- * composed from the profile; a baseline that repeated them would be a second
- * copy of every one, free to go stale the moment the owner edits a field.
- */
-declare function newReceptionistDefaults(businessName: string): Pick<BrainConfig, "system_prompt" | "fallbacks">;
-/** The product's own opening lines, whatever business name they were written with -- words no owner wrote. */
-declare function isBaselinePrompt(text: string): boolean;
-/**
- * What the Business form's instructions box opens with (S4).
- *
- * The owner's own instructions when they have written some. Otherwise the
- * prompt a profile carries in their place, shown so nothing the receptionist
- * follows is out of sight and marked `carried` so the form can say where it
- * came from -- unless it is the product's baseline, which no owner wrote. A
- * save then keeps what the box holds as the owner's and puts the baseline back
- * as the prompt: the text is stored once, and an emptied box stays empty
- * instead of filling itself again from the copy left behind.
- *
- * ONE rule with the prompt view: whoseWords (plan Task 3.8, shipped 22 Sep).
- * Own words open as the owner's; a prompt standing in the owner's place (carried
- * or a workspace's own, whichever the resolver does with it) opens marked
- * carried; the product's own opening lines and nothing to read open an empty box.
- * Kept exactly as stored, spaces and all, so a save writes back what was there.
- *
- * Phase 1 left the two disagreeing on one case, knowingly: the baseline stored
- * in the OWNER'S own field, where a save before S4 copied it. The box opened it
- * as the owner's words because routing it here made it open EMPTY and the live
- * form's next Save deleted the field -- and a workspace whose only composed
- * field was that copy fell from a composed prompt to the bare baseline, losing
- * its hand-off and every rule line. That save is gone: the fold that replaced
- * the form sends nothing at all when its box is left as it opened
- * (business-tab-folds.jsx, holdsChanges), so an empty box deletes nothing by
- * being looked at. What a save with something typed in it should do with that
- * copy is open, and nothing in production has it (the count under plan Task 3.8).
- */
-declare function instructionsDraft(brain: {
-    system_prompt?: string | null;
-    profile?: {
-        extra_instructions?: string | null;
-    } | null;
-} | null | undefined): {
-    text: string;
-    carried: boolean;
-};
-declare const NotificationsConfigSchema: z.ZodObject<{
-    escalation_emails: z.ZodArray<z.ZodString>;
-    from: z.ZodOptional<z.ZodString>;
-}, z.core.$strict>;
-type NotificationsConfig = z.infer<typeof NotificationsConfigSchema>;
-/**
- * The whole tenant_config.config column. Sections are optional — a tenant with
- * no brain section is a tenant whose receptionist does not speak (persist +
- * escalate only). Safe-by-default beats a leaked persona.
- *
- * DELIBERATELY NOT `.strict()` AT THE TOP LEVEL, while each SECTION still is.
- *
- * The edge and the dashboard are separate Vercel projects that deploy
- * independently. With a strict top level, the first dashboard deploy to write a
- * new section — `guardrails`, a per-tenant allowlist, anything — would be
- * rejected in its entirety by the older edge still running beside it. The
- * receptionist would go completely silent on a live line, and it would be
- * logged identically to "no brain profile configured": a total mute that reads
- * as a configuration absence.
- *
- * Unknown top-level keys are therefore STRIPPED rather than fatal, so an older
- * edge ignores a section it has never heard of and keeps answering with the
- * persona it does understand. Strictness stays where it catches real mistakes:
- * inside a section, where a typo means a field the runtime silently would not
- * apply.
- */
-/**
- * The calendar the receptionist may READ. An iCal address — what any booking
- * tool that syncs to Google, Apple or Outlook produces — never credentials to
- * write with. Nothing is ever booked from here; the booking link does that,
- * whichever tool is behind it.
- */
-declare const CalendarConfigSchema: z.ZodObject<{
-    ical_url: z.ZodString;
-}, z.core.$strict>;
-type CalendarConfig = z.infer<typeof CalendarConfigSchema>;
-/**
- * Opt-in abilities, off unless the workspace turns them on.
- *
- * `vision`: the receptionist looks at photos customers send over WhatsApp and
- * answers them like words, under every rule it already follows. Off, a photo
- * is acknowledged and handed to a person, as before.
- */
-declare const FeaturesConfigSchema: z.ZodObject<{
-    vision: z.ZodOptional<z.ZodBoolean>;
-}, z.core.$strict>;
-type FeaturesConfig = z.infer<typeof FeaturesConfigSchema>;
-declare const TenantConfigSchema: z.ZodObject<{
-    brain: z.ZodOptional<z.ZodObject<{
-        business_name: z.ZodString;
-        phone_display: z.ZodOptional<z.ZodString>;
-        booking_link: z.ZodOptional<z.ZodString>;
-        system_prompt: z.ZodString;
-        profile: z.ZodOptional<z.ZodObject<{
-            address: z.ZodOptional<z.ZodString>;
-            hours: z.ZodOptional<z.ZodRecord<z.ZodEnum<{
-                mon: "mon";
-                tue: "tue";
-                wed: "wed";
-                thu: "thu";
-                fri: "fri";
-                sat: "sat";
-                sun: "sun";
-            }> & z.core.$partial, z.ZodObject<{
-                open: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-                close: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-                intervals: z.ZodOptional<z.ZodArray<z.ZodObject<{
-                    open: z.ZodString;
-                    close: z.ZodString;
-                }, z.core.$strip>>>;
-            }, z.core.$strict>>>;
-            closures: z.ZodOptional<z.ZodArray<z.ZodObject<{
-                date: z.ZodString;
-                until: z.ZodOptional<z.ZodString>;
-                note: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>>>;
-            services: z.ZodOptional<z.ZodArray<z.ZodObject<{
-                name: z.ZodString;
-                duration_min: z.ZodOptional<z.ZodNumber>;
-                price_note: z.ZodOptional<z.ZodString>;
-            }, z.core.$strict>>>;
-            languages: z.ZodOptional<z.ZodArray<z.ZodString>>;
-            guardrails: z.ZodOptional<z.ZodObject<{
-                never_quote_prices: z.ZodOptional<z.ZodBoolean>;
-                never_confirm_booking: z.ZodOptional<z.ZodBoolean>;
-                disclose_ai: z.ZodOptional<z.ZodBoolean>;
-                no_health_advice: z.ZodOptional<z.ZodBoolean>;
-            }, z.core.$strict>>;
-            escalate_when: z.ZodOptional<z.ZodArray<z.ZodString>>;
-            tone: z.ZodOptional<z.ZodString>;
-            handoff_number: z.ZodOptional<z.ZodString>;
-            website: z.ZodOptional<z.ZodString>;
-            notes: z.ZodOptional<z.ZodArray<z.ZodObject<{
-                title: z.ZodString;
-                text: z.ZodString;
-            }, z.core.$strict>>>;
-            booking_rules: z.ZodOptional<z.ZodObject<{
-                lead_hours: z.ZodOptional<z.ZodNumber>;
-                buffer_min: z.ZodOptional<z.ZodNumber>;
-                max_days_ahead: z.ZodOptional<z.ZodNumber>;
-                slot_min: z.ZodOptional<z.ZodNumber>;
-                consult_first: z.ZodOptional<z.ZodArray<z.ZodString>>;
-                party_max: z.ZodOptional<z.ZodNumber>;
-                ask_email: z.ZodOptional<z.ZodBoolean>;
-                notes: z.ZodOptional<z.ZodArray<z.ZodString>>;
-            }, z.core.$strict>>;
-            extra_instructions: z.ZodOptional<z.ZodString>;
-        }, z.core.$strict>>;
-        fallbacks: z.ZodObject<{
-            greeting: z.ZodString;
-            error: z.ZodString;
-            non_text: z.ZodString;
-        }, z.core.$strict>;
-    }, z.core.$strict>>;
-    notifications: z.ZodOptional<z.ZodObject<{
-        escalation_emails: z.ZodArray<z.ZodString>;
-        from: z.ZodOptional<z.ZodString>;
-    }, z.core.$strict>>;
-    calendar: z.ZodOptional<z.ZodObject<{
-        ical_url: z.ZodString;
-    }, z.core.$strict>>;
-    features: z.ZodOptional<z.ZodObject<{
-        vision: z.ZodOptional<z.ZodBoolean>;
-    }, z.core.$strict>>;
-}, z.core.$strip>;
-type TenantConfig = z.infer<typeof TenantConfigSchema>;
-/** The most shifts one day may be split into. Must match the editor's cap. */
-declare const MAX_INTERVALS_PER_DAY = 4;
-/** As many closures as the composer will state — there is no render cap. */
-declare const MAX_CLOSURES = 60;
-/** Does this string name a real day? "2026-11-31" does not. */
-declare function isRealDate(key: string): boolean;
-/** A day of the week by its whole name, the one table: the write rules', the composer's and the first run's. */
-declare const DAY_NAMES: Record<(typeof DAYS)[number], string>;
-/**
- * What is wrong with one day of the week, in the owner's words, each with where in the day it is. The write rules'
- * day check (checkDay) and anything that builds a day from elsewhere (google.ts hoursFromGoogle) ask this, so a day
- * is judged by one set of rules wherever it comes from. Empty when the day is one the record holds.
- */
-declare function dayProblems(h: Hours, day: string): Array<{
-    path: Array<string | number>;
-    message: string;
-}>;
-/**
- * The same config, with the rules that only apply on the way IN.
- *
- * Wrapping TenantConfigSchema rather than replacing it, so the shape and the
- * lenience stay defined in exactly one place and this can only ever be
- * stricter.
- */
-declare const TenantConfigWriteSchema: z.ZodObject<{
-    brain: z.ZodOptional<z.ZodObject<{
-        business_name: z.ZodString;
-        phone_display: z.ZodOptional<z.ZodString>;
-        booking_link: z.ZodOptional<z.ZodString>;
-        system_prompt: z.ZodString;
-        profile: z.ZodOptional<z.ZodObject<{
-            address: z.ZodOptional<z.ZodString>;
-            hours: z.ZodOptional<z.ZodRecord<z.ZodEnum<{
-                mon: "mon";
-                tue: "tue";
-                wed: "wed";
-                thu: "thu";
-                fri: "fri";
-                sat: "sat";
-                sun: "sun";
-            }> & z.core.$partial, z.ZodObject<{
-                open: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-                close: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-                intervals: z.ZodOptional<z.ZodArray<z.ZodObject<{
-                    open: z.ZodString;
-                    close: z.ZodString;
-                }, z.core.$strip>>>;
-            }, z.core.$strict>>>;
-            closures: z.ZodOptional<z.ZodArray<z.ZodObject<{
-                date: z.ZodString;
-                until: z.ZodOptional<z.ZodString>;
-                note: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>>>;
-            services: z.ZodOptional<z.ZodArray<z.ZodObject<{
-                name: z.ZodString;
-                duration_min: z.ZodOptional<z.ZodNumber>;
-                price_note: z.ZodOptional<z.ZodString>;
-            }, z.core.$strict>>>;
-            languages: z.ZodOptional<z.ZodArray<z.ZodString>>;
-            guardrails: z.ZodOptional<z.ZodObject<{
-                never_quote_prices: z.ZodOptional<z.ZodBoolean>;
-                never_confirm_booking: z.ZodOptional<z.ZodBoolean>;
-                disclose_ai: z.ZodOptional<z.ZodBoolean>;
-                no_health_advice: z.ZodOptional<z.ZodBoolean>;
-            }, z.core.$strict>>;
-            escalate_when: z.ZodOptional<z.ZodArray<z.ZodString>>;
-            tone: z.ZodOptional<z.ZodString>;
-            handoff_number: z.ZodOptional<z.ZodString>;
-            website: z.ZodOptional<z.ZodString>;
-            notes: z.ZodOptional<z.ZodArray<z.ZodObject<{
-                title: z.ZodString;
-                text: z.ZodString;
-            }, z.core.$strict>>>;
-            booking_rules: z.ZodOptional<z.ZodObject<{
-                lead_hours: z.ZodOptional<z.ZodNumber>;
-                buffer_min: z.ZodOptional<z.ZodNumber>;
-                max_days_ahead: z.ZodOptional<z.ZodNumber>;
-                slot_min: z.ZodOptional<z.ZodNumber>;
-                consult_first: z.ZodOptional<z.ZodArray<z.ZodString>>;
-                party_max: z.ZodOptional<z.ZodNumber>;
-                ask_email: z.ZodOptional<z.ZodBoolean>;
-                notes: z.ZodOptional<z.ZodArray<z.ZodString>>;
-            }, z.core.$strict>>;
-            extra_instructions: z.ZodOptional<z.ZodString>;
-        }, z.core.$strict>>;
-        fallbacks: z.ZodObject<{
-            greeting: z.ZodString;
-            error: z.ZodString;
-            non_text: z.ZodString;
-        }, z.core.$strict>;
-    }, z.core.$strict>>;
-    notifications: z.ZodOptional<z.ZodObject<{
-        escalation_emails: z.ZodArray<z.ZodString>;
-        from: z.ZodOptional<z.ZodString>;
-    }, z.core.$strict>>;
-    calendar: z.ZodOptional<z.ZodObject<{
-        ical_url: z.ZodString;
-    }, z.core.$strict>>;
-    features: z.ZodOptional<z.ZodObject<{
-        vision: z.ZodOptional<z.ZodBoolean>;
-    }, z.core.$strict>>;
-}, z.core.$strip>;
-type TenantConfigParse = {
-    ok: true;
-    config: TenantConfig;
-} | {
-    ok: false;
-    issues: string[];
-};
-/**
- * Parse unknown JSONB into TenantConfig.
- *
- * Returns the ISSUES rather than a bare null, because the runtime needs to tell
- * "this tenant has not been configured" from "this tenant's configuration is
- * broken". Both end in silence, but only one of them is somebody's mistake, and
- * collapsing them meant an operator reading "no brain profile configured" while
- * a perfectly good persona sat in the database behind one bad field.
- */
-declare function parseTenantConfigResult(raw: unknown): TenantConfigParse;
-/** Whether a workspace's receptionist is set up: none yet, set up, or a config the parser refused. */
-type ReceptionistState = "none" | "set" | "broken";
-/**
- * The one test of whether a receptionist is set up, for Setup's read, the first run's Check and the first
- * receptionist's route alike: a config the parser refuses is its own state, since only Chanlytics repairs one, and a
- * parsed config holds a receptionist when it holds a brain. No config at all reads as none.
- */
-declare function receptionistOf(parsed: TenantConfigParse | null): ReceptionistState;
-/** Convenience for callers that genuinely cannot act on the difference. */
-declare function parseTenantConfig(raw: unknown): TenantConfig | null;
-/**
- * A new workspace's first alert address: its creator's. Without one, the edge's
- * chooseAddressing (lib/ops/notify.ts) sends every "a customer needs you" to the
- * platform, redacted, and the owner is never told.
- *
- * Returns the config to save, or null when there is nothing to do: a config that
- * already names its addresses, one that will not parse, or an address the write
- * schema refuses -- saved, a refused address would make the whole config
- * unreadable, and the receptionist silent.
- */
-declare function withFirstAlertAddress(config: unknown, email: string | null | undefined): TenantConfig | null;
-/** "Monday–Friday 9:00–18:00" style lines, collapsing identical runs. */
-/** One stretch of consecutive days that share the same hours. */
-interface HoursRun {
-    /** Day key the run starts on, e.g. "mon". */
-    from: string;
-    /** Day key it ends on. Equal to `from` for a single day. */
-    to: string;
-    /** "09:30–18:00", or "Closed". */
-    text: string;
-}
-declare function hoursRuns(hours: Record<string, Hours> | undefined): HoursRun[];
-/**
- * What a record whose details compose nothing is told, in ONE sentence.
- *
- * Two places on the Business tab say it: the rules fold, where the rules block would be
- * (business-tab.ts RULES_WITHOUT_FIELDS_WORDS), and the prompt view, over the stored prompt the
- * resolver hands such a record back (prompt-blocks.ts). They were two sentences saying the same
- * thing in two spellings, which is two sentences to keep true; both are built from this one now,
- * so an owner reading the page twice reads the same words. `hasProfile`, below, is what decides
- * whether either is said.
- */
-declare const NO_FIELDS_COMPOSED_WORDS = "None of the details on this page are composed into what it reads yet.";
-/** True when a profile carries anything worth composing from. */
-declare function hasProfile(p: BusinessProfile | undefined | null): boolean;
-/**
- * The current moment, in the business's own timezone.
- *
- * Deliberately NOT part of composeSystemPrompt. That output is cached with the
- * request; this changes every minute, and folding it in would evict the whole
- * business profile from the prompt cache on every single message. It belongs
- * in its own uncached block, next to the lead note that changes per contact.
- *
- * The timezone is `tenants.timezone` — the one the metrics RPCs and the Today
- * surface already use. There is no second copy of it on the profile.
- */
-declare function describeNow(tz: string | null | undefined, now?: Date, 
-/**
- * The workspace's closures, so a shut day is stated HERE.
- *
- * It matters that it is here and not only in the composed block above. This
- * is the last thing the model reads, and on a closure day the weekly grid
- * says open while the closure list says shut. Leaving the tie to block order
- * would decide the single highest-stakes question — "are you open today?" —
- * by accident.
- */
-closures?: Closure[]): string;
-/**
- * How each part of the composed prompt opens, said once.
- *
- * Every value is the start of a line the composer writes: a section's heading,
- * the first words of a paragraph Chanlytics writes for every workspace, or one
- * of the two lines that can sit above the owner's own words. The composer
- * writes them from here, and the Business tab's prompt view (prompt-blocks.ts)
- * cuts the prompt on them from here. They were literal copies in two files, and
- * a copy that drifted folded one block into its neighbour without failing
- * anything: a closure list into the hours, the medium line into the owner's own
- * words.
- *
- * These are words the live receptionist reads. Changing one changes its prompt.
- */
-declare const PROMPT_OPENINGS: {
-    readonly hours: "Opening hours";
-    readonly closures: "Closed on these dates";
-    readonly services: "Services:";
-    readonly notes: "Other things to know:";
-    readonly bookingRules: "Booking rules:";
-    readonly handoffChat: "Handing the conversation to a person:";
-    readonly handoffCall: "Handing the caller to a person:";
-    /** The call's tool mechanics: check_availability, send_booking_link, end_call. */
-    readonly callTools: "Open times: use check_availability";
-    readonly callMedium: "You are speaking aloud.";
-    readonly chatMedium: "Keep replies short enough to read on a phone.";
-    readonly openTimes: "If open times are listed after these instructions";
-    /** The rules, last: the guardrails in a composed prompt, Autonomy's alone after a prompt nothing composed. */
-    readonly rules: "Rules you must follow:";
-    /** Above the owner's own words, when there are details above for them to disagree with. */
-    readonly ownWordsUnderDetails: "Further instructions from the business.";
-    /** Above the owner's own words on a call, alone or after the line above. */
-    readonly ownWordsOnACall: "Some of it was written for text conversations";
-};
-declare function composeSystemPrompt(
-/** `booking_link` null for a business that quotes each job: the prompt then says what the receptionist takes instead. */
-base: {
-    business_name: string;
-    phone_display?: string | null;
-    booking_link: string | null;
-}, profile: BusinessProfile, channel?: "whatsapp" | "voice", 
-/** IANA zone from `tenants.timezone`, so stated hours are unambiguous. */
-tz?: string | null, 
-/**
- * Only used to drop closures that have already passed.
- *
- * No cron, no nightly prune: the composer already runs per message and
- * already knows the zone, so "has this gone by?" is a string comparison.
- * Rows that have passed stay in the config and simply stop being said.
- */
-now?: Date, 
-/** The workspace's Autonomy rows (class → mode): Booking and FAQ under "ask" become rules here. */
-policy?: Record<string, {
-    mode: string;
-}> | null): string;
-/**
- * The instructions this workspace's receptionist should actually receive.
- *
- * ONE resolver, so no caller has to remember the precedence. A workspace that
- * has filled in its profile gets a prompt composed from those facts; one that
- * has not keeps the prompt it already had, byte for byte.
- *
- * That fallback is the whole reason this can ship: the pilot's hand-written
- * prompt is live and answering real customers, and a migration that changed
- * what its receptionist says the moment the code deployed would be a
- * behaviour change nobody asked for.
- */
-declare function resolveSystemPrompt(brain: BrainConfig, channel?: "whatsapp" | "voice", 
-/** IANA zone from `tenants.timezone`. Labels the hours; never a second copy. */
-tz?: string | null, 
-/** Only used to drop closures that have already passed. */
-now?: Date, 
-/** The workspace's Autonomy rows, so Booking and FAQ under "ask" reach a hand-written prompt too. */
-policy?: Record<string, {
-    mode: string;
-}> | null, 
-/**
- * What the platform knows independently of what was typed: the channel rows
- * it provisioned, the Google listing it verified.
- *
- * The prompt is the one place these facts are SPOKEN, so it is the one place
- * they have to be resolved rather than read raw. Typed still wins — see
- * facts.ts for why silently overriding a live receptionist's words would be
- * the worse bug — but a workspace that never typed a number now says the line
- * it actually answers instead of nothing, and the disagreement is nameable
- * everywhere else because it is computed here.
- */
-known?: KnownFacts | null): string;
-/**
- * The owner's own words, as the receptionist is given them.
- *
- * What they have written into the form, once there is anything in it. Until
- * then the workspace's prompt stands in their place: carried whole when the
- * profile composes, so filling in one field loses nothing, and read as it
- * stands when it does not. The one statement of that rule. resolveSystemPrompt
- * composes with it, and anything that has to find those words in what the
- * resolver returned looks for them with it, rather than with a copy that can
- * drift.
- */
-declare function ownWordsOf(brain: {
-    system_prompt?: string | null;
-    profile?: {
-        extra_instructions?: string | null;
-    } | null;
-} | null | undefined): string | null;
-/** Whose words stand in the owner's place: see whoseWords. */
-type WhoseWords = {
-    kind: "own" | "carried" | "prompt" | "baseline";
-    text: string;
-} | {
-    kind: "none";
-    text: null;
-};
-/**
- * Whose words the receptionist is given in the owner's place, decided once.
- *
- * The words are ownWordsOf's, the resolver's own rule. This says whose they are,
- * for the prompt view (promptBlocks) and for the instructions box, which asks
- * here too (instructionsDraft): the two read the owner's field by one rule, so
- * the box can never open as the owner's what the view charges to the platform.
- *
- *   baseline  the product's own opening lines. In the stored prompt that is
- *             isBaselinePrompt, which reads only the opening and the closing:
- *             only the product writes that prompt. In the OWNER'S field it is
- *             stricter (isBaselineInOwnersField), because there an owner may
- *             have typed their own sentences where the business's name goes,
- *             and calling those the platform's would disown words they wrote.
- *   own       what the owner wrote into the profile's own field.
- *   carried   the profile composes, but its own field is blank, so the stored
- *             prompt stands in: the resolver carries it into the owner's place.
- *   prompt    nothing composes, so the stored prompt is simply the workspace's
- *             prompt, read as it stands. "Composes" is the resolver's own test
- *             (hasProfile): no profile at all, or one holding nothing the
- *             resolver composes from, and the resolver hands the prompt back.
- *   none      nothing to read.
- */
-declare function whoseWords(brain: {
-    system_prompt?: string | null;
-    profile?: {
-        extra_instructions?: string | null;
-    } | null;
-} | null | undefined): WhoseWords;
-/** The details a message sent in the business's name may name, as the owner writes them. */
-declare const FALLBACK_DETAILS: readonly ["business", "booking link", "phone"];
-type FallbackDetail = (typeof FALLBACK_DETAILS)[number];
-/**
- * The product's own wording for the three messages, naming the details rather
- * than copying them, so they follow the business's details from the first day
- * and a customer is never sent "call us at ." before a line exists.
- *
- * Each sentence stands without the one naming the link, which a business that
- * quotes does not have (the first run's decision 2): fillDetails leaves out a
- * sentence naming a detail the workspace lacks, and what is left must still be
- * a whole message.
- */
-declare const FALLBACK_DEFAULTS: BrainConfig["fallbacks"];
-/**
- * The product's wording before 24 Sep 2026, still the product's. Two of its
- * sentences leaned on the one naming the link ("Or reply here", "— or a member
- * of our team will reply"), so with no link they read as half a message.
- * Workspaces set up with it keep it, since a stored message is theirs to change:
- * it is never said to be their own words, or offered the default wording back.
- */
-declare const EARLIER_FALLBACK_DEFAULTS: BrainConfig["fallbacks"];
-/**
- * Whether a message is in the product's wording, today's or the earlier one: the one test the Business tab's line
- * (business-tab.ts fallbacksWords) and each message's "Use the default wording" ask.
- */
-declare function isProductFallback(key: keyof BrainConfig["fallbacks"], text: string | null | undefined): boolean;
-/**
- * The three messages sent in the business's name when the receptionist cannot
- * answer, with its details as they are now (the wiring audit's S5).
- *
- * They were written once, from what the form held that day, with the number
- * and the booking link baked in, and nothing wrote them again: a changed link
- * or a new line left customers the old one. A message may now name
- * {business}, {booking link} and {phone}, filled here as it goes out from the
- * facts the prompt speaks (resolveFacts): the number is the one the owner
- * typed or the line the receptionist answers, formatted for a person. A
- * sentence naming a detail the workspace does not have is left out rather
- * than sent with a hole in it; a message naming none goes out exactly as
- * written; one that would leave nothing says the default instead.
- */
-declare function fallbackMessages(brain: BrainConfig, known?: KnownFacts | null): BrainConfig["fallbacks"];
-/**
- * The names in a message that nothing fills in -- "{bookinglink}", "{phone
- * number}" -- which a customer would read exactly as written. The Business
- * form says so under the message before it is saved (S5).
- */
-declare function unknownDetails(text: string): string[];
 
 /**
  * Google — a business's listing on Google Maps, as facts.
@@ -4493,312 +3844,9 @@ declare function companyTypeOf(v: string | null | undefined): CompanyType;
 declare function industryWords(v: string): string;
 
 /**
- * The languages a template may be written in: every one WhatsApp takes
- * (template-languages.ts). It was six, so a business writing to its customers
- * in French or Vietnamese was told to "pick a language from the list".
+ * Who a broadcast is for: the audience kinds, who on it may receive, and the preview before sending. Moved whole from
+ * broadcasts.ts (Reach out Part 2.5), which re-exports it.
  */
-declare const TEMPLATE_LANGUAGES: readonly {
-    id: string;
-    label: string;
-}[];
-declare const TEMPLATE_CATEGORIES: readonly ["marketing", "utility"];
-type TemplateCategoryChoice = (typeof TEMPLATE_CATEGORIES)[number];
-declare const TEMPLATE_BODY_MAX = 1024;
-declare const TEMPLATE_FOOTER_MAX = 60;
-declare const TEMPLATE_EXAMPLE_MAX = 100;
-declare const TEMPLATE_NAME_MAX = 60;
-/** Meta's ceiling for the words on a button. */
-declare const TEMPLATE_BUTTON_TEXT_MAX = 25;
-declare function templateNameOk(name: string): boolean;
-/** A name Meta accepts, from anything a person typed: lowercase, digits and underscores. */
-declare function slugTemplateName(raw: string): string;
-/** The numbered slots a body names, sorted and unique. */
-declare function placeholdersOf(body: string): number[];
-/** Meta wants {{1}}, {{2}}, … with no gaps and nothing else. */
-declare function placeholdersSequential(positions: number[]): boolean;
-interface TemplateDraftInput {
-    name: string;
-    language: string;
-    category: string;
-    body: string;
-    footer?: string | null;
-    /** One example per slot, in order — Meta's reviewers read these. */
-    examples?: string[];
-    /**
-     * One button under the words, opening a fixed address — the business's own
-     * booking link. STATIC on purpose: a button whose URL takes a value needs a
-     * parameter at send time, and `sendTemplate` puts the body on the wire and
-     * nothing else, so such a template is refused by Meta for every recipient
-     * (template-library.ts templateBlocked). A fixed link needs no parameter, so
-     * this one sends exactly as it is written.
-     */
-    button?: {
-        text: string;
-        url: string;
-    } | null;
-}
-interface TemplateDraft {
-    name: string;
-    language: string;
-    category: TemplateCategoryChoice;
-    body: string;
-    footer: string | null;
-    examples: string[];
-    button: {
-        text: string;
-        url: string;
-    } | null;
-}
-type TemplateDraftCheck = {
-    ok: true;
-    value: TemplateDraft;
-    warnings: string[];
-} | {
-    ok: false;
-    error: string;
-};
-/**
- * What Meta refuses at the wire, refused here in the person's words. The
- * warnings are things reviewers frown on but do not always reject.
- */
-declare function validateTemplateDraft(d: TemplateDraftInput): TemplateDraftCheck;
-/** The components Meta's create call takes, from a checked draft. */
-declare function templateComponents(v: TemplateDraft): Array<Record<string, unknown>>;
-declare const PARAM_SOURCES: readonly ["text", "first_name", "business_name", "booking_link", "visit_when", "visit_service", "proposal_link"];
-type ParamSourceKind = (typeof PARAM_SOURCES)[number];
-type ParamSpec = {
-    kind: "text";
-    value: string;
-} | {
-    kind: "first_name";
-} | {
-    kind: "business_name";
-} | {
-    kind: "booking_link";
-}
-/** A visit playbook's own words: "tomorrow at 2:00 PM", and the service. */
- | {
-    kind: "visit_when";
-} | {
-    kind: "visit_service";
-}
-/** A follow-up's own words: the link of the proposal the person's deal waits on (0006). */
- | {
-    kind: "proposal_link";
-};
-declare const PARAM_SOURCE_LABELS: Record<ParamSourceKind, string>;
-/**
- * Where a filled slot's words come from, beside the words themselves in a
- * composer: the example says what one person reads, this says what every
- * person's is.
- */
-declare const PARAM_SOURCE_HINTS: Record<Exclude<ParamSourceKind, "text">, string>;
-/**
- * A slot's spec from what a route or a card was given: a plain string is
- * typed text; "@first_name" and the like are the sources; an object with a
- * kind is itself. Null means "not a spec".
- */
-declare function parseParamSpec(raw: unknown): ParamSpec | null;
-/**
- * Every slot's spec from a stored row, leniently: a value nothing recognises
- * stays as typed text, so a row written before the specs were typed still
- * renders. The one reader for the four places that used to spell this out.
- */
-declare function parseParamSpecs(raw: unknown): ParamSpec[];
-declare function paramLabel(spec: ParamSpec): string;
-/**
- * The running playbooks that still send a template, as a refusal says it: "“Win-back” still sends this message.
- * Pause it, or give it another message, first." Deleting it would leave every later run skipped.
- */
-declare function playbooksStillSending(names: readonly string[]): string;
-interface ParamFacts {
-    firstName: string | null;
-    businessName: string;
-    bookingLink: string | null;
-    /** A visit playbook's words for this person, resolved when the run was made; absent elsewhere. */
-    visitWhen?: string | null;
-    visitService?: string | null;
-    /** A follow-up's link for this person, frozen when the run was made (0006); absent elsewhere. */
-    proposalLink?: string | null;
-}
-/** The first name a message may use, or null when all that is on file is a number. */
-declare function firstNameOf(displayName: string | null | undefined, waProfileName: string | null | undefined): string | null;
-/**
- * The words that go into the slots for one person. A first name nobody has
- * on file becomes "there" ("Hi there"); a booking link the workspace has not
- * set becomes empty, which the route refuses before any broadcast is made.
- */
-declare function resolveParams(specs: readonly ParamSpec[], f: ParamFacts): string[];
-/** Example words for a preview: what a real person would see. */
-declare function exampleParams(specs: readonly ParamSpec[], businessName: string): string[];
-/**
- * What actually sends a template.
- *
- * Every send names its template: a playbook keeps `template_name`, a broadcast
- * keeps `template_name`, and the Inbox picks the booking one by rule
- * (`bookingTemplate`). So the answer to "which of my messages does anything"
- * was one join away and nobody made it -- a workspace could carry a message
- * written in WhatsApp Manager a year ago that nothing has ever sent, and the
- * page that lists every template was the one place that could not say so.
- *
- * Keyed by NAME rather than by row, because a template is one message in
- * several languages and the thing that sends it names the message.
- */
-interface TemplateUse {
-    /**
-     * The playbooks that send it, by the name the owner gave them: whether each is
-     * paused, whether one of its runs is waiting on the owner, and its clock in
-     * words ("runs daily at 10:00") when the source gave one.
-     */
-    playbooks: {
-        id: string;
-        name: string;
-        paused: boolean;
-        waiting: boolean;
-        runs: string | null;
-    }[];
-    /** How many broadcasts a PERSON sent with it; a playbook's runs are its own. */
-    broadcasts: number;
-    /** The latest of those broadcasts, newest first, by the names they were given: at most two. */
-    recent: string[];
-    /** The Inbox sends this one when somebody asks to book. */
-    booking: boolean;
-}
-interface TemplateUseSource {
-    /** `runs` is the playbook's clock in words (playbooks.ts `runsWords`), worded by the caller. */
-    playbooks: readonly {
-        id: string;
-        name: string;
-        template_name: string;
-        state?: string | null;
-        runs?: string | null;
-    }[];
-    /**
-     * Every broadcast. A playbook's runs carry its id: they are not counted as broadcasts, but a
-     * run `pending_approval` is how a playbook comes to be waiting on the owner.
-     */
-    broadcasts: readonly {
-        template_name: string;
-        playbook_id?: string | null;
-        name?: string | null;
-        state?: string | null;
-        created_at?: string | null;
-    }[];
-    /** The name the Inbox books with, from `bookingTemplate`; null when the workspace has none. */
-    bookingName: string | null;
-}
-/** One entry per template name that anything sends. A name absent from the map is sent by nothing. */
-declare function templateUsage(src: TemplateUseSource): Record<string, TemplateUse>;
-/**
- * What sends it, in one line. "Nothing sends it" is the answer worth showing:
- * it is the only one that asks the owner to do something about the message. A
- * message that ONE playbook sends says "Win-back playbook", because under a
- * heading called "What sends it" a bare name reads as a person.
- */
-declare function templateUseWords(use: TemplateUse | null | undefined): string;
-/**
- * The line under what sends it: what that thing is doing. A run waiting on the
- * owner outranks everything; one playbook says its clock or that it is paused;
- * a message people send by hand names the latest two; the Inbox's says what it
- * is for. Null when the first line already said all there is.
- */
-declare function templateUseNote(use: TemplateUse | null | undefined): string | null;
-/** True when nothing sends it: the one state the page draws differently. */
-declare function templateUnused(use: TemplateUse | null | undefined): boolean;
-/**
- * How many times a template actually went out, and when the latest did.
- *
- * Not a broadcast's `recipient_count`: that is the audience a run was scheduled
- * for, and the wire holds people back from it (no yes to offers, asked to stop,
- * no number, a person had the thread) while a run can stop part-way. Reports ›
- * Campaigns counts "Messages sent" apart from "Delivered" off the recipient rows
- * (campaign_series), and a Sent column summed from the audience would contradict
- * the page beside it. So this counts what that page counts -- a person a run
- * marked `sent` -- and the one door that page does not cover: a template the
- * Inbox sent into a thread whose window had closed, which left when WhatsApp
- * took it and the row got its wamid.
- *
- * Keyed by NAME, as `templateUsage` is: a run names its template, not a
- * language's row.
- */
-interface TemplateSends {
-    /** Messages that left with it: sent, which is not delivered and not read. */
-    count: number;
-    /** When the latest of them left (ISO), or null when none kept its time. */
-    lastAt: string | null;
-}
-interface TemplateSendSource {
-    /** Every broadcast -- one a person sent, or a playbook's run -- and the template it sent. */
-    runs: readonly {
-        id: string;
-        template_name: string;
-    }[];
-    /** The people on those runs (`broadcast_recipients`). Only the ones in state `sent` went out. */
-    recipients: readonly {
-        broadcast_id: string;
-        state: string;
-        sent_at: string | null;
-    }[];
-    /** What the Inbox sent on a template (`messages.template_name`). Only the ones WhatsApp took -- a wamid -- went out. */
-    inbox: readonly {
-        template_name: string | null;
-        external_id: string | null;
-        created_at: string;
-    }[];
-}
-/** One entry per template name that has gone out. A name absent from the map never has. */
-declare function templateSends(src: TemplateSendSource): Record<string, TemplateSends>;
-interface TemplateSentWords {
-    /** "1,204": how many went out; null when none has. */
-    count: string | null;
-    /** "2d ago", "Jul 31" or "Never sent"; null when none of them kept its time. */
-    when: string | null;
-}
-/**
- * The Sent cell. How long ago is said the way every page says it (time.ts):
- * "just now" · "3h ago" · "2d ago", and past a week the business's date.
- * A message that never went out says so in words: a "0" in a column of counts
- * reads as a quantity to compare with the others, and never is not one.
- */
-declare function templateSentWords(s: TemplateSends | null | undefined, tz: string, nowMs: number): TemplateSentWords;
-
-/**
- * What a run is read by, wherever it is read: the window a reply counts in, and the reasons a person is held back at
- * the wire, in the owner's words. The broadcast's run report, the Playbooks page and a person's page all read them;
- * they live apart from broadcasts.ts, which imports People's lists, so People can read them without a cycle.
- */
-/**
- * A reply is an inbound within this long of the send; a question two weeks later is its own thread. The SQL series
- * keeps the same window (migration 00064's '72 hours'), and every page says it in these words.
- */
-declare const REPLY_WINDOW_HOURS = 72;
-declare const REPLY_WINDOW_MS: number;
-declare const REPLY_WINDOW_WORDS = "within 3 days";
-/**
- * Whether a customer's message at `at` answers a send that reached them at `sentAt`: after it, and inside the reply
- * window. The run report counts its replies by this, and a person's page says "Replied" by it.
- */
-declare function isReplyTo(sentAt: string, at: string): boolean;
-/**
- * The reasons a person is held back at the wire, in the owner's words: every door refusal (the compiler holds it,
- * consent.ts DELIVERY_REFUSALS), and the run's own. A type import only, so the bundler still sees a plain object.
- */
-declare const HELD_REASONS: Record<DeliveryRefusal, string> & Record<string, string>;
-
-declare const BROADCAST_STATES: readonly ["pending_approval", "scheduled", "sending", "sent", "canceled", "failed"];
-type BroadcastState = (typeof BROADCAST_STATES)[number];
-declare const RECIPIENT_STATES: readonly ["queued", "sent", "skipped", "failed"];
-type RecipientState = (typeof RECIPIENT_STATES)[number];
-declare const BROADCAST_STATE_LABELS: Record<BroadcastState, string>;
-/** How many go in one job, and the breath between two sends. */
-declare const BROADCAST_CHUNK = 25;
-declare const BROADCAST_GAP_MS = 300;
-/** More than this is not a salon's list; it is a mistake. */
-declare const BROADCAST_MAX_RECIPIENTS = 2000;
-/** Meta's ceiling for one body parameter. */
-declare const BROADCAST_PARAM_MAX = 1024;
-declare const BROADCAST_SCHEDULE_MAX_DAYS = 30;
-declare const BROADCAST_NAME_MAX = 80;
 
 type AudienceKind = "everyone" | "list" | "saved" | "playbook";
 /** The kinds a person may pick; "playbook" is the sweep's own. */
@@ -4895,59 +3943,11 @@ declare function heardWords(n: number): string | null;
 declare function audiencePreview(rows: PersonRowVM[], kind: AudienceKind, id: string | null | undefined, savedIds: ReadonlySet<string> | null, purpose: AskedPurpose, limit?: number, 
 /** Who a run of any kind reached within the week (packages/db touchesSince); none when not read. */
 touched?: ReadonlySet<string>): AudiencePreview;
-/** The words a person will read: the body with its numbered slots filled. */
-declare function renderTemplate(body: string | null | undefined, params: readonly string[]): string;
+
 /**
- * One body value as Meta will accept it: trimmed, no line breaks or tabs, no
- * run of four spaces, under the ceiling. Null means "not acceptable".
+ * Why a run failed, in the owner's words, and what to do about it. Moved whole from broadcasts.ts (Reach out Part
+ * 2.5), which re-exports it.
  */
-declare function cleanParam(raw: unknown): string | null;
-/** A name when the owner gave none: the template and the day. */
-declare function broadcastName(templateName: string, tz: string, now?: Date, title?: string | null): string;
-interface BroadcastCounts {
-    queued: number;
-    sent: number;
-    skipped: number;
-    failed: number;
-    delivered: number;
-    read: number;
-    replied: number;
-}
-interface BroadcastDto {
-    id: string;
-    name: string;
-    template_id: string;
-    template_name: string;
-    template_language: string;
-    /** What fills each numbered slot: typed text, or the person's first name, the business's name, its booking link. */
-    params: ParamSpec[];
-    audience: Audience;
-    state: BroadcastState;
-    scheduled_for: string;
-    started_at: string | null;
-    finished_at: string | null;
-    recipient_count: number;
-    failure: string | null;
-    created_at: string;
-    /** A playbook's run: which one, and which local day it ran for. */
-    playbook_id: string | null;
-    run_for: string | null;
-    counts: BroadcastCounts;
-}
-interface BroadcastVM extends BroadcastDto {
-    stateLabel: string;
-    /** "today 9:00 AM" / "Sep 12 · 10:00 AM". */
-    when: string;
-    /** Delivered or read, over sent. Null until something was sent. */
-    deliveredPct: number | null;
-    readPct: number | null;
-    /** Still to come: scheduled or sending. */
-    open: boolean;
-    /** Sent + skipped + failed over enrolled, for the sending row. */
-    progress: number;
-    /** A failed broadcast's reason in the owner's words; null in any other state. */
-    failureLabel: string | null;
-}
 /**
  * Why a whole broadcast stopped, in the owner's words: the codes the send job writes (core messages/broadcast.ts)
  * and the one the job ledger writes when a run died and none took it up again (jobs settle.ts). Spelled out, as
@@ -4964,50 +3964,11 @@ declare const BROADCAST_FAILURE_FIX: Record<string, string>;
 declare function broadcastFailureFix(failure: string | null | undefined, reached?: number): string | null;
 /** A failed broadcast's reason: its words, a code nobody has written words for yet, or none recorded. */
 declare function broadcastFailureWords(failure: string | null | undefined): string;
-/** "today 9:00 AM" · "tomorrow 9:00 AM" · "Sep 12 · 10:00 AM", by the business's day and clock (clock.ts). */
-declare function whenLabel(iso: string, tz: string, now?: Date): string;
-declare function toBroadcastVM(d: BroadcastDto, tz: string, now?: Date): BroadcastVM;
+
 /**
- * The recipient's row while a send is in flight — and the reason it KEEPS if
- * the run never comes back to overwrite it.
- *
- * deliver() records a broadcast's message only once the provider has accepted
- * it, so a run killed in between leaves no message row at all: a resumed run
- * would find nothing, see the person still queued, and send them the same
- * template a second time. Written before the wire is touched, this is the row
- * saying "a run was mid-send here and nobody knows how it went" — the same
- * answer the ledger gives for an outbound_send whose run did not report back.
+ * The sending number's health: its daily limit by tier, what it has used, and the refusal when a run would go over.
+ * Moved whole from broadcasts.ts (Reach out Part 2.5), which re-exports it.
  */
-declare const OUTCOME_UNKNOWN = "outcome_unknown";
-/**
- * Why an audience came out empty, in the owner's words, for the purpose they
- * actually picked.
- *
- * The route used to refuse every empty audience with "Nobody there has said yes
- * to offers yet" -- which for a `utility` template names a consent that message
- * does not need and sends the owner to record an answer that would not help.
- *
- * Written out here rather than composed from `PURPOSE_REFUSALS`, and that is a
- * decision rather than a duplication: those sentences are about ONE PERSON, for a
- * reader looking at that person ("This customer has not said yes to OFFERS"), and
- * splicing one into an audience-level refusal produces a sentence that repeats
- * itself and calls an empty set "this customer". One source of truth is for FACTS.
- * The fact here is the reason code, which both registries key on and which a test
- * holds them both complete against; the prose is written for its own reader.
- *
- * An empty audience has two causes, and only one of them is a missing yes: the
- * ones who said it may have no number to send to -- someone who has only ever
- * emailed, or a walk-in recorded with a yes and no number. That case is said in
- * People's words (`noNumberWords`, #663), naming the audience as the send screen
- * does, and without the QR, which would ask them for an answer they gave. So the
- * caller hands in the audience's name and everyone on it, before anyone is left
- * out (`audienceMembers`), and the refusal says which cause it is.
- *
- * The QR is on Broadcasts, the ledger's "Get their yes" card since #758. These
- * words are read in a toast on the send screen, which has no QR, and in Ask,
- * which is no page at all -- so they say where it is rather than "on this page".
- */
-declare function emptyAudienceRefusal(purpose: AskedPurpose, label: string, pool: readonly Pick<PersonRowVM, "consent">[]): string;
 /** Meta's messaging-limit tiers: business-initiated conversations in a rolling day. */
 declare const LIMIT_TIERS: Record<string, number>;
 declare function dailyLimit(tier: string | null | undefined): number | null;
@@ -5034,47 +3995,7 @@ interface NumberHealth {
 declare function numberHealth(n: NumberHealthInput): NumberHealth;
 /** Null when the audience fits the day's limit; otherwise the refusal, with the numbers. */
 declare function overLimitRefusal(h: NumberHealth, audience: number): string | null;
-interface BroadcastRecipientDto {
-    contact_id: string;
-    name: string;
-    /** What a first-name slot says to them, by the wire's own rule (firstNameOf) over their card as it reads now; null is "Hi there". */
-    first_name: string | null;
-    phone: string | null;
-    state: RecipientState;
-    /** Why they were held back or not reached, as the job recorded it. */
-    reason: string | null;
-    sent_at: string | null;
-    /** The message's status from WhatsApp's receipts: sent, delivered, read, failed. */
-    message_status: string | null;
-    conversation_id: string | null;
-    /** Their thread heard from them after the broadcast reached them. */
-    replied: boolean;
-    /** When WhatsApp's receipts said so (00111 stamps each status as it arrives), and when the first reply came. */
-    delivered_at: string | null;
-    read_at: string | null;
-    replied_at: string | null;
-    /**
-     * What they said about hearing from the business AFTER the run reached them
-     * and inside the reply window -- a yes, or a stop -- off the consent ledger
-     * both doors write (00013), and when. The latest inside the window stands.
-     * Null for anyone the run did not reach, or who said nothing in the window.
-     */
-    consent_after: "opted_in" | "opted_out" | null;
-    consent_at: string | null;
-    /** Which answer that was: to offers (the offers door names its purpose, 00095), or to hearing from the business at all. */
-    consent_purpose: "marketing" | "conversational" | null;
-    /** Their first reply's words, on one line. Null when it had none -- a photo, a voice note -- or there was no reply. */
-    reply_words: string | null;
-    /** Who answered that reply first, and when: the receptionist, or someone on the team. A note or a later template is not an answer. */
-    answered_by: "receptionist" | "team" | null;
-    answered_at: string | null;
-    /** They replied, and their thread waits on a person now. */
-    waiting_on_you: boolean;
-}
-interface BroadcastDetailDto {
-    broadcast: BroadcastDto;
-    recipients: BroadcastRecipientDto[];
-}
+
 type RunFigureId = "sent" | "delivered" | "replied" | "said_yes" | "stopped";
 /** The steps a figure's bars take: the canvas draws eight. */
 declare const RUN_REPORT_STEPS = 8;
@@ -5189,6 +4110,183 @@ declare function toRunReportVM(d: {
 }): RunReportVM;
 
 /**
+ * What a run is read by, wherever it is read: the window a reply counts in, and the reasons a person is held back at
+ * the wire, in the owner's words. The broadcast's run report, the Playbooks page and a person's page all read them;
+ * they live apart from broadcasts.ts, which imports People's lists, so People can read them without a cycle.
+ */
+/**
+ * A reply is an inbound within this long of the send; a question two weeks later is its own thread. The SQL series
+ * keeps the same window (migration 00064's '72 hours'), and every page says it in these words.
+ */
+declare const REPLY_WINDOW_HOURS = 72;
+declare const REPLY_WINDOW_MS: number;
+declare const REPLY_WINDOW_WORDS = "within 3 days";
+/**
+ * Whether a customer's message at `at` answers a send that reached them at `sentAt`: after it, and inside the reply
+ * window. The run report counts its replies by this, and a person's page says "Replied" by it.
+ */
+declare function isReplyTo(sentAt: string, at: string): boolean;
+/**
+ * The reasons a person is held back at the wire, in the owner's words: every door refusal (the compiler holds it,
+ * consent.ts DELIVERY_REFUSALS), and the run's own. A type import only, so the bundler still sees a plain object.
+ */
+declare const HELD_REASONS: Record<DeliveryRefusal, string> & Record<string, string>;
+
+declare const BROADCAST_STATES: readonly ["pending_approval", "scheduled", "sending", "sent", "canceled", "failed"];
+type BroadcastState = (typeof BROADCAST_STATES)[number];
+declare const RECIPIENT_STATES: readonly ["queued", "sent", "skipped", "failed"];
+type RecipientState = (typeof RECIPIENT_STATES)[number];
+declare const BROADCAST_STATE_LABELS: Record<BroadcastState, string>;
+/** How many go in one job, and the breath between two sends. */
+declare const BROADCAST_CHUNK = 25;
+declare const BROADCAST_GAP_MS = 300;
+/** More than this is not a salon's list; it is a mistake. */
+declare const BROADCAST_MAX_RECIPIENTS = 2000;
+/** Meta's ceiling for one body parameter. */
+declare const BROADCAST_PARAM_MAX = 1024;
+declare const BROADCAST_SCHEDULE_MAX_DAYS = 30;
+declare const BROADCAST_NAME_MAX = 80;
+
+/** The words a person will read: the body with its numbered slots filled. */
+declare function renderTemplate(body: string | null | undefined, params: readonly string[]): string;
+/**
+ * One body value as Meta will accept it: trimmed, no line breaks or tabs, no
+ * run of four spaces, under the ceiling. Null means "not acceptable".
+ */
+declare function cleanParam(raw: unknown): string | null;
+/** A name when the owner gave none: the template and the day. */
+declare function broadcastName(templateName: string, tz: string, now?: Date, title?: string | null): string;
+interface BroadcastCounts {
+    queued: number;
+    sent: number;
+    skipped: number;
+    failed: number;
+    delivered: number;
+    read: number;
+    replied: number;
+}
+interface BroadcastDto {
+    id: string;
+    name: string;
+    template_id: string;
+    template_name: string;
+    template_language: string;
+    /** What fills each numbered slot: typed text, or the person's first name, the business's name, its booking link. */
+    params: ParamSpec[];
+    audience: Audience;
+    state: BroadcastState;
+    scheduled_for: string;
+    started_at: string | null;
+    finished_at: string | null;
+    recipient_count: number;
+    failure: string | null;
+    created_at: string;
+    /** A playbook's run: which one, and which local day it ran for. */
+    playbook_id: string | null;
+    run_for: string | null;
+    counts: BroadcastCounts;
+}
+interface BroadcastVM extends BroadcastDto {
+    stateLabel: string;
+    /** "today 9:00 AM" / "Sep 12 · 10:00 AM". */
+    when: string;
+    /** Delivered or read, over sent. Null until something was sent. */
+    deliveredPct: number | null;
+    readPct: number | null;
+    /** Still to come: scheduled or sending. */
+    open: boolean;
+    /** Sent + skipped + failed over enrolled, for the sending row. */
+    progress: number;
+    /** A failed broadcast's reason in the owner's words; null in any other state. */
+    failureLabel: string | null;
+}
+/** "today 9:00 AM" · "tomorrow 9:00 AM" · "Sep 12 · 10:00 AM", by the business's day and clock (clock.ts). */
+declare function whenLabel(iso: string, tz: string, now?: Date): string;
+declare function toBroadcastVM(d: BroadcastDto, tz: string, now?: Date): BroadcastVM;
+/**
+ * The recipient's row while a send is in flight — and the reason it KEEPS if
+ * the run never comes back to overwrite it.
+ *
+ * deliver() records a broadcast's message only once the provider has accepted
+ * it, so a run killed in between leaves no message row at all: a resumed run
+ * would find nothing, see the person still queued, and send them the same
+ * template a second time. Written before the wire is touched, this is the row
+ * saying "a run was mid-send here and nobody knows how it went" — the same
+ * answer the ledger gives for an outbound_send whose run did not report back.
+ */
+declare const OUTCOME_UNKNOWN = "outcome_unknown";
+/**
+ * Why an audience came out empty, in the owner's words, for the purpose they
+ * actually picked.
+ *
+ * The route used to refuse every empty audience with "Nobody there has said yes
+ * to offers yet" -- which for a `utility` template names a consent that message
+ * does not need and sends the owner to record an answer that would not help.
+ *
+ * Written out here rather than composed from `PURPOSE_REFUSALS`, and that is a
+ * decision rather than a duplication: those sentences are about ONE PERSON, for a
+ * reader looking at that person ("This customer has not said yes to OFFERS"), and
+ * splicing one into an audience-level refusal produces a sentence that repeats
+ * itself and calls an empty set "this customer". One source of truth is for FACTS.
+ * The fact here is the reason code, which both registries key on and which a test
+ * holds them both complete against; the prose is written for its own reader.
+ *
+ * An empty audience has two causes, and only one of them is a missing yes: the
+ * ones who said it may have no number to send to -- someone who has only ever
+ * emailed, or a walk-in recorded with a yes and no number. That case is said in
+ * People's words (`noNumberWords`, #663), naming the audience as the send screen
+ * does, and without the QR, which would ask them for an answer they gave. So the
+ * caller hands in the audience's name and everyone on it, before anyone is left
+ * out (`audienceMembers`), and the refusal says which cause it is.
+ *
+ * The QR is on Broadcasts, the ledger's "Get their yes" card since #758. These
+ * words are read in a toast on the send screen, which has no QR, and in Ask,
+ * which is no page at all -- so they say where it is rather than "on this page".
+ */
+declare function emptyAudienceRefusal(purpose: AskedPurpose, label: string, pool: readonly Pick<PersonRowVM, "consent">[]): string;
+interface BroadcastRecipientDto {
+    contact_id: string;
+    name: string;
+    /** What a first-name slot says to them, by the wire's own rule (firstNameOf) over their card as it reads now; null is "Hi there". */
+    first_name: string | null;
+    phone: string | null;
+    state: RecipientState;
+    /** Why they were held back or not reached, as the job recorded it. */
+    reason: string | null;
+    sent_at: string | null;
+    /** The message's status from WhatsApp's receipts: sent, delivered, read, failed. */
+    message_status: string | null;
+    conversation_id: string | null;
+    /** Their thread heard from them after the broadcast reached them. */
+    replied: boolean;
+    /** When WhatsApp's receipts said so (00111 stamps each status as it arrives), and when the first reply came. */
+    delivered_at: string | null;
+    read_at: string | null;
+    replied_at: string | null;
+    /**
+     * What they said about hearing from the business AFTER the run reached them
+     * and inside the reply window -- a yes, or a stop -- off the consent ledger
+     * both doors write (00013), and when. The latest inside the window stands.
+     * Null for anyone the run did not reach, or who said nothing in the window.
+     */
+    consent_after: "opted_in" | "opted_out" | null;
+    consent_at: string | null;
+    /** Which answer that was: to offers (the offers door names its purpose, 00095), or to hearing from the business at all. */
+    consent_purpose: "marketing" | "conversational" | null;
+    /** Their first reply's words, on one line. Null when it had none -- a photo, a voice note -- or there was no reply. */
+    reply_words: string | null;
+    /** Who answered that reply first, and when: the receptionist, or someone on the team. A note or a later template is not an answer. */
+    answered_by: "receptionist" | "team" | null;
+    answered_at: string | null;
+    /** They replied, and their thread waits on a person now. */
+    waiting_on_you: boolean;
+}
+interface BroadcastDetailDto {
+    broadcast: BroadcastDto;
+    recipients: BroadcastRecipientDto[];
+}
+
+/**
  * The words of a call's outcome: the choices the phone receptionist's
  * post-call analysis picks from, what each says on a surface, and the tidy
  * of a provider summary written before the analysis carried what the caller
@@ -5210,262 +4308,6 @@ declare function callOutcomeWords(v: unknown): string | null;
  * that opens any other way is kept as it is.
  */
 declare function tidyCallSummary(text: string | null | undefined): string | null;
-
-/**
- * Read-only availability: what is open, from a calendar feed and the rules.
- *
- * The receptionist never books. It may SEE the calendar — the owner's
- * appointments as an iCal feed, which every booking tool that syncs to
- * Google, Apple or Outlook can produce (Booksy Biz syncs two-way with Google
- * and Apple; Calendly, Square and the rest do the same) — subtract what is
- * taken from the opening hours, apply the owner's booking rules, and say
- * which windows are open before sending the booking link. The link is the
- * only way anything gets booked, whatever provider stands behind it.
- *
- * Pure: the feed text comes in, the windows come out, nothing is fetched
- * here. The edge fetches and caches; tests feed fixtures.
- */
-
-/** A taken stretch of time, epoch milliseconds. */
-interface BusyBlock {
-    start: number;
-    end: number;
-}
-/** A guest on the event, as the calendar carried them. */
-interface FeedAttendee {
-    name: string | null;
-    email: string | null;
-}
-/** One taken block with the words the owner's calendar gave it. */
-interface FeedItem extends BusyBlock {
-    title: string;
-    allDay: boolean;
-    uid: string | null;
-    /** The event's description and place, unescaped, as the owner or their booking tool wrote them. */
-    description: string | null;
-    location: string | null;
-    attendees: FeedAttendee[];
-    /**
-     * The address the event names as its ORGANIZER, lower-cased, or null. On a
-     * business's own calendar that is the owner or the booking tool that writes
-     * into it -- present on every event, and usually among the guests as well.
-     * Kept so the match can tell them from the customer (calendar-people.ts).
-     */
-    organizer: string | null;
-}
-interface ParsedFeed {
-    busy: BusyBlock[];
-    /** The same blocks as `busy`, with their titles — for the board. */
-    items: FeedItem[];
-    /** VEVENTs read, before any were dropped. */
-    events: number;
-    /** Recurring events expanded inside the horizon. */
-    recurringExpanded: number;
-    /** Recurring rules this parser does not understand (BYSETPOS, numbered
-     *  BYDAY, hourly…): their first occurrence is kept, the rest is not, and
-     *  they are counted so the diagnostic can say so. */
-    skippedRecurring: number;
-}
-interface ParseOptions {
-    /** Occurrences of recurring events are produced inside this window only
-     *  (epoch ms). Default: yesterday to ninety days out. */
-    horizon?: {
-        from: number;
-        to: number;
-    };
-}
-/** Offset of `tz` from UTC at the instant `atMs`, in milliseconds. */
-declare function zoneOffsetMs(tz: string, atMs: number): number;
-/** The instant a wall-clock time in `tz` refers to. Two passes cover a DST edge. */
-declare function localToUtcMs(tz: string, y: number, m: number, d: number, hh: number, mm: number): number;
-/** The wall clock of an instant in `tz`. */
-declare function clockInZone(tz: string, atMs: number): {
-    hh: number;
-    mm: number;
-    ss: number;
-};
-/** "YYYY-MM-DD" and the weekday key ("mon".."sun") of an instant in `tz`. */
-declare function dayInZone(tz: string, atMs: number): {
-    key: string;
-    weekday: string;
-    y: number;
-    m: number;
-    d: number;
-};
-/** The weekday keys in the order getUTCDay() numbers them, which is Sunday first. */
-/** The days of the week by their number from Sunday (Date.getUTCDay, and Google's Point.day). */
-declare const WEEKDAY_KEYS: readonly ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
-/**
- * The local day `days` after the one `atMs` falls on -- BY THE CALENDAR, not by
- * the clock.
- *
- * THE DEFECT THIS EXISTS FOR. Every one of these used to be written as
- * `dayInZone(tz, now + n * 86_400_000)`: add a fixed number of milliseconds,
- * then ask which local day that landed on. Two days a year that is not the
- * next day. On 8 March 2026 New York loses an hour, so a customer asking at
- * 23:30 the night before was offered 9 March next and **8 March was never
- * offered at all**; on 1 November it gains one, so a read at 00:30 emitted
- * 1 November twice and lost a day off the far end of the horizon. Nobody sees
- * an error: the receptionist simply says the wrong days out loud.
- *
- * A calendar day is a count of days, so it is counted in days. The date is
- * read in the business's zone, stepped over UTC midnights (which never shift),
- * and handed back as a date -- no instant is carried across the boundary, so
- * there is nothing for an hour to move. The RRULE expander below has always
- * stepped this way, which is why a weekly appointment stays at 2 PM across a
- * change and the offered days did not. `calendar.ts shiftKey` is the twin that
- * steps a DATE to a date; this is the one that starts from an instant, which
- * is where reading "now" went wrong.
- */
-declare function dayPlusInZone(tz: string, atMs: number, days: number): {
-    key: string;
-    weekday: string;
-    y: number;
-    m: number;
-    d: number;
-};
-/**
- * The taken time in a feed. Cancelled events and events marked transparent
- * (free) are not taken. A recurring event is expanded when its rule is one a
- * salon's calendar carries (parseRule); a rule that cannot be read keeps its
- * first occurrence and is counted as skipped. RDATE adds dates to a series
- * (or makes one of a single event); a VEVENT with RECURRENCE-ID replaces one
- * occurrence of the series with the same UID -- the moved instance is drawn
- * where it moved to, and a cancelled override removes its instance -- which
- * is what Google writes when one appointment in a weekly series is moved.
- */
-declare function parseIcs(text: string, fallbackTz: string, opts?: ParseOptions): ParsedFeed;
-interface BookingRulesLike {
-    lead_hours?: number;
-    buffer_min?: number;
-    max_days_ahead?: number;
-    slot_min?: number;
-}
-interface Opening {
-    key: string;
-    /** "mon".."sun" in the business's zone. */
-    weekday: string;
-    /** "Tuesday, September 9" */
-    label: string;
-    windows: Array<{
-        start: number;
-        end: number;
-    }>;
-}
-interface FreeWindowsInput {
-    hours: Record<string, Hours | undefined> | undefined;
-    closures?: Closure[];
-    tz: string;
-    busy: BusyBlock[];
-    rules?: BookingRulesLike | null;
-    now: Date;
-}
-/** The booking rules a workspace has until it sets its own. */
-declare const BOOKING_DEFAULTS: {
-    lead_hours: number;
-    buffer_min: number;
-    max_days_ahead: number;
-    slot_min: number;
-};
-/**
- * When a day is open, as one list of [open, close] spans.
- *
- * open/close and intervals are UNIONED, merged where they touch or overlap,
- * and a span that runs backwards is dropped. This is the ONE reader: the
- * prompt (config.ts), the free windows a caller is offered and the calendar
- * board all read a day through it. It used to have two readers -- the prompt
- * unioned the two, this one let intervals win -- so a row holding both could
- * be described two ways, and "are you open at nine?" had two answers.
- */
-declare function dayIntervals(h: Hours | undefined): Array<[string, string]>;
-declare function closedOn(closures: Closure[] | undefined, key: string): boolean;
-/**
- * The open windows, day by day: opening hours minus what is taken (each
- * taken block widened by the buffer), never earlier than now plus the lead
- * time, never shorter than one slot, never on a closed date.
- */
-declare function freeWindows(input: FreeWindowsInput): Opening[];
-/**
- * The openings a caller actually asked about: one day (a date or a weekday
- * name), and only windows long enough for the service they want. Days with
- * nothing left are dropped.
- */
-declare function filterOpenings(openings: Opening[], by: {
-    day?: string | null;
-    minMinutes?: number | null;
-}): Opening[];
-/**
- * The openings as the receptionist is told them: a few days, the windows on
- * each, and the rule that the calendar decides. Text on both channels; the
- * phone agent reads it aloud in its own words.
- *
- * `hasBookingLink` is required: what follows an opening is the link, or for a
- * business with none, the details the team needs (NO_LINK_DETAILS).
- */
-declare function describeOpenings(openings: Opening[], tz: string, opts: {
-    maxDays?: number;
-    daysAhead?: number;
-    hasBookingLink: boolean;
-}): string;
-/** A service the business lists, as far as matching one needs it. */
-interface ServiceLike {
-    name: string;
-    duration_min?: number;
-}
-declare const foldName: (s: string) => string;
-/**
- * Whether two names on one of the business's lists (its services, its languages) are one: accents, case and the space
- * around a name are not the name (foldName). The one test for "already there" on such a list: the first run's chips and
- * the Business tab's languages box both ask it, so a language chosen as "Haitian Créole" is the chip "Haitian Creole",
- * and is not offered again beside it. An empty name is no name, and the same as none. A business's own name is
- * facts.ts sameName's, which lets punctuation go too.
- */
-declare function sameListed(a: string, b: string): boolean;
-/**
- * The listed service somebody means, from what they said ("a haircut", "the
- * balayage thing", "uñas"): exact first, then one name containing the other,
- * then the service sharing the most words of four letters or more.
- *
- * One function for the phone tool and the assistant. The two copies it
- * replaced split words differently, and the phone's cut "uñas" at the ñ into
- * two pieces too short to count, so a caller asking for nails matched nothing.
- */
-declare function matchService<S extends ServiceLike>(services: readonly S[] | undefined, asked: unknown): S | null;
-/** The booking rules as far as a consultation needs them. */
-interface ConsultRules {
-    consult_first?: readonly string[];
-}
-/**
- * Whether a listed service needs a consultation before it can be booked, as Business lists them. Accents, case and the
- * spaces around a name are not the name, as in matchService; the board matched them exactly, lower-cased.
- */
-declare function needsConsultation(name: string, rules: ConsultRules | null | undefined): boolean;
-/** What an asked-for service is offered as: itself, or a consultation first. */
-interface ServiceOffer<S extends ServiceLike = ServiceLike> {
-    /** The listed service asked about. */
-    service: S;
-    /** Offered as a consultation, never as itself. */
-    consultation: boolean;
-    /** The listed service a consultation is, when the business lists one: the one sharing the service's words first. */
-    consultationService: S | null;
-    /** How long an open time has to be: the service's own length, a consultation's, or null for any open time. */
-    minMinutes: number | null;
-}
-/**
- * The one rule for a service asked about, for the phone tool, the assistant and the board. A service that needs a
- * consultation first is never offered itself: the consultation is, sized by the consultation the business lists
- * ("Consultation", "Consulta"), or any open time when it lists none. All three sized a three-hour color correction by
- * its own length while the prompt said a consultation comes first (C5b). A client is past the consultation, and is
- * offered the service itself (0004).
- */
-declare function offerFor<S extends ServiceLike>(services: readonly S[] | undefined, rules: ConsultRules | null | undefined, asked: unknown, opts?: {
-    client?: boolean;
-}): ServiceOffer<S> | null;
-/**
- * The words before the open times, the phone's and the assistant's alike: a service's length, or that it needs a
- * consultation first and what is offered instead.
- */
-declare function offerLead(offer: ServiceOffer | null): string;
 
 /**
  * A deal is a record (docs/decisions/0004-deals-record.md), and a proposal is
@@ -6750,6 +5592,1181 @@ type SchemaAgreement = [
 ];
 
 /**
+ * Control plane types (PRD E1/E3/E4) — the single source every boundary
+ * imports: the Settings form, the /v1 routes, and the edge runtime all parse
+ * the same schemas, so an option that exists in the UI exists in the runtime
+ * by construction (anti-junk rule R1).
+ */
+
+declare const ROLES: readonly ["owner", "operator", "viewer"];
+type Role = (typeof ROLES)[number];
+/** What each role may do. Mirrors the mockup's ST_PERMS exactly — the client
+ *  gate() chips read this shape; the server re-checks via requireRole. */
+declare const ROLE_PERMS: Record<Role, {
+    approve: boolean;
+    autonomy: boolean;
+    disconnect: boolean;
+    billing: boolean;
+    team: boolean;
+    settings: boolean;
+    export: boolean;
+    find: boolean;
+}>;
+declare const POLICY_CLASSES: readonly ["reply", "booking", "faq", "reengage", "campaign", "reviews", "money", "follow_up"];
+type PolicyClass = (typeof POLICY_CLASSES)[number];
+/**
+ * The words for each class, said once. The Autonomy matrix rows, a playbook's
+ * "runs under" chip and the assistant's proposals all read these; three maps
+ * used to name the same row three ways ("Campaigns" on a playbook for the row
+ * the matrix called "Standing offers").
+ */
+declare const POLICY_CLASS_WORDS: Record<PolicyClass, {
+    name: string;
+    short: string;
+    note: string;
+}>;
+/** The four modes. 'veto' is honoured where there is something to hold: a
+ *  reply waits in the hold window as a draft, a playbook run waits thirty
+ *  minutes; POLICY_CLASS_MODES says which classes offer it. The runtime
+ *  treats an unexpected mode as 'ask' (fail safe). */
+declare const POLICY_MODES: readonly ["auto", "veto", "ask", "never"];
+type PolicyMode = (typeof POLICY_MODES)[number];
+/**
+ * What each mode DOES, in the owner's words — the matrix's column headings, the
+ * name a phone puts over each dot, and the words a policy chip says after the
+ * dot.
+ *
+ * The stored values stay `auto | veto | ask | never`: those are filing words. A
+ * salon owner does not say "veto", and the plain sentence for each mode existed
+ * only as a hover tip on the column heading — which a phone has no way to
+ * trigger and a mouse has no reason to look for. The heading says it instead.
+ *
+ * `head` is verb-first with the receptionist as its subject, `sub` is the one
+ * clause that tells it apart from its neighbour, `chip` is the same fact small
+ * enough for a pill, `does` is the whole sentence for a control's title. No
+ * heading names a duration: how long a hold lasts belongs to the class (a reply
+ * waits the workspace's hold window, a playbook run waits thirty minutes), and a
+ * heading that said "30s" would be wrong on four of the six rows.
+ */
+declare const POLICY_MODE_WORDS: Record<PolicyMode, {
+    head: string;
+    sub: string;
+    chip: string;
+    does: string;
+}>;
+/**
+ * The modes each class can honour — a switch nothing enforces is a switch
+ * that lies. Replies can wait (veto), wait for a person (ask) or stay silent
+ * (never). Booking and service questions are answered by the receptionist
+ * or by a person: there is no "never" for a salon that takes bookings, and
+ * no draft to hold for review. The playbook classes run, wait, wait for a
+ * person, or do not run. Reviews are answered, drafted for a person, or
+ * left alone — there is no draft to hold on a countdown. Money is the
+ * charter's.
+ */
+declare const POLICY_CLASS_MODES: Record<PolicyClass, readonly PolicyMode[]>;
+/** The class a customer's intent falls under, when the Autonomy pane has a row for it. */
+declare function policyClassOfIntent(intent: string | null | undefined): "booking" | "faq" | null;
+/** The class that is set to "ask" and that this intent falls under, or null. An unknown mode counts as ask, fail safe. */
+declare function policyAskClass(policy: Record<string, {
+    mode: string;
+}> | null | undefined, intent: string | null | undefined): "booking" | "faq" | null;
+/**
+ * The Autonomy tab's Booking row holds the booking link back: it is not on
+ * "auto", so a person confirms instead. An unknown mode counts, fail safe, as it
+ * does in policyAskClass.
+ *
+ * The edge asks this question inline, through policyAskClass, and this must keep
+ * agreeing with every place it does: apps/edge/api/retell-fn.ts (its
+ * `bookingHeld`, which outbound-gate.ts refuses as booking_needs_a_person),
+ * apps/edge/api/retell-availability.ts (which then offers a caller no times) and
+ * apps/edge/lib/whatsapp/steps.ts layerTwo (which takes the link back out of a
+ * chat reply classed as a booking -- a price or services reply still carries it).
+ * Stated here so the Business tab reads the rule instead of keeping a copy of it.
+ */
+declare function bookingHeld(policy: Record<string, {
+    mode: string;
+}> | null | undefined): boolean;
+/**
+ * What the Booking and FAQ rows say in the prompt, per channel. "auto" says
+ * nothing — the profile already tells the receptionist how to book and what
+ * it offers. "ask" hands the matter to a person, in words the customer can
+ * hear on the phone and read on WhatsApp.
+ */
+declare function policyRules(policy: Record<string, {
+    mode: string;
+}> | null | undefined, channel: "whatsapp" | "voice"): string[];
+declare const PolicyLimitsSchema: z.ZodObject<{
+    max_replies_day: z.ZodOptional<z.ZodNumber>;
+    pause_hours: z.ZodOptional<z.ZodNumber>;
+    reply_delay_ms: z.ZodOptional<z.ZodNumber>;
+    min_confidence: z.ZodOptional<z.ZodNumber>;
+    max_llm_tokens_day: z.ZodOptional<z.ZodNumber>;
+}, z.core.$strict>;
+type PolicyLimits = z.infer<typeof PolicyLimitsSchema>;
+interface PolicyRow {
+    id: string;
+    class: PolicyClass;
+    mode: PolicyMode;
+    subject_type: SchemaSet<"policies.subject_type"> | null;
+    subject_id: string | null;
+    limits: PolicyLimits;
+    updated_at: string;
+}
+/**
+ * One stretch of the day the doors are open.
+ *
+ * DELIBERATELY LENIENT — no .strict(), no .refine(), no length bounds.
+ *
+ * This schema is on the READ path: apps/edge parses it out of the database on
+ * every inbound message, and a parse failure there is not a warning. It sets
+ * configBroken, the WhatsApp receptionist stops replying, and the voice agent
+ * is handed no facts at all. Rules that reject a stored row are rules that
+ * mute a live line, so the shape is all that lives here. Everything that can
+ * be WRONG rather than malformed — reversed times, overlapping shifts, a
+ * calendar date that does not exist — is checked on the way IN, and the
+ * composer is written to tell the truth about whatever is already stored.
+ */
+declare const IntervalSchema: z.ZodObject<{
+    open: z.ZodString;
+    close: z.ZodString;
+}, z.core.$strip>;
+declare const HoursSchema: z.ZodObject<{
+    open: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    close: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    intervals: z.ZodOptional<z.ZodArray<z.ZodObject<{
+        open: z.ZodString;
+        close: z.ZodString;
+    }, z.core.$strip>>>;
+}, z.core.$strict>;
+/**
+ * A day the business is shut whatever the weekly grid says.
+ *
+ * `until` because "closed 24 December to 2 January" is ONE decision an owner
+ * makes, and ten separate rows is how a holiday week ends up half-entered.
+ *
+ * Lenient for the same reason as IntervalSchema. Note the date regex accepts
+ * 2026-11-31, which is not a day; the renderer checks that it round-trips and
+ * prints the raw string when it does not, rather than confidently naming the
+ * wrong date.
+ */
+declare const ClosureSchema: z.ZodObject<{
+    date: z.ZodString;
+    until: z.ZodOptional<z.ZodString>;
+    note: z.ZodOptional<z.ZodString>;
+}, z.core.$strip>;
+declare const DAYS: readonly ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+declare const ServiceSchema: z.ZodObject<{
+    name: z.ZodString;
+    duration_min: z.ZodOptional<z.ZodNumber>;
+    price_note: z.ZodOptional<z.ZodString>;
+}, z.core.$strict>;
+/**
+ * The rules that must survive editing.
+ *
+ * Flags, never prose. A free-text prompt box hands an owner the ability to
+ * delete the price policy, the never-confirm-a-booking rule and the AI
+ * disclosure without knowing they have — and nothing downstream could tell.
+ * Composed in every time, and default ON: the safe reading of an absent value.
+ */
+declare const GuardrailsSchema: z.ZodObject<{
+    never_quote_prices: z.ZodOptional<z.ZodBoolean>;
+    never_confirm_booking: z.ZodOptional<z.ZodBoolean>;
+    disclose_ai: z.ZodOptional<z.ZodBoolean>;
+    no_health_advice: z.ZodOptional<z.ZodBoolean>;
+}, z.core.$strict>;
+/**
+ * Which rules are in force, with each rule's default applied.
+ *
+ * Read here by whoever says what the receptionist follows, because two readings
+ * drifted: the composer took the health rule as opt-in and Ask took it as on
+ * when absent, so Ask told an owner "gives no health advice" on a workspace
+ * whose receptionist was never given that line. Typed over the schema's keys:
+ * a fifth rule fails to compile until its default is said here.
+ */
+type GuardrailsInForce = Record<keyof z.infer<typeof GuardrailsSchema>, boolean>;
+declare function guardrailsInForce(g: z.infer<typeof GuardrailsSchema> | null | undefined): GuardrailsInForce;
+/**
+ * A thing the receptionist should know that fits no field — the academy, the
+ * chair rental, the parking. One topic each, said by BOTH receptionists. The
+ * long tail that a knowledge base would hold later; never the hours or the
+ * booking link, which have fields.
+ */
+declare const NoteSchema: z.ZodObject<{
+    title: z.ZodString;
+    text: z.ZodString;
+}, z.core.$strict>;
+type Note = z.infer<typeof NoteSchema>;
+/**
+ * How bookings may be OFFERED — never made. The receptionist sends the link;
+ * these shape which open times it names first and what it says about them.
+ */
+declare const BookingRulesSchema: z.ZodObject<{
+    lead_hours: z.ZodOptional<z.ZodNumber>;
+    buffer_min: z.ZodOptional<z.ZodNumber>;
+    max_days_ahead: z.ZodOptional<z.ZodNumber>;
+    slot_min: z.ZodOptional<z.ZodNumber>;
+    consult_first: z.ZodOptional<z.ZodArray<z.ZodString>>;
+    party_max: z.ZodOptional<z.ZodNumber>;
+    ask_email: z.ZodOptional<z.ZodBoolean>;
+    notes: z.ZodOptional<z.ZodArray<z.ZodString>>;
+}, z.core.$strict>;
+type BookingRules = z.infer<typeof BookingRulesSchema>;
+/** E.164: a plus, then 7–15 digits, no leading zero. */
+declare const E164: RegExp;
+/**
+ * The most either set of the receptionist's instructions holds: the prompt a
+ * workspace wrote before it had fields, and the owner's own instructions that
+ * prompt is carried into. One number, so a carried prompt always fits. The
+ * owner's held 8,000 characters against the prompt's 20,000, and a longer
+ * prompt failed every save of the form on a box nobody had touched (the
+ * wiring audit's S4).
+ */
+declare const INSTRUCTIONS_MAX = 20000;
+declare const BusinessProfileSchema: z.ZodObject<{
+    address: z.ZodOptional<z.ZodString>;
+    hours: z.ZodOptional<z.ZodRecord<z.ZodEnum<{
+        mon: "mon";
+        tue: "tue";
+        wed: "wed";
+        thu: "thu";
+        fri: "fri";
+        sat: "sat";
+        sun: "sun";
+    }> & z.core.$partial, z.ZodObject<{
+        open: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+        close: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+        intervals: z.ZodOptional<z.ZodArray<z.ZodObject<{
+            open: z.ZodString;
+            close: z.ZodString;
+        }, z.core.$strip>>>;
+    }, z.core.$strict>>>;
+    closures: z.ZodOptional<z.ZodArray<z.ZodObject<{
+        date: z.ZodString;
+        until: z.ZodOptional<z.ZodString>;
+        note: z.ZodOptional<z.ZodString>;
+    }, z.core.$strip>>>;
+    services: z.ZodOptional<z.ZodArray<z.ZodObject<{
+        name: z.ZodString;
+        duration_min: z.ZodOptional<z.ZodNumber>;
+        price_note: z.ZodOptional<z.ZodString>;
+    }, z.core.$strict>>>;
+    languages: z.ZodOptional<z.ZodArray<z.ZodString>>;
+    guardrails: z.ZodOptional<z.ZodObject<{
+        never_quote_prices: z.ZodOptional<z.ZodBoolean>;
+        never_confirm_booking: z.ZodOptional<z.ZodBoolean>;
+        disclose_ai: z.ZodOptional<z.ZodBoolean>;
+        no_health_advice: z.ZodOptional<z.ZodBoolean>;
+    }, z.core.$strict>>;
+    escalate_when: z.ZodOptional<z.ZodArray<z.ZodString>>;
+    tone: z.ZodOptional<z.ZodString>;
+    handoff_number: z.ZodOptional<z.ZodString>;
+    website: z.ZodOptional<z.ZodString>;
+    notes: z.ZodOptional<z.ZodArray<z.ZodObject<{
+        title: z.ZodString;
+        text: z.ZodString;
+    }, z.core.$strict>>>;
+    booking_rules: z.ZodOptional<z.ZodObject<{
+        lead_hours: z.ZodOptional<z.ZodNumber>;
+        buffer_min: z.ZodOptional<z.ZodNumber>;
+        max_days_ahead: z.ZodOptional<z.ZodNumber>;
+        slot_min: z.ZodOptional<z.ZodNumber>;
+        consult_first: z.ZodOptional<z.ZodArray<z.ZodString>>;
+        party_max: z.ZodOptional<z.ZodNumber>;
+        ask_email: z.ZodOptional<z.ZodBoolean>;
+        notes: z.ZodOptional<z.ZodArray<z.ZodString>>;
+    }, z.core.$strict>>;
+    extra_instructions: z.ZodOptional<z.ZodString>;
+}, z.core.$strict>;
+type BusinessProfile = z.infer<typeof BusinessProfileSchema>;
+type Hours = z.infer<typeof HoursSchema>;
+type Service = z.infer<typeof ServiceSchema>;
+type Interval = z.infer<typeof IntervalSchema>;
+type Closure = z.infer<typeof ClosureSchema>;
+declare const BrainConfigSchema: z.ZodObject<{
+    business_name: z.ZodString;
+    phone_display: z.ZodOptional<z.ZodString>;
+    booking_link: z.ZodOptional<z.ZodString>;
+    system_prompt: z.ZodString;
+    profile: z.ZodOptional<z.ZodObject<{
+        address: z.ZodOptional<z.ZodString>;
+        hours: z.ZodOptional<z.ZodRecord<z.ZodEnum<{
+            mon: "mon";
+            tue: "tue";
+            wed: "wed";
+            thu: "thu";
+            fri: "fri";
+            sat: "sat";
+            sun: "sun";
+        }> & z.core.$partial, z.ZodObject<{
+            open: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+            close: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+            intervals: z.ZodOptional<z.ZodArray<z.ZodObject<{
+                open: z.ZodString;
+                close: z.ZodString;
+            }, z.core.$strip>>>;
+        }, z.core.$strict>>>;
+        closures: z.ZodOptional<z.ZodArray<z.ZodObject<{
+            date: z.ZodString;
+            until: z.ZodOptional<z.ZodString>;
+            note: z.ZodOptional<z.ZodString>;
+        }, z.core.$strip>>>;
+        services: z.ZodOptional<z.ZodArray<z.ZodObject<{
+            name: z.ZodString;
+            duration_min: z.ZodOptional<z.ZodNumber>;
+            price_note: z.ZodOptional<z.ZodString>;
+        }, z.core.$strict>>>;
+        languages: z.ZodOptional<z.ZodArray<z.ZodString>>;
+        guardrails: z.ZodOptional<z.ZodObject<{
+            never_quote_prices: z.ZodOptional<z.ZodBoolean>;
+            never_confirm_booking: z.ZodOptional<z.ZodBoolean>;
+            disclose_ai: z.ZodOptional<z.ZodBoolean>;
+            no_health_advice: z.ZodOptional<z.ZodBoolean>;
+        }, z.core.$strict>>;
+        escalate_when: z.ZodOptional<z.ZodArray<z.ZodString>>;
+        tone: z.ZodOptional<z.ZodString>;
+        handoff_number: z.ZodOptional<z.ZodString>;
+        website: z.ZodOptional<z.ZodString>;
+        notes: z.ZodOptional<z.ZodArray<z.ZodObject<{
+            title: z.ZodString;
+            text: z.ZodString;
+        }, z.core.$strict>>>;
+        booking_rules: z.ZodOptional<z.ZodObject<{
+            lead_hours: z.ZodOptional<z.ZodNumber>;
+            buffer_min: z.ZodOptional<z.ZodNumber>;
+            max_days_ahead: z.ZodOptional<z.ZodNumber>;
+            slot_min: z.ZodOptional<z.ZodNumber>;
+            consult_first: z.ZodOptional<z.ZodArray<z.ZodString>>;
+            party_max: z.ZodOptional<z.ZodNumber>;
+            ask_email: z.ZodOptional<z.ZodBoolean>;
+            notes: z.ZodOptional<z.ZodArray<z.ZodString>>;
+        }, z.core.$strict>>;
+        extra_instructions: z.ZodOptional<z.ZodString>;
+    }, z.core.$strict>>;
+    fallbacks: z.ZodObject<{
+        greeting: z.ZodString;
+        error: z.ZodString;
+        non_text: z.ZodString;
+    }, z.core.$strict>;
+}, z.core.$strict>;
+type BrainConfig = z.infer<typeof BrainConfigSchema>;
+/**
+ * The parts of a brand-new receptionist nobody should have to write.
+ *
+ * BrainConfigSchema requires a system_prompt and three fallback messages, and
+ * until this existed there was no way to produce them from inside the product:
+ * provisioning inserts an empty tenant_config row and the settings form only
+ * ever edited the profile ON an existing brain. Onboarding a business meant
+ * hand-writing its config into the database.
+ *
+ * It lives HERE, beside the schema it has to satisfy, because a default that
+ * drifts out of spec does not fail in review — it fails for the next business
+ * that tries to set itself up.
+ *
+ * The prompt states no facts on purpose. The address, hours and services are
+ * composed from the profile; a baseline that repeated them would be a second
+ * copy of every one, free to go stale the moment the owner edits a field.
+ */
+declare function newReceptionistDefaults(businessName: string): Pick<BrainConfig, "system_prompt" | "fallbacks">;
+/** The product's own opening lines, whatever business name they were written with -- words no owner wrote. */
+declare function isBaselinePrompt(text: string): boolean;
+/**
+ * What the Business form's instructions box opens with (S4).
+ *
+ * The owner's own instructions when they have written some. Otherwise the
+ * prompt a profile carries in their place, shown so nothing the receptionist
+ * follows is out of sight and marked `carried` so the form can say where it
+ * came from -- unless it is the product's baseline, which no owner wrote. A
+ * save then keeps what the box holds as the owner's and puts the baseline back
+ * as the prompt: the text is stored once, and an emptied box stays empty
+ * instead of filling itself again from the copy left behind.
+ *
+ * ONE rule with the prompt view: whoseWords (plan Task 3.8, shipped 22 Sep).
+ * Own words open as the owner's; a prompt standing in the owner's place (carried
+ * or a workspace's own, whichever the resolver does with it) opens marked
+ * carried; the product's own opening lines and nothing to read open an empty box.
+ * Kept exactly as stored, spaces and all, so a save writes back what was there.
+ *
+ * Phase 1 left the two disagreeing on one case, knowingly: the baseline stored
+ * in the OWNER'S own field, where a save before S4 copied it. The box opened it
+ * as the owner's words because routing it here made it open EMPTY and the live
+ * form's next Save deleted the field -- and a workspace whose only composed
+ * field was that copy fell from a composed prompt to the bare baseline, losing
+ * its hand-off and every rule line. That save is gone: the fold that replaced
+ * the form sends nothing at all when its box is left as it opened
+ * (business-tab-folds.jsx, holdsChanges), so an empty box deletes nothing by
+ * being looked at. What a save with something typed in it should do with that
+ * copy is open, and nothing in production has it (the count under plan Task 3.8).
+ */
+declare function instructionsDraft(brain: {
+    system_prompt?: string | null;
+    profile?: {
+        extra_instructions?: string | null;
+    } | null;
+} | null | undefined): {
+    text: string;
+    carried: boolean;
+};
+declare const NotificationsConfigSchema: z.ZodObject<{
+    escalation_emails: z.ZodArray<z.ZodString>;
+    from: z.ZodOptional<z.ZodString>;
+}, z.core.$strict>;
+type NotificationsConfig = z.infer<typeof NotificationsConfigSchema>;
+/**
+ * The whole tenant_config.config column. Sections are optional — a tenant with
+ * no brain section is a tenant whose receptionist does not speak (persist +
+ * escalate only). Safe-by-default beats a leaked persona.
+ *
+ * DELIBERATELY NOT `.strict()` AT THE TOP LEVEL, while each SECTION still is.
+ *
+ * The edge and the dashboard are separate Vercel projects that deploy
+ * independently. With a strict top level, the first dashboard deploy to write a
+ * new section — `guardrails`, a per-tenant allowlist, anything — would be
+ * rejected in its entirety by the older edge still running beside it. The
+ * receptionist would go completely silent on a live line, and it would be
+ * logged identically to "no brain profile configured": a total mute that reads
+ * as a configuration absence.
+ *
+ * Unknown top-level keys are therefore STRIPPED rather than fatal, so an older
+ * edge ignores a section it has never heard of and keeps answering with the
+ * persona it does understand. Strictness stays where it catches real mistakes:
+ * inside a section, where a typo means a field the runtime silently would not
+ * apply.
+ */
+/**
+ * The calendar the receptionist may READ. An iCal address — what any booking
+ * tool that syncs to Google, Apple or Outlook produces — never credentials to
+ * write with. Nothing is ever booked from here; the booking link does that,
+ * whichever tool is behind it.
+ */
+declare const CalendarConfigSchema: z.ZodObject<{
+    ical_url: z.ZodString;
+}, z.core.$strict>;
+type CalendarConfig = z.infer<typeof CalendarConfigSchema>;
+/**
+ * Opt-in abilities, off unless the workspace turns them on.
+ *
+ * `vision`: the receptionist looks at photos customers send over WhatsApp and
+ * answers them like words, under every rule it already follows. Off, a photo
+ * is acknowledged and handed to a person, as before.
+ */
+declare const FeaturesConfigSchema: z.ZodObject<{
+    vision: z.ZodOptional<z.ZodBoolean>;
+}, z.core.$strict>;
+type FeaturesConfig = z.infer<typeof FeaturesConfigSchema>;
+declare const TenantConfigSchema: z.ZodObject<{
+    brain: z.ZodOptional<z.ZodObject<{
+        business_name: z.ZodString;
+        phone_display: z.ZodOptional<z.ZodString>;
+        booking_link: z.ZodOptional<z.ZodString>;
+        system_prompt: z.ZodString;
+        profile: z.ZodOptional<z.ZodObject<{
+            address: z.ZodOptional<z.ZodString>;
+            hours: z.ZodOptional<z.ZodRecord<z.ZodEnum<{
+                mon: "mon";
+                tue: "tue";
+                wed: "wed";
+                thu: "thu";
+                fri: "fri";
+                sat: "sat";
+                sun: "sun";
+            }> & z.core.$partial, z.ZodObject<{
+                open: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+                close: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+                intervals: z.ZodOptional<z.ZodArray<z.ZodObject<{
+                    open: z.ZodString;
+                    close: z.ZodString;
+                }, z.core.$strip>>>;
+            }, z.core.$strict>>>;
+            closures: z.ZodOptional<z.ZodArray<z.ZodObject<{
+                date: z.ZodString;
+                until: z.ZodOptional<z.ZodString>;
+                note: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>>>;
+            services: z.ZodOptional<z.ZodArray<z.ZodObject<{
+                name: z.ZodString;
+                duration_min: z.ZodOptional<z.ZodNumber>;
+                price_note: z.ZodOptional<z.ZodString>;
+            }, z.core.$strict>>>;
+            languages: z.ZodOptional<z.ZodArray<z.ZodString>>;
+            guardrails: z.ZodOptional<z.ZodObject<{
+                never_quote_prices: z.ZodOptional<z.ZodBoolean>;
+                never_confirm_booking: z.ZodOptional<z.ZodBoolean>;
+                disclose_ai: z.ZodOptional<z.ZodBoolean>;
+                no_health_advice: z.ZodOptional<z.ZodBoolean>;
+            }, z.core.$strict>>;
+            escalate_when: z.ZodOptional<z.ZodArray<z.ZodString>>;
+            tone: z.ZodOptional<z.ZodString>;
+            handoff_number: z.ZodOptional<z.ZodString>;
+            website: z.ZodOptional<z.ZodString>;
+            notes: z.ZodOptional<z.ZodArray<z.ZodObject<{
+                title: z.ZodString;
+                text: z.ZodString;
+            }, z.core.$strict>>>;
+            booking_rules: z.ZodOptional<z.ZodObject<{
+                lead_hours: z.ZodOptional<z.ZodNumber>;
+                buffer_min: z.ZodOptional<z.ZodNumber>;
+                max_days_ahead: z.ZodOptional<z.ZodNumber>;
+                slot_min: z.ZodOptional<z.ZodNumber>;
+                consult_first: z.ZodOptional<z.ZodArray<z.ZodString>>;
+                party_max: z.ZodOptional<z.ZodNumber>;
+                ask_email: z.ZodOptional<z.ZodBoolean>;
+                notes: z.ZodOptional<z.ZodArray<z.ZodString>>;
+            }, z.core.$strict>>;
+            extra_instructions: z.ZodOptional<z.ZodString>;
+        }, z.core.$strict>>;
+        fallbacks: z.ZodObject<{
+            greeting: z.ZodString;
+            error: z.ZodString;
+            non_text: z.ZodString;
+        }, z.core.$strict>;
+    }, z.core.$strict>>;
+    notifications: z.ZodOptional<z.ZodObject<{
+        escalation_emails: z.ZodArray<z.ZodString>;
+        from: z.ZodOptional<z.ZodString>;
+    }, z.core.$strict>>;
+    calendar: z.ZodOptional<z.ZodObject<{
+        ical_url: z.ZodString;
+    }, z.core.$strict>>;
+    features: z.ZodOptional<z.ZodObject<{
+        vision: z.ZodOptional<z.ZodBoolean>;
+    }, z.core.$strict>>;
+}, z.core.$strip>;
+type TenantConfig = z.infer<typeof TenantConfigSchema>;
+/** The most shifts one day may be split into. Must match the editor's cap. */
+declare const MAX_INTERVALS_PER_DAY = 4;
+/** As many closures as the composer will state — there is no render cap. */
+declare const MAX_CLOSURES = 60;
+/** Does this string name a real day? "2026-11-31" does not. */
+declare function isRealDate(key: string): boolean;
+/** A day of the week by its whole name, the one table: the write rules', the composer's and the first run's. */
+declare const DAY_NAMES: Record<(typeof DAYS)[number], string>;
+/**
+ * What is wrong with one day of the week, in the owner's words, each with where in the day it is. The write rules'
+ * day check (checkDay) and anything that builds a day from elsewhere (google.ts hoursFromGoogle) ask this, so a day
+ * is judged by one set of rules wherever it comes from. Empty when the day is one the record holds.
+ */
+declare function dayProblems(h: Hours, day: string): Array<{
+    path: Array<string | number>;
+    message: string;
+}>;
+/**
+ * The same config, with the rules that only apply on the way IN.
+ *
+ * Wrapping TenantConfigSchema rather than replacing it, so the shape and the
+ * lenience stay defined in exactly one place and this can only ever be
+ * stricter.
+ */
+declare const TenantConfigWriteSchema: z.ZodObject<{
+    brain: z.ZodOptional<z.ZodObject<{
+        business_name: z.ZodString;
+        phone_display: z.ZodOptional<z.ZodString>;
+        booking_link: z.ZodOptional<z.ZodString>;
+        system_prompt: z.ZodString;
+        profile: z.ZodOptional<z.ZodObject<{
+            address: z.ZodOptional<z.ZodString>;
+            hours: z.ZodOptional<z.ZodRecord<z.ZodEnum<{
+                mon: "mon";
+                tue: "tue";
+                wed: "wed";
+                thu: "thu";
+                fri: "fri";
+                sat: "sat";
+                sun: "sun";
+            }> & z.core.$partial, z.ZodObject<{
+                open: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+                close: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+                intervals: z.ZodOptional<z.ZodArray<z.ZodObject<{
+                    open: z.ZodString;
+                    close: z.ZodString;
+                }, z.core.$strip>>>;
+            }, z.core.$strict>>>;
+            closures: z.ZodOptional<z.ZodArray<z.ZodObject<{
+                date: z.ZodString;
+                until: z.ZodOptional<z.ZodString>;
+                note: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>>>;
+            services: z.ZodOptional<z.ZodArray<z.ZodObject<{
+                name: z.ZodString;
+                duration_min: z.ZodOptional<z.ZodNumber>;
+                price_note: z.ZodOptional<z.ZodString>;
+            }, z.core.$strict>>>;
+            languages: z.ZodOptional<z.ZodArray<z.ZodString>>;
+            guardrails: z.ZodOptional<z.ZodObject<{
+                never_quote_prices: z.ZodOptional<z.ZodBoolean>;
+                never_confirm_booking: z.ZodOptional<z.ZodBoolean>;
+                disclose_ai: z.ZodOptional<z.ZodBoolean>;
+                no_health_advice: z.ZodOptional<z.ZodBoolean>;
+            }, z.core.$strict>>;
+            escalate_when: z.ZodOptional<z.ZodArray<z.ZodString>>;
+            tone: z.ZodOptional<z.ZodString>;
+            handoff_number: z.ZodOptional<z.ZodString>;
+            website: z.ZodOptional<z.ZodString>;
+            notes: z.ZodOptional<z.ZodArray<z.ZodObject<{
+                title: z.ZodString;
+                text: z.ZodString;
+            }, z.core.$strict>>>;
+            booking_rules: z.ZodOptional<z.ZodObject<{
+                lead_hours: z.ZodOptional<z.ZodNumber>;
+                buffer_min: z.ZodOptional<z.ZodNumber>;
+                max_days_ahead: z.ZodOptional<z.ZodNumber>;
+                slot_min: z.ZodOptional<z.ZodNumber>;
+                consult_first: z.ZodOptional<z.ZodArray<z.ZodString>>;
+                party_max: z.ZodOptional<z.ZodNumber>;
+                ask_email: z.ZodOptional<z.ZodBoolean>;
+                notes: z.ZodOptional<z.ZodArray<z.ZodString>>;
+            }, z.core.$strict>>;
+            extra_instructions: z.ZodOptional<z.ZodString>;
+        }, z.core.$strict>>;
+        fallbacks: z.ZodObject<{
+            greeting: z.ZodString;
+            error: z.ZodString;
+            non_text: z.ZodString;
+        }, z.core.$strict>;
+    }, z.core.$strict>>;
+    notifications: z.ZodOptional<z.ZodObject<{
+        escalation_emails: z.ZodArray<z.ZodString>;
+        from: z.ZodOptional<z.ZodString>;
+    }, z.core.$strict>>;
+    calendar: z.ZodOptional<z.ZodObject<{
+        ical_url: z.ZodString;
+    }, z.core.$strict>>;
+    features: z.ZodOptional<z.ZodObject<{
+        vision: z.ZodOptional<z.ZodBoolean>;
+    }, z.core.$strict>>;
+}, z.core.$strip>;
+type TenantConfigParse = {
+    ok: true;
+    config: TenantConfig;
+} | {
+    ok: false;
+    issues: string[];
+};
+/**
+ * Parse unknown JSONB into TenantConfig.
+ *
+ * Returns the ISSUES rather than a bare null, because the runtime needs to tell
+ * "this tenant has not been configured" from "this tenant's configuration is
+ * broken". Both end in silence, but only one of them is somebody's mistake, and
+ * collapsing them meant an operator reading "no brain profile configured" while
+ * a perfectly good persona sat in the database behind one bad field.
+ */
+declare function parseTenantConfigResult(raw: unknown): TenantConfigParse;
+/** Whether a workspace's receptionist is set up: none yet, set up, or a config the parser refused. */
+type ReceptionistState = "none" | "set" | "broken";
+/**
+ * The one test of whether a receptionist is set up, for Setup's read, the first run's Check and the first
+ * receptionist's route alike: a config the parser refuses is its own state, since only Chanlytics repairs one, and a
+ * parsed config holds a receptionist when it holds a brain. No config at all reads as none.
+ */
+declare function receptionistOf(parsed: TenantConfigParse | null): ReceptionistState;
+/** Convenience for callers that genuinely cannot act on the difference. */
+declare function parseTenantConfig(raw: unknown): TenantConfig | null;
+/**
+ * A new workspace's first alert address: its creator's. Without one, the edge's
+ * chooseAddressing (lib/ops/notify.ts) sends every "a customer needs you" to the
+ * platform, redacted, and the owner is never told.
+ *
+ * Returns the config to save, or null when there is nothing to do: a config that
+ * already names its addresses, one that will not parse, or an address the write
+ * schema refuses -- saved, a refused address would make the whole config
+ * unreadable, and the receptionist silent.
+ */
+declare function withFirstAlertAddress(config: unknown, email: string | null | undefined): TenantConfig | null;
+/** "Monday–Friday 9:00–18:00" style lines, collapsing identical runs. */
+/** One stretch of consecutive days that share the same hours. */
+interface HoursRun {
+    /** Day key the run starts on, e.g. "mon". */
+    from: string;
+    /** Day key it ends on. Equal to `from` for a single day. */
+    to: string;
+    /** "09:30–18:00", or "Closed". */
+    text: string;
+}
+declare function hoursRuns(hours: Record<string, Hours> | undefined): HoursRun[];
+/**
+ * What a record whose details compose nothing is told, in ONE sentence.
+ *
+ * Two places on the Business tab say it: the rules fold, where the rules block would be
+ * (business-tab.ts RULES_WITHOUT_FIELDS_WORDS), and the prompt view, over the stored prompt the
+ * resolver hands such a record back (prompt-blocks.ts). They were two sentences saying the same
+ * thing in two spellings, which is two sentences to keep true; both are built from this one now,
+ * so an owner reading the page twice reads the same words. `hasProfile`, below, is what decides
+ * whether either is said.
+ */
+declare const NO_FIELDS_COMPOSED_WORDS = "None of the details on this page are composed into what it reads yet.";
+/** True when a profile carries anything worth composing from. */
+declare function hasProfile(p: BusinessProfile | undefined | null): boolean;
+/**
+ * The current moment, in the business's own timezone.
+ *
+ * Deliberately NOT part of composeSystemPrompt. That output is cached with the
+ * request; this changes every minute, and folding it in would evict the whole
+ * business profile from the prompt cache on every single message. It belongs
+ * in its own uncached block, next to the lead note that changes per contact.
+ *
+ * The timezone is `tenants.timezone` — the one the metrics RPCs and the Today
+ * surface already use. There is no second copy of it on the profile.
+ */
+declare function describeNow(tz: string | null | undefined, now?: Date, 
+/**
+ * The workspace's closures, so a shut day is stated HERE.
+ *
+ * It matters that it is here and not only in the composed block above. This
+ * is the last thing the model reads, and on a closure day the weekly grid
+ * says open while the closure list says shut. Leaving the tie to block order
+ * would decide the single highest-stakes question — "are you open today?" —
+ * by accident.
+ */
+closures?: Closure[]): string;
+/**
+ * How each part of the composed prompt opens, said once.
+ *
+ * Every value is the start of a line the composer writes: a section's heading,
+ * the first words of a paragraph Chanlytics writes for every workspace, or one
+ * of the two lines that can sit above the owner's own words. The composer
+ * writes them from here, and the Business tab's prompt view (prompt-blocks.ts)
+ * cuts the prompt on them from here. They were literal copies in two files, and
+ * a copy that drifted folded one block into its neighbour without failing
+ * anything: a closure list into the hours, the medium line into the owner's own
+ * words.
+ *
+ * These are words the live receptionist reads. Changing one changes its prompt.
+ */
+declare const PROMPT_OPENINGS: {
+    readonly hours: "Opening hours";
+    readonly closures: "Closed on these dates";
+    readonly services: "Services:";
+    readonly notes: "Other things to know:";
+    readonly bookingRules: "Booking rules:";
+    readonly handoffChat: "Handing the conversation to a person:";
+    readonly handoffCall: "Handing the caller to a person:";
+    /** The call's tool mechanics: check_availability, send_booking_link, end_call. */
+    readonly callTools: "Open times: use check_availability";
+    readonly callMedium: "You are speaking aloud.";
+    readonly chatMedium: "Keep replies short enough to read on a phone.";
+    readonly openTimes: "If open times are listed after these instructions";
+    /** The rules, last: the guardrails in a composed prompt, Autonomy's alone after a prompt nothing composed. */
+    readonly rules: "Rules you must follow:";
+    /** Above the owner's own words, when there are details above for them to disagree with. */
+    readonly ownWordsUnderDetails: "Further instructions from the business.";
+    /** Above the owner's own words on a call, alone or after the line above. */
+    readonly ownWordsOnACall: "Some of it was written for text conversations";
+};
+declare function composeSystemPrompt(
+/** `booking_link` null for a business that quotes each job: the prompt then says what the receptionist takes instead. */
+base: {
+    business_name: string;
+    phone_display?: string | null;
+    booking_link: string | null;
+}, profile: BusinessProfile, channel?: "whatsapp" | "voice", 
+/** IANA zone from `tenants.timezone`, so stated hours are unambiguous. */
+tz?: string | null, 
+/**
+ * Only used to drop closures that have already passed.
+ *
+ * No cron, no nightly prune: the composer already runs per message and
+ * already knows the zone, so "has this gone by?" is a string comparison.
+ * Rows that have passed stay in the config and simply stop being said.
+ */
+now?: Date, 
+/** The workspace's Autonomy rows (class → mode): Booking and FAQ under "ask" become rules here. */
+policy?: Record<string, {
+    mode: string;
+}> | null): string;
+/**
+ * The instructions this workspace's receptionist should actually receive.
+ *
+ * ONE resolver, so no caller has to remember the precedence. A workspace that
+ * has filled in its profile gets a prompt composed from those facts; one that
+ * has not keeps the prompt it already had, byte for byte.
+ *
+ * That fallback is the whole reason this can ship: the pilot's hand-written
+ * prompt is live and answering real customers, and a migration that changed
+ * what its receptionist says the moment the code deployed would be a
+ * behaviour change nobody asked for.
+ */
+declare function resolveSystemPrompt(brain: BrainConfig, channel?: "whatsapp" | "voice", 
+/** IANA zone from `tenants.timezone`. Labels the hours; never a second copy. */
+tz?: string | null, 
+/** Only used to drop closures that have already passed. */
+now?: Date, 
+/** The workspace's Autonomy rows, so Booking and FAQ under "ask" reach a hand-written prompt too. */
+policy?: Record<string, {
+    mode: string;
+}> | null, 
+/**
+ * What the platform knows independently of what was typed: the channel rows
+ * it provisioned, the Google listing it verified.
+ *
+ * The prompt is the one place these facts are SPOKEN, so it is the one place
+ * they have to be resolved rather than read raw. Typed still wins — see
+ * facts.ts for why silently overriding a live receptionist's words would be
+ * the worse bug — but a workspace that never typed a number now says the line
+ * it actually answers instead of nothing, and the disagreement is nameable
+ * everywhere else because it is computed here.
+ */
+known?: KnownFacts | null): string;
+/**
+ * The owner's own words, as the receptionist is given them.
+ *
+ * What they have written into the form, once there is anything in it. Until
+ * then the workspace's prompt stands in their place: carried whole when the
+ * profile composes, so filling in one field loses nothing, and read as it
+ * stands when it does not. The one statement of that rule. resolveSystemPrompt
+ * composes with it, and anything that has to find those words in what the
+ * resolver returned looks for them with it, rather than with a copy that can
+ * drift.
+ */
+declare function ownWordsOf(brain: {
+    system_prompt?: string | null;
+    profile?: {
+        extra_instructions?: string | null;
+    } | null;
+} | null | undefined): string | null;
+/** Whose words stand in the owner's place: see whoseWords. */
+type WhoseWords = {
+    kind: "own" | "carried" | "prompt" | "baseline";
+    text: string;
+} | {
+    kind: "none";
+    text: null;
+};
+/**
+ * Whose words the receptionist is given in the owner's place, decided once.
+ *
+ * The words are ownWordsOf's, the resolver's own rule. This says whose they are,
+ * for the prompt view (promptBlocks) and for the instructions box, which asks
+ * here too (instructionsDraft): the two read the owner's field by one rule, so
+ * the box can never open as the owner's what the view charges to the platform.
+ *
+ *   baseline  the product's own opening lines. In the stored prompt that is
+ *             isBaselinePrompt, which reads only the opening and the closing:
+ *             only the product writes that prompt. In the OWNER'S field it is
+ *             stricter (isBaselineInOwnersField), because there an owner may
+ *             have typed their own sentences where the business's name goes,
+ *             and calling those the platform's would disown words they wrote.
+ *   own       what the owner wrote into the profile's own field.
+ *   carried   the profile composes, but its own field is blank, so the stored
+ *             prompt stands in: the resolver carries it into the owner's place.
+ *   prompt    nothing composes, so the stored prompt is simply the workspace's
+ *             prompt, read as it stands. "Composes" is the resolver's own test
+ *             (hasProfile): no profile at all, or one holding nothing the
+ *             resolver composes from, and the resolver hands the prompt back.
+ *   none      nothing to read.
+ */
+declare function whoseWords(brain: {
+    system_prompt?: string | null;
+    profile?: {
+        extra_instructions?: string | null;
+    } | null;
+} | null | undefined): WhoseWords;
+/** The details a message sent in the business's name may name, as the owner writes them. */
+declare const FALLBACK_DETAILS: readonly ["business", "booking link", "phone"];
+type FallbackDetail = (typeof FALLBACK_DETAILS)[number];
+/**
+ * The product's own wording for the three messages, naming the details rather
+ * than copying them, so they follow the business's details from the first day
+ * and a customer is never sent "call us at ." before a line exists.
+ *
+ * Each sentence stands without the one naming the link, which a business that
+ * quotes does not have (the first run's decision 2): fillDetails leaves out a
+ * sentence naming a detail the workspace lacks, and what is left must still be
+ * a whole message.
+ */
+declare const FALLBACK_DEFAULTS: BrainConfig["fallbacks"];
+/**
+ * The product's wording before 24 Sep 2026, still the product's. Two of its
+ * sentences leaned on the one naming the link ("Or reply here", "— or a member
+ * of our team will reply"), so with no link they read as half a message.
+ * Workspaces set up with it keep it, since a stored message is theirs to change:
+ * it is never said to be their own words, or offered the default wording back.
+ */
+declare const EARLIER_FALLBACK_DEFAULTS: BrainConfig["fallbacks"];
+/**
+ * Whether a message is in the product's wording, today's or the earlier one: the one test the Business tab's line
+ * (business-tab.ts fallbacksWords) and each message's "Use the default wording" ask.
+ */
+declare function isProductFallback(key: keyof BrainConfig["fallbacks"], text: string | null | undefined): boolean;
+/**
+ * The three messages sent in the business's name when the receptionist cannot
+ * answer, with its details as they are now (the wiring audit's S5).
+ *
+ * They were written once, from what the form held that day, with the number
+ * and the booking link baked in, and nothing wrote them again: a changed link
+ * or a new line left customers the old one. A message may now name
+ * {business}, {booking link} and {phone}, filled here as it goes out from the
+ * facts the prompt speaks (resolveFacts): the number is the one the owner
+ * typed or the line the receptionist answers, formatted for a person. A
+ * sentence naming a detail the workspace does not have is left out rather
+ * than sent with a hole in it; a message naming none goes out exactly as
+ * written; one that would leave nothing says the default instead.
+ */
+declare function fallbackMessages(brain: BrainConfig, known?: KnownFacts | null): BrainConfig["fallbacks"];
+/**
+ * The names in a message that nothing fills in -- "{bookinglink}", "{phone
+ * number}" -- which a customer would read exactly as written. The Business
+ * form says so under the message before it is saved (S5).
+ */
+declare function unknownDetails(text: string): string[];
+
+/**
+ * Read-only availability: what is open, from a calendar feed and the rules.
+ *
+ * The receptionist never books. It may SEE the calendar — the owner's
+ * appointments as an iCal feed, which every booking tool that syncs to
+ * Google, Apple or Outlook can produce (Booksy Biz syncs two-way with Google
+ * and Apple; Calendly, Square and the rest do the same) — subtract what is
+ * taken from the opening hours, apply the owner's booking rules, and say
+ * which windows are open before sending the booking link. The link is the
+ * only way anything gets booked, whatever provider stands behind it.
+ *
+ * Pure: the feed text comes in, the windows come out, nothing is fetched
+ * here. The edge fetches and caches; tests feed fixtures.
+ */
+
+/** A taken stretch of time, epoch milliseconds. */
+interface BusyBlock {
+    start: number;
+    end: number;
+}
+/** A guest on the event, as the calendar carried them. */
+interface FeedAttendee {
+    name: string | null;
+    email: string | null;
+}
+/** One taken block with the words the owner's calendar gave it. */
+interface FeedItem extends BusyBlock {
+    title: string;
+    allDay: boolean;
+    uid: string | null;
+    /** The event's description and place, unescaped, as the owner or their booking tool wrote them. */
+    description: string | null;
+    location: string | null;
+    attendees: FeedAttendee[];
+    /**
+     * The address the event names as its ORGANIZER, lower-cased, or null. On a
+     * business's own calendar that is the owner or the booking tool that writes
+     * into it -- present on every event, and usually among the guests as well.
+     * Kept so the match can tell them from the customer (calendar-people.ts).
+     */
+    organizer: string | null;
+}
+interface ParsedFeed {
+    busy: BusyBlock[];
+    /** The same blocks as `busy`, with their titles — for the board. */
+    items: FeedItem[];
+    /** VEVENTs read, before any were dropped. */
+    events: number;
+    /** Recurring events expanded inside the horizon. */
+    recurringExpanded: number;
+    /** Recurring rules this parser does not understand (BYSETPOS, numbered
+     *  BYDAY, hourly…): their first occurrence is kept, the rest is not, and
+     *  they are counted so the diagnostic can say so. */
+    skippedRecurring: number;
+}
+interface ParseOptions {
+    /** Occurrences of recurring events are produced inside this window only
+     *  (epoch ms). Default: yesterday to ninety days out. */
+    horizon?: {
+        from: number;
+        to: number;
+    };
+}
+/** Offset of `tz` from UTC at the instant `atMs`, in milliseconds. */
+declare function zoneOffsetMs(tz: string, atMs: number): number;
+/** The instant a wall-clock time in `tz` refers to. Two passes cover a DST edge. */
+declare function localToUtcMs(tz: string, y: number, m: number, d: number, hh: number, mm: number): number;
+/** The wall clock of an instant in `tz`. */
+declare function clockInZone(tz: string, atMs: number): {
+    hh: number;
+    mm: number;
+    ss: number;
+};
+/** "YYYY-MM-DD" and the weekday key ("mon".."sun") of an instant in `tz`. */
+declare function dayInZone(tz: string, atMs: number): {
+    key: string;
+    weekday: string;
+    y: number;
+    m: number;
+    d: number;
+};
+/** The weekday keys in the order getUTCDay() numbers them, which is Sunday first. */
+/** The days of the week by their number from Sunday (Date.getUTCDay, and Google's Point.day). */
+declare const WEEKDAY_KEYS: readonly ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+/**
+ * The local day `days` after the one `atMs` falls on -- BY THE CALENDAR, not by
+ * the clock.
+ *
+ * THE DEFECT THIS EXISTS FOR. Every one of these used to be written as
+ * `dayInZone(tz, now + n * 86_400_000)`: add a fixed number of milliseconds,
+ * then ask which local day that landed on. Two days a year that is not the
+ * next day. On 8 March 2026 New York loses an hour, so a customer asking at
+ * 23:30 the night before was offered 9 March next and **8 March was never
+ * offered at all**; on 1 November it gains one, so a read at 00:30 emitted
+ * 1 November twice and lost a day off the far end of the horizon. Nobody sees
+ * an error: the receptionist simply says the wrong days out loud.
+ *
+ * A calendar day is a count of days, so it is counted in days. The date is
+ * read in the business's zone, stepped over UTC midnights (which never shift),
+ * and handed back as a date -- no instant is carried across the boundary, so
+ * there is nothing for an hour to move. The RRULE expander below has always
+ * stepped this way, which is why a weekly appointment stays at 2 PM across a
+ * change and the offered days did not. `calendar.ts shiftKey` is the twin that
+ * steps a DATE to a date; this is the one that starts from an instant, which
+ * is where reading "now" went wrong.
+ */
+declare function dayPlusInZone(tz: string, atMs: number, days: number): {
+    key: string;
+    weekday: string;
+    y: number;
+    m: number;
+    d: number;
+};
+/**
+ * The taken time in a feed. Cancelled events and events marked transparent
+ * (free) are not taken. A recurring event is expanded when its rule is one a
+ * salon's calendar carries (parseRule); a rule that cannot be read keeps its
+ * first occurrence and is counted as skipped. RDATE adds dates to a series
+ * (or makes one of a single event); a VEVENT with RECURRENCE-ID replaces one
+ * occurrence of the series with the same UID -- the moved instance is drawn
+ * where it moved to, and a cancelled override removes its instance -- which
+ * is what Google writes when one appointment in a weekly series is moved.
+ */
+declare function parseIcs(text: string, fallbackTz: string, opts?: ParseOptions): ParsedFeed;
+interface BookingRulesLike {
+    lead_hours?: number;
+    buffer_min?: number;
+    max_days_ahead?: number;
+    slot_min?: number;
+}
+interface Opening {
+    key: string;
+    /** "mon".."sun" in the business's zone. */
+    weekday: string;
+    /** "Tuesday, September 9" */
+    label: string;
+    windows: Array<{
+        start: number;
+        end: number;
+    }>;
+}
+interface FreeWindowsInput {
+    hours: Record<string, Hours | undefined> | undefined;
+    closures?: Closure[];
+    tz: string;
+    busy: BusyBlock[];
+    rules?: BookingRulesLike | null;
+    now: Date;
+}
+/** The booking rules a workspace has until it sets its own. */
+declare const BOOKING_DEFAULTS: {
+    lead_hours: number;
+    buffer_min: number;
+    max_days_ahead: number;
+    slot_min: number;
+};
+/**
+ * When a day is open, as one list of [open, close] spans.
+ *
+ * open/close and intervals are UNIONED, merged where they touch or overlap,
+ * and a span that runs backwards is dropped. This is the ONE reader: the
+ * prompt (config.ts), the free windows a caller is offered and the calendar
+ * board all read a day through it. It used to have two readers -- the prompt
+ * unioned the two, this one let intervals win -- so a row holding both could
+ * be described two ways, and "are you open at nine?" had two answers.
+ */
+declare function dayIntervals(h: Hours | undefined): Array<[string, string]>;
+declare function closedOn(closures: Closure[] | undefined, key: string): boolean;
+/**
+ * The open windows, day by day: opening hours minus what is taken (each
+ * taken block widened by the buffer), never earlier than now plus the lead
+ * time, never shorter than one slot, never on a closed date.
+ */
+declare function freeWindows(input: FreeWindowsInput): Opening[];
+/**
+ * The openings a caller actually asked about: one day (a date or a weekday
+ * name), and only windows long enough for the service they want. Days with
+ * nothing left are dropped.
+ */
+declare function filterOpenings(openings: Opening[], by: {
+    day?: string | null;
+    minMinutes?: number | null;
+}): Opening[];
+/**
+ * The openings as the receptionist is told them: a few days, the windows on
+ * each, and the rule that the calendar decides. Text on both channels; the
+ * phone agent reads it aloud in its own words.
+ *
+ * `hasBookingLink` is required: what follows an opening is the link, or for a
+ * business with none, the details the team needs (NO_LINK_DETAILS).
+ */
+declare function describeOpenings(openings: Opening[], tz: string, opts: {
+    maxDays?: number;
+    daysAhead?: number;
+    hasBookingLink: boolean;
+}): string;
+/** A service the business lists, as far as matching one needs it. */
+interface ServiceLike {
+    name: string;
+    duration_min?: number;
+}
+declare const foldName: (s: string) => string;
+/**
+ * Whether two names on one of the business's lists (its services, its languages) are one: accents, case and the space
+ * around a name are not the name (foldName). The one test for "already there" on such a list: the first run's chips and
+ * the Business tab's languages box both ask it, so a language chosen as "Haitian Créole" is the chip "Haitian Creole",
+ * and is not offered again beside it. An empty name is no name, and the same as none. A business's own name is
+ * facts.ts sameName's, which lets punctuation go too.
+ */
+declare function sameListed(a: string, b: string): boolean;
+/**
+ * The listed service somebody means, from what they said ("a haircut", "the
+ * balayage thing", "uñas"): exact first, then one name containing the other,
+ * then the service sharing the most words of four letters or more.
+ *
+ * One function for the phone tool and the assistant. The two copies it
+ * replaced split words differently, and the phone's cut "uñas" at the ñ into
+ * two pieces too short to count, so a caller asking for nails matched nothing.
+ */
+declare function matchService<S extends ServiceLike>(services: readonly S[] | undefined, asked: unknown): S | null;
+/** The booking rules as far as a consultation needs them. */
+interface ConsultRules {
+    consult_first?: readonly string[];
+}
+/**
+ * Whether a listed service needs a consultation before it can be booked, as Business lists them. Accents, case and the
+ * spaces around a name are not the name, as in matchService; the board matched them exactly, lower-cased.
+ */
+declare function needsConsultation(name: string, rules: ConsultRules | null | undefined): boolean;
+/** What an asked-for service is offered as: itself, or a consultation first. */
+interface ServiceOffer<S extends ServiceLike = ServiceLike> {
+    /** The listed service asked about. */
+    service: S;
+    /** Offered as a consultation, never as itself. */
+    consultation: boolean;
+    /** The listed service a consultation is, when the business lists one: the one sharing the service's words first. */
+    consultationService: S | null;
+    /** How long an open time has to be: the service's own length, a consultation's, or null for any open time. */
+    minMinutes: number | null;
+}
+/**
+ * The one rule for a service asked about, for the phone tool, the assistant and the board. A service that needs a
+ * consultation first is never offered itself: the consultation is, sized by the consultation the business lists
+ * ("Consultation", "Consulta"), or any open time when it lists none. All three sized a three-hour color correction by
+ * its own length while the prompt said a consultation comes first (C5b). A client is past the consultation, and is
+ * offered the service itself (0004).
+ */
+declare function offerFor<S extends ServiceLike>(services: readonly S[] | undefined, rules: ConsultRules | null | undefined, asked: unknown, opts?: {
+    client?: boolean;
+}): ServiceOffer<S> | null;
+/**
+ * The words before the open times, the phone's and the assistant's alike: a service's length, or that it needs a
+ * consultation first and what is offered instead.
+ */
+declare function offerLead(offer: ServiceOffer | null): string;
+
+/**
  * The people in a calendar: who an appointment is for, read from the words
  * a booking tool wrote into the owner's calendar and matched against People.
  *
@@ -7200,16 +7217,16 @@ declare const ListFactSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
     field: z.ZodLiteral<"has_chat">;
 }, z.core.$strict>, z.ZodObject<{
     to: z.ZodEnum<{
-        messages: "messages";
         offers: "offers";
+        messages: "messages";
     }>;
     op: z.ZodLiteral<"is">;
     yes: z.ZodBoolean;
     field: z.ZodLiteral<"said_yes">;
 }, z.core.$strict>, z.ZodObject<{
     to: z.ZodEnum<{
-        messages: "messages";
         offers: "offers";
+        messages: "messages";
     }>;
     op: z.ZodLiteral<"is">;
     yes: z.ZodBoolean;
@@ -7367,16 +7384,16 @@ declare const AnySchema: z.ZodObject<{
         field: z.ZodLiteral<"has_chat">;
     }, z.core.$strict>, z.ZodObject<{
         to: z.ZodEnum<{
-            messages: "messages";
             offers: "offers";
+            messages: "messages";
         }>;
         op: z.ZodLiteral<"is">;
         yes: z.ZodBoolean;
         field: z.ZodLiteral<"said_yes">;
     }, z.core.$strict>, z.ZodObject<{
         to: z.ZodEnum<{
-            messages: "messages";
             offers: "offers";
+            messages: "messages";
         }>;
         op: z.ZodLiteral<"is">;
         yes: z.ZodBoolean;
@@ -7534,16 +7551,16 @@ declare const ListConditionSchema: z.ZodUnion<readonly [z.ZodObject<{
         field: z.ZodLiteral<"has_chat">;
     }, z.core.$strict>, z.ZodObject<{
         to: z.ZodEnum<{
-            messages: "messages";
             offers: "offers";
+            messages: "messages";
         }>;
         op: z.ZodLiteral<"is">;
         yes: z.ZodBoolean;
         field: z.ZodLiteral<"said_yes">;
     }, z.core.$strict>, z.ZodObject<{
         to: z.ZodEnum<{
-            messages: "messages";
             offers: "offers";
+            messages: "messages";
         }>;
         op: z.ZodLiteral<"is">;
         yes: z.ZodBoolean;
@@ -7698,16 +7715,16 @@ declare const ListConditionSchema: z.ZodUnion<readonly [z.ZodObject<{
     field: z.ZodLiteral<"has_chat">;
 }, z.core.$strict>, z.ZodObject<{
     to: z.ZodEnum<{
-        messages: "messages";
         offers: "offers";
+        messages: "messages";
     }>;
     op: z.ZodLiteral<"is">;
     yes: z.ZodBoolean;
     field: z.ZodLiteral<"said_yes">;
 }, z.core.$strict>, z.ZodObject<{
     to: z.ZodEnum<{
-        messages: "messages";
         offers: "offers";
+        messages: "messages";
     }>;
     op: z.ZodLiteral<"is">;
     yes: z.ZodBoolean;
@@ -7867,16 +7884,16 @@ declare const ListRuleSchema: z.ZodObject<{
             field: z.ZodLiteral<"has_chat">;
         }, z.core.$strict>, z.ZodObject<{
             to: z.ZodEnum<{
-                messages: "messages";
                 offers: "offers";
+                messages: "messages";
             }>;
             op: z.ZodLiteral<"is">;
             yes: z.ZodBoolean;
             field: z.ZodLiteral<"said_yes">;
         }, z.core.$strict>, z.ZodObject<{
             to: z.ZodEnum<{
-                messages: "messages";
                 offers: "offers";
+                messages: "messages";
             }>;
             op: z.ZodLiteral<"is">;
             yes: z.ZodBoolean;
@@ -8031,16 +8048,16 @@ declare const ListRuleSchema: z.ZodObject<{
         field: z.ZodLiteral<"has_chat">;
     }, z.core.$strict>, z.ZodObject<{
         to: z.ZodEnum<{
-            messages: "messages";
             offers: "offers";
+            messages: "messages";
         }>;
         op: z.ZodLiteral<"is">;
         yes: z.ZodBoolean;
         field: z.ZodLiteral<"said_yes">;
     }, z.core.$strict>, z.ZodObject<{
         to: z.ZodEnum<{
-            messages: "messages";
             offers: "offers";
+            messages: "messages";
         }>;
         op: z.ZodLiteral<"is">;
         yes: z.ZodBoolean;
@@ -8585,6 +8602,7 @@ declare function triggerOffered(t: {
  * runs under. So the follow-ups' row is only where deals are on (0006), and every other row is everywhere.
  */
 declare function policyClassOffered(cls: string, dealsOn: boolean): boolean;
+
 /** Why a proposal follow-up is not made or run here: deals are off. The check, a run now and Ask say it alike. */
 declare const FOLLOW_UP_NEEDS_DEALS: string;
 /** Why a follow-up must carry its proposal's link (0006): without it the nudge is a bare "just checking in". */
@@ -8654,39 +8672,30 @@ declare function playbookRunStop(o: {
     templateStatus: string | null;
     canSend: boolean;
 }): "template_not_approved" | "number_flagged" | null;
-interface PlaybookDto {
-    id: string;
-    name: string;
-    trigger: PlaybookTrigger;
-    /** The list of the workspace's own a saved_list playbook runs on; null for every other trigger, and for one whose list was deleted. */
-    list_id: string | null;
-    /** The People list a saved_list playbook runs on, by its id (00168); null otherwise. One or the other, never both. */
-    list_key?: string | null;
-    template_id: string;
-    template_name: string;
-    template_language: string;
-    params: ParamSpec[];
-    policy_class: PlaybookPolicyClass;
-    state: PlaybookState;
-    run_hour: number;
-    cap_per_run: number;
-    gap_days: number;
-    cadence_days: number;
-    last_run_for: string | null;
-    last_run_at: string | null;
-    created_at: string;
-}
 /**
- * The list a playbook runs on, as a reference (lists.ts): a saved_list playbook's People list by its id, or one of the
- * workspace's own; null for every other trigger, and for one whose list is gone.
+ * The follow-up's first run that reaches someone clear from `fromMs` on (0006), as the sweep keeps it: one run a
+ * day, at the first tick it is due (runDueNow: its hour come, the hours open, not run that day), reaching whoever
+ * is clear at that moment. Today's, if still to come and they are clear by it; else the first day to come whose
+ * run, at its hour's tick, finds them clear.
  */
-declare function playbookListRef(p: {
-    trigger: string;
-    list_id?: string | null;
-    list_key?: string | null;
-}): ListRef | null;
-/** The classes a playbook on a list may run under, the first its own: an offer, or a win-back. */
-declare const LIST_PLAYBOOK_CLASSES: readonly ["campaign", "reengage"];
+declare function followUpRunAt(f: Pick<FollowUpFactsDto, "run_hour" | "last_run_for">, tz: string, fromMs: number, nowMs: number): number;
+/**
+ * Where one person stands with the follow-up (0006), by its run's own rules: named (followUpNames), with the yes to
+ * hearing from the business and a number (whyNotReceive), and whether a follow-up for this proposal went or is in a
+ * run already made. Otherwise in a run to come: the next, or the first after the week's breath lets them go. Null
+ * for anyone it will not reach: not waiting, no link, no yes, no number, or asked to stop. The cap is not counted: a
+ * run over it reaches the rest the day after.
+ */
+declare function followUpStandOf(r: Pick<PersonRowVM, "id" | "deal" | "askedMs" | "consent" | "phone">, f: FollowUpFactsDto, tz: string, nowMs: number, pace: Pick<DealPaceVM, "waitDays"> | null): FollowUpStand | null;
+/**
+ * The words for a proposal the follow-up has in hand (0006), on the Pipeline's row and the deal card alike: the
+ * day its run goes -- never the hour, since the breath and the cap can move a person a run -- and, where that run
+ * waits for a person, that the owner approves it.
+ */
+declare function followUpWords(s: Extract<FollowUpStand, {
+    kind: "will";
+}>, tz: string, nowMs: number): string;
+
 /**
  * When a person last heard from this playbook and from any playbook, and when they last had a proposal follow-up
  * from any playbook, one since deleted too (packages/db touchIndex): a follow-up is owed once per proposal (0006).
@@ -8764,77 +8773,6 @@ listIds?: ReadonlySet<string> | null): {
     reach: RunReach;
     saidYes: number;
 };
-type RunPlan = {
-    kind: "send";
-    state: "scheduled";
-    at: Date;
-} | {
-    kind: "hold";
-    state: "pending_approval";
-} | {
-    kind: "off";
-};
-/** What a run does under the class's mode: sends now, sends after a stop window, waits for a person, or nothing. */
-declare function planRun(mode: string | null | undefined, now: Date): RunPlan;
-/** YYYY-MM-DD by the business's clock. */
-declare function localDate(tz: string, now: Date): string;
-declare function localHour(tz: string, now: Date): number;
-/**
- * The follow-up's first run that reaches someone clear from `fromMs` on (0006), as the sweep keeps it: one run a
- * day, at the first tick it is due (runDueNow: its hour come, the hours open, not run that day), reaching whoever
- * is clear at that moment. Today's, if still to come and they are clear by it; else the first day to come whose
- * run, at its hour's tick, finds them clear.
- */
-declare function followUpRunAt(f: Pick<FollowUpFactsDto, "run_hour" | "last_run_for">, tz: string, fromMs: number, nowMs: number): number;
-/**
- * Where one person stands with the follow-up (0006), by its run's own rules: named (followUpNames), with the yes to
- * hearing from the business and a number (whyNotReceive), and whether a follow-up for this proposal went or is in a
- * run already made. Otherwise in a run to come: the next, or the first after the week's breath lets them go. Null
- * for anyone it will not reach: not waiting, no link, no yes, no number, or asked to stop. The cap is not counted: a
- * run over it reaches the rest the day after.
- */
-declare function followUpStandOf(r: Pick<PersonRowVM, "id" | "deal" | "askedMs" | "consent" | "phone">, f: FollowUpFactsDto, tz: string, nowMs: number, pace: Pick<DealPaceVM, "waitDays"> | null): FollowUpStand | null;
-/**
- * The words for a proposal the follow-up has in hand (0006), on the Pipeline's row and the deal card alike: the
- * day its run goes -- never the hour, since the breath and the cap can move a person a run -- and, where that run
- * waits for a person, that the owner approves it.
- */
-declare function followUpWords(s: Extract<FollowUpStand, {
-    kind: "will";
-}>, tz: string, nowMs: number): string;
-/**
- * The next moment a message may go out, by the business's clock: `when`
- * itself when it falls inside PLAYBOOK_HOURS (nine to the twenty-hundred
- * hour), nine that morning when it is earlier, nine the next morning when it
- * is later. The same window the playbooks keep, applied to a broadcast and to
- * a run somebody approves at night: a send asked for at 3 AM lands at nine,
- * and the receipt says it moved. Zone-aware through zoneMidnight, so the
- * night a clock changes still yields nine o'clock.
- */
-declare function nextOpenMoment(tz: string, when: Date): {
-    at: Date;
-    moved: boolean;
-};
-/**
- * A running playbook runs once per local day: at its hour, or later that day
- * when the sweep missed the hour or the playbook was started or resumed
- * after it — never past the last hour a message may go out.
- */
-declare function runDueNow(p: Pick<PlaybookDto, "state" | "run_hour" | "last_run_for">, tz: string, now: Date): boolean;
-/** "Daily 10:00 · up to 25 · once per person, again after 90 days". */
-declare function scheduleLine(p: Pick<PlaybookDto, "trigger" | "run_hour" | "cap_per_run" | "gap_days" | "cadence_days">): string;
-/**
- * A playbook's clock in the fewest words -- "runs daily at 10:00", "runs every
- * 30 days at 10:00" -- for a line under something that names it, where
- * `scheduleLine`'s cap and gap would be a sentence too many.
- */
-declare function runsWords(p: {
-    trigger: string;
-    run_hour: number;
-    cadence_days: number;
-}): string;
-/** "today 10:00", "today, within the hour" or "tomorrow 10:00", by the business's clock; "paused" when it is. */
-declare function nextRunLabel(p: Pick<PlaybookDto, "state" | "run_hour" | "last_run_for">, tz: string, now: Date): string;
 /**
  * What a playbook will actually DO on its next run.
  *
@@ -8896,37 +8834,61 @@ declare function playbookNoNumberWords(p: Pick<PlaybookDto, "policy_class"> & {
 /** The few words beside the state, when the schedule is not the whole truth; null when it is. */
 declare const PLAYBOOK_REACH_WORDS: Record<PlaybookReach, string | null>;
 declare const PLAYBOOK_CLASS_LABEL: Record<PlaybookPolicyClass, string>;
+
+type RunPlan = {
+    kind: "send";
+    state: "scheduled";
+    at: Date;
+} | {
+    kind: "hold";
+    state: "pending_approval";
+} | {
+    kind: "off";
+};
+/** What a run does under the class's mode: sends now, sends after a stop window, waits for a person, or nothing. */
+declare function planRun(mode: string | null | undefined, now: Date): RunPlan;
+/** YYYY-MM-DD by the business's clock. */
+declare function localDate(tz: string, now: Date): string;
+declare function localHour(tz: string, now: Date): number;
 /**
- * The words a follow-up's slot takes for one person: the link of the proposal their deal waits on (0006), from the
- * row the run read. Kept on the recipient row, as a visit's words are, so the send carries the link it was run for.
+ * The next moment a message may go out, by the business's clock: `when`
+ * itself when it falls inside PLAYBOOK_HOURS (nine to the twenty-hundred
+ * hour), nine that morning when it is earlier, nine the next morning when it
+ * is later. The same window the playbooks keep, applied to a broadcast and to
+ * a run somebody approves at night: a send asked for at 3 AM lands at nine,
+ * and the receipt says it moved. Zone-aware through zoneMidnight, so the
+ * night a clock changes still yields nine o'clock.
  */
-declare function proposalFactsFor(trigger: string, row: {
-    deal: {
-        proposal: {
-            url: string;
-        } | null;
-    } | null;
-} | null): {
-    proposal_link: string;
-} | null;
+declare function nextOpenMoment(tz: string, when: Date): {
+    at: Date;
+    moved: boolean;
+};
 /**
- * The words a visit playbook's slots take for one person — when, and what
- * for — from the visit the run read. Resolved when the run is made and kept
- * on the recipient row, so the send says what the calendar said then.
+ * A running playbook runs once per local day: at its hour, or later that day
+ * when the sweep missed the hour or the playbook was started or resumed
+ * after it — never past the last hour a message may go out.
  */
-declare function visitFactsFor(trigger: string, visit: Pick<VisitDto, "start" | "title" | "all_day"> | null, tz: string, 
-/** When the words will be read: the send's moment. Absent, they are read now, as the run assumes. */
-sendAt?: Date): {
-    visit_when: string;
-    visit_service: string;
-} | null;
+declare function runDueNow(p: Pick<PlaybookDto, "state" | "run_hour" | "last_run_for">, tz: string, now: Date): boolean;
+/** "Daily 10:00 · up to 25 · once per person, again after 90 days". */
+declare function scheduleLine(p: Pick<PlaybookDto, "trigger" | "run_hour" | "cap_per_run" | "gap_days" | "cadence_days">): string;
 /**
- * "tomorrow", "today", "yesterday", or the day's name: the visit's day as it
- * stands from the moment the words are read. A run asked for at eleven at
- * night goes at nine the next morning, and "tomorrow at 2:00 PM" said then is
- * the wrong day; the send's moment is what the words must be relative to.
+ * A playbook's clock in the fewest words -- "runs daily at 10:00", "runs every
+ * 30 days at 10:00" -- for a line under something that names it, where
+ * `scheduleLine`'s cap and gap would be a sentence too many.
  */
-declare function visitDayWord(visit: Pick<VisitDto, "start">, tz: string, sendAt: Date | undefined, assumed: string): string;
+declare function runsWords(p: {
+    trigger: string;
+    run_hour: number;
+    cadence_days: number;
+}): string;
+/** "today 10:00", "today, within the hour" or "tomorrow 10:00", by the business's clock; "paused" when it is. */
+declare function nextRunLabel(p: Pick<PlaybookDto, "state" | "run_hour" | "last_run_for">, tz: string, now: Date): string;
+
+/**
+ * The approval a run waits on: its view model, the pool it drew from and the lines that say who it reaches. Moved
+ * whole from playbooks.ts (Reach out Part 2.5), which re-exports it.
+ */
+
 interface ApprovalVM {
     /** How many it reaches when approved: the people it enrolled. */
     will: number;
@@ -9011,6 +8973,82 @@ declare function toApprovalVM(d: {
     /** A run's day in words. */
     day: (ymd: string) => string;
 }): ApprovalVM;
+
+/**
+ * Playbooks: a standing rule that sends one approved template to newly
+ * eligible people who said yes, under the workspace's autonomy mode.
+ *
+ * Everything a playbook may do is decided here, once, and executed by the
+ * hourly sweep with the same predicates the People page and the broadcast
+ * route use: who is on the list, who said yes, who already heard from this
+ * playbook, who heard from any playbook this week. Broadcasts is "send this
+ * once"; a playbook is "keep doing this".
+ */
+
+interface PlaybookDto {
+    id: string;
+    name: string;
+    trigger: PlaybookTrigger;
+    /** The list of the workspace's own a saved_list playbook runs on; null for every other trigger, and for one whose list was deleted. */
+    list_id: string | null;
+    /** The People list a saved_list playbook runs on, by its id (00168); null otherwise. One or the other, never both. */
+    list_key?: string | null;
+    template_id: string;
+    template_name: string;
+    template_language: string;
+    params: ParamSpec[];
+    policy_class: PlaybookPolicyClass;
+    state: PlaybookState;
+    run_hour: number;
+    cap_per_run: number;
+    gap_days: number;
+    cadence_days: number;
+    last_run_for: string | null;
+    last_run_at: string | null;
+    created_at: string;
+}
+/**
+ * The list a playbook runs on, as a reference (lists.ts): a saved_list playbook's People list by its id, or one of the
+ * workspace's own; null for every other trigger, and for one whose list is gone.
+ */
+declare function playbookListRef(p: {
+    trigger: string;
+    list_id?: string | null;
+    list_key?: string | null;
+}): ListRef | null;
+/** The classes a playbook on a list may run under, the first its own: an offer, or a win-back. */
+declare const LIST_PLAYBOOK_CLASSES: readonly ["campaign", "reengage"];
+/**
+ * The words a follow-up's slot takes for one person: the link of the proposal their deal waits on (0006), from the
+ * row the run read. Kept on the recipient row, as a visit's words are, so the send carries the link it was run for.
+ */
+declare function proposalFactsFor(trigger: string, row: {
+    deal: {
+        proposal: {
+            url: string;
+        } | null;
+    } | null;
+} | null): {
+    proposal_link: string;
+} | null;
+/**
+ * The words a visit playbook's slots take for one person — when, and what
+ * for — from the visit the run read. Resolved when the run is made and kept
+ * on the recipient row, so the send says what the calendar said then.
+ */
+declare function visitFactsFor(trigger: string, visit: Pick<VisitDto, "start" | "title" | "all_day"> | null, tz: string, 
+/** When the words will be read: the send's moment. Absent, they are read now, as the run assumes. */
+sendAt?: Date): {
+    visit_when: string;
+    visit_service: string;
+} | null;
+/**
+ * "tomorrow", "today", "yesterday", or the day's name: the visit's day as it
+ * stands from the moment the words are read. A run asked for at eleven at
+ * night goes at nine the next morning, and "tomorrow at 2:00 PM" said then is
+ * the wrong day; the send's moment is what the words must be relative to.
+ */
+declare function visitDayWord(visit: Pick<VisitDto, "start">, tz: string, sendAt: Date | undefined, assumed: string): string;
 
 /** How a step's day stands against the business's today. */
 type StepDue = "past" | "today" | "ahead";
