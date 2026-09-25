@@ -28,11 +28,19 @@ import {
   LEADS,
   LEAD_SEARCH,
   LEAD_COUNTED,
+  WAITING_SEARCH,
+  WAITING_ROUND,
+  WAITING_LEADS,
+  WAITING_FOR_MS,
+  ALL_LEAD_PLACES,
 } from "../e2e-workspace.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { chooseAddressing, reachesTenant } = await import(
   pathToFileURL(path.join(here, "../../../apps/edge/lib/ops/notify.ts")).href
+);
+const { planLeadSweep, QUESTION_WAIT_MS } = await import(
+  pathToFileURL(path.join(here, "../../../apps/edge/lib/leads/lead-sweep.ts")).href
 );
 
 const OWNER = "e2e-owner@example.com";
@@ -49,16 +57,82 @@ const MODES = {
   follow_up: "ask",
 };
 
+/** The moves 00140's lead_rounds_guard allows, and nothing else. */
+const ROUND_MOVES = {
+  queued: ["probing", "running", "ended"],
+  probing: ["waiting_on_owner", "running", "checking", "ended"],
+  waiting_on_owner: ["running", "ended"],
+  running: ["checking", "ended"],
+  checking: ["ended"],
+  ended: [],
+};
+
+/**
+ * lead_rounds as the database keeps it: 00140's guard (a round starts queued and moves only as it allows) and
+ * 00163's lead_rounds_notify (a round that stops to ask, or ends with anything but stopped or question_unanswered,
+ * gets its bell row -- unless one of that kind for that round is already there -- and a push_send job with it).
+ * The trigger is AFTER UPDATE, so it reads the row once the whole update has landed. `moves` records every state
+ * a round passed through, with the row as it stood, so a test can put each one in front of the sweep.
+ */
+function roundsTable(t, moves) {
+  const notify = (r) => {
+    const search = (t.lead_searches ?? []).find((s) => s.id === r.search_id);
+    if (!search) return;
+    const kind =
+      r.state === "waiting_on_owner"
+        ? "leads_question"
+        : r.state === "ended" && !["stopped", "question_unanswered"].includes(r.ending)
+          ? "leads_ready"
+          : null;
+    if (!kind) return;
+    const bell = (t.notifications ??= []);
+    if (bell.some((n) => n.tenant_id === r.tenant_id && n.kind === kind && n.subject_id === r.id)) return;
+    const id = crypto.randomUUID();
+    bell.push({ id, tenant_id: r.tenant_id, kind, title: `from the trigger: ${search.name}`, subject_id: r.id });
+    (t.jobs ??= []).push({
+      id: crypto.randomUUID(),
+      tenant_id: r.tenant_id,
+      kind: "push_send",
+      payload: { notification_id: id },
+    });
+  };
+  const guarded = (row) => {
+    if (row.state !== "queued") throw new Error(`a round starts queued (${row.state} refused)`);
+    moves.push({ ...row });
+    return new Proxy(row, {
+      set(target, key, value) {
+        if (key === "state" && value !== target.state) {
+          if (!ROUND_MOVES[target.state].includes(value))
+            throw new Error(`lead_rounds.state ${target.state} -> ${value} refused`);
+          target.state = value;
+          queueMicrotask(() => {
+            moves.push({ ...target });
+            notify(target);
+          });
+          return true;
+        }
+        target[key] = value;
+        return true;
+      },
+    });
+  };
+  const rows = [];
+  rows.push = (...made) => Array.prototype.push.apply(rows, made.map(guarded));
+  return rows;
+}
+
 /** A database in memory, an auth admin, and provision_tenant as the migrations write it. */
 function world(tables = {}) {
   // The platform's one row exists on every database release A touched; the seed
   // adds this workspace to tenants_on and must never flip searches_on.
+  const moves = [];
   const t = {
     tenants: [],
     memberships: [],
     lead_platform: [{ id: true, searches_on: false, tenants_on: [] }],
     ...tables,
   };
+  t.lead_rounds = roundsTable(t, moves);
   const users = [];
   const db = fakeDb(
     t,
@@ -97,7 +171,7 @@ function world(tables = {}) {
       },
     },
   };
-  return { db, t, users };
+  return { db, t, users, moves };
 }
 
 const run = (w, over = {}) => converge(w.db, { ownerEmail: OWNER, memberEmail: MATE, apply: true, now: NOW, ...over });
@@ -200,6 +274,50 @@ test("every row it writes is one the production sweeps leave alone", async () =>
   ]) {
     assert.equal(of(w.t, table, T).length, 0, `no ${table}`);
   }
+
+  // The lead rounds: every state each one passed through while the seed wrote it, and where they stand, put in
+  // front of the leads sweep as cron/leads.ts reads them (no run is live: the seed starts none). Nothing is ended
+  // as stuck on the way, and the round that waits is left alone for the day the product gives a question.
+  const live = new Set(of(w.t, "lead_searches", T).map((x) => x.id));
+  const rounds = of(w.t, "lead_rounds", T).filter((r) => live.has(r.search_id));
+  const asSwept = (r) => ({
+    id: r.id,
+    tenant_id: r.tenant_id,
+    state: r.state,
+    waiting_since: r.waiting_since ?? null,
+    created_at: r.created_at,
+  });
+  for (const r of w.moves.filter((m) => live.has(m.search_id)))
+    assert.deepEqual(
+      planLeadSweep({ runs: [], rounds: [asSwept(r)] }, NOW),
+      [],
+      `a sweep that ran while a round was ${r.state} left it alone`,
+    );
+  const waitingRound = rounds.find((r) => r.state === "waiting_on_owner");
+  assert.ok(waitingRound, "one round waits on the owner");
+  const beforeTheDay = NOW - WAITING_FOR_MS + QUESTION_WAIT_MS - 60_000;
+  assert.deepEqual(
+    planLeadSweep({ runs: [], rounds: rounds.map(asSwept) }, beforeTheDay),
+    [],
+    "no sweep touches a lead round until the question has waited a day, well past the morning's specs",
+  );
+  assert.deepEqual(
+    planLeadSweep({ runs: [], rounds: [asSwept(waitingRound)] }, beforeTheDay + 120_000).map((a) => a.kind),
+    ["end_question"],
+    "and a day on it would end, as any question nobody answered: the next morning's seed rebuilds it first",
+  );
+  // 00163's trigger rang for both rounds, and found the seed's own row each time: no push job was queued.
+  assert.deepEqual(
+    of(w.t, "notifications", T)
+      .map((n) => n.kind)
+      .sort(),
+    ["leads_question", "leads_ready"],
+    "one bell row per round, the seed's",
+  );
+  assert.ok(
+    of(w.t, "notifications", T).every((n) => !n.title.startsWith("from the trigger")),
+    "the trigger wrote none of them, so it queued no push_send",
+  );
 });
 
 test("the people said yes to messages and nobody to offers: the state Today's band, People's steps and the QR's door exist to answer", async () => {
@@ -447,26 +565,58 @@ test("a run backs the workspace up before it writes", async () => {
   );
 });
 
-test("the lead seed is six fictional places in one finished search, and the workspace may search while the switch is off", async () => {
+test("the lead seed is nine fictional places in one finished search and one waiting on its owner, and the workspace may search while the switch is off", async () => {
   const w = world();
   await run(w);
   const T = w.t.tenants[0].id;
-  assert.deepEqual(w.t.leads.map((l) => l.business_name).sort(), LEADS.map((l) => l.business_name).sort());
+  assert.deepEqual(
+    w.t.leads.map((l) => l.business_name).sort(),
+    [...LEADS, ...WAITING_LEADS].map((l) => l.business_name).sort(),
+  );
+  assert.deepEqual(w.t.leads.map((l) => l.place_id).sort(), [...ALL_LEAD_PLACES].sort());
   for (const l of w.t.leads) {
     assert.match(l.phone_e164, /^\+1\d{3}55501\d{2}$/, `${l.business_name}: the fiction range`);
     if (l.email) assert.match(l.email, /\.example$/, `${l.business_name}: a fictional address`);
+    if (l.website_host) assert.match(l.website_host, /\.example$/, `${l.business_name}: a fictional site`);
     assert.match(l.place_id, /^ChIJfixture\d{4}$/);
   }
-  assert.equal(w.t.lead_searches.length, 1);
-  assert.equal(w.t.lead_searches[0].name, LEAD_SEARCH.name);
-  const [round] = w.t.lead_rounds;
+  assert.deepEqual(w.t.lead_searches.map((x) => x.name).sort(), [LEAD_SEARCH.name, WAITING_SEARCH.name].sort());
+  const roundOf = (name) => {
+    const search = w.t.lead_searches.find((x) => x.name === name);
+    return w.t.lead_rounds.find((r) => r.search_id === search.id);
+  };
+  const done = roundOf(LEAD_SEARCH.name);
   assert.deepEqual(
-    [round.state, round.ending, round.seq],
+    [done.state, done.ending, done.seq],
     ["ended", "target_reached", 1],
     "written queued, then ended: lead_rounds_guard refuses an ended insert",
   );
+  const waits = roundOf(WAITING_SEARCH.name);
   assert.deepEqual(
-    w.t.lead_search_members.map((m) => [m.class, m.counted]).sort(),
+    w.moves.filter((m) => m.id === waits.id).map((m) => m.state),
+    ["queued", "probing", "waiting_on_owner"],
+    "walked as the runner walks it: the guard allows no shorter way into waiting",
+  );
+  assert.equal(waits.state, "waiting_on_owner");
+  assert.equal(waits.ending ?? null, null, "waiting is not an ending");
+  assert.deepEqual(
+    Object.keys(waits.question).sort(),
+    ["asked_at", "criterionKey", "dropTerm", "sentence"],
+    "core's RoundQuestion, camelCase, as the runner writes it",
+  );
+  assert.equal(waits.question.sentence, WAITING_ROUND.question.sentence);
+  assert.equal(waits.waiting_since, new Date(NOW - WAITING_FOR_MS).toISOString());
+  assert.equal(waits.question.asked_at, waits.waiting_since);
+  assert.ok(
+    waits.plan.exclusions.some((x) => x.key === waits.question.criterionKey),
+    "the question is about one of the plan's own exclusions, so the strip can offer to include it",
+  );
+  assert.ok(Date.parse(waits.created_at) <= Date.parse(waits.waiting_since), "asked before it waited");
+  const members = (id) => w.t.lead_search_members.filter((m) => m.round_id === id);
+  assert.deepEqual(
+    members(done.id)
+      .map((m) => [m.class, m.counted])
+      .sort(),
     [
       ["excluded", false],
       ["qualified", true],
@@ -476,13 +626,21 @@ test("the lead seed is six fictional places in one finished search, and the work
       ["review", false],
     ].sort(),
   );
+  assert.deepEqual(
+    members(waits.id).map((m) => [m.class, m.excluded_by, m.counted]),
+    WAITING_LEADS.map(() => ["excluded", waits.question.criterionKey, false]),
+    "the pile the question opens on holds the places it is about, and none of them counted",
+  );
   assert.equal(w.t.lead_counters.find((c) => c.kind === "allowance").used, LEAD_COUNTED);
+  assert.equal(w.t.lead_counters.find((c) => c.kind === "budget").used, "0.2100", "both rounds' spend");
   const platform = w.t.lead_platform[0];
   assert.deepEqual(platform.tenants_on, [T], "listed, so a paid run may start one here");
   assert.equal(platform.searches_on, false, "and the switch every other workspace reads is untouched");
   await converge(w.db, { ownerEmail: OWNER, memberEmail: MATE, apply: true, now: NOW });
-  assert.equal(w.t.lead_searches.length, 1);
-  assert.equal(w.t.leads.length, LEADS.length);
+  assert.equal(w.t.lead_searches.length, 2);
+  assert.equal(w.t.leads.length, ALL_LEAD_PLACES.length);
+  assert.equal(of(w.t, "notifications", T).length, 2, "last night's bell rows go with the rounds they were about");
+  assert.equal(of(w.t, "jobs", T).length, 0);
   assert.deepEqual(w.t.lead_platform[0].tenants_on, [T]);
 });
 
@@ -497,11 +655,34 @@ test("verify() names a drifted lead seed before any spec reads it", async () => 
   w.t.leads[0].place_id = "ChIJreal0001";
   const problems = await verify(w.db, T, ownerId);
   assert.ok(
-    problems.some((p) => p.includes("not the 6 fixtures")),
+    problems.some((p) => p.includes(`not the ${ALL_LEAD_PLACES.length} fixtures`)),
     problems.join("; "),
   );
   assert.ok(
     problems.some((p) => p.includes("not fictional")),
     problems.join("; "),
   );
+});
+
+test("verify() names a waiting search that is no longer waiting, and a push job queued in the workspace", async () => {
+  const w = world();
+  await run(w);
+  const T = w.t.tenants[0].id;
+  const ownerId = w.t.memberships.find((m) => m.role === "owner").user_id;
+  const search = w.t.lead_searches.find((x) => x.name === WAITING_SEARCH.name);
+  const round = w.t.lead_rounds.find((r) => r.search_id === search.id);
+  // What an answer pressed by a spec would leave: the round running (paid work), and the push the trigger queues.
+  round.state = "running";
+  w.t.jobs.push({ id: "push", tenant_id: T, kind: "push_send", payload: { notification_id: "n" } });
+  const problems = await verify(w.db, T, ownerId);
+  assert.ok(
+    problems.some((p) => p.includes("not waiting on the owner")),
+    problems.join("; "),
+  );
+  assert.ok(
+    problems.some((p) => p.includes("push job")),
+    problems.join("; "),
+  );
+  await run(w, { now: NOW + 86_400_000 });
+  assert.deepEqual(await verify(w.db, T, ownerId), [], "the next run puts it back");
 });

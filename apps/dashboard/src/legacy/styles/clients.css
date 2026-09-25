@@ -2706,7 +2706,6 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
 @media (max-width: 900px) {
   .pipe-new { padding: 4px 0 12px; }
   .pipe-new-search { min-height: 44px; }
-  .pipe-new-search input { font-size: 16px; }
   .pipe-new-row { padding: 10px 8px; }
   .pipe-new-go { align-self: stretch; min-height: 44px; justify-content: center; }
 }

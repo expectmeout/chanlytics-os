@@ -11979,11 +11979,15 @@ interface AwayRowLike {
         to: string;
     }>;
 }
-/** What a queue row is about, for the away card's dedupe: its thread, its call, or both. A bare string is a thread. */
+/**
+ * What a queue row is about, for the away card's dedupe: its thread, its call, or both. A bare string is a thread.
+ * `searchTo` is a waiting search's door (leadQuestionRoute), which the bell's question row about it opens too.
+ */
 type AwayQueueRef = string | {
     conversationId?: string | null;
     callId?: string | null;
     runLabel?: string | null;
+    searchTo?: string | null;
 };
 interface AwayGroupVM<T extends AwayRowLike> {
     /** The row itself when it stands alone; the newest of the group otherwise. */

@@ -27,10 +27,12 @@ test.describe("The bell on a real workspace", () => {
       await expect(pop.getByText("All caught up")).toBeVisible();
     } else {
       // Every row has a title and leads somewhere: the four derived kinds, or a
-      // row the workspace kept — an alert the edge raised.
+      // row the workspace kept — an alert the edge raised. A search that stopped
+      // to ask keeps its kind's own verb, Answer it (contracts SERVER_LOOK), and
+      // the seed holds one (e2e-workspace.mjs, WAITING_SEARCH).
       for (const row of await items.all()) {
         await expect(row.locator(".tbn-item-title")).not.toBeEmpty();
-        await expect(row.getByRole("button", { name: /Open|Review|See|Team|Accept/ }).first()).toBeVisible();
+        await expect(row.getByRole("button", { name: /Open|Review|See|Team|Accept|Answer it/ }).first()).toBeVisible();
       }
     }
     // The kept rows come from the route, with this person's marks on each.

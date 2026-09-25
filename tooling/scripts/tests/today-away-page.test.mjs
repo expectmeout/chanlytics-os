@@ -14,8 +14,9 @@ import {
   todayRunsSub,
   todayRunApproved,
   unreadCount,
+  leadQuestionRoute,
 } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, find, byTestId, textOf } from "./_legacy-react.mjs";
+import { installLegacyReact, fresh, find, all, byTestId, textOf } from "./_legacy-react.mjs";
 
 installLegacyReact({ __DEMO_MODE: false });
 globalThis.appNavigate = () => {};
@@ -48,7 +49,7 @@ const news = (id, title) => ({
   actions: [{ label: "Open", to: "reports", primary: true }],
 });
 
-const draw = (rows, cvs) => {
+const draw = (rows, cvs, queue = null) => {
   fresh();
   globalThis.__notifs = { feed: () => rows, onChange: () => () => {}, read() {}, dismiss() {}, seenAll() {} };
   globalThis.__today = {
@@ -60,7 +61,9 @@ const draw = (rows, cvs) => {
     runsSub: todayRunsSub,
     runApproved: todayRunApproved,
   };
-  globalThis.TODAY_DATA = { queue: { rows: cvs.map((id) => ({ conversationId: id, callId: null })) } };
+  globalThis.TODAY_DATA = {
+    queue: { rows: queue ?? cvs.map((id) => ({ kind: "handoff", conversationId: id, callId: null })) },
+  };
   return globalThis.React.createElement(globalThis.TodayAway, {});
 };
 const byClass = (tree, cls) => find(tree, (n) => String(n.props?.className || "").includes(cls));
@@ -118,6 +121,41 @@ test("two searches waiting on their answers are one line that says how many", ()
     vm.groups.map((g) => [g.count, g.title]),
     [[2, "2 searches are waiting for your answer"]],
   );
+});
+
+// The nightly's seed found it (e2e/today.spec.ts, expectNoQueueRepeat): a search waiting on its answer is a row of
+// Your queue, and the bell's question row about the same search was drawn again under While you were away.
+test("a search waiting in the queue is not said again by the bell's question row about it", () => {
+  const S = "5eed0000-0000-4000-8000-000000000001";
+  const question = {
+    id: "n:q",
+    kind: "leads_question",
+    title: "Your search for Pilates studios · Denver is waiting for your answer",
+    message: "",
+    tone: "warn",
+    icon: "alert",
+    unread: true,
+    about: null,
+    time: "3h",
+    actions: [{ label: "Answer it", to: leadQuestionRoute(S), primary: true }],
+  };
+  const other = { ...question, id: "n:o", title: "Your search for florists is waiting for your answer" };
+  other.actions = [
+    { label: "Answer it", to: leadQuestionRoute("5eed0000-0000-4000-8000-000000000002"), primary: true },
+  ];
+  const searchRow = {
+    kind: "search",
+    conversationId: null,
+    callId: null,
+    cta: { label: "Answer", to: leadQuestionRoute(S) },
+  };
+  const tree = draw([question, other, news("n:3", "1 new rating on Google")], [], [searchRow]);
+  const titles = all(tree, (n) => n.props?.["data-testid"] === "today-away-row").map((r) =>
+    textOf(byClass(r, "ta-title")).trim(),
+  );
+  assert.deepEqual(titles, [other.title, "1 new rating on Google"], "the queued search is said once, up in the queue");
+  assert.equal(textOf(byClass(tree, "tq-count")).trim(), "3", "the head is still the bell's badge");
+  assert.equal(textOf(byClass(tree, "tq-foot")).trim(), "1 more in the bell, already in the queue above");
 });
 
 // Decision 0009: any list is a door on Today, pinned by the member (memberships.views.today.pins).
