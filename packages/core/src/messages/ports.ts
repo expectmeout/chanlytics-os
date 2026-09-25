@@ -38,7 +38,12 @@ export interface ProvisionLinePorts {
   provision?(
     lineId: string,
     by: "owner" | "support" | "sweep",
-  ): Promise<{ ok: boolean; step?: string; error?: string }>;
+    deadline?: number,
+  ): Promise<{ ok: boolean; step?: string; error?: string; more?: boolean }>;
+  /** One more job of this kind, for the steps a run left at its deadline. */
+  next?(payload: Record<string, unknown>): Promise<void>;
+  /** Epoch ms: the run starts no provider call after it. */
+  deadline?: number;
 }
 
 export interface BroadcastRow {

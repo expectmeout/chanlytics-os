@@ -25,6 +25,12 @@ export function dryProvider(seed = 1): DryProvider {
   const next = (prefix: string) => `${prefix}${hex(n++)}`;
   const calls: DryCall[] = [];
   const owned = new Map<string, string>();
+  // What it "made", so a look after a lost receipt finds it, as the carrier's own lists would.
+  const subaccounts = new Map<string, ProviderAccount>();
+  const trunks = new Map<string, string>();
+  const lists = new Map<string, string>();
+  const credentials = new Map<string, string>();
+  const originations = new Map<string, string>();
   const rec = (op: string, ...args: unknown[]) => calls.push({ op, args });
   const acctOf = (a: ProviderAccount) => a.sid;
   return {
@@ -33,7 +39,37 @@ export function dryProvider(seed = 1): DryProvider {
     owned,
     async createSubaccount(master, friendlyName) {
       rec("createSubaccount", acctOf(master), friendlyName);
-      return { sid: next("AC"), token: next("tok"), status: "active" };
+      const acct = { sid: next("AC"), token: next("tok") };
+      subaccounts.set(friendlyName, acct);
+      return { ...acct, status: "active" };
+    },
+    async findSubaccount(master, friendlyName) {
+      rec("findSubaccount", acctOf(master), friendlyName);
+      return subaccounts.get(friendlyName) ?? null;
+    },
+    async findTrunk(acct, domainName) {
+      rec("findTrunk", acctOf(acct), domainName);
+      const sid = trunks.get(`${acctOf(acct)} ${domainName}`);
+      return sid ? { sid, domainName } : null;
+    },
+    async findCredentialList(acct, friendlyName) {
+      rec("findCredentialList", acctOf(acct), friendlyName);
+      const sid = lists.get(`${acctOf(acct)} ${friendlyName}`);
+      return sid ? { sid } : null;
+    },
+    async findCredential(acct, listSid, username) {
+      rec("findCredential", acctOf(acct), listSid, username);
+      const sid = credentials.get(`${listSid} ${username}`);
+      return sid ? { sid } : null;
+    },
+    async deleteCredential(acct, listSid, credentialSid) {
+      rec("deleteCredential", acctOf(acct), listSid, credentialSid);
+      for (const [k, v] of credentials) if (v === credentialSid) credentials.delete(k);
+    },
+    async findOrigination(acct, trunkSid, sipUrl) {
+      rec("findOrigination", acctOf(acct), trunkSid, sipUrl);
+      const sid = originations.get(`${trunkSid} ${sipUrl}`);
+      return sid ? { sid } : null;
     },
     async searchLocal(acct, q) {
       rec("searchLocal", acctOf(acct), q);
@@ -69,26 +105,36 @@ export function dryProvider(seed = 1): DryProvider {
     },
     async createTrunk(acct, o) {
       rec("createTrunk", acctOf(acct), o);
-      return { sid: next("TK"), domainName: o.domainName };
+      const sid = next("TK");
+      trunks.set(`${acctOf(acct)} ${o.domainName}`, sid);
+      return { sid, domainName: o.domainName };
     },
     async deleteTrunk(acct, trunkSid) {
       rec("deleteTrunk", acctOf(acct), trunkSid);
     },
     async createCredentialList(acct, friendlyName) {
       rec("createCredentialList", acctOf(acct), friendlyName);
-      return { sid: next("CL") };
+      const sid = next("CL");
+      lists.set(`${acctOf(acct)} ${friendlyName}`, sid);
+      return { sid };
     },
     async addCredential(acct, listSid, username) {
       // The password is deliberately not recorded: a ledger is not a vault.
       rec("addCredential", acctOf(acct), listSid, username);
-      return { sid: next("CR") };
+      // A list holds a username once, as Twilio's does: the second is refused.
+      if (credentials.has(`${listSid} ${username}`)) throw new Error(`add credential: ${username} already exists`);
+      const sid = next("CR");
+      credentials.set(`${listSid} ${username}`, sid);
+      return { sid };
     },
     async attachCredentialList(acct, trunkSid, listSid) {
       rec("attachCredentialList", acctOf(acct), trunkSid, listSid);
     },
     async addOrigination(acct, trunkSid, o) {
       rec("addOrigination", acctOf(acct), trunkSid, o);
-      return { sid: next("OU") };
+      const sid = next("OU");
+      originations.set(`${trunkSid} ${o.sipUrl}`, sid);
+      return { sid };
     },
     async attachNumber(acct, trunkSid, numberSid) {
       rec("attachNumber", acctOf(acct), trunkSid, numberSid);

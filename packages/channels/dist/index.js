@@ -3307,6 +3307,11 @@ function chooseLineProvider(env) {
 function trunkDomain(lineId) {
   return `chanlytics-${lineId.replace(/[^a-z0-9]/gi, "").slice(0, 12).toLowerCase()}.pstn.twilio.com`;
 }
+function subaccountName(tenantName, lineId) {
+  const tag = lineId.replace(/[^a-z0-9]/gi, "").slice(0, 12).toLowerCase();
+  const suffix = ` \xB7 Chanlytics \xB7 ${tag}`;
+  return `${tenantName.slice(0, 64 - suffix.length)}${suffix}`;
+}
 function sipUsername(lineId) {
   return `line-${lineId.replace(/[^a-z0-9]/gi, "").slice(0, 12).toLowerCase()}`;
 }
@@ -3342,6 +3347,7 @@ var twilioUrls = {
   incomingNumber: (sid2, numberSid) => `${API2}/Accounts/${sid2}/IncomingPhoneNumbers/${numberSid}.json`,
   credentialLists: (sid2) => `${API2}/Accounts/${sid2}/SIP/CredentialLists.json`,
   credentials: (sid2, listSid) => `${API2}/Accounts/${sid2}/SIP/CredentialLists/${listSid}/Credentials.json`,
+  credential: (sid2, listSid, credentialSid) => `${API2}/Accounts/${sid2}/SIP/CredentialLists/${listSid}/Credentials/${credentialSid}.json`,
   trunks: `${TRUNKING}/Trunks`,
   trunk: (trunkSid) => `${TRUNKING}/Trunks/${trunkSid}`,
   trunkCredentialLists: (trunkSid) => `${TRUNKING}/Trunks/${trunkSid}/CredentialLists`,
@@ -3388,6 +3394,10 @@ function need(a, what) {
   if (a.status < 200 || a.status >= 300 || !a.body) throw new TwilioError(a.status, a.body, what);
   return a.body;
 }
+function rowsOf(b, key) {
+  const rows = b[key];
+  return Array.isArray(rows) ? rows.filter((r2) => !!r2 && typeof r2 === "object" && !Array.isArray(r2)) : [];
+}
 function twilioProvider(http = fetchTwilio) {
   return {
     name: "twilio",
@@ -3400,6 +3410,62 @@ function twilioProvider(http = fetchTwilio) {
       const token = str(b, "auth_token");
       if (!sid2 || !token) throw new TwilioError(200, b, "create subaccount answered without sid/auth_token");
       return { sid: sid2, token, status: str(b, "status") ?? "active" };
+    },
+    async findSubaccount(master, friendlyName) {
+      const url = `${twilioUrls.subaccounts}?${new URLSearchParams({ FriendlyName: friendlyName.slice(0, 64), PageSize: "20" })}`;
+      for (const a of rowsOf(need(await http(master, "GET", url), "list subaccounts"), "accounts")) {
+        const sid2 = str(a, "sid");
+        const token = str(a, "auth_token");
+        if (sid2 && token && str(a, "status") !== "closed") return { sid: sid2, token };
+      }
+      return null;
+    },
+    async findTrunk(acct, domainName) {
+      for (const t of rowsOf(
+        need(await http(acct, "GET", `${twilioUrls.trunks}?PageSize=50`), "list trunks"),
+        "trunks"
+      )) {
+        const sid2 = str(t, "sid");
+        if (sid2 && str(t, "domain_name") === domainName) return { sid: sid2, domainName };
+      }
+      return null;
+    },
+    async findCredentialList(acct, friendlyName) {
+      const b = need(
+        await http(acct, "GET", `${twilioUrls.credentialLists(acct.sid)}?PageSize=50`),
+        "list credential lists"
+      );
+      for (const l of rowsOf(b, "credential_lists")) {
+        const sid2 = str(l, "sid");
+        if (sid2 && str(l, "friendly_name") === friendlyName.slice(0, 64)) return { sid: sid2 };
+      }
+      return null;
+    },
+    async findCredential(acct, listSid, username) {
+      const b = need(
+        await http(acct, "GET", `${twilioUrls.credentials(acct.sid, listSid)}?PageSize=50`),
+        "list credentials"
+      );
+      for (const c of rowsOf(b, "credentials")) {
+        const sid2 = str(c, "sid");
+        if (sid2 && str(c, "username") === username) return { sid: sid2 };
+      }
+      return null;
+    },
+    async deleteCredential(acct, listSid, credentialSid) {
+      const a = await http(acct, "DELETE", twilioUrls.credential(acct.sid, listSid, credentialSid));
+      if (a.status !== 204 && a.status !== 404) throw new TwilioError(a.status, a.body, "delete credential");
+    },
+    async findOrigination(acct, trunkSid, sipUrl) {
+      const b = need(
+        await http(acct, "GET", `${twilioUrls.trunkOriginationUrls(trunkSid)}?PageSize=50`),
+        "list origination urls"
+      );
+      for (const o of rowsOf(b, "origination_urls")) {
+        const sid2 = str(o, "sid");
+        if (sid2 && str(o, "sip_url") === sipUrl) return { sid: sid2 };
+      }
+      return null;
     },
     async searchLocal(acct, q) {
       const url = `${twilioUrls.availableLocal(acct.sid)}?${new URLSearchParams({
@@ -3574,6 +3640,11 @@ function dryProvider(seed = 1) {
   const next = (prefix) => `${prefix}${hex(n++)}`;
   const calls = [];
   const owned = /* @__PURE__ */ new Map();
+  const subaccounts = /* @__PURE__ */ new Map();
+  const trunks = /* @__PURE__ */ new Map();
+  const lists = /* @__PURE__ */ new Map();
+  const credentials = /* @__PURE__ */ new Map();
+  const originations = /* @__PURE__ */ new Map();
   const rec = (op, ...args) => calls.push({ op, args });
   const acctOf = (a) => a.sid;
   return {
@@ -3582,7 +3653,37 @@ function dryProvider(seed = 1) {
     owned,
     async createSubaccount(master, friendlyName) {
       rec("createSubaccount", acctOf(master), friendlyName);
-      return { sid: next("AC"), token: next("tok"), status: "active" };
+      const acct = { sid: next("AC"), token: next("tok") };
+      subaccounts.set(friendlyName, acct);
+      return { ...acct, status: "active" };
+    },
+    async findSubaccount(master, friendlyName) {
+      rec("findSubaccount", acctOf(master), friendlyName);
+      return subaccounts.get(friendlyName) ?? null;
+    },
+    async findTrunk(acct, domainName) {
+      rec("findTrunk", acctOf(acct), domainName);
+      const sid2 = trunks.get(`${acctOf(acct)} ${domainName}`);
+      return sid2 ? { sid: sid2, domainName } : null;
+    },
+    async findCredentialList(acct, friendlyName) {
+      rec("findCredentialList", acctOf(acct), friendlyName);
+      const sid2 = lists.get(`${acctOf(acct)} ${friendlyName}`);
+      return sid2 ? { sid: sid2 } : null;
+    },
+    async findCredential(acct, listSid, username) {
+      rec("findCredential", acctOf(acct), listSid, username);
+      const sid2 = credentials.get(`${listSid} ${username}`);
+      return sid2 ? { sid: sid2 } : null;
+    },
+    async deleteCredential(acct, listSid, credentialSid) {
+      rec("deleteCredential", acctOf(acct), listSid, credentialSid);
+      for (const [k, v] of credentials) if (v === credentialSid) credentials.delete(k);
+    },
+    async findOrigination(acct, trunkSid, sipUrl) {
+      rec("findOrigination", acctOf(acct), trunkSid, sipUrl);
+      const sid2 = originations.get(`${trunkSid} ${sipUrl}`);
+      return sid2 ? { sid: sid2 } : null;
     },
     async searchLocal(acct, q) {
       rec("searchLocal", acctOf(acct), q);
@@ -3618,25 +3719,34 @@ function dryProvider(seed = 1) {
     },
     async createTrunk(acct, o) {
       rec("createTrunk", acctOf(acct), o);
-      return { sid: next("TK"), domainName: o.domainName };
+      const sid2 = next("TK");
+      trunks.set(`${acctOf(acct)} ${o.domainName}`, sid2);
+      return { sid: sid2, domainName: o.domainName };
     },
     async deleteTrunk(acct, trunkSid) {
       rec("deleteTrunk", acctOf(acct), trunkSid);
     },
     async createCredentialList(acct, friendlyName) {
       rec("createCredentialList", acctOf(acct), friendlyName);
-      return { sid: next("CL") };
+      const sid2 = next("CL");
+      lists.set(`${acctOf(acct)} ${friendlyName}`, sid2);
+      return { sid: sid2 };
     },
     async addCredential(acct, listSid, username) {
       rec("addCredential", acctOf(acct), listSid, username);
-      return { sid: next("CR") };
+      if (credentials.has(`${listSid} ${username}`)) throw new Error(`add credential: ${username} already exists`);
+      const sid2 = next("CR");
+      credentials.set(`${listSid} ${username}`, sid2);
+      return { sid: sid2 };
     },
     async attachCredentialList(acct, trunkSid, listSid) {
       rec("attachCredentialList", acctOf(acct), trunkSid, listSid);
     },
     async addOrigination(acct, trunkSid, o) {
       rec("addOrigination", acctOf(acct), trunkSid, o);
-      return { sid: next("OU") };
+      const sid2 = next("OU");
+      originations.set(`${trunkSid} ${o.sipUrl}`, sid2);
+      return { sid: sid2 };
     },
     async attachNumber(acct, trunkSid, numberSid) {
       rec("attachNumber", acctOf(acct), trunkSid, numberSid);
@@ -3666,6 +3776,8 @@ var LINE_STEPS = [
   "messaging",
   "channel"
 ];
+var OUT_OF_TIME = /* @__PURE__ */ Symbol("out of time");
+var AGENT_STEP_MORE_MS = 1e4;
 function retellImportBody(o) {
   return {
     phone_number: o.e164,
@@ -3698,6 +3810,21 @@ async function runLineSaga(start, ports) {
     await ports.store.save(patch);
   };
   const fact2 = async (k, v) => save({ facts: { ...line.facts, [k]: v } });
+  const room = (more = 0) => {
+    if (ports.timeLeft && ports.timeLeft() <= more) throw OUT_OF_TIME;
+  };
+  const once = async (key, look, make) => {
+    const asked = `asked_${key}`;
+    room();
+    if (line.facts[asked] === true) {
+      const found = await look();
+      if (found) return found;
+      room();
+    } else {
+      await fact2(asked, true);
+    }
+    return make();
+  };
   if (line.voice_state === "answering" && nextLineStep(line) === null) return { ok: true, line };
   if (!line.e164) {
     await save({ voice_state: "failed", step: "number", last_error: "no number chosen", state_since: ports.now() });
@@ -3717,16 +3844,23 @@ async function runLineSaga(start, ports) {
   await save({ voice_state: "provisioning", step, last_error: null, state_since: ports.now() });
   try {
     while ((step = nextLineStep(line)) !== null) {
+      room();
       await save({ step });
       switch (step) {
         case "subaccount": {
-          const acct = await ports.provider.createSubaccount(ports.master, `${ports.tenant.name} \xB7 Chanlytics`);
+          const name = subaccountName(ports.tenant.name, line.id);
+          const acct = await once(
+            "subaccount",
+            () => ports.provider.findSubaccount(ports.master, name),
+            () => ports.provider.createSubaccount(ports.master, name)
+          );
           await putSecrets({ auth_token: acct.token });
           await save({ subaccount_sid: acct.sid });
           break;
         }
         case "number": {
           const held = await ports.provider.ownedNumber(sub(), line.e164);
+          if (!held) room();
           const bought = held ?? await ports.provider.buyNumber(sub(), line.e164, `${ports.tenant.name} \xB7 Chanlytics`);
           await save({ number_sid: bought.sid, e164: bought.e164 });
           break;
@@ -3734,35 +3868,59 @@ async function runLineSaga(start, ports) {
         case "trunk": {
           const acct = sub();
           if (!line.trunk_sid) {
-            const t = await ports.provider.createTrunk(acct, {
-              friendlyName: `${ports.tenant.name} \xB7 Chanlytics`,
-              domainName: trunkDomain(line.id)
-            });
+            const domainName = trunkDomain(line.id);
+            const t = await once(
+              "trunk",
+              () => ports.provider.findTrunk(acct, domainName),
+              () => ports.provider.createTrunk(acct, { friendlyName: `${ports.tenant.name} \xB7 Chanlytics`, domainName })
+            );
             await save({ trunk_sid: t.sid, termination_uri: t.domainName });
           }
           if (!line.credential_list_sid) {
-            const cl = await ports.provider.createCredentialList(acct, `${ports.tenant.name} \xB7 Chanlytics`);
+            const name = `${ports.tenant.name} \xB7 Chanlytics`;
+            const cl = await once(
+              "credential_list",
+              () => ports.provider.findCredentialList(acct, name),
+              () => ports.provider.createCredentialList(acct, name)
+            );
             await save({ credential_list_sid: cl.sid });
           }
           if (!secrets.sip_password || !secrets.sip_username) {
             const username = sipUsername(line.id);
             const password = sipPassword(ports.random);
             if (!isValidSipPassword(password)) throw new Error("generated SIP password failed Twilio's rule");
-            await ports.provider.addCredential(acct, line.credential_list_sid, username, password);
+            await once(
+              "credential",
+              async () => {
+                const lost = await ports.provider.findCredential(acct, line.credential_list_sid, username);
+                if (lost) {
+                  room();
+                  await ports.provider.deleteCredential(acct, line.credential_list_sid, lost.sid);
+                }
+                return null;
+              },
+              () => ports.provider.addCredential(acct, line.credential_list_sid, username, password)
+            );
             await putSecrets({ sip_username: username, sip_password: password });
           }
           if (line.facts.credential_list_attached !== true) {
+            room();
             await ports.provider.attachCredentialList(acct, line.trunk_sid, line.credential_list_sid);
             await fact2("credential_list_attached", true);
           }
           if (typeof line.facts.origination_sid !== "string") {
-            const o = await ports.provider.addOrigination(acct, line.trunk_sid, {
-              sipUrl: RETELL_ORIGINATION,
-              friendlyName: "Retell"
-            });
+            const o = await once(
+              "origination",
+              () => ports.provider.findOrigination(acct, line.trunk_sid, RETELL_ORIGINATION),
+              () => ports.provider.addOrigination(acct, line.trunk_sid, {
+                sipUrl: RETELL_ORIGINATION,
+                friendlyName: "Retell"
+              })
+            );
             await fact2("origination_sid", o.sid);
           }
           if (line.facts.number_attached !== true) {
+            room();
             await ports.provider.attachNumber(acct, line.trunk_sid, line.number_sid);
             await fact2("number_attached", true);
           }
@@ -3770,6 +3928,7 @@ async function runLineSaga(start, ports) {
           break;
         }
         case "agent": {
+          room(AGENT_STEP_MORE_MS);
           const a = await ports.agent.ensure();
           await save({ retell_agent_id: a.agentId, facts: { ...line.facts, llm_id: a.llmId, agent_pinned: a.pinned } });
           break;
@@ -3811,6 +3970,7 @@ async function runLineSaga(start, ports) {
             await save({ messaging_service_sid: svc.sid });
           }
           if (line.facts.number_in_service !== true) {
+            room();
             await ports.provider.addNumberToService(acct, line.messaging_service_sid, line.number_sid);
             await fact2("number_in_service", true);
           }
@@ -3836,6 +3996,8 @@ async function runLineSaga(start, ports) {
     await save({ voice_state: "answering", step: null, last_error: null, state_since: ports.now() });
     return { ok: true, line };
   } catch (e) {
+    if (e === OUT_OF_TIME)
+      return { ok: true, later: true, step: line.step ?? step ?? "subaccount", line };
     const error = errorWords(e);
     const at = line.step ?? step ?? "subaccount";
     await save({ voice_state: "failed", step: at, last_error: error, state_since: ports.now() });
@@ -6019,6 +6181,7 @@ export {
   starterProfileRequest,
   stopCall,
   stripKey,
+  subaccountName,
   submitProfileRequest,
   submitTrustProductRequest,
   supportingDocumentRequest,

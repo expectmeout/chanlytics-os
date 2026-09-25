@@ -531,11 +531,16 @@ interface SendQueuedPorts {
 }
 interface ProvisionLinePorts {
     /** The saga, or its resumption: the edge's, because the provider and the credentials live there. Absent in a runtime that holds none. */
-    provision?(lineId: string, by: "owner" | "support" | "sweep"): Promise<{
+    provision?(lineId: string, by: "owner" | "support" | "sweep", deadline?: number): Promise<{
         ok: boolean;
         step?: string;
         error?: string;
+        more?: boolean;
     }>;
+    /** One more job of this kind, for the steps a run left at its deadline. */
+    next?(payload: Record<string, unknown>): Promise<void>;
+    /** Epoch ms: the run starts no provider call after it. */
+    deadline?: number;
 }
 interface BroadcastRow {
     id: string;
@@ -675,6 +680,12 @@ declare function sendQueued(ports: SendQueuedPorts, cmd: SendQueuedCommand): Pro
  * saga is the edge's, reading its own receipts so a second run repeats
  * nothing. A saga that stopped fails the job with the step it stopped at, so
  * the next try resumes there.
+ *
+ * A run is bounded by the job's deadline, not the saga's length: the saga's
+ * worst case (ten carrier calls at 15 s and four Retell calls at 8 s) is three
+ * times the 60-second function it runs in. So it stops between two provider
+ * calls when the deadline passes, and the rest is one more job -- a run the
+ * function cuts off mid-call is a call whose outcome nobody knows.
  */
 declare function provisionLine(ports: ProvisionLinePorts, cmd: {
     payload: Record<string, unknown>;
