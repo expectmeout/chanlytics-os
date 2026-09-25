@@ -810,6 +810,14 @@ test.describe("Phone shell on a real workspace", () => {
       .first()
       .evaluate((el) => getComputedStyle(el).textTransform);
     expect(head, "a section says its name in sentence case").toBe("none");
+    // It scrolls down and nowhere else: no width to drag it sideways, no rubber band at its ends (25 Sep).
+    const list = await pop.locator(".tbn-list").evaluate((el) => ({
+      extra: el.scrollWidth - el.clientWidth,
+      x: getComputedStyle(el).overflowX,
+      touch: getComputedStyle(el).touchAction,
+      over: getComputedStyle(el).overscrollBehaviorY,
+    }));
+    expect(list).toEqual({ extra: 0, x: "hidden", touch: "pan-y", over: "none" });
   });
 
   /**
