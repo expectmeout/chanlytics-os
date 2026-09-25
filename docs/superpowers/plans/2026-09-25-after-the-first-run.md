@@ -20,7 +20,7 @@ this order, each merged on green before the next.
   it), with how many events it found this week. Each calendar gets its own "where to find the secret address".
   - _As built:_ the fold reads a pasted address 600 ms after the last keystroke, and a newer paste wins. It only
     reads an address the rule allows that isn't the stored or masked one. It says "Reading it…", then "Read it: 12
-    appointments, the next Tue, Sep 8, 2:00 PM." or the preview's own refusal as an alert. "Where do I find it?" is
+    events, the next Tue, Sep 8, 2:00 PM." or the preview's own refusal as an alert. "Where do I find it?" is
     a fold of Google, Apple (iCloud) and Outlook steps (`FEED_GUIDES`, `FEED_CHECK_WORDS` in contracts).
   - _Found on the way (SSRF):_ every feed reader (the preview, Ask's openings, the receptionist's availability)
     checked only the address it was given, and `fetch` followed redirects on its own. A public address answering

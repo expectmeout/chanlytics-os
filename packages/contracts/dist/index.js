@@ -2369,7 +2369,7 @@ async function fetchPublic(fetchImpl, raw, init = {}) {
     if (res.status >= 300 && res.status < 400) {
       const next = res.headers.get("location");
       await res.body?.cancel().catch(() => void 0);
-      at2 = next ? feedUrlOk(new URL(next, at2).toString()) : null;
+      at2 = next ? feedUrlOk(URL.canParse(next, at2) ? new URL(next, at2).toString() : null) : null;
       continue;
     }
     return res;
@@ -2404,7 +2404,7 @@ var FEED_GUIDES = [
 var FEED_CHECK_WORDS = {
   guide: "Where do I find it?",
   reading: "Reading it\u2026",
-  read: (events, next) => events === 0 ? "Read it: it's empty so far. Your receptionist will see new appointments as they land." : `Read it: ${events} ${events === 1 ? "appointment" : "appointments"}${next ? `, the next ${next}` : ""}.`
+  read: (events, next) => events === 0 ? "Read it: it's empty so far. Your receptionist will see new appointments as they land." : `Read it: ${events} ${events === 1 ? "event" : "events"}, ${next ? `the next ${next}` : "none in the next 30 days"}.`
 };
 var FEED_MAX_BYTES = 2e6;
 function feedProblemWords(reason, status) {

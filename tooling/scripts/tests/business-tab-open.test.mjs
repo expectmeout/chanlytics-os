@@ -1112,7 +1112,7 @@ test("(B1) an address pasted into the fold is read as it lands -- how many appoi
     await pastTheCheck();
     tree = redrawTab();
     assert.deepEqual(asked, ["https://calendar.google.com/calendar/ical/marisa/private-abc/basic.ics"]);
-    assert.equal(textOf(check()), "Read it: 12 appointments, the next Tue, Sep 8, 2:00 PM.");
+    assert.equal(textOf(check()), "Read it: 12 events, the next Tue, Sep 8, 2:00 PM.");
 
     // A refusal says why, in the preview's own words, as an alert.
     answer = { ok: false, message: "The calendar answered 404: the address no longer points at a calendar." };
@@ -1147,12 +1147,10 @@ test("(B1) an address pasted into the fold is read as it lands -- how many appoi
   }
 });
 
-test("(B1) the check's words: one appointment, many, the next when there is one", () => {
-  assert.equal(FEED_CHECK_WORDS.read(1, null), "Read it: 1 appointment.");
-  assert.equal(
-    FEED_CHECK_WORDS.read(3, "Fri, Oct 2, 10:00 AM"),
-    "Read it: 3 appointments, the next Fri, Oct 2, 10:00 AM.",
-  );
+test("(B1) the check's words: one event, many, the next or none this month -- events, never appointments", () => {
+  // Every event the feed holds, past ones too: "events", as the fold's last read says it, never "appointments".
+  assert.equal(FEED_CHECK_WORDS.read(1, null), "Read it: 1 event, none in the next 30 days.");
+  assert.equal(FEED_CHECK_WORDS.read(3, "Fri, Oct 2, 10:00 AM"), "Read it: 3 events, the next Fri, Oct 2, 10:00 AM.");
   for (const g of FEED_GUIDES) assert.ok(g.steps.length >= 2 && g.steps.every((t) => t.endsWith(".")), g.name);
 });
 

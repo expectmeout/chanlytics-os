@@ -63,7 +63,7 @@ export async function fetchPublic(
     if (res.status >= 300 && res.status < 400) {
       const next = res.headers.get("location");
       await res.body?.cancel().catch(() => undefined);
-      at = next ? feedUrlOk(new URL(next, at).toString()) : null;
+      at = next ? feedUrlOk(URL.canParse(next, at) ? new URL(next, at).toString() : null) : null;
       continue;
     }
     return res;
@@ -101,14 +101,18 @@ export const FEED_GUIDES: readonly { name: string; steps: readonly string[] }[] 
   },
 ];
 
-/** What the calendar fold says while it checks a pasted address (the preview), and what it found. */
+/**
+ * What the calendar fold says while it checks a pasted address (the preview), and what it found. `events` is every
+ * event the feed holds, past ones too (parseIcs), so it is "events", as the fold's last read says it, never
+ * "appointments"; `next` is the first one still to come inside the preview's month (previewHorizon).
+ */
 export const FEED_CHECK_WORDS = {
   guide: "Where do I find it?",
   reading: "Reading it…",
   read: (events: number, next: string | null) =>
     events === 0
       ? "Read it: it's empty so far. Your receptionist will see new appointments as they land."
-      : `Read it: ${events} ${events === 1 ? "appointment" : "appointments"}${next ? `, the next ${next}` : ""}.`,
+      : `Read it: ${events} ${events === 1 ? "event" : "events"}, ${next ? `the next ${next}` : "none in the next 30 days"}.`,
 } as const;
 
 /** The most a feed may weigh: two megabytes of text, a season of a busy salon several times over. */

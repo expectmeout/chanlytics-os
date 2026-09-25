@@ -241,6 +241,7 @@ test('REGRESSION (B1): every hop is judged by the address rule -- a public addre
     ["https://cal.example/in.ics", { location: "http://10.0.0.5/cal.ics" }],
     ["https://cal.example/meta.ics", { location: "http://169.254.169.254/latest/meta-data" }],
     ["https://cal.example/nowhere.ics", { location: "" }],
+    ["https://cal.example/garbled.ics", { location: "http://[::1" }],
   ]);
   for (let i = 0; i < 5; i += 1) net.set(`https://cal.example/loop${i}.ics`, { location: `/loop${i + 1}.ics` });
   const asked = [];
@@ -267,6 +268,11 @@ test('REGRESSION (B1): every hop is judged by the address rule -- a public addre
     "the private address is never fetched",
   );
   assert.equal(await fetchPublic(own, "https://cal.example/nowhere.ics"), null, "a redirect to nowhere");
+  assert.equal(
+    await fetchPublic(own, "https://cal.example/garbled.ics"),
+    null,
+    "or to no address: refused, not thrown",
+  );
   asked.length = 0;
   assert.equal(await fetchPublic(own, "https://cal.example/loop0.ics"), null, "longer than a calendar's chain");
   assert.equal(asked.length, 4, "the first ask and three hops, no more");

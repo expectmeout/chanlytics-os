@@ -13111,7 +13111,11 @@ declare const FEED_GUIDES: readonly {
     name: string;
     steps: readonly string[];
 }[];
-/** What the calendar fold says while it checks a pasted address (the preview), and what it found. */
+/**
+ * What the calendar fold says while it checks a pasted address (the preview), and what it found. `events` is every
+ * event the feed holds, past ones too (parseIcs), so it is "events", as the fold's last read says it, never
+ * "appointments"; `next` is the first one still to come inside the preview's month (previewHorizon).
+ */
 declare const FEED_CHECK_WORDS: {
     readonly guide: "Where do I find it?";
     readonly reading: "Reading it…";
