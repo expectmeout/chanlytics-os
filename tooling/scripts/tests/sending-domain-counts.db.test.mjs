@@ -101,6 +101,12 @@ test(
     await sent({ host, status: "failed", error: BOUNCED });
     await sent({ host, status: "canceled", error: { reason: "outreach_not_a_lead" } });
     await sent({ host, status: "failed", error: { http_status: 500, body: "boom" } });
+    // The provider suppressed it: it never left, whatever the receipt's shape.
+    await sent({
+      host,
+      status: "failed",
+      error: { provider: "suppressed", kind: null, sub_kind: null, message: null },
+    });
     await sent({ host: `other-${stamp}.example` });
     await sent({ host: null });
     assert.deepEqual(await counts(host), { sent: 3, bounced: 1, complained: 0 });
@@ -153,3 +159,31 @@ test("a complaint is stamped once on the row it is about, and counted", { skip }
   assert.equal(row.meta.email.request.subject, "Your moving quotes", "what the row kept is kept");
   assert.deepEqual(await counts(host), { sent: 1, bounced: 0, complained: 1 });
 });
+
+test(
+  "a complaint counts from when it was made: one made while the domain was held for its records still counts after",
+  { skip },
+  async () => {
+    const host = `e-${stamp}.example`;
+    const early = await sent({ host, status: "delivered", at: new Date(Date.now() - 5 * 86_400_000) });
+    const older = await sent({ host, status: "delivered", at: new Date(Date.now() - 6 * 86_400_000) });
+    const since = new Date(Date.now() - 2 * 86_400_000).toISOString();
+    // Made yesterday, about an email from five days ago: after the domain was clean again, so it counts.
+    ok(
+      await db.rpc("stamp_email_complaint", {
+        p_tenant_id: A,
+        p_message_id: early,
+        p_at: new Date(Date.now() - 86_400_000).toISOString(),
+      }),
+    );
+    // Made four days ago: before it was clean, so it was answered for already.
+    ok(
+      await db.rpc("stamp_email_complaint", {
+        p_tenant_id: A,
+        p_message_id: older,
+        p_at: new Date(Date.now() - 4 * 86_400_000).toISOString(),
+      }),
+    );
+    assert.deepEqual(await counts(host, since), { sent: 0, bounced: 0, complained: 1 });
+  },
+);

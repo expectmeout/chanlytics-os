@@ -339,3 +339,18 @@ test("a count that cannot be read judges nothing about reputation, and the domai
     net.restore();
   }
 });
+
+test("a complaint holds a domain even on a tick the provider could not be asked", async () => {
+  const w = world([domain("d1")], { "d1.example": { sent: 12, bounced: 0, complained: 1 } });
+  dns["d1.example"] = "found";
+  const net = provider({ "pd-d1": "500" });
+  try {
+    const [status] = await answer(await knock(POST, "domains"));
+    assert.equal(status, 200, "a blip is still not a red sweep");
+    assert.deepEqual([w.row("d1").state, w.row("d1").held_why, w.row("d1").complaints], ["held", "complaint", 1]);
+    assert.equal(w.tables.events.filter((e) => e.kind === "sending_domain.held").length, 1);
+    assert.equal(w.tables.notifications.length, 1);
+  } finally {
+    net.restore();
+  }
+});

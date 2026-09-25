@@ -338,8 +338,8 @@ interface DomainJudgement extends DomainRowState {
  *                                                               nameservers that disagree mid-move are one bad read)
  *   held (DNS)         provider verified + DMARC found      → verified (clean from now)       change "released"
  *   held (reputation)  unchanged: only the owner resumes it (resumeDomain).
- * An unreadable provider changes nothing, and an unreadable DMARC neither holds nor verifies: "we could not look"
- * is not a fact about the domain.
+ * An unreadable provider changes nothing but a reputation hold, which is counted from our own rows, and an
+ * unreadable DMARC neither holds nor verifies: "we could not look" is not a fact about the domain.
  */
 declare function judgeDomain(row: DomainRowState, facts: DomainFacts, nowIso: string): DomainJudgement;
 /**

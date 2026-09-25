@@ -204,11 +204,14 @@ const CHECKING: ReadonlySet<string> = new Set(["pending", "temporary_failure", "
  *                                                               nameservers that disagree mid-move are one bad read)
  *   held (DNS)         provider verified + DMARC found      → verified (clean from now)       change "released"
  *   held (reputation)  unchanged: only the owner resumes it (resumeDomain).
- * An unreadable provider changes nothing, and an unreadable DMARC neither holds nor verifies: "we could not look"
- * is not a fact about the domain.
+ * An unreadable provider changes nothing but a reputation hold, which is counted from our own rows, and an
+ * unreadable DMARC neither holds nor verifies: "we could not look" is not a fact about the domain.
  */
 export function judgeDomain(row: DomainRowState, facts: DomainFacts, nowIso: string): DomainJudgement {
   const same: DomainJudgement = { ...row, dmarc: facts.dmarc ?? row.dmarc, change: null };
+  // Reputation is counted from our own rows, so it holds a verified domain whatever the provider answered, or did not.
+  const reputation = row.state === "verified" ? reputationHoldOf(facts.counts) : null;
+  if (reputation) return { ...same, state: "held", held_why: reputation, held_at: nowIso, change: "held" };
   if (facts.provider === null) return { ...row, change: null };
   const verified = facts.provider === "verified";
   if (row.state === "records" || row.state === "verifying") {
@@ -226,8 +229,6 @@ export function judgeDomain(row: DomainRowState, facts: DomainFacts, nowIso: str
     return { ...same, state: CHECKING.has(facts.provider) ? "verifying" : "records" };
   }
   if (row.state === "verified") {
-    const reputation = reputationHoldOf(facts.counts);
-    if (reputation) return { ...same, state: "held", held_why: reputation, held_at: nowIso, change: "held" };
     if (!verified && facts.provider !== "pending")
       return { ...same, state: "held", held_why: "verification", held_at: nowIso, change: "held" };
     if (facts.dmarc === "missing" && row.dmarc === "missing")

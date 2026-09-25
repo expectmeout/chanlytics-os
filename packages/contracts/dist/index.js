@@ -20791,6 +20791,8 @@ function reputationHoldOf(c) {
 var CHECKING = /* @__PURE__ */ new Set(["pending", "temporary_failure", "partially_verified"]);
 function judgeDomain(row2, facts, nowIso) {
   const same2 = { ...row2, dmarc: facts.dmarc ?? row2.dmarc, change: null };
+  const reputation = row2.state === "verified" ? reputationHoldOf(facts.counts) : null;
+  if (reputation) return { ...same2, state: "held", held_why: reputation, held_at: nowIso, change: "held" };
   if (facts.provider === null) return { ...row2, change: null };
   const verified = facts.provider === "verified";
   if (row2.state === "records" || row2.state === "verifying") {
@@ -20808,8 +20810,6 @@ function judgeDomain(row2, facts, nowIso) {
     return { ...same2, state: CHECKING.has(facts.provider) ? "verifying" : "records" };
   }
   if (row2.state === "verified") {
-    const reputation = reputationHoldOf(facts.counts);
-    if (reputation) return { ...same2, state: "held", held_why: reputation, held_at: nowIso, change: "held" };
     if (!verified && facts.provider !== "pending")
       return { ...same2, state: "held", held_why: "verification", held_at: nowIso, change: "held" };
     if (facts.dmarc === "missing" && row2.dmarc === "missing")

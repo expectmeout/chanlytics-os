@@ -43,6 +43,7 @@ import {
   type DomainCounts,
   type DomainHold,
   type DomainRecord,
+  type DomainJudgement,
   type DomainRowState,
   type SendingDomainDto,
 } from "../packages/contracts.js";
@@ -52,6 +53,7 @@ import { emailDomain } from "./email.js";
 import type { Logger } from "../log.js";
 
 type Db = SupabaseClient<Database>;
+type DomainJudgementChange = DomainJudgement["change"];
 
 export interface DomainPorts {
   db: Db;
@@ -247,7 +249,24 @@ export async function checkSendingDomain(
     if (!asked.ok)
       p.log.warn("sending_domain_verify_refused", { domain: row.id, status: asked.status, message: asked.message });
   }
-  const [read, dmarc] = await Promise.all([getMailDomain(p.cfg, providerId), p.dmarc(row.host)]);
+  // What a verified domain sent since it was clean: its bounces and complaints are what hold it. Our own rows, so they
+  // are read whatever the provider says. A count that cannot be read judges nothing about reputation this time.
+  const countOf = async (r: SendingDomainRow): Promise<DomainCounts | null> => {
+    if (r.state !== "verified") return null;
+    try {
+      return await sendingDomainCounts(p.db, r.tenant_id, r.host, r.clean_since);
+    } catch (e) {
+      p.log.error("sending_domain_counts_unread", {
+        domain: r.id,
+        error: e instanceof Error ? e.message : String(e),
+      });
+      return null;
+    }
+  };
+  const [read, dmarc, counts] = await Promise.all([getMailDomain(p.cfg, providerId), p.dmarc(row.host), countOf(row)]);
+  const countsPatch = counts
+    ? { sent_recent: counts.sent, bounced_recent: counts.bounced, complaints: counts.complained }
+    : {};
   if (!read.ok) {
     p.log.error("sending_domain_unreadable", {
       domain: row.id,
@@ -255,23 +274,21 @@ export async function checkSendingDomain(
       status: read.status,
       message: read.message,
     });
-    return { row, change: null, unreadable: true, status: read.status };
+    // The provider could not be asked, and a complaint still holds: nothing else is judged.
+    const own = judgeDomain(stateOf(row), { provider: null, dmarc: null, counts }, nowIso);
+    if (own.change !== "held") return { row, change: null, unreadable: true, status: read.status };
+    const held = await applyDomainCheck(p.db, row, {
+      state: own.state,
+      held_why: own.held_why,
+      held_at: own.held_at,
+      ...countsPatch,
+      checked_at: nowIso,
+    });
+    if (held) await sayDomainChange(p, row, held, own);
+    return { row: held, change: held ? "held" : null, unreadable: true, status: read.status };
   }
   // The provider no longer has it: a domain that cannot verify, whatever it said before.
   const providerStatus = read.value ? read.value.status : "not_found";
-  // What a verified domain sent since it was clean: its bounces and complaints are what hold it. A count that cannot
-  // be read judges nothing about reputation this time, and is said.
-  let counts: DomainCounts | null = null;
-  if (row.state === "verified") {
-    try {
-      counts = await sendingDomainCounts(p.db, row.tenant_id, row.host, row.clean_since);
-    } catch (e) {
-      p.log.error("sending_domain_counts_unread", {
-        domain: row.id,
-        error: e instanceof Error ? e.message : String(e),
-      });
-    }
-  }
   const judged = judgeDomain(stateOf(row), { provider: providerStatus, dmarc, counts }, nowIso);
   const written = await applyDomainCheck(p.db, row, {
     state: judged.state,
@@ -282,11 +299,22 @@ export async function checkSendingDomain(
     provider_status: providerStatus,
     dmarc: judged.dmarc,
     ...(read.value ? { records: read.value.records as unknown as Json } : {}),
-    ...(counts ? { sent_recent: counts.sent, bounced_recent: counts.bounced, complaints: counts.complained } : {}),
+    ...countsPatch,
     checked_at: nowIso,
   });
   if (!written) return { row: null, change: null, unreadable: false };
-  if (judged.change) {
+  await sayDomainChange(p, row, written, judged);
+  return { row: written, change: judged.change === "resumed" ? null : judged.change, unreadable: false };
+}
+
+/** A check's change, said: one event, and the owner told when it was a hold. Nothing when nothing changed. */
+async function sayDomainChange(
+  p: DomainPorts,
+  row: SendingDomainRow,
+  written: SendingDomainRow,
+  judged: { change: DomainJudgementChange; held_why: DomainHold | null },
+): Promise<void> {
+  if (judged.change && judged.change !== "resumed") {
     const data = { host: row.host, ...(judged.held_why ? { why: judged.held_why } : {}) } as Json;
     await emitEvent(
       p.db,
@@ -303,7 +331,6 @@ export async function checkSendingDomain(
     );
     if (judged.change === "held" && judged.held_why) await tellDomainHeld(p, written, judged.held_why);
   }
-  return { row: written, change: judged.change === "resumed" ? null : judged.change, unreadable: false };
 }
 
 /**

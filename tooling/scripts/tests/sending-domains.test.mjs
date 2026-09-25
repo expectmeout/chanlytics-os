@@ -290,6 +290,9 @@ test("a domain answers for its reputation: any complaint holds it; bounces hold 
     ...sending(),
     change: null,
   });
+  // Counted from our own rows: a complaint holds even when the provider could not be asked.
+  const blind = judgeDomain(sending(), { provider: null, dmarc: null, counts: c(10, 0, 1) }, NOW_ISO);
+  assert.deepEqual([blind.state, blind.held_why, blind.change], ["held", "complaint", "held"]);
   // A reputation hold waits for its owner, whatever the records say.
   assert.equal(judgeDomain(held, { provider: "verified", dmarc: "found", counts: c(0, 0) }, NOW_ISO).state, "held");
 });
