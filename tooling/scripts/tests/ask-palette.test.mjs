@@ -1884,6 +1884,37 @@ test("on Today the Line is as it was: Ask anything, questions about the page, an
   await closes();
 });
 
+/* ------------------------------ the phone's ✦: the beam ------------------------------ */
+
+test("the beam says the usage while Ask works: the AI's own colours with no usage surface or under 80%, amber from 80%, red at 100%; and it works when the mood is not at rest", () => {
+  const Beam = (props) => globalThis.window.AskBeam(props);
+  const drawn = () => byTestId(render(Beam, { testId: "b" }), "b");
+  const subs = [];
+  const mood = { state: "idle", subscribe: (fn) => (subs.push(fn), () => subs.splice(subs.indexOf(fn), 1)) };
+  const had = globalThis.window.__mascot;
+  globalThis.window.__mascot = { mood };
+  try {
+    delete globalThis.window.__USAGE;
+    let beam = drawn();
+    assert.equal(beam.props.className, "ask-beam");
+    assert.equal(beam.props["data-usage"], "ok", "no usage surface yet: the AI's own colours");
+    assert.equal(beam.props["data-work"], "0", "at rest");
+    globalThis.window.__USAGE = { standing: "ok", share: 27 };
+    assert.equal(drawn().props["data-usage"], "ok");
+    globalThis.window.__USAGE = { standing: "warned", share: 89 };
+    assert.equal(drawn().props["data-usage"], "warned");
+    globalThis.window.__USAGE = { standing: "over", share: 100 };
+    assert.equal(drawn().props["data-usage"], "over");
+    mood.state = "thinking";
+    beam = drawn();
+    assert.equal(beam.props["data-work"], "1", "Ask reading: the beam works");
+  } finally {
+    delete globalThis.window.__USAGE;
+    if (had === undefined) delete globalThis.window.__mascot;
+    else globalThis.window.__mascot = had;
+  }
+});
+
 /* ------------------------------ the name a page went by ------------------------------ */
 
 test("a page is found by the name it goes by AND by the one it used to: 'templates' and 'messages' both land there", () => {

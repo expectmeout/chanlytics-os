@@ -1,0 +1,40 @@
+# The Ask button on a phone: design spec
+
+**Date:** 25 Sep 2026 · **Owner:** Ruben · **Status:** approved (Ruben, 25 Sep: "z3 is the one lets go with that one")
+**Lab:** the review page "The Ask button on a phone" (https://claude.ai/artifact/C1kD88D9y9sB5H4rqtE8AB, versions 1 to 16), every option live on the real engine in both themes over a slice of Today.
+
+## 1. Why
+
+The phone's ✦ was a coral disc with the three on it, always on. In this design system the primary act is ink (`.btn-primary`: ink on the page) and the coral accent is a state, kept for live, now and needs-you (Today's tab, an open reply, a set-up nudge, the needs-you line, the next visit's time). A coral ✦ said "live" about something that was not, and was the loudest object on every screen at rest. Ruben, 25 Sep: "it just feels redundant we have enough coral accents already". The top bar's face already had the right rule, ink at rest and coral while Ask works.
+
+Ruben's other asks on the way: the three too small inside the disc; the "AI" cues people know (a shimmer, a breath) so the button reads as the AI's; the usage from the plan (`2026-09-25-usage-system-design.md`, "The face's halo") as part of the same object; then, once the beam carried the usage's colour, no arc over it; the under-80% colour not the ink but the mainstream AI families; the rim closer to the three.
+
+## 2. Decisions
+
+| # | Decision | Why |
+|---|---|---|
+| B1 | The ✦ is the cards' own surface (`--bg-raised`, a hairline of `--line-strong`, `--shadow-md`), 40px inside a 44px tap, with the three on it in ink at rest and coral while Ask works, exactly the top bar's rule. | The system's colours, kept: ink primary, coral as a state. |
+| B2 | The three fill the disc: the face canvas 36 by 30, so the mark at rest is about 26px across (it was about 20 in 30 by 24). | Ruben: "the three logo is too small inside". |
+| B3 | A beam travels the rim (`.ask-beam`): a short arc, one lap in 8 s, the ink at 42% at rest. While Ask works it goes to full, laps in 2.5 s, and its light spills onto the inside of the rim (a blurred inner ring, 18% at rest, 68% at work); nothing glows outside. | The AI cue, without a colour at rest; Ruben: "too much glow effect … make the glow display more on the inside and more subtle on the outside". |
+| B4 | While Ask works the beam's colour is the usage's standing: under 80% the AI's own three, a blue head (`oklch(0.72 0.14 250)`) through violet (`0.68 0.18 320`) to a gold tail (`0.8 0.15 70`), the Apple Intelligence family, short; from 80% `--warn`; at 100% `--danger`. At rest the same beam in grey, whatever the usage. | Ruben: the usage's colours "so that users see their usage via the beam colors when it is active"; the under-80% "should be more of the mainstream ai vibe colors"; of the four families shown, Z3. |
+| B5 | No halo arc on the ✦. The beam is the usage there; the number lives in the Stage's standing line and Ask's usage card, as the usage spec has them. | Ruben: "remove the overlapping usage color that begins to cover the circle". Consequence, said and accepted: at rest the ✦ says nothing about usage, and the band, not the share. |
+| B6 | The standing comes from the usage surface, `window.__USAGE` `{ standing: ok \| warned \| over }`, repainted on `surface:usage`. The surface does not exist yet (the usage spec is on #1039); until it does the beam keeps the AI's colours, and the mockup's stub says 89%, amber. | Nothing in the UI states a fact the database cannot support; the seam is named so the surface lands into it. |
+| B7 | Reduced motion: the beam does not turn (both pseudo-elements' animations off); the disc, the three's still frame and the colours stay. | The app's rule for every motion. |
+
+## 3. The code
+
+- `components/ask-face.jsx`: `AskFace` takes `ground="raised"` (the fades down the stack toward `--bg-raised` instead of `--bg`, read through the driver's `env.tokens`); `AskBeam` draws the disc and reads the standing and the mood (`data-usage`, `data-work`).
+- `styles/ask.css`, the phone section: the button transparent and 44px; `.ask-beam` the 40px disc with the beam (`::before`) and its inner light (`::after`), the colours as custom properties mixed toward the ink by `--work`; `ask-beam-spin` rotates the pseudo-elements themselves, so no registered property is needed.
+- `pages/app-shell.jsx`: the button holds `AskBeam` under the face, the face on the raised ground.
+- `data/bridge-stubs.jsx`: `__USAGE` for the mockup only.
+
+## 4. Proof
+
+- `ask-palette.test.mjs`: the beam's `data-usage` follows the usage surface (`ok` with none, `ok`, `warned`, `over`) and `data-work` the mood.
+- `e2e/phone.spec.ts` keeps its pins: the ✦ visible with its face, in the tab bar's row, clear of the tabs, opening the takeover.
+- The app on a phone viewport (dev server): the disc at rest with the grey beam, and with Ask reading the blue-violet-gold beam; the mockup at 89% shows amber.
+
+## 5. Out of scope
+
+- The top bar's face and the Stage: unchanged. The usage spec's halo on them is that spec's, not built here.
+- The usage surface itself.
