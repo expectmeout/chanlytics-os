@@ -18092,7 +18092,7 @@ declare function checkChipsOf(i: {
 
 declare const PHONE_WAYS: readonly ["keep", "new", "move"];
 type PhoneWay = (typeof PHONE_WAYS)[number];
-/** A number offered to buy, as the search route answers it. */
+/** A number offered to buy, as the search route answers it. Said through formatPhoneDisplay, never Twilio's `friendly`. */
 interface PhonePick {
     e164: string;
     friendly: string;
@@ -18139,8 +18139,10 @@ interface FirstRunPhoneVM {
         label: string;
         held: string | null;
     } | null;
-    /** What is happening, while the number is on its way. */
+    /** What is happening, while the number is on its way: the state (a pill, its word) and the sentence under it. */
     status: {
+        state: SetupState;
+        words: string;
         sentence: string;
         detail: string;
     } | null;
@@ -18173,23 +18175,24 @@ declare const FIRST_RUN_PHONE_WORDS: {
     readonly local: "Local";
     readonly held: {
         readonly number: "Type the number customers call.";
+        readonly us: "Forwarding works for a US number: type it with its area code.";
         readonly pick: "Pick a number first.";
     };
     readonly cta: {
         readonly trialKeep: "Start my free trial";
-        readonly trialNew: (friendly: string | null) => string;
+        readonly trialNew: (number: string | null) => string;
         readonly trialMove: "Start my trial and ask for the move";
         readonly keep: "Keep this number";
-        readonly new: (friendly: string | null) => string;
+        readonly new: (number: string | null) => string;
         readonly move: "Ask for the move";
     };
     readonly trialOffer: (days: number, price: string) => string;
-    readonly trialNote: (day: string | null) => string;
+    readonly trialNote: (days: number) => string;
     readonly started: (day: string) => string;
     readonly starting: "Starting your trial…";
     readonly startingDetail: "Your card is on file. This page updates as Stripe confirms it.";
     readonly buyingIn: (area: string | null) => string;
-    readonly buyingNew: (friendly: string) => string;
+    readonly buyingNew: (number: string) => string;
     readonly usually: "Usually a minute or two; this page updates by itself";
     /** What the page says when a buy or a search is refused, over the door's own sentence. */
     readonly notBought: "No number yet";
@@ -18209,6 +18212,19 @@ interface FirstRunPhoneInput {
     nowMs: number;
 }
 declare function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }: FirstRunPhoneInput): FirstRunPhoneVM;
+
+/**
+ * The first run (docs/superpowers/specs/2026-09-24-first-run-design.md): Setup's own rows, one step to a screen at
+ * `#/start`, with the owner's receptionist filling in beside them, and what is left afterwards as one card on Today.
+ *
+ * Nothing here is stored. The step a workspace is on is worked out from Setup's view model on every draw, so the first
+ * run resumes from what is true: a line bought in another tab moves the owner on, and a fact taken away in Settings
+ * brings them back. Every sentence the first run says is here; the page composes (first-run.jsx).
+ *
+ * The business step is Find while there is a listing to link, and Check after (canvas R2, V2): what the receptionist
+ * answers from, in the Business tab's own rows, and how customers buy. The receptionist it checks is set up from what is
+ * known (first-receptionist.ts), on an owner's press.
+ */
 
 /** The first run's address: `#/start`, and `#/start/<step>` for a step already reached. */
 declare const FIRST_RUN_ROUTE = "start";
@@ -18554,23 +18570,24 @@ declare const FIRST_RUN_HELPERS: {
         readonly local: "Local";
         readonly held: {
             readonly number: "Type the number customers call.";
+            readonly us: "Forwarding works for a US number: type it with its area code.";
             readonly pick: "Pick a number first.";
         };
         readonly cta: {
             readonly trialKeep: "Start my free trial";
-            readonly trialNew: (friendly: string | null) => string;
+            readonly trialNew: (number: string | null) => string;
             readonly trialMove: "Start my trial and ask for the move";
             readonly keep: "Keep this number";
-            readonly new: (friendly: string | null) => string;
+            readonly new: (number: string | null) => string;
             readonly move: "Ask for the move";
         };
         readonly trialOffer: (days: number, price: string) => string;
-        readonly trialNote: (day: string | null) => string;
+        readonly trialNote: (days: number) => string;
         readonly started: (day: string) => string;
         readonly starting: "Starting your trial…";
         readonly startingDetail: "Your card is on file. This page updates as Stripe confirms it.";
         readonly buyingIn: (area: string | null) => string;
-        readonly buyingNew: (friendly: string) => string;
+        readonly buyingNew: (number: string) => string;
         readonly usually: "Usually a minute or two; this page updates by itself";
         readonly notBought: "No number yet";
         readonly moveAsked: "We'll move your number with you and reach you by email. Until then, it forwards.";
@@ -18578,6 +18595,8 @@ declare const FIRST_RUN_HELPERS: {
         readonly cancelled: string;
     };
     readonly areaCodeOf: typeof areaCodeOf;
+    /** A number as the app writes one (phone.ts): the numbers offered to pick are said this way, never Twilio's. */
+    readonly numberWords: typeof formatPhoneDisplay;
     readonly words: {
         readonly title: "Setting up";
         readonly later: "Finish later";

@@ -12,12 +12,12 @@
  */
 import { billingDoorOpen, dayWords, maySpend, priceWords, CHECKOUT_OUTCOME_WORDS } from "./billing";
 import { formatPhoneDisplay, normalizePhone } from "./phone";
-import { lineStuckProvisioning, type SetupDto, type SetupVM } from "./setup";
+import { lineStuckProvisioning, SETUP_STATE_WORDS, type SetupDto, type SetupState, type SetupVM } from "./setup";
 
 export const PHONE_WAYS = ["keep", "new", "move"] as const;
 export type PhoneWay = (typeof PHONE_WAYS)[number];
 
-/** A number offered to buy, as the search route answers it. */
+/** A number offered to buy, as the search route answers it. Said through formatPhoneDisplay, never Twilio's `friendly`. */
 export interface PhonePick {
   e164: string;
   friendly: string;
@@ -62,8 +62,8 @@ export interface FirstRunPhoneVM {
   trial: { offer: string; note: string } | null;
   /** The step's one coral button while choosing, `held` with why it cannot go yet. */
   cta: { label: string; held: string | null } | null;
-  /** What is happening, while the number is on its way. */
-  status: { sentence: string; detail: string } | null;
+  /** What is happening, while the number is on its way: the state (a pill, its word) and the sentence under it. */
+  status: { state: SetupState; words: string; sentence: string; detail: string } | null;
   /** The trial that started, said once it has; null before, and where the workspace does not pay by card. */
   started: string | null;
 }
@@ -96,28 +96,31 @@ export const FIRST_RUN_PHONE_WORDS = {
   local: "Local",
   held: {
     number: "Type the number customers call.",
+    us: "Forwarding works for a US number: type it with its area code.",
     pick: "Pick a number first.",
   },
   cta: {
     trialKeep: "Start my free trial",
-    trialNew: (friendly: string | null) => (friendly ? `Start my trial with ${friendly}` : "Start my free trial"),
+    trialNew: (number: string | null) => (number ? `Start my trial with ${number}` : "Start my free trial"),
     trialMove: "Start my trial and ask for the move",
     keep: "Keep this number",
-    new: (friendly: string | null) => (friendly ? `Get ${friendly}` : "Get this number"),
+    new: (number: string | null) => (number ? `Get ${number}` : "Get this number"),
     move: "Ask for the move",
   },
   trialOffer: (days: number, price: string) =>
     days > 0 ? (price ? `${days} days free, then ${price}` : `${days} days free`) : price,
-  trialNote: (day: string | null) =>
-    day
-      ? `We ask for a card now, and nothing is charged until ${day}. You can cancel anytime from Billing.`
+  // The trial's days, never a day worked out here: Stripe dates the trial from the end of checkout, and Setup's billing
+  // row says the day once Stripe has.
+  trialNote: (days: number) =>
+    days > 0
+      ? `We ask for a card now, and nothing is charged for ${days} days. You can cancel anytime from Billing.`
       : "We ask for a card now, and the first charge is today. You can cancel anytime from Billing.",
   started: (day: string) => `Your trial has started. Nothing is charged until ${day}.`,
   starting: "Starting your trial…",
   startingDetail: "Your card is on file. This page updates as Stripe confirms it.",
   buyingIn: (area: string | null) =>
     area ? `Getting your receptionist's number in ${area}…` : "Getting your receptionist's number…",
-  buyingNew: (friendly: string) => `Getting ${friendly}…`,
+  buyingNew: (number: string) => `Getting ${number}…`,
   usually: "Usually a minute or two; this page updates by itself",
   /** What the page says when a buy or a search is refused, over the door's own sentence. */
   notBought: "No number yet",
@@ -158,6 +161,14 @@ export function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }: FirstRunPh
   const canSpend = !billing || maySpend(billing.mode, billing.status);
   const trialing = billing && billing.mode === "stripe" && billing.status === "trialing" ? billing : null;
   const started = trialing && trialing.trial_end ? W.started(dayWords(trialing.trial_end)) : null;
+  const pick = choice?.pick ?? null;
+  const picked = pick ? formatPhoneDisplay(pick.e164) : null;
+  const waiting = (sentence: string, detail: string) => ({
+    state: "waiting_them" as const,
+    words: SETUP_STATE_WORDS.waiting_them,
+    sentence,
+    detail,
+  });
 
   const base = {
     way,
@@ -198,7 +209,12 @@ export function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }: FirstRunPh
           ...base,
           ...ready,
           stage: "getting",
-          status: { sentence: lineRow.sentence, detail: lineRow.details[0] ?? "" },
+          status: {
+            state: lineRow.state,
+            words: lineRow.stateWords,
+            sentence: lineRow.sentence,
+            detail: lineRow.details[0] ?? "",
+          },
         }
       : rows;
   }
@@ -209,8 +225,7 @@ export function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }: FirstRunPh
     billingDoorOpen(billing) && billing.status === "none"
       ? (() => {
           const days = billing.trial_days;
-          const end = days > 0 ? dayWords(new Date(nowMs + days * 86_400_000).toISOString()) : null;
-          return { offer: W.trialOffer(days, priceWords(billing.price ?? null)), note: W.trialNote(end) };
+          return { offer: W.trialOffer(days, priceWords(billing.price ?? null)), note: W.trialNote(days) };
         })()
       : null;
   if (!canSpend && !trial) return rows;
@@ -219,7 +234,7 @@ export function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }: FirstRunPh
       ...base,
       ...ready,
       stage: "starting",
-      status: { sentence: W.starting, detail: W.startingDetail },
+      status: waiting(W.starting, W.startingDetail),
     };
   }
   // Pressed, and the workspace may spend: the page buys, once, and this is what it says meanwhile.
@@ -228,25 +243,23 @@ export function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }: FirstRunPh
       ...base,
       ...ready,
       stage: "buying",
-      status: {
-        sentence:
-          way === "new" && choice.pick ? W.buyingNew(choice.pick.friendly) : W.buyingIn(forwarded ? area : null),
-        detail: W.usually,
-      },
+      status: waiting(way === "new" && picked ? W.buyingNew(picked) : W.buyingIn(forwarded ? area : null), W.usually),
     };
   }
-  const pick = choice?.pick ?? null;
-  const held = way === "new" ? (pick ? null : W.held.pick) : number ? null : W.held.number;
+  // A number to keep or move is forwarded from, so it must be one a US phone company forwards: a US number with its
+  // area code, which is also where the receptionist's own is bought.
+  const held =
+    way === "new" ? (pick ? null : W.held.pick) : !number ? W.held.number : areaCodeOf(number) ? null : W.held.us;
   const label = trial
     ? way === "keep"
       ? W.cta.trialKeep
       : way === "new"
-        ? W.cta.trialNew(pick?.friendly ?? null)
+        ? W.cta.trialNew(picked)
         : W.cta.trialMove
     : way === "keep"
       ? W.cta.keep
       : way === "new"
-        ? W.cta.new(pick?.friendly ?? null)
+        ? W.cta.new(picked)
         : W.cta.move;
   return {
     ...base,

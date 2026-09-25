@@ -100,7 +100,7 @@ test("choosing (canvas R3): keeping the listing's number first and recommended, 
   assert.equal(vm.box, "+1 (305) 555-0100", "the box starts from the listing's number, as the app writes one");
   assert.deepEqual(vm.trial, {
     offer: "14 days free, then $49.00 a month",
-    note: "We ask for a card now, and nothing is charged until Oct 8. You can cancel anytime from Billing.",
+    note: "We ask for a card now, and nothing is charged for 14 days. You can cancel anytime from Billing.",
   });
   assert.deepEqual(vm.cta, { label: "Start my free trial", held: null });
   assert.equal(vm.status, null);
@@ -123,7 +123,11 @@ test("each way names its button, and holds it until there is a number to keep or
   const pick = { e164: "+13055550142", friendly: "(305) 555-0142" };
   const trial = (choice) => phone(dtoOf(), { pick: null, number: null, pending: false, ...choice }).cta;
   assert.deepEqual(trial({ way: "new" }), { label: "Start my free trial", held: "Pick a number first." });
-  assert.deepEqual(trial({ way: "new", pick }), { label: "Start my trial with (305) 555-0142", held: null });
+  assert.deepEqual(
+    trial({ way: "new", pick }),
+    { label: "Start my trial with +1 (305) 555-0142", held: null },
+    "the app's own way of writing a number, never the carrier's",
+  );
   assert.deepEqual(trial({ way: "move", number: LISTED }), {
     label: "Start my trial and ask for the move",
     held: null,
@@ -133,6 +137,12 @@ test("each way names its button, and holds it until there is a number to keep or
     { label: "Start my free trial", held: "Type the number customers call." },
     "an emptied box is no number, whatever the listing says",
   );
+  assert.deepEqual(
+    trial({ way: "keep", number: "+44 20 7183 8750" }),
+    { label: "Start my free trial", held: "Forwarding works for a US number: type it with its area code." },
+    "no card is taken for a number that cannot be forwarded here",
+  );
+  assert.equal(trial({ way: "move", number: "5550 0100" }).held, W.held.us, "eight digits: not a US number");
   const typed = phone(dtoOf(), { way: "keep", number: "786 555 0113", pick: null, pending: false });
   assert.deepEqual([typed.number, typed.area, typed.ways[0].title], ["+17865550113", "786", "Keep +1 (786) 555-0113"]);
   assert.equal(typed.ways[0].sentence, W.keepTyped, "not the listing's, so not said to be");
@@ -141,7 +151,7 @@ test("each way names its button, and holds it until there is a number to keep or
   const paying = (choice) =>
     phone(dtoOf({ billing: trialing }), { pick: null, number: LISTED, pending: false, ...choice }).cta.label;
   assert.equal(paying({ way: "keep" }), "Keep this number");
-  assert.equal(paying({ way: "new", pick }), "Get (305) 555-0142");
+  assert.equal(paying({ way: "new", pick }), "Get +1 (305) 555-0142");
   assert.equal(paying({ way: "move" }), "Ask for the move");
   const direct = phone(dtoOf({ billing: undefined }));
   assert.deepEqual([direct.stage, direct.trial], ["choose", null], "a workspace that does not pay by card");
@@ -158,6 +168,8 @@ test("back from checkout before the trial lands: starting, until Stripe confirms
   const vm = phone(dtoOf(), { way: "keep", number: null, pick: null, pending: true }, true);
   assert.equal(vm.stage, "starting");
   assert.deepEqual(vm.status, {
+    state: "waiting_them",
+    words: "Waiting on us",
     sentence: "Starting your trial…",
     detail: "Your card is on file. This page updates as Stripe confirms it.",
   });
@@ -168,6 +180,8 @@ test("pressed and allowed to spend: buying, in the area code of the number kept,
   const keep = phone(dtoOf({ billing: trialing }), { way: "keep", number: null, pick: null, pending: true });
   assert.equal(keep.stage, "buying");
   assert.deepEqual(keep.status, {
+    state: "waiting_them",
+    words: "Waiting on us",
     sentence: "Getting your receptionist's number in 305…",
     detail: "Usually a minute or two; this page updates by itself",
   });
@@ -175,7 +189,7 @@ test("pressed and allowed to spend: buying, in the area code of the number kept,
   assert.equal(keep.lead, W.readyLeadForwarded, "customers never see it");
   const pick = { e164: "+13055550142", friendly: "(305) 555-0142" };
   const fresh = phone(dtoOf({ billing: trialing }), { way: "new", number: null, pick, pending: true });
-  assert.equal(fresh.status.sentence, "Getting (305) 555-0142…");
+  assert.equal(fresh.status.sentence, "Getting +1 (305) 555-0142…");
   assert.equal(fresh.lead, W.readyLeadNew);
   // Not pressed: still choosing, trial or none.
   assert.equal(
@@ -189,7 +203,12 @@ test("a number on its way (canvas R4): the line row's own words", () => {
   const vm = phone(dto, { way: "keep", number: null, pick: null, pending: false });
   const row = setupSteps(dto, NOW).rows.find((r) => r.id === "line");
   assert.equal(vm.stage, "getting");
-  assert.deepEqual(vm.status, { sentence: row.sentence, detail: row.details[0] });
+  assert.deepEqual(vm.status, {
+    state: row.state,
+    words: row.stateWords,
+    sentence: row.sentence,
+    detail: row.details[0],
+  });
   assert.match(vm.status.sentence, /^Setting up \+1 \(305\) 555-0142 — buying the number/);
   assert.equal(vm.lead, W.readyLeadForwarded);
   assert.equal(phone(dto).lead, "", "a tab that lost the choice does not say who sees the number");

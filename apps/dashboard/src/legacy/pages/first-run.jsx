@@ -398,9 +398,13 @@ const FrCheck = ({ check, W, flash, make, making, go, canEdit }) => {
 // else; a tab that lost it asks again. Besides contracts' PhoneChoice it carries `sent`, when the buy went out from
 // this tab, so a draw while the line is on its way to the page does not send it twice. A buy answers in seconds and
 // its line reaches Setup within a minute; a mark older than FR_PHONE_SENT_MS is a buy that never landed (the tab closed
-// on it), and the step sends it again.
+// on it), and the step sends it again. It also carries `returnedAt`, when this tab came back from Stripe with a card
+// given: until the trial lands the step says it is starting, a reload included, and never offers checkout twice; a
+// return older than FR_PHONE_RETURN_MS with no trial is one Stripe never confirmed, and the step offers it again.
 const FR_PHONE_DRAFT = "first-run-phone";
 const FR_PHONE_SENT_MS = 120_000;
+const FR_PHONE_RETURN_MS = 15 * 60_000;
+const frReturned = (c) => !!(c && c.pending && c.returnedAt && Date.now() - c.returnedAt < FR_PHONE_RETURN_MS);
 const frPhoneChoiceKept = () => {
   try { return (window.__tabMemory && window.__tabMemory.draft(FR_PHONE_DRAFT)) || null; } catch { return null; }
 };
@@ -428,16 +432,24 @@ const FrPhone = ({ ph, choice, setChoice, W, flash, go, back, backLabel }) => {
   const [busy, setBusy] = React.useState(false);
   const [numbers, setNumbers] = React.useState(null);
   const [area, setArea] = React.useState(ph.area || "");
-  // The buy this mount sent: a second draw before the line reaches Setup never sends another.
+  // The buy this mount sent: a second draw before the line reaches Setup never sends another. A refusal lets go of it.
   const sent = React.useRef(false);
+  // Draws the step again once a buy's mark goes stale, so a buy that never landed is sent again (FR_PHONE_SENT_MS).
+  const [, recheck] = React.useReducer((n) => n + 1, 0);
   const c = choice || { way: ph.way, number: null, pick: null, pending: false };
-  const change = (patch) => setChoice({ ...c, ...patch, pending: false, sent: false });
+  const change = (patch) => setChoice({ ...c, ...patch, pending: false, sent: false, returnedAt: null });
   const failed = (r, words) => {
+    sent.current = false;
     setChoice({ ...c, pending: false, sent: false });
     flash(r ? window.refusalToast(r, W.notBought) : { tone: "warn", msg: <>{words}</> });
   };
   const buy = async () => {
-    if (!P || !(window.canDo && window.canDo("team"))) return;
+    // A role that may not buy (View-as, or a teammate's tab) sends nothing, and the step goes back to its choice.
+    if (!P || !(window.canDo && window.canDo("team"))) {
+      sent.current = false;
+      setChoice({ ...c, pending: false, sent: false });
+      return;
+    }
     let e164 = c.pick ? c.pick.e164 : null;
     let code = c.pick ? F.areaCodeOf(c.pick.e164) : null;
     if (c.way !== "new") {
@@ -458,15 +470,23 @@ const FrPhone = ({ ph, choice, setChoice, W, flash, go, back, backLabel }) => {
       flash({ tone: q.ok ? "ok" : "warn", msg: <>{q.ok ? W.moveAsked : W.moveNotAsked}</> });
     }
   };
+  const sentAge = c.sent ? Date.now() - c.sent : null;
+  const fresh = sentAge !== null && sentAge < FR_PHONE_SENT_MS;
   React.useEffect(() => {
-    if (ph.stage === "buying" && !sent.current && !(c.sent && Date.now() - c.sent < FR_PHONE_SENT_MS)) {
+    if (ph.stage === "buying" && !sent.current && !fresh) {
       sent.current = true;
       setChoice({ ...c, sent: Date.now() });
       buy();
     }
     // The line is here: what is left of the choice is the way, for the steps after.
-    if (ph.stage === "getting" && c.pending) setChoice({ ...c, pending: false, sent: false });
-  }, [ph.stage]);
+    if (ph.stage === "getting" && c.pending) setChoice({ ...c, pending: false, sent: false, returnedAt: null });
+    // Sent from another draw and not landed yet: look again when its mark goes stale.
+    if (ph.stage === "buying" && fresh && !sent.current) {
+      const t = setTimeout(recheck, FR_PHONE_SENT_MS - sentAge + 50);
+      return () => clearTimeout(t);
+    }
+    return undefined;
+  }, [ph.stage, fresh]);
   const find = async (e) => {
     if (e) e.preventDefault();
     if (!P || busy || !(window.canDo && window.canDo("team"))) return;
@@ -481,7 +501,7 @@ const FrPhone = ({ ph, choice, setChoice, W, flash, go, back, backLabel }) => {
   const press = async () => {
     const cta = ph.cta;
     if (!cta || cta.held || busy) return;
-    const next = { ...c, way: ph.way, pending: true, sent: false };
+    const next = { ...c, way: ph.way, pending: true, sent: false, returnedAt: null };
     if (ph.trial) {
       if (!(window.canDo && window.canDo("billing")) || !window.__billing) return;
       setChoice(next);
@@ -499,18 +519,19 @@ const FrPhone = ({ ph, choice, setChoice, W, flash, go, back, backLabel }) => {
   };
   if (ph.stage !== "choose") {
     return (
-      <div className="fr-phone-step" data-testid="fr-phone" data-stage={ph.stage}>
-        {ph.started ? <p className="fr-phone-started" data-testid="fr-phone-started"><Icon name="check" size={12} />{ph.started}</p> : null}
-        <div className="fr-phone-status" role="status" data-testid="fr-phone-status">
-          <StatePill kind="setup" value="waiting_them" label={ph.status.sentence} />
-          <span className="fr-phone-detail">{ph.status.detail}</span>
+      <div className="fr-line-step" data-testid="fr-phone" data-stage={ph.stage}>
+        {ph.started ? <p className="fr-line-started" data-testid="fr-phone-started"><Icon name="check" size={12} />{ph.started}</p> : null}
+        <div className="fr-line-status" role="status" data-testid="fr-phone-status">
+          <StatePill kind="setup" value={ph.status.state} label={ph.status.words} />
+          <span className="fr-line-sentence">{ph.status.sentence}</span>
+          <span className="fr-line-detail">{ph.status.detail}</span>
         </div>
       </div>
     );
   }
   const shown = c.number !== null ? c.number : ph.box;
   return (
-    <div className="fr-phone-step" data-testid="fr-phone" data-stage="choose">
+    <div className="fr-line-step" data-testid="fr-phone" data-stage="choose">
       <div className="fr-find-hits" role="radiogroup" aria-label={ph.heading}>
         {ph.ways.map((w) => (
           <label key={w.key} className="fr-find-hit" data-testid={`fr-way-${w.key}`}>
@@ -524,10 +545,10 @@ const FrPhone = ({ ph, choice, setChoice, W, flash, go, back, backLabel }) => {
         ))}
       </div>
       {ph.way === "new" ? (
-        <div className="fr-phone-new">
+        <div className="fr-line-new">
           <form className="fr-find-search" onSubmit={find}>
-            <label className="fr-phone-label" htmlFor="fr-phone-area">{W.areaLabel}</label>
-            <input id="fr-phone-area" className="fr-find-input fr-phone-area" inputMode="numeric" maxLength={3} placeholder={W.areaPlaceholder} value={area} onChange={(e) => setArea(e.target.value.replace(/\D/g, "").slice(0, 3))} data-testid="fr-phone-area" />
+            <label className="fr-line-label" htmlFor="fr-phone-area">{W.areaLabel}</label>
+            <input id="fr-phone-area" className="fr-find-input fr-line-area" inputMode="numeric" maxLength={3} placeholder={W.areaPlaceholder} value={area} onChange={(e) => setArea(e.target.value.replace(/\D/g, "").slice(0, 3))} data-testid="fr-phone-area" />
             <button type="submit" className="btn btn-sm" disabled={busy} data-testid="fr-phone-find" {...window.gate("team", "find a number")}>{busy ? W.finding : W.find}</button>
           </form>
           {numbers && numbers.length ? (
@@ -536,7 +557,7 @@ const FrPhone = ({ ph, choice, setChoice, W, flash, go, back, backLabel }) => {
                 <label key={n.e164} className="fr-find-hit" data-testid="fr-phone-number">
                   <input type="radio" name="fr-phone-pick" value={n.e164} checked={!!c.pick && c.pick.e164 === n.e164} onChange={() => change({ pick: { e164: n.e164, friendly: n.friendly } })} />
                   <span className="fr-find-body">
-                    <span className="fr-find-name tabular">{n.friendly}</span>
+                    <span className="fr-find-name tabular">{F.numberWords(n.e164) || n.friendly}</span>
                     <span className="fr-find-where">{[n.locality, n.region].filter(Boolean).join(", ") || W.local}</span>
                   </span>
                 </label>
@@ -545,8 +566,8 @@ const FrPhone = ({ ph, choice, setChoice, W, flash, go, back, backLabel }) => {
           ) : null}
         </div>
       ) : (
-        <label className="fr-phone-field">
-          <span className="fr-phone-label">{W.numberLabel}</span>
+        <label className="fr-line-field">
+          <span className="fr-line-label">{W.numberLabel}</span>
           <input className="fr-find-input" inputMode="tel" autoComplete="tel" placeholder={W.numberPlaceholder} value={shown} onChange={(e) => change({ number: e.target.value })} data-testid="fr-phone-number-box" />
         </label>
       )}
@@ -647,13 +668,17 @@ const FirstRun = ({ param = null, onNavigate }) => {
   // card given: Stripe's answer is read once, on arrival.
   const [phoneChoice, setPhoneChoiceState] = React.useState(frPhoneChoiceKept);
   const setPhoneChoice = (c) => { frKeepPhoneChoice(c); setPhoneChoiceState(c); };
-  const [returned, setReturned] = React.useState(false);
   React.useEffect(() => {
     const out = window.__billing && window.__billing.outcome ? window.__billing.outcome() : null;
-    if (out === "success") setReturned(true);
+    const kept = frPhoneChoiceKept();
+    // Back with a card: Stripe returns to the first run's bare address, and the step it left is the phone's, which
+    // stays on screen once its line answers (a number kept still has its forwarding to set).
+    if (out === "success" && kept && kept.pending) {
+      setPhoneChoice({ ...kept, returnedAt: Date.now() });
+      if (param !== "phone") onNavigate("start/phone", { replace: true });
+    }
     if (out === "cancel" && window.__firstRun) {
-      const kept = frPhoneChoiceKept();
-      if (kept) setPhoneChoice({ ...kept, pending: false, sent: false });
+      if (kept) setPhoneChoice({ ...kept, pending: false, sent: false, returnedAt: null });
       flash({ msg: <>{window.__firstRun.phoneWords.cancelled}</> });
     }
   }, []);
@@ -705,7 +730,7 @@ const FirstRun = ({ param = null, onNavigate }) => {
   const card = F.receptionist(frCardInputs(S));
   const step = fr.shown;
   // The phone step as contracts say it over Setup and the owner's choice (first-run-phone.ts); `rows` is Setup's own.
-  const ph = step.key === "phone" ? F.phone({ dto: S.dto, vm: S.vm, choice: phoneChoice, returned, nowMs: Date.now() }) : null;
+  const ph = step.key === "phone" ? F.phone({ dto: S.dto, vm: S.vm, choice: phoneChoice, returned: frReturned(phoneChoice), nowMs: Date.now() }) : null;
   const phoneDrawn = !!ph && ph.stage !== "rows";
   // Whether this role may change the business, as the Business tab asks it: its rows' acts, and the answer's door.
   const canEdit = !window.canDo || window.canDo("settings");

@@ -581,6 +581,12 @@ test("without the bridge the page says nothing of its own: every word is contrac
 });
 
 /* ---- Your phone (PR 4a): the three ways, the trial, and the buy once the trial lets it ---- */
+// The page looks again when a buy's mark goes stale (minutes away); this stub never clears an effect, so a wait that
+// long is held here rather than keeping the run open. A test reads what was asked for.
+const heldWaits = [];
+const shortTimeout = globalThis.setTimeout;
+globalThis.setTimeout = (fn, ms, ...rest) =>
+  ms > 1000 ? (heldWaits.push({ fn, ms }), 0) : shortTimeout(fn, ms, ...rest);
 const PRICE = { id: "price_example", currency: "usd", unit_amount: 4900, interval: "month", product_name: "Plan" };
 const phoneReady = (billing = {}) => ({
   ...withFacts,
@@ -647,7 +653,10 @@ test("your phone (canvas R3): keeping the listing's number first, the trial with
   assert.equal(radioIn(byTestId(tree, "fr-way-keep")).props.checked, true, "keeping is the default");
   assert.match(textOf(byTestId(tree, "fr-way-keep")), /^Keep \+1 \(305\) 555-0100/);
   assert.equal(byTestId(tree, "fr-phone-number-box").props.value, "+1 (305) 555-0100", "from the listing");
-  assert.match(textOf(byTestId(tree, "fr-trial")), /^14 days free, then \$49\.00 a monthWe ask for a card now/);
+  assert.equal(
+    textOf(byTestId(tree, "fr-trial")),
+    "14 days free, then $49.00 a monthWe ask for a card now, and nothing is charged for 14 days. You can cancel anytime from Billing.",
+  );
   const go = byTestId(tree, "fr-phone-go");
   assert.equal(textOf(go), "Start my free trial");
   assert.ok(byTestId(tree, "fr-back"), "Back, in the step's own foot");
@@ -662,12 +671,23 @@ test("your phone: back from Stripe before the trial lands, then the buy in the k
   const { asked } = phoneWorld({ outcome: "success" });
   globalThis.window.__tabMemory.keepDraft("first-run-phone", { way: "keep", number: null, pick: null, pending: true });
   globalThis.window.__SETUP = surface(phoneReady());
-  param = "phone";
+  param = null;
   fresh();
   mount();
+  assert.equal(replaced.at(-1), "start/phone", "Stripe returns to the bare address; the step it left is the phone's");
+  param = "phone";
   // Stripe's answer is read in an effect, after the first draw, as React draws again once it is kept.
   const starting = mount();
   assert.equal(byTestId(starting, "fr-phone").props["data-stage"], "starting");
+  // A reload before the webhook lands: the tab remembers the card was given, and offers no second checkout.
+  globalThis.window.__billing.outcome = () => null;
+  fresh();
+  assert.equal(
+    byTestId(mount(), "fr-phone").props["data-stage"],
+    "starting",
+    "a reload says starting, not the trial again",
+  );
+  globalThis.window.__billing.outcome = () => "success";
   assert.match(textOf(byTestId(starting, "fr-phone-status")), /Starting your trial…/);
   assert.deepEqual(asked.buy, []);
   // The webhook lands: the trial is on, and the page buys. (This stub runs an effect on a component's first draw only,
@@ -712,7 +732,7 @@ test("your phone: a new number is picked from its area code; moving one buys a l
   radioIn(byTestId(tree, "fr-phone-number")).props.onChange();
   tree = mount();
   const go = byTestId(tree, "fr-phone-go");
-  assert.equal(textOf(go), "Get (305) 555-0142", "no trial to start: the button buys, named for the result");
+  assert.equal(textOf(go), "Get +1 (305) 555-0142", "no trial to start: the button buys, named for the result");
   await go.props.onClick();
   fresh();
   mount();
@@ -759,6 +779,7 @@ test("your phone: what the step does not draw is Setup's rows, under the page's 
 test("your phone: a buy marked sent long ago never landed (its tab closed on it), so the step sends it again", async () => {
   const { asked } = phoneWorld();
   const choice = { way: "keep", number: null, pick: null, pending: true };
+  heldWaits.length = 0;
   globalThis.window.__tabMemory.keepDraft("first-run-phone", { ...choice, sent: Date.now() - 10_000 });
   globalThis.window.__SETUP = surface(phoneReady({ status: "trialing", trial_end: "2026-09-21T15:00:00Z" }));
   param = "phone";
@@ -767,10 +788,45 @@ test("your phone: a buy marked sent long ago never landed (its tab closed on it)
   await tick();
   await tick();
   assert.deepEqual(asked.buy, [], "sent seconds ago: on its way");
+  assert.equal(heldWaits.length, 1, "and the step looks again once the mark goes stale");
+  const left = heldWaits[0].ms;
+  assert.ok(left > 100_000 && left <= 110_100, `about 110 s left of the two minutes, not ${left}`);
   globalThis.window.__tabMemory.keepDraft("first-run-phone", { ...choice, sent: Date.now() - 600_000 });
   fresh();
   mount();
   await tick();
   await tick();
   assert.deepEqual(asked.buy, [["+13055550142", "305"]], "ten minutes and no line: it never landed");
+});
+
+test("your phone: a buy refused (the number was taken) says so, and the next press buys", async () => {
+  const { asked } = phoneWorld();
+  let refuse = true;
+  const buy = globalThis.window.__setup.lines.buy;
+  globalThis.window.__setup.lines.buy = async (e164, area) => {
+    if (!refuse) return buy(e164, area);
+    asked.buy.push(["refused", e164]);
+    return { ok: false, queued: false, message: "That number was just taken. Pick another.", code: "conflict" };
+  };
+  flashes.length = 0;
+  globalThis.window.__tabMemory.keepDraft("first-run-phone", { way: "keep", number: null, pick: null, pending: true });
+  globalThis.window.__SETUP = surface(phoneReady({ status: "trialing", trial_end: "2026-09-21T15:00:00Z" }));
+  param = "phone";
+  fresh();
+  mount();
+  await tick();
+  await tick();
+  assert.deepEqual(asked.buy, [["refused", "+13055550142"]]);
+  assert.match(textOf(flashes.at(-1).msg), /That number was just taken/);
+  // Still mounted: the owner presses again, and this time it goes.
+  const tree = mount();
+  assert.equal(byTestId(tree, "fr-phone").props["data-stage"], "choose", "back to the choice");
+  refuse = false;
+  await byTestId(tree, "fr-phone-go").props.onClick();
+  // The same mount, as React keeps it; its effect runs again as the stage moves (this stub needs a fresh frame for it).
+  fresh();
+  mount();
+  await tick();
+  await tick();
+  assert.deepEqual(asked.buy.at(-1), ["+13055550142", "305"], "the second press buys");
 });

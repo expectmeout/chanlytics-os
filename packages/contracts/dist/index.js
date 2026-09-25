@@ -8471,23 +8471,26 @@ var FIRST_RUN_PHONE_WORDS = {
   local: "Local",
   held: {
     number: "Type the number customers call.",
+    us: "Forwarding works for a US number: type it with its area code.",
     pick: "Pick a number first."
   },
   cta: {
     trialKeep: "Start my free trial",
-    trialNew: (friendly) => friendly ? `Start my trial with ${friendly}` : "Start my free trial",
+    trialNew: (number) => number ? `Start my trial with ${number}` : "Start my free trial",
     trialMove: "Start my trial and ask for the move",
     keep: "Keep this number",
-    new: (friendly) => friendly ? `Get ${friendly}` : "Get this number",
+    new: (number) => number ? `Get ${number}` : "Get this number",
     move: "Ask for the move"
   },
   trialOffer: (days, price) => days > 0 ? price ? `${days} days free, then ${price}` : `${days} days free` : price,
-  trialNote: (day) => day ? `We ask for a card now, and nothing is charged until ${day}. You can cancel anytime from Billing.` : "We ask for a card now, and the first charge is today. You can cancel anytime from Billing.",
+  // The trial's days, never a day worked out here: Stripe dates the trial from the end of checkout, and Setup's billing
+  // row says the day once Stripe has.
+  trialNote: (days) => days > 0 ? `We ask for a card now, and nothing is charged for ${days} days. You can cancel anytime from Billing.` : "We ask for a card now, and the first charge is today. You can cancel anytime from Billing.",
   started: (day) => `Your trial has started. Nothing is charged until ${day}.`,
   starting: "Starting your trial\u2026",
   startingDetail: "Your card is on file. This page updates as Stripe confirms it.",
   buyingIn: (area) => area ? `Getting your receptionist's number in ${area}\u2026` : "Getting your receptionist's number\u2026",
-  buyingNew: (friendly) => `Getting ${friendly}\u2026`,
+  buyingNew: (number) => `Getting ${number}\u2026`,
   usually: "Usually a minute or two; this page updates by itself",
   /** What the page says when a buy or a search is refused, over the door's own sentence. */
   notBought: "No number yet",
@@ -8514,6 +8517,14 @@ function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }) {
   const canSpend = !billing || maySpend(billing.mode, billing.status);
   const trialing = billing && billing.mode === "stripe" && billing.status === "trialing" ? billing : null;
   const started = trialing && trialing.trial_end ? W.started(dayWords(trialing.trial_end)) : null;
+  const pick = choice?.pick ?? null;
+  const picked = pick ? formatPhoneDisplay(pick.e164) : null;
+  const waiting = (sentence2, detail) => ({
+    state: "waiting_them",
+    words: SETUP_STATE_WORDS.waiting_them,
+    sentence: sentence2,
+    detail
+  });
   const base = {
     way,
     ways: [
@@ -8546,14 +8557,18 @@ function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }) {
       ...base,
       ...ready,
       stage: "getting",
-      status: { sentence: lineRow.sentence, detail: lineRow.details[0] ?? "" }
+      status: {
+        state: lineRow.state,
+        words: lineRow.stateWords,
+        sentence: lineRow.sentence,
+        detail: lineRow.details[0] ?? ""
+      }
     } : rows;
   }
   if (!lines?.ready || dto.requests.line || dto.requests.port) return rows;
   const trial = billingDoorOpen(billing) && billing.status === "none" ? (() => {
     const days = billing.trial_days;
-    const end = days > 0 ? dayWords(new Date(nowMs + days * 864e5).toISOString()) : null;
-    return { offer: W.trialOffer(days, priceWords(billing.price ?? null)), note: W.trialNote(end) };
+    return { offer: W.trialOffer(days, priceWords(billing.price ?? null)), note: W.trialNote(days) };
   })() : null;
   if (!canSpend && !trial) return rows;
   if (trial && returned) {
@@ -8561,7 +8576,7 @@ function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }) {
       ...base,
       ...ready,
       stage: "starting",
-      status: { sentence: W.starting, detail: W.startingDetail }
+      status: waiting(W.starting, W.startingDetail)
     };
   }
   if (canSpend && choice?.pending) {
@@ -8569,15 +8584,11 @@ function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }) {
       ...base,
       ...ready,
       stage: "buying",
-      status: {
-        sentence: way === "new" && choice.pick ? W.buyingNew(choice.pick.friendly) : W.buyingIn(forwarded ? area : null),
-        detail: W.usually
-      }
+      status: waiting(way === "new" && picked ? W.buyingNew(picked) : W.buyingIn(forwarded ? area : null), W.usually)
     };
   }
-  const pick = choice?.pick ?? null;
-  const held = way === "new" ? pick ? null : W.held.pick : number ? null : W.held.number;
-  const label = trial ? way === "keep" ? W.cta.trialKeep : way === "new" ? W.cta.trialNew(pick?.friendly ?? null) : W.cta.trialMove : way === "keep" ? W.cta.keep : way === "new" ? W.cta.new(pick?.friendly ?? null) : W.cta.move;
+  const held = way === "new" ? pick ? null : W.held.pick : !number ? W.held.number : areaCodeOf(number) ? null : W.held.us;
+  const label = trial ? way === "keep" ? W.cta.trialKeep : way === "new" ? W.cta.trialNew(picked) : W.cta.trialMove : way === "keep" ? W.cta.keep : way === "new" ? W.cta.new(picked) : W.cta.move;
   return {
     ...base,
     stage: "choose",
@@ -8903,6 +8914,8 @@ var FIRST_RUN_HELPERS = {
   phone: firstRunPhoneOf,
   phoneWords: FIRST_RUN_PHONE_WORDS,
   areaCodeOf,
+  /** A number as the app writes one (phone.ts): the numbers offered to pick are said this way, never Twilio's. */
+  numberWords: formatPhoneDisplay,
   words: FIRST_RUN_WORDS,
   landedKey: FIRST_RUN_LANDED_KEY
 };

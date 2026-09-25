@@ -936,23 +936,26 @@ var FIRST_RUN_PHONE_WORDS = {
   local: "Local",
   held: {
     number: "Type the number customers call.",
+    us: "Forwarding works for a US number: type it with its area code.",
     pick: "Pick a number first."
   },
   cta: {
     trialKeep: "Start my free trial",
-    trialNew: (friendly) => friendly ? `Start my trial with ${friendly}` : "Start my free trial",
+    trialNew: (number) => number ? `Start my trial with ${number}` : "Start my free trial",
     trialMove: "Start my trial and ask for the move",
     keep: "Keep this number",
-    new: (friendly) => friendly ? `Get ${friendly}` : "Get this number",
+    new: (number) => number ? `Get ${number}` : "Get this number",
     move: "Ask for the move"
   },
   trialOffer: (days, price) => days > 0 ? price ? `${days} days free, then ${price}` : `${days} days free` : price,
-  trialNote: (day) => day ? `We ask for a card now, and nothing is charged until ${day}. You can cancel anytime from Billing.` : "We ask for a card now, and the first charge is today. You can cancel anytime from Billing.",
+  // The trial's days, never a day worked out here: Stripe dates the trial from the end of checkout, and Setup's billing
+  // row says the day once Stripe has.
+  trialNote: (days) => days > 0 ? `We ask for a card now, and nothing is charged for ${days} days. You can cancel anytime from Billing.` : "We ask for a card now, and the first charge is today. You can cancel anytime from Billing.",
   started: (day) => `Your trial has started. Nothing is charged until ${day}.`,
   starting: "Starting your trial\u2026",
   startingDetail: "Your card is on file. This page updates as Stripe confirms it.",
   buyingIn: (area) => area ? `Getting your receptionist's number in ${area}\u2026` : "Getting your receptionist's number\u2026",
-  buyingNew: (friendly) => `Getting ${friendly}\u2026`,
+  buyingNew: (number) => `Getting ${number}\u2026`,
   usually: "Usually a minute or two; this page updates by itself",
   /** What the page says when a buy or a search is refused, over the door's own sentence. */
   notBought: "No number yet",

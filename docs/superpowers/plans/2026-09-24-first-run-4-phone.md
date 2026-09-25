@@ -115,3 +115,29 @@ FrPhone in `choose` and the rows in `rows`).
 - [ ] Look at it on the probe, desktop and phone, light and dark.
 - [ ] One whole-branch review (standards and spec), one fix round.
 - [ ] The PR: what changes for a customer, nothing to set, either deploy order.
+
+## As built, 4a (24 Sep 2026)
+
+- **As planned:** the view model (`first-run-phone.ts`, published as `__firstRun.phone`), the two Setup facts, and
+  FrPhone with its choice in the tab. While choosing, the step draws its own foot (Back, why the button is held, the
+  button); FirstRun's foot comes back for every other stage. The step's classes are `fr-line-*`, apart from the
+  phone-width chrome's `fr-phone*`.
+- **What the review round fixed:**
+  - A refused buy let go of the mount's guard, so the next press buys.
+  - Stripe returns to the bare `start`, so the page moves to `start/phone` on a `success` with a pending choice.
+    Keep and move then stay on the step once the line answers.
+  - The return is kept in the tab (`returnedAt`, 15 minutes), so a reload before the webhook still says "Starting
+    your trial…" and never offers a second checkout.
+  - A buy's `sent` mark is a time. A mark older than two minutes is a buy that never landed, and the step looks again
+    on a timer.
+  - A role that may not buy clears the pending choice.
+  - A number to keep or move must be a US number with its area code before the button lets go (`areaCodeOf`,
+    `held.us`), so no card is taken for a number that cannot be forwarded.
+  - The trial note says the days, never a day worked out here (Stripe dates it).
+  - Every number is written by `formatPhoneDisplay`, never Twilio's `friendly`.
+  - The status is a pill with its state's word, and the sentence sits beside it, not inside the pill.
+- **Left as it is on purpose:**
+  - The step reads the line's phase from `voice_state` and the shared `lineStuckProvisioning`, not from a phase
+    exported by `setupSteps`. Exporting one means reshaping the line row, which is not this PR's.
+  - `billing.price` is passed through from `billingReadiness`, which reads the edge; `setup.test.mjs` pins `google.phone`
+    only.

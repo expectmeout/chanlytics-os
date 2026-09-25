@@ -596,6 +596,8 @@ export const FIRST_RUN_HELPERS = {
   phone: firstRunPhoneOf,
   phoneWords: FIRST_RUN_PHONE_WORDS,
   areaCodeOf,
+  /** A number as the app writes one (phone.ts): the numbers offered to pick are said this way, never Twilio's. */
+  numberWords: formatPhoneDisplay,
   words: FIRST_RUN_WORDS,
   landedKey: FIRST_RUN_LANDED_KEY,
 } as const;
