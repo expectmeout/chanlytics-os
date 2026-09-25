@@ -1,3 +1,4 @@
+import { resendLimitOf } from "@chanlytics/channels";
 import type { SendPurpose } from "@chanlytics/contracts";
 import type { Channel } from "../deliver";
 import type { SendQueuedPorts } from "./ports";
@@ -79,6 +80,16 @@ export async function sendQueued(ports: SendQueuedPorts, cmd: SendQueuedCommand)
     messageId: p.message_id,
   });
   if (out.outcome !== "failed") return;
+  // A limit at the mail provider is not this thread's fault either (channels resendLimitOf). A used-up day or month
+  // stops every workspace's email on the key, so the platform is paged; "slow down" is one second's problem, said so.
+  const limit = channel === "email" && out.reason === "provider" ? resendLimitOf(out) : null;
+  if (limit === "daily" || limit === "monthly") {
+    await ports.page?.(
+      "provider_quota:email",
+      `email: the ${limit} sending limit is used up`,
+      `Tenant ${cmd.tenantId}, message ${p.message_id}. Every workspace's email is refused until it resets or the plan grows.`,
+    );
+  }
   // A 401 or 403 from the provider is the platform's problem, not this
   // thread's: the credentials are wrong for every send on this wire.
   if (out.reason === "provider" && (out.status === 401 || out.status === 403)) {
@@ -107,11 +118,15 @@ export async function sendQueued(ports: SendQueuedPorts, cmd: SendQueuedCommand)
         ? `this runtime has no ${channel} line`
         : out.reason === "wire_unreadable"
           ? "the thread could not be read at the wire"
-          : // Status 0 is no answer at all: the network failed, or the email wire refused a request it will not send
-            // (deliver.ts emailSender). The row keeps which; "HTTP 0" told an owner nothing.
-            out.status === 0
-            ? "it never reached the provider"
-            : `HTTP ${out.status}`;
+          : limit === "daily" || limit === "monthly"
+            ? "the mail provider's sending limit is used up for now"
+            : limit === "rate" || limit === "in_flight"
+              ? "the mail provider asked us to slow down"
+              : // Status 0 is no answer at all: the network failed, or the email wire refused a request it will not send
+                // (deliver.ts emailSender). The row keeps which; "HTTP 0" told an owner nothing.
+                out.status === 0
+                ? "it never reached the provider"
+                : `HTTP ${out.status}`;
   const receptionist = msg.sender === "ai";
   await ports.escalate(
     p.conversation_id,

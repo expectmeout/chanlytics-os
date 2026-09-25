@@ -263,3 +263,46 @@ test("the provisioning: the saga is the edge's; a runtime without it fails loudl
     /stopped at buy: no numbers/,
   );
 });
+
+test("a limit at the mail provider is said as one: a used-up day pages the platform, a busy second does not, and a text's 429 is still a status", async () => {
+  const emailRow = {
+    status: "queued",
+    body: "We can do Saturday.",
+    channel: "email",
+    sender: "human",
+    email: { to: ["ana@example.com"], idempotency_key: "m1" },
+  };
+  const byEmail = {
+    tenantId: "t1",
+    payload: { message_id: "m1", conversation_id: "c1", to_email: "ana@example.com", body: "We can do Saturday." },
+  };
+  const refusedBy = (name) => ({
+    outcome: "failed",
+    reason: "provider",
+    status: 429,
+    errorBody: JSON.stringify({ statusCode: 429, name, message: "x" }),
+    messageId: "m1",
+  });
+  const day = fakes({ queued: emailRow, deliver: refusedBy("daily_quota_exceeded") });
+  await core.sendQueued(day.ports, byEmail);
+  assert.deepEqual(day.ops(), ["deliver", "page", "escalate", "alert"]);
+  assert.deepEqual(
+    [day.log[1][1], day.log[1][2]],
+    ["provider_quota:email", "email: the daily sending limit is used up"],
+  );
+  assert.equal(
+    day.log[2][3],
+    "Dashboard reply could not be delivered (the mail provider's sending limit is used up for now).",
+  );
+  const busy = fakes({ queued: emailRow, deliver: refusedBy("rate_limit_exceeded") });
+  await core.sendQueued(busy.ports, byEmail);
+  assert.deepEqual(busy.ops(), ["deliver", "escalate", "alert"], "a busy second is nobody's page");
+  assert.equal(busy.log[1][3], "Dashboard reply could not be delivered (the mail provider asked us to slow down).");
+  const text = fakes({ deliver: refusedBy("rate_limit_exceeded") });
+  await core.sendQueued(text.ports, send());
+  assert.equal(
+    text.log[1][3],
+    "Dashboard reply could not be delivered (HTTP 429).",
+    "the mail provider's words are read on email only",
+  );
+});
