@@ -1106,7 +1106,7 @@ test("your phone (canvas V6): an office phone system is shown the number, and Do
   assert.equal(textOf(flashes.at(-1).msg), "We'll email you to find a time for a call.");
   const later = surface({
     ...answeringLine([forwardedRow("office")]),
-    requests: { line: null, forwarding: "2026-09-07T14:00:00Z" },
+    requests: { line: null, forwarding: new Date(Date.now() - 3_600_000).toISOString() },
   });
   globalThis.window.__SETUP = later;
   fresh();

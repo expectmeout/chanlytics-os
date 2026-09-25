@@ -18268,10 +18268,11 @@ declare const FIRST_RUN_PHONE_WORDS: {
     readonly companyLabel: "Who's the phone company?";
     readonly company: Record<PhoneCompany, string>;
     readonly show: "Show me what to dial";
+    readonly showOffice: "Show me where to forward";
     readonly readySoon: "Ready in a moment";
     readonly answerFirst: "Answer the questions first.";
-    readonly askHeading: "One more thing before the code";
-    readonly askLead: "Your phone company decides the code, so it depends on the phone that rings.";
+    readonly askHeading: "One more thing";
+    readonly askLead: "How the calls are sent to your receptionist depends on the phone that rings.";
     /** The code (canvas R5, P5). */
     readonly codeHeading: "Dial this on the phone customers call";
     readonly codeLead: "It tells your phone company to send the calls nobody picks up to your receptionist. You only do this once.";
@@ -18289,7 +18290,7 @@ declare const FIRST_RUN_PHONE_WORDS: {
     readonly done: "Done, let's try it";
     readonly help: "The code didn't work";
     readonly change: "Change the answers";
-    readonly keepCode: "Keep the code I have";
+    readonly keepCode: "Keep what I have";
     /** An office phone system (canvas V6): the number to forward to, and a person to do it with. */
     readonly officeHeading: "Forward missed calls in your phone system";
     readonly officeLead: "Office phone systems set this in their own settings, under “forwarding” or “when no one answers”.";
@@ -18301,6 +18302,7 @@ declare const FIRST_RUN_PHONE_WORDS: {
     readonly withMeLabel: "Do it with me";
     readonly helpOffice: "It didn't work";
     readonly withMeAsked: (ago: string) => string;
+    readonly withMeFailed: "Not asked";
     readonly withMeSent: "We'll email you to find a time for a call.";
     readonly notForwarded: "Forwarding not saved";
 };
@@ -18723,10 +18725,11 @@ declare const FIRST_RUN_HELPERS: {
         readonly companyLabel: "Who's the phone company?";
         readonly company: Record<PhoneCompany, string>;
         readonly show: "Show me what to dial";
+        readonly showOffice: "Show me where to forward";
         readonly readySoon: "Ready in a moment";
         readonly answerFirst: "Answer the questions first.";
-        readonly askHeading: "One more thing before the code";
-        readonly askLead: "Your phone company decides the code, so it depends on the phone that rings.";
+        readonly askHeading: "One more thing";
+        readonly askLead: "How the calls are sent to your receptionist depends on the phone that rings.";
         readonly codeHeading: "Dial this on the phone customers call";
         readonly codeLead: "It tells your phone company to send the calls nobody picks up to your receptionist. You only do this once.";
         readonly codeLeadAll: "It tells your phone company to send every call to your receptionist. You only do this once.";
@@ -18742,7 +18745,7 @@ declare const FIRST_RUN_HELPERS: {
         readonly done: "Done, let's try it";
         readonly help: "The code didn't work";
         readonly change: "Change the answers";
-        readonly keepCode: "Keep the code I have";
+        readonly keepCode: "Keep what I have";
         readonly officeHeading: "Forward missed calls in your phone system";
         readonly officeLead: "Office phone systems set this in their own settings, under “forwarding” or “when no one answers”.";
         readonly officeLabel: (always: boolean) => "Forward every call to" | "Forward unanswered calls to";
@@ -18753,6 +18756,7 @@ declare const FIRST_RUN_HELPERS: {
         readonly withMeLabel: "Do it with me";
         readonly helpOffice: "It didn't work";
         readonly withMeAsked: (ago: string) => string;
+        readonly withMeFailed: "Not asked";
         readonly withMeSent: "We'll email you to find a time for a call.";
         readonly notForwarded: "Forwarding not saved";
     };

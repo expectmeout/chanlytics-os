@@ -192,3 +192,13 @@ FrPhone in `choose` and the rows in `rows`).
 - **The edge** emails the platform what to do for a `forwarding` ask.
 - **Deploy order:** apply 00173 before merging. A dashboard with this change on a database without it refuses the
   office answer with "Unknown carrier." and the ask with "Unknown request."; nothing else changes.
+- **What the review round fixed:**
+  - Setup's card shows an office system's number as words. A link would call the receptionist, and a test window
+    takes any call to its line as proof when no test phone was given.
+  - "Do it with me" is offered again a day after an ask, in case the ask reached nobody.
+  - Its failure says "Not asked".
+  - The office wording never promises a code ("Show me where to forward", "One more thing", "Keep what I have").
+  - Setup's card says where to forward on save.
+  - The platform's email follows the mode on Setup's row.
+- **Left as it is on purpose:** no database test runs the two functions; CI's migration replay applies them. The
+  source-scan ratchet refused a text pin of the migration, rightly.

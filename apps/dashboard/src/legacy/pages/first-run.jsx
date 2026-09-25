@@ -523,7 +523,7 @@ const FrPhone = ({ ph, choice, setChoice, W, flash, go, back, backLabel, ownFoot
     setBusy(true);
     const r = await P.request("forwarding");
     setBusy(false);
-    flash(r.ok ? { tone: "ok", msg: <>{W.withMeSent}</> } : window.refusalToast(r, W.notForwarded));
+    flash(r.ok ? { tone: "ok", msg: <>{W.withMeSent}</> } : window.refusalToast(r, W.withMeFailed));
   };
   const press = async () => {
     const cta = ph.cta;

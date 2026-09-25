@@ -395,10 +395,7 @@ test("the code (canvas R5, P5): from the forwarding saved, with the steps, the w
 
   const redo = phone(dto, kept({ rings: "landline", redo: true }));
   assert.equal(redo.stage, "ask", "changing the answers asks them again");
-  assert.deepEqual(
-    [redo.forwardFrom, redo.saved, redo.keepCode],
-    [LISTED, { carrier: "verizon" }, "Keep the code I have"],
-  );
+  assert.deepEqual([redo.forwardFrom, redo.saved, redo.keepCode], [LISTED, { carrier: "verizon" }, "Keep what I have"]);
 });
 
 test("the code follows what was saved: every call when Setup's card saved that, and neutral words when the answers are lost", () => {
@@ -460,6 +457,16 @@ test("an office phone system (canvas V6): the number to forward to, where to set
     kept({ rings: "office" }),
   );
   assert.match(asked.code.withMe.asked, /^Asked .+: a person at Chanlytics will email you to find a time\.$/);
+  const stale = phone(
+    answeringDto({ lines: { ...dtoOf().lines, rows }, requests: { line: null, forwarding: "2026-09-22T13:00:00Z" } }),
+    kept({ rings: "office" }),
+  );
+  assert.equal(stale.code.withMe.asked, null, "a day on, asked again in case it reached nobody");
+  assert.equal(
+    phone(answeringDto(), kept({ rings: "office" })).cta.label,
+    "Show me where to forward",
+    "no code for an office system",
+  );
   const mobile = phone(
     answeringDto({
       lines: { ...dtoOf().lines, rows: [lineOf({ voice_state: "answering" }), forwardedLine("verizon")] },

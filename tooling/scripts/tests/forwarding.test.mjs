@@ -301,17 +301,3 @@ test("the wiring: the migration, the forwarding event kind, and the bridge and t
     assert.ok(page.includes(pin), pin);
   // The nightly spec walks the first run a step at a time (e2e/setup.spec.ts) and counts no rows at all.
 });
-
-test("00173: an office phone system and a request to set forwarding up with a person, each one more value and nothing else", () => {
-  const mig = readRaw("supabase/migrations/00173_an_office_phone_forwards.sql");
-  for (const pin of [
-    "p_carrier not in ('verizon', 'att', 'tmobile', 'other', 'office')",
-    "p_what not in ('line', 'port', 'repair', 'forwarding')",
-    "v_route := 'start/phone';",
-    "grant execute on function public.line_forwarding_set(uuid, text, text, text, text) to authenticated;",
-    "grant execute on function public.setup_request(uuid, text) to authenticated;",
-    "Your receptionist has no line to forward to yet.",
-    "interval '1 day'",
-  ])
-    assert.ok(mig.includes(pin), pin);
-});

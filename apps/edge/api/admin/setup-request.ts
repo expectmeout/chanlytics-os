@@ -45,7 +45,7 @@ const WHAT: Record<string, { subject: string; how: string }> = {
   forwarding: {
     subject: "asked for help setting up forwarding in their office phone system",
     how:
-      "Reply to find a time for a call. Their phone system (RingCentral, Vonage, 8x8 and the like) forwards calls in its own settings, under forwarding or what happens when no one answers: forward unanswered calls to the receptionist's number, which their first run and Setup show.\n" +
+      "Reply to find a time for a call. Their phone system (RingCentral, Vonage, 8x8 and the like) forwards calls in its own settings, under forwarding or what happens when no one answers: forward the calls (unanswered, or every call, as their Setup row for the number they keep says) to the receptionist's number, which their first run and Setup show.\n" +
       "Put the forwarding before any voicemail. Then have them press Test it on Setup's row for the number they keep.",
   },
   // A configuration the receptionist can no longer read (S8): only a person can repair it.

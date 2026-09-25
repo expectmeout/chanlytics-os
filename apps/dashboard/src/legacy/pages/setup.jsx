@@ -166,7 +166,7 @@ const ForwardingCard = ({ S, flash, onDone }) => {
     setBusy(true);
     const r = await window.__setup.forwarding.set({ number, carrier, mode, test_from: testFrom });
     setBusy(false);
-    flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <>Saved. Dial the code on the phone with {number}, then test it.</> : <>{r.message}</> });
+    flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? (carrier === "office" ? <>Saved. Forward {number} in the settings of your phone system, then test it.</> : <>Saved. Dial the code on the phone with {number}, then test it.</>) : <>{r.message}</> });
   };
   const test = async () => {
     if (!owner) return;
@@ -209,7 +209,11 @@ const ForwardingCard = ({ S, flash, onDone }) => {
       {codes && (
         <div className="setup-fw-code" data-testid="setup-fw-code">
           <span className="setup-find-label">{W.dialLabel(f.carrier, W.display(fw.e164))}</span>
-          <a className="setup-fw-dial tabular" href={codes.on.tel} data-testid="setup-fw-dial">{codes.on.code}</a>
+          {/* For an office phone system the number to forward to is the receptionist line itself: drawn as words, never
+              as a call to it, which a test window would take for proof that forwarding works. */}
+          {f.carrier === "office"
+            ? <span className="setup-fw-dial tabular" data-testid="setup-fw-dial">{W.display(codes.on.code)}</span>
+            : <a className="setup-fw-dial tabular" href={codes.on.tel} data-testid="setup-fw-dial">{codes.on.code}</a>}
           <ul className="setup-fw-notes">{codes.notes.map((n, i) => <li key={i}>{n}</li>)}</ul>
           <div className="setup-fw-actions">
             {fw.forwarding_state === "verified"

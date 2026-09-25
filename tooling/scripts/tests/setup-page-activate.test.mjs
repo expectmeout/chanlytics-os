@@ -10,6 +10,7 @@ import assert from "node:assert/strict";
 import {
   setupSteps,
   forwardingCodes,
+  forwardingDialLabel,
   forwardingTestOpen,
   CARRIERS,
   FORWARDING_MODES,
@@ -178,6 +179,7 @@ globalThis.window = {
   },
   __forwarding: {
     codes: forwardingCodes,
+    dialLabel: forwardingDialLabel,
     testOpen: forwardingTestOpen,
     carriers: CARRIERS,
     modes: FORWARDING_MODES,

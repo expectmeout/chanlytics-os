@@ -1086,10 +1086,11 @@ var FIRST_RUN_PHONE_WORDS = {
   companyLabel: "Who's the phone company?",
   company: { verizon: "Verizon", att: "AT&T", tmobile: "T-Mobile", other: "Another company" },
   show: "Show me what to dial",
+  showOffice: "Show me where to forward",
   readySoon: "Ready in a moment",
   answerFirst: "Answer the questions first.",
-  askHeading: "One more thing before the code",
-  askLead: "Your phone company decides the code, so it depends on the phone that rings.",
+  askHeading: "One more thing",
+  askLead: "How the calls are sent to your receptionist depends on the phone that rings.",
   /** The code (canvas R5, P5). */
   codeHeading: "Dial this on the phone customers call",
   codeLead: "It tells your phone company to send the calls nobody picks up to your receptionist. You only do this once.",
@@ -1108,7 +1109,7 @@ var FIRST_RUN_PHONE_WORDS = {
   done: "Done, let's try it",
   help: "The code didn't work",
   change: "Change the answers",
-  keepCode: "Keep the code I have",
+  keepCode: "Keep what I have",
   /** An office phone system (canvas V6): the number to forward to, and a person to do it with. */
   officeHeading: "Forward missed calls in your phone system",
   officeLead: "Office phone systems set this in their own settings, under \u201Cforwarding\u201D or \u201Cwhen no one answers\u201D.",
@@ -1124,6 +1125,7 @@ var FIRST_RUN_PHONE_WORDS = {
   withMeLabel: "Do it with me",
   helpOffice: "It didn't work",
   withMeAsked: (ago3) => `Asked ${ago3}: a person at Chanlytics will email you to find a time.`,
+  withMeFailed: "Not asked",
   withMeSent: "We'll email you to find a time for a call.",
   notForwarded: "Forwarding not saved"
 };
@@ -8301,10 +8303,11 @@ var FIRST_RUN_PHONE_WORDS2 = {
   companyLabel: "Who's the phone company?",
   company: { verizon: "Verizon", att: "AT&T", tmobile: "T-Mobile", other: "Another company" },
   show: "Show me what to dial",
+  showOffice: "Show me where to forward",
   readySoon: "Ready in a moment",
   answerFirst: "Answer the questions first.",
-  askHeading: "One more thing before the code",
-  askLead: "Your phone company decides the code, so it depends on the phone that rings.",
+  askHeading: "One more thing",
+  askLead: "How the calls are sent to your receptionist depends on the phone that rings.",
   /** The code (canvas R5, P5). */
   codeHeading: "Dial this on the phone customers call",
   codeLead: "It tells your phone company to send the calls nobody picks up to your receptionist. You only do this once.",
@@ -8323,7 +8326,7 @@ var FIRST_RUN_PHONE_WORDS2 = {
   done: "Done, let's try it",
   help: "The code didn't work",
   change: "Change the answers",
-  keepCode: "Keep the code I have",
+  keepCode: "Keep what I have",
   /** An office phone system (canvas V6): the number to forward to, and a person to do it with. */
   officeHeading: "Forward missed calls in your phone system",
   officeLead: "Office phone systems set this in their own settings, under \u201Cforwarding\u201D or \u201Cwhen no one answers\u201D.",
@@ -8339,6 +8342,7 @@ var FIRST_RUN_PHONE_WORDS2 = {
   withMeLabel: "Do it with me",
   helpOffice: "It didn't work",
   withMeAsked: (ago3) => `Asked ${ago3}: a person at Chanlytics will email you to find a time.`,
+  withMeFailed: "Not asked",
   withMeSent: "We'll email you to find a time for a call.",
   notForwarded: "Forwarding not saved"
 };
@@ -11602,10 +11606,11 @@ var FIRST_RUN_PHONE_WORDS3 = {
   companyLabel: "Who's the phone company?",
   company: { verizon: "Verizon", att: "AT&T", tmobile: "T-Mobile", other: "Another company" },
   show: "Show me what to dial",
+  showOffice: "Show me where to forward",
   readySoon: "Ready in a moment",
   answerFirst: "Answer the questions first.",
-  askHeading: "One more thing before the code",
-  askLead: "Your phone company decides the code, so it depends on the phone that rings.",
+  askHeading: "One more thing",
+  askLead: "How the calls are sent to your receptionist depends on the phone that rings.",
   /** The code (canvas R5, P5). */
   codeHeading: "Dial this on the phone customers call",
   codeLead: "It tells your phone company to send the calls nobody picks up to your receptionist. You only do this once.",
@@ -11624,7 +11629,7 @@ var FIRST_RUN_PHONE_WORDS3 = {
   done: "Done, let's try it",
   help: "The code didn't work",
   change: "Change the answers",
-  keepCode: "Keep the code I have",
+  keepCode: "Keep what I have",
   /** An office phone system (canvas V6): the number to forward to, and a person to do it with. */
   officeHeading: "Forward missed calls in your phone system",
   officeLead: "Office phone systems set this in their own settings, under \u201Cforwarding\u201D or \u201Cwhen no one answers\u201D.",
@@ -11640,6 +11645,7 @@ var FIRST_RUN_PHONE_WORDS3 = {
   withMeLabel: "Do it with me",
   helpOffice: "It didn't work",
   withMeAsked: (ago3) => `Asked ${ago3}: a person at Chanlytics will email you to find a time.`,
+  withMeFailed: "Not asked",
   withMeSent: "We'll email you to find a time for a call.",
   notForwarded: "Forwarding not saved"
 };
@@ -13929,10 +13935,11 @@ var FIRST_RUN_PHONE_WORDS22 = {
   companyLabel: "Who's the phone company?",
   company: { verizon: "Verizon", att: "AT&T", tmobile: "T-Mobile", other: "Another company" },
   show: "Show me what to dial",
+  showOffice: "Show me where to forward",
   readySoon: "Ready in a moment",
   answerFirst: "Answer the questions first.",
-  askHeading: "One more thing before the code",
-  askLead: "Your phone company decides the code, so it depends on the phone that rings.",
+  askHeading: "One more thing",
+  askLead: "How the calls are sent to your receptionist depends on the phone that rings.",
   /** The code (canvas R5, P5). */
   codeHeading: "Dial this on the phone customers call",
   codeLead: "It tells your phone company to send the calls nobody picks up to your receptionist. You only do this once.",
@@ -13951,7 +13958,7 @@ var FIRST_RUN_PHONE_WORDS22 = {
   done: "Done, let's try it",
   help: "The code didn't work",
   change: "Change the answers",
-  keepCode: "Keep the code I have",
+  keepCode: "Keep what I have",
   /** An office phone system (canvas V6): the number to forward to, and a person to do it with. */
   officeHeading: "Forward missed calls in your phone system",
   officeLead: "Office phone systems set this in their own settings, under \u201Cforwarding\u201D or \u201Cwhen no one answers\u201D.",
@@ -13967,6 +13974,7 @@ var FIRST_RUN_PHONE_WORDS22 = {
   withMeLabel: "Do it with me",
   helpOffice: "It didn't work",
   withMeAsked: (ago3) => `Asked ${ago3}: a person at Chanlytics will email you to find a time.`,
+  withMeFailed: "Not asked",
   withMeSent: "We'll email you to find a time for a call.",
   notForwarded: "Forwarding not saved"
 };
@@ -16223,10 +16231,11 @@ var FIRST_RUN_PHONE_WORDS32 = {
   companyLabel: "Who's the phone company?",
   company: { verizon: "Verizon", att: "AT&T", tmobile: "T-Mobile", other: "Another company" },
   show: "Show me what to dial",
+  showOffice: "Show me where to forward",
   readySoon: "Ready in a moment",
   answerFirst: "Answer the questions first.",
-  askHeading: "One more thing before the code",
-  askLead: "Your phone company decides the code, so it depends on the phone that rings.",
+  askHeading: "One more thing",
+  askLead: "How the calls are sent to your receptionist depends on the phone that rings.",
   /** The code (canvas R5, P5). */
   codeHeading: "Dial this on the phone customers call",
   codeLead: "It tells your phone company to send the calls nobody picks up to your receptionist. You only do this once.",
@@ -16245,7 +16254,7 @@ var FIRST_RUN_PHONE_WORDS32 = {
   done: "Done, let's try it",
   help: "The code didn't work",
   change: "Change the answers",
-  keepCode: "Keep the code I have",
+  keepCode: "Keep what I have",
   /** An office phone system (canvas V6): the number to forward to, and a person to do it with. */
   officeHeading: "Forward missed calls in your phone system",
   officeLead: "Office phone systems set this in their own settings, under \u201Cforwarding\u201D or \u201Cwhen no one answers\u201D.",
@@ -16261,6 +16270,7 @@ var FIRST_RUN_PHONE_WORDS32 = {
   withMeLabel: "Do it with me",
   helpOffice: "It didn't work",
   withMeAsked: (ago3) => `Asked ${ago3}: a person at Chanlytics will email you to find a time.`,
+  withMeFailed: "Not asked",
   withMeSent: "We'll email you to find a time for a call.",
   notForwarded: "Forwarding not saved"
 };
@@ -19038,10 +19048,11 @@ var FIRST_RUN_PHONE_WORDS4 = {
   companyLabel: "Who's the phone company?",
   company: { verizon: "Verizon", att: "AT&T", tmobile: "T-Mobile", other: "Another company" },
   show: "Show me what to dial",
+  showOffice: "Show me where to forward",
   readySoon: "Ready in a moment",
   answerFirst: "Answer the questions first.",
-  askHeading: "One more thing before the code",
-  askLead: "Your phone company decides the code, so it depends on the phone that rings.",
+  askHeading: "One more thing",
+  askLead: "How the calls are sent to your receptionist depends on the phone that rings.",
   /** The code (canvas R5, P5). */
   codeHeading: "Dial this on the phone customers call",
   codeLead: "It tells your phone company to send the calls nobody picks up to your receptionist. You only do this once.",
@@ -19060,7 +19071,7 @@ var FIRST_RUN_PHONE_WORDS4 = {
   done: "Done, let's try it",
   help: "The code didn't work",
   change: "Change the answers",
-  keepCode: "Keep the code I have",
+  keepCode: "Keep what I have",
   /** An office phone system (canvas V6): the number to forward to, and a person to do it with. */
   officeHeading: "Forward missed calls in your phone system",
   officeLead: "Office phone systems set this in their own settings, under \u201Cforwarding\u201D or \u201Cwhen no one answers\u201D.",
@@ -19076,6 +19087,7 @@ var FIRST_RUN_PHONE_WORDS4 = {
   withMeLabel: "Do it with me",
   helpOffice: "It didn't work",
   withMeAsked: (ago3) => `Asked ${ago3}: a person at Chanlytics will email you to find a time.`,
+  withMeFailed: "Not asked",
   withMeSent: "We'll email you to find a time for a call.",
   notForwarded: "Forwarding not saved"
 };
