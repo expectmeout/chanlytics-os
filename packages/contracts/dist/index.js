@@ -7328,13 +7328,16 @@ function billingDoorOpen(b) {
 }
 function maySpend(mode, status) {
   if (mode !== "stripe") return true;
-  return status === "trialing" || status === "active";
+  return status === "active";
 }
 var SPEND_NUMBER = { before: "buying a number", can: "buy a number" };
 var SPEND_LEADS = { before: "finding leads", can: "find leads" };
+var SPEND_TEXTING = { before: "registering for texting", can: "register for texting" };
 function whyCannotSpend(mode, status, doing = SPEND_NUMBER) {
   if (maySpend(mode, status)) return null;
-  if (status === "none") return `Add a card before ${doing.before} \u2014 nothing is charged until your trial ends.`;
+  if (status === "none") return `Start your plan from Billing before ${doing.before}.`;
+  if (status === "trialing")
+    return `Your free trial doesn't cover ${doing.before}. Start your plan from Billing, then ${doing.can}.`;
   if (status === "incomplete") return "Your card is not confirmed yet. Finish checkout in Billing, then try again.";
   if (status === "past_due") return "Your last payment did not go through. Update the card in Billing, then try again.";
   if (status === "paused" || status === "canceled" || status === "incomplete_expired") {
@@ -7409,6 +7412,18 @@ function priceWords(p) {
   return `${amount} ${per}`;
 }
 var BILLING_TEST_MODE_CLAUSE = "Billing is in test mode, so only Stripe's test cards work and no real money moves";
+var TRIAL_COVERS = "A phone number, texting and lead searches start with the plan.";
+var START_PLAN_WORDS = {
+  button: "Start my plan now",
+  busy: "Starting\u2026",
+  question: "Start your plan today?",
+  detail: (plan, card) => `Your free trial ends now, and ${plan || "the plan"} is charged to ${card || "your card on file"} today. A phone number, texting and lead searches open straight after.`,
+  yes: "Yes, start it",
+  no: "Not now",
+  started: "Your plan has started.",
+  /** Stripe took the trial's end but not the charge. */
+  unpaid: "Your plan started, but the charge did not go through. Update the card in Billing."
+};
 function toBillingVM(dto, nowMs = Date.now()) {
   const a = dto.account;
   const plan = priceWords(dto.price) ? `${dto.price?.product_name ? `${dto.price.product_name} \xB7 ` : ""}${priceWords(dto.price)}` : "";
@@ -7422,7 +7437,7 @@ function toBillingVM(dto, nowMs = Date.now()) {
       tone: "",
       plan,
       card: null,
-      actions: { checkout: false, portal: false, resume: false },
+      actions: { checkout: false, portal: false, resume: false, startNow: false },
       paused: false,
       testMode: null
     };
@@ -7442,7 +7457,7 @@ function toBillingVM(dto, nowMs = Date.now()) {
         headline: "No subscription yet",
         detail: dto.ready ? trialOffer(dto.trial_days) : "Billing is not available on this deployment yet.",
         tone: "warn",
-        actions: { checkout: dto.ready, portal: false, resume: false },
+        actions: { checkout: dto.ready, portal: false, resume: false, startNow: false },
         paused: false
       };
     case "trialing":
@@ -7452,16 +7467,17 @@ function toBillingVM(dto, nowMs = Date.now()) {
           headline: "On trial, ending",
           detail: `Cancelled: the receptionist answers until ${dayWords(a.cancel_at ?? a.trial_end) || "the trial ends"}, then stops, and nothing is charged. Undo it from Manage billing before then to keep it.`,
           tone: "warn",
-          actions: { checkout: false, portal: true, resume: false },
+          actions: { checkout: false, portal: true, resume: false, startNow: false },
           paused: false
         };
       }
       return {
         ...base,
         headline: "On trial",
-        detail: `${trialWords(a.trial_end, nowMs)}${card ? `, then ${plan || "the plan"} on ${card}` : ""}.`,
+        detail: `${trialWords(a.trial_end, nowMs)}${card ? `, then ${plan || "the plan"} on ${card}` : ""}. ${TRIAL_COVERS}`,
         tone: "ok",
-        actions: { checkout: false, portal: true, resume: false },
+        // Its plan may start now, for what the trial does not cover (maySpend).
+        actions: { checkout: false, portal: true, resume: false, startNow: true },
         paused: false
       };
     case "active":
@@ -7470,7 +7486,7 @@ function toBillingVM(dto, nowMs = Date.now()) {
         headline: a.cancel_at_period_end || a.cancel_at ? "Subscribed, ending" : "Subscribed",
         detail: a.cancel_at || a.cancel_at_period_end ? `Ends ${dayWords(a.cancel_at ?? a.current_period_end)}; the receptionist answers until then.` : `Next invoice ${dayWords(a.current_period_end) || "on the renewal date"}${card ? ` on ${card}` : ""}.`,
         tone: "ok",
-        actions: { checkout: false, portal: true, resume: false },
+        actions: { checkout: false, portal: true, resume: false, startNow: false },
         paused: false
       };
     case "past_due":
@@ -7479,7 +7495,7 @@ function toBillingVM(dto, nowMs = Date.now()) {
         headline: "Payment failed",
         detail: `${a.last_payment_failed_at ? `The last charge failed ${agoWords(Date.parse(a.last_payment_failed_at), nowMs)}. ` : ""}Stripe retries for a few days; update the card in Manage billing to keep the receptionist answering.`,
         tone: "danger",
-        actions: { checkout: false, portal: true, resume: false },
+        actions: { checkout: false, portal: true, resume: false, startNow: false },
         paused: false
       };
     case "incomplete":
@@ -7488,7 +7504,7 @@ function toBillingVM(dto, nowMs = Date.now()) {
         headline: "Finishing checkout",
         detail: "The first payment is still being confirmed. This page updates by itself.",
         tone: "warn",
-        actions: { checkout: false, portal: true, resume: false },
+        actions: { checkout: false, portal: true, resume: false, startNow: false },
         paused: false
       };
     case "paused":
@@ -7497,7 +7513,7 @@ function toBillingVM(dto, nowMs = Date.now()) {
         headline: "Paused",
         detail: "The trial ended without a card on file. Add one in Manage billing, then resume; messages keep landing in the Inbox meanwhile.",
         tone: "danger",
-        actions: { checkout: false, portal: true, resume: true },
+        actions: { checkout: false, portal: true, resume: true, startNow: false },
         paused: true
       };
     case "unpaid":
@@ -7506,7 +7522,7 @@ function toBillingVM(dto, nowMs = Date.now()) {
         headline: "Paused",
         detail: "Payment could not be collected after several tries. Update the card in Manage billing, then resume.",
         tone: "danger",
-        actions: { checkout: false, portal: true, resume: true },
+        actions: { checkout: false, portal: true, resume: true, startNow: false },
         paused: true
       };
     case "canceled":
@@ -7517,7 +7533,7 @@ function toBillingVM(dto, nowMs = Date.now()) {
         headline: "Subscription ended",
         detail: dto.ready ? trialOffer(dto.trial_days, true) : "Billing is not available on this deployment yet.",
         tone: "danger",
-        actions: { checkout: dto.ready, portal: !!a.card_brand, resume: false },
+        actions: { checkout: dto.ready, portal: !!a.card_brand, resume: false, startNow: false },
         paused: true
       };
   }
@@ -7838,7 +7854,9 @@ function setupSteps(i, nowMs = Date.now()) {
         sentence: `On trial: ${trialWords(b.trial_end, nowMs) || "the card is on file"}.`,
         details: [
           ...testMode,
-          "The card on file is charged when the trial ends; cancel from Billing before then if you'd rather not"
+          "The card on file is charged when the trial ends; cancel from Billing before then if you'd rather not",
+          // What the trial does not cover (maySpend), said where the trial is, as Billing says it.
+          TRIAL_COVERS
         ],
         verb: { label: "Open Billing", to: "admin/billing" }
       });
@@ -8110,14 +8128,29 @@ function setupSteps(i, nowMs = Date.now()) {
         "A local number, included in your plan \xB7 your receptionist answers it \xB7 texting arrives when the carriers register it"
       ],
       verb: { label: "Get a line", to: "verb:choose-line" }
-    }) : billingDoorOpen(i.billing) ? row2({
+    }) : billingDoorOpen(i.billing) && (i.billing.status === "none" || i.billing.status === "trialing") ? (
+      // No plan yet, or a free trial, which covers no number (maySpend): the number starts the plan, and the first
+      // run's phone step is where both happen -- its checkout takes no trial, and a trial's plan starts from there.
+      row2({
+        id: "line",
+        icon: "phone",
+        title: "A line for calls and texts",
+        state: "waiting_you",
+        required: !answering,
+        sentence: "Get a number for calls: it starts your plan.",
+        details: [
+          priceWords(i.billing.price ?? null) ? `A local number, included in your plan \xB7 ${priceWords(i.billing.price ?? null)}, from the day you get it` : "A local number, included in your plan, from the day you get it"
+        ],
+        verb: { label: "Get a number", to: "start/phone" }
+      })
+    ) : billingDoorOpen(i.billing) ? row2({
       id: "line",
       icon: "phone",
       title: "A line for calls and texts",
       state: "waiting_you",
       required: !answering,
-      sentence: "Add a card, then get a number for calls.",
-      details: ["A local number, included in your plan", "Nothing is charged until your trial ends"],
+      sentence: whyCannotSpend(i.billing.mode, i.billing.status) ?? "Billing needs attention first.",
+      details: ["A local number, included in your plan"],
       verb: { label: "Open Billing", to: "admin/billing" }
     }) : (
       // CANNOT SPEND, AND THERE IS NO CARD TO ADD. Three states, not two: this
@@ -8875,19 +8908,18 @@ var FIRST_RUN_PHONE_WORDS = {
     pick: "Pick a number first."
   },
   cta: {
-    trialKeep: "Start my free trial",
-    trialNew: (number) => number ? `Start my trial with ${number}` : "Start my free trial",
-    trialMove: "Start my trial and ask for the move",
+    planKeep: "Start my plan",
+    planNew: (number) => number ? `Start my plan with ${number}` : "Start my plan",
+    planMove: "Start my plan and ask for the move",
     keep: "Keep this number",
     new: (number) => number ? `Get ${number}` : "Get this number",
     move: "Ask for the move"
   },
-  trialOffer: (days, price) => days > 0 ? price ? `${days} days free, then ${price}` : `${days} days free` : price,
-  // The trial's days, never a day worked out here: Stripe dates the trial from the end of checkout, and Setup's billing
-  // row says the day once Stripe has.
-  trialNote: (days) => days > 0 ? `We ask for a card now, and nothing is charged for ${days} days. You can cancel anytime from Billing.` : "We ask for a card now, and the first charge is today. You can cancel anytime from Billing.",
-  started: (day) => `Your trial has started. Nothing is charged until ${day}.`,
-  starting: "Starting your trial\u2026",
+  planOffer: (price) => price ? `${price}, starting today` : "Your plan, starting today",
+  planNote: "Your number is included. The first charge is today, and you can cancel anytime from Billing.",
+  /** A workspace on a free trial: the trial covers no number, so getting one starts the plan early. */
+  planNoteTrial: "Your free trial ends today and your plan starts, on the card you gave. Your number is included.",
+  starting: "Starting your plan\u2026",
   startingDetail: "Your card is on file. This page updates as Stripe confirms it.",
   buyingIn: (area) => area ? `Getting your receptionist's number in ${area}\u2026` : "Getting your receptionist's number\u2026",
   buyingNew: (number) => `Getting ${number}\u2026`,
@@ -8963,8 +8995,6 @@ function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }) {
   const ownLine = lines?.rows.find((l) => l.voice_state !== "none") ?? null;
   const lineRow = vm.rows.find((r2) => r2.id === "line") ?? null;
   const canSpend = !billing || maySpend(billing.mode, billing.status);
-  const trialing = billing && billing.mode === "stripe" && billing.status === "trialing" ? billing : null;
-  const started = trialing && trialing.trial_end ? W.started(dayWords(trialing.trial_end)) : null;
   const pick = choice?.pick ?? null;
   const picked = pick ? formatPhoneDisplay(pick.e164) : null;
   const waiting = (sentence2, detail) => ({
@@ -8988,13 +9018,12 @@ function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }) {
     number,
     listed,
     box: formatPhoneDisplay(listed) ?? "",
-    area,
-    started
+    area
   };
   const ready = {
     heading: W.readyHeading,
     lead: !choice ? "" : forwarded ? W.readyLeadForwarded : W.readyLeadNew,
-    trial: null,
+    plan: null,
     cta: null,
     questions: null,
     code: null,
@@ -9042,7 +9071,7 @@ function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }) {
         stage: "ask",
         heading: W.askHeading,
         lead: W.askLead,
-        trial: null,
+        plan: null,
         status: null,
         questions: questionsFor(savedFrom),
         cta: show(true),
@@ -9063,7 +9092,7 @@ function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }) {
         stage: "code",
         heading: W.officeHeading,
         lead: W.officeLead,
-        trial: null,
+        plan: null,
         status: null,
         questions: null,
         cta: { label: W.done, held: null, act: "onward" },
@@ -9100,7 +9129,7 @@ function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }) {
         stage: "code",
         heading: W.codeHeading,
         lead: mode === "always" ? W.codeLeadAll : W.codeLead,
-        trial: null,
+        plan: null,
         status: null,
         questions: null,
         cta: { label: W.done, held: null, act: "onward" },
@@ -9128,7 +9157,7 @@ function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }) {
         stage: "ask",
         heading: W.askHeading,
         lead: W.askLead,
-        trial: null,
+        plan: null,
         status: null,
         questions,
         cta: show(true),
@@ -9157,12 +9186,13 @@ function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }) {
     } : rows;
   }
   if (!lines?.ready || dto.requests.line || dto.requests.port) return rows;
-  const trial = billingDoorOpen(billing) && billing.status === "none" ? (() => {
-    const days = billing.trial_days;
-    return { offer: W.trialOffer(days, priceWords(billing.price ?? null)), note: W.trialNote(days) };
-  })() : null;
-  if (!canSpend && !trial) return rows;
-  if (trial && returned) {
+  const onTrial = billingDoorOpen(billing) && billing.status === "trialing";
+  const plan = billingDoorOpen(billing) && (billing.status === "none" || onTrial) ? {
+    offer: W.planOffer(priceWords(billing.price ?? null)),
+    note: onTrial ? W.planNoteTrial : W.planNote
+  } : null;
+  if (!canSpend && !plan) return rows;
+  if (plan && returned) {
     return {
       ...base,
       ...ready,
@@ -9183,15 +9213,15 @@ function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }) {
   const typedSome = !!choice && typeof choice.number === "string" && choice.number.trim() !== "";
   const boxProblem = way !== "new" && typedSome && !(number && areaCodeOf(number)) ? W.held.us : null;
   const held = way === "new" ? pick ? null : W.held.pick : boxProblem ?? (!number ? W.held.number : areaCodeOf(number) ? null : W.held.us);
-  const label = trial ? way === "keep" ? W.cta.trialKeep : way === "new" ? W.cta.trialNew(picked) : W.cta.trialMove : way === "keep" ? W.cta.keep : way === "new" ? W.cta.new(picked) : W.cta.move;
+  const label = plan ? way === "keep" ? W.cta.planKeep : way === "new" ? W.cta.planNew(picked) : W.cta.planMove : way === "keep" ? W.cta.keep : way === "new" ? W.cta.new(picked) : W.cta.move;
   return {
     ...base,
     stage: "choose",
     heading: W.chooseHeading,
     lead: W.chooseLead,
-    trial,
+    plan,
     boxProblem,
-    cta: { label, held, act: trial ? "trial" : "buy" },
+    cta: { label, held, act: plan ? onTrial ? "startNow" : "plan" : "buy" },
     status: null,
     questions: null,
     code: null,
@@ -20318,7 +20348,7 @@ function verdictFor(r2, nowMs) {
   if (r2.reg_mock === true) return "rehearsal";
   if (!answering && age <= PLATFORM_NEW_DAYS * DAY) return "new";
   if (THEIRS_TO_FIX.includes(r2.sms_state ?? "")) return "waiting_owner";
-  if (mode === "stripe" && !maySpend(mode, status)) return "waiting_owner";
+  if (mode === "stripe" && !maySpend(mode, status) && status !== "trialing") return "waiting_owner";
   if (!answering) return "stalled";
   const heard = at(r2.last_inbound_at);
   if (heard === null) return age > PLATFORM_QUIET_DAYS * DAY ? "quiet" : "new";
@@ -23159,8 +23189,10 @@ export {
   SOURCE_WORDS,
   SPEND_LEADS,
   SPEND_NUMBER,
+  SPEND_TEXTING,
   STARTER_LANGUAGES,
   STARTER_TEMPLATES,
+  START_PLAN_WORDS,
   STEP_SHEET_WORDS,
   ServiceSchema,
   SignupSchema,
@@ -23192,6 +23224,7 @@ export {
   TODAY_STEPS_MAX,
   TONES,
   TONE_PRESETS,
+  TRIAL_COVERS,
   TRY_QUIET_AFTER_MS,
   TRY_SKIPPED,
   TenantConfigSchema,

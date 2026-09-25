@@ -1,6 +1,6 @@
 /**
  * The first run's phone step (docs/superpowers/plans/2026-09-24-first-run-4-phone.md, canvas R3–R5, V4, V5): how calls
- * reach the receptionist, the trial with the plan's own price, and the receptionist's number on its way. Every sentence
+ * reach the receptionist, the plan the number starts at its own price, and the receptionist's number on its way. Every sentence
  * is here; the page composes (first-run.jsx FrPhone).
  *
  * Every way buys the receptionist a number of its own. Customers call a new one directly; a number kept or being moved
@@ -10,7 +10,7 @@
  * else is Setup's: a case this step does not draw -- no line provider, a line that stopped, billing that needs Billing,
  * a line a person was asked for, a line that answers -- is `rows`, where Setup's own rows say it as they always have.
  */
-import { billingDoorOpen, dayWords, maySpend, priceWords, CHECKOUT_OUTCOME_WORDS } from "./billing";
+import { billingDoorOpen, maySpend, priceWords, CHECKOUT_OUTCOME_WORDS } from "./billing";
 import { formatPhoneDisplay, normalizePhone } from "./phone";
 import { agoWords } from "./time";
 import { CARRIER_WORDS, forwardingCodes, isCarrier, isForwardingMode, type Carrier } from "./forwarding";
@@ -31,7 +31,7 @@ export type PhoneRings = (typeof PHONE_RINGS)[number];
 
 /**
  * What the owner chose, as the tab keeps it: the way, the number they keep or move (as typed), the new number picked,
- * and whether they pressed the step's button, so the buy goes on once the trial lets it. For a number kept or moved,
+ * and whether they pressed the step's button, so the buy goes on once the plan lets it. For a number kept or moved,
  * the two answers that choose its code (which phone rings, and a mobile's phone company), and `redo` once the owner
  * asked to change them after the code was shown.
  */
@@ -125,13 +125,18 @@ export interface FirstRunPhoneVM {
   boxProblem?: string | null;
   /** The area code a number is bought in: the kept or moved number's, else the listing's; null for neither. */
   area: string | null;
-  /** The trial, where a card is still to be given: its offer and what it means. */
-  trial: { offer: string; note: string } | null;
   /**
-   * The step's one coral button, `held` with why it cannot go yet, and what it does: start the trial, buy the number,
+   * The plan the number starts, where it has not started yet: its price and what it means. A number costs Chanlytics
+   * $1.15 a month for as long as it is held, so it is never on a free trial (maySpend): the step's checkout takes no
+   * trial, and a workspace already on one starts its plan here.
+   */
+  plan: { offer: string; note: string } | null;
+  /**
+   * The step's one coral button, `held` with why it cannot go yet, and what it does: start the plan (by checkout, or
+   * early from a free trial), buy the number,
    * save the forwarding (the answers' code), or go on to Try it.
    */
-  cta: { label: string; held: string | null; act: "trial" | "buy" | "forward" | "onward" } | null;
+  cta: { label: string; held: string | null; act: "plan" | "startNow" | "buy" | "forward" | "onward" } | null;
   /** The two questions, for a number kept or moved, from the moment the number is on its way. */
   questions: { rings: FirstRunPhoneQuestion<PhoneRings>; company: FirstRunPhoneQuestion<PhoneCompany> | null } | null;
   /** The code to dial, once the forwarding is saved. */
@@ -147,8 +152,6 @@ export interface FirstRunPhoneVM {
   keepCode: string | null;
   /** What is happening, while the number is on its way: the state (a pill, its word) and the sentence under it. */
   status: { state: SetupState; words: string; sentence: string; detail: string } | null;
-  /** The trial that started, said once it has; null before, and where the workspace does not pay by card. */
-  started: string | null;
 }
 
 export const FIRST_RUN_PHONE_WORDS = {
@@ -183,23 +186,18 @@ export const FIRST_RUN_PHONE_WORDS = {
     pick: "Pick a number first.",
   },
   cta: {
-    trialKeep: "Start my free trial",
-    trialNew: (number: string | null) => (number ? `Start my trial with ${number}` : "Start my free trial"),
-    trialMove: "Start my trial and ask for the move",
+    planKeep: "Start my plan",
+    planNew: (number: string | null) => (number ? `Start my plan with ${number}` : "Start my plan"),
+    planMove: "Start my plan and ask for the move",
     keep: "Keep this number",
     new: (number: string | null) => (number ? `Get ${number}` : "Get this number"),
     move: "Ask for the move",
   },
-  trialOffer: (days: number, price: string) =>
-    days > 0 ? (price ? `${days} days free, then ${price}` : `${days} days free`) : price,
-  // The trial's days, never a day worked out here: Stripe dates the trial from the end of checkout, and Setup's billing
-  // row says the day once Stripe has.
-  trialNote: (days: number) =>
-    days > 0
-      ? `We ask for a card now, and nothing is charged for ${days} days. You can cancel anytime from Billing.`
-      : "We ask for a card now, and the first charge is today. You can cancel anytime from Billing.",
-  started: (day: string) => `Your trial has started. Nothing is charged until ${day}.`,
-  starting: "Starting your trial…",
+  planOffer: (price: string) => (price ? `${price}, starting today` : "Your plan, starting today"),
+  planNote: "Your number is included. The first charge is today, and you can cancel anytime from Billing.",
+  /** A workspace on a free trial: the trial covers no number, so getting one starts the plan early. */
+  planNoteTrial: "Your free trial ends today and your plan starts, on the card you gave. Your number is included.",
+  starting: "Starting your plan…",
   startingDetail: "Your card is on file. This page updates as Stripe confirms it.",
   buyingIn: (area: string | null) =>
     area ? `Getting your receptionist's number in ${area}…` : "Getting your receptionist's number…",
@@ -280,7 +278,7 @@ export interface FirstRunPhoneInput {
   vm: SetupVM;
   /** The owner's choice as the tab keeps it; null before one is made (the way then shown is the first). */
   choice: PhoneChoice | null;
-  /** This tab came back from checkout with a card given, and the trial has not landed yet. */
+  /** This tab came back from checkout with a card given, and the plan has not landed yet. */
   returned: boolean;
   nowMs: number;
 }
@@ -299,8 +297,6 @@ export function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }: FirstRunPh
   const ownLine = lines?.rows.find((l) => l.voice_state !== "none") ?? null;
   const lineRow = vm.rows.find((r) => r.id === "line") ?? null;
   const canSpend = !billing || maySpend(billing.mode, billing.status);
-  const trialing = billing && billing.mode === "stripe" && billing.status === "trialing" ? billing : null;
-  const started = trialing && trialing.trial_end ? W.started(dayWords(trialing.trial_end)) : null;
   const pick = choice?.pick ?? null;
   const picked = pick ? formatPhoneDisplay(pick.e164) : null;
   const waiting = (sentence: string, detail: string) => ({
@@ -326,13 +322,12 @@ export function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }: FirstRunPh
     listed,
     box: formatPhoneDisplay(listed) ?? "",
     area,
-    started,
   };
   // Who sees the number depends on the way chosen; a tab that lost the choice says neither.
   const ready = {
     heading: W.readyHeading,
     lead: !choice ? "" : forwarded ? W.readyLeadForwarded : W.readyLeadNew,
-    trial: null,
+    plan: null,
     cta: null,
     questions: null,
     code: null,
@@ -393,7 +388,7 @@ export function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }: FirstRunPh
         stage: "ask",
         heading: W.askHeading,
         lead: W.askLead,
-        trial: null,
+        plan: null,
         status: null,
         questions: questionsFor(savedFrom),
         cta: show(true),
@@ -415,7 +410,7 @@ export function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }: FirstRunPh
         stage: "code",
         heading: W.officeHeading,
         lead: W.officeLead,
-        trial: null,
+        plan: null,
         status: null,
         questions: null,
         cta: { label: W.done, held: null, act: "onward" },
@@ -456,7 +451,7 @@ export function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }: FirstRunPh
         stage: "code",
         heading: W.codeHeading,
         lead: mode === "always" ? W.codeLeadAll : W.codeLead,
-        trial: null,
+        plan: null,
         status: null,
         questions: null,
         cta: { label: W.done, held: null, act: "onward" },
@@ -486,7 +481,7 @@ export function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }: FirstRunPh
         stage: "ask",
         heading: W.askHeading,
         lead: W.askLead,
-        trial: null,
+        plan: null,
         status: null,
         questions,
         cta: show(true),
@@ -522,15 +517,18 @@ export function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }: FirstRunPh
   // No provider here, or a person was asked for a line: the row says who has it.
   if (!lines?.ready || dto.requests.line || dto.requests.port) return rows;
 
-  const trial =
-    billingDoorOpen(billing) && billing.status === "none"
-      ? (() => {
-          const days = billing.trial_days;
-          return { offer: W.trialOffer(days, priceWords(billing.price ?? null)), note: W.trialNote(days) };
-        })()
+  // The plan the number starts: none yet (the step's checkout, which takes no trial), or a free trial (its plan starts
+  // early, here). Anything else that cannot spend (a failed card, a subscription that ended) is Billing's, on the row.
+  const onTrial = billingDoorOpen(billing) && billing.status === "trialing";
+  const plan =
+    billingDoorOpen(billing) && (billing.status === "none" || onTrial)
+      ? {
+          offer: W.planOffer(priceWords(billing.price ?? null)),
+          note: onTrial ? W.planNoteTrial : W.planNote,
+        }
       : null;
-  if (!canSpend && !trial) return rows;
-  if (trial && returned) {
+  if (!canSpend && !plan) return rows;
+  if (plan && returned) {
     return {
       ...base,
       ...ready,
@@ -560,12 +558,12 @@ export function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }: FirstRunPh
         ? null
         : W.held.pick
       : (boxProblem ?? (!number ? W.held.number : areaCodeOf(number) ? null : W.held.us));
-  const label = trial
+  const label = plan
     ? way === "keep"
-      ? W.cta.trialKeep
+      ? W.cta.planKeep
       : way === "new"
-        ? W.cta.trialNew(picked)
-        : W.cta.trialMove
+        ? W.cta.planNew(picked)
+        : W.cta.planMove
     : way === "keep"
       ? W.cta.keep
       : way === "new"
@@ -576,9 +574,9 @@ export function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }: FirstRunPh
     stage: "choose",
     heading: W.chooseHeading,
     lead: W.chooseLead,
-    trial,
+    plan,
     boxProblem,
-    cta: { label, held, act: trial ? "trial" : "buy" },
+    cta: { label, held, act: plan ? (onTrial ? "startNow" : "plan") : "buy" },
     status: null,
     questions: null,
     code: null,
