@@ -622,6 +622,38 @@ test.describe("Phone shell on a real workspace", () => {
   });
 
   /**
+   * Reports' period stands over what scrolls (25 Sep). The head was sticky inside the page's one scroller, so a pull
+   * down took it with the charts; now only the body scrolls, edge to edge, and the head holds its place.
+   */
+  test("Reports' period stands over the charts, and only they scroll", async ({ page }) => {
+    await page.goto("/#/reports");
+    await page.waitForLoadState("networkidle");
+    const head = page.locator(".rpt-head");
+    test.skip((await head.count()) === 0, "no Reports on this workspace");
+    const shape = await head.evaluate(async (el) => {
+      let scrolls = false;
+      for (let n = el.parentElement; n; n = n.parentElement) {
+        const oy = getComputedStyle(n).overflowY;
+        if (oy === "auto" || oy === "scroll") scrolls = true;
+      }
+      const body = document.querySelector(".rpt-body") as HTMLElement;
+      const before = el.getBoundingClientRect().top;
+      body.scrollTop = 300;
+      await new Promise((r) => setTimeout(r, 50));
+      const after = el.getBoundingClientRect().top;
+      const b = body.getBoundingClientRect();
+      return {
+        scrolls,
+        still: Math.round(after - before),
+        edge: [Math.round(b.left), Math.round(innerWidth - b.right)],
+      };
+    });
+    expect(shape.scrolls, "the head stands over what scrolls").toBe(false);
+    expect(shape.still, "and holds its place as the charts scroll").toBe(0);
+    expect(shape.edge, "the charts scroll edge to edge").toEqual([0, 0]);
+  });
+
+  /**
    * A note is dismissed with a thumb (25 Sep). Its × waited for a pointer to hover the row, so on a phone it was
    * invisible and took no press (48 notes, and only Mark all read cleared them). On a touch screen it stands in each
    * row at its own size, with a press area a thumb wide, and the time beside it rather than under it. Read, not

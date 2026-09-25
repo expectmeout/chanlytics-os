@@ -239,6 +239,12 @@ button.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: v
 @media (max-width: 760px) {
   .rpt-inner { padding: 0 16px 40px; }
   .rpt-head { padding: 10px 0; }
+  /* The period stands over what scrolls, as every page's strip does (25 Sep): sticky, the head rode a pull down with
+     the rows. Only the body scrolls, edge to edge so a thumb at the side scrolls it too, and it keeps the page's foot. */
+  .rpt { overflow: hidden; display: flex; flex-direction: column; }
+  .rpt-inner { flex: 1 1 auto; min-height: 0; padding-bottom: 0; }
+  .rpt-head { position: static; flex: none; }
+  .rpt-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; margin-inline: -16px; padding: 12px 16px 40px; }
   .rpt-dates { display: none; }
   .rpt-ask { padding: 8px 10px; }
   .rpt-ask-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
