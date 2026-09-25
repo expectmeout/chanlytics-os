@@ -135,8 +135,8 @@ var require_cjs = __commonJS({
 import { z } from "zod";
 import { z as z2 } from "zod";
 import { z as z3 } from "zod";
-import { z as z5 } from "zod";
 import { z as z4 } from "zod";
+import { z as z5 } from "zod";
 import { z as z7 } from "zod";
 import { z as z6 } from "zod";
 import { z as z8 } from "zod";
@@ -1970,6 +1970,80 @@ function leadNoteLeft(left, max) {
   return left >= max ? `Up to ${max} characters` : `${left} left`;
 }
 var LEAD_UNCLAIMED_NOTE = "Listing not claimed by the owner";
+var LeadsQuerySchema = z5.object({
+  list: z5.enum(LEAD_LISTS).default("all"),
+  search: z5.string().uuid().optional(),
+  class: z5.enum(LEAD_CLASSES).optional(),
+  sort: z5.enum(LEAD_SORTS).default("fit"),
+  dir: z5.enum(["asc", "desc"]).default("asc"),
+  after_key: z5.string().max(80).optional(),
+  after_id: z5.string().uuid().optional(),
+  limit: z5.coerce.number().int().min(1).max(500).default(500)
+});
+var LeadsViewSchema = LeadsQuerySchema.omit({ after_key: true, after_id: true, limit: true });
+var LeadStageInputSchema = z5.discriminatedUnion("kind", [
+  z5.object({ kind: z5.literal("stage"), stage: z5.enum(["ready", "nurture", "converted"]) }),
+  z5.object({ kind: z5.literal("not_a_fit"), why: z5.enum(LEAD_NOT_A_FIT_WHYS) }),
+  z5.object({ kind: z5.literal("said_no") }),
+  z5.object({
+    kind: z5.literal("outcome"),
+    outcome: z5.enum(LEAD_CALL_OUTCOMES),
+    note: z5.string().trim().max(280).optional()
+  }),
+  /** "Did you send it?" Yes. */
+  z5.object({ kind: z5.literal("emailed") })
+]);
+var LeadsBulkSchema = z5.discriminatedUnion("by", [
+  // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
+  z5.object({
+    by: z5.literal("ids"),
+    action: z5.enum(["contacted", "not_a_fit", "keep", "exclude"]),
+    ids: z5.array(z5.string().uuid()).min(1).max(500),
+    search_id: z5.string().uuid().optional()
+  }),
+  z5.object({ by: z5.literal("view"), action: z5.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema })
+]);
+var LeadsCheckAgainSchema = z5.object({ ids: z5.array(z5.string().uuid()).min(1).max(500) });
+var LeadDraftInputSchema = z5.object({
+  tone: z5.enum(["first", "shorter", "warmer"]).default("first"),
+  previous: z5.object({ subject: z5.string().max(200), body: z5.string().max(4e3) }).optional()
+});
+var RenameLeadSearchSchema = z5.object({ name: z5.string().trim().min(1).max(80) });
+var BusinessLineSchema = z5.object({ business_line: z5.string().trim().min(3).max(160) });
+var planChip = (max) => z5.string().trim().min(2).max(max);
+var ProposeLeadSearchSchema = z5.object({
+  looking_for: z5.enum(["local_businesses", "people", "online_sellers", "other"]),
+  country: z5.string().trim().min(2).max(40),
+  count: z5.number().int().min(1).max(LEAD_MAX_PLACES),
+  /** Plural, as the sentence says it: "personal trainers". */
+  who: planChip(60),
+  /** One of them, for the question and the judge's rubric: "personal trainer". */
+  who_one: planChip(60),
+  category_key: z5.string().regex(/^[a-z][a-z0-9_]{0,39}$/),
+  terms: z5.array(planChip(60)).min(1).max(5),
+  city: z5.string().trim().max(60).nullable().default(null),
+  region: z5.string().trim().min(2).max(40),
+  zip: z5.string().regex(/^\d{5}$/).nullable().default(null),
+  contact: z5.enum(["phone", "email"]),
+  criteria: z5.array(z5.object({ text: planChip(120), standard: z5.enum(["likely", "seen"]), required: z5.boolean() })).max(6).default([]),
+  leave_out: z5.array(z5.object({ words: planChip(40) })).max(6).default([]),
+  asked: z5.string().trim().min(1).max(400)
+});
+var LeadDraftAnswerSchema = z5.object({
+  subject: z5.string().trim().min(3).max(120),
+  body: z5.string().trim().min(20).max(2e3)
+});
+var LeadSuggestAnswerSchema = z5.object({
+  line: z5.string().trim().min(3).max(160),
+  items: z5.array(
+    z5.object({
+      words: z5.string().trim().min(3).max(80),
+      who_for: z5.string().trim().min(3).max(120),
+      category_key: z5.string().regex(/^[a-z_]{2,40}$/)
+    })
+  ).min(1).max(4)
+});
+var LEAD_UNDO_MS = 24 * 60 * 6e4;
 var LEAD_FIRST_DAY_TITLE = "Your people gather here";
 var LEAD_FIRST_DAY_SUB = "Or have Claude find businesses worth reaching";
 var LEAD_FIRST_DAY_FOOT = "Claude finds businesses, not people at home.";
@@ -2063,80 +2137,6 @@ var LEAD_WORDS = {
   callSaveNext: "Save and go to the next",
   callSavedNote: "Saving moves them to Talking. They join People when they write or call in."
 };
-var LeadsQuerySchema = z5.object({
-  list: z5.enum(LEAD_LISTS).default("all"),
-  search: z5.string().uuid().optional(),
-  class: z5.enum(LEAD_CLASSES).optional(),
-  sort: z5.enum(LEAD_SORTS).default("fit"),
-  dir: z5.enum(["asc", "desc"]).default("asc"),
-  after_key: z5.string().max(80).optional(),
-  after_id: z5.string().uuid().optional(),
-  limit: z5.coerce.number().int().min(1).max(500).default(500)
-});
-var LeadsViewSchema = LeadsQuerySchema.omit({ after_key: true, after_id: true, limit: true });
-var LeadStageInputSchema = z5.discriminatedUnion("kind", [
-  z5.object({ kind: z5.literal("stage"), stage: z5.enum(["ready", "nurture", "converted"]) }),
-  z5.object({ kind: z5.literal("not_a_fit"), why: z5.enum(LEAD_NOT_A_FIT_WHYS) }),
-  z5.object({ kind: z5.literal("said_no") }),
-  z5.object({
-    kind: z5.literal("outcome"),
-    outcome: z5.enum(LEAD_CALL_OUTCOMES),
-    note: z5.string().trim().max(280).optional()
-  }),
-  /** "Did you send it?" Yes. */
-  z5.object({ kind: z5.literal("emailed") })
-]);
-var LeadsBulkSchema = z5.discriminatedUnion("by", [
-  // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
-  z5.object({
-    by: z5.literal("ids"),
-    action: z5.enum(["contacted", "not_a_fit", "keep", "exclude"]),
-    ids: z5.array(z5.string().uuid()).min(1).max(500),
-    search_id: z5.string().uuid().optional()
-  }),
-  z5.object({ by: z5.literal("view"), action: z5.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema })
-]);
-var LeadsCheckAgainSchema = z5.object({ ids: z5.array(z5.string().uuid()).min(1).max(500) });
-var LeadDraftInputSchema = z5.object({
-  tone: z5.enum(["first", "shorter", "warmer"]).default("first"),
-  previous: z5.object({ subject: z5.string().max(200), body: z5.string().max(4e3) }).optional()
-});
-var RenameLeadSearchSchema = z5.object({ name: z5.string().trim().min(1).max(80) });
-var BusinessLineSchema = z5.object({ business_line: z5.string().trim().min(3).max(160) });
-var planChip = (max) => z5.string().trim().min(2).max(max);
-var ProposeLeadSearchSchema = z5.object({
-  looking_for: z5.enum(["local_businesses", "people", "online_sellers", "other"]),
-  country: z5.string().trim().min(2).max(40),
-  count: z5.number().int().min(1).max(LEAD_MAX_PLACES),
-  /** Plural, as the sentence says it: "personal trainers". */
-  who: planChip(60),
-  /** One of them, for the question and the judge's rubric: "personal trainer". */
-  who_one: planChip(60),
-  category_key: z5.string().regex(/^[a-z][a-z0-9_]{0,39}$/),
-  terms: z5.array(planChip(60)).min(1).max(5),
-  city: z5.string().trim().max(60).nullable().default(null),
-  region: z5.string().trim().min(2).max(40),
-  zip: z5.string().regex(/^\d{5}$/).nullable().default(null),
-  contact: z5.enum(["phone", "email"]),
-  criteria: z5.array(z5.object({ text: planChip(120), standard: z5.enum(["likely", "seen"]), required: z5.boolean() })).max(6).default([]),
-  leave_out: z5.array(z5.object({ words: planChip(40) })).max(6).default([]),
-  asked: z5.string().trim().min(1).max(400)
-});
-var LeadDraftAnswerSchema = z5.object({
-  subject: z5.string().trim().min(3).max(120),
-  body: z5.string().trim().min(20).max(2e3)
-});
-var LeadSuggestAnswerSchema = z5.object({
-  line: z5.string().trim().min(3).max(160),
-  items: z5.array(
-    z5.object({
-      words: z5.string().trim().min(3).max(80),
-      who_for: z5.string().trim().min(3).max(120),
-      category_key: z5.string().regex(/^[a-z_]{2,40}$/)
-    })
-  ).min(1).max(4)
-});
-var LEAD_UNDO_MS = 24 * 60 * 6e4;
 var SELLS_BY_QUESTION = "How customers buy";
 var SELLS_BY_WORDS = {
   booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
@@ -3448,8 +3448,8 @@ var APIFY_RUN_END_EVENTS = [
 import { z as z11 } from "zod";
 import { z as z22 } from "zod";
 import { z as z32 } from "zod";
-import { z as z52 } from "zod";
 import { z as z42 } from "zod";
+import { z as z52 } from "zod";
 import { z as z72 } from "zod";
 import { z as z62 } from "zod";
 import { z as z82 } from "zod";
@@ -5611,6 +5611,80 @@ function leadNoteLeft2(left, max) {
   return left >= max ? `Up to ${max} characters` : `${left} left`;
 }
 var LEAD_UNCLAIMED_NOTE2 = "Listing not claimed by the owner";
+var LeadsQuerySchema2 = z52.object({
+  list: z52.enum(LEAD_LISTS2).default("all"),
+  search: z52.string().uuid().optional(),
+  class: z52.enum(LEAD_CLASSES2).optional(),
+  sort: z52.enum(LEAD_SORTS2).default("fit"),
+  dir: z52.enum(["asc", "desc"]).default("asc"),
+  after_key: z52.string().max(80).optional(),
+  after_id: z52.string().uuid().optional(),
+  limit: z52.coerce.number().int().min(1).max(500).default(500)
+});
+var LeadsViewSchema2 = LeadsQuerySchema2.omit({ after_key: true, after_id: true, limit: true });
+var LeadStageInputSchema2 = z52.discriminatedUnion("kind", [
+  z52.object({ kind: z52.literal("stage"), stage: z52.enum(["ready", "nurture", "converted"]) }),
+  z52.object({ kind: z52.literal("not_a_fit"), why: z52.enum(LEAD_NOT_A_FIT_WHYS2) }),
+  z52.object({ kind: z52.literal("said_no") }),
+  z52.object({
+    kind: z52.literal("outcome"),
+    outcome: z52.enum(LEAD_CALL_OUTCOMES2),
+    note: z52.string().trim().max(280).optional()
+  }),
+  /** "Did you send it?" Yes. */
+  z52.object({ kind: z52.literal("emailed") })
+]);
+var LeadsBulkSchema2 = z52.discriminatedUnion("by", [
+  // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
+  z52.object({
+    by: z52.literal("ids"),
+    action: z52.enum(["contacted", "not_a_fit", "keep", "exclude"]),
+    ids: z52.array(z52.string().uuid()).min(1).max(500),
+    search_id: z52.string().uuid().optional()
+  }),
+  z52.object({ by: z52.literal("view"), action: z52.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema2 })
+]);
+var LeadsCheckAgainSchema2 = z52.object({ ids: z52.array(z52.string().uuid()).min(1).max(500) });
+var LeadDraftInputSchema2 = z52.object({
+  tone: z52.enum(["first", "shorter", "warmer"]).default("first"),
+  previous: z52.object({ subject: z52.string().max(200), body: z52.string().max(4e3) }).optional()
+});
+var RenameLeadSearchSchema2 = z52.object({ name: z52.string().trim().min(1).max(80) });
+var BusinessLineSchema2 = z52.object({ business_line: z52.string().trim().min(3).max(160) });
+var planChip2 = (max) => z52.string().trim().min(2).max(max);
+var ProposeLeadSearchSchema2 = z52.object({
+  looking_for: z52.enum(["local_businesses", "people", "online_sellers", "other"]),
+  country: z52.string().trim().min(2).max(40),
+  count: z52.number().int().min(1).max(LEAD_MAX_PLACES2),
+  /** Plural, as the sentence says it: "personal trainers". */
+  who: planChip2(60),
+  /** One of them, for the question and the judge's rubric: "personal trainer". */
+  who_one: planChip2(60),
+  category_key: z52.string().regex(/^[a-z][a-z0-9_]{0,39}$/),
+  terms: z52.array(planChip2(60)).min(1).max(5),
+  city: z52.string().trim().max(60).nullable().default(null),
+  region: z52.string().trim().min(2).max(40),
+  zip: z52.string().regex(/^\d{5}$/).nullable().default(null),
+  contact: z52.enum(["phone", "email"]),
+  criteria: z52.array(z52.object({ text: planChip2(120), standard: z52.enum(["likely", "seen"]), required: z52.boolean() })).max(6).default([]),
+  leave_out: z52.array(z52.object({ words: planChip2(40) })).max(6).default([]),
+  asked: z52.string().trim().min(1).max(400)
+});
+var LeadDraftAnswerSchema2 = z52.object({
+  subject: z52.string().trim().min(3).max(120),
+  body: z52.string().trim().min(20).max(2e3)
+});
+var LeadSuggestAnswerSchema2 = z52.object({
+  line: z52.string().trim().min(3).max(160),
+  items: z52.array(
+    z52.object({
+      words: z52.string().trim().min(3).max(80),
+      who_for: z52.string().trim().min(3).max(120),
+      category_key: z52.string().regex(/^[a-z_]{2,40}$/)
+    })
+  ).min(1).max(4)
+});
+var LEAD_UNDO_MS2 = 24 * 60 * 6e4;
 var LEAD_FIRST_DAY_TITLE2 = "Your people gather here";
 var LEAD_FIRST_DAY_SUB2 = "Or have Claude find businesses worth reaching";
 var LEAD_FIRST_DAY_FOOT2 = "Claude finds businesses, not people at home.";
@@ -5704,80 +5778,6 @@ var LEAD_WORDS2 = {
   callSaveNext: "Save and go to the next",
   callSavedNote: "Saving moves them to Talking. They join People when they write or call in."
 };
-var LeadsQuerySchema2 = z52.object({
-  list: z52.enum(LEAD_LISTS2).default("all"),
-  search: z52.string().uuid().optional(),
-  class: z52.enum(LEAD_CLASSES2).optional(),
-  sort: z52.enum(LEAD_SORTS2).default("fit"),
-  dir: z52.enum(["asc", "desc"]).default("asc"),
-  after_key: z52.string().max(80).optional(),
-  after_id: z52.string().uuid().optional(),
-  limit: z52.coerce.number().int().min(1).max(500).default(500)
-});
-var LeadsViewSchema2 = LeadsQuerySchema2.omit({ after_key: true, after_id: true, limit: true });
-var LeadStageInputSchema2 = z52.discriminatedUnion("kind", [
-  z52.object({ kind: z52.literal("stage"), stage: z52.enum(["ready", "nurture", "converted"]) }),
-  z52.object({ kind: z52.literal("not_a_fit"), why: z52.enum(LEAD_NOT_A_FIT_WHYS2) }),
-  z52.object({ kind: z52.literal("said_no") }),
-  z52.object({
-    kind: z52.literal("outcome"),
-    outcome: z52.enum(LEAD_CALL_OUTCOMES2),
-    note: z52.string().trim().max(280).optional()
-  }),
-  /** "Did you send it?" Yes. */
-  z52.object({ kind: z52.literal("emailed") })
-]);
-var LeadsBulkSchema2 = z52.discriminatedUnion("by", [
-  // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
-  z52.object({
-    by: z52.literal("ids"),
-    action: z52.enum(["contacted", "not_a_fit", "keep", "exclude"]),
-    ids: z52.array(z52.string().uuid()).min(1).max(500),
-    search_id: z52.string().uuid().optional()
-  }),
-  z52.object({ by: z52.literal("view"), action: z52.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema2 })
-]);
-var LeadsCheckAgainSchema2 = z52.object({ ids: z52.array(z52.string().uuid()).min(1).max(500) });
-var LeadDraftInputSchema2 = z52.object({
-  tone: z52.enum(["first", "shorter", "warmer"]).default("first"),
-  previous: z52.object({ subject: z52.string().max(200), body: z52.string().max(4e3) }).optional()
-});
-var RenameLeadSearchSchema2 = z52.object({ name: z52.string().trim().min(1).max(80) });
-var BusinessLineSchema2 = z52.object({ business_line: z52.string().trim().min(3).max(160) });
-var planChip2 = (max) => z52.string().trim().min(2).max(max);
-var ProposeLeadSearchSchema2 = z52.object({
-  looking_for: z52.enum(["local_businesses", "people", "online_sellers", "other"]),
-  country: z52.string().trim().min(2).max(40),
-  count: z52.number().int().min(1).max(LEAD_MAX_PLACES2),
-  /** Plural, as the sentence says it: "personal trainers". */
-  who: planChip2(60),
-  /** One of them, for the question and the judge's rubric: "personal trainer". */
-  who_one: planChip2(60),
-  category_key: z52.string().regex(/^[a-z][a-z0-9_]{0,39}$/),
-  terms: z52.array(planChip2(60)).min(1).max(5),
-  city: z52.string().trim().max(60).nullable().default(null),
-  region: z52.string().trim().min(2).max(40),
-  zip: z52.string().regex(/^\d{5}$/).nullable().default(null),
-  contact: z52.enum(["phone", "email"]),
-  criteria: z52.array(z52.object({ text: planChip2(120), standard: z52.enum(["likely", "seen"]), required: z52.boolean() })).max(6).default([]),
-  leave_out: z52.array(z52.object({ words: planChip2(40) })).max(6).default([]),
-  asked: z52.string().trim().min(1).max(400)
-});
-var LeadDraftAnswerSchema2 = z52.object({
-  subject: z52.string().trim().min(3).max(120),
-  body: z52.string().trim().min(20).max(2e3)
-});
-var LeadSuggestAnswerSchema2 = z52.object({
-  line: z52.string().trim().min(3).max(160),
-  items: z52.array(
-    z52.object({
-      words: z52.string().trim().min(3).max(80),
-      who_for: z52.string().trim().min(3).max(120),
-      category_key: z52.string().regex(/^[a-z_]{2,40}$/)
-    })
-  ).min(1).max(4)
-});
-var LEAD_UNDO_MS2 = 24 * 60 * 6e4;
 var SELLS_BY_QUESTION2 = "How customers buy";
 var SELLS_BY_WORDS2 = {
   booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
@@ -7626,8 +7626,8 @@ var NAME_MAX2 = BrainConfigSchema2.shape.business_name.maxLength ?? Infinity;
 import { z as z12 } from "zod";
 import { z as z23 } from "zod";
 import { z as z33 } from "zod";
-import { z as z53 } from "zod";
 import { z as z43 } from "zod";
+import { z as z53 } from "zod";
 import { z as z73 } from "zod";
 import { z as z63 } from "zod";
 import { z as z83 } from "zod";
@@ -8638,6 +8638,80 @@ function leadNoteLeft3(left, max) {
   return left >= max ? `Up to ${max} characters` : `${left} left`;
 }
 var LEAD_UNCLAIMED_NOTE3 = "Listing not claimed by the owner";
+var LeadsQuerySchema3 = z53.object({
+  list: z53.enum(LEAD_LISTS3).default("all"),
+  search: z53.string().uuid().optional(),
+  class: z53.enum(LEAD_CLASSES3).optional(),
+  sort: z53.enum(LEAD_SORTS3).default("fit"),
+  dir: z53.enum(["asc", "desc"]).default("asc"),
+  after_key: z53.string().max(80).optional(),
+  after_id: z53.string().uuid().optional(),
+  limit: z53.coerce.number().int().min(1).max(500).default(500)
+});
+var LeadsViewSchema3 = LeadsQuerySchema3.omit({ after_key: true, after_id: true, limit: true });
+var LeadStageInputSchema3 = z53.discriminatedUnion("kind", [
+  z53.object({ kind: z53.literal("stage"), stage: z53.enum(["ready", "nurture", "converted"]) }),
+  z53.object({ kind: z53.literal("not_a_fit"), why: z53.enum(LEAD_NOT_A_FIT_WHYS3) }),
+  z53.object({ kind: z53.literal("said_no") }),
+  z53.object({
+    kind: z53.literal("outcome"),
+    outcome: z53.enum(LEAD_CALL_OUTCOMES3),
+    note: z53.string().trim().max(280).optional()
+  }),
+  /** "Did you send it?" Yes. */
+  z53.object({ kind: z53.literal("emailed") })
+]);
+var LeadsBulkSchema3 = z53.discriminatedUnion("by", [
+  // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
+  z53.object({
+    by: z53.literal("ids"),
+    action: z53.enum(["contacted", "not_a_fit", "keep", "exclude"]),
+    ids: z53.array(z53.string().uuid()).min(1).max(500),
+    search_id: z53.string().uuid().optional()
+  }),
+  z53.object({ by: z53.literal("view"), action: z53.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema3 })
+]);
+var LeadsCheckAgainSchema3 = z53.object({ ids: z53.array(z53.string().uuid()).min(1).max(500) });
+var LeadDraftInputSchema3 = z53.object({
+  tone: z53.enum(["first", "shorter", "warmer"]).default("first"),
+  previous: z53.object({ subject: z53.string().max(200), body: z53.string().max(4e3) }).optional()
+});
+var RenameLeadSearchSchema3 = z53.object({ name: z53.string().trim().min(1).max(80) });
+var BusinessLineSchema3 = z53.object({ business_line: z53.string().trim().min(3).max(160) });
+var planChip3 = (max) => z53.string().trim().min(2).max(max);
+var ProposeLeadSearchSchema3 = z53.object({
+  looking_for: z53.enum(["local_businesses", "people", "online_sellers", "other"]),
+  country: z53.string().trim().min(2).max(40),
+  count: z53.number().int().min(1).max(LEAD_MAX_PLACES3),
+  /** Plural, as the sentence says it: "personal trainers". */
+  who: planChip3(60),
+  /** One of them, for the question and the judge's rubric: "personal trainer". */
+  who_one: planChip3(60),
+  category_key: z53.string().regex(/^[a-z][a-z0-9_]{0,39}$/),
+  terms: z53.array(planChip3(60)).min(1).max(5),
+  city: z53.string().trim().max(60).nullable().default(null),
+  region: z53.string().trim().min(2).max(40),
+  zip: z53.string().regex(/^\d{5}$/).nullable().default(null),
+  contact: z53.enum(["phone", "email"]),
+  criteria: z53.array(z53.object({ text: planChip3(120), standard: z53.enum(["likely", "seen"]), required: z53.boolean() })).max(6).default([]),
+  leave_out: z53.array(z53.object({ words: planChip3(40) })).max(6).default([]),
+  asked: z53.string().trim().min(1).max(400)
+});
+var LeadDraftAnswerSchema3 = z53.object({
+  subject: z53.string().trim().min(3).max(120),
+  body: z53.string().trim().min(20).max(2e3)
+});
+var LeadSuggestAnswerSchema3 = z53.object({
+  line: z53.string().trim().min(3).max(160),
+  items: z53.array(
+    z53.object({
+      words: z53.string().trim().min(3).max(80),
+      who_for: z53.string().trim().min(3).max(120),
+      category_key: z53.string().regex(/^[a-z_]{2,40}$/)
+    })
+  ).min(1).max(4)
+});
+var LEAD_UNDO_MS3 = 24 * 60 * 6e4;
 var LEAD_FIRST_DAY_TITLE3 = "Your people gather here";
 var LEAD_FIRST_DAY_SUB3 = "Or have Claude find businesses worth reaching";
 var LEAD_FIRST_DAY_FOOT3 = "Claude finds businesses, not people at home.";
@@ -8731,80 +8805,6 @@ var LEAD_WORDS3 = {
   callSaveNext: "Save and go to the next",
   callSavedNote: "Saving moves them to Talking. They join People when they write or call in."
 };
-var LeadsQuerySchema3 = z53.object({
-  list: z53.enum(LEAD_LISTS3).default("all"),
-  search: z53.string().uuid().optional(),
-  class: z53.enum(LEAD_CLASSES3).optional(),
-  sort: z53.enum(LEAD_SORTS3).default("fit"),
-  dir: z53.enum(["asc", "desc"]).default("asc"),
-  after_key: z53.string().max(80).optional(),
-  after_id: z53.string().uuid().optional(),
-  limit: z53.coerce.number().int().min(1).max(500).default(500)
-});
-var LeadsViewSchema3 = LeadsQuerySchema3.omit({ after_key: true, after_id: true, limit: true });
-var LeadStageInputSchema3 = z53.discriminatedUnion("kind", [
-  z53.object({ kind: z53.literal("stage"), stage: z53.enum(["ready", "nurture", "converted"]) }),
-  z53.object({ kind: z53.literal("not_a_fit"), why: z53.enum(LEAD_NOT_A_FIT_WHYS3) }),
-  z53.object({ kind: z53.literal("said_no") }),
-  z53.object({
-    kind: z53.literal("outcome"),
-    outcome: z53.enum(LEAD_CALL_OUTCOMES3),
-    note: z53.string().trim().max(280).optional()
-  }),
-  /** "Did you send it?" Yes. */
-  z53.object({ kind: z53.literal("emailed") })
-]);
-var LeadsBulkSchema3 = z53.discriminatedUnion("by", [
-  // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
-  z53.object({
-    by: z53.literal("ids"),
-    action: z53.enum(["contacted", "not_a_fit", "keep", "exclude"]),
-    ids: z53.array(z53.string().uuid()).min(1).max(500),
-    search_id: z53.string().uuid().optional()
-  }),
-  z53.object({ by: z53.literal("view"), action: z53.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema3 })
-]);
-var LeadsCheckAgainSchema3 = z53.object({ ids: z53.array(z53.string().uuid()).min(1).max(500) });
-var LeadDraftInputSchema3 = z53.object({
-  tone: z53.enum(["first", "shorter", "warmer"]).default("first"),
-  previous: z53.object({ subject: z53.string().max(200), body: z53.string().max(4e3) }).optional()
-});
-var RenameLeadSearchSchema3 = z53.object({ name: z53.string().trim().min(1).max(80) });
-var BusinessLineSchema3 = z53.object({ business_line: z53.string().trim().min(3).max(160) });
-var planChip3 = (max) => z53.string().trim().min(2).max(max);
-var ProposeLeadSearchSchema3 = z53.object({
-  looking_for: z53.enum(["local_businesses", "people", "online_sellers", "other"]),
-  country: z53.string().trim().min(2).max(40),
-  count: z53.number().int().min(1).max(LEAD_MAX_PLACES3),
-  /** Plural, as the sentence says it: "personal trainers". */
-  who: planChip3(60),
-  /** One of them, for the question and the judge's rubric: "personal trainer". */
-  who_one: planChip3(60),
-  category_key: z53.string().regex(/^[a-z][a-z0-9_]{0,39}$/),
-  terms: z53.array(planChip3(60)).min(1).max(5),
-  city: z53.string().trim().max(60).nullable().default(null),
-  region: z53.string().trim().min(2).max(40),
-  zip: z53.string().regex(/^\d{5}$/).nullable().default(null),
-  contact: z53.enum(["phone", "email"]),
-  criteria: z53.array(z53.object({ text: planChip3(120), standard: z53.enum(["likely", "seen"]), required: z53.boolean() })).max(6).default([]),
-  leave_out: z53.array(z53.object({ words: planChip3(40) })).max(6).default([]),
-  asked: z53.string().trim().min(1).max(400)
-});
-var LeadDraftAnswerSchema3 = z53.object({
-  subject: z53.string().trim().min(3).max(120),
-  body: z53.string().trim().min(20).max(2e3)
-});
-var LeadSuggestAnswerSchema3 = z53.object({
-  line: z53.string().trim().min(3).max(160),
-  items: z53.array(
-    z53.object({
-      words: z53.string().trim().min(3).max(80),
-      who_for: z53.string().trim().min(3).max(120),
-      category_key: z53.string().regex(/^[a-z_]{2,40}$/)
-    })
-  ).min(1).max(4)
-});
-var LEAD_UNDO_MS3 = 24 * 60 * 6e4;
 var SELLS_BY_QUESTION3 = "How customers buy";
 var SELLS_BY_WORDS3 = {
   booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
