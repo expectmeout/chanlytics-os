@@ -16752,10 +16752,12 @@ function todayAwayGrouped(rows, inQueue = [], max = 5) {
   );
   const callsQueued = new Set(inQueue.flatMap((q) => typeof q === "string" || !q.callId ? [] : [q.callId]));
   const runsQueued = inQueue.flatMap((q) => typeof q === "string" || !q.runLabel ? [] : [readyRunTitle(q.runLabel)]);
+  const searchesQueued = new Set(inQueue.flatMap((q) => typeof q === "string" || !q.searchTo ? [] : [q.searchTo]));
   const idOf = (r2) => r2.id ?? r2.key ?? "";
   const door = (r2) => r2.to ?? (r2.actions && r2.actions[0] ? r2.actions[0].to : void 0);
   const aboutQueued = (r2) => {
     if (r2.kind === "playbook" && runsQueued.some((title) => r2.title.startsWith(title))) return true;
+    if (r2.kind === "leads_question" && searchesQueued.has(door(r2) ?? "")) return true;
     if (r2.about && r2.about.type === "conversation" && convs.has(r2.about.id)) return true;
     if (r2.about && r2.about.type === "call" && callsQueued.has(r2.about.id)) return true;
     const cv = conversationOfNeedsKey(idOf(r2));
