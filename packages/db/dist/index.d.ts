@@ -5858,8 +5858,11 @@ declare function sendingDomainCounts(db: Db$a, tenantId: string, host: string, s
 }>;
 /** A domain removed only as it was read: another writer since (its owner checking it, say) wins. */
 declare function deleteSendingDomainAsRead(db: Db$a, row: Pick<SendingDomainRow, "id" | "tenant_id" | "updated_at">): Promise<boolean>;
-/** Whether this domain was held since `sinceIso` (its sending_domain.held events): its owner is told once a day. */
-declare function domainHeldSince(db: Db$a, tenantId: string, domainId: string, sinceIso: string): Promise<boolean>;
+/**
+ * Whether this domain was held since `sinceIso` for one of `whys` (its sending_domain.held events): what the once-a-day
+ * notice asks, of the holds it covers only, so a hold that told nobody never quiets one that must.
+ */
+declare function domainHeldSince(db: Db$a, tenantId: string, domainId: string, sinceIso: string, whys: readonly string[]): Promise<boolean>;
 declare function deleteSendingDomain(db: Db$a, tenantId: string, id: string): Promise<boolean>;
 
 /**

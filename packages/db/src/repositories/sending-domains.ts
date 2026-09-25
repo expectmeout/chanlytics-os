@@ -198,18 +198,27 @@ export async function deleteSendingDomainAsRead(
   return (r ?? []).length > 0;
 }
 
-/** Whether this domain was held since `sinceIso` (its sending_domain.held events): its owner is told once a day. */
-export async function domainHeldSince(db: Db, tenantId: string, domainId: string, sinceIso: string): Promise<boolean> {
+/**
+ * Whether this domain was held since `sinceIso` for one of `whys` (its sending_domain.held events): what the once-a-day
+ * notice asks, of the holds it covers only, so a hold that told nobody never quiets one that must.
+ */
+export async function domainHeldSince(
+  db: Db,
+  tenantId: string,
+  domainId: string,
+  sinceIso: string,
+  whys: readonly string[],
+): Promise<boolean> {
   const r = await db
     .from("events")
-    .select("id")
+    .select("data")
     .eq("tenant_id", tenantId)
     .eq("kind", "sending_domain.held")
     .eq("subject_id", domainId)
     .gte("created_at", sinceIso)
-    .limit(1);
+    .limit(20);
   if (r.error) throw new Error(`sending_domains: read a domain's holds: ${r.error.message}`);
-  return (r.data ?? []).length > 0;
+  return (r.data ?? []).some((e) => whys.includes(String((e.data as { why?: unknown } | null)?.why ?? "")));
 }
 
 export async function deleteSendingDomain(db: Db, tenantId: string, id: string): Promise<boolean> {

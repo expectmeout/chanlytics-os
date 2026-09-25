@@ -36,6 +36,7 @@ import {
 import {
   domainHoldWords,
   domainPatchOf,
+  DNS_HOLDS,
   judgeDomain,
   sendingDomainDtoOf,
   resumeDomain,
@@ -140,7 +141,7 @@ export async function addSendingDomain(
       return say(409, "host_taken", "This workspace already sends from that domain.");
     // Another workspace's: nobody here can settle whose it is, so the platform is told and the owner is told so.
     await p.page?.(
-      "sending_domain_conflict",
+      `sending_domain_conflict:${host}`,
       `sending domain: ${host} is held by another workspace`,
       `A workspace tried to add ${host}, which workspace ${held.holder?.tenant_id ?? "?"} holds. Only a person can settle whose it is.`,
     );
@@ -150,16 +151,16 @@ export async function addSendingDomain(
   const made = await createMailDomain(p.cfg, host);
   let domain = made.ok ? made.value : null;
   if (!made.ok) {
-    // Only a create whose answer was lost may have made the domain anyway: no answer, the provider's own error, or an
-    // answer that is not a domain. A refusal for a reason made nothing, and nothing is looked for by name.
-    const lost = made.status === 0 || made.status >= 500 || (made.status >= 200 && made.status < 300);
-    const adopted = lost ? await adoptByName(p, host) : null;
+    // Whatever the failure, the account may hold a domain by this name: made by this create before its answer was
+    // lost, or by an earlier one whose reservation is gone. It is looked for, and adopted only while unverified: one
+    // the account holds verified is somebody's records and keys (adoptByName), never taken.
+    const adopted = await adoptByName(p, host);
     if (adopted === "verified_elsewhere") {
       await deleteSendingDomain(p.db, i.tenantId, reservation.id).catch((e) =>
         p.log.error("sending_domain_reservation_left", { domain: reservation.id, error: String(e) }),
       );
       await p.page?.(
-        "sending_domain_conflict",
+        `sending_domain_conflict:${host}`,
         `sending domain: ${host} is already verified at the cold account`,
         `A workspace tried to add ${host}, which the cold account already holds verified with no workspace's row. It was not adopted: its keys are somebody else's. A person must remove it at the account, or find its owner.`,
       );
@@ -207,12 +208,25 @@ async function takeOver(p: DomainPorts, tenantId: string, host: string, holder: 
   // Records the provider already reads, even partly, are the holder's own work at their registrar: never taken.
   if (holder.provider_status === "verified" || holder.provider_status === "partially_verified") return false;
   if (p.now() - Date.parse(holder.created_at) < UNVERIFIED_HOLD_MS) return false;
+  // The sweep never reads a domain still in records, so the row's word may be old: the provider is asked now, and a
+  // domain whose records it reads, even partly, is the holder's own work at their registrar.
+  if (holder.provider_domain_id) {
+    const now = await getMailDomain(p.cfg, holder.provider_domain_id);
+    if (!now.ok) return false;
+    if (now.value && (now.value.status === "verified" || now.value.status === "partially_verified")) return false;
+  }
+  // The row first, as it was read (a holder who pressed Check in the meantime keeps it), then the provider's domain:
+  // a provider that will not remove it now leaves a domain no row names, said, rather than a row naming none.
+  if (!(await deleteSendingDomainAsRead(p.db, holder))) return false;
   if (holder.provider_domain_id) {
     const gone = await removeMailDomain(p.cfg, holder.provider_domain_id);
-    if (!gone.ok) return false;
+    if (!gone.ok)
+      p.log.error("sending_domain_left_at_provider", {
+        host,
+        provider_domain_id: holder.provider_domain_id,
+        status: gone.status,
+      });
   }
-  // As it was read: a holder who pressed Check in the meantime keeps it.
-  if (!(await deleteSendingDomainAsRead(p.db, holder))) return false;
   const data = { host, why: "unverified" } as Json;
   await emitEvent(p.db, holder.tenant_id, "sending_domain.removed", "setup", "sending_domain", holder.id, data);
   p.log.info("sending_domain_taken_over", { host, from: holder.tenant_id, to: tenantId });
@@ -342,14 +356,16 @@ async function sayDomainChange(
 ): Promise<void> {
   if (judged.change && judged.change !== "resumed") {
     const data = { host: row.host, ...(judged.held_why ? { why: judged.held_why } : {}) } as Json;
-    // Asked before this hold is written, so it is the ones before it that count.
+    // A DNS hold tells its owner once a day, however often the records flap; a reputation hold always tells (only
+    // they can resume it), and a provider hold tells the platform instead. Asked before this hold is written.
     const toldToday =
-      judged.change === "held" && judged.held_why !== "provider"
+      judged.change === "held" && judged.held_why && DNS_HOLDS.includes(judged.held_why)
         ? await domainHeldSince(
             p.db,
             row.tenant_id,
             row.id,
             new Date((p.now ?? Date.now)() - HOLD_NOTICE_COOLDOWN_MS).toISOString(),
+            DNS_HOLDS,
           ).catch(() => false)
         : false;
     await emitEvent(
@@ -393,13 +409,23 @@ export async function holdForComplaint(
   const counts = await sendingDomainCounts(p.db, row.tenant_id, row.host, countedSince(row));
   const judged = judgeDomain(stateOf(row), { provider: null, dmarc: null, counts }, nowIso);
   if (judged.change !== "held") return "unchanged";
-  const written = await applyDomainCheck(p.db, row, {
+  const patch = {
     ...domainPatchOf(judged),
     sent_recent: counts.sent,
     bounced_recent: counts.bounced,
     complaints: counts.complained,
-  });
-  if (!written) return "unchanged";
+  };
+  // Written only onto the row as read. Another writer since (the sweep, an owner's Check) wins once; the row is read
+  // again and judged again, so the complaint is not left to the next tick.
+  let written = await applyDomainCheck(p.db, row, patch);
+
+  if (!written) {
+    const again = await sendingDomainByHost(p.db, tenantId, host);
+    if (!again || again.state !== "verified") return "unchanged";
+
+    written = await applyDomainCheck(p.db, again, patch);
+    if (!written) return "unchanged";
+  }
   await sayDomainChange(p, row, written, judged);
   return "held";
 }

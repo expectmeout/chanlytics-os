@@ -238,8 +238,12 @@ export function judgeDomain(row: DomainRowState, facts: DomainFacts, nowIso: str
     return { ...same, state: CHECKING.has(facts.provider) ? "verifying" : "records" };
   }
   if (row.state === "verified") {
+    // The provider no longer knowing it, or a word it never documented: the account's fact, held on the second read
+    // in a row, as one bad answer (a blip at the account) is not a fact about anything.
     if (!PROVIDER_STATUSES.has(facts.provider))
-      return { ...same, state: "held", held_why: "provider", held_at: nowIso, change: "held" };
+      return row.provider_status && !PROVIDER_STATUSES.has(row.provider_status)
+        ? { ...same, state: "held", held_why: "provider", held_at: nowIso, change: "held" }
+        : same;
     // The provider's own recheck state: one read of it is not a failure, two in a row are.
     if (facts.provider === "temporary_failure" && row.provider_status !== "temporary_failure") return same;
     if (!verified && facts.provider !== "pending")
@@ -255,7 +259,8 @@ export function judgeDomain(row: DomainRowState, facts: DomainFacts, nowIso: str
       state: "verified",
       held_why: null,
       held_at: null,
-      clean_since: nowIso,
+      // Records that broke restart the ramp; the account not answering for a while was never the domain's doing.
+      clean_since: row.held_why === "provider" ? row.clean_since : nowIso,
       dmarc: "found",
       change: "released",
     };
@@ -404,11 +409,13 @@ export function sendingDomainWords(d: SendingDomainDto, nowMs: number): SendingD
   const who = `${d.from_name} · ${d.address}`;
   if (d.state === "records") {
     const line =
-      d.provider_status === "verified" && d.dmarc === "missing"
-        ? "SPF and DKIM pass. Add the DMARC record below, then Check."
-        : d.provider_status === "failed" || d.provider_status === "partially_failed"
-          ? "The records weren't found. Check each one below at your registrar, then Check again."
-          : "Add the records below at your registrar, then Check.";
+      d.provider_status === "not_found"
+        ? "The mail provider no longer has this domain. Remove it and add it again."
+        : d.provider_status === "verified" && d.dmarc === "missing"
+          ? "SPF and DKIM pass. Add the DMARC record below, then Check."
+          : d.provider_status === "failed" || d.provider_status === "partially_failed"
+            ? "The records weren't found. Check each one below at your registrar, then Check again."
+            : "Add the records below at your registrar, then Check.";
     return { pill: "Records to add", tone: "warn", line, cap: "Not sending yet", next: null };
   }
   if (d.state === "verifying")

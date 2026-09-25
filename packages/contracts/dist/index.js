@@ -20856,7 +20856,7 @@ function judgeDomain(row2, facts, nowIso) {
   }
   if (row2.state === "verified") {
     if (!PROVIDER_STATUSES.has(facts.provider))
-      return { ...same2, state: "held", held_why: "provider", held_at: nowIso, change: "held" };
+      return row2.provider_status && !PROVIDER_STATUSES.has(row2.provider_status) ? { ...same2, state: "held", held_why: "provider", held_at: nowIso, change: "held" } : same2;
     if (facts.provider === "temporary_failure" && row2.provider_status !== "temporary_failure") return same2;
     if (!verified && facts.provider !== "pending")
       return { ...same2, state: "held", held_why: "verification", held_at: nowIso, change: "held" };
@@ -20870,7 +20870,8 @@ function judgeDomain(row2, facts, nowIso) {
       state: "verified",
       held_why: null,
       held_at: null,
-      clean_since: nowIso,
+      // Records that broke restart the ramp; the account not answering for a while was never the domain's doing.
+      clean_since: row2.held_why === "provider" ? row2.clean_since : nowIso,
       dmarc: "found",
       change: "released"
     };
@@ -20957,7 +20958,7 @@ function domainHoldWords(why) {
 function sendingDomainWords(d, nowMs) {
   const who = `${d.from_name} \xB7 ${d.address}`;
   if (d.state === "records") {
-    const line = d.provider_status === "verified" && d.dmarc === "missing" ? "SPF and DKIM pass. Add the DMARC record below, then Check." : d.provider_status === "failed" || d.provider_status === "partially_failed" ? "The records weren't found. Check each one below at your registrar, then Check again." : "Add the records below at your registrar, then Check.";
+    const line = d.provider_status === "not_found" ? "The mail provider no longer has this domain. Remove it and add it again." : d.provider_status === "verified" && d.dmarc === "missing" ? "SPF and DKIM pass. Add the DMARC record below, then Check." : d.provider_status === "failed" || d.provider_status === "partially_failed" ? "The records weren't found. Check each one below at your registrar, then Check again." : "Add the records below at your registrar, then Check.";
     return { pill: "Records to add", tone: "warn", line, cap: "Not sending yet", next: null };
   }
   if (d.state === "verifying")

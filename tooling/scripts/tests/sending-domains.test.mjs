@@ -121,13 +121,26 @@ test("a sending domain that stops verifying or loses DMARC is held; one that rea
       { ...sending(), state: "held", held_why: "verification", held_at: NOW_ISO, change: "held" },
       p,
     );
-  // The provider no longer knowing the domain, or a word it never documented, is the account's fact: held as provider.
-  for (const p of ["not_found", "a word never heard"])
+  // The provider no longer knowing the domain, or a word it never documented, is the account's fact: held as
+  // provider on the second read in a row, as one bad answer is not a fact about anything.
+  for (const p of ["not_found", "a word never heard"]) {
     assert.deepEqual(
       judgeDomain(sending(), { provider: p, dmarc: "found" }, NOW_ISO),
-      { ...sending(), state: "held", held_why: "provider", held_at: NOW_ISO, change: "held" },
-      p,
+      { ...sending(), change: null },
+      `${p}: once`,
     );
+    assert.deepEqual(
+      judgeDomain(sending({ provider_status: "unknown" }), { provider: p, dmarc: "found" }, NOW_ISO),
+      {
+        ...sending({ provider_status: "unknown" }),
+        state: "held",
+        held_why: "provider",
+        held_at: NOW_ISO,
+        change: "held",
+      },
+      `${p}: twice`,
+    );
+  }
   // The provider's own recheck state: one read is stored and waited on, two in a row hold (Part 2.5).
   assert.deepEqual(judgeDomain(sending(), { provider: "temporary_failure", dmarc: "found" }, NOW_ISO), {
     ...sending(),
@@ -181,7 +194,8 @@ test("we could not look is not a fact about the domain: an unreadable provider o
 });
 
 test("a DNS hold lifts itself when both read good, and the ramp starts again; a reputation hold waits for its owner", () => {
-  for (const why of ["verification", "dmarc", "provider"]) {
+  // A provider hold lifts the same way and keeps its ramp (its own test below).
+  for (const why of ["verification", "dmarc"]) {
     const held = sending({
       state: "held",
       held_why: why,
@@ -466,4 +480,22 @@ test("free mail is one list: the finder and the domains read the same", () => {
   assert.equal(isFreeMail("getharbor.com"), false);
   assert.equal(isFreeMail(null), false);
   assert.match(whyNotASendingHost("zoho.com", PLATFORM) ?? "", /free mail/);
+});
+
+test("a provider hold that lifts keeps the ramp: the account's blip is not the domain's fault (Part 2.5 review)", () => {
+  const clean = daysAgo(20);
+  const held = sending({
+    state: "held",
+    held_why: "provider",
+    held_at: daysAgo(1),
+    clean_since: clean,
+    provider_status: "not_found",
+  });
+  const back = judgeDomain(held, { provider: "verified", dmarc: "found", counts: null }, NOW_ISO);
+  assert.deepEqual([back.change, back.clean_since], ["released", clean]);
+});
+
+test("a domain being set up that the provider no longer has says to add it again", () => {
+  const w = sendingDomainWords(dto({ state: "records", provider_status: "not_found" }), NOW);
+  assert.match(w.line, /no longer has this domain\. Remove it and add it again\./);
 });

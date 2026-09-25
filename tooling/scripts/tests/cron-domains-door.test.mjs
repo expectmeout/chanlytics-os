@@ -356,7 +356,8 @@ test("a complaint holds a domain even on a tick the provider could not be asked"
 });
 
 test("a domain the provider no longer knows is held as provider: its owner is not emailed, the platform is (Part 2.5 D10)", async () => {
-  const w = world([domain("d1"), domain("d2")]);
+  // The first read that found nothing was stored (provider_status not_found); this is the second.
+  const w = world([domain("d1", { provider_status: "not_found" }), domain("d2")]);
   dns["d1.example"] = "found";
   dns["d2.example"] = "found";
   const net = provider({ "pd-d1": "404", "pd-d2": "verified" });
@@ -371,11 +372,13 @@ test("a domain the provider no longer knows is held as provider: its owner is no
       ["sending_domain_provider_lost"],
     );
     assert.equal(body.held, 1);
-    // It lifts itself when the provider knows it again.
+    // It lifts itself when the provider knows it again, and keeps its ramp.
+    const clean = w.row("d1").clean_since;
     const net2 = provider({ "pd-d1": "verified", "pd-d2": "verified" });
     try {
       await answer(await knock(POST, "domains"));
       assert.equal(w.row("d1").state, "verified");
+      assert.equal(w.row("d1").clean_since, clean, "an account blip does not restart the ramp");
     } finally {
       net2.restore();
     }
@@ -447,6 +450,51 @@ test("a domain held again within a day tells its owner once (Part 2.5)", async (
     assert.equal(w.row("d1").state, "held");
     assert.equal(w.tables.events.filter((e) => e.kind === "sending_domain.held").length, 2, "the hold is said");
     assert.equal(w.tables.notifications.length, 0, "but its owner was told three hours ago");
+  } finally {
+    net.restore();
+  }
+});
+test("the once-a-day notice is for DNS holds only: a provider blip earlier never hides a hold the owner must act on (Part 2.5 review)", async () => {
+  const w = world([domain("d1")]);
+  w.tables.events.push({
+    id: "e1",
+    tenant_id: A,
+    kind: "sending_domain.held",
+    category: "setup",
+    subject_type: "sending_domain",
+    subject_id: "d1",
+    data: { host: "d1.example", why: "provider" },
+    created_at: ago(3 * 3600_000),
+  });
+  dns["d1.example"] = "found";
+  const net = provider({ "pd-d1": "failed" });
+  try {
+    await answer(await knock(POST, "domains"));
+    assert.deepEqual([w.row("d1").state, w.row("d1").held_why], ["held", "verification"]);
+    assert.equal(w.tables.notifications.length, 1, "the provider's hold earlier told nobody, so this one tells");
+  } finally {
+    net.restore();
+  }
+});
+
+test("a complaint hold always tells its owner: only they can resume it (Part 2.5 review)", async () => {
+  const w = world([domain("d1")], { "d1.example": { sent: 9, bounced: 0, complained: 1 } });
+  w.tables.events.push({
+    id: "e2",
+    tenant_id: A,
+    kind: "sending_domain.held",
+    category: "setup",
+    subject_type: "sending_domain",
+    subject_id: "d1",
+    data: { host: "d1.example", why: "dmarc" },
+    created_at: ago(3 * 3600_000),
+  });
+  dns["d1.example"] = "found";
+  const net = provider({});
+  try {
+    await answer(await knock(POST, "domains"));
+    assert.deepEqual([w.row("d1").state, w.row("d1").held_why], ["held", "complaint"]);
+    assert.equal(w.tables.notifications.length, 1);
   } finally {
     net.restore();
   }

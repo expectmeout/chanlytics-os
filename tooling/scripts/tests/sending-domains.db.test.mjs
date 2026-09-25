@@ -67,7 +67,8 @@ test("every state the judge writes is one the table takes, walked on a real row"
     { provider: "temporary_failure", dmarc: "found" }, // once: stored, waited on
     { provider: "temporary_failure", dmarc: "found" }, // twice: held, verification
     { provider: "verified", dmarc: "found" }, // released
-    { provider: "not_found", dmarc: "found" }, // the account no longer has it: held, provider (00178)
+    { provider: "not_found", dmarc: "found" }, // the account answers nothing once: stored, waited on
+    { provider: "not_found", dmarc: "found" }, // twice: held, provider (00178)
     { provider: "verified", dmarc: "found" }, // it has it again: released
     { provider: "verified", dmarc: "missing" }, // missing once: stored
     { provider: "verified", dmarc: "missing" }, // missing twice: held, dmarc
@@ -94,6 +95,7 @@ test("every state the judge writes is one the table takes, walked on a real row"
     "verified",
     "held:verification (held)",
     "verified (released)",
+    "verified",
     "held:provider (held)",
     "verified (released)",
     "verified",

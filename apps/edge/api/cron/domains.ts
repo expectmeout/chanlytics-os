@@ -27,6 +27,12 @@ const MAX_DUE = 500;
 const AT_ONCE = 5;
 /** No batch starts after this: one of five 15-second reads must still end inside the function's 60 seconds. */
 const YIELD_AT_MS = 40_000;
+/**
+ * The least a batch takes: five reads a second at most, so the sweep leaves most of the account's rate for the sends
+ * that share it (Resend limits requests per team, not per key).
+ */
+const BATCH_AT_LEAST_MS = 1_000;
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 export async function POST(request: Request): Promise<Response> {
   const L = logger({ sweep: "domains" });
@@ -61,6 +67,7 @@ export async function POST(request: Request): Promise<Response> {
     page: (key, subject, body) => pageOperator({ db }, key, subject, body),
   };
   // How stale the oldest due read was when this tick began: what a person reading the sweep's answer judges it by.
+  // Null when the oldest due domain was never read at all.
   const oldestReadS = rows[0]?.checked_at ? Math.round((Date.now() - Date.parse(rows[0].checked_at)) / 1000) : null;
   const started = Date.now();
   const counts = { checked: 0, verified: 0, held: 0, released: 0, unreadable: 0, refused: 0 };
@@ -69,6 +76,7 @@ export async function POST(request: Request): Promise<Response> {
     if (Date.now() - started > YIELD_AT_MS) break;
     const batch = rows.slice(i, i + AT_ONCE);
     counts.checked += batch.length;
+    const batchStarted = Date.now();
     await Promise.all(
       batch.map(async (row) => {
         try {
@@ -83,6 +91,8 @@ export async function POST(request: Request): Promise<Response> {
         }
       }),
     );
+    const spent = Date.now() - batchStarted;
+    if (i + AT_ONCE < rows.length && spent < BATCH_AT_LEAST_MS) await sleep(BATCH_AT_LEAST_MS - spent);
   }
   L.info("domains_swept", { ...counts, due: rows.length, oldest_read_s: oldestReadS });
   // The key refused for every domain read is the sweep learning nothing -- ours, not the domains' -- and 503 is how
@@ -90,5 +100,5 @@ export async function POST(request: Request): Promise<Response> {
   // with one or two domains a single blip must not page the platform (registrations.ts judges the same way).
   if (counts.checked > 0 && counts.refused === counts.checked)
     return json(503, { ok: false, error: "no_domain_readable", ...counts });
-  return json(200, { ok: true, ...counts, due: rows.length, oldest_read_s: oldestReadS ?? 0 });
+  return json(200, { ok: true, ...counts, due: rows.length, oldest_read_s: oldestReadS });
 }

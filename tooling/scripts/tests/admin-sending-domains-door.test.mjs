@@ -258,7 +258,8 @@ test("a host another workspace reserved and never verified is taken over after t
     assert.equal(s, 200, JSON.stringify(b));
     assert.deepEqual(
       net.calls.map((c) => c.method + " " + c.url.replace("https://api.resend.com", "")),
-      ["DELETE /domains/pd-old", "POST /domains"],
+      ["GET /domains/pd-old", "DELETE /domains/pd-old", "POST /domains"],
+      "the provider is asked first, then theirs goes, then ours is made",
     );
     assert.deepEqual(
       w.tables.sending_domains.map((r) => [r.tenant_id, r.provider_domain_id]),
@@ -608,30 +609,44 @@ test("Resume lifts a reputation hold: sending again at 30 a day, its counts clea
   assert.deepEqual([s, b.error], [404, "not_found"]);
 });
 
-test("a create the provider refused for a reason adopts nothing: only a lost answer is looked for by name (Part 2.5)", async () => {
+test("a create refused because the account already has the host adopts it while it is unverified, so a lost create never strands a host (Part 2.5 review)", async () => {
   const w = world();
-  const listed = [];
   const net = provider((url, init) => {
     if (init.method === "POST" && url === "https://api.resend.com/domains")
       return reply(422, { name: "validation_error", message: "This domain is already registered." });
-    if (url.startsWith("https://api.resend.com/domains?limit=100")) {
-      listed.push(url);
+    if (url.startsWith("https://api.resend.com/domains?limit=100"))
       return reply(200, {
         object: "list",
         has_more: false,
-        data: [{ id: "pd-other", name: "getharbor.com", status: "not_started" }],
+        data: [{ id: "pd-left", name: "getharbor.com", status: "not_started" }],
       });
-    }
+    if (url === "https://api.resend.com/domains/pd-left")
+      return reply(200, PROVIDER_DOMAIN("pd-left", "getharbor.com"));
+    return reply(404, {});
+  });
+  try {
+    const [s, b] = await answer(await knock(ADD));
+    assert.equal(s, 200, JSON.stringify(b));
+    assert.equal(w.tables.sending_domains[0].provider_domain_id, "pd-left");
+  } finally {
+    net.restore();
+  }
+  // Refused for a reason, and nothing by that name at the account: the provider's own words.
+  const w2 = world();
+  const net2 = provider((url, init) => {
+    if (init.method === "POST" && url === "https://api.resend.com/domains")
+      return reply(422, { name: "validation_error", message: "The domain name is not valid." });
+    if (url.startsWith("https://api.resend.com/domains?limit=100"))
+      return reply(200, { object: "list", has_more: false, data: [] });
     return reply(404, {});
   });
   try {
     const [s, b] = await answer(await knock(ADD));
     assert.deepEqual([s, b.error], [502, "provider"]);
-    assert.match(b.message, /already registered/);
-    assert.deepEqual(listed, [], "the account's list is never asked");
-    assert.equal(w.tables.sending_domains.length, 0, "the reservation goes");
+    assert.match(b.message, /not valid/);
+    assert.equal(w2.tables.sending_domains.length, 0, "the reservation goes");
   } finally {
-    net.restore();
+    net2.restore();
   }
 });
 
@@ -659,7 +674,7 @@ test("a lost create never adopts a domain the account already verified: it is so
     assert.equal(w.tables.sending_domains.length, 0);
     assert.deepEqual(
       w.tables.operator_pages.map((p) => p.key),
-      ["sending_domain_conflict"],
+      ["sending_domain_conflict:getharbor.com"],
     );
   } finally {
     net.restore();
@@ -699,6 +714,34 @@ test("a remove whose provider domain cannot be found for sure keeps the row, and
     const [s, b] = await answer(await knock({ op: "remove", domain_id: D1 }));
     assert.deepEqual([s, b.error], [502, "provider"]);
     assert.equal(w.tables.sending_domains.length, 1, "kept, so nothing is stranded at the account");
+  } finally {
+    net.restore();
+  }
+});
+
+test("a takeover asks the provider first: records that verify there are the holder's, whatever the row last said (Part 2.5 review)", async () => {
+  const old = new Date(Date.now() - 5 * 86_400_000).toISOString();
+  const w = world([
+    row(D2, {
+      tenant_id: B,
+      host: "getharbor.com",
+      state: "records",
+      provider_status: "not_started",
+      provider_domain_id: "pd-theirs",
+      created_at: old,
+      updated_at: old,
+    }),
+  ]);
+  const net = provider((url) =>
+    url === "https://api.resend.com/domains/pd-theirs"
+      ? reply(200, PROVIDER_DOMAIN("pd-theirs", "getharbor.com", "partially_verified"))
+      : reply(404, {}),
+  );
+  try {
+    const [s, b] = await answer(await knock(ADD));
+    assert.deepEqual([s, b.error], [409, "host_taken"]);
+    assert.equal(w.tables.sending_domains.length, 1, "theirs stays");
+    assert.equal(net.calls.filter((c) => c.method === "DELETE").length, 0, "their provider domain is untouched");
   } finally {
     net.restore();
   }

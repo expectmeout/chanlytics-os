@@ -2814,10 +2814,10 @@ async function deleteSendingDomainAsRead(db, row) {
   );
   return (r2 ?? []).length > 0;
 }
-async function domainHeldSince(db, tenantId, domainId, sinceIso) {
-  const r2 = await db.from("events").select("id").eq("tenant_id", tenantId).eq("kind", "sending_domain.held").eq("subject_id", domainId).gte("created_at", sinceIso).limit(1);
+async function domainHeldSince(db, tenantId, domainId, sinceIso, whys) {
+  const r2 = await db.from("events").select("data").eq("tenant_id", tenantId).eq("kind", "sending_domain.held").eq("subject_id", domainId).gte("created_at", sinceIso).limit(20);
   if (r2.error) throw new Error(`sending_domains: read a domain's holds: ${r2.error.message}`);
-  return (r2.data ?? []).length > 0;
+  return (r2.data ?? []).some((e) => whys.includes(String(e.data?.why ?? "")));
 }
 async function deleteSendingDomain(db, tenantId, id) {
   const r2 = must(

@@ -12,8 +12,10 @@
 set local lock_timeout = '3s';
 
 alter table public.sending_domains add column if not exists counted_since timestamptz;
+-- Where 00176 counted from: the ramp's clock, which a Resume moved. A domain resumed before this keeps the window its
+-- owner resumed it into, so what held it is not counted twice.
 update public.sending_domains
-   set counted_since = coalesce(verified_at, clean_since)
+   set counted_since = coalesce(clean_since, verified_at)
  where counted_since is null and (verified_at is not null or clean_since is not null);
 comment on column public.sending_domains.counted_since is
   'Where the reputation count starts (bounces, complaints): set when the domain is first verified and when its owner resumes it, never by a DNS release. clean_since is the ramp''s clock (contracts domainDailyCap).';
