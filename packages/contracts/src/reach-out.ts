@@ -15,16 +15,17 @@ const escapeHtml = (s: string): string =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 
 /**
- * The foot, as the law asks (CAN-SPAM): why they are hearing from you, that the email is marketing, who you are and
- * where, and the two ways to say no. The sender adds it; a template never stores it (the spec's §4.3). It throws on a blank part rather than
- * let an email go whose foot says less than the law needs; the sheet (Part 4) refuses to start without an address.
- */
-/**
  * What the email is, said plainly: CAN-SPAM asks a commercial email to identify itself as one. True of every step of a
  * reach-out, the first email and its nudge alike.
  */
 export const MARKETING_LINE = "This is a marketing email.";
 
+/**
+ * The foot, as the law asks (CAN-SPAM): why they are hearing from you, that the email is marketing, who you are and
+ * where, and the two ways to say no. The sender adds it; a template never stores it (the spec's §4.3). It throws on a
+ * blank part rather than let an email go whose foot says less than the law needs; the sheet (Part 4) refuses to start
+ * without an address.
+ */
 export function campaignFooter(f: { why: string; business: string; address: string; unsubscribeUrl: string }): string {
   const why = f.why.trim();
   const business = f.business.trim();
@@ -42,7 +43,7 @@ export function campaignFooter(f: { why: string; business: string; address: stri
 }
 
 /**
- * The foot in HTML, as the canvas draws it: why, who and where, and one line to say no with the link reading
+ * The foot in HTML, as the canvas draws it: why, that it is marketing, who and where, and one line to say no with the link reading
  * "Unsubscribe". The plain text keeps the address (campaignFooter), which a text-only reader needs to follow it.
  * Everything is escaped; the sender freezes both into the request.
  */
