@@ -81,6 +81,9 @@ const EVERY_CLOCK = {
   // The receptionist's note suggestions (00159): a thirty-minute clock that asks the edge only when a call's
   // analysis is in or a conversation has gone quiet, and records that it looked otherwise.
   notes: "notes-sweep",
+  // A workspace's own sending domains (00175): a ten-minute clock that asks the edge only when a domain is being
+  // checked or can send, and records that it looked otherwise.
+  domains: "domains-sweep",
 };
 const RUN_JUDGED = [
   "partitions",

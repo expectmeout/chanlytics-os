@@ -3697,6 +3697,77 @@ type Database = {
                     }
                 ];
             };
+            sending_domains: {
+                Row: {
+                    checked_at: string | null;
+                    clean_since: string | null;
+                    created_at: string;
+                    created_by: string | null;
+                    dmarc: string | null;
+                    from_local: string;
+                    from_name: string;
+                    held_at: string | null;
+                    held_why: string | null;
+                    host: string;
+                    id: string;
+                    provider_domain_id: string | null;
+                    provider_status: string | null;
+                    records: Json;
+                    state: string;
+                    tenant_id: string;
+                    updated_at: string;
+                    verified_at: string | null;
+                };
+                Insert: {
+                    checked_at?: string | null;
+                    clean_since?: string | null;
+                    created_at?: string;
+                    created_by?: string | null;
+                    dmarc?: string | null;
+                    from_local: string;
+                    from_name: string;
+                    held_at?: string | null;
+                    held_why?: string | null;
+                    host: string;
+                    id?: string;
+                    provider_domain_id?: string | null;
+                    provider_status?: string | null;
+                    records?: Json;
+                    state?: string;
+                    tenant_id: string;
+                    updated_at?: string;
+                    verified_at?: string | null;
+                };
+                Update: {
+                    checked_at?: string | null;
+                    clean_since?: string | null;
+                    created_at?: string;
+                    created_by?: string | null;
+                    dmarc?: string | null;
+                    from_local?: string;
+                    from_name?: string;
+                    held_at?: string | null;
+                    held_why?: string | null;
+                    host?: string;
+                    id?: string;
+                    provider_domain_id?: string | null;
+                    provider_status?: string | null;
+                    records?: Json;
+                    state?: string;
+                    tenant_id?: string;
+                    updated_at?: string;
+                    verified_at?: string | null;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "sending_domains_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
             sweep_status: {
                 Row: {
                     alerted_at: string | null;
@@ -5331,6 +5402,10 @@ type Database = {
                 Args: never;
                 Returns: number;
             };
+            trigger_domains_sweep: {
+                Args: never;
+                Returns: number;
+            };
             trigger_google_sweep: {
                 Args: never;
                 Returns: number;
@@ -5396,7 +5471,7 @@ declare function createServiceClient(cfg: ServiceClientConfig): SupabaseClient<D
  * dedupe; everything else is plain row work.
  */
 
-type Db$a = SupabaseClient<Database>;
+type Db$b = SupabaseClient<Database>;
 interface IngestInboundParams {
     tenantId: string;
     channel: "whatsapp" | "sms" | "email";
@@ -5436,11 +5511,11 @@ interface IngestResult {
     consent?: string | null;
     dnc?: boolean | null;
 }
-declare function ingestInbound(db: Db$a, p: IngestInboundParams): Promise<IngestResult>;
+declare function ingestInbound(db: Db$b, p: IngestInboundParams): Promise<IngestResult>;
 /** Stamp a message handled (replied / deliberately skipped) — retry no-ops after this.
  *  One server-side jsonb merge (no read-modify-write, no lost-update race). */
-declare function markProcessed(db: Db$a, tenantId: string, messageId: string): Promise<void>;
-declare function recordOutbound(db: Db$a, p: {
+declare function markProcessed(db: Db$b, tenantId: string, messageId: string): Promise<void>;
+declare function recordOutbound(db: Db$b, p: {
     tenantId: string;
     conversationId: string;
     contactId: string | null;
@@ -5491,7 +5566,7 @@ interface OutboundTarget extends PurposeBearing {
  * `create: false` means "only an existing contact will do" — the guard for a
  * number somebody supplied rather than one that called us.
  */
-declare function resolveOutboundTarget(db: Db$a, p: {
+declare function resolveOutboundTarget(db: Db$b, p: {
     tenantId: string;
     phoneE164: string;
     create?: boolean;
@@ -5505,18 +5580,18 @@ declare function resolveOutboundTarget(db: Db$a, p: {
  * no cap at all — a caller who phoned repeatedly, or an agent that called its
  * own tool twice, produced one billable template per attempt.
  */
-declare function countSentToday(db: Db$a, p: {
+declare function countSentToday(db: Db$b, p: {
     tenantId: string;
     conversationId: string;
     source: string;
 }): Promise<number>;
 /** Delivery receipts: update by wamid; monotone rank enforced by trigger. */
-declare function recordStatusByExternalId(db: Db$a, tenantId: string, externalId: string, status: "sent" | "delivered" | "read" | "failed", errorDetail?: Json): Promise<void>;
+declare function recordStatusByExternalId(db: Db$b, tenantId: string, externalId: string, status: "sent" | "delivered" | "read" | "failed", errorDetail?: Json): Promise<void>;
 /** Owner replied from the WhatsApp Business app: persist the echo + pause the bot.
  *  Upserts the contact/conversation — an owner-INITIATED thread (customer never
  *  messaged yet) must still record the message and the pause, or the
  *  receptionist answers over the person who just replied. */
-declare function recordEchoAndPause(db: Db$a, p: {
+declare function recordEchoAndPause(db: Db$b, p: {
     tenantId: string;
     customerPhoneDigits: string;
     body: string | null;
@@ -5540,12 +5615,12 @@ declare function recordEchoAndPause(db: Db$a, p: {
  * excludes matches zero rows and reports success, so the row count is the only
  * way to tell a write that happened from one that was silently skipped.
  */
-declare function pauseConversation(db: Db$a, tenantId: string, conversationId: string, pausedUntilIso: string, 
+declare function pauseConversation(db: Db$b, tenantId: string, conversationId: string, pausedUntilIso: string, 
 /** The holding message this same handoff queued, which the pause must not withdraw. */
 opts?: {
     keepMessageId?: string | null;
 }): Promise<boolean>;
-declare function emitEvent(db: Db$a, tenantId: string, kind: EventKind, category: string, subjectType: string | null, subjectId: string | null, data?: Json): Promise<void>;
+declare function emitEvent(db: Db$b, tenantId: string, kind: EventKind, category: string, subjectType: string | null, subjectId: string | null, data?: Json): Promise<void>;
 
 /**
  * Email's rows: a workspace's mailbox, taking a received email in, the email a
@@ -5568,11 +5643,11 @@ declare function emitEvent(db: Db$a, tenantId: string, kind: EventKind, category
  *           empty one is filled: what an owner typed is never overwritten.
  */
 
-type Db$9 = SupabaseClient<Database>;
+type Db$a = SupabaseClient<Database>;
 type MailboxRow = Database["public"]["Tables"]["mailboxes"]["Row"];
-declare function mailboxById(db: Db$9, id: string): Promise<MailboxRow | null>;
+declare function mailboxById(db: Db$a, id: string): Promise<MailboxRow | null>;
 /** The mailbox a published address or a reply route names. A rotated-out token still routes until it is revoked (00126). */
-declare function mailboxFor(db: Db$9, to: {
+declare function mailboxFor(db: Db$a, to: {
     kind: "mailbox";
     localPart: string;
 } | {
@@ -5589,12 +5664,12 @@ interface IngestEmailParams {
     channelTs: string | null;
     meta: Json;
 }
-declare function ingestInboundEmail(db: Db$9, p: IngestEmailParams): Promise<IngestResult>;
+declare function ingestInboundEmail(db: Db$a, p: IngestEmailParams): Promise<IngestResult>;
 /** Did this workspace send a message with this Message-ID? How an email that is our own, coming back, is known. */
-declare function sentEmailWithMessageId(db: Db$9, tenantId: string, rfcMessageId: string): Promise<boolean>;
-declare function stampMailboxReceived(db: Db$9, mailboxId: string, at: string): Promise<void>;
+declare function sentEmailWithMessageId(db: Db$a, tenantId: string, rfcMessageId: string): Promise<boolean>;
+declare function stampMailboxReceived(db: Db$a, mailboxId: string, at: string): Promise<void>;
 /** A workspace's mailbox; null when it has none, which is a workspace with no email line. */
-declare function mailboxOfTenant(db: Db$9, tenantId: string): Promise<MailboxRow | null>;
+declare function mailboxOfTenant(db: Db$a, tenantId: string): Promise<MailboxRow | null>;
 /** The email a reply answers: what the thread stores of the person's latest one. */
 interface InboundEmailFacts {
     messageId: string;
@@ -5608,14 +5683,14 @@ interface InboundEmailFacts {
  * conversation and nowhere else: a reply cannot be threaded under another
  * workspace's or another person's message, because no such row can be returned.
  */
-declare function lastInboundEmail(db: Db$9, tenantId: string, conversationId: string): Promise<InboundEmailFacts | null>;
+declare function lastInboundEmail(db: Db$a, tenantId: string, conversationId: string): Promise<InboundEmailFacts | null>;
 /**
  * A sent email learns the provider's id and the Message-ID it left with
  * (00128, one statement, so it cannot overwrite a status stamp written beside
  * it), and says where the row stands and which thread it is on. Null when this
  * workspace has no such outbound email: a receipt for a row that is not there.
  */
-declare function stampEmailSent(db: Db$9, p: {
+declare function stampEmailSent(db: Db$a, p: {
     tenantId: string;
     messageId: string;
     providerId: string;
@@ -5629,7 +5704,7 @@ declare function stampEmailSent(db: Db$9, p: {
  * (backwards, or off a terminal state) is a receipt arriving out of order, and
  * is let go the way recordStatusByExternalId lets it go; anything else throws.
  */
-declare function recordEmailStatus(db: Db$9, p: {
+declare function recordEmailStatus(db: Db$a, p: {
     tenantId: string;
     messageId: string;
     status: "delivered" | "failed";
@@ -5641,13 +5716,54 @@ declare function recordEmailStatus(db: Db$9, p: {
  * went to: a corrected address is a different address (00126). The person's id
  * when their row changed; null when it was already stopped, or no longer theirs.
  */
-declare function suppressEmailOf(db: Db$9, p: {
+declare function suppressEmailOf(db: Db$a, p: {
     tenantId: string;
     messageId: string;
     addresses: string[];
     reason: "hard_bounce" | "complaint" | "provider";
     at: string;
 }): Promise<string | null>;
+
+/**
+ * sending_domains (00175): a workspace's own domains for cold email, as the edge reads and writes them. The one place
+ * the table is typed. Members read it through RLS (the dashboard's server/sending-domains.ts); every write here is
+ * the service role's, on the edge, because each follows a call to the cold mail account.
+ */
+
+type Db$9 = SupabaseClient<Database>;
+type SendingDomainRow = Database["public"]["Tables"]["sending_domains"]["Row"];
+type Patch = Database["public"]["Tables"]["sending_domains"]["Update"];
+declare function sendingDomainsOf(db: Db$9, tenantId: string): Promise<SendingDomainRow[]>;
+declare function sendingDomainOf(db: Db$9, tenantId: string, id: string): Promise<SendingDomainRow | null>;
+/** What the clock reads: every domain being checked or able to send, the longest unread first. */
+declare function dueSendingDomains(db: Db$9, limit: number): Promise<SendingDomainRow[]>;
+declare function countSendingDomains(db: Db$9, tenantId: string): Promise<number>;
+/** The host, held for this workspace before the provider is asked: unique across the platform (00175). */
+declare function reserveSendingDomain(db: Db$9, i: {
+    tenantId: string;
+    host: string;
+    fromLocal: string;
+    fromName: string;
+    by: string | null;
+}): Promise<{
+    ok: true;
+    row: SendingDomainRow;
+} | {
+    ok: false;
+    reason: "taken";
+}>;
+/** The provider's id, records and word, on the row reserved for them. */
+declare function recordProviderDomain(db: Db$9, id: string, p: {
+    providerDomainId: string;
+    records: Json;
+    providerStatus: string;
+}): Promise<SendingDomainRow>;
+/**
+ * A check's result, written only onto the row as it was read: another writer since (an owner's Check racing the
+ * clock, a removal) wins, and this answers null rather than overwrite what it did not see.
+ */
+declare function applyDomainCheck(db: Db$9, row: SendingDomainRow, patch: Patch): Promise<SendingDomainRow | null>;
+declare function deleteSendingDomain(db: Db$9, tenantId: string, id: string): Promise<boolean>;
 
 /** Webhook → tenant routing over tenant_channels(kind, external_id). */
 
@@ -6336,4 +6452,4 @@ interface Page<T> {
  */
 declare function readAllRows<T>(what: string, page: (from: number, to: number) => PromiseLike<Page<T>>, cap?: number, onCapped?: (what: string, cap: number) => void): Promise<T[]>;
 
-export { CALL_CONTROL_S, type ChannelLookup, type ControlHolder, type ControlOutcome, DEFAULT_ROW_CAP, type Database, HISTORY_COLUMNS, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type ListRow, MAX_ROWS, type MailboxRow, type NormalizedCallInput, type OutboundTarget, PEOPLE_PAGE, type Page, type PgThreadState, type PolicyRecord, type PutTenantConfigResult, type RoutedChannel, type SavedListRow, type ServiceClientConfig, type SubscribeOptions, type TemplateRow, type TenantConfigRow, type ThreadTurn, type Touch, type TouchIndex, type WriteError, type YesRow, addToList, archiveList, assembleHistory, claimCallNotification, claimControl, countSentToday, createList, createServiceClient, deleteList, describeLead, dropFromList, emitEvent, everyoneIn, followUpTouchesSince, getTenantConfig, ingestCall, ingestInbound, ingestInboundEmail, lastInboundEmail, linkCallMessage, listMemberIds, listPolicies, listRow, mailboxById, mailboxFor, mailboxOfTenant, markProcessed, notesForReceptionist, pauseConversation, peoplePage, personReplyMode, playbooksOnList, putTenantConfig, readAllRows, readDealForPhone, readLeadContext, readThreadState, recordCallNote, recordEchoAndPause, recordEmailStatus, recordOutbound, recordStatusByExternalId, releaseControl, renameList, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, savedListFor, savedListsFor, sentEmailWithMessageId, setCallRecording, setListRule, setPersonReplyMode, setPolicyMode, stampEmailSent, stampMailboxReceived, subscribeMessagesInserts, suppressEmailOf, templatesFor, touchIndex, touchesSince, watchedTables, yesesSince };
+export { CALL_CONTROL_S, type ChannelLookup, type ControlHolder, type ControlOutcome, DEFAULT_ROW_CAP, type Database, HISTORY_COLUMNS, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type ListRow, MAX_ROWS, type MailboxRow, type NormalizedCallInput, type OutboundTarget, PEOPLE_PAGE, type Page, type PgThreadState, type PolicyRecord, type PutTenantConfigResult, type RoutedChannel, type SavedListRow, type SendingDomainRow, type ServiceClientConfig, type SubscribeOptions, type TemplateRow, type TenantConfigRow, type ThreadTurn, type Touch, type TouchIndex, type WriteError, type YesRow, addToList, applyDomainCheck, archiveList, assembleHistory, claimCallNotification, claimControl, countSendingDomains, countSentToday, createList, createServiceClient, deleteList, deleteSendingDomain, describeLead, dropFromList, dueSendingDomains, emitEvent, everyoneIn, followUpTouchesSince, getTenantConfig, ingestCall, ingestInbound, ingestInboundEmail, lastInboundEmail, linkCallMessage, listMemberIds, listPolicies, listRow, mailboxById, mailboxFor, mailboxOfTenant, markProcessed, notesForReceptionist, pauseConversation, peoplePage, personReplyMode, playbooksOnList, putTenantConfig, readAllRows, readDealForPhone, readLeadContext, readThreadState, recordCallNote, recordEchoAndPause, recordEmailStatus, recordOutbound, recordProviderDomain, recordStatusByExternalId, releaseControl, renameList, reserveSendingDomain, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, savedListFor, savedListsFor, sendingDomainOf, sendingDomainsOf, sentEmailWithMessageId, setCallRecording, setListRule, setPersonReplyMode, setPolicyMode, stampEmailSent, stampMailboxReceived, subscribeMessagesInserts, suppressEmailOf, templatesFor, touchIndex, touchesSince, watchedTables, yesesSince };

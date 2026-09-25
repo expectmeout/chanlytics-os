@@ -44,6 +44,7 @@ test("sweep_health() names every watched sweep and every schedule exists", { ski
       "calendar",
       "calls",
       "deadman",
+      "domains",
       "google",
       "health",
       "jobs",
@@ -108,6 +109,7 @@ test("an unexpected sweep name cannot be added behind sweep_health()'s back", { 
     "calendar",
     "calls",
     "deadman",
+    "domains",
     "google",
     "health",
     "jobs",
@@ -156,6 +158,8 @@ test("every schedule the watchdog depends on is present and active", { skip }, a
     "purge-ask",
     "purge-notifications",
     "purge-rate-hits",
+    // 00175: a workspace's own sending domains, read every ten minutes.
+    "domains-sweep",
   ]) {
     assert.ok(byName.has(n), `no cron job named ${n}`);
     assert.equal(byName.get(n).active, true, `${n} is disabled`);

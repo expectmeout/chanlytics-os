@@ -47,6 +47,12 @@
     },
     "api/cron/leads.ts": {
       "maxDuration": 60
+    },
+    "api/cron/domains.ts": {
+      "maxDuration": 60
+    },
+    "api/admin/sending-domains.ts": {
+      "maxDuration": 30
     }
   }
 }

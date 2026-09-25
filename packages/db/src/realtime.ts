@@ -35,6 +35,7 @@ const WATCHED: Array<{ table: string; event: "INSERT" | "*" }> = [
   { table: "capability_activations", event: "*" }, // the owner's act, in another tab: Setup repaints (00108)
   { table: "business_records", event: "*" }, // the record the carriers read, saved on Connections: Setup repaints (00075)
   { table: "google_connections", event: "*" }, // the profile connected, synced or failing by the hourly sweep: Connections repaints (00070)
+  { table: "sending_domains", event: "*" }, // a domain added, checked, verified or held by the ten-minute clock: Connections repaints (00175)
   // a round's page committed, a check landed, a class changed: the Leads scope repaints (00140)
   { table: "leads", event: "*" },
   { table: "lead_searches", event: "*" },

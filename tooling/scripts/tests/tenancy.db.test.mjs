@@ -203,6 +203,12 @@ before(async () => {
     reply_token: "t".repeat(24),
     from_name: "Tenancy",
   });
+  await seed("sending_domains", {
+    tenant_id: A,
+    host: `tenancy-${Date.now().toString(36)}.example`,
+    from_local: "sam",
+    from_name: "Tenancy",
+  });
   await seed("tenant_channels", { tenant_id: A, kind: "whatsapp", external_id: "tenancy-wa-1" });
   await seed("google_connections", { tenant_id: A, account_name: "accounts/tenancy" }, null);
   await seed("google_listings", { tenant_id: A, place_id: "ChIJtenancy1", name: "Tenancy Salon" }, null);
@@ -427,6 +433,17 @@ const TENANT_TABLES = {
       tenant_id: A,
       local_part: `stranger-${Date.now().toString(36)}`,
       reply_token: "s".repeat(24),
+      from_name: "Stranger",
+    }),
+  ],
+  // A workspace's own sending domains (00175): members read, and only the edge's service role writes, after the
+  // mail provider has the domain.
+  sending_domains: [
+    "member",
+    () => ({
+      tenant_id: A,
+      host: `stranger-${Date.now().toString(36)}.example`,
+      from_local: "sam",
       from_name: "Stranger",
     }),
   ],

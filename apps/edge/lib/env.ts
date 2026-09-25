@@ -91,6 +91,14 @@ export const env = {
   get RESEND_API_KEY() {
     return read(process.env.RESEND_API_KEY);
   },
+  /**
+   * The cold mail account's key (Reach out): a workspace's own sending domains are created, checked and sent from on
+   * it, so one business's cold mail cannot touch the reminders and replies every workspace sends on RESEND_API_KEY.
+   * Absent, own domains are off here: the Connections block is not drawn and the domains clock answers 503.
+   */
+  get RESEND_COLD_API_KEY() {
+    return read(process.env.RESEND_COLD_API_KEY);
+  },
   get LEAD_TO() {
     return read(process.env.LEAD_TO);
   },
