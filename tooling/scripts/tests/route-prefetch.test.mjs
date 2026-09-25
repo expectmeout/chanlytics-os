@@ -38,10 +38,10 @@ const headRuns = ({ pathname, hash, window: given = {}, fetch: fetchWith = null 
 };
 
 test("on a person's page the head starts who is looking and the person, as the client spells them, same-origin", () => {
-  const { calls, win } = headRuns({ pathname: "/w/melanys-beauty-salon", hash: `#/clients/${ID}` });
+  const { calls, win } = headRuns({ pathname: "/w/harbor", hash: `#/clients/${ID}` });
   assert.deepEqual(
     calls.map(([u]) => u),
-    [`/api/v1/workspaces?workspace=melanys-beauty-salon`, `/api/v1/contacts/${ID}?workspace=melanys-beauty-salon`],
+    [`/api/v1/workspaces?workspace=harbor`, `/api/v1/contacts/${ID}?workspace=harbor`],
   );
   assert.ok(
     calls.every(([, init]) => init.credentials === "same-origin"),
