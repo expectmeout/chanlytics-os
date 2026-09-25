@@ -1,12 +1,14 @@
 /**
  * The liquid three, on WebGL2 (Ruben, 25 Sep: "liquid style"). Two pictures, mixed by how liquid the moment is: the
  * layered mark (each tile over its shadow, back to front, as draw.ts draws it) and one field of the three joined by a
- * smooth minimum, so tiles that pass close fuse like mercury. At rest the mix is all layered: the exact mark.
+ * smooth minimum, so tiles that pass close fuse like mercury. The shadows fall off as draw.ts's do (a Gaussian; here
+ * its logistic twin), so the two drawings agree where a face passes from one to the other.
  *
  * One WebGL2 context serves every face on the page. It draws offscreen and each face copies the picture into its own
- * 2D canvas, so a face's canvas is never a WebGL one: where WebGL2 is missing, fails or loses its context (a GPU
- * reset, a phone that puts the tab away, a browser with no GPU), `draw` says so and the face draws the layered mark in
- * 2D instead of a broken canvas, and however many faces there are, the page holds one context.
+ * 2D canvas, so a face's canvas is never a WebGL one: where WebGL2 is missing, its program fails or its context is
+ * lost (a GPU reset, a phone that puts the tab away), `draw` says so and the face draws the layered mark in 2D instead
+ * of a broken canvas. The program links without holding up the page where the browser allows
+ * (KHR_parallel_shader_compile); until it is linked, `draw` says so too.
  */
 import { CENTRE_Y, type CharacterFrame } from "./character";
 import { labRgb, type Palette } from "./colour";
@@ -24,7 +26,7 @@ float box(vec2 q, float h, float r){ vec2 d = abs(q) - vec2(h - r); return lengt
 float tile(int i, vec2 P, float grow){ vec4 a = uA[i]; if (a.z < 0.5) return 1e5; return box(rot(P - a.xy, a.w), a.z * 0.5 + grow, max(0.0, uR[i] + grow)); }
 float smin(float a, float b, float k){ if (k <= 0.0) return min(a, b); float h = max(k - abs(a - b), 0.0) / k; return min(a, b) - h * h * k * 0.25; }
 vec4 over(vec4 dst, vec4 src){ return src + dst * (1.0 - src.a); }
-float soft(float d, float sigma){ return 1.0 - smoothstep(-1.2 * sigma, 1.2 * sigma, d); }
+float soft(float d, float sigma){ return 1.0 / (1.0 + exp(1.702 * d / sigma)); }
 void main(){
   vec2 P = vec2(gl_FragCoord.x - uRes.x * 0.5, (uRes.y - gl_FragCoord.y) - uRes.y * 0.5);
   vec4 acc = vec4(0.0);
@@ -50,37 +52,44 @@ void main(){
   o = mix(acc, uni, smoothstep(0.0, 0.35, uLiq));
 }`;
 
-interface Built {
+type Uniforms = Record<"res" | "k" | "liq" | "sh" | "a" | "s" | "c" | "r", WebGLUniformLocation | null>;
+interface Linking {
   prog: WebGLProgram;
   buf: WebGLBuffer;
-  loc: number;
-  u: Record<"res" | "k" | "liq" | "sh" | "a" | "s" | "c" | "r", WebGLUniformLocation | null>;
 }
-function build(gl: WebGL2RenderingContext): Built | null {
+interface Program extends Linking {
+  loc: number;
+  u: Uniforms;
+}
+/** Compiles and links the program, and fills the one triangle, without waiting for the link. */
+function start(gl: WebGL2RenderingContext): Linking | null {
   const shader = (type: number, src: string) => {
     const s = gl.createShader(type);
-    if (!s) return null;
-    gl.shaderSource(s, src);
-    gl.compileShader(s);
-    return gl.getShaderParameter(s, gl.COMPILE_STATUS) ? s : null;
+    if (s) {
+      gl.shaderSource(s, src);
+      gl.compileShader(s);
+    }
+    return s;
   };
   const vs = shader(gl.VERTEX_SHADER, VERT);
   const fs = shader(gl.FRAGMENT_SHADER, FRAG);
   const prog = gl.createProgram();
-  if (!vs || !fs || !prog) return null;
+  const buf = gl.createBuffer();
+  if (!vs || !fs || !prog || !buf) return null;
   gl.attachShader(prog, vs);
   gl.attachShader(prog, fs);
   gl.linkProgram(prog);
-  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) return null;
-  const buf = gl.createBuffer();
-  if (!buf) return null;
   gl.bindBuffer(gl.ARRAY_BUFFER, buf);
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
-  const at = (n: string) => gl.getUniformLocation(prog, n);
+  return { prog, buf };
+}
+/** The linked program's locations, or null where the link failed. */
+function finish(gl: WebGL2RenderingContext, l: Linking): Program | null {
+  if (!gl.getProgramParameter(l.prog, gl.LINK_STATUS)) return null;
+  const at = (n: string) => gl.getUniformLocation(l.prog, n);
   return {
-    prog,
-    buf,
-    loc: gl.getAttribLocation(prog, "p"),
+    ...l,
+    loc: gl.getAttribLocation(l.prog, "p"),
     u: {
       res: at("uRes"),
       k: at("uK"),
@@ -121,12 +130,35 @@ const MAX_LOSSES = 3;
 interface Shared {
   canvas: GlCanvas;
   gl: WebGL2RenderingContext;
-  built: Built | null;
+  /** the program while it links */
+  linking: Linking | null;
+  /** the program once it has linked */
+  program: Program | null;
+  parallel: { COMPLETION_STATUS_KHR: number } | null;
   users: number;
   losses: number;
+  /** the page is letting this context go, so its loss is meant */
+  closing: boolean;
 }
 let shared: Shared | null = null;
 let givenUp = false;
+
+function letGo(s: Shared): void {
+  s.closing = true;
+  if (shared === s) shared = null;
+  try {
+    s.gl.getExtension("WEBGL_lose_context")?.loseContext();
+  } catch {
+    /* already gone */
+  }
+}
+/** No liquid drawing on this page from here on. */
+function giveUp(s: Shared): void {
+  givenUp = true;
+  s.program = null;
+  s.linking = null;
+  letGo(s);
+}
 
 function open(make: () => GlCanvas | null): Shared | null {
   if (givenUp) return null;
@@ -135,23 +167,45 @@ function open(make: () => GlCanvas | null): Shared | null {
     const canvas = make();
     const gl = canvas?.getContext("webgl2", { premultipliedAlpha: true, antialias: false, alpha: true }) ?? null;
     if (!canvas || !gl) return null;
-    const built = build(gl);
-    if (!built) return null;
-    const s: Shared = { canvas, gl, built, users: 0, losses: 0 };
+    const s: Shared = {
+      canvas,
+      gl,
+      linking: start(gl),
+      program: null,
+      parallel: gl.getExtension("KHR_parallel_shader_compile"),
+      users: 0,
+      losses: 0,
+      closing: false,
+    };
+    if (!s.linking) {
+      giveUp(s);
+      return null;
+    }
     canvas.addEventListener?.("webglcontextlost", (e) => {
+      if (s.closing) return;
       e.preventDefault();
-      s.built = null;
+      s.program = null;
+      s.linking = null;
       s.losses += 1;
-      if (s.losses >= MAX_LOSSES) givenUp = true;
+      if (s.losses >= MAX_LOSSES) giveUp(s);
     });
     canvas.addEventListener?.("webglcontextrestored", () => {
-      if (!givenUp) s.built = build(gl);
+      if (!givenUp && !s.closing) s.linking = start(gl);
     });
     shared = s;
     return s;
   } catch {
     return null;
   }
+}
+/** The program once it has linked: null while it links, and for good once the link has failed. */
+function programOf(s: Shared): Program | null {
+  if (s.program || !s.linking) return s.program;
+  if (s.parallel && !s.gl.getProgramParameter(s.linking.prog, s.parallel.COMPLETION_STATUS_KHR)) return null;
+  s.program = finish(s.gl, s.linking);
+  s.linking = null;
+  if (!s.program) giveUp(s);
+  return s.program;
 }
 
 /**
@@ -170,11 +224,12 @@ export function liquid(make: () => GlCanvas | null): Liquid | null {
   return {
     draw(into, frame, pal, side, w, h) {
       const { gl, canvas } = s;
-      if (givenUp || !s.built || gl.isContextLost() || w < 1 || h < 1) return false;
+      if (givenUp || s.closing || gl.isContextLost() || w < 1 || h < 1) return false;
+      const b = programOf(s);
+      if (!b) return false;
       // the offscreen canvas only ever grows; each face draws into its bottom-left corner
       if (canvas.width < w) canvas.width = w;
       if (canvas.height < h) canvas.height = h;
-      const b = s.built;
       gl.viewport(0, 0, w, h);
       gl.enable(gl.SCISSOR_TEST);
       gl.scissor(0, 0, w, h);
@@ -210,14 +265,8 @@ export function liquid(make: () => GlCanvas | null): Liquid | null {
       if (released) return;
       released = true;
       s.users -= 1;
-      if (s.users > 0 || shared !== s) return;
       // the last face gone: the page gives its context back
-      shared = null;
-      try {
-        s.gl.getExtension("WEBGL_lose_context")?.loseContext();
-      } catch {
-        /* already gone */
-      }
+      if (s.users <= 0 && shared === s) letGo(s);
     },
   };
 }

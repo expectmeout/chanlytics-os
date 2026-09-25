@@ -3,8 +3,9 @@
  * each over its shadow; a state changes what is drawn; hidden stops the loop; destroy lets go of everything; reduced
  * motion draws once per change; a word heard pushes the level up and lets it fall; an icon (a face in a button) goes
  * quiet alone and draws nothing it has already drawn, wakes when the pointer comes near its button, and gathers under
- * a press; any face looks at a pointer near it, never one across the page; the page's liquid drawing is copied into
- * the face's own canvas and its share given back, and where it cannot draw, the 2D drawing stands in.
+ * a press; any face looks at a pointer near it, never one across the page; at rest the mark is drawn in 2D, while the
+ * tiles may fuse the page's liquid drawing is copied into the face's own canvas (its share given back at the end),
+ * and where it cannot draw, the 2D drawing stands in.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -279,7 +280,7 @@ test("a press on an icon's button gathers the stack; the release lets it go", ()
   m.destroy();
 });
 
-test("the face copies in the page's liquid drawing; where it cannot draw (a lost context), the face draws in 2D", () => {
+test("at rest the mark is drawn in 2D; while the tiles may fuse the page's liquid drawing is copied in, and where it cannot draw the 2D drawing stands in", () => {
   let copied = 0;
   let released = 0;
   let can = true;
@@ -297,11 +298,16 @@ test("the face copies in the page's liquid drawing; where it cannot draw (a lost
   F.env.liquid = () => drawing;
   const m = mountCharacter(C.canvas, { env: F.env });
   F.run(0.5);
-  assert.ok(copied > 20, `copied into the face's own canvas: ${copied}`);
-  assert.equal(C.draws(), 0, "no 2D drawing of its own while the liquid one draws");
+  assert.equal(copied, 0, "at rest nothing fuses: the GPU is not asked");
+  const atRest = C.draws();
+  assert.ok(atRest > 20, `the mark in 2D: ${atRest}`);
+  m.set("listening");
+  F.run(0.5);
+  assert.ok(copied > 20, `listening, copied into the face's own canvas: ${copied}`);
+  assert.equal(C.draws(), atRest, "and no 2D drawing of its own meanwhile");
   can = false;
   F.run(0.5);
-  assert.ok(C.draws() > 20, `the layered mark in 2D instead: ${C.draws()}`);
+  assert.ok(C.draws() > atRest + 20, `the layered mark in 2D instead: ${C.draws() - atRest}`);
   assert.equal(C.fills().length, 3);
   m.destroy();
   assert.equal(released, 1, "its share of the context given back");

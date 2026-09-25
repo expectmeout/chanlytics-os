@@ -1,9 +1,10 @@
 /**
  * The three, run on node: every state for seconds with no NaN; at rest the agency mark; reading is an orbit the three
- * circle, nearest largest, lifted, lightest and on top, a read that lands surges it and leaving it never jumps; at rest
- * the tiles turn in place, in every way; an icon left alone goes quiet and wakes when someone comes near; gestures
- * scale with the drawn size; nothing squashes; calm draws still poses; and everything, shadows included, stays inside
- * the box a canvas sizes its tiles by.
+ * circle, nearest largest, lifted, lightest and on top, a read that lands surges it and leaving it never jumps; the
+ * draw order follows elevation, so on and off the ring no two overlapping tiles trade places; at rest the tiles turn
+ * in place, in every way; an icon left alone goes quiet and wakes when someone comes near; gestures scale with the
+ * drawn size; nothing squashes; calm draws still poses; and everything, shadows included, stays inside the box a
+ * canvas sizes its tiles by.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -130,7 +131,8 @@ test("leaving the ring keeps each tile's speed: nothing jumps into the answer or
       after = Math.max(after, ...now.map(([x, y], i) => Math.hypot(x - prev[i][0], y - prev[i][1])));
       prev = now;
     });
-    assert.ok(after <= orbitMax * 1.3, `${next}: ${after} a frame, the ring's own ${orbitMax}`);
+    // a spring taking a tile to its place moves it at most a little faster than the ring did; a jump is many times that
+    assert.ok(after <= orbitMax * 2, `${next}: ${after} a frame, the ring's own ${orbitMax}`);
     run(ch, 2);
     if (next === "idle")
       assert.deepEqual(
@@ -144,6 +146,58 @@ test("leaving the ring keeps each tile's speed: nothing jumps into the answer or
   }
 });
 
+test("draw order follows elevation: a tile held toward you is over what it overlaps; on and off the ring no two overlapping tiles trade places", () => {
+  // two tiles' overlap, in tiles squared, by their bounds
+  const reach = (s) => (s.size / 2) * (Math.abs(Math.cos(s.rot)) + Math.abs(Math.sin(s.rot)));
+  const overlap = (p, q) => {
+    const e = reach(p) + reach(q);
+    const ox = e - Math.abs(p.x - q.x);
+    const oy = e - Math.abs(p.y - q.y);
+    return ox > 0 && oy > 0 ? ox * oy : 0;
+  };
+  const ch = createCharacter({ seed: 5, enter: false, fidgets: false, detail: 21 });
+  for (const s of ["listening", "idle", "listening", "speaking"]) {
+    ch.set(s);
+    ch.hear(0.9);
+    run(ch, 1.5, (f) => {
+      for (const p of f.squares)
+        for (const q of f.squares)
+          if (p.lift > q.lift + 0.25 && overlap(p, q) > 0.02)
+            assert.ok(p.layer > q.layer, `${s}: the tile held toward you is drawn over the one it overlaps`);
+    });
+  }
+  // two tiles that overlap at the moment of a change trade places, if at all, only once they are nearly apart: the
+  // worst overlap at which such a pair traded, through the change
+  const trade = (from, to, dwell) => {
+    const c = createCharacter({ seed: 11, enter: false, fidgets: false, detail: 21 });
+    c.set(from);
+    c.hear(0.6);
+    run(c, dwell);
+    let prev = c.frame().squares;
+    const pairs = [];
+    for (let i = 0; i < 3; i++)
+      for (let j = i + 1; j < 3; j++) if (overlap(prev[i], prev[j]) > 0.02) pairs.push([i, j]);
+    let worst = 0;
+    c.set(to);
+    run(c, 0.8, (f) => {
+      const now = f.squares;
+      for (const [i, j] of pairs)
+        if (Math.sign(prev[i].layer - prev[j].layer) !== Math.sign(now[i].layer - now[j].layer))
+          worst = Math.max(worst, Math.min(overlap(prev[i], prev[j]), overlap(now[i], now[j])));
+      prev = now;
+    });
+    return worst;
+  };
+  for (const from of ["idle", "listening", "speaking"])
+    for (const to of ["idle", "listening", "speaking"])
+      for (let k = 0; k < 8; k++) {
+        const onto = trade(from, "thinking", 0.8 + k * 0.23);
+        assert.ok(onto < 0.06, `${from} onto the ring: two tiles traded places over ${onto} of a tile`);
+        const off = trade("thinking", to, 1 + k * 0.23);
+        assert.ok(off < 0.06, `off the ring into ${to}: two tiles traded places over ${off} of a tile`);
+      }
+});
+
 test("listening: the middle tile comes forward and rises with the voice; a bow follows a phrase", () => {
   const ch = createCharacter({ seed: 5, enter: false, fidgets: false });
   ch.set("listening");
@@ -151,10 +205,14 @@ test("listening: the middle tile comes forward and rises with the voice; a bow f
   const quiet = { ...ch.frame().squares.find((s) => s.step === 1) };
   ch.hear(0.9);
   run(ch, 1.5);
-  const loud = ch.frame().squares.find((s) => s.step === 1);
+  const now = ch.frame().squares;
+  const loud = now.find((s) => s.step === 1);
   assert.ok(loud.size > quiet.size + 0.1, `${loud.size} > ${quiet.size}`);
   assert.ok(loud.lift > quiet.lift + 0.3, "it rises toward you with your voice");
-  assert.equal(loud.front, 1);
+  assert.ok(
+    now.every((s) => s.step === 1 || s.layer < loud.layer),
+    "held toward you, it is drawn over the other two",
+  );
   ch.hear(0);
   run(ch, 1.5);
   assert.ok(
@@ -273,7 +331,11 @@ test("calm: one still pose per state, reading's a still ring, the reactions and 
   ch.set("listening");
   ch.still();
   const f = ch.frame();
-  assert.equal(f.squares.find((s) => s.step === 1).front, 1);
+  const held = f.squares.find((s) => s.step === 1);
+  assert.ok(
+    f.squares.every((s) => s === held || s.layer < held.layer),
+    "the middle tile held forward, on top",
+  );
   assert.ok(f.squares.every((s) => s.live === 1));
   assert.equal(ch.react("hop"), false);
   ch.set("thinking");

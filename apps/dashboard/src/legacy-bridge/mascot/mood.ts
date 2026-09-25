@@ -1,9 +1,8 @@
 /**
  * Ask's mood: what the AI is doing right now, said once for every face that shows it. The Line says it as a turn
  * runs (listening, reading, answering, at rest, a nod, a shake, a beat per word, a pulse per read that lands); the
- * top bar's Ask button and the
- * Line's face follow it (components/ask-face.jsx), so there is one AI with one face wherever it is drawn.
- * Pure: a value and its listeners, no DOM and no clock.
+ * top bar's Ask button and the Line's face follow it (components/ask-face.jsx), so there is one AI with one face
+ * wherever it is drawn. Pure: a value and its listeners, no DOM and no clock.
  */
 import { STATES, type CharacterState, type Reaction } from "./character";
 

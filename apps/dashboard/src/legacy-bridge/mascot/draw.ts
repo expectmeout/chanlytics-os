@@ -4,6 +4,7 @@
  */
 import { CENTRE_Y, type CharacterFrame } from "./character";
 import { labOf, labToCss, type Lab, type Palette } from "./colour";
+import { clamp01 } from "./math";
 
 export interface TileLook {
   /** from the centre of the drawing, in canvas pixels */
@@ -20,7 +21,6 @@ export interface TileLook {
    */
   shadow: { x: number; y: number; sigma: number; spread: number; alpha: number };
 }
-const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
 /** What each tile looks like in this frame, in the order they are drawn: back first. */
 export function tilesOf(frame: CharacterFrame, pal: Palette, side: number): TileLook[] {

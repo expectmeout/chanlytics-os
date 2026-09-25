@@ -7,6 +7,8 @@
  *   solid colour;
  * - every tile casts the mark's soft shadow, tinted by the page.
  */
+import { clamp01, ease } from "./math";
+
 export type Lab = readonly [number, number, number];
 export type ThemeName = "light" | "dark";
 export interface ThemeTokens {
@@ -34,7 +36,6 @@ export interface Palette {
 
 const lin = (c: number) => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
 const gam = (c: number) => (c <= 0.0031308 ? 12.92 * c : 1.055 * Math.pow(c, 1 / 2.4) - 0.055);
-const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
 export function rgbToLab(r: number, g: number, b: number): Lab {
   return linearToOklab(lin(r), lin(g), lin(b));
@@ -209,7 +210,6 @@ export const clonePalette = (p: Palette): Palette => ({
   shadowAlpha: p.shadowAlpha,
 });
 
-const ease = (cur: number, tgt: number, dt: number, tau: number) => cur + (tgt - cur) * (1 - Math.exp(-dt / tau));
 const easeLab = (cur: Lab, tgt: Lab, dt: number): Lab => [
   ease(cur[0], tgt[0], dt, 0.3),
   ease(cur[1], tgt[1], dt, 0.3),

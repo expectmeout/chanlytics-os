@@ -6,10 +6,11 @@
  * A face inside a button (the top bar's Ask, the phone's ✦) is an icon: it is attended while the pointer is near
  * that button or the button has focus, it goes quiet after a while alone, and a press on it gathers the stack. Any
  * other face (the Stage, the phone's takeover) is open, so always attended. Either looks at the pointer only while
- * it is near, never from across the page. Its canvas is always a 2D one: each frame is drawn liquid by the page's one
- * WebGL2 context and copied in (liquid.ts), or, where that cannot draw (no WebGL2, a lost context), as the layered mark
- * in 2D (draw.ts); a frame that would draw what is already there is skipped. Every browser API comes in through `env`,
- * with defaults read from window and document, so the tests run it on node with a fake canvas and a fake clock.
+ * it is near, never from across the page. Its canvas is always a 2D one: while the tiles may fuse (listening, reading,
+ * answering) a frame is drawn liquid by the page's one WebGL2 context and copied in (liquid.ts); at rest, and where
+ * that cannot draw (no WebGL2, a lost context), the layered mark is drawn in 2D (draw.ts); a frame that would draw
+ * what is already there is skipped. Every browser API comes in through `env`, with defaults read from window and
+ * document, so the tests run it on node with a fake canvas and a fake clock.
  */
 import { createCharacter, fitSide, type Character, type CharacterState, type Reaction } from "./character";
 import {
@@ -23,6 +24,7 @@ import {
 } from "./colour";
 import { drawCharacter } from "./draw";
 import { liquid as liquidDrawing, type GlCanvas, type Liquid } from "./liquid";
+import { smooth } from "./math";
 
 export interface DriverEnv {
   raf: (cb: (ms: number) => void) => number;
@@ -234,7 +236,9 @@ export function mountCharacter(canvas: CanvasLike, opts: MountOptions = {}): Mou
     const sig = signature(f, pal, side, w, h);
     if (sig === drawn) return;
     drawn = sig;
-    if (!liquid || !liquid.draw(ctx, f, pal, side, w, h)) drawCharacter(ctx, w, h, f, pal, side);
+    // the GPU draws only what the 2D drawing cannot: the tiles while they may fuse; at rest, the mark in 2D
+    const fused = liquid !== null && f.liquid > 0.001 && liquid.draw(ctx, f, pal, side, w, h);
+    if (!fused) drawCharacter(ctx, w, h, f, pal, side);
   }
   function loop(ms: number): void {
     raf = env.raf(loop);
@@ -267,31 +271,27 @@ export function mountCharacter(canvas: CanvasLike, opts: MountOptions = {}): Mou
       return;
     }
     const r = canvas.getBoundingClientRect ? canvas.getBoundingClientRect() : null;
-    if (!r || !r.width) return;
-    if (role === "icon") {
-      const b = button && typeof button.getBoundingClientRect === "function" ? button.getBoundingClientRect() : r;
-      const gx = Math.max(b.left - e.clientX, 0, e.clientX - (b.left + b.width));
-      const gy = Math.max(b.top - e.clientY, 0, e.clientY - (b.top + b.height));
-      attention = Math.hypot(gx, gy) < ATTEND_WITHIN ? 1 : 0;
-    }
+    if (!r || !(r.width > 0) || !(r.height > 0)) return;
+    const b = button && typeof button.getBoundingClientRect === "function" ? button.getBoundingClientRect() : null;
+    // how far outside a box the pointer is, each way
+    const outside = (box: { left: number; top: number; width: number; height: number }) =>
+      Math.hypot(
+        Math.max(box.left - e.clientX, 0, e.clientX - (box.left + box.width)),
+        Math.max(box.top - e.clientY, 0, e.clientY - (box.top + box.height)),
+      );
+    if (role === "icon") attention = outside(b ?? r) < ATTEND_WITHIN ? 1 : 0;
     const unit = sideTarget > 0 ? sideNow : fitSide(r.width, r.height);
     const dx = e.clientX - (r.left + r.width / 2);
     const dy = e.clientY - (r.top + r.height / 2);
     const within = role === "icon" ? LOOK_WITHIN.icon : Math.max(LOOK_WITHIN.open, r.width * 1.6);
     const dist = Math.hypot(dx, dy);
     // full attention up to half the radius, fading to none at it
-    const u = Math.max(0, Math.min(1, (dist - within / 2) / (within / 2)));
-    const fade = 1 - u * u * (3 - 2 * u);
+    const fade = 1 - smooth((dist - within / 2) / (within / 2));
     if (fade <= 0) {
       character.away();
       return;
     }
-    const inside = button
-      ? (() => {
-          const b = button.getBoundingClientRect();
-          return e.clientX >= b.left && e.clientX <= b.right && e.clientY >= b.top && e.clientY <= b.bottom;
-        })()
-      : dist / unit < 2.3;
+    const inside = b ? outside(b) === 0 : dist / unit < 2.3;
     character.look((dx / unit / 4) * fade, (dy / unit / 4) * fade, inside);
   }
 

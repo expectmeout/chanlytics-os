@@ -18,9 +18,13 @@
  * Gestures scale with the drawn size (`detail`): a 7px tile in the top bar moves less than a 60px one on a phone.
  * A face nobody is near (the top bar's icon) stops breathing after `quietAfter` seconds and only turns, less often.
  * Each tile carries a charge, drawn as colour, never as motion (`light`).
+ * Draw order follows elevation: the tile a state holds toward you and the nearest on the ring are the lifted ones, and
+ * since elevation is a spring, the order never jumps; in the stack, where nothing is lifted, the later tile is on top.
  *
  * Spec: docs/superpowers/specs/2026-09-25-the-three-in-motion-design.md.
  */
+import { TAU, clamp, ease, inOut, smooth } from "./math";
+
 export type CharacterState = "idle" | "listening" | "thinking" | "speaking";
 export type Reaction = "nod" | "hop" | "shake" | "flip" | "yawn" | "look";
 export interface SquareFrame {
@@ -34,12 +38,11 @@ export interface SquareFrame {
   y: number;
   size: number;
   rot: number;
-  front: 0 | 1;
   /** light, 0 to 1: how far its colour moves toward its strongest */
   charge: number;
   /** elevation, from pressed (-0.5) through the page (0) to lifted toward you (about 1) */
   lift: number;
-  /** draw order: a higher layer is drawn later, on top */
+  /** draw order, its place in the stack plus LAYER_PER_LIFT per tile of the pose's elevation: higher is drawn on top */
   layer: number;
 }
 export interface CharacterFrame {
@@ -91,6 +94,7 @@ export interface Character {
   /** a read that landed: the orbit surges and a light runs down the stack */
   pulse(strength?: number): void;
   tick(dt: number): void;
+  /** where every tile is now: a snapshot, untouched by later ticks */
   frame(): CharacterFrame;
   still(): void;
   events(): CharacterEvent[];
@@ -109,7 +113,7 @@ export const FIT = { w: 3.8, h: 3.2 } as const;
 export const CENTRE_Y = -0.225;
 export const fitSide = (w: number, h: number): number => Math.min(w / FIT.w, h / FIT.h);
 
-const TAU = Math.PI * 2;
+/** the position spring's frequency by place in the stack: the back settles first, the top a touch behind it */
 const FOLLOW = [15, 13, 11.5] as const;
 const Z_POS = 0.86;
 const SIZE = { w: 18, z: 0.9 };
@@ -129,53 +133,67 @@ const ORBIT = {
   nod: (6 * Math.PI) / 180,
   depth: 0.14,
 };
-/** where each tile joins the ring, by its place in the stack (back, middle, top): the nearest point, no crossings */
-const JOIN = [Math.PI, (5 * Math.PI) / 3, Math.PI / 3];
+/** The three points where the tiles join the ring, a third of a lap apart: the near point, the left, the far right. */
+const JOIN = [Math.PI / 3, Math.PI, (5 * Math.PI) / 3];
+const PAIRINGS = [
+  [0, 1, 2],
+  [0, 2, 1],
+  [1, 0, 2],
+  [1, 2, 0],
+  [2, 0, 1],
+  [2, 1, 0],
+];
+/** the ring's elevation by depth: the farthest tile a little below the page, the nearest well toward you */
+const RING_LIFT = { far: 0.3, near: 0.45 };
+/**
+ * Draw order per tile of the pose's elevation, over its place in the stack (0 to 2). Large enough that the tile
+ * listening holds toward you (lift 0.35 and up) is over the whole stack, and that two tiles on the ring that can
+ * overlap (a lap apart by a third, so at least 0.2 of elevation between them) are drawn nearest on top.
+ */
+const LAYER_PER_LIFT = 12;
 
-const clamp = (v: number, a: number, b: number) => (v < a ? a : v > b ? b : v);
-const ease = (cur: number, tgt: number, dt: number, tau: number) => cur + (tgt - cur) * (1 - Math.exp(-dt / tau));
-const inOut = (u: number) => (u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2);
-const smooth = (u: number) => {
-  const c = clamp(u, 0, 1);
-  return c * c * (3 - 2 * c);
-};
+/** A point on the ring at phase `th`, the ring as it sways at time `at`: x and y in tiles, and depth z, -0.9 far to 0.9 near. */
+function ring(th: number, at: number): [number, number, number] {
+  const axis = ORBIT.axis + ORBIT.sway * Math.sin(at * 0.6);
+  const tilt = ORBIT.tilt + ORBIT.nod * Math.sin(at * 0.45 + 1);
+  const R = ORBIT.R * (1 + 0.03 * Math.sin(at * 1.3));
+  const r = R * Math.cos(tilt);
+  const u = Math.cos(th);
+  const v = Math.sin(th);
+  // the near side is down (+v)
+  return [
+    R * u * Math.cos(axis) - r * v * Math.sin(axis),
+    R * u * Math.sin(axis) + r * v * Math.cos(axis),
+    v * Math.sin(tilt),
+  ];
+}
 
 interface Pose {
   x: number;
   y: number;
   rot: number;
   scale: number;
-  front: 0 | 1;
   lift: number;
 }
 const slot = (k: number, spread: number): [number, number] => [(k - 1) * STEP * spread, (k - 1) * STEP * spread];
-/** Where tile k wants to be in a state: position, lean, size, whether it is in front, and how lifted. */
+/** Where tile k wants to be in a state: position, lean, size and how far it is held toward you. */
 function pose(state: CharacterState, k: number, level: number, spread: number): Pose {
   if (state === "listening") {
-    if (k === 1)
-      return { x: 0, y: -0.3 - 0.06 * level, rot: 0, scale: 1 + 0.16 * level, front: 1, lift: 0.35 + 0.65 * level };
+    if (k === 1) return { x: 0, y: -0.3 - 0.06 * level, rot: 0, scale: 1 + 0.16 * level, lift: 0.35 + 0.65 * level };
     const side = k - 1;
     return {
       x: side * (0.66 - 0.06 * level),
       y: 0.3 - 0.04 * level,
       rot: -side * 0.14,
       scale: 0.88 + 0.03 * level,
-      front: 0,
       lift: 0,
     };
   }
   if (state === "speaking") {
-    return {
-      x: (k - 1) * 1.06,
-      y: 0.06 - 0.14 * (k - 1) * (k - 1),
-      rot: (k - 1) * 0.05,
-      scale: 1,
-      front: 0,
-      lift: 0.08,
-    };
+    return { x: (k - 1) * 1.06, y: 0.06 - 0.14 * (k - 1) * (k - 1), rot: (k - 1) * 0.05, scale: 1, lift: 0.08 };
   }
   const [x, y] = slot(k, spread);
-  return { x, y, rot: 0, scale: 1, front: 0, lift: 0 };
+  return { x, y, rot: 0, scale: 1, lift: 0 };
 }
 
 function seeded(seed: number): () => number {
@@ -211,7 +229,6 @@ interface Body {
   olift: number;
   obreath: number;
   ch: number;
-  front: 0 | 1;
   /** where it joins the ring, in radians */
   phase: number;
   /** light carried off the ring, fading */
@@ -275,13 +292,13 @@ export function createCharacter(options: CharacterOptions = {}): Character {
   let lastWordAt = -1e9;
   let wordAt = 0;
   // size: one tile in CSS px, and how far a gesture moves at that size (45% at 6px, the whole move from 36px)
+  const gainOf = (side: number) => smooth((side - 6) / 30);
   let px = options.detail ?? 16;
-  let g = 0;
-  const gains = () => {
-    g = smooth((px - 6) / 30);
-  };
-  gains();
+  let g = gainOf(px);
   const G = () => 0.45 + 0.55 * g;
+  // what comes in from outside is a number or nothing
+  const unit = (v: unknown) => clamp(Number(v) || 0, 0, 1);
+  const signed = (v: unknown) => clamp(Number(v) || 0, -1, 1);
   let attention = 1;
   let unattended = 0;
   let awake = 1;
@@ -316,14 +333,13 @@ export function createCharacter(options: CharacterOptions = {}): Character {
       olift: 0,
       obreath: 0,
       ch: 0,
-      front: 0,
       phase: 0,
       ech: 0,
       pox: x,
       poy: y,
       vox: 0,
       voy: 0,
-      out: { step: i, shade: i, live: 0, x, y, size: entering ? 0 : 1, rot: 0, front: 0, charge: 0, lift: 0, layer: i },
+      out: { step: i, shade: i, live: 0, x, y, size: entering ? 0 : 1, rot: 0, charge: 0, lift: 0, layer: i },
     };
   });
 
@@ -350,6 +366,8 @@ export function createCharacter(options: CharacterOptions = {}): Character {
   };
   const byStep = () => new Map(bodies.map((b) => [b.i, b.step]));
   const atStep = (k: number) => bodies.find((b) => b.step === k) ?? null;
+  /** the one tile a move is for: named, or the tile at a step when the move began */
+  const tileOf = (a: Move) => (a.who ??= a.whoStep != null ? atStep(a.whoStep) : null);
   const sweep = (amp: number) => {
     if (light) move("sweep", { amp });
   };
@@ -374,8 +392,7 @@ export function createCharacter(options: CharacterOptions = {}): Character {
   const MOVES: Record<MoveKind, (a: Move, t: number) => boolean> = {
     // a quarter turn (or a half) in place, lifted a little while it turns
     turn(a, t) {
-      a.who ??= a.whoStep != null ? atStep(a.whoStep) : null;
-      const b = a.who;
+      const b = tileOf(a);
       if (!b) return true;
       const p = (t - a.delay) / a.dur;
       if (p < 0) return false;
@@ -387,8 +404,7 @@ export function createCharacter(options: CharacterOptions = {}): Character {
     },
     // a tile rises toward you and sets back down
     rise(a, t) {
-      a.who ??= a.whoStep != null ? atStep(a.whoStep) : null;
-      const b = a.who;
+      const b = tileOf(a);
       if (!b) return true;
       const p = (t - a.delay) / a.dur;
       if (p < 0) return false;
@@ -650,7 +666,6 @@ export function createCharacter(options: CharacterOptions = {}): Character {
       const want = pose(state, b.step, level, spread);
       const tl = want.lift + (0.25 * perk - 0.4 * pressed) * W.idle;
       const w = FOLLOW[clamp(b.step, 0, 2)];
-      b.front = want.front;
       for (let k = 0; k < steps && h > 0; k++) {
         b.vx += (w * w * (want.x - b.x) - 2 * Z_POS * w * b.vx) * h;
         b.x += b.vx * h;
@@ -705,41 +720,34 @@ export function createCharacter(options: CharacterOptions = {}): Character {
       b.shade = ease(b.shade, k, dt, 0.16);
     }
 
-    // the orbit: joined over a quarter second, a lap in ORBIT.period, the pace breathing and surging
+    // the orbit: joined over a quarter second and spinning up as the tiles arrive, then a lap in ORBIT.period, the
+    // pace breathing and surging
     if (state === "thinking" && !calm) orb = ease(orb, 1, dt, 0.26);
     if (orb > 0) {
       orbBoost = ease(orbBoost, 0, dt, 0.4);
-      orbPhase += dt * (TAU / ORBIT.period) * (1 + 0.12 * Math.sin(clock * 0.9)) * (1 + orbBoost);
+      orbPhase += dt * (TAU / ORBIT.period) * (1 + 0.12 * Math.sin(clock * 0.9)) * (1 + orbBoost) * orb;
     }
-    const axis = ORBIT.axis + ORBIT.sway * Math.sin(clock * 0.6);
-    const tilt = ORBIT.tilt + ORBIT.nod * Math.sin(clock * 0.45 + 1);
-    const R = ORBIT.R * (1 + 0.03 * Math.sin(clock * 1.3));
-    const r = R * Math.cos(tilt);
-    const cA = Math.cos(axis);
-    const sA = Math.sin(axis);
 
     for (const b of bodies) {
       const o = b.out;
+      // the pose's elevation (what the draw order follows), and with the gestures on it
+      let held = b.lf;
       let lift = Math.max(-0.5, b.lf + b.olift);
       let x = b.x + b.ox;
       let y = b.y + b.oy;
       let size = b.sc + b.osc + 0.05 * Math.max(0, lift);
       let shade = b.shade;
       let charge = b.ch + b.ech;
-      let layer = b.front * 10 + b.step;
       if (orb > 0) {
-        const th = b.phase + orbPhase;
-        const u = Math.cos(th);
-        const v = Math.sin(th);
-        // the near side is down (+v); depth runs from -0.9 (far) to 0.9 (near)
-        const z = v * Math.sin(tilt);
-        x += (R * u * cA - r * v * sA - x) * orb;
-        y += (R * u * sA + r * v * cA - y) * orb;
+        const [rx, ry, z] = ring(b.phase + orbPhase, clock);
+        const near = RING_LIFT.far + RING_LIFT.near * z;
+        x += (rx - x) * orb;
+        y += (ry - y) * orb;
         size *= 1 + ORBIT.depth * z * orb;
-        lift += (0.3 + 0.45 * z - lift) * orb;
+        held += (near - held) * orb;
+        lift += (near - lift) * orb;
         shade += (1 + z - shade) * orb;
         charge += orb * (0.12 + 0.35 * Math.max(0, z));
-        layer += (11 + z - layer) * orb;
       }
       b.ech = ease(b.ech, 0, dt, 0.35);
       if (dt > 0) {
@@ -754,29 +762,71 @@ export function createCharacter(options: CharacterOptions = {}): Character {
       o.y = y;
       o.size = Math.max(0, size);
       o.rot = b.rot + b.orot;
-      o.front = b.front;
       o.shade = clamp(shade, 0, 2);
       o.live = b.live;
       o.charge = light ? clamp(charge, 0, 1) : 0;
       o.lift = Math.max(-0.5, lift + b.obreath);
-      o.layer = layer;
+      o.layer = b.step + LAYER_PER_LIFT * held;
     }
   }
 
-  // Leaving the ring: each tile keeps where it is and how fast it is going, and the springs take it into the next
-  // formation; the stack takes them back in the order they sit along its diagonal, so no two cross.
-  function release(): void {
-    bodies
-      .slice()
-      .sort((a, b) => a.out.x + a.out.y - (b.out.x + b.out.y))
-      .forEach((b, k) => (b.step = k));
+  /** The tiles by how far toward you each is held, nearest first (its place in the stack breaks a tie). */
+  const byDepth = () => bodies.slice().sort((a, b) => b.lf - a.lf || b.step - a.step);
+
+  // Joining the ring: each tile takes the point nearest it, in depth as well as on the page, except that two tiles
+  // that overlap now never trade depths on the way (the stack's top stays nearest, its back goes farthest), so the
+  // order they are drawn in holds while they can be seen over each other.
+  function join(): void {
+    const points = JOIN.map((th) => ring(th, clock));
+    const apart = (b: Body, [px, py, z]: [number, number, number]) =>
+      (b.x - px) ** 2 + (b.y - py) ** 2 + (2 * (b.lf - (RING_LIFT.far + RING_LIFT.near * z))) ** 2;
+    const overlapping = (a: Body, b: Body) => Math.abs(a.out.x - b.out.x) < 0.9 && Math.abs(a.out.y - b.out.y) < 0.9;
+    const cost = (pairing: number[]) => {
+      let sum = 0;
+      for (let i = 0; i < 3; i++) {
+        sum += apart(bodies[i], points[pairing[i]]);
+        for (let j = i + 1; j < 3; j++) {
+          const traded =
+            (bodies[i].out.layer - bodies[j].out.layer) * (points[pairing[i]][2] - points[pairing[j]][2]) < 0;
+          if (traded && overlapping(bodies[i], bodies[j])) sum += 10;
+        }
+      }
+      return sum;
+    };
+    let best = PAIRINGS[0];
+    for (const pairing of PAIRINGS) if (cost(pairing) < cost(best)) best = pairing;
+    bodies.forEach((b, i) => (b.phase = JOIN[best[i]]));
+    orbPhase = 0;
+    orbBoost = 0;
+  }
+
+  // Leaving the ring: each tile keeps where it is, how fast it is going and how far it is toward you, and the springs
+  // take it into the next formation. Each takes the place that fits its depth, so the order they are drawn in never
+  // has to change while they overlap: the nearest becomes the top of the stack, or the tile held forward while
+  // listening; the row is taken left to right.
+  function release(next: CharacterState): void {
     for (const b of bodies) {
       const o = b.out;
+      b.lf = o.lift - b.obreath;
       b.x = o.x - b.ox;
+    }
+    const near = byDepth();
+    if (next === "speaking") {
+      bodies
+        .slice()
+        .sort((a, b) => a.x - b.x)
+        .forEach((b, k) => (b.step = k));
+    } else if (next === "listening") {
+      near[0].step = 1;
+      const sides = near.slice(1).sort((a, b) => a.x - b.x);
+      sides[0].step = 0;
+      sides[1].step = 2;
+    } else near.forEach((b, k) => (b.step = 2 - k));
+    for (const b of bodies) {
+      const o = b.out;
       b.y = o.y - b.oy;
       b.vx = b.vox;
       b.vy = b.voy;
-      b.lf = o.lift - b.obreath;
       b.vlf = 0;
       b.sc = Math.max(0, o.size - 0.05 * Math.max(0, b.lf));
       b.vsc = 0;
@@ -789,7 +839,7 @@ export function createCharacter(options: CharacterOptions = {}): Character {
   function set(next: CharacterState): boolean {
     if (!STATES.includes(next) || next === state) return false;
     const prev = state;
-    if (prev === "thinking" && orb > 0) release();
+    if (prev === "thinking" && orb > 0) release(next);
     prevLive = state === "idle" ? 0 : 1;
     state = next;
     stateAt = clock;
@@ -801,11 +851,7 @@ export function createCharacter(options: CharacterOptions = {}): Character {
         loud = false;
         quietFor = 0;
       }
-      if (next === "thinking") {
-        for (const b of bodies) b.phase = JOIN[clamp(b.step, 0, 2)];
-        orbPhase = 0;
-        orbBoost = 0;
-      }
+      if (next === "thinking") join();
       if (next === "speaking") {
         autoNextAt = clock + 0.2;
         autoPhraseEnd = clock + 1.6 + rand() * 0.8;
@@ -838,14 +884,11 @@ export function createCharacter(options: CharacterOptions = {}): Character {
     for (const s of STATES) W[s] = s === state ? 1 : 0;
     corner = state === "listening" ? 0.28 : CORNER;
     orb = state === "thinking" ? 1 : 0;
-    orbPhase = 0;
-    orbBoost = 0;
     bodies
       .slice()
       .sort((a, b) => a.step - b.step)
       .forEach((b, k) => {
         b.step = k;
-        b.phase = JOIN[k];
         b.ech = 0;
         const want = pose(state, k, 0, 1);
         Object.assign(b, {
@@ -859,11 +902,11 @@ export function createCharacter(options: CharacterOptions = {}): Character {
           vrot: 0,
           lf: want.lift,
           vlf: 0,
-          front: want.front,
           shade: k,
           live: state === "idle" ? 0 : 1,
         });
       });
+    join();
     prevLive = state === "idle" ? 0 : 1;
     stateAt = clock - 1;
     tick(0);
@@ -886,16 +929,16 @@ export function createCharacter(options: CharacterOptions = {}): Character {
     tick,
     still,
     hear(v) {
-      heard = clamp(Number(v) || 0, 0, 1);
+      heard = unit(v);
     },
     voice(v, live = true) {
-      voiced = clamp(Number(v) || 0, 0, 1);
+      voiced = unit(v);
       voiceLive = !!live;
     },
     beat(v = 0.6) {
       if (calm) return;
       lastWordAt = clock;
-      beatWave(clamp(Number(v) || 0, 0, 1));
+      beatWave(unit(v));
     },
     react(kind) {
       if (calm) return false;
@@ -911,32 +954,34 @@ export function createCharacter(options: CharacterOptions = {}): Character {
     },
     look(gx, gy, near) {
       if (calm) return;
-      pointer = { g: [clamp(gx, -1, 1), clamp(gy, -1, 1)], near: !!near };
+      pointer = { g: [signed(gx), signed(gy)], near: !!near };
       pointerAge = 0;
     },
     away() {
       pointer = null;
     },
     detail(v) {
-      if (v > 0 && Math.abs(v - px) > 0.01) {
-        px = v;
-        gains();
+      const side = Number(v);
+      if (side > 0 && Math.abs(side - px) > 0.01) {
+        px = side;
+        g = gainOf(px);
       }
     },
     attend(v) {
-      attention = clamp(v, 0, 1);
+      attention = unit(v);
     },
     press(down) {
       pressDown = !!down && !calm;
     },
     pulse(v = 0.7) {
       if (calm) return;
-      if (state === "thinking") orbBoost = Math.max(orbBoost, 0.7 * clamp(v, 0, 1));
-      sweep(clamp(v, 0, 1));
+      const strength = unit(v);
+      if (state === "thinking") orbBoost = Math.max(orbBoost, 0.7 * strength);
+      sweep(strength);
       note("pulse");
     },
     frame() {
-      return { corner, squares: bodies.map((b) => b.out), liquid, awake, gaze: [gaze[0], gaze[1]] };
+      return { corner, squares: bodies.map((b) => ({ ...b.out })), liquid, awake, gaze: [gaze[0], gaze[1]] };
     },
     events() {
       return events.slice();
