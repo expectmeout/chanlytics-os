@@ -2361,6 +2361,51 @@ function feedUrlOk(raw) {
     return null;
   return u.toString();
 }
+var FEED_REDIRECTS_MAX = 3;
+async function fetchPublic(fetchImpl, raw, init = {}) {
+  let at2 = feedUrlOk(raw);
+  for (let hop = 0; at2 && hop <= FEED_REDIRECTS_MAX; hop += 1) {
+    const res = await fetchImpl(at2, { ...init, redirect: "manual" });
+    if (res.status >= 300 && res.status < 400) {
+      const next = res.headers.get("location");
+      await res.body?.cancel().catch(() => void 0);
+      at2 = next ? feedUrlOk(URL.canParse(next, at2) ? new URL(next, at2).toString() : null) : null;
+      continue;
+    }
+    return res;
+  }
+  return null;
+}
+var FEED_GUIDES = [
+  {
+    name: "Google Calendar",
+    steps: [
+      "On a computer, open Google Calendar and go to Settings.",
+      "Under \u201CSettings for my calendars\u201D, pick the calendar your appointments land in.",
+      "Open \u201CIntegrate calendar\u201D and copy \u201CSecret address in iCal format\u201D."
+    ]
+  },
+  {
+    name: "Apple Calendar (iCloud)",
+    steps: [
+      "In the Calendar app, open Calendars and press \u24D8 beside the calendar your appointments land in.",
+      "Turn on Public Calendar, then Share Link, and copy it."
+    ]
+  },
+  {
+    name: "Outlook",
+    steps: [
+      "In Outlook on the web, open Settings, then Calendar, then Shared calendars.",
+      "Under \u201CPublish a calendar\u201D, pick your calendar and \u201CCan view when I'm busy\u201D, then Publish.",
+      "Copy the ICS link."
+    ]
+  }
+];
+var FEED_CHECK_WORDS = {
+  guide: "Where do I find it?",
+  reading: "Reading it\u2026",
+  read: (events, next) => events === 0 ? "Read it: it's empty so far. Your receptionist will see new appointments as they land." : `Read it: ${events} ${events === 1 ? "event" : "events"}, ${next ? `the next ${next}` : "none in the next 30 days"}.`
+};
 var FEED_MAX_BYTES = 2e6;
 function feedProblemWords(reason, status) {
   switch (reason) {
@@ -22365,6 +22410,8 @@ export {
   EVERYONE_LABEL,
   FALLBACK_DEFAULTS,
   FALLBACK_DETAILS,
+  FEED_CHECK_WORDS,
+  FEED_GUIDES,
   FEED_MAX_BYTES,
   FINISH_SETTING_UP,
   FIRST_RUN_FIND_ROUTE,
@@ -22958,6 +23005,7 @@ export {
   feedProblemWords,
   feedSourceLabel,
   feedUrlOk,
+  fetchPublic,
   filterOpenings,
   filterTimeline,
   findLanguages,

@@ -16,6 +16,8 @@ import {
   zoneDayKey,
   hoursZoneWords,
   CALENDAR_FEED_WORDS,
+  FEED_CHECK_WORDS,
+  FEED_GUIDES,
   timezoneWords,
   knownTimezones,
   MAX_INTERVALS_PER_DAY,
@@ -1057,6 +1059,99 @@ test("a calendar that could not be read says so in the Calendar page's words; wi
     if (was.failed) W.__surfaceFailed = was.failed;
     else delete W.__surfaceFailed;
   }
+});
+
+/** Past the fold's pause after the last keystroke (BTO_FEED_CHECK_MS), and the preview's answer landed. */
+const pastTheCheck = () => new Promise((r) => setTimeout(r, 650));
+
+test("(B1) an address pasted into the fold is read as it lands -- how many appointments and the next, or why not -- and each calendar says where it keeps one", async () => {
+  const was = W.__calendar;
+  const asked = [];
+  let answer = {
+    ok: true,
+    data: { ok: true, events: 12, next: [{ start: "Tue, Sep 8, 2:00 PM", end: "3:30 PM", title: "Busy" }] },
+  };
+  W.__calendar = {
+    refresh: () => Promise.resolve(true),
+    previewFeed: async (url) => {
+      asked.push(url);
+      return answer;
+    },
+  };
+  W.__CALENDAR = calendarRead(readOk());
+  try {
+    let tree = drawTab({ profile: marisa });
+    openFold(tree, "calendar");
+    tree = redrawTab();
+    assert.equal(byTestId(tree, "rec-calendar-check"), null, "the address it already reads is not read again");
+    // Where each calendar keeps its address, folded until asked for, in each calendar's own names for its screens.
+    const guides = byTestId(tree, "rec-calendar-guides");
+    assert.equal(guides.type, "details");
+    assert.equal(textOf(find(guides, (n) => n.type === "summary")), FEED_CHECK_WORDS.guide);
+    assert.deepEqual(all(guides, (n) => n.type === "b").map(textOf), [
+      "Google Calendar",
+      "Apple Calendar (iCloud)",
+      "Outlook",
+    ]);
+    assert.match(textOf(guides), /Secret address in iCal format/);
+    assert.equal(all(guides, (n) => n.type === "li").length, FEED_GUIDES.flatMap((g) => g.steps).length);
+
+    const box = () => find(foldOf(tree, "calendar"), (n) => classes(n).includes("rec-input"));
+    // The box takes the address, and the draw after says what its check set going (React draws again on the set).
+    const paste = async (value) => {
+      box().props.onChange({ target: { value } });
+      redrawTab();
+      tree = redrawTab();
+    };
+    // A good address: "Reading it…" at once, then what it holds.
+    await paste("https://calendar.google.com/calendar/ical/marisa/private-abc/basic.ics");
+    const check = () => byTestId(tree, "rec-calendar-check");
+    assert.equal(textOf(check()), FEED_CHECK_WORDS.reading);
+    assert.equal(check().props.role, "status");
+    assert.deepEqual(asked, [], "not a request per keystroke: it waits for the typing to settle");
+    await pastTheCheck();
+    tree = redrawTab();
+    assert.deepEqual(asked, ["https://calendar.google.com/calendar/ical/marisa/private-abc/basic.ics"]);
+    assert.equal(textOf(check()), "Read it: 12 events, the next Tue, Sep 8, 2:00 PM.");
+
+    // A refusal says why, in the preview's own words, as an alert.
+    answer = { ok: false, message: "The calendar answered 404: the address no longer points at a calendar." };
+    await paste("https://calendar.google.com/calendar/ical/marisa/private-old/basic.ics");
+    await pastTheCheck();
+    tree = redrawTab();
+    assert.equal(check().props.role, "alert");
+    assert.equal(textOf(check()), answer.message);
+
+    // A newer paste wins: the one typed over is never asked about.
+    answer = { ok: true, data: { ok: true, events: 0, next: [] } };
+    asked.length = 0;
+    await paste("https://cal.example/first.ics");
+    await paste("https://cal.example/second.ics");
+    await pastTheCheck();
+    tree = redrawTab();
+    assert.deepEqual(asked, ["https://cal.example/second.ics"]);
+    assert.equal(textOf(check()), FEED_CHECK_WORDS.read(0, null));
+    assert.match(textOf(check()), /empty so far/);
+
+    // Half an address is the save's to refuse (in its words, on the box), not the preview's: nothing is asked.
+    asked.length = 0;
+    await paste("calendar.google.com/basic.ics");
+    await pastTheCheck();
+    tree = redrawTab();
+    assert.equal(check(), null);
+    assert.deepEqual(asked, []);
+  } finally {
+    delete W.__CALENDAR;
+    if (was) W.__calendar = was;
+    else delete W.__calendar;
+  }
+});
+
+test("(B1) the check's words: one event, many, the next or none this month -- events, never appointments", () => {
+  // Every event the feed holds, past ones too: "events", as the fold's last read says it, never "appointments".
+  assert.equal(FEED_CHECK_WORDS.read(1, null), "Read it: 1 event, none in the next 30 days.");
+  assert.equal(FEED_CHECK_WORDS.read(3, "Fri, Oct 2, 10:00 AM"), "Read it: 3 events, the next Fri, Oct 2, 10:00 AM.");
+  for (const g of FEED_GUIDES) assert.ok(g.steps.length >= 2 && g.steps.every((t) => t.endsWith(".")), g.name);
 });
 
 test("with no feed the calendar row is empty and says what the address is for; its fold holds the one box, checked under it, and saves only the address", () => {
