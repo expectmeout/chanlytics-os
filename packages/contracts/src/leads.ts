@@ -206,9 +206,10 @@ export const LEAD_MAILBOX_WORDS: Record<LeadEmailState, string> = {
   invalid: "That mailbox doesn't exist",
 };
 /** What the peek says under the email, from the plan's own contact standard (§0.1). */
+/** What a search counts (decision 0010): one checked way to reach the lead, the owner's preference first. */
 export const LEAD_CONTACT_STANDARD_WORDS: Record<"phone" | "email", string> = {
-  phone: "This search counts a phone as enough.",
-  email: "This search asked for a checked email.",
+  phone: "This search counts a lead once its phone or email checks out, phone first.",
+  email: "This search counts a lead once its email or phone checks out, email first.",
 };
 /** The note under the email of a lead that came with none, and the one thing left to do. */
 export const LEAD_NO_EMAIL_LINE = "Checked their home, contact and about pages. Call instead.";
@@ -2480,7 +2481,7 @@ export function leadPlanFacts(plan: LeadSearchPlan, facts: LeadPlanFacts): strin
     `About ${planMinutes(plan)} minutes — leave the page if you like`,
     // No number: the card cannot know how many of THIS search's places are already here until it has looked.
     "Anything already yours is skipped",
-    `Counts only matches you can reach · ${leadAllowanceFact(facts.leadsLeft)}`,
+    `Counts only matches with a checked phone or email · ${leadAllowanceFact(facts.leadsLeft)}`,
   ];
 }
 

@@ -29,6 +29,7 @@ import {
   LEAD_ESTIMATE_MARGIN,
   LEAD_JUDGE_BATCH,
   classify,
+  leadPhoneState,
   judgeAsked,
   type JudgePlaceAnswer,
   type LeadEmailState,
@@ -211,7 +212,7 @@ export async function startRound(p: LeadPorts, roundId: string, owner: string, r
     const judged = members.filter(wasJudged);
     const counted = members.filter((m) => m.counted).length;
     // Round 1 sizes from its probe; a top-up or a renewal has no probe of its own and starts from an even yield.
-    const y = round.purpose === "probe" ? probeYield(plan.contact, judged) : 0.5;
+    const y = round.purpose === "probe" ? probeYield(judged) : 0.5;
     // The question said "I'm dropping X: it mostly returned those", and a yes accepted it. An answer that changed the
     // plan is a new plan, and its terms are the owner's: the dropped one finds the very kind they just included.
     const dropTerm = round.answered === "keep" ? (round.question?.dropTerm ?? null) : null;
@@ -364,7 +365,14 @@ export function memberOf(
     verdict = { class: "review", excluded_by: null, fit: null, reasons: ["judge:refused"] };
     reason = JUDGE_REFUSED_REASON;
   } else {
-    verdict = classify(plan, a, factsOf(0, c), emailState, geo.center ? inArea(geo.center, geo.radiusM, loc) : true);
+    verdict = classify(
+      plan,
+      a,
+      factsOf(0, c),
+      emailState,
+      geo.center ? inArea(geo.center, geo.radiusM, loc) : true,
+      leadPhoneState(c.phone),
+    );
     reason = a.reason;
   }
   const excluded = verdict.class === "excluded";
@@ -726,10 +734,10 @@ async function roundDecision(
   const inPhase = runs.filter((r) => r.purpose === "discover" && phaseOf.get(r.id) === phase);
   if (!inPhase.every((r) => FINAL_RUN_STATES.has(r.state))) return null;
 
-  // What will have counted once this page settles: a phone standard counts qualified places now; an email standard counts nothing until the checks.
+  // What will have counted once this page settles: a place Qualified at collect (a phone that dials, decision 0010)
+  // counts now, whatever the search prefers; one waiting on its email counts after the checks.
   const countedNow = members.filter((m) => m.counted).length;
-  const countable =
-    round.plan.contact === "phone" ? members.filter((m) => !m.counted && m.class === "qualified").length : 0;
+  const countable = members.filter((m) => !m.counted && m.class === "qualified").length;
   const counted = countedNow + Math.min(countable, Math.max(0, round.allowance_reserved - round.allowance_used));
   const toChecks: Decision = {
     round: { state: "checking", question: null, ending: null, ending_pending: "target_reached" },
