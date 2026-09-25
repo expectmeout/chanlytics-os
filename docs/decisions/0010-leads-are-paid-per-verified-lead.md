@@ -1,6 +1,6 @@
 # 0010 · Leads are paid for per verified lead
 
-**Status:** decided, not built. The lead code was read at commit `ebb4bff2` (PR #1029, 25 September 2026); where this
+**Status:** L1 built (#1033); L2 built and held (`feat/lead-plan-allowance`, 00176); **L3 withdrawn and L4 folded into decision 0011** (25 September 2026: tiers with extra usage, no credits ledger). The lead code was read at commit `ebb4bff2` (PR #1029, 25 September 2026); where this
 note and the code disagree, the code wins. Ruben's calls, 25 September: "only charge for actual verified leads … if
 they pay for 50 leads and we scrape 150 to find the 50 accurate leads then we only charge for that 50"; "the pro plan
 should have x amount of leads included per month" (250); packs beyond it; and on what verified means, "as long as a
