@@ -19,6 +19,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db";
 import { isSameOrigin } from "./request-guards";
 import { isRetryableAuthError } from "./auth-errors";
+import { serverTimingHeader } from "./server-timing";
 
 export interface RouteContext {
   supabase: SupabaseClient<Database>;
@@ -52,6 +53,11 @@ export interface RouteContext {
  * response. Applied on ALL exits so no path can be forgotten.
  */
 const PRIVATE = { "cache-control": "private, no-store" } as const;
+/** The answer's own timing beside the cache rule: the session check and the handler, apart (server-timing.ts). */
+const timed = (authMs: number, started: number) => ({
+  ...PRIVATE,
+  "server-timing": serverTimingHeader({ auth: authMs, app: Date.now() - started - authMs }),
+});
 
 /**
  * The one wrapper every /api/v1 handler goes through (Blueprint §4/§8):
@@ -89,6 +95,7 @@ export function withRoute<T>(
           headers: PRIVATE,
         });
       }
+      const authFrom = Date.now();
       const params = routeCtx?.params ? await routeCtx.params : {};
       const supabase = await createClient();
       // The token's signature verified (proxy.ts says how: locally over the project's public key, or over the Auth
@@ -115,6 +122,7 @@ export function withRoute<T>(
         }
         return NextResponse.json(err("unauthorized", "Sign in required."), { status: 401, headers: PRIVATE });
       }
+      const authMs = Date.now() - authFrom;
       const via = req.headers.get("x-via") === "ask" ? ("ask" as const) : undefined;
       const undoOfHeader = req.headers.get("x-undo-of");
       const undoOf =
@@ -142,9 +150,10 @@ export function withRoute<T>(
       if (data instanceof Response) {
         const asked = data.headers.get("cache-control");
         if (!asked || !/^private\b/i.test(asked)) data.headers.set("cache-control", PRIVATE["cache-control"]);
+        data.headers.set("server-timing", timed(authMs, started)["server-timing"]);
         return data;
       }
-      return NextResponse.json(ok(data), { headers: PRIVATE });
+      return NextResponse.json(ok(data), { headers: timed(authMs, started) });
     } catch (e) {
       if (e instanceof AppError) {
         console.log(JSON.stringify({ level: "warn", route, code: e.code, ms: Date.now() - started }));
