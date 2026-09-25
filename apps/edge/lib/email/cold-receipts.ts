@@ -4,8 +4,9 @@
  * Cold email's receipts come from the second mail account, signed with RESEND_COLD_WEBHOOK_SECRET. Set wrong, the
  * webhook refuses every one of them and nothing else says so: the emails still leave, each stays `sent` for ever,
  * and a bounce or a complaint never reaches the domain it left from. So a domain whose emails of the last day have
- * heard nothing back at all pages the platform (00179's cold_receipts_owed). The page names counts, never an
- * address or a business, and the pager says it once in its window.
+ * heard nothing back at all pages the platform (00179's cold_receipts_owed, by when each email was sent). A bounce is
+ * a receipt too, so a domain whose receipts arrive is never paged for the few still on their way. The page names
+ * counts, never an address or a business, and the pager says it once in its window.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { coldReceiptsOwed, type Database } from "../packages/db.js";
@@ -51,7 +52,9 @@ export async function watchColdReceipts(p: ColdReceiptPorts): Promise<{ domains:
       `26 hours ago, and not one has had a delivery receipt.\n\n` +
       `The cold account's webhook is most likely refused: check that RESEND_COLD_WEBHOOK_SECRET on the edge is that ` +
       `webhook's signing secret, and that the webhook points at /api/resend-webhook. Until it is, a bounce or a ` +
-      `complaint on cold email is not counted against the domain it left from.`,
+      `complaint on cold email is not counted against the domain it left from.\n\n` +
+      `Fixed in the last day? The emails sent before the fix never hear back, so this can come again until the ` +
+      `domain's new emails have their receipts.`,
   );
   return out;
 }

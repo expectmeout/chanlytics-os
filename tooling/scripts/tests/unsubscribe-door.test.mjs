@@ -236,7 +236,8 @@ test("with no secret the door cannot tell a link from a guess, says so without a
     console.error = was;
     process.env.UNSUBSCRIBE_SECRET = SECRET;
   }
-  // The first link fetched this minute says it; a mail client retrying, or a scanner, does not repeat it.
+  // The first link fetched this minute says it; a mail client retrying, or a scanner, does not repeat it. The line
+  // is once a minute for the whole module, so this must stay the file's first test to find the door unset.
   const lines = said.filter((l) => l.startsWith("unsubscribe_unavailable"));
   assert.equal(lines.length, 1, "one line a minute at most");
   assert.match(lines[0], /"why":"no_secret"/);

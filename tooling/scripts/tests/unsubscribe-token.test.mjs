@@ -37,6 +37,8 @@ test("anything this secret did not make is null, never a throw", () => {
   assert.equal(verifyUnsubscribeToken([], t), null, "no secret");
   assert.equal(verifyUnsubscribeToken([""], t), null, "a blank secret");
   assert.equal(verifyUnsubscribeToken([undefined, null], t), null, "unset secrets");
+  assert.equal(verifyUnsubscribeToken(SECRET, t), null, "a bare secret, not the list: refused, not a throw");
+  assert.equal(verifyUnsubscribeToken(null, t), null, "no list at all");
   for (let i = 0; i < t.length; i++) {
     const c = t[i] === "A" ? "B" : "A";
     const bent = t.slice(0, i) + c + t.slice(i + 1);

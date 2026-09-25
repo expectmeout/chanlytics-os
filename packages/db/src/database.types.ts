@@ -4231,6 +4231,10 @@ export type Database = {
         Returns: boolean
       }
       email_from_host: { Args: { p_meta: Json }; Returns: string }
+      email_left: {
+        Args: { p_error: Json; p_status: string }
+        Returns: boolean
+      }
       ensure_events_partition: { Args: { p_month: string }; Returns: undefined }
       erase_contact: {
         Args: { p_contact_id: string; p_legs?: Json }

@@ -72,6 +72,11 @@ export async function POST(request: Request): Promise<Response> {
   // Null when the oldest due domain was never read at all.
   const oldestReadS = rows[0]?.checked_at ? Math.round((Date.now() - Date.parse(rows[0].checked_at)) / 1000) : null;
   const started = Date.now();
+  // Whether cold email's receipts reach us at all (lib/email/cold-receipts.ts): one read, and a page to the platform
+  // when a domain's emails of the last day heard nothing back. First, inside the tick's time budget, so a tick with
+  // hundreds of domains to read still asks it. It is the platform's to act on: the sweep's answer is about the
+  // domains, and a watch that could not be read changes nothing below.
+  await watchColdReceipts({ db, now: Date.now, log: L, page });
   const counts = { checked: 0, verified: 0, held: 0, released: 0, unreadable: 0, refused: 0 };
   for (let i = 0; i < rows.length; i += AT_ONCE) {
     // What is left is read next tick, the longest unread first.
@@ -96,10 +101,6 @@ export async function POST(request: Request): Promise<Response> {
     const spent = Date.now() - batchStarted;
     if (i + AT_ONCE < rows.length && spent < BATCH_AT_LEAST_MS) await sleep(BATCH_AT_LEAST_MS - spent);
   }
-  // Whether cold email's receipts reach us at all (lib/email/cold-receipts.ts): one read, and a page to the platform
-  // when a domain's emails of the last day heard nothing back. It is the platform's to act on, not this sweep's: its
-  // answer below is about the domains, which were read either way.
-  await watchColdReceipts({ db, now: Date.now, log: L, page });
   L.info("domains_swept", { ...counts, due: rows.length, oldest_read_s: oldestReadS });
   // The key refused for every domain read is the sweep learning nothing -- ours, not the domains' -- and 503 is how
   // sweep_health turns that red. A blip (a 5xx, a slow second, a 429) is not: those domains are read next tick, and

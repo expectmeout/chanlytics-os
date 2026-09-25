@@ -5958,6 +5958,7 @@ function signUnsubscribeToken(secret, c) {
   return Buffer.concat([payload, macOf(secret, payload)]).toString("base64url");
 }
 function verifyUnsubscribeToken(secrets, token) {
+  if (!Array.isArray(secrets)) return null;
   const keys = secrets.filter((s) => typeof s === "string" && s.length > 0);
   if (!keys.length || typeof token !== "string" || !TOKEN.test(token)) return null;
   const raw = Buffer.from(token, "base64url");

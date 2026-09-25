@@ -4268,6 +4268,13 @@ type Database = {
                 };
                 Returns: string;
             };
+            email_left: {
+                Args: {
+                    p_error: Json;
+                    p_status: string;
+                };
+                Returns: boolean;
+            };
             ensure_events_partition: {
                 Args: {
                     p_month: string;

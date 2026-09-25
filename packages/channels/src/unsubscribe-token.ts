@@ -58,6 +58,7 @@ export function verifyUnsubscribeToken(
   secrets: readonly (string | null | undefined)[],
   token: string,
 ): UnsubscribeClaims | null {
+  if (!Array.isArray(secrets)) return null;
   const keys = secrets.filter((s): s is string => typeof s === "string" && s.length > 0);
   if (!keys.length || typeof token !== "string" || !TOKEN.test(token)) return null;
   const raw = Buffer.from(token, "base64url");
