@@ -252,6 +252,8 @@ also sets `leads.closed_reason = 'said_no'`.
 
 ### 4.7 Leads
 
+*Superseded 25 Sep 2026 by `2026-09-25-reach-out-design.md`, which keeps this section's audience, first-send and own-domain rules and replaces the two triggers with a chain of steps, the check before each send, the timetable, the reply's meaning and the domains' health.*
+
 The finder's leads carry `email`, `email_state` (`ok | catch_all | unknown | invalid | …`), `stage`, `closed_reason`
 (`said_no | not_a_fit | customer | stale | search_removed`), `contact_id`, `contacted_at` and `last_outcome`
 (00140:215-227). Today a draft leaves through the owner's own mail app (`POST leads/[id]/draft` returns a `mailto:`,
