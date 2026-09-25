@@ -13,7 +13,8 @@
  *   three, a cascade down the stack, two turning opposite ways like gears, or the top tile half round.
  * - Listening: the middle tile comes forward and rises toward you with your voice, the other two tucked behind it.
  *   While nothing is heard for a moment (the person thinking, or typing slowly) it waits alive: now and then a tile
- *   behind turns, the two turn like gears, the one held forward rises or turns half round, or it glances aside.
+ *   behind turns, the two turn like gears or trade places, one of them takes a lap round the others, the one held
+ *   forward rises, peeks down at the field or spins, the three sway, or it glances aside.
  * - Reading: an orbit. The three circle a ring tilted toward you, the nearest the largest, lifted and lightest, the
  *   farthest small and deep; the ring's axis sways, so the path traces a sphere. Leaving it, each tile keeps its speed.
  * - Answering: the tiles side by side, each word lifting one toward you and lighting it.
@@ -242,7 +243,8 @@ interface Body {
   voy: number;
   out: SquareFrame;
 }
-type MoveKind = "turn" | "rise" | "push" | "nod" | "shake" | "stretch" | "look" | "sweep" | "wave";
+type MoveKind =
+  "turn" | "rise" | "push" | "nod" | "shake" | "stretch" | "look" | "sweep" | "wave" | "lap" | "swap" | "peek" | "sway";
 interface Move {
   kind: MoveKind;
   t0: number;
@@ -253,6 +255,10 @@ interface Move {
   dir: number;
   spin: number;
   who: Body | null;
+  /** the other tile of a pair (a swap) */
+  who2: Body | null;
+  /** a step to the side while it turns, in tiles: a tile behind shows its turn beyond the others */
+  out: number;
   whoStep: number | null;
   order: Map<number, number> | null;
   glance: number;
@@ -360,6 +366,8 @@ export function createCharacter(options: CharacterOptions = {}): Character {
       dir: 1,
       spin: 0,
       who: null,
+      who2: null,
+      out: 0,
       whoStep: null,
       order: null,
       glance: 0,
@@ -402,6 +410,7 @@ export function createCharacter(options: CharacterOptions = {}): Character {
       b.orot += a.dir * a.amp * (Math.PI / 2) * inOut(p);
       b.olift += 0.5 * Math.sin(Math.PI * p);
       b.ch += 0.22 * Math.sin(Math.PI * p);
+      if (a.out) b.ox += a.out * Math.sin(Math.PI * p) * G();
       return false;
     },
     // a tile rises toward you and sets back down
@@ -492,6 +501,75 @@ export function createCharacter(options: CharacterOptions = {}): Character {
       fidgetGaze = t < 1.1 ? [0.7 * a.glance, -0.2] : t < 2.0 ? [-0.45 * a.glance, 0.12] : [0, 0];
       return false;
     },
+    // a tile behind leaves to its side and takes a lap round the others, rolling, back to its place
+    lap(a, t) {
+      const b = tileOf(a);
+      if (!b) return true;
+      const p = t / a.dur;
+      if (p >= 1) return true;
+      const r = Math.hypot(b.x, b.y);
+      const th = Math.atan2(b.y, b.x) + a.dir * TAU * inOut(p);
+      const s = Math.sin(Math.PI * p);
+      b.ox += (r * Math.cos(th) - b.x) * G();
+      b.oy += (r * Math.sin(th) - b.y) * G();
+      b.orot += a.dir * Math.PI * inOut(p);
+      b.olift += 0.5 * s;
+      b.ch += 0.2 * s;
+      return false;
+    },
+    // the two behind trade places, one passing over the other; done, each takes the other's step and spot
+    swap(a, t) {
+      a.who ??= atStep(0);
+      a.who2 ??= atStep(2);
+      const A = a.who;
+      const B = a.who2;
+      if (!A || !B) return true;
+      const p = t / a.dur;
+      if (p >= 1) {
+        const ax = A.x;
+        const ay = A.y;
+        A.x = B.x;
+        A.y = B.y;
+        B.x = ax;
+        B.y = ay;
+        const st = A.step;
+        A.step = B.step;
+        B.step = st;
+        return true;
+      }
+      const s = inOut(p);
+      const arc = Math.sin(Math.PI * p);
+      A.ox += (B.x - A.x) * s;
+      A.oy += (B.y - A.y) * s - 0.32 * arc * G();
+      A.olift += 0.35 * arc;
+      B.ox += (A.x - B.x) * s;
+      B.oy += (A.y - B.y) * s + 0.22 * arc * G();
+      B.olift -= 0.15 * arc;
+      return false;
+    },
+    // the tile held forward dips toward the field, as if to read what is typed, and comes back up
+    peek(a, t) {
+      const b = tileOf(a);
+      if (!b) return true;
+      const p = t / a.dur;
+      if (p >= 1) return true;
+      const s = Math.sin(Math.PI * p);
+      b.oy += 0.26 * s * G();
+      b.orot += 0.1 * a.dir * s;
+      b.olift -= 0.15 * s;
+      return false;
+    },
+    // the three lean one way, then the other, and settle
+    sway(a, t) {
+      const p = t / a.dur;
+      if (p >= 1) return true;
+      const s = Math.sin(TAU * p) * Math.sin(Math.PI * p);
+      for (const b of bodies) {
+        b.ox += 0.12 * a.dir * s * G() * (1 + 0.25 * (clamp(b.step, 0, 2) - 1));
+        b.orot += 0.12 * a.dir * s;
+      }
+      return false;
+    },
     // light running down the stack: a read landed, an answer done, a wake
     sweep(a, t) {
       a.order ??= byStep();
@@ -555,28 +633,46 @@ export function createCharacter(options: CharacterOptions = {}): Character {
   }
 
   // Listening with nothing heard for a while: a move fit for the pose, so the three look alive while they wait
-  // (Ruben, 25 Sep: "while typing or thinking what to type"). The tiles tucked behind turn as they do at rest, alone
-  // or as gears; the one held forward rises a little or, rarely, turns half round; or a glance. More often than at
-  // rest, since the person is looking at them.
+  // (Ruben, 25 Sep: "while typing or thinking what to type", then "other states like the spinning, the old one where
+  // the block went to the right to loop"). The tiles tucked behind turn as they do at rest, alone or as gears, or
+  // trade places; one of them takes a lap round the others; the one held forward rises a little, peeks down at the
+  // field or spins right round; the three sway; or a glance. In the fused pose a tile behind is mostly hidden, so it
+  // steps out to its side as it turns; a lap, a swap or a spin about once in three, the rest the small ones. More often
+  // than at rest, since the person is looking at them.
   function waiting(): void {
     const r = rand();
     const dir = rand() < 0.5 ? -1 : 1;
-    if (r < 0.45) {
-      turnOne(rand() < 0.5 ? 0 : 2, dir);
+    const behind = (k: number, d: number) => move("turn", { whoStep: k, dir: d, dur: 0.62, out: (k - 1) * 0.3 });
+    if (r < 0.2) {
+      behind(rand() < 0.5 ? 0 : 2, dir);
       note("turn");
-    } else if (r < 0.65) {
-      turnOne(0, dir);
-      turnOne(2, -dir);
+    } else if (r < 0.3) {
+      behind(0, dir);
+      behind(2, -dir);
       note("gears");
-    } else if (r < 0.8) {
-      move("rise", { whoStep: 1, amp: 0.5, dur: 0.6 });
+    } else if (r < 0.38) {
+      move("rise", { whoStep: 1, amp: 0.9, dur: 0.7 });
       note("rise");
-    } else if (r < 0.95) {
+    } else if (r < 0.44) {
       move("look");
       note("look");
+    } else if (r < 0.56) {
+      move("peek", { whoStep: 1, dir, dur: 0.9 });
+      note("peek");
+    } else if (r < 0.66) {
+      move("sway", { dir, dur: 1.6 });
+      note("sway");
+    } else if (r < 0.78) {
+      move("swap", { dur: 0.9 });
+      note("swap");
+    } else if (r < 0.92) {
+      // out to its own side first, then over the top and round
+      const side = rand() < 0.5 ? 0 : 2;
+      move("lap", { whoStep: side, dir: side === 0 ? 1 : -1, dur: 1.6 });
+      note("lap");
     } else {
-      turnOne(1, dir, 2);
-      note("half turn");
+      move("turn", { whoStep: 1, dir, amp: 4, dur: 1.1 });
+      note("spin");
     }
   }
 
@@ -622,7 +718,7 @@ export function createCharacter(options: CharacterOptions = {}): Character {
       nextFidgetAt = clock + (quiet ? 14 + rand() * 10 : 6 + rand() * 5);
     } else if (state === "listening" && W.listening > 0.95 && quietFor > 1.2) {
       waiting();
-      nextFidgetAt = clock + 3 + rand() * 3;
+      nextFidgetAt = clock + 2.5 + rand() * 2.5;
     }
   }
 
