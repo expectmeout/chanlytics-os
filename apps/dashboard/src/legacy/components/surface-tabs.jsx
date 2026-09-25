@@ -116,4 +116,78 @@ const SurfaceTabs = ({ page, param, onNavigate }) => {
   );
 };
 
-window.SurfaceTabs = SurfaceTabs;
+// ---- Where a route stands on a strip, and which way a view comes in -----------------------------------------------
+// People's scopes are People's own strip (PeoplePhoneBar), in plScopes' order; every other strip is a group's here. A
+// person's page, and a route no strip carries, stand nowhere, and a view arriving there comes in as any other does.
+const stripPlace = (page, param) => {
+  if (page === "clients") {
+    if (!window.plScopes || !window.plScopeRoute) return null;
+    const route = param && /^leads(:|$)/.test(param)
+      ? "clients/leads"
+      : param && /^pipeline(:|$)/.test(param)
+        ? "clients/pipeline"
+        : !param || /^(seg|list|state):/.test(param) ? "clients" : null;
+    const at = route ? window.plScopes(true).map((s) => window.plScopeRoute(s.id)).indexOf(route) : -1;
+    return at < 0 ? null : { strip: "people", at };
+  }
+  const found = Object.entries(ST_GROUPS).find(([key, g]) => key !== "people" && g.match.includes(page));
+  if (!found) return null;
+  const at = found[1].tabs.filter((t) => !t.demoOnly || window.__DEMO_MODE).findIndex((t) => t.id === page);
+  return at < 0 ? null : { strip: found[0], at };
+};
+const stripSlide = (from, to) => (from && to && from.strip === to.strip && from.at !== to.at ? (to.at > from.at ? "next" : "prev") : null);
+
+// ---- The strip under a thumb (a phone, docs/superpowers/specs/2026-09-25-swipe-between-tabs-design.md) ------------
+// A swipe across the page walks the strip drawn over it: data-bits' touchSwipe carries the page with the finger; this
+// finds the strip (the shell's, over the route view, or People's own inside it), glides its underline toward the tab
+// the page is going to, holds it still when it is inside what moves, and presses the tab beside, so a swipe is exactly
+// a tap. A touch that begins in something that takes touches for itself is never the page's.
+const ST_OWN_TOUCH = '[role="dialog"], [aria-modal="true"], [role="menu"], .sb-sheet, .pp-toast, [data-own-drag]';
+const stripPhone = () => !!(window.matchMedia && window.matchMedia("(max-width: 720px)").matches);
+// The picked tab's own underline comes back at once: eased, it faded in under a glide that had already gone.
+const stripUnglide = (strip) => {
+  const tabs = Array.from(strip.querySelectorAll(".stabs-tab"));
+  for (const t of tabs) t.style.transition = "none";
+  strip.removeAttribute("data-glide");
+  strip.style.removeProperty("--glide-x");
+  strip.style.removeProperty("--glide-w");
+  void strip.offsetWidth;
+  for (const t of tabs) t.style.transition = "";
+};
+const stripPager = (view, from) => {
+  if (from && from.closest && from.closest(ST_OWN_TOUCH)) return null;
+  const main = view && view.parentElement;
+  const strip = main ? main.querySelector(".stabs") : null;
+  if (!strip || strip.getClientRects().length === 0) return null;
+  const tabs = Array.from(strip.querySelectorAll(".stabs-tab"));
+  const at = tabs.findIndex((t) => t.classList.contains("active"));
+  if (at < 0) return null;
+  return {
+    prev: at > 0,
+    next: at < tabs.length - 1,
+    held: view.contains(strip) ? strip : null,
+    follow: (progress, step, how) => {
+      const a = tabs[at];
+      const b = tabs[at + step] || a;
+      const p = Math.max(0, Math.min(1, progress));
+      strip.style.setProperty("--glide-x", `${a.offsetLeft + (b.offsetLeft - a.offsetLeft) * p}px`);
+      strip.style.setProperty("--glide-w", `${a.offsetWidth + (b.offsetWidth - a.offsetWidth) * p}px`);
+      strip.setAttribute("data-glide", how === "move" ? "" : "ease");
+      if (how === "settle") setTimeout(() => stripUnglide(strip), 260);
+    },
+    go: (step) => {
+      const tab = tabs[at + step];
+      if (!tab) return;
+      tab.click();
+      const since = Date.now();
+      const landed = () => {
+        if (tab.classList.contains("active") || !tab.isConnected || Date.now() - since > 400) stripUnglide(strip);
+        else setTimeout(landed, 16);
+      };
+      landed();
+    },
+  };
+};
+const stripSwipe = () => (window.touchSwipe ? window.touchSwipe({ pages: stripPager, when: stripPhone }) : {});
+
+Object.assign(window, { SurfaceTabs, stripPlace, stripSlide, stripSwipe });

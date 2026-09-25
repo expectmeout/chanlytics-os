@@ -1058,6 +1058,19 @@ test("where deals are on, the switch has a third tab, the Pipeline, on a desktop
 // Ruben, 24 Sep: the scopes on a phone should look like the Inbox's views. They were a boxed switch squeezed into the
 // bar beside the list button ("All deals 6" shortened at 375px); now they are the shell's own tab strip, the Inbox's
 // .stabs, on a row of their own over the bar, and they stay while the bar is the search field.
+// A phone's page swipes across its strip, and a tap slides the same way (surface-tabs.jsx stripPlace): People's strip
+// is its scopes, in plScopes' order, and a person's page is on none.
+test("People's scopes are its strip's order: People, Leads, the Pipeline; a person's page is on no strip", async () => {
+  await import("../../../apps/dashboard/src/legacy/components/surface-tabs.jsx");
+  const w = globalThis.window;
+  assert.deepEqual(w.stripPlace("clients", null), { strip: "people", at: 0 });
+  assert.deepEqual(w.stripPlace("clients", "seg:needs-you"), { strip: "people", at: 0 });
+  assert.deepEqual(w.stripPlace("clients", "leads:s-abc"), { strip: "people", at: 1 });
+  assert.deepEqual(w.stripPlace("clients", "pipeline"), { strip: "people", at: 2 });
+  assert.equal(w.stripPlace("clients", "c-123"), null);
+  assert.equal(w.stripSlide(w.stripPlace("clients", "leads"), w.stripPlace("clients", null)), "prev");
+});
+
 test("on a phone the scopes are the Inbox's tab strip, on a row of their own over the bar, and they stay while searching", () =>
   onPhone(async () => {
     await freshPage({ people: [person(1)], dealsOn: true });
