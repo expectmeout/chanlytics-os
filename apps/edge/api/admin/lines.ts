@@ -22,6 +22,9 @@ import { emitEvent } from "../../lib/packages/db.js";
 import {
   formatPhoneDisplay,
   whyCannotSpend,
+  SPEND_NUMBER,
+  SPEND_TEXTING,
+  type SpendWords,
   lineRetryRefusal,
   type BillingMode,
   type BillingStatus,
@@ -171,11 +174,11 @@ export async function POST(request: Request): Promise<Response> {
   // describes. So the gate is not a question about a flag any more — it is
   // asked below, in the register branch, where the ROW says what the filing
   // will actually be.
-  const refuseIfCannotSpend = async (): Promise<Response | null> => {
+  const refuseIfCannotSpend = async (doing: SpendWords = SPEND_NUMBER): Promise<Response | null> => {
     const bill = await db.from("billing_accounts").select("mode, status").eq("tenant_id", tenantId).maybeSingle();
     if (bill.error) return json(503, { ok: false, error: bill.error.message });
     if (!bill.data) return json(402, { ok: false, error: "no_billing_record" });
-    const why = whyCannotSpend(bill.data.mode as BillingMode, bill.data.status as BillingStatus);
+    const why = whyCannotSpend(bill.data.mode as BillingMode, bill.data.status as BillingStatus, doing);
     if (why) return json(402, { ok: false, error: "payment_required", detail: why, status: bill.data.status });
     return null;
   };
@@ -419,7 +422,7 @@ export async function POST(request: Request): Promise<Response> {
     const onFile = !!row.data.brand_sid && !!row.data.campaign_sid;
     const correctingInPlace = refile && onFile && row.data.sms_state === "rejected" && !replace;
     if (!correctingInPlace) {
-      const refused = await refuseIfCannotSpend();
+      const refused = await refuseIfCannotSpend(SPEND_TEXTING);
       if (refused) return refused;
     }
     const rec = await db.from("business_records").select("*").eq("tenant_id", tenantId).maybeSingle();

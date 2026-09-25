@@ -16,6 +16,7 @@ import {
   priceWords,
   invoiceStatusWords,
   CHECKOUT_OUTCOME_WORDS,
+  START_PLAN_WORDS,
   type BillingDto,
   type BillingVM,
   type BillingInvoiceDto,
@@ -42,6 +43,12 @@ export interface BillingApi {
   portal(): Promise<{ ok: boolean; message: string }>;
   invoices(): Promise<{ ok: boolean; invoices: BillingInvoiceDto[]; message: string }>;
   resume(): Promise<{ ok: boolean; message: string }>;
+  /**
+   * A free trial's plan started now (contracts maySpend: the trial covers no number, texting or lead search). Ok only
+   * when Stripe says the charge went through; the billing and Setup reads are taken again either way.
+   */
+  startNow(): Promise<{ ok: boolean; message: string }>;
+  startWords: typeof START_PLAN_WORDS;
   sync(): Promise<{ ok: boolean; message: string }>;
   /** What the browser came back from Stripe with, read once and cleared: "success", "cancel" or "portal". */
   outcome(): string | null;
@@ -108,6 +115,13 @@ export function installBilling(win: Window = window): void {
       const r = await api()("POST billing/resume", { body: {} });
       return { ok: r.ok, message: r.ok ? "" : r.message };
     },
+    async startNow() {
+      const r = await api()("POST billing/start-now", { body: {} });
+      if (!r.ok) return { ok: false, message: r.message };
+      await refreshSurfaces([billingOverride, setupOverride]);
+      return r.data.status === "active" ? { ok: true, message: "" } : { ok: false, message: START_PLAN_WORDS.unpaid };
+    },
+    startWords: START_PLAN_WORDS,
     async sync() {
       const r = await api()("POST billing/sync", { body: {} });
       return { ok: r.ok, message: r.ok ? "" : r.message };

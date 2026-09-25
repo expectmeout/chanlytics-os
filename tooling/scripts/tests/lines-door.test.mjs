@@ -201,7 +201,7 @@ const rehearsal = (over = {}) => filed({ reg_mock: true, ...over });
 function world(over = {}) {
   return {
     tenants: tenants(),
-    billing_accounts: [billing("trialing")],
+    billing_accounts: [billing("active")],
     lines: [],
     business_records: [],
     tenant_channels: [],
@@ -457,7 +457,18 @@ test("search validates the area code and answers local numbers with the monthly 
 test("buy is refused for a workspace that may not spend, with the reason and where to go, before a row is written", async () => {
   const net = unreachable("a refused purchase must not reach a provider");
   try {
-    for (const status of ["none", "incomplete", "past_due", "canceled", "unpaid", "paused", "incomplete_expired"]) {
+    // A free trial among them: a number is a cost on our account whether or not the trial pays, so it starts the
+    // plan first (contracts maySpend).
+    for (const status of [
+      "none",
+      "trialing",
+      "incomplete",
+      "past_due",
+      "canceled",
+      "unpaid",
+      "paused",
+      "incomplete_expired",
+    ]) {
       const tables = world({ billing_accounts: [billing(status)] });
       const db = use(tables);
       const res = await knock({ op: "buy", number: NUMBER });
@@ -1033,6 +1044,21 @@ test("register: the gate asks what the filing will COST, off the row — a first
       assert.equal(writes(db, "lines").length, 0, `${what}: the row is untouched`);
       assert.deepEqual(tables.lines[0], row);
     }
+    // A free trial files nothing: $19.50, non-refundable, waits for the plan -- and the refusal says it is about
+    // texting, not about a number.
+    const trial = world({ billing_accounts: [billing("trialing")], lines: [unfiled()], business_records: [RECORD] });
+    use(trial, VAULT);
+    assert.deepEqual(await answer(await knock({ op: "register", line_id: LINE })), [
+      402,
+      {
+        ok: false,
+        error: "payment_required",
+        detail:
+          "Your free trial doesn't cover registering for texting. Start your plan from Billing, then register for texting.",
+        status: "trialing",
+      },
+    ]);
+    assert.equal(trial.lines[0].brand_sid, null, "nothing filed");
     const none = world({ billing_accounts: [], lines: [unfiled()], business_records: [RECORD] });
     use(none, VAULT);
     assert.deepEqual(await answer(await knock({ op: "register", line_id: LINE })), [

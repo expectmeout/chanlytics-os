@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AppError, MOCK_TEXTING_SENTENCE } from "@chanlytics/contracts";
+import { SPEND_TEXTING, AppError, MOCK_TEXTING_SENTENCE } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/route";
 import { edgeLines } from "@/server/lines";
 
@@ -39,6 +39,8 @@ export const POST = write({
   role: "owner",
   rate: "lines_register",
   spend: true,
+  // A refusal here is about registering for texting, not about buying a number.
+  spendWords: SPEND_TEXTING,
   input: Body,
   handle: async ({ member, input }) => {
     const a = await edgeLines({ op: "register", tenant_id: member.tenantId, line_id: input.line_id }, 60_000);

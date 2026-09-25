@@ -579,13 +579,16 @@ const FrPhone = ({ ph, choice, setChoice, W, flash, go, back, backLabel, ownFoot
     // Done: on to where the workspace is now, Try it.
     if (cta.act === "onward") { go("start"); return; }
     const next = { ...c, way: ph.way, pending: true, sent: false, returnedAt: null };
-    if (cta.act === "trial") {
-      if (!(window.canDo && window.canDo("billing")) || !window.__billing) return;
+    // The number starts the plan (maySpend): by checkout, which takes no trial here, or, on a free trial, by starting
+    // its plan now. Either way the choice waits in the tab, and the buy goes on once the plan lets it.
+    if (cta.act === "plan" || cta.act === "startNow") {
+      const B = window.__billing;
+      if (!(window.canDo && window.canDo("billing")) || !B || (cta.act === "startNow" && !B.startNow)) return;
       setChoice(next);
       // The step's own address, so it stays on screen once its line answers.
       go("start/phone");
       setBusy(true);
-      const r = await window.__billing.checkout("start");
+      const r = cta.act === "plan" ? await B.checkout("start") : await B.startNow();
       setBusy(false);
       if (!r.ok) { setChoice({ ...next, pending: false }); flash({ tone: "danger", msg: <>{r.message}</> }); }
       return;
@@ -595,7 +598,12 @@ const FrPhone = ({ ph, choice, setChoice, W, flash, go, back, backLabel, ownFoot
     go("start/phone");
   };
   // The step's foot, drawn here whenever the step's button is this one's (FirstRun draws no other then).
-  const gateOf = { trial: ["billing", "start the trial"], buy: ["team", "get a number"], forward: ["team", "set up forwarding"] };
+  const gateOf = {
+    plan: ["billing", "start the plan"],
+    startNow: ["billing", "start the plan"],
+    buy: ["team", "get a number"],
+    forward: ["team", "set up forwarding"],
+  };
   const gated = ph.cta && gateOf[ph.cta.act] ? window.gate(gateOf[ph.cta.act][0], gateOf[ph.cta.act][1]) : {};
   const foot = ownFoot && ph.cta ? (
     <div className="fr-foot">
@@ -677,7 +685,6 @@ const FrPhone = ({ ph, choice, setChoice, W, flash, go, back, backLabel, ownFoot
   if (ph.stage !== "choose") {
     return (
       <div className="fr-line-step" data-testid="fr-phone" data-stage={ph.stage}>
-        {ph.started ? <p className="fr-line-started" data-testid="fr-phone-started"><Icon name="check" size={12} />{ph.started}</p> : null}
         {ph.status ? (
           <div className="fr-line-status" role="status" data-testid="fr-phone-status">
             <StatePill kind="setup" value={ph.status.state} label={ph.status.words} />
@@ -756,10 +763,10 @@ const FrPhone = ({ ph, choice, setChoice, W, flash, go, back, backLabel, ownFoot
           <window.FieldError id="fr-phone-number-problem" message={boxLeft ? ph.boxProblem : null} testid="fr-phone-number-problem" />
         </label>
       )}
-      {ph.trial ? (
-        <div className="fr-trial" data-testid="fr-trial">
-          <span className="fr-trial-offer">{ph.trial.offer}</span>
-          <span className="fr-trial-note">{ph.trial.note}</span>
+      {ph.plan ? (
+        <div className="fr-trial" data-testid="fr-plan">
+          <span className="fr-trial-offer">{ph.plan.offer}</span>
+          <span className="fr-trial-note">{ph.plan.note}</span>
         </div>
       ) : null}
       {foot}

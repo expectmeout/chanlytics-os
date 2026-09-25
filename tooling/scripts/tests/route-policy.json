@@ -79,6 +79,13 @@
       "rate": "billing",
       "spend": false
     },
+    "POST billing/start-now": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "billing",
+      "spend": false
+    },
     "GET billing": {
       "kind": "read",
       "scope": "workspace",
