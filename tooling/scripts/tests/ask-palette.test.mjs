@@ -1889,7 +1889,7 @@ test("on Today the Line is as it was: Ask anything, questions about the page, an
 
 /* ------------------------------ the takeover composes ------------------------------ */
 
-test("on a phone the field in use composes: the rows fold away, the three keep their size with the standing pills under them and listen, a key heard lifts them, and letting go opens the fold again", async () => {
+test("on a phone the field in use composes: the rows go, their fold kept closed, the three keep their size with the standing pills under them and listen, a key heard lifts them, and letting go opens the fold again", async () => {
   const ph = phoneWindow();
   const moods = [];
   let heard = 0;
@@ -1929,17 +1929,14 @@ test("on a phone the field in use composes: the rows fold away, the three keep t
     tree = await later(Palette, props);
     assert.equal(byTestId(tree, "ask-hero").props.className, "ask-hero", "the three keep their size");
     assert.ok(byClass(tree, "composing").length, "the middle composes, still centred");
-    assert.equal(fold(tree), "ask-rows-fold folding", "the rows fold away");
-    assert.deepEqual(pills(byTestId(tree, "ask-hero")), ["1 needs you", "1 search waiting"], "the pills stay");
-    assert.equal(moods.at(-1), "listening", "and the three listen");
-    await new Promise((r) => setTimeout(r, 300));
-    tree = await later(Palette, props);
     assert.equal(
       find(tree, (n) => n.props?.id === "ask-rows"),
       null,
-      "then the rows are gone",
+      "the rows are gone at once",
     );
     assert.equal(fold(tree), "ask-rows-fold gone", "their fold kept, closed");
+    assert.deepEqual(pills(byTestId(tree, "ask-hero")), ["1 needs you", "1 search waiting"], "the pills stay");
+    assert.equal(moods.at(-1), "listening", "and the three listen");
     assert.equal(inputOf(tree).props["aria-expanded"], false);
     typed(tree, "in");
     tree = await later(Palette, props);

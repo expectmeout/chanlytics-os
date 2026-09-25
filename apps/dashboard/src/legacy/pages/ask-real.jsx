@@ -13,6 +13,7 @@
 
 const useArState = React.useState;
 const useArEffect = React.useEffect;
+const useArLayout = React.useLayoutEffect || React.useEffect;
 const useArRef = React.useRef;
 
 /** Folded turns shown above the line before "+N earlier in this conversation". */
@@ -57,6 +58,69 @@ const arTurns = (messages) => {
 const arPhone = () => !!(window.matchMedia && window.matchMedia("(max-width: 720px)").matches);
 const arStill = () => !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
 
+// The keyboard's own beat on iOS: what it takes to rise, and what the field and the three take to reach their places.
+const AR_KEYS_MS = 250;
+const arRect = (el) => (el && typeof el.getBoundingClientRect === "function" ? el.getBoundingClientRect() : null);
+/** Where the field and the hero stand as the field is focused, to slide them from there once the screen has made room. */
+const arSlideFrom = (stage, hero) => (arStill() ? null : { stage: arRect(stage), hero: arRect(hero) });
+// A phone's field just focused: the screen has made room for the keys at once (data-bits watchKeyboard's kb-expected;
+// ask.css), so the browser finds the field above them and moves nothing. What the eye sees is the field and the three
+// sliding to their places over the keyboard's own beat: a still copy of the field that React never holds goes from
+// where the field stood to where it is, over the field itself, held clear meanwhile (the kit's way, as `leaving`), and
+// the hero is drawn from where it stood and let go (translate, never transform: the kit's rule). Under reduced motion
+// they are simply there (arSlideFrom gives nothing).
+const arSlide = (from, stage, hero) => {
+  if (!from) return;
+  const modal = stage && stage.parentElement;
+  const now = arRect(stage);
+  const box = arRect(modal);
+  if (from.stage && now && box) {
+    const dy = now.top - from.stage.top;
+    if (Math.abs(dy) > 1) {
+      const ghost = stage.cloneNode(true);
+      ghost.setAttribute("aria-hidden", "true");
+      ghost.removeAttribute("data-testid");
+      ghost.querySelectorAll("[id], [data-testid]").forEach((el) => {
+        el.removeAttribute("id");
+        el.removeAttribute("data-testid");
+      });
+      Object.assign(ghost.style, {
+        position: "absolute",
+        left: `${from.stage.left - box.left}px`,
+        top: `${from.stage.top - box.top}px`,
+        width: `${from.stage.width}px`,
+        margin: "0",
+        pointerEvents: "none",
+        transition: `translate ${AR_KEYS_MS}ms var(--ease-out)`,
+      });
+      modal.appendChild(ghost);
+      stage.style.opacity = "0";
+      requestAnimationFrame(() => {
+        ghost.style.translate = `0 ${dy}px`;
+      });
+      setTimeout(() => {
+        ghost.remove();
+        stage.style.opacity = "";
+      }, AR_KEYS_MS + 30);
+    }
+  }
+  const heroNow = arRect(hero);
+  if (from.hero && heroNow) {
+    const dh = from.hero.top - heroNow.top;
+    if (Math.abs(dh) > 1) {
+      hero.style.transition = "none";
+      hero.style.translate = `0 ${dh}px`;
+      void hero.offsetHeight;
+      hero.style.transition = `translate ${AR_KEYS_MS}ms var(--ease-out)`;
+      hero.style.translate = "0 0";
+      setTimeout(() => {
+        hero.style.transition = "";
+        hero.style.translate = "";
+      }, AR_KEYS_MS + 30);
+    }
+  }
+};
+
 // Where the three come from as the Line opens: the top bar's button, where it is drawn. On a phone the ✦ is gone
 // before the takeover comes in (app-shell.jsx draws it only while Ask is closed), so the takeover's own fade is it.
 const arFaceFrom = () => {
@@ -90,15 +154,18 @@ const AskReal = ({ open, onClose }) => {
   // The conversation a × or the Delete key asked to delete, waiting for a yes (N5).
   const [doomed, setDoomed] = useArState(null);
   // A phone's field in use (focused, so its keyboard is up): the takeover composes. The rows (Right now, Brief me, the
-  // page's questions, and the words' own rows once typed) fade as their fold closes and leave; the three keep their
-  // size, centred in what is left with the standing pills under them, and listen, each key heard lifting them
+  // page's questions, and the words' own rows once typed) go as the field slides up over their place; the three keep
+  // their size, centred in what is left with the standing pills under them, and listen, each key heard lifting them
   // (spec 5.9, "Composing").
   const [composing, setComposing] = useArState(false);
-  const [homeGone, setHomeGone] = useArState(false);
+  // Where the field and the three stood as the field was focused (arSlideFrom), until the slide has run.
+  const slideFrom = useArRef(null);
   const speech = H.useAskSpeech(A);
   const [toastNode, flash] = window.usePPToast();
   const inputRef = useArRef(null);
   const faceRef = useArRef(null);
+  const heroRef = useArRef(null);
+  const stageRef = useArRef(null);
   const bodyRef = useArRef(null);
   // The dialog itself: where a phone's takeover puts focus as it opens (S10).
   const dialogRef = useArRef(null);
@@ -150,13 +217,14 @@ const AskReal = ({ open, onClose }) => {
         ? "thinking"
         : speech.speakingId ? "speaking" : composing ? "listening" : "idle";
   useArEffect(() => { if (M) M.mood.set(moodState); }, [moodState]);
-  // The rows leave once their fold has closed (ask.css, 220ms) and stay gone while the field is in use, the words' own
-  // rows and the jumps included: with the keyboard up there is no room for them, and Enter sends. They are back at
-  // once when composing ends, the fold opening again.
-  useArEffect(() => {
-    if (!composing) { setHomeGone(false); return undefined; }
-    const id = setTimeout(() => setHomeGone(true), 240);
-    return () => clearTimeout(id);
+  // The slide runs once the screen has made room (watchKeyboard hears the focus after this page does, so the room is
+  // there by the next frame, before anything is painted).
+  useArLayout(() => {
+    if (!composing || !slideFrom.current || typeof requestAnimationFrame !== "function") return undefined;
+    const from = slideFrom.current;
+    slideFrom.current = null;
+    const id = requestAnimationFrame(() => arSlide(from, stageRef.current, heroRef.current));
+    return () => cancelAnimationFrame(id);
   }, [composing]);
   useArEffect(() => { if (!open) setComposing(false); }, [open]);
 
@@ -477,8 +545,9 @@ const AskReal = ({ open, onClose }) => {
   const showRows = !talk.listening && (view === "earlier" || !!query || (!live && !quick && !answerMsg));
   // A phone's field in use with rows under the three (the home, or the words' own): the middle composes (spec 5.9).
   const composingRows = composing && showRows;
-  // The rows on screen: not once composing has folded them away, so nothing is built or walked.
-  const rowsDrawn = showRows && !homeGone;
+  // The rows on screen: not while the field is in use (with the keyboard up there is no room for them, the words' own
+  // rows and the jumps included, and Enter sends), so nothing is built or walked.
+  const rowsDrawn = showRows && !composing;
   const sections = rowsDrawn ? buildLineRows({ A, t, lang, query, surface, scope, threads, view, phone }) : [];
   const rows = flatRows(sections);
   const drawn = showRows || talk.listening || live
@@ -623,12 +692,12 @@ const AskReal = ({ open, onClose }) => {
     <>{oneButton}</>
   );
 
-  // The rows sit in a fold (ask.css `.ask-rows-fold`): composing closes it as they fade (`folding`), keeps it while
-  // they are gone (`gone`), and their return opens it again, one element throughout so each change is a motion.
+  // The rows sit in a fold (ask.css `.ask-rows-fold`): composing keeps it closed while they are gone (`gone`), and
+  // their return opens it again, one element throughout so the return is a motion.
   let body = null;
   if (rowsDrawn)
     body = (
-      <div className={`ask-rows-fold${composingRows ? " folding" : ""}`} data-testid="ask-rows-fold">
+      <div className="ask-rows-fold" data-testid="ask-rows-fold">
         <AskRows
           sections={sections}
           sel={sel}
@@ -684,7 +753,7 @@ const AskReal = ({ open, onClose }) => {
   const parts = phone && A.rightNowParts ? A.rightNowParts(lang) : null;
   const standing = !!parts && !!(parts.people || parts.runs || parts.searches) && !talk.listening && (composingRows || restful);
   const hero = phone ? (
-    <div className={`ask-hero${heroSmall ? " small" : ""}`} data-testid="ask-hero">
+    <div className={`ask-hero${heroSmall ? " small" : ""}`} ref={heroRef} data-testid="ask-hero">
       <span className="ask-hero-stage" ref={faceRef} {...holdThree} data-testid="ask-hero-stage">
         {AskFace ? <AskFace className="ask-hero-canvas" testId="ask-line-face" /> : null}
       </span>
@@ -767,7 +836,7 @@ const AskReal = ({ open, onClose }) => {
             and the band is the field at the foot (ask.css orders it last), hidden under the pill to let go of while it
             listens. */}
         {foot}
-        <div className={`ask-stage${talk.listening ? " listening" : ""}${live ? " live" : ""}`} data-testid="ask-line">
+        <div className={`ask-stage${talk.listening ? " listening" : ""}${live ? " live" : ""}`} ref={stageRef} data-testid="ask-line">
           <div className="ask-stage-row">
             {!phone ? (
               <span className="ask-stage-face" ref={faceRef}>
@@ -789,7 +858,7 @@ const AskReal = ({ open, onClose }) => {
               onChange={(e) => { setQuery(e.target.value); if (composing && M) M.mood.hear(0.5); }}
               onKeyDown={onKey}
               onKeyUp={(e) => hold.onKeyUp(e)}
-              onFocus={() => { if (arPhone()) setComposing(true); }}
+              onFocus={() => { if (!arPhone()) return; slideFrom.current = arSlideFrom(stageRef.current, heroRef.current); setComposing(true); }}
               onBlur={() => setComposing(false)}
               role="combobox"
               aria-expanded={rowsDrawn && rows.length > 0}
