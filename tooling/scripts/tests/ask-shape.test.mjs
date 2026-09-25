@@ -238,3 +238,76 @@ test("a turn answered without a Say has none; a scripted round without timing or
   assert.equal(sh.rounds_ms.length, 1, "a round without timing is still timed by the loop's own clock");
   assert.deepEqual([sh.follow_up, sh.since_last_ms, sh.opened_ms], [false, null, null]);
 });
+
+const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/rate-limit.ts"));
+const { setAskPorts } = await import(at("apps/dashboard/src/server/ask/loop.ts"));
+const askRoute = await import(at("apps/dashboard/app/api/v1/ask/route.ts"));
+beforeEach(() => setRateStore(memoryStore()));
+
+const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+const membership = (tenant_id, role, slug, created_at) => ({
+  user_id: USER,
+  tenant_id,
+  role,
+  tenants: { slug },
+  created_at,
+});
+const ctxFor = (tables) => ({ supabase: fakeDb(tables, {}), userId: USER, email: "ada@example.com", params: {} });
+const post = (body) =>
+  new Request(`http://localhost/api/v1/x?workspace=${A}`, { method: "POST", body: JSON.stringify(body) });
+const routeTables = () => ({
+  memberships: [
+    membership(A, "operator", "harbor", "2026-01-01T00:00:00Z"),
+    membership(B, "viewer", "bayside", "2026-02-01T00:00:00Z"),
+  ],
+  tenants: [{ id: A, name: "Harbor", timezone: "America/New_York" }],
+  tenant_config: [{ tenant_id: A, config: {}, version: 1 }],
+  policies: [],
+  ask_threads: [],
+  ask_messages: [],
+});
+
+test("the route: the shape is stored on the turn's row with the palette's opened_ms; a second question on the thread is a follow-up with the time since the last turn; a bad opened_ms is nothing, never a refusal", async () => {
+  const tables = routeTables();
+  const written = answerJson("Nobody has booked this week yet.");
+  setAskPorts({
+    round: async (call, onText) => {
+      onText(written);
+      return ROUND([text(written)], { stopReason: "end_turn" });
+    },
+    snapshot: async () => "",
+  });
+  try {
+    const first = await askRoute.POST.run(
+      post({ text: "Who booked this week?", surface: "today", opened_ms: 4200 }),
+      ctxFor(tables),
+    );
+    const lines = (await first.text())
+      .trim()
+      .split("\n")
+      .map((l) => JSON.parse(l));
+    const threadId = lines[0].id;
+    const stored = tables.ask_messages[1].content;
+    assert.equal(stored.shape.v, 1, "the shape rides on the turn's row");
+    assert.deepEqual([stored.shape.opened_ms, stored.shape.follow_up, stored.shape.since_last_ms], [4200, false, null]);
+    assert.equal(stored.shape.rounds, 1);
+    assert.equal(stored.shape.cache_hit, 0.9);
+    assert.ok(typeof stored.shape.first_say_ms === "number");
+    assert.ok(!("shape" in lines[2].message), "the Line's message does not carry it: the row does");
+
+    const again = await askRoute.POST.run(
+      post({ text: "And last week?", thread_id: threadId, opened_ms: "soon" }),
+      ctxFor(tables),
+    );
+    await again.text();
+    const second = tables.ask_messages[3].content;
+    assert.equal(second.shape.follow_up, true);
+    assert.ok(
+      typeof second.shape.since_last_ms === "number" && second.shape.since_last_ms >= 0,
+      "since the previous turn",
+    );
+    assert.equal(second.shape.opened_ms, null, "a value that is not a number is nothing");
+  } finally {
+    setAskPorts(null);
+  }
+});

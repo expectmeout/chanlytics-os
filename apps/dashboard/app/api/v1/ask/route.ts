@@ -79,6 +79,7 @@ export const POST = write({
       scope?: unknown;
       surface?: unknown;
       answering?: unknown;
+      opened_ms?: unknown;
     } | null;
     const text = typeof body?.text === "string" ? body.text.replace(/\s+/g, " ").trim() : "";
     if (!text) throw new AppError("validation", "Ask something.");
@@ -100,6 +101,13 @@ export const POST = write({
       }
     }
     const surface = typeof body?.surface === "string" && SURFACES.has(body.surface) ? body.surface : null;
+    // How long the palette was open before the question was sent, as the tab
+    // measured it (AskTurnShape.opened_ms): milliseconds within an hour, else
+    // nothing. Never refused: a script or an older tab sends none.
+    const openedMs =
+      typeof body?.opened_ms === "number" && Number.isFinite(body.opened_ms) && body.opened_ms >= 0
+        ? Math.min(Math.round(body.opened_ms), 3_600_000)
+        : null;
 
     const tenantId = member.tenantId;
 
@@ -124,12 +132,16 @@ export const POST = write({
     // The thread, before anything else: a question that could not be saved is
     // not answered, so a person never sees an answer they cannot find again.
     let history: Array<{ role: "user" | "assistant"; text: string }> = [];
+    let sinceLastMs: number | null = null;
     let thread: { id: string; title: string; scope: AskScope | null } | null = null;
     if (threadId) {
       const found = await readThread(ctx, threadId);
       if (found && found.tenantId === tenantId) {
         thread = { id: found.thread.id, title: found.thread.title, scope: found.thread.scope };
         history = found.turns;
+        // The thread's previous turn, before this question is appended: how long the person waited to ask again.
+        const lastAt = found.messages.at(-1)?.atMs;
+        sinceLastMs = lastAt ? Math.max(0, Date.now() - lastAt) : null;
         if (!scope) scope = found.thread.scope;
       } else if (!answering) throw new AppError("not_found", "That thread is not yours.", 404);
     }
@@ -181,6 +193,8 @@ export const POST = write({
           surface,
           history,
           text: askTurnText(text, answering),
+          openedMs,
+          sinceLastMs,
           emit: (ev) => send(line(ev)),
         });
         // The answer as the Line draws it, beside the v1 fields it gives (spec 5.8): the history, copy and search
@@ -204,6 +218,7 @@ export const POST = write({
           ...(result.failure ? { failure: result.failure.slice(0, 200) } : {}),
           model: ASK_MODEL,
           rounds: result.rounds,
+          shape: result.shape,
         };
         let saved: { id: string; created_at: string } | null = null;
         try {
@@ -246,6 +261,10 @@ export const POST = write({
             citations: v1.citations.length,
             form: result.answer.form,
             language: result.answer.language,
+            first_say_ms: result.shape.first_say_ms,
+            cache_hit: result.shape.cache_hit,
+            follow_up: result.shape.follow_up,
+            opened_ms: openedMs,
           }),
         );
         send(line({ t: "final", message }));
