@@ -29,7 +29,7 @@ import {
   type ServiceLike,
   type ServiceOffer,
 } from "../lib/packages/contracts.js";
-import { env } from "../lib/env.js";
+import { voiceDoorAuth } from "../lib/voice/voice-door-auth.js";
 import { logger } from "../lib/log.js";
 
 const CANNOT_SEE =
@@ -86,11 +86,9 @@ export function availabilityAnswer(
 
 export async function POST(request: Request): Promise<Response> {
   const raw = await request.text();
-  // The third Retell door, guarded like the other two (retell-fn, retell-inbound)
-  // and the webhook: an unset or empty secret matches nothing, so an empty
-  // header never opens it because the configured secret is empty too.
-  const secret = env.RETELL_FN_SECRET;
-  if (!secret || request.headers.get("x-fn-secret") !== secret) {
+  // The third Retell door, guarded like the other two (voice-door-auth.ts): the signature, or the header until the
+  // signature is required.
+  if (!voiceDoorAuth("availability", request, raw, request.headers.get("x-fn-secret")).ok) {
     return json(401, { ok: false, error: "bad_secret" });
   }
   let body: {

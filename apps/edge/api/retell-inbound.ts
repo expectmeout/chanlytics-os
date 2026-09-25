@@ -2,7 +2,8 @@
  * Retell inbound-call webhook — fires when a call arrives on the number, and
  * answers with what the receptionist is told before it speaks: whose facts,
  * whose memory, the greeting, the line a transfer dials.
- * Auth: ?key=<RETELL_FN_SECRET> on the URL.
+ * Auth: Retell's signature once RETELL_DOORS_SIGNED=1; until then ?key=<RETELL_FN_SECRET> on the URL, and the
+ * signature is logged (lib/voice/voice-door-auth.ts).
  *
  * THIS ENDPOINT SPEAKS STORED CONVERSATION BACK TO A CALLER, so getting the
  * tenant right is not bookkeeping — it decides whose words come out of the
@@ -31,20 +32,17 @@ import { planCallStart } from "../lib/voice/call-start.js";
 import { claimControl, CALL_CONTROL_S } from "../lib/packages/db.js";
 import { alertUnroutable } from "../lib/whatsapp/alerts.js";
 import { logger } from "../lib/log.js";
-import { env } from "../lib/env.js";
+import { voiceDoorAuth } from "../lib/voice/voice-door-auth.js";
 
 /** How long the unroutable alert may hold the answer. Retell's own ceiling is ten seconds. */
 const ALERT_BUDGET_MS = 3_000;
 
 export async function POST(request: Request): Promise<Response> {
-  // An unset or empty secret matches nothing: an empty key must never open this
-  // door because the configured secret is empty too. retell-webhook.ts guards
-  // the same variable the same way.
-  const secret = env.RETELL_FN_SECRET;
-  if (!secret || new URL(request.url).searchParams.get("key") !== secret) {
+  const raw = await request.text();
+  // The signature, or the ?key= until the signature is required (voice-door-auth.ts says which, and why).
+  if (!voiceDoorAuth("inbound", request, raw, new URL(request.url).searchParams.get("key")).ok) {
     return json(401, { ok: false });
   }
-  const raw = await request.text();
   let body: {
     call_inbound?: {
       call_id?: string;
