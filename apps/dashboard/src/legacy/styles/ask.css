@@ -199,18 +199,59 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 .phone-ask { display: none; }
 .ask-hero { display: none; }
 @media (max-width: 720px) {
-  /* The ✦ sits in the tab bar's own row, at its right end, where the bar keeps a place for it (mobile.css). */
+  /* The ✦ sits in the tab bar's own row, at its right end, where the bar keeps a place for it (mobile.css). It is the
+     cards' own surface with the three on it, ink at rest and coral while Ask works, as the top bar's face is (the
+     primary act is ink in this system and coral is a state; a coral ✦ said "live" all day), and a beam travels its
+     rim (`.ask-beam`, components/ask-face.jsx AskBeam; the spec 2026-09-25-the-ask-button-on-a-phone). The tap is
+     44px; the disc is 40 inside it, so the rim runs close to the three. */
   .phone-ask {
     display: grid; place-items: center;
     position: fixed; right: 10px; bottom: calc(6px + env(safe-area-inset-bottom));
-    width: 44px; height: 44px; border-radius: 50%; border: 0; cursor: pointer;
-    background: var(--accent); color: var(--accent-fg); z-index: 121;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+    width: 44px; height: 44px; border-radius: 50%; border: 0; padding: 0; cursor: pointer;
+    background: none; color: var(--ink); z-index: 121;
   }
-  /* The three in the ✦ (components/ask-face.jsx, tone accent), in the button's own foreground on its coral. */
-  .phone-ask .phone-ask-face { display: block; width: 30px; height: 24px; }
+  /* The three in the ✦ (components/ask-face.jsx, on the raised ground), over the disc. */
+  .phone-ask .phone-ask-face { display: block; width: 36px; height: 30px; position: relative; z-index: 1; }
   .phone-ask:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
   .phone-ask:active { transform: scale(0.96); }
+  /* The disc, and the beam on its rim. At rest the beam is the ink, faint, one lap in 8 s. While Ask works
+     (`data-work`) it brightens, laps in 2.5 s, and takes the usage's colour (`data-usage`): the AI's own blue at the
+     head through violet to a gold tail under 80%, amber from 80%, red at 100%. Its light spills onto the inside of
+     the rim (::after); nothing glows outside. The colours are mixed toward the ink by `--work`, so the rest beam is
+     the same shape in grey. */
+  .phone-ask .ask-beam {
+    position: absolute; inset: 2px; border-radius: 50%; pointer-events: none;
+    background: var(--bg-raised);
+    box-shadow: 0 0 0 1px var(--line-strong), var(--shadow-md);
+    --work: 0;
+    --beam-head: oklch(0.72 0.14 250);
+    --beam-mid: oklch(0.68 0.18 320);
+    --beam-tail: oklch(0.8 0.15 70);
+    --beam: color-mix(in oklab, var(--beam-head) calc(100% * var(--work)), var(--ink));
+    --beam-mid-c: color-mix(in oklab, var(--beam-mid) calc(100% * var(--work)), var(--ink));
+    --beam-tail-c: color-mix(in oklab, var(--beam-tail) calc(100% * var(--work)), var(--ink));
+  }
+  .phone-ask .ask-beam[data-usage="warned"] { --beam-head: var(--warn); --beam-mid: var(--warn); --beam-tail: var(--warn); }
+  .phone-ask .ask-beam[data-usage="over"] { --beam-head: var(--danger); --beam-mid: var(--danger); --beam-tail: var(--danger); }
+  .phone-ask .ask-beam[data-work="1"] { --work: 1; }
+  .phone-ask .ask-beam::before, .phone-ask .ask-beam::after {
+    content: ""; position: absolute; border-radius: 50%;
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor; mask-composite: exclude;
+    animation: ask-beam-spin 8s linear infinite;
+    transition: opacity 0.5s ease;
+  }
+  .phone-ask .ask-beam::before {
+    inset: -1px; padding: 1.5px; opacity: 0.42;
+    background: conic-gradient(from 0deg, transparent 0deg, color-mix(in oklab, var(--beam-tail-c) 45%, transparent) 18deg, var(--beam-mid-c) 34deg, var(--beam) 52deg, transparent 92deg, transparent 360deg);
+  }
+  .phone-ask .ask-beam::after {
+    inset: 1px; padding: 7px; opacity: 0.18; filter: blur(3.5px);
+    background: conic-gradient(from 6deg, transparent 0deg, color-mix(in oklab, var(--beam-tail-c) 45%, transparent) 20deg, color-mix(in oklab, var(--beam) 55%, transparent) 42deg, transparent 90deg, transparent 360deg);
+  }
+  .phone-ask .ask-beam[data-work="1"]::before { opacity: 1; animation-duration: 2.5s; }
+  .phone-ask .ask-beam[data-work="1"]::after { opacity: 0.68; animation-duration: 2.5s; }
+  @keyframes ask-beam-spin { to { transform: rotate(360deg); } }
   /* Inside the native shell the native tab bar stands under it: the ✦ lifts by the shell's inset (mobile.css, html.in-app). */
   html.in-app .phone-ask { bottom: calc(10px + var(--app-inset-bottom, 0px)); }
   /* Inside an open thread the reply box IS the action, and Send sits a thumb from here. Ask comes back with the list. */
@@ -296,6 +337,8 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 
 /* Last, so it wins over the phone's own motion too: nothing moves but the finger's drag. */
 @media (prefers-reduced-motion: reduce) {
+  /* the ✦'s beam holds still: the disc, the three's still frame and the colours stay */
+  .phone-ask .ask-beam::before, .phone-ask .ask-beam::after { animation: none; }
   .ask-cursor, .ask-reading, .ask-reading-dot, .ask-part.show, .ask-part.do, .ask-modal.ask-line, .ask-send .icon { animation: none; }
   .ask-fold-chev, .ask-stage, .ask-send, .ask-hero-stage { transition: none; }
 }
