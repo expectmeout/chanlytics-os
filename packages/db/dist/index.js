@@ -2460,6 +2460,8 @@ async function markProcessed(db, tenantId, messageId) {
   if (error) throw new Error(`mark_processed: ${error.message}`);
 }
 async function recordOutbound(db, p) {
+  if (p.channel === "email")
+    throw new Error("record_outbound: an email's row is written before it is sent, never after");
   const { data, error } = await db.from("messages").insert({
     tenant_id: p.tenantId,
     conversation_id: p.conversationId,

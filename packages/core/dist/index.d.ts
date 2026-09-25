@@ -1,5 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js';
-import { EmailRequest, SendResult, ResendConfig, EmailSendsAs, WaConfig, ApifyClient, LeadJudge, NormalizedInbound, CarrierConsent } from '@chanlytics/channels';
+import { EmailRequest, ResendLimit, SendResult, ResendConfig, EmailSendsAs, WaConfig, ApifyClient, LeadJudge, NormalizedInbound, CarrierConsent } from '@chanlytics/channels';
 import { SendPurpose, DecisionSubject, DecisionVerb, JobNews, ParamSpec, Audience, PersonRowVM, ListRef, NumberHealth, PersonVisitsDto, Membership, DealPaceVM, PlaybookTrigger, PlaybookPolicyClass, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadArea, LeadRoundPurpose, LeadSearchPlan, PlaceFacts, LeadContactStandard, ProbeMember, BrainMeta, NotificationsConfig, BrainConfig, CalendarConfig, FeaturesConfig, PolicyLimits, KnownFacts } from '@chanlytics/contracts';
 import { Json, Database, RoutedChannel, LeadContext, IngestResult } from '@chanlytics/db';
 
@@ -128,6 +128,8 @@ type Delivered = {
     status: number;
     errorBody: string | null;
     messageId: string | null;
+    /** A mail provider's refusal for a limit of its own (channels resendLimitOf), named at the wire; email only. */
+    limit?: ResendLimit;
 };
 interface DeliverPorts {
     db: Db;
@@ -646,6 +648,13 @@ interface SendQueuedCommand {
             language: string;
             params: string[];
         };
+        /**
+         * What the send IS, when the job knows better than a template can: an offer is marketing whatever its words, and a
+         * first email starts a conversation. Both can only make the door stricter: a payload never makes a template's
+         * purpose looser, and only `true` makes a send proactive.
+         */
+        purpose?: SendPurpose;
+        proactive?: boolean;
     };
 }
 /**

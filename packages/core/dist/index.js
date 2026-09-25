@@ -9782,6 +9782,8 @@ var K3 = new Uint32Array([
 ]);
 var NAME_MAX3 = BrainConfigSchema3.shape.business_name.maxLength ?? Infinity;
 async function recordOutbound(db, p) {
+  if (p.channel === "email")
+    throw new Error("record_outbound: an email's row is written before it is sent, never after");
   const { data, error } = await db.from("messages").insert({
     tenant_id: p.tenantId,
     conversation_id: p.conversationId,
@@ -9912,6 +9914,10 @@ async function finalizeQueued(db, d, patch) {
   return !!data && data.length > 0;
 }
 async function deliver(ports, d) {
+  if (d.channel === "email" && (!d.messageId || d.email && d.email.idempotency_key !== d.messageId))
+    throw new Error(
+      `deliver: an email leaves only from the queued row its request was frozen for (conversation ${d.conversationId})`
+    );
   const nowMs = (ports.now ?? Date.now)();
   const facts = await wireFacts(ports.db, d);
   const refusal = refusalFor(d, facts, nowMs);
@@ -10001,12 +10007,14 @@ async function deliver(ports, d) {
     });
   }
   await event(ports.db, d, "message.send_failed", messageId, { ...failure, reason: sent.reason ?? "provider" });
+  const limit = d.channel === "email" && !sent.reason ? resendLimitOf(sent) : null;
   return {
     outcome: "failed",
     reason: sent.reason ?? "provider",
     status: sent.status,
     errorBody: sent.errorBody ?? null,
-    messageId
+    messageId,
+    ...limit ? { limit } : {}
   };
 }
 async function templatePurpose(db, tenantId, template) {
@@ -10300,7 +10308,8 @@ async function sendQueued(ports, cmd) {
     );
   }
   if (!msg || msg.status !== "queued") return;
-  const purpose = await ports.purposeOf(p.template);
+  const fromTemplate = await ports.purposeOf(p.template);
+  const purpose = p.purpose === "marketing" ? "marketing" : fromTemplate;
   const channel = msg.channel ?? "whatsapp";
   const to = channel === "email" ? p.to_email : p.to_phone;
   if (!to)
@@ -10318,7 +10327,7 @@ async function sendQueued(ports, cmd) {
     // the metrics report a bot's words as a person's.
     sender: msg.sender ?? "human",
     purpose,
-    proactive: false,
+    proactive: p.proactive === true,
     body: p.body ?? msg.body ?? "",
     template: p.template,
     // The request the row was queued with, sent as it was frozen. A row without one fails at the wire, by name.
@@ -10326,6 +10335,14 @@ async function sendQueued(ports, cmd) {
     messageId: p.message_id
   });
   if (out.outcome !== "failed") return;
+  const limit = out.limit ?? null;
+  if (limit === "daily" || limit === "monthly") {
+    await ports.page?.(
+      "provider_quota:email",
+      `email: the ${limit} sending limit is used up`,
+      `Tenant ${cmd.tenantId}, message ${p.message_id}. Every workspace's email is refused until it resets or the plan grows.`
+    );
+  }
   if (out.reason === "provider" && (out.status === 401 || out.status === 403)) {
     await ports.page?.(
       `provider_auth:${channel}`,
@@ -10334,7 +10351,7 @@ async function sendQueued(ports, cmd) {
     );
   }
   const notConnected = channel === "sms" ? "the texting line is not connected" : channel === "whatsapp" ? "the WhatsApp number is not connected" : `the ${channel} channel is not connected`;
-  const cause = out.reason === "no_credentials" ? notConnected : out.reason === "no_sender_for_channel" ? `this runtime has no ${channel} line` : out.reason === "wire_unreadable" ? "the thread could not be read at the wire" : (
+  const cause = out.reason === "no_credentials" ? notConnected : out.reason === "no_sender_for_channel" ? `this runtime has no ${channel} line` : out.reason === "wire_unreadable" ? "the thread could not be read at the wire" : limit === "daily" || limit === "monthly" ? "the mail provider's sending limit is used up for now" : limit === "rate" ? "the mail provider asked us to slow down" : limit === "in_flight" ? "the mail provider is still sending an earlier try of it; check the thread before sending it again" : (
     // Status 0 is no answer at all: the network failed, or the email wire refused a request it will not send
     // (deliver.ts emailSender). The row keeps which; "HTTP 0" told an owner nothing.
     out.status === 0 ? "it never reached the provider" : `HTTP ${out.status}`

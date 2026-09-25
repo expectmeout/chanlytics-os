@@ -642,7 +642,21 @@ const frozen = (over = {}) =>
     ...over,
   });
 const emailed = (over = {}) =>
-  words({ to: ADDRESS, channel: "email", email: frozen(), body: "We can do Saturday at 9.", ...over });
+  words({ to: ADDRESS, channel: "email", email: frozen(), body: "We can do Saturday at 9.", messageId: "m1", ...over });
+/** The row an email is queued as before it leaves, under the id its request was frozen with (frozen()'s "m1"). */
+const queuedEmail = (over = {}) => ({
+  id: "m1",
+  tenant_id: T,
+  conversation_id: "c1",
+  contact_id: "k1",
+  channel: "email",
+  direction: "outbound",
+  sender: "human",
+  status: "queued",
+  body: "We can do Saturday at 9.",
+  created_at: "2026-09-10T09:59:00.000Z",
+  ...over,
+});
 const onEmail = (over = {}) => person({ email: ADDRESS, email_suppressed_at: null, ...over });
 const emailWire = (result = { ok: true, wamid: "re_1", status: 200 }) => {
   const calls = [];
@@ -657,17 +671,19 @@ const emailWire = (result = { ok: true, wamid: "re_1", status: 200 }) => {
   };
 };
 
-test("an email leaves as the request that was frozen for it: the wire is handed those bytes, and the row says email", async () => {
-  const t = tables({ conversations: [thread({ contacts: onEmail() })] });
+test("an email leaves as the request that was frozen for it, from the row it was queued as: the wire is handed those bytes, and that row says sent", async () => {
+  const t = tables({ conversations: [thread({ contacts: onEmail() })], messages: [queuedEmail()] });
   const w = emailWire();
   const d = emailed();
   const out = await deliver(ports(t, w), d);
   assert.equal(out.outcome, "sent");
+  assert.equal(out.messageId, "m1", "the row it was queued as");
   assert.equal(out.externalId, "re_1", "the provider's id, which a receipt may also name");
   assert.equal(w.calls.length, 1);
   assert.equal(w.calls[0].to, ADDRESS);
   assert.equal(w.calls[0].p.email, d.email, "the frozen request itself, not something assembled at the door");
-  assert.equal(t.messages[0].channel, "email");
+  assert.equal(t.messages.length, 1, "no second row");
+  assert.deepEqual([t.messages[0].status, t.messages[0].external_id], ["sent", "re_1"]);
 });
 
 test("email's three refusals, each a fact about the person or the product, asked before consent and before the wire", async () => {
@@ -683,11 +699,16 @@ test("email's three refusals, each a fact about the person or the product, asked
     [{}, onEmail(), null],
   ];
   for (const [over, who, reason] of cases) {
-    const t = tables({ conversations: [thread({ contacts: who })] });
+    const t = tables({ conversations: [thread({ contacts: who })], messages: [queuedEmail()] });
     const w = emailWire();
     const out = await deliver(ports(t, w), emailed(over));
     assert.equal(out.outcome === "refused" ? out.reason : null, reason, JSON.stringify({ over, who }));
     assert.equal(w.calls.length, reason ? 0 : 1, `${reason ?? "sent"}: the wire is called only for words that may go`);
+    assert.equal(
+      t.messages[0].status,
+      reason ? "canceled" : "sent",
+      `${reason ?? "sent"}: on the row it was queued as`,
+    );
   }
 });
 
@@ -745,9 +766,89 @@ test("email's wire is one workspace's: it sends the frozen request and nothing i
 });
 
 test("a workspace with no email wire bound fails as ours, like any channel this runtime does not have", async () => {
-  const t = tables({ conversations: [thread({ contacts: onEmail() })] });
+  const t = tables({ conversations: [thread({ contacts: onEmail() })], messages: [queuedEmail()] });
   const out = await deliver(ports(t, wireOf()), emailed());
   assert.equal(out.outcome, "failed");
   assert.equal(out.reason, "no_sender_for_channel");
+  assert.equal(t.messages.length, 1, "on the row it was queued as, never a second");
   assert.equal(t.messages[0].status, "failed");
+});
+
+test("an email leaves only from the queued row its request was frozen for: without one, or under another row's key, the door refuses the caller before it reads anything", async () => {
+  for (const [over, who, why] of [
+    [{ messageId: undefined }, onEmail(), "no row"],
+    [{ messageId: null }, onEmail(), "no row"],
+    [{ messageId: "m2" }, onEmail(), "another row's key"],
+    // A person the door would refuse: had it read first, it would cancel m2 and say why. It reads nothing.
+    [
+      { messageId: "m2" },
+      onEmail({ email_suppressed_at: "2026-09-01T00:00:00Z" }),
+      "another row's key, a refused person",
+    ],
+  ]) {
+    const t = tables({ conversations: [thread({ contacts: who })], messages: [queuedEmail({ id: "m2" })] });
+    const w = emailWire();
+    await assert.rejects(
+      deliver(ports(t, w), emailed(over)),
+      /an email leaves only from the queued row its request was frozen for/,
+      why,
+    );
+    assert.equal(w.calls.length, 0, `${why}: the wire is never called`);
+    assert.equal(t.messages.length, 1, `${why}: no row is written`);
+    assert.equal(t.messages[0].status, "queued", `${why}: the row that is there is left alone`);
+    assert.equal(t.events.length, 0, `${why}: and nothing is said about it, because nothing was read`);
+  }
+  // The door's own after-the-send writer takes no email either: an id it mints is one no receipt can name.
+  const { recordOutbound } = await import(pathToFileURL(path.join(ROOT, "packages/db/dist/index.js")).href);
+  const t = tables();
+  await assert.rejects(
+    recordOutbound(fakeDb(t), {
+      tenantId: T,
+      conversationId: "c1",
+      contactId: "k1",
+      sender: "human",
+      body: "x",
+      externalId: "re_1",
+      channel: "email",
+    }),
+    /an email's row is written before it is sent/,
+  );
+  assert.equal(t.messages.length, 0);
+});
+
+test("a refusal the mail provider gives for a limit of its own is named at the door, and only on email", async () => {
+  const refusal = (name) => ({
+    ok: false,
+    wamid: null,
+    status: 429,
+    errorBody: JSON.stringify({ statusCode: 429, name, message: "x" }),
+  });
+  for (const [name, limit] of [
+    ["daily_quota_exceeded", "daily"],
+    ["monthly_quota_exceeded", "monthly"],
+    ["rate_limit_exceeded", "rate"],
+  ]) {
+    const t = tables({ conversations: [thread({ contacts: onEmail() })], messages: [queuedEmail()] });
+    const out = await deliver(ports(t, emailWire(refusal(name))), emailed());
+    assert.deepEqual([out.outcome, out.reason, out.limit], ["failed", "provider", limit], name);
+    assert.equal(t.messages[0].status, "failed", `${name}: the row it was queued as says so`);
+  }
+  const wa = tables();
+  const waOut = await deliver(ports(wa, wireOf(refusal("rate_limit_exceeded"))), words());
+  assert.equal(waOut.outcome, "failed");
+  assert.equal("limit" in waOut, false, "WhatsApp's 429 is not the mail provider's");
+  const noWire = tables({ conversations: [thread({ contacts: onEmail() })], messages: [queuedEmail()] });
+  assert.equal("limit" in (await deliver(ports(noWire, wireOf()), emailed())), false, "no wire is ours, not a limit");
+});
+
+test("a row the door writes after the send is on the channel it went out on: a text is a text, sent or failed", async () => {
+  for (const [result, status] of [
+    [{ ok: true, wamid: "SM1", status: 201 }, "sent"],
+    [{ ok: false, wamid: null, status: 500, errorBody: "boom" }, "failed"],
+  ]) {
+    const t = tables();
+    await deliver(ports(t, { wire: { sms: async () => result } }), words({ channel: "sms" }));
+    assert.equal(t.messages.length, 1, JSON.stringify(result));
+    assert.deepEqual([t.messages[0].channel, t.messages[0].status], ["sms", status], JSON.stringify(result));
+  }
 });

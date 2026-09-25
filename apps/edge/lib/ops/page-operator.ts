@@ -4,13 +4,18 @@
  * page per condition key per six hours, stamped only after delivery -- a page
  * that did not send earns no quiet, so the next tick tries again.
  *
- * Six conditions call it today: the heartbeat failing many jobs in one run
+ * Eight conditions call it today: the heartbeat failing many jobs in one run
  * (api/jobs/tick.ts); a provider refusing a send with 401 or 403 -- credentials,
- * not content (core/messages/send.ts); due jobs nobody is claiming, and
- * WhatsApp messages Meta accepted that have had no receipt for six hours
- * (api/cron/health.ts); a customer waiting in a workspace with nobody on file
- * to tell (api/cron/deadman.ts); and the receptionist having no model key
- * (whatsapp/inbound.ts). Each reaches the platform, never an owner.
+ * not content -- and the mail provider's day or month used up
+ * (core/messages/send.ts); due jobs nobody is claiming, WhatsApp messages Meta
+ * accepted that have had no receipt for six hours, and the mail domain losing
+ * its standing (api/cron/health.ts); a customer waiting in a workspace with
+ * nobody on file to tell (api/cron/deadman.ts); and the receptionist having no
+ * model key (core/inbound/answer.ts). Each reaches the platform, never an owner.
+ *
+ * A page is mail, sent with the platform's own provider key. So a condition
+ * that IS that key failing -- its 401, its used-up quota -- is recorded here
+ * and shown on /api/diag, and its mail cannot leave until the key works again.
  *
  * The callers do not act on the outcome: the memory does. A condition whose
  * last firing was never told (a failed or unaddressed page) is readable as
