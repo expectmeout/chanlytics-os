@@ -319,6 +319,8 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
+  // What a phone's keyboard covers, as --kb, for Ask's screen and every sheet (data-bits watchKeyboard).
+  useShellEffect(() => (window.watchKeyboard ? window.watchKeyboard() : undefined), []);
   // A list's own route (`segments/<id>`) is People with that list picked on a real workspace; the address says so.
   // Replaced, not pushed, so Back leaves People rather than bouncing through the old route.
   // Which list an id names is the People surface's to say, and on a cold load of the old route that surface is

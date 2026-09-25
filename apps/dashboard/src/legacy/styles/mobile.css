@@ -165,7 +165,8 @@
   /* The seeded page's list head on a narrow screen: the title, Show everyone and Delete on one line, and the "Save
      these as a list" door under them. The real page draws no list head on a phone (clients-a.jsx, the phone pass). */
   .clients .cl-section-head { flex-wrap: wrap; gap: 4px 12px; }
-  .pl-sheet { left: 0; right: 0; top: auto; bottom: 0; transform: none; width: auto; max-height: 82vh; border-radius: var(--radius-lg) var(--radius-lg) 0 0; padding: 12px 0 calc(12px + env(safe-area-inset-bottom)); }
+  /* Every sheet from the bottom stands on the keyboard (--kb, data-bits watchKeyboard) and gives it its height. */
+  .pl-sheet { left: 0; right: 0; top: auto; bottom: var(--kb, 0px); transform: none; width: auto; max-height: calc(82vh - var(--kb, 0px)); max-height: calc(82dvh - var(--kb, 0px)); border-radius: var(--radius-lg) var(--radius-lg) 0 0; padding: 12px 0 calc(12px + env(safe-area-inset-bottom)); }
   .pl-sheet .sb-sheet-head { padding: 0 16px 6px; }
   .pl-sheet .cl-rail { display: block; width: auto; border-right: none; background: transparent; }
   .cl-triage-tabs { grid-template-columns: 1fr 1fr; }

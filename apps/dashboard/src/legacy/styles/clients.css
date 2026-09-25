@@ -2403,7 +2403,7 @@
 .pp-top { flex: none; }
 .pp-bar { display: flex; align-items: center; gap: 6px; padding: 8px 8px 6px 16px; flex: none; }
 /* The page's menu is taller than a menu's 340px on a touch screen (44px items): it takes the room the phone has. */
-.pp-bar .more-menu { max-height: min(520px, calc(100vh - 140px)); }
+.pp-bar .more-menu { max-height: min(520px, calc(100vh - 140px)); max-height: min(520px, calc(100dvh - 140px)); }
 .pp-bar-pick { flex: 0 1 auto; min-width: 0; height: 40px; display: inline-flex; align-items: center; gap: 4px; padding: 0 8px 0 10px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-raised); color: var(--ink); font: inherit; font-size: var(--text-sm); font-weight: var(--weight-medium); cursor: pointer; }
 .pp-bar-pick .icon { flex: none; color: var(--ink-dim); }
 /* The words give way, not the chevron: an ellipsis on the button itself does nothing, it is a flex box. */
