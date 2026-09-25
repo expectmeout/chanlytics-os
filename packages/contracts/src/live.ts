@@ -49,6 +49,8 @@ export interface LiveCallVM {
   initials: string;
   /** Display phone, or null when the caller ID was withheld. */
   number: string | null;
+  /** The caller's number as stored (E.164), for a page that acts on it (the first run's transfer choice); null when withheld. */
+  from: string | null;
   direction: "inbound" | "outbound";
   status: string;
   /** In progress under the heartbeat rule. */
@@ -258,6 +260,7 @@ export function toLiveCallVM(dto: CallDto, tz: string, now = new Date()): LiveCa
     whoShort,
     initials: withheld ? "–" : initialsOf(who),
     number: withheld ? null : (phone ?? dto.from_raw),
+    from: withheld ? null : dto.from_e164,
     direction: dto.direction,
     status: dto.status,
     live,

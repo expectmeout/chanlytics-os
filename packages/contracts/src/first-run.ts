@@ -18,6 +18,7 @@ import { DAY_NAMES, type Hours } from "./config";
 import { bookingLinkOptional } from "./deals";
 import { checkChipsOf } from "./check-chips";
 import { bookingPageOffered } from "./google";
+import { firstRunTryOf, FIRST_RUN_TRY_WORDS, TRY_QUIET_AFTER_MS } from "./first-run-try";
 import { areaCodeOf, firstRunPhoneOf, forwardingCarrierOf, FIRST_RUN_PHONE_WORDS } from "./first-run-phone";
 import type { SetupDto, SetupRowVM, SetupState, SetupVM } from "./setup";
 
@@ -608,6 +609,10 @@ export const FIRST_RUN_HELPERS = {
   phone: firstRunPhoneOf,
   phoneWords: FIRST_RUN_PHONE_WORDS,
   areaCodeOf,
+  /** Try it (first-run-try.ts): what the step says over Setup and the Live page's calls, its words, and when it asks why. */
+  tryIt: firstRunTryOf,
+  tryWords: FIRST_RUN_TRY_WORDS,
+  tryQuietAfterMs: TRY_QUIET_AFTER_MS,
   /** The carrier whose codes the answers choose (first-run-phone.ts), which the forwarding is saved with. */
   forwardingCarrierOf,
   /** A number as the app writes one (phone.ts): the numbers offered to pick are said this way, never Twilio's. */

@@ -3917,6 +3917,7 @@ function toLiveCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
     whoShort,
     initials: withheld ? "\u2013" : initialsOf(who),
     number: withheld ? null : phone ?? dto.from_raw,
+    from: withheld ? null : dto.from_e164,
     direction: dto.direction,
     status: dto.status,
     live,
@@ -7112,6 +7113,267 @@ function toGoogleVM(dto, periodDays, nowMs = Date.now()) {
   };
 }
 
+// src/forwarding.ts
+var CARRIERS = ["verizon", "att", "tmobile", "other", "office"];
+var FORWARDING_MODES = ["unanswered", "always"];
+var CARRIER_WORDS = {
+  verizon: "Verizon",
+  att: "AT&T",
+  tmobile: "T-Mobile",
+  other: "Another carrier or a landline",
+  office: "An office phone system"
+};
+var MODE_WORDS = {
+  unanswered: "Only calls you don't answer",
+  always: "Every call"
+};
+var FORWARDING_TEST_WINDOW_MS = 30 * 6e4;
+function telHref(code2) {
+  return `tel:${code2.replace(/\+/g, "%2B").replace(/#/g, "%23")}`;
+}
+function national(e164) {
+  const d = e164.replace(/[^\d]/g, "");
+  return d.length === 11 && d.startsWith("1") ? d.slice(1) : d;
+}
+var code = (c) => ({ code: c, tel: telHref(c) });
+var UNANSWERED_NOTE = "Your phone rings first. After your carrier's timer, usually 15 to 30 seconds, the call comes to the receptionist. If voicemail picks up first, calls never arrive: ask your carrier to lengthen the ring time, or forward every call.";
+var DIAL_NOTE = "Dial it on the phone that has the number you keep, wait for the tone or the message, then hang up.";
+var OFFICE_NOTE = "An office phone system takes no code: in its settings, under forwarding or what happens when no one answers, forward the calls to the number above.";
+var OFFICE_VOICEMAIL_NOTE = "If the system sends unanswered calls to voicemail, the forwarding has to come before it, or calls never reach the receptionist. Its support can set it for you.";
+function forwardingDialLabel(carrier, kept) {
+  return carrier === "office" ? `In the phone system for ${kept}, forward the calls to` : `Dial on the phone with ${kept}`;
+}
+function forwardingCodes(carrier, mode, destinationE164) {
+  const n10 = national(destinationE164);
+  const full = normalizePhone(destinationE164) ?? destinationE164;
+  const conditional = mode === "unanswered";
+  switch (carrier) {
+    // No code: the receptionist's number, set in the system's own settings, and taken out there to switch it off.
+    case "office":
+      return {
+        on: code(full),
+        off: code(""),
+        notes: [OFFICE_NOTE, ...conditional ? [OFFICE_VOICEMAIL_NOTE] : []]
+      };
+    case "verizon":
+      return {
+        on: code(conditional ? `*71${n10}` : `*72${n10}`),
+        off: code("*73"),
+        notes: [DIAL_NOTE, ...conditional ? [UNANSWERED_NOTE] : [], "Verizon forwards calls only, never texts."]
+      };
+    case "att":
+      return {
+        on: code(conditional ? `*61*${n10}#` : `*21*${n10}#`),
+        off: code(conditional ? "#61#" : "#21#"),
+        notes: [
+          DIAL_NOTE,
+          ...conditional ? [
+            UNANSWERED_NOTE,
+            `Busy too: dial *67*${n10}#. If AT&T refuses these codes, dial *92 then the number for no answer and *90 then the number for busy, or ask AT&T for your plan's codes.`
+          ] : []
+        ]
+      };
+    case "tmobile":
+      return {
+        on: code(conditional ? `**004*${full}#` : `**21*${full}#`),
+        off: code(conditional ? "##004#" : "##21#"),
+        notes: [DIAL_NOTE, ...conditional ? [UNANSWERED_NOTE] : [], "T-Mobile takes the number with +1 in front."]
+      };
+    default:
+      return {
+        on: code(conditional ? `*92${n10}` : `*72${n10}`),
+        off: code(conditional ? "*93" : "*73"),
+        notes: [
+          DIAL_NOTE,
+          ...conditional ? [UNANSWERED_NOTE] : [],
+          "Codes vary by carrier. If these are refused, ask your carrier for its call-forwarding codes: most landlines use *72 for every call and *92 or *71 for calls you don't answer."
+        ]
+      };
+  }
+}
+var isCarrier = (v) => typeof v === "string" && CARRIERS.includes(v);
+var isForwardingMode = (v) => typeof v === "string" && FORWARDING_MODES.includes(v);
+function forwardingMatch(facts, call, nowMs = Date.now()) {
+  const started = call.startedAtIso ? Date.parse(call.startedAtIso) : nowMs;
+  const from = typeof facts.test_started_at === "string" ? Date.parse(facts.test_started_at) : NaN;
+  const until = typeof facts.test_until === "string" ? Date.parse(facts.test_until) : NaN;
+  if (Number.isNaN(started) || Number.isNaN(from) || Number.isNaN(until)) return false;
+  if (started < from - 6e4 || started > until) return false;
+  const dest = typeof facts.destination_e164 === "string" ? normalizePhone(facts.destination_e164) : null;
+  if (dest && call.toE164 && normalizePhone(call.toE164) !== dest) return false;
+  const testFrom = typeof facts.test_from === "string" && facts.test_from ? normalizePhone(facts.test_from) : null;
+  if (testFrom && (!call.fromE164 || normalizePhone(call.fromE164) !== testFrom)) return false;
+  return true;
+}
+function forwardingTestOpen(facts, nowMs = Date.now()) {
+  const until = typeof facts.test_until === "string" ? Date.parse(facts.test_until) : NaN;
+  return !Number.isNaN(until) && until > nowMs;
+}
+
+// src/first-run-try.ts
+var TRY_QUIET_AFTER_MS = 3 * 6e4;
+var TRY_SLACK_MS = 6e4;
+var FIRST_RUN_TRY_WORDS = {
+  listenForwarded: "Call your number from your cell. Don't pick up.",
+  listenOwn: "Call your receptionist from your cell.",
+  lead: "Ask what a customer would, like \u201CAre you open on Sunday?\u201D",
+  listening: "Listening for your call",
+  listeningDetail: "This page changes the moment it picks up.",
+  window: (minutes) => `Open for ${minutes} more ${minutes === 1 ? "minute" : "minutes"}`,
+  route: (kept) => `Your cell calls ${kept} \u2192 nobody picks up \u2192 your receptionist answers`,
+  quietHeading: "No call has reached your receptionist yet",
+  stillListening: "Still listening",
+  causesForwarded: [
+    {
+      question: "Did you hear a tone after dialing the code?",
+      answer: "If not, dial the code again, or pick another phone company."
+    },
+    {
+      question: "Did an answering machine or voicemail pick up?",
+      answer: "Turn it off. It answers before your receptionist can."
+    },
+    {
+      question: "Did you call from the phone customers call?",
+      answer: "Use another phone. A line can't forward a call to itself."
+    }
+  ],
+  causeOwn: (number) => ({
+    question: `Did you call ${number}?`,
+    answer: "That's the number your receptionist answers."
+  }),
+  showCode: "Show the code again",
+  help: "Ask Chanlytics for help",
+  helpSent: "We'll email you to find a time for a call.",
+  helpFailed: "Not asked",
+  pickedUp: "It picked up.",
+  proofForwarded: "Forwarding works",
+  proofOwn: "Your receptionist answered",
+  onTheCall: "on the call now",
+  behind: "Words arrive a moment behind the call.",
+  doneHeading: "That's your receptionist.",
+  from: (number) => `from ${number}`,
+  through: (number) => `through ${number}`,
+  receptionist: "Receptionist",
+  caller: "You",
+  transferLabel: "When a caller asks for a person",
+  putThrough: (number) => `Put them through to ${number}`,
+  putThroughCaller: "The phone you just called from. It rings during opening hours; outside them, it takes a message.",
+  keepPutting: (number) => `Keep putting them through to ${number}`,
+  keepPuttingSentence: "The number on record now.",
+  message: "Take a message and email me",
+  messageSentence: "Nobody is put through. You get the message right away.",
+  notKept: (kept) => `Not ${kept}: while it forwards, that call would ring straight back here.`,
+  saved: "Saved",
+  notSaved: "Not saved",
+  inbox: "It's in your Inbox too",
+  skip: "Can't call right now? Skip for now",
+  nudge: "Most owners call once. It takes a minute, and it's the only way to know your calls really reach your receptionist.",
+  stay: "OK, I'll call",
+  anyway: "Skip anyway"
+};
+function firstRunTryOf({ dto, vm, calls, since, nowMs }) {
+  const W = FIRST_RUN_TRY_WORDS;
+  const voice = dto.channels.voice;
+  const own = voice.active ? normalizePhone(voice.number) : null;
+  const fw = dto.lines?.rows.find((l) => l.kind === "forwarded" && l.forwarding_state !== "none") ?? null;
+  const kept = fw ? normalizePhone(fw.e164) : null;
+  const forwarded = !!kept;
+  const shown = formatPhoneDisplay(kept ?? own);
+  const skip = { label: W.skip, nudge: W.nudge, stay: W.stay, anyway: W.anyway };
+  const base = {
+    number: shown,
+    forwarded,
+    listening: null,
+    causes: [],
+    call: null,
+    transfer: null,
+    skip
+  };
+  if (!own) return { ...base, stage: "rows", heading: "", lead: "" };
+  const tested = !!voice.lastInboundAt;
+  const inbound = calls.filter((c) => c.direction === "inbound" && !c.missed && c.startedAtMs !== null).sort((a, b) => (b.startedAtMs ?? 0) - (a.startedAtMs ?? 0));
+  const call = inbound.find((c) => (c.startedAtMs ?? 0) >= since - TRY_SLACK_MS) ?? (tested ? inbound[0] ?? null : null);
+  if (!call) {
+    const f = fw?.forwarding ?? null;
+    const open = !!f && fw.forwarding_state !== "verified" && forwardingTestOpen(f, nowMs);
+    const left = open && f.test_until ? Math.max(1, Math.ceil((Date.parse(f.test_until) - nowMs) / 6e4)) : null;
+    const quiet = nowMs - since >= TRY_QUIET_AFTER_MS;
+    return {
+      ...base,
+      stage: quiet ? "quiet" : "listen",
+      heading: quiet ? W.quietHeading : forwarded ? W.listenForwarded : W.listenOwn,
+      lead: quiet ? "" : W.lead,
+      listening: {
+        sentence: quiet ? W.stillListening : W.listening,
+        detail: W.listeningDetail,
+        window: left !== null ? W.window(left) : null,
+        route: forwarded ? W.route(shown ?? "") : null
+      },
+      causes: quiet ? forwarded ? W.causesForwarded.map((c) => ({ ...c })) : [W.causeOwn(formatPhoneDisplay(own) ?? own)] : []
+    };
+  }
+  const turns = call.transcript.filter((t) => t.speaker === "agent" || t.speaker === "client").map((t) => ({ who: t.speaker === "agent" ? W.receptionist : W.caller, text: t.text, agent: t.speaker === "agent" }));
+  const proof = forwarded ? W.proofForwarded : W.proofOwn;
+  if (call.live) {
+    return {
+      ...base,
+      stage: "call",
+      heading: W.pickedUp,
+      lead: "",
+      call: {
+        proof,
+        meta: W.onTheCall,
+        live: true,
+        startedAtMs: call.startedAtMs,
+        turns,
+        behind: W.behind,
+        cvId: call.cvId
+      }
+    };
+  }
+  const caller = normalizePhone(call.from);
+  const current = normalizePhone(dto.business.handoff);
+  const callerOk = !!caller && whyNotAHandoff(caller, own, kept) === null;
+  const options = [];
+  if (callerOk) {
+    options.push({
+      key: "caller",
+      label: W.putThrough(formatPhoneDisplay(caller) ?? caller),
+      sentence: W.putThroughCaller,
+      to: caller
+    });
+  }
+  if (current && !samePhone(current, caller)) {
+    options.push({
+      key: "current",
+      label: W.keepPutting(formatPhoneDisplay(current) ?? current),
+      sentence: W.keepPuttingSentence,
+      to: current
+    });
+  }
+  options.push({ key: "message", label: W.message, sentence: W.messageSentence, to: null });
+  const value = !current ? "message" : samePhone(current, caller) && callerOk ? "caller" : "current";
+  const meta = [
+    call.duration ?? call.lengthWords,
+    call.number ? W.from(call.number) : null,
+    forwarded && shown ? W.through(shown) : null,
+    call.startedLabel
+  ].filter(Boolean).join(" \xB7 ");
+  return {
+    ...base,
+    stage: "done",
+    heading: W.doneHeading,
+    lead: "",
+    call: { proof, meta, live: false, startedAtMs: call.startedAtMs, turns, behind: null, cvId: call.cvId },
+    transfer: {
+      label: W.transferLabel,
+      options,
+      value,
+      note: forwarded && shown ? W.notKept(shown) : null
+    }
+  };
+}
+
 // src/billing.ts
 var BILLING_MODES = ["stripe", "direct"];
 var BILLING_STATUSES = [
@@ -7383,103 +7645,6 @@ function pausedVoiceFacts(businessName) {
     "Say so plainly and kindly, in the caller's language. Take the caller's name, their number and what they need, tell them someone from the business will call them back, and end the call politely.",
     "Do not quote a price, do not book or reschedule anything, do not transfer the call, and do not promise a time for the call back."
   ].join("\n");
-}
-
-// src/forwarding.ts
-var CARRIERS = ["verizon", "att", "tmobile", "other", "office"];
-var FORWARDING_MODES = ["unanswered", "always"];
-var CARRIER_WORDS = {
-  verizon: "Verizon",
-  att: "AT&T",
-  tmobile: "T-Mobile",
-  other: "Another carrier or a landline",
-  office: "An office phone system"
-};
-var MODE_WORDS = {
-  unanswered: "Only calls you don't answer",
-  always: "Every call"
-};
-var FORWARDING_TEST_WINDOW_MS = 30 * 6e4;
-function telHref(code2) {
-  return `tel:${code2.replace(/\+/g, "%2B").replace(/#/g, "%23")}`;
-}
-function national(e164) {
-  const d = e164.replace(/[^\d]/g, "");
-  return d.length === 11 && d.startsWith("1") ? d.slice(1) : d;
-}
-var code = (c) => ({ code: c, tel: telHref(c) });
-var UNANSWERED_NOTE = "Your phone rings first. After your carrier's timer, usually 15 to 30 seconds, the call comes to the receptionist. If voicemail picks up first, calls never arrive: ask your carrier to lengthen the ring time, or forward every call.";
-var DIAL_NOTE = "Dial it on the phone that has the number you keep, wait for the tone or the message, then hang up.";
-var OFFICE_NOTE = "An office phone system takes no code: in its settings, under forwarding or what happens when no one answers, forward the calls to the number above.";
-var OFFICE_VOICEMAIL_NOTE = "If the system sends unanswered calls to voicemail, the forwarding has to come before it, or calls never reach the receptionist. Its support can set it for you.";
-function forwardingDialLabel(carrier, kept) {
-  return carrier === "office" ? `In the phone system for ${kept}, forward the calls to` : `Dial on the phone with ${kept}`;
-}
-function forwardingCodes(carrier, mode, destinationE164) {
-  const n10 = national(destinationE164);
-  const full = normalizePhone(destinationE164) ?? destinationE164;
-  const conditional = mode === "unanswered";
-  switch (carrier) {
-    // No code: the receptionist's number, set in the system's own settings, and taken out there to switch it off.
-    case "office":
-      return {
-        on: code(full),
-        off: code(""),
-        notes: [OFFICE_NOTE, ...conditional ? [OFFICE_VOICEMAIL_NOTE] : []]
-      };
-    case "verizon":
-      return {
-        on: code(conditional ? `*71${n10}` : `*72${n10}`),
-        off: code("*73"),
-        notes: [DIAL_NOTE, ...conditional ? [UNANSWERED_NOTE] : [], "Verizon forwards calls only, never texts."]
-      };
-    case "att":
-      return {
-        on: code(conditional ? `*61*${n10}#` : `*21*${n10}#`),
-        off: code(conditional ? "#61#" : "#21#"),
-        notes: [
-          DIAL_NOTE,
-          ...conditional ? [
-            UNANSWERED_NOTE,
-            `Busy too: dial *67*${n10}#. If AT&T refuses these codes, dial *92 then the number for no answer and *90 then the number for busy, or ask AT&T for your plan's codes.`
-          ] : []
-        ]
-      };
-    case "tmobile":
-      return {
-        on: code(conditional ? `**004*${full}#` : `**21*${full}#`),
-        off: code(conditional ? "##004#" : "##21#"),
-        notes: [DIAL_NOTE, ...conditional ? [UNANSWERED_NOTE] : [], "T-Mobile takes the number with +1 in front."]
-      };
-    default:
-      return {
-        on: code(conditional ? `*92${n10}` : `*72${n10}`),
-        off: code(conditional ? "*93" : "*73"),
-        notes: [
-          DIAL_NOTE,
-          ...conditional ? [UNANSWERED_NOTE] : [],
-          "Codes vary by carrier. If these are refused, ask your carrier for its call-forwarding codes: most landlines use *72 for every call and *92 or *71 for calls you don't answer."
-        ]
-      };
-  }
-}
-var isCarrier = (v) => typeof v === "string" && CARRIERS.includes(v);
-var isForwardingMode = (v) => typeof v === "string" && FORWARDING_MODES.includes(v);
-function forwardingMatch(facts, call, nowMs = Date.now()) {
-  const started = call.startedAtIso ? Date.parse(call.startedAtIso) : nowMs;
-  const from = typeof facts.test_started_at === "string" ? Date.parse(facts.test_started_at) : NaN;
-  const until = typeof facts.test_until === "string" ? Date.parse(facts.test_until) : NaN;
-  if (Number.isNaN(started) || Number.isNaN(from) || Number.isNaN(until)) return false;
-  if (started < from - 6e4 || started > until) return false;
-  const dest = typeof facts.destination_e164 === "string" ? normalizePhone(facts.destination_e164) : null;
-  if (dest && call.toE164 && normalizePhone(call.toE164) !== dest) return false;
-  const testFrom = typeof facts.test_from === "string" && facts.test_from ? normalizePhone(facts.test_from) : null;
-  if (testFrom && (!call.fromE164 || normalizePhone(call.fromE164) !== testFrom)) return false;
-  return true;
-}
-function forwardingTestOpen(facts, nowMs = Date.now()) {
-  const until = typeof facts.test_until === "string" ? Date.parse(facts.test_until) : NaN;
-  return !Number.isNaN(until) && until > nowMs;
 }
 
 // src/line-failure.ts
@@ -9159,6 +9324,10 @@ var FIRST_RUN_HELPERS = {
   phone: firstRunPhoneOf,
   phoneWords: FIRST_RUN_PHONE_WORDS,
   areaCodeOf,
+  /** Try it (first-run-try.ts): what the step says over Setup and the Live page's calls, its words, and when it asks why. */
+  tryIt: firstRunTryOf,
+  tryWords: FIRST_RUN_TRY_WORDS,
+  tryQuietAfterMs: TRY_QUIET_AFTER_MS,
   /** The carrier whose codes the answers choose (first-run-phone.ts), which the forwarding is saved with. */
   forwardingCarrierOf,
   /** A number as the app writes one (phone.ts): the numbers offered to pick are said this way, never Twilio's. */
@@ -22086,6 +22255,7 @@ export {
   FIRST_RUN_PHONE_WORDS,
   FIRST_RUN_ROUTE,
   FIRST_RUN_STEPS,
+  FIRST_RUN_TRY_WORDS,
   FIRST_RUN_WORDS,
   FOLLOWUP_ECHO,
   FOLLOW_UP_NEEDS_DEALS,
@@ -22451,6 +22621,7 @@ export {
   TODAY_STEPS_MAX,
   TONES,
   TONE_PRESETS,
+  TRY_QUIET_AFTER_MS,
   TRY_SKIPPED,
   TenantConfigSchema,
   TenantConfigWriteSchema,
@@ -22678,6 +22849,7 @@ export {
   firstRunPhoneOf,
   firstRunStepOf,
   firstRunStepRoute,
+  firstRunTryOf,
   firstWorkspaceDoor,
   fmtClock,
   fmtDay,
