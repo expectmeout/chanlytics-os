@@ -1052,6 +1052,13 @@ var EVENT_KINDS = [
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",
   "mailbox.renamed",
+  /** A workspace's own sending domain (Reach out, 00175): added, verified, held by the domains clock, sending again,
+   * removed. The host and the reason, never the provider's id. */
+  "sending_domain.added",
+  "sending_domain.verified",
+  "sending_domain.held",
+  "sending_domain.released",
+  "sending_domain.removed",
   /** A lead search's round started, waited, or ended with one of the nine endings (00140). */
   "lead.round",
   /** An ask no source card fits, logged as demand (§0.3): the words asked, never a place. */
@@ -3061,6 +3068,7 @@ function isTimezone(raw) {
 }
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
 var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
+var DAY_FMT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var ACTIVITY_KINDS = [...DECISION_VERBS, ...EVENT_KINDS];
 var PASSWORD_MIN = 12;
 var PASSWORD_WORDS = {
@@ -3591,6 +3599,13 @@ var EVENT_KINDS2 = [
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",
   "mailbox.renamed",
+  /** A workspace's own sending domain (Reach out, 00175): added, verified, held by the domains clock, sending again,
+   * removed. The host and the reason, never the provider's id. */
+  "sending_domain.added",
+  "sending_domain.verified",
+  "sending_domain.held",
+  "sending_domain.released",
+  "sending_domain.removed",
   /** A lead search's round started, waited, or ended with one of the nine endings (00140). */
   "lead.round",
   /** An ask no source card fits, logged as demand (§0.3): the words asked, never a place. */
@@ -7301,6 +7316,7 @@ function optInConfirmation(businessName, purpose) {
 }
 var CONSENT_PHRASE2 = OFFERS_OPT_IN_PHRASES2.en;
 var CONSENT_PHRASE_ES2 = OFFERS_OPT_IN_PHRASES2.es;
+var DAY_FMT2 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var ACTIVITY_KINDS2 = [...DECISION_VERBS2, ...EVENT_KINDS2];
 var PASSWORD_MIN2 = 12;
 var PASSWORD_WORDS2 = {
@@ -7631,6 +7647,13 @@ var EVENT_KINDS3 = [
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",
   "mailbox.renamed",
+  /** A workspace's own sending domain (Reach out, 00175): added, verified, held by the domains clock, sending again,
+   * removed. The host and the reason, never the provider's id. */
+  "sending_domain.added",
+  "sending_domain.verified",
+  "sending_domain.held",
+  "sending_domain.released",
+  "sending_domain.removed",
   /** A lead search's round started, waited, or ended with one of the nine endings (00140). */
   "lead.round",
   /** An ask no source card fits, logged as demand (§0.3): the words asked, never a place. */
@@ -9632,6 +9655,7 @@ function isTimezone3(raw) {
 }
 var CONSENT_PHRASE3 = OFFERS_OPT_IN_PHRASES3.en;
 var CONSENT_PHRASE_ES3 = OFFERS_OPT_IN_PHRASES3.es;
+var DAY_FMT3 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var ACTIVITY_KINDS3 = [...DECISION_VERBS3, ...EVENT_KINDS3];
 var PASSWORD_MIN3 = 12;
 var PASSWORD_WORDS3 = {

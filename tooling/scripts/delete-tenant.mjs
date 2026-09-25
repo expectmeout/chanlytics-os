@@ -114,6 +114,7 @@ const TABLES = [
   "policies",
   "segment_members",
   "segments",
+  "sending_domains",
   "templates",
   "tenant_channels",
   "tenant_config",
@@ -213,6 +214,12 @@ for (const g of byTable.get("google_connections") ?? []) {
   orphans.push(
     `a Google Business Profile grant for ${g.google_email ?? "an account"}, and its google-creds Vault secret. Disconnect it in the product first, which hands the grant back to Google.`,
   );
+}
+for (const d of byTable.get("sending_domains") ?? []) {
+  if (d.provider_domain_id)
+    orphans.push(
+      `a sending domain, ${d.host}, at the cold mail account (${d.provider_domain_id}). Remove it on Connections first, which removes it at the provider.`,
+    );
 }
 for (const c of byTable.get("tenant_channels") ?? []) {
   if (c.status === "active")

@@ -1,5 +1,6 @@
 import { DECISION_VERBS, EVENT_KINDS, type DecisionVerb } from "./enums";
 import { LEAD_ENDING_WORDS, type LeadRoundEnding } from "./lead-search";
+import { domainHoldWords } from "./sending-domains";
 import type { Tone } from "./tone";
 
 /**
@@ -139,6 +140,11 @@ const WORDS: Record<string, string> = {
   "google.replied": "A Google review was answered",
   "mailbox.created": "The workspace's email address was set up",
   "mailbox.renamed": "The name on the workspace's email changed",
+  "sending_domain.added": "A domain to send from was added",
+  "sending_domain.verified": "A domain to send from was verified",
+  "sending_domain.held": "A domain to send from was held",
+  "sending_domain.released": "A domain to send from is sending again",
+  "sending_domain.removed": "A domain to send from was removed",
   "lead.round": "A search for businesses",
   "lead.no_card": "An ask no source covers yet",
   "workspace.created": "The workspace was created",
@@ -188,6 +194,17 @@ export function activityWords(kind: string, payload: unknown): string {
   switch (kind) {
     case "take_over": {
       if (str(p, "how") === "transfer") bits.push("passed to the business's line");
+      break;
+    }
+    case "sending_domain.added":
+    case "sending_domain.verified":
+    case "sending_domain.held":
+    case "sending_domain.released":
+    case "sending_domain.removed": {
+      const host = str(p, "host");
+      if (host) bits.push(host);
+      const why = str(p, "why");
+      if (kind === "sending_domain.held" && why) bits.push(domainHoldWords(why));
       break;
     }
     case "consent_change":
@@ -356,6 +373,8 @@ const TONES: Record<string, Tone> = {
   "broadcast.sent": "ok",
   "billing.resumed": "ok",
   "mailbox.created": "ok",
+  "sending_domain.verified": "ok",
+  "sending_domain.released": "ok",
   "workspace.created": "ok",
   approve: "ok",
   resolve: "ok",
@@ -367,6 +386,7 @@ const TONES: Record<string, Tone> = {
   "line.released": "warn",
   "google.unlinked": "warn",
   "google.disconnected": "warn",
+  "sending_domain.held": "warn",
   "message.send_raced_cancel": "warn",
   "ingest.allowlist_skip": "warn",
   pause_agent: "warn",

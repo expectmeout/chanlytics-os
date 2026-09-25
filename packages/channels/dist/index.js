@@ -104,6 +104,13 @@ var EVENT_KINDS = [
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",
   "mailbox.renamed",
+  /** A workspace's own sending domain (Reach out, 00175): added, verified, held by the domains clock, sending again,
+   * removed. The host and the reason, never the provider's id. */
+  "sending_domain.added",
+  "sending_domain.verified",
+  "sending_domain.held",
+  "sending_domain.released",
+  "sending_domain.removed",
   /** A lead search's round started, waited, or ended with one of the nine endings (00140). */
   "lead.round",
   /** An ask no source card fits, logged as demand (§0.3): the words asked, never a place. */
@@ -2156,6 +2163,7 @@ function isTimezone(raw) {
 }
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
 var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
+var DAY_FMT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var ACTIVITY_KINDS = [...DECISION_VERBS, ...EVENT_KINDS];
 var BUSINESS_INDUSTRIES = [
   "AGRICULTURE",
@@ -4564,6 +4572,132 @@ async function fetchMailDomains(cfg) {
   return domains;
 }
 
+// src/email-domains.ts
+var RESEND_DOMAINS2 = "https://api.resend.com/domains";
+var TIMEOUT_MS = 15e3;
+var unquote = (s) => {
+  const t = s.trim();
+  return t.length >= 2 && t.startsWith('"') && t.endsWith('"') ? t.slice(1, -1) : t;
+};
+function recordFrom(r2) {
+  const o = r2 ?? {};
+  const str5 = (k) => typeof o[k] === "string" && o[k].trim() ? o[k] : null;
+  const label = str5("record");
+  const type = str5("type");
+  const name = str5("name");
+  const value = str5("value");
+  if (!label || !type || !name || !value) return null;
+  if (label.toLowerCase() === "tracking") return null;
+  return {
+    label,
+    type: type.toUpperCase(),
+    name: name.trim(),
+    value: type.toUpperCase() === "TXT" ? unquote(value) : value.trim(),
+    priority: typeof o.priority === "number" && Number.isFinite(o.priority) ? o.priority : null,
+    status: str5("status")?.trim() ?? "unknown"
+  };
+}
+function providerDomainFrom(body) {
+  const d = body ?? {};
+  if (typeof d.id !== "string" || !d.id || typeof d.name !== "string" || !d.name) return null;
+  const records = Array.isArray(d.records) ? d.records.map(recordFrom).filter((r2) => !!r2) : [];
+  return {
+    id: d.id,
+    name: d.name.trim().toLowerCase(),
+    status: typeof d.status === "string" && d.status.trim() ? d.status.trim() : "unknown",
+    records
+  };
+}
+async function call(cfg, method, path, body) {
+  try {
+    const r2 = await fetch(`${RESEND_DOMAINS2}${path}`, {
+      method,
+      headers: {
+        Authorization: `Bearer ${cfg.apiKey}`,
+        ...body !== void 0 ? { "Content-Type": "application/json" } : {}
+      },
+      ...body !== void 0 ? { body: JSON.stringify(body) } : {},
+      signal: AbortSignal.timeout(TIMEOUT_MS)
+    });
+    const raw = await r2.text().catch(() => "");
+    let json = null;
+    try {
+      json = raw ? JSON.parse(raw) : null;
+    } catch {
+      json = null;
+    }
+    return { status: r2.status, json, raw };
+  } catch (e) {
+    return { status: 0, json: null, raw: e instanceof Error ? e.message : String(e) };
+  }
+}
+function refusal(status, json, raw) {
+  const m = json?.message;
+  return {
+    ok: false,
+    status,
+    message: typeof m === "string" && m.trim() ? m.trim() : raw.slice(0, 200) || `HTTP ${status}`
+  };
+}
+async function createMailDomain(cfg, host) {
+  const r2 = await call(cfg, "POST", "", {
+    name: host,
+    region: "us-east-1",
+    open_tracking: false,
+    click_tracking: false,
+    capabilities: { sending: "enabled", receiving: "disabled" }
+  });
+  if (r2.status < 200 || r2.status >= 300) return refusal(r2.status, r2.json, r2.raw);
+  const d = providerDomainFrom(r2.json);
+  return d ? { ok: true, value: d } : { ok: false, status: r2.status, message: "the provider answered a shape that is not a domain" };
+}
+async function getMailDomain(cfg, id) {
+  const r2 = await call(cfg, "GET", `/${encodeURIComponent(id)}`);
+  if (r2.status === 404) return { ok: true, value: null };
+  if (r2.status < 200 || r2.status >= 300) return refusal(r2.status, r2.json, r2.raw);
+  const d = providerDomainFrom(r2.json);
+  return d ? { ok: true, value: d } : { ok: false, status: r2.status, message: "the provider answered a shape that is not a domain" };
+}
+var FIND_PAGES_MAX = 20;
+async function findMailDomain(cfg, name) {
+  const want = name.trim().toLowerCase();
+  let after = null;
+  for (let page = 0; page < FIND_PAGES_MAX; page++) {
+    const r2 = await call(cfg, "GET", `?limit=100${after ? `&after=${encodeURIComponent(after)}` : ""}`);
+    if (r2.status < 200 || r2.status >= 300) return refusal(r2.status, r2.json, r2.raw);
+    const body = r2.json ?? {};
+    if (!Array.isArray(body.data))
+      return { ok: false, status: r2.status, message: "the provider answered a shape that is not a list" };
+    let last = null;
+    for (const d of body.data) {
+      if (typeof d?.id !== "string") continue;
+      last = d.id;
+      if (typeof d.name === "string" && d.name.trim().toLowerCase() === want)
+        return {
+          ok: true,
+          value: { id: d.id, name: want, status: typeof d.status === "string" && d.status ? d.status : "unknown" }
+        };
+    }
+    if (body.has_more !== true || !last) return { ok: true, value: null };
+    after = last;
+  }
+  return { ok: false, status: 0, message: `more than ${FIND_PAGES_MAX * 100} domains to look through` };
+}
+async function verifyMailDomain(cfg, id) {
+  const r2 = await call(cfg, "POST", `/${encodeURIComponent(id)}/verify`);
+  if (r2.status < 200 || r2.status >= 300) return refusal(r2.status, r2.json, r2.raw);
+  return { ok: true, value: true };
+}
+async function removeMailDomain(cfg, id) {
+  const r2 = await call(cfg, "DELETE", `/${encodeURIComponent(id)}`);
+  if (r2.status === 404) return { ok: true, value: "gone" };
+  if (r2.status < 200 || r2.status >= 300) return refusal(r2.status, r2.json, r2.raw);
+  return { ok: true, value: "removed" };
+}
+function dmarcOf(txt) {
+  return txt.some((chunks) => /^v=DMARC1\s*(;|$)/i.test(chunks.join("").trim())) ? "found" : "missing";
+}
+
 // src/a2p.ts
 var A2P_POLICIES = {
   /** The bundle one customer of an ISV gets. */
@@ -4981,7 +5115,7 @@ function registrationVerdict(before, after, o) {
 
 // src/a2p-saga.ts
 var sid = (a) => typeof a.body?.sid === "string" ? a.body.sid : null;
-function refusal(a, what) {
+function refusal2(a, what) {
   const msg = typeof a.body?.message === "string" ? a.body.message : `HTTP ${a.status}`;
   const code = typeof a.body?.code === "number" ? ` (Twilio ${a.body.code})` : "";
   return `${what}: ${msg}${code}`;
@@ -4996,7 +5130,7 @@ async function runA2PSaga(start, p) {
   const need2 = async (req, what) => {
     const a = await p.send(req);
     const id = sid(a);
-    if (!ok(a) || !id) throw new Error(refusal(a, what));
+    if (!ok(a) || !id) throw new Error(refusal2(a, what));
     return id;
   };
   const brandType = brandTypeFor(p.record);
@@ -5023,14 +5157,14 @@ async function runA2PSaga(start, p) {
             soleProp ? "recording who you are" : "recording the business"
           );
           const a = await p.send(assignRequest(state.profileSid, id));
-          if (!ok(a)) throw new Error(refusal(a, soleProp ? "attaching your details" : "attaching the business"));
+          if (!ok(a)) throw new Error(refusal2(a, soleProp ? "attaching your details" : "attaching the business"));
           await save({ businessSid: id });
           break;
         }
         case "representative": {
           const id = await need2(representativeEndUserRequest(p.record), "recording the person who signs");
           const a = await p.send(assignRequest(state.profileSid, id));
-          if (!ok(a)) throw new Error(refusal(a, "attaching the person who signs"));
+          if (!ok(a)) throw new Error(refusal2(a, "attaching the person who signs"));
           await save({ representativeSid: id });
           break;
         }
@@ -5043,13 +5177,13 @@ async function runA2PSaga(start, p) {
             "attaching the address"
           );
           const a = await p.send(assignRequest(state.profileSid, id));
-          if (!ok(a)) throw new Error(refusal(a, "attaching the address document"));
+          if (!ok(a)) throw new Error(refusal2(a, "attaching the address document"));
           await save({ documentSid: id });
           break;
         }
         case "primary": {
           const a = await p.send(assignRequest(state.profileSid, p.primaryProfileSid));
-          if (!ok(a)) throw new Error(refusal(a, "naming us as the provider"));
+          if (!ok(a)) throw new Error(refusal2(a, "naming us as the provider"));
           await save({ primaryAssigned: true });
           break;
         }
@@ -5060,7 +5194,7 @@ async function runA2PSaga(start, p) {
           ];
           for (const [sid2, a] of refresh) {
             const up = await p.send(updateEndUserRequest(sid2, a));
-            if (!ok(up)) throw new Error(refusal(up, "refreshing the business on record"));
+            if (!ok(up)) throw new Error(refusal2(up, "refreshing the business on record"));
           }
           const ev = await p.send(
             evaluateRequest(
@@ -5069,13 +5203,13 @@ async function runA2PSaga(start, p) {
             )
           );
           const status = typeof ev.body?.status === "string" ? ev.body.status : "";
-          if (!ok(ev)) throw new Error(refusal(ev, "checking the profile"));
+          if (!ok(ev)) throw new Error(refusal2(ev, "checking the profile"));
           if (status !== "compliant")
             throw new Error(
               `the profile is not complete yet: ${JSON.stringify(ev.body?.results ?? ev.body).slice(0, 300)}`
             );
           const sub = await p.send(submitProfileRequest(state.profileSid));
-          if (!ok(sub)) throw new Error(refusal(sub, "submitting the profile"));
+          if (!ok(sub)) throw new Error(refusal2(sub, "submitting the profile"));
           await save({ profileSubmitted: true });
           break;
         }
@@ -5094,12 +5228,12 @@ async function runA2PSaga(start, p) {
           );
           for (const objectSid of [endUser, state.profileSid]) {
             const a = await p.send(trustProductAssignRequest(bundle, objectSid));
-            if (!ok(a)) throw new Error(refusal(a, "attaching to the messaging profile"));
+            if (!ok(a)) throw new Error(refusal2(a, "attaching to the messaging profile"));
           }
           const ev = await p.send(evaluateTrustProductRequest(bundle));
-          if (!ok(ev)) throw new Error(refusal(ev, "checking the messaging profile"));
+          if (!ok(ev)) throw new Error(refusal2(ev, "checking the messaging profile"));
           const sub = await p.send(submitTrustProductRequest(bundle));
-          if (!ok(sub)) throw new Error(refusal(sub, "submitting the messaging profile"));
+          if (!ok(sub)) throw new Error(refusal2(sub, "submitting the messaging profile"));
           await save({ a2pProfileSid: bundle });
           break;
         }
@@ -5279,7 +5413,7 @@ function parsePlaceDetails(json) {
     facts: factsOf(p)
   };
 }
-function refusal2(status, body) {
+function refusal3(status, body) {
   let message = `Google answered ${status}`;
   try {
     const e = obj(obj(JSON.parse(body))?.error);
@@ -5290,9 +5424,9 @@ function refusal2(status, body) {
   }
   return new PlacesError(status, message);
 }
-async function call(http, req) {
+async function call2(http, req) {
   const r2 = await http(req);
-  if (r2.status < 200 || r2.status >= 300) throw refusal2(r2.status, r2.body);
+  if (r2.status < 200 || r2.status >= 300) throw refusal3(r2.status, r2.body);
   try {
     return JSON.parse(r2.body);
   } catch {
@@ -5300,10 +5434,10 @@ async function call(http, req) {
   }
 }
 async function searchPlaces(http, key, query, opts = {}) {
-  return parsePlacesSearch(await call(http, placesSearchRequest(key, query, opts)));
+  return parsePlacesSearch(await call2(http, placesSearchRequest(key, query, opts)));
 }
 async function getPlace(http, key, placeId, opts = {}) {
-  return parsePlaceDetails(await call(http, placesDetailsRequest(key, placeId, opts)));
+  return parsePlaceDetails(await call2(http, placesDetailsRequest(key, placeId, opts)));
 }
 function placesFetch(fetchImpl = fetch, timeoutMs = PLACES_TIMEOUT_MS) {
   return async (req) => {
@@ -5659,7 +5793,7 @@ function parseReviewsPage(json) {
   const total = typeof o?.totalReviewCount === "number" ? o.totalReviewCount : null;
   return { reviews, average_rating: avg, total_count: total, next_page_token: str3(o?.nextPageToken) };
 }
-function refusal3(status, body) {
+function refusal4(status, body) {
   let message = `Google answered ${status}`;
   try {
     const e = obj2(obj2(JSON.parse(body))?.error);
@@ -5670,9 +5804,9 @@ function refusal3(status, body) {
   }
   return new PlacesError(status, message);
 }
-async function call2(http, req) {
+async function call3(http, req) {
   const r2 = await http(req);
-  if (r2.status < 200 || r2.status >= 300) throw refusal3(r2.status, r2.body);
+  if (r2.status < 200 || r2.status >= 300) throw refusal4(r2.status, r2.body);
   if (!r2.body.trim()) return {};
   try {
     return JSON.parse(r2.body);
@@ -5684,7 +5818,7 @@ async function listAccounts(http, token) {
   const out = [];
   let page = null;
   for (let i = 0; i < 5; i++) {
-    const r2 = parseAccounts(await call2(http, accountsRequest(token, page)));
+    const r2 = parseAccounts(await call3(http, accountsRequest(token, page)));
     out.push(...r2.accounts);
     page = r2.next;
     if (!page) break;
@@ -5695,7 +5829,7 @@ async function listLocations(http, token, accountName) {
   const out = [];
   let page = null;
   for (let i = 0; i < 5; i++) {
-    const r2 = parseLocations(await call2(http, locationsRequest(token, accountName, page)));
+    const r2 = parseLocations(await call3(http, locationsRequest(token, accountName, page)));
     out.push(...r2.locations);
     page = r2.next;
     if (!page) break;
@@ -5708,7 +5842,7 @@ async function listReviews(http, token, parent, maxPages = GBP_REVIEWS_MAX_PAGES
   let avg = null;
   let total = null;
   for (let i = 0; i < Math.max(1, maxPages); i++) {
-    const r2 = parseReviewsPage(await call2(http, reviewsRequest(token, parent, page)));
+    const r2 = parseReviewsPage(await call3(http, reviewsRequest(token, parent, page)));
     all.push(...r2.reviews);
     if (i === 0) {
       avg = r2.average_rating;
@@ -5720,7 +5854,7 @@ async function listReviews(http, token, parent, maxPages = GBP_REVIEWS_MAX_PAGES
   return { reviews: all, average_rating: avg, total_count: total, next_page_token: page };
 }
 async function replyToReview(http, token, reviewName, comment) {
-  const o = obj2(await call2(http, replyRequest(token, reviewName, comment)));
+  const o = obj2(await call3(http, replyRequest(token, reviewName, comment)));
   return { reply_text: str3(o?.comment) ?? comment, replied_at: str3(o?.updateTime) ?? (/* @__PURE__ */ new Date()).toISOString() };
 }
 var GBP_REPLY_MAX = 4096;
@@ -5855,7 +5989,7 @@ function apifyClient(fetchImpl, token) {
     Authorization: `Bearer ${token}`,
     ...json ? { "content-type": "application/json" } : {}
   });
-  async function call3(url, init, allow = () => false) {
+  async function call4(url, init, allow = () => false) {
     let res;
     try {
       res = await fetchImpl(url, { ...init, signal: AbortSignal.timeout(APIFY_TIMEOUT_MS) });
@@ -5889,7 +6023,7 @@ function apifyClient(fetchImpl, token) {
         webhooks
       });
       if (opts.memoryMb) q.set("memory", String(opts.memoryMb));
-      const { body } = await call3(`${APIFY_BASE}/actors/${actorPath(actor)}/runs?${q}`, {
+      const { body } = await call4(`${APIFY_BASE}/actors/${actorPath(actor)}/runs?${q}`, {
         method: "POST",
         headers: headers2(true),
         body: JSON.stringify(input)
@@ -5899,7 +6033,7 @@ function apifyClient(fetchImpl, token) {
       return { id: run.id, datasetId: run.datasetId };
     },
     async getRun(id) {
-      const { body } = await call3(`${APIFY_BASE}/actor-runs/${encodeURIComponent(id)}`, {
+      const { body } = await call4(`${APIFY_BASE}/actor-runs/${encodeURIComponent(id)}`, {
         method: "GET",
         headers: headers2(false)
       });
@@ -5907,7 +6041,7 @@ function apifyClient(fetchImpl, token) {
     },
     async listActorRuns(actor, sinceIso) {
       const q = new URLSearchParams({ desc: "1", limit: "100" });
-      const { body } = await call3(`${APIFY_BASE}/actors/${actorPath(actor)}/runs?${q}`, {
+      const { body } = await call4(`${APIFY_BASE}/actors/${actorPath(actor)}/runs?${q}`, {
         method: "GET",
         headers: headers2(false)
       });
@@ -5924,13 +6058,13 @@ function apifyClient(fetchImpl, token) {
       return out;
     },
     async runInput(id) {
-      const { body } = await call3(`${APIFY_BASE}/actor-runs/${encodeURIComponent(id)}`, {
+      const { body } = await call4(`${APIFY_BASE}/actor-runs/${encodeURIComponent(id)}`, {
         method: "GET",
         headers: headers2(false)
       });
       const store = str4(obj3(obj3(body)?.data)?.defaultKeyValueStoreId);
       if (!store) return null;
-      const rec = await call3(
+      const rec = await call4(
         `${APIFY_BASE}/key-value-stores/${encodeURIComponent(store)}/records/INPUT`,
         { method: "GET", headers: headers2(false) },
         (s) => s === 404
@@ -5944,7 +6078,7 @@ function apifyClient(fetchImpl, token) {
         fields: fields.join(","),
         format: "json"
       });
-      const { body, headers: h } = await call3(`${APIFY_BASE}/datasets/${encodeURIComponent(datasetId)}/items?${q}`, {
+      const { body, headers: h } = await call4(`${APIFY_BASE}/datasets/${encodeURIComponent(datasetId)}/items?${q}`, {
         method: "GET",
         headers: headers2(false)
       });
@@ -5956,14 +6090,14 @@ function apifyClient(fetchImpl, token) {
       };
     },
     async abortRun(id) {
-      await call3(
+      await call4(
         `${APIFY_BASE}/actor-runs/${encodeURIComponent(id)}/abort`,
         { method: "POST", headers: headers2(false) },
         (s) => s >= 400 && s < 500 && s !== 401 && s !== 403 && s !== 429
       );
     },
     async eventPrices(actor) {
-      const { body } = await call3(`${APIFY_BASE}/actors/${actorPath(actor)}`, {
+      const { body } = await call4(`${APIFY_BASE}/actors/${actorPath(actor)}`, {
         method: "GET",
         headers: headers2(false)
       });
@@ -6112,6 +6246,7 @@ export {
   cleanReply,
   createAgent,
   createAgentVersion,
+  createMailDomain,
   createPhoneNumber,
   createRetellLlm,
   customerProfileRequest,
@@ -6119,6 +6254,7 @@ export {
   deletePhoneNumber,
   deleteReplyRequest,
   desiredVoiceShell,
+  dmarcOf,
   dryProvider,
   emailHtml,
   emailPlainText,
@@ -6133,9 +6269,11 @@ export {
   fetchReceivedEmail,
   fetchRecording,
   fetchTwilio,
+  findMailDomain,
   getAgent,
   getAgentRaw,
   getCall,
+  getMailDomain,
   getPhoneNumber,
   getPlace,
   getRetellLlm,
@@ -6185,11 +6323,13 @@ export {
   planVoiceConvergence,
   planVoiceProvision,
   platformRecipient,
+  providerDomainFrom,
   publishAgentVersion,
   receivedEmailFrom,
   referencesFor,
   refusalWords,
   registrationVerdict,
+  removeMailDomain,
   replyRequest,
   replyRouteAddress,
   replySubject,
@@ -6255,6 +6395,7 @@ export {
   updateLiveCall,
   updatePhoneNumber,
   verifyEdgeToken,
+  verifyMailDomain,
   verifyResendWebhook,
   verifyRetellSignature,
   verifyState,
