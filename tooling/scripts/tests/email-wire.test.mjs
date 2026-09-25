@@ -97,6 +97,108 @@ test("a parent with no Message-ID still gets a reply: no thread headers, and a s
   assert.equal(r.text, "We can do Saturday at 9.\nTwo movers, one truck.");
 });
 
+const CAMPAIGN = {
+  unsubscribeUrl: "https://app.chanlytics.com/u/tok_123",
+  unsubscribeMailto: "unsubscribe+tok_123@mail.chanlytics.com",
+  footer:
+    'I found your business on Google Maps.\nBest Movers · 1 Main St, Austin, TX 78701\nNot interested? Reply "no thanks" · Unsubscribe: https://app.chanlytics.com/u/tok_123',
+};
+
+test("a first email names its own subject and threads under nothing; words a program wrote say so", () => {
+  const r = buildEmailRequest(input({ parent: null, subject: "The calls you miss mid-session", signature: null }));
+  assert.equal(r.subject, "The calls you miss mid-session", "its own, with no Re:");
+  assert.deepEqual(
+    r.headers,
+    { "Auto-Submitted": "auto-generated" },
+    "the receptionist wrote it, and it answers nothing",
+  );
+  assert.equal(
+    "Auto-Submitted" in buildEmailRequest(input({ parent: null, subject: "Hello", actor: "human" })).headers,
+    false,
+    "a person's own first email carries no mark",
+  );
+  assert.equal(
+    buildEmailRequest(input({ parent: null, subject: "Line one\r\nBcc: x@evil.test" })).subject,
+    "Line one Bcc: x@evil.test",
+    "one line",
+  );
+  assert.equal(buildEmailRequest(input({ parent: null, subject: "x".repeat(400) })).subject.length, 200);
+  assert.equal(
+    buildEmailRequest(input({ subject: "Ignored" })).subject,
+    "Re: Quote for Saturday",
+    "a reply's subject is always its parent's",
+  );
+  assert.throws(() => buildEmailRequest(input({ parent: null })), /a first email names its subject/);
+  assert.throws(
+    () => buildEmailRequest(input({ parent: null, subject: "  \r\n " })),
+    /a first email names its subject/,
+  );
+});
+
+test("a campaign says what it is and how to stop it in one click, and carries its footer after the signature", () => {
+  const first = buildEmailRequest(
+    input({ parent: null, subject: "The calls you miss mid-session", campaign: CAMPAIGN }),
+  );
+  assert.deepEqual(first.headers, {
+    "Auto-Submitted": "auto-generated",
+    "List-Unsubscribe": "<https://app.chanlytics.com/u/tok_123>, <mailto:unsubscribe+tok_123@mail.chanlytics.com>",
+    "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+  });
+  assert.equal(
+    first.text,
+    `We can do Saturday at 9.\nTwo movers, one truck.\n\nBest Movers\n(212) 555-0100\n\n${CAMPAIGN.footer}`,
+  );
+  assert.match(first.html, /<a href="https:\/\/app\.chanlytics\.com\/u\/tok_123">/, "the footer's link is a link");
+  assert.ok(isEmailRequest(first));
+  // A nudge threads under the first email and is still a campaign.
+  const nudge = buildEmailRequest(
+    input({
+      parent: {
+        messageId: "m1",
+        rfcMessageId: "<first@mail.chanlytics.com>",
+        references: [],
+        subject: "The calls you miss mid-session",
+      },
+      actor: "human",
+      campaign: CAMPAIGN,
+    }),
+  );
+  assert.equal(nudge.subject, "Re: The calls you miss mid-session");
+  assert.equal(nudge.headers["In-Reply-To"], "<first@mail.chanlytics.com>");
+  assert.equal(nudge.headers["Auto-Submitted"], "auto-generated", "a program sent it, whoever wrote the words");
+  assert.equal(nudge.headers["List-Unsubscribe-Post"], "List-Unsubscribe=One-Click");
+  assert.equal("List-Unsubscribe" in buildEmailRequest(input()).headers, false, "a reply carries none");
+});
+
+test("a campaign's unsubscribe is one https address and one mail address, and its footer is never empty, or no request is built", () => {
+  for (const [over, why] of [
+    [{ unsubscribeUrl: "http://app.chanlytics.com/u/t" }, /one https address/],
+    [{ unsubscribeUrl: "javascript:alert(1)" }, /one https address/],
+    [{ unsubscribeUrl: "https://app.chanlytics.com/u/t\r\nBcc: x@evil.test" }, /one https address/],
+    [{ unsubscribeUrl: "https://a.example/u/t>, <https://evil.test" }, /one https address/],
+    [{ unsubscribeMailto: "not an address" }, /one address/],
+    [{ unsubscribeMailto: "a@b.co\r\nBcc: x@evil.test" }, /one address/],
+    [{ footer: "  " }, /footer is never empty/],
+  ]) {
+    assert.throws(
+      () => buildEmailRequest(input({ parent: null, subject: "Hi", campaign: { ...CAMPAIGN, ...over } })),
+      why,
+      JSON.stringify(over),
+    );
+  }
+  assert.equal(
+    buildEmailRequest(
+      input({
+        parent: null,
+        subject: "Hi",
+        campaign: { ...CAMPAIGN, unsubscribeMailto: "mailto:unsubscribe+t@mail.chanlytics.com" },
+      }),
+    ).headers["List-Unsubscribe"],
+    "<https://app.chanlytics.com/u/tok_123>, <mailto:unsubscribe+t@mail.chanlytics.com>",
+    "a mailto: already written is not written twice",
+  );
+});
+
 test("the subject is theirs with one Re:, however many the chain stacked, in whatever language, and never a second line", () => {
   assert.equal(replySubject("Quote"), "Re: Quote");
   assert.equal(replySubject("RE: Re: AW: Quote"), "Re: Quote");

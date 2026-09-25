@@ -4016,20 +4016,38 @@ function referencesFor(parent) {
   const MAX = 20;
   return unique.length <= MAX ? unique : [unique[0], ...unique.slice(unique.length - (MAX - 1))];
 }
+var UNSUBSCRIBE_URL = /^https:\/\/[^\s<>,]+$/;
+var BARE_ADDRESS = /^[^\s<>@,]+@[^\s<>@,]+\.[^\s<>@,]+$/;
+function unsubscribeHeaders(c) {
+  const url = c.unsubscribeUrl.trim();
+  const mail = c.unsubscribeMailto.trim().replace(/^mailto:/i, "");
+  if (!UNSUBSCRIBE_URL.test(url)) throw new Error("buildEmailRequest: a campaign's unsubscribe is one https address");
+  if (!BARE_ADDRESS.test(mail)) throw new Error("buildEmailRequest: a campaign's unsubscribe by mail is one address");
+  return {
+    "List-Unsubscribe": `<${url}>, <mailto:${mail}>`,
+    "List-Unsubscribe-Post": "List-Unsubscribe=One-Click"
+  };
+}
 function buildEmailRequest(i) {
-  const text = [i.body.trim(), i.signature?.trim()].filter(Boolean).join("\n\n");
-  const inReplyTo = messageIdHeader(i.parent.rfcMessageId);
-  const references = referencesFor(i.parent);
+  const subject = i.parent ? replySubject(i.parent.subject) : oneLine(i.subject ?? "").slice(0, SUBJECT_MAX);
+  if (!subject) throw new Error("buildEmailRequest: a first email names its subject");
+  if (i.campaign && !i.campaign.footer.trim()) throw new Error("buildEmailRequest: a campaign's footer is never empty");
+  const unsubscribe = i.campaign ? unsubscribeHeaders(i.campaign) : {};
+  const text = [i.body.trim(), i.signature?.trim(), i.campaign?.footer.trim()].filter(Boolean).join("\n\n");
+  const inReplyTo = i.parent ? messageIdHeader(i.parent.rfcMessageId) : null;
+  const references = i.parent ? referencesFor(i.parent) : [];
+  const autoSubmitted = i.campaign || i.actor === "ai" && !i.parent ? "auto-generated" : i.actor === "ai" ? "auto-replied" : null;
   const headers2 = {
     ...inReplyTo ? { "In-Reply-To": inReplyTo } : {},
     ...references.length ? { References: references.join(" ") } : {},
-    ...i.actor === "ai" ? { "Auto-Submitted": "auto-replied" } : {}
+    ...autoSubmitted ? { "Auto-Submitted": autoSubmitted } : {},
+    ...unsubscribe
   };
   return {
     from: mailboxHeader(i.identity.fromName, i.identity.fromAddress),
     to: [i.to],
     reply_to: [i.identity.replyTo],
-    subject: replySubject(i.parent.subject),
+    subject,
     text,
     html: emailHtml(text),
     headers: headers2,
