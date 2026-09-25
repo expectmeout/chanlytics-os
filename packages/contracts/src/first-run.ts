@@ -18,6 +18,7 @@ import { DAY_NAMES, type Hours } from "./config";
 import { bookingLinkOptional } from "./deals";
 import { checkChipsOf } from "./check-chips";
 import { bookingPageOffered } from "./google";
+import { firstRunLiveOf, FIRST_RUN_LIVE_WORDS } from "./first-run-live";
 import { firstRunTryOf, FIRST_RUN_TRY_WORDS, TRY_QUIET_AFTER_MS } from "./first-run-try";
 import { areaCodeOf, firstRunPhoneOf, forwardingCarrierOf, FIRST_RUN_PHONE_WORDS } from "./first-run-phone";
 import { TRY_SKIPPED, type SetupDto, type SetupRowVM, type SetupState, type SetupVM } from "./setup";
@@ -127,6 +128,8 @@ export const FIRST_RUN_WORDS = {
   failedWhat: "your workspace",
   failedBody: "This page can't read your workspace at the moment. Nothing you set up is lost.",
   toToday: "Back to Today",
+  /** Finish's activation refused: said, and Finish still goes on to Today. */
+  notFinished: "Calls were not switched on",
   /** A row's second button on the first run, and what it says once pressed. */
   putOff: { put: "Later", undo: "Undo later" },
   /** Find, the business step while there is a listing to link (canvas R1, P1): only what Google said, and the owner's words. */
@@ -617,6 +620,9 @@ export const FIRST_RUN_HELPERS = {
   tryWords: FIRST_RUN_TRY_WORDS,
   tryQuietAfterMs: TRY_QUIET_AFTER_MS,
   trySkipped: TRY_SKIPPED,
+  /** Live (first-run-live.ts): the summary, the greeting and Finish; "It will / Not yet" is the Business tab's card. */
+  live: firstRunLiveOf,
+  liveWords: FIRST_RUN_LIVE_WORDS,
   /** The carrier whose codes the answers choose (first-run-phone.ts), which the forwarding is saved with. */
   forwardingCarrierOf,
   /** A number as the app writes one (phone.ts): the numbers offered to pick are said this way, never Twilio's. */

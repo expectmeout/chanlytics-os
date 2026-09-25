@@ -59,7 +59,8 @@ export interface SetupApi {
   /** Ask a person at Chanlytics for something the product cannot provision yet. */
   request(what: SetupRequestKind): Promise<{ ok: boolean; already: boolean; message: string }>;
   /** The owner switches a tested capability on: a record, not a claim. Owners only; the route says so. */
-  activate(kind: string): Promise<{ ok: boolean; message: string }>;
+  /** `firstRun`: the first run's Finish, whose first activation of calls emails the owner (the capability route). */
+  activate(kind: string, opts?: { firstRun?: boolean }): Promise<{ ok: boolean; message: string }>;
   /** And off again: the row stays, the history does. Owners only. */
   deactivate(kind: string): Promise<{ ok: boolean; message: string }>;
   /** Read the workspace again: the failed card's retry. */
@@ -211,8 +212,11 @@ export function installSetup(win: Window = window): void {
       const r = await api()("POST settings/receptionist", { body: {} });
       return r.ok ? { ok: true, wrote: r.data.wrote, message: "" } : { ok: false, wrote: false, message: r.message };
     },
-    async activate(kind) {
-      const r = await api()("POST capabilities/[kind]", { params: { kind }, body: {} });
+    async activate(kind, opts) {
+      const r = await api()("POST capabilities/[kind]", {
+        params: { kind },
+        body: opts && opts.firstRun ? { first_run: true } : {},
+      });
       return { ok: r.ok, message: r.ok ? "" : r.message };
     },
     async deactivate(kind) {
