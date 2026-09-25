@@ -2267,8 +2267,9 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 
 .sb-sheet-backdrop { position: fixed; inset: 0; z-index: 400; background: oklch(from var(--ink) l c h / 0.35); }
 .sb-sheet {
-  position: fixed; z-index: 401; left: 50%; top: 50%; transform: translate(-50%, -50%);
-  width: min(520px, calc(100vw - 32px)); max-height: 80vh; overflow: auto;
+  /* Centred in what the phone shows over its keyboard (--kb, data-bits watchKeyboard). */
+  position: fixed; z-index: 401; left: 50%; top: calc(50% - var(--kb, 0px) / 2); transform: translate(-50%, -50%);
+  width: min(520px, calc(100vw - 32px)); max-height: calc(80vh - var(--kb, 0px)); max-height: calc(80dvh - var(--kb, 0px)); overflow: auto;
   background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg); padding: 14px 18px 18px;
 }
@@ -3100,7 +3101,7 @@ html.legacy-on .bc-nobody-door { position: relative; min-height: 0; }
 /* Under a thumb: a sheet from the foot of the screen, with the page stepped back
    behind it and every language at a finger's height. */
 .lp-backdrop { position: fixed; inset: 0; z-index: 419; background: rgb(0 0 0 / 0.45); backdrop-filter: blur(2px); animation: lp-fade 180ms var(--ease-out); }
-.lp-pop.is-sheet { inset: auto 0 0 0; max-height: min(78vh, 640px); border-bottom: 0; border-radius: 22px 22px 0 0; padding-bottom: env(safe-area-inset-bottom); animation: lp-sheet-in 220ms var(--ease-out); }
+.lp-pop.is-sheet { inset: auto 0 var(--kb, 0px) 0; max-height: min(calc(78vh - var(--kb, 0px)), 640px); max-height: min(calc(78dvh - var(--kb, 0px)), 640px); border-bottom: 0; border-radius: 22px 22px 0 0; padding-bottom: env(safe-area-inset-bottom); animation: lp-sheet-in 220ms var(--ease-out); }
 .lp-pop.is-sheet::before { content: ""; flex: none; display: block; width: 36px; height: 4px; margin: 8px auto 2px; border-radius: 999px; background: var(--line-strong); }
 .lp-pop.is-sheet .lp-search { height: 50px; margin: 0 8px; padding: 0 6px; }
 .lp-pop.is-sheet .lp-list { padding: 6px 10px 10px; }

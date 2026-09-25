@@ -766,6 +766,7 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
    around — so it carries its own centred layout on the design system's tokens. */
 .cw-screen {
   min-height: 100vh;
+  min-height: 100dvh;
   display: grid;
   place-items: center;
   padding: 32px 20px;

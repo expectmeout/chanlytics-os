@@ -335,6 +335,38 @@ test.describe("Phone shell on a real workspace", () => {
     await expect(page.getByTestId("add-person-sheet")).toHaveCount(0);
   });
   /**
+   * A sheet stands on the keyboard (25 Sep). A phone lays its keyboard over the page and keeps the layout's height, so
+   * Add a person's Save sat under the keys. The shell says what the keyboard covers as --kb (data-bits watchKeyboard;
+   * keyboard-inset.test.mjs proves the measure); here a keyboard 300px tall is said as the phone would say it, and the
+   * sheet stands on it, whole, with its Save above the keys, and goes back down when the keyboard goes.
+   */
+  test("a sheet stands on the keyboard: whole on the screen, its Save above the keys", async ({ page }) => {
+    await page.goto("/#/clients");
+    await page.waitForLoadState("networkidle");
+    const said = () => page.evaluate(() => document.documentElement.style.getPropertyValue("--kb"));
+    expect(await said(), "the shell measures it, and no keyboard is up").toBe("0px");
+    await page.getByTestId("people-phone-bar").locator(".more-wrap > button").click();
+    const add = page.getByRole("menuitem", { name: "Add a person" });
+    test.skip((await add.count()) === 0, "this member cannot add people");
+    await add.click();
+    const sheet = page.getByTestId("add-person-sheet");
+    await expect(sheet).toBeVisible();
+    const tall = page.viewportSize()!.height;
+    const foot = async () => {
+      const b = (await sheet.boundingBox())!;
+      return Math.round(b.y + b.height);
+    };
+    await expect.poll(foot, { message: "at rest on the bottom" }).toBe(tall);
+    const keys = 300;
+    await page.evaluate((kb) => document.documentElement.style.setProperty("--kb", `${kb}px`), keys);
+    await expect.poll(foot, { message: "standing on the keys" }).toBe(tall - keys);
+    expect((await sheet.boundingBox())!.y, "its top on the screen").toBeGreaterThanOrEqual(0);
+    const save = (await page.getByTestId("add-person-save").boundingBox())!;
+    expect(save.y + save.height, "Save above the keys").toBeLessThanOrEqual(tall - keys);
+    await page.evaluate(() => document.documentElement.style.setProperty("--kb", "0px"));
+    await expect.poll(foot, { message: "back down when the keyboard goes" }).toBe(tall);
+  });
+  /**
    * The switch holds two scopes, or three where deals are on (People › Pipeline, 0008), and the bar holds them beside
    * the list, search and the scope's last control at the narrowest phone we draw for: nothing past its edge, nothing
    * scrolled sideways. The nightly workspace answers that its customers book, so it proves the two; a workspace with

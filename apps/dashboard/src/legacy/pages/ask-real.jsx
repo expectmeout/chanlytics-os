@@ -179,22 +179,6 @@ const AskReal = ({ open, onClose }) => {
     return () => { if (body && body.classList) body.classList.remove("ask-open"); };
   }, [open]);
 
-  // On a phone the line rides the keyboard: what the keyboard covers is said as --ask-kb (ask.css).
-  useArEffect(() => {
-    const vv = open && typeof window !== "undefined" ? window.visualViewport : null;
-    if (!vv || !vv.addEventListener || typeof document === "undefined") return;
-    const root = document.documentElement;
-    const set = () => root.style.setProperty("--ask-kb", `${Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop))}px`);
-    set();
-    vv.addEventListener("resize", set);
-    vv.addEventListener("scroll", set);
-    return () => {
-      vv.removeEventListener("resize", set);
-      vv.removeEventListener("scroll", set);
-      root.style.removeProperty("--ask-kb");
-    };
-  }, [open]);
-
   // Back closes the takeover (S8): one entry with a null state and the same address, so the shell's hash router
   // never hears it and Next's app router, which reloads on a Back to a state it did not write (app-shell.jsx), ignores
   // it. Whether the entry is ours is this ref, not the popped state. Closing any other way goes back over it; going

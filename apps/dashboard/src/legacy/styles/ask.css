@@ -14,7 +14,7 @@
   padding: 80px 24px 48px; align-items: flex-start;
 }
 .ask-modal.ask-line {
-  max-width: var(--measure-prose); max-height: calc(100vh - 128px);
+  max-width: var(--measure-prose); max-height: calc(100vh - 128px); max-height: calc(100dvh - 128px);
   display: flex; flex-direction: column; overflow: hidden;
   border-color: var(--line-strong); border-radius: var(--radius-xl); box-shadow: var(--shadow-lg);
 }
@@ -210,8 +210,10 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
     width: 44px; height: 44px; border-radius: 50%; border: 0; padding: 0; cursor: pointer;
     background: none; color: var(--ink); z-index: 121;
   }
-  /* The three in the ✦ (components/ask-face.jsx, on the raised ground), over the disc. */
-  .phone-ask .phone-ask-face { display: block; width: 36px; height: 30px; position: relative; z-index: 1; }
+  /* The three in the ✦ (components/ask-face.jsx, on the raised ground), over the disc: the canvas is the disc's width
+     and the tile is set (`side`, app-shell.jsx), not fitted, so the mark fills the disc and the ring, at its widest,
+     just reaches the rim. */
+  .phone-ask .phone-ask-face { display: block; width: 40px; height: 34px; position: relative; z-index: 1; }
   .phone-ask:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
   .phone-ask:active { transform: scale(0.96); }
   /* The disc, and the beam on its rim. At rest the beam is the ink, faint, one lap in 8 s. While Ask works
@@ -246,11 +248,11 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
     background: conic-gradient(from 0deg, transparent 0deg, color-mix(in oklab, var(--beam-tail-c) 45%, transparent) 18deg, var(--beam-mid-c) 34deg, var(--beam) 52deg, transparent 92deg, transparent 360deg);
   }
   .phone-ask .ask-beam::after {
-    inset: 1px; padding: 7px; opacity: 0.18; filter: blur(3.5px);
+    inset: 1px; padding: 5px; opacity: 0.14; filter: blur(3px);
     background: conic-gradient(from 6deg, transparent 0deg, color-mix(in oklab, var(--beam-tail-c) 45%, transparent) 20deg, color-mix(in oklab, var(--beam) 55%, transparent) 42deg, transparent 90deg, transparent 360deg);
   }
   .phone-ask .ask-beam[data-work="1"]::before { opacity: 1; animation-duration: 2.5s; }
-  .phone-ask .ask-beam[data-work="1"]::after { opacity: 0.68; animation-duration: 2.5s; }
+  .phone-ask .ask-beam[data-work="1"]::after { opacity: 0.5; animation-duration: 2.5s; }
   @keyframes ask-beam-spin { to { transform: rotate(360deg); } }
   /* Inside the native shell the native tab bar stands under it: the ✦ lifts by the shell's inset (mobile.css, html.in-app). */
   html.in-app .phone-ask { bottom: calc(10px + var(--app-inset-bottom, 0px)); }
@@ -262,11 +264,11 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
      shares .ask-overlay and was docked here by this rule before the Line. The Line itself is the whole screen. */
   .ask-overlay { padding: 0; align-items: flex-end; }
   .ask-overlay.ask-line-scrim { padding: 0; }
-  /* The screen: the head, the middle that scrolls, the foot above the keyboard (--ask-kb, ask-real.jsx) and the home
+  /* The screen: the head, the middle that scrolls, the foot above the keyboard (--kb, data-bits watchKeyboard) and the home
      bar. It fades in over the kit's wash and leaves as a dialog does (components.css), never dropping as a sheet. */
   .ask-modal.ask-line {
     position: fixed; inset: 0; max-width: none; width: auto; max-height: none; height: 100dvh;
-    padding-top: env(safe-area-inset-top); padding-bottom: calc(env(safe-area-inset-bottom) + var(--ask-kb, 0px));
+    padding-top: env(safe-area-inset-top); padding-bottom: calc(env(safe-area-inset-bottom) + var(--kb, 0px));
     border: 0; border-radius: 0; box-shadow: none; background: var(--bg);
     animation: wash-in var(--duration-base) var(--ease-out);
   }

@@ -652,6 +652,34 @@ const leaving = (key) => {
 };
 Object.assign(window, { touchSwipe, leaving, leaveOverlay });
 
+// ---- What the keyboard covers -----------------------------------------------------------------------------------
+// A phone's keyboard is laid over the page, on iOS and on Android alike: the layout keeps its height and only what the
+// browser shows gets shorter. A sheet fixed to the bottom kept its fields and its Save under the keys. The shell calls
+// this once; what the keyboard covers is --kb on the document, which Ask's screen and every sheet stand on. It follows
+// what the browser shows, never the focus: a blur that dropped a sheet at once moved Save from under the finger between
+// the press and the click. A pinch zoom shrinks what is shown too, and is no keyboard.
+const watchKeyboard = () => {
+  const vv = window.visualViewport;
+  const root = document.documentElement;
+  if (!vv || !vv.addEventListener || !root || !root.style) return () => {};
+  let said = null;
+  const set = () => {
+    const kb = (vv.scale || 1) > 1.01 ? 0 : Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+    if (kb === said) return;
+    said = kb;
+    root.style.setProperty("--kb", `${kb}px`);
+  };
+  set();
+  vv.addEventListener("resize", set);
+  vv.addEventListener("scroll", set);
+  return () => {
+    vv.removeEventListener("resize", set);
+    vv.removeEventListener("scroll", set);
+    root.style.removeProperty("--kb");
+  };
+};
+Object.assign(window, { watchKeyboard });
+
 // ---- A switch holds still ---------------------------------------------------------------------------------------
 // A tab, a filter or a fold changes what is drawn beside it, and on a phone the page moved under the thumb that pressed
 // it: the person's History tabs went 328px down the screen for Consent and 439px for Visits (23 Sep), because a shorter

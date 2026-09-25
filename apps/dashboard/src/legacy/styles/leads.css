@@ -546,7 +546,8 @@
      the sheet stood centred 16px in from each edge and padded the panel a second time: the input started 49px in on
      a touch phone at 375, and a plan scrolled in two boxes at once. */
   .sb-sheet.pl-plan {
-    left: 0; right: 0; top: auto; bottom: 0; transform: none; width: auto; max-height: 88vh; max-height: 88dvh; overflow: auto;
+    left: 0; right: 0; top: auto; bottom: var(--kb, 0px); transform: none; width: auto;
+    max-height: calc(88vh - var(--kb, 0px)); max-height: calc(88dvh - var(--kb, 0px)); overflow: auto;
     border-width: 1px 0 0; border-radius: var(--radius-xl) var(--radius-xl) 0 0;
     padding: 8px var(--gutter-page) 18px; display: flex; flex-direction: column; gap: 14px;
   }
