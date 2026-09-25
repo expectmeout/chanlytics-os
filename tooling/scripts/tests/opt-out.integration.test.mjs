@@ -107,7 +107,9 @@ test("consent events record transitions, not every message", { skip }, async () 
     .select("data")
     .eq("tenant_id", tenantId)
     .eq("subject_id", contactId)
-    .eq("kind", "contact.consent_changed");
+    .eq("kind", "contact.consent_changed")
+    // In the order they happened: without it the database may answer either way round, and did under a parallel run.
+    .order("created_at", { ascending: true });
   assert.deepEqual(
     data.map((e) => e.data.consent),
     ["opted_out", "opted_in"],
