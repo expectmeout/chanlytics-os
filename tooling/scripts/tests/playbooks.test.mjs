@@ -302,8 +302,7 @@ test("a run that waits for a person is open, never sent by the job, approved thr
     h.includes('if (b.state !== "scheduled" && b.state !== "sending") return;'),
     "only a scheduled or sending broadcast goes out",
   );
-  // Approve and skip are run: core-campaigns.test.mjs.
-  assert.ok(readCode("apps/dashboard/src/legacy/pages/broadcasts-real.jsx").includes('data-testid="bc-approve"'));
+  // Approve and skip are run: core-campaigns.test.mjs; the button is drawn by broadcasts-honest and confirm.
   assert.ok(
     DECISION_VERBS.includes("start_playbook") &&
       DECISION_VERBS.includes("pause_playbook") &&
@@ -344,27 +343,9 @@ test("the page and its doors: Outbound is Playbooks, real; make, change, pause, 
     "flipped, and the gate waits on its surface",
   );
   const page = readCode("apps/dashboard/src/legacy/pages/outbound-real.jsx");
-  for (const id of [
-    "playbooks-real",
-    "pb-card",
-    "pb-save",
-    "pb-cancel",
-    "pb-run-now",
-    "pb-pause",
-    "pb-approve",
-    "pb-skip",
-    "pb-edit",
-    "pb-delete",
-  ]) {
-    assert.ok(page.includes(`data-testid="${id}"`), id);
-  }
-  assert.ok(
-    page.includes('testid="pb-composer"') &&
-      page.includes('testid="pb-moment"') &&
-      page.includes('testid="pb-template"') &&
-      page.includes("<window.CmPicker"),
-    "the composer: its moment and its message open the one list Campaigns opens (playbook-composer.test.mjs runs it)",
-  );
+  // A playbook's card and its composer are playbook-card.jsx and playbook-composer.jsx (Reach out Part 2.5): their
+  // doors are drawn and pressed by playbook-composer, campaigns-drafts, runs-honest, reports-honest and confirm.
+  assert.ok(page.includes('data-testid="playbooks-real"'));
   assert.ok(page.includes('testid="pb-empty"'), "the empty state, through the one EmptyState, with the verb on it");
   assert.ok(
     page.includes("window.OutboundPage = (props) =>") &&
@@ -374,10 +355,7 @@ test("the page and its doors: Outbound is Playbooks, real; make, change, pause, 
     !/\$[\d,]+|revenue|Attributed|booked/.test(page.replace(/\/\/[^\n]*/g, "")),
     "no number the schema has no column for",
   );
-  assert.ok(
-    page.includes("<PolicyChip cls={p.policy_class} />"),
-    "the mode chip is the workspace's, and opens Settings › Autonomy",
-  );
+  // The card's mode chip is run in playbook-composer.test.mjs.
   const routes = readCode("apps/dashboard/app/api/v1/playbooks/route.ts");
   assert.ok(
     routes.includes('role: "operator",') &&
@@ -439,17 +417,8 @@ test("the page and its doors: Outbound is Playbooks, real; make, change, pause, 
   // "Running · next run tomorrow 10:00" is a promise the run cannot keep when
   // the pool is empty: the card says what the next run will DO, beside the
   // state and in the sentence, and the standing line counts them.
-  for (const s of [
-    'data-testid="pb-reach"',
-    'data-testid="pb-reaches-nobody"',
-    "pbReach({ state: p.state, candidates: p.candidates, held: p.held, waiting })",
-    "Next run {p.next} &mdash; <b>{reachWords}</b>.",
-  ])
-    assert.ok(page.includes(s), s);
-  assert.ok(
-    page.includes("{p.totals.runs > 1 && ("),
-    "one run says itself once: the row below is the same run, with its date and its door",
-  );
+  // The card's reach, its next run and its one-run sentence are playbook-card.jsx's, drawn by runs-honest.
+  assert.ok(page.includes('data-testid="pb-reaches-nobody"'));
 });
 
 test("what the next run will DO: a playbook running against an empty list is not running in the sense the owner means", () => {

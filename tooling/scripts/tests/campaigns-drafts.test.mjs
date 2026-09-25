@@ -164,7 +164,12 @@ await import("../../../apps/dashboard/src/legacy/components/message-preview.jsx"
 await import("../../../apps/dashboard/src/legacy/components/template-chips.jsx");
 await import("../../../apps/dashboard/src/legacy/components/campaign-bits.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/templates-real.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/broadcasts-run.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/broadcasts-ledger.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/broadcasts-real.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/playbook-bits.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/playbook-card.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/playbook-composer.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/outbound-real.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/messages.jsx");
 

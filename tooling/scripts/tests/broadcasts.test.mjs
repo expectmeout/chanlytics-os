@@ -461,8 +461,7 @@ test("the surface and the page: Broadcasts is real, fed by the same rules, and t
     "bc-preview",
     "bc-send",
     "bc-nobody",
-    "bc-open",
-    "bc-history",
+    // bc-open and bc-history are the ledger's (broadcasts-ledger.jsx, Reach out Part 2.5); broadcasts-honest draws them.
   ]) {
     assert.ok(p.includes(`data-testid="${id}"`), id);
   }
@@ -529,7 +528,9 @@ test("the detail: every person on a broadcast, with what happened to them; the s
   );
   assert.ok(sd.includes("heldReasons: HELD_REASONS,"));
   const p = readCode("apps/dashboard/src/legacy/pages/broadcasts-real.jsx");
-  for (const id of ["bc-number", "bc-number-refusal", "bc-over-limit", "bc-detail", "bc-person", "bc-open-who"])
+  // bc-detail, bc-person and bc-open-who are a run's and the ledger's (broadcasts-run.jsx, broadcasts-ledger.jsx);
+  // broadcasts-honest and runs-honest draw them.
+  for (const id of ["bc-number", "bc-number-refusal", "bc-over-limit"])
     assert.ok(p.includes(`data-testid="${id}"`), id);
   assert.ok(p.includes("&& numberOk && !overLimit;"), "the button follows the number too");
   const vm = readCode("packages/contracts/src/viewmodels.ts");

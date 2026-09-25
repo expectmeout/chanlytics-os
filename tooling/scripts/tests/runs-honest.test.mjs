@@ -377,7 +377,12 @@ await import("../../../apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/dashboard-a-command.jsx");
 const { TODAY_HELPERS } = await import("../../../apps/dashboard/src/legacy-bridge/today.ts");
 globalThis.window.__today = TODAY_HELPERS;
+await import("../../../apps/dashboard/src/legacy/pages/broadcasts-run.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/broadcasts-ledger.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/broadcasts-real.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/playbook-bits.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/playbook-card.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/playbook-composer.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/outbound-real.jsx");
 
 const walk = (n, fn) => {

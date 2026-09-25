@@ -245,6 +245,9 @@ Object.assign(globalThis.window, {
 await import("../../../apps/dashboard/src/legacy/components/record-sheet.jsx");
 await import("../../../apps/dashboard/src/legacy/components/message-preview.jsx");
 await import("../../../apps/dashboard/src/legacy/components/campaign-bits.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/playbook-bits.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/playbook-card.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/playbook-composer.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/outbound-real.jsx");
 // The verbs, as the bridge publishes them: what the composer sends is what the route would be sent.
 globalThis.window.__playbooks = {
@@ -653,4 +656,33 @@ test("slotChoices: what keeps a known slot true, anything for a guessed one; tem
     playbookName({ id: "quiet_30", label: "Win-back" }, { name: "autumn_offer", title: "Autumn offer" }),
     "Win-back · Autumn offer",
   );
+});
+
+test("the card says what it keeps to: the workspace's mode for its class, and for a visit trigger the day's visits and one message each", () => {
+  // Once four source pins on outbound-real.jsx; run here since the card and its words are their own files (Reach out
+  // Part 2.5).
+  globalThis.window.__PLAYBOOKS = surface();
+  fresh();
+  const card = globalThis.window.PlaybookCard({ p: playbook(), canAct: true, onEdit() {}, flash() {} });
+  const chip = find(card, (n) => n.type === globalThis.PolicyChip);
+  assert.equal(chip?.props.cls, "reengage", "the mode chip is the playbook's class, which opens Settings › Autonomy");
+
+  fresh();
+  const visit = globalThis.window.PlaybookCard({
+    p: playbook({ id: "pb-v", name: "The day before", trigger: "visit_tomorrow", policy_class: "booking" }),
+    canAct: true,
+    onEdit() {},
+    flash() {},
+  });
+  const tip = find(
+    visit,
+    (n) => typeof n.props?.["data-tip"] === "string" && n.props["data-tip"].includes("the day's visits"),
+  );
+  assert.ok(tip, "a visit playbook's count says the day's visits are picked from the people who said yes");
+  assert.match(tip.props["data-tip"], /^Everyone with a recorded yes — the day's visits are picked from them/);
+
+  const guard = globalThis.window.pbGuardWords("visit");
+  assert.match(guard, /One message per visit\. Anyone who asked to stop/);
+  assert.doesNotMatch(guard, /gap|a week/, "no gap and no breath are promised for a visit trigger");
+  assert.match(globalThis.window.pbGuardWords("list"), /Never twice within its gap/);
 });

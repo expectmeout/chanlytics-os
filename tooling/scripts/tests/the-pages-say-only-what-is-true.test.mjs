@@ -640,7 +640,12 @@ test("REGRESSION: on a real workspace a policy chip's tooltip names the policy -
 // The pages' one clock (legacy-bridge/zone.ts): the workspace's zone once one is published.
 const { installClock } = await import("../../../apps/dashboard/src/legacy-bridge/zone.ts");
 installClock();
+await import("../../../apps/dashboard/src/legacy/pages/broadcasts-run.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/broadcasts-ledger.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/broadcasts-real.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/playbook-bits.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/playbook-card.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/playbook-composer.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/outbound-real.jsx");
 
 test("REGRESSION: approving a run the server moved to nine says so -- the toast said 'sending now'", async () => {
