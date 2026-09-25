@@ -476,9 +476,10 @@ const ANSWERING = {
   name: "personal trainers",
   asked: PLAN.asked,
   leavingOut: ["Chain gyms"],
+  threadId: "t-planned",
 };
 
-test("answering: the panel says the question, sends one turn on the Leads surface that names the search and the answer, and the card comes back carrying amends at the server's version and count", async () => {
+test("answering: the panel says the question, sends the owner's words as one turn on the Leads surface, naming the search and the thread it was planned in, and the card comes back carrying amends at the server's version and count", async () => {
   const sent = [];
   const amended = { ...PLAN, count: 50, exclusions: [], asked: "include the chains too" };
   const amends = { search_id: "s-b", name: "personal trainers", question: ANSWERING.question };
@@ -505,16 +506,17 @@ test("answering: the panel says the question, sends one turn on the Leads surfac
   const card = await globalThis.window.leadAnswerPlan(st.words, set);
   assert.equal(sent.length, 1, "one turn");
   assert.deepEqual(
-    [sent[0].scope, sent[0].surface, sent[0].threadId],
-    [null, "leads", null],
-    "the Leads surface, no scope and no thread: the sentence names the search itself",
+    sent[0],
+    {
+      text: "include the chains too",
+      threadId: "t-planned",
+      answering: { searchId: "s-b" },
+      scope: null,
+      surface: "leads",
+    },
+    "the owner's words and nothing else as the text; the search by id for the route to read and tell the model " +
+      "(ask-routes.test.mjs); the thread the search was planned in",
   );
-  assert.match(sent[0].text, /my search for personal trainers \(search id s-b\) stopped to ask/);
-  assert.match(sent[0].text, /Most of the first 25 are chain gyms/);
-  assert.match(sent[0].text, /leaving out Chain gyms/);
-  assert.match(sent[0].text, /My answer: include the chains too\./);
-  assert.match(sent[0].text, /propose_lead_search with amends set to that id/);
-  assert.match(sent[0].text, /keep everything I did not change/);
   assert.deepEqual(
     [st.stage, st.trace, st.refusal, card.id, st.plan.version, st.plan.count, st.plan.exclusions],
     ["plan", "Sizing the search", null, "p1", 2, 200, []],
@@ -545,6 +547,21 @@ test("answering: the panel says the question, sends one turn on the Leads surfac
     );
   }
   assert.equal(sent.length, 3);
+  // A search that keeps no thread (made on the page, or before 00172) sends none: the route starts one.
+  globalThis.window.__ask = {
+    send: async (input, on) => {
+      sent.push(input);
+      on({ t: "final", message: { text: "", proposals: [] } });
+    },
+  };
+  const unthreaded = page({ words: "  include the chains too " });
+  unthreaded.set.more = { ...ANSWERING, threadId: null };
+  await globalThis.window.leadAnswerPlan(unthreaded.st.words, unthreaded.set);
+  assert.deepEqual(
+    [sent[3].text, sent[3].threadId, sent[3].answering],
+    ["include the chains too", null, { searchId: "s-b" }],
+  );
+  sent.pop();
   // Nothing to answer: the panel never composes a fresh Find (that is Ask's), so it refuses rather than sending.
   const idle = page({ words: "gyms in Denver" });
   assert.equal(await globalThis.window.leadAnswerPlan(idle.st.words, idle.set), null);

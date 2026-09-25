@@ -2594,6 +2594,7 @@ export type Database = {
           plan: Json
           removed_at: string | null
           tenant_id: string
+          thread_id: string | null
           via: string
         }
         Insert: {
@@ -2606,6 +2607,7 @@ export type Database = {
           plan: Json
           removed_at?: string | null
           tenant_id: string
+          thread_id?: string | null
           via: string
         }
         Update: {
@@ -2618,6 +2620,7 @@ export type Database = {
           plan?: Json
           removed_at?: string | null
           tenant_id?: string
+          thread_id?: string | null
           via?: string
         }
         Relationships: [
@@ -2626,6 +2629,13 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_searches_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "ask_threads"
             referencedColumns: ["id"]
           },
         ]
@@ -3982,6 +3992,7 @@ export type Database = {
           strong: number | null
           target: number | null
           tenant_id: string | null
+          thread_id: string | null
           undo_op_id: string | null
           undo_version: number | null
           via: string | null
@@ -3994,6 +4005,13 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_searches_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "ask_threads"
             referencedColumns: ["id"]
           },
         ]
@@ -4378,6 +4396,7 @@ export type Database = {
           p_estimate_usd: number
           p_plan: Json
           p_tenant_id: string
+          p_thread_id?: string
           p_via: string
         }
         Returns: Json

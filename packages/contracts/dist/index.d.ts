@@ -10931,6 +10931,11 @@ interface LeadSearchDto {
     asked_on: string;
     plan: LeadSearchPlan;
     plan_version: number;
+    /**
+     * The Ask thread the search was planned in (00172), or null: a search made on the page, one from before, or a
+     * thread since gone. The answer to its question is sent there, and lands there when the thread is the reader's own.
+     */
+    thread_id: string | null;
     round: LeadSearchRoundDto | null;
 }
 interface LeadMapPin {

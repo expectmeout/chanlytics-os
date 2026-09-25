@@ -11,6 +11,7 @@ import {
 } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 import type { RouteContext } from "../with-route";
+import { answeringOf, askTurnText } from "./prompt";
 
 /**
  * Ask threads on the session client. RLS (migration 00040) keeps every read
@@ -87,10 +88,26 @@ export async function listThreads(ctx: RouteContext, tenantId: string): Promise<
   return (data ?? []).map(toThreadVM);
 }
 
+/**
+ * A stored turn as the model reads it on a later turn: the words, and for a person's answer to a search's question
+ * the search it answered (askTurnText), which is stored beside their words and never shown as them.
+ */
+export function modelTurnOf(r: MessageRow): { role: "user" | "assistant"; text: string } {
+  const vm = toMessageVM(r);
+  const c = (r.content ?? {}) as Record<string, unknown>;
+  return { role: vm.role, text: askTurnText(vm.text, vm.role === "user" ? answeringOf(c.answering) : null) };
+}
+
 export async function readThread(
   ctx: RouteContext,
   id: string,
-): Promise<{ thread: AskThreadVM; messages: AskMessageVM[]; tenantId: string } | null> {
+): Promise<{
+  thread: AskThreadVM;
+  messages: AskMessageVM[];
+  /** The same turns as the model reads them (modelTurnOf): the history a new turn on this thread is asked with. */
+  turns: Array<{ role: "user" | "assistant"; text: string }>;
+  tenantId: string;
+} | null> {
   const { data: t, error } = await ctx.supabase
     .from("ask_threads")
     .select("id, tenant_id, title, scope, last_at, created_at")
@@ -105,7 +122,13 @@ export async function readThread(
     .order("created_at", { ascending: true })
     .limit(MESSAGES_CAP);
   if (merr) throw new Error(merr.message);
-  return { thread: toThreadVM(t), messages: (msgs ?? []).map(toMessageVM), tenantId: t.tenant_id };
+  const rows = msgs ?? [];
+  return {
+    thread: toThreadVM(t),
+    messages: rows.map(toMessageVM),
+    turns: rows.map(modelTurnOf),
+    tenantId: t.tenant_id,
+  };
 }
 
 export async function createThread(
