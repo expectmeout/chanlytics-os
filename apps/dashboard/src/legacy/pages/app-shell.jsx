@@ -879,6 +879,9 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
       {/* On a phone the sidebar is a drawer. Open, it is a dialog, so a page's keys hold still behind it (People's Esc
           cleared its selection as the drawer closed). Not aria-modal: it does not move focus into itself. */}
       <div className={`side-wrap ${navOpen ? "open" : ""} ${sidebar === "rail" ? "rail" : ""}`} role={navOpen ? "dialog" : undefined} aria-label={navOpen ? "Navigation" : undefined}>
+        {/* The wash stands just before the drawer, where a thumb sliding the drawer away finds it to fade (data-bits
+            touchSwipe). */}
+        {navOpen && <div className="nav-backdrop" onClick={() => setNavOpen(false)} />}
         <Sidebar
           active={activeNav}
           badges={{ inbox: inboxNeeds > 0 ? String(inboxNeeds) : null }}
@@ -890,7 +893,6 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
           onTheme={onTheme}
         />
       </div>
-      {navOpen && <div className="nav-backdrop" onClick={() => setNavOpen(false)} />}
       <div className="main">
         <Topbar
           crumbs={crumbs}

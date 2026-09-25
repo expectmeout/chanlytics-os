@@ -361,17 +361,15 @@ const Sidebar = ({
     ...badges,
   };
 
-  // Swipe-to-close (mobile drawer) — simple left-swipe threshold, no drag-follow. This, a tap on the backdrop,
-  // Escape and picking a destination are how the drawer closes: it has no bar of its own, because the desktop's
-  // sidebar has none and the two are one sidebar.
-  const touchX = React.useRef(null);
-  const onTouchStart = (e) => { touchX.current = e.touches && e.touches[0] ? e.touches[0].clientX : null; };
-  const onTouchEnd = (e) => {
-    if (touchX.current == null || !onClose) return;
-    const endX = e.changedTouches && e.changedTouches[0] ? e.changedTouches[0].clientX : touchX.current;
-    if (touchX.current - endX > 48) onClose();
-    touchX.current = null;
-  };
+  // On a phone the drawer slides back under the thumb (data-bits touchSwipe onAway): it follows the finger to the left,
+  // the page behind lightens with it, and let go past a third or with a flick it goes, short of that it settles. It
+  // was a jump at 48px with nothing following, and a scroll down its list that drifted 48px left closed it too. This,
+  // a tap on the backdrop, Escape and picking a destination are how the drawer closes: it has no bar of its own,
+  // because the desktop's sidebar has none and the two are one sidebar. Nothing opens it by a swipe: from the
+  // screen's edge that is the phone's own back, so opening stays the tab bar's More.
+  const drawerSwipe = onClose && window.touchSwipe
+    ? window.touchSwipe({ onAway: onClose, when: () => !!(window.matchMedia && window.matchMedia("(max-width: 900px)").matches) })
+    : {};
   // Route id -> flat nav id (merged surfaces highlight their group)
   const groupMap = {
     people: ["clients", "leads", "segments", "pipeline"],
@@ -408,7 +406,7 @@ const Sidebar = ({
   const workspaceCount = (window.__WORKSPACES || []).length;
 
   return (
-    <aside className={`sidebar ${collapsed ? "collapsed" : ""}`} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} data-testid="sidebar">
+    <aside className={`sidebar ${collapsed ? "collapsed" : ""}`} {...drawerSwipe} data-testid="sidebar">
       {/* Workspace — the menu's trigger */}
       <button
         type="button"

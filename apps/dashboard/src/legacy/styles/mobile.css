@@ -32,7 +32,8 @@
     position: fixed;
     top: 0; bottom: 0; left: 0;
     z-index: 220;
-    width: min(300px, 84vw);
+    /* The desktop sidebar's own 248px (Ruben, 25 Sep): at 300 its words ended by 190 and the rest of it was empty. */
+    width: min(248px, 84vw);
     box-shadow: var(--shadow-lg);
     padding-bottom: env(safe-area-inset-bottom);
     transform: translateX(-102%);
@@ -623,7 +624,7 @@
 
 /* The drawer is never a rail: on a phone the sidebar shows everything. */
 @media (max-width: 900px) {
-  .side-wrap .sidebar.collapsed { width: min(300px, 84vw); }
+  .side-wrap .sidebar.collapsed { width: min(248px, 84vw); }
   .side-wrap .sidebar.collapsed .sidebar-label,
   .side-wrap .sidebar.collapsed .nav-hint,
   .side-wrap .sidebar.collapsed .sb-team-body,

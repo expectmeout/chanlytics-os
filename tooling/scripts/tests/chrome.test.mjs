@@ -204,7 +204,7 @@ test("the wiring: the pill is retired, the shell bridge carries its two actions 
     assert.ok(css.includes(pin), pin);
   assert.ok(
     readRaw("apps/dashboard/src/legacy/styles/mobile.css").includes(
-      ".side-wrap .sidebar.collapsed { width: min(300px, 84vw); }",
+      ".side-wrap .sidebar.collapsed { width: min(248px, 84vw); }",
     ),
     "the drawer is never a rail",
   );

@@ -119,6 +119,35 @@ test.describe("Phone shell on a real workspace", () => {
     await expect(page.getByRole("dialog", { name: "Navigation" })).toHaveCount(0);
   });
 
+  /**
+   * The drawer is the desk's sidebar, 248px (Ruben, 25 Sep: at 300 its words ended by 190 and the rest was empty), and a
+   * thumb slides it away (data-bits touchSwipe onAway): it follows the finger, a short slide settles it back, past a
+   * third it goes. Nothing opens it by a swipe, because from the screen's edge that is the phone's own back: More does.
+   * Real touches through the browser's own input (CDP).
+   */
+  test("the drawer is the desk's width, a thumb slides it away, and no swipe opens it", async ({ page }) => {
+    await page.goto("/#/today");
+    await page.waitForLoadState("networkidle");
+    const nav = page.getByRole("dialog", { name: "Navigation" });
+    const sidebar = page.locator(".side-wrap .sidebar");
+    const x = async () => Math.round((await sidebar.boundingBox())?.x ?? -999);
+    await page.getByTestId("phone-tabs").getByRole("button", { name: "Menu" }).click();
+    await expect.poll(x, { message: "the drawer slides in to the edge" }).toBe(0);
+    expect(Math.round((await sidebar.boundingBox())!.width), "the desk's 248px").toBe(248);
+
+    await swipeAcross(page, 200, 170, 420);
+    await expect.poll(x, { message: "30px: it settles back" }).toBe(0);
+    await expect(nav).toHaveCount(1);
+
+    await swipeAcross(page, 200, 60, 420);
+    await expect(nav, "past a third: it goes").toHaveCount(0);
+    await expect(sidebar, "and once it has slid shut it has no box").toBeHidden();
+
+    await swipeAcross(page, 30, 260, 420);
+    await page.waitForTimeout(400);
+    await expect(nav, "a swipe in from the side opens nothing").toHaveCount(0);
+  });
+
   test("the tab bar replaces the menu button, and the Inbox shows one pane at a time", async ({ page }) => {
     await page.goto("/#/inbox");
     await page.waitForLoadState("networkidle");
