@@ -426,39 +426,42 @@ test("a seed that names a thread opens that thread, its last answer under the li
 
 /* ------------------------------ the Line ------------------------------ */
 
+// Today's queue as the Line reads it: a person waiting and a search waiting, so Right now has its two pills.
+const askQueue = () => ({
+  queue: {
+    rows: [
+      {
+        id: "q1",
+        kind: "handoff",
+        conversationId: "c1",
+        callId: null,
+        who: "Nora",
+        channel: "WhatsApp",
+        when: "waited 2h",
+        sentence: "Can I come at 3?",
+        quoted: true,
+        cta: { label: "Reply", to: "inbox/th-c1" },
+      },
+      {
+        id: "q-s-s1",
+        kind: "search",
+        conversationId: null,
+        callId: null,
+        who: "personal trainers",
+        channel: "Leads",
+        when: "waited 3h",
+        sentence: "Most of the first 25 are gyms, not trainers. Keep them?",
+        quoted: false,
+        cta: { label: "Answer", to: "clients/leads:s-s1:c-excluded" },
+      },
+    ],
+    // The queue counts the search among those waiting; it is not a person, so it is not "1 more".
+    waiting: 2,
+  },
+});
+
 test("the Line at rest: Right now is Today's queue, then questions about the page, then earlier conversations -- and no key is drawn", async () => {
-  globalThis.window.TODAY_DATA = {
-    queue: {
-      rows: [
-        {
-          id: "q1",
-          kind: "handoff",
-          conversationId: "c1",
-          callId: null,
-          who: "Nora",
-          channel: "WhatsApp",
-          when: "waited 2h",
-          sentence: "Can I come at 3?",
-          quoted: true,
-          cta: { label: "Reply", to: "inbox/th-c1" },
-        },
-        {
-          id: "q-s-s1",
-          kind: "search",
-          conversationId: null,
-          callId: null,
-          who: "personal trainers",
-          channel: "Leads",
-          when: "waited 3h",
-          sentence: "Most of the first 25 are gyms, not trainers. Keep them?",
-          quoted: false,
-          cta: { label: "Answer", to: "clients/leads:s-s1:c-excluded" },
-        },
-      ],
-      // The queue counts the search among those waiting; it is not a person, so it is not "1 more".
-      waiting: 2,
-    },
-  };
+  globalThis.window.TODAY_DATA = askQueue();
   try {
     const calls = ask([TH(1), TH(2), TH(3), TH(4)]);
     render(Palette, OPEN);
@@ -1886,7 +1889,7 @@ test("on Today the Line is as it was: Ask anything, questions about the page, an
 
 /* ------------------------------ the takeover composes ------------------------------ */
 
-test("on a phone the field in use composes: the home fades and leaves, the three come down small and listen, a key heard lifts them, and letting go brings the home back", async () => {
+test("on a phone the field in use composes: the rows fold away, the three keep their size with the standing pills under them and listen, a key heard lifts them, and letting go opens the fold again", async () => {
   const ph = phoneWindow();
   const moods = [];
   let heard = 0;
@@ -1905,7 +1908,10 @@ test("on a phone the field in use composes: the home fades and leaves, the three
     follow: () => () => {},
   };
   const props = { open: true, onClose() {} };
+  const pills = (tree) => all(tree, (n) => n.props?.["data-testid"] === "ask-pill").map(textOf);
+  const fold = (tree) => byTestId(tree, "ask-rows-fold").props.className;
   try {
+    globalThis.window.TODAY_DATA = askQueue();
     ask([]);
     render(Palette, props);
     let tree = await later(Palette, props);
@@ -1913,20 +1919,27 @@ test("on a phone the field in use composes: the home fades and leaves, the three
       find(tree, (n) => n.props?.id === "ask-rows"),
       "the home stands",
     );
+    assert.equal(fold(tree), "ask-rows-fold");
     assert.equal(byTestId(tree, "ask-hero").props.className, "ask-hero");
+    // On a phone the standing pills are the hero's, under the three, and Right now's row keeps its sentence and Brief me.
+    assert.deepEqual(pills(byTestId(tree, "ask-hero")), ["1 needs you", "1 search waiting"]);
+    assert.deepEqual(pills(byTestId(tree, "ask-row-now")), []);
+    assert.equal(textOf(byTestId(tree, "ask-row-brief")), "Brief me");
     inputOf(tree).props.onFocus();
     tree = await later(Palette, props);
-    assert.equal(byTestId(tree, "ask-hero").props.className, "ask-hero small", "the three come down small");
-    assert.ok(byClass(tree, "composing").length, "the middle composes");
-    assert.ok(byClass(tree, "home-fading").length, "the home fades");
+    assert.equal(byTestId(tree, "ask-hero").props.className, "ask-hero", "the three keep their size");
+    assert.ok(byClass(tree, "composing").length, "the middle composes, still centred");
+    assert.equal(fold(tree), "ask-rows-fold folding", "the rows fold away");
+    assert.deepEqual(pills(byTestId(tree, "ask-hero")), ["1 needs you", "1 search waiting"], "the pills stay");
     assert.equal(moods.at(-1), "listening", "and the three listen");
-    await new Promise((r) => setTimeout(r, 220));
+    await new Promise((r) => setTimeout(r, 300));
     tree = await later(Palette, props);
     assert.equal(
       find(tree, (n) => n.props?.id === "ask-rows"),
       null,
-      "then the home is gone",
+      "then the rows are gone",
     );
+    assert.equal(fold(tree), "ask-rows-fold gone", "their fold kept, closed");
     assert.equal(inputOf(tree).props["aria-expanded"], false);
     typed(tree, "in");
     tree = await later(Palette, props);
@@ -1936,19 +1949,33 @@ test("on a phone the field in use composes: the home fades and leaves, the three
       null,
       "the words' own rows wait for the keyboard to go",
     );
-    assert.equal(byClass(tree, "home-fading").length, 0);
+    assert.equal(fold(tree), "ask-rows-fold gone");
     assert.equal(inputOf(tree).props["aria-controls"], undefined);
+    assert.deepEqual(
+      pills(byTestId(tree, "ask-hero")),
+      ["1 needs you", "1 search waiting"],
+      "the pills stay while typing",
+    );
     inputOf(tree).props.onBlur();
     tree = await later(Palette, props);
-    assert.equal(byTestId(tree, "ask-hero").props.className, "ask-hero", "let go, the three stand tall again");
+    assert.equal(byTestId(tree, "ask-hero").props.className, "ask-hero", "let go, the three stand as they were");
     assert.ok(
       find(tree, (n) => n.props?.id === "ask-rows"),
       "and the rows are back, the words' own now",
     );
+    assert.equal(fold(tree), "ask-rows-fold", "their fold open");
+    assert.deepEqual(pills(tree), [], "the words' rows are the focus with the keyboard down");
     assert.equal(moods.at(-1), "idle");
     typed(tree, "");
+    tree = await later(Palette, props);
+    assert.deepEqual(
+      pills(byTestId(tree, "ask-hero")),
+      ["1 needs you", "1 search waiting"],
+      "the line emptied, the home and its pills",
+    );
     await closes();
   } finally {
+    delete globalThis.window.TODAY_DATA;
     ph.restore();
     if (had === undefined) delete globalThis.window.__mascot;
     else globalThis.window.__mascot = had;
