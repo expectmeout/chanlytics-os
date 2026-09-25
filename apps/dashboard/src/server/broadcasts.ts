@@ -325,6 +325,8 @@ async function consentAfter(
       const data = e.data as { consent?: unknown; purpose?: unknown } | null;
       const consent = data?.consent;
       if (consent !== "opted_in" && consent !== "opted_out") continue;
+      // An unsubscribe from email (00174) is no answer to a WhatsApp broadcast.
+      if (data?.purpose === "email_marketing") continue;
       // The offers door names its purpose (00095); the conversational one names none.
       const purpose = data?.purpose === "marketing" ? "marketing" : "conversational";
       const had = out.get(e.subject_id!);

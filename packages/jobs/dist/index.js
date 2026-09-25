@@ -9741,6 +9741,7 @@ var FRESH_SLACK_MS = 2 * 864e5;
 var STATE_TTL_MS = 10 * 6e4;
 var enc2 = new TextEncoder();
 var dec = new TextDecoder();
+var PAYLOAD_BYTES = 1 + 16 * 3;
 
 // ../core/dist/index.js
 import { z as z12 } from "zod";
@@ -13019,6 +13020,7 @@ var FRESH_SLACK_MS2 = 2 * 864e5;
 var STATE_TTL_MS2 = 10 * 6e4;
 var enc22 = new TextEncoder();
 var dec2 = new TextDecoder();
+var PAYLOAD_BYTES2 = 1 + 16 * 3;
 z112.config({ jitless: true });
 var MAX_ADDRESS = 254;
 var MAX_LOCAL = 64;

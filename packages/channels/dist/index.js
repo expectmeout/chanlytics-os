@@ -5594,6 +5594,49 @@ function verifyEdgeToken(secret, token, aud, nowMs = Date.now()) {
   return { ok: true, claims: { ...claims, ws: claims.ws ?? null, user: claims.user ?? null } };
 }
 
+// src/unsubscribe-token.ts
+import { createHmac as createHmac2, timingSafeEqual as timingSafeEqual2 } from "crypto";
+var UNSUBSCRIBE_PATH = "/u/";
+var VERSION = 1;
+var PAYLOAD_BYTES = 1 + 16 * 3;
+var MAC_BYTES = 16;
+var UUID2 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+var TOKEN = /^[A-Za-z0-9_-]{87}$/;
+var bytesOf = (uuid) => Buffer.from(uuid.replace(/-/g, ""), "hex");
+var uuidOf = (b) => {
+  const h = b.toString("hex");
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+};
+var macOf = (secret, payload) => createHmac2("sha256", secret).update("chanlytics-unsubscribe:").update(payload).digest().subarray(0, MAC_BYTES);
+function signUnsubscribeToken(secret, c) {
+  if (!secret) throw new Error("signUnsubscribeToken: no secret");
+  for (const id of [c.tenantId, c.contactId, c.messageId])
+    if (!UUID2.test(id)) throw new Error("signUnsubscribeToken: the workspace, the person and the email are uuids");
+  const payload = Buffer.concat([
+    Buffer.from([VERSION]),
+    bytesOf(c.tenantId),
+    bytesOf(c.contactId),
+    bytesOf(c.messageId)
+  ]);
+  return Buffer.concat([payload, macOf(secret, payload)]).toString("base64url");
+}
+function verifyUnsubscribeToken(secret, token) {
+  if (!secret || typeof token !== "string" || !TOKEN.test(token)) return null;
+  const raw = Buffer.from(token, "base64url");
+  if (raw.length !== PAYLOAD_BYTES + MAC_BYTES || raw[0] !== VERSION || raw.toString("base64url") !== token)
+    return null;
+  const payload = raw.subarray(0, PAYLOAD_BYTES);
+  if (!timingSafeEqual2(raw.subarray(PAYLOAD_BYTES), macOf(secret, payload))) return null;
+  return {
+    tenantId: uuidOf(payload.subarray(1, 17)),
+    contactId: uuidOf(payload.subarray(17, 33)),
+    messageId: uuidOf(payload.subarray(33, 49))
+  };
+}
+function unsubscribeUrl(origin, token) {
+  return `${origin.replace(/\/+$/, "")}${UNSUBSCRIBE_PATH}${token}`;
+}
+
 // src/apify.ts
 var APIFY_BASE = "https://api.apify.com/v2";
 var APIFY_TIMEOUT_MS = 2e4;
@@ -5866,6 +5909,7 @@ export {
   STATE_TTL_MS,
   TRUSTHUB,
   TwilioError,
+  UNSUBSCRIBE_PATH,
   VOICE_AGENT_DEFAULTS,
   VOICE_LLM_DEFAULTS,
   VOICE_NUMBER_DEFAULTS,
@@ -6000,6 +6044,7 @@ export {
   sendsAs,
   signEdgeToken,
   signState,
+  signUnsubscribeToken,
   sipPassword,
   sipUsername,
   smsAsWaMessage,
@@ -6031,6 +6076,7 @@ export {
   twilioSignedString,
   twilioUrls,
   unb64url,
+  unsubscribeUrl,
   updateAgent,
   updateCampaignRequest,
   updateEndUserRequest,
@@ -6041,6 +6087,7 @@ export {
   verifyRetellSignature,
   verifyState,
   verifyTwilioSignature,
+  verifyUnsubscribeToken,
   voiceAgentCreateBody,
   voiceEndpoints,
   voiceLlmCreateBody,

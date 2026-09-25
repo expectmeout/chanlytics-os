@@ -55,11 +55,16 @@ const PUBLIC_PATHS = new Set([
  *           reviewer who gets a login screen has been shown a business that
  *           cannot be looked up, which is error 30919 with extra steps.
  *
- * Adding one here is adding a page anybody on the internet may read. Both were
+ *   /u/     the unsubscribe link every campaign email carries (RFC 8058). It
+ *           carries a token, not a slug, and it is the one public route that
+ *           takes input: its only write is a person's own "stop", under a key
+ *           only we hold, and a GET changes nothing (src/server/unsubscribe.ts).
+ *
+ * Adding one here is adding a page anybody on the internet may read. Each was
  * built for exactly that; nothing else goes on this list without the same
  * argument.
  */
-const PUBLIC_PREFIXES = ["/yes/", "/b/", "/.well-known/"];
+const PUBLIC_PREFIXES = ["/yes/", "/b/", "/.well-known/", "/u/"];
 
 /**
  * An auth redirect must never be stored. These responses depend entirely on a

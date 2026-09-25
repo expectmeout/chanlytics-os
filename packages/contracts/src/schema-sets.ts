@@ -92,6 +92,8 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof CHANNEL_KINDS>, SchemaSet<"templates.channel">>>,
   Holds<Exactly<Of<typeof CONSENT_STATES>, SchemaSet<"contacts.consent">>>,
   Holds<Exactly<Of<typeof CONSENT_STATES>, SchemaSet<"contacts.marketing_consent">>>,
+  // The email answer (00174): the same three words, asked of marketing email (Reach out's unsubscribe).
+  Holds<Exactly<Of<typeof CONSENT_STATES>, SchemaSet<"contacts.email_marketing">>>,
 
   // Conversations and messages.
   Holds<Exactly<Of<typeof CONVERSATION_STATES>, SchemaSet<"conversations.state">>>,

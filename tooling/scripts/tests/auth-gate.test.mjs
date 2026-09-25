@@ -100,7 +100,7 @@ test("one address: the deploy alias redirects, and a preview never does", () => 
   );
 });
 
-test("two public PREFIXES, and only a workspace's own two pages live under them", () => {
+test("four public PREFIXES, and only a workspace's own pages and the unsubscribe link live under them", () => {
   const block = /PUBLIC_PREFIXES\s*=\s*\[([^\]]*)\]/.exec(middleware);
   assert.ok(block, "PUBLIC_PREFIXES must be a literal array so this test can read it");
   const prefixes = [...block[1].matchAll(/["']([^"']+)["']/g)].map((m) => m[1]);
@@ -117,7 +117,17 @@ test("two public PREFIXES, and only a workspace's own two pages live under them"
   // `/.well-known/` joined with the phone app: a phone's OS fetches the app-links
   // files with no session before it lets a link open the app, and the one route
   // under the prefix answers a store's file or 404, nothing else (app-links.ts).
-  assert.deepEqual(prefixes, ["/yes/", "/b/", "/.well-known/"]);
+  //
+  // `/u/` joined with Reach out (Part 2): the unsubscribe link every campaign
+  // email carries, which RFC 8058 says a mail client presses with a POST and no
+  // session, and which the law says must work without one (CAN-SPAM). It is the
+  // one public route that takes input, and it was let in on these terms: its
+  // only write is the person's own stop, through a service-role door that can
+  // only narrow what may be sent (00174 set_email_marketing); the token is the
+  // authority, sealed under a key only we hold, so nothing is asked of the
+  // database for a link we did not make; and a GET changes nothing, because
+  // link scanners open every URL in an email (unsubscribe-door.test.mjs).
+  assert.deepEqual(prefixes, ["/yes/", "/b/", "/.well-known/", "/u/"]);
   assert.match(middleware, /PUBLIC_PREFIXES\.some\(\(p\) => path\.startsWith\(p\)\)/);
   //
   // `/yes/<slug>/form` joined the opt-in page when a yes to offers had to be
@@ -162,6 +172,10 @@ test("two public PREFIXES, and only a workspace's own two pages live under them"
     ["page.tsx"],
     "the terms are a page, not a route that takes input",
   );
+  // Under /u/, one route and nothing else: the link's own door. A second file
+  // here would be a second public way in, and it takes a new argument above.
+  assert.deepEqual(fs.readdirSync(path.join(ROOT, "apps/dashboard/app/u")), ["[token]"]);
+  assert.deepEqual(fs.readdirSync(path.join(ROOT, "apps/dashboard/app/u/[token]")), ["route.ts"]);
 });
 
 test("only these thirteen paths are reachable without a session", () => {

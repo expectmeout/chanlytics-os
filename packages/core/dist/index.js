@@ -3390,6 +3390,7 @@ var FRESH_SLACK_MS = 2 * 864e5;
 var STATE_TTL_MS = 10 * 6e4;
 var enc2 = new TextEncoder();
 var dec = new TextDecoder();
+var PAYLOAD_BYTES = 1 + 16 * 3;
 var APIFY_RUN_END_EVENTS = [
   "ACTOR.RUN.SUCCEEDED",
   "ACTOR.RUN.FAILED",

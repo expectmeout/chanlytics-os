@@ -635,7 +635,8 @@ function consentChangeOf(e) {
     id: e.id,
     contact_id: e.subject_id,
     at: e.created_at,
-    purpose: d.purpose === "marketing" ? "marketing" : "conversational",
+    // Email's answer is its own (00174): read as the conversational one, an unsubscribe said "nothing goes out".
+    purpose: d.purpose === "marketing" ? "marketing" : d.purpose === "email_marketing" ? "email_marketing" : "conversational",
     consent: str2("consent"),
     previous: str2("previous"),
     source: str2("source"),
@@ -12399,6 +12400,12 @@ function filterTimeline(items, id) {
   return kinds ? items.filter((i) => kinds.includes(i.kind)) : [...items];
 }
 function consentChangeWords(c) {
+  if (c.purpose === "email_marketing")
+    return {
+      who: "Email",
+      text: c.consent === "opted_out" ? "Unsubscribed from your emails" : "Marketing email: back to not asked",
+      ...c.source === "unsubscribe" ? { sub: "Pressed Unsubscribe in an email" } : {}
+    };
   const offers = c.purpose === "marketing";
   const text = c.consent === "opted_in" ? offers ? "Said yes to offers and news" : "Said yes to messages about their visit" : c.consent === "opted_out" ? offers ? "Said no to offers" : "Said stop \u2014 nothing goes out to them" : offers ? "Offers: back to not asked" : "Back to not asked";
   let sub;
@@ -20710,7 +20717,7 @@ function activityWords(kind, payload) {
     }
     case "consent_change":
     case "contact.consent_changed": {
-      const purpose = str(p, "purpose") === "marketing" ? "offers" : "messages about their visit";
+      const purpose = str(p, "purpose") === "marketing" ? "offers" : str(p, "purpose") === "email_marketing" ? "marketing email" : "messages about their visit";
       const consent = str(p, "consent");
       bits2.push(
         consent === "opted_in" ? `yes to ${purpose}` : consent === "opted_out" ? `no to ${purpose}` : `${purpose}: not asked`
@@ -21530,6 +21537,7 @@ var SCHEMA_SETS = {
   "capability_activations.capability": ["voice", "whatsapp", "sms"],
   "contact_identities.channel": ["whatsapp", "voice", "sms", "email", "instagram"],
   "contacts.consent": ["unknown", "opted_in", "opted_out"],
+  "contacts.email_marketing": ["unknown", "opted_in", "opted_out"],
   "contacts.marketing_consent": ["unknown", "opted_in", "opted_out"],
   "conversations.state": ["open", "needs_human", "snoozed", "archived"],
   "deals.lost_reason": ["price", "timing", "elsewhere", "no_reply", "not_a_fit", "other"],
@@ -22272,6 +22280,63 @@ function googleFillsOf(brain, listing) {
   if (!fills.length) return null;
   return { ...brain, profile: { ...p, ...Object.fromEntries(fills.map((k) => [k, google[k]])) } };
 }
+
+// src/reach-out.ts
+var WHY_FROM_MAPS = "I found your business on Google Maps.";
+function campaignFooter(f) {
+  const why = f.why.trim();
+  const business = f.business.trim();
+  const address = f.address.trim();
+  const url = f.unsubscribeUrl.trim();
+  if (!why || !business || !address || !url)
+    throw new Error("campaignFooter: a campaign's foot names why, who, where and how to stop");
+  return [
+    why,
+    `${business} \xB7 ${address}`,
+    `Not interested? Reply "no thanks" and I won't write again.`,
+    `Unsubscribe: ${url}`
+  ].join("\n");
+}
+function unsubscribePageWords(v) {
+  switch (v.kind) {
+    case "ask": {
+      const b = v.business?.trim() || null;
+      return {
+        title: "Unsubscribe",
+        lead: b ? `Stop emails from ${b}?` : "Stop these emails?",
+        body: `Press the button and ${b ?? "this business"} won't send you emails like that one again. If you write to them, they can still answer you.`,
+        button: "Unsubscribe",
+        foot: `${b ?? "This business"} sends its email with Chanlytics.`
+      };
+    }
+    case "done": {
+      const b = v.business?.trim() || null;
+      return {
+        title: "Unsubscribed",
+        lead: "You're unsubscribed.",
+        body: `${b ?? "This business"} won't send you emails like that one again.`,
+        button: null,
+        foot: `${b ?? "This business"} sends its email with Chanlytics.`
+      };
+    }
+    case "bad_link":
+      return {
+        title: "Unsubscribe",
+        lead: "This link doesn't work.",
+        body: "It may have been cut short when it was copied. Open the Unsubscribe link in the email itself, or reply to the email and ask them to stop.",
+        button: null,
+        foot: null
+      };
+    case "unavailable":
+      return {
+        title: "Unsubscribe",
+        lead: "That didn't go through.",
+        body: "We couldn't record it just now. Try the link again in a minute.",
+        button: null,
+        foot: null
+      };
+  }
+}
 export {
   ABANDONED_MS,
   ABILITY_CHANNEL_WORDS,
@@ -22798,6 +22863,7 @@ export {
   WA_WINDOW_MS,
   WEEKDAY_KEYS,
   WHATSAPP_LANGUAGES,
+  WHY_FROM_MAPS,
   abandonedCall,
   abilityRows,
   activityTone,
@@ -22872,6 +22938,7 @@ export {
   callsAnswer,
   callsToday,
   cameFromOf,
+  campaignFooter,
   cannotRows,
   capabilityStatus,
   cardOpenRoute,
@@ -23580,6 +23647,7 @@ export {
   unknownDetails,
   unmetNeed,
   unreadCount,
+  unsubscribePageWords,
   unsureHoursWords,
   usPhone,
   usableDeviceTimezone,
