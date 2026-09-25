@@ -30,7 +30,7 @@ const KEYS = ["x", "y", "size", "rot", "shade", "live", "charge", "lift", "layer
 const finite = (f) => f.squares.every((s) => KEYS.every((k) => Number.isFinite(s[k])));
 const TURNS = ["turn", "cascade", "gears", "half turn"];
 /** what the three do while they wait, listening */
-const WAITS = ["turn", "gears", "rise", "look", "half turn"];
+const WAITS = ["turn", "gears", "rise", "look", "peek", "sway", "swap", "lap", "spin"];
 
 test("every state and every reaction for seconds, no NaN anywhere", () => {
   const ch = createCharacter({ seed: 7, detail: 21 });
@@ -282,10 +282,10 @@ test("at rest the tiles turn in place, every way: one, a cascade, gears, a half 
   assert.ok(moments >= 30);
 });
 
-test("listening with nothing heard, the three wait alive: the tiles behind turn, as gears too, the one held forward rises or turns half round, a glance -- never while the voice is up", () => {
+test("listening with nothing heard, the three wait alive: the tiles behind turn, as gears too, or trade places, one takes a lap, the one held forward rises, peeks or spins, the three sway, a glance -- never while the voice is up", () => {
   const kinds = new Set();
   let moments = 0;
-  for (const seed of [1, 2, 3, 4]) {
+  for (const seed of [1, 2, 3, 4, 5, 6]) {
     const ch = createCharacter({ seed, enter: false, detail: 60 });
     ch.set("listening");
     run(ch, 2);
@@ -298,10 +298,19 @@ test("listening with nothing heard, the three wait alive: the tiles behind turn,
     moments += said.length;
     for (const k of said) kinds.add(k);
     assert.ok(
-      said.length >= 8 && said.length <= 22,
+      said.length >= 9 && said.length <= 26,
       `seed ${seed}: ${said.length} moments a minute: ${said.join(",")}`,
     );
     for (const k of said) assert.ok(WAITS.includes(k), `${k} fits listening`);
+    assert.ok(finite(ch.frame()), "and every number is a number");
+    // after any swaps the three still hold one tile per step
+    assert.deepEqual(
+      ch
+        .frame()
+        .squares.map((s) => s.step)
+        .sort(),
+      [0, 1, 2],
+    );
     // the voice up: nothing moves on its own
     const heard = ch.events().length;
     ch.hear(0.8);
@@ -315,8 +324,8 @@ test("listening with nothing heard, the three wait alive: the tiles behind turn,
       "none while heard",
     );
   }
-  for (const k of ["turn", "gears", "rise", "look"]) assert.ok(kinds.has(k), `${k} happens: ${[...kinds].join(",")}`);
-  assert.ok(moments >= 40);
+  for (const k of WAITS) assert.ok(kinds.has(k), `${k} happens: ${[...kinds].join(",")}`);
+  assert.ok(moments >= 60);
 });
 
 test("an icon left alone goes quiet (no breath, turns only) and wakes when someone comes near", () => {
