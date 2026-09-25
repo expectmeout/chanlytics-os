@@ -288,6 +288,7 @@ export type BillingFailure =
   | "no_customer"
   | "no_subscription"
   | "not_paused"
+  | "not_trialing"
   | "stripe_refused";
 
 /** The way to Checkout: a card, the trial, and back to Billing (or the first run that asked) with the outcome. */
@@ -315,8 +316,10 @@ export async function checkoutFor(
     return { ok: false, error: "already_subscribed" };
   try {
     const customer = await customerFor(s, db, row, tenantName, email);
-    // The trial applies once: a workspace that already had a subscription starts again without one.
-    const trial = row.stripe_subscription_id ? 0 : trialDays();
+    // The trial applies once: a workspace that already had a subscription starts again without one. And never from the
+    // first run (`start`): its checkout is the phone step's, and a number starts the plan, since a number is a cost on
+    // our account whether or not a trial ever pays (maySpend; Ruben, 25 Sep 2026).
+    const trial = row.stripe_subscription_id || back === "start" ? 0 : trialDays();
     const session = await s.checkout.sessions.create({
       mode: "subscription",
       customer,
@@ -440,6 +443,36 @@ export async function resumeFor(
       expand: ["default_payment_method"],
     });
     const r = await applySubscription(db, row, sub, "resume", now);
+    return { ok: true, status: r.status };
+  } catch (e) {
+    return { ok: false, error: "stripe_refused", detail: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/**
+ * A free trial's plan started now: Stripe ends the trial, invoices the first period and charges the card on file,
+ * and its answer is applied at once, as resume's is, so what the trial did not cover (a number, texting, a lead
+ * search: maySpend) opens before the webhook confirms it. The status says whether the charge went through: `active`,
+ * or what Stripe made of a card that did not pay.
+ */
+export async function startPlanNowFor(
+  db: Db,
+  tenantId: string,
+  now = new Date(),
+): Promise<{ ok: true; status: BillingStatus } | { ok: false; error: BillingFailure; detail?: string }> {
+  const s = stripe();
+  if (!s) return { ok: false, error: "not_ready" };
+  const row = await accountOf(db, tenantId);
+  if (!row) return { ok: false, error: "no_account" };
+  if (row.mode === "direct") return { ok: false, error: "direct" };
+  if (!row.stripe_subscription_id) return { ok: false, error: "no_subscription" };
+  if (row.status !== "trialing") return { ok: false, error: "not_trialing" };
+  try {
+    const sub = await s.subscriptions.update(row.stripe_subscription_id, {
+      trial_end: "now",
+      expand: ["default_payment_method"],
+    });
+    const r = await applySubscription(db, row, sub, "start_now", now);
     return { ok: true, status: r.status };
   } catch (e) {
     return { ok: false, error: "stripe_refused", detail: e instanceof Error ? e.message : String(e) };

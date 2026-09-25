@@ -1000,19 +1000,18 @@ var FIRST_RUN_PHONE_WORDS = {
     pick: "Pick a number first."
   },
   cta: {
-    trialKeep: "Start my free trial",
-    trialNew: (number) => number ? `Start my trial with ${number}` : "Start my free trial",
-    trialMove: "Start my trial and ask for the move",
+    planKeep: "Start my plan",
+    planNew: (number) => number ? `Start my plan with ${number}` : "Start my plan",
+    planMove: "Start my plan and ask for the move",
     keep: "Keep this number",
     new: (number) => number ? `Get ${number}` : "Get this number",
     move: "Ask for the move"
   },
-  trialOffer: (days, price) => days > 0 ? price ? `${days} days free, then ${price}` : `${days} days free` : price,
-  // The trial's days, never a day worked out here: Stripe dates the trial from the end of checkout, and Setup's billing
-  // row says the day once Stripe has.
-  trialNote: (days) => days > 0 ? `We ask for a card now, and nothing is charged for ${days} days. You can cancel anytime from Billing.` : "We ask for a card now, and the first charge is today. You can cancel anytime from Billing.",
-  started: (day) => `Your trial has started. Nothing is charged until ${day}.`,
-  starting: "Starting your trial\u2026",
+  planOffer: (price) => price ? `${price}, starting today` : "Your plan, starting today",
+  planNote: "Your number is included. The first charge is today, and you can cancel anytime from Billing.",
+  /** A workspace on a free trial: the trial covers no number, so getting one starts the plan early. */
+  planNoteTrial: "Your free trial ends today and your plan starts, on the card you gave. Your number is included.",
+  starting: "Starting your plan\u2026",
   startingDetail: "Your card is on file. This page updates as Stripe confirms it.",
   buyingIn: (area) => area ? `Getting your receptionist's number in ${area}\u2026` : "Getting your receptionist's number\u2026",
   buyingNew: (number) => `Getting ${number}\u2026`,

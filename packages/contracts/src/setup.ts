@@ -25,6 +25,9 @@ import {
   dayWords,
   trialWords,
   maySpend,
+  whyCannotSpend,
+  priceWords,
+  TRIAL_COVERS,
   billingDoorOpen,
   BILLING_TEST_MODE_CLAUSE,
   type SetupBillingFacts,
@@ -529,6 +532,8 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
         details: [
           ...testMode,
           "The card on file is charged when the trial ends; cancel from Billing before then if you'd rather not",
+          // What the trial does not cover (maySpend), said where the trial is, as Billing says it.
+          TRIAL_COVERS,
         ],
         verb: { label: "Open Billing", to: "admin/billing" },
       });
@@ -849,40 +854,57 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
           ],
           verb: { label: "Get a line", to: "verb:choose-line" },
         })
-      : billingDoorOpen(i.billing)
-        ? row({
-            id: "line",
-            icon: "phone",
-            title: "A line for calls and texts",
-            state: "waiting_you",
-            required: !answering,
-            sentence: "Add a card, then get a number for calls.",
-            details: ["A local number, included in your plan", "Nothing is charged until your trial ends"],
-            verb: { label: "Open Billing", to: "admin/billing" },
-          })
-        : // CANNOT SPEND, AND THERE IS NO CARD TO ADD. Three states, not two: this
-          // row used to collapse the last into the middle one and send a brand-new
-          // self-serve workspace to a Billing page with every action false. The
-          // billing row above already drew nothing for exactly this case, so the two
-          // rows disagreed about one fact — which is why they now read one predicate.
-          //
-          // The honest offer is the one the branch below already makes for a
-          // deployment that cannot provision at all: a person sets the line up with
-          // them. It is true, it is actionable, and it does not require the owner to
-          // discover on a dead page that the product cannot take their money yet.
+      : billingDoorOpen(i.billing) && (i.billing.status === "none" || i.billing.status === "trialing")
+        ? // No plan yet, or a free trial, which covers no number (maySpend): the number starts the plan, and the first
+          // run's phone step is where both happen -- its checkout takes no trial, and a trial's plan starts from there.
           row({
             id: "line",
             icon: "phone",
             title: "A line for calls and texts",
             state: "waiting_you",
             required: !answering,
-            sentence: "We set up your phone line with you.",
+            sentence: "Get a number for calls: it starts your plan.",
             details: [
-              "A number, the receptionist answering it, and forwarding from the number you have",
-              "Billing is not open on this deployment yet, so there is nothing to add a card to",
+              priceWords(i.billing.price ?? null)
+                ? `A local number, included in your plan · ${priceWords(i.billing.price ?? null)}, from the day you get it`
+                : "A local number, included in your plan, from the day you get it",
             ],
-            verb: { label: "Ask for a line", to: "verb:request-line" },
-          });
+            verb: { label: "Get a number", to: "start/phone" },
+          })
+        : billingDoorOpen(i.billing)
+          ? row({
+              id: "line",
+              icon: "phone",
+              title: "A line for calls and texts",
+              state: "waiting_you",
+              required: !answering,
+              sentence: whyCannotSpend(i.billing.mode, i.billing.status) ?? "Billing needs attention first.",
+              details: ["A local number, included in your plan"],
+              verb: { label: "Open Billing", to: "admin/billing" },
+            })
+          : // CANNOT SPEND, AND THERE IS NO CARD TO ADD. Three states, not two: this
+            // row used to collapse the last into the middle one and send a brand-new
+            // self-serve workspace to a Billing page with every action false. The
+            // billing row above already drew nothing for exactly this case, so the two
+            // rows disagreed about one fact — which is why they now read one predicate.
+            //
+            // The honest offer is the one the branch below already makes for a
+            // deployment that cannot provision at all: a person sets the line up with
+            // them. It is true, it is actionable, and it does not require the owner to
+            // discover on a dead page that the product cannot take their money yet.
+            row({
+              id: "line",
+              icon: "phone",
+              title: "A line for calls and texts",
+              state: "waiting_you",
+              required: !answering,
+              sentence: "We set up your phone line with you.",
+              details: [
+                "A number, the receptionist answering it, and forwarding from the number you have",
+                "Billing is not open on this deployment yet, so there is nothing to add a card to",
+              ],
+              verb: { label: "Ask for a line", to: "verb:request-line" },
+            });
   } else {
     // Until lines provision themselves, the ask is the owner's move; from then on it is ours.
     row({

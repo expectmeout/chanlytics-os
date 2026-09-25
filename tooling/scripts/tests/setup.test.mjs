@@ -1064,14 +1064,17 @@ test("a workspace that cannot spend AND has no card door is offered the thing th
   const billingRow = (vm) => vm.rows.find((r) => r.id === "billing");
 
   // 1. CAN SPEND: the number is the next step.
-  const trialing = withBilling({ mode: "stripe", status: "trialing", ready: true, trial_days: 14 });
-  assert.equal(lineRow(trialing).verb.to, "verb:choose-line");
+  const paying = withBilling({ mode: "stripe", status: "active", ready: true, trial_days: 14 });
+  assert.equal(lineRow(paying).verb.to, "verb:choose-line");
 
-  // 2. CANNOT SPEND, but a card door exists: the card is the honest next step.
-  const noCard = withBilling({ mode: "stripe", status: "none", ready: true, trial_days: 14 });
-  assert.match(lineRow(noCard).sentence, /Add a card/);
-  assert.equal(lineRow(noCard).verb.to, "admin/billing");
-  assert.ok(billingRow(noCard), "and the billing row is drawn, so the destination exists");
+  // 2. CANNOT SPEND, but a door exists: no plan yet, or a free trial, which covers no number -- the number starts the
+  // plan, on the first run's phone step, which takes it.
+  for (const status of ["none", "trialing"]) {
+    const w = withBilling({ mode: "stripe", status, ready: true, trial_days: 14 });
+    assert.match(lineRow(w).sentence, /it starts your plan/, status);
+    assert.equal(lineRow(w).verb.to, "start/phone", status);
+    assert.ok(billingRow(w), `${status}: and the billing row is drawn`);
+  }
 
   // 3. CANNOT SPEND AND NO DOOR: neither row may send anybody to Billing.
   const closed = withBilling({ mode: "stripe", status: "none", ready: false, trial_days: 14 });

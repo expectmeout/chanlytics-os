@@ -199,6 +199,7 @@ function stripe(answers = {}) {
       retrieve: method("subscriptions.retrieve"),
       list: method("subscriptions.list"),
       resume: method("subscriptions.resume"),
+      update: method("subscriptions.update"),
     },
   });
   return { calls, asked: (name) => calls.filter((c) => c[0] === name).map((c) => c.slice(1)) };
@@ -373,7 +374,7 @@ test("past status every op needs a database and a workspace id; an unknown op is
       "and must name it by id",
     );
   });
-  const list = { ok: false, error: "op must be status, checkout, portal, invoices, sync or resume" };
+  const list = { ok: false, error: "op must be status, checkout, portal, invoices, sync, resume or start_now" };
   assert.deepEqual(await answer(await knock({ op: "dance" })), [400, list]);
   assert.deepEqual(await answer(await knock({})), [400, list]);
   assert.deepEqual(await answer(await knock("not json")), [400, list]);
@@ -496,6 +497,22 @@ test("F4: checkout comes back to the first run when it is asked to, from a close
     "a place that is not on the list is Billing, never a path taken on the caller's word",
   );
   assert.deepEqual(await back(null), [BILLING_PAGE("harbor", "success"), BILLING_PAGE("harbor", "cancel")]);
+});
+
+test("the first run's checkout takes no trial: it is the phone step's, and a number starts the plan -- Billing's own still offers the trial", async () => {
+  const sessionFor = async (ret) => {
+    use(tables());
+    const s = stripe({
+      "customers.create": async () => ({ id: "cus_new", object: "customer" }),
+      "checkout.sessions.create": async () => ({ url: "https://checkout.stripe.test/cs_plan" }),
+    });
+    assert.equal((await knock({ op: "checkout", email: "ada@example.com", return: ret })).status, 200);
+    return s.asked("checkout.sessions.create")[0][0];
+  };
+  const plan = await sessionFor("start");
+  assert.deepEqual(plan.subscription_data, { metadata: { tenant_id: A } }, "no trial_period_days: charged today");
+  const billing = await sessionFor("billing");
+  assert.deepEqual(billing.subscription_data, { metadata: { tenant_id: A }, trial_period_days: 14 });
 });
 
 test("checkout is refused in the door's words -- no such workspace, no billing row, a workspace invoiced by hand, one already subscribed in any live state, a deployment not ready, and Stripe saying no -- and nothing is written for any of them", async () => {
@@ -813,6 +830,55 @@ test("sync reads the subscription from Stripe now and applies it: the row follow
 });
 
 /* ---------------------------------- resume -------------------------------- */
+
+test("start_now: a free trial's plan starts today -- Stripe ends the trial and charges the card, the answer applied at once so what the trial did not cover opens; anything but a live trial is refused in words, and Stripe is not asked", async () => {
+  const t = tables({ billing_accounts: [subscribed({ status: "trialing" })] });
+  use(t);
+  const s = stripe({ "subscriptions.update": async () => sub({ status: "active" }) });
+  assert.deepEqual(await answer(await knock({ op: "start_now" })), [200, { ok: true, status: "active" }]);
+  assert.deepEqual(
+    s.asked("subscriptions.update"),
+    [["sub_1", { trial_end: "now", expand: ["default_payment_method"] }]],
+    "the trial ended now, and the card read with it",
+  );
+  assert.equal(t.billing_accounts[0].status, "active", "without waiting for the webhook");
+  assert.deepEqual(
+    t.events.map((e) => [e.kind, e.data.source, e.data.status]),
+    [["billing.updated", "start_now", "active"]],
+  );
+  assert.deepEqual(t.notifications, [], "the receptionist was on and stays on: no bell");
+
+  // A card that did not pay: Stripe's word, applied and answered, for the page to say.
+  const t2 = tables({ billing_accounts: [subscribed({ status: "trialing" })] });
+  use(t2);
+  stripe({ "subscriptions.update": async () => sub({ status: "past_due" }) });
+  assert.deepEqual(await answer(await knock({ op: "start_now" })), [200, { ok: true, status: "past_due" }]);
+  assert.equal(t2.billing_accounts[0].status, "past_due");
+
+  for (const [r, error] of [
+    [subscribed({ status: "active" }), "not_trialing"],
+    [subscribed({ status: "paused" }), "not_trialing"],
+    [row({ status: "trialing" }), "no_subscription"],
+    [subscribed({ mode: "direct", status: "trialing" }), "direct"],
+  ]) {
+    use(tables({ billing_accounts: [r] }));
+    const s2 = stripe();
+    assert.deepEqual(await answer(await knock({ op: "start_now" })), [409, { ok: false, error }], error);
+    assert.equal(s2.calls.length, 0, `${error}: Stripe is not asked`);
+  }
+  const t3 = tables({ billing_accounts: [subscribed({ status: "trialing" })] });
+  use(t3);
+  stripe({
+    "subscriptions.update": async () => {
+      throw new Error("Your card was declined.");
+    },
+  });
+  assert.deepEqual(await answer(await knock({ op: "start_now" })), [
+    502,
+    { ok: false, error: "stripe_refused", detail: "Your card was declined." },
+  ]);
+  assert.equal(t3.billing_accounts[0].status, "trialing", "the row keeps what it had");
+});
 
 test("resume: a paused subscription is resumed on Stripe, billing from now, and applied at once -- the receptionist answers again, the bell says so, the ledger says resumed; anything but a paused subscription is refused in words, and Stripe is not asked", async () => {
   const t = tables({

@@ -166,11 +166,11 @@ test("the view model per status: what the pane says and what an owner may do", (
   const dto = (account, ready = true) => ({ ready, account, price, trial_days: 14, role: "owner" });
   const none = toBillingVM(dto(acct({})), NOW);
   assert.equal(none.headline, "No subscription yet");
-  assert.deepEqual(none.actions, { checkout: true, portal: false, resume: false });
+  assert.deepEqual(none.actions, { checkout: true, portal: false, resume: false, startNow: false });
   assert.equal(none.plan, "Chanlytics OS · $49.00 a month");
   assert.deepEqual(
     toBillingVM(dto(acct({}), false), NOW).actions,
-    { checkout: false, portal: false, resume: false },
+    { checkout: false, portal: false, resume: false, startNow: false },
     "no door, no button",
   );
   const trial = toBillingVM(
@@ -180,9 +180,13 @@ test("the view model per status: what the pane says and what an owner may do", (
   assert.equal(trial.headline, "On trial");
   assert.equal(
     trial.detail,
-    "14 days left on the trial, until Sep 21, then Chanlytics OS · $49.00 a month on Visa ending 4242.",
+    "14 days left on the trial, until Sep 21, then Chanlytics OS · $49.00 a month on Visa ending 4242. A phone number, texting and lead searches start with the plan.",
   );
-  assert.deepEqual(trial.actions, { checkout: false, portal: true, resume: false });
+  assert.deepEqual(
+    trial.actions,
+    { checkout: false, portal: true, resume: false, startNow: true },
+    "a live trial may start its plan now, for what it does not cover",
+  );
   const ending = toBillingVM(
     dto(
       acct({
@@ -200,13 +204,13 @@ test("the view model per status: what the pane says and what an owner may do", (
   assert.equal(ending.tone, "warn");
   const paused = toBillingVM(dto(acct({ status: "paused" })), NOW);
   assert.equal(paused.paused, true);
-  assert.deepEqual(paused.actions, { checkout: false, portal: true, resume: true });
+  assert.deepEqual(paused.actions, { checkout: false, portal: true, resume: true, startNow: false });
   const ended = toBillingVM(dto(acct({ status: "canceled", card_brand: "visa", card_last4: "4242" })), NOW);
   assert.equal(ended.headline, "Subscription ended");
-  assert.deepEqual(ended.actions, { checkout: true, portal: true, resume: false });
+  assert.deepEqual(ended.actions, { checkout: true, portal: true, resume: false, startNow: false });
   const direct = toBillingVM(dto(acct({ mode: "direct", status: "active" })), NOW);
   assert.equal(direct.headline, "Direct arrangement");
-  assert.deepEqual(direct.actions, { checkout: false, portal: false, resume: false });
+  assert.deepEqual(direct.actions, { checkout: false, portal: false, resume: false, startNow: false });
   assert.equal(
     toBillingVM(dto(null), NOW).headline,
     "Direct arrangement",
@@ -396,7 +400,10 @@ test("the wiring: the migration, the webhook's order, the ops, the routes, the b
       lib.includes("metadata: { tenant_id: tenantId }"),
     "Checkout in subscription mode, the trial applied, the workspace on the subscription",
   );
-  assert.ok(lib.includes("const trial = row.stripe_subscription_id ? 0 : trialDays();"), "the trial applies once");
+  assert.ok(
+    lib.includes('const trial = row.stripe_subscription_id || back === "start" ? 0 : trialDays();'),
+    "the trial applies once, and never to the first run's checkout: a number starts the plan",
+  );
   // Number("") is 0, not NaN, so a variable created in Vercel and left blank —
   // which is exactly what copying .env.example gives you — read as a deliberate
   // zero: no trial_period_days, the card charged on the spot, and every surface

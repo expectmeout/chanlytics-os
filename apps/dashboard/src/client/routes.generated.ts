@@ -71,6 +71,7 @@ export const ROUTES = {
   "POST billing/checkout": { method: "POST", path: "/api/v1/billing/checkout" },
   "POST billing/portal": { method: "POST", path: "/api/v1/billing/portal" },
   "POST billing/resume": { method: "POST", path: "/api/v1/billing/resume" },
+  "POST billing/start-now": { method: "POST", path: "/api/v1/billing/start-now" },
   "POST billing/sync": { method: "POST", path: "/api/v1/billing/sync" },
   "POST broadcasts": { method: "POST", path: "/api/v1/broadcasts" },
   "POST broadcasts/[id]/approve": { method: "POST", path: "/api/v1/broadcasts/[id]/approve" },
@@ -233,6 +234,7 @@ export type Routes = {
   "POST billing/checkout": typeof import("../../app/api/v1/billing/checkout/route").POST;
   "POST billing/portal": typeof import("../../app/api/v1/billing/portal/route").POST;
   "POST billing/resume": typeof import("../../app/api/v1/billing/resume/route").POST;
+  "POST billing/start-now": typeof import("../../app/api/v1/billing/start-now/route").POST;
   "POST billing/sync": typeof import("../../app/api/v1/billing/sync/route").POST;
   "POST broadcasts": typeof import("../../app/api/v1/broadcasts/route").POST;
   "POST broadcasts/[id]/approve": typeof import("../../app/api/v1/broadcasts/[id]/approve/route").POST;

@@ -186,7 +186,8 @@ function verdictFor(r: PlatformTenantDto, nowMs: number): PlatformVerdict {
   // yet. A refused registration is the owner's next move even on a workspace
   // that never got its phone line up.
   if (THEIRS_TO_FIX.includes(r.sms_state ?? "")) return "waiting_owner";
-  if (mode === "stripe" && !maySpend(mode, status)) return "waiting_owner";
+  // A free trial spends nothing on our account by design (maySpend): nothing the owner must do.
+  if (mode === "stripe" && !maySpend(mode, status) && status !== "trialing") return "waiting_owner";
 
   if (!answering) return "stalled";
 
