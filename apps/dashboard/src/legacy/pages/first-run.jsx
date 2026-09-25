@@ -965,6 +965,8 @@ const FirstRun = ({ param = null, onNavigate }) => {
   useFrTick("surface:live");
   // When Try it opened (FR_TRY_DRAFT): set as it is first drawn, so a call before it is not the test.
   const trySince = React.useRef(null);
+  // Finish on Live, while its activation is on its way: pressed once.
+  const [finishing, setFinishing] = React.useState(false);
   // Whether Try it is on screen, so it stays there (below) and its clock and quiet turn move each second.
   const onTry = React.useRef(false);
   React.useEffect(() => {
@@ -1078,7 +1080,6 @@ const FirstRun = ({ param = null, onNavigate }) => {
   };
   // Finish, on Live: calls switched on by the owner (the capability's activation, which the first time also emails
   // them that it answers), then Today. A refusal is said and Finish still leaves: nothing here holds the owner.
-  const [finishing, setFinishing] = React.useState(false);
   const finish = async (to) => {
     if (finishing) return;
     const P = window.__setup;
