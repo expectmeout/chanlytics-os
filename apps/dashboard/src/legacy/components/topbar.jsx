@@ -60,6 +60,9 @@ const tbOverlay = (n) => {
   return n;
 };
 
+// On a phone the notes are a sheet from the bottom, as every other sheet there is (components.css, the bell's sheet).
+const tbnPhone = () => !!(window.matchMedia && window.matchMedia("(max-width: 720px)").matches);
+
 const NotifPopover = ({ items, onAction, onReadAll, onDismiss, onClose, alerts = null, onAlerts = () => {} }) => {
   const fresh = items.filter(n => n.unread);
   const earlier = items.filter(n => !n.unread);
@@ -91,7 +94,16 @@ const NotifPopover = ({ items, onAction, onReadAll, onDismiss, onClose, alerts =
   return (
     <>
       <div className="tbn-backdrop" onClick={onClose} />
-      <div className="tbn-pop" role="dialog" aria-label="Notifications">
+      {/* Its handle says it can be pulled: a thumb pulls it down, and it goes the way it came (data-bits touchSwipe,
+          leaving). A popover under the bell on a wider screen, where neither moves it. */}
+      <div
+        className="tbn-pop"
+        role="dialog"
+        aria-label="Notifications"
+        ref={window.leaving ? window.leaving("bell") : undefined}
+        {...(window.touchSwipe ? window.touchSwipe({ onDown: onClose, when: tbnPhone }) : {})}
+      >
+        <div className="tbn-handle" aria-hidden="true" />
         <header className="tbn-head">
           <span className="tbn-title">Notifications</span>
           {fresh.length > 0 && <span className="tbn-count tally">{fresh.length} new</span>}

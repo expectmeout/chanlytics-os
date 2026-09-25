@@ -725,6 +725,35 @@ test.describe("Phone shell on a real workspace", () => {
   });
 
   /**
+   * On a phone the bell's notes are a sheet from the bottom, as every other sheet there is (25 Sep): edge to edge, a
+   * handle, and a thumb pulls it down to close (data-bits touchSwipe). It was a 568px popover hung from the top bar, as
+   * far from the thumb as the screen allows. A real touch through the browser's own input (CDP), as Ask's is pulled.
+   */
+  test("the bell's notes are a sheet from the bottom, and a thumb pulls it down to close", async ({ page }) => {
+    await page.goto("/#/today");
+    await page.waitForLoadState("networkidle");
+    const bell = page.getByRole("button", { name: /^Notifications/ });
+    await bell.click();
+    const pop = page.getByRole("dialog", { name: "Notifications" });
+    await expect(pop).toBeVisible();
+    const size = page.viewportSize()!;
+    const edges = async () => {
+      const b = (await pop.boundingBox())!;
+      return [Math.round(b.x), Math.round(b.x + b.width), Math.round(b.y + b.height)];
+    };
+    await expect.poll(edges, { message: "edge to edge, on the bottom" }).toEqual([0, size.width, size.height]);
+    await expect(pop.locator(".tbn-handle")).toBeVisible();
+    const y = Math.round((await pop.boundingBox())!.y) + 20;
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: 195, y }] });
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: 195, y: y + 80 }] });
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: 195, y: y + 220 }] });
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await expect(pop).toHaveCount(0);
+    await expect(bell).toHaveAttribute("aria-expanded", "false");
+  });
+
+  /**
    * The Calendar holds its bar and walks its days (25 Sep). Its range, steps and views scrolled away with the days, and
    * a pull dragged them, as People's strip did before #1041: now only the days scroll and pull, and a swipe across them
    * walks to the next or previous days, as the steps do. The views keep their 38px look, with 44px to press.
