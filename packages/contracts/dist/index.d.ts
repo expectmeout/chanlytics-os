@@ -9137,6 +9137,358 @@ declare function todayStepsDue<T extends {
     more: string | null;
 };
 
+/**
+ * What a person said yes or no to, and who may send them what: the consent sources, the refusals, and the three
+ * predicates a broadcast, a playbook and a list read (mayReceive, whyNotReceive, saidYesTo). Moved whole from
+ * people.ts (Reach out Part 2.5), which re-exports it.
+ */
+
+interface PersonConsent {
+    state: "unknown" | "opted_in" | "opted_out";
+    dnc: boolean;
+    label: string;
+    /** The answer in its control's words: "Yes", "Not asked" or "No". */
+    answerLabel: "Yes" | "Not asked" | "No";
+    sub: string;
+    /** How the answer was given, raw: in_person | phone | form | customer_message | operator | null. */
+    source: string | null;
+    /**
+     * The OTHER answer: offers, specifically.
+     *
+     * Separate because the carriers require it separate (error 30913) and because
+     * the two mean different things -- a person can want to hear about their own
+     * appointment and not want to hear about a sale. An opt-out or a do-not-call
+     * on the main answer overrides this one; the reverse does not.
+     */
+    marketing: "unknown" | "opted_in" | "opted_out";
+    marketingSource: string | null;
+    /** One line for the person's profile: what they said about offers, and when. */
+    marketingSub: string;
+    /** The offers answer in a word, as People's Offers column says it: Yes, No or Not asked. */
+    marketingLabel: string;
+}
+/**
+ * How a customer's answer about marketing messages was given. The ingest
+ * writes 'customer_message' for STOP and START; a person at the desk picks
+ * one of these four. 'operator' is the reset to "not asked" and is never
+ * offered as a source.
+ */
+declare const CONSENT_SOURCES: readonly {
+    id: string;
+    label: string;
+}[];
+declare const CONSENT_RESET_SOURCE = "operator";
+/**
+ * The ways a yes to OFFERS may have been given: in writing, and only in writing.
+ *
+ * Promotional texts need the customer's express WRITTEN consent. The carriers
+ * refuse a campaign whose opt-in "relies on verbal consent instead of written
+ * consent" -- Twilio lists it among the causes of error 30913 -- and CTIA's
+ * principles require written consent for marketing. So a yes to offers is a
+ * sign-up form the customer signed, or their own message; a spoken yes, in person
+ * or on the phone, is a yes to messages about their visit and nothing more.
+ *
+ * 00095 said this in its own comment ("both are express written consent") while
+ * its check let a spoken yes through. 00100 closes that in the database; this is
+ * the same rule for the route and the menus, so all three say one thing.
+ *
+ * Only the YES is narrowed. A "no more offers" is honoured however it is said.
+ */
+declare const OFFERS_YES_SOURCES: readonly string[];
+/** Why a yes to offers given this way cannot be recorded -- or null when it can. */
+declare function offersYesRefusal(source: string | null | undefined): string | null;
+/**
+ * "Their own message" names the message (00137).
+ *
+ * A desk could record an answer "in their own message" with nothing behind it:
+ * both doors took the source from any signed-in member, and the ledger then
+ * said a customer had written something nobody had looked for. When the
+ * conversation is in Chanlytics the desk now names the message they sent, and
+ * the door copies its id and words into the evidence. An answer given
+ * somewhere Chanlytics does not see is a sign-up form, with a note saying where.
+ *
+ * The database says these sentences too, so a refusal reads the same whichever
+ * of the two gives it; their-own-message.db.test.mjs holds the two equal.
+ */
+declare const OWN_MESSAGE_REFUSALS: {
+    /** Their own message, with no message named. */
+    readonly missing: "Choose the message where they said it. If they wrote to you somewhere Chanlytics doesn't see, record a sign-up form and say where in the note.";
+    /** The message named is not one this person sent this workspace. */
+    readonly notTheirs: "That isn't a message this person sent you. Choose one of theirs.";
+    /** The message named has nothing written in it. */
+    readonly wordless: "That message has no words in it to show their answer. Choose the one where they said it.";
+    /** A message named beside another way of answering. */
+    readonly notOwnMessage: "Only an answer in their own message names a message.";
+    /** Their own message, for many people at once: one message cannot be every person's. */
+    readonly batch: "Their own message is recorded one person at a time, on their page, where you choose the message. For signed slips, choose Sign-up form.";
+};
+/** Why an answer given this way cannot be recorded with this message -- or null when it can. */
+declare function ownMessageRefusal(source: string | null | undefined, messageId: string | null | undefined): string | null;
+/** The words for a source; the reset has none, an unknown one is shown as itself. */
+declare function consentSourceLabel(source: string | null | undefined): string | null;
+/**
+ * May a message of this purpose reach this person? A number to send to, and the
+ * yes THIS message needs.
+ *
+ * IT LIVES HERE, beside `consentOf`, because it is a question about a person, and
+ * because this module's own lists were answering it by hand. `offers_ok` and
+ * `peopleListAction` each spelled "said yes to offers" as a bare
+ * `consent.marketing === "opted_in"` -- no phone check -- while the broadcast route
+ * enrolled with this. So a list could promise "4 said yes to offers -- a broadcast
+ * reaches them" about people with no number the route would then leave out. It was
+ * one rule in the commit message and three in the code.
+ *
+ * ONE RULE, NOT TWO. This used to restate `mayMessageFor`'s logic by hand,
+ * because the two sides of one pipeline hold the person in two different shapes:
+ * the route and the page hold a `PersonRowVM`, the send job holds the database
+ * row. Two hand-written copies of a consent rule is the thing this file's own
+ * header calls a defect, and it duly drifted -- the enrolment half asked for
+ * marketing consent while the sending half asked what the template implied. So
+ * the shape is adapted here and the QUESTION is answered in exactly one place.
+ *
+ * `proactive` is always true: a broadcast starts a conversation. Nobody wrote to
+ * us to ask for it.
+ *
+ * THE PURPOSE IS REQUIRED, and that is the fix rather than a detail of it. It
+ * used to default to marketing, described as "the safe answer for a caller that
+ * has not thought about it" -- and every caller but one then failed to think
+ * about it, so a utility message was refused to the very people migration 00095
+ * exists to reach. A default cannot be audited; a required argument is checked
+ * by the compiler at every call site, the way `businessRecordProblems` requires
+ * its registration path.
+ */
+declare function mayReceive(r: Pick<PersonRowVM, "consent" | "phone">, purpose: AskedPurpose): boolean;
+/**
+ * Why a broadcast may not reach this person, or null when it may: the same one
+ * rule as `mayReceive`, with its answer kept. A run that leaves someone out can
+ * then say which of three things it was -- no number to send to, a stop (asked
+ * to, or on the do-not-contact list), or never having said yes -- instead of
+ * one count that hides the one an owner can do something about.
+ */
+type NotReceived = "no_number" | "stopped" | "no_yes";
+declare function whyNotReceive(r: Pick<PersonRowVM, "consent" | "phone">, purpose: AskedPurpose): NotReceived | null;
+/**
+ * Whether this person's yes covers a message of this purpose, a number to send it to aside: the half of
+ * `mayReceive` that is an answer they gave. When nobody on a list can be sent a thing and somebody on it said yes,
+ * what is missing is a number, not an answer -- and asking them for their yes asks for one they already gave.
+ */
+declare function saidYesTo(r: Pick<PersonRowVM, "consent">, purpose: AskedPurpose): boolean;
+
+/** One note on a person, as the person read sends it (0007, 00157): its words, who wrote it and when, who it is for. */
+interface PersonNoteDto {
+    id: string;
+    body: string;
+    author_kind: "member" | "receptionist";
+    /** The author's name on the team; null for the receptionist, and for a member no longer on the team. */
+    author_name: string | null;
+    /** The reader wrote it. */
+    mine: boolean;
+    for_user_id: string | null;
+    /** The name of the member it is for; null when it is for everyone, or they have left the team. */
+    for_name: string | null;
+    /** It is for the reader. */
+    for_me: boolean;
+    /** For the team only: the receptionist never reads it. */
+    team_only: boolean;
+    /** The receptionist's own note waits for a member to keep it or dismiss it. */
+    state: "kept" | "suggested";
+    source: "page" | "bulk" | "moved" | "call" | "thread";
+    version: number;
+    created_at: string;
+    updated_at: string;
+    /** Its day, when it is a step (00166): by the business's calendar. Absent on a read before the column existed. */
+    due_on?: string | null;
+    /** When the step was done, and by whom: their name on the team, and whether it was the reader. */
+    done_at?: string | null;
+    done_by_name?: string | null;
+    done_by_me?: boolean;
+    /** The deal it moves, when it names one. */
+    deal_id?: string | null;
+}
+/** A member of the team a note can be for, the reader marked. */
+interface PersonNoteTeamDto {
+    id: string;
+    name: string;
+    me: boolean;
+}
+/** One note on the person's page. Every word is here; the page composes. */
+interface PersonNoteVM {
+    id: string;
+    body: string;
+    /** "You", their name on the team, "A former teammate", or "The receptionist". */
+    who: string;
+    /** "2:10 PM" on the business's today, "Sep 23" before it; `whenFull` is the date with its year and the time. */
+    when: string;
+    whenFull: string;
+    /** "For you", or "For Maria"; null when it is for everyone. */
+    forWho: string | null;
+    forMe: boolean;
+    forUserId: string | null;
+    teamOnly: boolean;
+    /** The receptionist's suggestion, waiting for Keep or Dismiss; `from` says what it came out of. */
+    suggested: boolean;
+    from: string | null;
+    /** The reader wrote it, so the reader may change it. An owner may take away any note; the page knows its role. */
+    mine: boolean;
+    /** Changed after it was written. */
+    edited: boolean;
+    version: number;
+    /**
+     * Its day, when it is a step (0007, amended): the day as every page says it, "Due Thu" or "Done", and, done, who
+     * did it and when. Null for a note.
+     */
+    step: {
+        day: StepDayVM;
+        due: StepDue;
+        words: string;
+        done: boolean;
+        doneWords: string | null;
+    } | null;
+    /** The deal it moves, when it names one. */
+    dealId: string | null;
+}
+/** How long a note may be, in characters: the table's CHECK (00157). */
+declare const NOTE_MAX = 600;
+/** The notes card's words, once. */
+declare const NOTE_WORDS: {
+    readonly title: "Notes";
+    readonly placeholder: "Add a note…";
+    readonly add: "Add note";
+    readonly save: "Save";
+    readonly cancel: "Cancel";
+    readonly edit: "Edit";
+    readonly remove: "Delete";
+    readonly askRemove: "Delete this note?";
+    readonly more: "More for this note";
+    readonly edited: "edited";
+    readonly forAnyone: "For anyone";
+    readonly forLabel: "For";
+    readonly teamOnly: "Team only";
+    readonly teamOnlyHint: "The receptionist won't read it";
+    readonly readsHint: "The receptionist uses notes as facts and never reads them aloud.";
+    readonly none: "No notes yet.";
+    readonly suggested: "Suggested by the receptionist";
+    readonly keep: "Keep";
+    readonly dismiss: "Dismiss";
+    readonly added: "Note added";
+    readonly saved: "Note saved";
+    readonly removed: "Note deleted";
+    readonly kept: "Kept: the receptionist uses it from now on";
+    readonly dismissed: "Dismissed";
+    readonly showAll: (n: number) => string;
+    readonly showFewer: "Show fewer";
+    readonly left: (n: number) => string;
+    readonly addDay: "Add a day";
+    readonly due: "Due";
+    readonly noDay: "No day";
+    readonly pickDay: "Pick a day";
+    readonly done: "Done";
+    readonly undo: "Undo";
+    readonly change: "Change";
+    readonly stepTeamOnly: "A step is for the team only";
+    readonly setNext: "Set a next step";
+    readonly next: "Next step";
+    readonly stepsDue: "Steps due";
+    readonly stepAdded: "Step added";
+    readonly stepSaved: "Step saved";
+    readonly stepDone: "Step done";
+    readonly stepReopened: "Step open again";
+    readonly setTheNext: "Set the next one";
+    /** Done's name for a screen reader, where a header holds more than the step. */
+    readonly markDone: (words: string) => string;
+};
+/** A door's refusal, in the owner's words (00157's error keys). */
+declare const NOTE_REFUSALS: Record<string, string>;
+/**
+ * A person's notes for their page (0007): the receptionist's suggestions first, since they wait for someone, then
+ * every note newest first. Who wrote each is the reader ("You"), a name on the team, a member who has left, or the
+ * receptionist; who it is for is the reader ("For you") or a name.
+ */
+declare function personNotesVM(notes: readonly PersonNoteDto[] | null | undefined, tz: string, nowMs: number): PersonNoteVM[];
+
+/**
+ * What a People list offers to do next (a broadcast to the ones who said yes, the step that gets more), and the
+ * page's aggregates. Moved whole from people.ts (Reach out Part 2.5), which re-exports it.
+ */
+
+interface PeopleListAction {
+    /** The sentence under the list: what the step reaches, or why it cannot yet. */
+    text: string;
+    /** The button's words. */
+    cta: string;
+    /** A route. */
+    to: string;
+    enabled: boolean;
+}
+/**
+ * Where a person's yes to offers is got: Broadcasts' "Get their yes" section,
+ * brought into view -- the QR for the desk, the phrase, the link for a bio, the
+ * paper form.
+ *
+ * Five places said the fix was there -- "The phrase and the QR are on
+ * Broadcasts" -- and none of them went there: two steps opened the TOP of
+ * Broadcasts, where the composer is and the QR is below the fold, and three
+ * printed the sentence beside a disabled button. One route, one spelling.
+ */
+declare const GET_YES_ROUTE = "broadcasts/get-yes";
+/**
+ * The obvious next step for a list, when it has one. A broadcast reaches
+ * only a recorded yes, so the sentence says how many of the list said it,
+ * and the button waits until someone has.
+ *
+ * WHICH yes it counts is the MARKETING one, because these steps all open the
+ * composer on a promotional send (win them back, reach the quiet ones, run an
+ * offer). Counting the conversational answer here promised an audience the
+ * composer would then refuse -- the same mismatch, one screen earlier.
+ */
+declare function peopleListAction(id: string, members: PersonRowVM[]): PeopleListAction | null;
+/**
+ * A list kept by hand has one onward step: a broadcast to the people on it who said yes to offers. The same
+ * sentence and the same rule as a smart list's broadcast step, so the two kinds of list read alike on People,
+ * which is where both live now (the Lists page folded into it).
+ */
+declare function savedListAction(id: string, members: PersonRowVM[]): PeopleListAction;
+/**
+ * Why nobody can be sent a thing when somebody said the yes it needs: what a broadcast reaches. The reason in
+ * `noNumberWords`, and the arithmetic under Today's reach row (today.ts todayLeaks), in one spelling.
+ */
+declare const NO_NUMBER_REACH = "a broadcast reaches only a recorded yes with a number to send to";
+/**
+ * Nobody on a list can be sent this, and somebody on it said yes: what is missing is a number to send it to. People's
+ * list step says it of a list (#663) and the send screen of the audience it has open -- `who` is "this list" or the
+ * audience's name -- so the two say it in one spelling.
+ */
+declare function noNumberWords(who: string, purpose: AskedPurpose): string;
+/**
+ * How many on an audience said yes to what a message needs, as the send screen's line under the audience says it.
+ * The number is who it reaches (`sending`: a yes and a number), in the shorthand People's list step uses ("N of M on
+ * this list said yes to offers — a broadcast reaches them") -- except when that is 0 and somebody DID say yes
+ * (`saidYes`, audiencePreview's): "0 people … said yes" stood over `noNumberWords` and was false, so it says how many
+ * did, and what they are missing.
+ */
+declare function saidYesWords(who: string, purpose: AskedPurpose, sending: number, saidYes: number): string;
+interface PeopleAggregates {
+    total: number;
+    needsYou: number;
+    needsYouOldestMs: number | null;
+    /** First contact within 30 days, by evidence. */
+    newThisMonth: number;
+    /** Any message or call within 7 days. */
+    reachedWeek: number;
+    reachedWeekNew: number;
+    /** An appointment ahead on the calendar. */
+    booked: number;
+    /** Wrote or called this month; the calendar has never had them. */
+    askedNotBooked: number;
+}
+declare function peopleAggregates(rows: PersonRowVM[], nowMs: number): PeopleAggregates;
+/** Days since last contact, bucketed — the honest replacement for the
+ *  mockup's temperature strip. */
+declare function recencyCells(rows: PersonRowVM[], nowMs: number): {
+    label: string;
+    count: number;
+}[];
+
 /** One row of `people_list(tenant, contact?)`. Every column is nullable on
  *  the wire (RETURNS TABLE), so readers coalesce. */
 interface PersonRowDto {
@@ -9407,137 +9759,6 @@ declare function proposalAction(replyVia: "WhatsApp" | "Text" | "Email" | null, 
     title: string;
     ready: boolean;
 };
-/** One note on a person, as the person read sends it (0007, 00157): its words, who wrote it and when, who it is for. */
-interface PersonNoteDto {
-    id: string;
-    body: string;
-    author_kind: "member" | "receptionist";
-    /** The author's name on the team; null for the receptionist, and for a member no longer on the team. */
-    author_name: string | null;
-    /** The reader wrote it. */
-    mine: boolean;
-    for_user_id: string | null;
-    /** The name of the member it is for; null when it is for everyone, or they have left the team. */
-    for_name: string | null;
-    /** It is for the reader. */
-    for_me: boolean;
-    /** For the team only: the receptionist never reads it. */
-    team_only: boolean;
-    /** The receptionist's own note waits for a member to keep it or dismiss it. */
-    state: "kept" | "suggested";
-    source: "page" | "bulk" | "moved" | "call" | "thread";
-    version: number;
-    created_at: string;
-    updated_at: string;
-    /** Its day, when it is a step (00166): by the business's calendar. Absent on a read before the column existed. */
-    due_on?: string | null;
-    /** When the step was done, and by whom: their name on the team, and whether it was the reader. */
-    done_at?: string | null;
-    done_by_name?: string | null;
-    done_by_me?: boolean;
-    /** The deal it moves, when it names one. */
-    deal_id?: string | null;
-}
-/** A member of the team a note can be for, the reader marked. */
-interface PersonNoteTeamDto {
-    id: string;
-    name: string;
-    me: boolean;
-}
-/** One note on the person's page. Every word is here; the page composes. */
-interface PersonNoteVM {
-    id: string;
-    body: string;
-    /** "You", their name on the team, "A former teammate", or "The receptionist". */
-    who: string;
-    /** "2:10 PM" on the business's today, "Sep 23" before it; `whenFull` is the date with its year and the time. */
-    when: string;
-    whenFull: string;
-    /** "For you", or "For Maria"; null when it is for everyone. */
-    forWho: string | null;
-    forMe: boolean;
-    forUserId: string | null;
-    teamOnly: boolean;
-    /** The receptionist's suggestion, waiting for Keep or Dismiss; `from` says what it came out of. */
-    suggested: boolean;
-    from: string | null;
-    /** The reader wrote it, so the reader may change it. An owner may take away any note; the page knows its role. */
-    mine: boolean;
-    /** Changed after it was written. */
-    edited: boolean;
-    version: number;
-    /**
-     * Its day, when it is a step (0007, amended): the day as every page says it, "Due Thu" or "Done", and, done, who
-     * did it and when. Null for a note.
-     */
-    step: {
-        day: StepDayVM;
-        due: StepDue;
-        words: string;
-        done: boolean;
-        doneWords: string | null;
-    } | null;
-    /** The deal it moves, when it names one. */
-    dealId: string | null;
-}
-/** How long a note may be, in characters: the table's CHECK (00157). */
-declare const NOTE_MAX = 600;
-/** The notes card's words, once. */
-declare const NOTE_WORDS: {
-    readonly title: "Notes";
-    readonly placeholder: "Add a note…";
-    readonly add: "Add note";
-    readonly save: "Save";
-    readonly cancel: "Cancel";
-    readonly edit: "Edit";
-    readonly remove: "Delete";
-    readonly askRemove: "Delete this note?";
-    readonly more: "More for this note";
-    readonly edited: "edited";
-    readonly forAnyone: "For anyone";
-    readonly forLabel: "For";
-    readonly teamOnly: "Team only";
-    readonly teamOnlyHint: "The receptionist won't read it";
-    readonly readsHint: "The receptionist uses notes as facts and never reads them aloud.";
-    readonly none: "No notes yet.";
-    readonly suggested: "Suggested by the receptionist";
-    readonly keep: "Keep";
-    readonly dismiss: "Dismiss";
-    readonly added: "Note added";
-    readonly saved: "Note saved";
-    readonly removed: "Note deleted";
-    readonly kept: "Kept: the receptionist uses it from now on";
-    readonly dismissed: "Dismissed";
-    readonly showAll: (n: number) => string;
-    readonly showFewer: "Show fewer";
-    readonly left: (n: number) => string;
-    readonly addDay: "Add a day";
-    readonly due: "Due";
-    readonly noDay: "No day";
-    readonly pickDay: "Pick a day";
-    readonly done: "Done";
-    readonly undo: "Undo";
-    readonly change: "Change";
-    readonly stepTeamOnly: "A step is for the team only";
-    readonly setNext: "Set a next step";
-    readonly next: "Next step";
-    readonly stepsDue: "Steps due";
-    readonly stepAdded: "Step added";
-    readonly stepSaved: "Step saved";
-    readonly stepDone: "Step done";
-    readonly stepReopened: "Step open again";
-    readonly setTheNext: "Set the next one";
-    /** Done's name for a screen reader, where a header holds more than the step. */
-    readonly markDone: (words: string) => string;
-};
-/** A door's refusal, in the owner's words (00157's error keys). */
-declare const NOTE_REFUSALS: Record<string, string>;
-/**
- * A person's notes for their page (0007): the receptionist's suggestions first, since they wait for someone, then
- * every note newest first. Who wrote each is the reader ("You"), a name on the team, a member who has left, or the
- * receptionist; who it is for is the reader ("For you") or a name.
- */
-declare function personNotesVM(notes: readonly PersonNoteDto[] | null | undefined, tz: string, nowMs: number): PersonNoteVM[];
 /**
  * What a reply to them may be, in the owner's words: the person page's Replies and the Pipeline peek's, one sentence.
  * WhatsApp takes any message for a day after they last wrote, and after that only a message WhatsApp approved ahead
@@ -9594,136 +9815,6 @@ interface PersonFirstContact {
     /** True when this date may count as "new" (no imported history). */
     evidence: boolean;
 }
-interface PersonConsent {
-    state: "unknown" | "opted_in" | "opted_out";
-    dnc: boolean;
-    label: string;
-    /** The answer in its control's words: "Yes", "Not asked" or "No". */
-    answerLabel: "Yes" | "Not asked" | "No";
-    sub: string;
-    /** How the answer was given, raw: in_person | phone | form | customer_message | operator | null. */
-    source: string | null;
-    /**
-     * The OTHER answer: offers, specifically.
-     *
-     * Separate because the carriers require it separate (error 30913) and because
-     * the two mean different things -- a person can want to hear about their own
-     * appointment and not want to hear about a sale. An opt-out or a do-not-call
-     * on the main answer overrides this one; the reverse does not.
-     */
-    marketing: "unknown" | "opted_in" | "opted_out";
-    marketingSource: string | null;
-    /** One line for the person's profile: what they said about offers, and when. */
-    marketingSub: string;
-    /** The offers answer in a word, as People's Offers column says it: Yes, No or Not asked. */
-    marketingLabel: string;
-}
-/**
- * How a customer's answer about marketing messages was given. The ingest
- * writes 'customer_message' for STOP and START; a person at the desk picks
- * one of these four. 'operator' is the reset to "not asked" and is never
- * offered as a source.
- */
-declare const CONSENT_SOURCES: readonly {
-    id: string;
-    label: string;
-}[];
-declare const CONSENT_RESET_SOURCE = "operator";
-/**
- * The ways a yes to OFFERS may have been given: in writing, and only in writing.
- *
- * Promotional texts need the customer's express WRITTEN consent. The carriers
- * refuse a campaign whose opt-in "relies on verbal consent instead of written
- * consent" -- Twilio lists it among the causes of error 30913 -- and CTIA's
- * principles require written consent for marketing. So a yes to offers is a
- * sign-up form the customer signed, or their own message; a spoken yes, in person
- * or on the phone, is a yes to messages about their visit and nothing more.
- *
- * 00095 said this in its own comment ("both are express written consent") while
- * its check let a spoken yes through. 00100 closes that in the database; this is
- * the same rule for the route and the menus, so all three say one thing.
- *
- * Only the YES is narrowed. A "no more offers" is honoured however it is said.
- */
-declare const OFFERS_YES_SOURCES: readonly string[];
-/** Why a yes to offers given this way cannot be recorded -- or null when it can. */
-declare function offersYesRefusal(source: string | null | undefined): string | null;
-/**
- * "Their own message" names the message (00137).
- *
- * A desk could record an answer "in their own message" with nothing behind it:
- * both doors took the source from any signed-in member, and the ledger then
- * said a customer had written something nobody had looked for. When the
- * conversation is in Chanlytics the desk now names the message they sent, and
- * the door copies its id and words into the evidence. An answer given
- * somewhere Chanlytics does not see is a sign-up form, with a note saying where.
- *
- * The database says these sentences too, so a refusal reads the same whichever
- * of the two gives it; their-own-message.db.test.mjs holds the two equal.
- */
-declare const OWN_MESSAGE_REFUSALS: {
-    /** Their own message, with no message named. */
-    readonly missing: "Choose the message where they said it. If they wrote to you somewhere Chanlytics doesn't see, record a sign-up form and say where in the note.";
-    /** The message named is not one this person sent this workspace. */
-    readonly notTheirs: "That isn't a message this person sent you. Choose one of theirs.";
-    /** The message named has nothing written in it. */
-    readonly wordless: "That message has no words in it to show their answer. Choose the one where they said it.";
-    /** A message named beside another way of answering. */
-    readonly notOwnMessage: "Only an answer in their own message names a message.";
-    /** Their own message, for many people at once: one message cannot be every person's. */
-    readonly batch: "Their own message is recorded one person at a time, on their page, where you choose the message. For signed slips, choose Sign-up form.";
-};
-/** Why an answer given this way cannot be recorded with this message -- or null when it can. */
-declare function ownMessageRefusal(source: string | null | undefined, messageId: string | null | undefined): string | null;
-/** The words for a source; the reset has none, an unknown one is shown as itself. */
-declare function consentSourceLabel(source: string | null | undefined): string | null;
-/**
- * May a message of this purpose reach this person? A number to send to, and the
- * yes THIS message needs.
- *
- * IT LIVES HERE, beside `consentOf`, because it is a question about a person, and
- * because this module's own lists were answering it by hand. `offers_ok` and
- * `peopleListAction` each spelled "said yes to offers" as a bare
- * `consent.marketing === "opted_in"` -- no phone check -- while the broadcast route
- * enrolled with this. So a list could promise "4 said yes to offers -- a broadcast
- * reaches them" about people with no number the route would then leave out. It was
- * one rule in the commit message and three in the code.
- *
- * ONE RULE, NOT TWO. This used to restate `mayMessageFor`'s logic by hand,
- * because the two sides of one pipeline hold the person in two different shapes:
- * the route and the page hold a `PersonRowVM`, the send job holds the database
- * row. Two hand-written copies of a consent rule is the thing this file's own
- * header calls a defect, and it duly drifted -- the enrolment half asked for
- * marketing consent while the sending half asked what the template implied. So
- * the shape is adapted here and the QUESTION is answered in exactly one place.
- *
- * `proactive` is always true: a broadcast starts a conversation. Nobody wrote to
- * us to ask for it.
- *
- * THE PURPOSE IS REQUIRED, and that is the fix rather than a detail of it. It
- * used to default to marketing, described as "the safe answer for a caller that
- * has not thought about it" -- and every caller but one then failed to think
- * about it, so a utility message was refused to the very people migration 00095
- * exists to reach. A default cannot be audited; a required argument is checked
- * by the compiler at every call site, the way `businessRecordProblems` requires
- * its registration path.
- */
-declare function mayReceive(r: Pick<PersonRowVM, "consent" | "phone">, purpose: AskedPurpose): boolean;
-/**
- * Why a broadcast may not reach this person, or null when it may: the same one
- * rule as `mayReceive`, with its answer kept. A run that leaves someone out can
- * then say which of three things it was -- no number to send to, a stop (asked
- * to, or on the do-not-contact list), or never having said yes -- instead of
- * one count that hides the one an owner can do something about.
- */
-type NotReceived = "no_number" | "stopped" | "no_yes";
-declare function whyNotReceive(r: Pick<PersonRowVM, "consent" | "phone">, purpose: AskedPurpose): NotReceived | null;
-/**
- * Whether this person's yes covers a message of this purpose, a number to send it to aside: the half of
- * `mayReceive` that is an answer they gave. When nobody on a list can be sent a thing and somebody on it said yes,
- * what is missing is a number, not an answer -- and asking them for their yes asks for one they already gave.
- */
-declare function saidYesTo(r: Pick<PersonRowVM, "consent">, purpose: AskedPurpose): boolean;
 type ReceptionistTone = "answering" | "escalated" | "queued" | "snoozed" | "paused" | "silent";
 interface PersonReceptionist {
     tone: ReceptionistTone;
@@ -9873,282 +9964,6 @@ declare function visitTitleFor(title: string, name: string): string;
  * its words, and the facts a list's rule reads (list-rules.ts), each worked out once here in the workspace's own dates.
  */
 declare function toPersonRowVM(r: PersonRowDto, tz: string, now?: Date, viewerId?: string | null): PersonRowVM;
-interface PeopleListAction {
-    /** The sentence under the list: what the step reaches, or why it cannot yet. */
-    text: string;
-    /** The button's words. */
-    cta: string;
-    /** A route. */
-    to: string;
-    enabled: boolean;
-}
-/**
- * Where a person's yes to offers is got: Broadcasts' "Get their yes" section,
- * brought into view -- the QR for the desk, the phrase, the link for a bio, the
- * paper form.
- *
- * Five places said the fix was there -- "The phrase and the QR are on
- * Broadcasts" -- and none of them went there: two steps opened the TOP of
- * Broadcasts, where the composer is and the QR is below the fold, and three
- * printed the sentence beside a disabled button. One route, one spelling.
- */
-declare const GET_YES_ROUTE = "broadcasts/get-yes";
-/**
- * The obvious next step for a list, when it has one. A broadcast reaches
- * only a recorded yes, so the sentence says how many of the list said it,
- * and the button waits until someone has.
- *
- * WHICH yes it counts is the MARKETING one, because these steps all open the
- * composer on a promotional send (win them back, reach the quiet ones, run an
- * offer). Counting the conversational answer here promised an audience the
- * composer would then refuse -- the same mismatch, one screen earlier.
- */
-declare function peopleListAction(id: string, members: PersonRowVM[]): PeopleListAction | null;
-/**
- * A list kept by hand has one onward step: a broadcast to the people on it who said yes to offers. The same
- * sentence and the same rule as a smart list's broadcast step, so the two kinds of list read alike on People,
- * which is where both live now (the Lists page folded into it).
- */
-declare function savedListAction(id: string, members: PersonRowVM[]): PeopleListAction;
-/**
- * Why nobody can be sent a thing when somebody said the yes it needs: what a broadcast reaches. The reason in
- * `noNumberWords`, and the arithmetic under Today's reach row (today.ts todayLeaks), in one spelling.
- */
-declare const NO_NUMBER_REACH = "a broadcast reaches only a recorded yes with a number to send to";
-/**
- * Nobody on a list can be sent this, and somebody on it said yes: what is missing is a number to send it to. People's
- * list step says it of a list (#663) and the send screen of the audience it has open -- `who` is "this list" or the
- * audience's name -- so the two say it in one spelling.
- */
-declare function noNumberWords(who: string, purpose: AskedPurpose): string;
-/**
- * How many on an audience said yes to what a message needs, as the send screen's line under the audience says it.
- * The number is who it reaches (`sending`: a yes and a number), in the shorthand People's list step uses ("N of M on
- * this list said yes to offers — a broadcast reaches them") -- except when that is 0 and somebody DID say yes
- * (`saidYes`, audiencePreview's): "0 people … said yes" stood over `noNumberWords` and was false, so it says how many
- * did, and what they are missing.
- */
-declare function saidYesWords(who: string, purpose: AskedPurpose, sending: number, saidYes: number): string;
-interface PeopleAggregates {
-    total: number;
-    needsYou: number;
-    needsYouOldestMs: number | null;
-    /** First contact within 30 days, by evidence. */
-    newThisMonth: number;
-    /** Any message or call within 7 days. */
-    reachedWeek: number;
-    reachedWeekNew: number;
-    /** An appointment ahead on the calendar. */
-    booked: number;
-    /** Wrote or called this month; the calendar has never had them. */
-    askedNotBooked: number;
-}
-declare function peopleAggregates(rows: PersonRowVM[], nowMs: number): PeopleAggregates;
-/** Days since last contact, bucketed — the honest replacement for the
- *  mockup's temperature strip. */
-declare function recencyCells(rows: PersonRowVM[], nowMs: number): {
-    label: string;
-    count: number;
-}[];
-interface AttentionRowVM {
-    /** Where they last reached us: "WhatsApp" or "Phone"; null with no contact. */
-    channel: "WhatsApp" | "Phone" | null;
-    /** "2h ago"; "no contact yet". */
-    when: string;
-    /** What the row says about them: their own words, or the best evidence. */
-    sentence: string;
-    /** True when `sentence` is their words, verbatim. */
-    quoted: boolean;
-    /** "Escalated · asked for a person · since 2:14 PM", as segments. */
-    status: string[];
-    tone: ReceptionistTone;
-    /** The one thing this state asks of you, when it differs from opening the profile. */
-    cta: {
-        label: string;
-        kind: "primary" | "ghost";
-        to: string;
-    } | null;
-}
-/**
- * One row of "where your attention matters": the mockup's grammar — a name,
- * where and when, one sentence, one state line, one button — filled only
- * with what is on record. Their words come first; then the last call's
- * summary; then the calendar; then the plain fact of a call. The button is
- * the one thing the state asks of you, and it exists only when that differs
- * from opening the profile, which the row itself does.
- */
-declare function attentionRow(p: PersonRowVM, tz: string, nowMs: number): AttentionRowVM;
-type TimelineKind = "customer" | "receptionist" | "you" | "system" | "call" | "escalation" | "decision" | "visit" | "consent" | "deal";
-/**
- * How a profile's timeline narrows: everything, or one kind of record. "Messages" is the thread itself --
- * what was said, and the escalations and decisions in it; only "All" keeps the system lines.
- */
-type TimelineFilterId = "all" | "messages" | "calls" | "visits" | "consent" | "deals";
-declare const TIMELINE_FILTERS: readonly {
-    id: TimelineFilterId;
-    label: string;
-    kinds: readonly TimelineKind[] | null;
-}[];
-/** The items a filter shows, in the order they came; an unknown filter shows everything. */
-declare function filterTimeline<T extends {
-    kind: TimelineKind;
-}>(items: readonly T[], id: string): T[];
-/**
- * A consent change, in the words the timeline uses: what was answered, and
- * how we know. An answer the customer texted quotes them; one taken at the
- * desk names the way and the recorder's note. The words here are the only
- * ones the page has, so an owner reads "how do we know" without a database.
- */
-declare function consentChangeWords(c: ConsentChange): {
-    who: string;
-    text: string;
-    sub?: string;
-};
-interface PersonTimelineItemVM {
-    id: string;
-    ts: number;
-    time: string;
-    day: string;
-    kind: TimelineKind;
-    who: string;
-    text: string;
-    sub?: string;
-    link?: {
-        label: string;
-        to: string;
-    };
-    /** A visit that has not ended yet: the page says it under Coming up (comingUp), not in what has happened. */
-    ahead?: boolean;
-}
-/**
- * A visit that has not ended, as the page's Coming up draws it: a small leaf with the month and the day of the month,
- * what it is, and when. `day` is "Today", "Tomorrow" or the weekday, by the business's clock.
- */
-interface PersonVisitAheadVM {
-    id: string;
-    month: string;
-    date: string;
-    day: string;
-    title: string;
-    time: string;
-    /** Matched to them by their name alone, which the page says, as the Next visit fact does. */
-    byName: boolean;
-    to: string;
-}
-interface PersonRightNow {
-    tone: ReceptionistTone;
-    title: string;
-    detail: string;
-    cta: {
-        label: string;
-        to: string;
-    } | null;
-}
-interface PersonFact {
-    label: string;
-    value: string | number;
-    meta: string;
-    tone?: "neg" | "pos" | "";
-}
-interface PersonVM extends PersonRowVM {
-    /** "Since Jul 14" / "Since before Aug 27" / "" */
-    since: string;
-    /** "3 conversations · 2 calls" */
-    metaLine: string;
-    lastExchange: {
-        customer: {
-            text: string;
-            at: string;
-        } | null;
-        reply: {
-            text: string;
-            at: string;
-            who: "Receptionist" | "You";
-        } | null;
-    };
-    facts: PersonFact[];
-    rightNow: PersonRightNow;
-    timeline: PersonTimelineItemVM[];
-    /** Their visits that have not ended, soonest first: the page's Coming up. Each is in `timeline` too, marked `ahead`. */
-    comingUp: PersonVisitAheadVM[];
-    about: {
-        k: string;
-        v: string;
-    }[];
-    /** Their notes (0007): the receptionist's suggestions first, then newest first. */
-    noteList: PersonNoteVM[];
-    /** The team a note can be for; empty where the team could not be read. */
-    noteTeam: PersonNoteTeamDto[];
-    /** The workspace's booking link, or null when none is on file. */
-    bookingLink: string | null;
-    /**
-     * Their proposal (proposalLinkOf, 0008): the link on their deal while it is a proposal out; for any other deal, none;
-     * with no deal at all, the one on the person (00154) while it is still read. Null where deals are off, and when none
-     * is on file.
-     */
-    proposal: PersonProposalVM | null;
-    /** The send-the-proposal button's words for the wire a reply goes out on (proposalAction); `ready` false hides it. */
-    proposalAction: {
-        label: string;
-        title: string;
-        ready: boolean;
-    };
-    /** Their deals, newest first, as the page says them (0004). */
-    deals: DealVM[];
-    /** Whether deals are on here (dealsAreOn): the page draws its Deal section, and offers the proposal's send, only then. */
-    dealsOn: boolean;
-    /** The workspace's pace (dealPaceOf): when their proposal waits, and what its card says; none until five are decided. */
-    dealPace: DealPaceVM | null;
-    /** The profile's service names; the picker appears only past one. */
-    services: string[];
-    /** The services that need a consultation first: a proposal started from one names it (deal-sheet.ts). */
-    consultFirst: string[];
-    /** "inbox/th-…" or null for a phone-only person. */
-    openThread: string | null;
-    /** The person's own setting (null = following the workspace) and the
-     *  workspace's mode, so the rail can say which is in force. 'veto' at the
-     *  workspace level still answers, after a hold, so it reads as "Answer". */
-    receptionistMode: {
-        person: PersonMode | null;
-        workspace: PersonMode | null;
-    };
-    /** What they have written to you, newest first: the messages an answer "in their own message" may name (00137). */
-    ownMessages: OwnMessageVM[];
-    /**
-     * The People lists that keep themselves current and have them on today, by the rail's own tests (PEOPLE_LISTS): the
-     * ones this page does not already say another way, and a calendar's only with a calendar. Each says why it has them,
-     * in the rule's own words (listRuleWhy): the facts they meet today.
-     */
-    smartLists: {
-        id: string;
-        label: string;
-        why: string;
-    }[];
-    /** The runs that named them, newest first, each with what became of it. */
-    campaigns: PersonCampaignVM[];
-    /** The lead they were found as, with the door to it on Leads; null when they were never one. */
-    lead: {
-        id: string;
-        name: string;
-        found: string;
-        to: string;
-    } | null;
-    /** What the page's More menu offers for them, in order (personActs): the page keeps those its reader's role allows. */
-    acts: PersonActVM[];
-}
-/**
- * One act in a person's More menu: a few words, the line said on hover where the act needs explaining, the group it
- * sits in (a send, a way to reach them, the delete: a line between groups), and who may press it ("any" reader, one
- * who may "record", or the "owner"). The page draws them; which exist, and their words, are here.
- */
-interface PersonActVM {
-    id: "booking" | "proposal" | "call" | "copy-phone" | "copy-email" | "delete";
-    label: string;
-    hint: string | null;
-    group: "send" | "reach" | "delete";
-    needs: "any" | "record" | "owner";
-    danger?: boolean;
-}
 /**
  * Whether the page may reach them at all: a conversation to write in, no stop, and no do-not-contact. It is not
  * whether free text can go now (proposalAction's and bookingLinkAction's `ready`): where WhatsApp takes only an
@@ -10162,30 +9977,6 @@ declare function mayReach(p: {
         dnc: boolean;
     };
 }): boolean;
-/**
- * What can be done for a person from their page, besides opening their thread (the page's one primary act).
- *
- * A send opens their thread with the words ready; nothing is sent from the page. So it says so, in the wire it goes
- * on, and never names a template or a window: where WhatsApp takes only an approved message the thread offers it,
- * which is what its hover says. The labels are a few words each: with a sentence beside every one the menu was a
- * block of wrapped words cut off at its edge. No send reaches someone who said stop or is on do-not-contact, and no call reaches
- * someone on do-not-contact. A call is the member's own phone ringing them (a tel: link), never the receptionist.
- */
-declare function personActs(p: Omit<PersonVM, "acts">): PersonActVM[];
-/** One message a person wrote to the business, as the desk chooses it for an answer given in it. */
-interface OwnMessageVM {
-    /** The message's own id: what the door is handed, and what the evidence names. */
-    id: string;
-    /** What they wrote, on one line: the eighty characters the evidence keeps, and an ellipsis when there were more. */
-    words: string;
-    /** The wire it came on, in the page's word for it. */
-    via: string;
-    /** When they sent it, by the business's clock. */
-    when: string;
-}
-declare function toPersonVM(d: PersonDetailDto, tz: string, now?: Date, 
-/** The member looking (toPersonRowVM's viewer). */
-viewerId?: string | null): PersonVM;
 
 /**
  * The Leads scope of People, in words (PRD 2026-09-17 v3 §6, §9; release B).
@@ -13554,6 +13345,231 @@ declare function seasonHorizon(now: Date, daysAhead?: number): FeedHorizon;
  * more convincing than four weeks of it.
  */
 declare function previewHorizon(now: Date): FeedHorizon;
+
+interface AttentionRowVM {
+    /** Where they last reached us: "WhatsApp" or "Phone"; null with no contact. */
+    channel: "WhatsApp" | "Phone" | null;
+    /** "2h ago"; "no contact yet". */
+    when: string;
+    /** What the row says about them: their own words, or the best evidence. */
+    sentence: string;
+    /** True when `sentence` is their words, verbatim. */
+    quoted: boolean;
+    /** "Escalated · asked for a person · since 2:14 PM", as segments. */
+    status: string[];
+    tone: ReceptionistTone;
+    /** The one thing this state asks of you, when it differs from opening the profile. */
+    cta: {
+        label: string;
+        kind: "primary" | "ghost";
+        to: string;
+    } | null;
+}
+/**
+ * One row of "where your attention matters": the mockup's grammar — a name,
+ * where and when, one sentence, one state line, one button — filled only
+ * with what is on record. Their words come first; then the last call's
+ * summary; then the calendar; then the plain fact of a call. The button is
+ * the one thing the state asks of you, and it exists only when that differs
+ * from opening the profile, which the row itself does.
+ */
+declare function attentionRow(p: PersonRowVM, tz: string, nowMs: number): AttentionRowVM;
+
+type TimelineKind = "customer" | "receptionist" | "you" | "system" | "call" | "escalation" | "decision" | "visit" | "consent" | "deal";
+/**
+ * How a profile's timeline narrows: everything, or one kind of record. "Messages" is the thread itself --
+ * what was said, and the escalations and decisions in it; only "All" keeps the system lines.
+ */
+type TimelineFilterId = "all" | "messages" | "calls" | "visits" | "consent" | "deals";
+declare const TIMELINE_FILTERS: readonly {
+    id: TimelineFilterId;
+    label: string;
+    kinds: readonly TimelineKind[] | null;
+}[];
+/** The items a filter shows, in the order they came; an unknown filter shows everything. */
+declare function filterTimeline<T extends {
+    kind: TimelineKind;
+}>(items: readonly T[], id: string): T[];
+/**
+ * A consent change, in the words the timeline uses: what was answered, and
+ * how we know. An answer the customer texted quotes them; one taken at the
+ * desk names the way and the recorder's note. The words here are the only
+ * ones the page has, so an owner reads "how do we know" without a database.
+ */
+declare function consentChangeWords(c: ConsentChange): {
+    who: string;
+    text: string;
+    sub?: string;
+};
+interface PersonTimelineItemVM {
+    id: string;
+    ts: number;
+    time: string;
+    day: string;
+    kind: TimelineKind;
+    who: string;
+    text: string;
+    sub?: string;
+    link?: {
+        label: string;
+        to: string;
+    };
+    /** A visit that has not ended yet: the page says it under Coming up (comingUp), not in what has happened. */
+    ahead?: boolean;
+}
+/**
+ * A visit that has not ended, as the page's Coming up draws it: a small leaf with the month and the day of the month,
+ * what it is, and when. `day` is "Today", "Tomorrow" or the weekday, by the business's clock.
+ */
+interface PersonVisitAheadVM {
+    id: string;
+    month: string;
+    date: string;
+    day: string;
+    title: string;
+    time: string;
+    /** Matched to them by their name alone, which the page says, as the Next visit fact does. */
+    byName: boolean;
+    to: string;
+}
+interface PersonRightNow {
+    tone: ReceptionistTone;
+    title: string;
+    detail: string;
+    cta: {
+        label: string;
+        to: string;
+    } | null;
+}
+interface PersonFact {
+    label: string;
+    value: string | number;
+    meta: string;
+    tone?: "neg" | "pos" | "";
+}
+interface PersonVM extends PersonRowVM {
+    /** "Since Jul 14" / "Since before Aug 27" / "" */
+    since: string;
+    /** "3 conversations · 2 calls" */
+    metaLine: string;
+    lastExchange: {
+        customer: {
+            text: string;
+            at: string;
+        } | null;
+        reply: {
+            text: string;
+            at: string;
+            who: "Receptionist" | "You";
+        } | null;
+    };
+    facts: PersonFact[];
+    rightNow: PersonRightNow;
+    timeline: PersonTimelineItemVM[];
+    /** Their visits that have not ended, soonest first: the page's Coming up. Each is in `timeline` too, marked `ahead`. */
+    comingUp: PersonVisitAheadVM[];
+    about: {
+        k: string;
+        v: string;
+    }[];
+    /** Their notes (0007): the receptionist's suggestions first, then newest first. */
+    noteList: PersonNoteVM[];
+    /** The team a note can be for; empty where the team could not be read. */
+    noteTeam: PersonNoteTeamDto[];
+    /** The workspace's booking link, or null when none is on file. */
+    bookingLink: string | null;
+    /**
+     * Their proposal (proposalLinkOf, 0008): the link on their deal while it is a proposal out; for any other deal, none;
+     * with no deal at all, the one on the person (00154) while it is still read. Null where deals are off, and when none
+     * is on file.
+     */
+    proposal: PersonProposalVM | null;
+    /** The send-the-proposal button's words for the wire a reply goes out on (proposalAction); `ready` false hides it. */
+    proposalAction: {
+        label: string;
+        title: string;
+        ready: boolean;
+    };
+    /** Their deals, newest first, as the page says them (0004). */
+    deals: DealVM[];
+    /** Whether deals are on here (dealsAreOn): the page draws its Deal section, and offers the proposal's send, only then. */
+    dealsOn: boolean;
+    /** The workspace's pace (dealPaceOf): when their proposal waits, and what its card says; none until five are decided. */
+    dealPace: DealPaceVM | null;
+    /** The profile's service names; the picker appears only past one. */
+    services: string[];
+    /** The services that need a consultation first: a proposal started from one names it (deal-sheet.ts). */
+    consultFirst: string[];
+    /** "inbox/th-…" or null for a phone-only person. */
+    openThread: string | null;
+    /** The person's own setting (null = following the workspace) and the
+     *  workspace's mode, so the rail can say which is in force. 'veto' at the
+     *  workspace level still answers, after a hold, so it reads as "Answer". */
+    receptionistMode: {
+        person: PersonMode | null;
+        workspace: PersonMode | null;
+    };
+    /** What they have written to you, newest first: the messages an answer "in their own message" may name (00137). */
+    ownMessages: OwnMessageVM[];
+    /**
+     * The People lists that keep themselves current and have them on today, by the rail's own tests (PEOPLE_LISTS): the
+     * ones this page does not already say another way, and a calendar's only with a calendar. Each says why it has them,
+     * in the rule's own words (listRuleWhy): the facts they meet today.
+     */
+    smartLists: {
+        id: string;
+        label: string;
+        why: string;
+    }[];
+    /** The runs that named them, newest first, each with what became of it. */
+    campaigns: PersonCampaignVM[];
+    /** The lead they were found as, with the door to it on Leads; null when they were never one. */
+    lead: {
+        id: string;
+        name: string;
+        found: string;
+        to: string;
+    } | null;
+    /** What the page's More menu offers for them, in order (personActs): the page keeps those its reader's role allows. */
+    acts: PersonActVM[];
+}
+/**
+ * One act in a person's More menu: a few words, the line said on hover where the act needs explaining, the group it
+ * sits in (a send, a way to reach them, the delete: a line between groups), and who may press it ("any" reader, one
+ * who may "record", or the "owner"). The page draws them; which exist, and their words, are here.
+ */
+interface PersonActVM {
+    id: "booking" | "proposal" | "call" | "copy-phone" | "copy-email" | "delete";
+    label: string;
+    hint: string | null;
+    group: "send" | "reach" | "delete";
+    needs: "any" | "record" | "owner";
+    danger?: boolean;
+}
+/**
+ * What can be done for a person from their page, besides opening their thread (the page's one primary act).
+ *
+ * A send opens their thread with the words ready; nothing is sent from the page. So it says so, in the wire it goes
+ * on, and never names a template or a window: where WhatsApp takes only an approved message the thread offers it,
+ * which is what its hover says. The labels are a few words each: with a sentence beside every one the menu was a
+ * block of wrapped words cut off at its edge. No send reaches someone who said stop or is on do-not-contact, and no call reaches
+ * someone on do-not-contact. A call is the member's own phone ringing them (a tel: link), never the receptionist.
+ */
+declare function personActs(p: Omit<PersonVM, "acts">): PersonActVM[];
+/** One message a person wrote to the business, as the desk chooses it for an answer given in it. */
+interface OwnMessageVM {
+    /** The message's own id: what the door is handed, and what the evidence names. */
+    id: string;
+    /** What they wrote, on one line: the eighty characters the evidence keeps, and an ellipsis when there were more. */
+    words: string;
+    /** The wire it came on, in the page's word for it. */
+    via: string;
+    /** When they sent it, by the business's clock. */
+    when: string;
+}
+declare function toPersonVM(d: PersonDetailDto, tz: string, now?: Date, 
+/** The member looking (toPersonRowVM's viewer). */
+viewerId?: string | null): PersonVM;
 
 /**
  * The step sheet (0007, amended; 00166): where a next step is set or changed from outside the notes card -- the deal
