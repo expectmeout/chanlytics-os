@@ -887,7 +887,7 @@ test("the block is not drawn where own domains are off and there are none, nor b
   }
 });
 
-test("a held domain: a DNS hold shows its records and Check, a reputation hold offers neither, and a non-owner is told once why they can't act", () => {
+test("a held domain: a DNS hold shows its records and Check, a reputation hold offers Resume instead, and a non-owner is told once why they can't act", () => {
   const now = Date.now();
   const iso = (d) => new Date(now - d * 86_400_000).toISOString();
   const held = (id, host, why) => ({
@@ -941,11 +941,13 @@ test("a held domain: a DNS hold shows its records and Check, a reputation hold o
   assert.equal(byTestId(tree, "domain-records-spam.example"), null);
   assert.equal(byTestId(tree, "domain-check-spam.example"), null, "a reputation hold is not lifted by Check");
   assert.match(textOf(byTestId(tree, "domain-spam.example")), /until you resume it/);
+  assert.ok(byTestId(tree, "domain-resume-spam.example"), "the owner resumes a reputation hold");
+  assert.equal(byTestId(tree, "domain-resume-broke.example"), null, "a DNS hold lifts itself: nothing to resume");
 
   asRole("operator");
   tree = render(Connections);
   const block = byTestId(tree, "sending-domains");
-  assert.match(textOf(block), /add, check or remove a domain/i, "the reason, said once");
+  assert.match(textOf(block), /add, check, resume or remove a domain/i, "the reason, said once");
   assert.equal(byTestId(tree, "domain-remove-broke.example"), null);
   asRole("owner");
 });

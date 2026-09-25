@@ -80,7 +80,7 @@ function provider(statusById, onRead = () => {}) {
   });
 }
 
-function world(rows) {
+function world(rows, counts) {
   const tables = {
     sending_domains: rows,
     tenant_config: [{ tenant_id: A, config: { notifications: { escalation_emails: [OWNER] } } }],
@@ -89,7 +89,15 @@ function world(rows) {
     events: [],
     operator_pages: [],
   };
-  const db = fakeDb(tables, {}, { ...vault });
+  const rpcs = { ...vault };
+  // 00176's count, answered per host; a host answering an Error is a read that failed.
+  if (counts)
+    rpcs.sending_domain_counts = (a) => {
+      const c = counts[a.p_host];
+      if (c instanceof Error) throw c;
+      return c ?? { sent: 0, bounced: 0, complained: 0 };
+    };
+  const db = fakeDb(tables, {}, rpcs);
   setPg(db);
   return { db, tables, row: (id) => tables.sending_domains.find((r) => r.id === id) };
 }
@@ -262,6 +270,86 @@ test("a check that raced another writer writes nothing: the row as it was read i
     assert.equal(w.row("d1").state, "verified", "the stale read held nothing");
     assert.equal(w.tables.events.length, 0);
     assert.equal(w.tables.notifications.length, 0, "and told nobody");
+  } finally {
+    net.restore();
+  }
+});
+
+test("a verified domain is counted since it was clean; bounces or a complaint hold it and tell its owner; the counts land on the row", async () => {
+  const w = world(
+    [
+      domain("d1"),
+      domain("d2"),
+      domain("d3"),
+      domain("d4", { state: "held", held_why: "dmarc", held_at: ago(DAY), dmarc: "missing" }),
+    ],
+    {
+      "d1.example": { sent: 200, bounced: 1, complained: 0 },
+      "d2.example": { sent: 200, bounced: 5, complained: 0 },
+      "d3.example": { sent: 12, bounced: 0, complained: 1 },
+    },
+  );
+  for (const h of ["d1", "d2", "d3", "d4"]) dns[`${h}.example`] = h === "d4" ? "missing" : "found";
+  const net = provider({});
+  try {
+    const [status, body] = await answer(await knock(POST, "domains"));
+    assert.equal(status, 200);
+    assert.equal(body.held, 2);
+    const calls = w.db.seen.filter((s) => s.rpc === "sending_domain_counts");
+    assert.deepEqual(
+      calls.map((c) => [c.args.p_host, c.args.p_since]).sort(),
+      ["d1", "d2", "d3"].map((h) => [`${h}.example`, w.row(h).clean_since]),
+      "verified domains only, each since it was clean",
+    );
+    assert.deepEqual(
+      [w.row("d1").state, w.row("d1").sent_recent, w.row("d1").bounced_recent, w.row("d1").complaints],
+      ["verified", 200, 1, 0],
+    );
+    assert.deepEqual([w.row("d2").state, w.row("d2").held_why], ["held", "bounces"]);
+    assert.deepEqual([w.row("d3").state, w.row("d3").held_why], ["held", "complaint"]);
+    assert.deepEqual(
+      w.tables.events
+        .filter((e) => e.kind === "sending_domain.held")
+        .map((e) => e.data)
+        .sort((a, b) => a.host.localeCompare(b.host)),
+      [
+        { host: "d2.example", why: "bounces" },
+        { host: "d3.example", why: "complaint" },
+      ],
+    );
+    assert.deepEqual(w.tables.notifications.map((n) => n.title).sort(), [
+      "d2.example is held: more than 2% of its recent emails bounced",
+      "d3.example is held: someone marked an email from it as spam",
+    ]);
+  } finally {
+    net.restore();
+  }
+});
+
+test("a count that cannot be read judges nothing about reputation, and the domain stays as it was", async () => {
+  const w = world([domain("d1")], { "d1.example": new Error("statement timeout") });
+  dns["d1.example"] = "found";
+  const net = provider({});
+  try {
+    const [status] = await answer(await knock(POST, "domains"));
+    assert.equal(status, 200);
+    assert.deepEqual([w.row("d1").state, w.row("d1").sent_recent ?? null], ["verified", null]);
+    assert.equal(w.tables.events.length, 0);
+  } finally {
+    net.restore();
+  }
+});
+
+test("a complaint holds a domain even on a tick the provider could not be asked", async () => {
+  const w = world([domain("d1")], { "d1.example": { sent: 12, bounced: 0, complained: 1 } });
+  dns["d1.example"] = "found";
+  const net = provider({ "pd-d1": "500" });
+  try {
+    const [status] = await answer(await knock(POST, "domains"));
+    assert.equal(status, 200, "a blip is still not a red sweep");
+    assert.deepEqual([w.row("d1").state, w.row("d1").held_why, w.row("d1").complaints], ["held", "complaint", 1]);
+    assert.equal(w.tables.events.filter((e) => e.kind === "sending_domain.held").length, 1);
+    assert.equal(w.tables.notifications.length, 1);
   } finally {
     net.restore();
   }

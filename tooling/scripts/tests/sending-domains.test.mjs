@@ -14,6 +14,9 @@ import {
   whyNotASendingHost,
   DMARC_RECOMMENDED,
   SENDING_DOMAINS_MAX,
+  reputationHoldOf,
+  resumeDomain,
+  domainStatsWords,
 } from "@chanlytics/contracts";
 
 const PLATFORM = { mailDomain: "mail.chanlytics.com" };
@@ -261,4 +264,78 @@ test("the row's words, for every state: the pill, what is left to do, and the ca
     for (const s of [w.pill, w.line, w.cap, w.next].filter((x) => x !== null))
       assert.doesNotMatch(s, /undefined|null|NaN/, JSON.stringify(d.state));
   }
+});
+
+test("a domain answers for its reputation: any complaint holds it; bounces hold it past 2% of what it sent, over at least 150", () => {
+  const c = (sent, bounced, complained = 0) => ({ sent, bounced, complained });
+  for (const [counts, hold] of [
+    [c(30, 3), null],
+    [c(30, 4), "bounces"],
+    [c(150, 3), null],
+    [c(150, 4), "bounces"],
+    [c(500, 10), null], // exactly 2%
+    [c(500, 11), "bounces"],
+    [c(40, 0, 1), "complaint"],
+    [c(500, 30, 1), "complaint"], // a complaint outranks bounces
+    [null, null],
+  ])
+    assert.equal(reputationHoldOf(counts), hold, JSON.stringify(counts));
+
+  const held = judgeDomain(sending(), { provider: "verified", dmarc: "found", counts: c(150, 4) }, NOW_ISO);
+  assert.deepEqual([held.state, held.held_why, held.held_at, held.change], ["held", "bounces", NOW_ISO, "held"]);
+  const spam = judgeDomain(sending(), { provider: "verified", dmarc: "found", counts: c(10, 0, 1) }, NOW_ISO);
+  assert.equal(spam.held_why, "complaint");
+  // Uncounted is not clean or dirty: nothing changes.
+  assert.deepEqual(judgeDomain(sending(), { provider: "verified", dmarc: "found", counts: null }, NOW_ISO), {
+    ...sending(),
+    change: null,
+  });
+  // Counted from our own rows: a complaint holds even when the provider could not be asked.
+  const blind = judgeDomain(sending(), { provider: null, dmarc: null, counts: c(10, 0, 1) }, NOW_ISO);
+  assert.deepEqual([blind.state, blind.held_why, blind.change], ["held", "complaint", "held"]);
+  // A reputation hold waits for its owner, whatever the records say.
+  assert.equal(judgeDomain(held, { provider: "verified", dmarc: "found", counts: c(0, 0) }, NOW_ISO).state, "held");
+});
+
+test("Resume lifts a reputation hold only, and the ramp starts again from today", () => {
+  for (const why of ["bounces", "complaint"]) {
+    const held = sending({ state: "held", held_why: why, held_at: daysAgo(1) });
+    assert.deepEqual(resumeDomain(held, NOW_ISO), {
+      ...held,
+      state: "verified",
+      held_why: null,
+      held_at: null,
+      clean_since: NOW_ISO,
+      change: "resumed",
+    });
+  }
+  for (const r of [
+    sending({ state: "held", held_why: "verification", held_at: daysAgo(1) }),
+    sending({ state: "held", held_why: "dmarc", held_at: daysAgo(1) }),
+    sending(),
+    row({ state: "records" }),
+  ])
+    assert.deepEqual(resumeDomain(r, NOW_ISO), { ...r, change: null }, JSON.stringify(r));
+});
+
+test("a verified domain's line says how its mail has done, once it has sent some", () => {
+  assert.equal(
+    domainStatsWords({ sent_recent: 250, bounced_recent: 1, complaints: 0 }),
+    "0.4% bounced · none marked as spam",
+  );
+  assert.equal(domainStatsWords({ sent_recent: 3, bounced_recent: 0, complaints: 2 }), "0% bounced · 2 marked as spam");
+  assert.equal(
+    domainStatsWords({ sent_recent: 0, bounced_recent: 0, complaints: 0 }),
+    null,
+    "nothing sent, nothing said",
+  );
+  assert.equal(domainStatsWords({ sent_recent: null, bounced_recent: null, complaints: null }), null);
+  const w = sendingDomainWords(
+    dto({ state: "verified", clean_since: daysAgo(3), sent_recent: 250, bounced_recent: 1, complaints: 0 }),
+    NOW,
+  );
+  assert.match(w.line, /3 clean days · 0\.4% bounced · none marked as spam$/);
+  const held = sendingDomainWords(dto({ state: "held", held_why: "bounces", held_at: daysAgo(1) }), NOW);
+  assert.equal(held.next, "Nothing leaves from it until you resume it.");
+  assert.match(held.line, /more than 2% of its recent emails bounced/);
 });

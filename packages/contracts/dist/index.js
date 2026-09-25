@@ -429,6 +429,8 @@ var EVENT_KINDS = [
   "sending_domain.verified",
   "sending_domain.held",
   "sending_domain.released",
+  /** The owner resumed a domain held for its bounces or a complaint (00176): 30 a day again. */
+  "sending_domain.resumed",
   "sending_domain.removed",
   /** A lead search's round started, waited, or ended with one of the nine endings (00140). */
   "lead.round",
@@ -20780,9 +20782,17 @@ function whyNotAFromLocal(typed) {
   if (RESERVED_FROM.has(s)) return `\u201C${s}\u201D is kept for the mail system. Use a name people can write back to.`;
   return null;
 }
+function reputationHoldOf(c) {
+  if (!c) return null;
+  if (c.complained >= 1) return "complaint";
+  if (c.bounced * 50 > Math.max(c.sent, 150)) return "bounces";
+  return null;
+}
 var CHECKING = /* @__PURE__ */ new Set(["pending", "temporary_failure", "partially_verified"]);
 function judgeDomain(row2, facts, nowIso) {
   const same2 = { ...row2, dmarc: facts.dmarc ?? row2.dmarc, change: null };
+  const reputation = row2.state === "verified" ? reputationHoldOf(facts.counts) : null;
+  if (reputation) return { ...same2, state: "held", held_why: reputation, held_at: nowIso, change: "held" };
   if (facts.provider === null) return { ...row2, change: null };
   const verified = facts.provider === "verified";
   if (row2.state === "records" || row2.state === "verifying") {
@@ -20818,6 +20828,16 @@ function judgeDomain(row2, facts, nowIso) {
     };
   return same2;
 }
+function resumeDomain(row2, nowIso) {
+  if (row2.state !== "held" || !row2.held_why || DNS_HOLDS.includes(row2.held_why)) return { ...row2, change: null };
+  return { ...row2, state: "verified", held_why: null, held_at: null, clean_since: nowIso, change: "resumed" };
+}
+function domainStatsWords(d) {
+  if (!d.sent_recent) return null;
+  const pct2 = Math.round((d.bounced_recent ?? 0) / d.sent_recent * 1e3) / 10;
+  const spam = d.complaints ? `${d.complaints} marked as spam` : "none marked as spam";
+  return `${pct2}% bounced \xB7 ${spam}`;
+}
 var HOLD_WORDS = {
   verification: "it stopped verifying",
   dmarc: "its DMARC record is missing",
@@ -20848,7 +20868,7 @@ function sendingDomainWords(d, nowMs) {
     return {
       pill: "Verified",
       tone: "ok",
-      line: `${who} \xB7 ${days} clean day${days === 1 ? "" : "s"}`,
+      line: [`${who} \xB7 ${days} clean day${days === 1 ? "" : "s"}`, domainStatsWords(d)].filter(Boolean).join(" \xB7 "),
       cap: `Up to ${cap2} a day`,
       next: step2 ? `${step2.perDay} a day after ${step2.days} clean days` : null
     };
@@ -20963,6 +20983,7 @@ var WORDS = {
   "sending_domain.verified": "A domain to send from was verified",
   "sending_domain.held": "A domain to send from was held",
   "sending_domain.released": "A domain to send from is sending again",
+  "sending_domain.resumed": "A domain to send from was resumed",
   "sending_domain.removed": "A domain to send from was removed",
   "lead.round": "A search for businesses",
   "lead.no_card": "An ask no source covers yet",
@@ -21003,6 +21024,7 @@ function activityWords(kind, payload) {
     case "sending_domain.verified":
     case "sending_domain.held":
     case "sending_domain.released":
+    case "sending_domain.resumed":
     case "sending_domain.removed": {
       const host = str(p, "host");
       if (host) bits2.push(host);
@@ -21144,6 +21166,7 @@ var TONES2 = {
   "mailbox.created": "ok",
   "sending_domain.verified": "ok",
   "sending_domain.released": "ok",
+  "sending_domain.resumed": "ok",
   "workspace.created": "ok",
   approve: "ok",
   resolve: "ok",
@@ -23428,6 +23451,7 @@ export {
   divertedNumbers,
   domainDailyCap,
   domainHoldWords,
+  domainStatsWords,
   draftListRule,
   draftSendsAtMs,
   dueStepDay,
@@ -23856,6 +23880,7 @@ export {
   replyWindow,
   reportFacts,
   reportHourWords,
+  reputationHoldOf,
   requestCodeWords,
   resendLeft,
   resolveFacts,
@@ -23863,6 +23888,7 @@ export {
   resolveParams,
   resolveSystemPrompt,
   resolveTheme,
+  resumeDomain,
   retentionWords,
   reviewIsNew,
   reviewReplyModeOf,

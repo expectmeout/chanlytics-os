@@ -14,7 +14,7 @@ const AUD = "/api/admin/sending-domains";
 
 /** The columns the page may see: every one but the provider's id. */
 export const SENDING_DOMAIN_COLUMNS =
-  "id, host, from_local, from_name, records, state, provider_status, dmarc, held_why, held_at, verified_at, clean_since, checked_at, created_at";
+  "id, host, from_local, from_name, records, state, provider_status, dmarc, held_why, held_at, verified_at, clean_since, checked_at, created_at, sent_recent, bounced_recent, complaints";
 
 export async function sendingDomainsFor(db: SupabaseClient<Database>, tenantId: string): Promise<SendingDomainDto[]> {
   const { data, error } = await db
@@ -39,6 +39,9 @@ export async function sendingDomainsFor(db: SupabaseClient<Database>, tenantId: 
     records: Array.isArray(r.records) ? (r.records as unknown as DomainRecord[]) : [],
     checked_at: r.checked_at,
     created_at: r.created_at,
+    sent_recent: r.sent_recent,
+    bounced_recent: r.bounced_recent,
+    complaints: r.complaints,
   }));
 }
 
@@ -102,8 +105,12 @@ function refusal(a: EdgeAnswer, doing: string): AppError {
       return new AppError("upstream_email", "Sending from your own domain isn't switched on here yet.", 503);
     case "invalid":
       return new AppError("validation", said ?? "That can't be a domain to send from.", 400);
+    // Resume's three (00176) are conflicts too: a hold the records lift, a domain not held, a row that moved.
     case "too_many":
     case "host_taken":
+    case "dns_hold":
+    case "not_held":
+    case "moved":
       return new AppError("conflict", said ?? "That domain can't be added.", 409);
     case "not_found":
       return new AppError("not_found", "That domain isn't this workspace's.", 404);
@@ -136,6 +143,16 @@ export async function checkSendingDomain(
 ): Promise<SendingDomainDto> {
   const a = await edgeDomains({ op: "check", tenant_id: tenantId, user_id: userId, domain_id: domainId });
   if (a.status !== 200 || a.body?.ok !== true) throw refusal(a, "checked");
+  return a.body.domain as SendingDomainDto;
+}
+
+export async function resumeSendingDomain(
+  tenantId: string,
+  userId: string,
+  domainId: string,
+): Promise<SendingDomainDto> {
+  const a = await edgeDomains({ op: "resume", tenant_id: tenantId, user_id: userId, domain_id: domainId });
+  if (a.status !== 200 || a.body?.ok !== true) throw refusal(a, "resumed");
   return a.body.domain as SendingDomainDto;
 }
 

@@ -126,6 +126,8 @@ var EVENT_KINDS = [
   "sending_domain.verified",
   "sending_domain.held",
   "sending_domain.released",
+  /** The owner resumed a domain held for its bounces or a complaint (00176): 30 a day again. */
+  "sending_domain.resumed",
   "sending_domain.removed",
   /** A lead search's round started, waited, or ended with one of the nine endings (00140). */
   "lead.round",
@@ -2685,6 +2687,15 @@ async function stampEmailSent(db, p) {
   const row = data?.[0];
   return row ? { status: row.status, conversationId: row.conversation_id } : null;
 }
+async function stampEmailComplaint(db, p) {
+  const { data, error } = await db.rpc("stamp_email_complaint", {
+    p_tenant_id: p.tenantId,
+    p_message_id: p.messageId,
+    p_at: p.at
+  });
+  if (error) throw new Error(`stamp_email_complaint: ${error.message}`);
+  return data === true;
+}
 async function recordEmailStatus(db, p) {
   const { error } = await db.from("messages").update({ status: p.status, ...p.error ? { error: p.error } : {} }).eq("id", p.messageId).eq("tenant_id", p.tenantId).eq("channel", "email").eq("direction", "outbound");
   if (error && !/monotone|terminal/.test(error.message))
@@ -2765,6 +2776,12 @@ async function recordProviderDomain(db, id, p) {
 async function applyDomainCheck(db, row, patch) {
   const r2 = await db.from("sending_domains").update(patch).eq("id", row.id).eq("updated_at", row.updated_at).select("*").maybeSingle();
   return must("write a domain's check", r2);
+}
+async function sendingDomainCounts(db, tenantId, host, since) {
+  const r2 = await db.rpc("sending_domain_counts", { p_tenant_id: tenantId, p_host: host, p_since: since });
+  const c = must("count a domain's sends", r2) ?? {};
+  const n = (k) => typeof c[k] === "number" ? c[k] : Number(c[k] ?? 0) || 0;
+  return { sent: n("sent"), bounced: n("bounced"), complained: n("complained") };
 }
 async function deleteSendingDomain(db, tenantId, id) {
   const r2 = must(
@@ -3521,6 +3538,7 @@ export {
   resolveOutboundTarget,
   savedListFor,
   savedListsFor,
+  sendingDomainCounts,
   sendingDomainOf,
   sendingDomainsOf,
   sentEmailWithMessageId,
@@ -3528,6 +3546,7 @@ export {
   setListRule,
   setPersonReplyMode,
   setPolicyMode,
+  stampEmailComplaint,
   stampEmailSent,
   stampMailboxReceived,
   subscribeMessagesInserts,

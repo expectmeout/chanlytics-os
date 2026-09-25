@@ -244,6 +244,16 @@ const SendingDomains = ({ email, flash }) => {
     setArm(null);
     flash(r.ok ? { msg: <>{d.host} is removed. Nothing more is sent from it.</> } : window.refusalToast(r, "Not removed"));
   };
+  // A hold for bounces or a complaint is the owner's to lift: the ramp starts again, at its first step.
+  const firstStep = API.cap(new Date(now).toISOString(), now);
+  const resume = async (d) => {
+    setBusy(d.id);
+    const r = await API.resume(d.id);
+    setBusy(null);
+    setArm(null);
+    flash(r.ok ? { msg: <>{d.host} is sending again, up to {firstStep} a day.</> } : window.refusalToast(r, "Not resumed"));
+  };
+  const armed = (d, what) => arm && arm.id === d.id && arm.what === what;
   return (
     <div className="set-domains" data-testid="sending-domains">
       <div className="set-domains-head">
@@ -251,12 +261,13 @@ const SendingDomains = ({ email, flash }) => {
         <span className="k">cold email leaves only from a domain you own · replies come back to {email.mailbox.address}</span>
       </div>
       {!owner && window.gateTitle && (
-        <div className="set-dom set-dom-note"><span /><span className="t"><span>{window.gateTitle("team", "add, check or remove a domain")}</span></span></div>
+        <div className="set-dom set-dom-note"><span /><span className="t"><span>{window.gateTitle("team", "add, check, resume or remove a domain")}</span></span></div>
       )}
       {domains.map((d) => {
         const w = API.words(d, now);
         const dnsHold = d.state === "held" && API.dnsHolds.includes(d.held_why);
         const checkable = d.state === "records" || d.state === "verifying" || dnsHold;
+        const resumable = d.state === "held" && !dnsHold;
         const showRecords = d.state === "records" || d.state === "verifying" || dnsHold;
         return (
           <React.Fragment key={d.id}>
@@ -266,18 +277,24 @@ const SendingDomains = ({ email, flash }) => {
                 <b>{d.host}</b>
                 <span>{w.line}</span>
                 {w.next ? <span>{w.next}</span> : null}
-                {arm === d.id && (
+                {armed(d, "remove") && (
                   <Confirm question={`Remove ${d.host}?`} detail="Nothing more is sent from it; what was sent stays in its threads." yes="Yes, remove" danger busy={busy === d.id} onYes={() => remove(d)} onNo={() => setArm(null)} testid={`domain-remove-${d.host}`} />
+                )}
+                {armed(d, "resume") && (
+                  <Confirm question={`Resume ${d.host}?`} detail={`It starts again at ${firstStep} a day. It was held because ${API.holdWords(d.held_why)}: fix that first.`} yes="Yes, resume" busy={busy === d.id} onYes={() => resume(d)} onNo={() => setArm(null)} testid={`domain-resume-${d.host}`} />
                 )}
               </span>
               <span className="cap"><span>{w.cap}</span></span>
               <StatePill kind="tone" value={w.tone} label={w.pill} />
               <span className="set-int-actions">
-                {checkable && arm !== d.id && (
+                {checkable && !(arm && arm.id === d.id) && (
                   <button type="button" className="btn btn-sm" onClick={() => check(d)} disabled={busy !== null} data-testid={`domain-check-${d.host}`} {...(owner || !window.gate ? {} : window.gate("team", "check a domain"))}>{busy === d.id ? "Checking…" : "Check"}</button>
                 )}
-                {owner && arm !== d.id && (
-                  <button type="button" className="cl-bucket-link" onClick={() => setArm(d.id)} disabled={busy !== null} data-testid={`domain-remove-${d.host}`}>Remove</button>
+                {resumable && !(arm && arm.id === d.id) && (
+                  <button type="button" className="btn btn-sm" onClick={() => setArm({ id: d.id, what: "resume" })} disabled={busy !== null} data-testid={`domain-resume-${d.host}`} {...(owner || !window.gate ? {} : window.gate("team", "resume a domain"))}>Resume</button>
+                )}
+                {owner && !(arm && arm.id === d.id) && (
+                  <button type="button" className="cl-bucket-link" onClick={() => setArm({ id: d.id, what: "remove" })} disabled={busy !== null} data-testid={`domain-remove-${d.host}`}>Remove</button>
                 )}
               </span>
             </div>

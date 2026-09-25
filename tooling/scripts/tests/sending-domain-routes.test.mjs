@@ -27,6 +27,7 @@ const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server
 const add = await import(at("apps/dashboard/app/api/v1/sending-domains/route.ts"));
 const one = await import(at("apps/dashboard/app/api/v1/sending-domains/[id]/route.ts"));
 const check = await import(at("apps/dashboard/app/api/v1/sending-domains/[id]/check/route.ts"));
+const resume = await import(at("apps/dashboard/app/api/v1/sending-domains/[id]/resume/route.ts"));
 const { sendingDomainsFor, forgetDomainsReadiness, domainsReadiness } = await import(
   at("apps/dashboard/src/server/sending-domains.ts")
 );
@@ -81,6 +82,7 @@ test("all three are an owner's, in the workspace, under the settings limit", () 
   assert.deepEqual(add.POST.policy, policy);
   assert.deepEqual(one.DELETE.policy, policy);
   assert.deepEqual(check.POST.policy, policy);
+  assert.deepEqual(resume.POST.policy, policy);
 });
 
 test("an operator is refused, and a body with more than the three words is refused, before the edge is asked", async () => {
@@ -250,5 +252,37 @@ test("Setup never waits on the edge before the mailbox exists, and a domains rea
     assert.equal(broken.sending, null, "and the block is simply not drawn");
   } finally {
     net.restore();
+  }
+});
+
+test("Resume reaches the edge's door for this domain, and its refusals are the owner's words", async () => {
+  const net = edge(() => [200, { ok: true, domain: { ...DOMAIN, state: "verified" } }]);
+  try {
+    assert.deepEqual(await resume.POST.run(send("POST"), ctx()), { domain: { ...DOMAIN, state: "verified" } });
+    assert.deepEqual(
+      [net.calls[0].body.op, net.calls[0].body.domain_id, net.calls[0].body.tenant_id],
+      ["resume", D1, A],
+    );
+  } finally {
+    net.restore();
+  }
+  for (const [error, message] of [
+    ["dns_hold", "Press Check: this one lifts itself when its records pass."],
+    ["not_held", "getharbor.com isn't held."],
+    ["moved", "getharbor.com changed just now. Look again, then resume it."],
+  ]) {
+    const n = edge(() => [409, { ok: false, error, message }]);
+    try {
+      await refused(resume.POST.run(send("POST"), ctx()), "conflict", new RegExp(message.slice(0, 20)));
+    } finally {
+      n.restore();
+    }
+  }
+  const n = edge(() => [200, { ok: true }]);
+  try {
+    await refused(resume.POST.run(send("POST"), ctx("operator")), "forbidden");
+    assert.equal(n.calls.length, 0);
+  } finally {
+    n.restore();
   }
 });

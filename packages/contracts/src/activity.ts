@@ -144,6 +144,7 @@ const WORDS: Record<string, string> = {
   "sending_domain.verified": "A domain to send from was verified",
   "sending_domain.held": "A domain to send from was held",
   "sending_domain.released": "A domain to send from is sending again",
+  "sending_domain.resumed": "A domain to send from was resumed",
   "sending_domain.removed": "A domain to send from was removed",
   "lead.round": "A search for businesses",
   "lead.no_card": "An ask no source covers yet",
@@ -200,6 +201,7 @@ export function activityWords(kind: string, payload: unknown): string {
     case "sending_domain.verified":
     case "sending_domain.held":
     case "sending_domain.released":
+    case "sending_domain.resumed":
     case "sending_domain.removed": {
       const host = str(p, "host");
       if (host) bits.push(host);
@@ -375,6 +377,7 @@ const TONES: Record<string, Tone> = {
   "mailbox.created": "ok",
   "sending_domain.verified": "ok",
   "sending_domain.released": "ok",
+  "sending_domain.resumed": "ok",
   "workspace.created": "ok",
   approve: "ok",
   resolve: "ok",

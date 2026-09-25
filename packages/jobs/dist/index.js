@@ -267,6 +267,8 @@ var EVENT_KINDS = [
   "sending_domain.verified",
   "sending_domain.held",
   "sending_domain.released",
+  /** The owner resumed a domain held for its bounces or a complaint (00176): 30 a day again. */
+  "sending_domain.resumed",
   "sending_domain.removed",
   /** A lead search's round started, waited, or ended with one of the nine endings (00140). */
   "lead.round",
@@ -7496,6 +7498,8 @@ var EVENT_KINDS2 = [
   "sending_domain.verified",
   "sending_domain.held",
   "sending_domain.released",
+  /** The owner resumed a domain held for its bounces or a complaint (00176): 30 a day again. */
+  "sending_domain.resumed",
   "sending_domain.removed",
   /** A lead search's round started, waited, or ended with one of the nine endings (00140). */
   "lead.round",
@@ -10809,6 +10813,8 @@ var EVENT_KINDS3 = [
   "sending_domain.verified",
   "sending_domain.held",
   "sending_domain.released",
+  /** The owner resumed a domain held for its bounces or a complaint (00176): 30 a day again. */
+  "sending_domain.resumed",
   "sending_domain.removed",
   /** A lead search's round started, waited, or ended with one of the nine endings (00140). */
   "lead.round",
@@ -13165,6 +13171,8 @@ var EVENT_KINDS22 = [
   "sending_domain.verified",
   "sending_domain.held",
   "sending_domain.released",
+  /** The owner resumed a domain held for its bounces or a complaint (00176): 30 a day again. */
+  "sending_domain.resumed",
   "sending_domain.removed",
   /** A lead search's round started, waited, or ended with one of the nine endings (00140). */
   "lead.round",
@@ -15485,6 +15493,8 @@ var EVENT_KINDS32 = [
   "sending_domain.verified",
   "sending_domain.held",
   "sending_domain.released",
+  /** The owner resumed a domain held for its bounces or a complaint (00176): 30 a day again. */
+  "sending_domain.resumed",
   "sending_domain.removed",
   /** A lead search's round started, waited, or ended with one of the nine endings (00140). */
   "lead.round",
@@ -18368,6 +18378,8 @@ var EVENT_KINDS4 = [
   "sending_domain.verified",
   "sending_domain.held",
   "sending_domain.released",
+  /** The owner resumed a domain held for its bounces or a complaint (00176): 30 a day again. */
+  "sending_domain.resumed",
   "sending_domain.removed",
   /** A lead search's round started, waited, or ended with one of the nine endings (00140). */
   "lead.round",

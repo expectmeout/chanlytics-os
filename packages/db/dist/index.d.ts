@@ -3699,8 +3699,10 @@ type Database = {
             };
             sending_domains: {
                 Row: {
+                    bounced_recent: number | null;
                     checked_at: string | null;
                     clean_since: string | null;
+                    complaints: number | null;
                     created_at: string;
                     created_by: string | null;
                     dmarc: string | null;
@@ -3713,14 +3715,17 @@ type Database = {
                     provider_domain_id: string | null;
                     provider_status: string | null;
                     records: Json;
+                    sent_recent: number | null;
                     state: string;
                     tenant_id: string;
                     updated_at: string;
                     verified_at: string | null;
                 };
                 Insert: {
+                    bounced_recent?: number | null;
                     checked_at?: string | null;
                     clean_since?: string | null;
+                    complaints?: number | null;
                     created_at?: string;
                     created_by?: string | null;
                     dmarc?: string | null;
@@ -3733,14 +3738,17 @@ type Database = {
                     provider_domain_id?: string | null;
                     provider_status?: string | null;
                     records?: Json;
+                    sent_recent?: number | null;
                     state?: string;
                     tenant_id: string;
                     updated_at?: string;
                     verified_at?: string | null;
                 };
                 Update: {
+                    bounced_recent?: number | null;
                     checked_at?: string | null;
                     clean_since?: string | null;
+                    complaints?: number | null;
                     created_at?: string;
                     created_by?: string | null;
                     dmarc?: string | null;
@@ -3753,6 +3761,7 @@ type Database = {
                     provider_domain_id?: string | null;
                     provider_status?: string | null;
                     records?: Json;
+                    sent_recent?: number | null;
                     state?: string;
                     tenant_id?: string;
                     updated_at?: string;
@@ -4237,6 +4246,12 @@ type Database = {
                     p_tenant_id: string;
                 };
                 Returns: boolean;
+            };
+            email_from_host: {
+                Args: {
+                    p_meta: Json;
+                };
+                Returns: string;
             };
             ensure_events_partition: {
                 Args: {
@@ -5234,6 +5249,14 @@ type Database = {
                 };
                 Returns: number;
             };
+            sending_domain_counts: {
+                Args: {
+                    p_host: string;
+                    p_since: string;
+                    p_tenant_id: string;
+                };
+                Returns: Json;
+            };
             set_contact_consent: {
                 Args: {
                     p_consent: string;
@@ -5315,6 +5338,14 @@ type Database = {
                     p_what: string;
                 };
                 Returns: Json;
+            };
+            stamp_email_complaint: {
+                Args: {
+                    p_at: string;
+                    p_message_id: string;
+                    p_tenant_id: string;
+                };
+                Returns: boolean;
             };
             stamp_email_sent: {
                 Args: {
@@ -5700,6 +5731,15 @@ declare function stampEmailSent(db: Db$a, p: {
     conversationId: string;
 } | null>;
 /**
+ * A complaint, stamped once on the row it is about (00176), so the domain it left from answers for it. True when this
+ * stamped it; false when it was stamped before or is no such row.
+ */
+declare function stampEmailComplaint(db: Db$a, p: {
+    tenantId: string;
+    messageId: string;
+    at: string;
+}): Promise<boolean>;
+/**
  * Move a sent email to what its receipt says. A move messages_guard refuses
  * (backwards, or off a terminal state) is a receipt arriving out of order, and
  * is let go the way recordStatusByExternalId lets it go; anything else throws.
@@ -5778,6 +5818,15 @@ declare function recordProviderDomain(db: Db$9, id: string, p: {
  * clock, a removal) wins, and this answers null rather than overwrite what it did not see.
  */
 declare function applyDomainCheck(db: Db$9, row: SendingDomainRow, patch: Patch): Promise<SendingDomainRow | null>;
+/**
+ * What one own domain sent since it was last clean (00176): the last 500 that left, the bounces among them, and the
+ * complaints. A read that fails throws; the caller judges nothing on it.
+ */
+declare function sendingDomainCounts(db: Db$9, tenantId: string, host: string, since: string | null): Promise<{
+    sent: number;
+    bounced: number;
+    complained: number;
+}>;
 declare function deleteSendingDomain(db: Db$9, tenantId: string, id: string): Promise<boolean>;
 
 /** Webhook → tenant routing over tenant_channels(kind, external_id). */
@@ -6467,4 +6516,4 @@ interface Page<T> {
  */
 declare function readAllRows<T>(what: string, page: (from: number, to: number) => PromiseLike<Page<T>>, cap?: number, onCapped?: (what: string, cap: number) => void): Promise<T[]>;
 
-export { CALL_CONTROL_S, type ChannelLookup, type ControlHolder, type ControlOutcome, DEFAULT_ROW_CAP, type Database, HISTORY_COLUMNS, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type ListRow, MAX_ROWS, type MailboxRow, type NormalizedCallInput, type OutboundTarget, PEOPLE_PAGE, type Page, type PgThreadState, type PolicyRecord, type PutTenantConfigResult, type RoutedChannel, type SavedListRow, type SendingDomainHolder, type SendingDomainRow, type ServiceClientConfig, type SubscribeOptions, type TemplateRow, type TenantConfigRow, type ThreadTurn, type Touch, type TouchIndex, type WriteError, type YesRow, addToList, applyDomainCheck, archiveList, assembleHistory, claimCallNotification, claimControl, countSendingDomains, countSentToday, createList, createServiceClient, deleteList, deleteSendingDomain, describeLead, dropFromList, dueSendingDomains, emitEvent, everyoneIn, followUpTouchesSince, getTenantConfig, ingestCall, ingestInbound, ingestInboundEmail, lastInboundEmail, linkCallMessage, listMemberIds, listPolicies, listRow, mailboxById, mailboxFor, mailboxOfTenant, markProcessed, notesForReceptionist, pauseConversation, peoplePage, personReplyMode, playbooksOnList, putTenantConfig, readAllRows, readDealForPhone, readLeadContext, readThreadState, recordCallNote, recordEchoAndPause, recordEmailStatus, recordOutbound, recordProviderDomain, recordStatusByExternalId, releaseControl, renameList, reserveSendingDomain, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, savedListFor, savedListsFor, sendingDomainOf, sendingDomainsOf, sentEmailWithMessageId, setCallRecording, setListRule, setPersonReplyMode, setPolicyMode, stampEmailSent, stampMailboxReceived, subscribeMessagesInserts, suppressEmailOf, templatesFor, touchIndex, touchSendingDomain, touchesSince, watchedTables, yesesSince };
+export { CALL_CONTROL_S, type ChannelLookup, type ControlHolder, type ControlOutcome, DEFAULT_ROW_CAP, type Database, HISTORY_COLUMNS, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type ListRow, MAX_ROWS, type MailboxRow, type NormalizedCallInput, type OutboundTarget, PEOPLE_PAGE, type Page, type PgThreadState, type PolicyRecord, type PutTenantConfigResult, type RoutedChannel, type SavedListRow, type SendingDomainHolder, type SendingDomainRow, type ServiceClientConfig, type SubscribeOptions, type TemplateRow, type TenantConfigRow, type ThreadTurn, type Touch, type TouchIndex, type WriteError, type YesRow, addToList, applyDomainCheck, archiveList, assembleHistory, claimCallNotification, claimControl, countSendingDomains, countSentToday, createList, createServiceClient, deleteList, deleteSendingDomain, describeLead, dropFromList, dueSendingDomains, emitEvent, everyoneIn, followUpTouchesSince, getTenantConfig, ingestCall, ingestInbound, ingestInboundEmail, lastInboundEmail, linkCallMessage, listMemberIds, listPolicies, listRow, mailboxById, mailboxFor, mailboxOfTenant, markProcessed, notesForReceptionist, pauseConversation, peoplePage, personReplyMode, playbooksOnList, putTenantConfig, readAllRows, readDealForPhone, readLeadContext, readThreadState, recordCallNote, recordEchoAndPause, recordEmailStatus, recordOutbound, recordProviderDomain, recordStatusByExternalId, releaseControl, renameList, reserveSendingDomain, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, savedListFor, savedListsFor, sendingDomainCounts, sendingDomainOf, sendingDomainsOf, sentEmailWithMessageId, setCallRecording, setListRule, setPersonReplyMode, setPolicyMode, stampEmailComplaint, stampEmailSent, stampMailboxReceived, subscribeMessagesInserts, suppressEmailOf, templatesFor, touchIndex, touchSendingDomain, touchesSince, watchedTables, yesesSince };

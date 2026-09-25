@@ -149,6 +149,22 @@ export async function applyDomainCheck(db: Db, row: SendingDomainRow, patch: Pat
   return must("write a domain's check", r);
 }
 
+/**
+ * What one own domain sent since it was last clean (00176): the last 500 that left, the bounces among them, and the
+ * complaints. A read that fails throws; the caller judges nothing on it.
+ */
+export async function sendingDomainCounts(
+  db: Db,
+  tenantId: string,
+  host: string,
+  since: string | null,
+): Promise<{ sent: number; bounced: number; complained: number }> {
+  const r = await db.rpc("sending_domain_counts", { p_tenant_id: tenantId, p_host: host, p_since: since } as never);
+  const c = (must("count a domain's sends", r) ?? {}) as Record<string, unknown>;
+  const n = (k: string): number => (typeof c[k] === "number" ? (c[k] as number) : Number(c[k] ?? 0) || 0);
+  return { sent: n("sent"), bounced: n("bounced"), complained: n("complained") };
+}
+
 export async function deleteSendingDomain(db: Db, tenantId: string, id: string): Promise<boolean> {
   const r = must(
     "remove a domain",

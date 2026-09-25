@@ -1135,6 +1135,13 @@
       "role": "owner",
       "rate": "settings",
       "spend": false
+    },
+    "POST sending-domains/[id]/resume": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "settings",
+      "spend": false
     }
   }
 }
