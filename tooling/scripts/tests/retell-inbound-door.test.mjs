@@ -632,3 +632,48 @@ test("the platform's note is waited for: the answer is held while the note is in
     reply = null;
   }
 });
+
+test("(C3) a test of \"keep my number\" is proven as the call arrives: the carrier's headers naming the kept number verify it as the carrier's proof; headers that do not, as the window's -- and each says what it saw", async () => {
+  const KEPT = "+12125550142";
+  const forwardedLine = (w) => ({
+    id: `fw-${w.i}`,
+    tenant_id: w.T,
+    kind: "forwarded",
+    forwarding_state: "instructed",
+    e164: KEPT,
+    facts: {
+      carrier: "tmobile",
+      mode: "unanswered",
+      destination_e164: LINE,
+      test_from: w.CALLER,
+      test_started_at: ago(5 * 60_000),
+      test_until: new Date(Date.now() + 25 * 60_000).toISOString(),
+    },
+  });
+  for (const [headers, proof, by] of [
+    [{ diversion: `<sip:${KEPT}@carrier.example>;reason=no-answer,<sip:${LINE}@trunk.example>` }, "carrier", "carrier"],
+    [{ diversion: `<sip:${LINE}@trunk.example>;reason=unconditional` }, "not_shown", "window"],
+    [undefined, "unseen", "window"],
+  ]) {
+    const w = world();
+    w.tables.lines = [forwardedLine(w)];
+    w.tables.notifications = [];
+    w.tables.events = [];
+    w.open();
+    await listening(async (log) => {
+      const res = await knock(w.call(headers ? { custom_sip_headers: headers } : {}));
+      assert.equal(res.status, 200);
+      const seen = log.lines.filter((l) => l.event === "forwarding_evidence");
+      assert.deepEqual(
+        seen.map((l) => [l.line, l.call, l.proof]),
+        [[`fw-${w.i}`, w.CALL_ID, proof]],
+        "what the call showed, said",
+      );
+    });
+    const line = w.tables.lines[0];
+    assert.equal(line.forwarding_state, "verified", `${proof}: verified`);
+    assert.deepEqual([line.facts.verified_by, line.facts.verified_call_id], [by, w.CALL_ID]);
+    assert.equal(w.tables.events.find((e) => e.kind === "line.forwarding_verified").data.proof, proof);
+    assert.equal(w.tables.notifications.length, 1, "the owner is told once");
+  }
+});

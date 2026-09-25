@@ -7268,6 +7268,23 @@ function forwardingMatch(facts, call, nowMs = Date.now()) {
   if (testFrom && (!call.fromE164 || normalizePhone(call.fromE164) !== testFrom)) return false;
   return true;
 }
+function divertedNumbers(headers) {
+  if (!headers || typeof headers !== "object") return null;
+  const values = ["diversion", "history-info"].map((k) => headers[k]).filter((v) => typeof v === "string" && v.trim() !== "");
+  if (!values.length) return null;
+  const out = [];
+  for (const v of values)
+    for (const m of v.matchAll(/(?:sips?|tel):(\+?\d{7,15})/gi)) {
+      const n = normalizePhone(m[1]);
+      if (n && !out.includes(n)) out.push(n);
+    }
+  return out;
+}
+function forwardingProof(keptE164, diverted) {
+  if (diverted === null) return "unseen";
+  const kept = keptE164 ? normalizePhone(keptE164) : null;
+  return kept && diverted.includes(kept) ? "carrier" : "not_shown";
+}
 function forwardingTestOpen(facts, nowMs = Date.now()) {
   const until = typeof facts.test_until === "string" ? Date.parse(facts.test_until) : NaN;
   return !Number.isNaN(until) && until > nowMs;
@@ -23304,6 +23321,7 @@ export {
   deskSignVM,
   detectLanguage,
   deviceTimezone,
+  divertedNumbers,
   domainDailyCap,
   domainHoldWords,
   draftListRule,
@@ -23369,6 +23387,7 @@ export {
   forwardingCodes,
   forwardingDialLabel,
   forwardingMatch,
+  forwardingProof,
   forwardingTestOpen,
   frameGuardrail,
   frameHandOver,

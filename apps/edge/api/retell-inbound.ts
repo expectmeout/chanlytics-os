@@ -24,7 +24,8 @@
  * judgement never refuses: every way it can fall short is a fallback variable
  * and a line in the log.
  */
-import { phoneTail } from "../lib/packages/contracts.js";
+import { phoneTail, divertedNumbers } from "../lib/packages/contracts.js";
+import { markForwardingVerified } from "../lib/voice/forwarding.js";
 import { json } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
 import { planCallStart } from "../lib/voice/call-start.js";
@@ -42,7 +43,15 @@ export async function POST(request: Request): Promise<Response> {
   if (!voiceDoorAuth("inbound", request, raw, new URL(request.url).searchParams.get("key")).ok) {
     return json(401, { ok: false });
   }
-  let body: { call_inbound?: { call_id?: string; from_number?: string; agent_id?: string } } = {};
+  let body: {
+    call_inbound?: {
+      call_id?: string;
+      from_number?: string;
+      to_number?: string;
+      agent_id?: string;
+      custom_sip_headers?: Record<string, unknown>;
+    };
+  } = {};
   try {
     body = JSON.parse(raw);
   } catch {
@@ -106,6 +115,20 @@ export async function POST(request: Request): Promise<Response> {
     }).catch((e: unknown) => {
       L.error("retell_inbound_hold_failed", { error: e instanceof Error ? e.message : String(e) });
       return null;
+    });
+  }
+
+  // A test of "keep my number" is proven here, as the call arrives, with the one thing the call webhook never sees:
+  // the diversion headers, which may name the kept number the carrier forwarded from (lib/voice/forwarding.ts). Only a
+  // forwarded line inside its test window is read, and it never throws: a proof unrecorded costs nothing the call
+  // webhook will not do moments later without them.
+  if (db && start.tenantId && inbound.call_id) {
+    await markForwardingVerified(db, start.tenantId, {
+      fromE164: inbound.from_number ?? null,
+      toE164: inbound.to_number ?? null,
+      startedAtIso: new Date().toISOString(),
+      callId: inbound.call_id,
+      diverted: divertedNumbers(inbound.custom_sip_headers),
     });
   }
 
