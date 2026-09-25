@@ -484,7 +484,7 @@ test("wiring: the saga's ports, the receptionist shared with voice-provision, th
   // their own phone number -- and the half it would most likely get wrong is the
   // failure half, which is the half that matters.
   const prov = readCode("apps/edge/lib/lines/provision.ts");
-  assert.ok(prov.includes("runLineSaga(line, linePorts(db, cfg, secrets, tenant, line, choice))"));
+  assert.ok(prov.includes("runLineSaga(line, { ...linePorts(db, cfg, secrets, tenant, line, choice), timeLeft })"));
   assert.ok(
     prov.includes('kind: "number",') && prov.includes("title: `Your phone line is ready: ${shown}`"),
     "the bell on success",
@@ -1021,4 +1021,196 @@ test("a holder with no number of its own does not erase the number the row publi
   assert.deepEqual(r, { ok: true, released: { channel_kept: "ch-voice" } });
   assert.equal(tables.tenant_channels[0].number_e164, "+13055550100", "left alone rather than nulled");
   assert.equal(tables.tenant_channels[0].config.line_id, "line-b", "but the row still names a line that exists");
+});
+
+/* ---- (C1) a run bounded by its deadline, and a create whose receipt was lost ---- */
+
+test("(C1) a run out of time stops between two provider calls, fails nothing, and the next run goes on from its step with nothing made twice", async () => {
+  const f = fakes();
+  const first = await runLineSaga(freshLine(), {
+    ...f.ports,
+    timeLeft: () => (f.provider.calls.length >= 4 ? 0 : 60_000),
+  });
+  assert.equal(first.ok, true);
+  assert.equal(first.later, true);
+  assert.equal(first.step, "trunk");
+  assert.deepEqual(ops(f.provider), ["createSubaccount", "ownedNumber", "buyNumber", "createTrunk"]);
+  assert.equal(first.line.voice_state, "provisioning", "still setting up, not failed");
+  assert.equal(first.line.last_error, null);
+  assert.ok(!f.saves.some((s) => s.voice_state === "failed"), "nothing on the row says it failed");
+  assert.match(first.line.trunk_sid, /^TK/, "the call that was made kept its receipt");
+
+  const again = await runLineSaga(first.line, f.ports);
+  assert.equal(again.ok, true);
+  assert.equal(again.later, undefined);
+  assert.equal(again.line.voice_state, "answering");
+  assert.deepEqual(
+    ops(f.provider),
+    [
+      "createSubaccount",
+      "ownedNumber",
+      "buyNumber",
+      "createTrunk",
+      "createCredentialList",
+      "addCredential",
+      "attachCredentialList",
+      "addOrigination",
+      "attachNumber",
+      "createMessagingService",
+      "addNumberToService",
+    ],
+    "the two runs together made exactly what one fresh run makes",
+  );
+  // Out of time before the first call: no call at all, and still nothing failed.
+  const g = fakes();
+  const none = await runLineSaga(freshLine(), { ...g.ports, timeLeft: () => 0 });
+  assert.deepEqual([none.ok, none.later, none.step, g.provider.calls.length], [true, true, "subaccount", 0]);
+});
+
+test("(C1) the receptionist's step, three Retell calls, starts only with room for all three; a carrier call needs only its own", async () => {
+  const f = fakes();
+  const agents = [];
+  f.ports.agent = {
+    ensure: async () => {
+      agents.push("ensure");
+      return { agentId: "agent_x", llmId: "llm_x", pinned: true };
+    },
+  };
+  // Five seconds left: enough to start any carrier call, not the receptionist's three.
+  const first = await runLineSaga(freshLine(), { ...f.ports, timeLeft: () => 5_000 });
+  assert.deepEqual([first.ok, first.later, first.step], [true, true, "agent"]);
+  assert.deepEqual(agents, [], "not started");
+  assert.equal(nextLineStep(first.line), "agent", "every carrier step before it done");
+  const again = await runLineSaga(first.line, { ...f.ports, timeLeft: () => 30_000 });
+  assert.equal(again.line.voice_state, "answering");
+  assert.deepEqual(agents, ["ensure"]);
+});
+
+/**
+ * A store that keeps what was written, and loses the first write that carries `receipt` -- the run killed after the
+ * provider answered and before the row heard. What the next run starts from is what was KEPT, not the saga's own copy.
+ */
+function losing(f, receipt) {
+  let kept = freshLine();
+  let lost = false;
+  const carries = (p) => receipt(p) && !lost;
+  f.ports.store.save = async (p) => {
+    if (carries(p)) {
+      lost = true;
+      throw new Error("the run was cut off");
+    }
+    f.saves.push(p);
+    kept = { ...kept, ...p, facts: p.facts ? { ...p.facts } : kept.facts };
+  };
+  return () => kept;
+}
+
+for (const [thing, key, receipt, made, looked] of [
+  ["subaccount", "subaccount", (p) => !!p.subaccount_sid, "createSubaccount", "findSubaccount"],
+  ["trunk", "trunk", (p) => !!p.trunk_sid, "createTrunk", "findTrunk"],
+  ["credential list", "credential_list", (p) => !!p.credential_list_sid, "createCredentialList", "findCredentialList"],
+  [
+    "origination",
+    "origination",
+    (p) => typeof p.facts?.origination_sid === "string",
+    "addOrigination",
+    "findOrigination",
+  ],
+]) {
+  test(`(C1) a ${thing} made by a run cut off before its receipt is found by the next run, never made twice`, async () => {
+    const f = fakes();
+    const kept = losing(f, receipt);
+    const first = await runLineSaga(freshLine(), f.ports);
+    assert.equal(first.ok, false);
+    assert.equal(kept().facts[`asked_${key}`], true, "asked, on the row, before the provider was");
+    const again = await runLineSaga(kept(), f.ports);
+    assert.equal(again.ok, true, again.ok ? "" : again.error);
+    assert.equal(again.line.voice_state, "answering");
+    assert.equal(ops(f.provider).filter((o) => o === made).length, 1, `one ${thing}`);
+    assert.equal(ops(f.provider).filter((o) => o === looked).length, 1, "looked for once, on the run after");
+  });
+}
+
+test("(C1) a SIP credential whose password went with the run that made it is removed and made again -- the list holds its username once", async () => {
+  const f = fakes();
+  const realPut = f.ports.store.putSecrets;
+  let cut = false;
+  f.ports.store.putSecrets = async (s) => {
+    if (s.sip_password && !cut) {
+      cut = true;
+      throw new Error("the run was cut off");
+    }
+    return realPut(s);
+  };
+  const first = await runLineSaga(freshLine(), f.ports);
+  assert.equal(first.ok, false);
+  assert.equal(f.secrets().sip_password, undefined, "the password is lost");
+  const again = await runLineSaga(first.line, f.ports);
+  assert.equal(again.ok, true, again.ok ? "" : again.error);
+  const trunkOps = ops(f.provider).filter((o) => /Credential$|^findCredential$|deleteCredential/.test(o));
+  assert.deepEqual(trunkOps, ["addCredential", "findCredential", "deleteCredential", "addCredential"]);
+  assert.ok(isValidSipPassword(f.secrets().sip_password), "and the vault holds the password of the one that stands");
+});
+
+test("(C1) Twilio: each look is one read in the right account, matched on what the line owns; a closed subaccount is no find, and a read that fails throws", async () => {
+  const calls = [];
+  let answer = { status: 200, body: {} };
+  const tw = twilioProvider(async (acct, method, url) => {
+    calls.push([acct.sid, method, url]);
+    return answer;
+  });
+  const master = { sid: "ACmaster", token: "t" };
+  const sub = { sid: "ACsub", token: "s" };
+  const name = "Harbor Moving Co. · Chanlytics · 0f3c2a1e1111";
+
+  answer = {
+    status: 200,
+    body: {
+      accounts: [
+        { sid: "ACold", auth_token: "x", status: "closed" },
+        { sid: "ACsub", auth_token: "s", status: "active" },
+      ],
+    },
+  };
+  assert.deepEqual(await tw.findSubaccount(master, name), { sid: "ACsub", token: "s" });
+  assert.deepEqual(calls.at(-1), [
+    "ACmaster",
+    "GET",
+    `${twilioUrls.subaccounts}?FriendlyName=${encodeURIComponent(name).replace(/%20/g, "+")}&PageSize=20`,
+  ]);
+
+  answer = {
+    status: 200,
+    body: {
+      trunks: [
+        { sid: "TKother", domain_name: "x.pstn.twilio.com" },
+        { sid: "TK1", domain_name: trunkDomain(LINE_ID) },
+      ],
+    },
+  };
+  assert.deepEqual(await tw.findTrunk(sub, trunkDomain(LINE_ID)), { sid: "TK1", domainName: trunkDomain(LINE_ID) });
+  assert.deepEqual(calls.at(-1), ["ACsub", "GET", `${twilioUrls.trunks}?PageSize=50`]);
+
+  answer = {
+    status: 200,
+    body: { credential_lists: [{ sid: "CL1", friendly_name: "Harbor Moving Co. · Chanlytics" }] },
+  };
+  assert.deepEqual(await tw.findCredentialList(sub, "Harbor Moving Co. · Chanlytics"), { sid: "CL1" });
+  assert.equal(await tw.findCredentialList(sub, "Another"), null);
+  assert.deepEqual(calls.at(-1), ["ACsub", "GET", `${twilioUrls.credentialLists("ACsub")}?PageSize=50`]);
+
+  answer = { status: 200, body: { credentials: [{ sid: "CR1", username: sipUsername(LINE_ID) }] } };
+  assert.deepEqual(await tw.findCredential(sub, "CL1", sipUsername(LINE_ID)), { sid: "CR1" });
+  assert.deepEqual(calls.at(-1), ["ACsub", "GET", `${twilioUrls.credentials("ACsub", "CL1")}?PageSize=50`]);
+  answer = { status: 204, body: null };
+  await tw.deleteCredential(sub, "CL1", "CR1");
+  assert.deepEqual(calls.at(-1), ["ACsub", "DELETE", twilioUrls.credential("ACsub", "CL1", "CR1")]);
+
+  answer = { status: 200, body: { origination_urls: [{ sid: "OU1", sip_url: RETELL_ORIGINATION }] } };
+  assert.deepEqual(await tw.findOrigination(sub, "TK1", RETELL_ORIGINATION), { sid: "OU1" });
+  assert.deepEqual(calls.at(-1), ["ACsub", "GET", `${twilioUrls.trunkOriginationUrls("TK1")}?PageSize=50`]);
+
+  answer = { status: 500, body: { code: 20500, message: "internal error" } };
+  await assert.rejects(tw.findTrunk(sub, trunkDomain(LINE_ID)), /list trunks: internal error \(Twilio 20500\)/);
+  await assert.rejects(tw.findSubaccount(master, name), TwilioError);
 });

@@ -65,6 +65,30 @@ test("the handler hands the line to the injected saga and is done; a saga that s
   );
 });
 
+test("(C1) the saga gets the job's deadline, and a run that stopped for time is one more job of this kind -- the rest of the steps, not a failure", async () => {
+  const scheduled = [];
+  const handed = [];
+  const c = {
+    ...ctx(async (lineId, by, deadline) => {
+      handed.push([lineId, by, deadline]);
+      return { ok: true, did: "ran", more: true, step: "trunk" };
+    }),
+    schedule: async (kind, dueAt, payload) => {
+      scheduled.push([kind, dueAt instanceof Date, payload]);
+    },
+  };
+  assert.equal(await dispatchJob(c, job({ line_id: "l1", by: "owner" })), "done");
+  assert.deepEqual(handed, [["l1", "owner", c.deadline]]);
+  assert.deepEqual(scheduled, [["line_provision", true, { line_id: "l1", by: "owner" }]]);
+  // A run that finished schedules nothing more.
+  scheduled.length = 0;
+  await dispatchJob(
+    { ...c, provisionLine: async () => ({ ok: true, did: "ran" }) },
+    job({ line_id: "l1", by: "owner" }),
+  );
+  assert.deepEqual(scheduled, []);
+});
+
 /* ---- the edge's port: what the row says decides the run ---- */
 const line = (voice_state, over = {}) => ({
   id: "l1",
@@ -212,4 +236,22 @@ test("at the ceiling the ledger stops resuming and hands the line to a person", 
   assert.equal(r.did, "nothing");
   assert.equal(r.why, "exhausted");
   assert.match(r.error, /a person retries it from Setup/);
+});
+
+test("(C1) the edge's port hands the saga the deadline and says `more` when it stopped for time", async () => {
+  const seen = [];
+  const db = fakeDb({ lines: [line("provisioning")], tenants: [tenant] });
+  const until = Date.now() + 45_000;
+  const r = await provisionLineJob(
+    db,
+    "l1",
+    "owner",
+    deps(async (_db, _c, _cfg, _s, _t, l, by, deadline) => {
+      seen.push([l.id, by, deadline]);
+      return { ok: true, later: true, step: "trunk", line: l };
+    }),
+    until,
+  );
+  assert.deepEqual(r, { ok: true, did: "ran", more: true, step: "trunk" });
+  assert.deepEqual(seen, [["l1", "owner", until]]);
 });

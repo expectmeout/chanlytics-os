@@ -75,7 +75,9 @@ export interface JobContext {
   provisionLine?: (
     lineId: string,
     by: "owner" | "support" | "sweep",
-  ) => Promise<{ ok: boolean; step?: string; error?: string; did?: string }>;
+    /** No provider call starts after this (the job's deadline); the saga stops between two and says `more`. */
+    deadline?: number,
+  ) => Promise<{ ok: boolean; step?: string; error?: string; did?: string; more?: boolean }>;
   /**
    * Email's intake, as the edge holds it. INJECTED like the one above: the
    * provider's key and the deployment's mail domain live on the edge, and so
@@ -416,7 +418,15 @@ async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
 }
 /** line_provision: core's provisionLine, over the saga the edge injects. */
 async function lineProvision(ctx: JobContext, job: ClaimedJob): Promise<void> {
-  await provisionLine({ ...(ctx.provisionLine ? { provision: ctx.provisionLine } : {}) }, { payload: job.payload });
+  await provisionLine(
+    {
+      ...(ctx.provisionLine ? { provision: ctx.provisionLine } : {}),
+      // The saga stops between two provider calls at the job's deadline, and the rest is one more job of this kind.
+      next: (payload) => ctx.schedule("line_provision", new Date(), payload as Json),
+      deadline: ctx.deadline,
+    },
+    { payload: job.payload },
+  );
 }
 /**
  * The provider's email, as the verb takes it: what it claims to be, its words

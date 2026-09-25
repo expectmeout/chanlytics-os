@@ -83,9 +83,25 @@ export async function provisionLine(
    * in the type system noticing.
    */
   by: ResumedBy,
+  /**
+   * Epoch ms after which the saga starts no more provider calls (the job's deadline). Past it the run stops between
+   * two calls with `later`, and the job hands the rest to the next one. Without it the run goes to the end.
+   */
+  deadline?: number,
 ) {
-  const result = await runLineSaga(line, linePorts(db, cfg, secrets, tenant, line, choice));
+  const timeLeft = deadline === undefined ? undefined : () => deadline - Date.now();
+  const result = await runLineSaga(line, { ...linePorts(db, cfg, secrets, tenant, line, choice), timeLeft });
   const shown = formatPhoneDisplay(result.line.e164) ?? result.line.e164 ?? "your number";
+  if (result.ok && result.later) {
+    // Nobody is told anything: the line is still setting up, and the next run goes on from its step.
+    logger({ tenant: tenant.id }).info("line_saga_later", {
+      line: line.id,
+      step: result.step,
+      provider: choice.name,
+      by,
+    });
+    return result;
+  }
   if (result.ok) {
     await recordNotification(tenant.id, {
       kind: "number",

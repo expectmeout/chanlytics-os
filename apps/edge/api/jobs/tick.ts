@@ -97,7 +97,7 @@ export async function POST(request: Request): Promise<Response> {
               page: (key, subject, body) => pageOperator({ db }, key, subject, body),
               // The phones, through Expo's push service: no per-tenant credential, one transport for all.
               push: expoPush(),
-              provisionLine: (lineId, by) => provisionLineJob(db, lineId, by),
+              provisionLine: (lineId, by, until) => provisionLineJob(db, lineId, by, undefined, until),
               ...(intake ? { email: intake } : {}),
               ...(leads ? { leads } : {}),
               // A job that continues itself (a broadcast's next batch) is one

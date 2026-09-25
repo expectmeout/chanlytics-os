@@ -256,11 +256,14 @@ interface JobContext {
      * one; a job of this kind in a runtime without it fails loudly rather than
      * guessing.
      */
-    provisionLine?: (lineId: string, by: "owner" | "support" | "sweep") => Promise<{
+    provisionLine?: (lineId: string, by: "owner" | "support" | "sweep", 
+    /** No provider call starts after this (the job's deadline); the saga stops between two and says `more`. */
+    deadline?: number) => Promise<{
         ok: boolean;
         step?: string;
         error?: string;
         did?: string;
+        more?: boolean;
     }>;
     /**
      * Email's intake, as the edge holds it. INJECTED like the one above: the

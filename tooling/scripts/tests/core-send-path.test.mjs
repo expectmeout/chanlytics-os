@@ -247,10 +247,10 @@ test("an email's queued row leaves as the request it was frozen with, to the add
 test("the provisioning: the saga is the edge's; a runtime without it fails loudly, and a saga that stopped names its step", async () => {
   const { ports, log } = fakes();
   await core.provisionLine(ports, { payload: { line_id: "l1", by: "sweep" } });
-  assert.deepEqual(log[0], ["provision", "l1", "sweep"]);
+  assert.deepEqual(log[0], ["provision", "l1", "sweep", undefined], "no deadline: the run goes to the end");
   const who = fakes();
   await core.provisionLine(who.ports, { payload: { line_id: "l1", by: "nobody" } });
-  assert.deepEqual(who.log[0], ["provision", "l1", "owner"], "an unknown actor is the owner");
+  assert.deepEqual(who.log[0], ["provision", "l1", "owner", undefined], "an unknown actor is the owner");
   await assert.rejects(core.provisionLine(fakes().ports, { payload: {} }), /line_id is required/);
   await assert.rejects(
     core.provisionLine(fakes({ provision: ABSENT }).ports, { payload: { line_id: "l1" } }),
