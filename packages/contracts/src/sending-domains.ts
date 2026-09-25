@@ -139,12 +139,38 @@ export interface SendingDomainDto {
   records: DomainRecord[];
   checked_at: string | null;
   created_at: string;
+  /** What the clock last counted since the domain was clean (00176): sends, bounces among the last 500, complaints. Null until counted. */
+  sent_recent: number | null;
+  bounced_recent: number | null;
+  complaints: number | null;
 }
 
-/** What the edge just read: the provider's word (null: could not ask) and DMARC (null: could not read). */
+/** What one own domain sent since it was last clean (00176 sending_domain_counts). */
+export interface DomainCounts {
+  sent: number;
+  bounced: number;
+  complained: number;
+}
+
+/**
+ * The reputation a domain answers for: any complaint holds it, and outranks bounces; bounces hold it past 2% of what
+ * it sent, over at least 150 sends, so three unlucky bounces in a domain's first thirty do not stop it.
+ */
+export function reputationHoldOf(c: DomainCounts | null): "complaint" | "bounces" | null {
+  if (!c) return null;
+  if (c.complained >= 1) return "complaint";
+  if (c.bounced * 50 > Math.max(c.sent, 150)) return "bounces";
+  return null;
+}
+
+/**
+ * What the edge just read: the provider's word (null: could not ask), DMARC (null: could not read), and what the
+ * domain sent (null: not counted, because it is not verified or the count could not be read).
+ */
 export interface DomainFacts {
   provider: string | null;
   dmarc: DmarcState | null;
+  counts: DomainCounts | null;
 }
 
 /** The row as it stands, with the DMARC answer it last stored: a missing record holds only when it was missing before. */
@@ -155,7 +181,7 @@ export type DomainRowState = Pick<
 
 export interface DomainJudgement extends DomainRowState {
   /** What changed, for the event and the owner; null when nothing did. */
-  change: null | "verified" | "held" | "released";
+  change: null | "verified" | "held" | "released" | "resumed";
 }
 
 const CHECKING: ReadonlySet<string> = new Set(["pending", "temporary_failure", "partially_verified"]);
@@ -166,7 +192,9 @@ const CHECKING: ReadonlySet<string> = new Set(["pending", "temporary_failure", "
  *                      provider verified + DMARC missing    → records
  *                      provider pending/partly/temporarily  → verifying
  *                      anything else                        → records
- *   verified           provider pending                     → unchanged: a check in progress, the owner's own
+ *   verified           a complaint, or bounces past 2%       → held, complaint | bounces       change "held"
+ *                                                               (reputationHoldOf; first, and only the owner lifts it)
+ *                      provider pending                     → unchanged: a check in progress, the owner's own
  *                                                               Check included (the provider marks a domain
  *                                                               pending whatever it was), is not a failure
  *                      provider anything else not verified  → held, verification            change "held"
@@ -175,7 +203,7 @@ const CHECKING: ReadonlySet<string> = new Set(["pending", "temporary_failure", "
  *                                                               next read, ten minutes on, confirms or clears it:
  *                                                               nameservers that disagree mid-move are one bad read)
  *   held (DNS)         provider verified + DMARC found      → verified (clean from now)       change "released"
- *   held (reputation)  unchanged: only the owner resumes it (PR 5).
+ *   held (reputation)  unchanged: only the owner resumes it (resumeDomain).
  * An unreadable provider changes nothing, and an unreadable DMARC neither holds nor verifies: "we could not look"
  * is not a fact about the domain.
  */
@@ -198,6 +226,8 @@ export function judgeDomain(row: DomainRowState, facts: DomainFacts, nowIso: str
     return { ...same, state: CHECKING.has(facts.provider) ? "verifying" : "records" };
   }
   if (row.state === "verified") {
+    const reputation = reputationHoldOf(facts.counts);
+    if (reputation) return { ...same, state: "held", held_why: reputation, held_at: nowIso, change: "held" };
     if (!verified && facts.provider !== "pending")
       return { ...same, state: "held", held_why: "verification", held_at: nowIso, change: "held" };
     if (facts.dmarc === "missing" && row.dmarc === "missing")
@@ -216,6 +246,25 @@ export function judgeDomain(row: DomainRowState, facts: DomainFacts, nowIso: str
       change: "released",
     };
   return same;
+}
+
+/**
+ * The owner's Resume: a reputation hold lifted, and the ramp started again from today (clean_since now, so 30 a day).
+ * A DNS hold lifts itself when Check passes, and a domain that is not held has nothing to resume: both unchanged.
+ */
+export function resumeDomain(row: DomainRowState, nowIso: string): DomainJudgement {
+  if (row.state !== "held" || !row.held_why || DNS_HOLDS.includes(row.held_why)) return { ...row, change: null };
+  return { ...row, state: "verified", held_why: null, held_at: null, clean_since: nowIso, change: "resumed" };
+}
+
+/** "0.4% bounced · none marked as spam", once the domain has been counted with something sent; null before. */
+export function domainStatsWords(
+  d: Pick<SendingDomainDto, "sent_recent" | "bounced_recent" | "complaints">,
+): string | null {
+  if (!d.sent_recent) return null;
+  const pct = Math.round(((d.bounced_recent ?? 0) / d.sent_recent) * 1000) / 10;
+  const spam = d.complaints ? `${d.complaints} marked as spam` : "none marked as spam";
+  return `${pct}% bounced · ${spam}`;
 }
 
 const HOLD_WORDS: Record<DomainHold, string> = {
@@ -267,7 +316,7 @@ export function sendingDomainWords(d: SendingDomainDto, nowMs: number): SendingD
     return {
       pill: "Verified",
       tone: "ok",
-      line: `${who} · ${days} clean day${days === 1 ? "" : "s"}`,
+      line: [`${who} · ${days} clean day${days === 1 ? "" : "s"}`, domainStatsWords(d)].filter(Boolean).join(" · "),
       cap: `Up to ${cap} a day`,
       next: step ? `${step.perDay} a day after ${step.days} clean days` : null,
     };

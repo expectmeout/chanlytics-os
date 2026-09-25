@@ -31,6 +31,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   emitEvent,
   recordEmailStatus,
+  stampEmailComplaint,
   stampEmailSent,
   suppressEmailOf,
   type Database,
@@ -66,6 +67,9 @@ export async function applyEmailReceipt(db: Db, r: EmailReceipt, nowIso: string)
       throw new Error(`email receipt: message ${r.messageId} failed and its thread could not be flagged`);
   }
   if (effect.status) await recordEmailStatus(db, { ...row, status: effect.status, error: effect.error as Json | null });
+  // A complaint arrives after delivery and moves no status: the row is stamped, so the domain it left from counts it
+  // (00176). Before the suppression, so a retry of a half-applied receipt still counts it once.
+  if (r.type === "complained") await stampEmailComplaint(db, { ...row, at: nowIso });
   if (effect.suppress) {
     const contactId = await suppressEmailOf(db, { ...row, addresses: r.to, reason: effect.suppress, at: nowIso });
     const stopped = { reason: effect.suppress };

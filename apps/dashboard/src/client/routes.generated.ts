@@ -136,6 +136,7 @@ export const ROUTES = {
   "POST segments/draft": { method: "POST", path: "/api/v1/segments/draft" },
   "POST sending-domains": { method: "POST", path: "/api/v1/sending-domains" },
   "POST sending-domains/[id]/check": { method: "POST", path: "/api/v1/sending-domains/[id]/check" },
+  "POST sending-domains/[id]/resume": { method: "POST", path: "/api/v1/sending-domains/[id]/resume" },
   "POST settings/receptionist": { method: "POST", path: "/api/v1/settings/receptionist" },
   "POST setup/request": { method: "POST", path: "/api/v1/setup/request" },
   "POST team/invite": { method: "POST", path: "/api/v1/team/invite" },
@@ -302,6 +303,7 @@ export type Routes = {
   "POST segments/draft": typeof import("../../app/api/v1/segments/draft/route").POST;
   "POST sending-domains": typeof import("../../app/api/v1/sending-domains/route").POST;
   "POST sending-domains/[id]/check": typeof import("../../app/api/v1/sending-domains/[id]/check/route").POST;
+  "POST sending-domains/[id]/resume": typeof import("../../app/api/v1/sending-domains/[id]/resume/route").POST;
   "POST settings/receptionist": typeof import("../../app/api/v1/settings/receptionist/route").POST;
   "POST setup/request": typeof import("../../app/api/v1/setup/request/route").POST;
   "POST team/invite": typeof import("../../app/api/v1/team/invite/route").POST;

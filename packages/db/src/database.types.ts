@@ -3701,8 +3701,10 @@ export type Database = {
       }
       sending_domains: {
         Row: {
+          bounced_recent: number | null
           checked_at: string | null
           clean_since: string | null
+          complaints: number | null
           created_at: string
           created_by: string | null
           dmarc: string | null
@@ -3715,14 +3717,17 @@ export type Database = {
           provider_domain_id: string | null
           provider_status: string | null
           records: Json
+          sent_recent: number | null
           state: string
           tenant_id: string
           updated_at: string
           verified_at: string | null
         }
         Insert: {
+          bounced_recent?: number | null
           checked_at?: string | null
           clean_since?: string | null
+          complaints?: number | null
           created_at?: string
           created_by?: string | null
           dmarc?: string | null
@@ -3735,14 +3740,17 @@ export type Database = {
           provider_domain_id?: string | null
           provider_status?: string | null
           records?: Json
+          sent_recent?: number | null
           state?: string
           tenant_id: string
           updated_at?: string
           verified_at?: string | null
         }
         Update: {
+          bounced_recent?: number | null
           checked_at?: string | null
           clean_since?: string | null
+          complaints?: number | null
           created_at?: string
           created_by?: string | null
           dmarc?: string | null
@@ -3755,6 +3763,7 @@ export type Database = {
           provider_domain_id?: string | null
           provider_status?: string | null
           records?: Json
+          sent_recent?: number | null
           state?: string
           tenant_id?: string
           updated_at?: string
@@ -4209,6 +4218,7 @@ export type Database = {
         Args: { p_tenant_id: string }
         Returns: boolean
       }
+      email_from_host: { Args: { p_meta: Json }; Returns: string }
       ensure_events_partition: { Args: { p_month: string }; Returns: undefined }
       erase_contact: {
         Args: { p_contact_id: string; p_legs?: Json }
@@ -4910,6 +4920,10 @@ export type Database = {
         Args: { p_contact_id: string; p_tenant_id: string }
         Returns: number
       }
+      sending_domain_counts: {
+        Args: { p_host: string; p_since: string; p_tenant_id: string }
+        Returns: Json
+      }
       set_contact_consent: {
         Args: {
           p_consent: string
@@ -4970,6 +4984,10 @@ export type Database = {
       setup_request: {
         Args: { p_tenant_id: string; p_what: string }
         Returns: Json
+      }
+      stamp_email_complaint: {
+        Args: { p_at: string; p_message_id: string; p_tenant_id: string }
+        Returns: boolean
       }
       stamp_email_sent: {
         Args: {

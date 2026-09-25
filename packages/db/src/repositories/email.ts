@@ -197,6 +197,23 @@ export async function stampEmailSent(
 }
 
 /**
+ * A complaint, stamped once on the row it is about (00176), so the domain it left from answers for it. True when this
+ * stamped it; false when it was stamped before or is no such row.
+ */
+export async function stampEmailComplaint(
+  db: Db,
+  p: { tenantId: string; messageId: string; at: string },
+): Promise<boolean> {
+  const { data, error } = await db.rpc("stamp_email_complaint", {
+    p_tenant_id: p.tenantId,
+    p_message_id: p.messageId,
+    p_at: p.at,
+  } as never);
+  if (error) throw new Error(`stamp_email_complaint: ${error.message}`);
+  return data === true;
+}
+
+/**
  * Move a sent email to what its receipt says. A move messages_guard refuses
  * (backwards, or off a terminal state) is a receipt arriving out of order, and
  * is let go the way recordStatusByExternalId lets it go; anything else throws.

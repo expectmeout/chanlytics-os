@@ -220,6 +220,20 @@ function world({ status = "sent", email = ADDRESS, faults = {} } = {}) {
       if (a.p_rfc_message_id) m.meta = { ...m.meta, email: { ...m.meta.email, message_id: a.p_rfc_message_id } };
       return [{ status: m.status, conversation_id: m.conversation_id }];
     },
+    // 00176: once, on this workspace's outbound email. Records whether the address was already stopped when it ran.
+    stamp_email_complaint: (a) => {
+      const m = tables.messages.find(
+        (x) =>
+          x.id === a.p_message_id &&
+          x.tenant_id === a.p_tenant_id &&
+          x.channel === "email" &&
+          x.direction === "outbound",
+      );
+      if (!m || !m.meta?.email || m.meta.email.complained_at) return false;
+      m.meta = { ...m.meta, email: { ...m.meta.email, complained_at: a.p_at } };
+      tables.stampedBeforeSuppression = tables.contacts[0].email_suppressed_at === null;
+      return true;
+    },
   };
   setPg(fakeDb(tables, faults, rpcs));
   return tables;
@@ -291,6 +305,12 @@ test("a complaint arrives after delivery: the row stays delivered and the addres
   assert.equal(await post(receipt("complained")), 200);
   assert.deepEqual([t.messages[0].status, t.contacts[0].email_suppressed_reason], ["delivered", "complaint"]);
   assert.deepEqual(t.escalations, [], "nothing failed to arrive");
+  // The row is stamped, so the domain it left from answers for it (00176), and before the address stops.
+  assert.ok(t.messages[0].meta.email.complained_at);
+  assert.equal(t.stampedBeforeSuppression, true);
+  const first = t.messages[0].meta.email.complained_at;
+  assert.equal(await post(receipt("complained")), 200, "Resend delivers at least once");
+  assert.equal(t.messages[0].meta.email.complained_at, first, "stamped once");
 
   const corrected = world({ email: "ana.new@example.com" });
   assert.equal(await post(receipt("bounced", BOUNCE)), 200);

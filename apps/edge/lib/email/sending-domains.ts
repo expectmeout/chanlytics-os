@@ -14,6 +14,7 @@ import {
   emitEvent,
   recordProviderDomain,
   reserveSendingDomain,
+  sendingDomainCounts,
   touchSendingDomain,
   type Database,
   type Json,
@@ -32,14 +33,17 @@ import {
 import {
   domainHoldWords,
   judgeDomain,
+  resumeDomain,
   normalizeFromLocal,
   normalizeHost,
   whyNotAFromLocal,
   whyNotAFromName,
   whyNotASendingHost,
   SENDING_DOMAINS_MAX,
+  type DomainCounts,
   type DomainHold,
   type DomainRecord,
+  type DomainRowState,
   type SendingDomainDto,
 } from "../packages/contracts.js";
 import { notify } from "../ops/notify.js";
@@ -77,6 +81,21 @@ export function domainDto(row: SendingDomainRow): SendingDomainDto {
     records: Array.isArray(row.records) ? (row.records as unknown as DomainRecord[]) : [],
     checked_at: row.checked_at,
     created_at: row.created_at,
+    sent_recent: row.sent_recent,
+    bounced_recent: row.bounced_recent,
+    complaints: row.complaints,
+  };
+}
+
+/** The row's state, as the judge reads it. */
+function stateOf(row: SendingDomainRow): DomainRowState {
+  return {
+    state: row.state as SendingDomainDto["state"],
+    held_why: (row.held_why ?? null) as DomainHold | null,
+    held_at: row.held_at,
+    verified_at: row.verified_at,
+    clean_since: row.clean_since,
+    dmarc: (row.dmarc ?? null) as SendingDomainDto["dmarc"],
   };
 }
 
@@ -240,18 +259,20 @@ export async function checkSendingDomain(
   }
   // The provider no longer has it: a domain that cannot verify, whatever it said before.
   const providerStatus = read.value ? read.value.status : "not_found";
-  const judged = judgeDomain(
-    {
-      state: row.state as SendingDomainDto["state"],
-      held_why: (row.held_why ?? null) as DomainHold | null,
-      held_at: row.held_at,
-      verified_at: row.verified_at,
-      clean_since: row.clean_since,
-      dmarc: (row.dmarc ?? null) as SendingDomainDto["dmarc"],
-    },
-    { provider: providerStatus, dmarc },
-    nowIso,
-  );
+  // What a verified domain sent since it was clean: its bounces and complaints are what hold it. A count that cannot
+  // be read judges nothing about reputation this time, and is said.
+  let counts: DomainCounts | null = null;
+  if (row.state === "verified") {
+    try {
+      counts = await sendingDomainCounts(p.db, row.tenant_id, row.host, row.clean_since);
+    } catch (e) {
+      p.log.error("sending_domain_counts_unread", {
+        domain: row.id,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }
+  const judged = judgeDomain(stateOf(row), { provider: providerStatus, dmarc, counts }, nowIso);
   const written = await applyDomainCheck(p.db, row, {
     state: judged.state,
     held_why: judged.held_why,
@@ -261,6 +282,7 @@ export async function checkSendingDomain(
     provider_status: providerStatus,
     dmarc: judged.dmarc,
     ...(read.value ? { records: read.value.records as unknown as Json } : {}),
+    ...(counts ? { sent_recent: counts.sent, bounced_recent: counts.bounced, complaints: counts.complained } : {}),
     checked_at: nowIso,
   });
   if (!written) return { row: null, change: null, unreadable: false };
@@ -281,7 +303,32 @@ export async function checkSendingDomain(
     );
     if (judged.change === "held" && judged.held_why) await tellDomainHeld(p, written, judged.held_why);
   }
-  return { row: written, change: judged.change, unreadable: false };
+  return { row: written, change: judged.change === "resumed" ? null : judged.change, unreadable: false };
+}
+
+/**
+ * The owner resumes a domain held for its reputation: sending again at the ramp's first step, its counts cleared
+ * with the window they counted. A DNS hold is not the owner's to lift (Check lifts it when the records pass).
+ */
+export async function resumeSendingDomain(p: DomainPorts, row: SendingDomainRow): Promise<DoorAnswer> {
+  const judged = resumeDomain(stateOf(row), new Date(p.now()).toISOString());
+  if (judged.change !== "resumed")
+    return row.state === "held"
+      ? say(409, "dns_hold", "Press Check: this one lifts itself when its records pass.")
+      : say(409, "not_held", `${row.host} isn't held.`);
+  const written = await applyDomainCheck(p.db, row, {
+    state: judged.state,
+    held_why: judged.held_why,
+    held_at: judged.held_at,
+    clean_since: judged.clean_since,
+    sent_recent: null,
+    bounced_recent: null,
+    complaints: null,
+  });
+  if (!written) return say(409, "moved", `${row.host} changed just now. Look again, then resume it.`);
+  const data = { host: row.host, ...(row.held_why ? { why: row.held_why } : {}) } as Json;
+  await emitEvent(p.db, row.tenant_id, "sending_domain.resumed", "setup", "sending_domain", row.id, data);
+  return { ok: true, domain: domainDto(written) };
 }
 
 /** The owner, told: the bell, and email where the workspace has somebody on file. Best effort: the row already says it. */

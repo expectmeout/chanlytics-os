@@ -148,6 +148,7 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // A sending domain added, checked or removed: the Email row's block reads again from Setup.
   "POST sending-domains": setup,
   "POST sending-domains/[id]/check": setup,
+  "POST sending-domains/[id]/resume": setup,
   "DELETE sending-domains/[id]": setup,
   "POST billing/resume": billing,
   "POST billing/sync": billing,

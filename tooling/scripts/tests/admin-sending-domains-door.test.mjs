@@ -550,3 +550,53 @@ test("a reservation that never learned its provider id is found by name when it 
     net.restore();
   }
 });
+
+test("Resume lifts a reputation hold: sending again at 30 a day, its counts cleared, said once; a DNS hold and another workspace's domain are refused", async () => {
+  const w = world([
+    row(D1, {
+      state: "held",
+      held_why: "bounces",
+      held_at: new Date(Date.now() - 86_400_000).toISOString(),
+      verified_at: new Date(Date.now() - 20 * 86_400_000).toISOString(),
+      clean_since: new Date(Date.now() - 20 * 86_400_000).toISOString(),
+      sent_recent: 200,
+      bounced_recent: 5,
+      complaints: 0,
+    }),
+    row(D2, { state: "held", held_why: "dmarc", held_at: new Date().toISOString() }),
+  ]);
+  const net = provider(() => reply(200, {}));
+  try {
+    const before = Date.now();
+    const [s, b] = await answer(await knock({ op: "resume", domain_id: D1 }));
+    assert.equal(s, 200, JSON.stringify(b));
+    const d = w.tables.sending_domains.find((r) => r.id === D1);
+    assert.deepEqual(
+      [d.state, d.held_why, d.held_at, d.sent_recent, d.bounced_recent, d.complaints],
+      ["verified", null, null, null, null, null],
+    );
+    assert.ok(Date.parse(d.clean_since) >= before - 1000, "the ramp starts again from now");
+    assert.equal(b.domain.state, "verified");
+    assert.equal("provider_domain_id" in b.domain, false);
+    const resumed = w.tables.events.filter((e) => e.kind === "sending_domain.resumed");
+    assert.deepEqual(
+      resumed.map((e) => e.data),
+      [{ host: d.host, why: "bounces" }],
+    );
+
+    const [again, againBody] = await answer(await knock({ op: "resume", domain_id: D1 }));
+    assert.deepEqual([again, againBody.error], [409, "not_held"], "a domain not held has nothing to resume");
+    const [dnsS, dnsB] = await answer(await knock({ op: "resume", domain_id: D2 }));
+    assert.deepEqual(
+      [dnsS, dnsB.error, dnsB.message],
+      [409, "dns_hold", "Press Check: this one lifts itself when its records pass."],
+    );
+    assert.equal(w.tables.sending_domains.find((r) => r.id === D2).state, "held");
+    assert.equal(net.calls.length, 0, "the provider is never asked");
+  } finally {
+    net.restore();
+  }
+  world([row(D1, { tenant_id: B, state: "held", held_why: "complaint", held_at: new Date().toISOString() })]);
+  const [s, b] = await answer(await knock({ op: "resume", domain_id: D1 }));
+  assert.deepEqual([s, b.error], [404, "not_found"]);
+});

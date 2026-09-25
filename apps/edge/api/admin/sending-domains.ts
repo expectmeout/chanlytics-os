@@ -6,6 +6,7 @@
  *   { op: "add", tenant_id, host, from_local, from_name }   → held for the workspace, created at the provider
  *   { op: "check", tenant_id, domain_id }                   → the provider asked to look again, and read now
  *   { op: "remove", tenant_id, domain_id }                  → gone at the provider, then the row
+ *   { op: "resume", tenant_id, domain_id }                  → a reputation hold lifted by the owner, 30 a day again
  *
  * What each answer means is lib/email/sending-domains.ts's; this file is the door: who may knock, which workspace,
  * and what the body names.
@@ -22,6 +23,7 @@ import {
   checkSendingDomain,
   domainDto,
   removeSendingDomain,
+  resumeSendingDomain,
   type DomainPorts,
 } from "../../lib/email/sending-domains.js";
 
@@ -53,7 +55,8 @@ export async function POST(request: Request): Promise<Response> {
   const coldKey = env.RESEND_COLD_API_KEY;
 
   if (op === "status") return json(200, { ok: true, ready: !!coldKey });
-  if (op !== "add" && op !== "check" && op !== "remove") return json(400, { ok: false, error: "unknown_op" });
+  if (op !== "add" && op !== "check" && op !== "remove" && op !== "resume")
+    return json(400, { ok: false, error: "unknown_op" });
   if (!coldKey)
     return json(503, {
       ok: false,
@@ -92,6 +95,10 @@ export async function POST(request: Request): Promise<Response> {
       const now = out.row ?? (await sendingDomainOf(db, tenantId, domainId));
       if (!now) return json(404, { ok: false, error: "not_found", message: "That domain isn't this workspace's." });
       return json(200, { ok: true, domain: domainDto(now), change: out.change });
+    }
+    if (op === "resume") {
+      const out = await resumeSendingDomain(ports, row);
+      return out.ok ? json(200, out) : json(out.status, out);
     }
     const gone = await removeSendingDomain(ports, row);
     return gone.ok ? json(200, { ok: true, removed: true }) : json(gone.status, gone);
