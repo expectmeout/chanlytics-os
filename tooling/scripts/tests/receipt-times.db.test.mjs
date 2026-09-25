@@ -94,3 +94,65 @@ test(
     assert.match(back?.message ?? "", /monotone/);
   },
 );
+
+test(
+  "an email whose send timed out may still be settled by its receipt; any other failed row stays terminal (00177)",
+  { skip },
+  async () => {
+    const mk = async (channel, error) => {
+      const { data: contact } = await db
+        .from("contacts")
+        .insert(
+          channel === "email"
+            ? { tenant_id: tenantId, email: `t-${crypto.randomUUID()}@fixture-guard.example` }
+            : { tenant_id: tenantId, phone_e164: `+1555${String(Math.floor(Math.random() * 1e7)).padStart(7, "0")}` },
+        )
+        .select("id")
+        .single();
+      const { data: conv } = await db
+        .from("conversations")
+        .insert({ tenant_id: tenantId, contact_id: contact.id })
+        .select("id")
+        .single();
+      const { data: msg, error: e } = await db
+        .from("messages")
+        .insert({
+          tenant_id: tenantId,
+          conversation_id: conv.id,
+          contact_id: contact.id,
+          channel,
+          direction: "outbound",
+          sender: "ai",
+          type: "text",
+          body: "Hi",
+          status: "failed",
+          error,
+        })
+        .select("id")
+        .single();
+      assert.equal(e, null, e?.message);
+      return msg.id;
+    };
+    const unknown = await mk("email", { http_status: 0, body: "timeout", outcome: "unknown" });
+    assert.equal((await db.from("messages").update({ status: "delivered" }).eq("id", unknown)).error, null);
+    const settled = await db.from("messages").select("status").eq("id", unknown).single();
+    assert.equal(settled.data.status, "delivered", "its receipt settled it");
+
+    const plain = await mk("email", { http_status: 500, body: "boom" });
+    assert.match(
+      (await db.from("messages").update({ status: "delivered" }).eq("id", plain)).error?.message ?? "",
+      /terminal/,
+    );
+    const sms = await mk("sms", { http_status: 0, body: "timeout", outcome: "unknown" });
+    assert.match(
+      (await db.from("messages").update({ status: "delivered" }).eq("id", sms)).error?.message ?? "",
+      /terminal/,
+    );
+    const toCanceled = await mk("email", { http_status: 0, body: "timeout", outcome: "unknown" });
+    assert.match(
+      (await db.from("messages").update({ status: "canceled" }).eq("id", toCanceled)).error?.message ?? "",
+      /terminal/,
+      "an unknown outcome is never canceled",
+    );
+  },
+);

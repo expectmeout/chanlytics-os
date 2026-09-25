@@ -51,7 +51,29 @@ function wireOf(result = { ok: true, wamid: "wamid.1", status: 200 }) {
     },
   };
 }
-const ports = (t, w, over = {}) => ({ db: fakeDb(t), wire: w.wire, now: () => NOW, ...over });
+/**
+ * The send door's one question for a cold email (00177 outreach_facts), answered from the world's tables the way the
+ * SQL answers it; the SQL itself is proved on a database (outreach-facts.db.test.mjs). `t.suppressed` lists the
+ * addresses on the never-again list; `t.sent_since` is what the domain sent in the window.
+ */
+const outreachRpc = (t) => ({
+  outreach_facts: (a) => {
+    const live = (t.leads ?? [])
+      .filter((l) => l.tenant_id === a.p_tenant_id && l.contact_id === a.p_contact_id && !l.erased_at && !l.blanked_at)
+      .map((l) => ({ ...l, stage: l.stage ?? "ready" }))
+      .sort((x, y) => Number(["ready", "nurture"].includes(y.stage)) - Number(["ready", "nurture"].includes(x.stage)));
+    const d = (t.sending_domains ?? []).find(
+      (s) => s.tenant_id === a.p_tenant_id && s.host === String(a.p_host).trim().toLowerCase(),
+    );
+    return {
+      lead_stage: live[0]?.stage ?? null,
+      suppressed: (t.suppressed ?? []).includes(String(a.p_to).trim().toLowerCase()),
+      domain: d ? { state: d.state, from_local: d.from_local, clean_since: d.clean_since ?? null } : null,
+      sent_since: t.sent_since ?? 0,
+    };
+  },
+});
+const ports = (t, w, over = {}) => ({ db: fakeDb(t, {}, outreachRpc(t)), wire: w.wire, now: () => NOW, ...over });
 const words = (over = {}) => ({
   tenantId: T,
   conversationId: "c1",
@@ -882,12 +904,16 @@ const coldRequest = (over = {}) =>
     tenantId: T,
     ...over,
   });
+/** Twenty clean days: the ramp's 100 a day. */
+const CLEAN_SINCE = new Date(NOW - 20 * 86_400_000).toISOString();
 const coldWorld = ({ who = {}, leads, domains } = {}) =>
   tables({
     conversations: [thread({ contact_id: "k1", contacts: onEmail({ email: OWNER, consent: "unknown", ...who }) })],
     messages: [queuedEmail({ sender: "ai" })],
     leads: leads ?? [{ id: "l1", tenant_id: T, contact_id: "k1" }],
-    sending_domains: domains ?? [{ tenant_id: T, host: "getharbor.com", from_local: "sam", state: "verified" }],
+    sending_domains: domains ?? [
+      { tenant_id: T, host: "getharbor.com", from_local: "sam", state: "verified", clean_since: CLEAN_SINCE },
+    ],
   });
 const cold = (over = {}) =>
   words({
@@ -985,31 +1011,30 @@ test("a cold email to a business the finder found, from the workspace's own veri
   assert.equal(t.messages[0].status, "sent");
 
   const r = tables({ conversations: [thread({ contact_id: "k1", contacts: onEmail() })], messages: [queuedEmail()] });
-  const db = fakeDb(r);
+  const db = fakeDb(r, {}, outreachRpc(r));
   const replied = await deliver({ db, wire: emailWire().wire, now: () => NOW }, emailed());
   assert.equal(replied.outcome, "sent");
   assert.deepEqual(
-    db.seen.filter((s) => s.table === "leads" || s.table === "sending_domains"),
+    db.seen.filter((s) => s.rpc === "outreach_facts" || s.table === "leads" || s.table === "sending_domains"),
     [],
     "a conversational send pays for no outreach read",
   );
 });
 
 test("a read of outreach's facts that fails is not a yes: the door throws and the row is left for the retry", async () => {
-  for (const fault of ["leads.select", "sending_domains.select"]) {
-    const t = coldWorld();
-    const w = emailWire();
-    await assert.rejects(
-      deliver(
-        { db: fakeDb(t, { [fault]: { message: "the database went away" } }), wire: w.wire, now: () => NOW },
-        cold(),
-      ),
-      /cannot read the/,
-      fault,
-    );
-    assert.equal(w.calls.length, 0);
-    assert.equal(t.messages[0].status, "queued", `${fault}: left for the retry`);
-  }
+  const t = coldWorld();
+  const w = emailWire();
+  const refusing = {
+    outreach_facts: () => {
+      throw new Error("the database went away");
+    },
+  };
+  await assert.rejects(
+    deliver({ db: fakeDb(t, {}, refusing), wire: w.wire, now: () => NOW }, cold()),
+    /cannot read the outreach facts/,
+  );
+  assert.equal(w.calls.length, 0);
+  assert.equal(t.messages[0].status, "queued", "left for the retry");
 });
 
 test("email's wire picks its route by the request's From: the hosted mailbox on the platform's key, an own domain on the cold key, and nothing else", async () => {
@@ -1053,4 +1078,87 @@ test("email's wire picks its route by the request's From: the hosted mailbox on 
   } finally {
     globalThis.fetch = real;
   }
+});
+
+/* ------------------------------------------------ Part 2.5: the door holds cold email to every rule (00177) */
+
+test("a cold email is a broadcast whoever the row says wrote it: every pause holds it (D1)", async () => {
+  const pausedUntil = new Date(NOW + 3_600_000).toISOString();
+  for (const [sender, proactive] of [
+    ["human", undefined],
+    ["human", false],
+    ["ai", undefined],
+  ]) {
+    const paused = coldWorld();
+    paused.conversations[0].tenants = { status: "paused" };
+    const a = await deliver(ports(paused, emailWire()), cold({ sender, proactive }));
+    assert.deepEqual([a.outcome, a.reason], ["refused", "paused"], `${sender}/${proactive}: a paused workspace`);
+    const held = coldWorld();
+    held.conversations[0].paused_until = pausedUntil;
+    const b = await deliver(ports(held, emailWire()), cold({ sender, proactive }));
+    assert.deepEqual([b.outcome, b.reason], ["refused", "human_has_it"], `${sender}/${proactive}: a paused thread`);
+  }
+});
+
+test("the door asks the spec's send-time questions: the lead still being written to, the never-again list, the day's share (D2)", async () => {
+  const cases = [
+    ["outreach_lead_closed", { leads: [{ id: "l1", tenant_id: T, contact_id: "k1", stage: "converted" }] }, {}],
+    ["outreach_lead_closed", { leads: [{ id: "l1", tenant_id: T, contact_id: "k1", stage: "archived" }] }, {}],
+    ["outreach_not_a_lead", { leads: [] }, {}],
+    ["outreach_suppressed", {}, { suppressed: [OWNER] }],
+    ["sending_domain_at_cap", {}, { sent_since: 100 }],
+    [null, {}, { sent_since: 99 }],
+    // A domain not yet clean has no day's share at all.
+    [
+      "sending_domain_at_cap",
+      { domains: [{ tenant_id: T, host: "getharbor.com", from_local: "sam", state: "verified", clean_since: null }] },
+      {},
+    ],
+  ];
+  for (const [reason, world, extra] of cases) {
+    const t = Object.assign(coldWorld(world), extra);
+    const w = emailWire();
+    const out = await deliver(ports(t, w), cold());
+    assert.equal(out.outcome === "refused" ? out.reason : null, reason, JSON.stringify({ world, extra }));
+    assert.equal(w.calls.length, reason ? 0 : 1);
+  }
+  // The person's own no still outranks every wire rule.
+  const both = Object.assign(coldWorld({ who: { email_marketing: "opted_out" } }), {
+    suppressed: [OWNER],
+    sent_since: 500,
+  });
+  assert.equal((await deliver(ports(both, emailWire()), cold())).reason, "unsubscribed");
+});
+
+test("a cold send leaves its thread where it was, so a run never pushes customers off the Inbox (D3)", async () => {
+  const before = "2026-09-01T00:00:00.000Z";
+  const t = coldWorld();
+  t.conversations[0].last_message_at = before;
+  assert.equal((await deliver(ports(t, emailWire()), cold())).outcome, "sent");
+  assert.equal(t.conversations[0].last_message_at, before, "outreach does not move the thread");
+  const r = tables({
+    conversations: [thread({ contacts: onEmail(), last_message_at: before })],
+    messages: [queuedEmail()],
+  });
+  assert.equal((await deliver(ports(r, emailWire()), emailed())).outcome, "sent");
+  assert.notEqual(r.conversations[0].last_message_at, before, "a reply still does");
+});
+
+test("a send that timed out is failed with its outcome unknown, so its receipt may still settle it (D5)", async () => {
+  const t = coldWorld();
+  const out = await deliver(ports(t, emailWire({ ok: false, wamid: null, status: 0, errorBody: "timeout" })), cold());
+  assert.equal(out.outcome, "failed");
+  assert.deepEqual(t.messages[0].error, { http_status: 0, body: "timeout", outcome: "unknown" });
+  const u = coldWorld();
+  await deliver(ports(u, emailWire({ ok: false, wamid: null, status: 0, errorBody: "fetch failed" })), cold());
+  assert.equal(t.messages[0].error.outcome, "unknown");
+  assert.equal("outcome" in u.messages[0].error, false, "a request that never left is plainly failed");
+});
+
+test("a cold email whose From cannot be read is refused for its domain, not as a person the finder never found", async () => {
+  const t = coldWorld();
+  const unreadable = cold();
+  unreadable.email = { ...unreadable.email, from: "not an address" };
+  const out = await deliver(ports(t, emailWire()), unreadable);
+  assert.deepEqual([out.outcome, out.reason], ["refused", "outreach_needs_own_domain"]);
 });

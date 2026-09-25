@@ -214,6 +214,41 @@ export async function stampEmailComplaint(
 }
 
 /**
+ * A complaint on an email, recorded as the person's no (00177): the unsubscribe's own door, source 'complaint', so
+ * the address goes on the never-again list and their leads are closed as said no. Answers the person and the From
+ * the email left as (its frozen request's), so the caller can hold the domain it came from; a row with no person
+ * records nothing, since there is no one to stop.
+ */
+export async function recordEmailNo(
+  db: Db,
+  p: { tenantId: string; messageId: string; source: "complaint" },
+): Promise<{ contactId: string | null; from: string | null }> {
+  const { data, error } = await db
+    .from("messages")
+    .select("contact_id, meta")
+    .eq("id", p.messageId)
+    .eq("tenant_id", p.tenantId)
+    .eq("channel", "email")
+    .eq("direction", "outbound")
+    .maybeSingle();
+  if (error) throw new Error(`email receipt: cannot read message ${p.messageId}: ${error.message}`);
+  const meta = (data?.meta ?? {}) as { email?: { request?: { from?: unknown } } };
+  const from = typeof meta.email?.request?.from === "string" ? meta.email.request.from : null;
+  const contactId = data?.contact_id ?? null;
+  if (!contactId) return { contactId: null, from };
+  const r = await db.rpc("set_email_marketing", {
+    p_tenant_id: p.tenantId,
+    p_contact_id: contactId,
+    p_state: "opted_out",
+    p_source: p.source,
+    p_message_id: p.messageId,
+    p_evidence: { channel: "email", via: p.source },
+  } as never);
+  if (r.error) throw new Error(`email receipt: cannot record the ${p.source} as a no: ${r.error.message}`);
+  return { contactId, from };
+}
+
+/**
  * Move a sent email to what its receipt says. A move messages_guard refuses
  * (backwards, or off a terminal state) is a receipt arriving out of order, and
  * is let go the way recordStatusByExternalId lets it go; anything else throws.

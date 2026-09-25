@@ -184,7 +184,7 @@ test("what a mailbox sends as: its address, and every reply route that still rou
 /* ------------------------------------------------------------ through the door */
 
 /** One workspace, one person, one sent email; stamp_email_sent modelled as 00128 writes it. */
-function world({ status = "sent", email = ADDRESS, faults = {} } = {}) {
+function world({ status = "sent", email = ADDRESS, faults = {}, meta = null, domains = [], counts = null } = {}) {
   const tables = {
     mailboxes: [],
     messages: [
@@ -198,9 +198,14 @@ function world({ status = "sent", email = ADDRESS, faults = {} } = {}) {
         status,
         external_id: null,
         error: null,
-        meta: { email: { subject: "Re: Quote" } },
+        meta: meta ?? { email: { subject: "Re: Quote" } },
       },
     ],
+    sending_domains: domains,
+    tenant_config: [{ tenant_id: T, config: { notifications: { escalation_emails: ["owner@harbor.test"] } } }],
+    tenant_channels: [],
+    notifications: [],
+    emailNoes: [],
     contacts: [{ id: "k1", tenant_id: T, email, email_suppressed_at: null, email_suppressed_reason: null }],
     escalations: [],
     events: [],
@@ -220,6 +225,15 @@ function world({ status = "sent", email = ADDRESS, faults = {} } = {}) {
       if (a.p_rfc_message_id) m.meta = { ...m.meta, email: { ...m.meta.email, message_id: a.p_rfc_message_id } };
       return [{ status: m.status, conversation_id: m.conversation_id }];
     },
+    // 00177: a complaint is a no through the unsubscribe's own door; recorded here, proved on a database.
+    set_email_marketing: (a) => {
+      if (tables.emailNoesRefuse)
+        throw new Error("set_email_marketing records an unsubscribe: opted_out, from unsubscribe");
+      tables.emailNoes.push(a);
+      return { changed: true, found: true };
+    },
+    // 00176, answered per host by the case: what the domain sent since it was clean.
+    sending_domain_counts: () => counts ?? { sent: 0, bounced: 0, complained: 0 },
     // 00176: once, on this workspace's outbound email. Records whether the address was already stopped when it ran.
     stamp_email_complaint: (a) => {
       const m = tables.messages.find(
@@ -311,6 +325,15 @@ test("a complaint arrives after delivery: the row stays delivered and the addres
   const first = t.messages[0].meta.email.complained_at;
   assert.equal(await post(receipt("complained")), 200, "Resend delivers at least once");
   assert.equal(t.messages[0].meta.email.complained_at, first, "stamped once");
+  // A complaint is a no, through the unsubscribe's own door (Part 2.5 D7): the person and the email it was about.
+  assert.deepEqual(
+    t.emailNoes.map((a) => [a.p_contact_id, a.p_state, a.p_source, a.p_message_id]),
+    [
+      ["k1", "opted_out", "complaint", M],
+      ["k1", "opted_out", "complaint", M],
+    ],
+    "asked each time the receipt comes; the door itself records the no once (email-marketing.db.test.mjs)",
+  );
 
   const corrected = world({ email: "ana.new@example.com" });
   assert.equal(await post(receipt("bounced", BOUNCE)), 200);
@@ -372,4 +395,60 @@ test("a first email's receipts find its row by the tags its request left with: t
   assert.equal(await post(receipt("bounced", { subject: request.subject, tags, ...BOUNCE })), 200);
   assert.equal(bounced.messages[0].status, "failed");
   assert.ok(bounced.contacts[0].email_suppressed_at, "and a permanent bounce stops the address");
+});
+
+test("a complaint on an email from the workspace's own domain holds that domain when the receipt lands, not at the next sweep (Part 2.5 D7)", async () => {
+  const from = '"Sam at Harbor" <sam@getharbor.example>';
+  const t = world({
+    status: "delivered",
+    meta: { email: { subject: "Your moving quotes", request: { from, to: [ADDRESS] } } },
+    domains: [
+      {
+        id: "d1",
+        tenant_id: T,
+        host: "getharbor.example",
+        from_local: "sam",
+        from_name: "Sam at Harbor",
+        provider_domain_id: "pd-1",
+        records: [],
+        state: "verified",
+        provider_status: "verified",
+        dmarc: "found",
+        held_why: null,
+        held_at: null,
+        verified_at: "2026-09-01T00:00:00Z",
+        clean_since: "2026-09-01T00:00:00Z",
+        checked_at: null,
+        created_by: null,
+        created_at: "2026-08-30T00:00:00Z",
+        updated_at: "2026-09-17T11:00:00Z",
+      },
+    ],
+    counts: { sent: 12, bounced: 0, complained: 1 },
+  });
+  assert.equal(await post(receipt("complained")), 200);
+  const d = t.sending_domains[0];
+  assert.deepEqual([d.state, d.held_why, d.complaints], ["held", "complaint", 1]);
+  assert.equal(t.events.filter((e) => e.kind === "sending_domain.held").length, 1);
+  assert.equal(t.notifications.length, 1, "its owner told once");
+
+  // A complaint on an email that did not leave from an own domain holds nothing, even with a domain there to hold.
+  const hosted = world({
+    status: "delivered",
+    domains: [{ ...t.sending_domains[0], state: "verified", held_why: null, held_at: null }],
+    counts: { sent: 1, bounced: 0, complained: 1 },
+  });
+  assert.equal(await post(receipt("complained")), 200);
+  assert.equal(hosted.events.filter((e) => e.kind === "sending_domain.held").length, 0);
+  assert.equal(hosted.sending_domains[0].state, "verified");
+});
+
+test("a complaint stops the address first: a no that cannot be recorded sends the receipt back, with the address already stopped", async () => {
+  const t = world({ status: "delivered" });
+  // The door refuses (say, the edge deployed before 00177): the receipt comes back, and the stop it could make, it made.
+  const refusing = t;
+  refusing.emailNoesRefuse = true;
+  const code = await post(receipt("complained"));
+  assert.equal(code, 503, "sent back, so Resend delivers it again");
+  assert.equal(t.contacts[0].email_suppressed_reason, "complaint", "the address stopped before the no was asked");
 });

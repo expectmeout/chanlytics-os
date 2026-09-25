@@ -9756,6 +9756,9 @@ function emailPlainText(e2) {
   }).replace(/\n{3,}/g, "\n\n").trim();
   return converted || null;
 }
+var RESEND_API = "https://api.resend.com";
+var RESEND_RECEIVED = `${RESEND_API}/emails/receiving`;
+var RESEND_DOMAINS = `${RESEND_API}/domains`;
 var FRESH_SLACK_MS = 2 * 864e5;
 var STATE_TTL_MS = 10 * 6e4;
 var enc2 = new TextEncoder();
@@ -13055,6 +13058,9 @@ function resendLimitOf(r222) {
   if (name2 === "concurrent_idempotent_requests") return "in_flight";
   return r222.status === 429 ? "rate" : null;
 }
+var RESEND_API2 = "https://api.resend.com";
+var RESEND_RECEIVED2 = `${RESEND_API2}/emails/receiving`;
+var RESEND_DOMAINS2 = `${RESEND_API2}/domains`;
 var FRESH_SLACK_MS2 = 2 * 864e5;
 var STATE_TTL_MS2 = 10 * 6e4;
 var enc22 = new TextEncoder();
@@ -15244,6 +15250,19 @@ function isTimezone22(raw) {
 var CONSENT_PHRASE22 = OFFERS_OPT_IN_PHRASES22.en;
 var CONSENT_PHRASE_ES22 = OFFERS_OPT_IN_PHRASES22.es;
 var DAY_FMT22 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var DOMAIN_RAMP = [
+  { days: 0, perDay: 30 },
+  { days: 14, perDay: 100 },
+  { days: 30, perDay: 200 }
+];
+var DAY_MS8 = 864e5;
+function domainDailyCap(cleanSince, nowMs) {
+  if (!cleanSince) return 0;
+  const days = (nowMs - Date.parse(cleanSince)) / DAY_MS8;
+  let cap2 = 0;
+  for (const step2 of DOMAIN_RAMP) if (days >= step2.days) cap2 = step2.perDay;
+  return cap2;
+}
 var ACTIVITY_KINDS22 = [...DECISION_VERBS22, ...EVENT_KINDS22];
 var PASSWORD_MIN22 = 12;
 var PASSWORD_WORDS22 = {
@@ -15611,8 +15630,8 @@ var DECISION_VERBS32 = [
   /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
   "import"
 ];
-var DAY_MS8 = 864e5;
-var WEEK_MS52 = 7 * DAY_MS8;
+var DAY_MS9 = 864e5;
+var WEEK_MS52 = 7 * DAY_MS9;
 var BRAIN_INTENTS32 = [
   "booking",
   "pricing",
@@ -17684,12 +17703,34 @@ async function emitEvent(db, tenantId, kind, category, subjectType, subjectId, d
   });
   if (error) console.error("emit_event_failed", kind, error.message);
 }
+async function outreachFactsOf(db, p) {
+  const { data, error } = await db.rpc("outreach_facts", {
+    p_tenant_id: p.tenantId,
+    p_contact_id: p.contactId,
+    p_to: p.to,
+    p_host: p.host,
+    p_since: p.since
+  });
+  if (error) throw new Error(`cannot read the outreach facts: ${error.message}`);
+  const f = data ?? {};
+  return {
+    lead_stage: typeof f.lead_stage === "string" ? f.lead_stage : null,
+    suppressed: f.suppressed === true,
+    domain: f.domain && typeof f.domain === "object" && typeof f.domain.state === "string" ? {
+      state: f.domain.state,
+      from_local: String(f.domain.from_local ?? ""),
+      clean_since: typeof f.domain.clean_since === "string" ? f.domain.clean_since : null
+    } : null,
+    sent_since: Number(f.sent_since ?? 0) || 0
+  };
+}
 var POS_TTL_MS = 5 * 60 * 1e3;
 var NEG_TTL_MS = 60 * 1e3;
 var DAY_MS222 = 24 * 3600 * 1e3;
 var CALL_CONTROL_S = 15 * 60;
 function kindOf(d) {
   if (d.kind) return d.kind;
+  if (d.purpose === "outreach") return "broadcast";
   if (d.sender === "human") return d.proactive ? "broadcast" : "reply";
   return d.messageId ? "draft" : "answer";
 }
@@ -17717,25 +17758,36 @@ async function wireFacts(db, d) {
     tenantStatus: row.tenants?.status ?? null
   };
 }
-async function outreachFacts(db, d, f) {
+var SHARE_WINDOW_MS = 24 * 36e5;
+async function outreachFacts(db, d, f, nowMs) {
   const headers = d.email?.headers ?? {};
   const unsubscribable = !!headers["List-Unsubscribe"] && headers["List-Unsubscribe-Post"] === "List-Unsubscribe=One-Click";
-  let isLead = false;
-  if (f.contactId) {
-    const { data, error } = await db.from("leads").select("id").eq("tenant_id", d.tenantId).eq("contact_id", f.contactId).limit(1);
-    if (error) throw new Error(`deliver: cannot read the leads for conversation ${d.conversationId}: ${error.message}`);
-    isLead = (data ?? []).length > 0;
-  }
   const from = addressOf(d.email?.from)?.address ?? null;
   const host = from ? from.slice(from.lastIndexOf("@") + 1) : null;
-  let domainState = null;
-  if (host) {
-    const { data, error } = await db.from("sending_domains").select("host, state, from_local").eq("tenant_id", d.tenantId).eq("host", host).maybeSingle();
-    if (error)
-      throw new Error(`deliver: cannot read the sending domain for conversation ${d.conversationId}: ${error.message}`);
-    domainState = data && `${data.from_local}@${host}` === from ? data.state : null;
+  if (!f.contactId)
+    return { leadStage: null, suppressed: false, unsubscribable, domainState: null, cleanSince: null, sentSince: 0 };
+  let facts;
+  try {
+    facts = await outreachFactsOf(db, {
+      tenantId: d.tenantId,
+      contactId: f.contactId,
+      to: d.to,
+      // A From that cannot be read names no domain: the lead is still asked, and the door refuses the domain.
+      host: host ?? "",
+      since: new Date(nowMs - SHARE_WINDOW_MS).toISOString()
+    });
+  } catch (e2) {
+    throw new Error(`deliver: ${e2 instanceof Error ? e2.message : String(e2)} (conversation ${d.conversationId})`);
   }
-  return { isLead, unsubscribable, domainState };
+  const own = host && facts.domain && `${facts.domain.from_local}@${host}` === from ? facts.domain : null;
+  return {
+    leadStage: facts.lead_stage,
+    suppressed: facts.suppressed,
+    unsubscribable,
+    domainState: own?.state ?? null,
+    cleanSince: own?.clean_since ?? null,
+    sentSince: facts.sent_since
+  };
 }
 function refusalFor(d, f, nowMs, o2) {
   if (f.contact.erased_at || f.contact.erasing_since) return "erased";
@@ -17750,10 +17802,13 @@ function refusalFor(d, f, nowMs, o2) {
   if (!may.ok) return may.reason;
   if (d.purpose === "outreach") {
     if (!o2) throw new Error(`deliver: an outreach email is judged with its facts (conversation ${d.conversationId})`);
-    if (!o2.isLead) return "outreach_not_a_lead";
+    if (!o2.leadStage) return "outreach_not_a_lead";
+    if (o2.leadStage !== "ready" && o2.leadStage !== "nurture") return "outreach_lead_closed";
+    if (o2.suppressed) return "outreach_suppressed";
     if (!o2.unsubscribable) return "outreach_without_unsubscribe";
     if (!o2.domainState) return "outreach_needs_own_domain";
     if (o2.domainState !== "verified") return "sending_domain_not_ready";
+    if (o2.sentSince >= domainDailyCap(o2.cleanSince, nowMs)) return "sending_domain_at_cap";
   }
   const kind = kindOf(d);
   if (kind === "reply") return null;
@@ -17796,7 +17851,7 @@ async function deliver(ports, d) {
     );
   const nowMs = (ports.now ?? Date.now)();
   const facts = await wireFacts(ports.db, d);
-  const outreach = d.purpose === "outreach" && d.channel === "email" ? await outreachFacts(ports.db, d, facts) : null;
+  const outreach = d.purpose === "outreach" && d.channel === "email" ? await outreachFacts(ports.db, d, facts, nowMs) : null;
   const refusal = refusalFor(d, facts, nowMs, outreach);
   const overtakenBy = !refusal && kindOf(d) === "draft" ? await overtakenByHuman(ports.db, d) : null;
   const reason = refusal ?? (overtakenBy ? "superseded_by_human" : null);
@@ -17840,7 +17895,9 @@ async function deliver(ports, d) {
       });
       await Promise.all([
         marked === false ? event(ports.db, d, "message.send_raced_cancel", d.messageId, { wamid: sent.wamid }) : Promise.resolve(),
-        stampThread(ports.db, d, nowMs),
+        // A cold email leaves its thread where it was: the Inbox reads the latest hundred threads, and a run of cold
+        // sends would push every customer off it. The thread rises when the business writes back.
+        d.purpose === "outreach" ? Promise.resolve() : stampThread(ports.db, d, nowMs),
         event(ports.db, d, "message.sent", d.messageId, { sender: d.sender })
       ]);
       return { outcome: "sent", messageId: d.messageId, externalId: sent.wamid };
@@ -17870,7 +17927,11 @@ async function deliver(ports, d) {
     });
     return { outcome: "sent", messageId: messageId2, externalId: sent.wamid };
   }
-  const failure = { http_status: sent.status, body: sent.errorBody ?? null };
+  const failure = {
+    http_status: sent.status,
+    body: sent.errorBody ?? null,
+    ...d.channel === "email" && sent.status === 0 && sent.errorBody === "timeout" ? { outcome: "unknown" } : {}
+  };
   let messageId = d.messageId ?? null;
   if (d.messageId) {
     await finalizeQueued(ports.db, d, { status: "failed", error: failure });
@@ -17956,13 +18017,15 @@ async function sendQueued(ports, cmd) {
       outreach ? `Tenant ${cmd.tenantId}, message ${p.message_id}. Cold email is refused until it resets. Replies and reminders are not affected.` : `Tenant ${cmd.tenantId}, message ${p.message_id}. Every workspace's email is refused until it resets or the plan grows.`
     );
   }
-  if (out.reason === "provider" && (out.status === 401 || out.status === 403)) {
+  const domainRefused = outreach && out.status === 403 && /domain/i.test(out.errorBody ?? "");
+  if (out.reason === "provider" && (out.status === 401 || out.status === 403 && !domainRefused)) {
     await ports.page?.(
       `provider_auth:${outreach ? "email_outreach" : channel}`,
       `${channel} rejected a send with ${out.status}`,
       `Tenant ${cmd.tenantId}, message ${p.message_id}. Credentials, not content.`
     );
   }
+  if (outreach) return;
   const notConnected = channel === "sms" ? "the texting line is not connected" : channel === "whatsapp" ? "the WhatsApp number is not connected" : `the ${channel} channel is not connected`;
   const cause = out.reason === "no_credentials" ? notConnected : out.reason === "no_sender_for_channel" ? `this runtime has no ${channel} line` : out.reason === "wire_unreadable" ? "the thread could not be read at the wire" : limit === "daily" || limit === "monthly" ? "the mail provider's sending limit is used up for now" : limit === "rate" ? "the mail provider asked us to slow down" : limit === "in_flight" ? "the mail provider is still sending an earlier try of it; check the thread before sending it again" : (
     // Status 0 is no answer at all: the network failed, or the email wire refused a request it will not send
@@ -18496,8 +18559,8 @@ var DECISION_VERBS4 = [
   /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
   "import"
 ];
-var DAY_MS9 = 864e5;
-var WEEK_MS6 = 7 * DAY_MS9;
+var DAY_MS10 = 864e5;
+var WEEK_MS6 = 7 * DAY_MS10;
 var BRAIN_INTENTS4 = [
   "booking",
   "pricing",

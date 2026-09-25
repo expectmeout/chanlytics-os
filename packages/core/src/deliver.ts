@@ -40,8 +40,17 @@ import {
   type ResendConfig,
   type ResendLimit,
 } from "@chanlytics/channels";
-import { mayMessageFor, purposeOfTemplate, type SendPurpose, type EventKind } from "@chanlytics/contracts";
-import { emitEvent, recordOutbound, type Database, type Json } from "@chanlytics/db";
+import {
+  domainDailyCap,
+  mayMessageFor,
+  purposeOfTemplate,
+  type DeliveryRefusal,
+  type SendPurpose,
+  type EventKind,
+} from "@chanlytics/contracts";
+import { emitEvent, outreachFactsOf, recordOutbound, type Database, type Json } from "@chanlytics/db";
+
+export type { DeliveryRefusal };
 
 export type Db = SupabaseClient<Database>;
 type MessagePatch = Database["public"]["Tables"]["messages"]["Update"];
@@ -176,30 +185,14 @@ export interface Delivery {
 /** The policy a send goes under: as declared, or as the door always derived it from who wrote the words. */
 function kindOf(d: Delivery): SendKind {
   if (d.kind) return d.kind;
+  // A cold email is a broadcast whoever wrote its words: the workspace's pause, the thread's and a live hold all stop
+  // it. Read from `sender`, a row a person had edited would pass as their reply and skip every pause.
+  if (d.purpose === "outreach") return "broadcast";
   if (d.sender === "human") return d.proactive ? "broadcast" : "reply";
   return d.messageId ? "draft" : "answer";
 }
 
-/** Why the door stayed shut. Each is a fact about the person, the thread or the workspace, never about us. */
-export type DeliveryRefusal =
-  | "opted_out"
-  | "not_opted_in"
-  | "no_marketing_consent"
-  | "erased"
-  | "paused"
-  | "human_has_it"
-  | "superseded_by_human"
-  | "sms_carries_no_promotions"
-  | "email_marketing_disabled"
-  | "email_suppressed"
-  | "recipient_changed"
-  // Reach out's (a cold email to a business the finder found): the person's own no, then the rules the lane is built on.
-  | "unsubscribed"
-  | "outreach_is_email_only"
-  | "outreach_not_a_lead"
-  | "outreach_without_unsubscribe"
-  | "outreach_needs_own_domain"
-  | "sending_domain_not_ready";
+/** Why the door stayed shut: contracts' closed list (consent.ts DELIVERY_REFUSALS), re-exported above. */
 
 export type Delivered =
   | { outcome: "sent"; messageId: string | null; externalId: string | null }
@@ -296,8 +289,10 @@ async function wireFacts(db: Db, d: Delivery): Promise<WireFacts> {
 
 /** What a cold email's own rules ask, read only for one (Reach out). */
 interface OutreachFacts {
-  /** The person is a business the finder found: a lead points at them. */
-  isLead: boolean;
+  /** The stage of the lead that points at this person, the one still being written to first; null when none does. */
+  leadStage: string | null;
+  /** The address is on the workspace's never-again list: unsubscribed, complained, or erased. */
+  suppressed: boolean;
   /** The request carries RFC 8058's one-click unsubscribe, both headers. */
   unsubscribable: boolean;
   /**
@@ -305,45 +300,52 @@ interface OutreachFacts {
    * from_local); null when the From is no such address.
    */
   domainState: string | null;
+  /** The ramp's clock for that domain: its day's share is domainDailyCap of it. */
+  cleanSince: string | null;
+  /** What left from that domain in the last day. */
+  sentSince: number;
 }
 
+/** The window a domain's day's share is counted over: a rolling day, so there is no midnight to argue about. */
+const SHARE_WINDOW_MS = 24 * 3_600_000;
+
 /**
- * The facts outreach adds, in two reads, and only for an outreach email: a
- * conversational send never pays for them. A read that fails throws, as
- * wireFacts does: "we could not check" is not "yes".
+ * The facts outreach adds, in one question to the database (00177 outreach_facts), and only for an outreach email: a
+ * conversational send never pays for it. A read that fails throws, as wireFacts does: "we could not check" is not
+ * "yes".
  */
-async function outreachFacts(db: Db, d: Delivery, f: WireFacts): Promise<OutreachFacts> {
+async function outreachFacts(db: Db, d: Delivery, f: WireFacts, nowMs: number): Promise<OutreachFacts> {
   const headers = d.email?.headers ?? {};
   const unsubscribable =
     !!headers["List-Unsubscribe"] && headers["List-Unsubscribe-Post"] === "List-Unsubscribe=One-Click";
-  let isLead = false;
-  if (f.contactId) {
-    const { data, error } = await db
-      .from("leads")
-      .select("id")
-      .eq("tenant_id", d.tenantId)
-      .eq("contact_id", f.contactId)
-      .limit(1);
-    if (error) throw new Error(`deliver: cannot read the leads for conversation ${d.conversationId}: ${error.message}`);
-    isLead = (data ?? []).length > 0;
-  }
   const from = addressOf(d.email?.from)?.address ?? null;
   const host = from ? from.slice(from.lastIndexOf("@") + 1) : null;
-  let domainState: string | null = null;
-  if (host) {
-    const { data, error } = await db
-      .from("sending_domains")
-      .select("host, state, from_local")
-      .eq("tenant_id", d.tenantId)
-      .eq("host", host)
-      .maybeSingle();
-    if (error)
-      throw new Error(`deliver: cannot read the sending domain for conversation ${d.conversationId}: ${error.message}`);
-    // The whole address, as the wire will hold it (emailSender): another name on an own domain is not the address the
-    // workspace set up, and would only fail at the wire rather than be refused here with its reason.
-    domainState = data && `${data.from_local}@${host}` === from ? data.state : null;
+  if (!f.contactId)
+    return { leadStage: null, suppressed: false, unsubscribable, domainState: null, cleanSince: null, sentSince: 0 };
+  let facts;
+  try {
+    facts = await outreachFactsOf(db, {
+      tenantId: d.tenantId,
+      contactId: f.contactId,
+      to: d.to,
+      // A From that cannot be read names no domain: the lead is still asked, and the door refuses the domain.
+      host: host ?? "",
+      since: new Date(nowMs - SHARE_WINDOW_MS).toISOString(),
+    });
+  } catch (e) {
+    throw new Error(`deliver: ${e instanceof Error ? e.message : String(e)} (conversation ${d.conversationId})`);
   }
-  return { isLead, unsubscribable, domainState };
+  // The whole address, as the wire will hold it (emailSender): another name on an own domain is not the address the
+  // workspace set up, and would only fail at the wire rather than be refused here with its reason.
+  const own = host && facts.domain && `${facts.domain.from_local}@${host}` === from ? facts.domain : null;
+  return {
+    leadStage: facts.lead_stage,
+    suppressed: facts.suppressed,
+    unsubscribable,
+    domainState: own?.state ?? null,
+    cleanSince: own?.clean_since ?? null,
+    sentSince: facts.sent_since,
+  };
 }
 
 /** Why the door is shut for this send, or null when it may go. */
@@ -382,10 +384,16 @@ function refusalFor(d: Delivery, f: WireFacts, nowMs: number, o: OutreachFacts |
   // verified, never from the hosted address every workspace's replies share.
   if (d.purpose === "outreach") {
     if (!o) throw new Error(`deliver: an outreach email is judged with its facts (conversation ${d.conversationId})`);
-    if (!o.isLead) return "outreach_not_a_lead";
+    if (!o.leadStage) return "outreach_not_a_lead";
+    // Only a business still being written to: a lead that said no, became a customer or was set aside is not.
+    if (o.leadStage !== "ready" && o.leadStage !== "nurture") return "outreach_lead_closed";
+    if (o.suppressed) return "outreach_suppressed";
     if (!o.unsubscribable) return "outreach_without_unsubscribe";
     if (!o.domainState) return "outreach_needs_own_domain";
     if (o.domainState !== "verified") return "sending_domain_not_ready";
+    // The day's share is the ramp's (contracts domainDailyCap). The batch writer claims within it (Part 3); this is
+    // the backstop, so a run that miscounts cannot spend a domain's reputation past its share.
+    if (o.sentSince >= domainDailyCap(o.cleanSince, nowMs)) return "sending_domain_at_cap";
   }
   const kind = kindOf(d);
   // A person's own reply goes out even when the machine is told to stop: the
@@ -509,7 +517,8 @@ export async function deliver(ports: DeliverPorts, d: Delivery): Promise<Deliver
     );
   const nowMs = (ports.now ?? Date.now)();
   const facts = await wireFacts(ports.db, d);
-  const outreach = d.purpose === "outreach" && d.channel === "email" ? await outreachFacts(ports.db, d, facts) : null;
+  const outreach =
+    d.purpose === "outreach" && d.channel === "email" ? await outreachFacts(ports.db, d, facts, nowMs) : null;
 
   const refusal = refusalFor(d, facts, nowMs, outreach);
   const overtakenBy = !refusal && kindOf(d) === "draft" ? await overtakenByHuman(ports.db, d) : null;
@@ -570,7 +579,9 @@ export async function deliver(ports: DeliverPorts, d: Delivery): Promise<Deliver
         marked === false
           ? event(ports.db, d, "message.send_raced_cancel", d.messageId, { wamid: sent.wamid })
           : Promise.resolve(),
-        stampThread(ports.db, d, nowMs),
+        // A cold email leaves its thread where it was: the Inbox reads the latest hundred threads, and a run of cold
+        // sends would push every customer off it. The thread rises when the business writes back.
+        d.purpose === "outreach" ? Promise.resolve() : stampThread(ports.db, d, nowMs),
         event(ports.db, d, "message.sent", d.messageId, { sender: d.sender }),
       ]);
       return { outcome: "sent", messageId: d.messageId, externalId: sent.wamid };
@@ -605,7 +616,13 @@ export async function deliver(ports: DeliverPorts, d: Delivery): Promise<Deliver
     return { outcome: "sent", messageId, externalId: sent.wamid };
   }
 
-  const failure = { http_status: sent.status, body: sent.errorBody ?? null };
+  // A send that timed out may have been taken by the provider all the same: its outcome is unknown, and its receipt
+  // may still settle it (00177's guard lets exactly this row move on).
+  const failure = {
+    http_status: sent.status,
+    body: sent.errorBody ?? null,
+    ...(d.channel === "email" && sent.status === 0 && sent.errorBody === "timeout" ? { outcome: "unknown" } : {}),
+  };
   let messageId: string | null = d.messageId ?? null;
   if (d.messageId) {
     await finalizeQueued(ports.db, d, { status: "failed", error: failure });

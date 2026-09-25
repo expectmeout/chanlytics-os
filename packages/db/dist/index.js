@@ -2696,6 +2696,24 @@ async function stampEmailComplaint(db, p) {
   if (error) throw new Error(`stamp_email_complaint: ${error.message}`);
   return data === true;
 }
+async function recordEmailNo(db, p) {
+  const { data, error } = await db.from("messages").select("contact_id, meta").eq("id", p.messageId).eq("tenant_id", p.tenantId).eq("channel", "email").eq("direction", "outbound").maybeSingle();
+  if (error) throw new Error(`email receipt: cannot read message ${p.messageId}: ${error.message}`);
+  const meta = data?.meta ?? {};
+  const from = typeof meta.email?.request?.from === "string" ? meta.email.request.from : null;
+  const contactId = data?.contact_id ?? null;
+  if (!contactId) return { contactId: null, from };
+  const r2 = await db.rpc("set_email_marketing", {
+    p_tenant_id: p.tenantId,
+    p_contact_id: contactId,
+    p_state: "opted_out",
+    p_source: p.source,
+    p_message_id: p.messageId,
+    p_evidence: { channel: "email", via: p.source }
+  });
+  if (r2.error) throw new Error(`email receipt: cannot record the ${p.source} as a no: ${r2.error.message}`);
+  return { contactId, from };
+}
 async function recordEmailStatus(db, p) {
   const { error } = await db.from("messages").update({ status: p.status, ...p.error ? { error: p.error } : {} }).eq("id", p.messageId).eq("tenant_id", p.tenantId).eq("channel", "email").eq("direction", "outbound");
   if (error && !/monotone|terminal/.test(error.message))
@@ -2727,6 +2745,12 @@ async function sendingDomainOf(db, tenantId, id) {
   return must(
     "read a domain",
     await db.from("sending_domains").select("*").eq("tenant_id", tenantId).eq("id", id).maybeSingle()
+  );
+}
+async function sendingDomainByHost(db, tenantId, host) {
+  return must(
+    "read a domain by host",
+    await db.from("sending_domains").select("*").eq("tenant_id", tenantId).eq("host", host.trim().toLowerCase()).maybeSingle()
   );
 }
 async function dueSendingDomains(db, limit) {
@@ -2789,6 +2813,29 @@ async function deleteSendingDomain(db, tenantId, id) {
     await db.from("sending_domains").delete().eq("tenant_id", tenantId).eq("id", id).select("id")
   );
   return (r2 ?? []).length > 0;
+}
+
+// src/repositories/outreach.ts
+async function outreachFactsOf(db, p) {
+  const { data, error } = await db.rpc("outreach_facts", {
+    p_tenant_id: p.tenantId,
+    p_contact_id: p.contactId,
+    p_to: p.to,
+    p_host: p.host,
+    p_since: p.since
+  });
+  if (error) throw new Error(`cannot read the outreach facts: ${error.message}`);
+  const f = data ?? {};
+  return {
+    lead_stage: typeof f.lead_stage === "string" ? f.lead_stage : null,
+    suppressed: f.suppressed === true,
+    domain: f.domain && typeof f.domain === "object" && typeof f.domain.state === "string" ? {
+      state: f.domain.state,
+      from_local: String(f.domain.from_local ?? ""),
+      clean_since: typeof f.domain.clean_since === "string" ? f.domain.clean_since : null
+    } : null,
+    sent_since: Number(f.sent_since ?? 0) || 0
+  };
 }
 
 // src/repositories/routing.ts
@@ -3515,6 +3562,7 @@ export {
   mailboxOfTenant,
   markProcessed,
   notesForReceptionist,
+  outreachFactsOf,
   pauseConversation,
   peoplePage,
   personReplyMode,
@@ -3526,6 +3574,7 @@ export {
   readThreadState,
   recordCallNote,
   recordEchoAndPause,
+  recordEmailNo,
   recordEmailStatus,
   recordOutbound,
   recordProviderDomain,
@@ -3538,6 +3587,7 @@ export {
   resolveOutboundTarget,
   savedListFor,
   savedListsFor,
+  sendingDomainByHost,
   sendingDomainCounts,
   sendingDomainOf,
   sendingDomainsOf,

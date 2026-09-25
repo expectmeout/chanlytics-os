@@ -3339,8 +3339,10 @@ function resendLimitOf(r22) {
   if (name === "concurrent_idempotent_requests") return "in_flight";
   return r22.status === 429 ? "rate" : null;
 }
-var RESEND_EMAILS = "https://api.resend.com/emails";
+var RESEND_API = "https://api.resend.com";
 var SEND_TIMEOUT_MS2 = 15e3;
+var SEND_DEADLINE_MS = 32e3;
+var RETRY_NEEDS_MS = 5e3;
 var LIMIT_WAIT_MAX_MS = 2e3;
 var LIMIT_WAIT_DEFAULT_MS = 1e3;
 var sleep = (ms2) => new Promise((resolve) => setTimeout(resolve, ms2));
@@ -3352,50 +3354,84 @@ function waitAskedMs(h) {
   }
   return null;
 }
-async function postEmail(cfg, request) {
-  const { idempotency_key, ...body } = request;
+async function resendRequest(cfg, method, path, opts = {}) {
   try {
-    const r22 = await fetch(RESEND_EMAILS, {
-      method: "POST",
+    const r22 = await fetch(`${RESEND_API}${path}`, {
+      method,
       headers: {
         Authorization: `Bearer ${cfg.apiKey}`,
-        "Content-Type": "application/json",
-        "Idempotency-Key": idempotency_key
+        ...opts.body !== void 0 ? { "Content-Type": "application/json" } : {},
+        ...opts.idempotencyKey ? { "Idempotency-Key": opts.idempotencyKey } : {}
       },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(SEND_TIMEOUT_MS2)
+      ...opts.body !== void 0 ? { body: JSON.stringify(opts.body) } : {},
+      signal: AbortSignal.timeout(opts.timeoutMs ?? SEND_TIMEOUT_MS2)
     });
     const raw = await r22.text().catch(() => "");
-    if (r22.ok) {
-      const id = (() => {
-        try {
-          return JSON.parse(raw).id;
-        } catch {
-          return null;
-        }
-      })();
-      return { result: { ok: true, wamid: typeof id === "string" ? id : null, status: r22.status }, waitMs: null };
+    let json = null;
+    try {
+      json = raw ? JSON.parse(raw) : null;
+    } catch {
+      json = null;
     }
-    return {
-      result: { ok: false, wamid: null, status: r22.status, errorBody: raw.slice(0, 500) },
-      waitMs: waitAskedMs(r22.headers)
-    };
+    return { status: r22.status, json, raw, headers: r22.headers, timedOut: false };
   } catch (e) {
+    const name = e?.name;
+    const timedOut = name === "TimeoutError" || name === "AbortError";
     return {
-      result: { ok: false, wamid: null, status: 0, errorBody: e instanceof Error ? e.message : String(e) },
-      waitMs: null
+      status: 0,
+      json: null,
+      raw: e instanceof Error ? e.message : String(e),
+      headers: null,
+      timedOut
     };
   }
 }
-async function sendEmail(cfg, request, wait = sleep) {
-  const first = await postEmail(cfg, request);
+async function postEmail(cfg, request, timeoutMs) {
+  const { idempotency_key, ...body } = request;
+  const a = await resendRequest(cfg, "POST", "/emails", { body, timeoutMs, idempotencyKey: idempotency_key });
+  if (a.status >= 200 && a.status < 300) {
+    const id = a.json?.id;
+    return {
+      result: { ok: true, wamid: typeof id === "string" ? id : null, status: a.status },
+      waitMs: null,
+      timedOut: false
+    };
+  }
+  if (a.status === 0)
+    return {
+      result: { ok: false, wamid: null, status: 0, errorBody: a.timedOut ? "timeout" : a.raw },
+      waitMs: null,
+      timedOut: a.timedOut
+    };
+  return {
+    result: { ok: false, wamid: null, status: a.status, errorBody: a.raw.slice(0, 500) },
+    waitMs: a.headers ? waitAskedMs(a.headers) : null,
+    timedOut: false
+  };
+}
+async function sendEmail(cfg, request, opts = {}) {
+  const wait = opts.wait ?? sleep;
+  const now = opts.now ?? Date.now;
+  const deadline = now() + (opts.deadlineMs ?? SEND_DEADLINE_MS);
+  const left = () => Math.max(0, deadline - now());
+  const first = await postEmail(cfg, request, Math.min(SEND_TIMEOUT_MS2, left()));
+  if (first.timedOut) {
+    if (left() < RETRY_NEEDS_MS) return first.result;
+    const second = await postEmail(cfg, request, Math.min(SEND_TIMEOUT_MS2, left()));
+    const s = second.result;
+    if (!s.ok && (s.status === 0 || s.status >= 500 || resendLimitOf(s) === "in_flight"))
+      return { ok: false, wamid: null, status: 0, errorBody: "timeout" };
+    return s;
+  }
   const limit = resendLimitOf(first.result);
   if (limit !== "rate" && limit !== "in_flight") return first.result;
   const ms2 = first.waitMs ?? LIMIT_WAIT_DEFAULT_MS;
-  if (ms2 > LIMIT_WAIT_MAX_MS) return first.result;
+  if (ms2 > LIMIT_WAIT_MAX_MS || ms2 >= left()) return first.result;
   await wait(ms2);
-  return (await postEmail(cfg, request)).result;
+  return (await postEmail(cfg, request, Math.min(SEND_TIMEOUT_MS2, left()))).result;
 }
+var RESEND_RECEIVED = `${RESEND_API}/emails/receiving`;
+var RESEND_DOMAINS = `${RESEND_API}/domains`;
 var FRESH_SLACK_MS = 2 * 864e5;
 var STATE_TTL_MS = 10 * 6e4;
 var enc2 = new TextEncoder();
@@ -7339,6 +7375,19 @@ function optInConfirmation(businessName, purpose) {
 var CONSENT_PHRASE2 = OFFERS_OPT_IN_PHRASES2.en;
 var CONSENT_PHRASE_ES2 = OFFERS_OPT_IN_PHRASES2.es;
 var DAY_FMT2 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var DOMAIN_RAMP = [
+  { days: 0, perDay: 30 },
+  { days: 14, perDay: 100 },
+  { days: 30, perDay: 200 }
+];
+var DAY_MS8 = 864e5;
+function domainDailyCap(cleanSince, nowMs) {
+  if (!cleanSince) return 0;
+  const days = (nowMs - Date.parse(cleanSince)) / DAY_MS8;
+  let cap2 = 0;
+  for (const step2 of DOMAIN_RAMP) if (days >= step2.days) cap2 = step2.perDay;
+  return cap2;
+}
 var ACTIVITY_KINDS2 = [...DECISION_VERBS2, ...EVENT_KINDS2];
 var PASSWORD_MIN2 = 12;
 var PASSWORD_WORDS2 = {
@@ -7793,8 +7842,8 @@ var DECISION_VERBS3 = [
   /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
   "import"
 ];
-var DAY_MS8 = 864e5;
-var WEEK_MS5 = 7 * DAY_MS8;
+var DAY_MS9 = 864e5;
+var WEEK_MS5 = 7 * DAY_MS9;
 var BRAIN_INTENTS3 = [
   "booking",
   "pricing",
@@ -9866,6 +9915,27 @@ async function emitEvent(db, tenantId, kind, category, subjectType, subjectId, d
   });
   if (error) console.error("emit_event_failed", kind, error.message);
 }
+async function outreachFactsOf(db, p) {
+  const { data, error } = await db.rpc("outreach_facts", {
+    p_tenant_id: p.tenantId,
+    p_contact_id: p.contactId,
+    p_to: p.to,
+    p_host: p.host,
+    p_since: p.since
+  });
+  if (error) throw new Error(`cannot read the outreach facts: ${error.message}`);
+  const f = data ?? {};
+  return {
+    lead_stage: typeof f.lead_stage === "string" ? f.lead_stage : null,
+    suppressed: f.suppressed === true,
+    domain: f.domain && typeof f.domain === "object" && typeof f.domain.state === "string" ? {
+      state: f.domain.state,
+      from_local: String(f.domain.from_local ?? ""),
+      clean_since: typeof f.domain.clean_since === "string" ? f.domain.clean_since : null
+    } : null,
+    sent_since: Number(f.sent_since ?? 0) || 0
+  };
+}
 var POS_TTL_MS = 5 * 60 * 1e3;
 var NEG_TTL_MS = 60 * 1e3;
 var DAY_MS22 = 24 * 3600 * 1e3;
@@ -9894,6 +9964,7 @@ function emailSender(routes) {
 }
 function kindOf(d) {
   if (d.kind) return d.kind;
+  if (d.purpose === "outreach") return "broadcast";
   if (d.sender === "human") return d.proactive ? "broadcast" : "reply";
   return d.messageId ? "draft" : "answer";
 }
@@ -9921,25 +9992,36 @@ async function wireFacts(db, d) {
     tenantStatus: row.tenants?.status ?? null
   };
 }
-async function outreachFacts(db, d, f) {
+var SHARE_WINDOW_MS = 24 * 36e5;
+async function outreachFacts(db, d, f, nowMs) {
   const headers = d.email?.headers ?? {};
   const unsubscribable = !!headers["List-Unsubscribe"] && headers["List-Unsubscribe-Post"] === "List-Unsubscribe=One-Click";
-  let isLead = false;
-  if (f.contactId) {
-    const { data, error } = await db.from("leads").select("id").eq("tenant_id", d.tenantId).eq("contact_id", f.contactId).limit(1);
-    if (error) throw new Error(`deliver: cannot read the leads for conversation ${d.conversationId}: ${error.message}`);
-    isLead = (data ?? []).length > 0;
-  }
   const from = addressOf(d.email?.from)?.address ?? null;
   const host = from ? from.slice(from.lastIndexOf("@") + 1) : null;
-  let domainState = null;
-  if (host) {
-    const { data, error } = await db.from("sending_domains").select("host, state, from_local").eq("tenant_id", d.tenantId).eq("host", host).maybeSingle();
-    if (error)
-      throw new Error(`deliver: cannot read the sending domain for conversation ${d.conversationId}: ${error.message}`);
-    domainState = data && `${data.from_local}@${host}` === from ? data.state : null;
+  if (!f.contactId)
+    return { leadStage: null, suppressed: false, unsubscribable, domainState: null, cleanSince: null, sentSince: 0 };
+  let facts;
+  try {
+    facts = await outreachFactsOf(db, {
+      tenantId: d.tenantId,
+      contactId: f.contactId,
+      to: d.to,
+      // A From that cannot be read names no domain: the lead is still asked, and the door refuses the domain.
+      host: host ?? "",
+      since: new Date(nowMs - SHARE_WINDOW_MS).toISOString()
+    });
+  } catch (e) {
+    throw new Error(`deliver: ${e instanceof Error ? e.message : String(e)} (conversation ${d.conversationId})`);
   }
-  return { isLead, unsubscribable, domainState };
+  const own = host && facts.domain && `${facts.domain.from_local}@${host}` === from ? facts.domain : null;
+  return {
+    leadStage: facts.lead_stage,
+    suppressed: facts.suppressed,
+    unsubscribable,
+    domainState: own?.state ?? null,
+    cleanSince: own?.clean_since ?? null,
+    sentSince: facts.sent_since
+  };
 }
 function refusalFor(d, f, nowMs, o) {
   if (f.contact.erased_at || f.contact.erasing_since) return "erased";
@@ -9954,10 +10036,13 @@ function refusalFor(d, f, nowMs, o) {
   if (!may.ok) return may.reason;
   if (d.purpose === "outreach") {
     if (!o) throw new Error(`deliver: an outreach email is judged with its facts (conversation ${d.conversationId})`);
-    if (!o.isLead) return "outreach_not_a_lead";
+    if (!o.leadStage) return "outreach_not_a_lead";
+    if (o.leadStage !== "ready" && o.leadStage !== "nurture") return "outreach_lead_closed";
+    if (o.suppressed) return "outreach_suppressed";
     if (!o.unsubscribable) return "outreach_without_unsubscribe";
     if (!o.domainState) return "outreach_needs_own_domain";
     if (o.domainState !== "verified") return "sending_domain_not_ready";
+    if (o.sentSince >= domainDailyCap(o.cleanSince, nowMs)) return "sending_domain_at_cap";
   }
   const kind = kindOf(d);
   if (kind === "reply") return null;
@@ -10000,7 +10085,7 @@ async function deliver(ports, d) {
     );
   const nowMs = (ports.now ?? Date.now)();
   const facts = await wireFacts(ports.db, d);
-  const outreach = d.purpose === "outreach" && d.channel === "email" ? await outreachFacts(ports.db, d, facts) : null;
+  const outreach = d.purpose === "outreach" && d.channel === "email" ? await outreachFacts(ports.db, d, facts, nowMs) : null;
   const refusal = refusalFor(d, facts, nowMs, outreach);
   const overtakenBy = !refusal && kindOf(d) === "draft" ? await overtakenByHuman(ports.db, d) : null;
   const reason = refusal ?? (overtakenBy ? "superseded_by_human" : null);
@@ -10044,7 +10129,9 @@ async function deliver(ports, d) {
       });
       await Promise.all([
         marked === false ? event(ports.db, d, "message.send_raced_cancel", d.messageId, { wamid: sent.wamid }) : Promise.resolve(),
-        stampThread(ports.db, d, nowMs),
+        // A cold email leaves its thread where it was: the Inbox reads the latest hundred threads, and a run of cold
+        // sends would push every customer off it. The thread rises when the business writes back.
+        d.purpose === "outreach" ? Promise.resolve() : stampThread(ports.db, d, nowMs),
         event(ports.db, d, "message.sent", d.messageId, { sender: d.sender })
       ]);
       return { outcome: "sent", messageId: d.messageId, externalId: sent.wamid };
@@ -10074,7 +10161,11 @@ async function deliver(ports, d) {
     });
     return { outcome: "sent", messageId: messageId2, externalId: sent.wamid };
   }
-  const failure = { http_status: sent.status, body: sent.errorBody ?? null };
+  const failure = {
+    http_status: sent.status,
+    body: sent.errorBody ?? null,
+    ...d.channel === "email" && sent.status === 0 && sent.errorBody === "timeout" ? { outcome: "unknown" } : {}
+  };
   let messageId = d.messageId ?? null;
   if (d.messageId) {
     await finalizeQueued(ports.db, d, { status: "failed", error: failure });
@@ -10430,13 +10521,15 @@ async function sendQueued(ports, cmd) {
       outreach ? `Tenant ${cmd.tenantId}, message ${p.message_id}. Cold email is refused until it resets. Replies and reminders are not affected.` : `Tenant ${cmd.tenantId}, message ${p.message_id}. Every workspace's email is refused until it resets or the plan grows.`
     );
   }
-  if (out.reason === "provider" && (out.status === 401 || out.status === 403)) {
+  const domainRefused = outreach && out.status === 403 && /domain/i.test(out.errorBody ?? "");
+  if (out.reason === "provider" && (out.status === 401 || out.status === 403 && !domainRefused)) {
     await ports.page?.(
       `provider_auth:${outreach ? "email_outreach" : channel}`,
       `${channel} rejected a send with ${out.status}`,
       `Tenant ${cmd.tenantId}, message ${p.message_id}. Credentials, not content.`
     );
   }
+  if (outreach) return;
   const notConnected = channel === "sms" ? "the texting line is not connected" : channel === "whatsapp" ? "the WhatsApp number is not connected" : `the ${channel} channel is not connected`;
   const cause = out.reason === "no_credentials" ? notConnected : out.reason === "no_sender_for_channel" ? `this runtime has no ${channel} line` : out.reason === "wire_unreadable" ? "the thread could not be read at the wire" : limit === "daily" || limit === "monthly" ? "the mail provider's sending limit is used up for now" : limit === "rate" ? "the mail provider asked us to slow down" : limit === "in_flight" ? "the mail provider is still sending an earlier try of it; check the thread before sending it again" : (
     // Status 0 is no answer at all: the network failed, or the email wire refused a request it will not send

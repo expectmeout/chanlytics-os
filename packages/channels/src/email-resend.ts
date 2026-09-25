@@ -32,8 +32,16 @@ export interface ResendConfig {
   apiKey: string;
 }
 
-const RESEND_EMAILS = "https://api.resend.com/emails";
+/** The provider's API, once: every call in this package goes to a path under it (resendRequest). */
+export const RESEND_API = "https://api.resend.com";
 const SEND_TIMEOUT_MS = 15_000;
+/**
+ * The most one send may take, both tries and a short wait included: a worker's run is bounded (the jobs tick yields
+ * at 45 s of 60), and Part 1 measured the worst case at 32 s.
+ */
+export const SEND_DEADLINE_MS = 32_000;
+/** A second try after a timeout needs at least this much of the deadline left, or it would only time out again. */
+const RETRY_NEEDS_MS = 5_000;
 /** The longest a send waits for the provider's "in a moment" before handing the answer back: a worker's run is bounded. */
 const LIMIT_WAIT_MAX_MS = 2_000;
 /** What a refusal that says nothing about how long is given. */
@@ -51,64 +59,136 @@ function waitAskedMs(h: Headers): number | null {
   return null;
 }
 
-/** One POST of the frozen request, and how long the provider asked us to wait if it refused. */
-async function postEmail(
+/** What the provider answered, or that it did not: status 0 is no answer, and `timedOut` says whether we gave up. */
+export interface ResendAnswer {
+  status: number;
+  json: unknown;
+  raw: string;
+  headers: Headers | null;
+  timedOut: boolean;
+}
+
+/**
+ * One call to the provider. It never throws: every answer is a status the caller reads, and "we could not ask"
+ * (status 0) is kept apart from any answer it gave. The one place this package builds a request, so a timeout, a key
+ * and a base URL are each spelled once.
+ */
+export async function resendRequest(
   cfg: ResendConfig,
-  request: EmailRequest,
-): Promise<{ result: SendResult; waitMs: number | null }> {
-  const { idempotency_key, ...body } = request;
+  method: "GET" | "POST" | "DELETE" | "PATCH",
+  path: string,
+  opts: { body?: unknown; timeoutMs?: number; idempotencyKey?: string } = {},
+): Promise<ResendAnswer> {
   try {
-    const r = await fetch(RESEND_EMAILS, {
-      method: "POST",
+    const r = await fetch(`${RESEND_API}${path}`, {
+      method,
       headers: {
         Authorization: `Bearer ${cfg.apiKey}`,
-        "Content-Type": "application/json",
-        "Idempotency-Key": idempotency_key,
+        ...(opts.body !== undefined ? { "Content-Type": "application/json" } : {}),
+        ...(opts.idempotencyKey ? { "Idempotency-Key": opts.idempotencyKey } : {}),
       },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
+      ...(opts.body !== undefined ? { body: JSON.stringify(opts.body) } : {}),
+      signal: AbortSignal.timeout(opts.timeoutMs ?? SEND_TIMEOUT_MS),
     });
     const raw = await r.text().catch(() => "");
-    if (r.ok) {
-      const id = (() => {
-        try {
-          return (JSON.parse(raw) as { id?: unknown }).id;
-        } catch {
-          return null;
-        }
-      })();
-      // Accepted with no id is still accepted: the words are with the provider,
-      // and the receipt finds the row by its tag, not by this id.
-      return { result: { ok: true, wamid: typeof id === "string" ? id : null, status: r.status }, waitMs: null };
+    let json: unknown = null;
+    try {
+      json = raw ? JSON.parse(raw) : null;
+    } catch {
+      json = null;
     }
-    return {
-      result: { ok: false, wamid: null, status: r.status, errorBody: raw.slice(0, 500) },
-      waitMs: waitAskedMs(r.headers),
-    };
+    return { status: r.status, json, raw, headers: r.headers, timedOut: false };
   } catch (e) {
-    // status 0: never reached the provider, which is distinct from any answer it gave.
+    const name = (e as { name?: unknown } | null)?.name;
+    const timedOut = name === "TimeoutError" || name === "AbortError";
     return {
-      result: { ok: false, wamid: null, status: 0, errorBody: e instanceof Error ? e.message : String(e) },
-      waitMs: null,
+      status: 0,
+      json: null,
+      raw: e instanceof Error ? e.message : String(e),
+      headers: null,
+      timedOut,
     };
   }
 }
 
+/** One POST of the frozen request, and how long the provider asked us to wait if it refused. */
+async function postEmail(
+  cfg: ResendConfig,
+  request: EmailRequest,
+  timeoutMs: number,
+): Promise<{ result: SendResult; waitMs: number | null; timedOut: boolean }> {
+  const { idempotency_key, ...body } = request;
+  const a = await resendRequest(cfg, "POST", "/emails", { body, timeoutMs, idempotencyKey: idempotency_key });
+  if (a.status >= 200 && a.status < 300) {
+    const id = (a.json as { id?: unknown } | null)?.id;
+    // Accepted with no id is still accepted: the words are with the provider,
+    // and the receipt finds the row by its tag, not by this id.
+    return {
+      result: { ok: true, wamid: typeof id === "string" ? id : null, status: a.status },
+      waitMs: null,
+      timedOut: false,
+    };
+  }
+  if (a.status === 0)
+    // status 0: never answered. A timeout is kept by name: the provider may have taken it (deliver.ts outcome unknown).
+    return {
+      result: { ok: false, wamid: null, status: 0, errorBody: a.timedOut ? "timeout" : a.raw },
+      waitMs: null,
+      timedOut: a.timedOut,
+    };
+  return {
+    result: { ok: false, wamid: null, status: a.status, errorBody: a.raw.slice(0, 500) },
+    waitMs: a.headers ? waitAskedMs(a.headers) : null,
+    timedOut: false,
+  };
+}
+
+export interface SendEmailOptions {
+  /** How a short wait is waited (a test hands its own). */
+  wait?: (ms: number) => Promise<void>;
+  /** The most this send may take, every try included (SEND_DEADLINE_MS). */
+  deadlineMs?: number;
+  /** Epoch ms, injected so the deadline is testable. */
+  now?: () => number;
+}
+
+/**
+ * Post the frozen request, and try once more when the answer allows it, always under the same idempotency key, so a
+ * second try is the same email (the provider keeps a key a day):
+ *   - the provider's "not this second" (rate, in flight), waited out when it asks for 2 s or less;
+ *   - a timeout, when at least 5 s of the deadline are left: the first may never have arrived.
+ * A network failure that is not a timeout is not tried again: nothing left.
+ */
 export async function sendEmail(
   cfg: ResendConfig,
   request: EmailRequest,
-  wait: (ms: number) => Promise<void> = sleep,
+  opts: SendEmailOptions = {},
 ): Promise<SendResult> {
-  const first = await postEmail(cfg, request);
+  const wait = opts.wait ?? sleep;
+  const now = opts.now ?? Date.now;
+  const deadline = now() + (opts.deadlineMs ?? SEND_DEADLINE_MS);
+  const left = (): number => Math.max(0, deadline - now());
+  const first = await postEmail(cfg, request, Math.min(SEND_TIMEOUT_MS, left()));
+  if (first.timedOut) {
+    if (left() < RETRY_NEEDS_MS) return first.result;
+    const second = await postEmail(cfg, request, Math.min(SEND_TIMEOUT_MS, left()));
+    // The first may have been taken. A second answer that cannot say otherwise -- no answer, the first still being
+    // worked under this key, the provider's own error -- leaves the outcome unknown, so the row stays settleable by its
+    // receipt (deliver.ts). A plain answer (sent, or refused for a reason) is what became of it.
+    const s = second.result;
+    if (!s.ok && (s.status === 0 || s.status >= 500 || resendLimitOf(s) === "in_flight"))
+      return { ok: false, wamid: null, status: 0, errorBody: "timeout" };
+    return s;
+  }
   const limit = resendLimitOf(first.result);
   if (limit !== "rate" && limit !== "in_flight") return first.result;
   const ms = first.waitMs ?? LIMIT_WAIT_DEFAULT_MS;
-  if (ms > LIMIT_WAIT_MAX_MS) return first.result;
+  if (ms > LIMIT_WAIT_MAX_MS || ms >= left()) return first.result;
   await wait(ms);
-  return (await postEmail(cfg, request)).result;
+  return (await postEmail(cfg, request, Math.min(SEND_TIMEOUT_MS, left()))).result;
 }
 
-const RESEND_RECEIVED = "https://api.resend.com/emails/receiving";
+const RESEND_RECEIVED = `${RESEND_API}/emails/receiving`;
 const FETCH_TIMEOUT_MS = 15_000;
 
 /**
@@ -137,7 +217,7 @@ export async function fetchReceivedEmail(cfg: ResendConfig, receivedId: string):
   return email;
 }
 
-const RESEND_DOMAINS = "https://api.resend.com/domains";
+const RESEND_DOMAINS = `${RESEND_API}/domains`;
 
 /**
  * Every domain this account holds, with what the provider makes of each. Read

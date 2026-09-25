@@ -1,3 +1,4 @@
+import type { DeliveryRefusal } from "./consent";
 /**
  * What a run is read by, wherever it is read: the window a reply counts in, and the reasons a person is held back at
  * the wire, in the owner's words. The broadcast's run report, the Playbooks page and a person's page all read them;
@@ -22,8 +23,11 @@ export function isReplyTo(sentAt: string, at: string): boolean {
   return Number.isFinite(s) && Number.isFinite(a) && a > s && a - s <= REPLY_WINDOW_MS;
 }
 
-/** The reasons a person is held back at the wire, in the owner's words. */
-export const HELD_REASONS: Record<string, string> = {
+/**
+ * The reasons a person is held back at the wire, in the owner's words: every door refusal (the compiler holds it,
+ * consent.ts DELIVERY_REFUSALS), and the run's own. A type import only, so the bundler still sees a plain object.
+ */
+export const HELD_REASONS: Record<DeliveryRefusal, string> & Record<string, string> = {
   opted_out: "asked to stop",
   not_opted_in: "no recorded yes",
   // The reason the send job writes when the OTHER yes is the missing one. It was
@@ -51,4 +55,14 @@ export const HELD_REASONS: Record<string, string> = {
   // every package that imports anything from here. core-broadcast.test.mjs
   // holds the two spellings together.
   outcome_unknown: "a run that did not finish",
+  // Reach out's (a cold email), short, for a run's line.
+  unsubscribed: "unsubscribed",
+  outreach_is_email_only: "cold email goes by email only",
+  outreach_not_a_lead: "not a business your searches found",
+  outreach_lead_closed: "no longer being written to",
+  outreach_suppressed: "on the never-again list",
+  outreach_without_unsubscribe: "no unsubscribe link",
+  outreach_needs_own_domain: "not from your own domain",
+  sending_domain_not_ready: "the domain isn't sending",
+  sending_domain_at_cap: "the domain's day is full",
 };

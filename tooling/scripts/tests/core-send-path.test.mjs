@@ -374,3 +374,94 @@ test("outreach is its own lane: it reaches the door as outreach, and its limits 
   await core.sendQueued(reply.ports, cold({ purpose: undefined, proactive: undefined }));
   assert.equal(reply.log.find((l) => l[0] === "page")[1], "provider_quota:email");
 });
+
+test("a cold email's failure is recorded on its row and its run's to report: no thread flag, no alert per email (Part 2.5 D4)", async () => {
+  const coldRow = {
+    status: "queued",
+    body: "Saw your shop on the map.",
+    channel: "email",
+    sender: "ai",
+    email: { to: ["owner@example.com"], idempotency_key: "m1" },
+  };
+  const cold = {
+    tenantId: "t1",
+    payload: {
+      message_id: "m1",
+      conversation_id: "c1",
+      to_email: "owner@example.com",
+      purpose: "outreach",
+      proactive: true,
+    },
+  };
+  const failed = (status, errorBody = "{}") => ({
+    outcome: "failed",
+    reason: "provider",
+    status,
+    errorBody,
+    messageId: "m1",
+  });
+
+  const lost = fakes({ queued: coldRow, deliver: failed(0, "request_leaves_as_another_sender") });
+  await core.sendQueued(lost.ports, cold);
+  assert.deepEqual(lost.ops(), ["deliver"], "no escalation, no alert: the row says it");
+
+  const key = fakes({ queued: coldRow, deliver: failed(401) });
+  await core.sendQueued(key.ports, cold);
+  assert.deepEqual(key.ops(), ["deliver", "page"], "a refused key is still the platform's");
+  assert.equal(key.log[1][1], "provider_auth:email_outreach");
+
+  const domain = fakes({
+    queued: coldRow,
+    deliver: failed(
+      403,
+      JSON.stringify({ name: "validation_error", message: "The getharbor.com domain is not verified." }),
+    ),
+  });
+  await core.sendQueued(domain.ports, cold);
+  assert.deepEqual(
+    domain.ops(),
+    ["deliver"],
+    "a domain the provider will not send from is the domain's fact, not our credentials",
+  );
+
+  // A reply's failure is unchanged: flagged and told.
+  const replyRow = { ...coldRow, sender: "human" };
+  const reply = fakes({ queued: replyRow, deliver: failed(0, "fetch failed") });
+  await core.sendQueued(reply.ports, {
+    tenantId: "t1",
+    payload: { message_id: "m1", conversation_id: "c1", to_email: "owner@example.com" },
+  });
+  assert.deepEqual(reply.ops(), ["deliver", "escalate", "alert"]);
+  // And a 403 on a WhatsApp send is still credentials.
+  const wa = fakes({ deliver: failed(403, "Unsupported post request") });
+  await core.sendQueued(wa.ports, send());
+  assert.equal(wa.log[1][1], "provider_auth:whatsapp");
+});
+
+test("a 403 that names a domain on the hosted mailbox is still the platform's credentials, paged (only cold email's is the domain's)", async () => {
+  const replyRow = {
+    status: "queued",
+    body: "We can do Saturday.",
+    channel: "email",
+    sender: "human",
+    email: { to: ["ana@example.com"], idempotency_key: "m1" },
+  };
+  const f = fakes({
+    queued: replyRow,
+    deliver: {
+      outcome: "failed",
+      reason: "provider",
+      status: 403,
+      errorBody: JSON.stringify({
+        name: "validation_error",
+        message: "You can only send testing emails. Verify a domain at resend.com/domains.",
+      }),
+      messageId: "m1",
+    },
+  });
+  await core.sendQueued(f.ports, {
+    tenantId: "t1",
+    payload: { message_id: "m1", conversation_id: "c1", to_email: "ana@example.com" },
+  });
+  assert.equal(f.log.find((l) => l[0] === "page")?.[1], "provider_auth:email");
+});

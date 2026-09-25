@@ -102,13 +102,19 @@ export async function sendQueued(ports: SendQueuedPorts, cmd: SendQueuedCommand)
   }
   // A 401 or 403 from the provider is the platform's problem, not this
   // thread's: the credentials are wrong for every send on this wire.
-  if (out.reason === "provider" && (out.status === 401 || out.status === 403)) {
+  // A 403 that names a domain is the provider refusing to send from one that stopped verifying at its end: the domain's
+  // fact, which the domains sweep holds, never our credentials.
+  const domainRefused = outreach && out.status === 403 && /domain/i.test(out.errorBody ?? "");
+  if (out.reason === "provider" && (out.status === 401 || (out.status === 403 && !domainRefused))) {
     await ports.page?.(
       `provider_auth:${outreach ? "email_outreach" : channel}`,
       `${channel} rejected a send with ${out.status}`,
       `Tenant ${cmd.tenantId}, message ${p.message_id}. Credentials, not content.`,
     );
   }
+  // A cold email's failure is its run's to report, once (Part 3), and its row already says it: never a flag on a thread
+  // nobody has opened, or an owner alert per email of a run.
+  if (outreach) return;
   // The wire could not carry it: the thread is flagged for a person and the
   // owner told, in words that say whose reply it was and what stopped it --
   // a number with no credentials is not "HTTP 503". A refusal needs neither;

@@ -30,6 +30,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   emitEvent,
+  recordEmailNo,
   recordEmailStatus,
   stampEmailComplaint,
   stampEmailSent,
@@ -37,7 +38,9 @@ import {
   type Database,
   type Json,
 } from "../packages/db.js";
-import { emailReceiptEffect, type EmailReceipt, type EmailReceiptType } from "../packages/channels.js";
+import { addressOf, emailReceiptEffect, type EmailReceipt, type EmailReceiptType } from "../packages/channels.js";
+import { holdForComplaint } from "./sending-domains.js";
+import { logger, errField } from "../log.js";
 import { upsertEscalation } from "../packages/jobs.js";
 
 type Db = SupabaseClient<Database>;
@@ -75,6 +78,19 @@ export async function applyEmailReceipt(db: Db, r: EmailReceipt, nowIso: string)
     const stopped = { reason: effect.suppress };
     if (contactId)
       await emitEvent(db, r.tenantId, "contact.email_suppressed", "contact", "contact", contactId, stopped);
+  }
+  if (r.type === "complained") {
+    // A complaint is the person's no, as an unsubscribe is (00177): their address on the never-again list, their
+    // leads closed. After the address stops (above), so a no that cannot be recorded -- the receipt then comes again --
+    // has already stopped what it could. Then the domain it left from is judged now, not at the next sweep.
+    const no = await recordEmailNo(db, { ...row, source: "complaint" });
+    const host = addressOf(no.from)?.address.split("@")[1] ?? null;
+    if (host) {
+      const log = logger({ tenant: r.tenantId });
+      await holdForComplaint({ db, log, now: () => Date.parse(nowIso) }, r.tenantId, host).catch((e) =>
+        log.error("sending_domain_complaint_hold_failed", { host, error: errField(e) }),
+      );
+    }
   }
   return "applied";
 }

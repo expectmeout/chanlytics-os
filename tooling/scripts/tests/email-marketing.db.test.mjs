@@ -360,3 +360,78 @@ test("Reports › Campaigns counts no unsubscribe from email as a STOP to its of
   );
   assert.equal(await opts(), 1, "a STOP still counts");
 });
+
+test(
+  "a complaint is a no through the same door: opted out, on the never-again list, the leads closed, the source said (00177)",
+  { skip },
+  async () => {
+    const p = await personOf("complained@fixture-unsubscribe.example");
+    const l = ok(
+      await db
+        .from("leads")
+        .insert({
+          tenant_id: A,
+          place_id: `ChIJfixtureComplaint${Date.now()}`,
+          business_name: "Fixture Complaint",
+          city: "Austin",
+          region: "TX",
+          email: "complained@fixture-unsubscribe.example",
+          email_state: "ok",
+          stage: "nurture",
+          contact_id: p,
+        })
+        .select("id")
+        .single(),
+    );
+    const r = ok(await press({ p_contact_id: p, p_source: "complaint", p_evidence: null, p_message_id: null }));
+    assert.equal(r.changed, true);
+    const row = ok(await db.from("contacts").select("email_marketing, email_marketing_source").eq("id", p).single());
+    assert.deepEqual([row.email_marketing, row.email_marketing_source], ["opted_out", "complaint"]);
+    assert.ok((await hashes()).has(await leadSuppressionHash(A, "complained@fixture-unsubscribe.example")));
+    const closed = ok(await db.from("leads").select("stage, closed_reason").eq("id", l.id).single());
+    assert.deepEqual([closed.stage, closed.closed_reason], ["archived", "said_no"]);
+    const ev = ok(
+      await db.from("events").select("data").eq("tenant_id", A).eq("kind", "lead.stage").eq("subject_id", l.id),
+    );
+    assert.equal(ev.length, 1);
+    assert.equal(ev[0].data.source, "complaint");
+    const other = await press({ p_contact_id: p, p_source: "other" });
+    assert.equal(other.error?.code, "22023", "only the two noes");
+  },
+);
+
+test(
+  "an erased person keeps no email answer, and the address they had is on the never-again list as erased (00177)",
+  { skip },
+  async () => {
+    const address = "erase-me@fixture-unsubscribe.example";
+    const p = await personOf(address);
+    ok(await press({ p_contact_id: p, p_message_id: null, p_evidence: null }));
+    const before_ = ok(
+      await db
+        .from("lead_suppressions")
+        .select("what")
+        .eq("tenant_id", A)
+        .eq("kind", "email")
+        .eq("hash", await leadSuppressionHash(A, address))
+        .single(),
+    );
+    assert.equal(before_.what, "email_opt_out");
+    // Erasure is a member's act (00151 erase_contact asks for a session): the workspace's owner, signed in.
+    ok(await member.rpc("erase_contact", { p_contact_id: p }));
+    const row = ok(
+      await db.from("contacts").select("email, email_marketing, email_marketing_source").eq("id", p).single(),
+    );
+    assert.deepEqual([row.email, row.email_marketing, row.email_marketing_source], [null, "unknown", "erasure"]);
+    const after_ = ok(
+      await db
+        .from("lead_suppressions")
+        .select("what")
+        .eq("tenant_id", A)
+        .eq("kind", "email")
+        .eq("hash", await leadSuppressionHash(A, address))
+        .single(),
+    );
+    assert.equal(after_.what, "erased", "the earlier opt-out row now says erased");
+  },
+);
