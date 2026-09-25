@@ -2035,6 +2035,22 @@ function pushFor(n2, tokens) {
   }));
 }
 var DAY_MS6 = 24 * 3600 * 1e3;
+var JOB_WORK = {
+  outbound_send: { stopped: "A message may not have been sent", to: "inbox" },
+  broadcast_send: { stopped: "A broadcast stopped partway", to: "broadcasts" },
+  line_provision: { stopped: "Setting up a phone line stopped", to: "admin/integrations" },
+  email_ingest: { stopped: "An email could not be taken in", to: "inbox" },
+  lead_round_start: { stopped: "A search could not start", to: "clients/leads" },
+  lead_collect: { stopped: "A search stopped partway", to: "clients/leads" },
+  lead_check: { stopped: "Checking a search's emails stopped", to: "clients/leads" },
+  push_send: { stopped: "An alert to your phone was not sent", to: "admin/notifications" }
+};
+var JOB_WORK_OTHER = { stopped: "Something in the background did not finish", to: "today" };
+function jobNewsWords(jobKind, end, attempts = 1) {
+  const w = JOB_WORK[jobKind] ?? JOB_WORK_OTHER;
+  const lead = end === "unfinished" ? jobKind === "outbound_send" ? "It started and never reported back, so it may or may not have reached the customer. Check the conversation before sending it again." : "It started and never reported back, so how it ended is unknown." : end === "unknown_kind" ? "Nothing ran: this is work the app does not know how to do." : `It stopped${attempts > 1 ? ` after ${attempts} tries` : ""} and will not start again on its own.`;
+  return { title: w.stopped, lead, to: w.to };
+}
 var DAY_MS7 = 864e5;
 var QUIET_AFTER_MS = 7 * DAY_MS7;
 var DATE_FMT4 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
@@ -21260,14 +21276,7 @@ async function runTick(ports, opts) {
     if (!job) break;
     c2.claimed += 1;
     if (verdictFor(job) === "give_up") {
-      await conclude(
-        ports,
-        job,
-        RUN_INTERRUPTED,
-        false,
-        `A ${job.kind} job did not finish`,
-        `Job ${job.id} (${job.kind}) started and never reported back, so ${RUN_INTERRUPTED}.` + (job.kind === "outbound_send" ? " If this was a reply, it may or may not have reached the customer; check the conversation before sending it again." : "")
-      );
+      await conclude(ports, job, RUN_INTERRUPTED, false, "unfinished");
       c2.gaveUp += 1;
       continue;
     }
@@ -21298,28 +21307,12 @@ async function runTick(ports, opts) {
         c2.deferred += 1;
         continue;
       }
-      await conclude(
-        ports,
-        job,
-        msg,
-        false,
-        `A ${job.kind} job failed`,
-        `Job ${job.id} (${job.kind}) failed${job.attempts > 1 ? ` after ${job.attempts} tries` : ""} and will not retry on its own.
-
-${msg}`
-      );
+      await conclude(ports, job, msg, false, "failed");
       c2.failed += 1;
       continue;
     }
     if (outcome === "unknown_kind") {
-      await conclude(
-        ports,
-        job,
-        `unknown job kind ${job.kind}`,
-        true,
-        `A ${job.kind} job could not run`,
-        `Job ${job.id} has a kind this runner does not know (${job.kind}), so nothing ran.`
-      );
+      await conclude(ports, job, `unknown job kind ${job.kind}`, true, "unknown_kind");
       c2.failed += 1;
       continue;
     }
@@ -21332,7 +21325,7 @@ ${msg}`
   }
   return c2;
 }
-async function conclude(ports, job, reason, certain, subject, lead) {
+async function conclude(ports, job, reason, certain, end) {
   let failed;
   try {
     failed = await ports.fail(job, reason);
@@ -21365,13 +21358,13 @@ async function conclude(ports, job, reason, certain, subject, lead) {
     reason
   });
   try {
+    const words5 = jobNewsWords(job.kind, end, job.attempts);
+    const reference = `Reference: job ${job.id} (${job.kind}): ${reason}.`;
     await ports.alert(job, {
       kind: "job_failed",
-      route: "inbox",
-      subject,
-      body: wreckage ? `${lead}
-
-${wreckage}` : lead
+      route: words5.to,
+      subject: words5.title,
+      body: [words5.lead, wreckage, reference].filter(Boolean).join("\n\n")
     });
   } catch (e2) {
     ports.log.error("job_alert_failed", { job_id: job.id, error: errText(e2) });

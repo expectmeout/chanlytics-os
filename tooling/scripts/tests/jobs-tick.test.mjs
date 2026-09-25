@@ -112,8 +112,10 @@ test("a handler that throws is failed, settled as an unknown outcome and reporte
   assert.deepEqual(calls.fail, [["b", "boom b"]]);
   assert.deepEqual(calls.settle, [["b", false]], "it ran, so whether it sent is not known");
   assert.equal(calls.alert.length, 1);
-  assert.equal(calls.alert[0].subject, "A outbound_send job failed");
-  assert.match(calls.alert[0].body, /boom b/);
+  assert.equal(calls.alert[0].subject, "A message may not have been sent", "the owner's words, never the job's name");
+  assert.equal(calls.alert[0].route, "inbox", "on the page the message lives on");
+  assert.match(calls.alert[0].body, /^It stopped and will not start again on its own\./, "the bell's line comes first");
+  assert.match(calls.alert[0].body, /Reference: job b \(outbound_send\): boom b\.$/, "the id and the error close it");
   assert.match(
     calls.alert[0].body,
     /marked failed, so it is no longer shown as on its way/,
@@ -162,7 +164,11 @@ test("the last try of an intake fails it for good and tells the owner how many t
     [["i", false]],
     "settled as a failure is: the mailbox says so, and the thread is held",
   );
-  assert.match(calls.alert[0].body, new RegExp(`failed after ${MAX_ATTEMPTS} tries and will not retry on its own`));
+  assert.match(
+    calls.alert[0].body,
+    new RegExp(`^It stopped after ${MAX_ATTEMPTS} tries and will not start again on its own`),
+  );
+  assert.equal(calls.alert[0].subject, "An email could not be taken in");
   assert.deepEqual(counts, { claimed: 1, done: 0, failed: 1, gaveUp: 0, deferred: 0 });
 });
 
@@ -192,11 +198,7 @@ test("internal work not written to be run again still fails on its first throw",
     calls.fail.map(([id]) => id),
     ["a", "b"],
   );
-  assert.match(
-    calls.alert[0].body,
-    /\(line_provision\) failed and will not retry on its own/,
-    "a first try says no count",
-  );
+  assert.match(calls.alert[0].body, /^It stopped and will not start again on its own\./, "a first try says no count");
   assert.equal(counts.failed, 2);
 });
 
@@ -206,7 +208,8 @@ test("a kind no runner knows is failed as never run, and never recorded done", a
   assert.deepEqual(calls.complete, []);
   assert.deepEqual(calls.fail, [["a", "unknown job kind made_up"]]);
   assert.deepEqual(calls.settle, [["a", true]], "nothing ran, so that much is certain");
-  assert.match(calls.alert[0].subject, /could not run/);
+  assert.equal(calls.alert[0].subject, "Something in the background did not finish");
+  assert.equal(calls.alert[0].route, "today", "a job with no words of its own says so on Today");
 });
 
 test("a send whose run died is never run a second time", async () => {
@@ -216,11 +219,12 @@ test("a send whose run died is never run a second time", async () => {
     assert.deepEqual(calls.dispatch, [], `${kind}: running it again could reach a real person twice`);
     assert.deepEqual(calls.fail, [["a", RUN_INTERRUPTED]]);
     assert.deepEqual(calls.settle, [["a", false]]);
-    assert.match(calls.alert[0].subject, /did not finish/);
     assert.deepEqual(
-      [calls.alert[0].kind, calls.alert[0].route],
-      ["job_failed", "inbox"],
-      "the one alert that IS a job not finishing says so itself",
+      [calls.alert[0].kind, calls.alert[0].subject, calls.alert[0].route],
+      kind === "outbound_send"
+        ? ["job_failed", "A message may not have been sent", "inbox"]
+        : ["job_failed", "A broadcast stopped partway", "broadcasts"],
+      "the one alert that IS a job not finishing says so itself, in the owner's words, on the work's own page",
     );
     assert.equal(counts.gaveUp, 1);
   }

@@ -1281,33 +1281,67 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
   padding: 10px 14px;
   border-bottom: 1px solid var(--line);
 }
-.tbn-title { font-size: 12px; font-weight: 500; color: var(--ink); }
-.tbn-readall { background: none; border: none; font-size: 11px; color: var(--ink-dim); cursor: pointer; padding: 2px 4px; border-radius: 4px; }
+.tbn-title { font-size: var(--text-base); font-weight: 600; color: var(--ink); }
+.tbn-readall { background: none; border: none; font: inherit; font-size: var(--text-sm); color: var(--ink-dim); cursor: pointer; padding: 2px 4px; border-radius: 4px; }
 .tbn-readall:hover { color: var(--ink); background: var(--bg-hover); }
 .tbn-list { overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
 .tbn-empty { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 32px; color: var(--ink-dim); font-size: 12px; }
 .tbn-empty .icon { color: var(--ok); }
-.tbn-item {
-  display: grid;
-  grid-template-columns: 24px 1fr;
-  gap: 10px;
-  padding: 12px 14px 12px 18px;
-  border-bottom: 1px solid var(--line);
-}
+/* A note is one press: its mark, two lines and a time, at the list row's own numbers (tokens.css, "one row for every
+   list"). The press does what the note says; the words say where. Each used to carry a 44px row of boxed buttons
+   saying it again, which was half of every note's height (48 notes, 6,677px on a phone, 25 Sep). */
+.tbn-item { position: relative; border-bottom: 1px solid var(--line); }
 .tbn-item:last-child { border-bottom: none; }
 .tbn-item.unread { background: oklch(from var(--accent) l c h / 0.03); }
+.tbn-open {
+  appearance: none;
+  position: relative;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: start;
+  column-gap: 10px;
+  width: 100%;
+  padding: 10px 14px 10px 18px;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.tbn-open:hover { background: var(--bg-hover); }
+.tbn-open:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .tbn-dot { position: absolute; left: 7px; top: 18px; width: 5px; height: 5px; border-radius: 999px; background: var(--accent); }
 /* The note's kind, as the one mark (.mark): neutral. A warning's or a failure's title carries its tone. */
 .tbn-icon { margin-top: 1px; }
 .tbn-item[data-tone="warn"] .tbn-item-title { color: var(--warn-ink); }
 .tbn-item[data-tone="danger"] .tbn-item-title { color: var(--danger-ink); }
-.tbn-body { min-width: 0; }
-.tbn-line1 { display: flex; align-items: baseline; gap: 8px; }
-.tbn-item-title { font-size: 12px; font-weight: 500; color: var(--ink); flex: 1; min-width: 0; }
+.tbn-body { display: flex; flex-direction: column; gap: var(--row-line-gap); min-width: 0; }
+.tbn-line1 { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.tbn-item-title, .tbn-msg { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.tbn-item-title { flex: 1; min-width: 0; font-size: var(--text-base); font-weight: 500; line-height: var(--row-name-line); color: var(--ink); }
 .tbn-item.unread .tbn-item-title { font-weight: 600; }
-.tbn-time { font-size: 10px; color: var(--ink-faint); flex-shrink: 0; }
-.tbn-msg { font-size: 11.5px; color: var(--ink-muted); line-height: 1.45; margin-top: 2px; }
-.tbn-actions { display: flex; gap: 4px; margin-top: 8px; flex-wrap: wrap; }
+.tbn-time { font-size: var(--row-facts); color: var(--ink-faint); flex-shrink: 0; }
+.tbn-msg { font-size: var(--text-sm); line-height: var(--row-said-line); color: var(--ink-muted); }
+/* Notes of one kind said once ("9 calls"): the newest is the line under it, and a press opens them under it, each a
+   note of its own without its mark, its words where the group's words start. */
+.tbn-item-group .tbn-open { grid-template-columns: 24px minmax(0, 1fr) 12px; }
+.tbn-chev { align-self: center; display: inline-flex; color: var(--ink-faint); transition: rotate var(--duration-fast) var(--ease-out); }
+.tbn-group.open .tbn-chev { rotate: 180deg; }
+@media (prefers-reduced-motion: reduce) { .tbn-chev { transition: none; } }
+.tbn-item.in-group .tbn-open { grid-template-columns: minmax(0, 1fr); padding-left: 52px; }
+.tbn-item.in-group .tbn-dot { left: 41px; }
+/* On a phone a note is two single lines, as a row in the Inbox is; what it cuts, the press opens. */
+@media (max-width: 720px) {
+  .tbn-item-title, .tbn-msg { -webkit-line-clamp: 1; }
+  .tbn-open { padding: var(--row-pad-y) var(--row-pad-x) var(--row-pad-y) 20px; }
+  .tbn-dot { left: 8px; top: 20px; }
+  .tbn-item.in-group .tbn-open { padding-left: 54px; }
+  .tbn-item.in-group .tbn-dot { left: 42px; }
+  /* A line the phone can do nothing about ("Alerts are blocked in your browser settings") is not drawn there; the
+     switch itself is, where the browser can alert. */
+  .tbn-foot:has(> .tbn-foot-note) { display: none; }
+}
 @media (max-width: 900px) { .tbn-pop { position: fixed; top: 52px; right: 12px; left: 12px; width: auto; } }
 /* On a phone the notes are a sheet from the bottom, as every other sheet there is: edge to edge, a handle, the page
    stepped back behind a wash, pulled down to close (topbar.jsx NotifPopover, data-bits touchSwipe), rising and leaving
@@ -1328,7 +1362,7 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
   .tbn-pop[data-leaving="true"] { animation: sheet-out 180ms var(--ease-in) forwards; }
   .tbn-backdrop[data-leaving="true"] { animation: wash-out 160ms var(--ease-in) forwards; }
 }
-.tbn-sec { position: sticky; top: 0; z-index: 1; padding: 7px 14px 5px; font-size: 9.5px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-dim); background: var(--bg-sunken); border-bottom: 1px solid var(--line); }
+.tbn-sec { position: sticky; top: 0; z-index: 2; padding: 8px 18px 6px; font-size: var(--text-sm); font-weight: 500; color: var(--ink-dim); background: var(--bg-raised); border-bottom: 1px solid var(--line); }
 .tbn-title { flex: 1; }
 .tb-bell.ping .icon { animation: bell-swing 0.9s var(--ease-out); transform-origin: 50% 2px; }
 @keyframes bell-swing { 0%, 100% { transform: rotate(0); } 20% { transform: rotate(13deg); } 45% { transform: rotate(-10deg); } 70% { transform: rotate(6deg); } 85% { transform: rotate(-3deg); } }
@@ -1902,6 +1936,7 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
 .tbn-item { position: relative; }
 .tbn-x {
   position: absolute;
+  z-index: 1;
   top: 6px;
   right: 8px;
   width: 22px; height: 22px;
@@ -1921,11 +1956,12 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
 @media (hover: none) {
   .tbn-x { opacity: 1; pointer-events: auto; transform: none; }
   .tbn-x::after { content: ""; position: absolute; inset: 0 -11px; }
-  .tbn-line1 { padding-right: 24px; }
+  .tbn-item:not(.tbn-item-group) .tbn-line1 { padding-right: 24px; }
 }
 .tbn-x:hover { color: var(--danger); background: var(--danger-soft); }
 .tbn-x:active { transform: scale(0.9); }
-.tbn-item:hover .tbn-time { opacity: 0; }
+/* The × takes the time's place on hover; a group has no ×, so it keeps its time. */
+.tbn-item:not(.tbn-item-group):hover .tbn-time { opacity: 0; }
 .tbn-time { transition: opacity 120ms var(--ease-out); }
 
 /* Non-interactive info elements with tips read as "explainable", not clickable */

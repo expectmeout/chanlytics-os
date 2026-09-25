@@ -315,7 +315,7 @@ const PanePlatform = () => {
         <section className="fl-card set-card" data-testid="platform-health">
           <div className="fl-card-head">
             <h2 className="fl-card-title">The platform</h2>
-            <span className="fl-card-sub" data-testid="platform-health-words">{P.healthWords(health)}</span>
+            <span className="fl-card-sub set-says" data-testid="platform-health-words">{P.healthWords(health)}</span>
           </div>
           {health.unhealthy.length > 0 && (
             <div className="cl-attn-list" data-testid="platform-health-clocks">
@@ -344,7 +344,7 @@ const PanePlatform = () => {
         <section className="fl-card set-card" data-testid="platform-queue">
           <div className="fl-card-head">
             <h2 className="fl-card-title">Waiting to get in</h2>
-            <span className="fl-card-sub" data-testid="platform-queue-words">{waiting.sentence}</span>
+            <span className="fl-card-sub set-says" data-testid="platform-queue-words">{waiting.sentence}</span>
           </div>
           {waiting.rows.length > 0 && (
             <>
@@ -365,13 +365,13 @@ const PanePlatform = () => {
       <section className="fl-card set-card" data-testid="platform-overview">
         <div className="fl-card-head">
           <h2 className="fl-card-title">Every workspace</h2>
-          <span className="fl-card-sub" data-testid="platform-summary">{summary.sentence}</span>
+          <span className="fl-card-sub set-says" data-testid="platform-summary">{summary.sentence}</span>
           <button className="cl-bucket-link" onClick={load} disabled={busy} data-testid="platform-refresh">{busy ? "Reading…" : "Read again"}</button>
         </div>
         {problem && (
           <window.FailedRead kind="line" what="every workspace" why={problem} body="The workspaces themselves are unaffected." onRetry={load} busy={busy} testid="platform-failed" />
         )}
-        <div className="set-row">
+        <div className="set-row pf-find-row">
           <div className="set-row-info">
             <span className="set-row-hint">Sorted by who needs a person, not by name: work down the page.</span>
           </div>

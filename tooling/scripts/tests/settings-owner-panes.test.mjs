@@ -583,6 +583,35 @@ test("on a phone the matrix is one line per class: its mode is a word that opens
   }
 });
 
+test("on a phone the reply dials are a word that opens their steps, and a desktop keeps the segmented control", () => {
+  // 25 Sep: five dials drew a 50px strip of 44px buttons under every label on a phone, 110px a row.
+  const W = globalThis.window;
+  const was = W.matchMedia;
+  W.matchMedia = (q) => ({ matches: q === "(max-width: 640px)", addEventListener() {}, removeEventListener() {} });
+  try {
+    let tree = autonomy([{ class: "reply", mode: "veto", limits: { max_replies_day: 20, pause_hours: 4 } }]);
+    // The element drawn, not the dial's own element, which carries the same name.
+    const drawn = (t) => find(t, (n) => typeof n.type === "string" && n.props?.["data-testid"] === "aut-reply-cap");
+    const cap = drawn(tree);
+    assert.equal(cap.props["aria-haspopup"], "menu", "the dial is a menu on a phone");
+    assert.match(textOf(cap), /20/, "its word is the value in force");
+    press(cap);
+    tree = settle("autonomy");
+    const steps = all(tree, (n) => n.props?.role === "menuitemradio");
+    assert.ok(steps.length >= 2, "the steps, as radio items");
+    assert.equal(steps.filter((i) => i.props["aria-checked"]).length, 1, "the one in force ticked");
+    assert.equal(all(tree, (n) => n.props?.className === "cl-tabs").length, 0, "no segmented strip on a phone");
+  } finally {
+    W.matchMedia = was;
+  }
+  const desk = autonomy([{ class: "reply", mode: "veto", limits: { max_replies_day: 20, pause_hours: 4 } }]);
+  assert.equal(
+    find(desk, (n) => typeof n.type === "string" && n.props?.["data-testid"] === "aut-reply-cap").props.role,
+    "group",
+    "a desktop keeps the dial",
+  );
+});
+
 test("the matrix's headings say what the receptionist does, not how the mode is filed", () => {
   const tree = autonomy([{ class: "reply", mode: "veto", limits: {} }]);
   assert.deepEqual(
