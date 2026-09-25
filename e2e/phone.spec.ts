@@ -567,6 +567,45 @@ test.describe("Phone shell on a real workspace", () => {
   });
 
   /**
+   * A note is dismissed with a thumb (25 Sep). Its × waited for a pointer to hover the row, so on a phone it was
+   * invisible and took no press (48 notes, and only Mark all read cleared them). On a touch screen it stands in each
+   * row at its own size, with a press area a thumb wide, and the time beside it rather than under it. Read, not
+   * pressed: a dismissal is kept for the person, and the nightly's feed is shared.
+   */
+  test("the bell's × is there on a phone, its own size, a thumb wide to press, and clear of the time", async ({
+    page,
+  }) => {
+    await page.goto("/#/today");
+    await page.waitForLoadState("networkidle");
+    await page.getByRole("button", { name: /^Notifications/ }).click();
+    const pop = page.getByRole("dialog", { name: "Notifications" });
+    await expect(pop).toBeVisible();
+    const row = pop.locator(".tbn-item").first();
+    test.skip((await row.count()) === 0, "all caught up on this workspace");
+    const shape = await row.locator(".tbn-x").evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      const cs = getComputedStyle(el);
+      const y = r.top + r.height / 2;
+      // 16px either side of its middle: past the 22px it shows, inside the thumb's width it answers to.
+      const hits = [-16, 16].map((dx) => el.contains(document.elementFromPoint(r.left + r.width / 2 + dx, y)));
+      const time = el.closest(".tbn-item")!.querySelector(".tbn-time");
+      const t = time ? time.getBoundingClientRect() : null;
+      return {
+        opacity: cs.opacity,
+        events: cs.pointerEvents,
+        width: Math.round(r.width),
+        hits,
+        clear: t ? t.right <= r.left : true,
+      };
+    });
+    expect(shape.opacity, "shown without a hover").toBe("1");
+    expect(shape.events, "and it takes a press").toBe("auto");
+    expect(shape.width, "at its own size").toBeLessThanOrEqual(24);
+    expect(shape.hits, "a thumb wide around it").toEqual([true, true]);
+    expect(shape.clear, "the time stands beside it, not under it").toBe(true);
+  });
+
+  /**
    * A swipe across the page walks its strip (25 Sep, docs/superpowers/specs/2026-09-25-swipe-between-tabs-design.md):
    * the page follows the thumb, and let go past a third of the screen the tab beside is pressed; before the first tab
    * there is nothing to go to. Real touches through the browser's own input (CDP), as today.spec.ts pulls Ask down.
