@@ -234,7 +234,12 @@
   .stabs-settings { display: flex; scrollbar-width: none; scroll-padding-inline: 16px; -webkit-mask-image: linear-gradient(to right, transparent, #000 20px, #000 calc(100% - 20px), transparent); mask-image: linear-gradient(to right, transparent, #000 20px, #000 calc(100% - 20px), transparent); }
   .stabs-settings::-webkit-scrollbar { display: none; }
   .stabs-settings .stabs-tab { flex: none; white-space: nowrap; }
-  .set-pane { padding: 16px 16px 48px; gap: 16px; }
+  /* Settings holds still under a pull (Ruben, 25 Sep): a thumb moves a page sideways, to the tab beside it, never
+     down. The pane scrolls through what it holds and stretches past neither its top nor its foot; while Settings is
+     open the screen does not either, where a short page or the strip handed the pull to it (iOS bounced the screen,
+     Android reloaded it). Every other page's lists give way under a thumb on purpose (below, "every list pulls"). */
+  .set-pane { padding: 16px 16px 48px; gap: 16px; overscroll-behavior-y: none; }
+  html.legacy-on:has(.settings), html.legacy-on:has(.settings) body { overscroll-behavior-y: none; }
   .settings .set-card { padding: 14px 15px 6px; }
   /* A card that scrolls sideways (below, for wide tables) gets min-height 0 in
      this bounded flex column and collapsed to its head with an inner scroll —
