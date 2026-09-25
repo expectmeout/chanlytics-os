@@ -1,7 +1,13 @@
 import { expect, test, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
 import { apiGet } from "./workspace";
-import { expectLeadsScope, expectPeekSeenVersusRead, expectRowUnchangedAfterUndo, expectStripEnding } from "./signals";
+import {
+  expectLeadsScope,
+  expectPeekSeenVersusRead,
+  expectRowUnchangedAfterUndo,
+  expectStripEnding,
+  leadRowWords,
+} from "./signals";
 import { WAITING_PLACES, WAITING_QUESTION, WAITING_SEARCH_NAME, refuseAnswers, waitingSearch } from "./waiting-search";
 
 /**
@@ -202,7 +208,7 @@ test.describe("Leads on a real workspace", () => {
     await page.goto("/#/clients/leads:l-nurture");
     await page.waitForLoadState("networkidle");
     const row = page.locator(".cl-table tbody tr", { hasText: HYDE_PARK });
-    const before = await row.innerText();
+    const before = await leadRowWords(row);
     // Not a fit is the peek's, not the row's: a row offers Call, Copy and the
     // class's own three (LeadRowActions), and the five whys are asked in the
     // peek that opened (§9.5). The words are contracts' LEAD_NOT_A_FIT_WORDS.
@@ -227,7 +233,7 @@ test.describe("Leads on a real workspace", () => {
     await openSeededSearch(page);
     await page.getByTestId("lead-class-excluded").click();
     const row = page.locator(".cl-table tbody tr", { hasText: FITCORP });
-    const before = await row.innerText();
+    const before = await leadRowWords(row);
     await row.hover();
     await row.getByTestId("lead-put-back").click();
     await expect.poll(() => put.length).toBe(1);
@@ -242,7 +248,7 @@ test.describe("Leads on a real workspace", () => {
     await openSeededSearch(page);
     await page.getByTestId("lead-class-review").click();
     const row = page.locator(".cl-table tbody tr", { hasText: KETTLEBELL });
-    const before = await row.innerText();
+    const before = await leadRowWords(row);
     await row.hover();
     await row.getByTestId("lead-keep").click();
     await expect.poll(() => kept.length).toBe(1);
