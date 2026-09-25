@@ -1094,6 +1094,15 @@ test("on a phone the scopes are the Inbox's tab strip, on a row of their own ove
     assert.equal(bar.props.className, "pp-bar", "the bar is the row under it");
     assert.equal(all(bar, (n) => n.props?.role === "tab").length, 0, "no switch squeezed beside the list button");
     assert.ok(byTestId(bar, "people-phone-lists"), "the list button has the bar");
+    // The top stands over the page's scroller, not in it, as the Inbox's strip does: the rows scroll and bounce under
+    // it, and a pull down never takes the strip with them (Ruben, 25 Sep).
+    const scroller = find(tree, (n) =>
+      String(n.props?.className || "")
+        .split(" ")
+        .includes("cl-main-scroll"),
+    );
+    assert.ok(scroller, "the page's scroller");
+    assert.equal(byTestId(scroller, "people-phone-bar"), null, "the top is not inside what scrolls");
     click(byTestId(tree, "people-phone-search-open"));
     tree = draw();
     const searching = byTestId(tree, "people-phone-bar");

@@ -2996,26 +2996,27 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
       />
 
       <div className="cl-main">
+        {/* A phone's one bar: the switch, the list, search and the more-menu (PeoplePhoneBar). It stands over the
+            scroller, as the Inbox's strip does: the rows scroll and bounce under it, and a pull down never takes it. */}
+        {phone && (
+          <PeoplePhoneBar
+            scope="people"
+            onScope={(to) => nav(plScopeRoute(to))}
+            dealsOn={dealsOn}
+            listLabel={activeSaved ? activeSaved.name : activeList ? activeList.label : listGone ? listGone.title : "Everyone"}
+            onLists={() => setListsOpen(true)}
+            listsOpen={listsOpen}
+            q={q}
+            onQ={setQ}
+            searchRef={searchRef}
+            searchOpen={searchOpen}
+            onSearchOpen={setSearchOpen}
+            searchLabel={PL_SEARCH_LABEL}
+            testid="people"
+            trailing={<MoreMenu items={phoneMenu} title="More" size={18} btnClass="pp-bar-icon" escape />}
+          />
+        )}
         <div className="cl-main-scroll pl-main" ref={scrollRef}>
-          {/* A phone's one bar: the switch, the list, search and the more-menu (PeoplePhoneBar). */}
-          {phone && (
-            <PeoplePhoneBar
-              scope="people"
-              onScope={(to) => nav(plScopeRoute(to))}
-              dealsOn={dealsOn}
-              listLabel={activeSaved ? activeSaved.name : activeList ? activeList.label : listGone ? listGone.title : "Everyone"}
-              onLists={() => setListsOpen(true)}
-              listsOpen={listsOpen}
-              q={q}
-              onQ={setQ}
-              searchRef={searchRef}
-              searchOpen={searchOpen}
-              onSearchOpen={setSearchOpen}
-              searchLabel={PL_SEARCH_LABEL}
-              testid="people"
-              trailing={<MoreMenu items={phoneMenu} title="More" size={18} btnClass="pp-bar-icon" escape />}
-            />
-          )}
           <PeopleStanding
             scope="people"
             agg={agg}

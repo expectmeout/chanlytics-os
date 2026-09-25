@@ -1043,25 +1043,28 @@ const LeadsScope = (p) => {
       {!phone && <PeopleRail scope="leads" onScope={p.onScope} dealsOn={!!p.dealsOn}>{railRows}</PeopleRail>}
 
       <div className="cl-main">
+        {/* A phone's one bar stands over the scroller, as the Inbox's strip does: the rows scroll and bounce under it,
+            and a pull down never takes it. */}
+        {phone && (
+          <LeadsPhoneBar
+            scope="leads"
+            onScope={p.onScope}
+            dealsOn={!!p.dealsOn}
+            listLabel={p.railLabel}
+            listCount={p.railCount}
+            onLists={p.onLists}
+            listsOpen={p.listsOpen}
+            q={p.q}
+            onQ={p.onQ}
+            searchRef={p.searchRef}
+            searchOpen={p.searchOpen}
+            onSearchOpen={p.onSearchOpen}
+            onFind={p.onFind}
+            canFind={p.canFind}
+          />
+        )}
         <div className="cl-main-scroll pl-main" ref={p.scrollRef}>
-          {phone ? (
-            <LeadsPhoneBar
-              scope="leads"
-              onScope={p.onScope}
-              dealsOn={!!p.dealsOn}
-              listLabel={p.railLabel}
-              listCount={p.railCount}
-              onLists={p.onLists}
-              listsOpen={p.listsOpen}
-              q={p.q}
-              onQ={p.onQ}
-              searchRef={p.searchRef}
-              searchOpen={p.searchOpen}
-              onSearchOpen={p.onSearchOpen}
-              onFind={p.onFind}
-              canFind={p.canFind}
-            />
-          ) : (
+          {!phone && (
             <>
               <PeopleStanding scope="leads" leads={standing} onNeeds={p.onNeedsYou} onScope={p.onScope} />
 

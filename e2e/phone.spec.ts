@@ -488,6 +488,14 @@ test.describe("Phone shell on a real workspace", () => {
           middle: Math.round((w.top + w.bottom) / 2 - t.top),
           step: Math.round(tabs[1].getBoundingClientRect().left - t.right),
           underline: picked ? getComputedStyle(picked).borderBottomColor : null,
+          // Nothing that holds it scrolls: what scrolls is what a pull down drags, and People's strip went with its rows.
+          inScroller: (() => {
+            for (let n = el.parentElement; n; n = n.parentElement) {
+              const oy = getComputedStyle(n).overflowY;
+              if (oy === "auto" || oy === "scroll") return true;
+            }
+            return false;
+          })(),
         };
       });
     const shapes: [string, Awaited<ReturnType<typeof shapeOf>>][] = [];
@@ -518,6 +526,9 @@ test.describe("Phone shell on a real workspace", () => {
       Math.round((firstShape.tab - 2) / 2),
     );
     expect(firstShape.underline, "the tab picked is underlined in the accent").toBe(accent);
+    expect(firstShape.inScroller, "the strip stands over what scrolls: a pull down moves the rows, never it").toBe(
+      false,
+    );
   });
 
   /**
