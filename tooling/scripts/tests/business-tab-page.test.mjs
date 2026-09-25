@@ -415,8 +415,8 @@ test("what stops a save is said under the box, before any round trip, and nothin
   const said = find(inline(tree, "website"), (n) => n.props?.id === box.props["aria-describedby"].split(" ")[0]);
   assert.equal(
     textOf(said),
-    "The website needs to be a full web address, starting with https://",
-    "the old form's sentence, named by the box",
+    "The website needs to be a web address, like example.com.",
+    "its sentence, named by the box",
   );
   assert.deepEqual([sent.length, flashes.length], [0, 0], "nothing sent, and nothing said in a toast");
   assert.deepEqual(openRows(tree), ["website"], "the editor stays open");
@@ -444,9 +444,36 @@ test("what stops a save is said under the box, before any round trip, and nothin
   tree = redrawTab(flash);
   assert.match(
     textOf(inline(tree, "booking_link")),
-    /That booking link needs to be a full web address, starting with https:\/\//,
+    /That booking link needs to be a web address, like booksy\.com\/your-page\./,
   );
   assert.equal(sent.length, 0);
+  // The website and the booking link are stored as contracts' one normalizer stores an address: the https:// an owner
+  // leaves off, supplied.
+  typeInto(tree, "booking_link", "booksy.com/marisa");
+  tree = redrawTab(flash);
+  saveRow(tree, "booking_link");
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].config.brain.booking_link, "https://booksy.com/marisa");
+});
+
+test("(D) a website typed without its https:// is stored with it, as contracts' normalizer stores an address", () => {
+  const sent = saving();
+  let tree = drawTab();
+  openFold(tree, "website");
+  tree = redrawTab();
+  // The address it holds, typed as people type it, is no change: the two are one place.
+  typeInto(tree, "website", " marisasbeautysalon.example.com ");
+  tree = redrawTab();
+  saveRow(tree, "website");
+  assert.equal(sent.length, 0, "the address already stored, written without its https://, is no change");
+  openFold(redrawTab(), "website");
+  tree = redrawTab();
+  typeInto(tree, "website", "marisas.example/salon");
+  tree = redrawTab();
+  assert.equal(boxOf(tree, "website").props["aria-invalid"], undefined);
+  saveRow(tree, "website");
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].config.brain.profile.website, "https://marisas.example/salon");
 });
 
 test("F2: the transfer number cannot be the number the business keeps and forwards -- said under the box, nothing sent", () => {

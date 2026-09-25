@@ -130,6 +130,18 @@ export const FIRST_RUN_WORDS = {
   toToday: "Back to Today",
   /** Finish's activation refused: said, and Finish still goes on to Today. */
   notFinished: "Calls were not switched on",
+  /**
+   * Asked before the page moves on while a row on it holds typing never saved (the record kit's open fold), or while
+   * a save is on its way, which asks in other words: "without saving" is untrue of a change already sent.
+   */
+  leave: {
+    question: "Leave without saving?",
+    detail: "What you typed on this step has not been saved.",
+    savingQuestion: "Leave while this saves?",
+    savingDetail: "Your change is on its way and carries on without this step. If it does not go through you are told.",
+    yes: "Yes, leave",
+    no: "Stay",
+  },
   /** A row's second button on the first run, and what it says once pressed. */
   putOff: { put: "Later", undo: "Undo later" },
   /** Find, the business step while there is a listing to link (canvas R1, P1): only what Google said, and the owner's words. */

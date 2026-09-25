@@ -294,7 +294,10 @@ const btSellsByDoor = btWorkspaceDoor({
 /* ------------------------------------ what each row stores ------------------------------------ */
 
 // The pattern every web address on this tab is checked by: the old form's, which the save's own URL rule backs up.
-const BT_WEB = /^https?:\/\/.+\..+/;
+// A web address as it is stored: contracts' one normalizer (normalizeLink, which supplies a missing https://), or null
+// when the draft cannot be one. Without the bridge (the standalone mockup before it loads, a test that never installed
+// it) there is nothing to ask, as for the booking link's own check: it is taken as typed.
+const btWebOf = (v) => (!v ? null : window.__normalizeLink ? window.__normalizeLink(v) : v);
 
 // The number it gives out, as PublishedNumberRow held it: absent is "the line it answers", so choosing the line stores
 // nothing. `own` means the line only where there is one to follow.
@@ -310,8 +313,10 @@ const btTransferOf = (d) => (window.__handoffE164 ? window.__handoffE164(d) : (b
 const BT_STORED_AS = {
   name: btTrimmed,
   address: btTrimmed,
-  website: btTrimmed,
-  booking_link: btTrimmed,
+  // Stored with the https:// an owner leaves off, as contracts' normalizer stores an address; what it cannot read, as
+  // typed, for the row's check to refuse.
+  website: (d) => btWebOf(btTrimmed(d)) || btTrimmed(d),
+  booking_link: (d) => btWebOf(btTrimmed(d)) || btTrimmed(d),
   phone_display: btPublishedOf,
   handoff_number: btTransferOf,
 };
@@ -324,7 +329,7 @@ const BT_STORED_AS = {
 const btCheckName = (d) => (btTrimmed(d) ? null : "The receptionist needs a business name before it can answer anyone.");
 const btCheckWebsite = (d) => {
   const v = btTrimmed(d);
-  return v && !BT_WEB.test(v) ? "The website needs to be a full web address, starting with https://" : null;
+  return v && !btWebOf(v) ? "The website needs to be a web address, like example.com." : null;
 };
 // Asked of a business that books or has not said (contracts bookingLinkOptional, by the answer the caller holds): a
 // business that quotes may leave it empty, and its receptionist takes the customer's details instead. Without the
@@ -333,7 +338,7 @@ const btCheckBookingLink = (d, sellsBy) => {
   const v = btTrimmed(d);
   const tab = window.__businessTab;
   if (!v) return tab && tab.bookingLinkOptional && !tab.bookingLinkOptional(sellsBy) ? tab.BOOKING_LINK_NEEDED : null;
-  return BT_WEB.test(v) ? null : "That booking link needs to be a full web address, starting with https://";
+  return btWebOf(v) ? null : "That booking link needs to be a web address, like booksy.com/your-page.";
 };
 const btCheckPublished = (d, line) => {
   const v = btPublishedOf(d, line);

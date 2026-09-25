@@ -78,6 +78,39 @@ export function timezoneWords(
 }
 
 /**
+ * What else a zone is found by in the picker: the cities and states people type, which a zone's own name ("America/
+ * New_York") does not say -- "Search for a city" found nothing for "Miami". Only the zones US and Canadian businesses
+ * run on and a few more; every other zone is found by its own name, as before. A state split between two zones is
+ * named for the one most of it keeps.
+ */
+const ZONE_ALSO: Record<string, string> = {
+  "America/New_York":
+    "Miami Orlando Tampa Jacksonville Florida Atlanta Georgia Boston Massachusetts Philadelphia Pittsburgh Pennsylvania Washington DC Baltimore Maryland Charlotte Raleigh North Carolina South Carolina Virginia Richmond Newark New Jersey Brooklyn Queens Bronx Buffalo Connecticut Ohio Columbus Cleveland Cincinnati Michigan Maine Vermont New Hampshire Rhode Island Delaware West Virginia",
+  "America/Detroit": "Detroit Michigan",
+  "America/Indiana/Indianapolis": "Indianapolis Indiana",
+  "America/Kentucky/Louisville": "Louisville Kentucky",
+  "America/Chicago":
+    "Houston Dallas Austin San Antonio Fort Worth Texas Nashville Memphis Tennessee New Orleans Louisiana Minneapolis Minnesota St. Louis Kansas City Missouri Milwaukee Wisconsin Oklahoma City Tulsa Oklahoma Omaha Nebraska Iowa Des Moines Alabama Birmingham Mississippi Arkansas Illinois Kansas Wichita",
+  "America/Denver":
+    "Colorado Colorado Springs Salt Lake City Utah Albuquerque New Mexico El Paso Boise Idaho Montana Wyoming",
+  "America/Phoenix": "Arizona Phoenix Tucson Scottsdale Mesa",
+  "America/Los_Angeles":
+    "California San Francisco San Diego San Jose Oakland Sacramento Fresno Seattle Washington State Portland Oregon Las Vegas Nevada",
+  "America/Anchorage": "Alaska",
+  "Pacific/Honolulu": "Hawaii",
+  "America/Puerto_Rico": "San Juan Puerto Rico",
+  "America/Toronto": "Toronto Ontario Ottawa Montreal Quebec",
+  "America/Vancouver": "Vancouver British Columbia",
+  "America/Mexico_City": "Mexico Guadalajara Monterrey",
+  "Europe/London": "England UK United Kingdom Manchester Birmingham",
+};
+
+/** The zone's own name as people read it, and the cities and states it is also found by. */
+export function zoneSearchWords(zone: string): string {
+  return [zone.replace(/_/g, " "), ZONE_ALSO[zone] ?? ""].join(" ").trim();
+}
+
+/**
  * Every zone this machine knows, for the picker.
  *
  * supportedValuesOf is the modern answer and needs no list in the repo; where

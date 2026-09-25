@@ -146,6 +146,9 @@ test("Check draws the Business tab's own rows over the settings read's brain, an
   assert.equal(byTestId(tree, "fr-rows"), null, "not Setup's rows");
 });
 
+/** Past the page's wait for a radiogroup's keys to settle (first-run.jsx FR_SETTLE_MS). */
+const pastTheSettle = () => new Promise((r) => setTimeout(r, 650));
+
 test("a tap on how customers buy saves through the workspace's door, and the booking link follows the answer", async () => {
   const sent = courier();
   try {
@@ -156,9 +159,23 @@ test("a tap on how customers buy saves through the workspace's door, and the boo
       "until it is said, the first answer is shown",
     );
     assert.match(textOf(byTestId(tree, "rec-row-booking_link")), /Not set/);
+    // Arrow keys move a radiogroup's choice and change it: the choice is shown at once, and saved once they settle,
+    // the last one -- never one save per key.
     press(answers(tree)[1]);
+    tree = redraw();
+    press(answers(tree)[0]);
+    tree = redraw();
+    press(answers(tree)[1]);
+    tree = redraw();
+    assert.deepEqual(
+      answers(tree).map((r) => r.props["aria-checked"]),
+      [false, true],
+      "shown at once",
+    );
+    assert.deepEqual(sent, [], "and not sent while the keys are still moving");
+    await pastTheSettle();
     await settle();
-    assert.deepEqual(sent, [{ sells_by: "proposal" }]);
+    assert.deepEqual(sent, [{ sells_by: "proposal" }], "one save, of the last choice");
     tree = redraw();
     assert.deepEqual(
       answers(tree).map((r) => r.props["aria-checked"]),
@@ -236,6 +253,108 @@ test("a role that may not change the business goes on with Looks right and sends
     assert.equal(replaced.at(-1), "start", "and the step goes on");
   } finally {
     W.canDo = was;
+    delete W.__workspace;
+  }
+});
+
+/* ------------------------------------ (D) moving between steps ------------------------------------ */
+
+test("(D) the step's heading takes focus when the step changes -- so a screen reader says where the owner is -- and not on the page's arrival", () => {
+  const focused = [];
+  const was = globalThis.document.getElementById;
+  globalThis.document.getElementById = (id) => (id === "fr-heading" ? { focus: (o) => focused.push(o) } : null);
+  try {
+    let tree = draw({ setup: dto({ services: 2 }), sellsBy: "booking" });
+    tree = redraw();
+    assert.deepEqual(focused, [], "arriving is not a move");
+    assert.equal(
+      byTestId(tree, "fr-heading").props.tabIndex,
+      -1,
+      "a heading that can take focus, and is not a stop for Tab",
+    );
+    param = "phone";
+    redraw();
+    assert.deepEqual(focused, [{ preventScroll: true }], "the move: the heading, without jumping the page");
+    redraw();
+    assert.equal(focused.length, 1, "once a move");
+  } finally {
+    globalThis.document.getElementById = was;
+    delete W.__workspace;
+  }
+});
+
+test("(D) a move while a row holds typing never saved asks first: Stay keeps the typing, Yes goes -- and a save on its way is asked about in its own words", () => {
+  const was = W.__settingsSaving;
+  try {
+    let tree = draw({ setup: dto({ services: 2 }), sellsBy: "booking", at: "business" });
+    press(byTestId(tree, "rec-row-act-website"));
+    tree = redraw();
+    typeInto(tree, "website", "harbor-moving.example");
+    tree = redraw();
+    const before = replaced.length;
+    byTestId(tree, "fr-onward").props.onClick();
+    tree = redraw();
+    const words = FIRST_RUN_HELPERS.words.leave;
+    assert.equal(replaced.length, before, "nothing moved");
+    assert.match(textOf(byTestId(tree, "fr-leave-confirm")), new RegExp(words.question.replace("?", "\\?")));
+    assert.match(textOf(byTestId(tree, "fr-leave-confirm")), new RegExp(words.detail));
+    press(byTestId(tree, "fr-leave-no"));
+    tree = redraw();
+    assert.equal(byTestId(tree, "fr-leave-confirm"), null);
+    assert.equal(replaced.length, before, "Stay: still here");
+    // The Rail's step, and Finish later, ask the same.
+    byTestId(tree, "fr-later").props.onClick();
+    tree = redraw();
+    assert.ok(byTestId(tree, "fr-leave-confirm"), "Finish later asks too");
+    press(byTestId(tree, "fr-leave-no"));
+    tree = redraw();
+    byTestId(tree, "fr-onward").props.onClick();
+    tree = redraw();
+    press(byTestId(tree, "fr-leave-yes"));
+    assert.equal(replaced.length, before + 1, "Yes: the move it asked about");
+
+    // A save on its way is not "without saving": asked in other words, and never as a danger.
+    tree = draw({ setup: dto({ services: 2 }), sellsBy: "booking", at: "business" });
+    press(byTestId(tree, "rec-row-act-website"));
+    tree = redraw();
+    typeInto(tree, "website", "harbor-moving.example");
+    tree = redraw();
+    W.__settingsSaving = () => true;
+    byTestId(tree, "fr-onward").props.onClick();
+    tree = redraw();
+    assert.match(textOf(byTestId(tree, "fr-leave-confirm")), /Leave while this saves\?/);
+    assert.match(textOf(byTestId(tree, "fr-leave-confirm")), new RegExp(words.savingDetail.slice(0, 30)));
+  } finally {
+    W.__settingsSaving = was;
+    delete W.__workspace;
+  }
+});
+
+test("(D) Continue pressed while a choice of how customers buy waits for the keys to settle sends that choice, never the one it replaced", async () => {
+  const sent = courier();
+  try {
+    let tree = draw({ setup: dto({ services: 2 }), at: "business" });
+    press(answers(tree)[1]);
+    tree = redraw();
+    byTestId(tree, "fr-onward").props.onClick();
+    await settle();
+    assert.deepEqual(sent, [{ sells_by: "proposal" }], "the answer being chosen, once");
+    await pastTheSettle();
+    await settle();
+    assert.deepEqual(sent, [{ sells_by: "proposal" }], "and the wait that was holding it sends nothing more");
+  } finally {
+    delete W.__workspace;
+  }
+});
+
+test("(D) with nothing typed, a move goes at once: nothing is asked", () => {
+  try {
+    const tree = draw({ setup: dto({ services: 2 }), sellsBy: "booking", at: "business" });
+    const before = replaced.length;
+    byTestId(tree, "fr-onward").props.onClick();
+    assert.equal(replaced.length, before + 1);
+    assert.equal(byTestId(redraw(), "fr-leave-confirm"), null);
+  } finally {
     delete W.__workspace;
   }
 });

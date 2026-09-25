@@ -437,8 +437,11 @@ const BT_WRITE = {
     // makes the number it gives out FOLLOW the line instead of freezing a copy of it.
     const typed = btfTrimmed(d.typed);
     btPut(b, "phone_display", !d.own && typed ? typed : undefined);
-    // None typed is no link, for a business that quotes: the key goes, since an empty one fails the read.
-    btPut(b, "booking_link", btfTrimmed(d.link) || undefined);
+    // None typed is no link, for a business that quotes: the key goes, since an empty one fails the read. Typed, it is
+    // stored as the row stores it (STORED_AS.booking_link: the https:// an owner leaves off, supplied), which the
+    // row's check has already said it can be.
+    const link = btfTrimmed(d.link);
+    btPut(b, "booking_link", link ? window.__businessTabSave.STORED_AS.booking_link(link) : undefined);
     const made = window.__receptionistDefaults(name);
     if (!b.system_prompt) b.system_prompt = made.system_prompt;
     if (!b.fallbacks) b.fallbacks = made.fallbacks;

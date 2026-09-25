@@ -20,6 +20,8 @@ import {
   formatPhoneDisplay,
   whyNotAPhone,
   whyNotAHandoff,
+  normalizeLink,
+  zoneSearchWords,
   samePhone,
   handoffE164,
   resolveFacts,
@@ -52,6 +54,7 @@ Object.assign(globalThis, {
   // role gate's words, and who last changed the settings.
   __phoneDisplay: formatPhoneDisplay,
   __whyNotAPhone: whyNotAPhone,
+  __normalizeLink: normalizeLink,
   __whyNotAHandoff: whyNotAHandoff,
   __samePhone: samePhone,
   __handoffE164: handoffE164,
@@ -63,7 +66,13 @@ Object.assign(globalThis, {
   // zone's words (identity.ts). This device is in Chicago.
   __hoursLines: hoursLines,
   __configLimits: { maxIntervalsPerDay: MAX_INTERVALS_PER_DAY, maxClosures: MAX_CLOSURES },
-  __tz: { words: timezoneWords, city: timezoneCity, known: knownTimezones, device: () => "America/Chicago" },
+  __tz: {
+    words: timezoneWords,
+    city: timezoneCity,
+    known: knownTimezones,
+    device: () => "America/Chicago",
+    also: zoneSearchWords,
+  },
   DEFAULT_TIMEZONE,
   // How it answers: what the instructions box opens with and how much it holds, and the three messages sent in the
   // business's name, their default wording and the details a message may name (inbox-verbs.ts).

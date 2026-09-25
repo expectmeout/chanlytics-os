@@ -203,23 +203,29 @@ test("with a line to answer on, the number is not asked for — and a number tha
   assert.equal(sent.length, 0);
 });
 
-test("a booking link that is not a full web address is refused under its own box", () => {
+test("a booking link that is not a web address is refused under its own box; one without its https:// is stored with it", () => {
   const sent = saving();
   let tree = drawCreate({ line: "+13055550123" });
   setUp(tree);
   tree = redrawCreate();
   typeIn(tree, "rec-create-name", "Bella Nails");
   tree = redrawCreate();
-  typeIn(tree, "rec-create-link", "bella.example/book");
+  typeIn(tree, "rec-create-link", "bella example/book");
   tree = redrawCreate();
   save(tree);
   tree = redrawCreate();
   assert.equal(
     wrongIn(tree, "rec-create-link"),
-    "That booking link needs to be a full web address, starting with https://",
+    "That booking link needs to be a web address, like booksy.com/your-page.",
   );
   assert.equal(wrongIn(tree, "rec-create-name"), null, "and the field that is right says nothing");
   assert.equal(sent.length, 0);
+  // Pasted as people paste one, the scheme left off: supplied, as contracts' one normalizer supplies it.
+  typeIn(tree, "rec-create-link", "bella.example/book");
+  tree = redrawCreate();
+  save(tree);
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].config.brain.booking_link, "https://bella.example/book");
 });
 
 /* ------------------------------------ the one request ------------------------------------ */
