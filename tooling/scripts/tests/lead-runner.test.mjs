@@ -258,12 +258,12 @@ test("ACCEPTANCE: the probe fixture, 12 of 24 fitting, stops to ask from the mos
   assert.deepEqual(
     [byClass("qualified"), byClass("review"), byClass("excluded")],
     [11, 1, 13],
-    "a fit place with a placeholder phone is Needs review under a phone standard",
+    "a fit place with a placeholder phone is Needs review: no phone that dials",
   );
   assert.deepEqual(
     members.find((m) => m.class === "review").judgment.reasons,
-    ["phone:none"],
-    "the reason token contracts' classify spells",
+    ["email:checking"],
+    "its email is the one way left (decision 0010), so the check can still make it count",
   );
   // "Ideally both": this plan asks for a phone, and every email it found is still sent to the mailbox check
   // (0.09 cents each), so most leads arrive with both, each with its own state. Pinned so it cannot be
@@ -784,7 +784,13 @@ test("a poll the door never cancelled, arriving after Stop: it decides nothing, 
   );
 });
 
-test("the checks decide the email standard: a review held only for its email becomes qualified and counts when the mailbox answers ok", async () => {
+/** Every place the provider returns, with no phone: only its email can make it count (decision 0010). */
+const noPhones = (w) => {
+  for (const items of Object.values(w.apify.state.datasets))
+    for (const it of items) Object.assign(it, { phone: null, phoneUnformatted: null, phones: [] });
+};
+
+test("under a search that prefers email, a place whose phone dials counts at collect (decision 0010) -- and its email is still checked, for the owner who wants to write", async () => {
   const { w, p } = await probed({
     plan: {
       ...PLAN,
@@ -794,12 +800,37 @@ test("the checks decide the email standard: a review held only for its email bec
     },
   });
   for (const r of w.runs()) await collect(p(`c-${r.id}`), r.id, "p0", `c-${r.id}`);
+  const qualified = w.members().filter((m) => m.class === "qualified");
+  assert.ok(qualified.length > 0, "a phone that dials is a lead, whichever the search prefers");
+  assert.ok(
+    qualified.every((m) => m.counted),
+    "and it counts now, not after the checks",
+  );
+  const lead = (m) => w.T.leads.find((l) => l.id === m.lead_id);
+  assert.ok(
+    qualified.some((m) => lead(m).email && lead(m).email_state === "checking"),
+    "its email still goes to the mailbox check",
+  );
+});
+
+test("a place with no phone that dials waits for its email: the checks decide it, and it counts when the mailbox answers ok", async () => {
+  const { w, p } = await probed({
+    plan: {
+      ...PLAN,
+      contact: "email",
+      criteria: [{ key: "right_kind", text: "a place", standard: "likely", required: false }],
+      exclusions: [],
+    },
+  });
+  noPhones(w);
+  for (const r of w.runs()) await collect(p(`c-${r.id}`), r.id, "p0", `c-${r.id}`);
   assert.equal(
     w.members().filter((m) => m.class === "qualified").length,
     0,
     "nothing qualifies before its email is checked",
   );
   await startRound(p("j2"), w.round().id, "j2", true);
+  noPhones(w);
   w.finishRuns();
   for (const r of w.runs().filter((x) => x.state === "running")) await collect(p(`m-${r.id}`), r.id, "p0", `m-${r.id}`);
   assert.equal(w.round().state, "checking");

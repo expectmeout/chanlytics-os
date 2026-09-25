@@ -1,6 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { EmailRequest, ResendLimit, SendResult, ResendConfig, EmailSendsAs, WaConfig, ApifyClient, LeadJudge, NormalizedInbound, CarrierConsent } from '@chanlytics/channels';
-import { SendPurpose, DecisionSubject, DecisionVerb, JobNews, ParamSpec, Audience, PersonRowVM, ListRef, NumberHealth, PersonVisitsDto, Membership, DealPaceVM, PlaybookTrigger, PlaybookPolicyClass, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadArea, LeadRoundPurpose, LeadSearchPlan, PlaceFacts, LeadContactStandard, ProbeMember, BrainMeta, NotificationsConfig, BrainConfig, CalendarConfig, FeaturesConfig, PolicyLimits, KnownFacts } from '@chanlytics/contracts';
+import { SendPurpose, DecisionSubject, DecisionVerb, JobNews, ParamSpec, Audience, PersonRowVM, ListRef, NumberHealth, PersonVisitsDto, Membership, DealPaceVM, PlaybookTrigger, PlaybookPolicyClass, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadArea, LeadRoundPurpose, LeadSearchPlan, PlaceFacts, ProbeMember, BrainMeta, NotificationsConfig, BrainConfig, CalendarConfig, FeaturesConfig, PolicyLimits, KnownFacts } from '@chanlytics/contracts';
 import { Json, Database, RoutedChannel, LeadContext, IngestResult } from '@chanlytics/db';
 
 /**
@@ -1845,19 +1845,22 @@ declare function mainAsk(plan: LeadSearchPlan, remaining: number, yieldSoFar: nu
 };
 /** A share of what was judged, floored so one bad probe never asks for everything. */
 declare function yieldOf(judged: number, usable: number): number;
-/** What the contact standard needs on a place: a phone, or a candidate email the cleaner kept. */
-declare function hasContact(contact: LeadContactStandard, place: {
+/**
+ * A place a lead could come from (decision 0010): a phone that dials, or a candidate email the cleaner kept -- either,
+ * whichever the search prefers, since either one checked makes the lead count.
+ */
+declare function hasContact(place: {
     phone: string | null;
     email: string | null;
 }): boolean;
 /**
  * The probe's yield, the one number that sizes the main round (S6, A1's
- * review): the share of the probe's places that are NOT left out and hold
- * what the contact standard needs. Never the Qualified share -- under an
- * email standard that is zero until the mailbox checks land, and a round
- * sized from zero asks the provider for everything it is allowed to.
+ * review): the share of the probe's places that are NOT left out and hold a
+ * way to reach them. Never the Qualified share -- a place waiting on its
+ * email is not Qualified until the mailbox checks land, and a round sized
+ * from zero asks the provider for everything it is allowed to.
  */
-declare function probeYield(contact: LeadContactStandard, members: {
+declare function probeYield(members: {
     class: LeadMemberClass;
     phone: string | null;
     email: string | null;

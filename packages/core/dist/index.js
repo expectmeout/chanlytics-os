@@ -3464,6 +3464,16 @@ function shortCode(raw) {
   const digits2 = String(raw ?? "").replace(/[^\d]/g, "");
   return digits2.length >= 3 && digits2.length <= 6;
 }
+function phoneDialable(raw) {
+  const e164 = normalizePhone(raw);
+  if (!e164) return false;
+  if (!e164.startsWith("+1")) return true;
+  const d = e164.slice(2);
+  if (d.length !== 10) return false;
+  const [area, exchange] = [d.slice(0, 3), d.slice(3, 6)];
+  const n11 = (x) => x[1] === "1" && x[2] === "1";
+  return /^[2-9]/.test(area) && /^[2-9]/.test(exchange) && !n11(area) && !n11(exchange);
+}
 function phoneTail(raw) {
   const digits2 = (raw ?? "").replace(/\D/g, "");
   return digits2 ? digits2.slice(-4) : null;
@@ -4901,6 +4911,10 @@ var LEAD_ESTIMATE_MARGIN = 1.3;
 var LEAD_ASK_MIN_FACTOR = 1.2;
 var LEAD_ASK_MAX_FACTOR = 4;
 var LEAD_QUESTION_WAIT_MS2 = 24 * 36e5;
+function leadPhoneState(phone) {
+  if (!phone) return "none";
+  return phoneDialable(phone) ? "ok" : "invalid";
+}
 var US_STATES2 = {
   alabama: "AL",
   alaska: "AK",
@@ -5099,7 +5113,7 @@ function placesToAsk(plan, remaining, yieldSoFar) {
   const perTerm = spread(total, n, cap2);
   return { total: perTerm.reduce((a, b) => a + b, 0), perTerm };
 }
-function classify(plan, answer, facts, emailState, inArea2) {
+function classify(plan, answer, facts, emailState, inArea2, phoneState) {
   if (facts.phone_matches_site === null && facts.emails.length === 0)
     return { class: "excluded", excluded_by: LEAD_UNREACHABLE_KEY, fit: null, reasons: [LEAD_UNREACHABLE_KEY] };
   const reasons = [];
@@ -5140,8 +5154,10 @@ function classify(plan, answer, facts, emailState, inArea2) {
   }
   if (excludedBy) return { class: "excluded", excluded_by: excludedBy, fit: null, reasons };
   if (!inArea2) reasons.push("out_of_area");
-  if (plan.contact === "email" && emailState !== "ok") reasons.push(`email:${emailState}`);
-  if (plan.contact === "phone" && facts.phone_matches_site === null) reasons.push("phone:none");
+  if (phoneState !== "ok" && emailState !== "ok") {
+    if (emailState !== "none") reasons.push(`email:${emailState}`);
+    else reasons.push(`phone:${phoneState}`);
+  }
   const fit = softFail ? "long" : unknown ? "look" : "strong";
   return { class: reasons.length ? "review" : "qualified", excluded_by: null, fit, reasons };
 }
@@ -44687,11 +44703,11 @@ function yieldOf(judged, usable) {
   if (judged <= 0) return 0.2;
   return Math.max(0.05, usable / judged);
 }
-function hasContact(contact, place) {
-  return contact === "phone" ? place.phone !== null : place.email !== null;
+function hasContact(place) {
+  return leadPhoneState(place.phone) === "ok" || place.email !== null;
 }
-function probeYield(contact, members) {
-  return yieldOf(members.length, members.filter((m) => m.class !== "excluded" && hasContact(contact, m)).length);
+function probeYield(members) {
+  return yieldOf(members.length, members.filter((m) => m.class !== "excluded" && hasContact(m)).length);
 }
 function runCaps(plan, perTerm, reservedLeftUsd) {
   const wants = perTerm.map((n) => estimateRoundUsd({ ...plan, terms: [plan.terms[0] ?? ""] }, "main", n));
@@ -44715,7 +44731,7 @@ function afterProbe(plan, members, now) {
         asked_at: now.toISOString()
       }
     };
-  return { kind: "go", yield: probeYield(plan.contact, members) };
+  return { kind: "go", yield: probeYield(members) };
 }
 
 // src/leads/endings.ts
@@ -45036,7 +45052,7 @@ async function startRound(p, roundId, owner, resume = false) {
     const members = await p.db.membersOfRound(round.id);
     const judged = members.filter(wasJudged);
     const counted = members.filter((m) => m.counted).length;
-    const y = round.purpose === "probe" ? probeYield(plan.contact, judged) : 0.5;
+    const y = round.purpose === "probe" ? probeYield(judged) : 0.5;
     const dropTerm = round.answered === "keep" ? round.question?.dropTerm ?? null : null;
     ask = mainAsk(plan, targetOf(round) - counted, y, dropTerm);
   }
@@ -45126,7 +45142,14 @@ function memberOf(plan, term, c, a, opId, model, rule, geo, shares, duplicateOf)
     verdict = { class: "review", excluded_by: null, fit: null, reasons: ["judge:refused"] };
     reason = JUDGE_REFUSED_REASON;
   } else {
-    verdict = classify(plan, a, factsOf(0, c), emailState, geo.center ? inArea(geo.center, geo.radiusM, loc) : true);
+    verdict = classify(
+      plan,
+      a,
+      factsOf(0, c),
+      emailState,
+      geo.center ? inArea(geo.center, geo.radiusM, loc) : true,
+      leadPhoneState(c.phone)
+    );
     reason = a.reason;
   }
   const excluded = verdict.class === "excluded";
@@ -45416,7 +45439,7 @@ async function roundDecision(p, round, run, phase, runState, members, itemsSeenN
   const inPhase = runs.filter((r4) => r4.purpose === "discover" && phaseOf.get(r4.id) === phase);
   if (!inPhase.every((r4) => FINAL_RUN_STATES.has(r4.state))) return null;
   const countedNow = members.filter((m) => m.counted).length;
-  const countable = round.plan.contact === "phone" ? members.filter((m) => !m.counted && m.class === "qualified").length : 0;
+  const countable = members.filter((m) => !m.counted && m.class === "qualified").length;
   const counted = countedNow + Math.min(countable, Math.max(0, round.allowance_reserved - round.allowance_used));
   const toChecks = {
     round: { state: "checking", question: null, ending: null, ending_pending: "target_reached" },

@@ -133,7 +133,7 @@ test("the plan schema keeps its keys unique and its shape whole; the sentence sa
   const p = plan();
   assert.equal(
     planSentence(p),
-    "Find 200 personal trainers in Austin, TX with a website, then find their email and check it. Leaving out: chain gyms.",
+    "Find 200 personal trainers in Austin, TX with a website, reached by a checked email or a phone. Leaving out: chain gyms.",
   );
   const seen = plan({
     contact: "phone",
@@ -142,7 +142,7 @@ test("the plan schema keeps its keys unique and its shape whole; the sentence sa
   });
   assert.equal(
     planSentence(seen),
-    "Find 200 personal trainers in Austin, TX already sell OTC medicine (confirmed), a phone is enough.",
+    "Find 200 personal trainers in Austin, TX already sell OTC medicine (confirmed), reached by phone or a checked email.",
   );
   assert.throws(
     () => plan({ exclusions: [{ key: "website", text: "Chain gyms", origin: "claude" }] }),
@@ -153,7 +153,7 @@ test("the plan schema keeps its keys unique and its shape whole; the sentence sa
   const acronym = plan({ exclusions: [{ key: "cvs", text: "CVS pharmacies", origin: "claude" }] });
   assert.equal(
     planSentence(acronym),
-    "Find 200 personal trainers in Austin, TX with a website, then find their email and check it. Leaving out: CVS pharmacies.",
+    "Find 200 personal trainers in Austin, TX with a website, reached by a checked email or a phone. Leaving out: CVS pharmacies.",
     "an acronym's own case survives: only a lowercase second letter gets folded",
   );
 });
@@ -285,6 +285,26 @@ test("placesToAsk asks for nothing once nothing remains, and spreads a total sma
   );
 });
 
+test("(0010) a lead's phone is verified when it dials: a real North American area code and exchange, never an N11 service code or a number too short", async () => {
+  const { phoneDialable, leadPhoneState } = await import("@chanlytics/contracts");
+  for (const ok of ["+15125550100", "(512) 555-0100", "512.555.0100", "+442071838750"])
+    assert.equal(phoneDialable(ok), true, ok);
+  for (const bad of [
+    "(123) 456-7890",
+    "+10125550100",
+    "(512) 155-0100",
+    "(911) 555-0100",
+    "(512) 411-0100",
+    "555-0100",
+    "",
+  ])
+    assert.equal(phoneDialable(bad), false, bad);
+  assert.deepEqual(
+    [leadPhoneState("+15125550100"), leadPhoneState("(123) 456-7890"), leadPhoneState(null)],
+    ["ok", "invalid", "none"],
+  );
+});
+
 test("classify: everything passing under the standard qualifies; a required fail excludes with that key; unknown, a seen criterion with no fact cited, out of area, or the email standard not met is review", () => {
   const p = plan();
   const ok = classify(
@@ -296,6 +316,7 @@ test("classify: everything passing under the standard qualifies; a required fail
     facts(),
     "ok",
     true,
+    "none",
   );
   assert.deepEqual(ok, { class: "qualified", excluded_by: null, fit: "strong", reasons: [] });
   const chain = classify(
@@ -307,6 +328,7 @@ test("classify: everything passing under the standard qualifies; a required fail
     facts(),
     "ok",
     true,
+    "none",
   );
   assert.deepEqual(chain, { class: "excluded", excluded_by: "chain", fit: null, reasons: ["fail:chain"] });
   // The engine's own first criterion (PRD §7 step 4): a photographer is not a wedding planner, however well it
@@ -322,6 +344,7 @@ test("classify: everything passing under the standard qualifies; a required fail
     facts(),
     "ok",
     true,
+    "none",
   );
   assert.deepEqual(
     wrongKind,
@@ -338,6 +361,7 @@ test("classify: everything passing under the standard qualifies; a required fail
     facts(),
     "ok",
     true,
+    "none",
   );
   assert.deepEqual(
     [kindUnsure.class, kindUnsure.fit, kindUnsure.reasons],
@@ -354,6 +378,7 @@ test("classify: everything passing under the standard qualifies; a required fail
     facts(),
     "ok",
     true,
+    "none",
   );
   assert.equal(
     kindByCategory.class,
@@ -372,26 +397,27 @@ test("classify: everything passing under the standard qualifies; a required fail
     facts({ emails: [], phone_matches_site: null }),
     "none",
     true,
+    "none",
   );
   assert.deepEqual(
     unreachable,
     { class: "excluded", excluded_by: "unreachable", fit: null, reasons: ["unreachable"] },
     "no phone and no email: left out, never review",
   );
-  const phoneOnly = classify(
-    p,
-    answer([
-      { key: "website", answer: "pass", facts: ["host"] },
-      { key: "chain", answer: "pass", facts: ["name"] },
-    ]),
-    facts({ emails: [], phone_matches_site: true }),
-    "none",
-    true,
-  );
+  // ONE VERIFIED WAY TO REACH THEM IS ENOUGH (decision 0010): a phone that dials qualifies a lead even under a search
+  // that prefers email, and a number that does not dial is review until an email checks out.
+  const passing = answer([
+    { key: "website", answer: "pass", facts: ["host"] },
+    { key: "chain", answer: "pass", facts: ["name"] },
+  ]);
+  const phoneOnly = classify(p, passing, facts({ emails: [], phone_matches_site: true }), "none", true, "ok");
+  assert.equal(p.contact, "email", "this plan prefers email");
+  assert.deepEqual([phoneOnly.class, phoneOnly.reasons], ["qualified", []], "a phone that dials is a lead");
+  const badPhone = classify(p, passing, facts({ emails: [], phone_matches_site: true }), "none", true, "invalid");
   assert.deepEqual(
-    [phoneOnly.class, phoneOnly.reasons],
-    ["review", ["email:none"]],
-    "a phone with no email under an email standard is still review: reachable, not yet to the standard",
+    [badPhone.class, badPhone.reasons],
+    ["review", ["phone:invalid"]],
+    "a number that does not dial reaches nobody",
   );
   assert.equal(searchWords.LEAD_UNREACHABLE_KEY, "unreachable");
   assert.equal(searchWords.LEAD_KIND_KEY, "kind");
@@ -409,19 +435,27 @@ test("classify: everything passing under the standard qualifies; a required fail
     facts(),
     "ok",
     true,
+    "none",
   );
   assert.deepEqual([unsure.class, unsure.fit, unsure.reasons], ["review", "look", ["unknown:chain"]]);
   const seen = plan({
     criteria: [{ key: "otc", text: "Already sell OTC medicine", standard: "seen", required: true }],
     exclusions: [],
   });
-  const inferred = classify(seen, answer([{ key: "otc", answer: "pass", facts: [] }]), facts(), "ok", true);
+  const inferred = classify(seen, answer([{ key: "otc", answer: "pass", facts: [] }]), facts(), "ok", true, "none");
   assert.deepEqual(
     [inferred.class, inferred.reasons],
     ["review", ["inferred:otc"]],
     "a seen criterion answered by inference goes to review",
   );
-  const cited = classify(seen, answer([{ key: "otc", answer: "pass", facts: ["category"] }]), facts(), "ok", true);
+  const cited = classify(
+    seen,
+    answer([{ key: "otc", answer: "pass", facts: ["category"] }]),
+    facts(),
+    "ok",
+    true,
+    "none",
+  );
   assert.deepEqual(
     [cited.class, cited.reasons],
     ["review", ["inferred:otc"]],
@@ -433,6 +467,7 @@ test("classify: everything passing under the standard qualifies; a required fail
     facts(),
     "ok",
     true,
+    "none",
   );
   assert.equal(citedProperly.class, "qualified", "a fact beyond name or category is real evidence for a seen pass");
   const away = classify(
@@ -444,9 +479,11 @@ test("classify: everything passing under the standard qualifies; a required fail
     facts(),
     "ok",
     false,
+    "none",
   );
   assert.deepEqual([away.class, away.reasons], ["review", ["out_of_area"]]);
-  for (const state of ["catch_all", "unknown", "none", "invalid", "checking"]) {
+  // No phone that dials: the email is the one way left, and its state is the reason a check can still clear.
+  for (const state of ["catch_all", "unknown", "invalid", "checking"]) {
     const r = classify(
       p,
       answer([
@@ -456,9 +493,13 @@ test("classify: everything passing under the standard qualifies; a required fail
       facts(),
       state,
       true,
+      "none",
     );
     assert.deepEqual([r.class, r.reasons], ["review", [`email:${state}`]], state);
   }
+  // No email picked either: nothing left to check, and the reason names the phone that was missing.
+  const neither = classify(p, passing, facts(), "none", true, "none");
+  assert.deepEqual([neither.class, neither.reasons], ["review", ["phone:none"]]);
   const phone = plan({ contact: "phone" });
   assert.equal(
     classify(
@@ -470,9 +511,10 @@ test("classify: everything passing under the standard qualifies; a required fail
       facts(),
       "none",
       true,
+      "ok",
     ).class,
     "qualified",
-    "a phone is enough",
+    "a phone that dials is enough",
   );
   assert.deepEqual(
     classify(
@@ -484,6 +526,7 @@ test("classify: everything passing under the standard qualifies; a required fail
       facts({ phone_matches_site: null }),
       "none",
       true,
+      "none",
     ).reasons,
     ["phone:none"],
   );
@@ -497,6 +540,7 @@ test("classify: everything passing under the standard qualifies; a required fail
     facts(),
     "ok",
     true,
+    "none",
   );
   assert.deepEqual(
     [long.class, long.fit],
@@ -512,13 +556,21 @@ test("classify: everything passing under the standard qualifies; a required fail
     facts(),
     "ok",
     true,
+    "none",
   );
   assert.deepEqual(
     [optionalUnknown.class, optionalUnknown.fit],
     ["qualified", "long"],
     "decision 26: only a required criterion gates the class; an optional one only ever lowers the fit band",
   );
-  const missing = classify(p, answer([{ key: "website", answer: "pass", facts: ["host"] }]), facts(), "ok", true);
+  const missing = classify(
+    p,
+    answer([{ key: "website", answer: "pass", facts: ["host"] }]),
+    facts(),
+    "ok",
+    true,
+    "none",
+  );
   assert.deepEqual(
     [missing.class, missing.reasons],
     ["review", ["unknown:chain"]],
@@ -534,6 +586,7 @@ test("classify: everything passing under the standard qualifies; a required fail
       facts(),
       "ok",
       true,
+      "none",
     ).excluded_by,
     "chain",
     "an exclusion's required fail is tallied before a criterion's, so Include is never offered against a real requirement",
@@ -806,7 +859,7 @@ const brooklyn = (over = {}) =>
   });
 
 test('REGRESSION: the sentence says the area once -- a plural that carried the area read "Find 60 Hair salons in Brooklyn in in Brooklyn, NY"', () => {
-  assert.equal(planSentence(brooklyn()), "Find 60 hair salons in Brooklyn, NY, then find their email and check it.");
+  assert.equal(planSentence(brooklyn()), "Find 60 hair salons in Brooklyn, NY, reached by a checked email or a phone.");
   assert.equal(planWho(brooklyn()), "hair salons", "the place clause whose words are the area's is dropped");
   assert.equal(planWhere(brooklyn().area), "in Brooklyn, NY", "the label already says where: no second preposition");
   assert.equal(planArea(brooklyn().area), "Brooklyn, NY", 'and the bare noun, for a sentence that says its own "in"');
@@ -854,7 +907,7 @@ test("the sentence is the plan card's words joined: every picker is one word of 
       ["who", "personal trainers"],
       ["where", "in Austin, TX"],
       ["criterion", "with a website"],
-      ["contact", "then find their email and check it"],
+      ["contact", "reached by a checked email or a phone"],
     ],
   );
   assert.equal(
@@ -864,7 +917,7 @@ test("the sentence is the plan card's words joined: every picker is one word of 
   );
   assert.equal(
     planSaid(p),
-    "Find 200 personal trainers in Austin, TX with a website, then find their email and check it.",
+    "Find 200 personal trainers in Austin, TX with a website, reached by a checked email or a phone.",
   );
   assert.equal(planLeavingOut(p), " Leaving out: chain gyms.");
   assert.equal(
@@ -874,7 +927,7 @@ test("the sentence is the plan card's words joined: every picker is one word of 
   );
   assert.equal(planLeavingOut(plan({ exclusions: [] })), "");
   const phone = plan({ contact: "phone" });
-  assert.equal(planWords(phone).find((w) => w.pick === "contact").text, "a phone is enough");
+  assert.equal(planWords(phone).find((w) => w.pick === "contact").text, "reached by phone or a checked email");
 });
 
 test("the count picker's options each say about how long they take, and a plan never claims under two minutes", () => {

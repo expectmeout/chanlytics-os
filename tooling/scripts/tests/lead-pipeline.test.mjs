@@ -53,6 +53,12 @@ test("lead_round_start through the dispatch: the rows, the claims, the provider,
   assert.equal(w.jobsOf("lead_collect").length, 2);
 });
 
+/** Every place the provider returns, with no phone: only its email can make it count (decision 0010). */
+const noPhones = (w) => {
+  for (const items of Object.values(w.apify.state.datasets))
+    for (const it of items) Object.assign(it, { phone: null, phoneUnformatted: null, phones: [] });
+};
+
 test("lead_collect through the dispatch commits a batch; lead_check starts the checker with the addresses still waiting", async () => {
   const plan = {
     ...PLAN,
@@ -64,12 +70,15 @@ test("lead_collect through the dispatch commits a batch; lead_check starts the c
   const ctx = ctxFor(w, leadPipelineOver(w.wires));
   const made = w.rpcs.lead_search_create({ p_tenant_id: TENANT, p_plan: plan, p_via: "people", p_estimate_usd: 2 });
   await dispatchJob(ctx(), job("lead_round_start", { round_id: made.round_id }, "job-start"));
+  // No phones: only the emails can make these count, so the round goes the whole way to its checks (decision 0010).
+  noPhones(w);
   w.finishRuns();
   for (const r of w.runs()) await dispatchJob(ctx(), job("lead_collect", { run_id: r.id, seq: "p0" }, `job-c-${r.id}`));
   assert.ok(w.members().length >= 24);
   assert.equal(w.round().state, "running", "a probe that fits goes on");
   assert.equal(w.round().target, plan.count, "the target is the plan's count once the probe passed");
   await dispatchJob(ctx(), job("lead_round_start", { round_id: made.round_id, resume: true }, "job-resume"));
+  noPhones(w);
   w.finishRuns();
   for (const r of w.runs().filter((x) => x.state === "running"))
     await dispatchJob(ctx(), job("lead_collect", { run_id: r.id, seq: "p0" }, `job-m-${r.id}`));
