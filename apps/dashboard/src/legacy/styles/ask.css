@@ -211,9 +211,14 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
     background: none; color: var(--ink); z-index: 121;
   }
   /* The three in the ✦ (components/ask-face.jsx, on the raised ground), over the disc: the canvas is the disc's width
-     and the tile is set (`side`, app-shell.jsx), not fitted, so the mark fills the disc and the ring, at its widest,
-     just reaches the rim. */
-  .phone-ask .phone-ask-face { display: block; width: 40px; height: 34px; position: relative; z-index: 1; }
+     and the tile is set (`side`, app-shell.jsx, 12.5px), not fitted, so the mark fills the disc and the ring, at its
+     widest, just reaches the rim. The engine draws the mark 0.225 of a tile above the canvas's middle (character.ts
+     CENTRE_Y) so that the ink and the shadow it casts balance; at this size the shadow is a hair, and the ink is what
+     reads as centred, so the canvas sits that much lower in the disc. */
+  .phone-ask .phone-ask-face {
+    display: block; width: 40px; height: 34px; position: relative; z-index: 1;
+    translate: 0 calc(0.225 * 12.5px);
+  }
   .phone-ask:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
   .phone-ask:active { transform: scale(0.96); }
   /* The disc, and the beam on its rim. At rest the beam is the ink, faint, one lap in 8 s. While Ask works
