@@ -41,7 +41,7 @@ const send = (payload = {}) => ({
   payload: { message_id: "m1", conversation_id: "c1", to_phone: "+13475550101", body: "See you at 3", ...payload },
 });
 
-test("a queued row goes through the door with the row's own sender, the template's purpose, never proactive; a gone or handled row is a no-op", async () => {
+test("a queued row goes through the door with the row's own sender, the template's purpose, not proactive unless the job says so; a gone or handled row is a no-op", async () => {
   const { ports, log } = fakes();
   await core.sendQueued(ports, send());
   assert.equal(log.length, 1);
@@ -264,7 +264,7 @@ test("the provisioning: the saga is the edge's; a runtime without it fails loudl
   );
 });
 
-test("a limit at the mail provider is said as one: a used-up day pages the platform, a busy second does not, and a text's 429 is still a status", async () => {
+test("a limit at the mail provider is said as one: a used-up day or month is recorded for the platform, a busy second and a try still in flight are not, and a text's 429 is still a status", async () => {
   const emailRow = {
     status: "queued",
     body: "We can do Saturday.",
@@ -300,6 +300,22 @@ test("a limit at the mail provider is said as one: a used-up day pages the platf
   await core.sendQueued(busy.ports, byEmail);
   assert.deepEqual(busy.ops(), ["deliver", "escalate", "alert"], "a busy second is nobody's page");
   assert.equal(busy.log[1][3], "Dashboard reply could not be delivered (the mail provider asked us to slow down).");
+  const month = fakes({ queued: emailRow, deliver: refusedBy("monthly") });
+  await core.sendQueued(month.ports, byEmail);
+  assert.deepEqual(month.ops(), ["deliver", "page", "escalate", "alert"]);
+  assert.equal(month.log[1][2], "email: the monthly sending limit is used up");
+  assert.equal(
+    month.log[2][3],
+    "Dashboard reply could not be delivered (the mail provider's sending limit is used up for now).",
+  );
+  // A try still being worked may yet arrive: the owner is told to look before sending again, and nobody is paged.
+  const inFlight = fakes({ queued: emailRow, deliver: refusedBy("in_flight") });
+  await core.sendQueued(inFlight.ports, byEmail);
+  assert.deepEqual(inFlight.ops(), ["deliver", "escalate", "alert"]);
+  assert.equal(
+    inFlight.log[1][3],
+    "Dashboard reply could not be delivered (the mail provider is still sending an earlier try of it; check the thread before sending it again).",
+  );
   const text = fakes({ deliver: refusedBy(null) });
   await core.sendQueued(text.ports, send());
   assert.equal(

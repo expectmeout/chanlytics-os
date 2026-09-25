@@ -80,7 +80,9 @@ export async function sendQueued(ports: SendQueuedPorts, cmd: SendQueuedCommand)
   });
   if (out.outcome !== "failed") return;
   // A limit at the mail provider (named by the door, deliver.ts) is not this thread's fault either. A used-up day or
-  // month stops every workspace's email on the key, so the platform is paged; "slow down" is one second's problem.
+  // month stops every workspace's email on the key, so it is recorded for the platform (provider_quota:email, shown on
+  // /api/diag); the page's own mail rides the same key and cannot leave until the quota resets. "Slow down" is one
+  // second's problem, and a try still in flight may yet arrive: neither pages anyone.
   const limit = out.limit ?? null;
   if (limit === "daily" || limit === "monthly") {
     await ports.page?.(
@@ -119,13 +121,15 @@ export async function sendQueued(ports: SendQueuedPorts, cmd: SendQueuedCommand)
           ? "the thread could not be read at the wire"
           : limit === "daily" || limit === "monthly"
             ? "the mail provider's sending limit is used up for now"
-            : limit === "rate" || limit === "in_flight"
+            : limit === "rate"
               ? "the mail provider asked us to slow down"
-              : // Status 0 is no answer at all: the network failed, or the email wire refused a request it will not send
-                // (deliver.ts emailSender). The row keeps which; "HTTP 0" told an owner nothing.
-                out.status === 0
-                ? "it never reached the provider"
-                : `HTTP ${out.status}`;
+              : limit === "in_flight"
+                ? "the mail provider is still sending an earlier try of it; check the thread before sending it again"
+                : // Status 0 is no answer at all: the network failed, or the email wire refused a request it will not send
+                  // (deliver.ts emailSender). The row keeps which; "HTTP 0" told an owner nothing.
+                  out.status === 0
+                  ? "it never reached the provider"
+                  : `HTTP ${out.status}`;
   const receptionist = msg.sender === "ai";
   await ports.escalate(
     p.conversation_id,
