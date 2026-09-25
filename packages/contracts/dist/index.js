@@ -17897,6 +17897,12 @@ var FOLLOWUP_ECHO = [
   [/thread|hilo|conversation/i, /^inbox\/th-/]
 ];
 
+// src/ask-shape.ts
+function cacheHitOf(t) {
+  const fed = t.input + t.cache_read + t.cache_creation;
+  return fed > 0 ? t.cache_read / fed : null;
+}
+
 // src/ask-answer.ts
 var ASK_ANSWER_CAPS = {
   headline: 160,
@@ -23724,6 +23730,7 @@ export {
   businessRecordLine,
   businessRecordProblems,
   businessTypeOf,
+  cacheHitOf,
   calendarOwnerOf,
   calendarPeekDeal,
   callMoodTone,

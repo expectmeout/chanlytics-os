@@ -8,6 +8,7 @@ import {
   answerForCards,
   answerText,
   answerWords,
+  cacheHitOf,
   cleanAnswer,
   failedAnswer,
   isUngrounded,
@@ -19,6 +20,7 @@ import {
   type AskMessageVM,
   type AskProposal,
   type AskScope,
+  type AskTurnShape,
 } from "@chanlytics/contracts";
 import type { RouteContext } from "../with-route";
 import { GatewayRefused, featureRejected } from "./gateway";
@@ -90,6 +92,10 @@ export interface TurnInput {
   /** Prior turns of this thread, oldest first, as plain text. */
   history: Array<{ role: "user" | "assistant"; text: string }>;
   text: string;
+  /** From the palette opening to the question being sent, as the tab measured it; null from an older tab or a script. */
+  openedMs?: number | null;
+  /** How long after the thread's previous turn this question came; null on a thread's first. */
+  sinceLastMs?: number | null;
   emit: (ev: TurnEvent) => void;
   now?: Date;
 }
@@ -111,6 +117,8 @@ export interface TurnResult {
   /** Why it failed, for the log; the answer's headline already says it to the person. */
   failure: string | null;
   rounds: number;
+  /** Where the time went and what the model was fed (ask-shape.ts): logged, and stored on the turn's row. */
+  shape: AskTurnShape;
 }
 
 type Msg = { role: "user" | "assistant"; content: unknown };
@@ -183,6 +191,17 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   const toolsUsed: string[] = [];
   const proposals: AskProposal[] = [];
   let reads = 0;
+  // Where the time went (AskTurnShape): the first byte of the model's stream,
+  // its first text token, the first Say the person sees, each round's time,
+  // each tool's, and what the model was fed by cache or not. Measured here
+  // because only the loop sees all of it; the route stores it on the turn.
+  let firstByteMs: number | null = null;
+  let firstTextMs: number | null = null;
+  let firstSayMs: number | null = null;
+  const roundsMs: number[] = [];
+  const toolsMs: Array<{ name: string; ms: number }> = [];
+  const tokens = { input: 0, cache_read: 0, cache_creation: 0, output: 0 };
+  let capHits = 0;
 
   // The day, before the model is asked, and beside it the reads the question
   // names plainly (prefetch.ts): both ride into the first round as data, so
@@ -270,15 +289,37 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
     ungrounded?: boolean;
   }): TurnResult => {
     clearTimeout(timer);
+    const shape: AskTurnShape = {
+      v: 1,
+      model: ASK_MODEL,
+      effort: EFFORT,
+      surface: input.surface,
+      scope_kind: input.scope?.kind ?? null,
+      follow_up: input.history.length > 0,
+      since_last_ms: input.sinceLastMs ?? null,
+      opened_ms: input.openedMs ?? null,
+      snapshot_ms: snapshotMs,
+      prefetched: plan.map((p) => p.name),
+      rounds: r.rounds,
+      rounds_ms: roundsMs,
+      tools_ms: toolsMs,
+      first_byte_ms: firstByteMs,
+      first_text_ms: firstTextMs,
+      first_say_ms: firstSayMs,
+      final_ms: Date.now() - t0,
+      tokens,
+      cache_hit: cacheHitOf(tokens),
+      cap_hits: capHits,
+      format,
+      failed: r.failed,
+    };
     console.log(
       JSON.stringify({
         level: "info",
         event: "ask_turn_shape",
         tenant: input.tenantId,
-        snapshot_ms: snapshotMs,
+        ...shape,
         snapshot: !!snapshot,
-        prefetched: plan.map((p) => p.name),
-        rounds: r.rounds,
         tools: toolsUsed,
         form: r.answer.form,
       }),
@@ -290,6 +331,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       latencyMs: Date.now() - t0,
       ...r,
       text: answerText(r.answer),
+      shape,
     };
   };
   /** A turn that could not be answered: its sentence, in the person's language, is the answer's headline. */
@@ -324,6 +366,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
     if (key === said || at - saidAt < SAY_EVERY_MS) return;
     said = key;
     saidAt = at;
+    if (firstSayMs === null) firstSayMs = Date.now() - t0;
     input.emit({ t: "say", headline: say.headline, detail: say.detail });
   };
   /** An answer set aside after its Say was sent: an empty Say takes it back, and the Line shows the reads again. */
@@ -367,22 +410,36 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
     };
   };
 
+  /** A tool call's time, kept in the order the calls ran. */
+  const timed = async <T>(name: string, run: () => Promise<T>): Promise<T> => {
+    const t = Date.now();
+    try {
+      return await run();
+    } finally {
+      toolsMs.push({ name, ms: Date.now() - t });
+    }
+  };
+
   const propose = async (b: RoundBlock) => {
     toolsUsed.push(b.name);
     const args = argsOf(b);
     if (!args) return cutOff(b);
-    const p = await ports.propose(tc, b.name, args);
-    if (p.proposal) proposals.push(p.proposal);
-    return { result: p.result, isError: p.isError };
+    return timed(b.name, async () => {
+      const p = await ports.propose(tc, b.name, args);
+      if (p.proposal) proposals.push(p.proposal);
+      return { result: p.result, isError: p.isError };
+    });
   };
 
   const read = async (b: RoundBlock) => {
     toolsUsed.push(b.name);
     const args = argsOf(b);
     if (!args) return cutOff(b);
-    const out = await ports.tool(tc, { name: b.name, input: args });
-    if (!out.isError) reads++;
-    return { result: out.result, isError: out.isError };
+    return timed(b.name, async () => {
+      const out = await ports.tool(tc, { name: b.name, input: args });
+      if (!out.isError) reads++;
+      return { result: out.result, isError: out.isError };
+    });
   };
 
   try {
@@ -404,14 +461,28 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
           : { effort: EFFORT },
       };
 
+      const roundAt = Date.now();
       let blocks: RoundBlock[];
       let stopReason: string | null;
       let streamError: string | null;
       try {
-        ({ blocks, stopReason, streamError } = await ports.round(
+        const r = await ports.round(
           { tenantId: input.tenantId, userId: input.ctx.userId, request, signal: controller.signal },
           onText,
-        ));
+        );
+        ({ blocks, stopReason, streamError } = r);
+        roundsMs.push(r.timing?.totalMs ?? Date.now() - roundAt);
+        if (r.timing) {
+          if (firstByteMs === null && r.timing.firstEventMs !== null)
+            firstByteMs = roundAt - t0 + r.timing.firstEventMs;
+          if (firstTextMs === null && r.timing.firstTextMs !== null) firstTextMs = roundAt - t0 + r.timing.firstTextMs;
+        }
+        if (r.usage) {
+          tokens.input += r.usage.inputTokens;
+          tokens.cache_read += r.usage.cacheReadTokens;
+          tokens.cache_creation += r.usage.cacheCreationTokens;
+          tokens.output += r.usage.outputTokens ?? 0;
+        }
       } catch (e) {
         if (e instanceof GatewayRefused) {
           // The format refused: the same round is asked again without it, and
@@ -460,6 +531,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       // recorded here, because a turn that keeps hitting the cap is a budget
       // that is too small and not a model that keeps changing its mind.
       if (stopReason === "max_tokens") {
+        capHits++;
         console.error(
           "ask_round_hit_cap",
           JSON.stringify({
@@ -574,6 +646,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       // round -- the model must say why and what the person can do instead.
       if (acts.length === calls.length && !refused && proposals.length > before) {
         const answer = answerForCards(proposals.slice(before), input.language);
+        if (firstSayMs === null) firstSayMs = Date.now() - t0;
         input.emit({ t: "say", headline: answer.say.headline, detail: answer.say.detail });
         return done({ answer, failed: false, failure: null, rounds: round });
       }

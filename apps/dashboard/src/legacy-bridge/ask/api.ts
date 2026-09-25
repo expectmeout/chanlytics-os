@@ -114,6 +114,8 @@ export function askApi(client: Api = api()) {
         surface: AskSurface;
         /** The search whose question the text answers (the Leads answer row): the route reads it and tells the model. */
         answering?: { searchId: string } | null;
+        /** How long the Line was open before this question, in ms (AskTurnShape.opened_ms); omitted when unknown. */
+        openedMs?: number | null;
       },
       on: (ev: SendEvent) => void,
     ): Promise<void> => {
@@ -126,6 +128,9 @@ export function askApi(client: Api = api()) {
             scope: input.scope,
             surface: input.surface,
             ...(input.answering ? { answering: { search_id: input.answering.searchId } } : {}),
+            ...(typeof input.openedMs === "number" && input.openedMs >= 0
+              ? { opened_ms: Math.round(input.openedMs) }
+              : {}),
           },
           timeoutMs: TURN_MS,
         });

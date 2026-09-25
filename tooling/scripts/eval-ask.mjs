@@ -19,10 +19,15 @@
  * cap, and which model answered (the model gate, spec 8.3).
  *
  *   NEXT_PUBLIC_SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… NEXT_PUBLIC_SUPABASE_ANON_KEY=… \
- *   E2E_USER_EMAIL=… node tooling/scripts/eval-ask.mjs [tooling/evals/ask-cases.json]
+ *   E2E_USER_EMAIL=… [REPS=3] [SURFACE=today] [ONLY=id,id] node tooling/scripts/eval-ask.mjs [tooling/evals/ask-cases.json]
+ *
+ * REPS runs every case that many times (the gate runs three: spec 5.10). SURFACE keeps one surface's cases. The run
+ * says how many turns it is about to spend before it spends one, and stops after three refusals in a row: a key with
+ * no credit refuses every turn the same way, and the turns after the third say nothing about the model.
  */
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { ASK_TOKENS_DAY, cardOpenRoute, oneDoor } from "@chanlytics/contracts";
+import { spread, wilson, pct } from "./ask-stats.mjs";
 
 const BASE = process.env.E2E_BASE_URL || "https://chanlytics-os.vercel.app";
 const URL_ = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
@@ -31,6 +36,8 @@ const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_A
 const EMAIL = process.env.E2E_USER_EMAIL;
 const file = process.argv[2] || "tooling/evals/ask-cases.json";
 const ONLY = process.env.ONLY ? new Set(process.env.ONLY.split(",")) : null;
+const REPS = Math.max(1, Math.round(Number(process.env.REPS) || 1));
+const SURFACE = process.env.SURFACE || null;
 
 if (!URL_ || !KEY || !ANON || !EMAIL) {
   console.error(
@@ -160,12 +167,12 @@ function summarizeUsage(rows, answered) {
 }
 
 /* ---- one turn, read to the end ---- */
-async function ask(cookie, text) {
+async function ask(cookie, text, surface) {
   const t0 = Date.now();
   const res = await fetch(`${BASE}/api/v1/ask`, {
     method: "POST",
     headers: { "content-type": "application/json", cookie, origin: new URL(BASE).origin },
-    body: JSON.stringify({ text, thread_id: null, scope: null, surface: "today" }),
+    body: JSON.stringify({ text, thread_id: null, scope: null, surface }),
   });
   if (!res.ok || !res.body) {
     const body = await res.text().catch(() => "");
@@ -175,11 +182,14 @@ async function ask(cookie, text) {
   const reader = res.body.getReader();
   const dec = new TextDecoder();
   let carry = "";
-  // When the person first sees words: the first `delta` (a v1 turn) or `say` (a v2 turn), from the request's start.
+  // When the person first sees words: the first `delta` (a v1 turn) or `say` (a v2 turn), from the request's start;
+  // and when the model first decided anything: the first `trace` (a read or a card starting).
   let firstMs = null;
+  let firstTraceMs = null;
   const take = (l) => {
     const e = JSON.parse(l);
     if (firstMs === null && (e.t === "delta" || e.t === "say")) firstMs = Date.now() - t0;
+    if (firstTraceMs === null && e.t === "trace") firstTraceMs = Date.now() - t0;
     events.push(e);
   };
   for (;;) {
@@ -201,6 +211,7 @@ async function ask(cookie, text) {
     ms,
     // A turn with no words streamed (a card, a failure) shows its words when the final lands.
     firstMs: firstMs ?? ms,
+    firstTraceMs,
     deltas: events.filter((e) => e.t === "delta" || e.t === "say").length,
   };
 }
@@ -290,7 +301,14 @@ export function judge(c, r) {
   return { pass: fails.length === 0, fails, notes };
 }
 
-const cases = JSON.parse(readFileSync(file, "utf8")).filter((c) => !ONLY || ONLY.has(c.id));
+const cases = JSON.parse(readFileSync(file, "utf8"))
+  .map((c) => ({ ...c, surface: c.surface ?? "today" }))
+  .filter((c) => !ONLY || ONLY.has(c.id))
+  .filter((c) => !SURFACE || c.surface === SURFACE);
+if (!cases.length) {
+  console.error("no cases match ONLY/SURFACE");
+  process.exit(2);
+}
 const session = await mint();
 const cookie = cookieHeader(session);
 // The budget before a case is asked: a run that starts near the cap ends in a wall of BUDGET refusals that say
@@ -298,78 +316,117 @@ const cookie = cookieHeader(session);
 const tenantId = await workspaceOf(session.user.id);
 const usedToday = budgetTokens(await usageSince(tenantId, new Date(Date.now() - DAY_MS).toISOString()));
 process.stderr.write(
-  `Ask's budget today: ${usedToday.toLocaleString("en-US")} of ${ASK_TOKENS_DAY.toLocaleString("en-US")} tokens used before this run\n`,
+  `Ask's budget today: ${usedToday.toLocaleString("en-US")} of ${ASK_TOKENS_DAY.toLocaleString("en-US")} tokens used before this run\n` +
+    `${cases.length} cases × ${REPS} = ${cases.length * REPS} turns ≈ $${(cases.length * REPS * 0.012).toFixed(2)} at the baseline $0.012 a turn (spec §9) against ${BASE}. Every turn spends the model key the receptionist answers customers with; the run stops after three refusals in a row.\n`,
 );
 // A second of clock skew: the first row of a run lands seconds after this, and the previous run's last row can
 // still be on its way (the edge writes it after its stream settles), so the window opens no earlier than this.
 const startedAt = new Date(Date.now() - 1_000).toISOString();
 const results = [];
-for (const c of cases) {
-  let r;
-  try {
-    r = await ask(cookie, c.text);
-  } catch (e) {
-    r = { final: null, error: e instanceof Error ? e.message : String(e), ms: 0, firstMs: 0, deltas: 0 };
+/** The loop's own refusal sentences (loop.ts refusalText): the key, its credit, the model or the edge, never the case. */
+const REFUSED =
+  /refused the question|rechazó la pregunta|not connected to a model|no está conectado|could not reach the model|No pude llegar al modelo/;
+let refusals = 0;
+let stopped = null;
+run: for (let rep = 1; rep <= REPS; rep++) {
+  for (const c of cases) {
+    let r;
+    try {
+      r = await ask(cookie, c.text, c.surface);
+    } catch (e) {
+      r = {
+        final: null,
+        error: e instanceof Error ? e.message : String(e),
+        ms: 0,
+        firstMs: 0,
+        firstTraceMs: null,
+        deltas: 0,
+      };
+    }
+    const j = r.final ? judge(c, r) : { pass: false, fails: [r.error ?? "no answer"], notes: [] };
+    results.push({
+      id: c.id,
+      rep,
+      surface: c.surface,
+      must_never: c.must_never === true,
+      text: c.text,
+      answer: r.final?.text ?? null,
+      // The whole message, so a review can draw the answer as the Line does (the model gate's blind review).
+      message: r.final,
+      form: r.final?.answer?.form ?? null,
+      shown: r.final?.answer
+        ? {
+            figures: r.final.answer.show.figures.length,
+            items: r.final.answer.show.items.length,
+            breakdown: !!r.final.answer.show.breakdown,
+            open: r.final.answer.do.open?.to ?? null,
+          }
+        : null,
+      rounds: r.final?.rounds ?? null,
+      tools: r.final?.tools ?? [],
+      proposals: (r.final?.proposals ?? []).map((p) => ({ kind: p.kind, title: p.title, summary: p.summary })),
+      citations: r.final?.citations ?? [],
+      language: r.final?.language ?? null,
+      latency_ms: r.final?.latencyMs ?? r.ms,
+      first_ms: r.firstMs,
+      first_trace_ms: r.firstTraceMs,
+      final_ms: r.ms,
+      deltas: r.deltas,
+      threadId: r.threadId ?? null,
+      ...j,
+    });
+    process.stderr.write(
+      `${j.pass ? "PASS" : "FAIL"} ${c.id}${REPS > 1 ? ` #${rep}` : ""} (${r.ms} ms, ${r.final?.rounds ?? "?"} round(s), tools ${JSON.stringify(r.final?.tools ?? [])}, cards ${JSON.stringify((r.final?.proposals ?? []).map((p) => p.kind))})${j.pass ? "" : "\n     " + j.fails.join("\n     ")}\n`,
+    );
+    // A request that threw (a 5xx, the route's rate limit) counts too: it says nothing about the model either.
+    const refused = !r.final || (r.final.failed && REFUSED.test(r.final.text ?? ""));
+    refusals = refused ? refusals + 1 : 0;
+    if (refusals >= 3) {
+      stopped = `three refusals in a row at ${c.id} #${rep}: the key, its credit, the model or the route. Nothing after this was asked.`;
+      process.stderr.write(`STOP: ${stopped}\n`);
+      break run;
+    }
   }
-  const j = r.final ? judge(c, r) : { pass: false, fails: [r.error ?? "no answer"], notes: [] };
-  results.push({
-    id: c.id,
-    text: c.text,
-    answer: r.final?.text ?? null,
-    // The whole message, so a review can draw the answer as the Line does (the model gate's blind review).
-    message: r.final,
-    form: r.final?.answer?.form ?? null,
-    shown: r.final?.answer
-      ? {
-          figures: r.final.answer.show.figures.length,
-          items: r.final.answer.show.items.length,
-          breakdown: !!r.final.answer.show.breakdown,
-          open: r.final.answer.do.open?.to ?? null,
-        }
-      : null,
-    rounds: r.final?.rounds ?? null,
-    tools: r.final?.tools ?? [],
-    proposals: (r.final?.proposals ?? []).map((p) => ({ kind: p.kind, title: p.title, summary: p.summary })),
-    citations: r.final?.citations ?? [],
-    language: r.final?.language ?? null,
-    latency_ms: r.final?.latencyMs ?? r.ms,
-    first_ms: r.firstMs,
-    final_ms: r.ms,
-    deltas: r.deltas,
-    threadId: r.threadId ?? null,
-    ...j,
-  });
-  process.stderr.write(
-    `${j.pass ? "PASS" : "FAIL"} ${c.id} (${r.ms} ms, ${r.final?.rounds ?? "?"} round(s), tools ${JSON.stringify(r.final?.tools ?? [])}, cards ${JSON.stringify((r.final?.proposals ?? []).map((p) => p.kind))})${j.pass ? "" : "\n     " + j.fails.join("\n     ")}\n`,
-  );
 }
 const passed = results.filter((r) => r.pass).length;
-/** The middle and the slowest tenth of a timing, over the cases that answered. */
-const spread = (key) => {
-  const xs = results
-    .map((r) => r[key])
-    .filter((n) => typeof n === "number" && n > 0)
-    .sort((a, b) => a - b);
-  if (!xs.length) return { median: 0, p90: 0 };
-  return { median: xs[Math.floor(xs.length / 2)], p90: xs[Math.min(xs.length - 1, Math.ceil(xs.length * 0.9) - 1)] };
-};
-const first = spread("first_ms");
-const whole = spread("final_ms");
-const median = spread("latency_ms").median;
+// The timings are the turns that answered: a request that threw records 0 ms, and a zero pulls every median down.
+const answered = results.filter((r) => r.message);
+const first = spread(answered.map((r) => r.first_ms));
+const trace = spread(answered.map((r) => r.first_trace_ms));
+const whole = spread(answered.map((r) => r.final_ms));
+const median = spread(answered.map((r) => r.latency_ms)).median;
 const oneRound = results.filter((r) => r.rounds === 1).length;
 const repeats = results.filter((r) => r.notes?.length).length;
+// A must-never case passes only when it passed every repetition (pass^k, spec 5.10).
+const mustNever = [...new Set(results.filter((r) => r.must_never).map((r) => r.id))];
+const mustNeverHeld = mustNever.filter((id) => results.filter((r) => r.id === id).every((r) => r.pass)).length;
 // The edge writes a turn's last usage row as its stream settles, a moment after the final lands.
 await new Promise((res) => setTimeout(res, 5_000));
 const usage = summarizeUsage(await usageSince(tenantId, startedAt), results.filter((r) => r.message).length);
 const reported = results.reduce((s, r) => s + (r.rounds ?? 0), 0);
 const dollars = (n) => (n === null ? "unpriced" : `$${n.toFixed(n < 1 ? 3 : 2)}`);
+const interval = (k, n) => {
+  const [lo, hi] = wilson(k, n);
+  return `${k}/${n} (95%: ${pct(lo)}–${pct(hi)})`;
+};
 console.log(
-  `\nAsk evals: ${passed}/${results.length} passed · median ${median} ms · one-round ${oneRound}/${results.length}` +
-    ` · first words median ${first.median} ms, p90 ${first.p90} ms · final median ${whole.median} ms, p90 ${whole.p90} ms` +
+  `\nAsk evals: ${interval(passed, results.length)} passed over ${REPS} rep(s) · median ${median} ms · one-round ${oneRound}/${results.length}` +
+    ` · first trace median ${trace.median ?? "—"} ms · first words median ${first.median} ms, p90 ${first.p90} ms · final median ${whole.median} ms, p90 ${whole.p90} ms` +
+    `\n  must-never: ${mustNeverHeld}/${mustNever.length} cases held on every rep` +
     `\n  model ${Object.keys(usage.byModel).join("+") || "?"} · ${dollars(usage.per_turn)} per answered turn` +
     ` (${dollars(usage.cost)} the run, ${usage.rounds} rounds recorded of ${reported} reported)` +
-    ` · at the cap ${usage.cap_hits} · repeats ${repeats}`,
+    ` · at the cap ${usage.cap_hits} · repeats ${repeats}${stopped ? `\n  STOPPED: ${stopped}` : ""}`,
 );
+const surfaces = [...new Set(results.map((r) => r.surface))];
+for (const s of surfaces) {
+  const rs = results.filter((r) => r.surface === s);
+  const f = spread(rs.filter((r) => r.message).map((r) => r.first_ms));
+  const w = spread(rs.filter((r) => r.message).map((r) => r.final_ms));
+  console.log(
+    `  ${s}: ${interval(rs.filter((r) => r.pass).length, rs.length)} · one-round ${rs.filter((r) => r.rounds === 1).length}/${rs.length}` +
+      ` · first words ${f.median} ms (p90 ${f.p90}) · final ${w.median} ms (p90 ${w.p90})`,
+  );
+}
 for (const [model, m] of Object.entries(usage.byModel))
   console.log(
     `  ${model}: ${m.rounds} rounds · input ${m.input.toLocaleString("en-US")} · output ${m.output.toLocaleString("en-US")}` +
@@ -378,7 +435,7 @@ for (const [model, m] of Object.entries(usage.byModel))
   );
 for (const r of results)
   console.log(
-    `- ${r.pass ? "ok  " : "FAIL"} ${r.id}: ${(r.answer ?? "").replace(/\s+/g, " ").slice(0, 160)}` +
+    `- ${r.pass ? "ok  " : "FAIL"} ${r.id}${REPS > 1 ? ` #${r.rep}` : ""}: ${(r.answer ?? "").replace(/\s+/g, " ").slice(0, 160)}` +
       (r.notes?.length ? `\n       note: ${r.notes.join("; ")}` : ""),
   );
 mkdirSync("tooling/backups", { recursive: true });
@@ -386,10 +443,19 @@ const out = `tooling/backups/eval-ask-${new Date().toISOString().replace(/[:.]/g
 writeFileSync(
   out,
   JSON.stringify(
-    { base: BASE, file, at: new Date().toISOString(), used_today_before: usedToday, usage, results },
+    {
+      base: BASE,
+      file,
+      reps: REPS,
+      stopped,
+      at: new Date().toISOString(),
+      used_today_before: usedToday,
+      usage,
+      results,
+    },
     null,
     2,
   ),
 );
 console.log(`saved ${out}`);
-process.exit(passed === results.length ? 0 : 1);
+process.exit(passed === results.length && !stopped ? 0 : 1);

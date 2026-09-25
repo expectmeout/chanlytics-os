@@ -340,7 +340,7 @@ const said = (id, text) => ({
  * for the routes that go out (the threads, one thread, a deletion, a turn, the openings).
  */
 const ask = (threads = []) => {
-  const calls = { deleted: [], sent: [], opened: [] };
+  const calls = { deleted: [], sent: [], opened: [], inputs: [] };
   let list = [...threads];
   const palette = askPalette(globalThis.window, globalThis.localStorage);
   const openings = async () => ({ state: "no_calendar", days: [] });
@@ -380,6 +380,7 @@ const ask = (threads = []) => {
     },
     send: async (input) => {
       calls.sent.push(input.text);
+      calls.inputs.push(input);
     },
     openings,
   };
@@ -409,6 +410,22 @@ test("REGRESSION (N3): what the shell sends as the Line opens is taken -- a seed
   await closes();
   tree = await opens();
   assert.ok(byTestId(tree, "ask-turn"), "⌘K alone brings the conversation back: it lasts until Clear (D14)");
+  await closes();
+});
+
+test("a question carries how long the Line was open before it was asked (AskTurnShape.opened_ms)", async () => {
+  const calls = ask([]);
+  render(Palette, OPEN);
+  let tree = await later(Palette, OPEN);
+  typed(tree, "how was the week?");
+  tree = await later(Palette, OPEN);
+  keyed(tree, "Enter");
+  await later(Palette, OPEN);
+  assert.equal(calls.inputs.length, 1, "asked once");
+  assert.ok(
+    Number.isInteger(calls.inputs[0].openedMs) && calls.inputs[0].openedMs >= 0,
+    `a whole number of milliseconds since the Line opened, got ${calls.inputs[0].openedMs}`,
+  );
   await closes();
 });
 
