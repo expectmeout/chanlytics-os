@@ -521,6 +521,51 @@ test.describe("Phone shell on a real workspace", () => {
   });
 
   /**
+   * A swipe across the page walks its strip (25 Sep, docs/superpowers/specs/2026-09-25-swipe-between-tabs-design.md):
+   * the page follows the thumb, and let go past a third of the screen the tab beside is pressed; before the first tab
+   * there is nothing to go to. Real touches through the browser's own input (CDP), as today.spec.ts pulls Ask down.
+   */
+  test("a swipe across the page walks its strip: the Inbox, People and Campaigns, and never past an end", async ({
+    page,
+  }) => {
+    const cdp = await page.context().newCDPSession(page);
+    const swipe = async (from: number, to: number, y = 560) => {
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: from, y }] });
+      for (let i = 1; i <= 6; i += 1) {
+        const x = from + ((to - from) * i) / 6;
+        await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y }] });
+      }
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    };
+    const inbox = page.locator(".stabs.stabs-inbox .stabs-tab.active");
+    await page.goto("/#/inbox");
+    await page.waitForLoadState("networkidle");
+    await expect(inbox).toHaveText(/^Needs you/);
+    await swipe(300, 90);
+    await expect(page).toHaveURL(/#\/conversations/);
+    await expect(inbox).toHaveText(/^Conversations/);
+    await swipe(90, 300);
+    await expect(page).toHaveURL(/#\/inbox/);
+    await expect(inbox).toHaveText(/^Needs you/);
+    await swipe(90, 300);
+    await page.waitForTimeout(800);
+    await expect(page, "nothing before the first tab").toHaveURL(/#\/inbox$/);
+
+    await page.goto("/#/clients");
+    await page.waitForLoadState("networkidle");
+    await expect(page.getByTestId("people-phone-scopes")).toBeVisible();
+    await swipe(300, 90);
+    // The address is the tab's own route: the Leads view draws its strip once Leads is read.
+    await expect(page).toHaveURL(/#\/clients\/leads/);
+
+    await page.goto("/#/outbound");
+    await page.waitForLoadState("networkidle");
+    await expect(page.locator(".stabs.stabs-campaigns")).toBeVisible();
+    await swipe(300, 90);
+    await expect(page).toHaveURL(/#\/broadcasts/);
+  });
+
+  /**
    * A switch holds still (23 Sep). With History's tabs parked under the top bar, Consent put them 328px further down a
    * phone and Visits 439px: a shorter list made the page shorter and the browser pulled the scroll back to fit
    * (data-bits holdStill now holds it). And the head starts at the page's edge: the way back is the top bar's crumb.
