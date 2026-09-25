@@ -1,8 +1,8 @@
 /**
  * Ask: the workspace assistant, as a contract.
  *
- * What lives here is everything about Ask that is pure and shared: its limits
- * and model, the rule that keeps a citation honest and where a row opens, the
+ * What lives here is everything about Ask that is pure and shared: its limits,
+ * the rule that keeps a citation honest and where a row opens, the
  * cards and their undo, the Line's jump index and suggestions, and the three
  * questions answered without a model. The answer itself -- its shape, the
  * format the model writes it in and how it is read back -- is ask-answer.ts's.
@@ -19,26 +19,6 @@ import { dayPlusInZone } from "./availability";
 /** One question, in characters. Longer than this is a document, not a question. */
 export const ASK_MAX_CHARS = 1000;
 /** Tool rounds per turn: reads, then the answer. The last round is forced to finish. */
-/**
- * The model for a turn: choosing a tool and writing sixty words. On the eval
- * set (2026-09-07, 28 cases, all passing either way) Opus 5 answered in a
- * 7.2 s median with a one-round turn at 4.7–8 s; the answer's length, not
- * its difficulty, was the cost. Sonnet 5 writes it faster at the same
- * grounding. One name: the loop sends it, and the edge gateway defaults to
- * it when a request names none, so the two cannot drift apart. The eval set
- * decides if this stays.
- *
- * The Line's gate (2026-09-23, spec 8.3: three runs each, the same build but
- * for this line, low effort on both). Sonnet 5 passed 27 of 28 every run
- * (hours has nothing seeded). Opus 5.5 passed 24, 23 and 22: it wrote its
- * first words a second sooner (2.3 s against 3.2 s median) and answered in
- * one round far more often (25 of 28 against 14), at $0.012 a turn against
- * $0.010; but it never opened the profile it said it was opening (the person
- * was not read first, so the route was dropped), twice said it had proposed
- * a closure it had not, and ran a two-sentence headline in six answers of
- * 84. It replaces Sonnet 5 only by passing everything Sonnet 5 passes.
- */
-export const ASK_MODEL = "claude-sonnet-5";
 export const ASK_MAX_ROUNDS = 4;
 /** End to end, under the route's sixty-second ceiling. */
 export const ASK_TURN_BUDGET_MS = 45_000;

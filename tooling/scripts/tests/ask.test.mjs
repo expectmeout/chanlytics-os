@@ -1177,8 +1177,8 @@ test("REGRESSION: the assistant's tools fit under the edge gateway's cap — one
 test("the speed pass: a fast model for a short answer, the day's rows never re-read, the autonomy modes in the prompt", () => {
   const l = readCode("apps/dashboard/src/server/ask/loop.ts");
   assert.ok(
-    l.includes('export { ASK_MODEL } from "@chanlytics/contracts";') && ASK_MODEL === "claude-sonnet-5",
-    "the eval set chose it: same grounding, the answer written faster; one name, in contracts, for the loop and the gateway",
+    l.includes('export { ASK_MODEL } from "@chanlytics/contracts";'),
+    "one name, in contracts (ask-model.ts, whose test pins which), for the loop and the gateway",
   );
   const route = readCode("apps/dashboard/app/api/v1/ask/route.ts");
   assert.ok(

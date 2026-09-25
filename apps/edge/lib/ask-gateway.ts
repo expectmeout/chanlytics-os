@@ -10,7 +10,7 @@
  * and nothing else).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { ASK_MAX_TOKENS, ASK_MODEL } from "./packages/contracts.js";
+import { ASK_MAX_TOKENS, ASK_MODEL, ASK_MODELS } from "./packages/contracts.js";
 import type { Database, Json } from "./packages/db.js";
 import { emitEvent } from "./packages/db.js";
 import { logger, errField } from "./log.js";
@@ -176,10 +176,10 @@ function formatOf(raw: unknown): { type: "json_schema"; schema: Record<string, u
 }
 
 /**
- * The models a request may name; ASK_MODEL (contracts) is the one the loop sends and the default here. Opus 5.5 is the
- * one the Line's model gate may choose (docs/superpowers/specs/2026-09-23-ask-the-line-design.md, 8.3).
+ * The models a request may name: Ask's profiles (contracts ASK_MODELS; ASK_MODEL is the loop's default and this door's
+ * when a request names none, which is every lead purpose's request) and Opus 5, which nothing on main names today.
  */
-export const GATEWAY_MODELS = ["claude-opus-5", "claude-opus-5-5", "claude-sonnet-5"] as const;
+export const GATEWAY_MODELS = ["claude-opus-5", ...ASK_MODELS] as const;
 /** The lead purposes' ceiling. Ask's own is ASK_MAX_TOKENS (contracts), the number its loop asks for. */
 export const GATEWAY_MAX_TOKENS = 2000;
 export const GATEWAY_MAX_MESSAGES = 60;
