@@ -13293,17 +13293,27 @@ interface AskTurnShape {
     rounds: number;
     /** Each round's time from its request to its last event. */
     rounds_ms: number[];
-    /** Each tool call's name and time, in the order they ran. */
+    /**
+     * The calls that ran, each with its name and time, in order. A call cut off before its arguments ran nothing and
+     * is absent, so this can be shorter than the turn's tools list.
+     */
     tools_ms: Array<{
         name: string;
         ms: number;
     }>;
-    /** The first byte of the model's stream, its first text token, and the first Say the person saw. */
+    /**
+     * The first byte of the model's stream, its first text token, and the first Say the person saw, whether it stayed
+     * or was later taken back (an answer set aside beside a read).
+     */
     first_byte_ms: number | null;
     first_text_ms: number | null;
     first_say_ms: number | null;
     final_ms: number;
-    /** Summed over the rounds, as the API counted them. */
+    /**
+     * Summed over the rounds that returned, as the API counted them. A stream that broke before its stop has no output
+     * side and counts 0 there; a round that threw contributes nothing, so a turn's sum can fall short of the edge's
+     * usage rows.
+     */
     tokens: AskTurnTokens;
     /** Cache reads over everything the model was fed; null when nothing was counted (cacheHitOf). */
     cache_hit: number | null;
