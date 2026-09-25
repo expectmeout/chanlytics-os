@@ -946,7 +946,6 @@ var BOOTSTRAP_MS = 3600 * 1e3;
 var DATE_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WEEK_MS2 = 7 * 864e5;
 var FORWARDING_TEST_WINDOW_MS = 30 * 6e4;
-var TRY_QUIET_AFTER_MS = 3 * 6e4;
 var DATE_FMT3 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var CHECKOUT_OUTCOME_WORDS = {
   success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
@@ -970,6 +969,7 @@ var REGISTRATION_COST_WORDS = {
 var PROVISIONING_DEADLINE_MS = 5 * 6e4;
 var SOLE_PROP_CEILING_SENTENCE = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
 var SOLE_PROP_TEXTING_SENTENCE = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE}`;
+var TRY_QUIET_AFTER_MS = 3 * 6e4;
 var FIRST_RUN_PHONE_WORDS = {
   chooseHeading: "How should calls reach your receptionist?",
   chooseLead: "Most businesses keep the number customers already know. Your team still answers first, and your receptionist gets the rest.",
