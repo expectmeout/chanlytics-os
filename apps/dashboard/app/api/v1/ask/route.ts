@@ -16,7 +16,7 @@ import { write, workspace } from "@/server/route";
 import { requireUuid } from "@/server/request-guards";
 import { tenantFacts } from "@/server/tenant";
 import { sellsByOf } from "@/server/deals";
-import { runAskTurn, ASK_MODEL, type TurnEvent } from "@/server/ask/loop";
+import { runAskTurn, type TurnEvent } from "@/server/ask/loop";
 import { listPolicies } from "@chanlytics/db";
 import {
   askTurnText,
@@ -220,7 +220,7 @@ export const POST = write({
           latency_ms: result.latencyMs,
           failed: result.failed,
           ...(result.failure ? { failure: result.failure.slice(0, 200) } : {}),
-          model: ASK_MODEL,
+          model: result.model,
           rounds: result.rounds,
           shape: result.shape,
         };

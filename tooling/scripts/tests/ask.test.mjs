@@ -1009,7 +1009,10 @@ test("context first: the day rides into every turn, its rows can be cited, loade
     "a failed snapshot costs the snapshot, never the turn",
   );
   // Every round asks at low effort: the request itself, in ask-turn.test.mjs.
-  assert.ok(loop.includes('const EFFORT: "low" | "medium" = "low";'));
+  assert.ok(
+    loop.includes("effort: model.effort") && !loop.includes("const EFFORT"),
+    "the effort is the profile's, identical on every round (spec 5.11)",
+  );
   assert.ok(
     loop.includes('...(snapshot ? [{ type: "text", text: snapshot, cache_control: { type: "ephemeral" } }] : []),'),
     "the snapshot is the second cache breakpoint: a turn's later rounds and a quick follow-up read it from the cache",
@@ -1177,12 +1180,14 @@ test("REGRESSION: the assistant's tools fit under the edge gateway's cap — one
 test("the speed pass: a fast model for a short answer, the day's rows never re-read, the autonomy modes in the prompt", () => {
   const l = readCode("apps/dashboard/src/server/ask/loop.ts");
   assert.ok(
-    l.includes('export { ASK_MODEL } from "@chanlytics/contracts";'),
-    "one name, in contracts (ask-model.ts, whose test pins which), for the loop and the gateway",
+    l.includes('import { askModel } from "./model";') &&
+      !l.includes("export { ASK_MODEL }") &&
+      !l.includes("const EFFORT"),
+    "the loop asks the deployment's profile for the model and the effort, and names neither itself (spec 5.11)",
   );
   const route = readCode("apps/dashboard/app/api/v1/ask/route.ts");
   assert.ok(
-    route.includes("model: ASK_MODEL,") && !route.includes('model: "claude-opus-5"'),
+    route.includes("model: result.model,") && !route.includes('model: "claude-'),
     "the saved turn names the model that ran",
   );
   assert.ok(
