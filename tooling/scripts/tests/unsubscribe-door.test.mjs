@@ -90,10 +90,23 @@ test("a link this secret did not make is refused before the database is asked", 
     noStore(g);
     assert.equal(g.status, 404);
     assert.match(await g.text(), /This link doesn&#39;t work\./);
-    const p = await post("List-Unsubscribe=One-Click", { token: t });
-    noStore(p);
-    assert.equal(p.status, 400);
+    for (const body of ["List-Unsubscribe=One-Click", "unsubscribe=yes"]) {
+      const p = await post(body, { token: t });
+      noStore(p);
+      assert.equal(p.status, 400, body);
+    }
   }
+  // Nor is its body read: a forged link with a large body costs nothing but the check of its seal.
+  let pulled = 0;
+  const endless = new ReadableStream({
+    pull(c) {
+      pulled += 1;
+      c.enqueue(new Uint8Array(1024));
+    },
+  });
+  const forged = await route.POST(new Request(url(bent), { method: "POST", body: endless, duplex: "half" }), ctx(bent));
+  assert.equal(forged.status, 400);
+  assert.ok(pulled <= 1, `the body of a forged link is not read (${pulled} pulls)`);
   assert.equal(w.db.seen.length, 0);
 });
 
@@ -109,7 +122,8 @@ test("the one click records the stop in the same response: 200, plain, no page, 
       p_contact_id: P,
       p_state: "opted_out",
       p_source: "unsubscribe",
-      p_evidence: { channel: "email", via: "one_click", message_id: M },
+      p_message_id: M,
+      p_evidence: { channel: "email", via: "one_click" },
     },
   ]);
 });
@@ -123,6 +137,38 @@ test("the one click may come as a multipart form, as RFC 8058 allows", async () 
   assert.equal(res.status, 200);
   assert.equal(w.pressed.length, 1);
   assert.equal(w.pressed[0].p_evidence.via, "one_click");
+});
+
+test("a stop is not lost to a strict parser: no type, plain text, or a trailing line ending each still records it", async () => {
+  const w = world();
+  for (const [body, type] of [
+    ["List-Unsubscribe=One-Click", null],
+    ["List-Unsubscribe=One-Click", "text/plain"],
+    ["List-Unsubscribe=One-Click\r\n", "application/x-www-form-urlencoded"],
+    ["List-Unsubscribe=One-Click&x=1", "application/x-www-form-urlencoded; charset=utf-8"],
+  ]) {
+    const res = await route.POST(
+      new Request(url(), { method: "POST", headers: type ? { "content-type": type } : {}, body }),
+      ctx(),
+    );
+    noStore(res);
+    assert.equal(res.status, 200, `${JSON.stringify(body)} as ${type}`);
+  }
+  assert.equal(w.pressed.length, 4);
+});
+
+test("a body past 4 KB is refused whether or not it says how long it is", async () => {
+  const w = world();
+  const big = new ReadableStream({
+    start(c) {
+      c.enqueue(new TextEncoder().encode(`List-Unsubscribe=One-Click&pad=${"x".repeat(5000)}`));
+      c.close();
+    },
+  });
+  const res = await route.POST(new Request(url(), { method: "POST", body: big, duplex: "half" }), ctx());
+  noStore(res);
+  assert.equal(res.status, 413);
+  assert.equal(w.pressed.length, 0);
 });
 
 test("the page's button records it too, and says so with the business's name", async () => {

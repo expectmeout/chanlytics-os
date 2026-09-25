@@ -104,30 +104,72 @@ export async function unsubscribeGet(token: string): Promise<Response> {
   return page(200, { kind: "ask", business: await businessName(db, claims.tenantId) });
 }
 
+/**
+ * The body's fields, read no further than MAX_BODY_BYTES. Lenient on purpose, because a stop lost to a strict parser
+ * is a stop nobody sees: multipart when the type says so, otherwise the url-encoded form RFC 8058 names, whatever
+ * type (or none) came with it, and every value trimmed of the line ending a client may leave on it.
+ */
+async function readFields(req: Request): Promise<Map<string, string> | "too_large" | "unreadable"> {
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  const reader = req.body?.getReader();
+  if (reader) {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > MAX_BODY_BYTES) {
+        await reader.cancel().catch(() => {});
+        return "too_large";
+      }
+      chunks.push(value);
+    }
+  }
+  const bytes = new Uint8Array(size);
+  let at = 0;
+  for (const c of chunks) {
+    bytes.set(c, at);
+    at += c.byteLength;
+  }
+  const type = req.headers.get("content-type") ?? "";
+  const fields = new Map<string, string>();
+  try {
+    if (/multipart\/form-data/i.test(type)) {
+      const form = await new Response(bytes, { headers: { "content-type": type } }).formData();
+      for (const [k, v] of form) if (typeof v === "string") fields.set(k, v.trim());
+    } else {
+      for (const [k, v] of new URLSearchParams(new TextDecoder().decode(bytes).trim())) fields.set(k, v.trim());
+    }
+  } catch {
+    return "unreadable";
+  }
+  return fields;
+}
+
 export async function unsubscribePost(token: string, req: Request): Promise<Response> {
   const key = secret();
   const db = serviceDb();
   if (!key || !db) return text(503, "Unsubscribe is not available right now. Try again in a minute.");
-  if (Number(req.headers.get("content-length") ?? 0) > MAX_BODY_BYTES) return text(413, "Too large.");
-  let form: FormData;
-  try {
-    form = await req.formData();
-  } catch {
-    return text(400, "An unsubscribe says List-Unsubscribe=One-Click.");
-  }
-  // The mail client's one click says exactly this (RFC 8058 §3.1); the page's own button says the other.
-  const oneClick = form.get("List-Unsubscribe") === "One-Click";
-  const pressed = form.get("unsubscribe") === "yes";
-  if (!oneClick && !pressed) return text(400, "An unsubscribe says List-Unsubscribe=One-Click.");
+  // The link first: one we did not make is refused before its body is read or the database asked. Our own page
+  // never draws the button under a bad link, so no person pressing lands here.
   const claims = verifyUnsubscribeToken(key, token);
-  if (!claims) return oneClick ? text(400, "This link doesn't work.") : page(404, { kind: "bad_link" });
+  if (!claims) return text(400, "This link doesn't work.");
+  if (Number(req.headers.get("content-length") ?? 0) > MAX_BODY_BYTES) return text(413, "Too large.");
+  const fields = await readFields(req);
+  if (fields === "too_large") return text(413, "Too large.");
+  if (fields === "unreadable") return text(400, "An unsubscribe says List-Unsubscribe=One-Click.");
+  // The mail client's one click says exactly this (RFC 8058 §3.1); the page's own button says the other.
+  const oneClick = fields.get("List-Unsubscribe") === "One-Click";
+  const pressed = fields.get("unsubscribe") === "yes";
+  if (!oneClick && !pressed) return text(400, "An unsubscribe says List-Unsubscribe=One-Click.");
 
   const { data, error } = await db.rpc("set_email_marketing", {
     p_tenant_id: claims.tenantId,
     p_contact_id: claims.contactId,
     p_state: "opted_out",
     p_source: "unsubscribe",
-    p_evidence: { channel: "email", via: oneClick ? "one_click" : "page", message_id: claims.messageId },
+    p_message_id: claims.messageId,
+    p_evidence: { channel: "email", via: oneClick ? "one_click" : "page" },
   });
   if (error) {
     console.error(

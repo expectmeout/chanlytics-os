@@ -36,15 +36,29 @@ const ok = (res) => {
   assert.equal(res.error, null, res.error?.message);
   return res.data;
 };
+/** An email the token names that is no row here: the door looks for it, finds none, and still records the stop. */
+const NO_ROW = "11111111-1111-4111-8111-111111111111";
 const press = (over = {}) =>
   db.rpc("set_email_marketing", {
     p_tenant_id: A,
     p_contact_id: person,
     p_state: "opted_out",
     p_source: "unsubscribe",
-    p_evidence: { channel: "email", via: "one_click", message_id: "11111111-1111-4111-8111-111111111111" },
+    p_message_id: NO_ROW,
+    p_evidence: { channel: "email", via: "one_click" },
     ...over,
   });
+/** A person of workspace A, made for one case. */
+const personOf = async (email, over = {}) =>
+  ok(
+    await db
+      .from("contacts")
+      .insert({ tenant_id: A, email, display_name: "Fixture", ...over })
+      .select("id")
+      .single(),
+  ).id;
+const hashes = async () =>
+  new Set(ok(await db.from("lead_suppressions").select("hash").eq("tenant_id", A)).map((r) => r.hash));
 
 before(async () => {
   if (skip) return;
@@ -240,3 +254,109 @@ test(
     assert.equal(closedAgain.length, 2);
   },
 );
+
+test("a person who asked to be forgotten presses: nothing is written about them", { skip }, async () => {
+  const gone = await personOf("erased@fixture-unsubscribe.example", { erased_at: new Date().toISOString() });
+  const before = await hashes();
+  assert.deepEqual(ok(await press({ p_contact_id: gone })), {
+    changed: false,
+    found: true,
+    business: "Fixture Movers",
+  });
+  const said = ok(await db.from("events").select("id").eq("tenant_id", A).eq("subject_id", gone));
+  assert.equal(said.length, 0);
+  assert.deepEqual(await hashes(), before);
+});
+
+test(
+  "the evidence handed in cannot say another purpose or answer: the door's own facts are written last",
+  { skip },
+  async () => {
+    const p = await personOf("evidence@fixture-unsubscribe.example");
+    ok(
+      await press({
+        p_contact_id: p,
+        p_evidence: { purpose: "marketing", consent: "opted_in", source: "form", message_id: "x", via: "page" },
+      }),
+    );
+    const [e] = ok(
+      await db
+        .from("events")
+        .select("data")
+        .eq("tenant_id", A)
+        .eq("kind", "contact.consent_changed")
+        .eq("subject_id", p),
+    );
+    assert.equal(e.data.purpose, "email_marketing");
+    assert.equal(e.data.consent, "opted_out");
+    assert.equal(e.data.source, "unsubscribe");
+    assert.equal(e.data.message_id, NO_ROW, "the email named by the door, not by the evidence");
+    assert.equal(e.data.via, "page", "what the evidence may add, it adds");
+  },
+);
+
+test(
+  "the address the email went to is on the never-again list too, when the person's has changed since",
+  { skip },
+  async () => {
+    const p = await personOf("new@fixture-unsubscribe.example");
+    const other = await personOf("someone@fixture-unsubscribe.example");
+    const thread = async (contact) =>
+      ok(await db.from("conversations").insert({ tenant_id: A, contact_id: contact }).select("id").single()).id;
+    const emailTo = async (contact, to) => {
+      const id = crypto.randomUUID();
+      ok(
+        await db.from("messages").insert({
+          id,
+          tenant_id: A,
+          conversation_id: await thread(contact),
+          contact_id: contact,
+          channel: "email",
+          direction: "outbound",
+          sender: "ai",
+          type: "text",
+          body: "A 4.9 from 212 reviews says people find you.",
+          status: "sent",
+          // The shape the send path freezes (channels buildEmailRequest), trimmed to what is read here.
+          meta: { email: { subject: "Hi", to, request: { to: [to], from: '"Sam" <sam@getbestmovers.example>' } } },
+        }),
+      );
+      return id;
+    };
+    const mine = await emailTo(p, "Old@Fixture-Unsubscribe.example");
+    const theirs = await emailTo(other, "theirs@fixture-unsubscribe.example");
+
+    ok(await press({ p_contact_id: p, p_message_id: mine }));
+    const now = await hashes();
+    assert.ok(now.has(await leadSuppressionHash(A, "new@fixture-unsubscribe.example")), "the address on file");
+    assert.ok(
+      now.has(await leadSuppressionHash(A, "old@fixture-unsubscribe.example")),
+      "and the one the email reached",
+    );
+
+    // Another person's email named with this person is not this person's stop.
+    const p2 = await personOf("third@fixture-unsubscribe.example");
+    ok(await press({ p_contact_id: p2, p_message_id: theirs }));
+    assert.ok(!(await hashes()).has(await leadSuppressionHash(A, "theirs@fixture-unsubscribe.example")));
+  },
+);
+
+test("Reports › Campaigns counts no unsubscribe from email as a STOP to its offers", { skip }, async () => {
+  const opts = async () => {
+    const r = ok(await db.rpc("campaign_series", { p_tenant_id: A, p_days: 30 }));
+    assert.equal(r.error, undefined, JSON.stringify(r).slice(0, 200));
+    return r.series.reduce((n, d) => n + d.opt_outs, 0);
+  };
+  assert.equal(await opts(), 0, "the presses above are email's own answer");
+  ok(
+    await db.from("events").insert({
+      tenant_id: A,
+      kind: "contact.consent_changed",
+      category: "contact",
+      subject_type: "contact",
+      subject_id: person,
+      data: { consent: "opted_out", source: "customer_message", channel: "whatsapp", words: "STOP" },
+    }),
+  );
+  assert.equal(await opts(), 1, "a STOP still counts");
+});

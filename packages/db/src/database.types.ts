@@ -4853,6 +4853,7 @@ export type Database = {
         Args: {
           p_contact_id: string
           p_evidence?: Json
+          p_message_id?: string
           p_source: string
           p_state: string
           p_tenant_id: string

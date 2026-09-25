@@ -95,6 +95,9 @@ function canonicalRedirect(request: NextRequest): NextResponse | null {
   if (!canonical || process.env.VERCEL_ENV !== "production") return null;
   const host = request.headers.get("host");
   if (!host || host === canonical || !host.endsWith(".vercel.app")) return null;
+  // The unsubscribe link answers where it is pressed: a mail client's one click must never be redirected (RFC
+  // 8058), and the page holds no session for a second host to lose.
+  if (request.nextUrl.pathname.startsWith("/u/")) return null;
   const url = new URL(request.url);
   url.host = canonical;
   url.protocol = "https:";

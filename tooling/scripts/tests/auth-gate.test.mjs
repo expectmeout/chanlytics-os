@@ -93,6 +93,12 @@ test("one address: the deploy alias redirects, and a preview never does", () => 
     /NextResponse\.redirect\(url, 308\)/,
     "permanent, so it is cached and so search engines follow it",
   );
+  // Except the unsubscribe link, which RFC 8058 says a mail client presses with no redirect in its answer.
+  const spared = middleware.indexOf('if (request.nextUrl.pathname.startsWith("/u/")) return null;');
+  assert.ok(
+    spared > 0 && spared < middleware.indexOf("NextResponse.redirect(url, 308)"),
+    "the unsubscribe link is answered where it is pressed, before the alias would move it",
+  );
   const before = middleware.indexOf("const moved = canonicalRedirect(request);");
   assert.ok(
     before > 0 && before < middleware.indexOf("PUBLIC_PATHS.has(path)"),
