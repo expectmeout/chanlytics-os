@@ -201,6 +201,10 @@
   /* ---------- Live monitor ---------- */
   .lm-body { grid-template-columns: 1fr; grid-template-rows: minmax(0, 36vh) minmax(0, 1fr); }
   .lm-list { border-right: none; border-bottom: 1px solid var(--line); }
+  /* Under the list the panel is what is left of the screen, and the last call's card is taller than that: it cut the
+     card's foot off with no way to reach it (125px of 566, 25 Sep). A call's transcript still scrolls in its own box
+     and follows the newest line (.lm-scroll, a scroller, gives way to the panel's height before the panel scrolls). */
+  .lm-panel { overflow-y: auto; }
   .lm-head { padding: 12px 16px; flex-wrap: wrap; }
   .lm-scroll, .lm-banner { margin-left: 0; margin-right: 0; padding-left: 16px; padding-right: 16px; }
   /* The whisper box the page draws is .lm-whisper; .lm-inject was the mockup's, never drawn here. */
@@ -674,6 +678,20 @@
 
   /* The QR and the wording it explains stopped being side by side. */
   .bc-optin-body { flex-wrap: wrap; }
+}
+/* ---- Every list pulls under a thumb (25 Sep) ---------------------------------------------------------------------
+   A list rubber-bands on a touch screen only when it holds more than its box: Needs you with two threads and Live
+   with no calls could not be pulled at all, where Conversations, People and a long Templates could. A pixel more
+   than the box is enough for a short list to give way as a long one does, and it scrolls nothing anyone can see.
+   The pixel is an invisible box placed against the list itself, so the list is its containing block: none of these
+   lists holds anything placed against a box outside it (measured on each, 25 Sep). e2e/phone.spec.ts holds every
+   list to it. */
+@media (pointer: coarse) {
+  .ix-threads, .cv-rows, .lm-list, .lm-panel, .cl-main-scroll, .rp-body, .route-view:has(> .bc-page) { position: relative; }
+  .ix-threads::after, .cv-rows::after, .lm-list::after, .lm-panel::after, .cl-main-scroll::after, .rp-body::after,
+  .route-view:has(> .bc-page)::after {
+    content: ""; position: absolute; top: 0; left: 0; width: 1px; height: calc(100% + 1px); visibility: hidden; pointer-events: none;
+  }
 }
 
 /* ====================================================================
