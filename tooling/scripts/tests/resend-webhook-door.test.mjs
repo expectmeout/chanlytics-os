@@ -229,6 +229,9 @@ test("the cold account's receipts come to the same door, proven with its own sec
       401,
     );
     assert.equal(t.jobs.length, 2, "one for each proven delivery; the stranger's is none");
+    // A cold secret set wrong refuses only what it would have proven: the platform's receipts still land.
+    process.env.RESEND_COLD_WEBHOOK_SECRET = "whsec_";
+    assert.equal(await post(ev), 200, "a bad second secret does not stop the first");
   } finally {
     delete process.env.RESEND_COLD_WEBHOOK_SECRET;
   }

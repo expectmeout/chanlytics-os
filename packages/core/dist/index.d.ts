@@ -61,6 +61,8 @@ interface WirePayload {
      * queued (channels email.ts). Present on the email wire and nowhere else.
      */
     email?: EmailRequest;
+    /** The send's purpose, on the email wire: only outreach may take an own domain's route (emailSender). */
+    purpose?: SendPurpose;
 }
 /** How to put words on one channel's wire. Owns its own address format. */
 type Sender = (to: string, p: WirePayload) => Promise<SendResult>;
@@ -76,8 +78,13 @@ type Wire = Partial<Record<Channel, Sender | null>>;
  * so the "+" is stripped here rather than by a caller who should not know.
  */
 declare function whatsappSender(cfg: WaConfig | null): Sender | null;
-/** One address a workspace's email may leave as, and the provider account it leaves through. */
+/**
+ * One address a workspace's email may leave as, and the provider account it leaves through. "hosted" is the mailbox
+ * on the platform's account, for everything but a cold email; "own" is one of the workspace's own verified domains on
+ * the cold account, for outreach and nothing else.
+ */
 interface EmailRoute {
+    lane: "hosted" | "own";
     cfg: ResendConfig;
     as: EmailSendsAs;
 }
@@ -90,8 +97,11 @@ interface EmailRoute {
  * mailbox on the platform's account, and each of its own verified domains on
  * the cold account (Reach out), so a cold email never spends the reputation
  * every workspace's replies share. The route is chosen by the request's From,
- * and that route's own Reply-To rule still applies. No routes, no email line
- * (null, like a number with no credentials).
+ * within the send's lane: an own domain carries outreach only, so a reply
+ * frozen with an own domain's From never leaves around outreach's rules, and a
+ * cold email never leaves as the hosted mailbox. That route's own Reply-To rule
+ * still applies. No routes, no email line (null, like a number with no
+ * credentials).
  */
 declare function emailSender(routes: EmailRoute[]): Sender | null;
 interface Delivery {

@@ -9864,7 +9864,8 @@ function emailSender(routes) {
     if (!p.email) return refuse("no_frozen_request");
     if (p.email.to.length !== 1 || p.email.to[0] !== to) return refuse("request_names_another_recipient");
     const from = addressOf(p.email.from)?.address;
-    const route = routes.find((r4) => r4.as.address === from);
+    const lane = p.purpose === "outreach" ? "own" : "hosted";
+    const route = routes.find((r4) => r4.lane === lane && r4.as.address === from);
     if (!route || !requestLeavesAs(p.email, route.as)) return refuse("request_leaves_as_another_sender");
     return sendEmail(route.cfg, p.email);
   };
@@ -9911,10 +9912,10 @@ async function outreachFacts(db, d, f) {
   const host = from ? from.slice(from.lastIndexOf("@") + 1) : null;
   let domainState = null;
   if (host) {
-    const { data, error } = await db.from("sending_domains").select("host, state").eq("tenant_id", d.tenantId).eq("host", host).maybeSingle();
+    const { data, error } = await db.from("sending_domains").select("host, state, from_local").eq("tenant_id", d.tenantId).eq("host", host).maybeSingle();
     if (error)
       throw new Error(`deliver: cannot read the sending domain for conversation ${d.conversationId}: ${error.message}`);
-    domainState = data?.state ?? null;
+    domainState = data && `${data.from_local}@${host}` === from ? data.state : null;
   }
   return { isLead, unsubscribable, domainState };
 }
@@ -9997,7 +9998,11 @@ async function deliver(ports, d) {
     return { outcome: "refused", reason, messageId: d.messageId ?? null };
   }
   const send = ports.wire[d.channel];
-  const sent = send === void 0 ? { ok: false, wamid: null, status: 0, errorBody: "no_sender_for_channel", reason: "no_sender_for_channel" } : send === null ? { ok: false, wamid: null, status: 503, errorBody: "no_credentials", reason: "no_credentials" } : await send(d.to, { body: d.body, template: d.template, ...d.email ? { email: d.email } : {} });
+  const sent = send === void 0 ? { ok: false, wamid: null, status: 0, errorBody: "no_sender_for_channel", reason: "no_sender_for_channel" } : send === null ? { ok: false, wamid: null, status: 503, errorBody: "no_credentials", reason: "no_credentials" } : await send(d.to, {
+    body: d.body,
+    template: d.template,
+    ...d.email ? { email: d.email, purpose: d.purpose } : {}
+  });
   if (sent.ok) {
     if (d.messageId) {
       const marked = await finalizeQueued(ports.db, d, {

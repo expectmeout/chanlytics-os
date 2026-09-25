@@ -21,7 +21,7 @@
  * person's consent row and the message's PURPOSE and asks `mayMessageFor`, so
  * there is one rule again and this file no longer holds a copy of it.
  */
-import { mayMessageFor, type PurposeBearing, type SendPurpose } from "../packages/contracts.js";
+import { mayMessageFor, type PurposeBearing, type AskedPurpose } from "../packages/contracts.js";
 
 export interface OutboundFacts {
   /**
@@ -34,7 +34,7 @@ export interface OutboundFacts {
    * What kind of message this is. Required, never defaulted: the caller knows
    * what it is about to send and the gate cannot guess.
    */
-  purpose: SendPurpose;
+  purpose: AskedPurpose;
   /**
    * True when this send STARTS a conversation. False when it answers somebody
    * who just contacted us — which is the honest reading of a caller on the line

@@ -4703,7 +4703,7 @@ declare const EVERYONE_LABEL = "Everyone";
  */
 declare function eligibleFor(rows: PersonRowVM[], kind: AudienceKind, id: string | null | undefined, savedIds: ReadonlySet<string> | null, 
 /** What kind of message this audience is for. From the template's category, never assumed. */
-purpose: SendPurpose): PersonRowVM[];
+purpose: AskedPurpose): PersonRowVM[];
 /**
  * Everyone an audience names, before anyone is left out: a list's members, a
  * saved list's people, or everyone. `eligibleFor` is these, crossed with who
@@ -4754,7 +4754,7 @@ interface AudiencePreview {
 }
 /** The composer's note when some of an audience heard from a run this week; null when none did. */
 declare function heardWords(n: number): string | null;
-declare function audiencePreview(rows: PersonRowVM[], kind: AudienceKind, id: string | null | undefined, savedIds: ReadonlySet<string> | null, purpose: SendPurpose, limit?: number, 
+declare function audiencePreview(rows: PersonRowVM[], kind: AudienceKind, id: string | null | undefined, savedIds: ReadonlySet<string> | null, purpose: AskedPurpose, limit?: number, 
 /** Who a run of any kind reached within the week (packages/db touchesSince); none when not read. */
 touched?: ReadonlySet<string>): AudiencePreview;
 /** The words a person will read: the body with its numbered slots filled. */
@@ -4869,7 +4869,7 @@ declare const OUTCOME_UNKNOWN = "outcome_unknown";
  * words are read in a toast on the send screen, which has no QR, and in Ask,
  * which is no page at all -- so they say where it is rather than "on this page".
  */
-declare function emptyAudienceRefusal(purpose: SendPurpose, label: string, pool: readonly Pick<PersonRowVM, "consent">[]): string;
+declare function emptyAudienceRefusal(purpose: AskedPurpose, label: string, pool: readonly Pick<PersonRowVM, "consent">[]): string;
 /** Meta's messaging-limit tiers: business-initiated conversations in a rolling day. */
 declare const LIMIT_TIERS: Record<string, number>;
 declare function dailyLimit(tier: string | null | undefined): number | null;
@@ -8464,7 +8464,7 @@ interface FollowUpFactsDto {
     /** Its class is ask: each run it makes waits for a person on Today. */
     asks: boolean;
     /** What its template is for, as the send judges a yes (consent purposeOfTemplate, from Meta's category). */
-    purpose: SendPurpose;
+    purpose: AskedPurpose;
     /** Contact id -> when their follow-up went. */
     had: Record<string, string>;
     /** Contact id -> when the run they are in, on its way, goes. */
@@ -9518,7 +9518,7 @@ declare function consentSourceLabel(source: string | null | undefined): string |
  * by the compiler at every call site, the way `businessRecordProblems` requires
  * its registration path.
  */
-declare function mayReceive(r: Pick<PersonRowVM, "consent" | "phone">, purpose: SendPurpose): boolean;
+declare function mayReceive(r: Pick<PersonRowVM, "consent" | "phone">, purpose: AskedPurpose): boolean;
 /**
  * Why a broadcast may not reach this person, or null when it may: the same one
  * rule as `mayReceive`, with its answer kept. A run that leaves someone out can
@@ -9527,13 +9527,13 @@ declare function mayReceive(r: Pick<PersonRowVM, "consent" | "phone">, purpose: 
  * one count that hides the one an owner can do something about.
  */
 type NotReceived = "no_number" | "stopped" | "no_yes";
-declare function whyNotReceive(r: Pick<PersonRowVM, "consent" | "phone">, purpose: SendPurpose): NotReceived | null;
+declare function whyNotReceive(r: Pick<PersonRowVM, "consent" | "phone">, purpose: AskedPurpose): NotReceived | null;
 /**
  * Whether this person's yes covers a message of this purpose, a number to send it to aside: the half of
  * `mayReceive` that is an answer they gave. When nobody on a list can be sent a thing and somebody on it said yes,
  * what is missing is a number, not an answer -- and asking them for their yes asks for one they already gave.
  */
-declare function saidYesTo(r: Pick<PersonRowVM, "consent">, purpose: SendPurpose): boolean;
+declare function saidYesTo(r: Pick<PersonRowVM, "consent">, purpose: AskedPurpose): boolean;
 type ReceptionistTone = "answering" | "escalated" | "queued" | "snoozed" | "paused" | "silent";
 interface PersonReceptionist {
     tone: ReceptionistTone;
@@ -9730,7 +9730,7 @@ declare const NO_NUMBER_REACH = "a broadcast reaches only a recorded yes with a 
  * list step says it of a list (#663) and the send screen of the audience it has open -- `who` is "this list" or the
  * audience's name -- so the two say it in one spelling.
  */
-declare function noNumberWords(who: string, purpose: SendPurpose): string;
+declare function noNumberWords(who: string, purpose: AskedPurpose): string;
 /**
  * How many on an audience said yes to what a message needs, as the send screen's line under the audience says it.
  * The number is who it reaches (`sending`: a yes and a number), in the shorthand People's list step uses ("N of M on
@@ -9738,7 +9738,7 @@ declare function noNumberWords(who: string, purpose: SendPurpose): string;
  * (`saidYes`, audiencePreview's): "0 people … said yes" stood over `noNumberWords` and was false, so it says how many
  * did, and what they are missing.
  */
-declare function saidYesWords(who: string, purpose: SendPurpose, sending: number, saidYes: number): string;
+declare function saidYesWords(who: string, purpose: AskedPurpose, sending: number, saidYes: number): string;
 interface PeopleAggregates {
     total: number;
     needsYou: number;

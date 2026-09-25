@@ -120,7 +120,8 @@ export const PURPOSE_REFUSALS: Record<string, string> = {
   recipient_changed:
     "This person's email address changed after the reply was written, so it was not sent. Write it again and it goes to the address on file now.",
   // Reach out's, at the wire (deliver.ts): a cold email goes only as the rules it was built under allow.
-  unsubscribed: "This person unsubscribed from your emails. Nothing more is sent to them by email.",
+  unsubscribed:
+    "This person unsubscribed from your emails. No more cold email goes to them; a reply to what they write still does.",
   outreach_is_email_only: "Cold messages go only by email: never by text or WhatsApp.",
   outreach_not_a_lead: "Cold email goes only to a business your searches found, never to a person already in People.",
   outreach_without_unsubscribe: "This email was built without its unsubscribe link, so it was not sent.",

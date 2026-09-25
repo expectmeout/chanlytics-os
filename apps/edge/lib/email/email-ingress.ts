@@ -58,7 +58,10 @@ export type ResendVerdict =
   | { kind: "intake"; receivedId: string; jobs: Array<{ tenantId: string; mailboxId: string }>; unroutable: number };
 
 export async function planResendEvent(i: ResendIngressInput): Promise<ResendVerdict> {
-  const proven = await Promise.all(i.secrets.map((s) => verifyResendWebhook(s, i.headers, i.rawBody, i.nowMs)));
+  // Each secret on its own: one that is set wrong (a bare whsec_) refuses only what it would have proven.
+  const proven = await Promise.all(
+    i.secrets.map((s) => verifyResendWebhook(s, i.headers, i.rawBody, i.nowMs).catch(() => false)),
+  );
   if (!proven.includes(true)) return { kind: "refuse", status: 401, log: "resend_webhook_bad_signature" };
   let payload: unknown;
   try {

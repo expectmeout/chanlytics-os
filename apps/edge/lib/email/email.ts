@@ -50,11 +50,18 @@ export async function emailWireFor(db: Db, tenantId: string): Promise<Sender | n
   if (!apiKey) return null;
   const mailbox = await mailboxOfTenant(db, tenantId);
   if (!mailbox) return null;
-  const routes: EmailRoute[] = [{ cfg: { apiKey }, as: sendsAs(mailbox, domain) }];
+  const routes: EmailRoute[] = [{ lane: "hosted", cfg: { apiKey }, as: sendsAs(mailbox, domain) }];
   const coldKey = env.RESEND_COLD_API_KEY;
   if (coldKey) {
-    for (const d of await sendingDomainsOf(db, tenantId))
-      if (d.state === "verified") routes.push({ cfg: { apiKey: coldKey }, as: sendsAsOwnDomain(d, mailbox, domain) });
+    // This wire is built for every job the workspace runs, a text's and a WhatsApp's too: a domains read that fails
+    // costs cold email its routes for this tick (its sends fail at the wire and retry), never every other job.
+    try {
+      for (const d of await sendingDomainsOf(db, tenantId))
+        if (d.state === "verified")
+          routes.push({ lane: "own", cfg: { apiKey: coldKey }, as: sendsAsOwnDomain(d, mailbox, domain) });
+    } catch (e) {
+      logger({ tenant: tenantId }).error("email_own_domains_unread", { error: errField(e) });
+    }
   }
   return emailSender(routes);
 }

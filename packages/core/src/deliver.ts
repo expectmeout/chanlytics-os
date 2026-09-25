@@ -78,6 +78,8 @@ export interface WirePayload {
    * queued (channels email.ts). Present on the email wire and nowhere else.
    */
   email?: EmailRequest;
+  /** The send's purpose, on the email wire: only outreach may take an own domain's route (emailSender). */
+  purpose?: SendPurpose;
 }
 
 /** How to put words on one channel's wire. Owns its own address format. */
@@ -103,8 +105,13 @@ export function whatsappSender(cfg: WaConfig | null): Sender | null {
   };
 }
 
-/** One address a workspace's email may leave as, and the provider account it leaves through. */
+/**
+ * One address a workspace's email may leave as, and the provider account it leaves through. "hosted" is the mailbox
+ * on the platform's account, for everything but a cold email; "own" is one of the workspace's own verified domains on
+ * the cold account, for outreach and nothing else.
+ */
 export interface EmailRoute {
+  lane: "hosted" | "own";
   cfg: ResendConfig;
   as: EmailSendsAs;
 }
@@ -118,8 +125,11 @@ export interface EmailRoute {
  * mailbox on the platform's account, and each of its own verified domains on
  * the cold account (Reach out), so a cold email never spends the reputation
  * every workspace's replies share. The route is chosen by the request's From,
- * and that route's own Reply-To rule still applies. No routes, no email line
- * (null, like a number with no credentials).
+ * within the send's lane: an own domain carries outreach only, so a reply
+ * frozen with an own domain's From never leaves around outreach's rules, and a
+ * cold email never leaves as the hosted mailbox. That route's own Reply-To rule
+ * still applies. No routes, no email line (null, like a number with no
+ * credentials).
  */
 export function emailSender(routes: EmailRoute[]): Sender | null {
   if (routes.length === 0) return null;
@@ -129,7 +139,8 @@ export function emailSender(routes: EmailRoute[]): Sender | null {
     if (!p.email) return refuse("no_frozen_request");
     if (p.email.to.length !== 1 || p.email.to[0] !== to) return refuse("request_names_another_recipient");
     const from = addressOf(p.email.from)?.address;
-    const route = routes.find((r) => r.as.address === from);
+    const lane = p.purpose === "outreach" ? "own" : "hosted";
+    const route = routes.find((r) => r.lane === lane && r.as.address === from);
     if (!route || !requestLeavesAs(p.email, route.as)) return refuse("request_leaves_as_another_sender");
     return sendEmail(route.cfg, p.email);
   };
@@ -289,7 +300,10 @@ interface OutreachFacts {
   isLead: boolean;
   /** The request carries RFC 8058's one-click unsubscribe, both headers. */
   unsubscribable: boolean;
-  /** The workspace's own domain the request's From is on, and its state; null when the From is on none of them. */
+  /**
+   * The state of the workspace's own domain the request's From is, as Connections set it up (its host and its
+   * from_local); null when the From is no such address.
+   */
   domainState: string | null;
 }
 
@@ -319,13 +333,15 @@ async function outreachFacts(db: Db, d: Delivery, f: WireFacts): Promise<Outreac
   if (host) {
     const { data, error } = await db
       .from("sending_domains")
-      .select("host, state")
+      .select("host, state, from_local")
       .eq("tenant_id", d.tenantId)
       .eq("host", host)
       .maybeSingle();
     if (error)
       throw new Error(`deliver: cannot read the sending domain for conversation ${d.conversationId}: ${error.message}`);
-    domainState = data?.state ?? null;
+    // The whole address, as the wire will hold it (emailSender): another name on an own domain is not the address the
+    // workspace set up, and would only fail at the wire rather than be refused here with its reason.
+    domainState = data && `${data.from_local}@${host}` === from ? data.state : null;
   }
   return { isLead, unsubscribable, domainState };
 }
@@ -523,7 +539,11 @@ export async function deliver(ports: DeliverPorts, d: Delivery): Promise<Deliver
       ? { ok: false, wamid: null, status: 0, errorBody: "no_sender_for_channel", reason: "no_sender_for_channel" }
       : send === null
         ? { ok: false, wamid: null, status: 503, errorBody: "no_credentials", reason: "no_credentials" }
-        : await send(d.to, { body: d.body, template: d.template, ...(d.email ? { email: d.email } : {}) });
+        : await send(d.to, {
+            body: d.body,
+            template: d.template,
+            ...(d.email ? { email: d.email, purpose: d.purpose } : {}),
+          });
 
   if (sent.ok) {
     if (d.messageId) {
