@@ -428,28 +428,29 @@ const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null, pipelineRo
         </aside>
       )}
       <div className={`cl-main${compact ? " has-peek" : ""}`}>
+        {/* A phone's top: the scopes as the Inbox's tab strip, then the bar -- the view shown (its rows in a sheet),
+            search, and New proposal's +. It stands over the scroller, as the Inbox's strip does: the rows scroll and
+            bounce under it, and a pull down never takes it. */}
+        {phone && (
+          <Bar
+            scope="pipeline"
+            dealsOn
+            onScope={onScope}
+            listLabel={P.viewLabel(view, pace)}
+            listCount={viewCount}
+            onLists={() => setListsOpen(true)}
+            listsOpen={listsOpen}
+            q={q}
+            onQ={setQ}
+            searchRef={searchRef}
+            searchOpen={searchOpen}
+            onSearchOpen={setSearchOpen}
+            searchLabel={window.PL_SEARCH_LABEL}
+            trailing={<button type="button" className="pp-bar-icon" aria-label={words.newProposal.button} onClick={openNew} data-testid="pipeline-new-open" {...newGate}><Icon name="plus" size={18} /></button>}
+            testid="pipeline"
+          />
+        )}
         <div className="cl-main-scroll pl-main" ref={scrollRef}>
-          {/* A phone's top: the scopes as the Inbox's tab strip, then the bar -- the view shown (its rows in a sheet),
-              search, and New proposal's +. */}
-          {phone && (
-            <Bar
-              scope="pipeline"
-              dealsOn
-              onScope={onScope}
-              listLabel={P.viewLabel(view, pace)}
-              listCount={viewCount}
-              onLists={() => setListsOpen(true)}
-              listsOpen={listsOpen}
-              q={q}
-              onQ={setQ}
-              searchRef={searchRef}
-              searchOpen={searchOpen}
-              onSearchOpen={setSearchOpen}
-              searchLabel={window.PL_SEARCH_LABEL}
-              trailing={<button type="button" className="pp-bar-icon" aria-label={words.newProposal.button} onClick={openNew} data-testid="pipeline-new-open" {...newGate}><Icon name="plus" size={18} /></button>}
-              testid="pipeline"
-            />
-          )}
           {/* The line over the table, People's standing line in its parts: only the parts that have something, and those
               that count what waits on the owner press to their view. */}
           {line.length > 0 && (

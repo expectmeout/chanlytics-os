@@ -2814,6 +2814,17 @@ test("at a phone's width the page draws the bar instead of the rail and the cont
   globalThis.__phone = true;
   const t = draw({ leadsRoute: `leads:s-${SEARCH_A}` });
   assert.ok(byTestId(t, "leads-phone-bar"), "one bar");
+  const scroller = find(t, (n) =>
+    String(n.props?.className || "")
+      .split(" ")
+      .includes("cl-main-scroll"),
+  );
+  assert.ok(scroller, "the page's scroller");
+  assert.equal(
+    byTestId(scroller, "leads-phone-bar"),
+    null,
+    "the bar stands over what scrolls, as the Inbox's strip does",
+  );
   const pick = byTestId(t, "leads-phone-lists");
   assert.equal(
     textOf(find(pick, (n) => n.props?.className === "pp-bar-pick-words")),

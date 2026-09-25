@@ -1474,6 +1474,13 @@ test("on a phone: one bar with the switch, the view's list button, search and Ne
     assert.equal(byClass(tree, "cl-rail"), null, "no rail: the switch is the bar's");
     assert.equal(byClass(tree, "cl-controls"), null, "no controls row");
     const bar = byTestId(tree, "pipeline-phone-bar");
+    const scroller = byClass(tree, "cl-main-scroll");
+    assert.ok(scroller, "the page's scroller");
+    assert.equal(
+      byTestId(scroller, "pipeline-phone-bar"),
+      null,
+      "the bar stands over what scrolls, as the Inbox's strip does",
+    );
     assert.deepEqual(
       all(bar, (n) => n.props?.role === "tab").map((n) => [textOf(n), n.props["aria-selected"]]),
       [
