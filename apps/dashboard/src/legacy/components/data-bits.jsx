@@ -340,6 +340,8 @@ Object.assign(window, { trapTab, tabStops: tabStopsIn });
 // what moves when it is not the element itself (People's strip is inside its page: all around it moves, it stays). Let go past a third (160px at most) or with a flick toward a page, it
 // leaves that way and then `go(step)`; otherwise it settles. `follow` hears every move ("move") and the end ("leave",
 // "settle"). The answer is kept with the touch, so a page drawn again mid-gesture loses nothing. `back` goes first.
+// A page that `stays` (the Calendar's days: the same element shows the next ones) comes back in after `go`, from the
+// side it is going to, 40px, as a new view slides in (components.css route-slide-*).
 //
 // A swipe across, with nothing following, is `onLeft`/`onRight`: `min` of travel (80px) along the axis it went
 // further on, so a scroll is never a move and a move never a scroll. A touch the browser reports only at its ends is
@@ -385,6 +387,7 @@ const PAGE_KEPT_MS = 400;
 const EDGE = 24;
 const RESIST = 0.25;
 const RESIST_MAX = 48;
+const ARRIVE_PX = 40;
 const screenWide = (el) => (typeof window.innerWidth === "number" && window.innerWidth) || (el && el.offsetWidth) || 0;
 const pageStep = (dx) => (dx < 0 ? 1 : -1);
 const pageOpen = (p, step) => !!(p && (step > 0 ? p.next : p.prev));
@@ -412,12 +415,39 @@ const swipeSettle = (g) => {
     if (wash && wash.style) wash.style.transition = "";
   }, now ? 0 : SETTLE_MS + 20);
 };
+// A page that stays turns in place: in from the side it is going to, on the settle's curve.
+const swipeArrive = (g) => {
+  const { el } = g;
+  const them = (g.moving || [el]).filter((m) => m && m.style);
+  if (g.onGrab) g.onGrab(el, false);
+  const now = motionReduced();
+  for (const m of them) {
+    m.style.transition = "none";
+    m.style.transform = now ? "" : `translate3d(${g.step * ARRIVE_PX}px, 0, 0)`;
+  }
+  if (now) return;
+  void el.offsetWidth;
+  for (const m of them) {
+    m.style.transition = `transform ${SETTLE_MS}ms var(--ease-out)`;
+    m.style.transform = "translate3d(0, 0, 0)";
+  }
+  setTimeout(() => {
+    for (const m of them) {
+      m.style.transition = "";
+      m.style.transform = "";
+    }
+  }, SETTLE_MS + 20);
+};
 // Away the way it was pulled, then the close; still on screen after it (the page asked first), it settles back.
 const swipeLeave = (g, close) => {
   const { el, wash, way } = g;
   const them = (g.moving || [el]).filter((m) => m && m.style);
   const done = () => {
     close();
+    if (way === "page" && g.pages && g.pages.stays) {
+      swipeArrive(g);
+      return;
+    }
     setTimeout(() => {
       const shown = el.isConnected !== false && (!el.getClientRects || el.getClientRects().length > 0);
       if (shown) { swipeSettle(g); return; }

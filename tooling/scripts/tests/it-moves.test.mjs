@@ -276,6 +276,33 @@ test("a page never moves from the screen's edges, where the page refuses the tou
   assert.deepEqual(went, []);
 });
 
+test("a page that stays (the Calendar's days) leaves, turns, and comes back in from the side it is going to", async () => {
+  const went = [];
+  const moves = [];
+  const style = {};
+  const el = element({
+    style: new Proxy(style, {
+      set: (o, k, v) => {
+        if (k === "transform") moves.push(v);
+        o[k] = v;
+        return true;
+      },
+    }),
+  });
+  const h = touchSwipe({ pages: () => pager({ stays: true, go: (s) => went.push(s) }) });
+  drag(h, el, [300, 300], [240, 300], [160, 300]);
+  assert.equal(style.transform, "translate3d(-375px, 0, 0)", "away first, as any page");
+  await wait(220);
+  assert.deepEqual(went, [1], "then the next days");
+  assert.deepEqual(
+    moves.slice(-2),
+    ["translate3d(40px, 0, 0)", "translate3d(0, 0, 0)"],
+    "and they come in from the right",
+  );
+  await wait(280);
+  assert.equal(style.transform, "", "the page's own rules own it again");
+});
+
 test("under reduced motion a page still follows, and the switch is at once; a swipe read only at its ends switches too", () => {
   reduced = true;
   try {
