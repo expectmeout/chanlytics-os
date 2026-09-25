@@ -29,6 +29,8 @@ const run = (ch, seconds, each) => {
 const KEYS = ["x", "y", "size", "rot", "shade", "live", "charge", "lift", "layer"];
 const finite = (f) => f.squares.every((s) => KEYS.every((k) => Number.isFinite(s[k])));
 const TURNS = ["turn", "cascade", "gears", "half turn"];
+/** what the three do while they wait, listening */
+const WAITS = ["turn", "gears", "rise", "look", "half turn"];
 
 test("every state and every reaction for seconds, no NaN anywhere", () => {
   const ch = createCharacter({ seed: 7, detail: 21 });
@@ -280,6 +282,43 @@ test("at rest the tiles turn in place, every way: one, a cascade, gears, a half 
   assert.ok(moments >= 30);
 });
 
+test("listening with nothing heard, the three wait alive: the tiles behind turn, as gears too, the one held forward rises or turns half round, a glance -- never while the voice is up", () => {
+  const kinds = new Set();
+  let moments = 0;
+  for (const seed of [1, 2, 3, 4]) {
+    const ch = createCharacter({ seed, enter: false, detail: 60 });
+    ch.set("listening");
+    run(ch, 2);
+    const settled = ch.events().length;
+    run(ch, 60);
+    const said = ch
+      .events()
+      .slice(settled)
+      .map((e) => e.kind);
+    moments += said.length;
+    for (const k of said) kinds.add(k);
+    assert.ok(
+      said.length >= 8 && said.length <= 22,
+      `seed ${seed}: ${said.length} moments a minute: ${said.join(",")}`,
+    );
+    for (const k of said) assert.ok(WAITS.includes(k), `${k} fits listening`);
+    // the voice up: nothing moves on its own
+    const heard = ch.events().length;
+    ch.hear(0.8);
+    run(ch, 12);
+    assert.deepEqual(
+      ch
+        .events()
+        .slice(heard)
+        .map((e) => e.kind),
+      [],
+      "none while heard",
+    );
+  }
+  for (const k of ["turn", "gears", "rise", "look"]) assert.ok(kinds.has(k), `${k} happens: ${[...kinds].join(",")}`);
+  assert.ok(moments >= 40);
+});
+
 test("an icon left alone goes quiet (no breath, turns only) and wakes when someone comes near", () => {
   const ch = createCharacter({ seed: 8, enter: false, detail: 7.5, quietAfter: 18 });
   ch.attend(0);
@@ -376,6 +415,9 @@ test("everything the three do, shadows included, stays inside the box a canvas s
     ch.set("listening");
     ch.hear(0.9);
     run(ch, 3, watch);
+    // and waiting, its own moves
+    ch.hear(0);
+    run(ch, 40, watch);
     ch.set("thinking");
     ch.pulse(1);
     run(ch, 8, watch);
