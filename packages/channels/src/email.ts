@@ -49,8 +49,12 @@ export interface EmailRequest {
 export interface EmailCampaign {
   /** One click, no sign-in (RFC 8058): an https address that takes a POST. */
   unsubscribeUrl: string;
-  /** The same by mail, for a client that only knows mailto: a bare address. */
-  unsubscribeMailto: string;
+  /**
+   * The same by mail, for a client that only knows mailto: a bare address, and only one the mailbox's intake reads
+   * (an address nothing receives is an unsubscribe into nothing). Optional: RFC 8058's one click needs the https
+   * address alone.
+   */
+  unsubscribeMailto?: string;
   /** Why they are hearing from us, the business's name and postal address, the way to say no. Composed by the caller; never empty. */
   footer: string;
 }
@@ -69,7 +73,11 @@ export interface EmailRequestInput {
   signature: string | null;
   /** Who wrote the words: with the parent and the campaign, decides Auto-Submitted. */
   actor: "ai" | "human";
-  /** Mail a program sends on its own schedule (a reach-out, an offer): marked as such, with its unsubscribe and its footer. */
+  /**
+   * Mail a program sends on its own schedule (a reach-out, an offer): marked as such, with its unsubscribe and its
+   * footer. Its parent, when it has one, is our own earlier email in the same campaign (a nudge), never the person's:
+   * an answer to them is a reply, and goes without this.
+   */
   campaign?: EmailCampaign;
   /** The queued row this request belongs to: the idempotency key, and the tag every receipt names it by. */
   messageId: string;
@@ -171,19 +179,26 @@ export function referencesFor(parent: Pick<EmailParent, "rfcMessageId" | "refere
   return unique.length <= MAX ? unique : [unique[0], ...unique.slice(unique.length - (MAX - 1))];
 }
 
-/** A campaign's two ways to stop it, as the headers carry them. Anything that is not one https address and one mail address is refused. */
-const UNSUBSCRIBE_URL = /^https:\/\/[^\s<>,]+$/;
-const BARE_ADDRESS = /^[^\s<>@,]+@[^\s<>@,]+\.[^\s<>@,]+$/;
+/**
+ * A campaign's ways to stop it, as the headers carry them: URL-safe characters only (RFC 2369) and no comma, so the
+ * list cannot gain a second entry, and a mail address with no query, so a mailto cannot gain a second recipient.
+ */
+const UNSUBSCRIBE_URL = /^https:\/\/[A-Za-z0-9\-._~:/?#[\]@!$&'()*+;=%]+$/;
+const BARE_ADDRESS = /^[A-Za-z0-9._+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/;
 function unsubscribeHeaders(c: EmailCampaign): Record<string, string> {
   const url = c.unsubscribeUrl.trim();
-  const mail = c.unsubscribeMailto.trim().replace(/^mailto:/i, "");
   if (!UNSUBSCRIBE_URL.test(url)) throw new Error("buildEmailRequest: a campaign's unsubscribe is one https address");
-  if (!BARE_ADDRESS.test(mail)) throw new Error("buildEmailRequest: a campaign's unsubscribe by mail is one address");
+  const mail = c.unsubscribeMailto?.trim().replace(/^mailto:/i, "");
+  if (mail !== undefined && !BARE_ADDRESS.test(mail))
+    throw new Error("buildEmailRequest: a campaign's unsubscribe by mail is one address");
   return {
-    "List-Unsubscribe": `<${url}>, <mailto:${mail}>`,
+    "List-Unsubscribe": mail ? `<${url}>, <mailto:${mail}>` : `<${url}>`,
     "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
   };
 }
+
+/** A subject that claims to answer or pass on an email. A first email a program sends never carries one: that subject deceives. */
+const ANSWER_OR_FORWARD = /^\s*(?:re|aw|sv|rv|antw|fwd?)\s*:/i;
 
 /**
  * The request one email leaves as: a reply, or a first email.
@@ -212,6 +227,8 @@ function unsubscribeHeaders(c: EmailCampaign): Record<string, string> {
 export function buildEmailRequest(i: EmailRequestInput): EmailRequest {
   const subject = i.parent ? replySubject(i.parent.subject) : oneLine(i.subject ?? "").slice(0, SUBJECT_MAX);
   if (!subject) throw new Error("buildEmailRequest: a first email names its subject");
+  if (!i.parent && (i.campaign || i.actor === "ai") && ANSWER_OR_FORWARD.test(subject))
+    throw new Error("buildEmailRequest: a first email a program sends does not pose as a reply");
   if (i.campaign && !i.campaign.footer.trim()) throw new Error("buildEmailRequest: a campaign's footer is never empty");
   const unsubscribe = i.campaign ? unsubscribeHeaders(i.campaign) : {};
   const text = [i.body.trim(), i.signature?.trim(), i.campaign?.footer.trim()].filter(Boolean).join("\n\n");

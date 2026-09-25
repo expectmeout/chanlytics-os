@@ -4016,21 +4016,25 @@ function referencesFor(parent) {
   const MAX = 20;
   return unique.length <= MAX ? unique : [unique[0], ...unique.slice(unique.length - (MAX - 1))];
 }
-var UNSUBSCRIBE_URL = /^https:\/\/[^\s<>,]+$/;
-var BARE_ADDRESS = /^[^\s<>@,]+@[^\s<>@,]+\.[^\s<>@,]+$/;
+var UNSUBSCRIBE_URL = /^https:\/\/[A-Za-z0-9\-._~:/?#[\]@!$&'()*+;=%]+$/;
+var BARE_ADDRESS = /^[A-Za-z0-9._+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/;
 function unsubscribeHeaders(c) {
   const url = c.unsubscribeUrl.trim();
-  const mail = c.unsubscribeMailto.trim().replace(/^mailto:/i, "");
   if (!UNSUBSCRIBE_URL.test(url)) throw new Error("buildEmailRequest: a campaign's unsubscribe is one https address");
-  if (!BARE_ADDRESS.test(mail)) throw new Error("buildEmailRequest: a campaign's unsubscribe by mail is one address");
+  const mail = c.unsubscribeMailto?.trim().replace(/^mailto:/i, "");
+  if (mail !== void 0 && !BARE_ADDRESS.test(mail))
+    throw new Error("buildEmailRequest: a campaign's unsubscribe by mail is one address");
   return {
-    "List-Unsubscribe": `<${url}>, <mailto:${mail}>`,
+    "List-Unsubscribe": mail ? `<${url}>, <mailto:${mail}>` : `<${url}>`,
     "List-Unsubscribe-Post": "List-Unsubscribe=One-Click"
   };
 }
+var ANSWER_OR_FORWARD = /^\s*(?:re|aw|sv|rv|antw|fwd?)\s*:/i;
 function buildEmailRequest(i) {
   const subject = i.parent ? replySubject(i.parent.subject) : oneLine(i.subject ?? "").slice(0, SUBJECT_MAX);
   if (!subject) throw new Error("buildEmailRequest: a first email names its subject");
+  if (!i.parent && (i.campaign || i.actor === "ai") && ANSWER_OR_FORWARD.test(subject))
+    throw new Error("buildEmailRequest: a first email a program sends does not pose as a reply");
   if (i.campaign && !i.campaign.footer.trim()) throw new Error("buildEmailRequest: a campaign's footer is never empty");
   const unsubscribe = i.campaign ? unsubscribeHeaders(i.campaign) : {};
   const text = [i.body.trim(), i.signature?.trim(), i.campaign?.footer.trim()].filter(Boolean).join("\n\n");

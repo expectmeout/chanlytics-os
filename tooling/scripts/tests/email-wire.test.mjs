@@ -129,10 +129,40 @@ test("a first email names its own subject and threads under nothing; words a pro
     "Re: Quote for Saturday",
     "a reply's subject is always its parent's",
   );
+  assert.equal(
+    buildEmailRequest(input({ parent: null, subject: " ".repeat(250) + "Hello" })).subject,
+    "Hello",
+    "made one line first, then held to its length: a padded subject is not an empty one",
+  );
   assert.throws(() => buildEmailRequest(input({ parent: null })), /a first email names its subject/);
   assert.throws(
     () => buildEmailRequest(input({ parent: null, subject: "  \r\n " })),
     /a first email names its subject/,
+  );
+});
+
+test("a first email a program sends never poses as a reply or a forward; a person's own words are theirs", () => {
+  for (const subject of ["Re: your listing", "RE : your listing", "Fwd: pricing", "FW: pricing", "AW: Ihre Anfrage"]) {
+    assert.throws(
+      () => buildEmailRequest(input({ parent: null, subject, campaign: CAMPAIGN })),
+      /does not pose as a reply/,
+      `${subject}: a campaign`,
+    );
+    assert.throws(
+      () => buildEmailRequest(input({ parent: null, subject })),
+      /does not pose as a reply/,
+      `${subject}: the receptionist's own first email`,
+    );
+  }
+  assert.equal(
+    buildEmailRequest(input({ parent: null, subject: "Re: our call", actor: "human" })).subject,
+    "Re: our call",
+    "a person may title their own first email as they like",
+  );
+  assert.equal(
+    buildEmailRequest(input({ parent: null, subject: "Regarding your listing", campaign: CAMPAIGN })).subject,
+    "Regarding your listing",
+    "a word that starts with re is not a prefix",
   );
 });
 
@@ -167,26 +197,59 @@ test("a campaign says what it is and how to stop it in one click, and carries it
   assert.equal(nudge.subject, "Re: The calls you miss mid-session");
   assert.equal(nudge.headers["In-Reply-To"], "<first@mail.chanlytics.com>");
   assert.equal(nudge.headers["Auto-Submitted"], "auto-generated", "a program sent it, whoever wrote the words");
+  assert.equal(nudge.headers["List-Unsubscribe"], first.headers["List-Unsubscribe"], "a nudge is stopped the same way");
   assert.equal(nudge.headers["List-Unsubscribe-Post"], "List-Unsubscribe=One-Click");
   assert.equal("List-Unsubscribe" in buildEmailRequest(input()).headers, false, "a reply carries none");
 });
 
-test("a campaign's unsubscribe is one https address and one mail address, and its footer is never empty, or no request is built", () => {
-  for (const [over, why] of [
+test("a campaign's unsubscribe is one https address and at most one mail address, and its footer is never empty, or no request is built", () => {
+  const NEL = String.fromCharCode(0x85);
+  const bad = [
     [{ unsubscribeUrl: "http://app.chanlytics.com/u/t" }, /one https address/],
     [{ unsubscribeUrl: "javascript:alert(1)" }, /one https address/],
     [{ unsubscribeUrl: "https://app.chanlytics.com/u/t\r\nBcc: x@evil.test" }, /one https address/],
     [{ unsubscribeUrl: "https://a.example/u/t>, <https://evil.test" }, /one https address/],
+    [{ unsubscribeUrl: "https://a.example/u/t>,<https://evil.test" }, /one https address/],
+    [{ unsubscribeUrl: `https://app.chanlytics.com/u/t${NEL}x` }, /one https address/],
     [{ unsubscribeMailto: "not an address" }, /one address/],
     [{ unsubscribeMailto: "a@b.co\r\nBcc: x@evil.test" }, /one address/],
+    [{ unsubscribeMailto: "a@b.co>,<https://evil.test" }, /one address/],
+    [{ unsubscribeMailto: "a@b.co?to=x%40evil.test" }, /one address/],
+    [{ unsubscribeMailto: "" }, /one address/],
     [{ footer: "  " }, /footer is never empty/],
-  ]) {
-    assert.throws(
-      () => buildEmailRequest(input({ parent: null, subject: "Hi", campaign: { ...CAMPAIGN, ...over } })),
-      why,
-      JSON.stringify(over),
-    );
+  ];
+  // A first email and a nudge under it are held to the same rules.
+  for (const parent of [null, PARENT]) {
+    for (const [over, why] of bad) {
+      assert.throws(
+        () => buildEmailRequest(input({ parent, subject: "Hi", campaign: { ...CAMPAIGN, ...over } })),
+        why,
+        JSON.stringify({ parent: !!parent, over }),
+      );
+    }
   }
+  assert.equal(
+    buildEmailRequest(
+      input({
+        parent: null,
+        subject: "Hi",
+        campaign: { ...CAMPAIGN, unsubscribeUrl: "https://app.chanlytics.com/u/abc?x=1&y=%2C#f" },
+      }),
+    ).headers["List-Unsubscribe"],
+    "<https://app.chanlytics.com/u/abc?x=1&y=%2C#f>, <mailto:unsubscribe+tok_123@mail.chanlytics.com>",
+    "a real address with a query, an escape and a fragment is taken as it is",
+  );
+  assert.equal(
+    buildEmailRequest(
+      input({
+        parent: null,
+        subject: "Hi",
+        campaign: { unsubscribeUrl: CAMPAIGN.unsubscribeUrl, footer: CAMPAIGN.footer },
+      }),
+    ).headers["List-Unsubscribe"],
+    "<https://app.chanlytics.com/u/tok_123>",
+    "one click needs the https address alone: no mail address, none in the header",
+  );
   assert.equal(
     buildEmailRequest(
       input({
@@ -368,9 +431,9 @@ test("the provider's 'not this second' is waited out once, briefly, and the same
   const wait = async (ms) => {
     waits.push(ms);
   };
-  const limited = (name, headers = { "retry-after": "1" }) => ({
-    status: 429,
-    body: JSON.stringify({ statusCode: 429, name, message: "x" }),
+  const limited = (name, headers = { "retry-after": "1" }, status = 429) => ({
+    status,
+    body: JSON.stringify({ statusCode: status, name, message: "x" }),
     headers,
   });
   const ok = { status: 200, body: JSON.stringify({ id: "re_2" }) };
@@ -387,12 +450,27 @@ test("the provider's 'not this second' is waited out once, briefly, and the same
     assert.equal(posted[1].body, posted[0].body, "the same bytes");
     assert.equal(posted[1].headers["Idempotency-Key"], posted[0].headers["Idempotency-Key"], "under the same key");
 
+    // How long: what it asked, up to the cap; the reset when it gives no retry-after; retry-after when it gives both.
+    for (const [headers, expected, why] of [
+      [{ "retry-after": "2" }, [2000], "as long as it asked, up to the cap"],
+      [{ "retry-after": "3" }, [], "past the cap: handed back, not waited for"],
+      [{ "ratelimit-reset": "2" }, [2000], "the reset, when no retry-after is given"],
+      [{ "retry-after": "1", "ratelimit-reset": "2" }, [1000], "retry-after first"],
+      [{ "retry-after": "Wed, 21 Oct 2026 07:28:00 GMT" }, [1000], "a date it cannot read is the default second"],
+    ]) {
+      again();
+      answers = [limited("rate_limit_exceeded", headers), ok];
+      await sendEmail({ apiKey: "k" }, r, wait);
+      assert.deepEqual(waits, expected, why);
+      assert.equal(posted.length, expected.length ? 2 : 1, `${why}: posts`);
+    }
+
     again();
-    answers = [limited("concurrent_idempotent_requests", {}), ok];
+    answers = [limited("concurrent_idempotent_requests", {}, 409), ok];
     assert.equal(
       (await sendEmail({ apiKey: "k" }, r, wait)).ok,
       true,
-      "the first is still being worked: its answer is ours",
+      "the first is still being worked (409, as Resend documents it): its answer is ours",
     );
     assert.deepEqual(waits, [1000], "a second, when it did not say how long");
 

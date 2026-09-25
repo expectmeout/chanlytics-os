@@ -1223,8 +1223,12 @@ interface EmailRequest {
 interface EmailCampaign {
     /** One click, no sign-in (RFC 8058): an https address that takes a POST. */
     unsubscribeUrl: string;
-    /** The same by mail, for a client that only knows mailto: a bare address. */
-    unsubscribeMailto: string;
+    /**
+     * The same by mail, for a client that only knows mailto: a bare address, and only one the mailbox's intake reads
+     * (an address nothing receives is an unsubscribe into nothing). Optional: RFC 8058's one click needs the https
+     * address alone.
+     */
+    unsubscribeMailto?: string;
     /** Why they are hearing from us, the business's name and postal address, the way to say no. Composed by the caller; never empty. */
     footer: string;
 }
@@ -1242,7 +1246,11 @@ interface EmailRequestInput {
     signature: string | null;
     /** Who wrote the words: with the parent and the campaign, decides Auto-Submitted. */
     actor: "ai" | "human";
-    /** Mail a program sends on its own schedule (a reach-out, an offer): marked as such, with its unsubscribe and its footer. */
+    /**
+     * Mail a program sends on its own schedule (a reach-out, an offer): marked as such, with its unsubscribe and its
+     * footer. Its parent, when it has one, is our own earlier email in the same campaign (a nudge), never the person's:
+     * an answer to them is a reply, and goes without this.
+     */
     campaign?: EmailCampaign;
     /** The queued row this request belongs to: the idempotency key, and the tag every receipt names it by. */
     messageId: string;
