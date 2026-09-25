@@ -22,18 +22,19 @@ const FOOT = {
   unsubscribeUrl: URL_,
 };
 
-test("the foot says why, who and where, and the two ways to say no, in four lines", () => {
+test("the foot says why, that it is marketing, who and where, and the two ways to say no, in five lines", () => {
   assert.equal(
     campaignFooter(FOOT),
     [
       "I found your business on Google Maps.",
+      "This is a marketing email.",
       "Chanlytics · 410 Baylor St, Austin, TX 78703",
       `Not interested? Reply "no thanks" and I won't write again.`,
       `Unsubscribe: ${URL_}`,
     ].join("\n"),
   );
   assert.equal(
-    campaignFooter({ ...FOOT, business: "  Chanlytics  " }).split("\n")[1],
+    campaignFooter({ ...FOOT, business: "  Chanlytics  " }).split("\n")[2],
     "Chanlytics · 410 Baylor St, Austin, TX 78703",
   );
 });
@@ -89,6 +90,8 @@ test("the page's words: only the page that asks has a button, and nothing reads 
 
 test("in HTML the foot is the canvas's: one line to say no, the link reading Unsubscribe; the text keeps the address", () => {
   const html = campaignFooterHtml(FOOT);
+  // CAN-SPAM asks a commercial email to say it is one: both forms of the foot say it, in the same words.
+  assert.match(html, /<p>I found your business on Google Maps\.<br>This is a marketing email\.<br>Chanlytics · /);
   assert.match(
     html,
     /Not interested\? Reply &quot;no thanks&quot; and I won&#39;t write again · <a href="https:\/\/app\.chanlytics\.com\/u\/[^"]+">Unsubscribe<\/a>/,

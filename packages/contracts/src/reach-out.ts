@@ -15,10 +15,16 @@ const escapeHtml = (s: string): string =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 
 /**
- * The foot, as the law asks (CAN-SPAM): why they are hearing from you, who you are and where, and the two ways to
- * say no. The sender adds it; a template never stores it (the spec's §4.3). It throws on a blank part rather than
+ * The foot, as the law asks (CAN-SPAM): why they are hearing from you, that the email is marketing, who you are and
+ * where, and the two ways to say no. The sender adds it; a template never stores it (the spec's §4.3). It throws on a blank part rather than
  * let an email go whose foot says less than the law needs; the sheet (Part 4) refuses to start without an address.
  */
+/**
+ * What the email is, said plainly: CAN-SPAM asks a commercial email to identify itself as one. True of every step of a
+ * reach-out, the first email and its nudge alike.
+ */
+export const MARKETING_LINE = "This is a marketing email.";
+
 export function campaignFooter(f: { why: string; business: string; address: string; unsubscribeUrl: string }): string {
   const why = f.why.trim();
   const business = f.business.trim();
@@ -28,6 +34,7 @@ export function campaignFooter(f: { why: string; business: string; address: stri
     throw new Error("campaignFooter: a campaign's foot names why, who, where and how to stop");
   return [
     why,
+    MARKETING_LINE,
     `${business} · ${address}`,
     `Not interested? Reply "no thanks" and I won't write again.`,
     `Unsubscribe: ${url}`,
@@ -47,7 +54,8 @@ export function campaignFooterHtml(f: {
 }): string {
   campaignFooter(f); // the same parts, the same refusal when one is blank
   return (
-    `<p>${escapeHtml(f.why.trim())}<br>${escapeHtml(f.business.trim())} · ${escapeHtml(f.address.trim())}<br>` +
+    `<p>${escapeHtml(f.why.trim())}<br>${escapeHtml(MARKETING_LINE)}<br>` +
+    `${escapeHtml(f.business.trim())} · ${escapeHtml(f.address.trim())}<br>` +
     `${escapeHtml(`Not interested? Reply "no thanks" and I won't write again`)} · ` +
     `<a href="${escapeHtml(f.unsubscribeUrl.trim())}">Unsubscribe</a></p>`
   );

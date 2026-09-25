@@ -22885,6 +22885,7 @@ function whyFrom(source) {
   return source === "maps" ? WHY_FROM_MAPS : "I came across your business online.";
 }
 var escapeHtml = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+var MARKETING_LINE = "This is a marketing email.";
 function campaignFooter(f) {
   const why = f.why.trim();
   const business = f.business.trim();
@@ -22894,6 +22895,7 @@ function campaignFooter(f) {
     throw new Error("campaignFooter: a campaign's foot names why, who, where and how to stop");
   return [
     why,
+    MARKETING_LINE,
     `${business} \xB7 ${address}`,
     `Not interested? Reply "no thanks" and I won't write again.`,
     `Unsubscribe: ${url}`
@@ -22901,7 +22903,7 @@ function campaignFooter(f) {
 }
 function campaignFooterHtml(f) {
   campaignFooter(f);
-  return `<p>${escapeHtml(f.why.trim())}<br>${escapeHtml(f.business.trim())} \xB7 ${escapeHtml(f.address.trim())}<br>${escapeHtml(`Not interested? Reply "no thanks" and I won't write again`)} \xB7 <a href="${escapeHtml(f.unsubscribeUrl.trim())}">Unsubscribe</a></p>`;
+  return `<p>${escapeHtml(f.why.trim())}<br>${escapeHtml(MARKETING_LINE)}<br>${escapeHtml(f.business.trim())} \xB7 ${escapeHtml(f.address.trim())}<br>${escapeHtml(`Not interested? Reply "no thanks" and I won't write again`)} \xB7 <a href="${escapeHtml(f.unsubscribeUrl.trim())}">Unsubscribe</a></p>`;
 }
 function unsubscribePageWords(v) {
   switch (v.kind) {
@@ -23271,6 +23273,7 @@ export {
   MAILBOX_FROM_NAME_MAX,
   MAILBOX_LOCAL_PART_MAX,
   MAILBOX_RESERVED,
+  MARKETING_LINE,
   MARKETING_OPT_IN_PATTERN,
   MAX_CLOSURES,
   MAX_INTERVALS_PER_DAY,
