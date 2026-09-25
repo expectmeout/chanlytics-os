@@ -4,6 +4,8 @@
 
 **Goal:** Give email campaigns someone to reach: a business imports its own client list with addresses, and an address a customer gives — in a message, on the calendar, or on a call — is kept on their page.
 
+**Status (24 Sep 2026):** both PRs merged (#999 → 7d32e7ae, #1005 → 90c3b755); migrations 00170 and 00171 are on production and read back (`import_person`, the verb CHECK with `import`, `set_person_email` with its no-session `customer_message` branch). The PRs' "push 00169" lines meant these two. Open: Task 15 Step 2 (no record of the in-app look), the voice agent converge (Ruben's go), and the nightly import spec from the spec's "Done when".
+
 **Architecture:** Two PRs from spec `docs/superpowers/specs/2026-09-24-campaigns-on-every-channel-design.md` §6 Part 0. PR 1 adds a hand-rolled CSV reader in contracts, one definer door `import_person` that dedupes by number then address and fills only what is empty, an owner-only batch route of 50 rows, and a People sheet that reads the file in the browser; the paper form gains an Email line. PR 2 adds a receptionist switch that asks for an email when it sends the booking link, keeps an address a customer writes back (through `set_person_email` given a no-session branch for the edge), fills an empty address from a calendar event, and records the address a caller gives as a post-call suggestion. Nothing here records a yes.
 
 **Tech Stack:** TypeScript (contracts, Next routes, edge), plpgsql migrations (forward-only), the legacy React shell (Babel JSX, no bundler, `?v=` bumps), `node --test` on the stub React, Playwright nightly.
@@ -22,7 +24,7 @@ Branch: `design/campaign-channels` (it already holds the spec commit `8b31b707`)
 - Modify: `packages/contracts/src/csv.ts` (append below `csvCell`)
 - Test: `tooling/scripts/tests/csv-import.test.mjs`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```js
 /**
@@ -86,12 +88,12 @@ test("a column the file lacks is null and the rows still read", () => {
 });
 ```
 
-- [ ] **Step 2: Run it to see it fail**
+- [x] **Step 2: Run it to see it fail**
 
 Run: `node --conditions=react-server --import tsx --test tooling/scripts/tests/csv-import.test.mjs`
 Expected: FAIL — `parseCsv` is not exported by `@chanlytics/contracts`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Append to `packages/contracts/src/csv.ts`:
 
@@ -255,12 +257,12 @@ export function importCounts(rows: ImportRow[]): { rows: number; withPhone: numb
 
 `csv.ts` is already exported from `packages/contracts/src/index.ts` (`export * from "./csv"`), so nothing to add there.
 
-- [ ] **Step 4: Build contracts and run the test**
+- [x] **Step 4: Build contracts and run the test**
 
 Run: `corepack pnpm --filter "./packages/*" build && node --conditions=react-server --import tsx --test tooling/scripts/tests/csv-import.test.mjs`
 Expected: PASS, 5 tests. (The line-number expectation in test 4 skips the all-blank line 5: rows are lines 2, 3, 4, 6.)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/contracts/src/csv.ts packages/contracts/dist packages/core/dist packages/channels/dist packages/jobs/dist packages/db/dist tooling/scripts/tests/csv-import.test.mjs
@@ -275,7 +277,7 @@ git commit -m "A client list is read as a spreadsheet writes it: cells, a header
 - Modify: `packages/contracts/src/enums.ts` (DECISION_VERBS), `packages/contracts/src/activity.ts` (the verb's words), `packages/contracts/src/person-words.ts:41`, `packages/db/src/database.types.ts` (Functions)
 - Test: `tooling/scripts/tests/import-person.db.test.mjs`
 
-- [ ] **Step 1: Write the failing database test**
+- [x] **Step 1: Write the failing database test**
 
 ```js
 /**
@@ -398,12 +400,12 @@ test("people_list says an imported person came from an import, and the import ve
 
 (`people_list`'s argument names: copy them from the latest definition — `git grep -n "people_list(" supabase/migrations | tail -3` — if they differ from `p_tenant_id, p_q, p_offset, p_limit`.)
 
-- [ ] **Step 2: Run it to see it fail (or skip without a stack)**
+- [x] **Step 2: Run it to see it fail (or skip without a stack)**
 
 Run: `node --conditions=react-server --import tsx --test tooling/scripts/tests/import-person.db.test.mjs`
 Expected: with a local Supabase stack (`corepack pnpm supabase start`, env from `docs/runbook.md`): FAIL — `function public.import_person does not exist`. Without a stack: all skipped ("no database in env"); CI's database workflow runs it because a migration changed.
 
-- [ ] **Step 3: Write the migration**
+- [x] **Step 3: Write the migration**
 
 `supabase/migrations/00168_people_may_be_imported.sql`:
 
@@ -551,7 +553,7 @@ alter table public.decisions add constraint decisions_verb_check
 
 Then, **in the same file**, recreate `people_list` so an imported person reads as one: find the latest definition (`git grep -ln "function public.people_list" supabase/migrations | sort | tail -1`, 00166 at the time of writing), copy its whole `create or replace function public.people_list(...)` block verbatim to the end of 00168, and change only the `came_from` CASE: before the arm `when ad.source is not null then 'manual'` insert the arm `when ad.source = 'import' then 'import'`. Nothing else in the copy changes.
 
-- [ ] **Step 4: The verb, its words, the label, the types**
+- [x] **Step 4: The verb, its words, the label, the types**
 
 `packages/contracts/src/enums.ts`, inside `DECISION_VERBS` after `"record_deal"`:
 
@@ -588,12 +590,12 @@ Then, **in the same file**, recreate `people_list` so an imported person reads a
       }
 ```
 
-- [ ] **Step 5: Build, run the database test, run the enum and activity tests**
+- [x] **Step 5: Build, run the database test, run the enum and activity tests**
 
 Run: `corepack pnpm --filter "./packages/*" build && node --conditions=react-server --import tsx --test tooling/scripts/tests/import-person.db.test.mjs tooling/scripts/tests/enums-vs-checks.test.mjs`
 Expected: the db test PASS (or skipped without a stack), `enums-vs-checks` PASS (it holds `DECISION_VERBS` to the CHECK in the migrations). Then `corepack pnpm test` for the words: fix any test that pinned "Imported history".
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add supabase/migrations/00168_people_may_be_imported.sql packages/contracts/src/enums.ts packages/contracts/src/activity.ts packages/contracts/src/person-words.ts packages/db/src/database.types.ts packages/*/dist tooling/scripts/tests/import-person.db.test.mjs
@@ -607,7 +609,7 @@ git commit -m "import_person: one line of a client list finds the person by numb
 - Modify: `apps/dashboard/src/server/rate-limit.ts` (a bucket beside `person_create`), `tooling/scripts/tests/route-policy.json` (an entry after `"POST contacts/[id]/deal"`), `apps/dashboard/src/legacy-bridge/refresh-map.ts:74` (a line), `apps/dashboard/src/client/routes.generated.ts` (generated)
 - Test: `tooling/scripts/tests/import-people.test.mjs`
 
-- [ ] **Step 1: Write the failing route test**
+- [x] **Step 1: Write the failing route test**
 
 ```js
 /**
@@ -727,12 +729,12 @@ test("more than fifty rows, or none, is refused before the door", async () => {
 
 Check how `fakeDb` exposes written rows (people-routes.test.mjs reads `ctx.supabase.seen`; if `tables` is not exposed, read the insert from `ctx.supabase.seen.find((s) => s.op === "insert" && s.table === "decisions")` and adjust the two assertions).
 
-- [ ] **Step 2: Run it to see it fail**
+- [x] **Step 2: Run it to see it fail**
 
 Run: `node --conditions=react-server --import tsx --test tooling/scripts/tests/import-people.test.mjs`
 Expected: FAIL — cannot find module `.../contacts/import/route.ts`.
 
-- [ ] **Step 3: The bucket, the route, the policy, the refresh**
+- [x] **Step 3: The bucket, the route, the policy, the refresh**
 
 `apps/dashboard/src/server/rate-limit.ts`, beside `person_create`:
 
@@ -858,12 +860,12 @@ export const POST = write({
 
 Then regenerate the typed client: `node tooling/scripts/gen-route-types.mjs` (and `node tooling/scripts/gen-route-types.mjs --check` must pass).
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `node --conditions=react-server --import tsx --test tooling/scripts/tests/import-people.test.mjs tooling/scripts/tests/route-policy.test.mjs tooling/scripts/tests/people-routes.test.mjs`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/dashboard/app/api/v1/contacts/import/route.ts apps/dashboard/src/server/rate-limit.ts tooling/scripts/tests/route-policy.json apps/dashboard/src/legacy-bridge/refresh-map.ts apps/dashboard/src/client/routes.generated.ts tooling/scripts/tests/import-people.test.mjs
@@ -876,7 +878,7 @@ git commit -m "POST contacts/import: a part of fifty rows through import_person,
 - Modify: `apps/dashboard/src/legacy-bridge/people-detail.ts` (a function beside `addPerson`, its window type at the `__addPerson` declaration, its assignment beside `window.__addPerson = addPerson;`)
 - Modify: `apps/dashboard/src/legacy-bridge/seed-globals.ts` (the import list at line ~26, the `Window` type at line ~82, the assignment at line ~170)
 
-- [ ] **Step 1: The door's client**
+- [x] **Step 1: The door's client**
 
 In `people-detail.ts`, after `addPerson`:
 
@@ -914,7 +916,7 @@ Beside `window.__addPerson = addPerson;`:
   window.__importPeople = importPeople;
 ```
 
-- [ ] **Step 2: The reader on the window**
+- [x] **Step 2: The reader on the window**
 
 In `seed-globals.ts`, add `parseCsv, matchColumns, importRowsOf, importCounts` to the `@chanlytics/contracts` import beside `csvCell`; in the `Window` type beside `__csvCell: typeof csvCell;`:
 
@@ -933,12 +935,12 @@ Beside `window.__csvCell = csvCell;`:
   window.__csvImport = { parseCsv, matchColumns, importRowsOf, importCounts };
 ```
 
-- [ ] **Step 3: Typecheck**
+- [x] **Step 3: Typecheck**
 
 Run: `corepack pnpm -r typecheck`
 Expected: clean.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add apps/dashboard/src/legacy-bridge/people-detail.ts apps/dashboard/src/legacy-bridge/seed-globals.ts
@@ -952,7 +954,7 @@ git commit -m "The bridge publishes the spreadsheet reader and the import door t
 - Modify: `apps/dashboard/src/legacy/pages/clients-a.jsx` (the phone menu at ~2778, the desk controls at ~2850, a state and the sheet's mount in `PeopleReal`), `apps/dashboard/src/legacy-bridge/manifest.ts:85-86`, `apps/dashboard/src/legacy/Chanlytics.html:128-129`
 - Test: `tooling/scripts/tests/people-import.test.mjs`
 
-- [ ] **Step 1: Write the failing page test**
+- [x] **Step 1: Write the failing page test**
 
 ```js
 /**
@@ -1037,12 +1039,12 @@ test("a part the door refuses stops the import and says so; nothing after it is 
 
 (`fresh`/`again` are the harness's mount and redraw, `_legacy-react.mjs:150-166`; if `again` needs a prior first draw by another name there, use it and keep the assertions.)
 
-- [ ] **Step 2: Run it to see it fail**
+- [x] **Step 2: Run it to see it fail**
 
 Run: `node --conditions=react-server --import tsx --test tooling/scripts/tests/people-import.test.mjs`
 Expected: FAIL — cannot find `pages/people-import.jsx`.
 
-- [ ] **Step 3: The sheet**
+- [x] **Step 3: The sheet**
 
 `apps/dashboard/src/legacy/pages/people-import.jsx`:
 
@@ -1194,7 +1196,7 @@ Styles, appended to `apps/dashboard/src/legacy/styles/components.css` in the Peo
 .pl-import-skipped { margin: 8px 0 0; padding-left: 18px; font-size: var(--text-xs); color: var(--ink-dim); }
 ```
 
-- [ ] **Step 4: Wire it into People**
+- [x] **Step 4: Wire it into People**
 
 In `clients-a.jsx`, inside `PeopleReal` beside the other `React.useState` hooks (unconditional, above any early return):
 
@@ -1237,16 +1239,16 @@ import "@/legacy/pages/people-import.jsx";
   <script type="text/babel" src="pages/people-import.jsx?v=1"></script>
 ```
 
-- [ ] **Step 5: Run the tests**
+- [x] **Step 5: Run the tests**
 
 Run: `node --conditions=react-server --import tsx --test tooling/scripts/tests/people-import.test.mjs tooling/scripts/tests/legacy-harness.test.mjs tooling/scripts/tests/consent-door.test.mjs`
 Expected: PASS (the harness test holds the two lists equal).
 
-- [ ] **Step 6: See it in the app**
+- [x] **Step 6: See it in the app**
 
 Start the dev server from the worktree (`.claude/launch.json` entry `cm-camp-compact-app`, port 3290), open `/w/<workspace-slug>/#/clients`, press *Import*, paste three rows with your own test addresses, read, and import; then check the three people on People and one person's page (the address, "Imported" under where they came from). Take a screenshot at desk width and at 375px. Do not import a real list here.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/dashboard/src/legacy/pages/people-import.jsx apps/dashboard/src/legacy/pages/clients-a.jsx apps/dashboard/src/legacy/styles/components.css apps/dashboard/src/legacy-bridge/manifest.ts apps/dashboard/src/legacy/Chanlytics.html tooling/scripts/tests/people-import.test.mjs
@@ -1259,7 +1261,7 @@ git commit -m "People: Import people -- a client list read in the browser, count
 - Modify: `packages/contracts/src/consent-page.ts:361` (`fields`) and the `office` sentence beside it
 - Test: `tooling/scripts/tests/consent-page.test.mjs` (the `consentFormVM` test at ~153)
 
-- [ ] **Step 1: Extend the test**
+- [x] **Step 1: Extend the test**
 
 In the `consentFormVM(salon)` test, after `assert.match(form.office, /Sign-up form/ …)`:
 
@@ -1270,24 +1272,24 @@ In the `consentFormVM(salon)` test, after `assert.match(form.office, /Sign-up fo
   assert.match(form.office, /type the email on their page/);
 ```
 
-- [ ] **Step 2: Run it to see it fail**
+- [x] **Step 2: Run it to see it fail**
 
 Run: `node --conditions=react-server --import tsx --test tooling/scripts/tests/consent-page.test.mjs`
 Expected: FAIL on the `fields` assertion.
 
-- [ ] **Step 3: Change the two lines**
+- [x] **Step 3: Change the two lines**
 
 ```ts
     fields: ["Name", "Mobile number", "Email"],
 ```
 and extend `office` so it ends: `…as “Sign-up form”, type the email on their page, and keep this sheet. Recorded on ______` (keep the existing words before "and keep this sheet").
 
-- [ ] **Step 4: Build, run, look**
+- [x] **Step 4: Build, run, look**
 
 Run: `corepack pnpm --filter "./packages/*" build && node --conditions=react-server --import tsx --test tooling/scripts/tests/consent-page.test.mjs`
 Expected: PASS. Open `/yes/<workspace-slug>/form` on the dev server: three ruled lines, the page still one sheet in print preview.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/contracts/src/consent-page.ts packages/*/dist tooling/scripts/tests/consent-page.test.mjs
@@ -1296,16 +1298,16 @@ git commit -m "The paper sign-up form takes an email, typed in on the person's p
 
 ### Task 7: The whole suite, the spec's status, the PR
 
-- [ ] **Step 1: Everything green**
+- [x] **Step 1: Everything green**
 
 Run: `corepack pnpm --filter "./packages/*" build && corepack pnpm -r typecheck && corepack pnpm lint && corepack pnpm test && node tooling/scripts/gen-route-types.mjs --check && git status --short`
 Expected: all pass; `git status` shows nothing unstaged but the files you are about to commit (no dist drift; never `apps/dashboard/tsconfig.json`).
 
-- [ ] **Step 2: Spec status**
+- [x] **Step 2: Spec status**
 
 In `docs/superpowers/specs/2026-09-24-campaigns-on-every-channel-design.md`, Part 0 item 1: prefix with `**Shipped (PR 1).**`. Commit: `git commit -am "Spec: Part 0's import shipped"`.
 
-- [ ] **Step 3: Open the PR**
+- [x] **Step 3: Open the PR**
 
 Push `design/campaign-channels`; `gh pr create` titled "Capture emails 1 of 2: People imports a client list, and the paper form takes an email" with a body that says: what changes for a customer (Import people on People for the owner, "Imported" as where they came from, the form's third line); before merging: **push migration 00169 to production before merging** (dry run first, then read back: `import_person` exists, `decisions_verb_check` includes `import`, `people_list` maps `import`); either deploy order works otherwise. End with `🤖 Generated with [Claude Code](https://claude.com/claude-code)`. Wait for CI green, squash-merge, delete the branch. Then verify on production: `/api/version` carries the merge SHA, and People shows *Import* for the owner.
 
@@ -1321,7 +1323,7 @@ Branch: `design/campaign-channels-0b` from `origin/main` after PR 1 merges. Migr
 - Modify: `packages/contracts/src/config.ts` (`BookingRulesSchema` ~453-469; the booking-rules prompt block ~1335-1353), `packages/contracts/src/business-tab.ts` (`BookingRulesWordsInput` ~614, `bookingRulesWords` ~642), `apps/dashboard/src/legacy/pages/business-tab-folds.jsx` (~184, ~235-241, ~356-362), `apps/dashboard/src/legacy/pages/business-tab-offer.jsx` (`BtwRules` ~165-195), `apps/dashboard/src/legacy/Chanlytics.html` (bump both files' `?v=`)
 - Tests: `tooling/scripts/tests/availability.test.mjs` (~215-224), `tooling/scripts/tests/business-tab-bridge.test.mjs` (~250-262)
 
-- [ ] **Step 1: Extend the two tests**
+- [x] **Step 1: Extend the two tests**
 
 In `availability.test.mjs`, next to the assertions at ~222-223 (they read a composed prompt `text` from a profile with `booking_rules`), add a composition of the same profile with `booking_rules: { …, ask_email: true }` and assert:
 
@@ -1342,12 +1344,12 @@ In `business-tab-bridge.test.mjs`, beside the `bookingRulesWords(STORED.profile.
 ```
 (`line` is the VM's joined sentence field — use the name `BookingRulesWordsVM` gives it.)
 
-- [ ] **Step 2: Run them to see them fail**
+- [x] **Step 2: Run them to see them fail**
 
 Run: `node --conditions=react-server --import tsx --test tooling/scripts/tests/availability.test.mjs tooling/scripts/tests/business-tab-bridge.test.mjs`
 Expected: FAIL (the schema is strict: `ask_email` is refused; the words lack the part).
 
-- [ ] **Step 3: Schema, prompt, words**
+- [x] **Step 3: Schema, prompt, words**
 
 `config.ts`, in `BookingRulesSchema` after `party_max`:
 
@@ -1374,7 +1376,7 @@ In the prompt block, widen the condition and add the line:
   if (r.ask_email) parts.push("asks for an email when sending the booking link");
 ```
 
-- [ ] **Step 4: The fold**
+- [x] **Step 4: The fold**
 
 `business-tab-folds.jsx`: at ~184 add `"brain.profile.booking_rules.ask_email"` to the `booking_rules` key list; in the `booking_rules` read (~235) add `draft.ask_email = !!rules.ask_email;`; in the write (~356) after the notes: `btPut(rules, "ask_email", d.ask_email ? true : undefined);`.
 
@@ -1392,12 +1394,12 @@ In the prompt block, widen the condition and add the line:
 
 Bump `business-tab-folds.jsx?v=` and `business-tab-offer.jsx?v=` in `Chanlytics.html` by one each.
 
-- [ ] **Step 5: Build and run**
+- [x] **Step 5: Build and run**
 
 Run: `corepack pnpm --filter "./packages/*" build && node --conditions=react-server --import tsx --test tooling/scripts/tests/availability.test.mjs tooling/scripts/tests/business-tab-bridge.test.mjs tooling/scripts/tests/business-tab-offer.test.mjs`
 Expected: PASS; if a Business tab test pins the fold's key list, add `ask_email` to its pin.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/contracts/src/config.ts packages/contracts/src/business-tab.ts packages/*/dist apps/dashboard/src/legacy/pages/business-tab-folds.jsx apps/dashboard/src/legacy/pages/business-tab-offer.jsx apps/dashboard/src/legacy/Chanlytics.html tooling/scripts/tests/availability.test.mjs tooling/scripts/tests/business-tab-bridge.test.mjs
@@ -1410,7 +1412,7 @@ git commit -m "Booking rules: a switch asks for an email when the booking link g
 - Modify: `packages/db/src/repositories/thread.ts` (`LeadContext` ~187, `EMPTY_LEAD` ~229, the two contact selects ~265 and ~284, the contact type, `describeLead` ~433)
 - Test: `tooling/scripts/tests/lead-context.test.mjs`
 
-- [ ] **Step 1: Extend the test**
+- [x] **Step 1: Extend the test**
 
 ```js
 test("the description says whether an email address is on file, so the receptionist never asks for one it has", () => {
@@ -1423,12 +1425,12 @@ test("the description says whether an email address is on file, so the reception
 
 And in the `readLeadContext` test that runs over `fakeDb`, assert the contact select names `email`: `assert.ok(db.seen.some((s) => s.table === "contacts" && String(s.select).includes("email")))` (use the shape `fakeDb.seen` records selects in; see `_fake-db.mjs`).
 
-- [ ] **Step 2: Run to see it fail**
+- [x] **Step 2: Run to see it fail**
 
 Run: `node --conditions=react-server --import tsx --test tooling/scripts/tests/lead-context.test.mjs`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 In `LeadContext` after `optedOut`:
 
@@ -1444,12 +1446,12 @@ Both contact selects gain `email` (`"id, display_name, wa_profile_name, last_see
   else if (lead.hasEmail === false) bits.push("No email address on file.");
 ```
 
-- [ ] **Step 4: Build db, run**
+- [x] **Step 4: Build db, run**
 
 Run: `corepack pnpm --filter "./packages/*" build && node --conditions=react-server --import tsx --test tooling/scripts/tests/lead-context.test.mjs`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/db/src/repositories/thread.ts packages/*/dist tooling/scripts/tests/lead-context.test.mjs
@@ -1462,7 +1464,7 @@ git commit -m "The receptionist is told whether an email address is on file"
 - Modify: `packages/contracts/src/email-address.ts` (append)
 - Test: `tooling/scripts/tests/email-address.test.mjs` (create if none exists; else append)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```js
 import { test } from "node:test";
@@ -1487,12 +1489,12 @@ test("a sentence about someone else's address, two addresses, a long message or 
 });
 ```
 
-- [ ] **Step 2: Run to see it fail**
+- [x] **Step 2: Run to see it fail**
 
 Run: `node --conditions=react-server --import tsx --test tooling/scripts/tests/email-address.test.mjs`
 Expected: FAIL — `addressInMessage` is not exported.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Append to `email-address.ts`:
 
@@ -1525,12 +1527,12 @@ export function addressInMessage(body: string | null | undefined): string | null
 }
 ```
 
-- [ ] **Step 4: Build and run**
+- [x] **Step 4: Build and run**
 
 Run: `corepack pnpm --filter "./packages/*" build && node --conditions=react-server --import tsx --test tooling/scripts/tests/email-address.test.mjs`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/contracts/src/email-address.ts packages/*/dist tooling/scripts/tests/email-address.test.mjs
@@ -1543,7 +1545,7 @@ git commit -m "addressInMessage: the address a customer gives in their own words
 - Create: `supabase/migrations/00169_an_address_a_customer_gives.sql`
 - Test: `tooling/scripts/tests/person-email.db.test.mjs` (a new case)
 
-- [ ] **Step 1: The failing database test**
+- [x] **Step 1: The failing database test**
 
 Append to `person-email.db.test.mjs`:
 
@@ -1560,12 +1562,12 @@ test("set_person_email: with no session (the edge, holding the service key) the 
 });
 ```
 
-- [ ] **Step 2: Run to see it fail**
+- [x] **Step 2: Run to see it fail**
 
 Run: `node --conditions=react-server --import tsx --test tooling/scripts/tests/person-email.db.test.mjs`
 Expected: FAIL with "Sign in required." (or skipped without a stack).
 
-- [ ] **Step 3: The migration**
+- [x] **Step 3: The migration**
 
 ```sql
 -- An address a customer gives in their own message is kept by the edge, which
@@ -1610,12 +1612,12 @@ revoke execute on function public.set_person_email(uuid, text) from public, anon
 grant execute on function public.set_person_email(uuid, text) to authenticated;
 ```
 
-- [ ] **Step 4: Run**
+- [x] **Step 4: Run**
 
 Run: `node --conditions=react-server --import tsx --test tooling/scripts/tests/person-email.db.test.mjs`
 Expected: PASS (or skipped). The existing cases (a member, a stranger refused) still pass: a stranger has a session and is not a member.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add supabase/migrations/00169_an_address_a_customer_gives.sql tooling/scripts/tests/person-email.db.test.mjs
@@ -1628,7 +1630,7 @@ git commit -m "set_person_email takes the edge's call: an address a customer gav
 - Modify: `packages/core/src/inbound/ports.ts` (`InboundSink` ~157), `packages/core/src/inbound/answer.ts` (after `const sink = ports.persist.sink(…)` ~215), `apps/edge/lib/whatsapp/persist.ts` (`pgSink` ~200-290)
 - Tests: `tooling/scripts/tests/sms-door.test.mjs` (the fake sink at ~338, a new case after the approved-line case ~654), `tooling/scripts/tests/whatsapp-door.test.mjs` and `tooling/scripts/tests/inbound-executed.test.mjs` (their fake sinks gain the method)
 
-- [ ] **Step 1: Extend the SMS door test**
+- [x] **Step 1: Extend the SMS door test**
 
 In `receptionist()`'s `seen`, add `emails: [],`; in its sink, after `unreachableSender: async () => {},` add:
 
@@ -1655,12 +1657,12 @@ test("a text that is an address and nothing else is kept on the person before an
 });
 ```
 
-- [ ] **Step 2: Run to see it fail**
+- [x] **Step 2: Run to see it fail**
 
 Run: `node --conditions=react-server --import tsx --test tooling/scripts/tests/sms-door.test.mjs`
 Expected: the new case FAILS (`seen.emails` is empty).
 
-- [ ] **Step 3: The port, the core, the edge**
+- [x] **Step 3: The port, the core, the edge**
 
 `ports.ts`, in `InboundSink` after `unreachableSender`:
 
@@ -1700,12 +1702,12 @@ Expected: the new case FAILS (`seen.emails` is empty).
         : Promise.resolve(),
 ```
 
-- [ ] **Step 4: Build and run the door tests**
+- [x] **Step 4: Build and run the door tests**
 
 Run: `corepack pnpm --filter "./packages/*" build && corepack pnpm -r typecheck && node --conditions=react-server --import tsx --test tooling/scripts/tests/sms-door.test.mjs tooling/scripts/tests/whatsapp-door.test.mjs tooling/scripts/tests/inbound-executed.test.mjs tooling/scripts/tests/whatsapp-steps.test.mjs`
 Expected: PASS (whatsapp-steps pins the file's source in places; if its pin around the sink creation moved, update the pinned snippet, not the code).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/core/src/inbound/ports.ts packages/core/src/inbound/answer.ts packages/*/dist apps/edge/lib/whatsapp/persist.ts tooling/scripts/tests/sms-door.test.mjs tooling/scripts/tests/whatsapp-door.test.mjs tooling/scripts/tests/inbound-executed.test.mjs
@@ -1718,7 +1720,7 @@ git commit -m "An address a customer writes back is kept on their page, where no
 - Modify: `packages/contracts/src/calendar-people.ts` (`CalendarPerson` ~568, `peopleFromItems` ~584-620), `apps/edge/lib/calendar/calendar-people.ts` (`addPeopleFromCalendar`), `apps/dashboard/src/server/calendar.ts` (`addPeopleSeen` ~262-300)
 - Tests: `tooling/scripts/tests/calendar-people.test.mjs`, `tooling/scripts/tests/calendar-counts.test.mjs`
 
-- [ ] **Step 1: Extend the tests**
+- [x] **Step 1: Extend the tests**
 
 `calendar-people.test.mjs`, beside the `peopleFromItems` cases:
 
@@ -1760,12 +1762,12 @@ test("the sweep fills an empty address from the appointment, never overwrites on
 ```
 (Read `_fake-db.mjs` for the exact shape `seen` records an update's values in, and adjust the two property names.)
 
-- [ ] **Step 2: Run to see them fail**
+- [x] **Step 2: Run to see them fail**
 
 Run: `node --conditions=react-server --import tsx --test tooling/scripts/tests/calendar-people.test.mjs tooling/scripts/tests/calendar-counts.test.mjs`
 Expected: FAIL (`email` undefined; `emailed` undefined).
 
-- [ ] **Step 3: Contracts**
+- [x] **Step 3: Contracts**
 
 `CalendarPerson` gains:
 
@@ -1787,7 +1789,7 @@ In `peopleFromItems`, where `extractContacts(it, NO_OWN_ADDRESSES).phones` is re
 ```
 Where `better()` picks one row per phone, keep the chosen row's email, else the other's: after the pick, `byPhone.set(phone, { ...chosen, email: chosen.email ?? have.email })`.
 
-- [ ] **Step 4: The edge sweep**
+- [x] **Step 4: The edge sweep**
 
 In `addPeopleFromCalendar`: `AddedFromCalendar` gains `emailed: number` (init 0); the existing-contacts select gains `email`; in the `have` branch, after the name fill:
 
@@ -1805,7 +1807,7 @@ In `addPeopleFromCalendar`: `AddedFromCalendar` gains `emailed: number` (init 0)
 ```
 In the insert, add `email: r.email` to the row; on a `23505` insert error, insert again without the address (`{ tenant_id, phone_e164, display_name }`) before counting `added`. In `apps/edge/api/cron/calendar.ts`, add `out.emailed += r.emailed;` beside the other counts and include `emailed` in the `calendar_people_added` log condition (`r.added || r.named || r.emailed`).
 
-- [ ] **Step 5: The dashboard's read**
+- [x] **Step 5: The dashboard's read**
 
 In `addPeopleSeen`, after a successful `create_person` and before `added.push(…)`:
 
@@ -1820,12 +1822,12 @@ In `addPeopleSeen`, after a successful `create_person` and before `added.push(�
     added.push({ id: out.contact_id, name: r.name ?? "", phone: r.phone, email: r.email ?? null });
 ```
 
-- [ ] **Step 6: Build, typecheck, run**
+- [x] **Step 6: Build, typecheck, run**
 
 Run: `corepack pnpm --filter "./packages/*" build && corepack pnpm -r typecheck && node --conditions=react-server --import tsx --test tooling/scripts/tests/calendar-people.test.mjs tooling/scripts/tests/calendar-counts.test.mjs`
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add packages/contracts/src/calendar-people.ts packages/*/dist apps/edge/lib/calendar/calendar-people.ts apps/edge/api/cron/calendar.ts apps/dashboard/src/server/calendar.ts tooling/scripts/tests/calendar-people.test.mjs tooling/scripts/tests/calendar-counts.test.mjs
@@ -1838,7 +1840,7 @@ git commit -m "An appointment's one address fills an empty one on the person it 
 - Modify: `packages/channels/src/voice-shell.ts` (`CALL_ANALYSIS_FIELDS` ~336-368), `apps/dashboard/src/server/dto.ts` (the calls select ~22, `CallDto`'s fields ~84, the mapping ~232), `packages/contracts/src/viewmodels.ts` (`CallDto` ~1153, the bullets ~1336)
 - Test: `tooling/scripts/tests/call-outcomes.test.mjs`
 
-- [ ] **Step 1: Extend the test**
+- [x] **Step 1: Extend the test**
 
 Beside the case that asserts `Gave their name as`:
 
@@ -1848,12 +1850,12 @@ Beside the case that asserts `Gave their name as`:
 ```
 (`bullets(over)` is however that test draws a call VM from a DTO; use its helper.)
 
-- [ ] **Step 2: Run to see it fail**
+- [x] **Step 2: Run to see it fail**
 
 Run: `node --conditions=react-server --import tsx --test tooling/scripts/tests/call-outcomes.test.mjs`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `voice-shell.ts`, in `CALL_ANALYSIS_FIELDS` after the `caller_name` field:
 
@@ -1880,12 +1882,12 @@ Expected: FAIL.
   if (dto.caller_email) bullets.push(`Gave their email as ${dto.caller_email}`);
 ```
 
-- [ ] **Step 4: Build, typecheck, run**
+- [x] **Step 4: Build, typecheck, run**
 
 Run: `corepack pnpm --filter "./packages/*" build && corepack pnpm -r typecheck && node --conditions=react-server --import tsx --test tooling/scripts/tests/call-outcomes.test.mjs tooling/scripts/tests/voice-provision.test.mjs`
 Expected: PASS (the provision plan carries the new field; a test that pins the field list gains `caller_email`).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/channels/src/voice-shell.ts packages/*/dist apps/dashboard/src/server/dto.ts packages/contracts/src/viewmodels.ts tooling/scripts/tests/call-outcomes.test.mjs
@@ -1894,7 +1896,7 @@ git commit -m "A caller's spelled-out email is a post-call suggestion, beside th
 
 ### Task 15: The whole suite, the spec's status, the PR
 
-- [ ] **Step 1: Everything green**
+- [x] **Step 1: Everything green**
 
 Run: `corepack pnpm --filter "./packages/*" build && corepack pnpm -r typecheck && corepack pnpm lint && corepack pnpm test && git status --short`
 Expected: all pass, no dist drift.
@@ -1903,11 +1905,11 @@ Expected: all pass, no dist drift.
 
 Dev server on the worktree: Settings › Business › Booking rules shows the switch; turn it on and read the receptionist's prompt through the Business tab's preview if it has one, else trust the prompt test. On a person's page, the call summary of a call whose analysis carries `caller_email` shows the bullet (a seeded call in the salon's data may not; the unit test is the proof).
 
-- [ ] **Step 3: Spec status**
+- [x] **Step 3: Spec status**
 
 Prefix Part 0 item 2 in the spec with `**Shipped (PR 2).**` and the "Done when" line with the date. Commit.
 
-- [ ] **Step 4: Open the PR**
+- [x] **Step 4: Open the PR**
 
 Branch `design/campaign-channels-0b`; title "Capture emails 2 of 2: the receptionist asks, a written address is kept, the calendar fills one, a caller's is suggested". Body: what changes for a customer; before merging: **push migration 00169 to production before merging** (dry run, read back that `set_person_email` runs with no session on a test row of the nightly workspace and refuses a stranger); after merging: **converge the salon's voice agent** so the new analysis field reaches Retell (`apps/edge/api/admin/voice-provision` plans it; the planner reports the drift until it is applied — Ruben's go, it changes a live agent). Either deploy order works. Wait for CI green, squash-merge, delete the branch, verify on production.
 

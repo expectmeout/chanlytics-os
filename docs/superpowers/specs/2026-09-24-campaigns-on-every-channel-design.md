@@ -324,7 +324,7 @@ Each part is complete on its own, in either deploy order, and leaves no half-bui
 **Part 0 — capture customers' emails.** Without addresses nothing else has anyone to reach. Two PRs. Nothing here
 records a yes: an address on file is not consent (decision 2 decides who gets offers).
 
-1. **In PR #999 (24 Sep).** **Import from a spreadsheet.** People › *Import* (the owner; on a phone More › Import people): a CSV of the business's own client list (a Booksy
+1. **Shipped in PR #999 (24 Sep); 00170 on production 24 Sep.** **Import from a spreadsheet.** People › *Import* (the owner; on a phone More › Import people): a CSV of the business's own client list (a Booksy
    or Square export) read in the browser by a hand-rolled parser (quotes, commas, CRLF; no new dependency), its
    columns matched to *Name*, *Mobile*, *Email* by header and by the values, previewed (the first rows, and the
    counts: new, already here, nothing to reach them by, unreadable), then written in parts of 50 through
@@ -336,7 +336,7 @@ records a yes: an address on file is not consent (decision 2 decides who gets of
    consent. The door's refusal of someone who asked to be forgotten has its own SQLSTATE (`PE001`), so a lost grant
    stops a part instead of skipping every row; the migration is `00170` and appends `import` to the verb CHECK as it
    stands, so it lands after the Lists program's 00169 in either order. The paper form gains an *Email* line, typed in on the person's page as the signed boxes are.
-2. **Addresses customers give.** (a) A switch on the receptionist, *Ask for an email when sending the booking link*
+2. **Shipped in PR #1005 (24 Sep); 00171 on production 24 Sep.** **Addresses customers give.** (a) A switch on the receptionist, *Ask for an email when sending the booking link*
    (a `booking_rules` field, written into the prompt beside consult-first, `config.ts:1335-1353`; `describeLead`
    gains "email on file" so it never asks twice). (b) An inbound WhatsApp or text that is an address and nothing
    else — or a sentence carrying one after the receptionist asked — fills an empty `contacts.email` at ingest, the way
@@ -347,9 +347,15 @@ records a yes: an address on file is not consent (decision 2 decides who gets of
    extracted and thrown away (`calendar-people.ts:177-205`). Voice keeps its post-call suggestion pattern: a
    `caller_email` field beside `caller_name`, offered on the person's page, never applied on its own.
 
+   *As built, where it differs:* the caller's address is a call bullet ("Gave their email as …") that reaches Ask and
+   search; the call card draws no summary bullets, so the offer on the person's page is a later task. Retell only
+   asks for `caller_email` once the salon's voice agent is converged (`tooling/scripts/voice-converge.mjs`, Ruben's
+   go: it changes a live agent). The calendar fill writes `contacts.email` directly, with no event, as Part 0 intends.
+
 Done when: the salon's client list imports with its emails and its counts are true; an address a customer writes
 back after the receptionist asks is on their page within the minute; a person the calendar matched has the event's
-address; the nightly imports a small CSV on the test workspace and finds the people.
+address; the nightly imports a small CSV on the test workspace and finds the people. *(24 Sep: the first three
+are built and unit-proven; the nightly's import spec is not written yet.)*
 
 *Not in Part 0:* a typed field on `/yes/<slug>` — it would be the first public write on a path kept for pages that
 write nothing. The email yes arrives in Part 2 the way the WhatsApp yes does: the page says "email <the mailbox
