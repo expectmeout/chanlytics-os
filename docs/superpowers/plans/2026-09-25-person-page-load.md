@@ -1,6 +1,6 @@
 # A person's page loads as fast as it can
 
-Measured on production, 25 Sep 2026 (`/w/melanys-beauty-salon#/clients/<id>`, desktop, one place), then fixed in
+Measured on production, 25 Sep 2026 (`/w/<slug>#/clients/<id>` on the first customer's workspace, desktop, one place), then fixed in
 the order of what each costs the reader. Approved by Ruben the same day ("continue as you best suggest").
 
 ## What a cold load looked like
