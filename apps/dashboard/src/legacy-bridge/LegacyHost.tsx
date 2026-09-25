@@ -58,6 +58,10 @@ function Loading() {
 }
 
 const LegacyApp = dynamic(() => import("./LegacyApp"), { ssr: false, loading: () => <Loading /> });
+// The chunk is asked for as this module evaluates, not once React has hydrated and drawn the fallback: measured on
+// production (25 Sep 2026, a cold load), the 762 KB chunk started 1,361 ms in, 270 ms after the document was
+// interactive and 360 ms after the framework's own chunks began. Same module, same chunk: `dynamic` finds it loaded.
+if (typeof window !== "undefined") void import("./LegacyApp");
 
 /**
  * The shell, or the home that sends a tab to its workspace's address.

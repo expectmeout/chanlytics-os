@@ -128,6 +128,37 @@ export function inAppBootScript(): string {
   ].join("");
 }
 
+/** A person's id in the address, as the route reads it (surface-registry personRouteId): a uuid, nothing else. */
+const PREFETCH_UUID = "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$";
+/** Where the head parks what it started, for the client to take (client/api.ts `prefetched`). */
+export const PREFETCH_SLOT = "__prefetched";
+
+/**
+ * The route's own reads, started from the document head.
+ *
+ * Nothing was fetched until the shell had mounted: the HTML, the framework's chunks, hydration, the legacy chunk,
+ * the mount, and only then the first request -- 2,033 ms into a cold load of a person's page, on a document whose
+ * first byte came at 26 ms (measured on production, 25 Sep 2026). This script runs as the head arrives and starts
+ * the two reads every workspace page opens on -- who is looking (GET workspaces) and, on a person's page, the person
+ * -- spelled exactly as the client spells them (client/api.ts urlFor: the path, then ?workspace=<slug>), and parks
+ * the promises on the window for the client to take once, in place of its own fetch. Off a workspace page nothing
+ * is read. A refusal here is the client's to hear, as it would have been.
+ */
+export function routePrefetchScript(): string {
+  return [
+    "try{",
+    'var p=/^\\/w\\/([^\\/?#]+)/.exec(location.pathname||"");',
+    "if(p){",
+    "var w=encodeURIComponent(decodeURIComponent(p[1]));",
+    'var u=["/api/v1/workspaces?workspace="+w];',
+    'var h=(location.hash||"").replace(/^#\\/?/,"").split("/");',
+    `if(h[0]==="clients"&&new RegExp(${JSON.stringify(PREFETCH_UUID)},"i").test(h[1]||""))u.push("/api/v1/contacts/"+h[1]+"?workspace="+w);`,
+    `var f=window[${JSON.stringify(PREFETCH_SLOT)}]=window[${JSON.stringify(PREFETCH_SLOT)}]||{};`,
+    'for(var i=0;i<u.length;i++)if(!f[u[i]])f[u[i]]=fetch(u[i],{credentials:"same-origin"});',
+    "}}catch(e){}",
+  ].join("");
+}
+
 export type SidebarPref = "open" | "rail";
 export const isSidebarPref = (v: unknown): v is SidebarPref => v === "open" || v === "rail";
 
