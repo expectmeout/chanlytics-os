@@ -321,12 +321,36 @@ const LEAD_COLUMNS = [
 // person's row always says theirs); where it is, or what it waits on, or what left it out; and whether a phone and a
 // mailbox reach it, how it is rated and when it was found. Call is the lead's own page's first button -- the row opens
 // it -- and C on a keyboard: a 44px Call on every card made Leads' rows a second kind of list.
-const ldCardCell = (l, x) => window.plRowCard({
+// A phone, as People judges it (clients-a.jsx PL_PHONE_QUERY): the slide below is a thumb's alone.
+const ldPhoneNow = () => !!(window.matchMedia && window.matchMedia(window.PL_PHONE_QUERY || "(max-width: 900px)").matches);
+const ldCardCell = (l, x) => {
+  // Needs review on a phone (Ruben, 25 Sep): a thumb slides the row -- right to keep, left to exclude, the bell's way
+  // (data-bits touchSwipe) -- over the act's word. The doors are
+  // the cell context's, the same the bench and the bar press; a member who may not find leads gets no slide.
+  const slides = l.cls === "review" && !!(x && x.canFind) && !!window.touchSwipe;
+  const W = (window.__LEAD_VM && window.__LEAD_VM.LEAD_REVIEW_ACT_WORDS) || { keep: "Keep", exclude: "Exclude" };
+  return window.plRowCard({
   face: { initials: l.tile.initials, image: l.tile.image, mark: l.tile.logo },
   name: l.name,
   pill: ldClientOf(l, x) ? <StatePill kind="deal" value="won" testid="lead-state" /> : <StatePill kind="lead_row_state" value={l.state} label={l.stateTag || l.stageLabel} testid="lead-state" />,
-  lead: l.cls === "excluded" ? l.fitLabel : (l.waitsOn || l.sub),
+  // Under a group's own heading (x.sectioned, leads-scope.jsx ldReviewSections) the reason is said once, above.
+  lead: l.cls === "excluded" ? l.fitLabel : l.cls === "review" && x && x.sectioned ? l.sub : (l.waitsOn || l.sub),
   leadTestid: "lead-sub",
+  swipe: slides
+    ? window.touchSwipe({
+        onBack: () => x.onKeep(l.id),
+        onAway: () => x.onExclude(l.id),
+        when: ldPhoneNow,
+        // The cell shows its grounds only while a thumb has the card (leads.css `.sliding`).
+        onGrab: (el, on) => { if (el && el.parentElement && el.parentElement.classList) el.parentElement.classList.toggle("sliding", on); },
+      })
+    : null,
+  grounds: slides
+    ? [
+        <span key="keep" className="pl-card-ground keep" aria-hidden="true">{W.keep}</span>,
+        <span key="exclude" className="pl-card-ground exclude" aria-hidden="true">{W.exclude}</span>,
+      ]
+    : null,
   facts: [
     l.cls !== "excluded" ? (
       <span key="reach" className="pl-card-reach" role="img" aria-label={`Phone: ${l.slots.phone.word}. Email: ${l.slots.mailbox.word}.`} data-testid="lead-reach">
@@ -337,7 +361,8 @@ const ldCardCell = (l, x) => window.plRowCard({
     l.rated ? <span key="rated" className="pl-card-rated" data-testid="lead-rated"><Icon name="star" size={11} />{l.rated.score} · {l.rated.count}</span> : null,
     <span key="found" className="pl-card-last" data-testid="lead-found">{l.foundLine}</span>,
   ],
-});
+  });
+};
 
 // A phone's one column for Leads, and the class its rows wear: People's (clients.css draws both from it).
 const LEAD_PHONE_COLUMNS = [{ key: "card", label: "Business", sortable: false, pinned: true, cell: ldCardCell }];

@@ -5448,7 +5448,8 @@ function leadEndingLine(ending, f) {
         // "already yours" read as dedupe. "Found all" says what happened: the area ran dry.
         title: `Found all ${plural(f.seen, one, f.name)} in ${f.area}`,
         parts: [yours, ...f.nearby.length ? [`Look further out, ${leadNearWhere(f.nearby)}?`] : []],
-        step: f.nearby.length ? { id: "look_further", label: "Look further out" } : null
+        // One word (Ruben, 25 Sep): the line before it says what was found and where; the parts say where next.
+        step: f.nearby.length ? { id: "look_further", label: "Widen" } : null
       };
     case "stopped":
       return f.checking ? {
