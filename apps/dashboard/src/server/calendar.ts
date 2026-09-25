@@ -8,6 +8,7 @@ import {
   feedProblemWords,
   feedSourceLabel,
   feedUrlOk,
+  fetchPublic,
   bookedAfterAsk,
   freeWindows,
   guessName,
@@ -488,11 +489,13 @@ export async function previewFeed(url: string, tz: string, now = new Date()): Pr
     throw new AppError("validation", feedProblemWords("address") ?? "Not an address the receptionist may read.");
   let text: string;
   try {
-    const res = await fetch(safe, {
+    // Every hop judged by the address rule (fetchPublic), not only the first.
+    const res = await fetchPublic(fetch, safe, {
       signal: AbortSignal.timeout(8_000),
       headers: { accept: "text/calendar, */*" },
-      redirect: "follow",
     });
+    if (!res)
+      throw new AppError("validation", feedProblemWords("address") ?? "Not an address the receptionist may read.");
     if (!res.ok)
       throw new AppError(
         "upstream_meta",

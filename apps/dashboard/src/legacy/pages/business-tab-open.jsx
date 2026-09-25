@@ -573,8 +573,64 @@ const BtoFeedWhole = () => {
   return <p className="bt-fold-note" data-testid="rec-calendar-whole">{feed.detail}</p>;
 };
 
-/** The calendar's one box, the whole of its last read, and the old form's note about what the address is. */
-const BtoFeedBox = ({ draft, update, problems, readOnly, stored, offers }) => (
+/**
+ * A pasted address, read as it is pasted (the preview route: reached, read as iCal, its appointments counted), so a
+ * wrong one is caught here and not weeks later as a receptionist that never names an open time. Only an address the
+ * rule allows (feedUrlOk), not the one stored, and not a masked one; a moment after the last keystroke, and a newer
+ * paste wins. Hookless of its own: the box's hooks hold it.
+ */
+const BtoFeedCheck = ({ check }) => {
+  if (!check) return null;
+  const W = (window.__businessTab || {}).FEED_CHECK_WORDS;
+  if (!W) return null;
+  if (check.state === "reading") return <p className="bt-fold-note" role="status" data-testid="rec-calendar-check">{W.reading}</p>;
+  if (check.state === "read") return <p className="bt-fold-note" role="status" data-testid="rec-calendar-check">{W.read(check.events, check.next)}</p>;
+  return <p className="bt-fold-note bt-fold-refused" role="alert" data-testid="rec-calendar-check">{check.words}</p>;
+};
+
+/** Where each calendar keeps the address (contracts FEED_GUIDES), folded until asked for. */
+const BtoFeedGuides = () => {
+  const tab = window.__businessTab || {};
+  if (!tab.FEED_GUIDES || !tab.FEED_CHECK_WORDS) return null;
+  return (
+    <details className="bt-feed-guides" data-testid="rec-calendar-guides">
+      <summary className="bt-link">{tab.FEED_CHECK_WORDS.guide}</summary>
+      {tab.FEED_GUIDES.map((g) => (
+        <div key={g.name} className="bt-feed-guide">
+          <b>{g.name}</b>
+          <ol>{g.steps.map((s) => <li key={s}>{s}</li>)}</ol>
+        </div>
+      ))}
+    </details>
+  );
+};
+
+/** How long after the last keystroke a pasted address is read: a paste lands at once, typing settles. */
+const BTO_FEED_CHECK_MS = 600;
+
+/** The calendar's one box, a check of what is pasted into it, where to find the address, and what the address is. */
+const BtoFeedBox = ({ draft, update, problems, readOnly, stored, offers }) => {
+  const [check, setCheck] = useBtoState(null);
+  const url = String(draft || "").trim();
+  useBtoEffect(() => {
+    const tab = window.__businessTab || {};
+    const cal = window.__calendar;
+    if (!url || url === String(stored || "") || url.includes("…") || !tab.feedUrlOk || !tab.feedUrlOk(url) || !cal || !cal.previewFeed) {
+      setCheck(null);
+      return undefined;
+    }
+    let live = true;
+    setCheck({ state: "reading" });
+    const t = setTimeout(async () => {
+      const r = await cal.previewFeed(url);
+      if (!live) return;
+      setCheck(r && r.ok && r.data
+        ? { state: "read", events: r.data.events, next: r.data.next && r.data.next[0] ? r.data.next[0].start : null }
+        : { state: "refused", words: (r && r.message) || "" });
+    }, BTO_FEED_CHECK_MS);
+    return () => { live = false; clearTimeout(t); };
+  }, [url]);
+  return (
   <>
     {stored ? <BtoFeedWhole /> : null}
     <window.RecordField
@@ -589,6 +645,8 @@ const BtoFeedBox = ({ draft, update, problems, readOnly, stored, offers }) => (
       spellCheck={false}
       readOnly={readOnly || undefined}
     />
+    <BtoFeedCheck check={check} />
+    {readOnly ? null : <BtoFeedGuides />}
     <p className="bt-fold-note">
       The private iCal address of the calendar your appointments land in (Google, Apple or Outlook — Booksy, Calendly and the rest sync into one).
       It is only ever read. Nothing is booked from here; {offers ? "the booking link does that, whichever tool is behind it." : "your team does that, from the details it takes."}
@@ -604,7 +662,8 @@ const BtoFeedBox = ({ draft, update, problems, readOnly, stored, offers }) => (
       </p>
     ) : null}
   </>
-);
+  );
+};
 
 /* ------------------------------------ the card ------------------------------------ */
 
