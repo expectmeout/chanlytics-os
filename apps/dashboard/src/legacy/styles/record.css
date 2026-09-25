@@ -404,11 +404,12 @@ html.legacy-on .rec-row-act { min-height: 0; }
   .rec-inline-more { grid-column: 1 / -1; grid-row: 3; }
   .rec-says[data-inline="true"] .rec-says-part { flex-direction: column; gap: 6px; }
   .rec-says[data-inline="true"] .rec-says-eyebrow { margin-top: 0; }
-  /* The sheet rises from the bottom, and its foot clears the home indicator. */
-  .rec-sheet { top: auto; left: 0; width: auto; height: 88vh; height: 88dvh; border-left: none; border-top: 1px solid var(--line-strong); border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
+  /* The sheet rises from the bottom, stands on the keyboard (--kb, data-bits watchKeyboard), and its foot clears the
+     home indicator. */
+  .rec-sheet { top: auto; bottom: var(--kb, 0px); left: 0; width: auto; height: calc(88vh - var(--kb, 0px)); height: calc(88dvh - var(--kb, 0px)); border-left: none; border-top: 1px solid var(--line-strong); border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
   .rec-sheet-foot { padding-bottom: calc(18px + env(safe-area-inset-bottom)); }
   /* The deal sheet holds a few fields, so it is as tall as they are, as a fold's sheet is, never 88% of blank. */
-  .rec-sheet.deal-sheet { height: auto; max-height: 88vh; max-height: 88dvh; }
+  .rec-sheet.deal-sheet { height: auto; max-height: calc(88vh - var(--kb, 0px)); max-height: calc(88dvh - var(--kb, 0px)); }
   .rec-sheet.deal-sheet .deal-sheet-reasons .rec-seg { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   /* A fold open on a phone is this sheet (record-fold.jsx), as tall as what it holds and no taller than a list's: the
      voice's one box does not open 88% of a screen of blank. It rises from the bottom as it opens, on the fold's own

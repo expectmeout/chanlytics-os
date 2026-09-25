@@ -14,7 +14,7 @@
   padding: 80px 24px 48px; align-items: flex-start;
 }
 .ask-modal.ask-line {
-  max-width: var(--measure-prose); max-height: calc(100vh - 128px);
+  max-width: var(--measure-prose); max-height: calc(100vh - 128px); max-height: calc(100dvh - 128px);
   display: flex; flex-direction: column; overflow: hidden;
   border-color: var(--line-strong); border-radius: var(--radius-xl); box-shadow: var(--shadow-lg);
 }
@@ -262,11 +262,11 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
      shares .ask-overlay and was docked here by this rule before the Line. The Line itself is the whole screen. */
   .ask-overlay { padding: 0; align-items: flex-end; }
   .ask-overlay.ask-line-scrim { padding: 0; }
-  /* The screen: the head, the middle that scrolls, the foot above the keyboard (--ask-kb, ask-real.jsx) and the home
+  /* The screen: the head, the middle that scrolls, the foot above the keyboard (--kb, data-bits watchKeyboard) and the home
      bar. It fades in over the kit's wash and leaves as a dialog does (components.css), never dropping as a sheet. */
   .ask-modal.ask-line {
     position: fixed; inset: 0; max-width: none; width: auto; max-height: none; height: 100dvh;
-    padding-top: env(safe-area-inset-top); padding-bottom: calc(env(safe-area-inset-bottom) + var(--ask-kb, 0px));
+    padding-top: env(safe-area-inset-top); padding-bottom: calc(env(safe-area-inset-bottom) + var(--kb, 0px));
     border: 0; border-radius: 0; box-shadow: none; background: var(--bg);
     animation: wash-in var(--duration-base) var(--ease-out);
   }
