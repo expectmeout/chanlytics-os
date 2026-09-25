@@ -291,6 +291,15 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
   .ask-line-body.rest { display: flex; flex-direction: column; }
   .ask-line-body.rest > :first-child { margin-top: auto; }
   .ask-line-body.rest > :last-child { margin-bottom: auto; }
+  /* Composing (the field focused, its keyboard up; ask-real.jsx): the rows fade (140ms) and then leave, the words'
+     own rows included, so the three come down small over the field, listening, with nothing under them. The middle
+     stands at its foot instead of centred, so the three sit just above the field whatever the keyboard leaves. */
+  .ask-line-body.composing { display: flex; flex-direction: column; justify-content: flex-end; }
+  .ask-line-body.composing > :first-child { margin-top: 0; }
+  .ask-line-body.composing > :last-child { margin-bottom: 0; }
+  .ask-line-body.home-fading .ask-rows { opacity: 0; transition: opacity 140ms var(--ease-in); }
+  .ask-line-body .ask-rows { animation: ask-rows-in 160ms var(--ease-out); }
+  @keyframes ask-rows-in { from { opacity: 0; } to { opacity: 1; } }
   .ask-hero { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 4px 20px 0; }
   /* The three: a hold listens (useHoldPress), so the stage takes no scroll, selection or tap flash of its own. The
      canvas fits its box every frame, so the squares shrink with the stage as an answer is written (spec 5.5, R3). */
@@ -347,5 +356,6 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
   /* the ✦'s beam holds still: the disc, the three's still frame and the colours stay */
   .phone-ask .ask-beam::before, .phone-ask .ask-beam::after { animation: none; }
   .ask-cursor, .ask-reading, .ask-reading-dot, .ask-part.show, .ask-part.do, .ask-modal.ask-line, .ask-send .icon { animation: none; }
-  .ask-fold-chev, .ask-stage, .ask-send, .ask-hero-stage { transition: none; }
+  .ask-fold-chev, .ask-stage, .ask-send, .ask-hero-stage, .ask-line-body.home-fading .ask-rows { transition: none; }
+  .ask-line-body .ask-rows { animation: none; }
 }

@@ -89,6 +89,11 @@ const AskReal = ({ open, onClose }) => {
   const [foldAll, setFoldAll] = useArState(false);
   // The conversation a × or the Delete key asked to delete, waiting for a yes (N5).
   const [doomed, setDoomed] = useArState(null);
+  // A phone's field in use (focused, so its keyboard is up): the takeover composes. The rows (Right now, Brief me, the
+  // page's questions, and the words' own rows once typed) fade and leave, the three come down small over the field and
+  // listen, and each key heard lifts them (spec 5.9, "Composing").
+  const [composing, setComposing] = useArState(false);
+  const [homeGone, setHomeGone] = useArState(false);
   const speech = H.useAskSpeech(A);
   const [toastNode, flash] = window.usePPToast();
   const inputRef = useArRef(null);
@@ -133,16 +138,26 @@ const AskReal = ({ open, onClose }) => {
   const buzz = (ms) => { try { if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(ms); } catch { /* none here */ } };
   const holdThree = H.useHoldPress({ talk: { start: () => (talk.canTalk ? talk.start() : flash({ once: "ask-mic", msg: <>{t.noVoice}</> })), stop: talk.stop }, onHold: () => buzz(8) });
 
-  // Ask's mood, said once for every face: listening while held, reading until the first words, answering while they
-  // stream or are read aloud, at rest otherwise. Said while the Line is closed too, so a turn left running still shows.
+  // Ask's mood, said once for every face: listening while held, or while a phone's field is in use, reading until the
+  // first words, answering while they stream or are read aloud, at rest otherwise. Said while the Line is closed too,
+  // so a turn left running still shows.
   const moodState = talk.listening
     ? "listening"
     : live
       ? live.say || live.text ? "speaking" : "thinking"
       : quick && quick.pending
         ? "thinking"
-        : speech.speakingId ? "speaking" : "idle";
+        : speech.speakingId ? "speaking" : composing ? "listening" : "idle";
   useArEffect(() => { if (M) M.mood.set(moodState); }, [moodState]);
+  // The rows leave once they have faded (ask.css, 140ms) and stay gone while the field is in use, the words' own rows
+  // and the jumps included: with the keyboard up there is no room for them, and Enter sends. They are back at once
+  // when composing ends.
+  useArEffect(() => {
+    if (!composing) { setHomeGone(false); return undefined; }
+    const id = setTimeout(() => setHomeGone(true), 150);
+    return () => clearTimeout(id);
+  }, [composing]);
+  useArEffect(() => { if (!open) setComposing(false); }, [open]);
 
   // Open: the route's scope, the threads, and the surfaces the rows read (Right now reads Today's and Broadcasts').
   useArEffect(() => {
@@ -459,7 +474,9 @@ const AskReal = ({ open, onClose }) => {
   const shownFolds = foldAll ? folded : folded.slice(-AR_FOLDED);
   const answerMsg = latest && latest.a ? latest.a : null;
   const showRows = !talk.listening && (view === "earlier" || !!query || (!live && !quick && !answerMsg));
-  const sections = showRows ? buildLineRows({ A, t, lang, query, surface, scope, threads, view, phone }) : [];
+  // The rows on screen: not while a phone's field in use has faded them (composing), so nothing is built or walked.
+  const rowsDrawn = showRows && !homeGone;
+  const sections = rowsDrawn ? buildLineRows({ A, t, lang, query, surface, scope, threads, view, phone }) : [];
   const rows = flatRows(sections);
   const drawn = showRows || talk.listening || live
     ? null
@@ -604,7 +621,7 @@ const AskReal = ({ open, onClose }) => {
   );
 
   let body = null;
-  if (showRows)
+  if (rowsDrawn)
     body = (
       <AskRows
         sections={sections}
@@ -651,7 +668,7 @@ const AskReal = ({ open, onClose }) => {
   // A phone's hero (spec 5.2-5.5): the three at 232px (ask.css `.ask-hero-stage`), what they hear while held, the
   // question and what Ask reads until the first words; once an answer is written they shrink to the top with its
   // question under them, said once (ask.css hides the turn's own copy on a phone).
-  const heroSmall = !!(live && (live.say || live.text)) || !!answerMsg || !!(quick && quick.answer);
+  const heroSmall = !!(live && (live.say || live.text)) || !!answerMsg || !!(quick && quick.answer) || composing;
   const heroQ = !heroSmall ? null : live ? live.q : quick && quick.answer ? quick.q : latest && latest.q ? latest.q.text : null;
   const restful = talk.listening || (showRows && view === "rows" && !query);
   const hero = phone ? (
@@ -756,12 +773,14 @@ const AskReal = ({ open, onClose }) => {
               className="ask-line-input"
               placeholder={talk.listening ? t.listening : phone && live ? live.q : phone && quick && quick.pending ? quick.q : active ? t.follow : surface === "leads" ? t.describeLeads : t.placeholder}
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => { setQuery(e.target.value); if (composing && M) M.mood.hear(0.5); }}
               onKeyDown={onKey}
               onKeyUp={(e) => hold.onKeyUp(e)}
+              onFocus={() => { if (arPhone()) setComposing(true); }}
+              onBlur={() => setComposing(false)}
               role="combobox"
-              aria-expanded={showRows && rows.length > 0}
-              aria-controls={showRows ? "ask-rows" : undefined}
+              aria-expanded={rowsDrawn && rows.length > 0}
+              aria-controls={rowsDrawn ? "ask-rows" : undefined}
               aria-activedescendant={activeId}
               aria-autocomplete="list"
               aria-label="Ask Chanlytics"
@@ -788,7 +807,7 @@ const AskReal = ({ open, onClose }) => {
             so a long answer is read with the three out of the way and the field stays at the foot. At rest, and while
             it listens, what it holds stands centred (`rest`, spec 5.2). */}
         {body || phone ? (
-          <div className={`ask-line-body${restful ? " rest" : ""}`} ref={bodyRef}>{phone ? folds : null}{hero}{body}</div>
+          <div className={`ask-line-body${restful ? " rest" : ""}${composing ? " composing" : ""}${composing && !homeGone ? " home-fading" : ""}`} ref={bodyRef}>{phone ? folds : null}{hero}{body}</div>
         ) : null}
       </div>
       {toastNode}
