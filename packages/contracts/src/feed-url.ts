@@ -40,6 +40,77 @@ export function feedUrlOk(raw: string | null | undefined): string | null {
   return u.toString();
 }
 
+/** A redirect is followed this many times at most: an http to https hop and a host move are what a calendar does. */
+const FEED_REDIRECTS_MAX = 3;
+
+/**
+ * A feed fetched as the address rule allows at EVERY hop, not only the first. fetch() follows redirects by itself, so a
+ * public address that answers "see http://10.0.0.5/" was read from inside the platform's own network by every reader
+ * that checked only what it was given (the preview, the receptionist's availability, Ask's openings). The redirects are
+ * followed here instead, each address judged by feedUrlOk, a few and no more.
+ *
+ * Answers the last response (which may not be ok: the caller says why), or null when an address on the way is one the
+ * rule refuses, or the chain is longer than a calendar's.
+ */
+export async function fetchPublic(
+  fetchImpl: typeof fetch,
+  raw: string | null | undefined,
+  init: RequestInit = {},
+): Promise<Response | null> {
+  let at = feedUrlOk(raw);
+  for (let hop = 0; at && hop <= FEED_REDIRECTS_MAX; hop += 1) {
+    const res = await fetchImpl(at, { ...init, redirect: "manual" });
+    if (res.status >= 300 && res.status < 400) {
+      const next = res.headers.get("location");
+      await res.body?.cancel().catch(() => undefined);
+      at = next ? feedUrlOk(new URL(next, at).toString()) : null;
+      continue;
+    }
+    return res;
+  }
+  return null;
+}
+
+/**
+ * Where each calendar keeps the address to paste (the Business tab's calendar fold, "Where do I find it?"). The steps
+ * are each calendar's own screens, named as they name them, so an owner never has to know what "iCal" is.
+ */
+export const FEED_GUIDES: readonly { name: string; steps: readonly string[] }[] = [
+  {
+    name: "Google Calendar",
+    steps: [
+      "On a computer, open Google Calendar and go to Settings.",
+      "Under “Settings for my calendars”, pick the calendar your appointments land in.",
+      "Open “Integrate calendar” and copy “Secret address in iCal format”.",
+    ],
+  },
+  {
+    name: "Apple Calendar (iCloud)",
+    steps: [
+      "In the Calendar app, open Calendars and press ⓘ beside the calendar your appointments land in.",
+      "Turn on Public Calendar, then Share Link, and copy it.",
+    ],
+  },
+  {
+    name: "Outlook",
+    steps: [
+      "In Outlook on the web, open Settings, then Calendar, then Shared calendars.",
+      "Under “Publish a calendar”, pick your calendar and “Can view when I'm busy”, then Publish.",
+      "Copy the ICS link.",
+    ],
+  },
+];
+
+/** What the calendar fold says while it checks a pasted address (the preview), and what it found. */
+export const FEED_CHECK_WORDS = {
+  guide: "Where do I find it?",
+  reading: "Reading it…",
+  read: (events: number, next: string | null) =>
+    events === 0
+      ? "Read it: it's empty so far. Your receptionist will see new appointments as they land."
+      : `Read it: ${events} ${events === 1 ? "appointment" : "appointments"}${next ? `, the next ${next}` : ""}.`,
+} as const;
+
 /** The most a feed may weigh: two megabytes of text, a season of a busy salon several times over. */
 export const FEED_MAX_BYTES = 2_000_000;
 

@@ -19,6 +19,7 @@ import {
   describeOpenings,
   describeVisits,
   feedUrlOk,
+  fetchPublic,
   feedBodyProblem,
   seasonHorizon,
   visitsOf,
@@ -81,11 +82,14 @@ async function fetchFeed(tenantId: string, url: string, tz: string, daysAhead: n
     // private address, however it reached the config.
     const safe = feedUrlOk(url);
     if (!safe) throw new Error("address refused: not a public https/webcal address");
-    const r = await fetch(httpsUrl(safe), {
+    // Every hop judged by the address rule (fetchPublic), not only the first.
+    const r = await fetchPublic(fetch, httpsUrl(safe), {
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       headers: { accept: "text/calendar, text/plain;q=0.5, */*;q=0.1" },
     });
-    if (!r.ok) {
+    if (!r) {
+      L.error("availability_feed_redirect_refused", {});
+    } else if (!r.ok) {
       L.error("availability_feed_http", { status: r.status });
     } else {
       const body = await r.text();

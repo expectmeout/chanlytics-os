@@ -22,6 +22,7 @@ import {
   FEED_MAX_BYTES,
   feedProblemWords,
   feedUrlOk,
+  fetchPublic,
   localToUtcMs,
   offeringHorizon,
   previewHorizon,
@@ -118,7 +119,7 @@ test("midnight is one clock, across both daylight-saving edges", () => {
   );
 });
 
-/** A scripted network: a URL answers what the test says, and every call is counted. */
+/** A scripted network: a URL answers what the test says (or sends the caller on), and every call is counted. */
 const realFetch = globalThis.fetch;
 let answers = new Map();
 let fetched = [];
@@ -127,6 +128,7 @@ globalThis.fetch = async (url) => {
   const a = answers.get(String(url));
   if (!a) throw new Error(`no route to ${url}`);
   if (a instanceof Error) throw a;
+  if (a.location) return new Response(null, { status: a.status ?? 302, headers: { location: a.location } });
   return new Response(a.body, { status: a.status ?? 200, headers: { "content-type": "text/calendar" } });
 };
 after(() => {
@@ -228,6 +230,61 @@ test("the address rule: the public internet over https, webcal in a hat, and not
   assert.equal(feedUrlOk("http://172.32.0.1/x"), "http://172.32.0.1/x", "172.32 is not the private range");
   assert.equal(feedUrlOk("http://100.128.0.1/x"), "http://100.128.0.1/x", "past the carriers' shared space");
   assert.equal(feedUrlOk("https://[2606:4700::1111]/x"), "https://[2606:4700::1111]/x", "a public IPv6 address");
+});
+
+test('REGRESSION (B1): every hop is judged by the address rule -- a public address that answers "see 10.0.0.5" was read from inside', async () => {
+  // fetchPublic itself, over a network of its own: it follows what a calendar does and refuses the rest.
+  const net = new Map([
+    ["https://cal.example/a.ics", { location: "https://cal.example/b.ics", status: 301 }],
+    ["https://cal.example/b.ics", { location: "/c.ics" }],
+    ["https://cal.example/c.ics", { body: ONE }],
+    ["https://cal.example/in.ics", { location: "http://10.0.0.5/cal.ics" }],
+    ["https://cal.example/meta.ics", { location: "http://169.254.169.254/latest/meta-data" }],
+    ["https://cal.example/nowhere.ics", { location: "" }],
+  ]);
+  for (let i = 0; i < 5; i += 1) net.set(`https://cal.example/loop${i}.ics`, { location: `/loop${i + 1}.ics` });
+  const asked = [];
+  const own = async (url, init) => {
+    asked.push([String(url), init.redirect]);
+    const a = net.get(String(url));
+    if (a.location !== undefined)
+      return new Response(null, { status: a.status ?? 302, headers: { location: a.location } });
+    return new Response(a.body, { status: 200 });
+  };
+  const read = await fetchPublic(own, "webcal://cal.example/a.ics", { headers: { accept: "text/calendar" } });
+  assert.equal(await read.text(), ONE, "a host's own hops, a relative one among them, are followed");
+  assert.deepEqual(asked, [
+    ["https://cal.example/a.ics", "manual"],
+    ["https://cal.example/b.ics", "manual"],
+    ["https://cal.example/c.ics", "manual"],
+  ]);
+  asked.length = 0;
+  assert.equal(await fetchPublic(own, "https://cal.example/in.ics"), null, "into a private network: refused");
+  assert.equal(await fetchPublic(own, "https://cal.example/meta.ics"), null, "the cloud's own metadata: refused");
+  assert.deepEqual(
+    asked.map(([u]) => u),
+    ["https://cal.example/in.ics", "https://cal.example/meta.ics"],
+    "the private address is never fetched",
+  );
+  assert.equal(await fetchPublic(own, "https://cal.example/nowhere.ics"), null, "a redirect to nowhere");
+  asked.length = 0;
+  assert.equal(await fetchPublic(own, "https://cal.example/loop0.ics"), null, "longer than a calendar's chain");
+  assert.equal(asked.length, 4, "the first ask and three hops, no more");
+  assert.equal(await fetchPublic(own, "http://10.1.1.1/cal.ics"), null, "and the first address is judged too");
+
+  // Each reader: the preview refuses in its address words, the loader says "address", and neither fetches inside.
+  answers.set("https://cal.example/in.ics", { location: "http://10.0.0.5/cal.ics" });
+  await assert.rejects(
+    previewFeed("https://cal.example/in.ics", TZ, NOW),
+    (e) => e.code === "validation" && e.message === feedProblemWords("address"),
+  );
+  const loaded = await loadFeed(T, "https://cal.example/in.ics");
+  assert.deepEqual([loaded.text, loaded.reason], [null, "address"]);
+  assert.ok(!fetched.some((u) => u.includes("10.0.0.5")), "never fetched");
+  // A calendar that moved, publicly, still reads.
+  answers.set("https://cal.example/moved.ics", { location: "https://cal2.example/moved.ics" });
+  answers.set("https://cal2.example/moved.ics", { body: ONE });
+  assert.equal((await previewFeed("https://cal.example/moved.ics", TZ, NOW)).events, 1);
 });
 
 test("one sentence per way a feed fails, naming what to do", () => {

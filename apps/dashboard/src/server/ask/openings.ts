@@ -3,6 +3,7 @@ import {
   describeOpenings,
   feedBodyProblem,
   feedUrlOk,
+  fetchPublic,
   filterOpenings,
   freeWindows,
   offerFor,
@@ -131,8 +132,15 @@ async function fetchInto(tenantId: string, url: string, hit: FeedEntry | undefin
     if (!safe) throw new FeedRefused("address");
     let res: Response;
     try {
-      res = await fetch(safe, { signal: AbortSignal.timeout(8_000), headers: { accept: "text/calendar, */*" } });
-    } catch {
+      // Every hop judged by the address rule (fetchPublic), not only the first.
+      const got = await fetchPublic(fetch, safe, {
+        signal: AbortSignal.timeout(8_000),
+        headers: { accept: "text/calendar, */*" },
+      });
+      if (!got) throw new FeedRefused("address");
+      res = got;
+    } catch (e) {
+      if (e instanceof FeedRefused) throw e;
       throw new FeedRefused("unreachable");
     }
     if (!res.ok) throw new FeedRefused("http", res.status);
