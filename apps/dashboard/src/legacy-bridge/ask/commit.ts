@@ -274,7 +274,12 @@ export async function commitProposal(win: Window, p: AskProposal, client: Api = 
         };
       }
       const plan = (pl.plan ?? {}) as { count?: number; terms?: string[] };
-      const r = await viaAsk(client, "POST lead-searches", { body: pl.plan as never });
+      // The thread the card was planned in rides beside the plan (the Ask route set it on the card), so the search
+      // keeps it and the answer to its question lands there (00172). A card from before has none.
+      const threadId = typeof pl.thread_id === "string" && pl.thread_id ? pl.thread_id : null;
+      const r = await viaAsk(client, "POST lead-searches", {
+        body: (threadId ? { ...(pl.plan as object), thread_id: threadId } : pl.plan) as never,
+      });
       if (!r.ok) return r;
       return {
         ok: true,

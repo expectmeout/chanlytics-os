@@ -542,7 +542,7 @@ test("the turn route: same-origin POST, a rate bucket, the thread saved before t
   assert.ok(r.includes("export const maxDuration = 60;"));
   assert.ok(r.includes('rate: "ask",'));
   assert.ok(
-    r.includes('await appendMessage(ctx, thread.id, tenantId, "user", { text });'),
+    r.includes('await appendMessage(ctx, turn.id, tenantId, "user", { text, ...(answering ? { answering } : {}) });'),
     "the question is saved before the answer is attempted",
   );
   assert.ok(r.includes('"content-type": "application/x-ndjson; charset=utf-8"'));

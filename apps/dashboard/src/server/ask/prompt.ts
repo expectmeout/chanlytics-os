@@ -327,3 +327,63 @@ export function titleFromQuestion(q: string): string {
   const s = q.replace(/\s+/g, " ").trim();
   return s.length > 60 ? `${s.slice(0, 57).trimEnd()}…` : s;
 }
+
+/**
+ * What an answer to a search's question is about: which search, what it asked, what the owner first asked for and
+ * what it leaves out, read from the search when the answer was sent (the Leads answer row sends only the search's
+ * id and the owner's words). It is stored beside the owner's words on their turn, never in them: the thread shows
+ * what they said, and the model is told the rest on that turn and every later one (askTurnText).
+ */
+export interface SearchAnswering {
+  search_id: string;
+  name: string;
+  question: string;
+  asked: string;
+  leaving_out: string[];
+}
+
+const clip = (s: unknown, n: number): string =>
+  typeof s === "string" ? s.replace(/\s+/g, " ").trim().slice(0, n) : "";
+
+/** The stored shape read back, or null for a turn that answered nothing. */
+export function answeringOf(v: unknown): SearchAnswering | null {
+  const a = v as Partial<SearchAnswering> | null;
+  if (!a || typeof a !== "object" || typeof a.search_id !== "string" || !a.search_id) return null;
+  return {
+    search_id: a.search_id,
+    name: clip(a.name, 80),
+    question: clip(a.question, 300),
+    asked: clip(a.asked, 200),
+    leaving_out: (Array.isArray(a.leaving_out) ? a.leaving_out : [])
+      .slice(0, 8)
+      .map((x) => clip(x, 80))
+      .filter(Boolean),
+  };
+}
+
+/**
+ * A person's turn as the model reads it: their words, or, for an answer to a search's question, their words inside
+ * what they answer -- which search, by id so the model can name it in `amends`, what it asked, and what to propose.
+ * The same text on the turn itself and when the turn is replayed later in the thread, so a later turn still knows
+ * what that answer was about.
+ */
+export function askTurnText(words: string, answering: SearchAnswering | null): string {
+  if (!answering) return words;
+  const a = answering;
+  const asked = a.question ? `stopped to ask: “${a.question}”` : "stopped to ask a question";
+  const leaving = a.leaving_out.length ? `, leaving out ${a.leaving_out.join(", ")}` : "";
+  return (
+    `On People › Leads, my search for ${a.name} (search id ${a.search_id}) ${asked} ` +
+    `I had asked for: “${a.asked}”${leaving}. My answer: ${words}. ` +
+    "Propose the same search with my answer applied (propose_lead_search with amends set to that id), and keep everything I did not change."
+  );
+}
+
+/**
+ * The title of a thread an answer starts, when the search keeps no thread of the asker's: the search's name, as the
+ * Leads rail names it. An answer's words ("Yes, include them") say nothing on their own in Ask's list; the search's
+ * name is what the owner will look for there, and it is theirs, never the machine's sentence.
+ */
+export function titleFromSearch(name: string): string {
+  return titleFromQuestion(name) || "A search's question";
+}

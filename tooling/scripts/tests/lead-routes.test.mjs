@@ -243,6 +243,36 @@ test("a search: the route computes the estimate from the card's prices and hands
   await refused(searches.POST.run(send({ ...PLAN, count: 5000 }), ctxFor("owner", rpcs)), "validation", 400);
 });
 
+test("a search from an Ask card names the thread it was planned in to the door, and the plan the door stores never carries it; a thread that is not an id is dropped, never a refusal", async () => {
+  const THREAD = "77777777-7777-4777-8777-777777777771";
+  const seen = [];
+  const rpcs = {
+    lead_search_create: (a) => {
+      seen.push(a);
+      return { search_id: S1, round_id: R1 };
+    },
+  };
+  const viaAsk = () => ({ ...ctxFor("owner", rpcs), via: "ask" });
+  assert.deepEqual(await searches.POST.run(send({ ...PLAN, thread_id: THREAD }), viaAsk()), {
+    search_id: S1,
+    round_id: R1,
+  });
+  assert.equal(seen[0].p_thread_id, THREAD, "the door is handed the thread; it keeps it only when it is the caller's");
+  assert.deepEqual(seen[0].p_plan, PLAN, "the stored plan is the plan alone");
+  await searches.POST.run(send({ ...PLAN, thread_id: "not-a-thread" }), viaAsk());
+  await searches.POST.run(send({ ...PLAN, thread_id: null }), viaAsk());
+  await searches.POST.run(send(PLAN), ctxFor("owner", rpcs));
+  assert.deepEqual(
+    seen.slice(1).map((a) => ["p_thread_id" in a, a.p_plan]),
+    [
+      [false, PLAN],
+      [false, PLAN],
+      [false, PLAN],
+    ],
+    "no thread, or one that is not an id: the door is called as it always was",
+  );
+});
+
 test("who is refused before any door: a viewer cannot search, an operator cannot search, keep, put back or undo, a workspace that cannot spend is refused before the rate is counted", async () => {
   const never = {
     lead_search_create: () => {
@@ -1100,6 +1130,21 @@ test("the searches read brings the rail's counts with it, and a round says wheth
   tables.lead_searches_view = [view({ ending_pending: null })];
   const done = await searches.GET.run(get(inA), ctxOf(tables, {}, rpcs));
   assert.equal(done.searches[0].round.ending_pending, false, "a round with no pending ending is not stopping");
+  assert.equal(done.searches[0].thread_id, null, "a search that keeps no thread says so");
+  // The thread a search was planned in (00172) reaches the page, with a round or before its first.
+  const THREAD = "77777777-7777-4777-8777-777777777771";
+  tables.lead_searches_view = [
+    view({ thread_id: THREAD }),
+    view({ id: "aaaaaaaa-2222-4222-8222-aaaaaaaaaaaa", round_id: null, thread_id: THREAD }),
+  ];
+  const threaded = await searches.GET.run(get(inA), ctxOf(tables, {}, rpcs));
+  assert.deepEqual(
+    threaded.searches.map((s) => [s.thread_id, !!s.round]),
+    [
+      [THREAD, true],
+      [THREAD, false],
+    ],
+  );
 });
 
 // The page's Include read `criterion_key`, and the runner has only ever written `criterionKey` (core ports.ts

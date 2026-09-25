@@ -125,17 +125,6 @@ const LeadsFirstDay = ({
 /* ---------------------------------------------------------- the amend turn */
 
 /**
- * The one turn that amends a search waiting on its question: which search (by id, so the model can name it in
- * `amends`), what it asked, what the owner first asked for, and their answer. The card that comes back carries
- * `amends` and commits through Ask's door as any card (leadFinderApprove); the answer route sets the version and
- * the count, so it is never a new search.
- */
-const leadFinderAmendAsk = (a, words) =>
-  `On People › Leads, my search for ${a.name} (search id ${a.searchId}) stopped to ask: “${a.question}” ` +
-  `I had asked for: “${a.asked}”${a.leavingOut && a.leavingOut.length ? `, leaving out ${a.leavingOut.join(", ")}` : ""}. ` +
-  `My answer: ${String(words || "").trim()}. Propose the same search with my answer applied (propose_lead_search with amends set to that id), and keep everything I did not change.`;
-
-/**
  * The answer to a search's question, as one Ask turn on the Leads surface
  * through window.__ask.send (legacy-bridge/ask/api.ts). The SendEvent shapes
  * are that file's: thread, trace, delta, final, error. The panel listens for
@@ -168,7 +157,11 @@ const leadAnswerPlan = async (words, set) => {
   }
   let card = null;
   let said = "";
-  await A.send({ text: leadFinderAmendAsk(answering, words), threadId: null, scope: null, surface: "leads" }, (ev) => {
+  // The owner's words are the turn, in the thread the search was planned in when it keeps one; the route reads the
+  // search and tells the model which one and what it asked (server/ask/prompt.ts askTurnText), and falls back to a
+  // thread of the owner's own when that one is not theirs.
+  const turn = { text: String(words || "").trim(), threadId: answering.threadId || null, answering: { searchId: answering.searchId }, scope: null, surface: "leads" };
+  await A.send(turn, (ev) => {
     if (!ev || !ev.t) return;
     if (ev.t === "trace") set.trace(ev.text);
     else if (ev.t === "final") {
@@ -673,4 +666,4 @@ const LeadStrip = ({ vm, onAction, children = null }) => {
   );
 };
 
-Object.assign(window, { LeadPlanPanel, LeadPlanCard, LeadStrip, LeadPick, LeadsFirstDay, LeadSuggestion, LeadWayCard, leadStrip, leadAnswerPlan, leadFinderApprove, leadFinderAmendAsk, LEAD_ROUND_MAKERS });
+Object.assign(window, { LeadPlanPanel, LeadPlanCard, LeadStrip, LeadPick, LeadsFirstDay, LeadSuggestion, LeadWayCard, leadStrip, leadAnswerPlan, leadFinderApprove, LEAD_ROUND_MAKERS });

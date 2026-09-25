@@ -8,7 +8,9 @@ import {
   policyClassOffered,
   v1FromAnswer,
   type AskMessageVM,
+  type AskProposal,
   type AskScope,
+  type LeadSearchPlan,
 } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/route";
 import { requireUuid } from "@/server/request-guards";
@@ -16,13 +18,20 @@ import { tenantFacts } from "@/server/tenant";
 import { sellsByOf } from "@/server/deals";
 import { runAskTurn, ASK_MODEL, type TurnEvent } from "@/server/ask/loop";
 import { listPolicies } from "@chanlytics/db";
-import { workspaceFacts, titleFromQuestion } from "@/server/ask/prompt";
+import {
+  askTurnText,
+  titleFromQuestion,
+  titleFromSearch,
+  workspaceFacts,
+  type SearchAnswering,
+} from "@/server/ask/prompt";
+import { searchRow } from "@/server/leads";
 import { appendMessage, createThread, readThread, touchThread } from "@/server/ask/store";
 
 /**
  * POST /api/v1/ask — one turn of the workspace assistant.
  *
- * Body: { text, thread_id?, scope?, surface?, workspace? }. The response is a
+ * Body: { text, thread_id?, scope?, surface?, answering?, workspace? }. The response is a
  * stream of JSON lines: {t:"thread", id} first, then {t:"trace"} while a read
  * runs, {t:"say", headline, detail} as the answer's Say is written (a
  * preview), and {t:"final", message} last, with the answer as the Line draws
@@ -33,6 +42,16 @@ import { appendMessage, createThread, readThread, touchThread } from "@/server/a
  * the workspace must be named, since a thread lands in one. The body is the
  * route's own to read: a scope and a surface are accepted only in the shapes
  * the palette sends, and the rest is ignored rather than refused.
+ *
+ * `answering: { search_id }` is the Leads answer row's: the text is the
+ * owner's answer to that search's question, and it is what the thread keeps
+ * and shows. The search is read here (under RLS, in this workspace), and what
+ * it asked rides beside the words on the stored turn, so the model reads the
+ * whole of it on this turn and every later one (askTurnText) while the thread
+ * says only what the owner said. The row sends the thread the search was
+ * planned in; a thread that is not the caller's -- a teammate planned it, or
+ * it is gone -- is not an error for an answer: it starts one of the caller's
+ * own, titled by the search's name (titleFromSearch).
  *
  * withRoute's envelope is for JSON; a stream is returned as-is, and withRoute
  * still refuses a cross-site POST and still verifies the session first.
@@ -59,6 +78,7 @@ export const POST = write({
       thread_id?: unknown;
       scope?: unknown;
       surface?: unknown;
+      answering?: unknown;
     } | null;
     const text = typeof body?.text === "string" ? body.text.replace(/\s+/g, " ").trim() : "";
     if (!text) throw new AppError("validation", "Ask something.");
@@ -83,21 +103,45 @@ export const POST = write({
 
     const tenantId = member.tenantId;
 
+    // The search an answer answers, read before anything is saved: one that is not this workspace's is a 404.
+    const answeringId =
+      body?.answering && typeof body.answering === "object"
+        ? (body.answering as { search_id?: unknown }).search_id
+        : undefined;
+    let answering: SearchAnswering | null = null;
+    if (answeringId !== undefined) {
+      const row = await searchRow(ctx, tenantId, requireUuid(answeringId, "search"));
+      const q = row.question as { sentence?: unknown } | null;
+      answering = {
+        search_id: row.id,
+        name: row.name,
+        question: q && typeof q === "object" && typeof q.sentence === "string" ? q.sentence : "",
+        asked: row.asked,
+        leaving_out: ((row.plan as LeadSearchPlan | null)?.exclusions ?? []).map((x) => x.text),
+      };
+    }
+
     // The thread, before anything else: a question that could not be saved is
     // not answered, so a person never sees an answer they cannot find again.
     let history: Array<{ role: "user" | "assistant"; text: string }> = [];
-    let thread: { id: string; title: string; scope: AskScope | null };
+    let thread: { id: string; title: string; scope: AskScope | null } | null = null;
     if (threadId) {
       const found = await readThread(ctx, threadId);
-      if (!found || found.tenantId !== tenantId) throw new AppError("not_found", "That thread is not yours.", 404);
-      thread = { id: found.thread.id, title: found.thread.title, scope: found.thread.scope };
-      history = found.messages.map((m) => ({ role: m.role, text: m.text }));
-      if (!scope) scope = found.thread.scope;
-    } else {
-      const created = await createThread(ctx, tenantId, titleFromQuestion(text), scope);
+      if (found && found.tenantId === tenantId) {
+        thread = { id: found.thread.id, title: found.thread.title, scope: found.thread.scope };
+        history = found.turns;
+        if (!scope) scope = found.thread.scope;
+      } else if (!answering) throw new AppError("not_found", "That thread is not yours.", 404);
+    }
+    if (!thread) {
+      // A thread keeps its first question as its title (D9); an answer's is the search's name, never the sentence
+      // the model is given.
+      const title = answering ? titleFromSearch(answering.name) : titleFromQuestion(text);
+      const created = await createThread(ctx, tenantId, title, scope);
       thread = { id: created.id, title: created.title, scope };
     }
-    await appendMessage(ctx, thread.id, tenantId, "user", { text });
+    const turn = thread;
+    await appendMessage(ctx, turn.id, tenantId, "user", { text, ...(answering ? { answering } : {}) });
 
     const [{ name, timezone }, cfg, policies, sellsBy] = await Promise.all([
       tenantFacts(ctx.supabase, tenantId),
@@ -123,7 +167,7 @@ export const POST = write({
             /* the reader went away */
           }
         };
-        send(line({ t: "thread", id: thread.id, title: thread.title }));
+        send(line({ t: "thread", id: turn.id, title: turn.title }));
         const t0 = Date.now();
         const result = await runAskTurn({
           ctx,
@@ -136,17 +180,22 @@ export const POST = write({
           scope,
           surface,
           history,
-          text,
+          text: askTurnText(text, answering),
           emit: (ev) => send(line(ev)),
         });
         // The answer as the Line draws it, beside the v1 fields it gives (spec 5.8): the history, copy and search
         // read `text`, and the erase hook finds a person by the ids the sources carry.
         const v1 = v1FromAnswer(result.answer);
+        // A new search's card carries the thread it was planned in, so the search keeps it (00172) and the answer
+        // to its question lands back here. An answer's card needs none: its search already has one or never will.
+        const proposals: AskProposal[] = result.proposals.map((p) =>
+          p.kind === "lead_search" && !p.payload.amends ? { ...p, payload: { ...p.payload, thread_id: turn.id } } : p,
+        );
         const content = {
           v: 2,
           answer: result.answer,
           ...v1,
-          proposals: result.proposals,
+          proposals,
           language: result.answer.language,
           ungrounded: result.ungrounded,
           tools: result.tools,
@@ -158,9 +207,9 @@ export const POST = write({
         };
         let saved: { id: string; created_at: string } | null = null;
         try {
-          saved = await appendMessage(ctx, thread.id, tenantId, "assistant", content);
+          saved = await appendMessage(ctx, turn.id, tenantId, "assistant", content);
           // A thread keeps its first question as its title (D9); an answer only moves it up the list.
-          await touchThread(ctx, thread.id);
+          await touchThread(ctx, turn.id);
         } catch (e) {
           console.error("ask_save_failed", JSON.stringify({ error: e instanceof Error ? e.message : String(e) }));
         }
@@ -173,7 +222,7 @@ export const POST = write({
           citations: v1.citations,
           followups: v1.followups,
           navigate: v1.navigate,
-          proposals: result.proposals,
+          proposals,
           language: result.answer.language,
           ungrounded: result.ungrounded,
           tools: result.tools,
