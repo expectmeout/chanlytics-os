@@ -4017,20 +4017,42 @@ function referencesFor(parent) {
   const MAX = 20;
   return unique.length <= MAX ? unique : [unique[0], ...unique.slice(unique.length - (MAX - 1))];
 }
+var UNSUBSCRIBE_URL = /^https:\/\/[A-Za-z0-9\-._~:/?#[\]@!$&'()*+;=%]+$/;
+var BARE_ADDRESS = /^[A-Za-z0-9._+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/;
+function unsubscribeHeaders(c) {
+  const url = c.unsubscribeUrl.trim();
+  if (!UNSUBSCRIBE_URL.test(url)) throw new Error("buildEmailRequest: a campaign's unsubscribe is one https address");
+  const mail = c.unsubscribeMailto?.trim().replace(/^mailto:/i, "");
+  if (mail !== void 0 && !BARE_ADDRESS.test(mail))
+    throw new Error("buildEmailRequest: a campaign's unsubscribe by mail is one address");
+  return {
+    "List-Unsubscribe": mail ? `<${url}>, <mailto:${mail}>` : `<${url}>`,
+    "List-Unsubscribe-Post": "List-Unsubscribe=One-Click"
+  };
+}
+var ANSWER_OR_FORWARD = /^\s*(?:re|aw|sv|rv|antw|fwd?)\s*:/i;
 function buildEmailRequest(i) {
-  const text = [i.body.trim(), i.signature?.trim()].filter(Boolean).join("\n\n");
-  const inReplyTo = messageIdHeader(i.parent.rfcMessageId);
-  const references = referencesFor(i.parent);
+  const subject = i.parent ? replySubject(i.parent.subject) : oneLine(i.subject ?? "").slice(0, SUBJECT_MAX);
+  if (!subject) throw new Error("buildEmailRequest: a first email names its subject");
+  if (!i.parent && (i.campaign || i.actor === "ai") && ANSWER_OR_FORWARD.test(subject))
+    throw new Error("buildEmailRequest: a first email a program sends does not pose as a reply");
+  if (i.campaign && !i.campaign.footer.trim()) throw new Error("buildEmailRequest: a campaign's footer is never empty");
+  const unsubscribe = i.campaign ? unsubscribeHeaders(i.campaign) : {};
+  const text = [i.body.trim(), i.signature?.trim(), i.campaign?.footer.trim()].filter(Boolean).join("\n\n");
+  const inReplyTo = i.parent ? messageIdHeader(i.parent.rfcMessageId) : null;
+  const references = i.parent ? referencesFor(i.parent) : [];
+  const autoSubmitted = i.campaign || i.actor === "ai" && !i.parent ? "auto-generated" : i.actor === "ai" ? "auto-replied" : null;
   const headers2 = {
     ...inReplyTo ? { "In-Reply-To": inReplyTo } : {},
     ...references.length ? { References: references.join(" ") } : {},
-    ...i.actor === "ai" ? { "Auto-Submitted": "auto-replied" } : {}
+    ...autoSubmitted ? { "Auto-Submitted": autoSubmitted } : {},
+    ...unsubscribe
   };
   return {
     from: mailboxHeader(i.identity.fromName, i.identity.fromAddress),
     to: [i.to],
     reply_to: [i.identity.replyTo],
-    subject: replySubject(i.parent.subject),
+    subject,
     text,
     html: emailHtml(text),
     headers: headers2,
@@ -4227,6 +4249,19 @@ function sendsAs(mailbox, domain) {
 function requestLeavesAs(request, as) {
   return addressOf(request.from)?.address === as.address && request.reply_to.length === 1 && as.replyRoutes.includes(request.reply_to[0].trim().toLowerCase());
 }
+function resendLimitOf(r2) {
+  if (r2.ok || r2.status !== 429 && r2.status !== 409) return null;
+  let name = null;
+  try {
+    name = JSON.parse(r2.errorBody ?? "")?.name ?? null;
+  } catch {
+    name = null;
+  }
+  if (name === "daily_quota_exceeded") return "daily";
+  if (name === "monthly_quota_exceeded") return "monthly";
+  if (name === "concurrent_idempotent_requests") return "in_flight";
+  return r2.status === 429 ? "rate" : null;
+}
 var capabilityOf = (v) => v === "enabled" || v === "disabled" ? v : "unknown";
 function mailDomainsFrom(body) {
   const rows = body?.data;
@@ -4265,7 +4300,18 @@ function emailPlainText(e) {
 // src/email-resend.ts
 var RESEND_EMAILS = "https://api.resend.com/emails";
 var SEND_TIMEOUT_MS2 = 15e3;
-async function sendEmail(cfg, request) {
+var LIMIT_WAIT_MAX_MS = 2e3;
+var LIMIT_WAIT_DEFAULT_MS = 1e3;
+var sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+function waitAskedMs(h) {
+  for (const name of ["retry-after", "ratelimit-reset"]) {
+    const v = h.get(name);
+    const s = Number(v);
+    if (v !== null && v.trim() !== "" && Number.isFinite(s) && s >= 0) return Math.round(s * 1e3);
+  }
+  return null;
+}
+async function postEmail(cfg, request) {
   const { idempotency_key, ...body } = request;
   try {
     const r2 = await fetch(RESEND_EMAILS, {
@@ -4287,12 +4333,27 @@ async function sendEmail(cfg, request) {
           return null;
         }
       })();
-      return { ok: true, wamid: typeof id === "string" ? id : null, status: r2.status };
+      return { result: { ok: true, wamid: typeof id === "string" ? id : null, status: r2.status }, waitMs: null };
     }
-    return { ok: false, wamid: null, status: r2.status, errorBody: raw.slice(0, 500) };
+    return {
+      result: { ok: false, wamid: null, status: r2.status, errorBody: raw.slice(0, 500) },
+      waitMs: waitAskedMs(r2.headers)
+    };
   } catch (e) {
-    return { ok: false, wamid: null, status: 0, errorBody: e instanceof Error ? e.message : String(e) };
+    return {
+      result: { ok: false, wamid: null, status: 0, errorBody: e instanceof Error ? e.message : String(e) },
+      waitMs: null
+    };
   }
+}
+async function sendEmail(cfg, request, wait = sleep) {
+  const first = await postEmail(cfg, request);
+  const limit = resendLimitOf(first.result);
+  if (limit !== "rate" && limit !== "in_flight") return first.result;
+  const ms = first.waitMs ?? LIMIT_WAIT_DEFAULT_MS;
+  if (ms > LIMIT_WAIT_MAX_MS) return first.result;
+  await wait(ms);
+  return (await postEmail(cfg, request)).result;
 }
 var RESEND_RECEIVED = "https://api.resend.com/emails/receiving";
 var FETCH_TIMEOUT_MS = 15e3;
@@ -5921,6 +5982,7 @@ export {
   representativeAttributes,
   representativeEndUserRequest,
   requestLeavesAs,
+  resendLimitOf,
   resendWebhookSignature,
   retellImportBody,
   reviewBells,

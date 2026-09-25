@@ -45,17 +45,40 @@ export interface EmailRequest {
   idempotency_key: string;
 }
 
+/** What a campaign carries that a reply does not: how a person stops it, and the lines its foot owes. */
+export interface EmailCampaign {
+  /** One click, no sign-in (RFC 8058): an https address that takes a POST. */
+  unsubscribeUrl: string;
+  /**
+   * The same by mail, for a client that only knows mailto: a bare address, and only one the mailbox's intake reads
+   * (an address nothing receives is an unsubscribe into nothing). Optional: RFC 8058's one click needs the https
+   * address alone.
+   */
+  unsubscribeMailto?: string;
+  /** Why they are hearing from us, the business's name and postal address, the way to say no. Composed by the caller; never empty. */
+  footer: string;
+}
+
 export interface EmailRequestInput {
   identity: EmailIdentity;
   /** The person's stored address (normalizeEmail's spelling). */
   to: string;
-  parent: EmailParent;
+  /** The email this answers. Null for a first email, which then names its own subject. */
+  parent: EmailParent | null;
+  /** A first email's subject. Read only when there is no parent: a reply's is always its parent's, once, with Re:. */
+  subject?: string;
   /** The words, as the receptionist or a person wrote them. */
   body: string;
   /** Composed from the business's profile by the caller; null sends none. */
   signature: string | null;
-  /** Who wrote the words: decides Auto-Submitted. */
+  /** Who wrote the words: with the parent and the campaign, decides Auto-Submitted. */
   actor: "ai" | "human";
+  /**
+   * Mail a program sends on its own schedule (a reach-out, an offer): marked as such, with its unsubscribe and its
+   * footer. Its parent, when it has one, is our own earlier email in the same campaign (a nudge), never the person's:
+   * an answer to them is a reply, and goes without this.
+   */
+  campaign?: EmailCampaign;
   /** The queued row this request belongs to: the idempotency key, and the tag every receipt names it by. */
   messageId: string;
   tenantId: string;
@@ -157,35 +180,73 @@ export function referencesFor(parent: Pick<EmailParent, "rfcMessageId" | "refere
 }
 
 /**
- * The request one reply leaves as.
+ * A campaign's ways to stop it, as the headers carry them: URL-safe characters only (RFC 2369) and no comma, so the
+ * list cannot gain a second entry, and a mail address with no query, so a mailto cannot gain a second recipient.
+ */
+const UNSUBSCRIBE_URL = /^https:\/\/[A-Za-z0-9\-._~:/?#[\]@!$&'()*+;=%]+$/;
+const BARE_ADDRESS = /^[A-Za-z0-9._+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/;
+function unsubscribeHeaders(c: EmailCampaign): Record<string, string> {
+  const url = c.unsubscribeUrl.trim();
+  if (!UNSUBSCRIBE_URL.test(url)) throw new Error("buildEmailRequest: a campaign's unsubscribe is one https address");
+  const mail = c.unsubscribeMailto?.trim().replace(/^mailto:/i, "");
+  if (mail !== undefined && !BARE_ADDRESS.test(mail))
+    throw new Error("buildEmailRequest: a campaign's unsubscribe by mail is one address");
+  return {
+    "List-Unsubscribe": mail ? `<${url}>, <mailto:${mail}>` : `<${url}>`,
+    "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+  };
+}
+
+/** A subject that claims to answer or pass on an email. A first email a program sends never carries one: that subject deceives. */
+const ANSWER_OR_FORWARD = /^\s*(?:re|aw|sv|rv|antw|fwd?)\s*:/i;
+
+/**
+ * The request one email leaves as: a reply, or a first email.
  *
  * - From and Reply-To are the workspace's identity; To is the person's stored
  *   address. Neither is read from the parent's headers or from the words.
- * - In-Reply-To and References thread it under the parent in the customer's
- *   client. No Message-ID is minted here: the provider assigns one and reports
- *   it on the sent event, which is where the ledger learns it.
- * - A receptionist's reply says so in the header a mail system reads
- *   (Auto-Submitted: auto-replied, RFC 3834), so an auto-responder on the
- *   other side does not answer it and start a loop. A person's own reply
- *   carries no such mark.
+ * - A reply threads under its parent (In-Reply-To, References) and carries the
+ *   parent's subject once, with Re:. A first email has no parent and names its
+ *   own subject; one without a subject is a mistake in the code, not an email.
+ *   No Message-ID is minted here: the provider assigns one and reports it on
+ *   the sent event, which is where the ledger learns it.
+ * - The header a mail system reads says what the email is (RFC 3834): a
+ *   receptionist's reply is auto-replied; mail a program sends on its own -- a
+ *   campaign, or a first email the receptionist wrote -- is auto-generated, so
+ *   an auto-responder on the other side does not answer it and start a loop.
+ *   A person's own words carry no such mark.
+ * - A campaign carries the way to stop it: List-Unsubscribe with an https
+ *   address and a mail address, and List-Unsubscribe-Post for one click
+ *   (RFC 8058), which the large mailbox providers require of bulk mail; and
+ *   its footer, after the signature. Both addresses are checked here, because
+ *   a header value that is not one line is a second header.
  * - The tags name the row and the workspace, so a receipt finds its message
  *   without a lookup by the provider's id, even one that arrives before the
  *   send's own write.
  */
 export function buildEmailRequest(i: EmailRequestInput): EmailRequest {
-  const text = [i.body.trim(), i.signature?.trim()].filter(Boolean).join("\n\n");
-  const inReplyTo = messageIdHeader(i.parent.rfcMessageId);
-  const references = referencesFor(i.parent);
+  const subject = i.parent ? replySubject(i.parent.subject) : oneLine(i.subject ?? "").slice(0, SUBJECT_MAX);
+  if (!subject) throw new Error("buildEmailRequest: a first email names its subject");
+  if (!i.parent && (i.campaign || i.actor === "ai") && ANSWER_OR_FORWARD.test(subject))
+    throw new Error("buildEmailRequest: a first email a program sends does not pose as a reply");
+  if (i.campaign && !i.campaign.footer.trim()) throw new Error("buildEmailRequest: a campaign's footer is never empty");
+  const unsubscribe = i.campaign ? unsubscribeHeaders(i.campaign) : {};
+  const text = [i.body.trim(), i.signature?.trim(), i.campaign?.footer.trim()].filter(Boolean).join("\n\n");
+  const inReplyTo = i.parent ? messageIdHeader(i.parent.rfcMessageId) : null;
+  const references = i.parent ? referencesFor(i.parent) : [];
+  const autoSubmitted =
+    i.campaign || (i.actor === "ai" && !i.parent) ? "auto-generated" : i.actor === "ai" ? "auto-replied" : null;
   const headers: Record<string, string> = {
     ...(inReplyTo ? { "In-Reply-To": inReplyTo } : {}),
     ...(references.length ? { References: references.join(" ") } : {}),
-    ...(i.actor === "ai" ? { "Auto-Submitted": "auto-replied" } : {}),
+    ...(autoSubmitted ? { "Auto-Submitted": autoSubmitted } : {}),
+    ...unsubscribe,
   };
   return {
     from: mailboxHeader(i.identity.fromName, i.identity.fromAddress),
     to: [i.to],
     reply_to: [i.identity.replyTo],
-    subject: replySubject(i.parent.subject),
+    subject,
     text,
     html: emailHtml(text),
     headers,
@@ -624,6 +685,33 @@ export function requestLeavesAs(request: EmailRequest, as: EmailSendsAs): boolea
     request.reply_to.length === 1 &&
     as.replyRoutes.includes(request.reply_to[0].trim().toLowerCase())
   );
+}
+
+/**
+ * What a refusal from the provider means for the next send, read from the
+ * names Resend documents for its 429 and 409 answers:
+ *   rate       too many requests this second; the next second takes it
+ *   in_flight  a request under the same key is still being worked; its result is coming
+ *   daily      the day's sending is used up, for every workspace on the key
+ *   monthly    the month's is
+ * Null for anything else, a success included. A 429 that names nothing is read
+ * as the one that passes: the provider did not take the email, and waiting a
+ * second costs nothing.
+ */
+export type ResendLimit = "rate" | "in_flight" | "daily" | "monthly";
+
+export function resendLimitOf(r: { ok?: boolean; status: number; errorBody?: string | null }): ResendLimit | null {
+  if (r.ok || (r.status !== 429 && r.status !== 409)) return null;
+  let name: unknown = null;
+  try {
+    name = (JSON.parse(r.errorBody ?? "") as { name?: unknown } | null)?.name ?? null;
+  } catch {
+    name = null;
+  }
+  if (name === "daily_quota_exceeded") return "daily";
+  if (name === "monthly_quota_exceeded") return "monthly";
+  if (name === "concurrent_idempotent_requests") return "in_flight";
+  return r.status === 429 ? "rate" : null;
 }
 
 /* ----------------------------------------------------------- the mail domain

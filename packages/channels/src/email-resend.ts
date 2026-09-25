@@ -11,11 +11,18 @@
  * send's result, so the one retry the ledger allows cannot deliver twice; a
  * repeated key with a different payload is refused (409), which a frozen
  * request never produces.
+ *
+ * A refusal that means "not this second" (resendLimitOf: rate, in_flight) is
+ * waited out once, when the provider's wait is short, and the same bytes are
+ * posted again under the same key: the provider did not take the first, or it
+ * answers the second with the first's result. A longer wait, a used-up day or
+ * month, or a second refusal is handed back as it came.
  */
 import type { SendResult } from "./whatsapp";
 import {
   mailDomainsFrom,
   receivedEmailFrom,
+  resendLimitOf,
   type EmailRequest,
   type MailDomainFacts,
   type ReceivedEmail,
@@ -27,8 +34,28 @@ export interface ResendConfig {
 
 const RESEND_EMAILS = "https://api.resend.com/emails";
 const SEND_TIMEOUT_MS = 15_000;
+/** The longest a send waits for the provider's "in a moment" before handing the answer back: a worker's run is bounded. */
+const LIMIT_WAIT_MAX_MS = 2_000;
+/** What a refusal that says nothing about how long is given. */
+const LIMIT_WAIT_DEFAULT_MS = 1_000;
 
-export async function sendEmail(cfg: ResendConfig, request: EmailRequest): Promise<SendResult> {
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** How long the provider asked us to wait, in ms: retry-after, else ratelimit-reset, both in seconds. Null when it did not say. */
+function waitAskedMs(h: Headers): number | null {
+  for (const name of ["retry-after", "ratelimit-reset"]) {
+    const v = h.get(name);
+    const s = Number(v);
+    if (v !== null && v.trim() !== "" && Number.isFinite(s) && s >= 0) return Math.round(s * 1000);
+  }
+  return null;
+}
+
+/** One POST of the frozen request, and how long the provider asked us to wait if it refused. */
+async function postEmail(
+  cfg: ResendConfig,
+  request: EmailRequest,
+): Promise<{ result: SendResult; waitMs: number | null }> {
   const { idempotency_key, ...body } = request;
   try {
     const r = await fetch(RESEND_EMAILS, {
@@ -52,13 +79,33 @@ export async function sendEmail(cfg: ResendConfig, request: EmailRequest): Promi
       })();
       // Accepted with no id is still accepted: the words are with the provider,
       // and the receipt finds the row by its tag, not by this id.
-      return { ok: true, wamid: typeof id === "string" ? id : null, status: r.status };
+      return { result: { ok: true, wamid: typeof id === "string" ? id : null, status: r.status }, waitMs: null };
     }
-    return { ok: false, wamid: null, status: r.status, errorBody: raw.slice(0, 500) };
+    return {
+      result: { ok: false, wamid: null, status: r.status, errorBody: raw.slice(0, 500) },
+      waitMs: waitAskedMs(r.headers),
+    };
   } catch (e) {
     // status 0: never reached the provider, which is distinct from any answer it gave.
-    return { ok: false, wamid: null, status: 0, errorBody: e instanceof Error ? e.message : String(e) };
+    return {
+      result: { ok: false, wamid: null, status: 0, errorBody: e instanceof Error ? e.message : String(e) },
+      waitMs: null,
+    };
   }
+}
+
+export async function sendEmail(
+  cfg: ResendConfig,
+  request: EmailRequest,
+  wait: (ms: number) => Promise<void> = sleep,
+): Promise<SendResult> {
+  const first = await postEmail(cfg, request);
+  const limit = resendLimitOf(first.result);
+  if (limit !== "rate" && limit !== "in_flight") return first.result;
+  const ms = first.waitMs ?? LIMIT_WAIT_DEFAULT_MS;
+  if (ms > LIMIT_WAIT_MAX_MS) return first.result;
+  await wait(ms);
+  return (await postEmail(cfg, request)).result;
 }
 
 const RESEND_RECEIVED = "https://api.resend.com/emails/receiving";
