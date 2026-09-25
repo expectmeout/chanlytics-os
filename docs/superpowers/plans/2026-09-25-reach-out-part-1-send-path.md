@@ -604,6 +604,8 @@ Wait for every check to pass (`gh pr checks <n>`; a docs-and-packages PR runs th
 
 Branch: `git fetch origin && git switch -c design/reach-out-send-door origin/main` (after PR 1 merged).
 
+**As built.** Task 7 as first written had `sendQueued` import `resendLimitOf` from `@chanlytics/channels`, which `hygiene.test.mjs` ("a core verb knows no database, framework, provider or environment") refuses: a verb may take a TYPE from channels, never a value. So the door names the limit instead: `Delivered`'s failed outcome gains `limit?: ResendLimit`, which `deliver()` sets from the provider's answer on email only, and `sendQueued` reads `out.limit`. Its test hands the fake door a `limit`, and a new door test (`deliver.test.mjs`, "a refusal the mail provider gives for a limit of its own is named at the door, and only on email") proves the reading.
+
 ### Task 5: An email leaves only from the row its request names
 
 **Files:**
