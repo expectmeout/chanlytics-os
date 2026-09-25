@@ -813,6 +813,37 @@ test.describe("Phone shell on a real workspace", () => {
   });
 
   /**
+   * A thumb slides a note (25 Sep): a short slide left or right follows the finger and settles the note back, nothing
+   * dismissed or read (a long one dismisses or marks read, which bell-rows.test.mjs proves; a dismissal here is kept for
+   * the person). The × is its own 22px, and the list holds still under the sheet's pull. Real touches (CDP).
+   */
+  test("a thumb slides a note and a short slide settles it back; the × is its own size; the list holds still", async ({
+    page,
+  }) => {
+    await page.goto("/#/today");
+    await page.waitForLoadState("networkidle");
+    await page.getByRole("button", { name: /^Notifications/ }).click();
+    const pop = page.getByRole("dialog", { name: "Notifications" });
+    await expect(pop).toBeVisible();
+    const note = pop.locator(".tbn-item:not(.tbn-item-group)").first();
+    test.skip((await note.count()) === 0, "all caught up on this workspace");
+    expect(await pop.locator(".tbn-list").evaluate((el) => getComputedStyle(el).overscrollBehaviorY)).toBe("none");
+    const x = (await note.locator(".tbn-x").boundingBox())!;
+    expect([Math.round(x.width), Math.round(x.height)], "the × at its own size").toEqual([22, 22]);
+    const before = await pop.locator(".tbn-item").count();
+    const box = (await note.boundingBox())!;
+    const y = Math.round(box.y + box.height / 2);
+    const moved = () => note.evaluate((el) => el.style.transform || "");
+    await swipeAcross(page, 250, 220, y);
+    await expect.poll(moved, { message: "left 30px: back where it was" }).toMatch(/^(|translate3d\(0, 0, 0\))$/);
+    await swipeAcross(page, 200, 230, y);
+    await expect.poll(moved, { message: "right 30px: back where it was" }).toMatch(/^(|translate3d\(0, 0, 0\))$/);
+    await page.waitForTimeout(300);
+    expect(await pop.locator(".tbn-item").count(), "nothing dismissed").toBe(before);
+    await expect(note).toBeVisible();
+  });
+
+  /**
    * The Calendar holds its bar and walks its days (25 Sep). Its range, steps and views scrolled away with the days, and
    * a pull dragged them, as People's strip did before #1041: now only the days scroll and pull, and a swipe across them
    * walks to the next or previous days, as the steps do. The views keep their 38px look, with 44px to press.

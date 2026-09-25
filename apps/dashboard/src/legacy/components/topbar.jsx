@@ -80,39 +80,88 @@ const tbnSections = (items) => {
   ].filter((s) => s.lines.length > 0);
 };
 
-const NotifPopover = ({ items, onAction, onReadAll, onDismiss, onClose, alerts = null, onAlerts = () => {} }) => {
+// A dismissed note folds shut over this long (components.css .tbn-slot), so the notes under it glide up, then it goes.
+const TBN_FOLD_MS = 200;
+const tbnReduced = () => !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+
+const NotifPopover = ({ items, onAction, onReadAll, onDismiss, onRead = null, onClose, alerts = null, onAlerts = () => {} }) => {
   const [openGroup, setOpenGroup] = React.useState(null);
-  const note = (n, inGroup) => {
+  // A note on its way out: dismissed by its × or slid away by a thumb, its slot folds shut (its height measured, then
+  // none, over components.css's transition), then it goes; at once under reduced motion. Undo brings it back open.
+  const slotEls = React.useRef(new Map());
+  const [going, setGoing] = React.useState(null);
+  const fold = (id) => {
+    const el = slotEls.current.get(id);
+    const now = tbnReduced();
+    if (el && el.style && !now) {
+      el.style.height = `${el.offsetHeight}px`;
+      void el.offsetWidth;
+      el.style.height = "0px";
+    }
+    setGoing(id);
+    setTimeout(() => {
+      onDismiss(id);
+      setGoing((g) => (g === id ? null : g));
+      if (el && el.style) el.style.height = "";
+    }, now ? 0 : TBN_FOLD_MS);
+  };
+  // A note marked read under the thumb (slid right) keeps its place while the sheet is open, rather than jumping down
+  // to Earlier: the sections are worked out as if it were still unread, and it is drawn as it is. The sheet is drawn
+  // anew each time it opens, and regroups then.
+  const readHere = React.useRef(new Set());
+  const asIs = new Map(items.map((n) => [n.id, n]));
+  const read = (id) => {
+    readHere.current.add(id);
+    if (onRead) onRead(id);
+  };
+  const note = (n0, inGroup) => {
+    const n = asIs.get(n0.id) || n0;
     const verb = tbnVerb(n);
+    // On a phone a thumb slides the note (data-bits touchSwipe): left over Dismiss, right over Mark read while it is
+    // unread. The read note comes back read; the dismissed one stays aside while its slot folds.
+    const swipe = window.touchSwipe
+      ? window.touchSwipe({ onAway: () => fold(n.id), onBack: n.unread && onRead ? () => read(n.id) : null, when: tbnPhone })
+      : {};
     return (
-      <div key={n.id} className={`tbn-item${n.unread ? " unread" : ""}${inGroup ? " in-group" : ""}`} data-tone={n.tone}>
-        <button
-          type="button"
-          className="tbn-open"
-          aria-label={verb ? `${verb.label}: ${n.title}` : n.title}
-          onClick={() => onAction(n.id, verb ? verb.to : null)}
-        >
-          {n.unread && <span className="tbn-dot" />}
-          {/* The mark says what kind of note this is, never its tone: a warning's title says that (components.css). */}
-          {!inGroup && <span className="mark tbn-icon"><Icon name={n.icon} size={13} /></span>}
-          <span className="tbn-body">
-            <span className="tbn-line1">
-              <span className="tbn-item-title">{n.title}</span>
-              <span className="tbn-time tabular">{n.time}</span>
-            </span>
-            {n.message && <span className="tbn-msg">{n.message}</span>}
-          </span>
-        </button>
-        <button className="tbn-x" title="Dismiss" aria-label={`Dismiss “${n.title}”`} onClick={() => onDismiss(n.id)}>
-          <Icon name="x" size={10} />
-        </button>
+      <div
+        key={n.id}
+        className="tbn-slot"
+        data-going={going === n.id ? "true" : undefined}
+        ref={(el) => { if (el) slotEls.current.set(n.id, el); else slotEls.current.delete(n.id); }}
+      >
+        <div className="tbn-slot-in">
+          <span className="tbn-ground tbn-ground-read" aria-hidden="true">{n.unread ? "Mark read" : ""}</span>
+          <span className="tbn-ground tbn-ground-dismiss" aria-hidden="true">Dismiss</span>
+          <div className={`tbn-item${n.unread ? " unread" : ""}${inGroup ? " in-group" : ""}`} data-tone={n.tone} {...swipe}>
+            <button
+              type="button"
+              className="tbn-open"
+              aria-label={verb ? `${verb.label}: ${n.title}` : n.title}
+              onClick={() => onAction(n.id, verb ? verb.to : null)}
+            >
+              {n.unread && <span className="tbn-dot" />}
+              {/* The mark says what kind of note this is, never its tone: a warning's title says that (components.css). */}
+              {!inGroup && <span className="mark tbn-icon"><Icon name={n.icon} size={13} /></span>}
+              <span className="tbn-body">
+                <span className="tbn-line1">
+                  <span className="tbn-item-title">{n.title}</span>
+                  <span className="tbn-time tabular">{n.time}</span>
+                </span>
+                {n.message && <span className="tbn-msg">{n.message}</span>}
+              </span>
+            </button>
+            <button className="tbn-x" title="Dismiss" aria-label={`Dismiss “${n.title}”`} onClick={() => fold(n.id)}>
+              <Icon name="x" size={10} />
+            </button>
+          </div>
+        </div>
       </div>
     );
   };
   const line = (l) => {
     if (l.count < 2) return note(l.row, false);
     const open = openGroup === l.key;
-    const unread = l.members.some((m) => m.unread);
+    const unread = l.members.some((m) => (asIs.get(m.id) || m).unread);
     return (
       <div key={l.key} className={`tbn-group${open ? " open" : ""}`} data-testid="bell-group">
         <div className={`tbn-item tbn-item-group${unread ? " unread" : ""}`} data-tone={l.row.tone}>
@@ -139,7 +188,7 @@ const NotifPopover = ({ items, onAction, onReadAll, onDismiss, onClose, alerts =
       </div>
     );
   };
-  const sections = tbnSections(items);
+  const sections = tbnSections(items.map((n) => (readHere.current.has(n.id) ? { ...n, unread: true } : n)));
   return (
     <>
       <div className="tbn-backdrop" onClick={onClose} />
@@ -442,6 +491,12 @@ const Topbar = ({
     flash({ msg: <>All notifications marked read</>, undo: () => setNotifs(prev) });
   };
 
+  // A note marked read where it stands (a thumb slid it right): the bridge's mark, or the seeded note's flag.
+  const read = (id) => {
+    if (real) real.read(id);
+    else setNotifs(list => list.map(n => n.id === id ? { ...n, unread: false } : n));
+  };
+
   const dismiss = (id) => {
     if (real) {
       const item = realRows.find(n => n.id === id);
@@ -546,6 +601,7 @@ const Topbar = ({
             onAction={act}
             onReadAll={readAll}
             onDismiss={dismiss}
+            onRead={read}
             onClose={() => setOpenNotifs(false)}
             alerts={real ? alertState : null}
             onAlerts={onAlerts}
