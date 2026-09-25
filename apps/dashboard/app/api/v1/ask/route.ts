@@ -105,8 +105,11 @@ export const POST = write({
     // measured it (AskTurnShape.opened_ms): milliseconds within an hour, else
     // nothing. Never refused: a script or an older tab sends none.
     const openedMs =
-      typeof body?.opened_ms === "number" && Number.isFinite(body.opened_ms) && body.opened_ms >= 0
-        ? Math.min(Math.round(body.opened_ms), 3_600_000)
+      typeof body?.opened_ms === "number" &&
+      Number.isFinite(body.opened_ms) &&
+      body.opened_ms >= 0 &&
+      body.opened_ms <= 3_600_000
+        ? Math.round(body.opened_ms)
         : null;
 
     const tenantId = member.tenantId;
@@ -139,9 +142,10 @@ export const POST = write({
       if (found && found.tenantId === tenantId) {
         thread = { id: found.thread.id, title: found.thread.title, scope: found.thread.scope };
         history = found.turns;
-        // The thread's previous turn, before this question is appended: how long the person waited to ask again.
+        // The thread's previous turn, before this question is appended: how long the person waited to ask again. A
+        // read that came back full holds the oldest turns, not the newest, so its last is not the previous turn.
         const lastAt = found.messages.at(-1)?.atMs;
-        sinceLastMs = lastAt ? Math.max(0, Date.now() - lastAt) : null;
+        sinceLastMs = !found.truncated && lastAt ? Math.max(0, Date.now() - lastAt) : null;
         if (!scope) scope = found.thread.scope;
       } else if (!answering) throw new AppError("not_found", "That thread is not yours.", 404);
     }

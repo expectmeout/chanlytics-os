@@ -267,7 +267,7 @@ const routeTables = () => ({
   ask_messages: [],
 });
 
-test("the route: the shape is stored on the turn's row with the palette's opened_ms; a second question on the thread is a follow-up with the time since the last turn; a bad opened_ms is nothing, never a refusal", async () => {
+test("the route: the shape is stored on the turn's row with the palette's opened_ms; a second question on the thread is a follow-up with the time since the last turn; a bad opened_ms, or one past an hour, is nothing, never a refusal", async () => {
   const tables = routeTables();
   const written = answerJson("Nobody has booked this week yet.");
   setAskPorts({
@@ -307,6 +307,72 @@ test("the route: the shape is stored on the turn's row with the palette's opened
       "since the previous turn",
     );
     assert.equal(second.shape.opened_ms, null, "a value that is not a number is nothing");
+
+    const late = await askRoute.POST.run(
+      post({ text: "And the week before?", thread_id: threadId, opened_ms: 7_200_000 }),
+      ctxFor(tables),
+    );
+    await late.text();
+    assert.equal(tables.ask_messages[5].content.shape.opened_ms, null, "past an hour is nothing, not an hour");
+  } finally {
+    setAskPorts(null);
+  }
+});
+
+test("since_last_ms is nothing on a thread longer than the read: the read keeps the oldest MESSAGES_CAP rows, so its last is not the previous turn; a short thread keeps the time since its last", async () => {
+  const written = answerJson("Nobody has booked this week yet.");
+  setAskPorts({
+    round: async (call, onText) => {
+      onText(written);
+      return ROUND([text(written)], { stopReason: "end_turn" });
+    },
+    snapshot: async () => "",
+  });
+  const LONG = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+  const SHORT = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+  const lastAt = Date.now() - 60_000;
+  const tables = routeTables();
+  /** A stored thread of `n` rows, a question and its answer in turn, ten minutes apart, the last a minute ago. */
+  const seed = (id, n) => {
+    tables.ask_threads.push({
+      id,
+      tenant_id: A,
+      user_id: USER,
+      title: "Who booked this week?",
+      scope: null,
+      last_at: new Date(lastAt).toISOString(),
+      created_at: new Date(lastAt - n * 600_000).toISOString(),
+    });
+    for (let i = 0; i < n; i++)
+      tables.ask_messages.push({
+        id: `${id.slice(0, 8)}-0000-4000-8000-${String(i).padStart(12, "0")}`,
+        thread_id: id,
+        tenant_id: A,
+        user_id: USER,
+        role: i % 2 ? "assistant" : "user",
+        content: i % 2 ? { v: 2, text: `Answer ${i}.` } : { text: `Question ${i}?` },
+        created_at: new Date(lastAt - (n - 1 - i) * 600_000).toISOString(),
+      });
+  };
+  seed(LONG, 60);
+  seed(SHORT, 4);
+  const shapeOn = (thread) => tables.ask_messages.find((m) => m.thread_id === thread && m.content.shape)?.content.shape;
+  try {
+    await (await askRoute.POST.run(post({ text: "And last week?", thread_id: LONG }), ctxFor(tables))).text();
+    await (await askRoute.POST.run(post({ text: "And last week?", thread_id: SHORT }), ctxFor(tables))).text();
+    const long = shapeOn(LONG);
+    const short = shapeOn(SHORT);
+    assert.ok(long && short, "both turns stored their shape");
+    assert.deepEqual(
+      [long.follow_up, long.since_last_ms],
+      [true, null],
+      "sixty rows: the newest may be past the read, so no number",
+    );
+    assert.equal(short.follow_up, true);
+    assert.ok(
+      typeof short.since_last_ms === "number" && short.since_last_ms >= 60_000 && short.since_last_ms < 600_000,
+      `four rows: the time since the last of them, a minute; got ${short.since_last_ms}`,
+    );
   } finally {
     setAskPorts(null);
   }
