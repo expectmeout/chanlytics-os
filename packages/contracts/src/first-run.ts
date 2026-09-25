@@ -20,7 +20,7 @@ import { checkChipsOf } from "./check-chips";
 import { bookingPageOffered } from "./google";
 import { firstRunTryOf, FIRST_RUN_TRY_WORDS, TRY_QUIET_AFTER_MS } from "./first-run-try";
 import { areaCodeOf, firstRunPhoneOf, forwardingCarrierOf, FIRST_RUN_PHONE_WORDS } from "./first-run-phone";
-import type { SetupDto, SetupRowVM, SetupState, SetupVM } from "./setup";
+import { TRY_SKIPPED, type SetupDto, type SetupRowVM, type SetupState, type SetupVM } from "./setup";
 
 /** The first run's address: `#/start`, and `#/start/<step>` for a step already reached. */
 export const FIRST_RUN_ROUTE = "start";
@@ -613,6 +613,7 @@ export const FIRST_RUN_HELPERS = {
   tryIt: firstRunTryOf,
   tryWords: FIRST_RUN_TRY_WORDS,
   tryQuietAfterMs: TRY_QUIET_AFTER_MS,
+  trySkipped: TRY_SKIPPED,
   /** The carrier whose codes the answers choose (first-run-phone.ts), which the forwarding is saved with. */
   forwardingCarrierOf,
   /** A number as the app writes one (phone.ts): the numbers offered to pick are said this way, never Twilio's. */

@@ -7266,6 +7266,7 @@ var FIRST_RUN_TRY_WORDS = {
   saved: "Saved",
   notSaved: "Not saved",
   inbox: "It's in your Inbox too",
+  continue: "Continue",
   skip: "Can't call right now? Skip for now",
   nudge: "Most owners call once. It takes a minute, and it's the only way to know your calls really reach your receptionist.",
   stay: "OK, I'll call",
@@ -7280,9 +7281,12 @@ function firstRunTryOf({ dto, vm, calls, since, nowMs }) {
   const forwarded = !!kept;
   const shown = formatPhoneDisplay(kept ?? own);
   const skip = { label: W.skip, nudge: W.nudge, stay: W.stay, anyway: W.anyway };
+  const f0 = fw?.forwarding ?? null;
+  const openTest = fw && f0 && fw.forwarding_state !== "verified" && !forwardingTestOpen(f0, nowMs) ? fw.id : null;
   const base = {
     number: shown,
     forwarded,
+    openTest,
     listening: null,
     causes: [],
     call: null,
@@ -7312,7 +7316,11 @@ function firstRunTryOf({ dto, vm, calls, since, nowMs }) {
       causes: quiet ? forwarded ? W.causesForwarded.map((c) => ({ ...c })) : [W.causeOwn(formatPhoneDisplay(own) ?? own)] : []
     };
   }
-  const turns = call.transcript.filter((t) => t.speaker === "agent" || t.speaker === "client").map((t) => ({ who: t.speaker === "agent" ? W.receptionist : W.caller, text: t.text, agent: t.speaker === "agent" }));
+  const turns = call.transcript.filter((t) => t.speaker === "agent" || t.speaker === "client").map((t) => ({
+    who: t.speaker === "agent" ? W.receptionist : W.caller,
+    text: t.text,
+    agent: t.speaker === "agent"
+  }));
   const proof = forwarded ? W.proofForwarded : W.proofOwn;
   if (call.live) {
     return {
@@ -9328,6 +9336,7 @@ var FIRST_RUN_HELPERS = {
   tryIt: firstRunTryOf,
   tryWords: FIRST_RUN_TRY_WORDS,
   tryQuietAfterMs: TRY_QUIET_AFTER_MS,
+  trySkipped: TRY_SKIPPED,
   /** The carrier whose codes the answers choose (first-run-phone.ts), which the forwarding is saved with. */
   forwardingCarrierOf,
   /** A number as the app writes one (phone.ts): the numbers offered to pick are said this way, never Twilio's. */

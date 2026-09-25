@@ -18377,6 +18377,11 @@ interface FirstRunTryVM {
     number: string | null;
     /** A kept number that forwards: the test proves the forwarding. */
     forwarded: boolean;
+    /**
+     * The forwarded line whose test window the page opens as the screen does (line_forwarding_test, 30 minutes): a kept
+     * number not yet proven, with no window open. The call webhook proves forwarding only inside one.
+     */
+    openTest: string | null;
     /** Listening: what the page is doing, the test window, and the route a call takes (a kept number). */
     listening: {
         sentence: string;
@@ -18476,6 +18481,7 @@ declare const FIRST_RUN_TRY_WORDS: {
     readonly saved: "Saved";
     readonly notSaved: "Not saved";
     readonly inbox: "It's in your Inbox too";
+    readonly continue: "Continue";
     readonly skip: "Can't call right now? Skip for now";
     readonly nudge: "Most owners call once. It takes a minute, and it's the only way to know your calls really reach your receptionist.";
     readonly stay: "OK, I'll call";
@@ -18952,12 +18958,14 @@ declare const FIRST_RUN_HELPERS: {
         readonly saved: "Saved";
         readonly notSaved: "Not saved";
         readonly inbox: "It's in your Inbox too";
+        readonly continue: "Continue";
         readonly skip: "Can't call right now? Skip for now";
         readonly nudge: "Most owners call once. It takes a minute, and it's the only way to know your calls really reach your receptionist.";
         readonly stay: "OK, I'll call";
         readonly anyway: "Skip anyway";
     };
     readonly tryQuietAfterMs: number;
+    readonly trySkipped: "try-skipped";
     /** The carrier whose codes the answers choose (first-run-phone.ts), which the forwarding is saved with. */
     readonly forwardingCarrierOf: typeof forwardingCarrierOf;
     /** A number as the app writes one (phone.ts): the numbers offered to pick are said this way, never Twilio's. */

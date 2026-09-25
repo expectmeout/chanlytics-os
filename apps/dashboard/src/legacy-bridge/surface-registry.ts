@@ -163,8 +163,9 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   // landed after the queue and pushed it down (Ruben, 24 Sep: "does not load properly like the rest of the page").
   today: ["setup", "calendar", "broadcasts", "reports", "playbooks", "notifications", "live", "google", "people"],
   calendar: ["people"],
-  // The first run's receptionist card fills in from the settings read: the brain and the resolved numbers.
-  start: ["settings"],
+  // The first run's receptionist card fills in from the settings read: the brain and the resolved numbers. Try it
+  // watches the Live page's calls for the test call (first-run-try.ts).
+  start: ["settings", "live"],
   // A person's page reads its own person (people-detail.ts); People's row gives it their name in the crumbs and the
   // head while that read is out, so People is read next.
   [PERSON_ROUTE]: ["people"],

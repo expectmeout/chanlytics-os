@@ -882,13 +882,14 @@ function reviewSnippet(body, max = 90) {
 }
 var DATE_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WEEK_MS2 = 7 * 864e5;
+var FORWARDING_TEST_WINDOW_MS = 30 * 6e4;
+var TRY_QUIET_AFTER_MS = 3 * 6e4;
 var DATE_FMT3 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var CHECKOUT_OUTCOME_WORDS = {
   success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
   cancel: "Checkout was closed before finishing; nothing was charged.",
   portal: "Back from Stripe. Any change you made there shows here within a minute."
 };
-var FORWARDING_TEST_WINDOW_MS = 30 * 6e4;
 function registrationPathOf(saved) {
   if (!saved) return null;
   return String(saved.ein ?? "").trim() ? "standard" : "sole_proprietor";

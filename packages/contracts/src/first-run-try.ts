@@ -30,6 +30,11 @@ export interface FirstRunTryVM {
   number: string | null;
   /** A kept number that forwards: the test proves the forwarding. */
   forwarded: boolean;
+  /**
+   * The forwarded line whose test window the page opens as the screen does (line_forwarding_test, 30 minutes): a kept
+   * number not yet proven, with no window open. The call webhook proves forwarding only inside one.
+   */
+  openTest: string | null;
   /** Listening: what the page is doing, the test window, and the route a call takes (a kept number). */
   listening: { sentence: string; detail: string; window: string | null; route: string | null } | null;
   /** V7: why nothing may have come through, and what to do about each. */
@@ -112,6 +117,7 @@ export const FIRST_RUN_TRY_WORDS = {
   saved: "Saved",
   notSaved: "Not saved",
   inbox: "It's in your Inbox too",
+  continue: "Continue",
   skip: "Can't call right now? Skip for now",
   nudge:
     "Most owners call once. It takes a minute, and it's the only way to know your calls really reach your receptionist.",
@@ -138,9 +144,12 @@ export function firstRunTryOf({ dto, vm, calls, since, nowMs }: FirstRunTryInput
   const forwarded = !!kept;
   const shown = formatPhoneDisplay(kept ?? own);
   const skip = { label: W.skip, nudge: W.nudge, stay: W.stay, anyway: W.anyway };
+  const f0 = fw?.forwarding ?? null;
+  const openTest = fw && f0 && fw.forwarding_state !== "verified" && !forwardingTestOpen(f0, nowMs) ? fw.id : null;
   const base = {
     number: shown,
     forwarded,
+    openTest,
     listening: null,
     causes: [],
     call: null,

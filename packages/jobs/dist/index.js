@@ -1004,13 +1004,14 @@ var REVIEW_NEWS_MAX_AGE_MS = 14 * 864e5;
 var BOOTSTRAP_MS = 3600 * 1e3;
 var DATE_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WEEK_MS2 = 7 * 864e5;
+var FORWARDING_TEST_WINDOW_MS = 30 * 6e4;
+var TRY_QUIET_AFTER_MS = 3 * 6e4;
 var DATE_FMT3 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var CHECKOUT_OUTCOME_WORDS = {
   success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
   cancel: "Checkout was closed before finishing; nothing was charged.",
   portal: "Back from Stripe. Any change you made there shows here within a minute."
 };
-var FORWARDING_TEST_WINDOW_MS = 30 * 6e4;
 var SOLE_PROP_LIMITS = {
   campaignsPerBrand: 1,
   numbersPerCampaign: 1,
@@ -8221,13 +8222,14 @@ var REVIEW_NEWS_MAX_AGE_MS2 = 14 * 864e5;
 var BOOTSTRAP_MS2 = 3600 * 1e3;
 var DATE_FMT22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WEEK_MS22 = 7 * 864e5;
+var FORWARDING_TEST_WINDOW_MS2 = 30 * 6e4;
+var TRY_QUIET_AFTER_MS2 = 3 * 6e4;
 var DATE_FMT32 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var CHECKOUT_OUTCOME_WORDS2 = {
   success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
   cancel: "Checkout was closed before finishing; nothing was charged.",
   portal: "Back from Stripe. Any change you made there shows here within a minute."
 };
-var FORWARDING_TEST_WINDOW_MS2 = 30 * 6e4;
 var SOLE_PROP_LIMITS2 = {
   campaignsPerBrand: 1,
   numbersPerCampaign: 1,
@@ -11524,13 +11526,14 @@ var REVIEW_NEWS_MAX_AGE_MS3 = 14 * 864e5;
 var BOOTSTRAP_MS3 = 3600 * 1e3;
 var DATE_FMT23 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WEEK_MS23 = 7 * 864e5;
+var FORWARDING_TEST_WINDOW_MS3 = 30 * 6e4;
+var TRY_QUIET_AFTER_MS3 = 3 * 6e4;
 var DATE_FMT33 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var CHECKOUT_OUTCOME_WORDS3 = {
   success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
   cancel: "Checkout was closed before finishing; nothing was charged.",
   portal: "Back from Stripe. Any change you made there shows here within a minute."
 };
-var FORWARDING_TEST_WINDOW_MS3 = 30 * 6e4;
 var SOLE_PROP_LIMITS3 = {
   campaignsPerBrand: 1,
   numbersPerCampaign: 1,
@@ -13853,13 +13856,14 @@ var REVIEW_NEWS_MAX_AGE_MS22 = 14 * 864e5;
 var BOOTSTRAP_MS22 = 3600 * 1e3;
 var DATE_FMT222 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WEEK_MS222 = 7 * 864e5;
+var FORWARDING_TEST_WINDOW_MS22 = 30 * 6e4;
+var TRY_QUIET_AFTER_MS22 = 3 * 6e4;
 var DATE_FMT322 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var CHECKOUT_OUTCOME_WORDS22 = {
   success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
   cancel: "Checkout was closed before finishing; nothing was charged.",
   portal: "Back from Stripe. Any change you made there shows here within a minute."
 };
-var FORWARDING_TEST_WINDOW_MS22 = 30 * 6e4;
 var SOLE_PROP_LIMITS22 = {
   campaignsPerBrand: 1,
   numbersPerCampaign: 1,
@@ -16149,13 +16153,14 @@ var REVIEW_NEWS_MAX_AGE_MS32 = 14 * 864e5;
 var BOOTSTRAP_MS32 = 3600 * 1e3;
 var DATE_FMT232 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WEEK_MS232 = 7 * 864e5;
+var FORWARDING_TEST_WINDOW_MS32 = 30 * 6e4;
+var TRY_QUIET_AFTER_MS32 = 3 * 6e4;
 var DATE_FMT332 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var CHECKOUT_OUTCOME_WORDS32 = {
   success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
   cancel: "Checkout was closed before finishing; nothing was charged.",
   portal: "Back from Stripe. Any change you made there shows here within a minute."
 };
-var FORWARDING_TEST_WINDOW_MS32 = 30 * 6e4;
 var SOLE_PROP_LIMITS32 = {
   campaignsPerBrand: 1,
   numbersPerCampaign: 1,
@@ -18966,13 +18971,14 @@ var REVIEW_NEWS_MAX_AGE_MS4 = 14 * 864e5;
 var BOOTSTRAP_MS4 = 3600 * 1e3;
 var DATE_FMT24 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WEEK_MS24 = 7 * 864e5;
+var FORWARDING_TEST_WINDOW_MS4 = 30 * 6e4;
+var TRY_QUIET_AFTER_MS4 = 3 * 6e4;
 var DATE_FMT34 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var CHECKOUT_OUTCOME_WORDS4 = {
   success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
   cancel: "Checkout was closed before finishing; nothing was charged.",
   portal: "Back from Stripe. Any change you made there shows here within a minute."
 };
-var FORWARDING_TEST_WINDOW_MS4 = 30 * 6e4;
 var SOLE_PROP_LIMITS4 = {
   campaignsPerBrand: 1,
   numbersPerCampaign: 1,

@@ -1791,13 +1791,14 @@ var REVIEW_NEWS_MAX_AGE_MS = 14 * 864e5;
 var BOOTSTRAP_MS = 3600 * 1e3;
 var DATE_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WEEK_MS2 = 7 * 864e5;
+var FORWARDING_TEST_WINDOW_MS = 30 * 6e4;
+var TRY_QUIET_AFTER_MS = 3 * 6e4;
 var DATE_FMT3 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var CHECKOUT_OUTCOME_WORDS = {
   success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
   cancel: "Checkout was closed before finishing; nothing was charged.",
   portal: "Back from Stripe. Any change you made there shows here within a minute."
 };
-var FORWARDING_TEST_WINDOW_MS = 30 * 6e4;
 var SOLE_PROP_LIMITS = {
   campaignsPerBrand: 1,
   numbersPerCampaign: 1,
@@ -5330,13 +5331,14 @@ var REVIEW_NEWS_MAX_AGE_MS2 = 14 * 864e5;
 var BOOTSTRAP_MS2 = 3600 * 1e3;
 var DATE_FMT22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WEEK_MS22 = 7 * 864e5;
+var FORWARDING_TEST_WINDOW_MS2 = 30 * 6e4;
+var TRY_QUIET_AFTER_MS2 = 3 * 6e4;
 var DATE_FMT32 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var CHECKOUT_OUTCOME_WORDS2 = {
   success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
   cancel: "Checkout was closed before finishing; nothing was charged.",
   portal: "Back from Stripe. Any change you made there shows here within a minute."
 };
-var FORWARDING_TEST_WINDOW_MS2 = 30 * 6e4;
 var SOLE_PROP_LIMITS2 = {
   campaignsPerBrand: 1,
   numbersPerCampaign: 1,
@@ -8321,13 +8323,14 @@ var REVIEW_NEWS_MAX_AGE_MS3 = 14 * 864e5;
 var BOOTSTRAP_MS3 = 3600 * 1e3;
 var DATE_FMT23 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WEEK_MS23 = 7 * 864e5;
+var FORWARDING_TEST_WINDOW_MS3 = 30 * 6e4;
+var TRY_QUIET_AFTER_MS3 = 3 * 6e4;
 var DATE_FMT33 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var CHECKOUT_OUTCOME_WORDS3 = {
   success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
   cancel: "Checkout was closed before finishing; nothing was charged.",
   portal: "Back from Stripe. Any change you made there shows here within a minute."
 };
-var FORWARDING_TEST_WINDOW_MS3 = 30 * 6e4;
 var SOLE_PROP_LIMITS3 = {
   campaignsPerBrand: 1,
   numbersPerCampaign: 1,

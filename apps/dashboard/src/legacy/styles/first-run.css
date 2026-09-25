@@ -168,6 +168,22 @@ button.fr-rail-btn:hover { background: var(--bg-sunken); color: var(--ink); }
 .fr-code-links { display: flex; flex-wrap: wrap; gap: 16px; }
 .fr-code-with { display: grid; justify-items: start; gap: 8px; }
 
+/* Try it (canvas R6–R8): the number to call, what the page is doing, and the call's words as they come. */
+.fr-try-listen { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; column-gap: 10px; row-gap: 2px; }
+.fr-try-listen .fr-line-detail { grid-column: 2; }
+.fr-try-pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); animation: fr-try-pulse 1.6s var(--ease-out) infinite; }
+@keyframes fr-try-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+.fr-try-causes { margin: 0; display: grid; gap: 10px; }
+.fr-try-causes dt { font-size: 13px; font-weight: 500; }
+.fr-try-causes dd { margin: 2px 0 0; font-size: 12.5px; line-height: var(--leading-normal); color: var(--ink-dim); }
+.fr-try-turns { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+.fr-try-turn { display: grid; gap: 2px; padding: 10px 12px; border-radius: var(--radius-md); background: var(--bg-raised); border: 1px solid var(--line); }
+.fr-try-turn.is-agent { background: var(--bg-sunken); }
+.fr-try-who { font-size: 12px; color: var(--ink-dim); }
+.fr-try-said { font-size: 14px; line-height: var(--leading-normal); }
+.fr-try-skip { display: grid; gap: 8px; }
+@media (prefers-reduced-motion: reduce) { .fr-try-pulse { animation: none; } }
+
 /* Looks right, held until the step is done: in reach, with why beside it. */
 .fr-held { flex: 1 1 auto; font-size: 12.5px; line-height: var(--leading-normal); color: var(--ink-dim); text-align: right; }
 .fr-onward[aria-disabled="true"] { opacity: 0.5; cursor: default; }

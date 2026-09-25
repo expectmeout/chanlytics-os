@@ -911,7 +911,7 @@ test("the wiring for lines: routes owner-only and rate-limited, the setup route 
   );
   const bridge = readCode("apps/dashboard/src/legacy-bridge/setup.ts");
   assert.ok(
-    /refreshOnTables: \[\s*"lines",\s*"notifications",\s*"tenant_channels",\s*"capability_activations",\s*"business_records",\s*"billing_accounts",\s*"google_connections",?\s*\]/.test(
+    /refreshOnTables: \[\s*"lines",\s*"notifications",\s*"tenant_channels",\s*"capability_activations",\s*"business_records",\s*"billing_accounts",\s*"google_connections",\s*"calls",?\s*\]/.test(
       bridge,
     ),
     "every table a row derives from repaints the page",
