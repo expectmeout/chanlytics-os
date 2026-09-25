@@ -1,15 +1,16 @@
-# 0011 · Plans are tiers; past a tier, extra usage or the next tier — never a credits ledger
+# 0011 · The receptionist is tiers of one usage; leads are their own plan; never a credits ledger
 
 **Status:** proposed, for Ruben's decision on the numbers. Written against commit `095e419f` (25 September 2026) after L1
-of decision 0010 merged (#1033) and L2 was built and held. Ruben, 25 September: "lets stop to reassess by researching
-competitors/the market to ensure we are not too expensive but are covering our costs nicely … a credit system sounds a
-bit complicated … just get users to upsell them to roll over into a bigger plan similar to how claude does … not caring
-how complex the recode or refactor may be for the best solutions and logic in pricing and how we are wiring the
-frameworks".
+of decision 0010 merged (#1033) and L2 was built and held. Ruben, 25 September, twice: "lets stop to reassess by
+researching competitors/the market to ensure we are not too expensive but are covering our costs nicely … a credit
+system sounds a bit complicated … upsell them to roll over into a bigger plan similar to how claude does"; then "I do not
+want to count minutes … id rather just count it as usage if they want more usage upgrade so that users are not tracking
+call minutes vs text allowance vs etc. The only thing that made sense to have as packs is the leads as some users may not
+even need leads, just work on inbound, vs some only want leads."
 
 Where this note and 0010 disagree, this note wins: 0010's L1 and L2 stand (a lead counts when a contact is verified;
 the allowance belongs to the price), its L3 (prepaid packs on a credits ledger) is withdrawn, and its L4 (the cost
-guards) folds into step 6 below.
+guards) folds into step 5 below.
 
 ## What we charge for, and what it costs us
 
@@ -30,8 +31,17 @@ Nothing is estimated where a measurement existed.
 
 Two facts follow. **The receptionist's minutes are the cost that matters**: at 250 minutes a month a workspace costs us
 about $27; its 250 leads about $10; its 500 texts about $12. And **nothing prices minutes today**: `usage.voice_seconds`
-is recorded per call (00007, 00031) and read by nothing that limits or bills; the one Stripe price is a flat fee. A busy
-phone on a $49 flat plan loses money at about 450 minutes.
+is recorded per call (00007, 00031) and read by nothing that limits or bills; the one Stripe price is a flat fee.
+
+### Volume: what Ruben expects against what is measured
+
+Ruben expects "10–30 calls a day, under 3 minutes each". At 2 minutes a call that is **600–1,800 minutes a month,
+$66–$200 of cost**; at 3 minutes, up to 2,700 minutes and $300. The one live customer used **30 calls and 32 minutes
+in the whole of September**, about one a day and one minute each. The two are twenty to fifty times apart, and the plan
+cannot know which a new customer will be. So the customer never reads minutes, but **the price has to climb with the
+volume, silently**: that is what one usage bar with tiers does. A flat "unlimited" plan at $49–$99 is a bet against the
+heavy customer at 11¢ a minute; the market's unlimited plans either cap something else (Goodcall caps unique callers) or
+start at $89 (Phone2), and Rosie sells 2,000 minutes for $299.
 
 ## What the market charges (September 2026)
 
@@ -64,11 +74,11 @@ outreach. It sits between Outscraper's raw row and Apollo's contact: **5–10¢ 
 
 **Texting** is $19–39 a month for 500 texts standalone (SimpleTexting $39, SlickText $29, EZ Texting $25 + $5 telecom
 fee, 4¢ overage) and $5 a month per location for 10DLC inside the suites; Podium starts at $399, Birdeye at $299,
-Thryv at $623 a month. **4–8¢ a text is market.**
+Thryv at $623 a month.
 
-**Claude's shape**, which Ruben named: tiers ($20 / $100 / $200) with included usage, and since 2026 an "extra usage"
-switch on every paid plan that continues at standard rates under a monthly spending cap the customer sets. Hit the
-limit, and the choice is wait, switch on extra usage, or take the next tier.
+**Claude's shape**, which Ruben named: tiers with one usage, shown as one bar with a reset time; hit it and the answer is
+the next tier (and, since 2026, an optional "extra usage" switch under a cap). Nobody on a Claude plan tracks tokens
+by model.
 
 ## Context: what the code does today
 
@@ -77,143 +87,168 @@ limit, and the choice is wait, switch on extra usage, or take the next tier.
 - **Leads are counted and capped, in SQL.** `lead_counters` (00140:297) with `kind in (allowance, budget, day)` and a
   period; `lead_reserve` refuses past the whole; the counting doors move `used`. L2 (held on `feat/lead-plan-allowance`,
   migration 00176) makes the whole the price's `leads_included` and answers it from `lead_month_used`.
-- **Minutes are recorded and never limited.** `usage.voice_seconds` per call (00007:189, 00031:208).
+- **Minutes are recorded and never limited.** `usage.voice_seconds` per call (00007:189, 00031:208), and
+  `calls.cost` keeps Retell's cost per call, by product.
 - **Texts leave through one door** (`packages/core/src/deliver.ts`) and are never counted against anything.
-- **Texting is gated by registration only** (`SPEND_TEXTING`), and registration by `maySpend`.
-- **A paused receptionist already has a voice**: `pausedVoiceFacts` takes a message and promises a call back
-  (`billing.ts`, `PAUSED_WORDS`).
+- **A paused receptionist already has a voice and a posture**: calls are answered to take a message
+  (`pausedVoiceFacts`) and new messages wait in the Inbox (`PAUSED_WORDS`).
 - **The public price is unset.** chanlytics.com's Pricing page says the price "is set on a free 25-minute discovery call";
   the $49 in the test fixtures is a fixture. Stripe is on test keys.
 
 ## Decision
 
-1. **Plans are tiers, and a tier is a Stripe price.** Three self-serve tiers, one price each, whose metadata carries
-   what the tier includes: `minutes_included`, `leads_included`, `texts_included`, `texting` (yes/no),
-   `numbers_included`. The edge reads them when it applies a subscription (L2's mechanism, generalised) and writes
-   them onto the billing row. Nothing in the code knows a tier's numbers.
-2. **Three meters, one mechanism.** Minutes, leads and texts are counted per calendar month in one `usage_counters`
-   table (today's `lead_counters`, widened), with one door that answers used against included. Minutes are added
-   where `usage.voice_seconds` is written; texts where `deliver.ts` sends an SMS; leads as today.
-3. **Past the tier: the next tier, or extra usage.** The sentence that says the month is used ("You have found this
-   month's 250 leads", "This month's call minutes are used") is the upsell moment and offers two doors: **the next
-   tier, starting today** (a Stripe price change with proration, applied at once, so the whole rises the same minute)
-   or **extra usage** (an opt-in switch with a monthly cap in dollars, billed per unit at the tier's rates). Both are
-   Claude's doors. Downgrades take effect at renewal.
-4. **With extra usage off, the product degrades honestly, never silently.** Leads: searches refuse, as today. Texts:
-   replies to a customer continue (a reply is the receptionist's duty), broadcasts and playbook sends stop. Minutes:
-   the receptionist switches to message-taking (`pausedVoiceFacts`) until renewal or the next tier, and the owner is
-   told at 80% and at 100%. A caller is never cut off mid-call.
-5. **No credits ledger, ever.** Stripe holds the money: the tier is a recurring price, extra usage is three metered
-   prices on the same subscription fed by meter events for the units beyond the included ones, and if a prepaid pack
-   is ever wanted it is a Stripe **credit grant** against those metered prices, which Stripe's own ledger draws down.
-   Our counters hold the gate and the words; Stripe holds the bill; a monthly sweep compares the two.
-6. **The internal cost guards stay internal.** The $25 month budget, the $10 day and the $50 platform day become
-   abuse guards scaled to the tier (about 3× its included cost), never named to an owner; the judge's tokens settle
-   into them. No owner ever reads "budget".
-7. **The trial stays a trial** (#1031): fourteen days, nothing that costs us, and the same three doors when it ends.
+1. **Two products, bought together or alone.** The **Receptionist** (everything inbound: calls, texts, WhatsApp, email,
+   web chat, the calendar, People) and **Leads** (the finder). A workspace may hold either or both. Nothing about
+   leads is bundled into the receptionist's price, and nothing about the receptionist into leads'.
+2. **The Receptionist's tiers include one thing: usage.** One bar, one percentage, one reset day, as Claude shows it.
+   Behind it a **rate card in contracts** turns what the receptionist handles into units: a call minute, a text
+   segment, a WhatsApp or web reply, each a fixed number of units set from our cost. The customer never reads minutes
+   or texts; the bar reads "Usage this month: 62% · resets Oct 1", with one sentence under it saying what counts
+   ("calls, texts and messages your receptionist handles; leads never"). The rate card is fixed, so a customer's bar
+   never moves because we changed a voice or a model; our real cost is watched separately (step 5).
+3. **Past 100%: the next tier, starting today.** The door is one press: a Stripe price change with proration, applied
+   at once, so the bar drops the same minute. Meanwhile the receptionist degrades honestly, never silently: calls are
+   answered to take a message and new messages wait in the Inbox (the paused posture, with its own words and reason),
+   and the owner is told at 80% and at 100%. A caller is never cut off. Downgrades take effect at renewal. Extra usage
+   (Claude's second door, metered under a cap) is **not built at launch**; the top tier's sentence offers a
+   conversation instead. It is one step to add later, on Stripe meters, if a customer at the top asks.
+4. **Leads are their own plan, in sizes: the "packs".** 250, 1,000 or 3,000 Qualified leads a month, cancel any month,
+   bought with or without the receptionist. A lead counts as L1 says (a checked phone or email); the size is L2's
+   `leads_included` on the leads price. Past the month's leads: the next size, or the renewal. **No ledger, no expiry,
+   no refund rule**, because nothing is prepaid. If a one-time pack is ever wanted, it is a Stripe credit grant against
+   a metered lead price, which Stripe's own ledger draws down; not a table of ours.
+5. **Stripe holds the money; the row holds the numbers.** One subscription per workspace with up to two items (a
+   receptionist tier, a leads size). Each price's metadata carries what it includes (`usage_included`,
+   `leads_included`); the edge sums the items' metadata onto the billing row when it applies a subscription (L2's
+   mechanism, generalised). Nothing in the code knows a tier's numbers.
+6. **The internal cost guards stay internal.** The lead finder's $25 month budget and its day caps become abuse guards
+   scaled to the leads size, never named to an owner; the judge's tokens settle into them. A monthly sweep compares
+   each workspace's real cost (`calls.cost`, texts sent, leads' `cost_usd`) with its tier and logs the ones whose cost
+   passes their price: that is where a premium voice or Retell's AI QA would show first.
+7. **The trial stays a trial** (#1031): fourteen days, nothing that costs us, and the same doors when it ends.
+
+### Why one usage and not three allowances
+
+Three allowances make the customer an accountant (minutes against texts against messages) and make every sentence
+in the product a comparison. One bar asks nothing of them and still scales the price with the cost, because the rate
+card is our cost. Leads stay apart because they are a different purchase: some workspaces want none and some want
+only them.
 
 ### Why tiers and not credits
 
-A credits ledger needs: a table, a draw order in every counting door (collect, check, keep, put back, re-judge, undo,
-blank: seven SQL functions), a one-time Checkout and its webhook branch, an expiry rule, a refund rule, and words for
-a balance that can be wrong. It answers one question (more leads this month) for one of three meters. Tiers answer all
-three with one mechanism the code half has, and the mechanism Stripe built for the rest (meters, graduated prices,
-credit grants) exists so that nobody writes a ledger. The credits questions Ruben was asked (expiry, refunds) exist only
-because of the ledger; without it they vanish.
+A credits ledger needs a table, a draw order in seven SQL counting doors, a one-time Checkout and its webhook branch,
+an expiry rule, a refund rule, and words for a balance that can be wrong. Monthly sizes need none of it and answer the
+same want ("more leads this month") with the mechanism L2 already built. The two questions Ruben was asked about
+credits (expiry, refunds) exist only because of a ledger; without one they vanish.
 
-## The sheet (a proposal; the numbers are Ruben's)
+## The sheet (a proposal; every number is Ruben's)
 
-Cost per unit as measured above (11¢ a minute on today's stack, 4¢ a lead, 2.5¢ a text with its reply, $5 fixed).
+**The rate card** (1 unit = about 1¢ of our cost on today's stack): a call minute **10 units**; a text segment, in or
+out, **2 units**; a WhatsApp, web or email reply **1 unit**. A tier's usage is a number of units; the customer sees a
+percentage. In the words below, "calls a day" assumes 2 minutes a call and 30 days.
 
-| Tier    | Price a month | Includes                                                            | Cost at full use | Margin at full use | Cost at typical use\* | Margin, typical |
-| ------- | ------------- | ------------------------------------------------------------------- | ---------------- | ------------------ | --------------------- | --------------- |
-| Starter | **$49**       | 120 call minutes · 100 leads · 1 number · no texting                | $22              | 55%                | $9                    | 82%             |
-| Pro     | **$99**       | 250 minutes · 250 leads · 500 texts · texting + WhatsApp · 1 number | $55              | 44%                | $18                   | 82%             |
-| Scale   | **$199**      | 600 minutes · 750 leads · 1,500 texts · 2 numbers                   | $138             | 31%                | $45                   | 77%             |
+| Receptionist tier | Price a month | Usage included | About                                    | Cost at full use | Margin, full use | Margin, typical\* |
+| ----------------- | ------------- | -------------- | ---------------------------------------- | ---------------- | ---------------- | ----------------- |
+| Starter           | **$49**       | 1,500 units    | 150 minutes: 2–3 calls a day, 1 number   | $20              | 59%              | 86%               |
+| Pro               | **$99**       | 4,000 units    | 400 minutes: 6–7 calls a day, texting    | $45              | 55%              | 85%               |
+| Scale             | **$199**      | 10,000 units   | 1,000 minutes: 15–17 calls a day         | $105             | 47%              | 82%               |
+| Max               | **$399**      | 25,000 units   | 2,500 minutes: 40 calls a day, 2 numbers | $255             | 36%              | 79%               |
 
-\*Typical: a third of the minutes, half the leads, a third of the texts. The one live customer used 32 minutes in
-September. Rosie sells 1,000 minutes for $149 at about the same unit cost we have, so Scale's full-use margin is the
-market's, and extra usage protects the tail.
+\*Typical: a third of the usage. Ruben's expected business (10–30 calls a day) lands on Scale or Max; the measured
+customer (one call a day) stays on Starter. The ladder is the point: nobody is asked which they are.
 
-**Extra usage**, opt-in with a monthly cap: **20¢ a minute** (cost 11¢; market 25–48¢), **8¢ a lead** (cost 4¢; market
-5–10¢), **5¢ a text** (cost 2.5¢; market 4–8¢). **Annual: two months free**, the market's norm.
+| Leads size | Price a month | Per lead | Cost (4¢ a lead) | Margin |
+| ---------- | ------------- | -------- | ---------------- | ------ |
+| 250        | **$29**       | 11.6¢    | $10              | 66%    |
+| 1,000      | **$79**       | 7.9¢     | $40              | 49%    |
+| 3,000      | **$199**      | 6.6¢     | $120             | 40%    |
 
-Answers to the four questions 0010 left open: (1) no packs; extra usage per unit instead, and a pack later is a Stripe
-credit grant; (2) no credits, so nothing expires and nothing is refunded; (3) 100 / 250 / 750 leads by tier; (4)
-texting is not an add-on but the first thing Pro adds over Starter, at 500 texts, 5¢ beyond.
+Beside Instantly's 1.7–4.7¢ for a database email and Apollo's ~5¢ for a contact, ours carries a judgement, a checked
+phone or email and delivery into outreach; 250 for $29 is the size a salon owner buys once to try, and 1,000 for $79 is
+the agency's. **Annual: two months free** on both products.
+
+Answers to the four questions 0010 left open: (1) packs are monthly sizes, no prepay; (2) nothing is prepaid, so
+nothing expires and nothing is refunded; (3) 250 / 1,000 / 3,000 by size, and no leads inside the receptionist's
+tiers; (4) texting is not an add-on: it is inside the receptionist's usage from Pro, at 2 units a segment.
 
 ## Shape (how the frameworks are wired)
 
-- **contracts:** `PlanLimits` {minutes_included, leads_included, texts_included, texting, numbers_included} read
-  from a price's metadata (`planLimitsOf`, generalising `leadsIncludedOf`); `BillingAccountDto` carries them;
-  `UsageVM` (used, included, share, the sentence) for each meter; the tier's words (name, what it includes, the
-  upsell sentence, the extra-usage words); `maySend` for a broadcast past the texts, `voiceLimited` for the shell.
-- **db / SQL:** `usage_counters` = `lead_counters` renamed with `kind in (leads, minutes, texts, budget, day)`;
-  `month_usage(tenant, period)` answering all three against the row's limits; `usage_add(tenant, kind, n)` called by
-  the call-lifecycle door and by the send path; `billing_accounts` gains the limit columns and
-  `extra_usage_enabled`, `extra_usage_cap_usd`.
-- **edge:** `applySubscription` writes the limits; `change_plan` op (`subscriptions.update` with
-  `proration_behavior: "always_invoice"` up, a schedule at renewal down); meter events for units past the included
-  ones (`billing.meterEvents.create`, with a negative event within 24 hours on an undo); a monthly sweep that
-  compares our counters with Stripe's usage and logs a drift.
-- **core:** `deliver.ts` adds a text to the month; the gate for broadcasts reads it.
-- **dashboard:** Billing draws the tier picker (prices listed from Stripe with their metadata, cached like
-  `priceForClient`), three usage bars, the extra-usage switch and cap; the plan card, the call-limit bell and the
-  broadcast refusal each carry the two doors. The site's Pricing page draws the sheet from the same words.
-- **Retired:** the owner-facing budget; 0010's L3; `LEAD_MONTHLY_ALLOWANCE` as a number anyone reads (it becomes
-  the fallback when the database has not answered).
+- **contracts:** `USAGE_RATES` (the rate card) and `usageUnitsOf(kind, n)`; `PlanLimits` {usage_included,
+  leads_included, texting, numbers_included} read from a price's metadata (`planLimitsOf`, generalising
+  `leadsIncludedOf`) and summed over a subscription's items; `UsageVM` (share, the sentence, the reset day, the tier's
+  next door); the tiers' and sizes' words; the paused posture gains a reason (`billing` | `usage`) with its own
+  sentence.
+- **db / SQL:** `usage_counters` = `lead_counters` widened to `kind in (usage, leads, budget, day)`; `usage_add(tenant,
+units)` called from the call-lifecycle door (seconds → units) and the send path (segments or a reply → units);
+  `month_usage(tenant, period)` answering usage and leads, each used against included; `billing_accounts` gains
+  `usage_included` beside 00176's `leads_included`, and `usage_state` (`ok` | `warned` | `over`) so the bell rings
+  once.
+- **edge:** `applySubscription` sums the items' metadata onto the row; `change_plan` op (`subscriptions.update` on the
+  item, `proration_behavior: "always_invoice"` up, a schedule at renewal down); the monthly cost sweep.
+- **core:** `deliver.ts` adds each SMS segment and each reply to the month; the paused posture reads `usage_state`
+  beside billing.
+- **dashboard:** Billing draws two cards, Receptionist (tier, bar, next door) and Leads (size, left, next door), with
+  the prices listed from Stripe and cached like `priceForClient`; the plan card and Ask's finder read leads as today;
+  the 80% and 100% bells carry the door. The site's Pricing page draws the sheet from the same words.
+- **Retired:** the owner-facing budget; 0010's L3; `LEAD_MONTHLY_ALLOWANCE` as a number anyone reads (it becomes the
+  fallback when the database has not answered).
 
 ## Steps
 
-Each a PR on green, in either deploy order unless said.
+Each a PR on green; database first where a migration is named.
 
-1. **The catalog.** Tier prices in Stripe (metadata as above); `planLimitsOf`; the limit columns (00176 widened:
-   `leads_included` stays, `minutes_included` and `texts_included` join it); Billing names the tier and what it
-   includes; the site's Pricing page. Database first.
-2. **Minutes and texts counted.** `usage_counters`, `month_usage`, `usage_add` at the two meter points; the bars;
-   the 80% and 100% bells. Database first.
-3. **The gates.** Message-taking past the minutes; broadcasts stop past the texts; the words.
-4. **The next tier.** `change_plan`, the picker, the upsell doors in the three sentences.
-5. **Extra usage.** The switch and cap, the three metered prices, meter events, the reconciliation sweep.
-6. **The guards go internal.** The budget and day caps scaled to the tier; the judge settles; no owner reads them.
+1. **The catalog.** Two products and their prices in Stripe (metadata as above); `planLimitsOf` summed over items;
+   00176 widened with `usage_included`; `applySubscription` writes both; Billing names the tier and the size; the
+   site's Pricing page. L2 as built (`feat/lead-plan-allowance`) merges inside this step.
+2. **Usage counted.** The rate card; `usage_counters`, `usage_add`, `month_usage`; the two meter points; the bar and
+   its sentence; the 80% and 100% bells, once each.
+3. **The posture.** Past 100%, the paused posture with the usage reason and words; a caller is never cut off; the
+   owner's door in the bell and on Billing.
+4. **The next tier.** `change_plan` for both products, the picker, the doors in the sentences; downgrade at renewal.
+5. **The guards go internal.** The lead budget and day caps scaled to the size; the judge settles; the monthly cost
+   sweep; no owner reads them.
 
-L2 as built (`feat/lead-plan-allowance`) is step 1's leads column and door, and merges inside step 1 renamed.
+Later, if asked: extra usage on Stripe meters under a cap; a one-time leads pack as a Stripe credit grant; a bundle
+price for both products.
 
 ## Tests
 
-- `planLimitsOf` over every metadata shape; a price that says nothing gives Starter's numbers.
-- `month_usage` over the replayed stack: three kinds, one period, the platform's row unreachable.
-- The two meter points: a call's end adds its minutes once (a replayed webhook adds nothing); an SMS adds a
-  segment, a WhatsApp or email adds nothing.
-- The gates: at 100% with extra usage off the shell is the message-taking prompt and the owner was told once; with
-  it on, nothing changes and a meter event was sent; past the cap, the gate refuses in words.
-- `change_plan`: an upgrade applies at once and the whole rises; a downgrade waits for renewal; a foreign price is
-  refused.
-- The sweep: equal counters log nothing; a drift logs one line with both numbers.
+- `planLimitsOf` over every metadata shape and over two items; a price that says nothing gives Starter's numbers.
+- `usageUnitsOf`: a minute is 10, a segment 2, a reply 1; a call's seconds round up to the minute once.
+- `month_usage` over the replayed stack: usage and leads, one period, the platform's row unreachable.
+- The meter points: a call's end adds its minutes once (a replayed webhook adds nothing); an SMS adds its segments,
+  a WhatsApp reply adds one, an email adds one.
+- The posture: at 100% the shell is the message-taking prompt with the usage words and the owner was told once; at
+  80% told once; a change of tier clears both.
+- `change_plan`: an upgrade applies at once and the bar drops; a downgrade waits for renewal; a foreign price is
+  refused; a leads size changes without touching the receptionist's item.
+- The sweep: a workspace whose real cost passes its price is logged with both numbers; the rest log nothing.
 
 ## Risks
 
-- **The voice picker can quietly cost 2.5¢ more a minute** (ElevenLabs 4¢ against Minimax 1.5¢). The default is
-  Minimax; a premium voice, if offered, is a Scale feature or an add-on, never a silent default.
-- **Retell's AI QA at $0.10 a minute** must never be switched on across traffic. `post_call_analysis_model` is set
-  today; the cost lines show no QA charge; keep proving that on the monthly sweep.
-- **Full-use margins on Scale are the market's, not comfortable** (31%). Extra usage at 20¢ carries the tail; the
-  sheet should be re-read against `calls.cost` after the first 20 paying workspaces.
-- **A downgrade with the month already past the new tier's included** lands in extra usage or message-taking on
-  renewal day; the confirmation says so.
-- **Meta charges WhatsApp replies from 1 October 2026** at utility rates; at $0.0034 a reply it is noise, but the
-  guard in step 6 should include it.
+- **The rate card can drift from cost.** A minute is 10 units at 11¢ today; a premium voice (ElevenLabs, +2.5¢) or
+  a heavier model changes the cost and not the bar. The sweep is the guard, and the voice picker never defaults to
+  premium.
+- **Retell's AI QA at $0.10 a minute** must never be switched on across traffic; the sweep would show it within a
+  month, but a month of it costs a tier's margin.
+- **Volume is unknown.** If Ruben's expectation holds, most customers land on Scale or Max and the entry tier is a
+  trial door; if the measurement holds, most stay on Starter and revenue per workspace is $49. The ladder survives
+  both; the marketing does not, so the site should lead with Pro.
+- **Message-taking past 100% is a strong nudge.** It is honest and reversible in one press, but a customer who hits
+  it on the 20th and does not upgrade has ten days of a message-taking receptionist; the 80% bell has to be early and
+  plain.
+- **Meta charges WhatsApp replies from 1 October 2026**; at $0.0034 a reply it is inside the 1-unit rate.
 - **Stripe is on test keys**; the whole sheet is invisible to a customer until Ruben flips live.
 
 ## Open questions (Ruben's)
 
-1. The three prices: $49 / $99 / $199 as proposed, or Scale at $249 with 800 minutes.
-2. Whether Starter gets any texting (100 texts) or texting is Pro's first reason to upgrade, as proposed.
-3. The extra-usage rates (20¢ / 8¢ / 5¢ proposed) and whether extra usage is on by default with a default cap ($50), as
-   Claude does it, or off until switched on.
-4. Whether the discovery-call posture on chanlytics.com stays beside the sheet ("or talk to us") for the first ten to
-   twenty customers.
-5. Annual pricing (two months free proposed) and whether the sheet launches with it.
+1. The four receptionist prices ($49 / $99 / $199 / $399) and their usage (150 / 400 / 1,000 / 2,500 minutes'
+   worth), or a three-tier ladder starting at $79 like Goodcall.
+2. The three leads prices ($29 / $79 / $199 for 250 / 1,000 / 3,000).
+3. Whether every receptionist tier gets one 25-lead search to try the finder (a taste, once, not monthly).
+4. Whether Starter includes texting (proposed: from Pro).
+5. Whether the top tier says "talk to us" or offers extra usage from day one.
+6. Whether the discovery-call posture on chanlytics.com stays beside the sheet for the first ten to twenty customers.
 
 ## Sources
 
