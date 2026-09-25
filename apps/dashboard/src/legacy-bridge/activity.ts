@@ -51,7 +51,9 @@ export const activity = {
    * when a pointer or the keyboard reaches the tab, so the pane it opens has
    * its rows already. Costs one request the visit was going to make anyway.
    */
-  warm: (f: ActivityFilters = {}): void => pages.warm(keyOf(f), () => activity.list(f)),
+  warm: (f: ActivityFilters = {}): void => {
+    pages.warm(keyOf(f), () => activity.list(f));
+  },
   /** Somebody wrote; the answers describe the world as it was. */
   forget: (): void => pages.clear(),
   /** What a row means, in the product's six tones. Pure, from contracts. */

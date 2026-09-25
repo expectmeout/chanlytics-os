@@ -45,7 +45,7 @@ import { workspaceZone } from "./zone";
 import { readCache, staleReadCaches } from "./read-cache";
 import { keepSavedView, placeDeal } from "./surface-data";
 import { personRouteId } from "./surface-registry";
-import { afterBoot } from "./surface-runner";
+import { afterBoot, bootWaitsFor } from "./surface-runner";
 import { getActiveWorkspace } from "./workspace";
 
 /**
@@ -87,8 +87,8 @@ export function peekPerson(id: string): PersonVM | null {
  * from and open again, and every one of those opens re-read the person and put
  * "Loading..." over the page while it did.
  */
-export function warmPerson(id: string): void {
-  people.warm(id, () => personDetail(id));
+export function warmPerson(id: string): Promise<PersonVM | null> | null {
+  return people.warm(id, () => personDetail(id));
 }
 
 /** How many of a list's first rows are read ahead, and how many of those reads are out at once. */
@@ -138,7 +138,11 @@ export function warmPersonOnScreen(win: Window = window): void {
   if (!getActiveWorkspace()) return;
   const [page, param] = (win.location.hash || "").replace(/^#[/]?/, "").split("/");
   const id = personRouteId(page, param);
-  if (id) warmPerson(id);
+  if (!id) return;
+  // The surfaces nobody is looking at wait for this read as they wait for the page's own (surface-runner.ts
+  // bootWaitsFor): out beside nine of theirs it took 3,236 ms, alone 773 (25 Sep 2026).
+  const read = warmPerson(id);
+  if (read) bootWaitsFor(read);
 }
 
 /** The client's answer, as the pages read it: `ok`, `data`, or the refusal's `message`. */

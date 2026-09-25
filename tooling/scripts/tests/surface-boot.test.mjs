@@ -37,7 +37,7 @@ const win = {
 };
 globalThis.window = win;
 globalThis.document = { visibilityState: "hidden", addEventListener() {}, removeEventListener() {} };
-const { startSurfaces } = await importSrc("apps/dashboard/src/legacy-bridge/surface-runner.ts");
+const { startSurfaces, bootWaitsFor } = await importSrc("apps/dashboard/src/legacy-bridge/surface-runner.ts");
 const { getActiveWorkspace } = await importSrc("apps/dashboard/src/legacy-bridge/workspace.ts");
 const { read } = await importSrc("apps/dashboard/src/legacy-bridge/api.ts");
 
@@ -94,7 +94,8 @@ test("off a workspace page, the workspace surface asks first and the others ask 
   );
 });
 
-test("on a workspace page, every surface fires at once with the address's workspace on each, and nothing asks twice", async () => {
+test("on a workspace page, the page's own surfaces fire at once with the address's workspace on each, the rest once they are in, and nothing asks twice", async () => {
+  // Today draws People; the Inbox is a stranger to it (25 Sep 2026: the boot is two passes, the page's and the rest).
   const { log, overrides } = world({ pathname: "/w/acme" });
   const stop = startSurfaces(overrides);
   await settle(12);
@@ -102,10 +103,14 @@ test("on a workspace page, every surface fires at once with the address's worksp
   assert.deepEqual(
     log
       .map((l) => l[0])
-      .slice(0, 3)
+      .slice(0, 2)
       .sort(),
-    ["inbox", "people", "workspace:asked"],
-    "all three asked before the workspace surface answered",
+    ["people", "workspace:asked"],
+    "the page's own asked before the workspace surface answered: on a workspace page nothing waits for it",
+  );
+  assert.ok(
+    log.findIndex((l) => l[0] === "inbox") > log.findIndex((l) => l[0] === "workspace:answered"),
+    "a stranger asks once the page's own are in",
   );
   assert.ok(
     log.filter((l) => l[0] === "inbox" || l[0] === "people").every((l) => l[1] === "acme"),
@@ -195,9 +200,10 @@ test("the boot holds every answer until its last surface is in: two surfaces rea
   const first = new Promise((r) => {
     firstIn = r;
   });
+  // Two of Today's own (it draws the calendar and People), so they boot in one pass, side by side.
   const overrides = [
     {
-      key: "inbox",
+      key: "calendar",
       apply: async () => {
         await read("GET templates");
         firstIn();
@@ -496,4 +502,55 @@ test("Today reads what is left to set up right after its own surface: the card i
   await settle(80);
   stop();
   assert.deepEqual(order.slice(0, 2), ["today", "setup"], "its own surface, then Setup, in the first lanes");
+});
+
+/* ------------------------------ two passes ------------------------------ */
+// Measured on production (25 Sep 2026, a cold person page): the page's own read went out beside nine of the boot's and
+// took 3,236 ms; alone, 773. Twenty-six reads, 520 KB, for a page that draws one person. The boot is two passes now:
+// the page's own surfaces, then, once they and the page's own read are in, everyone else's.
+
+test("a cold boot is two passes: the page's own surfaces, then the rest once they and the page's own read are in", async () => {
+  const ID = "ed2244f3-9f88-49c5-863e-fbdea4b60e12";
+  const keys = ["settings", "inbox", "people", "reports", "workspace", "calendar"];
+  const { order, overrides } = crowd(keys, { hash: `#/clients/${ID}` });
+  let landed = () => {};
+  bootWaitsFor(
+    new Promise((r) => {
+      landed = r;
+    }),
+  );
+  const stop = startSurfaces(overrides);
+  await settle(20);
+  assert.deepEqual(order, ["workspace", "people"], "the page's own, and nobody else while its read is out");
+  landed();
+  await settle(40);
+  stop();
+  assert.equal(new Set(order).size, keys.length, "then every other surface boots");
+  assert.deepEqual(order.slice(0, 2), ["workspace", "people"]);
+});
+
+test("a page read that never lands holds the rest for the route's wait at most, and only this boot's", async () => {
+  const ID = "ed2244f3-9f88-49c5-863e-fbdea4b60e12";
+  const keys = ["settings", "people", "workspace"];
+  win.__routeWaitMs = 150;
+  try {
+    const { order, overrides } = crowd(keys, { hash: `#/clients/${ID}` });
+    bootWaitsFor(new Promise(() => {}));
+    const stop = startSurfaces(overrides);
+    // A few ticks (a tick is ~15 ms on Windows), well inside the cap.
+    await settle(3);
+    assert.deepEqual(order, ["workspace", "people"]);
+    await new Promise((r) => setTimeout(r, 320));
+    await settle(6);
+    stop();
+    assert.deepEqual(order, ["workspace", "people", "settings"], "the wait ran out; the shell has its rest");
+    // The read that never lands was this boot's: the next boots without it.
+    const again = crowd(keys, { hash: `#/clients/${ID}` });
+    const stop2 = startSurfaces(again.overrides);
+    await settle(10);
+    stop2();
+    assert.deepEqual(again.order, ["workspace", "people", "settings"], "in one go, with no wait");
+  } finally {
+    delete win.__routeWaitMs;
+  }
 });

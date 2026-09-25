@@ -15,7 +15,7 @@ import { ApiError } from "../client/api";
 import { api } from "./api";
 import { cachedTenant, clearSurfaceCache, snapshotSurface } from "./surface-cache";
 import { isSurfaceReady, setConnection, setStatus } from "./surface-status";
-import { routeDrawsFor, routeSurfaceFor } from "./surface-registry";
+import { ROUTE_WAIT_MS, routeDrawsFor, routeSurfaceFor } from "./surface-registry";
 import { feedWatch, REALTIME_GRACE_MS, subscribesToRealtime, wantsRefresh } from "./surface-realtime";
 import { getActiveWorkspace, signInHref } from "./workspace";
 
@@ -52,6 +52,28 @@ let activeBoot: Promise<void> = Promise.resolve();
 export function afterBoot(): Promise<void> {
   return activeBoot;
 }
+
+/**
+ * A read the page on screen opens on that is no surface -- a person's page reads its person (people-detail.ts
+ * warmPersonOnScreen) -- said to the boot before it starts, so the surfaces nobody is looking at wait for it as they
+ * wait for the page's own. Measured on production (25 Sep 2026, a cold person page): the person's read took 3,236 ms
+ * beside nine of the boot's, and 773 ms alone. Held for the route's wait at most (ROUTE_WAIT_MS), so a read that never
+ * lands never keeps the shell's badge and bell from theirs.
+ */
+const pageReads = new Set<Promise<unknown>>();
+export function bootWaitsFor(read: Promise<unknown>): void {
+  pageReads.add(read);
+  const done = () => pageReads.delete(read);
+  read.then(done, done);
+}
+const pageReadsIn = (win: Window): Promise<void> => {
+  // This boot's, then let go of: a read that never lands is this boot's wait at most, never the next one's.
+  const reads = [...pageReads];
+  pageReads.clear();
+  if (reads.length === 0) return Promise.resolve();
+  const cap = (win as unknown as { __routeWaitMs?: number }).__routeWaitMs ?? ROUTE_WAIT_MS;
+  return Promise.race([Promise.allSettled(reads).then(() => undefined), new Promise<void>((r) => setTimeout(r, cap))]);
+};
 
 export async function refreshSurfaces(overrides: SurfaceOverride[]): Promise<void> {
   const fn = activeRefresh;
@@ -111,6 +133,14 @@ function screenRank(win: Window): (o: SurfaceOverride) => number {
   const wanted = routeSurfaceFor(page || "today", param || null);
   const drawn = routeDrawsFor(page || "today", param || null);
   return (o) => (o.key === wanted ? 0 : drawn.includes(o.key) ? 1 + drawn.indexOf(o.key) : 1 + drawn.length);
+}
+/** Whether the page on screen is drawn from this surface: its own, or one it names (ROUTE_DRAWS). A stranger is not. */
+function screenOwn(win: Window): (o: SurfaceOverride) => boolean {
+  const rank = screenRank(win);
+  const raw = (win.location.hash || "#/today").replace(/^#[/]?/, "");
+  const [page, param] = raw.split("/");
+  const strangers = 1 + routeDrawsFor(page || "today", param || null).length;
+  return (o) => rank(o) < strangers;
 }
 
 let runnerSeq = 0;
@@ -256,24 +286,37 @@ export function startSurfaces(overrides: SurfaceOverride[], joinFeed: JoinLiveFe
   // where it does not BLOCK the others: the shell reads __ME to decide what a
   // role may see, so letting it queue behind three strangers would draw the
   // nav for the wrong role and then correct it.
+  //
+  // In two passes (25 Sep 2026). The first is the page's: who is looking, its own surface and what it draws beside it
+  // (screenOwn). The second, everyone else's, starts once the first is in and the page's own read (bootWaitsFor) has
+  // landed. In one pass the strangers filled the other three lanes at once, and the server answered the page's read
+  // among them: measured on production, a cold person page's read took 3,236 ms in that crowd and 773 ms alone, with
+  // 26 reads of 520 KB out for a page that draws one person. The shell's badge and bell come a beat later than they
+  // did; the page comes seconds sooner.
   const screen = screenRank(window);
+  const own = screenOwn(window);
   const rank = (o: SurfaceOverride) => (o.key === "workspace" ? 0 : 1 + screen(o));
   const queued = [...overrides].sort((x, y) => rank(x) - rank(y));
+  const pagesOwn = queued.filter((o) => o.key === "workspace" || own(o));
+  const strangers = queued.filter((o) => !pagesOwn.includes(o));
   // Surfaces read the same lists in turn -- the calls, the templates, the contacts, and on Leads the page the view
   // asks for again as it mounts. Measured on the salon's Leads page: 31 reads at boot, 20 distinct, because a read
   // that had settled was not shared with the one asking a moment later. Every answer is held until the last surface
   // is in, and let go before the live feed is joined: nothing can change inside the hold without a write (which lets
   // go of it) or an event the feed would not yet have delivered anyway.
   const releaseAnswers = api().holdAnswers();
-  const booted = workspaceFirst
+  const firstPass = workspaceFirst
     ? boot(workspaceFirst).then(() =>
         inLanes(
-          queued.filter((o) => o !== workspaceFirst),
+          pagesOwn.filter((o) => o !== workspaceFirst),
           BOOT_LANES,
           boot,
         ),
       )
-    : inLanes(queued, BOOT_LANES, boot);
+    : inLanes(pagesOwn, BOOT_LANES, boot);
+  const booted = firstPass
+    .then(() => (cancelled ? undefined : pageReadsIn(window)))
+    .then(() => (cancelled ? undefined : inLanes(strangers, BOOT_LANES, boot)));
   activeBoot = booted.then(
     () => undefined,
     () => undefined,
