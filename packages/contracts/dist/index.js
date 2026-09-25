@@ -2344,6 +2344,8 @@ function toCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
 
 // src/feed-url.ts
 var PRIVATE_HOST = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
+var CARRIER_NAT = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./;
+var PRIVATE_V6 = /^\[(::1?|f[cd][0-9a-f]{0,2}:.*|fe[89ab][0-9a-f]?:.*|::ffff:.*)\]$/i;
 function feedUrlOk(raw) {
   if (!raw) return null;
   const url = raw.trim().replace(/^webcal:\/\//i, "https://");
@@ -2354,7 +2356,9 @@ function feedUrlOk(raw) {
     return null;
   }
   if (u.protocol !== "https:" && u.protocol !== "http:") return null;
-  if (PRIVATE_HOST.test(u.hostname) || /^172\.(1[6-9]|2\d|3[01])\./.test(u.hostname)) return null;
+  const h = u.hostname;
+  if (PRIVATE_HOST.test(h) || /^172\.(1[6-9]|2\d|3[01])\./.test(h) || CARRIER_NAT.test(h) || PRIVATE_V6.test(h))
+    return null;
   return u.toString();
 }
 var FEED_MAX_BYTES = 2e6;
@@ -4472,6 +4476,69 @@ import { z as z5 } from "zod";
 
 // src/lead-search.ts
 import { z as z4 } from "zod";
+
+// src/booking-page.ts
+function onDomain(host, domain) {
+  return host === domain || host.endsWith(`.${domain}`);
+}
+var BOOKING_PLATFORMS = [
+  { host: "vagaro.com" },
+  { host: "booksy.com" },
+  { host: "fresha.com" },
+  { host: "glossgenius.com" },
+  { host: "styleseat.com" },
+  { host: "schedulicity.com" },
+  { host: "mindbodyonline.com" },
+  { host: "setmore.com" },
+  { host: "acuityscheduling.com" },
+  { host: "as.me" },
+  { host: "calendly.com" },
+  { host: "book.squareup.com", path: /^\/appointments\// },
+  { host: "squareup.com", path: /^\/appointments\/book\// },
+  { host: "simplybook.me" },
+  { host: "youcanbook.me" },
+  { host: "zocdoc.com" },
+  { host: "janeapp.com" }
+];
+var BOOKING_PLATFORM_HOSTS = /* @__PURE__ */ (() => BOOKING_PLATFORMS.map((p) => p.host))();
+var PLATFORM_OWN = /* @__PURE__ */ new Set([
+  "help",
+  "support",
+  "blog",
+  "docs",
+  "status",
+  "community",
+  "careers",
+  "developers",
+  "partners",
+  "press",
+  "legal"
+]);
+var BOOKING_PAGE_MAX = /* @__PURE__ */ (() => BrainConfigSchema.shape.booking_link.unwrap().maxLength ?? Infinity)();
+function bookingPageOf(raw) {
+  const s = String(raw ?? "").trim();
+  if (!s) return null;
+  let u;
+  try {
+    u = new URL(s);
+  } catch {
+    return null;
+  }
+  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+  const host = u.hostname.toLowerCase().replace(/^www\./, "");
+  const platform = BOOKING_PLATFORMS.find((p) => onDomain(host, p.host));
+  if (!platform) return null;
+  const sub = host === platform.host ? null : host.slice(0, -platform.host.length - 1);
+  if (sub !== null && PLATFORM_OWN.has(sub.slice(sub.lastIndexOf(".") + 1))) return null;
+  if (platform.path && !platform.path.test(u.pathname)) return null;
+  if (sub === null && !u.pathname.split("/").some(Boolean)) return null;
+  u.protocol = "https:";
+  u.hash = "";
+  const page = u.toString();
+  return page.length <= BOOKING_PAGE_MAX ? page : null;
+}
+
+// src/lead-search.ts
 var LEAD_SEARCH_VIAS = ["people", "ask"];
 var LEAD_ROUND_PURPOSES = ["probe", "main", "topup", "renew"];
 var LEAD_ROUND_STATES = ["queued", "probing", "waiting_on_owner", "running", "checking", "ended"];
@@ -4921,11 +4988,9 @@ function questionAfterProbe(plan, members) {
     dropTerm
   };
 }
-var LEAD_PLATFORM_HOSTS = [
-  "vagaro.com",
+var LEAD_PLATFORM_HOSTS = /* @__PURE__ */ (() => [
+  ...BOOKING_PLATFORM_HOSTS,
   "square.site",
-  "squareup.com",
-  "glossgenius.com",
   "godaddysites.com",
   "wixsite.com",
   "business.site",
@@ -4933,20 +4998,11 @@ var LEAD_PLATFORM_HOSTS = [
   "instagram.com",
   "linktr.ee",
   "yelp.com",
-  "booksy.com",
-  "fresha.com",
-  "styleseat.com",
-  "schedulicity.com",
-  "mindbodyonline.com",
-  "setmore.com",
-  "acuityscheduling.com",
   "google.com"
-];
-var LEAD_JUNK_EMAIL_DOMAINS = [
-  "vagaro.com",
+])();
+var LEAD_JUNK_EMAIL_DOMAINS = /* @__PURE__ */ (() => [
+  ...BOOKING_PLATFORM_HOSTS,
   "square.site",
-  "squareup.com",
-  "glossgenius.com",
   "godaddy.com",
   "wix.com",
   "wixpress.com",
@@ -4955,7 +5011,7 @@ var LEAD_JUNK_EMAIL_DOMAINS = [
   "domain.com",
   "yourdomain.com",
   "email.com"
-];
+])();
 var LEAD_PLACEHOLDER_LOCALS = [
   "filler",
   "yourdomain",
@@ -5035,7 +5091,7 @@ function cleanEmailCandidates(emails, host) {
     }
     seen.add(address);
     const [local, domain] = address.split("@");
-    if (LEAD_JUNK_EMAIL_DOMAINS.some((d) => domain === d || domain.endsWith(`.${d}`))) {
+    if (LEAD_JUNK_EMAIL_DOMAINS.some((d) => onDomain(domain, d))) {
       dropped.push({ email: address, why: "junk_domain" });
       continue;
     }
@@ -5087,7 +5143,7 @@ function siteHost(url) {
   }
   host = host.replace(/^www\./, "");
   if (!host.includes(".") || host.length > LEAD_FACT_MAX) return null;
-  if (LEAD_PLATFORM_HOSTS.some((p) => host === p || host.endsWith(`.${p}`))) return null;
+  if (LEAD_PLATFORM_HOSTS.some((p) => onDomain(host, p))) return null;
   return host;
 }
 function stateCode(raw) {
@@ -6300,6 +6356,762 @@ function checkChipsOf(i) {
   };
 }
 
+// src/review-reply.ts
+function reviewReplyModeOf(rows) {
+  const m = rows?.find((r2) => r2.class === "reviews")?.mode;
+  return m === "auto" || m === "never" ? m : "ask";
+}
+var REVIEW_REPLY_MAX_WORDS = 60;
+var REVIEW_REPLY_MAX_CHARS = 1e3;
+var REVIEW_AUTO_REPLIES_PER_SYNC = 3;
+var REVIEW_AUTO_REPLY_MAX_AGE_MS = 14 * 864e5;
+function firstName(author) {
+  const a = (author ?? "").trim();
+  if (!a || /^(a google user|anonymous)$/i.test(a)) return null;
+  return a.split(/\s+/)[0];
+}
+function reviewReplyPrompt(facts, review) {
+  const lang = facts.languages[0] ?? "English";
+  const system = [
+    "You write the public reply a business posts under a Google review, in the business's own name.",
+    `Business: ${facts.name}.`,
+    facts.tone ? `Tone, in the owner's words: ${facts.tone}` : null,
+    facts.languages.length ? `Languages the business speaks: ${facts.languages.join(", ")}.` : null,
+    facts.services.length ? `Services: ${facts.services.slice(0, 12).join(", ")}.` : null,
+    facts.website ? `Website: ${facts.website}` : null,
+    facts.phone ? `Phone: ${facts.phone}` : null,
+    "",
+    "Rules:",
+    `- Reply in the language the review is written in. When the review has no words, reply in ${lang}.`,
+    `- One to three sentences, at most ${REVIEW_REPLY_MAX_WORDS} words. Warm and specific to what they wrote, never a form letter.`,
+    "- Address them by first name when one is given; no name when the review is anonymous.",
+    "- Four or five stars: thank them and pick up one thing they praised.",
+    `- Three stars or fewer: thank them for the feedback, apologise plainly for what went wrong, and invite them to get in touch so it can be put right${facts.phone ? ` (${facts.phone})` : ""}. Never argue, never dispute what they wrote, never blame them.`,
+    "- Never mention refunds, discounts, prices or compensation \u2014 those decisions belong to the owner.",
+    "- Never invent details about their visit, names of staff, or promises the business did not make.",
+    "- No emojis, no hashtags, no sign-off, no quotation marks around the reply, and do not write the business name at the end.",
+    "",
+    "Answer with the reply text only."
+  ].filter((l) => l !== null).join("\n");
+  const name = firstName(review.author);
+  const text = (review.text ?? "").replace(/\s+/g, " ").trim();
+  const user = [
+    `Rating: ${typeof review.rating === "number" ? `${review.rating} of 5` : "not given"}`,
+    `From: ${name ? review.author.trim() : "a customer who did not give a name"}`,
+    review.written_at ? `Written: ${review.written_at.slice(0, 10)}` : null,
+    text ? `Review: "${text}"` : "The review has no words, only the stars."
+  ].filter((l) => l !== null).join("\n");
+  return { system, user };
+}
+function cleanDraft(raw) {
+  if (typeof raw !== "string") return "";
+  let t = raw.replace(/\r\n?/g, "\n").trim();
+  t = t.replace(/^(reply|response|draft)\s*:\s*/i, "");
+  t = t.replace(/^["“”'‘’«»]+|["“”'‘’«»]+$/g, "");
+  t = t.replace(/\s+/g, " ").trim();
+  return t.slice(0, REVIEW_REPLY_MAX_CHARS);
+}
+function autoReplyCandidates(rows, connectedAt, nowMs, cap2 = REVIEW_AUTO_REPLIES_PER_SYNC) {
+  const connected = connectedAt ? Date.parse(connectedAt) : NaN;
+  if (Number.isNaN(connected)) return [];
+  return rows.filter((r2) => r2.origin === "profile" && !r2.reply_text && r2.published_at).map((r2) => ({ r: r2, at: Date.parse(r2.published_at) })).filter(({ at: at2 }) => !Number.isNaN(at2) && at2 > connected && nowMs - at2 <= REVIEW_AUTO_REPLY_MAX_AGE_MS).sort((a, b) => b.at - a.at).slice(0, Math.max(0, cap2)).map(({ r: r2 }) => r2);
+}
+function autoReplyBell(answered) {
+  if (!answered.length) return null;
+  if (answered.length === 1) {
+    const who = (answered[0].author ?? "").trim();
+    return { title: who ? `Replied to ${who}'s review` : "Replied to a review on Google", body: answered[0].text };
+  }
+  const names2 = answered.map((a) => (a.author ?? "").trim()).filter(Boolean);
+  return {
+    title: `Replied to ${answered.length} reviews on Google`,
+    body: names2.length ? `Under the reviews from ${names2.join(", ")}. Each reply is on Reports.` : "Each reply is on Reports."
+  };
+}
+function reviewReplyWords(mode, canReply) {
+  if (!canReply || !mode) return "";
+  if (mode === "auto") return "new ones are answered by the receptionist within the hour";
+  if (mode === "ask") return "the receptionist drafts, you send";
+  return "";
+}
+
+// src/reports.ts
+var REPORT_CHANNELS = [
+  { key: "whatsapp", label: "WhatsApp" },
+  { key: "voice", label: "Calls" },
+  { key: "email", label: "Email" },
+  { key: "sms", label: "SMS" },
+  { key: "instagram", label: "Instagram" }
+];
+var REPORT_RANGES = [
+  { days: 7, id: "7d", label: "7 days" },
+  { days: 30, id: "30d", label: "30 days" },
+  { days: 90, id: "90d", label: "90 days" }
+];
+var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+function dayDate(day) {
+  const [y, m, d] = day.split("-").map(Number);
+  return new Date(y, (m ?? 1) - 1, d ?? 1);
+}
+function fmtDay(day) {
+  return DATE_FMT.format(dayDate(day));
+}
+function fmtSeconds(s) {
+  if (s == null || !Number.isFinite(s)) return "\u2014";
+  const v = Math.max(0, Math.round(s));
+  if (v < 60) return `${v}s`;
+  if (v < 600) return `${Math.floor(v / 60)}m ${String(v % 60).padStart(2, "0")}s`;
+  if (v < 3600) return `${Math.round(v / 60)}m`;
+  return `${Math.floor(v / 3600)}h ${String(Math.round(v % 3600 / 60)).padStart(2, "0")}m`;
+}
+function quantile(sorted, q) {
+  if (!sorted.length) return null;
+  const pos = (sorted.length - 1) * q;
+  const lo = Math.floor(pos);
+  const hi = Math.ceil(pos);
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
+}
+function deltaOf(current, previous, upIsGood, noun) {
+  if (!previous) return null;
+  const pct2 = Math.round((current - previous) / previous * 100);
+  if (pct2 === 0) return { text: `same as the prior ${noun}`, tone: "" };
+  const up = pct2 > 0;
+  return { text: `${up ? "+" : ""}${pct2}% vs prior ${noun}`, tone: up === upIsGood ? "pos" : "neg" };
+}
+function pointsDelta(current, previous, noun) {
+  if (current === null || previous === null) return null;
+  const pts = current - previous;
+  if (pts === 0) return { text: `same share as the prior ${noun}`, tone: "" };
+  return { text: `${pts > 0 ? "+" : ""}${pts} pts vs prior ${noun}`, tone: pts > 0 ? "pos" : "neg" };
+}
+function compareWords(current, previous, rangeLabel, priorHadAny) {
+  if (!priorHadAny || current === 0 && previous === 0) return null;
+  if (previous === 0) return `none the ${rangeLabel} before`;
+  if (current === previous) return `same as the ${rangeLabel} before`;
+  return `${current > previous ? "up" : "down"} from ${previous}`;
+}
+var REPLY_BUCKETS = [
+  { id: "lt15", label: "under 15s", max: 15 },
+  { id: "lt60", label: "15s \u2013 1m", max: 60 },
+  { id: "lt300", label: "1 \u2013 5m", max: 300 },
+  { id: "lt1800", label: "5 \u2013 30m", max: 1800 },
+  { id: "gte1800", label: "over 30m", max: Infinity }
+];
+function bars(entries) {
+  const max = Math.max(1, ...entries.map((e) => e[2]));
+  return entries.map(([id, label, value]) => ({ id, label, value, share: value / max }));
+}
+var sum = (xs) => xs.reduce((a, b) => a + b, 0);
+var capitalize = (s) => s ? s[0].toUpperCase() + s.slice(1) : s;
+function priorOf(n, previous, pick) {
+  return Array.from({ length: n }, (_, i) => {
+    const j = previous.length - n + i;
+    return j >= 0 ? pick(previous[j]) : null;
+  });
+}
+var REPORT_WEEK_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+var REPORT_WEEK_LONG = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+var weekdayOf2 = (day) => (dayDate(day).getDay() + 6) % 7;
+function weekOf(series) {
+  const total = [0, 0, 0, 0, 0, 0, 0];
+  const seen = [0, 0, 0, 0, 0, 0, 0];
+  for (const d of series) {
+    const w = weekdayOf2(d.day);
+    total[w] += (d.messages_in || 0) + (d.calls || 0);
+    seen[w] += 1;
+  }
+  return total.map((t, w) => seen[w] ? Math.round(t / seen[w] * 10) / 10 : 0);
+}
+function onlyIndex(values, wins) {
+  if (!values.some((v) => v > 0)) return null;
+  let at2 = 0;
+  for (let i = 1; i < values.length; i++) if (wins(values[i], values[at2])) at2 = i;
+  return values.filter((v) => v === values[at2]).length === 1 ? at2 : null;
+}
+function reportHourWords(h) {
+  const x = (h % 24 + 24) % 24;
+  return x === 0 ? "12am" : x < 12 ? `${x}am` : x === 12 ? "12pm" : `${x - 12}pm`;
+}
+function hoursOf2(grid) {
+  if (!grid || !grid.length) return null;
+  const values = Array.from({ length: 24 }, (_, h) => grid.reduce((s, row2) => s + (Number(row2?.[h]) || 0), 0));
+  const total = values.reduce((a, b) => a + b, 0);
+  let peak = null;
+  if (total > 0) {
+    peak = 0;
+    for (let h = 1; h < 23; h++) if (values[h] + values[h + 1] > values[peak] + values[peak + 1]) peak = h;
+  }
+  const outside = values.reduce((s, v, h) => s + (h < 8 || h >= 20 ? v : 0), 0);
+  return { values, peak, outside, labels: values.map((_, h) => reportHourWords(h)) };
+}
+function channelsOf(ch) {
+  if (!ch) return null;
+  return REPORT_CHANNELS.map(({ key, label }) => ({
+    key,
+    label,
+    value: Number(ch.current?.[key]) || 0,
+    prior: Number(ch.previous?.[key]) || 0
+  })).filter((c) => c.value > 0 || c.prior > 0);
+}
+function runningTotal(values) {
+  let t = 0;
+  return values.map((v) => t += v || 0);
+}
+function speedOf(replies, days) {
+  const byDay = /* @__PURE__ */ new Map();
+  for (const r2 of replies) {
+    if (!Number.isFinite(r2.s)) continue;
+    const xs = byDay.get(r2.day) ?? [];
+    xs.push(r2.s);
+    byDay.set(r2.day, xs);
+  }
+  const point = (chunk) => {
+    const s = chunk.flatMap((d) => byDay.get(d) ?? []).sort((a, b) => a - b);
+    const first = chunk[0];
+    const p50 = quantile(s, 0.5);
+    const p90 = quantile(s, 0.9);
+    return {
+      day: first,
+      label: fmtDay(first),
+      short: chunk.length > 1 ? fmtDay(first) : String(dayDate(first).getDate()),
+      p50,
+      p90,
+      p50Label: fmtSeconds(p50),
+      p90Label: fmtSeconds(p90),
+      count: s.length
+    };
+  };
+  if (days.length <= 14) return { unit: "day", points: days.map((d) => point([d])) };
+  const weeks = [];
+  for (let end = days.length; end > 0; end -= 7) weeks.unshift(days.slice(Math.max(0, end - 7), end));
+  if (weeks.length > 1 && weeks[0].length < 4) weeks.splice(0, 2, [...weeks[0], ...weeks[1]]);
+  return { unit: "week", points: weeks.map(point) };
+}
+function callMoodTone(sentiment) {
+  return sentiment === "Positive" ? "ok" : sentiment === "Negative" ? "danger" : "";
+}
+var moodRank = (s) => s === "Positive" ? 0 : s === "Negative" ? 2 : 1;
+var listWords = (names2, last) => names2.length <= 1 ? names2.join("") : `${names2.slice(0, -1).join(", ")} ${last} ${names2[names2.length - 1]}`;
+var channelNoun = (c) => c.key === "voice" ? "calls" : c.key === "email" ? "email" : c.label;
+function channelsLine(channels, rangeLabel) {
+  if (!channels) return null;
+  const reached = channels.reduce((s, c) => s + c.value, 0);
+  if (!reached) return null;
+  const top = channels.reduce((a, c) => c.value > a.value ? c : a);
+  const lead = top.value * 2 > reached ? `Mostly ${channelNoun(top)}` : `${capitalize(channelNoun(top))} ${top.key === "voice" ? "lead" : "leads"}`;
+  const before = channels.reduce((s, c) => s + c.prior, 0);
+  if (!before) return `${lead}.`;
+  const wasTop = channels.reduce((a, c) => c.prior > a.prior ? c : a);
+  if (wasTop.key === top.key) return `${lead}, as the ${rangeLabel} before.`;
+  return `${capitalize(channelNoun(top))} took over from ${channelNoun(wasTop)}.`;
+}
+function rhythmLine(week) {
+  if (!week.current.some((v) => v > 0)) return null;
+  const avg = week.unit === "average";
+  const name = (i) => avg ? `${week.long[i]}s` : week.long[i];
+  const idle = week.current.flatMap((v, i) => v === 0 ? [i] : []);
+  if (idle.length >= 4)
+    return `Only on ${listWords(
+      week.current.flatMap((v, i) => v > 0 ? [name(i)] : []),
+      "and"
+    )}.`;
+  if (idle.length) return `Nothing on ${listWords(idle.map(name), "or")}.`;
+  if (week.quietest === null) return null;
+  return avg ? `Quietest on ${name(week.quietest)}.` : `${week.long[week.quietest]} was the quietest day.`;
+}
+function toReportVM(dto) {
+  const days = dto.days;
+  const series = dto.series ?? [];
+  const current = series.slice(-days);
+  const previous = series.slice(0, Math.max(0, series.length - days));
+  const points = current.map((d) => ({
+    day: d.day,
+    label: fmtDay(d.day),
+    short: String(dayDate(d.day).getDate()),
+    in: d.messages_in,
+    ai: d.answered_ai,
+    you: d.answered_you,
+    none: d.unanswered,
+    calls: d.calls,
+    callSeconds: d.call_seconds,
+    escalations: d.escalations,
+    newPeople: d.new_contacts
+  }));
+  const tot = {
+    in: sum(current.map((d) => d.messages_in)),
+    ai: sum(current.map((d) => d.answered_ai)),
+    you: sum(current.map((d) => d.answered_you)),
+    none: sum(current.map((d) => d.unanswered)),
+    escalations: sum(current.map((d) => d.escalations)),
+    calls: sum(current.map((d) => d.calls)),
+    callSeconds: sum(current.map((d) => d.call_seconds)),
+    newPeople: sum(current.map((d) => d.new_contacts))
+  };
+  const prev = {
+    in: sum(previous.map((d) => d.messages_in)),
+    ai: sum(previous.map((d) => d.answered_ai)),
+    you: sum(previous.map((d) => d.answered_you)),
+    none: sum(previous.map((d) => d.unanswered)),
+    escalations: sum(previous.map((d) => d.escalations)),
+    calls: sum(previous.map((d) => d.calls)),
+    newPeople: sum(previous.map((d) => d.new_contacts))
+  };
+  const noun = `${days} days`;
+  const rangeLabel = REPORT_RANGES.find((r2) => r2.days === days)?.label ?? noun;
+  const priorHadAny = prev.in + prev.calls > 0;
+  const answeredTotal = tot.ai + tot.you + tot.none;
+  const aiShare = answeredTotal ? Math.round(tot.ai / answeredTotal * 100) : null;
+  const prevAnsweredTotal = prev.ai + prev.you + prev.none;
+  const prevShare = prevAnsweredTotal ? Math.round(prev.ai / prevAnsweredTotal * 100) : null;
+  const sortedReply = [...dto.reply_seconds ?? []].filter((x) => Number.isFinite(x)).sort((a, b) => a - b);
+  const median = quantile(sortedReply, 0.5);
+  const p90 = quantile(sortedReply, 0.9);
+  const bucketCounts = REPLY_BUCKETS.map((b, i) => {
+    const lo = i === 0 ? -Infinity : REPLY_BUCKETS[i - 1].max;
+    return [b.id, b.label, sortedReply.filter((s) => s >= lo && s < b.max).length];
+  });
+  const tiles = [
+    {
+      id: "messages",
+      label: "Customer messages",
+      value: String(tot.in),
+      meta: tot.in ? `on ${current.filter((d) => d.messages_in > 0).length} of ${days} days` : "none in this period",
+      delta: deltaOf(tot.in, prev.in, true, noun),
+      spark: points.map((p) => p.in),
+      compare: compareWords(tot.in, prev.in, rangeLabel, priorHadAny)
+    },
+    {
+      id: "answered",
+      label: "Receptionist answered",
+      value: aiShare === null ? "\u2014" : `${aiShare}%`,
+      meta: answeredTotal ? `${tot.ai} of ${answeredTotal} \xB7 ${tot.you} by you \xB7 ${tot.none} unanswered` : "nothing to answer",
+      // A share compares in POINTS. Against counts, the share could fall from
+      // 100% to 60% while the delta read +20% in green.
+      delta: pointsDelta(aiShare, prevShare, noun),
+      spark: points.map((p) => p.ai),
+      compare: null
+    },
+    {
+      id: "reply",
+      label: "Median reply time",
+      value: fmtSeconds(median),
+      meta: sortedReply.length ? `slowest tenth ${fmtSeconds(p90)} \xB7 ${sortedReply.length} replies` : "no receptionist replies yet",
+      delta: null,
+      spark: [],
+      compare: null
+    },
+    {
+      id: "needed",
+      label: "Needed you",
+      value: String(tot.escalations),
+      meta: tot.escalations ? "times the receptionist stopped" : "the receptionist never stopped",
+      delta: deltaOf(tot.escalations, prev.escalations, false, noun),
+      spark: points.map((p) => p.escalations),
+      compare: compareWords(tot.escalations, prev.escalations, rangeLabel, priorHadAny)
+    },
+    {
+      id: "calls",
+      label: "Calls",
+      value: String(tot.calls),
+      meta: tot.calls ? `${Math.max(1, Math.round(tot.callSeconds / 60))} min on the phone \xB7 ${dto.voicemail ?? 0} to voicemail` : "no calls",
+      delta: deltaOf(tot.calls, prev.calls, true, noun),
+      spark: points.map((p) => p.calls),
+      compare: compareWords(tot.calls, prev.calls, rangeLabel, priorHadAny)
+    },
+    {
+      id: "people",
+      label: "New people",
+      value: String(tot.newPeople),
+      meta: tot.newPeople ? "first contact in this period, by evidence" : "nobody new",
+      delta: deltaOf(tot.newPeople, prev.newPeople, true, noun),
+      spark: points.map((p) => p.newPeople),
+      compare: compareWords(tot.newPeople, prev.newPeople, rangeLabel, priorHadAny)
+    }
+  ];
+  const reasons = bars(
+    Object.entries(dto.reasons ?? {}).sort((a, b) => b[1] - a[1]).map(([r2, n]) => [r2, capitalize(reasonShort(r2)) || r2, n])
+  );
+  const sentiments = bars(
+    Object.entries(dto.sentiments ?? {}).sort((a, b) => moodRank(a[0]) - moodRank(b[0]) || b[1] - a[1]).map(([s, n]) => [s, s, n])
+  ).map((b) => ({ ...b, tone: callMoodTone(b.id) }));
+  const weekNow = weekOf(current);
+  const weekBefore = weekOf(previous);
+  const week = {
+    axes: [...REPORT_WEEK_SHORT],
+    long: [...REPORT_WEEK_LONG],
+    current: weekNow,
+    prior: weekBefore.some((v) => v > 0) ? weekBefore : null,
+    busiest: onlyIndex(weekNow, (a, b) => a > b),
+    quietest: onlyIndex(weekNow, (a, b) => a < b),
+    unit: current.length > 7 ? "average" : "count"
+  };
+  const channels = channelsOf(dto.channels);
+  const peopleBefore = priorOf(current.length, previous, (d) => d.new_contacts);
+  const peopleRun = runningTotal(points.map((p) => p.newPeople));
+  const busiestDay = tot.in ? points.reduce((b, p) => p.in > b.in ? p : b) : null;
+  const first = current[0]?.day;
+  const last = current[current.length - 1]?.day;
+  return {
+    days,
+    rangeLabel,
+    since: first ? fmtDay(first) : "",
+    until: last ? fmtDay(last) : "",
+    timezone: dto.timezone,
+    empty: tot.in === 0 && tot.calls === 0,
+    tiles,
+    answered: {
+      points,
+      totals: { in: tot.in, ai: tot.ai, you: tot.you, none: tot.none },
+      max: Math.max(1, ...points.map((p) => p.ai + p.you + p.none)),
+      prior: priorOf(current.length, previous, (d) => d.messages_in),
+      share: answeredTotal ? tot.ai / answeredTotal : null,
+      priorShare: prevAnsweredTotal ? prev.ai / prevAnsweredTotal : null
+    },
+    reasons,
+    replyTime: {
+      count: sortedReply.length,
+      median,
+      p90,
+      medianLabel: fmtSeconds(median),
+      p90Label: fmtSeconds(p90),
+      buckets: bars(bucketCounts)
+    },
+    calls: {
+      points,
+      total: tot.calls,
+      minutes: Math.round(tot.callSeconds / 60),
+      voicemail: dto.voicemail ?? 0,
+      sentiments,
+      max: Math.max(1, ...points.map((p) => p.calls)),
+      prior: priorOf(current.length, previous, (d) => d.calls)
+    },
+    people: {
+      points,
+      total: tot.newPeople,
+      max: Math.max(1, ...points.map((p) => p.newPeople)),
+      prior: peopleBefore,
+      cumulative: {
+        points: points.map((p, i) => ({ ...p, total: peopleRun[i] })),
+        prior: prev.newPeople > 0 ? runningTotal(peopleBefore) : null
+      }
+    },
+    speed: dto.replies ? speedOf(
+      dto.replies,
+      current.map((d) => d.day)
+    ) : null,
+    week,
+    hours: hoursOf2(dto.hours),
+    channels,
+    period: { now: `Last ${rangeLabel}`, before: `The ${rangeLabel} before` },
+    lines: {
+      hero: answeredTotal ? `${tot.ai} of ${answeredTotal} customer messages, without you.${sortedReply.length ? ` Half of its replies went out within ${fmtSeconds(median)}.` : ""}` : "No customer wrote in this period.",
+      heroBefore: prevAnsweredTotal ? `${Math.round(prev.ai / prevAnsweredTotal * 100)}% the ${rangeLabel} before` : null,
+      answered: busiestDay ? `Most messages on ${busiestDay.label}: ${busiestDay.in}.` : null,
+      // Nine in ten is a claim about a tenth: under ten replies it would be a guess, so the slowest one is said instead.
+      reply: sortedReply.length >= 10 ? `Nine in ten within ${fmtSeconds(p90)}.` : sortedReply.length ? `The slowest took ${fmtSeconds(sortedReply[sortedReply.length - 1])}.` : null,
+      calls: tot.calls ? `About ${fmtSeconds(tot.callSeconds / tot.calls)} a call.` : null,
+      channels: channelsLine(channels, rangeLabel),
+      rhythm: rhythmLine(week)
+    },
+    table: {
+      columns: [
+        "Day",
+        "Customer messages",
+        "Answered by receptionist",
+        "Answered by you",
+        "Unanswered",
+        "Calls",
+        "Needed you",
+        "New people"
+      ],
+      rows: points.map((p) => [p.label, p.in, p.ai, p.you, p.none, p.calls, p.escalations, p.newPeople])
+    }
+  };
+}
+
+// src/google.ts
+var pointOf = (v) => {
+  const p = v !== null && typeof v === "object" ? v : null;
+  return p && typeof p.day === "number" && typeof p.hour === "number" && typeof p.minute === "number" ? { day: p.day, hour: p.hour, minute: p.minute } : null;
+};
+function listingFactsOf(raw) {
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const r2 = raw;
+  if (!Object.keys(r2).length) return null;
+  const text = (v) => typeof v === "string" && v.trim() ? v.trim() : null;
+  const hours = Array.isArray(r2.hours) ? r2.hours.flatMap((p) => {
+    const q = p !== null && typeof p === "object" ? p : null;
+    const open = q ? pointOf(q.open) : null;
+    if (!q || !open) return [];
+    if (q.close == null) return [{ open, close: null }];
+    const close = pointOf(q.close);
+    return close ? [{ open, close }] : [];
+  }) : null;
+  return {
+    hours,
+    phone_e164: text(r2.phone_e164),
+    phone_display: text(r2.phone_display),
+    website: text(r2.website),
+    primary_type: text(r2.primary_type),
+    primary_type_label: text(r2.primary_type_label),
+    service_area_only: r2.service_area_only === true,
+    time_zone: text(r2.time_zone),
+    booking_page: bookingPageOf(text(r2.booking_page))
+  };
+}
+function bookingPageKept(prev, website) {
+  return prev && prev.website === website ? prev.booking_page ?? null : null;
+}
+function bookingPageOffered(found, holdsLink) {
+  return holdsLink ? null : found ?? null;
+}
+var hhmm2 = (h, m) => `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+function hoursFromGoogle(periods) {
+  if ((periods ?? []).some((p) => !p.close)) return { hours: {}, unsure: [...DAYS] };
+  const shifts = /* @__PURE__ */ new Map();
+  const unsure = /* @__PURE__ */ new Set();
+  for (const p of periods ?? []) {
+    const day = WEEKDAY_KEYS[p.open.day];
+    if (!day) continue;
+    if (!p.close || p.close.day !== p.open.day) {
+      unsure.add(day);
+      continue;
+    }
+    const shift = { open: hhmm2(p.open.hour, p.open.minute), close: hhmm2(p.close.hour, p.close.minute) };
+    shifts.set(day, [...shifts.get(day) ?? [], shift]);
+  }
+  const hours = {};
+  for (const day of DAYS) {
+    const list2 = (shifts.get(day) ?? []).sort((a, b) => a.open.localeCompare(b.open));
+    if (unsure.has(day) || !list2.length) continue;
+    const made = list2.length === 1 ? { open: list2[0].open, close: list2[0].close } : { intervals: list2 };
+    if (dayProblems(made, day).length) unsure.add(day);
+    else hours[day] = made;
+  }
+  return { hours, unsure: DAYS.filter((d) => unsure.has(d)) };
+}
+function placesQueryOf(words4) {
+  const w = words4.replace(/\s+/g, " ").trim();
+  return /^[\d\s().+-]+$/.test(w) ? normalizePhone(w) ?? w : w;
+}
+var GOOGLE_SHOWN_REVIEWS = 5;
+var REVIEW_NEWS_MS = 36 * 3600 * 1e3;
+var REVIEW_NEWS_MAX_AGE_MS = 14 * 864e5;
+var BOOTSTRAP_MS = 3600 * 1e3;
+var plural3 = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+function ratingWords(rating) {
+  return typeof rating === "number" && Number.isFinite(rating) ? `${rating.toFixed(1)} \u2605` : "no rating yet";
+}
+function starsOf(rating) {
+  const n = typeof rating === "number" && Number.isFinite(rating) ? Math.max(0, Math.min(5, Math.round(rating))) : 0;
+  return "\u2605".repeat(n) + "\u2606".repeat(5 - n);
+}
+function reviewsWords(count2) {
+  return typeof count2 === "number" ? plural3(count2, "review") : "reviews not counted yet";
+}
+function listingLine(l) {
+  if (!l.review_count) return `${l.name} \xB7 no reviews on Google yet`;
+  return `${l.name} \xB7 ${ratingWords(l.rating)} \xB7 ${reviewsWords(l.review_count)} on Google`;
+}
+function checkedWords(l, nowMs) {
+  if (l.check_error && l.checked_at)
+    return `Google could not be read since ${agoWords(Date.parse(l.checked_at), nowMs)} \u2014 read again once a day`;
+  if (l.check_error) return "Google could not be read yet \u2014 read again once a day";
+  if (l.checked_at) return `Checked ${agoWords(Date.parse(l.checked_at), nowMs)}`;
+  return "Not read yet";
+}
+function connectionWords(c, nowMs) {
+  const who = c.google_email ? `Connected as ${c.google_email}` : "Connected";
+  if (!c.location_name) return `${who} \xB7 choose the location to finish`;
+  if (c.sync_error && c.last_synced_at)
+    return `${who} \xB7 could not sync since ${agoWords(Date.parse(c.last_synced_at), nowMs)} \u2014 read again once a day`;
+  if (c.sync_error) return `${who} \xB7 could not sync yet \u2014 read again once a day`;
+  if (c.last_synced_at) return `${who} \xB7 synced ${agoWords(Date.parse(c.last_synced_at), nowMs)}`;
+  return `${who} \xB7 not synced yet`;
+}
+function reviewSnippet(body, max = 90) {
+  const t = (body ?? "").replace(/\s+/g, " ").trim();
+  if (!t) return "";
+  return t.length > max ? `${t.slice(0, max - 1).trimEnd()}\u2026` : t;
+}
+var DATE_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var WEEK_MS2 = 7 * 864e5;
+function whenWords(iso, nowMs) {
+  if (!iso) return "";
+  const at2 = Date.parse(iso);
+  if (Number.isNaN(at2)) return "";
+  return agoWords(at2, nowMs, { dateAfterMs: WEEK_MS2, date: (ms2) => DATE_FMT2.format(new Date(ms2)) });
+}
+function shiftDay2(day, n) {
+  const d = dayDate(day);
+  d.setDate(d.getDate() + n);
+  const p = (x) => String(x).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+function reviewIsNew(r2, linkedAt, nowMs) {
+  const seen = Date.parse(r2.first_seen_at);
+  const linked = Date.parse(linkedAt);
+  if (Number.isNaN(seen)) return false;
+  if (nowMs - seen > REVIEW_NEWS_MS) return false;
+  if (!Number.isNaN(linked) && seen - linked < BOOTSTRAP_MS) return false;
+  const written = r2.published_at ? Date.parse(r2.published_at) : NaN;
+  if (Number.isNaN(written)) return false;
+  return nowMs - written <= REVIEW_NEWS_MAX_AGE_MS;
+}
+function toGoogleReviewVM(r2, linkedAt, nowMs) {
+  return {
+    id: r2.id,
+    stars: starsOf(r2.rating),
+    rating: r2.rating,
+    author: r2.author?.trim() || "A customer",
+    when: whenWords(r2.published_at, nowMs),
+    text: (r2.body ?? "").replace(/\s+/g, " ").trim(),
+    replied: !!r2.reply_text,
+    replyText: (r2.reply_text ?? "").replace(/\s+/g, " ").trim(),
+    mapsUri: r2.maps_uri,
+    isNew: reviewIsNew(r2, linkedAt, nowMs),
+    fromProfile: r2.origin === "profile"
+  };
+}
+var EMPTY_GAINED = { points: [], max: 0, total: null, sinceLabel: null };
+function gainedOver(days, periodDays) {
+  const sorted = [...days].sort((a, b) => a.day < b.day ? -1 : a.day > b.day ? 1 : 0);
+  if (sorted.length < 2) return { current: EMPTY_GAINED, previous: null };
+  const last = sorted[sorted.length - 1];
+  const since = shiftDay2(last.day, -(periodDays - 1));
+  const before = sorted.filter((d) => d.day < since);
+  const inside = sorted.filter((d) => d.day >= since);
+  const baseline = before.length ? before[before.length - 1] : inside[0];
+  const total = last.review_count - baseline.review_count;
+  const sinceLabel = before.length ? null : fmtDay(baseline.day);
+  const byDay = new Map(sorted.map((d) => [d.day, d.review_count]));
+  const points = [];
+  let prev = before.length ? baseline.review_count : null;
+  for (let day = since; day <= last.day; day = shiftDay2(day, 1)) {
+    const count2 = byDay.get(day);
+    const gained = count2 !== void 0 && prev !== null ? Math.max(0, count2 - prev) : 0;
+    if (count2 !== void 0) prev = count2;
+    points.push({ day, label: fmtDay(day), short: String(dayDate(day).getDate()), gained });
+  }
+  const max = Math.max(0, ...points.map((p) => p.gained));
+  const prevSince = shiftDay2(since, -periodDays);
+  const prevBefore = sorted.filter((d) => d.day < prevSince);
+  const prevInside = sorted.filter((d) => d.day >= prevSince && d.day < since);
+  const previous = prevBefore.length && prevInside.length ? prevInside[prevInside.length - 1].review_count - prevBefore[prevBefore.length - 1].review_count : null;
+  return { current: { points, max, total: before.length || inside.length >= 2 ? total : null, sinceLabel }, previous };
+}
+function toGoogleVM(dto, periodDays, nowMs = Date.now()) {
+  const l = dto.listing;
+  const c = dto.connection ?? null;
+  const connection = c ? {
+    email: c.google_email,
+    location: c.location_title,
+    words: connectionWords(c, nowMs),
+    pending: !c.location_name,
+    trouble: !!c.sync_error
+  } : null;
+  const canReply = !!c && !!c.location_name;
+  const reply = { mode: dto.reply_mode, words: reviewReplyWords(dto.reply_mode, canReply) };
+  const table = { columns: ["Reviewer", "Stars", "Written", "Words"], rows: [] };
+  if (!l)
+    return {
+      listing: null,
+      connection,
+      canReply,
+      reply,
+      tiles: [],
+      gained: EMPTY_GAINED,
+      latest: [],
+      source: "",
+      table,
+      todayLine: null
+    };
+  const latest = [...dto.reviews].sort((a, b) => (Date.parse(b.published_at ?? "") || 0) - (Date.parse(a.published_at ?? "") || 0)).map((r2) => toGoogleReviewVM(r2, l.linked_at, nowMs));
+  table.rows = latest.map((r2) => [r2.author, r2.rating ?? "\u2014", r2.when || "\u2014", r2.text || "\u2014"]);
+  const source = canReply ? "every review, from your Business Profile" : `the ${latest.length === 1 ? "one" : latest.length} Google shows first`;
+  const days = [...dto.days].sort((a, b) => a.day < b.day ? -1 : a.day > b.day ? 1 : 0);
+  const { current: gained, previous } = gainedOver(days, periodDays);
+  const noun = `${periodDays} days`;
+  const inPeriod = days.length ? days.filter((d) => d.day >= shiftDay2(days[days.length - 1].day, -(periodDays - 1))) : [];
+  const ratingSpark = inPeriod.map((d) => d.rating ?? 0);
+  const countSpark = inPeriod.map((d) => d.review_count);
+  const baselineRating = (() => {
+    if (!days.length) return null;
+    const since = shiftDay2(days[days.length - 1].day, -(periodDays - 1));
+    const before = days.filter((d) => d.day < since);
+    return before.length ? before[before.length - 1].rating : null;
+  })();
+  const ratingDelta = typeof l.rating === "number" && typeof baselineRating === "number" ? Math.abs(l.rating - baselineRating) < 0.05 ? { text: `same as ${noun} ago`, tone: "" } : {
+    text: `${l.rating - baselineRating > 0 ? "+" : ""}${(l.rating - baselineRating).toFixed(1)} vs ${noun} ago`,
+    tone: l.rating > baselineRating ? "pos" : "neg"
+  } : null;
+  const newest = latest[0] ?? null;
+  const checked = checkedWords(l, nowMs);
+  const tiles = [
+    {
+      id: "rating",
+      label: "Rating on Google",
+      value: typeof l.rating === "number" ? l.rating.toFixed(1) : "\u2014",
+      meta: `${reviewsWords(l.review_count)} \xB7 ${checked.toLowerCase()}`,
+      delta: ratingDelta,
+      spark: ratingSpark,
+      compare: null
+    },
+    {
+      id: "reviews",
+      label: "Reviews on Google",
+      value: typeof l.review_count === "number" ? String(l.review_count) : "\u2014",
+      meta: "as Google counts them, with or without words",
+      delta: null,
+      spark: countSpark,
+      compare: null
+    },
+    {
+      id: "gained",
+      label: `Gained in ${noun}`,
+      value: gained.total === null ? "\u2014" : String(gained.total),
+      meta: gained.total === null ? "needs a second day of reading" : gained.sinceLabel ? `since ${gained.sinceLabel}, the first day on record` : `new ratings, words or not`,
+      delta: gained.total !== null && previous !== null ? deltaOf(gained.total, previous, true, noun) : null,
+      spark: gained.points.map((p) => p.gained),
+      compare: null
+    },
+    {
+      id: "newest",
+      label: "Newest review",
+      value: newest?.when || "\u2014",
+      meta: newest ? `${newest.stars} \xB7 ${newest.author}` : canReply ? "no review yet" : "none of the five Google shows has a date",
+      delta: null,
+      spark: [],
+      compare: null
+    }
+  ];
+  const news = latest.find((r2) => r2.isNew) ?? null;
+  const todayLine = news ? {
+    text: `New on Google: ${news.stars} from ${news.author}${news.text ? ` \u2014 \u201C${reviewSnippet(news.text)}\u201D` : ""}`,
+    to: "reports"
+  } : null;
+  return {
+    listing: {
+      name: l.name,
+      address: l.address,
+      ratingLabel: ratingWords(l.rating),
+      count: l.review_count,
+      checked,
+      mapsUri: l.maps_uri,
+      trouble: !!l.check_error
+    },
+    connection,
+    canReply,
+    reply,
+    tiles,
+    gained,
+    latest,
+    source,
+    table,
+    todayLine
+  };
+}
+
 // src/first-run.ts
 var FIRST_RUN_ROUTE = "start";
 function firstRunStepRoute(key) {
@@ -6411,7 +7223,9 @@ var FIRST_RUN_WORDS = {
       ownService: "+ Your own",
       otherLanguage: "+ Other",
       removed: (name) => `Removed ${name}`
-    }
+    },
+    /** The booking page the business's website names, offered under the booking link row (3c-4). */
+    bookingPage: { found: (page) => `Found on your website: ${page}`, use: "Use it" }
   }
 };
 function unsureHoursWords(days) {
@@ -6466,7 +7280,8 @@ function firstRunOf(vm, at2, who) {
     waiting: !made && !who?.owner ? C2.ownerSetsUp : null,
     unsure: made ? unsureHoursWords(vm.check.unsure) : null,
     find: vm.findable && who?.owner ? { label: C2.findIt, to: FIRST_RUN_FIND_ROUTE } : null,
-    type: vm.check.type
+    type: vm.check.type,
+    bookingPage: vm.check.bookingPage
   } : null;
   const F = FIRST_RUN_WORDS.find;
   const facts = rowOf(vm, "facts");
@@ -6606,6 +7421,7 @@ var FIRST_RUN_HELPERS = {
   receptionist: receptionistCardOf,
   todayCard: setupCardOf,
   chips: checkChipsOf,
+  bookingPageOffered,
   words: FIRST_RUN_WORDS,
   landedKey: FIRST_RUN_LANDED_KEY
 };
@@ -6897,7 +7713,7 @@ function leadNoCardLine(what) {
   return what && what.trim() ? `I can't search ${what.trim()} yet. ${LEAD_NO_CARD_LINE}` : LEAD_NO_CARD_LINE;
 }
 var LEAD_PAUSED_TITLE = "Lead searches are paused for now";
-var plural3 = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+var plural4 = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 function leadNearWhere(labels) {
   const isNear = (l) => l.toLowerCase().startsWith("near ");
   return labels.length && labels.every(isNear) ? `near ${leadAnd(labels.map((l) => l.slice(5).trim()))}` : `in ${leadAnd(labels)}`;
@@ -6923,7 +7739,7 @@ function leadEndingLine(ending, f) {
       if (f.counted === 0) {
         return {
           mark,
-          title: `There are ${plural3(f.seen, one, f.name)} in ${f.area}, and ${f.seen === 1 ? "it is" : "all of them are"} ${f.leftOutBy ?? "outside what you asked for"}, which you asked me to leave out.`,
+          title: `There are ${plural4(f.seen, one, f.name)} in ${f.area}, and ${f.seen === 1 ? "it is" : "all of them are"} ${f.leftOutBy ?? "outside what you asked for"}, which you asked me to leave out.`,
           parts: ["Nothing was counted."],
           step: f.nearby.length ? { id: "nearby", label: `Look ${leadNearWhere(f.nearby)}` } : null
         };
@@ -6947,7 +7763,7 @@ function leadEndingLine(ending, f) {
       return {
         mark,
         // "already yours" read as dedupe. "Found all" says what happened: the area ran dry.
-        title: `Found all ${plural3(f.seen, one, f.name)} in ${f.area}`,
+        title: `Found all ${plural4(f.seen, one, f.name)} in ${f.area}`,
         parts: [yours, ...f.nearby.length ? [`Look further out, ${leadNearWhere(f.nearby)}?`] : []],
         step: f.nearby.length ? { id: "look_further", label: "Look further out" } : null
       };
@@ -8270,7 +9086,7 @@ var noLists = () => false;
 function listRuleMatches(rule, v, inList = noLists) {
   return rule.all.every((c) => "any" in c ? c.any.some((f) => holds(f, v, inList)) : holds(c, v, inList));
 }
-var plural4 = (n, one) => `${n} ${n === 1 ? one : `${one}s`}`;
+var plural5 = (n, one) => `${n} ${n === 1 ? one : `${one}s`}`;
 var lower = (s) => `${s.charAt(0).toLowerCase()}${s.slice(1)}`;
 var STANDING_WORDS = {
   needs_you: "Needs you",
@@ -8295,9 +9111,9 @@ function listFactWords(f, listName = () => null) {
     case "last_visit":
     case "last_heard":
     case "first_contact":
-      return f.op === "never" ? f.field === "last_visit" ? "Never visited" : f.field === "last_heard" ? "Never heard from" : "No first contact on file" : f.op === "ever" ? f.field === "last_visit" ? "Has visited" : f.field === "last_heard" ? "Has written or called" : "Has a first contact" : f.op === "more_than" ? `${label} more than ${plural4(f.days ?? 0, "day")} ago` : `${label} in the last ${plural4(f.days ?? 0, "day")}`;
+      return f.op === "never" ? f.field === "last_visit" ? "Never visited" : f.field === "last_heard" ? "Never heard from" : "No first contact on file" : f.op === "ever" ? f.field === "last_visit" ? "Has visited" : f.field === "last_heard" ? "Has written or called" : "Has a first contact" : f.op === "more_than" ? `${label} more than ${plural5(f.days ?? 0, "day")} ago` : `${label} in the last ${plural5(f.days ?? 0, "day")}`;
     case "next_visit":
-      return f.op === "this_week" ? `${label} this week` : f.op === "never" ? "No visit ahead" : f.op === "ever" ? "A visit ahead" : f.op === "within" ? `${label} in the next ${plural4(f.days ?? 0, "day")}` : `${label} more than ${plural4(f.days ?? 0, "day")} away`;
+      return f.op === "this_week" ? `${label} this week` : f.op === "never" ? "No visit ahead" : f.op === "ever" ? "A visit ahead" : f.op === "within" ? `${label} in the next ${plural5(f.days ?? 0, "day")}` : `${label} more than ${plural5(f.days ?? 0, "day")} away`;
     case "booked":
     case "asked_not_booked":
     case "has_chat":
@@ -8314,7 +9130,7 @@ function listFactWords(f, listName = () => null) {
       return `${f.op === "is" ? label : "Did not come from"}: ${PERSON_CAME_FROM_WORDS[f.from]}`;
     case "calls":
     case "conversations":
-      return `${f.op === "at_least" ? "At least" : "At most"} ${plural4(f.n, f.field === "calls" ? "call" : "conversation")}`;
+      return `${f.op === "at_least" ? "At least" : "At most"} ${plural5(f.n, f.field === "calls" ? "call" : "conversation")}`;
     case "standing":
       return f.op === "is" ? STANDING_WORDS[f.value] : `Not: ${lower(STANDING_WORDS[f.value])}`;
     case "assigned":
@@ -8772,7 +9588,7 @@ var PEOPLE_TABS = [
   { id: "active", label: "Active" }
 ];
 var DAY_MS4 = 864e5;
-var WEEK_MS2 = 7 * DAY_MS4;
+var WEEK_MS3 = 7 * DAY_MS4;
 var MONTH_MS = 30 * DAY_MS4;
 var NEW_WINDOW_DAYS = 7;
 var QUIET_AFTER_DAYS = 30;
@@ -8806,15 +9622,15 @@ function fmtDate(ms2, tz, nowMs) {
   return clockDate(ms2, tz, nowMs);
 }
 function ago(ms2, tz, nowMs) {
-  return agoWords(ms2, nowMs, { dateAfterMs: WEEK_MS2, date: (at2) => clockDate(at2, tz, nowMs) });
+  return agoWords(ms2, nowMs, { dateAfterMs: WEEK_MS3, date: (at2) => clockDate(at2, tz, nowMs) });
 }
 function mmss3(ms2) {
   if (ms2 == null || ms2 <= 0) return void 0;
   const s = Math.round(ms2 / 1e3);
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
-var capitalize = (s) => s ? s[0].toUpperCase() + s.slice(1) : s;
-function channelsOf(r2) {
+var capitalize2 = (s) => s ? s[0].toUpperCase() + s.slice(1) : s;
+function channelsOf2(r2) {
   const set = new Set(r2.channels ?? []);
   const wrote = r2.message_channels;
   if (wrote ? wrote.includes("whatsapp") : r2.has_chat) set.add("whatsapp");
@@ -9253,7 +10069,7 @@ function toPersonRowVM(r2, tz, now = /* @__PURE__ */ new Date(), viewerId = null
     phone: formatPhoneDisplay(r2.phone_e164),
     email: r2.email ?? null,
     waName: r2.wa_profile_name,
-    channels: channelsOf(r2),
+    channels: channelsOf2(r2),
     hasChat: !!r2.has_chat,
     state,
     stateLabel: PERSON_STATE_LABELS[state],
@@ -9291,7 +10107,7 @@ function toPersonRowVM(r2, tz, now = /* @__PURE__ */ new Date(), viewerId = null
       };
       return { replyWindow: win, replyVia: REPLY_VIA[via], bookingLinkAction: bookingLinkAction(REPLY_VIA[via], win) };
     })(),
-    channelWords: channelsOf(r2).map((c) => PERSON_CHANNEL_WORDS[c]).join(" \xB7 "),
+    channelWords: channelsOf2(r2).map((c) => PERSON_CHANNEL_WORDS[c]).join(" \xB7 "),
     askedMs,
     askedNotBooked,
     nextVisitMs,
@@ -9426,7 +10242,7 @@ function peopleAggregates(rows, nowMs) {
       if (v.needsYouSinceMs !== null && (oldest === null || v.needsYouSinceMs < oldest)) oldest = v.needsYouSinceMs;
     }
     if (v.firstContact.evidence && v.firstContact.ts !== null && nowMs - v.firstContact.ts <= MONTH_MS) newThisMonth++;
-    if (v.lastContact.ts !== null && nowMs - v.lastContact.ts <= WEEK_MS2) {
+    if (v.lastContact.ts !== null && nowMs - v.lastContact.ts <= WEEK_MS3) {
       reachedWeek++;
       if (v.state === "new") reachedWeekNew++;
     }
@@ -9593,7 +10409,7 @@ var DECISION_LABELS = {
   pause_agent: { who: "Paused the receptionist", text: "You paused automatic replies" },
   resume_agent: { who: "Resumed the receptionist", text: "You resumed automatic replies" }
 };
-function plural5(n, one, many = `${one}s`) {
+function plural6(n, one, many = `${one}s`) {
   return `${n} ${n === 1 ? one : many}`;
 }
 function toPersonVM(d, tz, now = /* @__PURE__ */ new Date(), viewerId = null) {
@@ -9646,7 +10462,7 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date(), viewerId = null) {
           }
         } : m
       );
-      const who = kind === "customer" ? first : !author ? "System" : author.kind === "receptionist" ? "Receptionist" : author.kind === "team" ? "Your team" : capitalize(author.words);
+      const who = kind === "customer" ? first : !author ? "System" : author.kind === "receptionist" ? "Receptionist" : author.kind === "team" ? "Your team" : capitalize2(author.words);
       const sub = m.status === "failed" ? "Not delivered" : m.status === "queued" ? "Sending" : void 0;
       items.push({
         id: `m-${m.id}`,
@@ -9688,7 +10504,7 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date(), viewerId = null) {
       ...stamp(t),
       kind: "escalation",
       who: "Escalated",
-      text: capitalize(reasonShort(e.reason)) || "The receptionist stopped",
+      text: capitalize2(reasonShort(e.reason)) || "The receptionist stopped",
       // "Open" beside a row that opens something read as the verb; the state is what it says.
       sub: e.state === "resolved" ? "Resolved" : "Still open",
       link: { label: "Open the thread", to: `inbox/th-${e.conversation_id}` }
@@ -9814,7 +10630,7 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date(), viewerId = null) {
     rightNow = {
       tone: "escalated",
       title: `Escalated \xB7 ${reasonShort(r2.open_escalation_reason)}`,
-      detail: `${capitalize(reasonShort(r2.open_escalation_reason))}${since ? ` \xB7 since ${since}` : ""}. Paused until someone answers.`,
+      detail: `${capitalize2(reasonShort(r2.open_escalation_reason))}${since ? ` \xB7 since ${since}` : ""}. Paused until someone answers.`,
       cta: openThread
     };
   } else if (r2.needs_human) {
@@ -9965,7 +10781,7 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date(), viewerId = null) {
       };
     })() : {},
     since: base.firstContact.label === "\u2014" ? "" : base.firstContact.estimate ? `Since ${base.firstContact.label.charAt(0).toLowerCase()}${base.firstContact.label.slice(1)}` : `Since ${base.firstContact.label}`,
-    metaLine: `${plural5(base.threads, "conversation")} \xB7 ${plural5(base.calls, "call")}`,
+    metaLine: `${plural6(base.threads, "conversation")} \xB7 ${plural6(base.calls, "call")}`,
     lastExchange: { customer, reply },
     facts,
     rightNow,
@@ -12083,755 +12899,6 @@ function forwardingTestOpen(facts, nowMs = Date.now()) {
   return !Number.isNaN(until) && until > nowMs;
 }
 
-// src/review-reply.ts
-function reviewReplyModeOf(rows) {
-  const m = rows?.find((r2) => r2.class === "reviews")?.mode;
-  return m === "auto" || m === "never" ? m : "ask";
-}
-var REVIEW_REPLY_MAX_WORDS = 60;
-var REVIEW_REPLY_MAX_CHARS = 1e3;
-var REVIEW_AUTO_REPLIES_PER_SYNC = 3;
-var REVIEW_AUTO_REPLY_MAX_AGE_MS = 14 * 864e5;
-function firstName(author) {
-  const a = (author ?? "").trim();
-  if (!a || /^(a google user|anonymous)$/i.test(a)) return null;
-  return a.split(/\s+/)[0];
-}
-function reviewReplyPrompt(facts, review) {
-  const lang = facts.languages[0] ?? "English";
-  const system = [
-    "You write the public reply a business posts under a Google review, in the business's own name.",
-    `Business: ${facts.name}.`,
-    facts.tone ? `Tone, in the owner's words: ${facts.tone}` : null,
-    facts.languages.length ? `Languages the business speaks: ${facts.languages.join(", ")}.` : null,
-    facts.services.length ? `Services: ${facts.services.slice(0, 12).join(", ")}.` : null,
-    facts.website ? `Website: ${facts.website}` : null,
-    facts.phone ? `Phone: ${facts.phone}` : null,
-    "",
-    "Rules:",
-    `- Reply in the language the review is written in. When the review has no words, reply in ${lang}.`,
-    `- One to three sentences, at most ${REVIEW_REPLY_MAX_WORDS} words. Warm and specific to what they wrote, never a form letter.`,
-    "- Address them by first name when one is given; no name when the review is anonymous.",
-    "- Four or five stars: thank them and pick up one thing they praised.",
-    `- Three stars or fewer: thank them for the feedback, apologise plainly for what went wrong, and invite them to get in touch so it can be put right${facts.phone ? ` (${facts.phone})` : ""}. Never argue, never dispute what they wrote, never blame them.`,
-    "- Never mention refunds, discounts, prices or compensation \u2014 those decisions belong to the owner.",
-    "- Never invent details about their visit, names of staff, or promises the business did not make.",
-    "- No emojis, no hashtags, no sign-off, no quotation marks around the reply, and do not write the business name at the end.",
-    "",
-    "Answer with the reply text only."
-  ].filter((l) => l !== null).join("\n");
-  const name = firstName(review.author);
-  const text = (review.text ?? "").replace(/\s+/g, " ").trim();
-  const user = [
-    `Rating: ${typeof review.rating === "number" ? `${review.rating} of 5` : "not given"}`,
-    `From: ${name ? review.author.trim() : "a customer who did not give a name"}`,
-    review.written_at ? `Written: ${review.written_at.slice(0, 10)}` : null,
-    text ? `Review: "${text}"` : "The review has no words, only the stars."
-  ].filter((l) => l !== null).join("\n");
-  return { system, user };
-}
-function cleanDraft(raw) {
-  if (typeof raw !== "string") return "";
-  let t = raw.replace(/\r\n?/g, "\n").trim();
-  t = t.replace(/^(reply|response|draft)\s*:\s*/i, "");
-  t = t.replace(/^["“”'‘’«»]+|["“”'‘’«»]+$/g, "");
-  t = t.replace(/\s+/g, " ").trim();
-  return t.slice(0, REVIEW_REPLY_MAX_CHARS);
-}
-function autoReplyCandidates(rows, connectedAt, nowMs, cap2 = REVIEW_AUTO_REPLIES_PER_SYNC) {
-  const connected = connectedAt ? Date.parse(connectedAt) : NaN;
-  if (Number.isNaN(connected)) return [];
-  return rows.filter((r2) => r2.origin === "profile" && !r2.reply_text && r2.published_at).map((r2) => ({ r: r2, at: Date.parse(r2.published_at) })).filter(({ at: at2 }) => !Number.isNaN(at2) && at2 > connected && nowMs - at2 <= REVIEW_AUTO_REPLY_MAX_AGE_MS).sort((a, b) => b.at - a.at).slice(0, Math.max(0, cap2)).map(({ r: r2 }) => r2);
-}
-function autoReplyBell(answered) {
-  if (!answered.length) return null;
-  if (answered.length === 1) {
-    const who = (answered[0].author ?? "").trim();
-    return { title: who ? `Replied to ${who}'s review` : "Replied to a review on Google", body: answered[0].text };
-  }
-  const names2 = answered.map((a) => (a.author ?? "").trim()).filter(Boolean);
-  return {
-    title: `Replied to ${answered.length} reviews on Google`,
-    body: names2.length ? `Under the reviews from ${names2.join(", ")}. Each reply is on Reports.` : "Each reply is on Reports."
-  };
-}
-function reviewReplyWords(mode, canReply) {
-  if (!canReply || !mode) return "";
-  if (mode === "auto") return "new ones are answered by the receptionist within the hour";
-  if (mode === "ask") return "the receptionist drafts, you send";
-  return "";
-}
-
-// src/reports.ts
-var REPORT_CHANNELS = [
-  { key: "whatsapp", label: "WhatsApp" },
-  { key: "voice", label: "Calls" },
-  { key: "email", label: "Email" },
-  { key: "sms", label: "SMS" },
-  { key: "instagram", label: "Instagram" }
-];
-var REPORT_RANGES = [
-  { days: 7, id: "7d", label: "7 days" },
-  { days: 30, id: "30d", label: "30 days" },
-  { days: 90, id: "90d", label: "90 days" }
-];
-var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-function dayDate(day) {
-  const [y, m, d] = day.split("-").map(Number);
-  return new Date(y, (m ?? 1) - 1, d ?? 1);
-}
-function fmtDay(day) {
-  return DATE_FMT.format(dayDate(day));
-}
-function fmtSeconds(s) {
-  if (s == null || !Number.isFinite(s)) return "\u2014";
-  const v = Math.max(0, Math.round(s));
-  if (v < 60) return `${v}s`;
-  if (v < 600) return `${Math.floor(v / 60)}m ${String(v % 60).padStart(2, "0")}s`;
-  if (v < 3600) return `${Math.round(v / 60)}m`;
-  return `${Math.floor(v / 3600)}h ${String(Math.round(v % 3600 / 60)).padStart(2, "0")}m`;
-}
-function quantile(sorted, q) {
-  if (!sorted.length) return null;
-  const pos = (sorted.length - 1) * q;
-  const lo = Math.floor(pos);
-  const hi = Math.ceil(pos);
-  return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
-}
-function deltaOf(current, previous, upIsGood, noun) {
-  if (!previous) return null;
-  const pct2 = Math.round((current - previous) / previous * 100);
-  if (pct2 === 0) return { text: `same as the prior ${noun}`, tone: "" };
-  const up = pct2 > 0;
-  return { text: `${up ? "+" : ""}${pct2}% vs prior ${noun}`, tone: up === upIsGood ? "pos" : "neg" };
-}
-function pointsDelta(current, previous, noun) {
-  if (current === null || previous === null) return null;
-  const pts = current - previous;
-  if (pts === 0) return { text: `same share as the prior ${noun}`, tone: "" };
-  return { text: `${pts > 0 ? "+" : ""}${pts} pts vs prior ${noun}`, tone: pts > 0 ? "pos" : "neg" };
-}
-function compareWords(current, previous, rangeLabel, priorHadAny) {
-  if (!priorHadAny || current === 0 && previous === 0) return null;
-  if (previous === 0) return `none the ${rangeLabel} before`;
-  if (current === previous) return `same as the ${rangeLabel} before`;
-  return `${current > previous ? "up" : "down"} from ${previous}`;
-}
-var REPLY_BUCKETS = [
-  { id: "lt15", label: "under 15s", max: 15 },
-  { id: "lt60", label: "15s \u2013 1m", max: 60 },
-  { id: "lt300", label: "1 \u2013 5m", max: 300 },
-  { id: "lt1800", label: "5 \u2013 30m", max: 1800 },
-  { id: "gte1800", label: "over 30m", max: Infinity }
-];
-function bars(entries) {
-  const max = Math.max(1, ...entries.map((e) => e[2]));
-  return entries.map(([id, label, value]) => ({ id, label, value, share: value / max }));
-}
-var sum = (xs) => xs.reduce((a, b) => a + b, 0);
-var capitalize2 = (s) => s ? s[0].toUpperCase() + s.slice(1) : s;
-function priorOf(n, previous, pick) {
-  return Array.from({ length: n }, (_, i) => {
-    const j = previous.length - n + i;
-    return j >= 0 ? pick(previous[j]) : null;
-  });
-}
-var REPORT_WEEK_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-var REPORT_WEEK_LONG = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-var weekdayOf2 = (day) => (dayDate(day).getDay() + 6) % 7;
-function weekOf(series) {
-  const total = [0, 0, 0, 0, 0, 0, 0];
-  const seen = [0, 0, 0, 0, 0, 0, 0];
-  for (const d of series) {
-    const w = weekdayOf2(d.day);
-    total[w] += (d.messages_in || 0) + (d.calls || 0);
-    seen[w] += 1;
-  }
-  return total.map((t, w) => seen[w] ? Math.round(t / seen[w] * 10) / 10 : 0);
-}
-function onlyIndex(values, wins) {
-  if (!values.some((v) => v > 0)) return null;
-  let at2 = 0;
-  for (let i = 1; i < values.length; i++) if (wins(values[i], values[at2])) at2 = i;
-  return values.filter((v) => v === values[at2]).length === 1 ? at2 : null;
-}
-function reportHourWords(h) {
-  const x = (h % 24 + 24) % 24;
-  return x === 0 ? "12am" : x < 12 ? `${x}am` : x === 12 ? "12pm" : `${x - 12}pm`;
-}
-function hoursOf2(grid) {
-  if (!grid || !grid.length) return null;
-  const values = Array.from({ length: 24 }, (_, h) => grid.reduce((s, row2) => s + (Number(row2?.[h]) || 0), 0));
-  const total = values.reduce((a, b) => a + b, 0);
-  let peak = null;
-  if (total > 0) {
-    peak = 0;
-    for (let h = 1; h < 23; h++) if (values[h] + values[h + 1] > values[peak] + values[peak + 1]) peak = h;
-  }
-  const outside = values.reduce((s, v, h) => s + (h < 8 || h >= 20 ? v : 0), 0);
-  return { values, peak, outside, labels: values.map((_, h) => reportHourWords(h)) };
-}
-function channelsOf2(ch) {
-  if (!ch) return null;
-  return REPORT_CHANNELS.map(({ key, label }) => ({
-    key,
-    label,
-    value: Number(ch.current?.[key]) || 0,
-    prior: Number(ch.previous?.[key]) || 0
-  })).filter((c) => c.value > 0 || c.prior > 0);
-}
-function runningTotal(values) {
-  let t = 0;
-  return values.map((v) => t += v || 0);
-}
-function speedOf(replies, days) {
-  const byDay = /* @__PURE__ */ new Map();
-  for (const r2 of replies) {
-    if (!Number.isFinite(r2.s)) continue;
-    const xs = byDay.get(r2.day) ?? [];
-    xs.push(r2.s);
-    byDay.set(r2.day, xs);
-  }
-  const point = (chunk) => {
-    const s = chunk.flatMap((d) => byDay.get(d) ?? []).sort((a, b) => a - b);
-    const first = chunk[0];
-    const p50 = quantile(s, 0.5);
-    const p90 = quantile(s, 0.9);
-    return {
-      day: first,
-      label: fmtDay(first),
-      short: chunk.length > 1 ? fmtDay(first) : String(dayDate(first).getDate()),
-      p50,
-      p90,
-      p50Label: fmtSeconds(p50),
-      p90Label: fmtSeconds(p90),
-      count: s.length
-    };
-  };
-  if (days.length <= 14) return { unit: "day", points: days.map((d) => point([d])) };
-  const weeks = [];
-  for (let end = days.length; end > 0; end -= 7) weeks.unshift(days.slice(Math.max(0, end - 7), end));
-  if (weeks.length > 1 && weeks[0].length < 4) weeks.splice(0, 2, [...weeks[0], ...weeks[1]]);
-  return { unit: "week", points: weeks.map(point) };
-}
-function callMoodTone(sentiment) {
-  return sentiment === "Positive" ? "ok" : sentiment === "Negative" ? "danger" : "";
-}
-var moodRank = (s) => s === "Positive" ? 0 : s === "Negative" ? 2 : 1;
-var listWords = (names2, last) => names2.length <= 1 ? names2.join("") : `${names2.slice(0, -1).join(", ")} ${last} ${names2[names2.length - 1]}`;
-var channelNoun = (c) => c.key === "voice" ? "calls" : c.key === "email" ? "email" : c.label;
-function channelsLine(channels, rangeLabel) {
-  if (!channels) return null;
-  const reached = channels.reduce((s, c) => s + c.value, 0);
-  if (!reached) return null;
-  const top = channels.reduce((a, c) => c.value > a.value ? c : a);
-  const lead = top.value * 2 > reached ? `Mostly ${channelNoun(top)}` : `${capitalize2(channelNoun(top))} ${top.key === "voice" ? "lead" : "leads"}`;
-  const before = channels.reduce((s, c) => s + c.prior, 0);
-  if (!before) return `${lead}.`;
-  const wasTop = channels.reduce((a, c) => c.prior > a.prior ? c : a);
-  if (wasTop.key === top.key) return `${lead}, as the ${rangeLabel} before.`;
-  return `${capitalize2(channelNoun(top))} took over from ${channelNoun(wasTop)}.`;
-}
-function rhythmLine(week) {
-  if (!week.current.some((v) => v > 0)) return null;
-  const avg = week.unit === "average";
-  const name = (i) => avg ? `${week.long[i]}s` : week.long[i];
-  const idle = week.current.flatMap((v, i) => v === 0 ? [i] : []);
-  if (idle.length >= 4)
-    return `Only on ${listWords(
-      week.current.flatMap((v, i) => v > 0 ? [name(i)] : []),
-      "and"
-    )}.`;
-  if (idle.length) return `Nothing on ${listWords(idle.map(name), "or")}.`;
-  if (week.quietest === null) return null;
-  return avg ? `Quietest on ${name(week.quietest)}.` : `${week.long[week.quietest]} was the quietest day.`;
-}
-function toReportVM(dto) {
-  const days = dto.days;
-  const series = dto.series ?? [];
-  const current = series.slice(-days);
-  const previous = series.slice(0, Math.max(0, series.length - days));
-  const points = current.map((d) => ({
-    day: d.day,
-    label: fmtDay(d.day),
-    short: String(dayDate(d.day).getDate()),
-    in: d.messages_in,
-    ai: d.answered_ai,
-    you: d.answered_you,
-    none: d.unanswered,
-    calls: d.calls,
-    callSeconds: d.call_seconds,
-    escalations: d.escalations,
-    newPeople: d.new_contacts
-  }));
-  const tot = {
-    in: sum(current.map((d) => d.messages_in)),
-    ai: sum(current.map((d) => d.answered_ai)),
-    you: sum(current.map((d) => d.answered_you)),
-    none: sum(current.map((d) => d.unanswered)),
-    escalations: sum(current.map((d) => d.escalations)),
-    calls: sum(current.map((d) => d.calls)),
-    callSeconds: sum(current.map((d) => d.call_seconds)),
-    newPeople: sum(current.map((d) => d.new_contacts))
-  };
-  const prev = {
-    in: sum(previous.map((d) => d.messages_in)),
-    ai: sum(previous.map((d) => d.answered_ai)),
-    you: sum(previous.map((d) => d.answered_you)),
-    none: sum(previous.map((d) => d.unanswered)),
-    escalations: sum(previous.map((d) => d.escalations)),
-    calls: sum(previous.map((d) => d.calls)),
-    newPeople: sum(previous.map((d) => d.new_contacts))
-  };
-  const noun = `${days} days`;
-  const rangeLabel = REPORT_RANGES.find((r2) => r2.days === days)?.label ?? noun;
-  const priorHadAny = prev.in + prev.calls > 0;
-  const answeredTotal = tot.ai + tot.you + tot.none;
-  const aiShare = answeredTotal ? Math.round(tot.ai / answeredTotal * 100) : null;
-  const prevAnsweredTotal = prev.ai + prev.you + prev.none;
-  const prevShare = prevAnsweredTotal ? Math.round(prev.ai / prevAnsweredTotal * 100) : null;
-  const sortedReply = [...dto.reply_seconds ?? []].filter((x) => Number.isFinite(x)).sort((a, b) => a - b);
-  const median = quantile(sortedReply, 0.5);
-  const p90 = quantile(sortedReply, 0.9);
-  const bucketCounts = REPLY_BUCKETS.map((b, i) => {
-    const lo = i === 0 ? -Infinity : REPLY_BUCKETS[i - 1].max;
-    return [b.id, b.label, sortedReply.filter((s) => s >= lo && s < b.max).length];
-  });
-  const tiles = [
-    {
-      id: "messages",
-      label: "Customer messages",
-      value: String(tot.in),
-      meta: tot.in ? `on ${current.filter((d) => d.messages_in > 0).length} of ${days} days` : "none in this period",
-      delta: deltaOf(tot.in, prev.in, true, noun),
-      spark: points.map((p) => p.in),
-      compare: compareWords(tot.in, prev.in, rangeLabel, priorHadAny)
-    },
-    {
-      id: "answered",
-      label: "Receptionist answered",
-      value: aiShare === null ? "\u2014" : `${aiShare}%`,
-      meta: answeredTotal ? `${tot.ai} of ${answeredTotal} \xB7 ${tot.you} by you \xB7 ${tot.none} unanswered` : "nothing to answer",
-      // A share compares in POINTS. Against counts, the share could fall from
-      // 100% to 60% while the delta read +20% in green.
-      delta: pointsDelta(aiShare, prevShare, noun),
-      spark: points.map((p) => p.ai),
-      compare: null
-    },
-    {
-      id: "reply",
-      label: "Median reply time",
-      value: fmtSeconds(median),
-      meta: sortedReply.length ? `slowest tenth ${fmtSeconds(p90)} \xB7 ${sortedReply.length} replies` : "no receptionist replies yet",
-      delta: null,
-      spark: [],
-      compare: null
-    },
-    {
-      id: "needed",
-      label: "Needed you",
-      value: String(tot.escalations),
-      meta: tot.escalations ? "times the receptionist stopped" : "the receptionist never stopped",
-      delta: deltaOf(tot.escalations, prev.escalations, false, noun),
-      spark: points.map((p) => p.escalations),
-      compare: compareWords(tot.escalations, prev.escalations, rangeLabel, priorHadAny)
-    },
-    {
-      id: "calls",
-      label: "Calls",
-      value: String(tot.calls),
-      meta: tot.calls ? `${Math.max(1, Math.round(tot.callSeconds / 60))} min on the phone \xB7 ${dto.voicemail ?? 0} to voicemail` : "no calls",
-      delta: deltaOf(tot.calls, prev.calls, true, noun),
-      spark: points.map((p) => p.calls),
-      compare: compareWords(tot.calls, prev.calls, rangeLabel, priorHadAny)
-    },
-    {
-      id: "people",
-      label: "New people",
-      value: String(tot.newPeople),
-      meta: tot.newPeople ? "first contact in this period, by evidence" : "nobody new",
-      delta: deltaOf(tot.newPeople, prev.newPeople, true, noun),
-      spark: points.map((p) => p.newPeople),
-      compare: compareWords(tot.newPeople, prev.newPeople, rangeLabel, priorHadAny)
-    }
-  ];
-  const reasons = bars(
-    Object.entries(dto.reasons ?? {}).sort((a, b) => b[1] - a[1]).map(([r2, n]) => [r2, capitalize2(reasonShort(r2)) || r2, n])
-  );
-  const sentiments = bars(
-    Object.entries(dto.sentiments ?? {}).sort((a, b) => moodRank(a[0]) - moodRank(b[0]) || b[1] - a[1]).map(([s, n]) => [s, s, n])
-  ).map((b) => ({ ...b, tone: callMoodTone(b.id) }));
-  const weekNow = weekOf(current);
-  const weekBefore = weekOf(previous);
-  const week = {
-    axes: [...REPORT_WEEK_SHORT],
-    long: [...REPORT_WEEK_LONG],
-    current: weekNow,
-    prior: weekBefore.some((v) => v > 0) ? weekBefore : null,
-    busiest: onlyIndex(weekNow, (a, b) => a > b),
-    quietest: onlyIndex(weekNow, (a, b) => a < b),
-    unit: current.length > 7 ? "average" : "count"
-  };
-  const channels = channelsOf2(dto.channels);
-  const peopleBefore = priorOf(current.length, previous, (d) => d.new_contacts);
-  const peopleRun = runningTotal(points.map((p) => p.newPeople));
-  const busiestDay = tot.in ? points.reduce((b, p) => p.in > b.in ? p : b) : null;
-  const first = current[0]?.day;
-  const last = current[current.length - 1]?.day;
-  return {
-    days,
-    rangeLabel,
-    since: first ? fmtDay(first) : "",
-    until: last ? fmtDay(last) : "",
-    timezone: dto.timezone,
-    empty: tot.in === 0 && tot.calls === 0,
-    tiles,
-    answered: {
-      points,
-      totals: { in: tot.in, ai: tot.ai, you: tot.you, none: tot.none },
-      max: Math.max(1, ...points.map((p) => p.ai + p.you + p.none)),
-      prior: priorOf(current.length, previous, (d) => d.messages_in),
-      share: answeredTotal ? tot.ai / answeredTotal : null,
-      priorShare: prevAnsweredTotal ? prev.ai / prevAnsweredTotal : null
-    },
-    reasons,
-    replyTime: {
-      count: sortedReply.length,
-      median,
-      p90,
-      medianLabel: fmtSeconds(median),
-      p90Label: fmtSeconds(p90),
-      buckets: bars(bucketCounts)
-    },
-    calls: {
-      points,
-      total: tot.calls,
-      minutes: Math.round(tot.callSeconds / 60),
-      voicemail: dto.voicemail ?? 0,
-      sentiments,
-      max: Math.max(1, ...points.map((p) => p.calls)),
-      prior: priorOf(current.length, previous, (d) => d.calls)
-    },
-    people: {
-      points,
-      total: tot.newPeople,
-      max: Math.max(1, ...points.map((p) => p.newPeople)),
-      prior: peopleBefore,
-      cumulative: {
-        points: points.map((p, i) => ({ ...p, total: peopleRun[i] })),
-        prior: prev.newPeople > 0 ? runningTotal(peopleBefore) : null
-      }
-    },
-    speed: dto.replies ? speedOf(
-      dto.replies,
-      current.map((d) => d.day)
-    ) : null,
-    week,
-    hours: hoursOf2(dto.hours),
-    channels,
-    period: { now: `Last ${rangeLabel}`, before: `The ${rangeLabel} before` },
-    lines: {
-      hero: answeredTotal ? `${tot.ai} of ${answeredTotal} customer messages, without you.${sortedReply.length ? ` Half of its replies went out within ${fmtSeconds(median)}.` : ""}` : "No customer wrote in this period.",
-      heroBefore: prevAnsweredTotal ? `${Math.round(prev.ai / prevAnsweredTotal * 100)}% the ${rangeLabel} before` : null,
-      answered: busiestDay ? `Most messages on ${busiestDay.label}: ${busiestDay.in}.` : null,
-      // Nine in ten is a claim about a tenth: under ten replies it would be a guess, so the slowest one is said instead.
-      reply: sortedReply.length >= 10 ? `Nine in ten within ${fmtSeconds(p90)}.` : sortedReply.length ? `The slowest took ${fmtSeconds(sortedReply[sortedReply.length - 1])}.` : null,
-      calls: tot.calls ? `About ${fmtSeconds(tot.callSeconds / tot.calls)} a call.` : null,
-      channels: channelsLine(channels, rangeLabel),
-      rhythm: rhythmLine(week)
-    },
-    table: {
-      columns: [
-        "Day",
-        "Customer messages",
-        "Answered by receptionist",
-        "Answered by you",
-        "Unanswered",
-        "Calls",
-        "Needed you",
-        "New people"
-      ],
-      rows: points.map((p) => [p.label, p.in, p.ai, p.you, p.none, p.calls, p.escalations, p.newPeople])
-    }
-  };
-}
-
-// src/google.ts
-var pointOf = (v) => {
-  const p = v !== null && typeof v === "object" ? v : null;
-  return p && typeof p.day === "number" && typeof p.hour === "number" && typeof p.minute === "number" ? { day: p.day, hour: p.hour, minute: p.minute } : null;
-};
-function listingFactsOf(raw) {
-  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return null;
-  const r2 = raw;
-  if (!Object.keys(r2).length) return null;
-  const text = (v) => typeof v === "string" && v.trim() ? v.trim() : null;
-  const hours = Array.isArray(r2.hours) ? r2.hours.flatMap((p) => {
-    const q = p !== null && typeof p === "object" ? p : null;
-    const open = q ? pointOf(q.open) : null;
-    if (!q || !open) return [];
-    if (q.close == null) return [{ open, close: null }];
-    const close = pointOf(q.close);
-    return close ? [{ open, close }] : [];
-  }) : null;
-  return {
-    hours,
-    phone_e164: text(r2.phone_e164),
-    phone_display: text(r2.phone_display),
-    website: text(r2.website),
-    primary_type: text(r2.primary_type),
-    primary_type_label: text(r2.primary_type_label),
-    service_area_only: r2.service_area_only === true,
-    time_zone: text(r2.time_zone)
-  };
-}
-var hhmm2 = (h, m) => `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-function hoursFromGoogle(periods) {
-  if ((periods ?? []).some((p) => !p.close)) return { hours: {}, unsure: [...DAYS] };
-  const shifts = /* @__PURE__ */ new Map();
-  const unsure = /* @__PURE__ */ new Set();
-  for (const p of periods ?? []) {
-    const day = WEEKDAY_KEYS[p.open.day];
-    if (!day) continue;
-    if (!p.close || p.close.day !== p.open.day) {
-      unsure.add(day);
-      continue;
-    }
-    const shift = { open: hhmm2(p.open.hour, p.open.minute), close: hhmm2(p.close.hour, p.close.minute) };
-    shifts.set(day, [...shifts.get(day) ?? [], shift]);
-  }
-  const hours = {};
-  for (const day of DAYS) {
-    const list2 = (shifts.get(day) ?? []).sort((a, b) => a.open.localeCompare(b.open));
-    if (unsure.has(day) || !list2.length) continue;
-    const made = list2.length === 1 ? { open: list2[0].open, close: list2[0].close } : { intervals: list2 };
-    if (dayProblems(made, day).length) unsure.add(day);
-    else hours[day] = made;
-  }
-  return { hours, unsure: DAYS.filter((d) => unsure.has(d)) };
-}
-function placesQueryOf(words4) {
-  const w = words4.replace(/\s+/g, " ").trim();
-  return /^[\d\s().+-]+$/.test(w) ? normalizePhone(w) ?? w : w;
-}
-var GOOGLE_SHOWN_REVIEWS = 5;
-var REVIEW_NEWS_MS = 36 * 3600 * 1e3;
-var REVIEW_NEWS_MAX_AGE_MS = 14 * 864e5;
-var BOOTSTRAP_MS = 3600 * 1e3;
-var plural6 = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
-function ratingWords(rating) {
-  return typeof rating === "number" && Number.isFinite(rating) ? `${rating.toFixed(1)} \u2605` : "no rating yet";
-}
-function starsOf(rating) {
-  const n = typeof rating === "number" && Number.isFinite(rating) ? Math.max(0, Math.min(5, Math.round(rating))) : 0;
-  return "\u2605".repeat(n) + "\u2606".repeat(5 - n);
-}
-function reviewsWords(count2) {
-  return typeof count2 === "number" ? plural6(count2, "review") : "reviews not counted yet";
-}
-function listingLine(l) {
-  if (!l.review_count) return `${l.name} \xB7 no reviews on Google yet`;
-  return `${l.name} \xB7 ${ratingWords(l.rating)} \xB7 ${reviewsWords(l.review_count)} on Google`;
-}
-function checkedWords(l, nowMs) {
-  if (l.check_error && l.checked_at)
-    return `Google could not be read since ${agoWords(Date.parse(l.checked_at), nowMs)} \u2014 read again once a day`;
-  if (l.check_error) return "Google could not be read yet \u2014 read again once a day";
-  if (l.checked_at) return `Checked ${agoWords(Date.parse(l.checked_at), nowMs)}`;
-  return "Not read yet";
-}
-function connectionWords(c, nowMs) {
-  const who = c.google_email ? `Connected as ${c.google_email}` : "Connected";
-  if (!c.location_name) return `${who} \xB7 choose the location to finish`;
-  if (c.sync_error && c.last_synced_at)
-    return `${who} \xB7 could not sync since ${agoWords(Date.parse(c.last_synced_at), nowMs)} \u2014 read again once a day`;
-  if (c.sync_error) return `${who} \xB7 could not sync yet \u2014 read again once a day`;
-  if (c.last_synced_at) return `${who} \xB7 synced ${agoWords(Date.parse(c.last_synced_at), nowMs)}`;
-  return `${who} \xB7 not synced yet`;
-}
-function reviewSnippet(body, max = 90) {
-  const t = (body ?? "").replace(/\s+/g, " ").trim();
-  if (!t) return "";
-  return t.length > max ? `${t.slice(0, max - 1).trimEnd()}\u2026` : t;
-}
-var DATE_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var WEEK_MS3 = 7 * 864e5;
-function whenWords(iso, nowMs) {
-  if (!iso) return "";
-  const at2 = Date.parse(iso);
-  if (Number.isNaN(at2)) return "";
-  return agoWords(at2, nowMs, { dateAfterMs: WEEK_MS3, date: (ms2) => DATE_FMT2.format(new Date(ms2)) });
-}
-function shiftDay2(day, n) {
-  const d = dayDate(day);
-  d.setDate(d.getDate() + n);
-  const p = (x) => String(x).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-}
-function reviewIsNew(r2, linkedAt, nowMs) {
-  const seen = Date.parse(r2.first_seen_at);
-  const linked = Date.parse(linkedAt);
-  if (Number.isNaN(seen)) return false;
-  if (nowMs - seen > REVIEW_NEWS_MS) return false;
-  if (!Number.isNaN(linked) && seen - linked < BOOTSTRAP_MS) return false;
-  const written = r2.published_at ? Date.parse(r2.published_at) : NaN;
-  if (Number.isNaN(written)) return false;
-  return nowMs - written <= REVIEW_NEWS_MAX_AGE_MS;
-}
-function toGoogleReviewVM(r2, linkedAt, nowMs) {
-  return {
-    id: r2.id,
-    stars: starsOf(r2.rating),
-    rating: r2.rating,
-    author: r2.author?.trim() || "A customer",
-    when: whenWords(r2.published_at, nowMs),
-    text: (r2.body ?? "").replace(/\s+/g, " ").trim(),
-    replied: !!r2.reply_text,
-    replyText: (r2.reply_text ?? "").replace(/\s+/g, " ").trim(),
-    mapsUri: r2.maps_uri,
-    isNew: reviewIsNew(r2, linkedAt, nowMs),
-    fromProfile: r2.origin === "profile"
-  };
-}
-var EMPTY_GAINED = { points: [], max: 0, total: null, sinceLabel: null };
-function gainedOver(days, periodDays) {
-  const sorted = [...days].sort((a, b) => a.day < b.day ? -1 : a.day > b.day ? 1 : 0);
-  if (sorted.length < 2) return { current: EMPTY_GAINED, previous: null };
-  const last = sorted[sorted.length - 1];
-  const since = shiftDay2(last.day, -(periodDays - 1));
-  const before = sorted.filter((d) => d.day < since);
-  const inside = sorted.filter((d) => d.day >= since);
-  const baseline = before.length ? before[before.length - 1] : inside[0];
-  const total = last.review_count - baseline.review_count;
-  const sinceLabel = before.length ? null : fmtDay(baseline.day);
-  const byDay = new Map(sorted.map((d) => [d.day, d.review_count]));
-  const points = [];
-  let prev = before.length ? baseline.review_count : null;
-  for (let day = since; day <= last.day; day = shiftDay2(day, 1)) {
-    const count2 = byDay.get(day);
-    const gained = count2 !== void 0 && prev !== null ? Math.max(0, count2 - prev) : 0;
-    if (count2 !== void 0) prev = count2;
-    points.push({ day, label: fmtDay(day), short: String(dayDate(day).getDate()), gained });
-  }
-  const max = Math.max(0, ...points.map((p) => p.gained));
-  const prevSince = shiftDay2(since, -periodDays);
-  const prevBefore = sorted.filter((d) => d.day < prevSince);
-  const prevInside = sorted.filter((d) => d.day >= prevSince && d.day < since);
-  const previous = prevBefore.length && prevInside.length ? prevInside[prevInside.length - 1].review_count - prevBefore[prevBefore.length - 1].review_count : null;
-  return { current: { points, max, total: before.length || inside.length >= 2 ? total : null, sinceLabel }, previous };
-}
-function toGoogleVM(dto, periodDays, nowMs = Date.now()) {
-  const l = dto.listing;
-  const c = dto.connection ?? null;
-  const connection = c ? {
-    email: c.google_email,
-    location: c.location_title,
-    words: connectionWords(c, nowMs),
-    pending: !c.location_name,
-    trouble: !!c.sync_error
-  } : null;
-  const canReply = !!c && !!c.location_name;
-  const reply = { mode: dto.reply_mode, words: reviewReplyWords(dto.reply_mode, canReply) };
-  const table = { columns: ["Reviewer", "Stars", "Written", "Words"], rows: [] };
-  if (!l)
-    return {
-      listing: null,
-      connection,
-      canReply,
-      reply,
-      tiles: [],
-      gained: EMPTY_GAINED,
-      latest: [],
-      source: "",
-      table,
-      todayLine: null
-    };
-  const latest = [...dto.reviews].sort((a, b) => (Date.parse(b.published_at ?? "") || 0) - (Date.parse(a.published_at ?? "") || 0)).map((r2) => toGoogleReviewVM(r2, l.linked_at, nowMs));
-  table.rows = latest.map((r2) => [r2.author, r2.rating ?? "\u2014", r2.when || "\u2014", r2.text || "\u2014"]);
-  const source = canReply ? "every review, from your Business Profile" : `the ${latest.length === 1 ? "one" : latest.length} Google shows first`;
-  const days = [...dto.days].sort((a, b) => a.day < b.day ? -1 : a.day > b.day ? 1 : 0);
-  const { current: gained, previous } = gainedOver(days, periodDays);
-  const noun = `${periodDays} days`;
-  const inPeriod = days.length ? days.filter((d) => d.day >= shiftDay2(days[days.length - 1].day, -(periodDays - 1))) : [];
-  const ratingSpark = inPeriod.map((d) => d.rating ?? 0);
-  const countSpark = inPeriod.map((d) => d.review_count);
-  const baselineRating = (() => {
-    if (!days.length) return null;
-    const since = shiftDay2(days[days.length - 1].day, -(periodDays - 1));
-    const before = days.filter((d) => d.day < since);
-    return before.length ? before[before.length - 1].rating : null;
-  })();
-  const ratingDelta = typeof l.rating === "number" && typeof baselineRating === "number" ? Math.abs(l.rating - baselineRating) < 0.05 ? { text: `same as ${noun} ago`, tone: "" } : {
-    text: `${l.rating - baselineRating > 0 ? "+" : ""}${(l.rating - baselineRating).toFixed(1)} vs ${noun} ago`,
-    tone: l.rating > baselineRating ? "pos" : "neg"
-  } : null;
-  const newest = latest[0] ?? null;
-  const checked = checkedWords(l, nowMs);
-  const tiles = [
-    {
-      id: "rating",
-      label: "Rating on Google",
-      value: typeof l.rating === "number" ? l.rating.toFixed(1) : "\u2014",
-      meta: `${reviewsWords(l.review_count)} \xB7 ${checked.toLowerCase()}`,
-      delta: ratingDelta,
-      spark: ratingSpark,
-      compare: null
-    },
-    {
-      id: "reviews",
-      label: "Reviews on Google",
-      value: typeof l.review_count === "number" ? String(l.review_count) : "\u2014",
-      meta: "as Google counts them, with or without words",
-      delta: null,
-      spark: countSpark,
-      compare: null
-    },
-    {
-      id: "gained",
-      label: `Gained in ${noun}`,
-      value: gained.total === null ? "\u2014" : String(gained.total),
-      meta: gained.total === null ? "needs a second day of reading" : gained.sinceLabel ? `since ${gained.sinceLabel}, the first day on record` : `new ratings, words or not`,
-      delta: gained.total !== null && previous !== null ? deltaOf(gained.total, previous, true, noun) : null,
-      spark: gained.points.map((p) => p.gained),
-      compare: null
-    },
-    {
-      id: "newest",
-      label: "Newest review",
-      value: newest?.when || "\u2014",
-      meta: newest ? `${newest.stars} \xB7 ${newest.author}` : canReply ? "no review yet" : "none of the five Google shows has a date",
-      delta: null,
-      spark: [],
-      compare: null
-    }
-  ];
-  const news = latest.find((r2) => r2.isNew) ?? null;
-  const todayLine = news ? {
-    text: `New on Google: ${news.stars} from ${news.author}${news.text ? ` \u2014 \u201C${reviewSnippet(news.text)}\u201D` : ""}`,
-    to: "reports"
-  } : null;
-  return {
-    listing: {
-      name: l.name,
-      address: l.address,
-      ratingLabel: ratingWords(l.rating),
-      count: l.review_count,
-      checked,
-      mapsUri: l.maps_uri,
-      trouble: !!l.check_error
-    },
-    connection,
-    canReply,
-    reply,
-    tiles,
-    gained,
-    latest,
-    source,
-    table,
-    todayLine
-  };
-}
-
 // src/billing.ts
 var BILLING_MODES = ["stripe", "direct"];
 var BILLING_STATUSES = [
@@ -14055,7 +14122,8 @@ function setupSteps(i, nowMs = Date.now()) {
       receptionist: i.business.receptionist,
       listed: !!i.google?.listing,
       unsure: i.google?.unsure ?? [],
-      type: i.google?.type ?? null
+      type: i.google?.type ?? null,
+      bookingPage: bookingPageOffered(i.google?.bookingPage, i.business.bookingLink)
     }
   };
 }
@@ -21498,6 +21566,7 @@ export {
   BILLING_TRIAL_DAYS,
   BOOKING_DEFAULTS,
   BOOKING_LINK_NEEDED,
+  BOOKING_PLATFORM_HOSTS,
   BOOKING_RULE_HINTS,
   BRAIN_INTENTS,
   BRAIN_LANGUAGES,
@@ -22016,6 +22085,9 @@ export {
   bookingLinkAction,
   bookingLinkOptional,
   bookingLinkRowWords,
+  bookingPageKept,
+  bookingPageOf,
+  bookingPageOffered,
   bookingRuleRefusal,
   bookingRulesWords,
   bookingTemplate,
@@ -22051,7 +22123,7 @@ export {
   changedConfigFields,
   channelFor,
   channelKindWords,
-  channelsOf2 as channelsOf,
+  channelsOf,
   checkChipsOf,
   checkNoteSuggestion,
   checkedWords,
@@ -22414,6 +22486,7 @@ export {
   offersBookingLink,
   offersYesRefusal,
   ok,
+  onDomain,
   oneDoor,
   openWeekWords,
   openingsAnswer,

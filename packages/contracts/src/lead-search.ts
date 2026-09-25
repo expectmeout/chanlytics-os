@@ -16,6 +16,7 @@ import { normalizeEmail } from "./email-address";
 import { normalizePhone } from "./phone";
 import { dayInZone } from "./availability";
 import type { JudgePlaceAnswer, PlaceFacts } from "./lead-judge";
+import { BOOKING_PLATFORM_HOSTS, onDomain } from "./booking-page";
 
 /* ------------------------------------------------------ the stored sets -- */
 // Each mirrors a CHECK in 00140 and is held to it in schema-sets.ts.
@@ -809,12 +810,13 @@ export function questionAfterProbe(plan: LeadSearchPlan, members: ProbeMember[])
 
 /* ---------------------------------------------------- the cleaner (§7.2) -- */
 
-/** Hosts that are a booking platform or a social page: a business there has no site of its own. */
-export const LEAD_PLATFORM_HOSTS = [
-  "vagaro.com",
+/**
+ * Hosts that are a booking platform (booking-page.ts, which names them once), a site builder's shared domain or a
+ * social page: a business there has no site of its own.
+ */
+export const LEAD_PLATFORM_HOSTS: readonly string[] = /* @__PURE__ */ (() => [
+  ...BOOKING_PLATFORM_HOSTS,
   "square.site",
-  "squareup.com",
-  "glossgenius.com",
   "godaddysites.com",
   "wixsite.com",
   "business.site",
@@ -822,21 +824,12 @@ export const LEAD_PLATFORM_HOSTS = [
   "instagram.com",
   "linktr.ee",
   "yelp.com",
-  "booksy.com",
-  "fresha.com",
-  "styleseat.com",
-  "schedulicity.com",
-  "mindbodyonline.com",
-  "setmore.com",
-  "acuityscheduling.com",
   "google.com",
-] as const;
+])();
 /** Address domains that are never the business: platforms, builders' placeholders, trackers. */
-export const LEAD_JUNK_EMAIL_DOMAINS = [
-  "vagaro.com",
+export const LEAD_JUNK_EMAIL_DOMAINS: readonly string[] = /* @__PURE__ */ (() => [
+  ...BOOKING_PLATFORM_HOSTS,
   "square.site",
-  "squareup.com",
-  "glossgenius.com",
   "godaddy.com",
   "wix.com",
   "wixpress.com",
@@ -845,7 +838,7 @@ export const LEAD_JUNK_EMAIL_DOMAINS = [
   "domain.com",
   "yourdomain.com",
   "email.com",
-] as const;
+])();
 /** Local parts that are a template's placeholder, not a mailbox. */
 export const LEAD_PLACEHOLDER_LOCALS = [
   "filler",
@@ -948,7 +941,7 @@ export function cleanEmailCandidates(emails: string[], host: string | null): Cle
     }
     seen.add(address);
     const [local, domain] = address.split("@");
-    if (LEAD_JUNK_EMAIL_DOMAINS.some((d) => domain === d || domain.endsWith(`.${d}`))) {
+    if (LEAD_JUNK_EMAIL_DOMAINS.some((d) => onDomain(domain, d))) {
       dropped.push({ email: address, why: "junk_domain" });
       continue;
     }
@@ -1005,7 +998,7 @@ export function siteHost(url: string | null | undefined): string | null {
   }
   host = host.replace(/^www\./, "");
   if (!host.includes(".") || host.length > LEAD_FACT_MAX) return null;
-  if (LEAD_PLATFORM_HOSTS.some((p) => host === p || host.endsWith(`.${p}`))) return null;
+  if (LEAD_PLATFORM_HOSTS.some((p) => onDomain(host, p))) return null;
   return host;
 }
 

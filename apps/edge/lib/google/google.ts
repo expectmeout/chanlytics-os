@@ -36,6 +36,8 @@ import {
 import {
   autoReplyBell,
   autoReplyCandidates,
+  bookingPageKept,
+  listingFactsOf,
   localDate,
   parseTenantConfig,
   reviewReplyModeOf,
@@ -44,6 +46,7 @@ import {
   type ReviewReplyMode,
 } from "../packages/contracts.js";
 import { draftReviewReply } from "./review-reply.js";
+import { siteBookingPage } from "./booking-page.js";
 import { recordNotification } from "../ops/notify.js";
 import { logger } from "../log.js";
 import { readAllRows } from "../paged.js";
@@ -256,6 +259,14 @@ async function answerNewReviews(
 }
 
 /**
+ * Whether a read of a listing reads its website for the booking page it names (lib/google/booking-page.ts). Only the
+ * link does, inside its own request and at the owner's press. Every other read keeps what the link found, while the
+ * website is the one it was found on: the sweep reads its listings one after another inside its function's time
+ * (vercel.json), with no room for a site each.
+ */
+export type SiteRead = "read" | "keep";
+
+/**
  * Read the public listing, decide what changed, write it, tell the bell. A
  * failed read leaves its words on the row (check_error) and the last good
  * numbers in place; the next hour tries again. With the profile connected
@@ -263,7 +274,13 @@ async function answerNewReviews(
  * rating, the count and the day. Never throws for Google's sake — only for
  * the database's.
  */
-export async function checkListing(db: Db, row: ListingRow, tz: string, now = new Date()): Promise<CheckResult> {
+export async function checkListing(
+  db: Db,
+  row: ListingRow,
+  tz: string,
+  site: SiteRead,
+  now = new Date(),
+): Promise<CheckResult> {
   const L = logger({ tenant: row.tenant_id, place: row.place_id });
   const key = placesKey();
   if (!key) return { ok: false, error: "no_places_key" };
@@ -292,6 +309,12 @@ export async function checkListing(db: Db, row: ListingRow, tz: string, now = ne
     L.warn("google_check_failed", { error });
     return { ok: false, error };
   }
+
+  const booking_page =
+    site === "read"
+      ? await siteBookingPage(fetch, details.facts.website)
+      : bookingPageKept(listingFactsOf(row.facts), details.facts.website);
+  details = { ...details, facts: { ...details.facts, booking_page } };
 
   const conn = await connectionOf(db, row.tenant_id);
   const carriesReviews = !(conn && conn.location_name);

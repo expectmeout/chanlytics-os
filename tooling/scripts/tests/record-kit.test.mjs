@@ -240,6 +240,26 @@ test("a disputed fact wears warn and offers the other answer", () => {
   assert.equal(kept.length, 1, "and keeping yours is a press too");
 });
 
+test("an other answer on a row with no value fills it and disagrees with nothing: the row is not marked disputed", () => {
+  const used = [];
+  const page = "https://calendly.com/example-studio/consult";
+  const tree = draw(W.RecordRow, {
+    label: "Booking link",
+    value: null,
+    empty: "Not set",
+    disputed: {
+      value: page,
+      sentence: `Found on your website: ${page}`,
+      useLabel: "Use it",
+      onUse: () => used.push(1),
+    },
+  });
+  assert.deepEqual(all(tree, (n) => classes(n).includes("rec-src")).map(textOf), [], "nothing says it disagrees");
+  assert.match(textOf(tree), /Found on your website: https:\/\/calendly\.com\/example-studio\/consult/);
+  press(find(tree, (n) => typeof n.props?.onClick === "function" && textOf(n) === "Use it"));
+  assert.equal(used.length, 1, "and the press takes it");
+});
+
 test("something wrong is on its row at full strength: a serious disagreement, or a sentence the page names", () => {
   const rowOf = (tree) => find(tree, (n) => classes(n).includes("rec-row"));
   assert.equal(

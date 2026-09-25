@@ -15,10 +15,10 @@ import type { Database } from "../packages/db.js";
 import type { MarkImage } from "../packages/core.js";
 import { LEAD_MARKS_BUCKET } from "../packages/contracts.js";
 import { logger } from "../log.js";
+import { BOT_USER_AGENT } from "../public-page.js";
 
 const STORE_TIMEOUT_MS = 4_000;
 const A_YEAR_S = String(365 * 24 * 60 * 60);
-const USER_AGENT = "ChanlyticsBot/1.0 (+https://chanlytics.com/bot)";
 
 /** `<sha256 of the bytes>.<the kind they were read as>`: the only shape 00161's CHECK lets the column hold. */
 export function leadMarkPath(bytes: Uint8Array, image: MarkImage): string {
@@ -41,7 +41,7 @@ export async function pageText(fetchImpl: typeof fetch, url: string, timeoutMs: 
       redirect: "follow",
       headers: {
         accept: "text/html,application/xhtml+xml",
-        "user-agent": USER_AGENT,
+        "user-agent": BOT_USER_AGENT,
       },
     });
     if (!res.ok) return null;
@@ -70,7 +70,7 @@ export async function imageBytes(
       redirect: "follow",
       headers: {
         accept: "image/png,image/jpeg,image/webp,image/gif,image/x-icon;q=0.9,*/*;q=0.5",
-        "user-agent": USER_AGENT,
+        "user-agent": BOT_USER_AGENT,
       },
     });
     if (!res.ok || !res.body) return null;

@@ -192,9 +192,12 @@ const BtWebsiteRow = ({ brain, base = null, canEdit, flash, saver }) => {
 
 /**
  * Where a customer books. Whether this workspace is asked for one at all is how its customers buy (0008, the first
- * run's decision 2): the row's check, its empty state and its hint all follow the one answer.
+ * run's decision 2): the row's check, its empty state and its hint all follow the one answer. `other` is an answer to
+ * offer where the kit draws a disagreement, while there is none: the first run's booking page found on the website
+ * ({ value, sentence, use, useLabel }), taken in one press through this row's own check and save, and offered only to
+ * a role that may change the business, as any disagreement's press is.
  */
-const BtBookingLinkRow = ({ brain, base = null, canEdit, flash, saver }) => {
+const BtBookingLinkRow = ({ brain, base = null, canEdit, flash, saver, other = null }) => {
   const S = window.__businessTabSave;
   const link = btFactOf("booking_link", brain.booking_link);
   const sellsNow = S.answer();
@@ -214,7 +217,7 @@ const BtBookingLinkRow = ({ brain, base = null, canEdit, flash, saver }) => {
       // What an empty one means, while it is empty (BtRow): a row that has its link states it and stops.
       hint={linkWords.hint}
       source={btSourceOf(link)}
-      disputed={btDispute(link, btConflictOn("booking_link"), BT_TAKE_THEIRS)}
+      disputed={btDispute(link, btConflictOn("booking_link"), BT_TAKE_THEIRS) || other}
       gate={btChangeGate("booking link")}
       initial={brain.booking_link || ""}
       check={(d) => S.CHECK_OF.booking_link(d, sellsNow)}

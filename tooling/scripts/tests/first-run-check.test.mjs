@@ -352,6 +352,68 @@ test("a business Google lists no kind for is offered no services, and still the 
   assert.ok(byTestId(tree, "fr-chips-languages"));
 });
 
+/* ------------------------------------ the booking page the website names ------------------------------------ */
+
+const FOUND = "https://calendly.com/harbor-moving-example/estimate";
+
+/** The booking link row's other answer, as the kit draws a disagreement: its words, and the press that takes it. */
+const offerOf = (tree) => {
+  const row = byTestId(tree, "rec-row-booking_link");
+  const said = row ? all(row, (n) => n.props && n.props.id === "rec-row-booking_link-other")[0] : null;
+  const use = row ? all(row, (n) => n.type === "button" && textOf(n) === "Use it")[0] : null;
+  return { said: said ? textOf(said) : null, use: use || null };
+};
+
+test("a business that books is offered the booking page its website names, in the row's own words, and Use it saves it through the row", () => {
+  const sent = saving();
+  let tree = draw({ setup: dto({}, { bookingPage: FOUND }) });
+  assert.deepEqual(offerOf(tree).said, `Found on your website: ${FOUND}`);
+  assert.equal(
+    all(byTestId(tree, "rec-row-booking_link"), (n) => n.props && n.props["data-state"] === "disputed").length,
+    0,
+    "an empty row offered a page disagrees with nothing",
+  );
+  press(offerOf(tree).use);
+  assert.equal(
+    sent.at(-1).config.brain.booking_link,
+    FOUND,
+    "the row's own check and save, through the tab's one saver",
+  );
+  tree = redraw();
+  assert.deepEqual(
+    offerOf(tree),
+    { said: null, use: null },
+    "gone at once: the link is on the config the next save goes on",
+  );
+});
+
+test("nothing is offered over a link the record holds, or to a business that quotes and is asked for none", () => {
+  const none = { said: null, use: null };
+  assert.deepEqual(
+    offerOf(draw({ setup: dto({}, { bookingPage: FOUND }), link: "https://book.example.com/harbor" })),
+    none,
+  );
+  assert.equal(
+    byTestId(draw({ setup: dto({}, { bookingPage: FOUND }), sellsBy: "proposal" }), "rec-row-booking_link"),
+    null,
+  );
+  assert.deepEqual(offerOf(draw()), none, "nothing found, nothing offered");
+});
+
+test("a role that may not change the business reads what the website names, and is offered no press, as with any disagreement", () => {
+  const sent = saving();
+  const was = W.canDo;
+  W.canDo = (a) => a !== "settings";
+  try {
+    const offer = offerOf(draw({ setup: dto({}, { bookingPage: FOUND }) }));
+    assert.equal(offer.said, `Found on your website: ${FOUND}`);
+    assert.equal(offer.use, null);
+    assert.equal(sent.length, 0);
+  } finally {
+    W.canDo = was;
+  }
+});
+
 test("the services row opens the Business tab's own sheet over the first run", () => {
   let tree = draw();
   assert.equal(byTestId(tree, "rec-sheet-services"), null);

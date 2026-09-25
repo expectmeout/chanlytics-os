@@ -25,6 +25,8 @@
  * hero photograph as often as not, and a photograph is what we already have.
  */
 
+import { attrsOf, decodeEntities } from "../html";
+
 /**
  * Past this the head is not a head, and a page that never closes one is a page we stop reading.
  *
@@ -42,14 +44,6 @@ function headOf(html: string): string {
   const start = html.slice(0, HEAD_MAX);
   const end = start.search(/<\/head\s*>/i);
   return end === -1 ? start : start.slice(0, end);
-}
-
-/** One tag's attributes, lower-cased by name, however they were quoted. */
-function attrsOf(tag: string): Record<string, string> {
-  const out: Record<string, string> = {};
-  const re = /([a-zA-Z-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s">]+))/g;
-  for (let m = re.exec(tag); m; m = re.exec(tag)) out[m[1].toLowerCase()] = (m[2] ?? m[3] ?? m[4] ?? "").trim();
-  return out;
 }
 
 /** "180x180" or "any" -> the side in pixels; 0 when the tag did not say. `any` is an SVG saying it scales. */
@@ -92,24 +86,6 @@ function holdsUnsafe(url: string): boolean {
   for (const ch of url)
     if (UNSAFE_IN_AN_ADDRESS.includes(ch) || ch.charCodeAt(0) < 0x20 || ch.charCodeAt(0) === 0x7f) return true;
   return false;
-}
-
-/**
- * An href is HTML before it is an address: a browser decodes its entities before it fetches, and so must we. A real
- * falconry school wrote its mark as `...jpeg?w=180&#038;h=180`, which stored raw asks a server for a parameter
- * literally named `#038;h`. Decoding happens before every refusal below, so nothing spells a scheme past them.
- */
-function decodeEntities(s: string): string {
-  if (!s.includes("&")) return s;
-  const chr = (n: number, had: string) => (n > 0 && n < 0x110000 ? String.fromCodePoint(n) : had);
-  return s
-    .replace(/&#x([0-9a-f]+);/gi, (had, h) => chr(parseInt(h, 16), had))
-    .replace(/&#(\d+);/g, (had, d) => chr(Number(d), had))
-    .replace(/&amp;/gi, "&")
-    .replace(/&quot;/gi, '"')
-    .replace(/&apos;/gi, "'")
-    .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">");
 }
 
 /** An address as the browser would read it from this page: absolute, http(s), and short enough to keep. */

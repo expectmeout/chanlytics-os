@@ -382,6 +382,8 @@ var RECORDING_NOTE = {
   purged: `Recording removed after ${RECORDING_RETENTION_DAYS} days`
 };
 var PRIVATE_HOST = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
+var CARRIER_NAT = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./;
+var PRIVATE_V6 = /^\[(::1?|f[cd][0-9a-f]{0,2}:.*|fe[89ab][0-9a-f]?:.*|::ffff:.*)\]$/i;
 function feedUrlOk(raw) {
   if (!raw) return null;
   const url = raw.trim().replace(/^webcal:\/\//i, "https://");
@@ -392,7 +394,9 @@ function feedUrlOk(raw) {
     return null;
   }
   if (u.protocol !== "https:" && u.protocol !== "http:") return null;
-  if (PRIVATE_HOST.test(u.hostname) || /^172\.(1[6-9]|2\d|3[01])\./.test(u.hostname)) return null;
+  const h = u.hostname;
+  if (PRIVATE_HOST.test(h) || /^172\.(1[6-9]|2\d|3[01])\./.test(h) || CARRIER_NAT.test(h) || PRIVATE_V6.test(h))
+    return null;
   return u.toString();
 }
 function feedProblemWords(reason, status) {
@@ -934,6 +938,13 @@ function dealSentence(d, nowMs, tz = "UTC", opts = {}) {
       return `A former client${svc}: the engagement ended${on}. Treat them as any customer.`;
   }
 }
+var REVIEW_AUTO_REPLY_MAX_AGE_MS = 14 * 864e5;
+var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var REVIEW_NEWS_MS = 36 * 3600 * 1e3;
+var REVIEW_NEWS_MAX_AGE_MS = 14 * 864e5;
+var BOOTSTRAP_MS = 3600 * 1e3;
+var DATE_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var WEEK_MS2 = 7 * 864e5;
 var FIRST_RUN_ROUTE = "start";
 var FIND_PARAM = "find";
 var FIRST_RUN_FIND_ROUTE = `${FIRST_RUN_ROUTE}/${FIND_PARAM}`;
@@ -1637,7 +1648,7 @@ var PERSON_MODE_WORDS = {
   inherit: "Follow the workspace"
 };
 var DAY_MS4 = 864e5;
-var WEEK_MS2 = 7 * DAY_MS4;
+var WEEK_MS3 = 7 * DAY_MS4;
 var MONTH_MS = 30 * DAY_MS4;
 var NOTE_MAX = 600;
 var NOTE_REFUSALS = {
@@ -1855,13 +1866,6 @@ var LIMIT_TIERS = {
   TIER_UNLIMITED: Number.POSITIVE_INFINITY
 };
 var FORWARDING_TEST_WINDOW_MS = 30 * 6e4;
-var REVIEW_AUTO_REPLY_MAX_AGE_MS = 14 * 864e5;
-var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var REVIEW_NEWS_MS = 36 * 3600 * 1e3;
-var REVIEW_NEWS_MAX_AGE_MS = 14 * 864e5;
-var BOOTSTRAP_MS = 3600 * 1e3;
-var DATE_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var WEEK_MS3 = 7 * 864e5;
 var DATE_FMT3 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var SOLE_PROP_LIMITS = {
   campaignsPerBrand: 1,

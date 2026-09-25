@@ -20,7 +20,9 @@
 //   a line under the value carries the other answer, with its own source said the same way and, given `onUse`, a press to take
 //   it instead. Without `onUse` the line is there to read and offers nothing: a role that may not settle it, or an
 //   answer that is information rather than a fill, is drawn no dead press. `severity` is "serious" or "minor",
-//   passed straight from contracts' FactConflict.
+//   passed straight from contracts' FactConflict. On a row with no value there is nothing for it to disagree with: it
+//   is an answer offered to fill the row (the first run's booking page found on the website), and the row is not
+//   marked disputed.
 // - `act` { label, onClick, gate?, testid?, name?, icon? } is the row's one act. `icon` names an Icon drawn after its words
 //   (an act that goes to another page: arrow-right), beside them and not in them, since a phone clips the words. `gate` is window.gate(...)'s props, spread
 //   AFTER the handler as on every committing control here, so a refusal replaces the press. With an `id` the act is
@@ -155,7 +157,7 @@ const RecordRow = ({
       <span className="rec-row-key" id={keyId}>{label}</span>
       <div className="rec-row-val">
         {isEmpty ? <span className="rec-row-empty">{empty}</span> : <span className="rec-row-value">{value}</span>}
-        {disputed ? <RecordSourceChip source="disputed" /> : source ? <RecordSourceChip source={source} label={sourceLabel} /> : null}
+        {disputed && !isEmpty ? <RecordSourceChip source="disputed" /> : source ? <RecordSourceChip source={source} label={sourceLabel} /> : null}
         {wrong ? <span className="rec-row-wrong" id={wrongId}>{wrong}</span> : null}
         {hint ? <span className="rec-row-hint">{hint}</span> : null}
         {kids ? children : null}

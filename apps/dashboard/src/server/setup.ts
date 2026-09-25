@@ -339,6 +339,7 @@ export async function setupDtoFor(
           )
         : [],
       type: listingFacts?.facts?.primary_type ?? null,
+      bookingPage: listingFacts?.facts?.booking_page ?? null,
     },
     billing: billingRow
       ? {

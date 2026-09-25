@@ -289,7 +289,13 @@ test("REGRESSION: a yes to offers with no number to send one to is a yes -- Setu
 });
 
 test("what the first run's Check reads: whether a receptionist is set up, whether a listing is on record, and the days whose hours Google gives in a way the record could not take and does not state", async () => {
-  assert.deepEqual(setupSteps(empty(), NOW).check, { receptionist: "none", listed: false, unsure: [], type: null });
+  assert.deepEqual(setupSteps(empty(), NOW).check, {
+    receptionist: "none",
+    listed: false,
+    unsure: [],
+    type: null,
+    bookingPage: null,
+  });
   assert.equal(setupSteps(empty({ business: facts }), NOW).check.receptionist, "set");
   assert.equal(
     setupSteps(empty({ business: { ...empty().business, broken: true, receptionist: "broken" } }), NOW).check
@@ -301,11 +307,25 @@ test("what the first run's Check reads: whether a receptionist is set up, whethe
   assert.deepEqual(
     setupSteps(
       empty({
-        google: { ready: true, places: true, listing, connected: false, unsure: ["fri"], type: "moving_company" },
+        google: {
+          ready: true,
+          places: true,
+          listing,
+          connected: false,
+          unsure: ["fri"],
+          type: "moving_company",
+          bookingPage: "https://calendly.com/northside-movers-example/estimate",
+        },
       }),
       NOW,
     ).check,
-    { receptionist: "none", listed: true, unsure: ["fri"], type: "moving_company" },
+    {
+      receptionist: "none",
+      listed: true,
+      unsure: ["fri"],
+      type: "moving_company",
+      bookingPage: "https://calendly.com/northside-movers-example/estimate",
+    },
   );
 
   // The read: Google's week as the edge stored it (day 0 is Sunday), less the days the record states.
@@ -330,6 +350,7 @@ test("what the first run's Check reads: whether a receptionist is set up, whethe
           website: null,
           service_area_only: true,
           primary_type: "moving_company",
+          booking_page: "https://calendly.com/northside-movers-example/estimate",
         },
       },
     ],
@@ -357,9 +378,23 @@ test("what the first run's Check reads: whether a receptionist is set up, whethe
     "by the one test (receptionistOf)",
   );
   assert.equal(dto.google.type, "moving_company", "Google's kind of place, which Check's suggestions follow");
+  assert.equal(dto.google.bookingPage, "https://calendly.com/northside-movers-example/estimate");
+  assert.equal(
+    setupSteps(dto, NOW).check.bookingPage,
+    "https://calendly.com/northside-movers-example/estimate",
+    "the website's booking page, offered while the record holds no link",
+  );
+  const linked = tables(null);
+  linked.tenant_config[0].config.brain.booking_link = "https://northside.example.com/book";
+  assert.equal(
+    setupSteps(await setupDtoFor(fakeDb(linked), T, { kind: "back_office" }, new Date(NOW)), NOW).check.bookingPage,
+    null,
+    "a link the record holds is the owner's, whatever the website says (bookingPageOffered)",
+  );
   const none = await setupDtoFor(fakeDb({}), T, { kind: "back_office" }, new Date(NOW));
   assert.deepEqual([none.business.receptionist, none.business.broken], ["none", false]);
   assert.equal(none.google.type, null, "no listing, no kind");
+  assert.equal(none.google.bookingPage, null, "no listing, no website read");
   const bare = tables();
   bare.google_listings[0].facts = {};
   assert.equal(

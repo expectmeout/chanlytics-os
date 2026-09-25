@@ -1013,11 +1013,19 @@ test("google: listings not read for twenty hours are read again — never read f
         }),
       };
     }
+    // A listing never read has a website too: the sweep keeps what the link found and reads no site (checkListing's
+    // `site`), with no room for one in its minute.
+    if (id === rowOf(never).place_id)
+      return { status: 200, body: place(id, { websiteUri: "https://never.example.com" }) };
     return { status: 200, body: place(id) };
   });
 
   const at = new Date();
   const [status, body] = await answer(await knock("google"));
+  assert.ok(
+    net.calls.every((c) => c.url.startsWith("https://places.googleapis.com/")),
+    "the sweep reads Places alone: no website, even a never-read listing's",
+  );
   assert.equal(status, 200, JSON.stringify(body));
   assert.deepEqual(body, {
     ok: true,

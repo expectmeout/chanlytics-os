@@ -17,6 +17,7 @@ import { openWeekWords, servicesWords, type ServiceWordsInput } from "./business
 import { DAY_NAMES, type Hours } from "./config";
 import { bookingLinkOptional } from "./deals";
 import { checkChipsOf } from "./check-chips";
+import { bookingPageOffered } from "./google";
 import type { SetupDto, SetupRowVM, SetupState, SetupVM } from "./setup";
 
 /** The first run's address: `#/start`, and `#/start/<step>` for a step already reached. */
@@ -175,6 +176,8 @@ export const FIRST_RUN_WORDS = {
       otherLanguage: "+ Other",
       removed: (name: string) => `Removed ${name}`,
     },
+    /** The booking page the business's website names, offered under the booking link row (3c-4). */
+    bookingPage: { found: (page: string) => `Found on your website: ${page}`, use: "Use it" },
   },
 } as const;
 
@@ -209,6 +212,8 @@ export interface FirstRunCheckVM {
   find: { label: string; to: string } | null;
   /** Google's kind of place, which the service chips suggest by (FIRST_RUN_HELPERS.chips); null without one. */
   type: string | null;
+  /** The booking page the business's website names, while the record holds no booking link: offered, never saved. */
+  bookingPage: string | null;
 }
 
 export interface FirstRunStepVM {
@@ -334,6 +339,7 @@ export function firstRunOf(vm: SetupVM, at?: string | null, who?: FirstRunWho): 
         unsure: made ? unsureHoursWords(vm.check.unsure) : null,
         find: vm.findable && who?.owner ? { label: C.findIt, to: FIRST_RUN_FIND_ROUTE } : null,
         type: vm.check.type,
+        bookingPage: vm.check.bookingPage,
       }
     : null;
   // What the step on screen is, said once: its heading, its lead and its one coral button (onward). Find's button is
@@ -584,6 +590,7 @@ export const FIRST_RUN_HELPERS = {
   receptionist: receptionistCardOf,
   todayCard: setupCardOf,
   chips: checkChipsOf,
+  bookingPageOffered,
   words: FIRST_RUN_WORDS,
   landedKey: FIRST_RUN_LANDED_KEY,
 } as const;

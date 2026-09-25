@@ -309,6 +309,9 @@ const FrCheck = ({ check, W, flash, make, making, go, canEdit }) => {
   const note = check.unsure ? <span className="fr-check-unsure" data-testid="fr-check-unsure">{check.unsure}</span> : null;
   // What it offers and the languages it speaks, as chips over the config the next save goes on: a tap is on at once.
   const brainNow = (base && base.brain) || brain;
+  // The booking page the website names (3c-4), offered while no link is on the config the next save goes on
+  // (contracts' one test): taken in the row's own press, or a link typed into the row, it goes at once.
+  const offered = window.__firstRun.bookingPageOffered(check.bookingPage, !!brainNow.booking_link);
   const chips = window.__firstRun.chips({
     type: check.type,
     services: (brainNow.profile || {}).services,
@@ -341,7 +344,12 @@ const FrCheck = ({ check, W, flash, make, making, go, canEdit }) => {
             ) : null}
           </div>
         ) : null}
-        {linkRow ? <window.BtBookingLinkRow {...rows} /> : null}
+        {linkRow ? (
+          <window.BtBookingLinkRow
+            {...rows}
+            other={offered ? { value: offered, sentence: W.bookingPage.found(offered), use: offered, useLabel: W.bookingPage.use } : null}
+          />
+        ) : null}
         <window.BtRulesRow {...rows} config={settings.config} />
       </section>
       <section className="rec-card fr-check-card" aria-label={W.groups.offer}>
