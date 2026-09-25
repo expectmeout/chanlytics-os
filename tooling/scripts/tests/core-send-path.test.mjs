@@ -324,3 +324,53 @@ test("a limit at the mail provider is said as one: a used-up day or month is rec
     "a refusal the door names no limit for is said as its status",
   );
 });
+
+test("outreach is its own lane: it reaches the door as outreach, and its limits and its key page under their own name", async () => {
+  const coldRow = {
+    status: "queued",
+    body: "Saw your shop on the map.",
+    channel: "email",
+    sender: "ai",
+    email: { to: ["owner@example.com"], idempotency_key: "m1" },
+  };
+  const cold = (over = {}) => ({
+    tenantId: "t1",
+    payload: {
+      message_id: "m1",
+      conversation_id: "c1",
+      to_email: "owner@example.com",
+      purpose: "outreach",
+      proactive: true,
+      ...over,
+    },
+  });
+  const sent = fakes({ queued: coldRow });
+  await core.sendQueued(sent.ports, cold());
+  assert.deepEqual([sent.log[0][1].purpose, sent.log[0][1].proactive], ["outreach", true]);
+  // A template's own purpose still wins over a payload that says conversational (it can only tighten).
+  const offer = fakes({ purposeOf: "marketing" });
+  await core.sendQueued(offer.ports, send({ purpose: "conversational" }));
+  assert.equal(offer.log[0][1].purpose, "marketing");
+
+  const failed = (status, limit) => ({
+    outcome: "failed",
+    reason: "provider",
+    status,
+    errorBody: "{}",
+    messageId: "m1",
+    ...(limit ? { limit } : {}),
+  });
+  const day = fakes({ queued: coldRow, deliver: failed(429, "daily") });
+  await core.sendQueued(day.ports, cold());
+  const [, key, title, body] = day.log.find((l) => l[0] === "page");
+  assert.equal(key, "provider_quota:email_outreach");
+  assert.equal(title, "cold email: the daily sending limit is used up");
+  assert.match(body, /Cold email is refused until it resets\. Replies and reminders are not affected\./);
+  const auth = fakes({ queued: coldRow, deliver: failed(401) });
+  await core.sendQueued(auth.ports, cold());
+  assert.equal(auth.log.find((l) => l[0] === "page")[1], "provider_auth:email_outreach");
+  // A reply's limit is still every workspace's.
+  const reply = fakes({ queued: coldRow, deliver: failed(429, "daily") });
+  await core.sendQueued(reply.ports, cold({ purpose: undefined, proactive: undefined }));
+  assert.equal(reply.log.find((l) => l[0] === "page")[1], "provider_quota:email");
+});

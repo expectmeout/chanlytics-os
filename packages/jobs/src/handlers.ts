@@ -179,7 +179,7 @@ async function countRecipients(
   return count ?? 0;
 }
 
-/** outbound_send: core's sendQueued, over this runtime's ports. payload: { message_id, conversation_id, to_phone | to_email, body?, template?, purpose?, proactive? } */
+/** outbound_send: core's sendQueued, over this runtime's ports. payload: { message_id, conversation_id, to_phone | to_email, body?, template?, purpose? (marketing, or outreach: a cold email), proactive? } */
 async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
   await sendQueued(
     {

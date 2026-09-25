@@ -3737,6 +3737,8 @@ function isOptedOutContact(c) {
 var OPT_OUT_REFUSAL = "This customer asked to stop receiving messages. They can text START to opt back in.";
 function mayMessageFor(c, purpose, opts = {}) {
   if (isOptedOutContact(c)) return { ok: false, reason: "opted_out" };
+  if (purpose === "outreach")
+    return c.email_marketing === "opted_out" ? { ok: false, reason: "unsubscribed" } : { ok: true, reason: null };
   if (purpose === "marketing") {
     return c.marketing_consent === "opted_in" ? { ok: true, reason: null } : { ok: false, reason: "no_marketing_consent" };
   }
@@ -9871,14 +9873,17 @@ function whatsappSender(cfg) {
     return p.template ? sendTemplate(cfg, digits, p.template) : sendText(cfg, digits, p.body);
   };
 }
-function emailSender(cfg, as) {
-  if (!cfg || !as) return null;
+function emailSender(routes) {
+  if (routes.length === 0) return null;
   const refuse = (errorBody) => Promise.resolve({ ok: false, wamid: null, status: 0, errorBody });
   return (to, p) => {
     if (!p.email) return refuse("no_frozen_request");
     if (p.email.to.length !== 1 || p.email.to[0] !== to) return refuse("request_names_another_recipient");
-    if (!requestLeavesAs(p.email, as)) return refuse("request_leaves_as_another_sender");
-    return sendEmail(cfg, p.email);
+    const from = addressOf(p.email.from)?.address;
+    const lane = p.purpose === "outreach" ? "own" : "hosted";
+    const route = routes.find((r4) => r4.lane === lane && r4.as.address === from);
+    if (!route || !requestLeavesAs(p.email, route.as)) return refuse("request_leaves_as_another_sender");
+    return sendEmail(route.cfg, p.email);
   };
 }
 function kindOf(d) {
@@ -9888,7 +9893,7 @@ function kindOf(d) {
 }
 async function wireFacts(db, d) {
   const { data, error } = await db.from("conversations").select(
-    "paused_until, control_kind, control_until, contacts (consent, dnc, marketing_consent, erased_at, erasing_since, email, email_suppressed_at), tenants (status)"
+    "paused_until, control_kind, control_until, contact_id, contacts (consent, dnc, marketing_consent, email_marketing, erased_at, erasing_since, email, email_suppressed_at), tenants (status)"
   ).eq("id", d.conversationId).eq("tenant_id", d.tenantId).maybeSingle();
   if (error) throw new Error(`deliver: cannot read the wire for conversation ${d.conversationId}: ${error.message}`);
   if (!data) throw new Error(`deliver: no conversation ${d.conversationId} in workspace ${d.tenantId}`);
@@ -9896,10 +9901,12 @@ async function wireFacts(db, d) {
   return {
     pausedUntil: row.paused_until ?? null,
     control: row.control_kind && row.control_until ? { kind: row.control_kind, until: row.control_until } : null,
+    contactId: row.contact_id ?? null,
     contact: row.contacts ?? {
       consent: null,
       dnc: null,
       marketing_consent: null,
+      email_marketing: null,
       erased_at: null,
       erasing_since: null,
       email: null,
@@ -9908,9 +9915,30 @@ async function wireFacts(db, d) {
     tenantStatus: row.tenants?.status ?? null
   };
 }
-function refusalFor(d, f, nowMs) {
+async function outreachFacts(db, d, f) {
+  const headers = d.email?.headers ?? {};
+  const unsubscribable = !!headers["List-Unsubscribe"] && headers["List-Unsubscribe-Post"] === "List-Unsubscribe=One-Click";
+  let isLead = false;
+  if (f.contactId) {
+    const { data, error } = await db.from("leads").select("id").eq("tenant_id", d.tenantId).eq("contact_id", f.contactId).limit(1);
+    if (error) throw new Error(`deliver: cannot read the leads for conversation ${d.conversationId}: ${error.message}`);
+    isLead = (data ?? []).length > 0;
+  }
+  const from = addressOf(d.email?.from)?.address ?? null;
+  const host = from ? from.slice(from.lastIndexOf("@") + 1) : null;
+  let domainState = null;
+  if (host) {
+    const { data, error } = await db.from("sending_domains").select("host, state, from_local").eq("tenant_id", d.tenantId).eq("host", host).maybeSingle();
+    if (error)
+      throw new Error(`deliver: cannot read the sending domain for conversation ${d.conversationId}: ${error.message}`);
+    domainState = data && `${data.from_local}@${host}` === from ? data.state : null;
+  }
+  return { isLead, unsubscribable, domainState };
+}
+function refusalFor(d, f, nowMs, o) {
   if (f.contact.erased_at || f.contact.erasing_since) return "erased";
   if (d.channel === "sms" && d.purpose === "marketing") return "sms_carries_no_promotions";
+  if (d.purpose === "outreach" && d.channel !== "email") return "outreach_is_email_only";
   if (d.channel === "email") {
     if (d.purpose === "marketing") return "email_marketing_disabled";
     if (f.contact.email_suppressed_at) return "email_suppressed";
@@ -9918,6 +9946,13 @@ function refusalFor(d, f, nowMs) {
   }
   const may = mayMessageFor(f.contact, d.purpose, { proactive: d.proactive });
   if (!may.ok) return may.reason;
+  if (d.purpose === "outreach") {
+    if (!o) throw new Error(`deliver: an outreach email is judged with its facts (conversation ${d.conversationId})`);
+    if (!o.isLead) return "outreach_not_a_lead";
+    if (!o.unsubscribable) return "outreach_without_unsubscribe";
+    if (!o.domainState) return "outreach_needs_own_domain";
+    if (o.domainState !== "verified") return "sending_domain_not_ready";
+  }
   const kind = kindOf(d);
   if (kind === "reply") return null;
   if (f.tenantStatus === "paused") return "paused";
@@ -9959,7 +9994,8 @@ async function deliver(ports, d) {
     );
   const nowMs = (ports.now ?? Date.now)();
   const facts = await wireFacts(ports.db, d);
-  const refusal = refusalFor(d, facts, nowMs);
+  const outreach = d.purpose === "outreach" && d.channel === "email" ? await outreachFacts(ports.db, d, facts) : null;
+  const refusal = refusalFor(d, facts, nowMs, outreach);
   const overtakenBy = !refusal && kindOf(d) === "draft" ? await overtakenByHuman(ports.db, d) : null;
   const reason = refusal ?? (overtakenBy ? "superseded_by_human" : null);
   if (reason) {
@@ -9971,13 +10007,18 @@ async function deliver(ports, d) {
         consent: facts.contact.consent,
         dnc: facts.contact.dnc,
         marketing_consent: facts.contact.marketing_consent,
+        ...d.purpose === "outreach" ? { email_marketing: facts.contact.email_marketing } : {},
         ...overtakenBy ? { after: overtakenBy } : {}
       });
     }
     return { outcome: "refused", reason, messageId: d.messageId ?? null };
   }
   const send = ports.wire[d.channel];
-  const sent = send === void 0 ? { ok: false, wamid: null, status: 0, errorBody: "no_sender_for_channel", reason: "no_sender_for_channel" } : send === null ? { ok: false, wamid: null, status: 503, errorBody: "no_credentials", reason: "no_credentials" } : await send(d.to, { body: d.body, template: d.template, ...d.email ? { email: d.email } : {} });
+  const sent = send === void 0 ? { ok: false, wamid: null, status: 0, errorBody: "no_sender_for_channel", reason: "no_sender_for_channel" } : send === null ? { ok: false, wamid: null, status: 503, errorBody: "no_credentials", reason: "no_credentials" } : await send(d.to, {
+    body: d.body,
+    template: d.template,
+    ...d.email ? { email: d.email, purpose: d.purpose } : {}
+  });
   if (sent.ok) {
     if (d.messageId) {
       const marked = await finalizeQueued(ports.db, d, {
@@ -10348,7 +10389,7 @@ async function sendQueued(ports, cmd) {
   }
   if (!msg || msg.status !== "queued") return;
   const fromTemplate = await ports.purposeOf(p.template);
-  const purpose = p.purpose === "marketing" ? "marketing" : fromTemplate;
+  const purpose = p.purpose === "outreach" ? "outreach" : p.purpose === "marketing" ? "marketing" : fromTemplate;
   const channel = msg.channel ?? "whatsapp";
   const to = channel === "email" ? p.to_email : p.to_phone;
   if (!to)
@@ -10375,16 +10416,17 @@ async function sendQueued(ports, cmd) {
   });
   if (out.outcome !== "failed") return;
   const limit = out.limit ?? null;
+  const outreach = channel === "email" && purpose === "outreach";
   if (limit === "daily" || limit === "monthly") {
     await ports.page?.(
-      "provider_quota:email",
-      `email: the ${limit} sending limit is used up`,
-      `Tenant ${cmd.tenantId}, message ${p.message_id}. Every workspace's email is refused until it resets or the plan grows.`
+      outreach ? "provider_quota:email_outreach" : "provider_quota:email",
+      `${outreach ? "cold email" : "email"}: the ${limit} sending limit is used up`,
+      outreach ? `Tenant ${cmd.tenantId}, message ${p.message_id}. Cold email is refused until it resets. Replies and reminders are not affected.` : `Tenant ${cmd.tenantId}, message ${p.message_id}. Every workspace's email is refused until it resets or the plan grows.`
     );
   }
   if (out.reason === "provider" && (out.status === 401 || out.status === 403)) {
     await ports.page?.(
-      `provider_auth:${channel}`,
+      `provider_auth:${outreach ? "email_outreach" : channel}`,
       `${channel} rejected a send with ${out.status}`,
       `Tenant ${cmd.tenantId}, message ${p.message_id}. Credentials, not content.`
     );

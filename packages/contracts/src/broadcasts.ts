@@ -27,7 +27,7 @@ import { clockDate, clockWhen } from "./clock";
 import { mayReceive, noNumberWords, saidYesTo, type PersonRowVM } from "./people";
 import { PEOPLE_LISTS } from "./lists";
 import { firstNameOf, type ParamSpec } from "./templates";
-import { mayMessageFor, PURPOSE_REFUSALS, type SendPurpose } from "./consent";
+import { mayMessageFor, PURPOSE_REFUSALS, type AskedPurpose } from "./consent";
 import type { RunReach } from "./playbooks";
 import { HELD_REASONS } from "./run-words";
 
@@ -102,7 +102,7 @@ export function eligibleFor(
   id: string | null | undefined,
   savedIds: ReadonlySet<string> | null,
   /** What kind of message this audience is for. From the template's category, never assumed. */
-  purpose: SendPurpose,
+  purpose: AskedPurpose,
 ): PersonRowVM[] {
   return audienceMembers(rows, kind, id, savedIds).filter((r) => mayReceive(r, purpose));
 }
@@ -188,7 +188,7 @@ export function audiencePreview(
   kind: AudienceKind,
   id: string | null | undefined,
   savedIds: ReadonlySet<string> | null,
-  purpose: SendPurpose,
+  purpose: AskedPurpose,
   limit = 5,
   /** Who a run of any kind reached within the week (packages/db touchesSince); none when not read. */
   touched: ReadonlySet<string> = NO_ONE,
@@ -413,7 +413,7 @@ export const OUTCOME_UNKNOWN = "outcome_unknown";
  * which is no page at all -- so they say where it is rather than "on this page".
  */
 export function emptyAudienceRefusal(
-  purpose: SendPurpose,
+  purpose: AskedPurpose,
   label: string,
   pool: readonly Pick<PersonRowVM, "consent">[],
 ): string {

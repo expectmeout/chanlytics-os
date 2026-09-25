@@ -617,3 +617,28 @@ test("the campaign description opens with what the business does", () => {
   }).description;
   assert.ok(longest.length <= 4096, `${longest.length} characters`);
 });
+
+test("a cold email to a business asks no yes: only that they did not stop everything, and did not unsubscribe", () => {
+  // The finder's business has said nothing yet: no consent row, no offers yes. US law lets a business write until it
+  // is told to stop, so outreach asks for none, proactive or not.
+  const found = { consent: "unknown", dnc: false, marketing_consent: null };
+  assert.deepEqual(mayMessageFor(found, "outreach"), { ok: true, reason: null });
+  assert.deepEqual(mayMessageFor(found, "outreach", { proactive: true }), { ok: true, reason: null });
+  // STOP stops it, and so does a do-not-call.
+  assert.deepEqual(mayMessageFor({ ...found, consent: "opted_out" }, "outreach"), { ok: false, reason: "opted_out" });
+  assert.deepEqual(mayMessageFor({ ...found, dnc: true }, "outreach"), { ok: false, reason: "opted_out" });
+  // Pressing Unsubscribe (00174) stops cold email, and only that: a reply to what they write is still owed.
+  const unsubscribed = { ...found, email_marketing: "opted_out" };
+  assert.deepEqual(mayMessageFor(unsubscribed, "outreach"), { ok: false, reason: "unsubscribed" });
+  assert.deepEqual(mayMessageFor(unsubscribed, "conversational"), { ok: true, reason: null });
+  // Every refusal has words, the door's own outreach ones included.
+  for (const r of [
+    "unsubscribed",
+    "outreach_is_email_only",
+    "outreach_not_a_lead",
+    "outreach_without_unsubscribe",
+    "outreach_needs_own_domain",
+    "sending_domain_not_ready",
+  ])
+    assert.ok(PURPOSE_REFUSALS[r], r);
+});

@@ -32,6 +32,7 @@ import {
   sendEmail,
   requestLeavesAs,
   resendLimitOf,
+  addressOf,
   type SendResult,
   type WaConfig,
   type EmailRequest,
@@ -77,6 +78,8 @@ export interface WirePayload {
    * queued (channels email.ts). Present on the email wire and nowhere else.
    */
   email?: EmailRequest;
+  /** The send's purpose, on the email wire: only outreach may take an own domain's route (emailSender). */
+  purpose?: SendPurpose;
 }
 
 /** How to put words on one channel's wire. Owns its own address format. */
@@ -103,22 +106,43 @@ export function whatsappSender(cfg: WaConfig | null): Sender | null {
 }
 
 /**
- * Email's wire, bound to ONE workspace's mailbox. It sends the frozen request
+ * One address a workspace's email may leave as, and the provider account it leaves through. "hosted" is the mailbox
+ * on the platform's account, for everything but a cold email; "own" is one of the workspace's own verified domains on
+ * the cold account, for outreach and nothing else.
+ */
+export interface EmailRoute {
+  lane: "hosted" | "own";
+  cfg: ResendConfig;
+  as: EmailSendsAs;
+}
+
+/**
+ * Email's wire, bound to ONE workspace's addresses. It sends the frozen request
  * and nothing it assembled itself: a delivery without one, one addressed to
  * somebody other than `to`, or one that would leave as another workspace, is a
- * failure the caller hears about, never a send. The provider key is the
- * deployment's; `as` is what makes the wire this workspace's, and a workspace
- * with no mailbox has no email line (null, like a number with no credentials).
+ * failure the caller hears about, never a send. The provider keys are the
+ * deployment's; the routes are what make the wire this workspace's: the hosted
+ * mailbox on the platform's account, and each of its own verified domains on
+ * the cold account (Reach out), so a cold email never spends the reputation
+ * every workspace's replies share. The route is chosen by the request's From,
+ * within the send's lane: an own domain carries outreach only, so a reply
+ * frozen with an own domain's From never leaves around outreach's rules, and a
+ * cold email never leaves as the hosted mailbox. That route's own Reply-To rule
+ * still applies. No routes, no email line (null, like a number with no
+ * credentials).
  */
-export function emailSender(cfg: ResendConfig | null, as: EmailSendsAs | null): Sender | null {
-  if (!cfg || !as) return null;
+export function emailSender(routes: EmailRoute[]): Sender | null {
+  if (routes.length === 0) return null;
   const refuse = (errorBody: string): Promise<SendResult> =>
     Promise.resolve({ ok: false, wamid: null, status: 0, errorBody });
   return (to, p) => {
     if (!p.email) return refuse("no_frozen_request");
     if (p.email.to.length !== 1 || p.email.to[0] !== to) return refuse("request_names_another_recipient");
-    if (!requestLeavesAs(p.email, as)) return refuse("request_leaves_as_another_sender");
-    return sendEmail(cfg, p.email);
+    const from = addressOf(p.email.from)?.address;
+    const lane = p.purpose === "outreach" ? "own" : "hosted";
+    const route = routes.find((r) => r.lane === lane && r.as.address === from);
+    if (!route || !requestLeavesAs(p.email, route.as)) return refuse("request_leaves_as_another_sender");
+    return sendEmail(route.cfg, p.email);
   };
 }
 
@@ -168,7 +192,14 @@ export type DeliveryRefusal =
   | "sms_carries_no_promotions"
   | "email_marketing_disabled"
   | "email_suppressed"
-  | "recipient_changed";
+  | "recipient_changed"
+  // Reach out's (a cold email to a business the finder found): the person's own no, then the rules the lane is built on.
+  | "unsubscribed"
+  | "outreach_is_email_only"
+  | "outreach_not_a_lead"
+  | "outreach_without_unsubscribe"
+  | "outreach_needs_own_domain"
+  | "sending_domain_not_ready";
 
 export type Delivered =
   | { outcome: "sent"; messageId: string | null; externalId: string | null }
@@ -203,10 +234,14 @@ interface WireFacts {
    * keeps the thread in somebody's queue.
    */
   control: { kind: string; until: string } | null;
+  /** The person this thread is with, as the thread says: what outreach asks the leads about. */
+  contactId: string | null;
   contact: {
     consent: string | null;
     dnc: boolean | null;
     marketing_consent: string | null;
+    /** Email's own answer (00174): opted_out once they pressed Unsubscribe. */
+    email_marketing: string | null;
     erased_at: string | null;
     erasing_since: string | null;
     /** The address on file now, and whether it has stopped being sent to (00125, 00126). */
@@ -226,7 +261,7 @@ async function wireFacts(db: Db, d: Delivery): Promise<WireFacts> {
   const { data, error } = await db
     .from("conversations")
     .select(
-      "paused_until, control_kind, control_until, contacts (consent, dnc, marketing_consent, erased_at, erasing_since, email, email_suppressed_at), tenants (status)",
+      "paused_until, control_kind, control_until, contact_id, contacts (consent, dnc, marketing_consent, email_marketing, erased_at, erasing_since, email, email_suppressed_at), tenants (status)",
     )
     .eq("id", d.conversationId)
     .eq("tenant_id", d.tenantId)
@@ -237,16 +272,19 @@ async function wireFacts(db: Db, d: Delivery): Promise<WireFacts> {
     paused_until: string | null;
     control_kind?: string | null;
     control_until?: string | null;
+    contact_id?: string | null;
     contacts: WireFacts["contact"] | null;
     tenants: { status: string | null } | null;
   };
   return {
     pausedUntil: row.paused_until ?? null,
     control: row.control_kind && row.control_until ? { kind: row.control_kind, until: row.control_until } : null,
+    contactId: row.contact_id ?? null,
     contact: row.contacts ?? {
       consent: null,
       dnc: null,
       marketing_consent: null,
+      email_marketing: null,
       erased_at: null,
       erasing_since: null,
       email: null,
@@ -256,8 +294,60 @@ async function wireFacts(db: Db, d: Delivery): Promise<WireFacts> {
   };
 }
 
+/** What a cold email's own rules ask, read only for one (Reach out). */
+interface OutreachFacts {
+  /** The person is a business the finder found: a lead points at them. */
+  isLead: boolean;
+  /** The request carries RFC 8058's one-click unsubscribe, both headers. */
+  unsubscribable: boolean;
+  /**
+   * The state of the workspace's own domain the request's From is, as Connections set it up (its host and its
+   * from_local); null when the From is no such address.
+   */
+  domainState: string | null;
+}
+
+/**
+ * The facts outreach adds, in two reads, and only for an outreach email: a
+ * conversational send never pays for them. A read that fails throws, as
+ * wireFacts does: "we could not check" is not "yes".
+ */
+async function outreachFacts(db: Db, d: Delivery, f: WireFacts): Promise<OutreachFacts> {
+  const headers = d.email?.headers ?? {};
+  const unsubscribable =
+    !!headers["List-Unsubscribe"] && headers["List-Unsubscribe-Post"] === "List-Unsubscribe=One-Click";
+  let isLead = false;
+  if (f.contactId) {
+    const { data, error } = await db
+      .from("leads")
+      .select("id")
+      .eq("tenant_id", d.tenantId)
+      .eq("contact_id", f.contactId)
+      .limit(1);
+    if (error) throw new Error(`deliver: cannot read the leads for conversation ${d.conversationId}: ${error.message}`);
+    isLead = (data ?? []).length > 0;
+  }
+  const from = addressOf(d.email?.from)?.address ?? null;
+  const host = from ? from.slice(from.lastIndexOf("@") + 1) : null;
+  let domainState: string | null = null;
+  if (host) {
+    const { data, error } = await db
+      .from("sending_domains")
+      .select("host, state, from_local")
+      .eq("tenant_id", d.tenantId)
+      .eq("host", host)
+      .maybeSingle();
+    if (error)
+      throw new Error(`deliver: cannot read the sending domain for conversation ${d.conversationId}: ${error.message}`);
+    // The whole address, as the wire will hold it (emailSender): another name on an own domain is not the address the
+    // workspace set up, and would only fail at the wire rather than be refused here with its reason.
+    domainState = data && `${data.from_local}@${host}` === from ? data.state : null;
+  }
+  return { isLead, unsubscribable, domainState };
+}
+
 /** Why the door is shut for this send, or null when it may go. */
-function refusalFor(d: Delivery, f: WireFacts, nowMs: number): DeliveryRefusal | null {
+function refusalFor(d: Delivery, f: WireFacts, nowMs: number, o: OutreachFacts | null): DeliveryRefusal | null {
   // A person who asked to be forgotten is never messaged, whatever the row
   // that survived says -- from the moment they asked (erasing_since, written
   // before anything is destroyed), not only once the erasure finished.
@@ -268,6 +358,9 @@ function refusalFor(d: Delivery, f: WireFacts, nowMs: number): DeliveryRefusal |
   // under a consent the carriers were never told about, whatever the person
   // said to us -- so it does not, whoever asks. Offers and news go by WhatsApp.
   if (d.channel === "sms" && d.purpose === "marketing") return "sms_carries_no_promotions";
+  // A cold message goes by email and nothing else: a phone's lines are registered, and consented, for people who
+  // wrote to the business, never for businesses it found.
+  if (d.purpose === "outreach" && d.channel !== "email") return "outreach_is_email_only";
   if (d.channel === "email") {
     // Email carries replies and nothing promotional until a release of its own
     // brings the unsubscribe a promotion owes (the plan's §11): refused here,
@@ -284,6 +377,16 @@ function refusalFor(d: Delivery, f: WireFacts, nowMs: number): DeliveryRefusal |
   // Consent outranks everything, asked with this message's own purpose.
   const may = mayMessageFor(f.contact, d.purpose, { proactive: d.proactive });
   if (!may.ok) return may.reason;
+  // Outreach's own rules, after the person's no and before any pause: only to a business the finder found, only with
+  // the one-click unsubscribe the large mailbox providers require, only from a domain the workspace owns and has
+  // verified, never from the hosted address every workspace's replies share.
+  if (d.purpose === "outreach") {
+    if (!o) throw new Error(`deliver: an outreach email is judged with its facts (conversation ${d.conversationId})`);
+    if (!o.isLead) return "outreach_not_a_lead";
+    if (!o.unsubscribable) return "outreach_without_unsubscribe";
+    if (!o.domainState) return "outreach_needs_own_domain";
+    if (o.domainState !== "verified") return "sending_domain_not_ready";
+  }
   const kind = kindOf(d);
   // A person's own reply goes out even when the machine is told to stop: the
   // pause exists for them, and a paused workspace may still answer by hand.
@@ -406,8 +509,9 @@ export async function deliver(ports: DeliverPorts, d: Delivery): Promise<Deliver
     );
   const nowMs = (ports.now ?? Date.now)();
   const facts = await wireFacts(ports.db, d);
+  const outreach = d.purpose === "outreach" && d.channel === "email" ? await outreachFacts(ports.db, d, facts) : null;
 
-  const refusal = refusalFor(d, facts, nowMs);
+  const refusal = refusalFor(d, facts, nowMs, outreach);
   const overtakenBy = !refusal && kindOf(d) === "draft" ? await overtakenByHuman(ports.db, d) : null;
   const reason = refusal ?? (overtakenBy ? "superseded_by_human" : null);
   if (reason) {
@@ -422,6 +526,7 @@ export async function deliver(ports: DeliverPorts, d: Delivery): Promise<Deliver
         consent: facts.contact.consent,
         dnc: facts.contact.dnc,
         marketing_consent: facts.contact.marketing_consent,
+        ...(d.purpose === "outreach" ? { email_marketing: facts.contact.email_marketing } : {}),
         ...(overtakenBy ? { after: overtakenBy } : {}),
       });
     }
@@ -434,7 +539,11 @@ export async function deliver(ports: DeliverPorts, d: Delivery): Promise<Deliver
       ? { ok: false, wamid: null, status: 0, errorBody: "no_sender_for_channel", reason: "no_sender_for_channel" }
       : send === null
         ? { ok: false, wamid: null, status: 503, errorBody: "no_credentials", reason: "no_credentials" }
-        : await send(d.to, { body: d.body, template: d.template, ...(d.email ? { email: d.email } : {}) });
+        : await send(d.to, {
+            body: d.body,
+            template: d.template,
+            ...(d.email ? { email: d.email, purpose: d.purpose } : {}),
+          });
 
   if (sent.ok) {
     if (d.messageId) {

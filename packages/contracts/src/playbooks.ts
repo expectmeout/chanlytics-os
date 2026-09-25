@@ -11,7 +11,7 @@ import { POLICY_CLASS_WORDS } from "./config";
  * once"; a playbook is "keep doing this".
  */
 import { audienceMembers } from "./broadcasts";
-import { purposeOfPlaybook, type SendPurpose } from "./consent";
+import { purposeOfPlaybook, type AskedPurpose } from "./consent";
 import { GET_YES_ROUTE, saidYesTo, saidYesWords, whyNotReceive, type PersonRowVM } from "./people";
 import { PARAM_SOURCE_LABELS, type ParamSpec } from "./templates";
 import type { BroadcastDto, BroadcastRecipientDto } from "./broadcasts";
@@ -197,7 +197,7 @@ export interface FollowUpFactsDto {
   /** Its class is ask: each run it makes waits for a person on Today. */
   asks: boolean;
   /** What its template is for, as the send judges a yes (consent purposeOfTemplate, from Meta's category). */
-  purpose: SendPurpose;
+  purpose: AskedPurpose;
   /** Contact id -> when their follow-up went. */
   had: Record<string, string>;
   /** Contact id -> when the run they are in, on its way, goes. */

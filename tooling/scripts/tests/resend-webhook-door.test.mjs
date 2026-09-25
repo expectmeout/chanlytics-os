@@ -210,3 +210,29 @@ test("what the workspace's people are told: who wrote and about what, the first 
     "An automated email arrived: New lead",
   );
 });
+
+test("the cold account's receipts come to the same door, proven with its own secret; one signed with neither is refused", async () => {
+  const COLD = `whsec_${Buffer.from("the-cold-accounts-signing-secret").toString("base64")}`;
+  const ev = received(["bestmovers@mail.chanlytics.com"]);
+  // Only the platform's secret set: its deliveries still work, and a cold-signed one is not proven.
+  let t = world();
+  assert.equal(await post(ev), 200);
+  assert.equal(await post(ev, { secret: COLD }), 401);
+  assert.equal(t.jobs.length, 1);
+  process.env.RESEND_COLD_WEBHOOK_SECRET = COLD;
+  try {
+    t = world();
+    assert.equal(await post(ev, { secret: COLD }), 200, "signed by the cold account");
+    assert.equal(await post(ev), 200, "and the platform's, still");
+    assert.equal(
+      await post(ev, { secret: `whsec_${Buffer.from("somebody-else's-signing-secret!!").toString("base64")}` }),
+      401,
+    );
+    assert.equal(t.jobs.length, 2, "one for each proven delivery; the stranger's is none");
+    // A cold secret set wrong refuses only what it would have proven: the platform's receipts still land.
+    process.env.RESEND_COLD_WEBHOOK_SECRET = "whsec_";
+    assert.equal(await post(ev), 200, "a bad second secret does not stop the first");
+  } finally {
+    delete process.env.RESEND_COLD_WEBHOOK_SECRET;
+  }
+});

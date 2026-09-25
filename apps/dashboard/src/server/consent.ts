@@ -4,7 +4,7 @@ import {
   CONSENT_SOURCES,
   OWN_MESSAGE_REFUSALS,
   offersYesRefusal,
-  type SendPurpose,
+  type AskedPurpose,
 } from "@chanlytics/contracts";
 import type { RouteContext } from "@/server/with-route";
 import { recordDecision } from "@/server/verbs";
@@ -40,7 +40,7 @@ export interface ManyOutcome {
 }
 
 /** The four sources, the reset with none: the rule the two single routes apply, shared with the batch. */
-export function consentSourceOf(consent: string, source: string | undefined, purpose: SendPurpose): string {
+export function consentSourceOf(consent: string, source: string | undefined, purpose: AskedPurpose): string {
   const s = consent === "unknown" ? CONSENT_RESET_SOURCE : source;
   if (typeof s !== "string" || (consent !== "unknown" && !CONSENT_SOURCES.some((k) => k.id === s))) {
     throw new AppError(
@@ -69,7 +69,7 @@ export function noteOf(note: unknown): string | null {
 export async function recordConsentMany(
   ctx: RouteContext,
   tenantId: string,
-  purpose: SendPurpose,
+  purpose: AskedPurpose,
   input: { ids: string[] } & ConsentInput,
 ): Promise<ManyOutcome> {
   const source = consentSourceOf(input.consent, input.source, purpose);

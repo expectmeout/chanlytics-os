@@ -24,7 +24,7 @@ import {
   type PersonCameFrom,
   type PersonChannel,
 } from "./person-words";
-import { isOptedOutContact, mayMessageFor, type ConsentChange, type SendPurpose } from "./consent";
+import { isOptedOutContact, mayMessageFor, type ConsentChange, type AskedPurpose } from "./consent";
 import { replyWindow, waWindow } from "./policy";
 import { tidyCallSummary } from "./call-words";
 import type { FollowUpStand } from "./playbooks";
@@ -1161,7 +1161,7 @@ function consentOf(r: PersonRowDto, tz: string, nowMs: number): PersonConsent {
  * by the compiler at every call site, the way `businessRecordProblems` requires
  * its registration path.
  */
-export function mayReceive(r: Pick<PersonRowVM, "consent" | "phone">, purpose: SendPurpose): boolean {
+export function mayReceive(r: Pick<PersonRowVM, "consent" | "phone">, purpose: AskedPurpose): boolean {
   return whyNotReceive(r, purpose) === null;
 }
 
@@ -1174,7 +1174,7 @@ export function mayReceive(r: Pick<PersonRowVM, "consent" | "phone">, purpose: S
  */
 export type NotReceived = "no_number" | "stopped" | "no_yes";
 
-export function whyNotReceive(r: Pick<PersonRowVM, "consent" | "phone">, purpose: SendPurpose): NotReceived | null {
+export function whyNotReceive(r: Pick<PersonRowVM, "consent" | "phone">, purpose: AskedPurpose): NotReceived | null {
   // Every audience today leaves by WhatsApp or text, and both need a number. A
   // person with an address and none is reached when the email wire carries
   // reminders (docs/plans/2026-09-17-email-channel.md, §11), not before.
@@ -1193,7 +1193,7 @@ export function whyNotReceive(r: Pick<PersonRowVM, "consent" | "phone">, purpose
  * `mayReceive` that is an answer they gave. When nobody on a list can be sent a thing and somebody on it said yes,
  * what is missing is a number, not an answer -- and asking them for their yes asks for one they already gave.
  */
-export function saidYesTo(r: Pick<PersonRowVM, "consent">, purpose: SendPurpose): boolean {
+export function saidYesTo(r: Pick<PersonRowVM, "consent">, purpose: AskedPurpose): boolean {
   return mayMessageFor(
     { consent: r.consent.state, dnc: r.consent.dnc, marketing_consent: r.consent.marketing },
     purpose,
@@ -1634,7 +1634,7 @@ export const NO_NUMBER_REACH = "a broadcast reaches only a recorded yes with a n
  * list step says it of a list (#663) and the send screen of the audience it has open -- `who` is "this list" or the
  * audience's name -- so the two say it in one spelling.
  */
-export function noNumberWords(who: string, purpose: SendPurpose): string {
+export function noNumberWords(who: string, purpose: AskedPurpose): string {
   return `Nobody on ${who} can be sent ${purpose === "marketing" ? "an offer" : "a message"} yet — ${NO_NUMBER_REACH}.`;
 }
 
@@ -1645,7 +1645,7 @@ export function noNumberWords(who: string, purpose: SendPurpose): string {
  * (`saidYes`, audiencePreview's): "0 people … said yes" stood over `noNumberWords` and was false, so it says how many
  * did, and what they are missing.
  */
-export function saidYesWords(who: string, purpose: SendPurpose, sending: number, saidYes: number): string {
+export function saidYesWords(who: string, purpose: AskedPurpose, sending: number, saidYes: number): string {
   const noNumber = sending === 0 && saidYes > 0;
   const n = noNumber ? saidYes : sending;
   const words = `${n} ${n === 1 ? "person" : "people"} on ${who} said yes to ${purpose === "marketing" ? "offers" : "messages"}`;

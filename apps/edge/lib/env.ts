@@ -111,6 +111,10 @@ export const env = {
   get RESEND_WEBHOOK_SECRET() {
     return read(process.env.RESEND_WEBHOOK_SECRET);
   },
+  /** The cold account's webhook secret (Reach out): its receipts come to the same door, proven with this one. */
+  get RESEND_COLD_WEBHOOK_SECRET() {
+    return read(process.env.RESEND_COLD_WEBHOOK_SECRET);
+  },
   // Push (Expo's push service)
   get EXPO_ACCESS_TOKEN() {
     return read(process.env.EXPO_ACCESS_TOKEN);
