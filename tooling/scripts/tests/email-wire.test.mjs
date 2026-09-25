@@ -354,3 +354,71 @@ test("what the provider's refusal means for the next send: slow down, wait for t
   assert.equal(resendLimitOf(no(422, "validation_error")), null);
   assert.equal(resendLimitOf({ ok: true, wamid: "re_1", status: 200 }), null);
 });
+
+test("the provider's 'not this second' is waited out once, briefly, and the same bytes go again under the same key; anything longer comes back as it came", async () => {
+  const real = globalThis.fetch;
+  const posted = [];
+  let answers = [];
+  globalThis.fetch = async (_url, init) => {
+    posted.push(init);
+    const a = answers.shift();
+    return new Response(a.body, { status: a.status, headers: a.headers ?? {} });
+  };
+  const waits = [];
+  const wait = async (ms) => {
+    waits.push(ms);
+  };
+  const limited = (name, headers = { "retry-after": "1" }) => ({
+    status: 429,
+    body: JSON.stringify({ statusCode: 429, name, message: "x" }),
+    headers,
+  });
+  const ok = { status: 200, body: JSON.stringify({ id: "re_2" }) };
+  const again = () => {
+    posted.length = 0;
+    waits.length = 0;
+  };
+  try {
+    const r = buildEmailRequest(input());
+    answers = [limited("rate_limit_exceeded"), ok];
+    assert.deepEqual(await sendEmail({ apiKey: "k" }, r, wait), { ok: true, wamid: "re_2", status: 200 });
+    assert.deepEqual(waits, [1000], "as long as it asked, once");
+    assert.equal(posted.length, 2);
+    assert.equal(posted[1].body, posted[0].body, "the same bytes");
+    assert.equal(posted[1].headers["Idempotency-Key"], posted[0].headers["Idempotency-Key"], "under the same key");
+
+    again();
+    answers = [limited("concurrent_idempotent_requests", {}), ok];
+    assert.equal(
+      (await sendEmail({ apiKey: "k" }, r, wait)).ok,
+      true,
+      "the first is still being worked: its answer is ours",
+    );
+    assert.deepEqual(waits, [1000], "a second, when it did not say how long");
+
+    again();
+    answers = [limited("rate_limit_exceeded", { "retry-after": "30" })];
+    const long = await sendEmail({ apiKey: "k" }, r, wait);
+    assert.deepEqual(
+      [long.ok, long.status, posted.length, waits.length],
+      [false, 429, 1, 0],
+      "too long for a worker's run",
+    );
+
+    again();
+    answers = [limited("daily_quota_exceeded", {})];
+    const quota = await sendEmail({ apiKey: "k" }, r, wait);
+    assert.deepEqual(
+      [resendLimitOf(quota), posted.length, waits.length],
+      ["daily", 1, 0],
+      "a used-up day is not waited for",
+    );
+
+    again();
+    answers = [limited("rate_limit_exceeded"), limited("rate_limit_exceeded")];
+    const twice = await sendEmail({ apiKey: "k" }, r, wait);
+    assert.deepEqual([twice.status, posted.length, waits.length], [429, 2, 1], "once, never a loop");
+  } finally {
+    globalThis.fetch = real;
+  }
+});

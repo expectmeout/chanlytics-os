@@ -4295,7 +4295,18 @@ function emailPlainText(e) {
 // src/email-resend.ts
 var RESEND_EMAILS = "https://api.resend.com/emails";
 var SEND_TIMEOUT_MS2 = 15e3;
-async function sendEmail(cfg, request) {
+var LIMIT_WAIT_MAX_MS = 2e3;
+var LIMIT_WAIT_DEFAULT_MS = 1e3;
+var sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+function waitAskedMs(h) {
+  for (const name of ["retry-after", "ratelimit-reset"]) {
+    const v = h.get(name);
+    const s = Number(v);
+    if (v !== null && v.trim() !== "" && Number.isFinite(s) && s >= 0) return Math.round(s * 1e3);
+  }
+  return null;
+}
+async function postEmail(cfg, request) {
   const { idempotency_key, ...body } = request;
   try {
     const r2 = await fetch(RESEND_EMAILS, {
@@ -4317,12 +4328,27 @@ async function sendEmail(cfg, request) {
           return null;
         }
       })();
-      return { ok: true, wamid: typeof id === "string" ? id : null, status: r2.status };
+      return { result: { ok: true, wamid: typeof id === "string" ? id : null, status: r2.status }, waitMs: null };
     }
-    return { ok: false, wamid: null, status: r2.status, errorBody: raw.slice(0, 500) };
+    return {
+      result: { ok: false, wamid: null, status: r2.status, errorBody: raw.slice(0, 500) },
+      waitMs: waitAskedMs(r2.headers)
+    };
   } catch (e) {
-    return { ok: false, wamid: null, status: 0, errorBody: e instanceof Error ? e.message : String(e) };
+    return {
+      result: { ok: false, wamid: null, status: 0, errorBody: e instanceof Error ? e.message : String(e) },
+      waitMs: null
+    };
   }
+}
+async function sendEmail(cfg, request, wait = sleep) {
+  const first = await postEmail(cfg, request);
+  const limit = resendLimitOf(first.result);
+  if (limit !== "rate" && limit !== "in_flight") return first.result;
+  const ms = first.waitMs ?? LIMIT_WAIT_DEFAULT_MS;
+  if (ms > LIMIT_WAIT_MAX_MS) return first.result;
+  await wait(ms);
+  return (await postEmail(cfg, request)).result;
 }
 var RESEND_RECEIVED = "https://api.resend.com/emails/receiving";
 var FETCH_TIMEOUT_MS = 15e3;

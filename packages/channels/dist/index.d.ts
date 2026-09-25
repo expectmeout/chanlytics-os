@@ -1520,12 +1520,18 @@ declare function emailPlainText(e: Pick<ReceivedEmail, "text" | "html">): string
  * send's result, so the one retry the ledger allows cannot deliver twice; a
  * repeated key with a different payload is refused (409), which a frozen
  * request never produces.
+ *
+ * A refusal that means "not this second" (resendLimitOf: rate, in_flight) is
+ * waited out once, when the provider's wait is short, and the same bytes are
+ * posted again under the same key: the provider did not take the first, or it
+ * answers the second with the first's result. A longer wait, a used-up day or
+ * month, or a second refusal is handed back as it came.
  */
 
 interface ResendConfig {
     apiKey: string;
 }
-declare function sendEmail(cfg: ResendConfig, request: EmailRequest): Promise<SendResult>;
+declare function sendEmail(cfg: ResendConfig, request: EmailRequest, wait?: (ms: number) => Promise<void>): Promise<SendResult>;
 /**
  * One received email, by the id its webhook named. `null` is the provider
  * saying it has no such email (404): a fact, and the intake ends. Anything
