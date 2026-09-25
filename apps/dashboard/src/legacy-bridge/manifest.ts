@@ -136,6 +136,7 @@ import "@/legacy/pages/business-tab.jsx";
 import "@/legacy/pages/settings.jsx";
 import "@/legacy/pages/billing-real.jsx";
 // After the mockup's settings: the Integrations pane and the one form it opens.
+import "@/legacy/pages/sending-domains.jsx";
 import "@/legacy/pages/integrations-real.jsx";
 import "@/legacy/pages/business-record.jsx";
 // The back office: rendered by the settings shell, for the people who run Chanlytics.

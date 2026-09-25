@@ -165,6 +165,7 @@ const { installBilling } = await import("../../../apps/dashboard/src/legacy-brid
 installBilling(globalThis.window);
 await import("../../../apps/dashboard/src/legacy/pages/billing-real.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/business-record.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/sending-domains.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/integrations-real.jsx");
 
 const walk = (n, fn) => {
