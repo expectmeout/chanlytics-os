@@ -1,3 +1,4 @@
+import type { SendPurpose } from "@chanlytics/contracts";
 import type { Channel } from "../deliver";
 import type { SendQueuedPorts } from "./ports";
 
@@ -11,6 +12,13 @@ export interface SendQueuedCommand {
     to_email?: string;
     body?: string;
     template?: { name: string; language: string; params: string[] };
+    /**
+     * What the send IS, when the job knows better than a template can: an offer is marketing whatever its words, and a
+     * first email starts a conversation. Both can only make the door stricter: a payload never makes a template's
+     * purpose looser, and only `true` makes a send proactive.
+     */
+    purpose?: SendPurpose;
+    proactive?: boolean;
   };
 }
 
@@ -36,9 +44,12 @@ export async function sendQueued(ports: SendQueuedPorts, cmd: SendQueuedCommand)
     );
   }
   if (!msg || msg.status !== "queued") return; // canceled or already handled: no-op
-  // Which yes this send needs. Never proactive: everything on this queue
-  // answers a thread that exists.
-  const purpose = await ports.purposeOf(p.template);
+  // Which yes this send needs: the template's, as Meta has it, or stricter when the job says the words are an offer.
+  // A payload is our own code's word, and our own code is not the authority on a template's category, so it can only
+  // tighten. Proactive likewise: only a job that says so starts a conversation; everything else on this queue answers
+  // a thread that exists.
+  const fromTemplate = await ports.purposeOf(p.template);
+  const purpose: SendPurpose = p.purpose === "marketing" ? "marketing" : fromTemplate;
   // A channel this runtime has no wire for finds none at the door and fails
   // loudly, leaving the customer un-messaged rather than reached over the
   // wrong wire.
@@ -60,7 +71,7 @@ export async function sendQueued(ports: SendQueuedPorts, cmd: SendQueuedCommand)
     // the metrics report a bot's words as a person's.
     sender: (msg.sender ?? "human") as "ai" | "human" | "system",
     purpose,
-    proactive: false,
+    proactive: p.proactive === true,
     body: p.body ?? msg.body ?? "",
     template: p.template,
     // The request the row was queued with, sent as it was frozen. A row without one fails at the wire, by name.

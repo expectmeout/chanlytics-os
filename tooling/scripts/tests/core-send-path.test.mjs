@@ -89,6 +89,26 @@ test("a template send asks which yes it needs, and a channel the row names trave
   assert.equal(log[0][1].body, "", "no words of its own: the template's are the wire's");
 });
 
+test("a job may say what its send IS, and only ever more strictly: an offer is marketing whatever its template says; only true starts a conversation", async () => {
+  const cases = [
+    [{ purpose: "marketing" }, "conversational", "marketing", false],
+    [{ purpose: "conversational" }, "marketing", "marketing", false],
+    [{}, "marketing", "marketing", false],
+    [{ proactive: true }, "conversational", "conversational", true],
+    [{ proactive: "yes" }, "conversational", "conversational", false],
+    [{ proactive: false }, "conversational", "conversational", false],
+  ];
+  for (const [payload, fromTemplate, purpose, proactive] of cases) {
+    const { ports, log } = fakes({ purposeOf: fromTemplate });
+    await core.sendQueued(ports, send(payload));
+    assert.deepEqual(
+      [log[0][1].purpose, log[0][1].proactive],
+      [purpose, proactive],
+      JSON.stringify({ payload, fromTemplate }),
+    );
+  }
+});
+
 test("a wire that could not carry it flags the thread and tells the owner; a provider's 401 or 403 pages the platform as well; a refusal does neither", async () => {
   const failed = fakes({
     deliver: { outcome: "failed", reason: "provider", status: 500, errorBody: "boom", messageId: "m1" },
