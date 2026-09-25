@@ -335,7 +335,9 @@ export async function POST(request: Request): Promise<Response> {
             fromE164: n.fromE164,
             toE164: n.toE164,
             startedAtIso: n.startedAtIso,
-            callId: res.call_id,
+            // Retell's id, as the inbound-call webhook records it: that door proves most tests first, before the call
+            // has a row of ours.
+            callId: n.retellCallId,
           });
         if (res.skipped) {
           // Older than the row: a retried call_started after call_ended, or a
