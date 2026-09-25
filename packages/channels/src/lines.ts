@@ -67,6 +67,20 @@ export interface LineProvider {
     o: { sipUrl: string; friendlyName: string },
   ): Promise<{ sid: string }>;
   attachNumber(acct: ProviderAccount, trunkSid: string, numberSid: string): Promise<void>;
+  /*
+   * LOOK BEFORE CREATING AGAIN. Each create's receipt is written after the provider answers, so a run killed in that
+   * window left the thing made and the row silent. The saga marks a create as asked before it asks, and a later run
+   * that finds the mark looks with these before asking again (lines-saga.ts `once`). Each is one read in the line's own
+   * subaccount (the subaccount's, as the master, by a name that carries the line), and a read that FAILS throws: "not
+   * found" sends the saga on to create a second one.
+   */
+  findSubaccount(master: ProviderAccount, friendlyName: string): Promise<ProviderAccount | null>;
+  findTrunk(acct: ProviderAccount, domainName: string): Promise<{ sid: string; domainName: string } | null>;
+  findCredentialList(acct: ProviderAccount, friendlyName: string): Promise<{ sid: string } | null>;
+  findCredential(acct: ProviderAccount, listSid: string, username: string): Promise<{ sid: string } | null>;
+  /** A credential whose password was lost with the run that made it: removed, so it can be made again. */
+  deleteCredential(acct: ProviderAccount, listSid: string, credentialSid: string): Promise<void>;
+  findOrigination(acct: ProviderAccount, trunkSid: string, sipUrl: string): Promise<{ sid: string } | null>;
   /** The Messaging Service a line texts through: inbound to our webhook, the number in its sender pool. */
   createMessagingService(
     acct: ProviderAccount,
@@ -125,6 +139,19 @@ export function trunkDomain(lineId: string): string {
 }
 
 /** The SIP username Retell presents on the trunk (≤ 32 characters at Twilio). */
+/**
+ * The line's subaccount's name: the workspace's, and the line's own tag, so a look for it by name can only find this
+ * line's (Twilio's names are not unique, and two workspaces may share one). Within Twilio's 64 characters.
+ */
+export function subaccountName(tenantName: string, lineId: string): string {
+  const tag = lineId
+    .replace(/[^a-z0-9]/gi, "")
+    .slice(0, 12)
+    .toLowerCase();
+  const suffix = ` · Chanlytics · ${tag}`;
+  return `${tenantName.slice(0, 64 - suffix.length)}${suffix}`;
+}
+
 export function sipUsername(lineId: string): string {
   return `line-${lineId
     .replace(/[^a-z0-9]/gi, "")
