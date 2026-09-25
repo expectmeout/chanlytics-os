@@ -1404,7 +1404,7 @@ test("a hint's tip is placed against the peek as it is asked for, flips above it
   });
   // The email's note on a line near the foot: three lines of words want 72px and there are 40, so it hangs above.
   const note =
-    "Unconfirmed. Their server accepts every address, so the check can't tell. This search counts a phone as enough.";
+    "Unconfirmed. Their server accepts every address, so the check can't tell. This search counts a lead once its phone or email checks out, phone first.";
   assert.deepEqual(placed({ top: 640, bottom: 680 }, { text: note }), {
     left: "18px",
     right: "28px",

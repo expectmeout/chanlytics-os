@@ -303,8 +303,9 @@ const LeadPlanCard = ({ plan, view, facts, busy, refusal, baseVersion = 1, pick 
     }
     if (id === "contact") {
       return [
-        { id: "email", label: "then find their email and check it", on: plan.contact === "email", apply: () => change({ contact: "email" }) },
-        { id: "phone", label: "a phone is enough", note: "goes further this month", on: plan.contact === "phone", apply: () => change({ contact: "phone" }) },
+        // Which way to reach them comes first (decision 0010): either one checked makes a lead count.
+        { id: "email", label: "reached by a checked email or a phone", on: plan.contact === "email", apply: () => change({ contact: "email" }) },
+        { id: "phone", label: "reached by phone or a checked email", on: plan.contact === "phone", apply: () => change({ contact: "phone" }) },
       ];
     }
     if (id === "who") return [];

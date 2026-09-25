@@ -89,6 +89,16 @@ function shortCode(raw) {
   const digits2 = String(raw ?? "").replace(/[^\d]/g, "");
   return digits2.length >= 3 && digits2.length <= 6;
 }
+function phoneDialable(raw) {
+  const e164 = normalizePhone(raw);
+  if (!e164) return false;
+  if (!e164.startsWith("+1")) return true;
+  const d = e164.slice(2);
+  if (d.length !== 10) return false;
+  const [area, exchange] = [d.slice(0, 3), d.slice(3, 6)];
+  const n11 = (x) => x[1] === "1" && x[2] === "1";
+  return /^[2-9]/.test(area) && /^[2-9]/.test(exchange) && !n11(area) && !n11(exchange);
+}
 function whyNotAPhone(raw) {
   if (normalizePhone(raw)) return null;
   const digits2 = String(raw ?? "").replace(/[^\d]/g, "");
@@ -4657,6 +4667,10 @@ var LEAD_ESTIMATE_MARGIN = 1.3;
 var LEAD_ASK_MIN_FACTOR = 1.2;
 var LEAD_ASK_MAX_FACTOR = 4;
 var LEAD_QUESTION_WAIT_MS = 24 * 36e5;
+function leadPhoneState(phone) {
+  if (!phone) return "none";
+  return phoneDialable(phone) ? "ok" : "invalid";
+}
 var US_STATES = {
   alabama: "AL",
   alaska: "AK",
@@ -4813,7 +4827,7 @@ function planWords(plan) {
   }
   out.push({ text: ", ", pick: null });
   out.push({
-    text: plan.contact === "email" ? "then find their email and check it" : "a phone is enough",
+    text: plan.contact === "email" ? "reached by a checked email or a phone" : "reached by phone or a checked email",
     pick: "contact"
   });
   out.push({ text: ".", pick: null });
@@ -4946,7 +4960,7 @@ function placesToAsk(plan, remaining, yieldSoFar) {
   return { total: perTerm.reduce((a, b) => a + b, 0), perTerm };
 }
 var LEAD_EMAIL_REASON = /^email:/;
-function classify(plan, answer, facts, emailState, inArea) {
+function classify(plan, answer, facts, emailState, inArea, phoneState) {
   if (facts.phone_matches_site === null && facts.emails.length === 0)
     return { class: "excluded", excluded_by: LEAD_UNREACHABLE_KEY, fit: null, reasons: [LEAD_UNREACHABLE_KEY] };
   const reasons = [];
@@ -4987,8 +5001,10 @@ function classify(plan, answer, facts, emailState, inArea) {
   }
   if (excludedBy) return { class: "excluded", excluded_by: excludedBy, fit: null, reasons };
   if (!inArea) reasons.push("out_of_area");
-  if (plan.contact === "email" && emailState !== "ok") reasons.push(`email:${emailState}`);
-  if (plan.contact === "phone" && facts.phone_matches_site === null) reasons.push("phone:none");
+  if (phoneState !== "ok" && emailState !== "ok") {
+    if (emailState !== "none") reasons.push(`email:${emailState}`);
+    else reasons.push(`phone:${phoneState}`);
+  }
   const fit = softFail ? "long" : unknown ? "look" : "strong";
   return { class: reasons.length ? "review" : "qualified", excluded_by: null, fit, reasons };
 }
@@ -9660,8 +9676,8 @@ var LEAD_MAILBOX_WORDS = {
   invalid: "That mailbox doesn't exist"
 };
 var LEAD_CONTACT_STANDARD_WORDS = {
-  phone: "This search counts a phone as enough.",
-  email: "This search asked for a checked email."
+  phone: "This search counts a lead once its phone or email checks out, phone first.",
+  email: "This search counts a lead once its email or phone checks out, email first."
 };
 var LEAD_NO_EMAIL_LINE = "Checked their home, contact and about pages. Call instead.";
 var LEAD_SENT_QUESTION = "Did you send it?";
@@ -10876,7 +10892,7 @@ function leadPlanFacts(plan, facts) {
     `About ${planMinutes(plan)} minutes \u2014 leave the page if you like`,
     // No number: the card cannot know how many of THIS search's places are already here until it has looked.
     "Anything already yours is skipped",
-    `Counts only matches you can reach \xB7 ${leadAllowanceFact(facts.leadsLeft)}`
+    `Counts only matches with a checked phone or email \xB7 ${leadAllowanceFact(facts.leadsLeft)}`
   ];
 }
 function leadPlanAsk(plan, facts) {
@@ -23549,6 +23565,7 @@ export {
   leadNoCardLine,
   leadNotBusinessesLine,
   leadNoteLeft,
+  leadPhoneState,
   leadPinTone,
   leadPlanAsk,
   leadPlanFacts,
@@ -23697,6 +23714,7 @@ export {
   personNotesVM,
   personStanding,
   personStateFor,
+  phoneDialable,
   phoneTail,
   pickCurrentDeal,
   pinTokens,

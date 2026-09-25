@@ -51,6 +51,23 @@ export function shortCode(raw: string | null | undefined): boolean {
   return digits.length >= 3 && digits.length <= 6;
 }
 
+/**
+ * A number someone could dial, as far as its digits can say (a lead's phone, decision 0010): E.164 by normalizePhone,
+ * and in North America a real area code and exchange -- each starting 2 to 9, neither an N11 service code (211, 411,
+ * 911...). Stricter than whyNotAPhone, which takes any eight to fifteen digits: a lead's phone counts as a verified way
+ * to reach it, so junk a listing carries must not. It cannot say the line is connected; a carrier lookup could.
+ */
+export function phoneDialable(raw: string | null | undefined): boolean {
+  const e164 = normalizePhone(raw);
+  if (!e164) return false;
+  if (!e164.startsWith("+1")) return true;
+  const d = e164.slice(2);
+  if (d.length !== 10) return false;
+  const [area, exchange] = [d.slice(0, 3), d.slice(3, 6)];
+  const n11 = (x: string) => x[1] === "1" && x[2] === "1";
+  return /^[2-9]/.test(area) && /^[2-9]/.test(exchange) && !n11(area) && !n11(exchange);
+}
+
 export function whyNotAPhone(raw: string | null | undefined): string | null {
   if (normalizePhone(raw)) return null;
   const digits = String(raw ?? "").replace(/[^\d]/g, "");

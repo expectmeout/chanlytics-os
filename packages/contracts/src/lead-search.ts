@@ -13,7 +13,7 @@
  */
 import { z } from "zod";
 import { normalizeEmail } from "./email-address";
-import { normalizePhone } from "./phone";
+import { phoneDialable, normalizePhone } from "./phone";
 import { dayInZone } from "./availability";
 import type { JudgePlaceAnswer, PlaceFacts } from "./lead-judge";
 import { BOOKING_PLATFORM_HOSTS, onDomain } from "./booking-page";
@@ -135,6 +135,16 @@ export const LEAD_QUESTION_WAIT_MS = 24 * 3_600_000;
 /* ------------------------------------------------------------ the plan -- */
 
 export type LeadContactStandard = "phone" | "email";
+
+/**
+ * A lead's phone, as the count reads it (decision 0010): `ok` when it dials (contracts phoneDialable), `invalid` when a
+ * number is there and does not, `none` when there is none.
+ */
+export type LeadPhoneState = "ok" | "invalid" | "none";
+export function leadPhoneState(phone: string | null | undefined): LeadPhoneState {
+  if (!phone) return "none";
+  return phoneDialable(phone) ? "ok" : "invalid";
+}
 /** likely: Claude's read is enough. seen: a fact the card can show, cited by key (§0.1, 26). */
 export type LeadCriterionStandard = "likely" | "seen";
 export interface LeadCriterion {
@@ -408,7 +418,7 @@ export function planWords(plan: LeadSearchPlan): LeadPlanWord[] {
   }
   out.push({ text: ", ", pick: null });
   out.push({
-    text: plan.contact === "email" ? "then find their email and check it" : "a phone is enough",
+    text: plan.contact === "email" ? "reached by a checked email or a phone" : "reached by phone or a checked email",
     pick: "contact",
   });
   out.push({ text: ".", pick: null });
@@ -668,8 +678,14 @@ export const LEAD_EMAIL_REASON = /^email:/;
  * name or category, which are descriptions, not evidence), sends the place to
  * review. An optional criterion never excludes and never sends a place to
  * review by itself — it only softens the fit band. A place with no location
- * or one outside the area, or a contact standard not met, also sends it to
- * review. Everything else qualifies. A fit band is derived for ordering.
+ * or one outside the area, or one with no verified way to reach it, also sends it to review. Everything else
+ * qualifies. A fit band is derived for ordering.
+ *
+ * ONE VERIFIED WAY TO REACH THEM IS ENOUGH (decision 0010; Ruben, 25 September 2026: "as long as a number or email
+ * is verified then it may count"). A phone that dials (`phoneState` ok) or a mailbox that checked out (`emailState`
+ * ok). The plan's `contact` is the owner's preference -- which is shown first -- and never a gate: a B2B search that
+ * finds a good number, or a local one that finds a checked email, has found a lead. Without either, the email is the
+ * one way left when there is one, and its token (`email:<state>`) is what lead_check_commit promotes on a check.
  */
 export function classify(
   plan: LeadSearchPlan,
@@ -677,6 +693,7 @@ export function classify(
   facts: PlaceFacts,
   emailState: LeadEmailState,
   inArea: boolean,
+  phoneState: LeadPhoneState,
 ): LeadClassification {
   // Nothing to call and nothing to write to: not a lead, whatever the judge said. A null phone match is the
   // place having no phone at all (the phone:none reason below reads it the same way).
@@ -720,8 +737,10 @@ export function classify(
   }
   if (excludedBy) return { class: "excluded", excluded_by: excludedBy, fit: null, reasons };
   if (!inArea) reasons.push("out_of_area");
-  if (plan.contact === "email" && emailState !== "ok") reasons.push(`email:${emailState}`);
-  if (plan.contact === "phone" && facts.phone_matches_site === null) reasons.push("phone:none");
+  if (phoneState !== "ok" && emailState !== "ok") {
+    if (emailState !== "none") reasons.push(`email:${emailState}`);
+    else reasons.push(`phone:${phoneState}`);
+  }
   const fit: LeadFit = softFail ? "long" : unknown ? "look" : "strong";
   return { class: reasons.length ? "review" : "qualified", excluded_by: null, fit, reasons };
 }

@@ -730,11 +730,11 @@ test("a kept search says what was asked, in the owner's words and the date they 
     { askedLine: "", keepsLine: LEAD_REMOVE_KEEPS },
     "a search the page does not hold says nothing about what was asked",
   );
-  // Production, 21 Sep: "… a phone is enough, leaving out Starbucks and other chains”. Leaving out Starbucks and other
+  // Production, 21 Sep: "… reached by phone or a checked email, leaving out Starbucks and other chains”. Leaving out Starbucks and other
   // chains." What the owner's words already leave out is said once; what Claude added is still said after them.
   const coffee = {
     ...s,
-    asked: "coffee shops in Portland, a phone is enough, leaving out Starbucks and other chains",
+    asked: "coffee shops in Portland, reached by phone or a checked email, leaving out Starbucks and other chains",
     plan: {
       criteria: [],
       exclusions: [
@@ -745,12 +745,12 @@ test("a kept search says what was asked, in the owner's words and the date they 
   };
   assert.equal(
     leadSearchWords(coffee, "America/Chicago").askedLine,
-    "You asked on Sep 18: “coffee shops in Portland, a phone is enough, leaving out Starbucks and other chains”. Leaving out kiosks in malls.",
+    "You asked on Sep 18: “coffee shops in Portland, reached by phone or a checked email, leaving out Starbucks and other chains”. Leaving out kiosks in malls.",
   );
   const named = { ...coffee, plan: { criteria: [], exclusions: [coffee.plan.exclusions[0]] } };
   assert.equal(
     leadSearchWords(named, "America/Chicago").askedLine,
-    "You asked on Sep 18: “coffee shops in Portland, a phone is enough, leaving out Starbucks and other chains”.",
+    "You asked on Sep 18: “coffee shops in Portland, reached by phone or a checked email, leaving out Starbucks and other chains”.",
     "nothing is said twice",
   );
 });
@@ -793,7 +793,7 @@ test("the plan card's facts are the PRD's three, in leads, with no dollar meter"
     "About 48 minutes — leave the page if you like",
     // No number: the card cannot know how many of THIS search's places are already here until it has looked.
     "Anything already yours is skipped",
-    "Counts only matches you can reach · 486 left this month",
+    "Counts only matches with a checked phone or email · 486 left this month",
   ]);
   assert.equal(/\$/.test(leadPlanFacts(CARD_PLAN, PLAN_FACTS).join(" ")), false);
 });

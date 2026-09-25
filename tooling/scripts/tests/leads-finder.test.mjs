@@ -337,12 +337,12 @@ test("a changed count re-plans without the model, and a changed area makes a new
   const st = { plan: PLAN, pick: null, refusal: null };
   assert.equal(
     textOf(byTestId(drawCard(st), "plan-sentence")),
-    "Find 200 personal trainers in Austin, TX with a website, then find their email and check it.",
+    "Find 200 personal trainers in Austin, TX with a website, reached by a checked email or a phone.",
   );
   pickOption(st, "count", "50");
   assert.equal(
     textOf(byTestId(drawCard(st), "plan-sentence")),
-    "Find 50 personal trainers in Austin, TX with a website, then find their email and check it.",
+    "Find 50 personal trainers in Austin, TX with a website, reached by a checked email or a phone.",
   );
   assert.equal(st.plan.version, 2, "the count is one of the five that make a new version (S15; planVersionOf on main)");
   const counts = byTestId((click(byTestId(drawCard(st), "plan-count")), drawCard(st)), "plan-count-50");
@@ -356,7 +356,7 @@ test("a changed count re-plans without the model, and a changed area makes a new
   assert.equal(st.plan.version, 3, "and so is the area");
   assert.equal(
     textOf(byTestId(drawCard(st), "plan-sentence")),
-    "Find 50 personal trainers in Round Rock, TX with a website, then find their email and check it.",
+    "Find 50 personal trainers in Round Rock, TX with a website, reached by a checked email or a phone.",
   );
   assert.equal(textOf(byTestId(drawCard(st), "plan-changed")), "changed");
   assert.equal(sent.length, 0, "no model call: a picked word re-plans on the page");
@@ -365,10 +365,10 @@ test("a changed count re-plans without the model, and a changed area makes a new
 test("the contact standard is in the sentence and its picker switches it, and the sentence says so", () => {
   const st = { plan: PLAN, pick: null, refusal: null };
   const tok = byTestId(drawCard(st), "plan-contact");
-  assert.equal(textOf(tok), "then find their email and check it");
+  assert.equal(textOf(tok), "reached by a checked email or a phone");
   assert.equal(tok.props["aria-haspopup"], "listbox");
   pickOption(st, "contact", "phone");
-  assert.equal(textOf(byTestId(drawCard(st), "plan-contact")), "a phone is enough");
+  assert.equal(textOf(byTestId(drawCard(st), "plan-contact")), "reached by phone or a checked email");
   assert.equal(st.plan.version, 2, "the contact standard makes a new version");
   const open = (click(byTestId(drawCard(st), "plan-contact")), drawCard(st));
   const box = byTestId(open, "plan-contact-options");
@@ -414,7 +414,7 @@ test("Leaving out is chips the owner can take back, Likely says what past search
   );
   assert.equal(
     textOf(byTestId(tree, "plan-facts")),
-    "About 48 minutes — leave the page if you likeAnything already yours is skippedCounts only matches you can reach · 486 left this month",
+    "About 48 minutes — leave the page if you likeAnything already yours is skippedCounts only matches with a checked phone or email · 486 left this month",
   );
   assert.equal(/\$/.test(textOf(tree)), false, "there is no dollar meter");
   const chip = byTestId(tree, "plan-leaving-chain");

@@ -203,7 +203,7 @@ test("propose_lead_search makes a plan card for an owner; the model's plan is co
   );
   assert.equal(
     out.proposal.summary,
-    "Find 200 personal trainers in Austin, TX with a website, then find their email and check it. Leaving out: chain gyms.",
+    "Find 200 personal trainers in Austin, TX with a website, reached by a checked email or a phone. Leaving out: chain gyms.",
   );
   assert.equal(out.proposal.payload.plan.version, 1);
   assert.match(JSON.parse(out.result).note, /Nothing has happened yet/);

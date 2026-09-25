@@ -26,5 +26,5 @@ export function afterProbe(plan: LeadSearchPlan, members: ProbeYieldMember[], no
         asked_at: now.toISOString(),
       },
     };
-  return { kind: "go", yield: probeYield(plan.contact, members) };
+  return { kind: "go", yield: probeYield(members) };
 }
