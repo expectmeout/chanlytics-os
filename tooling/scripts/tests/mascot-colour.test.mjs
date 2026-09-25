@@ -1,6 +1,7 @@
 /**
- * The three's colour: the app's tokens parsed as tokens.css writes them, mixed in OKLab, and the step from rest to
- * work that gives up saturation before lightness, so coral cools through grey, not brown.
+ * The three's colour: the app's tokens parsed as tokens.css writes them, mixed in OKLab; the step from rest to work
+ * that gives up saturation before lightness, so coral cools through grey, not brown; a stack whose top tile is always
+ * the most lit; a charge that moves a tile toward its strongest; and the mark's shadow on every ground.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -9,10 +10,13 @@ import {
   labToCss,
   palette,
   colourOf,
+  labOf,
   mixLab,
 } from "../../../apps/dashboard/src/legacy-bridge/mascot/colour.ts";
 
 const rgb = (css) => css.match(/\d+/g).map(Number);
+const L = (lab) => lab[0];
+const chroma = (lab) => Math.hypot(lab[1], lab[2]);
 
 test("parses hex, rgb and oklch, and white comes back white", () => {
   assert.deepEqual(rgb(labToCss(parseColor("#ffffff"))), [255, 255, 255]);
@@ -22,21 +26,23 @@ test("parses hex, rgb and oklch, and white comes back white", () => {
   assert.ok(coral[0] > 200 && coral[1] < 110 && coral[2] < 110, `coral, got ${coral}`);
   assert.equal(parseColor("var(--accent)"), null);
   assert.equal(parseColor(""), null);
+  assert.match(labToCss(parseColor("#000"), 0.3), /^rgba\(0,0,0,0\.300\)$/, "an alpha is written as rgba");
 });
 
-test("the app palette: ink at rest, the accent at work, three steps each, light and dark", () => {
+test("the app palette: ink at rest, the accent at work, three steps each, the top tile the most lit in both themes", () => {
   const light = palette("light");
   const dark = palette("dark");
   for (const p of [light, dark]) {
     assert.equal(p.rest.length, 3);
     assert.equal(p.live.length, 3);
   }
-  // rest fades from ink toward the page: the first step darkest on a light page, lightest on a dark one
-  const L = (lab) => lab[0];
-  assert.ok(L(light.rest[0]) < L(light.rest[1]) && L(light.rest[1]) < L(light.rest[2]));
-  assert.ok(L(dark.rest[0]) > L(dark.rest[1]) && L(dark.rest[1]) > L(dark.rest[2]));
-  // the first live step is the accent itself
+  // light: lightest on top (the back tile the darkest); dark: brightest on top (the back tile the dimmest)
+  for (const p of [light, dark]) {
+    assert.ok(L(p.rest[0]) < L(p.rest[1]) && L(p.rest[1]) < L(p.rest[2]), "rest climbs to the top tile");
+  }
+  // at work the full accent is the back tile on a light page and the top tile on a dark one
   assert.equal(labToCss(light.live[0]), labToCss(parseColor("oklch(0.62 0.19 25)")));
+  assert.equal(labToCss(dark.live[2]), labToCss(parseColor("oklch(0.7 0.18 28)")));
   // the page's own tokens win over the defaults
   const own = palette("light", { accent: "#0000ff" });
   assert.deepEqual(rgb(labToCss(own.live[0])), [0, 0, 255]);
@@ -44,11 +50,11 @@ test("the app palette: ink at rest, the accent at work, three steps each, light 
 
 test("between rest and work the colour loses saturation before lightness", () => {
   const p = palette("light");
+  const spread = (c) => Math.max(...c) - Math.min(...c);
   const mid = rgb(colourOf(p, 0, 0.5));
-  const chroma = (c) => Math.max(...c) - Math.min(...c);
-  const restC = chroma(rgb(colourOf(p, 0, 0)));
-  const liveC = chroma(rgb(colourOf(p, 0, 1)));
-  assert.ok(chroma(mid) < (restC + liveC) / 2, `halfway is greyer than a straight mix: ${mid}`);
+  const restC = spread(rgb(colourOf(p, 0, 0)));
+  const liveC = spread(rgb(colourOf(p, 0, 1)));
+  assert.ok(spread(mid) < (restC + liveC) / 2, `halfway is greyer than a straight mix: ${mid}`);
 });
 
 test("the shade between two steps mixes their colours", () => {
@@ -61,27 +67,46 @@ test("the shade between two steps mixes their colours", () => {
   assert.deepEqual(rgb(colourOf(p, 2.7, 1)), rgb(colourOf(p, 2, 1)));
 });
 
-test("on a coral button the three are the button's own foreground, fading toward the coral, never coral themselves", () => {
+test("a charged tile moves toward its strongest: the full ink at rest, a hotter coral at work, still one colour", () => {
+  const p = palette("light");
+  const top = (charge, live) => labOf(p, 2, live, charge);
+  assert.ok(L(top(1, 0)) < L(top(0, 0)) - 0.1, "at rest the charge darkens the pale top tile toward the ink");
+  assert.ok(chroma(top(1, 1)) > chroma(top(0, 1)), "at work it runs hotter");
+  assert.deepEqual(labOf(p, 1, 0.5, 0), labOf(p, 1, 0.5), "no charge, no change");
+  assert.match(colourOf(p, 2, 1, 0.5), /^rgb\(\d+,\d+,\d+\)$/);
+});
+
+test("the mark's shadow on every ground: the page's ink, black on a dark page, a deep coral on the ✦", () => {
+  const light = palette("light");
+  const dark = palette("dark");
+  const onCoral = palette("light", {}, "accent");
+  assert.ok(light.shadowAlpha > 0.2 && light.shadowAlpha < 0.45);
+  assert.ok(dark.shadowAlpha > light.shadowAlpha, "a dark page takes a deeper shadow to show one at all");
+  assert.ok(L(dark.shadow) < 0.05);
+  assert.ok(chroma(onCoral.shadow) > 0.05, "tinted by the coral it falls on");
+});
+
+test("on a coral button the three are the button's own foreground, fading toward the coral down the stack", () => {
   for (const theme of ["light", "dark"]) {
     const p = palette(theme, {}, "accent");
     const onAccent = theme === "light" ? "oklch(0.99 0 0)" : "oklch(0.16 0.005 260)";
     assert.equal(
-      labToCss(p.live[0]),
+      labToCss(p.live[2]),
       labToCss(parseColor(onAccent)),
-      `${theme}: the first square at work is the glyph colour`,
+      `${theme}: the top tile at work is the glyph colour`,
     );
     const coral = rgb(labToCss(parseColor(theme === "light" ? "oklch(0.62 0.19 25)" : "oklch(0.7 0.18 28)")));
     const dist = (c) => Math.hypot(c[0] - coral[0], c[1] - coral[1], c[2] - coral[2]);
     const steps = [0, 1, 2].map((k) => rgb(colourOf(p, k, 0)));
     assert.ok(
-      dist(steps[0]) > dist(steps[1]) && dist(steps[1]) > dist(steps[2]),
-      `${theme}: each step nearer the coral`,
+      dist(steps[0]) < dist(steps[1]) && dist(steps[1]) < dist(steps[2]),
+      `${theme}: each step up stands further from the coral`,
     );
-    assert.ok(dist(steps[2]) > 40, `${theme}: the last step still reads against the button`);
+    assert.ok(dist(steps[0]) > 40, `${theme}: the back tile still reads against the button`);
   }
   // the page's own tokens reach the button's palette too
   const own = palette("light", { accent: "#0000ff", accentFg: "#ffff00" }, "accent");
-  assert.deepEqual(rgb(labToCss(own.live[0])), [255, 255, 0]);
+  assert.deepEqual(rgb(labToCss(own.live[2])), [255, 255, 0]);
 });
 
 test("the tokens as the browser reads them back, lab() after the build, are the tokens as tokens.css writes them", () => {

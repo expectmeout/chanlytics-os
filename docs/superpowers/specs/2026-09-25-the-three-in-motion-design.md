@@ -1,0 +1,78 @@
+# The three, in motion: design spec
+
+**Date:** 25 Sep 2026 · **Owner:** Ruben · **Status:** approved (Ruben, 25 Sep: "all approved in app color mode liquid style")
+**Supersedes:** section 5 of `2026-09-23-the-three-on-today-design.md` (the character). Sections 6 onward (the wiring, the mood) stand.
+**Lab:** the review page "The Three in Motion" (https://claude.ai/artifact/2xojqJX3up6bJjmCAHjAEP, versions 1 to 3), where the shipped character ran beside this one at the four sizes it lives at.
+
+## 1. Why
+
+Ruben, 25 Sep: "the idle state shakes too much but i do like the idle animations", and "smarter, next gen, futuristic, more complex, clean". Then, on the lab: make the leapfrog "better cleaner"; the random flip or turn "should happen a bit more across the others"; the agency site "had a better designed version of the three logo, get the exact svg"; "for reading state can you make it move in circular motion kind of like an orb".
+
+The shipped character was tuned on 22 Sep for a 232px band on Today ("calm enough to sit above the queue all day"). Then D14 to D17 moved it into the top bar's 30×24 icon on every page (a square of 5.9px), the Stage (16.6px) and the phone's ✦, and the motion was never re-tuned for that size. Measured over five simulated minutes at rest with a pointer moving about the page:
+
+| Cause | Shipped | Why it reads as shaking at 6px |
+|---|---|---|
+| The squash spring | ζ 0.3, ω 24 | about two wobbles at 3.6 Hz after every hop, tumble and landing |
+| The moves | a tumble of 86°, landings squashed 20% | sized for a 200px band |
+| The gaze | the pointer listener is on the window | every mouse move anywhere tilts the icon up to 8°; 0% of frames still |
+| The fidgets | every 7 to 14 s, forever | something always moving in the corner of the eye |
+
+## 2. Decisions
+
+| # | Decision | Why |
+|---|---|---|
+| M1 | The three are drawn as the agency mark: three tiles on a 45° diagonal, a step of 0.52 of a side on both axes (each over the last by 48%), corners 0.26, the last tile on top, each casting the mark's shadow on the one beneath. | Ruben: the agency site's mark is the better designed one (`Chanlytics Agency/components/primitives.jsx` `Logo`: a tile 0.5 of the size, offset 0.26 of it per step, radius 0.13 of it, `box-shadow: 0 2px 6px -2px rgba(28,62,160,.4)`; `assets/favicon.svg`). The shipped stair came from the OS site's favicon (`chanlytics-site/app/icon.svg`). |
+| M2 | App colours: the app's ink at rest, its coral at work (D3 stands), faded toward the page by step so the top tile is always the most lit. | Ruben chose "app color mode". A stack reads right only when its top tile catches the most light: lightest on a light page, brightest on a dark one. |
+| M3 | The tiles move in depth: a tile lifts toward you (it grows 5% and its shadow falls lower and softer) and sets down. Nothing squashes. Springs at platform grade: movement ζ 0.86, size and turn ζ 0.9, elevation ζ 1. | Material 3 moves things at ζ 0.9 and changes colour at ζ 1.0; Apple's default spring has no bounce. |
+| M3a | Draw order follows elevation: a tile's layer is its place in the stack plus 12 per tile of the pose's elevation (the lift the state holds it at, or the ring's depth; not the gestures). The tile listening holds toward you is over the whole stack; on the ring the nearest is on top; and since elevation is a spring, the order never jumps. Joining the ring, each tile takes the point nearest it in depth and on the page, except that two tiles overlapping at that moment never trade depths on the way; the ring spins up as they arrive. Leaving it, each takes the place its depth fits: the nearest becomes the top of the stack or the tile held forward, the row is taken left to right. | An order read from a state (front or not, a place in the stack) jumped at every change: measured on the shipped code, two overlapping tiles traded places in 60 of 60 exits from listening (up to 0.41 of a tile changing colour in one frame) and in 15 to 27 of 60 exits from the ring. Now the only trades left are the tile held forward passing the top tile on its way in and out of listening, at the moment its elevation crosses, and corners under 0.05 of a tile. |
+| M4 | At rest: turns across all three. A tile turns a quarter in place, lifted a little as it turns; or a cascade down the stack (0.13 s apart), two neighbours turning opposite ways like gears, or the top tile half round. Also a glance, a rise, a stretch, a bow. One moment every 6 to 11 s. | Ruben likes the turn and wants more of it, across the tiles. |
+| M5 | Reading is an orbit: the three circle a ring tilted 65° toward you, its long axis 18° down to the right like the mark's own diagonal, axis and tilt swaying (±8°, ±6°) so the path traces a sphere; a lap every 2 s, the pace breathing ±12%. The nearest tile is drawn 14% larger, lifted and lightest, the farthest small and deep, and the layers follow the depth. A read that lands surges it. Leaving it, each tile keeps its position and speed and the springs take it into the next formation. | Ruben: "circular motion kind of like an orb". The leapfrog (D6) is retired. |
+| M6 | Liquid: on WebGL2 the three are one field, joined by a smooth minimum whose radius grows while they listen and read, so tiles that pass close fuse like mercury. The GPU draws only what the 2D drawing cannot: while the tiles may fuse. At rest the mark is drawn in 2D, and the two drawings agree (the shader's shadow falls off as the canvas's Gaussian does, its logistic twin: on the GPU the two rest pictures differ by 0.4 of 1/255 on average, no pixel by more than 12). One WebGL2 context per page draws offscreen and each face copies the picture into its own 2D canvas; its program links in the background where the browser allows (KHR_parallel_shader_compile, 40 ms cold on the main thread otherwise); where WebGL2 is missing, its program fails or its context is lost, that face draws the layered mark in 2D. | Ruben chose "liquid style". A face that owned a WebGL2 canvas showed a broken canvas the moment its context was lost (headless Chromium lost it at once), and browsers cap the live contexts on a page. The 95%-still icon in the top bar never touches the GPU; the cost of copying out of a WebGL canvas in Firefox and WebKit is unmeasured, and now paid only while Ask works. |
+| M7 | Light: each tile carries a charge, drawn as colour toward its strongest (the full ink at rest, a hotter coral at work), never as motion: a standby wave down the stack every 6.5 s at rest, the voice in the middle tile, the nearest tile on the orbit, each word, each read that lands, a sweep when an answer is done. | The Liquid choice includes the light channel. |
+| M8 | An icon (a face inside a button: the top bar's Ask, the ✦) is attended while the pointer is within 90px of its button or the button has focus. Alone for 18 s it gives one stretch and goes quiet: no breath, turns only, one every 14 to 24 s. It wakes when someone comes near. An open face (the Stage, the takeover) is always attended. | Calm while you work, alive when you look; the turns Ruben likes stay. |
+| M9 | The three look at a pointer only while it is near: within 110px of an icon, 240px or 1.6 widths of an open face, fading to nothing at that radius. A press on an icon's button gathers the stack; the release lets it go. | The page-wide lean was the largest source of restlessness. |
+| M10 | Gestures scale with the drawn size: 45% of a move at a 6px tile, the whole move from 36px. | A move sized for 60px is a twitch at 7px. |
+| M11 | Ask's mood gains a pulse: the Line says one for each trace the stream sends (`ask-real.jsx`), and every face follows it. | The orbit shows the reads landing. |
+| M12 | The static `three` icon (`icons.jsx`, the door to find leads) is the agency mark too: filled, the top tile whole, each tile beneath cut where the tile above it sits grown by 1, so a hairline gap tells them apart without a mask. | One face everywhere. |
+
+## 3. The numbers
+
+- **The box:** everything the tiles do, shadows included to one σ, fits 3.8 wide by 3.2 tall tiles (`FIT`), with the tiles drawn 0.225 of a tile above the canvas's middle (`CENTRE_Y`) because shadows fall. In the top bar's 30×24 canvas a tile is 7.5px (the shipped square was 5.9px); in the Stage's 84×68, 21px.
+- **The shadow:** offset 0.154 of a side, blur σ 0.23, spread −0.154 at rest; lifted, the offset grows by 0.2, σ by 0.15 and the spread by 0.06, the alpha falls by 30%; pressed, tighter. It leans away from where the tiles look. Its colour: the page's ink at α 0.3 on a light page, black at 0.55 on a dark one, a deep coral at 0.38 on the ✦.
+- **The fades, back to top:** light rest 0.16, 0.44, 0.66 and work 0, 0.24, 0.44; dark rest 0.54, 0.34, 0.1 and work 0.25, 0.13, 0; on the ✦ 0.46, 0.26, 0.06 toward the coral.
+- **The formations:** rest, the stack; listening, the middle tile forward at (0, −0.3), 16% larger and lifted with the voice, the others at ±0.66 tucked behind; answering, a row 1.06 apart; reading, the ring of radius 1.05.
+- **Measured at rest in the top bar, five simulated minutes:** alone, still 95% of the time with a quarter turn about every 16 s; near, still 90% with a moment about every 9 s; no squash anywhere; no lean from across the page.
+
+## 4. The code
+
+- `legacy-bridge/mascot/character.ts`: the character (pure). New: `detail(px)`, `attend(v)`, `press(down)`, `pulse(v)`; frames carry `charge`, `lift` and `layer` (M3a) and are snapshots; `quietAfter`; `STEP`, `CORNER`, `FIT`, `CENTRE_Y`. `UNITS` (the Today band) and `front` are gone. `math.ts` holds the arithmetic every module shares.
+- `colour.ts`: the palette with the top tile the most lit, the strongest colours, the shadow per ground; `labOf`, `labRgb`, `labToCss(lab, alpha)`.
+- `draw.ts`: the layered 2D drawing and `tilesOf`, the tile looks both drawings read. A shadow with a negative spread is drawn from a shape far off the canvas, its shadow brought back by its offset.
+- `liquid.ts`: the liquid drawing. One offscreen WebGL2 context per page, shared by every face: a face draws in the offscreen canvas's bottom-left corner and copies it into its own 2D canvas in the same task. `draw` answers false, and the face draws in 2D, while the program links, while the context is lost (including one lost mid-draw), and for good once the program has failed to link (the context is let go) or the context has been lost three times; a restored context is rebuilt; the last face to go gives the context back (`WEBGL_lose_context`), and that hand-back is not counted as a loss.
+- `driver.ts`: an icon or an open face read from where the canvas sits; attention, near-only gaze, press, the gestures' scale; the face's canvas is always 2D: the page's liquid drawing is copied in while the tiles may fuse, and the layered mark drawn at rest, where the liquid one cannot draw, and always under reduced motion; a frame that would draw what is already there is skipped, so a quiet icon costs nothing.
+- `mood.ts`: `pulse`. `ask-real.jsx`: a pulse per trace. `icons.jsx`: the static mark.
+
+## 5. Proof
+
+- `mascot-character.test.mjs`: no NaN in any state; the rest pose is the mark; the orbit keeps the three on the ring, spread, lap after lap, the nearest largest, lifted, lightest and on top; a pulse surges it; leaving it never jumps; the draw order follows elevation (the tile held forward is over what it overlaps, and two tiles overlapping at a change on or off the ring trade places, if at all, only once nearly apart, under 0.06 of a tile); the turns come in all four kinds and stay in place; an icon goes quiet and wakes; gestures scale with size; calm draws a still ring for reading; everything fits the box, shadows included.
+- `mascot-liquid.test.mjs`, on a fake WebGL2: one context for every face; each copy taken from the face's own corner; a lost context draws nothing until restored, one lost mid-draw copies nothing, three losses give it up; the last face gives it back and that is not a loss; a program that will not link is given up with its context, one linking in the background is waited for; no WebGL2, no liquid.
+- `mascot-colour.test.mjs`, `mascot-driver.test.mjs` (2D at rest, the copy while the tiles may fuse, the 2D stand-in, the share given back, none taken under reduced motion), `mascot-mood.test.mjs`, and `ask-palette.test.mjs` (a pulse for the read that lands).
+- Twenty-seven one-line mutants, and every one fails a test:
+  - the character: the nearest tile no larger, a release that forgets, the farthest made the top, any ring point will do, the ring at full speed from the first frame, elevation ignored in the order, a breath that never stops, a turn that does not rotate;
+  - the drawing: the page-wide gaze, every frame drawn, the draw order reversed, the old dark order;
+  - the liquid context: kept after the last face, one per face, copied from the wrong corner, never given up, a lost context still copied, the offscreen canvas never grown, a hand-back counted as a loss, a failed link kept trying, drawn before it has linked;
+  - the driver: no 2D stand-in, the GPU asked at rest too, a share never given back, a share taken under reduced motion;
+  - the mood: a pulse that reaches no face, a trace that pulses nothing.
+- On the GPU (Chromium, `--use-angle=d3d11`, the real bundle): the rest mark drawn both ways differs by 0.41 of 1/255 on average and by no pixel over 12; listening and reading differ by design (the union).
+- In the app (dev server, signed in, dark theme): default headless Chromium draws the mark in 2D; Chromium on the GPU draws it liquid while Ask works, with no page errors; the rest mark, the orbit, the answering row and the fused listening pose look as they did in the lab.
+
+## 6. Out of scope
+
+- The logo's own blue colours in the app (the lab's "Logo" option): Ruben chose the app's.
+- The lab's afterimage, voice ring and glow (the "Light" option's extras): not part of Liquid.
+
+## 7. Open, for Ruben
+
+- **WCAG 2.2.2 (Pause, Stop, Hide).** The idle motion never stops on its own: a quiet icon still turns about every 20 s, and an open face breathes. The OS's reduce-motion setting is the only pause, and a strict reading of 2.2.2 wants one on the page. Options: quiet means still (no turns while unattended); an open face stops its idle loop after a while with no input; a setting. Ruben asked for the turns to happen more, so this is his call, not a default.
+- **WebKit and Firefox.** Measured 25 Sep with the real modules (`_gen/engines.mjs`, a draw and its copy per frame while reading, 120 frames, then a flush): WebKit (Playwright's, "Apple GPU") copies correctly (the rest picture matches the 2D one as on Chromium, the same 557 / 4,315 / 70,099 ink pixels at the icon's, the Stage's and a hero's size) at 0.02–0.08 ms a frame plus about 0.15–1.5 ms of deferred GPU work at the hero's size; Chromium on a GPU is the same order. Chromium with no GPU at all (SwiftShader) takes 21 ms a frame at the hero's size, 0.6 ms at the icon's, so on such a machine the hero is slow while Ask reads and fine otherwise; the GPU is asked only while Ask works. Firefox could not be launched by Playwright on this machine (`spawn UNKNOWN`; the binary itself runs), so it stays unmeasured.
+- **The hidden top-bar face while Ask is open** (`visibility: hidden`, which the intersection observer does not see) keeps orbiting; about 0.2 ms a frame, unchanged from before.

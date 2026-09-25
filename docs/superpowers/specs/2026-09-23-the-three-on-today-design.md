@@ -158,6 +158,8 @@ element for asking was elsewhere. So the face goes where asking already lives:
 
 ## 5. The character
 
+**Superseded 25 Sep 2026** by `2026-09-25-the-three-in-motion-design.md`: the three are drawn as the agency mark and move in depth, turn at rest, and orbit while they read (Ruben: "all approved in app color mode liquid style"). What follows is the character as first built.
+
 The prototype's `Character` is the specification of the motion. The port keeps every constant. This section names them so the port can be checked against them, and the tests pin the ones that matter.
 
 ### 5.1 The stair

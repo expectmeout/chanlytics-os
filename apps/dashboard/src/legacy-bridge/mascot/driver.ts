@@ -1,9 +1,16 @@
 /**
  * The driver: puts the character on a canvas and keeps it moving. It owns the frame loop (stopped while the tab is
- * hidden or the canvas is off screen), the canvas's size at the device's pixel ratio, the pointer's gaze, the
- * theme's tokens and their re-read when the theme changes, the level a word heard pushes up, and still frames under
- * reduced motion. Every browser API comes in through `env`, with defaults read from window and document, so the
- * tests run it on node with a fake canvas and a fake clock.
+ * hidden or the canvas is off screen), the canvas's size at the device's pixel ratio, the pointer, the theme's tokens
+ * and their re-read when the theme changes, the level a word heard pushes up, and still frames under reduced motion.
+ *
+ * A face inside a button (the top bar's Ask, the phone's ✦) is an icon: it is attended while the pointer is near
+ * that button or the button has focus, it goes quiet after a while alone, and a press on it gathers the stack. Any
+ * other face (the Stage, the phone's takeover) is open, so always attended. Either looks at the pointer only while
+ * it is near, never from across the page. Its canvas is always a 2D one: while the tiles may fuse (listening, reading,
+ * answering) a frame is drawn liquid by the page's one WebGL2 context and copied in (liquid.ts); at rest, and where
+ * that cannot draw (no WebGL2, a lost context), the layered mark is drawn in 2D (draw.ts); a frame that would draw
+ * what is already there is skipped. Every browser API comes in through `env`, with defaults read from window and
+ * document, so the tests run it on node with a fake canvas and a fake clock.
  */
 import { createCharacter, fitSide, type Character, type CharacterState, type Reaction } from "./character";
 import {
@@ -16,6 +23,8 @@ import {
   type Tone,
 } from "./colour";
 import { drawCharacter } from "./draw";
+import { liquid as liquidDrawing, type GlCanvas, type Liquid } from "./liquid";
+import { smooth } from "./math";
 
 export interface DriverEnv {
   raf: (cb: (ms: number) => void) => number;
@@ -31,19 +40,25 @@ export interface DriverEnv {
   theme: () => ThemeName;
   tokens: () => ThemeTokens;
   onTheme: (fn: () => void) => () => void;
+  /** the page's liquid drawing for one more face, or null where WebGL2 cannot draw here */
+  liquid: () => Liquid | null;
 }
+export type Role = "icon" | "open";
 export interface MountOptions {
-  /** one square, in CSS pixels; by default the largest that fits the whole character in the canvas (fitSide) */
+  /** one tile, in CSS pixels; by default the largest that fits the whole character in the canvas (fitSide) */
   side?: number;
   seed?: number;
   /** drawn on the page (the default) or on a coral button (colour.ts `Tone`) */
   tone?: Tone;
+  /** an icon (inside a button) or an open face; by default read from where the canvas sits */
+  role?: Role;
   env?: Partial<DriverEnv>;
 }
 export interface Mounted {
   readonly state: CharacterState;
+  readonly role: Role;
   set(next: CharacterState): void;
-  /** one square, in CSS pixels: the drawing eases toward it, so a stage that grows grows its squares with it */
+  /** one tile, in CSS pixels: the drawing eases toward it, so a stage that grows grows its tiles with it */
   setSide(px: number): void;
   side(): number;
   /** a word heard: the level jumps to `v` and falls on its own */
@@ -51,6 +66,8 @@ export interface Mounted {
   level(): number;
   beat(strength?: number): void;
   react(kind: Reaction): void;
+  /** a read that landed */
+  pulse(strength?: number): void;
   /** advance by hand and draw: captures and tests */
   step(dt?: number, frames?: number): void;
   destroy(): void;
@@ -63,7 +80,15 @@ export interface CanvasLike {
   clientHeight: number;
   getContext?: (kind: "2d") => CanvasRenderingContext2D | null;
   getBoundingClientRect?: () => { left: number; top: number; width: number; height: number };
+  closest?: (selector: string) => Element | null;
 }
+
+/** How near the pointer must be (CSS px from the face) before the three look at it; an icon's button is nearer. */
+const LOOK_WITHIN: Record<Role, number> = { icon: 110, open: 240 };
+/** How near its button the pointer must be for an icon to count as attended. */
+const ATTEND_WITHIN = 90;
+/** Seconds at rest, alone, before an icon goes quiet. */
+const ICON_QUIET_AFTER = 18;
 
 function browserEnv(): DriverEnv {
   const w = typeof window !== "undefined" ? window : null;
@@ -119,22 +144,54 @@ function browserEnv(): DriverEnv {
       mo.observe(d.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
       return () => mo.disconnect();
     },
+    liquid: () => liquidDrawing(() => (d ? (d.createElement("canvas") as unknown as GlCanvas) : null)),
   };
 }
 
+const r3 = (v: number) => Math.round(v * 1000);
+/** Everything a frame draws, as a string: the same string twice is nothing to draw. */
+function signature(f: ReturnType<Character["frame"]>, pal: Palette, side: number, w: number, h: number): string {
+  const tiles = f.squares.map((s) =>
+    [s.x, s.y, s.size, s.rot, s.lift, s.charge, s.live, s.shade, s.layer].map(r3).join(","),
+  );
+  return [
+    tiles.join("|"),
+    r3(f.liquid),
+    r3(f.corner),
+    r3(f.gaze[0]),
+    r3(f.gaze[1]),
+    r3(pal.rest[0][0]),
+    r3(pal.live[2][0]),
+    r3(pal.shadowAlpha),
+    r3(side),
+    w,
+    h,
+  ].join(";");
+}
+
 export function mountCharacter(canvas: CanvasLike, opts: MountOptions = {}): Mounted | null {
-  const ctx = typeof canvas.getContext === "function" ? canvas.getContext("2d") : null;
-  if (!ctx) return null;
   const env: DriverEnv = { ...browserEnv(), ...(opts.env ?? {}) };
-  const character: Character = createCharacter({ seed: opts.seed ?? 7, calm: env.reduced, enter: !env.reduced });
+  const button = typeof canvas.closest === "function" ? canvas.closest("button, a") : null;
+  const role: Role = opts.role ?? (button ? "icon" : "open");
+  const own = typeof canvas.getContext === "function" ? canvas.getContext("2d") : null;
+  if (!own) return null;
+  const ctx: CanvasRenderingContext2D = own;
+  const liquid: Liquid | null = env.reduced ? null : env.liquid() || null;
+  const character: Character = createCharacter({
+    seed: opts.seed ?? 7,
+    calm: env.reduced,
+    enter: !env.reduced,
+    light: true,
+    quietAfter: role === "icon" ? ICON_QUIET_AFTER : Infinity,
+  });
   const tone = opts.tone ?? "page";
   let palTarget = palette(env.theme(), env.tokens(), tone);
   const pal: Palette = clonePalette(palTarget);
   let w = 0;
   let h = 0;
   let heardLevel = 0;
-  // the square's size in CSS px: the target the page sets, and the one drawn, which follows it in about a tenth of a
-  // second so the squares grow with the stage instead of jumping ahead of it
+  // the tile's size in CSS px: the target the page sets, and the one drawn, which follows it in about a tenth of a
+  // second so the tiles grow with the stage instead of jumping ahead of it
   let sideTarget = opts.side ?? 0;
   let sideNow = sideTarget;
   let raf = 0;
@@ -142,6 +199,9 @@ export function mountCharacter(canvas: CanvasLike, opts: MountOptions = {}): Mou
   let visible = !env.hidden();
   let onScreen = true;
   let dead = false;
+  let attention = role === "icon" ? 0 : 1;
+  let focused = false;
+  let drawn = "";
   const undo: (() => void)[] = [];
 
   function fit(): boolean {
@@ -156,6 +216,7 @@ export function mountCharacter(canvas: CanvasLike, opts: MountOptions = {}): Mou
       h = nh;
       canvas.width = w;
       canvas.height = h;
+      drawn = "";
     }
     return true;
   }
@@ -163,17 +224,25 @@ export function mountCharacter(canvas: CanvasLike, opts: MountOptions = {}): Mou
     // a word heard lifts the level to 0.8; it falls to nothing in about half a second of silence
     heardLevel = Math.max(0, heardLevel - dt * 1.5);
     character.hear(heardLevel);
-    if (!env.reduced) character.tick(dt);
-    easePalette(pal, palTarget, env.reduced ? 1e6 : dt);
     if (sideTarget > 0)
       sideNow = env.reduced ? sideTarget : sideNow + (sideTarget - sideNow) * (1 - Math.exp(-dt / 0.1));
     if (!fit()) return;
     const side = sideTarget > 0 ? sideNow * env.dpr() : fitSide(w, h);
-    drawCharacter(ctx as CanvasRenderingContext2D, w, h, character.frame(), pal, side);
+    character.detail(side / env.dpr());
+    character.attend(focused ? 1 : attention);
+    if (!env.reduced) character.tick(dt);
+    easePalette(pal, palTarget, env.reduced ? 1e6 : dt);
+    const f = character.frame();
+    const sig = signature(f, pal, side, w, h);
+    if (sig === drawn) return;
+    drawn = sig;
+    // the GPU draws only what the 2D drawing cannot: the tiles while they may fuse; at rest, the mark in 2D
+    const fused = liquid !== null && f.liquid > 0.001 && liquid.draw(ctx, f, pal, side, w, h);
+    if (!fused) drawCharacter(ctx, w, h, f, pal, side);
   }
   function loop(ms: number): void {
     raf = env.raf(loop);
-    const dt = Math.min(0.05, (ms - (last || ms)) / 1000);
+    const dt = Math.min(0.05, Math.max(0, (ms - (last || ms)) / 1000));
     last = ms;
     frame(dt);
   }
@@ -194,18 +263,36 @@ export function mountCharacter(canvas: CanvasLike, opts: MountOptions = {}): Mou
     character.still();
     frame(0);
   }
-  function gaze(e: { clientX: number; clientY: number } | null): void {
+  function pointer(e: { clientX: number; clientY: number } | null): void {
     if (env.reduced) return;
     if (!e) {
       character.away();
+      if (role === "icon") attention = 0;
       return;
     }
     const r = canvas.getBoundingClientRect ? canvas.getBoundingClientRect() : null;
-    if (!r || !r.width) return;
+    if (!r || !(r.width > 0) || !(r.height > 0)) return;
+    const b = button && typeof button.getBoundingClientRect === "function" ? button.getBoundingClientRect() : null;
+    // how far outside a box the pointer is, each way
+    const outside = (box: { left: number; top: number; width: number; height: number }) =>
+      Math.hypot(
+        Math.max(box.left - e.clientX, 0, e.clientX - (box.left + box.width)),
+        Math.max(box.top - e.clientY, 0, e.clientY - (box.top + box.height)),
+      );
+    if (role === "icon") attention = outside(b ?? r) < ATTEND_WITHIN ? 1 : 0;
     const unit = sideTarget > 0 ? sideNow : fitSide(r.width, r.height);
-    const dx = (e.clientX - (r.left + r.width / 2)) / unit;
-    const dy = (e.clientY - (r.top + r.height / 2)) / unit;
-    character.look(dx / 4, dy / 4, Math.hypot(dx, dy) < 2.3);
+    const dx = e.clientX - (r.left + r.width / 2);
+    const dy = e.clientY - (r.top + r.height / 2);
+    const within = role === "icon" ? LOOK_WITHIN.icon : Math.max(LOOK_WITHIN.open, r.width * 1.6);
+    const dist = Math.hypot(dx, dy);
+    // full attention up to half the radius, fading to none at it
+    const fade = 1 - smooth((dist - within / 2) / (within / 2));
+    if (fade <= 0) {
+      character.away();
+      return;
+    }
+    const inside = b ? outside(b) === 0 : dist / unit < 2.3;
+    character.look((dx / unit / 4) * fade, (dy / unit / 4) * fade, inside);
   }
 
   undo.push(
@@ -225,7 +312,7 @@ export function mountCharacter(canvas: CanvasLike, opts: MountOptions = {}): Mou
       if (!raf) frame(0);
     }),
   );
-  undo.push(env.onPointer(gaze));
+  undo.push(env.onPointer(pointer));
   undo.push(
     env.onTheme(() => {
       palTarget = palette(env.theme(), env.tokens(), tone);
@@ -233,6 +320,24 @@ export function mountCharacter(canvas: CanvasLike, opts: MountOptions = {}): Mou
       if (!raf) frame(0);
     }),
   );
+  if (button && typeof button.addEventListener === "function") {
+    const down = () => character.press(true);
+    const up = () => character.press(false);
+    const fin = () => (focused = true);
+    const fout = () => (focused = false);
+    const names: [string, () => void][] = [
+      ["pointerdown", down],
+      ["pointerup", up],
+      ["pointercancel", up],
+      ["pointerleave", up],
+      ["focusin", fin],
+      ["focusout", fout],
+    ];
+    for (const [n, fn] of names) button.addEventListener(n, fn);
+    undo.push(() => {
+      for (const [n, fn] of names) button.removeEventListener(n, fn);
+    });
+  }
   run();
   if (env.reduced) stillFrame();
   else frame(0);
@@ -241,6 +346,7 @@ export function mountCharacter(canvas: CanvasLike, opts: MountOptions = {}): Mou
     get state() {
       return character.state;
     },
+    role,
     set(next) {
       character.set(next);
       stillFrame();
@@ -262,6 +368,9 @@ export function mountCharacter(canvas: CanvasLike, opts: MountOptions = {}): Mou
       // calm ignores every reaction, so under reduced motion nothing is redrawn
       character.react(kind);
     },
+    pulse(v) {
+      character.pulse(v);
+    },
     step(dt = 1 / 60, frames = 1) {
       for (let i = 0; i < frames; i++) frame(dt);
     },
@@ -269,6 +378,7 @@ export function mountCharacter(canvas: CanvasLike, opts: MountOptions = {}): Mou
       dead = true;
       if (raf) env.caf(raf);
       raf = 0;
+      liquid?.release();
       for (const u of undo.splice(0)) u();
     },
   };
