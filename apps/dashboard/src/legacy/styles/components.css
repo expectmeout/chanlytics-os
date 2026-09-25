@@ -1897,6 +1897,13 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
   transition: opacity 120ms var(--ease-out), transform 120ms var(--ease-out), background 120ms, color 120ms;
 }
 .tbn-item:hover .tbn-x, .tbn-x:focus-visible { opacity: 1; pointer-events: auto; transform: none; }
+/* A touch screen has no hover to show it, so there the × is always in the row (it waited for the pointer, and a phone
+   could only Mark all read, 25 Sep). It keeps its size; its press area is a thumb wide, and the time moves over for it. */
+@media (hover: none) {
+  .tbn-x { opacity: 1; pointer-events: auto; transform: none; }
+  .tbn-x::after { content: ""; position: absolute; inset: 0 -11px; }
+  .tbn-line1 { padding-right: 24px; }
+}
 .tbn-x:hover { color: var(--danger); background: var(--danger-soft); }
 .tbn-x:active { transform: scale(0.9); }
 .tbn-item:hover .tbn-time { opacity: 0; }
