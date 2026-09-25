@@ -1,7 +1,8 @@
 /**
  * Ask's mood, said once and followed by every face: a new state reaches every face, the same state again reaches
- * none, a face that starts following late starts in the state it missed, reactions, beats and words heard pass
- * through, and a face that stops following hears nothing more.
+ * none, a face that starts following late starts in the state it missed, reactions, beats, words heard and reads
+ * that land pass through (a face with no way to show a read is passed by), and a face that stops following hears
+ * nothing more.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -17,8 +18,23 @@ const face = () => {
     react: (k) => said.push(["react", k]),
     beat: (v) => said.push(["beat", v]),
     hear: (v) => said.push(["hear", v]),
+    pulse: (v) => said.push(["pulse", v]),
   };
 };
+
+test("a read that lands reaches every face that can show one, and passes by one that cannot", () => {
+  const mood = createMood();
+  const f = face();
+  const old = { set: () => {}, react: () => {}, beat: () => {}, hear: () => {} };
+  follow(f, mood);
+  follow(old, mood);
+  mood.pulse(0.9);
+  mood.pulse();
+  assert.deepEqual(f.said.slice(1), [
+    ["pulse", 0.9],
+    ["pulse", 0.7],
+  ]);
+});
 
 test("a new state reaches every face; the same state again, or no state at all, reaches none", () => {
   const mood = createMood();

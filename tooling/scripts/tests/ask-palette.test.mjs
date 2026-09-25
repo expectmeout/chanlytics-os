@@ -983,11 +983,13 @@ test("the Line draws Ask's face in the line, and says Ask's mood as a turn runs"
     assert.ok(byTestId(tree, "ask-line-face"), "the three stand in the line");
     assert.deepEqual(calls.sent, ["who has waited longest?"]);
     assert.deepEqual(
-      said.filter((s) => s !== "beat"),
+      said.filter((s) => s !== "beat" && s !== "pulse"),
       ["thinking", "speaking", "idle"],
       "reading until the first words, answering while they stream, then at rest (the row nods on its own)",
     );
     assert.equal(said.filter((s) => s === "beat").length, 2, "a beat for each piece of the answer");
+    assert.equal(said.filter((s) => s === "pulse").length, 1, "a pulse for the read that landed");
+    assert.ok(said.indexOf("pulse") > said.indexOf("thinking"), "while it reads");
     await closes();
   } finally {
     stop();

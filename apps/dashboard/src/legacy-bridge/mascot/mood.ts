@@ -1,6 +1,7 @@
 /**
  * Ask's mood: what the AI is doing right now, said once for every face that shows it. The Line says it as a turn
- * runs (listening, reading, answering, at rest, a nod, a shake, a beat per word); the top bar's Ask button and the
+ * runs (listening, reading, answering, at rest, a nod, a shake, a beat per word, a pulse per read that lands); the
+ * top bar's Ask button and the
  * Line's face follow it (components/ask-face.jsx), so there is one AI with one face wherever it is drawn.
  * Pure: a value and its listeners, no DOM and no clock.
  */
@@ -10,7 +11,8 @@ export type MoodEvent =
   | { t: "state"; state: CharacterState }
   | { t: "react"; kind: Reaction }
   | { t: "beat"; strength: number }
-  | { t: "hear"; level: number };
+  | { t: "hear"; level: number }
+  | { t: "pulse"; strength: number };
 
 export interface Mood {
   readonly state: CharacterState;
@@ -21,6 +23,8 @@ export interface Mood {
   beat(strength?: number): void;
   /** a word heard: every face leans in */
   hear(level: number): void;
+  /** a read that landed: every face's orbit surges and a light runs down its stack */
+  pulse(strength?: number): void;
   subscribe(fn: (ev: MoodEvent) => void): () => void;
 }
 
@@ -48,6 +52,9 @@ export function createMood(): Mood {
     hear(level) {
       emit({ t: "hear", level });
     },
+    pulse(strength = 0.7) {
+      emit({ t: "pulse", strength });
+    },
     subscribe(fn) {
       listeners.add(fn);
       return () => {
@@ -63,6 +70,7 @@ export interface Face {
   react(kind: Reaction): void;
   beat(strength?: number): void;
   hear(level: number): void;
+  pulse?(strength?: number): void;
 }
 
 /** Points a face at a mood: the state it is in now, then every change after. Returns what stops it. */
@@ -72,6 +80,7 @@ export function follow(face: Face, mood: Mood): () => void {
     if (ev.t === "state") face.set(ev.state);
     else if (ev.t === "react") face.react(ev.kind);
     else if (ev.t === "beat") face.beat(ev.strength);
+    else if (ev.t === "pulse") face.pulse?.(ev.strength);
     else face.hear(ev.level);
   });
 }

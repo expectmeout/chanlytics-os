@@ -424,7 +424,11 @@ const AskReal = ({ open, onClose }) => {
     await A.send({ text: q, threadId, scope: thread.scope || scope, surface }, (ev) => {
       if (mine !== turnSeq.current) return;
       if (ev.t === "thread") { threadId = ev.id; setActive((prev) => (prev ? { ...prev, id: ev.id, title: prev.title || ev.title } : prev)); }
-      else if (ev.t === "trace") setLive((prev) => (prev ? { ...prev, traces: [...prev.traces, ev.text].slice(-3) } : prev));
+      else if (ev.t === "trace") {
+        setLive((prev) => (prev ? { ...prev, traces: [...prev.traces, ev.text].slice(-3) } : prev));
+        // a read that landed: the three's orbit surges and a light runs down them (mascot mood.ts pulse)
+        if (M && M.mood.pulse) M.mood.pulse(0.7);
+      }
       else if (ev.t === "say") {
         // The answer's Say as written so far: it replaces what was drawn; the final message is the answer. An empty one
         // takes back an answer the server set aside, and the reads show again.

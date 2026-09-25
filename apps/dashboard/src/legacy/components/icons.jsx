@@ -33,9 +33,11 @@ const Icon = ({ name, size = 16, className = "", style = {} }) => {
     case "clock":    return <svg {...props}><circle cx="8" cy="8" r="5.5"/><path d="M8 5v3l2 1.5"/></svg>;
     case "bolt":     return <svg {...props}><path d="M9 2L3.5 9H7l-1 5L12.5 7H9l1-5z"/></svg>;
     case "sparkle":  return <svg {...props}><path d="M8 2v4M8 10v4M2 8h4M10 8h4"/><path d="M4 4l1.5 1.5M10.5 10.5L12 12M4 12l1.5-1.5M10.5 5.5L12 4"/></svg>;
-    // Ask's three at rest, still: the stair the canvas holds (mascot/character.ts STEP, wider than tall, the squares
-    // clear of each other). A door to Ask wears this mark where a second live canvas would be a second character (F1).
-    case "three":    return <svg {...props}><rect x="0.9" y="3.4" width="4.4" height="4.4" rx="1.05"/><rect x="5.65" y="6.22" width="4.4" height="4.4" rx="1.05"/><rect x="10.4" y="9.04" width="4.4" height="4.4" rx="1.05"/></svg>;
+    // Ask's three at rest, still: the agency mark the canvas holds (mascot/character.ts STEP 0.52, CORNER 0.26: tiles of
+    // 6.4 on a 45° diagonal, each over the last, the top one whole), filled, each tile beneath cut where the one above it
+    // sits grown by 1, so a hairline gap tells them apart without a mask. A door to Ask wears this mark where a second
+    // live canvas would be a second character (F1).
+    case "three":    return <svg {...props}><path fill="currentColor" stroke="none" d="M3.13 1.47H6.21A1.66 1.66 0 0 1 7.87 3.13V3.8H6.46A2.66 2.66 0 0 0 3.8 6.46V7.87H3.13A1.66 1.66 0 0 1 1.47 6.21V3.13A1.66 1.66 0 0 1 3.13 1.47Z"/><path fill="currentColor" stroke="none" d="M6.46 4.8H9.54A1.66 1.66 0 0 1 11.2 6.46V7.13H9.79A2.66 2.66 0 0 0 7.13 9.79V11.2H6.46A1.66 1.66 0 0 1 4.8 9.54V6.46A1.66 1.66 0 0 1 6.46 4.8Z"/><rect fill="currentColor" stroke="none" x="8.13" y="8.13" width="6.4" height="6.4" rx="1.66"/></svg>;
     case "instagram":return <svg {...props}><rect x="2.5" y="2.5" width="11" height="11" rx="3"/><circle cx="8" cy="8" r="2.5"/><circle cx="11" cy="5" r="0.5" fill="currentColor"/></svg>;
     case "mail":     return <svg {...props}><rect x="2" y="3.5" width="12" height="9" rx="1"/><path d="M2.5 5l5.5 4 5.5-4"/></svg>;
     case "command":  return <svg {...props}><path d="M5 3.5h6v9H5z M3.5 5v6 M11 5h1.5v1.5H11z M3.5 9.5H5M11 9.5h1.5"/></svg>;
