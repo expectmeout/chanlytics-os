@@ -22,18 +22,8 @@
  * area a search asked for is the same `.ld-map-ring`, sized in pixels from its
  * radius at the zoom the map is at.
  */
-import { Map as MapLibreMap, Marker, NavigationControl, ScaleControl, addProtocol, setWorkerUrl } from "maplibre-gl";
-import { PMTiles, Protocol } from "pmtiles";
-import {
-  LEAD_MAP_ARCHIVE,
-  LEAD_MAP_WORKER_URL,
-  leadMapBase,
-  leadMapCovers,
-  leadMapStyle,
-  metresPerPixel,
-  squareBounds,
-  type LeadMapTheme,
-} from "./lead-map-plan";
+import { PMTiles } from "pmtiles";
+import { LEAD_MAP_ARCHIVE, leadMapBase, leadMapCovers } from "./lead-map-plan";
 
 /** What the page hands the streets for each lead the source placed. */
 export interface LeadMapPinSpec {
@@ -82,154 +72,55 @@ declare global {
   }
 }
 
-/** The theme the page is drawn in: `data-theme` on the app's root, resolved from the member's preference. */
-function themeAround(el: HTMLElement): { node: Element | null; theme: LeadMapTheme } {
-  const node = el.closest("[data-theme]");
-  const theme = node?.getAttribute("data-theme") === "light" ? "light" : "dark";
-  return { node, theme };
-}
+/** The streets' own module (lead-map-draw.ts), loaded on the first mount: MapLibre is not in the boot chunk. */
+export type LeadMapDraw = {
+  prepare(): void;
+  mountStreets(
+    base: string,
+    el: HTMLElement,
+    opts: { onPick(id: string): void; onOpen(id: string): void },
+  ): LeadMapHandle;
+};
+type LoadDraw = () => Promise<LeadMapDraw>;
 
-function dressPin(btn: HTMLButtonElement, spec: LeadMapPinSpec, picked: string | null): void {
-  btn.className = `ld-pin tone-${spec.tone}${spec.out ? " is-out" : ""}${picked === spec.id ? " on" : ""}`;
-  btn.setAttribute("aria-label", spec.label);
-  btn.dataset.testid = `lead-pin-${spec.id}`;
-}
-
-function mount(
-  base: string,
-  el: HTMLElement,
-  opts: { onPick(id: string): void; onOpen(id: string): void },
-): LeadMapHandle {
-  const around = themeAround(el);
-  let theme = around.theme;
-  const map = new MapLibreMap({
-    container: el,
-    style: leadMapStyle(base, theme),
-    attributionControl: { compact: true },
-    cooperativeGestures: true,
-    dragRotate: false,
-    pitchWithRotate: false,
-    touchPitch: false,
-    maxPitch: 0,
-    minZoom: 3,
-    maxZoom: 17,
-    fadeDuration: 0,
-  });
-  map.addControl(new NavigationControl({ showCompass: false, showZoom: true }), "top-left");
-  map.addControl(new ScaleControl({ unit: "imperial", maxWidth: 120 }), "top-right");
-
-  // The theme can change under an open map (the toggle in the top bar); the style follows it. Markers are DOM
-  // and survive a setStyle untouched.
-  const watcher =
-    around.node && typeof MutationObserver !== "undefined"
-      ? new MutationObserver(() => {
-          const next = themeAround(el).theme;
-          if (next === theme) return;
-          theme = next;
-          map.setStyle(leadMapStyle(base, theme));
-        })
-      : null;
-  if (watcher && around.node) watcher.observe(around.node, { attributes: true, attributeFilter: ["data-theme"] });
-
-  const pins = new Map<string, { marker: Marker; btn: HTMLButtonElement; spec: LeadMapPinSpec }>();
-  let picked: string | null = null;
-  let ring: { marker: Marker; box: HTMLDivElement; radiusM: number } | null = null;
-
-  const sizeRing = () => {
-    if (!ring) return;
-    const px = (2 * ring.radiusM) / metresPerPixel(ring.marker.getLngLat().lat, map.getZoom());
-    ring.box.style.width = `${px}px`;
-    ring.box.style.height = `${px}px`;
-  };
-  map.on("zoom", sizeRing);
-
-  return {
-    setPins(next, pickedNow) {
-      picked = pickedNow;
-      const keep = new Set<string>();
-      for (const spec of next) {
-        keep.add(spec.id);
-        const have = pins.get(spec.id);
-        if (have) {
-          have.spec = spec;
-          dressPin(have.btn, spec, picked);
-          const at = have.marker.getLngLat();
-          if (at.lng !== spec.lng || at.lat !== spec.lat) have.marker.setLngLat([spec.lng, spec.lat]);
-          continue;
-        }
-        const wrap = document.createElement("div");
-        wrap.className = "ld-pin-mark";
-        const btn = document.createElement("button");
-        btn.type = "button";
-        dressPin(btn, spec, picked);
-        btn.addEventListener("mouseenter", () => opts.onPick(spec.id));
-        btn.addEventListener("focus", () => opts.onPick(spec.id));
-        btn.addEventListener("click", () => opts.onOpen(spec.id));
-        wrap.appendChild(btn);
-        const marker = new Marker({ element: wrap, anchor: "center" }).setLngLat([spec.lng, spec.lat]).addTo(map);
-        pins.set(spec.id, { marker, btn, spec });
-      }
-      for (const [id, p] of pins) {
-        if (keep.has(id)) continue;
-        p.marker.remove();
-        pins.delete(id);
-      }
-    },
-    setPicked(next) {
-      picked = next;
-      for (const p of pins.values()) {
-        dressPin(p.btn, p.spec, picked);
-        // The pin under the pointer rises above its neighbours, as it does on the square.
-        p.marker.getElement().style.zIndex = picked === p.spec.id ? "3" : "";
-      }
-    },
-    setRing(next) {
-      if (!next) {
-        ring?.marker.remove();
-        ring = null;
+/**
+ * A handle the page can use at once while the streets are still loading: what it asks for before they land is
+ * kept in order and done the moment they do; after that every call goes straight through. A handle destroyed before
+ * they land destroys them on arrival and does nothing else.
+ */
+export function deferredHandle(streets: Promise<LeadMapHandle>): LeadMapHandle {
+  let real: LeadMapHandle | null = null;
+  let gone = false;
+  const queue: Array<(h: LeadMapHandle) => void> = [];
+  streets.then(
+    (h) => {
+      if (gone) {
+        h.destroy();
         return;
       }
-      if (!ring) {
-        const box = document.createElement("div");
-        box.className = "ld-map-ring";
-        box.setAttribute("aria-hidden", "true");
-        box.dataset.testid = "lead-map-ring";
-        const marker = new Marker({ element: box, anchor: "center" }).setLngLat([next.lng, next.lat]).addTo(map);
-        ring = { marker, box, radiusM: next.radiusM };
-      } else {
-        ring.marker.setLngLat([next.lng, next.lat]);
-        ring.radiusM = next.radiusM;
-      }
-      sizeRing();
+      real = h;
+      for (const call of queue.splice(0)) call(h);
     },
-    fit(center, spanM) {
-      const points: [number, number][] = [...pins.values()].map((p) => [p.spec.lng, p.spec.lat]);
-      if (ring) {
-        const at = ring.marker.getLngLat();
-        for (const [w, s] of [squareBounds({ lat: at.lat, lng: at.lng }, ring.radiusM * 2)]) points.push(w, s);
-      }
-      const bounds = points.length
-        ? points.reduce<[[number, number], [number, number]]>(
-            (b, [lng, lat]) => [
-              [Math.min(b[0][0], lng), Math.min(b[0][1], lat)],
-              [Math.max(b[1][0], lng), Math.max(b[1][1], lat)],
-            ],
-            [
-              [points[0][0], points[0][1]],
-              [points[0][0], points[0][1]],
-            ],
-          )
-        : squareBounds(center, spanM);
-      map.fitBounds(bounds, { padding: 48, duration: 0, maxZoom: 15 });
-      sizeRing();
+    () => {
+      // The streets never came (the module failed to load): the page keeps its square, and every call is nothing.
+      queue.length = 0;
     },
-    destroy() {
-      watcher?.disconnect();
-      for (const p of pins.values()) p.marker.remove();
-      pins.clear();
-      ring?.marker.remove();
-      ring = null;
-      map.remove();
+  );
+  const on = (call: (h: LeadMapHandle) => void) => {
+    if (gone) return;
+    if (real) call(real);
+    else queue.push(call);
+  };
+  return {
+    setPins: (pins, picked) => on((h) => h.setPins(pins, picked)),
+    setPicked: (picked) => on((h) => h.setPicked(picked)),
+    setRing: (ring) => on((h) => h.setRing(ring)),
+    fit: (center, spanM) => on((h) => h.fit(center, spanM)),
+    destroy: () => {
+      if (gone) return;
+      gone = true;
+      queue.length = 0;
+      if (real) real.destroy();
     },
   };
 }
@@ -237,24 +128,30 @@ function mount(
 /**
  * Publish the streets to the page, when the product hosts a basemap. Reads the archive's header once so the page
  * can ask what ground it covers; a header that never answers (the address is wrong, the file is missing) leaves
- * the page on its square, quietly.
+ * the page on its square, quietly. The streets' module is asked for on the first mount, once, and shared.
  */
-export function installLeadMap(baseValue: string | null | undefined): void {
+export function installLeadMap(
+  baseValue: string | null | undefined,
+  load: LoadDraw = () => import("./lead-map-draw"),
+): void {
   const base = leadMapBase(baseValue);
   if (!base) return;
   const absolute = new URL(base, window.location.origin).href.replace(/\/+$/, "");
-  // MapLibre draws in a worker it finds beside its own bundle by `import.meta.url`, which the app's bundler does
-  // not preserve; so the worker and the chunk it imports are vendored under public/maplibre/ (the same bytes as
-  // the installed package: maplibre-worker-vendored.test.mjs holds them together) and named here.
-  setWorkerUrl(LEAD_MAP_WORKER_URL);
-  addProtocol("pmtiles", new Protocol().tile);
   const archive = new PMTiles(`${absolute}/${LEAD_MAP_ARCHIVE}`);
   const ready: Promise<LeadMapCoverage> = archive.getHeader().then((h) => ({
     covers: (p) => leadMapCovers({ minLon: h.minLon, minLat: h.minLat, maxLon: h.maxLon, maxLat: h.maxLat }, p),
   }));
   ready.catch(() => {});
+  let draw: Promise<LeadMapDraw> | null = null;
+  const streets = () => {
+    draw ??= load().then((m) => {
+      m.prepare();
+      return m;
+    });
+    return draw;
+  };
   window.__LEAD_MAP = {
     ready: () => ready,
-    mount: (el, opts) => mount(absolute, el, opts),
+    mount: (el, opts) => deferredHandle(streets().then((m) => m.mountStreets(absolute, el, opts))),
   };
 }
