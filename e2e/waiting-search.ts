@@ -38,9 +38,9 @@ export async function waitingSearch(page: Page): Promise<{ id: string; route: st
 }
 
 /**
- * Every request that would answer the search or spend a model turn, refused before it leaves the browser and
- * counted: the answer door (Yes, keep going / Include / Stop here / an approved amend) and a turn on the Line. A
- * spec that reads the waiting search ends with `expect(attempts).toEqual([])`.
+ * Every request that would answer the search or spend, refused before it leaves the browser and counted: the answer
+ * door (Yes, keep going / Include / Stop here / an approved amend), a new round (`more`), a new search, and a turn on
+ * the Line. Reads (GET) pass. A spec that reads the waiting search ends with `expect(attempts).toEqual([])`.
  */
 export async function refuseAnswers(page: Page): Promise<string[]> {
   const attempts: string[] = [];
@@ -49,8 +49,8 @@ export async function refuseAnswers(page: Page): Promise<string[]> {
     attempts.push(`${route.request().method()} ${new URL(route.request().url()).pathname}`);
     await route.abort();
   };
-  await page.route("**/api/v1/lead-searches/*/answer*", refuse);
-  await page.route("**/api/v1/lead-searches/*/stop*", refuse);
+  // POST lead-searches (a new search) and its answer, stop and more doors; undo and a search's own read are not spend.
+  await page.route(/\/api\/v1\/lead-searches(\/[^/?]+\/(answer|stop|more))?(\?|$)/, refuse);
   await page.route(/\/api\/v1\/ask(\?|$)/, refuse);
   return attempts;
 }
