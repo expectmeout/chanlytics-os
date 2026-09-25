@@ -1037,7 +1037,7 @@ git commit -m "The route stores the shape on the turn's row, reads the palette's
 
 - Modify: `apps/dashboard/src/legacy-bridge/ask/api.ts` (the `send` input and body)
 - Modify: `apps/dashboard/src/legacy/pages/ask-real.jsx` (an `openedAt` ref, set on open, sent with the question)
-- Modify: `apps/dashboard/src/legacy/Chanlytics.html:111` (`ask-real.jsx?v=15` → `?v=16`)
+- Modify: `apps/dashboard/src/legacy/Chanlytics.html:111` (`ask-real.jsx?v=N` → `?v=N+1`; `main` was at 16 on 25 Sep evening, #1078)
 - Modify: `tooling/scripts/tests/ask-palette.test.mjs` (the `ask()` stub records the whole input; one new test)
 - Test: `tooling/scripts/tests/ask-shape.test.mjs` (the client body)
 
@@ -1143,7 +1143,7 @@ line inside `if (!open || !A) return;` … i.e. right after that guard, add:
     await A.send({ text: q, threadId, scope: thread.scope || scope, surface, openedMs: openedAt.current ? Date.now() - openedAt.current : null }, (ev) => {
 ```
 
-(d) In `apps/dashboard/src/legacy/Chanlytics.html` line 111 bump `pages/ask-real.jsx?v=15` to `?v=16`. (Two branches
+(d) In `apps/dashboard/src/legacy/Chanlytics.html` line 111 bump `pages/ask-real.jsx?v=N` by one (16 → 17 as of #1078). (Two branches
 bumping to the same number merge away silently: after rebasing on a moved `main`, check the number is still one above
 `main`'s.)
 
