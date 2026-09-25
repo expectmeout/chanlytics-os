@@ -121,6 +121,9 @@ for (const k of [
   "PL_FIRST_ROWS",
 ])
   globalThis[k] = globalThis.window[k];
+await import("../../../apps/dashboard/src/legacy/pages/leads-cells.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/leads-bench.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/leads-map.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/leads-scope.jsx"); // Task 2's: LeadShape is its, and this file draws it
 await import("../../../apps/dashboard/src/legacy/pages/leads-peek.jsx");
 for (const k of [
