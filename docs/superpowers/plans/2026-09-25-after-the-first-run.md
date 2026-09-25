@@ -44,6 +44,21 @@ this order, each merged on green before the next.
 
 - **C1:** provisioning off the 60-second tick, one job per step, with look-before-create for the subaccount, the
   credential list and the Retell agent.
+  - _As built:_ the unit is a provider call, not a step: the trunk step alone makes six 15-second calls. The job hands
+    the saga its deadline (the tick's start plus 45 s, one Twilio timeout short of the 60-second ceiling). The saga
+    starts no call after it and stops with `later`, fails nothing, and leaves the row provisioning at its step.
+    Core's `provisionLine` then schedules one more `line_provision` job.
+  - Look-before-create is "asked, then look": each create is marked on the row (`facts.asked_<thing>`) before it is
+    asked, and only a run that finds the mark with no receipt looks first. A fresh line makes exactly the calls it
+    did. It covers:
+    - the subaccount, named with the line's tag (`subaccountName`) so a look by name only finds this line's;
+    - the trunk, whose domain is the line's, so a lost receipt used to be refused for good;
+    - the credential list;
+    - the SIP credential, whose lost password is now removed and remade, since a list holds a username once;
+    - the Retell origination.
+  - Not done: the Retell agent. Retell's `list-agents` spans every workspace's agents, and an orphaned agent costs
+    nothing and never blocks the saga, which moves on to the agent it made next. The attach calls (credential list,
+    number, messaging) are also unchanged.
 - **C2:** the three unsigned voice doors (`retell-inbound`, `retell-fn`, `retell-availability`) signed as the call
   webhook is, plus rate limits.
   - _As built:_ the signature is reported before it is required. `lib/voice/voice-door-auth.ts` holds the one check,

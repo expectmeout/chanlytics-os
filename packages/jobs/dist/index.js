@@ -9688,6 +9688,7 @@ var twilioUrls = {
   incomingNumber: (sid2, numberSid) => `${API2}/Accounts/${sid2}/IncomingPhoneNumbers/${numberSid}.json`,
   credentialLists: (sid2) => `${API2}/Accounts/${sid2}/SIP/CredentialLists.json`,
   credentials: (sid2, listSid) => `${API2}/Accounts/${sid2}/SIP/CredentialLists/${listSid}/Credentials.json`,
+  credential: (sid2, listSid, credentialSid) => `${API2}/Accounts/${sid2}/SIP/CredentialLists/${listSid}/Credentials/${credentialSid}.json`,
   trunks: `${TRUNKING}/Trunks`,
   trunk: (trunkSid) => `${TRUNKING}/Trunks/${trunkSid}`,
   trunkCredentialLists: (trunkSid) => `${TRUNKING}/Trunks/${trunkSid}/CredentialLists`,
@@ -12992,6 +12993,7 @@ var twilioUrls2 = {
   incomingNumber: (sid2, numberSid) => `${API22}/Accounts/${sid2}/IncomingPhoneNumbers/${numberSid}.json`,
   credentialLists: (sid2) => `${API22}/Accounts/${sid2}/SIP/CredentialLists.json`,
   credentials: (sid2, listSid) => `${API22}/Accounts/${sid2}/SIP/CredentialLists/${listSid}/Credentials.json`,
+  credential: (sid2, listSid, credentialSid) => `${API22}/Accounts/${sid2}/SIP/CredentialLists/${listSid}/Credentials/${credentialSid}.json`,
   trunks: `${TRUNKING2}/Trunks`,
   trunk: (trunkSid) => `${TRUNKING2}/Trunks/${trunkSid}`,
   trunkCredentialLists: (trunkSid) => `${TRUNKING2}/Trunks/${trunkSid}/CredentialLists`,
@@ -17890,8 +17892,12 @@ async function provisionLine(ports, cmd) {
   const by = cmd.payload.by === "sweep" || cmd.payload.by === "support" ? cmd.payload.by : "owner";
   if (!lineId) throw new Error("line_provision: payload.line_id is required");
   if (!ports.provision) throw new Error("line_provision: this runtime holds no line provider");
-  const r42 = await ports.provision(lineId, by);
+  const r42 = await ports.provision(lineId, by, ports.deadline);
   if (!r42.ok) throw new Error(`line_provision: stopped at ${r42.step ?? "?"}: ${r42.error ?? "unknown"}`);
+  if (r42.more) {
+    if (!ports.next) throw new Error(`line_provision: stopped for time at ${r42.step ?? "?"}, and nothing continues it`);
+    await ports.next({ line_id: lineId, by });
+  }
 }
 var EMAIL_BODY_MAX = 2e4;
 var EMAIL_REVIEW_WORDS = {
@@ -20773,7 +20779,15 @@ async function broadcastSend(ctx, job) {
   );
 }
 async function lineProvision(ctx, job) {
-  await provisionLine({ ...ctx.provisionLine ? { provision: ctx.provisionLine } : {} }, { payload: job.payload });
+  await provisionLine(
+    {
+      ...ctx.provisionLine ? { provision: ctx.provisionLine } : {},
+      // The saga stops between two provider calls at the job's deadline, and the rest is one more job of this kind.
+      next: (payload) => ctx.schedule("line_provision", /* @__PURE__ */ new Date(), payload),
+      deadline: ctx.deadline
+    },
+    { payload: job.payload }
+  );
 }
 function incomingEmailOf(e2) {
   return {

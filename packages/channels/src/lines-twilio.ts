@@ -34,6 +34,8 @@ export const twilioUrls = {
   credentialLists: (sid: string) => `${API}/Accounts/${sid}/SIP/CredentialLists.json`,
   credentials: (sid: string, listSid: string) =>
     `${API}/Accounts/${sid}/SIP/CredentialLists/${listSid}/Credentials.json`,
+  credential: (sid: string, listSid: string, credentialSid: string) =>
+    `${API}/Accounts/${sid}/SIP/CredentialLists/${listSid}/Credentials/${credentialSid}.json`,
   trunks: `${TRUNKING}/Trunks`,
   trunk: (trunkSid: string) => `${TRUNKING}/Trunks/${trunkSid}`,
   trunkCredentialLists: (trunkSid: string) => `${TRUNKING}/Trunks/${trunkSid}/CredentialLists`,
@@ -88,6 +90,14 @@ function need(a: TwilioAnswer, what: string): Record<string, unknown> {
   return a.body;
 }
 
+/** A list answer's rows under `key`, each an object; anything else is no rows. */
+function rowsOf(b: Record<string, unknown>, key: string): Record<string, unknown>[] {
+  const rows = b[key];
+  return Array.isArray(rows)
+    ? rows.filter((r): r is Record<string, unknown> => !!r && typeof r === "object" && !Array.isArray(r))
+    : [];
+}
+
 export function twilioProvider(http: TwilioHttp = fetchTwilio): LineProvider {
   return {
     name: "twilio",
@@ -101,6 +111,68 @@ export function twilioProvider(http: TwilioHttp = fetchTwilio): LineProvider {
       const token = str(b, "auth_token");
       if (!sid || !token) throw new TwilioError(200, b, "create subaccount answered without sid/auth_token");
       return { sid, token, status: str(b, "status") ?? "active" };
+    },
+
+    async findSubaccount(master, friendlyName) {
+      const url = `${twilioUrls.subaccounts}?${new URLSearchParams({ FriendlyName: friendlyName.slice(0, 64), PageSize: "20" })}`;
+      for (const a of rowsOf(need(await http(master, "GET", url), "list subaccounts"), "accounts")) {
+        const sid = str(a, "sid");
+        const token = str(a, "auth_token");
+        if (sid && token && str(a, "status") !== "closed") return { sid, token };
+      }
+      return null;
+    },
+
+    async findTrunk(acct, domainName) {
+      for (const t of rowsOf(
+        need(await http(acct, "GET", `${twilioUrls.trunks}?PageSize=50`), "list trunks"),
+        "trunks",
+      )) {
+        const sid = str(t, "sid");
+        if (sid && str(t, "domain_name") === domainName) return { sid, domainName };
+      }
+      return null;
+    },
+
+    async findCredentialList(acct, friendlyName) {
+      const b = need(
+        await http(acct, "GET", `${twilioUrls.credentialLists(acct.sid)}?PageSize=50`),
+        "list credential lists",
+      );
+      for (const l of rowsOf(b, "credential_lists")) {
+        const sid = str(l, "sid");
+        if (sid && str(l, "friendly_name") === friendlyName.slice(0, 64)) return { sid };
+      }
+      return null;
+    },
+
+    async findCredential(acct, listSid, username) {
+      const b = need(
+        await http(acct, "GET", `${twilioUrls.credentials(acct.sid, listSid)}?PageSize=50`),
+        "list credentials",
+      );
+      for (const c of rowsOf(b, "credentials")) {
+        const sid = str(c, "sid");
+        if (sid && str(c, "username") === username) return { sid };
+      }
+      return null;
+    },
+
+    async deleteCredential(acct, listSid, credentialSid) {
+      const a = await http(acct, "DELETE", twilioUrls.credential(acct.sid, listSid, credentialSid));
+      if (a.status !== 204 && a.status !== 404) throw new TwilioError(a.status, a.body, "delete credential");
+    },
+
+    async findOrigination(acct, trunkSid, sipUrl) {
+      const b = need(
+        await http(acct, "GET", `${twilioUrls.trunkOriginationUrls(trunkSid)}?PageSize=50`),
+        "list origination urls",
+      );
+      for (const o of rowsOf(b, "origination_urls")) {
+        const sid = str(o, "sid");
+        if (sid && str(o, "sip_url") === sipUrl) return { sid };
+      }
+      return null;
     },
 
     async searchLocal(acct, q) {
