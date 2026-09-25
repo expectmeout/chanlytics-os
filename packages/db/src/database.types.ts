@@ -698,6 +698,9 @@ export type Database = {
           display_name: string | null
           dnc: boolean
           email: string | null
+          email_marketing: string
+          email_marketing_source: string | null
+          email_marketing_updated_at: string | null
           email_suppressed_at: string | null
           email_suppressed_reason: string | null
           erased_at: string | null
@@ -726,6 +729,9 @@ export type Database = {
           display_name?: string | null
           dnc?: boolean
           email?: string | null
+          email_marketing?: string
+          email_marketing_source?: string | null
+          email_marketing_updated_at?: string | null
           email_suppressed_at?: string | null
           email_suppressed_reason?: string | null
           erased_at?: string | null
@@ -754,6 +760,9 @@ export type Database = {
           display_name?: string | null
           dnc?: boolean
           email?: string | null
+          email_marketing?: string
+          email_marketing_source?: string | null
+          email_marketing_updated_at?: string | null
           email_suppressed_at?: string | null
           email_suppressed_reason?: string | null
           erased_at?: string | null
@@ -4837,6 +4846,17 @@ export type Database = {
           p_message_id?: string
           p_note?: string
           p_source: string
+        }
+        Returns: Json
+      }
+      set_email_marketing: {
+        Args: {
+          p_contact_id: string
+          p_evidence?: Json
+          p_message_id?: string
+          p_source: string
+          p_state: string
+          p_tenant_id: string
         }
         Returns: Json
       }

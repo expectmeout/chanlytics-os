@@ -118,6 +118,34 @@ test("the words say what was answered and how we know, for every kind of change"
   );
 });
 
+test("an unsubscribe is email's own answer: read as one, and never said as a stop to everything (00174)", () => {
+  const row = consentChangeOf({
+    id: "ev-9",
+    subject_id: "p1",
+    created_at: "2026-09-25T14:00:00Z",
+    data: {
+      purpose: "email_marketing",
+      consent: "opted_out",
+      source: "unsubscribe",
+      channel: "email",
+      via: "one_click",
+      message_id: "11111111-1111-4111-8111-111111111111",
+    },
+  });
+  assert.equal(row.purpose, "email_marketing");
+  assert.deepEqual(consentChangeWords(row), {
+    who: "Email",
+    text: "Unsubscribed from your emails",
+    sub: "Pressed Unsubscribe in an email",
+  });
+  assert.notEqual(consentChangeWords(row).text, "Said stop — nothing goes out to them");
+  // A purpose this code has never heard of is still read as the conversational question, as it always was.
+  assert.equal(
+    consentChangeOf({ id: "e", subject_id: null, created_at: "", data: { purpose: "x" } }).purpose,
+    "conversational",
+  );
+});
+
 test("the person VM puts every change on the timeline, newest first, beside what was said", () => {
   const row = {
     id: "p1",

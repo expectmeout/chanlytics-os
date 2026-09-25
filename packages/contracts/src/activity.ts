@@ -192,7 +192,12 @@ export function activityWords(kind: string, payload: unknown): string {
     }
     case "consent_change":
     case "contact.consent_changed": {
-      const purpose = str(p, "purpose") === "marketing" ? "offers" : "messages about their visit";
+      const purpose =
+        str(p, "purpose") === "marketing"
+          ? "offers"
+          : str(p, "purpose") === "email_marketing"
+            ? "marketing email"
+            : "messages about their visit";
       const consent = str(p, "consent");
       bits.push(
         consent === "opted_in"

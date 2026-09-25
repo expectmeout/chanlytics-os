@@ -565,8 +565,10 @@ async function collectHeld(
         round.tenant_id,
         cleans.map((c) => c.raw.placeId),
       ),
+      // Every address a place carries, free mail included: a share key leaves gmail.com out because it names no
+      // business, but a person at a gmail.com address can still have said stop (00174's unsubscribe).
       p.db.suppressed(round.tenant_id, {
-        emails: keys.flatMap((k) => k.emails),
+        emails: cleans.flatMap((c) => c.emails),
         placeIds: cleans.map((c) => c.raw.placeId),
       }),
       p.db.sharesOf(round.tenant_id, {
@@ -866,7 +868,8 @@ export async function rejudgeProbe(p: LeadPorts, round: LeadRoundRow): Promise<R
   // What the collect filtered before it judged, filtered again, so a stored answer's email index still points at
   // the same address.
   const supp = await p.db.suppressed(round.tenant_id, {
-    emails: found.flatMap((x) => shareKeysOf(x.clean).emails),
+    // Every address, free mail included, as the collect asks (a stop is a person's, whatever their domain).
+    emails: found.flatMap((x) => x.clean.emails),
     placeIds: found.map((x) => x.clean.raw.placeId),
   });
   // The probe's own geometry, as its collect measured: a city ask has no centre yet, so no place is out of its area.
