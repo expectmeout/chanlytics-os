@@ -4244,6 +4244,19 @@ function sendsAs(mailbox, domain) {
 function requestLeavesAs(request, as) {
   return addressOf(request.from)?.address === as.address && request.reply_to.length === 1 && as.replyRoutes.includes(request.reply_to[0].trim().toLowerCase());
 }
+function resendLimitOf(r2) {
+  if (r2.ok || r2.status !== 429 && r2.status !== 409) return null;
+  let name = null;
+  try {
+    name = JSON.parse(r2.errorBody ?? "")?.name ?? null;
+  } catch {
+    name = null;
+  }
+  if (name === "daily_quota_exceeded") return "daily";
+  if (name === "monthly_quota_exceeded") return "monthly";
+  if (name === "concurrent_idempotent_requests") return "in_flight";
+  return r2.status === 429 ? "rate" : null;
+}
 var capabilityOf = (v) => v === "enabled" || v === "disabled" ? v : "unknown";
 function mailDomainsFrom(body) {
   const rows = body?.data;
@@ -5938,6 +5951,7 @@ export {
   representativeAttributes,
   representativeEndUserRequest,
   requestLeavesAs,
+  resendLimitOf,
   resendWebhookSignature,
   retellImportBody,
   reviewBells,

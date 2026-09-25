@@ -670,6 +670,33 @@ export function requestLeavesAs(request: EmailRequest, as: EmailSendsAs): boolea
   );
 }
 
+/**
+ * What a refusal from the provider means for the next send, read from the
+ * names Resend documents for its 429 and 409 answers:
+ *   rate       too many requests this second; the next second takes it
+ *   in_flight  a request under the same key is still being worked; its result is coming
+ *   daily      the day's sending is used up, for every workspace on the key
+ *   monthly    the month's is
+ * Null for anything else, a success included. A 429 that names nothing is read
+ * as the one that passes: the provider did not take the email, and waiting a
+ * second costs nothing.
+ */
+export type ResendLimit = "rate" | "in_flight" | "daily" | "monthly";
+
+export function resendLimitOf(r: { ok?: boolean; status: number; errorBody?: string | null }): ResendLimit | null {
+  if (r.ok || (r.status !== 429 && r.status !== 409)) return null;
+  let name: unknown = null;
+  try {
+    name = (JSON.parse(r.errorBody ?? "") as { name?: unknown } | null)?.name ?? null;
+  } catch {
+    name = null;
+  }
+  if (name === "daily_quota_exceeded") return "daily";
+  if (name === "monthly_quota_exceeded") return "monthly";
+  if (name === "concurrent_idempotent_requests") return "in_flight";
+  return r.status === 429 ? "rate" : null;
+}
+
 /* ----------------------------------------------------------- the mail domain
  *
  * Every workspace's address is on ONE domain — the deployment's, not a

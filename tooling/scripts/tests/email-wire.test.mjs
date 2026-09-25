@@ -21,6 +21,7 @@ import {
   referencesFor,
   replyRouteAddress,
   replySubject,
+  resendLimitOf,
   sendEmail,
 } from "@chanlytics/channels";
 
@@ -330,4 +331,26 @@ test("sendEmail posts the frozen request under its own key, returns what happene
   } finally {
     globalThis.fetch = real;
   }
+});
+
+test("what the provider's refusal means for the next send: slow down, wait for the first, or the day's or month's sending is used up", () => {
+  const no = (status, name) => ({
+    ok: false,
+    wamid: null,
+    status,
+    errorBody: name ? JSON.stringify({ statusCode: status, name, message: "x" }) : "",
+  });
+  assert.equal(resendLimitOf(no(429, "rate_limit_exceeded")), "rate");
+  assert.equal(resendLimitOf(no(429, "daily_quota_exceeded")), "daily");
+  assert.equal(resendLimitOf(no(429, "monthly_quota_exceeded")), "monthly");
+  assert.equal(resendLimitOf(no(429, "concurrent_idempotent_requests")), "in_flight");
+  assert.equal(resendLimitOf(no(409, "concurrent_idempotent_requests")), "in_flight");
+  assert.equal(resendLimitOf(no(429)), "rate", "a 429 that names nothing is the one that passes");
+  assert.equal(
+    resendLimitOf(no(409, "invalid_idempotent_request")),
+    null,
+    "a frozen request never changes: not a limit",
+  );
+  assert.equal(resendLimitOf(no(422, "validation_error")), null);
+  assert.equal(resendLimitOf({ ok: true, wamid: "re_1", status: 200 }), null);
 });
