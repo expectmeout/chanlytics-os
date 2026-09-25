@@ -1933,8 +1933,13 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
 @media (prefers-reduced-motion: reduce) { .ui-tip { transition: none; } }
 
 /* ---------- SurfaceTabs — merged surfaces are views, not places ---------- */
-.stabs { display: flex; align-items: center; gap: 2px; padding: 6px 18px 0; background: var(--bg); border-bottom: 1px solid var(--line); flex: none; }
-.stabs-tab { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px 9px; font-size: 12.5px; font-weight: 500; color: var(--ink-dim); border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color 110ms; }
+/* One strip for every surface's views: the Inbox's, Campaigns', and People's scopes on a phone (clients.css). A tab is
+   34px with its words in the middle, 4px from the next, one weight whichever is picked (a bolder word is a wider one,
+   and the tabs beside it moved on every switch); where you are is the ink and the accent's underline. A page sets only
+   the strip's sides. The Inbox's and People's were 2px apart with their words a pixel high, and Campaigns' underlined
+   in ink: one control, two looks (Ruben, 25 Sep). */
+.stabs { display: flex; align-items: center; gap: 4px; padding: 6px 18px 0; background: var(--bg); border-bottom: 1px solid var(--line); flex: none; }
+.stabs-tab { display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 12px; font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink-dim); border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color 110ms; }
 .stabs-tab:hover { color: var(--ink); }
 .stabs-tab.active { color: var(--ink); border-bottom-color: var(--accent); }
 /* Confidence as language, not dots */
@@ -1950,6 +1955,9 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
 .ghost-tag { margin-left: 8px; font-size: 9px; text-transform: uppercase; letter-spacing: 0.06em; border: 1px solid var(--line); border-radius: 999px; padding: 1px 7px; }
 .ac-bar-r { margin-left: auto; display: flex; align-items: center; gap: 4px; }
 @media (max-width: 900px) { .stabs { padding: 4px 12px 0; overflow-x: auto; scrollbar-width: none; } }
+/* On a phone every strip's sides are the rows' 16px gutter, and it sits flush under the bar: a tab is a thumb tall on a
+   touch screen already (legacy.css), so the strip adds nothing over it. */
+@media (max-width: 720px) { .stabs { padding: 0 16px; } }
 
 /* ---------- Attachments in a thread ---------- */
 .tl-media { display: block; margin-top: 6px; max-width: 280px; }
@@ -2292,15 +2300,10 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 .cm-banner-text strong { font-weight: var(--weight-semibold); color: var(--ink); }
 .cm-banner > .btn { flex: none; height: 28px; padding: 0 12px; }
 .cm-banner > .btn:not(.btn-primary) { border-color: var(--line-strong); color: var(--ink-muted); }
-/* The Campaigns tabs: counted, and underlined in ink. The accent is the live
-   agent's colour, and a tab is where you are, not something happening. */
-/* 6px under the bar, as the Inbox's sit; the side is the page's gutter, so a tab's words line up over the page's. */
-.stabs.stabs-campaigns { gap: 4px; padding: 6px 28px 0; }
-/* One weight for every tab: the active one turned semibold, a bolder word is a wider one, and the tabs beside it
-   moved sideways on every switch. Where you are is the ink and the underline, as on every other strip. */
-.stabs-campaigns .stabs-tab { height: 34px; box-sizing: border-box; padding: 0 12px; gap: 7px; font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink-dim); }
-.stabs-campaigns .stabs-tab:hover { color: var(--ink); }
-.stabs-campaigns .stabs-tab.active { color: var(--ink); border-bottom-color: var(--ink); }
+/* The Campaigns tabs are the shell's strip (SurfaceTabs, above), counted. Over a desk's page they sit 6px under the
+   bar, as the Inbox's do, and the side is the page's gutter, so a tab's words line up over the page's; a phone's strip
+   is every page's. */
+@media (min-width: 721px) { .stabs.stabs-campaigns { padding: 6px 28px 0; } }
 @media (max-width: 720px) {
   .rp-body.cm-page { padding: 12px 16px 32px; }
   .cm-head { flex-wrap: wrap; align-items: flex-start; row-gap: 12px; }
@@ -2314,8 +2317,6 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   .cm-head.is-quiet .cm-head-right:has(.cm-search) { flex: 1 1 100%; }
   /* The act says "New" on a phone, and its whole name to a screen reader: the tab above says what it makes. */
   .cm-act-noun { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  /* A tab is a thumb tall on a touch screen already (legacy.css), so the bar adds nothing over it. */
-  .stabs.stabs-campaigns { padding: 0 16px; }
   /* A notice is its sentence and its act: what it costs is the desk's (it was five lines of a phone). */
   .cm-banner { flex-wrap: wrap; align-items: flex-start; row-gap: 6px; padding: 10px 12px; }
   .cm-banner-text { flex: 1 1 calc(100% - 27px); }
