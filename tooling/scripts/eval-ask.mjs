@@ -317,7 +317,7 @@ const tenantId = await workspaceOf(session.user.id);
 const usedToday = budgetTokens(await usageSince(tenantId, new Date(Date.now() - DAY_MS).toISOString()));
 process.stderr.write(
   `Ask's budget today: ${usedToday.toLocaleString("en-US")} of ${ASK_TOKENS_DAY.toLocaleString("en-US")} tokens used before this run\n` +
-    `${cases.length} cases × ${REPS} = ${cases.length * REPS} turns against ${BASE}. Every turn spends the model key the receptionist answers customers with; the run stops after three refusals in a row.\n`,
+    `${cases.length} cases × ${REPS} = ${cases.length * REPS} turns ≈ $${(cases.length * REPS * 0.012).toFixed(2)} at the baseline $0.012 a turn (spec §9) against ${BASE}. Every turn spends the model key the receptionist answers customers with; the run stops after three refusals in a row.\n`,
 );
 // A second of clock skew: the first row of a run lands seconds after this, and the previous run's last row can
 // still be on its way (the edge writes it after its stream settles), so the window opens no earlier than this.
@@ -378,19 +378,23 @@ run: for (let rep = 1; rep <= REPS; rep++) {
     process.stderr.write(
       `${j.pass ? "PASS" : "FAIL"} ${c.id}${REPS > 1 ? ` #${rep}` : ""} (${r.ms} ms, ${r.final?.rounds ?? "?"} round(s), tools ${JSON.stringify(r.final?.tools ?? [])}, cards ${JSON.stringify((r.final?.proposals ?? []).map((p) => p.kind))})${j.pass ? "" : "\n     " + j.fails.join("\n     ")}\n`,
     );
-    refusals = r.final?.failed && REFUSED.test(r.final.text ?? "") ? refusals + 1 : 0;
+    // A request that threw (a 5xx, the route's rate limit) counts too: it says nothing about the model either.
+    const refused = !r.final || (r.final.failed && REFUSED.test(r.final.text ?? ""));
+    refusals = refused ? refusals + 1 : 0;
     if (refusals >= 3) {
-      stopped = `three refusals in a row at ${c.id} #${rep}: the key, its credit or the model. Nothing after this was asked.`;
+      stopped = `three refusals in a row at ${c.id} #${rep}: the key, its credit, the model or the route. Nothing after this was asked.`;
       process.stderr.write(`STOP: ${stopped}\n`);
       break run;
     }
   }
 }
 const passed = results.filter((r) => r.pass).length;
-const first = spread(results.map((r) => r.first_ms));
-const trace = spread(results.map((r) => r.first_trace_ms));
-const whole = spread(results.map((r) => r.final_ms));
-const median = spread(results.map((r) => r.latency_ms)).median;
+// The timings are the turns that answered: a request that threw records 0 ms, and a zero pulls every median down.
+const answered = results.filter((r) => r.message);
+const first = spread(answered.map((r) => r.first_ms));
+const trace = spread(answered.map((r) => r.first_trace_ms));
+const whole = spread(answered.map((r) => r.final_ms));
+const median = spread(answered.map((r) => r.latency_ms)).median;
 const oneRound = results.filter((r) => r.rounds === 1).length;
 const repeats = results.filter((r) => r.notes?.length).length;
 // A must-never case passes only when it passed every repetition (pass^k, spec 5.10).
@@ -416,8 +420,8 @@ console.log(
 const surfaces = [...new Set(results.map((r) => r.surface))];
 for (const s of surfaces) {
   const rs = results.filter((r) => r.surface === s);
-  const f = spread(rs.map((r) => r.first_ms));
-  const w = spread(rs.map((r) => r.final_ms));
+  const f = spread(rs.filter((r) => r.message).map((r) => r.first_ms));
+  const w = spread(rs.filter((r) => r.message).map((r) => r.final_ms));
   console.log(
     `  ${s}: ${interval(rs.filter((r) => r.pass).length, rs.length)} · one-round ${rs.filter((r) => r.rounds === 1).length}/${rs.length}` +
       ` · first words ${f.median} ms (p90 ${f.p90}) · final ${w.median} ms (p90 ${w.p90})`,
@@ -431,7 +435,7 @@ for (const [model, m] of Object.entries(usage.byModel))
   );
 for (const r of results)
   console.log(
-    `- ${r.pass ? "ok  " : "FAIL"} ${r.id}: ${(r.answer ?? "").replace(/\s+/g, " ").slice(0, 160)}` +
+    `- ${r.pass ? "ok  " : "FAIL"} ${r.id}${REPS > 1 ? ` #${r.rep}` : ""}: ${(r.answer ?? "").replace(/\s+/g, " ").slice(0, 160)}` +
       (r.notes?.length ? `\n       note: ${r.notes.join("; ")}` : ""),
   );
 mkdirSync("tooling/backups", { recursive: true });
