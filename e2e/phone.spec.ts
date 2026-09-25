@@ -579,6 +579,49 @@ test.describe("Phone shell on a real workspace", () => {
   });
 
   /**
+   * A thumb's press area where the look is smaller (25 Sep). These keep the size they are drawn at and answer a press
+   * toward 44px, as far as the controls around each leave room (mobile.css, "A thumb's press area"): walked outward from
+   * the drawn box, one pixel at a time, while a point still lands on the control.
+   */
+  test("small controls answer a thumb past the size they are drawn at", async ({ page }) => {
+    const pressOf = (el: Element) => {
+      el.scrollIntoView({ block: "center" });
+      const r = el.getBoundingClientRect();
+      const cx = r.left + r.width / 2;
+      const cy = r.top + r.height / 2;
+      const walk = (dx: number, dy: number) => {
+        let k = 0;
+        while (k < 40) {
+          const x = dx ? (dx < 0 ? r.left - k - 1 : r.right + k + 1) : cx;
+          const y = dy ? (dy < 0 ? r.top - k - 1 : r.bottom + k + 1) : cy;
+          const hit = document.elementFromPoint(x, y);
+          if (!hit || !(el === hit || el.contains(hit))) break;
+          k += 1;
+        }
+        return k;
+      };
+      return { w: Math.round(r.width + walk(-1, 0) + walk(1, 0)), h: Math.round(r.height + walk(0, -1) + walk(0, 1)) };
+    };
+    const seen: string[] = [];
+    const check = async (hash: string, sel: string, side: "w" | "h", atLeast: number) => {
+      await page.goto(`/#/${hash}`);
+      await page.waitForLoadState("networkidle");
+      const el = page.locator(sel).first();
+      if ((await el.count()) === 0) return; // nothing of that kind on this workspace
+      const press = await el.evaluate(pressOf);
+      expect(press[side], `${hash} ${sel}: ${JSON.stringify(press)}`).toBeGreaterThanOrEqual(atLeast);
+      seen.push(sel);
+    };
+    await check("outbound", '[data-testid="pb-open"]', "h", 42);
+    await check("broadcasts", '[data-testid="bc-open-who"]', "h", 42);
+    await check("messages", '[data-testid="template-open"]', "h", 42);
+    await check("reports", '[data-testid="reports-ask"]', "w", 40);
+    // The crumb's row clips what passes its edge: 38 is the room it has.
+    await check("conversations", "button.crumb-link", "w", 37);
+    test.skip(seen.length === 0, "none of these drawn here");
+  });
+
+  /**
    * A note is dismissed with a thumb (25 Sep). Its × waited for a pointer to hover the row, so on a phone it was
    * invisible and took no press (48 notes, and only Mark all read cleared them). On a touch screen it stands in each
    * row at its own size, with a press area a thumb wide, and the time beside it rather than under it. Read, not

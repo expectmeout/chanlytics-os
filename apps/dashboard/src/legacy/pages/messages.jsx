@@ -357,7 +357,7 @@ const MessageRow = ({ g, langs, bizName, canAct, canAdd = false, addWhy = null, 
               <button className="btn btn-sm" disabled={busy} onClick={() => onAdd(g, cur.lang)} data-testid="starter-add" {...window.gate("approve", "add a starter template")}>{doing === `add:${g.starter.key}:${cur.lang.id}` ? "Adding…" : `Add ${cur.lang.label}`}</button>
             )}
             <span className="msg-card-spacer" />
-            {row && canAct && !menu && <button className="cl-bucket-link" onClick={() => setMenu(true)} aria-label={`More for ${g.title}`} data-testid="template-menu">···</button>}
+            {row && canAct && !menu && <button className="cl-bucket-link msg-row-more" onClick={() => setMenu(true)} aria-label={`More for ${g.title}`} data-testid="template-menu">···</button>}
           </div>
           {menu && row && (
             <div className="msg-card-acts" data-testid="template-row">

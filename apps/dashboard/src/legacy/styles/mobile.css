@@ -703,6 +703,40 @@
   .cal-pane::after { content: ""; position: absolute; top: 0; left: 0; width: 1px; height: calc(100% + 1px); visibility: hidden; pointer-events: none; }
 }
 
+/* ---- A thumb's press area where the look is smaller (25 Sep) --------------------------------------------------------
+   These keep the size they are drawn at and gain an invisible press area toward 44px, only as far as the controls
+   around each leave room (measured on each at 375px): a playbook's name (20px free under it), a broadcast run's name
+   (2px under it, 100 over), a template's row (3px apart) and its ··· (drawn 6px wide), Reports' Ask, the top bar's
+   crumb, a call's recording, the lead peek's steps, its address (5px over it, 15 under: 34px, the most it has), its
+   phone note, its expand and its close, and the composer's language and its steps through the people. The composer's
+   variable picker is a native select laid over its label, which takes no press area. */
+@media (pointer: coarse) {
+  .pb-row-what, .bc-run-name, .msg-row-what, .msg-row-more, .rpt-ask, .crumbs .crumb-link, .tl-call-file, .pk-deck-btn,
+  .pk-where-link, .pk-hint-mark, .bc-chips .lp-trigger.lp-sm, .mp-step .mp-step-btn { position: relative; }
+  .pb-row-what::after, .msg-row-what::after, .msg-row-more::after, .rpt-ask::after,
+  .crumbs .crumb-link::after, .tl-call-file::after, .pk-deck-btn::after, .pk-where-link::after, .pk-hint-mark::after,
+  .pk-band-expand::after, .pk-x.pk-band-x::after, .bc-chips .lp-trigger.lp-sm::after, .mp-step .mp-step-btn::after {
+    content: ""; position: absolute;
+  }
+  .pb-row-what::after { inset: -10px 0; }
+  /* A run's name clips its own overflow for its ellipsis, which would clip a box hung on it too: it bleeds its padding
+     instead, and gives the same room back as margin, so its words stay where they are drawn. */
+  .bc-run-name { padding-block: 22px 2px; margin-block: -22px -2px; }
+  .msg-row-what::after { inset: -2px 0; }
+  /* Its row's spacer is free to the left, and its card cuts it off past its right edge. */
+  .msg-row-more::after { inset: 0 -8px 0 -30px; }
+  .rpt-ask::after { inset: 0 -5px; }
+  .crumbs .crumb-link::after { inset: 0 -6px; }
+  .tl-call-file::after { inset: -11px; }
+  .pk-deck-btn::after { inset: 0 -2px; }
+  .pk-where-link::after { inset: -4px 0 -12px; }
+  .pk-hint-mark::after { inset: 0 -1px 0 -21px; }
+  .pk-band-expand::after { inset: 0 0 0 -4px; }
+  .pk-x.pk-band-x::after { inset: 0 -14px 0 0; }
+  .bc-chips .lp-trigger.lp-sm::after { inset: 0 -4px 0 0; }
+  .mp-step .mp-step-btn::after { inset: 0 -7px; }
+}
+
 /* ====================================================================
    Inside the native shell (html.in-app, stamped before paint from the
    shell's User-Agent). The native tab bar stands where the web's did, and

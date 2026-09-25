@@ -110,7 +110,7 @@ const LeadPeekHead = ({ vm, onClose, onExpand, deck }) => {
         {vm.where ? (
           <div className="pk-where" data-testid="peek-where-block">
             {vm.where.href
-              ? <a href={vm.where.href} target="_blank" rel="noopener noreferrer" data-testid="peek-where"><Icon name="pin" size={12} />{vm.where.line}</a>
+              ? <a className="pk-where-link" href={vm.where.href} target="_blank" rel="noopener noreferrer" data-testid="peek-where"><Icon name="pin" size={12} />{vm.where.line}</a>
               : <span data-testid="peek-where"><Icon name="pin" size={12} />{vm.where.line}</span>}
             {vm.distance ? <span className="pk-distance" data-testid="peek-distance">{vm.distance}</span> : null}
           </div>
