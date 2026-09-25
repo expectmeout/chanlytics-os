@@ -142,6 +142,10 @@ export async function recordOutbound(
     channel?: "whatsapp" | "sms" | "email";
   },
 ): Promise<string | null> {
+  // An email's row is written before its words leave, under the id its request is frozen with (core deliver.ts): an
+  // id minted here, after the send, is one no receipt can name.
+  if (p.channel === "email")
+    throw new Error("record_outbound: an email's row is written before it is sent, never after");
   const { data, error } = await db
     .from("messages")
     .insert({

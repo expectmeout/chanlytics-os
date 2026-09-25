@@ -9782,6 +9782,8 @@ var K3 = new Uint32Array([
 ]);
 var NAME_MAX3 = BrainConfigSchema3.shape.business_name.maxLength ?? Infinity;
 async function recordOutbound(db, p) {
+  if (p.channel === "email")
+    throw new Error("record_outbound: an email's row is written before it is sent, never after");
   const { data, error } = await db.from("messages").insert({
     tenant_id: p.tenantId,
     conversation_id: p.conversationId,
@@ -9912,6 +9914,10 @@ async function finalizeQueued(db, d, patch) {
   return !!data && data.length > 0;
 }
 async function deliver(ports, d) {
+  if (d.channel === "email" && (!d.messageId || d.email && d.email.idempotency_key !== d.messageId))
+    throw new Error(
+      `deliver: an email leaves only from the queued row its request was frozen for (conversation ${d.conversationId})`
+    );
   const nowMs = (ports.now ?? Date.now)();
   const facts = await wireFacts(ports.db, d);
   const refusal = refusalFor(d, facts, nowMs);

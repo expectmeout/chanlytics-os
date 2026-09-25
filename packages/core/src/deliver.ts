@@ -393,6 +393,13 @@ async function finalizeQueued(db: Db, d: Delivery, patch: MessagePatch): Promise
 }
 
 export async function deliver(ports: DeliverPorts, d: Delivery): Promise<Delivered> {
+  // An email is written before it is sent, under the id its request was frozen with: every receipt names that row by
+  // the request's tag, so a row written after the send (recordOutbound's, below) is one no receipt can find, and its
+  // bounce suppresses nothing. A delivery that breaks this is a caller's mistake, said as one before anything is read.
+  if (d.channel === "email" && (!d.messageId || (d.email && d.email.idempotency_key !== d.messageId)))
+    throw new Error(
+      `deliver: an email leaves only from the queued row its request was frozen for (conversation ${d.conversationId})`,
+    );
   const nowMs = (ports.now ?? Date.now)();
   const facts = await wireFacts(ports.db, d);
 
