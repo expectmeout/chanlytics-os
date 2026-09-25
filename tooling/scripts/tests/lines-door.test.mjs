@@ -823,6 +823,40 @@ test("release finds a number the row lost the receipt for and gives it back — 
   assert.equal(kept.events.length, 0);
 });
 
+test("(A2) release takes the number off Retell first, when the saga imported it there; a refusal there keeps the row and reaches no carrier", async () => {
+  const tables = world({ lines: [unfiled({ facts: { retell_imported: true } })] });
+  use(tables, VAULT);
+  const retell = wire((req) => {
+    if (req.method === "DELETE" && req.url === "https://api.retellai.com/delete-phone-number/%2B13055550100")
+      return { status: 204 };
+    throw new Error(`unexpected ${req.method} ${req.url}`);
+  });
+  try {
+    assert.deepEqual(await answer(await knock({ op: "release", line_id: LINE })), [
+      200,
+      { ok: true, released: { retell_number: NUMBER, number: "PN0001", trunk: "TK0001" } },
+    ]);
+  } finally {
+    retell.restore();
+  }
+  assert.equal(retell.seen[0].headers.Authorization, "Bearer retell-key-for-this-file");
+  assert.equal(tables.lines.length, 0);
+
+  const kept = world({ lines: [unfiled({ facts: { retell_imported: true } })] });
+  use(kept, VAULT);
+  const down = wire(() => ({ status: 500, body: { message: "down" } }));
+  try {
+    assert.deepEqual(await answer(await knock({ op: "release", line_id: LINE })), [
+      502,
+      { ok: false, error: "releasing at the provider: Retell delete-phone-number: HTTP 500", released: {} },
+    ]);
+  } finally {
+    down.restore();
+  }
+  assert.equal(down.seen.length, 1, "no carrier call after Retell refused");
+  assert.equal(kept.lines.length, 1, "the row stands");
+});
+
 /* ---------------------------------- record -------------------------------- */
 
 /** The form as the dashboard sends it: the owner's words, some of them untidy. */

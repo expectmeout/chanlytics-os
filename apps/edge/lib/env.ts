@@ -80,6 +80,9 @@ export const env = {
   get LINES_DRY_RUN() {
     return read(process.env.LINES_DRY_RUN);
   },
+  get LINE_RELEASE_AFTER_DAYS() {
+    return read(process.env.LINE_RELEASE_AFTER_DAYS);
+  },
 
   // Email (Resend)
   get RESEND_API_KEY() {

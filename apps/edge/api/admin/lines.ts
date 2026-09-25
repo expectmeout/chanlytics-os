@@ -27,7 +27,8 @@ import {
   type BillingStatus,
 } from "../../lib/packages/contracts.js";
 import { isAreaCode, isE164, LINE_COSTS } from "../../lib/packages/channels.js";
-import { lineProviderFromEnv, lineForClient, releaseRoutingRows, rowToLine } from "../../lib/lines/lines.js";
+import { lineProviderFromEnv, lineForClient } from "../../lib/lines/lines.js";
+import { releaseLine } from "../../lib/lines/line-release.js";
 import {
   registerLine,
   syncRegistration,
@@ -274,54 +275,13 @@ export async function POST(request: Request): Promise<Response> {
       return json(202, { ok: true, queued: true, provider: choice.name, line: lineForClient(taken) });
     }
 
-    // release: give the number back, drop the trunk, forget the line; the
-    // routing row it created is switched off, never deleted (calls keep their history).
-    const line = rowToLine(row.data);
-    const released: Record<string, unknown> = {};
-    try {
-      const creds = await db.rpc("get_line_credentials", { p_line_id: line.id });
-      const token =
-        creds.data && typeof creds.data === "object" && !Array.isArray(creds.data)
-          ? (creds.data as { auth_token?: string }).auth_token
-          : undefined;
-      if (line.subaccount_sid && token) {
-        const acct = { sid: line.subaccount_sid, token };
-        // A NUMBER WE MAY OWN WITHOUT KNOWING. The row's `number_sid` is written
-        // after the purchase answers, so a saga killed in that window leaves the
-        // number bought and the row silent -- and this used to skip straight past
-        // it and delete the row, so we paid for it every month with nothing left
-        // pointing at it. `number_drift()` compares `lines` to `tenant_channels`
-        // and never asks the provider, so nothing would ever have noticed.
-        const sid =
-          line.number_sid ?? (line.e164 ? ((await choice.provider.ownedNumber(acct, line.e164))?.sid ?? null) : null);
-        if (sid) {
-          await choice.provider.releaseNumber(acct, sid);
-          released.number = sid;
-          if (!line.number_sid) released.number_found_by_lookup = true;
-        }
-        if (line.trunk_sid) {
-          await choice.provider.deleteTrunk(acct, line.trunk_sid);
-          released.trunk = line.trunk_sid;
-        }
-      }
-    } catch (e) {
-      return json(502, {
-        ok: false,
-        error: `releasing at the provider: ${e instanceof Error ? e.message : String(e)}`,
-        released,
-      });
-    }
-    const rows = await releaseRoutingRows(db, tenantId, line);
-    Object.assign(released, rows.released);
-    if (!rows.ok) return json(503, { ok: false, error: rows.error, released });
-    const del = await db.from("lines").delete().eq("id", line.id);
-    if (del.error) return json(503, { ok: false, error: del.error.message, released });
-    await emitEvent(db, tenantId, "line.released", "setup", "line", line.id, {
-      e164: line.e164,
-      provider: choice.name,
-      ...released,
-    }).catch(() => {});
-    return json(200, { ok: true, released });
+    // release: give the number back (Retell's copy, the number, the trunk), forget the line; the routing rows it
+    // created are switched off, never deleted (calls keep their history). The steps are line-release.ts's, which the
+    // lines sweep also runs for a workspace whose subscription ended.
+    const apiKey = env.RETELL_API_KEY;
+    const r = await releaseLine(db, choice, apiKey ? { apiKey } : null, tenantId, row.data);
+    if (!r.ok) return json(r.status, { ok: false, error: r.error, released: r.released });
+    return json(200, { ok: true, released: r.released });
   }
 
   if (op === "record") {
