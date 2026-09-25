@@ -149,7 +149,15 @@ export function maySpend(mode: BillingMode, status: BillingStatus): boolean {
   // conversations the workspace already has, and nothing new is bought on our
   // account until the card is fixed. The audit named this the one status
   // where the strict predicate was not strict.
-  return status === "trialing" || status === "active";
+  //
+  // trialing is ABSENT too (Ruben, 25 Sep 2026). The free trial covers what
+  // costs Chanlytics nothing: setting up, and the receptionist on channels the
+  // workspace already has. A number ($1.15 a month for as long as it is held),
+  // a texting registration ($19.50, non-refundable) and a lead search are each
+  // a cost on our account whether or not the trial ever pays, so each waits for
+  // the plan: getting a number starts it (the first run's checkout takes no
+  // trial), and a workspace on a trial starts it early (startPlanNow).
+  return status === "active";
 }
 
 /**
@@ -169,6 +177,8 @@ export interface SpendWords {
 export const SPEND_NUMBER: SpendWords = { before: "buying a number", can: "buy a number" };
 /** The lead finder: a search spends on someone else's account, not on a number. */
 export const SPEND_LEADS: SpendWords = { before: "finding leads", can: "find leads" };
+/** A carrier registration for texting: $19.50 on our account, one time and non-refundable. */
+export const SPEND_TEXTING: SpendWords = { before: "registering for texting", can: "register for texting" };
 
 /**
  * Why a workspace may not spend, in the owner's words, or null when it may.
@@ -182,7 +192,9 @@ export function whyCannotSpend(
   doing: SpendWords = SPEND_NUMBER,
 ): string | null {
   if (maySpend(mode, status)) return null;
-  if (status === "none") return `Add a card before ${doing.before} — nothing is charged until your trial ends.`;
+  if (status === "none") return `Start your plan from Billing before ${doing.before}.`;
+  if (status === "trialing")
+    return `Your free trial doesn't cover ${doing.before}. Start your plan from Billing, then ${doing.can}.`;
   if (status === "incomplete") return "Your card is not confirmed yet. Finish checkout in Billing, then try again.";
   if (status === "past_due") return "Your last payment did not go through. Update the card in Billing, then try again.";
   if (status === "paused" || status === "canceled" || status === "incomplete_expired") {
@@ -343,11 +355,28 @@ export interface BillingVM {
   plan: string;
   card: string | null;
   /** What an owner may do from here. */
-  actions: { checkout: boolean; portal: boolean; resume: boolean };
+  actions: { checkout: boolean; portal: boolean; resume: boolean; startNow: boolean };
   paused: boolean;
   /** For a workspace that pays by card on Stripe's test keys, the sentence saying so; null when live or not said. */
   testMode: string | null;
 }
+
+/** What a free trial does not cover, said beside it (maySpend): each is a cost on Chanlytics' account. */
+export const TRIAL_COVERS = "A phone number, texting and lead searches start with the plan.";
+
+/** Billing's "Start my plan now": a trial ended early, for what it does not cover. */
+export const START_PLAN_WORDS = {
+  button: "Start my plan now",
+  busy: "Starting…",
+  question: "Start your plan today?",
+  detail: (plan: string, card: string | null) =>
+    `Your free trial ends now, and ${plan || "the plan"} is charged to ${card || "your card on file"} today. A phone number, texting and lead searches open straight after.`,
+  yes: "Yes, start it",
+  no: "Not now",
+  started: "Your plan has started.",
+  /** Stripe took the trial's end but not the charge. */
+  unpaid: "Your plan started, but the charge did not go through. Update the card in Billing.",
+} as const;
 
 export function toBillingVM(dto: BillingDto, nowMs = Date.now()): BillingVM {
   const a = dto.account;
@@ -367,7 +396,7 @@ export function toBillingVM(dto: BillingDto, nowMs = Date.now()): BillingVM {
       tone: "",
       plan,
       card: null,
-      actions: { checkout: false, portal: false, resume: false },
+      actions: { checkout: false, portal: false, resume: false, startNow: false },
       paused: false,
       testMode: null,
     };
@@ -388,7 +417,7 @@ export function toBillingVM(dto: BillingDto, nowMs = Date.now()): BillingVM {
         headline: "No subscription yet",
         detail: dto.ready ? trialOffer(dto.trial_days) : "Billing is not available on this deployment yet.",
         tone: "warn",
-        actions: { checkout: dto.ready, portal: false, resume: false },
+        actions: { checkout: dto.ready, portal: false, resume: false, startNow: false },
         paused: false,
       };
     case "trialing":
@@ -399,16 +428,17 @@ export function toBillingVM(dto: BillingDto, nowMs = Date.now()): BillingVM {
           headline: "On trial, ending",
           detail: `Cancelled: the receptionist answers until ${dayWords(a.cancel_at ?? a.trial_end) || "the trial ends"}, then stops, and nothing is charged. Undo it from Manage billing before then to keep it.`,
           tone: "warn",
-          actions: { checkout: false, portal: true, resume: false },
+          actions: { checkout: false, portal: true, resume: false, startNow: false },
           paused: false,
         };
       }
       return {
         ...base,
         headline: "On trial",
-        detail: `${trialWords(a.trial_end, nowMs)}${card ? `, then ${plan || "the plan"} on ${card}` : ""}.`,
+        detail: `${trialWords(a.trial_end, nowMs)}${card ? `, then ${plan || "the plan"} on ${card}` : ""}. ${TRIAL_COVERS}`,
         tone: "ok",
-        actions: { checkout: false, portal: true, resume: false },
+        // Its plan may start now, for what the trial does not cover (maySpend).
+        actions: { checkout: false, portal: true, resume: false, startNow: true },
         paused: false,
       };
     case "active":
@@ -420,7 +450,7 @@ export function toBillingVM(dto: BillingDto, nowMs = Date.now()): BillingVM {
             ? `Ends ${dayWords(a.cancel_at ?? a.current_period_end)}; the receptionist answers until then.`
             : `Next invoice ${dayWords(a.current_period_end) || "on the renewal date"}${card ? ` on ${card}` : ""}.`,
         tone: "ok",
-        actions: { checkout: false, portal: true, resume: false },
+        actions: { checkout: false, portal: true, resume: false, startNow: false },
         paused: false,
       };
     case "past_due":
@@ -429,7 +459,7 @@ export function toBillingVM(dto: BillingDto, nowMs = Date.now()): BillingVM {
         headline: "Payment failed",
         detail: `${a.last_payment_failed_at ? `The last charge failed ${agoWords(Date.parse(a.last_payment_failed_at), nowMs)}. ` : ""}Stripe retries for a few days; update the card in Manage billing to keep the receptionist answering.`,
         tone: "danger",
-        actions: { checkout: false, portal: true, resume: false },
+        actions: { checkout: false, portal: true, resume: false, startNow: false },
         paused: false,
       };
     case "incomplete":
@@ -438,7 +468,7 @@ export function toBillingVM(dto: BillingDto, nowMs = Date.now()): BillingVM {
         headline: "Finishing checkout",
         detail: "The first payment is still being confirmed. This page updates by itself.",
         tone: "warn",
-        actions: { checkout: false, portal: true, resume: false },
+        actions: { checkout: false, portal: true, resume: false, startNow: false },
         paused: false,
       };
     case "paused":
@@ -448,7 +478,7 @@ export function toBillingVM(dto: BillingDto, nowMs = Date.now()): BillingVM {
         detail:
           "The trial ended without a card on file. Add one in Manage billing, then resume; messages keep landing in the Inbox meanwhile.",
         tone: "danger",
-        actions: { checkout: false, portal: true, resume: true },
+        actions: { checkout: false, portal: true, resume: true, startNow: false },
         paused: true,
       };
     case "unpaid":
@@ -457,7 +487,7 @@ export function toBillingVM(dto: BillingDto, nowMs = Date.now()): BillingVM {
         headline: "Paused",
         detail: "Payment could not be collected after several tries. Update the card in Manage billing, then resume.",
         tone: "danger",
-        actions: { checkout: false, portal: true, resume: true },
+        actions: { checkout: false, portal: true, resume: true, startNow: false },
         paused: true,
       };
     case "canceled":
@@ -468,7 +498,7 @@ export function toBillingVM(dto: BillingDto, nowMs = Date.now()): BillingVM {
         headline: "Subscription ended",
         detail: dto.ready ? trialOffer(dto.trial_days, true) : "Billing is not available on this deployment yet.",
         tone: "danger",
-        actions: { checkout: dto.ready, portal: !!a.card_brand, resume: false },
+        actions: { checkout: dto.ready, portal: !!a.card_brand, resume: false, startNow: false },
         paused: true,
       };
   }

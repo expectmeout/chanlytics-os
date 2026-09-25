@@ -19,6 +19,8 @@ const PaneBillingReal = ({ flash }) => {
   }, []);
   const [busy, setBusy] = React.useState(null);
   const [invoices, setInvoices] = React.useState(null);
+  // A free trial's plan started now, asked first: it charges the card today (contracts START_PLAN_WORDS).
+  const [asking, setAsking] = React.useState(false);
   // What the browser came back from Stripe with, said once, in the pane itself.
   const [note, setNote] = React.useState(() => {
     const o = window.__billing ? window.__billing.outcome() : null;
@@ -52,6 +54,14 @@ const PaneBillingReal = ({ flash }) => {
     const r = which === "checkout" ? await api.checkout() : await api.portal();
     // On success the browser is already on its way to Stripe.
     if (!r.ok) { setBusy(null); flash({ tone: "danger", msg: <>{r.message}</> }); }
+  };
+  const startNow = async () => {
+    if (!owner) return;
+    setAsking(false);
+    setBusy("startNow");
+    const r = await api.startNow();
+    setBusy(null);
+    flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <>{api.startWords.started}</> : <>{r.message}</> });
   };
   const resume = async () => {
     if (!owner) return;
@@ -117,6 +127,7 @@ const PaneBillingReal = ({ flash }) => {
               <>
                 {vm.actions.checkout && <button className="btn btn-primary btn-sm" disabled={!!busy} onClick={() => leave("checkout")} data-testid="billing-checkout" {...window.gate("billing", "start the subscription")}>{busy === "checkout" ? "Opening Stripe…" : "Start the trial"}</button>}
                 {vm.actions.resume && <button className="btn btn-primary btn-sm" disabled={!!busy} onClick={resume} data-testid="billing-resume" {...window.gate("billing", "resume the subscription")}>{busy === "resume" ? "Resuming…" : "Resume"}</button>}
+                {vm.actions.startNow && api.startWords && <button className="btn btn-primary btn-sm" disabled={!!busy} onClick={() => { if (owner) setAsking(true); }} aria-busy={busy === "startNow" || undefined} data-testid="billing-start-now" {...window.gate("billing", "start the plan")}>{busy === "startNow" ? api.startWords.busy : api.startWords.button}</button>}
                 {vm.actions.portal && <button className="btn btn-sm" disabled={!!busy} onClick={() => leave("portal")} data-testid="billing-portal" {...window.gate("billing", "manage the subscription")}>{busy === "portal" ? "Opening Stripe…" : "Manage billing"}</button>}
               </>
             )}
@@ -172,6 +183,17 @@ const PaneBillingReal = ({ flash }) => {
           )}
         </section>
       )}
+      {asking && api.startWords ? (
+        <window.Confirm
+          question={api.startWords.question}
+          detail={api.startWords.detail(vm.plan, vm.card)}
+          yes={api.startWords.yes}
+          no={api.startWords.no}
+          onYes={startNow}
+          onNo={() => setAsking(false)}
+          testid="billing-start-now"
+        />
+      ) : null}
     </>
   );
 };

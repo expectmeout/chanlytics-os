@@ -113,6 +113,25 @@ search finds a city ("Miami"). Web addresses get `https://` added for the owner.
     normalizer, `normalizeLink`, now published as `__normalizeLink`, instead of the rows' own regex. It supplies a
     missing `https://`, and the create card's put stores the same form.
 
+## F. What a free trial covers (Ruben, 25 Sep 2026)
+
+"Be careful with purchasing a new number: we should not provide it for free on the free trial. This has a cost for us."
+Ruben chose "getting a number starts paying", and to hold texting registration and lead searches too.
+
+- _As built:_ `maySpend` admits `active` only. The free trial covers what costs Chanlytics nothing: setting up, and
+  the receptionist on channels the workspace already has. A number ($1.15 a month), a texting registration ($19.50,
+  non-refundable) and a lead search each wait for the plan, and each refusal names what it is for (`SPEND_TEXTING` is
+  new).
+- The first run's checkout (`return: "start"`, the phone step's) takes no trial: "Start my plan", $49.00 a month,
+  starting today. Billing's own checkout keeps the trial.
+- A workspace already on a trial starts its plan early: Billing's "Start my plan now", or the phone step's button.
+  Both call `POST billing/start-now`, which becomes the edge's `start_now` (Stripe `trial_end: "now"`, applied at
+  once).
+- Setup's line row sends a workspace with no plan, or on a trial, to the phone step.
+- The back office no longer counts a trial as waiting on its owner.
+- Lead pricing (charge only for verified leads; a monthly number included in the plan) is a separate analysis, for
+  Ruben to decide.
+
 ## E. Later, each its own decision
 
 WhatsApp keeping the Business app (coexistence), or honest words on the row. Spam calls filtered. The Gmail forwarding

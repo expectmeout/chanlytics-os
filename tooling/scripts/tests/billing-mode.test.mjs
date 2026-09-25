@@ -229,7 +229,11 @@ test("REGRESSION (S9): Setup's billing row says test mode before anything it say
     ).rows.find((r) => r.id === "billing");
   assert.deepEqual(
     rowOf("trialing", false).details,
-    [SAID, "The card on file is charged when the trial ends; cancel from Billing before then if you'd rather not"],
+    [
+      SAID,
+      "The card on file is charged when the trial ends; cancel from Billing before then if you'd rather not",
+      "A phone number, texting and lead searches start with the plan.",
+    ],
     "REGRESSION: the charge was said with nothing about the keys",
   );
   for (const status of [

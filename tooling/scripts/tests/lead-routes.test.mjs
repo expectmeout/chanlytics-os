@@ -769,19 +769,18 @@ test("release B's ten declare their policy: working a lead is the operator's, er
 });
 
 test("a refusal to spend on a search says what the money was for, and the lines door keeps saying its own", () => {
+  assert.equal(whyCannotSpend("stripe", "none", SPEND_LEADS), "Start your plan from Billing before finding leads.");
+  assert.equal(whyCannotSpend("stripe", "none"), "Start your plan from Billing before buying a number.");
+  // A free trial finds no leads: each search is a cost on our account (contracts maySpend).
   assert.equal(
-    whyCannotSpend("stripe", "none", SPEND_LEADS),
-    "Add a card before finding leads — nothing is charged until your trial ends.",
-  );
-  assert.equal(
-    whyCannotSpend("stripe", "none"),
-    "Add a card before buying a number — nothing is charged until your trial ends.",
+    whyCannotSpend("stripe", "trialing", SPEND_LEADS),
+    "Your free trial doesn't cover finding leads. Start your plan from Billing, then find leads.",
   );
   assert.equal(
     whyCannotSpend("stripe", "unpaid", SPEND_LEADS),
     "Billing needs attention before this workspace can find leads. Open Billing to sort it out.",
   );
-  for (const status of ["none", "paused", "unpaid"]) {
+  for (const status of ["none", "trialing", "paused", "unpaid"]) {
     assert.equal(/buying a number|buy a number/.test(whyCannotSpend("stripe", status, SPEND_LEADS)), false, status);
   }
 });

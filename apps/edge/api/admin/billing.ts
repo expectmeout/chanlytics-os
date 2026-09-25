@@ -8,6 +8,8 @@
  *   { op: "invoices", tenant_id }                     → the last twelve invoices
  *   { op: "sync", tenant_id }                         → read the subscription from Stripe now and apply it
  *   { op: "resume", tenant_id }                       → a paused subscription resumed, billing from now
+ *   { op: "start_now", tenant_id }                    → a free trial's plan started now: charged today, and what the
+ *                                                       trial does not cover (a number, texting, leads) opens
  *
  * The secret key lives here and nowhere else. Without it, and the price and
  * the webhook secret, the ops say "not_ready" and the dashboard draws
@@ -23,6 +25,7 @@ import {
   portalFor,
   priceForClient,
   resumeFor,
+  startPlanNowFor,
   stripeLivemode,
   syncFor,
   trialDays,
@@ -50,6 +53,7 @@ const STATUS_OF: Record<string, number> = {
   no_customer: 409,
   no_subscription: 409,
   not_paused: 409,
+  not_trialing: 409,
   stripe_refused: 502,
 };
 
@@ -124,5 +128,13 @@ export async function POST(request: Request): Promise<Response> {
     L.info(r.ok ? "billing_resumed" : "billing_resume_refused", r.ok ? { status: r.status } : { error: r.error });
     return json(r.ok ? 200 : (STATUS_OF[r.error] ?? 500), r);
   }
-  return json(400, { ok: false, error: "op must be status, checkout, portal, invoices, sync or resume" });
+  if (op === "start_now") {
+    const r = await startPlanNowFor(db, tenantId);
+    L.info(
+      r.ok ? "billing_started_now" : "billing_start_now_refused",
+      r.ok ? { status: r.status } : { error: r.error },
+    );
+    return json(r.ok ? 200 : (STATUS_OF[r.error] ?? 500), r);
+  }
+  return json(400, { ok: false, error: "op must be status, checkout, portal, invoices, sync, resume or start_now" });
 }

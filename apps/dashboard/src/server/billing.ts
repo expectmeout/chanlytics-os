@@ -100,5 +100,6 @@ export const BILLING_SAID: Record<string, string> = {
   no_customer: "Nothing to manage yet: start the trial first.",
   no_subscription: "No subscription is on record for this workspace.",
   not_paused: "The subscription is not paused.",
+  not_trialing: "There is no free trial to end: the plan has already started.",
   stripe_refused: "Stripe did not accept the request.",
 };
