@@ -16511,7 +16511,7 @@ function dedupeFeed(rows) {
     (r2) => !(r2.key.startsWith(SERVER_KEY_PREFIX) && r2.about?.type === "conversation" && covered.has(r2.about.id))
   );
 }
-var NUMBER_IN_WORDS = /\+?\d[\d ().-]{6,}\d/;
+var NUMBER_IN_WORDS = /\+\d{8,15}\b|(?:\+\d{1,3}\s?)?\(\d{3}\)\s?\d{3}[-.\s]\d{4}\b|(?:\+\d{1,3}\s)?\d{3}[-.\s]\d{3}[-.\s]\d{4}\b/;
 function nameKnownCustomers(rows, threads, calls) {
   const named = (who) => who && !/\d{4}/.test(who) ? who.trim() : null;
   const byConversation = /* @__PURE__ */ new Map();

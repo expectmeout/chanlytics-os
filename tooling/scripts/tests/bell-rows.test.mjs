@@ -124,6 +124,14 @@ test("a kept row naming its customer by number takes the name the Inbox or the c
         subject_id: "k3",
       }),
       kept({ id: "h2", kind: "handoff", title: "WhatsApp handoff needed: +19175550104" }),
+      // The runner's older call title: the number, then the words about the call in brackets.
+      kept({
+        id: "c3",
+        kind: "call",
+        title: "Voice call: +15550100105 (12s, Neutral)",
+        subject_type: "call",
+        subject_id: "k2",
+      }),
     ],
   });
   const named = nameKnownCustomers(
@@ -140,6 +148,11 @@ test("a kept row naming its customer by number takes the name the Inbox or the c
   assert.equal(by["n:c1"], "Ana Ruiz phoned · 12 s");
   assert.equal(by["n:c2"], "+1 (917) 555-0103 phoned · 3 min");
   assert.equal(by["n:h2"], "WhatsApp handoff needed: +19175550104", "a row about nothing is left as written");
+  assert.equal(
+    by["n:c3"],
+    "Voice call: Ana Ruiz (12s, Neutral)",
+    "REGRESSION: the number, and only the number: it ran on into the words after it",
+  );
 });
 
 /* ------------------------------ the grouping ------------------------------ */

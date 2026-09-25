@@ -504,8 +504,13 @@ export function dedupeFeed(rows: NotificationRow[]): NotificationRow[] {
   );
 }
 
-/** A phone number inside a line of words: what the edge writes when it knew no name. */
-const NUMBER_IN_WORDS = /\+?\d[\d ().-]{6,}\d/;
+/**
+ * A phone number inside a line of words: what the edge writes when it knew no name. Its three spellings and nothing
+ * after them: `+19175550101`, `+1 (917) 555-0101`, `+1 917 555 0101`. A looser pattern ran on into the words after
+ * the number, and "Voice call: +15550100101 (12s, Neutral)" read "Voice call: Dana Ortizs, Neutral)" (25 Sep).
+ */
+const NUMBER_IN_WORDS =
+  /\+\d{8,15}\b|(?:\+\d{1,3}\s?)?\(\d{3}\)\s?\d{3}[-.\s]\d{4}\b|(?:\+\d{1,3}\s)?\d{3}[-.\s]\d{3}[-.\s]\d{4}\b/;
 
 /**
  * A kept row names its customer by number when the edge knew no name ("WhatsApp handoff needed: +1917…"), and the
