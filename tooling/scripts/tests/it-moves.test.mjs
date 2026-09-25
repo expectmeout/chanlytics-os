@@ -221,17 +221,15 @@ test("past the last tab a page gives a quarter of the drag, 48px at most, and se
   assert.deepEqual(went, []);
 });
 
-test("let go past a third, a page leaves the way it went, a strip inside it holds still, and then the tab beside is pressed", async () => {
+test("let go past a third, a page leaves the way it went, and then the tab beside is pressed", async () => {
   const went = [];
   const hows = [];
   const el = element();
-  const held = element();
   const h = touchSwipe({
-    pages: () => pager({ prev: false, held, follow: (p, s, how) => hows.push(how), go: (s) => went.push(s) }),
+    pages: () => pager({ prev: false, follow: (p, s, how) => hows.push(how), go: (s) => went.push(s) }),
   });
   drag(h, el, [300, 300], [240, 300], [160, 300]);
   assert.equal(el.style.transform, "translate3d(-375px, 0, 0)", "away, a page's width");
-  assert.equal(held.style.transform, "translate3d(375px, 0, 0)", "the strip over it stays where it is");
   assert.equal(hows.at(-1), "leave");
   assert.deepEqual(went, [], "the tab waits for the leaving");
   await wait(220);
@@ -241,6 +239,22 @@ test("let go past a third, a page leaves the way it went, a strip inside it hold
   drag(h, near, [300, 300], [285, 300], [280, 300]);
   assert.equal(near.style.transform, "translate3d(0, 0, 0)");
   assert.deepEqual(went, [1]);
+});
+
+test("a page whose strip is inside it moves everything but the strip: what it names moves, the view itself stays", async () => {
+  const el = element();
+  const bar = element();
+  const rows = element();
+  const h = touchSwipe({ pages: () => pager({ moving: [bar, rows] }) });
+  h.onTouchStart({ touches: [{ clientX: 300, clientY: 300 }], currentTarget: el, target: el });
+  h.onTouchMove({ touches: [{ clientX: 200, clientY: 300 }], currentTarget: el });
+  assert.equal(bar.style.transform, "translate3d(-100px, 0, 0)");
+  assert.equal(rows.style.transform, "translate3d(-100px, 0, 0)");
+  assert.equal(el.style.transform, undefined, "the view, and the strip in it, stay where they are");
+  h.onTouchEnd({ changedTouches: [{ clientX: 60, clientY: 300 }], currentTarget: el });
+  assert.equal(rows.style.transform, "translate3d(-375px, 0, 0)");
+  await wait(220);
+  assert.equal(el.style.transform, undefined);
 });
 
 test("a page never moves from the screen's edges, where the page refuses the touch, or where a thread goes back", () => {

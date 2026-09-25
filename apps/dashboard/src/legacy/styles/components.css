@@ -917,6 +917,18 @@ button.chip:focus-visible, a.chip:focus-visible { outline: none; box-shadow: var
 @media (prefers-reduced-motion: reduce) {
   .route-view { animation: none; }
 }
+/* A view from the tab beside comes in from that side on a phone (app-shell.jsx routeSlide), so a tap and a swipe read
+   as one control. It outranks route-stay (People's scopes) and draws at once, no fade, as route-stay does; it moves
+   `translate`, never `transform`, so a finger that takes the page as it lands keeps it. A strip drawn inside the page
+   (People's) goes the other way on the same curve, so it stays where it is as the page comes in around it. */
+@media (max-width: 720px) and (prefers-reduced-motion: no-preference) {
+  .route-view.route-slide-next { animation: route-slide-next 220ms var(--ease-out); }
+  .route-view.route-slide-prev { animation: route-slide-prev 220ms var(--ease-out); }
+  .route-slide-next .stabs { animation: route-slide-prev 220ms var(--ease-out); }
+  .route-slide-prev .stabs { animation: route-slide-next 220ms var(--ease-out); }
+}
+@keyframes route-slide-next { from { translate: 40px 0; } }
+@keyframes route-slide-prev { from { translate: -40px 0; } }
 
 /* ---------- Unified stat strip (dashboard anchors · clients head · profile money) ---------- */
 .stat-strip {
@@ -1937,11 +1949,21 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
    34px with its words in the middle, 4px from the next, one weight whichever is picked (a bolder word is a wider one,
    and the tabs beside it moved on every switch); where you are is the ink and the accent's underline. A page sets only
    the strip's sides. The Inbox's and People's were 2px apart with their words a pixel high, and Campaigns' underlined
-   in ink: one control, two looks (Ruben, 25 Sep). */
-.stabs { display: flex; align-items: center; gap: 4px; padding: 6px 18px 0; background: var(--bg); border-bottom: 1px solid var(--line); flex: none; }
-.stabs-tab { display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 12px; font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink-dim); border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color 110ms; }
+   in ink: one control, two looks (Ruben, 25 Sep).
+   The strip's rule is drawn inside it (an inset shadow), and the picked tab's 2px underline lies over it there. A border
+   under the strip, with the tab 1px over it, lay outside what a strip that scrolls across can show (a phone's): the
+   Inbox's and Campaigns' underlines drew 1px of their 2 and the strip scrolled 1px up and down under a thumb, where
+   People's clipped instead. */
+.stabs { display: flex; align-items: center; gap: 4px; padding: 6px 18px 0; background: var(--bg); box-shadow: inset 0 -1px 0 var(--line); flex: none; position: relative; }
+.stabs-tab { display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 12px; font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink-dim); border-bottom: 2px solid transparent; transition: color 110ms; }
 .stabs-tab:hover { color: var(--ink); }
 .stabs-tab.active { color: var(--ink); border-bottom-color: var(--accent); }
+/* A thumb carrying the page (surface-tabs.jsx stripPager): one underline, between the tab picked and the one the page
+   is going to; the picked tab's own is clear meanwhile. */
+.stabs[data-glide]::after { content: ""; position: absolute; left: 0; bottom: 0; width: var(--glide-w, 0px); height: 2px; background: var(--accent); transform: translateX(var(--glide-x, 0px)); pointer-events: none; }
+.stabs[data-glide="ease"]::after { transition: transform 180ms var(--ease-out), width 180ms var(--ease-out); }
+.stabs[data-glide] .stabs-tab { transition: color var(--duration-base) var(--ease-out); }
+.stabs[data-glide] .stabs-tab.active { border-bottom-color: transparent; }
 /* Confidence as language, not dots */
 .conf-word { font-size: 9.5px; font-weight: 600; letter-spacing: 0.02em; padding: 2px 8px; border-radius: 999px; white-space: nowrap; flex-shrink: 0; }
 .conf-word.conf-high { color: var(--ok); background: var(--ok-soft); }
@@ -3435,4 +3457,5 @@ html.legacy-on .msg-use-link { position: relative; }
   [data-leaving="true"] { animation: none; }
   .stabs-tab, .phone-tab { transition: none; }
   .stabs-tab:active, .phone-tab:active { transform: none; }
+  .stabs[data-glide="ease"]::after, .stabs[data-glide] .stabs-tab { transition: none; }
 }

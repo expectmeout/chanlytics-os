@@ -140,8 +140,7 @@ const stripSlide = (from, to) => (from && to && from.strip === to.strip && from.
 // ---- The strip under a thumb (a phone, docs/superpowers/specs/2026-09-25-swipe-between-tabs-design.md) ------------
 // A swipe across the page walks the strip drawn over it: data-bits' touchSwipe carries the page with the finger; this
 // finds the strip (the shell's, over the route view, or People's own inside it), glides its underline toward the tab
-// the page is going to, holds it still when it is inside what moves, and presses the tab beside, so a swipe is exactly
-// a tap. A touch that begins in something that takes touches for itself is never the page's.
+// the page is going to, keeps it where it is, and presses the tab beside, so a swipe is exactly a tap. A touch that begins in something that takes touches for itself is never the page's.
 const ST_OWN_TOUCH = '[role="dialog"], [aria-modal="true"], [role="menu"], .sb-sheet, .pp-toast, [data-own-drag]';
 const stripPhone = () => !!(window.matchMedia && window.matchMedia("(max-width: 720px)").matches);
 // The picked tab's own underline comes back at once: eased, it faded in under a glide that had already gone.
@@ -154,6 +153,16 @@ const stripUnglide = (strip) => {
   void strip.offsetWidth;
   for (const t of tabs) t.style.transition = "";
 };
+// A strip drawn inside the page (People's, in its own scroller) stays while all around it moves: what sits beside it
+// and beside each box that holds it, up to the view. Moving the view with the strip held in it cut the strip off at the
+// view's moving edge, and it vanished as the page left.
+const stripAround = (strip, view) => {
+  const out = [];
+  for (let n = strip; n && n.parentElement && n !== view; n = n.parentElement) {
+    for (const s of Array.from(n.parentElement.children)) if (s !== n) out.push(s);
+  }
+  return out;
+};
 const stripPager = (view, from) => {
   if (from && from.closest && from.closest(ST_OWN_TOUCH)) return null;
   const main = view && view.parentElement;
@@ -165,7 +174,7 @@ const stripPager = (view, from) => {
   return {
     prev: at > 0,
     next: at < tabs.length - 1,
-    held: view.contains(strip) ? strip : null,
+    moving: view.contains(strip) ? stripAround(strip, view) : null,
     follow: (progress, step, how) => {
       const a = tabs[at];
       const b = tabs[at + step] || a;

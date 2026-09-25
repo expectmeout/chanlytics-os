@@ -286,6 +286,7 @@ const LrWhisper = ({ c }) => {
             type="button"
             className={`btn btn-sm lm-talk ${listening ? "on" : ""}`}
             data-testid="live-whisper-talk"
+            data-own-drag
             aria-pressed={listening}
             title="Hold and say the whisper; it is sent when you let go"
             onPointerDown={startTalking}

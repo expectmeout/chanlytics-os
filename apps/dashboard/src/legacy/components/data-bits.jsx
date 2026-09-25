@@ -335,9 +335,9 @@ Object.assign(window, { trapTab, tabStops: tabStopsIn });
 //
 // `pages(el, from)` is the third that follows: a page under a strip, walked across (surface-tabs.jsx stripPager). It is
 // asked once, as a touch is taken across (never from 24px of either edge, which is the phone's own back), with where
-// the touch began: `{ prev, next, held, follow(progress, step, how), go(step) }`, or null for no page. The page moves
-// with the finger both ways; toward a side with no page it gives a quarter of the drag, 48px at most. `held` (a strip
-// drawn inside what moves) is kept where it is. Let go past a third (160px at most) or with a flick toward a page, it
+// the touch began: `{ prev, next, moving, follow(progress, step, how), go(step) }`, or null for no page. The page moves
+// with the finger both ways; toward a side with no page it gives a quarter of the drag, 48px at most. `moving` names
+// what moves when it is not the element itself (People's strip is inside its page: all around it moves, it stays). Let go past a third (160px at most) or with a flick toward a page, it
 // leaves that way and then `go(step)`; otherwise it settles. `follow` hears every move ("move") and the end ("leave",
 // "settle"). The answer is kept with the touch, so a page drawn again mid-gesture loses nothing. `back` goes first.
 //
@@ -391,30 +391,31 @@ const pageOpen = (p, step) => !!(p && (step > 0 ? p.next : p.prev));
 // Back where it was, on the settle's own curve; its inline styles go when it is there, so the page's own rules
 // (an entrance, a sheet's frame) own it again.
 const swipeSettle = (g) => {
-  const { el, wash, held } = g;
+  const { el, wash } = g;
+  const them = (g.moving || [el]).filter((m) => m && m.style);
   if (g.onGrab) g.onGrab(el, false);
   if (!el.style) return;
   const now = motionReduced();
-  el.style.transition = now ? "none" : `transform ${SETTLE_MS}ms var(--ease-out)`;
-  el.style.transform = "translate3d(0, 0, 0)";
-  if (held && held.style) {
-    held.style.transition = el.style.transition;
-    held.style.transform = "translate3d(0, 0, 0)";
+  for (const m of them) {
+    m.style.transition = now ? "none" : `transform ${SETTLE_MS}ms var(--ease-out)`;
+    m.style.transform = "translate3d(0, 0, 0)";
   }
   if (wash && wash.style) {
     wash.style.transition = now ? "none" : `opacity ${SETTLE_MS}ms var(--ease-out)`;
     wash.style.opacity = "";
   }
   setTimeout(() => {
-    el.style.transition = "";
-    el.style.transform = "";
-    if (held && held.style) { held.style.transition = ""; held.style.transform = ""; }
+    for (const m of them) {
+      m.style.transition = "";
+      m.style.transform = "";
+    }
     if (wash && wash.style) wash.style.transition = "";
   }, now ? 0 : SETTLE_MS + 20);
 };
 // Away the way it was pulled, then the close; still on screen after it (the page asked first), it settles back.
 const swipeLeave = (g, close) => {
-  const { el, wash, way, held } = g;
+  const { el, wash, way } = g;
+  const them = (g.moving || [el]).filter((m) => m && m.style);
   const done = () => {
     close();
     setTimeout(() => {
@@ -422,19 +423,18 @@ const swipeLeave = (g, close) => {
       if (shown) { swipeSettle(g); return; }
       if (g.onGrab) g.onGrab(el, false);
       if (!el.style) return;
-      el.style.transition = "";
-      el.style.transform = "";
-      if (held && held.style) { held.style.transition = ""; held.style.transform = ""; }
+      for (const m of them) {
+        m.style.transition = "";
+        m.style.transform = "";
+      }
       if (wash && wash.style) { wash.style.transition = ""; wash.style.opacity = ""; }
     }, way === "page" ? PAGE_KEPT_MS : KEPT_AFTER_MS);
   };
   if (!el.style || motionReduced()) { done(); return; }
   const w = el.offsetWidth || 600;
-  el.style.transition = `transform ${LEAVE_MS}ms var(--ease-in)`;
-  el.style.transform = way === "down" ? "translate3d(0, 100%, 0)" : way === "page" ? `translate3d(${-g.step * w}px, 0, 0)` : "translate3d(100%, 0, 0)";
-  if (held && held.style) {
-    held.style.transition = el.style.transition;
-    held.style.transform = `translate3d(${g.step * w}px, 0, 0)`;
+  for (const m of them) {
+    m.style.transition = `transform ${LEAVE_MS}ms var(--ease-in)`;
+    m.style.transform = way === "down" ? "translate3d(0, 100%, 0)" : way === "page" ? `translate3d(${-g.step * w}px, 0, 0)` : "translate3d(100%, 0, 0)";
   }
   if (wash && wash.style) {
     wash.style.transition = `opacity ${LEAVE_MS}ms var(--ease-in)`;
@@ -451,7 +451,7 @@ const touchSwipe = ({ onLeft = null, onRight = null, onDown = null, onBack = nul
       touches.delete(el);
       return;
     }
-    touches.set(el, { el, x: t.clientX, y: t.clientY, at: Date.now(), top: swipeScrollerAtTop(e.target, el), way: null, onGrab, wash: null, from: e.target, pages: null, held: null, step: 0 });
+    touches.set(el, { el, x: t.clientX, y: t.clientY, at: Date.now(), top: swipeScrollerAtTop(e.target, el), way: null, onGrab, wash: null, from: e.target, pages: null, moving: null, step: 0 });
   },
   onTouchMove: (e) => {
     const t = e && e.touches && e.touches[0];
@@ -471,10 +471,9 @@ const touchSwipe = ({ onLeft = null, onRight = null, onDown = null, onBack = nul
       } else g.way = "none";
       if (g.way === "none") return;
       g.wash = washBehind(el);
-      g.held = g.way === "page" ? g.pages.held || null : null;
-      if (el.style) el.style.transition = "none";
+      g.moving = g.way === "page" && g.pages.moving ? g.pages.moving : null;
+      for (const m of g.moving || [el]) if (m && m.style) m.style.transition = "none";
       if (g.wash && g.wash.style) g.wash.style.transition = "none";
-      if (g.held && g.held.style) g.held.style.transition = "none";
       if (onGrab) onGrab(el, true);
     }
     if (!el.style) return;
@@ -488,8 +487,7 @@ const touchSwipe = ({ onLeft = null, onRight = null, onDown = null, onBack = nul
       const step = pageStep(dx);
       const open = pageOpen(g.pages, step);
       const d = open ? dx : Math.sign(dx) * Math.min(RESIST_MAX, Math.abs(dx) * RESIST);
-      el.style.transform = `translate3d(${d}px, 0, 0)`;
-      if (g.held && g.held.style) g.held.style.transform = `translate3d(${-d}px, 0, 0)`;
+      for (const m of g.moving || [el]) if (m && m.style) m.style.transform = `translate3d(${d}px, 0, 0)`;
       if (g.pages.follow) g.pages.follow(open ? Math.min(1, Math.abs(dx) / (el.offsetWidth || 600)) : 0, step, "move");
     }
   },

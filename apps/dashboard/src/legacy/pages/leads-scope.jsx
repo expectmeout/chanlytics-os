@@ -689,7 +689,7 @@ const LeadStreets = ({ rows, plot, by, picked, onPick, x, children }) => {
     if (h && center) h.fit(center, plot.spanM);
   }, [ids, center && center.lat, center && center.lng, plot.spanM]);
   return (
-    <div className="ld-map-streets" data-testid="lead-map-streets">
+    <div className="ld-map-streets" data-testid="lead-map-streets" data-own-drag>
       <div className="ld-map-canvas" ref={box} />
       {children}
     </div>
