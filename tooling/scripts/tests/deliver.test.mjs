@@ -808,3 +808,28 @@ test("an email leaves only from the queued row its request was frozen for: witho
   );
   assert.equal(t.messages.length, 0);
 });
+
+test("a refusal the mail provider gives for a limit of its own is named at the door, and only on email", async () => {
+  const refusal = (name) => ({
+    ok: false,
+    wamid: null,
+    status: 429,
+    errorBody: JSON.stringify({ statusCode: 429, name, message: "x" }),
+  });
+  for (const [name, limit] of [
+    ["daily_quota_exceeded", "daily"],
+    ["monthly_quota_exceeded", "monthly"],
+    ["rate_limit_exceeded", "rate"],
+  ]) {
+    const t = tables({ conversations: [thread({ contacts: onEmail() })], messages: [queuedEmail()] });
+    const out = await deliver(ports(t, emailWire(refusal(name))), emailed());
+    assert.deepEqual([out.outcome, out.reason, out.limit], ["failed", "provider", limit], name);
+    assert.equal(t.messages[0].status, "failed", `${name}: the row it was queued as says so`);
+  }
+  const wa = tables();
+  const waOut = await deliver(ports(wa, wireOf(refusal("rate_limit_exceeded"))), words());
+  assert.equal(waOut.outcome, "failed");
+  assert.equal("limit" in waOut, false, "WhatsApp's 429 is not the mail provider's");
+  const noWire = tables({ conversations: [thread({ contacts: onEmail() })], messages: [queuedEmail()] });
+  assert.equal("limit" in (await deliver(ports(noWire, wireOf()), emailed())), false, "no wire is ours, not a limit");
+});

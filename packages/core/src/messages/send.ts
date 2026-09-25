@@ -1,4 +1,3 @@
-import { resendLimitOf } from "@chanlytics/channels";
 import type { SendPurpose } from "@chanlytics/contracts";
 import type { Channel } from "../deliver";
 import type { SendQueuedPorts } from "./ports";
@@ -80,9 +79,9 @@ export async function sendQueued(ports: SendQueuedPorts, cmd: SendQueuedCommand)
     messageId: p.message_id,
   });
   if (out.outcome !== "failed") return;
-  // A limit at the mail provider is not this thread's fault either (channels resendLimitOf). A used-up day or month
-  // stops every workspace's email on the key, so the platform is paged; "slow down" is one second's problem, said so.
-  const limit = channel === "email" && out.reason === "provider" ? resendLimitOf(out) : null;
+  // A limit at the mail provider (named by the door, deliver.ts) is not this thread's fault either. A used-up day or
+  // month stops every workspace's email on the key, so the platform is paged; "slow down" is one second's problem.
+  const limit = out.limit ?? null;
   if (limit === "daily" || limit === "monthly") {
     await ports.page?.(
       "provider_quota:email",

@@ -31,11 +31,13 @@ import {
   sendTemplate,
   sendEmail,
   requestLeavesAs,
+  resendLimitOf,
   type SendResult,
   type WaConfig,
   type EmailRequest,
   type EmailSendsAs,
   type ResendConfig,
+  type ResendLimit,
 } from "@chanlytics/channels";
 import { mayMessageFor, purposeOfTemplate, type SendPurpose, type EventKind } from "@chanlytics/contracts";
 import { emitEvent, recordOutbound, type Database, type Json } from "@chanlytics/db";
@@ -178,6 +180,8 @@ export type Delivered =
       status: number;
       errorBody: string | null;
       messageId: string | null;
+      /** A mail provider's refusal for a limit of its own (channels resendLimitOf), named at the wire; email only. */
+      limit?: ResendLimit;
     };
 
 export interface DeliverPorts {
@@ -513,12 +517,16 @@ export async function deliver(ports: DeliverPorts, d: Delivery): Promise<Deliver
     });
   }
   await event(ports.db, d, "message.send_failed", messageId, { ...failure, reason: sent.reason ?? "provider" });
+  // A refusal the mail provider gave for a limit of its own -- too fast, or the day's sending used up -- is named here,
+  // at the wire, so a caller says it in words without reading the provider's answer itself.
+  const limit = d.channel === "email" && !sent.reason ? resendLimitOf(sent) : null;
   return {
     outcome: "failed",
     reason: sent.reason ?? "provider",
     status: sent.status,
     errorBody: sent.errorBody ?? null,
     messageId,
+    ...(limit ? { limit } : {}),
   };
 }
 
