@@ -65,6 +65,7 @@ const world = (over = {}) => ({
       kind: "forwarded",
       e164: "+13055550100",
       forwarding_state: "verified",
+      facts: { carrier: "verizon", mode: "unanswered" },
       created_at: "2026-09-24T14:10:00Z",
     },
   ],
@@ -139,8 +140,9 @@ test("you-are-live: a token for another door, or one that speaks for another wor
   try {
     const [status] = await answer(await knock({ tenant_id: A }, { "x-edge-token": token("/api/admin/setup-request") }));
     assert.equal(status, 403);
-    const [other] = await answer(await knock({ tenant_id: B }));
-    assert.notEqual(other, 200, "a token about A never speaks for B");
+    const [other, said] = await answer(await knock({ tenant_id: B }));
+    assert.equal(other, 403, "a token about A never speaks for B");
+    assert.equal(said.error, "workspace_mismatch");
     assert.deepEqual(net.mail(), []);
   } finally {
     net.restore();

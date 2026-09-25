@@ -6,6 +6,8 @@ import { tellOwnerLive } from "@/server/service";
 
 const Body = z.object({
   note: z.string().trim().max(200, "Two hundred characters at most.").optional(),
+  /** The first run's Finish: its first activation of calls emails the owner that the receptionist answers. */
+  first_run: z.boolean().optional(),
 });
 
 function kindOf(raw: unknown): CapabilityKind {
@@ -21,8 +23,8 @@ function kindOf(raw: unknown): CapabilityKind {
  * computed from the workspace's records and refused when they say no, so an
  * activation is never a claim ahead of the facts; evidence stays what the
  * records show. Owners only: it is the owner's decision what the workspace
- * says is live. Activation gates nothing at runtime yet. The first activation of calls
- * (the first run's Finish) also emails the owner that the receptionist is answering.
+ * says is live. Activation gates nothing at runtime yet. The first run's Finish (first_run),
+ * activating calls for the first time, also emails the owner that the receptionist is answering.
  */
 export const POST = write({
   scope: workspace,
@@ -33,8 +35,10 @@ export const POST = write({
     const kind = kindOf(ctx.params.kind);
     const dto = await setupDtoFor(ctx.supabase, member.tenantId, { kind: "member" });
     const before = capabilityStatus(kind, dto);
-    // The workspace's first activation of its calls is the first run's Finish: the owner is emailed that it answers.
-    const firstCalls = kind === "voice" && !(dto.activations ?? []).some((a) => a.capability === "voice");
+    // The first run's Finish, activating calls for the first time: the owner is emailed that it answers. Setup's own
+    // Activate on a workspace that has answered for months is not a first run, and says nothing by email.
+    const firstCalls =
+      input.first_run === true && kind === "voice" && !(dto.activations ?? []).some((a) => a.capability === "voice");
     if (!before.ready)
       throw new AppError(
         "conflict",

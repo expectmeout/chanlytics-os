@@ -860,7 +860,7 @@ const FrTry = ({ tr, W, flash, go, leave, back, backLabel }) => {
  * the greeting every caller hears, and what it will and will not do -- the Business tab's own card, reading calls as
  * live since Finish is what records them so. Setup's optional rows follow, as they did.
  */
-const FrLive = ({ lv, config, brain, canEdit, leave }) => (
+const FrLive = ({ lv, config, brain, canEdit, owner, leave }) => (
   <div className="fr-line-step" data-testid="fr-live">
     <dl className="fr-live-summary" data-testid="fr-live-summary">
       {lv.summary.map((r) => (
@@ -874,7 +874,7 @@ const FrLive = ({ lv, config, brain, canEdit, leave }) => (
       ))}
     </dl>
     <p className="fr-code-off" data-testid="fr-live-greeting">{lv.greeting}</p>
-    {brain && window.BtCanCard ? <window.BtCanCard brain={brain} config={config} canEdit={false} activating={["voice"]} /> : null}
+    {brain && window.BtCanCard ? <window.BtCanCard brain={brain} config={config} canEdit={false} activating={owner ? ["voice"] : null} /> : null}
   </div>
 );
 
@@ -965,8 +965,9 @@ const FirstRun = ({ param = null, onNavigate }) => {
   useFrTick("surface:live");
   // When Try it opened (FR_TRY_DRAFT): set as it is first drawn, so a call before it is not the test.
   const trySince = React.useRef(null);
-  // Finish on Live, while its activation is on its way: pressed once.
+  // Finish on Live, while its activation is on its way: pressed once. Refused once, the next Finish just goes on.
   const [finishing, setFinishing] = React.useState(false);
+  const finishRefused = React.useRef(false);
   // Whether Try it is on screen, so it stays there (below) and its clock and quiet turn move each second.
   const onTry = React.useRef(false);
   React.useEffect(() => {
@@ -1053,6 +1054,7 @@ const FirstRun = ({ param = null, onNavigate }) => {
           dto: S.dto,
           emails: (cfgNow && cfgNow.notifications && cfgNow.notifications.escalation_emails) || [],
           business: S.dto.business.name,
+          owner: !!(window.canDo && window.canDo("team")),
         })
       : null;
   // The step's foot is the phone step's own while its button is the one to press. A role that may not save the
@@ -1078,18 +1080,23 @@ const FirstRun = ({ param = null, onNavigate }) => {
     setMaking(false);
     if (!r.ok) flash(window.refusalToast(r, W.check.notMade));
   };
-  // Finish, on Live: calls switched on by the owner (the capability's activation, which the first time also emails
-  // them that it answers), then Today. A refusal is said and Finish still leaves: nothing here holds the owner.
+  // Finish, on Live: calls switched on by the owner (the capability's activation, which the first run's first time also
+  // emails them that it answers), then Today. A refusal is said here and the step stays, so it is read; Finish again
+  // goes on to Today, since nothing here holds the owner.
   const finish = async (to) => {
     if (finishing) return;
     const P = window.__setup;
     const voice = S.dto.channels.voice;
     const activated = (S.dto.activations || []).some((a) => a.capability === "voice" && !a.deactivated_at);
-    if (P && P.activate && voice.active && !activated && window.canDo && window.canDo("team")) {
+    if (!finishRefused.current && P && P.activate && voice.active && !activated && window.canDo && window.canDo("team")) {
       setFinishing(true);
-      const r = await P.activate("voice");
+      const r = await P.activate("voice", { firstRun: true });
       setFinishing(false);
-      if (!r.ok) flash(window.refusalToast(r, W.notFinished));
+      if (!r.ok) {
+        finishRefused.current = true;
+        flash(window.refusalToast(r, W.notFinished));
+        return;
+      }
     }
     leave(to);
   };
@@ -1138,7 +1145,7 @@ const FirstRun = ({ param = null, onNavigate }) => {
           {phoneDrawn ? <FrPhone ph={ph} choice={phoneChoice} setChoice={setPhoneChoice} W={F.phoneWords} flash={flash} go={go} back={fr.back} backLabel={W.back} ownFoot={phoneFoot} /> : null}
           {tryDrawn ? <FrTry tr={tr} W={F.tryWords} flash={flash} go={go} leave={leave} back={fr.back} backLabel={W.back} /> : null}
           {step.key === "try" && !tryDrawn && S.vm.tryIt ? <window.SetupTry tryIt={S.vm.tryIt} /> : null}
-          {lv ? <FrLive lv={lv} config={cfgNow} brain={cfgNow && cfgNow.brain} canEdit={canEdit} leave={leave} /> : null}
+          {lv ? <FrLive lv={lv} config={cfgNow} brain={cfgNow && cfgNow.brain} canEdit={canEdit} owner={!!(window.canDo && window.canDo("team"))} leave={leave} /> : null}
           {!fr.find && !fr.check && !phoneDrawn && !tryDrawn && step.rows.length ? (
             <div className="fr-part">
               {step.key === "live" ? <h2 className="fr-sub">{W.liveNext}</h2> : null}
@@ -1151,7 +1158,7 @@ const FirstRun = ({ param = null, onNavigate }) => {
             <div className="fr-foot">
               {fr.back ? <button type="button" className="btn btn-ghost btn-sm" onClick={() => go(fr.back)} data-testid="fr-back">{W.back}</button> : <span />}
               {fr.onward && fr.onward.held ? <span className="fr-held" id="fr-held" data-testid="fr-held">{fr.onward.held}</span> : null}
-              {lv && lv.finish.note ? <span className="fr-held" data-testid="fr-live-note">{lv.finish.note}</span> : null}
+              {lv && lv.finish.note ? <span className="fr-live-note" data-testid="fr-live-note">{lv.finish.note}</span> : null}
               {fr.onward ? (
                 <button
                   type="button"
@@ -1160,6 +1167,7 @@ const FirstRun = ({ param = null, onNavigate }) => {
                   // Held, it stays in reach and says why beside it, as a gated act does: never `disabled`, which lets go of focus.
                   aria-disabled={fr.onward.held ? true : undefined}
                   aria-describedby={fr.onward.held ? "fr-held" : undefined}
+                  aria-busy={finishing || undefined}
                   data-testid="fr-onward"
                 >
                   {fr.onward.label}

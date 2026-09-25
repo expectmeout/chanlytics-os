@@ -1291,3 +1291,40 @@ test("Live (canvas R9): the four lines and the greeting, and Finish switches cal
     delete globalThis.window.__setup.activate;
   }
 });
+
+test("Live: a refused Finish stays and says why, and Finish again goes on; a teammate's Live promises no email", async () => {
+  let answer = { ok: false, message: "Not ready to activate: the line is switched off." };
+  const asked = [];
+  globalThis.window.__setup.activate = async (kind, opts) => {
+    asked.push([kind, opts]);
+    return answer;
+  };
+  globalThis.window.__SETUP = surface(answering);
+  globalThis.window.__SETTINGS = {
+    config: { brain: { business_name: "Harbor Moving" }, notifications: { escalation_emails: ["owner@example.com"] } },
+  };
+  try {
+    param = null;
+    fresh();
+    flashes.length = 0;
+    const before = went.length;
+    let tree = mount();
+    await byTestId(tree, "fr-onward").props.onClick();
+    assert.deepEqual(asked, [["voice", { firstRun: true }]], "the first run's own Finish, so its first time emails");
+    assert.equal(went.length, before, "refused: the step stays, so the refusal is read");
+    assert.match(textOf(flashes.at(-1).msg), /line is switched off/);
+    tree = mount();
+    await byTestId(tree, "fr-onward").props.onClick();
+    assert.equal(asked.length, 1, "not asked again");
+    assert.equal(went.at(-1), "today", "Finish again goes on");
+    // A teammate: Finish switches nothing on, so nothing promises an email.
+    globalThis.window.canDo = (what) => what !== "team";
+    fresh();
+    assert.equal(byTestId(mount(), "fr-live-note"), null);
+  } finally {
+    globalThis.window.canDo = () => true;
+    delete globalThis.window.__SETTINGS;
+    delete globalThis.window.__setup.activate;
+    answer = null;
+  }
+});

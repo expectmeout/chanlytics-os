@@ -92,3 +92,29 @@
   - "Ask Chanlytics for help" is offered only for a kept number.
   - "It's in your Inbox too" opens the call.
   - One kept-line rule: `forwardedLineOf`.
+
+## As built, 5b (25 Sep 2026)
+
+- **As planned:**
+  - contracts `first-run-live.ts`: `firstRunLiveOf` for the summary, the greeting and Finish's note, and
+    `youAreLiveEmail` for the email's words.
+  - FrLive draws the four lines with their Change and the greeting. It draws the Business tab's own "What it can do"
+    card with `activating`, asked of the one `capabilityStatus` rule with the activation Finish will record on file,
+    so a capability never tested is still not live.
+  - Finish records the calls' activation (`first_run: true`), then goes to Today.
+  - The capability route, on the first run's first activation of calls, asks the edge's new door
+    `POST /api/admin/you-are-live` for the email. The email goes to the workspace's alert addresses only (`mail()`,
+    no bell row), and the link is built with `dashboardOrigin()`.
+- **What the review round fixed:**
+  - A refused Finish stays on Live and says why; Finish again goes on. The button is `aria-busy` while the activation
+    is out.
+  - "We'll email you a copy" is said only where an email will go: an owner, calls that answer, never activated, and
+    an alert address.
+  - The kept number is said only once proven, and in the mode saved ("Every call to …"), on the page and in the email.
+  - Only the first run's Finish emails (`first_run`). Setup's own Activate on a workspace that has answered for
+    months does not.
+  - The door reads calls with nulls last and answers 503 on any read that failed, rather than sending a thinner
+    email. It parses the config.
+  - With no alert address, "Nobody: it takes a message" makes no claim about email.
+- **Left as it is on purpose:** no route test runs the first-activation rule, because the route reaches the edge only
+  in production. The door and the words are tested.

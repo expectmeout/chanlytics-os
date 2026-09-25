@@ -18385,9 +18385,11 @@ interface FirstRunLiveVM {
     }[];
     /** "Every caller hears “…”": the greeting word for word (greeting.ts, the voice shell's own). */
     greeting: string;
-    /** Finish, and, the first time calls are activated, the email it sends; null once they were activated before. */
+    /**
+     * What goes with Finish beside switching calls on: the "you're live" email, said only where one will go (calls
+     * answer and were never switched on, an owner is the one finishing, and there is an address to send it to).
+     */
     finish: {
-        label: string;
         note: string | null;
     };
 }
@@ -18396,8 +18398,10 @@ declare const FIRST_RUN_LIVE_WORDS: {
     readonly lead: "Every call shows up on Today and in your Inbox.";
     readonly answers: "Answers";
     readonly answersKept: (kept: string) => string;
+    readonly answersKeptAll: (kept: string) => string;
     readonly through: "Puts callers through to";
     readonly throughNobody: "Nobody: it takes a message and emails you";
+    readonly throughNobodyUnaddressed: "Nobody: it takes a message";
     readonly emails: "Emails you at";
     readonly emailsTo: (to: string) => string;
     readonly emailsNobody: "Nobody yet";
@@ -18405,12 +18409,11 @@ declare const FIRST_RUN_LIVE_WORDS: {
     readonly knowsNothing: "Only your name so far";
     readonly change: "Change";
     readonly greeting: (words: string) => string;
-    readonly finish: "Finish";
     readonly finishNote: "We'll email you a copy of this.";
     /** The "you're live" email (canvas C2, decision 4): sent once, on the workspace's first activation of its calls. */
     readonly emailSubject: (business: string | null) => string;
     readonly emailTest: (length: string | null, from: string | null, through: string | null) => string;
-    readonly emailFrom: (kept: string | null, own: string | null) => string;
+    readonly emailFrom: (kept: string | null, own: string | null, always?: boolean) => string;
     readonly emailThrough: (to: string | null) => string;
     readonly emailAlerts: "We'll email you here when someone needs you.";
     readonly emailOpen: (url: string) => string;
@@ -18421,20 +18424,23 @@ interface FirstRunLiveInput {
     emails: readonly string[];
     /** The business's name as the receptionist says it. */
     business: string | null;
+    /** An owner is looking: only an owner's Finish switches calls on (the capability route is an owner's). */
+    owner: boolean;
 }
-declare function firstRunLiveOf({ dto, emails, business }: FirstRunLiveInput): FirstRunLiveVM;
+declare function firstRunLiveOf({ dto, emails, business, owner }: FirstRunLiveInput): FirstRunLiveVM;
 interface YouAreLiveInput {
     business: string | null;
-    /** The receptionist's own number, and the kept number that forwards to it, E.164; null for none. */
+    /** The receptionist's own number, and the kept number once a call proved its forwarding, E.164; null for none. */
     own: string | null;
     kept: string | null;
+    /** The forwarding saved sends every call, not only the ones nobody picks up. */
+    always: boolean;
     /** Where a caller who asks for a person goes, E.164; null takes a message. */
     handoff: string | null;
     /** The test call: the newest inbound call that connected, when there is one. */
     test: {
         from: string | null;
         length: string | null;
-        throughKept: boolean;
     } | null;
     /** The workspace's Today, when the edge knows the dashboard's address. */
     todayUrl: string | null;
@@ -19063,8 +19069,10 @@ declare const FIRST_RUN_HELPERS: {
         readonly lead: "Every call shows up on Today and in your Inbox.";
         readonly answers: "Answers";
         readonly answersKept: (kept: string) => string;
+        readonly answersKeptAll: (kept: string) => string;
         readonly through: "Puts callers through to";
         readonly throughNobody: "Nobody: it takes a message and emails you";
+        readonly throughNobodyUnaddressed: "Nobody: it takes a message";
         readonly emails: "Emails you at";
         readonly emailsTo: (to: string) => string;
         readonly emailsNobody: "Nobody yet";
@@ -19072,11 +19080,10 @@ declare const FIRST_RUN_HELPERS: {
         readonly knowsNothing: "Only your name so far";
         readonly change: "Change";
         readonly greeting: (words: string) => string;
-        readonly finish: "Finish";
         readonly finishNote: "We'll email you a copy of this.";
         readonly emailSubject: (business: string | null) => string;
         readonly emailTest: (length: string | null, from: string | null, through: string | null) => string;
-        readonly emailFrom: (kept: string | null, own: string | null) => string;
+        readonly emailFrom: (kept: string | null, own: string | null, always?: boolean) => string;
         readonly emailThrough: (to: string | null) => string;
         readonly emailAlerts: "We'll email you here when someone needs you.";
         readonly emailOpen: (url: string) => string;

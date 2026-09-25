@@ -14,9 +14,9 @@ import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
 import { mail, reachesTenant } from "../../lib/ops/notify.js";
 import { loadTenantNotifications } from "../../lib/tenant-runtime.js";
-import { env } from "../../lib/env.js";
 import { logger } from "../../lib/log.js";
-import { spokenDuration, youAreLiveEmail } from "../../lib/packages/contracts.js";
+import { dashboardOrigin } from "../../lib/dashboard-origin.js";
+import { parseTenantConfigResult, spokenDuration, youAreLiveEmail } from "../../lib/packages/contracts.js";
 
 const L = logger();
 
@@ -50,7 +50,7 @@ export async function POST(request: Request): Promise<Response> {
       .maybeSingle(),
     db
       .from("lines")
-      .select("e164, forwarding_state")
+      .select("e164, forwarding_state, facts")
       .eq("tenant_id", tenantId)
       .eq("kind", "forwarded")
       .neq("forwarding_state", "none")
@@ -64,11 +64,13 @@ export async function POST(request: Request): Promise<Response> {
       .eq("tenant_id", tenantId)
       .eq("direction", "inbound")
       .neq("status", "not_connected")
-      .order("started_at", { ascending: false })
+      .order("started_at", { ascending: false, nullsFirst: false })
       .limit(1)
       .maybeSingle(),
   ]);
-  if (tenant.error) return json(503, { ok: false, error: tenant.error.message });
+  // A read that failed would send a thinner email that says less than is true: none is sent instead.
+  const failed = [tenant, voice, kept, cfg, call].find((q) => q.error);
+  if (failed?.error) return json(503, { ok: false, error: failed.error.message });
   if (!tenant.data) return json(404, { ok: false, error: "no such workspace" });
 
   const target = { tenantId, ...(await loadTenantNotifications(db, tenantId)) };
@@ -77,22 +79,24 @@ export async function POST(request: Request): Promise<Response> {
     L.info("you_are_live_unaddressed", { tenant: tenantId });
     return json(200, { ok: true, sent: false, why: "no_address" });
   }
-  const brain = (
-    cfg.data?.config as { brain?: { business_name?: string; profile?: { handoff_number?: string } } } | null
-  )?.brain;
+  const parsed = parseTenantConfigResult(cfg.data?.config);
+  const brain = parsed.ok ? parsed.config.brain : null;
+  // The kept number is said only once a call proved its forwarding, and with the mode saved.
+  const proven = kept.data?.forwarding_state === "verified";
+  const facts = (kept.data?.facts ?? null) as { mode?: unknown } | null;
   const message = youAreLiveEmail({
     business: brain?.business_name || tenant.data.name,
     own: voice.data?.number_e164 ?? null,
-    kept: kept.data?.e164 ?? null,
+    kept: proven ? (kept.data?.e164 ?? null) : null,
+    always: facts?.mode === "always",
     handoff: brain?.profile?.handoff_number ?? null,
     test: call.data
       ? {
           from: call.data.from_e164,
           length: call.data.duration_ms ? spokenDuration(call.data.duration_ms) : null,
-          throughKept: kept.data?.forwarding_state === "verified",
         }
       : null,
-    todayUrl: env.DASHBOARD_ORIGIN ? `${env.DASHBOARD_ORIGIN}/w/${tenant.data.slug}#/today` : null,
+    todayUrl: `${dashboardOrigin()}/w/${encodeURIComponent(tenant.data.slug)}#/today`,
   });
   const sent = await mail(target, message);
   L.info("you_are_live_sent", { tenant: tenantId, sent });

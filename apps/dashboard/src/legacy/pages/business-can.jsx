@@ -156,11 +156,20 @@ const BtCanCard = ({ brain, config, canEdit, activating = null }) => {
   const dto = setup && setup.dto ? setup.dto : null;
   const rows = policies && Array.isArray(policies.rows) ? policies.rows : null;
   // The connections, decided where Setup decides them: ready, tested and switched on by the owner. `activating` names
-  // what the page is about to switch on (the first run's Live, whose Finish records it): ready is enough for those.
+  // what the page is about to switch on (the first run's Live, whose Finish records it): asked of the same rule, with
+  // that activation on record, so a capability never tested is still not live here.
   const live = (kind) => {
     if (!dto) return false;
-    const s = tab.capabilityStatus(kind, dto);
-    return !!(s.live || (activating && activating.indexOf(kind) >= 0 && s.ready));
+    const on =
+      activating && activating.indexOf(kind) >= 0
+        ? {
+            ...dto,
+            activations: (dto.activations || []).concat([
+              { capability: kind, activated_at: new Date().toISOString(), activated_by: null, deactivated_at: null },
+            ]),
+          }
+        : dto;
+    return !!tab.capabilityStatus(kind, on).live;
   };
   const reply = rows ? rows.filter((r) => r && r.class === "reply")[0] || null : null;
   const abilities =
