@@ -201,6 +201,7 @@ test("the bell says notes of one kind once, where the newest stood, new above ea
 /* ------------------------------ the popover ------------------------------ */
 
 installLegacyReact();
+await import("../../../apps/dashboard/src/legacy/components/data-bits.jsx");
 await import("../../../apps/dashboard/src/legacy/components/topbar.jsx");
 const W = globalThis.window;
 
@@ -283,4 +284,163 @@ test("the mockup's bell, with no sections of its own, still stands new above ear
   const tree = again(() => popover([bellRow("a", "call", "A"), bellRow("b", "call", "B", false)]));
   assert.deepEqual(all(tree, (n) => classes(n).includes("tbn-sec")).map(textOf), ["New", "Earlier"]);
   assert.equal(all(tree, (n) => classes(n).includes("tbn-item")).length, 2, "not folded");
+});
+
+/* ------------------------------ a thumb on a note ------------------------------ */
+// On a phone a thumb slides a note (data-bits touchSwipe): left over Dismiss, where it leaves, folds shut so the notes
+// under it glide up, then goes (Undo finds it open again); right over Mark read while it is unread, where it comes back
+// read and keeps its place under New rather than jumping down to Earlier. A read note does not move right. The × folds
+// a note the same way, on a desk too. Under reduced motion a dismissed note goes at once. The gesture runs on an element
+// that answers what it asks of it, under a window that says it is a phone.
+
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+let phone = false;
+let reduced = false;
+const desktopMedia = globalThis.matchMedia;
+const onPhone = async (fn) => {
+  globalThis.matchMedia = (q) => ({
+    matches: q.includes("720") ? phone : q.includes("reduce") ? reduced : false,
+    addEventListener() {},
+    removeEventListener() {},
+  });
+  phone = true;
+  try {
+    await fn();
+  } finally {
+    phone = false;
+    reduced = false;
+    globalThis.matchMedia = desktopMedia;
+  }
+};
+const thumbed = (items, h) =>
+  W.NotifPopover({
+    items,
+    onAction: (id, to) => h.acts.push([id, to]),
+    onReadAll() {},
+    onDismiss: (id) => h.gone.push(id),
+    onRead: (id) => h.reads.push(id),
+    onClose() {},
+    alerts: null,
+  });
+const heard = () => ({ acts: [], reads: [], gone: [] });
+const notes = (tree) => all(tree, (n) => classes(n).includes("tbn-item"));
+const slots = (tree) => all(tree, (n) => classes(n).includes("tbn-slot"));
+/** The list's order: each section's word and each note's title, as drawn. */
+const order = (tree) =>
+  all(tree, (n) => classes(n).includes("tbn-sec") || classes(n).includes("tbn-item")).map((n) =>
+    classes(n).includes("tbn-sec") ? textOf(n) : textOf(find(n, (k) => classes(k).includes("tbn-item-title"))),
+  );
+/** A note's element for the gesture: the browser's, with a style, a width, still on screen. */
+const box = () => ({
+  style: {},
+  offsetWidth: 343,
+  offsetHeight: 64,
+  scrollHeight: 64,
+  clientHeight: 64,
+  scrollWidth: 343,
+  clientWidth: 343,
+  scrollTop: 0,
+  parentElement: null,
+  isConnected: true,
+  getClientRects: () => [1],
+  matches: () => false,
+});
+const slide = (item, el, from, ...steps) => {
+  item.props.onTouchStart({ touches: [{ clientX: from[0], clientY: from[1] }], currentTarget: el, target: el });
+  for (const [x, y] of steps) item.props.onTouchMove({ touches: [{ clientX: x, clientY: y }], currentTarget: el });
+  const [x, y] = steps.at(-1);
+  item.props.onTouchEnd({ changedTouches: [{ clientX: x, clientY: y }], currentTarget: el });
+};
+const three = () => [
+  bellRow("a", "needs_you", "Note a"),
+  bellRow("b", "leads_ready", "Note b"),
+  bellRow("c", "review", "Note c", false),
+];
+
+test("slid left past a third, a note leaves, folds shut, then goes; Undo finds it open again", () =>
+  onPhone(async () => {
+    fresh();
+    W.__notifs = { sections: bellSections };
+    const h = heard();
+    let items = three();
+    let tree = again(() => thumbed(items, h));
+    assert.equal(textOf(find(tree, (n) => classes(n).includes("tbn-ground-dismiss"))), "Dismiss");
+    assert.equal(textOf(find(tree, (n) => classes(n).includes("tbn-ground-read"))), "Mark read");
+    const el = box();
+    slide(notes(tree)[0], el, [200, 300], [150, 302], [60, 304]);
+    assert.equal(el.style.transform, "translate3d(-100%, 0, 0)", "140px of 343: away");
+    await wait(200);
+    tree = again(() => thumbed(items, h));
+    assert.equal(slots(tree)[0].props["data-going"], "true", "folding");
+    assert.deepEqual(h.gone, [], "not gone until the fold has played");
+    await wait(230);
+    assert.deepEqual(h.gone, ["a"]);
+    items = items.filter((n) => n.id !== "a");
+    tree = again(() => thumbed(items, h));
+    assert.equal(slots(tree).length, 2);
+    items = three();
+    tree = again(() => thumbed(items, h));
+    assert.equal(slots(tree)[0].props["data-going"], undefined, "brought back by Undo, it stands open");
+  }));
+
+test("slid right, an unread note is marked read where it stands and comes back; a read note does not move", () =>
+  onPhone(async () => {
+    fresh();
+    W.__notifs = { sections: bellSections };
+    const h = heard();
+    let items = three();
+    let tree = again(() => thumbed(items, h));
+    const el = box();
+    slide(notes(tree)[0], el, [100, 300], [180, 302], [260, 304]);
+    assert.equal(el.style.transform, "translate3d(100%, 0, 0)", "160px of 343: over Mark read");
+    await wait(200);
+    assert.deepEqual(h.reads, ["a"]);
+    await wait(80);
+    assert.equal(el.style.transform, "translate3d(0, 0, 0)", "still on screen, read: back where it was");
+    items = items.map((n) => (n.id === "a" ? { ...n, unread: false } : n));
+    tree = again(() => thumbed(items, h));
+    assert.deepEqual(
+      order(tree),
+      ["New", "Note a", "Note b", "Earlier", "Note c"],
+      "read, it keeps its place under New",
+    );
+    assert.ok(!classes(notes(tree)[0]).includes("unread"), "and is drawn read");
+    assert.equal(
+      textOf(find(notes(tree)[0], (n) => classes(n).includes("tbn-ground-read"))),
+      "",
+      "nothing to its right now",
+    );
+    const read = box();
+    slide(notes(tree)[2], read, [100, 300], [180, 302], [260, 304]);
+    assert.equal(read.style.transform, undefined, "a read note has nothing to the right");
+    await wait(300);
+    assert.deepEqual(h.reads, ["a"]);
+  }));
+
+test("the × folds a note the same way, and under reduced motion a dismissed note goes at once", () =>
+  onPhone(async () => {
+    fresh();
+    W.__notifs = { sections: bellSections };
+    const h = heard();
+    const tree = again(() => thumbed(three(), h));
+    press(find(notes(tree)[1], (n) => classes(n).includes("tbn-x")));
+    assert.deepEqual(h.gone, []);
+    await wait(230);
+    assert.deepEqual(h.gone, ["b"]);
+    reduced = true;
+    const el = box();
+    slide(notes(tree)[0], el, [200, 300], [150, 302], [60, 304]);
+    await wait(10);
+    assert.deepEqual(h.gone, ["b", "a"], "no leaving and no fold to wait for");
+  }));
+
+test("on a desk nothing slides: a mouse has the × and the note's own press", () => {
+  fresh();
+  W.__notifs = { sections: bellSections };
+  const h = heard();
+  const tree = again(() => thumbed(three(), h));
+  const el = box();
+  slide(notes(tree)[0], el, [200, 300], [150, 302], [60, 304]);
+  assert.equal(el.style.transform, undefined);
+  assert.deepEqual(h.gone, []);
 });

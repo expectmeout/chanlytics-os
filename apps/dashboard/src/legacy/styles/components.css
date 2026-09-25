@@ -1290,9 +1290,16 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
 /* A note is one press: its mark, two lines and a time, at the list row's own numbers (tokens.css, "one row for every
    list"). The press does what the note says; the words say where. Each used to carry a 44px row of boxed buttons
    saying it again, which was half of every note's height (48 notes, 6,677px on a phone, 25 Sep). */
-.tbn-item { position: relative; border-bottom: 1px solid var(--line); }
-.tbn-item:last-child { border-bottom: none; }
-.tbn-item.unread { background: oklch(from var(--accent) l c h / 0.03); }
+/* Opaque, so a note slid aside by a thumb shows the ground under it and not through it (the sheet, below). */
+.tbn-item { position: relative; border-bottom: 1px solid var(--line); background: var(--bg-raised); }
+.tbn-slot:last-child > .tbn-slot-in > .tbn-item, .tbn-group:last-child > .tbn-item:last-child { border-bottom: none; }
+.tbn-item.unread { background: color-mix(in oklab, var(--accent) 3%, var(--bg-raised)); }
+/* A dismissed note folds shut so the notes under it glide up, then it goes: the slot is given its own height and then
+   none (topbar.jsx NotifPopover fold, measured there, since a grid track animated from 1fr to 0fr holds at its
+   content's height until the last frame). The note and the grounds a thumb slides it over sit inside. */
+.tbn-slot { overflow: hidden; transition: height 200ms var(--ease-in); }
+.tbn-slot-in { position: relative; }
+.tbn-ground { display: none; }
 .tbn-open {
   appearance: none;
   position: relative;
@@ -1309,7 +1316,9 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
   text-align: left;
   cursor: pointer;
 }
-.tbn-open:hover { background: var(--bg-hover); }
+/* Only where a pointer hovers: iOS keeps :hover on whatever lands under the finger after a tap, and the note that
+   moved up under a dismissed one wore the hover, a red × and no time (25 Sep). */
+@media (hover: hover) { .tbn-open:hover { background: var(--bg-hover); } }
 .tbn-open:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .tbn-dot { position: absolute; left: 7px; top: 18px; width: 5px; height: 5px; border-radius: 999px; background: var(--accent); }
 /* The note's kind, as the one mark (.mark): neutral. A warning's or a failure's title carries its tone. */
@@ -1338,6 +1347,12 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
   .tbn-dot { left: 8px; top: 20px; }
   .tbn-item.in-group .tbn-open { padding-left: 54px; }
   .tbn-item.in-group .tbn-dot { left: 42px; }
+  /* What a thumb slides a note over: Mark read to the right of an unread one, Dismiss to the left of any (data-bits
+     touchSwipe onBack, onAway). A dismissed note stays slid aside while its slot folds. */
+  .tbn-ground { display: flex; align-items: center; position: absolute; inset: 0; padding: 0 16px; font-size: var(--text-sm); font-weight: 500; }
+  .tbn-ground-read { justify-content: flex-start; background: var(--info-soft); color: var(--info-ink); }
+  .tbn-ground-dismiss { justify-content: flex-end; background: var(--danger-soft); color: var(--danger-ink); }
+  .tbn-slot[data-going="true"] .tbn-item { translate: -100% 0; }
   /* A line the phone can do nothing about ("Alerts are blocked in your browser settings") is not drawn there; the
      switch itself is, where the browser can alert. */
   .tbn-foot:has(> .tbn-foot-note) { display: none; }
@@ -1358,7 +1373,8 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
   .tbn-handle { display: block; flex: none; width: 36px; height: 4px; margin: 8px auto 2px; border-radius: var(--radius-full); background: var(--line-strong); }
   .tbn-head { padding: 6px 16px 10px; }
   .tbn-title { font-size: var(--text-lg); font-weight: var(--weight-semibold); }
-  .tbn-list { overscroll-behavior-y: contain; }
+  /* The sheet moves under a pull at the top, not its list (components.css, the other sheets: none, not contain). */
+  .tbn-list { overscroll-behavior-y: none; }
   .tbn-pop[data-leaving="true"] { animation: sheet-out 180ms var(--ease-in) forwards; }
   .tbn-backdrop[data-leaving="true"] { animation: wash-out 160ms var(--ease-in) forwards; }
 }
@@ -1955,13 +1971,18 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
    could only Mark all read, 25 Sep). It keeps its size; its press area is a thumb wide, and the time moves over for it. */
 @media (hover: none) {
   .tbn-x { opacity: 1; pointer-events: auto; transform: none; }
-  .tbn-x::after { content: ""; position: absolute; inset: 0 -11px; }
+  /* Its own 22px (the touch floor stretched it to 22 by 44); the press area is the thumb's 44 square. */
+  html.legacy-on .tbn-x { min-height: 22px; }
+  .tbn-x::after { content: ""; position: absolute; inset: -11px; }
   .tbn-item:not(.tbn-item-group) .tbn-line1 { padding-right: 24px; }
 }
-.tbn-x:hover { color: var(--danger); background: var(--danger-soft); }
+/* Only where a pointer hovers (iOS keeps :hover on what lands under the finger, see .tbn-open). The × takes the time's
+   place on hover; a group has no ×, so it keeps its time. */
+@media (hover: hover) {
+  .tbn-x:hover { color: var(--danger); background: var(--danger-soft); }
+  .tbn-item:not(.tbn-item-group):hover .tbn-time { opacity: 0; }
+}
 .tbn-x:active { transform: scale(0.9); }
-/* The × takes the time's place on hover; a group has no ×, so it keeps its time. */
-.tbn-item:not(.tbn-item-group):hover .tbn-time { opacity: 0; }
 .tbn-time { transition: opacity 120ms var(--ease-out); }
 
 /* Non-interactive info elements with tips read as "explainable", not clickable */
@@ -3518,6 +3539,7 @@ html.legacy-on .msg-use-link { position: relative; }
   .ask-overlay, .ask-modal, .sb-sheet, .sb-sheet-backdrop, .rec-sheet, .rec-sheet-backdrop, .ld-lightbox,
   .ld-lightbox-backdrop, .nav-backdrop, .cl-health-pop, .confirm, .confirm-block, .tc-receipt, .tl-arrived,
   .tbn-pop, .tbn-backdrop, [data-leaving="true"] { animation: none; }
+  .tbn-slot { transition: none; }
   .stabs-tab, .phone-tab { transition: none; }
   .stabs-tab:active, .phone-tab:active { transform: none; }
   .stabs[data-glide="ease"]::after, .stabs[data-glide] .stabs-tab { transition: none; }

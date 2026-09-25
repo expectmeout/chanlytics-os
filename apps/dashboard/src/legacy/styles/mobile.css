@@ -306,10 +306,14 @@
     vertical-align: bottom;
   }
 
-  /* Toasts: wrap contents + respect the home-bar safe area */
-  .pp-toast { flex-wrap: wrap; row-gap: 6px; }
+  /* A toast is one row on a phone (25 Sep): its words on one line, cut with an ellipsis where they run on, and a
+     28px Undo; it wrapped into two tiers under a 44px Undo disc and covered two rows of whatever it sat over. Above
+     the home bar. */
+  .pp-toast { flex-wrap: nowrap; gap: 8px; padding: 8px 10px 8px 12px; max-width: calc(100vw - 24px); }
   .pp-toast-stack { bottom: calc(14px + env(safe-area-inset-bottom)); }
-  .pp-toast .pp-toast-msg { flex: 1 1 100%; }
+  .pp-toast .pp-toast-msg { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  html.legacy-on .pp-toast-cta { min-height: 28px; padding: 4px 12px; }
+  html.legacy-on .pp-toast-x { min-height: 28px; }
 
   /* Clients bulk bar: two-row wrap, full-width, above the safe area */
   .cl-bulkbar {
@@ -416,8 +420,7 @@
   .cl-decision-cta,
   .cl-bulkbar .btn,
   .ix-bulk-actions .btn,
-  .sg-draft-banner .btn,
-  .pp-toast-cta {
+  .sg-draft-banner .btn {
     min-height: 40px;
     padding-top: 9px;
     padding-bottom: 9px;
@@ -538,6 +541,8 @@
   /* Room under every surface for the bar, and the toast sits above it */
   .main-scroll { padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
   .pp-toast-stack { bottom: calc(76px + env(safe-area-inset-bottom)); }
+  /* The bell's sheet covers the tab bar, so while it is open the toast sits at the bottom edge, not over its notes. */
+  :root:has(.tbn-pop:not([data-leaving])) .pp-toast-stack { bottom: calc(14px + env(safe-area-inset-bottom)); }
 
   /* The thread on a phone shows the conversation first (I6). The header is one row -- Back, avatar, name and the
      menu: it took two rows and 121px. A seeded thread's strip stays off a phone, where it said again what the banner
