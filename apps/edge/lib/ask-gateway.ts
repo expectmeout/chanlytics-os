@@ -177,7 +177,8 @@ function formatOf(raw: unknown): { type: "json_schema"; schema: Record<string, u
 
 /**
  * The models a request may name: Ask's profiles (contracts ASK_MODELS; ASK_MODEL is the loop's default and this door's
- * when a request names none, which is every lead purpose's request) and Opus 5, which nothing on main names today.
+ * when a request names none) and Opus 5, which nothing on main names today. The lead purposes name their own model
+ * (JSON_MODEL, the dashboard's model-json.ts), so a move of this default moves Ask alone.
  */
 export const GATEWAY_MODELS = ["claude-opus-5", ...ASK_MODELS] as const;
 /** The lead purposes' ceiling. Ask's own is ASK_MAX_TOKENS (contracts), the number its loop asks for. */

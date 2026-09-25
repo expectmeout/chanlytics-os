@@ -544,7 +544,7 @@ const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server
 const lists = await import(at("apps/dashboard/app/api/v1/segments/route.ts"));
 const list = await import(at("apps/dashboard/app/api/v1/segments/[id]/route.ts"));
 const draft = await import(at("apps/dashboard/app/api/v1/segments/draft/route.ts"));
-const { setModelStream } = await import(at("apps/dashboard/src/server/model-json.ts"));
+const { setModelStream, JSON_MODEL } = await import(at("apps/dashboard/src/server/model-json.ts"));
 const { cleanListRule } = await import(at("apps/dashboard/src/server/lists.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));
@@ -644,6 +644,8 @@ test("a smart list drafted from the owner's words: a name, a rule, and what it c
     cannot: "who their stylist is",
   });
   assert.equal(calls[0].purpose, "list_draft", "counted as the assistant's, under its own purpose");
+  assert.equal(calls[0].request.model, JSON_MODEL, "the request names the lead purposes' own model");
+  assert.equal(calls[0].request.model, "claude-sonnet-5", "the lead purposes keep their model when Ask's moves");
   answerWith({ name: "Big spenders", cannot: "what they spend", all: [] });
   await assert.rejects(
     draft.POST.run(send("POST", { words: "people who spend a lot" }), ctxFor(tables())),

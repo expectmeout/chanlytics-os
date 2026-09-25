@@ -17,6 +17,15 @@ import type { ZodType } from "zod";
 import { AppError } from "@chanlytics/contracts";
 import { GatewayRefused, streamModel, type GatewayCall } from "./ask/gateway";
 
+/**
+ * The lead purposes' own model, named here so the edge's default (contracts
+ * ASK_MODEL, which Ask's profile moves) never moves them: their answers are
+ * small JSON at 400–600 max_tokens, tuned on Sonnet 5, and Opus 5.5's thinking
+ * cannot be switched off. One name per purpose, as DRAFT_MODEL is the template
+ * drafter's (templates.ts).
+ */
+export const JSON_MODEL = "claude-sonnet-5";
+
 let stream: typeof streamModel = streamModel;
 /** Tests hand in a stream of their own. */
 export function setModelStream(s: typeof streamModel | null): void {
@@ -25,7 +34,7 @@ export function setModelStream(s: typeof streamModel | null): void {
 
 export type ModelJsonCall = Omit<GatewayCall, "request" | "purpose"> & {
   purpose: "lead_draft" | "lead_suggest" | "list_draft";
-  request: Omit<GatewayCall["request"], "output_config"> & { schema: Record<string, unknown> };
+  request: Omit<GatewayCall["request"], "output_config" | "model"> & { schema: Record<string, unknown> };
 };
 
 export async function askForJson<T>(call: ModelJsonCall, schema: ZodType<T>, what: string): Promise<T> {
@@ -35,7 +44,11 @@ export async function askForJson<T>(call: ModelJsonCall, schema: ZodType<T>, wha
   try {
     for await (const ev of stream({
       ...call,
-      request: { ...request, output_config: { effort: "low", format: { type: "json_schema", schema: json } } },
+      request: {
+        ...request,
+        model: JSON_MODEL,
+        output_config: { effort: "low", format: { type: "json_schema", schema: json } },
+      },
     })) {
       if (ev.type === "text") text += ev.text;
       else if (ev.type === "stop") stop = ev.stopReason;
