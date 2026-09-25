@@ -1093,20 +1093,23 @@ var FIRST_RUN_PHONE_WORDS = {
   /** The code (canvas R5, P5). */
   codeHeading: "Dial this on the phone customers call",
   codeLead: "It tells your phone company to send the calls nobody picks up to your receptionist. You only do this once.",
+  codeLeadAll: "It tells your phone company to send every call to your receptionist. You only do this once.",
   codeLabel: (company, rings) => rings === "landline" ? "A landline" : company ? `${company} \xB7 a mobile` : "A mobile",
   stepsLandline: ["Pick up the phone customers call.", "Dial the code above.", "Wait for the tone, then hang up."],
-  stepsMobile: [
-    "On the phone customers call, dial the code above, or tap it there.",
-    "Wait for the tone, then hang up."
-  ],
+  stepsMobile: ["On the phone customers call, dial the code above.", "Wait for the tone, then hang up."],
+  /** A tab that lost the answers: what rings is not known, so neither is said. */
+  stepsAny: ["Dial the code above on the phone customers call.", "Wait for the tone, then hang up."],
   // Not a promise the code replaces voicemail: forwarding.ts says a voicemail that picks up first keeps calls away.
   warnMobile: "Voicemail on this phone? If it still picks up after you dial the code, calls never reach your receptionist: see The code didn't work.",
   warnLandline: "If an answering machine is on this line, turn it off. Otherwise it answers before your receptionist can.",
+  warnAny: "Voicemail or an answering machine on that phone? If it picks up first, calls never reach your receptionist: see The code didn't work.",
   off: (code2) => `To switch it off later, dial ${code2}.`,
   tap: "Tap to dial",
   done: "Done, let's try it",
   help: "The code didn't work",
-  change: "Change the answers"
+  change: "Change the answers",
+  keepCode: "Keep the code I have",
+  notForwarded: "Forwarding not saved"
 };
 var FIRST_RUN_ROUTE = "start";
 var FIND_PARAM = "find";
@@ -8289,20 +8292,23 @@ var FIRST_RUN_PHONE_WORDS2 = {
   /** The code (canvas R5, P5). */
   codeHeading: "Dial this on the phone customers call",
   codeLead: "It tells your phone company to send the calls nobody picks up to your receptionist. You only do this once.",
+  codeLeadAll: "It tells your phone company to send every call to your receptionist. You only do this once.",
   codeLabel: (company, rings) => rings === "landline" ? "A landline" : company ? `${company} \xB7 a mobile` : "A mobile",
   stepsLandline: ["Pick up the phone customers call.", "Dial the code above.", "Wait for the tone, then hang up."],
-  stepsMobile: [
-    "On the phone customers call, dial the code above, or tap it there.",
-    "Wait for the tone, then hang up."
-  ],
+  stepsMobile: ["On the phone customers call, dial the code above.", "Wait for the tone, then hang up."],
+  /** A tab that lost the answers: what rings is not known, so neither is said. */
+  stepsAny: ["Dial the code above on the phone customers call.", "Wait for the tone, then hang up."],
   // Not a promise the code replaces voicemail: forwarding.ts says a voicemail that picks up first keeps calls away.
   warnMobile: "Voicemail on this phone? If it still picks up after you dial the code, calls never reach your receptionist: see The code didn't work.",
   warnLandline: "If an answering machine is on this line, turn it off. Otherwise it answers before your receptionist can.",
+  warnAny: "Voicemail or an answering machine on that phone? If it picks up first, calls never reach your receptionist: see The code didn't work.",
   off: (code2) => `To switch it off later, dial ${code2}.`,
   tap: "Tap to dial",
   done: "Done, let's try it",
   help: "The code didn't work",
-  change: "Change the answers"
+  change: "Change the answers",
+  keepCode: "Keep the code I have",
+  notForwarded: "Forwarding not saved"
 };
 var FIRST_RUN_ROUTE2 = "start";
 var FIND_PARAM2 = "find";
@@ -11571,20 +11577,23 @@ var FIRST_RUN_PHONE_WORDS3 = {
   /** The code (canvas R5, P5). */
   codeHeading: "Dial this on the phone customers call",
   codeLead: "It tells your phone company to send the calls nobody picks up to your receptionist. You only do this once.",
+  codeLeadAll: "It tells your phone company to send every call to your receptionist. You only do this once.",
   codeLabel: (company, rings) => rings === "landline" ? "A landline" : company ? `${company} \xB7 a mobile` : "A mobile",
   stepsLandline: ["Pick up the phone customers call.", "Dial the code above.", "Wait for the tone, then hang up."],
-  stepsMobile: [
-    "On the phone customers call, dial the code above, or tap it there.",
-    "Wait for the tone, then hang up."
-  ],
+  stepsMobile: ["On the phone customers call, dial the code above.", "Wait for the tone, then hang up."],
+  /** A tab that lost the answers: what rings is not known, so neither is said. */
+  stepsAny: ["Dial the code above on the phone customers call.", "Wait for the tone, then hang up."],
   // Not a promise the code replaces voicemail: forwarding.ts says a voicemail that picks up first keeps calls away.
   warnMobile: "Voicemail on this phone? If it still picks up after you dial the code, calls never reach your receptionist: see The code didn't work.",
   warnLandline: "If an answering machine is on this line, turn it off. Otherwise it answers before your receptionist can.",
+  warnAny: "Voicemail or an answering machine on that phone? If it picks up first, calls never reach your receptionist: see The code didn't work.",
   off: (code2) => `To switch it off later, dial ${code2}.`,
   tap: "Tap to dial",
   done: "Done, let's try it",
   help: "The code didn't work",
-  change: "Change the answers"
+  change: "Change the answers",
+  keepCode: "Keep the code I have",
+  notForwarded: "Forwarding not saved"
 };
 var FIRST_RUN_ROUTE3 = "start";
 var FIND_PARAM3 = "find";
@@ -13879,20 +13888,23 @@ var FIRST_RUN_PHONE_WORDS22 = {
   /** The code (canvas R5, P5). */
   codeHeading: "Dial this on the phone customers call",
   codeLead: "It tells your phone company to send the calls nobody picks up to your receptionist. You only do this once.",
+  codeLeadAll: "It tells your phone company to send every call to your receptionist. You only do this once.",
   codeLabel: (company, rings) => rings === "landline" ? "A landline" : company ? `${company} \xB7 a mobile` : "A mobile",
   stepsLandline: ["Pick up the phone customers call.", "Dial the code above.", "Wait for the tone, then hang up."],
-  stepsMobile: [
-    "On the phone customers call, dial the code above, or tap it there.",
-    "Wait for the tone, then hang up."
-  ],
+  stepsMobile: ["On the phone customers call, dial the code above.", "Wait for the tone, then hang up."],
+  /** A tab that lost the answers: what rings is not known, so neither is said. */
+  stepsAny: ["Dial the code above on the phone customers call.", "Wait for the tone, then hang up."],
   // Not a promise the code replaces voicemail: forwarding.ts says a voicemail that picks up first keeps calls away.
   warnMobile: "Voicemail on this phone? If it still picks up after you dial the code, calls never reach your receptionist: see The code didn't work.",
   warnLandline: "If an answering machine is on this line, turn it off. Otherwise it answers before your receptionist can.",
+  warnAny: "Voicemail or an answering machine on that phone? If it picks up first, calls never reach your receptionist: see The code didn't work.",
   off: (code2) => `To switch it off later, dial ${code2}.`,
   tap: "Tap to dial",
   done: "Done, let's try it",
   help: "The code didn't work",
-  change: "Change the answers"
+  change: "Change the answers",
+  keepCode: "Keep the code I have",
+  notForwarded: "Forwarding not saved"
 };
 var FIRST_RUN_ROUTE22 = "start";
 var FIND_PARAM22 = "find";
@@ -16154,20 +16166,23 @@ var FIRST_RUN_PHONE_WORDS32 = {
   /** The code (canvas R5, P5). */
   codeHeading: "Dial this on the phone customers call",
   codeLead: "It tells your phone company to send the calls nobody picks up to your receptionist. You only do this once.",
+  codeLeadAll: "It tells your phone company to send every call to your receptionist. You only do this once.",
   codeLabel: (company, rings) => rings === "landline" ? "A landline" : company ? `${company} \xB7 a mobile` : "A mobile",
   stepsLandline: ["Pick up the phone customers call.", "Dial the code above.", "Wait for the tone, then hang up."],
-  stepsMobile: [
-    "On the phone customers call, dial the code above, or tap it there.",
-    "Wait for the tone, then hang up."
-  ],
+  stepsMobile: ["On the phone customers call, dial the code above.", "Wait for the tone, then hang up."],
+  /** A tab that lost the answers: what rings is not known, so neither is said. */
+  stepsAny: ["Dial the code above on the phone customers call.", "Wait for the tone, then hang up."],
   // Not a promise the code replaces voicemail: forwarding.ts says a voicemail that picks up first keeps calls away.
   warnMobile: "Voicemail on this phone? If it still picks up after you dial the code, calls never reach your receptionist: see The code didn't work.",
   warnLandline: "If an answering machine is on this line, turn it off. Otherwise it answers before your receptionist can.",
+  warnAny: "Voicemail or an answering machine on that phone? If it picks up first, calls never reach your receptionist: see The code didn't work.",
   off: (code2) => `To switch it off later, dial ${code2}.`,
   tap: "Tap to dial",
   done: "Done, let's try it",
   help: "The code didn't work",
-  change: "Change the answers"
+  change: "Change the answers",
+  keepCode: "Keep the code I have",
+  notForwarded: "Forwarding not saved"
 };
 var FIRST_RUN_ROUTE32 = "start";
 var FIND_PARAM32 = "find";
@@ -18950,20 +18965,23 @@ var FIRST_RUN_PHONE_WORDS4 = {
   /** The code (canvas R5, P5). */
   codeHeading: "Dial this on the phone customers call",
   codeLead: "It tells your phone company to send the calls nobody picks up to your receptionist. You only do this once.",
+  codeLeadAll: "It tells your phone company to send every call to your receptionist. You only do this once.",
   codeLabel: (company, rings) => rings === "landline" ? "A landline" : company ? `${company} \xB7 a mobile` : "A mobile",
   stepsLandline: ["Pick up the phone customers call.", "Dial the code above.", "Wait for the tone, then hang up."],
-  stepsMobile: [
-    "On the phone customers call, dial the code above, or tap it there.",
-    "Wait for the tone, then hang up."
-  ],
+  stepsMobile: ["On the phone customers call, dial the code above.", "Wait for the tone, then hang up."],
+  /** A tab that lost the answers: what rings is not known, so neither is said. */
+  stepsAny: ["Dial the code above on the phone customers call.", "Wait for the tone, then hang up."],
   // Not a promise the code replaces voicemail: forwarding.ts says a voicemail that picks up first keeps calls away.
   warnMobile: "Voicemail on this phone? If it still picks up after you dial the code, calls never reach your receptionist: see The code didn't work.",
   warnLandline: "If an answering machine is on this line, turn it off. Otherwise it answers before your receptionist can.",
+  warnAny: "Voicemail or an answering machine on that phone? If it picks up first, calls never reach your receptionist: see The code didn't work.",
   off: (code2) => `To switch it off later, dial ${code2}.`,
   tap: "Tap to dial",
   done: "Done, let's try it",
   help: "The code didn't work",
-  change: "Change the answers"
+  change: "Change the answers",
+  keepCode: "Keep the code I have",
+  notForwarded: "Forwarding not saved"
 };
 var FIRST_RUN_ROUTE4 = "start";
 var FIND_PARAM4 = "find";
