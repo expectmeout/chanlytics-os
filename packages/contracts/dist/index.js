@@ -22238,6 +22238,72 @@ function importCounts(rows) {
   };
 }
 
+// src/line-release.ts
+var LINE_RELEASE_WARN_DAYS = 7;
+var LINE_RELEASE_MIN_DAYS = 14;
+var LINE_RELEASE_REPORT_DAYS = 30;
+var DAY_MS9 = 864e5;
+function lineReleaseAfterDays(raw) {
+  if (!raw || !/^\d+$/.test(raw.trim())) return null;
+  const n = Number(raw.trim());
+  return n >= LINE_RELEASE_MIN_DAYS ? n : null;
+}
+var msOf = (iso) => {
+  if (!iso) return null;
+  const ms2 = Date.parse(iso);
+  return Number.isFinite(ms2) ? ms2 : null;
+};
+function billingEndedAt(b) {
+  if (!b || b.mode !== "stripe" || receptionistOn(b.status)) return null;
+  const unpaid = b.status === "unpaid";
+  const times = [
+    b.trial_end,
+    unpaid ? null : b.current_period_end,
+    b.cancel_at,
+    // An unpaid subscription with no failure on record counts from the reading that made it unpaid, never from an
+    // old trial's end.
+    unpaid ? b.last_payment_failed_at ?? b.updated_at : b.last_payment_failed_at
+  ].map(msOf).filter((t) => t !== null);
+  return times.length ? Math.max(...times) : msOf(b.updated_at);
+}
+function lineReleaseStep(billing, afterDays, warned, nowMs) {
+  const endedAt = billingEndedAt(billing);
+  if (endedAt === null) return { step: "keep" };
+  const releaseAt = endedAt + afterDays * DAY_MS9;
+  const warnedAt = warned && msOf(warned.ended_at) === endedAt ? msOf(warned.at) : null;
+  if (warnedAt === null) {
+    return nowMs >= releaseAt - LINE_RELEASE_WARN_DAYS * DAY_MS9 ? { step: "warn", endedAt, releaseAt } : { step: "wait", endedAt, releaseAt };
+  }
+  const due = Math.max(releaseAt, warnedAt + LINE_RELEASE_WARN_DAYS * DAY_MS9);
+  return nowMs >= due ? { step: "release", endedAt, releaseAt: due } : { step: "wait", endedAt, releaseAt: due };
+}
+function lineReleaseDay(releaseAt, nowMs) {
+  return Math.max(releaseAt, nowMs + LINE_RELEASE_WARN_DAYS * DAY_MS9);
+}
+function lineReleaseWarning(i) {
+  const number = formatPhoneDisplay(i.number) ?? i.number;
+  const on = dayWords(new Date(i.on).toISOString());
+  const kept = formatPhoneDisplay(i.forwardedFrom);
+  const lines = [
+    `Your subscription ended, so your receptionist's number, ${number}, goes back to the phone company on ${on}. After that it can't be got back, and callers to it reach nobody.`,
+    kept ? `${kept} forwards its calls to it. Switch that forwarding off before ${on}, or those calls will go nowhere.` : null,
+    i.billingUrl ? `To keep the number, resume from Billing: ${i.billingUrl}` : "To keep the number, resume from Billing."
+  ].filter((x) => !!x);
+  return { subject: `Your number ${number} goes back on ${on}`, body: `${lines.join("\n\n")}
+` };
+}
+function lineReleasedWords(i) {
+  const number = formatPhoneDisplay(i.number) ?? i.number;
+  const kept = formatPhoneDisplay(i.forwardedFrom);
+  const lines = [
+    `${number} went back to the phone company, as we wrote a week ago. Your receptionist no longer answers on it.`,
+    kept ? `If ${kept} still forwards to it, switch that forwarding off: those calls go nowhere now.` : null,
+    "If you resume, Setup picks a new number with you."
+  ].filter((x) => !!x);
+  return { subject: `Your number ${number} was released`, body: `${lines.join("\n\n")}
+` };
+}
+
 // src/first-receptionist.ts
 var NAME_MAX = BrainConfigSchema.shape.business_name.maxLength ?? Infinity;
 function googleProfileOf(listing) {
@@ -22624,6 +22690,9 @@ export {
   LEAD_WORDS,
   LIMIT_TIERS,
   LINE_CREDENTIALS_SENTENCE,
+  LINE_RELEASE_MIN_DAYS,
+  LINE_RELEASE_REPORT_DAYS,
+  LINE_RELEASE_WARN_DAYS,
   LINE_STEP_WORDS,
   LIST_ANY_MAX,
   LIST_ASSIGNED,
@@ -22899,6 +22968,7 @@ export {
   autoReplyCandidates,
   billingAccountDto,
   billingDoorOpen,
+  billingEndedAt,
   billingPill,
   blockShareWords,
   bookedAfterAsk,
@@ -23244,6 +23314,11 @@ export {
   leadsRoute,
   leadsStanding,
   lineCredentialFailure,
+  lineReleaseAfterDays,
+  lineReleaseDay,
+  lineReleaseStep,
+  lineReleaseWarning,
+  lineReleasedWords,
   lineRetryRefusal,
   lineStuckProvisioning,
   linkHost,

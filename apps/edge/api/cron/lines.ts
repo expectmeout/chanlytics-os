@@ -24,6 +24,10 @@
  * `nextLineStep` derives the whole plan from the row's own receipts — so all that
  * was ever missing was something to call it.
  *
+ * THE SECOND HALF: a number whose subscription ended is given back after a grace
+ * (lib/lines/line-release.ts, contracts' lineReleaseStep). It only reports until
+ * LINE_RELEASE_AFTER_DAYS is set, because a release cannot be undone.
+ *
  * Auth: x-cron-key against the Vault-held sweep key, like the other sweeps;
  * pg_cron calls this from the database (migration 00097).
  */
@@ -33,6 +37,10 @@ import { pg } from "../../lib/pg.js";
 import { logger } from "../../lib/log.js";
 import { lineProviderFromEnv } from "../../lib/lines/lines.js";
 import { notify } from "../../lib/ops/notify.js";
+import { loadTenantNotifications } from "../../lib/tenant-runtime.js";
+import { dashboardOrigin } from "../../lib/dashboard-origin.js";
+import { releaseLine, sweepEndedLines, type EndedLinesResult } from "../../lib/lines/line-release.js";
+import { lineReleaseAfterDays } from "../../lib/packages/contracts.js";
 import { reportLineFailed } from "../../lib/lines/provision.js";
 import { scheduleJob } from "../../lib/packages/jobs.js";
 import { sweepStuckLines } from "../../lib/lines/line-resume.js";
@@ -98,11 +106,39 @@ export async function POST(request: Request): Promise<Response> {
     return json(503, { ok: false, error: e instanceof Error ? e.message : String(e) });
   }
 
-  L.info("lines_sweep_done", { ...result });
+  // The numbers of workspaces that stopped paying. Its own failure is said beside the stuck lines' result rather than
+  // hiding it: the two halves share a tick, not a fate.
+  const afterDays = lineReleaseAfterDays(env.LINE_RELEASE_AFTER_DAYS);
+  let ended: EndedLinesResult | { error: string };
+  try {
+    ended = await sweepEndedLines(
+      db,
+      {
+        release: (tenantId, row, endedAt) =>
+          releaseLine(db, choice, { apiKey }, tenantId, row, { by: "sweep", ended_at: endedAt }),
+        tell: async (tenantId, msg) =>
+          notify(
+            { tenantId, ...(await loadTenantNotifications(db, tenantId)) },
+            { kind: "billing", route: "admin/billing", about: null, ...msg },
+          ),
+        alert: (subject, body) =>
+          notify({ tenantId: null, notifications: null, isEnvDefault: true }, { kind: "alert", subject, body }),
+        billingUrl: (slug) => `${dashboardOrigin()}/w/${encodeURIComponent(slug)}#/admin/billing`,
+        now: () => Date.now(),
+        log: L,
+      },
+      afterDays,
+    );
+  } catch (e) {
+    ended = { error: e instanceof Error ? e.message : String(e) };
+    L.error("line_release_sweep_failed", { error: ended.error });
+  }
+
+  L.info("lines_sweep_done", { ...result, release: ended });
   // Every workspace unreadable is a database problem, not a line problem, and the
   // sweep watcher should hear about it -- the same shape cron/registrations uses.
   if (result.unreadable > 0 && result.unreadable === result.stuck) {
     return json(503, { ok: false, error: "no_workspace_readable", stuck: result.stuck });
   }
-  return json(200, { ok: true, ...result });
+  return json(200, { ok: true, ...result, release: ended });
 }
