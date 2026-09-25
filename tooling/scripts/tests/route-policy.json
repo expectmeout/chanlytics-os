@@ -1107,6 +1107,27 @@
       "role": "owner",
       "rate": null,
       "spend": false
+    },
+    "POST sending-domains": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "settings",
+      "spend": false
+    },
+    "DELETE sending-domains/[id]": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "settings",
+      "spend": false
+    },
+    "POST sending-domains/[id]/check": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "settings",
+      "spend": false
     }
   }
 }

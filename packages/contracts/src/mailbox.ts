@@ -10,6 +10,8 @@
  * against each other.
  */
 
+import type { SendingDomainDto } from "./sending-domains";
+
 /** Addresses a mail system or a person expects to mean something else; "r" is the reply route (r+<token>@). 00126's list. */
 export const MAILBOX_RESERVED: ReadonlySet<string> = new Set([
   "r",
@@ -94,6 +96,11 @@ export interface EmailSetupDto {
   ready: boolean;
   domain: string | null;
   mailbox: MailboxDto | null;
+  /**
+   * The domains this workspace sends cold email from (Reach out): whether this deployment can add them at all (the
+   * edge holds the cold mail account's key), and the ones it has. Null where email is off here.
+   */
+  sending?: { ready: boolean; domains: SendingDomainDto[] } | null;
 }
 
 /** What Setup and Connections both say while the receptionist does not answer email: one sentence, so the two pages cannot drift apart. */

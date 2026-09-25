@@ -700,3 +700,189 @@ test("inside the app the billing page keeps its status and says where billing li
   assert.ok(byTestId(tree, "billing-checkout"), "on the web the door is back");
   assert.equal(byTestId(tree, "billing-in-app"), null);
 });
+
+/* ------------------------------ the domains you send from ------------------------------ */
+
+test("the domains you send from: under the Email row, each in contracts' words, its records to copy, and an add judged under its own box", async () => {
+  asRole("owner");
+  const { installSendingDomains } = await import("../../../apps/dashboard/src/legacy-bridge/sending-domains.ts");
+  installSendingDomains(globalThis.window);
+  const added = [];
+  Object.assign(globalThis.window.__sendingDomains, {
+    add: async (input) => {
+      added.push(input);
+      return {
+        ok: false,
+        code: "conflict",
+        status: 409,
+        title: "Not possible",
+        message: "This workspace already sends from that domain.",
+      };
+    },
+    check: async () => ({ ok: true, data: { domain: null } }),
+    remove: async () => ({ ok: true, data: { removed: true } }),
+  });
+  const now = Date.now();
+  const iso = (daysAgo) => new Date(now - daysAgo * 86_400_000).toISOString();
+  const base = {
+    from_local: "sam",
+    from_name: "Sam at Harbor",
+    held_why: null,
+    held_at: null,
+    checked_at: null,
+    created_at: iso(3),
+  };
+  const email = {
+    ready: true,
+    domain: "mail.chanlytics.com",
+    mailbox: {
+      id: "mb1",
+      address: "harbor@mail.chanlytics.com",
+      from_name: "Harbor Moving",
+      last_received_at: null,
+      last_error: null,
+    },
+    sending: {
+      ready: true,
+      domains: [
+        {
+          ...base,
+          id: "d1",
+          host: "getharbor.com",
+          address: "sam@getharbor.com",
+          state: "records",
+          provider_status: "not_started",
+          dmarc: "missing",
+          verified_at: null,
+          clean_since: null,
+          records: [
+            {
+              label: "DKIM",
+              type: "TXT",
+              name: "resend._domainkey",
+              value: "p=MIGf",
+              priority: null,
+              status: "not_started",
+            },
+          ],
+        },
+        {
+          ...base,
+          id: "d2",
+          host: "harbor-mail.com",
+          address: "sam@harbor-mail.com",
+          state: "verified",
+          provider_status: "verified",
+          dmarc: "found",
+          verified_at: iso(20),
+          clean_since: iso(20),
+          records: [],
+        },
+      ],
+    },
+  };
+  Object.assign(globalThis.window, {
+    __CHANNELS: [],
+    __GOOGLE: null,
+    __SETUP: {
+      dto: {
+        business: { name: "Harbor Moving" },
+        lines: { rows: [], ready: false },
+        requests: { line: null },
+        calendar: null,
+        email,
+      },
+    },
+    __connections: { rows: connectionRows, groupWords: CONNECTION_GROUP_WORDS },
+    __waConnect: { config: async () => null },
+    refusalToast: (r) => ({ tone: "danger", msg: r.message }),
+  });
+  let tree = render(Connections);
+  const block = byTestId(tree, "sending-domains");
+  assert.ok(block, "drawn under the Email row");
+  assert.match(textOf(block), /Domains you send from/);
+  assert.match(textOf(block), /replies come back to harbor@mail\.chanlytics\.com/);
+
+  const pending = byTestId(tree, "domain-getharbor.com");
+  assert.match(textOf(pending), /Records to add/);
+  assert.match(textOf(pending), /Not sending yet/);
+  assert.ok(byTestId(tree, "domain-check-getharbor.com"), "a domain with records to add can be checked");
+  const records = byTestId(tree, "domain-records-getharbor.com");
+  assert.match(
+    textOf(records),
+    /resend\._domainkey\.getharbor\.com/,
+    "the name written out in full, as a registrar asks",
+  );
+  assert.match(textOf(records), /_dmarc\.getharbor\.com/, "and the DMARC record we recommend while it has none");
+  assert.match(textOf(records), /v=DMARC1; p=none;/);
+
+  const verified = byTestId(tree, "domain-harbor-mail.com");
+  assert.match(textOf(verified), /Verified/);
+  assert.match(textOf(verified), /20 clean days/);
+  assert.match(textOf(verified), /Up to 100 a day/);
+  assert.equal(
+    byTestId(tree, "domain-check-harbor-mail.com"),
+    null,
+    "the clock checks a verified domain; nobody needs to",
+  );
+  assert.equal(byTestId(tree, "domain-records-harbor-mail.com"), null);
+
+  press(byTestId(tree, "domain-add-open"));
+  tree = settle(Connections);
+  const host = () => find(byTestId(tree, "domain-host"), (n) => n.type === "input");
+  const local = () => find(byTestId(tree, "domain-local"), (n) => n.type === "input");
+  const name = () => find(byTestId(tree, "domain-name"), (n) => n.type === "input");
+  assert.equal(name().props.value, "Harbor Moving", "the mailbox's name to start from");
+  host().props.onChange({ target: { value: "gmail.com" } });
+  local().props.onChange({ target: { value: "sam" } });
+  tree = settle(Connections);
+  press(byTestId(tree, "domain-save"));
+  await flush();
+  tree = settle(Connections);
+  assert.match(textOf(byTestId(tree, "domain-host-problem")), /free mail/);
+  assert.deepEqual(added, [], "nothing is asked about what the rules already refuse");
+
+  host().props.onChange({ target: { value: "getharbor.com" } });
+  tree = settle(Connections);
+  assert.match(textOf(byTestId(tree, "domain-local")), /@getharbor\.com/);
+  press(byTestId(tree, "domain-save"));
+  await flush();
+  tree = settle(Connections);
+  assert.deepEqual(added, [{ host: "getharbor.com", fromLocal: "sam", fromName: "Harbor Moving" }]);
+  assert.equal(
+    textOf(byTestId(tree, "domain-host-problem")),
+    "This workspace already sends from that domain.",
+    "the door's refusal lands under the box that caused it",
+  );
+});
+
+test("the block is not drawn where own domains are off and there are none, nor before the mailbox exists", () => {
+  asRole("owner");
+  for (const email of [
+    {
+      ready: true,
+      domain: "mail.chanlytics.com",
+      mailbox: {
+        id: "mb1",
+        address: "harbor@mail.chanlytics.com",
+        from_name: "Harbor",
+        last_received_at: null,
+        last_error: null,
+      },
+      sending: { ready: false, domains: [] },
+    },
+    { ready: true, domain: "mail.chanlytics.com", mailbox: null, sending: { ready: true, domains: [] } },
+  ]) {
+    globalThis.window.__SETUP = {
+      dto: {
+        business: { name: "Harbor Moving" },
+        lines: { rows: [], ready: false },
+        requests: { line: null },
+        calendar: null,
+        email,
+      },
+    };
+    const tree = render(Connections);
+    assert.equal(byTestId(tree, "sending-domains"), null, JSON.stringify(email.sending));
+  }
+});

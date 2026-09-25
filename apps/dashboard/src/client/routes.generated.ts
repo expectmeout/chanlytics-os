@@ -12,6 +12,7 @@ export const ROUTES = {
   "DELETE me/devices": { method: "DELETE", path: "/api/v1/me/devices" },
   "DELETE playbooks/[id]": { method: "DELETE", path: "/api/v1/playbooks/[id]" },
   "DELETE segments/[id]": { method: "DELETE", path: "/api/v1/segments/[id]" },
+  "DELETE sending-domains/[id]": { method: "DELETE", path: "/api/v1/sending-domains/[id]" },
   "DELETE team/[id]": { method: "DELETE", path: "/api/v1/team/[id]" },
   "DELETE templates/[id]": { method: "DELETE", path: "/api/v1/templates/[id]" },
   "GET activity": { method: "GET", path: "/api/v1/activity" },
@@ -132,6 +133,8 @@ export const ROUTES = {
   "POST playbooks/[id]/run": { method: "POST", path: "/api/v1/playbooks/[id]/run" },
   "POST segments": { method: "POST", path: "/api/v1/segments" },
   "POST segments/draft": { method: "POST", path: "/api/v1/segments/draft" },
+  "POST sending-domains": { method: "POST", path: "/api/v1/sending-domains" },
+  "POST sending-domains/[id]/check": { method: "POST", path: "/api/v1/sending-domains/[id]/check" },
   "POST settings/receptionist": { method: "POST", path: "/api/v1/settings/receptionist" },
   "POST setup/request": { method: "POST", path: "/api/v1/setup/request" },
   "POST team/invite": { method: "POST", path: "/api/v1/team/invite" },
@@ -174,6 +177,7 @@ export type Routes = {
   "DELETE me/devices": typeof import("../../app/api/v1/me/devices/route").DELETE;
   "DELETE playbooks/[id]": typeof import("../../app/api/v1/playbooks/[id]/route").DELETE;
   "DELETE segments/[id]": typeof import("../../app/api/v1/segments/[id]/route").DELETE;
+  "DELETE sending-domains/[id]": typeof import("../../app/api/v1/sending-domains/[id]/route").DELETE;
   "DELETE team/[id]": typeof import("../../app/api/v1/team/[id]/route").DELETE;
   "DELETE templates/[id]": typeof import("../../app/api/v1/templates/[id]/route").DELETE;
   "GET activity": typeof import("../../app/api/v1/activity/route").GET;
@@ -294,6 +298,8 @@ export type Routes = {
   "POST playbooks/[id]/run": typeof import("../../app/api/v1/playbooks/[id]/run/route").POST;
   "POST segments": typeof import("../../app/api/v1/segments/route").POST;
   "POST segments/draft": typeof import("../../app/api/v1/segments/draft/route").POST;
+  "POST sending-domains": typeof import("../../app/api/v1/sending-domains/route").POST;
+  "POST sending-domains/[id]/check": typeof import("../../app/api/v1/sending-domains/[id]/check/route").POST;
   "POST settings/receptionist": typeof import("../../app/api/v1/settings/receptionist/route").POST;
   "POST setup/request": typeof import("../../app/api/v1/setup/request/route").POST;
   "POST team/invite": typeof import("../../app/api/v1/team/invite/route").POST;

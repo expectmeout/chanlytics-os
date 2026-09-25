@@ -145,6 +145,10 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // Making the mailbox adds a line, so the count above the work changes with it.
   "POST mailboxes": () => [setupOverride, todayOverride],
   "PUT mailboxes/[id]": setup,
+  // A sending domain added, checked or removed: the Email row's block reads again from Setup.
+  "POST sending-domains": setup,
+  "POST sending-domains/[id]/check": setup,
+  "DELETE sending-domains/[id]": setup,
   "POST billing/resume": billing,
   "POST billing/sync": billing,
   "POST google/link": google,
