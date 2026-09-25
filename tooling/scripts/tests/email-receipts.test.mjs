@@ -12,6 +12,7 @@ import path from "node:path";
 import { pathToFileURL, fileURLToPath } from "node:url";
 import { fakeDb } from "./_fake-db.mjs";
 import {
+  buildEmailRequest,
   emailReceiptFrom,
   emailReceiptEffect,
   emailReceivedEventFrom,
@@ -321,4 +322,34 @@ test("a flag that cannot be written sends the receipt back with the row untouche
   );
   world({ faults: { "messages.update": { message: "statement timeout" } } });
   assert.equal(await post(receipt("delivered")), 503);
+});
+
+test("a first email's receipts find its row by the tags its request left with: the row it was queued as", async () => {
+  const request = buildEmailRequest({
+    identity: {
+      fromName: "Best Movers",
+      fromAddress: "bestmovers@mail.chanlytics.com",
+      replyTo: `r+${"a".repeat(24)}@mail.chanlytics.com`,
+    },
+    to: ADDRESS,
+    parent: null,
+    subject: "The calls you miss mid-session",
+    body: "Hello.",
+    signature: null,
+    actor: "ai",
+    campaign: {
+      unsubscribeUrl: "https://app.chanlytics.com/u/tok",
+      footer: "Best Movers · 1 Main St, Austin, TX 78701",
+    },
+    messageId: M,
+    tenantId: T,
+  });
+  const tags = Object.fromEntries(request.tags.map((x) => [x.name, x.value]));
+  const delivered = world();
+  assert.equal(await post(receipt("delivered", { subject: request.subject, tags })), 200);
+  assert.equal(delivered.messages[0].status, "delivered");
+  const bounced = world();
+  assert.equal(await post(receipt("bounced", { subject: request.subject, tags, ...BOUNCE })), 200);
+  assert.equal(bounced.messages[0].status, "failed");
+  assert.ok(bounced.contacts[0].email_suppressed_at, "and a permanent bounce stops the address");
 });
