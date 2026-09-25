@@ -311,3 +311,25 @@ test("the route: the shape is stored on the turn's row with the palette's opened
     setAskPorts(null);
   }
 });
+
+test("the client sends opened_ms with the question when the palette measured one, and nothing when it did not", async () => {
+  const { createApi } = await import(at("apps/dashboard/src/client/api.ts"));
+  const { askApi } = await import(at("apps/dashboard/src/legacy-bridge/ask/api.ts"));
+  const bodies = [];
+  const client = createApi({
+    fetch: async (_url, init) => {
+      bodies.push(JSON.parse(init.body));
+      return new Response('{"t":"thread","id":"t1","title":"q"}\n', { status: 200 });
+    },
+    workspace: () => A,
+    onSignedOut() {},
+    onChooseWorkspace() {},
+    refresh: async () => {},
+    now: () => 1_000,
+  });
+  const api = askApi(client);
+  await api.send({ text: "q", threadId: null, scope: null, surface: "today", openedMs: 4200 }, () => {});
+  await api.send({ text: "q", threadId: null, scope: null, surface: "today" }, () => {});
+  assert.equal(bodies[0].opened_ms, 4200);
+  assert.ok(!("opened_ms" in bodies[1]));
+});
