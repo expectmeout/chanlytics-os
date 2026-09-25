@@ -147,6 +147,8 @@ export const setupOverride: SurfaceOverride = {
     "billing_accounts",
     "google_connections",
     "calls",
+    // a sending domain added, checked, verified or held by the ten-minute clock: Connections' Email row (00175)
+    "sending_domains",
   ],
   refreshWhen: (c) =>
     c.table !== "calls" ||

@@ -23,6 +23,7 @@ import {
 import { mailboxOfTenant, type Database, type Json } from "@chanlytics/db";
 import type { EmailReplyPorts } from "@chanlytics/core";
 import type { RouteContext } from "./with-route";
+import { domainsReadiness, sendingDomainsFor } from "./sending-domains";
 
 /** The deployment's mail domain, lower-cased; null when email is off here. The edge's lib/email.ts reads it the same way. */
 export function emailDomain(): string | null {
@@ -87,9 +88,16 @@ function mailboxDto(
  */
 export async function emailSetupFor(supabase: SupabaseClient<Database>, tenantId: string): Promise<EmailSetupDto> {
   const domain = emailDomain();
-  if (!domain) return { ready: false, domain: null, mailbox: null };
+  if (!domain) return { ready: false, domain: null, mailbox: null, sending: null };
   const row = await mailboxOfTenant(supabase, tenantId);
-  return { ready: true, domain, mailbox: row ? mailboxDto(row, domain) : null };
+  if (!row) return { ready: true, domain, mailbox: null, sending: null };
+  // The block draws only under a mailbox, so nothing else waits on the edge. A domains read that fails draws no
+  // block rather than failing Setup (and Today's email line with it).
+  const [domains, ready] = await Promise.all([
+    sendingDomainsFor(supabase, tenantId).catch(() => null),
+    domainsReadiness().catch(() => false),
+  ]);
+  return { ready: true, domain, mailbox: mailboxDto(row, domain), sending: domains ? { ready, domains } : null };
 }
 
 /** A door's refusal, as the envelope says it: the door's own sentence, under the code its SQLSTATE means. */
