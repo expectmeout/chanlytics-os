@@ -678,19 +678,29 @@ Object.assign(window, { touchSwipe, leaving, leaveOverlay });
 // ---- What the keyboard covers -----------------------------------------------------------------------------------
 // A phone's keyboard is laid over the page, on iOS and on Android alike: the layout keeps its height and only what the
 // browser shows gets shorter. A sheet fixed to the bottom kept its fields and its Save under the keys. The shell calls
-// this once; what the keyboard covers is --kb on the document, which Ask's screen and every sheet stand on. It follows
-// what the browser shows, never the focus: a blur that dropped a sheet at once moved Save from under the finger between
-// the press and the click. A pinch zoom shrinks what is shown too, and is no keyboard.
+// this once; what the keyboard covers is --kb on the document, which every sheet stands on. It follows what the
+// browser shows, never the focus: a blur that dropped a sheet at once moved Save from under the finger between the
+// press and the click. A pinch zoom shrinks what is shown too, and is no keyboard. The browser also moves what it shows
+// down to keep a focused field in view, and says so as --vv-top; with html.kb-up while a keyboard is up, Ask's screen
+// stands on all three to be as tall as what is shown and slide with it (ask.css, the Stage's 5.9).
+const KEYBOARD_MIN = 100;
 const watchKeyboard = () => {
   const vv = window.visualViewport;
   const root = document.documentElement;
   if (!vv || !vv.addEventListener || !root || !root.style) return () => {};
   let said = null;
   const set = () => {
-    const kb = (vv.scale || 1) > 1.01 ? 0 : Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
-    if (kb === said) return;
-    said = kb;
+    const zoomed = (vv.scale || 1) > 1.01;
+    const keys = zoomed ? 0 : Math.max(0, Math.round(window.innerHeight - vv.height));
+    const top = zoomed ? 0 : Math.max(0, Math.round(vv.offsetTop));
+    const kb = Math.max(0, keys - top);
+    const up = keys >= KEYBOARD_MIN;
+    const now = `${kb} ${top} ${up}`;
+    if (now === said) return;
+    said = now;
     root.style.setProperty("--kb", `${kb}px`);
+    root.style.setProperty("--vv-top", `${top}px`);
+    if (root.classList) root.classList.toggle("kb-up", up);
   };
   set();
   vv.addEventListener("resize", set);
@@ -699,6 +709,8 @@ const watchKeyboard = () => {
     vv.removeEventListener("resize", set);
     vv.removeEventListener("scroll", set);
     root.style.removeProperty("--kb");
+    root.style.removeProperty("--vv-top");
+    if (root.classList) root.classList.remove("kb-up");
   };
 };
 Object.assign(window, { watchKeyboard });

@@ -269,14 +269,25 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
      shares .ask-overlay and was docked here by this rule before the Line. The Line itself is the whole screen. */
   .ask-overlay { padding: 0; align-items: flex-end; }
   .ask-overlay.ask-line-scrim { padding: 0; }
-  /* The screen: the head, the middle that scrolls, the foot above the keyboard (--kb, data-bits watchKeyboard) and the home
-     bar. It fades in over the kit's wash and leaves as a dialog does (components.css), never dropping as a sheet. */
+  /* The screen: the head, the middle that scrolls, the foot at the keyboard and the home bar. It is as tall as what the
+     phone shows (--kb and --vv-top, data-bits watchKeyboard): a keyboard laid over the page shortens it, and the browser
+     moving what it shows down to keep the field in view slides it down by as much, so the head stays at the top and the
+     field at the foot of what is seen. Its height eases (250ms): the field glides up with the keys, where it jumped up
+     as the browser said the keys were there and back down as it moved the view (Ruben, 25 Sep). With the keys up the
+     home bar is under them, so no room is kept for it. It fades in over the kit's wash and leaves as a dialog does
+     (components.css), never dropping as a sheet. */
   .ask-modal.ask-line {
-    position: fixed; inset: 0; max-width: none; width: auto; max-height: none; height: 100dvh;
-    padding-top: env(safe-area-inset-top); padding-bottom: calc(env(safe-area-inset-bottom) + var(--kb, 0px));
-    border: 0; border-radius: 0; box-shadow: none; background: var(--bg);
+    position: fixed; inset: 0; max-width: none; width: auto; max-height: none;
+    height: calc(100dvh - var(--kb, 0px) - var(--vv-top, 0px)); translate: 0 var(--vv-top, 0px);
+    padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom);
+    border: 0; border-radius: 0; background: var(--bg);
+    /* its own paper all round: what is under the keys, or between the foot and the keys for a frame as they rise, is
+       never the page */
+    box-shadow: 0 0 0 100dvh var(--bg);
     animation: wash-in var(--duration-base) var(--ease-out);
+    transition: height 250ms var(--ease-out);
   }
+  html.kb-up .ask-modal.ask-line { padding-bottom: 0; }
   /* It takes focus as it opens so no keyboard rises (S10); the whole screen needs no ring to say so. */
   .ask-modal.ask-line:focus { outline: none; }
   /* The head: Earlier, and Clear in a conversation, at the left; the close at the right, a thumb's reach. */
@@ -286,24 +297,26 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
   .ask-line-head .btn-ghost[aria-pressed="true"] { color: var(--ink); background: var(--bg-hover); }
   /* The middle is one scroller (ask-real.jsx draws the folds and the hero in it), so they scroll with the answer. */
   .ask-line .ask-folds { max-height: none; border-bottom: 0; }
-  /* At rest and while it listens, what the middle holds stands centred; the auto margins fall to nothing once it
-     overflows, so a long list still scrolls from its top (spec 5.2). */
-  .ask-line-body.rest { display: flex; flex-direction: column; }
-  .ask-line-body.rest > :first-child { margin-top: auto; }
-  .ask-line-body.rest > :last-child { margin-bottom: auto; }
-  /* Composing (the field focused, its keyboard up; ask-real.jsx): the rows fade (140ms) and then leave, the words'
-     own rows included, so the three come down small over the field, listening, with nothing under them. The middle
-     stands at its foot instead of centred, so the three sit just above the field whatever the keyboard leaves. */
-  .ask-line-body.composing { display: flex; flex-direction: column; justify-content: flex-end; }
-  .ask-line-body.composing > :first-child { margin-top: 0; }
-  .ask-line-body.composing > :last-child { margin-bottom: 0; }
-  .ask-line-body.home-fading .ask-rows { opacity: 0; transition: opacity 140ms var(--ease-in); }
+  /* At rest, while it listens and while the field is in use, what the middle holds stands centred; the auto margins
+     fall to nothing once it overflows, so a long list still scrolls from its top (spec 5.2, 5.9). */
+  .ask-line-body.rest, .ask-line-body.composing { display: flex; flex-direction: column; }
+  .ask-line-body.rest > :first-child, .ask-line-body.composing > :first-child { margin-top: auto; }
+  .ask-line-body.rest > :last-child, .ask-line-body.composing > :last-child { margin-bottom: auto; }
+  /* Composing (the field focused, its keyboard up; ask-real.jsx, spec 5.9): the rows fade (140ms) as their fold closes
+     (220ms) and then leave, so the three, at their size with the standing pills under them, keep the middle's centre
+     as the screen shortens with the keys: one motion. The fold stays while they are gone and opens as they return. */
+  .ask-rows-fold { display: grid; grid-template-rows: 1fr; transition: grid-template-rows 220ms var(--ease-out); }
+  .ask-rows-fold > .ask-rows { min-height: 0; overflow: hidden; transition: opacity 140ms var(--ease-in), padding 220ms var(--ease-out); }
+  .ask-rows-fold.folding, .ask-rows-fold.gone { grid-template-rows: 0fr; }
+  .ask-rows-fold.folding > .ask-rows { opacity: 0; padding-top: 0; padding-bottom: 0; }
   .ask-line-body .ask-rows { animation: ask-rows-in 160ms var(--ease-out); }
   @keyframes ask-rows-in { from { opacity: 0; } to { opacity: 1; } }
   .ask-hero { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 4px 20px 0; }
   /* The three: a hold listens (useHoldPress), so the stage takes no scroll, selection or tap flash of its own. The
-     canvas fits its box every frame, so the squares shrink with the stage as an answer is written (spec 5.5, R3). */
-  .ask-hero-stage { display: block; width: 100%; height: min(232px, 34dvh); border: 0; padding: 0; background: transparent; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; transition: height 200ms var(--ease-out); }
+     canvas fits its box every frame, so the squares shrink with the stage as an answer is written (spec 5.5, R3). With
+     the keys up they keep their size where it fits, and on a small screen take at most 45% of what is shown, so they
+     stay above the field with the pills under them (spec 5.9). */
+  .ask-hero-stage { display: block; width: 100%; height: min(232px, 34dvh, calc((100dvh - var(--kb, 0px) - var(--vv-top, 0px)) * 0.45)); border: 0; padding: 0; background: transparent; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; transition: height 200ms var(--ease-out); }
   .ask-hero-canvas { display: block; width: 100%; height: 100%; }
   .ask-hero.small .ask-hero-stage { height: 78px; }
   /* The question under the three: 14px in ink after a 7px dark square while Ask reads (spec 5.4), 12.5px dim once
@@ -356,6 +369,6 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
   /* the ✦'s beam holds still: the disc, the three's still frame and the colours stay */
   .phone-ask .ask-beam::before, .phone-ask .ask-beam::after { animation: none; }
   .ask-cursor, .ask-reading, .ask-reading-dot, .ask-part.show, .ask-part.do, .ask-modal.ask-line, .ask-send .icon { animation: none; }
-  .ask-fold-chev, .ask-stage, .ask-send, .ask-hero-stage, .ask-line-body.home-fading .ask-rows { transition: none; }
+  .ask-fold-chev, .ask-stage, .ask-send, .ask-hero-stage, .ask-modal.ask-line, .ask-rows-fold, .ask-rows-fold > .ask-rows { transition: none; }
   .ask-line-body .ask-rows { animation: none; }
 }

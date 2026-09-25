@@ -22,6 +22,7 @@ const vv = {
   removeEventListener: (type, fn) => (heard[type] = (heard[type] || []).filter((f) => f !== fn)),
 };
 const props = new Map();
+const classes = new Set();
 globalThis.window = {
   innerHeight: 812,
   visualViewport: vv,
@@ -34,7 +35,10 @@ globalThis.window = {
   },
 };
 globalThis.document = {
-  documentElement: { style: { setProperty: (k, v) => props.set(k, v), removeProperty: (k) => props.delete(k) } },
+  documentElement: {
+    style: { setProperty: (k, v) => props.set(k, v), removeProperty: (k) => props.delete(k) },
+    classList: { toggle: (c, on) => (on ? classes.add(c) : classes.delete(c)), remove: (c) => classes.delete(c) },
+  },
   addEventListener() {},
   removeEventListener() {},
   body: { appendChild() {} },
@@ -52,21 +56,33 @@ const { watchKeyboard } = globalThis.window;
 const fire = (type) => (heard[type] || []).forEach((fn) => fn());
 const show = (height, offsetTop = 0, scale = 1) => Object.assign(vv, { height, offsetTop, scale });
 
-test("what the keyboard covers is said as --kb, follows what the browser shows, and goes when stopped", () => {
+test("what the keyboard covers is said as --kb, the browser's move as --vv-top and a keyboard up as kb-up; it follows what the browser shows, and goes when stopped", () => {
   show(812);
   const stop = watchKeyboard();
   assert.equal(props.get("--kb"), "0px", "nothing covered at the start");
+  assert.equal(props.get("--vv-top"), "0px");
+  assert.equal(classes.has("kb-up"), false);
   show(480);
   fire("resize");
   assert.equal(props.get("--kb"), "332px", "812 laid out, 480 shown: 332 under the keys");
+  assert.equal(classes.has("kb-up"), true, "a keyboard is up");
   show(480, 32);
   fire("scroll");
   assert.equal(props.get("--kb"), "300px", "the browser moved what it shows down 32: 300 under the keys");
+  assert.equal(props.get("--vv-top"), "32px", "and says the move");
+  show(480, 332);
+  fire("scroll");
+  assert.equal(props.get("--kb"), "0px", "moved down by the whole keyboard, nothing of the layout's foot is under it");
+  assert.equal(props.get("--vv-top"), "332px");
+  assert.equal(classes.has("kb-up"), true, "the keyboard is still up");
   show(812);
   fire("resize");
   assert.equal(props.get("--kb"), "0px", "the keyboard went");
+  assert.equal(props.get("--vv-top"), "0px");
+  assert.equal(classes.has("kb-up"), false);
   stop();
   assert.equal(props.has("--kb"), false, "stopped, it says nothing");
+  assert.equal(props.has("--vv-top"), false);
   assert.equal((heard.resize || []).length + (heard.scroll || []).length, 0, "and listens to nothing");
 });
 
@@ -76,5 +92,7 @@ test("a pinch zoom shrinks what is shown too, and is no keyboard", () => {
   show(406, 200, 2);
   fire("resize");
   assert.equal(props.get("--kb"), "0px");
+  assert.equal(props.get("--vv-top"), "0px");
+  assert.equal(classes.has("kb-up"), false);
   stop();
 });

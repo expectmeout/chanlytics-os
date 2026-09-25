@@ -138,17 +138,17 @@ The ✦ (`.phone-ask`, the three on coral) opens it with a tap; it hides while t
 
 `TodayFace` is not rendered and its file, styles, sample wiring and tests go (S14). The queue is Today's first band on a phone. The `askAbout({ thread })` seed the band used stays on the shell for any caller.
 
-### 5.9 Composing (added 25 Sep 2026)
+### 5.9 Composing (added 25 Sep 2026; amended the same day)
 
-A tap on the field raises the keyboard, which takes about 300px of the screen (the Line reads it as `--ask-kb`, 5.1). Until now the middle kept its home (Right now, Brief me, the page's questions) and scrolled, so the three left the screen exactly as the person began to write to them. Now the field in use (focused) composes:
+A tap on the field raises the keyboard, which takes about a third of the screen. Until now the middle kept its home (Right now, Brief me, the page's questions) and scrolled, so the three left the screen exactly as the person began to write to them; and the browser, moving what it shows to keep the field in view, made the screen jump twice. Now the field in use (focused) composes:
 
-- The home fades (140ms) and then leaves the middle; the middle stands at its foot instead of centred.
-- The three come down small (the hero's 78px, as over an answer) to sit just above the field, and listen: the mood is `listening` while the field is in use with no turn running, and each key heard lifts them a little (`mood.hear`), as a word heard does.
-- Nothing is drawn under the three while the field is in use: the words' own rows and the jumps wait for the keyboard to go (with it up there is no room for them); Enter sends.
-- Letting go (the field blurred, the keyboard down) brings the home back at once and the three stand tall again; a turn sent from here goes on as 5.4.
-- Reduced motion: no fade; the home leaves and returns at once.
+- The rows fade (140ms) as their fold closes (220ms) and then leave the middle, the words' own rows and the jumps included: with the keyboard up there is no room for them, and Enter sends. The fold stays while they are gone and opens again as they return (`ask-real.jsx` draws the fold, `ask.css` `.ask-rows-fold`).
+- The three keep their size and stay centred in what is left of the middle, the standing pills (who needs you, the runs and searches waiting) under them, and listen: the mood is `listening` while the field is in use with no turn running, and each key heard lifts them a little (`mood.hear`), as a word heard does. On a phone the pills are the hero's at rest as well, not Right now's row's (`AskNowPills`, `ask-home.jsx`), so they stay through composing: they are what a person came to see. On a small screen the three shrink to fit above the field (never more than 45% of what is shown).
+- The screen is as tall as what the phone shows and slides with it: `watchKeyboard` (data-bits) says what the keys cover (`--kb`), how far the browser moved the view (`--vv-top`) and that a keyboard is up (`html.kb-up`), and the Line's height eases over 250ms, so the field glides up with the keys and the head stays at the top, while the rows' fold closes in the same beat and the three barely move.
+- Letting go (the field blurred, the keyboard down) opens the fold again: the home, or the words' own rows if words were typed; a turn sent from here goes on as 5.4.
+- Reduced motion: no fade, no fold, no easing; the rows leave and return at once.
 
-Ruben, 25 Sep: "when users tap to type, chat moves up; it would be nice if the ask can detect the user is going to type and the brief, ask about this page, who's waiting should all fade and the ask comes down into view into listening state." Code: `ask-real.jsx` `composing`/`homeGone`, `ask.css` `.ask-line-body.composing`, `.home-fading`.
+Ruben, 25 Sep: "when users tap to type, chat moves up; it would be nice if the ask can detect the user is going to type and the brief, ask about this page, who's waiting should all fade and the ask comes down into view into listening state." On the first cut, the same day: the listening three were too small ("keep the size") and too close to the field, the need-you and waiting badges should stay in view while typing, and the keyboard's rise showed a layout-shift flicker. Code: `ask-real.jsx` `composing`, `homeGone`, `composingRows`, `standing`; `ask-home.jsx` `AskNowPills`; `ask.css` `.ask-line-body.composing`, `.ask-rows-fold`, `.ask-modal.ask-line`; `data-bits.jsx` `watchKeyboard`.
 ## 6. Persistence and the practices, in one place
 
 | Practice | Where | How |

@@ -68,7 +68,7 @@ const arFaceFrom = () => {
 const AskReal = ({ open, onClose }) => {
   const A = window.__ask;
   const H = window.AskHooks;
-  const { buildLineRows, AskRows, flatRows } = window.AskHome;
+  const { buildLineRows, AskRows, flatRows, AskNowPills } = window.AskHome;
   const { AskTurn, answerMoves } = window.AskAnswerKit;
   // Ask's face: the one mood every face follows (legacy-bridge/mascot mood.ts), standing in the line.
   const M = window.__mascot || null;
@@ -90,8 +90,9 @@ const AskReal = ({ open, onClose }) => {
   // The conversation a × or the Delete key asked to delete, waiting for a yes (N5).
   const [doomed, setDoomed] = useArState(null);
   // A phone's field in use (focused, so its keyboard is up): the takeover composes. The rows (Right now, Brief me, the
-  // page's questions, and the words' own rows once typed) fade and leave, the three come down small over the field and
-  // listen, and each key heard lifts them (spec 5.9, "Composing").
+  // page's questions, and the words' own rows once typed) fade as their fold closes and leave; the three keep their
+  // size, centred in what is left with the standing pills under them, and listen, each key heard lifting them
+  // (spec 5.9, "Composing").
   const [composing, setComposing] = useArState(false);
   const [homeGone, setHomeGone] = useArState(false);
   const speech = H.useAskSpeech(A);
@@ -149,12 +150,12 @@ const AskReal = ({ open, onClose }) => {
         ? "thinking"
         : speech.speakingId ? "speaking" : composing ? "listening" : "idle";
   useArEffect(() => { if (M) M.mood.set(moodState); }, [moodState]);
-  // The rows leave once they have faded (ask.css, 140ms) and stay gone while the field is in use, the words' own rows
-  // and the jumps included: with the keyboard up there is no room for them, and Enter sends. They are back at once
-  // when composing ends.
+  // The rows leave once their fold has closed (ask.css, 220ms) and stay gone while the field is in use, the words' own
+  // rows and the jumps included: with the keyboard up there is no room for them, and Enter sends. They are back at
+  // once when composing ends, the fold opening again.
   useArEffect(() => {
     if (!composing) { setHomeGone(false); return undefined; }
-    const id = setTimeout(() => setHomeGone(true), 150);
+    const id = setTimeout(() => setHomeGone(true), 240);
     return () => clearTimeout(id);
   }, [composing]);
   useArEffect(() => { if (!open) setComposing(false); }, [open]);
@@ -474,7 +475,9 @@ const AskReal = ({ open, onClose }) => {
   const shownFolds = foldAll ? folded : folded.slice(-AR_FOLDED);
   const answerMsg = latest && latest.a ? latest.a : null;
   const showRows = !talk.listening && (view === "earlier" || !!query || (!live && !quick && !answerMsg));
-  // The rows on screen: not while a phone's field in use has faded them (composing), so nothing is built or walked.
+  // A phone's field in use with rows under the three (the home, or the words' own): the middle composes (spec 5.9).
+  const composingRows = composing && showRows;
+  // The rows on screen: not once composing has folded them away, so nothing is built or walked.
   const rowsDrawn = showRows && !homeGone;
   const sections = rowsDrawn ? buildLineRows({ A, t, lang, query, surface, scope, threads, view, phone }) : [];
   const rows = flatRows(sections);
@@ -620,19 +623,24 @@ const AskReal = ({ open, onClose }) => {
     <>{oneButton}</>
   );
 
+  // The rows sit in a fold (ask.css `.ask-rows-fold`): composing closes it as they fade (`folding`), keeps it while
+  // they are gone (`gone`), and their return opens it again, one element throughout so each change is a motion.
   let body = null;
   if (rowsDrawn)
     body = (
-      <AskRows
-        sections={sections}
-        sel={sel}
-        setSel={setSel}
-        onActivate={activate}
-        onDelete={askDelete}
-        t={t}
-        empty={view === "earlier" && !threads.length ? t.noEarlier : null}
-      />
+      <div className={`ask-rows-fold${composingRows ? " folding" : ""}`} data-testid="ask-rows-fold">
+        <AskRows
+          sections={sections}
+          sel={sel}
+          setSel={setSel}
+          onActivate={activate}
+          onDelete={askDelete}
+          t={t}
+          empty={view === "earlier" && !threads.length ? t.noEarlier : null}
+        />
+      </div>
     );
+  else if (composingRows) body = <div className="ask-rows-fold gone" data-testid="ask-rows-fold" />;
   else if (live && (live.say || live.text))
     body = <AskTurn m={{ id: "live", role: "assistant", text: live.text, citations: [], followups: [], proposals: [] }} say={live.say} q={live.q} streaming t={t} lang={lang} onNav={nav} onFollow={submit} onEdit={editWords} />;
   else if (live || (quick && quick.pending)) {
@@ -668,14 +676,19 @@ const AskReal = ({ open, onClose }) => {
   // A phone's hero (spec 5.2-5.5): the three at 232px (ask.css `.ask-hero-stage`), what they hear while held, the
   // question and what Ask reads until the first words; once an answer is written they shrink to the top with its
   // question under them, said once (ask.css hides the turn's own copy on a phone).
-  const heroSmall = !!(live && (live.say || live.text)) || !!answerMsg || !!(quick && quick.answer) || composing;
+  const heroSmall = !!(live && (live.say || live.text)) || !!answerMsg || !!(quick && quick.answer);
   const heroQ = !heroSmall ? null : live ? live.q : quick && quick.answer ? quick.q : latest && latest.q ? latest.q.text : null;
   const restful = talk.listening || (showRows && view === "rows" && !query);
+  // The standing pills (who needs you, the runs and searches waiting) are the hero's on a phone: under the three at
+  // rest, and still there while the field is in use, since they are what a person came to see (spec 5.9).
+  const parts = phone && A.rightNowParts ? A.rightNowParts(lang) : null;
+  const standing = !!parts && !!(parts.people || parts.runs || parts.searches) && !talk.listening && (composingRows || restful);
   const hero = phone ? (
     <div className={`ask-hero${heroSmall ? " small" : ""}`} data-testid="ask-hero">
       <span className="ask-hero-stage" ref={faceRef} {...holdThree} data-testid="ask-hero-stage">
         {AskFace ? <AskFace className="ask-hero-canvas" testId="ask-line-face" /> : null}
       </span>
+      {standing ? <AskNowPills people={parts.people} runs={parts.runs} searches={parts.searches} t={t} /> : null}
       {talk.listening ? (
         <p className="ask-heard" aria-live="polite" data-testid="ask-heard">{query || t.listening}</p>
       ) : (live || (quick && quick.pending)) && !heroSmall ? (
@@ -804,10 +817,10 @@ const AskReal = ({ open, onClose }) => {
           <Confirm question={t.deleteAsk} detail={doomed.title} yes={t.deleteYes} no={t.deleteKeep} danger block className="ask-confirm" onYes={() => removeThread(doomed)} onNo={() => setDoomed(null)} testid="ask-delete" />
         ) : null}
         {/* A phone's middle is one scroller (spec 5.1, 5.5): the folds, the hero and the rows or the answer scroll as one,
-            so a long answer is read with the three out of the way and the field stays at the foot. At rest, and while
-            it listens, what it holds stands centred (`rest`, spec 5.2). */}
+            so a long answer is read with the three out of the way and the field stays at the foot. At rest, while it
+            listens and while the field is in use, what it holds stands centred (`rest`, `composing`; spec 5.2, 5.9). */}
         {body || phone ? (
-          <div className={`ask-line-body${restful ? " rest" : ""}${composing ? " composing" : ""}${composing && !homeGone ? " home-fading" : ""}`} ref={bodyRef}>{phone ? folds : null}{hero}{body}</div>
+          <div className={`ask-line-body${restful ? " rest" : ""}${composingRows ? " composing" : ""}`} ref={bodyRef}>{phone ? folds : null}{hero}{body}</div>
         ) : null}
       </div>
       {toastNode}
