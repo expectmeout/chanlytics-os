@@ -7385,12 +7385,6 @@ function pausedVoiceFacts(businessName) {
   ].join("\n");
 }
 
-// src/line-failure.ts
-function lineCredentialFailure(lastError) {
-  return !!lastError && /the line's credentials|missing from the vault/i.test(lastError);
-}
-var LINE_CREDENTIALS_SENTENCE = "the vault that keeps the line's credentials";
-
 // src/forwarding.ts
 var CARRIERS = ["verizon", "att", "tmobile", "other"];
 var FORWARDING_MODES = ["unanswered", "always"];
@@ -7474,6 +7468,12 @@ function forwardingTestOpen(facts, nowMs = Date.now()) {
   const until = typeof facts.test_until === "string" ? Date.parse(facts.test_until) : NaN;
   return !Number.isNaN(until) && until > nowMs;
 }
+
+// src/line-failure.ts
+function lineCredentialFailure(lastError) {
+  return !!lastError && /the line's credentials|missing from the vault/i.test(lastError);
+}
+var LINE_CREDENTIALS_SENTENCE = "the vault that keeps the line's credentials";
 
 // src/registration-path.ts
 var REGISTRATION_PATHS = ["standard", "sole_proprietor"];
@@ -8445,6 +8445,12 @@ var SETUP_LATER_REFUSED = {
 
 // src/first-run-phone.ts
 var PHONE_WAYS = ["keep", "new", "move"];
+var PHONE_RINGS = ["mobile", "landline"];
+function forwardingCarrierOf(rings, company) {
+  if (rings === "landline") return "other";
+  if (rings === "mobile") return company ?? null;
+  return null;
+}
 var FIRST_RUN_PHONE_WORDS = {
   chooseHeading: "How should calls reach your receptionist?",
   chooseLead: "Most businesses keep the number customers already know. Your team still answers first, and your receptionist gets the rest.",
@@ -8496,7 +8502,34 @@ var FIRST_RUN_PHONE_WORDS = {
   notBought: "No number yet",
   moveAsked: "We'll move your number with you and reach you by email. Until then, it forwards.",
   moveNotAsked: "The move wasn't asked for. Ask again from Settings later; your number forwards meanwhile.",
-  cancelled: CHECKOUT_OUTCOME_WORDS.cancel
+  cancelled: CHECKOUT_OUTCOME_WORDS.cancel,
+  /** The two questions while the number is on its way (canvas R4), and the button they lead to. */
+  ringsLabel: (display2) => display2 ? `Which phone rings when customers call ${display2}?` : "Which phone rings when customers call?",
+  rings: { mobile: "A mobile", landline: "A landline" },
+  companyLabel: "Who's the phone company?",
+  company: { verizon: "Verizon", att: "AT&T", tmobile: "T-Mobile", other: "Another company" },
+  show: "Show me what to dial",
+  readySoon: "Ready in a moment",
+  answerFirst: "Answer the questions first.",
+  askHeading: "One more thing before the code",
+  askLead: "Your phone company decides the code, so it depends on the phone that rings.",
+  /** The code (canvas R5, P5). */
+  codeHeading: "Dial this on the phone customers call",
+  codeLead: "It tells your phone company to send the calls nobody picks up to your receptionist. You only do this once.",
+  codeLabel: (company, rings) => rings === "landline" ? "A landline" : company ? `${company} \xB7 a mobile` : "A mobile",
+  stepsLandline: ["Pick up the phone customers call.", "Dial the code above.", "Wait for the tone, then hang up."],
+  stepsMobile: [
+    "On the phone customers call, dial the code above, or tap it there.",
+    "Wait for the tone, then hang up."
+  ],
+  // Not a promise the code replaces voicemail: forwarding.ts says a voicemail that picks up first keeps calls away.
+  warnMobile: "Voicemail on this phone? If it still picks up after you dial the code, calls never reach your receptionist: see The code didn't work.",
+  warnLandline: "If an answering machine is on this line, turn it off. Otherwise it answers before your receptionist can.",
+  off: (code2) => `To switch it off later, dial ${code2}.`,
+  tap: "Tap to dial",
+  done: "Done, let's try it",
+  help: "The code didn't work",
+  change: "Change the answers"
 };
 function areaCodeOf(raw) {
   const e164 = normalizePhone(raw);
@@ -8547,10 +8580,85 @@ function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }) {
     heading: W.readyHeading,
     lead: !choice ? "" : forwarded ? W.readyLeadForwarded : W.readyLeadNew,
     trial: null,
-    cta: null
+    cta: null,
+    questions: null,
+    code: null
   };
   const rows = { ...base, ...ready, stage: "rows", status: null };
-  if (dto.channels.voice.present) return rows;
+  const rings = choice?.rings ?? null;
+  const company = choice?.company ?? null;
+  const asking = !!choice && forwarded && !!number;
+  const questions = asking ? {
+    rings: {
+      label: W.ringsLabel(formatPhoneDisplay(number)),
+      options: PHONE_RINGS.map((k) => ({ key: k, label: W.rings[k] })),
+      value: rings
+    },
+    // A landline takes the landline codes whoever runs it, so only a mobile is asked its company.
+    company: rings === "mobile" ? {
+      label: W.companyLabel,
+      options: ["verizon", "att", "tmobile", "other"].map((k) => ({
+        key: k,
+        label: W.company[k]
+      })),
+      value: company
+    } : null
+  } : null;
+  const answered = !!forwardingCarrierOf(rings, company);
+  const show = (lineAnswers) => ({
+    label: W.show,
+    held: !lineAnswers ? W.readySoon : answered ? null : W.answerFirst,
+    act: "forward"
+  });
+  if (dto.channels.voice.present) {
+    const dest = dto.channels.voice.active ? dto.channels.voice.number : null;
+    const fw = lines?.rows.find((l) => l.kind === "forwarded") ?? null;
+    const f = fw?.forwarding ?? null;
+    const saved = !!fw && !!f && isCarrier(f.carrier) && (fw.forwarding_state === "instructed" || fw.forwarding_state === "verified");
+    if (!dest) return rows;
+    if (saved && !(choice?.redo && questions)) {
+      const carrier = f.carrier;
+      const codes = forwardingCodes(carrier, "unanswered", f.destination_e164 ?? dest);
+      const said = rings ?? (carrier === "other" ? "landline" : "mobile");
+      const keepRow = vm.rows.find((r2) => r2.id === "keep") ?? null;
+      return {
+        ...base,
+        stage: "code",
+        heading: W.codeHeading,
+        lead: W.codeLead,
+        trial: null,
+        status: null,
+        questions: null,
+        cta: { label: W.done, held: null, act: "onward" },
+        code: {
+          label: W.codeLabel(said === "mobile" && carrier !== "other" ? W.company[carrier] : null, said),
+          dial: codes.on.code,
+          tel: codes.on.tel,
+          tap: said === "mobile" ? W.tap : null,
+          steps: said === "mobile" ? [...W.stepsMobile] : [...W.stepsLandline],
+          warn: said === "mobile" ? W.warnMobile : W.warnLandline,
+          off: W.off(codes.off.code),
+          help: { label: W.help, notes: codes.notes },
+          change: W.change,
+          verified: fw.forwarding_state === "verified" && keepRow ? keepRow.sentence : null
+        }
+      };
+    }
+    if (questions) {
+      return {
+        ...base,
+        stage: "ask",
+        heading: W.askHeading,
+        lead: W.askLead,
+        trial: null,
+        status: null,
+        questions,
+        cta: show(true),
+        code: null
+      };
+    }
+    return rows;
+  }
   if (ownLine) {
     const onItsWay = ownLine.voice_state === "provisioning" && !lineStuckProvisioning(ownLine, nowMs) || ownLine.voice_state === "answering";
     return onItsWay && lineRow ? {
@@ -8562,7 +8670,9 @@ function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }) {
         words: lineRow.stateWords,
         sentence: lineRow.sentence,
         detail: lineRow.details[0] ?? ""
-      }
+      },
+      questions,
+      cta: questions ? show(false) : null
     } : rows;
   }
   if (!lines?.ready || dto.requests.line || dto.requests.port) return rows;
@@ -8584,7 +8694,9 @@ function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }) {
       ...base,
       ...ready,
       stage: "buying",
-      status: waiting(way === "new" && picked ? W.buyingNew(picked) : W.buyingIn(forwarded ? area : null), W.usually)
+      status: waiting(way === "new" && picked ? W.buyingNew(picked) : W.buyingIn(forwarded ? area : null), W.usually),
+      questions,
+      cta: questions ? show(false) : null
     };
   }
   const held = way === "new" ? pick ? null : W.held.pick : !number ? W.held.number : areaCodeOf(number) ? null : W.held.us;
@@ -8595,8 +8707,10 @@ function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }) {
     heading: W.chooseHeading,
     lead: W.chooseLead,
     trial,
-    cta: { label, held },
-    status: null
+    cta: { label, held, act: trial ? "trial" : "buy" },
+    status: null,
+    questions: null,
+    code: null
   };
 }
 
@@ -8914,6 +9028,8 @@ var FIRST_RUN_HELPERS = {
   phone: firstRunPhoneOf,
   phoneWords: FIRST_RUN_PHONE_WORDS,
   areaCodeOf,
+  /** The carrier whose codes the answers choose (first-run-phone.ts), which the forwarding is saved with. */
+  forwardingCarrierOf,
   /** A number as the app writes one (phone.ts): the numbers offered to pick are said this way, never Twilio's. */
   numberWords: formatPhoneDisplay,
   words: FIRST_RUN_WORDS,
@@ -22061,6 +22177,7 @@ export {
   PERSON_MODE_LABELS,
   PERSON_MODE_WORDS,
   PERSON_STATE_LABELS,
+  PHONE_RINGS,
   PHONE_WAYS,
   PIPELINE_BOARD_CAP,
   PIPELINE_GROUPS,
@@ -22443,6 +22560,7 @@ export {
   forWords,
   formatPhoneDisplay,
   formatWaited,
+  forwardingCarrierOf,
   forwardingCodes,
   forwardingMatch,
   forwardingTestOpen,

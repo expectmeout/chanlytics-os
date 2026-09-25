@@ -498,11 +498,28 @@ const FrPhone = ({ ph, choice, setChoice, W, flash, go, back, backLabel }) => {
     setNumbers(r.numbers.slice(0, 3));
     if (!r.numbers.length) flash({ tone: "info", msg: <>{W.noneFree(area)}</> });
   };
+  // An answer to one of the two questions: kept with the choice, whatever the stage (the buy waits on nothing here).
+  const answer = (patch) => setChoice({ ...c, ...patch });
+  const [help, setHelp] = React.useState(false);
+  const forward = async () => {
+    const carrier = F.forwardingCarrierOf(c.rings, c.company);
+    if (!P || !carrier || !ph.number || !(window.canDo && window.canDo("team"))) return;
+    setBusy(true);
+    const r = await P.forwarding.set({ number: ph.number, carrier, mode: "unanswered", test_from: "" });
+    setBusy(false);
+    if (!r.ok) { flash({ tone: "danger", msg: <>{r.message}</> }); return; }
+    // Saved: Setup is read again (the refresh map), and the code is drawn from what was saved.
+    setChoice({ ...c, redo: false });
+    setHelp(false);
+  };
   const press = async () => {
     const cta = ph.cta;
     if (!cta || cta.held || busy) return;
+    if (cta.act === "forward") { await forward(); return; }
+    // Done: on to where the workspace is now, Try it.
+    if (cta.act === "onward") { go("start"); return; }
     const next = { ...c, way: ph.way, pending: true, sent: false, returnedAt: null };
-    if (ph.trial) {
+    if (cta.act === "trial") {
       if (!(window.canDo && window.canDo("billing")) || !window.__billing) return;
       setChoice(next);
       // The step's own address, so it stays on screen once its line answers.
@@ -517,15 +534,90 @@ const FrPhone = ({ ph, choice, setChoice, W, flash, go, back, backLabel }) => {
     setChoice(next);
     go("start/phone");
   };
+  // The step's foot, drawn here whenever the step's button is this one's (FirstRun draws no other then).
+  const gateOf = { trial: ["billing", "start the trial"], buy: ["team", "get a number"], forward: ["team", "set up forwarding"] };
+  const gated = ph.cta && gateOf[ph.cta.act] ? window.gate(gateOf[ph.cta.act][0], gateOf[ph.cta.act][1]) : {};
+  const foot = ph.cta ? (
+    <div className="fr-foot">
+      {back ? <button type="button" className="btn btn-ghost btn-sm" onClick={() => go(back)} data-testid="fr-back">{backLabel}</button> : <span />}
+      {ph.cta.held ? <span className="fr-held" id="fr-phone-held" data-testid="fr-phone-held">{ph.cta.held}</span> : null}
+      <button
+        type="button"
+        className="fr-onward"
+        onClick={press}
+        aria-disabled={ph.cta.held ? true : undefined}
+        aria-describedby={ph.cta.held ? "fr-phone-held" : undefined}
+        aria-busy={busy || undefined}
+        data-testid="fr-phone-go"
+        {...gated}
+      >
+        {ph.cta.label}
+      </button>
+    </div>
+  ) : null;
+  // The two questions (canvas R4): each a row of choices, kept with the owner's choice as they are answered.
+  const asked = ph.questions ? [["rings", ph.questions.rings], ["company", ph.questions.company]].filter((q) => q[1]) : [];
+  const questions = asked.length ? (
+    <div className="fr-line-questions" data-testid="fr-phone-questions">
+      {asked.map(([key, q]) => (
+        <div key={key} className="fr-chips fr-line-question" role="radiogroup" aria-labelledby={`fr-q-${key}`}>
+          <span className="fr-chips-label" id={`fr-q-${key}`}>{q.label}</span>
+          <span className="fr-chips-list">
+            {q.options.map((o) => (
+              <button
+                key={o.key}
+                type="button"
+                role="radio"
+                aria-checked={q.value === o.key}
+                className="fr-chip"
+                onClick={() => answer(key === "rings" ? { rings: o.key } : { company: o.key })}
+                data-testid={`fr-q-${key}-${o.key}`}
+              >
+                {q.value === o.key ? <Icon name="check" size={11} /> : null}
+                {o.label}
+              </button>
+            ))}
+          </span>
+        </div>
+      ))}
+    </div>
+  ) : null;
+  if (ph.stage === "code") {
+    const k = ph.code;
+    return (
+      <div className="fr-line-step" data-testid="fr-phone" data-stage="code">
+        {k.verified ? <p className="fr-line-started" data-testid="fr-phone-verified"><Icon name="check" size={12} />{k.verified}</p> : null}
+        <div className="fr-code" data-testid="fr-phone-code">
+          <span className="fr-line-label">{k.label}</span>
+          <a className="fr-code-dial tabular" href={k.tel} data-testid="fr-phone-dial">{k.dial}</a>
+          <ol className="fr-code-steps">{k.steps.map((t) => <li key={t}>{t}</li>)}</ol>
+        </div>
+        <p className="fr-code-warn" data-testid="fr-phone-warn"><span className="fr-code-dot" aria-hidden="true" />{k.warn}</p>
+        <p className="fr-code-off">{k.off}</p>
+        {/* Outlined: the step's one coral button is Done, the press after the tap. */}
+        {k.tap ? <a className="btn fr-code-tap" href={k.tel} data-testid="fr-phone-tap">{k.tap}</a> : null}
+        <div className="fr-code-links">
+          <button type="button" className="fr-find-link" aria-expanded={help} onClick={() => setHelp((v) => !v)} data-testid="fr-phone-help">{k.help.label}</button>
+          <button type="button" className="fr-find-link" onClick={() => answer({ redo: true })} data-testid="fr-phone-change" {...window.gate("team", "set up forwarding")}>{k.change}</button>
+        </div>
+        {help ? <ul className="fr-code-notes" data-testid="fr-phone-notes">{k.help.notes.map((t) => <li key={t}>{t}</li>)}</ul> : null}
+        {foot}
+      </div>
+    );
+  }
   if (ph.stage !== "choose") {
     return (
       <div className="fr-line-step" data-testid="fr-phone" data-stage={ph.stage}>
         {ph.started ? <p className="fr-line-started" data-testid="fr-phone-started"><Icon name="check" size={12} />{ph.started}</p> : null}
-        <div className="fr-line-status" role="status" data-testid="fr-phone-status">
-          <StatePill kind="setup" value={ph.status.state} label={ph.status.words} />
-          <span className="fr-line-sentence">{ph.status.sentence}</span>
-          <span className="fr-line-detail">{ph.status.detail}</span>
-        </div>
+        {ph.status ? (
+          <div className="fr-line-status" role="status" data-testid="fr-phone-status">
+            <StatePill kind="setup" value={ph.status.state} label={ph.status.words} />
+            <span className="fr-line-sentence">{ph.status.sentence}</span>
+            <span className="fr-line-detail">{ph.status.detail}</span>
+          </div>
+        ) : null}
+        {questions}
+        {foot}
       </div>
     );
   }
@@ -577,23 +669,7 @@ const FrPhone = ({ ph, choice, setChoice, W, flash, go, back, backLabel }) => {
           <span className="fr-trial-note">{ph.trial.note}</span>
         </div>
       ) : null}
-      {/* The step's foot, drawn here while choosing, since its button is this one (FirstRun draws no other). */}
-      <div className="fr-foot">
-        {back ? <button type="button" className="btn btn-ghost btn-sm" onClick={() => go(back)} data-testid="fr-back">{backLabel}</button> : <span />}
-        {ph.cta.held ? <span className="fr-held" id="fr-phone-held" data-testid="fr-phone-held">{ph.cta.held}</span> : null}
-        <button
-          type="button"
-          className="fr-onward"
-          onClick={press}
-          aria-disabled={ph.cta.held ? true : undefined}
-          aria-describedby={ph.cta.held ? "fr-phone-held" : undefined}
-          aria-busy={busy || undefined}
-          data-testid="fr-phone-go"
-          {...(ph.trial ? window.gate("billing", "start the trial") : window.gate("team", "get a number"))}
-        >
-          {ph.cta.label}
-        </button>
-      </div>
+      {foot}
     </div>
   );
 };
@@ -801,7 +877,7 @@ const FirstRun = ({ param = null, onNavigate }) => {
               </section>
             </div>
           ) : null}
-          {(fr.back || fr.onward) && !(phoneDrawn && ph.stage === "choose") ? (
+          {(fr.back || fr.onward) && !(phoneDrawn && ph.cta) ? (
             <div className="fr-foot">
               {fr.back ? <button type="button" className="btn btn-ghost btn-sm" onClick={() => go(fr.back)} data-testid="fr-back">{W.back}</button> : <span />}
               {fr.onward && fr.onward.held ? <span className="fr-held" id="fr-held" data-testid="fr-held">{fr.onward.held}</span> : null}

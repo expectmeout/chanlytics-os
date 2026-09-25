@@ -148,6 +148,24 @@ button.fr-rail-btn:hover { background: var(--bg-sunken); color: var(--ink); }
 .fr-line-status { display: grid; justify-items: start; gap: 6px; }
 .fr-line-sentence { font-size: 14px; line-height: var(--leading-normal); }
 .fr-line-detail { font-size: 12.5px; line-height: var(--leading-normal); color: var(--ink-dim); }
+/* The two questions (canvas R4), in the chips' own look, and the code (R5, P5): the code large, dialled by a tap where a
+   phone can, the steps under it, what picks up first, and the way to switch it off. */
+.fr-line-questions { display: grid; }
+.fr-line-question { border-top: 0; padding: 8px 0; }
+.fr-code {
+  display: grid; justify-items: start; gap: 8px; padding: 14px 16px;
+  border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--bg-raised);
+}
+.fr-code-dial { font-size: 26px; font-weight: 600; letter-spacing: 0.02em; color: var(--ink); text-decoration: none; overflow-wrap: anywhere; }
+.fr-code-dial:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-sm); }
+.fr-code-steps { margin: 0; padding-left: 20px; display: grid; gap: 4px; font-size: 13px; line-height: var(--leading-normal); }
+.fr-code-warn, .fr-code-off { display: flex; align-items: baseline; gap: 8px; margin: 0; font-size: 13px; line-height: var(--leading-normal); }
+.fr-code-off { color: var(--ink-dim); }
+.fr-code-dot { flex: 0 0 auto; width: 6px; height: 6px; border-radius: 50%; background: var(--warn); transform: translateY(-1px); }
+.fr-code-notes { margin: 0; padding-left: 18px; display: grid; gap: 6px; font-size: 12.5px; line-height: var(--leading-normal); color: var(--ink-dim); }
+/* A tap dials only on a phone: a desk's screen says the code and nothing to press. */
+.fr-code-tap { display: none; }
+.fr-code-links { display: flex; flex-wrap: wrap; gap: 16px; }
 
 /* Looks right, held until the step is done: in reach, with why beside it. */
 .fr-held { flex: 1 1 auto; font-size: 12.5px; line-height: var(--leading-normal); color: var(--ink-dim); text-align: right; }
@@ -198,6 +216,7 @@ button.fr-rail-btn:hover { background: var(--bg-sunken); color: var(--ink); }
   .fr-find-hit { padding: 12px 14px; }
   .fr-find-search { max-width: none; }
   .fr-line-field { max-width: none; }
+  .fr-code-tap { display: inline-flex; justify-content: center; min-height: 44px; align-items: center; text-decoration: none; }
   /* Find on a phone (canvas P1): the best match alone until "Not this one? Search again", and its two acts held at the
      foot, as Back and Continue are. */
   .fr-find[data-hits]:not([data-more]) .fr-find-hit:not(.is-best),
