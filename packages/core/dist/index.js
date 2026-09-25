@@ -1664,9 +1664,6 @@ var PERSON_CAME_FROM_WORDS = {
   import: "Imported",
   lead: "A lead you found"
 };
-var REPLY_WINDOW_HOURS = 72;
-var REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * 36e5;
-var REPLY_WINDOW_WORDS = `within ${REPLY_WINDOW_HOURS / 24} days`;
 var LEAD_MEMBER_CLASSES = ["qualified", "review", "excluded"];
 var LEAD_MAX_PLACES = 1e3;
 var LEAD_QUESTION_WAIT_MS = 24 * 36e5;
@@ -1785,14 +1782,6 @@ var LeadSearchPlanSchema = z4.object({
 var US_NAMES = Object.fromEntries(
   Object.entries(US_STATES).map(([name, code2]) => [code2, name])
 );
-var SELLS_BY_QUESTION = "How customers buy";
-var SELLS_BY_WORDS = {
-  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
-  proposal: {
-    label: "Some get a proposal first",
-    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
-  }
-};
 var REVIEW_AUTO_REPLY_MAX_AGE_MS = 14 * 864e5;
 var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var REVIEW_NEWS_MS = 36 * 3600 * 1e3;
@@ -2148,6 +2137,192 @@ var LeadSuggestAnswerSchema = z5.object({
   ).min(1).max(4)
 });
 var LEAD_UNDO_MS = 24 * 60 * 6e4;
+var SELLS_BY_QUESTION = "How customers buy";
+var SELLS_BY_WORDS = {
+  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
+  proposal: {
+    label: "Some get a proposal first",
+    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
+  }
+};
+var DAY_MS4 = 864e5;
+var WEEK_MS3 = 7 * DAY_MS4;
+var MONTH_MS = 30 * DAY_MS4;
+var NOTE_MAX = 600;
+var NOTE_REFUSALS = {
+  empty: "Write something first.",
+  too_long: `A note is at most ${NOTE_MAX} characters.`,
+  not_found: "This person or this note is no longer here.",
+  not_a_member: "That person is not on the team.",
+  not_yours: "Only the person who wrote this note can change it.",
+  moved: "Someone changed this note since you opened it. Read it again, then save.",
+  decided: "Someone already decided on this suggestion.",
+  bad_source: "Could not save this note.",
+  bad_deal: "That deal is not this person's.",
+  not_a_step: "Only a note with a day can be done."
+};
+var PERSON_MODE_LABELS = { auto: "Answer", ask: "Ask me first", never: "Never" };
+var PERSON_MODE_WORDS = {
+  ...PERSON_MODE_LABELS,
+  inherit: "Follow the workspace"
+};
+var L = (id, name, region, native) => ({
+  id,
+  label: region ? `${name} (${region})` : name,
+  name,
+  region,
+  native
+});
+var WHATSAPP_LANGUAGES = [
+  L("af", "Afrikaans", null, "Afrikaans"),
+  L("sq", "Albanian", null, "Shqip"),
+  L("ar", "Arabic", null, "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L("ar_EG", "Arabic", "Egypt", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L("ar_LB", "Arabic", "Lebanon", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L("ar_MA", "Arabic", "Morocco", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L("ar_QA", "Arabic", "Qatar", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L("ar_AE", "Arabic", "UAE", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L("az", "Azerbaijani", null, "Az\u0259rbaycan"),
+  L("be_BY", "Belarusian", null, "\u0411\u0435\u043B\u0430\u0440\u0443\u0441\u043A\u0430\u044F"),
+  L("bn", "Bengali", null, "\u09AC\u09BE\u0982\u09B2\u09BE"),
+  L("bn_IN", "Bengali", "India", "\u09AC\u09BE\u0982\u09B2\u09BE"),
+  L("bg", "Bulgarian", null, "\u0411\u044A\u043B\u0433\u0430\u0440\u0441\u043A\u0438"),
+  L("ca", "Catalan", null, "Catal\xE0"),
+  L("zh_CN", "Chinese", "China", "\u7B80\u4F53\u4E2D\u6587"),
+  L("zh_HK", "Chinese", "Hong Kong", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u9999\u6E2F\uFF09"),
+  L("zh_TW", "Chinese", "Taiwan", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u53F0\u7063\uFF09"),
+  L("hr", "Croatian", null, "Hrvatski"),
+  L("cs", "Czech", null, "\u010Ce\u0161tina"),
+  L("da", "Danish", null, "Dansk"),
+  L("prs_AF", "Dari", null, "\u062F\u0631\u06CC"),
+  L("nl", "Dutch", null, "Nederlands"),
+  L("nl_BE", "Dutch", "Belgium", "Nederlands"),
+  L("en", "English", null, "English"),
+  L("en_AU", "English", "Australia", "English"),
+  L("en_CA", "English", "Canada", "English"),
+  L("en_GH", "English", "Ghana", "English"),
+  L("en_IN", "English", "India", "English"),
+  L("en_IE", "English", "Ireland", "English"),
+  L("en_JM", "English", "Jamaica", "English"),
+  L("en_MY", "English", "Malaysia", "English"),
+  L("en_NZ", "English", "New Zealand", "English"),
+  L("en_QA", "English", "Qatar", "English"),
+  L("en_SG", "English", "Singapore", "English"),
+  L("en_ZA", "English", "South Africa", "English"),
+  L("en_AE", "English", "UAE", "English"),
+  L("en_UG", "English", "Uganda", "English"),
+  L("en_GB", "English", "UK", "English"),
+  L("en_US", "English", "US", "English"),
+  L("et", "Estonian", null, "Eesti"),
+  L("fil", "Filipino", null, "Filipino"),
+  L("fi", "Finnish", null, "Suomi"),
+  L("fr", "French", null, "Fran\xE7ais"),
+  L("fr_BE", "French", "Belgium", "Fran\xE7ais"),
+  L("fr_CA", "French", "Canada", "Fran\xE7ais"),
+  L("fr_CI", "French", "C\xF4te d\u2019Ivoire", "Fran\xE7ais"),
+  L("fr_MA", "French", "Morocco", "Fran\xE7ais"),
+  L("fr_CH", "French", "Switzerland", "Fran\xE7ais"),
+  L("ka", "Georgian", null, "\u10E5\u10D0\u10E0\u10D7\u10E3\u10DA\u10D8"),
+  L("de", "German", null, "Deutsch"),
+  L("de_AT", "German", "Austria", "Deutsch"),
+  L("de_CH", "German", "Switzerland", "Deutsch"),
+  L("el", "Greek", null, "\u0395\u03BB\u03BB\u03B7\u03BD\u03B9\u03BA\u03AC"),
+  L("gu", "Gujarati", null, "\u0A97\u0AC1\u0A9C\u0AB0\u0ABE\u0AA4\u0AC0"),
+  L("ha", "Hausa", null, "Hausa"),
+  L("he", "Hebrew", null, "\u05E2\u05D1\u05E8\u05D9\u05EA"),
+  L("hi", "Hindi", null, "\u0939\u093F\u0928\u094D\u0926\u0940"),
+  L("hu", "Hungarian", null, "Magyar"),
+  L("id", "Indonesian", null, "Bahasa Indonesia"),
+  L("ga", "Irish", null, "Gaeilge"),
+  L("it", "Italian", null, "Italiano"),
+  L("ja", "Japanese", null, "\u65E5\u672C\u8A9E"),
+  L("kn", "Kannada", null, "\u0C95\u0CA8\u0CCD\u0CA8\u0CA1"),
+  L("kk", "Kazakh", null, "\u049A\u0430\u0437\u0430\u049B \u0442\u0456\u043B\u0456"),
+  L("rw_RW", "Kinyarwanda", null, "Ikinyarwanda"),
+  L("ko", "Korean", null, "\uD55C\uAD6D\uC5B4"),
+  L("ky_KG", "Kyrgyz", "Kyrgyzstan", "\u041A\u044B\u0440\u0433\u044B\u0437\u0447\u0430"),
+  L("lo", "Lao", null, "\u0EA5\u0EB2\u0EA7"),
+  L("lv", "Latvian", null, "Latvie\u0161u"),
+  L("lt", "Lithuanian", null, "Lietuvi\u0173"),
+  L("mk", "Macedonian", null, "\u041C\u0430\u043A\u0435\u0434\u043E\u043D\u0441\u043A\u0438"),
+  L("ms", "Malay", null, "Bahasa Melayu"),
+  L("ml", "Malayalam", null, "\u0D2E\u0D32\u0D2F\u0D3E\u0D33\u0D02"),
+  L("mr", "Marathi", null, "\u092E\u0930\u093E\u0920\u0940"),
+  L("nb", "Norwegian", null, "Norsk bokm\xE5l"),
+  L("ps_AF", "Pashto", null, "\u067E\u069A\u062A\u0648"),
+  L("fa", "Persian", null, "\u0641\u0627\u0631\u0633\u06CC"),
+  L("pl", "Polish", null, "Polski"),
+  L("pt_BR", "Portuguese", "Brazil", "Portugu\xEAs"),
+  L("pt_PT", "Portuguese", "Portugal", "Portugu\xEAs"),
+  L("pa", "Punjabi", null, "\u0A2A\u0A70\u0A1C\u0A3E\u0A2C\u0A40"),
+  L("ro", "Romanian", null, "Rom\xE2n\u0103"),
+  L("ru", "Russian", null, "\u0420\u0443\u0441\u0441\u043A\u0438\u0439"),
+  L("sr", "Serbian", null, "\u0421\u0440\u043F\u0441\u043A\u0438"),
+  L("si_LK", "Sinhala", null, "\u0DC3\u0DD2\u0D82\u0DC4\u0DBD"),
+  L("sk", "Slovak", null, "Sloven\u010Dina"),
+  L("sl", "Slovenian", null, "Sloven\u0161\u010Dina"),
+  L("es", "Spanish", null, "Espa\xF1ol"),
+  L("es_AR", "Spanish", "Argentina", "Espa\xF1ol"),
+  L("es_CL", "Spanish", "Chile", "Espa\xF1ol"),
+  L("es_CO", "Spanish", "Colombia", "Espa\xF1ol"),
+  L("es_CR", "Spanish", "Costa Rica", "Espa\xF1ol"),
+  L("es_DO", "Spanish", "Dominican Republic", "Espa\xF1ol"),
+  L("es_EC", "Spanish", "Ecuador", "Espa\xF1ol"),
+  L("es_HN", "Spanish", "Honduras", "Espa\xF1ol"),
+  L("es_MX", "Spanish", "Mexico", "Espa\xF1ol"),
+  L("es_PA", "Spanish", "Panama", "Espa\xF1ol"),
+  L("es_PE", "Spanish", "Peru", "Espa\xF1ol"),
+  L("es_ES", "Spanish", "Spain", "Espa\xF1ol"),
+  L("es_UY", "Spanish", "Uruguay", "Espa\xF1ol"),
+  L("sw", "Swahili", null, "Kiswahili"),
+  L("sv", "Swedish", null, "Svenska"),
+  L("ta", "Tamil", null, "\u0BA4\u0BAE\u0BBF\u0BB4\u0BCD"),
+  L("te", "Telugu", null, "\u0C24\u0C46\u0C32\u0C41\u0C17\u0C41"),
+  L("th", "Thai", null, "\u0E44\u0E17\u0E22"),
+  L("tr", "Turkish", null, "T\xFCrk\xE7e"),
+  L("uk", "Ukrainian", null, "\u0423\u043A\u0440\u0430\u0457\u043D\u0441\u044C\u043A\u0430"),
+  L("ur", "Urdu", null, "\u0627\u0631\u062F\u0648"),
+  L("uz", "Uzbek", null, "O\u02BBzbek"),
+  L("vi", "Vietnamese", null, "Ti\u1EBFng Vi\u1EC7t"),
+  L("zu", "Zulu", null, "isiZulu")
+];
+var BY_ID = new Map(WHATSAPP_LANGUAGES.map((l) => [l.id.toLowerCase(), l]));
+var DAY_MS5 = 864e5;
+var SWEEP_TICK_MS = 5 * 6e4;
+var PLAYBOOK_HOURS = { min: 9, max: 20 };
+var SENDING_HOURS_WORDS = {
+  min: PLAYBOOK_HOURS.min,
+  max: PLAYBOOK_HOURS.max,
+  first: `${PLAYBOOK_HOURS.min}:00`,
+  range: `${PLAYBOOK_HOURS.min}:00\u2013${PLAYBOOK_HOURS.max}:59`,
+  between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
+};
+var PLAYBOOK_BREATH_MS = 7 * DAY_MS5;
+var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
+var FOLLOW_UP_NEEDS_DEALS = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION}\u201D with \u201C${SELLS_BY_WORDS.proposal.label}\u201D.`;
+var PLAYBOOK_TOUCH_WINDOW_MS = (365 + 7) * DAY_MS5;
+var PLAYBOOK_CLASS_LABEL = {
+  reengage: POLICY_CLASS_WORDS.reengage.short,
+  campaign: POLICY_CLASS_WORDS.campaign.short,
+  booking: POLICY_CLASS_WORDS.booking.short,
+  follow_up: POLICY_CLASS_WORDS.follow_up.short
+};
+var FIRST = { kind: "first_name", label: "First name", example: "Dani" };
+var BUSINESS = { kind: "business_name", label: "Business name", example: "Luna Studio" };
+var LINK = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
+var FIRST_ES = { ...FIRST, label: "Nombre" };
+var BUSINESS_ES = { ...BUSINESS, label: "Nombre del negocio" };
+var LINK_ES = { ...LINK, label: "Enlace de reservas" };
+var WHEN = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" };
+var SERVICE = { kind: "visit_service", label: "Service", example: "a consultation" };
+var WHEN_ES = { ...WHEN, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
+var SERVICE_ES = { ...SERVICE, label: "Servicio", example: "una consulta" };
+var PROPOSAL = {
+  kind: "proposal_link",
+  label: "Proposal link",
+  example: "https://docs.example.com/proposal"
+};
+var PROPOSAL_ES = { ...PROPOSAL, label: "Enlace de la propuesta" };
 var LIST_NEEDS = ["calendar", "consult", "deals", "viewer"];
 var LIST_RULE_FIELDS = [
   {
@@ -2622,184 +2797,6 @@ var PEOPLE_LISTS = BUILTIN_LISTS.map((l) => {
 var PeopleExportQuerySchema = z7.object({
   list: z7.string().max(80).refine((t) => parseListToken(t) !== null, "Name a list by its token.").optional()
 });
-var PERSON_MODE_LABELS = { auto: "Answer", ask: "Ask me first", never: "Never" };
-var PERSON_MODE_WORDS = {
-  ...PERSON_MODE_LABELS,
-  inherit: "Follow the workspace"
-};
-var DAY_MS4 = 864e5;
-var WEEK_MS3 = 7 * DAY_MS4;
-var MONTH_MS = 30 * DAY_MS4;
-var NOTE_MAX = 600;
-var NOTE_REFUSALS = {
-  empty: "Write something first.",
-  too_long: `A note is at most ${NOTE_MAX} characters.`,
-  not_found: "This person or this note is no longer here.",
-  not_a_member: "That person is not on the team.",
-  not_yours: "Only the person who wrote this note can change it.",
-  moved: "Someone changed this note since you opened it. Read it again, then save.",
-  decided: "Someone already decided on this suggestion.",
-  bad_source: "Could not save this note.",
-  bad_deal: "That deal is not this person's.",
-  not_a_step: "Only a note with a day can be done."
-};
-var L = (id, name, region, native) => ({
-  id,
-  label: region ? `${name} (${region})` : name,
-  name,
-  region,
-  native
-});
-var WHATSAPP_LANGUAGES = [
-  L("af", "Afrikaans", null, "Afrikaans"),
-  L("sq", "Albanian", null, "Shqip"),
-  L("ar", "Arabic", null, "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L("ar_EG", "Arabic", "Egypt", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L("ar_LB", "Arabic", "Lebanon", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L("ar_MA", "Arabic", "Morocco", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L("ar_QA", "Arabic", "Qatar", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L("ar_AE", "Arabic", "UAE", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L("az", "Azerbaijani", null, "Az\u0259rbaycan"),
-  L("be_BY", "Belarusian", null, "\u0411\u0435\u043B\u0430\u0440\u0443\u0441\u043A\u0430\u044F"),
-  L("bn", "Bengali", null, "\u09AC\u09BE\u0982\u09B2\u09BE"),
-  L("bn_IN", "Bengali", "India", "\u09AC\u09BE\u0982\u09B2\u09BE"),
-  L("bg", "Bulgarian", null, "\u0411\u044A\u043B\u0433\u0430\u0440\u0441\u043A\u0438"),
-  L("ca", "Catalan", null, "Catal\xE0"),
-  L("zh_CN", "Chinese", "China", "\u7B80\u4F53\u4E2D\u6587"),
-  L("zh_HK", "Chinese", "Hong Kong", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u9999\u6E2F\uFF09"),
-  L("zh_TW", "Chinese", "Taiwan", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u53F0\u7063\uFF09"),
-  L("hr", "Croatian", null, "Hrvatski"),
-  L("cs", "Czech", null, "\u010Ce\u0161tina"),
-  L("da", "Danish", null, "Dansk"),
-  L("prs_AF", "Dari", null, "\u062F\u0631\u06CC"),
-  L("nl", "Dutch", null, "Nederlands"),
-  L("nl_BE", "Dutch", "Belgium", "Nederlands"),
-  L("en", "English", null, "English"),
-  L("en_AU", "English", "Australia", "English"),
-  L("en_CA", "English", "Canada", "English"),
-  L("en_GH", "English", "Ghana", "English"),
-  L("en_IN", "English", "India", "English"),
-  L("en_IE", "English", "Ireland", "English"),
-  L("en_JM", "English", "Jamaica", "English"),
-  L("en_MY", "English", "Malaysia", "English"),
-  L("en_NZ", "English", "New Zealand", "English"),
-  L("en_QA", "English", "Qatar", "English"),
-  L("en_SG", "English", "Singapore", "English"),
-  L("en_ZA", "English", "South Africa", "English"),
-  L("en_AE", "English", "UAE", "English"),
-  L("en_UG", "English", "Uganda", "English"),
-  L("en_GB", "English", "UK", "English"),
-  L("en_US", "English", "US", "English"),
-  L("et", "Estonian", null, "Eesti"),
-  L("fil", "Filipino", null, "Filipino"),
-  L("fi", "Finnish", null, "Suomi"),
-  L("fr", "French", null, "Fran\xE7ais"),
-  L("fr_BE", "French", "Belgium", "Fran\xE7ais"),
-  L("fr_CA", "French", "Canada", "Fran\xE7ais"),
-  L("fr_CI", "French", "C\xF4te d\u2019Ivoire", "Fran\xE7ais"),
-  L("fr_MA", "French", "Morocco", "Fran\xE7ais"),
-  L("fr_CH", "French", "Switzerland", "Fran\xE7ais"),
-  L("ka", "Georgian", null, "\u10E5\u10D0\u10E0\u10D7\u10E3\u10DA\u10D8"),
-  L("de", "German", null, "Deutsch"),
-  L("de_AT", "German", "Austria", "Deutsch"),
-  L("de_CH", "German", "Switzerland", "Deutsch"),
-  L("el", "Greek", null, "\u0395\u03BB\u03BB\u03B7\u03BD\u03B9\u03BA\u03AC"),
-  L("gu", "Gujarati", null, "\u0A97\u0AC1\u0A9C\u0AB0\u0ABE\u0AA4\u0AC0"),
-  L("ha", "Hausa", null, "Hausa"),
-  L("he", "Hebrew", null, "\u05E2\u05D1\u05E8\u05D9\u05EA"),
-  L("hi", "Hindi", null, "\u0939\u093F\u0928\u094D\u0926\u0940"),
-  L("hu", "Hungarian", null, "Magyar"),
-  L("id", "Indonesian", null, "Bahasa Indonesia"),
-  L("ga", "Irish", null, "Gaeilge"),
-  L("it", "Italian", null, "Italiano"),
-  L("ja", "Japanese", null, "\u65E5\u672C\u8A9E"),
-  L("kn", "Kannada", null, "\u0C95\u0CA8\u0CCD\u0CA8\u0CA1"),
-  L("kk", "Kazakh", null, "\u049A\u0430\u0437\u0430\u049B \u0442\u0456\u043B\u0456"),
-  L("rw_RW", "Kinyarwanda", null, "Ikinyarwanda"),
-  L("ko", "Korean", null, "\uD55C\uAD6D\uC5B4"),
-  L("ky_KG", "Kyrgyz", "Kyrgyzstan", "\u041A\u044B\u0440\u0433\u044B\u0437\u0447\u0430"),
-  L("lo", "Lao", null, "\u0EA5\u0EB2\u0EA7"),
-  L("lv", "Latvian", null, "Latvie\u0161u"),
-  L("lt", "Lithuanian", null, "Lietuvi\u0173"),
-  L("mk", "Macedonian", null, "\u041C\u0430\u043A\u0435\u0434\u043E\u043D\u0441\u043A\u0438"),
-  L("ms", "Malay", null, "Bahasa Melayu"),
-  L("ml", "Malayalam", null, "\u0D2E\u0D32\u0D2F\u0D3E\u0D33\u0D02"),
-  L("mr", "Marathi", null, "\u092E\u0930\u093E\u0920\u0940"),
-  L("nb", "Norwegian", null, "Norsk bokm\xE5l"),
-  L("ps_AF", "Pashto", null, "\u067E\u069A\u062A\u0648"),
-  L("fa", "Persian", null, "\u0641\u0627\u0631\u0633\u06CC"),
-  L("pl", "Polish", null, "Polski"),
-  L("pt_BR", "Portuguese", "Brazil", "Portugu\xEAs"),
-  L("pt_PT", "Portuguese", "Portugal", "Portugu\xEAs"),
-  L("pa", "Punjabi", null, "\u0A2A\u0A70\u0A1C\u0A3E\u0A2C\u0A40"),
-  L("ro", "Romanian", null, "Rom\xE2n\u0103"),
-  L("ru", "Russian", null, "\u0420\u0443\u0441\u0441\u043A\u0438\u0439"),
-  L("sr", "Serbian", null, "\u0421\u0440\u043F\u0441\u043A\u0438"),
-  L("si_LK", "Sinhala", null, "\u0DC3\u0DD2\u0D82\u0DC4\u0DBD"),
-  L("sk", "Slovak", null, "Sloven\u010Dina"),
-  L("sl", "Slovenian", null, "Sloven\u0161\u010Dina"),
-  L("es", "Spanish", null, "Espa\xF1ol"),
-  L("es_AR", "Spanish", "Argentina", "Espa\xF1ol"),
-  L("es_CL", "Spanish", "Chile", "Espa\xF1ol"),
-  L("es_CO", "Spanish", "Colombia", "Espa\xF1ol"),
-  L("es_CR", "Spanish", "Costa Rica", "Espa\xF1ol"),
-  L("es_DO", "Spanish", "Dominican Republic", "Espa\xF1ol"),
-  L("es_EC", "Spanish", "Ecuador", "Espa\xF1ol"),
-  L("es_HN", "Spanish", "Honduras", "Espa\xF1ol"),
-  L("es_MX", "Spanish", "Mexico", "Espa\xF1ol"),
-  L("es_PA", "Spanish", "Panama", "Espa\xF1ol"),
-  L("es_PE", "Spanish", "Peru", "Espa\xF1ol"),
-  L("es_ES", "Spanish", "Spain", "Espa\xF1ol"),
-  L("es_UY", "Spanish", "Uruguay", "Espa\xF1ol"),
-  L("sw", "Swahili", null, "Kiswahili"),
-  L("sv", "Swedish", null, "Svenska"),
-  L("ta", "Tamil", null, "\u0BA4\u0BAE\u0BBF\u0BB4\u0BCD"),
-  L("te", "Telugu", null, "\u0C24\u0C46\u0C32\u0C41\u0C17\u0C41"),
-  L("th", "Thai", null, "\u0E44\u0E17\u0E22"),
-  L("tr", "Turkish", null, "T\xFCrk\xE7e"),
-  L("uk", "Ukrainian", null, "\u0423\u043A\u0440\u0430\u0457\u043D\u0441\u044C\u043A\u0430"),
-  L("ur", "Urdu", null, "\u0627\u0631\u062F\u0648"),
-  L("uz", "Uzbek", null, "O\u02BBzbek"),
-  L("vi", "Vietnamese", null, "Ti\u1EBFng Vi\u1EC7t"),
-  L("zu", "Zulu", null, "isiZulu")
-];
-var BY_ID = new Map(WHATSAPP_LANGUAGES.map((l) => [l.id.toLowerCase(), l]));
-var DAY_MS5 = 864e5;
-var SWEEP_TICK_MS = 5 * 6e4;
-var PLAYBOOK_HOURS = { min: 9, max: 20 };
-var SENDING_HOURS_WORDS = {
-  min: PLAYBOOK_HOURS.min,
-  max: PLAYBOOK_HOURS.max,
-  first: `${PLAYBOOK_HOURS.min}:00`,
-  range: `${PLAYBOOK_HOURS.min}:00\u2013${PLAYBOOK_HOURS.max}:59`,
-  between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
-};
-var PLAYBOOK_BREATH_MS = 7 * DAY_MS5;
-var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
-var FOLLOW_UP_NEEDS_DEALS = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION}\u201D with \u201C${SELLS_BY_WORDS.proposal.label}\u201D.`;
-var PLAYBOOK_TOUCH_WINDOW_MS = (365 + 7) * DAY_MS5;
-var PLAYBOOK_CLASS_LABEL = {
-  reengage: POLICY_CLASS_WORDS.reengage.short,
-  campaign: POLICY_CLASS_WORDS.campaign.short,
-  booking: POLICY_CLASS_WORDS.booking.short,
-  follow_up: POLICY_CLASS_WORDS.follow_up.short
-};
-var FIRST = { kind: "first_name", label: "First name", example: "Dani" };
-var BUSINESS = { kind: "business_name", label: "Business name", example: "Luna Studio" };
-var LINK = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
-var FIRST_ES = { ...FIRST, label: "Nombre" };
-var BUSINESS_ES = { ...BUSINESS, label: "Nombre del negocio" };
-var LINK_ES = { ...LINK, label: "Enlace de reservas" };
-var WHEN = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" };
-var SERVICE = { kind: "visit_service", label: "Service", example: "a consultation" };
-var WHEN_ES = { ...WHEN, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
-var SERVICE_ES = { ...SERVICE, label: "Servicio", example: "una consulta" };
-var PROPOSAL = {
-  kind: "proposal_link",
-  label: "Proposal link",
-  example: "https://docs.example.com/proposal"
-};
-var PROPOSAL_ES = { ...PROPOSAL, label: "Enlace de la propuesta" };
 var LIMIT_TIERS = {
   TIER_50: 50,
   TIER_250: 250,
@@ -2808,6 +2805,9 @@ var LIMIT_TIERS = {
   TIER_100K: 1e5,
   TIER_UNLIMITED: Number.POSITIVE_INFINITY
 };
+var REPLY_WINDOW_HOURS = 72;
+var REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * 36e5;
+var REPLY_WINDOW_WORDS = `within ${REPLY_WINDOW_HOURS / 24} days`;
 var DAY_MS6 = 24 * 3600 * 1e3;
 var DAY_MS7 = 864e5;
 var QUIET_AFTER_MS = 7 * DAY_MS7;
@@ -4876,9 +4876,6 @@ function visitStartTime(v, tz) {
     new Date(ms(v.start))
   );
 }
-var REPLY_WINDOW_HOURS2 = 72;
-var REPLY_WINDOW_MS2 = REPLY_WINDOW_HOURS2 * 36e5;
-var REPLY_WINDOW_WORDS2 = `within ${REPLY_WINDOW_HOURS2 / 24} days`;
 var FREE_MAIL_DOMAINS = /* @__PURE__ */ new Set([
   "gmail.com",
   "googlemail.com",
@@ -5426,27 +5423,6 @@ function stateCode(raw) {
   if (up.length === 2 && US_CODES2.has(up)) return up;
   return US_STATES2[s.toLowerCase()] ?? null;
 }
-var SELLS_BY_QUESTION2 = "How customers buy";
-var SELLS_BY_WORDS2 = {
-  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
-  proposal: {
-    label: "Some get a proposal first",
-    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
-  }
-};
-var WAITING_AFTER_DAYS = 7;
-var DAY_MS3 = 864e5;
-function heardSinceProposal(r22) {
-  const d = r22.deal;
-  return !!d && d.stage === "proposed" && d.sinceMs !== null && r22.askedMs !== null && r22.askedMs >= d.sinceMs;
-}
-function waitingOnProposal(r22, nowMs, pace) {
-  const d = r22.deal;
-  if (!d || d.stage !== "proposed" || d.sinceMs === null) return false;
-  const wait = pace && Number.isFinite(pace.waitDays) ? pace.waitDays : WAITING_AFTER_DAYS;
-  if (nowMs - d.sinceMs < wait * DAY_MS3) return false;
-  return !heardSinceProposal(r22);
-}
 var REVIEW_AUTO_REPLY_MAX_AGE_MS2 = 14 * 864e5;
 var DATE_FMT5 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var REVIEW_NEWS_MS2 = 36 * 3600 * 1e3;
@@ -5802,504 +5778,27 @@ var LeadSuggestAnswerSchema2 = z52.object({
   ).min(1).max(4)
 });
 var LEAD_UNDO_MS2 = 24 * 60 * 6e4;
-var LIST_NEEDS2 = ["calendar", "consult", "deals", "viewer"];
-var LIST_RULE_FIELDS2 = [
-  {
-    id: "last_visit",
-    label: "Last visit",
-    kind: "days",
-    needs: ["calendar"],
-    draft: "days since their last appointment on the calendar"
-  },
-  {
-    id: "next_visit",
-    label: "Next visit",
-    kind: "days",
-    needs: ["calendar"],
-    draft: "days until their next appointment; op this_week is Monday to Sunday of this week"
-  },
-  { id: "booked", label: "A visit booked", kind: "yesno", needs: ["calendar"], draft: "an appointment booked ahead" },
-  {
-    id: "asked_not_booked",
-    label: "Asked, never booked",
-    kind: "yesno",
-    needs: ["calendar"],
-    draft: "wrote or called in the last 30 days and nothing on the calendar answers it"
-  },
-  {
-    id: "last_heard",
-    label: "Last heard from",
-    kind: "days",
-    needs: [],
-    draft: "days since THEY last wrote or called"
-  },
-  { id: "first_contact", label: "First contact", kind: "days", needs: [], draft: "days since they first got in touch" },
-  {
-    id: "channel",
-    label: "Reaches you by",
-    kind: "channel",
-    needs: [],
-    draft: "a way they reach the business: whatsapp, sms, voice (phone calls) or email"
-  },
-  {
-    id: "came_from",
-    label: "Came from",
-    kind: "came_from",
-    needs: [],
-    draft: "how they first came: whatsapp, sms, email, call, calendar, manual, import or lead"
-  },
-  { id: "calls", label: "Calls", kind: "count", needs: [], draft: "how many calls" },
-  { id: "conversations", label: "Conversations", kind: "count", needs: [], draft: "how many conversations" },
-  {
-    id: "has_chat",
-    label: "Has written with you",
-    kind: "yesno",
-    needs: [],
-    draft: "a written conversation either way (no means they have only phoned)"
-  },
-  {
-    id: "said_yes",
-    label: "Said yes to",
-    kind: "purpose",
-    needs: [],
-    draft: "said yes to offers, or to messages (to: offers or messages)"
-  },
-  {
-    id: "can_receive",
-    label: "Can be sent",
-    kind: "purpose",
-    needs: [],
-    draft: "can be sent offers or messages: the yes and a number to send to (to: offers or messages)"
-  },
-  { id: "stopped", label: "Asked to stop", kind: "yesno", needs: [], draft: "asked to stop, or on do-not-contact" },
-  {
-    id: "standing",
-    label: "Standing",
-    kind: "standing",
-    needs: [],
-    draft: "value needs_you (waiting for a person) or waiting_on_you (you have the thread and they wrote last)"
-  },
-  {
-    id: "assigned",
-    label: "Thread is with",
-    kind: "assigned",
-    needs: [],
-    draft: "who has their thread: value me, teammate or nobody"
-  },
-  {
-    id: "deal_stage",
-    label: "Deal",
-    kind: "deal_stage",
-    needs: ["deals"],
-    draft: "where they are on the way to a deal: value consultation, proposed, won, lost (passed) or ended"
-  },
-  {
-    id: "consultation",
-    label: "A consultation",
-    kind: "yesno",
-    needs: ["calendar", "consult"],
-    draft: "their next or last visit is a consultation"
-  },
-  { id: "step_due", label: "A next step due", kind: "yesno", needs: [], draft: "a next step whose day has come" },
-  {
-    id: "in_list",
-    label: "On the list",
-    kind: "list",
-    needs: [],
-    draft: "on another list, by its token (list); never use it in a draft"
-  }
-];
-var FIELD_IDS2 = LIST_RULE_FIELDS2.map((f) => f.id);
-var fieldOf2 = (id) => LIST_RULE_FIELDS2.find((f) => f.id === id);
-var CHANNELS2 = ["whatsapp", "sms", "voice", "email"];
-var CAME_FROM2 = [
-  "whatsapp",
-  "sms",
-  "email",
-  "call",
-  "calendar",
-  "manual",
-  "import",
-  "lead"
-];
-var LIST_PURPOSES2 = ["offers", "messages"];
-var LIST_STANDINGS2 = ["needs_you", "waiting_on_you"];
-var LIST_ASSIGNED2 = ["me", "teammate", "nobody"];
-var LIST_DEAL_STAGES2 = ["consultation", "proposed", "won", "lost", "ended"];
-var LIST_RULE_MAX2 = 12;
-var LIST_ANY_MAX2 = 6;
-var DAY_OPS2 = ["more_than", "within", "never", "ever", "this_week"];
-var Days2 = { op: z62.enum(DAY_OPS2), days: z62.number().int().min(1).max(3650).optional() };
-var YesNo2 = { op: z62.literal("is"), yes: z62.boolean() };
-var Count2 = { op: z62.enum(["at_least", "at_most"]), n: z62.number().int().min(0).max(1e4) };
-var IsOrNot2 = z62.enum(["is", "is_not"]);
-var Token2 = z62.string().regex(/^(seg:[a-z_]{1,40}|list:[0-9a-f-]{36})$/i);
-var fact2 = (shape) => z62.object(shape).strict();
-var ListFactSchema2 = z62.discriminatedUnion("field", [
-  fact2({ field: z62.literal("last_visit"), ...Days2 }),
-  fact2({ field: z62.literal("next_visit"), ...Days2 }),
-  fact2({ field: z62.literal("booked"), ...YesNo2 }),
-  fact2({ field: z62.literal("asked_not_booked"), ...YesNo2 }),
-  fact2({ field: z62.literal("last_heard"), ...Days2 }),
-  fact2({ field: z62.literal("first_contact"), ...Days2 }),
-  fact2({ field: z62.literal("channel"), op: IsOrNot2, channel: z62.enum(CHANNELS2) }),
-  fact2({ field: z62.literal("came_from"), op: IsOrNot2, from: z62.enum(CAME_FROM2) }),
-  fact2({ field: z62.literal("calls"), ...Count2 }),
-  fact2({ field: z62.literal("conversations"), ...Count2 }),
-  fact2({ field: z62.literal("has_chat"), ...YesNo2 }),
-  fact2({ field: z62.literal("said_yes"), ...YesNo2, to: z62.enum(LIST_PURPOSES2) }),
-  fact2({ field: z62.literal("can_receive"), ...YesNo2, to: z62.enum(LIST_PURPOSES2) }),
-  fact2({ field: z62.literal("stopped"), ...YesNo2 }),
-  fact2({ field: z62.literal("standing"), op: IsOrNot2, value: z62.enum(LIST_STANDINGS2) }),
-  fact2({ field: z62.literal("assigned"), op: IsOrNot2, value: z62.enum(LIST_ASSIGNED2) }),
-  fact2({ field: z62.literal("deal_stage"), op: IsOrNot2, value: z62.enum(LIST_DEAL_STAGES2) }),
-  fact2({ field: z62.literal("consultation"), ...YesNo2 }),
-  fact2({ field: z62.literal("step_due"), ...YesNo2 }),
-  fact2({ field: z62.literal("in_list"), op: IsOrNot2, list: Token2 })
-]);
-var AnySchema2 = z62.object({ any: z62.array(ListFactSchema2).min(2).max(LIST_ANY_MAX2) }).strict();
-var ListConditionSchema2 = z62.union([AnySchema2, ListFactSchema2]);
-function factProblem2(f) {
-  if (f.field !== "last_visit" && f.field !== "next_visit" && f.field !== "last_heard" && f.field !== "first_contact")
-    return null;
-  if ((f.op === "more_than" || f.op === "within") && f.days === void 0) return `${f.field} ${f.op} needs days`;
-  if (f.op === "this_week" && f.field !== "next_visit") return "only the next visit can be this week";
-  return null;
-}
-var ListRuleSchema2 = z62.object({
-  v: z62.literal(2).optional(),
-  all: z62.array(ListConditionSchema2).min(1).max(LIST_RULE_MAX2)
-}).strict().superRefine((r22, ctx) => {
-  for (const f of r22.all.flatMap((c) => "any" in c ? c.any : [c])) {
-    const p = factProblem2(f);
-    if (p) ctx.addIssue({ code: z62.ZodIssueCode.custom, message: p });
-  }
-});
-function ruleFacts2(rule) {
-  return rule.all.flatMap((c) => "any" in c ? c.any : [c]);
-}
-function factNeeds2(f) {
-  const needs = new Set(fieldOf2(f.field).needs);
-  if (f.field === "standing" && f.value === "waiting_on_you") needs.add("viewer");
-  if (f.field === "assigned" && f.value !== "nobody") needs.add("viewer");
-  if (f.field === "deal_stage" && f.value === "consultation") {
-    needs.add("calendar");
-    needs.add("consult");
-  }
-  return LIST_NEEDS2.filter((n) => needs.has(n));
-}
-function ruleNeeds2(rule) {
-  const needs = new Set(ruleFacts2(rule).flatMap(factNeeds2));
-  return LIST_NEEDS2.filter((n) => needs.has(n));
-}
-function dayHolds2(days, op, n) {
-  switch (op) {
-    case "never":
-      return days === null;
-    case "ever":
-      return days !== null;
-    case "within":
-      return days !== null && days <= (n ?? 0);
-    case "more_than":
-      return days !== null && days > (n ?? 0);
-    case "this_week":
-      return false;
-  }
-}
-function holds2(f, v, inList) {
-  const is = "op" in f && f.op === "is";
-  switch (f.field) {
-    case "last_visit":
-      return dayHolds2(v.lastVisitDays, f.op, f.days);
-    case "next_visit":
-      return f.op === "this_week" ? v.nextVisitThisWeek : dayHolds2(v.nextVisitDays, f.op, f.days);
-    case "last_heard":
-      return dayHolds2(v.heardDays, f.op, f.days);
-    case "first_contact":
-      return f.op === "within" && !v.firstContact.evidence ? false : dayHolds2(v.firstDays, f.op, f.days);
-    case "booked":
-      return v.booked === f.yes;
-    case "asked_not_booked":
-      return v.askedNotBooked === f.yes;
-    case "has_chat":
-      return v.hasChat === f.yes;
-    case "stopped":
-      return v.stopped === f.yes;
-    case "consultation":
-      return v.consultationVisit === f.yes;
-    case "step_due":
-      return v.stepDue === f.yes;
-    case "said_yes":
-      return v.saidYes[f.to] === f.yes;
-    case "can_receive":
-      return v.canReceive[f.to] === f.yes;
-    case "channel":
-      return v.channels.includes(f.channel) === is;
-    case "came_from":
-      return v.cameFrom?.key === f.from === is;
-    case "calls":
-      return f.op === "at_least" ? v.calls >= f.n : v.calls <= f.n;
-    case "conversations":
-      return f.op === "at_least" ? v.threads >= f.n : v.threads <= f.n;
-    case "standing":
-      return v.standing === f.value === is;
-    case "assigned":
-      return v.assigned === f.value === is;
-    case "deal_stage":
-      return v.dealStage === f.value === is;
-    case "in_list":
-      return inList(f.list, v.id) === is;
-  }
-}
-var noLists2 = () => false;
-function listRuleMatches2(rule, v, inList = noLists2) {
-  return rule.all.every((c) => "any" in c ? c.any.some((f) => holds2(f, v, inList)) : holds2(c, v, inList));
-}
-var LEAF_PROPERTIES2 = {
-  field: { type: "string", enum: FIELD_IDS2.filter((id) => id !== "in_list") },
-  op: { type: "string", enum: [...DAY_OPS2, "at_least", "at_most", "is", "is_not"] },
-  days: { type: "integer" },
-  n: { type: "integer" },
-  yes: { type: "boolean" },
-  channel: { type: "string", enum: [...CHANNELS2] },
-  from: { type: "string", enum: [...CAME_FROM2] },
-  to: { type: "string", enum: [...LIST_PURPOSES2] },
-  value: { type: "string", enum: [.../* @__PURE__ */ new Set([...LIST_STANDINGS2, ...LIST_ASSIGNED2, ...LIST_DEAL_STAGES2])] }
-};
-var LIST_DRAFT_JSON_SCHEMA2 = {
-  type: "object",
-  additionalProperties: false,
-  required: ["name", "all", "cannot"],
-  properties: {
-    name: { type: "string" },
-    cannot: { type: "string" },
-    all: {
-      type: "array",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        properties: {
-          ...LEAF_PROPERTIES2,
-          any: {
-            type: "array",
-            items: {
-              type: "object",
-              additionalProperties: false,
-              required: ["field", "op"],
-              properties: LEAF_PROPERTIES2
-            }
-          }
-        }
-      }
-    }
+var SELLS_BY_QUESTION2 = "How customers buy";
+var SELLS_BY_WORDS2 = {
+  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
+  proposal: {
+    label: "Some get a proposal first",
+    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
   }
 };
-var ListDraftAnswerSchema2 = z62.object({
-  name: z62.string().trim().min(1).max(60),
-  cannot: z62.string().trim().max(200),
-  all: z62.array(z62.unknown()).max(LIST_RULE_MAX2)
-});
-var SAVED_ID2 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-var BUILTIN_ID2 = /^[a-z_]{1,40}$/;
-function listToken(ref) {
-  return ref.kind === "builtin" ? `seg:${ref.id}` : `list:${ref.id}`;
+var WAITING_AFTER_DAYS = 7;
+var DAY_MS3 = 864e5;
+function heardSinceProposal(r22) {
+  const d = r22.deal;
+  return !!d && d.stage === "proposed" && d.sinceMs !== null && r22.askedMs !== null && r22.askedMs >= d.sinceMs;
 }
-function parseListToken2(token) {
-  if (typeof token !== "string") return null;
-  const at2 = token.indexOf(":");
-  const kind = token.slice(0, at2);
-  const id = token.slice(at2 + 1);
-  if ((kind === "seg" || kind === "state") && BUILTIN_ID2.test(id)) return { kind: "builtin", id };
-  if (kind === "list" && SAVED_ID2.test(id)) return { kind: "saved", id: id.toLowerCase() };
-  return null;
+function waitingOnProposal(r22, nowMs, pace) {
+  const d = r22.deal;
+  if (!d || d.stage !== "proposed" || d.sinceMs === null) return false;
+  const wait = pace && Number.isFinite(pace.waitDays) ? pace.waitDays : WAITING_AFTER_DAYS;
+  if (nowMs - d.sinceMs < wait * DAY_MS3) return false;
+  return !heardSinceProposal(r22);
 }
-var r2 = (...all) => ({ v: 2, all });
-var BUILTIN_LISTS2 = [
-  {
-    id: "needs_you",
-    label: "Needs you",
-    tip: "An open escalation, or a thread waiting for a person",
-    group: "attention",
-    onProfile: false,
-    rule: r2({ field: "standing", op: "is", value: "needs_you" })
-  },
-  // Yours, or nobody's: a teammate's thread waits on them (standing.ts).
-  {
-    id: "waiting_on_you",
-    label: "Waiting on you",
-    tip: "You have the thread, or nobody does, and they wrote last \u2014 a teammate's waits on them",
-    group: "attention",
-    onProfile: false,
-    rule: r2({ field: "standing", op: "is", value: "waiting_on_you" })
-  },
-  // Their next step's day has come (0007, amended): every workspace, deals or not. The page says the step itself.
-  {
-    id: "steps_due",
-    label: "Steps due",
-    tip: "Their next step's day has come, or gone by \u2014 a note with a day, for the team",
-    group: "attention",
-    onProfile: false,
-    rule: r2({ field: "step_due", op: "is", yes: true })
-  },
-  // New by the date they first got in touch, whatever their standing: someone new who needs you is both.
-  {
-    id: "new_week",
-    label: "New this week",
-    tip: "First contact in the last 7 days, by evidence \u2014 imported history never counts",
-    group: "journey",
-    rule: r2({ field: "first_contact", op: "within", days: 7 })
-  },
-  // This week, Monday to Sunday, by the workspace's clock.
-  {
-    id: "booked_week",
-    label: "Booked this week",
-    tip: "An appointment this week, Monday to Sunday",
-    group: "journey",
-    rule: r2({ field: "next_visit", op: "this_week" })
-  },
-  {
-    id: "booked",
-    label: "Booked",
-    tip: "An appointment ahead on your calendar \u2014 the booking is the conversion",
-    group: "journey",
-    rule: r2({ field: "booked", op: "is", yes: true })
-  },
-  // Reports' rule (calendar-people.ts visitAnswersAsk): asked in 30 days and nothing on the calendar answers it.
-  {
-    id: "asked_never_booked",
-    label: "Asked, never booked",
-    tip: "Wrote or called in the last 30 days, and nothing on your calendar since answers it \u2014 the people you can still win",
-    group: "journey",
-    rule: r2({ field: "asked_not_booked", op: "is", yes: true })
-  },
-  // Forty-five days since the chair, nothing ahead: the win-back list, from visits rather than silence.
-  {
-    id: "lapsed",
-    label: "Lapsed",
-    tip: "Forty-five days or more since their last visit, nothing ahead \u2014 the win-back list, from visits rather than silence",
-    group: "journey",
-    rule: r2({ field: "booked", op: "is", yes: false }, { field: "last_visit", op: "more_than", days: 44 })
-  },
-  // The journey past the booking (0004), as the Pipeline groups it (deals.ts dealStageOf).
-  {
-    id: "consultation_booked",
-    label: "Consultations",
-    tip: "A consultation coming up, or one this past week with no proposal since \u2014 the Pipeline's Consultations",
-    group: "journey",
-    onProfile: false,
-    rule: r2({ field: "deal_stage", op: "is", value: "consultation" })
-  },
-  {
-    id: "proposal_out",
-    label: "Proposal out",
-    tip: "A proposal went out and is waiting on their answer",
-    group: "journey",
-    onProfile: false,
-    rule: r2({ field: "deal_stage", op: "is", value: "proposed" })
-  },
-  {
-    id: "clients",
-    label: "Clients",
-    tip: "Said yes, or paid \u2014 the engagement is running",
-    group: "journey",
-    onProfile: false,
-    rule: r2({ field: "deal_stage", op: "is", value: "won" })
-  },
-  {
-    id: "deal_passed",
-    label: "Passed",
-    tip: "They passed on a proposal",
-    group: "journey",
-    onProfile: false,
-    rule: r2({ field: "deal_stage", op: "is", value: "lost" })
-  },
-  {
-    id: "deal_ended",
-    label: "Ended",
-    tip: "An engagement that ended \u2014 the win-back list for clients",
-    group: "journey",
-    onProfile: false,
-    rule: r2({ field: "deal_stage", op: "is", value: "ended" })
-  },
-  // Heard from them, then nothing for thirty days: someone we never heard from is not quiet, and our own sends are
-  // not their word.
-  {
-    id: "quiet",
-    label: "Quiet 30+ days",
-    tip: "They haven't written or called in 30 days \u2014 your own messages don't count, and someone never heard from isn't quiet",
-    group: "reach",
-    rule: r2({ field: "last_heard", op: "more_than", days: 30 })
-  },
-  {
-    id: "phoned_only",
-    label: "Phoned only",
-    tip: "Only ever phoned \u2014 no WhatsApp thread",
-    group: "reach",
-    rule: r2({ field: "has_chat", op: "is", yes: false }, { field: "calls", op: "at_least", n: 1 })
-  },
-  // TWO LISTS, BECAUSE THERE ARE TWO ANSWERS. This one is the yes to hearing from the business, which says nothing
-  // about offers; the next is the promotional audience, who a marketing broadcast may reach: the yes AND a number.
-  {
-    id: "opted_in",
-    label: "Said yes to messages",
-    tip: "Said yes to hearing from you \u2014 replies and messages about their own visit",
-    group: "reach",
-    onProfile: false,
-    rule: r2({ field: "said_yes", op: "is", to: "messages", yes: true })
-  },
-  {
-    id: "offers_ok",
-    label: "Can receive offers",
-    tip: "Said yes to OFFERS, separately, with a number to send to \u2014 the only people a promotional broadcast may reach",
-    group: "reach",
-    onProfile: false,
-    rule: r2({ field: "can_receive", op: "is", to: "offers", yes: true })
-  },
-  // A fact, not the state: someone who opted out AND needs you is in both lists.
-  {
-    id: "opted_out",
-    label: "Opted out",
-    tip: "Asked to stop; the receptionist stays silent, offers included",
-    group: "reach",
-    onProfile: false,
-    rule: r2({ field: "stopped", op: "is", yes: true })
-  }
-];
-var PEOPLE_LISTS2 = BUILTIN_LISTS2.map((l) => {
-  const needs = ruleNeeds2(l.rule);
-  return {
-    ...l,
-    ...needs.includes("calendar") ? { needsCalendar: true } : {},
-    ...needs.includes("consult") ? { needsConsultFirst: true } : {},
-    ...needs.includes("deals") ? { needsDeals: true } : {},
-    ...needs.includes("viewer") ? { needsViewer: true } : {},
-    test: (vm) => listRuleMatches2(l.rule, vm)
-  };
-});
-var PeopleExportQuerySchema2 = z72.object({
-  list: z72.string().max(80).refine((t) => parseListToken2(t) !== null, "Name a list by its token.").optional()
-});
-var PERSON_MODE_LABELS2 = { auto: "Answer", ask: "Ask me first", never: "Never" };
-var PERSON_MODE_WORDS2 = {
-  ...PERSON_MODE_LABELS2,
-  inherit: "Follow the workspace"
-};
-var DAY_MS42 = 864e5;
-var WEEK_MS32 = 7 * DAY_MS42;
-var MONTH_MS2 = 30 * DAY_MS42;
-var NOTE_MAX2 = 600;
-var NOTE_REFUSALS2 = {
-  empty: "Write something first.",
-  too_long: `A note is at most ${NOTE_MAX2} characters.`,
-  not_found: "This person or this note is no longer here.",
-  not_a_member: "That person is not on the team.",
-  not_yours: "Only the person who wrote this note can change it.",
-  moved: "Someone changed this note since you opened it. Read it again, then save.",
-  decided: "Someone already decided on this suggestion.",
-  bad_source: "Could not save this note.",
-  bad_deal: "That deal is not this person's.",
-  not_a_step: "Only a note with a day can be done."
-};
 function mayReceive(r22, purpose) {
   return whyNotReceive(r22, purpose) === null;
 }
@@ -6320,10 +5819,31 @@ function saidYesTo(r22, purpose) {
     { proactive: true }
   ).ok;
 }
+var DAY_MS42 = 864e5;
+var WEEK_MS32 = 7 * DAY_MS42;
+var MONTH_MS2 = 30 * DAY_MS42;
+var NOTE_MAX2 = 600;
+var NOTE_REFUSALS2 = {
+  empty: "Write something first.",
+  too_long: `A note is at most ${NOTE_MAX2} characters.`,
+  not_found: "This person or this note is no longer here.",
+  not_a_member: "That person is not on the team.",
+  not_yours: "Only the person who wrote this note can change it.",
+  moved: "Someone changed this note since you opened it. Read it again, then save.",
+  decided: "Someone already decided on this suggestion.",
+  bad_source: "Could not save this note.",
+  bad_deal: "That deal is not this person's.",
+  not_a_step: "Only a note with a day can be done."
+};
 var NO_NUMBER_REACH = "a broadcast reaches only a recorded yes with a number to send to";
 function noNumberWords(who, purpose) {
   return `Nobody on ${who} can be sent ${purpose === "marketing" ? "an offer" : "a message"} yet \u2014 ${NO_NUMBER_REACH}.`;
 }
+var PERSON_MODE_LABELS2 = { auto: "Answer", ask: "Ask me first", never: "Never" };
+var PERSON_MODE_WORDS2 = {
+  ...PERSON_MODE_LABELS2,
+  inherit: "Follow the workspace"
+};
 var L2 = (id, name, region, native) => ({
   id,
   label: region ? `${name} (${region})` : name,
@@ -7065,6 +6585,483 @@ function slotToWrite(t) {
   if (at2 < 0) return null;
   return slotLabels({ name: t.name, language: t.language ?? "en_US", variables: t.variables })[at2] ?? `Value ${at2 + 1}`;
 }
+var LIST_NEEDS2 = ["calendar", "consult", "deals", "viewer"];
+var LIST_RULE_FIELDS2 = [
+  {
+    id: "last_visit",
+    label: "Last visit",
+    kind: "days",
+    needs: ["calendar"],
+    draft: "days since their last appointment on the calendar"
+  },
+  {
+    id: "next_visit",
+    label: "Next visit",
+    kind: "days",
+    needs: ["calendar"],
+    draft: "days until their next appointment; op this_week is Monday to Sunday of this week"
+  },
+  { id: "booked", label: "A visit booked", kind: "yesno", needs: ["calendar"], draft: "an appointment booked ahead" },
+  {
+    id: "asked_not_booked",
+    label: "Asked, never booked",
+    kind: "yesno",
+    needs: ["calendar"],
+    draft: "wrote or called in the last 30 days and nothing on the calendar answers it"
+  },
+  {
+    id: "last_heard",
+    label: "Last heard from",
+    kind: "days",
+    needs: [],
+    draft: "days since THEY last wrote or called"
+  },
+  { id: "first_contact", label: "First contact", kind: "days", needs: [], draft: "days since they first got in touch" },
+  {
+    id: "channel",
+    label: "Reaches you by",
+    kind: "channel",
+    needs: [],
+    draft: "a way they reach the business: whatsapp, sms, voice (phone calls) or email"
+  },
+  {
+    id: "came_from",
+    label: "Came from",
+    kind: "came_from",
+    needs: [],
+    draft: "how they first came: whatsapp, sms, email, call, calendar, manual, import or lead"
+  },
+  { id: "calls", label: "Calls", kind: "count", needs: [], draft: "how many calls" },
+  { id: "conversations", label: "Conversations", kind: "count", needs: [], draft: "how many conversations" },
+  {
+    id: "has_chat",
+    label: "Has written with you",
+    kind: "yesno",
+    needs: [],
+    draft: "a written conversation either way (no means they have only phoned)"
+  },
+  {
+    id: "said_yes",
+    label: "Said yes to",
+    kind: "purpose",
+    needs: [],
+    draft: "said yes to offers, or to messages (to: offers or messages)"
+  },
+  {
+    id: "can_receive",
+    label: "Can be sent",
+    kind: "purpose",
+    needs: [],
+    draft: "can be sent offers or messages: the yes and a number to send to (to: offers or messages)"
+  },
+  { id: "stopped", label: "Asked to stop", kind: "yesno", needs: [], draft: "asked to stop, or on do-not-contact" },
+  {
+    id: "standing",
+    label: "Standing",
+    kind: "standing",
+    needs: [],
+    draft: "value needs_you (waiting for a person) or waiting_on_you (you have the thread and they wrote last)"
+  },
+  {
+    id: "assigned",
+    label: "Thread is with",
+    kind: "assigned",
+    needs: [],
+    draft: "who has their thread: value me, teammate or nobody"
+  },
+  {
+    id: "deal_stage",
+    label: "Deal",
+    kind: "deal_stage",
+    needs: ["deals"],
+    draft: "where they are on the way to a deal: value consultation, proposed, won, lost (passed) or ended"
+  },
+  {
+    id: "consultation",
+    label: "A consultation",
+    kind: "yesno",
+    needs: ["calendar", "consult"],
+    draft: "their next or last visit is a consultation"
+  },
+  { id: "step_due", label: "A next step due", kind: "yesno", needs: [], draft: "a next step whose day has come" },
+  {
+    id: "in_list",
+    label: "On the list",
+    kind: "list",
+    needs: [],
+    draft: "on another list, by its token (list); never use it in a draft"
+  }
+];
+var FIELD_IDS2 = LIST_RULE_FIELDS2.map((f) => f.id);
+var fieldOf2 = (id) => LIST_RULE_FIELDS2.find((f) => f.id === id);
+var CHANNELS2 = ["whatsapp", "sms", "voice", "email"];
+var CAME_FROM2 = [
+  "whatsapp",
+  "sms",
+  "email",
+  "call",
+  "calendar",
+  "manual",
+  "import",
+  "lead"
+];
+var LIST_PURPOSES2 = ["offers", "messages"];
+var LIST_STANDINGS2 = ["needs_you", "waiting_on_you"];
+var LIST_ASSIGNED2 = ["me", "teammate", "nobody"];
+var LIST_DEAL_STAGES2 = ["consultation", "proposed", "won", "lost", "ended"];
+var LIST_RULE_MAX2 = 12;
+var LIST_ANY_MAX2 = 6;
+var DAY_OPS2 = ["more_than", "within", "never", "ever", "this_week"];
+var Days2 = { op: z62.enum(DAY_OPS2), days: z62.number().int().min(1).max(3650).optional() };
+var YesNo2 = { op: z62.literal("is"), yes: z62.boolean() };
+var Count2 = { op: z62.enum(["at_least", "at_most"]), n: z62.number().int().min(0).max(1e4) };
+var IsOrNot2 = z62.enum(["is", "is_not"]);
+var Token2 = z62.string().regex(/^(seg:[a-z_]{1,40}|list:[0-9a-f-]{36})$/i);
+var fact2 = (shape) => z62.object(shape).strict();
+var ListFactSchema2 = z62.discriminatedUnion("field", [
+  fact2({ field: z62.literal("last_visit"), ...Days2 }),
+  fact2({ field: z62.literal("next_visit"), ...Days2 }),
+  fact2({ field: z62.literal("booked"), ...YesNo2 }),
+  fact2({ field: z62.literal("asked_not_booked"), ...YesNo2 }),
+  fact2({ field: z62.literal("last_heard"), ...Days2 }),
+  fact2({ field: z62.literal("first_contact"), ...Days2 }),
+  fact2({ field: z62.literal("channel"), op: IsOrNot2, channel: z62.enum(CHANNELS2) }),
+  fact2({ field: z62.literal("came_from"), op: IsOrNot2, from: z62.enum(CAME_FROM2) }),
+  fact2({ field: z62.literal("calls"), ...Count2 }),
+  fact2({ field: z62.literal("conversations"), ...Count2 }),
+  fact2({ field: z62.literal("has_chat"), ...YesNo2 }),
+  fact2({ field: z62.literal("said_yes"), ...YesNo2, to: z62.enum(LIST_PURPOSES2) }),
+  fact2({ field: z62.literal("can_receive"), ...YesNo2, to: z62.enum(LIST_PURPOSES2) }),
+  fact2({ field: z62.literal("stopped"), ...YesNo2 }),
+  fact2({ field: z62.literal("standing"), op: IsOrNot2, value: z62.enum(LIST_STANDINGS2) }),
+  fact2({ field: z62.literal("assigned"), op: IsOrNot2, value: z62.enum(LIST_ASSIGNED2) }),
+  fact2({ field: z62.literal("deal_stage"), op: IsOrNot2, value: z62.enum(LIST_DEAL_STAGES2) }),
+  fact2({ field: z62.literal("consultation"), ...YesNo2 }),
+  fact2({ field: z62.literal("step_due"), ...YesNo2 }),
+  fact2({ field: z62.literal("in_list"), op: IsOrNot2, list: Token2 })
+]);
+var AnySchema2 = z62.object({ any: z62.array(ListFactSchema2).min(2).max(LIST_ANY_MAX2) }).strict();
+var ListConditionSchema2 = z62.union([AnySchema2, ListFactSchema2]);
+function factProblem2(f) {
+  if (f.field !== "last_visit" && f.field !== "next_visit" && f.field !== "last_heard" && f.field !== "first_contact")
+    return null;
+  if ((f.op === "more_than" || f.op === "within") && f.days === void 0) return `${f.field} ${f.op} needs days`;
+  if (f.op === "this_week" && f.field !== "next_visit") return "only the next visit can be this week";
+  return null;
+}
+var ListRuleSchema2 = z62.object({
+  v: z62.literal(2).optional(),
+  all: z62.array(ListConditionSchema2).min(1).max(LIST_RULE_MAX2)
+}).strict().superRefine((r22, ctx) => {
+  for (const f of r22.all.flatMap((c) => "any" in c ? c.any : [c])) {
+    const p = factProblem2(f);
+    if (p) ctx.addIssue({ code: z62.ZodIssueCode.custom, message: p });
+  }
+});
+function ruleFacts2(rule) {
+  return rule.all.flatMap((c) => "any" in c ? c.any : [c]);
+}
+function factNeeds2(f) {
+  const needs = new Set(fieldOf2(f.field).needs);
+  if (f.field === "standing" && f.value === "waiting_on_you") needs.add("viewer");
+  if (f.field === "assigned" && f.value !== "nobody") needs.add("viewer");
+  if (f.field === "deal_stage" && f.value === "consultation") {
+    needs.add("calendar");
+    needs.add("consult");
+  }
+  return LIST_NEEDS2.filter((n) => needs.has(n));
+}
+function ruleNeeds2(rule) {
+  const needs = new Set(ruleFacts2(rule).flatMap(factNeeds2));
+  return LIST_NEEDS2.filter((n) => needs.has(n));
+}
+function dayHolds2(days, op, n) {
+  switch (op) {
+    case "never":
+      return days === null;
+    case "ever":
+      return days !== null;
+    case "within":
+      return days !== null && days <= (n ?? 0);
+    case "more_than":
+      return days !== null && days > (n ?? 0);
+    case "this_week":
+      return false;
+  }
+}
+function holds2(f, v, inList) {
+  const is = "op" in f && f.op === "is";
+  switch (f.field) {
+    case "last_visit":
+      return dayHolds2(v.lastVisitDays, f.op, f.days);
+    case "next_visit":
+      return f.op === "this_week" ? v.nextVisitThisWeek : dayHolds2(v.nextVisitDays, f.op, f.days);
+    case "last_heard":
+      return dayHolds2(v.heardDays, f.op, f.days);
+    case "first_contact":
+      return f.op === "within" && !v.firstContact.evidence ? false : dayHolds2(v.firstDays, f.op, f.days);
+    case "booked":
+      return v.booked === f.yes;
+    case "asked_not_booked":
+      return v.askedNotBooked === f.yes;
+    case "has_chat":
+      return v.hasChat === f.yes;
+    case "stopped":
+      return v.stopped === f.yes;
+    case "consultation":
+      return v.consultationVisit === f.yes;
+    case "step_due":
+      return v.stepDue === f.yes;
+    case "said_yes":
+      return v.saidYes[f.to] === f.yes;
+    case "can_receive":
+      return v.canReceive[f.to] === f.yes;
+    case "channel":
+      return v.channels.includes(f.channel) === is;
+    case "came_from":
+      return v.cameFrom?.key === f.from === is;
+    case "calls":
+      return f.op === "at_least" ? v.calls >= f.n : v.calls <= f.n;
+    case "conversations":
+      return f.op === "at_least" ? v.threads >= f.n : v.threads <= f.n;
+    case "standing":
+      return v.standing === f.value === is;
+    case "assigned":
+      return v.assigned === f.value === is;
+    case "deal_stage":
+      return v.dealStage === f.value === is;
+    case "in_list":
+      return inList(f.list, v.id) === is;
+  }
+}
+var noLists2 = () => false;
+function listRuleMatches2(rule, v, inList = noLists2) {
+  return rule.all.every((c) => "any" in c ? c.any.some((f) => holds2(f, v, inList)) : holds2(c, v, inList));
+}
+var LEAF_PROPERTIES2 = {
+  field: { type: "string", enum: FIELD_IDS2.filter((id) => id !== "in_list") },
+  op: { type: "string", enum: [...DAY_OPS2, "at_least", "at_most", "is", "is_not"] },
+  days: { type: "integer" },
+  n: { type: "integer" },
+  yes: { type: "boolean" },
+  channel: { type: "string", enum: [...CHANNELS2] },
+  from: { type: "string", enum: [...CAME_FROM2] },
+  to: { type: "string", enum: [...LIST_PURPOSES2] },
+  value: { type: "string", enum: [.../* @__PURE__ */ new Set([...LIST_STANDINGS2, ...LIST_ASSIGNED2, ...LIST_DEAL_STAGES2])] }
+};
+var LIST_DRAFT_JSON_SCHEMA2 = {
+  type: "object",
+  additionalProperties: false,
+  required: ["name", "all", "cannot"],
+  properties: {
+    name: { type: "string" },
+    cannot: { type: "string" },
+    all: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          ...LEAF_PROPERTIES2,
+          any: {
+            type: "array",
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: ["field", "op"],
+              properties: LEAF_PROPERTIES2
+            }
+          }
+        }
+      }
+    }
+  }
+};
+var ListDraftAnswerSchema2 = z62.object({
+  name: z62.string().trim().min(1).max(60),
+  cannot: z62.string().trim().max(200),
+  all: z62.array(z62.unknown()).max(LIST_RULE_MAX2)
+});
+var SAVED_ID2 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+var BUILTIN_ID2 = /^[a-z_]{1,40}$/;
+function listToken(ref) {
+  return ref.kind === "builtin" ? `seg:${ref.id}` : `list:${ref.id}`;
+}
+function parseListToken2(token) {
+  if (typeof token !== "string") return null;
+  const at2 = token.indexOf(":");
+  const kind = token.slice(0, at2);
+  const id = token.slice(at2 + 1);
+  if ((kind === "seg" || kind === "state") && BUILTIN_ID2.test(id)) return { kind: "builtin", id };
+  if (kind === "list" && SAVED_ID2.test(id)) return { kind: "saved", id: id.toLowerCase() };
+  return null;
+}
+var r2 = (...all) => ({ v: 2, all });
+var BUILTIN_LISTS2 = [
+  {
+    id: "needs_you",
+    label: "Needs you",
+    tip: "An open escalation, or a thread waiting for a person",
+    group: "attention",
+    onProfile: false,
+    rule: r2({ field: "standing", op: "is", value: "needs_you" })
+  },
+  // Yours, or nobody's: a teammate's thread waits on them (standing.ts).
+  {
+    id: "waiting_on_you",
+    label: "Waiting on you",
+    tip: "You have the thread, or nobody does, and they wrote last \u2014 a teammate's waits on them",
+    group: "attention",
+    onProfile: false,
+    rule: r2({ field: "standing", op: "is", value: "waiting_on_you" })
+  },
+  // Their next step's day has come (0007, amended): every workspace, deals or not. The page says the step itself.
+  {
+    id: "steps_due",
+    label: "Steps due",
+    tip: "Their next step's day has come, or gone by \u2014 a note with a day, for the team",
+    group: "attention",
+    onProfile: false,
+    rule: r2({ field: "step_due", op: "is", yes: true })
+  },
+  // New by the date they first got in touch, whatever their standing: someone new who needs you is both.
+  {
+    id: "new_week",
+    label: "New this week",
+    tip: "First contact in the last 7 days, by evidence \u2014 imported history never counts",
+    group: "journey",
+    rule: r2({ field: "first_contact", op: "within", days: 7 })
+  },
+  // This week, Monday to Sunday, by the workspace's clock.
+  {
+    id: "booked_week",
+    label: "Booked this week",
+    tip: "An appointment this week, Monday to Sunday",
+    group: "journey",
+    rule: r2({ field: "next_visit", op: "this_week" })
+  },
+  {
+    id: "booked",
+    label: "Booked",
+    tip: "An appointment ahead on your calendar \u2014 the booking is the conversion",
+    group: "journey",
+    rule: r2({ field: "booked", op: "is", yes: true })
+  },
+  // Reports' rule (calendar-people.ts visitAnswersAsk): asked in 30 days and nothing on the calendar answers it.
+  {
+    id: "asked_never_booked",
+    label: "Asked, never booked",
+    tip: "Wrote or called in the last 30 days, and nothing on your calendar since answers it \u2014 the people you can still win",
+    group: "journey",
+    rule: r2({ field: "asked_not_booked", op: "is", yes: true })
+  },
+  // Forty-five days since the chair, nothing ahead: the win-back list, from visits rather than silence.
+  {
+    id: "lapsed",
+    label: "Lapsed",
+    tip: "Forty-five days or more since their last visit, nothing ahead \u2014 the win-back list, from visits rather than silence",
+    group: "journey",
+    rule: r2({ field: "booked", op: "is", yes: false }, { field: "last_visit", op: "more_than", days: 44 })
+  },
+  // The journey past the booking (0004), as the Pipeline groups it (deals.ts dealStageOf).
+  {
+    id: "consultation_booked",
+    label: "Consultations",
+    tip: "A consultation coming up, or one this past week with no proposal since \u2014 the Pipeline's Consultations",
+    group: "journey",
+    onProfile: false,
+    rule: r2({ field: "deal_stage", op: "is", value: "consultation" })
+  },
+  {
+    id: "proposal_out",
+    label: "Proposal out",
+    tip: "A proposal went out and is waiting on their answer",
+    group: "journey",
+    onProfile: false,
+    rule: r2({ field: "deal_stage", op: "is", value: "proposed" })
+  },
+  {
+    id: "clients",
+    label: "Clients",
+    tip: "Said yes, or paid \u2014 the engagement is running",
+    group: "journey",
+    onProfile: false,
+    rule: r2({ field: "deal_stage", op: "is", value: "won" })
+  },
+  {
+    id: "deal_passed",
+    label: "Passed",
+    tip: "They passed on a proposal",
+    group: "journey",
+    onProfile: false,
+    rule: r2({ field: "deal_stage", op: "is", value: "lost" })
+  },
+  {
+    id: "deal_ended",
+    label: "Ended",
+    tip: "An engagement that ended \u2014 the win-back list for clients",
+    group: "journey",
+    onProfile: false,
+    rule: r2({ field: "deal_stage", op: "is", value: "ended" })
+  },
+  // Heard from them, then nothing for thirty days: someone we never heard from is not quiet, and our own sends are
+  // not their word.
+  {
+    id: "quiet",
+    label: "Quiet 30+ days",
+    tip: "They haven't written or called in 30 days \u2014 your own messages don't count, and someone never heard from isn't quiet",
+    group: "reach",
+    rule: r2({ field: "last_heard", op: "more_than", days: 30 })
+  },
+  {
+    id: "phoned_only",
+    label: "Phoned only",
+    tip: "Only ever phoned \u2014 no WhatsApp thread",
+    group: "reach",
+    rule: r2({ field: "has_chat", op: "is", yes: false }, { field: "calls", op: "at_least", n: 1 })
+  },
+  // TWO LISTS, BECAUSE THERE ARE TWO ANSWERS. This one is the yes to hearing from the business, which says nothing
+  // about offers; the next is the promotional audience, who a marketing broadcast may reach: the yes AND a number.
+  {
+    id: "opted_in",
+    label: "Said yes to messages",
+    tip: "Said yes to hearing from you \u2014 replies and messages about their own visit",
+    group: "reach",
+    onProfile: false,
+    rule: r2({ field: "said_yes", op: "is", to: "messages", yes: true })
+  },
+  {
+    id: "offers_ok",
+    label: "Can receive offers",
+    tip: "Said yes to OFFERS, separately, with a number to send to \u2014 the only people a promotional broadcast may reach",
+    group: "reach",
+    onProfile: false,
+    rule: r2({ field: "can_receive", op: "is", to: "offers", yes: true })
+  },
+  // A fact, not the state: someone who opted out AND needs you is in both lists.
+  {
+    id: "opted_out",
+    label: "Opted out",
+    tip: "Asked to stop; the receptionist stays silent, offers included",
+    group: "reach",
+    onProfile: false,
+    rule: r2({ field: "stopped", op: "is", yes: true })
+  }
+];
+var PEOPLE_LISTS2 = BUILTIN_LISTS2.map((l) => {
+  const needs = ruleNeeds2(l.rule);
+  return {
+    ...l,
+    ...needs.includes("calendar") ? { needsCalendar: true } : {},
+    ...needs.includes("consult") ? { needsConsultFirst: true } : {},
+    ...needs.includes("deals") ? { needsDeals: true } : {},
+    ...needs.includes("viewer") ? { needsViewer: true } : {},
+    test: (vm) => listRuleMatches2(l.rule, vm)
+  };
+});
+var PeopleExportQuerySchema2 = z72.object({
+  list: z72.string().max(80).refine((t) => parseListToken2(t) !== null, "Name a list by its token.").optional()
+});
 var AUDIENCE_KINDS = ["everyone", "list", "saved"];
 var EVERYONE_LABEL = "Everyone";
 function eligibleFor(rows, kind, id, savedIds, purpose) {
@@ -7090,6 +7087,9 @@ function overLimitRefusal(h, audience) {
   if (h.limitPerDay === null || audience <= h.limitPerDay) return null;
   return `This number can start up to ${h.limitPerDay.toLocaleString("en-US")} new conversations a day; this audience is ${audience.toLocaleString("en-US")}. Send to a smaller list or split it.`;
 }
+var REPLY_WINDOW_HOURS2 = 72;
+var REPLY_WINDOW_MS2 = REPLY_WINDOW_HOURS2 * 36e5;
+var REPLY_WINDOW_WORDS2 = `within ${REPLY_WINDOW_HOURS2 / 24} days`;
 var BROADCAST_CHUNK = 25;
 var BROADCAST_GAP_MS = 300;
 var BROADCAST_MAX_RECIPIENTS = 2e3;
@@ -8332,9 +8332,6 @@ var PERSON_CAME_FROM_WORDS3 = {
   import: "Imported",
   lead: "A lead you found"
 };
-var REPLY_WINDOW_HOURS3 = 72;
-var REPLY_WINDOW_MS3 = REPLY_WINDOW_HOURS3 * 36e5;
-var REPLY_WINDOW_WORDS3 = `within ${REPLY_WINDOW_HOURS3 / 24} days`;
 var LEAD_MEMBER_CLASSES3 = ["qualified", "review", "excluded"];
 var LEAD_MAX_PLACES3 = 1e3;
 var LEAD_QUESTION_WAIT_MS3 = 24 * 36e5;
@@ -8453,14 +8450,6 @@ var LeadSearchPlanSchema3 = z43.object({
 var US_NAMES3 = Object.fromEntries(
   Object.entries(US_STATES3).map(([name, code2]) => [code2, name])
 );
-var SELLS_BY_QUESTION3 = "How customers buy";
-var SELLS_BY_WORDS3 = {
-  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
-  proposal: {
-    label: "Some get a proposal first",
-    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
-  }
-};
 var REVIEW_AUTO_REPLY_MAX_AGE_MS3 = 14 * 864e5;
 var DATE_FMT6 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var REVIEW_NEWS_MS3 = 36 * 3600 * 1e3;
@@ -8816,6 +8805,192 @@ var LeadSuggestAnswerSchema3 = z53.object({
   ).min(1).max(4)
 });
 var LEAD_UNDO_MS3 = 24 * 60 * 6e4;
+var SELLS_BY_QUESTION3 = "How customers buy";
+var SELLS_BY_WORDS3 = {
+  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
+  proposal: {
+    label: "Some get a proposal first",
+    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
+  }
+};
+var DAY_MS43 = 864e5;
+var WEEK_MS33 = 7 * DAY_MS43;
+var MONTH_MS3 = 30 * DAY_MS43;
+var NOTE_MAX3 = 600;
+var NOTE_REFUSALS3 = {
+  empty: "Write something first.",
+  too_long: `A note is at most ${NOTE_MAX3} characters.`,
+  not_found: "This person or this note is no longer here.",
+  not_a_member: "That person is not on the team.",
+  not_yours: "Only the person who wrote this note can change it.",
+  moved: "Someone changed this note since you opened it. Read it again, then save.",
+  decided: "Someone already decided on this suggestion.",
+  bad_source: "Could not save this note.",
+  bad_deal: "That deal is not this person's.",
+  not_a_step: "Only a note with a day can be done."
+};
+var PERSON_MODE_LABELS3 = { auto: "Answer", ask: "Ask me first", never: "Never" };
+var PERSON_MODE_WORDS3 = {
+  ...PERSON_MODE_LABELS3,
+  inherit: "Follow the workspace"
+};
+var L3 = (id, name, region, native) => ({
+  id,
+  label: region ? `${name} (${region})` : name,
+  name,
+  region,
+  native
+});
+var WHATSAPP_LANGUAGES3 = [
+  L3("af", "Afrikaans", null, "Afrikaans"),
+  L3("sq", "Albanian", null, "Shqip"),
+  L3("ar", "Arabic", null, "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L3("ar_EG", "Arabic", "Egypt", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L3("ar_LB", "Arabic", "Lebanon", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L3("ar_MA", "Arabic", "Morocco", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L3("ar_QA", "Arabic", "Qatar", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L3("ar_AE", "Arabic", "UAE", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L3("az", "Azerbaijani", null, "Az\u0259rbaycan"),
+  L3("be_BY", "Belarusian", null, "\u0411\u0435\u043B\u0430\u0440\u0443\u0441\u043A\u0430\u044F"),
+  L3("bn", "Bengali", null, "\u09AC\u09BE\u0982\u09B2\u09BE"),
+  L3("bn_IN", "Bengali", "India", "\u09AC\u09BE\u0982\u09B2\u09BE"),
+  L3("bg", "Bulgarian", null, "\u0411\u044A\u043B\u0433\u0430\u0440\u0441\u043A\u0438"),
+  L3("ca", "Catalan", null, "Catal\xE0"),
+  L3("zh_CN", "Chinese", "China", "\u7B80\u4F53\u4E2D\u6587"),
+  L3("zh_HK", "Chinese", "Hong Kong", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u9999\u6E2F\uFF09"),
+  L3("zh_TW", "Chinese", "Taiwan", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u53F0\u7063\uFF09"),
+  L3("hr", "Croatian", null, "Hrvatski"),
+  L3("cs", "Czech", null, "\u010Ce\u0161tina"),
+  L3("da", "Danish", null, "Dansk"),
+  L3("prs_AF", "Dari", null, "\u062F\u0631\u06CC"),
+  L3("nl", "Dutch", null, "Nederlands"),
+  L3("nl_BE", "Dutch", "Belgium", "Nederlands"),
+  L3("en", "English", null, "English"),
+  L3("en_AU", "English", "Australia", "English"),
+  L3("en_CA", "English", "Canada", "English"),
+  L3("en_GH", "English", "Ghana", "English"),
+  L3("en_IN", "English", "India", "English"),
+  L3("en_IE", "English", "Ireland", "English"),
+  L3("en_JM", "English", "Jamaica", "English"),
+  L3("en_MY", "English", "Malaysia", "English"),
+  L3("en_NZ", "English", "New Zealand", "English"),
+  L3("en_QA", "English", "Qatar", "English"),
+  L3("en_SG", "English", "Singapore", "English"),
+  L3("en_ZA", "English", "South Africa", "English"),
+  L3("en_AE", "English", "UAE", "English"),
+  L3("en_UG", "English", "Uganda", "English"),
+  L3("en_GB", "English", "UK", "English"),
+  L3("en_US", "English", "US", "English"),
+  L3("et", "Estonian", null, "Eesti"),
+  L3("fil", "Filipino", null, "Filipino"),
+  L3("fi", "Finnish", null, "Suomi"),
+  L3("fr", "French", null, "Fran\xE7ais"),
+  L3("fr_BE", "French", "Belgium", "Fran\xE7ais"),
+  L3("fr_CA", "French", "Canada", "Fran\xE7ais"),
+  L3("fr_CI", "French", "C\xF4te d\u2019Ivoire", "Fran\xE7ais"),
+  L3("fr_MA", "French", "Morocco", "Fran\xE7ais"),
+  L3("fr_CH", "French", "Switzerland", "Fran\xE7ais"),
+  L3("ka", "Georgian", null, "\u10E5\u10D0\u10E0\u10D7\u10E3\u10DA\u10D8"),
+  L3("de", "German", null, "Deutsch"),
+  L3("de_AT", "German", "Austria", "Deutsch"),
+  L3("de_CH", "German", "Switzerland", "Deutsch"),
+  L3("el", "Greek", null, "\u0395\u03BB\u03BB\u03B7\u03BD\u03B9\u03BA\u03AC"),
+  L3("gu", "Gujarati", null, "\u0A97\u0AC1\u0A9C\u0AB0\u0ABE\u0AA4\u0AC0"),
+  L3("ha", "Hausa", null, "Hausa"),
+  L3("he", "Hebrew", null, "\u05E2\u05D1\u05E8\u05D9\u05EA"),
+  L3("hi", "Hindi", null, "\u0939\u093F\u0928\u094D\u0926\u0940"),
+  L3("hu", "Hungarian", null, "Magyar"),
+  L3("id", "Indonesian", null, "Bahasa Indonesia"),
+  L3("ga", "Irish", null, "Gaeilge"),
+  L3("it", "Italian", null, "Italiano"),
+  L3("ja", "Japanese", null, "\u65E5\u672C\u8A9E"),
+  L3("kn", "Kannada", null, "\u0C95\u0CA8\u0CCD\u0CA8\u0CA1"),
+  L3("kk", "Kazakh", null, "\u049A\u0430\u0437\u0430\u049B \u0442\u0456\u043B\u0456"),
+  L3("rw_RW", "Kinyarwanda", null, "Ikinyarwanda"),
+  L3("ko", "Korean", null, "\uD55C\uAD6D\uC5B4"),
+  L3("ky_KG", "Kyrgyz", "Kyrgyzstan", "\u041A\u044B\u0440\u0433\u044B\u0437\u0447\u0430"),
+  L3("lo", "Lao", null, "\u0EA5\u0EB2\u0EA7"),
+  L3("lv", "Latvian", null, "Latvie\u0161u"),
+  L3("lt", "Lithuanian", null, "Lietuvi\u0173"),
+  L3("mk", "Macedonian", null, "\u041C\u0430\u043A\u0435\u0434\u043E\u043D\u0441\u043A\u0438"),
+  L3("ms", "Malay", null, "Bahasa Melayu"),
+  L3("ml", "Malayalam", null, "\u0D2E\u0D32\u0D2F\u0D3E\u0D33\u0D02"),
+  L3("mr", "Marathi", null, "\u092E\u0930\u093E\u0920\u0940"),
+  L3("nb", "Norwegian", null, "Norsk bokm\xE5l"),
+  L3("ps_AF", "Pashto", null, "\u067E\u069A\u062A\u0648"),
+  L3("fa", "Persian", null, "\u0641\u0627\u0631\u0633\u06CC"),
+  L3("pl", "Polish", null, "Polski"),
+  L3("pt_BR", "Portuguese", "Brazil", "Portugu\xEAs"),
+  L3("pt_PT", "Portuguese", "Portugal", "Portugu\xEAs"),
+  L3("pa", "Punjabi", null, "\u0A2A\u0A70\u0A1C\u0A3E\u0A2C\u0A40"),
+  L3("ro", "Romanian", null, "Rom\xE2n\u0103"),
+  L3("ru", "Russian", null, "\u0420\u0443\u0441\u0441\u043A\u0438\u0439"),
+  L3("sr", "Serbian", null, "\u0421\u0440\u043F\u0441\u043A\u0438"),
+  L3("si_LK", "Sinhala", null, "\u0DC3\u0DD2\u0D82\u0DC4\u0DBD"),
+  L3("sk", "Slovak", null, "Sloven\u010Dina"),
+  L3("sl", "Slovenian", null, "Sloven\u0161\u010Dina"),
+  L3("es", "Spanish", null, "Espa\xF1ol"),
+  L3("es_AR", "Spanish", "Argentina", "Espa\xF1ol"),
+  L3("es_CL", "Spanish", "Chile", "Espa\xF1ol"),
+  L3("es_CO", "Spanish", "Colombia", "Espa\xF1ol"),
+  L3("es_CR", "Spanish", "Costa Rica", "Espa\xF1ol"),
+  L3("es_DO", "Spanish", "Dominican Republic", "Espa\xF1ol"),
+  L3("es_EC", "Spanish", "Ecuador", "Espa\xF1ol"),
+  L3("es_HN", "Spanish", "Honduras", "Espa\xF1ol"),
+  L3("es_MX", "Spanish", "Mexico", "Espa\xF1ol"),
+  L3("es_PA", "Spanish", "Panama", "Espa\xF1ol"),
+  L3("es_PE", "Spanish", "Peru", "Espa\xF1ol"),
+  L3("es_ES", "Spanish", "Spain", "Espa\xF1ol"),
+  L3("es_UY", "Spanish", "Uruguay", "Espa\xF1ol"),
+  L3("sw", "Swahili", null, "Kiswahili"),
+  L3("sv", "Swedish", null, "Svenska"),
+  L3("ta", "Tamil", null, "\u0BA4\u0BAE\u0BBF\u0BB4\u0BCD"),
+  L3("te", "Telugu", null, "\u0C24\u0C46\u0C32\u0C41\u0C17\u0C41"),
+  L3("th", "Thai", null, "\u0E44\u0E17\u0E22"),
+  L3("tr", "Turkish", null, "T\xFCrk\xE7e"),
+  L3("uk", "Ukrainian", null, "\u0423\u043A\u0440\u0430\u0457\u043D\u0441\u044C\u043A\u0430"),
+  L3("ur", "Urdu", null, "\u0627\u0631\u062F\u0648"),
+  L3("uz", "Uzbek", null, "O\u02BBzbek"),
+  L3("vi", "Vietnamese", null, "Ti\u1EBFng Vi\u1EC7t"),
+  L3("zu", "Zulu", null, "isiZulu")
+];
+var BY_ID3 = new Map(WHATSAPP_LANGUAGES3.map((l) => [l.id.toLowerCase(), l]));
+var DAY_MS53 = 864e5;
+var SWEEP_TICK_MS3 = 5 * 6e4;
+var PLAYBOOK_HOURS3 = { min: 9, max: 20 };
+var SENDING_HOURS_WORDS3 = {
+  min: PLAYBOOK_HOURS3.min,
+  max: PLAYBOOK_HOURS3.max,
+  first: `${PLAYBOOK_HOURS3.min}:00`,
+  range: `${PLAYBOOK_HOURS3.min}:00\u2013${PLAYBOOK_HOURS3.max}:59`,
+  between: `between ${PLAYBOOK_HOURS3.min}:00 and ${PLAYBOOK_HOURS3.max}:59`
+};
+var PLAYBOOK_BREATH_MS3 = 7 * DAY_MS53;
+var PLAYBOOK_VETO_DELAY_MS3 = 30 * 6e4;
+var FOLLOW_UP_NEEDS_DEALS3 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION3}\u201D with \u201C${SELLS_BY_WORDS3.proposal.label}\u201D.`;
+var PLAYBOOK_TOUCH_WINDOW_MS3 = (365 + 7) * DAY_MS53;
+var PLAYBOOK_CLASS_LABEL3 = {
+  reengage: POLICY_CLASS_WORDS3.reengage.short,
+  campaign: POLICY_CLASS_WORDS3.campaign.short,
+  booking: POLICY_CLASS_WORDS3.booking.short,
+  follow_up: POLICY_CLASS_WORDS3.follow_up.short
+};
+var FIRST3 = { kind: "first_name", label: "First name", example: "Dani" };
+var BUSINESS3 = { kind: "business_name", label: "Business name", example: "Luna Studio" };
+var LINK3 = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
+var FIRST_ES3 = { ...FIRST3, label: "Nombre" };
+var BUSINESS_ES3 = { ...BUSINESS3, label: "Nombre del negocio" };
+var LINK_ES3 = { ...LINK3, label: "Enlace de reservas" };
+var WHEN4 = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" };
+var SERVICE3 = { kind: "visit_service", label: "Service", example: "a consultation" };
+var WHEN_ES3 = { ...WHEN4, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
+var SERVICE_ES3 = { ...SERVICE3, label: "Servicio", example: "una consulta" };
+var PROPOSAL3 = {
+  kind: "proposal_link",
+  label: "Proposal link",
+  example: "https://docs.example.com/proposal"
+};
+var PROPOSAL_ES3 = { ...PROPOSAL3, label: "Enlace de la propuesta" };
 var LIST_NEEDS3 = ["calendar", "consult", "deals", "viewer"];
 var LIST_RULE_FIELDS3 = [
   {
@@ -9290,184 +9465,6 @@ var PEOPLE_LISTS3 = BUILTIN_LISTS3.map((l) => {
 var PeopleExportQuerySchema3 = z73.object({
   list: z73.string().max(80).refine((t) => parseListToken3(t) !== null, "Name a list by its token.").optional()
 });
-var PERSON_MODE_LABELS3 = { auto: "Answer", ask: "Ask me first", never: "Never" };
-var PERSON_MODE_WORDS3 = {
-  ...PERSON_MODE_LABELS3,
-  inherit: "Follow the workspace"
-};
-var DAY_MS43 = 864e5;
-var WEEK_MS33 = 7 * DAY_MS43;
-var MONTH_MS3 = 30 * DAY_MS43;
-var NOTE_MAX3 = 600;
-var NOTE_REFUSALS3 = {
-  empty: "Write something first.",
-  too_long: `A note is at most ${NOTE_MAX3} characters.`,
-  not_found: "This person or this note is no longer here.",
-  not_a_member: "That person is not on the team.",
-  not_yours: "Only the person who wrote this note can change it.",
-  moved: "Someone changed this note since you opened it. Read it again, then save.",
-  decided: "Someone already decided on this suggestion.",
-  bad_source: "Could not save this note.",
-  bad_deal: "That deal is not this person's.",
-  not_a_step: "Only a note with a day can be done."
-};
-var L3 = (id, name, region, native) => ({
-  id,
-  label: region ? `${name} (${region})` : name,
-  name,
-  region,
-  native
-});
-var WHATSAPP_LANGUAGES3 = [
-  L3("af", "Afrikaans", null, "Afrikaans"),
-  L3("sq", "Albanian", null, "Shqip"),
-  L3("ar", "Arabic", null, "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L3("ar_EG", "Arabic", "Egypt", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L3("ar_LB", "Arabic", "Lebanon", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L3("ar_MA", "Arabic", "Morocco", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L3("ar_QA", "Arabic", "Qatar", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L3("ar_AE", "Arabic", "UAE", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L3("az", "Azerbaijani", null, "Az\u0259rbaycan"),
-  L3("be_BY", "Belarusian", null, "\u0411\u0435\u043B\u0430\u0440\u0443\u0441\u043A\u0430\u044F"),
-  L3("bn", "Bengali", null, "\u09AC\u09BE\u0982\u09B2\u09BE"),
-  L3("bn_IN", "Bengali", "India", "\u09AC\u09BE\u0982\u09B2\u09BE"),
-  L3("bg", "Bulgarian", null, "\u0411\u044A\u043B\u0433\u0430\u0440\u0441\u043A\u0438"),
-  L3("ca", "Catalan", null, "Catal\xE0"),
-  L3("zh_CN", "Chinese", "China", "\u7B80\u4F53\u4E2D\u6587"),
-  L3("zh_HK", "Chinese", "Hong Kong", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u9999\u6E2F\uFF09"),
-  L3("zh_TW", "Chinese", "Taiwan", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u53F0\u7063\uFF09"),
-  L3("hr", "Croatian", null, "Hrvatski"),
-  L3("cs", "Czech", null, "\u010Ce\u0161tina"),
-  L3("da", "Danish", null, "Dansk"),
-  L3("prs_AF", "Dari", null, "\u062F\u0631\u06CC"),
-  L3("nl", "Dutch", null, "Nederlands"),
-  L3("nl_BE", "Dutch", "Belgium", "Nederlands"),
-  L3("en", "English", null, "English"),
-  L3("en_AU", "English", "Australia", "English"),
-  L3("en_CA", "English", "Canada", "English"),
-  L3("en_GH", "English", "Ghana", "English"),
-  L3("en_IN", "English", "India", "English"),
-  L3("en_IE", "English", "Ireland", "English"),
-  L3("en_JM", "English", "Jamaica", "English"),
-  L3("en_MY", "English", "Malaysia", "English"),
-  L3("en_NZ", "English", "New Zealand", "English"),
-  L3("en_QA", "English", "Qatar", "English"),
-  L3("en_SG", "English", "Singapore", "English"),
-  L3("en_ZA", "English", "South Africa", "English"),
-  L3("en_AE", "English", "UAE", "English"),
-  L3("en_UG", "English", "Uganda", "English"),
-  L3("en_GB", "English", "UK", "English"),
-  L3("en_US", "English", "US", "English"),
-  L3("et", "Estonian", null, "Eesti"),
-  L3("fil", "Filipino", null, "Filipino"),
-  L3("fi", "Finnish", null, "Suomi"),
-  L3("fr", "French", null, "Fran\xE7ais"),
-  L3("fr_BE", "French", "Belgium", "Fran\xE7ais"),
-  L3("fr_CA", "French", "Canada", "Fran\xE7ais"),
-  L3("fr_CI", "French", "C\xF4te d\u2019Ivoire", "Fran\xE7ais"),
-  L3("fr_MA", "French", "Morocco", "Fran\xE7ais"),
-  L3("fr_CH", "French", "Switzerland", "Fran\xE7ais"),
-  L3("ka", "Georgian", null, "\u10E5\u10D0\u10E0\u10D7\u10E3\u10DA\u10D8"),
-  L3("de", "German", null, "Deutsch"),
-  L3("de_AT", "German", "Austria", "Deutsch"),
-  L3("de_CH", "German", "Switzerland", "Deutsch"),
-  L3("el", "Greek", null, "\u0395\u03BB\u03BB\u03B7\u03BD\u03B9\u03BA\u03AC"),
-  L3("gu", "Gujarati", null, "\u0A97\u0AC1\u0A9C\u0AB0\u0ABE\u0AA4\u0AC0"),
-  L3("ha", "Hausa", null, "Hausa"),
-  L3("he", "Hebrew", null, "\u05E2\u05D1\u05E8\u05D9\u05EA"),
-  L3("hi", "Hindi", null, "\u0939\u093F\u0928\u094D\u0926\u0940"),
-  L3("hu", "Hungarian", null, "Magyar"),
-  L3("id", "Indonesian", null, "Bahasa Indonesia"),
-  L3("ga", "Irish", null, "Gaeilge"),
-  L3("it", "Italian", null, "Italiano"),
-  L3("ja", "Japanese", null, "\u65E5\u672C\u8A9E"),
-  L3("kn", "Kannada", null, "\u0C95\u0CA8\u0CCD\u0CA8\u0CA1"),
-  L3("kk", "Kazakh", null, "\u049A\u0430\u0437\u0430\u049B \u0442\u0456\u043B\u0456"),
-  L3("rw_RW", "Kinyarwanda", null, "Ikinyarwanda"),
-  L3("ko", "Korean", null, "\uD55C\uAD6D\uC5B4"),
-  L3("ky_KG", "Kyrgyz", "Kyrgyzstan", "\u041A\u044B\u0440\u0433\u044B\u0437\u0447\u0430"),
-  L3("lo", "Lao", null, "\u0EA5\u0EB2\u0EA7"),
-  L3("lv", "Latvian", null, "Latvie\u0161u"),
-  L3("lt", "Lithuanian", null, "Lietuvi\u0173"),
-  L3("mk", "Macedonian", null, "\u041C\u0430\u043A\u0435\u0434\u043E\u043D\u0441\u043A\u0438"),
-  L3("ms", "Malay", null, "Bahasa Melayu"),
-  L3("ml", "Malayalam", null, "\u0D2E\u0D32\u0D2F\u0D3E\u0D33\u0D02"),
-  L3("mr", "Marathi", null, "\u092E\u0930\u093E\u0920\u0940"),
-  L3("nb", "Norwegian", null, "Norsk bokm\xE5l"),
-  L3("ps_AF", "Pashto", null, "\u067E\u069A\u062A\u0648"),
-  L3("fa", "Persian", null, "\u0641\u0627\u0631\u0633\u06CC"),
-  L3("pl", "Polish", null, "Polski"),
-  L3("pt_BR", "Portuguese", "Brazil", "Portugu\xEAs"),
-  L3("pt_PT", "Portuguese", "Portugal", "Portugu\xEAs"),
-  L3("pa", "Punjabi", null, "\u0A2A\u0A70\u0A1C\u0A3E\u0A2C\u0A40"),
-  L3("ro", "Romanian", null, "Rom\xE2n\u0103"),
-  L3("ru", "Russian", null, "\u0420\u0443\u0441\u0441\u043A\u0438\u0439"),
-  L3("sr", "Serbian", null, "\u0421\u0440\u043F\u0441\u043A\u0438"),
-  L3("si_LK", "Sinhala", null, "\u0DC3\u0DD2\u0D82\u0DC4\u0DBD"),
-  L3("sk", "Slovak", null, "Sloven\u010Dina"),
-  L3("sl", "Slovenian", null, "Sloven\u0161\u010Dina"),
-  L3("es", "Spanish", null, "Espa\xF1ol"),
-  L3("es_AR", "Spanish", "Argentina", "Espa\xF1ol"),
-  L3("es_CL", "Spanish", "Chile", "Espa\xF1ol"),
-  L3("es_CO", "Spanish", "Colombia", "Espa\xF1ol"),
-  L3("es_CR", "Spanish", "Costa Rica", "Espa\xF1ol"),
-  L3("es_DO", "Spanish", "Dominican Republic", "Espa\xF1ol"),
-  L3("es_EC", "Spanish", "Ecuador", "Espa\xF1ol"),
-  L3("es_HN", "Spanish", "Honduras", "Espa\xF1ol"),
-  L3("es_MX", "Spanish", "Mexico", "Espa\xF1ol"),
-  L3("es_PA", "Spanish", "Panama", "Espa\xF1ol"),
-  L3("es_PE", "Spanish", "Peru", "Espa\xF1ol"),
-  L3("es_ES", "Spanish", "Spain", "Espa\xF1ol"),
-  L3("es_UY", "Spanish", "Uruguay", "Espa\xF1ol"),
-  L3("sw", "Swahili", null, "Kiswahili"),
-  L3("sv", "Swedish", null, "Svenska"),
-  L3("ta", "Tamil", null, "\u0BA4\u0BAE\u0BBF\u0BB4\u0BCD"),
-  L3("te", "Telugu", null, "\u0C24\u0C46\u0C32\u0C41\u0C17\u0C41"),
-  L3("th", "Thai", null, "\u0E44\u0E17\u0E22"),
-  L3("tr", "Turkish", null, "T\xFCrk\xE7e"),
-  L3("uk", "Ukrainian", null, "\u0423\u043A\u0440\u0430\u0457\u043D\u0441\u044C\u043A\u0430"),
-  L3("ur", "Urdu", null, "\u0627\u0631\u062F\u0648"),
-  L3("uz", "Uzbek", null, "O\u02BBzbek"),
-  L3("vi", "Vietnamese", null, "Ti\u1EBFng Vi\u1EC7t"),
-  L3("zu", "Zulu", null, "isiZulu")
-];
-var BY_ID3 = new Map(WHATSAPP_LANGUAGES3.map((l) => [l.id.toLowerCase(), l]));
-var DAY_MS53 = 864e5;
-var SWEEP_TICK_MS3 = 5 * 6e4;
-var PLAYBOOK_HOURS3 = { min: 9, max: 20 };
-var SENDING_HOURS_WORDS3 = {
-  min: PLAYBOOK_HOURS3.min,
-  max: PLAYBOOK_HOURS3.max,
-  first: `${PLAYBOOK_HOURS3.min}:00`,
-  range: `${PLAYBOOK_HOURS3.min}:00\u2013${PLAYBOOK_HOURS3.max}:59`,
-  between: `between ${PLAYBOOK_HOURS3.min}:00 and ${PLAYBOOK_HOURS3.max}:59`
-};
-var PLAYBOOK_BREATH_MS3 = 7 * DAY_MS53;
-var PLAYBOOK_VETO_DELAY_MS3 = 30 * 6e4;
-var FOLLOW_UP_NEEDS_DEALS3 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION3}\u201D with \u201C${SELLS_BY_WORDS3.proposal.label}\u201D.`;
-var PLAYBOOK_TOUCH_WINDOW_MS3 = (365 + 7) * DAY_MS53;
-var PLAYBOOK_CLASS_LABEL3 = {
-  reengage: POLICY_CLASS_WORDS3.reengage.short,
-  campaign: POLICY_CLASS_WORDS3.campaign.short,
-  booking: POLICY_CLASS_WORDS3.booking.short,
-  follow_up: POLICY_CLASS_WORDS3.follow_up.short
-};
-var FIRST3 = { kind: "first_name", label: "First name", example: "Dani" };
-var BUSINESS3 = { kind: "business_name", label: "Business name", example: "Luna Studio" };
-var LINK3 = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
-var FIRST_ES3 = { ...FIRST3, label: "Nombre" };
-var BUSINESS_ES3 = { ...BUSINESS3, label: "Nombre del negocio" };
-var LINK_ES3 = { ...LINK3, label: "Enlace de reservas" };
-var WHEN4 = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" };
-var SERVICE3 = { kind: "visit_service", label: "Service", example: "a consultation" };
-var WHEN_ES3 = { ...WHEN4, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
-var SERVICE_ES3 = { ...SERVICE3, label: "Servicio", example: "una consulta" };
-var PROPOSAL3 = {
-  kind: "proposal_link",
-  label: "Proposal link",
-  example: "https://docs.example.com/proposal"
-};
-var PROPOSAL_ES3 = { ...PROPOSAL3, label: "Enlace de la propuesta" };
 var LIMIT_TIERS3 = {
   TIER_50: 50,
   TIER_250: 250,
@@ -9476,6 +9473,9 @@ var LIMIT_TIERS3 = {
   TIER_100K: 1e5,
   TIER_UNLIMITED: Number.POSITIVE_INFINITY
 };
+var REPLY_WINDOW_HOURS3 = 72;
+var REPLY_WINDOW_MS3 = REPLY_WINDOW_HOURS3 * 36e5;
+var REPLY_WINDOW_WORDS3 = `within ${REPLY_WINDOW_HOURS3 / 24} days`;
 var DAY_MS63 = 24 * 3600 * 1e3;
 var DAY_MS73 = 864e5;
 var QUIET_AFTER_MS3 = 7 * DAY_MS73;

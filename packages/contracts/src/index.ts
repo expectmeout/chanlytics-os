@@ -26,6 +26,8 @@ export * from "./availability";
 export * from "./feed-url";
 export * from "./line-failure";
 export * from "./people";
+export * from "./person-attention";
+export * from "./person-profile";
 export * from "./steps";
 export * from "./step-sheet";
 export * from "./broadcasts";

@@ -36,7 +36,8 @@ import {
   type DealPaceVM,
   type DealVM,
 } from "./deals";
-import { repliesWords, type PersonRowVM, type PersonVM } from "./people";
+import { repliesWords, type PersonRowVM } from "./people";
+import type { PersonVM } from "./person-profile";
 import { stepDayOf, stepIsDue, type StepDue } from "./steps";
 import { followUpWords } from "./playbooks";
 import type { Tone } from "./tone";
