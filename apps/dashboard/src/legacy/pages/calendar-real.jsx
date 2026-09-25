@@ -549,9 +549,10 @@ const CalendarReal = ({ initialDay = null }) => {
 
   const move = (n) => setAnchorKey(crStep(view, anchor, n, cal));
   // A swipe across the days walks them on a phone (data-bits touchSwipe, a page that stays): the step ‹ and › take,
-  // drawn at once so the next days are what comes in. Never from a dialog or anything that keeps its own touch.
+  // drawn at once so the next days are what comes in. Never from what keeps its own touch: the strips' one list
+  // (surface-tabs.jsx ST_OWN_TOUCH -- a dialog, a sheet, a menu, a toast).
   const swipePages = (el, from) =>
-    from && from.closest && from.closest('[role="dialog"], [aria-modal="true"], [data-own-drag], .sb-sheet')
+    from && from.closest && window.ST_OWN_TOUCH && from.closest(window.ST_OWN_TOUCH)
       ? null
       : {
           prev: true,
