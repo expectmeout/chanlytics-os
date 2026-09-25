@@ -168,7 +168,7 @@ hours (the listing's `hours`, else 9:00–17:00), on an open day, at least `gap_
 domain (±25% jitter so no two runs look alike), under the domain's cap for that day; what does not fit today takes
 tomorrow's first slots. A lead's zone comes from its state (a 50-state map in contracts; the finder is US-only). The run's
 "sends 9:40" is its first slot. The ticker (`broadcast_send`, every minute) claims recipients with `send_at ≤ now`, at most
-two a second (Resend's limit), re-checks the stops (§4.7) and the domain's state, and sends. Pausing a reach-out clears
+five a second across the platform (Resend allows ten a second per team by default), re-checks the stops (§4.7) and the domain's state, and sends. Pausing a reach-out clears
 the future `send_at`s; resuming rebuilds them.
 
 ### 4.6 The wire

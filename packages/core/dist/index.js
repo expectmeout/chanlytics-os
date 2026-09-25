@@ -3315,9 +3315,33 @@ function addressOf(header) {
 function requestLeavesAs(request, as) {
   return addressOf(request.from)?.address === as.address && request.reply_to.length === 1 && as.replyRoutes.includes(request.reply_to[0].trim().toLowerCase());
 }
+function resendLimitOf(r22) {
+  if (r22.ok || r22.status !== 429 && r22.status !== 409) return null;
+  let name = null;
+  try {
+    name = JSON.parse(r22.errorBody ?? "")?.name ?? null;
+  } catch {
+    name = null;
+  }
+  if (name === "daily_quota_exceeded") return "daily";
+  if (name === "monthly_quota_exceeded") return "monthly";
+  if (name === "concurrent_idempotent_requests") return "in_flight";
+  return r22.status === 429 ? "rate" : null;
+}
 var RESEND_EMAILS = "https://api.resend.com/emails";
 var SEND_TIMEOUT_MS2 = 15e3;
-async function sendEmail(cfg, request) {
+var LIMIT_WAIT_MAX_MS = 2e3;
+var LIMIT_WAIT_DEFAULT_MS = 1e3;
+var sleep = (ms2) => new Promise((resolve) => setTimeout(resolve, ms2));
+function waitAskedMs(h) {
+  for (const name of ["retry-after", "ratelimit-reset"]) {
+    const v = h.get(name);
+    const s = Number(v);
+    if (v !== null && v.trim() !== "" && Number.isFinite(s) && s >= 0) return Math.round(s * 1e3);
+  }
+  return null;
+}
+async function postEmail(cfg, request) {
   const { idempotency_key, ...body } = request;
   try {
     const r22 = await fetch(RESEND_EMAILS, {
@@ -3339,12 +3363,27 @@ async function sendEmail(cfg, request) {
           return null;
         }
       })();
-      return { ok: true, wamid: typeof id === "string" ? id : null, status: r22.status };
+      return { result: { ok: true, wamid: typeof id === "string" ? id : null, status: r22.status }, waitMs: null };
     }
-    return { ok: false, wamid: null, status: r22.status, errorBody: raw.slice(0, 500) };
+    return {
+      result: { ok: false, wamid: null, status: r22.status, errorBody: raw.slice(0, 500) },
+      waitMs: waitAskedMs(r22.headers)
+    };
   } catch (e) {
-    return { ok: false, wamid: null, status: 0, errorBody: e instanceof Error ? e.message : String(e) };
+    return {
+      result: { ok: false, wamid: null, status: 0, errorBody: e instanceof Error ? e.message : String(e) },
+      waitMs: null
+    };
   }
+}
+async function sendEmail(cfg, request, wait = sleep) {
+  const first = await postEmail(cfg, request);
+  const limit = resendLimitOf(first.result);
+  if (limit !== "rate" && limit !== "in_flight") return first.result;
+  const ms2 = first.waitMs ?? LIMIT_WAIT_DEFAULT_MS;
+  if (ms2 > LIMIT_WAIT_MAX_MS) return first.result;
+  await wait(ms2);
+  return (await postEmail(cfg, request)).result;
 }
 var FRESH_SLACK_MS = 2 * 864e5;
 var STATE_TTL_MS = 10 * 6e4;
