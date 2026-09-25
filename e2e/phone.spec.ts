@@ -780,6 +780,9 @@ test.describe("Phone shell on a real workspace", () => {
     await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
     await expect(pop).toHaveCount(0);
     await expect(bell).toHaveAttribute("aria-expanded", "false");
+  });
+
+  /**
    * A note is a list row (25 Sep): two single lines and a time at the Inbox's numbers, the note itself the press, no
    * row of buttons under it. They were 114 to 182px each, 48 of them in a 6,677px list, each with its own boxed button.
    */
