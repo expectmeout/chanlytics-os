@@ -331,8 +331,8 @@ test("the shell carries the tool beside the booking link, the edge guards it, an
   );
   const edge = readCode("apps/edge/api/retell-availability.ts");
   assert.ok(
-    edge.includes('if (!secret || request.headers.get("x-fn-secret") !== secret)'),
-    "the door refuses an unset or empty secret, as the other two Retell doors do",
+    edge.includes('voiceDoorAuth("availability", request, raw, request.headers.get("x-fn-secret")).ok'),
+    "the door is guarded as the other two Retell doors are (voice-door-auth.test.mjs runs it)",
   );
   assert.ok(edge.includes("filterOpenings(data.openings, { day, minMinutes: offer?.minMinutes ?? null })"));
   assert.ok(

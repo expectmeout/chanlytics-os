@@ -61,6 +61,18 @@ this order, each merged on green before the next.
     number, messaging) are also unchanged.
 - **C2:** the three unsigned voice doors (`retell-inbound`, `retell-fn`, `retell-availability`) signed as the call
   webhook is, plus rate limits.
+  - _As built:_ the signature is reported before it is required. `lib/voice/voice-door-auth.ts` holds the one check,
+    `retellSigned`, which the webhook now uses too: the badged key, over the raw body and then the re-serialised
+    body. Each voice door logs `voice_door_auth { door, sig }` for every knock it lets in. The shared secret still
+    opens the doors, now compared in constant time.
+  - `RETELL_DOORS_SIGNED=1` makes the signature alone open them, as it does the webhook, and then refusals are
+    logged too. Set it once the log shows `sig: true` on all three doors. `retell-fn.ts` said Retell does not sign
+    custom-function calls, and the webhook once turned away 127 real deliveries over a wrong key, so this waits for
+    evidence rather than a guess.
+  - Rate limits were not added. The only spend behind these doors, texting the booking link, already has its
+    per-day cap, and open times read through the feed cache. A limiter that holds across serverless instances needs
+    shared state, which is a new mechanism, and once required the signature closes the door a limit would only
+    narrow.
 - **C3:** forwarding proof that tells a forwarded call from a direct dial (the called number and the carrier's
   forwarding header), and the called number handed to the receptionist.
 
