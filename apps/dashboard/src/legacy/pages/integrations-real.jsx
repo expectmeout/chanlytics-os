@@ -126,7 +126,11 @@ const SD_FULL_NAME = (name, host) => (name === host || name.endsWith(`.${host}`)
 const SendingDomainRecords = ({ d, flash }) => {
   const API = window.__sendingDomains;
   const copy = (value) => {
-    if (navigator.clipboard) navigator.clipboard.writeText(value).then(() => flash({ msg: <>Copied</> }));
+    if (navigator.clipboard)
+      navigator.clipboard.writeText(value).then(
+        () => flash({ msg: <>Copied</> }),
+        () => flash({ tone: "danger", msg: <>Couldn't copy: select the value and copy it by hand</> }),
+      );
   };
   const rows = d.records.map((r) => ({
     key: `${r.label}-${r.type}-${r.name}`,
@@ -246,10 +250,14 @@ const SendingDomains = ({ email, flash }) => {
         <span>Domains you send from</span>
         <span className="k">cold email leaves only from a domain you own · replies come back to {email.mailbox.address}</span>
       </div>
+      {!owner && window.gateTitle && (
+        <div className="set-dom set-dom-note"><span /><span className="t"><span>{window.gateTitle("team", "add, check or remove a domain")}</span></span></div>
+      )}
       {domains.map((d) => {
         const w = API.words(d, now);
-        const checkable = d.state !== "verified" && !(d.state === "held" && (d.held_why === "bounces" || d.held_why === "complaint"));
-        const showRecords = d.state === "records" || d.state === "verifying" || (d.state === "held" && d.held_why === "dmarc");
+        const dnsHold = d.state === "held" && API.dnsHolds.includes(d.held_why);
+        const checkable = d.state === "records" || d.state === "verifying" || dnsHold;
+        const showRecords = d.state === "records" || d.state === "verifying" || dnsHold;
         return (
           <React.Fragment key={d.id}>
             <div className="set-dom" data-testid={`domain-${d.host}`} data-state={d.state}>
@@ -266,10 +274,10 @@ const SendingDomains = ({ email, flash }) => {
               <StatePill kind="tone" value={w.tone} label={w.pill} />
               <span className="set-int-actions">
                 {checkable && arm !== d.id && (
-                  <button type="button" className="btn btn-sm" onClick={() => check(d)} disabled={busy === d.id} data-testid={`domain-check-${d.host}`} {...(owner || !window.gate ? {} : window.gate("team", "check a domain"))}>{busy === d.id ? "Checking…" : "Check"}</button>
+                  <button type="button" className="btn btn-sm" onClick={() => check(d)} disabled={busy !== null} data-testid={`domain-check-${d.host}`} {...(owner || !window.gate ? {} : window.gate("team", "check a domain"))}>{busy === d.id ? "Checking…" : "Check"}</button>
                 )}
                 {owner && arm !== d.id && (
-                  <button type="button" className="cl-bucket-link" onClick={() => setArm(d.id)} disabled={busy === d.id} data-testid={`domain-remove-${d.host}`}>Remove</button>
+                  <button type="button" className="cl-bucket-link" onClick={() => setArm(d.id)} disabled={busy !== null} data-testid={`domain-remove-${d.host}`}>Remove</button>
                 )}
               </span>
             </div>
@@ -289,6 +297,7 @@ const SendingDomains = ({ email, flash }) => {
                 : "Cold email to the businesses you find leaves only from a domain you own, so your everyday email is never at risk."}
             </span>
           </span>
+          <span />
           <span />
           <span className="set-int-actions">
             {ready && domains.length < API.max && (

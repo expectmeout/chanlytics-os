@@ -128,7 +128,7 @@ test("an add reaches the edge's door for this workspace and this person, and ans
 
 test("the edge's refusals become the owner's words, the door's own sentence where it gave one", async () => {
   for (const [status, body, code, words] of [
-    [503, { ok: false, error: "no_cold_key" }, "conflict", /isn't switched on here yet/],
+    [503, { ok: false, error: "no_cold_key" }, "upstream_email", /isn't switched on here yet/],
     [
       409,
       { ok: false, error: "host_taken", message: "This workspace already sends from that domain." },
@@ -219,6 +219,35 @@ test("the page's read of the domains names no provider id, and readiness is the 
     assert.equal(await domainsReadiness(), true);
     assert.equal(await domainsReadiness(), true);
     assert.equal(net.calls.length, 1, "asked once, then remembered");
+  } finally {
+    net.restore();
+  }
+});
+
+test("Setup never waits on the edge before the mailbox exists, and a domains read that fails draws no block rather than failing Setup", async () => {
+  const { emailSetupFor } = await import(at("apps/dashboard/src/server/email.ts"));
+  const net = edge(() => [200, { ok: true, ready: true }]);
+  try {
+    const none = await emailSetupFor(fakeDb({ mailboxes: [] }), A);
+    assert.deepEqual([none.mailbox, none.sending], [null, null]);
+    assert.equal(net.calls.length, 0, "no edge call for a workspace with no mailbox");
+    const mailbox = {
+      id: "mb1",
+      tenant_id: A,
+      local_part: "harbor",
+      reply_token: "a".repeat(24),
+      reply_token_prev: null,
+      from_name: "Harbor",
+      reply_mode: "draft",
+      last_received_at: null,
+      last_error: null,
+    };
+    const broken = await emailSetupFor(
+      fakeDb({ mailboxes: [mailbox] }, { "sending_domains.select": { message: "the database went away" } }),
+      A,
+    );
+    assert.equal(broken.mailbox.address, "harbor@mail.chanlytics.com", "Setup still reads");
+    assert.equal(broken.sending, null, "and the block is simply not drawn");
   } finally {
     net.restore();
   }

@@ -95,10 +95,11 @@ function refusal(a: EdgeAnswer, doing: string): AppError {
   const error = typeof b.error === "string" ? b.error : "failed";
   const said = typeof b.message === "string" && b.message.trim() ? b.message.trim() : null;
   switch (error) {
+    // Not the domain typed: the mail account behind it is not here. Its own code, so a form says it in a toast.
     case "preview":
-      return new AppError("conflict", "Domains can't be added or checked from a preview.", 409);
+      return new AppError("upstream_email", "Domains can't be added or checked from a preview.", 503);
     case "no_cold_key":
-      return new AppError("conflict", "Sending from your own domain isn't switched on here yet.", 409);
+      return new AppError("upstream_email", "Sending from your own domain isn't switched on here yet.", 503);
     case "invalid":
       return new AppError("validation", said ?? "That can't be a domain to send from.", 400);
     case "too_many":

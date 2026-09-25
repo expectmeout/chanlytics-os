@@ -886,3 +886,66 @@ test("the block is not drawn where own domains are off and there are none, nor b
     assert.equal(byTestId(tree, "sending-domains"), null, JSON.stringify(email.sending));
   }
 });
+
+test("a held domain: a DNS hold shows its records and Check, a reputation hold offers neither, and a non-owner is told once why they can't act", () => {
+  const now = Date.now();
+  const iso = (d) => new Date(now - d * 86_400_000).toISOString();
+  const held = (id, host, why) => ({
+    id,
+    host,
+    address: `sam@${host}`,
+    from_local: "sam",
+    from_name: "Sam",
+    state: "held",
+    held_why: why,
+    held_at: iso(1),
+    provider_status: why === "verification" ? "temporary_failure" : "verified",
+    dmarc: "found",
+    verified_at: iso(30),
+    clean_since: iso(9),
+    checked_at: null,
+    created_at: iso(31),
+    records: [
+      { label: "DKIM", type: "TXT", name: "resend._domainkey", value: "p=MIGf", priority: null, status: "failed" },
+    ],
+  });
+  const email = {
+    ready: true,
+    domain: "mail.chanlytics.com",
+    mailbox: {
+      id: "mb1",
+      address: "harbor@mail.chanlytics.com",
+      from_name: "Harbor",
+      last_received_at: null,
+      last_error: null,
+    },
+    sending: {
+      ready: true,
+      domains: [held("h1", "broke.example", "verification"), held("h2", "spam.example", "complaint")],
+    },
+  };
+  globalThis.window.__SETUP = {
+    dto: {
+      business: { name: "Harbor" },
+      lines: { rows: [], ready: false },
+      requests: { line: null },
+      calendar: null,
+      email,
+    },
+  };
+  asRole("owner");
+  let tree = render(Connections);
+  assert.ok(byTestId(tree, "domain-records-broke.example"), "the records to fix are shown");
+  assert.ok(byTestId(tree, "domain-check-broke.example"));
+  assert.match(textOf(byTestId(tree, "domain-broke.example")), /it stopped verifying/);
+  assert.equal(byTestId(tree, "domain-records-spam.example"), null);
+  assert.equal(byTestId(tree, "domain-check-spam.example"), null, "a reputation hold is not lifted by Check");
+  assert.match(textOf(byTestId(tree, "domain-spam.example")), /until you resume it/);
+
+  asRole("operator");
+  tree = render(Connections);
+  const block = byTestId(tree, "sending-domains");
+  assert.match(textOf(block), /add, check or remove a domain/i, "the reason, said once");
+  assert.equal(byTestId(tree, "domain-remove-broke.example"), null);
+  asRole("owner");
+});

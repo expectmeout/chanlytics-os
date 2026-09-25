@@ -13,6 +13,7 @@ import {
   whyNotAFromName,
   whyNotASendingHost,
   DMARC_RECOMMENDED,
+  DNS_HOLDS,
   SENDING_DOMAINS_MAX,
 } from "@chanlytics/contracts";
 import { api } from "./api";
@@ -29,6 +30,8 @@ export interface SendingDomainsApi {
   cap: typeof domainDailyCap;
   dmarc: string;
   max: number;
+  /** The holds that lift once the records pass: their records are shown, and Check is offered. */
+  dnsHolds: readonly string[];
 }
 
 declare global {
@@ -50,5 +53,6 @@ export function installSendingDomains(win: Window = window): void {
     cap: domainDailyCap,
     dmarc: DMARC_RECOMMENDED,
     max: SENDING_DOMAINS_MAX,
+    dnsHolds: DNS_HOLDS,
   };
 }
