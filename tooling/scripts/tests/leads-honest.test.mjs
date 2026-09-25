@@ -76,6 +76,7 @@ const search = (over = {}) => ({
   asked_on: "2026-09-18T15:00:00.000Z",
   plan: PLAN,
   plan_version: 1,
+  thread_id: null,
   round: {
     id: "r1",
     seq: 1,
@@ -99,8 +100,10 @@ const search = (over = {}) => ({
   },
   ...over,
 });
+/** The Ask thread the waiting search was planned in (00172): its answer is sent there. */
+const PLANNED_THREAD = "eeeeeeee-0000-4000-8000-000000000001";
 const waiting = {
-  ...search({ id: SEARCH_B, name: "Chiropractors · Round Rock" }),
+  ...search({ id: SEARCH_B, name: "Chiropractors · Round Rock", thread_id: PLANNED_THREAD }),
   round: {
     ...search().round,
     id: "r2",
@@ -3077,8 +3080,11 @@ test("Change what I asked opens the answer row under the question, and approving
   await f.onAnswer("include the chains too");
   await settle();
   draw({ leadsRoute: `leads:s-${SEARCH_B}` });
-  assert.match(sent[0].text, new RegExp(`search id ${SEARCH_B}`));
-  assert.match(sent[0].text, /My answer: include the chains too\./);
+  assert.deepEqual(
+    [sent[0].text, sent[0].threadId, sent[0].answering],
+    ["include the chains too", PLANNED_THREAD, { searchId: SEARCH_B }],
+    "the owner's words, in the thread the search was planned in, naming the search for the route to read",
+  );
   assert.equal(sent[0].surface, "leads", "the amend turn is on the Leads surface (spec F5)");
   const shown = panels.at(-1);
   assert.deepEqual([shown.stage, shown.plan.version, shown.plan.count], ["plan", 2, 200], "the card's own plan");

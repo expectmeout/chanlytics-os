@@ -435,6 +435,25 @@ test("the card commits to POST lead-searches marked as Ask's, and its undo stops
   );
 });
 
+test("a card planned in a thread posts that thread beside the plan, so the search keeps it (00172); a card from before posts the plan alone", async () => {
+  const THREAD = "77777777-7777-4777-8777-777777777771";
+  const { client, calls } = fakeClient({ "POST /api/v1/lead-searches": { search_id: SEARCH, round_id: ROUND } });
+  const card = (payload) => ({
+    id: "p1",
+    kind: "lead_search",
+    needs: "owner",
+    title: "Find 200 personal trainers",
+    summary: "…",
+    payload,
+    undo: "Stop the search",
+  });
+  const done = await commitProposal(win, card({ plan: PLAN, thread_id: THREAD }), client);
+  assert.equal(done.ok, true);
+  assert.deepEqual(calls[0].body, { ...PLAN, thread_id: THREAD }, "the plan, and the thread beside it");
+  await commitProposal(win, card({ plan: PLAN, thread_id: "" }), client);
+  assert.deepEqual(calls[1].body, PLAN, "no thread, no key");
+});
+
 test("a card that amends posts the answer to the search that asked, with no undo and opening on its question", async () => {
   const { client, calls } = fakeClient({
     [`POST /api/v1/lead-searches/${SEARCH3}/answer`]: { round_id: ROUND, answered: "include" },

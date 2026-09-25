@@ -11,6 +11,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "./_fake-db.mjs";
+import { PLAN } from "./_lead-fixtures.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -495,5 +496,248 @@ test("the reports' Deals section rides on how the workspace's customers buy (000
     const off = await run(sellsBy);
     assert.equal(off.deals.any, false, `${sellsBy}: a deal on file switches nothing`);
     assert.equal(off.read, false, `${sellsBy}: the table is not read for a section not drawn`);
+  }
+});
+
+/* ------------------------------------------------ a search keeps its thread (00172) -- */
+
+const SEARCH = "55555555-5555-4555-8555-555555555551";
+const PLANNED = "dddddddd-dddd-4ddd-8ddd-ddddddddddd9";
+/** A search waiting on its question, as lead_searches_view answers it. */
+const waitingSearch = (over = {}) => ({
+  id: SEARCH,
+  tenant_id: A,
+  name: "Pilates studios · Denver",
+  asked: "Pilates studios in Denver, no franchises",
+  plan: { ...PLAN, exclusions: [{ key: "franchises", text: "Franchises", origin: "you_said" }] },
+  state: "waiting_on_owner",
+  question: { sentence: "Most of the first 25 are franchises, which I'm leaving out. Is that what you meant?" },
+  plan_version: 1,
+  thread_id: PLANNED,
+  ...over,
+});
+const nothing = { kind: "none", id: "", label: "" };
+const answered = JSON.stringify({
+  say: { headline: "Here is the search with the franchises in.", detail: "" },
+  show: { figures: [], items: [], breakdown: { label: "", total: 0, parts: [], source: nothing } },
+  do: { open: { source: nothing, label: "", now: false }, next: [] },
+  language: "en",
+});
+/** The model, scripted: every round answers in words; what it was sent each round is kept. */
+function wordsOnly() {
+  const requests = [];
+  setAskPorts({
+    round: async (call, onText) => {
+      requests.push(call.request);
+      onText(answered);
+      return {
+        blocks: [{ type: "text", id: "", name: "", text: answered, json: "" }],
+        stopReason: "end_turn",
+        streamError: null,
+      };
+    },
+    snapshot: async () => "",
+  });
+  return requests;
+}
+const leadWorld = (threads = [], messages = []) => ({
+  memberships: both("owner", "owner"),
+  tenants: [{ id: A, name: "Harbor", timezone: "America/New_York" }],
+  tenant_config: [{ tenant_id: A, config: {}, version: 1 }],
+  policies: [],
+  ask_threads: threads,
+  ask_messages: messages,
+  lead_searches_view: [waitingSearch()],
+});
+const lastUser = (req) => {
+  const m = req.messages.at(-1);
+  return typeof m.content === "string" ? m.content : m.content.map((c) => c.text ?? "").join("");
+};
+const linesOf = async (res) =>
+  (await res.text())
+    .trim()
+    .split("\n")
+    .map((l) => JSON.parse(l));
+
+test("an answer to a search's question lands in the thread it was planned in: the thread keeps the owner's words, the model reads which search and what it asked, on that turn and every later one", async () => {
+  const tables = leadWorld(
+    [threadRow(PLANNED, A, { title: "Pilates studios in Denver, no franchises" })],
+    [
+      turn(M1, PLANNED, A, "user", { text: "Pilates studios in Denver, no franchises" }),
+      {
+        ...turn("eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee2", PLANNED, A, "assistant", { text: "Here is the plan." }),
+        created_at: "2026-09-10T00:00:02Z",
+      },
+    ],
+  );
+  const requests = wordsOnly();
+  try {
+    const body = {
+      text: "Include the franchise ones too",
+      thread_id: PLANNED,
+      answering: { search_id: SEARCH },
+      surface: "leads",
+    };
+    const lines = await linesOf(await ask.POST.run(send("POST", body, inA), ctxFor(tables)));
+    assert.equal(lines[0].id, PLANNED, "the turn is in the planning thread");
+    assert.equal(tables.ask_threads.length, 1, "no new thread");
+    const mine = tables.ask_messages[2];
+    assert.deepEqual(
+      [mine.thread_id, mine.role, mine.content.text],
+      [PLANNED, "user", "Include the franchise ones too"],
+    );
+    assert.deepEqual(
+      mine.content.answering,
+      {
+        search_id: SEARCH,
+        name: "Pilates studios · Denver",
+        question: "Most of the first 25 are franchises, which I'm leaving out. Is that what you meant?",
+        asked: "Pilates studios in Denver, no franchises",
+        leaving_out: ["Franchises"],
+      },
+      "what it answered is stored beside the words, read from the search, never from the client",
+    );
+    // The thread as the Line reads it back: the owner's words and nothing of the machine's.
+    const read = await thread.GET.run(get(inA), ctxFor(tables, { id: PLANNED }));
+    assert.equal(read.messages[2].text, "Include the franchise ones too");
+    assert.ok(!JSON.stringify(read).includes("search id"), "the context never reaches the page");
+    // The model: the planning turns as history, then the answer inside what it answers.
+    const said = lastUser(requests[0]);
+    assert.ok(
+      said.startsWith(
+        `On People › Leads, my search for Pilates studios · Denver (search id ${SEARCH}) stopped to ask: “Most of the first 25 are franchises`,
+      ),
+      said,
+    );
+    assert.ok(said.includes("I had asked for: “Pilates studios in Denver, no franchises”, leaving out Franchises."));
+    assert.ok(said.includes("My answer: Include the franchise ones too."));
+    assert.ok(said.includes("propose_lead_search with amends set to that id"));
+    assert.deepEqual(
+      requests[0].messages.slice(0, 2).map((m) => [m.role, m.content]),
+      [
+        ["user", "Pilates studios in Denver, no franchises"],
+        ["assistant", "Here is the plan."],
+      ],
+      "the conversation where the search was planned rides in",
+    );
+    // A later turn in the thread still knows what that answer was about.
+    await linesOf(
+      await ask.POST.run(send("POST", { text: "And how many is that?", thread_id: PLANNED }, inA), ctxFor(tables)),
+    );
+    const replayed = requests[1].messages.map((m) => (typeof m.content === "string" ? m.content : ""));
+    assert.ok(
+      replayed.some(
+        (c) => c.includes(`(search id ${SEARCH})`) && c.includes("My answer: Include the franchise ones too."),
+      ),
+      "the answer is replayed with what it answered",
+    );
+    assert.equal(lastUser(requests[1]), "And how many is that?", "a plain turn is only its words");
+    assert.equal(
+      tables.ask_threads[0].title,
+      "Pilates studios in Denver, no franchises",
+      "the title stays the planning question's (D9)",
+    );
+  } finally {
+    setAskPorts(null);
+  }
+});
+
+test("an answer whose thread is not the caller's -- a teammate's, which RLS hides, or another workspace's -- starts one of their own, titled by the search's name; a plain question to such a thread is still refused", async () => {
+  const requests = wordsOnly();
+  try {
+    // RLS answers another person's thread with nothing (00040 ask_threads_own_select), so to the route it is absent.
+    for (const [threads, why] of [
+      [[], "a thread RLS hides"],
+      [[threadRow(PLANNED, B)], "another workspace's thread"],
+    ]) {
+      const tables = leadWorld(threads);
+      const body = { text: "Yes, include them", thread_id: PLANNED, answering: { search_id: SEARCH } };
+      const lines = await linesOf(await ask.POST.run(send("POST", body, inA), ctxFor(tables)));
+      const made = tables.ask_threads.find((t) => t.tenant_id === A);
+      assert.ok(made && made.id !== PLANNED, `${why}: a new thread`);
+      assert.deepEqual(
+        [lines[0].id, lines[0].title, made.title],
+        [made.id, "Pilates studios · Denver", "Pilates studios · Denver"],
+        `${why}: titled by the search's name`,
+      );
+      assert.deepEqual(
+        tables.ask_messages.filter((m) => m.thread_id === made.id && m.role === "user").map((m) => m.content.text),
+        ["Yes, include them"],
+      );
+    }
+    assert.ok(lastUser(requests[0]).includes("My answer: Yes, include them."), "the model is told what it answers");
+    // A search that keeps no thread (made on the page, or before 00172): the same.
+    const bare = leadWorld();
+    bare.lead_searches_view = [waitingSearch({ thread_id: null })];
+    await linesOf(
+      await ask.POST.run(send("POST", { text: "Yes", answering: { search_id: SEARCH } }, inA), ctxFor(bare)),
+    );
+    assert.deepEqual(
+      bare.ask_threads.map((t) => t.title),
+      ["Pilates studios · Denver"],
+      "never the machine's sentence",
+    );
+    // Without an answer to make, a thread that is not theirs is what it always was: a 404, nothing saved.
+    const plain = leadWorld([threadRow(PLANNED, B)]);
+    await refused(
+      ask.POST.run(send("POST", { text: "And then?", thread_id: PLANNED }, inA), ctxFor(plain)),
+      "not_found",
+      404,
+      "That thread is not yours.",
+    );
+    assert.equal(plain.ask_messages.length, 0);
+    // A search that is not this workspace's is refused before anything is saved.
+    const away = leadWorld();
+    away.lead_searches_view = [waitingSearch({ tenant_id: B })];
+    await refused(
+      ask.POST.run(send("POST", { text: "Yes", answering: { search_id: SEARCH } }, inA), ctxFor(away)),
+      "not_found",
+      404,
+    );
+    assert.deepEqual([away.ask_threads.length, away.ask_messages.length], [0, 0]);
+  } finally {
+    setAskPorts(null);
+  }
+});
+
+test("a new search's card carries the thread it was planned in, for the commit to hand the search; a card that answers a search carries none", async () => {
+  const tables = leadWorld();
+  let n = 0;
+  setAskPorts({
+    round: async () => ({
+      blocks: [{ type: "tool_use", id: `t${++n}`, name: "propose_lead_search", text: "", json: "{}" }],
+      stopReason: "tool_use",
+      streamError: null,
+    }),
+    snapshot: async () => "",
+    propose: async () => ({
+      proposal: {
+        id: `p${n}`,
+        kind: "lead_search",
+        needs: "owner",
+        title: "Find 20 personal trainers",
+        summary: "…",
+        payload: n === 1 ? { plan: PLAN } : { plan: { ...PLAN, version: 2 }, amends: { search_id: SEARCH } },
+        undo: n === 1 ? "Stop the search" : null,
+      },
+      result: JSON.stringify({ proposed: true }),
+      isError: false,
+    }),
+  });
+  try {
+    const body = { text: "20 personal trainers in Austin", surface: "leads" };
+    const lines = await linesOf(await ask.POST.run(send("POST", body, inA), ctxFor(tables)));
+    const made = tables.ask_threads[0].id;
+    assert.equal(lines.at(-1).message.proposals[0].payload.thread_id, made, "the card on the stream");
+    assert.equal(
+      tables.ask_messages[1].content.proposals[0].payload.thread_id,
+      made,
+      "and as stored, for an approve later",
+    );
+    const again = { text: "Include them", thread_id: made, answering: { search_id: SEARCH } };
+    const answer = (await linesOf(await ask.POST.run(send("POST", again, inA), ctxFor(tables)))).at(-1).message;
+    assert.equal("thread_id" in answer.proposals[0].payload, false, "an answer's card starts no search");
+  } finally {
+    setAskPorts(null);
   }
 });

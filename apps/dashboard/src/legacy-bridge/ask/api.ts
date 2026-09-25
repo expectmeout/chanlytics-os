@@ -107,13 +107,26 @@ export function askApi(client: Api = api()) {
       return r.ok;
     },
     send: async (
-      input: { text: string; threadId: string | null; scope: AskScope | null; surface: AskSurface },
+      input: {
+        text: string;
+        threadId: string | null;
+        scope: AskScope | null;
+        surface: AskSurface;
+        /** The search whose question the text answers (the Leads answer row): the route reads it and tells the model. */
+        answering?: { searchId: string } | null;
+      },
       on: (ev: SendEvent) => void,
     ): Promise<void> => {
       let res: Response;
       try {
         res = await client.raw("POST ask", {
-          body: { text: input.text, thread_id: input.threadId, scope: input.scope, surface: input.surface },
+          body: {
+            text: input.text,
+            thread_id: input.threadId,
+            scope: input.scope,
+            surface: input.surface,
+            ...(input.answering ? { answering: { search_id: input.answering.searchId } } : {}),
+          },
           timeoutMs: TURN_MS,
         });
       } catch (e) {

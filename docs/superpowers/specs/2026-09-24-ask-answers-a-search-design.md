@@ -53,4 +53,4 @@ Built as the plan says, with these differences found in review:
 - **G5:** the panel refuses a card whose `amends` names a different search, not only a card without one.
 - **G6:** the warn threshold is a module constant; a missing `waiting_since` reads as a wait of zero rather than dropping the row.
 - **G8:** three pills wrap (`.ask-now-pills`), centred under the sentence on a phone: the Spanish words outgrow 375px.
-- **Not built:** unchanged from section 5.
+- **Not built:** unchanged from section 5, with two of its three since settled (25 Sep). The thread id on a search is built: `docs/superpowers/specs/2026-09-25-a-search-keeps-its-thread-design.md` (00172), so the answer row's turn lands in the thread the search was planned in, in the owner's own words. Keep and Stop from Ask are a deliberate no, not a gap: each is one press on the question strip, and every door to a waiting search (Today's Answer, Brief me, the bell, "1 search needs you") lands on that strip; a card for either would be two steps for one.
