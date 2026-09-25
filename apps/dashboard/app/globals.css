@@ -25,11 +25,50 @@
 * {
   box-sizing: border-box;
 }
+html {
+  /* A phone turned sideways keeps the sizes the page set, instead of inflating the words itself. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
 body {
   margin: 0;
   background: var(--bg);
   color: var(--ink);
   -webkit-font-smoothing: antialiased;
+}
+
+/* ------------------------------------------------------ fields under a thumb */
+
+/* An iPhone zooms the whole page into any field whose words are under 16px the
+   moment it takes focus, and stays zoomed after it lets go. The type scale sets
+   fields at 12 to 14.5px, the desktop's density, so nearly every field in the
+   product did it, the sign-in first. On a touch screen every field is 16px, here,
+   once, for every page this layout draws; a mouse keeps the density. It is
+   !important because fields are sized by two-class rules (.settings .sd-input)
+   that a bare `input` would lose to. The two already drawn larger (a person's
+   name being renamed, Ask's line) keep their size. Pinned by
+   tooling/scripts/tests/fields-no-zoom.test.mjs; never solve this with
+   maximum-scale in the viewport, which takes pinch-zoom away on Android. */
+@media (pointer: coarse) {
+  input:not(
+    [type="checkbox"],
+    [type="radio"],
+    [type="range"],
+    [type="color"],
+    [type="file"],
+    [type="hidden"],
+    [type="button"],
+    [type="submit"],
+    [type="reset"],
+    [type="image"],
+    .cl-prof-name-input,
+    .ask-line-input
+  ),
+  textarea,
+  select,
+  [contenteditable]:not([contenteditable="false"]) {
+    font-size: 16px !important;
+  }
 }
 
 /* ---------------------------------------------------------------- the doors */
