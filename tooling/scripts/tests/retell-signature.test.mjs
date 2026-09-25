@@ -8,11 +8,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
-import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
-
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-const { verifyRetellSignature } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/voice/retell.ts")).href);
+import { verifyRetellSignature } from "@chanlytics/channels";
 
 const KEY = "key_with_the_webhook_badge";
 const sign = (raw, key = KEY, ts = Date.now()) =>
