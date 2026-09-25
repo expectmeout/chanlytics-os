@@ -226,17 +226,14 @@
   /* The leading tile at the phone row's face size (tokens.css --row-face). */
   .settings { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); --set-lead: var(--row-face, 32px); }
   .setup-rows { --set-lead: var(--row-face, 32px); }
-  /* The rail is one strip of tabs: no scrollbar drawn under it, and its two
-     groups are a hairline between Profile and the workspace's tabs rather than
-     two words in capitals scrolling by with them. The open tab is brought into
-     view by the page (settings.jsx): past Business it was off the screen. */
-  /* 8px, not 6: the rail is a scroll box and the focus ring is drawn 4px outside its tab. */
-  .set-nav { flex-direction: row; align-items: center; gap: 2px; overflow-x: auto; border-right: none; border-bottom: 1px solid var(--line); padding: 8px 12px; scrollbar-width: none; scroll-padding-inline: 8px; }
-  .set-nav::-webkit-scrollbar { display: none; }
-  .set-nav .fl-roster-head { display: none; }
-  .set-nav-group { flex: 0 0 1px; align-self: stretch; width: 1px; margin: 10px 6px; padding: 0; overflow: hidden; font-size: 0; background: var(--line); }
-  .set-nav-group:first-of-type { display: none; }
-  .set-nav-row { grid-template-columns: auto auto; white-space: nowrap; flex: 0 0 auto; }
+  /* The sections are every page's strip here (components.css .stabs, settings.jsx), where the rail was squeezed into
+     a row of boxed icons that ran off the screen's edge with no sign there was more (25 Sep). The strip scrolls
+     sideways with no bar drawn, each tab keeps its word, the open one is brought into view by the page, and the edges
+     fade where more waits past them. */
+  .set-nav { display: none; }
+  .stabs-settings { display: flex; scrollbar-width: none; scroll-padding-inline: 16px; -webkit-mask-image: linear-gradient(to right, transparent, #000 20px, #000 calc(100% - 20px), transparent); mask-image: linear-gradient(to right, transparent, #000 20px, #000 calc(100% - 20px), transparent); }
+  .stabs-settings::-webkit-scrollbar { display: none; }
+  .stabs-settings .stabs-tab { flex: none; white-space: nowrap; }
   .set-pane { padding: 16px 16px 48px; gap: 16px; }
   .settings .set-card { padding: 14px 15px 6px; }
   /* A card that scrolls sideways (below, for wide tables) gets min-height 0 in
@@ -331,6 +328,9 @@
 }
 
 @media (max-width: 720px) {
+  /* Business says its name once on a phone: the open section in the strip over it and the top bar's crumb say it, so
+     the big title under them goes, for a screen reader's ears only; the line of what it is and who changed it stays. */
+  .bt-title { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .st-grid, .fleet-grid { grid-template-columns: 1fr; }
   .cl-triage-tab-row { flex-direction: column; align-items: flex-start; gap: 2px; }
   .pp-board { grid-template-columns: repeat(5, 82vw); min-width: 0; }

@@ -299,6 +299,39 @@ const railRow = (tree, label) =>
     (n) => n.type === "button" && String(n.props.className || "").includes("set-nav-row") && textOf(n).trim() === label,
   );
 
+/* ------------------------------ the sections on a phone ------------------------------ */
+
+const classesOf = (n) => String(n.props?.className || "").split(" ");
+// Ruben, 25 Sep: on a phone Settings' sections are every page's strip -- the words alone, the one open underlined in the
+// accent -- where a boxed rail of icons ran off the screen's edge with no sign there was more.
+test("on a phone the sections are every page's strip: their words in order, the open one current, a press goes there", () => {
+  const went = [];
+  const tree = draw("workspace", went);
+  const strip = find(tree, (n) => classesOf(n).includes("stabs-settings"));
+  assert.ok(strip, "the strip (a phone shows it, mobile.css)");
+  assert.ok(classesOf(strip).includes("stabs"), "every page's strip, components.css .stabs");
+  const tabs = all(strip, (n) => n.type === "button");
+  assert.deepEqual(
+    tabs.map((t) => textOf(t).trim()),
+    globalThis.window.SET_TABS.map((t) => t.label),
+    "the words alone, in the rail's order",
+  );
+  assert.deepEqual(
+    tabs.filter((t) => classesOf(t).includes("active")).map((t) => [textOf(t).trim(), t.props["aria-current"]]),
+    [["Business", "page"]],
+  );
+  tabs.find((t) => textOf(t).trim() === "Team").props.onClick();
+  assert.deepEqual(went, ["team"]);
+});
+
+test("a section opened comes in from its side, and keeps that while it stays open", () => {
+  const pane = (tree) => find(tree, (n) => classesOf(n).includes("set-pane"));
+  draw("workspace");
+  assert.ok(classesOf(pane(draw("team"))).includes("set-slide-next"), "Team after Business: from the right");
+  assert.ok(classesOf(pane(draw("team"))).includes("set-slide-next"), "drawn again, still");
+  assert.ok(classesOf(pane(draw("profile"))).includes("set-slide-prev"), "Profile after Team: from the left");
+});
+
 /* ------------------------------ which card the pane draws ------------------------------ */
 
 // The page and the create card as PaneWorkspace reaches them: read from window at draw time, as everything the

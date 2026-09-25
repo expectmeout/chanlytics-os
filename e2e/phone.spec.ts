@@ -514,6 +514,7 @@ test.describe("Phone shell on a real workspace", () => {
       ["the Inbox", "inbox", page.locator(".stabs.stabs-inbox")],
       ["People", "clients", page.getByTestId("people-phone-scopes")],
       ["Campaigns", "outbound", page.locator(".stabs.stabs-campaigns")],
+      ["Settings", "admin/workspace", page.locator(".stabs.stabs-settings")],
     ] as const) {
       await page.goto(`/#/${hash}`);
       await page.waitForLoadState("networkidle");
@@ -690,6 +691,13 @@ test.describe("Phone shell on a real workspace", () => {
     await expect(page.locator(".stabs.stabs-campaigns")).toBeVisible();
     await swipe(300, 90);
     await expect(page).toHaveURL(/#\/broadcasts/);
+
+    // Settings' sections are the same strip on a phone (25 Sep): Business, then Team.
+    await page.goto("/#/admin/workspace");
+    await page.waitForLoadState("networkidle");
+    await expect(page.locator(".stabs.stabs-settings")).toBeVisible();
+    await swipe(300, 90);
+    await expect(page).toHaveURL(/#\/admin\/team/);
   });
 
   /**
