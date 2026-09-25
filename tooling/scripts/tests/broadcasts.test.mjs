@@ -269,8 +269,8 @@ test("the view model: delivered and read over sent, open while scheduled or send
 });
 
 test("the job: its rules are run (core-broadcast.test.mjs); the adapter still reads what the run needs and writes where it did", () => {
-  const h = readCode("packages/jobs/src/handlers.ts");
-  assert.ok(h.includes("broadcast_send: broadcastSend,"));
+  // The job is broadcast-send.ts (Reach out Part 2.5); that the dispatch map names it is store-retired.test.mjs's.
+  const h = readCode("packages/jobs/src/broadcast-send.ts");
   assert.ok(h.includes(".limit(limit);") && BROADCAST_CHUNK === 25);
   assert.ok(
     h.includes('.select("meta_status, body_preview, category")'),

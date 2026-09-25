@@ -298,7 +298,7 @@ test("the wiring: the CHECKs, the facts column, the runner attaching the calenda
     /poolRowsOf\(withVisitsOf\(rows, visits, \{ state: calendar,/,
   ])
     assert.ok(s.test(runner), String(s));
-  const handler = readCode("packages/jobs/src/handlers.ts");
+  const handler = readCode("packages/jobs/src/broadcast-send.ts");
   assert.ok(
     handler.includes('.select("contact_id, facts")'),
     "the row's own words ride the batch; the slots are filled from them (run in core-broadcast.test.mjs)",

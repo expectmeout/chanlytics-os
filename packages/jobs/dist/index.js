@@ -20778,45 +20778,19 @@ async function upsertEscalation(db, tenantId, conversationId, reason, details) {
   return "failed";
 }
 
-// src/handlers.ts
+// src/context.ts
 function must(what, r6) {
   if (r6.error) throw new Error(`${what}: ${r6.error.message}`);
   return r6.data;
 }
+
+// src/broadcast-send.ts
 async function countRecipients(db, tenantId, broadcastId, state) {
   let q = db.from("broadcast_recipients").select("contact_id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("broadcast_id", broadcastId);
   if (state) q = q.eq("state", state);
   const { count, error } = await q;
   if (error) throw new Error(`broadcast_send: cannot count ${state ?? "all"} recipients: ${error.message}`);
   return count ?? 0;
-}
-async function outboundSend(ctx, job) {
-  await sendQueued(
-    {
-      // maybeSingle() reports an absent row as `data: null` without an error,
-      // so a read that failed and a message that is gone stay separable; the
-      // verb turns the error into the job's loud failure.
-      queued: async (id) => {
-        const { data, error } = await ctx.db.from("messages").select("id, status, body, template_name, channel, sender, meta").eq("id", id).eq("tenant_id", job.tenant_id).maybeSingle();
-        if (error) throw new Error(error.message);
-        if (!data) return null;
-        const request = data.meta?.email?.request;
-        return {
-          status: data.status,
-          body: data.body,
-          channel: data.channel,
-          sender: data.sender,
-          email: isEmailRequest(request) ? request : null
-        };
-      },
-      purposeOf: (template) => templatePurpose(ctx.db, job.tenant_id, template),
-      deliver: (d) => deliver({ db: ctx.db, wire: ctx.wire }, d),
-      escalate: (conversationId, reason, details) => upsertEscalation(ctx.db, job.tenant_id, conversationId, reason, details),
-      alert: ctx.alert,
-      ...ctx.page ? { page: ctx.page } : {}
-    },
-    { tenantId: job.tenant_id, payload: job.payload }
-  );
 }
 async function broadcastSend(ctx, job) {
   const p = job.payload;
@@ -20960,6 +20934,36 @@ async function broadcastSend(ctx, job) {
       sleep: (ms) => new Promise((res) => setTimeout(res, ms))
     },
     { tenantId: job.tenant_id, broadcastId: p.broadcast_id, deadline: ctx.deadline }
+  );
+}
+
+// src/handlers.ts
+async function outboundSend(ctx, job) {
+  await sendQueued(
+    {
+      // maybeSingle() reports an absent row as `data: null` without an error,
+      // so a read that failed and a message that is gone stay separable; the
+      // verb turns the error into the job's loud failure.
+      queued: async (id) => {
+        const { data, error } = await ctx.db.from("messages").select("id, status, body, template_name, channel, sender, meta").eq("id", id).eq("tenant_id", job.tenant_id).maybeSingle();
+        if (error) throw new Error(error.message);
+        if (!data) return null;
+        const request = data.meta?.email?.request;
+        return {
+          status: data.status,
+          body: data.body,
+          channel: data.channel,
+          sender: data.sender,
+          email: isEmailRequest(request) ? request : null
+        };
+      },
+      purposeOf: (template) => templatePurpose(ctx.db, job.tenant_id, template),
+      deliver: (d) => deliver({ db: ctx.db, wire: ctx.wire }, d),
+      escalate: (conversationId, reason, details) => upsertEscalation(ctx.db, job.tenant_id, conversationId, reason, details),
+      alert: ctx.alert,
+      ...ctx.page ? { page: ctx.page } : {}
+    },
+    { tenantId: job.tenant_id, payload: job.payload }
   );
 }
 async function lineProvision(ctx, job) {
