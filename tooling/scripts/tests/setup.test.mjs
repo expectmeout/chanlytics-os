@@ -351,6 +351,7 @@ test("what the first run's Check reads: whether a receptionist is set up, whethe
           service_area_only: true,
           primary_type: "moving_company",
           booking_page: "https://calendly.com/northside-movers-example/estimate",
+          phone_e164: "+13055550100",
         },
       },
     ],
@@ -379,6 +380,7 @@ test("what the first run's Check reads: whether a receptionist is set up, whethe
   );
   assert.equal(dto.google.type, "moving_company", "Google's kind of place, which Check's suggestions follow");
   assert.equal(dto.google.bookingPage, "https://calendly.com/northside-movers-example/estimate");
+  assert.equal(dto.google.phone, "+13055550100", "the listing's number, which the phone step offers to keep");
   assert.equal(
     setupSteps(dto, NOW).check.bookingPage,
     "https://calendly.com/northside-movers-example/estimate",
@@ -395,6 +397,7 @@ test("what the first run's Check reads: whether a receptionist is set up, whethe
   assert.deepEqual([none.business.receptionist, none.business.broken], ["none", false]);
   assert.equal(none.google.type, null, "no listing, no kind");
   assert.equal(none.google.bookingPage, null, "no listing, no website read");
+  assert.equal(none.google.phone, null, "no listing, no number to keep");
   const bare = tables();
   bare.google_listings[0].facts = {};
   assert.equal(

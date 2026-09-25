@@ -18,6 +18,7 @@ import { DAY_NAMES, type Hours } from "./config";
 import { bookingLinkOptional } from "./deals";
 import { checkChipsOf } from "./check-chips";
 import { bookingPageOffered } from "./google";
+import { areaCodeOf, firstRunPhoneOf, FIRST_RUN_PHONE_WORDS } from "./first-run-phone";
 import type { SetupDto, SetupRowVM, SetupState, SetupVM } from "./setup";
 
 /** The first run's address: `#/start`, and `#/start/<step>` for a step already reached. */
@@ -591,6 +592,10 @@ export const FIRST_RUN_HELPERS = {
   todayCard: setupCardOf,
   chips: checkChipsOf,
   bookingPageOffered,
+  /** The phone step (first-run-phone.ts): what it says over Setup and the owner's choice, and its words. */
+  phone: firstRunPhoneOf,
+  phoneWords: FIRST_RUN_PHONE_WORDS,
+  areaCodeOf,
   words: FIRST_RUN_WORDS,
   landedKey: FIRST_RUN_LANDED_KEY,
 } as const;

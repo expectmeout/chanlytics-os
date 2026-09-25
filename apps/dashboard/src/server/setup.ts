@@ -340,6 +340,7 @@ export async function setupDtoFor(
         : [],
       type: listingFacts?.facts?.primary_type ?? null,
       bookingPage: listingFacts?.facts?.booking_page ?? null,
+      phone: listingFacts?.facts?.phone_e164 ?? null,
     },
     billing: billingRow
       ? {
@@ -352,6 +353,7 @@ export async function setupDtoFor(
           trial_days: billingReady.trial_days,
           cancel_at: billingRow.cancel_at,
           cancel_at_period_end: billingRow.cancel_at_period_end,
+          price: billingReady.price,
         }
       : undefined,
     activations: (activations.data ?? []).map((a) => ({
