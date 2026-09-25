@@ -216,10 +216,8 @@ type EscalationOutcome = "opened" | "changed" | "refreshed" | "failed";
 declare function upsertEscalation(db: SupabaseClient<Database>, tenantId: string, conversationId: string, reason: string, details: string): Promise<EscalationOutcome>;
 
 /**
- * Job handlers — dispatched by the edge's api/jobs/tick.ts once
- * claim_due_jobs() has made the job this run's (00098). The rules live in
- * packages/core/src/messages as verbs over ports; each handler here is the
- * adapter that builds the ports from the job's context (no env reads here).
+ * What every job handler is handed: the job as it was claimed, and the context its ports are built from. Moved whole
+ * from handlers.ts (Reach out Part 2.5), which re-exports its public names.
  */
 
 interface PushReceipt {

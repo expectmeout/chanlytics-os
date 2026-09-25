@@ -202,7 +202,7 @@ test("the routes: what Meta refuses is refused first; a duplicate name is a conf
 });
 
 test("the job fills the slots per person and holds anyone a slot cannot be filled for; the send route takes specs and refuses a booking-link slot with no link on file", () => {
-  const h = readCode("packages/jobs/src/handlers.ts");
+  const h = readCode("packages/jobs/src/broadcast-send.ts");
   // The slots per person and the hold on an unfillable one are run: core-broadcast.test.mjs.
   assert.ok(h.includes('const businessName = parsedCfg?.brain?.business_name || tenantRow?.name || "";'));
   // The specs and the booking-link refusal are run: core-campaigns.test.mjs.
