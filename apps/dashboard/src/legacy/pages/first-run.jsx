@@ -855,6 +855,29 @@ const FrTry = ({ tr, W, flash, go, leave, back, backLabel }) => {
   );
 };
 
+/**
+ * Live (canvas R9, P8; contracts first-run-live.ts): what the owner set up, in four lines with a way to change each,
+ * the greeting every caller hears, and what it will and will not do -- the Business tab's own card, reading calls as
+ * live since Finish is what records them so. Setup's optional rows follow, as they did.
+ */
+const FrLive = ({ lv, config, brain, canEdit, leave }) => (
+  <div className="fr-line-step" data-testid="fr-live">
+    <dl className="fr-live-summary" data-testid="fr-live-summary">
+      {lv.summary.map((r) => (
+        <div key={r.key} className="fr-live-row" data-testid={`fr-live-${r.key}`}>
+          <dt className="fr-line-label">{r.label}</dt>
+          <dd className="fr-live-value">
+            {r.value}
+            {r.change && canEdit ? <> <button type="button" className="fr-find-link" onClick={() => leave(r.change.to)}>{r.change.label}</button></> : null}
+          </dd>
+        </div>
+      ))}
+    </dl>
+    <p className="fr-code-off" data-testid="fr-live-greeting">{lv.greeting}</p>
+    {brain && window.BtCanCard ? <window.BtCanCard brain={brain} config={config} canEdit={false} activating={["voice"]} /> : null}
+  </div>
+);
+
 /** The four steps across the top: a step done or on screen opens in place; a step not reached is only its name. */
 const FrRail = ({ fr, go, label }) => (
   <ol className="fr-rail" aria-label={label}>
@@ -1020,6 +1043,16 @@ const FirstRun = ({ param = null, onNavigate }) => {
       : null;
   const tryDrawn = !!tr && tr.stage !== "rows";
   onTry.current = tryDrawn;
+  // Live as contracts say it (first-run-live.ts), over Setup and the settings read's alert addresses and name.
+  const cfgNow = (window.__SETTINGS && window.__SETTINGS.config) || null;
+  const lv =
+    step.key === "live"
+      ? F.live({
+          dto: S.dto,
+          emails: (cfgNow && cfgNow.notifications && cfgNow.notifications.escalation_emails) || [],
+          business: S.dto.business.name,
+        })
+      : null;
   // The step's foot is the phone step's own while its button is the one to press. A role that may not save the
   // forwarding has nothing to press in the questions, and the step is done then (its line answers): the page's own
   // foot, with Continue.
@@ -1043,11 +1076,28 @@ const FirstRun = ({ param = null, onNavigate }) => {
     setMaking(false);
     if (!r.ok) flash(window.refusalToast(r, W.check.notMade));
   };
+  // Finish, on Live: calls switched on by the owner (the capability's activation, which the first time also emails
+  // them that it answers), then Today. A refusal is said and Finish still leaves: nothing here holds the owner.
+  const [finishing, setFinishing] = React.useState(false);
+  const finish = async (to) => {
+    if (finishing) return;
+    const P = window.__setup;
+    const voice = S.dto.channels.voice;
+    const activated = (S.dto.activations || []).some((a) => a.capability === "voice" && !a.deactivated_at);
+    if (P && P.activate && voice.active && !activated && window.canDo && window.canDo("team")) {
+      setFinishing(true);
+      const r = await P.activate("voice");
+      setFinishing(false);
+      if (!r.ok) flash(window.refusalToast(r, W.notFinished));
+    }
+    leave(to);
+  };
   const onward = () => {
     const o = fr.onward;
     if (o.held) return;
     if (!fr.check) {
-      if (o.leaves) leave(o.to);
+      if (step.key === "live") finish(o.to);
+      else if (o.leaves) leave(o.to);
       else go(o.to);
       return;
     }
@@ -1079,14 +1129,15 @@ const FirstRun = ({ param = null, onNavigate }) => {
       <div className="fr-body">
         <main className="fr-step" aria-labelledby="fr-heading">
           <div className="fr-step-head">
-            <h1 className="fr-heading" id="fr-heading" data-testid="fr-heading">{phoneDrawn ? ph.heading : tryDrawn ? tr.heading : fr.heading}</h1>
-            {(phoneDrawn ? ph.lead : tryDrawn ? tr.lead : fr.lead) ? <p className="fr-lead">{phoneDrawn ? ph.lead : tryDrawn ? tr.lead : fr.lead}</p> : null}
+            <h1 className="fr-heading" id="fr-heading" data-testid="fr-heading">{phoneDrawn ? ph.heading : tryDrawn ? tr.heading : lv ? lv.heading : fr.heading}</h1>
+            {(phoneDrawn ? ph.lead : tryDrawn ? tr.lead : lv ? lv.lead : fr.lead) ? <p className="fr-lead">{phoneDrawn ? ph.lead : tryDrawn ? tr.lead : lv ? lv.lead : fr.lead}</p> : null}
           </div>
           {fr.find ? <FrFind W={W.find} flash={flash} done={fr.findDone} go={go} make={make} /> : null}
           {fr.check ? <FrCheck check={fr.check} W={W.check} flash={flash} make={make} making={making} go={go} canEdit={canEdit} /> : null}
           {phoneDrawn ? <FrPhone ph={ph} choice={phoneChoice} setChoice={setPhoneChoice} W={F.phoneWords} flash={flash} go={go} back={fr.back} backLabel={W.back} ownFoot={phoneFoot} /> : null}
           {tryDrawn ? <FrTry tr={tr} W={F.tryWords} flash={flash} go={go} leave={leave} back={fr.back} backLabel={W.back} /> : null}
           {step.key === "try" && !tryDrawn && S.vm.tryIt ? <window.SetupTry tryIt={S.vm.tryIt} /> : null}
+          {lv ? <FrLive lv={lv} config={cfgNow} brain={cfgNow && cfgNow.brain} canEdit={canEdit} leave={leave} /> : null}
           {!fr.find && !fr.check && !phoneDrawn && !tryDrawn && step.rows.length ? (
             <div className="fr-part">
               {step.key === "live" ? <h2 className="fr-sub">{W.liveNext}</h2> : null}
@@ -1099,6 +1150,7 @@ const FirstRun = ({ param = null, onNavigate }) => {
             <div className="fr-foot">
               {fr.back ? <button type="button" className="btn btn-ghost btn-sm" onClick={() => go(fr.back)} data-testid="fr-back">{W.back}</button> : <span />}
               {fr.onward && fr.onward.held ? <span className="fr-held" id="fr-held" data-testid="fr-held">{fr.onward.held}</span> : null}
+              {lv && lv.finish.note ? <span className="fr-held" data-testid="fr-live-note">{lv.finish.note}</span> : null}
               {fr.onward ? (
                 <button
                   type="button"

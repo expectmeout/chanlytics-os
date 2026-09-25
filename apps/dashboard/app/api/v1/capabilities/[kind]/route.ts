@@ -2,6 +2,7 @@ import { z } from "zod";
 import { AppError, CAPABILITY_KINDS, capabilityStatus, type CapabilityKind } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/route";
 import { setupDtoFor } from "@/server/setup";
+import { tellOwnerLive } from "@/server/service";
 
 const Body = z.object({
   note: z.string().trim().max(200, "Two hundred characters at most.").optional(),
@@ -20,7 +21,8 @@ function kindOf(raw: unknown): CapabilityKind {
  * computed from the workspace's records and refused when they say no, so an
  * activation is never a claim ahead of the facts; evidence stays what the
  * records show. Owners only: it is the owner's decision what the workspace
- * says is live. Activation gates nothing at runtime yet.
+ * says is live. Activation gates nothing at runtime yet. The first activation of calls
+ * (the first run's Finish) also emails the owner that the receptionist is answering.
  */
 export const POST = write({
   scope: workspace,
@@ -31,6 +33,8 @@ export const POST = write({
     const kind = kindOf(ctx.params.kind);
     const dto = await setupDtoFor(ctx.supabase, member.tenantId, { kind: "member" });
     const before = capabilityStatus(kind, dto);
+    // The workspace's first activation of its calls is the first run's Finish: the owner is emailed that it answers.
+    const firstCalls = kind === "voice" && !(dto.activations ?? []).some((a) => a.capability === "voice");
     if (!before.ready)
       throw new AppError(
         "conflict",
@@ -54,7 +58,8 @@ export const POST = write({
       ...(dto.activations ?? []).filter((a) => a.capability !== kind),
       { capability: kind, activated_at: now, activated_by: ctx.userId, deactivated_at: null },
     ];
-    return { capability: kind, status: capabilityStatus(kind, { ...dto, activations }) };
+    const told = firstCalls ? await tellOwnerLive(member.tenantId) : false;
+    return { capability: kind, status: capabilityStatus(kind, { ...dto, activations }), told };
   },
 });
 

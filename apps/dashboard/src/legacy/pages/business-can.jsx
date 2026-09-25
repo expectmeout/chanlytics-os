@@ -127,7 +127,7 @@ const btcReplyMode = (stored, modes) => (modes && modes.indexOf(stored) >= 0 ? s
  * table under Task 4.1 step 3). abilityRows and cannotRows throw on an input left out, so a wiring slip is an error
  * here rather than a card that quietly says a live line is dark.
  */
-const BtCanCard = ({ brain, config, canEdit }) => {
+const BtCanCard = ({ brain, config, canEdit, activating = null }) => {
   const tab = window.__businessTab || {};
   if (!tab.abilityRows || !tab.cannotRows) return null;
   const profile = brain.profile || {};
@@ -155,8 +155,13 @@ const BtCanCard = ({ brain, config, canEdit }) => {
   }
   const dto = setup && setup.dto ? setup.dto : null;
   const rows = policies && Array.isArray(policies.rows) ? policies.rows : null;
-  // The connections, decided where Setup decides them: ready, tested and switched on by the owner.
-  const live = (kind) => !!(dto && tab.capabilityStatus(kind, dto).live);
+  // The connections, decided where Setup decides them: ready, tested and switched on by the owner. `activating` names
+  // what the page is about to switch on (the first run's Live, whose Finish records it): ready is enough for those.
+  const live = (kind) => {
+    if (!dto) return false;
+    const s = tab.capabilityStatus(kind, dto);
+    return !!(s.live || (activating && activating.indexOf(kind) >= 0 && s.ready));
+  };
   const reply = rows ? rows.filter((r) => r && r.class === "reply")[0] || null : null;
   const abilities =
     dto && rows && Array.isArray(templates)

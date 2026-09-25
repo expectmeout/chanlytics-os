@@ -225,6 +225,31 @@ export async function tellPlatformOfSetupRequest(tenantId: string, what: string,
 }
 
 /**
+ * Email the owner that the receptionist is answering (the first run's "you're live" email, decision 4): the edge
+ * composes and sends it to the workspace's alert addresses. Called once, on the first activation of calls. Production
+ * only, never throws: the activation is already on record, and a failure here is logged, not surfaced.
+ */
+export async function tellOwnerLive(tenantId: string): Promise<boolean> {
+  if (!deployment.providersLive || !edgeConfigured()) return false;
+  try {
+    const r = await fetch(`${edgeUrl()}/api/admin/you-are-live`, {
+      method: "POST",
+      headers: edgeHeaders("/api/admin/you-are-live", { workspace: tenantId }),
+      body: JSON.stringify({ tenant_id: tenantId }),
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!r.ok) console.error("you_are_live_tell_failed", JSON.stringify({ tenant: tenantId, status: r.status }));
+    return r.ok;
+  } catch (e) {
+    console.error(
+      "you_are_live_tell_failed",
+      JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
+    );
+    return false;
+  }
+}
+
+/**
  * Have the edge rewrite a held draft to the owner's instruction. The model
  * key lives there; RLS and the role door have already been checked by the
  * route that calls this.
