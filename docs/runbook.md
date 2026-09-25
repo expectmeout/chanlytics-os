@@ -270,6 +270,47 @@ Each project's variables are listed in its `.env.example`, and a test fails
 when the code reads one the file does not list. Provider keys live on the edge
 only; the dashboard holds none.
 
+## Turn on cold email
+
+Reach out sends from a workspace's own domains through a second Resend
+account, apart from the one every reply and every page uses, so a cold
+complaint never touches the platform's reputation. Nothing sends cold until
+Reach out Part 3; these are the switches it needs, in order.
+
+1. **The cold account.** Create the second Resend account on a plan with
+   enough domains (five per workspace at most).
+2. **Its key, on the edge:** `RESEND_COLD_API_KEY`. Connections › Email then
+   offers "Domains you send from", and the `domains` sweep reads them.
+3. **Its webhook.** In the cold account, point a webhook at
+   `https://<edge>/api/resend-webhook` for the email events, and set its
+   signing secret on the edge as `RESEND_COLD_WEBHOOK_SECRET`. The door takes
+   either account's signature. Cold routes open only when the key and this
+   secret are both set, so no cold email leaves while its receipts would be
+   refused. A secret set wrong is found for you: the sweep pages
+   `email_cold_receipts_missing` once a domain's emails of the last day have
+   heard nothing back.
+4. **The unsubscribe secret, the same value on both projects:**
+   `UNSUBSCRIBE_SECRET`, generated once with
+   `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"`.
+   The dashboard's `/u/<token>` page opens the links; the edge mints them from
+   Part 3. Without it the page says it cannot record anything, and logs
+   `unsubscribe_unavailable` once a minute at most.
+5. **Redeploy both projects**, then check `GET /api/diag` on the edge:
+   `env.emailDomain`, `env.resendWebhook`, `env.resendCold` and
+   `env.resendColdWebhook` all `true`.
+6. **The first domain.** Add it on Connections › Email, publish its records at
+   the registrar, and press Check until it reads verified (the sweep reads it
+   every ten minutes too).
+7. **The DKIM check, once, with Ruben's yes:** one real email from that domain
+   to an inbox you own. Its headers show `dkim=pass`, with
+   `List-Unsubscribe` among the signed headers.
+
+**Rotating the unsubscribe secret.** A link already in someone's inbox must
+keep working for at least thirty days (CAN-SPAM). Move the current value to
+`UNSUBSCRIBE_SECRET_PREVIOUS` on the dashboard, set the new one as
+`UNSUBSCRIBE_SECRET` on both projects, and redeploy. Clear the previous value
+no sooner than thirty days later.
+
 ## Apply a migration
 
 1. Write it: the next free number, named for the schema change, re-runnable
