@@ -269,25 +269,27 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
      shares .ask-overlay and was docked here by this rule before the Line. The Line itself is the whole screen. */
   .ask-overlay { padding: 0; align-items: flex-end; }
   .ask-overlay.ask-line-scrim { padding: 0; }
-  /* The screen: the head, the middle that scrolls, the foot at the keyboard and the home bar. It is as tall as what the
-     phone shows (--kb and --vv-top, data-bits watchKeyboard): a keyboard laid over the page shortens it, and the browser
-     moving what it shows down to keep the field in view slides it down by as much, so the head stays at the top and the
-     field at the foot of what is seen. Its height eases (250ms): the field glides up with the keys, where it jumped up
-     as the browser said the keys were there and back down as it moved the view (Ruben, 25 Sep). With the keys up the
-     home bar is under them, so no room is kept for it. It fades in over the kit's wash and leaves as a dialog does
-     (components.css), never dropping as a sheet. */
+  /* The screen: the head, the middle that scrolls, the foot above the keys (--ask-keys) and the home bar. The keys are
+     what the document says (data-bits watchKeyboard): what a keyboard covers once it is up (--kb), and, from the moment
+     a field is focused until it is up, the height the last one had (kb-expected, --kb-last), so the room is there at
+     once and the browser finds the field above the keys and has nothing to move the view for. Making the room as the
+     browser reported the keys, then following its word on how far it had moved the view, jumped the screen one way or
+     the other (Ruben's recording, 25 Sep): its word comes before the move or long after, never with it. Should it move
+     the view all the same (a keyboard of another height, the first ever on a device), the screen slides down by as
+     much and is as tall as what is left (--vv-top), eased. What stands on the room is the page's own slide
+     (ask-real.jsx arSlide). With the keys up the home bar is under them, so no room is kept for it. It fades in over
+     the kit's wash and leaves as a dialog does (components.css), never dropping as a sheet. */
   .ask-modal.ask-line {
+    --ask-keys: var(--kb, 0px);
     position: fixed; inset: 0; max-width: none; width: auto; max-height: none;
-    height: calc(100dvh - var(--kb, 0px) - var(--vv-top, 0px)); translate: 0 var(--vv-top, 0px);
-    padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom);
-    border: 0; border-radius: 0; background: var(--bg);
-    /* its own paper all round: what is under the keys, or between the foot and the keys for a frame as they rise, is
-       never the page */
-    box-shadow: 0 0 0 100dvh var(--bg);
+    height: calc(100dvh - var(--vv-top, 0px)); translate: 0 var(--vv-top, 0px);
+    padding-top: env(safe-area-inset-top); padding-bottom: calc(env(safe-area-inset-bottom) + var(--ask-keys));
+    border: 0; border-radius: 0; box-shadow: none; background: var(--bg);
     animation: wash-in var(--duration-base) var(--ease-out);
-    transition: height 250ms var(--ease-out);
+    transition: padding-bottom 250ms var(--ease-out), translate 250ms var(--ease-out);
   }
-  html.kb-up .ask-modal.ask-line { padding-bottom: 0; }
+  html.kb-up .ask-modal.ask-line { padding-bottom: var(--ask-keys); }
+  html.kb-expected .ask-modal.ask-line { --ask-keys: var(--kb-last, 0px); padding-bottom: var(--ask-keys); transition: translate 250ms var(--ease-out); }
   /* It takes focus as it opens so no keyboard rises (S10); the whole screen needs no ring to say so. */
   .ask-modal.ask-line:focus { outline: none; }
   /* The head: Earlier, and Clear in a conversation, at the left; the close at the right, a thumb's reach. */
@@ -302,13 +304,12 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
   .ask-line-body.rest, .ask-line-body.composing { display: flex; flex-direction: column; }
   .ask-line-body.rest > :first-child, .ask-line-body.composing > :first-child { margin-top: auto; }
   .ask-line-body.rest > :last-child, .ask-line-body.composing > :last-child { margin-bottom: auto; }
-  /* Composing (the field focused, its keyboard up; ask-real.jsx, spec 5.9): the rows fade (140ms) as their fold closes
-     (220ms) and then leave, so the three, at their size with the standing pills under them, keep the middle's centre
-     as the screen shortens with the keys: one motion. The fold stays while they are gone and opens as they return. */
+  /* Composing (the field focused, its keyboard up; ask-real.jsx, spec 5.9): the rows go as the field slides up over
+     their place, and the three, at their size with the standing pills under them, slide to the middle's centre. Their
+     fold stays closed while they are gone and opens again as they return (220ms), so the return is one motion too. */
   .ask-rows-fold { display: grid; grid-template-rows: 1fr; transition: grid-template-rows 220ms var(--ease-out); }
-  .ask-rows-fold > .ask-rows { min-height: 0; overflow: hidden; transition: opacity 140ms var(--ease-in), padding 220ms var(--ease-out); }
-  .ask-rows-fold.folding, .ask-rows-fold.gone { grid-template-rows: 0fr; }
-  .ask-rows-fold.folding > .ask-rows { opacity: 0; padding-top: 0; padding-bottom: 0; }
+  .ask-rows-fold > .ask-rows { min-height: 0; overflow: hidden; }
+  .ask-rows-fold.gone { grid-template-rows: 0fr; }
   .ask-line-body .ask-rows { animation: ask-rows-in 160ms var(--ease-out); }
   @keyframes ask-rows-in { from { opacity: 0; } to { opacity: 1; } }
   .ask-hero { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 4px 20px 0; }
@@ -316,7 +317,7 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
      canvas fits its box every frame, so the squares shrink with the stage as an answer is written (spec 5.5, R3). With
      the keys up they keep their size where it fits, and on a small screen take at most 45% of what is shown, so they
      stay above the field with the pills under them (spec 5.9). */
-  .ask-hero-stage { display: block; width: 100%; height: min(232px, 34dvh, calc((100dvh - var(--kb, 0px) - var(--vv-top, 0px)) * 0.45)); border: 0; padding: 0; background: transparent; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; transition: height 200ms var(--ease-out); }
+  .ask-hero-stage { display: block; width: 100%; height: min(232px, 34dvh, calc((100dvh - var(--ask-keys, 0px) - var(--vv-top, 0px)) * 0.45)); border: 0; padding: 0; background: transparent; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; transition: height 200ms var(--ease-out); }
   .ask-hero-canvas { display: block; width: 100%; height: 100%; }
   .ask-hero.small .ask-hero-stage { height: 78px; }
   /* The question under the three: 14px in ink after a 7px dark square while Ask reads (spec 5.4), 12.5px dim once
@@ -369,6 +370,6 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
   /* the ✦'s beam holds still: the disc, the three's still frame and the colours stay */
   .phone-ask .ask-beam::before, .phone-ask .ask-beam::after { animation: none; }
   .ask-cursor, .ask-reading, .ask-reading-dot, .ask-part.show, .ask-part.do, .ask-modal.ask-line, .ask-send .icon { animation: none; }
-  .ask-fold-chev, .ask-stage, .ask-send, .ask-hero-stage, .ask-modal.ask-line, .ask-rows-fold, .ask-rows-fold > .ask-rows { transition: none; }
+  .ask-fold-chev, .ask-stage, .ask-send, .ask-hero-stage, .ask-modal.ask-line, .ask-rows-fold { transition: none; }
   .ask-line-body .ask-rows { animation: none; }
 }
