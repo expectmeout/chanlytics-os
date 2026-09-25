@@ -29,6 +29,7 @@ import {
   checkResultWords,
   domainHoldFixWords,
   sendingDomainsFootWords,
+  domainHoldNoticeWords,
 } from "@chanlytics/contracts";
 
 const PLATFORM = { mailDomain: "mail.chanlytics.com" };
@@ -264,8 +265,8 @@ test("the row's words, for every state: the pill, what is left to do, and the ca
 
   for (const [days, cap, next] of [
     // The next step as the day it comes, if the days stay clean.
-    [3, "Up to 30 a day", /^100 a day from [A-Z][a-z]{2} \d{1,2}$/],
-    [20, "Up to 100 a day", /^200 a day from [A-Z][a-z]{2} \d{1,2}$/],
+    [3, "Up to 30 a day", /^100 a day from Oct 6$/],
+    [20, "Up to 100 a day", /^200 a day from Oct 5$/],
     [40, "Up to 200 a day", null],
   ]) {
     const w = sendingDomainWords(
@@ -574,7 +575,12 @@ test("a row says what a hold costs and how to fix it; a verified row says how it
     NOW,
   );
   assert.equal(held.cap, "Sending nothing · was 100 a day");
-  assert.equal(held.fix, "Check the addresses you write to: more than 2% of recent emails bounced.");
+  assert.equal(held.fix, "Check the addresses you write to before you resume it.", "what to do, not the reason again");
+  assert.equal(
+    sendingDomainWords(dto({ state: "held", held_why: "provider", held_at: daysAgo(1) }), NOW).fix,
+    null,
+    "a provider hold lifts itself: nothing tells the owner to remove it",
+  );
   const dns = sendingDomainWords(
     dto({ state: "held", held_why: "dmarc", held_at: daysAgo(1), clean_since: daysAgo(3) }),
     NOW,
@@ -588,7 +594,7 @@ test("a row says what a hold costs and how to fix it; a verified row says how it
   );
   assert.doesNotMatch(ok.line, /bounced/, "the stats are their own line");
   assert.equal(ok.stats, "0.4% bounced · none marked as spam");
-  assert.match(ok.next, /^100 a day from [A-Z][a-z]{2} \d{1,2}$/, "the next step as the day it comes");
+  assert.equal(ok.next, "100 a day from Oct 6", "the next step as the day it comes");
 });
 
 test("the foot says the rule once, the most there can be, and where replies and direct mail go", () => {
@@ -600,4 +606,45 @@ test("the foot says the rule once, the most there can be, and where replies and 
     /Mail sent straight to a domain's own address goes wherever that domain's mail goes\./,
   );
   assert.match(sendingDomainsFootWords(5, 5), /^Five is the most\. Remove one to add another\./);
+});
+
+test("a record's name, however the provider spells it: the domain itself is @, a trailing dot and capitals are the same name", () => {
+  const rows = domainRecordRows(
+    dto({
+      host: "getharbor.com",
+      dmarc: "found",
+      records: [
+        { label: "SPF", type: "TXT", name: "getharbor.com", value: "v=spf1 ~all", priority: null, status: "verified" },
+        {
+          label: "DKIM",
+          type: "TXT",
+          name: "Resend._DomainKey.GetHarbor.com.",
+          value: "p=x",
+          priority: null,
+          status: "verified",
+        },
+        { label: "SPF", type: "MX", name: "send.other.example", value: "mx.example", priority: 10, status: "verified" },
+      ],
+    }),
+  );
+  assert.deepEqual(
+    rows.map((r) => r.name),
+    ["@", "resend._domainkey", "send.other.example"],
+  );
+  assert.equal(new Set(rows.map((r) => r.key)).size, rows.length, "each row its own key");
+});
+
+test("Check after a DNS hold lifts says it sends again, not that it is new", () => {
+  const before = dto({ state: "held", held_why: "dmarc", held_at: daysAgo(1), clean_since: daysAgo(20) });
+  const after = dto({ state: "verified", clean_since: NOW_ISO, verified_at: daysAgo(20) });
+  assert.equal(checkResultWords(after, NOW, before).msg, "getbestmovers.com is sending again, starting at 30 a day.");
+  assert.equal(checkResultWords(after, NOW).msg, "getbestmovers.com is verified. It starts at 30 a day.");
+});
+
+test("the owner's email says where to look, never 'below'", () => {
+  for (const why of ["verification", "dmarc", "bounces", "complaint", "provider"]) {
+    const words = domainHoldNoticeWords(why);
+    assert.ok(words, why);
+    assert.doesNotMatch(words, /below/, why);
+  }
 });

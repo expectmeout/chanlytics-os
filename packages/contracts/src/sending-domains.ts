@@ -459,8 +459,9 @@ export function sendingDomainWords(d: SendingDomainDto, nowMs: number): SendingD
     tone: "warn",
     line: `${since ? `Held since ${since}` : "Held"} · ${why}`,
     stats: null,
-    // A hold its records fix shows them just below, so the row does not say the reason twice; the rest say what to do.
-    fix: d.held_why && DNS_HOLDS.includes(d.held_why) ? null : domainHoldFixWords(d.held_why),
+    // Only a hold the owner lifts says what to do: a DNS hold shows its records just below, and a provider hold lifts
+    // itself (its line says so), so neither says anything twice or tells the owner to remove what will come back.
+    fix: d.held_why && SELF_LIFTING_HOLDS.includes(d.held_why) ? null : domainHoldFixWords(d.held_why),
     cap: was > 0 ? `Sending nothing · was ${was} a day` : "Sending nothing",
     next:
       d.held_why === "provider"
@@ -471,17 +472,31 @@ export function sendingDomainWords(d: SendingDomainDto, nowMs: number): SendingD
   };
 }
 
+/** What to do about a hold, on the row and in the Resume confirm, beside the reason (never the reason again). */
 const HOLD_FIX_WORDS: Record<DomainHold, string> = {
   verification: "One of its records stopped reading right at your registrar: check them below.",
   dmarc: "Its DMARC record is missing: add the one below.",
-  bounces: "Check the addresses you write to: more than 2% of recent emails bounced.",
-  complaint: "Someone marked an email as spam. Read the email again: a clear reason for writing, and fewer a day.",
-  provider: "Remove it and add it again.",
+  bounces: "Check the addresses you write to before you resume it.",
+  complaint: "Read the email again before you resume it: a clear reason for writing, and fewer a day.",
+  provider: "It usually comes back by itself.",
 };
 
-/** What to do about a hold, as one sentence: the row, the Resume confirm and the owner's notice say it alike. */
 export function domainHoldFixWords(why: string | null | undefined): string | null {
   return (why && HOLD_FIX_WORDS[why as DomainHold]) || null;
+}
+
+/** What to do about a hold, in the owner's email: said where it can be done, since nothing sits "below" in an email. */
+const HOLD_NOTICE_WORDS: Record<DomainHold, string> = {
+  verification: "One of its records stopped reading right at your registrar: Connections shows which, under Email.",
+  dmarc: "Its DMARC record is missing: Connections shows the one to add, under Email.",
+  bounces: "Check the addresses you write to, then resume it on Connections, under Email.",
+  complaint:
+    "Read the email again (a clear reason for writing, and fewer a day), then resume it on Connections, under Email.",
+  provider: "It usually comes back by itself; if it doesn't, remove it and add it again on Connections, under Email.",
+};
+
+export function domainHoldNoticeWords(why: string | null | undefined): string | null {
+  return (why && HOLD_NOTICE_WORDS[why as DomainHold]) || null;
 }
 
 /** One record as a registrar's form wants it. */
@@ -544,16 +559,23 @@ export function domainRegistrarHint(host: string): string {
   return `Some registrars add ${host} for you. If yours does, type only the part shown.`;
 }
 
-/** What a Check found, in its own tone: never a success for records not there yet. */
-export function checkResultWords(d: SendingDomainDto, nowMs: number): { tone: Tone; msg: string } {
+/**
+ * What a Check found, in its own tone: never a success for records not there yet. `before` is the row as it was
+ * before the press, so a hold that lifted says it sends again rather than that the domain is new.
+ */
+export function checkResultWords(
+  d: SendingDomainDto,
+  nowMs: number,
+  before?: Pick<SendingDomainDto, "state"> | null,
+): { tone: Tone; msg: string } {
   if (d.state === "verified") {
     const cap = domainDailyCap(d.clean_since, nowMs);
+    const again = before?.state === "held" || cap !== DOMAIN_RAMP[0].perDay;
     return {
       tone: "ok",
-      msg:
-        cap === DOMAIN_RAMP[0].perDay
-          ? `${d.host} is verified. It starts at ${cap} a day.`
-          : `${d.host} is sending again, up to ${cap} a day.`,
+      msg: again
+        ? `${d.host} is sending again, ${cap === DOMAIN_RAMP[0].perDay ? "starting at" : "up to"} ${cap} a day.`
+        : `${d.host} is verified. It starts at ${cap} a day.`,
     };
   }
   if (d.state === "verifying")

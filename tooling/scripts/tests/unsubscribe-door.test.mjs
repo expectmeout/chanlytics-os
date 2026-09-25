@@ -263,3 +263,25 @@ test("the page names the address the email came from; a press the database could
   assert.match(html, /<button type="submit">Try again<\/button>/);
   assert.match(html, /Or reply to the email and ask them to stop\./);
 });
+
+test("a link names only its own workspace's email: a message of another workspace is never read for its sender", async () => {
+  const other = "44444444-4444-4444-8444-444444444444";
+  setServiceClient(
+    fakeDb({
+      tenants: [{ id: A, name: "Best Movers" }],
+      // The token names M in workspace A; the only M here belongs to another workspace.
+      messages: [
+        {
+          id: M,
+          tenant_id: other,
+          channel: "email",
+          direction: "outbound",
+          meta: { email: { request: { from: "boss@other.example" } } },
+        },
+      ],
+    }),
+  );
+  const html = await (await get()).text();
+  assert.doesNotMatch(html, /other\.example/);
+  assert.match(html, /emails like that one again/);
+});

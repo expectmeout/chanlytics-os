@@ -42,7 +42,7 @@ const SendingDomainRecords = ({ d, flash }) => {
         {rows.map((r) => (
           <div className="set-records-row" role="row" key={r.key}>
             <span role="cell" className="k">
-              <span className="rec-dot" data-found={r.found ? "yes" : "no"} title={r.found ? "Found" : "Not found yet"} aria-label={r.found ? "Found" : "Not found yet"} {...(r.found ? { "data-testid": `domain-found-${r.key}` } : {})} />
+              <span className="rec-dot" role="img" data-found={r.found ? "yes" : "no"} title={r.found ? "Found" : "Not found yet"} aria-label={r.found ? "Found" : "Not found yet"} {...(r.found ? { "data-testid": `domain-found-${r.key}` } : {})} />
               {r.kind}
               <span className="ty-inline"> · {r.type}{r.priority != null ? ` · ${r.priority}` : ""}</span>
             </span>
@@ -137,7 +137,7 @@ const SendingDomains = ({ email, flash }) => {
     setBusy(null);
     if (!r.ok) { flash(window.refusalToast(r, "Not checked")); return; }
     // What the Check found, in its own tone: records not there yet are not a success.
-    const said = API.checkWords(r.data.domain, Date.now());
+    const said = API.checkWords(r.data.domain, Date.now(), d);
     flash({ tone: said.tone === "ok" ? undefined : said.tone === "warn" ? "warn" : "info", msg: <>{said.msg}</> });
   };
   const remove = async (d) => {

@@ -20995,8 +20995,9 @@ function sendingDomainWords(d, nowMs) {
     tone: "warn",
     line: `${since ? `Held since ${since}` : "Held"} \xB7 ${why}`,
     stats: null,
-    // A hold its records fix shows them just below, so the row does not say the reason twice; the rest say what to do.
-    fix: d.held_why && DNS_HOLDS.includes(d.held_why) ? null : domainHoldFixWords(d.held_why),
+    // Only a hold the owner lifts says what to do: a DNS hold shows its records just below, and a provider hold lifts
+    // itself (its line says so), so neither says anything twice or tells the owner to remove what will come back.
+    fix: d.held_why && SELF_LIFTING_HOLDS.includes(d.held_why) ? null : domainHoldFixWords(d.held_why),
     cap: was > 0 ? `Sending nothing \xB7 was ${was} a day` : "Sending nothing",
     next: d.held_why === "provider" ? "We've been told. If it doesn't come back on its own, remove it and add it again." : d.held_why && DNS_HOLDS.includes(d.held_why) ? `It sends again by itself once the records read right, starting at ${DOMAIN_RAMP[0].perDay} a day.` : "Nothing leaves from it until you resume it."
   };
@@ -21004,12 +21005,22 @@ function sendingDomainWords(d, nowMs) {
 var HOLD_FIX_WORDS = {
   verification: "One of its records stopped reading right at your registrar: check them below.",
   dmarc: "Its DMARC record is missing: add the one below.",
-  bounces: "Check the addresses you write to: more than 2% of recent emails bounced.",
-  complaint: "Someone marked an email as spam. Read the email again: a clear reason for writing, and fewer a day.",
-  provider: "Remove it and add it again."
+  bounces: "Check the addresses you write to before you resume it.",
+  complaint: "Read the email again before you resume it: a clear reason for writing, and fewer a day.",
+  provider: "It usually comes back by itself."
 };
 function domainHoldFixWords(why) {
   return why && HOLD_FIX_WORDS[why] || null;
+}
+var HOLD_NOTICE_WORDS = {
+  verification: "One of its records stopped reading right at your registrar: Connections shows which, under Email.",
+  dmarc: "Its DMARC record is missing: Connections shows the one to add, under Email.",
+  bounces: "Check the addresses you write to, then resume it on Connections, under Email.",
+  complaint: "Read the email again (a clear reason for writing, and fewer a day), then resume it on Connections, under Email.",
+  provider: "It usually comes back by itself; if it doesn't, remove it and add it again on Connections, under Email."
+};
+function domainHoldNoticeWords(why) {
+  return why && HOLD_NOTICE_WORDS[why] || null;
 }
 var KIND_OF_RECORD = { DKIM: "Signing (DKIM)", SPF: "Sender (SPF)", DMARC: "Policy (DMARC)" };
 function domainRecordRows(d) {
@@ -21049,12 +21060,13 @@ function domainRecordsIntro(host) {
 function domainRegistrarHint(host) {
   return `Some registrars add ${host} for you. If yours does, type only the part shown.`;
 }
-function checkResultWords(d, nowMs) {
+function checkResultWords(d, nowMs, before) {
   if (d.state === "verified") {
     const cap2 = domainDailyCap(d.clean_since, nowMs);
+    const again = before?.state === "held" || cap2 !== DOMAIN_RAMP[0].perDay;
     return {
       tone: "ok",
-      msg: cap2 === DOMAIN_RAMP[0].perDay ? `${d.host} is verified. It starts at ${cap2} a day.` : `${d.host} is sending again, up to ${cap2} a day.`
+      msg: again ? `${d.host} is sending again, ${cap2 === DOMAIN_RAMP[0].perDay ? "starting at" : "up to"} ${cap2} a day.` : `${d.host} is verified. It starts at ${cap2} a day.`
     };
   }
   if (d.state === "verifying")
@@ -23661,6 +23673,7 @@ export {
   divertedNumbers,
   domainDailyCap,
   domainHoldFixWords,
+  domainHoldNoticeWords,
   domainHoldWords,
   domainPatchOf,
   domainRecordRows,

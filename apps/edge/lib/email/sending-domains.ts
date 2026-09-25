@@ -34,7 +34,7 @@ import {
   type ResendConfig,
 } from "../packages/channels.js";
 import {
-  domainHoldFixWords,
+  domainHoldNoticeWords,
   domainHoldWords,
   domainPatchOf,
   DNS_HOLDS,
@@ -471,7 +471,7 @@ async function tellDomainHeld(
         subject: `${row.host} is held: ${because}`,
         body:
           `Nothing leaves from ${row.host} until it's fixed, because ${because}.` +
-          `${domainHoldFixWords(why) ? ` ${domainHoldFixWords(why)}` : ""}\n\n` +
+          `${domainHoldNoticeWords(why) ? ` ${domainHoldNoticeWords(why)}` : ""}\n\n` +
           `Connections has the details, under Email.`,
         redactedBody: "A workspace's sending domain was held.",
       },
