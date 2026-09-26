@@ -1220,21 +1220,6 @@ declare function twilioSignature(authToken: string, url: string, form: Record<st
 declare function sameSignature(a: string, b: string): boolean;
 declare function verifyTwilioSignature(authToken: string, url: string, form: Record<string, string>, header: string | null): Promise<boolean>;
 
-/**
- * Email, the part with no network in it: a workspace's addresses, the subject
- * a reply carries, and the REQUEST an email leaves as.
- *
- * The request is built once and frozen. It is written to the queued message's
- * row before the first attempt (meta.email.request) and the wire sends those
- * bytes: a retry repeats them exactly, under the same idempotency key, so a
- * send the provider accepted before a worker died cannot leave twice, and an
- * owner's edit is a new message with a new approval rather than a mutation of
- * one that may already be in somebody's inbox. Everything in it is derived by
- * the server from stored rows. The model writes `text` and nothing else: it is
- * never read for a subject, a recipient or a header.
- *
- * docs/plans/2026-09-17-email-channel.md, §7.
- */
 /** What an email is a reply to, read off the stored parent row. */
 interface EmailParent {
     /** The Chanlytics message being answered. */

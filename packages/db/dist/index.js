@@ -18,6 +18,7 @@ import { z as z8 } from "zod";
 import { z as z9 } from "zod";
 import { z as z10 } from "zod";
 import { z as z11 } from "zod";
+import { z as z12 } from "zod";
 z.config({ jitless: true });
 function normalizePhone(raw) {
   if (raw == null) return null;
@@ -2570,6 +2571,49 @@ var K = new Uint32Array([
 var NAME_MAX = BrainConfigSchema.shape.business_name.maxLength ?? Infinity;
 var NINE_TO_FIVE = [{ from: 9 * 60, to: 17 * 60 }];
 var SEND_DAY_FRAME = { from: 8 * 60, to: 20 * 60 };
+var REACH_OUT_SUBJECT_MAX = 80;
+var REACH_OUT_BODY_MAX = 1200;
+var REACH_OUT_STEPS_MAX = 5;
+var REACH_OUT_NAME_MAX = 80;
+var SIGNED_BY_MAX = 60;
+var REACH_OUT_AFTER_DAYS = { min: 2, max: 30, first: 4 };
+var ReachOutStepSchema = z12.object({
+  /** An existing step's id, when the sheet edits a chain; none for a new one. */
+  id: z12.string().uuid().nullable().optional(),
+  subject: z12.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
+  body: z12.string().max(REACH_OUT_BODY_MAX * 2),
+  after_days: z12.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable()
+});
+var ReachOutChainSchema = z12.object({
+  name: z12.string().trim().min(1).max(REACH_OUT_NAME_MAX),
+  search_id: z12.string().uuid(),
+  include_unconfirmed: z12.boolean(),
+  gap_minutes: z12.number().int().min(5).max(120),
+  /** Empty: every verified domain of the workspace (00183). */
+  domain_ids: z12.array(z12.string().uuid()).max(5),
+  signed_by: z12.string().trim().max(SIGNED_BY_MAX).nullable(),
+  steps: z12.array(ReachOutStepSchema).min(1).max(REACH_OUT_STEPS_MAX)
+});
+var OPENING_FACT_KEYS = [
+  "category",
+  "city",
+  "rating",
+  "reviews",
+  "website",
+  "hours",
+  "about",
+  "why_it_fits"
+];
+var OPENING_SCHEMA = {
+  type: "object",
+  properties: {
+    opening: { type: "string" },
+    angle: { type: "string" },
+    facts_used: { type: "array", items: { type: "string", enum: [...OPENING_FACT_KEYS] } }
+  },
+  required: ["opening", "angle", "facts_used"],
+  additionalProperties: false
+};
 
 // src/repositories/ingest.ts
 async function ingestInbound(db, p) {

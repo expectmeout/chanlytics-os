@@ -167,6 +167,7 @@ import { z as z8 } from "zod";
 import { z as z9 } from "zod";
 import { z as z10 } from "zod";
 import { z as z11 } from "zod";
+import { z as z12 } from "zod";
 z.config({ jitless: true });
 var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
@@ -2633,9 +2634,52 @@ function isCampaignEmail(request) {
 }
 var NINE_TO_FIVE = [{ from: 9 * 60, to: 17 * 60 }];
 var SEND_DAY_FRAME = { from: 8 * 60, to: 20 * 60 };
+var REACH_OUT_SUBJECT_MAX = 80;
+var REACH_OUT_BODY_MAX = 1200;
+var REACH_OUT_STEPS_MAX = 5;
+var REACH_OUT_NAME_MAX = 80;
+var SIGNED_BY_MAX = 60;
+var REACH_OUT_AFTER_DAYS = { min: 2, max: 30, first: 4 };
+var ReachOutStepSchema = z12.object({
+  /** An existing step's id, when the sheet edits a chain; none for a new one. */
+  id: z12.string().uuid().nullable().optional(),
+  subject: z12.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
+  body: z12.string().max(REACH_OUT_BODY_MAX * 2),
+  after_days: z12.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable()
+});
+var ReachOutChainSchema = z12.object({
+  name: z12.string().trim().min(1).max(REACH_OUT_NAME_MAX),
+  search_id: z12.string().uuid(),
+  include_unconfirmed: z12.boolean(),
+  gap_minutes: z12.number().int().min(5).max(120),
+  /** Empty: every verified domain of the workspace (00183). */
+  domain_ids: z12.array(z12.string().uuid()).max(5),
+  signed_by: z12.string().trim().max(SIGNED_BY_MAX).nullable(),
+  steps: z12.array(ReachOutStepSchema).min(1).max(REACH_OUT_STEPS_MAX)
+});
+var OPENING_FACT_KEYS = [
+  "category",
+  "city",
+  "rating",
+  "reviews",
+  "website",
+  "hours",
+  "about",
+  "why_it_fits"
+];
+var OPENING_SCHEMA = {
+  type: "object",
+  properties: {
+    opening: { type: "string" },
+    angle: { type: "string" },
+    facts_used: { type: "array", items: { type: "string", enum: [...OPENING_FACT_KEYS] } }
+  },
+  required: ["opening", "angle", "facts_used"],
+  additionalProperties: false
+};
 
 // ../channels/dist/index.js
-import { z as z12 } from "zod";
+import { z as z13 } from "zod";
 import { z as z22 } from "zod";
 import { z as z32 } from "zod";
 import { z as z42 } from "zod";
@@ -2646,6 +2690,7 @@ import { z as z82 } from "zod";
 import { z as z92 } from "zod";
 import { z as z102 } from "zod";
 import { z as z112 } from "zod";
+import { z as z122 } from "zod";
 
 // ../../node_modules/domelementtype/lib/esm/index.js
 var ElementType;
@@ -7586,7 +7631,7 @@ function handleDeprecatedOptions(options) {
 }
 
 // ../channels/dist/index.js
-z12.config({ jitless: true });
+z13.config({ jitless: true });
 var LABEL2 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL2 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE2 = new RegExp(`^(${LOCAL2})@(${LABEL2}(?:\\.${LABEL2})+)$`);
@@ -10006,6 +10051,49 @@ var K2 = new Uint32Array([
 var NAME_MAX2 = BrainConfigSchema2.shape.business_name.maxLength ?? Infinity;
 var NINE_TO_FIVE2 = [{ from: 9 * 60, to: 17 * 60 }];
 var SEND_DAY_FRAME2 = { from: 8 * 60, to: 20 * 60 };
+var REACH_OUT_SUBJECT_MAX2 = 80;
+var REACH_OUT_BODY_MAX2 = 1200;
+var REACH_OUT_STEPS_MAX2 = 5;
+var REACH_OUT_NAME_MAX2 = 80;
+var SIGNED_BY_MAX2 = 60;
+var REACH_OUT_AFTER_DAYS2 = { min: 2, max: 30, first: 4 };
+var ReachOutStepSchema2 = z122.object({
+  /** An existing step's id, when the sheet edits a chain; none for a new one. */
+  id: z122.string().uuid().nullable().optional(),
+  subject: z122.string().max(REACH_OUT_SUBJECT_MAX2 * 2).nullable(),
+  body: z122.string().max(REACH_OUT_BODY_MAX2 * 2),
+  after_days: z122.number().int().min(REACH_OUT_AFTER_DAYS2.min).max(REACH_OUT_AFTER_DAYS2.max).nullable()
+});
+var ReachOutChainSchema2 = z122.object({
+  name: z122.string().trim().min(1).max(REACH_OUT_NAME_MAX2),
+  search_id: z122.string().uuid(),
+  include_unconfirmed: z122.boolean(),
+  gap_minutes: z122.number().int().min(5).max(120),
+  /** Empty: every verified domain of the workspace (00183). */
+  domain_ids: z122.array(z122.string().uuid()).max(5),
+  signed_by: z122.string().trim().max(SIGNED_BY_MAX2).nullable(),
+  steps: z122.array(ReachOutStepSchema2).min(1).max(REACH_OUT_STEPS_MAX2)
+});
+var OPENING_FACT_KEYS2 = [
+  "category",
+  "city",
+  "rating",
+  "reviews",
+  "website",
+  "hours",
+  "about",
+  "why_it_fits"
+];
+var OPENING_SCHEMA2 = {
+  type: "object",
+  properties: {
+    opening: { type: "string" },
+    angle: { type: "string" },
+    facts_used: { type: "array", items: { type: "string", enum: [...OPENING_FACT_KEYS2] } }
+  },
+  required: ["opening", "angle", "facts_used"],
+  additionalProperties: false
+};
 var MEDIA_MAX_BYTES = 25 * 1024 * 1024;
 var CALL_ANALYSIS_FIELDS = [
   {
@@ -10113,7 +10201,7 @@ var dec = new TextDecoder();
 var PAYLOAD_BYTES = 1 + 16 * 3;
 
 // ../core/dist/index.js
-import { z as z13 } from "zod";
+import { z as z14 } from "zod";
 import { z as z23 } from "zod";
 import { z as z33 } from "zod";
 import { z as z43 } from "zod";
@@ -10124,7 +10212,8 @@ import { z as z83 } from "zod";
 import { z as z93 } from "zod";
 import { z as z103 } from "zod";
 import { z as z113 } from "zod";
-import { z as z122 } from "zod";
+import { z as z123 } from "zod";
+import { z as z132 } from "zod";
 import { z as z222 } from "zod";
 import { z as z322 } from "zod";
 import { z as z422 } from "zod";
@@ -10135,7 +10224,8 @@ import { z as z822 } from "zod";
 import { z as z922 } from "zod";
 import { z as z1022 } from "zod";
 import { z as z1122 } from "zod";
-import { z as z132 } from "zod";
+import { z as z1222 } from "zod";
+import { z as z142 } from "zod";
 import { z as z232 } from "zod";
 import { z as z332 } from "zod";
 import { z as z432 } from "zod";
@@ -10146,6 +10236,7 @@ import { z as z832 } from "zod";
 import { z as z932 } from "zod";
 import { z as z1032 } from "zod";
 import { z as z1132 } from "zod";
+import { z as z1232 } from "zod";
 var __create2 = Object.create;
 var __defProp2 = Object.defineProperty;
 var __getOwnPropDesc2 = Object.getOwnPropertyDescriptor;
@@ -11065,7 +11156,7 @@ var DEFAULT_OPTIONS2 = {
   whitespaceCharacters: " 	\r\n\f\u200B",
   wordwrap: 80
 };
-z13.config({ jitless: true });
+z14.config({ jitless: true });
 var LABEL3 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL3 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE3 = new RegExp(`^(${LOCAL3})@(${LABEL3}(?:\\.${LABEL3})+)$`);
@@ -13485,6 +13576,49 @@ var K3 = new Uint32Array([
 var NAME_MAX3 = BrainConfigSchema3.shape.business_name.maxLength ?? Infinity;
 var NINE_TO_FIVE3 = [{ from: 9 * 60, to: 17 * 60 }];
 var SEND_DAY_FRAME3 = { from: 8 * 60, to: 20 * 60 };
+var REACH_OUT_SUBJECT_MAX3 = 80;
+var REACH_OUT_BODY_MAX3 = 1200;
+var REACH_OUT_STEPS_MAX3 = 5;
+var REACH_OUT_NAME_MAX3 = 80;
+var SIGNED_BY_MAX3 = 60;
+var REACH_OUT_AFTER_DAYS3 = { min: 2, max: 30, first: 4 };
+var ReachOutStepSchema3 = z123.object({
+  /** An existing step's id, when the sheet edits a chain; none for a new one. */
+  id: z123.string().uuid().nullable().optional(),
+  subject: z123.string().max(REACH_OUT_SUBJECT_MAX3 * 2).nullable(),
+  body: z123.string().max(REACH_OUT_BODY_MAX3 * 2),
+  after_days: z123.number().int().min(REACH_OUT_AFTER_DAYS3.min).max(REACH_OUT_AFTER_DAYS3.max).nullable()
+});
+var ReachOutChainSchema3 = z123.object({
+  name: z123.string().trim().min(1).max(REACH_OUT_NAME_MAX3),
+  search_id: z123.string().uuid(),
+  include_unconfirmed: z123.boolean(),
+  gap_minutes: z123.number().int().min(5).max(120),
+  /** Empty: every verified domain of the workspace (00183). */
+  domain_ids: z123.array(z123.string().uuid()).max(5),
+  signed_by: z123.string().trim().max(SIGNED_BY_MAX3).nullable(),
+  steps: z123.array(ReachOutStepSchema3).min(1).max(REACH_OUT_STEPS_MAX3)
+});
+var OPENING_FACT_KEYS3 = [
+  "category",
+  "city",
+  "rating",
+  "reviews",
+  "website",
+  "hours",
+  "about",
+  "why_it_fits"
+];
+var OPENING_SCHEMA3 = {
+  type: "object",
+  properties: {
+    opening: { type: "string" },
+    angle: { type: "string" },
+    facts_used: { type: "array", items: { type: "string", enum: [...OPENING_FACT_KEYS3] } }
+  },
+  required: ["opening", "angle", "facts_used"],
+  additionalProperties: false
+};
 var MEDIA_MAX_BYTES2 = 25 * 1024 * 1024;
 var CALL_ANALYSIS_FIELDS2 = [
   {
@@ -13574,7 +13708,7 @@ var STATE_TTL_MS2 = 10 * 6e4;
 var enc22 = new TextEncoder();
 var dec2 = new TextDecoder();
 var PAYLOAD_BYTES2 = 1 + 16 * 3;
-z122.config({ jitless: true });
+z132.config({ jitless: true });
 var MAX_ADDRESS = 254;
 var MAX_LOCAL = 64;
 var LABEL22 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
@@ -16079,6 +16213,39 @@ function isCampaignEmail2(request) {
 }
 var NINE_TO_FIVE22 = [{ from: 9 * 60, to: 17 * 60 }];
 var SEND_DAY_FRAME22 = { from: 8 * 60, to: 20 * 60 };
+var REACH_OUT_SUBJECT_MAX22 = 80;
+var REACH_OUT_BODY_MAX22 = 1200;
+var REACH_OUT_STEPS_MAX22 = 5;
+var REACH_OUT_NAME_MAX22 = 80;
+var SIGNED_BY_MAX22 = 60;
+var REACH_OUT_AFTER_DAYS22 = { min: 2, max: 30, first: 4 };
+var ReachOutStepSchema22 = z1222.object({
+  /** An existing step's id, when the sheet edits a chain; none for a new one. */
+  id: z1222.string().uuid().nullable().optional(),
+  subject: z1222.string().max(REACH_OUT_SUBJECT_MAX22 * 2).nullable(),
+  body: z1222.string().max(REACH_OUT_BODY_MAX22 * 2),
+  after_days: z1222.number().int().min(REACH_OUT_AFTER_DAYS22.min).max(REACH_OUT_AFTER_DAYS22.max).nullable()
+});
+var ReachOutChainSchema22 = z1222.object({
+  name: z1222.string().trim().min(1).max(REACH_OUT_NAME_MAX22),
+  search_id: z1222.string().uuid(),
+  include_unconfirmed: z1222.boolean(),
+  gap_minutes: z1222.number().int().min(5).max(120),
+  /** Empty: every verified domain of the workspace (00183). */
+  domain_ids: z1222.array(z1222.string().uuid()).max(5),
+  signed_by: z1222.string().trim().max(SIGNED_BY_MAX22).nullable(),
+  steps: z1222.array(ReachOutStepSchema22).min(1).max(REACH_OUT_STEPS_MAX22)
+});
+var OPENING_FACT_KEYS22 = [
+  "category",
+  "city",
+  "rating",
+  "reviews",
+  "website",
+  "hours",
+  "about",
+  "why_it_fits"
+];
 function outreachRefusalOf(f) {
   if (!f.leadStage) return "outreach_not_a_lead";
   if (f.leadStage !== "ready" && f.leadStage !== "nurture") return "outreach_lead_closed";
@@ -16089,7 +16256,17 @@ function outreachRefusalOf(f) {
 function isReachOutRun(audience) {
   return !!audience && typeof audience === "object" && audience.kind === "reach_out";
 }
-z132.config({ jitless: true });
+var OPENING_SCHEMA22 = {
+  type: "object",
+  properties: {
+    opening: { type: "string" },
+    angle: { type: "string" },
+    facts_used: { type: "array", items: { type: "string", enum: [...OPENING_FACT_KEYS22] } }
+  },
+  required: ["opening", "angle", "facts_used"],
+  additionalProperties: false
+};
+z142.config({ jitless: true });
 var LABEL32 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL32 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE32 = new RegExp(`^(${LOCAL32})@(${LABEL32}(?:\\.${LABEL32})+)$`);
@@ -18501,6 +18678,49 @@ var K32 = new Uint32Array([
 var NAME_MAX32 = BrainConfigSchema32.shape.business_name.maxLength ?? Infinity;
 var NINE_TO_FIVE32 = [{ from: 9 * 60, to: 17 * 60 }];
 var SEND_DAY_FRAME32 = { from: 8 * 60, to: 20 * 60 };
+var REACH_OUT_SUBJECT_MAX32 = 80;
+var REACH_OUT_BODY_MAX32 = 1200;
+var REACH_OUT_STEPS_MAX32 = 5;
+var REACH_OUT_NAME_MAX32 = 80;
+var SIGNED_BY_MAX32 = 60;
+var REACH_OUT_AFTER_DAYS32 = { min: 2, max: 30, first: 4 };
+var ReachOutStepSchema32 = z1232.object({
+  /** An existing step's id, when the sheet edits a chain; none for a new one. */
+  id: z1232.string().uuid().nullable().optional(),
+  subject: z1232.string().max(REACH_OUT_SUBJECT_MAX32 * 2).nullable(),
+  body: z1232.string().max(REACH_OUT_BODY_MAX32 * 2),
+  after_days: z1232.number().int().min(REACH_OUT_AFTER_DAYS32.min).max(REACH_OUT_AFTER_DAYS32.max).nullable()
+});
+var ReachOutChainSchema32 = z1232.object({
+  name: z1232.string().trim().min(1).max(REACH_OUT_NAME_MAX32),
+  search_id: z1232.string().uuid(),
+  include_unconfirmed: z1232.boolean(),
+  gap_minutes: z1232.number().int().min(5).max(120),
+  /** Empty: every verified domain of the workspace (00183). */
+  domain_ids: z1232.array(z1232.string().uuid()).max(5),
+  signed_by: z1232.string().trim().max(SIGNED_BY_MAX32).nullable(),
+  steps: z1232.array(ReachOutStepSchema32).min(1).max(REACH_OUT_STEPS_MAX32)
+});
+var OPENING_FACT_KEYS32 = [
+  "category",
+  "city",
+  "rating",
+  "reviews",
+  "website",
+  "hours",
+  "about",
+  "why_it_fits"
+];
+var OPENING_SCHEMA32 = {
+  type: "object",
+  properties: {
+    opening: { type: "string" },
+    angle: { type: "string" },
+    facts_used: { type: "array", items: { type: "string", enum: [...OPENING_FACT_KEYS32] } }
+  },
+  required: ["opening", "angle", "facts_used"],
+  additionalProperties: false
+};
 async function recordOutbound(db, p) {
   if (p.channel === "email")
     throw new Error("record_outbound: an email's row is written before it is sent, never after");
@@ -19186,7 +19406,7 @@ var STALE_MS = 10 * 60 * 1e3;
 var STALE_REPLY_MS = 2 * 60 * 60 * 1e3;
 
 // ../db/dist/index.js
-import { z as z14 } from "zod";
+import { z as z15 } from "zod";
 import { z as z24 } from "zod";
 import { z as z34 } from "zod";
 import { z as z44 } from "zod";
@@ -19197,7 +19417,8 @@ import { z as z84 } from "zod";
 import { z as z94 } from "zod";
 import { z as z104 } from "zod";
 import { z as z114 } from "zod";
-z14.config({ jitless: true });
+import { z as z124 } from "zod";
+z15.config({ jitless: true });
 function normalizePhone(raw) {
   if (raw == null) return null;
   const digits2 = String(raw).replace(/[^\d]/g, "");
@@ -21617,6 +21838,49 @@ var K4 = new Uint32Array([
 var NAME_MAX4 = BrainConfigSchema4.shape.business_name.maxLength ?? Infinity;
 var NINE_TO_FIVE4 = [{ from: 9 * 60, to: 17 * 60 }];
 var SEND_DAY_FRAME4 = { from: 8 * 60, to: 20 * 60 };
+var REACH_OUT_SUBJECT_MAX4 = 80;
+var REACH_OUT_BODY_MAX4 = 1200;
+var REACH_OUT_STEPS_MAX4 = 5;
+var REACH_OUT_NAME_MAX4 = 80;
+var SIGNED_BY_MAX4 = 60;
+var REACH_OUT_AFTER_DAYS4 = { min: 2, max: 30, first: 4 };
+var ReachOutStepSchema4 = z124.object({
+  /** An existing step's id, when the sheet edits a chain; none for a new one. */
+  id: z124.string().uuid().nullable().optional(),
+  subject: z124.string().max(REACH_OUT_SUBJECT_MAX4 * 2).nullable(),
+  body: z124.string().max(REACH_OUT_BODY_MAX4 * 2),
+  after_days: z124.number().int().min(REACH_OUT_AFTER_DAYS4.min).max(REACH_OUT_AFTER_DAYS4.max).nullable()
+});
+var ReachOutChainSchema4 = z124.object({
+  name: z124.string().trim().min(1).max(REACH_OUT_NAME_MAX4),
+  search_id: z124.string().uuid(),
+  include_unconfirmed: z124.boolean(),
+  gap_minutes: z124.number().int().min(5).max(120),
+  /** Empty: every verified domain of the workspace (00183). */
+  domain_ids: z124.array(z124.string().uuid()).max(5),
+  signed_by: z124.string().trim().max(SIGNED_BY_MAX4).nullable(),
+  steps: z124.array(ReachOutStepSchema4).min(1).max(REACH_OUT_STEPS_MAX4)
+});
+var OPENING_FACT_KEYS4 = [
+  "category",
+  "city",
+  "rating",
+  "reviews",
+  "website",
+  "hours",
+  "about",
+  "why_it_fits"
+];
+var OPENING_SCHEMA4 = {
+  type: "object",
+  properties: {
+    opening: { type: "string" },
+    angle: { type: "string" },
+    facts_used: { type: "array", items: { type: "string", enum: [...OPENING_FACT_KEYS4] } }
+  },
+  required: ["opening", "angle", "facts_used"],
+  additionalProperties: false
+};
 async function ingestInbound(db, p) {
   const { data, error } = await db.rpc("ingest_inbound", {
     p_tenant_id: p.tenantId,

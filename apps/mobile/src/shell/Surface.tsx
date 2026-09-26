@@ -18,8 +18,9 @@ import { parsePageMessage, type ShellMessage } from "@chanlytics/contracts";
 import { askPage, bottomInset, insetScript, onPageMessage, shouldRegister } from "./bridge";
 import { getState, registerReloader, setState, useShell, type Tab } from "./state";
 import { setBadge, tabOf } from "./notifications";
+import { updateTodayWidget } from "./widget";
 import { Offline } from "./Offline";
-import { hrefFor, isOurs, isSignedOutUrl, LOGIN_HREF, userAgentToken } from "@/site";
+import { hrefFor, isOurs, isSignedOutUrl, LOGIN_HREF, NATIVE_DOOR, userAgentToken } from "@/site";
 
 const PLATFORM: "ios" | "android" = Platform.OS === "ios" ? "ios" : "android";
 const PAGE_DARK = "#0c0d0f";
@@ -36,12 +37,14 @@ interface Props {
   tab?: Tab;
   /** Called once the page reports its route, each time this tab comes to the front. */
   onReady?: (h: SurfaceHandle) => void;
+  /** A form body to POST to the site's native door instead of loading the route: a native token becoming the cookie. */
+  post?: string;
 }
 
 /** How long the page has to forget the phone before a sign-out goes ahead without it. */
 const FORGET_WAIT_MS = 2000;
 
-export function Surface({ route, tab, onReady }: Props) {
+export function Surface({ route, tab, onReady, post }: Props) {
   const ref = useRef<WebView>(null);
   const focused = useIsFocused();
   // Created the first time this tab is in front, kept afterwards: a latch set during render, not in an effect.
@@ -59,6 +62,10 @@ export function Surface({ route, tab, onReady }: Props) {
   const userAgent = useMemo(() => userAgentToken(Application.nativeApplicationVersion ?? "0.0.0", PLATFORM), []);
   const inset = bottomInset(PLATFORM, insets.bottom);
   const uri = route === "login" ? LOGIN_HREF : hrefFor(slug, route);
+  // The door's POST from inside the WebView: the cookie it sets is the WebView's, and its 303 lands the page.
+  const source = post
+    ? { uri: NATIVE_DOOR, method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: post }
+    : { uri };
 
   const handle = useMemo<SurfaceHandle>(
     () => ({
@@ -78,6 +85,7 @@ export function Surface({ route, tab, onReady }: Props) {
       setState(state);
       if (effect === "badge") void setBadge(state.badge);
       const m = parsePageMessage(e.nativeEvent.data);
+      if (m?.t === "today") updateTodayWidget(m.snapshot);
       if (m?.t === "device" && m.state === "forgotten") forgetting.current?.resolve();
       if (m?.t === "route") {
         setReady(true);
@@ -152,7 +160,7 @@ export function Surface({ route, tab, onReady }: Props) {
     <View style={styles.fill}>
       <WebView
         ref={ref}
-        source={{ uri }}
+        source={source}
         style={styles.fill}
         applicationNameForUserAgent={userAgent}
         sharedCookiesEnabled

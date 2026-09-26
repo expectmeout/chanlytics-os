@@ -833,14 +833,15 @@ const AskReal = ({ open, onClose }) => {
         {...(window.touchSwipe ? window.touchSwipe({ onDown: onClose, when: arPhone }) : {})}
       >
         <p className="ask-said" role="status" aria-live="polite" data-testid="ask-said">{said}</p>
-        {/* A phone's head: Earlier, Clear in a conversation, and a close within the thumb's reach; both wait while a
+        {/* A phone's head: Earlier, Clear in a conversation or over a quick answer (a preset question is answered
+            without one, and was left with no way home but ×), and a close within the thumb's reach; both wait while a
             turn runs (spec 5.1, 5.4). A desktop draws none. */}
         <div className="ask-line-head">
           <button type="button" className="btn btn-ghost" aria-pressed={view === "earlier"} disabled={!!live} onClick={() => setView((v) => (v === "earlier" ? "rows" : "earlier"))} data-testid="ask-earlier">
             <Icon name="chat" size={13} />
             {t.earlier}
           </button>
-          {active ? <button type="button" className="btn btn-ghost" disabled={!!live} onClick={clearLine} data-testid="ask-clear-head">{t.clear}</button> : null}
+          {active || quick ? <button type="button" className="btn btn-ghost" disabled={!!live} onClick={clearLine} data-testid="ask-clear-head">{t.clear}</button> : null}
           <button type="button" className="ask-line-btn quiet" onClick={onClose} aria-label={t.close} title={t.close} data-testid="ask-close">
             <Icon name="x" size={14} />
           </button>

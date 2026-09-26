@@ -31,6 +31,15 @@ test("a page message is one of four shapes; anything else is null", () => {
   assert.equal(parsePageMessage('{"t":"badge","n":-1}'), null);
   assert.deepEqual(parsePageMessage('{"t":"device","state":"registered"}'), { t: "device", state: "registered" });
   assert.equal(parsePageMessage('{"t":"device","state":"lost"}'), null);
+  const snap = {
+    headline: "h",
+    figures: [{ label: "calls", value: 2 }],
+    waiting: 1,
+    first: null,
+    at: "2026-09-26T15:00:00.000Z",
+  };
+  assert.deepEqual(parsePageMessage(JSON.stringify({ t: "today", snapshot: snap })), { t: "today", snapshot: snap });
+  assert.equal(parsePageMessage(JSON.stringify({ t: "today", snapshot: { headline: "h" } })), null);
 });
 
 test("a shell message is navigate, menu or top; a route is a hash route's name, never a URL", () => {
