@@ -38,7 +38,7 @@ import type {
 import type { CAPABILITY_KINDS } from "./capabilities";
 import type { BUSINESS_TYPES, COMPANY_TYPES } from "./a2p-enums";
 import type { BILLING_MODES, BILLING_STATUSES } from "./billing";
-import type { BROADCAST_STATES, RECIPIENT_STATES } from "./broadcasts";
+import type { BROADCAST_STATES, REACH_OUT_SEND_STATES, RECIPIENT_STATES } from "./broadcasts";
 import type { CALL_OUTCOMES } from "./call-words";
 import type { POLICY_CLASSES, POLICY_MODES } from "./config";
 import type { DEAL_LOST_REASONS, DEAL_PERS, DEAL_SOURCES, DEAL_STAGES, SELLS_BY } from "./deals";
@@ -127,6 +127,7 @@ export type SchemaAgreement = [
   // Broadcasts and playbooks. A playbook runs under one of the policy classes.
   Holds<Exactly<Of<typeof BROADCAST_STATES>, SchemaSet<"broadcasts.state">>>,
   Holds<Exactly<Of<typeof RECIPIENT_STATES>, SchemaSet<"broadcast_recipients.state">>>,
+  Holds<Exactly<Of<typeof REACH_OUT_SEND_STATES>, SchemaSet<"reach_out_sends.state">>>,
   Holds<Exactly<Of<typeof PLAYBOOK_STATES>, SchemaSet<"playbooks.state">>>,
   Holds<Exactly<(typeof PLAYBOOK_TRIGGERS)[number]["id"], SchemaSet<"playbooks.trigger">>>,
   Holds<Within<SchemaSet<"playbooks.policy_class">, Of<typeof POLICY_CLASSES>>>,

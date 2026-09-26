@@ -85,6 +85,7 @@ export const POLICY_CLASSES = [
   "reviews",
   "money",
   "follow_up",
+  "outreach",
 ] as const;
 export type PolicyClass = (typeof POLICY_CLASSES)[number];
 
@@ -127,6 +128,12 @@ export const POLICY_CLASS_WORDS: Record<PolicyClass, { name: string; short: stri
     name: "Proposal follow-ups",
     short: "Follow-ups",
     note: "the proposal follow-up playbook · one nudge per proposal, with its link, once it has waited with nothing back · auto sends each run, ask leaves it waiting on Today, never runs nothing",
+  },
+  // Reach out (Part 3): cold email to the businesses a search found. A chain's first run always waits for its owner.
+  outreach: {
+    name: "Cold email to businesses a search found",
+    short: "Reach-outs",
+    note: "every email a reach-out sends · its first run always waits for you; later runs send 30 minutes after they are made unless you stop them · never sends none",
   },
 };
 
@@ -190,6 +197,9 @@ export const POLICY_CLASS_MODES: Record<PolicyClass, readonly PolicyMode[]> = {
   reviews: ["auto", "ask", "never"],
   money: ["never"],
   follow_up: ["auto", "ask", "never"],
+  // Cold email never goes the moment a run is made: a chain's first run waits for its owner whatever the mode, and a
+  // later one gives thirty minutes to be stopped (veto), waits too (ask), or does not run (never).
+  outreach: ["veto", "ask", "never"],
 };
 
 /** The class a customer's intent falls under, when the Autonomy pane has a row for it. */

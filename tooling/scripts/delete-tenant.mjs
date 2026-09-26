@@ -112,6 +112,7 @@ const TABLES = [
   "person_notes",
   "playbooks",
   "policies",
+  "reach_out_sends",
   "segment_members",
   "segments",
   "sending_domains",

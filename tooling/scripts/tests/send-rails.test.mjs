@@ -207,6 +207,7 @@ test("a playbook's totals and history come from every run it made, not the recen
     {
       id: "p1",
       tenant_id: T,
+      kind: "moment",
       name: "Win-back",
       trigger: "quiet_30",
       template_id: "t1",

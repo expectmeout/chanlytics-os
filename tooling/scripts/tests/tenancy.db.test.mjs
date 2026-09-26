@@ -161,7 +161,7 @@ before(async () => {
     scheduled_for: new Date().toISOString(),
   });
   await seed("broadcast_recipients", { tenant_id: A, broadcast_id: ctx.broadcast, contact_id: ctx.contact }, null);
-  await seed("playbooks", {
+  ctx.playbook = await seed("playbooks", {
     tenant_id: A,
     name: "tenancy playbook",
     policy_class: "reengage",
@@ -203,7 +203,7 @@ before(async () => {
     reply_token: "t".repeat(24),
     from_name: "Tenancy",
   });
-  await seed("sending_domains", {
+  ctx.domain = await seed("sending_domains", {
     tenant_id: A,
     host: `tenancy-${Date.now().toString(36)}.example`,
     from_local: "sam",
@@ -257,6 +257,21 @@ before(async () => {
     null,
   );
   ctx.lead = await seed("leads", { tenant_id: A, place_id: "ChIJtenancy0001", business_name: "Tenancy Salon" });
+  // A reach-out's send (00183): the service role writes them, members read them. Its run and its root are rows made above.
+  await seed(
+    "reach_out_sends",
+    {
+      id: crypto.randomUUID(),
+      tenant_id: A,
+      broadcast_id: ctx.broadcast,
+      playbook_id: ctx.playbook,
+      root_id: ctx.playbook,
+      lead_id: ctx.lead,
+      domain_id: ctx.domain,
+      send_at: new Date().toISOString(),
+    },
+    null,
+  );
   await seed("lead_places", { tenant_id: A, lead_id: ctx.lead, place_id: "ChIJtenancy0002" }, null);
   await seed(
     "lead_search_members",
@@ -385,6 +400,20 @@ const TENANT_TABLES = {
     }),
   ],
   broadcast_recipients: ["member", () => ({ tenant_id: A, broadcast_id: ctx.broadcast, contact_id: ctx.contact2 })],
+  // Reach out (00183): members read a workspace's sends; only the edge's service role writes them.
+  reach_out_sends: [
+    "member",
+    () => ({
+      id: crypto.randomUUID(),
+      tenant_id: A,
+      broadcast_id: ctx.broadcast,
+      playbook_id: ctx.playbook,
+      root_id: ctx.playbook,
+      lead_id: ctx.lead,
+      domain_id: ctx.domain,
+      send_at: new Date().toISOString(),
+    }),
+  ],
   playbooks: [
     "member",
     () => ({

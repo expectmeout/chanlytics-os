@@ -549,6 +549,12 @@ var POLICY_CLASS_WORDS = {
     name: "Proposal follow-ups",
     short: "Follow-ups",
     note: "the proposal follow-up playbook \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
+  },
+  // Reach out (Part 3): cold email to the businesses a search found. A chain's first run always waits for its owner.
+  outreach: {
+    name: "Cold email to businesses a search found",
+    short: "Reach-outs",
+    note: "every email a reach-out sends \xB7 its first run always waits for you; later runs send 30 minutes after they are made unless you stop them \xB7 never sends none"
   }
 };
 var PolicyLimitsSchema = z3.object({
@@ -1375,6 +1381,100 @@ var WHATSAPP_LANGUAGES = [
 var BY_ID = new Map(WHATSAPP_LANGUAGES.map((l2) => [l2.id.toLowerCase(), l2]));
 var DAY_MS5 = 864e5;
 var SWEEP_TICK_MS = 5 * 6e4;
+var PLAYBOOK_TRIGGERS = [
+  { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
+  {
+    id: "new_week",
+    label: "Welcome",
+    list: "new_week",
+    cls: "campaign",
+    kind: "list",
+    hint: "First contact in the last 7 days"
+  },
+  {
+    id: "phoned_only",
+    label: "Save our number",
+    list: "phoned_only",
+    cls: "reengage",
+    kind: "list",
+    hint: "Only ever phoned, never texted"
+  },
+  {
+    id: "everyone_monthly",
+    label: "The month's offer",
+    list: null,
+    cls: "campaign",
+    kind: "cadence",
+    hint: "Everyone who said yes, on a cadence"
+  },
+  {
+    id: "visit_tomorrow",
+    label: "Visit reminder",
+    list: null,
+    cls: "booking",
+    kind: "visit",
+    hint: "The day before an appointment on the calendar"
+  },
+  {
+    id: "visited",
+    label: "After the visit",
+    list: null,
+    cls: "reengage",
+    kind: "visit",
+    hint: "The day after a visit, when nothing is booked next"
+  },
+  // People's Lapsed list, by visits rather than silence: the win-back a salon means, which had no playbook of its own
+  // (00155). Named for its list, so it is never a second "Win-back" beside the one for the quiet.
+  {
+    id: "lapsed",
+    label: "Lapsed",
+    list: "lapsed",
+    cls: "reengage",
+    kind: "list",
+    hint: "No visit in 45 days, and nothing booked"
+  },
+  // Any list (decision 0009): one of People's (list_key, 00168) or one of the workspace's own (list_id, 00155), kept by
+  // hand or by a rule; the card says which. The id stays: playbooks made before any list could be named keep running.
+  {
+    id: "saved_list",
+    label: "On a list",
+    list: null,
+    cls: "campaign",
+    kind: "saved",
+    hint: "Everyone on a list: one of People's, or one you keep"
+  },
+  // A proposal out that has waited past the workspace's pace with nothing back (0006): one nudge per proposal, with
+  // its link, under its own class, where deals are on. Conversational: it answers the person's own request.
+  {
+    id: "proposal_waiting",
+    label: "Proposal follow-up",
+    list: null,
+    cls: "follow_up",
+    kind: "deal",
+    hint: "A proposal waiting with nothing back"
+  },
+  // Reach out (Part 3): a chain's first email, over a lead search, and a step days after the one before it. Made by
+  // the reach-out sheet (Part 4), never offered among the moments (triggerOffered).
+  {
+    id: "lead_first",
+    label: "Businesses a search found",
+    list: null,
+    cls: "outreach",
+    kind: "reach_out",
+    hint: "The first email of a reach-out"
+  },
+  {
+    id: "after_step",
+    label: "After the step before",
+    list: null,
+    cls: "outreach",
+    kind: "reach_out",
+    hint: "A nudge, days after the step before"
+  }
+];
+var MOMENT_TRIGGERS = PLAYBOOK_TRIGGERS.filter(
+  (t2) => t2.kind !== "reach_out"
+);
 var PLAYBOOK_HOURS = { min: 9, max: 20 };
 var SENDING_HOURS_WORDS = {
   min: PLAYBOOK_HOURS.min,
@@ -1933,7 +2033,8 @@ var PLAYBOOK_CLASS_LABEL = {
   reengage: POLICY_CLASS_WORDS.reengage.short,
   campaign: POLICY_CLASS_WORDS.campaign.short,
   booking: POLICY_CLASS_WORDS.booking.short,
-  follow_up: POLICY_CLASS_WORDS.follow_up.short
+  follow_up: POLICY_CLASS_WORDS.follow_up.short,
+  outreach: POLICY_CLASS_WORDS.outreach.short
 };
 var TRY_QUIET_AFTER_MS = 3 * 6e4;
 var FIRST_RUN_PHONE_WORDS = {
@@ -7824,6 +7925,12 @@ var POLICY_CLASS_WORDS2 = {
     name: "Proposal follow-ups",
     short: "Follow-ups",
     note: "the proposal follow-up playbook \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
+  },
+  // Reach out (Part 3): cold email to the businesses a search found. A chain's first run always waits for its owner.
+  outreach: {
+    name: "Cold email to businesses a search found",
+    short: "Reach-outs",
+    note: "every email a reach-out sends \xB7 its first run always waits for you; later runs send 30 minutes after they are made unless you stop them \xB7 never sends none"
   }
 };
 var PolicyLimitsSchema2 = z32.object({
@@ -8638,6 +8745,100 @@ var WHATSAPP_LANGUAGES2 = [
 var BY_ID2 = new Map(WHATSAPP_LANGUAGES2.map((l2) => [l2.id.toLowerCase(), l2]));
 var DAY_MS52 = 864e5;
 var SWEEP_TICK_MS2 = 5 * 6e4;
+var PLAYBOOK_TRIGGERS2 = [
+  { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
+  {
+    id: "new_week",
+    label: "Welcome",
+    list: "new_week",
+    cls: "campaign",
+    kind: "list",
+    hint: "First contact in the last 7 days"
+  },
+  {
+    id: "phoned_only",
+    label: "Save our number",
+    list: "phoned_only",
+    cls: "reengage",
+    kind: "list",
+    hint: "Only ever phoned, never texted"
+  },
+  {
+    id: "everyone_monthly",
+    label: "The month's offer",
+    list: null,
+    cls: "campaign",
+    kind: "cadence",
+    hint: "Everyone who said yes, on a cadence"
+  },
+  {
+    id: "visit_tomorrow",
+    label: "Visit reminder",
+    list: null,
+    cls: "booking",
+    kind: "visit",
+    hint: "The day before an appointment on the calendar"
+  },
+  {
+    id: "visited",
+    label: "After the visit",
+    list: null,
+    cls: "reengage",
+    kind: "visit",
+    hint: "The day after a visit, when nothing is booked next"
+  },
+  // People's Lapsed list, by visits rather than silence: the win-back a salon means, which had no playbook of its own
+  // (00155). Named for its list, so it is never a second "Win-back" beside the one for the quiet.
+  {
+    id: "lapsed",
+    label: "Lapsed",
+    list: "lapsed",
+    cls: "reengage",
+    kind: "list",
+    hint: "No visit in 45 days, and nothing booked"
+  },
+  // Any list (decision 0009): one of People's (list_key, 00168) or one of the workspace's own (list_id, 00155), kept by
+  // hand or by a rule; the card says which. The id stays: playbooks made before any list could be named keep running.
+  {
+    id: "saved_list",
+    label: "On a list",
+    list: null,
+    cls: "campaign",
+    kind: "saved",
+    hint: "Everyone on a list: one of People's, or one you keep"
+  },
+  // A proposal out that has waited past the workspace's pace with nothing back (0006): one nudge per proposal, with
+  // its link, under its own class, where deals are on. Conversational: it answers the person's own request.
+  {
+    id: "proposal_waiting",
+    label: "Proposal follow-up",
+    list: null,
+    cls: "follow_up",
+    kind: "deal",
+    hint: "A proposal waiting with nothing back"
+  },
+  // Reach out (Part 3): a chain's first email, over a lead search, and a step days after the one before it. Made by
+  // the reach-out sheet (Part 4), never offered among the moments (triggerOffered).
+  {
+    id: "lead_first",
+    label: "Businesses a search found",
+    list: null,
+    cls: "outreach",
+    kind: "reach_out",
+    hint: "The first email of a reach-out"
+  },
+  {
+    id: "after_step",
+    label: "After the step before",
+    list: null,
+    cls: "outreach",
+    kind: "reach_out",
+    hint: "A nudge, days after the step before"
+  }
+];
+var MOMENT_TRIGGERS2 = PLAYBOOK_TRIGGERS2.filter(
+  (t2) => t2.kind !== "reach_out"
+);
 var PLAYBOOK_HOURS2 = { min: 9, max: 20 };
 var SENDING_HOURS_WORDS2 = {
   min: PLAYBOOK_HOURS2.min,
@@ -9196,7 +9397,8 @@ var PLAYBOOK_CLASS_LABEL2 = {
   reengage: POLICY_CLASS_WORDS2.reengage.short,
   campaign: POLICY_CLASS_WORDS2.campaign.short,
   booking: POLICY_CLASS_WORDS2.booking.short,
-  follow_up: POLICY_CLASS_WORDS2.follow_up.short
+  follow_up: POLICY_CLASS_WORDS2.follow_up.short,
+  outreach: POLICY_CLASS_WORDS2.outreach.short
 };
 var TRY_QUIET_AFTER_MS2 = 3 * 6e4;
 var FIRST_RUN_PHONE_WORDS2 = {
@@ -11157,6 +11359,12 @@ var POLICY_CLASS_WORDS3 = {
     name: "Proposal follow-ups",
     short: "Follow-ups",
     note: "the proposal follow-up playbook \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
+  },
+  // Reach out (Part 3): cold email to the businesses a search found. A chain's first run always waits for its owner.
+  outreach: {
+    name: "Cold email to businesses a search found",
+    short: "Reach-outs",
+    note: "every email a reach-out sends \xB7 its first run always waits for you; later runs send 30 minutes after they are made unless you stop them \xB7 never sends none"
   }
 };
 var PolicyLimitsSchema3 = z33.object({
@@ -11971,6 +12179,100 @@ var WHATSAPP_LANGUAGES3 = [
 var BY_ID3 = new Map(WHATSAPP_LANGUAGES3.map((l2) => [l2.id.toLowerCase(), l2]));
 var DAY_MS53 = 864e5;
 var SWEEP_TICK_MS3 = 5 * 6e4;
+var PLAYBOOK_TRIGGERS3 = [
+  { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
+  {
+    id: "new_week",
+    label: "Welcome",
+    list: "new_week",
+    cls: "campaign",
+    kind: "list",
+    hint: "First contact in the last 7 days"
+  },
+  {
+    id: "phoned_only",
+    label: "Save our number",
+    list: "phoned_only",
+    cls: "reengage",
+    kind: "list",
+    hint: "Only ever phoned, never texted"
+  },
+  {
+    id: "everyone_monthly",
+    label: "The month's offer",
+    list: null,
+    cls: "campaign",
+    kind: "cadence",
+    hint: "Everyone who said yes, on a cadence"
+  },
+  {
+    id: "visit_tomorrow",
+    label: "Visit reminder",
+    list: null,
+    cls: "booking",
+    kind: "visit",
+    hint: "The day before an appointment on the calendar"
+  },
+  {
+    id: "visited",
+    label: "After the visit",
+    list: null,
+    cls: "reengage",
+    kind: "visit",
+    hint: "The day after a visit, when nothing is booked next"
+  },
+  // People's Lapsed list, by visits rather than silence: the win-back a salon means, which had no playbook of its own
+  // (00155). Named for its list, so it is never a second "Win-back" beside the one for the quiet.
+  {
+    id: "lapsed",
+    label: "Lapsed",
+    list: "lapsed",
+    cls: "reengage",
+    kind: "list",
+    hint: "No visit in 45 days, and nothing booked"
+  },
+  // Any list (decision 0009): one of People's (list_key, 00168) or one of the workspace's own (list_id, 00155), kept by
+  // hand or by a rule; the card says which. The id stays: playbooks made before any list could be named keep running.
+  {
+    id: "saved_list",
+    label: "On a list",
+    list: null,
+    cls: "campaign",
+    kind: "saved",
+    hint: "Everyone on a list: one of People's, or one you keep"
+  },
+  // A proposal out that has waited past the workspace's pace with nothing back (0006): one nudge per proposal, with
+  // its link, under its own class, where deals are on. Conversational: it answers the person's own request.
+  {
+    id: "proposal_waiting",
+    label: "Proposal follow-up",
+    list: null,
+    cls: "follow_up",
+    kind: "deal",
+    hint: "A proposal waiting with nothing back"
+  },
+  // Reach out (Part 3): a chain's first email, over a lead search, and a step days after the one before it. Made by
+  // the reach-out sheet (Part 4), never offered among the moments (triggerOffered).
+  {
+    id: "lead_first",
+    label: "Businesses a search found",
+    list: null,
+    cls: "outreach",
+    kind: "reach_out",
+    hint: "The first email of a reach-out"
+  },
+  {
+    id: "after_step",
+    label: "After the step before",
+    list: null,
+    cls: "outreach",
+    kind: "reach_out",
+    hint: "A nudge, days after the step before"
+  }
+];
+var MOMENT_TRIGGERS3 = PLAYBOOK_TRIGGERS3.filter(
+  (t2) => t2.kind !== "reach_out"
+);
 var PLAYBOOK_HOURS3 = { min: 9, max: 20 };
 var SENDING_HOURS_WORDS3 = {
   min: PLAYBOOK_HOURS3.min,
@@ -12529,7 +12831,8 @@ var PLAYBOOK_CLASS_LABEL3 = {
   reengage: POLICY_CLASS_WORDS3.reengage.short,
   campaign: POLICY_CLASS_WORDS3.campaign.short,
   booking: POLICY_CLASS_WORDS3.booking.short,
-  follow_up: POLICY_CLASS_WORDS3.follow_up.short
+  follow_up: POLICY_CLASS_WORDS3.follow_up.short,
+  outreach: POLICY_CLASS_WORDS3.outreach.short
 };
 var TRY_QUIET_AFTER_MS3 = 3 * 6e4;
 var FIRST_RUN_PHONE_WORDS3 = {
@@ -13541,6 +13844,12 @@ var POLICY_CLASS_WORDS22 = {
     name: "Proposal follow-ups",
     short: "Follow-ups",
     note: "the proposal follow-up playbook \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
+  },
+  // Reach out (Part 3): cold email to the businesses a search found. A chain's first run always waits for its owner.
+  outreach: {
+    name: "Cold email to businesses a search found",
+    short: "Reach-outs",
+    note: "every email a reach-out sends \xB7 its first run always waits for you; later runs send 30 minutes after they are made unless you stop them \xB7 never sends none"
   }
 };
 var PolicyLimitsSchema22 = z322.object({
@@ -14398,6 +14707,100 @@ function resolveParams(specs, f) {
 }
 var DAY_MS522 = 864e5;
 var SWEEP_TICK_MS22 = 5 * 6e4;
+var PLAYBOOK_TRIGGERS22 = [
+  { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
+  {
+    id: "new_week",
+    label: "Welcome",
+    list: "new_week",
+    cls: "campaign",
+    kind: "list",
+    hint: "First contact in the last 7 days"
+  },
+  {
+    id: "phoned_only",
+    label: "Save our number",
+    list: "phoned_only",
+    cls: "reengage",
+    kind: "list",
+    hint: "Only ever phoned, never texted"
+  },
+  {
+    id: "everyone_monthly",
+    label: "The month's offer",
+    list: null,
+    cls: "campaign",
+    kind: "cadence",
+    hint: "Everyone who said yes, on a cadence"
+  },
+  {
+    id: "visit_tomorrow",
+    label: "Visit reminder",
+    list: null,
+    cls: "booking",
+    kind: "visit",
+    hint: "The day before an appointment on the calendar"
+  },
+  {
+    id: "visited",
+    label: "After the visit",
+    list: null,
+    cls: "reengage",
+    kind: "visit",
+    hint: "The day after a visit, when nothing is booked next"
+  },
+  // People's Lapsed list, by visits rather than silence: the win-back a salon means, which had no playbook of its own
+  // (00155). Named for its list, so it is never a second "Win-back" beside the one for the quiet.
+  {
+    id: "lapsed",
+    label: "Lapsed",
+    list: "lapsed",
+    cls: "reengage",
+    kind: "list",
+    hint: "No visit in 45 days, and nothing booked"
+  },
+  // Any list (decision 0009): one of People's (list_key, 00168) or one of the workspace's own (list_id, 00155), kept by
+  // hand or by a rule; the card says which. The id stays: playbooks made before any list could be named keep running.
+  {
+    id: "saved_list",
+    label: "On a list",
+    list: null,
+    cls: "campaign",
+    kind: "saved",
+    hint: "Everyone on a list: one of People's, or one you keep"
+  },
+  // A proposal out that has waited past the workspace's pace with nothing back (0006): one nudge per proposal, with
+  // its link, under its own class, where deals are on. Conversational: it answers the person's own request.
+  {
+    id: "proposal_waiting",
+    label: "Proposal follow-up",
+    list: null,
+    cls: "follow_up",
+    kind: "deal",
+    hint: "A proposal waiting with nothing back"
+  },
+  // Reach out (Part 3): a chain's first email, over a lead search, and a step days after the one before it. Made by
+  // the reach-out sheet (Part 4), never offered among the moments (triggerOffered).
+  {
+    id: "lead_first",
+    label: "Businesses a search found",
+    list: null,
+    cls: "outreach",
+    kind: "reach_out",
+    hint: "The first email of a reach-out"
+  },
+  {
+    id: "after_step",
+    label: "After the step before",
+    list: null,
+    cls: "outreach",
+    kind: "reach_out",
+    hint: "A nudge, days after the step before"
+  }
+];
+var MOMENT_TRIGGERS22 = PLAYBOOK_TRIGGERS22.filter(
+  (t2) => t2.kind !== "reach_out"
+);
 var PLAYBOOK_HOURS22 = { min: 9, max: 20 };
 var SENDING_HOURS_WORDS22 = {
   min: PLAYBOOK_HOURS22.min,
@@ -14965,7 +15368,8 @@ var PLAYBOOK_CLASS_LABEL22 = {
   reengage: POLICY_CLASS_WORDS22.reengage.short,
   campaign: POLICY_CLASS_WORDS22.campaign.short,
   booking: POLICY_CLASS_WORDS22.booking.short,
-  follow_up: POLICY_CLASS_WORDS22.follow_up.short
+  follow_up: POLICY_CLASS_WORDS22.follow_up.short,
+  outreach: POLICY_CLASS_WORDS22.outreach.short
 };
 var TRY_QUIET_AFTER_MS22 = 3 * 6e4;
 var FIRST_RUN_PHONE_WORDS22 = {
@@ -15880,6 +16284,12 @@ var POLICY_CLASS_WORDS32 = {
     name: "Proposal follow-ups",
     short: "Follow-ups",
     note: "the proposal follow-up playbook \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
+  },
+  // Reach out (Part 3): cold email to the businesses a search found. A chain's first run always waits for its owner.
+  outreach: {
+    name: "Cold email to businesses a search found",
+    short: "Reach-outs",
+    note: "every email a reach-out sends \xB7 its first run always waits for you; later runs send 30 minutes after they are made unless you stop them \xB7 never sends none"
   }
 };
 var PolicyLimitsSchema32 = z332.object({
@@ -16694,6 +17104,100 @@ var WHATSAPP_LANGUAGES32 = [
 var BY_ID32 = new Map(WHATSAPP_LANGUAGES32.map((l2) => [l2.id.toLowerCase(), l2]));
 var DAY_MS532 = 864e5;
 var SWEEP_TICK_MS32 = 5 * 6e4;
+var PLAYBOOK_TRIGGERS32 = [
+  { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
+  {
+    id: "new_week",
+    label: "Welcome",
+    list: "new_week",
+    cls: "campaign",
+    kind: "list",
+    hint: "First contact in the last 7 days"
+  },
+  {
+    id: "phoned_only",
+    label: "Save our number",
+    list: "phoned_only",
+    cls: "reengage",
+    kind: "list",
+    hint: "Only ever phoned, never texted"
+  },
+  {
+    id: "everyone_monthly",
+    label: "The month's offer",
+    list: null,
+    cls: "campaign",
+    kind: "cadence",
+    hint: "Everyone who said yes, on a cadence"
+  },
+  {
+    id: "visit_tomorrow",
+    label: "Visit reminder",
+    list: null,
+    cls: "booking",
+    kind: "visit",
+    hint: "The day before an appointment on the calendar"
+  },
+  {
+    id: "visited",
+    label: "After the visit",
+    list: null,
+    cls: "reengage",
+    kind: "visit",
+    hint: "The day after a visit, when nothing is booked next"
+  },
+  // People's Lapsed list, by visits rather than silence: the win-back a salon means, which had no playbook of its own
+  // (00155). Named for its list, so it is never a second "Win-back" beside the one for the quiet.
+  {
+    id: "lapsed",
+    label: "Lapsed",
+    list: "lapsed",
+    cls: "reengage",
+    kind: "list",
+    hint: "No visit in 45 days, and nothing booked"
+  },
+  // Any list (decision 0009): one of People's (list_key, 00168) or one of the workspace's own (list_id, 00155), kept by
+  // hand or by a rule; the card says which. The id stays: playbooks made before any list could be named keep running.
+  {
+    id: "saved_list",
+    label: "On a list",
+    list: null,
+    cls: "campaign",
+    kind: "saved",
+    hint: "Everyone on a list: one of People's, or one you keep"
+  },
+  // A proposal out that has waited past the workspace's pace with nothing back (0006): one nudge per proposal, with
+  // its link, under its own class, where deals are on. Conversational: it answers the person's own request.
+  {
+    id: "proposal_waiting",
+    label: "Proposal follow-up",
+    list: null,
+    cls: "follow_up",
+    kind: "deal",
+    hint: "A proposal waiting with nothing back"
+  },
+  // Reach out (Part 3): a chain's first email, over a lead search, and a step days after the one before it. Made by
+  // the reach-out sheet (Part 4), never offered among the moments (triggerOffered).
+  {
+    id: "lead_first",
+    label: "Businesses a search found",
+    list: null,
+    cls: "outreach",
+    kind: "reach_out",
+    hint: "The first email of a reach-out"
+  },
+  {
+    id: "after_step",
+    label: "After the step before",
+    list: null,
+    cls: "outreach",
+    kind: "reach_out",
+    hint: "A nudge, days after the step before"
+  }
+];
+var MOMENT_TRIGGERS32 = PLAYBOOK_TRIGGERS32.filter(
+  (t2) => t2.kind !== "reach_out"
+);
 var PLAYBOOK_HOURS32 = { min: 9, max: 20 };
 var SENDING_HOURS_WORDS32 = {
   min: PLAYBOOK_HOURS32.min,
@@ -17252,7 +17756,8 @@ var PLAYBOOK_CLASS_LABEL32 = {
   reengage: POLICY_CLASS_WORDS32.reengage.short,
   campaign: POLICY_CLASS_WORDS32.campaign.short,
   booking: POLICY_CLASS_WORDS32.booking.short,
-  follow_up: POLICY_CLASS_WORDS32.follow_up.short
+  follow_up: POLICY_CLASS_WORDS32.follow_up.short,
+  outreach: POLICY_CLASS_WORDS32.outreach.short
 };
 var TRY_QUIET_AFTER_MS32 = 3 * 6e4;
 var FIRST_RUN_PHONE_WORDS32 = {
@@ -18840,6 +19345,12 @@ var POLICY_CLASS_WORDS4 = {
     name: "Proposal follow-ups",
     short: "Follow-ups",
     note: "the proposal follow-up playbook \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
+  },
+  // Reach out (Part 3): cold email to the businesses a search found. A chain's first run always waits for its owner.
+  outreach: {
+    name: "Cold email to businesses a search found",
+    short: "Reach-outs",
+    note: "every email a reach-out sends \xB7 its first run always waits for you; later runs send 30 minutes after they are made unless you stop them \xB7 never sends none"
   }
 };
 var PolicyLimitsSchema4 = z34.object({
@@ -19654,6 +20165,100 @@ var WHATSAPP_LANGUAGES4 = [
 var BY_ID4 = new Map(WHATSAPP_LANGUAGES4.map((l2) => [l2.id.toLowerCase(), l2]));
 var DAY_MS54 = 864e5;
 var SWEEP_TICK_MS4 = 5 * 6e4;
+var PLAYBOOK_TRIGGERS4 = [
+  { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
+  {
+    id: "new_week",
+    label: "Welcome",
+    list: "new_week",
+    cls: "campaign",
+    kind: "list",
+    hint: "First contact in the last 7 days"
+  },
+  {
+    id: "phoned_only",
+    label: "Save our number",
+    list: "phoned_only",
+    cls: "reengage",
+    kind: "list",
+    hint: "Only ever phoned, never texted"
+  },
+  {
+    id: "everyone_monthly",
+    label: "The month's offer",
+    list: null,
+    cls: "campaign",
+    kind: "cadence",
+    hint: "Everyone who said yes, on a cadence"
+  },
+  {
+    id: "visit_tomorrow",
+    label: "Visit reminder",
+    list: null,
+    cls: "booking",
+    kind: "visit",
+    hint: "The day before an appointment on the calendar"
+  },
+  {
+    id: "visited",
+    label: "After the visit",
+    list: null,
+    cls: "reengage",
+    kind: "visit",
+    hint: "The day after a visit, when nothing is booked next"
+  },
+  // People's Lapsed list, by visits rather than silence: the win-back a salon means, which had no playbook of its own
+  // (00155). Named for its list, so it is never a second "Win-back" beside the one for the quiet.
+  {
+    id: "lapsed",
+    label: "Lapsed",
+    list: "lapsed",
+    cls: "reengage",
+    kind: "list",
+    hint: "No visit in 45 days, and nothing booked"
+  },
+  // Any list (decision 0009): one of People's (list_key, 00168) or one of the workspace's own (list_id, 00155), kept by
+  // hand or by a rule; the card says which. The id stays: playbooks made before any list could be named keep running.
+  {
+    id: "saved_list",
+    label: "On a list",
+    list: null,
+    cls: "campaign",
+    kind: "saved",
+    hint: "Everyone on a list: one of People's, or one you keep"
+  },
+  // A proposal out that has waited past the workspace's pace with nothing back (0006): one nudge per proposal, with
+  // its link, under its own class, where deals are on. Conversational: it answers the person's own request.
+  {
+    id: "proposal_waiting",
+    label: "Proposal follow-up",
+    list: null,
+    cls: "follow_up",
+    kind: "deal",
+    hint: "A proposal waiting with nothing back"
+  },
+  // Reach out (Part 3): a chain's first email, over a lead search, and a step days after the one before it. Made by
+  // the reach-out sheet (Part 4), never offered among the moments (triggerOffered).
+  {
+    id: "lead_first",
+    label: "Businesses a search found",
+    list: null,
+    cls: "outreach",
+    kind: "reach_out",
+    hint: "The first email of a reach-out"
+  },
+  {
+    id: "after_step",
+    label: "After the step before",
+    list: null,
+    cls: "outreach",
+    kind: "reach_out",
+    hint: "A nudge, days after the step before"
+  }
+];
+var MOMENT_TRIGGERS4 = PLAYBOOK_TRIGGERS4.filter(
+  (t2) => t2.kind !== "reach_out"
+);
 var PLAYBOOK_HOURS4 = { min: 9, max: 20 };
 var SENDING_HOURS_WORDS4 = {
   min: PLAYBOOK_HOURS4.min,
@@ -20212,7 +20817,8 @@ var PLAYBOOK_CLASS_LABEL4 = {
   reengage: POLICY_CLASS_WORDS4.reengage.short,
   campaign: POLICY_CLASS_WORDS4.campaign.short,
   booking: POLICY_CLASS_WORDS4.booking.short,
-  follow_up: POLICY_CLASS_WORDS4.follow_up.short
+  follow_up: POLICY_CLASS_WORDS4.follow_up.short,
+  outreach: POLICY_CLASS_WORDS4.outreach.short
 };
 var TRY_QUIET_AFTER_MS4 = 3 * 6e4;
 var FIRST_RUN_PHONE_WORDS4 = {

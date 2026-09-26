@@ -40,6 +40,7 @@ import {
   POLICY_CLASSES,
   POLICY_MODES,
   FOLLOW_UP_NEEDS_DEALS,
+  REACH_OUT_IS_NOT_A_MOMENT,
   FOLLOW_UP_ONE,
   dealPaceOf,
   dealsAreOn,
@@ -54,7 +55,7 @@ import {
   AppError,
   type LeadSearchPlan,
   PLAYBOOK_CLASS_LABEL,
-  PLAYBOOK_TRIGGERS,
+  MOMENT_TRIGGERS,
   ProposeLeadSearchSchema,
   planLeadSearch,
   planSentence,
@@ -234,8 +235,9 @@ export const ACT_TOOLS: ToolDef[] = [
       "Propose a playbook: a standing rule that sends one approved WhatsApp template to newly eligible people who said yes. trigger: quiet_30 (win-back), new_week (welcome), phoned_only (save our number), everyone_monthly (the month's offer), saved_list (on any list: give its token from list_audiences in list -- one of People's or one of the workspace's own -- and policy_class campaign for an offer or reengage for a win-back), or, where deals are on, proposal_waiting (the proposal follow-up: one nudge per proposal waiting past the workspace's pace, one such playbook per workspace, its message carrying the proposal's link as @proposal_link). template_id: an approved template, or omit it for the trigger's starter when the workspace holds it. params: the template's values in order (typed text, or @first_name, @business_name, @booking_link, @proposal_link); a starter's are filled in, except a typed one such as the month's offer. run_hour 9–20 by the business's clock (default 10), cap_per_run (default 25). Read list_playbooks first. It becomes a card the person approves; it then runs under its class's autonomy mode.",
     input_schema: obj(
       {
-        // Every trigger except the two that follow the calendar; a proposal's is refused where deals are off.
-        trigger: { type: "string", enum: PLAYBOOK_TRIGGERS.filter((t) => t.kind !== "visit").map((t) => t.id) },
+        // Every moment except the two that follow the calendar; a proposal's is refused where deals are off. A
+        // reach-out's steps are not moments (MOMENT_TRIGGERS).
+        trigger: { type: "string", enum: MOMENT_TRIGGERS.filter((t) => t.kind !== "visit").map((t) => t.id) },
         // On a list (saved_list): the list's token from list_audiences, and what it sends.
         list: { type: "string" },
         policy_class: { type: "string", enum: [...LIST_PLAYBOOK_CLASSES] },
@@ -876,6 +878,7 @@ const MODE_WORDS: Record<string, string> = {
 async function proposePlaybook(t: ToolContext, input: Record<string, unknown>): Promise<ProposalOutcome> {
   const trig = triggerOf(str(input.trigger, 30));
   if (!trig) return refuse("trigger must be quiet_30, new_week, phoned_only, everyone_monthly or saved_list");
+  if (trig.kind === "reach_out") return refuse(REACH_OUT_IS_NOT_A_MOMENT);
   // A playbook on a list names it by its token (decision 0009): one of People's, or one of the workspace's own.
   const listRef = trig.kind === "saved" ? parseListToken(str(input.list, 60)) : null;
   if (trig.kind === "saved" && !listRef)

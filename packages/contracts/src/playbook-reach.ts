@@ -116,6 +116,9 @@ export function playbookRunReach(
   };
   const t = triggerOf(p.trigger);
   if (!t) return { eligible: [], reach, saidYes: 0 };
+  // A reach-out writes to leads, never to People: its run is its own (core campaigns/run-reach-out.ts), and its
+  // steps must not fall through to the moments' "everyone" below.
+  if (t.kind === "reach_out") return { eligible: [], reach, saidYes: 0 };
   const purpose = purposeOfPlaybook(t.cls);
   // Who the moment names, before anyone is left out.
   const named =
@@ -275,4 +278,5 @@ export const PLAYBOOK_CLASS_LABEL: Record<PlaybookPolicyClass, string> = {
   campaign: POLICY_CLASS_WORDS.campaign.short,
   booking: POLICY_CLASS_WORDS.booking.short,
   follow_up: POLICY_CLASS_WORDS.follow_up.short,
+  outreach: POLICY_CLASS_WORDS.outreach.short,
 };

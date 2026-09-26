@@ -3411,14 +3411,20 @@ type Database = {
             };
             playbooks: {
                 Row: {
+                    after_days: number | null;
+                    after_playbook_id: string | null;
                     cadence_days: number;
                     cap_per_run: number;
                     created_at: string;
                     created_by: string | null;
+                    domain_ids: string[];
                     gap_days: number;
+                    gap_minutes: number | null;
                     id: string;
+                    kind: string;
                     last_run_at: string | null;
                     last_run_for: string | null;
+                    lead_search_id: string | null;
                     list_id: string | null;
                     list_key: string | null;
                     name: string;
@@ -3434,14 +3440,20 @@ type Database = {
                     updated_at: string;
                 };
                 Insert: {
+                    after_days?: number | null;
+                    after_playbook_id?: string | null;
                     cadence_days?: number;
                     cap_per_run?: number;
                     created_at?: string;
                     created_by?: string | null;
+                    domain_ids?: string[];
                     gap_days?: number;
+                    gap_minutes?: number | null;
                     id?: string;
+                    kind?: string;
                     last_run_at?: string | null;
                     last_run_for?: string | null;
+                    lead_search_id?: string | null;
                     list_id?: string | null;
                     list_key?: string | null;
                     name: string;
@@ -3457,14 +3469,20 @@ type Database = {
                     updated_at?: string;
                 };
                 Update: {
+                    after_days?: number | null;
+                    after_playbook_id?: string | null;
                     cadence_days?: number;
                     cap_per_run?: number;
                     created_at?: string;
                     created_by?: string | null;
+                    domain_ids?: string[];
                     gap_days?: number;
+                    gap_minutes?: number | null;
                     id?: string;
+                    kind?: string;
                     last_run_at?: string | null;
                     last_run_for?: string | null;
+                    lead_search_id?: string | null;
                     list_id?: string | null;
                     list_key?: string | null;
                     name?: string;
@@ -3480,6 +3498,27 @@ type Database = {
                     updated_at?: string;
                 };
                 Relationships: [
+                    {
+                        foreignKeyName: "playbooks_after_playbook_id_fkey";
+                        columns: ["after_playbook_id"];
+                        isOneToOne: false;
+                        referencedRelation: "playbooks";
+                        referencedColumns: ["id"];
+                    },
+                    {
+                        foreignKeyName: "playbooks_lead_search_id_fkey";
+                        columns: ["lead_search_id"];
+                        isOneToOne: false;
+                        referencedRelation: "lead_searches";
+                        referencedColumns: ["id"];
+                    },
+                    {
+                        foreignKeyName: "playbooks_lead_search_id_fkey";
+                        columns: ["lead_search_id"];
+                        isOneToOne: false;
+                        referencedRelation: "lead_searches_view";
+                        referencedColumns: ["id"];
+                    },
                     {
                         foreignKeyName: "playbooks_list_id_fkey";
                         columns: ["list_id"];
@@ -3609,6 +3648,123 @@ type Database = {
                     bucket?: string;
                 };
                 Relationships: [];
+            };
+            reach_out_sends: {
+                Row: {
+                    attempts: number;
+                    broadcast_id: string;
+                    claimed_at: string | null;
+                    contact_id: string | null;
+                    created_at: string;
+                    domain_id: string | null;
+                    id: string;
+                    lead_id: string;
+                    message_id: string | null;
+                    playbook_id: string | null;
+                    reason: string | null;
+                    root_id: string;
+                    send_at: string | null;
+                    sent_at: string | null;
+                    state: string;
+                    tenant_id: string;
+                    updated_at: string;
+                };
+                Insert: {
+                    attempts?: number;
+                    broadcast_id: string;
+                    claimed_at?: string | null;
+                    contact_id?: string | null;
+                    created_at?: string;
+                    domain_id?: string | null;
+                    id: string;
+                    lead_id: string;
+                    message_id?: string | null;
+                    playbook_id?: string | null;
+                    reason?: string | null;
+                    root_id: string;
+                    send_at?: string | null;
+                    sent_at?: string | null;
+                    state?: string;
+                    tenant_id: string;
+                    updated_at?: string;
+                };
+                Update: {
+                    attempts?: number;
+                    broadcast_id?: string;
+                    claimed_at?: string | null;
+                    contact_id?: string | null;
+                    created_at?: string;
+                    domain_id?: string | null;
+                    id?: string;
+                    lead_id?: string;
+                    message_id?: string | null;
+                    playbook_id?: string | null;
+                    reason?: string | null;
+                    root_id?: string;
+                    send_at?: string | null;
+                    sent_at?: string | null;
+                    state?: string;
+                    tenant_id?: string;
+                    updated_at?: string;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "reach_out_sends_broadcast_id_fkey";
+                        columns: ["broadcast_id"];
+                        isOneToOne: false;
+                        referencedRelation: "broadcasts";
+                        referencedColumns: ["id"];
+                    },
+                    {
+                        foreignKeyName: "reach_out_sends_contact_id_fkey";
+                        columns: ["contact_id"];
+                        isOneToOne: false;
+                        referencedRelation: "contacts";
+                        referencedColumns: ["id"];
+                    },
+                    {
+                        foreignKeyName: "reach_out_sends_domain_id_fkey";
+                        columns: ["domain_id"];
+                        isOneToOne: false;
+                        referencedRelation: "sending_domains";
+                        referencedColumns: ["id"];
+                    },
+                    {
+                        foreignKeyName: "reach_out_sends_lead_id_fkey";
+                        columns: ["lead_id"];
+                        isOneToOne: false;
+                        referencedRelation: "leads";
+                        referencedColumns: ["id"];
+                    },
+                    {
+                        foreignKeyName: "reach_out_sends_message_id_fkey";
+                        columns: ["message_id"];
+                        isOneToOne: false;
+                        referencedRelation: "messages";
+                        referencedColumns: ["id"];
+                    },
+                    {
+                        foreignKeyName: "reach_out_sends_playbook_id_fkey";
+                        columns: ["playbook_id"];
+                        isOneToOne: false;
+                        referencedRelation: "playbooks";
+                        referencedColumns: ["id"];
+                    },
+                    {
+                        foreignKeyName: "reach_out_sends_root_id_fkey";
+                        columns: ["root_id"];
+                        isOneToOne: false;
+                        referencedRelation: "playbooks";
+                        referencedColumns: ["id"];
+                    },
+                    {
+                        foreignKeyName: "reach_out_sends_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
             };
             segment_members: {
                 Row: {
