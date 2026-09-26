@@ -8,21 +8,13 @@ import { conversations as conversationsReader } from "../../readers/conversation
 import { escalations as escalationsReader } from "../../readers/escalations";
 import { calls as callsReader } from "../../readers/calls";
 import { aggregateOf, idsOf, line, pageWithView, refOf, sourceOf, type ContextRow, type Provider } from "./rows";
+import { threadState } from "../thread-state";
 
 /**
  * The day's pages, as their context: Today, the Inbox, Conversations and Live. Each reads the ids the page sent
  * through the page's own reader, keeps the rows the reader returned (a thread another workspace holds is not among
  * them, so it is simply absent) and writes each row with the page's own view model, as Ask's tools do.
  */
-
-/** A thread's state in the words list_threads says it in (tools.ts), from the Inbox row's own view model. */
-export function threadState(v: InboxThreadVM): string {
-  if (v.needsYou) return "needs you";
-  if (v.takenOver) return "waiting on you";
-  if (v.state === "snoozed") return "snoozed";
-  if (v.optedOut) return "opted out";
-  return "answering";
-}
 
 /** A draft held on the thread, as list_threads marks one. */
 const held = (v: InboxThreadVM): string | null => (v.veto || v.heldDraft ? "draft held" : null);
