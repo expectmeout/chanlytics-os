@@ -24,7 +24,7 @@ and hands the thread to a person, whatever the prompt said.
 numbers. Treat every change to `apps/edge` and `packages/channels` as something
 a member of the public will experience. The first workspace was a hair salon,
 and the code still uses it as its worked example in comments; the product is
-not for salons, and `tooling/scripts/tests/trade-neutral.test.mjs` fails a
+not for salons, and `tooling/scripts/tests/repo/trade-neutral.test.mjs` fails a
 build that puts one trade's words in front of a customer of another.
 
 **Read next.** `CLAUDE.md` for the rules and the canonical example of each
@@ -169,6 +169,15 @@ and return success — only `INSERT` raises. Any permission-sensitive update mus
 corepack pnpm test                    # unit + integration
 ```
 
+The suite lives under `tooling/scripts/tests/<domain>/`, each file placed by
+what it proves, on the names `apps/dashboard/src/server`, `packages/contracts`
+and `apps/edge/lib` use, plus `repo/` for the repository-wide invariants and
+ratchets, `routes/` for the app plane's floor, `shell/` for the shell and its
+bridge, `cron/` and `edge/` for the sweeps and the edge's own doors, and
+`database/` for what is proved on the catalog itself. The shared worlds and
+helpers (`_fake-db.mjs`, `_source.mjs`, …) stay at the root; the runner globs
+every depth.
+
 Integration tests need `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` and
 **skip** without them, which is what happens in CI — CI holds no live secrets by
 design. Run them locally with credentials before shipping anything that touches
@@ -201,7 +210,7 @@ the nightly reported success four mornings running while executing 24 of 128
 specs. So a run that is MEANT to be signed in says so with
 `REQUIRE_SERVICE_CREDENTIALS=1`, and `e2e/coverage.spec.ts` then fails instead
 of skipping. The node suite carries the same guard in
-`tooling/scripts/tests/coverage-guard.test.mjs` for its 112 integration tests,
+`tooling/scripts/tests/e2e/coverage-guard.test.mjs` for its 112 integration tests,
 which live in 26 files and skip as a block without credentials.
 The nightly sets the flag; `ci.yml`, which holds no live service secrets by
 policy, does not.

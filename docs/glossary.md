@@ -68,7 +68,7 @@ leaves hash routes (see `docs/architecture.md`, "The shell").
 - **Salon, stylist, visit** as product words. The first workspace was a salon
   and the code still uses it as the worked example in comments; the product is
   for any business that turns a conversation into a booked time.
-  `tooling/scripts/tests/trade-neutral.test.mjs` fails a build that puts one
+  `tooling/scripts/tests/repo/trade-neutral.test.mjs` fails a build that puts one
   trade's words in front of a customer of another.
 - **Bot, agent** for the receptionist. "Agent" is reserved for the deferred
   agent-platform surfaces of the mockup; the thing that answers is the

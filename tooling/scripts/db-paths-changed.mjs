@@ -25,9 +25,9 @@ import { pathToFileURL } from "node:url";
 export const DB_PATHS = [
   // the migrations, the seed and the config the local stack starts from
   "supabase/**",
-  // the suites that run against the replayed database
-  "tooling/scripts/tests/*.db.test.mjs",
-  "tooling/scripts/tests/*.integration.test.mjs",
+  // the suites that run against the replayed database, in whichever domain folder they sit
+  "tooling/scripts/tests/**/*.db.test.mjs",
+  "tooling/scripts/tests/**/*.integration.test.mjs",
   // the *.integration suites call the db package's repositories, through its committed dist
   "packages/db/src/**",
   // the reach-out engine the stack suites run end to end (the clock, the sender, the door by lead, the approve ports):

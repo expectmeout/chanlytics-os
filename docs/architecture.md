@@ -263,8 +263,10 @@ integration tests skip without credentials, and `REQUIRE_SERVICE_CREDENTIALS=1`
 turns a skip into a failure where a run is meant to be signed in. A share of
 the suite still asserts on source text rather than behaviour;
 `tooling/scripts/tests/source-scan-baseline.json` is the ratchet that may only
-fall. Playwright specs in `e2e/` run nightly against production in the suite's
-own workspace.
+fall, keyed by each file's path relative to the tests directory. The files are
+grouped by domain under `tooling/scripts/tests/<domain>/`, the shared worlds
+and helpers at the root, and the runner globs every depth. Playwright specs in
+`e2e/` run nightly against production in the suite's own workspace.
 
 ## What is decided and not yet built
 

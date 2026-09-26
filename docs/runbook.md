@@ -40,7 +40,7 @@ call that would reach a provider through the edge answers "not here" unless
 **The edge.** It has no dev server script. Its doors are standard
 `Request`/`Response` handlers under `apps/edge/api`, so `vercel dev` inside
 `apps/edge` with a `.env` copied from `.env.example` serves them. In practice a
-door is exercised through its test world: `tooling/scripts/tests/*-door.test.mjs`
+door is exercised through its test world: `tooling/scripts/tests/**/*-door.test.mjs`
 runs the real handler over an in-memory database, which is how the code is run
 on a laptop most of the time.
 
@@ -318,7 +318,7 @@ order, and a reach-out exists (step 8).
    (RFC 8058 §4).
 8. **The first reach-out.** Made on Part 4's sheet: a chain over a lead
    search, its words and its domains. Until the sheet ships there is no door
-   that makes one; `tooling/scripts/tests/reach-out.integration.db.test.mjs`
+   that makes one; `tooling/scripts/tests/reach-out/reach-out.integration.db.test.mjs`
    seeds one on a local stack and runs it end to end. Its first run waits for
    its owner on Broadcasts; the `reach-out-sweep` clock (every minute) sends
    what is due from then on, each email through the jobs tick and the door.

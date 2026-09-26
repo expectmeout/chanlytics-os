@@ -26,7 +26,7 @@ the shell, the seeded pages, and to check a new file loads in both lists. To LOO
 dashboard and open `/w/<workspace-slug>/` -- docs/runbook.md, "See a real page", which names the three things that
 trip it up. A screenshot of `Chanlytics.html` offered as proof of a real page will be sent back.
 
-**A new file goes in BOTH lists.** Seventeen went into the manifest alone — each with its own test — and the harness booted to a blank page for however long that took to notice. `tooling/scripts/tests/legacy-harness.test.mjs` pins the two lists together now, in file order. Bump `?v=N` on every edited file; the harness's server sends `no-store` because the document itself has no version.
+**A new file goes in BOTH lists.** Seventeen went into the manifest alone — each with its own test — and the harness booted to a blank page for however long that took to notice. `tooling/scripts/tests/repo/legacy-harness.test.mjs` pins the two lists together now, in file order. Bump `?v=N` on every edited file; the harness's server sends `no-store` because the document itself has no version.
 
 ## Architecture
 - **Data layer** (`data/*.jsx`): seed objects exported on `window.*`. No React. Files own their domain:
