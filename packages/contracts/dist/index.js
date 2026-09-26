@@ -23255,8 +23255,7 @@ var US_STATE_ZONES = {
   WA: "America/Los_Angeles",
   WV: "America/New_York",
   WI: "America/Chicago",
-  WY: "America/Denver",
-  PR: "America/Puerto_Rico"
+  WY: "America/Denver"
 };
 function zoneOfRegion(region) {
   const code2 = (region ?? "").trim().toUpperCase();
@@ -23291,17 +23290,28 @@ var DAY_OF = {
   sat: "sat",
   saturday: "sat",
   sun: "sun",
-  sunday: "sun"
+  sunday: "sun",
+  mo: "mon",
+  tu: "tue",
+  we: "wed",
+  weds: "wed",
+  th: "thu",
+  fr: "fri",
+  sa: "sat",
+  su: "sun"
 };
+var dayNameOf = (raw) => DAY_OF[String(raw ?? "").replace(/\([^)]*\)/g, "").replace(/\./g, "").trim().toLowerCase()] ?? null;
 function timeOf(s) {
   const t = s.trim().toLowerCase().replace(/\./g, "");
-  if (t === "noon") return { min: 12 * 60, meridiem: "pm" };
+  if (t === "noon") return { min: 0, meridiem: "pm" };
   if (t === "midnight") return { min: 0, meridiem: "am" };
   const m = /^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/.exec(t);
   if (!m) return null;
   const hh = Number(m[1]);
   const mm = Number(m[2] ?? 0);
-  if (hh < 1 || hh > 12 || mm > 59) return hh === 0 && !m[3] ? { min: mm, meridiem: null } : null;
+  if (mm > 59) return null;
+  if (hh === 0) return m[3] ? null : { min: mm, meridiem: "am" };
+  if (hh > 12) return null;
   return { min: hh % 12 * 60 + mm, meridiem: m[3] ?? null };
 }
 var withMeridiem = (min, meridiem) => meridiem === "pm" ? min + 12 * 60 : min;
@@ -23318,7 +23328,7 @@ function rangeOf(s) {
   return { from, to };
 }
 function dayOf(words4) {
-  const w = words4.trim().toLowerCase();
+  const w = words4.replace(/\([^)]*\)/g, "").trim().toLowerCase();
   if (w === "closed") return [];
   if (w === "open 24 hours" || w === "24 hours") return [{ from: 0, to: 24 * 60 }];
   const ranges = w.split(/\s*,\s*/).map(rangeOf);
@@ -23329,14 +23339,12 @@ function weekHoursOf(hours) {
   const week = { mon: [], tue: [], wed: [], thu: [], fri: [], sat: [], sun: [] };
   let readAny = false;
   for (const e of hours) {
-    if (!e || typeof e !== "object") continue;
-    const day = DAY_OF[String(e.day ?? "").trim().toLowerCase()];
+    const day = e && typeof e === "object" ? dayNameOf(e.day) : null;
+    if (!day) return { week: DEFAULT_WEEK, read: false };
     const said = e.hours;
-    if (!day || typeof said !== "string") continue;
-    const windows = dayOf(said);
-    if (windows === null) continue;
-    week[day] = windows;
-    readAny = true;
+    const windows = typeof said === "string" ? dayOf(said) : null;
+    week[day] = windows ?? DEFAULT_WEEK[day];
+    if (windows !== null) readAny = true;
   }
   return readAny ? { week, read: true } : { week: DEFAULT_WEEK, read: false };
 }
@@ -23365,7 +23373,7 @@ function sendWindowsOf(week) {
 }
 function openSpans(zone, windows, fromMs, days) {
   const spans = [];
-  for (let i = 0; i <= days; i += 1) {
+  for (let i = 0; i <= Math.ceil(days); i += 1) {
     const day = dayPlusInZone(zone, fromMs, i);
     for (const w of windows[day.weekday] ?? []) {
       const start = localToUtcMs(zone, day.y, day.m, day.d, Math.floor(w.from / 60), w.from % 60);
@@ -23406,7 +23414,7 @@ function earliest(spans, times, cap2, gapMs, limitMs) {
       }
       if (!fitsCap(times, t, cap2)) {
         const j = lowerBound(times, t - DAY_MS11 + 1);
-        t = (j < times.length && times[j] <= t ? times[j] : t) + DAY_MS11 + 1;
+        t = (j < times.length && times[j] <= t ? times[j] : t) + DAY_MS11;
         floor = t;
         continue;
       }
@@ -23415,20 +23423,33 @@ function earliest(spans, times, cap2, gapMs, limitMs) {
   }
   return null;
 }
+function spansOrNone(zone, week, fromMs, days) {
+  try {
+    return openSpans(zone, sendWindowsOf(week), fromMs, days);
+  } catch {
+    return [];
+  }
+}
 function timetable(input) {
+  if (!Number.isFinite(input.gapMinutes) || input.gapMinutes <= 0)
+    throw new Error(`timetable: a gap is a number of minutes above zero (${input.gapMinutes})`);
   const horizon = input.horizonDays ?? TIMETABLE_HORIZON_DAYS;
   const limitMs = input.nowMs + horizon * DAY_MS11;
-  const jitter = input.jitter ?? (() => Math.random() * 2 - 1);
+  const draw = input.jitter ?? (() => Math.random() * 2 - 1);
+  const jitter = () => {
+    const j = draw();
+    return Number.isFinite(j) ? Math.max(-1, Math.min(1, j)) : 0;
+  };
   const domains = input.domains.filter((d) => d.cap > 0).map((d) => ({ ...d, times: [...d.recent].sort((a, b) => a - b), placed: 0 }));
   const spansOf = /* @__PURE__ */ new Map();
   const placed = [];
   const unplaced = [];
   for (const s of input.sends) {
-    const gapMs = Math.round(input.gapMinutes * MIN_MS2 * (1 + 0.25 * Math.max(-1, Math.min(1, jitter()))));
+    const gapMs = Math.round(input.gapMinutes * MIN_MS2 * (1 + 0.25 * jitter()));
     const key = `${s.zone}|${JSON.stringify(s.week)}`;
     let spans = spansOf.get(key);
     if (!spans) {
-      spans = openSpans(s.zone, sendWindowsOf(s.week), input.nowMs, horizon);
+      spans = spansOrNone(s.zone, s.week, input.nowMs, horizon);
       spansOf.set(key, spans);
     }
     let best = null;
@@ -23456,20 +23477,24 @@ function outreachRefusalOf(f) {
   if (f.wroteBack) return "outreach_wrote_back";
   return null;
 }
-var OUTREACH_WAIT_REFUSALS = ["sending_domain_at_cap", "sending_domain_not_ready"];
+var OUTREACH_WAIT_REFUSALS = [
+  "sending_domain_at_cap",
+  "sending_domain_not_ready"
+];
 function isWaitRefusal(reason) {
   return OUTREACH_WAIT_REFUSALS.includes(reason ?? "");
 }
 var REACH_OUT_MONTH_EMAILS = 2e3;
 function reachOutSlots(words4, lead, workspace) {
-  const values = {
-    business: lead.business_name?.trim() || null,
-    city: lead.city?.trim() || null,
-    "your business": workspace.businessName?.trim() || null
-  };
-  let missing = false;
-  const text = words4.replace(/\{\{\s*([a-z ]+?)\s*\}\}/gi, (whole, name) => {
-    const v = values[name.toLowerCase()];
+  const values = /* @__PURE__ */ new Map([
+    ["business", lead.business_name?.trim() || null],
+    ["city", lead.city?.trim() || null],
+    ["your business", workspace.businessName?.trim() || null]
+  ]);
+  const SLOT = /\{\{([^{}]*)\}\}/g;
+  let missing = /\{\{|\}\}/.test(words4.replace(SLOT, ""));
+  const text = words4.replace(SLOT, (whole, name) => {
+    const v = values.get(name.trim().replace(/\s+/g, " ").toLowerCase());
     if (v == null) missing = true;
     return v ?? whole;
   });

@@ -2,8 +2,9 @@
  * A listing's hours as the send window reads them (Reach out, Part 3): Maps' own words ("9 AM to 6 PM",
  * "9:30 AM to 12 PM, 1 to 5:30 PM", "Closed", "Open 24 hours"), stored as `[{day, hours}]` (00144:34), turned into open
  * windows per weekday in minutes after the business's local midnight. A window past midnight runs on (6 PM to 2 AM is
- * 1080 to 1560). Hours that cannot be read are the default week, Monday to Friday, nine to five, and `read` says so;
- * the display readers (lead-facts.ts) are left as they are, since they read one range for a line of text.
+ * 1080 to 1560). Hours that cannot be read are the default week, Monday to Friday, nine to five, and `read` says so.
+ * One day whose words do not read is that day of the default week, never a day closed; a day this cannot name leaves the
+ * whole week unread. The display readers (lead-facts.ts) are left as they are: they read one range for a line of text.
  */
 export type WeekdayKey = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
 export interface OpenWindow {
@@ -41,18 +42,42 @@ const DAY_OF: Record<string, WeekdayKey> = {
   saturday: "sat",
   sun: "sun",
   sunday: "sun",
+  mo: "mon",
+  tu: "tue",
+  we: "wed",
+  weds: "wed",
+  th: "thu",
+  fr: "fri",
+  sa: "sat",
+  su: "sun",
 };
 
-/** "9", "9:30", "12 PM", "noon": minutes after midnight, and whether a meridiem was said. Null for anything else. */
+/** "Monday", "Mon.", "Monday (Labor Day)": the weekday, or null. */
+const dayNameOf = (raw: unknown): WeekdayKey | null =>
+  DAY_OF[
+    String(raw ?? "")
+      .replace(/\([^)]*\)/g, "")
+      .replace(/\./g, "")
+      .trim()
+      .toLowerCase()
+  ] ?? null;
+
+/**
+ * "9", "9:30", "12 PM", "noon", "0:30": the time on a twelve-hour clock (minutes after twelve), and its meridiem when one
+ * was said or is certain. Noon is twelve PM and midnight twelve AM, as on the clock; an hour of zero is the morning.
+ * Null for anything else.
+ */
 function timeOf(s: string): { min: number; meridiem: "am" | "pm" | null } | null {
   const t = s.trim().toLowerCase().replace(/\./g, "");
-  if (t === "noon") return { min: 12 * 60, meridiem: "pm" };
+  if (t === "noon") return { min: 0, meridiem: "pm" };
   if (t === "midnight") return { min: 0, meridiem: "am" };
   const m = /^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/.exec(t);
   if (!m) return null;
   const hh = Number(m[1]);
   const mm = Number(m[2] ?? 0);
-  if (hh < 1 || hh > 12 || mm > 59) return hh === 0 && !m[3] ? { min: mm, meridiem: null } : null;
+  if (mm > 59) return null;
+  if (hh === 0) return m[3] ? null : { min: mm, meridiem: "am" };
+  if (hh > 12) return null;
   return { min: (hh % 12) * 60 + mm, meridiem: (m[3] as "am" | "pm" | undefined) ?? null };
 }
 const withMeridiem = (min: number, meridiem: "am" | "pm") => (meridiem === "pm" ? min + 12 * 60 : min);
@@ -73,9 +98,12 @@ function rangeOf(s: string): OpenWindow | null {
   return { from, to };
 }
 
-/** One day's words: every range, or all day, or closed. Null when nothing in it reads. */
+/** One day's words: every range, or all day, or closed. A note in brackets is not hours. Null when it does not read. */
 function dayOf(words: string): OpenWindow[] | null {
-  const w = words.trim().toLowerCase();
+  const w = words
+    .replace(/\([^)]*\)/g, "")
+    .trim()
+    .toLowerCase();
   if (w === "closed") return [];
   if (w === "open 24 hours" || w === "24 hours") return [{ from: 0, to: 24 * 60 }];
   const ranges = w.split(/\s*,\s*/).map(rangeOf);
@@ -87,19 +115,14 @@ export function weekHoursOf(hours: unknown): { week: WeekHours; read: boolean } 
   const week: WeekHours = { mon: [], tue: [], wed: [], thu: [], fri: [], sat: [], sun: [] };
   let readAny = false;
   for (const e of hours) {
-    if (!e || typeof e !== "object") continue;
-    const day =
-      DAY_OF[
-        String((e as { day?: unknown }).day ?? "")
-          .trim()
-          .toLowerCase()
-      ];
+    // A day this cannot name could be any of the seven: the week is not read.
+    const day = e && typeof e === "object" ? dayNameOf((e as { day?: unknown }).day) : null;
+    if (!day) return { week: DEFAULT_WEEK, read: false };
     const said = (e as { hours?: unknown }).hours;
-    if (!day || typeof said !== "string") continue;
-    const windows = dayOf(said);
-    if (windows === null) continue;
-    week[day] = windows;
-    readAny = true;
+    const windows = typeof said === "string" ? dayOf(said) : null;
+    // A day whose words do not read keeps the default week's hours for it: a guess of nine to five, never a day closed.
+    week[day] = windows ?? DEFAULT_WEEK[day];
+    if (windows !== null) readAny = true;
   }
   return readAny ? { week, read: true } : { week: DEFAULT_WEEK, read: false };
 }

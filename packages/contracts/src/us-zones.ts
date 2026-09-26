@@ -3,8 +3,8 @@
  * its people live in. Where a state straddles two (the Florida panhandle, Indiana's and Michigan's western corners,
  * Kentucky, Tennessee's east, western Texas, Kansas, Nebraska, the Dakotas, Oregon, Idaho), a business on the far side
  * reads an hour off; the send window keeps half an hour clear of each end (lead-hours.ts), which absorbs most of it.
- * The finder is US-only (leads.region is a two-letter state, core/leads/clean.ts), so a region outside this map has
- * no zone, and the timetable falls back to the workspace's.
+ * The finder is US-only (leads.region is a two-letter state or DC, contracts stateCode), so a region outside this map
+ * has no zone, and the timetable falls back to the workspace's.
  */
 export const US_STATE_ZONES = {
   AL: "America/Chicago",
@@ -58,7 +58,6 @@ export const US_STATE_ZONES = {
   WV: "America/New_York",
   WI: "America/Chicago",
   WY: "America/Denver",
-  PR: "America/Puerto_Rico",
 } as const;
 
 export type UsStateCode = keyof typeof US_STATE_ZONES;

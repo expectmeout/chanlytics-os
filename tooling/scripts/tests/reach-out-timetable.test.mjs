@@ -70,7 +70,7 @@ test("a domain's day is its cap, counted with what it already sent; what does no
     jitter: none,
   });
   assert.equal(out.placed[0].sendAtMs, at("2026-09-28T13:30:00Z"));
-  assert.ok(out.placed[1].sendAtMs >= at("2026-09-29T13:00:00Z"), "rolled to when the first leaves the 24 hours");
+  assert.equal(out.placed[1].sendAtMs, at("2026-09-29T13:30:00Z"), "rolled to when the first leaves the 24 hours");
 });
 
 test("a closed day is skipped, and a lead with no room within the horizon is left unplaced, never forced", () => {
@@ -170,12 +170,16 @@ test("a run of five hundred over two domains keeps every gap and every rolling d
   const zones = [NY, LA, "America/Chicago", "America/Denver"];
   const sends = Array.from({ length: 500 }, (_, i) => send(`s${i}`, zones[i % 4]));
   const already = Array.from({ length: 20 }, (_, i) => at("2026-09-27T14:00:00Z") + i * 15 * 60_000);
+  // A seeded draw (Park-Miller), so a failure replays.
+  let seed = 7;
+  const jitter = () => ((seed = (seed * 48271) % 2147483647) / 2147483647) * 2 - 1;
   const started = performance.now();
   const out = timetable({
     sends,
     domains: [domain("d1", 30, already), domain("d2", 20)],
     gapMinutes: 12,
     nowMs: at("2026-09-28T11:00:00Z"),
+    jitter,
   });
   const took = performance.now() - started;
   assert.equal(out.placed.length + out.unplaced.length, 500);
@@ -209,4 +213,97 @@ test("a run of five hundred over two domains keeps every gap and every rolling d
     );
   }
   assert.ok(took < 3000, `planned in ${Math.round(took)} ms`);
+});
+
+test("each zone's own morning across both clock changes, and in the zones that keep none", () => {
+  // Fall back: Sunday 1 November; Monday's 9:30 in New York is 14:30Z (EST), in Phoenix 16:30Z, in Honolulu 19:30Z.
+  const fall = timetable({
+    sends: [send("ny"), send("az", "America/Phoenix"), send("hi", "Pacific/Honolulu")],
+    domains: [domain("d1", 30), domain("d2", 30), domain("d3", 30)],
+    gapMinutes: 12,
+    nowMs: at("2026-11-01T06:00:00Z"),
+    jitter: none,
+  });
+  const by = Object.fromEntries(fall.placed.map((p) => [p.id, p.sendAtMs]));
+  assert.deepEqual(
+    [by.ny, by.az, by.hi],
+    [at("2026-11-02T14:30:00Z"), at("2026-11-02T16:30:00Z"), at("2026-11-02T19:30:00Z")],
+  );
+  // Spring forward: Sunday 8 March; Monday's 9:30 in New York is 13:30Z (EDT), and Phoenix stays at 16:30Z.
+  const spring = timetable({
+    sends: [send("ny"), send("az", "America/Phoenix")],
+    domains: [domain("d1", 30), domain("d2", 30)],
+    gapMinutes: 12,
+    nowMs: at("2026-03-08T05:00:00Z"),
+    jitter: none,
+  });
+  assert.deepEqual(spring.placed.map((p) => p.sendAtMs).sort(), [
+    at("2026-03-09T13:30:00Z"),
+    at("2026-03-09T16:30:00Z"),
+  ]);
+});
+
+test("a send already planned ahead keeps its gap too, on either side", () => {
+  const out = timetable({
+    sends: [send("a")],
+    domains: [domain("d1", 30, [at("2026-09-28T13:35:00Z")])],
+    gapMinutes: 12,
+    nowMs: at("2026-09-28T11:00:00Z"),
+    jitter: none,
+  });
+  assert.equal(out.placed[0].sendAtMs, at("2026-09-28T13:47:00Z"), "twelve minutes after the planned one");
+});
+
+test("the cap's day ends a day after its oldest send, to the minute", () => {
+  const out = timetable({
+    sends: [send("a"), send("b")],
+    domains: [domain("d1", 2, [at("2026-09-28T13:00:00Z")])],
+    gapMinutes: 12,
+    nowMs: at("2026-09-28T11:00:00Z"),
+    jitter: none,
+  });
+  assert.deepEqual(
+    out.placed.map((p) => p.sendAtMs),
+    [at("2026-09-28T13:30:00Z"), at("2026-09-29T13:30:00Z")],
+  );
+});
+
+test("a part of a day in the horizon counts: half a day from Saturday evening in Honolulu reaches Sunday's eight", () => {
+  const allWeek = Object.fromEntries(
+    ["mon", "tue", "wed", "thu", "fri", "sat", "sun"].map((d) => [d, [{ from: 0, to: 1440 }]]),
+  );
+  const out = timetable({
+    sends: [send("hi", "Pacific/Honolulu", allWeek)],
+    domains: [domain("d1", 30)],
+    gapMinutes: 12,
+    nowMs: at("2026-11-01T06:30:00Z"),
+    horizonDays: 0.5,
+    jitter: none,
+  });
+  assert.deepEqual(
+    out.placed.map((p) => p.sendAtMs),
+    [at("2026-11-01T18:00:00Z")],
+  );
+});
+
+test("a zone the runtime does not know leaves its send unplaced and plans the rest; a broken jitter moves nothing", () => {
+  const out = timetable({
+    sends: [send("bad", ""), send("a"), send("b")],
+    domains: [domain("d1", 30)],
+    gapMinutes: 12,
+    nowMs: at("2026-09-28T11:00:00Z"),
+    jitter: () => NaN,
+  });
+  assert.deepEqual(out.unplaced, ["bad"]);
+  assert.equal(out.placed[1].sendAtMs - out.placed[0].sendAtMs, 12 * 60_000);
+});
+
+test("no plan without a pace: a gap that is not a number of minutes above zero is refused", () => {
+  for (const gapMinutes of [0, -5, Number.NaN, undefined]) {
+    assert.throws(
+      () =>
+        timetable({ sends: [send("a")], domains: [domain("d1", 30)], gapMinutes, nowMs: at("2026-09-28T11:00:00Z") }),
+      /a gap is a number of minutes/,
+    );
+  }
 });

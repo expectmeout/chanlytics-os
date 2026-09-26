@@ -30,7 +30,10 @@ export function outreachRefusalOf(f: OutreachLeadFacts): DeliveryRefusal | null 
   return null;
 }
 
-export const OUTREACH_WAIT_REFUSALS = ["sending_domain_at_cap", "sending_domain_not_ready"] as const;
+export const OUTREACH_WAIT_REFUSALS = [
+  "sending_domain_at_cap",
+  "sending_domain_not_ready",
+] as const satisfies readonly DeliveryRefusal[];
 export function isWaitRefusal(reason: string | null | undefined): boolean {
   return (OUTREACH_WAIT_REFUSALS as readonly string[]).includes(reason ?? "");
 }
@@ -46,14 +49,18 @@ export function reachOutSlots(
   lead: SlotLead,
   workspace: { businessName: string | null },
 ): { ok: true; text: string } | { ok: false; reason: "missing_value" } {
-  const values: Record<string, string | null> = {
-    business: lead.business_name?.trim() || null,
-    city: lead.city?.trim() || null,
-    "your business": workspace.businessName?.trim() || null,
-  };
-  let missing = false;
-  const text = words.replace(/\{\{\s*([a-z ]+?)\s*\}\}/gi, (whole, name: string) => {
-    const v = values[name.toLowerCase()];
+  const values = new Map<string, string | null>([
+    ["business", lead.business_name?.trim() || null],
+    ["city", lead.city?.trim() || null],
+    ["your business", workspace.businessName?.trim() || null],
+  ]);
+  // Any {{…}} is a slot, named in any case and spacing. One this does not fill, whether it has no value here or is no
+  // slot at all ({{first name}}, {{business_name}}), holds the email: braces never reach a business.
+  const SLOT = /\{\{([^{}]*)\}\}/g;
+  // A brace pair left over once the slots are out ("{{business" with no end) is a slot nobody can fill.
+  let missing = /\{\{|\}\}/.test(words.replace(SLOT, ""));
+  const text = words.replace(SLOT, (whole, name: string) => {
+    const v = values.get(name.trim().replace(/\s+/g, " ").toLowerCase());
     if (v == null) missing = true;
     return v ?? whole;
   });

@@ -62,3 +62,44 @@ test("the shapes the finder has stored (production, 25 Sep 2026) read as a perso
   assert.deepEqual(read("10:10 AM to 8 PM"), [{ from: h(10, 10), to: h(20) }]);
   assert.deepEqual(read("9\u202fAM\u2009to\u20095\u202fPM"), [{ from: h(9), to: h(17) }], "Maps' narrow spaces");
 });
+
+test("noon is twelve and midnight the day's end, wherever they stand; an hour of zero is the morning", () => {
+  const read = (hours) => weekHoursOf([{ day: "Monday", hours }]).week.mon;
+  assert.deepEqual(read("11 AM to noon"), [{ from: h(11), to: h(12) }]);
+  assert.deepEqual(read("Noon to 5 PM"), [{ from: h(12), to: h(17) }]);
+  assert.deepEqual(read("noon to midnight"), [{ from: h(12), to: h(24) }]);
+  assert.deepEqual(read("midnight to noon"), [{ from: 0, to: h(12) }]);
+  assert.deepEqual(read("0:30 to 5 PM"), [{ from: 30, to: h(17) }]);
+  assert.deepEqual(read("00:00 to 5 PM"), [{ from: 0, to: h(17) }]);
+});
+
+test("a day whose words do not read is the default week's day, never a day closed; a note in brackets is no hours", () => {
+  const { week, read } = weekHoursOf([
+    { day: "Monday", hours: "9 AM to 5 PM" },
+    { day: "Tuesday", hours: "10 AM to 4 PM (Hours might differ)" },
+    { day: "Wednesday", hours: "9–5" },
+    { day: "Saturday", hours: "by appointment" },
+  ]);
+  assert.equal(read, true);
+  assert.deepEqual(week.tue, [{ from: h(10), to: h(16) }], "the note is not the hours");
+  assert.deepEqual(week.wed, DEFAULT_WEEK.wed, "no meridiem anywhere: the default day");
+  assert.deepEqual(week.sat, DEFAULT_WEEK.sat);
+  assert.deepEqual(week.thu, [], "a day the listing does not name is still closed");
+});
+
+test("a day named short, with a dot or a note, is that day; a day nobody can name leaves the week unread", () => {
+  const { week } = weekHoursOf([
+    { day: "Mon.", hours: "8 AM to 4 PM" },
+    { day: "Tu", hours: "8 AM to 4 PM" },
+    { day: "Weds", hours: "8 AM to 4 PM" },
+    { day: "Th", hours: "8 AM to 4 PM" },
+    { day: "Friday (Labor Day)", hours: "Closed" },
+  ]);
+  for (const d of ["mon", "tue", "wed", "thu"]) assert.deepEqual(week[d], [{ from: h(8), to: h(16) }], d);
+  assert.deepEqual(week.fri, []);
+  const out = weekHoursOf([
+    { day: "Monday", hours: "8 AM to 4 PM" },
+    { day: "Someday", hours: "8 AM to 4 PM" },
+  ]);
+  assert.deepEqual([out.read, out.week], [false, DEFAULT_WEEK]);
+});

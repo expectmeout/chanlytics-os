@@ -81,7 +81,7 @@ export function sendWindowsOf(week: WeekHours): WeekHours {
 /** The send windows of the lead's days, as UTC instants, from `fromMs` for `days` days. */
 function openSpans(zone: string, windows: WeekHours, fromMs: number, days: number): Array<[number, number]> {
   const spans: Array<[number, number]> = [];
-  for (let i = 0; i <= days; i += 1) {
+  for (let i = 0; i <= Math.ceil(days); i += 1) {
     const day = dayPlusInZone(zone, fromMs, i);
     for (const w of windows[day.weekday as WeekdayKey] ?? []) {
       const start = localToUtcMs(zone, day.y, day.m, day.d, Math.floor(w.from / 60), w.from % 60);
@@ -138,9 +138,10 @@ function earliest(
         continue;
       }
       if (!fitsCap(times, t, cap)) {
-        // Wait for the oldest send of the day before it to leave the window.
+        // Wait for the oldest send of the day before it to leave the window: a day is (q - 24 h, q], as the claim
+        // counts it (db sending_domain_capacity), so the moment it leaves is a day after it.
         const j = lowerBound(times, t - DAY_MS + 1);
-        t = (j < times.length && times[j] <= t ? times[j] : t) + DAY_MS + 1;
+        t = (j < times.length && times[j] <= t ? times[j] : t) + DAY_MS;
         floor = t;
         continue;
       }
@@ -150,10 +151,26 @@ function earliest(
   return null;
 }
 
+/** The spans of one zone and week, or none when the zone is one the runtime does not know. */
+function spansOrNone(zone: string, week: WeekHours, fromMs: number, days: number): Array<[number, number]> {
+  try {
+    return openSpans(zone, sendWindowsOf(week), fromMs, days);
+  } catch {
+    return []; // an unknown zone: this send is unplaced, and the rest of the run is planned
+  }
+}
+
 export function timetable(input: TimetableInput): TimetableResult {
+  // The pace is a step's (00183 holds it to 5..120): without one, no two sends are kept apart, so there is no plan.
+  if (!Number.isFinite(input.gapMinutes) || input.gapMinutes <= 0)
+    throw new Error(`timetable: a gap is a number of minutes above zero (${input.gapMinutes})`);
   const horizon = input.horizonDays ?? TIMETABLE_HORIZON_DAYS;
   const limitMs = input.nowMs + horizon * DAY_MS;
-  const jitter = input.jitter ?? (() => Math.random() * 2 - 1);
+  const draw = input.jitter ?? (() => Math.random() * 2 - 1);
+  const jitter = () => {
+    const j = draw();
+    return Number.isFinite(j) ? Math.max(-1, Math.min(1, j)) : 0;
+  };
   const domains = input.domains
     .filter((d) => d.cap > 0)
     .map((d) => ({ ...d, times: [...d.recent].sort((a, b) => a - b), placed: 0 }));
@@ -161,11 +178,11 @@ export function timetable(input: TimetableInput): TimetableResult {
   const placed: Placed[] = [];
   const unplaced: string[] = [];
   for (const s of input.sends) {
-    const gapMs = Math.round(input.gapMinutes * MIN_MS * (1 + 0.25 * Math.max(-1, Math.min(1, jitter()))));
+    const gapMs = Math.round(input.gapMinutes * MIN_MS * (1 + 0.25 * jitter()));
     const key = `${s.zone}|${JSON.stringify(s.week)}`;
     let spans = spansOf.get(key);
     if (!spans) {
-      spans = openSpans(s.zone, sendWindowsOf(s.week), input.nowMs, horizon);
+      spans = spansOrNone(s.zone, s.week, input.nowMs, horizon);
       spansOf.set(key, spans);
     }
     let best: { d: (typeof domains)[number]; t: number } | null = null;

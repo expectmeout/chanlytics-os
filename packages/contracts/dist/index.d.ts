@@ -20167,8 +20167,8 @@ declare function isFreeMail(host: string | null | undefined): boolean;
  * its people live in. Where a state straddles two (the Florida panhandle, Indiana's and Michigan's western corners,
  * Kentucky, Tennessee's east, western Texas, Kansas, Nebraska, the Dakotas, Oregon, Idaho), a business on the far side
  * reads an hour off; the send window keeps half an hour clear of each end (lead-hours.ts), which absorbs most of it.
- * The finder is US-only (leads.region is a two-letter state, core/leads/clean.ts), so a region outside this map has
- * no zone, and the timetable falls back to the workspace's.
+ * The finder is US-only (leads.region is a two-letter state or DC, contracts stateCode), so a region outside this map
+ * has no zone, and the timetable falls back to the workspace's.
  */
 declare const US_STATE_ZONES: {
     readonly AL: "America/Chicago";
@@ -20222,7 +20222,6 @@ declare const US_STATE_ZONES: {
     readonly WV: "America/New_York";
     readonly WI: "America/Chicago";
     readonly WY: "America/Denver";
-    readonly PR: "America/Puerto_Rico";
 };
 type UsStateCode = keyof typeof US_STATE_ZONES;
 declare function zoneOfRegion(region: string | null | undefined): string | null;
@@ -20231,8 +20230,9 @@ declare function zoneOfRegion(region: string | null | undefined): string | null;
  * A listing's hours as the send window reads them (Reach out, Part 3): Maps' own words ("9 AM to 6 PM",
  * "9:30 AM to 12 PM, 1 to 5:30 PM", "Closed", "Open 24 hours"), stored as `[{day, hours}]` (00144:34), turned into open
  * windows per weekday in minutes after the business's local midnight. A window past midnight runs on (6 PM to 2 AM is
- * 1080 to 1560). Hours that cannot be read are the default week, Monday to Friday, nine to five, and `read` says so;
- * the display readers (lead-facts.ts) are left as they are, since they read one range for a line of text.
+ * 1080 to 1560). Hours that cannot be read are the default week, Monday to Friday, nine to five, and `read` says so.
+ * One day whose words do not read is that day of the default week, never a day closed; a day this cannot name leaves the
+ * whole week unread. The display readers (lead-facts.ts) are left as they are: they read one range for a line of text.
  */
 type WeekdayKey = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
 interface OpenWindow {

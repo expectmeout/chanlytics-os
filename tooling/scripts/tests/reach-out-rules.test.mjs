@@ -43,3 +43,26 @@ test("the slots Part 3 fills, and a slot with nothing to say holds the email", (
   );
   assert.equal(REACH_OUT_MONTH_EMAILS, 2000);
 });
+
+test("a slot is named in any case or spacing; one this cannot fill, or no slot at all, holds the email", () => {
+  const lead = { business_name: "Harbor Movers", city: "Austin" };
+  const ws = { businessName: "Best Movers" };
+  assert.deepEqual(reachOutSlots("{{ Business }} / {{YOUR   business}} / {{city}}", lead, ws), {
+    ok: true,
+    text: "Harbor Movers / Best Movers / Austin",
+  });
+  for (const words of [
+    "Hi {{first name}}",
+    "Hi {{business_name}}",
+    "Hi {{constructor}}",
+    "Hi {{business",
+    "Hi }} there",
+  ]) {
+    assert.deepEqual(reachOutSlots(words, lead, ws), { ok: false, reason: "missing_value" }, words);
+  }
+  // A value is put in as it is: never read as a slot or a replacement pattern.
+  assert.deepEqual(reachOutSlots("Hi {{business}}", { business_name: "$& {{city}}", city: "Austin" }, ws), {
+    ok: true,
+    text: "Hi $& {{city}}",
+  });
+});
