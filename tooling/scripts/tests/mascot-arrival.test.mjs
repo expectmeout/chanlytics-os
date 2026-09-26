@@ -3,8 +3,9 @@
  * Run against the pure module with the real mood and a clock of its own: a page arriving on a phone is read
  * (lit) for READ_MS, or as long as the boot takes up to READ_MAX_MS, then rest; the same page again within
  * AGAIN_MS is not read, a walk within a page is the same page, another page is read; nothing on a desk, nothing while
- * Ask is open or the mood is busy, and a read whose end finds Ask open leaves the mood alone; the needs-you count
- * rising makes the three hop once, its first word and a fall do not.
+ * Ask is open or the mood is busy, and a read whose end finds Ask open leaves the mood alone; while something waits on
+ * you the three stay lit, and the light goes as Ask opens and comes back as it closes; the needs-you count rising
+ * makes the three hop once, its first word and a fall do not.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -182,6 +183,35 @@ test("nothing on a desk, nothing while Ask is open or the mood is busy, and a re
   w.arrival.arrived();
   await w.c.tick(READ_MS);
   assert.deepEqual(w.said.slice(-2), ["lit", "dark"], "and reads again once Ask has closed");
+});
+
+test("while something waits on you the three stay lit, past a read's end; the light goes as Ask opens and comes back as it closes; the ink is back when nothing waits; nothing on a desk", async () => {
+  const w = world();
+  w.arrival.standing(true);
+  assert.deepEqual(w.said, ["lit"], "something waits: lit");
+  w.arrival.arrived();
+  await w.c.tick(READ_MS + 1);
+  assert.deepEqual(w.said, ["lit"], "a read on and off again: still lit, one word");
+  w.askOpen = true;
+  w.arrival.askChanged();
+  assert.deepEqual(w.said, ["lit", "dark"], "Ask opened: the Line's");
+  w.askOpen = false;
+  w.arrival.askChanged();
+  assert.deepEqual(w.said, ["lit", "dark", "lit"], "Ask closed: lit again");
+  w.arrival.standing(false);
+  assert.deepEqual(w.said, ["lit", "dark", "lit", "dark"], "nothing waits: the ink");
+  w.arrival.standing(false);
+  assert.deepEqual(w.said.length, 4, "said once");
+  const desk = world({ phone: false });
+  desk.arrival.standing(true);
+  assert.deepEqual(desk.said, []);
+  const read = world();
+  read.arrival.arrived();
+  read.arrival.standing(true);
+  await read.c.tick(READ_MS + 1);
+  assert.deepEqual(read.said, ["lit"], "waiting begun during a read: the read's end leaves it lit");
+  read.arrival.stop();
+  assert.deepEqual(read.said, ["lit", "dark"], "stopped: the ink, whatever waited");
 });
 
 test("the needs-you count rising makes the three hop once; its first word, a fall, and a rise while busy do not", () => {
