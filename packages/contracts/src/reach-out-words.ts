@@ -38,7 +38,7 @@ export const REACH_OUT_BODY_MAX = 1200;
 /** The whole email as a business reads it, the opening counted at its most (§4.4). */
 export const REACH_OUT_WORDS_MAX = 120;
 export const OPENING_WORDS_MAX = 40;
-/** An opening's length in characters, as a send stores it (00190 reach_out_sends.opening): forty words fit well within. */
+/** An opening's length in characters, as a send stores it (00191 reach_out_sends.opening): forty words fit well within. */
 export const OPENING_CHARS_MAX = 400;
 export const ANGLE_WORDS_MAX = 3;
 export const REACH_OUT_STEPS_MAX = 5;

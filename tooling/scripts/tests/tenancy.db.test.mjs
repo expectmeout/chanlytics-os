@@ -270,7 +270,7 @@ before(async () => {
     template_language: "en_US",
     template_name: "tenancy_tpl_1",
   });
-  // The check's model spend per UTC day (00190): the service role's alone.
+  // The check's model spend per UTC day (00191): the service role's alone.
   await seed("reach_out_check_spend", { tenant_id: A, day: "2026-09-26", attempts: 1 }, null);
   await seed(
     "reach_out_sends",
@@ -428,7 +428,7 @@ const TENANT_TABLES = {
       send_at: new Date().toISOString(),
     }),
   ],
-  // Reach out (00190): the check's spend is the service role's, read by no member.
+  // Reach out (00191): the check's spend is the service role's, read by no member.
   reach_out_check_spend: ["none", () => ({ tenant_id: A, day: "2026-09-27" })],
   playbooks: [
     "member",

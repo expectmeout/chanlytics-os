@@ -9,7 +9,7 @@
  * and the clock's next tick skips it, through the same guards. The sender is kept
  * to this suite's workspace (its reads take one). Local stack only: it makes workspaces.
  *
- * Part 4 (00190): a send is claimed only once it is checked, so each send here is planned checked, stamped with the
+ * Part 4 (00191): a send is claimed only once it is checked, so each send here is planned checked, stamped with the
  * words it was checked against (checked_words, R5); one not yet checked makes no domain due (R8); and a checked send's
  * opening is its email's.
  */
@@ -57,7 +57,7 @@ const one = async (q) => ok(await q.select("id").single()).id;
 /** The suite's template's words, as the check stamps them on a send it passed (R5). */
 const WORDS = { subject: "A quote for {{business}}", body: "Hi {{business}}, movers in {{city}} ask us for this." };
 const workspace = (slug, name) => one(db.from("tenants").insert({ slug, name, timezone: "America/Chicago" }));
-/** A chain over a search of its own: a search has one chain (00190). */
+/** A chain over a search of its own: a search has one chain (00191). */
 const chain = async (tenant, state = "running", tpl = template) =>
   one(
     db.from("playbooks").insert({
@@ -211,7 +211,7 @@ test(
     // A waiting run's sends call nothing either.
     const waiting = await run(A, going, "2026-09-22", "pending_approval");
     await planned(A, waiting, going, crowded, await leads(A, 1), Date.now() - DAY);
-    // Nor does a send not yet checked (00190, R8): the claim would pass it by.
+    // Nor does a send not yet checked (00191, R8): the claim would pass it by.
     const unchecked = await domain(A);
     await planned(A, goRun, going, unchecked, await leads(A, 1), Date.now() - 4 * DAY, {
       checked_at: null,

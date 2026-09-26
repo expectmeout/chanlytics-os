@@ -134,7 +134,7 @@ const member = (leadId, over = {}) =>
   );
 
 /**
- * A send in a run, checked (00190: a claim takes a checked send only), moved along the guard's own path to the state
+ * A send in a run, checked (00191: a claim takes a checked send only), moved along the guard's own path to the state
  * asked (00183: planned → claimed → queued → sent).
  */
 async function sendIn(over = {}, to = "planned", at = {}) {
@@ -699,7 +699,7 @@ test(
         params: [],
         name: "Paused",
         trigger: "lead_first",
-        // Over a search of its own: a search has one chain (00190).
+        // Over a search of its own: a search has one chain (00191).
         lead_search_id: await one(
           db
             .from("lead_searches")

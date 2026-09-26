@@ -43,7 +43,7 @@ export type RecipientState = (typeof RECIPIENT_STATES)[number];
 /**
  * A reach-out's send (00183 reach_out_sends): planned (a time and a domain), claimed under the domain's capacity,
  * queued as an email row with its job, then what that row became. A wait refusal plans it again (Reach out, Part 3).
- * The check before it goes may hold it (00190): held waits for its owner, who puts it back or skips it (Part 4).
+ * The check before it goes may hold it (00191): held waits for its owner, who puts it back or skips it (Part 4).
  */
 export const REACH_OUT_SEND_STATES = ["planned", "held", "claimed", "queued", "sent", "skipped", "failed"] as const;
 export type ReachOutSendState = (typeof REACH_OUT_SEND_STATES)[number];

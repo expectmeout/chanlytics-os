@@ -1,9 +1,9 @@
 /**
- * The reach-out check's clock (Reach out, Part 4; R1): every minute pg_cron asks it (00190
+ * The reach-out check's clock (Reach out, Part 4; R1): every minute pg_cron asks it (00191
  * trigger_reach_out_check_sweep), and only when a send waits to be checked or a check_unavailable hold is an hour old.
  * Its own clock, apart from the reach-out clock that claims and sends (api/cron/reach-out.ts), so a slow model never
  * takes the claim's minute: each call has its own deadline, and no call starts past the tick's budget. The work is
- * lib/reach-out/check.ts; the claim takes a send only once it is checked (00190).
+ * lib/reach-out/check.ts; the claim takes a send only once it is checked (00191).
  *
  * It does nothing it could not finish, and says so:
  *   - no ANTHROPIC_API_KEY: nothing is touched; while a send waits to be checked it answers 503 `check_unset`, so the

@@ -53,7 +53,7 @@ export interface AudienceLead {
 }
 
 /**
- * The leads a chain's first step may write to (00190 reach_out_audience), strongest fit first: never one any chain of
+ * The leads a chain's first step may write to (00191 reach_out_audience), strongest fit first: never one any chain of
  * the workspace planned, held or wrote to, and a catch-all address only when the chain includes them.
  */
 export async function reachOutAudience(
@@ -610,7 +610,7 @@ export async function leadWritten(
 
 /* ------------------------------------------------------------- the check -- */
 
-/** A business's record, as 00190's reach_out_record reads it: what the check writes and reads an opening from. */
+/** A business's record, as 00191's reach_out_record reads it: what the check writes and reads an opening from. */
 export interface ReachOutRecordRow {
   business_name: string | null;
   category: string | null;
@@ -629,7 +629,7 @@ export interface ReachOutRecordRow {
   email_domain_shared: boolean;
 }
 
-/** A send to check (00190 reach_out_unchecked), leased to this tick: the send, its step, its chain and its record. */
+/** A send to check (00191 reach_out_unchecked), leased to this tick: the send, its step, its chain and its record. */
 export interface UncheckedSend {
   send: ReachOutSendRow;
   /** The words' version the send was read at: the check writes only while it is still this (R5). */
@@ -666,7 +666,7 @@ function recordOf(r: Record<string, unknown>): ReachOutRecordRow {
 }
 
 /**
- * The sends this tick checks, leased under their row locks (00190): at most `perWorkspace` of each workspace, round
+ * The sends this tick checks, leased under their row locks (00191): at most `perWorkspace` of each workspace, round
  * robin, waiting for their owner or due within `aheadMinutes`, none another tick started in the last two minutes.
  */
 export async function uncheckedSends(
@@ -761,7 +761,7 @@ export function checkResetPatch(gen: number): Partial<ReachOutSendRow> {
   };
 }
 
-/** Holds left past `before`, oldest planned first (00190: fourteen days from when a send was planned, R10). */
+/** Holds left past `before`, oldest planned first (00191: fourteen days from when a send was planned, R10). */
 export async function heldStale(db: Db, before: Date, limit: number, tenantId?: string): Promise<ReachOutSendRow[]> {
   const { data, error } = await db.rpc("reach_out_held_stale", {
     p_before: before.toISOString(),
@@ -774,7 +774,7 @@ export async function heldStale(db: Db, before: Date, limit: number, tenantId?: 
 
 /**
  * Holds the check could not answer (check_unavailable, no rule broken) left since `before`: put back to be checked
- * again at their words' next version, in one statement (00190 reach_out_release_unavailable, R4). A hold for a rule an
+ * again at their words' next version, in one statement (00191 reach_out_release_unavailable, R4). A hold for a rule an
  * opening broke keeps: it is its owner's to answer. How many went back.
  */
 export async function releaseUnavailableHolds(db: Db, p: { before: Date; tenantId?: string }): Promise<number> {
@@ -787,7 +787,7 @@ export async function releaseUnavailableHolds(db: Db, p: { before: Date; tenantI
 }
 
 /**
- * One attempt of the check's model spend for a workspace's UTC day, taken only while the day is under `cap` (00190
+ * One attempt of the check's model spend for a workspace's UTC day, taken only while the day is under `cap` (00191
  * reach_out_check_take, R12): true when taken. A reset of a send's check never gives it back.
  */
 export async function takeCheckAttempt(db: Db, p: { tenantId: string; cap: number; at: Date }): Promise<boolean> {

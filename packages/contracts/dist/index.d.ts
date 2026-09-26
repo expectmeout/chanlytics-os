@@ -4188,7 +4188,7 @@ type RecipientState = (typeof RECIPIENT_STATES)[number];
 /**
  * A reach-out's send (00183 reach_out_sends): planned (a time and a domain), claimed under the domain's capacity,
  * queued as an email row with its job, then what that row became. A wait refusal plans it again (Reach out, Part 3).
- * The check before it goes may hold it (00190): held waits for its owner, who puts it back or skips it (Part 4).
+ * The check before it goes may hold it (00191): held waits for its owner, who puts it back or skips it (Part 4).
  */
 declare const REACH_OUT_SEND_STATES: readonly ["planned", "held", "claimed", "queued", "sent", "skipped", "failed"];
 type ReachOutSendState = (typeof REACH_OUT_SEND_STATES)[number];
@@ -20464,7 +20464,7 @@ declare function isWaitRefusal(reason: string | null | undefined): boolean;
 declare const REACH_OUT_MONTH_EMAILS = 2000;
 /**
  * The most attempts of the check before each send that one workspace may spend on the model in a UTC day (R12):
- * counted in reach_out_check_spend (00190) as each attempt is taken, a rewrite in it and a failure counted, so neither a
+ * counted in reach_out_check_spend (00191) as each attempt is taken, a rewrite in it and a failure counted, so neither a
  * run's size nor a reset of a send's check lets it spend more.
  */
 declare const REACH_OUT_CHECKS_PER_DAY = 400;
@@ -20518,7 +20518,7 @@ declare const REACH_OUT_BODY_MAX = 1200;
 /** The whole email as a business reads it, the opening counted at its most (§4.4). */
 declare const REACH_OUT_WORDS_MAX = 120;
 declare const OPENING_WORDS_MAX = 40;
-/** An opening's length in characters, as a send stores it (00190 reach_out_sends.opening): forty words fit well within. */
+/** An opening's length in characters, as a send stores it (00191 reach_out_sends.opening): forty words fit well within. */
 declare const OPENING_CHARS_MAX = 400;
 declare const ANGLE_WORDS_MAX = 3;
 declare const REACH_OUT_STEPS_MAX = 5;

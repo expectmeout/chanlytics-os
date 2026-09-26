@@ -1,5 +1,5 @@
 /**
- * A send is checked before it goes (00190, Reach out Part 4 PRs 2–3), on a real database: the guard claims a checked
+ * A send is checked before it goes (00191, Reach out Part 4 PRs 2–3), on a real database: the guard claims a checked
  * send only and holds one with a reason its owner can answer; a held send keeps its run open, closes with its canceled
  * run, and is found stale fourteen days from its planning (R10); the claim's due domains skip what waits to be checked
  * (R8); the audience takes a catch-all address only when asked, never a lead another chain of the workspace planned, and

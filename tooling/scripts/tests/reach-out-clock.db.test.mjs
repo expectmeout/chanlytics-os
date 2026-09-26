@@ -6,7 +6,7 @@
  * skipped. Every move runs through the real guards. The clock is kept to this suite's workspace (its reads take one), so
  * the database suites running beside it keep their rows. Local stack only: it makes workspaces.
  *
- * Part 4 (00190): each send here is planned checked, as a claim needs; a held send keeps its run open, and one its owner
+ * Part 4 (00191): each send here is planned checked, as a claim needs; a held send keeps its run open, and one its owner
  * never answered is given up fourteen days from when it was planned (R10).
  */
 import { test, before, after } from "node:test";
@@ -91,7 +91,7 @@ const run = (state, day) =>
       run_for: day,
     }),
   );
-/** Planned sends of a run for these leads, each at `sendAt`, checked (00190: a claim takes a checked send), in one insert. */
+/** Planned sends of a run for these leads, each at `sendAt`, checked (00191: a claim takes a checked send), in one insert. */
 async function planned(runId, leadIds, sendAt, over = {}) {
   const rows = leadIds.map((lead) => ({
     id: crypto.randomUUID(),
