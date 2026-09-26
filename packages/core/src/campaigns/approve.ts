@@ -1,4 +1,4 @@
-import { AppError, localDate, nextOpenMoment } from "@chanlytics/contracts";
+import { AppError, isReachOutRun, localDate, nextOpenMoment } from "@chanlytics/contracts";
 import type { ApproveRunPorts, BroadcastRef } from "./ports";
 
 export interface ApproveReceipt {
@@ -24,6 +24,10 @@ export async function approveRun(
 ): Promise<ApproveReceipt> {
   const b = cmd.row;
   if (b.state !== "pending_approval") throw new AppError("conflict", "This run is not waiting for approval.", 409);
+  // A reach-out's run (Part 3) is its planned sends, each at its own time in its lead's hours: the reach-out clock
+  // claims them, and plans again any that went stale while the run waited. Approved on a later day it still goes, and
+  // it is released with no broadcast job, which would find no recipients and end the run as sent.
+  if (isReachOutRun(b.audience)) return approveReachOut(ports, b, cmd.now);
   // Approved at night, it goes at nine: the same hours a run keeps on its own.
   // Read BEFORE the row moves: a clock that cannot be read leaves the run
   // waiting, as it was, rather than scheduled with no job to send it.
@@ -68,6 +72,32 @@ export async function approveRun(
     recipient_count: b.recipient_count,
     scheduled_for: scheduledFor,
     moved_from: movedFrom,
+    decision_id,
+  };
+}
+
+/**
+ * A reach-out's run, approved: released now, with no broadcast job. Its sends keep their own times, and the reach-out
+ * clock claims each when it is due (planning again one that went stale while the run waited).
+ */
+async function approveReachOut(ports: ApproveRunPorts, b: BroadcastRef, now: Date): Promise<ApproveReceipt> {
+  if (!(await ports.release(b.id, now)))
+    throw new AppError("conflict", "This run just changed state; look again.", 409);
+  const scheduledFor = now.toISOString();
+  const decision_id = await ports.record("broadcast", b.id, "send_broadcast", {
+    name: b.name,
+    playbook_id: b.playbook_id,
+    recipients: b.recipient_count,
+    approved: true,
+    reach_out: true,
+    scheduled_for: scheduledFor,
+  });
+  return {
+    id: b.id,
+    state: "scheduled",
+    recipient_count: b.recipient_count,
+    scheduled_for: scheduledFor,
+    moved_from: null,
     decision_id,
   };
 }

@@ -40,6 +40,15 @@ export function isWaitRefusal(reason: string | null | undefined): boolean {
 
 export const REACH_OUT_MONTH_EMAILS = 2000;
 
+/**
+ * Whether a broadcasts row is a reach-out step's run (its audience says so, runReachOut): its sends are reach_out_sends
+ * that the reach-out clock claims, never broadcast_recipients that a broadcast_send job sends. Approving one releases
+ * it without that job, and the job leaves one alone.
+ */
+export function isReachOutRun(audience: unknown): boolean {
+  return !!audience && typeof audience === "object" && (audience as { kind?: unknown }).kind === "reach_out";
+}
+
 export interface SlotLead {
   business_name: string | null;
   city: string | null;

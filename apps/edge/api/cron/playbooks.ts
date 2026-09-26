@@ -10,11 +10,17 @@ import { json } from "../../lib/http.js";
 import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
 import { logger } from "../../lib/log.js";
-import { playbooksDue, noteBacklog, PLAYBOOKS_PER_TICK } from "../../lib/ops/sweep-rotation.js";
+import { playbooksDue, reachOutsDue, noteBacklog, PLAYBOOKS_PER_TICK } from "../../lib/ops/sweep-rotation.js";
 import { loadTenantRunContext, runPlaybook, type PlaybookRow } from "../../lib/playbooks.js";
+import { reachOutRunContext, type ReachOutRow } from "../../lib/reach-out/run-context.js";
+import { runReachOut } from "../../lib/packages/core.js";
 import { localDate, runDueNow, type PlaybookDto } from "../../lib/packages/contracts.js";
 
+/** When the reach-outs stop for the tick: what is left runs next hour, as a step is due all day from its hour. */
+export const REACH_OUT_YIELD_AT_MS = 40_000;
+
 export async function POST(request: Request): Promise<Response> {
+  const started = Date.now();
   const L = logger({ sweep: "playbooks" });
   const db = pg();
   if (!db) return json(503, { ok: false, error: "no_database" });
@@ -61,6 +67,47 @@ export async function POST(request: Request): Promise<Response> {
       const r = await runPlaybook(ctx, p, { runFor, by: { kind: "system" } });
       if (r.outcome === "failed") L.error("playbook_run_failed", { playbook_id: p.id, error: r.error });
       out[r.outcome] += 1;
+    }
+  }
+  // Reach-outs (Part 3): each step on its day and hour, as a moment is, through its own verb. A step whose run throws is
+  // counted failed and not stamped, so the next hour tries it again.
+  const reach = await reachOutsDue(db, PLAYBOOKS_PER_TICK).catch((e: unknown) => {
+    L.error("reach_outs_read_failed", { error: e instanceof Error ? e.message : String(e) });
+    return { rows: [], remaining: 0 };
+  });
+  out.remaining += reach.remaining;
+  const zones = new Map<string, string>();
+  const steps: ReachOutRow[] = reach.rows;
+  for (const [i, row] of steps.entries()) {
+    if (Date.now() - started > REACH_OUT_YIELD_AT_MS) {
+      L.info("reach_outs_yielded", { left: steps.length - i });
+      break;
+    }
+    if (!zones.has(row.tenant_id)) {
+      const { data: tenant } = await db.from("tenants").select("timezone").eq("id", row.tenant_id).maybeSingle();
+      zones.set(row.tenant_id, tenant?.timezone || "America/New_York");
+    }
+    const tz = zones.get(row.tenant_id) ?? "America/New_York";
+    if (!runDueNow(row as unknown as PlaybookDto, tz, now)) continue;
+    out.due += 1;
+    const runFor = localDate(tz, now);
+    try {
+      const ctx = await reachOutRunContext(db, row, now);
+      if ("error" in ctx) {
+        if (ctx.error === "paused") out.off += 1;
+        else {
+          L.error("reach_out_context_failed", { playbook_id: row.id, error: ctx.error });
+          out.failed += 1;
+        }
+        continue;
+      }
+      const r = await runReachOut(ctx.ports, ctx.step, { runFor });
+      L.info("reach_out_ran", { tenant_id: row.tenant_id, playbook_id: row.id, ...r });
+      out[r.outcome] += 1;
+      await db.from("playbooks").update({ last_run_for: runFor, last_run_at: now.toISOString() }).eq("id", row.id);
+    } catch (e) {
+      L.error("reach_out_run_failed", { playbook_id: row.id, error: e instanceof Error ? e.message : String(e) });
+      out.failed += 1;
     }
   }
   // `remaining` counts RUNNING playbooks past the page, and due-ness is judged

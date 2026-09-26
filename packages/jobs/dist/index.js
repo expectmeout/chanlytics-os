@@ -15913,6 +15913,9 @@ function outreachRefusalOf(f) {
   if (f.wroteBack) return "outreach_wrote_back";
   return null;
 }
+function isReachOutRun(audience) {
+  return !!audience && typeof audience === "object" && audience.kind === "reach_out";
+}
 z122.config({ jitless: true });
 var LABEL32 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL32 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
@@ -18789,6 +18792,7 @@ async function sendBroadcastBatch(ports, cmd) {
   const b = await ports.broadcast(cmd.broadcastId);
   if (!b) return;
   if (b.state !== "scheduled" && b.state !== "sending") return;
+  if (isReachOutRun(b.audience)) return;
   if (await ports.workspacePaused()) {
     await ports.fail(b.id, "paused");
     await ports.alert({
@@ -18951,9 +18955,10 @@ async function sendBroadcastBatch(ports, cmd) {
     body: `${sent} ${sent === 1 ? "person" : "people"} got it${held ? `; ${held} held back (no recorded yes, asked to stop, no number, a person had the thread, or a run that did not finish)` : ""}. Replies land in the Inbox.`
   });
 }
+var enc32 = new TextEncoder();
 var MAPS_RUN_TIMEOUT_SECS = 45 * 60;
 var CHECKER_RUN_TIMEOUT_SECS = 15 * 60;
-var enc32 = new TextEncoder();
+var enc4 = new TextEncoder();
 var UNSAFE_IN_AN_ADDRESS = ` "'<>{}|^` + String.fromCharCode(92, 96, 9, 10, 13);
 var MARK_MAX_BYTES = 512 * 1024;
 var UNKNOWN_START_GRACE_MS = 10 * 6e4;
