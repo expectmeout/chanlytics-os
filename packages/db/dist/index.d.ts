@@ -186,19 +186,25 @@ type Database = {
             billing_events: {
                 Row: {
                     id: string;
+                    lease_until: string | null;
                     received_at: string;
+                    state: string;
                     tenant_id: string | null;
                     type: string;
                 };
                 Insert: {
                     id: string;
+                    lease_until?: string | null;
                     received_at?: string;
+                    state?: string;
                     tenant_id?: string | null;
                     type: string;
                 };
                 Update: {
                     id?: string;
+                    lease_until?: string | null;
                     received_at?: string;
+                    state?: string;
                     tenant_id?: string | null;
                     type?: string;
                 };

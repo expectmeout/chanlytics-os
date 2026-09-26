@@ -21,6 +21,7 @@ import {
   type BillingInvoiceDto,
   type BillingPriceDto,
   type BillingStatus,
+  type SchemaSet,
   type SubscriptionFacts,
 } from "./packages/contracts.js";
 import { recordNotification } from "./ops/notify.js";
@@ -513,12 +514,130 @@ export async function forgetCustomer(db: Db, row: BillingRow): Promise<void> {
   await emitEvent(db, row.tenant_id, "billing.updated", "billing", "subscription", null, why).catch(() => {});
 }
 
-/** A delivery kept by its id; false when it was already on record. */
-export async function keepEvent(db: Db, id: string, type: string, tenantId: string | null): Promise<boolean> {
-  const { error } = await db.from("billing_events").insert({ id, type, tenant_id: tenantId });
+/**
+ * How long a delivery holds its claim on an event before a retry may take it
+ * over: longer than the door's whole budget (vercel.json gives it thirty
+ * seconds), so only a delivery that is gone ever loses one.
+ */
+export const BILLING_EVENT_LEASE_MS = 2 * 60_000;
+/** The guard read's own budget, inside the door's thirty seconds: a read that hangs fails on its own, not with the delivery. */
+const STRIPE_READ_TIMEOUT_MS = 8_000;
+
+/** What a read of Stripe came back with: the object; Stripe's word that there is no such object; or no answer at all. */
+export type StripeRead<T> = { read: "found"; value: T } | { read: "gone" } | { read: "unreadable"; why: string };
+
+/**
+ * Stripe's "No such subscription": a 404, code resource_missing. Every other
+ * failure -- the network, a timeout, a 429, a 5xx, a refused key -- is Stripe
+ * not answering, which says nothing about the subscription.
+ */
+function saysGone(e: unknown): boolean {
+  if (!e || typeof e !== "object") return false;
+  const { statusCode, code } = e as { statusCode?: unknown; code?: unknown };
+  return statusCode === 404 || code === "resource_missing";
+}
+
+/**
+ * A subscription read from Stripe, with the two ways of not getting one told
+ * apart. The webhook's guard used to read a failed call as "the subscription
+ * is gone" and apply a late event over the live one: a network blip paused a
+ * paying workspace. A read that does not answer is answered 503 by the door,
+ * and Stripe delivers the event again (for up to three days, backing off).
+ * The read carries its own timeout and no retry of its own -- the 503 is the
+ * retry -- so it fails inside the door's budget rather than with it.
+ */
+export async function readSubscription(s: Stripe, id: string): Promise<StripeRead<Stripe.Subscription>> {
+  try {
+    const value = await s.subscriptions.retrieve(id, {}, { timeout: STRIPE_READ_TIMEOUT_MS, maxNetworkRetries: 0 });
+    return { read: "found", value };
+  } catch (e) {
+    return saysGone(e) ? { read: "gone" } : { read: "unreadable", why: errField(e) };
+  }
+}
+
+type ClaimState = SchemaSet<"billing_events.state">;
+const CLAIMED: ClaimState = "claimed";
+const APPLIED: ClaimState = "applied";
+
+/** The id written: true when this delivery is the first, false when the id is on record. */
+async function insertClaim(db: Db, id: string, type: string, tenantId: string | null, lease: string): Promise<boolean> {
+  const { error } = await db
+    .from("billing_events")
+    .insert({ id, type, tenant_id: tenantId, state: CLAIMED, lease_until: lease });
   if (!error) return true;
   if (error.code === "23505") return false;
   throw new Error(error.message);
+}
+
+/** What a delivery gets for its claim: the lease it now holds; the event applied already; or held by a delivery still inside its lease. */
+export type EventClaim = { claim: "taken"; lease: string } | { claim: "applied" } | { claim: "held" };
+
+/**
+ * A delivery kept by its id, under a lease.
+ *
+ * The row is written BEFORE the work it guards, so two deliveries of one
+ * event cannot both act. Until 00194 the row said nothing about whether the
+ * work had happened: a delivery killed between its claim and its apply (the
+ * function's thirty seconds up, a deploy) left a row that read as done, and
+ * every retry Stripe sent for three days was answered "duplicate" -- a pause,
+ * a failed payment, a cancellation, lost for good. A claim now runs out: one
+ * whose lease has passed and was never completed belongs to a delivery that
+ * is gone, and the retry takes it over here, under a lease of its own. One
+ * still inside its lease is HELD, and the door answers that with a 503,
+ * never a 2xx: a 2xx ends Stripe's retries, and Stripe does not say how soon
+ * its first one comes, so "duplicate" inside a dead delivery's lease would
+ * lose the change all the same. Told to come back, the retry finds the claim
+ * applied, or its lease run out. The takeover is a compare-and-swap on the
+ * state it expects -- claimed, lease passed -- and counts its rows, because
+ * a forbidden or stale UPDATE does not raise. An edge ahead of its migration
+ * fails here, loudly, before it applies anything: the column it names is not
+ * there.
+ */
+export async function keepEvent(
+  db: Db,
+  id: string,
+  type: string,
+  tenantId: string | null,
+  now = new Date(),
+): Promise<EventClaim> {
+  const lease = new Date(now.getTime() + BILLING_EVENT_LEASE_MS).toISOString();
+  if (await insertClaim(db, id, type, tenantId, lease)) return { claim: "taken", lease };
+  const seen = await db.from("billing_events").select("state").eq("id", id).maybeSingle();
+  if (seen.error) throw new Error(seen.error.message);
+  if (seen.data?.state === APPLIED) return { claim: "applied" };
+  const up = await db
+    .from("billing_events")
+    .update({ state: CLAIMED, lease_until: lease })
+    .eq("id", id)
+    .eq("state", CLAIMED)
+    .lt("lease_until", now.toISOString())
+    .select("id");
+  if (up.error) throw new Error(up.error.message);
+  if (!up.data?.length) return { claim: "held" };
+  // The id's field is not called `event`: that is the line's own name (log.ts), and a field of that name replaces it.
+  logger({ hook: "stripe" }).warn("stripe_event_reclaimed", { event_id: id, type });
+  return { claim: "taken", lease };
+}
+
+/**
+ * The claim completed, once the change is made: applied, a duplicate for
+ * ever. A compare-and-swap on the lease this delivery holds; false when the
+ * lease had run out and a retry took the claim over meanwhile -- both applied
+ * the same reading (applySubscription is idempotent, and its own compare-and-
+ * set absorbs the race), so the row is left to the retry.
+ */
+export async function completeEvent(db: Db, id: string, lease: string): Promise<boolean> {
+  const up = await db
+    .from("billing_events")
+    .update({ state: APPLIED })
+    .eq("id", id)
+    .eq("state", CLAIMED)
+    .eq("lease_until", lease)
+    .select("id");
+  if (up.error) throw new Error(up.error.message);
+  if (up.data?.length) return true;
+  logger({ hook: "stripe" }).warn("stripe_event_claim_lost", { event_id: id });
+  return false;
 }
 
 /**
@@ -529,11 +648,12 @@ export async function keepEvent(db: Db, id: string, type: string, tenantId: stri
  * the claim: the 500 asked Stripe to try again, and the retry read its own
  * row and answered "duplicate" without applying anything, so a paused
  * subscription or a failed payment was lost for good. Only a delivery that
- * was ACTED ON keeps its claim.
+ * was ACTED ON keeps its claim -- and only its own claim goes back: a lease
+ * that has run out may already be another delivery's, and that one stands.
  */
-export async function forgetEvent(db: Db, id: string): Promise<void> {
-  const { error } = await db.from("billing_events").delete().eq("id", id);
-  if (error) logger({ hook: "stripe" }).error("stripe_event_unclaim_failed", { event: id, error: error.message });
+export async function forgetEvent(db: Db, id: string, lease: string): Promise<void> {
+  const { error } = await db.from("billing_events").delete().eq("id", id).eq("state", CLAIMED).eq("lease_until", lease);
+  if (error) logger({ hook: "stripe" }).error("stripe_event_unclaim_failed", { event_id: id, error: error.message });
 }
 
 /** The bells a payment event rings, beside the row facts it keeps. */
