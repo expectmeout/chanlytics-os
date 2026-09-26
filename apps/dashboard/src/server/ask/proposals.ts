@@ -80,6 +80,7 @@ import { checkPlaybookInput, proposalFollowUps } from "../playbooks";
 import { replyChannelOf } from "../verbs";
 import { load } from "../readers";
 import { audiencePool } from "../readers/audience-pool";
+import { lists as listsReader } from "../readers/lists";
 
 /**
  * What the assistant may propose, and how a proposal is checked.
@@ -817,14 +818,22 @@ async function proposeBroadcast(t: ToolContext, input: Record<string, unknown>):
   // the audiences before it read the same pool (readers/audience-pool.ts).
   const pool = (await load(t.rc, audiencePool, undefined)).data;
   // Any list, counted the way the send will count it (audience.ts poolList): a built-in or a saved list alike, and
-  // one that can't be counted here refused with why.
+  // one that can't be counted here refused with why. One of the workspace's own is counted from the lists the turn
+  // holds (readers/lists.ts, as list_audiences read them), never read again.
   let members: Set<string> | null = null;
   let label = EVERYONE_LABEL;
   if (kind !== "everyone") {
-    const found = await poolList(t.ctx, t.tenantId, pool, {
-      kind: kind === "list" ? "builtin" : "saved",
-      id: audienceId!,
-    });
+    const kept = kind === "saved" ? (await load(t.rc, listsReader, undefined)).data.lists : undefined;
+    const found = await poolList(
+      t.ctx,
+      t.tenantId,
+      pool,
+      {
+        kind: kind === "list" ? "builtin" : "saved",
+        id: audienceId!,
+      },
+      kept,
+    );
     if (!found) return refuse("no such list; list_audiences names them");
     if (found.archived) return refuse(archivedListWords(found.label, "send"));
     if ("unknown" in found) return refuse(`${found.label} can't be counted here: ${found.unknown}`);
@@ -1004,7 +1013,9 @@ async function proposePlaybook(t: ToolContext, input: Record<string, unknown>): 
   let listIds: Set<string> | null = null;
   let listLabel: string | null = null;
   if (listRef) {
-    const found = await poolList(t.ctx, t.tenantId, pool, listRef);
+    // One of the workspace's own lists is counted from the lists the turn holds (readers/lists.ts), never read again.
+    const kept = listRef.kind === "saved" ? (await load(t.rc, listsReader, undefined)).data.lists : undefined;
+    const found = await poolList(t.ctx, t.tenantId, pool, listRef, kept);
     if (!found) return refuse("no such list; list_audiences names them");
     if (found.archived) return refuse(archivedListWords(found.label, "run"));
     if ("unknown" in found) return refuse(`${found.label} can't be counted right now: ${found.unknown}`);

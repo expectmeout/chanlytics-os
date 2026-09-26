@@ -48,8 +48,9 @@ import {
   poolRowOf,
   resolveList,
   unmetNeed,
+  compareTemplates,
+  sendableTemplates,
   type AskReadSet,
-  type LeadRoundEnding,
   type ListRef,
   type PersonRowDto,
   type PersonRowVM,
@@ -57,7 +58,7 @@ import {
 } from "@chanlytics/contracts";
 import type { RouteContext } from "../with-route";
 import { poolList, type AudiencePool } from "../audience";
-import { listSearches, waitingQuestionOf } from "../leads";
+import { waitingQuestionOf } from "../leads";
 import { load, readerContext, type ReaderContext } from "../readers";
 import * as readers from "../readers/facts";
 import { calls as callsReader } from "../readers/calls";
@@ -74,6 +75,9 @@ import { audiencePool } from "../readers/audience-pool";
 import { people } from "../readers/people";
 import { lists as listsReader } from "../readers/lists";
 import { playbooks } from "../readers/playbooks";
+import { channels as channelsReader } from "../readers/channels";
+import { templates as templatesReader, type TemplatesRead } from "../readers/templates";
+import { searches } from "../readers/searches";
 import { workspaceFacts } from "./prompt";
 
 /**
@@ -205,10 +209,11 @@ export interface ToolContext {
   read: AskReadSet;
   now: Date;
   /**
-   * The turn's reader context: the tools read through the readers and share the route's turn cache, which keeps no
-   * failure -- the audience pool too (readers/audience-pool.ts), read once a turn by its arguments. Not yet through
-   * them: get_settings' channels, list_audiences' templates and number, and list_lead_searches (PR 1.7), and poolList's
-   * own read of a list and its members (audience.ts).
+   * The turn's reader context: every read a tool makes goes through the readers and shares the route's turn cache,
+   * which keeps no failure -- the audience pool, the lists, the channels, the templates and the searches among them,
+   * each read once a turn by its arguments -- and poolList counts a list of the workspace's own from the lists the turn
+   * holds (audience.ts). What still reads the database itself: a proposal's own checks (proposals.ts, a card's
+   * validation) and the snapshot (snapshot.ts, until Phase 2 replaces it).
    */
   rc: ReaderContext;
 }
@@ -528,13 +533,18 @@ async function searchPeople(t: ToolContext, input: Record<string, unknown>): Pro
     : null;
   if (listIn && !ref) return { error: "list must be a list token from list_audiences, or a People list's id" };
   // A list is counted over the audience pool (readers/audience-pool.ts, once a turn), everyone with their appointments,
-  // as the People rail and the send count one (audience.ts poolList) -- never over one page. One that can't be counted
-  // here says why, in the page's words, and names the condition that failed.
+  // as the People rail and the send count one (audience.ts poolList) -- never over one page. One of the workspace's own
+  // is counted from the lists the turn holds (readers/lists.ts, as list_audiences read them), never read again. One
+  // that can't be counted here says why, in the page's words, and names the condition that failed.
   let pool: AudiencePool | null = null;
   let members: Set<string> | null = null;
   if (ref) {
-    pool = (await load(t.rc, audiencePool, undefined)).data;
-    const found = await poolList(t.ctx, t.tenantId, pool, ref);
+    const [held, kept] = await Promise.all([
+      load(t.rc, audiencePool, undefined).then((r) => r.data),
+      ref.kind === "saved" ? load(t.rc, listsReader, undefined).then((r) => r.data.lists) : undefined,
+    ]);
+    pool = held;
+    const found = await poolList(t.ctx, t.tenantId, pool, ref, kept);
     if (!found) return { error: "no such list; list_audiences names them", people: [] };
     if ("unknown" in found) return { error: `${found.label}: ${found.unknown}`, people: [] };
     members = new Set(found.memberIds);
@@ -745,15 +755,18 @@ async function getReport(t: ToolContext, input: Record<string, unknown>): Promis
 }
 
 async function getSettings(t: ToolContext): Promise<unknown> {
-  const sb = t.ctx.supabase;
-  const [{ name, timezone }, cfgRow, all, channels, sellsBy] = await Promise.all([
+  // The facts the receptionist runs on, composed from the turn's reads -- never the settings page's own read
+  // (readers/settings.ts), whose prompt preview fetches the calendar feed and reads the Autonomy rows again, which a
+  // question about the hours must not pay for.
+  const [{ name, timezone }, cfgRow, all, chans, sellsBy] = await Promise.all([
     load(t.rc, readers.facts, undefined).then((r) => r.data),
     load(t.rc, readers.config, undefined).then((r) => r.data),
     load(t.rc, readers.policies, undefined).then(
       (r) => r.data,
       () => [],
     ),
-    sb.from("tenant_channels").select("kind, status, number_e164").eq("tenant_id", t.tenantId),
+    // The channels as their page reads them (readers/channels.ts), once a turn: list_audiences reads the same rows.
+    load(t.rc, channelsReader, undefined).then((r) => r.data.channels),
     load(t.rc, readers.sellsBy, undefined).then((r) => r.data),
   ]);
   // The Autonomy rows offered here, as the pane draws them: the follow-ups' only where deals are on (0006).
@@ -780,7 +793,8 @@ async function getSettings(t: ToolContext): Promise<unknown> {
         }
       : null,
     policies: policies.map((p) => ({ class: p.class, mode: p.mode, limits: p.limits })),
-    channels: (channels.data ?? []).map((c) => ({ kind: c.kind, status: c.status, number: c.number_e164 })),
+    // The same three fields, in the page's order: by kind.
+    channels: chans.map((c) => ({ kind: c.kind, status: c.status, number: c.number_e164 })),
     config_version: cfgRow?.version ?? null,
   };
 }
@@ -834,27 +848,15 @@ export function newToolContext(
  * assistant says is the number the card will carry.
  */
 async function listAudiences(t: ToolContext): Promise<unknown> {
-  const [pool, lists, tpls, ch] = await Promise.all([
+  const [pool, lists, tpls, chans] = await Promise.all([
     load(t.rc, audiencePool, undefined).then((r) => r.data),
     // The workspace's own lists as People's rail reads them (readers/lists.ts), once a turn.
     load(t.rc, listsReader, undefined).then((r) => r.data.lists),
-    // The templates the composer offers (templates/route.ts): approved, and not hidden by the workspace (ledger #9).
-    t.ctx.supabase
-      .from("templates")
-      .select("id, name, language, category, variables, body_preview")
-      .eq("tenant_id", t.tenantId)
-      .eq("channel", "whatsapp")
-      .eq("meta_status", "approved")
-      .is("hidden_at", null)
-      .order("name"),
-    t.ctx.supabase
-      .from("tenant_channels")
-      .select("number_e164, config")
-      .eq("tenant_id", t.tenantId)
-      .eq("kind", "whatsapp")
-      .eq("status", "active")
-      .limit(1)
-      .maybeSingle(),
+    // The composers' read of the templates (readers/templates.ts), once a turn: approved and not hidden by the
+    // workspace (ledger #9), each with why this product cannot send it.
+    load(t.rc, templatesReader, { all: false }).then((r) => r.data.templates),
+    // The channels as the Broadcasts page reads them (readers/channels.ts), once a turn: get_settings reads the same.
+    load(t.rc, channelsReader, undefined).then((r) => r.data.channels),
   ]);
   const rows = pool.rows;
   // FOUR sizes for every audience: this listing is read BEFORE a template is
@@ -897,15 +899,27 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
         : { ...head, cannot_count: listUnknownWords(m.reason, pool.listCtx.calendar) };
     }),
   ];
-  const cfg = (
-    ch.data?.config && typeof ch.data.config === "object" && !Array.isArray(ch.data.config) ? ch.data.config : {}
-  ) as Record<string, unknown>;
-  const s = (k: string) => (typeof cfg[k] === "string" ? (cfg[k] as string) : null);
-  const health = numberHealth({ quality: s("quality_rating"), event: s("quality_event"), limit: s("messaging_limit") });
+  // The number a broadcast goes out on, as the Broadcasts page picks it (legacy-bridge/surface-data.ts): the active
+  // WhatsApp row, and its health from the quality Meta assigned it.
+  const wa = chans.find((c) => c.kind === "whatsapp" && c.status === "active") ?? null;
+  const health = numberHealth({
+    quality: wa?.quality ?? null,
+    event: wa?.quality_event ?? null,
+    limit: wa?.messaging_limit ?? null,
+  });
+  // The templates the composer offers (ledger #14): WhatsApp's approved ones as the page hands them over, in the
+  // library's order, split as the Broadcasts composer splits them (broadcasts-real.jsx) -- the ones this product can
+  // put on the wire, and one sentence, the page's, for those it cannot. A card never checks this: a template offered
+  // here that the wire refuses became a card whose send failed for everyone on it. The rows carry `blocked`, the
+  // answer the reader worked out from Meta's array, which the split believes (contracts templateBlocked); its type
+  // names the array they no longer carry.
+  const split = sendableTemplates<TemplatesRead["templates"][number] & { components?: unknown }>(
+    tpls.filter((x) => x.channel === "whatsapp" && x.meta_status === "approved").sort(compareTemplates),
+  );
   return {
     route: "broadcasts",
     audiences,
-    templates: (tpls.data ?? []).map((x) => ({
+    templates: split.sendable.map((x) => ({
       template_id: x.id,
       name: x.name,
       language: x.language,
@@ -919,8 +933,9 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
         : [],
       body: x.body_preview,
     })),
+    cannot_send: split.why,
     number: {
-      present: !!ch.data,
+      present: !!wa,
       health: health.label,
       can_send: health.canSend,
       limit_per_day: health.limitPerDay === Number.POSITIVE_INFINITY ? null : health.limitPerDay,
@@ -1104,27 +1119,42 @@ const ROUND_WORDS: Record<string, string> = {
  * Every search this workspace has asked for, newest first, in the owner's own
  * words: what they asked, the day they asked it, where it is or how it ended,
  * the three counts, and, for a search that stopped to ask, its question (the
- * model answers it through propose_lead_search's amends). Nothing is started
- * by reading it, and every string is cut to 120 characters so a long ask
- * cannot fill a turn.
+ * model answers it through propose_lead_search's amends); and beside them the
+ * rail's six counts, as the Leads page shows them. Nothing is started by
+ * reading it, and every string is cut to 120 characters so a long ask cannot
+ * fill a turn.
  */
 async function listLeadSearches(t: ToolContext): Promise<unknown> {
-  const rows = await listSearches(t.ctx, t.tenantId);
+  // The Leads page's own read (readers/searches.ts), once a turn: every kept search with its latest round as the page
+  // maps it, and the rail's counts read with them (ledger #12).
+  const { searches: rows, counts } = (await load(t.rc, searches, undefined)).data;
   const cut = (v: string | null | undefined) => (typeof v === "string" ? v.slice(0, 120) : "");
   return {
     route: "clients/leads",
-    searches: rows.map((r) => {
-      const q = waitingQuestionOf(r);
+    counts: {
+      all: counts.all,
+      ready: counts.ready,
+      nurture: counts.nurture,
+      converted: counts.converted,
+      said_no: counts.said_no,
+      not_a_fit: counts.not_a_fit,
+    },
+    searches: rows.map((s) => {
+      const r = s.round;
+      // The page's round carries the question's sentence as the view held it (toSearchDto), so the one reader of a
+      // waiting question says the same sentence; a search with no round has none.
+      const q = r ? waitingQuestionOf(r) : null;
       return {
-        id: r.id,
-        name: cut(r.name),
-        asked: cut(r.asked),
-        asked_on: r.created_at.slice(0, 10),
-        state: r.state ? (ROUND_WORDS[r.state] ?? r.state) : "not started",
-        ending: r.ending ? (LEAD_ENDING_WORDS[r.ending as LeadRoundEnding] ?? null) : null,
-        qualified: r.qualified,
-        review: r.review,
-        counted: r.counted,
+        id: s.id,
+        name: cut(s.name),
+        asked: cut(s.asked),
+        asked_on: s.asked_on.slice(0, 10),
+        state: r ? (ROUND_WORDS[r.state] ?? r.state) : "not started",
+        ending: r?.ending ? (LEAD_ENDING_WORDS[r.ending] ?? null) : null,
+        // No round yet: the view's own zeros.
+        qualified: r?.qualified ?? 0,
+        review: r?.review ?? 0,
+        counted: r?.counted ?? 0,
         question: q ? cut(q) : null,
       };
     }),

@@ -1,4 +1,4 @@
-import { savedListFor, savedListsFor } from "@chanlytics/db";
+import { savedListFor, savedListsFor, type SavedListRow } from "@chanlytics/db";
 import {
   asListRule,
   dealsAreOn,
@@ -97,6 +97,12 @@ export async function poolList(
   tenantId: string,
   pool: Pick<AudiencePool, "rows" | "listCtx">,
   ref: ListRef,
+  /**
+   * The workspace's lists as savedListsFor answers them, archived and members included, when the caller already holds
+   * them (Ask's turn, readers/lists.ts): the list and any its rule names are taken from them, and nothing is read. The
+   * send reads its own.
+   */
+  lists?: SavedListRow[],
 ): Promise<
   | { label: string; memberIds: string[]; rule: unknown; archived?: true }
   | { label: string; unknown: string; archived?: true }
@@ -108,11 +114,17 @@ export async function poolList(
   // Archived (00169): still counted, for what already names it, and said, for a send or a proposal to refuse.
   let archived = false;
   if (ref.kind === "saved") {
-    const one = await savedListFor(ctx.supabase, tenantId, ref.id);
+    // Handed the lists, the one asked for as savedListFor answers it: a rule list's members are its rule's, never rows.
+    const held = lists?.find((l) => l.id === ref.id);
+    const one = lists
+      ? held
+        ? { ...held, ids: held.rule == null ? held.ids : [] }
+        : null
+      : await savedListFor(ctx.supabase, tenantId, ref.id);
     if (!one) return null;
     archived = !!one.archived_at;
     const rule = one.rule == null ? null : asListRule(one.rule);
-    saved = rule && ruleLists(rule).length ? await savedListsFor(ctx.supabase, tenantId) : [one];
+    saved = rule && ruleLists(rule).length ? (lists ?? (await savedListsFor(ctx.supabase, tenantId))) : [one];
   }
   const def = resolveList(ref, saved);
   if (!def) return null;

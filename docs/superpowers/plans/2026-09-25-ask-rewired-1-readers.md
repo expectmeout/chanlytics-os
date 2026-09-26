@@ -62,6 +62,7 @@ things this plan takes as given:
 | 11  | get_calendar        | `tenantFacts` twice, a one-day span from today, never adds people (`tools.ts:1186-1204`)                                                                   | a week from Monday; adds people when the caller may act                    | PR 1.5    |
 | 12  | list_lead_searches  | raw view rows, no counts (`tools.ts:1244-1266`)                                                                                                            | `searchesOf`: `toSearchDto` plus the six counts                            | PR 1.7    |
 | 13  | get_openings        | cuts `service` at 80 (`tools.ts:920`)                                                                                                                      | 160 (`ask/openings/route.ts:24`)                                           | PR 1.5    |
+| 14  | list_audiences      | offered templates the composer withholds as unsendable: a picture heading, or a value in a heading or a button, which the wire refuses (`tools.ts:842-849` at `4b4637df`) | offers `sendableTemplates` of them and says why (`broadcasts-real.jsx:165-171`); its further filter, every slot a broadcast can fill (`bcSlots`), stays open | PR 1.7    |
 
 Plus the repeated reads: `tenantFacts` up to five times a turn (`api/ask/route.ts:163`; `tools.ts:789, 881, 1074,
 1186`; `calendar.ts:166, 332`; `openings.ts:194`), `sellsByOf` and `listPolicies` three to four times, `tenant_config`
@@ -976,7 +977,9 @@ preview carries a clock; the reader returns it as the route does; nothing caches
 `rc.now`), `readers/activity.ts` ← `activity/route.ts` (owner only: the route keeps `role: "owner"`; the reader trusts
 the caller), `readers/channels.ts` ← `channels/route.ts`, `readers/policiesRoute.ts` ← `policies/route.ts` (the
 `policies` reader from PR 1.1 plus `sellsBy`, the route's payload). **Modified:** the six routes; `tools.ts`
-`get_settings` (composes `settings`, `policies`, `channels`, `sellsBy` and projects the same fields as today),
+`get_settings` (composes the facts, config, `policies`, `channels` and `sellsBy` readers and projects the same fields
+as today, the channels in the page's order -- not `settings`, whose prompt preview fetches the calendar feed and
+re-reads the policies, which a question about the hours must not pay for),
 `list_lead_searches` (reads `searches` from PR 1.2: `toSearchDto` rows plus the six counts — closes #12).
 **Pins:** `settings-routes.test.mjs:637` deep-equals the business record payload: keep, it must pass unchanged. The
 PR names #12. After this PR every read Ask makes outside the snapshot goes through a reader; `tools.ts` should be
