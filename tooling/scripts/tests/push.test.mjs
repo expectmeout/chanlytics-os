@@ -13,6 +13,8 @@ import {
   firstLine,
   SERVER_NOTIFICATION_KINDS,
   JOB_KINDS,
+  unreadFor,
+  PUSH_RECEIPTS_AFTER_MS,
 } from "../../../packages/contracts/src/index.ts";
 
 test("a device is a token and a platform; the version is kept short; anything else is refused in a sentence", () => {
@@ -35,7 +37,7 @@ test("the kinds a phone hears about are kept kinds, and not all of them; the led
   for (const k of PUSH_KINDS) assert.ok(SERVER_NOTIFICATION_KINDS.includes(k), k);
   for (const k of ["sweep", "deadman", "alert"]) assert.ok(!isPushKind(k), `${k} stays off the phone`);
   assert.ok(isPushKind("handoff") && isPushKind("call") && isPushKind("note_for_you"));
-  assert.ok(JOB_KINDS.includes("push_send"));
+  assert.ok(JOB_KINDS.includes("push_send") && JOB_KINDS.includes("push_receipts"));
 });
 
 test("a phone shows the bell's words: the title, the first line of the body, and where to go", () => {
@@ -47,15 +49,45 @@ test("a phone shows the bell's words: the title, the first line of the body, and
     body: "\n  The assistant flagged a conversation for a human.  \n\nCustomer: +13055550134",
     route: "inbox/th-abc",
   };
-  const one = (to) => ({
+  const one = (to, badge) => ({
     to,
     title: n.title,
     body: "The assistant flagged a conversation for a human.",
     sound: "default",
+    badge,
     data: { route: "inbox/th-abc", notification_id: "n1", tenant_id: "t1" },
   });
-  assert.deepEqual(pushFor(n, ["tok-a", "tok-b"]), [one("tok-a"), one("tok-b")]);
+  assert.deepEqual(
+    pushFor(n, [
+      { token: "tok-a", badge: 3 },
+      { token: "tok-b", badge: 0 },
+    ]),
+    [one("tok-a", 3), one("tok-b", 0)],
+  );
   assert.equal(firstLine("x".repeat(200)).length, 160);
   assert.equal(firstLine("\n\n"), "");
   assert.deepEqual(pushFor({ ...n, route: null }, []), []);
+});
+
+test("the badge is the bell's number: rows newer than the seen moment, not marked read or dismissed (00189)", () => {
+  const rows = [
+    { id: "a", created_at: "2026-09-26T10:00:00Z" },
+    { id: "b", created_at: "2026-09-26T11:00:00Z" },
+    { id: "c", created_at: "2026-09-26T12:00:00Z" },
+    { id: "d", created_at: "2026-09-26T13:00:00Z" },
+  ];
+  const marks = [
+    { notification_id: "c", read_at: "2026-09-26T12:30:00Z", dismissed_at: null },
+    { notification_id: "d", read_at: null, dismissed_at: "2026-09-26T13:30:00Z" },
+    { notification_id: "b", read_at: null, dismissed_at: null },
+  ];
+  assert.equal(unreadFor(rows, null, []), 4, "never opened, nothing marked: every row");
+  assert.equal(unreadFor(rows, "2026-09-26T10:30:00Z", []), 3, "the seen moment hides what came before it");
+  assert.equal(
+    unreadFor(rows, "2026-09-26T10:30:00Z", marks),
+    1,
+    "a read or dismissed row is not unread; an empty mark is",
+  );
+  assert.equal(unreadFor([], "2026-09-26T10:30:00Z", marks), 0);
+  assert.equal(PUSH_RECEIPTS_AFTER_MS, 15 * 60_000, "what Expo asks");
 });

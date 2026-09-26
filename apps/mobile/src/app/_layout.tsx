@@ -1,11 +1,13 @@
 /**
  * The root: the page's own dark and light as the app's theme (no white frame on a tab switch), the sign-in page
  * whenever the site says a person is out, the tabs otherwise, an offline screen over everything while the phone has
- * no network, and on every return to the foreground a look at the site's build and at EAS Update.
+ * no network, on every return to the foreground a look at the site's build and at EAS Update, and the phone's push
+ * token and taps (the PR 2 design).
  */
 import { useCallback, useEffect } from "react";
 import { AppState, Platform, useColorScheme, View } from "react-native";
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from "expo-router";
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider, useRouter } from "expo-router";
+import { askForToken, coldStartRoute, installForegroundHandler, listen, tabOf } from "@/shell/notifications";
 import { StatusBar } from "expo-status-bar";
 import { useNetworkState } from "expo-network";
 import * as Updates from "expo-updates";
@@ -45,11 +47,29 @@ async function lookAtUpdates(): Promise<void> {
   }
 }
 
+installForegroundHandler();
+
 export default function RootLayout() {
   const scheme = useColorScheme();
   const session = useShell((s) => s.session);
   const net = useNetworkState();
   const offline = net.isConnected === false;
+  const router = useRouter();
+
+  // The phone is told (shell/notifications.ts): the token once, every rotation, and every tap into its tab.
+  useEffect(() => {
+    const open = (route: string) => {
+      setState({ pendingRoute: route });
+      router.navigate(`/(tabs)/${tabOf(route)}` as never);
+    };
+    void askForToken().then((token) => {
+      if (token) setState({ token });
+    });
+    void coldStartRoute().then((route) => {
+      if (route) open(route);
+    });
+    return listen({ tap: open, token: (token) => setState({ token }) });
+  }, [router]);
 
   useEffect(() => {
     void lookAtTheSite();

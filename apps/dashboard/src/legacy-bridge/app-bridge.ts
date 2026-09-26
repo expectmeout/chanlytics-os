@@ -10,6 +10,7 @@
  * parse does nothing.
  */
 import { parsePageMessage, parseShellMessage, type PageMessage } from "@chanlytics/contracts";
+import { api } from "./api";
 
 const IN_APP_CLASS = "in-app";
 
@@ -18,10 +19,22 @@ interface BridgeWindow {
   location: { hash: string; pathname: string };
   ReactNativeWebView?: { postMessage(s: string): void };
   __appBridge?: { receive(raw: string): void };
+  /** The bell (notifications.ts), when it is installed: its number is the icon's. */
+  __notifs?: { unread(): number; onChange(cb: () => void): () => void };
   addEventListener(type: string, fn: (e: Event) => void): void;
   removeEventListener(type: string, fn: (e: Event) => void): void;
   dispatchEvent(e: Event): boolean;
 }
+
+/** The two account writes the shell asks for, through the page's own client; injectable so the rule runs in a test. */
+export interface DeviceDoors {
+  register(device: { token: string; platform: "ios" | "android"; app_version?: string }): Promise<boolean>;
+  forget(token: string): Promise<boolean>;
+}
+export const deviceDoors: DeviceDoors = {
+  register: async (device) => (await api()("PUT me/devices", { body: device })).ok,
+  forget: async (token) => (await api()("DELETE me/devices", { body: { token } })).ok,
+};
 
 /** The hash route's name without its leading "#/", "today" when there is none: what app-shell.jsx parses. */
 export function hashRoute(hash: string): string {
@@ -39,7 +52,10 @@ function slugOf(pathname: string): string | null {
   }
 }
 
-export function installAppBridge(win: BridgeWindow = window as unknown as BridgeWindow): () => void {
+export function installAppBridge(
+  win: BridgeWindow = window as unknown as BridgeWindow,
+  doors: DeviceDoors = deviceDoors,
+): () => void {
   if (!win.document.documentElement.classList.contains(IN_APP_CLASS) || !win.ReactNativeWebView) return () => {};
   const post = (m: PageMessage) => {
     // Round-tripped through the parser so the page never posts a shape the shell would refuse.
@@ -71,15 +87,35 @@ export function installAppBridge(win: BridgeWindow = window as unknown as Bridge
       if (m.t === "navigate") win.location.hash = "/" + m.route;
       else if (m.t === "menu") win.dispatchEvent(new CustomEvent("shell:menu"));
       else if (m.t === "top") win.dispatchEvent(new CustomEvent("shell:top"));
+      else if (m.t === "device") {
+        // The phone registers through the page: the cookie, the same-origin rule and the rate bucket are the page's.
+        void doors
+          .register({ token: m.token, platform: m.platform, ...(m.version ? { app_version: m.version } : {}) })
+          .then((ok) => post({ t: "device", state: ok ? "registered" : "refused" }))
+          .catch(() => post({ t: "device", state: "refused" }));
+      } else if (m.t === "forget") {
+        void doors
+          .forget(m.token)
+          .then((ok) => post({ t: "device", state: ok ? "forgotten" : "refused" }))
+          .catch(() => post({ t: "device", state: "refused" }));
+      }
     },
   };
+  // The bell's number is the icon's: said at install and on every change of the feed or the marks.
+  const badge = () => {
+    const n = win.__notifs?.unread();
+    if (typeof n === "number") post({ t: "badge", n: Math.max(0, Math.floor(n)) });
+  };
+  const offBell = win.__notifs?.onChange(badge) ?? (() => {});
   post({ t: "session", state: "in" });
   workspace();
   route();
+  badge();
   return () => {
     win.removeEventListener("hashchange", route);
     win.removeEventListener("inbox:counts", counts);
     win.removeEventListener("workspace:changed", workspace);
+    offBell();
     delete win.__appBridge;
   };
 }

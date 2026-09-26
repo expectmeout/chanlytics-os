@@ -389,6 +389,20 @@ later. Keep an old link host on the dashboard's project for at least 30 days
 after `UNSUBSCRIBE_ORIGIN` moves too: the law wants every link already in an
 inbox working that long.
 
+## Turn on push
+
+The phone app is told through Expo's push service (`apps/edge/lib/ops/push.ts`, PR 0 and PR 2 of the phone app).
+Nothing sends until a build carries push credentials, and nothing is signed until the token is set.
+
+1. **Credentials, once per platform**, from `apps/mobile`: `eas credentials --platform ios` and say yes to the push
+   key (needs the Apple Developer Program); `eas credentials --platform android` and upload the FCM V1 service
+   account JSON from the Firebase project (Project settings, Service accounts). Then a new build of each.
+2. **Enhanced push security**, in the Expo dashboard under Access tokens: turn it on for the project, then set
+   `EXPO_ACCESS_TOKEN` on the edge (Vercel, the messaging project) to a token of that account. In that order: the
+   variable first is harmless, the switch first refuses every send until the variable lands.
+3. **Watch** `push_send` and `push_receipts` on the jobs ledger: a `push_rejected 401` is the token; a phone the
+   receipts say is gone is forgotten by the job, never by hand.
+
 ## Apply a migration
 
 1. Write it: the next free number, named for the schema change, re-runnable
