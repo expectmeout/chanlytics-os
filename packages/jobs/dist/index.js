@@ -18374,7 +18374,7 @@ async function sendBroadcastBatch(ports, cmd) {
       throw new ThrownAtTheDoor(e2);
     });
     if (out.outcome === "sent") {
-      await mark(r42.contact_id, { state: "sent", message_id: out.messageId });
+      await mark(r42.contact_id, { state: "sent", reason: null, message_id: out.messageId });
       return "go on";
     }
     if (out.outcome === "refused") {
