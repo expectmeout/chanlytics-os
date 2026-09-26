@@ -6,7 +6,7 @@
  * a sentence on a row that is whole, a pill, a switch, the same hold said six times -- as what it does.
  *
  * Its own file, as every other card has one (business-tab-open.test.mjs, business-tab-offer.test.mjs); the plan named
- * business-tab-page.test.mjs, which is the page's own file and is already two thousand lines of the standing line, the
+ * business-tab-page.test.mjs, which is the page's own file and is already two thousand lines of the gap line, the
  * saver and Who you are. The page, the fixture and the presses are _business-tab-harness.mjs, shared with all of them.
  *
  * Every sentence the card says is contracts' (abilityRows, cannotRows), so a test that meant to hold a wording holds
@@ -167,7 +167,7 @@ test("a row nothing does says so once: both glyphs dark, and the title in the di
 
 test("a door opens the row that supplies what is missing", () => {
   // Every runsOn this card can offer, pressed: the fold or the inline editor behind it opens, by the
-  // same registry the standing line's door goes through (so a row holding changes is asked first).
+  // same registry the gap line's door goes through (so a row holding changes is asked first).
   const nothing = { ...marisa, handoff_number: undefined, escalate_when: [] };
   for (const [id, row] of [
     ["open_times", "calendar"],

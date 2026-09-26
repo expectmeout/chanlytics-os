@@ -4,7 +4,7 @@
 // The tab was two surfaces that disagreed about what exists: a card showing nine facts, and a form editing about
 // twenty-five behind one Save. Here every fact is a row, and a row is edited where it is stated
 // (docs/superpowers/specs/2026-09-20-business-tab-design.md; the canvas's Record, Group-Who and Edit-Inline boards).
-// This file draws the head and the standing line, and composes the cards. The page's two gestures, a row edited in its
+// This file draws the gap line and composes the cards. The page's two gestures, a row edited in its
 // place (BtRow), a set of fields folded open under its row (BtFold) and a list in a sheet beside the page (BtSheet), are
 // pages/business-tab-gestures.jsx; each card is a file of its own (business-tab-who.jsx, business-tab-open.jsx,
 // business-tab-offer.jsx, business-tab-answers.jsx, business-can.jsx), loaded before this one and read from window as the page draws, and
@@ -29,67 +29,46 @@ const { useState: useBizState, useEffect: useBizEffect } = React;
 
 /* ------------------------------------ the page ------------------------------------ */
 
-/** The page's name, what it is, and who last changed it (the row's own author and stamp, 00085). */
-const BtHead = () => {
-  const changed = window.__lastChanged ? window.__lastChanged() : "";
-  return (
-    <header className="bt-head" data-testid="bt-head">
-      <h1 className="bt-title">Business</h1>
-      <p className="bt-sub">What both receptionists answer from.{changed ? ` ${changed}.` : ""}</p>
-    </header>
-  );
-};
-
 /**
- * Three clauses, not a meter (spec §4.1): what it can say, what it will not, and the one gap most worth closing, which
- * is the door to the row that closes it. Every word is contracts' (standingLine): the gap's own sentence is its door.
- * A role that may not change the business reads the gap and gets no door, since the row behind it would not open.
+ * The page opens on its first card, as every other Settings pane does: the crumb names it, the rows say what it answers
+ * from, the price rule's fold says what it does instead of a price, and Activity says who changed it. A title, a line
+ * about both receptionists, a stamp and a sentence restating the rows stood above the cards until Ruben cut them as
+ * clutter (26 Sep 2026).
+ *
+ * What stays is the one thing none of them says: the fact most worth adding, while one is missing (contracts'
+ * businessGap), as the door to the row that adds it. Nothing is drawn while every fact is there. A role that may not
+ * change the business reads the gap and gets no door, since the row behind it would not open.
  *
  * The door is named by its sentence and then by what it does, which is the act of the row it opens: "It cannot say
  * where you are. Add one Address", in the row's own words and label (RecordRow's ids), so a screen reader hears where
  * it goes and not only a statement. A row not on the page yet adds nothing to the name, and the sentence stands alone.
- *
- * What it will not do lands differently on the two channels -- in chat the price is swapped before the reply is sent,
- * on a call it has been heard and what follows is a correction -- so the line is told which lines this workspace
- * answers on (the plan's M-1). Read off the voice line the settings read resolved, as How it answers reads it for the
- * hand-off row that names both channels: it arrives with the record this page cannot draw without, so there is no
- * moment where the band has to guess.
  */
-const BtStanding = ({ brain, door }) => {
+const BtGap = ({ brain, door }) => {
   const tab = window.__businessTab;
-  if (!tab || !tab.standingLine) return null;
-  const voice = ((window.__FACTS || {}).facts || {}).voice_line;
+  if (!tab || !tab.businessGap) return null;
   // With how customers buy, which decides whether a missing booking link is a gap (the first run's decision 2).
-  const vm = tab.standingLine(brain, !!(voice && voice.value), window.__businessTabSave.answer());
-  const gap = vm.missing;
+  const gap = tab.businessGap(brain, window.__businessTabSave.answer());
+  if (!gap) return null;
   return (
-    <section className="bt-standing" data-testid="rec-standing" data-state={gap ? "warn" : "ok"}>
-      <span className="bt-standing-dot" aria-hidden="true" />
-      <div className="bt-standing-words">
-        <p className="bt-standing-can">{vm.can}</p>
-        {vm.wont || gap ? (
-          <p className="bt-standing-more">
-            {vm.wont}
-            {vm.wont && gap ? " " : null}
-            {gap && door ? (
-              <button
-                type="button"
-                className="bt-standing-door"
-                onClick={() => door(gap.row)}
-                aria-labelledby={`bt-standing-door-words rec-row-${gap.row}-act rec-row-${gap.row}-key`}
-                data-testid="rec-standing-door"
-              >
-                <span id="bt-standing-door-words">{gap.sentence}</span>
-              </button>
-            ) : gap ? (
-              <span className="bt-standing-gap">{gap.sentence}</span>
-            ) : null}
-          </p>
-        ) : null}
-      </div>
-    </section>
+    <p className="bt-gap" data-testid="rec-gap">
+      <span className="bt-gap-dot" aria-hidden="true" />
+      {door ? (
+        <button
+          type="button"
+          className="bt-gap-door"
+          onClick={() => door(gap.row)}
+          aria-labelledby={`bt-gap-door-words rec-row-${gap.row}-act rec-row-${gap.row}-key`}
+          data-testid="rec-gap-door"
+        >
+          <span id="bt-gap-door-words">{gap.sentence}</span>
+        </button>
+      ) : (
+        <span className="bt-gap-words">{gap.sentence}</span>
+      )}
+    </p>
   );
 };
+
 
 /**
  * A door opens a row by its id, as the row's own act would open it: the registry holds each row's dirty test by id,
@@ -165,7 +144,6 @@ const BusinessTab = ({ flash = () => {} }) => {
   const base = saver.base();
   return (
     <>
-      <BtHead />
       {/* A role that may not change the business reads all of it. Each row's act is absent rather than a dead button,
           so the page says why once, here. */}
       {canEdit ? null : (
@@ -173,7 +151,7 @@ const BusinessTab = ({ flash = () => {} }) => {
           <Icon name="shield" size={11} /> {window.gateTitle ? window.gateTitle("settings", "change the business") : ""} You can read everything.
         </p>
       )}
-      <BtStanding brain={brain} door={canEdit ? btOpenRow : null} />
+      <BtGap brain={brain} door={canEdit ? btOpenRow : null} />
       {/* Each card is a file of its own (business-tab-who.jsx, business-tab-open.jsx, business-tab-offer.jsx,
           business-tab-answers.jsx), read from window as the page draws. */}
       {window.BtWhoCard ? <window.BtWhoCard brain={brain} base={base} canEdit={canEdit} flash={flash} saver={saver} /> : null}

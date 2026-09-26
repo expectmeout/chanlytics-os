@@ -274,7 +274,7 @@ const BtaRules = ({ draft, update, readOnly, unread }) => {
  * does, and that the reasons reach a call too).
  *
  * The transfer number is only shown here, never edited: Who you are's "Transfer number" is its one editor (the
- * plan's decision in Task 3.2's review), and a door opens that row, by its id, as the standing line's door opens a
+ * plan's decision in Task 3.2's review), and a door opens that row, by its id, as the gap line's door opens a
  * row. With the Autonomy tab's read failed, how long it holds off cannot be said, and a failed read says so where the
  * sentence would be. On a workspace with no line to call (`calls` false) no receptionist of it takes a call, so what a
  * call does is not said, nor is the door offered: Who you are's transfer row says nothing it will say there either.

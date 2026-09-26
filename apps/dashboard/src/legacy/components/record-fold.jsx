@@ -64,7 +64,7 @@
 // replaces a pane. A page asks it to open a fold with request(id), or request(id, { dirty }), where `dirty` says
 // whether that fold holds unsaved changes once it is open. Without one, the fold's own is used: useRecordFold binds
 // each fold's dirty test to its id as the fold mounts, so a fold opened from anywhere by its id alone (the Business
-// tab's standing line opens a row it names) is guarded exactly as its own act would have guarded it.
+// tab's gap line opens a row it names) is guarded exactly as its own act would have guarded it.
 // The registry keeps ONE dirty test per fold id: the one bound by the last useRecordFold hook to mount with that id.
 // So a fold id belongs to one hook on the page. Two hooks drawing the same id would leave that id unguarded once the
 // later of them unmounted, its test let go and the earlier's already replaced. The rebind this replaced let the last

@@ -1,5 +1,5 @@
 /**
- * Settings › Business, the page, EXECUTED on the stub React: the head, the standing line, *Who you are* with each row
+ * Settings › Business, the page, EXECUTED on the stub React: the gap line, *Who you are* with each row
  * edited where it is stated, the tab's one saver, who may change it, and the two gestures every card draws its rows and
  * folds with (business-tab-gestures.jsx), tested through the rows and folds on the page. Each card's own tests are a
  * file of their own (business-tab-open.test.mjs); the page, the fixture and the presses are _business-tab-harness.mjs.
@@ -8,7 +8,7 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import {
   stateOf,
-  standingLine,
+  businessGap,
   roleGate,
   newReceptionistDefaults,
   PROFILE_CROSSING_WORDS,
@@ -81,36 +81,24 @@ after(() => unmount());
 
 /* ------------------------------------ the plan's seven ------------------------------------ */
 
-test("the standing line says what contracts said, and never writes its own", () => {
+test("a full record opens on its first card: no title, no stamp, no line restating the rows", () => {
   const tree = drawTab({ profile: marisa });
-  const band = byTestId(tree, "rec-standing");
-  const vm = standingLine(W.__SETTINGS.config.brain, true, null);
-  assert.match(textOf(band), new RegExp(escape(vm.can)));
-  assert.match(textOf(band), new RegExp(escape(vm.wont)));
-  assert.equal(vm.missing, null, "Marisa's record is missing nothing");
+  assert.equal(businessGap(W.__SETTINGS.config.brain, null), null, "Marisa's record is missing nothing");
+  assert.equal(byTestId(tree, "rec-gap"), null, "so nothing stands above the cards");
+  assert.equal(
+    find(tree, (n) => n.type === "h1"),
+    null,
+    "the crumb names the page, as every other pane's does",
+  );
+  assert.equal(
+    find(tree, (n) => /both receptionists answer from|It can say|instead of a price/.test(ownWords(n))),
+    null,
+  );
 });
 
-test("M-1: the band names a call's correction only on a workspace that answers calls", () => {
-  // In chat the swap happens before the reply is sent; on a call the figure has been heard and what follows is a
-  // correction (contracts, policy.ts). One sentence for both was exact on one channel and flattering on the other.
-  const withCall = drawTab({ profile: marisa });
-  const heard = textOf(byTestId(withCall, "rec-standing"));
-  assert.match(heard, new RegExp(escape(standingLine(W.__SETTINGS.config.brain, true, null).wont)));
-  assert.match(heard, /on a call caught afterwards rather than prevented/i);
-  // A workspace with no phone line is told nothing about a line it does not have.
-  const chatOnly = drawTab({ profile: marisa, facts: { voice_line: { value: null, source: "absent" } } });
-  const alone = textOf(byTestId(chatOnly, "rec-standing"));
-  assert.match(alone, new RegExp(escape(standingLine(W.__SETTINGS.config.brain, false, null).wont)));
-  assert.doesNotMatch(alone, /on a call/i);
-  // Still one clause either way: the band says what it can, what it will not, and the one gap.
-  for (const t of [withCall, chatOnly]) {
-    assert.equal(all(byTestId(t, "rec-standing"), (n) => classes(n).includes("bt-standing-more")).length, 1);
-  }
-});
-
-test("a missing voice is named in the band, and the link opens its row", () => {
+test("a missing voice is named in the gap line, and the link opens its row", () => {
   const tree = drawTab({ profile: { ...marisa, tone: undefined } });
-  const band = byTestId(tree, "rec-standing");
+  const band = byTestId(tree, "rec-gap");
   assert.match(textOf(band), /no voice of its own/i);
   assert.ok(
     find(band, (n) => typeof n.props?.onClick === "function"),
@@ -200,27 +188,9 @@ test("a conflict sits on the row it is about, and there is no banner", () => {
   );
 });
 
-/* ------------------------------------ the head, and the facts at rest ------------------------------------ */
+/* ------------------------------------ the facts at rest ------------------------------------ */
 
-test("the head says what the page is, and who last changed it when that is known", () => {
-  const was = W.__lastChanged;
-  try {
-    W.__lastChanged = () => "Last changed by Ruben, just now";
-    const tree = drawTab();
-    assert.equal(textOf(find(tree, (n) => n.type === "h1")), "Business");
-    assert.equal(
-      textOf(find(tree, (n) => classes(n).includes("bt-sub"))),
-      "What both receptionists answer from. Last changed by Ruben, just now.",
-    );
-    W.__lastChanged = () => "";
-    assert.equal(
-      textOf(find(redrawTab(), (n) => classes(n).includes("bt-sub"))),
-      "What both receptionists answer from.",
-      "no stamp, nothing said",
-    );
-  } finally {
-    W.__lastChanged = was;
-  }
+test("the prompt's button is not on the page at rest", () => {
   // The prompt's own sheet arrives with Phase 5, and its button with it.
   assert.equal(
     find(drawTab(), (n) => /Read what it/.test(ownWords(n))),
@@ -1085,7 +1055,7 @@ test("a save in progress is not an open, unsaved editor: its box takes no typing
     "what is on its way is what the box holds",
   );
 
-  // Another row's act, and the standing line's door, which both ask the registry: no question is drawn over a change
+  // Another row's act, and the gap line's door, which both ask the registry: no question is drawn over a change
   // that is on its way, the editor stays, and the rail is told a save is out, to ask in its own words.
   openFold(tree, "address");
   tree = redrawTab(flash);
@@ -1747,7 +1717,7 @@ test("every act of the record is a PUT the settings door refuses, and none asks 
       [],
       "no row offers a change",
     );
-    assert.equal(byTestId(tree, "rec-standing-door"), null, "and the standing line opens nothing");
+    assert.equal(byTestId(tree, "rec-gap-door"), null, "and the gap line opens nothing");
     const why = roleGate("operator", "settings", "change the business").reason;
     assert.match(
       textOf(byTestId(tree, "bt-viewer")),
@@ -1799,7 +1769,7 @@ test("a viewer reads everything, is offered no act, and is told why once", () =>
     assert.match(textOf(byTestId(tree, "bt-viewer")), /You can read everything\./);
     assert.match(textOf(byTestId(tree, "rec-row-name")), /Marisa's Beauty Salon/, "and everything is there to read");
 
-    const band = byTestId(tree, "rec-standing");
+    const band = byTestId(tree, "rec-gap");
     assert.match(textOf(band), /no voice of its own/i, "the gap is still named");
     assert.equal(
       find(band, (n) => typeof n.props?.onClick === "function"),
@@ -1863,13 +1833,13 @@ test("a name the workspace goes by is shown against the business's, and never of
   assert.ok(find(byTestId(listed, "rec-row-name"), (n) => n.type === "button" && textOf(n) === "Use Google's"));
 });
 
-/* ------------------------------------ the standing line's door ------------------------------------ */
+/* ------------------------------------ the gap line's door ------------------------------------ */
 
-test("the standing line's door opens the row it names, and that row asks before its changes go like any other", () => {
+test("the gap line's door opens the row it names, and that row asks before its changes go like any other", () => {
   let tree = drawTab({ profile: without(marisa, "address"), facts: { address: { value: null, source: "absent" } } });
-  const gap = standingLine(W.__SETTINGS.config.brain, true, null).missing;
+  const gap = businessGap(W.__SETTINGS.config.brain, null);
   assert.equal(gap.row, "address");
-  const door = byTestId(byTestId(tree, "rec-standing"), "rec-standing-door");
+  const door = byTestId(byTestId(tree, "rec-gap"), "rec-gap-door");
   assert.equal(textOf(door), gap.sentence, "the gap's own words are its door");
   // And a screen reader hears where it goes, not only a statement: the sentence, then the act of the row it opens.
   const heard = (b) =>
@@ -1907,11 +1877,8 @@ test("the standing line's door opens the row it names, and that row asks before 
   // A fold is opened the same way: the voice's gap opens How it answers' voice fold, and its door is heard with that
   // row's act and label (business-tab-answers.test.mjs holds the fold it opens).
   tree = drawTab({ profile: { ...marisa, tone: undefined } });
-  const toTone = byTestId(byTestId(tree, "rec-standing"), "rec-standing-door");
-  assert.equal(
-    heard(toTone),
-    `${standingLine(W.__SETTINGS.config.brain, true, null).missing.sentence} Give it one Its voice`,
-  );
+  const toTone = byTestId(byTestId(tree, "rec-gap"), "rec-gap-door");
+  assert.equal(heard(toTone), `${businessGap(W.__SETTINGS.config.brain, null).sentence} Give it one Its voice`);
   press(toTone);
   assert.equal(W.__recordFolds.open(), "tone");
   assert.deepEqual(openFolds(redrawTab()), ["tone"]);
@@ -2620,16 +2587,16 @@ test("at rest a whole record draws every row's act, quietly, and three controls 
     "each in a row that says it is a press",
   );
   assert.equal(new Set(acts.map((c) => c.row)).size, acts.length, "one act to a row");
-  // Nothing is missing from this record, so the standing line has no gap and no door.
-  assert.equal(byTestId(drawTab(), "rec-standing-door"), null);
+  // Nothing is missing from this record, so there is no gap line and no door.
+  assert.equal(byTestId(drawTab(), "rec-gap-door"), null);
 });
 
-test("at rest an empty record adds only what is empty or missing, and the standing line's door", () => {
+test("at rest an empty record adds only what is empty or missing, and the gap line's door", () => {
   const drawn = drawnAtRest(drawTab({ profile: {} }));
   const why = (c) =>
     c.id === "rec-prompt-open" || c.id === "rec-who-carriers"
       ? "always"
-      : c.id === "rec-standing-door"
+      : c.id === "rec-gap-door"
         ? "the gap"
         : classes(c.n).includes("rec-row-act")
           ? "a row's act, drawn at rest"
@@ -2642,8 +2609,8 @@ test("at rest an empty record adds only what is empty or missing, and the standi
     "nothing else is drawn at rest",
   );
   assert.ok(
-    drawn.some((c) => c.id === "rec-standing-door"),
-    "the standing line's one link",
+    drawn.some((c) => c.id === "rec-gap-door"),
+    "the gap line's one link",
   );
 });
 

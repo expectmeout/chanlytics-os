@@ -15,7 +15,7 @@ import path from "node:path";
 import vm from "node:vm";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
-  standingLine,
+  businessGap,
   abilityRows,
   cannotRows,
   bookingHeld,
@@ -167,6 +167,7 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     "bookingRuleRefusal",
     "bookingRulesWords",
     "bookingTemplate",
+    "businessGap",
     "cannotRows",
     "capabilityStatus",
     "chipsMoreWords",
@@ -204,7 +205,6 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     "servicesSaveWords",
     "servicesToldWords",
     "servicesWords",
-    "standingLine",
     "writtenOutDetail",
   ]);
   // How it answers': contracts' own, and the resolver's test of whether a record composes, never a copy of it.
@@ -255,8 +255,7 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     handoffWords(STORED.profile.escalate_when, "+1 (212) 555-0142"),
   );
   assert.equal(tab.fallbacksWords(null).own, fallbacksWords(null).own);
-  for (const calls of [true, false])
-    assert.deepEqual(tab.standingLine(STORED, calls, null), standingLine(STORED, calls, null));
+  assert.deepEqual(tab.businessGap(STORED, null), businessGap(STORED, null));
   // The When you're open card's two sentences with a number in them.
   assert.equal(tab.openWeekWords(STORED.profile.hours, TZ), openWeekWords(STORED.profile.hours, TZ));
   const at = new Date("2026-09-21T12:00:00Z");

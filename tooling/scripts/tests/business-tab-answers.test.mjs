@@ -7,7 +7,7 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import {
-  standingLine,
+  businessGap,
   roleGate,
   TONE_PRESETS,
   handoffWords,
@@ -249,11 +249,11 @@ test("a voice past what the profile keeps is refused under its box, and nothing 
   assert.deepEqual(openFolds(tree), ["tone"], "the fold stays open with what was typed");
 });
 
-test("the standing line's tone door opens the voice's fold, with its box in it", () => {
+test("the gap line's tone door opens the voice's fold, with its box in it", () => {
   let tree = drawTab({ profile: without(marisa, "tone") });
-  const gap = standingLine(W.__SETTINGS.config.brain, true, null).missing;
+  const gap = businessGap(W.__SETTINGS.config.brain, null);
   assert.equal(gap.row, "tone");
-  const door = byTestId(byTestId(tree, "rec-standing"), "rec-standing-door");
+  const door = byTestId(byTestId(tree, "rec-gap"), "rec-gap-door");
   // Heard as the gap's sentence, then the act of the row it opens.
   const heard = door.props["aria-labelledby"]
     .split(" ")

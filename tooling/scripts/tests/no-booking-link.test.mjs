@@ -24,7 +24,7 @@ import {
   offersBookingLink,
   parseTenantConfigResult,
   resolveSystemPrompt,
-  standingLine,
+  businessGap,
   TenantConfigWriteSchema,
 } from "@chanlytics/contracts";
 
@@ -190,11 +190,12 @@ test("the openings, a caller's appointment and a correction on a call each end i
   assert.doesNotMatch(corrected, /booking link/);
 });
 
-test("the Business tab says so: the one gap it names first is the link, and it claims no way to book", () => {
+test("the Business tab says so: the one gap it names first is the link", () => {
   const read = parseTenantConfigResult({ brain: { ...QUOTES, profile: PROFILE } });
-  const s = standingLine(read.config.brain, true, null);
-  assert.deepEqual(s.missing, { sentence: "It has no booking link to send anyone.", row: "booking_link" });
-  assert.doesNotMatch(s.can, /how to book/);
+  assert.deepEqual(businessGap(read.config.brain, null), {
+    sentence: "It has no booking link to send anyone.",
+    row: "booking_link",
+  });
 });
 
 test("the link is offered unless the config is known to hold none: with no receptionist config, a call is told to offer it", () => {

@@ -58,7 +58,7 @@ const BtcGlyph = ({ channel, has, words }) => (
  * input into its channels, so `ready` is exactly "one of the two does it", and a row nothing does takes the dim ink
  * the three limits under it are already in.
  *
- * `door` opens the row that supplies the missing input, by its id, the way the standing line's door opens one (the
+ * `door` opens the row that supplies the missing input, by its id, the way the gap line's door opens one (the
  * fold registry asks about changes first). A role that may not change the business is passed none: the row behind it
  * would not open, so the sentence stands alone rather than offering a press that refuses.
  */
@@ -112,7 +112,7 @@ const BtcCannotRow = ({ limit }) => (
 
 /* ------------------------------------ the card ------------------------------------ */
 
-/** A door opens a row by its id, as the standing line's does (business-tab.jsx says how the registry asks first). */
+/** A door opens a row by its id, as the gap line's does (business-tab.jsx says how the registry asks first). */
 const btcOpenRow = (id) => {
   if (window.__recordFolds) window.__recordFolds.request(id);
 };
