@@ -72,10 +72,11 @@ const row = (over = {}) => ({
 /**
  * A booking ahead, as the calendar match attaches it (calendar-people.test.mjs): two days ahead on a weekday, so it
  * is still "this week" (Monday to Sunday, by the workspace's clock) -- from a Saturday two days ahead is next week,
- * and the suite failed every weekend. On Saturday it is tomorrow; on Sunday, later today.
+ * and the suite failed every weekend. On Saturday it is tomorrow; on Sunday it is now (two hours ahead crossed into
+ * Monday from ten at night; the week rule reads the visit's day, and `booked` reads that a next visit exists).
  */
 const WEEKDAY = new Date(NOW).toLocaleDateString("en-US", { timeZone: ZONE, weekday: "short" });
-const AHEAD_MS = WEEKDAY === "Sat" ? D : WEEKDAY === "Sun" ? 2 * H : 2 * D;
+const AHEAD_MS = WEEKDAY === "Sat" ? D : WEEKDAY === "Sun" ? 0 : 2 * D;
 const NEXT = {
   id: "b1:1",
   start: ahead(AHEAD_MS),
