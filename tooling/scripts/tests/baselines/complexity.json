@@ -684,21 +684,6 @@
     "branches": 36,
     "depth": 3
   },
-  "apps/dashboard/src/legacy/pages/inbox.jsx::(callback)#99": {
-    "lines": 27,
-    "branches": 31,
-    "depth": 3
-  },
-  "apps/dashboard/src/legacy/pages/inbox.jsx::Inbox#1": {
-    "lines": 753,
-    "branches": 301,
-    "depth": 3
-  },
-  "apps/dashboard/src/legacy/pages/inbox.jsx::onKey#1": {
-    "lines": 23,
-    "branches": 31,
-    "depth": 3
-  },
   "apps/dashboard/src/legacy/pages/integrations-real.jsx::ConnectionRow#1": {
     "lines": 61,
     "branches": 54,

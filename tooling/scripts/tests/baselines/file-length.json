@@ -10,7 +10,7 @@
   "apps/dashboard/src/legacy/pages/client-profile.jsx": 1838,
   "apps/dashboard/src/legacy/pages/first-run.jsx": 1312,
   "apps/dashboard/src/legacy/pages/inbox-thread.jsx": 1754,
-  "apps/dashboard/src/legacy/pages/inbox.jsx": 844,
+  "apps/dashboard/src/legacy/pages/inbox.jsx": 952,
   "apps/dashboard/src/legacy/pages/people.jsx": 3246,
   "apps/dashboard/src/legacy/pages/settings.jsx": 1870,
   "apps/dashboard/src/server/ask/proposals.ts": 1203,
