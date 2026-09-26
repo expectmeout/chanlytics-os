@@ -27,6 +27,9 @@ import {
   NO_NUMBER_REACH,
   noNumberWords,
   toPersonVM,
+  toReportVM,
+  toBookingReportVM,
+  toDealReportVM,
 } from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -46,6 +49,7 @@ const { workspaceFacts, stableSystem, ASK_RULES, ASK_EXAMPLES } = await import(
 const { GatewayRefused } = await import(at("apps/dashboard/src/server/ask/gateway.ts"));
 const { readerCache, readerContext, load } = await import(at("apps/dashboard/src/server/readers/index.ts"));
 const workspaceReads = await import(at("apps/dashboard/src/server/readers/facts.ts"));
+const { report: reportReader } = await import(at("apps/dashboard/src/server/readers/report.ts"));
 const personRoute = await import(at("apps/dashboard/app/api/v1/contacts/[id]/route.ts"));
 // The workspace's facts are kept across turns in the module: each test starts with none kept.
 beforeEach(() => readerCache.clear());
@@ -1905,6 +1909,163 @@ test("get_openings is the palette's own read (ledger #13): the service asked for
     [],
     "nothing read: the zone and the settings were the turn's, and no calendar is connected",
   );
+});
+
+test("get_report reads what the Reports page reads (ledger #1): the series, then the booking line and the deals beside it, once a turn, with how the workspace's customers buy taken from the turn; the booking line and the Deals section in the page's own words beside the numbers it gave before", async () => {
+  const { forgetFeeds } = await import(at("apps/dashboard/src/server/ask/openings.ts"));
+  const DAY = 86_400_000;
+  const CLIENT = "cccccccc-cccc-4ccc-8ccc-cccccccccc01";
+  // The booking line and the deals count by the server's clock, as the page's own route does.
+  const now = Date.now();
+  const key = (ms) => new Date(ms).toISOString().slice(0, 10);
+  const quiet = {
+    messages_in: 0,
+    conversations: 0,
+    answered_ai: 0,
+    answered_you: 0,
+    unanswered: 0,
+    out_ai: 0,
+    out_you: 0,
+    escalations: 0,
+    calls: 0,
+    call_seconds: 0,
+    new_contacts: 0,
+  };
+  /** report_series for `days`: two periods of quiet days, the newest today. */
+  const series = (days) => ({
+    timezone: TZ,
+    days,
+    span_days: days * 2,
+    today: key(now),
+    series: Array.from({ length: days * 2 }, (_, i) => ({ day: key(now - (days * 2 - 1 - i) * DAY), ...quiet })),
+    reasons: {},
+    reply_seconds: [],
+    sentiments: {},
+    voicemail: 0,
+  });
+  const ics = (ms) =>
+    new Date(ms)
+      .toISOString()
+      .replace(/[-:]/g, "")
+      .replace(/\.\d{3}/, "");
+  // Rosa wrote yesterday and has a visit the day after tomorrow; she became a client, found as a lead, five days ago.
+  const ICS = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//test//EN",
+    "BEGIN:VEVENT",
+    "UID:r1",
+    `DTSTART:${ics(now + 2 * DAY)}`,
+    `DTEND:${ics(now + 2 * DAY + 3_600_000)}`,
+    "SUMMARY:Rosa · Estimate",
+    "DESCRIPTION:+15555550100",
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ].join("\r\n");
+  const rosa = {
+    id: CLIENT,
+    display_name: "Rosa",
+    wa_profile_name: null,
+    phone_e164: "+15555550100",
+    email: null,
+    came_from: "lead",
+    last_inbound_at: new Date(now - DAY).toISOString(),
+  };
+  const won = {
+    id: "dddddddd-dddd-4ddd-8ddd-dddddddddd01",
+    tenant_id: A,
+    contact_id: CLIENT,
+    stage: "won",
+    proposed_at: new Date(now - 5 * DAY).toISOString(),
+    decided_at: null,
+    amount_cents: 250_000,
+    per: "month",
+    currency: "usd",
+    lost_reason: null,
+  };
+  const base = tables();
+  const world = (calendar, sellsBy = "proposal") =>
+    tables({
+      tenants: [{ id: A, name: "Harbor", timezone: TZ, sells_by: sellsBy }],
+      tenant_config: [
+        {
+          ...base.tenant_config[0],
+          config: {
+            ...base.tenant_config[0].config,
+            ...(calendar ? { calendar: { ical_url: "https://calendar.example/harbor.ics" } } : {}),
+          },
+        },
+      ],
+      deals: [won],
+    });
+  const rpcs = { ...RPCS, report_series: (a) => series(a.p_days), people_list: () => [rosa] };
+  /** A turn over `t` with the Ask route's own reads made first, and get_report run in it: its answer and what it asked. */
+  const turnOver = async (t) => {
+    const ctx = ctxFor(t, rpcs);
+    const rc = readerContext(ctx, { tenantId: A, role: "operator" }, NOW);
+    await Promise.all(
+      [workspaceReads.facts, workspaceReads.config, workspaceReads.policies, workspaceReads.sellsBy].map((r) =>
+        load(rc, r, undefined),
+      ),
+    );
+    const before = ctx.supabase.seen.length;
+    const out = await runTool(newToolContext(ctx, A, "operator", TZ, NOW, rc), {
+      name: "get_report",
+      input: { days: 7 },
+    });
+    assert.equal(out.isError, false, out.result);
+    const asked = ctx.supabase.seen.slice(before).map((q) => (q.rpc ? `rpc:${q.rpc}` : `${q.table}.${q.op}`));
+    return { read: JSON.parse(out.result), asked, rc, ctx };
+  };
+  const fetchWas = globalThis.fetch;
+  globalThis.fetch = async () => new Response(ICS, { status: 200, headers: { "content-type": "text/calendar" } });
+  try {
+    forgetFeeds();
+    const { read, asked, rc, ctx } = await turnOver(world(true));
+    assert.deepEqual(asked, [
+      "rpc:report_series",
+      // Everyone, once, for the booking line and the deals alike.
+      "rpc:people_list",
+      "policies.select",
+      // The booking line's own calendar lookup, as the page's.
+      "tenants.select",
+      "tenant_config.select",
+      // How the workspace's customers buy is the turn's: not read again.
+      "deals.select",
+    ]);
+    // The page's own builders over the page's own payload, as the bridge applies them; the same read, once a turn.
+    const page = (await load(rc, reportReader, { days: 7 })).data;
+    assert.equal(ctx.supabase.seen.filter((q) => q.rpc === "report_series").length, 1, "read once a turn");
+    const vm = toReportVM(page.report);
+    const booking = toBookingReportVM(page.booking);
+    const deals = toDealReportVM(page.deals, vm.rangeLabel);
+    assert.equal(read.range, vm.rangeLabel);
+    assert.deepEqual(
+      read.tiles,
+      vm.tiles.map((x) => ({ label: x.label, value: x.value, meta: x.meta, change: x.delta?.text ?? null })),
+      "the numbers it gave before, from the same builder",
+    );
+    assert.equal(read.booking, booking.headline);
+    assert.equal(read.booking, "1 of 1 booked", "Rosa wrote, and has a visit on the calendar");
+    assert.deepEqual(read.deals, {
+      headline: deals.headline,
+      outcomes: deals.outcomes.rows.map((o) => `${o.label}: ${o.value}`),
+      lines: deals.lines.map((l) => l.text),
+      stock: deals.stock,
+    });
+    assert.equal(read.deals.stock, "1 client now · $2,500 a month.");
+    assert.ok(read.deals.lines.includes("Your new client came from Leads."), read.deals.lines.join(" | "));
+  } finally {
+    globalThis.fetch = fetchWas;
+    forgetFeeds();
+  }
+  // No calendar: the line says why there is nothing to count, in the page's words.
+  const bare = await turnOver(world(false));
+  assert.equal(bare.read.booking, "Connect your calendar under Settings › Business to see who booked.");
+  // Where the workspace's customers book, the page draws no Deals section, and the deals are not even read.
+  const booked = await turnOver(world(false, "booking"));
+  assert.equal(booked.read.deals, null);
+  assert.ok(!booked.asked.includes("deals.select"));
 });
 
 test("REGRESSION: list_playbooks tells who said yes from who a run can reach -- 'said_yes_now' was the reach, so a moment whose yes had no number read as nobody's", async () => {

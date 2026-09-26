@@ -21,6 +21,11 @@ import {
 } from "@chanlytics/contracts";
 import { readCode, importSrc } from "./_source.mjs";
 
+// The calendar route is imported below for the policy it declares; a module that ever builds a service client reads
+// these, and nothing dials it.
+process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
+process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
+
 const TZ = "America/New_York";
 const ICS = [
   "BEGIN:VCALENDAR",
@@ -231,7 +236,7 @@ test("day keys, the words, and the zone", () => {
   assert.equal(rulesLine(null), "Offers times with at least 2h notice · up to 14 days ahead · 30-min slots");
 });
 
-test("the doors and the page: read-only, the feed's address never in the browser, the registry flipped", () => {
+test("the doors and the page: read-only, the feed's address never in the browser, the registry flipped", async () => {
   const svc = readCode("apps/dashboard/src/server/calendar.ts");
   assert.ok(
     svc.includes("const feed = await loadFeed(tenantId, url, opts);"),
@@ -253,11 +258,14 @@ test("the doors and the page: read-only, the feed's address never in the browser
     svc.includes('throw new AppError("validation", feedProblemWords("not_ical")'),
     "a preview reaches only the public internet and only iCal, by the rule and the words every fetch and the save share",
   );
-  const r = readCode("apps/dashboard/app/api/v1/calendar/route.ts");
-  assert.ok(
-    r.includes('rate: "aggregate",') &&
-      r.includes("calendarWeek(ctx, member.tenantId, { from, days }, new Date(), { canAct, fresh })"),
-    "one read; an owner's adds the people it sees",
+  // The route as it declares itself: counted with the aggregate reads. Its one read and an owner's adding the people it
+  // sees are run over the route: calendar-feed.test.mjs ("the route: ... a viewer's read adds nobody") and
+  // readers.test.mjs ("GET calendar through its reader asks what it asked at origin/main ...").
+  const route = await importSrc("apps/dashboard/app/api/v1/calendar/route.ts");
+  assert.deepEqual(
+    route.GET.policy,
+    { kind: "read", scope: "workspace", role: null, rate: "aggregate", spend: false },
+    "one read, counted with the aggregates",
   );
   const pv = readCode("apps/dashboard/app/api/v1/calendar/preview/route.ts");
   assert.ok(pv.includes('role: "operator",') && pv.includes("previewFeed(url, timezone)"));
