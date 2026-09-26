@@ -212,19 +212,34 @@ const LeadsPhoneBar = ({ scope, onScope, dealsOn = false, listLabel, listCount =
       trailing={(
         <>
           {/* The map, from the bar (Ruben, 25 Sep): the desktop's toggle stood in the controls row, which a phone never
-              draws, so the streets had no door here. The pin stands only where the rows have places to draw. */}
+              draws, so the streets had no door here. It is a switch of two, the rows and the places, the one shown
+              pressed: a lone push-pin said neither which view this was nor what it would open (Ruben: it read as a
+              hammer). Drawn only where the rows have places to draw. */}
           {canMap ? (
-            <button
-              type="button"
-              className={`pp-bar-icon ld-bar-map${mapOn ? " on" : ""}`}
-              aria-pressed={mapOn}
-              aria-label={mapOn ? "Show the list" : "Show the map"}
-              title={mapOn ? "Show the list" : "Show the map"}
-              data-testid="leads-map-toggle"
-              onClick={() => onMap(!mapOn)}
-            >
-              <Icon name="pin" size={16} />
-            </button>
+            <span className="ld-bar-view" role="group" aria-label="Show the leads as" data-testid="leads-view-switch">
+              <button
+                type="button"
+                className={`ld-bar-view-opt${mapOn ? "" : " on"}`}
+                aria-pressed={!mapOn}
+                aria-label="The list"
+                title="The list"
+                data-testid="leads-list-toggle"
+                onClick={() => onMap(false)}
+              >
+                <Icon name="list" size={15} />
+              </button>
+              <button
+                type="button"
+                className={`ld-bar-view-opt${mapOn ? " on" : ""}`}
+                aria-pressed={mapOn}
+                aria-label="The map"
+                title="The map"
+                data-testid="leads-map-toggle"
+                onClick={() => onMap(true)}
+              >
+                <Icon name="map" size={15} />
+              </button>
+            </span>
           ) : null}
           <button
             type="button"
@@ -332,6 +347,35 @@ const LeadsScope = (p) => {
       onNew={p.onFind}
     />
   );
+  // The rows: the list's view, and on a phone the leads under the map too.
+  const table = (
+    <PeopleTable
+      busy={!!p.loading}
+      budget={p.rowBudget}
+      noun="lead"
+      columns={p.columns}
+      ctx={sections ? { ...p.cellCtx, sectioned: true } : p.cellCtx}
+      rows={p.rows}
+      rowClass={phone ? ldCardRowClass : ldRowClass}
+      sections={sections}
+      total={p.total}
+      sortBy={p.sortBy}
+      sortDir={p.sortDir}
+      onSort={p.onSort}
+      onOpen={p.onPeek}
+      filtered={p.filtered}
+      onClearFilters={p.onClearFilters}
+      selectable={p.canFind || p.canExport}
+      sel={p.sel}
+      onToggle={p.onToggle}
+      onToggleAll={p.onToggleAll}
+      cursor={p.cursor}
+      onCursor={p.onCursor}
+      scrolled={p.scrolled}
+      onScrolled={p.onScrolled}
+      empty={p.empty}
+    />
+  );
   const ListsSheet = window.PeopleListsSheet;
   return (
     <div className="clients leads-scope" data-loading={p.loading ? "1" : undefined}>
@@ -377,7 +421,7 @@ const LeadsScope = (p) => {
                 <div className="cl-controls-right">
                   {/* Values ⁄ Signals (D5): the number and the address in the row, for anyone who dials from a desk phone; kept per viewer. */}
                   {/* The same leads, as places (D5). */}
-                  <button type="button" className={`btn btn-ghost btn-sm${p.mapOpen ? " on" : ""}`} aria-pressed={!!p.mapOpen} onClick={() => p.onMap(!p.mapOpen)} data-testid="leads-map-toggle" title="See these leads on the ground"><Icon name="pin" size={12} /> {p.mapOpen ? "Table" : "Map"}</button>
+                  <button type="button" className={`btn btn-ghost btn-sm${p.mapOpen ? " on" : ""}`} aria-pressed={!!p.mapOpen} onClick={() => p.onMap(!p.mapOpen)} data-testid="leads-map-toggle" title="See these leads on the ground"><Icon name={p.mapOpen ? "list" : "map"} size={12} /> {p.mapOpen ? "Table" : "Map"}</button>
                   <button type="button" className={`btn btn-ghost btn-sm ld-values${p.values ? " on" : ""}`} aria-pressed={!!p.values} onClick={() => p.onValues(!p.values)} data-testid="leads-values" title="Show the numbers and addresses in the rows">{p.values ? "Signals" : "Values"}</button>
                   <PeopleColumnsMenu open={p.colsOpen} onOpenChange={p.onColsOpen} options={p.colOptions} onPick={p.onPickColumn} buttonRef={p.colsButton} />
                   {p.canExport
@@ -450,7 +494,9 @@ const LeadsScope = (p) => {
             ? <FailedRead kind="block" what="your leads" surface="leads" testid="leads-failed" />
             : p.mapOpen && p.plot && p.plot.pins.length
             ? (
+              <>
               <LeadMap
+                phone={phone}
                 rows={p.rows}
                 plot={p.plot}
                 oneSearch={!!p.view.searchId}
@@ -464,6 +510,10 @@ const LeadsScope = (p) => {
                 onNearby={p.onNearby}
                 canFind={p.canFind}
               />
+              {/* On a phone the leads under the map are the list's own rows, not the map's boxed list of its own:
+                  one row for every list (tokens.css), and the same press opens the same peek. */}
+              {phone ? table : null}
+              </>
             )
             : p.view.cls === "review" && p.benchGroups.length && !phone
             ? (
@@ -504,34 +554,7 @@ const LeadsScope = (p) => {
                 }
               />
             )
-            : (
-              <PeopleTable
-                busy={!!p.loading}
-                budget={p.rowBudget}
-                noun="lead"
-                columns={p.columns}
-                ctx={sections ? { ...p.cellCtx, sectioned: true } : p.cellCtx}
-                rows={p.rows}
-                rowClass={phone ? ldCardRowClass : ldRowClass}
-                sections={sections}
-                total={p.total}
-                sortBy={p.sortBy}
-                sortDir={p.sortDir}
-                onSort={p.onSort}
-                onOpen={p.onPeek}
-                filtered={p.filtered}
-                onClearFilters={p.onClearFilters}
-                selectable={p.canFind || p.canExport}
-                sel={p.sel}
-                onToggle={p.onToggle}
-                onToggleAll={p.onToggleAll}
-                cursor={p.cursor}
-                onCursor={p.onCursor}
-                scrolled={p.scrolled}
-                onScrolled={p.onScrolled}
-                empty={p.empty}
-              />
-            )}
+            : table}
           {L.next && (
             <div className="cl-section-sub ld-more" data-testid="leads-more">
               {p.rows.length.toLocaleString()} of {p.total.toLocaleString()} loaded{" "}

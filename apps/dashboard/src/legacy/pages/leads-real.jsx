@@ -488,16 +488,18 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
   const stageShown = columns.some((c) => c.key === "stage");
   const cellCtxLeads = leadCellCtxFor(leadCellActs, leadCellKept, values, !!(band && band.mixed), hasCenter, canFind, people.rows, stageShown);
   const goto = (patch) => nav(window.__leadsRouteOf({ searchId: leadView.searchId, list: leadView.list, cls: leadView.cls, ...patch }));
-  // Where a rail row's press goes (railToggle: one row at a time; the picked row pressed again shows all leads).
-  const pickListRoute = (id) => window.__leadsRouteOf({ searchId: null, list: railToggle(leadView.searchId ? null : leadView.list, id) || "all", cls: null });
+  // Where a rail row's press goes (railToggle: one row at a time; the picked row pressed again shows all leads). On a
+  // phone the rail is a sheet, and a press opens the row and nothing else: the sheet closes on it (below), so a press
+  // that went back to All leads would close the sheet on a page the owner did not ask for (Ruben, 25 Sep).
+  const pickListRoute = (id, open = false) => window.__leadsRouteOf({ searchId: null, list: (open ? id : railToggle(leadView.searchId ? null : leadView.list, id)) || "all", cls: null });
   // A search waiting on its question opens on the places the question is about (a question is only ever asked about
   // places left out); its counted view is empty while it waits.
   const waitsOn = (id) => {
     const s = id ? searchById(id) : null;
     return !!(s && s.round && s.round.state === "waiting_on_owner");
   };
-  const pickSearchRoute = (id) => {
-    const to = railToggle(leadView.searchId, id);
+  const pickSearchRoute = (id, open = false) => {
+    const to = open ? id : railToggle(leadView.searchId, id);
     return window.__leadsRouteOf({ searchId: to, list: "all", cls: to && waitsOn(to) ? "excluded" : null });
   };
   // What each strip control does (Task 10 step 6). Every act goes out through its route; the six that would
@@ -664,8 +666,10 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
       // The rail picks as People's does (railToggle): a list or a search, one at a time. A list pressed while a
       // search was open used to keep the search and narrow inside it, and the rail lit neither; a search picked
       // kept the list, and showed fewer of its leads than its count said. The class and the chip start over.
-      onPickList={(id) => { setChip(null); nav(pickListRoute(id)); }}
-      onPickSearch={(id) => { setChip(null); nav(pickSearchRoute(id)); }}
+      // On a phone the press is in the Lists sheet: it opens the row and the sheet closes, so the page it opened is
+      // what the owner sees next. It stood open over the page, and a second press on the row took them back out.
+      onPickList={(id) => { setChip(null); nav(pickListRoute(id, phone)); if (phone) setListsOpen(false); }}
+      onPickSearch={(id) => { setChip(null); nav(pickSearchRoute(id, phone)); if (phone) setListsOpen(false); }}
       // The row under the pointer reads its view ahead of the press (the surface holds it; leads.ts warmLeadsView).
       onWarmList={(id) => window.__leadsWarm && window.__leadsWarm(pickListRoute(id))}
       onWarmSearch={(id) => window.__leadsWarm && window.__leadsWarm(pickSearchRoute(id))}
