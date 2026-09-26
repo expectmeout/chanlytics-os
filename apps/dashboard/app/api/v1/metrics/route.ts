@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { read, workspace } from "@/server/route";
-import { metricsSummaryFor } from "@/server/metrics";
-import { AppError } from "@chanlytics/contracts";
+import { load, readerContext } from "@/server/readers";
+import { metrics } from "@/server/readers/metrics";
 
 const Query = z.object({
   /** 1 to 90; one by default. */
@@ -29,11 +29,6 @@ export const GET = read({
   query: Query,
   handle: async ({ ctx, member, input }) => {
     const days = Math.min(90, Math.max(1, Number(input.days ?? 1) || 1));
-    const tenantId = member.tenantId;
-    // The function answers the routing rows; the workspace's email line is
-    // added beside them (server/metrics.ts), so Today counts every wire.
-    const metrics = await metricsSummaryFor(ctx.supabase, tenantId, days);
-    if (!metrics) throw new AppError("not_found", "Workspace metrics unavailable.", 404);
-    return { metrics, workspaceId: tenantId };
+    return (await load(readerContext(ctx, member), metrics, { days })).data;
   },
 });

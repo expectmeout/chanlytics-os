@@ -23,6 +23,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { importSrc } from "./_source.mjs";
+import { fakeDb } from "./_fake-db.mjs";
+
+// The list routes run below build no service client; a module that ever does reads these, and nothing dials it.
+process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
+process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(here, "../../..");
@@ -61,18 +66,87 @@ test("a workspace the caller is not a member of is never silently swapped", () =
 
 /* --------------------------- reads are scoped ----------------------------- */
 
-test("every list endpoint filters by tenant, not by RLS alone", () => {
+test("every list endpoint filters by tenant, not by RLS alone", async () => {
   // RLS is the floor: it stops cross-tenant reads no matter what. It is NOT a
   // scope — it happily returns every workspace the caller belongs to.
+  //
+  // Run, not read: the query lives in the route's reader (server/readers), not
+  // in the route, and the database in memory has no RLS at all, so a list the
+  // workspace does not filter answers both businesses' rows here.
+  const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  const member = (tenant_id, slug, created_at) => ({
+    user_id: "u1",
+    tenant_id,
+    role: "viewer",
+    tenants: { slug },
+    created_at,
+  });
+  const both = [A, B];
+  const world = () => ({
+    memberships: [member(A, "harbor", "2026-01-01T00:00:00Z"), member(B, "bayside", "2026-02-01T00:00:00Z")],
+    conversations: both.map((tenant_id, i) => ({
+      id: `c${i}`,
+      tenant_id,
+      state: "open",
+      paused_until: null,
+      snooze_until: null,
+      assignee_user_id: null,
+      last_wa_inbound_at: null,
+      last_message_at: "2026-09-10T10:00:00Z",
+      contacts: null,
+    })),
+    messages: [],
+    calls: both.map((tenant_id, i) => ({
+      id: `k${i}`,
+      tenant_id,
+      retell_call_id: `r${i}`,
+      direction: "inbound",
+      call_type: "phone_call",
+      status: "ended",
+      from_e164: "+15550000001",
+      from_raw: null,
+      to_e164: "+15550000002",
+      started_at: "2026-09-10T10:00:00Z",
+      ended_at: null,
+      updated_at: null,
+      duration_ms: null,
+      disconnection_reason: null,
+      sentiment: null,
+      call_successful: null,
+      in_voicemail: null,
+      summary: null,
+      transcript_object: null,
+      recording: null,
+      conversation_id: `c${i}`,
+      contact_id: null,
+      message_id: null,
+    })),
+    escalations: both.map((tenant_id, i) => ({
+      id: `e${i}`,
+      tenant_id,
+      reason: "price",
+      details: null,
+      state: "open",
+      created_at: "2026-09-10T10:00:00Z",
+      conversation_id: `c${i}`,
+    })),
+  });
   const unscoped = [];
-  for (const f of ["conversations/route.ts", "calls/route.ts", "escalations/route.ts"]) {
-    const src = fs.readFileSync(path.join(API, f), "utf8");
-    if (
-      !(src.includes("memberContext") || src.includes("scope: workspace")) ||
-      !/\.eq\("tenant_id", tenantId\)/.test(src)
-    ) {
-      unscoped.push(f);
-    }
+  for (const [list, bayside] of [
+    ["conversations", "c1"],
+    ["calls", "k1"],
+    ["escalations", "e1"],
+  ]) {
+    const { GET } = await importSrc(`apps/dashboard/app/api/v1/${list}/route.ts`);
+    const ctx = { supabase: fakeDb(world()), userId: "u1", email: "ada@example.com", params: {} };
+    const out = await GET.run(new Request(`http://localhost/api/v1/${list}?workspace=${B}`), ctx);
+    const reads = ctx.supabase.seen.filter((q) => q.table === list && q.op === "select");
+    const filtered =
+      reads.length > 0 &&
+      reads.every((q) => q.filters.some(([op, col, val]) => op === "eq" && col === "tenant_id" && val === B));
+    if (GET.policy.scope !== "workspace" || !filtered || out[list].map((r) => r.id).join() !== bayside)
+      unscoped.push(list);
   }
   assert.deepEqual(unscoped, [], "these endpoints would merge two businesses into one list");
 });

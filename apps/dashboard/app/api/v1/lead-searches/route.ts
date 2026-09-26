@@ -3,7 +3,9 @@ import { LeadSearchPlanSchema, SPEND_LEADS, type LeadSearchPlan } from "@chanlyt
 import type { Json } from "@chanlytics/db";
 import { read, write, workspace } from "@/server/route";
 import { isUuid } from "@/server/request-guards";
-import { answerOf, estimateForRound, refusalOf, searchesOf } from "@/server/leads";
+import { answerOf, estimateForRound, refusalOf } from "@/server/leads";
+import { load, readerContext } from "@/server/readers";
+import { searches } from "@/server/readers/searches";
 
 /**
  * GET /api/v1/lead-searches: every kept search of this workspace with its
@@ -13,7 +15,7 @@ import { answerOf, estimateForRound, refusalOf, searchesOf } from "@/server/lead
  */
 export const GET = read({
   scope: workspace,
-  handle: ({ ctx, member }) => searchesOf(ctx, member.tenantId),
+  handle: async ({ ctx, member }) => (await load(readerContext(ctx, member), searches, undefined)).data,
 });
 
 /**

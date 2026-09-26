@@ -176,6 +176,9 @@ const RPCS = {
   people_list: () => [],
   metrics_summary: () => ({ error: "not modelled here" }),
   report_series: () => ({ error: "not modelled here" }),
+  // The rail's counts (server/lead-searches.ts listCounts), so Today's searches read as none inside a turn rather
+  // than as a read that failed: the fake's refusal of an unmodelled door must never be caught into a quiet null.
+  lead_list_counts: () => ({ all: 0, ready: 0, nurture: 0, converted: 0, said_no: 0, not_a_fit: 0 }),
 };
 const ctxFor = (t = tables(), rpcs = RPCS, faults = {}) => ({
   supabase: fakeDb(t, faults, rpcs),
@@ -1968,6 +1971,103 @@ test("REGRESSION: Today's reply-window rows are the opposite of drafts -- the cu
   assert.ok(
     listed.threads.every((th) => typeof th.channel === "string" && th.channel.length > 0 && !("tags" in th)),
     "a wire on every row; no field that never carried anything",
+  );
+});
+
+test("the day is read once a turn, each tool as its page reads it: get_today, list_threads and list_calls in one round read the conversations twice at most and the calls once; Today counts the customer waiting past the newest hundred as the Today page does, the Inbox fetches their thread and needs_you keeps it first past the cap, recent is the newest twenty, and the missed call past the newest forty is there", async () => {
+  // A hundred threads newer than the one still waiting on a person: the Inbox fetches that one by its id (ledger #6),
+  // the Today page does not. Twenty-one of the hundred wait on a person too, so needs_you runs past the cap of twenty.
+  // And forty-five calls this morning whose oldest never connected (ledger #8: list_calls read the newest forty).
+  const hundred = Array.from({ length: 100 }, (_, i) =>
+    conversation(`cccccccc-cccc-4ccc-8ccc-${String(i).padStart(12, "0")}`, {
+      last_message_at: iso(NOW.getTime() - (i + 1) * 60_000),
+    }),
+  );
+  const waiting = conversation(C2, {
+    last_message_at: iso(NOW.getTime() - 48 * 3600_000),
+    contacts: { ...contact, display_name: "Quinn" },
+  });
+  const morning = Array.from({ length: 45 }, (_, i) =>
+    call(`dddddddd-dddd-4ddd-8ddd-${String(i).padStart(12, "0")}`, {
+      retell_call_id: `r-${i}`,
+      started_at: iso(NOW.getTime() - (i + 1) * 60_000),
+      ...(i === 44 ? { status: "not_connected", duration_ms: null } : {}),
+    }),
+  );
+  const escalation = (id, conversation_id, created_at) => ({
+    id,
+    tenant_id: A,
+    conversation_id,
+    reason: "human_token",
+    details: "asked for a person",
+    state: "open",
+    created_at,
+  });
+  const escalations = [
+    // The quiet thread's, the oldest: an hour ago. The twenty-one inside the hundred asked in the last half hour.
+    escalation(E1, C2, iso(NOW.getTime() - 3600_000)),
+    ...hundred
+      .slice(0, 21)
+      .map((c, i) =>
+        escalation(
+          `eeeeeeee-eeee-4eee-8eee-${String(100 + i).padStart(12, "0")}`,
+          c.id,
+          iso(NOW.getTime() - (i + 1) * 60_000),
+        ),
+      ),
+  ];
+  const ctx = ctxFor(tables({ conversations: [...hundred, waiting], escalations, calls: morning }), {
+    ...RPCS,
+    metrics_summary: () => METRICS,
+  });
+  const s = scripted([
+    ROUND([
+      tool("get_today", {}),
+      tool("list_threads", { filter: "needs_you" }),
+      tool("list_threads", { filter: "recent" }, "t-recent"),
+      tool("list_calls", { filter: "missed" }),
+    ]),
+    ROUND([answer("Twenty-two people are waiting on you, and one call never connected.")]),
+  ]);
+  const { input } = turn(ctx);
+  const r = await runAskTurn(input, ports(s.round));
+  assert.equal(r.failed, false, r.failure ?? "");
+  const selects = (table) => ctx.supabase.seen.filter((q) => q.table === table && q.op === "select").length;
+  assert.deepEqual(
+    ["conversations", "calls", "escalations", "tenants"].map(selects),
+    [2, 1, 1, 0],
+    "the newest hundred once, shared; the escalated one past it once, for the Inbox; the calls and the escalations once; and no tenant: the zone is the turn's",
+  );
+  const out = Object.fromEntries(
+    s.requests[1].messages.at(-1).content.map((c) => [c.tool_use_id, JSON.parse(c.content)]),
+  );
+  const [longest] = out["t-get_today"].needs_you.rows;
+  assert.deepEqual(
+    [out["t-get_today"].needs_you.count, longest.conversation_id, longest.who],
+    [22, C2, "Unknown"],
+    "Today counts the customer waiting past the newest hundred as the Today page does, whose thread it does not read: the longest wait, first",
+  );
+  const needs = out["t-list_threads"];
+  const [first] = needs.threads;
+  assert.deepEqual(
+    [needs.total_matching, needs.threads.length, first.conversation_id, first.who, first.state],
+    [22, 20, C2, "Quinn", "needs you"],
+    "the Inbox fetches the escalated thread past the newest hundred, and needs_you keeps it first, as the page does: the cap of twenty never drops it",
+  );
+  assert.deepEqual(
+    needs.threads.slice(1).map((x) => x.conversation_id),
+    hundred.slice(0, 19).map((c) => c.id),
+    "then the hundred's own, in the Inbox's order",
+  );
+  assert.deepEqual(
+    [out["t-recent"].total_matching, out["t-recent"].threads.map((x) => x.conversation_id)],
+    [101, hundred.slice(0, 20).map((c) => c.id)],
+    "recent is the newest twenty: the old escalated thread the Inbox's rows put first is not one of them",
+  );
+  assert.deepEqual(
+    out["t-list_calls"].calls.map((x) => [x.call_id, x.outcome]),
+    [[morning[44].id, "missed"]],
+    "the forty-fifth call is read, as the Calls page reads a hundred",
   );
 });
 
