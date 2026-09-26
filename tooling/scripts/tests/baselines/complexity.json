@@ -454,11 +454,6 @@
     "branches": 58,
     "depth": 2
   },
-  "apps/dashboard/src/legacy/pages/broadcasts.jsx::BroadcastsReal#1": {
-    "lines": 659,
-    "branches": 327,
-    "depth": 5
-  },
   "apps/dashboard/src/legacy/pages/business-can.jsx::BtCanCard#1": {
     "lines": 142,
     "branches": 40,

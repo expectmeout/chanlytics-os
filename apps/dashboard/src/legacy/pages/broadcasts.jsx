@@ -154,14 +154,12 @@ const BcAudience = ({ sample, people, who, onWho }) => {
   );
 };
 
-const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes = false }) => {
-  const data = useBroadcasts();
-  const [toastNode, flash] = window.usePPToast();
-  // Who may send, approve or stop: the role store's answer, View-as included.
-  const canSend = !!(window.canDo && window.canDo("approve"));
-  const audiences = data.audiences || BC_NONE;
-  // Null: the templates read failed -- its own state, never "no template yet".
-  const templatesRead = data.templates !== null;
+// BroadcastsReal, below, calls its hooks in the order it always has, each holding one concern; plain functions work out
+// what its screens say, on every draw as before, and return the elements they draw.
+
+// What can be offered: every template this product can put on the wire, in the library's order, and of those the
+// ones whose every slot a broadcast can fill.
+const useBcOffered = (data) => {
   // Only what this product can actually put on the wire. `sendTemplate` sends the
   // body alone, so a template needing a value in a heading or a button is refused
   // by Meta for EVERY recipient -- and the composer used to offer it, pass its own
@@ -173,6 +171,11 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
   // playbook's: offered here, its time and service were typed once for everyone.
   const link = !!data.bookingLink;
   const templates = React.useMemo(() => offered.sendable.filter((t) => bcSlots(t, link) !== null), [offered, link]);
+  return { offered, link, templates };
+};
+
+// Who a send goes to, and whether the send screen is open: the send the tab kept, and the list a link names.
+const useBcList = (initialSegment, audiences) => {
   // A send half-written when the page was left: the tab kept it (useUnsavedWork), and the screen opens again on it,
   // with its list, its message and its words -- unless a link names a list, which wins the list.
   const [kept] = React.useState(() => (window.tabDraft ? window.tabDraft("broadcast") : null));
@@ -195,7 +198,12 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
     if (next) setAud(bcKey(next));
     if (initialSegment) setWriting(true);
   }, [initialSegment, audiences]);
-  const [tplId, setTplId] = React.useState(() => { if (kept && kept.tplId && templates.some((t) => t.id === kept.tplId)) return kept.tplId; const d = bcDefault(templates); return d ? d.id : ""; });
+  return { kept, aud, setAud, writing, setWriting };
+};
+
+// The words of the send, kept or fresh: the values typed into its slots and what fills each, the template it writes
+// here, its name, its time, and whether it is on its way.
+const useBcWords = (kept) => {
   const [params, setParams] = React.useState((kept && kept.params) || {});
   const [sources, setSources] = React.useState((kept && kept.sources) || {});
   // A template half-written inside the send is kept under its own kind, and opens again with the send.
@@ -207,19 +215,11 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
   // about; the list and the message are choices, and a choice alone keeps nothing. Sent, or thrown away, they clear.
   const wrote = !!name.trim() || whenAt !== null || Object.values(params).some((w) => (w || []).some((v) => String(v || "").trim()));
   const clearWords = () => { setName(""); setWhenAt(null); setParams({}); setSources({}); };
-  const work = window.useUnsavedWork("broadcast", null, {
-    value: { aud, tplId, params, sources, name, whenAt },
-    dirty: wrote,
-    onLeave: () => { clearWords(); setWriting(false); setArmed(false); },
-  });
-  // Which of the audience's people the preview is showing.
-  const [who, setWho] = React.useState(0);
-  // Which half of the history is in view: a playbook's runs, the ones sent by
-  // hand, or both. Null is both.
-  const [origin, setOrigin] = React.useState(null);
-  // The band the list is filtered to (a state), or none: everything open and the latest gone.
-  const [band, setBand] = React.useState(null);
-  // Now, for the minutes until a run goes: ticking only while a run is under an hour away.
+  return { params, setParams, sources, setSources, composing, setComposing, name, setName, whenAt, setWhenAt, busy, setBusy, wrote, clearWords };
+};
+
+// Now, for the minutes until a run goes: ticking only while a run is under an hour away.
+const useBcNow = (data) => {
   const [now, setNow] = React.useState(() => Date.now());
   React.useEffect(() => {
     const at = Date.now();
@@ -228,21 +228,21 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
     const t = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(t);
   }, [data.rows]);
-  // Whether Send now has been pressed once and is asking. A question about one
-  // template and one audience cannot be answered for another, so changing either
-  // puts the button back.
-  const [armed, setArmed] = React.useState(false);
-  // The broadcast open on the page is the one its link names (broadcasts/run:<id>); Open on a run follows that link,
-  // and its report is its own screen, as the send is.
-  const openId = initialRun;
-  const openRun = (id) => window.CHANLY.nav(id ? `broadcasts/run:${id}` : "broadcasts");
-  // A link lands on its run: its report brought into view when the page it replaced was scrolled past where it opens.
+  return now;
+};
+
+// A link lands on its run: its report brought into view when the page it replaced was scrolled past where it opens.
+const useBcRunLanding = (openId) => {
   React.useEffect(() => {
     const el = openId && typeof document !== "undefined" && document.getElementById ? document.getElementById(`bc-run-${openId}`) : null;
     if (!el || !el.getBoundingClientRect || !el.scrollIntoView) return;
     const at = el.getBoundingClientRect();
     if (at.top < 0 || at.top > window.innerHeight - 80) el.scrollIntoView({ block: "start" });
   }, [openId]);
+};
+
+// The yes: the section that gets it, open where the address or a press asks for it, and the send screen's door to it.
+const useBcYes = (initialYes, data, setWriting) => {
   // broadcasts/get-yes: the section that answers "nobody has said yes to
   // offers", opened and brought into view -- it sits on the ledger under the runs,
   // folded to its one line, where a person sent here to find the QR would otherwise
@@ -271,20 +271,12 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
   const yesDoor = data.optIn && data.optIn.link && data.getYes
     ? <>, or <button type="button" className="bc-nobody-door" onClick={toYes} data-testid="bc-nobody-door">get their yes with the phrase and the QR</button></>
     : null;
-  // The row whose stop is armed, and the one whose stop is on its way.
-  const [armId, setArmId] = React.useState(null);
-  const [stopping, setStopping] = React.useState(null);
-  const [addingStarters, setAddingStarters] = React.useState(false);
-  // Starters in review at WhatsApp: the honest line while nothing is approved yet.
-  const starterPending = (window.__TEMPLATES_ALL || BC_NONE).filter((t) => bcIsStarter(t.name) && t.meta_status === "pending").length;
-  React.useEffect(() => {
-    const d = bcDefault(templates);
-    if (!templates.some((t) => t.id === tplId) && d) setTplId(d.id);
-  }, [templates, tplId]);
-  // The armed question names a template and an audience: change either and it is
-  // no longer the question that was asked.
-  React.useEffect(() => { setArmed(false); setWho(0); }, [tplId, aud]);
+  return { yesOpen, setYesOpen, yesDoor };
+};
 
+// Who the send reaches with the message picked: the list, how many on it this message may reach, and the number it
+// goes from.
+const bcReachOf = ({ audiences, aud, templates, tplId, data }) => {
   const active = audiences.find((a) => bcKey(a) === aud) || audiences[0] || null;
   // The template comes BEFORE the counts now, because the counts depend on it.
   //
@@ -301,6 +293,11 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
   const number = data.number || null;
   const numberOk = !!(number && number.present && number.health.canSend);
   const overLimit = !!(active && number && number.health.limitPerDay !== null && activeCount > number.health.limitPerDay);
+  return { active, tpl, purpose, sizeOf, activeCount, number, numberOk, overLimit };
+};
+
+// What each slot of the message may take, and what it takes now.
+const bcSlotChoicesOf = ({ tpl, link, sources, tplId, data }) => {
   const vars = tpl && Array.isArray(tpl.variables) ? tpl.variables : [];
   const SRC = (window.__starters && window.__starters.sources) || { text: "Type it" };
   const HINTS = (window.__starters && window.__starters.sourceHints) || {};
@@ -316,6 +313,11 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
   const exampleOf = (kind) => (kind === "first_name" ? "Dani" : kind === "business_name" ? (data.businessName || "the business") : kind === "booking_link" ? "your booking link" : "");
   // Each slot's words: a starter's own, else the labels the row carries.
   const labels = tpl && window.__starters ? window.__starters.slotLabels(tpl) : vars.map((v, i) => v.label || `Value ${v.position || i + 1}`);
+  return { vars, SRC, HINTS, choices, srcOf, exampleOf, labels };
+};
+
+// The words each slot holds, what the preview shows for them, what goes out, and whether it can go.
+const bcSlotWordsOf = ({ vars, params, tplId, setParams, setSources, srcOf, data, exampleOf, labels, tpl, active, activeCount, busy, numberOk, overLimit }) => {
   const typed = vars.map((v, i) => ((params[tplId] || [])[i] || ""));
   const setTyped = (i, words) => setParams((p) => { const next = [...(p[tplId] || [])]; next[i] = words; return { ...p, [tplId]: next }; });
   const chooseSource = (i, kind) => {
@@ -330,6 +332,11 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
   const specs = vars.map((v, i) => (srcOf(i) === "text" ? typed[i].trim() : { kind: srcOf(i) }));
   const ready = !!tpl && !!active && activeCount > 0 && filled.every((v) => String(v).trim()) && !busy && numberOk && !overLimit;
   const shown = previewValues.map((v) => String(v).trim());
+  return { typed, setTyped, chooseSource, filled, previewValues, specs, ready, shown };
+};
+
+// The people behind the count, and what the line under the list says about them.
+const bcPeopleOf = ({ active, purpose, activeCount }) => {
   // Who the preview is drawing it for. The bridge keeps a handful of the rows the
   // count is a length of; a surface cached before they were published has none,
   // and then the composer shows the example values as it always did.
@@ -345,6 +352,11 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
   const yesWords = active && window.__broadcasts && window.__broadcasts.saidYesWords
     ? window.__broadcasts.saidYesWords(`“${active.label}”`, purpose, activeCount, (sample && sample.saidYes) || 0)
     : null;
+  return { sample, people, noNumber, yesWords };
+};
+
+// The one person the preview is drawn for, what they read, and when it lands.
+const bcPreviewOf = ({ people, who, shown, vars, srcOf, whenAt, data }) => {
   const person = people.length ? people[Math.min(who, people.length - 1)] : null;
   // What this person really reads. A first-name slot takes THEIR name, and the
   // words the wire uses when nobody has one -- "Hi there" (contracts
@@ -361,12 +373,55 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
   // A surface cached before the ceiling was published carries none; the route's is thirty days.
   const maxDays = data.scheduleMaxDays || 30;
   const whenNote = bcWhenNote(whenAt, maxDays);
+  return { person, forPerson, noName, personNote, goesAt, maxDays, whenNote };
+};
 
-  const rows = data.rows || [];
-  const open = rows.filter((r) => r.open);
-  const history = rows.filter((r) => !r.open);
-  const shownHistory = origin ? history.filter((r) => bcOrigin(r) === origin) : history;
+// Stop and approve, on a run: each said the moment the server takes it.
+const bcRunActs = ({ canSend, stopping, setStopping, setArmId, flash, approvingRef, setApproving }) => {
+  const cancel = async (row) => {
+    if (!window.__broadcasts || stopping || !canSend) return false;
+    setStopping(row.id);
+    // Said the moment the server takes it, from what it answered; the ledger repaints from the re-read behind it.
+    let said = false;
+    const say = (data) => {
+      said = true;
+      setStopping(null);
+      setArmId(null);
+      flash({ tone: "ok", msg: <><b>{row.name}</b> {data.was === "sending" ? "stops after this batch" : data.was === "pending_approval" ? "skipped — nothing will send" : "canceled — nothing will send"}</> });
+    };
+    const r = await window.__broadcasts.cancel(row.id, { onAccepted: say });
+    if (!r.ok) {
+      setStopping(null);
+      setArmId(null);
+      flash({ tone: "danger", msg: <>{r.message}</> });
+    } else if (!said) say(r.data);
+    return r.ok;
+  };
+  const approve = async (row) => {
+    if (!window.__broadcasts || !canSend || approvingRef.current) return false;
+    approvingRef.current = row.id;
+    setApproving(row.id);
+    // Said the moment the server takes it, from what it answered: how many, and when it really goes.
+    let said = false;
+    const say = (data) => {
+      said = true;
+      approvingRef.current = null;
+      setApproving(null);
+      flash({ tone: "ok", msg: <><b>{row.name}</b> approved — {data.recipient_count} {data.recipient_count === 1 ? "person" : "people"}, {bcWhenWords(data)}</> });
+    };
+    const r = await window.__broadcasts.approve(row.id, { onAccepted: say });
+    if (!r.ok) {
+      approvingRef.current = null;
+      setApproving(null);
+      flash({ tone: "danger", msg: <>{r.message}</> });
+    } else if (!said) say(r.data);
+    return r.ok;
+  };
+  return { cancel, approve };
+};
 
+// The send, and the starter set added from the send screen.
+const bcSendActs = ({ ready, canSend, setBusy, tpl, specs, active, whenAt, name, setArmed, flash, work, clearWords, setWriting, data, cancel, addingStarters, setAddingStarters }) => {
   const submit = async (scheduled) => {
     if (!window.__broadcasts || !ready || !canSend) return;
     setBusy(true);
@@ -406,50 +461,15 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
     setAddingStarters(false);
     flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <>{window.starterWords ? window.starterWords(r.data) : "Added"}</> : <>{r.message}</> });
   };
-  const cancel = async (row) => {
-    if (!window.__broadcasts || stopping || !canSend) return false;
-    setStopping(row.id);
-    // Said the moment the server takes it, from what it answered; the ledger repaints from the re-read behind it.
-    let said = false;
-    const say = (data) => {
-      said = true;
-      setStopping(null);
-      setArmId(null);
-      flash({ tone: "ok", msg: <><b>{row.name}</b> {data.was === "sending" ? "stops after this batch" : data.was === "pending_approval" ? "skipped — nothing will send" : "canceled — nothing will send"}</> });
-    };
-    const r = await window.__broadcasts.cancel(row.id, { onAccepted: say });
-    if (!r.ok) {
-      setStopping(null);
-      setArmId(null);
-      flash({ tone: "danger", msg: <>{r.message}</> });
-    } else if (!said) say(r.data);
-    return r.ok;
-  };
-  // One approve at a time: a second press while the first is out would be refused by the server, so the button says
-  // it is approving instead, and the guard holds before the button has drawn that.
-  const approvingRef = React.useRef(null);
-  const [approving, setApproving] = React.useState(null);
-  const approve = async (row) => {
-    if (!window.__broadcasts || !canSend || approvingRef.current) return false;
-    approvingRef.current = row.id;
-    setApproving(row.id);
-    // Said the moment the server takes it, from what it answered: how many, and when it really goes.
-    let said = false;
-    const say = (data) => {
-      said = true;
-      approvingRef.current = null;
-      setApproving(null);
-      flash({ tone: "ok", msg: <><b>{row.name}</b> approved — {data.recipient_count} {data.recipient_count === 1 ? "person" : "people"}, {bcWhenWords(data)}</> });
-    };
-    const r = await window.__broadcasts.approve(row.id, { onAccepted: say });
-    if (!r.ok) {
-      approvingRef.current = null;
-      setApproving(null);
-      flash({ tone: "danger", msg: <>{r.message}</> });
-    } else if (!said) say(r.data);
-    return r.ok;
-  };
+  return { submit, addStarters };
+};
 
+// The ledger's runs: what is open, what went, the list under the band, and the run the address opens.
+const bcLedgerOf = ({ data, origin, band, canSend, now, openRun, armId, setArmId, stopping, approving, approve, cancel, openId }) => {
+  const rows = data.rows || [];
+  const open = rows.filter((r) => r.open);
+  const history = rows.filter((r) => !r.open);
+  const shownHistory = origin ? history.filter((r) => bcOrigin(r) === origin) : history;
   // The list under the band: a band's runs when one is pressed; else everything
   // open -- what waits on you first, then what is going out, then what is to come
   // -- and the latest five gone, with the way to the rest.
@@ -476,12 +496,12 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
   // The run open on its own screen, when the list holds it: its verbs go at the head of its report. A run older than
   // the newest fifty is read by its id alone, and has finished.
   const openRow = openId ? rows.find((r) => r.id === openId) || null : null;
-  // Send it again: the send screen, filled with what this run sent -- its template, its list and its values -- when
-  // all three can still go. A template WhatsApp no longer approves or a broadcast cannot fill, a list since deleted, or
-  // a playbook's run (whose playbook sends it again) offers no button rather than a composer quietly filled with
-  // something else.
-  // A run waiting on you, open: its sheet. Where it sits among the runs waiting (the ledger's order), its playbook
-  // and its template for the words, and the acts -- which, when they land, open the next run waiting, or the ledger.
+  return { rows, open, history, shownHistory, openRows, recent, runs, sentN, runCard, openRow };
+};
+
+// A run waiting on you, open: its sheet. Where it sits among the runs waiting (the ledger's order), its playbook
+// and its template for the words, and the acts -- which, when they land, open the next run waiting, or the ledger.
+const bcSheetOf = ({ openRows, data, openRun, canSend, armId, setArmId, stopping, approving, approve, cancel }) => {
   const sheetFor = (row) => {
     if (!row || row.state !== "pending_approval") return null;
     const queue = openRows.filter((r) => r.state === "pending_approval");
@@ -506,6 +526,14 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
       skip: async () => { if (await cancel(row)) onward(); },
     };
   };
+  return { sheetFor };
+};
+
+// Send it again: the send screen, filled with what this run sent -- its template, its list and its values -- when
+// all three can still go. A template WhatsApp no longer approves or a broadcast cannot fill, a list since deleted, or
+// a playbook's run (whose playbook sends it again) offers no button rather than a composer quietly filled with
+// something else.
+const bcAgainOf = ({ canSend, templates, audiences, link, setAud, setTplId, setSources, setParams, setName, setWhenAt, setWriting, openRun }) => {
   const againFor = (b) => {
     if (!canSend || b.playbook_id) return null;
     const t = templates.find((x) => x.id === b.template_id);
@@ -536,12 +564,11 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
       </button>
     );
   };
+  return { againFor };
+};
 
-  return (
-    <div className={`bc-page${openId ? " is-report" : ""}`} data-testid="broadcasts-real">
-      <div className="bc-body">
-      {/* A run, opened: its report on a screen of its own, whether the list holds it or it is older than the list. */}
-      {openId ? (
+// The run's own screen: its report, with its verbs at the head when it is still live.
+const bcRunSolo = ({ openId, openRun, openRow, canSend, armId, setArmId, stopping, approving, approve, cancel, againFor, sheetFor }) => (
         <section className="bc-run-solo" id={`bc-run-${openId}`} data-testid="bc-run-solo">
           <BroadcastDetail
             id={openId}
@@ -553,34 +580,11 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
             sheet={sheetFor(openRow)}
           />
         </section>
-      ) : null}
+);
 
-      {/* Three questions, side by side -- who, what, when -- and the one act that
-          cannot be taken back alone at the foot. As a single column, the audience,
-          the words and the send button never appeared on the same screen: an owner
-          scrolled past the preview to reach Send, which is the wrong direction of
-          travel for the only irreversible control on the surface. */}
-      {openId ? null : writing ? (
-      <section className="bc-composer bc-send" data-testid="bc-composer">
-        {/* The one screen in Campaigns that cannot be undone, opened on its own:
-            who, what and when at once, with the people named rather than counted,
-            and the send alone at the foot. */}
-        {/* The three columns say who, what and when; the sentence that said so over them went (23 Sep). */}
-        <window.CmHead
-          title="New broadcast"
-          right={work.asking
-            ? <window.UnsavedAsk onYes={work.discard} onNo={work.stay} testid="bc-leave" />
-            : <button className="btn btn-ghost" onClick={work.leave} data-testid="bc-compose-close">Cancel</button>}
-        />
-        {composing && window.TemplateComposer && (
-          <window.TemplateComposer
-            businessName={data.businessName}
-            onCancel={() => setComposing(false)}
-            onDone={(made) => { setComposing(false); flash({ msg: <><b>{made.name}</b> submitted — WhatsApp reviews it; it appears here once approved</> }); }}
-          />
-        )}
-        <div className="bc-cols">
-
+// Who: the lists as chips with the count this message reaches on each, the people behind the count, and why anyone
+// on it is held back.
+const bcColWho = ({ audiences, active, sizeOf, setAud, data, sample, people, who, setWho, yesWords, purpose, overLimit, number, activeCount, canSend, noNumber, yesDoor }) => (
           <div className="bc-col" data-testid="bc-col-who">
             <span className="bc-col-label">Who</span>
             <div className="bc-chips" style={{ flexWrap: "wrap" }}>
@@ -621,7 +625,13 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
               </div>
             )}
           </div>
+);
 
+// What: the messages as chips (or why there are none), each slot and what fills it, and the message as this person
+// reads it.
+const bcColWhat = (v) => {
+  const { templatesRead, templates, starterPending, addingStarters, addStarters, tplId, setTplId, setComposing, offered, tpl, data, forPerson, goesAt, person, people, sample, who, setWho, personNote, noName } = v;
+  return (
           <div className="bc-col bc-col-what" data-testid="bc-col-what">
             <span className="bc-col-label">What</span>
             <div className="bc-chips" style={{ flexWrap: "wrap" }}>
@@ -644,7 +654,27 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
             {offered.why && <div className="bc-excl-hint warn" data-testid="bc-blocked">{offered.why}</div>}
             {/* Each slot on one line, as on a playbook: what it is, what fills it, and
                 a choice only where it has one. */}
-            {tpl && vars.length > 0 && (
+            {bcSlotFills(v)}
+            {tpl && (
+              <div className="bc-preview-wrap" data-testid="bc-preview">
+                <window.MessagePreview from={data.businessName} body={tpl.body_preview} values={forPerson} header={tpl.header} footer={bcFooter(tpl)} buttons={tpl.buttons} at={goesAt} held={person ? person.refusal : null}>
+                  <window.PreviewStepper
+                    people={people.map((x, i) => ({ label: x.label, position: x.refusal ? "held back" : `${i + 1} of ${sample.sending}` }))}
+                    index={Math.min(who, Math.max(people.length - 1, 0))}
+                    onStep={setWho}
+                    note={personNote}
+                    tone={person && (person.refusal || noName) ? "warn" : null}
+                  />
+                </window.MessagePreview>
+              </div>
+            )}
+          </div>
+  );
+};
+
+// Each slot on its line: its label, what fills it (typed, or said in words), and the choice where it has one.
+const bcSlotFills = ({ tpl, vars, srcOf, choices, HINTS, labels, typed, data, setTyped, SRC, chooseSource }) => (
+            tpl && vars.length > 0 && (
               <div className="pb-fills" data-testid="bc-vars">
                 {vars.map((v, i) => {
                   const src = srcOf(i);
@@ -673,22 +703,11 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
                   );
                 })}
               </div>
-            )}
-            {tpl && (
-              <div className="bc-preview-wrap" data-testid="bc-preview">
-                <window.MessagePreview from={data.businessName} body={tpl.body_preview} values={forPerson} header={tpl.header} footer={bcFooter(tpl)} buttons={tpl.buttons} at={goesAt} held={person ? person.refusal : null}>
-                  <window.PreviewStepper
-                    people={people.map((x, i) => ({ label: x.label, position: x.refusal ? "held back" : `${i + 1} of ${sample.sending}` }))}
-                    index={Math.min(who, Math.max(people.length - 1, 0))}
-                    onStep={setWho}
-                    note={personNote}
-                    tone={person && (person.refusal || noName) ? "warn" : null}
-                  />
-                </window.MessagePreview>
-              </div>
-            )}
-          </div>
+            )
+);
 
+// When: the time box by the business's clock, what that time means, and the number it goes from.
+const bcColWhen = ({ whenAt, maxDays, setWhenAt, whenNote, number }) => (
           <div className="bc-col" data-testid="bc-col-when">
             <span className="bc-col-label">When</span>
             <BcWhenBox at={whenAt} maxDays={maxDays} onChange={setWhenAt} />
@@ -701,6 +720,37 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
             )}
             {number && number.present && !number.health.canSend && <div className="bc-excl-hint" data-testid="bc-number-refusal">{number.health.refusal}</div>}
           </div>
+);
+
+// The send screen: who, what and when side by side, and the send alone at the foot.
+const bcComposer = (v) => {
+  const { work, composing, data, setComposing, flash, name, setName, canSend, armed, ready, whenNote, submit, setArmed, active, activeCount, tpl, busy } = v;
+  return (
+      <section className="bc-composer bc-send" data-testid="bc-composer">
+        {/* The one screen in Campaigns that cannot be undone, opened on its own:
+            who, what and when at once, with the people named rather than counted,
+            and the send alone at the foot. */}
+        {/* The three columns say who, what and when; the sentence that said so over them went (23 Sep). */}
+        <window.CmHead
+          title="New broadcast"
+          right={work.asking
+            ? <window.UnsavedAsk onYes={work.discard} onNo={work.stay} testid="bc-leave" />
+            : <button className="btn btn-ghost" onClick={work.leave} data-testid="bc-compose-close">Cancel</button>}
+        />
+        {composing && window.TemplateComposer && (
+          <window.TemplateComposer
+            businessName={data.businessName}
+            onCancel={() => setComposing(false)}
+            onDone={(made) => { setComposing(false); flash({ msg: <><b>{made.name}</b> submitted — WhatsApp reviews it; it appears here once approved</> }); }}
+          />
+        )}
+        <div className="bc-cols">
+
+          {bcColWho(v)}
+
+          {bcColWhat(v)}
+
+          {bcColWhen(v)}
         </div>
 
         <div className="bc-foot">
@@ -729,8 +779,13 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
           </div>
         </div>
       </section>
+  );
+};
 
-      ) : (
+// The ledger: one line of the runs by state and what went, the week ahead, the runs, and the section that gets a yes.
+const bcLedger = (v) => {
+  const { rows, band, setBand, data, origin, setOrigin, setWriting, now, runs, runCard, sentN, recent } = v;
+  return (
         <>
           {/* One line, the way every Campaigns tab opens: the tab says "Broadcasts", so
               the name is a screen reader's alone (CmHead quiet). The line is the runs
@@ -768,7 +823,14 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
               testid="bc-empty"
             />
           )}
-      {data.optIn && data.optIn.link && (
+      {bcOptIn(v)}
+        </>
+  );
+};
+
+// Get their yes: the QR and the phrase, folded to its one line under the runs.
+const bcOptIn = ({ data, yesOpen, setYesOpen, flash }) => (
+      data.optIn && data.optIn.link && (
         <section id="bc-optin" className="ct-section bc-optin" data-testid="bc-optin">
           {/* Folded to its one line under the runs, open where the address asks for it (broadcasts/get-yes, which
               every "nobody has said yes to offers" door lands on) or a press opens it. Open on every visit, it
@@ -804,9 +866,88 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
           </div>
           </details>
         </section>
-      )}
-        </>
-      )}
+      )
+);
+
+const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes = false }) => {
+  const data = useBroadcasts();
+  const [toastNode, flash] = window.usePPToast();
+  // Who may send, approve or stop: the role store's answer, View-as included.
+  const canSend = !!(window.canDo && window.canDo("approve"));
+  const audiences = data.audiences || BC_NONE;
+  // Null: the templates read failed -- its own state, never "no template yet".
+  const templatesRead = data.templates !== null;
+  const { offered, link, templates } = useBcOffered(data);
+  const { kept, aud, setAud, writing, setWriting } = useBcList(initialSegment, audiences);
+  const [tplId, setTplId] = React.useState(() => { if (kept && kept.tplId && templates.some((t) => t.id === kept.tplId)) return kept.tplId; const d = bcDefault(templates); return d ? d.id : ""; });
+  const { params, setParams, sources, setSources, composing, setComposing, name, setName, whenAt, setWhenAt, busy, setBusy, wrote, clearWords } = useBcWords(kept);
+  const work = window.useUnsavedWork("broadcast", null, {
+    value: { aud, tplId, params, sources, name, whenAt },
+    dirty: wrote,
+    onLeave: () => { clearWords(); setWriting(false); setArmed(false); },
+  });
+  // Which of the audience's people the preview is showing.
+  const [who, setWho] = React.useState(0);
+  // Which half of the history is in view: a playbook's runs, the ones sent by
+  // hand, or both. Null is both.
+  const [origin, setOrigin] = React.useState(null);
+  // The band the list is filtered to (a state), or none: everything open and the latest gone.
+  const [band, setBand] = React.useState(null);
+  const now = useBcNow(data);
+  // Whether Send now has been pressed once and is asking. A question about one
+  // template and one audience cannot be answered for another, so changing either
+  // puts the button back.
+  const [armed, setArmed] = React.useState(false);
+  // The broadcast open on the page is the one its link names (broadcasts/run:<id>); Open on a run follows that link,
+  // and its report is its own screen, as the send is.
+  const openId = initialRun;
+  const openRun = (id) => window.CHANLY.nav(id ? `broadcasts/run:${id}` : "broadcasts");
+  useBcRunLanding(openId);
+  const { yesOpen, setYesOpen, yesDoor } = useBcYes(initialYes, data, setWriting);
+  // The row whose stop is armed, and the one whose stop is on its way.
+  const [armId, setArmId] = React.useState(null);
+  const [stopping, setStopping] = React.useState(null);
+  const [addingStarters, setAddingStarters] = React.useState(false);
+  // Starters in review at WhatsApp: the honest line while nothing is approved yet.
+  const starterPending = (window.__TEMPLATES_ALL || BC_NONE).filter((t) => bcIsStarter(t.name) && t.meta_status === "pending").length;
+  React.useEffect(() => {
+    const d = bcDefault(templates);
+    if (!templates.some((t) => t.id === tplId) && d) setTplId(d.id);
+  }, [templates, tplId]);
+  // The armed question names a template and an audience: change either and it is
+  // no longer the question that was asked.
+  React.useEffect(() => { setArmed(false); setWho(0); }, [tplId, aud]);
+
+  // What the screens say, worked out on every draw as it always was; then the acts, the runs and a run's sheet.
+  const v = { data, flash, canSend, audiences, templatesRead, offered, link, templates, aud, setAud, setWriting, tplId, setTplId, params, setParams, sources, setSources, composing, setComposing, name, setName, whenAt, setWhenAt, busy, setBusy, clearWords, work, who, setWho, origin, setOrigin, band, setBand, now, armed, setArmed, openId, openRun, yesOpen, setYesOpen, yesDoor, armId, setArmId, stopping, setStopping, addingStarters, setAddingStarters, starterPending };
+  Object.assign(v, bcReachOf(v));
+  Object.assign(v, bcSlotChoicesOf(v));
+  Object.assign(v, bcSlotWordsOf(v));
+  Object.assign(v, bcPeopleOf(v));
+  Object.assign(v, bcPreviewOf(v));
+  // One approve at a time: a second press while the first is out would be refused by the server, so the button says
+  // it is approving instead, and the guard holds before the button has drawn that.
+  const approvingRef = React.useRef(null);
+  const [approving, setApproving] = React.useState(null);
+  Object.assign(v, { approvingRef, approving, setApproving });
+  Object.assign(v, bcRunActs(v));
+  Object.assign(v, bcSendActs(v));
+  Object.assign(v, bcLedgerOf(v));
+  Object.assign(v, bcSheetOf(v));
+  Object.assign(v, bcAgainOf(v));
+
+  return (
+    <div className={`bc-page${openId ? " is-report" : ""}`} data-testid="broadcasts-real">
+      <div className="bc-body">
+      {/* A run, opened: its report on a screen of its own, whether the list holds it or it is older than the list. */}
+      {openId ? bcRunSolo(v) : null}
+
+      {/* Three questions, side by side -- who, what, when -- and the one act that
+          cannot be taken back alone at the foot. As a single column, the audience,
+          the words and the send button never appeared on the same screen: an owner
+          scrolled past the preview to reach Send, which is the wrong direction of
+          travel for the only irreversible control on the surface. */}
+      {openId ? null : writing ? bcComposer(v) : bcLedger(v)}
       </div>
 
       {toastNode}
