@@ -1762,6 +1762,22 @@ its owner, with its sends planned.
 >   tries it again.
 > - **The context's reads are its own and light.** Unlike the moments', it never reads People. A read that fails is
 >   this step's error for the tick. A missing outreach row reads as `ask`, and a missing billing row as may-not-spend.
+> - **PR 4's review.** Its fixes are in the second commit, with a migration of the PR's own: **00185**. The migration
+>   numbers after it move up one: **PR 5's is 00186 and PR 7's is 00187.**
+>   - **The run is written whole** (`reach_out_plan_run`), under its own id (`reachOutRunIdFor`, from its step and its
+>     day). A run made with nothing planned would hold its chain for good.
+>   - **The followers are filtered before their limit.** A refused follower no longer heads every day's page while the
+>     eligible ones behind it wait.
+>   - **A refused or never-open lead is skipped with why** in the run, so it leaves the page. The audience is read at
+>     twice the step's share for the same reason.
+>   - **A run that waits holds its chain** (`chainState` puts waiting first), so unanswered runs under `ask` do not pile
+>     up.
+>   - **A veto run is on the record.** It carries the system's decision and a `playbook.run` event.
+>   - **Approval keeps the first send's time.**
+>   - **The run is named with its day.**
+>   - **A step that cannot run moves to the back of the page, with its day left open.** The backlog alarm counts both
+>     pages.
+>   - `uuidV5` is shared with the lead runner.
 
 ### Task 4.1: The ids
 

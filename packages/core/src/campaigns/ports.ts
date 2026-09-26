@@ -193,6 +193,8 @@ export interface BroadcastRef {
   run_for?: string | null;
   /** Who the run is for; a reach-out's says so (contracts isReachOutRun). */
   audience?: unknown;
+  /** When it is set to go: a reach-out's first send. */
+  scheduled_for?: string | null;
 }
 
 /** A list as a send reads it: its people, or why it can't be counted. */

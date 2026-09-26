@@ -69,8 +69,10 @@ export async function POST(request: Request): Promise<Response> {
       out[r.outcome] += 1;
     }
   }
-  // Reach-outs (Part 3): each step on its day and hour, as a moment is, through its own verb. A step whose run throws is
-  // counted failed and not stamped, so the next hour tries it again.
+  // Reach-outs (Part 3): each step on its day and hour, as a moment is, through its own verb. A step that ran is stamped
+  // for the day. One that could not (its workspace paused, its chain broken, a read or a write that failed) keeps its
+  // day open, so the next hour tries it again, but moves to the back of the page: it never holds a place a step that
+  // can run is waiting for.
   const reach = await reachOutsDue(db, PLAYBOOKS_PER_TICK).catch((e: unknown) => {
     L.error("reach_outs_read_failed", { error: e instanceof Error ? e.message : String(e) });
     return { rows: [], remaining: 0 };
@@ -91,6 +93,7 @@ export async function POST(request: Request): Promise<Response> {
     if (!runDueNow(row as unknown as PlaybookDto, tz, now)) continue;
     out.due += 1;
     const runFor = localDate(tz, now);
+    const tried = () => db.from("playbooks").update({ last_run_at: now.toISOString() }).eq("id", row.id);
     try {
       const ctx = await reachOutRunContext(db, row, now);
       if ("error" in ctx) {
@@ -99,6 +102,7 @@ export async function POST(request: Request): Promise<Response> {
           L.error("reach_out_context_failed", { playbook_id: row.id, error: ctx.error });
           out.failed += 1;
         }
+        await tried();
         continue;
       }
       const r = await runReachOut(ctx.ports, ctx.step, { runFor });
@@ -108,6 +112,7 @@ export async function POST(request: Request): Promise<Response> {
     } catch (e) {
       L.error("reach_out_run_failed", { playbook_id: row.id, error: e instanceof Error ? e.message : String(e) });
       out.failed += 1;
+      await tried();
     }
   }
   // `remaining` counts RUNNING playbooks past the page, and due-ness is judged
@@ -126,7 +131,7 @@ export async function POST(request: Request): Promise<Response> {
   // `playbooksDue` can exclude what already ran today (`last_run_for`), but
   // "not yet at its hour" is per-tenant-timezone and needs the query to know
   // the zone. Until then the sweep is loud rather than deaf.
-  const backlog = await noteBacklog(db, "playbooks", page.remaining);
+  const backlog = await noteBacklog(db, "playbooks", page.remaining + reach.remaining);
   L.info("playbooks_swept", { ...out, backlog_ticks: backlog.ticks });
   // Three consecutive ticks with playbooks left unread is a campaign nobody
   // sent. sweep_health turns that red and mails the platform.

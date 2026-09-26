@@ -5163,6 +5163,10 @@ export type Database = {
         Args: { p_lead_id: string; p_tenant_id: string }
         Returns: Json
       }
+      reach_out_plan_run: {
+        Args: { p_run: Json; p_sends: Json }
+        Returns: Json
+      }
       release_conversation_control: {
         Args: {
           p_by: string

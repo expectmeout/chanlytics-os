@@ -6,8 +6,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   domainCapacityOf,
+  emitEvent,
   listPolicies,
-  planSends,
   reachOutAudience,
   reachOutFollowers,
   type Database,
@@ -23,6 +23,7 @@ import {
 } from "../packages/contracts.js";
 import { notify } from "../ops/notify.js";
 import { loadTenantNotifications } from "../tenant-runtime.js";
+import { logger } from "../log.js";
 
 type Db = SupabaseClient<Database>;
 export type ReachOutRow = Database["public"]["Tables"]["playbooks"]["Row"];
@@ -135,11 +136,13 @@ export async function reachOutRunContext(
         .in("state", ["pending_approval", "scheduled", "sending", "sent"]);
       if (error) throw new Error(`cannot read the chain's runs: ${error.message}`);
       const states = (data ?? []).map((r) => r.state);
-      if (states.some((s) => s !== "pending_approval")) return "approved";
-      return states.length > 0 ? "waiting" : "none";
+      // A run waiting for its owner holds the chain, whichever run it is: under ask they would pile up unanswered.
+      if (states.includes("pending_approval")) return "waiting";
+      return states.length > 0 ? "approved" : "none";
     },
+    // Twice the step's share: a lead the run skips (no open hour all week) leaves room for the next, not a short day.
     audience: (s) =>
-      reachOutAudience(db, { tenantId, searchId: s.lead_search_id ?? "", rootId: s.root_id, limit: s.cap_per_run }),
+      reachOutAudience(db, { tenantId, searchId: s.lead_search_id ?? "", rootId: s.root_id, limit: s.cap_per_run * 2 }),
     followers: (s) =>
       reachOutFollowers(db, {
         tenantId,
@@ -160,18 +163,47 @@ export async function reachOutRunContext(
       }
       return out;
     },
-    createRun: async (run) => {
-      const { data, error } = await db
-        .from("broadcasts")
-        .insert({ ...run, audience: run.audience as unknown as Json })
-        .select("id")
-        .single();
-      // broadcasts_playbook_run: one run per step per day. Another tick made it first.
-      if (error?.code === "23505") return "exists";
-      if (error || !data) throw new Error(`cannot make the step's run: ${error?.message ?? "no row"}`);
-      return { id: data.id };
+    planRun: async (run, sends) => {
+      const { data, error } = await db.rpc("reach_out_plan_run", {
+        p_run: run as unknown as Json,
+        p_sends: sends as unknown as Json,
+      } as never);
+      if (error) throw new Error(`cannot plan the step's run: ${error.message}`);
+      const r = (data ?? {}) as { id?: string; exists?: boolean };
+      if (r.exists) return "exists";
+      if (!r.id) throw new Error("cannot plan the step's run: no run came back");
+      return { id: r.id };
     },
-    planSends: (rows) => planSends(db, rows),
+    recordRun: async (run, counts) => {
+      const data = { run_for: run.run_for, broadcast_id: run.id, state: run.state, ...counts, reach_out: true };
+      await emitEvent(db, tenantId, "playbook.run", "message", "playbook", run.playbook_id, data as Json).catch(
+        () => {},
+      );
+      // Scheduled without its owner's yes: the system's decision, under the mode the owner chose (veto).
+      if (run.state === "scheduled") {
+        const { error } = await db.from("decisions").insert({
+          tenant_id: tenantId,
+          subject_type: "broadcast",
+          subject_id: run.id,
+          verb: "send_broadcast",
+          actor_type: "system",
+          actor_user_id: null,
+          payload: {
+            name: run.name,
+            playbook_id: run.playbook_id,
+            recipients: run.recipient_count,
+            mode: mode,
+            reach_out: true,
+          } as Json,
+        });
+        // The run is whole already: a decision that could not be written is said, never the run's failure.
+        if (error)
+          logger({ tenant_id: tenantId }).error("reach_out_decision_unwritten", {
+            broadcast_id: run.id,
+            error: error.message,
+          });
+      }
+    },
     notifyWaiting: async (runId, planned, firstAt) => {
       const target = await loadTenantNotifications(db, tenantId);
       await notify(

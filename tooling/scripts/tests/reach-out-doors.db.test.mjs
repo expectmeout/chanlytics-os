@@ -569,7 +569,7 @@ test("two claims make one person for one address at once: the other is refused, 
 });
 
 test(
-  "a step's followers: sent the step before long enough ago, not on this step yet, with the door's facts and any bounce",
+  "a step's followers: sent the step before long enough ago, not on this step yet, and only those the door would write to (00185)",
   { skip },
   async () => {
     const d = await domainRow();
@@ -629,10 +629,11 @@ test(
       [due.contact_id, due.message, false, false],
     );
     assert.equal(by[due.lead].facts.lead_stage, "ready", "the door's own answer, keyed by the lead");
-    assert.equal(by[bounced.lead].bounced, true, "any bounce in the chain stops it (C4); the caller drops it");
-    assert.equal(by[failed.lead].bounced, true, "an email that failed for good stops it too");
+    // 00185: one the door would refuse never comes back to hold a place at the head of the page.
+    assert.ok(!by[bounced.lead], "any bounce in the chain stops it (C4)");
+    assert.ok(!by[failed.lead], "an email that failed for good stops it too");
     assert.ok(!by[erased.lead], "an erased email has no follower");
-    assert.equal(by[wrote.lead].facts.wrote_back, true, "a reply stops it; the caller drops it");
+    assert.ok(!by[wrote.lead], "a reply stops it");
     assert.deepEqual(
       ok(
         await db.rpc("reach_out_followers", {

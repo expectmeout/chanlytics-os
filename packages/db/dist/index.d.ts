@@ -5474,6 +5474,13 @@ type Database = {
                 };
                 Returns: Json;
             };
+            reach_out_plan_run: {
+                Args: {
+                    p_run: Json;
+                    p_sends: Json;
+                };
+                Returns: Json;
+            };
             release_conversation_control: {
                 Args: {
                     p_by: string;

@@ -41,6 +41,8 @@ export interface ReachOutFollower extends ReachOutLead {
 }
 
 export interface NewReachOutRun {
+  /** Its step and its day (reachOutRunIdFor): a replay meets its own run. */
+  id: string;
   tenant_id: string;
   playbook_id: string;
   run_for: string;
@@ -54,7 +56,11 @@ export interface NewReachOutRun {
   audience: { kind: "reach_out"; root_id: string; step_id: string; search_id: string | null };
 }
 
-export interface PlannedSend {
+/**
+ * One lead in a run: planned, with its time and domain; or skipped, with why, so a lead the step may never write to
+ * (the door refuses it, or it keeps no open hour all week) leaves the step's page rather than heading it every day.
+ */
+export type PlannedSend = {
   id: string;
   tenant_id: string;
   broadcast_id: string;
@@ -62,10 +68,10 @@ export interface PlannedSend {
   root_id: string;
   lead_id: string;
   contact_id: string | null;
-  domain_id: string;
-  send_at: string;
-  state: "planned";
-}
+} & (
+  | { state: "planned"; domain_id: string; send_at: string; reason?: null }
+  | { state: "skipped"; domain_id: null; send_at: null; reason: string }
+);
 
 export interface ReachOutRunPorts {
   now(): number;
@@ -76,15 +82,25 @@ export interface ReachOutRunPorts {
   /** Whether the workspace may spend (contracts maySpend): cold email is a cost on the platform's account. */
   maySpend: boolean;
   alreadyRan(stepId: string, runFor: string): Promise<boolean>;
-  /** none: no run of the chain was ever approved or sent; waiting: its first run waits; approved: one went ahead. */
+  /**
+   * waiting: a run of the chain waits for its owner (its first, or any under ask), and nothing more is made until they
+   * answer it; approved: one went ahead without its owner's yes being owed; none: neither, so the next run asks.
+   */
   chainState(rootId: string): Promise<"none" | "waiting" | "approved">;
   audience(step: ReachOutStep): Promise<ReachOutLead[]>;
   followers(step: ReachOutStep): Promise<ReachOutFollower[]>;
   /** The step's verified domains, each with its day's share and the times it already spends (db capacity). */
   domains(step: ReachOutStep): Promise<TimetableDomain[]>;
-  /** "exists" when this step already has a run for the day (broadcasts_playbook_run). */
-  createRun(row: NewReachOutRun): Promise<{ id: string } | "exists">;
-  planSends(rows: PlannedSend[]): Promise<void>;
+  /**
+   * The run and its sends, written whole (db reach_out_plan_run): never a run with nothing planned in it. "exists" when
+   * this step already has its run for the day.
+   */
+  planRun(run: NewReachOutRun, sends: PlannedSend[]): Promise<{ id: string } | "exists">;
+  /**
+   * The run, on the record: its event, and when it goes without its owner's yes, the system's decision under the mode
+   * the owner chose (as a moment's run records one). An owner's yes records theirs when they approve it.
+   */
+  recordRun(run: NewReachOutRun, counts: { planned: number; skipped: number }): Promise<void>;
   notifyWaiting(runId: string, planned: number, firstAt: number): Promise<void>;
 }
 

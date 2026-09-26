@@ -11806,9 +11806,10 @@ async function approveRun(ports, cmd) {
   };
 }
 async function approveReachOut(ports, b, now) {
-  if (!await ports.release(b.id, now))
-    throw new AppError("conflict", "This run just changed state; look again.", 409);
-  const scheduledFor = now.toISOString();
+  const first = b.scheduled_for ? Date.parse(b.scheduled_for) : NaN;
+  const at = Number.isFinite(first) && first > now.getTime() ? new Date(first) : now;
+  if (!await ports.release(b.id, at)) throw new AppError("conflict", "This run just changed state; look again.", 409);
+  const scheduledFor = at.toISOString();
   const decision_id = await ports.record("broadcast", b.id, "send_broadcast", {
     name: b.name,
     playbook_id: b.playbook_id,
@@ -11909,18 +11910,22 @@ async function checkPlaybook(ports, body) {
   };
 }
 
-// src/campaigns/reach-out-ids.ts
+// src/uuid-v5.ts
 var enc3 = new TextEncoder();
 var hex = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
-async function v5(name) {
+async function uuidV5(name) {
   const h = hex(await crypto.subtle.digest("SHA-1", enc3.encode(name)));
   const v = `${h.slice(0, 12)}5${h.slice(13, 16)}${(parseInt(h.slice(16, 17), 16) & 3 | 8).toString(16)}${h.slice(17, 32)}`;
   return `${v.slice(0, 8)}-${v.slice(8, 12)}-${v.slice(12, 16)}-${v.slice(16, 20)}-${v.slice(20, 32)}`;
 }
-var sendIdFor = (runId, leadId) => v5(`reach_out_send:${runId}:${leadId}`);
-var sendMessageId = (sendId, attempt) => v5(`reach_out_email:${sendId}:${attempt}`);
+
+// src/campaigns/reach-out-ids.ts
+var reachOutRunIdFor = (stepId, runFor) => uuidV5(`reach_out_run:${stepId}:${runFor}`);
+var sendIdFor = (runId, leadId) => uuidV5(`reach_out_send:${runId}:${leadId}`);
+var sendMessageId = (sendId, attempt) => uuidV5(`reach_out_email:${sendId}:${attempt}`);
 
 // src/campaigns/run-reach-out.ts
+var neverOpen = (week) => Object.values(sendWindowsOf(week)).every((w) => w.length === 0);
 async function runReachOut(ports, step, cmd) {
   if (step.state !== "running") return { outcome: "off", reason: "paused", planned: 0 };
   if (ports.mode === "never") return { outcome: "off", reason: "never", planned: 0 };
@@ -11929,17 +11934,23 @@ async function runReachOut(ports, step, cmd) {
   const chain = await ports.chainState(step.root_id);
   if (chain === "waiting") return { outcome: "held", reason: "waiting_for_you", planned: 0 };
   const asks = chain === "none" || ports.mode === "ask";
-  let leads;
+  const skips = [];
+  let leads = [];
   if (step.trigger === "lead_first") leads = await ports.audience(step);
   else
-    leads = (await ports.followers(step)).filter(
-      (f) => !f.bounced && outreachRefusalOf({
+    for (const f of await ports.followers(step)) {
+      const refused = f.bounced ? "outreach_bounced" : outreachRefusalOf({
         leadStage: f.facts.lead_stage,
         suppressed: f.facts.suppressed,
         wroteBack: f.facts.wrote_back
-      }) === null
-    );
-  leads = leads.slice(0, step.cap_per_run);
+      });
+      if (refused) skips.push({ lead: f, reason: refused });
+      else leads.push(f);
+    }
+  const weeks = new Map(leads.map((l) => [l.lead_id, weekHoursOf(l.hours).week]));
+  for (const l of leads) if (neverOpen(weeks.get(l.lead_id))) skips.push({ lead: l, reason: "closed_every_day" });
+  const skipped = new Set(skips.map((s) => s.lead.lead_id));
+  leads = leads.filter((l) => !skipped.has(l.lead_id)).slice(0, step.cap_per_run);
   if (leads.length === 0) return { outcome: "empty", reason: "nobody", planned: 0 };
   const domains = (await ports.domains(step)).filter((d) => d.cap > 0);
   if (domains.length === 0) return { outcome: "held", reason: "no_domain", planned: 0 };
@@ -11948,7 +11959,7 @@ async function runReachOut(ports, step, cmd) {
     sends: leads.map((l) => ({
       id: l.lead_id,
       zone: zoneOfRegion(l.region) ?? ports.workspaceZone,
-      week: weekHoursOf(l.hours).week
+      week: weeks.get(l.lead_id)
     })),
     domains,
     gapMinutes: step.gap_minutes,
@@ -11956,41 +11967,62 @@ async function runReachOut(ports, step, cmd) {
   });
   if (plan.placed.length === 0) return { outcome: "held", reason: "no_room", planned: 0 };
   const firstAt = Math.min(...plan.placed.map((p) => p.sendAtMs));
-  const run = await ports.createRun({
+  const run = {
+    id: await reachOutRunIdFor(step.id, cmd.runFor),
     tenant_id: step.tenant_id,
     playbook_id: step.id,
     run_for: cmd.runFor,
-    name: step.name,
+    // A day's run, named for its day as a moment's is.
+    name: `${step.name} \xB7 ${cmd.runFor}`,
     template_id: step.template_id,
     template_name: step.template_name,
     template_language: step.template_language,
     state: asks ? "pending_approval" : "scheduled",
     scheduled_for: new Date(firstAt).toISOString(),
     recipient_count: plan.placed.length,
-    audience: { kind: "reach_out", root_id: step.root_id, step_id: step.id, search_id: step.lead_search_id }
-  });
-  if (run === "exists") return { outcome: "empty", reason: "already_ran", planned: 0 };
-  const contactOf = new Map(leads.map((l) => [l.lead_id, l.contact_id ?? null]));
-  const sends = await Promise.all(
-    plan.placed.map(async (p) => ({
-      id: await sendIdFor(run.id, p.id),
-      tenant_id: step.tenant_id,
-      broadcast_id: run.id,
-      playbook_id: step.id,
+    audience: {
+      kind: "reach_out",
       root_id: step.root_id,
-      lead_id: p.id,
-      contact_id: contactOf.get(p.id) ?? null,
-      domain_id: p.domainId,
-      send_at: new Date(p.sendAtMs).toISOString(),
-      state: "planned"
-    }))
-  );
-  await ports.planSends(sends);
+      step_id: step.id,
+      search_id: step.lead_search_id
+    }
+  };
+  const contactOf = new Map([...leads, ...skips.map((s) => s.lead)].map((l) => [l.lead_id, l.contact_id ?? null]));
+  const row = async (leadId) => ({
+    id: await sendIdFor(run.id, leadId),
+    tenant_id: step.tenant_id,
+    broadcast_id: run.id,
+    playbook_id: step.id,
+    root_id: step.root_id,
+    lead_id: leadId,
+    contact_id: contactOf.get(leadId) ?? null
+  });
+  const sends = [
+    ...await Promise.all(
+      plan.placed.map(async (p) => ({
+        ...await row(p.id),
+        state: "planned",
+        domain_id: p.domainId,
+        send_at: new Date(p.sendAtMs).toISOString()
+      }))
+    ),
+    ...await Promise.all(
+      skips.map(async (s) => ({
+        ...await row(s.lead.lead_id),
+        state: "skipped",
+        domain_id: null,
+        send_at: null,
+        reason: s.reason
+      }))
+    )
+  ];
+  if (await ports.planRun(run, sends) === "exists") return { outcome: "empty", reason: "already_ran", planned: 0 };
+  await ports.recordRun(run, { planned: plan.placed.length, skipped: skips.length });
   if (asks) {
-    await ports.notifyWaiting(run.id, sends.length, firstAt);
-    return { outcome: "held", reason: "waiting_for_you", planned: sends.length };
+    await ports.notifyWaiting(run.id, plan.placed.length, firstAt);
+    return { outcome: "held", reason: "waiting_for_you", planned: plan.placed.length };
   }
-  return { outcome: "sent", planned: sends.length };
+  return { outcome: "sent", planned: plan.placed.length };
 }
 
 // src/leads/zcta-centroids.json
@@ -45444,9 +45476,7 @@ async function sha256Hex2(s) {
   return hex2(await crypto.subtle.digest("SHA-256", enc4.encode(s)));
 }
 async function runIdFor(roundId, phase, term) {
-  const h = hex2(await crypto.subtle.digest("SHA-1", enc4.encode(`lead_run:${roundId}:${phase}:${term}`)));
-  const v = `${h.slice(0, 12)}5${h.slice(13, 16)}${(parseInt(h.slice(16, 17), 16) & 3 | 8).toString(16)}${h.slice(17, 32)}`;
-  return `${v.slice(0, 8)}-${v.slice(8, 12)}-${v.slice(12, 16)}-${v.slice(16, 20)}-${v.slice(20, 32)}`;
+  return uuidV5(`lead_run:${roundId}:${phase}:${term}`);
 }
 
 // src/leads/judge.ts
@@ -47428,6 +47458,7 @@ export {
   probeYield,
   provisionLine,
   radiusFromSpread,
+  reachOutRunIdFor,
   reconcileUnknownRuns,
   rejudgeProbe,
   replyPosture,

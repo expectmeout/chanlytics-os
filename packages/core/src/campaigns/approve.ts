@@ -77,13 +77,15 @@ export async function approveRun(
 }
 
 /**
- * A reach-out's run, approved: released now, with no broadcast job. Its sends keep their own times, and the reach-out
- * clock claims each when it is due (planning again one that went stale while the run waited).
+ * A reach-out's run, approved: released with no broadcast job. Its sends keep their own times, and the reach-out clock
+ * claims each when it is due (planning again one that went stale while the run waited), so the run says when its first
+ * email goes, or now when that time has passed.
  */
 async function approveReachOut(ports: ApproveRunPorts, b: BroadcastRef, now: Date): Promise<ApproveReceipt> {
-  if (!(await ports.release(b.id, now)))
-    throw new AppError("conflict", "This run just changed state; look again.", 409);
-  const scheduledFor = now.toISOString();
+  const first = b.scheduled_for ? Date.parse(b.scheduled_for) : NaN;
+  const at = Number.isFinite(first) && first > now.getTime() ? new Date(first) : now;
+  if (!(await ports.release(b.id, at))) throw new AppError("conflict", "This run just changed state; look again.", 409);
+  const scheduledFor = at.toISOString();
   const decision_id = await ports.record("broadcast", b.id, "send_broadcast", {
     name: b.name,
     playbook_id: b.playbook_id,
