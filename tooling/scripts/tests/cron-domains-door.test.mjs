@@ -48,6 +48,7 @@ const domain = (id, over = {}) => ({
   created_by: null,
   created_at: ago(21 * DAY),
   updated_at: ago(10 * 60_000),
+  sent_days: null,
   ...over,
 });
 
@@ -86,7 +87,7 @@ beforeEach(() => {
   owed = () => [];
 });
 
-function world(rows, counts) {
+function world(rows, counts, capacity) {
   const tables = {
     sending_domains: rows,
     tenant_config: [{ tenant_id: A, config: { notifications: { escalation_emails: [OWNER] } } }],
@@ -102,6 +103,13 @@ function world(rows, counts) {
       const c = counts[a.p_host];
       if (c instanceof Error) throw c;
       return c ?? { sent: 0, bounced: 0, complained: 0 };
+    };
+  // 00184's capacity, answered per domain id; an Error is a read that failed.
+  if (capacity)
+    rpcs.sending_domain_capacity = (a) => {
+      const c = capacity[a.p_domain_id];
+      if (c instanceof Error) throw c;
+      return c ?? { state: "verified", clean_since: null, sent_days: 0, used: 0, recent: [], last_sent_at: null };
     };
   const db = fakeDb(tables, {}, rpcs);
   setPg(db);
@@ -811,6 +819,58 @@ test("without the edge's key nothing is sealed, so nothing is probed (Part 2.6)"
     assert.equal(body.unsubscribe, "no_secret");
     assert.equal(opened.length, 0);
     assert.deepEqual(w.tables.operator_pages, []);
+  } finally {
+    net.restore();
+  }
+});
+
+test("the clock writes the days each domain sent (D15) beside its counts; a read that fails leaves the row's last answer", async () => {
+  const w = world(
+    [
+      domain("d1"),
+      domain("d2", { sent_days: 7 }),
+      domain("d3", { state: "records", verified_at: null, clean_since: null }),
+    ],
+    {},
+    {
+      d1: { state: "verified", clean_since: null, sent_days: 4, used: 0, recent: [], last_sent_at: null },
+      d2: new Error("statement timeout"),
+    },
+  );
+  for (const h of ["d1", "d2", "d3"]) dns[`${h}.example`] = "found";
+  const net = provider({ "pd-d3": "pending" });
+  try {
+    const [status] = await answer(await knock(POST, "domains"));
+    assert.equal(status, 200);
+    assert.deepEqual([w.row("d1").sent_days, w.row("d2").sent_days, w.row("d3").sent_days], [4, 7, null]);
+    assert.deepEqual(
+      w.db.seen
+        .filter((s) => s.rpc === "sending_domain_capacity")
+        .map((s) => s.args.p_domain_id)
+        .sort(),
+      ["d1", "d2"],
+      "a domain not yet sending has no days to count",
+    );
+  } finally {
+    net.restore();
+  }
+});
+
+test("a domain clean again starts its days over in the same write: a hold released never says the days before it", async () => {
+  const w = world(
+    [domain("d1", { state: "held", held_why: "dmarc", held_at: ago(DAY), dmarc: "missing", sent_days: 20 })],
+    {},
+    { d1: { state: "held", clean_since: ago(20 * DAY), sent_days: 20, used: 0, recent: [], last_sent_at: null } },
+  );
+  dns["d1.example"] = "found";
+  const net = provider({ "pd-d1": "verified" });
+  try {
+    const [status] = await answer(await knock(POST, "domains"));
+    assert.equal(status, 200);
+    const d = w.row("d1");
+    assert.equal(d.state, "verified");
+    assert.ok(Date.parse(d.clean_since) > Date.now() - 60_000, "clean from now");
+    assert.equal(d.sent_days, 0, "the ramp's first step, as the door and the claim will count it");
   } finally {
     net.restore();
   }

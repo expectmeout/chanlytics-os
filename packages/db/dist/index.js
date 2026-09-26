@@ -2964,7 +2964,10 @@ async function outreachFactsOf(db, p) {
     p_contact_id: p.contactId,
     p_to: p.to,
     p_host: p.host,
-    p_since: p.since
+    p_since: p.since,
+    // Named only when there is a lead: a database before 00184 knows five arguments, and a sixth it has never heard of
+    // would fail every cold send rather than answer as it did.
+    ...p.leadId ? { p_lead_id: p.leadId } : {}
   });
   if (error) throw new Error(`cannot read the outreach facts: ${error.message}`);
   const f = data ?? {};
@@ -2977,10 +2980,89 @@ async function outreachFactsOf(db, p) {
     domain: f.domain && typeof f.domain === "object" && typeof f.domain.state === "string" ? {
       state: f.domain.state,
       from_local: String(f.domain.from_local ?? ""),
-      clean_since: typeof f.domain.clean_since === "string" ? f.domain.clean_since : null
+      clean_since: typeof f.domain.clean_since === "string" ? f.domain.clean_since : null,
+      // A database before 00184 says nothing of it: no days sent, the ramp's first step.
+      sent_days: Math.max(0, Number(f.domain.sent_days ?? 0) || 0)
     } : null,
     sent_since: Number(f.sent_since ?? 0) || 0
   };
+}
+
+// src/repositories/reach-out.ts
+async function domainCapacityOf(db, domainId, at) {
+  const { data, error } = await db.rpc("sending_domain_capacity", {
+    p_domain_id: domainId,
+    p_at: at.toISOString()
+  });
+  if (error) throw new Error(`cannot read the domain's capacity: ${error.message}`);
+  const c = data ?? {};
+  if (typeof c.used !== "number" || typeof c.sent_days !== "number")
+    throw new Error("cannot read the domain's capacity: the database answered without its counts");
+  return {
+    state: String(c.state ?? ""),
+    clean_since: typeof c.clean_since === "string" ? c.clean_since : null,
+    sent_days: c.sent_days,
+    used: c.used,
+    recent: Array.isArray(c.recent) ? c.recent.map(Number).filter(Number.isFinite) : [],
+    last_sent_at: typeof c.last_sent_at === "string" ? c.last_sent_at : null
+  };
+}
+async function reachOutAudience(db, p) {
+  const { data, error } = await db.rpc("reach_out_audience", {
+    p_tenant_id: p.tenantId,
+    p_search_id: p.searchId,
+    p_root_id: p.rootId,
+    p_limit: p.limit
+  });
+  if (error) throw new Error(`cannot read who a reach-out may write to: ${error.message}`);
+  return data ?? [];
+}
+async function reachOutPerson(db, tenantId, leadId) {
+  const { data, error } = await db.rpc("reach_out_person", { p_tenant_id: tenantId, p_lead_id: leadId });
+  if (error) throw new Error(`cannot make the person this send is for: ${error.message}`);
+  const r2 = data ?? {};
+  if (r2.refused === "lead_gone" || r2.refused === "lead_closed" || r2.refused === "no_address" || r2.refused === "already_yours")
+    return { ok: false, refused: r2.refused };
+  if (!r2.contact_id || !r2.conversation_id)
+    throw new Error("cannot make the person this send is for: no person came back");
+  return { ok: true, contactId: r2.contact_id, conversationId: r2.conversation_id, made: r2.made === true };
+}
+async function claimSends(db, p) {
+  if (!Number.isInteger(p.cap) || !Number.isInteger(p.limit) || Number.isNaN(p.at.getTime()))
+    throw new Error(`cannot claim the domain's due sends: a cap and a limit are whole numbers (${p.cap}, ${p.limit})`);
+  const { data, error } = await db.rpc("reach_out_claim", {
+    p_domain_id: p.domainId,
+    p_cap: p.cap,
+    p_at: p.at.toISOString(),
+    p_limit: p.limit
+  });
+  if (error) throw new Error(`cannot claim the domain's due sends: ${error.message}`);
+  return data ?? [];
+}
+async function moveSend(db, p) {
+  const { data, error } = await db.from("reach_out_sends").update(p.patch).eq("tenant_id", p.tenantId).eq("id", p.id).eq("state", p.from).select("id");
+  if (error) throw new Error(`cannot move the send: ${error.message}`);
+  return (data ?? []).length === 1;
+}
+async function reachOutFollowers(db, p) {
+  const { data, error } = await db.rpc("reach_out_followers", {
+    p_tenant_id: p.tenantId,
+    p_step_id: p.stepId,
+    p_parent_id: p.parentId,
+    p_after_days: p.afterDays,
+    p_limit: p.limit
+  });
+  if (error) throw new Error(`cannot read who a step may write to: ${error.message}`);
+  const rows = data ?? [];
+  for (const r2 of rows)
+    if (typeof r2.facts?.wrote_back !== "boolean")
+      throw new Error("cannot read who a step may write to: the database did not say whether they wrote back");
+  return rows;
+}
+async function planSends(db, rows) {
+  if (rows.length === 0) return;
+  const { error } = await db.from("reach_out_sends").upsert(rows, { onConflict: "broadcast_id,lead_id", ignoreDuplicates: true });
+  if (error) throw new Error(`cannot plan the run's sends: ${error.message}`);
 }
 
 // src/repositories/routing.ts
@@ -3681,6 +3763,7 @@ export {
   assembleHistory,
   claimCallNotification,
   claimControl,
+  claimSends,
   coldReceiptsOwed,
   countSendingDomains,
   countSentToday,
@@ -3690,6 +3773,7 @@ export {
   deleteSendingDomain,
   deleteSendingDomainAsRead,
   describeLead,
+  domainCapacityOf,
   domainHeldSince,
   dropFromList,
   dueSendingDomains,
@@ -3709,13 +3793,18 @@ export {
   mailboxFor,
   mailboxOfTenant,
   markProcessed,
+  moveSend,
   notesForReceptionist,
   outreachFactsOf,
   pauseConversation,
   peoplePage,
   personReplyMode,
+  planSends,
   playbooksOnList,
   putTenantConfig,
+  reachOutAudience,
+  reachOutFollowers,
+  reachOutPerson,
   readAllRows,
   readDealForPhone,
   readLeadContext,

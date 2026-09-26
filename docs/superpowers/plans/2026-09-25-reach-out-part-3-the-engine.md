@@ -1117,6 +1117,35 @@ In `deliver.ts`, the four lines at `:404-409` become:
 Four SQL doors and one reading of capacity. Each is proved on the replayed stack before anything calls it. D15 lands
 here, because the capacity read is where "days actually sent" is counted.
 
+> **As built (PR 3, 26 Sep 2026).** `supabase/migrations/00184_a_domain_has_one_capacity.sql` is the reference. It
+> differs from the block below in these ways, each proved in `reach-out-doors.db.test.mjs`:
+> - **D15 counts the days sent within the last 90** since the domain was clean. The read is bounded, so it no longer
+>   scans every email since a domain was verified, and a domain idle for months warms again.
+> - **`sending_domains.sent_days`**: the domains sweep writes the capacity's days beside its other counts, and a Resume
+>   clears them. Members cannot ask the capacity (service role only), so without the column Connections would always
+>   say "0 days". The door reads the capacity itself.
+> - **The audience honours a `phone` suppression** (a customer's or an erased person's number). A business erased, or
+>   already a customer, is not written to under a new address. It **orders by fit as a rank** (strong, look, long):
+>   the text sorts `long` first.
+> - **`reach_out_person` refuses a lead no longer ready or nurture** (`lead_closed`). A lead that became a customer
+>   since it was planned was linked and converted by the insert trigger. The door would have returned the customer's
+>   own person, and the writer would have put a cold row into their thread.
+> - **The door keeps "never clean, no share"**: `cleanSince` stays beside `sentDays`, since `domainDailyCap(0)` is 30.
+> - The trigger copy keeps 00140's comment on its two lookups.
+> - **PR 3's review** (all fixed in its second commit):
+>   - D15 counts the days **before today**, so a domain's share holds all day.
+>   - The **door reads `sending_domains.sent_days`**, which the sweep writes; the capacity read is 130–150 ms at 200 a day. When the sweep's write makes a domain clean again, the same write sets the days to 0.
+>   - **`outreach_lead_facts`** holds the lead's own facts. The door composes it, and the followers ask it alone: 300 followers took 44 s when each asked the whole door.
+>   - The claim claims nothing for a null or non-positive cap or limit, and requires the chain's root to be running as well as its step.
+>   - `reach_out_person` refuses on a unique or check violation instead of throwing.
+>   - The audience and the person door also refuse an address a person wrote from (their email identities).
+>   - A chain email that failed for good stops the chain, as a bounce does.
+>   - The edge sends `p_lead_id` only when it names a lead.
+>   - The queued-row count is bounded by 30 days.
+> - The words: "N days sending" (or "nothing sent yet"), and "100 a day after N more days of sending" in place of a
+>   date. `sendingDomainWords` and `checkResultWords` no longer take the clock. A DTO without `sent_days` (from an edge
+>   built before) reads as none sent.
+
 ### Task 3.1: The migration
 
 **Files:**
@@ -2292,6 +2321,8 @@ export async function POST(request: Request): Promise<Response> {
 ---
 
 ## PR 6 — The sender: claim and write
+
+> **From PR 3's review:** the writer inserts the email row **before** it moves the send out of `claimed`. The capacity counts a claimed send and a queued row each, so this order only double-counts for a moment, which means sending less. The other order leaves a gap where the send is counted nowhere, and a concurrent claim could claim past the cap.
 
 The one PR that sends. After it, a reach-out run approved on Broadcasts goes out, one email per claim, from the
 workspace's own domains. It is complete only with the secrets set (C13); until then the clock answers 503 while

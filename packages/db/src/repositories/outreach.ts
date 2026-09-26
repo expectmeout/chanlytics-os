@@ -18,15 +18,26 @@ export interface OutreachFactsRow {
    * answers or cites one sent to them, or a call they made. An out-of-office is not one.
    */
   wrote_back: boolean;
-  /** The From host's row as Connections set it up; null when the workspace owns no such domain. */
-  domain: { state: string; from_local: string; clean_since: string | null } | null;
+  /**
+   * The From host's row as Connections set it up, with the days it has sent on since it was clean (D15, 00184); null
+   * when the workspace owns no such domain.
+   */
+  domain: { state: string; from_local: string; clean_since: string | null; sent_days: number } | null;
   /** What left from that domain since `since`. */
   sent_since: number;
 }
 
 export async function outreachFactsOf(
   db: Db,
-  p: { tenantId: string; contactId: string; to: string; host: string; since: string },
+  p: {
+    tenantId: string;
+    contactId: string;
+    to: string;
+    host: string;
+    since: string;
+    /** The lead the send is for (a reach-out's always names one): its own stage, not any lead of this person's. */
+    leadId?: string | null;
+  },
 ): Promise<OutreachFactsRow> {
   const { data, error } = await db.rpc("outreach_facts", {
     p_tenant_id: p.tenantId,
@@ -34,6 +45,9 @@ export async function outreachFactsOf(
     p_to: p.to,
     p_host: p.host,
     p_since: p.since,
+    // Named only when there is a lead: a database before 00184 knows five arguments, and a sixth it has never heard of
+    // would fail every cold send rather than answer as it did.
+    ...(p.leadId ? { p_lead_id: p.leadId } : {}),
   } as never);
   if (error) throw new Error(`cannot read the outreach facts: ${error.message}`);
   const f = (data ?? {}) as Partial<OutreachFactsRow>;
@@ -51,6 +65,8 @@ export async function outreachFactsOf(
             state: f.domain.state,
             from_local: String(f.domain.from_local ?? ""),
             clean_since: typeof f.domain.clean_since === "string" ? f.domain.clean_since : null,
+            // A database before 00184 says nothing of it: no days sent, the ramp's first step.
+            sent_days: Math.max(0, Number((f.domain as { sent_days?: unknown }).sent_days ?? 0) || 0),
           }
         : null,
     sent_since: Number(f.sent_since ?? 0) || 0,

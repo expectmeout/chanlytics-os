@@ -42,26 +42,28 @@ export const SENDING_DOMAINS_MAX = 5;
 /** What we recommend when a domain has no DMARC: accepted by Gmail and Yahoo, and harmless to other mail it sends. */
 export const DMARC_RECOMMENDED = "v=DMARC1; p=none;";
 
-/** The ramp (decision 8): per domain, by clean days. */
+/**
+ * The ramp (decision 8): per domain, by the days it has actually sent since it was clean (D15, counted by the database's
+ * sending_domain_capacity over the last 90), never the calendar's: a domain verified a month ago that has sent on two
+ * days is two days into its warm-up, not thirty.
+ */
 export const DOMAIN_RAMP: ReadonlyArray<{ days: number; perDay: number }> = [
   { days: 0, perDay: 30 },
   { days: 14, perDay: 100 },
   { days: 30, perDay: 200 },
 ];
 
-const DAY_MS = 86_400_000;
+/**
+ * The days a domain has sent on, from a DTO that may come from an edge built before it said them (either deploy order):
+ * none said is none sent, never a NaN in the row's words.
+ */
+const sentDaysOf = (d: Pick<SendingDomainDto, "sent_days">): number =>
+  Math.max(0, Math.floor(Number(d.sent_days) || 0));
 
-export function cleanDays(cleanSince: string | null, nowMs: number): number {
-  if (!cleanSince) return 0;
-  return Math.max(0, Math.floor((nowMs - Date.parse(cleanSince)) / DAY_MS));
-}
-
-/** How many a day this domain may send: 0 until it is verified; the ramp's step by clean days after. */
-export function domainDailyCap(cleanSince: string | null, nowMs: number): number {
-  if (!cleanSince) return 0;
-  const days = (nowMs - Date.parse(cleanSince)) / DAY_MS;
+/** How many a day a verified domain may send: the ramp's step by the days it has sent (D15). */
+export function domainDailyCap(sentDays: number): number {
   let cap = 0;
-  for (const step of DOMAIN_RAMP) if (days >= step.days) cap = step.perDay;
+  for (const step of DOMAIN_RAMP) if (sentDays >= step.days) cap = step.perDay;
   return cap;
 }
 
@@ -143,6 +145,8 @@ export interface SendingDomainDto {
   sent_recent: number | null;
   bounced_recent: number | null;
   complaints: number | null;
+  /** The days it has sent on since it was clean (D15), as the domains clock last read them (00184); 0 before. */
+  sent_days: number;
 }
 
 /** What one own domain sent since it was last clean (00176 sending_domain_counts). */
@@ -355,6 +359,8 @@ export function sendingDomainDtoOf(r: {
   sent_recent: number | null;
   bounced_recent: number | null;
   complaints: number | null;
+  /** Absent on a database before 00184, and on a row the clock has not read since: no days sent, yet. */
+  sent_days?: number | null;
 }): SendingDomainDto {
   return {
     id: r.id,
@@ -376,6 +382,7 @@ export function sendingDomainDtoOf(r: {
     sent_recent: r.sent_recent,
     bounced_recent: r.bounced_recent,
     complaints: r.complaints,
+    sent_days: Math.max(0, Number(r.sent_days ?? 0) || 0),
   };
 }
 
@@ -417,7 +424,7 @@ export interface SendingDomainWords {
   next: string | null;
 }
 
-export function sendingDomainWords(d: SendingDomainDto, nowMs: number): SendingDomainWords {
+export function sendingDomainWords(d: SendingDomainDto): SendingDomainWords {
   const who = `${d.from_name} · ${d.address}`;
   if (d.state === "records") {
     const line =
@@ -441,27 +448,25 @@ export function sendingDomainWords(d: SendingDomainDto, nowMs: number): SendingD
       next: null,
     };
   if (d.state === "verified") {
-    const days = cleanDays(d.clean_since, nowMs);
-    const cap = domainDailyCap(d.clean_since, nowMs);
+    const days = sentDaysOf(d);
+    const cap = domainDailyCap(days);
     const step = DOMAIN_RAMP.find((s) => s.perDay > cap);
+    const left = step ? step.days - days : 0;
     return {
       pill: "Verified",
       tone: "ok",
-      line: `${who} · ${days} clean day${days === 1 ? "" : "s"}`,
+      line: `${who} · ${days ? `${days} day${days === 1 ? "" : "s"} sending` : "nothing sent yet"}`,
       stats: domainStatsWords(d),
       fix: null,
       cap: `Up to ${cap} a day`,
-      // The next step as the day it comes, if the days stay clean (the canvas's "200 a day from Oct 15").
-      next:
-        step && d.clean_since
-          ? `${step.perDay} a day from ${DAY_FMT.format(new Date(Date.parse(d.clean_since) + step.days * DAY_MS))}`
-          : null,
+      // The next step by the days still to send (D15): a date would be a promise the days it rests on cannot keep.
+      next: step ? `${step.perDay} a day after ${left} more day${left === 1 ? "" : "s"} of sending` : null,
     };
   }
   const why = domainHoldWords(d.held_why);
   const since = d.held_at ? DAY_FMT.format(new Date(d.held_at)) : null;
-  // What the hold costs: the day's share it had when it was held.
-  const was = domainDailyCap(d.clean_since, d.held_at ? Date.parse(d.held_at) : nowMs);
+  // What the hold costs: the day's share it had when it was held, if it had ever been clean.
+  const was = d.clean_since ? domainDailyCap(sentDaysOf(d)) : 0;
   return {
     pill: "Held",
     tone: "warn",
@@ -573,11 +578,10 @@ export function domainRegistrarHint(host: string): string {
  */
 export function checkResultWords(
   d: SendingDomainDto,
-  nowMs: number,
   before?: Pick<SendingDomainDto, "state"> | null,
 ): { tone: Tone; msg: string } {
   if (d.state === "verified") {
-    const cap = domainDailyCap(d.clean_since, nowMs);
+    const cap = domainDailyCap(sentDaysOf(d));
     const again = before?.state === "held" || cap !== DOMAIN_RAMP[0].perDay;
     return {
       tone: "ok",
@@ -612,5 +616,5 @@ export function sendingDomainsFootWords(count: number, max: number): string {
   if (count >= max) return `${max === 5 ? "Five" : max} is the most. Remove one to add another. ${where}`;
   if (count === 0)
     return "Cold email to the businesses you find leaves only from a domain you own, so cold email's reputation stays apart from your everyday email's. No spare domain? Buy one like get<yourbusiness>.com, then add it here.";
-  return `A new domain starts at ${DOMAIN_RAMP[0].perDay} a day and grows as the days stay clean. ${where}`;
+  return `A new domain starts at ${DOMAIN_RAMP[0].perDay} a day and grows with the days it sends. ${where}`;
 }

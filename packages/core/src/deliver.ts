@@ -307,8 +307,10 @@ interface OutreachFacts {
    * from_local); null when the From is no such address.
    */
   domainState: string | null;
-  /** The ramp's clock for that domain: its day's share is domainDailyCap of it. */
+  /** When that domain was last clean: a domain never clean has no day's share at all. */
   cleanSince: string | null;
+  /** The days that domain has sent on since it was clean (D15): its day's share is domainDailyCap of them. */
+  sentDays: number;
   /** What left from that domain in the last day. */
   sentSince: number;
 }
@@ -335,6 +337,7 @@ async function outreachFacts(db: Db, d: Delivery, f: WireFacts, nowMs: number): 
       unsubscribable,
       domainState: null,
       cleanSince: null,
+      sentDays: 0,
       sentSince: 0,
     };
   let facts;
@@ -362,6 +365,7 @@ async function outreachFacts(db: Db, d: Delivery, f: WireFacts, nowMs: number): 
     unsubscribable,
     domainState: own?.state ?? null,
     cleanSince: own?.clean_since ?? null,
+    sentDays: own?.sent_days ?? 0,
     sentSince: facts.sent_since,
   };
 }
@@ -410,7 +414,7 @@ function refusalFor(d: Delivery, f: WireFacts, nowMs: number, o: OutreachFacts |
     if (o.domainState !== "verified") return "sending_domain_not_ready";
     // The day's share is the ramp's (contracts domainDailyCap). The batch writer claims within it (Part 3); this is
     // the backstop, so a run that miscounts cannot spend a domain's reputation past its share.
-    if (o.sentSince >= domainDailyCap(o.cleanSince, nowMs)) return "sending_domain_at_cap";
+    if (o.sentSince >= (o.cleanSince ? domainDailyCap(o.sentDays) : 0)) return "sending_domain_at_cap";
   }
   const kind = kindOf(d);
   // A person's own reply goes out even when the machine is told to stop: the
