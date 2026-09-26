@@ -18,6 +18,7 @@ import { parsePageMessage, type ShellMessage } from "@chanlytics/contracts";
 import { askPage, bottomInset, insetScript, onPageMessage, shouldRegister } from "./bridge";
 import { getState, registerReloader, setState, useShell, type Tab } from "./state";
 import { setBadge, tabOf } from "./notifications";
+import { updateTodayWidget } from "./widget";
 import { Offline } from "./Offline";
 import { hrefFor, isOurs, isSignedOutUrl, LOGIN_HREF, NATIVE_DOOR, userAgentToken } from "@/site";
 
@@ -84,6 +85,7 @@ export function Surface({ route, tab, onReady, post }: Props) {
       setState(state);
       if (effect === "badge") void setBadge(state.badge);
       const m = parsePageMessage(e.nativeEvent.data);
+      if (m?.t === "today") updateTodayWidget(m.snapshot);
       if (m?.t === "device" && m.state === "forgotten") forgetting.current?.resolve();
       if (m?.t === "route") {
         setReady(true);

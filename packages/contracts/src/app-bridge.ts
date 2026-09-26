@@ -7,6 +7,8 @@
  * put in the address bar, whoever sent it. Both sides import this one definition, so they cannot drift.
  */
 
+import { parseTodayWidgetSnapshot, type TodayWidgetSnapshot } from "./widget";
+
 /** A hash route's name as the shell writes it: `today`, `inbox`, `clients/abc-123`. Never a URL, never a scheme. */
 export const APP_ROUTE_RE = /^[a-z][a-z0-9-]*(?:\/[A-Za-z0-9:_-]+)*$/;
 
@@ -18,7 +20,9 @@ export type PageMessage =
   /** The bell's unread number, on every bell change: what the icon wears (PR 2). */
   | { t: "badge"; n: number }
   /** What became of the shell's device ask: registered, forgotten, or refused by the site. */
-  | { t: "device"; state: "registered" | "forgotten" | "refused" };
+  | { t: "device"; state: "registered" | "forgotten" | "refused" }
+  /** Today as the widget shows it, on every refresh of the page's Today (PR 4). */
+  | { t: "today"; snapshot: TodayWidgetSnapshot };
 
 /** A phone's push token, as expo-notifications hands it out. */
 export const PUSH_TOKEN_MAX = 200;
@@ -60,6 +64,10 @@ export function parsePageMessage(raw: string): PageMessage | null {
       return v.state === "registered" || v.state === "forgotten" || v.state === "refused"
         ? { t: "device", state: v.state }
         : null;
+    case "today": {
+      const snapshot = parseTodayWidgetSnapshot(v.snapshot);
+      return snapshot ? { t: "today", snapshot } : null;
+    }
     default:
       return null;
   }

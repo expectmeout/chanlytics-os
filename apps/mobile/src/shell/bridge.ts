@@ -6,7 +6,7 @@
 import { parsePageMessage, type ShellMessage } from "@chanlytics/contracts";
 import type { ShellState } from "./state";
 
-export type Effect = "nothing" | "sign-in" | "badge";
+export type Effect = "nothing" | "sign-in" | "badge" | "today";
 
 /** The state after a page's message, and what the shell must do beyond keeping it. */
 export function onPageMessage(state: ShellState, raw: string): { state: ShellState; effect: Effect } {
@@ -30,6 +30,8 @@ export function onPageMessage(state: ShellState, raw: string): { state: ShellSta
     case "device":
       // Registered: this token is the person's now. Refused or forgotten: it is not, and the next chance asks again.
       return { state: { ...state, registered: m.state === "registered" ? state.token : null }, effect: "nothing" };
+    case "today":
+      return { state, effect: "today" };
     case "route":
       return { state, effect: "nothing" };
   }
