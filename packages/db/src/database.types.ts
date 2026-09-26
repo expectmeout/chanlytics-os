@@ -4388,6 +4388,7 @@ export type Database = {
         }
         Returns: Json
       }
+      delete_my_account: { Args: never; Returns: Json }
       drop_google_credentials: {
         Args: { p_tenant_id: string }
         Returns: boolean

@@ -758,6 +758,13 @@
       "rate": "settings",
       "spend": false
     },
+    "DELETE me": {
+      "kind": "write",
+      "scope": "account",
+      "role": null,
+      "rate": "profile_set",
+      "spend": false
+    },
     "PUT me": {
       "kind": "write",
       "scope": "account",

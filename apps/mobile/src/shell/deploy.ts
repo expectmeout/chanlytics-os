@@ -25,3 +25,22 @@ export function shaOf(body: unknown): string | null {
   const sha = (body as { sha?: unknown }).sha;
   return typeof sha === "string" && sha.trim() ? sha.trim() : null;
 }
+
+/** The oldest app version the site still speaks to, from /api/version's answer, or null when every version is welcome. */
+export function minAppOf(body: unknown): string | null {
+  if (!body || typeof body !== "object") return null;
+  const v = (body as { min_app?: unknown }).min_app;
+  return typeof v === "string" && /^\d+(\.\d+){0,2}$/.test(v.trim()) ? v.trim() : null;
+}
+
+/** Whether this app (1.2.0) is older than the site's floor (1.3): numeric parts, missing parts zero. */
+export function isOlderThan(version: string, min: string): boolean {
+  const a = version.split(".").map((n) => Number.parseInt(n, 10) || 0);
+  const b = min.split(".").map((n) => Number.parseInt(n, 10) || 0);
+  for (let i = 0; i < 3; i++) {
+    const x = a[i] ?? 0;
+    const y = b[i] ?? 0;
+    if (x !== y) return x < y;
+  }
+  return false;
+}

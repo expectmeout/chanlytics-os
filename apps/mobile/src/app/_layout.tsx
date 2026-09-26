@@ -18,7 +18,9 @@ import { canLock, lockChoice } from "@/shell/lock";
 import { shouldLock } from "@/shell/sign-in";
 import { signOutNatively } from "@/shell/native-auth";
 import { getState, reloadEveryPage, setState, useShell } from "@/shell/state";
-import { decideReload, shaOf } from "@/shell/deploy";
+import { decideReload, isOlderThan, minAppOf, shaOf } from "@/shell/deploy";
+import { Update } from "@/shell/Update";
+import * as Application from "expo-application";
 import { SITE_ORIGIN } from "@/site";
 
 const PAPER = { light: "#fbfaf8", dark: "#0c0d0f" };
@@ -26,7 +28,10 @@ const PAPER = { light: "#fbfaf8", dark: "#0c0d0f" };
 async function lookAtTheSite(): Promise<void> {
   try {
     const r = await fetch(`${SITE_ORIGIN}/api/version`, { headers: { accept: "application/json" }, cache: "no-store" });
-    const sha = shaOf(await r.json());
+    const body = await r.json();
+    const sha = shaOf(body);
+    const min = minAppOf(body);
+    if (min && isOlderThan(Application.nativeApplicationVersion ?? "0.0.0", min)) setState({ tooOld: true });
     const { siteSha, lastReloadAt } = getState();
     const now = Date.now();
     if (decideReload({ lastSha: siteSha, sha, lastReloadAt, now }) === "reload") {
@@ -56,6 +61,7 @@ installForegroundHandler();
 export default function RootLayout() {
   const scheme = useColorScheme();
   const session = useShell((s) => s.session);
+  const tooOld = useShell((s) => s.tooOld);
   const net = useNetworkState();
   const offline = net.isConnected === false;
   const router = useRouter();
@@ -144,6 +150,7 @@ export default function RootLayout() {
         )}
         {offline && Platform.OS !== "web" && <Offline onRetry={retry} />}
         {locked && <Lock onUnlocked={() => setLocked(false)} />}
+        {tooOld && <Update />}
       </View>
     </ThemeProvider>
   );
