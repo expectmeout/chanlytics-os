@@ -26,6 +26,7 @@ import {
   slotCount,
   slotsNamed,
   whyFrom,
+  wordsNeedOpening,
   type SlotLead,
   type SlotWorkspace,
 } from "../packages/contracts.js";
@@ -88,7 +89,7 @@ export function reachOutWords(
   if (slotCount(said, "your name") > 0 && !workspace.yourName?.trim()) return { ok: false, reason: "no_signed_by" };
   if (slotCount(said, "booking link") > 0 && !workspace.bookingLink?.trim())
     return { ok: false, reason: "no_booking_link" };
-  if (slotCount(said, "opening") > 0 && !opening?.trim()) return { ok: false, reason: "no_opening" };
+  if (wordsNeedOpening({ subject, body: words.body }) && !opening?.trim()) return { ok: false, reason: "no_opening" };
   const s = subject === null ? null : reachOutSlots(subject, lead, workspace, opening);
   const b = reachOutSlots(words.body, lead, workspace, opening);
   if ((s && !s.ok) || !b.ok) return { ok: false, reason: "missing_value" };

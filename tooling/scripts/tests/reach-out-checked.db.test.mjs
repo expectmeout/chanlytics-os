@@ -555,3 +555,56 @@ test("the check's clock is registered, and its trigger records that it looked", 
   const { error } = await db.rpc("trigger_reach_out_check_sweep");
   assert.equal(error?.message ?? null, null);
 });
+
+test(
+  "the check's spend is taken one attempt at a time, per workspace and UTC day, up to its cap",
+  { skip },
+  async () => {
+    const take = (at, cap = 2, t = B) =>
+      db.rpc("reach_out_check_take", { p_tenant_id: t, p_cap: cap, p_at: at }).then((r) => ok(r));
+    // 23:30 UTC and 00:30 UTC the next day are two days, wherever the workspace is.
+    const late = "2026-09-26T23:30:00Z";
+    const next = "2026-09-27T00:30:00Z";
+    assert.deepEqual([await take(late), await take(late), await take(late)], [true, true, false]);
+    assert.equal(await take(next), true, "a new UTC day");
+    assert.equal(await take(late, 0), false, "no cap is no attempt");
+    const rows = ok(await db.from("reach_out_check_spend").select("day, attempts").eq("tenant_id", B).order("day"));
+    assert.deepEqual(rows, [
+      { day: "2026-09-26", attempts: 2 },
+      { day: "2026-09-27", attempts: 1 },
+    ]);
+  },
+);
+
+test(
+  "the check_unavailable holds left an hour go back to be checked in one statement; a hold for a rule keeps",
+  { skip },
+  async () => {
+    const back = await sendIn({
+      state: "held",
+      reason: "check_unavailable",
+      checked_at: iso(Date.now()),
+      check_gen: 4,
+      check_tries: 7,
+      included_for: ["chain"],
+    });
+    const rule = await sendIn({
+      state: "held",
+      reason: "check_unavailable",
+      hold_detail: "too_long",
+      checked_at: iso(Date.now()),
+    });
+    const n = ok(await db.rpc("reach_out_release_unavailable", { p_before: iso(Date.now() + MIN), p_tenant_id: A }));
+    assert.equal(n, 1);
+    const b = await row(back);
+    assert.deepEqual(
+      [b.state, b.reason, b.checked_at, b.check_gen, b.check_tries, b.included_for],
+      ["planned", null, null, 5, 0, ["chain"]],
+    );
+    assert.equal((await row(rule)).state, "held");
+    assert.equal(
+      ok(await db.rpc("reach_out_release_unavailable", { p_before: iso(Date.now() - H), p_tenant_id: A })),
+      0,
+    );
+  },
+);

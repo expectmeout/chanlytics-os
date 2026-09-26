@@ -49,8 +49,9 @@ export function isWaitRefusal(reason: string | null | undefined): boolean {
 export const REACH_OUT_MONTH_EMAILS = 2000;
 
 /**
- * The most sends of one workspace the check before each send takes in a day (R12), counted by when each was checked:
- * the model's spend is bounded where it is spent, whatever a run's size or a reset's count.
+ * The most attempts of the check before each send that one workspace may spend on the model in a UTC day (R12):
+ * counted in reach_out_check_spend (00190) as each attempt is taken, a rewrite in it and a failure counted, so neither a
+ * run's size nor a reset of a send's check lets it spend more.
  */
 export const REACH_OUT_CHECKS_PER_DAY = 400;
 

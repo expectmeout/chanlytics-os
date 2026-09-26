@@ -22,6 +22,9 @@
 --   reach_out_record     one business's record, with the check's two code facts (F4, F6).
 --   reach_out_unchecked  the sends to check, leased (R3), a few per workspace at a time (R2), each with its record.
 --   reach_out_held_stale the holds past a moment, by when they were planned (R10).
+--   reach_out_check_spend  the model's spend per workspace and UTC day, taken one attempt at a time before each check
+--                        that asks the model (reach_out_check_take, R12): a reset clears a send's check, never its spend.
+--   reach_out_release_unavailable  the check_unavailable holds left an hour, back to be checked, in one statement (R4).
 --   the check's clock    reach-out-check-sweep, every minute, its own clock and its own watch (R1).
 
 set local lock_timeout = '3s';
@@ -67,8 +70,6 @@ alter table public.reach_out_sends add constraint reach_out_sends_held_says_why
 create index if not exists reach_out_sends_unchecked on public.reach_out_sends (tenant_id, check_after)
   where state = 'planned' and checked_at is null;
 create index if not exists reach_out_sends_held on public.reach_out_sends (created_at) where state = 'held';
-create index if not exists reach_out_sends_checked on public.reach_out_sends (tenant_id, checked_at)
-  where checked_at is not null;
 
 -- 00183's moves, and two more: the check holds a planned send, and its owner answers a held one (include puts it back,
 -- skip ends it). Nothing leaves unchecked: a claim takes a checked send only.
@@ -444,6 +445,69 @@ revoke execute on function public.reach_out_unchecked(int, int, int, uuid) from 
 grant execute on function public.reach_out_unchecked(int, int, int, uuid) to service_role;
 comment on function public.reach_out_unchecked(int, int, int, uuid) is
   'The sends the check clock takes this tick (Reach out, Part 4), leased under their row locks, round-robin by workspace, each with its words'' step, the name its chain signs with, the holds its owner included it past and its business''s record (00190). Service role only.';
+
+/* ------------------------------------------------------------ the check's spend -- */
+
+-- What the check spent on the model, per workspace and UTC day: one attempt for each send's check that asks it, a
+-- rewrite included, a failure counted. Kept apart from the sends, so no reset of a send's check (a word changed, a
+-- hold put back) gives the day's spend back. Service role only: no member reads it.
+create table if not exists public.reach_out_check_spend (
+  tenant_id uuid not null references public.tenants (id) on delete cascade,
+  day       date not null,
+  attempts  int not null default 0 check (attempts >= 0),
+  primary key (tenant_id, day)
+);
+alter table public.reach_out_check_spend enable row level security;
+revoke all on public.reach_out_check_spend from anon, authenticated;
+grant all on public.reach_out_check_spend to service_role;
+comment on table public.reach_out_check_spend is
+  'Reach out, Part 4: the check''s model attempts per workspace and UTC day, under contracts REACH_OUT_CHECKS_PER_DAY. Written by reach_out_check_take only.';
+
+-- One attempt, taken atomically if the workspace's UTC day is under p_cap: true when taken, false at the cap.
+create or replace function public.reach_out_check_take(p_tenant_id uuid, p_cap int, p_at timestamptz default now())
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_taken boolean;
+begin
+  if p_tenant_id is null or coalesce(p_cap, 0) <= 0 then
+    return false;
+  end if;
+  insert into public.reach_out_check_spend as x (tenant_id, day, attempts)
+  values (p_tenant_id, (coalesce(p_at, now()) at time zone 'UTC')::date, 1)
+  on conflict (tenant_id, day) do update set attempts = x.attempts + 1 where x.attempts < p_cap
+  returning true into v_taken;
+  return coalesce(v_taken, false);
+end $$;
+revoke execute on function public.reach_out_check_take(uuid, int, timestamptz) from public, anon, authenticated;
+grant execute on function public.reach_out_check_take(uuid, int, timestamptz) to service_role;
+
+-- The check_unavailable holds with no rule broken, held before p_before: put back to be checked, at the words' next
+-- version, in one statement (R4). A hold for a rule an opening broke (a detail) is its owner's, and keeps. What the
+-- owner included the send past stays. The count comes back.
+create or replace function public.reach_out_release_unavailable(p_before timestamptz, p_tenant_id uuid default null)
+returns int
+language sql
+volatile
+security definer
+set search_path = public
+as $$
+  with released as (
+    update public.reach_out_sends s
+       set state = 'planned', reason = null, checked_at = null, check_gen = s.check_gen + 1, checked_words = null,
+           check_tries = 0, check_first_at = null, check_after = null, check_started_at = null,
+           opening = null, angle = null, facts_used = '{}', hold_detail = null
+     where s.state = 'held' and s.reason = 'check_unavailable' and s.hold_detail is null
+       and s.updated_at < p_before and (p_tenant_id is null or s.tenant_id = p_tenant_id)
+    returning 1
+  )
+  select count(*)::int from released
+$$;
+revoke execute on function public.reach_out_release_unavailable(timestamptz, uuid) from public, anon, authenticated;
+grant execute on function public.reach_out_release_unavailable(timestamptz, uuid) to service_role;
 
 /* ------------------------------------------------------------ the audience -- */
 

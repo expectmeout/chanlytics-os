@@ -23556,6 +23556,7 @@ var REACH_OUT_SUBJECT_MAX = 80;
 var REACH_OUT_BODY_MAX = 1200;
 var REACH_OUT_WORDS_MAX = 120;
 var OPENING_WORDS_MAX = 40;
+var OPENING_CHARS_MAX = 400;
 var ANGLE_WORDS_MAX = 3;
 var REACH_OUT_STEPS_MAX = 5;
 var REACH_OUT_NAME_MAX = 80;
@@ -23584,6 +23585,10 @@ function slotCount(text, slot) {
   let n = 0;
   for (const m of text.matchAll(SLOT)) if (slotKey(m[1] ?? "") === slot) n += 1;
   return n;
+}
+function wordsNeedOpening(w) {
+  return slotCount(`${w.subject ?? ""}
+${w.body}`, "opening") > 0;
 }
 function wordCount(text) {
   return text.split(/\s+/).filter((t) => /[\p{L}\p{N}]/u.test(t)).length;
@@ -23781,7 +23786,7 @@ function isOpeningProblem(p) {
 function checkOpening(o, r2) {
   const text = o.opening.trim();
   if (!text) return "empty";
-  if (wordCount(text) > OPENING_WORDS_MAX) return "too_long";
+  if (wordCount(text) > OPENING_WORDS_MAX || text.length > OPENING_CHARS_MAX) return "too_long";
   let unnamed = text;
   for (const own of [r2.business_name, r2.city]) if (own?.trim()) unnamed = unnamed.split(own.trim()).join(" ");
   if (linksIn(unnamed).length > 0 || /@/.test(unnamed)) return "link";
@@ -23800,7 +23805,7 @@ function openingProblemWords(p) {
     case "empty":
       return "it said nothing";
     case "too_long":
-      return `it ran past ${OPENING_WORDS_MAX} words`;
+      return `it ran past ${OPENING_WORDS_MAX} words or ${OPENING_CHARS_MAX} characters`;
     case "link":
       return "it carried a link or a web address";
     case "brace":
@@ -23921,7 +23926,8 @@ var REACH_OUT_MODEL = "claude-haiku-4-5-20251001";
 var OPENING_SCHEMA = {
   type: "object",
   properties: {
-    opening: { type: "string" },
+    // The bound is said, not constrained: structured outputs refuse maxLength. Code holds it (checkOpening, too_long).
+    opening: { type: "string", description: `At most ${OPENING_WORDS_MAX} words and ${OPENING_CHARS_MAX} characters.` },
     angle: { type: "string" },
     facts_used: { type: "array", items: { type: "string", enum: [...OPENING_FACT_KEYS] } }
   },
@@ -24522,6 +24528,7 @@ export {
   OFFERS_BY_WHATSAPP_NOTE,
   OFFERS_OPT_IN_PHRASES,
   OFFERS_YES_SOURCES,
+  OPENING_CHARS_MAX,
   OPENING_FACT_KEYS,
   OPENING_PROBLEMS,
   OPENING_SCHEMA,
@@ -25663,6 +25670,7 @@ export {
   withVisitsOf,
   wordCount,
   wordsIssueWords,
+  wordsNeedOpening,
   workspaceHotkey,
   writtenChannelOf,
   writtenOutDetail,

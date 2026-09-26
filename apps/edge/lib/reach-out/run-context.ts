@@ -10,17 +10,12 @@ import {
   listPolicies,
   reachOutAudience,
   reachOutFollowers,
+  workspaceMaySpend,
   type Database,
   type Json,
 } from "../packages/db.js";
 import type { ReachOutRunPorts, ReachOutStep } from "../packages/core.js";
-import {
-  domainDailyCap,
-  maySpend,
-  type BillingMode,
-  type BillingStatus,
-  type TimetableDomain,
-} from "../packages/contracts.js";
+import { domainDailyCap, type TimetableDomain } from "../packages/contracts.js";
 import { notify } from "../ops/notify.js";
 import { loadTenantNotifications } from "../tenant-runtime.js";
 import { logger } from "../log.js";
@@ -86,7 +81,11 @@ export async function reachOutRunContext(
 ): Promise<{ step: ReachOutStep; ports: ReachOutRunPorts } | { error: string }> {
   const [tenant, billing, policies, step] = await Promise.all([
     db.from("tenants").select("timezone, status").eq("id", row.tenant_id).maybeSingle(),
-    db.from("billing_accounts").select("mode, status").eq("tenant_id", row.tenant_id).maybeSingle(),
+    // The one reading of "may this workspace spend on reach-out" (the check asks it too).
+    workspaceMaySpend(db, row.tenant_id).then(
+      (spend) => ({ spend, error: null as string | null }),
+      (e: unknown) => ({ spend: false, error: e instanceof Error ? e.message : String(e) }),
+    ),
     listPolicies(db, row.tenant_id).then(
       (rows) => ({ rows, error: null as string | null }),
       (e: unknown) => ({ rows: [], error: e instanceof Error ? e.message : String(e) }),
@@ -97,7 +96,7 @@ export async function reachOutRunContext(
     ),
   ]);
   if (tenant.error) return { error: `tenant: ${tenant.error.message}` };
-  if (billing.error) return { error: `billing: ${billing.error.message}` };
+  if (billing.error) return { error: `billing: ${billing.error}` };
   if (policies.error) return { error: `policies: ${policies.error}` };
   if (step.error) return { error: step.error };
   if (!step.s) return { error: "chain_broken" };
@@ -108,7 +107,7 @@ export async function reachOutRunContext(
   const said = policies.rows.find((p) => p.class === "outreach")?.mode;
   const mode = said === "veto" || said === "never" ? said : "ask";
   // No billing row is not permission (every workspace is given one at creation): it may not spend.
-  const spend = billing.data ? maySpend(billing.data.mode as BillingMode, billing.data.status as BillingStatus) : false;
+  const spend = billing.spend;
   const tenantId = row.tenant_id;
 
   const ports: ReachOutRunPorts = {

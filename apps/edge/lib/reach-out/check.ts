@@ -16,14 +16,16 @@
  * as check_unavailable (R4); such a hold is put back to be checked an hour on.
  *
  * What the model costs is bounded where it is spent (R2, R12): a few sends of each workspace a tick, only a workspace
- * that may spend and has room in its month, at most REACH_OUT_CHECKS_PER_DAY a day, and never a call after the tick's
- * budget. The sends are leased (00190 reach_out_unchecked), and a check writes only onto the send and the words'
+ * that may spend and has room in its month, at most REACH_OUT_CHECKS_PER_DAY attempts a UTC day (00190
+ * reach_out_check_spend, taken before each attempt that asks the model, so no reset gives one back), and never a call
+ * after the tick's budget. The sends are leased (00190 reach_out_unchecked), and a check writes only onto the send and the words'
  * version it read (R3, R5), so two ticks never pay for one send and a check never stamps words that changed under it.
  *
  * The rules are contracts' (reach-out-words.ts, reach-out-opening.ts). This file asks the model and writes the answers.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  OPENING_CHARS_MAX,
   OPENING_SCHEMA,
   READING_SCHEMA,
   REACH_OUT_CHECKS_PER_DAY,
@@ -40,18 +42,18 @@ import {
   parseTenantConfig,
   readingSystemPrompt,
   readingUserContent,
-  slotCount,
+  wordsNeedOpening,
   type OpeningRecord,
   type OpeningWorkspace,
   type ReachOutHold,
   type WrittenOpening,
 } from "../packages/contracts.js";
 import {
-  checkedSince,
   emailWordsOf,
   monthSent,
   recordCheck,
   releaseUnavailableHolds,
+  takeCheckAttempt,
   uncheckedSends,
   workspaceAbout,
   workspaceMaySpend,
@@ -87,8 +89,6 @@ export const CHECK_BACKOFF_MINUTES = [1, 2, 4, 8, 15] as const;
 export const CHECK_GATE_WAIT_MS = 3_600_000;
 /** A check_unavailable hold with no rule broken goes back to be checked this long after it was held (R4). */
 export const CHECK_RELEASE_AFTER_MS = 3_600_000;
-const RELEASE_PAGE = 200;
-const DAY_MS = 86_400_000;
 
 /**
  * One call: the model's answer in the schema asked, with what it cost; null when there is no model to ask. The signal
@@ -247,13 +247,19 @@ export async function checkOne(i: CheckInput, ask: AskModel, budget: CheckBudget
     hold = null;
     detail = null;
   }
-  // The code holds come first: they are facts about the business, not about the words written for it.
-  if (i.customerDomain && !i.included.includes("customer_domain")) {
-    hold = "customer_domain";
-    detail = i.customerDomain;
-  } else if (i.chain && !i.included.includes("chain")) {
-    hold = "chain";
-    detail = `${i.chain.by}:${i.chain.listings}`;
+  // The code holds come first: they are facts about the business, not about the words written for it. One that wins
+  // over an opening the reader or code refused keeps no opening: an Include past the code hold then finds none, and the
+  // send is checked again (the sender's no_opening), where the opening's own hold is said.
+  const code: { hold: ReachOutHold; detail: string } | null =
+    i.customerDomain && !i.included.includes("customer_domain")
+      ? { hold: "customer_domain", detail: i.customerDomain }
+      : i.chain && !i.included.includes("chain")
+        ? { hold: "chain", detail: `${i.chain.by}:${i.chain.listings}` }
+        : null;
+  if (code) {
+    if (hold) opening = null;
+    hold = code.hold;
+    detail = code.detail;
   }
   return { kind: "checked", opening, hold, detail, rewritten, tokens, calls };
 }
@@ -301,7 +307,7 @@ export function checkInputOf(
     workspace,
     words,
     language,
-    needsOpening: slotCount(words.body, "opening") > 0,
+    needsOpening: wordsNeedOpening(words),
     chain: chainOf({ website: r.website_host, site_listings: r.site_listings, name_listings: r.name_listings }),
     customerDomain: customerDomainOf(r.email, r.email_domain_shared),
     included,
@@ -328,15 +334,18 @@ export async function checkWorkspaceOf(db: Db, tenantId: string): Promise<CheckW
   };
 }
 
-/** What a written opening stores, within the columns' bounds (00190): an answer too long to keep is not kept. */
-function stored(o: WrittenOpening | null): Pick<ReachOutSendRow, "opening" | "angle" | "facts_used"> {
-  const opening = o?.opening.trim() ?? "";
-  const angle = o?.angle.trim() ?? "";
-  return {
-    opening: opening && opening.length <= 400 ? opening : null,
-    angle: angle && angle.length <= 40 ? angle : null,
-    facts_used: (o?.facts_used ?? []).slice(0, 12),
-  };
+/**
+ * What a written opening stores, within the columns' bounds (00190), or null when it does not fit them. checkOpening
+ * refuses an opening past OPENING_CHARS_MAX, so this is the last guard, never a pass: a sendable opening that cannot be
+ * stored is a failed check, and a held one is kept without its words.
+ */
+function stored(o: WrittenOpening | null): Pick<ReachOutSendRow, "opening" | "angle" | "facts_used"> | null {
+  if (!o) return { opening: null, angle: null, facts_used: [] };
+  const opening = o.opening.trim();
+  const angle = o.angle.trim();
+  if (!opening || opening.length > OPENING_CHARS_MAX || !angle || angle.length > 40 || o.facts_used.length > 12)
+    return null;
+  return { opening, angle, facts_used: o.facts_used };
 }
 
 /** How long a send waits after its nth failed try (R4). */
@@ -410,7 +419,6 @@ export async function checkSends(p: {
   try {
     out.released = await releaseUnavailableHolds(db, {
       before: new Date(now.getTime() - CHECK_RELEASE_AFTER_MS),
-      limit: RELEASE_PAGE,
       tenantId: p.tenantId,
     });
   } catch (e) {
@@ -425,29 +433,31 @@ export async function checkSends(p: {
   });
   out.read = rows.length;
 
-  /* each workspace's gates, before any call (R2, R12) */
+  /* each workspace's gates, before any call (R2, R12); the day's ceiling is taken one attempt at a time, below */
   const byTenant = new Map<string, UncheckedSend[]>();
   for (const u of rows) byTenant.set(u.send.tenant_id, [...(byTenant.get(u.send.tenant_id) ?? []), u]);
   const go: UncheckedSend[] = [];
   const later = { check_after: new Date(now.getTime() + CHECK_GATE_WAIT_MS).toISOString() };
+  const gatedSaid = new Set<string>();
+  const gate = async (u: UncheckedSend, why: string) => {
+    if (await write(u, later)) out.gated += 1;
+    if (!gatedSaid.has(`${u.send.tenant_id}:${why}`)) {
+      gatedSaid.add(`${u.send.tenant_id}:${why}`);
+      log.info("reach_out_check_gated", { tenant_id: u.send.tenant_id, reason: why });
+    }
+  };
   for (const [tenantId, sends] of byTenant) {
-    let room: number;
     let why: string | null = null;
     try {
       if (!(await workspaceMaySpend(db, tenantId))) why = "billing";
       else if ((await monthSent(db, tenantId, now)) >= REACH_OUT_MONTH_EMAILS) why = "month_spent";
-      room = why ? 0 : REACH_OUT_CHECKS_PER_DAY - (await checkedSince(db, tenantId, new Date(now.getTime() - DAY_MS)));
-      if (!why && room <= 0) why = "day_spent";
     } catch (e) {
       // Its leases lapse in two minutes, and the next tick asks again.
       error("reach_out_check_gate_failed", { tenant_id: tenantId }, e);
       continue;
     }
-    go.push(...sends.slice(0, Math.max(room, 0)));
-    const gated = sends.slice(Math.max(room, 0));
-    for (const u of gated) if (await write(u, later)) out.gated += 1;
-    if (gated.length > 0)
-      log.info("reach_out_check_gated", { tenant_id: tenantId, reason: why ?? "day_spent", sends: gated.length });
+    if (why) for (const u of sends) await gate(u, why);
+    else go.push(...sends);
   }
 
   /* each send's check, a few at once */
@@ -476,7 +486,15 @@ export async function checkSends(p: {
         return;
       }
       const ws = await once(workspaces, s.tenant_id, () => checkWorkspaceOf(db, s.tenant_id));
-      const c = await checkOne(checkInputOf(u.record, w, ws.opening, u.template_language, u.included_for), ask, budget);
+      const input = checkInputOf(u.record, w, ws.opening, u.template_language, u.included_for);
+      // One attempt of the workspace's UTC day, taken before the model is asked (a rewrite is the same attempt, a
+      // failure spends it): words that name no opening cost nothing and take none.
+      const cap = REACH_OUT_CHECKS_PER_DAY;
+      if (input.needsOpening && !(await takeCheckAttempt(db, { tenantId: s.tenant_id, cap, at: now }))) {
+        await gate(u, "day_spent");
+        return;
+      }
+      const c = await checkOne(input, ask, budget);
       out.calls += c.calls;
       out.tokens.input += c.tokens.input;
       out.tokens.output += c.tokens.output;
@@ -484,8 +502,7 @@ export async function checkSends(p: {
         if (await write(u, {})) out.late += 1;
         return;
       }
-      if (c.kind === "failed") {
-        out.calls_failed += 1;
+      const failed = async (why: string) => {
         const tries = Math.min((s.check_tries ?? 0) + 1, 100);
         const first = s.check_first_at ?? at;
         if (now.getTime() - Date.parse(first) >= CHECK_GIVE_UP_MS) {
@@ -504,7 +521,7 @@ export async function checkSends(p: {
               send_id: s.id,
               broadcast_id: s.broadcast_id,
               tries,
-              why: c.why,
+              why,
             });
           }
           return;
@@ -515,11 +532,21 @@ export async function checkSends(p: {
           check_after: new Date(now.getTime() + backoffMs(tries)).toISOString(),
         };
         if (await write(u, patch)) out.failed += 1;
+      };
+      if (c.kind === "failed") {
+        out.calls_failed += 1;
+        await failed(c.why);
+        return;
+      }
+      const keep = stored(c.opening);
+      // A sendable opening the send cannot store is no pass: tried again, as a model's answer out of shape is.
+      if (!keep && !c.hold) {
+        await failed("unstorable");
         return;
       }
       const patch: Partial<ReachOutSendRow> = {
         checked_at: at,
-        ...stored(c.opening),
+        ...(keep ?? { opening: null, angle: null, facts_used: [] }),
         hold_detail: c.detail ? c.detail.slice(0, 120) : null,
         checked_words: checkedWordsOf(w, u.signed_by, ws.bookingLink !== null),
         check_after: null,

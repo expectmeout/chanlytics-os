@@ -10,6 +10,7 @@
  */
 import {
   ANGLE_WORDS_MAX,
+  OPENING_CHARS_MAX,
   OPENING_FACT_KEYS,
   OPENING_WORDS_MAX,
   openingProblemWords,
@@ -24,7 +25,8 @@ export const REACH_OUT_MODEL = "claude-haiku-4-5-20251001";
 export const OPENING_SCHEMA = {
   type: "object",
   properties: {
-    opening: { type: "string" },
+    // The bound is said, not constrained: structured outputs refuse maxLength. Code holds it (checkOpening, too_long).
+    opening: { type: "string", description: `At most ${OPENING_WORDS_MAX} words and ${OPENING_CHARS_MAX} characters.` },
     angle: { type: "string" },
     facts_used: { type: "array", items: { type: "string", enum: [...OPENING_FACT_KEYS] } },
   },

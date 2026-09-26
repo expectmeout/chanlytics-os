@@ -38,6 +38,8 @@ export const REACH_OUT_BODY_MAX = 1200;
 /** The whole email as a business reads it, the opening counted at its most (§4.4). */
 export const REACH_OUT_WORDS_MAX = 120;
 export const OPENING_WORDS_MAX = 40;
+/** An opening's length in characters, as a send stores it (00190 reach_out_sends.opening): forty words fit well within. */
+export const OPENING_CHARS_MAX = 400;
 export const ANGLE_WORDS_MAX = 3;
 export const REACH_OUT_STEPS_MAX = 5;
 export const REACH_OUT_NAME_MAX = 80;
@@ -80,6 +82,14 @@ export function slotCount(text: string, slot: ReachOutSlot): number {
   let n = 0;
   for (const m of text.matchAll(SLOT)) if (slotKey(m[1] ?? "") === slot) n += 1;
   return n;
+}
+
+/**
+ * Whether a step's words name {{opening}}, in its subject or its body: the one rule for "this email needs an opening
+ * written for it", asked by the check (which writes one) and by the sender (which sends none without it).
+ */
+export function wordsNeedOpening(w: { subject: string | null; body: string }): boolean {
+  return slotCount(`${w.subject ?? ""}\n${w.body}`, "opening") > 0;
 }
 
 /** Words as a reader counts them: a mark standing alone (a dash, the comma a slot left behind) is no word. */
@@ -398,7 +408,7 @@ export function isOpeningProblem(p: string | null | undefined): p is OpeningProb
 export function checkOpening(o: WrittenOpening, r: OpeningRecord): OpeningProblem | null {
   const text = o.opening.trim();
   if (!text) return "empty";
-  if (wordCount(text) > OPENING_WORDS_MAX) return "too_long";
+  if (wordCount(text) > OPENING_WORDS_MAX || text.length > OPENING_CHARS_MAX) return "too_long";
   // The business's own name and city are theirs to be called by, dots and all ("fixit.co Repairs"); anything else
   // shaped like an address, or an email address, is a link (a business's own host is one to a spam filter too).
   let unnamed = text;
@@ -422,7 +432,7 @@ export function openingProblemWords(p: OpeningProblem): string {
     case "empty":
       return "it said nothing";
     case "too_long":
-      return `it ran past ${OPENING_WORDS_MAX} words`;
+      return `it ran past ${OPENING_WORDS_MAX} words or ${OPENING_CHARS_MAX} characters`;
     case "link":
       return "it carried a link or a web address";
     case "brace":

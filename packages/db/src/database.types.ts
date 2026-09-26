@@ -3657,6 +3657,32 @@ export type Database = {
         }
         Relationships: []
       }
+      reach_out_check_spend: {
+        Row: {
+          attempts: number
+          day: string
+          tenant_id: string
+        }
+        Insert: {
+          attempts?: number
+          day: string
+          tenant_id: string
+        }
+        Update: {
+          attempts?: number
+          day?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reach_out_check_spend_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       reach_out_sends: {
         Row: {
           angle: string | null
@@ -5171,6 +5197,10 @@ export type Database = {
               region: string
             }[]
           }
+      reach_out_check_take: {
+        Args: { p_at?: string; p_cap: number; p_tenant_id: string }
+        Returns: boolean
+      }
       reach_out_claim: {
         Args: {
           p_at: string
@@ -5340,6 +5370,10 @@ export type Database = {
           what_you_asked: string
           why_it_fits: string
         }[]
+      }
+      reach_out_release_unavailable: {
+        Args: { p_before: string; p_tenant_id?: string }
+        Returns: number
       }
       reach_out_stale_sends: {
         Args: { p_before: string; p_limit: number; p_tenant_id?: string }

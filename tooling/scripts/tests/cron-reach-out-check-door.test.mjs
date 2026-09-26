@@ -106,6 +106,9 @@ function world({ sends = [send()] } = {}) {
             };
           }),
       reach_out_month_sent: () => 0,
+      // 00190's spend (room left) and release (nothing held here), as the SQL answers them.
+      reach_out_check_take: () => true,
+      reach_out_release_unavailable: () => 0,
     },
   );
   setPg(db);

@@ -2577,6 +2577,8 @@ var NINE_TO_FIVE = [{ from: 9 * 60, to: 17 * 60 }];
 var SEND_DAY_FRAME = { from: 8 * 60, to: 20 * 60 };
 var REACH_OUT_SUBJECT_MAX = 80;
 var REACH_OUT_BODY_MAX = 1200;
+var OPENING_WORDS_MAX = 40;
+var OPENING_CHARS_MAX = 400;
 var REACH_OUT_STEPS_MAX = 5;
 var REACH_OUT_NAME_MAX = 80;
 var SIGNED_BY_MAX = 60;
@@ -2611,7 +2613,8 @@ var OPENING_FACT_KEYS = [
 var OPENING_SCHEMA = {
   type: "object",
   properties: {
-    opening: { type: "string" },
+    // The bound is said, not constrained: structured outputs refuse maxLength. Code holds it (checkOpening, too_long).
+    opening: { type: "string", description: `At most ${OPENING_WORDS_MAX} words and ${OPENING_CHARS_MAX} characters.` },
     angle: { type: "string" },
     facts_used: { type: "array", items: { type: "string", enum: [...OPENING_FACT_KEYS] } }
   },
@@ -3478,22 +3481,21 @@ async function heldStale(db, before, limit, tenantId) {
   return data ?? [];
 }
 async function releaseUnavailableHolds(db, p) {
-  let q = db.from("reach_out_sends").select("id, tenant_id, check_gen").eq("state", "held").eq("reason", "check_unavailable").is("hold_detail", null);
-  if (p.tenantId) q = q.eq("tenant_id", p.tenantId);
-  const { data, error } = await q.lt("updated_at", p.before.toISOString()).limit(p.limit);
-  if (error) throw new Error(`cannot read the holds to check again: ${error.message}`);
-  let released = 0;
-  for (const h of data ?? []) {
-    const { data: moved, error: e2 } = await db.from("reach_out_sends").update({ ...checkResetPatch(h.check_gen), state: "planned", reason: null }).eq("tenant_id", h.tenant_id).eq("id", h.id).eq("state", "held").eq("check_gen", h.check_gen).select("id");
-    if (e2) throw new Error(`cannot put the hold back to be checked: ${e2.message}`);
-    released += (moved ?? []).length;
-  }
-  return released;
+  const { data, error } = await db.rpc("reach_out_release_unavailable", {
+    p_before: p.before.toISOString(),
+    ...p.tenantId ? { p_tenant_id: p.tenantId } : {}
+  });
+  if (error) throw new Error(`cannot put the holds back to be checked: ${error.message}`);
+  return typeof data === "number" ? data : 0;
 }
-async function checkedSince(db, tenantId, since) {
-  const { count, error } = await db.from("reach_out_sends").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId).gte("checked_at", since.toISOString());
-  if (error) throw new Error(`cannot count the sends checked today: ${error.message}`);
-  return count ?? 0;
+async function takeCheckAttempt(db, p) {
+  const { data, error } = await db.rpc("reach_out_check_take", {
+    p_tenant_id: p.tenantId,
+    p_cap: p.cap,
+    p_at: p.at.toISOString()
+  });
+  if (error) throw new Error(`cannot take the check's attempt: ${error.message}`);
+  return data === true;
 }
 async function workspaceMaySpend(db, tenantId) {
   const [tenant, billing] = await Promise.all([
@@ -4208,7 +4210,6 @@ export {
   archiveList,
   assembleHistory,
   checkResetPatch,
-  checkedSince,
   claimCallNotification,
   claimControl,
   claimSends,
@@ -4311,6 +4312,7 @@ export {
   stuckClaims,
   subscribeMessagesInserts,
   suppressEmailOf,
+  takeCheckAttempt,
   templatesFor,
   touchIndex,
   touchSendingDomain,

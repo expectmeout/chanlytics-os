@@ -155,6 +155,24 @@ test("another language holds with no rewrite; the code holds come first, the ope
   assert.deepEqual([chain.hold, chain.detail], ["chain", "name:4"]);
 });
 
+test("a code hold that wins over a refused opening keeps no opening: an Include past it is checked again", async () => {
+  const unbacked = scripted(
+    WROTE("Loved by locals."),
+    READ({ backed: false, unbacked: "Loved by locals" }),
+    WROTE("Loved by all."),
+    READ({ backed: false, unbacked: "Loved by all" }),
+  );
+  const held = await checkOne(input({ chain: { by: "site", listings: 3 } }), unbacked.ask, open);
+  assert.deepEqual([held.hold, held.detail, held.opening], ["chain", "site:3", null]);
+  // The same business, its opening read as sound: kept, so an Include sends it as it reads.
+  const sound = await checkOne(
+    input({ chain: { by: "site", listings: 3 } }),
+    scripted(WROTE("A 4.9."), READ()).ask,
+    open,
+  );
+  assert.deepEqual([sound.hold, sound.opening.opening], ["chain", "A 4.9."]);
+});
+
 test("a hold its owner included the send past is never made again (R7)", async () => {
   const both = { customerDomain: "austinmovers.example", chain: { by: "site", listings: 3 }, needsOpening: false };
   const d = await checkOne(input({ ...both, included: ["customer_domain"] }), scripted().ask, open);
@@ -281,7 +299,7 @@ const record = (name, over = {}) => ({
  * minutes; stamped as it is handed over, with its step, its chain's name and its record. The SQL's round-robin, its
  * horizon and its joins are proved on a stack (reach-out-checked.db.test.mjs).
  */
-function world({ sends = [], records = {}, billing = "active", monthSent = 0, checkedToday = 0, body = WORDS } = {}) {
+function world({ sends = [], records = {}, billing = "active", monthSent = 0, spentToday = 0, body = WORDS } = {}) {
   const tables = {
     tenants: [
       { id: T, name: "Harbor Moving Co", status: "active" },
@@ -302,13 +320,9 @@ function world({ sends = [], records = {}, billing = "active", monthSent = 0, ch
         ],
       },
     ],
-    reach_out_sends: [
-      ...sends,
-      // What the workspace checked in the last day, counted against its ceiling.
-      ...Array.from({ length: checkedToday }, (_, i) =>
-        send({ id: `done-${i}`, state: "sent", checked_at: ago(HOUR_AGO), lead_id: `done-${i}` }),
-      ),
-    ],
+    reach_out_sends: sends,
+    // What the workspace's model attempts spent this UTC day (00190), counted against its ceiling.
+    reach_out_check_spend: [{ tenant_id: T, day: new Date().toISOString().slice(0, 10), attempts: spentToday }],
   };
   const leased = [];
   const db = fakeDb(
@@ -346,6 +360,44 @@ function world({ sends = [], records = {}, billing = "active", monthSent = 0, ch
         }));
       },
       reach_out_month_sent: () => monthSent,
+      // 00190's spend and release, as the SQL makes them (proved on a stack, reach-out-checked.db.test.mjs).
+      reach_out_check_take: (a) => {
+        const day = a.p_at.slice(0, 10);
+        let row = tables.reach_out_check_spend.find((x) => x.tenant_id === a.p_tenant_id && x.day === day);
+        if (!row) tables.reach_out_check_spend.push((row = { tenant_id: a.p_tenant_id, day, attempts: 0 }));
+        if (row.attempts >= a.p_cap) return false;
+        row.attempts += 1;
+        return true;
+      },
+      reach_out_release_unavailable: (a) => {
+        let n = 0;
+        for (const s of tables.reach_out_sends)
+          if (
+            s.state === "held" &&
+            s.reason === "check_unavailable" &&
+            s.hold_detail == null &&
+            s.updated_at < a.p_before &&
+            (!a.p_tenant_id || s.tenant_id === a.p_tenant_id)
+          ) {
+            Object.assign(s, {
+              state: "planned",
+              reason: null,
+              checked_at: null,
+              check_gen: s.check_gen + 1,
+              checked_words: null,
+              check_tries: 0,
+              check_first_at: null,
+              check_after: null,
+              check_started_at: null,
+              opening: null,
+              angle: null,
+              facts_used: [],
+              hold_detail: null,
+            });
+            n += 1;
+          }
+        return n;
+      },
     },
   );
   const row = (id) => tables.reach_out_sends.find((s) => s.id === id);
@@ -455,7 +507,7 @@ test("a workspace that may not spend, has no room this month or checked its day'
     ["billing", { billing: null }],
     ["billing", { billing: "canceled" }],
     ["month_spent", { monthSent: 2000 }],
-    ["day_spent", { checkedToday: REACH_OUT_CHECKS_PER_DAY }],
+    ["day_spent", { spentToday: REACH_OUT_CHECKS_PER_DAY }],
   ]) {
     const s = send();
     const w = world({ sends: [s], ...over });
@@ -471,14 +523,69 @@ test("a workspace that may not spend, has no room this month or checked its day'
       [why],
     );
   }
-  // Two left of the day: two are checked, the rest wait.
+  // Two attempts left of the day: two are checked, the rest wait.
   const three = [1, 2, 3].map(() => send({ lead_id: `room-${++n}` }));
-  const w = world({ sends: three, checkedToday: REACH_OUT_CHECKS_PER_DAY - 2 });
+  const w = world({ sends: three, spentToday: REACH_OUT_CHECKS_PER_DAY - 2 });
   const out = await tick(w, async (system) => ({
     answer: system.includes("You write") ? WROTE("A 4.9 says it.") : READ(),
     tokens: { input: 1, output: 1 },
   }));
   assert.deepEqual([out.checked, out.gated], [2, 1]);
+});
+
+test("the day's ceiling survives a reset, and a failed attempt spends it too (R12)", async () => {
+  // Checked, then reset (its words changed): the attempt stays spent, and the next attempt takes another.
+  const s = send();
+  const w = world({ sends: [s], spentToday: REACH_OUT_CHECKS_PER_DAY - 2 });
+  const ok = async (system) => ({
+    answer: system.includes("You write") ? WROTE("A 4.9 says it.") : READ(),
+    tokens: { input: 1, output: 1 },
+  });
+  assert.equal((await tick(w, ok)).checked, 1);
+  Object.assign(w.row(s.id), { checked_at: null, check_gen: 1, check_started_at: null });
+  // A failure spends the day's last attempt.
+  assert.equal((await tick(w, async () => null)).failed, 1);
+  const spend = () => w.tables.reach_out_check_spend.find((x) => x.tenant_id === T).attempts;
+  assert.equal(spend(), REACH_OUT_CHECKS_PER_DAY, "two attempts, a pass and a failure, both counted");
+  Object.assign(w.row(s.id), { check_after: null });
+  const m = byBusiness({});
+  const out = await tick(w, m.ask);
+  assert.deepEqual([out.gated, m.calls.length], [1, 0], "the day is spent, whatever was reset");
+  // Words that name no opening ask no model, and take no attempt.
+  const plain = world({
+    sends: [send()],
+    spentToday: REACH_OUT_CHECKS_PER_DAY,
+    body: { subject: "Quick one", body: "Hi {{business}}." },
+  });
+  assert.equal((await tick(plain, byBusiness({}).ask)).checked, 1);
+});
+
+test("an opening past 400 characters is rewritten once, then held without its words; never a pass", async () => {
+  const longer = "x".repeat(401);
+  const s = send();
+  const w = world({ sends: [s] });
+  const calls = [];
+  const out = await tick(w, async (system) => {
+    calls.push(system);
+    return {
+      answer: system.includes("You write") ? WROTE(longer, { facts_used: [] }) : READ(),
+      tokens: { input: 1, output: 1 },
+    };
+  });
+  assert.equal(calls.length, 4, "written, read, written again told why, read");
+  const r = w.row(s.id);
+  assert.deepEqual([r.state, r.reason, r.hold_detail, r.opening], ["held", "check_unavailable", "too_long", null]);
+  assert.equal(out.held, 1);
+  // A sendable opening the send cannot store (an angle past its column) is a failed try, never a pass.
+  const t = send();
+  const v = world({ sends: [t] });
+  const angle = "Supercalifragilisticexpialidocious-reviews everywhere";
+  const tried = await tick(v, async (system) => ({
+    answer: system.includes("You write") ? WROTE("A 4.9 says it.", { angle }) : READ(),
+    tokens: { input: 1, output: 1 },
+  }));
+  assert.deepEqual([tried.checked, tried.failed], [0, 1]);
+  assert.deepEqual([v.row(t.id).checked_at, v.row(t.id).check_tries], [null, 1]);
 });
 
 test("a tick past its budget hands its sends back untouched, and asks nothing (R1)", async () => {

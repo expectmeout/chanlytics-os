@@ -773,52 +773,37 @@ export async function heldStale(db: Db, before: Date, limit: number, tenantId?: 
 }
 
 /**
- * Holds the check could not answer (check_unavailable, no rule broken) left since `before`: each put back to be checked
- * again, once, at its words' next version (R4). A hold for a rule an opening broke keeps: it is its owner's to answer.
+ * Holds the check could not answer (check_unavailable, no rule broken) left since `before`: put back to be checked
+ * again at their words' next version, in one statement (00190 reach_out_release_unavailable, R4). A hold for a rule an
+ * opening broke keeps: it is its owner's to answer. How many went back.
  */
-export async function releaseUnavailableHolds(
-  db: Db,
-  p: { before: Date; limit: number; tenantId?: string },
-): Promise<number> {
-  let q = db
-    .from("reach_out_sends")
-    .select("id, tenant_id, check_gen")
-    .eq("state", "held")
-    .eq("reason", "check_unavailable")
-    .is("hold_detail", null);
-  if (p.tenantId) q = q.eq("tenant_id", p.tenantId);
-  const { data, error } = await q.lt("updated_at", p.before.toISOString()).limit(p.limit);
-  if (error) throw new Error(`cannot read the holds to check again: ${error.message}`);
-  let released = 0;
-  for (const h of data ?? []) {
-    const { data: moved, error: e2 } = await db
-      .from("reach_out_sends")
-      .update({ ...checkResetPatch(h.check_gen), state: "planned", reason: null } as never)
-      .eq("tenant_id", h.tenant_id)
-      .eq("id", h.id)
-      .eq("state", "held")
-      .eq("check_gen", h.check_gen)
-      .select("id");
-    if (e2) throw new Error(`cannot put the hold back to be checked: ${e2.message}`);
-    released += (moved ?? []).length;
-  }
-  return released;
-}
-
-/** How many of a workspace's sends were checked since `since`: the check's day, against its ceiling (R12). */
-export async function checkedSince(db: Db, tenantId: string, since: Date): Promise<number> {
-  const { count, error } = await db
-    .from("reach_out_sends")
-    .select("id", { count: "exact", head: true })
-    .eq("tenant_id", tenantId)
-    .gte("checked_at", since.toISOString());
-  if (error) throw new Error(`cannot count the sends checked today: ${error.message}`);
-  return count ?? 0;
+export async function releaseUnavailableHolds(db: Db, p: { before: Date; tenantId?: string }): Promise<number> {
+  const { data, error } = await db.rpc("reach_out_release_unavailable", {
+    p_before: p.before.toISOString(),
+    ...(p.tenantId ? { p_tenant_id: p.tenantId } : {}),
+  } as never);
+  if (error) throw new Error(`cannot put the holds back to be checked: ${error.message}`);
+  return typeof data === "number" ? data : 0;
 }
 
 /**
- * Whether a workspace may spend on the platform's account now (contracts maySpend, the rule the run reads): a paused
- * workspace, or one with no billing row, may not. A read that fails throws: "we could not check" is not "yes".
+ * One attempt of the check's model spend for a workspace's UTC day, taken only while the day is under `cap` (00190
+ * reach_out_check_take, R12): true when taken. A reset of a send's check never gives it back.
+ */
+export async function takeCheckAttempt(db: Db, p: { tenantId: string; cap: number; at: Date }): Promise<boolean> {
+  const { data, error } = await db.rpc("reach_out_check_take", {
+    p_tenant_id: p.tenantId,
+    p_cap: p.cap,
+    p_at: p.at.toISOString(),
+  } as never);
+  if (error) throw new Error(`cannot take the check's attempt: ${error.message}`);
+  return data === true;
+}
+
+/**
+ * Whether a workspace may spend on reach-out now (contracts maySpend): a paused workspace, or one with no billing row,
+ * may not. The one reading of it: the step's run (run-context.ts) and the check both ask it. A read that fails throws:
+ * "we could not check" is not "yes".
  */
 export async function workspaceMaySpend(db: Db, tenantId: string): Promise<boolean> {
   const [tenant, billing] = await Promise.all([
