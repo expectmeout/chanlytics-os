@@ -2208,6 +2208,7 @@ declare const SCHEMA_SETS: {
     readonly "ask_messages.role": readonly ["user", "assistant"];
     readonly "billing_accounts.mode": readonly ["stripe", "direct"];
     readonly "billing_accounts.status": readonly ["none", "incomplete", "incomplete_expired", "trialing", "active", "past_due", "canceled", "unpaid", "paused"];
+    readonly "billing_events.state": readonly ["claimed", "applied"];
     readonly "broadcast_recipients.state": readonly ["queued", "sent", "skipped", "failed"];
     readonly "broadcasts.state": readonly ["pending_approval", "scheduled", "sending", "sent", "canceled", "failed"];
     readonly "business_records.business_type": readonly ["Co-operative", "Corporation", "Limited Liability Corporation", "Non-profit Corporation", "Partnership"];

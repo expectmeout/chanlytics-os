@@ -33,7 +33,11 @@ function emit(level: LogLevel, event: string, fields: LogContext): void {
   // to be empty.
   const payload: Record<string, unknown> = { level, event };
   for (const [k, v] of Object.entries(fields)) {
-    if (v !== undefined) payload[k] = v;
+    if (v === undefined) continue;
+    // The envelope's two keys are the logger's own. A field named `event` once
+    // replaced a line's name with the id it named, and nothing could grep for
+    // the line; such a field rides under `<key>_field` instead.
+    payload[k === "event" || k === "level" ? `${k}_field` : k] = v;
   }
   const line = JSON.stringify(payload);
   if (level === "error") console.error(line);
