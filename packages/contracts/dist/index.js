@@ -1156,7 +1156,7 @@ function freeWindows(input) {
   const leadMs = rules.lead_hours * 36e5;
   const bufferMs = rules.buffer_min * 6e4;
   const slotMs = rules.slot_min * 6e4;
-  const earliest = onTheGrid(input.tz, input.now.getTime() + leadMs, rules.slot_min);
+  const earliest2 = onTheGrid(input.tz, input.now.getTime() + leadMs, rules.slot_min);
   const busy = input.busy.map((b) => ({ start: b.start - bufferMs, end: b.end + bufferMs })).sort((a, b) => a.start - b.start);
   const out = [];
   for (let offset = 0; offset < rules.max_days_ahead; offset++) {
@@ -1167,7 +1167,7 @@ function freeWindows(input) {
     for (const [open, close] of ranges) {
       const o = hhmm(open), c = hhmm(close);
       if (!o || !c) continue;
-      let start = Math.max(localToUtcMs(input.tz, day.y, day.m, day.d, o[0], o[1]), earliest);
+      let start = Math.max(localToUtcMs(input.tz, day.y, day.m, day.d, o[0], o[1]), earliest2);
       const end = localToUtcMs(input.tz, day.y, day.m, day.d, c[0], c[1]);
       for (const b of busy) {
         if (b.end <= start) continue;
@@ -5839,8 +5839,8 @@ var milesLabel = (m) => {
 // src/lead-facts.ts
 function leadTodayLine(hours, tz, now) {
   if (!hours.length) return null;
-  const dayOf = (d) => new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long" }).format(d).toLowerCase();
-  const hoursOn = (d) => hours.find((x) => x.day.toLowerCase() === dayOf(d))?.hours.trim() ?? null;
+  const dayOf2 = (d) => new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long" }).format(d).toLowerCase();
+  const hoursOn = (d) => hours.find((x) => x.day.toLowerCase() === dayOf2(d))?.hours.trim() ?? null;
   const parts2 = new Intl.DateTimeFormat("en-US", {
     timeZone: tz,
     hour: "numeric",
@@ -23202,6 +23202,279 @@ function unsubscribePageWords(v) {
       };
   }
 }
+
+// src/us-zones.ts
+var US_STATE_ZONES = {
+  AL: "America/Chicago",
+  AK: "America/Anchorage",
+  AZ: "America/Phoenix",
+  AR: "America/Chicago",
+  CA: "America/Los_Angeles",
+  CO: "America/Denver",
+  CT: "America/New_York",
+  DE: "America/New_York",
+  DC: "America/New_York",
+  FL: "America/New_York",
+  GA: "America/New_York",
+  HI: "Pacific/Honolulu",
+  ID: "America/Boise",
+  IL: "America/Chicago",
+  IN: "America/Indiana/Indianapolis",
+  IA: "America/Chicago",
+  KS: "America/Chicago",
+  KY: "America/New_York",
+  LA: "America/Chicago",
+  ME: "America/New_York",
+  MD: "America/New_York",
+  MA: "America/New_York",
+  MI: "America/Detroit",
+  MN: "America/Chicago",
+  MS: "America/Chicago",
+  MO: "America/Chicago",
+  MT: "America/Denver",
+  NE: "America/Chicago",
+  NV: "America/Los_Angeles",
+  NH: "America/New_York",
+  NJ: "America/New_York",
+  NM: "America/Denver",
+  NY: "America/New_York",
+  NC: "America/New_York",
+  ND: "America/Chicago",
+  OH: "America/New_York",
+  OK: "America/Chicago",
+  OR: "America/Los_Angeles",
+  PA: "America/New_York",
+  RI: "America/New_York",
+  SC: "America/New_York",
+  SD: "America/Chicago",
+  TN: "America/Chicago",
+  TX: "America/Chicago",
+  UT: "America/Denver",
+  VT: "America/New_York",
+  VA: "America/New_York",
+  WA: "America/Los_Angeles",
+  WV: "America/New_York",
+  WI: "America/Chicago",
+  WY: "America/Denver",
+  PR: "America/Puerto_Rico"
+};
+function zoneOfRegion(region) {
+  const code2 = (region ?? "").trim().toUpperCase();
+  return US_STATE_ZONES[code2] ?? null;
+}
+
+// src/lead-hours.ts
+var NINE_TO_FIVE = [{ from: 9 * 60, to: 17 * 60 }];
+var DEFAULT_WEEK = {
+  mon: NINE_TO_FIVE,
+  tue: NINE_TO_FIVE,
+  wed: NINE_TO_FIVE,
+  thu: NINE_TO_FIVE,
+  fri: NINE_TO_FIVE,
+  sat: [],
+  sun: []
+};
+var DAY_OF = {
+  mon: "mon",
+  monday: "mon",
+  tue: "tue",
+  tues: "tue",
+  tuesday: "tue",
+  wed: "wed",
+  wednesday: "wed",
+  thu: "thu",
+  thur: "thu",
+  thurs: "thu",
+  thursday: "thu",
+  fri: "fri",
+  friday: "fri",
+  sat: "sat",
+  saturday: "sat",
+  sun: "sun",
+  sunday: "sun"
+};
+function timeOf(s) {
+  const t = s.trim().toLowerCase().replace(/\./g, "");
+  if (t === "noon") return { min: 12 * 60, meridiem: "pm" };
+  if (t === "midnight") return { min: 0, meridiem: "am" };
+  const m = /^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/.exec(t);
+  if (!m) return null;
+  const hh = Number(m[1]);
+  const mm = Number(m[2] ?? 0);
+  if (hh < 1 || hh > 12 || mm > 59) return hh === 0 && !m[3] ? { min: mm, meridiem: null } : null;
+  return { min: hh % 12 * 60 + mm, meridiem: m[3] ?? null };
+}
+var withMeridiem = (min, meridiem) => meridiem === "pm" ? min + 12 * 60 : min;
+function rangeOf(s) {
+  const parts2 = s.split(/\s*(?:to|–|—|-)\s*/i);
+  if (parts2.length !== 2) return null;
+  const a = timeOf(parts2[0]);
+  const b = timeOf(parts2[1]);
+  if (!a || !b || !b.meridiem) return null;
+  const to0 = withMeridiem(b.min, b.meridiem);
+  let from = a.meridiem ? withMeridiem(a.min, a.meridiem) : withMeridiem(a.min, b.meridiem);
+  if (!a.meridiem && from > to0) from = a.min;
+  const to = to0 === 0 ? 24 * 60 : to0 <= from ? to0 + 24 * 60 : to0;
+  return { from, to };
+}
+function dayOf(words4) {
+  const w = words4.trim().toLowerCase();
+  if (w === "closed") return [];
+  if (w === "open 24 hours" || w === "24 hours") return [{ from: 0, to: 24 * 60 }];
+  const ranges = w.split(/\s*,\s*/).map(rangeOf);
+  return ranges.every((r2) => r2 !== null) && ranges.length > 0 ? ranges : null;
+}
+function weekHoursOf(hours) {
+  if (!Array.isArray(hours) || hours.length === 0) return { week: DEFAULT_WEEK, read: false };
+  const week = { mon: [], tue: [], wed: [], thu: [], fri: [], sat: [], sun: [] };
+  let readAny = false;
+  for (const e of hours) {
+    if (!e || typeof e !== "object") continue;
+    const day = DAY_OF[String(e.day ?? "").trim().toLowerCase()];
+    const said = e.hours;
+    if (!day || typeof said !== "string") continue;
+    const windows = dayOf(said);
+    if (windows === null) continue;
+    week[day] = windows;
+    readAny = true;
+  }
+  return readAny ? { week, read: true } : { week: DEFAULT_WEEK, read: false };
+}
+
+// src/reach-out-timetable.ts
+var SEND_WINDOW_MARGIN_MIN = 30;
+var SEND_DAY_FRAME = { from: 8 * 60, to: 20 * 60 };
+var TIMETABLE_HORIZON_DAYS = 7;
+var DAY_MS11 = 864e5;
+var MIN_MS2 = 6e4;
+var DAYS2 = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+function inFrame(week) {
+  const out = {};
+  for (const day of DAYS2) {
+    out[day] = (week[day] ?? []).map((w) => ({
+      from: Math.max(w.from + SEND_WINDOW_MARGIN_MIN, SEND_DAY_FRAME.from),
+      to: Math.min(w.to - SEND_WINDOW_MARGIN_MIN, SEND_DAY_FRAME.to)
+    })).filter((w) => w.to > w.from);
+  }
+  return out;
+}
+function sendWindowsOf(week) {
+  const framed = inFrame(week);
+  if (DAYS2.some((d) => framed[d].length > 0)) return framed;
+  return DAYS2.some((d) => (week[d] ?? []).length > 0) ? inFrame(DEFAULT_WEEK) : framed;
+}
+function openSpans(zone, windows, fromMs, days) {
+  const spans = [];
+  for (let i = 0; i <= days; i += 1) {
+    const day = dayPlusInZone(zone, fromMs, i);
+    for (const w of windows[day.weekday] ?? []) {
+      const start = localToUtcMs(zone, day.y, day.m, day.d, Math.floor(w.from / 60), w.from % 60);
+      const end = localToUtcMs(zone, day.y, day.m, day.d, Math.floor(w.to / 60), w.to % 60);
+      if (end > fromMs) spans.push([Math.max(start, fromMs), end]);
+    }
+  }
+  return spans.sort((a, b) => a[0] - b[0]);
+}
+function lowerBound(times, x) {
+  let lo = 0;
+  let hi = times.length;
+  while (lo < hi) {
+    const mid = lo + hi >> 1;
+    if (times[mid] < x) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+function fitsCap(times, t, cap2) {
+  const ends = [t, ...times.slice(lowerBound(times, t), lowerBound(times, t + DAY_MS11))];
+  for (const q of ends) {
+    const already = lowerBound(times, q + 1) - lowerBound(times, q - DAY_MS11 + 1);
+    if (already + 1 > cap2) return false;
+  }
+  return true;
+}
+function earliest(spans, times, cap2, gapMs, limitMs) {
+  let floor = 0;
+  for (const [start, end] of spans) {
+    let t = Math.max(start, floor);
+    for (let guard = 0; guard < 500 && t < end && t < limitMs; guard += 1) {
+      const i = lowerBound(times, t - gapMs + 1);
+      if (i < times.length && times[i] < t + gapMs) {
+        t = times[i] + gapMs;
+        floor = t;
+        continue;
+      }
+      if (!fitsCap(times, t, cap2)) {
+        const j = lowerBound(times, t - DAY_MS11 + 1);
+        t = (j < times.length && times[j] <= t ? times[j] : t) + DAY_MS11 + 1;
+        floor = t;
+        continue;
+      }
+      return t;
+    }
+  }
+  return null;
+}
+function timetable(input) {
+  const horizon = input.horizonDays ?? TIMETABLE_HORIZON_DAYS;
+  const limitMs = input.nowMs + horizon * DAY_MS11;
+  const jitter = input.jitter ?? (() => Math.random() * 2 - 1);
+  const domains = input.domains.filter((d) => d.cap > 0).map((d) => ({ ...d, times: [...d.recent].sort((a, b) => a - b), placed: 0 }));
+  const spansOf = /* @__PURE__ */ new Map();
+  const placed = [];
+  const unplaced = [];
+  for (const s of input.sends) {
+    const gapMs = Math.round(input.gapMinutes * MIN_MS2 * (1 + 0.25 * Math.max(-1, Math.min(1, jitter()))));
+    const key = `${s.zone}|${JSON.stringify(s.week)}`;
+    let spans = spansOf.get(key);
+    if (!spans) {
+      spans = openSpans(s.zone, sendWindowsOf(s.week), input.nowMs, horizon);
+      spansOf.set(key, spans);
+    }
+    let best = null;
+    for (const d of domains) {
+      const t = earliest(spans, d.times, d.cap, gapMs, limitMs);
+      if (t === null) continue;
+      if (!best || t < best.t || t === best.t && d.placed < best.d.placed) best = { d, t };
+    }
+    if (!best) {
+      unplaced.push(s.id);
+      continue;
+    }
+    best.d.times.splice(lowerBound(best.d.times, best.t), 0, best.t);
+    best.d.placed += 1;
+    placed.push({ id: s.id, domainId: best.d.id, sendAtMs: best.t });
+  }
+  return { placed, unplaced };
+}
+
+// src/reach-out-rules.ts
+function outreachRefusalOf(f) {
+  if (!f.leadStage) return "outreach_not_a_lead";
+  if (f.leadStage !== "ready" && f.leadStage !== "nurture") return "outreach_lead_closed";
+  if (f.suppressed) return "outreach_suppressed";
+  if (f.wroteBack) return "outreach_wrote_back";
+  return null;
+}
+var OUTREACH_WAIT_REFUSALS = ["sending_domain_at_cap", "sending_domain_not_ready"];
+function isWaitRefusal(reason) {
+  return OUTREACH_WAIT_REFUSALS.includes(reason ?? "");
+}
+var REACH_OUT_MONTH_EMAILS = 2e3;
+function reachOutSlots(words4, lead, workspace) {
+  const values = {
+    business: lead.business_name?.trim() || null,
+    city: lead.city?.trim() || null,
+    "your business": workspace.businessName?.trim() || null
+  };
+  let missing = false;
+  const text = words4.replace(/\{\{\s*([a-z ]+?)\s*\}\}/gi, (whole, name) => {
+    const v = values[name.toLowerCase()];
+    if (v == null) missing = true;
+    return v ?? whole;
+  });
+  return missing ? { ok: false, reason: "missing_value" } : { ok: true, text };
+}
 export {
   ABANDONED_MS,
   ABILITY_CHANNEL_WORDS,
@@ -23325,6 +23598,7 @@ export {
   DEFAULT_INDUSTRY,
   DEFAULT_THEME_PREF,
   DEFAULT_TIMEZONE,
+  DEFAULT_WEEK,
   DELIVERY_REFUSALS,
   DEVICE_PREFS_STORAGE,
   DISCONNECTION_LABELS,
@@ -23566,6 +23840,7 @@ export {
   OPT_OUT_PATTERN,
   OPT_OUT_REFUSAL,
   OUTCOME_UNKNOWN,
+  OUTREACH_WAIT_REFUSALS,
   OWN_MESSAGE_REFUSALS,
   PACE_AFTER_YESES,
   PACE_WINDOW_DAYS,
@@ -23636,6 +23911,7 @@ export {
   QUOTE_MAX,
   RATE_HITS_RETENTION_HOURS,
   REACH_OUT_IS_NOT_A_MOMENT,
+  REACH_OUT_MONTH_EMAILS,
   REACH_OUT_SEND_STATES,
   RECENT_MAX,
   RECIPIENT_STATES,
@@ -23684,6 +23960,8 @@ export {
   SENDING_DOMAINS_MAX,
   SENDING_DOMAIN_STATES,
   SENDING_HOURS_WORDS,
+  SEND_DAY_FRAME,
+  SEND_WINDOW_MARGIN_MIN,
   SERVER_KEY_PREFIX,
   SERVER_NOTIFICATION_KINDS,
   SERVICE_SUGGESTION_TYPES,
@@ -23728,6 +24006,7 @@ export {
   THEME_COLOR_META,
   THEME_OPTIONS,
   TIMELINE_FILTERS,
+  TIMETABLE_HORIZON_DAYS,
   TOAST_ICONS,
   TOAST_MIN_MS,
   TOAST_MS,
@@ -23746,6 +24025,7 @@ export {
   TenantConfigSchema,
   TenantConfigWriteSchema,
   UNSUBSCRIBE_PAGE_HEADER,
+  US_STATE_ZONES,
   VISION_STRENGTH,
   WABA_FIELDS,
   WAITING_AFTER_DAYS,
@@ -24093,6 +24373,7 @@ export {
   isTypingTarget,
   isUngrounded,
   isUsablePassword,
+  isWaitRefusal,
   isYes,
   jobNewsWords,
   judgeAsked,
@@ -24245,6 +24526,7 @@ export {
   optInLink,
   optInPurposeOf,
   outcomeMove,
+  outreachRefusalOf,
   overLimitRefusal,
   ownAddressesOf,
   ownDomainAddress,
@@ -24364,6 +24646,7 @@ export {
   questionAfterProbe,
   ratingWords,
   reachLines,
+  reachOutSlots,
   reachedCustomer,
   readAgoLabel,
   reasonShort,
@@ -24432,6 +24715,7 @@ export {
   sellsBySaved,
   sellsByVM,
   sendFailureIsOurs,
+  sendWindowsOf,
   sendableTemplates,
   sendingDomainActs,
   sendingDomainDtoOf,
@@ -24530,6 +24814,7 @@ export {
   threadChannelWords,
   threadStanding,
   tidyCallSummary,
+  timetable,
   timezoneCity,
   timezoneWords,
   toApprovalVM,
@@ -24605,6 +24890,7 @@ export {
   waitedLabel,
   waitingOnProposal,
   wallClockAt,
+  weekHoursOf,
   weekOf,
   whenLabel,
   whisperText,
@@ -24634,6 +24920,7 @@ export {
   youAreLiveEmail,
   zoneDayKey,
   zoneMidnight,
+  zoneOfRegion,
   zoneOffsetMs,
   zoneSearchWords,
   zonedInputValue
