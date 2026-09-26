@@ -37,10 +37,10 @@
   if (!has("__DEMO_MODE")) window.__DEMO_MODE = true;
 
   // ---- Usage (the usage spec, 2026-09-25) ---------------------------------
-  // The standing of the period's usage, which the phone's ✦ says in its beam's
-  // colour while Ask works (components/ask-face.jsx AskBeam). The app has no
-  // usage surface yet, so there it stays absent and the beam keeps the AI's own
-  // colours; the mockup shows the spec's example, 89% on a Pro plan: amber.
+  // The standing of the period's usage, which the phone's ✦ says as its dot
+  // (components/ask-face.jsx AskDisc): amber from 80%, red at 100%. The app has
+  // no usage surface yet, so there it stays absent and the dot is the mood's
+  // alone; the mockup shows the spec's example, 89% on a Pro plan: amber.
   if (!has("__USAGE")) window.__USAGE = { standing: "warned", share: 89 };
 
   // ---- Identity (contracts/identity.ts) ------------------------------------

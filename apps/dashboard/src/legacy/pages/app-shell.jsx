@@ -929,8 +929,8 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
         )}
         {!askOpen && !navOpen && (
           <button type="button" className="phone-ask" onClick={openAsk} aria-label="Ask Chanlytics" title="Ask Chanlytics" data-testid="phone-ask">
-            {/* the disc with the beam on its rim (ask-face.jsx AskBeam), the three over it on the same surface */}
-            {window.AskBeam ? <window.AskBeam testId="phone-ask-beam" /> : null}
+            {/* the disc with its state dot on the rim (ask-face.jsx AskDisc), the three over it on the same surface */}
+            {window.AskDisc ? <window.AskDisc testId="phone-ask-disc" /> : null}
             {PhoneFace
               ? <PhoneFace className="phone-ask-face" ground="raised" side={12.5} testId="phone-ask-face" />
               : <Icon name="sparkle" size={20} />}
