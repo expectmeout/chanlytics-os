@@ -177,7 +177,7 @@ function formatOf(raw: unknown): { type: "json_schema"; schema: Record<string, u
 
 /**
  * The models a request may name: Ask's profiles (contracts ASK_MODELS, the list the dashboard's ASK_MODEL picks from)
- * and Opus 5, which nothing on main names today.
+ * and Opus 5, which no caller names as of 25 Sep 2026 (the door's own tests do).
  */
 export const GATEWAY_MODELS = ["claude-opus-5", ...ASK_MODELS] as const;
 /**

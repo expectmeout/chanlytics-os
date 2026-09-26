@@ -17,6 +17,7 @@ import {
   type AskAnswer,
   type AskLanguage,
   type AskMessageVM,
+  type AskModelId,
   type AskProposal,
   type AskScope,
   type AskTurnShape,
@@ -109,7 +110,7 @@ export interface TurnResult {
   failure: string | null;
   rounds: number;
   /** The model the rounds ran on (the deployment's profile). */
-  model: string;
+  model: AskModelId;
   /** Where the time went and what the model was fed (ask-shape.ts): logged, and stored on the turn's row. */
   shape: AskTurnShape;
 }

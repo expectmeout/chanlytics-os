@@ -584,7 +584,7 @@ test("a count that cannot be read is zero, never a refusal: the turn goes throug
 
 test("what the Line needs from the gateway: Opus 5.5 is a model Ask may name, Ask's turn may carry its answer format under 8,000 characters, and Ask is clamped to ASK_MAX_TOKENS while the lead purposes keep their ceiling", async () => {
   const ask = (over) => validateGatewayRequest({ ...REQUEST, ...over }, "ask");
-  assert.equal(ask({ model: "claude-opus-5-5" }).ok, true, "Opus 5.5, which the model gate may choose");
+  assert.equal(ask({ model: ASK_MODEL }).ok, true, "Ask's default profile is a model the door allows");
   assert.deepEqual(
     ask({ model: "claude-opus-5-9" }),
     { ok: false, error: "unknown model" },
