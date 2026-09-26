@@ -328,6 +328,47 @@ test("listening with nothing heard, the three wait alive: the tiles behind turn,
   assert.ok(moments >= 60);
 });
 
+test("lit at rest (a page arriving): the three take the AI's colour where they stand, a turn comes within two seconds, and the colour goes as the light does", () => {
+  const ch = createCharacter({ seed: 3, enter: false, detail: 60 });
+  run(ch, 8);
+  const home = ch.frame().squares.map((s) => [s.x, s.y]);
+  const before = ch.events().length;
+  ch.glow(1);
+  run(ch, 0.6);
+  const lit = ch.frame().squares;
+  assert.ok(
+    lit.every((s) => s.live > 0.8),
+    `coloured: ${lit.map((s) => s.live.toFixed(2)).join(",")}`,
+  );
+  assert.ok(
+    lit.every((s, i) => Math.hypot(s.x - home[i][0], s.y - home[i][1]) < 0.2),
+    "where they stood",
+  );
+  assert.equal(ch.state, "idle", "still at rest");
+  run(ch, 1.6);
+  const moved = ch
+    .events()
+    .slice(before)
+    .map((e) => e.kind);
+  assert.ok(moved.length >= 1, `a move came with the light: ${moved.join(",")}`);
+  for (const k of moved)
+    assert.ok(TURNS.includes(k) || ["look", "rise", "stretch", "nod"].includes(k), `${k} is a rest move`);
+  ch.glow(0);
+  run(ch, 2.5);
+  assert.ok(
+    ch.frame().squares.every((s) => s.live < 0.1),
+    "the ink is back",
+  );
+  const calm = createCharacter({ seed: 3, enter: false, calm: true });
+  calm.glow(1);
+  run(calm, 1);
+  assert.ok(
+    calm.frame().squares.every((s) => s.live > 0.8),
+    "calm takes the colour",
+  );
+  assert.equal(calm.events().length, 0, "and makes no move");
+});
+
 test("an icon left alone goes quiet (no breath, turns only) and wakes when someone comes near", () => {
   const ch = createCharacter({ seed: 8, enter: false, detail: 7.5, quietAfter: 18 });
   ch.attend(0);

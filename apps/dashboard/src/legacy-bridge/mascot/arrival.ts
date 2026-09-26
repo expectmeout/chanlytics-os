@@ -3,8 +3,9 @@
  * saw the AI's colours unless they opened Ask (Ruben, 25 Sep: "so users get to see the colour states, like it is
  * turned on, reading the site with me; it must be very subtle and sophisticated, not performative; scope to mobile").
  * So, on a phone:
- * - A page arriving (the first face, or the address changing to another page) is read: the three orbit (`thinking`,
- *   the ✦'s beam in the AI's colours) for READ_MS, or as long as the boot takes up to READ_MAX_MS, then rest. The same page
+ * - A page arriving (the first face, or the address changing to another page) is read: the three, where they stand,
+ *   take the AI's colour and turn once or twice (the mood's `glow`; Ruben: "stay in idle state but with colour, one or
+ *   some of the blocks spin like in idle") for READ_MS, or as long as the boot takes up to READ_MAX_MS, then rest. The same page
  *   again within AGAIN_MS is not read again, and a walk within a page (a lead's peek, a view's flags after a colon)
  *   is the same page.
  * - What comes for you is noticed: the needs-you count rising makes the three hop once.
@@ -65,7 +66,7 @@ export function watchArrival(o: ArrivalOptions): Arrival {
     if (seq !== reading) return;
     reading = 0;
     pending = null;
-    if (!o.askOpen() && o.mood.state === "thinking") o.mood.set("idle");
+    o.mood.glow(false);
   };
   return {
     arrived() {
@@ -76,7 +77,7 @@ export function watchArrival(o: ArrivalOptions): Arrival {
       if (last !== undefined && t - last < AGAIN_MS) return;
       readAt.set(page, t);
       const seq = ++reading;
-      o.mood.set("thinking");
+      o.mood.glow(true);
       let bootIn = false;
       let pastRead = false;
       o.afterBoot().then(
@@ -108,6 +109,7 @@ export function watchArrival(o: ArrivalOptions): Arrival {
     stop() {
       if (pending !== null) cancel(pending);
       pending = null;
+      if (reading) o.mood.glow(false);
       reading = 0;
     },
   };
