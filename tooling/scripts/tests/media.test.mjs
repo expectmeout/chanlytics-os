@@ -110,9 +110,10 @@ test("a browser sees the attachment's facts and never its storage path", () => {
     { mime_type: "audio/ogg", filename: null, caption: null },
     "no fetch_state key when there is none",
   );
+  // The one-thread route is run, not read: readers.test.mjs, "the one thread's messages carry an attachment's
+  // public facts".
   for (const rel of [
     "apps/dashboard/src/server/dto.ts",
-    "apps/dashboard/app/api/v1/conversations/[id]/route.ts",
     "apps/dashboard/app/api/v1/conversations/[id]/export/route.ts",
   ]) {
     const src = readCode(rel);

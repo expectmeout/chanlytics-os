@@ -29,6 +29,7 @@ const { calls } = await import(at("apps/dashboard/src/server/readers/calls.ts"))
 const { searches } = await import(at("apps/dashboard/src/server/readers/searches.ts"));
 const { inbox } = await import(at("apps/dashboard/src/server/readers/inbox.ts"));
 const { today } = await import(at("apps/dashboard/src/server/readers/today.ts"));
+const threadRoute = await import(at("apps/dashboard/app/api/v1/conversations/[id]/route.ts"));
 
 // The kept values live in the module, keyed by workspace, person and reader: each test starts with none.
 beforeEach(() => kernel.readerCache.clear());
@@ -763,4 +764,69 @@ test("Today for Ask as the page composes it: the day's metrics, the newest hundr
   assert.equal(noSearches.data.calls.length, 2);
   assert.deepEqual(noSearches.data.metrics, SUMMARY);
   assert.deepEqual(searchLines, [["down"]]);
+});
+
+/* -------------------------------------------------- the thread and the call (PR 1.3) */
+
+const membership = (tenant_id, role, slug, created_at) => ({
+  user_id: USER,
+  tenant_id,
+  role,
+  tenants: { slug },
+  created_at,
+});
+/**
+ * inbox-routes.test.mjs, "one thread: any member reads it where it lives": two threads of bayside, a member of both
+ * workspaces (a viewer in harbor, an operator in bayside), and the thread's two messages beside the other's one.
+ */
+const threadTables = () => ({
+  memberships: [
+    membership(A, "viewer", "harbor", "2026-01-01T00:00:00Z"),
+    membership(B, "operator", "bayside", "2026-02-01T00:00:00Z"),
+  ],
+  conversations: [conversation(C1, B), conversation(C2, B)],
+  messages: [
+    message("m1", C1, B, { created_at: "2026-09-01T00:00:00Z", body: "first" }),
+    message("m2", C1, B, { created_at: "2026-09-02T00:00:00Z", body: "second", direction: "outbound", sender: "ai" }),
+    message("m3", C2, B, { created_at: "2026-09-03T00:00:00Z", body: "elsewhere" }),
+  ],
+});
+/** A GET's request: `q` is its query string. */
+const req = (q = "") => new Request(`http://localhost/api/v1/x${q}`);
+/** A route's context over `tbls`, for the row `id` names. */
+const routeCtx = (tbls, id) => ({ supabase: fakeDb(tbls, {}), userId: USER, email: "ada@example.com", params: { id } });
+
+test("the one thread's messages carry an attachment's public facts, never its storage path", async () => {
+  // Was a source pin on the route's text (media.test.mjs): GET conversations/:id, run.
+  const tbls = threadTables();
+  tbls.messages.push(
+    message("m4", C1, B, {
+      created_at: "2026-09-02T12:00:00Z",
+      type: "media",
+      body: null,
+      media: {
+        provider_media_id: "wamid.X",
+        mime_type: "image/jpeg",
+        caption: "hi",
+        filename: null,
+        sha256: "abc",
+        storage_path: "t/c/m.jpg",
+        fetch_state: "stored",
+      },
+    }),
+  );
+  const page = await threadRoute.GET.run(req(), routeCtx(tbls, C1));
+  assert.deepEqual(
+    page.messages.map((m) => [m.id, m.media]),
+    [
+      ["m1", null],
+      ["m2", null],
+      ["m4", { mime_type: "image/jpeg", fetch_state: "stored", filename: null, caption: "hi" }],
+    ],
+  );
+  const json = JSON.stringify(page);
+  assert.ok(
+    !json.includes("t/c/m.jpg") && !json.includes("wamid.X") && !json.includes("sha256"),
+    "the bytes only through their own route",
+  );
 });
