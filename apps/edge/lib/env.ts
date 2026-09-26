@@ -136,6 +136,14 @@ export const env = {
   get COLD_REPLY_DOMAIN() {
     return read(process.env.COLD_REPLY_DOMAIN);
   },
+  /**
+   * The cold reply domain before the one set now (D17): replies to the cold emails already sent from it keep routing
+   * to their workspace, and an email queued before the move still leaves, while it winds down (docs/runbook.md). Set
+   * it when COLD_REPLY_DOMAIN moves or is unset; clear it once no reply can still come there. Blank = none.
+   */
+  get COLD_REPLY_DOMAIN_PREVIOUS() {
+    return read(process.env.COLD_REPLY_DOMAIN_PREVIOUS);
+  },
   // Push (Expo's push service)
   get EXPO_ACCESS_TOKEN() {
     return read(process.env.EXPO_ACCESS_TOKEN);

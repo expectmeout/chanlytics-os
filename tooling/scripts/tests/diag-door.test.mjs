@@ -718,3 +718,47 @@ test("the receptionist's last 24 hours, from the usage events every reply writes
   use({}, {}, { "events.select": { message: "canceling statement due to statement timeout" } });
   assert.deepEqual((await read()).brain, { error: "canceling statement due to statement timeout" });
 });
+
+test("where cold mail's links and replies go (D17), as values: what the edge uses, and a value set and ignored", async () => {
+  use();
+  const unset = await read();
+  assert.deepEqual(unset.coldMail, {
+    unsubscribeOrigin: "https://app.chanlytics.com",
+    unsubscribeOriginRejected: false,
+    coldReplyDomains: [],
+    coldReplyDomainRejected: false,
+  });
+  const set = await withEnv(
+    {
+      EMAIL_DOMAIN: "mail.chanlytics.com",
+      UNSUBSCRIBE_ORIGIN: "https://links.coldmail.example",
+      COLD_REPLY_DOMAIN: "Reply.ColdLinks.example",
+      COLD_REPLY_DOMAIN_PREVIOUS: "reply-a.coldlinks.example",
+    },
+    read,
+  );
+  assert.deepEqual(set.coldMail, {
+    unsubscribeOrigin: "https://links.coldmail.example",
+    unsubscribeOriginRejected: false,
+    coldReplyDomains: ["reply.coldlinks.example", "reply-a.coldlinks.example"],
+    coldReplyDomainRejected: false,
+  });
+  const wrong = await withEnv(
+    {
+      EMAIL_DOMAIN: "mail.chanlytics.com",
+      UNSUBSCRIBE_ORIGIN: "links.coldmail.example",
+      COLD_REPLY_DOMAIN: "https://reply.x.example",
+    },
+    read,
+  );
+  assert.deepEqual(
+    [
+      wrong.coldMail.unsubscribeOrigin,
+      wrong.coldMail.unsubscribeOriginRejected,
+      wrong.coldMail.coldReplyDomains,
+      wrong.coldMail.coldReplyDomainRejected,
+    ],
+    ["https://app.chanlytics.com", true, [], true],
+    "set and unreadable: ignored, and said so",
+  );
+});

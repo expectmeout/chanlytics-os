@@ -2683,7 +2683,11 @@ No migration. The switches ship with today's addresses as their defaults, so not
 > - `coldReplyDomain()` sits beside `emailDomain()` in `lib/email/email.ts`. It is null when it is unset or the same as EMAIL_DOMAIN. The lane's field is renamed `replyDomain`, and `RequestInput` follows.
 > - The own-domain route answers on both domains (`sendsAsOwnDomain(…, coldReplyDomain)`), so an email frozen before the switch still leaves.
 > - `platformRecipient(address, domain, coldReplyDomain)` routes reply routes only on the cold domain. The webhook door passes it.
-> - The dashboard needed no change: `canonicalRedirect` only moves `.vercel.app` hosts.
+> - The review's findings added three things:
+>   - **`COLD_REPLY_DOMAIN_PREVIOUS`.** It routes inbound, and on the own-domain route, while an old reply domain winds down, so moving or unsetting `COLD_REPLY_DOMAIN` never drops a reply. `coldReplyDomains()` returns both.
+>   - **A health check.** The health sweep checks that each cold reply domain can receive, and pages `cold_reply_domain:<it>` when one can't.
+>   - **The dashboard answers only `/u/` on the cold link host** (`src/link-host.ts`, the dashboard's own `UNSUBSCRIBE_ORIGIN`), so no sign-in form stands on a domain cold mail names.
+> - A rejected value is logged once (`email_switch_rejected`), and `/api/diag` shows both switches under `coldMail`. A trailing slash on the origin is the same origin, and the probe's pages name `UNSUBSCRIBE_ORIGIN`.
 
 ### Task 8.1: The switches
 

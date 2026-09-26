@@ -266,3 +266,14 @@ test("on the cold reply domain (D17) a reply route routes and nothing else: no w
     localPart: "bestmovers",
   });
 });
+
+test("the cold reply domain before the one set now still routes its replies while it winds down (D17)", () => {
+  const both = ["reply-b.coldlinks.example", "reply-a.coldlinks.example"];
+  for (const host of both)
+    assert.deepEqual(
+      platformRecipient(`r+${"b".repeat(24)}@${host}`, DOMAIN, both),
+      { kind: "reply", token: "b".repeat(24) },
+      host,
+    );
+  assert.equal(platformRecipient(`r+${"b".repeat(24)}@reply-c.coldlinks.example`, DOMAIN, both), null);
+});

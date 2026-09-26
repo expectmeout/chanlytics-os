@@ -31,13 +31,37 @@ export function emailDomain(): string | null {
   return emailDomainOf(env.EMAIL_DOMAIN);
 }
 
+/** A switch's value that was set and could not be read is said once per instance: it falls back, and must not do so unseen. */
+const rejected = new Set<string>();
+function readDomainSwitch(
+  name: "COLD_REPLY_DOMAIN" | "COLD_REPLY_DOMAIN_PREVIOUS",
+  raw: string | undefined,
+): string | null {
+  const d = emailDomainOf(raw);
+  if (raw && !d && !rejected.has(name)) {
+    rejected.add(name);
+    logger().warn("email_switch_rejected", { name, why: "not a domain name: it is ignored" });
+  }
+  return d && d !== emailDomain() ? d : null;
+}
+
 /**
  * The domain cold emails' replies come back on (D17), lower-cased, when it is set apart from the mail domain; null when
  * it is not, and they come back on EMAIL_DOMAIN as every other reply does.
  */
 export function coldReplyDomain(): string | null {
-  const d = emailDomainOf(env.COLD_REPLY_DOMAIN);
-  return d && d !== emailDomain() ? d : null;
+  return readDomainSwitch("COLD_REPLY_DOMAIN", env.COLD_REPLY_DOMAIN);
+}
+
+/**
+ * Every cold reply domain a reply may still come back on, the one set now first: it and the one before it
+ * (COLD_REPLY_DOMAIN_PREVIOUS), while that winds down. What the intake routes, and what an own domain's email may
+ * still be answered at; never a domain that is the mail domain.
+ */
+export function coldReplyDomains(): string[] {
+  const now = coldReplyDomain();
+  const before = readDomainSwitch("COLD_REPLY_DOMAIN_PREVIOUS", env.COLD_REPLY_DOMAIN_PREVIOUS);
+  return [...new Set([now, before].filter((d): d is string => !!d))];
 }
 
 /**
@@ -73,9 +97,9 @@ export async function emailWireFor(db: Db, tenantId: string): Promise<Sender | n
           routes.push({
             lane: "own",
             cfg: { apiKey: coldKey },
-            // Answered on the cold reply domain when it is set (D17), and on the mail domain still: an email frozen
-            // before the switch leaves as it was frozen.
-            as: sendsAsOwnDomain(d, mailbox, domain, coldReplyDomain()),
+            // Answered on the cold reply domains when they are set (D17), and on the mail domain still: an email
+            // frozen before a switch leaves as it was frozen.
+            as: sendsAsOwnDomain(d, mailbox, domain, coldReplyDomains()),
           });
     } catch (e) {
       logger({ tenant: tenantId }).error("email_own_domains_unread", { error: errField(e) });

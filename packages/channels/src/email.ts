@@ -388,7 +388,7 @@ export type PlatformRecipient = { kind: "mailbox"; localPart: string } | { kind:
 export function platformRecipient(
   address: string,
   domain: string,
-  coldReplyDomain: string | null = null,
+  coldReplyDomains: string | readonly string[] | null = null,
 ): PlatformRecipient | null {
   const a = address.trim().toLowerCase();
   const at = a.lastIndexOf("@");
@@ -396,8 +396,10 @@ export function platformRecipient(
   const host = a.slice(at + 1);
   const local = a.slice(0, at);
   const reply = /^r\+([a-z2-7]{24})$/.exec(local);
-  if (coldReplyDomain && host === coldReplyDomain.toLowerCase() && host !== domain.toLowerCase())
-    return reply ? { kind: "reply", token: reply[1] } : null;
+  const cold = (typeof coldReplyDomains === "string" ? [coldReplyDomains] : (coldReplyDomains ?? [])).map((d) =>
+    d.toLowerCase(),
+  );
+  if (host !== domain.toLowerCase() && cold.includes(host)) return reply ? { kind: "reply", token: reply[1] } : null;
   if (host !== domain.toLowerCase()) return null;
   if (reply) return { kind: "reply", token: reply[1] };
   return /^[a-z0-9]([a-z0-9-]{0,38}[a-z0-9])?$/.test(local) && local !== "r"
@@ -696,35 +698,39 @@ export function sendsAs(
 /**
  * What one of a workspace's own domains sends as (Reach out): From on the
  * workspace's domain, answered at the mailbox's own reply routes, so a reply
- * to a cold email lands in the same Inbox as every other. With a cold reply
- * domain (D17) the routes are on it too: a cold email is frozen with it from
- * the switch on, and one frozen before still leaves as it was.
+ * to a cold email lands in the same Inbox as every other. With cold reply
+ * domains (D17) the routes are on them too: a cold email is frozen with the
+ * one set now, and one frozen before a switch still leaves as it was.
  */
 export function sendsAsOwnDomain(
   domain: { host: string; from_local: string },
   mailbox: { local_part: string; reply_token: string; reply_token_prev: string | null },
   mailDomain: string,
-  coldReplyDomain: string | null = null,
+  coldReplyDomains: string | readonly string[] | null = null,
 ): EmailSendsAs {
+  const cold = typeof coldReplyDomains === "string" ? [coldReplyDomains] : (coldReplyDomains ?? []);
   return {
     address: `${domain.from_local}@${domain.host}`.toLowerCase(),
     replyRoutes: [
       ...sendsAs(mailbox, mailDomain).replyRoutes,
-      ...(coldReplyDomain && coldReplyDomain !== mailDomain ? sendsAs(mailbox, coldReplyDomain).replyRoutes : []),
+      ...cold.filter((d) => d !== mailDomain).flatMap((d) => sendsAs(mailbox, d).replyRoutes),
     ],
   };
 }
 
-/** The identity a cold email is frozen with: the own domain's name and address, and the mailbox's live reply route. */
+/**
+ * The identity a cold email is frozen with: the own domain's name and address, and the mailbox's live reply route on
+ * the domain its replies come back on (the mail domain, or the cold reply domain when it is set, D17).
+ */
 export function ownDomainIdentity(
   domain: { host: string; from_local: string; from_name: string },
   mailbox: { reply_token: string },
-  mailDomain: string,
+  replyDomain: string,
 ): EmailIdentity {
   return {
     fromName: domain.from_name,
     fromAddress: `${domain.from_local}@${domain.host}`.toLowerCase(),
-    replyTo: replyRouteAddress(mailbox.reply_token, mailDomain),
+    replyTo: replyRouteAddress(mailbox.reply_token, replyDomain),
   };
 }
 

@@ -197,3 +197,37 @@ test("the check carries the judgement through, and asks with the key it was give
   assert.deepEqual(saw, { apiKey: "re_live" });
   assert.deepEqual(out, { trouble: { kind: "stopped", status: "temporary_failure" } });
 });
+
+test("a domain that only receives (the cold reply domain, D17) is off only when it cannot receive, and its page says what is lost", async () => {
+  const cold = "reply.coldlinks.example";
+  const facts = (caps) => mailDomainsFrom(answer(domain({ name: cold, capabilities: caps })));
+  assert.equal(
+    judgeMailDomain(facts({ sending: "disabled", receiving: "enabled" }), cold, { receiveOnly: true }),
+    null,
+    "sending nothing is its nature",
+  );
+  assert.equal(
+    judgeMailDomain(facts({ sending: "disabled", receiving: "enabled" }), cold).kind,
+    "off",
+    "the mail domain sends",
+  );
+  const off = judgeMailDomain(facts({ sending: "disabled", receiving: "disabled" }), cold, { receiveOnly: true });
+  assert.equal(off.kind, "off");
+  const { describeColdReplyDomainTrouble } = await import(
+    pathToFileURL(path.join(here, "../../../apps/edge/lib/email/mail-domain.ts")).href
+  );
+  const page = describeColdReplyDomainTrouble(off, cold);
+  assert.equal(
+    page.subject,
+    "The cold reply domain reply.coldlinks.example is not receiving: verified, receiving disabled",
+  );
+  assert.match(page.body, /a lead's "no thanks" among them/);
+  assert.match(page.body, /COLD_REPLY_DOMAIN_PREVIOUS/);
+  const r = await checkMailDomain({
+    domain: cold,
+    apiKey: "k",
+    receiveOnly: true,
+    domains: async () => mailDomainsFrom(answer(domain({ name: cold, status: "failed" }))),
+  });
+  assert.equal(r.trouble.kind, "given_up");
+});

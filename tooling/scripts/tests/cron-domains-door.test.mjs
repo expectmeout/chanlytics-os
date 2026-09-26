@@ -1047,3 +1047,17 @@ test("the probe opens the links where they are minted: UNSUBSCRIBE_ORIGIN when i
     }
   }
 });
+
+test("an origin typed with a trailing slash is the same origin: the probe opens the page there", async () => {
+  world([domain("d1")]);
+  dns["d1.example"] = "found";
+  const { net, opened } = dashboardAt({ current: EDGE_KEY });
+  try {
+    await withEnv({ UNSUBSCRIBE_SECRET: EDGE_KEY, UNSUBSCRIBE_ORIGIN: "https://links.coldmail.example/" }, async () =>
+      answer(await knock(POST, "domains")),
+    );
+    assert.match(opened[0].url, /^https:\/\/links\.coldmail\.example\/u\/[A-Za-z0-9_-]{87}$/);
+  } finally {
+    net.restore();
+  }
+});
