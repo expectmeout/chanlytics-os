@@ -38,38 +38,23 @@ const AskFace = ({ className, tone = "page", ground = "page", side, testId }) =>
   return <canvas ref={ref} className={className} aria-hidden="true" data-testid={testId} />;
 };
 
-// The disc and its dot: the phone's ✦ is the cards' surface with the three on it, and its dot says what needs you, the
-// way this app says every state (styles/ask.css, `.ask-disc`; the spec
-// docs/superpowers/specs/2026-09-25-the-ask-button-on-a-phone-design.md, B9). Nothing while nothing does. Something
-// waiting on you (Ask's own standing: people waiting, runs and searches waiting; ask/palette.ts rightNowParts;
-// `data-needs`) is the amber dot "needs you" wears everywhere here; the usage from 80% amber too, at 100% red
-// (`data-usage`, the usage surface's standing: `window.__USAGE`, `{ standing }`; the usage spec, a surface that does
-// not exist yet). Read again as the surfaces it is built from land.
+// The disc and its dot: the phone's ✦ is the cards' surface with the three on it, and its dot is the usage's standing,
+// said the way this app says every state (styles/ask.css, `.ask-disc`; the spec
+// docs/superpowers/specs/2026-09-25-the-ask-button-on-a-phone-design.md, B9): nothing under 80%, amber from 80%, red
+// at 100% (`data-usage`, the usage surface's standing: `window.__USAGE`, `{ standing }`, repainted on `surface:usage`;
+// the usage spec, a surface that does not exist yet). What needs you is the three's own colour (legacy-bridge/arrival.ts).
 const standingOf = () => {
   const u = window.__USAGE;
   return u && (u.standing === "warned" || u.standing === "over") ? u.standing : "ok";
 };
-const needsOf = () => {
-  const A = window.__ask;
-  if (!A || typeof A.rightNowParts !== "function") return false;
-  const p = A.rightNowParts();
-  return !!(p.people || p.runs || p.searches);
-};
-const DISC_EVENTS = ["surface:usage", "surface:today", "surface:inbox", "surface:leads", "inbox:counts"];
 const AskDisc = ({ testId }) => {
   const [usage, setUsage] = useAfState(standingOf);
-  const [needs, setNeeds] = useAfState(needsOf);
   useAfEffect(() => {
-    const again = () => {
-      setUsage(standingOf());
-      setNeeds(needsOf());
-    };
-    for (const ev of DISC_EVENTS) window.addEventListener(ev, again);
-    return () => {
-      for (const ev of DISC_EVENTS) window.removeEventListener(ev, again);
-    };
+    const again = () => setUsage(standingOf());
+    window.addEventListener("surface:usage", again);
+    return () => window.removeEventListener("surface:usage", again);
   }, []);
-  return <span className="ask-disc" data-usage={usage} data-needs={needs ? "1" : "0"} aria-hidden="true" data-testid={testId} />;
+  return <span className="ask-disc" data-usage={usage} aria-hidden="true" data-testid={testId} />;
 };
 
 Object.assign(window, { AskFace, AskDisc });
