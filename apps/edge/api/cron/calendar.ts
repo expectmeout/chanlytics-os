@@ -31,11 +31,14 @@ export async function POST(request: Request): Promise<Response> {
   if (denied) return denied;
 
   const now = new Date();
-  // A BOUNDED, ROTATING page rather than every row. This read every config and
-  // then fetched a feed per workspace, serially, inside a sixty-second
+  // A BOUNDED, ROTATING page OF WHAT IS DUE rather than every row, judged in
+  // the database (00193 calendars_due): a feed's address on the row, never
+  // read or not read this hour, the never-read first. This read every config
+  // and then fetched a feed per workspace, serially, inside a sixty-second
   // function -- so past a few hundred tenants it ran out of tick part way
   // through, and since the order never changed the same early workspaces were
-  // served every hour while the rest were never served at all.
+  // served every hour while the rest were never served at all. `remaining` is
+  // exactly the due feeds beyond the page, and nothing that is not a feed.
   let page;
   try {
     page = await calendarDue(db, now, CALENDAR_PER_TICK);
