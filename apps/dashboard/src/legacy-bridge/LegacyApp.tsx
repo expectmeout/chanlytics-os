@@ -74,6 +74,7 @@ import { installCalendar } from "./calendar";
 import { installToday } from "./today";
 import { installMascot } from "./mascot";
 import { installArrival } from "./arrival";
+import { installAppBridge } from "./app-bridge";
 import { installBusinessTab } from "./business-tab";
 import { installSetup, setupOverride } from "./setup";
 import { installGoogle, googleOverride } from "./google";
@@ -122,6 +123,8 @@ installToday();
 installMascot();
 // On a phone the three take a page in as it arrives and notice what comes for you (arrival.ts).
 installArrival();
+// Inside the native shell the page speaks the bridge (app-bridge.ts): its route, its needs, the shell's asks.
+installAppBridge();
 installBusinessTab();
 installSetup();
 installGoogle();

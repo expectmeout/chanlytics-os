@@ -761,3 +761,5 @@ html.in-app .phone-tabs { display: none; }
 html.in-app .main-scroll { padding-bottom: var(--app-inset-bottom, 0px); }
 html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px)); }
 /* The ✦ lifts by the same inset; its rule lives with the palette's, in ask.css. */
+/* Google refuses OAuth inside an embedded WebView; the app signs in natively (PR 3), the web door and its divider are not drawn. */
+html.in-app .auth-google, html.in-app .auth-or { display: none; }
