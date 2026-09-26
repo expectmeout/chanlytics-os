@@ -696,10 +696,11 @@ One combined review round, fix, squash-merge on green.
 # PR 1.2 · The day: metrics, conversations, escalations, calls, searches, and Today for Ask
 
 **Branch:** `ask-rewired/1-2-the-day`. **Created:** `readers/metrics.ts`, `readers/conversations.ts`,
-`readers/escalations.ts`, `readers/calls.ts`, `readers/searches.ts`, `readers/today.ts`. **Modified:** the five routes
-(`api/v1/metrics`, `conversations`, `escalations`, `calls`, `lead-searches` GET), `server/ask/tools.ts` (`get_today`,
-`list_threads`, `list_calls`; `loadConversations`/`loadCalls` deleted; `memo` deleted), `ask.test.mjs` (two pins),
-`ask-turn.test.mjs` (the tool test where a divergence is named), `readers.test.mjs`.
+`readers/escalations.ts`, `readers/calls.ts`, `readers/searches.ts`, `readers/inbox.ts`, `readers/today.ts`.
+**Modified:** the five routes (`api/v1/metrics`, `conversations`, `escalations`, `calls`, `lead-searches` GET),
+`server/ask/tools.ts` (`get_today`, `list_threads`, `list_calls`; `loadConversations`/`loadCalls` deleted; `memo`
+kept for the audience pool alone), `ask.test.mjs` (two pins become one), `ask-turn.test.mjs` (a behavioural pin),
+`readers.test.mjs`, `workspace-scoping.test.mjs` (a source pin the move broke, converted to behaviour).
 
 ### Task 5: The five readers, each the route's body
 
@@ -819,87 +820,32 @@ the route keeps only zod, validation and the one line. Its header comment stays.
 
 - [ ] **Step 5: Commit** `git commit -m "Five readers, each a route's body: metrics, conversations, escalations, calls, searches; the routes read through them"`.
 
-### Task 6: Today, for Ask, exactly as the page composes it
+### Task 6: The Inbox and Today, for Ask, each as its page composes it
 
-- [ ] **Step 1: The test.** Append to `readers.test.mjs`: over a fixture with 2 open escalations, one of them on a
-conversation not among the newest 100, `today`'s `data` equals `{ metrics, conversations: [...extra, ...newest],
-escalations, calls, searches }` in the bridge's order (extra first, `surface-data.ts:402`), `calls` is `null` when
-the calls read throws (a fake-db fault on `calls`) and `searches` is `null` when the searches read throws; and the
-query log shows `conversations` selected twice (the newest hundred, then the missing ids) and `messages` per page.
+- [ ] **Step 1: The tests.** Append to `readers.test.mjs`, over a fixture with 2 open escalations, one of them on a
+conversation not among the newest 100: `inbox`'s `data.conversations` is `[...extra, ...newest]` in the bridge's
+order (extra first, `surface-data.ts:402`), and the query log shows `conversations` selected twice (the newest hundred,
+then the missing ids) and `messages` per page. `today`'s `data` is `{ metrics, conversations, escalations, calls,
+searches }` with the newest hundred alone (the escalation outside them is read, its thread is not); `calls` is `null`
+when the calls read throws (a fake-db fault on `calls`) and `searches` is `null` when the searches read throws; and
+`inbox` read after `today` in the same turn selects only the missing ids.
 
-- [ ] **Step 2: The composite reader.** Create `apps/dashboard/src/server/readers/today.ts`:
+- [ ] **Step 2: Two composite readers.** `readers/inbox.ts` is the Inbox's composition (`inboxOverride`), for
+`list_threads`: `conversations({ ids: null })` and `escalations({ state: "open" })` at once, then every escalated
+conversation outside the hundred in one read by id (`missing.slice(0, 100)`; a failed read is `[]`, logged
+`inbox_escalated_fetch_failed` with the count); `data: { conversations: [...extra, ...newest], escalations }`, one
+`thread` row per conversation (`whoOf`, exported from `conversations.ts`).
 
-```ts
-import "server-only";
-import type { CallDto, ConversationDto, EscalationDto, LeadSearchDto, MetricsSummaryDto } from "@chanlytics/contracts";
-import { load, stamp, type Reader, type RowRef } from "./index";
-import { metrics } from "./metrics";
-import { conversations } from "./conversations";
-import { escalations } from "./escalations";
-import { calls } from "./calls";
-import { searches } from "./searches";
+`readers/today.ts` is the Today page's five reads at once (`todayOverride`): `metrics({ days: 1 })`,
+`conversations({ ids: null })`, `escalations({ state: "open" })`, `calls({})` and `searches`, the last two `null` on
+failure (logged `today_calls_fetch_failed`, `today_searches_fetch_failed`). No fetch by id: the page makes none, and
+`toTodayVM` counts an open escalation whose thread it was not handed as a customer waiting, named "Unknown": the
+page's number, so Ask's. Every inner read goes through `load(rc, …)`, so when both run in a turn they share the
+hundred and the escalations.
 
-export interface TodayRead {
-  metrics: MetricsSummaryDto;
-  /** The escalated threads outside the newest hundred first, then the hundred: the Inbox's order. */
-  conversations: ConversationDto[];
-  escalations: Array<EscalationDto & { conversation_id: string }>;
-  /** Null: the read failed, which is its own state on the page. */
-  calls: CallDto[] | null;
-  searches: LeadSearchDto[] | null;
-}
-
-/**
- * Today, as the browser composes it (legacy-bridge/surface-data.ts, the
- * todayOverride and the Inbox's escalated fetch): five reads at once, a failed
- * calls or searches read is null, and an escalated thread that fell outside
- * the newest hundred is fetched by id so a waiting customer is never
- * invisible. No route answers this; Ask is its only server-side reader until
- * the context plane (Phase 2) is.
- */
-export const today: Reader<undefined, TodayRead> = {
-  name: "today",
-  async read(rc) {
-    const [m, c, e, k, s] = await Promise.all([
-      load(rc, metrics, { days: 1 }),
-      load(rc, conversations, { ids: null }),
-      load(rc, escalations, { state: "open" }),
-      load(rc, calls, {}).catch((err: unknown) => {
-        console.error("today_calls_fetch_failed", err instanceof Error ? err.message : err);
-        return null;
-      }),
-      load(rc, searches, undefined).catch((err: unknown) => {
-        console.error("today_searches_fetch_failed", err instanceof Error ? err.message : err);
-        return null;
-      }),
-    ]);
-    const listed = new Set(c.data.conversations.map((x) => x.id));
-    const missing = [...new Set(e.data.escalations.map((x) => x.conversation_id))].filter((id) => !listed.has(id));
-    const extra = missing.length
-      ? await load(rc, conversations, { ids: missing.slice(0, 100) }).then(
-          (r) => r.data.conversations,
-          () => [] as ConversationDto[],
-        )
-      : [];
-    const all = [...extra, ...c.data.conversations];
-    const rows: RowRef[] = [
-      ...all.map((x) => ({ kind: "thread" as const, id: x.id, route: `inbox/th-${x.id}`, label: whoOf(x) })),
-      ...(k?.rows ?? []),
-    ];
-    return {
-      data: { metrics: m.data.metrics, conversations: all, escalations: e.data.escalations, calls: k ? k.data.calls : null, searches: s ? s.data.searches : null },
-      rows,
-      stamp: stamp(),
-    };
-  },
-};
-```
-
-(export `whoOf` from `conversations.ts` and import it here.)
-
-- [ ] **Step 3: The three tools read through it.** In `tools.ts`: delete `loadConversations`, `loadConversationsNow`,
-`loadCalls`, `CONVERSATIONS`, `MESSAGES`, `memoised`, `EscRow` and the `memo` field (and `memo: new Map()` in
-`newToolContext`). `getToday` becomes:
+- [ ] **Step 3: The three tools read through them.** In `tools.ts`: delete `loadConversations`, `loadConversationsNow`,
+`loadCalls`, `CONVERSATIONS`, `MESSAGES`, `memoised` and `EscRow`; the `memo` field stays for the audience pool
+(`audiencePoolOnce`, in `tools.ts` and `proposals.ts`). `getToday` becomes:
 
 ```ts
 async function getToday(t: ToolContext): Promise<unknown> {
@@ -914,22 +860,24 @@ async function getToday(t: ToolContext): Promise<unknown> {
 }
 ```
 
-`listThreads` reads `const { conversations, escalations } = (await load(t.rc, today, undefined)).data;` (the same
-rows Today holds: the newest hundred plus the escalated outside them) and keeps its filter, cap and projection.
-`listCalls` reads `(await load(t.rc, calls, {})).data.calls` (a hundred newest, the route's) and uses `t.timezone`
-for its day filter; no `tenantFacts`. Anywhere else in tools.ts that called `loadCalls`/`loadConversations`
-(`get_call`? the snapshot's `get_person` path? grep) reads through `calls`/`conversations` the same way.
+`listThreads` reads `const { conversations, escalations } = (await load(t.rc, inbox, undefined)).data;` and keeps its
+filter, cap and projection. `recent` alone is sorted newest first by `lastAtMs` (`last_message_at`, the column the
+server orders the hundred by) before the cap; every other filter keeps the Inbox's order, the fetched threads first,
+so the cap never drops a customer waiting outside the hundred. `listCalls` reads
+`(await load(t.rc, calls, {})).data.calls` (a hundred newest, the route's) and uses `t.timezone` for its day filter; no
+`tenantFacts`. Nothing else in `tools.ts` called the loaders (`get_call` reads one call by id).
 
 - [ ] **Step 4: The pins.** `ask.test.mjs` ~1035-1046 pins `tools.includes("memo: new Map()") && tools.includes("return memoised(t, \`conversations:${limit}\`")`
 and `const CONVERSATIONS = 40;` / `const MESSAGES = 600;` / `!tools.includes(".limit(2000)")`. Replace both assertions
-with one: `assert.ok(tools.includes("load(t.rc, today, undefined)") && !tools.includes("memoised("), "the day is read once through the readers")`,
-and add the behavioural pin to `ask-turn.test.mjs`'s tool test (or a new test beside it): a turn whose script calls
-`get_today`, `list_threads` and `list_calls` in one round selects `conversations` at most twice and `calls` once
-(`ctx.supabase.seen`). Update the fourteen-tool test's expectations only where the ledger names a change (#2, #4, #6,
-#8): the fixture now needs `lead_searches_view` rows or none (searches null is fine), and `list_threads` may list an
-escalated thread outside the newest forty.
+with one: `tools.includes("load(t.rc, today, undefined)") && tools.includes("load(t.rc, inbox, undefined)") &&
+!tools.includes("memoised(")`, "the day is read once through the readers". Add the behavioural pin to
+`ask-turn.test.mjs` beside the tool test: a turn whose script calls `get_today`, `list_threads` and `list_calls` in one
+round selects `conversations` twice at most (the hundred, shared; the missing ids, for the Inbox) and `calls` once
+(`ctx.supabase.seen`); `needs_you` lists the fetched thread first and `recent` the newest twenty. The fourteen-tool
+test needs no change; the fixture models `lead_list_counts`, so the searches read as `[]` inside a turn.
 
-- [ ] **Step 5: Run** the Ask suites and `ask.test.mjs`; typecheck. **Commit** `"Today for Ask, as the page composes it: get_today, list_threads and list_calls read the day once through the readers"`.
+- [ ] **Step 5: Run** the Ask suites and `ask.test.mjs`; typecheck. **Commit** `"The Inbox and Today for Ask, as the
+page composes them: get_today, list_threads and list_calls read the day once through the readers"`.
 
 ### Task 7: Gates and the PR
 
