@@ -1,5 +1,5 @@
 /**
- * The sweeps' pages on a real database (00193). playbooks_due judges due-ness by each workspace's own clock -- at or
+ * The sweeps' pages on a real database (00196). playbooks_due judges due-ness by each workspace's own clock -- at or
  * past its hour there, not past the last hour the caller names, and not yet run for that clock's day, whatever UTC's
  * date says -- never run first, then the least recently run, bounded, every row carrying the count of all that were
  * due; a reach-out step is on its own page, judged the same way. calendars_due takes a feed's address never read or
@@ -149,8 +149,17 @@ test(
       "due at ten in the morning: not the one that ran today, nor the one set for eleven",
     );
     assert.deepEqual([inTokyo[0].timezone, inTokyo[0].due_total], ["Asia/Tokyo", 1]);
-    // The last hour is the caller's: with it at nineteen, eight in the evening is past it.
-    assert.deepEqual(ids(await page(chicago, AT, { p_last_hour: 19 })).sort(), [c.due, c.ranUtcToday].sort());
+    // The last hour is the caller's, and it bounds the clock, not the playbook's own hour: at twenty with the last
+    // hour at nineteen nothing is due, the ones set for ten included (runDueNow: hour <= PLAYBOOK_HOURS.max).
+    assert.deepEqual(await page(chicago, AT, { p_last_hour: 19 }), []);
+    // With the last hour at twenty, as the sweep asks, the one set for eight is due at eight.
+    assert.ok(ids(await page(chicago, AT, { p_last_hour: 20 })).includes(c.evening));
+    // Seven in the evening in Chicago (00:00Z on the 27th): the one set for eight is not yet due; the others are.
+    assert.deepEqual(
+      ids(await page(chicago, "2026-09-27T00:00:00.000Z")).sort(),
+      [c.due, c.ranUtcToday].sort(),
+      "at nineteen: never run and run for a day that is not its own; not the one set for eight",
+    );
     // An hour later in Tokyo the one set for eleven is due too; the one that ran today still is not.
     assert.deepEqual(ids(await page(tokyo, "2026-09-27T02:00:00.000Z")).sort(), [t.due, t.eleven].sort());
     // Nine in the morning in Chicago (14:00Z): nothing is at its hour yet.
@@ -393,7 +402,9 @@ test(
     assert.equal(whole.remaining, 0);
     const first = await dueCalendars(db, { before: new Date(before), limit: 1 });
     assert.equal(first.rows.length, 1);
-    assert.equal(first.remaining, all.length - 1);
+    // Four of this suite's own are due (never, mars, older, old), so at least three are beyond a page of one; the
+    // exact figure is another call's, and the suites beside this one may add feeds between the two.
+    assert.ok(first.remaining >= 3, `what is left beyond a page of one: ${first.remaining}`);
     const kept = await dueCalendars(db, { before: new Date(before), limit: 1, tenantId: old.id });
     assert.deepEqual(kept, {
       rows: [{ tenant_id: old.id, config: feed(old), timezone: "America/Chicago" }],

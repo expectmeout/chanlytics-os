@@ -32,7 +32,7 @@ export async function POST(request: Request): Promise<Response> {
 
   const now = new Date();
   // A BOUNDED, ROTATING page OF WHAT IS DUE rather than every row, judged in
-  // the database (00193 calendars_due): a feed's address on the row, never
+  // the database (00196 calendars_due): a feed's address on the row, never
   // read or not read this hour, the never-read first. This read every config
   // and then fetched a feed per workspace, serially, inside a sixty-second
   // function -- so past a few hundred tenants it ran out of tick part way
@@ -54,7 +54,7 @@ export async function POST(request: Request): Promise<Response> {
     if (!url) continue;
     out.tenants += 1;
     try {
-      // The zone comes with the page (00193): the workspace's own, UTC when that is a name nobody knows.
+      // The zone comes with the page (00196): the workspace's own, UTC when that is a name nobody knows.
       const tz = row.timezone;
       const items = await feedItemsFor(
         row.tenant_id,

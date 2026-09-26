@@ -1,4 +1,4 @@
--- 00193 · The sweeps read only what is due.
+-- 00196 · The sweeps read only what is due.
 --
 -- The playbooks sweep read a page of RUNNING playbooks, least-recently-run first (00089), and judged which were due
 -- afterwards, on the edge, by each workspace's own clock. So the page held playbooks that had run today and ones
@@ -32,6 +32,7 @@ create or replace function public.safe_zone(p text)
 returns text
 language plpgsql
 stable
+set search_path = public
 as $$
 begin
   perform now() at time zone p;
@@ -42,7 +43,7 @@ end $$;
 revoke execute on function public.safe_zone(text) from public, anon, authenticated;
 grant execute on function public.safe_zone(text) to service_role;
 comment on function public.safe_zone(text) is
-  'The zone name as given when Postgres knows it, UTC otherwise: how the sweeps'' pages (00193) read a workspace''s timezone, so one unknown name never fails a tick for every workspace.';
+  'The zone name as given when Postgres knows it, UTC otherwise: how the sweeps'' pages (00196) read a workspace''s timezone, so one unknown name never fails a tick for every workspace.';
 
 -- The running playbooks of one kind due at `p_at`: never run first, then the least recently run, `p_limit` of them,
 -- each with the zone it was judged in and `due_total`, the count of all that were due -- the caller's "left behind" is
@@ -70,7 +71,7 @@ $$;
 revoke execute on function public.playbooks_due(text, timestamptz, int, int, uuid) from public, anon, authenticated;
 grant execute on function public.playbooks_due(text, timestamptz, int, int, uuid) to service_role;
 comment on function public.playbooks_due(text, timestamptz, int, int, uuid) is
-  'The running playbooks of one kind due at p_at by their workspace''s own clock (runDueNow''s rule), never run first, then least recently run, with due_total the count of all that were due. The playbooks sweep''s two pages (00193).';
+  'The running playbooks of one kind due at p_at by their workspace''s own clock (runDueNow''s rule), never run first, then least recently run, with due_total the count of all that were due. The playbooks sweep''s two pages (00196).';
 
 -- The workspaces whose calendar is due before `p_before` -- a feed's address on the row, and never read or last read
 -- before then -- never read first, then the least recently read, `p_limit` of them, each with the zone its feed is
@@ -98,4 +99,4 @@ $$;
 revoke execute on function public.calendars_due(timestamptz, int, uuid) from public, anon, authenticated;
 grant execute on function public.calendars_due(timestamptz, int, uuid) to service_role;
 comment on function public.calendars_due(timestamptz, int, uuid) is
-  'The workspaces with a calendar feed never read or last read before p_before, never read first, then least recently read, each with its zone, with due_total the count of all that were due. The calendar sweep''s page (00193).';
+  'The workspaces with a calendar feed never read or last read before p_before, never read first, then least recently read, each with its zone, with due_total the count of all that were due. The calendar sweep''s page (00196).';
