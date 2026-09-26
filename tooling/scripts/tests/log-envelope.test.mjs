@@ -84,6 +84,22 @@ test("absent fields are omitted, not serialised as null", () => {
   assert.equal(line.event, "wa_skip_pg_dupe");
 });
 
+test("a field named like the envelope never replaces it", () => {
+  // A ledger line once logged `{ event: id }`: the id replaced the line's own
+  // name, and nothing could grep for the line. The envelope's two keys are the
+  // logger's; a field by either name, bound or passed, rides under `<key>_field`.
+  const [a, b] = capture(() => {
+    logger({ hook: "stripe" }).warn("stripe_event_reclaimed", { event: "evt_1", level: "loud" });
+    logger({ event: "bound" }).info("kept_name");
+  });
+  assert.equal(a.event, "stripe_event_reclaimed");
+  assert.equal(a.level, "warn");
+  assert.equal(a.event_field, "evt_1");
+  assert.equal(a.level_field, "loud");
+  assert.equal(b.event, "kept_name");
+  assert.equal(b.event_field, "bound");
+});
+
 test("every line is one parseable JSON object", () => {
   // Vercel captures stdout per invocation; a line that is not valid JSON is a
   // line no query will ever return.
