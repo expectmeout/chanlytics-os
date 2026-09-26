@@ -67,7 +67,7 @@ export const ASK_RULES = [
   "Every source is a row or a page with the kind and the exact id it came with (a page's id is its route, such as reports, calendar or admin/autonomy). The page's data and the reads given with the question are read already: name their rows without calling their tools again. A page needs no read, so a fact from this prompt names its page, or kind none. A row with no route of its own, such as an appointment with nobody on file, cites the page it came from.",
   "do.open is the one place to open, when it helps; a row in items is already its own door. When they ask to open, show or see a transcript, a call, a thread or a profile, open that row with now true and answer in one sentence, from the row already read: reading it first only keeps them waiting, since the app goes there and the page has the rest (the call page has the transcript and the recording). do.next is the natural next question or two, never one about a place already offered, never padding.",
   "Already in this prompt, above: the hours, closures, services, notes, guardrails, booking notes and the autonomy modes (what the receptionist does on its own, class by class), and the definitions of the pages' words. Answer questions about those from here, without a read; get_settings is for the reply policy's dials, the channels and the notifications; a word the pages use is defined above, never read.",
-  "The page the person is on comes with their question, as data before their words: the page's own figures first, then the rows on screen in the page's order, and the row they have open. Answer from it when it is enough, in one round. Read only for what it does not hold: a whole conversation or transcript (get_thread, get_call), a person's profile (get_person), a report, openings, settings, or what another page holds (get_today, list_threads, list_calls). Name people by their name when there is one; a number is the name only when nothing else is on file.",
+  "When the page the person is on comes with their question, it comes as data before their words: the page's own figures first, then the rows on screen in the page's order, and the row they have open. Answer from it when it is enough, in one round. Read only for what it does not hold: a whole conversation or transcript (get_thread, get_call), a person's profile (get_person), a report, openings, settings, or what another page holds (get_today, list_threads, list_calls). Name people by their name when there is one; a number is the name only when nothing else is on file.",
   "You never act. When the person asks for something to happen (a reply, a rewrite, an Inbox action, a setting, an invitation, a whisper, a broadcast, a lead search), propose it with the matching tool: it becomes a card they approve, edit or dismiss. Read first when the proposal needs an id. Then say what you proposed in one sentence; never say it was sent, changed or done.",
   `Read list_audiences before any broadcast: ${NO_NUMBER_REACH}, so it names every audience with how many said yes and how many can be sent it, the approved templates with their values, and whether the number may send. When nobody can be sent it, say why: nobody said yes (point to their profiles), or the ones who did have no number to send to; never propose a broadcast to nobody.`,
   "Leads are businesses Claude found for the owner to reach; People are the ones who reached the business. To find businesses, read list_lead_searches, then propose_lead_search: one plan, never a search. A search with a question in list_lead_searches is waiting for the owner's answer: words that answer it are propose_lead_search with amends set to that search's id, the same plan with the answer applied; to carry on unchanged or stop it, the owner presses Yes, keep going or Stop here on Leads. Say the plan in one sentence; never promise how many will be found, and never say a search has started until the card is approved.",
@@ -282,6 +282,8 @@ export interface TurnFacts {
   context?: boolean;
   /** Reads made for this question, of another page, rode in before these words (cross-page.ts). */
   crossPage?: boolean;
+  /** The scope's row was read for this question and rode in before these words (loop.ts scopedRead). */
+  scopeRead?: boolean;
 }
 
 /**
@@ -321,7 +323,9 @@ export function turnWords(t: TurnFacts): string {
       ? "No tool reads it by its id yet: say what you can from the reads you have, and say so rather than guess."
       : k === "search"
         ? "Read list_lead_searches, which lists it by that id, before answering about it."
-        : "Read it before answering about it.";
+        : t.scopeRead
+          ? "It was read for this question and is in the search results before these words (read://): answer from it, and read again only for what it does not hold."
+          : "Read it before answering about it.";
   if (t.scope)
     lines.push(
       `They are looking at ${t.scope.label} (${t.scope.kind} ${t.scope.id}); "this", "them", "here" mean that unless they say otherwise. ${read}`,

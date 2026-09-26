@@ -95,7 +95,8 @@ export interface TurnInput {
   sinceLastMs?: number | null;
   /**
    * The page the question was asked on, as the tab sent it and the route read it (contracts PageContext); null from an
-   * older tab, a script, or a context the route refused. Carried, and only its size recorded, until the turn reads it.
+   * older tab, a script, or a context the route refused. The turn reads the page again through its readers from these
+   * identities (context.ts); nothing the tab says about a row is taken.
    */
   context?: PageContext | null;
   emit: (ev: TurnEvent) => void;
@@ -161,6 +162,11 @@ export function askPorts(): AskPorts {
     propose: buildProposal,
     ...(overrides ?? {}),
   };
+}
+
+/** A refusal of the request for its search_result blocks, or their cache marks (D14). */
+export function blocksRefused(message: string): boolean {
+  return /^400\b/.test(message) && /search_result|citation|cache_control/i.test(message);
 }
 
 function refusalText(r: GatewayRefused["refusal"], es: boolean): string {
@@ -276,9 +282,11 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
     scoped ? runRead(scoped) : null,
   ]);
   // The page's rows a citation may name enter the read set; the page counts as one read, so a figure answered from it
-  // is grounded (isUngrounded).
+  // is grounded (isUngrounded) -- when something on it was read: not a page whose read failed, nor one that is its
+  // address alone (other) and shows no row.
   if (built) for (const r of built.refs) if (r.kind !== "page") tc.read[r.kind].add(r.id);
-  const pageRead = !!built && built.blocks.length > 0;
+  const pageRead =
+    !!built && built.blocks.length > 0 && (built.rows > 0 || (!built.failed && input.context?.surface !== "other"));
   if (pageRead) reads++;
   const prefetched = preOuts.filter((p) => !p.out.isError);
   for (const p of prefetched) {
@@ -293,8 +301,10 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
 
   // Two cache breakpoints in system: the rules and facts for every turn in the workspace, and the shape of the
   // workspace, the same bytes for its people for five minutes. A third on the page's data, its last block (D10): this
-  // turn's later rounds and a quick question on the same page read it from the cache. The clock, the person and the
-  // question come after it, uncached, so the cache holds.
+  // turn's later rounds read it from the cache, and so does another first question on the same page within the
+  // cache's life. A follow-up does not: its earlier turns come before the page, as text, so its prefix after the
+  // shape is new bytes and the page is written to the cache again. The clock, the person and the question come after
+  // the breakpoint, uncached, so the cache holds.
   const system = [
     { type: "text", text: stableSystem(input.facts), cache_control: { type: "ephemeral" } },
     ...(shape ? [{ type: "text", text: shape, cache_control: { type: "ephemeral" } }] : []),
@@ -319,7 +329,12 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   };
   const words = {
     type: "text",
-    text: turnWords({ ...wordsFacts, context: pageBlocks.length > 0, crossPage: crossBlocks.length > 0 }),
+    text: turnWords({
+      ...wordsFacts,
+      context: (built?.blocks.length ?? 0) > 0,
+      crossPage: crossBlocks.length > 0,
+      scopeRead: !!scopedRow,
+    }),
   };
   const question = { type: "text", text: input.text };
   const withData = [...cached, ...crossBlocks, words, question];
@@ -357,8 +372,9 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       opened_ms: input.openedMs ?? null,
       context_rows: built ? built.rows : null,
       context_chars: built ? built.chars : null,
-      warm: built ? built.warm : input.context ? "failed" : "none",
+      warm: built ? (built.failed ? "failed" : built.warm) : input.context ? "failed" : "none",
       context_ms: contextMs,
+      context_dropped: dataDropped && (pageBlocks.length > 0 || crossBlocks.length > 0),
       cross_page: plan.map((p) => p.name),
       rounds: r.rounds,
       rounds_ms: roundsMs,
@@ -548,14 +564,18 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
           // The format refused: the same round is asked again without it, and
           // what comes back is read as JSON when it is, else as prose (D15).
           const m = e.refusal.kind === "bad_request" ? e.refusal.message : "";
-          // The page's data refused (D14): nothing in the repo sent a search_result block before this phase, so a
-          // refusal of the request that carries them is asked once more without them, before the answer's format is
-          // ever given up for it. Their reads leave the count; the words stop pointing at them.
-          if (m && !dataDropped) {
+          // The page's data refused (D14): nothing in the repo sent a search_result block before this phase, so a 400
+          // that names the blocks is asked once more without them, before the answer's format is ever given up for it.
+          // Any other refusal -- the format's, an overload, a size -- is not theirs, and the page stays. Their reads
+          // leave the count; the words stop pointing at them.
+          if (m && !dataDropped && blocksRefused(m)) {
             console.error("ask_context_rejected", JSON.stringify({ error: m.slice(0, 200), tenant: input.tenantId }));
             dataDropped = true;
             reads -= (pageRead ? 1 : 0) + prefetched.length + (scopedRow ? 1 : 0);
-            const bare = { ...words, text: turnWords({ ...wordsFacts, context: false, crossPage: false }) };
+            const bare = {
+              ...words,
+              text: turnWords({ ...wordsFacts, context: false, crossPage: false, scopeRead: false }),
+            };
             messages[questionAt] = {
               role: "user",
               content: (messages[questionAt].content as Array<{ type?: string }>)

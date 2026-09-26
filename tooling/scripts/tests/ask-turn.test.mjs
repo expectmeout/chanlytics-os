@@ -43,7 +43,7 @@ delete process.env.ASK_MODEL;
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { runAskTurn, foldHistory, askPorts } = await import(at("apps/dashboard/src/server/ask/loop.ts"));
+const { runAskTurn, foldHistory, askPorts, blocksRefused } = await import(at("apps/dashboard/src/server/ask/loop.ts"));
 const { runRound, replayBlocks } = await import(at("apps/dashboard/src/server/ask/round.ts"));
 const { runTool, newToolContext, READ_TOOLS } = await import(at("apps/dashboard/src/server/ask/tools.ts"));
 const { buildProposal, ACT_TOOLS } = await import(at("apps/dashboard/src/server/ask/proposals.ts"));
@@ -256,6 +256,7 @@ const BUILT = {
   rows: 0,
   chars: 30,
   stamp: 1,
+  failed: false,
   warm: "hit",
 };
 /** A page context as the tab sends it (contracts PageContext). */
@@ -4169,6 +4170,51 @@ test("a request refused while it carries the page's data is asked once more with
   );
   assert.ok(retry.output_config.format, "the answer's format kept");
   assert.equal(r.ungrounded, true, "the page it could not read grounds nothing");
+  assert.equal(r.shape.context_dropped, true, "the drop is recorded");
+});
+
+test("only a refusal that names the data blocks drops them: the format's refusal drops the format and keeps the page, and an overload or a size is the turn's, the page never dropped for it", async () => {
+  const refusing = async (refusals) => {
+    const requests = [];
+    const round = async (c) => {
+      requests.push(structuredClone(c.request));
+      const message = refusals.shift();
+      if (message) throw new GatewayRefused({ kind: "bad_request", message });
+      return ROUND([answer("2 people need you.")]);
+    };
+    const { result } = await logged(
+      "ask_",
+      async () => await runAskTurn(turn(ctxFor(), { context: PAGE }).input, ports(round)),
+    );
+    return { r: result, requests };
+  };
+  const format = await refusing(["400 output_config.format.schema: too many properties"]);
+  assert.equal(format.r.failed, false, format.r.failure ?? "");
+  assert.equal(format.requests.length, 2, "asked again, once");
+  assert.ok(JSON.stringify(format.requests[1].messages).includes("search_result"), "the page kept");
+  assert.equal(format.requests[1].output_config.format, undefined, "the format dropped");
+  assert.equal(format.r.shape.context_dropped, false);
+  for (const m of ["529 overloaded", "429 rate limited", "413 request too large", "400 messages: too long"]) {
+    const other = await refusing([m]);
+    assert.deepEqual([other.r.failure, other.requests.length], ["bad_request", 1], m);
+    assert.equal(other.r.shape.context_dropped, false, m);
+  }
+  assert.equal(blocksRefused("400 messages.0.content.1.cache_control: too many breakpoints"), true);
+  assert.equal(blocksRefused("500 search_result upstream"), false, "a 400 only");
+});
+
+test("a page counts as a read only when something on it was read: not one whose read failed, nor the address alone of a page Ask does not draw", async () => {
+  const ask = async (context, built) =>
+    await runAskTurn(
+      turn(ctxFor(), { context }).input,
+      ports(scripted([ROUND([answer("2 people need you.")])]).round, { context: async () => built }),
+    );
+  assert.equal((await ask(PAGE, BUILT)).ungrounded, false, "a page read grounds its figures");
+  const failed = await ask(PAGE, { ...BUILT, failed: true, warm: "miss" });
+  assert.equal(failed.ungrounded, true, "a page that could not be read grounds nothing");
+  assert.equal(failed.shape.warm, "failed", "and is said as failed");
+  const other = { ...PAGE, surface: "other", route: "billing" };
+  assert.equal((await ask(other, BUILT)).ungrounded, true, "an address alone grounds nothing");
 });
 
 test("the history folds a question of blocks: words joined with words, and words beside blocks as one list, the words first", () => {

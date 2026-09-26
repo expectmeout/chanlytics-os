@@ -27,11 +27,14 @@ export interface AskTurnShape {
    * read every id again and the caps (null when the tab sent none, or the build failed); every block's characters;
    * whether the warm's build was kept on this instance (hit), built now (miss), failed, or no context came (none); and
    * how long the page, the shape, the cross-page reads and the scope's row took, together, before the first round.
+   * A page whose read failed is said as failed, whatever the cache did with it.
    */
   context_rows: number | null;
   context_chars: number | null;
   warm: "hit" | "miss" | "failed" | "none";
   context_ms: number;
+  /** The API refused the request that carried the data blocks, and it was asked again without them (D14). */
+  context_dropped: boolean;
   /** The reads the question named of another page, made before the first round (cross-page.ts). */
   cross_page: string[];
   rounds: number;

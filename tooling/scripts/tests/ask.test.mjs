@@ -294,6 +294,10 @@ test("the prompt on Leads: the page is named and words that describe businesses 
   }
   for (const kind of ["thread", "call", "person"])
     assert.ok(on(kind).includes("Read it before answering about it."), kind);
+  // A row read for the question is said as given, never as one still to read; the page is not claimed with it.
+  const given = turnWords({ ...facts, scope: { kind: "call", id: "x1", label: "this call" }, scopeRead: true });
+  assert.ok(given.includes("It was read for this question and is in the search results"), given);
+  assert.ok(!given.includes("Read it before answering about it.") && !given.includes("page://"), given);
   assert.ok(
     on("search").includes("Read list_lead_searches, which lists it by that id"),
     "a search is found in its list",
