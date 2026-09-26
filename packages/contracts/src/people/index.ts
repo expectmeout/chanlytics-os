@@ -79,18 +79,11 @@ export type {
 } from "./people";
 export { attentionRow } from "./person-attention";
 export type { AttentionRowVM } from "./person-attention";
-export { filterTimeline, consentChangeWords, personActs, toPersonVM, TIMELINE_FILTERS } from "./person-profile";
-export type {
-  TimelineKind,
-  TimelineFilterId,
-  PersonTimelineItemVM,
-  PersonVisitAheadVM,
-  PersonRightNow,
-  PersonFact,
-  PersonVM,
-  PersonActVM,
-  OwnMessageVM,
-} from "./person-profile";
+export { filterTimeline, personActs, toPersonVM, TIMELINE_FILTERS } from "./person-profile";
+export type { TimelineFilterId, PersonVM, PersonActVM, OwnMessageVM } from "./person-profile";
+export type { PersonRightNow, PersonFact } from "./person-cards";
+export { consentChangeWords } from "./person-timeline";
+export type { TimelineKind, PersonTimelineItemVM, PersonVisitAheadVM } from "./person-timeline";
 export {
   asListRule,
   draftListRule,

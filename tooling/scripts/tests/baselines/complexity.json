@@ -1279,11 +1279,6 @@
     "branches": 22,
     "depth": 7
   },
-  "packages/contracts/src/people/person-profile.ts::toPersonVM#1": {
-    "lines": 594,
-    "branches": 201,
-    "depth": 8
-  },
   "packages/contracts/src/playbooks/playbook-reach.ts::playbookRunReach#1": {
     "lines": 100,
     "branches": 33,

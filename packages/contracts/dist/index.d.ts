@@ -13075,32 +13075,35 @@ declare function dealSheetBody(mode: DealSheetMode, draft: DealSheetDraft, deal:
  */
 declare function dealSheetRefusal(message: string | null | undefined): DealSheetProblem;
 
-type TimelineKind = "customer" | "receptionist" | "you" | "system" | "call" | "escalation" | "decision" | "visit" | "consent" | "deal";
-/**
- * How a profile's timeline narrows: everything, or one kind of record. "Messages" is the thread itself --
- * what was said, and the escalations and decisions in it; only "All" keeps the system lines.
- */
-type TimelineFilterId = "all" | "messages" | "calls" | "visits" | "consent" | "deals";
-declare const TIMELINE_FILTERS: readonly {
-    id: TimelineFilterId;
+interface PersonRightNow {
+    tone: ReceptionistTone;
+    title: string;
+    detail: string;
+    cta: {
+        label: string;
+        to: string;
+    } | null;
+}
+interface PersonFact {
     label: string;
-    kinds: readonly TimelineKind[] | null;
-}[];
-/** The items a filter shows, in the order they came; an unknown filter shows everything. */
-declare function filterTimeline<T extends {
-    kind: TimelineKind;
-}>(items: readonly T[], id: string): T[];
-/**
- * A consent change, in the words the timeline uses: what was answered, and
- * how we know. An answer the customer texted quotes them; one taken at the
- * desk names the way and the recorder's note. The words here are the only
- * ones the page has, so an owner reads "how do we know" without a database.
- */
-declare function consentChangeWords(c: ConsentChange): {
-    who: string;
-    text: string;
-    sub?: string;
-};
+    value: string | number;
+    meta: string;
+    tone?: "neg" | "pos" | "";
+}
+/** The customer's last line and the last reply, verbatim. */
+interface PersonLastExchange {
+    customer: {
+        text: string;
+        at: string;
+    } | null;
+    reply: {
+        text: string;
+        at: string;
+        who: "Receptionist" | "You";
+    } | null;
+}
+
+type TimelineKind = "customer" | "receptionist" | "you" | "system" | "call" | "escalation" | "decision" | "visit" | "consent" | "deal";
 interface PersonTimelineItemVM {
     id: string;
     ts: number;
@@ -13132,37 +13135,38 @@ interface PersonVisitAheadVM {
     byName: boolean;
     to: string;
 }
-interface PersonRightNow {
-    tone: ReceptionistTone;
-    title: string;
-    detail: string;
-    cta: {
-        label: string;
-        to: string;
-    } | null;
-}
-interface PersonFact {
+/**
+ * A consent change, in the words the timeline uses: what was answered, and
+ * how we know. An answer the customer texted quotes them; one taken at the
+ * desk names the way and the recorder's note. The words here are the only
+ * ones the page has, so an owner reads "how do we know" without a database.
+ */
+declare function consentChangeWords(c: ConsentChange): {
+    who: string;
+    text: string;
+    sub?: string;
+};
+
+/**
+ * How a profile's timeline narrows: everything, or one kind of record. "Messages" is the thread itself --
+ * what was said, and the escalations and decisions in it; only "All" keeps the system lines.
+ */
+type TimelineFilterId = "all" | "messages" | "calls" | "visits" | "consent" | "deals";
+declare const TIMELINE_FILTERS: readonly {
+    id: TimelineFilterId;
     label: string;
-    value: string | number;
-    meta: string;
-    tone?: "neg" | "pos" | "";
-}
+    kinds: readonly TimelineKind[] | null;
+}[];
+/** The items a filter shows, in the order they came; an unknown filter shows everything. */
+declare function filterTimeline<T extends {
+    kind: TimelineKind;
+}>(items: readonly T[], id: string): T[];
 interface PersonVM extends PersonRowVM {
     /** "Since Jul 14" / "Since before Aug 27" / "" */
     since: string;
     /** "3 conversations · 2 calls" */
     metaLine: string;
-    lastExchange: {
-        customer: {
-            text: string;
-            at: string;
-        } | null;
-        reply: {
-            text: string;
-            at: string;
-            who: "Receptionist" | "You";
-        } | null;
-    };
+    lastExchange: PersonLastExchange;
     facts: PersonFact[];
     rightNow: PersonRightNow;
     timeline: PersonTimelineItemVM[];
@@ -13267,6 +13271,10 @@ interface OwnMessageVM {
     /** When they sent it, by the business's clock. */
     when: string;
 }
+/**
+ * The whole page: the row view model, made exact by the profile's own rows, and every card over it
+ * (person-cards.ts, person-timeline.ts). The keys keep the order the page and Ask have always read them in.
+ */
 declare function toPersonVM(d: PersonDetailDto, tz: string, now?: Date, 
 /** The member looking (toPersonRowVM's viewer). */
 viewerId?: string | null): PersonVM;
