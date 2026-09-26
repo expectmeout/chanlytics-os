@@ -2460,6 +2460,10 @@ var PARTNER_WORDS = {
   /** What the switcher and Team show for a workspace brought this way. */
   role: "Partner",
   earnings: "Earnings",
+  workspaces: "Your workspaces",
+  open: "Open",
+  readingWorkspaces: "Reading your workspaces\u2026",
+  failedWorkspaces: "your workspaces",
   noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan."
 };
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
@@ -4236,6 +4240,23 @@ async function becomePartner(db, code) {
   if (error) return { ok: false, code: error.code ?? "", message: error.message };
   return { ok: true, row: data };
 }
+var noFunction = (e) => e.code === "PGRST202" || e.code === "42883" || /could not find the function/i.test(e.message);
+async function getPartnerWorkspaces(db) {
+  const [o, m] = await Promise.all([db.rpc("partner_overview"), db.rpc("partner_workspace_money")]);
+  for (const r2 of [o, m]) {
+    if (r2.error && !noFunction(r2.error)) throw new Error(`getPartnerWorkspaces: ${r2.error.message}`);
+  }
+  return {
+    overview: o.error ? [] : o.data ?? [],
+    money: m.error ? [] : (m.data ?? []).map((r2) => ({
+      ...r2,
+      held_cents: Number(r2.held_cents),
+      payable_cents: Number(r2.payable_cents),
+      paid_cents: Number(r2.paid_cents),
+      month_cents: Number(r2.month_cents)
+    }))
+  };
+}
 
 // src/realtime.ts
 var WATCHED = [
@@ -4359,6 +4380,7 @@ export {
   followUpTouchesSince,
   getOwnPartner,
   getPartnerBalance,
+  getPartnerWorkspaces,
   getTenantConfig,
   heldStale,
   ingestCall,

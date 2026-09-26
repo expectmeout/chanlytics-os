@@ -71,3 +71,35 @@ export async function becomePartner(
   if (error) return { ok: false, code: error.code ?? "", message: error.message };
   return { ok: true, row: data as unknown as PartnerPublicRow };
 }
+
+export type PartnerOverviewRow = Database["public"]["Functions"]["partner_overview"]["Returns"][number];
+export type PartnerWorkspaceMoneyLine = Database["public"]["Functions"]["partner_workspace_money"]["Returns"][number];
+
+const noFunction = (e: { code?: string | null; message: string }): boolean =>
+  e.code === "PGRST202" || e.code === "42883" || /could not find the function/i.test(e.message);
+
+/**
+ * The back office's row for each workspace the caller brought and still sits on the team of (00204
+ * partner_overview), and what each they ever brought earned them (partner_workspace_money). Both answer about the
+ * caller alone; both read as none on a database 00204 has not reached.
+ */
+export async function getPartnerWorkspaces(
+  db: Db,
+): Promise<{ overview: PartnerOverviewRow[]; money: PartnerWorkspaceMoneyLine[] }> {
+  const [o, m] = await Promise.all([db.rpc("partner_overview"), db.rpc("partner_workspace_money")]);
+  for (const r of [o, m]) {
+    if (r.error && !noFunction(r.error)) throw new Error(`getPartnerWorkspaces: ${r.error.message}`);
+  }
+  return {
+    overview: o.error ? [] : (o.data ?? []),
+    money: m.error
+      ? []
+      : (m.data ?? []).map((r) => ({
+          ...r,
+          held_cents: Number(r.held_cents),
+          payable_cents: Number(r.payable_cents),
+          paid_cents: Number(r.paid_cents),
+          month_cents: Number(r.month_cents),
+        })),
+  };
+}

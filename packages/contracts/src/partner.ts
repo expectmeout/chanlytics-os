@@ -8,6 +8,8 @@
  */
 import { z } from "zod";
 import { moneyWords } from "./billing";
+import { PLATFORM_VERDICTS, platformRows, type PlatformTenantDto, type PlatformVerdict } from "./platform";
+import type { Tone } from "./tone";
 
 /** The row, as `GET partner` answers it. */
 export interface PartnerDto {
@@ -121,6 +123,10 @@ export const PARTNER_WORDS = {
   /** What the switcher and Team show for a workspace brought this way. */
   role: "Partner",
   earnings: "Earnings",
+  workspaces: "Your workspaces",
+  open: "Open",
+  readingWorkspaces: "Reading your workspaces…",
+  failedWorkspaces: "your workspaces",
   noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan.",
 } as const;
 
@@ -220,4 +226,122 @@ export function partnerVM(
     standing: dto.status === "paused" ? PARTNER_WORDS.paused : dto.status === "closed" ? PARTNER_WORDS.closed : null,
     earnings: partnerEarningsWords(balance),
   };
+}
+
+/* ---------------------------------------------------------- the workspaces a partner brought (P4) */
+
+/** One line of partner_workspace_money() (00204): a workspace the caller brought, its standing, and its money. */
+export interface PartnerWorkspaceMoneyDto {
+  tenant_id: string;
+  name: string;
+  on_team: boolean;
+  standing: string | null;
+  currency: string;
+  held_cents: number;
+  payable_cents: number;
+  paid_cents: number;
+  month_cents: number;
+}
+
+/** What the partner reads about a workspace's standing: nothing while it qualifies, since that is the rule. */
+export const PARTNER_STANDING_WORDS: Record<string, string | null> = {
+  pending: "Its share is judged once it has paid.",
+  qualified: null,
+  review: "Under review: its card or its listing matches one of yours. We'll write to you.",
+  disqualified: "Not eligible for a share.",
+};
+
+export interface PartnerWorkspaceVM {
+  tenantId: string;
+  slug: string | null;
+  name: string;
+  /** The back office's verdict for it, in its words and tone; null when the partner is no longer on its team. */
+  verdict: PlatformVerdict | null;
+  label: string;
+  tone: Tone;
+  /** What to do about it, the back office's own sentence, or why the partner cannot see it any more. */
+  sentence: string;
+  /** Paying · answering · texting · heard: the back office's four facts, joined; null off the team. */
+  facts: string | null;
+  standing: string | null;
+  /** What it earned the partner: this month's payments, and to date. */
+  money: string;
+  onTeam: boolean;
+}
+
+export interface PartnerWorkspacesVM {
+  rows: PartnerWorkspaceVM[];
+  /** "3 workspaces · 2 live · 1 needs you", counted, never estimated. */
+  summary: string;
+}
+
+const NEEDS_THE_PARTNER: readonly PlatformVerdict[] = ["broken", "stalled", "waiting_owner", "billing", "rehearsal"];
+
+function moneyLine(lines: readonly PartnerWorkspaceMoneyDto[]): string {
+  if (!lines.length) return "Nothing earned from it yet.";
+  const say = (pick: (l: PartnerWorkspaceMoneyDto) => number): string =>
+    lines.map((l) => moneyWords(pick(l), l.currency)).join(" and ");
+  const toDate = lines.reduce((n, l) => n + l.held_cents + l.payable_cents + l.paid_cents, 0);
+  const month = lines.reduce((n, l) => n + l.month_cents, 0);
+  if (toDate === 0 && month === 0) return "Nothing earned from it yet.";
+  return `${say((l) => l.month_cents)} from this month's payments · ${say((l) => l.held_cents + l.payable_cents + l.paid_cents)} to date`;
+}
+
+/**
+ * The partner's table: each workspace they brought, judged by the back office's own rule (platformRows) where they
+ * still sit on its team, with its standing and what it earned them. A workspace whose owner removed them keeps its
+ * money line and says why it shows nothing else. The back office's order: what needs someone first.
+ */
+export function partnerWorkspacesVM(
+  overview: readonly PlatformTenantDto[],
+  money: readonly PartnerWorkspaceMoneyDto[],
+  nowMs = Date.now(),
+): PartnerWorkspacesVM {
+  const judged = platformRows(overview, nowMs);
+  const moneyOf = (id: string) => money.filter((m) => m.tenant_id === id);
+  const standingOf = (id: string): string | null => {
+    const s = moneyOf(id)[0]?.standing ?? "pending";
+    return PARTNER_STANDING_WORDS[s] ?? null;
+  };
+  const rows: PartnerWorkspaceVM[] = judged.map((r) => {
+    const v = PLATFORM_VERDICTS[r.verdict];
+    return {
+      tenantId: r.tenantId,
+      slug: r.slug,
+      name: r.name,
+      verdict: r.verdict,
+      label: v.label,
+      tone: v.tone,
+      sentence: r.sentence,
+      facts: [r.facts.paying, r.facts.answering, `texting ${r.facts.texting}`, `heard ${r.facts.heard}`].join(" · "),
+      standing: standingOf(r.tenantId),
+      money: moneyLine(moneyOf(r.tenantId)),
+      onTeam: true,
+    };
+  });
+  const seen = new Set(rows.map((r) => r.tenantId));
+  const off = [...new Map(money.filter((m) => !seen.has(m.tenant_id)).map((m) => [m.tenant_id, m])).values()];
+  for (const m of off.sort((a, b) => a.name.localeCompare(b.name))) {
+    rows.push({
+      tenantId: m.tenant_id,
+      slug: null,
+      name: m.name,
+      verdict: null,
+      label: "Off the team",
+      tone: "plain",
+      sentence: m.on_team
+        ? "Its details could not be read just now."
+        : "Its owner took you off its team. Your share goes on while it pays; its details are theirs.",
+      facts: null,
+      standing: standingOf(m.tenant_id),
+      money: moneyLine(moneyOf(m.tenant_id)),
+      onTeam: m.on_team,
+    });
+  }
+  const total = rows.length;
+  const live = rows.filter((r) => r.verdict === "live").length;
+  const needs = rows.filter((r) => r.verdict !== null && NEEDS_THE_PARTNER.includes(r.verdict)).length;
+  const parts = [`${total} workspace${total === 1 ? "" : "s"}`, `${live} live`];
+  if (needs) parts.push(`${needs} need${needs === 1 ? "s" : ""} you`);
+  return { rows, summary: total ? parts.join(" · ") : "No workspace has come through your link yet." };
 }

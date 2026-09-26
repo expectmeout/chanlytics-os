@@ -22,6 +22,7 @@ import {
   partnerEarningsWords,
   partnerLinkFor,
   partnerVM,
+  partnerWorkspacesVM,
   shareWords,
 } from "@chanlytics/contracts";
 
@@ -36,6 +37,7 @@ const link = await import(at("apps/dashboard/app/p/[code]/route.ts"));
 const partner = await import(at("apps/dashboard/app/api/v1/partner/route.ts"));
 const create = await import(at("apps/dashboard/app/api/v1/workspaces/create/route.ts"));
 const workspaces = await import(at("apps/dashboard/app/api/v1/workspaces/route.ts"));
+const partnerWorkspaces = await import(at("apps/dashboard/app/api/v1/partner/workspaces/route.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));
 
@@ -351,4 +353,150 @@ test("wiring, run: the pane's surface is real and waits for Settings, becoming o
     "partner.standing_set",
   ])
     assert.ok(EVENT_KINDS.includes(k), k);
+});
+
+/* ------------------------------------------------------------ the workspaces a partner brought (P4) */
+
+const NOW = Date.parse("2026-09-26T12:00:00Z");
+/** The back office's row for a workspace, as platform_overview_rows_for answers it. */
+const overviewRow = (over = {}) => ({
+  tenant_id: "t-live",
+  slug: "harbor",
+  name: "Harbor Moving",
+  status: "active",
+  timezone: "America/New_York",
+  created_at: "2026-08-01T00:00:00Z",
+  members: 2,
+  billing_mode: "stripe",
+  billing_status: "active",
+  trial_end: null,
+  current_period_end: "2026-10-20T00:00:00Z",
+  line_e164: "+13055550142",
+  line_kind: "provisioned",
+  voice_state: "answering",
+  sms_state: "active",
+  reg_step: null,
+  reg_mock: false,
+  reg_sole_prop: false,
+  line_error: null,
+  whatsapp_number: null,
+  whatsapp_active: null,
+  voice_number: "+13055550142",
+  voice_active: true,
+  last_inbound_at: "2026-09-25T15:00:00Z",
+  ...over,
+});
+const moneyRow = (over = {}) => ({
+  tenant_id: "t-live",
+  name: "Harbor Moving",
+  on_team: true,
+  standing: "qualified",
+  currency: "usd",
+  held_cents: 10000,
+  payable_cents: 0,
+  paid_cents: 20000,
+  month_cents: 10000,
+  ...over,
+});
+
+test("the partner's table: the back office's verdict and sentence for each, the standing when it matters, and what each earned", () => {
+  const vm = partnerWorkspacesVM(
+    [
+      overviewRow(),
+      overviewRow({
+        tenant_id: "t-new",
+        slug: "bayside",
+        name: "Bayside Dental",
+        created_at: "2026-09-26T08:00:00Z",
+        line_e164: null,
+        voice_state: null,
+        sms_state: null,
+        voice_active: null,
+        voice_number: null,
+        last_inbound_at: null,
+        billing_status: "none",
+        members: 2,
+      }),
+    ],
+    [
+      moneyRow(),
+      moneyRow({
+        tenant_id: "t-new",
+        name: "Bayside Dental",
+        standing: null,
+        held_cents: 0,
+        paid_cents: 0,
+        month_cents: 0,
+      }),
+    ],
+    NOW,
+  );
+  const live = vm.rows.find((r) => r.tenantId === "t-live");
+  assert.equal(live.verdict, "live");
+  assert.equal(live.label, "Live");
+  assert.equal(live.standing, null, "a qualified workspace says nothing about its standing: that is the rule");
+  assert.equal(live.money, "$100.00 from this month's payments · $300.00 to date");
+  assert.ok(live.facts.includes("texting"), "the back office's four facts");
+  assert.equal(live.onTeam, true);
+  const fresh = vm.rows.find((r) => r.tenantId === "t-new");
+  assert.equal(fresh.standing, "Its share is judged once it has paid.");
+  assert.equal(fresh.money, "Nothing earned from it yet.");
+  assert.match(vm.summary, /^2 workspaces · 1 live/);
+});
+
+test("a workspace whose owner took the partner off its team keeps its money line and shows nothing else of the business", () => {
+  const vm = partnerWorkspacesVM(
+    [],
+    [moneyRow({ tenant_id: "t-off", name: "Old Client", on_team: false, standing: "review" })],
+    NOW,
+  );
+  assert.equal(vm.rows.length, 1);
+  const r = vm.rows[0];
+  assert.deepEqual([r.verdict, r.facts, r.slug, r.onTeam], [null, null, null, false]);
+  assert.match(r.sentence, /took you off its team/);
+  assert.match(r.standing, /^Under review/);
+  assert.equal(r.money, "$100.00 from this month's payments · $300.00 to date");
+  assert.equal(vm.summary, "1 workspace · 0 live");
+});
+
+test("nothing brought yet is said once, and needs-you counts only what the back office says needs someone", () => {
+  assert.equal(partnerWorkspacesVM([], [], NOW).summary, "No workspace has come through your link yet.");
+  const broken = overviewRow({
+    tenant_id: "t-b",
+    slug: "b",
+    name: "B",
+    voice_state: "failed",
+    line_error: "Twilio said no.",
+  });
+  const vm = partnerWorkspacesVM([broken], [], NOW);
+  assert.match(vm.summary, /1 needs you$/);
+});
+
+test("GET partner/workspaces: on the account, every caller's own two lists, none on a database without the doors", async () => {
+  assert.deepEqual(partnerWorkspaces.GET.policy, {
+    kind: "read",
+    scope: "account",
+    role: null,
+    rate: null,
+    spend: false,
+  });
+  const out = await partnerWorkspaces.GET.run(
+    get(),
+    ctxFor(tables(), {
+      partner_overview: () => [overviewRow()],
+      partner_workspace_money: () => [{ ...moneyRow(), held_cents: "10000", paid_cents: "20000" }],
+    }),
+  );
+  assert.equal(out.overview.length, 1);
+  assert.equal(out.money[0].held_cents, 10000, "a bigint sum comes back as a number");
+  const missing = () => {
+    throw Object.assign(new Error("Could not find the function public.partner_overview"), { code: "PGRST202" });
+  };
+  assert.deepEqual(
+    await partnerWorkspaces.GET.run(
+      get(),
+      ctxFor(tables(), { partner_overview: missing, partner_workspace_money: missing }),
+    ),
+    { overview: [], money: [] },
+  );
 });

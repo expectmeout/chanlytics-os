@@ -53,6 +53,7 @@ export const ROUTES = {
   "GET metrics": { method: "GET", path: "/api/v1/metrics" },
   "GET notifications": { method: "GET", path: "/api/v1/notifications" },
   "GET partner": { method: "GET", path: "/api/v1/partner" },
+  "GET partner/workspaces": { method: "GET", path: "/api/v1/partner/workspaces" },
   "GET platform/overview": { method: "GET", path: "/api/v1/platform/overview" },
   "GET platform/tenants/[id]": { method: "GET", path: "/api/v1/platform/tenants/[id]" },
   "GET playbooks": { method: "GET", path: "/api/v1/playbooks" },
@@ -225,6 +226,7 @@ export type Routes = {
   "GET metrics": typeof import("../../app/api/v1/metrics/route").GET;
   "GET notifications": typeof import("../../app/api/v1/notifications/route").GET;
   "GET partner": typeof import("../../app/api/v1/partner/route").GET;
+  "GET partner/workspaces": typeof import("../../app/api/v1/partner/workspaces/route").GET;
   "GET platform/overview": typeof import("../../app/api/v1/platform/overview/route").GET;
   "GET platform/tenants/[id]": typeof import("../../app/api/v1/platform/tenants/[id]/route").GET;
   "GET playbooks": typeof import("../../app/api/v1/playbooks/route").GET;

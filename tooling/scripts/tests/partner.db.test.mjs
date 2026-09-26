@@ -381,3 +381,60 @@ test(
     assert.ok(earnAsMember.error, "only the webhook writes the ledger");
   },
 );
+
+/* --------------------------------------------------------------------------- the workspaces a partner brought */
+
+test(
+  "the partner's table: the back office's row for each workspace they brought and sit on, their money for every one",
+  { skip },
+  async () => {
+    const rows = ok(await partner.client.rpc("partner_overview"));
+    const ids = rows.map((r) => r.tenant_id);
+    assert.ok(ids.includes(brought), "the workspace they brought and set up");
+    const theirOwn = ok(
+      await db.from("memberships").select("tenant_id").eq("user_id", partner.userId).eq("role", "owner"),
+    ).map((m) => m.tenant_id);
+    assert.ok(
+      theirOwn.every((t) => !ids.includes(t)),
+      "never a workspace of their own",
+    );
+    const row = rows.find((r) => r.tenant_id === brought);
+    assert.equal(row.name, "Harbor Moving");
+    assert.equal(typeof row.members, "number");
+
+    const money = ok(await partner.client.rpc("partner_workspace_money"));
+    const mine = money.find((m) => m.tenant_id === brought);
+    assert.equal(mine.on_team, true);
+    assert.equal(mine.standing, "qualified");
+
+    assert.deepEqual(ok(await customer.client.rpc("partner_overview")), [], "an owner is no partner");
+    assert.deepEqual(ok(await other.client.rpc("partner_workspace_money")), []);
+  },
+);
+
+test("an owner who takes the partner off the team takes the view with them; the money stays", { skip }, async () => {
+  ok(
+    await db.from("memberships").delete().eq("tenant_id", brought).eq("user_id", partner.userId).eq("role", "partner"),
+  );
+  try {
+    const ids = ok(await partner.client.rpc("partner_overview")).map((r) => r.tenant_id);
+    assert.ok(!ids.includes(brought), "no row of the business once they are off its team");
+    const mine = ok(await partner.client.rpc("partner_workspace_money")).find((m) => m.tenant_id === brought);
+    assert.equal(mine.on_team, false);
+    assert.ok(
+      Number(mine.payable_cents) + Number(mine.held_cents) + Number(mine.paid_cents) >= 0,
+      "the money line stays",
+    );
+  } finally {
+    ok(await db.from("memberships").insert({ tenant_id: brought, user_id: partner.userId, role: "partner" }));
+  }
+});
+
+test(
+  "the back office's join is nobody's door: a session cannot call it, whatever list it names",
+  { skip },
+  async () => {
+    const r = await partner.client.rpc("platform_overview_rows_for", { p_tenants: [brought] });
+    assert.ok(r.error, "owner-only, as 00093 made its caller");
+  },
+);

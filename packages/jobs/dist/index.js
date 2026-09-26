@@ -2513,6 +2513,10 @@ var PARTNER_WORDS = {
   /** What the switcher and Team show for a workspace brought this way. */
   role: "Partner",
   earnings: "Earnings",
+  workspaces: "Your workspaces",
+  open: "Open",
+  readingWorkspaces: "Reading your workspaces\u2026",
+  failedWorkspaces: "your workspaces",
   noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan."
 };
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
@@ -9979,6 +9983,10 @@ var PARTNER_WORDS2 = {
   /** What the switcher and Team show for a workspace brought this way. */
   role: "Partner",
   earnings: "Earnings",
+  workspaces: "Your workspaces",
+  open: "Open",
+  readingWorkspaces: "Reading your workspaces\u2026",
+  failedWorkspaces: "your workspaces",
   noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan."
 };
 var CONSENT_PHRASE2 = OFFERS_OPT_IN_PHRASES2.en;
@@ -13550,6 +13558,10 @@ var PARTNER_WORDS3 = {
   /** What the switcher and Team show for a workspace brought this way. */
   role: "Partner",
   earnings: "Earnings",
+  workspaces: "Your workspaces",
+  open: "Open",
+  readingWorkspaces: "Reading your workspaces\u2026",
+  failedWorkspaces: "your workspaces",
   noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan."
 };
 var CONSENT_PHRASE3 = OFFERS_OPT_IN_PHRASES3.en;
@@ -16220,6 +16232,10 @@ var PARTNER_WORDS22 = {
   /** What the switcher and Team show for a workspace brought this way. */
   role: "Partner",
   earnings: "Earnings",
+  workspaces: "Your workspaces",
+  open: "Open",
+  readingWorkspaces: "Reading your workspaces\u2026",
+  failedWorkspaces: "your workspaces",
   noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan."
 };
 var CONSENT_PHRASE22 = OFFERS_OPT_IN_PHRASES22.en;
@@ -18744,6 +18760,10 @@ var PARTNER_WORDS32 = {
   /** What the switcher and Team show for a workspace brought this way. */
   role: "Partner",
   earnings: "Earnings",
+  workspaces: "Your workspaces",
+  open: "Open",
+  readingWorkspaces: "Reading your workspaces\u2026",
+  failedWorkspaces: "your workspaces",
   noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan."
 };
 var CONSENT_PHRASE32 = OFFERS_OPT_IN_PHRASES32.en;
@@ -21975,6 +21995,10 @@ var PARTNER_WORDS4 = {
   /** What the switcher and Team show for a workspace brought this way. */
   role: "Partner",
   earnings: "Earnings",
+  workspaces: "Your workspaces",
+  open: "Open",
+  readingWorkspaces: "Reading your workspaces\u2026",
+  failedWorkspaces: "your workspaces",
   noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan."
 };
 var CONSENT_PHRASE4 = OFFERS_OPT_IN_PHRASES4.en;

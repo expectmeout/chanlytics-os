@@ -5187,6 +5187,35 @@ export type Database = {
         Returns: Json
       }
       partner_earnings_sweep: { Args: { p_now?: string }; Returns: Json }
+      partner_overview: {
+        Args: never
+        Returns: {
+          billing_mode: string
+          billing_status: string
+          created_at: string
+          current_period_end: string
+          last_inbound_at: string
+          line_e164: string
+          line_error: string
+          line_kind: string
+          members: number
+          name: string
+          reg_mock: boolean
+          reg_sole_prop: boolean
+          reg_step: string
+          slug: string
+          sms_state: string
+          status: string
+          tenant_id: string
+          timezone: string
+          trial_end: string
+          voice_active: boolean
+          voice_number: string
+          voice_state: string
+          whatsapp_active: boolean
+          whatsapp_number: string
+        }[]
+      }
       partner_reverse: {
         Args: {
           p_amount_cents: number
@@ -5195,6 +5224,20 @@ export type Database = {
           p_kind: string
         }
         Returns: Json
+      }
+      partner_workspace_money: {
+        Args: never
+        Returns: {
+          currency: string
+          held_cents: number
+          month_cents: number
+          name: string
+          on_team: boolean
+          paid_cents: number
+          payable_cents: number
+          standing: string
+          tenant_id: string
+        }[]
       }
       people_list: {
         Args: {
@@ -5345,6 +5388,35 @@ export type Database = {
       }
       platform_overview_rows: {
         Args: never
+        Returns: {
+          billing_mode: string
+          billing_status: string
+          created_at: string
+          current_period_end: string
+          last_inbound_at: string
+          line_e164: string
+          line_error: string
+          line_kind: string
+          members: number
+          name: string
+          reg_mock: boolean
+          reg_sole_prop: boolean
+          reg_step: string
+          slug: string
+          sms_state: string
+          status: string
+          tenant_id: string
+          timezone: string
+          trial_end: string
+          voice_active: boolean
+          voice_number: string
+          voice_state: string
+          whatsapp_active: boolean
+          whatsapp_number: string
+        }[]
+      }
+      platform_overview_rows_for: {
+        Args: { p_tenants: string[] }
         Returns: {
           billing_mode: string
           billing_status: string

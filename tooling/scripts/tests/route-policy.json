@@ -849,6 +849,13 @@
       "rate": "partner_become",
       "spend": false
     },
+    "GET partner/workspaces": {
+      "kind": "read",
+      "scope": "account",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
     "POST platform/lines/refile": {
       "kind": "write",
       "scope": "platform",
