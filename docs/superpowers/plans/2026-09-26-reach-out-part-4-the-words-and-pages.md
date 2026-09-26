@@ -3145,9 +3145,12 @@ A member saves a chain, counts a search's reach, answers a held send and reads a
 > `main`'s and #1146's), so the doors' migration is `00198_the_reach_out_sheet_s_doors.sql`. It applies twice on a
 > replayed stack, and the generated database types match it. What departs from the task code below, and why:
 >
-> - **R5, one reset.** `reach_out_recheck(send_ids, tenant)` is the only reset of a send's check (planned, unchecked, at
->   the words' next version, `included_for` kept). The save, Rewrite, the run's "check the held again", 00197's hourly
->   release (re-created on it) and the edge sender's recheck (`recheckSends`, replacing `checkResetPatch`) all call it.
+> - **R5, one reset.** `reach_out_recheck(send_ids, tenant, from_state)` is the only reset of a send's check (planned,
+>   unchecked, at the words' next version, `included_for` kept). The save, Rewrite, the run's "check the held again",
+>   00197's hourly release (re-created on it) and the edge sender's recheck (`recheckSends`, replacing
+>   `checkResetPatch`) all call it. The sender names `claimed`, so a send another tick has claimed since is never
+>   reset. A send past its fortnight (`reach_out_given_up`, the SQL form of `REPLAN_GIVE_UP_MS`) is skipped
+>   `kept_waiting` instead of planned again. Include and Rewrite are refused past it, in words.
 > - **R13, no new run-now door.** `playbooks-run.ts` runs a chain's root through `lib/reach-out/run-step.ts`, the
 >   playbooks sweep's loop body moved so both can call it. It keeps its full-path audience and `user_id`. A later step
 >   is a 409 `reach_out_step`. There is no `reach-out-run` door, and Task 4.3 is not built.
@@ -3158,16 +3161,25 @@ A member saves a chain, counts a search's reach, answers a held send and reads a
 >   runs `validateReachOutChain`, and the door checks the membership again. The gap is a CHECK
 >   (`playbooks_reach_out_gap`), and `ReachOutChainSchema` refines it to the same set.
 > - **R16.** `playbooks_acting_delete` is narrowed to moments. `reach_out_remove` refuses a chain once any send is
->   claimed, queued, sent or failed. The report's `can_remove` is that same predicate.
+>   claimed, queued, sent or failed. It locks the chain's sends first, so a claim cannot slip in between the test and
+>   the delete. The report's `can_remove` is that same predicate.
 > - **R17.** Dropping a step that wrote is refused ("That step has written already. Pause the reach-out instead.").
->   Its history is kept.
+>   Its history is kept. The dropped steps' sends are locked before that test, as the removal's are. A run whose step
+>   was dropped says "a step since removed" (`step_n: null`). Renaming a chain retitles its words in Templates.
 > - **R18.** `reach_out_send_decide` does all four answers, with `not_a_fit` through `lead_set_stage` in the same
 >   transaction. It is a session door (definer, `is_acting_member`) because `lead_set_stage` needs `auth.uid()`.
->   `reach_out_run_recheck` is the run-level door.
+>   `reach_out_run_recheck` is the run-level door. It takes the holds the hourly release takes (`check_unavailable`,
+>   no detail). A hold for a broken rule stays for its owner's Rewrite.
 > - **R23.** The report's per-step Wrote back and Said no count each lead once, at the last step that wrote to them.
->   The per-step figures therefore sum to the chain's distinct leads. Wrote back is `outreach_lead_facts`' own
->   reading.
+>   The per-step figures therefore sum to the chain's distinct leads. Wrote back is one set-based function,
+>   `outreach_wrote_back`. 00184's predicate moved there whole, `outreach_lead_facts` is re-created to ask it, and the
+>   report asks it once for all of a chain's leads. The index `reach_out_sends_step (playbook_id, state)` serves the
+>   save, the removal and the report.
+> - **One reading each.** `workspaceMaySpend` (a paused workspace may not spend) and `outreachModeOf` (packages/db) are
+>   read by the step's run, the check and the dashboard's chains alike. A paused workspace's Start says the workspace
+>   is paused (`workspace_paused`), not the chain.
 > - Every refusal the doors raise is a sentence in contracts `REACH_OUT_REFUSALS`, and the routes show only those.
+>   This includes `lead_set_stage`'s "Lead not found." and "This lead is gone.".
 
 ### Task 4.1: The migration
 
