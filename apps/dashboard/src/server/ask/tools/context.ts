@@ -1,6 +1,12 @@
 import "server-only";
 import type { z } from "zod";
-import { AppError, emptyReadSet, type AskProposal, type AskReadSet } from "@chanlytics/contracts";
+import {
+  AppError,
+  emptyReadSet,
+  type AskProposal,
+  type AskReadSet,
+  type MembershipRole,
+} from "@chanlytics/contracts";
 import type { RouteContext } from "../../with-route";
 import { readerContext, type ReaderContext } from "../../readers";
 
@@ -27,7 +33,7 @@ export interface ToolRun {
 export interface ToolContext {
   ctx: RouteContext;
   tenantId: string;
-  role: "owner" | "operator" | "viewer";
+  role: MembershipRole;
   /** The business's zone: "tomorrow at ten" is its ten, never the server's. */
   timezone: string;
   read: AskReadSet;
