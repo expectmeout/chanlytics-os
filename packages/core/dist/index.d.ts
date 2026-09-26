@@ -121,6 +121,11 @@ interface Delivery {
     /** The frozen request, on the email wire (WirePayload.email). */
     email?: EmailRequest;
     /**
+     * The lead a cold email was written for (a reach-out's always names one): outreach's facts are that lead's, so a
+     * business closed or archived is refused even when its person has another lead still being written to.
+     */
+    leadId?: string | null;
+    /**
      * An outbox row already written as `queued` (the honest undo): finalized
      * in place rather than inserted, and only while it is still queued, so a
      * cancel that wins the row is never overwritten.
@@ -534,6 +539,8 @@ interface SendQueuedPorts {
         channel: string | null;
         sender: string | null;
         /** The frozen request, on an email's row. */ email?: Delivery["email"] | null;
+        /** The lead a reach-out's email was written for (its row's meta.reach_out.lead_id): the door asks about that lead. */
+        leadId?: string | null;
     } | null>;
     /** Which yes this send needs: the template's category as Meta has it, read now; unreadable throws. */
     purposeOf(template: {

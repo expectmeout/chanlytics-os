@@ -21,6 +21,8 @@ export interface SendQueuedPorts {
     channel: string | null;
     sender: string | null;
     /** The frozen request, on an email's row. */ email?: Delivery["email"] | null;
+    /** The lead a reach-out's email was written for (its row's meta.reach_out.lead_id): the door asks about that lead. */
+    leadId?: string | null;
   } | null>;
   /** Which yes this send needs: the template's category as Meta has it, read now; unreadable throws. */
   purposeOf(template: { name: string; language: string } | undefined): Promise<SendPurpose>;

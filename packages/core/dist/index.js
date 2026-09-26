@@ -3504,6 +3504,11 @@ async function resendRequest(cfg, method, path, opts = {}) {
     };
   }
 }
+function paceAskedMs(h) {
+  if (!h || h.get("ratelimit-remaining")?.trim() !== "0") return null;
+  const s = Number(h.get("ratelimit-reset"));
+  return h.get("ratelimit-reset") !== null && Number.isFinite(s) && s >= 0 ? Math.round(s * 1e3) : LIMIT_WAIT_DEFAULT_MS;
+}
 async function postEmail(cfg, request, timeoutMs) {
   const { idempotency_key, ...body } = request;
   const a = await resendRequest(cfg, "POST", "/emails", { body, timeoutMs, idempotencyKey: idempotency_key });
@@ -3512,6 +3517,7 @@ async function postEmail(cfg, request, timeoutMs) {
     return {
       result: { ok: true, wamid: typeof id === "string" ? id : null, status: a.status },
       waitMs: null,
+      paceMs: paceAskedMs(a.headers),
       timedOut: false
     };
   }
@@ -3519,11 +3525,13 @@ async function postEmail(cfg, request, timeoutMs) {
     return {
       result: { ok: false, wamid: null, status: 0, errorBody: a.timedOut ? "timeout" : a.raw },
       waitMs: null,
+      paceMs: null,
       timedOut: a.timedOut
     };
   return {
     result: { ok: false, wamid: null, status: a.status, errorBody: a.raw.slice(0, 500) },
     waitMs: a.headers ? waitAskedMs(a.headers) : null,
+    paceMs: null,
     timedOut: false
   };
 }
@@ -3532,6 +3540,10 @@ async function sendEmail(cfg, request, opts = {}) {
   const now = opts.now ?? Date.now;
   const deadline = now() + (opts.deadlineMs ?? SEND_DEADLINE_MS);
   const left = () => Math.max(0, deadline - now());
+  const paced = async (p) => {
+    if (p.result.ok && p.paceMs) await wait(Math.min(p.paceMs, LIMIT_WAIT_MAX_MS, left()));
+    return p.result;
+  };
   const first = await postEmail(cfg, request, Math.min(SEND_TIMEOUT_MS2, left()));
   if (first.timedOut) {
     if (left() < RETRY_NEEDS_MS) return first.result;
@@ -3539,14 +3551,14 @@ async function sendEmail(cfg, request, opts = {}) {
     const s = second.result;
     if (!s.ok && (s.status === 0 || s.status >= 500 || resendLimitOf(s) === "in_flight"))
       return { ok: false, wamid: null, status: 0, errorBody: "timeout" };
-    return s;
+    return paced(second);
   }
   const limit = resendLimitOf(first.result);
-  if (limit !== "rate" && limit !== "in_flight") return first.result;
+  if (limit !== "rate" && limit !== "in_flight") return paced(first);
   const ms2 = first.waitMs ?? LIMIT_WAIT_DEFAULT_MS;
   if (ms2 > LIMIT_WAIT_MAX_MS || ms2 >= left()) return first.result;
   await wait(ms2);
-  return (await postEmail(cfg, request, Math.min(SEND_TIMEOUT_MS2, left()))).result;
+  return paced(await postEmail(cfg, request, Math.min(SEND_TIMEOUT_MS2, left())));
 }
 var RESEND_RECEIVED = `${RESEND_API}/emails/receiving`;
 var RESEND_DOMAINS = `${RESEND_API}/domains`;
@@ -10604,7 +10616,8 @@ async function outreachFacts(db, d, f, nowMs) {
       to: d.to,
       // A From that cannot be read names no domain: the lead is still asked, and the door refuses the domain.
       host: host ?? "",
-      since: new Date(nowMs - SHARE_WINDOW_MS).toISOString()
+      since: new Date(nowMs - SHARE_WINDOW_MS).toISOString(),
+      leadId: d.leadId ?? null
     });
   } catch (e) {
     throw new Error(`deliver: ${e instanceof Error ? e.message : String(e)} (conversation ${d.conversationId})`, {
@@ -10658,7 +10671,10 @@ async function overtakenByHuman(db, d) {
   if (!mine) return null;
   const { data: newer, error } = await db.from("messages").select("id, meta").eq("conversation_id", d.conversationId).eq("tenant_id", d.tenantId).eq("direction", "outbound").eq("sender", "human").gt("created_at", mine.created_at).order("created_at", { ascending: true }).limit(10);
   if (error) throw new Error(`deliver: cannot read the thread for ${d.messageId}: ${error.message}`);
-  const spoke = (newer ?? []).find((m) => m.meta?.source !== "broadcast");
+  const spoke = (newer ?? []).find((m) => {
+    const source = m.meta?.source;
+    return source !== "broadcast" && source !== "reach_out";
+  });
   return spoke ? spoke.id : null;
 }
 function event(db, d, kind, messageId, data) {
@@ -11109,6 +11125,7 @@ async function sendQueued(ports, cmd) {
     template: p.template,
     // The request the row was queued with, sent as it was frozen. A row without one fails at the wire, by name.
     ...msg.email ? { email: msg.email } : {},
+    ...msg.leadId ? { leadId: msg.leadId } : {},
     messageId: p.message_id
   });
   if (out.outcome !== "failed") return;

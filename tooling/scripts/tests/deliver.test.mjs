@@ -56,7 +56,8 @@ function wireOf(result = { ok: true, wamid: "wamid.1", status: 200 }) {
  * SQL answers it; the SQL itself is proved on a database (outreach-facts.db.test.mjs). `t.suppressed` lists the
  * addresses on the never-again list; `t.sent_since` is what the domain sent in the window; a person wrote back when an
  * inbound message of theirs is on one of their threads, an email's automatic reply aside (00181; a reply from another
- * address, and a call, are the SQL's, proved there).
+ * address, and a call, are the SQL's, proved there). A send that names its lead (p_lead_id, 00184) is asked about
+ * that lead alone, and only when it is this person's.
  */
 const outreachRpc = (t) => ({
   outreach_facts: (a) => {
@@ -74,6 +75,7 @@ const outreachRpc = (t) => ({
     );
     const live = (t.leads ?? [])
       .filter((l) => l.tenant_id === a.p_tenant_id && l.contact_id === a.p_contact_id && !l.erased_at && !l.blanked_at)
+      .filter((l) => !a.p_lead_id || l.id === a.p_lead_id)
       .map((l) => ({ ...l, stage: l.stage ?? "ready" }))
       .sort((x, y) => Number(["ready", "nurture"].includes(y.stage)) - Number(["ready", "nurture"].includes(x.stage)));
     const d = (t.sending_domains ?? []).find(
@@ -1243,4 +1245,29 @@ test("a database that cannot say whether the business wrote back is not a no: th
   );
   assert.equal(w.calls.length, 0);
   assert.equal(t.messages[0].status, "queued", "left for the retry");
+});
+
+test("a cold email that names its lead is judged by that lead: a business closed is refused though its person has another lead open", async () => {
+  const both = () =>
+    coldWorld({
+      leads: [
+        { id: "l1", tenant_id: T, contact_id: "k1", stage: "archived" },
+        { id: "l2", tenant_id: T, contact_id: "k1", stage: "ready" },
+      ],
+    });
+  const t = both();
+  const db = fakeDb(t, {}, outreachRpc(t));
+  const w = emailWire();
+  const out = await deliver({ db, wire: w.wire, now: () => NOW }, cold({ leadId: "l1" }));
+  assert.deepEqual([out.outcome, out.reason], ["refused", "outreach_lead_closed"]);
+  assert.equal(w.calls.length, 0);
+  assert.equal(db.seen.find((s) => s.rpc === "outreach_facts").args.p_lead_id, "l1", "asked by the send's own lead");
+  // Named or not, the open lead lets it go; unnamed, the door asks about any lead of this person's (a reply's way).
+  for (const over of [{ leadId: "l2" }, {}]) {
+    const u = both();
+    assert.equal((await deliver(ports(u, emailWire()), cold(over))).outcome, "sent", JSON.stringify(over));
+  }
+  // Another person's lead is no lead of this send's.
+  const other = coldWorld({ leads: [{ id: "l9", tenant_id: T, contact_id: "someone-else", stage: "ready" }] });
+  assert.equal((await deliver(ports(other, emailWire()), cold({ leadId: "l9" }))).reason, "outreach_not_a_lead");
 });

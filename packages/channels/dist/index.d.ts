@@ -1607,6 +1607,10 @@ declare function emailPlainText(e: Pick<ReceivedEmail, "text" | "html">): string
  * posted again under the same key: the provider did not take the first, or it
  * answers the second with the first's result. A longer wait, a used-up day or
  * month, or a second refusal is handed back as it came.
+ *
+ * An email the provider took as the last its rate allowed (ratelimit-remaining
+ * 0) waits out the reset before it returns (Reach out C14), so the next email
+ * this instance sends meets an open second rather than a 429.
  */
 
 interface ResendConfig {

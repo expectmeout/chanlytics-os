@@ -5459,6 +5459,19 @@ type Database = {
                     send: Json;
                 }[];
             };
+            reach_out_due_domains: {
+                Args: {
+                    p_at: string;
+                    p_limit: number;
+                    p_skip_domains?: string[];
+                    p_skip_tenants?: string[];
+                    p_tenant_id?: string;
+                };
+                Returns: {
+                    id: string;
+                    tenant_id: string;
+                }[];
+            };
             reach_out_finishable: {
                 Args: {
                     p_limit: number;
@@ -5484,6 +5497,13 @@ type Database = {
                     parent_message_id: string;
                     region: string;
                 }[];
+            };
+            reach_out_month_sent: {
+                Args: {
+                    p_at: string;
+                    p_tenant_id: string;
+                };
+                Returns: number;
             };
             reach_out_person: {
                 Args: {
@@ -6393,6 +6413,102 @@ declare function withdrawEmail(db: Db$9, p: {
     id: string;
     reason: string;
 }): Promise<boolean>;
+/** A verified domain with a send due, and its workspace. */
+interface DueDomain {
+    id: string;
+    tenant_id: string;
+}
+/**
+ * The clean, verified domains with sends due in runs that go ahead on running chains, longest waiting first (00187),
+ * past the workspaces and domains the caller is done with this tick. The lists ride in the call's body, not its
+ * address, so their length is no URL's.
+ */
+declare function dueDomains(db: Db$9, at: Date, limit: number, opts?: {
+    tenantId?: string;
+    skipTenants?: Iterable<string>;
+    skipDomains?: Iterable<string>;
+}): Promise<DueDomain[]>;
+/** The cold emails a workspace wrote this calendar month, in its zone, that left or may still leave (00187). */
+declare function monthSent(db: Db$9, tenantId: string, at: Date): Promise<number>;
+type MessageInsert = Database["public"]["Tables"]["messages"]["Insert"];
+/**
+ * A reach-out's email, written queued under its own id (core sendMessageId) before its send leaves `claimed`.
+ * "exists" when that id is a row already: a writer that died after writing it, whose email this is.
+ */
+declare function insertQueuedEmail(db: Db$9, row: MessageInsert): Promise<"written" | "exists">;
+/** An email a writer wrote before, as it was frozen: its thread, its person, where it stands, and whom it names. */
+interface WrittenEmail {
+    conversation_id: string;
+    contact_id: string | null;
+    status: string;
+    to: string | null;
+}
+declare function writtenEmail(db: Db$9, p: {
+    tenantId: string;
+    id: string;
+}): Promise<WrittenEmail | null>;
+/** Whether an outbound_send job was scheduled for this email: a writer that died after scheduling it. */
+declare function sendJobScheduled(db: Db$9, p: {
+    tenantId: string;
+    messageId: string;
+}): Promise<boolean>;
+/** A send's run and its chain as they stand now: the claim read them, and its writer is seconds behind. */
+interface SendStanding {
+    run: string | null;
+    step: {
+        state: string;
+        template_id: string;
+        after_playbook_id: string | null;
+    } | null;
+    root: string | null;
+}
+declare function sendStanding(db: Db$9, s: ReachOutSendRow): Promise<SendStanding>;
+/** A step's words as an email template holds them: its HEADER is the subject, its BODY the words. */
+declare function emailWordsOf(db: Db$9, tenantId: string, templateId: string): Promise<{
+    subject: string | null;
+    body: string;
+} | null>;
+/** A workspace's name and its configuration, as stored: the foot's who, and the profile its where is read from. */
+declare function workspaceNameAndConfig(db: Db$9, tenantId: string): Promise<{
+    name: string | null;
+    config: unknown;
+}>;
+/** What a lead's words fill a step's slots with. */
+declare function leadSlotsOf(db: Db$9, tenantId: string, leadId: string): Promise<{
+    business_name: string | null;
+    city: string | null;
+} | null>;
+/** The address a person has on file, as the send door compares a request's recipient with it. */
+declare function contactEmailOf(db: Db$9, tenantId: string, contactId: string): Promise<string | null>;
+/** A send as it stands now, for a writer whose move found it moved. */
+declare function sendNow(db: Db$9, p: {
+    tenantId: string;
+    id: string;
+}): Promise<{
+    state: string;
+    message_id: string | null;
+} | null>;
+/** A run whose first email is written: scheduled becomes sending, through its guard's own move. */
+declare function runSending(db: Db$9, p: {
+    tenantId: string;
+    id: string;
+}): Promise<void>;
+/** The email a step's send answers (D19): the lead's email on the step before, as its receipt stamped it. */
+interface ParentEmail {
+    messageId: string;
+    /** Its Message-ID, stamped by its receipt (00128); null until one arrives. */
+    rfcMessageId: string | null;
+    /** The chain it carried, oldest first. */
+    references: string[];
+    subject: string | null;
+}
+/** The lead's sent email on the step before this one in its chain; null when it has none. */
+declare function parentEmailOf(db: Db$9, p: {
+    tenantId: string;
+    rootId: string;
+    leadId: string;
+    stepId: string;
+}): Promise<ParentEmail | null>;
 /**
  * A lead written to by a reach-out's email: still being written to (ready becomes nurture; a later stage is kept),
  * first contacted when its first email left, its last outcome "emailed", and its event. Written only as it was read
@@ -7093,4 +7209,4 @@ interface Page<T> {
  */
 declare function readAllRows<T>(what: string, page: (from: number, to: number) => PromiseLike<Page<T>>, cap?: number, onCapped?: (what: string, cap: number) => void): Promise<T[]>;
 
-export { type AudienceLead, CALL_CONTROL_S, type ChannelLookup, type ColdReceiptsOwed, type ControlHolder, type ControlOutcome, DEFAULT_ROW_CAP, type Database, type DomainCapacity, type FollowerLead, HISTORY_COLUMNS, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type ListRow, MAX_ROWS, type MailboxRow, type NormalizedCallInput, type OutboundTarget, type OutreachFactsRow, PEOPLE_PAGE, type Page, type PersonForSend, type PgThreadState, type PolicyRecord, type PutTenantConfigResult, type QueuedOutcome, type ReachOutSendInsert, type ReachOutSendRow, type RoutedChannel, type SavedListRow, type SendingDomainHolder, type SendingDomainRow, type ServiceClientConfig, type SubscribeOptions, type TemplateRow, type TenantConfigRow, type ThreadTurn, type Touch, type TouchIndex, type WriteError, type YesRow, addToList, applyDomainCheck, archiveList, assembleHistory, claimCallNotification, claimControl, claimSends, closedRunSends, coldReceiptsOwed, countSendingDomains, countSentToday, createList, createServiceClient, deleteList, deleteSendingDomain, deleteSendingDomainAsRead, describeLead, domainCapacityOf, domainHeldSince, dropFromList, dueSendingDomains, emitEvent, everyoneIn, finishableRuns, followUpTouchesSince, getTenantConfig, ingestCall, ingestInbound, ingestInboundEmail, lastInboundEmail, leadWritten, linkCallMessage, listMemberIds, listPolicies, listRow, mailboxById, mailboxFor, mailboxOfTenant, markProcessed, moveSend, notesForReceptionist, outreachFactsOf, pauseConversation, peoplePage, personReplyMode, playbooksOnList, putTenantConfig, queuedOutcomes, reachOutAudience, reachOutFollowers, reachOutPerson, readAllRows, readDealForPhone, readLeadContext, readThreadState, recordCallNote, recordEchoAndPause, recordEmailNo, recordEmailStatus, recordOutbound, recordProviderDomain, recordStatusByExternalId, releaseControl, renameList, reserveSendingDomain, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, savedListFor, savedListsFor, sendingDomainByHost, sendingDomainCounts, sendingDomainOf, sendingDomainsOf, sentEmailRequestOf, sentEmailWithMessageId, setCallRecording, setListRule, setPersonReplyMode, setPolicyMode, staleSends, stampEmailComplaint, stampEmailSent, stampMailboxReceived, stuckClaims, subscribeMessagesInserts, suppressEmailOf, templatesFor, touchIndex, touchSendingDomain, touchesSince, watchedTables, withdrawEmail, writtenEmails, yesesSince };
+export { type AudienceLead, CALL_CONTROL_S, type ChannelLookup, type ColdReceiptsOwed, type ControlHolder, type ControlOutcome, DEFAULT_ROW_CAP, type Database, type DomainCapacity, type DueDomain, type FollowerLead, HISTORY_COLUMNS, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type ListRow, MAX_ROWS, type MailboxRow, type MessageInsert, type NormalizedCallInput, type OutboundTarget, type OutreachFactsRow, PEOPLE_PAGE, type Page, type ParentEmail, type PersonForSend, type PgThreadState, type PolicyRecord, type PutTenantConfigResult, type QueuedOutcome, type ReachOutSendInsert, type ReachOutSendRow, type RoutedChannel, type SavedListRow, type SendStanding, type SendingDomainHolder, type SendingDomainRow, type ServiceClientConfig, type SubscribeOptions, type TemplateRow, type TenantConfigRow, type ThreadTurn, type Touch, type TouchIndex, type WriteError, type WrittenEmail, type YesRow, addToList, applyDomainCheck, archiveList, assembleHistory, claimCallNotification, claimControl, claimSends, closedRunSends, coldReceiptsOwed, contactEmailOf, countSendingDomains, countSentToday, createList, createServiceClient, deleteList, deleteSendingDomain, deleteSendingDomainAsRead, describeLead, domainCapacityOf, domainHeldSince, dropFromList, dueDomains, dueSendingDomains, emailWordsOf, emitEvent, everyoneIn, finishableRuns, followUpTouchesSince, getTenantConfig, ingestCall, ingestInbound, ingestInboundEmail, insertQueuedEmail, lastInboundEmail, leadSlotsOf, leadWritten, linkCallMessage, listMemberIds, listPolicies, listRow, mailboxById, mailboxFor, mailboxOfTenant, markProcessed, monthSent, moveSend, notesForReceptionist, outreachFactsOf, parentEmailOf, pauseConversation, peoplePage, personReplyMode, playbooksOnList, putTenantConfig, queuedOutcomes, reachOutAudience, reachOutFollowers, reachOutPerson, readAllRows, readDealForPhone, readLeadContext, readThreadState, recordCallNote, recordEchoAndPause, recordEmailNo, recordEmailStatus, recordOutbound, recordProviderDomain, recordStatusByExternalId, releaseControl, renameList, reserveSendingDomain, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, runSending, savedListFor, savedListsFor, sendJobScheduled, sendNow, sendStanding, sendingDomainByHost, sendingDomainCounts, sendingDomainOf, sendingDomainsOf, sentEmailRequestOf, sentEmailWithMessageId, setCallRecording, setListRule, setPersonReplyMode, setPolicyMode, staleSends, stampEmailComplaint, stampEmailSent, stampMailboxReceived, stuckClaims, subscribeMessagesInserts, suppressEmailOf, templatesFor, touchIndex, touchSendingDomain, touchesSince, watchedTables, withdrawEmail, workspaceNameAndConfig, writtenEmail, writtenEmails, yesesSince };

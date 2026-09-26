@@ -3118,6 +3118,124 @@ async function withdrawEmail(db, p) {
   if (error) throw new Error(`cannot withdraw the email: ${error.message}`);
   return (data ?? []).length > 0;
 }
+async function dueDomains(db, at, limit, opts = {}) {
+  const { data, error } = await db.rpc("reach_out_due_domains", {
+    p_at: at.toISOString(),
+    p_limit: limit,
+    ...opts.tenantId ? { p_tenant_id: opts.tenantId } : {},
+    p_skip_tenants: [...opts.skipTenants ?? []],
+    p_skip_domains: [...opts.skipDomains ?? []]
+  });
+  if (error) throw new Error(`cannot read the domains with sends due: ${error.message}`);
+  return data ?? [];
+}
+async function monthSent(db, tenantId, at) {
+  const { data, error } = await db.rpc("reach_out_month_sent", {
+    p_tenant_id: tenantId,
+    p_at: at.toISOString()
+  });
+  if (error) throw new Error(`cannot count the month's cold emails: ${error.message}`);
+  if (typeof data !== "number") throw new Error("cannot count the month's cold emails: the database answered no count");
+  return data;
+}
+async function insertQueuedEmail(db, row) {
+  const { error } = await db.from("messages").insert(row);
+  if (!error) return "written";
+  if (error.code === "23505") return "exists";
+  throw new Error(`cannot write the email: ${error.message}`);
+}
+async function writtenEmail(db, p) {
+  const { data, error } = await db.from("messages").select("conversation_id, contact_id, status, meta").eq("tenant_id", p.tenantId).eq("id", p.id).maybeSingle();
+  if (error) throw new Error(`cannot read the written email: ${error.message}`);
+  if (!data) return null;
+  const to = data.meta?.email?.request?.to;
+  return {
+    conversation_id: data.conversation_id,
+    contact_id: data.contact_id,
+    status: data.status,
+    to: Array.isArray(to) && typeof to[0] === "string" ? to[0] : null
+  };
+}
+async function sendJobScheduled(db, p) {
+  const { data, error } = await db.from("jobs").select("id").eq("tenant_id", p.tenantId).eq("kind", "outbound_send").eq("payload->>message_id", p.messageId).limit(1);
+  if (error) throw new Error(`cannot read the email's job: ${error.message}`);
+  return (data ?? []).length > 0;
+}
+async function sendStanding(db, s) {
+  const [run, chain] = await Promise.all([
+    db.from("broadcasts").select("state").eq("tenant_id", s.tenant_id).eq("id", s.broadcast_id).maybeSingle(),
+    db.from("playbooks").select("id, state, template_id, after_playbook_id").eq("tenant_id", s.tenant_id).in("id", [s.playbook_id ?? s.root_id, s.root_id])
+  ]);
+  if (run.error) throw new Error(`cannot read the send's run: ${run.error.message}`);
+  if (chain.error) throw new Error(`cannot read the send's chain: ${chain.error.message}`);
+  const step = s.playbook_id ? (chain.data ?? []).find((p) => p.id === s.playbook_id) : void 0;
+  return {
+    run: run.data?.state ?? null,
+    step: step ? { state: step.state, template_id: step.template_id, after_playbook_id: step.after_playbook_id } : null,
+    root: (chain.data ?? []).find((p) => p.id === s.root_id)?.state ?? null
+  };
+}
+async function emailWordsOf(db, tenantId, templateId) {
+  const { data, error } = await db.from("templates").select("components, body_preview").eq("tenant_id", tenantId).eq("id", templateId).eq("channel", "email").maybeSingle();
+  if (error) throw new Error(`cannot read the step's words: ${error.message}`);
+  if (!data) return null;
+  const part = (type) => {
+    for (const c of Array.isArray(data.components) ? data.components : [])
+      if (c && typeof c === "object" && String(c.type ?? "").toUpperCase() === type) {
+        const t = c.text;
+        return typeof t === "string" && t.trim() ? t : null;
+      }
+    return null;
+  };
+  const body = part("BODY") ?? (data.body_preview?.trim() || null);
+  return body ? { subject: part("HEADER"), body } : null;
+}
+async function workspaceNameAndConfig(db, tenantId) {
+  const [t, cfg] = await Promise.all([
+    db.from("tenants").select("name").eq("id", tenantId).maybeSingle(),
+    db.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle()
+  ]);
+  if (t.error) throw new Error(`cannot read the workspace: ${t.error.message}`);
+  if (cfg.error) throw new Error(`cannot read the workspace's configuration: ${cfg.error.message}`);
+  return { name: t.data?.name ?? null, config: cfg.data?.config ?? null };
+}
+async function leadSlotsOf(db, tenantId, leadId) {
+  const { data, error } = await db.from("leads").select("business_name, city").eq("tenant_id", tenantId).eq("id", leadId).maybeSingle();
+  if (error) throw new Error(`cannot read the lead: ${error.message}`);
+  return data;
+}
+async function contactEmailOf(db, tenantId, contactId) {
+  const { data, error } = await db.from("contacts").select("email").eq("tenant_id", tenantId).eq("id", contactId).maybeSingle();
+  if (error) throw new Error(`cannot read the person: ${error.message}`);
+  return data?.email ?? null;
+}
+async function sendNow(db, p) {
+  const { data, error } = await db.from("reach_out_sends").select("state, message_id").eq("tenant_id", p.tenantId).eq("id", p.id).maybeSingle();
+  if (error) throw new Error(`cannot read the send: ${error.message}`);
+  return data;
+}
+async function runSending(db, p) {
+  const { error } = await db.from("broadcasts").update({ state: "sending" }).eq("tenant_id", p.tenantId).eq("id", p.id).eq("state", "scheduled");
+  if (error) throw new Error(`cannot start the run: ${error.message}`);
+}
+async function parentEmailOf(db, p) {
+  const { data: sends, error } = await db.from("reach_out_sends").select("message_id").eq("tenant_id", p.tenantId).eq("root_id", p.rootId).eq("lead_id", p.leadId).eq("playbook_id", p.stepId).eq("state", "sent").order("sent_at", { ascending: false }).limit(1);
+  if (error) throw new Error(`cannot read the step before's send: ${error.message}`);
+  const id = sends?.[0]?.message_id;
+  if (!id) return null;
+  const { data: m, error: me } = await db.from("messages").select("id, meta").eq("tenant_id", p.tenantId).eq("id", id).maybeSingle();
+  if (me) throw new Error(`cannot read the step before's email: ${me.message}`);
+  if (!m) return null;
+  const e = m.meta?.email ?? {};
+  const refs = e.request?.headers?.References;
+  const subject = typeof e.subject === "string" ? e.subject : e.request?.subject;
+  return {
+    messageId: m.id,
+    rfcMessageId: typeof e.message_id === "string" && e.message_id ? e.message_id : null,
+    references: typeof refs === "string" ? refs.split(/\s+/).filter(Boolean) : [],
+    subject: typeof subject === "string" ? subject : null
+  };
+}
 async function leadWritten(db, p) {
   const { data: lead, error } = await db.from("leads").select("stage, version, contacted_at").eq("tenant_id", p.tenantId).eq("id", p.leadId).maybeSingle();
   if (error) throw new Error(`cannot read the lead a send wrote to: ${error.message}`);
@@ -3844,6 +3962,7 @@ export {
   claimSends,
   closedRunSends,
   coldReceiptsOwed,
+  contactEmailOf,
   countSendingDomains,
   countSentToday,
   createList,
@@ -3855,7 +3974,9 @@ export {
   domainCapacityOf,
   domainHeldSince,
   dropFromList,
+  dueDomains,
   dueSendingDomains,
+  emailWordsOf,
   emitEvent,
   everyoneIn,
   finishableRuns,
@@ -3864,7 +3985,9 @@ export {
   ingestCall,
   ingestInbound,
   ingestInboundEmail,
+  insertQueuedEmail,
   lastInboundEmail,
+  leadSlotsOf,
   leadWritten,
   linkCallMessage,
   listMemberIds,
@@ -3874,9 +3997,11 @@ export {
   mailboxFor,
   mailboxOfTenant,
   markProcessed,
+  monthSent,
   moveSend,
   notesForReceptionist,
   outreachFactsOf,
+  parentEmailOf,
   pauseConversation,
   peoplePage,
   personReplyMode,
@@ -3903,8 +4028,12 @@ export {
   resolveChannel,
   resolveChannelDetailed,
   resolveOutboundTarget,
+  runSending,
   savedListFor,
   savedListsFor,
+  sendJobScheduled,
+  sendNow,
+  sendStanding,
   sendingDomainByHost,
   sendingDomainCounts,
   sendingDomainOf,
@@ -3928,6 +4057,8 @@ export {
   touchesSince,
   watchedTables,
   withdrawEmail,
+  workspaceNameAndConfig,
+  writtenEmail,
   writtenEmails,
   yesesSince
 };

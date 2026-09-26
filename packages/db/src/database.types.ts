@@ -5147,6 +5147,19 @@ export type Database = {
           send: Json
         }[]
       }
+      reach_out_due_domains: {
+        Args: {
+          p_at: string
+          p_limit: number
+          p_skip_domains?: string[]
+          p_skip_tenants?: string[]
+          p_tenant_id?: string
+        }
+        Returns: {
+          id: string
+          tenant_id: string
+        }[]
+      }
       reach_out_finishable: {
         Args: { p_limit: number; p_tenant_id?: string }
         Returns: string[]
@@ -5169,6 +5182,10 @@ export type Database = {
           parent_message_id: string
           region: string
         }[]
+      }
+      reach_out_month_sent: {
+        Args: { p_at: string; p_tenant_id: string }
+        Returns: number
       }
       reach_out_person: {
         Args: { p_lead_id: string; p_tenant_id: string }

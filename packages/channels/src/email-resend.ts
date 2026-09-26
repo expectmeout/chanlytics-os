@@ -17,6 +17,10 @@
  * posted again under the same key: the provider did not take the first, or it
  * answers the second with the first's result. A longer wait, a used-up day or
  * month, or a second refusal is handed back as it came.
+ *
+ * An email the provider took as the last its rate allowed (ratelimit-remaining
+ * 0) waits out the reset before it returns (Reach out C14), so the next email
+ * this instance sends meets an open second rather than a 429.
  */
 import type { SendResult } from "./whatsapp";
 import {
@@ -112,12 +116,24 @@ export async function resendRequest(
   }
 }
 
-/** One POST of the frozen request, and how long the provider asked us to wait if it refused. */
+/** An answer's own rate, read from its headers: how long until the next request may go, when this one was the last. */
+function paceAskedMs(h: Headers | null): number | null {
+  if (!h || h.get("ratelimit-remaining")?.trim() !== "0") return null;
+  const s = Number(h.get("ratelimit-reset"));
+  return h.get("ratelimit-reset") !== null && Number.isFinite(s) && s >= 0
+    ? Math.round(s * 1000)
+    : LIMIT_WAIT_DEFAULT_MS;
+}
+
+/**
+ * One POST of the frozen request: how long the provider asked us to wait if it refused, and, if it took it as the last
+ * its rate allowed, how long until the next may go.
+ */
 async function postEmail(
   cfg: ResendConfig,
   request: EmailRequest,
   timeoutMs: number,
-): Promise<{ result: SendResult; waitMs: number | null; timedOut: boolean }> {
+): Promise<{ result: SendResult; waitMs: number | null; paceMs: number | null; timedOut: boolean }> {
   const { idempotency_key, ...body } = request;
   const a = await resendRequest(cfg, "POST", "/emails", { body, timeoutMs, idempotencyKey: idempotency_key });
   if (a.status >= 200 && a.status < 300) {
@@ -127,6 +143,7 @@ async function postEmail(
     return {
       result: { ok: true, wamid: typeof id === "string" ? id : null, status: a.status },
       waitMs: null,
+      paceMs: paceAskedMs(a.headers),
       timedOut: false,
     };
   }
@@ -135,11 +152,13 @@ async function postEmail(
     return {
       result: { ok: false, wamid: null, status: 0, errorBody: a.timedOut ? "timeout" : a.raw },
       waitMs: null,
+      paceMs: null,
       timedOut: a.timedOut,
     };
   return {
     result: { ok: false, wamid: null, status: a.status, errorBody: a.raw.slice(0, 500) },
     waitMs: a.headers ? waitAskedMs(a.headers) : null,
+    paceMs: null,
     timedOut: false,
   };
 }
@@ -169,6 +188,12 @@ export async function sendEmail(
   const now = opts.now ?? Date.now;
   const deadline = now() + (opts.deadlineMs ?? SEND_DEADLINE_MS);
   const left = (): number => Math.max(0, deadline - now());
+  // C14: an email taken as the last of its second waits out the reset here, briefly and within the deadline, so the
+  // next email this instance sends does not meet a 429.
+  const paced = async (p: { result: SendResult; paceMs: number | null }): Promise<SendResult> => {
+    if (p.result.ok && p.paceMs) await wait(Math.min(p.paceMs, LIMIT_WAIT_MAX_MS, left()));
+    return p.result;
+  };
   const first = await postEmail(cfg, request, Math.min(SEND_TIMEOUT_MS, left()));
   if (first.timedOut) {
     if (left() < RETRY_NEEDS_MS) return first.result;
@@ -179,14 +204,14 @@ export async function sendEmail(
     const s = second.result;
     if (!s.ok && (s.status === 0 || s.status >= 500 || resendLimitOf(s) === "in_flight"))
       return { ok: false, wamid: null, status: 0, errorBody: "timeout" };
-    return s;
+    return paced(second);
   }
   const limit = resendLimitOf(first.result);
-  if (limit !== "rate" && limit !== "in_flight") return first.result;
+  if (limit !== "rate" && limit !== "in_flight") return paced(first);
   const ms = first.waitMs ?? LIMIT_WAIT_DEFAULT_MS;
   if (ms > LIMIT_WAIT_MAX_MS || ms >= left()) return first.result;
   await wait(ms);
-  return (await postEmail(cfg, request, Math.min(SEND_TIMEOUT_MS, left()))).result;
+  return paced(await postEmail(cfg, request, Math.min(SEND_TIMEOUT_MS, left())));
 }
 
 const RESEND_RECEIVED = `${RESEND_API}/emails/receiving`;
