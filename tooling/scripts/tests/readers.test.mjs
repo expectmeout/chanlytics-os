@@ -35,9 +35,16 @@ const { call: oneCall } = await import(at("apps/dashboard/src/server/readers/cal
 const { person: onePerson } = await import(at("apps/dashboard/src/server/readers/person.ts"));
 const threadRoute = await import(at("apps/dashboard/app/api/v1/conversations/[id]/route.ts"));
 const personRoute = await import(at("apps/dashboard/app/api/v1/contacts/[id]/route.ts"));
+const { report: reportReader } = await import(at("apps/dashboard/src/server/readers/report.ts"));
+const { campaignReport } = await import(at("apps/dashboard/src/server/readers/campaign-report.ts"));
+const reportsRoute = await import(at("apps/dashboard/app/api/v1/reports/route.ts"));
+const campaignsRoute = await import(at("apps/dashboard/app/api/v1/reports/campaigns/route.ts"));
+const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/rate-limit.ts"));
 
 // The kept values live in the module, keyed by workspace, person and reader: each test starts with none.
 beforeEach(() => kernel.readerCache.clear());
+// The aggregate routes count against their bucket: this instance's memory, never a store dialled.
+beforeEach(() => setRateStore(memoryStore()));
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -1321,4 +1328,178 @@ test("a config read that fails keeps the route's place in the error order: a per
       },
     );
   });
+});
+
+/* ------------------------------------------------------------------------ the reports (PR 1.5) */
+
+/** A member of harbor and bayside, viewing both, as ask-routes' reports fixtures hold them. */
+const reportMembers = () => [
+  membership(A, "viewer", "harbor", "2026-01-01T00:00:00Z"),
+  membership(B, "viewer", "bayside", "2026-02-01T00:00:00Z"),
+];
+const series = (a) => ({ days: a.p_days, tenant: a.p_tenant_id });
+/** ask-routes.test.mjs, "the reports: the three presets and no other": nobody in People, no calendar, no deals. */
+const presetsWorld = () => ({
+  tables: { memberships: reportMembers(), tenants: [], tenant_config: [], policies: [] },
+  rpcs: {
+    report_series: series,
+    campaign_series: (a) => (a.p_tenant_id === A ? { days: a.p_days } : { error: "no" }),
+    people_list: () => [],
+  },
+});
+const CLIENT = "cccccccc-cccc-4ccc-8ccc-cccccccccc01";
+/**
+ * ask-routes.test.mjs, "the reports' Deals section": one page of People, whose one row says the client came from a
+ * lead, and their deal, won five days ago at $2,500 a month. `sellsBy` is how the workspace's customers buy, or unset.
+ */
+const dealsWorld = (sellsBy) => ({
+  tables: {
+    memberships: reportMembers(),
+    tenants: [{ id: A, slug: "harbor", ...(sellsBy === undefined ? {} : { sells_by: sellsBy }) }],
+    tenant_config: [],
+    policies: [],
+    deals: [
+      {
+        id: "dddddddd-dddd-4ddd-8ddd-dddddddddd01",
+        tenant_id: A,
+        contact_id: CLIENT,
+        stage: "won",
+        proposed_at: new Date(Date.now() - 5 * 86_400_000).toISOString(),
+        amount_cents: 250_000,
+        per: "month",
+      },
+    ],
+  },
+  rpcs: { report_series: series, people_list: () => [{ id: CLIENT, came_from: "lead" }] },
+});
+/** A request's database over a world, `faults` failing a read the way PostgREST fails. */
+const worldCtx = (w, faults = {}) => ({
+  supabase: fakeDb(w.tables, faults, w.rpcs),
+  userId: USER,
+  email: "ada@example.com",
+  params: {},
+});
+/** Every query in the order it reached the database: a door by name, a table by what was done to it. */
+const asked = (ctx) => ctx.supabase.seen.map((q) => (q.rpc ? `rpc:${q.rpc}` : `${q.table}.${q.op}`));
+const noReport = (e) => {
+  assert.deepEqual([e.code, e.status, e.message], ["not_found", 404, "No workspace found for this report."]);
+  return true;
+};
+
+test("the reports, for Ask and for the page: GET reports answers its reader's payload, key for key and byte for byte -- the series, the booking line and the deals, in that order -- over ask-routes' two fixtures and each preset; the Reports page is the row", async () => {
+  for (const [w, days] of [
+    [presetsWorld(), 7],
+    [presetsWorld(), 30],
+    [dealsWorld("proposal"), 30],
+    [dealsWorld("proposal"), 90],
+    [dealsWorld("booking"), 30],
+    [dealsWorld(null), 7],
+    [dealsWorld(undefined), 30],
+  ]) {
+    const page = await reportsRoute.GET.run(req(`?days=${days}&workspace=${A}`), worldCtx(w));
+    const r = await kernel.load(turnIn(worldCtx(w)), reportReader, { days });
+    assert.deepEqual(r.data, page, "the route's payload");
+    assert.equal(JSON.stringify(r.data), JSON.stringify(page), "byte for byte");
+    assert.deepEqual(
+      Object.keys(r.data),
+      ["report", "booking", "deals"],
+      "the keys in the order the route answered them",
+    );
+    assert.deepEqual(r.rows, [{ kind: "page", id: "reports", route: "reports", label: `Reports, ${days} days` }]);
+  }
+  // What ask-routes asserts of the route, of the reader.
+  const week = await kernel.load(turnIn(worldCtx(presetsWorld())), reportReader, { days: 7 });
+  assert.deepEqual(week.data.report, { days: 7, tenant: A });
+  assert.deepEqual(week.data.booking, { calendar: "none", days: 7, asked: 0, booked: 0 }, "no calendar, said as none");
+  const on = await kernel.load(turnIn(worldCtx(dealsWorld("proposal"))), reportReader, { days: 30 });
+  assert.deepEqual([on.data.deals.any, on.data.deals.clients, on.data.deals.monthly_cents], [true, 1, 250_000]);
+  assert.deepEqual(on.data.deals.sources, [{ came_from: "lead", count: 1 }], "the new client's source, from People");
+  for (const sellsBy of ["booking", null, undefined]) {
+    const off = await kernel.load(turnIn(worldCtx(dealsWorld(sellsBy))), reportReader, { days: 30 });
+    assert.equal(off.data.deals.any, false, `${sellsBy}: a deal on file switches nothing`);
+  }
+});
+
+test("GET reports through its reader asks what it asked at origin/main, in its order: the series; People once, with their reply modes, for the booking line and the deals alike; the booking line's calendar lookup; how the workspace's customers buy, once, through its reader; then the deals, and only where deals are on", async () => {
+  const REPORT_READS = [
+    "rpc:report_series",
+    // Everyone, read once for the whole report: the booking line's read, which the deals take their sources from.
+    "rpc:people_list",
+    "policies.select",
+    // The booking line's calendar: its zone and its address.
+    "tenants.select",
+    "tenant_config.select",
+    // How the workspace's customers buy, after the booking line, then the deals.
+    "tenants.select",
+    "deals.select",
+  ];
+  const routed = worldCtx(dealsWorld("proposal"));
+  await reportsRoute.GET.run(req(`?workspace=${A}`), routed);
+  assert.deepEqual(asked(routed), ["memberships.select", ...REPORT_READS], "the workspace's door, then the reads");
+  const ctx = worldCtx(dealsWorld("proposal"));
+  await kernel.load(turnIn(ctx), reportReader, { days: 30 });
+  assert.deepEqual(asked(ctx), REPORT_READS);
+  assert.deepEqual(
+    selects(ctx, "tenants").map((q) => q.columns),
+    ["name, timezone", "sells_by"],
+    "the calendar's zone, then sells_by once",
+  );
+  assert.deepEqual(
+    ctx.supabase.seen.filter((q) => q.rpc === "report_series").map((q) => q.args),
+    [{ p_tenant_id: A, p_days: 30 }],
+  );
+  // A turn that already holds how the workspace's customers buy is not asked again.
+  const turn = turnIn(worldCtx(dealsWorld("proposal")));
+  await kernel.load(turn, sellsBy, undefined);
+  await kernel.load(turn, reportReader, { days: 30 });
+  assert.deepEqual(
+    selects(turn.ctx, "tenants").map((q) => q.columns),
+    ["sells_by", "name, timezone"],
+    "sells_by once in the turn: the report took the turn's",
+  );
+  // Where the workspace's customers book, the deals are not even read.
+  const off = worldCtx(dealsWorld("booking"));
+  await kernel.load(turnIn(off), reportReader, { days: 30 });
+  assert.deepEqual(asked(off), REPORT_READS.slice(0, -1));
+});
+
+test("a report the function will not answer is GET reports' 404, in its sentence, and nothing else is read; the booking line is never fatal: a calendar lookup that fails is null, said once in the log, and the series and the deals stand", async () => {
+  const refused = { ...presetsWorld(), rpcs: { ...presetsWorld().rpcs, report_series: () => ({ error: "no" }) } };
+  const ctx = worldCtx(refused);
+  await assert.rejects(kernel.load(turnIn(ctx), reportReader, { days: 30 }), noReport);
+  assert.deepEqual(asked(ctx), ["rpc:report_series"], "nothing read past the series");
+  await assert.rejects(reportsRoute.GET.run(req(`?workspace=${A}`), worldCtx(refused)), noReport);
+  const empty = { ...presetsWorld(), rpcs: { ...presetsWorld().rpcs, report_series: () => null } };
+  await assert.rejects(kernel.load(turnIn(worldCtx(empty)), reportReader, { days: 30 }), noReport);
+
+  const down = { "tenant_config.select": { message: "config down" } };
+  const { result: page, lines } = await logged("booking_report_failed", () =>
+    reportsRoute.GET.run(req(`?workspace=${A}`), worldCtx(dealsWorld("proposal"), down)),
+  );
+  assert.deepEqual(Object.keys(page), ["report", "booking", "deals"]);
+  assert.equal(page.booking, null, "the line, and only the line, is lost");
+  assert.deepEqual([page.report.days, page.deals.any, page.deals.clients], [30, true, 1]);
+  assert.deepEqual(
+    lines.map(([json]) => JSON.parse(json)),
+    [{ tenant: A, error: "config down" }],
+  );
+  const { result: r } = await logged("booking_report_failed", () =>
+    kernel.load(turnIn(worldCtx(dealsWorld("proposal"), down)), reportReader, { days: 30 }),
+  );
+  assert.deepEqual(r.data, page, "the reader's payload is the route's");
+});
+
+test("the campaigns' report, for Ask and for the page: GET reports/campaigns answers its reader's payload over ask-routes' fixture, for each preset -- the function's series alone, and no row a citation names; a report it will not answer is the route's 404", async () => {
+  const w = presetsWorld();
+  for (const days of [7, 30, 90]) {
+    const page = await campaignsRoute.GET.run(req(`?days=${days}&workspace=${A}`), worldCtx(w));
+    const ctx = worldCtx(w);
+    const r = await kernel.load(turnIn(ctx), campaignReport, { days });
+    assert.deepEqual(r.data, page, "the route's payload");
+    assert.deepEqual(r.data, { report: { days } });
+    assert.deepEqual(r.rows, []);
+    assert.deepEqual(ctx.supabase.seen, [{ rpc: "campaign_series", args: { p_tenant_id: A, p_days: days } }]);
+  }
+  await assert.rejects(kernel.load(turnIn(worldCtx(w), B), campaignReport, { days: 30 }), noReport);
+  await assert.rejects(campaignsRoute.GET.run(req(`?workspace=${B}`), worldCtx(w)), noReport);
 });
