@@ -809,11 +809,6 @@
     "branches": 31,
     "depth": 2
   },
-  "apps/dashboard/src/legacy/pages/people.jsx::PeopleReal#1": {
-    "lines": 557,
-    "branches": 299,
-    "depth": 4
-  },
   "apps/dashboard/src/legacy/pages/people.jsx::onKey#2": {
     "lines": 48,
     "branches": 54,

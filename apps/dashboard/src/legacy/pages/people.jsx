@@ -2593,29 +2593,23 @@ const usePlPlace = ({ controls, page, view, ids, noun, landed = true, selectionO
 };
 
 /* ------------------------------------------------------------------------------ People */
-const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSaved = null, initialState = null, onNavigate = null, newList = false }) => {
-  const people = usePeople();
-  const nav = onNavigate || ((to) => window.CHANLY.nav(to));
-  const rows = people.rows;
-  const lists = people.lists;
-  const agg = people.aggregates;
-  const withCalendar = !!(people.calendar && people.calendar.state === "ok");
-  // Whether deals are on here (the surface's dealsOn, 0008): the Deal column is offered, and the switch has the
-  // Pipeline, only then.
-  const dealsOn = !!people.dealsOn;
-  // The list the address names, as it names it: one People doesn't have here is said to be missing (listGone, below),
-  // never swapped for Everyone.
+// PeopleReal is its hooks and the elements it returns, one concern to a function below. The hooks are called in the
+// order the page always called them, so every hook keeps the cell it had; the elements are made where they always were.
+
+// The list the address names, as it names it: one People doesn't have here is said to be missing (listGone, below),
+// never swapped for Everyone.
+const usePeopleView = ({ initialSegment, initialSaved, initialState }) => {
   const [listId, setListId] = useState(initialSegment || plStandingList(initialState) || null);
   React.useEffect(() => { setListId(initialSegment || plStandingList(initialState) || null); }, [initialSegment, initialState]);
-  const saved = people.saved || PL_NO_LISTS;
   const [savedId, setSavedId] = useState(initialSaved);
   React.useEffect(() => { setSavedId(initialSaved); }, [initialSaved]);
   const [tab, setTab] = useState(initialState && PL_TABS.includes(initialState) ? initialState : "all");
   React.useEffect(() => { if (initialState && PL_TABS.includes(initialState)) setTab(initialState); }, [initialState]);
-  const controls = usePlControls({ scope: "people", cols: PL_COLUMNS, phoneCols: PL_PHONE_COLUMNS, colCtx: { withCalendar, dealsOn }, people, sortFirst: { by: "last", dir: "desc" } });
-  const { phone, searchOpen, setSearchOpen, bulkSheet, setBulkSheet, selectMode, setSelectMode, canExport, toastNode, plFlash, sel, setSel, toggleSel, clearSelection, sortBy, sortDir, onSort, pickSort, colsOpen, setColsOpen, scrolledX, setScrolledX, columns, colOptions, pickColumn, colsButton, q, setQ, searchRef, scrollRef } = controls;
-  // The phone's list picker (the rail, as a sheet), and the New list box. The shell's and a profile's "New list"
-  // (segments:new) open the box; on a phone the sheet comes up with it, since the rail it sits in is not drawn there.
+  return { listId, setListId, savedId, setSavedId, tab, setTab };
+};
+// The phone's list picker (the rail, as a sheet), and the New list box. The shell's and a profile's "New list"
+// (segments:new) open the box; on a phone the sheet comes up with it, since the rail it sits in is not drawn there.
+const usePeopleSheets = (newList) => {
   const [listsOpen, setListsOpen] = useState(() => !!newList && plPhoneNow());
   // Arrived at clients/new-list: the box is open from the first draw (and on a phone, the sheet it sits in).
   const [newListSignal, setNewListSignal] = useState(newList ? 1 : 0);
@@ -2641,11 +2635,13 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
     window.addEventListener("segments:new", onNew);
     return () => window.removeEventListener("segments:new", onNew);
   }, []);
-  const canEditLists = !!(window.__ME && (window.__ME.role === "owner" || window.__ME.role === "operator"));
-  // A list made on the rail says so and is the one shown: the rail used to close
-  // with no word, the new list somewhere down it. The answer goes back to the
-  // rail, which shows a refusal where the name was typed.
-  // An archived list back on the rail (00169): said in a toast either way.
+  return { listsOpen, setListsOpen, newListSignal, addOpen, setAddOpen, addDraft, setAddDraft, listAct, setListAct, ruleEditing, setRuleEditing, madeId, setMadeId, listDraft, setListDraft, importOpen, setImportOpen };
+};
+// A list made on the rail says so and is the one shown: the rail used to close
+// with no word, the new list somewhere down it. The answer goes back to the
+// rail, which shows a refusal where the name was typed.
+// An archived list back on the rail (00169): said in a toast either way.
+const peopleListDoors = ({ plFlash, setListId, setSavedId, setMadeId, setListsOpen }) => {
   const restoreList = async (a) => {
     if (!window.__lists) return;
     const r = await window.__lists.restore(a.id);
@@ -2660,9 +2656,12 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
     }
     return r;
   };
-  // The view in the address, so a list or a state can be sent to someone —
-  // the assistant and Today link here. Replaced, never pushed: Back leaves People.
-  // The Pipeline's address draws People where deals are off (app-shell.jsx), and People's own address takes its place.
+  return { restoreList, createList };
+};
+// The view in the address, so a list or a state can be sent to someone —
+// the assistant and Today link here. Replaced, never pushed: Back leaves People.
+// The Pipeline's address draws People where deals are off (app-shell.jsx), and People's own address takes its place.
+const usePeopleAddress = (listId, savedId, tab) => {
   React.useEffect(() => {
     const cur = (window.location.hash || "").replace(/^#\/?/, "");
     if (!cur.startsWith("clients")) return;
@@ -2674,12 +2673,14 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
     const next = want ? `#/clients/${want}` : "#/clients";
     if (window.location.hash !== next) window.history.replaceState(null, "", next);
   }, [listId, savedId, tab]);
-  // When the page does not hold everyone (past the fifty pages the surface
-  // reads), the box also asks the server, which matches names and numbers. What
-  // it finds sits beside the loaded rows, which the box still searches by their
-  // words: its matches used to stand in for the loaded rows, so a loaded person
-  // found by their last words vanished, and a search that could not ask the
-  // server said nothing and searched only what was loaded.
+};
+// When the page does not hold everyone (past the fifty pages the surface
+// reads), the box also asks the server, which matches names and numbers. What
+// it finds sits beside the loaded rows, which the box still searches by their
+// words: its matches used to stand in for the loaded rows, so a loaded person
+// found by their last words vanished, and a search that could not ask the
+// server said nothing and searched only what was loaded.
+const usePeopleFarther = ({ people, q, plFlash }) => {
   const hasMore = !!(people.page && people.page.has_more);
   const [found, setFound] = useState(null);
   const [searchMore, setSearchMore] = useState(false);
@@ -2705,57 +2706,64 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
     // A page of people that could not be read says so: Show more used to go quiet and stay.
     try { await window.__peopleMore(); } catch (e) { plFlash(window.refusalToast({ message: e && e.message }, "No more people loaded")); } finally { setLoadingMore(false); }
   };
-
-  const shown = useMemo(() => {
-    let list = found ? plWithFound(rows, found) : rows;
-    if (tab !== "all") list = list.filter((p) => p.state === tab);
-    if (listId) {
-      const l = lists.find((x) => x.id === listId);
-      const ids = new Set(l ? l.ids : []);
-      list = list.filter((p) => ids.has(p.id));
+  return { hasMore, found, searchMore, searchFailed, searching, loadingMore, loadMore };
+};
+// Who the view shows, in its order: the loaded rows and what the server found, the state, the list and the words.
+const plPeopleShown = ({ rows, found, lists, saved, tab, listId, savedId, q, sortBy, sortDir }) => {
+  let list = found ? plWithFound(rows, found) : rows;
+  if (tab !== "all") list = list.filter((p) => p.state === tab);
+  if (listId) {
+    const l = lists.find((x) => x.id === listId);
+    const ids = new Set(l ? l.ids : []);
+    list = list.filter((p) => ids.has(p.id));
+  }
+  if (savedId) {
+    const s = saved.find((x) => x.id === savedId);
+    const ids = new Set(s ? s.ids : []);
+    list = list.filter((p) => ids.has(p.id));
+  }
+  const match = plMatcher(q);
+  if (match) list = list.filter(match);
+  // By state: who needs a person first, then who is waiting on one, then the rest in the rail's order. The ranks ran
+  // the other way, so "By state" (the descending sort a first press gives) put Active first and Needs you last.
+  // Never heard from sits with the quiet, under them: nothing is asked of anyone there (decision 0009).
+  const order = { needs_you: 6, waiting_on_you: 5, opted_out: 4, new: 3, quiet: 2, unheard: 1, active: 0 };
+  return [...list].sort((a, b) => {
+    let av, bv;
+    switch (sortBy) {
+      case "name": av = a.name.toLowerCase(); bv = b.name.toLowerCase(); break;
+      case "state": av = order[a.state]; bv = order[b.state]; break;
+      // Ahead first (soonest), then the most recent visit, then never.
+      case "visits": { const none = sortDir === "asc" ? Infinity : -Infinity; av = a.nextVisitMs ?? (a.lastVisitMs !== null ? 1e15 + (1e15 - a.lastVisitMs) : none); bv = b.nextVisitMs ?? (b.lastVisitMs !== null ? 1e15 + (1e15 - b.lastVisitMs) : none); break; }
+      case "offers": { const rank = { opted_in: 0, unknown: 1, opted_out: 2 }; av = rank[a.consent.marketing] ?? 1; bv = rank[b.consent.marketing] ?? 1; if (av === bv) { av = a.lastContact.ts ?? -Infinity; bv = b.lastContact.ts ?? -Infinity; } break; }
+      default: av = a.lastContact.ts ?? -Infinity; bv = b.lastContact.ts ?? -Infinity;
     }
-    if (savedId) {
-      const s = saved.find((x) => x.id === savedId);
-      const ids = new Set(s ? s.ids : []);
-      list = list.filter((p) => ids.has(p.id));
-    }
-    const match = plMatcher(q);
-    if (match) list = list.filter(match);
-    // By state: who needs a person first, then who is waiting on one, then the rest in the rail's order. The ranks ran
-    // the other way, so "By state" (the descending sort a first press gives) put Active first and Needs you last.
-    // Never heard from sits with the quiet, under them: nothing is asked of anyone there (decision 0009).
-    const order = { needs_you: 6, waiting_on_you: 5, opted_out: 4, new: 3, quiet: 2, unheard: 1, active: 0 };
-    return [...list].sort((a, b) => {
-      let av, bv;
-      switch (sortBy) {
-        case "name": av = a.name.toLowerCase(); bv = b.name.toLowerCase(); break;
-        case "state": av = order[a.state]; bv = order[b.state]; break;
-        // Ahead first (soonest), then the most recent visit, then never.
-        case "visits": { const none = sortDir === "asc" ? Infinity : -Infinity; av = a.nextVisitMs ?? (a.lastVisitMs !== null ? 1e15 + (1e15 - a.lastVisitMs) : none); bv = b.nextVisitMs ?? (b.lastVisitMs !== null ? 1e15 + (1e15 - b.lastVisitMs) : none); break; }
-        case "offers": { const rank = { opted_in: 0, unknown: 1, opted_out: 2 }; av = rank[a.consent.marketing] ?? 1; bv = rank[b.consent.marketing] ?? 1; if (av === bv) { av = a.lastContact.ts ?? -Infinity; bv = b.lastContact.ts ?? -Infinity; } break; }
-        default: av = a.lastContact.ts ?? -Infinity; bv = b.lastContact.ts ?? -Infinity;
-      }
-      if (av < bv) return sortDir === "asc" ? -1 : 1;
-      if (av > bv) return sortDir === "asc" ? 1 : -1;
-      return 0;
-    });
-  }, [rows, found, lists, saved, tab, listId, savedId, q, sortBy, sortDir]);
-
+    if (av < bv) return sortDir === "asc" ? -1 : 1;
+    if (av > bv) return sortDir === "asc" ? 1 : -1;
+    return 0;
+  });
+};
+// The list open, as the page names it. The two effects below set usePeopleSheets' state, whose setters React keeps
+// still, as the page did when it declared them itself.
+const usePeopleOpenList = ({ people, lists, saved, listId, savedId, tab, q, madeId, setMadeId, setRuleEditing }) => {
   const activeList = listId && lists.find((l) => l.id === listId);
   const activeSaved = savedId && saved.find((s) => s.id === savedId);
   // A list the address names that People doesn't have (decision 0009): a link kept, an answer's jump, a teammate's
   // delete. It is said, and nobody is shown, rather than Everyone under its name. An archived one says how it comes back.
   const listGone = savedId && savedId === madeId ? null : plListGone({ listId, activeList, savedId, activeSaved, people });
-  React.useEffect(() => { setRuleEditing(false); }, [savedId]);
+  React.useEffect(() => { setRuleEditing(false); }, [savedId]); // eslint-disable-line react-hooks/exhaustive-deps
   // The list made here has arrived: from now on it is a list like any other, said to be gone if it goes.
-  React.useEffect(() => { if (madeId && activeSaved && activeSaved.id === madeId) setMadeId(null); }, [madeId, activeSaved]);
+  React.useEffect(() => { if (madeId && activeSaved && activeSaved.id === madeId) setMadeId(null); }, [madeId, activeSaved]); // eslint-disable-line react-hooks/exhaustive-deps
   // The rule behind the view, when one says it: what "Save these" keeps by default (decision 0009). One filter at a
   // time: a list and a state together, or words in the box, freeze who is shown.
   const viewRule = !q.trim() && window.__lists && window.__lists.ruleOf && !((listId || savedId) && tab !== "all")
     ? window.__lists.ruleOf({ builtin: activeList ? activeList.id : null, saved: activeSaved && !activeSaved.byHand ? activeSaved.id : null, standing: !listId && !savedId ? tab : null })
     : null;
-  // Any list open is a door Today can keep (decision 0009): pinned for this member (memberships.views.today), said on the
-  // list's title line and in a phone's more-menu. The page holds the answer until the surface's copy has it.
+  return { activeList, activeSaved, listGone, viewRule };
+};
+// Any list open is a door Today can keep (decision 0009): pinned for this member (memberships.views.today), said on the
+// list's title line and in a phone's more-menu. The page holds the answer until the surface's copy has it.
+const usePeoplePin = ({ activeList, activeSaved, plFlash }) => {
   const openToken = activeSaved ? `list:${activeSaved.id}` : activeList ? `seg:${activeList.id}` : null;
   const canPin = !!(openToken && window.__lists && window.__lists.pin && window.__saveView);
   // One press at a time: a second one waits for the first's answer, so the saves land in the order pressed.
@@ -2770,6 +2778,11 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
     setPinBusy(false);
     plFlash(r.ok ? { msg: was ? <><b>{name}</b> is off Today</> : <><b>{name}</b> is on Today</> } : { tone: "danger", msg: <>{r.message || "Could not change Today's lists."}</> });
   };
+  return { canPin, pinBusy, pinned, togglePin };
+};
+// What the open list lets the page do: open a list made here, take the list as a file, its own step, pick a list, and
+// take one person off it.
+const peopleListActs = ({ activeList, activeSaved, listGone, setListId, setTab, setSavedId, setMadeId, plFlash }) => {
   // A list kept as a rule is opened, and its title is where it is changed.
   const openMade = (id) => { setListId(null); setTab("all"); setSavedId(id); setMadeId(id); };
   // Export follows the list that is open (decision 0009): the route counts it as a send does, every member; with no
@@ -2794,6 +2807,9 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
       undo: async () => { const u = await window.__lists.add(list.id, [p.id]); if (!u.ok) plFlash(window.refusalToast(u, `Not back on ${list.name}`)); },
     });
   };
+  return { openMade, exportName, exportBlocked, exportHref, listStep, pickSmart, pickSaved, dropFromList };
+};
+const usePeopleCells = ({ people, saved, activeSaved, canEditLists, columns, onOpenProfile, dropFromList }) => {
   const listsOf = useMemo(() => {
     const m = {};
     for (const s of saved) for (const id of s.ids) (m[id] = m[id] || []).push(s.name);
@@ -2831,6 +2847,10 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
   // every route change, and a phone in a selection turns a press into a toggle, so the door changes while the rows should not.
   const rowOpenRef = React.useRef(null);
   const rowOpen = React.useRef((id) => rowOpenRef.current(id)).current;
+  return { cellCtx, rowOpenRef, rowOpen };
+};
+// The rows' place: whether anything filters them, each view's own place (usePlPlace), and the first people read ahead.
+const usePeoplePlace = ({ controls, shown, tab, listId, savedId, q }) => {
   const filtered = tab !== "all" || !!listId || !!savedId || !!q.trim();
   const shownIds = shown.map((r) => r.id);
   // Each view keeps its own place: everyone, a smart list, a kept list or a state.
@@ -2840,6 +2860,9 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
   // already holds, whole (people-detail.ts warmPeople): a person not read yet opens on nothing of theirs until it is.
   const aheadKey = shownIds.slice(0, 12).join(",");
   React.useEffect(() => { if (aheadKey && window.__warmPeople) window.__warmPeople(aheadKey.split(",")); }, [aheadKey]);
+  return { filtered, shownIds, cursor, setCursor, rowBudget, keysWith, toggleAll };
+};
+const peoplePhoneSheetActs = ({ addDraft, setAddDraft, setAddOpen, listAct, setListAct, listDraft, setListDraft, activeSaved, viewRule, shownIds, openMade, setSavedId, plFlash, onOpenProfile }) => {
   // The phone's Add a person: the desktop's door (plAddPerson), the page's draft. Added, the sheet closes and their
   // page opens, as the desktop's form does.
   const addOnPhone = async () => {
@@ -2892,46 +2915,39 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
     closePhoneSheet();
     plFlash(filled.ok ? { msg: <>{ids.length} kept as <b>{n}</b></>, undo: () => plUndoList(id, n, plFlash) } : window.refusalToast(filled, "Not kept as a list"));
   };
-  // What the keyboard's one listener reads (usePlPlace): Enter opens the person, and People's own sheets.
-  keysWith({
-    open: onOpenProfile,
-    canSelect: canEditLists || canExport,
-    // The selection's sheet is a phone's (drawn only there): a window widened past 900px with it open holds no keys.
-    sheetOpen: listsOpen || addOpen || !!listAct || (phone && !!bulkSheet),
-    closeSheet: addOpen || listAct ? closePhoneSheet : phone && bulkSheet ? () => setBulkSheet(null) : null,
-  });
+  return { addOnPhone, closePhoneSheet, listActGo };
+};
+// People's more-menu on a phone, the bar's last control: the acts a desktop spreads over its controls row and a list's
+// title line. Add a person; the sorts a desktop's headings give (a phone draws none); everyone as a file; and with a
+// list open, that list's own acts.
+const peoplePhoneMenu = ({ canEditLists, canExport, shown, setSelectMode, setAddDraft, setAddOpen, setImportOpen, withCalendar, sortBy, sortDir, pickSort, exportBlocked, exportName, exportHref, canPin, pinned, togglePin, activeSaved, setListDraft, setListAct, filtered, viewRule, activeList, tab }) => [
+  // A selection begun from here, with nobody picked yet, for whoever a selection could do something for.
+  ...((canEditLists || canExport) && shown.length > 0 ? [{ label: "Select people", icon: "check", onClick: () => setSelectMode(true) }] : []),
+  ...(canEditLists && window.__addPerson ? [{ label: "Add a person", icon: "plus", onClick: () => { setAddDraft(PL_ADD_EMPTY); setAddOpen(true); } }] : []),
+  // A client list as a file, for the owner (the import door is the owner's, as the export is).
+  ...(canExport && window.__importPeople && window.PeopleImportSheet ? [{ label: "Import people", icon: "download", meta: "CSV", onClick: () => setImportOpen(true) }] : []),
+  { header: "Sort" },
+  ...PL_PHONE_SORTS.filter((s) => !s.needs || s.needs({ withCalendar })).map((s) => ({ label: s.label, checked: sortBy === s.by && sortDir === s.dir, onClick: () => pickSort(s.by, s.dir) })),
+  // The route's file of everyone: a download (it answers as an attachment), so the page stays where it is.
+  ...(window.__href && !exportBlocked ? [{ divider: true }, { label: exportName ? `Export ${exportName}` : "Export everyone", icon: "external", meta: "CSV", onClick: () => window.location.assign(exportHref), ...(canExport ? {} : { gate: window.gate("export") }) }] : []),
+  ...(canPin ? [{ divider: true }, { label: pinned ? "Take off Today" : "Pin to Today", icon: "pin", onClick: togglePin }] : []),
+  ...(activeSaved && canEditLists && window.__lists ? [
+    { divider: true },
+    { label: "Rename this list", icon: "edit", onClick: () => { setListDraft({ ...PL_LIST_EMPTY, name: activeSaved.name }); setListAct("rename"); } },
+    // A smart list's rule, shown and changed: the phone draws no title line to show it on.
+    ...(activeSaved.rule ? [{ label: "Who is on it", icon: "sparkle", onClick: () => { setListDraft(PL_LIST_EMPTY); setListAct("rule"); } }] : []),
+    { label: "Delete this list…", icon: "x", danger: true, onClick: () => { setListDraft(PL_LIST_EMPTY); setListAct("delete"); } },
+  ] : []),
+  ...(!activeSaved && filtered && (shown.length > 0 || viewRule) && canEditLists && window.__lists ? [
+    { divider: true },
+    { label: shown.length ? `Save these ${shown.length} as a list` : "Keep this list as yours", icon: "filter", onClick: () => { setListDraft({ ...PL_LIST_EMPTY, name: activeList ? activeList.label : tab !== "all" ? PL_TAB_LABEL[tab] : "" }); setListAct("save"); } },
+  ] : []),
+];
 
-  // Whether anyone shown is selected, or a phone's Select people is on: the bar shows then, and on a phone a tap on a
-  // row selects it rather than opening the person (Gmail's way; the face is the checkbox, clients.css).
-  const selecting = (phone && selectMode) || shown.some((p) => sel.has(p.id));
-  rowOpenRef.current = phone && selecting ? toggleSel : onOpenProfile;
-  // People's more-menu on a phone, the bar's last control: the acts a desktop spreads over its controls row and a list's
-  // title line. Add a person; the sorts a desktop's headings give (a phone draws none); everyone as a file; and with a
-  // list open, that list's own acts.
-  const phoneMenu = [
-    // A selection begun from here, with nobody picked yet, for whoever a selection could do something for.
-    ...((canEditLists || canExport) && shown.length > 0 ? [{ label: "Select people", icon: "check", onClick: () => setSelectMode(true) }] : []),
-    ...(canEditLists && window.__addPerson ? [{ label: "Add a person", icon: "plus", onClick: () => { setAddDraft(PL_ADD_EMPTY); setAddOpen(true); } }] : []),
-    // A client list as a file, for the owner (the import door is the owner's, as the export is).
-    ...(canExport && window.__importPeople && window.PeopleImportSheet ? [{ label: "Import people", icon: "download", meta: "CSV", onClick: () => setImportOpen(true) }] : []),
-    { header: "Sort" },
-    ...PL_PHONE_SORTS.filter((s) => !s.needs || s.needs({ withCalendar })).map((s) => ({ label: s.label, checked: sortBy === s.by && sortDir === s.dir, onClick: () => pickSort(s.by, s.dir) })),
-    // The route's file of everyone: a download (it answers as an attachment), so the page stays where it is.
-    ...(window.__href && !exportBlocked ? [{ divider: true }, { label: exportName ? `Export ${exportName}` : "Export everyone", icon: "external", meta: "CSV", onClick: () => window.location.assign(exportHref), ...(canExport ? {} : { gate: window.gate("export") }) }] : []),
-    ...(canPin ? [{ divider: true }, { label: pinned ? "Take off Today" : "Pin to Today", icon: "pin", onClick: togglePin }] : []),
-    ...(activeSaved && canEditLists && window.__lists ? [
-      { divider: true },
-      { label: "Rename this list", icon: "edit", onClick: () => { setListDraft({ ...PL_LIST_EMPTY, name: activeSaved.name }); setListAct("rename"); } },
-      // A smart list's rule, shown and changed: the phone draws no title line to show it on.
-      ...(activeSaved.rule ? [{ label: "Who is on it", icon: "sparkle", onClick: () => { setListDraft(PL_LIST_EMPTY); setListAct("rule"); } }] : []),
-      { label: "Delete this list…", icon: "x", danger: true, onClick: () => { setListDraft(PL_LIST_EMPTY); setListAct("delete"); } },
-    ] : []),
-    ...(!activeSaved && filtered && (shown.length > 0 || viewRule) && canEditLists && window.__lists ? [
-      { divider: true },
-      { label: shown.length ? `Save these ${shown.length} as a list` : "Keep this list as yours", icon: "filter", onClick: () => { setListDraft({ ...PL_LIST_EMPTY, name: activeList ? activeList.label : tab !== "all" ? PL_TAB_LABEL[tab] : "" }); setListAct("save"); } },
-    ] : []),
-  ];
-
+// The elements the page returns, made where they always stood: plain functions of the page's state (`s`), called in
+// the order JSX made them, so every component draws in its place and keeps its state there.
+const peopleScreen = (s) => {
+  const { phone, nav, dealsOn, lists, people, listId, pickSmart, saved, savedId, pickSaved, canEditLists, createList, restoreList, newListSignal, activeSaved, activeList, listGone, setListsOpen, listsOpen, q, setQ, searchRef, searchOpen, setSearchOpen, phoneMenu, selecting, sel, shown, canExport, clearSelection, setSel, plFlash, bulkSheet, setBulkSheet, shownIds, agg, setListId, setSavedId, addOpen, addDraft, setAddDraft, addOnPhone, closePhoneSheet, listAct, viewRule, listDraft, setListDraft, listActGo, importOpen, setImportOpen, toastNode } = s;
   return (
     <div className="clients">
       {/* The switch between the scopes, over the rail and the rows; a phone's is the bar's first row (PeoplePhoneBar). */}
@@ -2974,137 +2990,7 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
             trailing={<MoreMenu items={phoneMenu} title="More" size={18} btnClass="pp-bar-icon" escape />}
           />
         )}
-        <div className="cl-main-scroll pl-main" ref={scrollRef}>
-          <PeopleStanding
-            scope="people"
-            agg={agg}
-            needsShown={listId === "needs_you"}
-            onNeeds={() => { setSavedId(null); setTab("all"); setListId((l) => (l === "needs_you" ? null : "needs_you")); }}
-          />
-
-          {!phone && (
-          <div className="cl-controls">
-            <div className="cl-search-wrap">
-              <Icon name="search" size={13} />
-              <input ref={searchRef} placeholder={`${PL_SEARCH_LABEL}…`} value={q} onChange={(e) => setQ(e.target.value)} />
-              <span className="kbd">/</span>
-            </div>
-            <div className="cl-controls-right">
-              {canEditLists && window.__addPerson && <AddPersonButton onAdded={onOpenProfile} flash={plFlash} />}
-              {/* A client list as a file, for the owner: read in the browser, counted, then written in parts of fifty
-                  (people-import.jsx). */}
-              {canExport && window.__importPeople && window.PeopleImportSheet && (
-                <button className="btn btn-ghost btn-sm" onClick={() => setImportOpen(true)} data-testid="import-people"><Icon name="download" size={12} /> Import</button>
-              )}
-              {/* Everyone as a CSV, from the route: owner only, and the button
-                  says so for anyone else instead of leading to a refusal. */}
-              {window.__href && (
-                window.canDo && !window.canDo("export")
-                  ? <button className="btn btn-ghost btn-sm" {...window.gate("export")}><Icon name="external" size={12} /> Export CSV</button>
-                  : exportBlocked
-                  ? <button className="btn btn-ghost btn-sm" disabled data-tip={exportBlocked} data-testid="people-export"><Icon name="external" size={12} /> Export CSV</button>
-                  : <a className="btn btn-ghost btn-sm" href={exportHref} download title={exportName ? `Download the people on ${exportName} as a CSV file` : "Download everyone as a CSV file"} data-testid="people-export"><Icon name="external" size={12} /> Export CSV</a>
-              )}
-              {/* No sort button: every heading that sorts is a button with its arrow (cl-th-sort), so "Z → A" beside
-                  them only turned round an order the table already shows and changes. */}
-              <PeopleColumnsMenu open={colsOpen} onOpenChange={setColsOpen} options={colOptions} onPick={pickColumn} buttonRef={colsButton} />
-            </div>
-          </div>
-          )}
-
-          {/* A phone draws no list head: the bar names the list, the Lists sheet has Everyone and the more-menu the
-              list's own acts. A list's own step stays, one card. */}
-          {(!phone || listStep) && (
-          <div className="cl-section">
-            {!phone && (
-            <div className="cl-section-head">
-              <div className="cl-section-lead">
-                {/* The count is the line above and the table's own foot; here it would be a third. A list picked is
-                    the title, not a chip beside "Everyone": the table IS that list, so its name, its rename and its
-                    delete sit on the one line, where the Lists page had them over a second table of the same people. */}
-                {activeSaved
-                  ? <ListTitle list={activeSaved} canEdit={canEditLists && !!window.__lists} onRenamed={(n) => plFlash({ msg: <>Renamed to <b>{n}</b></> })} onEditRule={() => setRuleEditing(true)} />
-                  : activeList
-                    ? <span className="cl-section-title" data-testid="smart-filter"><Icon name="sparkle" size={12} />{activeList.label}</span>
-                    : listGone
-                      ? <span className="cl-section-title" data-testid="list-gone">{listGone.title}</span>
-                      : <span className="cl-section-title">Everyone</span>}
-                {(activeList || activeSaved || listGone) && (
-                  <button type="button" className="cl-bucket-link" onClick={() => { setListId(null); setSavedId(null); }} data-testid="show-everyone">Show everyone</button>
-                )}
-                {canPin && (
-                  <button type="button" className={`cl-bucket-link cl-list-pin${pinned ? " is-on" : ""}`} aria-pressed={pinned} disabled={pinBusy} onClick={togglePin} data-testid="list-pin">
-                    {pinned ? "On Today" : "Pin to Today"}
-                  </button>
-                )}
-                {activeSaved && canEditLists && <DeleteListButton list={activeSaved} onDeleted={(r) => { if (r.archived) plFlash({ msg: plArchivedWords(activeSaved.name, r) }); setSavedId(null); }} />}
-                {tab !== "all" && (
-                  <span className="chip" data-testid="state-filter">
-                    <Icon name="filter" size={10} />
-                    {PL_TAB_LABEL[tab]}
-                    <button className="chip-x" title="Show everyone" aria-label="Show everyone" onClick={() => setTab("all")}>
-                      <Icon name="x" size={9} />
-                    </button>
-                  </span>
-                )}
-              </div>
-              <span className="cl-section-sub">
-                {filtered && (shown.length > 0 || viewRule) && canEditLists && window.__lists
-                  ? <SaveShownAsList ids={shownIds} rule={viewRule} onMade={openMade} suggested={activeList ? activeList.label : activeSaved ? `${activeSaved.name} copy` : tab !== "all" ? PL_TAB_LABEL[tab] : ""} flash={plFlash} />
-                  : (filtered ? "Filtered" : "")}
-              </span>
-            </div>
-            )}
-            {!phone && ruleEditing && activeSaved && activeSaved.rule && canEditLists && (
-              <RuleEditor list={activeSaved} flash={plFlash} onDone={() => setRuleEditing(false)} />
-            )}
-            {/* The list's own step: a smart list's next move, or a kept list's one door, a broadcast to those on it who
-                said yes (contracts peopleListAction and savedListAction, the one sentence for both). */}
-            {listStep && (
-              <div className="cl-list-action" data-testid="list-action">
-                <span className="cl-list-action-text">{listStep.text}</span>
-                <button className={`btn btn-sm ${listStep.enabled ? "btn-primary" : ""}`} disabled={!listStep.enabled} onClick={() => window.CHANLY.nav(listStep.to)}>
-                  {listStep.cta} <Icon name="arrow-right" size={10} />
-                </button>
-              </div>
-            )}
-          </div>
-          )}
-
-          <PeopleTable
-            budget={rowBudget}
-            noun="person"
-            columns={columns}
-            ctx={cellCtx}
-            selectable={canEditLists || canExport}
-            sel={sel}
-            onToggle={toggleSel}
-            onToggleAll={toggleAll}
-            cursor={cursor}
-            onCursor={setCursor}
-            rows={shown}
-            rowClass={phone ? plCardRowClass : null}
-            total={people.page && people.page.has_more ? people.page.total : rows.length}
-            sortBy={sortBy}
-            sortDir={sortDir}
-            onSort={onSort}
-            onOpen={rowOpen}
-            selectMode={phone && selectMode}
-            filtered={filtered}
-            onClearFilters={() => { setQ(""); setTab("all"); setListId(null); setSavedId(null); }}
-            scrolled={scrolledX}
-            onScrolled={setScrolledX}
-            busy={searching}
-            empty={listGone ? { title: listGone.title, body: listGone.body, action: listGone.archived && canEditLists && window.__lists ? { label: "Bring it back", onClick: () => restoreList(listGone.archived) } : { label: "Show everyone", onClick: () => { setListId(null); setSavedId(null); } } } : activeSaved && activeSaved.count === 0 && tab === "all" && !listId && !q.trim() ? (activeSaved.unknown ? { title: `${activeSaved.name} can't be counted right now`, body: activeSaved.unknown, action: { label: "Show everyone", onClick: () => setSavedId(null) } } : activeSaved.byHand ? { title: `Nobody on ${activeSaved.name} yet`, body: "Pick people and use Add to list, or add them from their profile.", action: { label: "Show everyone", onClick: () => setSavedId(null) } } : { title: `Nobody on ${activeSaved.name} right now`, body: "It keeps itself current: its people appear here when its rule holds for them.", action: { label: "Show everyone", onClick: () => setSavedId(null) } }) : null}
-          />
-          {hasMore && (
-            <div className="cl-section-sub pl-more" data-testid="people-more">
-              {plLoadedWords(rows.length, people.page.total)}{q.trim() ? (searching ? " · searching everyone…" : searchFailed ? " · couldn't search past them, so these are matches among the loaded" : ` · names and numbers searched across everyone, words among the ${rows.length.toLocaleString()} loaded${searchMore ? " · the first 1,000 matches" : ""}`) : ""}
-              {" "}
-              <button className="btn btn-ghost btn-sm" disabled={loadingMore} onClick={loadMore} data-testid="people-more-btn">{loadingMore ? "Loading…" : "Show more"}</button>
-            </div>
-          )}
-        </div>
+        {peopleScroll(s)}
         {/* The bar counts, and acts on, the people shown and selected. */}
         {selecting && <PeopleBulkBar sel={sel} rows={shown} saved={saved} savedRead={people.savedRead !== false} canEdit={canEditLists} canExport={canExport} onClear={clearSelection} onKeep={(rest) => setSel(new Set(rest))} flash={plFlash} activeSaved={activeSaved || null} phone={phone} sheet={phone ? bulkSheet : null} onSheet={setBulkSheet} onSelectAll={() => setSel(new Set(shownIds))} />}
         {/* The phone's rail, as a sheet (the rail itself is not drawn at 900px and under), last in the tree. Its
@@ -3149,6 +3035,197 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
       </div>
     </div>
   );
+};
+// The scroller: the standing line, a desktop's controls and the list's head, the table, and the line under it.
+const peopleScroll = (s) => {
+  const { scrollRef, agg, listId, setSavedId, setTab, setListId, phone, listStep, rowBudget, columns, cellCtx, canEditLists, canExport, sel, toggleSel, toggleAll, cursor, setCursor, shown, people, rows, sortBy, sortDir, onSort, rowOpen, selectMode, filtered, setQ, scrolledX, setScrolledX, searching, hasMore, q, searchFailed, searchMore, loadingMore, loadMore } = s;
+  return (
+        <div className="cl-main-scroll pl-main" ref={scrollRef}>
+          <PeopleStanding
+            scope="people"
+            agg={agg}
+            needsShown={listId === "needs_you"}
+            onNeeds={() => { setSavedId(null); setTab("all"); setListId((l) => (l === "needs_you" ? null : "needs_you")); }}
+          />
+
+          {!phone && peopleDeskControls(s)}
+
+          {/* A phone draws no list head: the bar names the list, the Lists sheet has Everyone and the more-menu the
+              list's own acts. A list's own step stays, one card. */}
+          {(!phone || listStep) && peopleListSection(s)}
+
+          <PeopleTable
+            budget={rowBudget}
+            noun="person"
+            columns={columns}
+            ctx={cellCtx}
+            selectable={canEditLists || canExport}
+            sel={sel}
+            onToggle={toggleSel}
+            onToggleAll={toggleAll}
+            cursor={cursor}
+            onCursor={setCursor}
+            rows={shown}
+            rowClass={phone ? plCardRowClass : null}
+            total={people.page && people.page.has_more ? people.page.total : rows.length}
+            sortBy={sortBy}
+            sortDir={sortDir}
+            onSort={onSort}
+            onOpen={rowOpen}
+            selectMode={phone && selectMode}
+            filtered={filtered}
+            onClearFilters={() => { setQ(""); setTab("all"); setListId(null); setSavedId(null); }}
+            scrolled={scrolledX}
+            onScrolled={setScrolledX}
+            busy={searching}
+            empty={peopleTableEmpty(s)}
+          />
+          {hasMore && (
+            <div className="cl-section-sub pl-more" data-testid="people-more">
+              {plLoadedWords(rows.length, people.page.total)}{q.trim() ? (searching ? " · searching everyone…" : searchFailed ? " · couldn't search past them, so these are matches among the loaded" : ` · names and numbers searched across everyone, words among the ${rows.length.toLocaleString()} loaded${searchMore ? " · the first 1,000 matches" : ""}`) : ""}
+              {" "}
+              <button className="btn btn-ghost btn-sm" disabled={loadingMore} onClick={loadMore} data-testid="people-more-btn">{loadingMore ? "Loading…" : "Show more"}</button>
+            </div>
+          )}
+        </div>
+  );
+};
+const peopleDeskControls = ({ searchRef, q, setQ, canEditLists, onOpenProfile, plFlash, canExport, setImportOpen, exportBlocked, exportHref, exportName, colsOpen, setColsOpen, colOptions, pickColumn, colsButton }) => (
+          <div className="cl-controls">
+            <div className="cl-search-wrap">
+              <Icon name="search" size={13} />
+              <input ref={searchRef} placeholder={`${PL_SEARCH_LABEL}…`} value={q} onChange={(e) => setQ(e.target.value)} />
+              <span className="kbd">/</span>
+            </div>
+            <div className="cl-controls-right">
+              {canEditLists && window.__addPerson && <AddPersonButton onAdded={onOpenProfile} flash={plFlash} />}
+              {/* A client list as a file, for the owner: read in the browser, counted, then written in parts of fifty
+                  (people-import.jsx). */}
+              {canExport && window.__importPeople && window.PeopleImportSheet && (
+                <button className="btn btn-ghost btn-sm" onClick={() => setImportOpen(true)} data-testid="import-people"><Icon name="download" size={12} /> Import</button>
+              )}
+              {/* Everyone as a CSV, from the route: owner only, and the button
+                  says so for anyone else instead of leading to a refusal. */}
+              {window.__href && (
+                window.canDo && !window.canDo("export")
+                  ? <button className="btn btn-ghost btn-sm" {...window.gate("export")}><Icon name="external" size={12} /> Export CSV</button>
+                  : exportBlocked
+                  ? <button className="btn btn-ghost btn-sm" disabled data-tip={exportBlocked} data-testid="people-export"><Icon name="external" size={12} /> Export CSV</button>
+                  : <a className="btn btn-ghost btn-sm" href={exportHref} download title={exportName ? `Download the people on ${exportName} as a CSV file` : "Download everyone as a CSV file"} data-testid="people-export"><Icon name="external" size={12} /> Export CSV</a>
+              )}
+              {/* No sort button: every heading that sorts is a button with its arrow (cl-th-sort), so "Z → A" beside
+                  them only turned round an order the table already shows and changes. */}
+              <PeopleColumnsMenu open={colsOpen} onOpenChange={setColsOpen} options={colOptions} onPick={pickColumn} buttonRef={colsButton} />
+            </div>
+          </div>
+);
+const peopleListSection = (s) => {
+  const { phone, ruleEditing, activeSaved, canEditLists, plFlash, setRuleEditing, listStep } = s;
+  return (
+          <div className="cl-section">
+            {!phone && peopleListHead(s)}
+            {!phone && ruleEditing && activeSaved && activeSaved.rule && canEditLists && (
+              <RuleEditor list={activeSaved} flash={plFlash} onDone={() => setRuleEditing(false)} />
+            )}
+            {/* The list's own step: a smart list's next move, or a kept list's one door, a broadcast to those on it who
+                said yes (contracts peopleListAction and savedListAction, the one sentence for both). */}
+            {listStep && (
+              <div className="cl-list-action" data-testid="list-action">
+                <span className="cl-list-action-text">{listStep.text}</span>
+                <button className={`btn btn-sm ${listStep.enabled ? "btn-primary" : ""}`} disabled={!listStep.enabled} onClick={() => window.CHANLY.nav(listStep.to)}>
+                  {listStep.cta} <Icon name="arrow-right" size={10} />
+                </button>
+              </div>
+            )}
+          </div>
+  );
+};
+const peopleListHead = ({ activeSaved, activeList, listGone, canEditLists, plFlash, setRuleEditing, setListId, setSavedId, canPin, pinned, pinBusy, togglePin, tab, setTab, filtered, shown, viewRule, shownIds, openMade }) => (
+            <div className="cl-section-head">
+              <div className="cl-section-lead">
+                {/* The count is the line above and the table's own foot; here it would be a third. A list picked is
+                    the title, not a chip beside "Everyone": the table IS that list, so its name, its rename and its
+                    delete sit on the one line, where the Lists page had them over a second table of the same people. */}
+                {activeSaved
+                  ? <ListTitle list={activeSaved} canEdit={canEditLists && !!window.__lists} onRenamed={(n) => plFlash({ msg: <>Renamed to <b>{n}</b></> })} onEditRule={() => setRuleEditing(true)} />
+                  : activeList
+                    ? <span className="cl-section-title" data-testid="smart-filter"><Icon name="sparkle" size={12} />{activeList.label}</span>
+                    : listGone
+                      ? <span className="cl-section-title" data-testid="list-gone">{listGone.title}</span>
+                      : <span className="cl-section-title">Everyone</span>}
+                {(activeList || activeSaved || listGone) && (
+                  <button type="button" className="cl-bucket-link" onClick={() => { setListId(null); setSavedId(null); }} data-testid="show-everyone">Show everyone</button>
+                )}
+                {canPin && (
+                  <button type="button" className={`cl-bucket-link cl-list-pin${pinned ? " is-on" : ""}`} aria-pressed={pinned} disabled={pinBusy} onClick={togglePin} data-testid="list-pin">
+                    {pinned ? "On Today" : "Pin to Today"}
+                  </button>
+                )}
+                {activeSaved && canEditLists && <DeleteListButton list={activeSaved} onDeleted={(r) => { if (r.archived) plFlash({ msg: plArchivedWords(activeSaved.name, r) }); setSavedId(null); }} />}
+                {tab !== "all" && (
+                  <span className="chip" data-testid="state-filter">
+                    <Icon name="filter" size={10} />
+                    {PL_TAB_LABEL[tab]}
+                    <button className="chip-x" title="Show everyone" aria-label="Show everyone" onClick={() => setTab("all")}>
+                      <Icon name="x" size={9} />
+                    </button>
+                  </span>
+                )}
+              </div>
+              <span className="cl-section-sub">
+                {filtered && (shown.length > 0 || viewRule) && canEditLists && window.__lists
+                  ? <SaveShownAsList ids={shownIds} rule={viewRule} onMade={openMade} suggested={activeList ? activeList.label : activeSaved ? `${activeSaved.name} copy` : tab !== "all" ? PL_TAB_LABEL[tab] : ""} flash={plFlash} />
+                  : (filtered ? "Filtered" : "")}
+              </span>
+            </div>
+);
+// Nobody to show: a list that isn't here, or one of the member's own with nobody on it.
+const peopleTableEmpty = ({ listGone, canEditLists, restoreList, setListId, setSavedId, activeSaved, tab, listId, q }) => (listGone ? { title: listGone.title, body: listGone.body, action: listGone.archived && canEditLists && window.__lists ? { label: "Bring it back", onClick: () => restoreList(listGone.archived) } : { label: "Show everyone", onClick: () => { setListId(null); setSavedId(null); } } } : activeSaved && activeSaved.count === 0 && tab === "all" && !listId && !q.trim() ? (activeSaved.unknown ? { title: `${activeSaved.name} can't be counted right now`, body: activeSaved.unknown, action: { label: "Show everyone", onClick: () => setSavedId(null) } } : activeSaved.byHand ? { title: `Nobody on ${activeSaved.name} yet`, body: "Pick people and use Add to list, or add them from their profile.", action: { label: "Show everyone", onClick: () => setSavedId(null) } } : { title: `Nobody on ${activeSaved.name} right now`, body: "It keeps itself current: its people appear here when its rule holds for them.", action: { label: "Show everyone", onClick: () => setSavedId(null) } }) : null);
+
+const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSaved = null, initialState = null, onNavigate = null, newList = false }) => {
+  const people = usePeople();
+  const nav = onNavigate || ((to) => window.CHANLY.nav(to));
+  const rows = people.rows;
+  const lists = people.lists;
+  const agg = people.aggregates;
+  const withCalendar = !!(people.calendar && people.calendar.state === "ok");
+  // Whether deals are on here (the surface's dealsOn, 0008): the Deal column is offered, and the switch has the
+  // Pipeline, only then.
+  const dealsOn = !!people.dealsOn;
+  const view = usePeopleView({ initialSegment, initialSaved, initialState });
+  const { listId, setListId, savedId, setSavedId, tab, setTab } = view;
+  const saved = people.saved || PL_NO_LISTS;
+  const controls = usePlControls({ scope: "people", cols: PL_COLUMNS, phoneCols: PL_PHONE_COLUMNS, colCtx: { withCalendar, dealsOn }, people, sortFirst: { by: "last", dir: "desc" } });
+  const { phone, bulkSheet, setBulkSheet, selectMode, canExport, plFlash, sel, toggleSel, sortBy, sortDir, q } = controls;
+  const sheets = usePeopleSheets(newList);
+  const { listsOpen, setListsOpen, addOpen, listAct, madeId, setMadeId, setRuleEditing } = sheets;
+  const canEditLists = !!(window.__ME && (window.__ME.role === "owner" || window.__ME.role === "operator"));
+  const doors = peopleListDoors({ plFlash, setListId, setSavedId, setMadeId, setListsOpen });
+  usePeopleAddress(listId, savedId, tab);
+  const farther = usePeopleFarther({ people, q, plFlash });
+  const { found } = farther;
+  const shown = useMemo(() => plPeopleShown({ rows, found, lists, saved, tab, listId, savedId, q, sortBy, sortDir }), [rows, found, lists, saved, tab, listId, savedId, q, sortBy, sortDir]);
+  const open = usePeopleOpenList({ people, lists, saved, listId, savedId, tab, q, madeId, setMadeId, setRuleEditing });
+  const pin = usePeoplePin({ activeList: open.activeList, activeSaved: open.activeSaved, plFlash });
+  const acts = peopleListActs({ ...open, setListId, setTab, setSavedId, setMadeId, plFlash });
+  const cells = usePeopleCells({ people, saved, activeSaved: open.activeSaved, canEditLists, columns: controls.columns, onOpenProfile, dropFromList: acts.dropFromList });
+  const place = usePeoplePlace({ controls, shown, tab, listId, savedId, q });
+  const phoneActs = peoplePhoneSheetActs({ ...sheets, activeSaved: open.activeSaved, viewRule: open.viewRule, shownIds: place.shownIds, openMade: acts.openMade, setSavedId, plFlash, onOpenProfile });
+  // What the keyboard's one listener reads (usePlPlace): Enter opens the person, and People's own sheets.
+  place.keysWith({
+    open: onOpenProfile,
+    canSelect: canEditLists || canExport,
+    // The selection's sheet is a phone's (drawn only there): a window widened past 900px with it open holds no keys.
+    sheetOpen: listsOpen || addOpen || !!listAct || (phone && !!bulkSheet),
+    closeSheet: addOpen || listAct ? phoneActs.closePhoneSheet : phone && bulkSheet ? () => setBulkSheet(null) : null,
+  });
+
+  // Whether anyone shown is selected, or a phone's Select people is on: the bar shows then, and on a phone a tap on a
+  // row selects it rather than opening the person (Gmail's way; the face is the checkbox, clients.css).
+  const selecting = (phone && selectMode) || shown.some((p) => sel.has(p.id));
+  cells.rowOpenRef.current = phone && selecting ? toggleSel : onOpenProfile;
+  const s = { ...controls, ...view, ...sheets, ...doors, ...farther, ...open, ...pin, ...acts, ...cells, ...place, ...phoneActs, onOpenProfile, nav, people, rows, lists, agg, withCalendar, dealsOn, saved, canEditLists, shown, selecting };
+  return peopleScreen({ ...s, phoneMenu: peoplePhoneMenu(s) });
 };
 
 // A real workspace renders its own people; the seeded page keeps the demo. The Leads scope is real as soon as
