@@ -9,6 +9,12 @@
  * read back from Stripe so the row is right when the browser returns;
  * payment events ring their bells. The answer is 200 as soon as the row
  * is written; a failure to write is a 500 so Stripe tries again.
+ *
+ * A partner's ledger (0011) rides on the same deliveries: a paid plan
+ * invoice writes the share of the partner who brought the workspace, and a
+ * refund or a dispute of it writes what that does to the share
+ * (lib/partner-earnings.ts). A workspace nobody brought costs one read and
+ * no call to Stripe.
  */
 import type Stripe from "stripe";
 import { json } from "../lib/http.js";
@@ -25,6 +31,7 @@ import {
   subscriptionFacts,
   tenantOf,
 } from "../lib/billing.js";
+import { earnFromInvoice, invoiceOfPayment, isAttributed, reverseForInvoice } from "../lib/partner-earnings.js";
 import { receptionistOn } from "../lib/packages/contracts.js";
 import { env } from "../lib/env.js";
 
@@ -152,7 +159,31 @@ export async function POST(request: Request): Promise<Response> {
         const row = await tenantOf(db, inv.metadata, idOf(inv.customer));
         if (!(await keep(row?.tenant_id ?? null))) return json(200, { ok: true, duplicate: true });
         if (row) await notePayment(db, row, event.type === "invoice.paid" ? "paid" : "failed");
-        return json(200, { ok: true });
+        const earned =
+          row && event.type === "invoice.paid" ? await earnFromInvoice(db, row.tenant_id, inv, event.id, L) : null;
+        return json(200, { ok: true, ...(earned ? { partner_earned: earned.earned } : {}) });
+      }
+      case "charge.refunded": {
+        // A partner's share gives back what the refund takes (0011). Stripe says the charge's refunded total so far;
+        // the door takes the difference from what earlier refunds took.
+        const charge = event.data.object;
+        const row = await tenantOf(db, charge.metadata, idOf(charge.customer));
+        if (!(await keep(row?.tenant_id ?? null))) return json(200, { ok: true, duplicate: true });
+        if (!row || !(await isAttributed(db, row.tenant_id))) return json(200, { ok: true });
+        const invoice = await invoiceOfPayment(s, idOf(charge.payment_intent));
+        const r = invoice ? await reverseForInvoice(db, invoice, event.id, "refund", charge.amount_refunded, L) : null;
+        return json(200, { ok: true, ...(r ? { partner_reversed: r.earned } : {}) });
+      }
+      case "charge.dispute.created":
+      case "charge.dispute.closed": {
+        // A dispute takes the share while it is open; a dispute won gives it back, and one lost leaves it taken.
+        const dispute = event.data.object;
+        if (!(await keep(null))) return json(200, { ok: true, duplicate: true });
+        if (event.type === "charge.dispute.closed" && dispute.status !== "won") return json(200, { ok: true });
+        const invoice = await invoiceOfPayment(s, idOf(dispute.payment_intent));
+        const kind = event.type === "charge.dispute.created" ? "dispute" : "dispute_won";
+        const r = invoice ? await reverseForInvoice(db, invoice, event.id, kind, dispute.amount, L) : null;
+        return json(200, { ok: true, ...(r ? { partner_reversed: r.earned } : {}) });
       }
       case "customer.deleted": {
         // The ids the row kept point at nothing now: forgotten, so the portal

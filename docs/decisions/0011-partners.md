@@ -1,14 +1,30 @@
 # 0011 · A partner brings a workspace, sets it up, and earns a share
 
-**Status:** decided; P1 (the role) and P2 (attribution) built on the branch this note ships with, P3 onward not
-yet. Written against commit `b6f2216` (PR #1124, 26 September 2026); every file and line below was read at that
-commit, before P1, so the Context describes the code P1 and P2 changed: `memberships.role` admits `partner`,
+**Status:** decided; P1 (the role), P2 (attribution) and P3 (the ledger) built on the branch this note ships with,
+P4 onward not yet. Written against commit `b6f2216` (PR #1124, 26 September 2026); every file and line below was read
+at that commit, before P1, so the Context describes the code P1 to P3 changed: `memberships.role` admits `partner`,
 `has_permission()` and `ROLE_PERMS` carry its row, the setting-class routes declare `role: "partner"`, `requireRole`
 refuses a role it does not know (00189, `with-route.ts`); `partners` and `partner_tenants` exist, `create_workspace`
-takes the code the link's cookie left, `GET /workspaces` carries each role and the partner, and Settings › Partner
-is the offer or the link (00190, `app/p/[code]`, `partner-real.jsx`). One thing moved from the Shape below as
-written: the link is `/p/<code>` alone, a route that leaves the cookie and goes on to sign-up; nothing rides in the
-sign-up body, so one mechanism attributes whether the account arrives by email or by Google.
+takes the code the link's cookie left, `GET /workspaces` carries each role and the partner, and Settings › Partner is
+the offer or the link (00190, `app/p/[code]`, `partner-real.jsx`); `partner_earnings` is written by the Stripe webhook
+through `partner_earn` and `partner_reverse`, the daily clock `partners` runs `partner_earnings_sweep`, and the pane
+says held, payable and paid from `partner_balance` (00191, `lib/partner-earnings.ts`, `api/cron/partners.ts`).
+
+What moved from the Shape below as written, each for a reason found in the code:
+
+- **The link is `/p/<code>` alone**, a route that leaves the cookie and goes on to sign-up; nothing rides in the
+  sign-up body, so one mechanism attributes whether the account arrives by email or by Google.
+- **The card's fingerprint is not a column on `billing_accounts`.** Every member reads that row
+  (`billing_accounts_member_select`, 00073); the fingerprint lives in `billing_card_marks`, which only the service role
+  reads, written where every subscription is applied (`applySubscription`).
+- **A reversal finds its invoice through the payment intent.** The pinned Stripe API has no `charge.invoice` and no
+  `invoice.charge`; the webhook asks `invoicePayments.list` for the invoice a payment intent paid, and only for a
+  workspace a partner brought. Every ledger row carries the Stripe event that wrote it, unique, so a replay writes
+  nothing; a refund is written as the difference its running total makes; a dispute won gives back what its dispute
+  took; all reversals together are capped at the share.
+- **A held earning of a disqualified workspace is `void`**, not `reversed`: a reversal is a row of its own.
+- **Standing is judged a week after the first share, or as soon as the card is known**, so a share paid before the
+  subscription's card was marked is not judged on nothing.
 
 ## Context
 

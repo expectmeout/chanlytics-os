@@ -9,6 +9,7 @@ import {
   PARTNER_WORDS,
   partnerVM,
   shareWords,
+  type PartnerBalanceRow,
   type PartnerDto,
   type PartnerVM,
 } from "@chanlytics/contracts";
@@ -18,6 +19,8 @@ import { refreshSurfaces } from "./surface-runner";
 
 export interface PartnerSurface {
   dto: PartnerDto | null;
+  /** What the ledger holds for this partner, by currency and state (00191). */
+  balance: PartnerBalanceRow[];
   fetchedAt: number;
 }
 
@@ -25,8 +28,8 @@ export interface PartnerApi {
   words: typeof PARTNER_WORDS;
   /** The share every new partner account starts with, as a sentence: the offer says it before there is a row. */
   offerShare: string;
-  /** The pane's sentences, from the row and the workspaces this person holds as partner. */
-  vm(dto: PartnerDto): PartnerVM;
+  /** The pane's sentences, from the row, the ledger's sums and the workspaces this person holds as partner. */
+  vm(dto: PartnerDto, balance?: PartnerBalanceRow[]): PartnerVM;
   /** How many of the workspaces on the switcher this person is the partner of. */
   broughtCount(): number;
   /** Become a partner with this code, the terms agreed. The surface is written from the answer. */
@@ -49,7 +52,7 @@ export const partnerOverride: SurfaceOverride = {
   apply: async () => {
     try {
       const d = await read("GET partner");
-      window.__PARTNER = { dto: d.partner, fetchedAt: Date.now() };
+      window.__PARTNER = { dto: d.partner, balance: d.balance ?? [], fetchedAt: Date.now() };
     } catch (e) {
       // Null, not undefined: the pane draws its failed card with a retry instead of "Reading…" for ever.
       window.__PARTNER = null;
@@ -64,12 +67,12 @@ export function installPartner(win: Window = window): void {
   win.__partner = {
     words: PARTNER_WORDS,
     offerShare: shareWords(PARTNER_SHARE_BP_DEFAULT),
-    vm: (dto) => partnerVM(dto, win.location.origin, brought()),
+    vm: (dto, balance) => partnerVM(dto, win.location.origin, brought(), balance ?? []),
     broughtCount: brought,
     async become(code) {
       const r = await api()("POST partner", { body: { code, terms: true } });
       if (!r.ok) return { ok: false, message: r.message };
-      win.__PARTNER = { dto: r.data.partner, fetchedAt: Date.now() };
+      win.__PARTNER = { dto: r.data.partner, balance: [], fetchedAt: Date.now() };
       win.dispatchEvent(new Event("surface:partner"));
       return { ok: true, message: "" };
     },

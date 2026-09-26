@@ -289,7 +289,12 @@ var EVENT_KINDS = [
   // A partner (0011): the workspace was made through a partner's link and the partner joined its team, or the code
   // the link left named no partner who could be credited (unknown, paused, or the caller's own).
   "partner.attributed",
-  "partner.code_ignored"
+  "partner.code_ignored",
+  // The ledger (0011, P3): a share written from a paid invoice, a refund's or a dispute's effect on it, and the
+  // standing the sweep decided for a workspace once it had paid.
+  "partner.earned",
+  "partner.reversed",
+  "partner.standing_set"
 ];
 var OFFERS_OPT_IN_PHRASES = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS = [
@@ -2457,7 +2462,9 @@ var PARTNER_WORDS = {
   reading: "Reading your partner account\u2026",
   failed: "your partner account",
   /** What the switcher and Team show for a workspace brought this way. */
-  role: "Partner"
+  role: "Partner",
+  earnings: "Earnings",
+  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan."
 };
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
 var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
@@ -7693,7 +7700,12 @@ var EVENT_KINDS2 = [
   // A partner (0011): the workspace was made through a partner's link and the partner joined its team, or the code
   // the link left named no partner who could be credited (unknown, paused, or the caller's own).
   "partner.attributed",
-  "partner.code_ignored"
+  "partner.code_ignored",
+  // The ledger (0011, P3): a share written from a paid invoice, a refund's or a dispute's effect on it, and the
+  // standing the sweep decided for a workspace once it had paid.
+  "partner.earned",
+  "partner.reversed",
+  "partner.standing_set"
 ];
 var OFFERS_OPT_IN_PHRASES2 = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS2 = [
@@ -9828,7 +9840,9 @@ var PARTNER_WORDS2 = {
   reading: "Reading your partner account\u2026",
   failed: "your partner account",
   /** What the switcher and Team show for a workspace brought this way. */
-  role: "Partner"
+  role: "Partner",
+  earnings: "Earnings",
+  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan."
 };
 var CONSENT_PHRASE2 = OFFERS_OPT_IN_PHRASES2.en;
 var CONSENT_PHRASE_ES2 = OFFERS_OPT_IN_PHRASES2.es;
@@ -11165,7 +11179,12 @@ var EVENT_KINDS3 = [
   // A partner (0011): the workspace was made through a partner's link and the partner joined its team, or the code
   // the link left named no partner who could be credited (unknown, paused, or the caller's own).
   "partner.attributed",
-  "partner.code_ignored"
+  "partner.code_ignored",
+  // The ledger (0011, P3): a share written from a paid invoice, a refund's or a dispute's effect on it, and the
+  // standing the sweep decided for a workspace once it had paid.
+  "partner.earned",
+  "partner.reversed",
+  "partner.standing_set"
 ];
 var OFFERS_OPT_IN_PHRASES3 = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS3 = [
@@ -13300,7 +13319,9 @@ var PARTNER_WORDS3 = {
   reading: "Reading your partner account\u2026",
   failed: "your partner account",
   /** What the switcher and Team show for a workspace brought this way. */
-  role: "Partner"
+  role: "Partner",
+  earnings: "Earnings",
+  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan."
 };
 var CONSENT_PHRASE3 = OFFERS_OPT_IN_PHRASES3.en;
 var CONSENT_PHRASE_ES3 = OFFERS_OPT_IN_PHRASES3.es;
@@ -13677,7 +13698,12 @@ var EVENT_KINDS22 = [
   // A partner (0011): the workspace was made through a partner's link and the partner joined its team, or the code
   // the link left named no partner who could be credited (unknown, paused, or the caller's own).
   "partner.attributed",
-  "partner.code_ignored"
+  "partner.code_ignored",
+  // The ledger (0011, P3): a share written from a paid invoice, a refund's or a dispute's effect on it, and the
+  // standing the sweep decided for a workspace once it had paid.
+  "partner.earned",
+  "partner.reversed",
+  "partner.standing_set"
 ];
 var OFFERS_OPT_IN_PHRASES22 = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS22 = [
@@ -15872,7 +15898,9 @@ var PARTNER_WORDS22 = {
   reading: "Reading your partner account\u2026",
   failed: "your partner account",
   /** What the switcher and Team show for a workspace brought this way. */
-  role: "Partner"
+  role: "Partner",
+  earnings: "Earnings",
+  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan."
 };
 var CONSENT_PHRASE22 = OFFERS_OPT_IN_PHRASES22.en;
 var CONSENT_PHRASE_ES22 = OFFERS_OPT_IN_PHRASES22.es;
@@ -16175,7 +16203,12 @@ var EVENT_KINDS32 = [
   // A partner (0011): the workspace was made through a partner's link and the partner joined its team, or the code
   // the link left named no partner who could be credited (unknown, paused, or the caller's own).
   "partner.attributed",
-  "partner.code_ignored"
+  "partner.code_ignored",
+  // The ledger (0011, P3): a share written from a paid invoice, a refund's or a dispute's effect on it, and the
+  // standing the sweep decided for a workspace once it had paid.
+  "partner.earned",
+  "partner.reversed",
+  "partner.standing_set"
 ];
 var OFFERS_OPT_IN_PHRASES32 = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS32 = [
@@ -18302,7 +18335,9 @@ var PARTNER_WORDS32 = {
   reading: "Reading your partner account\u2026",
   failed: "your partner account",
   /** What the switcher and Team show for a workspace brought this way. */
-  role: "Partner"
+  role: "Partner",
+  earnings: "Earnings",
+  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan."
 };
 var CONSENT_PHRASE32 = OFFERS_OPT_IN_PHRASES32.en;
 var CONSENT_PHRASE_ES32 = OFFERS_OPT_IN_PHRASES32.es;
@@ -19284,7 +19319,12 @@ var EVENT_KINDS4 = [
   // A partner (0011): the workspace was made through a partner's link and the partner joined its team, or the code
   // the link left named no partner who could be credited (unknown, paused, or the caller's own).
   "partner.attributed",
-  "partner.code_ignored"
+  "partner.code_ignored",
+  // The ledger (0011, P3): a share written from a paid invoice, a refund's or a dispute's effect on it, and the
+  // standing the sweep decided for a workspace once it had paid.
+  "partner.earned",
+  "partner.reversed",
+  "partner.standing_set"
 ];
 var OFFERS_OPT_IN_PHRASES4 = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS4 = [
@@ -21411,7 +21451,9 @@ var PARTNER_WORDS4 = {
   reading: "Reading your partner account\u2026",
   failed: "your partner account",
   /** What the switcher and Team show for a workspace brought this way. */
-  role: "Partner"
+  role: "Partner",
+  earnings: "Earnings",
+  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan."
 };
 var CONSENT_PHRASE4 = OFFERS_OPT_IN_PHRASES4.en;
 var CONSENT_PHRASE_ES4 = OFFERS_OPT_IN_PHRASES4.es;

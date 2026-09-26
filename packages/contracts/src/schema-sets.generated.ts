@@ -112,6 +112,8 @@ export const SCHEMA_SETS = {
     "alert", "review", "billing", "template_ready", "template_blocked", "broadcast_sent",
     "broadcast_stopped", "leads_ready", "leads_question", "note_for_you",
   ],
+  "partner_earnings.kind": ["share", "refund", "dispute", "dispute_won"],
+  "partner_earnings.state": ["held", "payable", "paid", "void"],
   "partner_tenants.standing": ["qualified", "review", "disqualified"],
   "partners.status": ["active", "paused", "closed"],
   "person_notes.author_kind": ["member", "receptionist"],

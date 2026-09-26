@@ -7,6 +7,7 @@
  * here: the words print what the row holds.
  */
 import { z } from "zod";
+import { moneyWords } from "./billing";
 
 /** The row, as `GET partner` answers it. */
 export interface PartnerDto {
@@ -24,6 +25,12 @@ export const PARTNER_STATUSES = ["active", "paused", "closed"] as const;
 export const PARTNER_SHARE_BP_DEFAULT = 2500;
 /** What the sweep decides about a workspace a partner brought (0011, P3). Null until it has looked. */
 export const PARTNER_STANDINGS = ["qualified", "review", "disqualified"] as const;
+/** A movement on the ledger (00191): a share of a paid plan invoice, or what a refund, a dispute or a won dispute did to it. */
+export const PARTNER_EARNING_KINDS = ["share", "refund", "dispute", "dispute_won"] as const;
+/** Where a movement stands: held thirty days, payable once the workspace qualifies, paid (P5), void if disqualified. */
+export const PARTNER_EARNING_STATES = ["held", "payable", "paid", "void"] as const;
+/** Days a share is held before it may be paid: what 00191 adds to the invoice's paid_at. */
+export const PARTNER_HOLD_DAYS = 30;
 
 /* ------------------------------------------------------------------ the code */
 
@@ -113,6 +120,8 @@ export const PARTNER_WORDS = {
   failed: "your partner account",
   /** What the switcher and Team show for a workspace brought this way. */
   role: "Partner",
+  earnings: "Earnings",
+  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan.",
 } as const;
 
 /** The share, as a sentence: "25% of what it pays for its plan". */
@@ -129,6 +138,59 @@ export function broughtWords(count: number): string {
   return `${count} workspaces came through your link.`;
 }
 
+/** One line of partner_balance() (00191): a currency's total in one state, and when the next held one is due. */
+export interface PartnerBalanceRow {
+  currency: string;
+  state: string;
+  earned_cents: number;
+  next_payable_at: string | null;
+}
+
+/** The earnings as the pane says them: three lines, each a real sum from the ledger, a zero said as a zero. */
+export interface PartnerEarningsVM {
+  held: string;
+  payable: string;
+  paid: string;
+  /** Nothing on the ledger yet: said once, instead of three zeros. */
+  none: boolean;
+}
+
+const dayWords = (at: string): string =>
+  new Date(at).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+
+/** A currency's sums, joined when a partner has more than one: "$100.00 and €20.00". */
+function sumWords(rows: readonly PartnerBalanceRow[], state: string): { words: string; cents: number } {
+  const of = rows.filter((r) => r.state === state && r.earned_cents !== 0);
+  if (!of.length) return { words: moneyWords(0, rows[0]?.currency ?? "usd"), cents: 0 };
+  return {
+    words: of.map((r) => moneyWords(r.earned_cents, r.currency)).join(" and "),
+    cents: of.reduce((n, r) => n + r.earned_cents, 0),
+  };
+}
+
+export function partnerEarningsWords(rows: readonly PartnerBalanceRow[] | null | undefined): PartnerEarningsVM {
+  const list = rows ?? [];
+  const held = sumWords(list, "held");
+  const payable = sumWords(list, "payable");
+  const paid = sumWords(list, "paid");
+  const next = list
+    .filter((r) => r.state === "held" && r.next_payable_at)
+    .map((r) => r.next_payable_at as string)
+    .sort()[0];
+  return {
+    none: list.every((r) => r.earned_cents === 0),
+    held:
+      held.cents === 0
+        ? `Nothing held. A share is held ${PARTNER_HOLD_DAYS} days after each payment.`
+        : `${held.words} held${next ? `, the first of it payable from ${dayWords(next)}` : ""}.`,
+    payable:
+      payable.cents < 0
+        ? `${payable.words} to come off your next payout, for refunds and disputes after you were paid.`
+        : `${payable.words} payable.`,
+    paid: `${paid.words} paid to date.`,
+  };
+}
+
 export interface PartnerVM {
   code: string;
   link: string;
@@ -138,10 +200,16 @@ export interface PartnerVM {
   brought: string;
   /** The line the pane leads with when the account is not active, else null. */
   standing: string | null;
+  earnings: PartnerEarningsVM;
 }
 
-/** The pane's sentences, from the row and the workspaces this person holds as partner (their memberships). */
-export function partnerVM(dto: PartnerDto, origin: string, workspacesAsPartner: number): PartnerVM {
+/** The pane's sentences, from the row, the ledger's sums, and the workspaces this person holds as partner. */
+export function partnerVM(
+  dto: PartnerDto,
+  origin: string,
+  workspacesAsPartner: number,
+  balance: readonly PartnerBalanceRow[] = [],
+): PartnerVM {
   return {
     code: dto.code,
     link: partnerLinkFor(dto.code, origin),
@@ -150,5 +218,6 @@ export function partnerVM(dto: PartnerDto, origin: string, workspacesAsPartner: 
     since: PARTNER_WORDS.since(dto.created_at),
     brought: broughtWords(workspacesAsPartner),
     standing: dto.status === "paused" ? PARTNER_WORDS.paused : dto.status === "closed" ? PARTNER_WORDS.closed : null,
+    earnings: partnerEarningsWords(balance),
   };
 }

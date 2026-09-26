@@ -460,7 +460,12 @@ var EVENT_KINDS = [
   // A partner (0011): the workspace was made through a partner's link and the partner joined its team, or the code
   // the link left named no partner who could be credited (unknown, paused, or the caller's own).
   "partner.attributed",
-  "partner.code_ignored"
+  "partner.code_ignored",
+  // The ledger (0011, P3): a share written from a paid invoice, a refund's or a dispute's effect on it, and the
+  // standing the sweep decided for a workspace once it had paid.
+  "partner.earned",
+  "partner.reversed",
+  "partner.standing_set"
 ];
 var OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
 var SMS_OPT_OUT_PATTERN = /^\s*(stop|stopall|end|cancel|quit|unsubscribe|revoke|optout|baja|alto)\s*[.!]?\s*$/i;
@@ -19856,6 +19861,9 @@ import { z as z10 } from "zod";
 var PARTNER_STATUSES = ["active", "paused", "closed"];
 var PARTNER_SHARE_BP_DEFAULT = 2500;
 var PARTNER_STANDINGS = ["qualified", "review", "disqualified"];
+var PARTNER_EARNING_KINDS = ["share", "refund", "dispute", "dispute_won"];
+var PARTNER_EARNING_STATES = ["held", "payable", "paid", "void"];
+var PARTNER_HOLD_DAYS = 30;
 var PARTNER_CODE_MIN = 3;
 var PARTNER_CODE_MAX = 24;
 var CODE_SHAPE = /^[a-z0-9][a-z0-9-]{1,22}[a-z0-9]$/;
@@ -19916,7 +19924,9 @@ var PARTNER_WORDS = {
   reading: "Reading your partner account\u2026",
   failed: "your partner account",
   /** What the switcher and Team show for a workspace brought this way. */
-  role: "Partner"
+  role: "Partner",
+  earnings: "Earnings",
+  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan."
 };
 function shareWords(shareBp) {
   const pct2 = shareBp / 100;
@@ -19928,7 +19938,29 @@ function broughtWords(count2) {
   if (count2 === 1) return "1 workspace came through your link.";
   return `${count2} workspaces came through your link.`;
 }
-function partnerVM(dto, origin, workspacesAsPartner) {
+var dayWords2 = (at2) => new Date(at2).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+function sumWords(rows, state) {
+  const of = rows.filter((r2) => r2.state === state && r2.earned_cents !== 0);
+  if (!of.length) return { words: moneyWords(0, rows[0]?.currency ?? "usd"), cents: 0 };
+  return {
+    words: of.map((r2) => moneyWords(r2.earned_cents, r2.currency)).join(" and "),
+    cents: of.reduce((n, r2) => n + r2.earned_cents, 0)
+  };
+}
+function partnerEarningsWords(rows) {
+  const list2 = rows ?? [];
+  const held = sumWords(list2, "held");
+  const payable = sumWords(list2, "payable");
+  const paid = sumWords(list2, "paid");
+  const next = list2.filter((r2) => r2.state === "held" && r2.next_payable_at).map((r2) => r2.next_payable_at).sort()[0];
+  return {
+    none: list2.every((r2) => r2.earned_cents === 0),
+    held: held.cents === 0 ? `Nothing held. A share is held ${PARTNER_HOLD_DAYS} days after each payment.` : `${held.words} held${next ? `, the first of it payable from ${dayWords2(next)}` : ""}.`,
+    payable: payable.cents < 0 ? `${payable.words} to come off your next payout, for refunds and disputes after you were paid.` : `${payable.words} payable.`,
+    paid: `${paid.words} paid to date.`
+  };
+}
+function partnerVM(dto, origin, workspacesAsPartner, balance = []) {
   return {
     code: dto.code,
     link: partnerLinkFor(dto.code, origin),
@@ -19936,7 +19968,8 @@ function partnerVM(dto, origin, workspacesAsPartner) {
     share: shareWords(dto.share_bp),
     since: PARTNER_WORDS.since(dto.created_at),
     brought: broughtWords(workspacesAsPartner),
-    standing: dto.status === "paused" ? PARTNER_WORDS.paused : dto.status === "closed" ? PARTNER_WORDS.closed : null
+    standing: dto.status === "paused" ? PARTNER_WORDS.paused : dto.status === "closed" ? PARTNER_WORDS.closed : null,
+    earnings: partnerEarningsWords(balance)
   };
 }
 
@@ -22569,6 +22602,8 @@ var SCHEMA_SETS = {
     "leads_question",
     "note_for_you"
   ],
+  "partner_earnings.kind": ["share", "refund", "dispute", "dispute_won"],
+  "partner_earnings.state": ["held", "payable", "paid", "void"],
   "partner_tenants.standing": ["qualified", "review", "disqualified"],
   "partners.status": ["active", "paused", "closed"],
   "person_notes.author_kind": ["member", "receptionist"],
@@ -24020,6 +24055,9 @@ export {
   PARTNER_CODE_MIN,
   PARTNER_COOKIE,
   PARTNER_COOKIE_DAYS,
+  PARTNER_EARNING_KINDS,
+  PARTNER_EARNING_STATES,
+  PARTNER_HOLD_DAYS,
   PARTNER_SHARE_BP_DEFAULT,
   PARTNER_STANDINGS,
   PARTNER_STATUSES,
@@ -24738,6 +24776,7 @@ export {
   parseTenantConfigResult,
   partialSay,
   partnerCodeFromCookie,
+  partnerEarningsWords,
   partnerLinkFor,
   partnerPathFor,
   partnerVM,

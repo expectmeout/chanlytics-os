@@ -148,7 +148,12 @@ var EVENT_KINDS = [
   // A partner (0011): the workspace was made through a partner's link and the partner joined its team, or the code
   // the link left named no partner who could be credited (unknown, paused, or the caller's own).
   "partner.attributed",
-  "partner.code_ignored"
+  "partner.code_ignored",
+  // The ledger (0011, P3): a share written from a paid invoice, a refund's or a dispute's effect on it, and the
+  // standing the sweep decided for a workspace once it had paid.
+  "partner.earned",
+  "partner.reversed",
+  "partner.standing_set"
 ];
 var OFFERS_OPT_IN_PHRASES = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS = [
@@ -2407,7 +2412,9 @@ var PARTNER_WORDS = {
   reading: "Reading your partner account\u2026",
   failed: "your partner account",
   /** What the switcher and Team show for a workspace brought this way. */
-  role: "Partner"
+  role: "Partner",
+  earnings: "Earnings",
+  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan."
 };
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
 var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
@@ -3948,6 +3955,20 @@ async function getOwnPartner(db) {
   }
   return data;
 }
+async function getPartnerBalance(db) {
+  const { data, error } = await db.rpc("partner_balance");
+  if (error) {
+    if (error.code === "PGRST202" || error.code === "42883" || /could not find the function/i.test(error.message))
+      return [];
+    throw new Error(`getPartnerBalance: ${error.message}`);
+  }
+  return (data ?? []).map((r2) => ({
+    currency: r2.currency,
+    state: r2.state,
+    earned_cents: Number(r2.earned_cents),
+    next_payable_at: r2.next_payable_at ?? null
+  }));
+}
 async function becomePartner(db, code) {
   const { data, error } = await db.rpc("partner_become", { p_code: code });
   if (error) return { ok: false, code: error.code ?? "", message: error.message };
@@ -4073,6 +4094,7 @@ export {
   finishableRuns,
   followUpTouchesSince,
   getOwnPartner,
+  getPartnerBalance,
   getTenantConfig,
   ingestCall,
   ingestInbound,

@@ -2,9 +2,9 @@
 // Chanlytics — Settings › Partner (decision 0011).
 //
 // For a person who is not a partner: the offer, the code to choose, the terms, one press. For a partner: the link
-// to hand out, the share their row holds, and how many workspaces came through the link. Nothing here states a
-// number the database does not hold: the share is the row's, the count is the memberships', and earnings wait for
-// the ledger (0011, P3) rather than being promised.
+// to hand out, the share their row holds, how many workspaces came through the link, and what the ledger holds for
+// them: held, payable and paid. Nothing here states a number the database does not hold: the share is the row's, the
+// count is the memberships', and every sum is partner_balance's (00191); a zero is said as a zero.
 
 const PanePartner = ({ flash }) => {
   const [, bump] = React.useReducer((n) => n + 1, 0);
@@ -80,7 +80,8 @@ const PanePartner = ({ flash }) => {
     );
   }
 
-  const vm = api.vm(P.dto);
+  const vm = api.vm(P.dto, P.balance);
+  const E = vm.earnings;
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(vm.link);
@@ -109,6 +110,20 @@ const PanePartner = ({ flash }) => {
         <div className="set-row-info">
           <span className="set-row-label">Your share</span>
           <span className="set-row-hint" data-testid="partner-share">{vm.share}, for as long as it pays.</span>
+        </div>
+      </div>
+      <div className="set-row" data-testid="partner-earnings">
+        <div className="set-row-info">
+          <span className="set-row-label">{W.earnings}</span>
+          {E.none ? (
+            <span className="set-row-hint" data-testid="partner-earnings-none">{W.noneYet}</span>
+          ) : (
+            <>
+              <span className="set-row-hint" data-testid="partner-held">{E.held}</span>
+              <span className="set-row-hint" data-testid="partner-payable">{E.payable}</span>
+              <span className="set-row-hint" data-testid="partner-paid">{E.paid}</span>
+            </>
+          )}
         </div>
       </div>
       <div className="set-row">

@@ -1,16 +1,24 @@
 import { read, write, account } from "@/server/route";
-import { AppError, PartnerBecomeSchema, cleanPartnerCode, type PartnerDto } from "@chanlytics/contracts";
-import { becomePartner, getOwnPartner } from "@chanlytics/db";
+import {
+  AppError,
+  PartnerBecomeSchema,
+  cleanPartnerCode,
+  type PartnerBalanceRow,
+  type PartnerDto,
+} from "@chanlytics/contracts";
+import { becomePartner, getOwnPartner, getPartnerBalance } from "@chanlytics/db";
 
 /**
- * GET /api/v1/partner — the caller's partner account (decision 0011), or null. On the account, not a workspace: a
- * partner is a person, and the pane that shows it is the person's. RLS answers with the caller's own row alone.
+ * GET /api/v1/partner — the caller's partner account (decision 0011), or null, and what the ledger holds for them:
+ * held, payable and paid, by currency (00191 partner_balance). On the account, not a workspace: a partner is a
+ * person, and the pane that shows it is the person's. The database answers about the caller alone.
  */
 export const GET = read({
   scope: account,
-  handle: async ({ ctx }): Promise<{ partner: PartnerDto | null }> => {
+  handle: async ({ ctx }): Promise<{ partner: PartnerDto | null; balance: PartnerBalanceRow[] }> => {
     const row = await getOwnPartner(ctx.supabase);
-    return { partner: row ? (row as PartnerDto) : null };
+    if (!row) return { partner: null, balance: [] };
+    return { partner: row as PartnerDto, balance: await getPartnerBalance(ctx.supabase) };
   },
 });
 

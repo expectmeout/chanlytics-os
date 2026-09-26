@@ -35,6 +35,33 @@ export async function getOwnPartner(db: Db): Promise<PartnerPublicRow | null> {
   return data;
 }
 
+/** One line of the caller's balance: a currency's total in one state, and when the next held one is due. */
+export interface PartnerBalanceLine {
+  currency: string;
+  state: string;
+  earned_cents: number;
+  next_payable_at: string | null;
+}
+
+/**
+ * The caller's own totals (00191 partner_balance): held, payable and paid, by currency. Empty on a database 00191
+ * has not reached, which reads as nothing earned yet, which is true.
+ */
+export async function getPartnerBalance(db: Db): Promise<PartnerBalanceLine[]> {
+  const { data, error } = await db.rpc("partner_balance");
+  if (error) {
+    if (error.code === "PGRST202" || error.code === "42883" || /could not find the function/i.test(error.message))
+      return [];
+    throw new Error(`getPartnerBalance: ${error.message}`);
+  }
+  return (data ?? []).map((r) => ({
+    currency: r.currency,
+    state: r.state,
+    earned_cents: Number(r.earned_cents),
+    next_payable_at: r.next_payable_at ?? null,
+  }));
+}
+
 /** The caller becomes a partner with this code: the function's own words come back as the error's message. */
 export async function becomePartner(
   db: Db,

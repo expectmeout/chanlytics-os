@@ -237,6 +237,11 @@ export const EVENT_KINDS = [
   // the link left named no partner who could be credited (unknown, paused, or the caller's own).
   "partner.attributed",
   "partner.code_ignored",
+  // The ledger (0011, P3): a share written from a paid invoice, a refund's or a dispute's effect on it, and the
+  // standing the sweep decided for a workspace once it had paid.
+  "partner.earned",
+  "partner.reversed",
+  "partner.standing_set",
 ] as const;
 export type EventKind = (typeof EVENT_KINDS)[number] | WabaEventKind;
 
