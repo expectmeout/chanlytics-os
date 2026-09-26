@@ -15,6 +15,14 @@ export interface ShellState {
   activeTab: Tab;
   siteSha: string | null;
   lastReloadAt: number;
+  /** The phone's push token, once the service gave one; null on a simulator or after a refusal. */
+  token: string | null;
+  /** The token the page has registered for the person signed in; a new token or a new person registers again. */
+  registered: string | null;
+  /** A tapped notification's route, until the owning tab's page has been asked to open it. */
+  pendingRoute: string | null;
+  /** The icon's number, as the bell last said it. */
+  badge: number;
 }
 
 export const INITIAL: ShellState = {
@@ -24,6 +32,10 @@ export const INITIAL: ShellState = {
   activeTab: "today",
   siteSha: null,
   lastReloadAt: 0,
+  token: null,
+  registered: null,
+  pendingRoute: null,
+  badge: 0,
 };
 
 let state: ShellState = INITIAL;

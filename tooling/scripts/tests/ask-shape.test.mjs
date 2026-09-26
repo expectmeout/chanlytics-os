@@ -433,7 +433,11 @@ test("one turn reads the workspace's facts once, on one clock: the route's own r
     const res = await askRoute.POST.run(post({ text: "what are our hours?", surface: "settings" }), ctx);
     await res.text();
     const selects = (table) => ctx.supabase.seen.filter((q) => q.table === table && q.op === "select").length;
-    assert.deepEqual([selects("tenant_channels"), selects("calls")], [1, 1], "both tools ran and read their own rows");
+    assert.deepEqual(
+      [selects("tenant_channels"), selects("calls")],
+      [1, 2],
+      "both tools ran and read their own rows: get_settings the channels as their page reads them (readers/channels.ts), the last inbound call beside the rows, and list_calls the hundred newest",
+    );
     assert.equal(
       selects("tenants"),
       2,

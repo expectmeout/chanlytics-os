@@ -15,16 +15,14 @@ import {
   type FeedFailure,
   type Opening,
 } from "@chanlytics/contracts";
-import type { RouteContext } from "../with-route";
-import { tenantFacts } from "../tenant";
 import { fillerFeedFor } from "../filler-calendar";
 
 /**
  * Openings for the assistant and the palette's fast path, computed the way
  * the phone receptionist computes them (edge availability.ts): the calendar
  * feed's busy blocks against the business's hours, closures and booking
- * rules, in the business's zone. Read under the caller's RLS; the feed URL
- * is fetched server-side and never sent to the browser.
+ * rules, in the business's zone, which the caller read under its own RLS;
+ * the feed URL is fetched server-side and never sent to the browser.
  */
 
 const FEED_TTL_MS = 5 * 60 * 1000;
@@ -186,32 +184,17 @@ function fmtWindow(start: number, end: number, tz: string): string {
 }
 
 /**
- * `known`: the workspace's zone and its raw settings, handed in by a caller that read them this turn
- * (readers/openings.ts), so neither is read again; without it, both are read here.
+ * `known`: the workspace's zone and its raw settings, as the caller read them this turn (readers/openings.ts, under
+ * the caller's RLS): this reads neither, and nothing else of the database -- only the calendar's feed.
  */
 export async function openingsFor(
-  ctx: RouteContext,
   tenantId: string,
   by: { day?: string | null; service?: string | null },
-  now = new Date(),
-  known?: { timezone: string; config: unknown },
+  now: Date,
+  known: { timezone: string; config: unknown },
 ): Promise<OpeningsResult> {
-  let timezone: string;
-  let raw: unknown;
-  if (known) {
-    timezone = known.timezone;
-    raw = known.config;
-  } else {
-    ({ timezone } = await tenantFacts(ctx.supabase, tenantId));
-    const { data: row, error } = await ctx.supabase
-      .from("tenant_config")
-      .select("config")
-      .eq("tenant_id", tenantId)
-      .maybeSingle();
-    if (error) throw new Error(error.message);
-    raw = row?.config ?? null;
-  }
-  const cfg = parseTenantConfig(raw);
+  const timezone = known.timezone;
+  const cfg = parseTenantConfig(known.config);
   const url = cfg?.calendar?.ical_url;
   const profile = cfg?.brain?.profile;
   // What the asked-for service is offered as, by the phone tool's rule: itself, or a consultation first (C5b).

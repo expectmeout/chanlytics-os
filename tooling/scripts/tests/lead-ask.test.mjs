@@ -353,6 +353,8 @@ test("list_lead_searches says what was asked, in the owner's words, and how each
   assert.equal(s.searches[0].question, null);
   assert.equal(s.searches[1].question, null);
   assert.equal(s.searches[2].question, "Most of the first 25 are chain gyms. Include them?");
+  // Beside them, the rail's six counts as the Leads page shows them (ledger #12): the door's own answer.
+  assert.deepEqual(s.counts, DOORS.lead_list_counts());
   assert.match(s.note, /propose_lead_search with amends set to its id/);
   assert.match(s.note, /Yes, keep going or Stop here on Leads/);
 });

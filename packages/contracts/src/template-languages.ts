@@ -188,6 +188,18 @@ export function languageName(code: string): string {
   }
 }
 
+/**
+ * The language alone, as a code: "en_US", "en-us" and "EN" are all "en". Null for anything that is not a two- or
+ * three-letter code ("english", "und", ""): a reader's guess is never a language until it names one.
+ */
+export function languageBase(code: string | null | undefined): string | null {
+  const base = String(code ?? "")
+    .trim()
+    .split(/[-_]/)[0]!
+    .toLowerCase();
+  return /^[a-z]{2,3}$/.test(base) && base !== "und" ? base : null;
+}
+
 /** A language as a person reads it, with its place when it has one: "English (US)", "Spanish". */
 export function languageLabel(code: string): string {
   return templateLanguage(code)?.label ?? languageName(code);

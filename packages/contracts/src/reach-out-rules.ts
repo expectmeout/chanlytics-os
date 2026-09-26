@@ -4,11 +4,12 @@
  *   outreachRefusalOf   the lead's own facts, as the send door reads them (deliver.ts) and as the clock reads them
  *                       before it claims a send: one mapping, so the two never disagree about who may be written to.
  *   OUTREACH_WAIT_REFUSALS   the door's refusals that mean "not now": the send is planned again, never canceled (C5).
- *   reachOutSlots       a step's words with the lead's and the workspace's values in; a slot with no value holds the
- *                       email (missing_value, the reason that exists: broadcast.ts). Part 4 adds the rest of §4.3's.
+ *   reachOutSlots       a step's words with the lead's, the workspace's and the send's values in (§4.3's six slots); a
+ *                       slot with no value holds the email (missing_value, the reason that exists: broadcast.ts).
  *   REACH_OUT_MONTH_EMAILS   the month's allowance per workspace (§4.8's number; the price is Ruben's to set).
  */
 import type { DeliveryRefusal } from "./consent";
+import { isReachOutSlot, replaceSlots, slotsNamed, type ReachOutSlot } from "./reach-out-words";
 
 export interface OutreachLeadFacts {
   leadStage: string | null;
@@ -59,25 +60,31 @@ export interface SlotLead {
   business_name: string | null;
   city: string | null;
 }
+/** The workspace's slots: its name, the name the chain signs with, its booking link. */
+export interface SlotWorkspace {
+  businessName: string | null;
+  yourName?: string | null;
+  bookingLink?: string | null;
+}
 export function reachOutSlots(
   words: string,
   lead: SlotLead,
-  workspace: { businessName: string | null },
+  workspace: SlotWorkspace,
+  opening: string | null = null,
 ): { ok: true; text: string } | { ok: false; reason: "missing_value" } {
-  const values = new Map<string, string | null>([
-    ["business", lead.business_name?.trim() || null],
-    ["city", lead.city?.trim() || null],
-    ["your business", workspace.businessName?.trim() || null],
-  ]);
-  // Any {{…}} is a slot, named in any case and spacing. One this does not fill, whether it has no value here or is no
-  // slot at all ({{first name}}, {{business_name}}), holds the email: braces never reach a business.
-  const SLOT = /\{\{([^{}]*)\}\}/g;
-  // A brace pair left over once the slots are out ("{{business" with no end) is a slot nobody can fill.
-  let missing = /\{\{|\}\}/.test(words.replace(SLOT, ""));
-  const text = words.replace(SLOT, (whole, name: string) => {
-    const v = values.get(name.trim().replace(/\s+/g, " ").toLowerCase());
-    if (v == null) missing = true;
-    return v ?? whole;
-  });
+  const values: Record<ReachOutSlot, string | null> = {
+    business: lead.business_name?.trim() || null,
+    city: lead.city?.trim() || null,
+    "your business": workspace.businessName?.trim() || null,
+    "your name": workspace.yourName?.trim() || null,
+    "booking link": workspace.bookingLink?.trim() || null,
+    opening: opening?.trim() || null,
+  };
+  // Any {{…}} is a slot, named in any case and spacing (reach-out-words: the one slot rule, the sheet's too). One this
+  // does not fill, whether it has no value here or is no slot at all ({{first name}}, {{business_name}}), holds the
+  // email, and so does a brace left once the slots are out: braces never reach a business.
+  const named = slotsNamed(words);
+  const missing = named.stray || named.names.some((k) => !isReachOutSlot(k) || values[k] === null);
+  const text = replaceSlots(words, (k) => (isReachOutSlot(k) ? values[k] : null));
   return missing ? { ok: false, reason: "missing_value" } : { ok: true, text };
 }

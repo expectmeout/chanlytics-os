@@ -11,12 +11,22 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export interface PushReceipt {
   to: string;
   status: "ok" | "error";
+  /** The ticket's id when the service took the message: what its receipt is asked for by (00189). */
+  id?: string;
   /** Expo's name for what went wrong; "DeviceNotRegistered" is a phone to forget. */
   error?: string;
 }
 
+/** One ticket kept for its receipt: which phone, by which id. */
+export interface PushTicket {
+  id: string;
+  to: string;
+}
+
 export interface PushPort {
   send(messages: PushMessage[]): Promise<PushReceipt[]>;
+  /** The receipts for these ticket ids; an id the service has no receipt for yet is absent. */
+  receipts(ids: readonly string[]): Promise<Record<string, { status: "ok" | "error"; error?: string }>>;
 }
 
 export interface JobContext {

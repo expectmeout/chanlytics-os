@@ -306,7 +306,6 @@ test("Settings collects the rules and the feed; the feed address is whole only f
   const page = readRaw("apps/dashboard/src/legacy/pages/business-tab-folds.jsx");
   assert.ok(page.includes('btPutProfile(next, "booking_rules", Object.keys(rules).length ? rules : undefined);'));
   assert.ok(page.includes('btPut(section, "ical_url", feed || undefined);'));
-  const route = readCode("apps/dashboard/app/api/v1/settings/route.ts");
-  assert.ok(route.includes('member.role === "owner" || !cfg.calendar'));
-  assert.ok(route.includes("maskFeedUrl(cfg.calendar.ical_url)"));
+  // The feed address whole for an owner and masked for anyone else is RUN: through the route in settings-routes.test.mjs
+  // ("the settings read") and through its reader in readers.test.mjs, so the two pins on the route's text are gone.
 });

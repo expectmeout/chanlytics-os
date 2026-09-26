@@ -8,10 +8,17 @@ import type { ConfigContext, ExpoConfig } from "expo/config";
  */
 const ORIGIN = process.env.EXPO_PUBLIC_SITE_ORIGIN || "https://app.chanlytics.com"; // src/site.ts DEFAULT_SITE_ORIGIN
 const HOST = ORIGIN ? new URL(ORIGIN).host : "";
+// Google sign-in's iOS URL scheme is the iOS client id reversed; without the id there is no Google button and no plugin.
+const GOOGLE_IOS = (process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ?? "").trim();
+const GOOGLE_SCHEME = /^([a-z0-9-]+)\.apps\.googleusercontent\.com$/i.exec(GOOGLE_IOS)?.[1];
+const GOOGLE_PLUGIN: [string, { iosUrlScheme: string }][] = GOOGLE_SCHEME
+  ? [["@react-native-google-signin/google-signin", { iosUrlScheme: `com.googleusercontent.apps.${GOOGLE_SCHEME}` }]]
+  : [];
 const ID = "com.chanlytics.app";
 /** The EAS project (expo.dev, chanlyticss-team / chanlytics): what builds, updates and push tokens are filed under. */
 const EAS_PROJECT_ID = "a5f1a093-2cd8-436b-8e7d-07fb2b0b62dc";
-const PAGE_DARK = "#0c0d0f"; // contracts THEME_COLORS.dark: the paper the document opens on before its boot script runs.
+const PAGE_DARK = "#0c0d0f";
+const MARK_TEAL = "#3cb79e"; // the ring in the mark, sampled from icon.png // contracts THEME_COLORS.dark: the paper the document opens on before its boot script runs.
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
@@ -27,6 +34,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     bundleIdentifier: ID,
     supportsTablet: false,
     deploymentTarget: "16.4",
+    usesAppleSignIn: true,
     config: { usesNonExemptEncryption: false },
     ...(HOST ? { associatedDomains: [`applinks:${HOST}`] } : {}),
     infoPlist: {
@@ -57,7 +65,16 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   plugins: [
     "expo-router",
     "expo-updates",
+    // The status-bar icon Android draws is the mark in white on transparent (a 96px PNG); the tint is the ring's teal.
+    [
+      "expo-notifications",
+      { icon: "./assets/images/notification-icon.png", color: MARK_TEAL, defaultChannel: "default" },
+    ],
     ["expo-splash-screen", { backgroundColor: PAGE_DARK, image: "./assets/images/splash-icon.png", imageWidth: 96 }],
+    "expo-apple-authentication",
+    ["expo-local-authentication", { faceIDPermission: "Chanlytics locks itself with Face ID until you return." }],
+    "expo-secure-store",
+    ...GOOGLE_PLUGIN,
   ],
   // EAS Update: the fingerprint policy, so an update can only reach a build whose native code it matches.
   runtimeVersion: { policy: "fingerprint" },

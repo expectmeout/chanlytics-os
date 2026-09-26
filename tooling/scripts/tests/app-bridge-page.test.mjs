@@ -15,10 +15,11 @@ globalThis.CustomEvent ??= class CustomEvent extends Event {
   }
 };
 
-function windowOf({ inApp = true, native = true, hash = "#/today", pathname = "/w/acme-plumbing" } = {}) {
+function windowOf({ inApp = true, native = true, hash = "#/today", pathname = "/w/acme-plumbing", bell = null } = {}) {
   const listeners = new Map();
   const posted = [];
   const win = {
+    ...(bell ? { __notifs: bell } : {}),
     document: { documentElement: { classList: { contains: (c) => inApp && c === "in-app" } } },
     location: { hash, pathname },
     ...(native ? { ReactNativeWebView: { postMessage: (s) => posted.push(JSON.parse(s)) } } : {}),
@@ -94,4 +95,69 @@ test("the shell's navigate sets the hash; menu and top become the shell's events
   assert.deepEqual(heard, ["menu", "top"]);
   assert.equal(win.location.hash, "/inbox");
   void fire;
+});
+
+const doors = (answer = true) => {
+  const calls = [];
+  return {
+    calls,
+    register: async (d) => {
+      calls.push(["register", d]);
+      if (answer instanceof Error) throw answer;
+      return answer;
+    },
+    forget: async (t) => {
+      calls.push(["forget", t]);
+      return answer;
+    },
+  };
+};
+const tick = () => new Promise((r) => setTimeout(r, 0));
+
+test("the shell's device ask goes through the page's own doors, and the page says what became of it", async () => {
+  const { win, posted } = windowOf();
+  const d = doors(true);
+  installAppBridge(win, d);
+  win.__appBridge.receive('{"t":"device","token":"ExponentPushToken[abc]","platform":"ios","version":"1.0.0"}');
+  await tick();
+  assert.deepEqual(d.calls, [["register", { token: "ExponentPushToken[abc]", platform: "ios", app_version: "1.0.0" }]]);
+  assert.deepEqual(posted.at(-1), { t: "device", state: "registered" });
+  win.__appBridge.receive('{"t":"forget","token":"ExponentPushToken[abc]"}');
+  await tick();
+  assert.deepEqual(d.calls.at(-1), ["forget", "ExponentPushToken[abc]"]);
+  assert.deepEqual(posted.at(-1), { t: "device", state: "forgotten" });
+  const refused = doors(false);
+  const w2 = windowOf();
+  installAppBridge(w2.win, refused);
+  w2.win.__appBridge.receive('{"t":"device","token":"tok","platform":"android","version":""}');
+  await tick();
+  assert.deepEqual(refused.calls, [["register", { token: "tok", platform: "android" }]], "no version, no field");
+  assert.deepEqual(w2.posted.at(-1), { t: "device", state: "refused" });
+  const thrown = doors(new Error("offline"));
+  const w3 = windowOf();
+  installAppBridge(w3.win, thrown);
+  w3.win.__appBridge.receive('{"t":"device","token":"tok","platform":"ios","version":"1"}');
+  await tick();
+  assert.deepEqual(
+    w3.posted.at(-1),
+    { t: "device", state: "refused" },
+    "a door that throws is a refusal, never silence",
+  );
+});
+
+test("the bell's number is posted at install and on every change; without a bell, nothing", () => {
+  let n = 2;
+  let cb = null;
+  const bell = { unread: () => n, onChange: (f) => ((cb = f), () => (cb = null)) };
+  const { win, posted } = windowOf({ bell });
+  const off = installAppBridge(win, doors());
+  assert.deepEqual(posted.at(-1), { t: "badge", n: 2 });
+  n = 0;
+  cb();
+  assert.deepEqual(posted.at(-1), { t: "badge", n: 0 });
+  off();
+  assert.equal(cb, null, "uninstalled: the bell is let go");
+  const bare = windowOf();
+  installAppBridge(bare.win, doors());
+  assert.ok(!bare.posted.some((m) => m.t === "badge"));
 });

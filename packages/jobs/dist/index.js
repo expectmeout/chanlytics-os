@@ -166,6 +166,7 @@ import { z as z6 } from "zod";
 import { z as z8 } from "zod";
 import { z as z9 } from "zod";
 import { z as z10 } from "zod";
+import { z as z11 } from "zod";
 z.config({ jitless: true });
 var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
@@ -2137,19 +2138,27 @@ var FIRST_RUN_PHONE_WORDS = {
   withMeSent: "We'll email you to find a time for a call.",
   notForwarded: "Forwarding not saved"
 };
+function unreadFor(rows, seenAt, marks) {
+  const seen = seenAt ? Date.parse(seenAt) : 0;
+  const gone = new Set(marks.filter((m) => m.read_at || m.dismissed_at).map((m) => m.notification_id));
+  return rows.filter((r23) => Date.parse(r23.created_at) > seen && !gone.has(r23.id)).length;
+}
 function firstLine(body, max = 160) {
   return body.split("\n").find((l2) => l2.trim())?.trim().slice(0, max) ?? "";
 }
-function pushFor(n2, tokens) {
+function pushFor(n2, targets) {
   const body = firstLine(n2.body);
-  return tokens.map((to) => ({
-    to,
+  return targets.map((t2) => ({
+    to: t2.token,
     title: n2.title,
     body,
     sound: "default",
+    badge: t2.badge,
     data: { route: n2.route, notification_id: n2.id, tenant_id: n2.tenant_id }
   }));
 }
+var PUSH_RECEIPTS_AFTER_MS = 15 * 6e4;
+var BELL_WINDOW_DAYS = 30;
 var DAY_MS6 = 24 * 3600 * 1e3;
 var JOB_WORK = {
   outbound_send: { stopped: "A message may not have been sent", to: "inbox" },
@@ -2159,7 +2168,8 @@ var JOB_WORK = {
   lead_round_start: { stopped: "A search could not start", to: "clients/leads" },
   lead_collect: { stopped: "A search stopped partway", to: "clients/leads" },
   lead_check: { stopped: "Checking a search's emails stopped", to: "clients/leads" },
-  push_send: { stopped: "An alert to your phone was not sent", to: "admin/notifications" }
+  push_send: { stopped: "An alert to your phone was not sent", to: "admin/notifications" },
+  push_receipts: { stopped: "Checking that your phone was told did not finish", to: "admin/notifications" }
 };
 var JOB_WORK_OTHER = { stopped: "Something in the background did not finish", to: "today" };
 function jobNewsWords(jobKind, end, attempts = 1) {
@@ -2585,9 +2595,52 @@ function isCampaignEmail(request) {
 }
 var NINE_TO_FIVE = [{ from: 9 * 60, to: 17 * 60 }];
 var SEND_DAY_FRAME = { from: 8 * 60, to: 20 * 60 };
+var REACH_OUT_SUBJECT_MAX = 80;
+var REACH_OUT_BODY_MAX = 1200;
+var REACH_OUT_STEPS_MAX = 5;
+var REACH_OUT_NAME_MAX = 80;
+var SIGNED_BY_MAX = 60;
+var REACH_OUT_AFTER_DAYS = { min: 2, max: 30, first: 4 };
+var ReachOutStepSchema = z11.object({
+  /** An existing step's id, when the sheet edits a chain; none for a new one. */
+  id: z11.string().uuid().nullable().optional(),
+  subject: z11.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
+  body: z11.string().max(REACH_OUT_BODY_MAX * 2),
+  after_days: z11.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable()
+});
+var ReachOutChainSchema = z11.object({
+  name: z11.string().trim().min(1).max(REACH_OUT_NAME_MAX),
+  search_id: z11.string().uuid(),
+  include_unconfirmed: z11.boolean(),
+  gap_minutes: z11.number().int().min(5).max(120),
+  /** Empty: every verified domain of the workspace (00183). */
+  domain_ids: z11.array(z11.string().uuid()).max(5),
+  signed_by: z11.string().trim().max(SIGNED_BY_MAX).nullable(),
+  steps: z11.array(ReachOutStepSchema).min(1).max(REACH_OUT_STEPS_MAX)
+});
+var OPENING_FACT_KEYS = [
+  "category",
+  "city",
+  "rating",
+  "reviews",
+  "website",
+  "hours",
+  "about",
+  "why_it_fits"
+];
+var OPENING_SCHEMA = {
+  type: "object",
+  properties: {
+    opening: { type: "string" },
+    angle: { type: "string" },
+    facts_used: { type: "array", items: { type: "string", enum: [...OPENING_FACT_KEYS] } }
+  },
+  required: ["opening", "angle", "facts_used"],
+  additionalProperties: false
+};
 
 // ../channels/dist/index.js
-import { z as z11 } from "zod";
+import { z as z12 } from "zod";
 import { z as z22 } from "zod";
 import { z as z32 } from "zod";
 import { z as z42 } from "zod";
@@ -2597,6 +2650,7 @@ import { z as z62 } from "zod";
 import { z as z82 } from "zod";
 import { z as z92 } from "zod";
 import { z as z102 } from "zod";
+import { z as z112 } from "zod";
 
 // ../../node_modules/domelementtype/lib/esm/index.js
 var ElementType;
@@ -7537,7 +7591,7 @@ function handleDeprecatedOptions(options) {
 }
 
 // ../channels/dist/index.js
-z11.config({ jitless: true });
+z12.config({ jitless: true });
 var LABEL2 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL2 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE2 = new RegExp(`^(${LOCAL2})@(${LABEL2}(?:\\.${LABEL2})+)$`);
@@ -9504,6 +9558,7 @@ var FIRST_RUN_PHONE_WORDS2 = {
   withMeSent: "We'll email you to find a time for a call.",
   notForwarded: "Forwarding not saved"
 };
+var PUSH_RECEIPTS_AFTER_MS2 = 15 * 6e4;
 var DAY_MS62 = 24 * 3600 * 1e3;
 var DAY_MS72 = 864e5;
 var QUIET_AFTER_MS2 = 7 * DAY_MS72;
@@ -9918,6 +9973,49 @@ var K2 = new Uint32Array([
 var NAME_MAX2 = BrainConfigSchema2.shape.business_name.maxLength ?? Infinity;
 var NINE_TO_FIVE2 = [{ from: 9 * 60, to: 17 * 60 }];
 var SEND_DAY_FRAME2 = { from: 8 * 60, to: 20 * 60 };
+var REACH_OUT_SUBJECT_MAX2 = 80;
+var REACH_OUT_BODY_MAX2 = 1200;
+var REACH_OUT_STEPS_MAX2 = 5;
+var REACH_OUT_NAME_MAX2 = 80;
+var SIGNED_BY_MAX2 = 60;
+var REACH_OUT_AFTER_DAYS2 = { min: 2, max: 30, first: 4 };
+var ReachOutStepSchema2 = z112.object({
+  /** An existing step's id, when the sheet edits a chain; none for a new one. */
+  id: z112.string().uuid().nullable().optional(),
+  subject: z112.string().max(REACH_OUT_SUBJECT_MAX2 * 2).nullable(),
+  body: z112.string().max(REACH_OUT_BODY_MAX2 * 2),
+  after_days: z112.number().int().min(REACH_OUT_AFTER_DAYS2.min).max(REACH_OUT_AFTER_DAYS2.max).nullable()
+});
+var ReachOutChainSchema2 = z112.object({
+  name: z112.string().trim().min(1).max(REACH_OUT_NAME_MAX2),
+  search_id: z112.string().uuid(),
+  include_unconfirmed: z112.boolean(),
+  gap_minutes: z112.number().int().min(5).max(120),
+  /** Empty: every verified domain of the workspace (00183). */
+  domain_ids: z112.array(z112.string().uuid()).max(5),
+  signed_by: z112.string().trim().max(SIGNED_BY_MAX2).nullable(),
+  steps: z112.array(ReachOutStepSchema2).min(1).max(REACH_OUT_STEPS_MAX2)
+});
+var OPENING_FACT_KEYS2 = [
+  "category",
+  "city",
+  "rating",
+  "reviews",
+  "website",
+  "hours",
+  "about",
+  "why_it_fits"
+];
+var OPENING_SCHEMA2 = {
+  type: "object",
+  properties: {
+    opening: { type: "string" },
+    angle: { type: "string" },
+    facts_used: { type: "array", items: { type: "string", enum: [...OPENING_FACT_KEYS2] } }
+  },
+  required: ["opening", "angle", "facts_used"],
+  additionalProperties: false
+};
 var MEDIA_MAX_BYTES = 25 * 1024 * 1024;
 var CALL_ANALYSIS_FIELDS = [
   {
@@ -10025,7 +10123,7 @@ var dec = new TextDecoder();
 var PAYLOAD_BYTES = 1 + 16 * 3;
 
 // ../core/dist/index.js
-import { z as z12 } from "zod";
+import { z as z13 } from "zod";
 import { z as z23 } from "zod";
 import { z as z33 } from "zod";
 import { z as z43 } from "zod";
@@ -10035,7 +10133,8 @@ import { z as z63 } from "zod";
 import { z as z83 } from "zod";
 import { z as z93 } from "zod";
 import { z as z103 } from "zod";
-import { z as z112 } from "zod";
+import { z as z113 } from "zod";
+import { z as z122 } from "zod";
 import { z as z222 } from "zod";
 import { z as z322 } from "zod";
 import { z as z422 } from "zod";
@@ -10045,7 +10144,8 @@ import { z as z622 } from "zod";
 import { z as z822 } from "zod";
 import { z as z922 } from "zod";
 import { z as z1022 } from "zod";
-import { z as z122 } from "zod";
+import { z as z1122 } from "zod";
+import { z as z132 } from "zod";
 import { z as z232 } from "zod";
 import { z as z332 } from "zod";
 import { z as z432 } from "zod";
@@ -10055,6 +10155,7 @@ import { z as z632 } from "zod";
 import { z as z832 } from "zod";
 import { z as z932 } from "zod";
 import { z as z1032 } from "zod";
+import { z as z1132 } from "zod";
 var __create2 = Object.create;
 var __defProp2 = Object.defineProperty;
 var __getOwnPropDesc2 = Object.getOwnPropertyDescriptor;
@@ -10974,7 +11075,7 @@ var DEFAULT_OPTIONS2 = {
   whitespaceCharacters: " 	\r\n\f\u200B",
   wordwrap: 80
 };
-z12.config({ jitless: true });
+z13.config({ jitless: true });
 var LABEL3 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL3 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE3 = new RegExp(`^(${LOCAL3})@(${LABEL3}(?:\\.${LABEL3})+)$`);
@@ -12941,6 +13042,7 @@ var FIRST_RUN_PHONE_WORDS3 = {
   withMeSent: "We'll email you to find a time for a call.",
   notForwarded: "Forwarding not saved"
 };
+var PUSH_RECEIPTS_AFTER_MS3 = 15 * 6e4;
 var DAY_MS63 = 24 * 3600 * 1e3;
 var DAY_MS73 = 864e5;
 var QUIET_AFTER_MS3 = 7 * DAY_MS73;
@@ -13355,6 +13457,49 @@ var K3 = new Uint32Array([
 var NAME_MAX3 = BrainConfigSchema3.shape.business_name.maxLength ?? Infinity;
 var NINE_TO_FIVE3 = [{ from: 9 * 60, to: 17 * 60 }];
 var SEND_DAY_FRAME3 = { from: 8 * 60, to: 20 * 60 };
+var REACH_OUT_SUBJECT_MAX3 = 80;
+var REACH_OUT_BODY_MAX3 = 1200;
+var REACH_OUT_STEPS_MAX3 = 5;
+var REACH_OUT_NAME_MAX3 = 80;
+var SIGNED_BY_MAX3 = 60;
+var REACH_OUT_AFTER_DAYS3 = { min: 2, max: 30, first: 4 };
+var ReachOutStepSchema3 = z113.object({
+  /** An existing step's id, when the sheet edits a chain; none for a new one. */
+  id: z113.string().uuid().nullable().optional(),
+  subject: z113.string().max(REACH_OUT_SUBJECT_MAX3 * 2).nullable(),
+  body: z113.string().max(REACH_OUT_BODY_MAX3 * 2),
+  after_days: z113.number().int().min(REACH_OUT_AFTER_DAYS3.min).max(REACH_OUT_AFTER_DAYS3.max).nullable()
+});
+var ReachOutChainSchema3 = z113.object({
+  name: z113.string().trim().min(1).max(REACH_OUT_NAME_MAX3),
+  search_id: z113.string().uuid(),
+  include_unconfirmed: z113.boolean(),
+  gap_minutes: z113.number().int().min(5).max(120),
+  /** Empty: every verified domain of the workspace (00183). */
+  domain_ids: z113.array(z113.string().uuid()).max(5),
+  signed_by: z113.string().trim().max(SIGNED_BY_MAX3).nullable(),
+  steps: z113.array(ReachOutStepSchema3).min(1).max(REACH_OUT_STEPS_MAX3)
+});
+var OPENING_FACT_KEYS3 = [
+  "category",
+  "city",
+  "rating",
+  "reviews",
+  "website",
+  "hours",
+  "about",
+  "why_it_fits"
+];
+var OPENING_SCHEMA3 = {
+  type: "object",
+  properties: {
+    opening: { type: "string" },
+    angle: { type: "string" },
+    facts_used: { type: "array", items: { type: "string", enum: [...OPENING_FACT_KEYS3] } }
+  },
+  required: ["opening", "angle", "facts_used"],
+  additionalProperties: false
+};
 var MEDIA_MAX_BYTES2 = 25 * 1024 * 1024;
 var CALL_ANALYSIS_FIELDS2 = [
   {
@@ -13444,7 +13589,7 @@ var STATE_TTL_MS2 = 10 * 6e4;
 var enc22 = new TextEncoder();
 var dec2 = new TextDecoder();
 var PAYLOAD_BYTES2 = 1 + 16 * 3;
-z112.config({ jitless: true });
+z122.config({ jitless: true });
 var MAX_ADDRESS = 254;
 var MAX_LOCAL = 64;
 var LABEL22 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
@@ -15481,6 +15626,7 @@ var FIRST_RUN_PHONE_WORDS22 = {
   withMeSent: "We'll email you to find a time for a call.",
   notForwarded: "Forwarding not saved"
 };
+var PUSH_RECEIPTS_AFTER_MS22 = 15 * 6e4;
 var DAY_MS622 = 24 * 3600 * 1e3;
 var DAY_MS722 = 864e5;
 var QUIET_AFTER_MS22 = 7 * DAY_MS722;
@@ -15910,6 +16056,39 @@ function isCampaignEmail2(request) {
 }
 var NINE_TO_FIVE22 = [{ from: 9 * 60, to: 17 * 60 }];
 var SEND_DAY_FRAME22 = { from: 8 * 60, to: 20 * 60 };
+var REACH_OUT_SUBJECT_MAX22 = 80;
+var REACH_OUT_BODY_MAX22 = 1200;
+var REACH_OUT_STEPS_MAX22 = 5;
+var REACH_OUT_NAME_MAX22 = 80;
+var SIGNED_BY_MAX22 = 60;
+var REACH_OUT_AFTER_DAYS22 = { min: 2, max: 30, first: 4 };
+var ReachOutStepSchema22 = z1122.object({
+  /** An existing step's id, when the sheet edits a chain; none for a new one. */
+  id: z1122.string().uuid().nullable().optional(),
+  subject: z1122.string().max(REACH_OUT_SUBJECT_MAX22 * 2).nullable(),
+  body: z1122.string().max(REACH_OUT_BODY_MAX22 * 2),
+  after_days: z1122.number().int().min(REACH_OUT_AFTER_DAYS22.min).max(REACH_OUT_AFTER_DAYS22.max).nullable()
+});
+var ReachOutChainSchema22 = z1122.object({
+  name: z1122.string().trim().min(1).max(REACH_OUT_NAME_MAX22),
+  search_id: z1122.string().uuid(),
+  include_unconfirmed: z1122.boolean(),
+  gap_minutes: z1122.number().int().min(5).max(120),
+  /** Empty: every verified domain of the workspace (00183). */
+  domain_ids: z1122.array(z1122.string().uuid()).max(5),
+  signed_by: z1122.string().trim().max(SIGNED_BY_MAX22).nullable(),
+  steps: z1122.array(ReachOutStepSchema22).min(1).max(REACH_OUT_STEPS_MAX22)
+});
+var OPENING_FACT_KEYS22 = [
+  "category",
+  "city",
+  "rating",
+  "reviews",
+  "website",
+  "hours",
+  "about",
+  "why_it_fits"
+];
 function outreachRefusalOf(f) {
   if (!f.leadStage) return "outreach_not_a_lead";
   if (f.leadStage !== "ready" && f.leadStage !== "nurture") return "outreach_lead_closed";
@@ -15920,7 +16099,17 @@ function outreachRefusalOf(f) {
 function isReachOutRun(audience) {
   return !!audience && typeof audience === "object" && audience.kind === "reach_out";
 }
-z122.config({ jitless: true });
+var OPENING_SCHEMA22 = {
+  type: "object",
+  properties: {
+    opening: { type: "string" },
+    angle: { type: "string" },
+    facts_used: { type: "array", items: { type: "string", enum: [...OPENING_FACT_KEYS22] } }
+  },
+  required: ["opening", "angle", "facts_used"],
+  additionalProperties: false
+};
+z132.config({ jitless: true });
 var LABEL32 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL32 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE32 = new RegExp(`^(${LOCAL32})@(${LABEL32}(?:\\.${LABEL32})+)$`);
@@ -17879,6 +18068,7 @@ var FIRST_RUN_PHONE_WORDS32 = {
   withMeSent: "We'll email you to find a time for a call.",
   notForwarded: "Forwarding not saved"
 };
+var PUSH_RECEIPTS_AFTER_MS32 = 15 * 6e4;
 var DAY_MS632 = 24 * 3600 * 1e3;
 var DAY_MS732 = 864e5;
 var QUIET_AFTER_MS32 = 7 * DAY_MS732;
@@ -18293,6 +18483,49 @@ var K32 = new Uint32Array([
 var NAME_MAX32 = BrainConfigSchema32.shape.business_name.maxLength ?? Infinity;
 var NINE_TO_FIVE32 = [{ from: 9 * 60, to: 17 * 60 }];
 var SEND_DAY_FRAME32 = { from: 8 * 60, to: 20 * 60 };
+var REACH_OUT_SUBJECT_MAX32 = 80;
+var REACH_OUT_BODY_MAX32 = 1200;
+var REACH_OUT_STEPS_MAX32 = 5;
+var REACH_OUT_NAME_MAX32 = 80;
+var SIGNED_BY_MAX32 = 60;
+var REACH_OUT_AFTER_DAYS32 = { min: 2, max: 30, first: 4 };
+var ReachOutStepSchema32 = z1132.object({
+  /** An existing step's id, when the sheet edits a chain; none for a new one. */
+  id: z1132.string().uuid().nullable().optional(),
+  subject: z1132.string().max(REACH_OUT_SUBJECT_MAX32 * 2).nullable(),
+  body: z1132.string().max(REACH_OUT_BODY_MAX32 * 2),
+  after_days: z1132.number().int().min(REACH_OUT_AFTER_DAYS32.min).max(REACH_OUT_AFTER_DAYS32.max).nullable()
+});
+var ReachOutChainSchema32 = z1132.object({
+  name: z1132.string().trim().min(1).max(REACH_OUT_NAME_MAX32),
+  search_id: z1132.string().uuid(),
+  include_unconfirmed: z1132.boolean(),
+  gap_minutes: z1132.number().int().min(5).max(120),
+  /** Empty: every verified domain of the workspace (00183). */
+  domain_ids: z1132.array(z1132.string().uuid()).max(5),
+  signed_by: z1132.string().trim().max(SIGNED_BY_MAX32).nullable(),
+  steps: z1132.array(ReachOutStepSchema32).min(1).max(REACH_OUT_STEPS_MAX32)
+});
+var OPENING_FACT_KEYS32 = [
+  "category",
+  "city",
+  "rating",
+  "reviews",
+  "website",
+  "hours",
+  "about",
+  "why_it_fits"
+];
+var OPENING_SCHEMA32 = {
+  type: "object",
+  properties: {
+    opening: { type: "string" },
+    angle: { type: "string" },
+    facts_used: { type: "array", items: { type: "string", enum: [...OPENING_FACT_KEYS32] } }
+  },
+  required: ["opening", "angle", "facts_used"],
+  additionalProperties: false
+};
 async function recordOutbound(db, p) {
   if (p.channel === "email")
     throw new Error("record_outbound: an email's row is written before it is sent, never after");
@@ -18978,7 +19211,7 @@ var STALE_MS = 10 * 60 * 1e3;
 var STALE_REPLY_MS = 2 * 60 * 60 * 1e3;
 
 // ../db/dist/index.js
-import { z as z13 } from "zod";
+import { z as z14 } from "zod";
 import { z as z24 } from "zod";
 import { z as z34 } from "zod";
 import { z as z44 } from "zod";
@@ -18988,7 +19221,8 @@ import { z as z64 } from "zod";
 import { z as z84 } from "zod";
 import { z as z94 } from "zod";
 import { z as z104 } from "zod";
-z13.config({ jitless: true });
+import { z as z114 } from "zod";
+z14.config({ jitless: true });
 function normalizePhone(raw) {
   if (raw == null) return null;
   const digits2 = String(raw).replace(/[^\d]/g, "");
@@ -20955,6 +21189,7 @@ var FIRST_RUN_PHONE_WORDS4 = {
   withMeSent: "We'll email you to find a time for a call.",
   notForwarded: "Forwarding not saved"
 };
+var PUSH_RECEIPTS_AFTER_MS4 = 15 * 6e4;
 var DAY_MS64 = 24 * 3600 * 1e3;
 var DAY_MS74 = 864e5;
 var QUIET_AFTER_MS4 = 7 * DAY_MS74;
@@ -21369,6 +21604,49 @@ var K4 = new Uint32Array([
 var NAME_MAX4 = BrainConfigSchema4.shape.business_name.maxLength ?? Infinity;
 var NINE_TO_FIVE4 = [{ from: 9 * 60, to: 17 * 60 }];
 var SEND_DAY_FRAME4 = { from: 8 * 60, to: 20 * 60 };
+var REACH_OUT_SUBJECT_MAX4 = 80;
+var REACH_OUT_BODY_MAX4 = 1200;
+var REACH_OUT_STEPS_MAX4 = 5;
+var REACH_OUT_NAME_MAX4 = 80;
+var SIGNED_BY_MAX4 = 60;
+var REACH_OUT_AFTER_DAYS4 = { min: 2, max: 30, first: 4 };
+var ReachOutStepSchema4 = z114.object({
+  /** An existing step's id, when the sheet edits a chain; none for a new one. */
+  id: z114.string().uuid().nullable().optional(),
+  subject: z114.string().max(REACH_OUT_SUBJECT_MAX4 * 2).nullable(),
+  body: z114.string().max(REACH_OUT_BODY_MAX4 * 2),
+  after_days: z114.number().int().min(REACH_OUT_AFTER_DAYS4.min).max(REACH_OUT_AFTER_DAYS4.max).nullable()
+});
+var ReachOutChainSchema4 = z114.object({
+  name: z114.string().trim().min(1).max(REACH_OUT_NAME_MAX4),
+  search_id: z114.string().uuid(),
+  include_unconfirmed: z114.boolean(),
+  gap_minutes: z114.number().int().min(5).max(120),
+  /** Empty: every verified domain of the workspace (00183). */
+  domain_ids: z114.array(z114.string().uuid()).max(5),
+  signed_by: z114.string().trim().max(SIGNED_BY_MAX4).nullable(),
+  steps: z114.array(ReachOutStepSchema4).min(1).max(REACH_OUT_STEPS_MAX4)
+});
+var OPENING_FACT_KEYS4 = [
+  "category",
+  "city",
+  "rating",
+  "reviews",
+  "website",
+  "hours",
+  "about",
+  "why_it_fits"
+];
+var OPENING_SCHEMA4 = {
+  type: "object",
+  properties: {
+    opening: { type: "string" },
+    angle: { type: "string" },
+    facts_used: { type: "array", items: { type: "string", enum: [...OPENING_FACT_KEYS4] } }
+  },
+  required: ["opening", "angle", "facts_used"],
+  additionalProperties: false
+};
 async function ingestInbound(db, p) {
   const { data, error } = await db.rpc("ingest_inbound", {
     p_tenant_id: p.tenantId,
@@ -21810,18 +22088,75 @@ async function pushSend(ctx, job) {
   if (!readers.length) return;
   const devices = must(
     "push_send: cannot read the phones",
-    await ctx.db.from("push_devices").select("token").in("user_id", readers)
+    await ctx.db.from("push_devices").select("token, user_id").in("user_id", readers)
   ) ?? [];
   if (!devices.length) return;
+  const badges = await badgesFor(ctx, job.tenant_id, [...new Set(devices.map((d) => d.user_id))]);
   const receipts = await ctx.push.send(
     pushFor(
       n2,
-      devices.map((d) => d.token)
+      devices.map((d) => ({ token: d.token, badge: badges.get(d.user_id) ?? 0 }))
     )
   );
   const gone = receipts.filter((r6) => r6.status === "error" && r6.error === "DeviceNotRegistered").map((r6) => r6.to);
   if (gone.length) {
     must("push_send: cannot forget a phone that is gone", await ctx.db.from("push_devices").delete().in("token", gone));
+  }
+  const tickets = receipts.flatMap((r6) => r6.status === "ok" && r6.id ? [{ id: r6.id, to: r6.to }] : []);
+  if (tickets.length) {
+    try {
+      await ctx.schedule("push_receipts", new Date(Date.now() + PUSH_RECEIPTS_AFTER_MS), {
+        tickets: tickets.map((t2) => ({ id: t2.id, to: t2.to }))
+      });
+    } catch {
+    }
+  }
+}
+async function badgesFor(ctx, tenantId, readers) {
+  const since = new Date(Date.now() - BELL_WINDOW_DAYS * 864e5).toISOString();
+  const rows = must(
+    "push_send: cannot read the bell",
+    await ctx.db.from("notifications").select("id, created_at").eq("tenant_id", tenantId).gte("created_at", since)
+  ) ?? [];
+  const seen = must(
+    "push_send: cannot read when the bell was opened",
+    await ctx.db.from("notification_reads").select("user_id, seen_at").eq("tenant_id", tenantId).in("user_id", readers)
+  ) ?? [];
+  const marks = rows.length ? must(
+    "push_send: cannot read the bell's marks",
+    await ctx.db.from("notification_marks").select("notification_id, user_id, read_at, dismissed_at").in("user_id", readers).in(
+      "notification_id",
+      rows.map((r6) => r6.id)
+    )
+  ) ?? [] : [];
+  const out = /* @__PURE__ */ new Map();
+  for (const u of readers) {
+    const mine = seen.find((s2) => s2.user_id === u);
+    out.set(
+      u,
+      unreadFor(
+        rows,
+        mine?.seen_at ?? null,
+        marks.filter((m) => m.user_id === u)
+      )
+    );
+  }
+  return out;
+}
+async function pushReceipts(ctx, job) {
+  if (!ctx.push) throw new Error("push_receipts: this runtime holds no push transport");
+  const raw = job.payload.tickets;
+  const tickets = Array.isArray(raw) ? raw.flatMap(
+    (t2) => t2 && typeof t2 === "object" && typeof t2.id === "string" && typeof t2.to === "string" ? [{ id: t2.id, to: t2.to }] : []
+  ) : [];
+  if (!tickets.length) return;
+  const receipts = await ctx.push.receipts(tickets.map((t2) => t2.id));
+  const gone = tickets.filter((t2) => receipts[t2.id]?.error === "DeviceNotRegistered").map((t2) => t2.to);
+  if (gone.length) {
+    must(
+      "push_receipts: cannot forget a phone that is gone",
+      await ctx.db.from("push_devices").delete().in("token", [...new Set(gone)])
+    );
   }
 }
 var HANDLERS = {
@@ -21832,7 +22167,8 @@ var HANDLERS = {
   lead_round_start: leadRoundStart,
   lead_collect: leadCollect,
   lead_check: leadCheck,
-  push_send: pushSend
+  push_send: pushSend,
+  push_receipts: pushReceipts
 };
 async function dispatchJob(ctx, job) {
   const handler = HANDLERS[job.kind];
@@ -21871,7 +22207,10 @@ var RETRY_WAITS_MS = {
   // its short outage, each wait outlasting the lease like the three above. The
   // row is read again on each try, and a phone the service answered for is
   // answered for once.
-  push_send: [2 * 6e4, 10 * 6e4]
+  push_send: [2 * 6e4, 10 * 6e4],
+  // The receipts of a send (00189): Expo keeps them a day, so a bad minute and
+  // then a short outage are affordable waits, each outlasting the lease.
+  push_receipts: [5 * 6e4, 30 * 6e4]
 };
 function retryWait(job) {
   if (SPEAKS_TO_A_PERSON.has(job.kind) || job.attempts >= MAX_ATTEMPTS) return null;

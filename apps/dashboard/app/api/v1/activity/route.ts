@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { read, workspace } from "@/server/route";
-import { activityLog } from "@/server/activity";
+import { load, readerContext } from "@/server/readers";
+import { activity } from "@/server/readers/activity";
 
 const Query = z.object({
   person: z.string().uuid().optional(),
@@ -35,12 +36,13 @@ const Query = z.object({
  * a hundred at a time with ?cursor= (the page before hands one back). Owners:
  * it is the whole record of the workspace, including what every member did.
  * The evidence families are left out unless asked for by name
- * (server/activity.ts).
+ * (server/activity.ts). The body is its reader's (readers/activity.ts), which
+ * trusts this door: the owner's role and the query's checks stay here.
  */
 export const GET = read({
   scope: workspace,
   role: "owner",
   rate: "aggregate",
   query: Query,
-  handle: async ({ ctx, member, input }) => activityLog(ctx, member.tenantId, input ?? {}),
+  handle: async ({ ctx, member, input }) => (await load(readerContext(ctx, member), activity, input ?? {})).data,
 });

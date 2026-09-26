@@ -56,7 +56,7 @@ export const SCHEMA_SETS = {
   "invitations.role": ["operator", "viewer"],
   "jobs.kind": [
     "outbound_send", "broadcast_send", "line_provision", "email_ingest", "lead_round_start",
-    "lead_collect", "lead_check", "push_send",
+    "lead_collect", "lead_check", "push_send", "push_receipts",
   ],
   "jobs.state": ["scheduled", "fired", "done", "canceled", "failed"],
   "lead_counters.kind": ["allowance", "budget", "day"],

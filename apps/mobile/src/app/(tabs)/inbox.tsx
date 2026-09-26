@@ -4,5 +4,5 @@ import { front } from "@/shell/front";
 
 export default function InboxTab() {
   const onReady = useCallback((h: SurfaceHandle) => front.set("inbox", h), []);
-  return <Surface route="inbox" onReady={onReady} />;
+  return <Surface route="inbox" tab="inbox" onReady={onReady} />;
 }

@@ -27,6 +27,19 @@ EAS environment or a local `.env.local` may point it elsewhere, at a preview for
 - `src/app/(tabs)`: the five tabs; `src/app/_layout.tsx` the theme, the sign-in gate, the foreground looks.
 - `test/`: the pure modules, run by the repository's `corepack pnpm test`.
 
+## Being told
+
+The phone asks for its token on a device (never a simulator), hands it to the page in front, which registers it through
+the account route, and opens a tapped notification's route in the tab that owns it (`src/shell/notifications*.ts`). The
+icon's number is the bell's. Push credentials and the signing token are the runbook's "Turn on push".
+
+## Signing in, and the lock
+
+Apple's sheet and Google's yield a token that a Surface POSTs to the site's native door, so the cookie is the WebView's
+(`src/shell/native-auth.ts`, `sign-in.ts`). The lock (`lock.ts`, `Lock.tsx`) stands at launch and after two minutes
+away, on by default where the phone can lock. Google's ids come from the EAS environment; see the runbook's "Turn on
+native sign-in".
+
 ## What waits on what
 
 PR 1 (this) needs only an Expo project and `EXPO_TOKEN`. Push (PR 2) needs the Apple Developer Program's APNs key

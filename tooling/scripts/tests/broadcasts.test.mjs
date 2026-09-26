@@ -518,8 +518,8 @@ test("the detail: every person on a broadcast, with what happened to them; the s
   const s = readCode("apps/dashboard/src/server/broadcasts.ts");
   assert.ok(s.includes("contacts(display_name, wa_profile_name, phone_e164, email)"), "names come with the rows");
   assert.ok(s.includes("replied: !!(r.messages?.conversation_id && replied.has(r.messages.conversation_id)),"));
-  // The number's refusals are run: core-campaigns.test.mjs.
-  assert.ok(readCode("apps/dashboard/app/api/v1/channels/route.ts").includes('quality: s("quality_rating"),'));
+  // The number's refusals are run: core-campaigns.test.mjs. Its quality, read from the row's config, is run through the
+  // channels route in reads-routes.test.mjs ("the channels read") and through its reader in readers.test.mjs.
   const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
   assert.match(
     sd,

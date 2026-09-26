@@ -31,6 +31,10 @@ stop being web pages one at a time. Nothing a customer of a business sees change
 - `notify` schedules one `push_send` per kept row of a `PUSH_KINDS` kind; the edge sends through Expo's push service;
   a device the _ticket_ reports gone is forgotten.
 
+PR 1 (#1122, merged 26 Sep) put the shell in the tree: `apps/mobile` on SDK 57, five native tabs over the live site,
+the bridge in contracts, the first cloud builds. PR 2 (#1128, merged 26 Sep) is push: the receipts job (00189), the badge, the page registering the phone, taps into
+their tab. PR 3 (this branch) is native sign-in and the lock.
+
 Two facts about the web that shape the app: every page is a hash route under the workspace,
 `/w/<slug>#/today|inbox|calendar|clients|...`, and the page already raises the events a shell needs
 (`inbox:counts`, `me:changed`, `workspace:changed`). The phone tab bar has four tabs and a Menu button that opens the

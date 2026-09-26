@@ -4,5 +4,5 @@ import { front } from "@/shell/front";
 
 export default function TodayTab() {
   const onReady = useCallback((h: SurfaceHandle) => front.set("today", h), []);
-  return <Surface route="today" onReady={onReady} />;
+  return <Surface route="today" tab="today" onReady={onReady} />;
 }
