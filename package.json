@@ -4,7 +4,7 @@
   "packageManager": "pnpm@10.34.5",
   "scripts": {
     "typecheck": "pnpm -r --if-present typecheck",
-    "test": "node --conditions=react-server --import tsx --test tooling/scripts/tests/*.test.mjs",
+    "test": "node --conditions=react-server --import tsx --test tooling/scripts/tests/*.test.mjs apps/mobile/test/*.test.mjs",
     "test:db": "node --conditions=react-server --import tsx --test tooling/scripts/tests/*.db.test.mjs tooling/scripts/tests/*.integration.test.mjs",
     "gen:schema-sets": "node tooling/scripts/gen-schema-sets.mjs",
     "gen:db-types": "node tooling/scripts/check-db-types.mjs",

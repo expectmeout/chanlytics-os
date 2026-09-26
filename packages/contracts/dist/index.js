@@ -23490,6 +23490,44 @@ function reachOutSlots(words4, lead, workspace) {
   });
   return missing ? { ok: false, reason: "missing_value" } : { ok: true, text };
 }
+
+// src/app-bridge.ts
+var APP_ROUTE_RE = /^[a-z][a-z0-9-]*(?:\/[A-Za-z0-9:_-]+)*$/;
+var isRecord = (v) => typeof v === "object" && v !== null;
+function parsePageMessage(raw) {
+  let v;
+  try {
+    v = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (!isRecord(v)) return null;
+  switch (v.t) {
+    case "route":
+      return typeof v.route === "string" && APP_ROUTE_RE.test(v.route) ? { t: "route", route: v.route } : null;
+    case "needs":
+      return typeof v.inbox === "number" && Number.isInteger(v.inbox) && v.inbox >= 0 ? { t: "needs", inbox: v.inbox } : null;
+    case "session":
+      return v.state === "in" || v.state === "out" ? { t: "session", state: v.state } : null;
+    case "workspace":
+      return typeof v.slug === "string" && v.slug.trim() ? { t: "workspace", slug: v.slug.trim() } : null;
+    default:
+      return null;
+  }
+}
+function parseShellMessage(v) {
+  if (!isRecord(v)) return null;
+  switch (v.t) {
+    case "navigate":
+      return typeof v.route === "string" && APP_ROUTE_RE.test(v.route) ? { t: "navigate", route: v.route } : null;
+    case "menu":
+      return { t: "menu" };
+    case "top":
+      return { t: "top" };
+    default:
+      return null;
+  }
+}
 export {
   ABANDONED_MS,
   ABILITY_CHANNEL_WORDS,
@@ -23500,6 +23538,7 @@ export {
   ACTOR_TYPES,
   ALERT_KINDS,
   ANALYSIS_GRACE_MS,
+  APP_ROUTE_RE,
   ASK_ANSWER_CAPS,
   ASK_ANSWER_FORMAT,
   ASK_CAPS,
@@ -24563,9 +24602,11 @@ export {
   parseJudgeAnswer,
   parseLeadsRoute,
   parseListToken,
+  parsePageMessage,
   parseParamSpec,
   parseParamSpecs,
   parsePipelineRoute,
+  parseShellMessage,
   parseTenantConfig,
   parseTenantConfigResult,
   partialSay,

@@ -120,6 +120,8 @@ const EDGE_MAY_NOT_IMPORT = [
 export default [
   {
     ignores: [
+      // The phone app lints itself with Expo's config (apps/mobile/eslint.config.js): React Native, not the web.
+      "apps/mobile/**",
       "**/.next/**",
       "**/node_modules/**",
       "**/dist/**",
