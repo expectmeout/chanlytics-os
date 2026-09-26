@@ -37,42 +37,14 @@
   overflow-y: auto;
 }
 
-/* People | Leads: the one switch between the page's scopes, at the head of
-   the rail (clients-a.jsx PeopleScopeTabs). A segmented control, because which
-   scope you are on has to be visible at a glance; the phone draws the same
-   control in the slim bar (leads.css). Until this rule existed the two buttons
-   were bare text at the same colour and ran together as one word. Two tabs or
-   three, each an equal part: the Pipeline is the third where deals are on. */
-.pt-scope {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: 1fr;
-  gap: 2px;
-  margin: 12px 12px 2px;
-  padding: 2px;
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  flex: none;
-}
-.pt-scope button {
-  height: 30px;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--ink-muted);
-  font: inherit;
-  font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
-  cursor: pointer;
-}
-.pt-scope button:hover { color: var(--ink); }
-.pt-scope button.on {
-  background: var(--bg-raised);
-  color: var(--ink);
-  box-shadow: var(--shadow-sm);
-}
-.pt-scope button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* People | Leads (| Pipeline): the one switch between the page's scopes (clients-a.jsx PeopleScopeTabs), drawn as
+   the shell's own tab strip (components.css .stabs: the Inbox's and Campaigns' views, the picked one underlined in
+   the accent). On a desk it is the page's first child, a row of its own across the rail and the rows, so it stands
+   where every other page's views stand; on a phone it is the bar's first row (.pp-top), where the grid is one column
+   and the rail is not drawn. It was a boxed segmented control at the head of the rail, with its own colours and its
+   own size: one control, two looks (Ruben, 25 Sep). */
+.clients > .stabs-people { grid-column: 1 / -1; }
+.clients:has(> .stabs-people) { grid-template-rows: auto minmax(0, 1fr); }
 
 .cl-rail-section {
   padding: 14px 12px 8px;

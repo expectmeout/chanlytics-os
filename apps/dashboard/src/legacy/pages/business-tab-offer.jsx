@@ -18,7 +18,7 @@
 // draws.
 //
 // The services sheet is a file of its own (business-tab-services.jsx), which the PAGE draws after every card: the
-// card's services row asks the registry for the sheet by its id, as the standing line's door does, and the sheet is
+// card's services row asks the registry for the sheet by its id, as the gap line's door does, and the sheet is
 // open while the registry says so.
 //
 // Loaded after business-tab-open.jsx and before business-tab-services.jsx (both load lists), and read by the page as
@@ -109,7 +109,7 @@ const BtwSellsBy = ({ vm, answer, canEdit, gate, flash }) => {
  * The row at rest (the canvas's Record board): how many are on record and the first three by name, contracts'
  * (servicesWords). It said how they were priced too, on a line of its own under the names, which was "None names a
  * price." on nearly every record (24 Sep): the sheet is where a price is written. Its act opens the sheet, by asking
- * the registry for its id: the one door, as the standing line's is, so a fold open elsewhere with changes is asked
+ * the registry for its id: the one door, as the gap line's is, so a fold open elsewhere with changes is asked
  * about first. A role that may not change the business is offered no act, and nor is anyone while the sheet could not
  * open (BtSheet.opens: nothing read to save onto, or a list whose draft cannot be worked out), as a fold offers none then.
  */

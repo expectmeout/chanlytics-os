@@ -2071,6 +2071,162 @@ test("the day is read once a turn, each tool as its page reads it: get_today, li
   );
 });
 
+test("get_thread and get_call read through the readers (ledger #5): the thread as its page reads it, its messages with their wire and their attachment, so a text thread's window is the text's rule and it says Text, and an email thread says Email; the open escalation is the one the Inbox shows, the oldest; the row once and the messages once in the turn; the call under the workspace's own filter; another workspace's thread or call is an error, never a row", async () => {
+  const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  const C3 = "cccccccc-cccc-4ccc-8ccc-ccccccccccc3";
+  const C4 = "cccccccc-cccc-4ccc-8ccc-ccccccccccc4";
+  const C5 = "cccccccc-cccc-4ccc-8ccc-ccccccccccc5";
+  const K3 = "cccccccc-cccc-4ccc-8ccc-ccccccccccc7";
+  const M3 = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee3";
+  const M4 = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee4";
+  const M6 = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee6";
+  const M9 = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee9";
+  const NEWER = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee7";
+  const OLDER = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee8";
+  const H = 3600_000;
+  const earlier = (ms) => iso(NOW.getTime() - ms);
+  // A text thread whose WhatsApp window, read from last_wa_inbound_at, closed a day ago: a text has no window.
+  const texting = conversation(C2, { last_wa_inbound_at: earlier(48 * H), last_message_at: earlier(46 * H) });
+  const texted = [
+    message(M2, C2, {
+      sender: "customer",
+      channel: "sms",
+      body: "Can I come at five?",
+      created_at: earlier(47 * H),
+      channel_ts: earlier(47 * H),
+    }),
+    message(M3, C2, {
+      sender: "customer",
+      channel: "sms",
+      type: "media",
+      body: null,
+      media: {
+        mime_type: "image/jpeg",
+        fetch_state: "stored",
+        caption: "this one",
+        filename: null,
+        storage_path: "t/c/m.jpg",
+      },
+      created_at: earlier(46 * H),
+      channel_ts: earlier(46 * H),
+    }),
+  ];
+  const escalation = (id, reason, ago) => ({
+    id,
+    tenant_id: A,
+    conversation_id: C2,
+    reason,
+    details: null,
+    state: "open",
+    created_at: earlier(ago),
+  });
+  const t = tables({
+    conversations: [
+      conversation(C1),
+      texting,
+      conversation(C3, { last_wa_inbound_at: null }),
+      conversation(C4, { tenant_id: B }),
+      conversation(C5, {
+        last_wa_inbound_at: null,
+        contacts: { ...contact, display_name: null, phone_e164: null, email: "rosa@example.com" },
+      }),
+    ],
+    messages: [
+      message(M1, C1),
+      ...texted,
+      message(M4, C3, { sender: "customer", channel: "email", body: "Hello" }),
+      message(M6, C4, { tenant_id: B }),
+      message(M9, C5, { sender: "customer", channel: "email", body: "Is Saturday free?" }),
+    ],
+    escalations: [escalation(NEWER, "manual", H), escalation(OLDER, "human_token", 40 * H)],
+    calls: [call(K1), call(K3, { tenant_id: B, retell_call_id: "r3" })],
+  });
+
+  const ctx = ctxFor(t);
+  const s = scripted([
+    ROUND([tool("get_thread", { conversation_id: C2 }, "t-text"), tool("get_call", { call_id: K1 }, "t-call")]),
+    ROUND([answer("Rosa texted a photo, and the text can be answered now.")]),
+  ]);
+  const { input } = turn(ctx);
+  const r = await runAskTurn(input, ports(s.round));
+  assert.equal(r.failed, false, r.failure ?? "");
+  const selects = (table) => ctx.supabase.seen.filter((q) => q.table === table && q.op === "select");
+  assert.deepEqual(
+    ["conversations", "messages", "escalations", "calls"].map((x) => selects(x).length),
+    [1, 1, 1, 1],
+    "the thread's row once, through the loader the page's scope uses; its messages once; the open escalations once; the call once",
+  );
+  assert.deepEqual(
+    selects("calls")[0].filters,
+    [
+      ["eq", "tenant_id", A],
+      ["eq", "id", K1],
+    ],
+    "the call under the workspace's own filter",
+  );
+  const out = Object.fromEntries(
+    s.requests[1].messages.at(-1).content.map((c) => [c.tool_use_id, JSON.parse(c.content)]),
+  );
+  const text = out["t-text"];
+  assert.deepEqual(
+    [text.channel, text.window_open],
+    ["Text", true],
+    "the messages carry their wire: a text has no window, where WhatsApp's rule read this thread closed and named it WhatsApp",
+  );
+  assert.deepEqual(
+    text.messages.map((m) => [m.from, m.text]),
+    [
+      ["customer", "Can I come at five?"],
+      ["customer", "Photo: this one"],
+    ],
+    "and their attachment: a photo with its caption, where it read as an unnamed attachment",
+  );
+  assert.deepEqual(
+    text.escalation,
+    { id: OLDER, reason: "Customer asked for a person", details: null },
+    "the open escalation the Inbox shows on the thread, the oldest, where it read the newest",
+  );
+  assert.deepEqual([out["t-call"].call_id, out["t-call"].who], [K1, "Rosa"]);
+
+  const tc = newToolContext(ctxFor(t), A, "operator", TZ, NOW);
+  const email = JSON.parse((await runTool(tc, { name: "get_thread", input: { conversation_id: C3 } })).result);
+  assert.deepEqual(
+    [email.channel, email.window_open],
+    ["Email", true],
+    "an email thread says Email, and an email may be answered whenever",
+  );
+  // A person reached only by email is their address, as the Inbox row names them and as this tool always said: the
+  // thread's own payload carries no email, and its view model alone would say "Unknown".
+  const byAddress = JSON.parse((await runTool(tc, { name: "get_thread", input: { conversation_id: C5 } })).result);
+  const inTheInbox = JSON.parse((await runTool(tc, { name: "list_threads", input: { filter: "recent" } })).result);
+  assert.deepEqual(
+    [byAddress.who, inTheInbox.threads.find((x) => x.conversation_id === C5).who],
+    ["rosa@example.com", "rosa@example.com"],
+  );
+
+  // Another workspace's thread and call, which RLS would show a member of both: not here, in the tools' own words, and
+  // not a read that failed.
+  const elsewhere = ctxFor(t);
+  const away = newToolContext(elsewhere, A, "operator", TZ, NOW);
+  const { result: refused, lines } = await logged("ask_tool_failed", async () => [
+    await runTool(away, { name: "get_thread", input: { conversation_id: C4 } }),
+    await runTool(away, { name: "get_call", input: { call_id: K3 } }),
+  ]);
+  assert.deepEqual(
+    refused.map((x) => [x.isError, JSON.parse(x.result)]),
+    [
+      [true, { error: "no such conversation in this workspace" }],
+      [true, { error: "no such call in this workspace" }],
+    ],
+  );
+  assert.deepEqual(lines, [], "a row that is not here is not a failed read");
+  assert.equal(elsewhere.supabase.seen.filter((q) => q.table === "messages").length, 0, "none of its messages is read");
+  assert.ok(
+    !away.read.thread.has(C4) && !away.read.conversation.has(C4) && !away.read.call.has(K3),
+    "nothing of another workspace enters the read set",
+  );
+});
+
 test("the rules Ask says the receptionist follows are the ones the composer gave it: three are on until switched off, the health rule only once switched on", async () => {
   const { factsBlock } = await import(at("apps/dashboard/src/server/ask/prompt.ts"));
   const { composeSystemPrompt, guardrailsInForce } = await import("@chanlytics/contracts");

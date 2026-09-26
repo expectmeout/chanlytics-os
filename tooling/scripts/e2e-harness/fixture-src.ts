@@ -128,7 +128,6 @@ w.__unknownDetails = C.unknownDetails;
 // A broken configuration in Setup's words, and Autonomy's hard limits (seed-globals.ts publishes both).
 w.__brokenConfigWords = C.BROKEN_CONFIG_WORDS;
 w.__hardLimits = C.hardLimitsWords;
-w.__lastChanged = () => `Last changed by ${OWNER.name}`;
 // The workspace's zone is saved through PATCH workspaces, never the settings saver. Refused here.
 w.__workspace = { setTimezone: async () => ({ ok: false, tz: "", message: "The harness never saves." }) };
 w.__saveSettings = () => Promise.resolve({ ok: false, code: "refused", message: "The harness never saves." });

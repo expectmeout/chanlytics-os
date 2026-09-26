@@ -1,4 +1,4 @@
-/* global React, Icon, MoreMenu, Confirm, EmptyState, FailedRead, PeopleRail, RailSection, RailRow, PeopleStanding, PeopleTable,
+/* global React, Icon, MoreMenu, Confirm, EmptyState, FailedRead, PeopleRail, PeopleScopeTabs, RailSection, RailRow, PeopleStanding, PeopleTable,
    PeopleColumnsMenu, plSortKeys, plDrawnColumns, plColumnOptions, PL_NO_SEL, LeadPlanPanel, LeadStrip, LeadPeek,
    LeadPeekActions, LeadNotFitWhy, LeadsFirstDay */
 // The Leads scope of People: the rail's lead rows and its kept searches, the standing line, the controls, the
@@ -390,9 +390,10 @@ const LeadsScope = (p) => {
   const ListsSheet = window.PeopleListsSheet;
   return (
     <div className="clients leads-scope" data-loading={p.loading ? "1" : undefined}>
-      {/* At a phone's width the rail is the bar's list button instead (the stylesheet hides .cl-rail at 900px
-          anyway, and the switch the rail heads is the bar's own). */}
-      {!phone && <PeopleRail scope="leads" onScope={p.onScope} dealsOn={!!p.dealsOn}>{railRows}</PeopleRail>}
+      {/* The switch between the scopes, over the rail and the rows. At a phone's width both are the bar's: its first
+          row is the switch and its list button is the rail (the stylesheet hides .cl-rail at 900px anyway). */}
+      {!phone && <PeopleScopeTabs scope="leads" onScope={p.onScope} dealsOn={!!p.dealsOn} />}
+      {!phone && <PeopleRail scope="leads">{railRows}</PeopleRail>}
 
       <div className="cl-main">
         {/* A phone's one bar stands over the scroller, as the Inbox's strip does: the rows scroll and bounce under it,

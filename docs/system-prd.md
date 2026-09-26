@@ -681,7 +681,7 @@ One JSON document per workspace, parsed by the same zod schema (`TenantConfigSch
 - `calendar` — the iCal feed's address.
 - `features` — `vision`, off by default.
 
-Writes are owner-only and a versioned compare-and-swap (`PUT /settings` echoes the version it read; a conflict recovers without a reload and the card says who last changed it). Each stamps `updated_by` and records an event naming the fields that moved — never their values (00085). Every section is audited.
+Writes are owner-only and a versioned compare-and-swap (`PUT /settings` echoes the version it read; a conflict recovers without a reload; Settings › Activity says who changed it). Each stamps `updated_by` and records an event naming the fields that moved — never their values (00085). Every section is audited.
 
 ### 13.2 One fact, one owner
 

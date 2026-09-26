@@ -6,7 +6,7 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import {
-  standingLine,
+  businessGap,
   PROFILE_CROSSING_WORDS,
   hasProfile,
   hoursLines,
@@ -516,11 +516,11 @@ test("the hours fold says what the receptionist will be told as the draft stands
   assert.equal("hours" in sent[0].config.brain.profile, false);
 });
 
-test("the standing line's hours door opens the fold, and the fold asks before its changes go like any other", () => {
+test("the gap line's hours door opens the fold, and the fold asks before its changes go like any other", () => {
   let tree = drawTab({ profile: without(marisa, "hours") });
-  const gap = standingLine(W.__SETTINGS.config.brain, true, null).missing;
+  const gap = businessGap(W.__SETTINGS.config.brain, null);
   assert.equal(gap.row, "hours");
-  const door = byTestId(byTestId(tree, "rec-standing"), "rec-standing-door");
+  const door = byTestId(byTestId(tree, "rec-gap"), "rec-gap-door");
   const heard = door.props["aria-labelledby"]
     .split(" ")
     .map((id) => find(tree, (n) => n.props?.id === id))

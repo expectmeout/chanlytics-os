@@ -6,7 +6,7 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import {
-  standingLine,
+  businessGap,
   bookingRulesWords,
   BOOKING_RULE_HINTS,
   roleGate,
@@ -1020,11 +1020,11 @@ test("opening the sheet with a fold holding changes asks about the fold, and ope
   assert.deepEqual([openFolds(tree), sheetOf(tree)], [["booking_rules"], null]);
 });
 
-test("the standing line's services door opens the sheet, guarded like any row", () => {
+test("the gap line's services door opens the sheet, guarded like any row", () => {
   const bare = without(marisa, "services");
   let tree = drawTab({ profile: bare });
-  assert.equal(standingLine(W.__SETTINGS.config.brain, true, null).missing.row, "services");
-  press(byTestId(byTestId(tree, "rec-standing"), "rec-standing-door"));
+  assert.equal(businessGap(W.__SETTINGS.config.brain, null).row, "services");
+  press(byTestId(byTestId(tree, "rec-gap"), "rec-gap-door"));
   tree = redrawTab();
   assert.ok(sheetOf(tree), "the door opens the sheet, which no fold is");
   assert.deepEqual(
@@ -1042,7 +1042,7 @@ test("the standing line's services door opens the sheet, guarded like any row", 
   tree = redrawTab();
   typeHeard(tree, "Needs a consult first", "Keratin");
   tree = redrawTab();
-  press(byTestId(byTestId(tree, "rec-standing"), "rec-standing-door"));
+  press(byTestId(byTestId(tree, "rec-gap"), "rec-gap-door"));
   tree = redrawTab();
   assert.deepEqual([openFolds(tree), sheetOf(tree)], [["consult_first"], null]);
   assert.ok(byTestId(tree, "rec-fold-consult_first-ask-confirm"));

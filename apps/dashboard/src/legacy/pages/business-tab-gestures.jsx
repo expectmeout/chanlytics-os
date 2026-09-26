@@ -47,7 +47,7 @@ const btWorkedOut = (what, fn, otherwise = null) => {
 };
 /**
  * The two questions an open editor asks before anything typed is thrown away, for a row edited in its place and for a
- * fold alike: Cancel's own, and the registry's, when another row is asked for (or the standing line's door is pressed)
+ * fold alike: Cancel's own, and the registry's, when another row is asked for (or the gap line's door is pressed)
  * while this one holds changes. Each gesture held a copy of this block, and both copies had the same fault: Cancel armed
  * its question, another row's act drew the registry's over it, "Keep editing" took the registry's away, and Cancel's
  * was still armed behind it, so the owner was asked the same thing twice. They are ONE question: whichever is on
@@ -168,7 +168,7 @@ const BT_UNCHECKED = "Not saved — this could not be checked, so nothing was se
  * It holds the fold registry (record-fold.jsx) as a fold does, so one editor or fold is open on the page at a time:
  * opening another row closes a clean editor and asks about one holding changes, and the Settings rail and the
  * browser's unload prompt ask before its changes are thrown away. Its dirty test is bound to its id as it mounts, so
- * it is asked however the row was opened: by its own act, or by its id from the standing line's door.
+ * it is asked however the row was opened: by its own act, or by its id from the gap line's door.
  *
  * What a row writes is handed to it in four answers, the last three built from business-tab-save.jsx's check, stored
  * value and patch for the row: `initial` (the draft it opens with, from what is stored), `storedAs` (what a draft would
@@ -384,7 +384,7 @@ const btOpening = (id, saver) => {
  *                   keystroke after it is a change to the week as it is now, not a save refused as "changed after you
  *                   opened it". Typed in, or while its save is out, `opened` holds still, and foldJob's refusal stands;
  *   unsaved changes the draft is not the one it opened with, asked by the registry however the editor was opened (its
- *                   own act, or its id from the standing line's door), by the Settings rail, by the browser, and by
+ *                   own act, or its id from the gap line's door), by the Settings rail, by the browser, and by
  *                   Cancel. NOT holdsChanges, which judges what the save would WRITE: a shift typed half-way, a closed
  *                   day's note with no date yet, a day switched on with no times and a service with no name are all
  *                   dropped by the save, so they read as nothing, and Cancel threw them away without a question. The
@@ -790,7 +790,7 @@ const BtFold = ({
  * on a phone), over the same editor a fold is (useBtEditor): the one open at a time, the asks, the draft, the checks,
  * the one job and the saver. It is not a fold, and the registry opens it just the same: it holds the registry under its
  * id as a fold does (useRecordFold, inside the editor), and is open while the registry says so. So opening it with a
- * fold open asks about that fold's changes, opening a fold with it open asks about its own, and the standing line's
+ * fold open asks about that fold's changes, opening a fold with it open asks about its own, and the gap line's
  * door opens it by its id, guarded like any row.
  *
  * It has no row of its own. A card draws the row that states the list, whose act asks the registry for this id

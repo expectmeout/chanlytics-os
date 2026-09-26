@@ -11,6 +11,7 @@ import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { callerName, toCallVM } from "@chanlytics/contracts";
 import { fakeDb } from "./_fake-db.mjs";
 import { PLAN } from "./_lead-fixtures.mjs";
 
@@ -28,6 +29,10 @@ const { calls } = await import(at("apps/dashboard/src/server/readers/calls.ts"))
 const { searches } = await import(at("apps/dashboard/src/server/readers/searches.ts"));
 const { inbox } = await import(at("apps/dashboard/src/server/readers/inbox.ts"));
 const { today } = await import(at("apps/dashboard/src/server/readers/today.ts"));
+// Named apart from the fixtures below that build a conversation's and a message's rows.
+const { conversation: oneThread, messagesOf } = await import(at("apps/dashboard/src/server/readers/conversation.ts"));
+const { call: oneCall } = await import(at("apps/dashboard/src/server/readers/call.ts"));
+const threadRoute = await import(at("apps/dashboard/app/api/v1/conversations/[id]/route.ts"));
 
 // The kept values live in the module, keyed by workspace, person and reader: each test starts with none.
 beforeEach(() => kernel.readerCache.clear());
@@ -505,6 +510,46 @@ test("calls: GET calls' answer -- the named workspace's calls, newest first, nar
     ],
     "a caller by their name, or their number when they have none",
   );
+
+  // Who a call is with, derived once (contracts callerName): each row's label is the Calls page's own `who` for that
+  // row, without a view model built per call on every read.
+  const L4 = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee4";
+  const named = await kernel.load(
+    turnIn(
+      dayCtx({
+        calls: [
+          call(L1, A, {
+            started_at: "2026-09-04T00:00:00Z",
+            contacts: { display_name: "Dana", wa_profile_name: null, phone_e164: "+15550000003" },
+          }),
+          call(L2, A, { started_at: "2026-09-03T00:00:00Z" }),
+          call(L3, A, { started_at: "2026-09-02T00:00:00Z", from_e164: null, from_raw: "Restricted" }),
+          call(L4, A, { started_at: "2026-09-01T00:00:00Z", from_e164: null, from_raw: null }),
+        ],
+      }),
+    ),
+    calls,
+    {},
+  );
+  assert.deepEqual(
+    named.rows.map((r) => [r.id, r.label]),
+    [
+      [L1, "Dana"],
+      [L2, "+1 (555) 000-0001"],
+      [L3, "Restricted"],
+      [L4, "Caller ID withheld"],
+    ],
+    "a contact's name, else the number the phone showed, else what the line handed over; with neither, withheld",
+  );
+  assert.deepEqual(
+    named.rows.map((r) => r.label),
+    named.data.calls.map((c) => toCallVM(c, "America/New_York", new Date()).who),
+    "the Calls page's own who, for the same rows",
+  );
+  assert.deepEqual(
+    named.data.calls.map((c) => callerName(c)),
+    named.rows.map((r) => r.label),
+  );
 });
 
 test("searches: GET lead-searches' answer -- every kept search with its latest round, and the rail's counts, read together -- and no row a citation names yet", async () => {
@@ -722,4 +767,246 @@ test("Today for Ask as the page composes it: the day's metrics, the newest hundr
   assert.equal(noSearches.data.calls.length, 2);
   assert.deepEqual(noSearches.data.metrics, SUMMARY);
   assert.deepEqual(searchLines, [["down"]]);
+});
+
+/* -------------------------------------------------- the thread and the call (PR 1.3) */
+
+const membership = (tenant_id, role, slug, created_at) => ({
+  user_id: USER,
+  tenant_id,
+  role,
+  tenants: { slug },
+  created_at,
+});
+/**
+ * inbox-routes.test.mjs, "one thread: any member reads it where it lives": two threads of bayside, a member of both
+ * workspaces (a viewer in harbor, an operator in bayside), and the thread's two messages beside the other's one.
+ */
+const threadTables = () => ({
+  memberships: [
+    membership(A, "viewer", "harbor", "2026-01-01T00:00:00Z"),
+    membership(B, "operator", "bayside", "2026-02-01T00:00:00Z"),
+  ],
+  conversations: [conversation(C1, B), conversation(C2, B)],
+  messages: [
+    message("m1", C1, B, { created_at: "2026-09-01T00:00:00Z", body: "first" }),
+    message("m2", C1, B, { created_at: "2026-09-02T00:00:00Z", body: "second", direction: "outbound", sender: "ai" }),
+    message("m3", C2, B, { created_at: "2026-09-03T00:00:00Z", body: "elsewhere" }),
+  ],
+});
+/** A GET's request: `q` is its query string. */
+const req = (q = "") => new Request(`http://localhost/api/v1/x${q}`);
+/** A route's context over `tbls`, for the row `id` names. */
+const routeCtx = (tbls, id) => ({ supabase: fakeDb(tbls, {}), userId: USER, email: "ada@example.com", params: { id } });
+
+test("the one thread's messages carry an attachment's public facts, never its storage path", async () => {
+  // Was a source pin on the route's text (media.test.mjs): GET conversations/:id, run.
+  const tbls = threadTables();
+  tbls.messages.push(
+    message("m4", C1, B, {
+      created_at: "2026-09-02T12:00:00Z",
+      type: "media",
+      body: null,
+      media: {
+        provider_media_id: "wamid.X",
+        mime_type: "image/jpeg",
+        caption: "hi",
+        filename: null,
+        sha256: "abc",
+        storage_path: "t/c/m.jpg",
+        fetch_state: "stored",
+      },
+    }),
+  );
+  const page = await threadRoute.GET.run(req(), routeCtx(tbls, C1));
+  assert.deepEqual(
+    page.messages.map((m) => [m.id, m.media]),
+    [
+      ["m1", null],
+      ["m2", null],
+      ["m4", { mime_type: "image/jpeg", fetch_state: "stored", filename: null, caption: "hi" }],
+    ],
+  );
+  const json = JSON.stringify(page);
+  assert.ok(
+    !json.includes("t/c/m.jpg") && !json.includes("wamid.X") && !json.includes("sha256"),
+    "the bytes only through their own route",
+  );
+  // The route's messages are its reader's, and Ask reads the same ones.
+  const read = await kernel.load(turnIn(dayCtx(tbls), B), messagesOf, { id: C1, before: null });
+  assert.deepEqual(read.data, page.messages);
+  assert.deepEqual(read.rows, [], "a message is cited by its thread");
+});
+
+test("GET conversations/:id through its reader asks what it asked, in the same order: the row once, in its scope, then the messages once -- the row is never read a second time", async () => {
+  const tbls = threadTables();
+  for (const [q, filters] of [
+    ["", [["eq", "conversation_id", C1]]],
+    [
+      "?before=2026-09-02T00:00:00Z",
+      [
+        ["eq", "conversation_id", C1],
+        ["lt", "created_at", "2026-09-02T00:00:00Z"],
+      ],
+    ],
+  ]) {
+    const ctx = routeCtx(tbls, C1);
+    await threadRoute.GET.run(req(q), ctx);
+    assert.deepEqual(
+      ctx.supabase.seen.map((s) => s.table),
+      ["conversations", "memberships", "messages"],
+      "the scope's row, the membership judged where it lives, the messages",
+    );
+    assert.deepEqual([selects(ctx, "conversations").length, selects(ctx, "messages").length], [1, 1]);
+    const [m] = selects(ctx, "messages");
+    assert.deepEqual(
+      [m.columns, m.order, m.desc, m.limit, m.filters],
+      [
+        "id, direction, sender, type, body, media, meta, created_at, status, channel_ts, channel",
+        "created_at",
+        true,
+        100,
+        filters,
+      ],
+    );
+  }
+});
+
+test("the one thread for Ask is what GET conversations/:id answers for it, key for key -- the row the route's scope loads, the hundred newest messages oldest first, paged back by `before` -- read with the row once and the messages once, and the thread and its person named as the Inbox names them", async () => {
+  const tbls = threadTables();
+  const page = await threadRoute.GET.run(req(), routeCtx(tbls, C1));
+  const ctx = dayCtx(tbls);
+  const r = await kernel.load(turnIn(ctx, B), oneThread, { id: C1, before: null });
+  assert.deepEqual(r.data, page, "the route's payload");
+  assert.deepEqual(Object.keys(r.data), ["conversation", "messages"]);
+  assert.deepEqual(
+    r.data.messages.map((m) => m.body),
+    ["first", "second"],
+    "oldest first, this thread only",
+  );
+  assert.deepEqual(
+    [selects(ctx, "conversations").length, selects(ctx, "messages").length],
+    [1, 1],
+    "the row once, through the loader the scope uses; the messages once",
+  );
+  assert.deepEqual(r.rows, [
+    { kind: "thread", id: C1, route: `inbox/th-${C1}`, label: "Ada" },
+    { kind: "person", id: "k1", route: "clients/k1", label: "Ada" },
+  ]);
+
+  const olderPage = await threadRoute.GET.run(req("?before=2026-09-02T00:00:00Z"), routeCtx(tbls, C1));
+  const older = await kernel.load(turnIn(dayCtx(tbls), B), oneThread, { id: C1, before: "2026-09-02T00:00:00Z" });
+  assert.deepEqual(older.data, olderPage, "paged back as the route pages");
+  assert.deepEqual(
+    older.data.messages.map((m) => m.body),
+    ["first"],
+  );
+
+  // Named as the Inbox row names the same thread: a person reached only by email is their address, never "Unknown".
+  const byEmail = {
+    ...threadTables(),
+    conversations: [
+      conversation(C1, B, { contacts: contact({ display_name: null, phone_e164: null, email: "ada@example.com" }) }),
+    ],
+  };
+  const listed = await kernel.load(turnIn(dayCtx(byEmail), B), conversations, { ids: [C1] });
+  const one = await kernel.load(turnIn(dayCtx(byEmail), B), oneThread, { id: C1, before: null });
+  assert.deepEqual(
+    one.rows.map((x) => x.label),
+    [listed.rows[0].label, listed.rows[0].label],
+  );
+  assert.equal(listed.rows[0].label, "ada@example.com");
+  // A thread with nobody behind it is the thread alone.
+  const nobody = { ...threadTables(), conversations: [conversation(C1, B, { contact_id: null, contacts: null })] };
+  const bare = await kernel.load(turnIn(dayCtx(nobody), B), oneThread, { id: C1, before: null });
+  assert.deepEqual(bare.rows, [{ kind: "thread", id: C1, route: `inbox/th-${C1}`, label: "Unknown" }]);
+});
+
+test("a thread this workspace does not hold is the page's 404, in the scope's own words -- one that is not there, another workspace's, or not an id -- and none of its messages is read", async () => {
+  const notFound = (message) => (e) => {
+    assert.deepEqual([e.code, e.status, e.message], ["not_found", 404, message]);
+    return true;
+  };
+  const tbls = threadTables();
+  await assert.rejects(
+    kernel.load(turnIn(dayCtx(tbls), B), oneThread, { id: "cccccccc-cccc-4ccc-8ccc-ccccccccccc9", before: null }),
+    notFound("Conversation not found."),
+  );
+  // Bayside's thread in a harbor turn. RLS would show it to a member of both, and this double has no RLS at all: the
+  // turn's workspace is what refuses it, as the route refuses a member of harbor alone where the row lives.
+  const ctx = dayCtx(tbls);
+  await assert.rejects(
+    kernel.load(turnIn(ctx, A), oneThread, { id: C1, before: null }),
+    notFound("Conversation not found."),
+  );
+  assert.equal(selects(ctx, "messages").length, 0, "no message of another workspace's thread is read");
+  await assert.rejects(
+    kernel.load(turnIn(dayCtx(tbls), B), oneThread, { id: "not-a-uuid", before: null }),
+    notFound("That conversation does not exist."),
+  );
+});
+
+test("one call for Ask: the Calls page's own columns and mapping for one call, read under the workspace's own filter -- another workspace's call, or one not there, is the call routes' 404 -- and the call and its person are the rows", async () => {
+  const stored = {
+    storage_path: "a/b.mp3",
+    fetch_state: "stored",
+    provider_url: "https://provider.example/x",
+    mime: "audio/mpeg",
+    bytes: 10,
+  };
+  const tbls = {
+    calls: [
+      call(L1, A, {
+        contact_id: "k1",
+        contacts: { display_name: "Dana", wa_profile_name: null, phone_e164: "+15550000003" },
+        recording: stored,
+      }),
+      call(L2, A, { contact_id: null }),
+      call(L3, B, { contact_id: "k3" }),
+    ],
+  };
+  const ctx = dayCtx(tbls);
+  const r = await kernel.load(turnIn(ctx), oneCall, { id: L1 });
+  const listed = await kernel.load(turnIn(dayCtx(tbls)), calls, {});
+  assert.deepEqual(
+    r.data,
+    { call: listed.data.calls.find((c) => c.id === L1) },
+    "the Calls page's mapping of the same row",
+  );
+  const json = JSON.stringify(r.data);
+  assert.ok(!json.includes("storage_path") && !json.includes("provider.example"), "audio only through its own route");
+  assert.deepEqual(
+    selects(ctx, "calls").map((q) => q.filters),
+    [
+      [
+        ["eq", "tenant_id", A],
+        ["eq", "id", L1],
+      ],
+    ],
+    "one read, filtered to the workspace as well as the id",
+  );
+  assert.deepEqual(r.rows, [
+    { kind: "call", id: L1, route: `conversations/cv-${L1}`, label: "Dana" },
+    { kind: "person", id: "k1", route: "clients/k1", label: "Dana" },
+  ]);
+  const alone = await kernel.load(turnIn(dayCtx(tbls)), oneCall, { id: L2 });
+  assert.deepEqual(
+    alone.rows,
+    [{ kind: "call", id: L2, route: `conversations/cv-${L2}`, label: "+1 (555) 000-0001" }],
+    "a caller who is nobody's yet is the call alone, by the number the phone showed",
+  );
+
+  const notFound = (message) => (e) => {
+    assert.deepEqual([e.code, e.status, e.message], ["not_found", 404, message]);
+    return true;
+  };
+  // Bayside's call in a harbor turn: RLS would show it to a member of both; the workspace's filter does not.
+  await assert.rejects(kernel.load(turnIn(dayCtx(tbls)), oneCall, { id: L3 }), notFound("Call not found."));
+  await assert.rejects(
+    kernel.load(turnIn(dayCtx(tbls)), oneCall, { id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee9" }),
+    notFound("Call not found."),
+  );
+  const typo = dayCtx(tbls);
+  await assert.rejects(kernel.load(turnIn(typo), oneCall, { id: "not-a-uuid" }), notFound("That call does not exist."));
+  assert.equal(selects(typo, "calls").length, 0, "a malformed id never reaches the database");
 });

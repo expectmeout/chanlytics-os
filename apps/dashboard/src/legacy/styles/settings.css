@@ -1241,27 +1241,19 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
    gutter are the kit's own custom properties (--rec-key, --rec-gutter), so an editing row lines up with the rows
    around it. */
 
-.bt-head { display: flex; flex-direction: column; gap: 3px; }
-.bt-title { margin: 0; font-size: var(--text-2xl); font-weight: var(--weight-semibold); line-height: var(--leading-tight); letter-spacing: var(--tracking-tight); color: var(--ink); }
-.bt-sub { margin: 0; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); }
-/* Said once, under the head, for a role that may not change the business: why no row offers a change. */
+/* Said once, above the cards, for a role that may not change the business: why no row offers a change. */
 .bt-viewer { margin: 0; display: flex; align-items: baseline; gap: 6px; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); }
 .bt-viewer .icon { flex: none; align-self: center; }
 
-/* The standing line: three clauses, not a meter, and a line under the head rather than a card of its own (23 Sep: a
-   card with a shadow, 16px of padding and the page's largest type, for one sentence). The dot is ok, or warn while
-   something is missing; never the accent. */
-.bt-standing { display: flex; align-items: flex-start; gap: 10px; padding: 2px 0 0; }
-.bt-standing-dot { flex: none; width: 8px; height: 8px; margin-top: 6px; border-radius: var(--radius-full); background: var(--ok); }
-.bt-standing[data-state="warn"] .bt-standing-dot { background: var(--warn); }
-.bt-standing-words { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.bt-standing-can { margin: 0; font-size: var(--text-base); line-height: var(--leading-normal); color: var(--ink); text-wrap: pretty; }
-.bt-standing-more { margin: 0; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-muted); text-wrap: pretty; }
-/* The gap, in the words contracts wrote for it, and the door to the row that closes it. A button keeps its own
-   line-height unless told, and a door that wraps would set its lines tighter than the sentence around it. */
-.bt-standing-gap, .bt-standing-door { font-weight: var(--weight-medium); color: var(--warn-ink); }
-.bt-standing-door { display: inline; line-height: inherit; text-align: left; text-decoration: underline; text-decoration-color: color-mix(in oklab, var(--warn) 50%, transparent); text-underline-offset: 3px; border-radius: var(--radius-xs); }
-.bt-standing-door:hover { text-decoration-color: currentColor; }
+/* The gap line: drawn only while a fact is missing, in the words contracts wrote for it, as the door to the row that
+   adds it; nothing stands above the cards otherwise (26 Sep: the title, the stamp and the can/won't sentences went as
+   clutter). A warn dot, never the accent. A button keeps its own line-height unless told, and a door that wraps would
+   set its lines tighter than a sentence. */
+.bt-gap { margin: 0; display: flex; align-items: flex-start; gap: 10px; font-size: var(--text-sm); line-height: var(--leading-normal); }
+.bt-gap-dot { flex: none; width: 8px; height: 8px; margin-top: 6px; border-radius: var(--radius-full); background: var(--warn); }
+.bt-gap-words, .bt-gap-door { font-weight: var(--weight-medium); color: var(--warn-ink); text-wrap: pretty; }
+.bt-gap-door { display: inline; line-height: inherit; text-align: left; text-decoration: underline; text-decoration-color: color-mix(in oklab, var(--warn) 50%, transparent); text-underline-offset: 3px; border-radius: var(--radius-xs); }
+.bt-gap-door:hover { text-decoration-color: currentColor; }
 
 /* A card's closing sentence, and a link inside a sentence: a word that is a button, not a button beside the words. */
 .bt-card-foot { margin: 0; padding: 10px 0 12px; border-top: 1px solid var(--line); font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); }
@@ -1271,7 +1263,7 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
    keep the line's box. A link that is one word takes a thumb's reach from an ::after, as the kit's words-that-are-
    buttons do. The door does not: it is a sentence that wraps, which is reach enough, and an area stretched round every
    line of it would lie over the clause before it and take a press meant for nothing. */
-html.legacy-on .bt-link, html.legacy-on .bt-standing-door { min-height: 0; }
+html.legacy-on .bt-link, html.legacy-on .bt-gap-door { min-height: 0; }
 html.legacy-on .bt-link { position: relative; }
 .bt-link::after { content: ""; position: absolute; inset: -12px -6px; }
 

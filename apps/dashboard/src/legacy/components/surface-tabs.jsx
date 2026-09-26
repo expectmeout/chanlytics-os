@@ -9,8 +9,8 @@ const ST_GROUPS = {
     match: ["clients", "leads", "pipeline", "segments"],
     tabs: [
       { id: "clients", label: "People", to: "clients" },
-      // No Leads tab: Leads is a SCOPE of People (clients/leads), and its switch is the rail's own
-      // People | Leads (PRD §6.1). A tab here would point at the retired `leads` route and bounce
+      // No Leads tab: Leads is a SCOPE of People (clients/leads), and its switch is the page's own strip,
+      // People | Leads (PeopleScopeTabs, PRD §6.1). A tab here would point at the retired `leads` route and bounce
       // through the redirect to reach the scope the page is already showing.
       { id: "pipeline", label: "Deal board", to: "pipeline", demoOnly: true, tip: "Deals are leads with money attached — same people, board view" },
       // No Lists tab: on a real workspace the lists are the People rail (and a sheet on a phone), and `segments/<id>`
@@ -117,7 +117,7 @@ const SurfaceTabs = ({ page, param, onNavigate }) => {
 };
 
 // ---- Where a route stands on a strip, and which way a view comes in -----------------------------------------------
-// People's scopes are People's own strip (PeoplePhoneBar), in plScopes' order; every other strip is a group's here. A
+// People's scopes are People's own strip (PeopleScopeTabs), in plScopes' order; every other strip is a group's here. A
 // person's page, and a route no strip carries, stand nowhere, and a view arriving there comes in as any other does.
 const stripPlace = (page, param) => {
   if (page === "clients") {
