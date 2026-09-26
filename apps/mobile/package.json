@@ -45,5 +45,12 @@
     "typescript": "~6.0.3",
     "eslint-config-expo": "~57.0.2",
     "eslint": "^9.39.0"
+  },
+  "expo": {
+    "install": {
+      "exclude": [
+        "@types/react"
+      ]
+    }
   }
 }

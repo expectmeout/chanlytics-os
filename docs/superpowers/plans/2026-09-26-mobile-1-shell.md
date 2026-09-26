@@ -260,7 +260,8 @@ Every task shipped as written, with these departures:
   `eslint.config.js` (Expo's flat config plus the layer rule) and its own ESLint; the root config ignores the app.
   CI's `mobile` job runs the app's typecheck, lint, doctor and a Metro export.
 - **One `@types/react`.** The template's `~19.2.2` put a second copy at the root and broke the dashboard's typecheck;
-  the app asks for `^19` like the dashboard does.
+  the app asks for `^19` like the dashboard does, and tells Expo's doctor so (`expo.install.exclude`), since its
+  own minor would put the second copy back.
 - **The lazy mount is a render-time latch**, not an effect: Expo's lint forbids `setState` in an effect body.
 - **Sign-in state comes from the address as well as the bridge.** The login page is not the legacy shell, so it cannot
   post; the WebView reads `/login`, `/signup`, `/reset-password` and `/auth/signout` as "out".
