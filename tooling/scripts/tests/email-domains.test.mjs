@@ -161,12 +161,12 @@ test("a refusal is carried in the provider's own words, and a network that fails
 });
 
 test("a read: the domain where it stands; 404 is the provider having none, which is a fact", async () => {
-  let calls = answer(200, { ...DOMAIN, status: "verified" });
+  const calls = answer(200, { ...DOMAIN, status: "verified" });
   const r = await getMailDomain(CFG, ID);
   assert.equal(calls[0].url, `https://api.resend.com/domains/${ID}`);
   assert.equal(calls[0].method, "GET");
   assert.equal(r.ok && r.value.status, "verified");
-  calls = answer(404, { statusCode: 404, name: "not_found", message: "Domain not found" });
+  answer(404, { statusCode: 404, name: "not_found", message: "Domain not found" });
   assert.deepEqual(await getMailDomain(CFG, ID), { ok: true, value: null });
   answer(503, "");
   assert.equal((await getMailDomain(CFG, ID)).ok, false);

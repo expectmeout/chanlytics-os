@@ -1523,7 +1523,7 @@ test("reply: the answer goes to Google as the owner under the review's own name,
   });
   const creds = new Map([[A, liveCreds()]]);
   use(tables, creds);
-  let net = google();
+  const net = google();
   assert.deepEqual(await answer(await knock({ op: "reply", id: "nope", comment: "Thank you" })), [
     400,
     { ok: false, error: "id (the review's row) is required" },
@@ -1573,7 +1573,7 @@ test("reply: the answer goes to Google as the owner under the review's own name,
   assert.equal(tables.google_reviews.find((r) => r.id === R2).reply_text, null);
 
   tables.google_reviews.push(reviewRow(R3, { review_id: "g-3" }));
-  net = wired((req) =>
+  wired((req) =>
     req.method === "PUT"
       ? refusal(403, "The caller does not have permission", "PERMISSION_DENIED")
       : (() => {
@@ -1698,7 +1698,7 @@ test("disconnect gives the grant back, drops the token from Vault, forgets the p
 
   const t2 = world({ google_connections: [connRow()] });
   const w2 = use(t2, new Map([[A, liveCreds()]]));
-  net = wired((req) =>
+  wired((req) =>
     req.url === REVOKE_URL
       ? { status: 400, body: { error: "invalid_token" } }
       : (() => {

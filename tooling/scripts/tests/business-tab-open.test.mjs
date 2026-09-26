@@ -411,7 +411,7 @@ test("copying a day says what it opened and what it overwrote, and puts it all b
     "Copied Mon's hours — replaced different hours on Fri",
   );
   assert.equal(labelled(tree, "Saturday closes").props.value, "19:00", "Saturday is no weekday");
-  tree = copyTo(tree, flash, "Tuesday");
+  copyTo(tree, flash, "Tuesday");
   assert.equal(textOf({ props: { children: flashes.at(-1).msg } }), "Copied Mon's hours — nothing else changed");
 
   // A business shut on Mondays copies the first day it is open.
@@ -429,7 +429,7 @@ test("copying a day says what it opened and what it overwrote, and puts it all b
   cancelFoldOf(tree, "hours");
   tree = redrawTab(flash);
   press(byTestId(tree, "rec-fold-hours-cancel-yes"));
-  tree = redrawTab(flash);
+  redrawTab(flash);
   copied.undo();
   tree = redrawTab(flash);
   assert.deepEqual([openFolds(tree), W.__settingsUnsaved()], [[], false]);
@@ -445,7 +445,7 @@ test("copying a day says what it opened and what it overwrote, and puts it all b
   tree = copyTo(tree, flash, "Every day");
   const undoCopy = flashes.at(-1).undo;
   saveFoldOf(tree, "hours");
-  tree = redrawTab(flash);
+  redrawTab(flash);
   undoCopy();
   tree = redrawTab(flash);
   assert.equal(
@@ -2220,7 +2220,7 @@ test("the page draws itself again when the settings surface is read again: the c
     closed(tree),
     new RegExp(`^${escape(closuresAheadWords(profile.closures, "Pacific/Honolulu", new Date()).line)}`),
   );
-  tree = redrawTab();
+  redrawTab();
   // The zone is saved and the settings surface read back: the workspace's list and the read's own preview name the new zone.
   W.__WORKSPACES = [{ id: "t-marisa", name: "Marisa's Beauty Salon", timezone: "Pacific/Kiritimati" }];
   W.__SETTINGS = settings(profile, {}, {}, "Pacific/Kiritimati");

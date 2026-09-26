@@ -1061,7 +1061,7 @@ test("the sheet is the page's last hook-holding child: opened, drawn again and c
   const rest = at(tree);
   tree = openSheet(tree);
   typeAt(tree, "Service 1 name", "Balayage");
-  tree = redrawTab();
+  redrawTab();
   tree = redrawTab();
   assert.equal(labelled(tree, "Service 1 name").props.value, "Balayage", "the sheet keeps its draft over two draws");
   assert.deepEqual(at(tree), rest, "and every row before it says what it said");
@@ -1094,7 +1094,7 @@ test("the sheet is the page's last hook-holding child: opened, drawn again and c
 
 test("an editor whose page goes away lets go of the sheet: back on the tab, it does not open by itself", async () => {
   let tree = drawTab({ profile: many });
-  tree = openSheet(tree);
+  openSheet(tree);
   assert.equal(W.__recordFolds.open(), "services");
   unmount();
   await settle();
@@ -1194,7 +1194,7 @@ test("the booking rules fold's switch asks for an email when the link goes out: 
   // The block of what a save will say carries the ask at once: it is composed from the fold's own save.
   assert.match(textOf(byTestId(tree, "rec-fold-says-booking_rules")), /ask once for the best email/);
   saveFoldOf(tree, "booking_rules");
-  tree = redrawTab();
+  redrawTab();
   assert.deepEqual(
     sent[0].config.brain.profile.booking_rules,
     { ...marisa.booking_rules, ask_email: true },
@@ -1210,7 +1210,7 @@ test("the booking rules fold's switch asks for an email when the link goes out: 
   press(sw);
   tree = redrawTab();
   saveFoldOf(tree, "booking_rules");
-  tree = redrawTab();
+  redrawTab();
   assert.deepEqual(sent[1].config.brain.profile.booking_rules, marisa.booking_rules, "off is no key at all");
 });
 

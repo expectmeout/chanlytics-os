@@ -72,7 +72,7 @@ export const fetchTwilio: TwilioHttp = async (acct, method, url, form) => {
     signal: AbortSignal.timeout(15000),
   });
   const text = await r.text();
-  let body: Record<string, unknown> | null = null;
+  let body: Record<string, unknown> | null;
   try {
     const parsed = JSON.parse(text) as unknown;
     body = parsed !== null && typeof parsed === "object" ? (parsed as Record<string, unknown>) : null;

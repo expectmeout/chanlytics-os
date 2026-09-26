@@ -1579,8 +1579,8 @@ test("on a phone Add to list › New list… names the list in the sheet; a memb
 test("REGRESSION: on a phone the Lists sheet starts with Everyone and draws no second People | Leads -- the switch was in the sheet and, beside the bar's, would be twice", () =>
   onPhone(async () => {
     await freshPage({ people: [person(1), person(2)], lists: [{ id: "s1", name: "Regulars", ids: ["p1"] }] });
+    draw({ initialSaved: "s1" });
     let tree = draw({ initialSaved: "s1" });
-    tree = draw({ initialSaved: "s1" });
     click(byTestId(tree, "people-phone-lists"));
     tree = draw({ initialSaved: "s1" });
     const sheet = byTestId(tree, "people-lists-sheet");
@@ -1639,7 +1639,7 @@ test("on a phone the lists are behind the bar's list button, as a sheet; a pick 
     assert.equal(textOf(byTestId(tree, "people-phone-lists")).trim(), "Regulars", "and the bar names the list");
     // The shell's and a profile's New list: on a phone the sheet comes up with the box open.
     globalThis.window.dispatchEvent(new CustomEvent("segments:new"));
-    tree = draw();
+    draw();
     tree = draw();
     assert.ok(byTestId(byTestId(tree, "people-lists-sheet"), "new-list-name"), "with the New list box open");
   }));
@@ -2016,13 +2016,13 @@ test("the New list door's address stands until a list is made, then is that list
   await freshPage({ people: [person(1)] });
   globalThis.window.location.hash = "#/clients/new-list";
   globalThis.window.__lists = lists({ create: async (name) => ({ ok: true, data: { id: "s9", name, ids: [] } }) });
-  let tree = draw({ newList: true });
+  const tree = draw({ newList: true });
   assert.equal(globalThis.window.location.hash, "#/clients/new-list", "the box is what the address opened");
   await find(tree, (n) => typeof n.props?.onCreateList === "function").props.onCreateList("Regulars");
   globalThis.window.__PEOPLE.saved = [
     { id: "s9", name: "Regulars", count: 0, ids: [], members: [], byHand: true, tip: "" },
   ];
-  tree = draw({ newList: true });
+  draw({ newList: true });
   assert.equal(
     globalThis.window.location.hash,
     "#/clients/list:s9",

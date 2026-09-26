@@ -127,9 +127,9 @@ async function resolveWaCredentials(
   db: SupabaseClient<Database>,
   routed: RoutedChannel,
 ): Promise<{ creds: { accessToken: string; phoneId: string } | null; envNumber: boolean }> {
-  let channelId: string | null = null;
-  let ref: string | null = null;
-  let externalId: string | null = null;
+  let channelId: string | null;
+  let ref: string | null;
+  let externalId: string | null;
   if (routed.kind === "whatsapp") {
     channelId = routed.channelId;
     ref = routed.credentialsRef ?? null;

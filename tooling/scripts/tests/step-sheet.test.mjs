@@ -381,9 +381,9 @@ test("the sheet opens where it is asked for, reads the person, says what is wron
 test("a change opens on the step as it stands and saves with the version it opened over, which the door refuses if a teammate changed it since; someone else's step is not changed here", async () => {
   const now = Date.now();
   const { calls } = wire(() => personDto(now, [noteDto(now, "n1", { version: 2 })]));
-  let tree = open();
+  open();
   W.openStepSheet({ personId: "p1", noteId: "n1" });
-  tree = await until("the step is read", (t) => input(t, "step-sheet-what-input"));
+  let tree = await until("the step is read", (t) => input(t, "step-sheet-what-input"));
   assert.equal(title(tree), "Change the step");
   assert.equal(input(tree, "step-sheet-what-input").props.value, "Call about the timeline");
   type(input(redraw(), "step-sheet-what-input"), "Call about the timeline and the logo");
@@ -394,7 +394,7 @@ test("a change opens on the step as it stands and saves with the version it open
   assert.equal(textOf(toasts.at(-1).msg), STEP_SHEET_WORDS.done.edit);
 
   wire(() => personDto(now, [noteDto(now, "n2", { mine: false, author_name: "Sam" })]));
-  tree = open();
+  open();
   W.openStepSheet({ personId: "p1", noteId: "n2" });
   tree = await until("blocked", (t) => byTestId(t, "step-sheet-blocked"));
   assert.equal(textOf(byTestId(tree, "step-sheet-blocked")), NOTE_REFUSALS.not_yours);
@@ -405,9 +405,9 @@ test("a person the sheet cannot read is said in the sheet, never a throw that ta
   const { answers } = wire(() => personDto(Date.now()));
   answers.person = () =>
     json(404, { ok: false, error: { code: "not_found", message: "This person is not in your workspace." } });
-  let tree = open();
+  open();
   W.openStepSheet({ personId: "p1" });
-  tree = await quietly(() => until("said", (t) => byTestId(t, "step-sheet-failed")));
+  const tree = await quietly(() => until("said", (t) => byTestId(t, "step-sheet-failed")));
   assert.ok(byTestId(tree, "step-sheet-failed"));
 });
 
@@ -426,9 +426,9 @@ test("refused because a teammate changed the step since, the sheet reads it agai
     refuse = false;
     return json(409, { ok: false, error: { code: "conflict", message: NOTE_REFUSALS.moved } });
   };
-  let tree = open();
+  open();
   W.openStepSheet({ personId: "p1", noteId: "n1" });
-  tree = await until("the step is read", (t) => input(t, "step-sheet-what-input"));
+  let tree = await until("the step is read", (t) => input(t, "step-sheet-what-input"));
   type(input(tree, "step-sheet-what-input"), "Call about the timeline and the logo");
   // Meanwhile a teammate moved its day, and the step's version with it.
   version = 5;

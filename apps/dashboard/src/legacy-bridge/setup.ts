@@ -270,7 +270,7 @@ export function installSetup(win: Window = window): void {
     },
   };
   win.addEventListener("surface:setup", () => {
-    let landed = false;
+    let landed: boolean;
     try {
       landed = win.sessionStorage.getItem(FIRST_RUN_LANDED_KEY) === "1";
     } catch {

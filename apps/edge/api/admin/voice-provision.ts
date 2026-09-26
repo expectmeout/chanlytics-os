@@ -174,7 +174,7 @@ export async function POST(request: Request): Promise<Response> {
 
   // 4. The number: bind an existing one, or buy one in the area code.
   let number = req.number;
-  let numberType: string | null = null;
+  let numberType: string | null;
   if (number) {
     const w = await updatePhoneNumber(
       cfg,

@@ -449,7 +449,7 @@ test("REGRESSION (S21): Activity says it is reading and names its filters -- the
 
   // Narrowed to one person, the way back to everyone is named too.
   type(byTestId(tree, "act-person-q"), "Ana");
-  tree = settle("activity");
+  settle("activity");
   await new Promise((r) => setTimeout(r, 300));
   await flush();
   tree = settle("activity");
@@ -465,10 +465,10 @@ test("REGRESSION (S21): Activity says it is reading and names its filters -- the
 test("REGRESSION (S21): the kind filter asks when a kind is chosen, not on every keystroke, and keeps what was typed", async () => {
   workspace("owner");
   const A = (globalThis.window.__activity = feed());
-  let tree = settings("activity");
+  settings("activity");
   answer(A.waiting[0], []);
   await flush();
-  tree = settle("activity");
+  let tree = settle("activity");
   for (const v of ["c", "ca", "call ", "call e"]) {
     type(byTestId(tree, "act-kind"), v);
     tree = settle("activity");
@@ -480,7 +480,7 @@ test("REGRESSION (S21): the kind filter asks when a kind is chosen, not on every
   assert.equal(A.asked.length, 2, "Enter asks");
   assert.equal(A.asked[1].kind, "call e");
   type(byTestId(tree, "act-kind"), "call.ended");
-  tree = settle("activity");
+  settle("activity");
   assert.equal(A.asked.length, 3, "a kind the log offers asks as soon as it is picked");
   assert.equal(A.asked[2].kind, "call.ended");
 });
@@ -488,18 +488,18 @@ test("REGRESSION (S21): the kind filter asks when a kind is chosen, not on every
 test("REGRESSION (S21): a slow answer never lands over a newer one", async () => {
   workspace("owner");
   const A = (globalThis.window.__activity = feed());
-  let tree = settings("activity");
+  settings("activity");
   answer(A.waiting[0], [entry("e0", "The first page")]);
   await flush();
-  tree = settle("activity");
+  let tree = settle("activity");
   type(byTestId(tree, "act-kind"), "message.sent");
   tree = settle("activity");
   type(byTestId(tree, "act-kind"), "call.ended");
-  tree = settle("activity");
+  settle("activity");
   assert.equal(A.asked.length, 3);
   answer(A.waiting[2], [entry("e2", "A call ended")]);
   await flush();
-  tree = settle("activity");
+  settle("activity");
   answer(A.waiting[1], [entry("e1", "A message was sent")]);
   await flush();
   tree = settle("activity");

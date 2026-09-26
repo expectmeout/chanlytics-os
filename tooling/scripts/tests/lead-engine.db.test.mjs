@@ -2124,7 +2124,7 @@ test(
       [],
       "none of this suite's rounds is left",
     );
-    let turn = await turnAgrees("nothing of this suite's left");
+    await turnAgrees("nothing of this suite's left");
 
     // A round queued with no run at all: its start job died before it wrote
     // one, and nothing but the sweep can end it and give its reservation back.
@@ -2145,7 +2145,7 @@ test(
       [],
       "and nothing has run for it",
     );
-    turn = await turnAgrees("a round of this suite's own, queued, with no run");
+    const turn = await turnAgrees("a round of this suite's own, queued, with no run");
     assert.ok(turn.open >= 1, "this suite's own round is open");
     assert.equal(turn.asked, true, "a round that has not ended is work, whether or not anything has run for it");
   },
@@ -2478,7 +2478,7 @@ test(
     const rich = place(904, "qualified");
     rich.place = { ...rich.place, ...shown };
     // A round starts queued and the first page moves it, as the shared-phone test above does.
-    let r = ok(await commit(run.id, "w9", run.gen, 0, 1, { places: [rich], round: { state: "probing" } }));
+    const r = ok(await commit(run.id, "w9", run.gen, 0, 1, { places: [rich], round: { state: "probing" } }));
     assert.equal(r.counted, 1);
     const rows = ok(
       await owner.client.rpc("leads_page", {
@@ -2528,7 +2528,7 @@ test(
       linkedin_url: "https://www.linkedin.example/p",
       claimed: false,
     };
-    r = ok(await commit(run.id, "w9", run.gen, 1, 2, { places: [again] }));
+    ok(await commit(run.id, "w9", run.gen, 1, 2, { places: [again] }));
     const after = ok(await db.from("leads").select("about, linkedin_url, claimed, stage").eq("id", lead.id).single());
     assert.deepEqual(
       after,

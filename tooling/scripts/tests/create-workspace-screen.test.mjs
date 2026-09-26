@@ -318,7 +318,7 @@ test("create once (F5): a first workspace whose name sign-up kept is made as the
   globalThis.window = w;
   const created = [];
   const props = { email: "owner@luna.example", posture: "open", initial: KEPT, onCreated: (x) => created.push(x) };
-  let tree = render(props);
+  const tree = render(props);
   const making = byTestId(tree, "cw-making");
   assert.ok(making, "the screen says the workspace is being made");
   assert.equal(textOf(making), `Luna Studio${SIGNUP_WORDS.making}`);
@@ -327,7 +327,7 @@ test("create once (F5): a first workspace whose name sign-up kept is made as the
     null,
     "and asks nothing: the name and the clock are sign-up's",
   );
-  tree = await settle(props);
+  await settle(props);
   assert.deepEqual(
     w.asked.map((a) => [a.url, a.method, a.body]),
     [["/api/v1/workspaces/create", "POST", { name: "Luna Studio", timezone: "America/New_York" }]],
