@@ -34,7 +34,6 @@
   "packages/contracts/src/deals/pipeline.ts": 951,
   "packages/contracts/src/leads/lead-search.ts": 1027,
   "packages/contracts/src/people/people.ts": 1027,
-  "packages/contracts/src/setup/setup.ts": 1455,
   "packages/contracts/src/templates/template-library.ts": 1097,
   "packages/contracts/src/today/today.ts": 2474,
   "packages/core/src/inbound/answer.ts": 1006,

@@ -1299,11 +1299,6 @@
     "branches": 31,
     "depth": 2
   },
-  "packages/contracts/src/setup/setup.ts::setupSteps#1": {
-    "lines": 930,
-    "branches": 197,
-    "depth": 13
-  },
   "packages/contracts/src/shell/refusal.ts::refusalOf#1": {
     "lines": 58,
     "branches": 34,

@@ -13290,120 +13290,6 @@ function lineCredentialFailure(lastError) {
 }
 var LINE_CREDENTIALS_SENTENCE = "the vault that keeps the line's credentials";
 
-// src/voice/forwarding.ts
-var CARRIERS = ["verizon", "att", "tmobile", "other", "office"];
-var FORWARDING_MODES = ["unanswered", "always"];
-var CARRIER_WORDS = {
-  verizon: "Verizon",
-  att: "AT&T",
-  tmobile: "T-Mobile",
-  other: "Another carrier or a landline",
-  office: "An office phone system"
-};
-var MODE_WORDS = {
-  unanswered: "Only calls you don't answer",
-  always: "Every call"
-};
-var FORWARDING_TEST_WINDOW_MS = 30 * 6e4;
-function telHref(code2) {
-  return `tel:${code2.replace(/\+/g, "%2B").replace(/#/g, "%23")}`;
-}
-function national(e164) {
-  const d = e164.replace(/[^\d]/g, "");
-  return d.length === 11 && d.startsWith("1") ? d.slice(1) : d;
-}
-var code = (c) => ({ code: c, tel: telHref(c) });
-var UNANSWERED_NOTE = "Your phone rings first. After your carrier's timer, usually 15 to 30 seconds, the call comes to the receptionist. If voicemail picks up first, calls never arrive: ask your carrier to lengthen the ring time, or forward every call.";
-var DIAL_NOTE = "Dial it on the phone that has the number you keep, wait for the tone or the message, then hang up.";
-var OFFICE_NOTE = "An office phone system takes no code: in its settings, under forwarding or what happens when no one answers, forward the calls to the number above.";
-var OFFICE_VOICEMAIL_NOTE = "If the system sends unanswered calls to voicemail, the forwarding has to come before it, or calls never reach the receptionist. Its support can set it for you.";
-function forwardingDialLabel(carrier, kept) {
-  return carrier === "office" ? `In the phone system for ${kept}, forward the calls to` : `Dial on the phone with ${kept}`;
-}
-function forwardingCodes(carrier, mode, destinationE164) {
-  const n10 = national(destinationE164);
-  const full = normalizePhone(destinationE164) ?? destinationE164;
-  const conditional = mode === "unanswered";
-  switch (carrier) {
-    // No code: the receptionist's number, set in the system's own settings, and taken out there to switch it off.
-    case "office":
-      return {
-        on: code(full),
-        off: code(""),
-        notes: [OFFICE_NOTE, ...conditional ? [OFFICE_VOICEMAIL_NOTE] : []]
-      };
-    case "verizon":
-      return {
-        on: code(conditional ? `*71${n10}` : `*72${n10}`),
-        off: code("*73"),
-        notes: [DIAL_NOTE, ...conditional ? [UNANSWERED_NOTE] : [], "Verizon forwards calls only, never texts."]
-      };
-    case "att":
-      return {
-        on: code(conditional ? `*61*${n10}#` : `*21*${n10}#`),
-        off: code(conditional ? "#61#" : "#21#"),
-        notes: [
-          DIAL_NOTE,
-          ...conditional ? [
-            UNANSWERED_NOTE,
-            `Busy too: dial *67*${n10}#. If AT&T refuses these codes, dial *92 then the number for no answer and *90 then the number for busy, or ask AT&T for your plan's codes.`
-          ] : []
-        ]
-      };
-    case "tmobile":
-      return {
-        on: code(conditional ? `**004*${full}#` : `**21*${full}#`),
-        off: code(conditional ? "##004#" : "##21#"),
-        notes: [DIAL_NOTE, ...conditional ? [UNANSWERED_NOTE] : [], "T-Mobile takes the number with +1 in front."]
-      };
-    default:
-      return {
-        on: code(conditional ? `*92${n10}` : `*72${n10}`),
-        off: code(conditional ? "*93" : "*73"),
-        notes: [
-          DIAL_NOTE,
-          ...conditional ? [UNANSWERED_NOTE] : [],
-          "Codes vary by carrier. If these are refused, ask your carrier for its call-forwarding codes: most landlines use *72 for every call and *92 or *71 for calls you don't answer."
-        ]
-      };
-  }
-}
-var isCarrier = (v) => typeof v === "string" && CARRIERS.includes(v);
-var isForwardingMode = (v) => typeof v === "string" && FORWARDING_MODES.includes(v);
-function forwardingMatch(facts, call, nowMs = Date.now()) {
-  const started = call.startedAtIso ? Date.parse(call.startedAtIso) : nowMs;
-  const from = typeof facts.test_started_at === "string" ? Date.parse(facts.test_started_at) : NaN;
-  const until = typeof facts.test_until === "string" ? Date.parse(facts.test_until) : NaN;
-  if (Number.isNaN(started) || Number.isNaN(from) || Number.isNaN(until)) return false;
-  if (started < from - 6e4 || started > until) return false;
-  const dest = typeof facts.destination_e164 === "string" ? normalizePhone(facts.destination_e164) : null;
-  if (dest && call.toE164 && normalizePhone(call.toE164) !== dest) return false;
-  const testFrom = typeof facts.test_from === "string" && facts.test_from ? normalizePhone(facts.test_from) : null;
-  if (testFrom && (!call.fromE164 || normalizePhone(call.fromE164) !== testFrom)) return false;
-  return true;
-}
-function divertedNumbers(headers) {
-  if (!headers || typeof headers !== "object") return null;
-  const values = ["diversion", "history-info"].map((k) => headers[k]).filter((v) => typeof v === "string" && v.trim() !== "");
-  if (!values.length) return null;
-  const out = [];
-  for (const v of values)
-    for (const m of v.matchAll(/(?:sips?|tel):(\+?\d{7,15})/gi)) {
-      const n = normalizePhone(m[1]);
-      if (n && !out.includes(n)) out.push(n);
-    }
-  return out;
-}
-function forwardingProof(keptE164, diverted) {
-  if (diverted === null) return "unseen";
-  const kept = keptE164 ? normalizePhone(keptE164) : null;
-  return kept && diverted.includes(kept) ? "carrier" : "not_shown";
-}
-function forwardingTestOpen(facts, nowMs = Date.now()) {
-  const until = typeof facts.test_until === "string" ? Date.parse(facts.test_until) : NaN;
-  return !Number.isNaN(until) && until > nowMs;
-}
-
 // src/lines/registration-path.ts
 var REGISTRATION_PATHS = ["standard", "sole_proprietor"];
 function registrationPathOf(saved) {
@@ -13456,127 +13342,6 @@ var REGISTRATION_COST_WORDS = {
   standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
   sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second.`
 };
-
-// src/setup/capabilities.ts
-var CAPABILITY_KINDS = ["voice", "whatsapp", "sms"];
-function activationOf(i, kind) {
-  const r2 = (i.activations ?? []).find((a) => a.capability === kind && !a.deactivated_at);
-  return r2 ? { at: r2.activated_at, by: r2.activated_by } : null;
-}
-var factsMissing = (i) => !i.business.name || !i.business.hours ? {
-  code: "no_business_facts",
-  words: "The receptionist has no facts to answer with yet: the business name and hours first."
-} : null;
-function capabilityStatus(kind, i, nowMs = Date.now()) {
-  const blockers = [];
-  let tested = null;
-  if (kind === "voice") {
-    const v = i.channels.voice;
-    const own = i.lines?.rows.find((l) => l.provider !== "carrier") ?? null;
-    if (v.present && v.active) {
-      const f = factsMissing(i);
-      if (f) blockers.push(f);
-    } else if (v.present) {
-      blockers.push({ code: "channel_off", words: "Your line is switched off." });
-    } else if (own && own.voice_state === "provisioning") {
-      blockers.push({ code: "line_provisioning", words: "Your line is being set up; it answers the moment it is." });
-    } else if (own && own.voice_state === "failed" && lineCredentialFailure(own.last_error)) {
-      blockers.push({
-        code: "line_failed",
-        words: "Setting up your line stopped at the vault that keeps its credentials; a person at Chanlytics has it, and a retry cannot help until they restore them."
-      });
-    } else if (own && own.voice_state === "failed") {
-      blockers.push({
-        code: "line_failed",
-        words: "Setting up your line stopped; a person at Chanlytics has it, and Retry is on the row."
-      });
-    } else {
-      blockers.push({ code: "no_line", words: "No line yet: get a number, or keep the one you have." });
-    }
-    if (v.lastInboundAt) tested = { at: v.lastInboundAt, what: "a call was answered" };
-  } else if (kind === "whatsapp") {
-    const w = i.channels.whatsapp;
-    if (w.present && w.active) {
-      const t = i.templates;
-      if (t.approved === 0 && t.pending > 0)
-        blockers.push({ code: "meta_waiting", words: "Your first messages are with Meta for approval." });
-      const f = factsMissing(i);
-      if (f) blockers.push(f);
-    } else if (w.present) {
-      blockers.push({ code: "channel_off", words: "Your WhatsApp number is connected but switched off." });
-    } else {
-      blockers.push({ code: "not_connected", words: "Connect the WhatsApp number customers write to." });
-    }
-    if (w.lastInboundAt) tested = { at: w.lastInboundAt, what: "a message was answered" };
-  } else {
-    const line = i.lines?.rows.find((l) => l.sms_state === "active" && !l.reg_mock) ?? null;
-    if (!line)
-      blockers.push({
-        code: "texting_not_sold",
-        words: "Texting is not part of what is sold yet: it arrives with a line the carriers have approved."
-      });
-  }
-  const ready = blockers.length === 0;
-  const activated = activationOf(i, kind);
-  const live = ready && !!tested && !!activated;
-  const words4 = live ? `Active since ${agoWords(Date.parse(activated.at), nowMs)}.` : activated && !ready ? `Activated, but not ready: ${blockers[0].words}` : ready && tested ? `Tested (${tested.what} ${agoWords(Date.parse(tested.at), nowMs)}). Activate it to say it is yours.` : ready ? "Ready. Try it from your own phone, then activate it." : blockers[0].words;
-  return { kind, ready, blockers, tested, activated, live, words: words4 };
-}
-
-// src/email/mailbox.ts
-var MAILBOX_RESERVED = /* @__PURE__ */ new Set([
-  "r",
-  "postmaster",
-  "abuse",
-  "mailer-daemon",
-  "noreply",
-  "no-reply",
-  "admin",
-  "administrator",
-  "support",
-  "security",
-  "billing",
-  "hello",
-  "hi"
-]);
-var MAILBOX_LOCAL_PART_MAX = 40;
-var MAILBOX_FROM_NAME_MAX = 80;
-function emailDomainOf(value) {
-  const d = (value || "").trim().toLowerCase();
-  return /^[a-z0-9.-]+\.[a-z]{2,}$/.test(d) ? d : null;
-}
-function normalizeLocalPart(typed) {
-  return typed.trim().toLowerCase();
-}
-function whyNotALocalPart(typed) {
-  const s = normalizeLocalPart(typed);
-  if (!s) return "Write the part before the @, like your business's name.";
-  if (s.length > MAILBOX_LOCAL_PART_MAX) return `Keep it to ${MAILBOX_LOCAL_PART_MAX} characters or fewer.`;
-  if (!/^[a-z0-9-]+$/.test(s)) return "Use letters, numbers and hyphens only: no spaces, dots or other marks.";
-  if (s.startsWith("-") || s.endsWith("-")) return "Start and end with a letter or a number.";
-  if (MAILBOX_RESERVED.has(s)) return `\u201C${s}\u201D is kept for the mail system. Choose something that names your business.`;
-  return null;
-}
-function whyNotAFromName(typed) {
-  const s = typed.trim();
-  if (!s) return "Write the name customers should see, usually your business's.";
-  if (s.length > MAILBOX_FROM_NAME_MAX) return `Keep it to ${MAILBOX_FROM_NAME_MAX} characters or fewer.`;
-  return null;
-}
-function suggestLocalPart(businessName) {
-  const s = (businessName ?? "").normalize("NFKD").replace(/\p{M}+/gu, "").toLowerCase().replace(/['’]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, MAILBOX_LOCAL_PART_MAX).replace(/-+$/g, "");
-  return s && whyNotALocalPart(s) === null ? s : null;
-}
-var EMAIL_NOT_ANSWERED_SENTENCE = "The receptionist does not answer email yet: every email waits for you in the Inbox.";
-var EMAIL_ELSEWHERE_SENTENCE = "Replies you send from another mail app do not show here.";
-
-// src/setup/first-run-route.ts
-var FIRST_RUN_ROUTE = "start";
-function firstRunStepRoute(key) {
-  return `${FIRST_RUN_ROUTE}/${key}`;
-}
-var FIND_PARAM = "find";
-var FIRST_RUN_FIND_ROUTE = `${FIRST_RUN_ROUTE}/${FIND_PARAM}`;
 
 // src/setup/setup.ts
 var PROVISIONING_DEADLINE_MS = 5 * 6e4;
@@ -13681,8 +13446,7 @@ function activationWords(cap2, nowMs) {
   if (cap2.tested) return "Tested \u2014 activate it to say it is yours";
   return "Not tested yet \u2014 try it from your own phone";
 }
-function setupSteps(i, nowMs = Date.now()) {
-  const later = new Set(i.later ?? []);
+function rowContextOf(i, nowMs) {
   const wa = i.channels.whatsapp;
   const voice = i.channels.voice;
   const waReady = wa.present && wa.active;
@@ -13691,760 +13455,26 @@ function setupSteps(i, nowMs = Date.now()) {
   const waNum = display(wa.number) ?? "your number";
   const voiceNum = display(voice.number) ?? "your line";
   const handoffNum = display(i.business.handoff);
-  const rows = [];
-  const row2 = (r2) => rows.push({ ...r2, stateWords: r2.stateWords ?? SETUP_STATE_WORDS[r2.state], later: !r2.required && later.has(r2.id) });
-  if (billingDoorOpen(i.billing)) {
-    const b = i.billing;
-    const testMode = b.livemode === false ? [BILLING_TEST_MODE_CLAUSE] : [];
-    if (b.status === "trialing" && (b.cancel_at || b.cancel_at_period_end)) {
-      row2({
-        id: "billing",
-        icon: "money",
-        title: "Billing",
-        state: "ready",
-        required: true,
-        sentence: `On trial, cancelled: the receptionist answers until ${dayWords(b.cancel_at ?? b.trial_end) || "the trial ends"}, then stops.`,
-        details: [...testMode, "Nothing is charged; undo the cancellation from Billing before then to keep it"],
-        verb: { label: "Open Billing", to: "admin/billing" }
-      });
-    } else if (b.status === "trialing") {
-      row2({
-        id: "billing",
-        icon: "money",
-        title: "Billing",
-        state: "ready",
-        required: true,
-        sentence: `On trial: ${trialWords(b.trial_end, nowMs) || "the card is on file"}.`,
-        details: [
-          ...testMode,
-          "The card on file is charged when the trial ends; cancel from Billing before then if you'd rather not",
-          // What the trial does not cover (maySpend), said where the trial is, as Billing says it.
-          TRIAL_COVERS
-        ],
-        verb: { label: "Open Billing", to: "admin/billing" }
-      });
-    } else if (b.status === "active" || b.status === "incomplete") {
-      row2({
-        id: "billing",
-        icon: "money",
-        title: "Billing",
-        state: "ready",
-        required: true,
-        sentence: b.status === "active" ? `Subscribed \xB7 next invoice ${dayWords(b.current_period_end) || "on the renewal date"}.` : "Finishing checkout \u2014 this page updates by itself.",
-        details: [...testMode],
-        verb: { label: "Open Billing", to: "admin/billing" }
-      });
-    } else if (b.status === "past_due") {
-      row2({
-        id: "billing",
-        icon: "money",
-        title: "Billing",
-        state: "waiting_you",
-        required: true,
-        sentence: "The last payment failed. Update the card to keep the receptionist answering.",
-        details: [...testMode, "Stripe retries for a few days, then pauses the subscription"],
-        verb: { label: "Update the card", to: "verb:billing-portal" }
-      });
-    } else if (b.status === "paused" || b.status === "unpaid") {
-      row2({
-        id: "billing",
-        icon: "money",
-        title: "Billing",
-        state: "waiting_you",
-        required: true,
-        sentence: "Your receptionist is paused: messages land in the Inbox, nothing is answered.",
-        details: [
-          ...testMode,
-          b.status === "paused" ? "The trial ended without a card on file" : "Payment could not be collected"
-        ],
-        verb: { label: "Resume in Billing", to: "admin/billing" }
-      });
-    } else {
-      row2({
-        id: "billing",
-        icon: "money",
-        title: "Billing",
-        state: "not_started",
-        required: true,
-        sentence: b.trial_days > 0 ? `Start the ${b.trial_days}-day trial with a card \u2014 nothing is charged until it ends.` : "Subscribe with a card \u2014 the first charge is today.",
-        details: [
-          ...testMode,
-          ...b.trial_days > 0 ? ["Cancel any time from Billing", "The receptionist answers through the trial"] : ["Cancel any time from Billing"]
-        ],
-        verb: { label: b.trial_days > 0 ? "Start the trial" : "Subscribe", to: "verb:billing-checkout" }
-      });
-    }
-  }
-  {
-    const b = i.business;
-    const missing = [!b.name ? "a name" : "", !b.hours ? "hours" : "", b.services === 0 ? "services" : ""].filter(
-      Boolean
-    );
-    const serious = (i.conflicts ?? []).find((k) => k.severity === "serious") ?? null;
-    if (b.broken) {
-      i.requests.repair ? row2({
-        id: "facts",
-        icon: "home",
-        title: "Business facts",
-        state: "waiting_them",
-        required: true,
-        sentence: `${BROKEN_CONFIG_WORDS.clause} ${BROKEN_CONFIG_WORDS.requested(i.requests.repair, nowMs)}`,
-        details: [],
-        verb: { label: "Open Business", to: "admin/workspace" }
-      }) : row2({
-        id: "facts",
-        icon: "home",
-        title: "Business facts",
-        state: "waiting_you",
-        required: true,
-        sentence: BROKEN_CONFIG_WORDS.clause,
-        details: [],
-        verb: { label: BROKEN_CONFIG_WORDS.ask, to: "verb:request-repair" }
-      });
-    } else if (serious) {
-      row2({
-        id: "facts",
-        icon: "home",
-        title: "Business facts",
-        state: "waiting_you",
-        required: true,
-        sentence: serious.sentence,
-        details: [`${b.name} \xB7 hours set \xB7 ${plural6(b.services, "service")} on record`],
-        verb: { label: "Fix it in Business", to: serious.to }
-      });
-    } else if (missing.length === 0) {
-      row2({
-        id: "facts",
-        icon: "home",
-        title: "Business facts",
-        state: "ready",
-        required: true,
-        sentence: `${b.name} \xB7 hours set \xB7 ${plural6(b.services, "service")} on record`,
-        details: [
-          b.bookingLink ? "Booking link on record" : "No booking link \u2014 the receptionist answers, but cannot send one",
-          b.address ? "Address on record" : "No address yet"
-        ],
-        verb: { label: "Edit in Business", to: "admin/workspace" }
-      });
-    } else {
-      const none = missing.length === 3;
-      row2({
-        id: "facts",
-        icon: "home",
-        title: "Business facts",
-        state: none ? "not_started" : "waiting_you",
-        required: true,
-        sentence: none ? "Name, hours and services are what the receptionist answers with." : `Still missing: ${missing.join(" and ")}.`,
-        details: [],
-        verb: { label: none ? "Start in Business" : "Finish in Business", to: "admin/workspace" }
-      });
-    }
-  }
-  row2(
-    handoffNum ? {
-      id: "handoff",
-      icon: "phone",
-      title: "A person to hand off to",
-      state: "ready",
-      required: false,
-      sentence: `Callers who insist on a person are transferred to ${handoffNum}.`,
-      details: [],
-      verb: { label: "Change it", to: "admin/workspace" }
-    } : {
-      id: "handoff",
-      icon: "phone",
-      title: "A person to hand off to",
-      state: "waiting_you",
-      required: false,
-      sentence: "Give the receptionist a number to hand callers to when they insist on a person.",
-      details: [],
-      verb: { label: "Add a number", to: "admin/workspace" }
-    }
-  );
   const lines = i.lines ?? { rows: [], ready: false, provider: null, costs: { local_number_month_usd: 1.15 } };
   const canSpend = !i.billing || maySpend(i.billing.mode, i.billing.status);
   const ownLine = lines.rows.find((l) => l.voice_state !== "none") ?? null;
   const texting = textingWords(ownLine);
   const lineNum = ownLine?.e164 ? display(ownLine.e164) ?? ownLine.e164 : "your number";
-  if (voiceReady) {
-    row2({
-      id: "line",
-      icon: "phone",
-      title: "A line for calls and texts",
-      state: "ready",
-      required: !answering,
-      sentence: `Calls are answered on ${voiceNum}. ${texting.sentence}`,
-      details: [
-        ownLine?.voice_state === "answering" ? "Your own number through Chanlytics" : "",
-        ownLine || texting.done ? "" : "Texting arrives with lines that register with the carriers; this page will say when"
-      ].filter(Boolean),
-      verb: { label: "Open Connections", to: "admin/integrations" }
-    });
-  } else if (voice.present) {
-    row2({
-      id: "line",
-      icon: "phone",
-      title: "A line for calls and texts",
-      state: "waiting_you",
-      required: !answering,
-      sentence: `Your line ${voice.number ? `${voiceNum} ` : ""}is switched off \u2014 the receptionist is not answering it.`,
-      details: [],
-      verb: { label: "Open Connections", to: "admin/integrations" }
-    });
-  } else if (ownLine && lineStuckProvisioning(ownLine, nowMs)) {
-    row2({
-      id: "line",
-      icon: "phone",
-      title: "A line for calls and texts",
-      state: "waiting_them",
-      required: !answering,
-      sentence: `Setting up ${lineNum} stopped while ${LINE_STEP_WORDS[ownLine.step ?? ""] ?? "working on it"}, ${agoWords(Date.parse(ownLine.state_since), nowMs)}.`,
-      details: [
-        "It is retried automatically, usually within a quarter of an hour, and Chanlytics is told when it is",
-        "Retry from here \u2014 it picks up where it stopped and buys nothing twice"
-      ],
-      verb: { label: "Retry", to: `verb:retry-line:${ownLine.id}` }
-    });
-  } else if (ownLine && ownLine.voice_state === "provisioning") {
-    row2({
-      id: "line",
-      icon: "phone",
-      title: "A line for calls and texts",
-      state: "waiting_them",
-      required: !answering,
-      sentence: `Setting up ${lineNum} \u2014 ${LINE_STEP_WORDS[ownLine.step ?? ""] ?? "working on it"}, since ${agoWords(Date.parse(ownLine.state_since), nowMs)}.`,
-      details: ["Usually a minute or two; this page updates by itself"],
-      verb: null
-    });
-  } else if (ownLine && ownLine.voice_state === "failed" && lineCredentialFailure(ownLine.last_error)) {
-    row2({
-      id: "line",
-      icon: "phone",
-      title: "A line for calls and texts",
-      state: "waiting_them",
-      required: !answering,
-      sentence: `Setting up ${lineNum} stopped at ${LINE_CREDENTIALS_SENTENCE}. A person at Chanlytics has it.`,
-      details: [
-        "A retry cannot help until the credentials are restored; we have been told and will finish it with you"
-      ],
-      verb: null
-    });
-  } else if (ownLine && ownLine.voice_state === "failed") {
-    row2({
-      id: "line",
-      icon: "phone",
-      title: "A line for calls and texts",
-      state: "waiting_them",
-      required: !answering,
-      sentence: `Setting up ${lineNum} stopped while ${LINE_STEP_WORDS[ownLine.step ?? ""] ?? "working on it"}. A person at Chanlytics has it.`,
-      details: ["Retry from here; we have been told"],
-      verb: { label: "Retry", to: `verb:retry-line:${ownLine.id}` }
-    });
-  } else if (ownLine && ownLine.voice_state === "answering") {
-    row2({
-      id: "line",
-      icon: "phone",
-      title: "A line for calls and texts",
-      state: "waiting_them",
-      required: !answering,
-      sentence: `${lineNum} is set up \u2014 connecting it to the receptionist.`,
-      details: [],
-      verb: null
-    });
-  } else if (i.requests.port && !(i.requests.line && Date.parse(i.requests.line) > Date.parse(i.requests.port))) {
-    row2({
-      id: "line",
-      icon: "phone",
-      title: "A line for calls and texts",
-      state: "waiting_them",
-      required: !answering,
-      sentence: `Requested ${agoWords(Date.parse(i.requests.port), nowMs)} \u2014 a person at Chanlytics will move your number onto Chanlytics with you and reach you by email.`,
-      details: [
-        "Keep your current phone service until the move is finished \u2014 cancelling it first can lose the number",
-        "Carriers take 7 to 14 business days once the move is filed"
-      ],
-      verb: null
-    });
-  } else if (i.requests.line) {
-    row2({
-      id: "line",
-      icon: "phone",
-      title: "A line for calls and texts",
-      state: "waiting_them",
-      required: !answering,
-      sentence: `Requested ${agoWords(Date.parse(i.requests.line), nowMs)} \u2014 a person at Chanlytics will set up your line with you and reach you by email.`,
-      details: [],
-      verb: null
-    });
-  } else if (lines.ready) {
-    canSpend ? row2({
-      id: "line",
-      icon: "phone",
-      title: "A line for calls and texts",
-      state: "waiting_you",
-      required: !answering,
-      sentence: "Get a number for calls, or keep the one you have.",
-      // The number is part of the plan (Ruben, 24 Sep 2026; docs/superpowers/specs/2026-09-24-first-run-design.md):
-      // Checkout bills one price and nothing bills a number fee, so no row quotes one. The DTO still carries what a
-      // number costs Chanlytics (lines.costs); nothing an owner reads says it.
-      details: [
-        "A local number, included in your plan \xB7 your receptionist answers it \xB7 texting arrives when the carriers register it"
-      ],
-      verb: { label: "Get a line", to: "verb:choose-line" }
-    }) : billingDoorOpen(i.billing) && (i.billing.status === "none" || i.billing.status === "trialing") ? (
-      // No plan yet, or a free trial, which covers no number (maySpend): the number starts the plan, and the first
-      // run's phone step is where both happen -- its checkout takes no trial, and a trial's plan starts from there.
-      row2({
-        id: "line",
-        icon: "phone",
-        title: "A line for calls and texts",
-        state: "waiting_you",
-        required: !answering,
-        sentence: "Get a number for calls: it starts your plan.",
-        details: [
-          priceWords(i.billing.price ?? null) ? `A local number, included in your plan \xB7 ${priceWords(i.billing.price ?? null)}, from the day you get it` : "A local number, included in your plan, from the day you get it"
-        ],
-        verb: { label: "Get a number", to: "start/phone" }
-      })
-    ) : billingDoorOpen(i.billing) ? row2({
-      id: "line",
-      icon: "phone",
-      title: "A line for calls and texts",
-      state: "waiting_you",
-      required: !answering,
-      sentence: whyCannotSpend(i.billing.mode, i.billing.status) ?? "Billing needs attention first.",
-      details: ["A local number, included in your plan"],
-      verb: { label: "Open Billing", to: "admin/billing" }
-    }) : (
-      // CANNOT SPEND, AND THERE IS NO CARD TO ADD. Three states, not two: this
-      // row used to collapse the last into the middle one and send a brand-new
-      // self-serve workspace to a Billing page with every action false. The
-      // billing row above already drew nothing for exactly this case, so the two
-      // rows disagreed about one fact — which is why they now read one predicate.
-      //
-      // The honest offer is the one the branch below already makes for a
-      // deployment that cannot provision at all: a person sets the line up with
-      // them. It is true, it is actionable, and it does not require the owner to
-      // discover on a dead page that the product cannot take their money yet.
-      row2({
-        id: "line",
-        icon: "phone",
-        title: "A line for calls and texts",
-        state: "waiting_you",
-        required: !answering,
-        sentence: "We set up your phone line with you.",
-        details: [
-          "A number, the receptionist answering it, and forwarding from the number you have",
-          "Billing is not open on this deployment yet, so there is nothing to add a card to"
-        ],
-        verb: { label: "Ask for a line", to: "verb:request-line" }
-      })
-    );
-  } else {
-    row2({
-      id: "line",
-      icon: "phone",
-      title: "A line for calls and texts",
-      state: "waiting_you",
-      required: !answering,
-      sentence: "We set up your phone line with you.",
-      details: ["A number, the receptionist answering it, and forwarding from the number you have"],
-      verb: { label: "Ask for a line", to: "verb:request-line" }
-    });
-  }
-  if (voiceReady) {
-    const last = voice.lastInboundAt ? `Last call ${agoWords(Date.parse(voice.lastInboundAt), nowMs)}` : "No calls yet";
-    const cap2 = capabilityStatus("voice", i, nowMs);
-    if (!i.business.name || !i.business.hours) {
-      row2({
-        id: "receptionist",
-        icon: "headphones",
-        title: "Phone receptionist",
-        state: "waiting_you",
-        required: !answering,
-        sentence: `Picking up on ${voiceNum}, but it has no facts to answer with yet.`,
-        details: [
-          "Callers are told someone will confirm and are offered to leave a message",
-          "Fill in your name, hours and services and it answers properly from the next call"
-        ],
-        verb: { label: "Add your facts", to: "admin/workspace" }
-      });
-    } else {
-      row2({
-        id: "receptionist",
-        icon: "headphones",
-        title: "Phone receptionist",
-        state: "ready",
-        required: !answering,
-        sentence: `Answering on ${voiceNum}.`,
-        details: [
-          handoffNum ? `Transfers to ${handoffNum} when a caller insists on a person` : "No hand-off number yet \u2014 callers who insist on a person are told someone will call back",
-          last,
-          activationWords(cap2, nowMs)
-        ],
-        verb: cap2.tested && !cap2.live ? { label: "Activate", to: "verb:activate:voice" } : voice.number ? { label: "Call it", to: `tel:${voice.number}` } : null,
-        undo: cap2.live ? { label: "Withdraw activation", to: "verb:deactivate:voice" } : null
-      });
-    }
-  } else if (voice.present) {
-    row2({
-      id: "receptionist",
-      icon: "headphones",
-      title: "Phone receptionist",
-      state: "waiting_you",
-      required: !answering,
-      sentence: "Switched off with the line.",
-      details: [],
-      verb: null
-    });
-  } else if (ownLine && (ownLine.voice_state === "provisioning" || ownLine.voice_state === "answering")) {
-    row2({
-      id: "receptionist",
-      icon: "headphones",
-      title: "Phone receptionist",
-      state: "waiting_them",
-      required: !answering,
-      sentence: "Being created with your line \u2014 it answers the moment the line does.",
-      details: [],
-      verb: null
-    });
-  } else {
-    row2({
-      id: "receptionist",
-      icon: "headphones",
-      title: "Phone receptionist",
-      state: "waiting_them",
-      required: !answering,
-      sentence: "The phone receptionist arrives with your line.",
-      details: [],
-      verb: null
-    });
-  }
-  if (voiceReady) {
-    const fwTry = forwardedLineOf(lines);
-    const through = fwTry?.e164 ? display(fwTry.e164) ?? fwTry.e164 : voiceNum;
-    row2({
-      id: "try",
-      icon: "phone",
-      title: "Try it",
-      state: voice.lastInboundAt ? "ready" : "waiting_you",
-      required: false,
-      sentence: voice.lastInboundAt ? `A call reached your receptionist ${agoWords(Date.parse(voice.lastInboundAt), nowMs)}.` : fwTry ? `Call ${through} from your cell and don't pick up.` : `Call ${through} from your cell.`,
-      details: [],
-      // The first run's own step (first-run.ts firstRunStepRoute("try")), spelled here: that file reads this one.
-      verb: voice.lastInboundAt ? null : { label: "Try it", to: "start/try" }
-    });
-  }
-  {
-    const fw = lines.rows.find((l) => l.kind === "forwarded") ?? null;
-    const f = fw?.forwarding ?? null;
-    const kept = fw?.e164 ? display(fw.e164) ?? fw.e164 : "your number";
-    const dest = voiceReady && voice.number ? voiceNum : null;
-    const how = f ? `${MODE_WORDS[f.mode] ?? "Forwarded"} \xB7 ${CARRIER_WORDS[f.carrier] ?? "your carrier"}` : "";
-    const title = "The number you already have";
-    if (fw && f && fw.forwarding_state === "verified") {
-      row2({
-        id: "keep",
-        icon: "refresh",
-        title,
-        state: "ready",
-        required: false,
-        sentence: `Calls to ${kept} reach your receptionist.`,
-        details: [f.verified_at ? `Verified ${agoWords(Date.parse(f.verified_at), nowMs)}` : "Verified", how],
-        verb: { label: "Change it", to: "verb:forwarding" }
-      });
-    } else if (fw && f && forwardingTestOpen(f, nowMs)) {
-      row2({
-        id: "keep",
-        icon: "refresh",
-        title,
-        state: "waiting_you",
-        required: false,
-        sentence: `Testing \u2014 call ${kept} from another phone. This page updates by itself.`,
-        details: [`Window open for ${spanLabel(Date.parse(f.test_until ?? "") - nowMs)}`],
-        verb: { label: "Show the code", to: "verb:forwarding" }
-      });
-    } else if (fw && f) {
-      row2({
-        id: "keep",
-        icon: "refresh",
-        title,
-        state: "waiting_you",
-        required: false,
-        sentence: f.carrier === "office" ? `Forward ${kept} to your receptionist in your phone system's settings, then test it.` : `Dial the code on the phone with ${kept}, then test it.`,
-        details: [how],
-        verb: { label: "Test it", to: `verb:forwarding-test:${fw.id}` }
-      });
-    } else if (!dest) {
-      row2({
-        id: "keep",
-        icon: "refresh",
-        title,
-        state: "not_started",
-        required: false,
-        sentence: "Once your receptionist has a line, keep the number customers know by forwarding its calls to it.",
-        details: [],
-        verb: null
-      });
-    } else {
-      row2({
-        id: "keep",
-        icon: "refresh",
-        title,
-        state: "not_started",
-        required: false,
-        sentence: `Keep the number your customers know: forward its calls to ${dest}.`,
-        details: ["You keep your phone, your carrier and your texts"],
-        verb: { label: "Set up forwarding", to: "verb:forwarding" }
-      });
-    }
-  }
-  if (waReady) {
-    const t = i.templates;
-    const metaWaits = t.approved === 0 && t.pending > 0;
-    const cap2 = capabilityStatus("whatsapp", i, nowMs);
-    const details = [
-      wa.quality ? `Quality ${wa.quality.toLowerCase()}` : "",
-      t.approved ? `${plural6(t.approved, "approved message")}` : t.pending ? `${plural6(t.pending, "message")} with Meta for approval` : "No approved messages yet",
-      t.startersApproved < 5 ? "Add the starter messages: welcome, win-back, the month's offer" : "",
-      wa.lastInboundAt ? `Last message ${agoWords(Date.parse(wa.lastInboundAt), nowMs)}` : ""
-    ].filter(Boolean);
-    if (!metaWaits) details.push(activationWords(cap2, nowMs));
-    row2({
-      id: "whatsapp",
-      icon: "chat",
-      title: "WhatsApp",
-      state: metaWaits ? "waiting_them" : "ready",
-      stateWords: metaWaits ? "Waiting on Meta" : void 0,
-      required: !answering,
-      sentence: metaWaits ? `Connected on ${waNum} \u2014 your first messages are with Meta for approval.` : `Connected on ${waNum}.`,
-      details,
-      verb: cap2.tested && !cap2.live && !metaWaits ? { label: "Activate", to: "verb:activate:whatsapp" } : t.startersApproved < 5 && !metaWaits ? { label: "Add the starters", to: "outbound" } : { label: "Open the Inbox", to: "inbox" },
-      undo: cap2.live && !metaWaits ? { label: "Withdraw activation", to: "verb:deactivate:whatsapp" } : null
-    });
-  } else if (wa.present) {
-    row2({
-      id: "whatsapp",
-      icon: "chat",
-      title: "WhatsApp",
-      state: "waiting_you",
-      required: !answering,
-      sentence: `${waNum ?? "Your number"} is connected but switched off.`,
-      details: [],
-      verb: { label: "Open Connections", to: "admin/integrations" }
-    });
-  } else {
-    row2({
-      id: "whatsapp",
-      icon: "chat",
-      title: "WhatsApp",
-      state: "waiting_you",
-      required: !answering,
-      sentence: "Connect the WhatsApp number customers write to.",
-      details: ["A new number, or the WhatsApp Business app you already use"],
-      verb: { label: "Connect", to: "admin/integrations" }
-    });
-  }
-  if (i.email?.ready) {
-    const mb = i.email.mailbox;
-    row2(
-      mb ? {
-        id: "email",
-        icon: "mail",
-        title: "Email",
-        state: "ready",
-        required: false,
-        sentence: `Customers write to ${mb.address}, and their emails arrive in your Inbox.`,
-        // Still "ready": Setup answers whether the channel is set up, and it
-        // is. That an email could not be taken in is a detail here and the
-        // row's whole state on Connections, which answers whether it is
-        // WORKING. Two questions, two answers, one fact under both.
-        details: [
-          ...mb.last_error ? [mb.last_error] : [],
-          mb.last_received_at ? `Last email ${agoWords(Date.parse(mb.last_received_at), nowMs)}` : "Nothing received yet",
-          EMAIL_ELSEWHERE_SENTENCE
-        ],
-        verb: { label: "Open the Inbox", to: "inbox" }
-      } : {
-        id: "email",
-        icon: "mail",
-        title: "Email",
-        state: "not_started",
-        required: false,
-        sentence: "Give customers an address to write to. Their emails arrive in your Inbox, and you reply from there.",
-        details: [EMAIL_NOT_ANSWERED_SENTENCE],
-        verb: { label: "Choose the address", to: "admin/integrations" }
-      }
-    );
-  }
-  row2(
-    i.calendar.state === "ok" ? {
-      id: "calendar",
-      icon: "calendar",
-      title: "Calendar",
-      state: "ready",
-      required: false,
-      sentence: `${CALENDAR_FEED_WORDS.ok} \u2014 the receptionist offers times from it.`,
-      details: [],
-      verb: { label: "Open Calendar", to: "calendar" }
-    } : i.calendar.state === "unavailable" ? {
-      id: "calendar",
-      icon: "calendar",
-      title: "Calendar",
-      state: "waiting_you",
-      required: false,
-      sentence: `Your calendar could not be read. ${i.calendar.problem ? `${i.calendar.problem} ` : ""}Check the address in Settings \u203A Business.`,
-      details: [],
-      verb: { label: "Check the address", to: "admin/workspace" }
-    } : {
-      id: "calendar",
-      icon: "calendar",
-      title: "Calendar",
-      state: "not_started",
-      required: false,
-      sentence: "Paste your calendar's iCal address so the receptionist knows what is taken.",
-      details: [],
-      verb: { label: "Paste the address", to: "admin/workspace" }
-    }
-  );
-  {
-    const t = i.team;
-    const people = t.members > 1 || t.invitesOpen > 0;
-    const who = `${plural6(t.members, "person", "people")}${t.invitesOpen ? ` \xB7 ${plural6(t.invitesOpen, "invite")} open` : ""}`;
-    const alerts = t.alertEmails ? `alerts go to ${plural6(t.alertEmails, "address", "addresses")}` : "no alert address yet";
-    row2({
-      id: "team",
-      icon: "users",
-      title: "Team and alerts",
-      state: people && t.alertEmails ? "ready" : !people && !t.alertEmails ? "not_started" : "waiting_you",
-      required: false,
-      sentence: people ? `${who} \xB7 ${alerts}.` : `Only you so far \xB7 ${alerts}.`,
-      details: people ? [] : ["Invite someone who answers when you can't"],
-      verb: !t.alertEmails ? { label: "Set alerts", to: "admin/notifications" } : !people ? { label: "Invite", to: "admin/team" } : { label: "Open Team", to: "admin/team" }
-    });
-  }
-  {
-    const offers = i.consent.offers;
-    const said = i.consent.offersSaidYes;
-    const talk = i.consent.yes;
-    const alsoTalk = talk > said ? [`${plural6(talk, "person", "people")} said yes to messages about their own visit`] : [];
-    row2(
-      offers > 0 ? {
-        id: "yes",
-        icon: "tag",
-        title: "The first yes",
-        state: "ready",
-        required: false,
-        sentence: `${plural6(offers, "person", "people")} said yes to offers.`,
-        details: alsoTalk,
-        verb: { label: "Open Broadcasts", to: "broadcasts" }
-      } : said > 0 ? {
-        id: "yes",
-        icon: "tag",
-        title: "The first yes",
-        state: "waiting_you",
-        required: false,
-        sentence: `${plural6(said, "person", "people")} said yes to offers, but nobody can be sent one yet \u2014 ${NO_NUMBER_REACH}.`,
-        details: alsoTalk,
-        verb: { label: "Open People", to: "clients" }
-      } : {
-        id: "yes",
-        icon: "tag",
-        title: "The first yes",
-        state: "not_started",
-        required: false,
-        sentence: "Nobody has said yes to offers yet. The keyword and the QR are on Broadcasts.",
-        details: alsoTalk,
-        verb: { label: "Get their yes", to: GET_YES_ROUTE }
-      }
-    );
-  }
-  if (i.google?.ready) {
-    const g = i.google.listing;
-    const title = "Your Google listing";
-    const connected = i.google.connected === true;
-    const reach = connected ? "Business Profile connected \u2014 every review, replies from Reports" : "New reviews reach your bell and Reports";
-    if (g && g.check_error) {
-      row2({
-        id: "google",
-        icon: "star",
-        title,
-        state: "waiting_them",
-        stateWords: "Waiting on Google",
-        required: false,
-        sentence: `${g.name} is on record, but Google could not be read${g.checked_at ? ` since ${agoWords(Date.parse(g.checked_at), nowMs)}` : " yet"} \u2014 it is read again once a day.`,
-        details: [],
-        verb: { label: "Open Reports", to: "reports" }
-      });
-    } else if (g) {
-      row2({
-        id: "google",
-        icon: "star",
-        title,
-        state: "ready",
-        required: false,
-        sentence: `${listingLine(g)}.`,
-        details: [g.checked_at ? `Checked ${agoWords(Date.parse(g.checked_at), nowMs)}` : "Not read yet", reach],
-        verb: { label: "Open Reports", to: "reports" }
-      });
-    } else if (i.google.places !== false) {
-      row2({
-        id: "google",
-        icon: "star",
-        title,
-        state: "not_started",
-        required: false,
-        sentence: "Find your business on Google so new reviews reach you here.",
-        details: [
-          i.business.address ? "Uses the name and address on record" : "Add your address in Settings \u203A Business for a surer match"
-        ],
-        // One finder: the first run's Find, asked for by name (first-run.ts).
-        verb: { label: "Find it", to: FIRST_RUN_FIND_ROUTE }
-      });
-    } else {
-      row2({
-        id: "google",
-        icon: "star",
-        title,
-        state: "not_started",
-        required: false,
-        sentence: "Connect your Google Business Profile so every review reaches you here.",
-        details: ["Sign in to Google once, on Connections"],
-        verb: { label: "Connect", to: "admin/integrations" }
-      });
-    }
-  }
-  const open = rows.filter((r2) => r2.state !== "ready" && !r2.later);
-  const nextRow = open.find((r2) => r2.verb) ?? null;
-  const next = nextRow && nextRow.verb ? { label: nextRow.verb.label, to: nextRow.verb.to, row: nextRow.id, title: nextRow.title } : null;
-  const done = rows.filter((r2) => r2.state === "ready").length;
-  const seriousConflict = (i.conflicts ?? []).find((k) => k.severity === "serious") ?? null;
-  const sentence2 = seriousConflict ? (
-    // "Answering" and "answering correctly" are different claims, and the top
-    // line of Setup is where an owner reads the second one.
-    seriousConflict.sentence
-  ) : waReady && voiceReady ? `Your receptionist answers calls on ${voiceNum} and WhatsApp on ${waNum}. ${texting.sentence}` : voiceReady ? `Your receptionist answers calls on ${voiceNum}. WhatsApp is not connected. ${texting.sentence}` : waReady ? `Your receptionist answers WhatsApp on ${waNum}. No phone line yet.` : "Your receptionist is not answering yet.";
   return {
-    rows,
-    readiness: { answering, sentence: sentence2 },
-    next,
-    done,
-    total: rows.length,
-    tryIt: answering ? {
-      voice: voiceReady ? voice.number : null,
-      voiceLabel: voiceReady ? voiceNum : null,
-      whatsapp: waReady ? wa.number : null,
-      whatsappLabel: waReady ? waNum : null
-    } : null,
-    findable: !!i.google?.ready && i.google.places !== false && !i.google.listing,
-    trySkipped: later.has(TRY_SKIPPED),
-    check: {
-      receptionist: i.business.receptionist,
-      listed: !!i.google?.listing,
-      unsure: i.google?.unsure ?? [],
-      type: i.google?.type ?? null,
-      bookingPage: bookingPageOffered(i.google?.bookingPage, i.business.bookingLink)
-    }
+    nowMs,
+    wa,
+    voice,
+    waReady,
+    voiceReady,
+    answering,
+    waNum,
+    voiceNum,
+    handoffNum,
+    lines,
+    canSpend,
+    ownLine,
+    texting,
+    lineNum
   };
 }
 function setupRoute(hash) {
@@ -16049,6 +15079,53 @@ function pipelineBoardMore(n) {
   return `Show ${n} more`;
 }
 
+// src/email/mailbox.ts
+var MAILBOX_RESERVED = /* @__PURE__ */ new Set([
+  "r",
+  "postmaster",
+  "abuse",
+  "mailer-daemon",
+  "noreply",
+  "no-reply",
+  "admin",
+  "administrator",
+  "support",
+  "security",
+  "billing",
+  "hello",
+  "hi"
+]);
+var MAILBOX_LOCAL_PART_MAX = 40;
+var MAILBOX_FROM_NAME_MAX = 80;
+function emailDomainOf(value) {
+  const d = (value || "").trim().toLowerCase();
+  return /^[a-z0-9.-]+\.[a-z]{2,}$/.test(d) ? d : null;
+}
+function normalizeLocalPart(typed) {
+  return typed.trim().toLowerCase();
+}
+function whyNotALocalPart(typed) {
+  const s = normalizeLocalPart(typed);
+  if (!s) return "Write the part before the @, like your business's name.";
+  if (s.length > MAILBOX_LOCAL_PART_MAX) return `Keep it to ${MAILBOX_LOCAL_PART_MAX} characters or fewer.`;
+  if (!/^[a-z0-9-]+$/.test(s)) return "Use letters, numbers and hyphens only: no spaces, dots or other marks.";
+  if (s.startsWith("-") || s.endsWith("-")) return "Start and end with a letter or a number.";
+  if (MAILBOX_RESERVED.has(s)) return `\u201C${s}\u201D is kept for the mail system. Choose something that names your business.`;
+  return null;
+}
+function whyNotAFromName(typed) {
+  const s = typed.trim();
+  if (!s) return "Write the name customers should see, usually your business's.";
+  if (s.length > MAILBOX_FROM_NAME_MAX) return `Keep it to ${MAILBOX_FROM_NAME_MAX} characters or fewer.`;
+  return null;
+}
+function suggestLocalPart(businessName) {
+  const s = (businessName ?? "").normalize("NFKD").replace(/\p{M}+/gu, "").toLowerCase().replace(/['’]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, MAILBOX_LOCAL_PART_MAX).replace(/-+$/g, "");
+  return s && whyNotALocalPart(s) === null ? s : null;
+}
+var EMAIL_NOT_ANSWERED_SENTENCE = "The receptionist does not answer email yet: every email waits for you in the Inbox.";
+var EMAIL_ELSEWHERE_SENTENCE = "Replies you send from another mail app do not show here.";
+
 // src/email/sending-domains.ts
 var DAY_FMT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var SENDING_DOMAIN_STATES = ["records", "verifying", "verified", "held"];
@@ -16628,6 +15705,120 @@ function youAreLiveEmail(i) {
 ` };
 }
 
+// src/voice/forwarding.ts
+var CARRIERS = ["verizon", "att", "tmobile", "other", "office"];
+var FORWARDING_MODES = ["unanswered", "always"];
+var CARRIER_WORDS = {
+  verizon: "Verizon",
+  att: "AT&T",
+  tmobile: "T-Mobile",
+  other: "Another carrier or a landline",
+  office: "An office phone system"
+};
+var MODE_WORDS = {
+  unanswered: "Only calls you don't answer",
+  always: "Every call"
+};
+var FORWARDING_TEST_WINDOW_MS = 30 * 6e4;
+function telHref(code2) {
+  return `tel:${code2.replace(/\+/g, "%2B").replace(/#/g, "%23")}`;
+}
+function national(e164) {
+  const d = e164.replace(/[^\d]/g, "");
+  return d.length === 11 && d.startsWith("1") ? d.slice(1) : d;
+}
+var code = (c) => ({ code: c, tel: telHref(c) });
+var UNANSWERED_NOTE = "Your phone rings first. After your carrier's timer, usually 15 to 30 seconds, the call comes to the receptionist. If voicemail picks up first, calls never arrive: ask your carrier to lengthen the ring time, or forward every call.";
+var DIAL_NOTE = "Dial it on the phone that has the number you keep, wait for the tone or the message, then hang up.";
+var OFFICE_NOTE = "An office phone system takes no code: in its settings, under forwarding or what happens when no one answers, forward the calls to the number above.";
+var OFFICE_VOICEMAIL_NOTE = "If the system sends unanswered calls to voicemail, the forwarding has to come before it, or calls never reach the receptionist. Its support can set it for you.";
+function forwardingDialLabel(carrier, kept) {
+  return carrier === "office" ? `In the phone system for ${kept}, forward the calls to` : `Dial on the phone with ${kept}`;
+}
+function forwardingCodes(carrier, mode, destinationE164) {
+  const n10 = national(destinationE164);
+  const full = normalizePhone(destinationE164) ?? destinationE164;
+  const conditional = mode === "unanswered";
+  switch (carrier) {
+    // No code: the receptionist's number, set in the system's own settings, and taken out there to switch it off.
+    case "office":
+      return {
+        on: code(full),
+        off: code(""),
+        notes: [OFFICE_NOTE, ...conditional ? [OFFICE_VOICEMAIL_NOTE] : []]
+      };
+    case "verizon":
+      return {
+        on: code(conditional ? `*71${n10}` : `*72${n10}`),
+        off: code("*73"),
+        notes: [DIAL_NOTE, ...conditional ? [UNANSWERED_NOTE] : [], "Verizon forwards calls only, never texts."]
+      };
+    case "att":
+      return {
+        on: code(conditional ? `*61*${n10}#` : `*21*${n10}#`),
+        off: code(conditional ? "#61#" : "#21#"),
+        notes: [
+          DIAL_NOTE,
+          ...conditional ? [
+            UNANSWERED_NOTE,
+            `Busy too: dial *67*${n10}#. If AT&T refuses these codes, dial *92 then the number for no answer and *90 then the number for busy, or ask AT&T for your plan's codes.`
+          ] : []
+        ]
+      };
+    case "tmobile":
+      return {
+        on: code(conditional ? `**004*${full}#` : `**21*${full}#`),
+        off: code(conditional ? "##004#" : "##21#"),
+        notes: [DIAL_NOTE, ...conditional ? [UNANSWERED_NOTE] : [], "T-Mobile takes the number with +1 in front."]
+      };
+    default:
+      return {
+        on: code(conditional ? `*92${n10}` : `*72${n10}`),
+        off: code(conditional ? "*93" : "*73"),
+        notes: [
+          DIAL_NOTE,
+          ...conditional ? [UNANSWERED_NOTE] : [],
+          "Codes vary by carrier. If these are refused, ask your carrier for its call-forwarding codes: most landlines use *72 for every call and *92 or *71 for calls you don't answer."
+        ]
+      };
+  }
+}
+var isCarrier = (v) => typeof v === "string" && CARRIERS.includes(v);
+var isForwardingMode = (v) => typeof v === "string" && FORWARDING_MODES.includes(v);
+function forwardingMatch(facts, call, nowMs = Date.now()) {
+  const started = call.startedAtIso ? Date.parse(call.startedAtIso) : nowMs;
+  const from = typeof facts.test_started_at === "string" ? Date.parse(facts.test_started_at) : NaN;
+  const until = typeof facts.test_until === "string" ? Date.parse(facts.test_until) : NaN;
+  if (Number.isNaN(started) || Number.isNaN(from) || Number.isNaN(until)) return false;
+  if (started < from - 6e4 || started > until) return false;
+  const dest = typeof facts.destination_e164 === "string" ? normalizePhone(facts.destination_e164) : null;
+  if (dest && call.toE164 && normalizePhone(call.toE164) !== dest) return false;
+  const testFrom = typeof facts.test_from === "string" && facts.test_from ? normalizePhone(facts.test_from) : null;
+  if (testFrom && (!call.fromE164 || normalizePhone(call.fromE164) !== testFrom)) return false;
+  return true;
+}
+function divertedNumbers(headers) {
+  if (!headers || typeof headers !== "object") return null;
+  const values = ["diversion", "history-info"].map((k) => headers[k]).filter((v) => typeof v === "string" && v.trim() !== "");
+  if (!values.length) return null;
+  const out = [];
+  for (const v of values)
+    for (const m of v.matchAll(/(?:sips?|tel):(\+?\d{7,15})/gi)) {
+      const n = normalizePhone(m[1]);
+      if (n && !out.includes(n)) out.push(n);
+    }
+  return out;
+}
+function forwardingProof(keptE164, diverted) {
+  if (diverted === null) return "unseen";
+  const kept = keptE164 ? normalizePhone(keptE164) : null;
+  return kept && diverted.includes(kept) ? "carrier" : "not_shown";
+}
+function forwardingTestOpen(facts, nowMs = Date.now()) {
+  const until = typeof facts.test_until === "string" ? Date.parse(facts.test_until) : NaN;
+  return !Number.isNaN(until) && until > nowMs;
+}
+
 // src/setup/first-run-try.ts
 var TRY_QUIET_AFTER_MS = 3 * 6e4;
 var TRY_SLACK_MS = 6e4;
@@ -16923,7 +16114,7 @@ function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }) {
   const billing = dto.billing;
   const lines = dto.lines;
   const ownLine = lines?.rows.find((l) => l.voice_state !== "none") ?? null;
-  const lineRow = vm.rows.find((r2) => r2.id === "line") ?? null;
+  const lineRow2 = vm.rows.find((r2) => r2.id === "line") ?? null;
   const canSpend = !billing || maySpend(billing.mode, billing.status);
   const pick = choice?.pick ?? null;
   const picked = pick ? formatPhoneDisplay(pick.e164) : null;
@@ -17014,7 +16205,7 @@ function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }) {
     if (saved && f.carrier === "office") {
       const mode = isForwardingMode(f.mode) ? f.mode : "unanswered";
       const codes = forwardingCodes("office", mode, f.destination_e164 ?? dest);
-      const keepRow = vm.rows.find((r2) => r2.id === "keep") ?? null;
+      const keepRow2 = vm.rows.find((r2) => r2.id === "keep") ?? null;
       const askedAt = dto.requests.forwarding ? Date.parse(dto.requests.forwarding) : NaN;
       const asked = !Number.isNaN(askedAt) && nowMs - askedAt < 864e5 ? askedAt : null;
       return {
@@ -17036,7 +16227,7 @@ function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }) {
           off: W.officeOff,
           help: { label: W.helpOffice, notes: codes.notes },
           change: savedFrom ? W.change : null,
-          verified: fw.forwarding_state === "verified" && keepRow ? keepRow.sentence : null,
+          verified: fw.forwarding_state === "verified" && keepRow2 ? keepRow2.sentence : null,
           withMe: {
             sentence: W.withMe,
             label: W.withMeLabel,
@@ -17053,7 +16244,7 @@ function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }) {
       const mode = isForwardingMode(f.mode) ? f.mode : "unanswered";
       const codes = forwardingCodes(carrier, mode, f.destination_e164 ?? dest);
       const said = rings === "office" ? null : rings;
-      const keepRow = vm.rows.find((r2) => r2.id === "keep") ?? null;
+      const keepRow2 = vm.rows.find((r2) => r2.id === "keep") ?? null;
       return {
         ...base,
         stage: "code",
@@ -17073,7 +16264,7 @@ function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }) {
           off: W.off(codes.off.code),
           help: { label: W.help, notes: codes.notes },
           change: savedFrom ? W.change : null,
-          verified: fw.forwarding_state === "verified" && keepRow ? keepRow.sentence : null,
+          verified: fw.forwarding_state === "verified" && keepRow2 ? keepRow2.sentence : null,
           withMe: null
         },
         forwardFrom: null,
@@ -17101,15 +16292,15 @@ function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }) {
   }
   if (ownLine) {
     const onItsWay = ownLine.voice_state === "provisioning" && !lineStuckProvisioning(ownLine, nowMs) || ownLine.voice_state === "answering";
-    return onItsWay && lineRow ? {
+    return onItsWay && lineRow2 ? {
       ...base,
       ...ready,
       stage: "getting",
       status: {
-        state: lineRow.state,
-        words: lineRow.stateWords,
-        sentence: lineRow.sentence,
-        detail: lineRow.details[0] ?? ""
+        state: lineRow2.state,
+        words: lineRow2.stateWords,
+        sentence: lineRow2.sentence,
+        detail: lineRow2.details[0] ?? ""
       },
       questions,
       cta: questions ? show(false) : null
@@ -17160,6 +16351,14 @@ function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }) {
     keepCode: null
   };
 }
+
+// src/setup/first-run-route.ts
+var FIRST_RUN_ROUTE = "start";
+function firstRunStepRoute(key) {
+  return `${FIRST_RUN_ROUTE}/${key}`;
+}
+var FIND_PARAM = "find";
+var FIRST_RUN_FIND_ROUTE = `${FIRST_RUN_ROUTE}/${FIND_PARAM}`;
 
 // src/setup/first-run.ts
 function businessNameOf(receptionistName, workspaceName) {
@@ -19988,6 +19187,894 @@ function reportFacts(vm, campaigns) {
     }
   }
   return out.slice(0, 3);
+}
+
+// src/setup/capabilities.ts
+var CAPABILITY_KINDS = ["voice", "whatsapp", "sms"];
+function activationOf(i, kind) {
+  const r2 = (i.activations ?? []).find((a) => a.capability === kind && !a.deactivated_at);
+  return r2 ? { at: r2.activated_at, by: r2.activated_by } : null;
+}
+var factsMissing = (i) => !i.business.name || !i.business.hours ? {
+  code: "no_business_facts",
+  words: "The receptionist has no facts to answer with yet: the business name and hours first."
+} : null;
+function capabilityStatus(kind, i, nowMs = Date.now()) {
+  const blockers = [];
+  let tested = null;
+  if (kind === "voice") {
+    const v = i.channels.voice;
+    const own = i.lines?.rows.find((l) => l.provider !== "carrier") ?? null;
+    if (v.present && v.active) {
+      const f = factsMissing(i);
+      if (f) blockers.push(f);
+    } else if (v.present) {
+      blockers.push({ code: "channel_off", words: "Your line is switched off." });
+    } else if (own && own.voice_state === "provisioning") {
+      blockers.push({ code: "line_provisioning", words: "Your line is being set up; it answers the moment it is." });
+    } else if (own && own.voice_state === "failed" && lineCredentialFailure(own.last_error)) {
+      blockers.push({
+        code: "line_failed",
+        words: "Setting up your line stopped at the vault that keeps its credentials; a person at Chanlytics has it, and a retry cannot help until they restore them."
+      });
+    } else if (own && own.voice_state === "failed") {
+      blockers.push({
+        code: "line_failed",
+        words: "Setting up your line stopped; a person at Chanlytics has it, and Retry is on the row."
+      });
+    } else {
+      blockers.push({ code: "no_line", words: "No line yet: get a number, or keep the one you have." });
+    }
+    if (v.lastInboundAt) tested = { at: v.lastInboundAt, what: "a call was answered" };
+  } else if (kind === "whatsapp") {
+    const w = i.channels.whatsapp;
+    if (w.present && w.active) {
+      const t = i.templates;
+      if (t.approved === 0 && t.pending > 0)
+        blockers.push({ code: "meta_waiting", words: "Your first messages are with Meta for approval." });
+      const f = factsMissing(i);
+      if (f) blockers.push(f);
+    } else if (w.present) {
+      blockers.push({ code: "channel_off", words: "Your WhatsApp number is connected but switched off." });
+    } else {
+      blockers.push({ code: "not_connected", words: "Connect the WhatsApp number customers write to." });
+    }
+    if (w.lastInboundAt) tested = { at: w.lastInboundAt, what: "a message was answered" };
+  } else {
+    const line = i.lines?.rows.find((l) => l.sms_state === "active" && !l.reg_mock) ?? null;
+    if (!line)
+      blockers.push({
+        code: "texting_not_sold",
+        words: "Texting is not part of what is sold yet: it arrives with a line the carriers have approved."
+      });
+  }
+  const ready = blockers.length === 0;
+  const activated = activationOf(i, kind);
+  const live = ready && !!tested && !!activated;
+  const words4 = live ? `Active since ${agoWords(Date.parse(activated.at), nowMs)}.` : activated && !ready ? `Activated, but not ready: ${blockers[0].words}` : ready && tested ? `Tested (${tested.what} ${agoWords(Date.parse(tested.at), nowMs)}). Activate it to say it is yours.` : ready ? "Ready. Try it from your own phone, then activate it." : blockers[0].words;
+  return { kind, ready, blockers, tested, activated, live, words: words4 };
+}
+
+// src/setup/setup-rows-phone.ts
+function lineRow(i, ctx) {
+  const { voice, voiceReady, voiceNum, answering, ownLine, texting } = ctx;
+  if (voiceReady) {
+    return {
+      id: "line",
+      icon: "phone",
+      title: "A line for calls and texts",
+      state: "ready",
+      required: !answering,
+      sentence: `Calls are answered on ${voiceNum}. ${texting.sentence}`,
+      details: [
+        ownLine?.voice_state === "answering" ? "Your own number through Chanlytics" : "",
+        ownLine || texting.done ? "" : "Texting arrives with lines that register with the carriers; this page will say when"
+      ].filter(Boolean),
+      verb: { label: "Open Connections", to: "admin/integrations" }
+    };
+  }
+  if (voice.present) {
+    return {
+      id: "line",
+      icon: "phone",
+      title: "A line for calls and texts",
+      state: "waiting_you",
+      required: !answering,
+      sentence: `Your line ${voice.number ? `${voiceNum} ` : ""}is switched off \u2014 the receptionist is not answering it.`,
+      details: [],
+      verb: { label: "Open Connections", to: "admin/integrations" }
+    };
+  }
+  return ownLineRow(ctx) ?? lineToGetRow(i, ctx);
+}
+function ownLineRow(ctx) {
+  const { answering, ownLine, lineNum, nowMs } = ctx;
+  if (ownLine && lineStuckProvisioning(ownLine, nowMs)) {
+    return {
+      id: "line",
+      icon: "phone",
+      title: "A line for calls and texts",
+      state: "waiting_them",
+      required: !answering,
+      sentence: `Setting up ${lineNum} stopped while ${LINE_STEP_WORDS[ownLine.step ?? ""] ?? "working on it"}, ${agoWords(Date.parse(ownLine.state_since), nowMs)}.`,
+      details: [
+        "It is retried automatically, usually within a quarter of an hour, and Chanlytics is told when it is",
+        "Retry from here \u2014 it picks up where it stopped and buys nothing twice"
+      ],
+      verb: { label: "Retry", to: `verb:retry-line:${ownLine.id}` }
+    };
+  }
+  if (ownLine && ownLine.voice_state === "provisioning") {
+    return {
+      id: "line",
+      icon: "phone",
+      title: "A line for calls and texts",
+      state: "waiting_them",
+      required: !answering,
+      sentence: `Setting up ${lineNum} \u2014 ${LINE_STEP_WORDS[ownLine.step ?? ""] ?? "working on it"}, since ${agoWords(Date.parse(ownLine.state_since), nowMs)}.`,
+      details: ["Usually a minute or two; this page updates by itself"],
+      verb: null
+    };
+  }
+  if (ownLine && ownLine.voice_state === "failed" && lineCredentialFailure(ownLine.last_error)) {
+    return {
+      id: "line",
+      icon: "phone",
+      title: "A line for calls and texts",
+      state: "waiting_them",
+      required: !answering,
+      sentence: `Setting up ${lineNum} stopped at ${LINE_CREDENTIALS_SENTENCE}. A person at Chanlytics has it.`,
+      details: [
+        "A retry cannot help until the credentials are restored; we have been told and will finish it with you"
+      ],
+      verb: null
+    };
+  }
+  if (ownLine && ownLine.voice_state === "failed") {
+    return {
+      id: "line",
+      icon: "phone",
+      title: "A line for calls and texts",
+      state: "waiting_them",
+      required: !answering,
+      sentence: `Setting up ${lineNum} stopped while ${LINE_STEP_WORDS[ownLine.step ?? ""] ?? "working on it"}. A person at Chanlytics has it.`,
+      details: ["Retry from here; we have been told"],
+      verb: { label: "Retry", to: `verb:retry-line:${ownLine.id}` }
+    };
+  }
+  if (ownLine && ownLine.voice_state === "answering") {
+    return {
+      id: "line",
+      icon: "phone",
+      title: "A line for calls and texts",
+      state: "waiting_them",
+      required: !answering,
+      sentence: `${lineNum} is set up \u2014 connecting it to the receptionist.`,
+      details: [],
+      verb: null
+    };
+  }
+  return null;
+}
+function lineToGetRow(i, ctx) {
+  const { answering, lines, canSpend, nowMs } = ctx;
+  if (i.requests.port && !(i.requests.line && Date.parse(i.requests.line) > Date.parse(i.requests.port))) {
+    return {
+      id: "line",
+      icon: "phone",
+      title: "A line for calls and texts",
+      state: "waiting_them",
+      required: !answering,
+      sentence: `Requested ${agoWords(Date.parse(i.requests.port), nowMs)} \u2014 a person at Chanlytics will move your number onto Chanlytics with you and reach you by email.`,
+      details: [
+        "Keep your current phone service until the move is finished \u2014 cancelling it first can lose the number",
+        "Carriers take 7 to 14 business days once the move is filed"
+      ],
+      verb: null
+    };
+  }
+  if (i.requests.line) {
+    return {
+      id: "line",
+      icon: "phone",
+      title: "A line for calls and texts",
+      state: "waiting_them",
+      required: !answering,
+      sentence: `Requested ${agoWords(Date.parse(i.requests.line), nowMs)} \u2014 a person at Chanlytics will set up your line with you and reach you by email.`,
+      details: [],
+      verb: null
+    };
+  }
+  if (lines.ready) {
+    return canSpend ? {
+      id: "line",
+      icon: "phone",
+      title: "A line for calls and texts",
+      state: "waiting_you",
+      required: !answering,
+      sentence: "Get a number for calls, or keep the one you have.",
+      // The number is part of the plan (Ruben, 24 Sep 2026; docs/superpowers/specs/2026-09-24-first-run-design.md):
+      // Checkout bills one price and nothing bills a number fee, so no row quotes one. The DTO still carries what a
+      // number costs Chanlytics (lines.costs); nothing an owner reads says it.
+      details: [
+        "A local number, included in your plan \xB7 your receptionist answers it \xB7 texting arrives when the carriers register it"
+      ],
+      verb: { label: "Get a line", to: "verb:choose-line" }
+    } : billingDoorOpen(i.billing) && (i.billing.status === "none" || i.billing.status === "trialing") ? (
+      // No plan yet, or a free trial, which covers no number (maySpend): the number starts the plan, and the first
+      // run's phone step is where both happen -- its checkout takes no trial, and a trial's plan starts from there.
+      {
+        id: "line",
+        icon: "phone",
+        title: "A line for calls and texts",
+        state: "waiting_you",
+        required: !answering,
+        sentence: "Get a number for calls: it starts your plan.",
+        details: [
+          priceWords(i.billing.price ?? null) ? `A local number, included in your plan \xB7 ${priceWords(i.billing.price ?? null)}, from the day you get it` : "A local number, included in your plan, from the day you get it"
+        ],
+        verb: { label: "Get a number", to: "start/phone" }
+      }
+    ) : billingDoorOpen(i.billing) ? {
+      id: "line",
+      icon: "phone",
+      title: "A line for calls and texts",
+      state: "waiting_you",
+      required: !answering,
+      sentence: whyCannotSpend(i.billing.mode, i.billing.status) ?? "Billing needs attention first.",
+      details: ["A local number, included in your plan"],
+      verb: { label: "Open Billing", to: "admin/billing" }
+    } : (
+      // CANNOT SPEND, AND THERE IS NO CARD TO ADD. Three states, not two: this
+      // row used to collapse the last into the middle one and send a brand-new
+      // self-serve workspace to a Billing page with every action false. The
+      // billing row above already drew nothing for exactly this case, so the two
+      // rows disagreed about one fact — which is why they now read one predicate.
+      //
+      // The honest offer is the one the branch below already makes for a
+      // deployment that cannot provision at all: a person sets the line up with
+      // them. It is true, it is actionable, and it does not require the owner to
+      // discover on a dead page that the product cannot take their money yet.
+      {
+        id: "line",
+        icon: "phone",
+        title: "A line for calls and texts",
+        state: "waiting_you",
+        required: !answering,
+        sentence: "We set up your phone line with you.",
+        details: [
+          "A number, the receptionist answering it, and forwarding from the number you have",
+          "Billing is not open on this deployment yet, so there is nothing to add a card to"
+        ],
+        verb: { label: "Ask for a line", to: "verb:request-line" }
+      }
+    );
+  }
+  return {
+    id: "line",
+    icon: "phone",
+    title: "A line for calls and texts",
+    state: "waiting_you",
+    required: !answering,
+    sentence: "We set up your phone line with you.",
+    details: ["A number, the receptionist answering it, and forwarding from the number you have"],
+    verb: { label: "Ask for a line", to: "verb:request-line" }
+  };
+}
+function receptionistRow(i, ctx) {
+  const { voice, voiceReady, voiceNum, answering, handoffNum, ownLine, nowMs } = ctx;
+  if (voiceReady) {
+    const last = voice.lastInboundAt ? `Last call ${agoWords(Date.parse(voice.lastInboundAt), nowMs)}` : "No calls yet";
+    const cap2 = capabilityStatus("voice", i, nowMs);
+    if (!i.business.name || !i.business.hours) {
+      return {
+        id: "receptionist",
+        icon: "headphones",
+        title: "Phone receptionist",
+        state: "waiting_you",
+        required: !answering,
+        sentence: `Picking up on ${voiceNum}, but it has no facts to answer with yet.`,
+        details: [
+          "Callers are told someone will confirm and are offered to leave a message",
+          "Fill in your name, hours and services and it answers properly from the next call"
+        ],
+        verb: { label: "Add your facts", to: "admin/workspace" }
+      };
+    } else {
+      return {
+        id: "receptionist",
+        icon: "headphones",
+        title: "Phone receptionist",
+        state: "ready",
+        required: !answering,
+        sentence: `Answering on ${voiceNum}.`,
+        details: [
+          handoffNum ? `Transfers to ${handoffNum} when a caller insists on a person` : "No hand-off number yet \u2014 callers who insist on a person are told someone will call back",
+          last,
+          activationWords(cap2, nowMs)
+        ],
+        verb: cap2.tested && !cap2.live ? { label: "Activate", to: "verb:activate:voice" } : voice.number ? { label: "Call it", to: `tel:${voice.number}` } : null,
+        undo: cap2.live ? { label: "Withdraw activation", to: "verb:deactivate:voice" } : null
+      };
+    }
+  }
+  if (voice.present) {
+    return {
+      id: "receptionist",
+      icon: "headphones",
+      title: "Phone receptionist",
+      state: "waiting_you",
+      required: !answering,
+      sentence: "Switched off with the line.",
+      details: [],
+      verb: null
+    };
+  }
+  if (ownLine && (ownLine.voice_state === "provisioning" || ownLine.voice_state === "answering")) {
+    return {
+      id: "receptionist",
+      icon: "headphones",
+      title: "Phone receptionist",
+      state: "waiting_them",
+      required: !answering,
+      sentence: "Being created with your line \u2014 it answers the moment the line does.",
+      details: [],
+      verb: null
+    };
+  }
+  return {
+    id: "receptionist",
+    icon: "headphones",
+    title: "Phone receptionist",
+    state: "waiting_them",
+    required: !answering,
+    sentence: "The phone receptionist arrives with your line.",
+    details: [],
+    verb: null
+  };
+}
+function tryRow(_i, ctx) {
+  const { voice, voiceReady, voiceNum, lines, nowMs } = ctx;
+  if (!voiceReady) return null;
+  const fwTry = forwardedLineOf(lines);
+  const through = fwTry?.e164 ? display(fwTry.e164) ?? fwTry.e164 : voiceNum;
+  return {
+    id: "try",
+    icon: "phone",
+    title: "Try it",
+    state: voice.lastInboundAt ? "ready" : "waiting_you",
+    required: false,
+    sentence: voice.lastInboundAt ? `A call reached your receptionist ${agoWords(Date.parse(voice.lastInboundAt), nowMs)}.` : fwTry ? `Call ${through} from your cell and don't pick up.` : `Call ${through} from your cell.`,
+    details: [],
+    // The first run's own step (first-run.ts firstRunStepRoute("try")), spelled here: that file reads this one.
+    verb: voice.lastInboundAt ? null : { label: "Try it", to: "start/try" }
+  };
+}
+function keepRow(_i, ctx) {
+  const { voice, voiceReady, voiceNum, lines, nowMs } = ctx;
+  const fw = lines.rows.find((l) => l.kind === "forwarded") ?? null;
+  const f = fw?.forwarding ?? null;
+  const kept = fw?.e164 ? display(fw.e164) ?? fw.e164 : "your number";
+  const dest = voiceReady && voice.number ? voiceNum : null;
+  const how = f ? `${MODE_WORDS[f.mode] ?? "Forwarded"} \xB7 ${CARRIER_WORDS[f.carrier] ?? "your carrier"}` : "";
+  const title = "The number you already have";
+  if (fw && f && fw.forwarding_state === "verified") {
+    return {
+      id: "keep",
+      icon: "refresh",
+      title,
+      state: "ready",
+      required: false,
+      sentence: `Calls to ${kept} reach your receptionist.`,
+      details: [f.verified_at ? `Verified ${agoWords(Date.parse(f.verified_at), nowMs)}` : "Verified", how],
+      verb: { label: "Change it", to: "verb:forwarding" }
+    };
+  }
+  if (fw && f && forwardingTestOpen(f, nowMs)) {
+    return {
+      id: "keep",
+      icon: "refresh",
+      title,
+      state: "waiting_you",
+      required: false,
+      sentence: `Testing \u2014 call ${kept} from another phone. This page updates by itself.`,
+      details: [`Window open for ${spanLabel(Date.parse(f.test_until ?? "") - nowMs)}`],
+      verb: { label: "Show the code", to: "verb:forwarding" }
+    };
+  }
+  if (fw && f) {
+    return {
+      id: "keep",
+      icon: "refresh",
+      title,
+      state: "waiting_you",
+      required: false,
+      sentence: f.carrier === "office" ? `Forward ${kept} to your receptionist in your phone system's settings, then test it.` : `Dial the code on the phone with ${kept}, then test it.`,
+      details: [how],
+      verb: { label: "Test it", to: `verb:forwarding-test:${fw.id}` }
+    };
+  }
+  if (!dest) {
+    return {
+      id: "keep",
+      icon: "refresh",
+      title,
+      state: "not_started",
+      required: false,
+      sentence: "Once your receptionist has a line, keep the number customers know by forwarding its calls to it.",
+      details: [],
+      verb: null
+    };
+  }
+  return {
+    id: "keep",
+    icon: "refresh",
+    title,
+    state: "not_started",
+    required: false,
+    sentence: `Keep the number your customers know: forward its calls to ${dest}.`,
+    details: ["You keep your phone, your carrier and your texts"],
+    verb: { label: "Set up forwarding", to: "verb:forwarding" }
+  };
+}
+
+// src/setup/setup-rows.ts
+function billingRow(i, ctx) {
+  if (!billingDoorOpen(i.billing)) return null;
+  const { nowMs } = ctx;
+  const b = i.billing;
+  const testMode = b.livemode === false ? [BILLING_TEST_MODE_CLAUSE] : [];
+  if (b.status === "trialing" && (b.cancel_at || b.cancel_at_period_end)) {
+    return {
+      id: "billing",
+      icon: "money",
+      title: "Billing",
+      state: "ready",
+      required: true,
+      sentence: `On trial, cancelled: the receptionist answers until ${dayWords(b.cancel_at ?? b.trial_end) || "the trial ends"}, then stops.`,
+      details: [...testMode, "Nothing is charged; undo the cancellation from Billing before then to keep it"],
+      verb: { label: "Open Billing", to: "admin/billing" }
+    };
+  }
+  if (b.status === "trialing") {
+    return {
+      id: "billing",
+      icon: "money",
+      title: "Billing",
+      state: "ready",
+      required: true,
+      sentence: `On trial: ${trialWords(b.trial_end, nowMs) || "the card is on file"}.`,
+      details: [
+        ...testMode,
+        "The card on file is charged when the trial ends; cancel from Billing before then if you'd rather not",
+        // What the trial does not cover (maySpend), said where the trial is, as Billing says it.
+        TRIAL_COVERS
+      ],
+      verb: { label: "Open Billing", to: "admin/billing" }
+    };
+  }
+  if (b.status === "active" || b.status === "incomplete") {
+    return {
+      id: "billing",
+      icon: "money",
+      title: "Billing",
+      state: "ready",
+      required: true,
+      sentence: b.status === "active" ? `Subscribed \xB7 next invoice ${dayWords(b.current_period_end) || "on the renewal date"}.` : "Finishing checkout \u2014 this page updates by itself.",
+      details: [...testMode],
+      verb: { label: "Open Billing", to: "admin/billing" }
+    };
+  }
+  if (b.status === "past_due") {
+    return {
+      id: "billing",
+      icon: "money",
+      title: "Billing",
+      state: "waiting_you",
+      required: true,
+      sentence: "The last payment failed. Update the card to keep the receptionist answering.",
+      details: [...testMode, "Stripe retries for a few days, then pauses the subscription"],
+      verb: { label: "Update the card", to: "verb:billing-portal" }
+    };
+  }
+  if (b.status === "paused" || b.status === "unpaid") {
+    return {
+      id: "billing",
+      icon: "money",
+      title: "Billing",
+      state: "waiting_you",
+      required: true,
+      sentence: "Your receptionist is paused: messages land in the Inbox, nothing is answered.",
+      details: [
+        ...testMode,
+        b.status === "paused" ? "The trial ended without a card on file" : "Payment could not be collected"
+      ],
+      verb: { label: "Resume in Billing", to: "admin/billing" }
+    };
+  }
+  return {
+    id: "billing",
+    icon: "money",
+    title: "Billing",
+    state: "not_started",
+    required: true,
+    sentence: b.trial_days > 0 ? `Start the ${b.trial_days}-day trial with a card \u2014 nothing is charged until it ends.` : "Subscribe with a card \u2014 the first charge is today.",
+    details: [
+      ...testMode,
+      ...b.trial_days > 0 ? ["Cancel any time from Billing", "The receptionist answers through the trial"] : ["Cancel any time from Billing"]
+    ],
+    verb: { label: b.trial_days > 0 ? "Start the trial" : "Subscribe", to: "verb:billing-checkout" }
+  };
+}
+function factsRow(i, ctx) {
+  const { nowMs } = ctx;
+  const b = i.business;
+  const missing = [!b.name ? "a name" : "", !b.hours ? "hours" : "", b.services === 0 ? "services" : ""].filter(
+    Boolean
+  );
+  const serious = (i.conflicts ?? []).find((k) => k.severity === "serious") ?? null;
+  if (b.broken) {
+    return i.requests.repair ? {
+      id: "facts",
+      icon: "home",
+      title: "Business facts",
+      state: "waiting_them",
+      required: true,
+      sentence: `${BROKEN_CONFIG_WORDS.clause} ${BROKEN_CONFIG_WORDS.requested(i.requests.repair, nowMs)}`,
+      details: [],
+      verb: { label: "Open Business", to: "admin/workspace" }
+    } : {
+      id: "facts",
+      icon: "home",
+      title: "Business facts",
+      state: "waiting_you",
+      required: true,
+      sentence: BROKEN_CONFIG_WORDS.clause,
+      details: [],
+      verb: { label: BROKEN_CONFIG_WORDS.ask, to: "verb:request-repair" }
+    };
+  }
+  if (serious) {
+    return {
+      id: "facts",
+      icon: "home",
+      title: "Business facts",
+      state: "waiting_you",
+      required: true,
+      sentence: serious.sentence,
+      details: [`${b.name} \xB7 hours set \xB7 ${plural6(b.services, "service")} on record`],
+      verb: { label: "Fix it in Business", to: serious.to }
+    };
+  }
+  if (missing.length === 0) {
+    return {
+      id: "facts",
+      icon: "home",
+      title: "Business facts",
+      state: "ready",
+      required: true,
+      sentence: `${b.name} \xB7 hours set \xB7 ${plural6(b.services, "service")} on record`,
+      details: [
+        b.bookingLink ? "Booking link on record" : "No booking link \u2014 the receptionist answers, but cannot send one",
+        b.address ? "Address on record" : "No address yet"
+      ],
+      verb: { label: "Edit in Business", to: "admin/workspace" }
+    };
+  }
+  const none = missing.length === 3;
+  return {
+    id: "facts",
+    icon: "home",
+    title: "Business facts",
+    state: none ? "not_started" : "waiting_you",
+    required: true,
+    sentence: none ? "Name, hours and services are what the receptionist answers with." : `Still missing: ${missing.join(" and ")}.`,
+    details: [],
+    verb: { label: none ? "Start in Business" : "Finish in Business", to: "admin/workspace" }
+  };
+}
+function handoffRow(_i, ctx) {
+  const { handoffNum } = ctx;
+  return handoffNum ? {
+    id: "handoff",
+    icon: "phone",
+    title: "A person to hand off to",
+    state: "ready",
+    required: false,
+    sentence: `Callers who insist on a person are transferred to ${handoffNum}.`,
+    details: [],
+    verb: { label: "Change it", to: "admin/workspace" }
+  } : {
+    id: "handoff",
+    icon: "phone",
+    title: "A person to hand off to",
+    state: "waiting_you",
+    required: false,
+    sentence: "Give the receptionist a number to hand callers to when they insist on a person.",
+    details: [],
+    verb: { label: "Add a number", to: "admin/workspace" }
+  };
+}
+function whatsappRow(i, ctx) {
+  const { wa, waReady, waNum, answering, nowMs } = ctx;
+  if (waReady) {
+    const t = i.templates;
+    const metaWaits = t.approved === 0 && t.pending > 0;
+    const cap2 = capabilityStatus("whatsapp", i, nowMs);
+    const details = [
+      wa.quality ? `Quality ${wa.quality.toLowerCase()}` : "",
+      t.approved ? `${plural6(t.approved, "approved message")}` : t.pending ? `${plural6(t.pending, "message")} with Meta for approval` : "No approved messages yet",
+      t.startersApproved < 5 ? "Add the starter messages: welcome, win-back, the month's offer" : "",
+      wa.lastInboundAt ? `Last message ${agoWords(Date.parse(wa.lastInboundAt), nowMs)}` : ""
+    ].filter(Boolean);
+    if (!metaWaits) details.push(activationWords(cap2, nowMs));
+    return {
+      id: "whatsapp",
+      icon: "chat",
+      title: "WhatsApp",
+      state: metaWaits ? "waiting_them" : "ready",
+      stateWords: metaWaits ? "Waiting on Meta" : void 0,
+      required: !answering,
+      sentence: metaWaits ? `Connected on ${waNum} \u2014 your first messages are with Meta for approval.` : `Connected on ${waNum}.`,
+      details,
+      verb: cap2.tested && !cap2.live && !metaWaits ? { label: "Activate", to: "verb:activate:whatsapp" } : t.startersApproved < 5 && !metaWaits ? { label: "Add the starters", to: "outbound" } : { label: "Open the Inbox", to: "inbox" },
+      undo: cap2.live && !metaWaits ? { label: "Withdraw activation", to: "verb:deactivate:whatsapp" } : null
+    };
+  }
+  if (wa.present) {
+    return {
+      id: "whatsapp",
+      icon: "chat",
+      title: "WhatsApp",
+      state: "waiting_you",
+      required: !answering,
+      sentence: `${waNum ?? "Your number"} is connected but switched off.`,
+      details: [],
+      verb: { label: "Open Connections", to: "admin/integrations" }
+    };
+  }
+  return {
+    id: "whatsapp",
+    icon: "chat",
+    title: "WhatsApp",
+    state: "waiting_you",
+    required: !answering,
+    sentence: "Connect the WhatsApp number customers write to.",
+    details: ["A new number, or the WhatsApp Business app you already use"],
+    verb: { label: "Connect", to: "admin/integrations" }
+  };
+}
+function emailRow(i, ctx) {
+  if (!i.email?.ready) return null;
+  const { nowMs } = ctx;
+  const mb = i.email.mailbox;
+  return mb ? {
+    id: "email",
+    icon: "mail",
+    title: "Email",
+    state: "ready",
+    required: false,
+    sentence: `Customers write to ${mb.address}, and their emails arrive in your Inbox.`,
+    // Still "ready": Setup answers whether the channel is set up, and it
+    // is. That an email could not be taken in is a detail here and the
+    // row's whole state on Connections, which answers whether it is
+    // WORKING. Two questions, two answers, one fact under both.
+    details: [
+      ...mb.last_error ? [mb.last_error] : [],
+      mb.last_received_at ? `Last email ${agoWords(Date.parse(mb.last_received_at), nowMs)}` : "Nothing received yet",
+      EMAIL_ELSEWHERE_SENTENCE
+    ],
+    verb: { label: "Open the Inbox", to: "inbox" }
+  } : {
+    id: "email",
+    icon: "mail",
+    title: "Email",
+    state: "not_started",
+    required: false,
+    sentence: "Give customers an address to write to. Their emails arrive in your Inbox, and you reply from there.",
+    details: [EMAIL_NOT_ANSWERED_SENTENCE],
+    verb: { label: "Choose the address", to: "admin/integrations" }
+  };
+}
+function calendarRow(i) {
+  return i.calendar.state === "ok" ? {
+    id: "calendar",
+    icon: "calendar",
+    title: "Calendar",
+    state: "ready",
+    required: false,
+    sentence: `${CALENDAR_FEED_WORDS.ok} \u2014 the receptionist offers times from it.`,
+    details: [],
+    verb: { label: "Open Calendar", to: "calendar" }
+  } : i.calendar.state === "unavailable" ? {
+    id: "calendar",
+    icon: "calendar",
+    title: "Calendar",
+    state: "waiting_you",
+    required: false,
+    sentence: `Your calendar could not be read. ${i.calendar.problem ? `${i.calendar.problem} ` : ""}Check the address in Settings \u203A Business.`,
+    details: [],
+    verb: { label: "Check the address", to: "admin/workspace" }
+  } : {
+    id: "calendar",
+    icon: "calendar",
+    title: "Calendar",
+    state: "not_started",
+    required: false,
+    sentence: "Paste your calendar's iCal address so the receptionist knows what is taken.",
+    details: [],
+    verb: { label: "Paste the address", to: "admin/workspace" }
+  };
+}
+function teamRow(i) {
+  const t = i.team;
+  const people = t.members > 1 || t.invitesOpen > 0;
+  const who = `${plural6(t.members, "person", "people")}${t.invitesOpen ? ` \xB7 ${plural6(t.invitesOpen, "invite")} open` : ""}`;
+  const alerts = t.alertEmails ? `alerts go to ${plural6(t.alertEmails, "address", "addresses")}` : "no alert address yet";
+  return {
+    id: "team",
+    icon: "users",
+    title: "Team and alerts",
+    state: people && t.alertEmails ? "ready" : !people && !t.alertEmails ? "not_started" : "waiting_you",
+    required: false,
+    sentence: people ? `${who} \xB7 ${alerts}.` : `Only you so far \xB7 ${alerts}.`,
+    details: people ? [] : ["Invite someone who answers when you can't"],
+    verb: !t.alertEmails ? { label: "Set alerts", to: "admin/notifications" } : !people ? { label: "Invite", to: "admin/team" } : { label: "Open Team", to: "admin/team" }
+  };
+}
+function yesRow(i) {
+  const offers = i.consent.offers;
+  const said = i.consent.offersSaidYes;
+  const talk = i.consent.yes;
+  const alsoTalk = talk > said ? [`${plural6(talk, "person", "people")} said yes to messages about their own visit`] : [];
+  return offers > 0 ? {
+    id: "yes",
+    icon: "tag",
+    title: "The first yes",
+    state: "ready",
+    required: false,
+    sentence: `${plural6(offers, "person", "people")} said yes to offers.`,
+    details: alsoTalk,
+    verb: { label: "Open Broadcasts", to: "broadcasts" }
+  } : said > 0 ? {
+    id: "yes",
+    icon: "tag",
+    title: "The first yes",
+    state: "waiting_you",
+    required: false,
+    sentence: `${plural6(said, "person", "people")} said yes to offers, but nobody can be sent one yet \u2014 ${NO_NUMBER_REACH}.`,
+    details: alsoTalk,
+    verb: { label: "Open People", to: "clients" }
+  } : {
+    id: "yes",
+    icon: "tag",
+    title: "The first yes",
+    state: "not_started",
+    required: false,
+    sentence: "Nobody has said yes to offers yet. The keyword and the QR are on Broadcasts.",
+    details: alsoTalk,
+    verb: { label: "Get their yes", to: GET_YES_ROUTE }
+  };
+}
+function googleRow(i, ctx) {
+  if (!i.google?.ready) return null;
+  const { nowMs } = ctx;
+  const g = i.google.listing;
+  const title = "Your Google listing";
+  const connected = i.google.connected === true;
+  const reach = connected ? "Business Profile connected \u2014 every review, replies from Reports" : "New reviews reach your bell and Reports";
+  if (g && g.check_error) {
+    return {
+      id: "google",
+      icon: "star",
+      title,
+      state: "waiting_them",
+      stateWords: "Waiting on Google",
+      required: false,
+      sentence: `${g.name} is on record, but Google could not be read${g.checked_at ? ` since ${agoWords(Date.parse(g.checked_at), nowMs)}` : " yet"} \u2014 it is read again once a day.`,
+      details: [],
+      verb: { label: "Open Reports", to: "reports" }
+    };
+  }
+  if (g) {
+    return {
+      id: "google",
+      icon: "star",
+      title,
+      state: "ready",
+      required: false,
+      sentence: `${listingLine(g)}.`,
+      details: [g.checked_at ? `Checked ${agoWords(Date.parse(g.checked_at), nowMs)}` : "Not read yet", reach],
+      verb: { label: "Open Reports", to: "reports" }
+    };
+  }
+  if (i.google.places !== false) {
+    return {
+      id: "google",
+      icon: "star",
+      title,
+      state: "not_started",
+      required: false,
+      sentence: "Find your business on Google so new reviews reach you here.",
+      details: [
+        i.business.address ? "Uses the name and address on record" : "Add your address in Settings \u203A Business for a surer match"
+      ],
+      // One finder: the first run's Find, asked for by name (first-run.ts).
+      verb: { label: "Find it", to: FIRST_RUN_FIND_ROUTE }
+    };
+  }
+  return {
+    id: "google",
+    icon: "star",
+    title,
+    state: "not_started",
+    required: false,
+    sentence: "Connect your Google Business Profile so every review reaches you here.",
+    details: ["Sign in to Google once, on Connections"],
+    verb: { label: "Connect", to: "admin/integrations" }
+  };
+}
+var SETUP_ROWS = [
+  billingRow,
+  factsRow,
+  handoffRow,
+  lineRow,
+  receptionistRow,
+  tryRow,
+  keepRow,
+  whatsappRow,
+  emailRow,
+  calendarRow,
+  teamRow,
+  yesRow,
+  googleRow
+];
+function setupSteps(i, nowMs = Date.now()) {
+  const later = new Set(i.later ?? []);
+  const ctx = rowContextOf(i, nowMs);
+  const { wa, voice, waReady, voiceReady, answering, waNum, voiceNum, texting } = ctx;
+  const rows = [];
+  for (const build of SETUP_ROWS) {
+    const r2 = build(i, ctx);
+    if (r2)
+      rows.push({
+        ...r2,
+        stateWords: r2.stateWords ?? SETUP_STATE_WORDS[r2.state],
+        later: !r2.required && later.has(r2.id)
+      });
+  }
+  const open = rows.filter((r2) => r2.state !== "ready" && !r2.later);
+  const nextRow = open.find((r2) => r2.verb) ?? null;
+  const next = nextRow && nextRow.verb ? { label: nextRow.verb.label, to: nextRow.verb.to, row: nextRow.id, title: nextRow.title } : null;
+  const done = rows.filter((r2) => r2.state === "ready").length;
+  const seriousConflict = (i.conflicts ?? []).find((k) => k.severity === "serious") ?? null;
+  const sentence2 = seriousConflict ? (
+    // "Answering" and "answering correctly" are different claims, and the top
+    // line of Setup is where an owner reads the second one.
+    seriousConflict.sentence
+  ) : waReady && voiceReady ? `Your receptionist answers calls on ${voiceNum} and WhatsApp on ${waNum}. ${texting.sentence}` : voiceReady ? `Your receptionist answers calls on ${voiceNum}. WhatsApp is not connected. ${texting.sentence}` : waReady ? `Your receptionist answers WhatsApp on ${waNum}. No phone line yet.` : "Your receptionist is not answering yet.";
+  return {
+    rows,
+    readiness: { answering, sentence: sentence2 },
+    next,
+    done,
+    total: rows.length,
+    tryIt: answering ? {
+      voice: voiceReady ? voice.number : null,
+      voiceLabel: voiceReady ? voiceNum : null,
+      whatsapp: waReady ? wa.number : null,
+      whatsappLabel: waReady ? waNum : null
+    } : null,
+    findable: !!i.google?.ready && i.google.places !== false && !i.google.listing,
+    trySkipped: later.has(TRY_SKIPPED),
+    check: {
+      receptionist: i.business.receptionist,
+      listed: !!i.google?.listing,
+      unsure: i.google?.unsure ?? [],
+      type: i.google?.type ?? null,
+      bookingPage: bookingPageOffered(i.google?.bookingPage, i.business.bookingLink)
+    }
+  };
 }
 
 // src/setup/connections.ts

@@ -2050,7 +2050,6 @@ var CHECKOUT_OUTCOME_WORDS = {
 };
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
 var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
-var FORWARDING_TEST_WINDOW_MS = 30 * 6e4;
 function registrationPathOf(saved) {
   if (!saved) return null;
   return String(saved.ein ?? "").trim() ? "standard" : "sole_proprietor";
@@ -2069,9 +2068,6 @@ var REGISTRATION_COST_WORDS = {
   standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
   sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second.`
 };
-var FIRST_RUN_ROUTE = "start";
-var FIND_PARAM = "find";
-var FIRST_RUN_FIND_ROUTE = `${FIRST_RUN_ROUTE}/${FIND_PARAM}`;
 var PROVISIONING_DEADLINE_MS = 5 * 6e4;
 var SOLE_PROP_CEILING_SENTENCE = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
 var SOLE_PROP_TEXTING_SENTENCE = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE}`;
@@ -2098,6 +2094,7 @@ function greetingFor(name) {
   return `Thank you for calling${who}! This call may be recorded. I'm the automated assistant \u2014 how can I help you today?`;
 }
 var GREETING_DEFAULT = /* @__PURE__ */ greetingFor(null);
+var FORWARDING_TEST_WINDOW_MS = 30 * 6e4;
 var TRY_QUIET_AFTER_MS = 3 * 6e4;
 var FIRST_RUN_PHONE_WORDS = {
   chooseHeading: "How should calls reach your receptionist?",
@@ -2199,6 +2196,9 @@ var FIRST_RUN_PHONE_WORDS = {
   withMeSent: "We'll email you to find a time for a call.",
   notForwarded: "Forwarding not saved"
 };
+var FIRST_RUN_ROUTE = "start";
+var FIND_PARAM = "find";
+var FIRST_RUN_FIND_ROUTE = `${FIRST_RUN_ROUTE}/${FIND_PARAM}`;
 var JUDGE_FACT_KEYS = [
   "name",
   "category",

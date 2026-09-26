@@ -950,7 +950,14 @@ test("the words: four states, no jargon, no trade", () => {
     ready: "Ready",
   });
   // Only what the owner can read: the string literals, not our identifiers.
-  const src = readCode("packages/contracts/src/setup/setup.ts") + readCode("apps/dashboard/src/legacy/pages/setup.jsx");
+  const src =
+    [
+      "packages/contracts/src/setup/setup.ts",
+      "packages/contracts/src/setup/setup-rows.ts",
+      "packages/contracts/src/setup/setup-rows-phone.ts",
+    ]
+      .map((f) => readCode(f))
+      .join("\n") + readCode("apps/dashboard/src/legacy/pages/setup.jsx");
   const words = [...src.matchAll(/(["'`])((?:\\.|(?!\1)[^\\])*)\1/g)].map((m) => m[2]).join("\n");
   assert.doesNotMatch(
     words,

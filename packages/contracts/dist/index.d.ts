@@ -988,13 +988,13 @@ declare const INSTRUCTIONS_MAX = 20000;
 declare const BusinessProfileSchema: z.ZodObject<{
     address: z.ZodOptional<z.ZodString>;
     hours: z.ZodOptional<z.ZodRecord<z.ZodEnum<{
-        sun: "sun";
         mon: "mon";
         tue: "tue";
         wed: "wed";
         thu: "thu";
         fri: "fri";
         sat: "sat";
+        sun: "sun";
     }> & z.core.$partial, z.ZodObject<{
         open: z.ZodOptional<z.ZodNullable<z.ZodString>>;
         close: z.ZodOptional<z.ZodNullable<z.ZodString>>;
@@ -1053,13 +1053,13 @@ declare const BrainConfigSchema: z.ZodObject<{
     profile: z.ZodOptional<z.ZodObject<{
         address: z.ZodOptional<z.ZodString>;
         hours: z.ZodOptional<z.ZodRecord<z.ZodEnum<{
-            sun: "sun";
             mon: "mon";
             tue: "tue";
             wed: "wed";
             thu: "thu";
             fri: "fri";
             sat: "sat";
+            sun: "sun";
         }> & z.core.$partial, z.ZodObject<{
             open: z.ZodOptional<z.ZodNullable<z.ZodString>>;
             close: z.ZodOptional<z.ZodNullable<z.ZodString>>;
@@ -1225,13 +1225,13 @@ declare const TenantConfigSchema: z.ZodObject<{
         profile: z.ZodOptional<z.ZodObject<{
             address: z.ZodOptional<z.ZodString>;
             hours: z.ZodOptional<z.ZodRecord<z.ZodEnum<{
-                sun: "sun";
                 mon: "mon";
                 tue: "tue";
                 wed: "wed";
                 thu: "thu";
                 fri: "fri";
                 sat: "sat";
+                sun: "sun";
             }> & z.core.$partial, z.ZodObject<{
                 open: z.ZodOptional<z.ZodNullable<z.ZodString>>;
                 close: z.ZodOptional<z.ZodNullable<z.ZodString>>;
@@ -1328,13 +1328,13 @@ declare const TenantConfigWriteSchema: z.ZodObject<{
         profile: z.ZodOptional<z.ZodObject<{
             address: z.ZodOptional<z.ZodString>;
             hours: z.ZodOptional<z.ZodRecord<z.ZodEnum<{
-                sun: "sun";
                 mon: "mon";
                 tue: "tue";
                 wed: "wed";
                 thu: "thu";
                 fri: "fri";
                 sat: "sat";
+                sun: "sun";
             }> & z.core.$partial, z.ZodObject<{
                 open: z.ZodOptional<z.ZodNullable<z.ZodString>>;
                 close: z.ZodOptional<z.ZodNullable<z.ZodString>>;
@@ -2703,14 +2703,9 @@ declare function lineCredentialFailure(lastError: string | null | undefined): bo
 declare const LINE_CREDENTIALS_SENTENCE = "the vault that keeps the line's credentials";
 
 /**
- * Setup — the rows the first run draws a step at a time (first-run.ts), and
- * Today's card draws after it.
- *
- * Every row here is read from the workspace: the config, the channels, the
- * templates, the calendar feed, the team, the consent rows. Nothing stores a
- * "done" flag; a row is ready because the thing it names exists. "Later" is
- * the member's own (their saved view, on every device): it puts an optional
- * row off Today's card, and nothing else.
+ * Setup — what the page is read from (SetupDto), what it draws (SetupVM), the
+ * words every state has, and the line's predicates. The rows themselves are a
+ * table: setup-rows.ts (setupSteps, the fold over it) and setup-rows-phone.ts.
  *
  * Four words for every state, so the page reads the same way People and
  * Today do: Not started · Waiting on you · Waiting on carriers (or Meta, or
@@ -3043,7 +3038,6 @@ declare function textingWords(l: (Pick<LineDto, "sms_state" | "reg_mock" | "reg_
     sentence: string;
     done: boolean;
 };
-declare function setupSteps(i: SetupInputs, nowMs?: number): SetupVM;
 /** The hash route without "#/": "#/admin/setup" → "admin/setup"; nothing → "today". */
 declare function setupRoute(hash: string): string;
 /**
@@ -10462,13 +10456,13 @@ declare const AskSettingsChangeSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
 }, z.core.$strip>, z.ZodObject<{
     op: z.ZodLiteral<"set_hours">;
     day: z.ZodEnum<{
-        sun: "sun";
         mon: "mon";
         tue: "tue";
         wed: "wed";
         thu: "thu";
         fri: "fri";
         sat: "sat";
+        sun: "sun";
     }>;
     open: z.ZodNullable<z.ZodString>;
     close: z.ZodNullable<z.ZodString>;
@@ -16381,6 +16375,12 @@ interface ReportFactVM {
     } | null;
 }
 declare function reportFacts(vm: ReportVM, campaigns: CampaignReportVM | null): ReportFactVM[];
+
+/**
+ * The fold over SETUP_ROWS: the rows drawn, each with its state's words and whether this member put it off; the
+ * readiness they add up to; the first open verb; and what the first run's Check reads beside them.
+ */
+declare function setupSteps(i: SetupInputs, nowMs?: number): SetupVM;
 
 /**
  * Connections — everything a workspace can be joined to, as one row shape.

@@ -2964,7 +2964,6 @@ var CHECKOUT_OUTCOME_WORDS = {
 };
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
 var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
-var FORWARDING_TEST_WINDOW_MS = 30 * 6e4;
 var SOLE_PROP_LIMITS = {
   campaignsPerBrand: 1,
   numbersPerCampaign: 1,
@@ -2979,9 +2978,6 @@ var REGISTRATION_COST_WORDS = {
   standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
   sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second.`
 };
-var FIRST_RUN_ROUTE = "start";
-var FIND_PARAM = "find";
-var FIRST_RUN_FIND_ROUTE = `${FIRST_RUN_ROUTE}/${FIND_PARAM}`;
 var PROVISIONING_DEADLINE_MS = 5 * 6e4;
 var SOLE_PROP_CEILING_SENTENCE = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
 var SOLE_PROP_TEXTING_SENTENCE = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE}`;
@@ -3003,6 +2999,7 @@ var PLAYBOOK_CLASS_LABEL = {
 };
 var DAY_FMT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var REPUTATION_MEMORY_MS = 30 * 864e5;
+var FORWARDING_TEST_WINDOW_MS = 30 * 6e4;
 var TRY_QUIET_AFTER_MS = 3 * 6e4;
 var FIRST_RUN_PHONE_WORDS = {
   chooseHeading: "How should calls reach your receptionist?",
@@ -3104,6 +3101,9 @@ var FIRST_RUN_PHONE_WORDS = {
   withMeSent: "We'll email you to find a time for a call.",
   notForwarded: "Forwarding not saved"
 };
+var FIRST_RUN_ROUTE = "start";
+var FIND_PARAM = "find";
+var FIRST_RUN_FIND_ROUTE = `${FIRST_RUN_ROUTE}/${FIND_PARAM}`;
 var JUDGE_FACT_KEYS = [
   "name",
   "category",
@@ -7169,7 +7169,6 @@ function optInConfirmation(businessName, purpose) {
 }
 var CONSENT_PHRASE2 = OFFERS_OPT_IN_PHRASES2.en;
 var CONSENT_PHRASE_ES2 = OFFERS_OPT_IN_PHRASES2.es;
-var FORWARDING_TEST_WINDOW_MS2 = 30 * 6e4;
 var SOLE_PROP_LIMITS2 = {
   campaignsPerBrand: 1,
   numbersPerCampaign: 1,
@@ -7184,9 +7183,6 @@ var REGISTRATION_COST_WORDS2 = {
   standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
   sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS2.messagesPerSecond} message a second.`
 };
-var FIRST_RUN_ROUTE2 = "start";
-var FIND_PARAM2 = "find";
-var FIRST_RUN_FIND_ROUTE2 = `${FIRST_RUN_ROUTE2}/${FIND_PARAM2}`;
 var PROVISIONING_DEADLINE_MS2 = 5 * 6e4;
 var SOLE_PROP_CEILING_SENTENCE2 = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS2.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
 var SOLE_PROP_TEXTING_SENTENCE2 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE2}`;
@@ -7374,6 +7370,7 @@ function domainDailyCap(sentDays) {
   for (const step2 of DOMAIN_RAMP) if (sentDays >= step2.days) cap2 = step2.perDay;
   return cap2;
 }
+var FORWARDING_TEST_WINDOW_MS2 = 30 * 6e4;
 var TRY_QUIET_AFTER_MS2 = 3 * 6e4;
 var FIRST_RUN_PHONE_WORDS2 = {
   chooseHeading: "How should calls reach your receptionist?",
@@ -7475,6 +7472,9 @@ var FIRST_RUN_PHONE_WORDS2 = {
   withMeSent: "We'll email you to find a time for a call.",
   notForwarded: "Forwarding not saved"
 };
+var FIRST_RUN_ROUTE2 = "start";
+var FIND_PARAM2 = "find";
+var FIRST_RUN_FIND_ROUTE2 = `${FIRST_RUN_ROUTE2}/${FIND_PARAM2}`;
 var JUDGE_FACT_KEYS2 = [
   "name",
   "category",
@@ -10097,7 +10097,6 @@ var CHECKOUT_OUTCOME_WORDS3 = {
 };
 var CONSENT_PHRASE3 = OFFERS_OPT_IN_PHRASES3.en;
 var CONSENT_PHRASE_ES3 = OFFERS_OPT_IN_PHRASES3.es;
-var FORWARDING_TEST_WINDOW_MS3 = 30 * 6e4;
 var SOLE_PROP_LIMITS3 = {
   campaignsPerBrand: 1,
   numbersPerCampaign: 1,
@@ -10112,9 +10111,6 @@ var REGISTRATION_COST_WORDS3 = {
   standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
   sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS3.messagesPerSecond} message a second.`
 };
-var FIRST_RUN_ROUTE3 = "start";
-var FIND_PARAM3 = "find";
-var FIRST_RUN_FIND_ROUTE3 = `${FIRST_RUN_ROUTE3}/${FIND_PARAM3}`;
 var PROVISIONING_DEADLINE_MS3 = 5 * 6e4;
 var SOLE_PROP_CEILING_SENTENCE3 = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS3.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
 var SOLE_PROP_TEXTING_SENTENCE3 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE3}`;
@@ -10136,6 +10132,7 @@ var PLAYBOOK_CLASS_LABEL3 = {
 };
 var DAY_FMT3 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var REPUTATION_MEMORY_MS3 = 30 * 864e5;
+var FORWARDING_TEST_WINDOW_MS3 = 30 * 6e4;
 var TRY_QUIET_AFTER_MS3 = 3 * 6e4;
 var FIRST_RUN_PHONE_WORDS3 = {
   chooseHeading: "How should calls reach your receptionist?",
@@ -10237,6 +10234,9 @@ var FIRST_RUN_PHONE_WORDS3 = {
   withMeSent: "We'll email you to find a time for a call.",
   notForwarded: "Forwarding not saved"
 };
+var FIRST_RUN_ROUTE3 = "start";
+var FIND_PARAM3 = "find";
+var FIRST_RUN_FIND_ROUTE3 = `${FIRST_RUN_ROUTE3}/${FIND_PARAM3}`;
 var JUDGE_FACT_KEYS3 = [
   "name",
   "category",

@@ -3,7 +3,6 @@ export {
   lineStuckProvisioning,
   lineRetryRefusal,
   textingWords,
-  setupSteps,
   setupRoute,
   setupLaterOf,
   forwardedLineOf,
@@ -22,6 +21,8 @@ export {
   TRY_SKIPPED,
   SETUP_LATER_REFUSED,
 } from "./setup";
+/** The fold over the rows' table lives with the table (setup-rows.ts); the name is the one the page has always read. */
+export { setupSteps } from "./setup-rows";
 export type {
   SetupDto,
   LineDto,

@@ -546,7 +546,7 @@ test('every read of "said yes to offers" points at the offers column', () => {
   );
   assert.equal(peopleListAction("lapsed", [noNumber, talkOnly]).enabled, false, "and nobody reachable means no button");
 
-  const setup = readCode("packages/contracts/src/setup/setup.ts");
+  const setup = readCode("packages/contracts/src/setup/setup-rows.ts");
   assert.match(setup, /const offers = i\.consent\.offers;/, "the Setup row reads the offers count");
   const server = readCode("apps/dashboard/src/server/workspace/setup.ts");
   assert.match(
