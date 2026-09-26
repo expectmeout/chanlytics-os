@@ -131,6 +131,25 @@ function fakeEnv() {
 }
 const spread = (tiles) => Math.hypot(tiles[2][0] - tiles[0][0], tiles[2][1] - tiles[0][1]);
 
+test("the published mount tells who listens once per face that mounts, a face that cannot mount tells nobody, and a listener stopped hears no more", async () => {
+  const { MASCOT } = await import("../../../apps/dashboard/src/legacy-bridge/mascot/index.ts");
+  const told = [];
+  const off = MASCOT.onMount((m) => told.push(m.role));
+  const F = fakeEnv();
+  const a = MASCOT.mount(fakeCanvas().canvas, { env: F.env });
+  assert.ok(a);
+  assert.deepEqual(told, ["open"]);
+  const none = MASCOT.mount({ ...fakeCanvas().canvas, getContext: () => null }, { env: F.env });
+  assert.equal(none, null);
+  assert.deepEqual(told, ["open"], "no face, no word");
+  off();
+  const b = MASCOT.mount(fakeCanvas().canvas, { env: F.env });
+  assert.ok(b);
+  assert.deepEqual(told, ["open"], "stopped, it hears no more");
+  a.destroy();
+  b.destroy();
+});
+
 test("mounting draws three tiles, each over its shadow, and the three have grown in within a second", () => {
   const C = fakeCanvas();
   const F = fakeEnv();

@@ -218,7 +218,15 @@ const AskReal = ({ open, onClose }) => {
       : quick && quick.pending
         ? "thinking"
         : speech.speakingId ? "speaking" : composing ? "listening" : "idle";
-  useArEffect(() => { if (M) M.mood.set(moodState); }, [moodState]);
+  // Said as it changes, never the same word twice: at mount, and at a strict mode's second mount, the Line has nothing
+  // to say, and the three may be reading the page in for a face that mounted a moment before (legacy-bridge/arrival.ts);
+  // a first word of "idle" ended that read on nothing.
+  const moodSaid = useArRef("idle");
+  useArEffect(() => {
+    if (!M || moodState === moodSaid.current) return;
+    moodSaid.current = moodState;
+    M.mood.set(moodState);
+  }, [moodState]);
   // The slide runs once the screen has made room (watchKeyboard hears the focus after this page does, so the room is
   // there by the next frame, before anything is painted).
   useArLayout(() => {
