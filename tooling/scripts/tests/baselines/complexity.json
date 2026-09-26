@@ -419,21 +419,6 @@
     "branches": 47,
     "depth": 2
   },
-  "apps/dashboard/src/legacy/pages/ask-real.jsx::(callback)#44": {
-    "lines": 26,
-    "branches": 21,
-    "depth": 6
-  },
-  "apps/dashboard/src/legacy/pages/ask-real.jsx::AskReal#1": {
-    "lines": 778,
-    "branches": 367,
-    "depth": 7
-  },
-  "apps/dashboard/src/legacy/pages/ask-real.jsx::submit#1": {
-    "lines": 82,
-    "branches": 51,
-    "depth": 6
-  },
   "apps/dashboard/src/legacy/pages/ask-turn.jsx::AskAnswer#1": {
     "lines": 94,
     "branches": 34,
