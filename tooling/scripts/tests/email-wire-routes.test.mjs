@@ -123,3 +123,78 @@ test("cold mail never leaves while its receipts would be refused: the cold key w
     delete process.env.RESEND_COLD_API_KEY;
   }
 });
+
+test("with a cold reply domain (D17), an own domain's email answered there leaves, and one frozen before the switch still does; the hosted mailbox is unchanged", async () => {
+  process.env.RESEND_COLD_API_KEY = "cold-key";
+  process.env.RESEND_COLD_WEBHOOK_SECRET = "whsec_cold";
+  process.env.COLD_REPLY_DOMAIN = "Reply.ColdLinks.example";
+  const db = fakeDb({ mailboxes: [MAILBOX], sending_domains: [domain("getharbor.com", "verified")] });
+  const net = provider();
+  try {
+    const wire = await emailWireFor(db, T);
+    const cold = request(ownDomainIdentity(domain("getharbor.com"), MAILBOX, "reply.coldlinks.example"));
+    assert.deepEqual(cold.reply_to, [`r+${"a".repeat(24)}@reply.coldlinks.example`]);
+    assert.equal((await wire("owner@example.com", { body: "x", email: cold, purpose: "outreach" })).ok, true);
+    assert.equal(
+      (await wire("owner@example.com", { body: "x", email: own("getharbor.com"), purpose: "outreach" })).ok,
+      true,
+      "frozen on the mail domain before the switch",
+    );
+    const hostedCold = request({ ...hostedIdentity(MAILBOX, "mail.chanlytics.com"), replyTo: cold.reply_to[0] });
+    assert.equal(
+      (await wire("owner@example.com", { body: "x", email: hostedCold })).errorBody,
+      "request_leaves_as_another_sender",
+      "the cold reply domain is cold mail's only",
+    );
+  } finally {
+    delete process.env.COLD_REPLY_DOMAIN;
+    delete process.env.RESEND_COLD_API_KEY;
+    delete process.env.RESEND_COLD_WEBHOOK_SECRET;
+    net.restore();
+  }
+});
+
+test("on the cold reply domains (D17): the one before still answers while it winds down, a rotated-out token too, another workspace's never, and cold mail leaves on the cold key", async () => {
+  const { coldReplyDomain, coldReplyDomains } = await import(
+    pathToFileURL(path.join(ROOT, "apps/edge/lib/email/email.ts")).href
+  );
+  process.env.EMAIL_DOMAIN = "mail.chanlytics.com";
+  process.env.RESEND_API_KEY = "platform-key";
+  process.env.RESEND_COLD_API_KEY = "cold-key";
+  process.env.RESEND_COLD_WEBHOOK_SECRET = "whsec_cold";
+  process.env.COLD_REPLY_DOMAIN = "reply-b.coldlinks.example";
+  process.env.COLD_REPLY_DOMAIN_PREVIOUS = "reply-a.coldlinks.example";
+  const rotated = { ...MAILBOX, reply_token: "c".repeat(24), reply_token_prev: "a".repeat(24) };
+  const db = fakeDb({ mailboxes: [rotated], sending_domains: [domain("getharbor.com", "verified")] });
+  const net = provider();
+  try {
+    assert.deepEqual(coldReplyDomains(), ["reply-b.coldlinks.example", "reply-a.coldlinks.example"]);
+    const wire = await emailWireFor(db, T);
+    const on = (token, host) => request(ownDomainIdentity(domain("getharbor.com"), { reply_token: token }, host));
+    const leaves = async (req) => (await wire("owner@example.com", { body: "x", email: req, purpose: "outreach" })).ok;
+    assert.equal(await leaves(on("c".repeat(24), "reply-b.coldlinks.example")), true, "the one set now");
+    assert.equal(await leaves(on("c".repeat(24), "reply-a.coldlinks.example")), true, "the one before, winding down");
+    assert.equal(await leaves(on("a".repeat(24), "reply-b.coldlinks.example")), true, "a rotated-out token");
+    const other = await wire("owner@example.com", {
+      body: "x",
+      email: on("z".repeat(24), "reply-b.coldlinks.example"),
+      purpose: "outreach",
+    });
+    assert.equal(other.errorBody, "request_leaves_as_another_sender", "another workspace's route is never this one's");
+    assert.deepEqual([...new Set(net.keys)], ["Bearer cold-key"], "cold mail leaves on the cold key");
+    // The cold reply domain named as the mail domain is no cold reply domain.
+    process.env.COLD_REPLY_DOMAIN = "Mail.Chanlytics.com";
+    delete process.env.COLD_REPLY_DOMAIN_PREVIOUS;
+    assert.equal(coldReplyDomain(), null);
+    assert.deepEqual(coldReplyDomains(), []);
+  } finally {
+    for (const k of [
+      "COLD_REPLY_DOMAIN",
+      "COLD_REPLY_DOMAIN_PREVIOUS",
+      "RESEND_COLD_API_KEY",
+      "RESEND_COLD_WEBHOOK_SECRET",
+    ])
+      delete process.env[k];
+    net.restore();
+  }
+});

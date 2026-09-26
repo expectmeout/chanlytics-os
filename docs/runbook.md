@@ -325,6 +325,44 @@ one the page cannot open, and the sweep pages
 `email_unsubscribe_links_broken`. Clear the previous value no sooner than
 thirty days later.
 
+**Before scale: a cold-only domain (D17).** Until these are set, a cold
+email's unsubscribe link points at `app.chanlytics.com/u/…` and its replies
+come back on `EMAIL_DOMAIN`. Both are judged by the mail they appear in. Before
+cold mail is sent at scale, give it a domain of its own, so the app's links and
+every workspace's replies never answer for it:
+
+1. Buy a domain for cold mail's links and replies: not a workspace's, and not
+   chanlytics.com.
+2. Add it to the dashboard's Vercel project, so `https://<it>/u/<token>` is the
+   unsubscribe page, and set `UNSUBSCRIBE_ORIGIN=https://<it>` on the
+   dashboard: on that host it then answers `/u/` and nothing else (a 404),
+   so no sign-in form stands on a domain cold mail names.
+3. Set the same `UNSUBSCRIBE_ORIGIN=https://<it>` on the edge, then redeploy
+   both. The domains sweep's probe then opens the page there. A value that is
+   not an https origin is ignored and logged once (`email_switch_rejected`),
+   and the links stay on the dashboard; `GET /api/diag` shows the origin in
+   use (`unsubscribeOrigin`, `unsubscribeOriginRejected`).
+4. Receive mail on a subdomain of it on the platform's Resend account (MX to
+   Resend, as for `mail.chanlytics.com`). The platform account's existing
+   webhook, already pointed at the edge's `/api/resend-webhook`, carries its
+   deliveries: add no second one, whose signing secret the door would not
+   know. Wait until the provider reads it verified for receiving.
+5. Set `COLD_REPLY_DOMAIN=<that subdomain>` on the edge. New cold emails'
+   Reply-To moves to `r+<token>@<it>`. Replies to older ones still arrive on
+   `EMAIL_DOMAIN`, which keeps receiving, and an email queued before the
+   switch still leaves as it was frozen. Only reply routes route there: no
+   workspace publishes an address on it. The health sweep checks it receives,
+   and pages `cold_reply_domain:<it>` when it does not.
+
+**Moving it, or turning it off.** Never simply change or unset
+`COLD_REPLY_DOMAIN`: every cold email already sent is answered there, and a
+reply that no longer routes is dropped, a lead's "no thanks" among them. Set
+`COLD_REPLY_DOMAIN_PREVIOUS` to the old value in the same change, keep it
+receiving, and clear it no sooner than 30 days plus the longest chain's length
+later. Keep an old link host on the dashboard's project for at least 30 days
+after `UNSUBSCRIBE_ORIGIN` moves too: the law wants every link already in an
+inbox working that long.
+
 ## Apply a migration
 
 1. Write it: the next free number, named for the schema change, re-runnable

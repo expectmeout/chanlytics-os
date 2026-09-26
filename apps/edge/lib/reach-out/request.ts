@@ -28,7 +28,8 @@ export interface RequestInput {
   workspace: { businessName: string | null; address: string | null };
   domain: { host: string; from_local: string; from_name: string };
   mailbox: { reply_token: string };
-  mailDomain: string;
+  /** The domain its replies come back on: the mail domain, or the cold reply domain when it is set (D17). */
+  replyDomain: string;
   unsubscribe: { secret: string; origin: string };
   /** The lead's email on the step before, for a step after the first; null for the first. */
   parent: EmailParent | null;
@@ -84,7 +85,7 @@ export function reachOutRequest(
   let request: EmailRequest;
   try {
     request = buildEmailRequest({
-      identity: ownDomainIdentity(i.domain, i.mailbox, i.mailDomain),
+      identity: ownDomainIdentity(i.domain, i.mailbox, i.replyDomain),
       to: i.to,
       parent: i.parent,
       ...(words.subject !== null ? { subject: words.subject } : {}),

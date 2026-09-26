@@ -394,3 +394,58 @@ test("a health function that cannot be read is a 500 with a slug, and nothing is
     line.restore();
   }
 });
+
+test("each cold reply domain (D17) must receive as the mail domain does: one that cannot pages the platform by its name; one that only receives is well", async () => {
+  const w = world([clock("jobs", true)]);
+  const provider = (name, status, receiving, sending = "disabled") => ({
+    id: name,
+    name,
+    status,
+    created_at: "2026-09-20T00:00:00Z",
+    region: "us-east-1",
+    capabilities: { sending, receiving },
+  });
+  const line = wire((url) =>
+    url === "https://api.resend.com/domains"
+      ? new Response(
+          JSON.stringify({
+            object: "list",
+            has_more: false,
+            data: [
+              provider("mail.chanlytics.com", "verified", "enabled", "enabled"),
+              provider("reply-b.coldlinks.example", "verified", "enabled"),
+              provider("reply-a.coldlinks.example", "verified", "disabled"),
+            ],
+          }),
+          { status: 200 },
+        )
+      : new Response("{}", { status: 200 }),
+  );
+  try {
+    const [status, body] = await withEnv(
+      {
+        EMAIL_DOMAIN: "mail.chanlytics.com",
+        COLD_REPLY_DOMAIN: "reply-b.coldlinks.example",
+        COLD_REPLY_DOMAIN_PREVIOUS: "reply-a.coldlinks.example",
+      },
+      async () => answer(await w.tick()),
+    );
+    assert.equal(status, 200);
+    assert.equal(body.ok, true);
+    assert.deepEqual(
+      w.tables.operator_pages.map((p) => p.key),
+      ["cold_reply_domain:reply-a.coldlinks.example"],
+      "the one winding down still receives the replies to what it sent",
+    );
+    const mailed = line
+      .to("/emails")
+      .map((c) => JSON.parse(c.init.body))
+      .find((m) => /cold reply domain/.test(m.subject));
+    assert.equal(
+      mailed.subject,
+      "[Chanlytics] The cold reply domain reply-a.coldlinks.example is not receiving: verified, receiving disabled",
+    );
+  } finally {
+    line.restore();
+  }
+});

@@ -34,7 +34,7 @@ export type ProbeOutcome = "no_secret" | "opens" | "key_differs" | "page_cannot_
 export interface ProbePorts {
   /** The edge's UNSUBSCRIBE_SECRET; null when unset. */
   secret: string | null;
-  /** The dashboard's origin, as the links name it (dashboard-origin.ts). */
+  /** The origin the links name, where the page answers: UNSUBSCRIBE_ORIGIN, or the dashboard's (dashboard-origin.ts). */
   origin: string;
   log: Logger;
   /** The platform's pager (ops/page-operator.ts). */
@@ -81,12 +81,13 @@ function wordsFor(outcome: Exclude<ProbeOutcome, "no_secret" | "opens">, at: str
   if (outcome === "redirects")
     return (
       `The unsubscribe page (${at}) answered ${seen}, a redirect. A mail client's one click does not follow one, so ` +
-      `that stop is lost. DASHBOARD_ORIGIN on the edge must be the dashboard's own address.`
+      `that stop is lost. UNSUBSCRIBE_ORIGIN on the edge (or, unset, DASHBOARD_ORIGIN) must be the page's own ` +
+      `address, a host the dashboard's project serves and does not redirect.`
     );
   return (
     `The unsubscribe page (${at}) did not answer as the page, twice in a row: ${seen}. A person opening a cold ` +
-    `email's link now may not reach it. Check that the dashboard is up, and that DASHBOARD_ORIGIN on the edge is its ` +
-    `own address.`
+    `email's link now may not reach it. Check that the dashboard is up, and that UNSUBSCRIBE_ORIGIN on the edge (or, ` +
+    `unset, DASHBOARD_ORIGIN) is a host its project serves.`
   );
 }
 

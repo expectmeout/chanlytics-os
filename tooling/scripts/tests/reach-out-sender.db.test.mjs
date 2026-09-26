@@ -300,7 +300,7 @@ test(
     const lane = {
       unsubscribeSecret: "unsubscribe-seal-for-this-suite",
       unsubscribeOrigin: "https://app.chanlytics.com",
-      mailDomain: "mail.chanlytics.com",
+      replyDomain: "mail.chanlytics.com",
     };
     const L = log({ suite: "reach_out_sender" });
     const out = await claimAndWrite({ db, now: new Date(), started: Date.now(), lane, log: L, tenantId: A });
@@ -380,7 +380,7 @@ test(
     const lane = {
       unsubscribeSecret: "unsubscribe-seal-for-this-suite",
       unsubscribeOrigin: "https://app.chanlytics.com",
-      mailDomain: "mail.chanlytics.com",
+      replyDomain: "mail.chanlytics.com",
     };
     const L = log({ suite: "reach_out_sender" });
     const out = await claimAndWrite({ db, now: new Date(), started: Date.now(), lane, log: L, tenantId: A });

@@ -54,7 +54,8 @@ import {
 import { sendMessageId } from "../packages/core.js";
 import { scheduleJob } from "../packages/jobs.js";
 import { REACH_OUT_MONTH_EMAILS, domainDailyCap, emailDomainOf, parseTenantConfig } from "../packages/contracts.js";
-import { dashboardOrigin } from "../dashboard-origin.js";
+import { unsubscribeOrigin } from "../dashboard-origin.js";
+import { coldReplyDomain } from "../email/email.js";
 import { env } from "../env.js";
 import { reachOutRequest, reachOutWords } from "./request.js";
 import { REPLAN_GIVE_UP_MS, replanSends, type Replan } from "./replan.js";
@@ -89,11 +90,14 @@ const HOLDS = new Set([
   "words_unsendable",
 ]);
 
-/** What the cold lane needs to write an email: the seal for its unsubscribe, the page it opens, the mail domain. */
+/**
+ * What the cold lane needs to write an email: the seal for its unsubscribe, the origin its page answers on, and the
+ * domain its replies come back on (D17: a cold-only domain before scale, when they are set).
+ */
 export interface Lane {
   unsubscribeSecret: string;
   unsubscribeOrigin: string;
-  mailDomain: string;
+  replyDomain: string;
 }
 
 /**
@@ -112,7 +116,14 @@ export function coldLane(): { ok: true; lane: Lane } | { ok: false; missing: str
     !mailDomain && "EMAIL_DOMAIN",
   ].filter((x): x is string => !!x);
   if (missing.length > 0 || !secret || !mailDomain) return { ok: false, missing };
-  return { ok: true, lane: { unsubscribeSecret: secret, unsubscribeOrigin: dashboardOrigin(), mailDomain } };
+  return {
+    ok: true,
+    lane: {
+      unsubscribeSecret: secret,
+      unsubscribeOrigin: unsubscribeOrigin(),
+      replyDomain: coldReplyDomain() ?? mailDomain,
+    },
+  };
 }
 
 export interface SenderCounts {
@@ -322,7 +333,7 @@ async function writeOne(t: Tick, s: ReachOutSendRow): Promise<Outcome> {
     workspace: { businessName: workspace.businessName, address: workspace.address },
     domain,
     mailbox: workspace.mailbox,
-    mailDomain: t.lane.mailDomain,
+    replyDomain: t.lane.replyDomain,
     unsubscribe: { secret: t.lane.unsubscribeSecret, origin: t.lane.unsubscribeOrigin },
     parent,
   });

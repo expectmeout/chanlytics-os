@@ -247,3 +247,33 @@ test("what a message claims to be: a report and an automatic reply before the ge
   assert.equal(claim({ "list-id": "<news.brand.example>" }), "automated");
   assert.equal(claim({ "list-unsubscribe": "<mailto:u@brand.example>" }), "automated");
 });
+
+test("on the cold reply domain (D17) a reply route routes and nothing else: no workspace publishes an address there", () => {
+  const COLD = "reply.coldlinks.example";
+  assert.deepEqual(platformRecipient(`r+${"b".repeat(24)}@Reply.ColdLinks.example`, DOMAIN, COLD), {
+    kind: "reply",
+    token: "b".repeat(24),
+  });
+  assert.equal(platformRecipient("bestmovers@reply.coldlinks.example", DOMAIN, COLD), null);
+  assert.equal(platformRecipient(`r+${"b".repeat(24)}@reply.coldlinks.example`, DOMAIN), null, "unset: not ours");
+  assert.deepEqual(platformRecipient("bestmovers@mail.chanlytics.com", DOMAIN, COLD), {
+    kind: "mailbox",
+    localPart: "bestmovers",
+  });
+  // The same domain named twice is the mail domain, with its published addresses.
+  assert.deepEqual(platformRecipient("bestmovers@mail.chanlytics.com", DOMAIN, DOMAIN), {
+    kind: "mailbox",
+    localPart: "bestmovers",
+  });
+});
+
+test("the cold reply domain before the one set now still routes its replies while it winds down (D17)", () => {
+  const both = ["reply-b.coldlinks.example", "reply-a.coldlinks.example"];
+  for (const host of both)
+    assert.deepEqual(
+      platformRecipient(`r+${"b".repeat(24)}@${host}`, DOMAIN, both),
+      { kind: "reply", token: "b".repeat(24) },
+      host,
+    );
+  assert.equal(platformRecipient(`r+${"b".repeat(24)}@reply-c.coldlinks.example`, DOMAIN, both), null);
+});

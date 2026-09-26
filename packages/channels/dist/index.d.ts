@@ -1394,9 +1394,11 @@ type PlatformRecipient = {
  * An address on the platform's mail domain, read for what it routes to; null
  * for any other address. Exact: the domain must be the deployment's, the local
  * part one the table could hold (00126). Nothing is inferred from a display
- * name, and a plus tag on a published address is not a second mailbox.
+ * name, and a plus tag on a published address is not a second mailbox. On the
+ * cold reply domain (Reach out D17), when there is one, a reply route routes
+ * and nothing else: no workspace publishes an address there.
  */
-declare function platformRecipient(address: string, domain: string): PlatformRecipient | null;
+declare function platformRecipient(address: string, domain: string, coldReplyDomains?: string | readonly string[] | null): PlatformRecipient | null;
 /** `Ana Reyes <ana@x.com>` or `ana@x.com`: the address and the phrase, apart. The phrase is the sender's own and proves nothing. */
 declare function addressOf(header: string | null | undefined): {
     address: string;
@@ -1526,7 +1528,9 @@ declare function sendsAs(mailbox: {
 /**
  * What one of a workspace's own domains sends as (Reach out): From on the
  * workspace's domain, answered at the mailbox's own reply routes, so a reply
- * to a cold email lands in the same Inbox as every other.
+ * to a cold email lands in the same Inbox as every other. With cold reply
+ * domains (D17) the routes are on them too: a cold email is frozen with the
+ * one set now, and one frozen before a switch still leaves as it was.
  */
 declare function sendsAsOwnDomain(domain: {
     host: string;
@@ -1535,15 +1539,18 @@ declare function sendsAsOwnDomain(domain: {
     local_part: string;
     reply_token: string;
     reply_token_prev: string | null;
-}, mailDomain: string): EmailSendsAs;
-/** The identity a cold email is frozen with: the own domain's name and address, and the mailbox's live reply route. */
+}, mailDomain: string, coldReplyDomains?: string | readonly string[] | null): EmailSendsAs;
+/**
+ * The identity a cold email is frozen with: the own domain's name and address, and the mailbox's live reply route on
+ * the domain its replies come back on (the mail domain, or the cold reply domain when it is set, D17).
+ */
 declare function ownDomainIdentity(domain: {
     host: string;
     from_local: string;
     from_name: string;
 }, mailbox: {
     reply_token: string;
-}, mailDomain: string): EmailIdentity;
+}, replyDomain: string): EmailIdentity;
 /**
  * Does this frozen request leave as this workspace and nobody else? The
  * request is JSON on a row; the wire is bound to a workspace's mailbox. A
