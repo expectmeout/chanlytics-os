@@ -21,23 +21,27 @@ import {
   type AskProposal,
   type AskScope,
   type AskTurnShape,
+  type PageContext,
 } from "@chanlytics/contracts";
 import type { MembershipRole } from "@chanlytics/contracts";
 import type { RouteContext } from "../with-route";
-import type { ReaderContext } from "../readers";
+import { load, type ReaderContext } from "../readers";
 import { GatewayRefused, featureRejected } from "./gateway";
-import { READ_TOOLS, newToolContext, runTool, toolLabel, type ToolContext } from "./tools";
+import { READ_TOOLS, newToolContext, runTool, toolLabel, type ToolContext, type ToolRun } from "./tools";
 import { ACT_TOOLS, ACT_TOOL_NAMES, buildProposal, proposalLabel } from "./proposals";
-import { stableSystem, turnSystem, type WorkspaceFacts } from "./prompt";
-import { snapshotFor } from "./snapshot";
-import { prefetchBlock, prefetchPlan } from "./prefetch";
+import { stableSystem, turnWords, type WorkspaceFacts } from "./prompt";
+import { buildContext, shapeBlock, type BuiltContext, type SearchResultBlock } from "./context";
+import { crossPagePlan, readBlock } from "./cross-page";
+import { shape as shapeReader } from "../readers/shape";
 import { replayBlocks, runRound, type RoundBlock } from "./round";
 import { askModel } from "./model";
 
 /**
  * One turn of the assistant.
  *
- * The day rides in first (the snapshot), then the model is asked with the
+ * The page the person is on rides in first, as data before their words
+ * (context.ts), with the reads the question names of another page and the
+ * row the scope names (cross-page.ts); then the model is asked with the
  * read tools and the act tools, and either calls them or writes the answer:
  * the answer is text in the Line's shape (ASK_ANSWER_FORMAT, structured
  * output), so no tool is called to answer. Reads run as the person, in
@@ -90,6 +94,12 @@ export interface TurnInput {
   openedMs?: number | null;
   /** How long after the thread's previous turn this question came; null on a thread's first. */
   sinceLastMs?: number | null;
+  /**
+   * The page the question was asked on, as the tab sent it and the route read it (contracts PageContext); null from an
+   * older tab, a script, or a context the route refused. The turn reads the page again through its readers from these
+   * identities (context.ts); nothing the tab says about a row is taken.
+   */
+  context?: PageContext | null;
   emit: (ev: TurnEvent) => void;
   now?: Date;
   /** The route's reader context, so the turn's reads share its cache; a test may omit it. */
@@ -123,7 +133,7 @@ type Msg = { role: "user" | "assistant"; content: unknown };
 
 /**
  * Everything the turn reaches outside itself, as one object: the model
- * round, the day's snapshot, a read tool, a proposal. The real modules are
+ * round, the page's context, the workspace's shape, a read tool, a proposal. The real modules are
  * the default, so the runtime changes nothing; a test hands in a scripted
  * round and the loop's control flow runs for real against it -- the move
  * whatsapp/ports.ts made for the receptionist's handler. `setAskPorts` is
@@ -132,16 +142,32 @@ type Msg = { role: "user" | "assistant"; content: unknown };
  */
 export interface AskPorts {
   round: typeof runRound;
-  snapshot: typeof snapshotFor;
+  /** The page's context, built through the page's readers or taken from the warm's cache (context.ts). */
+  context: (rc: ReaderContext, context: PageContext) => Promise<BuiltContext>;
+  /** The shape of the workspace, as the second system block (readers/shape.ts, kept five minutes). */
+  shape: (rc: ReaderContext) => Promise<string>;
   tool: typeof runTool;
   propose: typeof buildProposal;
 }
+const shapeOf = async (rc: ReaderContext): Promise<string> => shapeBlock((await load(rc, shapeReader, undefined)).data);
 let overrides: Partial<AskPorts> | null = null;
 export function setAskPorts(p: Partial<AskPorts> | null): void {
   overrides = p;
 }
 export function askPorts(): AskPorts {
-  return { round: runRound, snapshot: snapshotFor, tool: runTool, propose: buildProposal, ...(overrides ?? {}) };
+  return {
+    round: runRound,
+    context: buildContext,
+    shape: shapeOf,
+    tool: runTool,
+    propose: buildProposal,
+    ...(overrides ?? {}),
+  };
+}
+
+/** A refusal of the request for its search_result blocks, or their cache marks (D14). */
+export function blocksRefused(message: string): boolean {
+  return /^400\b/.test(message) && /search_result|citation|cache_control/i.test(message);
 }
 
 function refusalText(r: GatewayRefused["refusal"], es: boolean): string {
@@ -165,20 +191,42 @@ function refusalText(r: GatewayRefused["refusal"], es: boolean): string {
   }
 }
 
-/** The thread's prior turns, folded so no two neighbours share a role, starting with the person. */
-export function foldHistory(history: TurnInput["history"], text: string): Msg[] {
+/**
+ * The thread's prior turns, folded so no two neighbours share a role, starting with the person. The history is words;
+ * the question may be blocks (the page's data, then the words): two neighbours of one role are joined as words, or, where
+ * either is blocks, as one list of blocks with the words first.
+ */
+export function foldHistory(history: TurnInput["history"], last: string | unknown[]): Msg[] {
   const messages: Msg[] = [
     ...history.slice(-MAX_HISTORY).map((h) => ({ role: h.role, content: h.text.slice(0, HISTORY_CHARS) })),
-    { role: "user", content: text },
+    { role: "user", content: last },
   ];
+  const asBlocks = (c: unknown): unknown[] => (Array.isArray(c) ? c : [{ type: "text", text: String(c) }]);
   for (let i = messages.length - 2; i >= 0; i--) {
     if (messages[i].role === messages[i + 1].role) {
-      messages[i] = { role: messages[i].role, content: `${messages[i].content}\n${messages[i + 1].content}` };
+      const [a, b] = [messages[i].content, messages[i + 1].content];
+      messages[i] = {
+        role: messages[i].role,
+        content: typeof a === "string" && typeof b === "string" ? `${a}\n${b}` : [...asBlocks(a), ...asBlocks(b)],
+      };
       messages.splice(i + 1, 1);
     }
   }
   if (messages[0]?.role !== "user") messages.shift();
   return messages;
+}
+
+/**
+ * The row the scope names, read whole by the tool that reads it, to ride in with the page (as the snapshot's scoped row
+ * did): a call, a person, a thread or a conversation. A lead, a search or a run is read by no tool until Phase 4, and a
+ * page needs no read: none.
+ */
+export function scopedRead(scope: AskScope | null): ToolRun | null {
+  if (scope?.kind === "call") return { name: "get_call", input: { call_id: scope.id } };
+  if (scope?.kind === "person") return { name: "get_person", input: { contact_id: scope.id } };
+  if (scope?.kind === "thread" || scope?.kind === "conversation")
+    return { name: "get_thread", input: { conversation_id: scope.id, more: false } };
+  return null;
 }
 
 export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts()): Promise<TurnResult> {
@@ -202,74 +250,100 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   const tokens = { input: 0, cache_read: 0, cache_creation: 0, output: 0 };
   let capHits = 0;
 
-  // The day, before the model is asked, and beside it the reads the question
-  // names plainly (prefetch.ts): both ride into the first round as data, so
-  // their rows enter the read set and the answer can cite them. A failure
-  // here costs the snapshot or that read, never the turn.
-  const tSnap = Date.now();
-  const plan = prefetchPlan(input.text);
-  const [snapshot, preOuts] = await Promise.all([
-    ports.snapshot(tc, input.timezone, input.scope).catch((e) => {
+  // Before the model is asked, in parallel (the Phase 2 plan, PR 2.4): the page the person is on (context.ts: the
+  // warm's build if it is kept, else a build now), the shape of the workspace, the reads the question names of another
+  // page (cross-page.ts), and the row the scope names, read whole as its tool reads it. Each rides into the first round
+  // as data, so its rows enter the read set and the answer can cite them. A failure costs that block, never the turn.
+  const tCtx = Date.now();
+  const plan = crossPagePlan(input.text, input.surface, input.context?.view ?? null);
+  const scoped = scopedRead(input.scope);
+  const guard =
+    <T>(what: string, fallback: T) =>
+    (e: unknown): T => {
       console.error(
-        "ask_snapshot_failed",
+        what,
         JSON.stringify({ error: e instanceof Error ? e.message : String(e), tenant: input.tenantId }),
       );
-      return "";
-    }),
-    Promise.all(
-      plan.map(async (run) => {
-        try {
-          return { run, out: await ports.tool(tc, run) };
-        } catch (e) {
-          console.error(
-            "ask_prefetch_failed",
-            JSON.stringify({
-              tool: run.name,
-              error: e instanceof Error ? e.message : String(e),
-              tenant: input.tenantId,
-            }),
-          );
-          return { run, out: { result: "", isError: true } };
-        }
-      }),
-    ),
+      return fallback;
+    };
+  const runRead = async (run: ToolRun) => {
+    try {
+      return { run, out: await ports.tool(tc, run) };
+    } catch (e) {
+      guard("ask_cross_page_failed", null)(e);
+      return { run, out: { result: "", isError: true } };
+    }
+  };
+  const [built, shape, preOuts, scopedOut] = await Promise.all([
+    input.context
+      ? ports.context(tc.rc, input.context).catch(guard<BuiltContext | null>("ask_context_failed", null))
+      : null,
+    ports.shape(tc.rc).catch(guard("ask_shape_failed", "")),
+    Promise.all(plan.map(runRead)),
+    scoped ? runRead(scoped) : null,
   ]);
-  if (snapshot) reads++;
+  // The page's rows a citation may name enter the read set; the page counts as one read, so a figure answered from it
+  // is grounded (isUngrounded) -- when something on it was read: not a page whose read failed, nor one that is its
+  // address alone (other) and shows no row.
+  if (built) for (const r of built.refs) if (r.kind !== "page") tc.read[r.kind].add(r.id);
+  const pageRead =
+    !!built && built.blocks.length > 0 && (built.rows > 0 || (!built.failed && input.context?.surface !== "other"));
+  if (pageRead) reads++;
   const prefetched = preOuts.filter((p) => !p.out.isError);
   for (const p of prefetched) {
     toolsUsed.push(p.run.name);
     reads++;
   }
-  const prefetch = prefetchBlock(prefetched.map((p) => ({ run: p.run, result: p.out.result })));
-  const snapshotMs = Date.now() - tSnap;
+  const scopedRow = scopedOut && !scopedOut.out.isError ? scopedOut : null;
+  // The scope's row is read for the model, not by it: it counts as a read, and stays off the turn's tools, as the
+  // snapshot's scoped row did.
+  if (scopedRow) reads++;
+  const contextMs = Date.now() - tCtx;
 
-  // Two cache breakpoints: the stable block for every turn in the workspace,
-  // and the snapshot, kept twenty seconds, for this turn's later rounds and a
-  // quick follow-up. The clock and the person come AFTER both: a breakpoint
-  // covers everything before it, so a clock between the two blocks spoilt
-  // the snapshot's cache every minute. The prefetched rows are this turn's
-  // alone and sit uncached beside the clock.
+  // Two cache breakpoints in system: the rules and facts for every turn in the workspace, and the shape of the
+  // workspace, the same bytes for its people for five minutes. A third on the page's data, its last block (D10): this
+  // turn's later rounds read it from the cache, and so does another first question on the same page within the
+  // cache's life. A follow-up does not: its earlier turns come before the page, as text, so its prefix after the
+  // shape is new bytes and the page is written to the cache again. The clock, the person and the question come after
+  // the breakpoint, uncached, so the cache holds.
   const system = [
     { type: "text", text: stableSystem(input.facts), cache_control: { type: "ephemeral" } },
-    ...(snapshot ? [{ type: "text", text: snapshot, cache_control: { type: "ephemeral" } }] : []),
-    ...(prefetch ? [{ type: "text", text: prefetch }] : []),
-    {
-      type: "text",
-      text: turnSystem({
-        role: input.role,
-        personLabel: input.personLabel,
-        scope: input.scope,
-        surface: input.surface,
-        language: input.language,
-        timezone: input.timezone,
-        closures: input.facts.closures,
-        now,
-        snapshot: !!snapshot,
-        prefetched: !!prefetch,
-      }),
-    },
+    ...(shape ? [{ type: "text", text: shape, cache_control: { type: "ephemeral" } }] : []),
   ];
-  const messages = foldHistory(input.history, input.text);
+  const pageBlocks: SearchResultBlock[] = [
+    ...(built?.blocks ?? []),
+    ...(scopedRow ? [readBlock(scopedRow.run, scopedRow.out.result)] : []),
+  ];
+  const cached = pageBlocks.map((b, i) =>
+    i === pageBlocks.length - 1 ? { ...b, cache_control: { type: "ephemeral" } } : b,
+  );
+  const crossBlocks = prefetched.map((p) => readBlock(p.run, p.out.result));
+  const wordsFacts = {
+    role: input.role,
+    personLabel: input.personLabel,
+    scope: input.scope,
+    surface: input.surface,
+    language: input.language,
+    timezone: input.timezone,
+    closures: input.facts.closures,
+    now,
+  };
+  const words = {
+    type: "text",
+    text: turnWords({
+      ...wordsFacts,
+      context: (built?.blocks.length ?? 0) > 0,
+      crossPage: crossBlocks.length > 0,
+      scopeRead: !!scopedRow,
+    }),
+  };
+  const question = { type: "text", text: input.text };
+  const withData = [...cached, ...crossBlocks, words, question];
+  const messages = foldHistory(input.history, withData);
+  // Where the question sits, and whether it still carries the data blocks: a request the API refuses for them is asked
+  // once more without them (D14).
+  const questionAt = messages.length - 1;
+  let dataDropped = pageBlocks.length === 0 && crossBlocks.length === 0;
   const baseTools = [...READ_TOOLS, ...(input.role === "viewer" ? [] : ACT_TOOLS)];
   // The answer has its format until the API refuses it: then it is dropped and
   // the same round is asked again. No tool is strict: the API takes twenty
@@ -297,8 +371,12 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       follow_up: input.history.length > 0,
       since_last_ms: input.sinceLastMs ?? null,
       opened_ms: input.openedMs ?? null,
-      snapshot_ms: snapshotMs,
-      prefetched: plan.map((p) => p.name),
+      context_rows: built ? built.rows : null,
+      context_chars: built ? built.chars : null,
+      warm: built ? (built.failed ? "failed" : built.warm) : input.context ? "failed" : "none",
+      context_ms: contextMs,
+      context_dropped: dataDropped && (pageBlocks.length > 0 || crossBlocks.length > 0),
+      cross_page: plan.map((p) => p.name),
       rounds: r.rounds,
       rounds_ms: roundsMs,
       tools_ms: toolsMs,
@@ -318,7 +396,6 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
         event: "ask_turn_shape",
         tenant: input.tenantId,
         ...shape,
-        snapshot: !!snapshot,
         tools: toolsUsed,
         form: r.answer.form,
       }),
@@ -488,6 +565,27 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
           // The format refused: the same round is asked again without it, and
           // what comes back is read as JSON when it is, else as prose (D15).
           const m = e.refusal.kind === "bad_request" ? e.refusal.message : "";
+          // The page's data refused (D14): nothing in the repo sent a search_result block before this phase, so a 400
+          // that names the blocks is asked once more without them, before the answer's format is ever given up for it.
+          // Any other refusal -- the format's, an overload, a size -- is not theirs, and the page stays. Their reads
+          // leave the count; the words stop pointing at them.
+          if (m && !dataDropped && blocksRefused(m)) {
+            console.error("ask_context_rejected", JSON.stringify({ error: m.slice(0, 200), tenant: input.tenantId }));
+            dataDropped = true;
+            reads -= (pageRead ? 1 : 0) + prefetched.length + (scopedRow ? 1 : 0);
+            const bare = {
+              ...words,
+              text: turnWords({ ...wordsFacts, context: false, crossPage: false, scopeRead: false }),
+            };
+            messages[questionAt] = {
+              role: "user",
+              content: (messages[questionAt].content as Array<{ type?: string }>)
+                .filter((b) => b.type !== "search_result")
+                .map((b) => (b === words ? bare : b)),
+            };
+            round--;
+            continue;
+          }
           if (m && format && featureRejected(m)) {
             console.error("ask_format_rejected", JSON.stringify({ error: m.slice(0, 200), tenant: input.tenantId }));
             format = false;

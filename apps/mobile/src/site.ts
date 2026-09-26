@@ -24,6 +24,8 @@ export function hrefFor(slug: string | null, route: string): string {
 
 /** The sign-in page. */
 export const LOGIN_HREF = `${SITE_ORIGIN}/login`;
+/** The native sign-in door: a POST of an identity token that answers with the cookie and a 303 (PR 0). */
+export const NATIVE_DOOR = `${SITE_ORIGIN}/auth/native`;
 
 /** Whether a URL is this site's: what the WebView may open itself; anything else goes to the system browser. */
 export function isOurs(url: string): boolean {

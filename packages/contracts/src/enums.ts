@@ -83,6 +83,13 @@ export const JOB_KINDS = [
    * RETRY_WAITS_MS. Internal work: a second claim runs it again.
    */
   "push_send",
+  /**
+   * The receipts of one push_send, read a quarter of an hour on (00189):
+   * Expo's ticket says the service took a message, its receipt says whether
+   * the phone did, and a phone answered gone is forgotten here. Carries the
+   * tickets in its payload; a transport failure throws and is tried again.
+   */
+  "push_receipts",
 ] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
 

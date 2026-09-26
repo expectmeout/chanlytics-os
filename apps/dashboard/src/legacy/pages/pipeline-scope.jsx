@@ -222,6 +222,13 @@ const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null, pipelineRo
   const cap = board && P.boardCap ? P.boardCap : Infinity;
   const shown = sections.filter((s) => !s.collapsed).flatMap((s) => (every[s.key] ? s.rows : s.rows.slice(0, cap)));
   const ids = shown.map((r) => r.id);
+  // What Ask is told is on screen (legacy-bridge/ask/context.ts): the rows drawn, in the member's order and the board's
+  // cap, forty at most, and the view that chose them; taken back when the page goes.
+  React.useEffect(() => {
+    const drawn = shown.slice(0, 40);
+    window.__askOnScreen = { key: "pipeline", ids: drawn.map((r) => r.id), labels: drawn.map((r) => r.name || ""), view: searching ? `${view}:search` : view };
+    return () => { if (window.__askOnScreen && window.__askOnScreen.key === "pipeline") window.__askOnScreen = null; };
+  });
   // The table's foot counts the view it shows ("6 people" in Proposal out, "Showing 1 of 6" searched there), as the
   // rail's row for it does; the line above stays the whole Pipeline's.
   const total = viewCount;

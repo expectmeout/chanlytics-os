@@ -4,7 +4,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { decideReload, shaOf, RELOAD_GAP_MS } from "../src/shell/deploy.ts";
+import { decideReload, shaOf, minAppOf, isOlderThan, RELOAD_GAP_MS } from "../src/shell/deploy.ts";
 
 test("reload on a change, not on the first sha, not twice in five minutes, not without a sha", () => {
   const now = 10 * RELOAD_GAP_MS;
@@ -21,4 +21,14 @@ test("the sha is read from the version answer alone", () => {
   assert.equal(shaOf({ sha: " " }), null);
   assert.equal(shaOf({ version: "1" }), null);
   assert.equal(shaOf(null), null);
+});
+
+test("the site's floor for the app: read when it is a version, compared part by part", () => {
+  assert.equal(minAppOf({ sha: "x", min_app: "1.2.0" }), "1.2.0");
+  assert.equal(minAppOf({ sha: "x" }), null);
+  assert.equal(minAppOf({ min_app: "soon" }), null);
+  assert.ok(isOlderThan("1.0.0", "1.2"));
+  assert.ok(isOlderThan("1.2.3", "1.10.0"), "ten is more than three");
+  assert.ok(!isOlderThan("1.2.0", "1.2"));
+  assert.ok(!isOlderThan("2.0.0", "1.9.9"));
 });

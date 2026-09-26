@@ -79,6 +79,8 @@ const send = async (over = {}) => {
       lead_id: await lead(),
       domain_id: domain,
       send_at: new Date().toISOString(),
+      // Checked (00197): a claim takes a checked send only.
+      checked_at: new Date().toISOString(),
       ...over,
     }),
   );
@@ -463,10 +465,18 @@ test(
       .select("id");
     assert.ok(sendUpdate.error || sendUpdate.data.length === 0, "no session moves a send");
     // A step under another workspace's root: the composite key refuses it, whoever writes it.
+    // Over a search of its own: a search has one chain (00197).
+    const another = ok(
+      await db
+        .from("lead_searches")
+        .insert({ tenant_id: A, via: "people", card: "movers", name: "Another", asked: "movers", plan: {} })
+        .select("id")
+        .single(),
+    ).id;
     const loneRoot = ok(
       await db
         .from("playbooks")
-        .insert(rootRow({ name: "Another chain" }))
+        .insert(rootRow({ name: "Another chain", lead_search_id: another }))
         .select("id")
         .single(),
     ).id;

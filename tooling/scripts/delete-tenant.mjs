@@ -115,6 +115,7 @@ const TABLES = [
   "person_notes",
   "playbooks",
   "policies",
+  "reach_out_check_spend",
   "reach_out_sends",
   "segment_members",
   "segments",

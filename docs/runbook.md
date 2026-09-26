@@ -270,6 +270,21 @@ Each project's variables are listed in its `.env.example`, and a test fails
 when the code reads one the file does not list. Provider keys live on the edge
 only; the dashboard holds none.
 
+`EDGE_CALL_SECRET` is held by both projects or by neither: a dashboard that
+holds it signs every edge call and sends no key, and an edge without it
+refuses those calls. On an edge that holds it, `DIAG_KEY` opens only
+`GET /api/diag` and the sending-domains lift of a domain held twice
+(`op: resume`, `by: platform`); `admin_door_key_only` in the edge log names
+every door the key alone still knocks on, and whether it came in. The eval
+harness (`tooling/scripts/eval-brain.mjs`) mints a token for its door from
+`EDGE_CALL_SECRET`, as the dashboard does; there is no raw key knock to make.
+
+Before setting `RETELL_DOORS_SIGNED=1`, read `voice_door_auth` in the edge log
+for `sig: true` on each of the three voice doors. The verifier tries one key,
+`RETELL_WEBHOOK_KEY` (`RETELL_API_KEY` when it is unset): `sig: false` on the
+fn and availability doors while the webhook shows `true` can mean the wrong
+key, not an unsigned delivery.
+
 ## Turn on cold email
 
 Reach out sends from a workspace's own domains through a second Resend
@@ -320,8 +335,10 @@ order, and a reach-out exists (step 8).
    search, its words and its domains. Until the sheet ships there is no door
    that makes one; `tooling/scripts/tests/reach-out.integration.db.test.mjs`
    seeds one on a local stack and runs it end to end. Its first run waits for
-   its owner on Broadcasts; the `reach-out-sweep` clock (every minute) sends
-   what is due from then on, each email through the jobs tick and the door.
+   its owner on Broadcasts; the `reach-out-check-sweep` clock (every minute)
+   checks each email before it may go, and the `reach-out-sweep` clock (every
+   minute) sends what is due and checked from then on, each email through the
+   jobs tick and the door.
 
 **What the reach-out clock's 503 means.** `POST /api/cron/reach-out` answers
 `503 cold_lane_unset` with the variables it lacks (`RESEND_API_KEY`,
@@ -332,6 +349,18 @@ and the sends keep. With nothing due it answers 200 and names them under
 until the month turns in its zone (`reach_out_month_spent` in the logs); one
 without a mailbox or a business address claims nothing either
 (`reach_out_workspace_held`).
+
+**What the reach-out check's 503 means.** `POST /api/cron/reach-out-check`
+answers `503 check_unset` while a send waits to be checked and the edge has no
+`ANTHROPIC_API_KEY` (it touches nothing: `reach_out_check_unset`), `503
+cold_lane_unset` while one waits and the cold lane lacks a secret (nothing
+checked could leave), and `503 model_unavailable` for a tick in which every
+model call failed (`reach_out_check_unanswered`). A send whose tries fail for an
+hour is held `check_unavailable` for its owner (`reach_out_check_held`, warn),
+and the clock puts it back to be checked an hour on. A workspace that may not
+spend, is at its month's allowance, or has spent its 400 model attempts of
+the UTC day (`reach_out_check_spend`) is asked again an hour on
+(`reach_out_check_gated`).
 
 **A domain held twice in 30 days.** Its owner cannot resume it: the platform
 is paged (`sending_domain_held_twice:<host>`, naming the workspace and the
@@ -388,6 +417,51 @@ receiving, and clear it no sooner than 30 days plus the longest chain's length
 later. Keep an old link host on the dashboard's project for at least 30 days
 after `UNSUBSCRIBE_ORIGIN` moves too: the law wants every link already in an
 inbox working that long.
+
+## Turn on push
+
+The phone app is told through Expo's push service (`apps/edge/lib/ops/push.ts`, PR 0 and PR 2 of the phone app).
+Nothing sends until a build carries push credentials, and nothing is signed until the token is set.
+
+1. **Credentials, once per platform**, from `apps/mobile`: `eas credentials --platform ios` and say yes to the push
+   key (needs the Apple Developer Program); `eas credentials --platform android` and upload the FCM V1 service
+   account JSON from the Firebase project (Project settings, Service accounts). Then a new build of each.
+2. **Enhanced push security**, in the Expo dashboard under Access tokens: turn it on for the project, then set
+   `EXPO_ACCESS_TOKEN` on the edge (Vercel, the messaging project) to a token of that account. In that order: the
+   variable first is harmless, the switch first refuses every send until the variable lands.
+3. **Watch** `push_send` and `push_receipts` on the jobs ledger: a `push_rejected 401` is the token; a phone the
+   receipts say is gone is forgotten by the job, never by hand.
+
+## Turn on the call in progress on phones
+
+A call the receptionist is on appears on the workspace's iPhones as a Live Activity (PR 7 of the phone app): the edge
+starts it with a push straight to Apple's service, since Expo's push service does not carry `liveactivity` pushes
+(`apps/edge/lib/ops/apns.ts`; the rule is `apps/edge/lib/voice/call-activity.ts`). Nothing is sent until the four
+keys are set; a phone hands out its push-to-start token on iOS 17.2 and later, and the site keeps it on the device's
+row (00191).
+
+1. **A key**, once: Apple Developer, Certificates, Identifiers & Profiles → Keys, a key with Apple Push Notifications
+   service (APNs). Keep the `.p8` it downloads once. The same key may be the one EAS holds for push.
+2. **On the edge** (Vercel, the messaging project): `APNS_TEAM_ID` (the account's team id), `APNS_KEY_ID` (the key's
+   id), `APNS_KEY_P8` (the `.p8` file's contents; a base64 of it is accepted, since a one-line value is what a
+   dashboard takes), `APNS_BUNDLE_ID=com.chanlytics.app`. `APNS_SANDBOX=on` only for a development build's tokens.
+3. **Watch** `call_activity_started`, `call_activity_refused` and `call_activity_failed` on the edge's logs: a 403 is
+   the key or the team, a 400 `BadDeviceToken` a sandbox token against production (or the reverse), a 410 a phone
+   that no longer has the app.
+
+## Turn on native sign-in
+
+The app signs in with Apple and Google natively (PR 3 of the phone app) and hands the identity token to
+`POST /auth/native` (PR 0). Until the providers know the app, only the email door works inside it.
+
+1. **Apple**, once the Apple Developer Program account exists: in the hosted Supabase project, Providers → Apple, add
+   the app's bundle id `com.chanlytics.app` to the client ids (the Services ID and key are for the web's own Apple
+   sign-in, if ever). EAS Build turns the Sign in with Apple capability on from `usesAppleSignIn`.
+2. **Google**: in the Google Cloud project, an iOS OAuth client for `com.chanlytics.app` and a web client; in
+   Supabase, Providers → Google → Authorized Client IDs, add the iOS client id. Then `eas env:create` for
+   `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` and `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` in each environment, and a new build:
+   the Google button and its URL scheme exist only in a build made with the ids.
+3. **Watch** `native_sign_in_failed` on the dashboard's logs: a provider that does not know the app answers there.
 
 ## Apply a migration
 

@@ -143,6 +143,8 @@ import { z as z8 } from "zod";
 import { z as z9 } from "zod";
 import { z as z10 } from "zod";
 import { z as z11 } from "zod";
+import { z as z12 } from "zod";
+import { z as z13 } from "zod";
 
 // ../../node_modules/domelementtype/lib/esm/index.js
 var ElementType;
@@ -1077,11 +1079,11 @@ var EVENT_KINDS = [
   "deal.won",
   "deal.lost",
   "deal.ended",
-  // A partner (0011): the workspace was made through a partner's link and the partner joined its team, or the code
+  // A partner (0012): the workspace was made through a partner's link and the partner joined its team, or the code
   // the link left named no partner who could be credited (unknown, paused, or the caller's own).
   "partner.attributed",
   "partner.code_ignored",
-  // The ledger (0011, P3): a share written from a paid invoice, a refund's or a dispute's effect on it, and the
+  // The ledger (0012, P3): a share written from a paid invoice, a refund's or a dispute's effect on it, and the
   // standing the sweep decided for a workspace once it had paid.
   "partner.earned",
   "partner.reversed",
@@ -2597,11 +2599,11 @@ var ListDraftAnswerSchema = z6.object({
 });
 var SAVED_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 var BUILTIN_ID = /^[a-z_]{1,40}$/;
-function parseListToken(token) {
-  if (typeof token !== "string") return null;
-  const at2 = token.indexOf(":");
-  const kind = token.slice(0, at2);
-  const id = token.slice(at2 + 1);
+function parseListToken(token2) {
+  if (typeof token2 !== "string") return null;
+  const at2 = token2.indexOf(":");
+  const kind = token2.slice(0, at2);
+  const id = token2.slice(at2 + 1);
   if ((kind === "seg" || kind === "state") && BUILTIN_ID.test(id)) return { kind: "builtin", id };
   if (kind === "list" && SAVED_ID.test(id)) return { kind: "saved", id: id.toLowerCase() };
   return null;
@@ -2934,6 +2936,7 @@ var FIRST_RUN_PHONE_WORDS = {
   withMeSent: "We'll email you to find a time for a call.",
   notForwarded: "Forwarding not saved"
 };
+var PUSH_RECEIPTS_AFTER_MS = 15 * 6e4;
 var DAY_MS6 = 24 * 3600 * 1e3;
 var DAY_MS7 = 864e5;
 var QUIET_AFTER_MS = 7 * DAY_MS7;
@@ -2984,6 +2987,22 @@ var AskProposalOutcomeSchema = z8.object({
   atMs: z8.number().catch(0),
   undo: z8.record(z8.string(), z8.unknown()).nullable().optional()
 });
+var ASK_SCOPE_KINDS = ["thread", "conversation", "call", "person", "page", "lead", "search", "run"];
+var ASK_SURFACES = [
+  "today",
+  "inbox",
+  "people",
+  "leads",
+  "conversations",
+  "live",
+  "reports",
+  "settings",
+  "pipeline",
+  "calendar",
+  "campaigns",
+  "start",
+  "other"
+];
 var AskSettingsChangeSchema = z8.discriminatedUnion("op", [
   z8.object({
     op: z8.literal("add_closure"),
@@ -3004,6 +3023,28 @@ var AskSettingsChangeSchema = z8.discriminatedUnion("op", [
     duration_min: z8.number().int().min(1).max(1440).optional()
   })
 ]);
+var ASK_CONTEXT_MAX_ROWS = 40;
+var ASK_CONTEXT_ROW_KINDS = [
+  "thread",
+  "conversation",
+  "call",
+  "person",
+  "lead",
+  "search",
+  "run",
+  "playbook",
+  "template"
+];
+var Id = z9.string().min(1).max(120);
+var PageContextSchema = z9.object({
+  v: z9.literal(1),
+  surface: z9.enum(ASK_SURFACES),
+  route: z9.string().max(200),
+  view: z9.string().max(80).nullish(),
+  focus: z9.object({ kind: z9.enum(ASK_SCOPE_KINDS), id: Id, label: z9.string().max(80) }).strict().nullish(),
+  rows: z9.array(z9.object({ kind: z9.enum(ASK_CONTEXT_ROW_KINDS), id: Id }).strict()).max(ASK_CONTEXT_MAX_ROWS),
+  askedAt: z9.number().int().nonnegative()
+}).strict();
 var ASK_ANSWER_CAPS = {
   headline: 160,
   detail: 700,
@@ -3156,10 +3197,10 @@ var ASK_ANSWER_FORMAT = {
 var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
-var InviteCodeSchema = z9.string().trim().max(80);
-var SignupSchema = z9.object({
-  name: z9.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
-  email: z9.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+var InviteCodeSchema = z10.string().trim().max(80);
+var SignupSchema = z10.object({
+  name: z10.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
+  email: z10.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -3173,17 +3214,17 @@ var SignupSchema = z9.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z9.string().max(200).optional(),
+  password: z10.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z9.string().trim().min(1).max(64).optional(),
+  timezone: z10.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
   code: InviteCodeSchema.optional()
 }).strict();
-var PendingWorkspaceSchema = z9.object({
-  name: z9.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
+var PendingWorkspaceSchema = z10.object({
+  name: z10.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z9.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
+  timezone: z10.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
 });
 function isTimezone(raw) {
   if (typeof raw !== "string" || !raw.trim()) return false;
@@ -3196,9 +3237,9 @@ function isTimezone(raw) {
 }
 var PARTNER_CODE_MIN = 3;
 var PARTNER_CODE_MAX = 24;
-var PartnerBecomeSchema = z10.object({
-  code: z10.string().trim().min(1).max(64),
-  terms: z10.literal(true, { message: "The terms have to be accepted." })
+var PartnerBecomeSchema = z11.object({
+  code: z11.string().trim().min(1).max(64),
+  terms: z11.literal(true, { message: "The terms have to be accepted." })
 }).strict();
 var PARTNER_WORDS = {
   tab: "Partner",
@@ -3297,15 +3338,15 @@ var JUDGE_OUTPUT_SCHEMA = {
   required: ["places"],
   additionalProperties: false
 };
-var AnswerSchema = z11.object({
-  places: z11.array(
-    z11.object({
-      ref: z11.number().int(),
-      criteria: z11.array(
-        z11.object({ key: z11.string(), answer: z11.enum(["pass", "fail", "unknown"]), facts: z11.array(z11.string()) })
+var AnswerSchema = z12.object({
+  places: z12.array(
+    z12.object({
+      ref: z12.number().int(),
+      criteria: z12.array(
+        z12.object({ key: z12.string(), answer: z12.enum(["pass", "fail", "unknown"]), facts: z12.array(z12.string()) })
       ),
-      email_index: z11.number().int().nullable(),
-      reason: z11.string()
+      email_index: z12.number().int().nullable(),
+      reason: z12.string()
     })
   )
 });
@@ -3378,6 +3419,53 @@ var K = new Uint32Array([
 var NAME_MAX = BrainConfigSchema.shape.business_name.maxLength ?? Infinity;
 var NINE_TO_FIVE = [{ from: 9 * 60, to: 17 * 60 }];
 var SEND_DAY_FRAME = { from: 8 * 60, to: 20 * 60 };
+var REACH_OUT_SUBJECT_MAX = 80;
+var REACH_OUT_BODY_MAX = 1200;
+var OPENING_WORDS_MAX = 40;
+var OPENING_CHARS_MAX = 400;
+var REACH_OUT_STEPS_MAX = 5;
+var REACH_OUT_NAME_MAX = 80;
+var SIGNED_BY_MAX = 60;
+var REACH_OUT_AFTER_DAYS = { min: 2, max: 30, first: 4 };
+var ReachOutStepSchema = z13.object({
+  /** An existing step's id, when the sheet edits a chain; none for a new one. */
+  id: z13.string().uuid().nullable().optional(),
+  subject: z13.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
+  body: z13.string().max(REACH_OUT_BODY_MAX * 2),
+  after_days: z13.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable()
+});
+var ReachOutChainSchema = z13.object({
+  name: z13.string().trim().min(1).max(REACH_OUT_NAME_MAX),
+  search_id: z13.string().uuid(),
+  include_unconfirmed: z13.boolean(),
+  gap_minutes: z13.number().int().min(5).max(120),
+  /** Empty: every verified domain of the workspace (00183). */
+  domain_ids: z13.array(z13.string().uuid()).max(5),
+  signed_by: z13.string().trim().max(SIGNED_BY_MAX).nullable(),
+  steps: z13.array(ReachOutStepSchema).min(1).max(REACH_OUT_STEPS_MAX)
+});
+var OPENING_FACT_KEYS = [
+  "category",
+  "city",
+  "rating",
+  "reviews",
+  "website",
+  "hours",
+  "about",
+  "why_it_fits"
+];
+var OPENING_SCHEMA = {
+  type: "object",
+  properties: {
+    // The bound is said, not constrained: structured outputs refuse maxLength. Code holds it (checkOpening, too_long).
+    opening: { type: "string", description: `At most ${OPENING_WORDS_MAX} words and ${OPENING_CHARS_MAX} characters.` },
+    angle: { type: "string" },
+    facts_used: { type: "array", items: { type: "string", enum: [...OPENING_FACT_KEYS] } }
+  },
+  required: ["opening", "angle", "facts_used"],
+  additionalProperties: false
+};
+var CALL_ACTIVITY_STALE_MS = 15 * 6e4;
 var GRAPH = "https://graph.facebook.com/v25.0";
 var SEND_TIMEOUT_MS = 15e3;
 async function postGraph(cfg, payload) {
@@ -3471,6 +3559,10 @@ var twilioUrls = {
   serviceNumbers: (serviceSid) => `${MESSAGING}/Services/${serviceSid}/PhoneNumbers`,
   messages: (sid2) => `${API2}/Accounts/${sid2}/Messages.json`
 };
+var SMS_OPTED_OUT_CODE = 21610;
+function smsRefusalOf(r22) {
+  return !r22.ok && r22.code === SMS_OPTED_OUT_CODE ? "opted_out" : null;
+}
 var enc = new TextEncoder();
 var oneLine = (s) => s.replace(/\p{Cc}+/gu, " ").replace(/\s+/g, " ").trim();
 function addressOf(header) {
@@ -3616,7 +3708,7 @@ var APIFY_RUN_END_EVENTS = [
 ];
 
 // ../contracts/dist/index.js
-import { z as z12 } from "zod";
+import { z as z14 } from "zod";
 import { z as z22 } from "zod";
 import { z as z32 } from "zod";
 import { z as z42 } from "zod";
@@ -3627,7 +3719,9 @@ import { z as z82 } from "zod";
 import { z as z92 } from "zod";
 import { z as z102 } from "zod";
 import { z as z112 } from "zod";
-z12.config({ jitless: true });
+import { z as z122 } from "zod";
+import { z as z132 } from "zod";
+z14.config({ jitless: true });
 var AppError = class extends Error {
   code;
   status;
@@ -3843,11 +3937,11 @@ var EVENT_KINDS2 = [
   "deal.won",
   "deal.lost",
   "deal.ended",
-  // A partner (0011): the workspace was made through a partner's link and the partner joined its team, or the code
+  // A partner (0012): the workspace was made through a partner's link and the partner joined its team, or the code
   // the link left named no partner who could be credited (unknown, paused, or the caller's own).
   "partner.attributed",
   "partner.code_ignored",
-  // The ledger (0011, P3): a share written from a paid invoice, a refund's or a dispute's effect on it, and the
+  // The ledger (0012, P3): a share written from a paid invoice, a refund's or a dispute's effect on it, and the
   // standing the sweep decided for a workspace once it had paid.
   "partner.earned",
   "partner.reversed",
@@ -4259,7 +4353,7 @@ var activeChannel = (known, kind) => {
   const row2 = rows.find((c) => c.kind === kind && (c.status ?? "active") === "active");
   return trimmed(row2?.number_e164);
 };
-var keptReaching = (known, line) => line ? trimmed((known?.forwarding ?? []).find((r22) => trimmed(r22.from_e164) && samePhone(r22.to_e164, line))?.from_e164) : null;
+var keptReaching = (known, line2) => line2 ? trimmed((known?.forwarding ?? []).find((r22) => trimmed(r22.from_e164) && samePhone(r22.to_e164, line2))?.from_e164) : null;
 function sameAddress(a, b) {
   const x = textKey(a).replace(/\b(usa|us|united states)\b/g, "").trim();
   const y = textKey(b).replace(/\b(usa|us|united states)\b/g, "").trim();
@@ -5014,9 +5108,9 @@ var namesADetail = (text) => /\{\s*(business|booking\s+link|phone)\s*\}/i.test(t
 var detailOf = (raw) => raw.toLowerCase().replace(/\s+/g, " ");
 function fillDetails(text, values) {
   if (!namesADetail(text)) return text;
-  return text.split("\n").map((line) => {
-    if (!namesADetail(line)) return line;
-    return line.split(/(?<=[.!?])\s+/).filter((s) => [...s.matchAll(DETAIL)].every((m) => values[detailOf(m[1])])).map((s) => s.replace(DETAIL, (_, name) => values[detailOf(name)])).join(" ");
+  return text.split("\n").map((line2) => {
+    if (!namesADetail(line2)) return line2;
+    return line2.split(/(?<=[.!?])\s+/).filter((s) => [...s.matchAll(DETAIL)].every((m) => values[detailOf(m[1])])).map((s) => s.replace(DETAIL, (_, name) => values[detailOf(name)])).join(" ");
   }).join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 function fallbackMessages(brain, known) {
@@ -5480,10 +5574,18 @@ var LEAD_PLATFORM_HOSTS = /* @__PURE__ */ (() => [
   "wixsite.com",
   "business.site",
   "facebook.com",
+  "fb.com",
   "instagram.com",
+  "tiktok.com",
+  "youtube.com",
+  "x.com",
+  "twitter.com",
+  "linkedin.com",
   "linktr.ee",
+  "linkin.bio",
   "yelp.com",
-  "google.com"
+  "google.com",
+  "g.page"
 ])();
 var LEAD_JUNK_EMAIL_DOMAINS = /* @__PURE__ */ (() => [
   ...BOOKING_PLATFORM_HOSTS,
@@ -5874,6 +5976,7 @@ function waitingOnProposal(r22, nowMs, pace) {
   if (nowMs - d.sinceMs < wait * DAY_MS3) return false;
   return !heardSinceProposal(r22);
 }
+var CARRIER_CONSENT_SOURCE = "carrier";
 function mayReceive(r22, purpose) {
   return whyNotReceive(r22, purpose) === null;
 }
@@ -6822,11 +6925,11 @@ var BUILTIN_ID2 = /^[a-z_]{1,40}$/;
 function listToken(ref) {
   return ref.kind === "builtin" ? `seg:${ref.id}` : `list:${ref.id}`;
 }
-function parseListToken2(token) {
-  if (typeof token !== "string") return null;
-  const at2 = token.indexOf(":");
-  const kind = token.slice(0, at2);
-  const id = token.slice(at2 + 1);
+function parseListToken2(token2) {
+  if (typeof token2 !== "string") return null;
+  const at2 = token2.indexOf(":");
+  const kind = token2.slice(0, at2);
+  const id = token2.slice(at2 + 1);
   if ((kind === "seg" || kind === "state") && BUILTIN_ID2.test(id)) return { kind: "builtin", id };
   if (kind === "list" && SAVED_ID2.test(id)) return { kind: "saved", id: id.toLowerCase() };
   return null;
@@ -7360,6 +7463,7 @@ var FIRST_RUN_PHONE_WORDS2 = {
   withMeSent: "We'll email you to find a time for a call.",
   notForwarded: "Forwarding not saved"
 };
+var PUSH_RECEIPTS_AFTER_MS2 = 15 * 6e4;
 var DAY_MS62 = 24 * 3600 * 1e3;
 var DAY_MS72 = 864e5;
 var QUIET_AFTER_MS2 = 7 * DAY_MS72;
@@ -7410,6 +7514,22 @@ var AskProposalOutcomeSchema2 = z82.object({
   atMs: z82.number().catch(0),
   undo: z82.record(z82.string(), z82.unknown()).nullable().optional()
 });
+var ASK_SCOPE_KINDS2 = ["thread", "conversation", "call", "person", "page", "lead", "search", "run"];
+var ASK_SURFACES2 = [
+  "today",
+  "inbox",
+  "people",
+  "leads",
+  "conversations",
+  "live",
+  "reports",
+  "settings",
+  "pipeline",
+  "calendar",
+  "campaigns",
+  "start",
+  "other"
+];
 var AskSettingsChangeSchema2 = z82.discriminatedUnion("op", [
   z82.object({
     op: z82.literal("add_closure"),
@@ -7430,6 +7550,28 @@ var AskSettingsChangeSchema2 = z82.discriminatedUnion("op", [
     duration_min: z82.number().int().min(1).max(1440).optional()
   })
 ]);
+var ASK_CONTEXT_MAX_ROWS2 = 40;
+var ASK_CONTEXT_ROW_KINDS2 = [
+  "thread",
+  "conversation",
+  "call",
+  "person",
+  "lead",
+  "search",
+  "run",
+  "playbook",
+  "template"
+];
+var Id2 = z92.string().min(1).max(120);
+var PageContextSchema2 = z92.object({
+  v: z92.literal(1),
+  surface: z92.enum(ASK_SURFACES2),
+  route: z92.string().max(200),
+  view: z92.string().max(80).nullish(),
+  focus: z92.object({ kind: z92.enum(ASK_SCOPE_KINDS2), id: Id2, label: z92.string().max(80) }).strict().nullish(),
+  rows: z92.array(z92.object({ kind: z92.enum(ASK_CONTEXT_ROW_KINDS2), id: Id2 }).strict()).max(ASK_CONTEXT_MAX_ROWS2),
+  askedAt: z92.number().int().nonnegative()
+}).strict();
 var ASK_ANSWER_CAPS2 = {
   headline: 160,
   detail: 700,
@@ -7582,10 +7724,10 @@ var ASK_ANSWER_FORMAT2 = {
 var WHEN22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var SIGNUP_NAME_MIN2 = 2;
 var SIGNUP_NAME_MAX2 = 120;
-var InviteCodeSchema2 = z92.string().trim().max(80);
-var SignupSchema2 = z92.object({
-  name: z92.string().trim().min(SIGNUP_NAME_MIN2, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX2, "That name is too long \u2014 120 characters at most."),
-  email: z92.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+var InviteCodeSchema2 = z102.string().trim().max(80);
+var SignupSchema2 = z102.object({
+  name: z102.string().trim().min(SIGNUP_NAME_MIN2, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX2, "That name is too long \u2014 120 characters at most."),
+  email: z102.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -7599,17 +7741,17 @@ var SignupSchema2 = z92.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z92.string().max(200).optional(),
+  password: z102.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z92.string().trim().min(1).max(64).optional(),
+  timezone: z102.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
   code: InviteCodeSchema2.optional()
 }).strict();
-var PendingWorkspaceSchema2 = z92.object({
-  name: z92.string().trim().min(SIGNUP_NAME_MIN2).max(SIGNUP_NAME_MAX2),
+var PendingWorkspaceSchema2 = z102.object({
+  name: z102.string().trim().min(SIGNUP_NAME_MIN2).max(SIGNUP_NAME_MAX2),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z92.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone2(v) ? v : null)
+  timezone: z102.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone2(v) ? v : null)
 });
 function isTimezone2(raw) {
   if (typeof raw !== "string" || !raw.trim()) return false;
@@ -7622,9 +7764,9 @@ function isTimezone2(raw) {
 }
 var PARTNER_CODE_MIN2 = 3;
 var PARTNER_CODE_MAX2 = 24;
-var PartnerBecomeSchema2 = z102.object({
-  code: z102.string().trim().min(1).max(64),
-  terms: z102.literal(true, { message: "The terms have to be accepted." })
+var PartnerBecomeSchema2 = z112.object({
+  code: z112.string().trim().min(1).max(64),
+  terms: z112.literal(true, { message: "The terms have to be accepted." })
 }).strict();
 var PARTNER_WORDS2 = {
   tab: "Partner",
@@ -7753,15 +7895,15 @@ function judgeAsked(plan) {
   for (const [key, q] of Object.entries(judgeQuestions(plan))) out[key] = sha256Hex(q).slice(0, 16);
   return out;
 }
-var AnswerSchema2 = z112.object({
-  places: z112.array(
-    z112.object({
-      ref: z112.number().int(),
-      criteria: z112.array(
-        z112.object({ key: z112.string(), answer: z112.enum(["pass", "fail", "unknown"]), facts: z112.array(z112.string()) })
+var AnswerSchema2 = z122.object({
+  places: z122.array(
+    z122.object({
+      ref: z122.number().int(),
+      criteria: z122.array(
+        z122.object({ key: z122.string(), answer: z122.enum(["pass", "fail", "unknown"]), facts: z122.array(z122.string()) })
       ),
-      email_index: z112.number().int().nullable(),
-      reason: z112.string()
+      email_index: z122.number().int().nullable(),
+      reason: z122.string()
     })
   )
 });
@@ -8156,6 +8298,41 @@ function timetable(input) {
   }
   return { placed, unplaced };
 }
+var REACH_OUT_SUBJECT_MAX2 = 80;
+var REACH_OUT_BODY_MAX2 = 1200;
+var OPENING_WORDS_MAX2 = 40;
+var OPENING_CHARS_MAX2 = 400;
+var REACH_OUT_STEPS_MAX2 = 5;
+var REACH_OUT_NAME_MAX2 = 80;
+var SIGNED_BY_MAX2 = 60;
+var REACH_OUT_AFTER_DAYS2 = { min: 2, max: 30, first: 4 };
+var ReachOutStepSchema2 = z132.object({
+  /** An existing step's id, when the sheet edits a chain; none for a new one. */
+  id: z132.string().uuid().nullable().optional(),
+  subject: z132.string().max(REACH_OUT_SUBJECT_MAX2 * 2).nullable(),
+  body: z132.string().max(REACH_OUT_BODY_MAX2 * 2),
+  after_days: z132.number().int().min(REACH_OUT_AFTER_DAYS2.min).max(REACH_OUT_AFTER_DAYS2.max).nullable()
+});
+var ReachOutChainSchema2 = z132.object({
+  name: z132.string().trim().min(1).max(REACH_OUT_NAME_MAX2),
+  search_id: z132.string().uuid(),
+  include_unconfirmed: z132.boolean(),
+  gap_minutes: z132.number().int().min(5).max(120),
+  /** Empty: every verified domain of the workspace (00183). */
+  domain_ids: z132.array(z132.string().uuid()).max(5),
+  signed_by: z132.string().trim().max(SIGNED_BY_MAX2).nullable(),
+  steps: z132.array(ReachOutStepSchema2).min(1).max(REACH_OUT_STEPS_MAX2)
+});
+var OPENING_FACT_KEYS2 = [
+  "category",
+  "city",
+  "rating",
+  "reviews",
+  "website",
+  "hours",
+  "about",
+  "why_it_fits"
+];
 function outreachRefusalOf(f) {
   if (!f.leadStage) return "outreach_not_a_lead";
   if (f.leadStage !== "ready" && f.leadStage !== "nurture") return "outreach_lead_closed";
@@ -8166,9 +8343,21 @@ function outreachRefusalOf(f) {
 function isReachOutRun(audience) {
   return !!audience && typeof audience === "object" && audience.kind === "reach_out";
 }
+var OPENING_SCHEMA2 = {
+  type: "object",
+  properties: {
+    // The bound is said, not constrained: structured outputs refuse maxLength. Code holds it (checkOpening, too_long).
+    opening: { type: "string", description: `At most ${OPENING_WORDS_MAX2} words and ${OPENING_CHARS_MAX2} characters.` },
+    angle: { type: "string" },
+    facts_used: { type: "array", items: { type: "string", enum: [...OPENING_FACT_KEYS2] } }
+  },
+  required: ["opening", "angle", "facts_used"],
+  additionalProperties: false
+};
+var CALL_ACTIVITY_STALE_MS2 = 15 * 6e4;
 
 // ../db/dist/index.js
-import { z as z13 } from "zod";
+import { z as z15 } from "zod";
 import { z as z23 } from "zod";
 import { z as z33 } from "zod";
 import { z as z43 } from "zod";
@@ -8179,7 +8368,9 @@ import { z as z83 } from "zod";
 import { z as z93 } from "zod";
 import { z as z103 } from "zod";
 import { z as z113 } from "zod";
-z13.config({ jitless: true });
+import { z as z123 } from "zod";
+import { z as z133 } from "zod";
+z15.config({ jitless: true });
 var LABEL3 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL3 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE3 = new RegExp(`^(${LOCAL3})@(${LABEL3}(?:\\.${LABEL3})+)$`);
@@ -8298,11 +8489,11 @@ var EVENT_KINDS3 = [
   "deal.won",
   "deal.lost",
   "deal.ended",
-  // A partner (0011): the workspace was made through a partner's link and the partner joined its team, or the code
+  // A partner (0012): the workspace was made through a partner's link and the partner joined its team, or the code
   // the link left named no partner who could be credited (unknown, paused, or the caller's own).
   "partner.attributed",
   "partner.code_ignored",
-  // The ledger (0011, P3): a share written from a paid invoice, a refund's or a dispute's effect on it, and the
+  // The ledger (0012, P3): a share written from a paid invoice, a refund's or a dispute's effect on it, and the
   // standing the sweep decided for a workspace once it had paid.
   "partner.earned",
   "partner.reversed",
@@ -9247,6 +9438,7 @@ var SELLS_BY_WORDS3 = {
     sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
   }
 };
+var CARRIER_CONSENT_SOURCE2 = "carrier";
 var DAY_MS43 = 864e5;
 var WEEK_MS23 = 7 * DAY_MS43;
 var MONTH_MS3 = 30 * DAY_MS43;
@@ -9810,11 +10002,11 @@ var ListDraftAnswerSchema3 = z63.object({
 });
 var SAVED_ID3 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 var BUILTIN_ID3 = /^[a-z_]{1,40}$/;
-function parseListToken3(token) {
-  if (typeof token !== "string") return null;
-  const at2 = token.indexOf(":");
-  const kind = token.slice(0, at2);
-  const id = token.slice(at2 + 1);
+function parseListToken3(token2) {
+  if (typeof token2 !== "string") return null;
+  const at2 = token2.indexOf(":");
+  const kind = token2.slice(0, at2);
+  const id = token2.slice(at2 + 1);
   if ((kind === "seg" || kind === "state") && BUILTIN_ID3.test(id)) return { kind: "builtin", id };
   if (kind === "list" && SAVED_ID3.test(id)) return { kind: "saved", id: id.toLowerCase() };
   return null;
@@ -10147,6 +10339,7 @@ var FIRST_RUN_PHONE_WORDS3 = {
   withMeSent: "We'll email you to find a time for a call.",
   notForwarded: "Forwarding not saved"
 };
+var PUSH_RECEIPTS_AFTER_MS3 = 15 * 6e4;
 var DAY_MS63 = 24 * 3600 * 1e3;
 var DAY_MS73 = 864e5;
 var QUIET_AFTER_MS3 = 7 * DAY_MS73;
@@ -10197,6 +10390,22 @@ var AskProposalOutcomeSchema3 = z83.object({
   atMs: z83.number().catch(0),
   undo: z83.record(z83.string(), z83.unknown()).nullable().optional()
 });
+var ASK_SCOPE_KINDS3 = ["thread", "conversation", "call", "person", "page", "lead", "search", "run"];
+var ASK_SURFACES3 = [
+  "today",
+  "inbox",
+  "people",
+  "leads",
+  "conversations",
+  "live",
+  "reports",
+  "settings",
+  "pipeline",
+  "calendar",
+  "campaigns",
+  "start",
+  "other"
+];
 var AskSettingsChangeSchema3 = z83.discriminatedUnion("op", [
   z83.object({
     op: z83.literal("add_closure"),
@@ -10217,6 +10426,28 @@ var AskSettingsChangeSchema3 = z83.discriminatedUnion("op", [
     duration_min: z83.number().int().min(1).max(1440).optional()
   })
 ]);
+var ASK_CONTEXT_MAX_ROWS3 = 40;
+var ASK_CONTEXT_ROW_KINDS3 = [
+  "thread",
+  "conversation",
+  "call",
+  "person",
+  "lead",
+  "search",
+  "run",
+  "playbook",
+  "template"
+];
+var Id3 = z93.string().min(1).max(120);
+var PageContextSchema3 = z93.object({
+  v: z93.literal(1),
+  surface: z93.enum(ASK_SURFACES3),
+  route: z93.string().max(200),
+  view: z93.string().max(80).nullish(),
+  focus: z93.object({ kind: z93.enum(ASK_SCOPE_KINDS3), id: Id3, label: z93.string().max(80) }).strict().nullish(),
+  rows: z93.array(z93.object({ kind: z93.enum(ASK_CONTEXT_ROW_KINDS3), id: Id3 }).strict()).max(ASK_CONTEXT_MAX_ROWS3),
+  askedAt: z93.number().int().nonnegative()
+}).strict();
 var ASK_ANSWER_CAPS3 = {
   headline: 160,
   detail: 700,
@@ -10369,10 +10600,10 @@ var ASK_ANSWER_FORMAT3 = {
 var WHEN23 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var SIGNUP_NAME_MIN3 = 2;
 var SIGNUP_NAME_MAX3 = 120;
-var InviteCodeSchema3 = z93.string().trim().max(80);
-var SignupSchema3 = z93.object({
-  name: z93.string().trim().min(SIGNUP_NAME_MIN3, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX3, "That name is too long \u2014 120 characters at most."),
-  email: z93.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+var InviteCodeSchema3 = z103.string().trim().max(80);
+var SignupSchema3 = z103.object({
+  name: z103.string().trim().min(SIGNUP_NAME_MIN3, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX3, "That name is too long \u2014 120 characters at most."),
+  email: z103.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -10386,17 +10617,17 @@ var SignupSchema3 = z93.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z93.string().max(200).optional(),
+  password: z103.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z93.string().trim().min(1).max(64).optional(),
+  timezone: z103.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
   code: InviteCodeSchema3.optional()
 }).strict();
-var PendingWorkspaceSchema3 = z93.object({
-  name: z93.string().trim().min(SIGNUP_NAME_MIN3).max(SIGNUP_NAME_MAX3),
+var PendingWorkspaceSchema3 = z103.object({
+  name: z103.string().trim().min(SIGNUP_NAME_MIN3).max(SIGNUP_NAME_MAX3),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z93.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone3(v) ? v : null)
+  timezone: z103.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone3(v) ? v : null)
 });
 function isTimezone3(raw) {
   if (typeof raw !== "string" || !raw.trim()) return false;
@@ -10409,9 +10640,9 @@ function isTimezone3(raw) {
 }
 var PARTNER_CODE_MIN3 = 3;
 var PARTNER_CODE_MAX3 = 24;
-var PartnerBecomeSchema3 = z103.object({
-  code: z103.string().trim().min(1).max(64),
-  terms: z103.literal(true, { message: "The terms have to be accepted." })
+var PartnerBecomeSchema3 = z113.object({
+  code: z113.string().trim().min(1).max(64),
+  terms: z113.literal(true, { message: "The terms have to be accepted." })
 }).strict();
 var PARTNER_WORDS3 = {
   tab: "Partner",
@@ -10510,15 +10741,15 @@ var JUDGE_OUTPUT_SCHEMA3 = {
   required: ["places"],
   additionalProperties: false
 };
-var AnswerSchema3 = z113.object({
-  places: z113.array(
-    z113.object({
-      ref: z113.number().int(),
-      criteria: z113.array(
-        z113.object({ key: z113.string(), answer: z113.enum(["pass", "fail", "unknown"]), facts: z113.array(z113.string()) })
+var AnswerSchema3 = z123.object({
+  places: z123.array(
+    z123.object({
+      ref: z123.number().int(),
+      criteria: z123.array(
+        z123.object({ key: z123.string(), answer: z123.enum(["pass", "fail", "unknown"]), facts: z123.array(z123.string()) })
       ),
-      email_index: z113.number().int().nullable(),
-      reason: z113.string()
+      email_index: z123.number().int().nullable(),
+      reason: z123.string()
     })
   )
 });
@@ -10591,6 +10822,66 @@ var K3 = new Uint32Array([
 var NAME_MAX3 = BrainConfigSchema3.shape.business_name.maxLength ?? Infinity;
 var NINE_TO_FIVE3 = [{ from: 9 * 60, to: 17 * 60 }];
 var SEND_DAY_FRAME3 = { from: 8 * 60, to: 20 * 60 };
+var REACH_OUT_SUBJECT_MAX3 = 80;
+var REACH_OUT_BODY_MAX3 = 1200;
+var OPENING_WORDS_MAX3 = 40;
+var OPENING_CHARS_MAX3 = 400;
+var REACH_OUT_STEPS_MAX3 = 5;
+var REACH_OUT_NAME_MAX3 = 80;
+var SIGNED_BY_MAX3 = 60;
+var REACH_OUT_AFTER_DAYS3 = { min: 2, max: 30, first: 4 };
+var ReachOutStepSchema3 = z133.object({
+  /** An existing step's id, when the sheet edits a chain; none for a new one. */
+  id: z133.string().uuid().nullable().optional(),
+  subject: z133.string().max(REACH_OUT_SUBJECT_MAX3 * 2).nullable(),
+  body: z133.string().max(REACH_OUT_BODY_MAX3 * 2),
+  after_days: z133.number().int().min(REACH_OUT_AFTER_DAYS3.min).max(REACH_OUT_AFTER_DAYS3.max).nullable()
+});
+var ReachOutChainSchema3 = z133.object({
+  name: z133.string().trim().min(1).max(REACH_OUT_NAME_MAX3),
+  search_id: z133.string().uuid(),
+  include_unconfirmed: z133.boolean(),
+  gap_minutes: z133.number().int().min(5).max(120),
+  /** Empty: every verified domain of the workspace (00183). */
+  domain_ids: z133.array(z133.string().uuid()).max(5),
+  signed_by: z133.string().trim().max(SIGNED_BY_MAX3).nullable(),
+  steps: z133.array(ReachOutStepSchema3).min(1).max(REACH_OUT_STEPS_MAX3)
+});
+var OPENING_FACT_KEYS3 = [
+  "category",
+  "city",
+  "rating",
+  "reviews",
+  "website",
+  "hours",
+  "about",
+  "why_it_fits"
+];
+var OPENING_SCHEMA3 = {
+  type: "object",
+  properties: {
+    // The bound is said, not constrained: structured outputs refuse maxLength. Code holds it (checkOpening, too_long).
+    opening: { type: "string", description: `At most ${OPENING_WORDS_MAX3} words and ${OPENING_CHARS_MAX3} characters.` },
+    angle: { type: "string" },
+    facts_used: { type: "array", items: { type: "string", enum: [...OPENING_FACT_KEYS3] } }
+  },
+  required: ["opening", "angle", "facts_used"],
+  additionalProperties: false
+};
+var CALL_ACTIVITY_STALE_MS3 = 15 * 6e4;
+async function recordCarrierOptOut(db, p) {
+  const { data, error } = await db.from("contacts").update({
+    consent: "opted_out",
+    dnc: true,
+    consent_source: CARRIER_CONSENT_SOURCE2,
+    consent_updated_at: (/* @__PURE__ */ new Date()).toISOString()
+  }).eq("id", p.contactId).eq("tenant_id", p.tenantId).neq("consent", "opted_out").select("id");
+  if (error) throw new Error(`recording the carrier's opt-out for contact ${p.contactId}: ${error.message}`);
+  if (!data || data.length === 0) return false;
+  const change = { consent: "opted_out", previous: p.previous, source: CARRIER_CONSENT_SOURCE2, channel: p.channel };
+  await emitEvent(db, p.tenantId, "contact.consent_changed", "contact", "contact", p.contactId, change);
+  return true;
+}
 async function recordOutbound(db, p) {
   if (p.channel === "email")
     throw new Error("record_outbound: an email's row is written before it is sent, never after");
@@ -10827,27 +11118,40 @@ async function deliver(ports, d) {
   const refusal = refusalFor(d, facts, nowMs, outreach);
   const overtakenBy = !refusal && kindOf(d) === "draft" ? await overtakenByHuman(ports.db, d) : null;
   const reason = refusal ?? (overtakenBy ? "superseded_by_human" : null);
-  if (reason) {
+  const refuse = async (why, now = {}, said2 = {}) => {
     if (d.messageId) {
-      await finalizeQueued(ports.db, d, { status: "canceled", error: { reason } });
+      const contact = { ...facts.contact, ...now };
+      await finalizeQueued(ports.db, d, { status: "canceled", error: { reason: why } });
       await event(ports.db, d, "message.send_blocked", d.messageId, {
-        reason,
+        reason: why,
         purpose: d.purpose,
-        consent: facts.contact.consent,
-        dnc: facts.contact.dnc,
-        marketing_consent: facts.contact.marketing_consent,
-        ...d.purpose === "outreach" ? { email_marketing: facts.contact.email_marketing } : {},
-        ...overtakenBy ? { after: overtakenBy } : {}
+        consent: contact.consent,
+        dnc: contact.dnc,
+        marketing_consent: contact.marketing_consent,
+        ...d.purpose === "outreach" ? { email_marketing: contact.email_marketing } : {},
+        ...overtakenBy ? { after: overtakenBy } : {},
+        ...said2
       });
     }
-    return { outcome: "refused", reason, messageId: d.messageId ?? null };
-  }
+    return { outcome: "refused", reason: why, messageId: d.messageId ?? null };
+  };
+  if (reason) return refuse(reason);
   const send = ports.wire[d.channel];
   const sent = send === void 0 ? { ok: false, wamid: null, status: 0, errorBody: "no_sender_for_channel", reason: "no_sender_for_channel" } : send === null ? { ok: false, wamid: null, status: 503, errorBody: "no_credentials", reason: "no_credentials" } : await send(d.to, {
     body: d.body,
     template: d.template,
     ...d.email ? { email: d.email, purpose: d.purpose } : {}
   });
+  if (!sent.ok && d.channel === "sms" && smsRefusalOf(sent) === "opted_out") {
+    if (facts.contactId)
+      await recordCarrierOptOut(ports.db, {
+        tenantId: d.tenantId,
+        contactId: facts.contactId,
+        channel: d.channel,
+        previous: facts.contact.consent
+      });
+    return refuse("opted_out", { consent: "opted_out", dnc: true }, { source: CARRIER_CONSENT_SOURCE });
+  }
   if (sent.ok) {
     if (d.messageId) {
       const marked = await finalizeQueued(ports.db, d, {
@@ -11046,6 +11350,8 @@ async function cancelSend(ports, cmd) {
 // src/conversations/reply.ts
 var SEND_GRACE_MS = 15 * 1e3;
 var IDEMPOTENCY_WINDOW_MS = 30 * 1e3;
+var HOLD_EXPIRY_MS = 120 * 1e3;
+var REPLY_IN_PROGRESS_REFUSAL = "This reply is already being sent. Give it a moment, then check the thread before sending it again.";
 async function shapeEmailReply(ports, conv, to, text, agreedTo) {
   if (conv.email_suppressed_at) {
     throw new AppError(
@@ -11098,11 +11404,39 @@ async function replyToConversation(ports, cmd) {
   const window = replyWindow(channel, conv.last_wa_inbound_at, new Date(now));
   const idemKey = cmd.idempotencyKey ? `${cmd.userId}:${cmd.idempotencyKey}` : null;
   const intentHash = ports.hash(JSON.stringify(body));
+  const nowIso = new Date(now).toISOString();
   if (idemKey) {
-    const prior = await ports.priorReceipt(conv.tenant_id, idemKey);
-    const sameIntent = prior?.request_hash === intentHash;
-    if (prior && sameIntent && now - Date.parse(prior.created_at) < IDEMPOTENCY_WINDOW_MS) return prior.response;
+    const claim = await ports.claimKey(conv.tenant_id, idemKey, intentHash, nowIso);
+    if (!claim.won) {
+      const prior = claim.held;
+      const sameIntent = prior?.request_hash === intentHash;
+      const age = prior ? now - Date.parse(prior.created_at) : 0;
+      if (prior?.response && sameIntent && age < IDEMPOTENCY_WINDOW_MS) return prior.response;
+      if (!prior || !prior.response && age < HOLD_EXPIRY_MS)
+        throw new AppError("conflict", REPLY_IN_PROGRESS_REFUSAL, 409);
+      if (!await ports.takeKey(conv.tenant_id, idemKey, intentHash, nowIso, prior.created_at))
+        throw new AppError("conflict", REPLY_IN_PROGRESS_REFUSAL, 409);
+    }
   }
+  const key = idemKey ? { idemKey, intentHash, stamp: nowIso } : null;
+  const sent = await queueReply(ports, cmd, { now, channel, to, window, key }).catch(async (e) => {
+    if (idemKey) await ports.releaseKey(conv.tenant_id, idemKey, nowIso);
+    throw e;
+  });
+  const queued = sent.receipt;
+  const decision_id = await ports.record(conv.tenant_id, "conversation", conv.id, "reply", {
+    message_id: queued.message_id,
+    window_open: window.open,
+    template: sent.templateName
+  });
+  await ports.resolveEscalation(conv.id, decision_id);
+  const receipt = { ...queued, decision_id };
+  if (idemKey) await ports.storeReceipt(conv.tenant_id, idemKey, intentHash, receipt, nowIso).catch(() => false);
+  return receipt;
+}
+async function queueReply(ports, cmd, facts) {
+  const { conv, body } = cmd;
+  const { now, channel, to, window, key } = facts;
   let messageBody;
   let templateVars = null;
   let templateName = null;
@@ -11134,22 +11468,22 @@ async function replyToConversation(ports, cmd) {
         `This template needs words for \u201C${toWrite}\u201D, which the Inbox does not ask for. Pick a template without them, or send it from Campaigns.`
       );
     }
-    const facts = await ports.templateFacts(conv.tenant_id);
-    if (!facts)
+    const facts2 = await ports.templateFacts(conv.tenant_id);
+    if (!facts2)
       throw new AppError(
         "validation",
         "This workspace has no template facts configured yet. Add the business name in Settings \u203A Business first."
       );
     const slots = inboxSlots(tpl);
-    if (!facts.booking_link && slots.some((s) => s.kind === "booking_link"))
+    if (!facts2.booking_link && slots.some((s) => s.kind === "booking_link"))
       throw new AppError(
         "validation",
         "This template takes the booking link, and none is on file. Pick another template, or add the link in Settings \u203A Business first."
       );
     const params = resolveParams(slots, {
       firstName: firstNameOf(conv.display_name, conv.wa_profile_name),
-      businessName: facts.business_name,
-      bookingLink: facts.booking_link?.replace(/^https?:[/][/]/, "") ?? null
+      businessName: facts2.business_name,
+      bookingLink: facts2.booking_link?.replace(/^https?:[/][/]/, "") ?? null
     });
     templateName = tpl.name;
     templateVars = { language: tpl.language, params };
@@ -11181,7 +11515,16 @@ async function replyToConversation(ports, cmd) {
     ...email ?? {}
   });
   const dueAt = new Date(now + SEND_GRACE_MS);
+  const receipt = {
+    message_id,
+    status: "queued",
+    cancelable_until: dueAt.toISOString(),
+    window_open: window.open,
+    withdrawn_drafts
+  };
   try {
+    if (key && !await ports.storeReceipt(conv.tenant_id, key.idemKey, key.intentHash, receipt, key.stamp))
+      throw new AppError("conflict", REPLY_IN_PROGRESS_REFUSAL, 409);
     await ports.schedule(conv.tenant_id, dueAt, {
       message_id,
       conversation_id: conv.id,
@@ -11192,23 +11535,7 @@ async function replyToConversation(ports, cmd) {
     await ports.cancelOrphan(message_id);
     throw e;
   }
-  const queued = {
-    message_id,
-    status: "queued",
-    cancelable_until: dueAt.toISOString(),
-    window_open: window.open,
-    withdrawn_drafts
-  };
-  if (idemKey) await ports.storeReceipt(conv.tenant_id, idemKey, intentHash, queued);
-  const decision_id = await ports.record(conv.tenant_id, "conversation", conv.id, "reply", {
-    message_id,
-    window_open: window.open,
-    template: templateName
-  });
-  await ports.resolveEscalation(conv.id, decision_id);
-  const receipt = { ...queued, decision_id };
-  if (idemKey) await ports.storeReceipt(conv.tenant_id, idemKey, intentHash, receipt);
-  return receipt;
+  return { receipt, templateName };
 }
 
 // src/messages/send.ts
@@ -45324,14 +45651,14 @@ function haversineM(a, b) {
   return Math.round(2 * R * Math.asin(Math.sqrt(s)));
 }
 function zctaCenter(zip) {
-  const z14 = zip.trim();
+  const z16 = zip.trim();
   let lo = 0;
   let hi = TABLE.length - 1;
   while (lo <= hi) {
     const mid = lo + hi >> 1;
     const row = TABLE[mid];
-    if (row[0] === z14) return { lat: row[1], lng: row[2] };
-    if (row[0] < z14) lo = mid + 1;
+    if (row[0] === z16) return { lat: row[1], lng: row[2] };
+    if (row[0] < z16) lo = mid + 1;
     else hi = mid - 1;
   }
   return null;
@@ -47507,6 +47834,7 @@ export {
   FACT_MAX,
   FINAL_RUN_STATES,
   FIRST_COLLECT_SECONDS,
+  HOLD_EXPIRY_MS,
   IDEMPOTENCY_WINDOW_MS,
   INPUT_MARKER,
   IngestFailed,
@@ -47538,6 +47866,7 @@ export {
   PROVIDER_RUN_PAGE,
   RADIUS_MAX_M,
   RADIUS_MIN_M,
+  REPLY_IN_PROGRESS_REFUSAL,
   SEND_GRACE_MS,
   STALE_MS,
   STALE_REPLY_MS,

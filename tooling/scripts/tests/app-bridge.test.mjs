@@ -27,6 +27,23 @@ test("a page message is one of four shapes; anything else is null", () => {
   assert.equal(parsePageMessage("[]"), null);
   assert.equal(parsePageMessage('{"t":"route","route":"javascript:alert(1)"}'), null);
   assert.equal(parsePageMessage('{"t":"route","route":"https://example.com"}'), null);
+  assert.deepEqual(parsePageMessage('{"t":"badge","n":4}'), { t: "badge", n: 4 });
+  assert.equal(parsePageMessage('{"t":"badge","n":-1}'), null);
+  assert.deepEqual(parsePageMessage('{"t":"device","state":"registered"}'), { t: "device", state: "registered" });
+  assert.equal(parsePageMessage('{"t":"device","state":"lost"}'), null);
+  const snap = {
+    headline: "h",
+    figures: [{ label: "calls", value: 2 }],
+    waiting: 1,
+    first: null,
+    at: "2026-09-26T15:00:00.000Z",
+  };
+  assert.deepEqual(parsePageMessage(JSON.stringify({ t: "today", snapshot: snap })), { t: "today", snapshot: snap });
+  assert.equal(parsePageMessage(JSON.stringify({ t: "today", snapshot: { headline: "h" } })), null);
+  assert.deepEqual(parsePageMessage('{"t":"calls","live":0}'), { t: "calls", live: 0 });
+  assert.deepEqual(parsePageMessage('{"t":"calls","live":2}'), { t: "calls", live: 2 });
+  assert.equal(parsePageMessage('{"t":"calls","live":-1}'), null);
+  assert.equal(parsePageMessage('{"t":"calls","live":"2"}'), null);
 });
 
 test("a shell message is navigate, menu or top; a route is a hash route's name, never a URL", () => {
@@ -37,4 +54,32 @@ test("a shell message is navigate, menu or top; a route is a hash route's name, 
   assert.equal(parseShellMessage({ t: "navigate", route: "" }), null);
   assert.equal(parseShellMessage({ t: "reload" }), null);
   assert.equal(parseShellMessage(null), null);
+});
+
+test("the shell's device ask carries a token, a platform and a version; forget carries the token", () => {
+  assert.deepEqual(
+    parseShellMessage({ t: "device", token: " ExponentPushToken[abc] ", platform: "ios", version: "1.0.0" }),
+    {
+      t: "device",
+      token: "ExponentPushToken[abc]",
+      platform: "ios",
+      version: "1.0.0",
+    },
+  );
+  assert.equal(parseShellMessage({ t: "device", token: "", platform: "ios", version: "1" }), null);
+  assert.equal(parseShellMessage({ t: "device", token: "x", platform: "web", version: "1" }), null);
+  assert.equal(parseShellMessage({ t: "device", token: "x".repeat(201), platform: "ios", version: "1" }), null);
+  assert.deepEqual(
+    parseShellMessage({ t: "device", token: "x", platform: "ios", version: "1", activity: " act " }),
+    { t: "device", token: "x", platform: "ios", version: "1", activity: "act" },
+    "the activity token rides along when the phone has one",
+  );
+  assert.deepEqual(parseShellMessage({ t: "device", token: "x", platform: "ios", version: "1", activity: "" }), {
+    t: "device",
+    token: "x",
+    platform: "ios",
+    version: "1",
+  });
+  assert.deepEqual(parseShellMessage({ t: "forget", token: "tok" }), { t: "forget", token: "tok" });
+  assert.equal(parseShellMessage({ t: "forget" }), null);
 });

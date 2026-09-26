@@ -2,7 +2,9 @@
  * One page of the live site in the shell (the PRD, M2): a WebView at the workspace's hash route, created the first
  * time its tab is in front and kept afterwards. It names the shell in the User-Agent, sets the page's bottom inset
  * before paint, hears the page over the bridge, keeps foreign links out of the app, recovers when iOS kills the
- * content process, and reads "signed out" from the address so the shell can show the sign-in screen.
+ * content process, reads "signed out" from the address so the shell can show the sign-in screen, hands the page the
+ * phone's push token to register, opens the route of a tapped notification, and has the page forget the phone before
+ * a sign-out (the PR 2 design).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BackHandler, Linking, Platform, StyleSheet, View } from "react-native";
@@ -13,12 +15,15 @@ import * as WebBrowser from "expo-web-browser";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useIsFocused } from "expo-router";
 import { parsePageMessage, type ShellMessage } from "@chanlytics/contracts";
-import { askPage, bottomInset, insetScript, onPageMessage } from "./bridge";
-import { getState, registerReloader, setState, useShell } from "./state";
+import { askPage, bottomInset, insetScript, onPageMessage, registrationKey, shouldRegister } from "./bridge";
+import { getState, registerReloader, setState, useShell, type Tab } from "./state";
+import { setBadge, tabOf } from "./notifications";
+import { updateTodayWidget } from "./widget";
+import { endCallActivities } from "./live-activity";
 import { Offline } from "./Offline";
-import { hrefFor, isOurs, isSignedOutUrl, LOGIN_HREF, userAgentToken } from "@/site";
+import { hrefFor, isOurs, isSignedOutUrl, LOGIN_HREF, NATIVE_DOOR, userAgentToken } from "@/site";
 
-const PLATFORM = Platform.OS === "ios" ? "ios" : "android";
+const PLATFORM: "ios" | "android" = Platform.OS === "ios" ? "ios" : "android";
 const PAGE_DARK = "#0c0d0f";
 
 export interface SurfaceHandle {
@@ -29,11 +34,18 @@ export interface SurfaceHandle {
 interface Props {
   /** The hash route this page shows; "login" is the sign-in page. */
   route: string;
+  /** The tab this page is in, so a tapped notification's route knows whether it is this page's to open. */
+  tab?: Tab;
   /** Called once the page reports its route, each time this tab comes to the front. */
   onReady?: (h: SurfaceHandle) => void;
+  /** A form body to POST to the site's native door instead of loading the route: a native token becoming the cookie. */
+  post?: string;
 }
 
-export function Surface({ route, onReady }: Props) {
+/** How long the page has to forget the phone before a sign-out goes ahead without it. */
+const FORGET_WAIT_MS = 2000;
+
+export function Surface({ route, tab, onReady, post }: Props) {
   const ref = useRef<WebView>(null);
   const focused = useIsFocused();
   // Created the first time this tab is in front, kept afterwards: a latch set during render, not in an effect.
@@ -41,10 +53,21 @@ export function Surface({ route, onReady }: Props) {
   if (focused && !mounted) setMounted(true);
   const [failed, setFailed] = useState(false);
   const slug = useShell((s) => s.slug);
+  const token = useShell((s) => s.token);
+  const activityToken = useShell((s) => s.activityToken);
+  const registered = useShell((s) => s.registered);
+  const session = useShell((s) => s.session);
+  const pendingRoute = useShell((s) => s.pendingRoute);
+  const [ready, setReady] = useState(false);
+  const forgetting = useRef<{ resolve: () => void } | null>(null);
   const insets = useSafeAreaInsets();
   const userAgent = useMemo(() => userAgentToken(Application.nativeApplicationVersion ?? "0.0.0", PLATFORM), []);
   const inset = bottomInset(PLATFORM, insets.bottom);
   const uri = route === "login" ? LOGIN_HREF : hrefFor(slug, route);
+  // The door's POST from inside the WebView: the cookie it sets is the WebView's, and its 303 lands the page.
+  const source = post
+    ? { uri: NATIVE_DOOR, method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: post }
+    : { uri };
 
   const handle = useMemo<SurfaceHandle>(
     () => ({
@@ -60,23 +83,76 @@ export function Surface({ route, onReady }: Props) {
 
   const onMessage = useCallback(
     (e: WebViewMessageEvent) => {
-      const { state } = onPageMessage(getState(), e.nativeEvent.data);
+      const { state, effect } = onPageMessage(getState(), e.nativeEvent.data);
       setState(state);
-      if (focused && parsePageMessage(e.nativeEvent.data)?.t === "route") onReady?.(handle);
+      if (effect === "badge") void setBadge(state.badge);
+      if (effect === "calls-over") void endCallActivities();
+      const m = parsePageMessage(e.nativeEvent.data);
+      if (m?.t === "today") updateTodayWidget(m.snapshot);
+      if (m?.t === "device" && m.state === "forgotten") forgetting.current?.resolve();
+      if (m?.t === "route") {
+        setReady(true);
+        if (focused) onReady?.(handle);
+      }
     },
     [focused, handle, onReady],
   );
 
+  // The phone registers through the page in front: once per token pair per person (bridge.ts shouldRegister).
+  useEffect(() => {
+    const s = { ...getState(), session, token, activityToken, registered };
+    if (!ready || !focused || route === "login" || !shouldRegister(s)) return;
+    setState({ registered: registrationKey(s) }); // claimed now, so a second page in front does not ask again; a refusal clears it
+    handle.ask({
+      t: "device",
+      token: token!,
+      platform: PLATFORM,
+      version: Application.nativeApplicationVersion ?? "",
+      ...(activityToken ? { activity: activityToken } : {}),
+    });
+  }, [ready, focused, route, session, token, activityToken, registered, handle]);
+
+  // A tapped notification's route, opened by the tab it belongs to once its page is ready.
+  useEffect(() => {
+    if (!ready || !focused || !pendingRoute || !tab || tabOf(pendingRoute) !== tab) return;
+    setState({ pendingRoute: null });
+    handle.ask({ t: "navigate", route: pendingRoute });
+  }, [ready, focused, pendingRoute, tab, handle]);
+
   const onNavigation = useCallback((nav: WebViewNavigation) => {
-    if (!nav.loading && isSignedOutUrl(nav.url)) setState({ session: "out", slug: null, needs: 0 });
+    if (!nav.loading && isSignedOutUrl(nav.url)) setState({ session: "out", slug: null, needs: 0, registered: null });
   }, []);
 
-  const onShouldStart = useCallback((req: ShouldStartLoadRequest) => {
-    if (isOurs(req.url) || req.url.startsWith("about:")) return true;
-    if (/^(https?:)/.test(req.url)) void WebBrowser.openBrowserAsync(req.url);
-    else if (/^(tel|mailto|sms):/.test(req.url)) void Linking.openURL(req.url);
-    return false;
-  }, []);
+  const onShouldStart = useCallback(
+    (req: ShouldStartLoadRequest) => {
+      if (req.url.startsWith("about:")) return true;
+      if (isOurs(req.url)) {
+        // Before the person signs out, the page forgets the phone; two seconds at most, then the sign-out goes on.
+        const { token: tok, registered: reg } = getState();
+        if (/\/auth\/signout(\/|\?|$)/.test(req.url) && tok && reg && !forgetting.current) {
+          const go = () => {
+            forgetting.current = null;
+            setState({ registered: null });
+            ref.current?.injectJavaScript(`window.location.assign(${JSON.stringify(req.url)});true;`);
+          };
+          const timer = setTimeout(go, FORGET_WAIT_MS);
+          forgetting.current = {
+            resolve: () => {
+              clearTimeout(timer);
+              go();
+            },
+          };
+          handle.ask({ t: "forget", token: tok });
+          return false;
+        }
+        return true;
+      }
+      if (/^(https?:)/.test(req.url)) void WebBrowser.openBrowserAsync(req.url);
+      else if (/^(tel|mailto|sms):/.test(req.url)) void Linking.openURL(req.url);
+      return false;
+    },
+    [handle],
+  );
 
   // Android's hardware back walks the page's own history first.
   useEffect(() => {
@@ -93,7 +169,7 @@ export function Surface({ route, onReady }: Props) {
     <View style={styles.fill}>
       <WebView
         ref={ref}
-        source={{ uri }}
+        source={source}
         style={styles.fill}
         applicationNameForUserAgent={userAgent}
         sharedCookiesEnabled

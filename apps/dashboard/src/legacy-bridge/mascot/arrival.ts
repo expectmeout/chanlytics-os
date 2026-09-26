@@ -6,7 +6,7 @@
  * like at rest; and if something on the page needs attention, stay in colour instead of going back to grey"). So, on
  * a phone:
  * - A page arriving (the first face, or the address changing to another page) is read: the three, where they stand,
- *   take the AI's colour and turn once or twice (the mood's `glow`) for READ_MS, or as long as the boot takes up to
+ *   take the AI's colour and turn once (the mood's `glow`) for READ_MS, or as long as the boot takes up to
  *   READ_MAX_MS. The same page again within AGAIN_MS is not read again, and a walk within a page (a lead's peek, a
  *   view's flags after a colon) is the same page.
  * - While something needs you (`waiting`: Ask's own standing, people, runs or searches waiting, or a notification not
@@ -20,10 +20,13 @@
  */
 import type { Mood } from "./mood";
 
-/** how long a page is read, at least */
-export const READ_MS = 2200;
+/**
+ * How long a page is read, at least: a glance, not a show. With the colour's own coming and going the light is seen
+ * for about 0.7 s and is grey by 0.8 s (it was 2.2 s, then 1.2 s, both of which read as performed; Ruben, 26 Sep).
+ */
+export const READ_MS = 400;
 /** and at most, should the boot take longer */
-export const READ_MAX_MS = 4000;
+export const READ_MAX_MS = 600;
 /** the same page again within this is not read again */
 export const AGAIN_MS = 20_000;
 

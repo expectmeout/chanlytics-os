@@ -17,11 +17,14 @@
  *   finish      a run that goes ahead with no send left open is sent, and says when it finished.
  *   restale     a planned send long past its time in a run that goes ahead (approved late, its chain resumed, its
  *               domain's day full or its domain removed) is planned again from now.
+ *   give up     a send the check held (Part 4) that its owner never answered is skipped, kept_waiting, fourteen days
+ *               from when it was planned: the one clock every send gives up by (replan.ts REPLAN_GIVE_UP_MS, R10).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   closedRunSends,
   finishableRuns,
+  heldStale,
   leadWritten,
   moveSend,
   queuedOutcomes,
@@ -34,7 +37,7 @@ import {
 } from "../packages/db.js";
 import { sendMessageId } from "../packages/core.js";
 import { isWaitRefusal } from "../packages/contracts.js";
-import { replanSends, type Replan, type ReplanCounts } from "./replan.js";
+import { REPLAN_GIVE_UP_MS, replanSends, type Replan, type ReplanCounts } from "./replan.js";
 import type { Logger } from "../log.js";
 
 type Db = SupabaseClient<Database>;
@@ -220,5 +223,10 @@ export async function reachOutClock(
     out.waiting += replanned.waiting;
     out.gave_up += replanned.gave_up;
   }
+
+  /* give up what waits unanswered: held, and its owner never answered in the fortnight a send has (F3, R10) */
+  if (!late())
+    for (const s of await heldStale(db, new Date(now.getTime() - REPLAN_GIVE_UP_MS), PAGE, tenantId))
+      if (await move(db, s, { state: "skipped", reason: "kept_waiting" })) out.gave_up += 1;
   return out;
 }

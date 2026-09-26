@@ -8,6 +8,7 @@
  * interface, the words the product needs from a provider, and the small
  * pure helpers the saga and the endpoint share.
  */
+import { randomInt } from "node:crypto";
 
 export type LineProviderName = "twilio" | "dry";
 
@@ -165,17 +166,21 @@ const DIGIT = "23456789";
 
 /**
  * A SIP password Twilio accepts: at least 12 characters, a digit, mixed
- * case (SIP Credential docs). 24 characters here; `random` is injectable so
+ * case (SIP Credential docs). 24 characters here, from node:crypto -- the
+ * source the edge token's nonce is minted from (edge-token.ts), never
+ * Math.random, which nothing in production seeds; `random` is injectable so
  * a test can pin one.
  */
-export function sipPassword(random: () => number = Math.random): string {
-  const pick = (s: string) => s[Math.floor(random() * s.length)];
+export function sipPassword(random?: () => number): string {
+  /** An index below `n`: the injected source's, or an unbiased draw from the system's. */
+  const below = random ? (n: number) => Math.floor(random() * n) : (n: number) => randomInt(n);
+  const pick = (s: string) => s[below(s.length)];
   const all = LOWER + UPPER + DIGIT;
   const chars = [pick(LOWER), pick(UPPER), pick(DIGIT)];
   while (chars.length < 24) chars.push(pick(all));
   // Shuffle so the guaranteed characters are not always first.
   for (let i = chars.length - 1; i > 0; i--) {
-    const j = Math.floor(random() * (i + 1));
+    const j = below(i + 1);
     [chars[i], chars[j]] = [chars[j], chars[i]];
   }
   return chars.join("");

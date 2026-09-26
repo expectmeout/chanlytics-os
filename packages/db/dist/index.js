@@ -18,6 +18,8 @@ import { z as z8 } from "zod";
 import { z as z9 } from "zod";
 import { z as z10 } from "zod";
 import { z as z11 } from "zod";
+import { z as z12 } from "zod";
+import { z as z13 } from "zod";
 z.config({ jitless: true });
 function normalizePhone(raw) {
   if (raw == null) return null;
@@ -145,11 +147,11 @@ var EVENT_KINDS = [
   "deal.won",
   "deal.lost",
   "deal.ended",
-  // A partner (0011): the workspace was made through a partner's link and the partner joined its team, or the code
+  // A partner (0012): the workspace was made through a partner's link and the partner joined its team, or the code
   // the link left named no partner who could be credited (unknown, paused, or the caller's own).
   "partner.attributed",
   "partner.code_ignored",
-  // The ledger (0011, P3): a share written from a paid invoice, a refund's or a dispute's effect on it, and the
+  // The ledger (0012, P3): a share written from a paid invoice, a refund's or a dispute's effect on it, and the
   // standing the sweep decided for a workspace once it had paid.
   "partner.earned",
   "partner.reversed",
@@ -1188,6 +1190,7 @@ function dealSentence(d, nowMs, tz = "UTC", opts = {}) {
       return `A former client${svc}: the engagement ended${on}. Treat them as any customer.`;
   }
 }
+var CARRIER_CONSENT_SOURCE = "carrier";
 var DAY_MS4 = 864e5;
 var WEEK_MS2 = 7 * DAY_MS4;
 var MONTH_MS = 30 * DAY_MS4;
@@ -1768,11 +1771,11 @@ var ListDraftAnswerSchema = z6.object({
 });
 var SAVED_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 var BUILTIN_ID = /^[a-z_]{1,40}$/;
-function parseListToken(token) {
-  if (typeof token !== "string") return null;
-  const at2 = token.indexOf(":");
-  const kind = token.slice(0, at2);
-  const id = token.slice(at2 + 1);
+function parseListToken(token2) {
+  if (typeof token2 !== "string") return null;
+  const at2 = token2.indexOf(":");
+  const kind = token2.slice(0, at2);
+  const id = token2.slice(at2 + 1);
   if ((kind === "seg" || kind === "state") && BUILTIN_ID.test(id)) return { kind: "builtin", id };
   if (kind === "list" && SAVED_ID.test(id)) return { kind: "saved", id: id.toLowerCase() };
   return null;
@@ -1962,6 +1965,10 @@ var REVIEW_NEWS_MAX_AGE_MS = 14 * 864e5;
 var BOOTSTRAP_MS = 3600 * 1e3;
 var DATE_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WEEK_MS3 = 7 * 864e5;
+function maySpend(mode, status) {
+  if (mode !== "stripe") return true;
+  return status === "active";
+}
 var DATE_FMT3 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var CHECKOUT_OUTCOME_WORDS = {
   success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
@@ -2125,6 +2132,7 @@ var FIRST_RUN_PHONE_WORDS = {
   withMeSent: "We'll email you to find a time for a call.",
   notForwarded: "Forwarding not saved"
 };
+var PUSH_RECEIPTS_AFTER_MS = 15 * 6e4;
 var DAY_MS6 = 24 * 3600 * 1e3;
 var DAY_MS7 = 864e5;
 var QUIET_AFTER_MS = 7 * DAY_MS7;
@@ -2175,6 +2183,22 @@ var AskProposalOutcomeSchema = z8.object({
   atMs: z8.number().catch(0),
   undo: z8.record(z8.string(), z8.unknown()).nullable().optional()
 });
+var ASK_SCOPE_KINDS = ["thread", "conversation", "call", "person", "page", "lead", "search", "run"];
+var ASK_SURFACES = [
+  "today",
+  "inbox",
+  "people",
+  "leads",
+  "conversations",
+  "live",
+  "reports",
+  "settings",
+  "pipeline",
+  "calendar",
+  "campaigns",
+  "start",
+  "other"
+];
 var AskSettingsChangeSchema = z8.discriminatedUnion("op", [
   z8.object({
     op: z8.literal("add_closure"),
@@ -2195,6 +2219,28 @@ var AskSettingsChangeSchema = z8.discriminatedUnion("op", [
     duration_min: z8.number().int().min(1).max(1440).optional()
   })
 ]);
+var ASK_CONTEXT_MAX_ROWS = 40;
+var ASK_CONTEXT_ROW_KINDS = [
+  "thread",
+  "conversation",
+  "call",
+  "person",
+  "lead",
+  "search",
+  "run",
+  "playbook",
+  "template"
+];
+var Id = z9.string().min(1).max(120);
+var PageContextSchema = z9.object({
+  v: z9.literal(1),
+  surface: z9.enum(ASK_SURFACES),
+  route: z9.string().max(200),
+  view: z9.string().max(80).nullish(),
+  focus: z9.object({ kind: z9.enum(ASK_SCOPE_KINDS), id: Id, label: z9.string().max(80) }).strict().nullish(),
+  rows: z9.array(z9.object({ kind: z9.enum(ASK_CONTEXT_ROW_KINDS), id: Id }).strict()).max(ASK_CONTEXT_MAX_ROWS),
+  askedAt: z9.number().int().nonnegative()
+}).strict();
 var ASK_ANSWER_CAPS = {
   headline: 160,
   detail: 700,
@@ -2347,10 +2393,10 @@ var ASK_ANSWER_FORMAT = {
 var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
-var InviteCodeSchema = z9.string().trim().max(80);
-var SignupSchema = z9.object({
-  name: z9.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
-  email: z9.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+var InviteCodeSchema = z10.string().trim().max(80);
+var SignupSchema = z10.object({
+  name: z10.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
+  email: z10.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -2364,17 +2410,17 @@ var SignupSchema = z9.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z9.string().max(200).optional(),
+  password: z10.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z9.string().trim().min(1).max(64).optional(),
+  timezone: z10.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
   code: InviteCodeSchema.optional()
 }).strict();
-var PendingWorkspaceSchema = z9.object({
-  name: z9.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
+var PendingWorkspaceSchema = z10.object({
+  name: z10.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z9.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
+  timezone: z10.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
 });
 var DEFAULT_TIMEZONE = "America/New_York";
 function isTimezone(raw) {
@@ -2388,9 +2434,9 @@ function isTimezone(raw) {
 }
 var PARTNER_CODE_MIN = 3;
 var PARTNER_CODE_MAX = 24;
-var PartnerBecomeSchema = z10.object({
-  code: z10.string().trim().min(1).max(64),
-  terms: z10.literal(true, { message: "The terms have to be accepted." })
+var PartnerBecomeSchema = z11.object({
+  code: z11.string().trim().min(1).max(64),
+  terms: z11.literal(true, { message: "The terms have to be accepted." })
 }).strict();
 var PARTNER_WORDS = {
   tab: "Partner",
@@ -2489,15 +2535,15 @@ var JUDGE_OUTPUT_SCHEMA = {
   required: ["places"],
   additionalProperties: false
 };
-var AnswerSchema = z11.object({
-  places: z11.array(
-    z11.object({
-      ref: z11.number().int(),
-      criteria: z11.array(
-        z11.object({ key: z11.string(), answer: z11.enum(["pass", "fail", "unknown"]), facts: z11.array(z11.string()) })
+var AnswerSchema = z12.object({
+  places: z12.array(
+    z12.object({
+      ref: z12.number().int(),
+      criteria: z12.array(
+        z12.object({ key: z12.string(), answer: z12.enum(["pass", "fail", "unknown"]), facts: z12.array(z12.string()) })
       ),
-      email_index: z11.number().int().nullable(),
-      reason: z11.string()
+      email_index: z12.number().int().nullable(),
+      reason: z12.string()
     })
   )
 });
@@ -2570,6 +2616,53 @@ var K = new Uint32Array([
 var NAME_MAX = BrainConfigSchema.shape.business_name.maxLength ?? Infinity;
 var NINE_TO_FIVE = [{ from: 9 * 60, to: 17 * 60 }];
 var SEND_DAY_FRAME = { from: 8 * 60, to: 20 * 60 };
+var REACH_OUT_SUBJECT_MAX = 80;
+var REACH_OUT_BODY_MAX = 1200;
+var OPENING_WORDS_MAX = 40;
+var OPENING_CHARS_MAX = 400;
+var REACH_OUT_STEPS_MAX = 5;
+var REACH_OUT_NAME_MAX = 80;
+var SIGNED_BY_MAX = 60;
+var REACH_OUT_AFTER_DAYS = { min: 2, max: 30, first: 4 };
+var ReachOutStepSchema = z13.object({
+  /** An existing step's id, when the sheet edits a chain; none for a new one. */
+  id: z13.string().uuid().nullable().optional(),
+  subject: z13.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
+  body: z13.string().max(REACH_OUT_BODY_MAX * 2),
+  after_days: z13.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable()
+});
+var ReachOutChainSchema = z13.object({
+  name: z13.string().trim().min(1).max(REACH_OUT_NAME_MAX),
+  search_id: z13.string().uuid(),
+  include_unconfirmed: z13.boolean(),
+  gap_minutes: z13.number().int().min(5).max(120),
+  /** Empty: every verified domain of the workspace (00183). */
+  domain_ids: z13.array(z13.string().uuid()).max(5),
+  signed_by: z13.string().trim().max(SIGNED_BY_MAX).nullable(),
+  steps: z13.array(ReachOutStepSchema).min(1).max(REACH_OUT_STEPS_MAX)
+});
+var OPENING_FACT_KEYS = [
+  "category",
+  "city",
+  "rating",
+  "reviews",
+  "website",
+  "hours",
+  "about",
+  "why_it_fits"
+];
+var OPENING_SCHEMA = {
+  type: "object",
+  properties: {
+    // The bound is said, not constrained: structured outputs refuse maxLength. Code holds it (checkOpening, too_long).
+    opening: { type: "string", description: `At most ${OPENING_WORDS_MAX} words and ${OPENING_CHARS_MAX} characters.` },
+    angle: { type: "string" },
+    facts_used: { type: "array", items: { type: "string", enum: [...OPENING_FACT_KEYS] } }
+  },
+  required: ["opening", "angle", "facts_used"],
+  additionalProperties: false
+};
+var CALL_ACTIVITY_STALE_MS = 15 * 6e4;
 
 // src/repositories/ingest.ts
 async function ingestInbound(db, p) {
@@ -2619,6 +2712,19 @@ async function ingestInbound(db, p) {
     }
   }
   return out;
+}
+async function recordCarrierOptOut(db, p) {
+  const { data, error } = await db.from("contacts").update({
+    consent: "opted_out",
+    dnc: true,
+    consent_source: CARRIER_CONSENT_SOURCE,
+    consent_updated_at: (/* @__PURE__ */ new Date()).toISOString()
+  }).eq("id", p.contactId).eq("tenant_id", p.tenantId).neq("consent", "opted_out").select("id");
+  if (error) throw new Error(`recording the carrier's opt-out for contact ${p.contactId}: ${error.message}`);
+  if (!data || data.length === 0) return false;
+  const change = { consent: "opted_out", previous: p.previous, source: CARRIER_CONSENT_SOURCE, channel: p.channel };
+  await emitEvent(db, p.tenantId, "contact.consent_changed", "contact", "contact", p.contactId, change);
+  return true;
 }
 async function markProcessed(db, tenantId, messageId) {
   const { error } = await db.rpc("mark_processed", {
@@ -3079,8 +3185,8 @@ async function reachOutAudience(db, p) {
   const { data, error } = await db.rpc("reach_out_audience", {
     p_tenant_id: p.tenantId,
     p_search_id: p.searchId,
-    p_root_id: p.rootId,
-    p_limit: p.limit
+    p_limit: p.limit,
+    p_include_unconfirmed: p.includeUnconfirmed
   });
   if (error) throw new Error(`cannot read who a reach-out may write to: ${error.message}`);
   return data ?? [];
@@ -3232,7 +3338,7 @@ async function sendJobScheduled(db, p) {
 async function sendStanding(db, s) {
   const [run, chain] = await Promise.all([
     db.from("broadcasts").select("state").eq("tenant_id", s.tenant_id).eq("id", s.broadcast_id).maybeSingle(),
-    db.from("playbooks").select("id, state, template_id, after_playbook_id").eq("tenant_id", s.tenant_id).in("id", [s.playbook_id ?? s.root_id, s.root_id])
+    db.from("playbooks").select("id, state, template_id, after_playbook_id, signed_by").eq("tenant_id", s.tenant_id).in("id", [s.playbook_id ?? s.root_id, s.root_id])
   ]);
   if (run.error) throw new Error(`cannot read the send's run: ${run.error.message}`);
   if (chain.error) throw new Error(`cannot read the send's chain: ${chain.error.message}`);
@@ -3240,7 +3346,8 @@ async function sendStanding(db, s) {
   return {
     run: run.data?.state ?? null,
     step: step ? { state: step.state, template_id: step.template_id, after_playbook_id: step.after_playbook_id } : null,
-    root: (chain.data ?? []).find((p) => p.id === s.root_id)?.state ?? null
+    root: (chain.data ?? []).find((p) => p.id === s.root_id)?.state ?? null,
+    signedBy: (chain.data ?? []).find((p) => p.id === s.root_id)?.signed_by ?? null
   };
 }
 async function emailWordsOf(db, tenantId, templateId) {
@@ -3339,6 +3446,126 @@ async function leadWritten(db, p) {
   });
   if (e3) throw new Error(`cannot record the lead's email: ${e3.message}`);
   return true;
+}
+var num = (v) => v === null || v === void 0 || v === "" ? null : Number(v);
+var text = (v) => typeof v === "string" ? v : null;
+function recordOf(r2) {
+  return {
+    business_name: text(r2.business_name),
+    category: text(r2.category),
+    city: text(r2.city),
+    region: text(r2.region),
+    rating: num(r2.rating),
+    reviews: num(r2.reviews),
+    website_host: text(r2.website_host),
+    hours: r2.hours ?? null,
+    about: text(r2.about),
+    email: text(r2.email),
+    why_it_fits: text(r2.why_it_fits),
+    what_you_asked: text(r2.what_you_asked),
+    site_listings: Number(r2.site_listings ?? 0),
+    name_listings: Number(r2.name_listings ?? 0),
+    email_domain_shared: r2.email_domain_shared === true
+  };
+}
+async function uncheckedSends(db, p) {
+  const { data, error } = await db.rpc("reach_out_unchecked", {
+    p_limit: p.limit,
+    p_per_workspace: p.perWorkspace,
+    p_ahead_minutes: p.aheadMinutes,
+    ...p.tenantId ? { p_tenant_id: p.tenantId } : {}
+  });
+  if (error) throw new Error(`cannot read the sends to check: ${error.message}`);
+  return (data ?? []).map((r2) => {
+    const send = r2.send;
+    return {
+      send,
+      check_gen: Number(r2.check_gen ?? send.check_gen ?? 0),
+      template_id: String(r2.template_id),
+      template_language: String(r2.template_language ?? "en"),
+      signed_by: text(r2.signed_by),
+      included_for: Array.isArray(r2.included_for) ? r2.included_for.filter((x) => typeof x === "string") : [],
+      record: recordOf(r2)
+    };
+  });
+}
+async function uncheckedWaiting(db, tenantId) {
+  let q = db.from("reach_out_sends").select("id").eq("state", "planned").is("checked_at", null);
+  if (tenantId) q = q.eq("tenant_id", tenantId);
+  const { data, error } = await q.limit(1);
+  if (error) throw new Error(`cannot read the sends to check: ${error.message}`);
+  return (data ?? []).length > 0;
+}
+async function reachOutRecord(db, p) {
+  const { data, error } = await db.rpc("reach_out_record", {
+    p_tenant_id: p.tenantId,
+    p_search_id: p.searchId,
+    p_lead_id: p.leadId
+  });
+  if (error) throw new Error(`cannot read the business's record: ${error.message}`);
+  const row = (data ?? [])[0];
+  return row ? recordOf(row) : null;
+}
+async function recordCheck(db, p) {
+  const { data, error } = await db.from("reach_out_sends").update({ ...p.patch, check_started_at: null }).eq("tenant_id", p.tenantId).eq("id", p.id).eq("state", "planned").is("checked_at", null).eq("check_gen", p.gen).select("id");
+  if (error) throw new Error(`cannot record the send's check: ${error.message}`);
+  return (data ?? []).length === 1;
+}
+function checkResetPatch(gen) {
+  return {
+    checked_at: null,
+    check_gen: gen + 1,
+    checked_words: null,
+    check_tries: 0,
+    check_first_at: null,
+    check_after: null,
+    check_started_at: null,
+    opening: null,
+    angle: null,
+    facts_used: [],
+    hold_detail: null
+  };
+}
+async function heldStale(db, before, limit, tenantId) {
+  const { data, error } = await db.rpc("reach_out_held_stale", {
+    p_before: before.toISOString(),
+    p_limit: limit,
+    ...tenantId ? { p_tenant_id: tenantId } : {}
+  });
+  if (error) throw new Error(`cannot read the held sends: ${error.message}`);
+  return data ?? [];
+}
+async function releaseUnavailableHolds(db, p) {
+  const { data, error } = await db.rpc("reach_out_release_unavailable", {
+    p_before: p.before.toISOString(),
+    ...p.tenantId ? { p_tenant_id: p.tenantId } : {}
+  });
+  if (error) throw new Error(`cannot put the holds back to be checked: ${error.message}`);
+  return typeof data === "number" ? data : 0;
+}
+async function takeCheckAttempt(db, p) {
+  const { data, error } = await db.rpc("reach_out_check_take", {
+    p_tenant_id: p.tenantId,
+    p_cap: p.cap,
+    p_at: p.at.toISOString()
+  });
+  if (error) throw new Error(`cannot take the check's attempt: ${error.message}`);
+  return data === true;
+}
+async function workspaceMaySpend(db, tenantId) {
+  const [tenant, billing] = await Promise.all([
+    db.from("tenants").select("status").eq("id", tenantId).maybeSingle(),
+    db.from("billing_accounts").select("mode, status").eq("tenant_id", tenantId).maybeSingle()
+  ]);
+  if (tenant.error) throw new Error(`cannot read the workspace: ${tenant.error.message}`);
+  if (billing.error) throw new Error(`cannot read the workspace's billing: ${billing.error.message}`);
+  if (tenant.data?.status === "paused" || !billing.data) return false;
+  return maySpend(billing.data.mode, billing.data.status);
+}
+async function workspaceAbout(db, tenantId) {
+  const { data, error } = await db.from("business_records").select("about").eq("tenant_id", tenantId).maybeSingle();
+  if (error) throw new Error(`cannot read the business record: ${error.message}`);
+  return data?.about?.trim() || null;
 }
 
 // src/repositories/routing.ts
@@ -3612,6 +3839,41 @@ function describeLead(lead, now = /* @__PURE__ */ new Date(), tz = "UTC") {
       `The owner has a proposal ready for them at ${proposal}. If they ask about price, a quote or the proposal, send that link and state none of its figures; on a call, never read the address out \u2014 say it is being sent to them in writing.`
     );
   return bits.join(" ");
+}
+
+// src/repositories/idempotency.ts
+var HOLD_COLUMNS = "response, created_at, request_hash";
+async function claimIdempotencyKey(db, p) {
+  const claimed = await db.from("idempotency_keys").upsert(
+    {
+      tenant_id: p.tenantId,
+      key: p.key,
+      route: p.route,
+      request_hash: p.requestHash,
+      response: null,
+      created_at: p.nowIso
+    },
+    { onConflict: "tenant_id,key", ignoreDuplicates: true }
+  ).select("key");
+  if (claimed.error) throw new Error(`idempotency claim: ${claimed.error.message}`);
+  if ((claimed.data ?? []).length > 0) return { won: true };
+  const held = await db.from("idempotency_keys").select(HOLD_COLUMNS).eq("tenant_id", p.tenantId).eq("key", p.key).maybeSingle();
+  if (held.error) throw new Error(`idempotency lookup: ${held.error.message}`);
+  return { won: false, held: held.data };
+}
+async function takeIdempotencyKey(db, p) {
+  const taken = await db.from("idempotency_keys").update({ request_hash: p.requestHash, response: null, created_at: p.nowIso }).eq("tenant_id", p.tenantId).eq("key", p.key).eq("created_at", p.from).select("key");
+  if (taken.error) throw new Error(`idempotency take: ${taken.error.message}`);
+  return (taken.data ?? []).length > 0;
+}
+async function releaseIdempotencyKey(db, p) {
+  const released = await db.from("idempotency_keys").delete().eq("tenant_id", p.tenantId).eq("key", p.key).eq("created_at", p.nowIso);
+  if (released.error) throw new Error(`idempotency release: ${released.error.message}`);
+}
+async function keepIdempotencyReceipt(db, p) {
+  const kept = await db.from("idempotency_keys").update({ request_hash: p.requestHash, response: p.response }).eq("tenant_id", p.tenantId).eq("key", p.key).eq("created_at", p.stamp).select("key");
+  if (kept.error) throw new Error(`idempotency receipt: ${kept.error.message}`);
+  return (kept.data ?? []).length > 0;
 }
 
 // src/repositories/control.ts
@@ -4069,8 +4331,10 @@ export {
   archiveList,
   assembleHistory,
   becomePartner,
+  checkResetPatch,
   claimCallNotification,
   claimControl,
+  claimIdempotencyKey,
   claimSends,
   closedRunSends,
   coldReceiptsOwed,
@@ -4096,10 +4360,12 @@ export {
   getOwnPartner,
   getPartnerBalance,
   getTenantConfig,
+  heldStale,
   ingestCall,
   ingestInbound,
   ingestInboundEmail,
   insertQueuedEmail,
+  keepIdempotencyReceipt,
   lastInboundEmail,
   leadAddressBounced,
   leadSlotsOf,
@@ -4127,11 +4393,14 @@ export {
   reachOutAudience,
   reachOutFollowers,
   reachOutPerson,
+  reachOutRecord,
   readAllRows,
   readDealForPhone,
   readLeadContext,
   readThreadState,
   recordCallNote,
+  recordCarrierOptOut,
+  recordCheck,
   recordEchoAndPause,
   recordEmailNo,
   recordEmailStatus,
@@ -4139,6 +4408,8 @@ export {
   recordProviderDomain,
   recordStatusByExternalId,
   releaseControl,
+  releaseIdempotencyKey,
+  releaseUnavailableHolds,
   renameList,
   reputationHoldsSince,
   reserveSendingDomain,
@@ -4169,12 +4440,18 @@ export {
   stuckClaims,
   subscribeMessagesInserts,
   suppressEmailOf,
+  takeCheckAttempt,
+  takeIdempotencyKey,
   templatesFor,
   touchIndex,
   touchSendingDomain,
   touchesSince,
+  uncheckedSends,
+  uncheckedWaiting,
   watchedTables,
   withdrawEmail,
+  workspaceAbout,
+  workspaceMaySpend,
   workspaceNameAndConfig,
   writtenEmail,
   writtenEmails,

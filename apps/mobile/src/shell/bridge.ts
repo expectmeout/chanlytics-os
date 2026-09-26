@@ -6,22 +6,51 @@
 import { parsePageMessage, type ShellMessage } from "@chanlytics/contracts";
 import type { ShellState } from "./state";
 
-export type Effect = "nothing" | "sign-in";
+export type Effect = "nothing" | "sign-in" | "badge" | "today" | "calls-over";
 
-/** The state after a page's message, and whether the shell must show the sign-in screen. */
+/** The state after a page's message, and what the shell must do beyond keeping it. */
 export function onPageMessage(state: ShellState, raw: string): { state: ShellState; effect: Effect } {
   const m = parsePageMessage(raw);
   if (!m) return { state, effect: "nothing" };
   switch (m.t) {
     case "session":
-      return { state: { ...state, session: m.state }, effect: m.state === "out" ? "sign-in" : "nothing" };
+      return {
+        state:
+          m.state === "out"
+            ? { ...state, session: "out", slug: null, needs: 0, registered: null }
+            : { ...state, session: "in" },
+        effect: m.state === "out" ? "sign-in" : "nothing",
+      };
     case "workspace":
       return { state: { ...state, slug: m.slug }, effect: "nothing" };
     case "needs":
       return { state: { ...state, needs: m.inbox }, effect: "nothing" };
+    case "badge":
+      return { state: { ...state, badge: m.n }, effect: "badge" };
+    case "device":
+      // Registered: this token (and activity token) is the person's now. Refused or forgotten: it is not, and the
+      // next chance asks again.
+      return {
+        state: { ...state, registered: m.state === "registered" ? registrationKey(state) : null },
+        effect: "nothing",
+      };
+    case "calls":
+      return { state, effect: m.live === 0 ? "calls-over" : "nothing" };
+    case "today":
+      return { state, effect: "today" };
     case "route":
       return { state, effect: "nothing" };
   }
+}
+
+/** What one registration covers: the push token and, when the phone has one, the activity token. */
+export function registrationKey(state: Pick<ShellState, "token" | "activityToken">): string | null {
+  return state.token ? `${state.token}|${state.activityToken ?? ""}` : null;
+}
+
+/** Whether a page in front should be asked to register the phone now: a person in, a token, and not this pair yet. */
+export function shouldRegister(state: ShellState): boolean {
+  return state.session === "in" && !!state.token && state.registered !== registrationKey(state);
 }
 
 /** The script that hands the page one ask. Ends in `true`: a WebView injection must evaluate to something. */

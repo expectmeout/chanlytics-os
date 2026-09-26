@@ -12,6 +12,9 @@
     "api/admin/llm.ts": {
       "maxDuration": 60
     },
+    "api/admin/reach-out-preview.ts": {
+      "maxDuration": 30
+    },
     "api/admin/sending-domains.ts": {
       "maxDuration": 60
     },
@@ -37,6 +40,9 @@
       "maxDuration": 60
     },
     "api/cron/reach-out.ts": {
+      "maxDuration": 60
+    },
+    "api/cron/reach-out-check.ts": {
       "maxDuration": 60
     },
     "api/cron/google.ts": {

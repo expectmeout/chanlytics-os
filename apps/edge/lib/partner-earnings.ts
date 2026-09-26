@@ -96,12 +96,16 @@ export async function earnFromInvoice(
  * The invoice a payment intent paid. This API version links a charge or a dispute to its invoice only through the
  * payment intent (an invoice's payments); a payment that paid no invoice answers null.
  */
-export async function invoiceOfPayment(s: Stripe, paymentIntent: string | null): Promise<string | null> {
+export async function invoiceOfPayment(
+  s: Stripe,
+  paymentIntent: string | null,
+  options?: Stripe.RequestOptions,
+): Promise<string | null> {
   if (!paymentIntent) return null;
-  const list = await s.invoicePayments.list({
-    payment: { type: "payment_intent", payment_intent: paymentIntent },
-    limit: 1,
-  });
+  const list = await s.invoicePayments.list(
+    { payment: { type: "payment_intent", payment_intent: paymentIntent }, limit: 1 },
+    options,
+  );
   return idOf(list.data[0]?.invoice as string | { id: string } | undefined);
 }
 

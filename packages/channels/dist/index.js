@@ -10,6 +10,8 @@ import { z as z8 } from "zod";
 import { z as z9 } from "zod";
 import { z as z10 } from "zod";
 import { z as z11 } from "zod";
+import { z as z12 } from "zod";
+import { z as z13 } from "zod";
 z.config({ jitless: true });
 var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
@@ -129,11 +131,11 @@ var EVENT_KINDS = [
   "deal.won",
   "deal.lost",
   "deal.ended",
-  // A partner (0011): the workspace was made through a partner's link and the partner joined its team, or the code
+  // A partner (0012): the workspace was made through a partner's link and the partner joined its team, or the code
   // the link left named no partner who could be credited (unknown, paused, or the caller's own).
   "partner.attributed",
   "partner.code_ignored",
-  // The ledger (0011, P3): a share written from a paid invoice, a refund's or a dispute's effect on it, and the
+  // The ledger (0012, P3): a share written from a paid invoice, a refund's or a dispute's effect on it, and the
   // standing the sweep decided for a workspace once it had paid.
   "partner.earned",
   "partner.reversed",
@@ -1671,11 +1673,11 @@ var ListDraftAnswerSchema = z6.object({
 });
 var SAVED_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 var BUILTIN_ID = /^[a-z_]{1,40}$/;
-function parseListToken(token) {
-  if (typeof token !== "string") return null;
-  const at2 = token.indexOf(":");
-  const kind = token.slice(0, at2);
-  const id = token.slice(at2 + 1);
+function parseListToken(token2) {
+  if (typeof token2 !== "string") return null;
+  const at2 = token2.indexOf(":");
+  const kind = token2.slice(0, at2);
+  const id = token2.slice(at2 + 1);
   if ((kind === "seg" || kind === "state") && BUILTIN_ID.test(id)) return { kind: "builtin", id };
   if (kind === "list" && SAVED_ID.test(id)) return { kind: "saved", id: id.toLowerCase() };
   return null;
@@ -2029,6 +2031,7 @@ var FIRST_RUN_PHONE_WORDS = {
   withMeSent: "We'll email you to find a time for a call.",
   notForwarded: "Forwarding not saved"
 };
+var PUSH_RECEIPTS_AFTER_MS = 15 * 6e4;
 var DAY_MS6 = 24 * 3600 * 1e3;
 var DAY_MS7 = 864e5;
 var QUIET_AFTER_MS = 7 * DAY_MS7;
@@ -2079,6 +2082,22 @@ var AskProposalOutcomeSchema = z8.object({
   atMs: z8.number().catch(0),
   undo: z8.record(z8.string(), z8.unknown()).nullable().optional()
 });
+var ASK_SCOPE_KINDS = ["thread", "conversation", "call", "person", "page", "lead", "search", "run"];
+var ASK_SURFACES = [
+  "today",
+  "inbox",
+  "people",
+  "leads",
+  "conversations",
+  "live",
+  "reports",
+  "settings",
+  "pipeline",
+  "calendar",
+  "campaigns",
+  "start",
+  "other"
+];
 var AskSettingsChangeSchema = z8.discriminatedUnion("op", [
   z8.object({
     op: z8.literal("add_closure"),
@@ -2099,6 +2118,28 @@ var AskSettingsChangeSchema = z8.discriminatedUnion("op", [
     duration_min: z8.number().int().min(1).max(1440).optional()
   })
 ]);
+var ASK_CONTEXT_MAX_ROWS = 40;
+var ASK_CONTEXT_ROW_KINDS = [
+  "thread",
+  "conversation",
+  "call",
+  "person",
+  "lead",
+  "search",
+  "run",
+  "playbook",
+  "template"
+];
+var Id = z9.string().min(1).max(120);
+var PageContextSchema = z9.object({
+  v: z9.literal(1),
+  surface: z9.enum(ASK_SURFACES),
+  route: z9.string().max(200),
+  view: z9.string().max(80).nullish(),
+  focus: z9.object({ kind: z9.enum(ASK_SCOPE_KINDS), id: Id, label: z9.string().max(80) }).strict().nullish(),
+  rows: z9.array(z9.object({ kind: z9.enum(ASK_CONTEXT_ROW_KINDS), id: Id }).strict()).max(ASK_CONTEXT_MAX_ROWS),
+  askedAt: z9.number().int().nonnegative()
+}).strict();
 var ASK_ANSWER_CAPS = {
   headline: 160,
   detail: 700,
@@ -2251,10 +2292,10 @@ var ASK_ANSWER_FORMAT = {
 var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
-var InviteCodeSchema = z9.string().trim().max(80);
-var SignupSchema = z9.object({
-  name: z9.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
-  email: z9.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+var InviteCodeSchema = z10.string().trim().max(80);
+var SignupSchema = z10.object({
+  name: z10.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
+  email: z10.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -2268,17 +2309,17 @@ var SignupSchema = z9.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z9.string().max(200).optional(),
+  password: z10.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z9.string().trim().min(1).max(64).optional(),
+  timezone: z10.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
   code: InviteCodeSchema.optional()
 }).strict();
-var PendingWorkspaceSchema = z9.object({
-  name: z9.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
+var PendingWorkspaceSchema = z10.object({
+  name: z10.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z9.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
+  timezone: z10.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
 });
 function isTimezone(raw) {
   if (typeof raw !== "string" || !raw.trim()) return false;
@@ -2291,9 +2332,9 @@ function isTimezone(raw) {
 }
 var PARTNER_CODE_MIN = 3;
 var PARTNER_CODE_MAX = 24;
-var PartnerBecomeSchema = z10.object({
-  code: z10.string().trim().min(1).max(64),
-  terms: z10.literal(true, { message: "The terms have to be accepted." })
+var PartnerBecomeSchema = z11.object({
+  code: z11.string().trim().min(1).max(64),
+  terms: z11.literal(true, { message: "The terms have to be accepted." })
 }).strict();
 var PARTNER_WORDS = {
   tab: "Partner",
@@ -2503,15 +2544,15 @@ function judgeUserContent(places) {
 ${JSON.stringify(quoted)}
 </places>`;
 }
-var AnswerSchema = z11.object({
-  places: z11.array(
-    z11.object({
-      ref: z11.number().int(),
-      criteria: z11.array(
-        z11.object({ key: z11.string(), answer: z11.enum(["pass", "fail", "unknown"]), facts: z11.array(z11.string()) })
+var AnswerSchema = z12.object({
+  places: z12.array(
+    z12.object({
+      ref: z12.number().int(),
+      criteria: z12.array(
+        z12.object({ key: z12.string(), answer: z12.enum(["pass", "fail", "unknown"]), facts: z12.array(z12.string()) })
       ),
-      email_index: z11.number().int().nullable(),
-      reason: z11.string()
+      email_index: z12.number().int().nullable(),
+      reason: z12.string()
     })
   )
 });
@@ -2633,6 +2674,57 @@ var K = new Uint32Array([
 var NAME_MAX = BrainConfigSchema.shape.business_name.maxLength ?? Infinity;
 var NINE_TO_FIVE = [{ from: 9 * 60, to: 17 * 60 }];
 var SEND_DAY_FRAME = { from: 8 * 60, to: 20 * 60 };
+var ANSWER_OR_FORWARD = /^\s*(?:re|aw|sv|rv|antw|fwd?)\s*:/i;
+function posesAsReply(subject) {
+  return ANSWER_OR_FORWARD.test(subject);
+}
+var REACH_OUT_SUBJECT_MAX = 80;
+var REACH_OUT_BODY_MAX = 1200;
+var OPENING_WORDS_MAX = 40;
+var OPENING_CHARS_MAX = 400;
+var REACH_OUT_STEPS_MAX = 5;
+var REACH_OUT_NAME_MAX = 80;
+var SIGNED_BY_MAX = 60;
+var REACH_OUT_AFTER_DAYS = { min: 2, max: 30, first: 4 };
+var ReachOutStepSchema = z13.object({
+  /** An existing step's id, when the sheet edits a chain; none for a new one. */
+  id: z13.string().uuid().nullable().optional(),
+  subject: z13.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
+  body: z13.string().max(REACH_OUT_BODY_MAX * 2),
+  after_days: z13.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable()
+});
+var ReachOutChainSchema = z13.object({
+  name: z13.string().trim().min(1).max(REACH_OUT_NAME_MAX),
+  search_id: z13.string().uuid(),
+  include_unconfirmed: z13.boolean(),
+  gap_minutes: z13.number().int().min(5).max(120),
+  /** Empty: every verified domain of the workspace (00183). */
+  domain_ids: z13.array(z13.string().uuid()).max(5),
+  signed_by: z13.string().trim().max(SIGNED_BY_MAX).nullable(),
+  steps: z13.array(ReachOutStepSchema).min(1).max(REACH_OUT_STEPS_MAX)
+});
+var OPENING_FACT_KEYS = [
+  "category",
+  "city",
+  "rating",
+  "reviews",
+  "website",
+  "hours",
+  "about",
+  "why_it_fits"
+];
+var OPENING_SCHEMA = {
+  type: "object",
+  properties: {
+    // The bound is said, not constrained: structured outputs refuse maxLength. Code holds it (checkOpening, too_long).
+    opening: { type: "string", description: `At most ${OPENING_WORDS_MAX} words and ${OPENING_CHARS_MAX} characters.` },
+    angle: { type: "string" },
+    facts_used: { type: "array", items: { type: "string", enum: [...OPENING_FACT_KEYS] } }
+  },
+  required: ["opening", "angle", "facts_used"],
+  additionalProperties: false
+};
+var CALL_ACTIVITY_STALE_MS = 15 * 6e4;
 
 // src/whatsapp.ts
 var GRAPH = "https://graph.facebook.com/v25.0";
@@ -3471,6 +3563,7 @@ function planVoiceProvision(st) {
 }
 
 // src/lines.ts
+import { randomInt } from "crypto";
 var RETELL_ORIGINATION = "sip:sip.retellai.com";
 var LINE_COSTS = {
   local_number_month_usd: 1.15,
@@ -3495,13 +3588,14 @@ function sipUsername(lineId) {
 var LOWER = "abcdefghijkmnpqrstuvwxyz";
 var UPPER = "ABCDEFGHJKLMNPQRSTUVWXYZ";
 var DIGIT = "23456789";
-function sipPassword(random = Math.random) {
-  const pick = (s) => s[Math.floor(random() * s.length)];
+function sipPassword(random) {
+  const below = random ? (n) => Math.floor(random() * n) : (n) => randomInt(n);
+  const pick = (s) => s[below(s.length)];
   const all = LOWER + UPPER + DIGIT;
   const chars = [pick(LOWER), pick(UPPER), pick(DIGIT)];
   while (chars.length < 24) chars.push(pick(all));
   for (let i = chars.length - 1; i > 0; i--) {
-    const j = Math.floor(random() * (i + 1));
+    const j = below(i + 1);
     [chars[i], chars[j]] = [chars[j], chars[i]];
   }
   return chars.join("");
@@ -4239,6 +4333,10 @@ function withCarrierConsent(n, c) {
   if (!c) return n;
   return { ...n, optOut: n.optOut || c.optOut, optIn: n.optIn || c.optIn };
 }
+var SMS_OPTED_OUT_CODE = 21610;
+function smsRefusalOf(r2) {
+  return !r2.ok && r2.code === SMS_OPTED_OUT_CODE ? "opted_out" : null;
+}
 var SMS_FOOTER = "Msg & data rates may apply. Reply STOP to opt out, HELP for help.";
 var SMS_MAX_CHARS = 1600;
 function smsBody(reply, isFirstReply) {
@@ -4369,11 +4467,10 @@ function unsubscribeHeaders(c) {
     "List-Unsubscribe-Post": "List-Unsubscribe=One-Click"
   };
 }
-var ANSWER_OR_FORWARD = /^\s*(?:re|aw|sv|rv|antw|fwd?)\s*:/i;
 function buildEmailRequest(i) {
   const subject = i.parent ? replySubject(i.parent.subject) : oneLine(i.subject ?? "").slice(0, SUBJECT_MAX);
   if (!subject) throw new Error("buildEmailRequest: a first email names its subject");
-  if (!i.parent && (i.campaign || i.actor === "ai") && ANSWER_OR_FORWARD.test(subject))
+  if (!i.parent && (i.campaign || i.actor === "ai") && posesAsReply(subject))
     throw new Error("buildEmailRequest: a first email a program sends does not pose as a reply");
   if (i.campaign && !i.campaign.footer.trim()) throw new Error("buildEmailRequest: a campaign's footer is never empty");
   const unsubscribe = i.campaign ? unsubscribeHeaders(i.campaign) : {};
@@ -6431,6 +6528,7 @@ export {
   SMS_HELD_DETAILS,
   SMS_HELD_REASON,
   SMS_MAX_CHARS,
+  SMS_OPTED_OUT_CODE,
   STATE_TTL_MS,
   TRUSTHUB,
   TwilioError,
@@ -6587,6 +6685,7 @@ export {
   smsInboundFrom,
   smsInboundUrl,
   smsKeywordConsent,
+  smsRefusalOf,
   smsStateFor,
   smsStatusFrom,
   smsStatusToRow,

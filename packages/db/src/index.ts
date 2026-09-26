@@ -7,6 +7,7 @@ export * from "./repositories/reach-out";
 export * from "./repositories/routing";
 export * from "./repositories/calls";
 export * from "./repositories/thread";
+export * from "./repositories/idempotency";
 export * from "./repositories/control";
 export * from "./repositories/templates";
 export * from "./repositories/control-plane";

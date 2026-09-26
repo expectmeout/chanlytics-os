@@ -491,7 +491,50 @@ const PaneProfile = ({ flash }) => {
         value={<button type="button" className="bt-link" onClick={signOut} data-testid="set-profile-signout">Sign out everywhere</button>}
         hint="Ends your session on every device, this one included."
       />
+      <DeleteAccountRow flash={flash} />
     </section>
+  );
+};
+
+// Delete your own account (00190; App Store 5.1.1(v)): two steps on the row itself, the sentence saying what goes and
+// what stays, then the one button; the door's refusal (the only owner of a workspace with other members) said where
+// it happened. Drawn on the web and in the app alike: a rule that only the app needs is still the account's.
+const DeleteAccountRow = ({ flash }) => {
+  const [armed, setArmed] = React.useState(false);
+  const [busy, setBusy] = React.useState(false);
+  const [refused, setRefused] = React.useState("");
+  const go = async () => {
+    if (window.__DEMO_MODE || !window.__me || !window.__me.deleteAccount) { flash({ msg: <>Nothing to delete in the demo.</> }); return; }
+    setBusy(true);
+    const r = await window.__me.deleteAccount();
+    setBusy(false);
+    if (!r.ok) setRefused(r.message || "Your account could not be deleted.");
+  };
+  return (
+    <window.RecordRow
+      id="profile-delete"
+      label="Delete account"
+      value={
+        armed ? (
+          <span className="set-delete-confirm" data-testid="set-profile-delete-confirm">
+            <button type="button" className="bt-link bt-danger" onClick={go} disabled={busy} data-testid="set-profile-delete-go">
+              {busy ? "Deleting…" : "Yes, delete my account"}
+            </button>
+            {" · "}
+            <button type="button" className="bt-link" onClick={() => setArmed(false)} disabled={busy}>Keep it</button>
+          </span>
+        ) : (
+          <button type="button" className="bt-link" onClick={() => setArmed(true)} data-testid="set-profile-delete">Delete my account…</button>
+        )
+      }
+      hint={
+        refused
+          ? refused
+          : armed
+            ? "Removes you from every workspace and deletes your sign-in. A workspace you alone were in keeps its records for the business."
+            : "Yours to do here, any time. A workspace with other members needs another owner first."
+      }
+    />
   );
 };
 
@@ -1867,6 +1910,7 @@ window.SET_TAB = SET_TAB; // the shell's crumb, and so the tab's name, names the
 window.SetToggle = SetToggle; // consumed by calendar.jsx + reports.jsx (module-scope port fix)
 window.WorkspaceData = WorkspaceData; // rendered on its own by exports.test (the door the privacy page promises)
 window.TeamSection = TeamSection; // rendered on its own by confirm.test (the remove that used to fire from a menu item)
+window.PaneProfile = PaneProfile; // rendered on its own by settings-doors.test (the account's own deletion, 00190)
 
 // The booking rules a save does not render are kept rather than rebuilt away -- the form started them from {} and
 // deleted the slot length on every Save (S2). That rule is the Business page's now, and it is not a helper at all:

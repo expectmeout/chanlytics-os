@@ -2,8 +2,8 @@
  * Retell inbound-call webhook — fires when a call arrives on the number, and
  * answers with what the receptionist is told before it speaks: whose facts,
  * whose memory, the greeting, the line a transfer dials.
- * Auth: Retell's signature once RETELL_DOORS_SIGNED=1; until then ?key=<RETELL_FN_SECRET> on the URL, and the
- * signature is logged (lib/voice/voice-door-auth.ts).
+ * Auth: Retell's signature, or ?key=<RETELL_FN_SECRET> on the URL while this door still reads one; what each knock
+ * carried is logged (lib/voice/voice-door-auth.ts says which doors read the secret, and why).
  *
  * THIS ENDPOINT SPEAKS STORED CONVERSATION BACK TO A CALLER, so getting the
  * tenant right is not bookkeeping — it decides whose words come out of the
@@ -39,8 +39,8 @@ const ALERT_BUDGET_MS = 3_000;
 
 export async function POST(request: Request): Promise<Response> {
   const raw = await request.text();
-  // The signature, or the ?key= until the signature is required (voice-door-auth.ts says which, and why).
-  if (!voiceDoorAuth("inbound", request, raw, new URL(request.url).searchParams.get("key")).ok) {
+  // The signature, or the ?key= while this door still reads one (voice-door-auth.ts says which doors do, and why).
+  if (!voiceDoorAuth("inbound", request, raw).ok) {
     return json(401, { ok: false });
   }
   let body: {

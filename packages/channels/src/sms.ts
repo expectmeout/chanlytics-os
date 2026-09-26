@@ -119,6 +119,24 @@ export function withCarrierConsent(n: NormalizedInbound, c: CarrierConsent | nul
 }
 
 /**
+ * The carrier's verdict on the way OUT, as carrierConsent is its verdict on
+ * the way in.
+ *
+ * Twilio refuses a text to a number that replied STOP to it with 21610,
+ * "attempt to send to unsubscribed recipient": the person's own no, which the
+ * carrier kept and we never heard -- it went to the carrier, or came before
+ * the line's webhook pointed here. The number is unreachable whatever our
+ * record says, so the send door (core deliver.ts) records it as the STOP it is
+ * and refuses as it refuses a recorded no. Every other code -- an unregistered
+ * line (30034), a bad number, a limit -- is a failure of ours, and stays one.
+ */
+export const SMS_OPTED_OUT_CODE = 21610;
+
+export function smsRefusalOf(r: { ok: boolean; code?: number | null }): "opted_out" | null {
+  return !r.ok && r.code === SMS_OPTED_OUT_CODE ? "opted_out" : null;
+}
+
+/**
  * What the first reply to a number carries, once. Carrier guidance for A2P
  * traffic: the rates disclosure, how to stop, and how to get help -- the third
  * was missing while every sample the campaign files promised it.

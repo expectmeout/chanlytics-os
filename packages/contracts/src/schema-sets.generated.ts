@@ -13,6 +13,7 @@ export const SCHEMA_SETS = {
     "none", "incomplete", "incomplete_expired", "trialing", "active", "past_due", "canceled", "unpaid",
     "paused",
   ],
+  "billing_events.state": ["claimed", "applied"],
   "broadcast_recipients.state": ["queued", "sent", "skipped", "failed"],
   "broadcasts.state": ["pending_approval", "scheduled", "sending", "sent", "canceled", "failed"],
   "business_records.business_type": [
@@ -56,7 +57,7 @@ export const SCHEMA_SETS = {
   "invitations.role": ["operator", "viewer"],
   "jobs.kind": [
     "outbound_send", "broadcast_send", "line_provision", "email_ingest", "lead_round_start",
-    "lead_collect", "lead_check", "push_send",
+    "lead_collect", "lead_check", "push_send", "push_receipts",
   ],
   "jobs.state": ["scheduled", "fired", "done", "canceled", "failed"],
   "lead_counters.kind": ["allowance", "budget", "day"],
@@ -132,7 +133,7 @@ export const SCHEMA_SETS = {
   "policies.mode": ["auto", "veto", "ask", "never"],
   "policies.subject_type": ["segment", "contact"],
   "push_devices.platform": ["ios", "android"],
-  "reach_out_sends.state": ["planned", "claimed", "queued", "sent", "skipped", "failed"],
+  "reach_out_sends.state": ["planned", "held", "claimed", "queued", "sent", "skipped", "failed"],
   "sending_domains.dmarc": ["found", "missing"],
   "sending_domains.held_why": ["verification", "dmarc", "bounces", "complaint", "provider", "unsubscribes"],
   "sending_domains.resume_by": ["owner", "platform"],

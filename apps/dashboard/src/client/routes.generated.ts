@@ -9,6 +9,7 @@ export const ROUTES = {
   "DELETE google/link": { method: "DELETE", path: "/api/v1/google/link" },
   "DELETE lead-searches/[id]": { method: "DELETE", path: "/api/v1/lead-searches/[id]" },
   "DELETE leads/[id]": { method: "DELETE", path: "/api/v1/leads/[id]" },
+  "DELETE me": { method: "DELETE", path: "/api/v1/me" },
   "DELETE me/devices": { method: "DELETE", path: "/api/v1/me/devices" },
   "DELETE playbooks/[id]": { method: "DELETE", path: "/api/v1/playbooks/[id]" },
   "DELETE segments/[id]": { method: "DELETE", path: "/api/v1/segments/[id]" },
@@ -70,6 +71,7 @@ export const ROUTES = {
   "PATCH workspaces": { method: "PATCH", path: "/api/v1/workspaces" },
   "POST ask": { method: "POST", path: "/api/v1/ask" },
   "POST ask/messages/[id]/proposals/[pid]": { method: "POST", path: "/api/v1/ask/messages/[id]/proposals/[pid]" },
+  "POST ask/warm": { method: "POST", path: "/api/v1/ask/warm" },
   "POST billing/checkout": { method: "POST", path: "/api/v1/billing/checkout" },
   "POST billing/portal": { method: "POST", path: "/api/v1/billing/portal" },
   "POST billing/resume": { method: "POST", path: "/api/v1/billing/resume" },
@@ -178,6 +180,7 @@ export type Routes = {
   "DELETE google/link": typeof import("../../app/api/v1/google/link/route").DELETE;
   "DELETE lead-searches/[id]": typeof import("../../app/api/v1/lead-searches/[id]/route").DELETE;
   "DELETE leads/[id]": typeof import("../../app/api/v1/leads/[id]/route").DELETE;
+  "DELETE me": typeof import("../../app/api/v1/me/route").DELETE;
   "DELETE me/devices": typeof import("../../app/api/v1/me/devices/route").DELETE;
   "DELETE playbooks/[id]": typeof import("../../app/api/v1/playbooks/[id]/route").DELETE;
   "DELETE segments/[id]": typeof import("../../app/api/v1/segments/[id]/route").DELETE;
@@ -239,6 +242,7 @@ export type Routes = {
   "PATCH workspaces": typeof import("../../app/api/v1/workspaces/route").PATCH;
   "POST ask": typeof import("../../app/api/v1/ask/route").POST;
   "POST ask/messages/[id]/proposals/[pid]": typeof import("../../app/api/v1/ask/messages/[id]/proposals/[pid]/route").POST;
+  "POST ask/warm": typeof import("../../app/api/v1/ask/warm/route").POST;
   "POST billing/checkout": typeof import("../../app/api/v1/billing/checkout/route").POST;
   "POST billing/portal": typeof import("../../app/api/v1/billing/portal/route").POST;
   "POST billing/resume": typeof import("../../app/api/v1/billing/resume/route").POST;

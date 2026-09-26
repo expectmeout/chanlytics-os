@@ -38,6 +38,7 @@ test("sweep_health() names every watched sweep and every schedule exists", { ski
   // the register data and added the six clocks nobody had typed in: the
   // monthly partition precreate and the five nightly purges. 00159 added
   // 'notes', the sweep that suggests a note from a finished conversation.
+  // 00197 added 'reach_out_check', the check before each cold email.
   assert.deepEqual(
     data.map((r) => r.sweep),
     [
@@ -61,6 +62,7 @@ test("sweep_health() names every watched sweep and every schedule exists", { ski
       "purge_notifications",
       "purge_rate_hits",
       "reach_out",
+      "reach_out_check",
       "registration",
       "snoozes",
     ],
@@ -127,6 +129,7 @@ test("an unexpected sweep name cannot be added behind sweep_health()'s back", { 
     "purge_notifications",
     "purge_rate_hits",
     "reach_out",
+    "reach_out_check",
     "registration",
     "snoozes",
   ]);
@@ -164,6 +167,8 @@ test("every schedule the watchdog depends on is present and active", { skip }, a
     "domains-sweep",
     // 00186: the reach-out clock, every minute.
     "reach-out-sweep",
+    // 00197: the reach-out check, its own clock, every minute.
+    "reach-out-check-sweep",
   ]) {
     assert.ok(byName.has(n), `no cron job named ${n}`);
     assert.equal(byName.get(n).active, true, `${n} is disabled`);

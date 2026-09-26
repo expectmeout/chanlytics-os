@@ -841,10 +841,18 @@ export const LEAD_PLATFORM_HOSTS: readonly string[] = /* @__PURE__ */ (() => [
   "wixsite.com",
   "business.site",
   "facebook.com",
+  "fb.com",
   "instagram.com",
+  "tiktok.com",
+  "youtube.com",
+  "x.com",
+  "twitter.com",
+  "linkedin.com",
   "linktr.ee",
+  "linkin.bio",
   "yelp.com",
   "google.com",
+  "g.page",
 ])();
 /** Address domains that are never the business: platforms, builders' placeholders, trackers. */
 export const LEAD_JUNK_EMAIL_DOMAINS: readonly string[] = /* @__PURE__ */ (() => [

@@ -4,6 +4,7 @@
  * because "we could not check" is not "yes".
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { maySpend, type BillingMode, type BillingStatus } from "@chanlytics/contracts";
 import type { Database, Json } from "../database.types";
 
 type Db = SupabaseClient<Database>;
@@ -51,16 +52,19 @@ export interface AudienceLead {
   hours: unknown;
 }
 
-/** The leads a chain's first step may write to (00184 reach_out_audience), strongest fit first. */
+/**
+ * The leads a chain's first step may write to (00197 reach_out_audience), strongest fit first: never one any chain of
+ * the workspace planned, held or wrote to, and a catch-all address only when the chain includes them.
+ */
 export async function reachOutAudience(
   db: Db,
-  p: { tenantId: string; searchId: string; rootId: string; limit: number },
+  p: { tenantId: string; searchId: string; limit: number; includeUnconfirmed: boolean },
 ): Promise<AudienceLead[]> {
   const { data, error } = await db.rpc("reach_out_audience", {
     p_tenant_id: p.tenantId,
     p_search_id: p.searchId,
-    p_root_id: p.rootId,
     p_limit: p.limit,
+    p_include_unconfirmed: p.includeUnconfirmed,
   } as never);
   if (error) throw new Error(`cannot read who a reach-out may write to: ${error.message}`);
   return (data ?? []) as AudienceLead[];
@@ -356,6 +360,8 @@ export interface SendStanding {
   run: string | null;
   step: { state: string; template_id: string; after_playbook_id: string | null } | null;
   root: string | null;
+  /** The name the chain signs with ({{your name}}): the root's. */
+  signedBy: string | null;
 }
 
 export async function sendStanding(db: Db, s: ReachOutSendRow): Promise<SendStanding> {
@@ -363,7 +369,7 @@ export async function sendStanding(db: Db, s: ReachOutSendRow): Promise<SendStan
     db.from("broadcasts").select("state").eq("tenant_id", s.tenant_id).eq("id", s.broadcast_id).maybeSingle(),
     db
       .from("playbooks")
-      .select("id, state, template_id, after_playbook_id")
+      .select("id, state, template_id, after_playbook_id, signed_by")
       .eq("tenant_id", s.tenant_id)
       .in("id", [s.playbook_id ?? s.root_id, s.root_id]),
   ]);
@@ -374,6 +380,7 @@ export async function sendStanding(db: Db, s: ReachOutSendRow): Promise<SendStan
     run: run.data?.state ?? null,
     step: step ? { state: step.state, template_id: step.template_id, after_playbook_id: step.after_playbook_id } : null,
     root: (chain.data ?? []).find((p) => p.id === s.root_id)?.state ?? null,
+    signedBy: (chain.data ?? []).find((p) => p.id === s.root_id)?.signed_by ?? null,
   };
 }
 
@@ -599,4 +606,219 @@ export async function leadWritten(
   });
   if (e3) throw new Error(`cannot record the lead's email: ${e3.message}`);
   return true;
+}
+
+/* ------------------------------------------------------------- the check -- */
+
+/** A business's record, as 00197's reach_out_record reads it: what the check writes and reads an opening from. */
+export interface ReachOutRecordRow {
+  business_name: string | null;
+  category: string | null;
+  city: string | null;
+  region: string | null;
+  rating: number | null;
+  reviews: number | null;
+  website_host: string | null;
+  hours: unknown;
+  about: string | null;
+  email: string | null;
+  why_it_fits: string | null;
+  what_you_asked: string | null;
+  site_listings: number;
+  name_listings: number;
+  email_domain_shared: boolean;
+}
+
+/** A send to check (00197 reach_out_unchecked), leased to this tick: the send, its step, its chain and its record. */
+export interface UncheckedSend {
+  send: ReachOutSendRow;
+  /** The words' version the send was read at: the check writes only while it is still this (R5). */
+  check_gen: number;
+  template_id: string;
+  template_language: string;
+  signed_by: string | null;
+  /** The holds its owner included it, or its lead in this chain, past (R7): never held for them again. */
+  included_for: string[];
+  record: ReachOutRecordRow;
+}
+
+const num = (v: unknown): number | null => (v === null || v === undefined || v === "" ? null : Number(v));
+const text = (v: unknown): string | null => (typeof v === "string" ? v : null);
+
+function recordOf(r: Record<string, unknown>): ReachOutRecordRow {
+  return {
+    business_name: text(r.business_name),
+    category: text(r.category),
+    city: text(r.city),
+    region: text(r.region),
+    rating: num(r.rating),
+    reviews: num(r.reviews),
+    website_host: text(r.website_host),
+    hours: r.hours ?? null,
+    about: text(r.about),
+    email: text(r.email),
+    why_it_fits: text(r.why_it_fits),
+    what_you_asked: text(r.what_you_asked),
+    site_listings: Number(r.site_listings ?? 0),
+    name_listings: Number(r.name_listings ?? 0),
+    email_domain_shared: r.email_domain_shared === true,
+  };
+}
+
+/**
+ * The sends this tick checks, leased under their row locks (00197): at most `perWorkspace` of each workspace, round
+ * robin, waiting for their owner or due within `aheadMinutes`, none another tick started in the last two minutes.
+ */
+export async function uncheckedSends(
+  db: Db,
+  p: { limit: number; perWorkspace: number; aheadMinutes: number; tenantId?: string },
+): Promise<UncheckedSend[]> {
+  const { data, error } = await db.rpc("reach_out_unchecked", {
+    p_limit: p.limit,
+    p_per_workspace: p.perWorkspace,
+    p_ahead_minutes: p.aheadMinutes,
+    ...(p.tenantId ? { p_tenant_id: p.tenantId } : {}),
+  } as never);
+  if (error) throw new Error(`cannot read the sends to check: ${error.message}`);
+  return ((data ?? []) as Array<Record<string, unknown>>).map((r) => {
+    const send = r.send as ReachOutSendRow;
+    return {
+      send,
+      check_gen: Number(r.check_gen ?? send.check_gen ?? 0),
+      template_id: String(r.template_id),
+      template_language: String(r.template_language ?? "en"),
+      signed_by: text(r.signed_by),
+      included_for: Array.isArray(r.included_for)
+        ? r.included_for.filter((x): x is string => typeof x === "string")
+        : [],
+      record: recordOf(r),
+    };
+  });
+}
+
+/** Whether any send waits to be checked: what the check's clock answers for when it cannot check (R4). */
+export async function uncheckedWaiting(db: Db, tenantId?: string): Promise<boolean> {
+  let q = db.from("reach_out_sends").select("id").eq("state", "planned").is("checked_at", null);
+  if (tenantId) q = q.eq("tenant_id", tenantId);
+  const { data, error } = await q.limit(1);
+  if (error) throw new Error(`cannot read the sends to check: ${error.message}`);
+  return (data ?? []).length > 0;
+}
+
+/** One business's record for a search, whether or not a send exists for it yet (the sheet's preview). */
+export async function reachOutRecord(
+  db: Db,
+  p: { tenantId: string; searchId: string; leadId: string },
+): Promise<ReachOutRecordRow | null> {
+  const { data, error } = await db.rpc("reach_out_record", {
+    p_tenant_id: p.tenantId,
+    p_search_id: p.searchId,
+    p_lead_id: p.leadId,
+  } as never);
+  if (error) throw new Error(`cannot read the business's record: ${error.message}`);
+  const row = ((data ?? []) as Array<Record<string, unknown>>)[0];
+  return row ? recordOf(row) : null;
+}
+
+/**
+ * What the check found, written only onto a send still planned, not yet checked, and at the words' version it was read
+ * at (R3, R5): a check never undoes an owner's answer, and never stamps words that changed under it. Its lease ends.
+ */
+export async function recordCheck(
+  db: Db,
+  p: { tenantId: string; id: string; gen: number; patch: Partial<ReachOutSendRow> },
+): Promise<boolean> {
+  const { data, error } = await db
+    .from("reach_out_sends")
+    .update({ ...p.patch, check_started_at: null } as never)
+    .eq("tenant_id", p.tenantId)
+    .eq("id", p.id)
+    .eq("state", "planned")
+    .is("checked_at", null)
+    .eq("check_gen", p.gen)
+    .select("id");
+  if (error) throw new Error(`cannot record the send's check: ${error.message}`);
+  return (data ?? []).length === 1;
+}
+
+/**
+ * A send back to unchecked (R5): its words changed since its check, or it names an opening it has none of. Its words'
+ * version moves on, so a check still under way for the old words writes nothing; what its owner included it past stays.
+ */
+export function checkResetPatch(gen: number): Partial<ReachOutSendRow> {
+  return {
+    checked_at: null,
+    check_gen: gen + 1,
+    checked_words: null,
+    check_tries: 0,
+    check_first_at: null,
+    check_after: null,
+    check_started_at: null,
+    opening: null,
+    angle: null,
+    facts_used: [],
+    hold_detail: null,
+  };
+}
+
+/** Holds left past `before`, oldest planned first (00197: fourteen days from when a send was planned, R10). */
+export async function heldStale(db: Db, before: Date, limit: number, tenantId?: string): Promise<ReachOutSendRow[]> {
+  const { data, error } = await db.rpc("reach_out_held_stale", {
+    p_before: before.toISOString(),
+    p_limit: limit,
+    ...(tenantId ? { p_tenant_id: tenantId } : {}),
+  } as never);
+  if (error) throw new Error(`cannot read the held sends: ${error.message}`);
+  return (data ?? []) as ReachOutSendRow[];
+}
+
+/**
+ * Holds the check could not answer (check_unavailable, no rule broken) left since `before`: put back to be checked
+ * again at their words' next version, in one statement (00197 reach_out_release_unavailable, R4). A hold for a rule an
+ * opening broke keeps: it is its owner's to answer. How many went back.
+ */
+export async function releaseUnavailableHolds(db: Db, p: { before: Date; tenantId?: string }): Promise<number> {
+  const { data, error } = await db.rpc("reach_out_release_unavailable", {
+    p_before: p.before.toISOString(),
+    ...(p.tenantId ? { p_tenant_id: p.tenantId } : {}),
+  } as never);
+  if (error) throw new Error(`cannot put the holds back to be checked: ${error.message}`);
+  return typeof data === "number" ? data : 0;
+}
+
+/**
+ * One attempt of the check's model spend for a workspace's UTC day, taken only while the day is under `cap` (00197
+ * reach_out_check_take, R12): true when taken. A reset of a send's check never gives it back.
+ */
+export async function takeCheckAttempt(db: Db, p: { tenantId: string; cap: number; at: Date }): Promise<boolean> {
+  const { data, error } = await db.rpc("reach_out_check_take", {
+    p_tenant_id: p.tenantId,
+    p_cap: p.cap,
+    p_at: p.at.toISOString(),
+  } as never);
+  if (error) throw new Error(`cannot take the check's attempt: ${error.message}`);
+  return data === true;
+}
+
+/**
+ * Whether a workspace may spend on reach-out now (contracts maySpend): a paused workspace, or one with no billing row,
+ * may not. The one reading of it: the step's run (run-context.ts) and the check both ask it. A read that fails throws:
+ * "we could not check" is not "yes".
+ */
+export async function workspaceMaySpend(db: Db, tenantId: string): Promise<boolean> {
+  const [tenant, billing] = await Promise.all([
+    db.from("tenants").select("status").eq("id", tenantId).maybeSingle(),
+    db.from("billing_accounts").select("mode, status").eq("tenant_id", tenantId).maybeSingle(),
+  ]);
+  if (tenant.error) throw new Error(`cannot read the workspace: ${tenant.error.message}`);
+  if (billing.error) throw new Error(`cannot read the workspace's billing: ${billing.error.message}`);
+  if (tenant.data?.status === "paused" || !billing.data) return false;
+  return maySpend(billing.data.mode as BillingMode, billing.data.status as BillingStatus);
+}
+
+/** The workspace's own words about what it does (business_records.about, 00152), for the writer. */
+export async function workspaceAbout(db: Db, tenantId: string): Promise<string | null> {
+  const { data, error } = await db.from("business_records").select("about").eq("tenant_id", tenantId).maybeSingle();
+  if (error) throw new Error(`cannot read the business record: ${error.message}`);
+  return data?.about?.trim() || null;
 }

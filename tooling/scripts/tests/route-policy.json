@@ -51,6 +51,13 @@
       "rate": null,
       "spend": false
     },
+    "POST ask/warm": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "viewer",
+      "rate": "aggregate",
+      "spend": false
+    },
     "POST billing/checkout": {
       "kind": "write",
       "scope": "workspace",
@@ -756,6 +763,13 @@
       "scope": "workspace",
       "role": "partner",
       "rate": "settings",
+      "spend": false
+    },
+    "DELETE me": {
+      "kind": "write",
+      "scope": "account",
+      "role": null,
+      "rate": "profile_set",
       "spend": false
     },
     "PUT me": {

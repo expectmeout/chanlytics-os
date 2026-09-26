@@ -80,6 +80,7 @@ import { channels as channelsReader } from "../readers/channels";
 import { templates as templatesReader, type TemplatesRead } from "../readers/templates";
 import { searches } from "../readers/searches";
 import { workspaceFacts } from "./prompt";
+import { threadState } from "./thread-state";
 
 /**
  * What the assistant may read, and how each read is shaped.
@@ -109,7 +110,7 @@ export const READ_TOOLS: ToolDef[] = [
   {
     name: "get_today",
     description:
-      "The Today page: who needs a person right now, the WhatsApp threads whose free-reply window is closing while the customer waits, today's calls, the standing of the receptionist and the day's counts. It holds no drafts: the workspace snapshot's held_drafts and list_threads filter=held have them. Start here for 'how are we doing', 'what needs me', 'brief me'.",
+      "The Today page: who needs a person right now, the WhatsApp threads whose free-reply window is closing while the customer waits, today's calls, the standing of the receptionist and the day's counts. It holds no drafts: list_threads filter=held has them. Start here for 'how are we doing', 'what needs me', 'brief me'.",
     input_schema: obj({}),
   },
   {
@@ -214,7 +215,7 @@ export interface ToolContext {
    * which keeps no failure -- the audience pool, the lists, the channels, the templates and the searches among them,
    * each read once a turn by its arguments -- and poolList counts a list of the workspace's own from the lists the turn
    * holds (audience.ts). What still reads the database itself: a proposal's own checks (proposals.ts, a card's
-   * validation) and the snapshot (snapshot.ts, until Phase 2 replaces it).
+   * validation).
    */
   rc: ReaderContext;
 }
@@ -399,15 +400,7 @@ async function listThreads(t: ToolContext, input: Record<string, unknown>): Prom
       conversation_id: v.conversationId,
       route: `inbox/th-${v.conversationId}`,
       who: v.who,
-      state: v.needsYou
-        ? "needs you"
-        : v.takenOver
-          ? "waiting on you"
-          : v.state === "snoozed"
-            ? "snoozed"
-            : v.optedOut
-              ? "opted out"
-              : "answering",
+      state: threadState(v),
       held_draft: v.veto
         ? { message_id: v.veto.messageId, text: v.veto.draft.slice(0, 200), why: v.veto.why?.summary ?? null }
         : v.heldDraft
@@ -462,15 +455,7 @@ async function getThread(t: ToolContext, input: Record<string, unknown>): Promis
     // reader's first row is the thread.
     who: r.rows[0].label,
     channel: vm.replyVia,
-    state: vm.needsYou
-      ? "needs you"
-      : vm.takenOver
-        ? "waiting on you"
-        : vm.state === "snoozed"
-          ? "snoozed"
-          : vm.optedOut
-            ? "opted out"
-            : "answering",
+    state: threadState(vm),
     escalation: esc
       ? { id: esc.id, reason: ESCALATION_REASON_LABELS[esc.reason] ?? esc.reason, details: esc.details }
       : null,
