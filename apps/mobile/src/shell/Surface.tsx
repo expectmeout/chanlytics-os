@@ -198,7 +198,9 @@ export function Surface({ route, tab, onReady, post }: Props) {
         automaticallyAdjustContentInsets={false}
         allowsInlineMediaPlayback
         hideKeyboardAccessoryView
-        decelerationRate="normal"
+        // iOS's "normal" as the number it means: Android's native prop is a Double, and the word crashed the app
+        // the moment the first page mounted (the library converts it on iOS only).
+        decelerationRate={0.998}
         textZoom={100}
       />
       {failed && <Offline onRetry={handle.reload} />}
