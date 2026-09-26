@@ -142,6 +142,7 @@ import { z as z6 } from "zod";
 import { z as z8 } from "zod";
 import { z as z9 } from "zod";
 import { z as z10 } from "zod";
+import { z as z11 } from "zod";
 
 // ../../node_modules/domelementtype/lib/esm/index.js
 var ElementType;
@@ -3338,6 +3339,50 @@ var K = new Uint32Array([
 var NAME_MAX = BrainConfigSchema.shape.business_name.maxLength ?? Infinity;
 var NINE_TO_FIVE = [{ from: 9 * 60, to: 17 * 60 }];
 var SEND_DAY_FRAME = { from: 8 * 60, to: 20 * 60 };
+var REACH_OUT_SUBJECT_MAX = 80;
+var REACH_OUT_BODY_MAX = 1200;
+var REACH_OUT_STEPS_MAX = 5;
+var REACH_OUT_NAME_MAX = 80;
+var SIGNED_BY_MAX = 60;
+var REACH_OUT_AFTER_DAYS = { min: 2, max: 30, first: 4 };
+var ReachOutStepSchema = z11.object({
+  /** An existing step's id, when the sheet edits a chain; none for a new one. */
+  id: z11.string().uuid().nullable().optional(),
+  subject: z11.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
+  body: z11.string().max(REACH_OUT_BODY_MAX * 2),
+  after_days: z11.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable()
+});
+var ReachOutChainSchema = z11.object({
+  name: z11.string().trim().min(1).max(REACH_OUT_NAME_MAX),
+  search_id: z11.string().uuid(),
+  include_unconfirmed: z11.boolean(),
+  gap_minutes: z11.number().int().min(5).max(120),
+  /** Empty: every verified domain of the workspace (00183). */
+  domain_ids: z11.array(z11.string().uuid()).max(5),
+  signed_by: z11.string().trim().max(SIGNED_BY_MAX).nullable(),
+  steps: z11.array(ReachOutStepSchema).min(1).max(REACH_OUT_STEPS_MAX)
+});
+var OPENING_FACT_KEYS = [
+  "category",
+  "city",
+  "rating",
+  "reviews",
+  "website",
+  "hours",
+  "about",
+  "why_it_fits",
+  "what_you_asked"
+];
+var OPENING_SCHEMA = {
+  type: "object",
+  properties: {
+    opening: { type: "string" },
+    angle: { type: "string" },
+    facts_used: { type: "array", items: { type: "string", enum: [...OPENING_FACT_KEYS] } }
+  },
+  required: ["opening", "angle", "facts_used"],
+  additionalProperties: false
+};
 var GRAPH = "https://graph.facebook.com/v25.0";
 var SEND_TIMEOUT_MS = 15e3;
 async function postGraph(cfg, payload) {
@@ -3576,7 +3621,7 @@ var APIFY_RUN_END_EVENTS = [
 ];
 
 // ../contracts/dist/index.js
-import { z as z11 } from "zod";
+import { z as z12 } from "zod";
 import { z as z22 } from "zod";
 import { z as z32 } from "zod";
 import { z as z42 } from "zod";
@@ -3586,7 +3631,8 @@ import { z as z62 } from "zod";
 import { z as z82 } from "zod";
 import { z as z92 } from "zod";
 import { z as z102 } from "zod";
-z11.config({ jitless: true });
+import { z as z112 } from "zod";
+z12.config({ jitless: true });
 var AppError = class extends Error {
   code;
   status;
@@ -4209,7 +4255,7 @@ var activeChannel = (known, kind) => {
   const row2 = rows.find((c) => c.kind === kind && (c.status ?? "active") === "active");
   return trimmed(row2?.number_e164);
 };
-var keptReaching = (known, line) => line ? trimmed((known?.forwarding ?? []).find((r22) => trimmed(r22.from_e164) && samePhone(r22.to_e164, line))?.from_e164) : null;
+var keptReaching = (known, line2) => line2 ? trimmed((known?.forwarding ?? []).find((r22) => trimmed(r22.from_e164) && samePhone(r22.to_e164, line2))?.from_e164) : null;
 function sameAddress(a, b) {
   const x = textKey(a).replace(/\b(usa|us|united states)\b/g, "").trim();
   const y = textKey(b).replace(/\b(usa|us|united states)\b/g, "").trim();
@@ -4964,9 +5010,9 @@ var namesADetail = (text) => /\{\s*(business|booking\s+link|phone)\s*\}/i.test(t
 var detailOf = (raw) => raw.toLowerCase().replace(/\s+/g, " ");
 function fillDetails(text, values) {
   if (!namesADetail(text)) return text;
-  return text.split("\n").map((line) => {
-    if (!namesADetail(line)) return line;
-    return line.split(/(?<=[.!?])\s+/).filter((s) => [...s.matchAll(DETAIL)].every((m) => values[detailOf(m[1])])).map((s) => s.replace(DETAIL, (_, name) => values[detailOf(name)])).join(" ");
+  return text.split("\n").map((line2) => {
+    if (!namesADetail(line2)) return line2;
+    return line2.split(/(?<=[.!?])\s+/).filter((s) => [...s.matchAll(DETAIL)].every((m) => values[detailOf(m[1])])).map((s) => s.replace(DETAIL, (_, name) => values[detailOf(name)])).join(" ");
   }).join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 function fallbackMessages(brain, known) {
@@ -8086,9 +8132,53 @@ function outreachRefusalOf(f) {
 function isReachOutRun(audience) {
   return !!audience && typeof audience === "object" && audience.kind === "reach_out";
 }
+var REACH_OUT_SUBJECT_MAX2 = 80;
+var REACH_OUT_BODY_MAX2 = 1200;
+var REACH_OUT_STEPS_MAX2 = 5;
+var REACH_OUT_NAME_MAX2 = 80;
+var SIGNED_BY_MAX2 = 60;
+var REACH_OUT_AFTER_DAYS2 = { min: 2, max: 30, first: 4 };
+var ReachOutStepSchema2 = z112.object({
+  /** An existing step's id, when the sheet edits a chain; none for a new one. */
+  id: z112.string().uuid().nullable().optional(),
+  subject: z112.string().max(REACH_OUT_SUBJECT_MAX2 * 2).nullable(),
+  body: z112.string().max(REACH_OUT_BODY_MAX2 * 2),
+  after_days: z112.number().int().min(REACH_OUT_AFTER_DAYS2.min).max(REACH_OUT_AFTER_DAYS2.max).nullable()
+});
+var ReachOutChainSchema2 = z112.object({
+  name: z112.string().trim().min(1).max(REACH_OUT_NAME_MAX2),
+  search_id: z112.string().uuid(),
+  include_unconfirmed: z112.boolean(),
+  gap_minutes: z112.number().int().min(5).max(120),
+  /** Empty: every verified domain of the workspace (00183). */
+  domain_ids: z112.array(z112.string().uuid()).max(5),
+  signed_by: z112.string().trim().max(SIGNED_BY_MAX2).nullable(),
+  steps: z112.array(ReachOutStepSchema2).min(1).max(REACH_OUT_STEPS_MAX2)
+});
+var OPENING_FACT_KEYS2 = [
+  "category",
+  "city",
+  "rating",
+  "reviews",
+  "website",
+  "hours",
+  "about",
+  "why_it_fits",
+  "what_you_asked"
+];
+var OPENING_SCHEMA2 = {
+  type: "object",
+  properties: {
+    opening: { type: "string" },
+    angle: { type: "string" },
+    facts_used: { type: "array", items: { type: "string", enum: [...OPENING_FACT_KEYS2] } }
+  },
+  required: ["opening", "angle", "facts_used"],
+  additionalProperties: false
+};
 
 // ../db/dist/index.js
-import { z as z12 } from "zod";
+import { z as z13 } from "zod";
 import { z as z23 } from "zod";
 import { z as z33 } from "zod";
 import { z as z43 } from "zod";
@@ -8098,7 +8188,8 @@ import { z as z63 } from "zod";
 import { z as z83 } from "zod";
 import { z as z93 } from "zod";
 import { z as z103 } from "zod";
-z12.config({ jitless: true });
+import { z as z113 } from "zod";
+z13.config({ jitless: true });
 var LABEL3 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL3 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE3 = new RegExp(`^(${LOCAL3})@(${LABEL3}(?:\\.${LABEL3})+)$`);
@@ -10471,6 +10562,50 @@ var K3 = new Uint32Array([
 var NAME_MAX3 = BrainConfigSchema3.shape.business_name.maxLength ?? Infinity;
 var NINE_TO_FIVE3 = [{ from: 9 * 60, to: 17 * 60 }];
 var SEND_DAY_FRAME3 = { from: 8 * 60, to: 20 * 60 };
+var REACH_OUT_SUBJECT_MAX3 = 80;
+var REACH_OUT_BODY_MAX3 = 1200;
+var REACH_OUT_STEPS_MAX3 = 5;
+var REACH_OUT_NAME_MAX3 = 80;
+var SIGNED_BY_MAX3 = 60;
+var REACH_OUT_AFTER_DAYS3 = { min: 2, max: 30, first: 4 };
+var ReachOutStepSchema3 = z113.object({
+  /** An existing step's id, when the sheet edits a chain; none for a new one. */
+  id: z113.string().uuid().nullable().optional(),
+  subject: z113.string().max(REACH_OUT_SUBJECT_MAX3 * 2).nullable(),
+  body: z113.string().max(REACH_OUT_BODY_MAX3 * 2),
+  after_days: z113.number().int().min(REACH_OUT_AFTER_DAYS3.min).max(REACH_OUT_AFTER_DAYS3.max).nullable()
+});
+var ReachOutChainSchema3 = z113.object({
+  name: z113.string().trim().min(1).max(REACH_OUT_NAME_MAX3),
+  search_id: z113.string().uuid(),
+  include_unconfirmed: z113.boolean(),
+  gap_minutes: z113.number().int().min(5).max(120),
+  /** Empty: every verified domain of the workspace (00183). */
+  domain_ids: z113.array(z113.string().uuid()).max(5),
+  signed_by: z113.string().trim().max(SIGNED_BY_MAX3).nullable(),
+  steps: z113.array(ReachOutStepSchema3).min(1).max(REACH_OUT_STEPS_MAX3)
+});
+var OPENING_FACT_KEYS3 = [
+  "category",
+  "city",
+  "rating",
+  "reviews",
+  "website",
+  "hours",
+  "about",
+  "why_it_fits",
+  "what_you_asked"
+];
+var OPENING_SCHEMA3 = {
+  type: "object",
+  properties: {
+    opening: { type: "string" },
+    angle: { type: "string" },
+    facts_used: { type: "array", items: { type: "string", enum: [...OPENING_FACT_KEYS3] } }
+  },
+  required: ["opening", "angle", "facts_used"],
+  additionalProperties: false
+};
 async function recordOutbound(db, p) {
   if (p.channel === "email")
     throw new Error("record_outbound: an email's row is written before it is sent, never after");
@@ -45204,14 +45339,14 @@ function haversineM(a, b) {
   return Math.round(2 * R * Math.asin(Math.sqrt(s)));
 }
 function zctaCenter(zip) {
-  const z13 = zip.trim();
+  const z14 = zip.trim();
   let lo = 0;
   let hi = TABLE.length - 1;
   while (lo <= hi) {
     const mid = lo + hi >> 1;
     const row = TABLE[mid];
-    if (row[0] === z13) return { lat: row[1], lng: row[2] };
-    if (row[0] < z13) lo = mid + 1;
+    if (row[0] === z14) return { lat: row[1], lng: row[2] };
+    if (row[0] < z14) lo = mid + 1;
     else hi = mid - 1;
   }
   return null;
