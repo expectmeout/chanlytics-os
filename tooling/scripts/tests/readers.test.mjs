@@ -23,7 +23,7 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const kernel = await import(at("apps/dashboard/src/server/readers/index.ts"));
 const { facts, sellsBy, policies, config } = await import(at("apps/dashboard/src/server/readers/facts.ts"));
 const { metrics } = await import(at("apps/dashboard/src/server/readers/metrics.ts"));
-const { conversations, whoOf } = await import(at("apps/dashboard/src/server/readers/conversations.ts"));
+const { conversations } = await import(at("apps/dashboard/src/server/readers/conversations.ts"));
 const { escalations } = await import(at("apps/dashboard/src/server/readers/escalations.ts"));
 const { calls } = await import(at("apps/dashboard/src/server/readers/calls.ts"));
 const { searches } = await import(at("apps/dashboard/src/server/readers/searches.ts"));
@@ -1129,13 +1129,11 @@ const personTables = ({ threads = false } = {}) => ({
   tenant_config: [{ tenant_id: A, config: { brain: { booking_link: " https://book.example/marisa " } } }],
   tenants: [],
 });
-/** A request for the person `id` names, over `tbls`: people_list answers harbor's P1 alone. */
-const personCtx = (tbls, id) => ({
-  supabase: fakeDb(
-    tbls,
-    {},
-    { people_list: (a) => (a.p_tenant_id === A && a.p_contact_id === P1 ? [personRow(P1)] : []) },
-  ),
+/** A request for the person `id` names, over `tbls`, `faults` failing a read: people_list answers harbor's P1 alone. */
+const personCtx = (tbls, id, faults = {}) => ({
+  supabase: fakeDb(tbls, faults, {
+    people_list: (a) => (a.p_tenant_id === A && a.p_contact_id === P1 ? [personRow(P1)] : []),
+  }),
   userId: USER,
   email: "ada@example.com",
   params: { id },
@@ -1203,7 +1201,7 @@ const notHere = (e) => {
   return true;
 };
 
-test("the person, for Ask and for the page: GET contacts/:id answers its reader's payload, key for key and byte for byte, over people-routes' fixture alone and with two threads and a call; the rows are the person, then each thread, then each call, named as People, the Inbox and the Calls page name them", async () => {
+test("the person, for Ask and for the page: GET contacts/:id answers its reader's payload, key for key and byte for byte, over people-routes' fixture alone and with two threads and a call; the rows are the person, then each thread by the person's name, then each call by its caller as the Calls page names them", async () => {
   for (const threads of [false, true]) {
     const tbls = personTables({ threads });
     const page = await personRoute.GET.run(req(`?workspace=${A}`), personCtx(tbls, P1));
@@ -1248,10 +1246,10 @@ test("the person, for Ask and for the page: GET contacts/:id answers its reader'
     r.rows.map((x) => x.label),
     [
       personName(p.row),
-      ...p.conversations.map(whoOf),
+      ...p.conversations.map(() => personName(p.row)),
       ...p.calls.map((c) => toCallVM(c, "America/New_York", new Date()).who),
     ],
-    "People's name for the person, the Inbox's for each thread, the Calls page's for each call",
+    "People's name for the person and for each of their threads, the Calls page's for each call",
   );
 });
 
@@ -1295,4 +1293,32 @@ test("a person this workspace does not hold is GET contacts/:id's 404, in its se
   // Harbor's person in a bayside turn: people_list answers for the workspace it is asked about, and bayside has nobody.
   await assert.rejects(kernel.load(turnIn(personCtx(tbls, P1), B), onePerson, { id: P1 }), notHere);
   await assert.rejects(personRoute.GET.run(req(`?workspace=${B}`), personCtx(tbls, P1)), notHere);
+});
+
+test("a config read that fails keeps the route's place in the error order: a person this workspace does not hold is still the 404, one it holds is the config's own failure, and a failure the route checks first is still said first", async () => {
+  const tbls = personTables({ threads: true });
+  const configDown = { "tenant_config.select": { message: "config down" } };
+  const configFails = (e) => {
+    assert.equal(e.message, "getTenantConfig: config down");
+    return true;
+  };
+  // The calendar's own lookup reads the config too, and says its failure as the visits' line: kept out of the output.
+  await logged("person_visits_failed", async () => {
+    await assert.rejects(kernel.load(turnIn(personCtx(tbls, P2, configDown)), onePerson, { id: P2 }), notHere);
+    await assert.rejects(personRoute.GET.run(req(`?workspace=${A}`), personCtx(tbls, P2, configDown)), notHere);
+    await assert.rejects(kernel.load(turnIn(personCtx(tbls, P1, configDown)), onePerson, { id: P1 }), configFails);
+    await assert.rejects(personRoute.GET.run(req(`?workspace=${A}`), personCtx(tbls, P1, configDown)), configFails);
+    // Their consent changes are checked before the config, as the route checked them.
+    await assert.rejects(
+      kernel.load(
+        turnIn(personCtx(tbls, P1, { ...configDown, "events.select": { message: "events down" } })),
+        onePerson,
+        { id: P1 },
+      ),
+      (e) => {
+        assert.equal(e.message, "events down");
+        return true;
+      },
+    );
+  });
 });

@@ -176,10 +176,12 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
         .maybeSingle(),
       // The owner's notes and their proposal link (00154): the two columns people_list does not carry.
       sb.from("contacts").select("notes, proposal_url").eq("id", id).maybeSingle(),
-      // The booking link, so the profile can text it in one step. The workspace's config, read once in a turn; a read
-      // that fails throws there, never reading as "this workspace has no booking link", which is indistinguishable on
-      // the page from one that never set one.
-      load(rc, facts.config, undefined).then((r) => r.data),
+      // The booking link, so the profile can text it in one step. The workspace's config, read once in a turn: a read
+      // that fails is kept, not thrown here, and checked below, in the route's order.
+      load(rc, facts.config, undefined).then(
+        (r) => ({ data: r.data, error: null as Error | null }),
+        (e: unknown) => ({ data: null, error: e instanceof Error ? e : new Error(String(e)) }),
+      ),
       // Every change to either answer: the ledger rows the doors write, which
       // the timeline shows as evidence. Newest first, two hundred at most.
       sb
@@ -215,11 +217,16 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
     if (!row) throw new AppError("not_found", "This person is not in your workspace.", 404);
     if (history.error) throw new Error(history.error.message);
     if (own.error) throw new Error(own.error.message);
+    // Checked like the other seven. A dropped error here reads as "this
+    // workspace has no booking link", which is indistinguishable on the page
+    // from one that never set one -- so the "text them the link" step simply
+    // vanishes for a workspace that has it configured.
+    if (cfg.error) throw cfg.error;
     if (added.error) throw new Error(added.error.message);
-    const bookingLink = (cfg?.config as { brain?: { booking_link?: unknown } } | null)?.brain?.booking_link;
+    const bookingLink = (cfg.data?.config as { brain?: { booking_link?: unknown } } | null)?.brain?.booking_link;
     // The profile's services: the page's service picker.
     const profile = (
-      cfg?.config as {
+      cfg.data?.config as {
         brain?: { profile?: { services?: { name: string }[]; booking_rules?: { consult_first?: unknown } } };
       } | null
     )?.brain?.profile;
