@@ -890,8 +890,8 @@ function toMs(value, params, fallbackTz) {
   }
   const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z)?$/.exec(v);
   if (!m) return null;
-  const [, y, mo, d, hh, mm, ss, z12] = m;
-  if (z12) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
+  const [, y, mo, d, hh, mm, ss, z13] = m;
+  if (z13) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
   const tz = params.TZID ?? fallbackTz;
   try {
     return localToUtcMs(tz, Number(y), Number(mo), Number(d), Number(hh), Number(mm)) + Number(ss ?? 0) * 1e3;
@@ -17565,16 +17565,32 @@ var AskProposalOutcomeSchema = z8.object({
   atMs: z8.number().catch(0),
   undo: z8.record(z8.string(), z8.unknown()).nullable().optional()
 });
+var ASK_SCOPE_KINDS = ["thread", "conversation", "call", "person", "page", "lead", "search", "run"];
+var UUID = /^[0-9a-f-]{36}$/;
 function scopeFromRoute(page, param, label) {
   if (!param) return null;
   if (page === "inbox" && param.startsWith("th-"))
     return { kind: "thread", id: param.slice(3), label: label || "this thread" };
-  if (page === "conversations" && param.startsWith("cv-"))
-    return { kind: "call", id: param.slice(3), label: label || "this call" };
-  if (page === "conversations" && /^[0-9a-f-]{36}$/.test(param))
-    return { kind: "conversation", id: param, label: label || "this conversation" };
-  if (page === "clients" && /^[0-9a-f-]{36}$/.test(param))
-    return { kind: "person", id: param, label: label || "this person" };
+  if (page === "conversations") {
+    const row2 = param.includes(":") ? param.slice(param.indexOf(":") + 1) : param;
+    if (row2.startsWith("cv-")) return { kind: "call", id: row2.slice(3), label: label || "this call" };
+    if (UUID.test(row2)) return { kind: "conversation", id: row2, label: label || "this conversation" };
+    return null;
+  }
+  if (page === "live" && UUID.test(param)) return { kind: "call", id: param, label: label || "this call" };
+  if (page === "broadcasts" && param.startsWith("run:") && UUID.test(param.slice(4)))
+    return { kind: "run", id: param.slice(4), label: label || "this run" };
+  if (page === "clients") {
+    const leads = parseLeadsRoute(`clients/${param}`);
+    if (leads) {
+      if (leads.peek) return { kind: "lead", id: leads.peek, label: label || "this lead" };
+      if (leads.searchId) return { kind: "search", id: leads.searchId, label: label || "this search" };
+      return null;
+    }
+    const pipeline = parsePipelineRoute(`clients/${param}`);
+    if (pipeline) return pipeline.peek ? { kind: "person", id: pipeline.peek, label: label || "this person" } : null;
+    if (UUID.test(param)) return { kind: "person", id: param, label: label || "this person" };
+  }
   return null;
 }
 var ES_HINT = /[áéíóúñ¿¡]|\b(qué|que|quién|quien|cómo|como|cuándo|cuando|dónde|donde|hoy|mañana|hola|gracias|abierto|libre|cita|cliente|llam[oó]|llamaron|necesita|espera|por favor|el|la|los|las|una?|est[aá]n?)\b/i;
@@ -17655,9 +17671,18 @@ var ASK_SURFACES = [
   "live",
   "reports",
   "settings",
+  "pipeline",
+  "calendar",
+  "campaigns",
+  "start",
   "other"
 ];
-var ASK_SCOPE_KINDS = ASK_CITATION_KINDS;
+var CHIPS_OF = {
+  pipeline: "people",
+  calendar: "other",
+  campaigns: "other",
+  start: "other"
+};
 var T = {
   en: {
     needs: "Who needs me right now?",
@@ -17736,6 +17761,7 @@ function clipWords(s, cap2) {
 }
 function buildAskSuggestions(input) {
   const t = T[input.language === "es" ? "es" : "en"];
+  const at2 = CHIPS_OF[input.surface] ?? input.surface;
   const out = [];
   const add = (q, kind, icon, fast = false, label) => {
     if (!out.some((s2) => s2.q === q)) out.push({ q, kind, icon, fast, ...label ? { label } : {} });
@@ -17758,7 +17784,7 @@ function buildAskSuggestions(input) {
   if (input.liveNow > 0) add(t.live, "ask", "phone");
   if (input.missedToday > 0) add(t.calls, "ask", "phone", true);
   if (input.hasCalendar) add(input.surface === "today" ? t.openTomorrow : t.openSat, "ask", "calendar", true);
-  switch (input.surface) {
+  switch (at2) {
     case "today":
       add(t.brief, "ask", "sparkle");
       add(t.who, "ask", "users");
@@ -17786,8 +17812,7 @@ function buildAskSuggestions(input) {
     default:
       break;
   }
-  if (input.dealsOn && (input.surface === "people" || input.surface === "other"))
-    add(t.proposals, "ask", "trending-up");
+  if (input.dealsOn && (at2 === "people" || at2 === "other")) add(t.proposals, "ask", "trending-up");
   if (input.needsYou === 0) add(t.needs, "ask", "inbox", true);
   add(t.week, "ask", "trending-up");
   add(t.rules, "ask", "shield");
@@ -17806,8 +17831,8 @@ function buildAskSuggestions(input) {
   if (input.surface === "settings") act2(t.actHours, t.actHoursQ, "clock", true);
   if (input.surface === "settings") act2(t.actInvite, t.actInviteQ, "users", true);
   if (input.surface === "inbox" || input.heldDrafts > 0) act2(t.actHold, t.actHoldQ, "shield");
-  if (input.surface === "people" || input.surface === "other") act2(t.actOffer, t.actOfferQ, "wave", true);
-  if (input.surface === "people" || input.surface === "other") act2(t.actPlaybook, t.actPlaybookQ, "bolt");
+  if (at2 === "people" || at2 === "other") act2(t.actOffer, t.actOfferQ, "wave", true);
+  if (at2 === "people" || at2 === "other") act2(t.actPlaybook, t.actPlaybookQ, "bolt");
   return [...asks, ...acts.slice(0, 4)];
 }
 var NEEDS_RE = /\b(who needs me|who needs my|needs? (my|me)\b|what('s| is| do i have)? waiting|waiting (on|for) me|anyone waiting|qui[eé]n me necesita|qu[eé] (me )?espera|qu[eé] (hay )?pendiente|pendientes?)\b/i;
@@ -17953,6 +17978,31 @@ function cacheHitOf(t) {
   const fed = t.input + t.cache_read + t.cache_creation;
   return fed > 0 ? t.cache_read / fed : null;
 }
+
+// src/ask-context.ts
+import { z as z9 } from "zod";
+var ASK_CONTEXT_MAX_ROWS = 40;
+var ASK_CONTEXT_ROW_KINDS = [
+  "thread",
+  "conversation",
+  "call",
+  "person",
+  "lead",
+  "search",
+  "run",
+  "playbook",
+  "template"
+];
+var Id = z9.string().min(1).max(120);
+var PageContextSchema = z9.object({
+  v: z9.literal(1),
+  surface: z9.enum(ASK_SURFACES),
+  route: z9.string().max(200),
+  view: z9.string().max(80).nullish(),
+  focus: z9.object({ kind: z9.enum(ASK_SCOPE_KINDS), id: Id, label: z9.string().max(80) }).strict().nullish(),
+  rows: z9.array(z9.object({ kind: z9.enum(ASK_CONTEXT_ROW_KINDS), id: Id }).strict()).max(ASK_CONTEXT_MAX_ROWS),
+  askedAt: z9.number().int().nonnegative()
+}).strict();
 
 // src/ask-model.ts
 var ASK_MODELS = ["claude-opus-5-5", "claude-sonnet-5"];
@@ -18358,7 +18408,7 @@ var asObj = (v) => v && typeof v === "object" && !Array.isArray(v) ? v : {};
 var asArr = (v) => Array.isArray(v) ? v : [];
 var words3 = (v, n) => clip(cleanAnswer(typeof v === "string" ? v : ""), n);
 var num = (v) => typeof v === "number" && Number.isFinite(v) ? v : Number.NaN;
-var UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+var UUID2 = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 var ROW_KINDS = ["call", "thread", "conversation", "person"];
 var ROW_ROUTE = /^(inbox\/th-|conversations\/cv-|clients\/(?!leads(?:[/:]|$)|seg:|list:))/;
 function groundRef(v, read) {
@@ -18367,7 +18417,7 @@ function groundRef(v, read) {
   const spelled = typeof r2.id === "string" ? r2.id.trim().replace(/^#?\/+/, "") : "";
   if (!spelled || !ASK_CITATION_KINDS.includes(kind)) return null;
   const label = words3(r2.label, C.label) || spelled;
-  const row2 = UUID.exec(spelled)?.[0].toLowerCase();
+  const row2 = UUID2.exec(spelled)?.[0].toLowerCase();
   const tries = row2 ? [kind, ...ROW_KINDS].filter((k) => k !== "page").map((k) => ({ kind: k, id: row2, label })) : [
     ...kind === "page" ? [] : [{ kind, id: spelled, label }],
     // A row's route with an id cut short or misspelled names no row read, and is no page either.
@@ -19607,13 +19657,13 @@ function reportFacts(vm, campaigns) {
 }
 
 // src/signup.ts
-import { z as z9 } from "zod";
+import { z as z10 } from "zod";
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
-var InviteCodeSchema = z9.string().trim().max(80);
-var SignupSchema = z9.object({
-  name: z9.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
-  email: z9.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+var InviteCodeSchema = z10.string().trim().max(80);
+var SignupSchema = z10.object({
+  name: z10.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
+  email: z10.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -19627,9 +19677,9 @@ var SignupSchema = z9.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z9.string().max(200).optional(),
+  password: z10.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z9.string().trim().min(1).max(64).optional(),
+  timezone: z10.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
   code: InviteCodeSchema.optional()
 }).strict();
@@ -19639,11 +19689,11 @@ function signupPosture(code2) {
   return code2 === SIGNUP_WAITLIST ? "waitlist" : "invite";
 }
 var PENDING_WORKSPACE_KEY = "pending_workspace";
-var PendingWorkspaceSchema = z9.object({
-  name: z9.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
+var PendingWorkspaceSchema = z10.object({
+  name: z10.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z9.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
+  timezone: z10.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
 });
 function pendingWorkspaceOf(metadata) {
   if (!metadata || typeof metadata !== "object") return null;
@@ -22602,7 +22652,7 @@ function dealPaceFrom(rows, nowMs) {
 }
 
 // src/lead-judge.ts
-import { z as z10 } from "zod";
+import { z as z11 } from "zod";
 var JUDGE_FACT_KEYS = [
   "name",
   "category",
@@ -22705,15 +22755,15 @@ function judgeUserContent(places) {
 ${JSON.stringify(quoted)}
 </places>`;
 }
-var AnswerSchema = z10.object({
-  places: z10.array(
-    z10.object({
-      ref: z10.number().int(),
-      criteria: z10.array(
-        z10.object({ key: z10.string(), answer: z10.enum(["pass", "fail", "unknown"]), facts: z10.array(z10.string()) })
+var AnswerSchema = z11.object({
+  places: z11.array(
+    z11.object({
+      ref: z11.number().int(),
+      criteria: z11.array(
+        z11.object({ key: z11.string(), answer: z11.enum(["pass", "fail", "unknown"]), facts: z11.array(z11.string()) })
       ),
-      email_index: z10.number().int().nullable(),
-      reason: z10.string()
+      email_index: z11.number().int().nullable(),
+      reason: z11.string()
     })
   )
 });
@@ -23484,7 +23534,7 @@ function timetable(input) {
 }
 
 // src/reach-out-words.ts
-import { z as z11 } from "zod";
+import { z as z12 } from "zod";
 
 // src/email-subject.ts
 var ANSWER_OR_FORWARD = /^\s*(?:re|aw|sv|rv|antw|fwd?)\s*:/i;
@@ -23632,22 +23682,22 @@ function wordsIssueWords(i) {
       return "A line in capitals reads like spam.";
   }
 }
-var ReachOutStepSchema = z11.object({
+var ReachOutStepSchema = z12.object({
   /** An existing step's id, when the sheet edits a chain; none for a new one. */
-  id: z11.string().uuid().nullable().optional(),
-  subject: z11.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
-  body: z11.string().max(REACH_OUT_BODY_MAX * 2),
-  after_days: z11.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable()
+  id: z12.string().uuid().nullable().optional(),
+  subject: z12.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
+  body: z12.string().max(REACH_OUT_BODY_MAX * 2),
+  after_days: z12.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable()
 });
-var ReachOutChainSchema = z11.object({
-  name: z11.string().trim().min(1).max(REACH_OUT_NAME_MAX),
-  search_id: z11.string().uuid(),
-  include_unconfirmed: z11.boolean(),
-  gap_minutes: z11.number().int().min(5).max(120),
+var ReachOutChainSchema = z12.object({
+  name: z12.string().trim().min(1).max(REACH_OUT_NAME_MAX),
+  search_id: z12.string().uuid(),
+  include_unconfirmed: z12.boolean(),
+  gap_minutes: z12.number().int().min(5).max(120),
   /** Empty: every verified domain of the workspace (00183). */
-  domain_ids: z11.array(z11.string().uuid()).max(5),
-  signed_by: z11.string().trim().max(SIGNED_BY_MAX).nullable(),
-  steps: z11.array(ReachOutStepSchema).min(1).max(REACH_OUT_STEPS_MAX)
+  domain_ids: z12.array(z12.string().uuid()).max(5),
+  signed_by: z12.string().trim().max(SIGNED_BY_MAX).nullable(),
+  steps: z12.array(ReachOutStepSchema).min(1).max(REACH_OUT_STEPS_MAX)
 });
 function validateReachOutChain(c, has3) {
   const out = [];
@@ -24118,6 +24168,8 @@ export {
   ASK_ANSWER_FORMAT,
   ASK_CAPS,
   ASK_CITATION_KINDS,
+  ASK_CONTEXT_MAX_ROWS,
+  ASK_CONTEXT_ROW_KINDS,
   ASK_LANGUAGES,
   ASK_MAX_CHARS,
   ASK_MAX_ROUNDS,
@@ -24543,6 +24595,7 @@ export {
   PUSH_PLATFORMS,
   PUSH_RECEIPTS_AFTER_MS,
   PUSH_TOKEN_MAX,
+  PageContextSchema,
   PendingWorkspaceSchema,
   PeopleExportQuerySchema,
   PolicyLimitsSchema,

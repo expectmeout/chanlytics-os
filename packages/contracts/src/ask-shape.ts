@@ -22,6 +22,11 @@ export interface AskTurnShape {
   since_last_ms: number | null;
   /** From the palette opening to the question being sent, as the tab measured it. */
   opened_ms: number | null;
+  /**
+   * The rows the page's context carried (contracts ask-context.ts): null when the tab sent none, or one the route could
+   * not read. Recorded before the turn reads it (the Phase 2 plan, PR 2.1), so a day's numbers say what pages send.
+   */
+  context_rows: number | null;
   /** The snapshot and the prefetch, before the first round. */
   snapshot_ms: number;
   prefetched: string[];

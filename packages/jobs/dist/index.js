@@ -167,6 +167,7 @@ import { z as z8 } from "zod";
 import { z as z9 } from "zod";
 import { z as z10 } from "zod";
 import { z as z11 } from "zod";
+import { z as z12 } from "zod";
 z.config({ jitless: true });
 var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
@@ -2226,6 +2227,22 @@ var AskProposalOutcomeSchema = z8.object({
   atMs: z8.number().catch(0),
   undo: z8.record(z8.string(), z8.unknown()).nullable().optional()
 });
+var ASK_SCOPE_KINDS = ["thread", "conversation", "call", "person", "page", "lead", "search", "run"];
+var ASK_SURFACES = [
+  "today",
+  "inbox",
+  "people",
+  "leads",
+  "conversations",
+  "live",
+  "reports",
+  "settings",
+  "pipeline",
+  "calendar",
+  "campaigns",
+  "start",
+  "other"
+];
 var AskSettingsChangeSchema = z8.discriminatedUnion("op", [
   z8.object({
     op: z8.literal("add_closure"),
@@ -2246,6 +2263,28 @@ var AskSettingsChangeSchema = z8.discriminatedUnion("op", [
     duration_min: z8.number().int().min(1).max(1440).optional()
   })
 ]);
+var ASK_CONTEXT_MAX_ROWS = 40;
+var ASK_CONTEXT_ROW_KINDS = [
+  "thread",
+  "conversation",
+  "call",
+  "person",
+  "lead",
+  "search",
+  "run",
+  "playbook",
+  "template"
+];
+var Id = z9.string().min(1).max(120);
+var PageContextSchema = z9.object({
+  v: z9.literal(1),
+  surface: z9.enum(ASK_SURFACES),
+  route: z9.string().max(200),
+  view: z9.string().max(80).nullish(),
+  focus: z9.object({ kind: z9.enum(ASK_SCOPE_KINDS), id: Id, label: z9.string().max(80) }).strict().nullish(),
+  rows: z9.array(z9.object({ kind: z9.enum(ASK_CONTEXT_ROW_KINDS), id: Id }).strict()).max(ASK_CONTEXT_MAX_ROWS),
+  askedAt: z9.number().int().nonnegative()
+}).strict();
 var ASK_ANSWER_CAPS = {
   headline: 160,
   detail: 700,
@@ -2398,10 +2437,10 @@ var ASK_ANSWER_FORMAT = {
 var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
-var InviteCodeSchema = z9.string().trim().max(80);
-var SignupSchema = z9.object({
-  name: z9.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
-  email: z9.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+var InviteCodeSchema = z10.string().trim().max(80);
+var SignupSchema = z10.object({
+  name: z10.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
+  email: z10.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -2415,17 +2454,17 @@ var SignupSchema = z9.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z9.string().max(200).optional(),
+  password: z10.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z9.string().trim().min(1).max(64).optional(),
+  timezone: z10.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
   code: InviteCodeSchema.optional()
 }).strict();
-var PendingWorkspaceSchema = z9.object({
-  name: z9.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
+var PendingWorkspaceSchema = z10.object({
+  name: z10.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z9.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
+  timezone: z10.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
 });
 function isTimezone(raw) {
   if (typeof raw !== "string" || !raw.trim()) return false;
@@ -2509,15 +2548,15 @@ var JUDGE_OUTPUT_SCHEMA = {
   required: ["places"],
   additionalProperties: false
 };
-var AnswerSchema = z10.object({
-  places: z10.array(
-    z10.object({
-      ref: z10.number().int(),
-      criteria: z10.array(
-        z10.object({ key: z10.string(), answer: z10.enum(["pass", "fail", "unknown"]), facts: z10.array(z10.string()) })
+var AnswerSchema = z11.object({
+  places: z11.array(
+    z11.object({
+      ref: z11.number().int(),
+      criteria: z11.array(
+        z11.object({ key: z11.string(), answer: z11.enum(["pass", "fail", "unknown"]), facts: z11.array(z11.string()) })
       ),
-      email_index: z10.number().int().nullable(),
-      reason: z10.string()
+      email_index: z11.number().int().nullable(),
+      reason: z11.string()
     })
   )
 });
@@ -2601,22 +2640,22 @@ var REACH_OUT_STEPS_MAX = 5;
 var REACH_OUT_NAME_MAX = 80;
 var SIGNED_BY_MAX = 60;
 var REACH_OUT_AFTER_DAYS = { min: 2, max: 30, first: 4 };
-var ReachOutStepSchema = z11.object({
+var ReachOutStepSchema = z12.object({
   /** An existing step's id, when the sheet edits a chain; none for a new one. */
-  id: z11.string().uuid().nullable().optional(),
-  subject: z11.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
-  body: z11.string().max(REACH_OUT_BODY_MAX * 2),
-  after_days: z11.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable()
+  id: z12.string().uuid().nullable().optional(),
+  subject: z12.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
+  body: z12.string().max(REACH_OUT_BODY_MAX * 2),
+  after_days: z12.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable()
 });
-var ReachOutChainSchema = z11.object({
-  name: z11.string().trim().min(1).max(REACH_OUT_NAME_MAX),
-  search_id: z11.string().uuid(),
-  include_unconfirmed: z11.boolean(),
-  gap_minutes: z11.number().int().min(5).max(120),
+var ReachOutChainSchema = z12.object({
+  name: z12.string().trim().min(1).max(REACH_OUT_NAME_MAX),
+  search_id: z12.string().uuid(),
+  include_unconfirmed: z12.boolean(),
+  gap_minutes: z12.number().int().min(5).max(120),
   /** Empty: every verified domain of the workspace (00183). */
-  domain_ids: z11.array(z11.string().uuid()).max(5),
-  signed_by: z11.string().trim().max(SIGNED_BY_MAX).nullable(),
-  steps: z11.array(ReachOutStepSchema).min(1).max(REACH_OUT_STEPS_MAX)
+  domain_ids: z12.array(z12.string().uuid()).max(5),
+  signed_by: z12.string().trim().max(SIGNED_BY_MAX).nullable(),
+  steps: z12.array(ReachOutStepSchema).min(1).max(REACH_OUT_STEPS_MAX)
 });
 var OPENING_FACT_KEYS = [
   "category",
@@ -2640,7 +2679,7 @@ var OPENING_SCHEMA = {
 };
 
 // ../channels/dist/index.js
-import { z as z12 } from "zod";
+import { z as z13 } from "zod";
 import { z as z22 } from "zod";
 import { z as z32 } from "zod";
 import { z as z42 } from "zod";
@@ -2651,6 +2690,7 @@ import { z as z82 } from "zod";
 import { z as z92 } from "zod";
 import { z as z102 } from "zod";
 import { z as z112 } from "zod";
+import { z as z122 } from "zod";
 
 // ../../node_modules/domelementtype/lib/esm/index.js
 var ElementType;
@@ -7591,7 +7631,7 @@ function handleDeprecatedOptions(options) {
 }
 
 // ../channels/dist/index.js
-z12.config({ jitless: true });
+z13.config({ jitless: true });
 var LABEL2 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL2 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE2 = new RegExp(`^(${LOCAL2})@(${LABEL2}(?:\\.${LABEL2})+)$`);
@@ -9609,6 +9649,22 @@ var AskProposalOutcomeSchema2 = z82.object({
   atMs: z82.number().catch(0),
   undo: z82.record(z82.string(), z82.unknown()).nullable().optional()
 });
+var ASK_SCOPE_KINDS2 = ["thread", "conversation", "call", "person", "page", "lead", "search", "run"];
+var ASK_SURFACES2 = [
+  "today",
+  "inbox",
+  "people",
+  "leads",
+  "conversations",
+  "live",
+  "reports",
+  "settings",
+  "pipeline",
+  "calendar",
+  "campaigns",
+  "start",
+  "other"
+];
 var AskSettingsChangeSchema2 = z82.discriminatedUnion("op", [
   z82.object({
     op: z82.literal("add_closure"),
@@ -9629,6 +9685,28 @@ var AskSettingsChangeSchema2 = z82.discriminatedUnion("op", [
     duration_min: z82.number().int().min(1).max(1440).optional()
   })
 ]);
+var ASK_CONTEXT_MAX_ROWS2 = 40;
+var ASK_CONTEXT_ROW_KINDS2 = [
+  "thread",
+  "conversation",
+  "call",
+  "person",
+  "lead",
+  "search",
+  "run",
+  "playbook",
+  "template"
+];
+var Id2 = z92.string().min(1).max(120);
+var PageContextSchema2 = z92.object({
+  v: z92.literal(1),
+  surface: z92.enum(ASK_SURFACES2),
+  route: z92.string().max(200),
+  view: z92.string().max(80).nullish(),
+  focus: z92.object({ kind: z92.enum(ASK_SCOPE_KINDS2), id: Id2, label: z92.string().max(80) }).strict().nullish(),
+  rows: z92.array(z92.object({ kind: z92.enum(ASK_CONTEXT_ROW_KINDS2), id: Id2 }).strict()).max(ASK_CONTEXT_MAX_ROWS2),
+  askedAt: z92.number().int().nonnegative()
+}).strict();
 var ASK_ANSWER_CAPS2 = {
   headline: 160,
   detail: 700,
@@ -9781,10 +9859,10 @@ var ASK_ANSWER_FORMAT2 = {
 var WHEN22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var SIGNUP_NAME_MIN2 = 2;
 var SIGNUP_NAME_MAX2 = 120;
-var InviteCodeSchema2 = z92.string().trim().max(80);
-var SignupSchema2 = z92.object({
-  name: z92.string().trim().min(SIGNUP_NAME_MIN2, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX2, "That name is too long \u2014 120 characters at most."),
-  email: z92.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+var InviteCodeSchema2 = z102.string().trim().max(80);
+var SignupSchema2 = z102.object({
+  name: z102.string().trim().min(SIGNUP_NAME_MIN2, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX2, "That name is too long \u2014 120 characters at most."),
+  email: z102.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -9798,17 +9876,17 @@ var SignupSchema2 = z92.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z92.string().max(200).optional(),
+  password: z102.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z92.string().trim().min(1).max(64).optional(),
+  timezone: z102.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
   code: InviteCodeSchema2.optional()
 }).strict();
-var PendingWorkspaceSchema2 = z92.object({
-  name: z92.string().trim().min(SIGNUP_NAME_MIN2).max(SIGNUP_NAME_MAX2),
+var PendingWorkspaceSchema2 = z102.object({
+  name: z102.string().trim().min(SIGNUP_NAME_MIN2).max(SIGNUP_NAME_MAX2),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z92.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone2(v) ? v : null)
+  timezone: z102.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone2(v) ? v : null)
 });
 function isTimezone2(raw) {
   if (typeof raw !== "string" || !raw.trim()) return false;
@@ -9892,15 +9970,15 @@ var JUDGE_OUTPUT_SCHEMA2 = {
   required: ["places"],
   additionalProperties: false
 };
-var AnswerSchema2 = z102.object({
-  places: z102.array(
-    z102.object({
-      ref: z102.number().int(),
-      criteria: z102.array(
-        z102.object({ key: z102.string(), answer: z102.enum(["pass", "fail", "unknown"]), facts: z102.array(z102.string()) })
+var AnswerSchema2 = z112.object({
+  places: z112.array(
+    z112.object({
+      ref: z112.number().int(),
+      criteria: z112.array(
+        z112.object({ key: z112.string(), answer: z112.enum(["pass", "fail", "unknown"]), facts: z112.array(z112.string()) })
       ),
-      email_index: z102.number().int().nullable(),
-      reason: z102.string()
+      email_index: z112.number().int().nullable(),
+      reason: z112.string()
     })
   )
 });
@@ -9979,22 +10057,22 @@ var REACH_OUT_STEPS_MAX2 = 5;
 var REACH_OUT_NAME_MAX2 = 80;
 var SIGNED_BY_MAX2 = 60;
 var REACH_OUT_AFTER_DAYS2 = { min: 2, max: 30, first: 4 };
-var ReachOutStepSchema2 = z112.object({
+var ReachOutStepSchema2 = z122.object({
   /** An existing step's id, when the sheet edits a chain; none for a new one. */
-  id: z112.string().uuid().nullable().optional(),
-  subject: z112.string().max(REACH_OUT_SUBJECT_MAX2 * 2).nullable(),
-  body: z112.string().max(REACH_OUT_BODY_MAX2 * 2),
-  after_days: z112.number().int().min(REACH_OUT_AFTER_DAYS2.min).max(REACH_OUT_AFTER_DAYS2.max).nullable()
+  id: z122.string().uuid().nullable().optional(),
+  subject: z122.string().max(REACH_OUT_SUBJECT_MAX2 * 2).nullable(),
+  body: z122.string().max(REACH_OUT_BODY_MAX2 * 2),
+  after_days: z122.number().int().min(REACH_OUT_AFTER_DAYS2.min).max(REACH_OUT_AFTER_DAYS2.max).nullable()
 });
-var ReachOutChainSchema2 = z112.object({
-  name: z112.string().trim().min(1).max(REACH_OUT_NAME_MAX2),
-  search_id: z112.string().uuid(),
-  include_unconfirmed: z112.boolean(),
-  gap_minutes: z112.number().int().min(5).max(120),
+var ReachOutChainSchema2 = z122.object({
+  name: z122.string().trim().min(1).max(REACH_OUT_NAME_MAX2),
+  search_id: z122.string().uuid(),
+  include_unconfirmed: z122.boolean(),
+  gap_minutes: z122.number().int().min(5).max(120),
   /** Empty: every verified domain of the workspace (00183). */
-  domain_ids: z112.array(z112.string().uuid()).max(5),
-  signed_by: z112.string().trim().max(SIGNED_BY_MAX2).nullable(),
-  steps: z112.array(ReachOutStepSchema2).min(1).max(REACH_OUT_STEPS_MAX2)
+  domain_ids: z122.array(z122.string().uuid()).max(5),
+  signed_by: z122.string().trim().max(SIGNED_BY_MAX2).nullable(),
+  steps: z122.array(ReachOutStepSchema2).min(1).max(REACH_OUT_STEPS_MAX2)
 });
 var OPENING_FACT_KEYS2 = [
   "category",
@@ -10123,7 +10201,7 @@ var dec = new TextDecoder();
 var PAYLOAD_BYTES = 1 + 16 * 3;
 
 // ../core/dist/index.js
-import { z as z13 } from "zod";
+import { z as z14 } from "zod";
 import { z as z23 } from "zod";
 import { z as z33 } from "zod";
 import { z as z43 } from "zod";
@@ -10134,7 +10212,8 @@ import { z as z83 } from "zod";
 import { z as z93 } from "zod";
 import { z as z103 } from "zod";
 import { z as z113 } from "zod";
-import { z as z122 } from "zod";
+import { z as z123 } from "zod";
+import { z as z132 } from "zod";
 import { z as z222 } from "zod";
 import { z as z322 } from "zod";
 import { z as z422 } from "zod";
@@ -10145,7 +10224,8 @@ import { z as z822 } from "zod";
 import { z as z922 } from "zod";
 import { z as z1022 } from "zod";
 import { z as z1122 } from "zod";
-import { z as z132 } from "zod";
+import { z as z1222 } from "zod";
+import { z as z142 } from "zod";
 import { z as z232 } from "zod";
 import { z as z332 } from "zod";
 import { z as z432 } from "zod";
@@ -10156,6 +10236,7 @@ import { z as z832 } from "zod";
 import { z as z932 } from "zod";
 import { z as z1032 } from "zod";
 import { z as z1132 } from "zod";
+import { z as z1232 } from "zod";
 var __create2 = Object.create;
 var __defProp2 = Object.defineProperty;
 var __getOwnPropDesc2 = Object.getOwnPropertyDescriptor;
@@ -11075,7 +11156,7 @@ var DEFAULT_OPTIONS2 = {
   whitespaceCharacters: " 	\r\n\f\u200B",
   wordwrap: 80
 };
-z13.config({ jitless: true });
+z14.config({ jitless: true });
 var LABEL3 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL3 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE3 = new RegExp(`^(${LOCAL3})@(${LABEL3}(?:\\.${LABEL3})+)$`);
@@ -13093,6 +13174,22 @@ var AskProposalOutcomeSchema3 = z83.object({
   atMs: z83.number().catch(0),
   undo: z83.record(z83.string(), z83.unknown()).nullable().optional()
 });
+var ASK_SCOPE_KINDS3 = ["thread", "conversation", "call", "person", "page", "lead", "search", "run"];
+var ASK_SURFACES3 = [
+  "today",
+  "inbox",
+  "people",
+  "leads",
+  "conversations",
+  "live",
+  "reports",
+  "settings",
+  "pipeline",
+  "calendar",
+  "campaigns",
+  "start",
+  "other"
+];
 var AskSettingsChangeSchema3 = z83.discriminatedUnion("op", [
   z83.object({
     op: z83.literal("add_closure"),
@@ -13113,6 +13210,28 @@ var AskSettingsChangeSchema3 = z83.discriminatedUnion("op", [
     duration_min: z83.number().int().min(1).max(1440).optional()
   })
 ]);
+var ASK_CONTEXT_MAX_ROWS3 = 40;
+var ASK_CONTEXT_ROW_KINDS3 = [
+  "thread",
+  "conversation",
+  "call",
+  "person",
+  "lead",
+  "search",
+  "run",
+  "playbook",
+  "template"
+];
+var Id3 = z93.string().min(1).max(120);
+var PageContextSchema3 = z93.object({
+  v: z93.literal(1),
+  surface: z93.enum(ASK_SURFACES3),
+  route: z93.string().max(200),
+  view: z93.string().max(80).nullish(),
+  focus: z93.object({ kind: z93.enum(ASK_SCOPE_KINDS3), id: Id3, label: z93.string().max(80) }).strict().nullish(),
+  rows: z93.array(z93.object({ kind: z93.enum(ASK_CONTEXT_ROW_KINDS3), id: Id3 }).strict()).max(ASK_CONTEXT_MAX_ROWS3),
+  askedAt: z93.number().int().nonnegative()
+}).strict();
 var ASK_ANSWER_CAPS3 = {
   headline: 160,
   detail: 700,
@@ -13265,10 +13384,10 @@ var ASK_ANSWER_FORMAT3 = {
 var WHEN23 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var SIGNUP_NAME_MIN3 = 2;
 var SIGNUP_NAME_MAX3 = 120;
-var InviteCodeSchema3 = z93.string().trim().max(80);
-var SignupSchema3 = z93.object({
-  name: z93.string().trim().min(SIGNUP_NAME_MIN3, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX3, "That name is too long \u2014 120 characters at most."),
-  email: z93.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+var InviteCodeSchema3 = z103.string().trim().max(80);
+var SignupSchema3 = z103.object({
+  name: z103.string().trim().min(SIGNUP_NAME_MIN3, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX3, "That name is too long \u2014 120 characters at most."),
+  email: z103.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -13282,17 +13401,17 @@ var SignupSchema3 = z93.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z93.string().max(200).optional(),
+  password: z103.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z93.string().trim().min(1).max(64).optional(),
+  timezone: z103.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
   code: InviteCodeSchema3.optional()
 }).strict();
-var PendingWorkspaceSchema3 = z93.object({
-  name: z93.string().trim().min(SIGNUP_NAME_MIN3).max(SIGNUP_NAME_MAX3),
+var PendingWorkspaceSchema3 = z103.object({
+  name: z103.string().trim().min(SIGNUP_NAME_MIN3).max(SIGNUP_NAME_MAX3),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z93.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone3(v) ? v : null)
+  timezone: z103.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone3(v) ? v : null)
 });
 function isTimezone3(raw) {
   if (typeof raw !== "string" || !raw.trim()) return false;
@@ -13376,15 +13495,15 @@ var JUDGE_OUTPUT_SCHEMA3 = {
   required: ["places"],
   additionalProperties: false
 };
-var AnswerSchema3 = z103.object({
-  places: z103.array(
-    z103.object({
-      ref: z103.number().int(),
-      criteria: z103.array(
-        z103.object({ key: z103.string(), answer: z103.enum(["pass", "fail", "unknown"]), facts: z103.array(z103.string()) })
+var AnswerSchema3 = z113.object({
+  places: z113.array(
+    z113.object({
+      ref: z113.number().int(),
+      criteria: z113.array(
+        z113.object({ key: z113.string(), answer: z113.enum(["pass", "fail", "unknown"]), facts: z113.array(z113.string()) })
       ),
-      email_index: z103.number().int().nullable(),
-      reason: z103.string()
+      email_index: z113.number().int().nullable(),
+      reason: z113.string()
     })
   )
 });
@@ -13463,22 +13582,22 @@ var REACH_OUT_STEPS_MAX3 = 5;
 var REACH_OUT_NAME_MAX3 = 80;
 var SIGNED_BY_MAX3 = 60;
 var REACH_OUT_AFTER_DAYS3 = { min: 2, max: 30, first: 4 };
-var ReachOutStepSchema3 = z113.object({
+var ReachOutStepSchema3 = z123.object({
   /** An existing step's id, when the sheet edits a chain; none for a new one. */
-  id: z113.string().uuid().nullable().optional(),
-  subject: z113.string().max(REACH_OUT_SUBJECT_MAX3 * 2).nullable(),
-  body: z113.string().max(REACH_OUT_BODY_MAX3 * 2),
-  after_days: z113.number().int().min(REACH_OUT_AFTER_DAYS3.min).max(REACH_OUT_AFTER_DAYS3.max).nullable()
+  id: z123.string().uuid().nullable().optional(),
+  subject: z123.string().max(REACH_OUT_SUBJECT_MAX3 * 2).nullable(),
+  body: z123.string().max(REACH_OUT_BODY_MAX3 * 2),
+  after_days: z123.number().int().min(REACH_OUT_AFTER_DAYS3.min).max(REACH_OUT_AFTER_DAYS3.max).nullable()
 });
-var ReachOutChainSchema3 = z113.object({
-  name: z113.string().trim().min(1).max(REACH_OUT_NAME_MAX3),
-  search_id: z113.string().uuid(),
-  include_unconfirmed: z113.boolean(),
-  gap_minutes: z113.number().int().min(5).max(120),
+var ReachOutChainSchema3 = z123.object({
+  name: z123.string().trim().min(1).max(REACH_OUT_NAME_MAX3),
+  search_id: z123.string().uuid(),
+  include_unconfirmed: z123.boolean(),
+  gap_minutes: z123.number().int().min(5).max(120),
   /** Empty: every verified domain of the workspace (00183). */
-  domain_ids: z113.array(z113.string().uuid()).max(5),
-  signed_by: z113.string().trim().max(SIGNED_BY_MAX3).nullable(),
-  steps: z113.array(ReachOutStepSchema3).min(1).max(REACH_OUT_STEPS_MAX3)
+  domain_ids: z123.array(z123.string().uuid()).max(5),
+  signed_by: z123.string().trim().max(SIGNED_BY_MAX3).nullable(),
+  steps: z123.array(ReachOutStepSchema3).min(1).max(REACH_OUT_STEPS_MAX3)
 });
 var OPENING_FACT_KEYS3 = [
   "category",
@@ -13589,7 +13708,7 @@ var STATE_TTL_MS2 = 10 * 6e4;
 var enc22 = new TextEncoder();
 var dec2 = new TextDecoder();
 var PAYLOAD_BYTES2 = 1 + 16 * 3;
-z122.config({ jitless: true });
+z132.config({ jitless: true });
 var MAX_ADDRESS = 254;
 var MAX_LOCAL = 64;
 var LABEL22 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
@@ -15677,6 +15796,22 @@ var AskProposalOutcomeSchema22 = z822.object({
   atMs: z822.number().catch(0),
   undo: z822.record(z822.string(), z822.unknown()).nullable().optional()
 });
+var ASK_SCOPE_KINDS22 = ["thread", "conversation", "call", "person", "page", "lead", "search", "run"];
+var ASK_SURFACES22 = [
+  "today",
+  "inbox",
+  "people",
+  "leads",
+  "conversations",
+  "live",
+  "reports",
+  "settings",
+  "pipeline",
+  "calendar",
+  "campaigns",
+  "start",
+  "other"
+];
 var AskSettingsChangeSchema22 = z822.discriminatedUnion("op", [
   z822.object({
     op: z822.literal("add_closure"),
@@ -15697,6 +15832,28 @@ var AskSettingsChangeSchema22 = z822.discriminatedUnion("op", [
     duration_min: z822.number().int().min(1).max(1440).optional()
   })
 ]);
+var ASK_CONTEXT_MAX_ROWS22 = 40;
+var ASK_CONTEXT_ROW_KINDS22 = [
+  "thread",
+  "conversation",
+  "call",
+  "person",
+  "lead",
+  "search",
+  "run",
+  "playbook",
+  "template"
+];
+var Id22 = z922.string().min(1).max(120);
+var PageContextSchema22 = z922.object({
+  v: z922.literal(1),
+  surface: z922.enum(ASK_SURFACES22),
+  route: z922.string().max(200),
+  view: z922.string().max(80).nullish(),
+  focus: z922.object({ kind: z922.enum(ASK_SCOPE_KINDS22), id: Id22, label: z922.string().max(80) }).strict().nullish(),
+  rows: z922.array(z922.object({ kind: z922.enum(ASK_CONTEXT_ROW_KINDS22), id: Id22 }).strict()).max(ASK_CONTEXT_MAX_ROWS22),
+  askedAt: z922.number().int().nonnegative()
+}).strict();
 var ASK_ANSWER_CAPS22 = {
   headline: 160,
   detail: 700,
@@ -15849,10 +16006,10 @@ var ASK_ANSWER_FORMAT22 = {
 var WHEN222 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var SIGNUP_NAME_MIN22 = 2;
 var SIGNUP_NAME_MAX22 = 120;
-var InviteCodeSchema22 = z922.string().trim().max(80);
-var SignupSchema22 = z922.object({
-  name: z922.string().trim().min(SIGNUP_NAME_MIN22, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX22, "That name is too long \u2014 120 characters at most."),
-  email: z922.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+var InviteCodeSchema22 = z1022.string().trim().max(80);
+var SignupSchema22 = z1022.object({
+  name: z1022.string().trim().min(SIGNUP_NAME_MIN22, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX22, "That name is too long \u2014 120 characters at most."),
+  email: z1022.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -15866,17 +16023,17 @@ var SignupSchema22 = z922.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z922.string().max(200).optional(),
+  password: z1022.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z922.string().trim().min(1).max(64).optional(),
+  timezone: z1022.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
   code: InviteCodeSchema22.optional()
 }).strict();
-var PendingWorkspaceSchema22 = z922.object({
-  name: z922.string().trim().min(SIGNUP_NAME_MIN22).max(SIGNUP_NAME_MAX22),
+var PendingWorkspaceSchema22 = z1022.object({
+  name: z1022.string().trim().min(SIGNUP_NAME_MIN22).max(SIGNUP_NAME_MAX22),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z922.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone22(v) ? v : null)
+  timezone: z1022.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone22(v) ? v : null)
 });
 function isTimezone22(raw) {
   if (typeof raw !== "string" || !raw.trim()) return false;
@@ -15970,15 +16127,15 @@ var JUDGE_OUTPUT_SCHEMA22 = {
   required: ["places"],
   additionalProperties: false
 };
-var AnswerSchema22 = z1022.object({
-  places: z1022.array(
-    z1022.object({
-      ref: z1022.number().int(),
-      criteria: z1022.array(
-        z1022.object({ key: z1022.string(), answer: z1022.enum(["pass", "fail", "unknown"]), facts: z1022.array(z1022.string()) })
+var AnswerSchema22 = z1122.object({
+  places: z1122.array(
+    z1122.object({
+      ref: z1122.number().int(),
+      criteria: z1122.array(
+        z1122.object({ key: z1122.string(), answer: z1122.enum(["pass", "fail", "unknown"]), facts: z1122.array(z1122.string()) })
       ),
-      email_index: z1022.number().int().nullable(),
-      reason: z1022.string()
+      email_index: z1122.number().int().nullable(),
+      reason: z1122.string()
     })
   )
 });
@@ -16062,22 +16219,22 @@ var REACH_OUT_STEPS_MAX22 = 5;
 var REACH_OUT_NAME_MAX22 = 80;
 var SIGNED_BY_MAX22 = 60;
 var REACH_OUT_AFTER_DAYS22 = { min: 2, max: 30, first: 4 };
-var ReachOutStepSchema22 = z1122.object({
+var ReachOutStepSchema22 = z1222.object({
   /** An existing step's id, when the sheet edits a chain; none for a new one. */
-  id: z1122.string().uuid().nullable().optional(),
-  subject: z1122.string().max(REACH_OUT_SUBJECT_MAX22 * 2).nullable(),
-  body: z1122.string().max(REACH_OUT_BODY_MAX22 * 2),
-  after_days: z1122.number().int().min(REACH_OUT_AFTER_DAYS22.min).max(REACH_OUT_AFTER_DAYS22.max).nullable()
+  id: z1222.string().uuid().nullable().optional(),
+  subject: z1222.string().max(REACH_OUT_SUBJECT_MAX22 * 2).nullable(),
+  body: z1222.string().max(REACH_OUT_BODY_MAX22 * 2),
+  after_days: z1222.number().int().min(REACH_OUT_AFTER_DAYS22.min).max(REACH_OUT_AFTER_DAYS22.max).nullable()
 });
-var ReachOutChainSchema22 = z1122.object({
-  name: z1122.string().trim().min(1).max(REACH_OUT_NAME_MAX22),
-  search_id: z1122.string().uuid(),
-  include_unconfirmed: z1122.boolean(),
-  gap_minutes: z1122.number().int().min(5).max(120),
+var ReachOutChainSchema22 = z1222.object({
+  name: z1222.string().trim().min(1).max(REACH_OUT_NAME_MAX22),
+  search_id: z1222.string().uuid(),
+  include_unconfirmed: z1222.boolean(),
+  gap_minutes: z1222.number().int().min(5).max(120),
   /** Empty: every verified domain of the workspace (00183). */
-  domain_ids: z1122.array(z1122.string().uuid()).max(5),
-  signed_by: z1122.string().trim().max(SIGNED_BY_MAX22).nullable(),
-  steps: z1122.array(ReachOutStepSchema22).min(1).max(REACH_OUT_STEPS_MAX22)
+  domain_ids: z1222.array(z1222.string().uuid()).max(5),
+  signed_by: z1222.string().trim().max(SIGNED_BY_MAX22).nullable(),
+  steps: z1222.array(ReachOutStepSchema22).min(1).max(REACH_OUT_STEPS_MAX22)
 });
 var OPENING_FACT_KEYS22 = [
   "category",
@@ -16109,7 +16266,7 @@ var OPENING_SCHEMA22 = {
   required: ["opening", "angle", "facts_used"],
   additionalProperties: false
 };
-z132.config({ jitless: true });
+z142.config({ jitless: true });
 var LABEL32 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL32 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE32 = new RegExp(`^(${LOCAL32})@(${LABEL32}(?:\\.${LABEL32})+)$`);
@@ -18119,6 +18276,22 @@ var AskProposalOutcomeSchema32 = z832.object({
   atMs: z832.number().catch(0),
   undo: z832.record(z832.string(), z832.unknown()).nullable().optional()
 });
+var ASK_SCOPE_KINDS32 = ["thread", "conversation", "call", "person", "page", "lead", "search", "run"];
+var ASK_SURFACES32 = [
+  "today",
+  "inbox",
+  "people",
+  "leads",
+  "conversations",
+  "live",
+  "reports",
+  "settings",
+  "pipeline",
+  "calendar",
+  "campaigns",
+  "start",
+  "other"
+];
 var AskSettingsChangeSchema32 = z832.discriminatedUnion("op", [
   z832.object({
     op: z832.literal("add_closure"),
@@ -18139,6 +18312,28 @@ var AskSettingsChangeSchema32 = z832.discriminatedUnion("op", [
     duration_min: z832.number().int().min(1).max(1440).optional()
   })
 ]);
+var ASK_CONTEXT_MAX_ROWS32 = 40;
+var ASK_CONTEXT_ROW_KINDS32 = [
+  "thread",
+  "conversation",
+  "call",
+  "person",
+  "lead",
+  "search",
+  "run",
+  "playbook",
+  "template"
+];
+var Id32 = z932.string().min(1).max(120);
+var PageContextSchema32 = z932.object({
+  v: z932.literal(1),
+  surface: z932.enum(ASK_SURFACES32),
+  route: z932.string().max(200),
+  view: z932.string().max(80).nullish(),
+  focus: z932.object({ kind: z932.enum(ASK_SCOPE_KINDS32), id: Id32, label: z932.string().max(80) }).strict().nullish(),
+  rows: z932.array(z932.object({ kind: z932.enum(ASK_CONTEXT_ROW_KINDS32), id: Id32 }).strict()).max(ASK_CONTEXT_MAX_ROWS32),
+  askedAt: z932.number().int().nonnegative()
+}).strict();
 var ASK_ANSWER_CAPS32 = {
   headline: 160,
   detail: 700,
@@ -18291,10 +18486,10 @@ var ASK_ANSWER_FORMAT32 = {
 var WHEN232 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var SIGNUP_NAME_MIN32 = 2;
 var SIGNUP_NAME_MAX32 = 120;
-var InviteCodeSchema32 = z932.string().trim().max(80);
-var SignupSchema32 = z932.object({
-  name: z932.string().trim().min(SIGNUP_NAME_MIN32, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX32, "That name is too long \u2014 120 characters at most."),
-  email: z932.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+var InviteCodeSchema32 = z1032.string().trim().max(80);
+var SignupSchema32 = z1032.object({
+  name: z1032.string().trim().min(SIGNUP_NAME_MIN32, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX32, "That name is too long \u2014 120 characters at most."),
+  email: z1032.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -18308,17 +18503,17 @@ var SignupSchema32 = z932.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z932.string().max(200).optional(),
+  password: z1032.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z932.string().trim().min(1).max(64).optional(),
+  timezone: z1032.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
   code: InviteCodeSchema32.optional()
 }).strict();
-var PendingWorkspaceSchema32 = z932.object({
-  name: z932.string().trim().min(SIGNUP_NAME_MIN32).max(SIGNUP_NAME_MAX32),
+var PendingWorkspaceSchema32 = z1032.object({
+  name: z1032.string().trim().min(SIGNUP_NAME_MIN32).max(SIGNUP_NAME_MAX32),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z932.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone32(v) ? v : null)
+  timezone: z1032.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone32(v) ? v : null)
 });
 function isTimezone32(raw) {
   if (typeof raw !== "string" || !raw.trim()) return false;
@@ -18402,15 +18597,15 @@ var JUDGE_OUTPUT_SCHEMA32 = {
   required: ["places"],
   additionalProperties: false
 };
-var AnswerSchema32 = z1032.object({
-  places: z1032.array(
-    z1032.object({
-      ref: z1032.number().int(),
-      criteria: z1032.array(
-        z1032.object({ key: z1032.string(), answer: z1032.enum(["pass", "fail", "unknown"]), facts: z1032.array(z1032.string()) })
+var AnswerSchema32 = z1132.object({
+  places: z1132.array(
+    z1132.object({
+      ref: z1132.number().int(),
+      criteria: z1132.array(
+        z1132.object({ key: z1132.string(), answer: z1132.enum(["pass", "fail", "unknown"]), facts: z1132.array(z1132.string()) })
       ),
-      email_index: z1032.number().int().nullable(),
-      reason: z1032.string()
+      email_index: z1132.number().int().nullable(),
+      reason: z1132.string()
     })
   )
 });
@@ -18489,22 +18684,22 @@ var REACH_OUT_STEPS_MAX32 = 5;
 var REACH_OUT_NAME_MAX32 = 80;
 var SIGNED_BY_MAX32 = 60;
 var REACH_OUT_AFTER_DAYS32 = { min: 2, max: 30, first: 4 };
-var ReachOutStepSchema32 = z1132.object({
+var ReachOutStepSchema32 = z1232.object({
   /** An existing step's id, when the sheet edits a chain; none for a new one. */
-  id: z1132.string().uuid().nullable().optional(),
-  subject: z1132.string().max(REACH_OUT_SUBJECT_MAX32 * 2).nullable(),
-  body: z1132.string().max(REACH_OUT_BODY_MAX32 * 2),
-  after_days: z1132.number().int().min(REACH_OUT_AFTER_DAYS32.min).max(REACH_OUT_AFTER_DAYS32.max).nullable()
+  id: z1232.string().uuid().nullable().optional(),
+  subject: z1232.string().max(REACH_OUT_SUBJECT_MAX32 * 2).nullable(),
+  body: z1232.string().max(REACH_OUT_BODY_MAX32 * 2),
+  after_days: z1232.number().int().min(REACH_OUT_AFTER_DAYS32.min).max(REACH_OUT_AFTER_DAYS32.max).nullable()
 });
-var ReachOutChainSchema32 = z1132.object({
-  name: z1132.string().trim().min(1).max(REACH_OUT_NAME_MAX32),
-  search_id: z1132.string().uuid(),
-  include_unconfirmed: z1132.boolean(),
-  gap_minutes: z1132.number().int().min(5).max(120),
+var ReachOutChainSchema32 = z1232.object({
+  name: z1232.string().trim().min(1).max(REACH_OUT_NAME_MAX32),
+  search_id: z1232.string().uuid(),
+  include_unconfirmed: z1232.boolean(),
+  gap_minutes: z1232.number().int().min(5).max(120),
   /** Empty: every verified domain of the workspace (00183). */
-  domain_ids: z1132.array(z1132.string().uuid()).max(5),
-  signed_by: z1132.string().trim().max(SIGNED_BY_MAX32).nullable(),
-  steps: z1132.array(ReachOutStepSchema32).min(1).max(REACH_OUT_STEPS_MAX32)
+  domain_ids: z1232.array(z1232.string().uuid()).max(5),
+  signed_by: z1232.string().trim().max(SIGNED_BY_MAX32).nullable(),
+  steps: z1232.array(ReachOutStepSchema32).min(1).max(REACH_OUT_STEPS_MAX32)
 });
 var OPENING_FACT_KEYS32 = [
   "category",
@@ -19211,7 +19406,7 @@ var STALE_MS = 10 * 60 * 1e3;
 var STALE_REPLY_MS = 2 * 60 * 60 * 1e3;
 
 // ../db/dist/index.js
-import { z as z14 } from "zod";
+import { z as z15 } from "zod";
 import { z as z24 } from "zod";
 import { z as z34 } from "zod";
 import { z as z44 } from "zod";
@@ -19222,7 +19417,8 @@ import { z as z84 } from "zod";
 import { z as z94 } from "zod";
 import { z as z104 } from "zod";
 import { z as z114 } from "zod";
-z14.config({ jitless: true });
+import { z as z124 } from "zod";
+z15.config({ jitless: true });
 function normalizePhone(raw) {
   if (raw == null) return null;
   const digits2 = String(raw).replace(/[^\d]/g, "");
@@ -21240,6 +21436,22 @@ var AskProposalOutcomeSchema4 = z84.object({
   atMs: z84.number().catch(0),
   undo: z84.record(z84.string(), z84.unknown()).nullable().optional()
 });
+var ASK_SCOPE_KINDS4 = ["thread", "conversation", "call", "person", "page", "lead", "search", "run"];
+var ASK_SURFACES4 = [
+  "today",
+  "inbox",
+  "people",
+  "leads",
+  "conversations",
+  "live",
+  "reports",
+  "settings",
+  "pipeline",
+  "calendar",
+  "campaigns",
+  "start",
+  "other"
+];
 var AskSettingsChangeSchema4 = z84.discriminatedUnion("op", [
   z84.object({
     op: z84.literal("add_closure"),
@@ -21260,6 +21472,28 @@ var AskSettingsChangeSchema4 = z84.discriminatedUnion("op", [
     duration_min: z84.number().int().min(1).max(1440).optional()
   })
 ]);
+var ASK_CONTEXT_MAX_ROWS4 = 40;
+var ASK_CONTEXT_ROW_KINDS4 = [
+  "thread",
+  "conversation",
+  "call",
+  "person",
+  "lead",
+  "search",
+  "run",
+  "playbook",
+  "template"
+];
+var Id4 = z94.string().min(1).max(120);
+var PageContextSchema4 = z94.object({
+  v: z94.literal(1),
+  surface: z94.enum(ASK_SURFACES4),
+  route: z94.string().max(200),
+  view: z94.string().max(80).nullish(),
+  focus: z94.object({ kind: z94.enum(ASK_SCOPE_KINDS4), id: Id4, label: z94.string().max(80) }).strict().nullish(),
+  rows: z94.array(z94.object({ kind: z94.enum(ASK_CONTEXT_ROW_KINDS4), id: Id4 }).strict()).max(ASK_CONTEXT_MAX_ROWS4),
+  askedAt: z94.number().int().nonnegative()
+}).strict();
 var ASK_ANSWER_CAPS4 = {
   headline: 160,
   detail: 700,
@@ -21412,10 +21646,10 @@ var ASK_ANSWER_FORMAT4 = {
 var WHEN24 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var SIGNUP_NAME_MIN4 = 2;
 var SIGNUP_NAME_MAX4 = 120;
-var InviteCodeSchema4 = z94.string().trim().max(80);
-var SignupSchema4 = z94.object({
-  name: z94.string().trim().min(SIGNUP_NAME_MIN4, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX4, "That name is too long \u2014 120 characters at most."),
-  email: z94.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+var InviteCodeSchema4 = z104.string().trim().max(80);
+var SignupSchema4 = z104.object({
+  name: z104.string().trim().min(SIGNUP_NAME_MIN4, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX4, "That name is too long \u2014 120 characters at most."),
+  email: z104.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -21429,17 +21663,17 @@ var SignupSchema4 = z94.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z94.string().max(200).optional(),
+  password: z104.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z94.string().trim().min(1).max(64).optional(),
+  timezone: z104.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
   code: InviteCodeSchema4.optional()
 }).strict();
-var PendingWorkspaceSchema4 = z94.object({
-  name: z94.string().trim().min(SIGNUP_NAME_MIN4).max(SIGNUP_NAME_MAX4),
+var PendingWorkspaceSchema4 = z104.object({
+  name: z104.string().trim().min(SIGNUP_NAME_MIN4).max(SIGNUP_NAME_MAX4),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z94.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone4(v) ? v : null)
+  timezone: z104.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone4(v) ? v : null)
 });
 function isTimezone4(raw) {
   if (typeof raw !== "string" || !raw.trim()) return false;
@@ -21523,15 +21757,15 @@ var JUDGE_OUTPUT_SCHEMA4 = {
   required: ["places"],
   additionalProperties: false
 };
-var AnswerSchema4 = z104.object({
-  places: z104.array(
-    z104.object({
-      ref: z104.number().int(),
-      criteria: z104.array(
-        z104.object({ key: z104.string(), answer: z104.enum(["pass", "fail", "unknown"]), facts: z104.array(z104.string()) })
+var AnswerSchema4 = z114.object({
+  places: z114.array(
+    z114.object({
+      ref: z114.number().int(),
+      criteria: z114.array(
+        z114.object({ key: z114.string(), answer: z114.enum(["pass", "fail", "unknown"]), facts: z114.array(z114.string()) })
       ),
-      email_index: z104.number().int().nullable(),
-      reason: z104.string()
+      email_index: z114.number().int().nullable(),
+      reason: z114.string()
     })
   )
 });
@@ -21610,22 +21844,22 @@ var REACH_OUT_STEPS_MAX4 = 5;
 var REACH_OUT_NAME_MAX4 = 80;
 var SIGNED_BY_MAX4 = 60;
 var REACH_OUT_AFTER_DAYS4 = { min: 2, max: 30, first: 4 };
-var ReachOutStepSchema4 = z114.object({
+var ReachOutStepSchema4 = z124.object({
   /** An existing step's id, when the sheet edits a chain; none for a new one. */
-  id: z114.string().uuid().nullable().optional(),
-  subject: z114.string().max(REACH_OUT_SUBJECT_MAX4 * 2).nullable(),
-  body: z114.string().max(REACH_OUT_BODY_MAX4 * 2),
-  after_days: z114.number().int().min(REACH_OUT_AFTER_DAYS4.min).max(REACH_OUT_AFTER_DAYS4.max).nullable()
+  id: z124.string().uuid().nullable().optional(),
+  subject: z124.string().max(REACH_OUT_SUBJECT_MAX4 * 2).nullable(),
+  body: z124.string().max(REACH_OUT_BODY_MAX4 * 2),
+  after_days: z124.number().int().min(REACH_OUT_AFTER_DAYS4.min).max(REACH_OUT_AFTER_DAYS4.max).nullable()
 });
-var ReachOutChainSchema4 = z114.object({
-  name: z114.string().trim().min(1).max(REACH_OUT_NAME_MAX4),
-  search_id: z114.string().uuid(),
-  include_unconfirmed: z114.boolean(),
-  gap_minutes: z114.number().int().min(5).max(120),
+var ReachOutChainSchema4 = z124.object({
+  name: z124.string().trim().min(1).max(REACH_OUT_NAME_MAX4),
+  search_id: z124.string().uuid(),
+  include_unconfirmed: z124.boolean(),
+  gap_minutes: z124.number().int().min(5).max(120),
   /** Empty: every verified domain of the workspace (00183). */
-  domain_ids: z114.array(z114.string().uuid()).max(5),
-  signed_by: z114.string().trim().max(SIGNED_BY_MAX4).nullable(),
-  steps: z114.array(ReachOutStepSchema4).min(1).max(REACH_OUT_STEPS_MAX4)
+  domain_ids: z124.array(z124.string().uuid()).max(5),
+  signed_by: z124.string().trim().max(SIGNED_BY_MAX4).nullable(),
+  steps: z124.array(ReachOutStepSchema4).min(1).max(REACH_OUT_STEPS_MAX4)
 });
 var OPENING_FACT_KEYS4 = [
   "category",

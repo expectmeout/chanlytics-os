@@ -82,15 +82,21 @@ export interface PaletteGlobals {
 
 const LAST_LANGUAGE_KEY = "chanlytics:ask:lang";
 
-/** Where the person is, from the route. Leads is the People page's `leads` param (clients/leads, clients/leads:s-<id>). */
+/**
+ * Where the person is, from the route. Leads and the Pipeline are People's `leads` and `pipeline` params
+ * (clients/leads:s-<id>, clients/pipeline:v-<view>); the three campaign pages are one surface; Settings is admin.
+ */
 export function surfaceFor(page: string, param?: string | null): AskSurface {
   if (page === "clients" && typeof param === "string" && param.startsWith("leads")) return "leads";
+  if (page === "clients" && typeof param === "string" && param.startsWith("pipeline")) return "pipeline";
   switch (page) {
     case "today":
       return "today";
     case "inbox":
       return "inbox";
+    // People, and People › Lists (surface-registry.ts): People's own page of lists.
     case "clients":
+    case "segments":
       return "people";
     case "conversations":
       return "conversations";
@@ -100,6 +106,14 @@ export function surfaceFor(page: string, param?: string | null): AskSurface {
       return "reports";
     case "admin":
       return "settings";
+    case "calendar":
+      return "calendar";
+    case "outbound":
+    case "broadcasts":
+    case "messages":
+      return "campaigns";
+    case "start":
+      return "start";
     default:
       return "other";
   }

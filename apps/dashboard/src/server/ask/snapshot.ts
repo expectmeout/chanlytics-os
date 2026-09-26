@@ -298,13 +298,17 @@ export async function buildSnapshot(t: ToolContext, timezone: string, scope: Ask
   });
 
   let scoped: unknown = null;
-  if (scope && scope.kind !== "page") {
-    const run =
-      scope.kind === "call"
-        ? { name: "get_call", input: { call_id: scope.id } }
-        : scope.kind === "person"
-          ? { name: "get_person", input: { contact_id: scope.id } }
-          : { name: "get_thread", input: { conversation_id: scope.id, more: false } };
+  // A row a tool reads rides along; a lead, a search or a run (scope kinds a page opens, read by no tool until Phase 4)
+  // and a page do not -- the scope's line in the turn names them.
+  const run =
+    scope?.kind === "call"
+      ? { name: "get_call", input: { call_id: scope.id } }
+      : scope?.kind === "person"
+        ? { name: "get_person", input: { contact_id: scope.id } }
+        : scope?.kind === "thread" || scope?.kind === "conversation"
+          ? { name: "get_thread", input: { conversation_id: scope.id, more: false } }
+          : null;
+  if (run) {
     const out = await runTool(t, run);
     if (!out.isError) {
       try {

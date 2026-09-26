@@ -163,14 +163,19 @@ test("the question about proposals is offered only where deals are a thing (0004
   );
 });
 
-test("the surfaces are one list, Leads among them, and a scope's kinds are a citation's: the route and the prompt read the same names", () => {
+test("the surfaces are one list, Leads among them, and a scope may be any kind a citation names, and the rows a page opens: the route and the prompt read the same names", () => {
   assert.ok(ASK_SURFACES.includes("leads"), "Leads is a page Ask knows it is on");
   assert.ok(ASK_SURFACES.includes("people") && ASK_SURFACES.includes("other"));
   assert.equal(new Set(ASK_SURFACES).size, ASK_SURFACES.length, "each said once");
   assert.deepEqual(
-    [...ASK_SCOPE_KINDS],
-    [...ASK_CITATION_KINDS],
+    ASK_CITATION_KINDS.filter((k) => !ASK_SCOPE_KINDS.includes(k)),
+    [],
     "a scope may have the five kinds a citation may name",
+  );
+  assert.deepEqual(
+    ASK_SCOPE_KINDS.filter((k) => !ASK_CITATION_KINDS.includes(k)),
+    ["lead", "search", "run"],
+    "and the rows a page opens that no citation names until Phase 4",
   );
 });
 
@@ -276,6 +281,22 @@ test("the prompt on Leads: the page is named and words that describe businesses 
   assert.ok(people.includes("They are on the people page."));
   assert.ok(!people.includes("propose_lead_search"), "People is not the finder");
   assert.ok(!turnSystem({ ...facts, surface: null }).includes("They are on the"), "no surface, no line");
+  assert.ok(
+    turnSystem({ ...facts, surface: "pipeline" }).includes("They are on the pipeline page."),
+    "a new surface, named",
+  );
+  // A row a page opens that no tool reads by its id (a lead, a run) is never one the model is sent to read.
+  const on = (kind) => turnSystem({ ...facts, surface: "leads", scope: { kind, id: "x1", label: `this ${kind}` } });
+  for (const kind of ["lead", "run"]) {
+    assert.ok(on(kind).includes("No tool reads it by its id yet"), kind);
+    assert.ok(!on(kind).includes("Read it before answering about it."), kind);
+  }
+  for (const kind of ["thread", "call", "person"])
+    assert.ok(on(kind).includes("Read it before answering about it."), kind);
+  assert.ok(
+    on("search").includes("Read list_lead_searches, which lists it by that id"),
+    "a search is found in its list",
+  );
 });
 
 test("the three quick questions are told by their words; the answers are ask-answer.ts's (ask-answer.test.mjs)", () => {

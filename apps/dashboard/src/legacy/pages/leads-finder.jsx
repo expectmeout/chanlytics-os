@@ -160,7 +160,10 @@ const leadAnswerPlan = async (words, set) => {
   // The owner's words are the turn, in the thread the search was planned in when it keeps one; the route reads the
   // search and tells the model which one and what it asked (server/ask/prompt.ts askTurnText), and falls back to a
   // thread of the owner's own when that one is not theirs.
-  const turn = { text: String(words || "").trim(), threadId: answering.threadId || null, answering: { searchId: answering.searchId }, scope: null, surface: "leads" };
+  // The Leads page as it stands, sent beside the answer (legacy-bridge/ask/context.ts).
+  let context = null;
+  try { context = A.context ? A.context({ page: "clients", param: ((window.location.hash || "").replace(/^#\/?clients\/?/, "") || "leads") }) : null; } catch (e) { context = null; }
+  const turn = { text: String(words || "").trim(), threadId: answering.threadId || null, answering: { searchId: answering.searchId }, scope: null, surface: "leads", ...(context ? { context } : {}) };
   await A.send(turn, (ev) => {
     if (!ev || !ev.t) return;
     if (ev.t === "trace") set.trace(ev.text);

@@ -3987,3 +3987,18 @@ test("a read the page tolerates, Ask tolerates as the page does and says so: a f
   );
   assert.equal(noTemplates.lines.length, 1, "said once in the log");
 });
+
+test("a lead, a search or a run in scope rides along nothing (the Phase 2 plan, PR 2.1): no tool reads them until Phase 4, so the snapshot asks none -- it read a thread by the lead's id before", async () => {
+  const X = "77777777-7777-4777-8777-777777777777";
+  for (const kind of ["lead", "search", "run"]) {
+    const ctx = ctxFor(tables({}));
+    const tc = newToolContext(ctx, A, "owner", TZ, NOW);
+    const snap = await buildSnapshot(tc, TZ, { kind, id: X, label: `this ${kind}` });
+    assert.equal(snap.scoped, null, kind);
+    assert.ok(!JSON.stringify(ctx.supabase.seen).includes(X), `nothing read by the ${kind}'s id`);
+  }
+  // A thread still rides along, as before.
+  const ctx = ctxFor(tables({}));
+  await buildSnapshot(newToolContext(ctx, A, "owner", TZ, NOW), TZ, { kind: "thread", id: X, label: "Rosa" });
+  assert.ok(JSON.stringify(ctx.supabase.seen).includes(X), "a thread in scope is read");
+});

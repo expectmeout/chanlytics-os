@@ -21,6 +21,7 @@ import {
   type AskProposal,
   type AskScope,
   type AskTurnShape,
+  type PageContext,
 } from "@chanlytics/contracts";
 import type { RouteContext } from "../with-route";
 import type { ReaderContext } from "../readers";
@@ -89,6 +90,11 @@ export interface TurnInput {
   openedMs?: number | null;
   /** How long after the thread's previous turn this question came; null on a thread's first. */
   sinceLastMs?: number | null;
+  /**
+   * The page the question was asked on, as the tab sent it and the route read it (contracts PageContext); null from an
+   * older tab, a script, or a context the route refused. Carried, and only its size recorded, until the turn reads it.
+   */
+  context?: PageContext | null;
   emit: (ev: TurnEvent) => void;
   now?: Date;
   /** The route's reader context, so the turn's reads share its cache; a test may omit it. */
@@ -296,6 +302,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       follow_up: input.history.length > 0,
       since_last_ms: input.sinceLastMs ?? null,
       opened_ms: input.openedMs ?? null,
+      context_rows: input.context ? input.context.rows.length : null,
       snapshot_ms: snapshotMs,
       prefetched: plan.map((p) => p.name),
       rounds: r.rounds,
