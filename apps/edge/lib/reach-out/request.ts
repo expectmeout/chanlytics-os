@@ -3,8 +3,13 @@
  * words with the lead's values in, the workspace's own domain as From and its mailbox's reply route as Reply-To (so a
  * reply lands in the Inbox), the foot the law asks for, and the one-click unsubscribe sealed for this person and this
  * email. A step after the first answers the email before it: "Re:" and its Message-ID, so the nudge reads as the same
- * thread (D19). Pure over its inputs; the sender (sender.ts) reads them.
+ * thread (D19). Pure over its inputs; the sender (sender.ts) reads them, and so does the sheet's preview (preview.ts),
+ * so a preview holds what a send holds.
+ *
+ * The six slots (Part 4) are filled with their real values: the lead's name and city, the workspace's name, the name
+ * the chain signs with, the workspace's booking link, and the opening the check wrote for this send.
  */
+import { createHash } from "node:crypto";
 import {
   buildEmailRequest,
   ownDomainIdentity,
@@ -13,7 +18,17 @@ import {
   type EmailParent,
   type EmailRequest,
 } from "../packages/channels.js";
-import { campaignFooter, campaignFooterHtml, reachOutSlots, whyFrom, type SlotLead } from "../packages/contracts.js";
+import {
+  campaignFooter,
+  campaignFooterHtml,
+  isReachOutSlot,
+  reachOutSlots,
+  slotCount,
+  slotsNamed,
+  whyFrom,
+  type SlotLead,
+  type SlotWorkspace,
+} from "../packages/contracts.js";
 
 export interface RequestInput {
   tenantId: string;
@@ -25,7 +40,10 @@ export interface RequestInput {
   /** The step's words: its template's heading (the subject) and body. */
   words: { subject: string | null; body: string };
   lead: { business_name: string | null; city: string | null };
-  workspace: { businessName: string | null; address: string | null };
+  /** The workspace's slots, and the address its foot names. */
+  workspace: Required<SlotWorkspace> & { address: string | null };
+  /** The opening the check wrote for this send; null when it has none. */
+  opening: string | null;
   domain: { host: string; from_local: string; from_name: string };
   mailbox: { reply_token: string };
   /** The domain its replies come back on: the mail domain, or the cold reply domain when it is set (D17). */
@@ -35,40 +53,67 @@ export interface RequestInput {
   parent: EmailParent | null;
 }
 
-/** Why a step's words cannot become this lead's: the step's (no subject, a slot no lead could fill) or the lead's. */
-export type WordsRefusal = "unknown_slot" | "no_subject" | "missing_value";
+/**
+ * Why a step's words cannot become this lead's email:
+ *   - the step's own (unknown_slot, no_subject) and the workspace's (no_signed_by, no_booking_link): the sender holds
+ *     the send and the lead keeps its place (R6), since its owner can fix them;
+ *   - no_opening: the words name {{opening}} and this send has none, so it goes back to be checked (R5);
+ *   - missing_value: this lead has no value for a slot ({{city}} for a lead with none), and this send alone is skipped.
+ */
+export type WordsRefusal =
+  "unknown_slot" | "no_subject" | "no_signed_by" | "no_booking_link" | "no_opening" | "missing_value";
 export type RequestRefusal = WordsRefusal | "no_business_address" | "words_unsendable";
 
-/** Every slot a step may name, each with a value: what tells a slot no lead could fill from one this lead cannot. */
-const EVERY_SLOT = { lead: { business_name: "x", city: "x" }, workspace: { businessName: "x" } };
-
 /**
- * A step's words with this lead's values in. The step's own faults come first, and are the step's to fix (the sender
- * holds its sends): a first email with no subject, or a slot no lead could fill ({{first name}}). Then the lead's: a
- * slot it has no value for ({{city}} for a lead with none) holds this email and no other. A step after the first
- * answers the email before it, so its own heading is never read (D19).
+ * A step's words with this send's values in. The step's own faults come first: a first email with no subject, or a
+ * {{…}} that is none of the six (contracts' one slot rule). Then the workspace's: words that name the name it signs
+ * with, or its booking link, when it has none. Then this send's opening, and last the lead's own values. A step after
+ * the first answers the email before it, so its own heading is never read (D19).
  */
 export function reachOutWords(
   words: { subject: string | null; body: string },
   lead: SlotLead,
-  workspace: { businessName: string | null },
+  workspace: SlotWorkspace,
   answers: boolean,
+  opening: string | null,
 ): { ok: true; subject: string | null; body: string } | { ok: false; reason: WordsRefusal } {
   const subject = answers ? null : (words.subject ?? "");
-  for (const text of [subject, words.body])
-    if (text !== null && !reachOutSlots(text, EVERY_SLOT.lead, EVERY_SLOT.workspace).ok)
-      return { ok: false, reason: "unknown_slot" };
+  const texts = subject === null ? [words.body] : [subject, words.body];
+  for (const text of texts) {
+    const named = slotsNamed(text);
+    if (named.stray || named.names.some((k) => !isReachOutSlot(k))) return { ok: false, reason: "unknown_slot" };
+  }
   if (subject !== null && !subject.trim()) return { ok: false, reason: "no_subject" };
-  const s = subject === null ? null : reachOutSlots(subject, lead, workspace);
-  const b = reachOutSlots(words.body, lead, workspace);
+  const said = texts.join("\n");
+  if (slotCount(said, "your name") > 0 && !workspace.yourName?.trim()) return { ok: false, reason: "no_signed_by" };
+  if (slotCount(said, "booking link") > 0 && !workspace.bookingLink?.trim())
+    return { ok: false, reason: "no_booking_link" };
+  if (slotCount(said, "opening") > 0 && !opening?.trim()) return { ok: false, reason: "no_opening" };
+  const s = subject === null ? null : reachOutSlots(subject, lead, workspace, opening);
+  const b = reachOutSlots(words.body, lead, workspace, opening);
   if ((s && !s.ok) || !b.ok) return { ok: false, reason: "missing_value" };
   return { ok: true, subject: s ? s.text : null, body: b.text };
+}
+
+/**
+ * The words a send was checked against (R5), as one short mark: its step's words, the name its chain signs with, and
+ * whether the workspace has a booking link. The check stamps it on the send; the sender compares it with the words as
+ * they stand, and a send whose words changed since goes back to be checked.
+ */
+export function checkedWordsOf(
+  words: { subject: string | null; body: string },
+  signedBy: string | null,
+  hasBookingLink: boolean,
+): string {
+  return createHash("sha256")
+    .update(JSON.stringify([words.subject ?? null, words.body, signedBy?.trim() || null, hasBookingLink]))
+    .digest("hex");
 }
 
 export function reachOutRequest(
   i: RequestInput,
 ): { ok: true; request: EmailRequest; subject: string; body: string } | { ok: false; reason: RequestRefusal } {
-  const words = reachOutWords(i.words, i.lead, i.workspace, i.parent !== null);
+  const words = reachOutWords(i.words, i.lead, i.workspace, i.parent !== null, i.opening);
   if (!words.ok) return words;
   // The foot names who and where (CAN-SPAM): without both there is no email to send, only a refusal to say.
   const business = i.workspace.businessName?.trim() ?? "";

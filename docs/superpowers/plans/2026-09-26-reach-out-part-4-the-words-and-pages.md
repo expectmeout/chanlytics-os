@@ -1635,6 +1635,76 @@ Expected: lint at its baseline (0 errors), every suite green, `dist in sync with
 
 ## PR 2 — A send is checked before it goes (`reach-out-4b-checked`, 00189)
 
+> **As built (PRs 2 and 3 shipped together, as one PR, with migration 00190).** 00189 was taken on `main` by the phone
+> app, so the migration is `00190_a_send_is_checked_before_it_goes.sql`; PR 4's migration takes the next free number.
+> One migration carries the database and the edge together, so the claim never refuses unchecked sends before a clock
+> exists to check them. What departs from the task code below, and why:
+>
+> - **R1: the check is its own clock.** `apps/edge/api/cron/reach-out-check.ts` (the shape of `deadman.ts`), its own
+>   `sweep_status` row `reach_out_check` and cron job `reach-out-check-sweep` (every minute, 00190
+>   `trigger_reach_out_check_sweep`, scheduled as 00186 schedules the reach-out clock), `maxDuration` 60 in
+>   `vercel.json`, and every registry (`sweep-registry.db.test.mjs`, `sweep-health.integration.test.mjs`, S-09 in
+>   `system-prd.md`, the runbook). The reach-out clock keeps Part 3's shape; `checkPlanned`, `CHECK_YIELD_AT_MS` and
+>   `setReachOutModel` are gone. The work is `lib/reach-out/check.ts`'s `checkSends`. Each call has an `AbortSignal` of
+>   min(8 s, what is left before 50 s), `maxRetries: 0`, and the budget is asked before every call; none starts past
+>   40 s (`ops-hygiene.test.mjs` holds the numbers to the limit).
+> - **R2, R12: the gates, before any call.** `reach_out_unchecked(p_limit, p_per_workspace, p_ahead_minutes,
+>   p_tenant_id)` takes 40 a tick, 20 of a workspace, round-robin (`row_number()` over the workspace, by
+>   `coalesce(check_after, created_at)`), within two hours or in a run waiting for its owner. Then per workspace, in the
+>   edge: `workspaceMaySpend` (contracts `maySpend` over `billing_accounts`, and a paused workspace may not), room in
+>   the month (`reach_out_month_sent` under `REACH_OUT_MONTH_EMAILS`), and `REACH_OUT_CHECKS_PER_DAY` (400, contracts)
+>   counted by `checked_at` over the last 24 hours (a rolling day: no zone to disagree about). A gated send is handed
+>   back with `check_after` an hour on (`reach_out_check_gated`). With the cold lane unset nothing is checked, and a
+>   waiting send answers 503 `cold_lane_unset`, so the page the reach-out clock used to give still comes (its own
+>   due test now counts only checked sends).
+> - **R3: the lease.** `reach_out_unchecked` is plpgsql, volatile: it locks the picked rows `for update skip locked`,
+>   stamps `check_started_at`, passes over a lease younger than two minutes, and returns each row with its record
+>   (`reach_out_record`, which holds the listing counts and the domain test once) and its `check_gen`. Every write
+>   of the check (`recordCheck`) ends the lease.
+> - **R4: failures.** A thrown call, a deadline, no answer or no shape each fail the try: `check_tries` + 1,
+>   `check_first_at` kept, `check_after` 1, 2, 4, 8, then 15 minutes on. After `CHECK_GIVE_UP_MS` (60 min from
+>   `check_first_at`, a new column) the send is held `check_unavailable` with no detail (warn
+>   `reach_out_check_held`). Each tick first puts such holds left an hour back to planned at the next `check_gen`
+>   (`releaseUnavailableHolds`); a hold for a rule an opening broke keeps. `check_tries` allows 0–100. No
+>   `ANTHROPIC_API_KEY`: nothing is touched (not even leased), `reach_out_check_unset`, and 503 `check_unset` while a
+>   send waits. A tick in which every call failed answers 503 `model_unavailable`. The notice R20 asks for on a first
+>   hold is PR 7's.
+> - **R5: the words' version.** Columns `check_gen int` and `checked_words text` (≤ 64: a SHA-256 of the step's
+>   subject and body, the root's `signed_by` and whether the workspace has a booking link, `request.ts`
+>   `checkedWordsOf`). `recordCheck` writes only where `state = 'planned'`, `checked_at is null` and `check_gen` is
+>   what was read. The sender compares the stamp with the words as they stand; changed, or `{{opening}}` named with
+>   no opening (`reachOutWords`' new `no_opening`), sends the claimed send back to planned and unchecked at
+>   `check_gen + 1` (`checkResetPatch`, counted `rechecked`), never to `missing_value`.
+> - **R6.** `no_signed_by` and `no_booking_link` are `reachOutWords`' own refusals and join the sender's `HOLDS`.
+>   `EVERY_SLOT`'s `"x"` stubs are gone: the step's own fault is contracts' one slot rule (`slotsNamed`,
+>   `isReachOutSlot`), then the workspace's, the send's opening, and the lead's values last, all filled by
+>   `reachOutSlots` with the real values (the root's `signed_by` through `sendStanding`, `brain.booking_link`, the
+>   send's `opening`).
+> - **R7.** `included_for text[]` (a subset of `REACH_OUT_HOLDS`, a CHECK). `reach_out_unchecked` returns the union of
+>   `included_for` over the chain's sends to the same lead, so a later step's send inherits it; `checkOne` never makes
+>   a hold that is in it (the code holds and the opening's verdict alike). A reset keeps it.
+> - **R8.** 00190 re-creates 00187's `reach_out_due_domains` with `s.checked_at is not null`, so the cold-lane due
+>   test in `api/cron/reach-out.ts` counts only checked sends, and `trigger_reach_out_sweep`'s due test does too.
+> - **R9.** The four-argument `reach_out_audience` stays as a wrapper over the new one (confirmed addresses); the edge
+>   calls the new signature. `database.types.ts` carries the two as an overload.
+> - **R10.** `reach_out_held_stale` reads `created_at`, and the reach-out clock gives a hold up `kept_waiting` at
+>   `replan.ts`'s `REPLAN_GIVE_UP_MS` (the same fourteen days). The hold's index is on `created_at`.
+> - **R11.** The JSON-model transport is `apps/edge/lib/model.ts` (`askJson`, with a signal, a timeout and the
+>   retries a caller allows); the notes sweep keeps its 20 s and one retry through it. The preview
+>   (`lib/reach-out/preview.ts`, door `api/admin/reach-out-preview.ts`, audience `"/api/admin/reach-out-preview"`)
+>   assembles its email through `reachOutRequest` over stand-in identities (`preview.invalid`, a one-off seal),
+>   caps `index` at 199, takes the step's `language` (`template_language`) in its body, returns `refused` (the
+>   sender's reason) and `unavailable` (the model could not answer), and has 30 s (calls stop at 20 s). It previews
+>   a first step only. `check.ts` imports `WrittenOpening`.
+> - **Held give-up in the reach-out clock** (Task 3.3 Step 4), after its restale; the trigger wakes the clock for a
+>   hold two weeks old, and counts a held send as open in a canceled run and in a run to finish.
+> - **Generated files by hand.** No local stack could run in the container that built this PR (image pulls blocked),
+>   so `schema-sets.generated.ts` and `database.types.ts` were written to what the generators emit (the overload in
+>   the order `@supabase/postgrest-typegen` sorts by argument types), and the database suites
+>   (`reach-out-checked.db.test.mjs`, new, and the Part 3 suites, whose sends are now planned checked and whose extra
+>   chains now each have a search of their own) were written without a run. The Database workflow replays and runs
+>   them.
+
 The database side of F1, F3, F8, F9 and F10. Nothing checks yet: PR 3's clock phase does. The claim already refuses what is unchecked, and no chain exists on production, so no send waits on it (read back with the migration).
 
 ### Task 2.1: The migration
@@ -2197,6 +2267,10 @@ Expected: before the fixes, the claims fail with "claimed only once it is checke
 ---
 
 ## PR 3 — The check on the edge (`reach-out-4c-the-check`)
+
+> **As built:** shipped together with PR 2, as one PR with migration 00190. Its departures from the task code below
+> (the check as its own clock, the lease, the failures' backoff, the words' version, the gates, the transport, the
+> preview's assembly) are listed under PR 2's heading.
 
 The clock checks every planned send before it claims one (F1, F2). The sender fills the three new slots. The sheet's preview asks the same check for one business (F12). No migration.
 
