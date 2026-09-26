@@ -2461,6 +2461,11 @@ var K = new Uint32Array([
   3329325298
 ]);
 var NAME_MAX = BrainConfigSchema.shape.business_name.maxLength ?? Infinity;
+function isCampaignEmail(request) {
+  const headers = request?.headers;
+  const v = headers?.["List-Unsubscribe"];
+  return typeof v === "string" && v.trim() !== "";
+}
 
 // ../channels/dist/index.js
 import { z as z11 } from "zod";
@@ -15427,6 +15432,11 @@ var K22 = new Uint32Array([
   3329325298
 ]);
 var NAME_MAX22 = BrainConfigSchema22.shape.business_name.maxLength ?? Infinity;
+function isCampaignEmail2(request) {
+  const headers = request?.headers;
+  const v = headers?.["List-Unsubscribe"];
+  return typeof v === "string" && v.trim() !== "";
+}
 z122.config({ jitless: true });
 var LABEL32 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL32 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
@@ -17745,8 +17755,8 @@ var NEG_TTL_MS = 60 * 1e3;
 var DAY_MS222 = 24 * 3600 * 1e3;
 var CALL_CONTROL_S = 15 * 60;
 function kindOf(d) {
-  if (d.kind) return d.kind;
   if (d.purpose === "outreach") return "broadcast";
+  if (d.kind) return d.kind;
   if (d.sender === "human") return d.proactive ? "broadcast" : "reply";
   return d.messageId ? "draft" : "answer";
 }
@@ -18044,7 +18054,7 @@ async function sendQueued(ports, cmd) {
       `Tenant ${cmd.tenantId}, message ${p.message_id}. Credentials, not content.`
     );
   }
-  if (outreach) return;
+  if (channel === "email" && isCampaignEmail2(msg?.email)) return;
   const notConnected = channel === "sms" ? "the texting line is not connected" : channel === "whatsapp" ? "the WhatsApp number is not connected" : `the ${channel} channel is not connected`;
   const cause = out.reason === "no_credentials" ? notConnected : out.reason === "no_sender_for_channel" ? `this runtime has no ${channel} line` : out.reason === "wire_unreadable" ? "the thread could not be read at the wire" : limit === "daily" || limit === "monthly" ? "the mail provider's sending limit is used up for now" : limit === "rate" ? "the mail provider asked us to slow down" : limit === "in_flight" ? "the mail provider is still sending an earlier try of it; check the thread before sending it again" : (
     // Status 0 is no answer at all: the network failed, or the email wire refused a request it will not send
@@ -21181,9 +21191,13 @@ async function settleJob(db, job, certain) {
   if (job.kind === "outbound_send") {
     const messageId = idFrom(job.payload, "message_id");
     if (!messageId) return [{ what: "message", changed: false, error: "no message_id on the job" }];
-    const { data, error } = await db.from("messages").update({ status: "failed", error: { reason, note: certain ? NEVER_SENT : MAY_HAVE_SENT } }).eq("id", messageId).eq("tenant_id", job.tenant_id).eq("status", "queued").select("id, conversation_id, sender");
+    const { data, error } = await db.from("messages").update({
+      status: "failed",
+      error: { reason, note: certain ? NEVER_SENT : MAY_HAVE_SENT, ...certain ? {} : { outcome: "unknown" } }
+    }).eq("id", messageId).eq("tenant_id", job.tenant_id).eq("status", "queued").select("id, conversation_id, sender, channel, meta");
     const row = data?.[0] ?? null;
-    const flagged = !error && row?.conversation_id ? await upsertEscalation(
+    const campaign = row?.channel === "email" && isCampaignEmail(row.meta?.email?.request);
+    const flagged = !error && row?.conversation_id && !campaign ? await upsertEscalation(
       db,
       job.tenant_id,
       row.conversation_id,

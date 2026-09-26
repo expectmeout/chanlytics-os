@@ -130,6 +130,8 @@ test("a create asks for sending only, with opens and clicks off by name, and rea
       },
       // No tracking record: tracking is off, and one is never ours to publish.
     ],
+    // When the provider made it, as it said: how an add knows a domain is its own (Part 2.6).
+    createdAt: "2026-04-26 20:21:26.347412+00",
   });
 });
 
@@ -188,7 +190,7 @@ test("a record that is not whole is dropped, and a domain without an id is no do
   assert.equal(providerDomainFrom(null), null);
   assert.equal(providerDomainFrom({ name: "x.com" }), null);
   const d = providerDomainFrom({ id: ID, name: "X.com", records: [{ record: "SPF", type: "TXT" }, "junk", null] });
-  assert.deepEqual(d, { id: ID, name: "x.com", status: "unknown", records: [] });
+  assert.deepEqual(d, { id: ID, name: "x.com", status: "unknown", records: [], createdAt: null });
 });
 
 test("DMARC is a TXT whose chunks, joined, begin v=DMARC1", () => {

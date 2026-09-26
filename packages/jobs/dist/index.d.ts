@@ -327,24 +327,6 @@ interface ClaimedJob {
 declare function incomingEmailOf(e: ReceivedEmail): IncomingEmail;
 declare function dispatchJob(ctx: JobContext, job: ClaimedJob): Promise<"done" | "unknown_kind">;
 
-/**
- * What a job leaves behind when it will not finish.
- *
- * The ledger row is only half the truth. A job that fails was in the middle of
- * something: an outbound_send that never ran left its message saying "Sending…"
- * for ever, and a broadcast whose run died sat in 'sending' with half its
- * recipients reached and nothing coming. Only the kind knows what it was in the
- * middle of, so settlement is per kind.
- *
- * `certain` says whether the work provably never happened: a job whose kind no
- * runner knows is certain; one that ran and threw, or ran and never came back,
- * is not. It changes the words recorded, never the conditions. Every write here
- * is conditional on the downstream row still claiming to be in flight, so a
- * handler that DID record its send before dying is left exactly as it left it
- * either way. That condition, not `certain`, is what makes this safe to run on
- * a job whose outcome is unknown.
- */
-
 interface TerminalJob {
     id: string;
     kind: string;

@@ -14,7 +14,9 @@
  *   bounced, failed, suppressed
  *                   a reply that never arrived is a customer with no answer, so
  *                   the thread is flagged for a person in words that say what
- *                   to do, and THEN the row fails. In that order: a flag that
+ *                   to do, and THEN the row fails. A campaign's email (it
+ *                   carries its unsubscribe) flags nothing: its row fails, and
+ *                   counts toward the domain it left from. In that order: a flag that
  *                   could not be written sends the receipt back with the row
  *                   untouched, and a row that already says failed is a receipt
  *                   seen before, which flags nothing twice.
@@ -32,6 +34,7 @@ import {
   emitEvent,
   recordEmailNo,
   recordEmailStatus,
+  sentEmailRequestOf,
   stampEmailComplaint,
   stampEmailSent,
   suppressEmailOf,
@@ -39,6 +42,7 @@ import {
   type Json,
 } from "../packages/db.js";
 import { addressOf, emailReceiptEffect, type EmailReceipt, type EmailReceiptType } from "../packages/channels.js";
+import { isCampaignEmail } from "../packages/contracts.js";
 import { holdForComplaint } from "./sending-domains.js";
 import { logger, errField } from "../log.js";
 import { upsertEscalation } from "../packages/jobs.js";
@@ -64,7 +68,14 @@ export async function applyEmailReceipt(db: Db, r: EmailReceipt, nowIso: string)
 
   const effect = emailReceiptEffect(r);
   const words = EMAIL_FAILED_WORDS[r.type];
-  if (effect.status === "failed" && words && stands.status !== "failed") {
+  // A campaign's email that bounced (a broadcast, a reach-out) is the campaign's to count, on its row: it flags no
+  // thread, since nobody there wrote and is waiting (Reach out D4). Read only on the way to a flag.
+  if (
+    effect.status === "failed" &&
+    words &&
+    stands.status !== "failed" &&
+    !isCampaignEmail(await sentEmailRequestOf(db, row))
+  ) {
     const flagged = await upsertEscalation(db, r.tenantId, stands.conversationId, "send_failed", words);
     if (flagged === "failed")
       throw new Error(`email receipt: message ${r.messageId} failed and its thread could not be flagged`);

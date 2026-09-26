@@ -197,6 +197,25 @@ export async function stampEmailSent(
 }
 
 /**
+ * The request an outbound email was frozen with (its row's meta.email.request), or null when there is no such row or
+ * it froze none: what a receipt reads to know whether the email was a reply or a campaign's (channels
+ * isCampaignEmail). A read that fails throws; the receipt comes again.
+ */
+export async function sentEmailRequestOf(db: Db, p: { tenantId: string; messageId: string }): Promise<unknown | null> {
+  const { data, error } = await db
+    .from("messages")
+    .select("meta")
+    .eq("id", p.messageId)
+    .eq("tenant_id", p.tenantId)
+    .eq("channel", "email")
+    .eq("direction", "outbound")
+    .maybeSingle();
+  if (error) throw new Error(`sent email request: ${error.message}`);
+  const meta = (data?.meta ?? null) as { email?: { request?: unknown } } | null;
+  return meta?.email?.request ?? null;
+}
+
+/**
  * A complaint, stamped once on the row it is about (00176), so the domain it left from answers for it. True when this
  * stamped it; false when it was stamped before or is no such row.
  */

@@ -1691,6 +1691,8 @@ interface ProviderDomain {
     name: string;
     status: string;
     records: DomainRecord[];
+    /** When the provider made it (its ISO time), or null when its answer did not say: how an add knows a domain is its own. */
+    createdAt: string | null;
 }
 type ProviderAnswer<T> = {
     ok: true;

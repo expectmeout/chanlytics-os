@@ -62,6 +62,19 @@ export function campaignFooterHtml(f: {
   );
 }
 
+/**
+ * Whether an email, as its request was frozen, was a campaign's (a broadcast or a reach-out, which carries the way to
+ * stop it) rather than a reply to someone who wrote. What its failure may say hangs on it: a reply that never arrived
+ * is a customer with no answer, and flags the thread for a person; a campaign's email that failed is the campaign's
+ * to count, and flags nothing (Reach out D4). Read from the one header only a campaign's request is built with
+ * (channels buildEmailRequest). The one predicate: the send verb, the receipt and the job that died all ask it.
+ */
+export function isCampaignEmail(request: unknown): boolean {
+  const headers = (request as { headers?: Record<string, unknown> } | null | undefined)?.headers;
+  const v = headers?.["List-Unsubscribe"];
+  return typeof v === "string" && v.trim() !== "";
+}
+
 /** What the unsubscribe page is showing. */
 export type UnsubscribeView =
   /** `sender`: the address the email came from, so a stranger knows which email this is about; null when unread. */

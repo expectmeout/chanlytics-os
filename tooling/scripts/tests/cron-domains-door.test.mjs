@@ -304,8 +304,8 @@ test("a verified domain is counted since it was clean; bounces or a complaint ho
     const calls = w.db.seen.filter((s) => s.rpc === "sending_domain_counts");
     assert.deepEqual(
       calls.map((c) => [c.args.p_host, c.args.p_since]).sort(),
-      ["d1", "d2", "d3"].map((h) => [`${h}.example`, w.row(h).clean_since]),
-      "verified domains only, each since it was clean",
+      ["d1", "d2", "d3", "d4"].map((h) => [`${h}.example`, w.row(h).clean_since]),
+      "verified and held domains, each since its count began: a held one still answers for its reputation (2.6)",
     );
     assert.deepEqual(
       [w.row("d1").state, w.row("d1").sent_recent, w.row("d1").bounced_recent, w.row("d1").complaints],
@@ -319,8 +319,9 @@ test("a verified domain is counted since it was clean; bounces or a complaint ho
         .map((e) => e.data)
         .sort((a, b) => a.host.localeCompare(b.host)),
       [
-        { host: "d2.example", why: "bounces" },
-        { host: "d3.example", why: "complaint" },
+        // What was counted stays on the ledger: a Resume clears the row's counts (2.6).
+        { host: "d2.example", why: "bounces", sent: 200, bounced: 5, complaints: 0 },
+        { host: "d3.example", why: "complaint", sent: 12, bounced: 0, complaints: 1 },
       ],
     );
     assert.deepEqual(w.tables.notifications.map((n) => n.title).sort(), [
@@ -578,6 +579,45 @@ test("a watch that could not be read changes nothing else: the domains were stil
     assert.equal(body.held, 1, "the sweep's own work stands");
     assert.deepEqual([w.row("d1").state, w.row("d1").held_why], ["held", "dmarc"]);
     assert.deepEqual(w.tables.operator_pages, []);
+  } finally {
+    net.restore();
+  }
+});
+
+test("a domain held for DNS whose records read good again, with a complaint made meanwhile, stays held for the complaint: never a tick of sending first (Part 2.6)", async () => {
+  const w = world([domain("d1", { state: "held", held_why: "dmarc", held_at: ago(DAY), dmarc: "missing" })], {
+    "d1.example": { sent: 20, bounced: 0, complained: 1 },
+  });
+  dns["d1.example"] = "found";
+  const net = provider({ "pd-d1": "verified" });
+  try {
+    const [status, body] = await answer(await knock(POST, "domains"));
+    assert.equal(status, 200);
+    assert.equal(body.released, 0, "not released");
+    assert.deepEqual([w.row("d1").state, w.row("d1").held_why], ["held", "complaint"]);
+    assert.deepEqual(
+      w.tables.notifications.map((n) => n.title),
+      ["d1.example is held: someone marked an email from it as spam"],
+      "its owner is told it waits for them now",
+    );
+  } finally {
+    net.restore();
+  }
+});
+
+test("the sweep reads a bounce hold too: a complaint since makes it a complaint hold, whether or not the receipt's own try landed (Part 2.6)", async () => {
+  const w = world([domain("d1", { state: "held", held_why: "bounces", held_at: ago(DAY) })], {
+    "d1.example": { sent: 200, bounced: 5, complained: 1 },
+  });
+  dns["d1.example"] = "found";
+  const net = provider({ "pd-d1": "verified" });
+  try {
+    assert.equal((await knock(POST, "domains")).status, 200);
+    assert.deepEqual([w.row("d1").state, w.row("d1").held_why], ["held", "complaint"]);
+    assert.deepEqual(
+      w.tables.notifications.map((n) => n.title),
+      ["d1.example is held: someone marked an email from it as spam"],
+    );
   } finally {
     net.restore();
   }

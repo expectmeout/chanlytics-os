@@ -117,6 +117,9 @@ function matches(row, filters) {
                               if (o === "is") return v === "null" ? cell(row, c) == null : String(cell(row, c)) === v;
                               if (o === "lt") return cell(row, c) != null && cell(row, c) < v;
                               if (o === "eq") return String(cell(row, c)) === v;
+                              // SQL's <>: a NULL is not unequal to anything, which is why a filter pairs it with
+                              // `is.null` (the domains sweep: every hold but a complaint's, and no hold at all).
+                              if (o === "neq") return cell(row, c) != null && String(cell(row, c)) !== v;
                               // PostgREST's ilike, with * as the wildcard: modelled for the People
                               // page's count of who matches a search.
                               if (o === "ilike")

@@ -178,6 +178,7 @@ test("a message still on its way is marked failed; one already sent is left exac
   assert.deepEqual(messages[0].error, {
     reason: "run_interrupted",
     note: "the run that was sending this did not finish",
+    outcome: "unknown",
   });
 
   // The run may have sent before it died, and a row that says so is the truth.
@@ -466,4 +467,47 @@ test("the owner reads what the writes returned, not what they meant to do", () =
     /could not be flagged for a person \(statement timeout\)/,
   );
   assert.equal(saySettled([]), null);
+});
+
+test("a send that died mid-flight is unknown, so its receipt can still settle it; a campaign's email flags no thread (Part 2.6)", async () => {
+  // A campaign's email is frozen with its unsubscribe (channels isCampaignEmail); a reply is not.
+  const campaign = { email: { request: { headers: { "List-Unsubscribe": "<https://app.chanlytics.com/u/t>" } } } };
+  const reply = { email: { request: { headers: {} } } };
+  const messages = [
+    {
+      id: "m1",
+      tenant_id: TENANT,
+      conversation_id: "c1",
+      channel: "email",
+      sender: "ai",
+      status: "queued",
+      error: null,
+      meta: campaign,
+    },
+    {
+      id: "m2",
+      tenant_id: TENANT,
+      conversation_id: "c2",
+      channel: "email",
+      sender: "ai",
+      status: "queued",
+      error: null,
+      meta: reply,
+    },
+  ];
+  const escalations = [];
+  const db = fakeDb({ messages, escalations });
+  const send = (id) => ({ id: `job-${id}`, kind: "outbound_send", tenant_id: TENANT, payload: { message_id: id } });
+
+  assert.deepEqual(await settleJob(db, send("m1"), false), [{ what: "message", changed: true }]);
+  assert.equal(messages[0].error.outcome, "unknown", "the provider may have taken it: a receipt may still say so");
+  assert.deepEqual(escalations, [], "nobody on a campaign's thread is waiting for an answer");
+
+  const [settled] = await settleJob(db, send("m2"), false);
+  assert.equal(settled.changed, true);
+  assert.deepEqual(
+    escalations.map((e) => [e.conversation_id, e.reason]),
+    [["c2", "send_failed"]],
+    "a reply that may never have left is still a customer to look at",
+  );
 });

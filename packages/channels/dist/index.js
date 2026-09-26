@@ -4657,7 +4657,8 @@ function providerDomainFrom(body) {
     id: d.id,
     name: d.name.trim().toLowerCase(),
     status: typeof d.status === "string" && d.status.trim() ? d.status.trim() : "unknown",
-    records
+    records,
+    createdAt: typeof d.created_at === "string" && Number.isFinite(Date.parse(d.created_at)) ? d.created_at : null
   };
 }
 async function call(cfg, method, path, body) {

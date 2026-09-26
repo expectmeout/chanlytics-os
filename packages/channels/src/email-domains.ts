@@ -18,6 +18,8 @@ export interface ProviderDomain {
   name: string;
   status: string;
   records: DomainRecord[];
+  /** When the provider made it (its ISO time), or null when its answer did not say: how an add knows a domain is its own. */
+  createdAt: string | null;
 }
 
 export type ProviderAnswer<T> = { ok: true; value: T } | { ok: false; status: number; message: string };
@@ -59,6 +61,7 @@ export function providerDomainFrom(body: unknown): ProviderDomain | null {
     name: d.name.trim().toLowerCase(),
     status: typeof d.status === "string" && d.status.trim() ? d.status.trim() : "unknown",
     records,
+    createdAt: typeof d.created_at === "string" && Number.isFinite(Date.parse(d.created_at)) ? d.created_at : null,
   };
 }
 

@@ -65,11 +65,12 @@ async function withEnv(vars, fn) {
 }
 
 /** The provider's documented domain, as it answers a create or a read. */
-const PROVIDER_DOMAIN = (id, name, status = "not_started") => ({
+const PROVIDER_DOMAIN = (id, name, status = "not_started", created_at = new Date().toISOString()) => ({
   object: "domain",
   id,
   name,
   status,
+  created_at,
   records: [
     {
       record: "SPF",
@@ -104,9 +105,14 @@ function provider(reply) {
 const reply = (status, body) => new Response(JSON.stringify(body), { status });
 
 let dns = {};
+/** A DKIM TXT by its full name ("resend._domainkey.getharbor.com"); "timeout" for DNS that does not answer. */
+let dkim = {};
 beforeEach(() => {
   dns = {};
+  dkim = {};
   setTxtResolver(async (name) => {
+    if (dkim[name] === "timeout") throw Object.assign(new Error("timed out"), { code: "ETIMEOUT" });
+    if (dkim[name]) return [[dkim[name]]];
     if (dns[name.replace(/^_dmarc\./, "")] === "found") return [["v=DMARC1; p=none;"]];
     throw Object.assign(new Error("no data"), { code: "ENODATA" });
   });
@@ -148,7 +154,8 @@ function world(rows = [], faults = {}) {
     tenant_channels: [],
     operator_pages: [],
   };
-  const db = uniqueHosts(fakeDb(tables, faults, {}), tables);
+  const rpcs = { sending_domain_counts: () => tables.counts ?? { sent: 0, bounced: 0, complained: 0 } };
+  const db = uniqueHosts(fakeDb(tables, faults, rpcs), tables);
   setPg(db);
   return { db, tables };
 }
@@ -573,7 +580,13 @@ test("Resume lifts a reputation hold: sending again at 30 a day, its counts clea
     }),
     row(D2, { state: "held", held_why: "dmarc", held_at: new Date().toISOString() }),
   ]);
-  const net = provider(() => reply(200, {}));
+  const host1 = w.tables.sending_domains.find((r) => r.id === D1).host;
+  dns[host1] = "found";
+  const net = provider((url) =>
+    url.endsWith(`/domains/pd-${D1.slice(0, 4)}`)
+      ? reply(200, PROVIDER_DOMAIN(`pd-${D1.slice(0, 4)}`, host1, "verified"))
+      : reply(404, {}),
+  );
   try {
     const before = Date.now();
     const [s, b] = await answer(await knock({ op: "resume", domain_id: D1 }));
@@ -581,7 +594,8 @@ test("Resume lifts a reputation hold: sending again at 30 a day, its counts clea
     const d = w.tables.sending_domains.find((r) => r.id === D1);
     assert.deepEqual(
       [d.state, d.held_why, d.held_at, d.sent_recent, d.bounced_recent, d.complaints],
-      ["verified", null, null, null, null, null],
+      // Cleared with the window they counted, and counted again at once from the new one: nothing yet (2.6).
+      ["verified", null, null, 0, 0, 0],
     );
     assert.ok(Date.parse(d.clean_since) >= before - 1000, "the ramp starts again from now");
     assert.equal(b.domain.state, "verified");
@@ -600,7 +614,11 @@ test("Resume lifts a reputation hold: sending again at 30 a day, its counts clea
       [409, "dns_hold", "Press Check: this one lifts itself when it reads right again."],
     );
     assert.equal(w.tables.sending_domains.find((r) => r.id === D2).state, "held");
-    assert.equal(net.calls.length, 0, "the provider is never asked");
+    assert.deepEqual(
+      net.calls.map((c) => c.method + " " + c.url.replace("https://api.resend.com", "")),
+      [`GET /domains/pd-${D1.slice(0, 4)}`],
+      "read once, straight after the resume; never asked to verify, and a refused Resume asks nothing",
+    );
   } finally {
     net.restore();
   }
@@ -609,7 +627,7 @@ test("Resume lifts a reputation hold: sending again at 30 a day, its counts clea
   assert.deepEqual([s, b.error], [404, "not_found"]);
 });
 
-test("a create refused because the account already has the host adopts it while it is unverified, so a lost create never strands a host (Part 2.5 review)", async () => {
+test("a create refused because the account already has the host adopts the one this very press made, so a lost create never strands a host (Part 2.5 review)", async () => {
   const w = world();
   const net = provider((url, init) => {
     if (init.method === "POST" && url === "https://api.resend.com/domains")
@@ -742,6 +760,156 @@ test("a takeover asks the provider first: records that verify there are the hold
     assert.deepEqual([s, b.error], [409, "host_taken"]);
     assert.equal(w.tables.sending_domains.length, 1, "theirs stays");
     assert.equal(net.calls.filter((c) => c.method === "DELETE").length, 0, "their provider domain is untouched");
+  } finally {
+    net.restore();
+  }
+});
+
+test("a holder who published their DKIM key is never taken over, though the provider says not started (Part 2.6)", async () => {
+  // Resend says not_started until someone presses Check: a holder who did every record at their registrar and never
+  // pressed it looks, to the provider, like one who never came back. DNS tells them apart.
+  const stale = new Date(Date.now() - 4 * 86_400_000).toISOString();
+  const theirs = [
+    { label: "DKIM", type: "TXT", name: "resend._domainkey", value: "p=THEIRS", priority: null, status: "not_started" },
+  ];
+  const holder = () =>
+    row(D2, { host: "getharbor.com", tenant_id: B, created_at: stale, provider_domain_id: "pd-old", records: theirs });
+  for (const [said, why] of [
+    ["p=THEIRS", "their key is published"],
+    ["timeout", "DNS did not answer, and that is never read as not published"],
+  ]) {
+    const w = world([holder()]);
+    dkim["resend._domainkey.getharbor.com"] = said;
+    const net = provider((url) =>
+      url.endsWith("/domains/pd-old") ? reply(200, PROVIDER_DOMAIN("pd-old", "getharbor.com")) : reply(404, {}),
+    );
+    try {
+      const [s, b] = await answer(await knock(ADD));
+      assert.deepEqual([s, b.error], [409, "host_taken"], why);
+      assert.ok(!net.calls.some((c) => c.method === "DELETE"), `nothing of theirs is removed: ${why}`);
+      assert.deepEqual(
+        w.tables.sending_domains.map((r) => r.tenant_id),
+        [B],
+        why,
+      );
+    } finally {
+      net.restore();
+    }
+  }
+  // Nothing at that name, or another key there: theirs was never published, and the host can move after three days.
+  const w = world([holder()]);
+  dkim["resend._domainkey.getharbor.com"] = "p=SOMEONE-ELSES";
+  const net = provider((url, init) =>
+    init.method === "DELETE" && url.endsWith("/domains/pd-old")
+      ? reply(200, { deleted: true })
+      : url.endsWith("/domains/pd-old")
+        ? reply(200, PROVIDER_DOMAIN("pd-old", "getharbor.com"))
+        : init.method === "POST" && url === "https://api.resend.com/domains"
+          ? reply(201, PROVIDER_DOMAIN("pd-new", "getharbor.com"))
+          : reply(404, {}),
+  );
+  try {
+    const [s] = await answer(await knock(ADD));
+    assert.equal(s, 200);
+    assert.deepEqual(
+      w.tables.sending_domains.map((r) => [r.tenant_id, r.provider_domain_id]),
+      [[A, "pd-new"]],
+    );
+  } finally {
+    net.restore();
+  }
+});
+
+test("a domain left at the account before this add is made again with keys of its own, never adopted (Part 2.6)", async () => {
+  // Left by a removal or a takeover whose provider side did not finish: its DKIM key is the one another workspace was
+  // given, and may have published. Adopting it would let this workspace verify against their DNS and send as them.
+  const w = world();
+  const old = new Date(Date.now() - 5 * 86_400_000).toISOString();
+  const net = provider((url, init) => {
+    if (init.method === "POST" && url === "https://api.resend.com/domains")
+      return net.calls.filter((c) => c.method === "POST").length === 1
+        ? reply(422, { name: "validation_error", message: "This domain is already registered." })
+        : reply(201, PROVIDER_DOMAIN("pd-fresh", "getharbor.com"));
+    if (url.startsWith("https://api.resend.com/domains?limit=100"))
+      return reply(200, {
+        object: "list",
+        has_more: false,
+        data: [{ id: "pd-left", name: "getharbor.com", status: "not_started" }],
+      });
+    if (init.method === "DELETE" && url.endsWith("/domains/pd-left")) return reply(200, { deleted: true });
+    if (url.endsWith("/domains/pd-left"))
+      return reply(200, PROVIDER_DOMAIN("pd-left", "getharbor.com", "not_started", old));
+    return reply(404, {});
+  });
+  try {
+    const [s, b] = await answer(await knock(ADD));
+    assert.equal(s, 200, JSON.stringify(b));
+    assert.equal(w.tables.sending_domains[0].provider_domain_id, "pd-fresh", "a domain of its own, with new keys");
+    assert.ok(
+      net.calls.some((c) => c.method === "DELETE" && c.url.endsWith("/domains/pd-left")),
+      "the old one goes",
+    );
+  } finally {
+    net.restore();
+  }
+  // One the account cannot remove is not adopted either: the add is refused, and the reservation goes.
+  const w2 = world();
+  const net2 = provider((url, init) => {
+    if (init.method === "POST" && url === "https://api.resend.com/domains")
+      return reply(422, { name: "validation_error", message: "This domain is already registered." });
+    if (url.startsWith("https://api.resend.com/domains?limit=100"))
+      return reply(200, {
+        object: "list",
+        has_more: false,
+        data: [{ id: "pd-left", name: "getharbor.com", status: "not_started" }],
+      });
+    if (init.method === "DELETE") return reply(500, {});
+    if (url.endsWith("/domains/pd-left"))
+      return reply(200, PROVIDER_DOMAIN("pd-left", "getharbor.com", "not_started", old));
+    return reply(404, {});
+  });
+  try {
+    const [s, b] = await answer(await knock(ADD));
+    assert.deepEqual([s, b.error], [502, "provider"]);
+    assert.equal(w2.tables.sending_domains.length, 0);
+  } finally {
+    net2.restore();
+  }
+});
+
+test("Resume reads the domain at once: records that broke while its reputation held it hold it again, never a tick of sending first (Part 2.6)", async () => {
+  // A reputation hold is never read while it stands, so a verification lost meanwhile is only seen when it is resumed.
+  const w = world([
+    row(D1, {
+      state: "held",
+      held_why: "bounces",
+      held_at: new Date(Date.now() - 86_400_000).toISOString(),
+      verified_at: new Date(Date.now() - 20 * 86_400_000).toISOString(),
+      clean_since: new Date(Date.now() - 20 * 86_400_000).toISOString(),
+      dmarc: "found",
+      provider_status: "verified",
+    }),
+  ]);
+  const host = w.tables.sending_domains[0].host;
+  dns[host] = "found";
+  const net = provider((url) =>
+    url.endsWith(`/domains/pd-${D1.slice(0, 4)}`)
+      ? reply(200, PROVIDER_DOMAIN(`pd-${D1.slice(0, 4)}`, host, "failed"))
+      : reply(404, {}),
+  );
+  try {
+    const [s, b] = await answer(await knock({ op: "resume", domain_id: D1 }));
+    assert.equal(s, 200, JSON.stringify(b));
+    assert.deepEqual(
+      [b.domain.state, b.domain.held_why],
+      ["held", "verification"],
+      "the page is told what is true now",
+    );
+    assert.deepEqual(
+      w.tables.events.map((e) => e.kind),
+      ["sending_domain.resumed", "sending_domain.held"],
+      "the resume, then the hold its records earned",
+    );
   } finally {
     net.restore();
   }

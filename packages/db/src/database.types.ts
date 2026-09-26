@@ -4235,6 +4235,14 @@ export type Database = {
         Args: { p_error: Json; p_status: string }
         Returns: boolean
       }
+      email_sent_at: {
+        Args: {
+          p_created_at: string
+          p_meta: Json
+          p_status_updated_at: string
+        }
+        Returns: string
+      }
       ensure_events_partition: { Args: { p_month: string }; Returns: undefined }
       erase_contact: {
         Args: { p_contact_id: string; p_legs?: Json }

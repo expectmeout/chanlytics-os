@@ -2687,6 +2687,12 @@ async function stampEmailSent(db, p) {
   const row = data?.[0];
   return row ? { status: row.status, conversationId: row.conversation_id } : null;
 }
+async function sentEmailRequestOf(db, p) {
+  const { data, error } = await db.from("messages").select("meta").eq("id", p.messageId).eq("tenant_id", p.tenantId).eq("channel", "email").eq("direction", "outbound").maybeSingle();
+  if (error) throw new Error(`sent email request: ${error.message}`);
+  const meta = data?.meta ?? null;
+  return meta?.email?.request ?? null;
+}
 async function stampEmailComplaint(db, p) {
   const { data, error } = await db.rpc("stamp_email_complaint", {
     p_tenant_id: p.tenantId,
@@ -2756,7 +2762,7 @@ async function sendingDomainByHost(db, tenantId, host) {
 async function dueSendingDomains(db, limit) {
   return must(
     "read the due domains",
-    await db.from("sending_domains").select("*").in("state", ["verifying", "verified", "held"]).or("held_why.is.null,held_why.eq.verification,held_why.eq.dmarc,held_why.eq.provider").order("checked_at", { ascending: true, nullsFirst: true }).limit(limit)
+    await db.from("sending_domains").select("*").in("state", ["verifying", "verified", "held"]).or("held_why.is.null,held_why.neq.complaint").order("checked_at", { ascending: true, nullsFirst: true }).limit(limit)
   ) ?? [];
 }
 async function coldReceiptsOwed(db, from, to) {
@@ -2785,7 +2791,7 @@ async function reserveSendingDomain(db, i) {
   if (code === "23505") {
     const holder = must(
       "read who holds a host",
-      await db.from("sending_domains").select("id, tenant_id, state, created_at, provider_domain_id, provider_status, updated_at").eq("host", i.host).maybeSingle()
+      await db.from("sending_domains").select("id, tenant_id, state, created_at, provider_domain_id, provider_status, updated_at, records").eq("host", i.host).maybeSingle()
     );
     return { ok: false, reason: "taken", holder: holder ?? null };
   }
@@ -3612,6 +3618,7 @@ export {
   sendingDomainCounts,
   sendingDomainOf,
   sendingDomainsOf,
+  sentEmailRequestOf,
   sentEmailWithMessageId,
   setCallRecording,
   setListRule,

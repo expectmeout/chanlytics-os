@@ -1084,18 +1084,21 @@ test("email's wire picks its route by the request's From: the hosted mailbox on 
 
 test("a cold email is a broadcast whoever the row says wrote it: every pause holds it (D1)", async () => {
   const pausedUntil = new Date(NOW + 3_600_000).toISOString();
-  for (const [sender, proactive] of [
+  // Nor does a caller naming the kind itself change it: a reply skips every pause, a system message the thread's (2.6).
+  for (const [sender, proactive, kind] of [
     ["human", undefined],
     ["human", false],
     ["ai", undefined],
+    ["ai", undefined, "reply"],
+    ["human", undefined, "system"],
   ]) {
     const paused = coldWorld();
     paused.conversations[0].tenants = { status: "paused" };
-    const a = await deliver(ports(paused, emailWire()), cold({ sender, proactive }));
+    const a = await deliver(ports(paused, emailWire()), cold({ sender, proactive, ...(kind ? { kind } : {}) }));
     assert.deepEqual([a.outcome, a.reason], ["refused", "paused"], `${sender}/${proactive}: a paused workspace`);
     const held = coldWorld();
     held.conversations[0].paused_until = pausedUntil;
-    const b = await deliver(ports(held, emailWire()), cold({ sender, proactive }));
+    const b = await deliver(ports(held, emailWire()), cold({ sender, proactive, ...(kind ? { kind } : {}) }));
     assert.deepEqual([b.outcome, b.reason], ["refused", "human_has_it"], `${sender}/${proactive}: a paused thread`);
   }
 });

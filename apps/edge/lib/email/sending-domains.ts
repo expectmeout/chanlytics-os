@@ -49,6 +49,7 @@ import {
   SENDING_DOMAINS_MAX,
   type DomainCounts,
   type DomainHold,
+  type DomainRecord,
   type DomainJudgement,
   type DomainRowState,
   type SendingDomainDto,
@@ -69,6 +70,8 @@ export interface DomainPorts {
   cfg: ResendConfig;
   /** DMARC at the host or a parent (dmarc.ts readDmarc); null when DNS could not be read. */
   dmarc: (host: string) => Promise<"found" | "missing" | null>;
+  /** Whether its DKIM key is published in DNS (dmarc.ts dkimPublished); null when DNS could not be read. */
+  dkim: (host: string, records: DomainRecord[]) => Promise<boolean | null>;
   now: () => number;
   log: Logger;
 }
@@ -153,9 +156,9 @@ export async function addSendingDomain(
   let domain = made.ok ? made.value : null;
   if (!made.ok) {
     // Whatever the failure, the account may hold a domain by this name: made by this create before its answer was
-    // lost, or by an earlier one whose reservation is gone. It is looked for, and adopted only while unverified: one
-    // the account holds verified is somebody's records and keys (adoptByName), never taken.
-    const adopted = await adoptByName(p, host);
+    // lost, or by an earlier one whose reservation is gone. Only this create's own is adopted; an older one is made
+    // again with keys of its own, and one the account holds verified is somebody's, never taken (adoptByName).
+    const adopted = await adoptByName(p, host, reservation.created_at);
     if (adopted === "verified_elsewhere") {
       await deleteSendingDomain(p.db, i.tenantId, reservation.id).catch((e) =>
         p.log.error("sending_domain_reservation_left", { domain: reservation.id, error: String(e) }),
@@ -216,6 +219,11 @@ async function takeOver(p: DomainPorts, tenantId: string, host: string, holder: 
     if (!now.ok) return false;
     if (now.value && (now.value.status === "verified" || now.value.status === "partially_verified")) return false;
   }
+  // The provider says "not started" until someone presses Check, so its word cannot tell a holder who never came back
+  // from one who published every record and never pressed it. DNS can: a holder's DKIM key at their registrar is
+  // their work, and the host stays theirs. A DNS that cannot be read keeps it theirs too.
+  const records = Array.isArray(holder.records) ? (holder.records as unknown as DomainRecord[]) : [];
+  if ((await p.dkim(host, records)) !== false) return false;
   // The row first, as it was read (a holder who pressed Check in the meantime keeps it), then the provider's domain:
   // a provider that will not remove it now leaves a domain no row names, said, rather than a row naming none.
   if (!(await deleteSendingDomainAsRead(p.db, holder))) return false;
@@ -234,19 +242,40 @@ async function takeOver(p: DomainPorts, tenantId: string, host: string, holder: 
   return true;
 }
 
+/** How far the provider's clock may run behind ours and a domain this press made still read as made by it. */
+const ADOPT_SKEW_MS = 10 * 60_000;
+
 /**
- * The account's own domain by this name, read whole; null when it has none, or it could not be asked. One the account
- * already holds verified is never adopted: its signing keys and its records are whoever verified it, and adopting it
- * would let this workspace send as them.
+ * The account's own domain by this name, for a create whose answer was lost; null when it has none, or it could not be
+ * asked. Adopted only when this very press made it (the provider made it after the reservation): its keys are then
+ * nobody's yet. One the account already holds verified is never adopted: its keys and records are whoever verified
+ * it. An older one, left behind by a removal or a takeover whose provider side did not finish, carries keys another
+ * workspace was given and may have published, and adopting it would let this workspace verify against their DNS and
+ * send as them: it is removed, and made again with keys of its own.
  */
-async function adoptByName(p: DomainPorts, host: string): Promise<ProviderDomain | "verified_elsewhere" | null> {
+async function adoptByName(
+  p: DomainPorts,
+  host: string,
+  reservedAt: string,
+): Promise<ProviderDomain | "verified_elsewhere" | null> {
   const found = await findMailDomain(p.cfg, host);
   if (!found.ok || !found.value) return null;
   const read = await getMailDomain(p.cfg, found.value.id);
   if (!read.ok || !read.value) return null;
   if (read.value.status === "verified" || read.value.status === "partially_verified") return "verified_elsewhere";
-  p.log.warn("sending_domain_adopted", { host, provider_domain_id: read.value.id });
-  return read.value;
+  const madeAt = read.value.createdAt ? Date.parse(read.value.createdAt) : NaN;
+  if (Number.isFinite(madeAt) && madeAt >= Date.parse(reservedAt) - ADOPT_SKEW_MS) {
+    p.log.warn("sending_domain_adopted", { host, provider_domain_id: read.value.id });
+    return read.value;
+  }
+  const gone = await removeMailDomain(p.cfg, read.value.id);
+  if (!gone.ok) {
+    p.log.error("sending_domain_left_at_provider", { host, provider_domain_id: read.value.id, status: gone.status });
+    return null;
+  }
+  p.log.warn("sending_domain_remade", { host, provider_domain_id: read.value.id });
+  const again = await createMailDomain(p.cfg, host);
+  return again.ok ? again.value : null;
 }
 
 export interface CheckOutcome {
@@ -274,7 +303,7 @@ export async function checkSendingDomain(
   let row = given;
   // A reservation whose create answered nothing we could keep: the account's own list says whether it made one.
   if (!row.provider_domain_id) {
-    const adopted = await adoptByName(p, row.host);
+    const adopted = await adoptByName(p, row.host, row.created_at);
     if (!adopted || adopted === "verified_elsewhere") return { row, change: null, unreadable: true, status: 0 };
     row = await recordProviderDomain(p.db, row.id, {
       providerDomainId: adopted.id,
@@ -288,10 +317,11 @@ export async function checkSendingDomain(
     if (!asked.ok)
       p.log.warn("sending_domain_verify_refused", { domain: row.id, status: asked.status, message: asked.message });
   }
-  // What a verified domain sent since it was clean: its bounces and complaints are what hold it. Our own rows, so they
-  // are read whatever the provider says. A count that cannot be read judges nothing about reputation this time.
+  // What a verified or held domain sent since its count began: its bounces and complaints are what hold it, a held one
+  // too (judgeDomain). Our own rows, so they are read whatever the provider says. A count that cannot be read judges
+  // nothing about reputation this time.
   const countOf = async (r: SendingDomainRow): Promise<DomainCounts | null> => {
-    if (r.state !== "verified") return null;
+    if (r.state !== "verified" && r.state !== "held") return null;
     try {
       return await sendingDomainCounts(p.db, r.tenant_id, r.host, countedSince(r));
     } catch (e) {
@@ -356,7 +386,17 @@ async function sayDomainChange(
   judged: { change: DomainJudgementChange; held_why: DomainHold | null },
 ): Promise<void> {
   if (judged.change && judged.change !== "resumed") {
-    const data = { host: row.host, ...(judged.held_why ? { why: judged.held_why } : {}) } as Json;
+    // A hold for bounces or a complaint keeps what was counted, since a Resume clears the row's counts: the ledger is
+    // where why it was held stays.
+    const reputationHeld =
+      judged.change === "held" && (judged.held_why === "bounces" || judged.held_why === "complaint");
+    const data = {
+      host: row.host,
+      ...(judged.held_why ? { why: judged.held_why } : {}),
+      ...(reputationHeld
+        ? { sent: written.sent_recent, bounced: written.bounced_recent, complaints: written.complaints }
+        : {}),
+    } as Json;
     // A DNS hold tells its owner once a day, however often the records flap; a reputation hold always tells (only
     // they can resume it), and a provider hold tells the platform instead. Asked before this hold is written.
     const toldToday =
@@ -395,40 +435,37 @@ async function sayDomainChange(
 
 /**
  * A complaint just landed on an email from one of this workspace's own domains: the domain is judged now, from its
- * own counts, rather than at the next ten-minute sweep, so a domain drawing complaints stops at the first. Only a
- * verified domain can be held for its reputation; anything else is left to the sweep. Best-effort by contract: the
- * receipt is already applied, and the sweep holds the domain anyway.
+ * own counts, rather than at the next ten-minute sweep, so a domain drawing complaints stops at the first. A verified
+ * domain is held for it, and so is one held for another reason (judgeDomain: a complaint outranks a DNS or provider
+ * hold, and bounces), so its owner weighs the complaint before any Resume. Best-effort by contract: the receipt is
+ * already applied, and the sweep, which reads every hold but a complaint's, holds the domain anyway.
  */
 export async function holdForComplaint(
   p: Pick<DomainPorts, "db" | "log" | "now">,
   tenantId: string,
   host: string,
 ): Promise<"held" | "unchanged"> {
-  const row = await sendingDomainByHost(p.db, tenantId, host);
-  if (!row || row.state !== "verified") return "unchanged";
   const nowIso = new Date(p.now()).toISOString();
-  const counts = await sendingDomainCounts(p.db, row.tenant_id, row.host, countedSince(row));
-  const judged = judgeDomain(stateOf(row), { provider: null, dmarc: null, counts }, nowIso);
-  if (judged.change !== "held") return "unchanged";
-  const patch = {
-    ...domainPatchOf(judged),
-    sent_recent: counts.sent,
-    bounced_recent: counts.bounced,
-    complaints: counts.complained,
-  };
-  // Written only onto the row as read. Another writer since (the sweep, an owner's Check) wins once; the row is read
-  // again and judged again, so the complaint is not left to the next tick.
-  let written = await applyDomainCheck(p.db, row, patch);
-
-  if (!written) {
-    const again = await sendingDomainByHost(p.db, tenantId, host);
-    if (!again || again.state !== "verified") return "unchanged";
-
-    written = await applyDomainCheck(p.db, again, patch);
-    if (!written) return "unchanged";
+  // The row as read, judged on its counts; the write lands only on that row. Another writer since (the sweep, an
+  // owner's Check) wins once, and the row is read and judged again, so the complaint is not left to the next tick.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const row = await sendingDomainByHost(p.db, tenantId, host);
+    if (!row || (row.state !== "verified" && row.state !== "held")) return "unchanged";
+    const counts = await sendingDomainCounts(p.db, row.tenant_id, row.host, countedSince(row));
+    const judged = judgeDomain(stateOf(row), { provider: null, dmarc: null, counts }, nowIso);
+    if (judged.change !== "held") return "unchanged";
+    const written = await applyDomainCheck(p.db, row, {
+      ...domainPatchOf(judged),
+      sent_recent: counts.sent,
+      bounced_recent: counts.bounced,
+      complaints: counts.complained,
+    });
+    if (written) {
+      await sayDomainChange(p, row, written, judged);
+      return "held";
+    }
   }
-  await sayDomainChange(p, row, written, judged);
-  return "held";
+  return "unchanged";
 }
 
 /**
@@ -450,7 +487,14 @@ export async function resumeSendingDomain(p: DomainPorts, row: SendingDomainRow)
   if (!written) return say(409, "moved", `${row.host} changed just now. Look again, then resume it.`);
   const data = { host: row.host, ...(row.held_why ? { why: row.held_why } : {}) } as Json;
   await emitEvent(p.db, row.tenant_id, "sending_domain.resumed", "setup", "sending_domain", row.id, data);
-  return { ok: true, domain: domainDto(written) };
+  // Read now, not at the next tick: a reputation hold is never read while it stands, so records that broke meanwhile
+  // (a DNS hold the bounces took the place of) would otherwise send for up to a tick before they held it again.
+  // Best effort: the resume is written, and the sweep reads it anyway.
+  const read = await checkSendingDomain(p, written, { verify: false }).catch((e) => {
+    p.log.warn("sending_domain_resume_unread", { domain: row.id, error: e instanceof Error ? e.message : String(e) });
+    return null;
+  });
+  return { ok: true, domain: domainDto(read?.row ?? written) };
 }
 
 /** The owner, told: the bell, and email where the workspace has somebody on file. Best effort: the row already says it. */

@@ -20985,8 +20985,10 @@ function reputationHoldOf(c) {
 var CHECKING = /* @__PURE__ */ new Set(["pending", "temporary_failure", "partially_verified"]);
 function judgeDomain(row2, facts, nowIso) {
   const same2 = { ...row2, dmarc: facts.dmarc ?? row2.dmarc, change: null };
-  const reputation = row2.state === "verified" ? reputationHoldOf(facts.counts) : null;
-  if (reputation) return { ...same2, state: "held", held_why: reputation, held_at: nowIso, change: "held" };
+  const judgeable = row2.state === "verified" || row2.state === "held" && row2.held_why !== "complaint";
+  const reputation = judgeable ? reputationHoldOf(facts.counts) : null;
+  if (reputation && !(row2.state === "held" && row2.held_why === reputation))
+    return { ...same2, state: "held", held_why: reputation, held_at: nowIso, change: "held" };
   if (facts.provider === null) return { ...row2, change: null };
   const verified = facts.provider === "verified";
   if (row2.state === "records" || row2.state === "verifying") {
@@ -23088,6 +23090,11 @@ function campaignFooterHtml(f) {
   campaignFooter(f);
   return `<p>${escapeHtml(f.why.trim())}<br>${escapeHtml(MARKETING_LINE)}<br>${escapeHtml(f.business.trim())} \xB7 ${escapeHtml(f.address.trim())}<br>${escapeHtml(`Not interested? Reply "no thanks" and I won't write again`)} \xB7 <a href="${escapeHtml(f.unsubscribeUrl.trim())}">Unsubscribe</a></p>`;
 }
+function isCampaignEmail(request) {
+  const headers = request?.headers;
+  const v = headers?.["List-Unsubscribe"];
+  return typeof v === "string" && v.trim() !== "";
+}
 function unsubscribePageWords(v) {
   switch (v.kind) {
     case "ask": {
@@ -23988,6 +23995,7 @@ export {
   invoiceStatusWords,
   isActivityNoise,
   isBaselinePrompt,
+  isCampaignEmail,
   isCarrier,
   isCheckoutReturn,
   isConsultationTitle,

@@ -53,8 +53,10 @@ export async function dueSendingDomains(db: Db, limit: number): Promise<SendingD
         .from("sending_domains")
         .select("*")
         .in("state", ["verifying", "verified", "held"])
-        // A reputation hold (bounces, a complaint) waits for its owner's Resume: reading it would change nothing.
-        .or("held_why.is.null,held_why.eq.verification,held_why.eq.dmarc,held_why.eq.provider")
+        // Every hold but a complaint's: a held domain still answers for its reputation (contracts judgeDomain), so a
+        // complaint during a bounce hold becomes a complaint hold here even if the receipt's own attempt failed. A
+        // complaint hold is the last word until its owner resumes it: reading it would change nothing.
+        .or("held_why.is.null,held_why.neq.complaint")
         .order("checked_at", { ascending: true, nullsFirst: true })
         .limit(limit),
     ) ?? []
@@ -83,10 +85,13 @@ export async function countSendingDomains(db: Db, tenantId: string): Promise<num
   return r.count ?? 0;
 }
 
-/** Who holds a host a reservation found taken: enough to say whose it is, and whether it was ever verified. */
+/**
+ * Who holds a host a reservation found taken: enough to say whose it is, whether it was ever verified, and the records
+ * it was given, whose DKIM key in DNS says the holder did the work at their registrar.
+ */
 export type SendingDomainHolder = Pick<
   SendingDomainRow,
-  "id" | "tenant_id" | "state" | "created_at" | "provider_domain_id" | "provider_status" | "updated_at"
+  "id" | "tenant_id" | "state" | "created_at" | "provider_domain_id" | "provider_status" | "updated_at" | "records"
 >;
 
 /**
@@ -122,7 +127,7 @@ export async function reserveSendingDomain(
       "read who holds a host",
       await db
         .from("sending_domains")
-        .select("id, tenant_id, state, created_at, provider_domain_id, provider_status, updated_at")
+        .select("id, tenant_id, state, created_at, provider_domain_id, provider_status, updated_at, records")
         .eq("host", i.host)
         .maybeSingle(),
     );
