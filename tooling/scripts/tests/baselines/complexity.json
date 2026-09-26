@@ -424,11 +424,6 @@
     "branches": 47,
     "depth": 2
   },
-  "apps/dashboard/src/legacy/pages/app-shell.jsx::ChanlyticsApp#1": {
-    "lines": 701,
-    "branches": 292,
-    "depth": 28
-  },
   "apps/dashboard/src/legacy/pages/ask-real.jsx::(callback)#44": {
     "lines": 26,
     "branches": 21,

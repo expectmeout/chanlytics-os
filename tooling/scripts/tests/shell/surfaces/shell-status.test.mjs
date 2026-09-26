@@ -410,6 +410,8 @@ globalThis.React = {
 };
 await import("../../../../../apps/dashboard/src/legacy/components/topbar.jsx");
 await import("../../../../../apps/dashboard/src/legacy/pages/settings.jsx");
+// The route table the shell reads (SHELL_ROUTES, drawRoute), loaded where both lists load it: just before the shell.
+await import("../../../../../apps/dashboard/src/legacy/pages/app-routes.jsx");
 await import("../../../../../apps/dashboard/src/legacy/pages/app-shell.jsx");
 // The page's rule for the word after conversations/ (window.CV_ROUTE), which the shell asks.
 await import("../../../../../apps/dashboard/src/legacy/pages/conversations.jsx");

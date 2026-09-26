@@ -295,7 +295,8 @@ test("the pages: titles not names, the starter set in Settings, one click on Bro
     "the card is the WHOLE message as the customer sees it: its heading and its buttons too",
   );
   assert.ok(
-    readCode("apps/dashboard/src/legacy/pages/app-shell.jsx").includes('page === "messages"') &&
+    // The route is a row of the shell's route table (app-routes.jsx SHELL_ROUTES).
+    readCode("apps/dashboard/src/legacy/pages/app-routes.jsx").includes('page: "messages"') &&
       readCode("apps/dashboard/src/legacy-bridge/manifest.ts").includes('import "@/legacy/pages/messages.jsx";'),
   );
   assert.ok(

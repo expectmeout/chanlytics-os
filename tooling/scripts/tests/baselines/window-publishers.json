@@ -65,6 +65,7 @@
   "apps/dashboard/src/legacy/demo/pages/pipeline.jsx": 1,
   "apps/dashboard/src/legacy/demo/pages/tasks.jsx": 1,
   "apps/dashboard/src/legacy/pages/activity.jsx": 1,
+  "apps/dashboard/src/legacy/pages/app-routes.jsx": 1,
   "apps/dashboard/src/legacy/pages/app-shell.jsx": 3,
   "apps/dashboard/src/legacy/pages/ask-home.jsx": 1,
   "apps/dashboard/src/legacy/pages/ask-hooks.jsx": 1,

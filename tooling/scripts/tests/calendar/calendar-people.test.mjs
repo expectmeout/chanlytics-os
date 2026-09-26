@@ -1510,10 +1510,11 @@ test("the list page: the rail is grouped, a state is a chip, a list has its step
       PEOPLE_PAGE.includes("window.__saveView(page, view)"),
     "remembered: on this device, and on the member's row in the workspace, per scope",
   );
-  const shell = readCode("apps/dashboard/src/legacy/pages/app-shell.jsx");
+  // The shell's route table (app-routes.jsx): the row that takes a view of People, and what it hands the page.
+  const routes = readCode("apps/dashboard/src/legacy/pages/app-routes.jsx");
   assert.ok(
-    shell.includes("/^(seg|list|state):/.test(param)") &&
-      shell.includes("initialSaved={savedId} initialState={stateId}"),
+    routes.includes("/^(seg|list|state):/.test(param)") &&
+      routes.includes("initialSaved={savedId} initialState={stateId}"),
   );
   const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
   assert.ok(sd.includes("action: peopleListAction(l.id, members)") && sd.includes("groups: PEOPLE_LIST_GROUPS.map("));

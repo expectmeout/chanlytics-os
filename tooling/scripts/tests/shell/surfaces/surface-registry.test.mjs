@@ -29,11 +29,14 @@ const { SURFACE_STATES, ROUTE_SURFACE, surfaceStateFor, routeSurfaceFor, surface
 );
 
 const shell = fs.readFileSync(path.join(DASH, "legacy/pages/app-shell.jsx"), "utf8");
+// The shell's router is the route table (app-routes.jsx SHELL_ROUTES): a row per route, `page: "…"`. The shell itself
+// still names the two pages it draws outside the table (shared, start) and the family it fades (clients).
+const routes = fs.readFileSync(path.join(DASH, "legacy/pages/app-routes.jsx"), "utf8");
 
 /** Every page key the shell's router matches on, and the retired pages it routes by their move (surfaceRetiredTo). */
 function routedPages() {
   const pages = new Set(Object.keys(registry.SURFACE_RETIRED));
-  for (const m of shell.matchAll(/page === "([a-z-]+)"/g)) pages.add(m[1]);
+  for (const m of (shell + routes).matchAll(/page(?: ===|:) "([a-z-]+)"/g)) pages.add(m[1]);
   return pages;
 }
 
@@ -116,7 +119,7 @@ test("the shell consults the registry through one interception, not per-route co
   // The design property: ONE gate derived from the table. Per-route
   // __DEMO_MODE checks are how fifteen branches got missed the first time.
   assert.ok(shell.includes('window.__surfaceState(page, param) === "demo"'), "the interception is gone");
-  const adHoc = [...shell.matchAll(/page === "[a-z-]+"[^\n]*__DEMO_MODE/g)];
+  const adHoc = [...(shell + routes).matchAll(/page(?: ===|:) "[a-z-]+"[^\n]*__DEMO_MODE/g)];
   assert.deepEqual(
     adHoc.map((m) => m[0]),
     [],

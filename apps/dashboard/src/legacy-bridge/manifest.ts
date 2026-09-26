@@ -161,6 +161,8 @@ import "@/legacy/pages/business-record.jsx";
 // The back office: rendered by the settings shell, for the people who run Chanlytics.
 import "@/legacy/pages/platform.jsx";
 import "@/legacy/pages/activity.jsx";
+// The route table (SHELL_ROUTES, drawRoute): what each route draws, before the shell that reads it.
+import "@/legacy/pages/app-routes.jsx";
 import "@/legacy/pages/app-shell.jsx";
 
 export {};
