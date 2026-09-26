@@ -1,7 +1,7 @@
 # Reach out: design spec
 
 **Date:** 25 Sep 2026 · **Owner:** Ruben · **Status:** Parts 1–2 shipped; 2.5 (the hardening) and 2.6 (the review before Part 3)
-shipped; Part 3 approved (D15–D19) and next. The eight decisions in §9 were approved 25 Sep ·
+shipped; Part 3 (the engine) shipped 26 Sep (D15–D19); Part 4 (the words and the pages) next. The eight decisions in §9 were approved 25 Sep ·
 **Canvas:** https://claude.ai/artifact/AdMCtQTkWUoDhXz8SewiZg (23 boards; the builder is `Claude Video/reach-out-design/canvas`) ·
 **Supersedes:** §4.7 "Leads" of `2026-09-24-campaigns-on-every-channel-design.md` · **Re-sequences:** steps 2–11 of
 `docs/plans/2026-09-24-every-business-every-channel.md` §4 · **Follows:** Part 0 of the campaigns spec (#999, #1005,
@@ -110,6 +110,19 @@ one thing; the Playbooks table shows one row per chain with the steps in the ope
 parent step at least `after_days` ago, with no human inbound since on any channel, not already on this step, and not
 stopped (§4.7). `touchesSince` already holds what is needed (`db/src/repositories/touches.ts:75-145`).
 
+**As built (Part 3; 00183, 00185).**
+- **The chain.** `playbooks` gained `kind` (`moment | reach_out`), `lead_search_id`, `after_playbook_id`, `after_days`,
+  `gap_minutes` and `domain_ids`. `audience`, `pace`, `hand` and `channels` were not needed: the search names the
+  audience, the gap and the ramp are the pace, and a reach-out is email only. `hand` (a hand-to-you step, §9
+  decision 7) is deferred to Part 5's dated step, not dropped.
+- **The sends.** Each lead in a step's run is a row of its own, **`reach_out_sends`**, with its lead, person, domain,
+  `send_at`, `state` (`planned → claimed → queued → sent`, or `skipped` / `failed` with a reason), `attempts` (the emails
+  written for it) and `message_id`, guarded move by move.
+- **The run.** A step's run is a `broadcasts` row with `audience.kind = 'reach_out'` and an id derived from the step
+  and its day. It is written whole with its sends, or not at all (`reach_out_plan_run`).
+- **`after_step`'s reach** is 00184's `reach_out_followers`: sent the step before at least `after_days` ago, the door's
+  own facts about the lead, filtered before its limit (00185), and any bounce in the chain stops it.
+
 ### 4.2 The audience, and the person made at first send
 
 The reference gains a third kind, `{kind:'leads', search_id}` (the campaigns spec §4.7), resolved by the leads engine:
@@ -123,6 +136,20 @@ with `came_from = 'lead'`, the shape lead conversion already inserts, 00142:212-
 `stage = 'nurture'`, `contacted_at` and `last_outcome = 'emailed'` are written, and the recipient row points at both. Every
 later email, reply and receipt threads on that person; the lead link is made at send, so the insert-only trigger no
 longer matters.
+
+**As built (Part 3; 00184).**
+- **The audience** is `reach_out_audience`: the search's counted, qualified members that are `ready`, with `email_state =
+  'ok'`. Never:
+  - an address, identity or number a person in People holds;
+  - one on the never-again list (the address, the place or the number);
+  - a lead the chain has written to before.
+
+  Catch-all and unknown addresses are not offered yet.
+- **The person** is made at the send's write, not its enrolment, by `reach_out_person` rather than `create_person`. It
+  refuses `already_yours` when a person holds the address, and `lead_closed` when the lead moved on since it was planned.
+  Making the person does not convert the lead.
+- **The lead** becomes `nurture` / `contacted_at` / `last_outcome = 'emailed'` only once its email has left, when the
+  clock reads it sent (`leadWritten`).
 
 ### 4.3 The words
 
@@ -161,6 +188,16 @@ A second pass per email, deterministic where it can be and a model where it must
 The sheet shows the tally (checked · ready · held) and each held email with its reason and its doors (Include · Fix ·
 Skip · Not a fit). The approval sheet repeats the count. A held email never sends until the owner acts.
 
+**As built (Part 3): the code rules, at the write.** Part 3's slots are `{{business}}`, `{{city}}` and
+`{{your business}}`; the rest, the opening and the model's rules are Part 4's.
+- A lead with no value for a slot is skipped (`missing_value`).
+- A step whose words cannot be sent holds every send of it, and each lead keeps its place: a slot no lead could fill
+  (`unknown_slot`), a first email with no subject, a subject that poses as a reply, or no template at all. The send is
+  planned again an hour on, in its lead's hours.
+- A workspace with no business address for the foot, or no mailbox for the replies, claims nothing at all.
+- The footer and the unsubscribe headers are frozen into every request.
+- Everything the door checks (§4.8) is asked again when the email leaves.
+
 ### 4.5 The timetable
 
 `timetable(recipients, {zone, hours} per lead, pace, domains, now)` is a pure function in contracts: it assigns each
@@ -171,6 +208,29 @@ tomorrow's first slots. A lead's zone comes from its state (a 50-state map in co
 "sends 9:40" is its first slot. The ticker (`broadcast_send`, every minute) claims recipients with `send_at ≤ now`, at most
 five a second across the platform (Resend allows ten a second per team by default), re-checks the stops (§4.7) and the domain's state, and sends. Pausing a reach-out clears
 the future `send_at`s; resuming rebuilds them.
+
+**As built (Part 3; 00184, 00186, 00187).**
+- **The timetable.**
+  - Each lead's zone comes from its state.
+  - A send goes in its lead's own hours, inside 8 AM–8 PM where the lead is. An unread or night-only week takes the
+    default week.
+  - Sends on a domain are spaced by the step's `gap_minutes`, and a domain takes no more than its day allows: the ramp
+    by the days it has actually sent (D15, `domainDailyCap(sent_days)`).
+- **The ticker is the reach-out clock**, not `broadcast_send`: `/api/cron/reach-out`, every minute, called only when
+  there is work. Each tick, first:
+  - it reads what became of each email it wrote;
+  - it frees a claim a writer left mid-way;
+  - it withdraws a closed run's queued emails, and skips its sends;
+  - it finishes a run with nothing left open;
+  - it plans again a send left stale.
+
+  Then it claims what is due, a domain at a time (`reach_out_due_domains`), under the domain's lock (`reach_out_claim`),
+  five a domain a tick. It stays within the day the door will pass and the workspace's month (2,000,
+  `reach_out_month_sent`).
+- **Each claim is written rows first:** the email row under an id derived from the send and its `attempts`, its
+  `outbound_send` job, then the send queued. It leaves through the jobs tick and the one door.
+- **A pause doesn't clear anything.** A paused chain's sends keep their times, and the clock plans them again when it
+  goes ahead.
 
 ### 4.6 The wire
 
@@ -223,6 +283,17 @@ a suppression row for the address and the domain, nothing more, ever, from any s
 the note names who they said to write to. Away: the chain pauses until the date named, or seven days. A misread is
 undoable for seven days on the lead ("read as no · undo").
 
+**As built (Part 3).**
+- **The stops that shipped, all keyed by the send's own lead:**
+  - *wrote back*: a message of their own on any channel, an email answering one sent to them from any address, or a
+    call they made; an out-of-office is not one (00181, the door and the followers);
+  - *unsubscribed* and *said no* (the door);
+  - *bounced*: any bounce stops the chain, and a permanent one marks the lead's address invalid (PR 7's receipt,
+    `leadAddressBounced`);
+  - *closed*: a lead no longer `ready` or `nurture`.
+- **Owed by Part 5:** *booked*, *not now* and *away* need the reply's intent read, and the classifier is Part 5's. Until
+  then any reply stops the chain (C16).
+
 ### 4.8 Protection
 
 - **Addresses:** `email_state = 'ok'` only, by default; catch-all and unknown held until included; a customer's number or
@@ -243,13 +314,20 @@ undoable for seven days on the lead ("read as no · undo").
   email from any address that answers or cites one sent to them, or a call they made; an out-of-office is not one), built
   without its unsubscribe link (`outreach_without_unsubscribe`), not from the workspace's own domain by its whole From
   (`outreach_needs_own_domain`), from one not verified (`sending_domain_not_ready`), or past the domain's day: its
-  rolling 24 hours against the ramp (`sending_domain_at_cap`). The day's count is the backstop; Part 3's batch writer
-  claims within it (C7).
+  rolling 24 hours against the ramp (`sending_domain_at_cap`). The day's count is the backstop; the reach-out clock
+  claims within it, under the domain's lock (`reach_out_claim`, C7).
 - **Volume:** the ramp per domain; the gap; the lead's hours; the month's allowance per workspace (cold sends counted
   from `messages` where `meta.source = 'reach_out'`, beside `maySpend`); the Campaigns head says "1,940 of 2,000 emails
   this month" once half is used.
 - **The owner:** the first run waits for approval; later runs give thirty minutes; every held email waits for a decision;
   nothing is rerouted to another channel or domain on a failure.
+- **As built (Part 3, 00188), the holds Part 3 added:**
+  - **Unsubscribes (D18)** hold a domain past 2% of what it sent (more than 3 while fewer than 150 have gone:
+    `unsubscribed × 50 > max(sent, 150)`), after a complaint and bounces.
+  - **A second reputation hold (D16)** within 30 days is the platform's to lift: the platform is paged and the owner's
+    Resume is refused. Removing the domain and adding it again inside the 30 days is refused too.
+  - **A cold-only link and reply domain (D17)**, before scale: `UNSUBSCRIBE_ORIGIN` and `COLD_REPLY_DOMAIN`, with the
+    reply domain before it kept routing while it winds down (docs/runbook.md, "Before scale").
 
 ### 4.9 Notifications and Today
 
@@ -329,26 +407,32 @@ Each to 100% before the next, and each shippable in either deploy order unless s
    A held domain still answers for its reputation. The door refuses a cold email to anyone who wrote back or called
    (`outreach_wrote_back`, 00181, C1's door half). The edge seals and opens an unsubscribe link every domains sweep
    (C9's probe). And two guards: a contracts import-cycle test, and a time limit written for every sweep.
-3. **The engine:** the `playbooks` columns and CHECKs, the `leads` audience kind, sending creates the person, `after_step`
-   and `lead_first`, the stops, the timetable and the US zones, the ticker's due claim and re-check, metering. Migration
-   first. 3 PRs. It also owes what Part 2.5 carried here, none of it built yet:
-   - **C1** the footer's "Reply 'no thanks'" kept: no email to an address after any human reply to a reach-out. The
-     door's half shipped in Part 2.6 (00181, `outreach_wrote_back`); the chain's own stop (`replied`) is still owed;
-   - **C2** the stop keyed by lead, with In-Reply-To and References matching (the door already matches a reply from
-     another address by both, 00181);
-   - **C3** auto-replies excluded from "replied" (the door already reads the intake's claim, 00181);
-   - **C4** any bounce stops the chain;
-   - **C5** a held or removed domain defers a send, never cancels it;
-   - **C6** `maySpend` and metering per cold send;
-   - **C7** the atomic daily claim for the batch writer (the door's 24-hour count is the backstop);
-   - **C8** the rows-first batch writer, with a recipient-derived row id;
-   - **C9** token minting. The edge's `UNSUBSCRIBE_SECRET` getter and the probe that both apps hold the same secret
-     shipped in Part 2.6 (edge `lib/email/unsubscribe-probe.ts`, run by the `domains` sweep);
-   - **C10** `campaignFooter` and `ownDomainIdentity` frozen into the request;
-   - **C11** a bounce marks the lead's `email_state`;
-   - **C12** the broadcast batch's email branch;
-   - **C13** a cold send refused while the cold webhook secret is unset (the route is already refused);
-   - **C14** Resend's real rate limit, read from its `ratelimit-*` headers.
+3. **Shipped 26 Sep 2026 in #1102, #1111, #1112, #1114, #1116, #1117, #1119, #1120 and the proof and docs (nine PRs,
+   not three; 00183–00188 on production).** **The engine:** the chain's objects (00183), the pure clock of a lead (zones,
+   hours, the timetable), the doors (00184), a step's run planned whole (00185), the reach-out clock (00186), the
+   sender (00187), the holds (00188), a cold-only domain's switches, and an end-to-end test on a stack
+   (`reach-out.integration.db.test.mjs`). `docs/superpowers/plans/2026-09-25-reach-out-part-3-the-engine.md` has the
+   decisions (E1–E12, D15–D19) and what each PR built. What Part 2.5 carried here, and where each landed:
+   - **C1** the footer's "Reply 'no thanks'" kept. The door refuses anyone who wrote back (00181), and a step's
+     followers leave them out before their limit (00184–00185).
+   - **C2** the stop keyed by lead. The followers, and the door by the send's own lead: `Delivery.leadId` into
+     `outreach_facts(p_lead_id)`, PR 6. In-Reply-To and References are matched (00181).
+   - **C3** auto-replies excluded from "wrote back" (00181).
+   - **C4** any bounce stops the chain (the followers' `bounced`, 00184).
+   - **C5** a held or removed domain defers a send, never cancels it. The clock plans every door wait again (a full day,
+     a domain not ready or removed, a paused workspace), and the sender re-plans a claim whose domain went away.
+   - **C6** `maySpend` asked when a run is planned; the month's allowance counted at the claim (00187). Billing per cold
+     send is the pricing decision's (0011).
+   - **C7** the atomic claim under the domain's lock (`reach_out_claim`, 00184). The door's day is the backstop.
+   - **C8** rows first: the email row under a send-derived id before the send leaves `claimed`, then its job (PR 6).
+   - **C9** the token minted per person and email at the write (`lib/reach-out/request.ts`).
+   - **C10** `campaignFooter` and `ownDomainIdentity` frozen into the request (PR 6).
+   - **C11** a permanent bounce marks the lead's address invalid (PR 7).
+   - **C12** no broadcast email branch was needed: a reach-out's run releases no `broadcast_send`, and its sends are
+     the reach-out clock's (`isReachOutRun`, PR 4).
+   - **C13** the clock claims nothing without the cold lane's secrets, and answers 503 `cold_lane_unset` while a send is
+     due (PR 6).
+   - **C14** an email taken as the last of its second waits out `ratelimit-reset` before the next leaves (PR 6).
 4. **The words and the pages:** email template rows and their validator, the slots, the opening and check jobs, the
    sheet, the Leads door and the bulk door, the approval sheet's words, the Playbooks open row, Templates' switch.
    2 PRs.

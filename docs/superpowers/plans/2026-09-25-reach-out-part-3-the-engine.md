@@ -10,6 +10,27 @@
 
 **Status:** Written 25 Sep 2026 against `main` at `e745cd2e` (Part 2.6 complete: #1086, #1092, #1098; the broadcast claim fix, #1100). Part 3 is approved (Ruben, 25 Sep: "go with your recommendations"), with D15–D19 and the design notes below decided. Every file:line below was read that day by three code maps and checked by hand where the plan leans on it.
 
+**As built: complete, 26 Sep 2026.** Nine PRs, each one reviewed once, fixed, and merged on green. Migrations 00183–00188 are on production. Each PR's section below opens with its "As built" note, which says where it differs from the code this plan wrote and why.
+
+| PR | What | Migration |
+| --- | --- | --- |
+| 1 #1102 | The objects: the chain's columns, `reach_out_sends` and its guard, the `outreach` class | 00183 |
+| 2 #1111 | The clock of a lead: US zones, lead hours, the timetable, the rules (pure) | — |
+| 3 #1112 | The doors: one capacity, the audience and followers, the person, the atomic claim, `sent_days` (D15) | 00184 |
+| 4 #1114 | A step's run, planned whole; approving a reach-out run releases no `broadcast_send` | 00185 |
+| 5 #1116 | The reach-out clock: reconcile, unstick, close, finish, restale; its reads bounded SQL functions, its id lists a hundred at a time | 00186 |
+| 6 #1117 | The sender: rows first; adopting a dead tick's email; holds for the step's and the workspace's faults; the lane (C13); the door by lead; C14 | 00187 |
+| 7 #1119 | The holds: a bounce marks the lead (C11), a second hold is the platform's (D16), unsubscribes hold a domain (D18) | 00188 |
+| 8 #1120 | A cold-only link and reply domain when it is set (D17), with a previous reply domain, a receiving check and a link host that answers only `/u/` | — |
+| 9 | The end-to-end proof on a stack, and the docs (the spec's "As built" notes and C1–C14, the PRD, the runbook, the architecture, the glossary) | — |
+
+The migration numbers moved during the build: PR 4's review added 00185, so the clock's number is 00186, not 00185. PR 6 needed bounded reads of its own (00187), so the holds' number is 00188, not 00186.
+
+What is left for later parts:
+- **Part 4:** the sheet that makes a reach-out, the opening, and the model's checks.
+- **Part 5:** replies read for their intent (booked, not now, away).
+- **Ruben's to set:** the cold lane's secrets, the one real send that checks DKIM, the cold-only domain, and the allowance's price.
+
 ---
 
 ## 0. What is decided, and what this plan decides
@@ -198,9 +219,9 @@ Each is cut from `main` after the one before it merges, and each is shippable on
 | 2 | `reach-out-3b-clock-of-a-lead` | zones, hours, `timetable()`, the rules (pure) | none |
 | 3 | `reach-out-3c-doors` | one capacity read, the door keyed by lead, D15, the audience, the person, the claim | 00184 |
 | 4 | `reach-out-3d-the-run` | `runReachOut`: a step's run assembled, approved, planned | none |
-| 5 | `reach-out-3e-the-clock` | the clock: reconcile, closed runs, stale sends, finishing; nothing claimed (C5) | 00185 |
+| 5 | `reach-out-3e-the-clock` | the clock: reconcile, closed runs, stale sends, finishing; nothing claimed (C5) | 00185 (as built 00186) |
 | 6 | `reach-out-3f-the-sender` | the claim and the write: the person, the frozen request, the row and its job; C6–C10, C13, C14, D19 | none |
-| 7 | `reach-out-3g-holds` | C11, D16, D18 (unsubscribes) | 00186 |
+| 7 | `reach-out-3g-holds` | C11, D16, D18 (unsubscribes) | 00186 (as built 00188) |
 | 8 | `reach-out-3h-cold-domains` | D17's switches and the runbook | none |
 | 9 | `reach-out-3i-proof` | the integration test over a replayed stack; docs; As built | none |
 
@@ -2156,7 +2177,7 @@ export async function runReachOut(
 
 ---
 
-## PR 5 — The clock (00185): reconcile, finish, re-plan; nothing claimed yet
+## PR 5 — The clock (00185; as built 00186): reconcile, finish, re-plan; nothing claimed yet
 
 The clock runs every minute. This PR gives it everything except the claim, so it can merge and run against production
 while no send is claimable: it reads, reconciles and finishes runs, and it is watched (`sweep_status`) from its first
@@ -2595,7 +2616,7 @@ A send left `claimed` for five minutes is read by `staleClaims(db, now)` at the 
 
 ---
 
-## PR 7 — The holds (00186): C11, D16, D18
+## PR 7 — The holds (00186; as built 00188): C11, D16, D18
 
 > **As built (PR 7, 26 Sep 2026; its migration is 00188, and every "00186" below means it).**
 > - **C11:** the receipt reads the row's meta once (`sentEmailOf`), for both the flag and the lead. `leadAddressBounced` retries a version race once, then sends the receipt back. An erased or blanked lead is left alone.
@@ -2724,6 +2745,12 @@ No migration. The switches ship with today's addresses as their defaults, so not
 ---
 
 ## PR 9 — The proof and the docs
+
+> **As built (PR 9, 26 Sep 2026).** `reach-out.integration.db.test.mjs` runs the nine steps below over the real code on a stack.
+> - **Where it calls the code directly:** it calls the run verb (`reachOutRunContext` and `runReachOut`) rather than the playbooks sweep's door, whose hour gate would make the test wait for a clock. It uses the dashboard's own `approveRunPorts`, with a real auth user as the decision's actor.
+> - **How it runs the jobs:** it runs each job by hand through `dispatchJob` with the edge's email wire, and withdraws it afterwards so no runner takes it again.
+> - **Step 9's shape:** the domain's first ramp step (30), filled to exactly thirty within the day (the three the test sent, and twenty-seven more); the plan said "a cap of 1". The claim takes nothing, and an email written by hand at the share is refused at the door and planned again.
+> - **Its review's fixes:** the re-plan read its leads in one id list, which breaks past about two hundred, and now reads them a hundred at a time (proved on the stack with 300). CI replays the stack suites when the engine's own code changes (`db-paths-changed.mjs`).
 
 ### Task 9.1: End to end, on a replayed stack
 

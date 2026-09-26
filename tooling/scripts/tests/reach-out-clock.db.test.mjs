@@ -295,3 +295,27 @@ test(
     assert.deepEqual([s.state, s.reason], ["skipped", "run_canceled"]);
   },
 );
+
+test(
+  "three hundred stale sends of one step are planned again in one tick: their leads are read a hundred at a time",
+  { skip },
+  async () => {
+    const goes = await run("sending", "2026-09-19");
+    const old = Date.now() - 40 * MIN;
+    const ids = await planned(goes, await leads(300), old);
+    const out = await clock(db, new Date(), log({ test: "clock" }), Date.now(), A);
+    assert.equal(out.replanned + out.waiting, 300, JSON.stringify(out));
+    const left = [];
+    for (let i = 0; i < ids.length; i += 100)
+      left.push(
+        ...ok(
+          await db
+            .from("reach_out_sends")
+            .select("id")
+            .in("id", ids.slice(i, i + 100))
+            .eq("send_at", iso(old)),
+        ),
+      );
+    assert.deepEqual(left, [], "none keeps the time it was left at");
+  },
+);

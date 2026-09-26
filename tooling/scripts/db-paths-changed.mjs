@@ -30,6 +30,15 @@ export const DB_PATHS = [
   "tooling/scripts/tests/*.integration.test.mjs",
   // the *.integration suites call the db package's repositories, through its committed dist
   "packages/db/src/**",
+  // the reach-out engine the stack suites run end to end (the clock, the sender, the door by lead, the approve ports):
+  // a change to it alone must replay what proves it
+  "apps/edge/lib/reach-out/**",
+  "apps/edge/lib/email/**",
+  "apps/edge/api/cron/reach-out.ts",
+  "packages/core/src/campaigns/**",
+  "packages/core/src/deliver.ts",
+  "packages/jobs/src/handlers.ts",
+  "apps/dashboard/src/server/campaign-ports.ts",
   // what the two --check steps compare with the database
   "tooling/scripts/gen-schema-sets.mjs",
   "packages/contracts/src/schema-sets.generated.ts",

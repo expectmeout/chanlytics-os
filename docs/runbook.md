@@ -274,8 +274,9 @@ only; the dashboard holds none.
 
 Reach out sends from a workspace's own domains through a second Resend
 account, apart from the one every reply and every page uses, so a cold
-complaint never touches the platform's reputation. Nothing sends cold until
-Reach out Part 3; these are the switches it needs, in order.
+complaint never touches the platform's reputation. Reach out Part 3 built
+the engine that sends it; nothing sends cold until these switches are set, in
+order, and a reach-out exists (step 8).
 
 1. **The cold account.** Create the second Resend account on a plan with
    enough domains (five per workspace at most).
@@ -315,6 +316,31 @@ Reach out Part 3; these are the switches it needs, in order.
    `List-Unsubscribe` and `List-Unsubscribe-Post` among the signed headers:
    Gmail and Yahoo honour a one-click unsubscribe only when DKIM signs both
    (RFC 8058 §4).
+8. **The first reach-out.** Made on Part 4's sheet: a chain over a lead
+   search, its words and its domains. Until the sheet ships there is no door
+   that makes one; `tooling/scripts/tests/reach-out.integration.db.test.mjs`
+   seeds one on a local stack and runs it end to end. Its first run waits for
+   its owner on Broadcasts; the `reach-out-sweep` clock (every minute) sends
+   what is due from then on, each email through the jobs tick and the door.
+
+**What the reach-out clock's 503 means.** `POST /api/cron/reach-out` answers
+`503 cold_lane_unset` with the variables it lacks (`RESEND_API_KEY`,
+`RESEND_COLD_API_KEY`, `RESEND_COLD_WEBHOOK_SECRET`, `UNSUBSCRIBE_SECRET`,
+`EMAIL_DOMAIN`) while a send is due: nothing is claimed until they are set,
+and the sends keep. With nothing due it answers 200 and names them under
+`lane_missing`. A workspace at its month's allowance (2,000) claims nothing
+until the month turns in its zone (`reach_out_month_spent` in the logs); one
+without a mailbox or a business address claims nothing either
+(`reach_out_workspace_held`).
+
+**A domain held twice in 30 days.** Its owner cannot resume it: the platform
+is paged (`sending_domain_held_twice:<host>`, naming the workspace and the
+domain). Look at what it sent, then lift it:
+`POST /api/admin/sending-domains` with `x-diag-key` and
+`{ "op": "resume", "tenant_id": "…", "domain_id": "…", "by": "platform" }`.
+The owner is told it sends again, from 30 a day. Only the platform's
+`DIAG_KEY` opens this lift, a dashboard's token never does: keep `DIAG_KEY` on
+the edge, even once every caller carries a token.
 
 **Rotating the unsubscribe secret.** A link already in someone's inbox must
 keep working for at least thirty days (CAN-SPAM). The dashboard first: move

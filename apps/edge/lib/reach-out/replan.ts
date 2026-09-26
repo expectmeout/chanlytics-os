@@ -66,15 +66,18 @@ export async function replanSends(db: Db, items: Replan[], now: Date, log: Logge
         .eq("id", stepId)
         .maybeSingle();
       if (se) throw new Error(`the step: ${se.message}`);
-      const { data: leads, error: le } = await db
-        .from("leads")
-        .select("id, region, hours")
-        .eq("tenant_id", tenantId)
-        .in(
-          "id",
-          group.map((s) => s.lead_id),
-        );
-      if (le) throw new Error(`the leads: ${le.message}`);
+      // A hundred at a time: an id list rides in the request's address, and a step's group can hold five hundred.
+      const leads: Array<{ id: string; region: string | null; hours: unknown }> = [];
+      const ids = [...new Set(group.map((s) => s.lead_id))];
+      for (let i = 0; i < ids.length; i += 100) {
+        const { data, error: le } = await db
+          .from("leads")
+          .select("id, region, hours")
+          .eq("tenant_id", tenantId)
+          .in("id", ids.slice(i, i + 100));
+        if (le) throw new Error(`the leads: ${le.message}`);
+        leads.push(...(data ?? []));
+      }
       if (!zones.has(tenantId)) {
         const { data: t } = await db.from("tenants").select("timezone").eq("id", tenantId).maybeSingle();
         zones.set(tenantId, t?.timezone || "America/New_York");
@@ -101,7 +104,7 @@ export async function replanSends(db: Db, items: Replan[], now: Date, log: Logge
         }
         domains.push({ id: d.id, cap: c.clean_since ? domainDailyCap(c.sent_days) : 0, recent });
       }
-      const leadOf = new Map((leads ?? []).map((l) => [l.id, l]));
+      const leadOf = new Map(leads.map((l) => [l.id, l]));
       const plan = timetable({
         sends: group.map((s) => ({
           id: s.id,
