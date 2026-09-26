@@ -4418,6 +4418,10 @@ type Database = {
                 };
                 Returns: Json;
             };
+            delete_my_account: {
+                Args: never;
+                Returns: Json;
+            };
             drop_google_credentials: {
                 Args: {
                     p_tenant_id: string;
@@ -5366,10 +5370,6 @@ type Database = {
                     p_keep?: string;
                 };
                 Returns: number;
-            };
-            delete_my_account: {
-                Args: Record<PropertyKey, never>;
-                Returns: Json;
             };
             push_device_forget: {
                 Args: {
