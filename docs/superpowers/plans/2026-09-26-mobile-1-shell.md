@@ -265,11 +265,13 @@ Every task shipped as written, with these departures:
 - **The lazy mount is a render-time latch**, not an effect: Expo's lint forbids `setState` in an effect body.
 - **Sign-in state comes from the address as well as the bridge.** The login page is not the legacy shell, so it cannot
   post; the WebView reads `/login`, `/signup`, `/reset-password` and `/auth/signout` as "out".
-- **Task 6's cloud build did not run from this environment**: no Expo project and no `EXPO_TOKEN` exist yet. The
-  workflow file, `eas.json` and the README are in place; the first build is one `eas init` and one
-  `eas build --profile development-simulator --platform ios` away. Expo's doctor passes 19 of 21 checks here; the two
+- **Task 6's cloud builds ran once the Expo project existed** (chanlyticss-team/chanlytics, GitHub connected, base
+  directory `apps/mobile`), triggered through the Expo tools connected to the session, since this environment's
+  network denies `api.expo.dev` to the command line. Both green on `f9fa57c`: the iOS simulator build
+  `ac21add6-01e6-49cc-89cc-813f24fb16da` and the Android preview APK `be9a1164-3c0a-4d10-bf1b-e854b120164f`, on
+  the project's Builds page. Expo's doctor passes 19 of 21 checks here; the two
   that fail need the network this environment does not have (the config schema and the directory lookup) and run in CI.
-- **M4's constant is unproven** until a simulator build exists: 49pt plus the safe-area bottom on iOS, 0 on Android.
+- **M4's constant is unproven** until the simulator build is opened on a Mac: 49pt plus the safe-area bottom on iOS, 0 on Android.
 
 Gates: `corepack pnpm test` with the shell's three suites in the same run; `-r typecheck`; root `lint` and the app's
 `expo lint` (0 errors); `format:check`; a Metro export of the iOS bundle.
