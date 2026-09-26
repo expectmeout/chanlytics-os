@@ -519,10 +519,8 @@ test("Ask knows playbooks: read as the page shows them, proposed as a card, comm
     tools.includes('name: "list_playbooks"') &&
       /case "list_playbooks":\s*out = await listPlaybooksTool\(t\);\s*break;/.test(tools),
   );
-  assert.ok(
-    tools.includes("listPlaybooks(t.ctx, t.tenantId)") && tools.includes("nextRunLabel(p, facts.timezone, t.now)"),
-    "the same rows and words as the page",
-  );
+  // The same rows, next-run words and counts as the page: list_playbooks runs against the page's own read in
+  // ask-turn.test.mjs.
   assert.ok(tools.includes("Nothing here has run because you read it."));
   const pr = readCode("apps/dashboard/src/server/ask/proposals.ts");
   assert.ok(

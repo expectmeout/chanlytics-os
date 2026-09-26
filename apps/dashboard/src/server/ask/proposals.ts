@@ -74,10 +74,12 @@ import { listPolicies } from "@chanlytics/db";
 import type { ToolContext, ToolDef } from "./tools";
 import { answerPlanOf, planFacts, searchRow, waitingQuestionOf, type SearchViewRow } from "../leads";
 import { requireUuid } from "../request-guards";
-import { archivedListWords, audiencePoolOnce, poolList } from "../audience";
+import { archivedListWords, poolList } from "../audience";
 import { dealPaceRead, sellsByOf } from "../deals";
 import { checkPlaybookInput, proposalFollowUps } from "../playbooks";
 import { replyChannelOf } from "../verbs";
+import { load } from "../readers";
+import { audiencePool } from "../readers/audience-pool";
 
 /**
  * What the assistant may propose, and how a proposal is checked.
@@ -811,8 +813,9 @@ async function proposeBroadcast(t: ToolContext, input: Record<string, unknown>):
     return refuse(`this template takes ${expected} value${expected === 1 ? "" : "s"}, in order`);
 
   // The audience, counted the way the route will count it.
-  // The pool and the list the route will read, so the count here is the count it enrols.
-  const pool = await audiencePoolOnce(t.memo, t.ctx, t.tenantId, t.timezone, t.now);
+  // The pool and the list the route will read, so the count here is the count it enrols: once a turn, so a listing of
+  // the audiences before it read the same pool (readers/audience-pool.ts).
+  const pool = (await load(t.rc, audiencePool, undefined)).data;
   // Any list, counted the way the send will count it (audience.ts poolList): a built-in or a saved list alike, and
   // one that can't be counted here refused with why.
   let members: Set<string> | null = null;
@@ -983,7 +986,7 @@ async function proposePlaybook(t: ToolContext, input: Record<string, unknown>): 
 
   const deal = trig.kind === "deal";
   const [pool, policies, paceRead, followUps] = await Promise.all([
-    audiencePoolOnce(t.memo, t.ctx, t.tenantId, t.timezone, t.now),
+    load(t.rc, audiencePool, undefined).then((r) => r.data),
     listPolicies(t.ctx.supabase, t.tenantId).catch(() => []),
     // A proposal's moment is counted as the page counts it (0006): by the pace, less whoever had their follow-up.
     deal ? dealPaceRead(t.ctx, t.tenantId, t.now) : Promise.resolve(null),
