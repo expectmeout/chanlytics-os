@@ -24005,6 +24005,46 @@ function openingVerdict(code2, reading, stepLanguage) {
   return { ok: true };
 }
 
+// src/widget.ts
+function todayWidgetSnapshot(vm, at2) {
+  const row2 = vm.needsYou?.rows[0] ?? null;
+  return {
+    headline: vm.standing.headline,
+    figures: (vm.figures ?? []).map((f) => ({ label: f.label, value: f.value })),
+    waiting: vm.queue.waiting,
+    first: row2 ? { who: row2.who, reason: row2.reason } : null,
+    at: at2.toISOString()
+  };
+}
+var FIGURES_MAX = 4;
+var TEXT_MAX = 80;
+function parseTodayWidgetSnapshot(v) {
+  if (!v || typeof v !== "object") return null;
+  const s = v;
+  const text = (x) => typeof x === "string" ? x.trim().slice(0, TEXT_MAX) : null;
+  const headline = text(s.headline);
+  const at2 = typeof s.at === "string" && !Number.isNaN(Date.parse(s.at)) ? s.at : null;
+  const waiting = typeof s.waiting === "number" && Number.isInteger(s.waiting) && s.waiting >= 0 ? s.waiting : null;
+  if (headline === null || at2 === null || waiting === null || !Array.isArray(s.figures)) return null;
+  const figures = [];
+  for (const f of s.figures.slice(0, FIGURES_MAX)) {
+    if (!f || typeof f !== "object") return null;
+    const label = text(f.label);
+    const value = f.value;
+    if (label === null || typeof value !== "number" || !Number.isFinite(value) || value < 0) return null;
+    figures.push({ label, value: Math.floor(value) });
+  }
+  let first = null;
+  if (s.first !== null && s.first !== void 0) {
+    if (typeof s.first !== "object") return null;
+    const who = text(s.first.who);
+    const reason = text(s.first.reason);
+    if (who === null || reason === null) return null;
+    first = { who, reason };
+  }
+  return { headline, figures, waiting, first, at: at2 };
+}
+
 // src/app-bridge.ts
 var APP_ROUTE_RE = /^[a-z][a-z0-9-]*(?:\/[A-Za-z0-9:_-]+)*$/;
 var PUSH_TOKEN_MAX = 200;
@@ -24030,6 +24070,10 @@ function parsePageMessage(raw) {
       return typeof v.n === "number" && Number.isInteger(v.n) && v.n >= 0 ? { t: "badge", n: v.n } : null;
     case "device":
       return v.state === "registered" || v.state === "forgotten" || v.state === "refused" ? { t: "device", state: v.state } : null;
+    case "today": {
+      const snapshot = parseTodayWidgetSnapshot(v.snapshot);
+      return snapshot ? { t: "today", snapshot } : null;
+    }
     default:
       return null;
   }
@@ -25185,6 +25229,7 @@ export {
   parseShellMessage,
   parseTenantConfig,
   parseTenantConfigResult,
+  parseTodayWidgetSnapshot,
   partialSay,
   passwordProblem,
   pausedGreetingFor,
@@ -25498,6 +25543,7 @@ export {
   todayRunsSub,
   todaySteps,
   todayStepsDue,
+  todayWidgetSnapshot,
   togglePin,
   tomorrowAtIn,
   trialOffer,

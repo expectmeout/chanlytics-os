@@ -74,6 +74,20 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "expo-apple-authentication",
     ["expo-local-authentication", { faceIDPermission: "Chanlytics locks itself with Face ID until you return." }],
     "expo-secure-store",
+    // Today on the home screen and the Lock Screen (src/widgets/TodayWidget.tsx); the app group is the default.
+    [
+      "expo-widgets",
+      {
+        widgets: [
+          {
+            name: "TodayWidget",
+            displayName: "Today",
+            description: "Today's messages, calls and who needs you.",
+            ios: { supportedFamilies: ["systemSmall", "systemMedium", "accessoryRectangular"] },
+          },
+        ],
+      },
+    ],
     ...GOOGLE_PLUGIN,
   ],
   // EAS Update: the fingerprint policy, so an update can only reach a build whose native code it matches.

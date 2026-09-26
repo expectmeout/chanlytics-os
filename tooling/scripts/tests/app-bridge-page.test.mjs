@@ -161,3 +161,32 @@ test("the bell's number is posted at install and on every change; without a bell
   installAppBridge(bare.win, doors());
   assert.ok(!bare.posted.some((m) => m.t === "badge"));
 });
+
+test("Today is handed to the widget at install and on every refresh, in the snapshot's shape", () => {
+  const vm = {
+    standing: {
+      headline: "Quiet so far",
+      eyebrow: "",
+      chips: [],
+      lines: { text: "", down: false },
+      alert: null,
+      detail: null,
+      tone: "calm",
+    },
+    needsYou: null,
+    figures: [{ id: "messages", label: "messages", value: 4, meta: "", receipt: null }],
+    queue: { rows: [], more: 0, parts: [], empty: { headline: "", sub: "" }, waiting: 0 },
+  };
+  const { win, posted, fire } = windowOf();
+  win.TODAY_DATA = vm;
+  installAppBridge(win, doors());
+  const first = posted.find((m) => m.t === "today");
+  assert.equal(first.snapshot.headline, "Quiet so far");
+  assert.deepEqual(first.snapshot.figures, [{ label: "messages", value: 4 }]);
+  win.TODAY_DATA = { ...vm, standing: { ...vm.standing, headline: "1 person needs you" } };
+  fire("surface:today");
+  assert.equal(posted.at(-1).snapshot.headline, "1 person needs you");
+  const bare = windowOf();
+  installAppBridge(bare.win, doors());
+  assert.ok(!bare.posted.some((m) => m.t === "today"), "no Today yet, nothing to hand over");
+});
