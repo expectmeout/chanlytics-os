@@ -14,7 +14,7 @@ import { checkAgain } from "@/server/leads";
  */
 export const POST = write({
   scope: workspace,
-  role: "owner",
+  role: "partner",
   rate: "lead_bulk",
   spend: true,
   spendWords: SPEND_LEADS,

@@ -1,7 +1,10 @@
 # 0011 · A partner brings a workspace, sets it up, and earns a share
 
-**Status:** decided, not built. Written against commit `b6f2216` (PR #1124, 26 September 2026); every file and
-line below was read at that commit. Ruben's calls, 26 September: a share of 25% for as long as the workspace pays;
+**Status:** decided; P1 (the role) built on the branch this note ships with, P2 onward not yet. Written against
+commit `b6f2216` (PR #1124, 26 September 2026); every file and line below was read at that commit, before P1, so
+the Context describes the code P1 changed: `memberships.role` now admits `partner`, `has_permission()` and
+`ROLE_PERMS` carry its row, the setting-class routes declare `role: "partner"`, and `requireRole` refuses a role it
+does not know (00189, `with-route.ts`). Ruben's calls, 26 September: a share of 25% for as long as the workspace pays;
 30 days before a share is payable; the partner works inside the workspace they brought, as a member; nothing new to
 draw where an existing surface already does the job. Where this note and the code disagree, the code wins.
 

@@ -22,6 +22,7 @@ import {
   type AskScope,
   type AskTurnShape,
 } from "@chanlytics/contracts";
+import type { MembershipRole } from "@chanlytics/contracts";
 import type { RouteContext } from "../with-route";
 import type { ReaderContext } from "../readers";
 import { GatewayRefused, featureRejected } from "./gateway";
@@ -75,7 +76,7 @@ export interface TurnEvent {
 export interface TurnInput {
   ctx: RouteContext;
   tenantId: string;
-  role: "owner" | "operator" | "viewer";
+  role: MembershipRole;
   facts: WorkspaceFacts;
   timezone: string;
   personLabel: string;

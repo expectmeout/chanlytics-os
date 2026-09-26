@@ -45,6 +45,7 @@ let A; // the workspace under test, in America/Chicago
 let B; // another workspace
 let owner; // an owner of A
 let operator; // an operator of A
+let partner; // the partner who brought A (0011)
 let stranger; // an owner of B
 const users = [];
 const TZ = "America/Chicago";
@@ -274,6 +275,7 @@ before(async () => {
   ).id;
   owner = await memberClient("owner", A);
   operator = await memberClient("operator", A);
+  partner = await memberClient("partner", A);
   stranger = await memberClient("owner", B);
   // The switch stays off; this workspace is listed, as the nightly's is in release A (30).
   const p = ok(await db.from("lead_platform").select("tenants_on").eq("id", true).single());
@@ -354,10 +356,10 @@ test("the month's ceilings are read through a door, because the table is nobody'
 });
 
 test(
-  "has_permission is ROLE_PERMS in SQL: every role and permission agree, and find is the owner's alone",
+  "has_permission is ROLE_PERMS in SQL: every role and permission agree, and find is the owner's and the partner's",
   { skip },
   async () => {
-    const who = { owner: owner.userId, operator: operator.userId };
+    const who = { owner: owner.userId, operator: operator.userId, partner: partner.userId };
     for (const [role, perms] of Object.entries(ROLE_PERMS)) {
       if (role === "viewer") continue; // no viewer is seeded here; tenancy.db.test.mjs signs one in
       for (const [perm, may] of Object.entries(perms)) {

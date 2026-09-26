@@ -15,6 +15,7 @@ const { useState: useSetState, useEffect: useSetEffect } = React;
 const ST_PERMS = window.ROLE_PERMS || {
   owner:    { approve: true,  autonomy: true,  disconnect: true,  billing: true,  team: true,  settings: true,  export: true },
   operator: { approve: true,  autonomy: true,  disconnect: false, billing: false, team: false, settings: false, export: false },
+  partner:  { approve: true,  autonomy: true,  disconnect: true,  billing: false, team: false, settings: true,  export: false },
   viewer:   { approve: false, autonomy: false, disconnect: false, billing: false, team: false, settings: false, export: false },
 };
 // A person's own hue, from the address they are known by: the same two letters
@@ -23,6 +24,7 @@ const stHue = (seed) => { const s = String(seed || ""); let h = 0; for (let i = 
 const ST_ROLE_META = {
   owner:    { label: "Owner",    can: "Everything — billing, team, and disconnecting channels" },
   operator: { label: "Operator", can: "Approves decisions and tunes autonomy — not billing or team" },
+  partner:  { label: "Partner",  can: "Sets up and runs the receptionist for you — not billing or team" },
   viewer:   { label: "Viewer",   can: "Sees everything, changes nothing — approvals are read-only" },
 };
 

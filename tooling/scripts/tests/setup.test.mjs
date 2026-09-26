@@ -884,7 +884,10 @@ test("the wiring for lines: routes owner-only and rate-limited, the setup route 
   ]) {
     const src = readCode(`apps/dashboard/app/api/v1/lines/${file}/route.ts`);
     // buy declares its policy on the export (route()); search and retry still perform it by hand.
-    assert.ok(src.includes('requireRole(member, "owner")') || src.includes('role: "owner",'), `${file}: owners only`);
+    assert.ok(
+      src.includes('requireRole(member, "partner")') || src.includes('role: "partner",'),
+      `${file}: owners and the partner only`,
+    );
     assert.ok(
       src.includes(`takeRate(ctx.userId, "${bucket}")`) || src.includes(`rate: "${bucket}",`),
       `${file}: ${bucket}`,

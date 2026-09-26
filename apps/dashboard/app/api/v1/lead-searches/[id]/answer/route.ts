@@ -21,7 +21,7 @@ const Body = z.object({
  */
 export const POST = write({
   scope: workspace,
-  role: "owner",
+  role: "partner",
   rate: "lead_answer",
   input: Body,
   handle: async ({ ctx, member, input }) => {

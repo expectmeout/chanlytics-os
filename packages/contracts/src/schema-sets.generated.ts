@@ -101,7 +101,7 @@ export const SCHEMA_SETS = {
   "lines.voice_state": ["none", "provisioning", "answering", "failed"],
   "lines.whatsapp_state": ["none", "connecting", "connected", "coexistence", "failed"],
   "mailboxes.reply_mode": ["draft", "veto", "auto"],
-  "memberships.role": ["owner", "operator", "viewer"],
+  "memberships.role": ["owner", "operator", "partner", "viewer"],
   "messages.channel": ["whatsapp", "voice", "sms", "email", "system"],
   "messages.direction": ["inbound", "outbound"],
   "messages.sender": ["customer", "ai", "human", "system"],

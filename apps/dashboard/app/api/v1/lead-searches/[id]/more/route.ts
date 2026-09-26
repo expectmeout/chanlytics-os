@@ -17,7 +17,7 @@ const Body = z.object({
  */
 export const POST = write({
   scope: workspace,
-  role: "owner",
+  role: "partner",
   rate: "lead_search",
   spend: true,
   // A refusal here is about finding leads, not about buying a number.

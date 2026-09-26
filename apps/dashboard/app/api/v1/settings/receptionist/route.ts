@@ -9,7 +9,7 @@ import { receptionistFromWhatIsKnown } from "@/server/first-receptionist";
  */
 export const POST = write({
   scope: workspace,
-  role: "owner",
+  role: "partner",
   rate: "settings",
   handle: ({ ctx, member }) => receptionistFromWhatIsKnown(ctx, member.tenantId),
 });

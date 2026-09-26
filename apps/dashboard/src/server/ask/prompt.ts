@@ -10,6 +10,7 @@ import {
   parseTenantConfig,
   type TenantConfig,
 } from "@chanlytics/contracts";
+import type { MembershipRole } from "@chanlytics/contracts";
 import type { AskScope } from "@chanlytics/contracts";
 
 /**
@@ -268,7 +269,7 @@ export function stableSystem(f: WorkspaceFacts): string {
 }
 
 export interface TurnFacts {
-  role: "owner" | "operator" | "viewer";
+  role: MembershipRole;
   personLabel: string;
   scope: AskScope | null;
   surface: string | null;

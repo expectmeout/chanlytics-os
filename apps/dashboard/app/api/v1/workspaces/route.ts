@@ -191,7 +191,7 @@ export const GET = read({
  */
 export const PATCH = write({
   scope: workspace,
-  role: "owner",
+  role: "partner",
   rate: null,
   handle: async ({ ctx, req, member }) => {
     const body = (await req.json().catch(() => null)) as { timezone?: unknown; sells_by?: unknown } | null;

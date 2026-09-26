@@ -28,7 +28,14 @@ import { knownZone, pageClock, workspaceZone } from "./zone";
 import { heldViews } from "./held-views";
 export { getActiveWorkspace } from "./workspace";
 import { DEFAULT_REFRESH_TABLES, type RealtimeChange } from "./surface-realtime";
-import type { DealDto, NotificationsDto, PendingWorkspace, ResolvedFacts, FactConflict } from "@chanlytics/contracts";
+import type {
+  DealDto,
+  MembershipRole,
+  NotificationsDto,
+  PendingWorkspace,
+  ResolvedFacts,
+  FactConflict,
+} from "@chanlytics/contracts";
 import type { PoliciesSurface } from "./policy-store";
 
 export interface SurfaceOverride {
@@ -89,7 +96,7 @@ export interface Workspace {
 export interface Me {
   id: string;
   email: string | null;
-  role?: "owner" | "operator" | "viewer" | null;
+  role?: MembershipRole | null;
   display_name?: string | null;
   /** Whether the Chanlytics back office exists for this person. Never the authorization -- every platform route asks the database. */
   platform_admin?: boolean;

@@ -9,7 +9,7 @@ import { checkSendingDomain } from "@/server/sending-domains";
  */
 export const POST = write({
   scope: workspace,
-  role: "owner",
+  role: "partner",
   rate: "settings",
   handle: async ({ ctx, member }) => ({
     domain: await checkSendingDomain(member.tenantId, ctx.userId, String(ctx.params.id ?? "")),

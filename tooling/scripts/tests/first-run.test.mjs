@@ -411,7 +411,22 @@ test("the landing rule: an owner whose receptionist answers nowhere lands on the
   assert.equal(shouldLandOnFirstRun("owner", false, "inbox", false), false, "a deep link is respected");
   assert.equal(shouldLandOnFirstRun("owner", false, "today", true), false, "once per session");
   assert.equal(shouldLandOnFirstRun("owner", true, "today", false), false, "answering: Today is the page");
-  assert.equal(shouldLandOnFirstRun("operator", false, "today", false), false, "only the owner is sent");
+  assert.equal(
+    shouldLandOnFirstRun("partner", false, "today", false),
+    true,
+    "the partner who brought it sets it up (0011)",
+  );
+  assert.equal(
+    shouldLandOnFirstRun("operator", false, "today", false),
+    false,
+    "an operator may not set it up, so is not sent",
+  );
+  assert.equal(shouldLandOnFirstRun("viewer", false, "today", false), false);
+  assert.equal(
+    shouldLandOnFirstRun("manager", false, "today", false),
+    false,
+    "a role the table does not know is a viewer",
+  );
   assert.equal(shouldLandOnFirstRun(null, false, "today", false), false);
 });
 

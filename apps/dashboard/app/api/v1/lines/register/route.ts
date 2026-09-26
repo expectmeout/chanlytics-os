@@ -36,7 +36,7 @@ const Body = z.object({
  */
 export const POST = write({
   scope: workspace,
-  role: "owner",
+  role: "partner",
   rate: "lines_register",
   spend: true,
   // A refusal here is about registering for texting, not about buying a number.

@@ -37,7 +37,7 @@ const SAID: Record<string, string> = {
 
 export const POST = write({
   scope: workspace,
-  role: "owner",
+  role: "partner",
   rate: "settings",
   handle: async ({ ctx, req, member }) => {
     const body = (await req.json().catch(() => null)) as {

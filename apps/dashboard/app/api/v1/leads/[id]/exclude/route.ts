@@ -8,7 +8,7 @@ const Body = z.object({ search_id: z.string().uuid() });
 /** POST /api/v1/leads/:id/exclude: the owner leaves a place out of Needs review. Free; undoable through its operation record. */
 export const POST = write({
   scope: workspace,
-  role: "owner",
+  role: "partner",
   rate: "lead_member",
   input: Body,
   handle: async ({ ctx, input }) => {

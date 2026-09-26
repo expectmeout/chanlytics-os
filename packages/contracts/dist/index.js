@@ -288,7 +288,7 @@ var EMAIL_ELSEWHERE_SENTENCE = "Replies you send from another mail app do not sh
 
 // src/enums.ts
 var TENANT_STATUSES = ["active", "paused", "test"];
-var MEMBERSHIP_ROLES = ["owner", "operator", "viewer"];
+var MEMBERSHIP_ROLES = ["owner", "operator", "partner", "viewer"];
 var CHANNEL_KINDS = ["whatsapp", "voice", "sms", "email", "instagram"];
 var CONVERSATION_STATES = ["open", "needs_human", "snoozed", "archived"];
 var MESSAGE_CHANNELS = ["whatsapp", "voice", "sms", "email", "system"];
@@ -2667,6 +2667,7 @@ function changedConfigFields(before, after) {
 // src/config.ts
 import { z as z3 } from "zod";
 var ROLES = MEMBERSHIP_ROLES;
+var TEAM_ROLES = ["owner", "operator", "viewer"];
 var ROLE_PERMS = {
   // `settings` is the business details and who is alerted: PUT /settings is
   // owner-only, and the form used to open on the autonomy gate, which let an
@@ -2675,8 +2676,14 @@ var ROLE_PERMS = {
   // people a screen at a time, the owner may take them all at once.
   // `find` is the lead finder: starting a search, keeping a lead from review,
   // putting one back. Each spends the month's allowance, so it is the
-  // owner's alone (PRD v3 §16.6, S9); has_permission() in 00140 says the
-  // same, and lead-engine.db.test.mjs holds the two together.
+  // owner's, and the partner's (PRD v3 §16.6, S9); has_permission() in 00140
+  // (widened in 00189) says the same, and lead-engine.db.test.mjs holds the
+  // two together.
+  // `partner` (decision 0011) is the member who brought the workspace and sets
+  // it up for its owner: everything setting up and running the receptionist
+  // takes, and nothing that touches the money, the team, or the customer list
+  // as a file. `disconnect` is the channel permission both ways: a partner
+  // gets the line and connects WhatsApp, and may disconnect them again.
   owner: {
     approve: true,
     autonomy: true,
@@ -2696,6 +2703,16 @@ var ROLE_PERMS = {
     settings: false,
     export: false,
     find: false
+  },
+  partner: {
+    approve: true,
+    autonomy: true,
+    disconnect: true,
+    billing: false,
+    team: false,
+    settings: true,
+    export: false,
+    find: true
   },
   viewer: {
     approve: false,
@@ -10136,6 +10153,7 @@ function emptyAudienceRefusal(purpose, label, pool) {
 var ROLE_WORDS = {
   owner: "Owner",
   operator: "Operator",
+  partner: "Partner",
   viewer: "Viewer"
 };
 function personInitials(name, email) {
@@ -12423,7 +12441,7 @@ var TONE_OF = /* @__PURE__ */ (() => ({
   template_quality: { GREEN: "ok", YELLOW: "warn", RED: "danger", UNKNOWN: "plain" },
   setup: { waiting_you: "warn", waiting_them: "info", ready: "ok", not_started: "plain" },
   // A role is a name, not a state: Team draws it as a chip. Blue on the owner said "in progress".
-  role: { owner: "plain", operator: "plain", viewer: "plain" },
+  role: { owner: "plain", operator: "plain", partner: "plain", viewer: "plain" },
   tone: { accent: "accent", warn: "warn", info: "info", ok: "ok", danger: "danger", plain: "plain" },
   calendar: { ok: "ok", stale: "warn", unavailable: "warn", none: "plain" },
   // Two sources are a claim somebody else stands behind; the rest are neutral, and a
@@ -15665,7 +15683,7 @@ function receptionistCardOf(i) {
   };
 }
 function shouldLandOnFirstRun(role, answering, route, landed) {
-  if (landed || role !== "owner" || answering) return false;
+  if (landed || answering || !ROLE_PERMS[role]?.settings) return false;
   return route === "" || route === "today";
 }
 var FIRST_RUN_HELPERS = {
@@ -22432,7 +22450,7 @@ var SCHEMA_SETS = {
   "lines.voice_state": ["none", "provisioning", "answering", "failed"],
   "lines.whatsapp_state": ["none", "connecting", "connected", "coexistence", "failed"],
   "mailboxes.reply_mode": ["draft", "veto", "auto"],
-  "memberships.role": ["owner", "operator", "viewer"],
+  "memberships.role": ["owner", "operator", "partner", "viewer"],
   "messages.channel": ["whatsapp", "voice", "sms", "email", "system"],
   "messages.direction": ["inbound", "outbound"],
   "messages.sender": ["customer", "ai", "human", "system"],
@@ -24050,6 +24068,7 @@ export {
   STEP_SHEET_WORDS,
   ServiceSchema,
   SignupSchema,
+  TEAM_ROLES,
   TEMPLATE_BODY_MAX,
   TEMPLATE_BUTTON_TEXT_MAX,
   TEMPLATE_CATEGORIES,

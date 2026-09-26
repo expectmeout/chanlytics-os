@@ -79,17 +79,17 @@ async function lands(p) {
   return new URL(to).searchParams;
 }
 
-test("the eleven declare their policy: the way there the owner's, the way back its own door as a read of the account, the listing and the account the owner's, a refresh, a draft and a reply an operator's", () => {
+test("the eleven declare their policy: the way there the owner's or the partner's (0011), the way back its own door as a read of the account, the listing and the account the owner's or the partner's, a refresh, a draft and a reply an operator's", () => {
   const rd = (role, rate) => ({ kind: "read", scope: "workspace", role, rate, spend: false });
   const ws = (role, rate) => ({ kind: "write", scope: "workspace", role, rate, spend: false });
   assert.deepEqual(callback.GET.policy, { kind: "read", scope: "account", role: null, rate: null, spend: false });
-  assert.deepEqual(connect.GET.policy, rd("owner", "google_link"));
-  assert.deepEqual(locations.GET.policy, rd("owner", "google_search"));
-  assert.deepEqual(connection.DELETE.policy, ws("owner", "google_link"));
-  assert.deepEqual(link.POST.policy, ws("owner", "google_link"));
-  assert.deepEqual(link.DELETE.policy, ws("owner", "google_link"));
-  assert.deepEqual(locations.POST.policy, ws("owner", "google_link"));
-  assert.deepEqual(search.POST.policy, ws("owner", "google_search"));
+  assert.deepEqual(connect.GET.policy, rd("partner", "google_link"));
+  assert.deepEqual(locations.GET.policy, rd("partner", "google_search"));
+  assert.deepEqual(connection.DELETE.policy, ws("partner", "google_link"));
+  assert.deepEqual(link.POST.policy, ws("partner", "google_link"));
+  assert.deepEqual(link.DELETE.policy, ws("partner", "google_link"));
+  assert.deepEqual(locations.POST.policy, ws("partner", "google_link"));
+  assert.deepEqual(search.POST.policy, ws("partner", "google_search"));
   assert.deepEqual(refresh.POST.policy, ws("operator", "google_refresh"));
   assert.deepEqual(draft.POST.policy, ws("operator", "google_draft"));
   assert.deepEqual(reply.POST.policy, ws("operator", "google_reply"));

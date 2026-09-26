@@ -67,13 +67,13 @@ async function refused(p, code, status, words) {
   });
 }
 
-test("the three declare their policy: your name on the account and counted, where you are on the account with no bucket, the zone the owner's with none said out loud", () => {
+test("the three declare their policy: your name on the account and counted, where you are on the account with no bucket, the zone the owner's or the partner's (0011) with none said out loud", () => {
   assert.deepEqual(me.PUT.policy, { kind: "write", scope: "account", role: null, rate: "profile_set", spend: false });
   assert.deepEqual(workspaces.GET.policy, { kind: "read", scope: "account", role: null, rate: null, spend: false });
   assert.deepEqual(workspaces.PATCH.policy, {
     kind: "write",
     scope: "workspace",
-    role: "owner",
+    role: "partner",
     rate: null,
     spend: false,
   });
