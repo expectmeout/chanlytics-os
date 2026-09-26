@@ -134,7 +134,13 @@ const useLeadMapFit = () => {
   return ref;
 };
 
-const LeadMap = ({ rows, plot, by, onBy, picked, onPick, x, onWiden, nearby, onNearby, canFind, oneSearch }) => {
+/**
+ * On a phone (`phone`, 900px and under) the map is the places alone: its line (how many are on it, and what the pins
+ * are coloured by) sits under the plot, and the leads under that are the list's own rows, which the scope draws
+ * (leads-scope.jsx). The side list here was a boxed card of its own -- numbered rows, square tiles, a dot -- under a
+ * map on a screen too narrow for a side, and looked like no other list (Ruben, 25 Sep).
+ */
+const LeadMap = ({ rows, plot, by, onBy, picked, onPick, x, onWiden, nearby, onNearby, canFind, oneSearch, phone = false }) => {
   const V = window.__LEAD_VM || {};
   const byId = new Map(rows.map((l) => [l.id, l]));
   const near = [...plot.pins].sort((a, b) => Math.hypot(a.x - 0.5, a.y - 0.5) - Math.hypot(b.x - 0.5, b.y - 0.5));
@@ -153,18 +159,22 @@ const LeadMap = ({ rows, plot, by, onBy, picked, onPick, x, onWiden, nearby, onN
       ) : null}
     </div>
   ) : null;
+  const bar = (
+    <div className="ld-map-bar">
+      <span className="ld-map-count" data-testid="lead-map-count">{`${plot.pins.length} on the map`}</span>
+      <span className="sp" />
+      <span className="ld-map-by" role="group" aria-label="Colour the pins by">
+        {LEAD_MAP_BY.map((b) => (
+          <button key={b.id} type="button" className={`ld-band-fit${by === b.id ? " on" : ""}`} aria-pressed={by === b.id} onClick={() => onBy(b.id)} data-testid={`map-by-${b.id}`}>{b.label}</button>
+        ))}
+      </span>
+    </div>
+  );
   return (
-    <div className="ld-map" ref={fitRef} data-testid="lead-map">
+    <div className={`ld-map${phone ? " is-phone" : ""}`} ref={phone ? undefined : fitRef} data-testid="lead-map">
+      {phone ? null : (
       <div className="ld-map-side">
-        <div className="ld-map-bar">
-          <span className="ld-map-count" data-testid="lead-map-count">{`${plot.pins.length} on the map`}</span>
-          <span className="sp" />
-          <span className="ld-map-by" role="group" aria-label="Colour the pins by">
-            {LEAD_MAP_BY.map((b) => (
-              <button key={b.id} type="button" className={`ld-band-fit${by === b.id ? " on" : ""}`} aria-pressed={by === b.id} onClick={() => onBy(b.id)} data-testid={`map-by-${b.id}`}>{b.label}</button>
-            ))}
-          </span>
-        </div>
+        {bar}
         <div className="ld-map-rows">
           {near.map((p, i) => {
             const l = byId.get(p.id);
@@ -182,6 +192,7 @@ const LeadMap = ({ rows, plot, by, onBy, picked, onPick, x, onWiden, nearby, onN
           })}
         </div>
       </div>
+      )}
 
       <div className="ld-map-main">
         {plot.tooWide ? (
@@ -224,14 +235,16 @@ const LeadMap = ({ rows, plot, by, onBy, picked, onPick, x, onWiden, nearby, onN
         )}
         <div className="ld-map-foot">
           {/* Which picture this is, in contracts' words: the area asked for, or only where the leads are, or --
-              across searches in different cities -- that these were never one place at all. */}
-          <span className="ld-map-note" data-testid="lead-map-note">{V.leadMapNote ? V.leadMapNote(plot, !!oneSearch) : ""}</span>
+              across searches in different cities -- that these were never one place at all. Where the plot is
+              that sentence already (too wide to draw), it is not said twice. */}
+          {plot.tooWide ? null : <span className="ld-map-note" data-testid="lead-map-note">{V.leadMapNote ? V.leadMapNote(plot, !!oneSearch) : ""}</span>}
           <span className="sp" />
           {nearby.map((a) => (
             <button key={a.label} type="button" className="ld-band-fit" onClick={() => onNearby(a)} data-testid={`map-nearby-${a.zip || a.label}`}>{a.label}</button>
           ))}
           <button type="button" className="btn btn-sm" onClick={onWiden} data-testid="map-widen" {...(canFind ? {} : window.gate("find", "search a wider area"))}>Search wider</button>
         </div>
+        {phone ? bar : null}
       </div>
     </div>
   );

@@ -50,6 +50,8 @@ the answer's shape, or add a migration. Phases 1–7 do those; this one only mea
 5. `git status` shows nothing unstaged after `corepack pnpm format` (the legacy tree and `docs/superpowers` are
    Prettier-ignored; everything else is formatted).
 
+Every suite runs with the root `test` script's flags: `node --conditions=react-server --import tsx --test <files>`.
+
 ## The worktree, the branch, the PR (per PR)
 
 ```bash
@@ -129,7 +131,7 @@ test("the parser: message_start is the usage (the input side, the cache counts, 
 
 - [ ] **Step 2: Run it to verify it fails**
 
-Run: `node --test tooling/scripts/tests/ask-shape.test.mjs`
+Run: `node --conditions=react-server --import tsx --test tooling/scripts/tests/ask-shape.test.mjs`
 Expected: FAIL — `parseFrame` of `message_start` returns `null` (the default case) and the stop has no `outputTokens`.
 
 - [ ] **Step 3: Add the usage event and the output side to `sse.ts`**
@@ -238,7 +240,7 @@ to:
 
 - [ ] **Step 5: Run both suites**
 
-Run: `node --test tooling/scripts/tests/ask-shape.test.mjs tooling/scripts/tests/ask.test.mjs`
+Run: `node --conditions=react-server --import tsx --test tooling/scripts/tests/ask-shape.test.mjs tooling/scripts/tests/ask.test.mjs`
 Expected: PASS, 0 fail.
 
 - [ ] **Step 6: Commit**
@@ -309,7 +311,7 @@ test("a round keeps its timing (first event, first text, the whole) and its usag
 
 - [ ] **Step 2: Run it to verify it fails**
 
-Run: `node --test tooling/scripts/tests/ask-shape.test.mjs`
+Run: `node --conditions=react-server --import tsx --test tooling/scripts/tests/ask-shape.test.mjs`
 Expected: FAIL — `r.usage` is `undefined`, `r.timing` is `undefined`.
 
 - [ ] **Step 3: Add timing and usage to `round.ts`**
@@ -431,7 +433,7 @@ export async function runRound(
 
 - [ ] **Step 4: Run the suites that execute the round**
 
-Run: `node --test tooling/scripts/tests/ask-shape.test.mjs tooling/scripts/tests/ask-turn.test.mjs`
+Run: `node --conditions=react-server --import tsx --test tooling/scripts/tests/ask-shape.test.mjs tooling/scripts/tests/ask-turn.test.mjs`
 Expected: PASS, 0 fail (ask-turn's fake-stream tests read only `blocks`, `stopReason` and `streamError`).
 
 - [ ] **Step 5: Commit**
@@ -464,7 +466,7 @@ test("the cache hit ratio: cache reads over everything the model was fed; nothin
 
 - [ ] **Step 2: Run it to verify it fails**
 
-Run: `node --test tooling/scripts/tests/ask-shape.test.mjs`
+Run: `node --conditions=react-server --import tsx --test tooling/scripts/tests/ask-shape.test.mjs`
 Expected: FAIL — `cacheHitOf is not a function`.
 
 - [ ] **Step 3: Create the contract**
@@ -547,7 +549,7 @@ export * from "./ask-shape";
 
 - [ ] **Step 4: Rebuild the dist and run the test**
 
-Run: `corepack pnpm --filter @chanlytics/contracts build && node --test tooling/scripts/tests/ask-shape.test.mjs`
+Run: `corepack pnpm --filter @chanlytics/contracts build && node --conditions=react-server --import tsx --test tooling/scripts/tests/ask-shape.test.mjs`
 Expected: the build writes `packages/contracts/dist`; the test PASSES.
 
 - [ ] **Step 5: Commit (the dist with it)**
@@ -709,7 +711,7 @@ test("a turn answered without a Say has none; a scripted round without timing or
 
 - [ ] **Step 2: Run it to verify it fails**
 
-Run: `node --test tooling/scripts/tests/ask-shape.test.mjs`
+Run: `node --conditions=react-server --import tsx --test tooling/scripts/tests/ask-shape.test.mjs`
 Expected: FAIL — `r.shape` is `undefined`.
 
 - [ ] **Step 3: Fill the shape in `loop.ts`**
@@ -888,7 +890,7 @@ add `if (firstSayMs === null) firstSayMs = Date.now() - t0;`.
 
 - [ ] **Step 4: Run the Ask suites**
 
-Run: `node --test tooling/scripts/tests/ask-shape.test.mjs tooling/scripts/tests/ask-turn.test.mjs tooling/scripts/tests/ask-routes.test.mjs tooling/scripts/tests/ask.test.mjs`
+Run: `node --conditions=react-server --import tsx --test tooling/scripts/tests/ask-shape.test.mjs tooling/scripts/tests/ask-turn.test.mjs tooling/scripts/tests/ask-routes.test.mjs tooling/scripts/tests/ask.test.mjs`
 Expected: PASS, 0 fail. If `ask.test.mjs` pins the old `ask_turn_shape` log fields by text, the pinned strings
 (`snapshot_ms`, `prefetched`, `rounds`, `tools`, `form`) are all still in the log; re-run and read the message if not.
 
@@ -974,7 +976,7 @@ test("the route: the shape is stored on the turn's row with the palette's opened
 
 - [ ] **Step 2: Run it to verify it fails**
 
-Run: `node --test tooling/scripts/tests/ask-shape.test.mjs`
+Run: `node --conditions=react-server --import tsx --test tooling/scripts/tests/ask-shape.test.mjs`
 Expected: FAIL — `stored.shape` is `undefined`.
 
 - [ ] **Step 3: Change the route**
@@ -1021,7 +1023,7 @@ The `AskMessageVM` built for the stream is unchanged: the shape is the row's, no
 
 - [ ] **Step 4: Run the suites and typecheck**
 
-Run: `node --test tooling/scripts/tests/ask-shape.test.mjs tooling/scripts/tests/ask-routes.test.mjs && corepack pnpm --filter @chanlytics/dashboard typecheck`
+Run: `node --conditions=react-server --import tsx --test tooling/scripts/tests/ask-shape.test.mjs tooling/scripts/tests/ask-routes.test.mjs && corepack pnpm --filter @chanlytics/dashboard typecheck`
 Expected: PASS, 0 fail; no `error TS`.
 
 - [ ] **Step 5: Commit**
@@ -1037,7 +1039,7 @@ git commit -m "The route stores the shape on the turn's row, reads the palette's
 
 - Modify: `apps/dashboard/src/legacy-bridge/ask/api.ts` (the `send` input and body)
 - Modify: `apps/dashboard/src/legacy/pages/ask-real.jsx` (an `openedAt` ref, set on open, sent with the question)
-- Modify: `apps/dashboard/src/legacy/Chanlytics.html:111` (`ask-real.jsx?v=N` → `?v=N+1`; `main` was at 16 on 25 Sep evening, #1078)
+- Modify: `apps/dashboard/src/legacy/Chanlytics.html:111` (`ask-real.jsx?v=N` → `?v=N+1`; `main` was at 16 on 25 Sep evening, #1078; the bump landed as 16 → 17)
 - Modify: `tooling/scripts/tests/ask-palette.test.mjs` (the `ask()` stub records the whole input; one new test)
 - Test: `tooling/scripts/tests/ask-shape.test.mjs` (the client body)
 
@@ -1101,7 +1103,7 @@ test("a question carries how long the Line was open before it was asked (AskTurn
 
 - [ ] **Step 2: Run them to verify they fail**
 
-Run: `node --test tooling/scripts/tests/ask-shape.test.mjs tooling/scripts/tests/ask-palette.test.mjs`
+Run: `node --conditions=react-server --import tsx --test tooling/scripts/tests/ask-shape.test.mjs tooling/scripts/tests/ask-palette.test.mjs`
 Expected: FAIL — `bodies[0].opened_ms` is `undefined`; `calls.inputs[0].openedMs` is `undefined`.
 
 - [ ] **Step 3: The client body**
@@ -1149,7 +1151,7 @@ bumping to the same number merge away silently: after rebasing on a moved `main`
 
 - [ ] **Step 5: Run the suites**
 
-Run: `node --test tooling/scripts/tests/ask-shape.test.mjs tooling/scripts/tests/ask-palette.test.mjs tooling/scripts/tests/legacy-harness.test.mjs tooling/scripts/tests/ask.test.mjs`
+Run: `node --conditions=react-server --import tsx --test tooling/scripts/tests/ask-shape.test.mjs tooling/scripts/tests/ask-palette.test.mjs tooling/scripts/tests/legacy-harness.test.mjs tooling/scripts/tests/ask.test.mjs`
 Expected: PASS, 0 fail.
 
 - [ ] **Step 6: Commit**
@@ -1164,28 +1166,39 @@ git commit -m "The palette says how long it was open before the question"
 **Files:**
 
 - Create: `tooling/scripts/ask-stats.mjs`
-- Test: `tooling/scripts/tests/ask-shape.test.mjs`
+- Test: `tooling/scripts/tests/ask-stats.test.mjs` (its own file, importing `../ask-stats.mjs`)
 
 - [ ] **Step 1: Write the failing test**
 
-Append to `ask-shape.test.mjs`:
+Create `tooling/scripts/tests/ask-stats.test.mjs`, a file of its own:
 
 ```js
-test("the stats: a spread is the median and the slowest tenth over the numbers that exist; a Wilson interval brackets a pass rate and never leaves 0..1", async () => {
-  const { spread, wilson, pct } = await import(at("tooling/scripts/ask-stats.mjs"));
+/**
+ * The arithmetic the Ask scripts share (eval-ask.mjs, ask-day.mjs): a spread
+ * over timings and a Wilson interval on a pass rate. Pure; executed here.
+ */
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { spread, wilson, pct, ms } from "../ask-stats.mjs";
+
+test("the stats: a spread is the median and the slowest tenth over the numbers that exist; a Wilson interval brackets a pass rate and never leaves 0..1", () => {
   assert.deepEqual(spread([5, 1, 3, null, undefined, NaN]), { n: 3, median: 3, p90: 5 });
   assert.deepEqual(spread([]), { n: 0, median: null, p90: null });
   const [lo, hi] = wilson(27, 28);
   assert.ok(lo > 0.8 && lo < 0.9 && hi > 0.99 && hi <= 1, `27 of 28 is about 82–99%, got ${lo}–${hi}`);
   assert.deepEqual(wilson(0, 0), [0, 0]);
-  assert.deepEqual(wilson(3, 3).map((x) => x <= 1 && x >= 0), [true, true]);
+  assert.deepEqual(
+    wilson(3, 3).map((x) => x <= 1 && x >= 0),
+    [true, true],
+  );
   assert.equal(pct(0.964), "96%");
+  assert.deepEqual([ms(1234.4), ms(null)], ["1234 ms", "—"]);
 });
 ```
 
 - [ ] **Step 2: Run it to verify it fails**
 
-Run: `node --test tooling/scripts/tests/ask-shape.test.mjs`
+Run: `node --conditions=react-server --import tsx --test tooling/scripts/tests/ask-stats.test.mjs`
 Expected: FAIL — cannot find module `ask-stats.mjs`.
 
 - [ ] **Step 3: Create the module**
@@ -1197,7 +1210,7 @@ Create `tooling/scripts/ask-stats.mjs`:
  * The arithmetic the Ask scripts share (eval-ask.mjs, ask-day.mjs): a spread
  * over a list of timings, and a Wilson interval on a pass rate, so a run of
  * twenty-eight cases says "27 of 28 (95%: 82–99%)" and not "96%". Pure;
- * executed in tooling/scripts/tests/ask-shape.test.mjs.
+ * executed in tooling/scripts/tests/ask-stats.test.mjs.
  */
 
 /** The median and the slowest tenth of the numbers that exist in `xs`. */
@@ -1230,11 +1243,11 @@ export const ms = (n) => (typeof n === "number" ? `${Math.round(n)} ms` : "—")
 
 - [ ] **Step 4: Run and commit**
 
-Run: `node --test tooling/scripts/tests/ask-shape.test.mjs`
+Run: `node --conditions=react-server --import tsx --test tooling/scripts/tests/ask-stats.test.mjs`
 Expected: PASS.
 
 ```bash
-git add tooling/scripts/ask-stats.mjs tooling/scripts/tests/ask-shape.test.mjs
+git add tooling/scripts/ask-stats.mjs tooling/scripts/tests/ask-stats.test.mjs
 git commit -m "ask-stats: the spread and the Wilson interval the Ask scripts share"
 ```
 
@@ -1763,7 +1776,7 @@ test("the edge allows every profile and defaults to the same name, so the loop a
 
 - [ ] **Step 2: Run it to verify it fails**
 
-Run: `node --test tooling/scripts/tests/ask-model.test.mjs`
+Run: `node --conditions=react-server --import tsx --test tooling/scripts/tests/ask-model.test.mjs`
 Expected: FAIL — `ASK_MODELS` is not exported.
 
 - [ ] **Step 3: Create the profile**
@@ -1844,7 +1857,7 @@ and writing sixty words.` through `export const ASK_MODEL = "claude-sonnet-5";` 
 
 - [ ] **Step 4: Rebuild the dist, run the test**
 
-Run: `corepack pnpm --filter @chanlytics/contracts build && node --test tooling/scripts/tests/ask-model.test.mjs`
+Run: `corepack pnpm --filter @chanlytics/contracts build && node --conditions=react-server --import tsx --test tooling/scripts/tests/ask-model.test.mjs`
 Expected: the first two tests PASS; the third FAILS on `GATEWAY_MODELS.includes` only if the edge list lacks a name
 (it holds both today) and PASSES on the default (the edge reads `ASK_MODEL` from the dist). If all three pass, good.
 
@@ -1862,7 +1875,7 @@ comment and constant with:
 export const GATEWAY_MODELS = ["claude-opus-5", ...ASK_MODELS] as const;
 ```
 
-Run: `corepack pnpm --filter @chanlytics/edge typecheck && node --test tooling/scripts/tests/ask-model.test.mjs tooling/scripts/tests/llm-door.test.mjs`
+Run: `corepack pnpm --filter @chanlytics/edge typecheck && node --conditions=react-server --import tsx --test tooling/scripts/tests/ask-model.test.mjs tooling/scripts/tests/llm-door.test.mjs`
 Expected: no `error TS`; PASS.
 
 - [ ] **Step 6: Commit (the dist with it)**
@@ -1962,7 +1975,7 @@ test("the loop asks the profile: the request names its id and its effort, and th
 
 - [ ] **Step 2: Run it to verify it fails**
 
-Run: `node --test tooling/scripts/tests/ask-model.test.mjs`
+Run: `node --conditions=react-server --import tsx --test tooling/scripts/tests/ask-model.test.mjs`
 Expected: FAIL — cannot find `apps/dashboard/src/server/ask/model.ts`.
 
 - [ ] **Step 3: The picker**
@@ -2080,7 +2093,7 @@ around line 561 (`{ effort: "low" }`, the round asked again without the format) 
 
 - [ ] **Step 7: Run everything Ask**
 
-Run: `corepack pnpm --filter @chanlytics/dashboard typecheck && node --test tooling/scripts/tests/ask-model.test.mjs tooling/scripts/tests/ask-turn.test.mjs tooling/scripts/tests/ask-routes.test.mjs tooling/scripts/tests/ask.test.mjs tooling/scripts/tests/ask-shape.test.mjs tooling/scripts/tests/llm-door.test.mjs`
+Run: `corepack pnpm --filter @chanlytics/dashboard typecheck && node --conditions=react-server --import tsx --test tooling/scripts/tests/ask-model.test.mjs tooling/scripts/tests/ask-turn.test.mjs tooling/scripts/tests/ask-routes.test.mjs tooling/scripts/tests/ask.test.mjs tooling/scripts/tests/ask-shape.test.mjs tooling/scripts/tests/llm-door.test.mjs`
 Expected: no `error TS`; PASS, 0 fail. `grep -rn "claude-sonnet-5" apps/dashboard/src/server/ask apps/dashboard/app/api/v1/ask`
 prints nothing.
 

@@ -21,6 +21,8 @@ export * from "./brain";
 export * from "./notifications";
 export * from "./note-suggest";
 export * from "./ask";
+export * from "./ask-shape";
+export * from "./ask-model";
 export * from "./ask-answer";
 export * from "./availability";
 export * from "./feed-url";

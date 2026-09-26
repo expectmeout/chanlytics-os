@@ -82,6 +82,7 @@ const {
   GATEWAY_MAX_TOOLS,
   GATEWAY_MAX_MESSAGES,
   ASK_USAGE_KIND,
+  GATEWAY_FALLBACK_MODEL,
   validateGatewayRequest,
 } = await import(at("apps/edge/lib/ask-gateway.ts"));
 const door = await import(at("apps/edge/api/admin/llm.ts"));
@@ -472,8 +473,14 @@ test("under the budget: the day's usage is read once for this workspace and Ask'
   );
   assert.deepEqual(
     net.calls[1].body,
-    { model: ASK_MODEL, max_tokens: ASK_MAX_TOKENS, messages: REQUEST.messages, temperature: 1, stream: true },
-    "no model named is the one the loop sends; max_tokens is clamped to Ask's ceiling, temperature to one; nothing the dashboard did not send is added",
+    {
+      model: GATEWAY_FALLBACK_MODEL,
+      max_tokens: ASK_MAX_TOKENS,
+      messages: REQUEST.messages,
+      temperature: 1,
+      stream: true,
+    },
+    "no model named is the fallback an older dashboard expects; max_tokens is clamped to Ask's ceiling, temperature to one; nothing the dashboard did not send is added",
   );
 });
 
@@ -577,7 +584,7 @@ test("a count that cannot be read is zero, never a refusal: the turn goes throug
 
 test("what the Line needs from the gateway: Opus 5.5 is a model Ask may name, Ask's turn may carry its answer format under 8,000 characters, and Ask is clamped to ASK_MAX_TOKENS while the lead purposes keep their ceiling", async () => {
   const ask = (over) => validateGatewayRequest({ ...REQUEST, ...over }, "ask");
-  assert.equal(ask({ model: "claude-opus-5-5" }).ok, true, "Opus 5.5, which the model gate may choose");
+  assert.equal(ask({ model: ASK_MODEL }).ok, true, "Ask's default profile is a model the door allows");
   assert.deepEqual(
     ask({ model: "claude-opus-5-9" }),
     { ok: false, error: "unknown model" },

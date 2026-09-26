@@ -106,6 +106,8 @@ export async function readThread(
   messages: AskMessageVM[];
   /** The same turns as the model reads them (modelTurnOf): the history a new turn on this thread is asked with. */
   turns: Array<{ role: "user" | "assistant"; text: string }>;
+  /** The thread may have more rows than the read returns (MESSAGES_CAP): the newest would not be here. */
+  truncated: boolean;
   tenantId: string;
 } | null> {
   const { data: t, error } = await ctx.supabase
@@ -127,6 +129,7 @@ export async function readThread(
     thread: toThreadVM(t),
     messages: rows.map(toMessageVM),
     turns: rows.map(modelTurnOf),
+    truncated: rows.length >= MESSAGES_CAP,
     tenantId: t.tenant_id,
   };
 }

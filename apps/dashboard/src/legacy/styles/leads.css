@@ -1156,3 +1156,52 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
   .ld-map-streets { aspect-ratio: 4 / 5; min-height: 0; }
   .ld-map-rows { max-height: none; }
 }
+
+/* ---- A phone's search view, quieter (Ruben, 25 Sep) -------------------------------------------------------------
+   The finished search's strip is a standing line, as People's is: what happened in the muted ink, its one step an
+   accent word, no box, no mark. The class tabs sit right under it at 36px, the floor's 44 kept as an invisible press
+   area. Needs review is rows in groups: each group's line carries its acts as quiet words; a row slides over Keep
+   and Exclude (leads-cells.jsx ldCardCell, clients-a.jsx plRowCard). The map opens from the bar's pin. */
+@media (max-width: 900px) {
+  .lf-strip.has-band:not(.ask) { margin: 0; padding: 8px var(--gutter-page) 4px; border: 0; border-radius: 0; background: transparent; min-height: 0; animation: none; font-size: var(--text-sm); color: var(--ink-muted); }
+  .lf-strip.has-band:not(.ask) .ok-mark { display: none; }
+  .lf-strip.has-band:not(.ask) .lf-strip-title { font-weight: 400; color: var(--ink-muted); }
+  /* The step follows the sentence, one line; a long sentence gives way to it. */
+  .lf-strip.has-band:not(.ask) .lf-strip-said { flex: 0 1 auto; }
+  .lf-strip.has-band:not(.ask) .lf-acts { gap: 10px; }
+  .lf-strip.has-band:not(.ask) .lf-acts::before { content: "·"; color: var(--ink-faint); }
+  .lf-strip.has-band:not(.ask) .lf-acts .btn, .lf-strip.has-band:not(.ask) .lf-acts .lnk { position: relative; height: auto; min-height: 0; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; color: var(--accent); font-size: var(--text-sm); font-weight: var(--weight-medium); }
+  .lf-strip.has-band:not(.ask) .lf-acts .btn::after, .lf-strip.has-band:not(.ask) .lf-acts .lnk::after { content: ""; position: absolute; inset: -10px -8px; }
+  .lf-strip.has-band:not(.ask) .lf-strip-bar { display: none; }
+  .lf-strip.has-band:not(.ask) .lf-strip-band { margin-top: 8px; }
+  /* 36px: 32 inside the control's 2px. Named with html.legacy-on, since the touch floor for a tab is (legacy.css). */
+  html.legacy-on .ld-band .ld-class, .ld-band .ld-class { height: 32px; min-height: 32px; }
+  .ld-band .ld-class::after { content: ""; position: absolute; inset: -4px 0; }
+  /* The bar's switch of two, the rows and the places (leads-scope.jsx LeadsPhoneBar): the class tabs' segmented look,
+     smaller, the one shown raised in ink. 36px drawn, each half a thumb tall to press. Named with html.legacy-on for
+     the touch floor's sake. */
+  .ld-bar-view { flex: none; display: inline-flex; align-items: center; gap: 2px; height: 36px; padding: 2px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-sunken); }
+  html.legacy-on .ld-bar-view-opt, .ld-bar-view-opt { position: relative; width: 34px; height: 30px; min-height: 30px; display: grid; place-items: center; padding: 0; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--ink-dim); cursor: pointer; }
+  .ld-bar-view-opt::after { content: ""; position: absolute; inset: -7px -1px; }
+  .ld-bar-view-opt.on { background: var(--bg-raised); color: var(--ink); box-shadow: 0 0 0 1px var(--line); }
+  /* The map on a phone: the places, a line under them (how many, what the pins say), then the list's own rows
+     (leads-map.jsx `phone`). No side card: it was a boxed list of its own under the map. */
+  .ld-map.is-phone { display: block; padding: 8px var(--row-pad-x) 4px; }
+  .ld-map.is-phone .ld-map-main { min-width: 0; }
+  .ld-map.is-phone .ld-map-foot { font-size: var(--text-sm); color: var(--ink-muted); }
+  .ld-map.is-phone .ld-map-bar { padding: 2px 0 6px; border: 0; background: none; }
+  .ld-map.is-phone .ld-map-count { font-size: var(--text-sm); color: var(--ink-muted); }
+  /* A group's acts on its line, as quiet words; named with html.legacy-on for the floor's sake. */
+  .ld-sec-acts { display: inline-flex; gap: 12px; }
+  html.legacy-on .ld-sec-act, .ld-sec-act { position: relative; height: auto; min-height: 0; padding: 0; border: 0; background: none; font: inherit; font-weight: var(--weight-medium); color: var(--accent); cursor: pointer; }
+  .ld-sec-act::after { content: ""; position: absolute; inset: -10px -6px; }
+  /* A row that slides: at rest nothing of it shows (a selected row keeps its tint); under a thumb (the cell's
+     `sliding`, from the kit's onGrab) the card turns opaque and moves over a ground on either side. */
+  .pl-card-cell[data-swipe] { position: relative; overflow: hidden; }
+  .pl-card-cell[data-swipe] > .pl-card { position: relative; }
+  .pl-card-cell[data-swipe].sliding > .pl-card { background: var(--bg); }
+  .pl-card-ground { position: absolute; inset: 0; display: flex; align-items: center; padding: 0 var(--row-pad-x); font-size: var(--text-sm); font-weight: var(--weight-medium); visibility: hidden; }
+  .pl-card-cell[data-swipe].sliding .pl-card-ground { visibility: visible; }
+  .pl-card-ground.keep { justify-content: flex-start; background: var(--ok-soft); color: var(--ok-ink); }
+  .pl-card-ground.exclude { justify-content: flex-end; background: var(--danger-soft); color: var(--danger-ink); }
+}

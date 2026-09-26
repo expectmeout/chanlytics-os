@@ -10,11 +10,13 @@ import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { ASK_MODEL } from "@chanlytics/contracts";
 import { fakeDb } from "./_fake-db.mjs";
 import { PLAN } from "./_lead-fixtures.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
+delete process.env.ASK_MODEL;
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
@@ -229,7 +231,11 @@ test("a question answered: the thread is made before the model is asked, the per
     assert.equal(message.id, tables.ask_messages[1].id, "the final line carries the saved turn");
     assert.equal(thread.title, "Who booked this week?", "titled by its question, never renamed (D9)");
     assert.ok(thread.last_at, "and touched");
-    assert.equal(stored.model, "claude-sonnet-5", "the one model name");
+    assert.equal(
+      stored.model,
+      ASK_MODEL,
+      "the model the deployment runs: the default here, since the test sets no ASK_MODEL",
+    );
     // A follow-up on the same thread: the history rides in, nothing is re-created.
     const again = await ask.POST.run(
       send("POST", { text: "And last week?", thread_id: thread.id }, inA),

@@ -191,7 +191,7 @@ const LeadsBulkBar = ({ sel, rows, total, view, canFind, canExport, busy, whyNot
 // 721px to 900px the controls row is gone and the shell draws no ✦, so the mark is the page's one door. The same
 // top on every scope, and nothing else sits above the rows -- no title, no sub-headline, no stat cards and no
 // second control row (legacy/CLAUDE.md, the phone shows the work first).
-const LeadsPhoneBar = ({ scope, onScope, dealsOn = false, listLabel, listCount = null, onLists, listsOpen, q, onQ, searchRef, searchOpen = false, onSearchOpen = () => {}, onFind = () => {}, canFind = false }) => {
+const LeadsPhoneBar = ({ scope, onScope, dealsOn = false, listLabel, listCount = null, onLists, listsOpen, q, onQ, searchRef, searchOpen = false, onSearchOpen = () => {}, onFind = () => {}, canFind = false, mapOn = false, onMap = () => {}, canMap = false }) => {
   const Bar = window.PeoplePhoneBar;
   return (
     <Bar
@@ -210,17 +210,49 @@ const LeadsPhoneBar = ({ scope, onScope, dealsOn = false, listLabel, listCount =
       searchLabel="Search leads"
       testid="leads"
       trailing={(
-        <button
-          type="button"
-          className="pp-bar-icon ld-bar-find"
-          aria-label="Find leads"
-          title="Find leads"
-          data-testid="leads-bar-find"
-          onClick={() => onFind()}
-          {...(canFind ? {} : window.gate("find", "find businesses for you"))}
-        >
-          <Icon name="three" size={16} />
-        </button>
+        <>
+          {/* The map, from the bar (Ruben, 25 Sep): the desktop's toggle stood in the controls row, which a phone never
+              draws, so the streets had no door here. It is a switch of two, the rows and the places, the one shown
+              pressed: a lone push-pin said neither which view this was nor what it would open (Ruben: it read as a
+              hammer). Drawn only where the rows have places to draw. */}
+          {canMap ? (
+            <span className="ld-bar-view" role="group" aria-label="Show the leads as" data-testid="leads-view-switch">
+              <button
+                type="button"
+                className={`ld-bar-view-opt${mapOn ? "" : " on"}`}
+                aria-pressed={!mapOn}
+                aria-label="The list"
+                title="The list"
+                data-testid="leads-list-toggle"
+                onClick={() => onMap(false)}
+              >
+                <Icon name="list" size={15} />
+              </button>
+              <button
+                type="button"
+                className={`ld-bar-view-opt${mapOn ? " on" : ""}`}
+                aria-pressed={mapOn}
+                aria-label="The map"
+                title="The map"
+                data-testid="leads-map-toggle"
+                onClick={() => onMap(true)}
+              >
+                <Icon name="map" size={15} />
+              </button>
+            </span>
+          ) : null}
+          <button
+            type="button"
+            className="pp-bar-icon ld-bar-find"
+            aria-label="Find leads"
+            title="Find leads"
+            data-testid="leads-bar-find"
+            onClick={() => onFind()}
+            {...(canFind ? {} : window.gate("find", "find businesses for you"))}
+          >
+            <Icon name="three" size={16} />
+          </button>
+        </>
       )}
     />
   );
@@ -240,6 +272,37 @@ const LeadPlanSheet = ({ onClose, children }) => (
   </>
 );
 
+// Needs review on a phone is rows, like every other list (Ruben, 25 Sep): the same cards, in the pile's order, in
+// groups under one quiet line each -- the group's words, its count and its acts -- with no bench, no card restating
+// the reason and no buttons on rows. A row's own act is a slide (leads-cells.jsx ldCardCell) or a selection into the
+// bar; a group's acts press the doors the bench and the bar press. The desktop keeps its workbench.
+const ldReviewSections = (p) => {
+  const V = window.__LEAD_VM || {};
+  const words = V.LEAD_REVIEW_ACT_WORDS || {};
+  const review = p.review || {};
+  const x = p.cellCtx || {};
+  const can = (a) => (a === "check_again" ? !!review.canCheckAgain : a === "find_email" ? !!review.canFindEmail : true);
+  const press = (a, ids) => (a === "check_again" ? review.onCheckAgain(ids) : a === "find_email" ? review.onFindEmail(ids) : a === "keep" ? review.onKeep(ids) : review.onExclude(ids));
+  const gate = x.canFind ? {} : window.gate("find", "work these leads");
+  return p.benchGroups.map((g) => {
+    const acts = g.acts.filter(can);
+    return {
+      key: g.key,
+      label: g.label,
+      rows: p.rows.filter((l) => g.ids.indexOf(l.id) >= 0),
+      meta: acts.length ? (
+        <span className="ld-sec-acts">
+          {acts.map((a) => (
+            <button key={a} type="button" className="ld-sec-act" onClick={() => press(a, g.ids)} data-testid={`review-sec-${a}`} {...gate}>
+              {a === "keep" || a === "exclude" ? `${words[a] || a} all` : words[a] || a}
+            </button>
+          ))}
+        </span>
+      ) : null,
+    };
+  });
+};
+
 /* ------------------------------------------------------------ the scope itself */
 
 const LeadsScope = (p) => {
@@ -253,6 +316,8 @@ const LeadsScope = (p) => {
   // draws the other shape at once, where this read it on every draw and drew the other shape only on the next state
   // change. Nothing here is a hook.
   const phone = !!p.phone;
+  // Needs review on a phone: the pile as the table's own sections (ldReviewSections), never the bench.
+  const sections = phone && p.view.cls === "review" && p.benchGroups.length ? ldReviewSections(p) : null;
   const railRows = (
     <LeadsRailRows
           compact={phone}
@@ -282,6 +347,35 @@ const LeadsScope = (p) => {
       onNew={p.onFind}
     />
   );
+  // The rows: the list's view, and on a phone the leads under the map too.
+  const table = (
+    <PeopleTable
+      busy={!!p.loading}
+      budget={p.rowBudget}
+      noun="lead"
+      columns={p.columns}
+      ctx={sections ? { ...p.cellCtx, sectioned: true } : p.cellCtx}
+      rows={p.rows}
+      rowClass={phone ? ldCardRowClass : ldRowClass}
+      sections={sections}
+      total={p.total}
+      sortBy={p.sortBy}
+      sortDir={p.sortDir}
+      onSort={p.onSort}
+      onOpen={p.onPeek}
+      filtered={p.filtered}
+      onClearFilters={p.onClearFilters}
+      selectable={p.canFind || p.canExport}
+      sel={p.sel}
+      onToggle={p.onToggle}
+      onToggleAll={p.onToggleAll}
+      cursor={p.cursor}
+      onCursor={p.onCursor}
+      scrolled={p.scrolled}
+      onScrolled={p.onScrolled}
+      empty={p.empty}
+    />
+  );
   const ListsSheet = window.PeopleListsSheet;
   return (
     <div className="clients leads-scope" data-loading={p.loading ? "1" : undefined}>
@@ -296,6 +390,9 @@ const LeadsScope = (p) => {
           <LeadsPhoneBar
             scope="leads"
             onScope={p.onScope}
+            mapOn={!!p.mapOpen}
+            onMap={p.onMap}
+            canMap={!!p.canMap}
             dealsOn={!!p.dealsOn}
             listLabel={p.railLabel}
             listCount={p.railCount}
@@ -324,7 +421,7 @@ const LeadsScope = (p) => {
                 <div className="cl-controls-right">
                   {/* Values ⁄ Signals (D5): the number and the address in the row, for anyone who dials from a desk phone; kept per viewer. */}
                   {/* The same leads, as places (D5). */}
-                  <button type="button" className={`btn btn-ghost btn-sm${p.mapOpen ? " on" : ""}`} aria-pressed={!!p.mapOpen} onClick={() => p.onMap(!p.mapOpen)} data-testid="leads-map-toggle" title="See these leads on the ground"><Icon name="pin" size={12} /> {p.mapOpen ? "Table" : "Map"}</button>
+                  <button type="button" className={`btn btn-ghost btn-sm${p.mapOpen ? " on" : ""}`} aria-pressed={!!p.mapOpen} onClick={() => p.onMap(!p.mapOpen)} data-testid="leads-map-toggle" title="See these leads on the ground"><Icon name={p.mapOpen ? "list" : "map"} size={12} /> {p.mapOpen ? "Table" : "Map"}</button>
                   <button type="button" className={`btn btn-ghost btn-sm ld-values${p.values ? " on" : ""}`} aria-pressed={!!p.values} onClick={() => p.onValues(!p.values)} data-testid="leads-values" title="Show the numbers and addresses in the rows">{p.values ? "Signals" : "Values"}</button>
                   <PeopleColumnsMenu open={p.colsOpen} onOpenChange={p.onColsOpen} options={p.colOptions} onPick={p.onPickColumn} buttonRef={p.colsButton} />
                   {p.canExport
@@ -397,7 +494,9 @@ const LeadsScope = (p) => {
             ? <FailedRead kind="block" what="your leads" surface="leads" testid="leads-failed" />
             : p.mapOpen && p.plot && p.plot.pins.length
             ? (
+              <>
               <LeadMap
+                phone={phone}
                 rows={p.rows}
                 plot={p.plot}
                 oneSearch={!!p.view.searchId}
@@ -411,8 +510,12 @@ const LeadsScope = (p) => {
                 onNearby={p.onNearby}
                 canFind={p.canFind}
               />
+              {/* On a phone the leads under the map are the list's own rows, not the map's boxed list of its own:
+                  one row for every list (tokens.css), and the same press opens the same peek. */}
+              {phone ? table : null}
+              </>
             )
-            : p.view.cls === "review" && p.benchGroups.length
+            : p.view.cls === "review" && p.benchGroups.length && !phone
             ? (
               <LeadReviewBench
                 groups={p.benchGroups}
@@ -451,33 +554,7 @@ const LeadsScope = (p) => {
                 }
               />
             )
-            : (
-              <PeopleTable
-                busy={!!p.loading}
-                budget={p.rowBudget}
-                noun="lead"
-                columns={p.columns}
-                ctx={p.cellCtx}
-                rows={p.rows}
-                rowClass={phone ? ldCardRowClass : ldRowClass}
-                total={p.total}
-                sortBy={p.sortBy}
-                sortDir={p.sortDir}
-                onSort={p.onSort}
-                onOpen={p.onPeek}
-                filtered={p.filtered}
-                onClearFilters={p.onClearFilters}
-                selectable={p.canFind || p.canExport}
-                sel={p.sel}
-                onToggle={p.onToggle}
-                onToggleAll={p.onToggleAll}
-                cursor={p.cursor}
-                onCursor={p.onCursor}
-                scrolled={p.scrolled}
-                onScrolled={p.onScrolled}
-                empty={p.empty}
-              />
-            )}
+            : table}
           {L.next && (
             <div className="cl-section-sub ld-more" data-testid="leads-more">
               {p.rows.length.toLocaleString()} of {p.total.toLocaleString()} loaded{" "}

@@ -3659,3 +3659,163 @@ test("a lead a link names stays open where this tab kept a cursor in that view: 
     delete globalThis.window.__tabMemory;
   }
 });
+
+/* ------------------------------ a phone's search view, quieter (Ruben, 25 Sep) ------------------------------ */
+// Needs review on a phone was the desktop's workbench squeezed in: a card restating the group's reason, its two
+// buttons, then each row again with the reason a third time and a Keep and an Exclude of its own -- one group cost
+// 430px before its second row. Now it is rows in groups, each group's acts on its line, and a row slides over Keep
+// and Exclude; and the map, whose toggle stood in a controls row a phone never draws, opens from the bar's pin.
+
+test("at a phone's width Needs review is rows in groups: the group's acts on its line, the reason on the row, a slide for its own act, and no bench", async () => {
+  fresh();
+  globalThis.__phone = true;
+  try {
+    const tree = draw({ leadsRoute: `leads:s-${SEARCH_A}:c-review` });
+    assert.equal(byTestId(tree, "lead-bench"), null, "no bench on a phone");
+    assert.equal(all(tree, (n) => n.props?.["data-testid"] === "bench-card-keep").length, 0, "and no buttons on rows");
+    const heads = all(tree, (n) => n.props?.["data-testid"] === "table-section");
+    assert.ok(heads.length >= 1, "the groups, as the table's sections");
+    const keepAll = byTestId(heads[0], "review-sec-keep");
+    assert.ok(keepAll, "the group's Keep on its line");
+    assert.equal(textOf(keepAll), "Keep all");
+    const rows = all(tree, (n) => /\bpl-card-row\b/.test(String(n.props?.className || "")));
+    assert.ok(rows.length >= 1, "the same cards as every other list");
+    const first = rows[0];
+    const id = String(first.props.id).replace(/^lead-/, "");
+    assert.equal(id, "l3", "the review pile's one row");
+    assert.equal(
+      textOf(heads[0]),
+      "Their mail server wouldn't answer1·Keep allExclude all",
+      "the group's words, its count, its acts",
+    );
+    assert.equal(
+      textOf(byTestId(first, "lead-sub")),
+      ROWS[2].sub,
+      "the reason is said once, on the group's line; the row says where it is",
+    );
+    const card = find(first, (n) => n.props?.className === "pl-card");
+    assert.equal(typeof card.props.onTouchStart, "function", "a thumb has the row");
+    assert.deepEqual(
+      all(first, (n) => /pl-card-ground/.test(String(n.props?.className || ""))).map(textOf),
+      ["Keep", "Exclude"],
+      "over the act's word on either side",
+    );
+    click(keepAll);
+    await settle();
+    assert.deepEqual(
+      calls.at(-1),
+      ["bulk", { by: "ids", action: "keep", ids: ["l3"], search_id: SEARCH_A }],
+      "the line's Keep is the bulk door the bench and the bar press",
+    );
+    // A slide right past a third keeps the row: the kit leaves it and then presses the row's own door.
+    const el = {
+      style: {},
+      offsetWidth: 343,
+      offsetHeight: 84,
+      scrollHeight: 84,
+      clientHeight: 84,
+      scrollWidth: 343,
+      clientWidth: 343,
+      scrollTop: 0,
+      parentElement: null,
+      isConnected: true,
+      getClientRects: () => [1],
+      matches: () => false,
+    };
+    card.props.onTouchStart({ touches: [{ clientX: 100, clientY: 300 }], currentTarget: el, target: el });
+    card.props.onTouchMove({ touches: [{ clientX: 180, clientY: 302 }], currentTarget: el });
+    card.props.onTouchEnd({ changedTouches: [{ clientX: 260, clientY: 304 }], currentTarget: el });
+    assert.equal(el.style.transform, "translate3d(100%, 0, 0)", "180px of 343: gone right");
+    // The kit leaves (180ms), presses the door, then settles the still-drawn row (60ms on) and clears its inline
+    // styles once settled (240ms more): watched for, never read at a fixed moment, since a Linux timer lands these to
+    // the millisecond and a Windows one ~15ms late.
+    const until = async (f) => {
+      for (const t0 = Date.now(); !f();) {
+        if (Date.now() - t0 > 2000) return false;
+        await new Promise((r) => setTimeout(r, 20));
+      }
+      return true;
+    };
+    assert.ok(await until(() => calls.at(-1)?.[0] === "keep"), "slid right past a third: the row's own Keep");
+    assert.deepEqual(calls.at(-1), ["keep", { search_id: SEARCH_A, id }]);
+    assert.ok(
+      await until(() => el.style.transform === "" || el.style.transform === "translate3d(0, 0, 0)"),
+      "and the row, still in the pile until the surface says, settles back",
+    );
+    await settle();
+  } finally {
+    globalThis.__phone = false;
+  }
+});
+
+test("at a phone's width the bar's switch says list or map, and the leads under the map are the list's own rows", () => {
+  // 25 Sep: the pin read as a hammer and said neither which view this was nor what it opened; under the map stood a
+  // boxed list of its own (numbered rows, square tiles) that looked like no other list.
+  fresh();
+  globalThis.__phone = true;
+  try {
+    let tree = draw({ leadsRoute: `leads:s-${SEARCH_A}` });
+    const bar = byTestId(tree, "leads-phone-bar");
+    assert.equal(byTestId(bar, "leads-list-toggle").props["aria-pressed"], true, "the list is the view shown");
+    assert.equal(byTestId(bar, "leads-map-toggle").props["aria-pressed"], false);
+    click(byTestId(bar, "leads-map-toggle"));
+    tree = draw({ leadsRoute: `leads:s-${SEARCH_A}` });
+    const map = byTestId(tree, "lead-map");
+    assert.ok(map);
+    assert.equal(all(map, (n) => n.props?.["data-testid"] === "lead-map-row").length, 0, "no list of the map's own");
+    assert.equal(all(map, (n) => n.props?.className === "ld-map-side").length, 0);
+    assert.ok(
+      all(tree, (n) => n.type === "tr" && String(n.props?.className || "").includes("pl-card-row")).length > 0,
+      "the list's rows under it",
+    );
+    assert.ok(byTestId(map, "lead-map-count"), "how many are on it, in a line under the map");
+    assert.equal(byTestId(byTestId(tree, "leads-phone-bar"), "leads-map-toggle").props["aria-pressed"], true);
+    click(byTestId(byTestId(tree, "leads-phone-bar"), "leads-list-toggle"));
+    tree = draw({ leadsRoute: `leads:s-${SEARCH_A}` });
+    assert.equal(byTestId(tree, "lead-map"), null, "and the list again");
+  } finally {
+    globalThis.__phone = false;
+  }
+});
+
+test("at a phone's width a list picked in the Lists sheet opens and the sheet closes; picked again it stays open", () => {
+  // 25 Sep: the sheet stood open over the page it had opened, and a second press on the same row went back to all
+  // leads, so an owner could not tell what their press had done.
+  fresh();
+  globalThis.__phone = true;
+  try {
+    let tree = draw({ leadsRoute: "leads" });
+    click(byTestId(tree, "leads-phone-lists"));
+    tree = draw({ leadsRoute: "leads" });
+    assert.ok(byTestId(tree, "people-lists-sheet"), "the sheet is open");
+    click(byTestId(byTestId(tree, "people-lists-sheet"), "leads-list-ready"));
+    assert.equal(went.at(-1), leadsRoute({ list: "ready" }), "the list opens");
+    tree = draw({ leadsRoute: "leads:l-ready" });
+    assert.equal(byTestId(tree, "people-lists-sheet"), null, "and the sheet has closed on it");
+    click(byTestId(tree, "leads-phone-lists"));
+    tree = draw({ leadsRoute: "leads:l-ready" });
+    click(byTestId(byTestId(tree, "people-lists-sheet"), "leads-list-ready"));
+    assert.equal(went.at(-1), leadsRoute({ list: "ready" }), "pressed again, it stays that list, never all leads");
+  } finally {
+    globalThis.__phone = false;
+  }
+});
+
+test("at a phone's width the bar has the map's pin where the rows have places, and it opens the map where the rows were", () => {
+  fresh();
+  globalThis.__phone = true;
+  try {
+    let tree = draw({ leadsRoute: `leads:s-${SEARCH_A}` });
+    const pin = byTestId(byTestId(tree, "leads-phone-bar"), "leads-map-toggle");
+    assert.ok(pin, "the pin in the bar");
+    assert.equal(pin.props["aria-pressed"], false);
+    assert.equal(byTestId(tree, "lead-map"), null, "the rows first");
+    click(pin);
+    tree = draw({ leadsRoute: `leads:s-${SEARCH_A}` });
+    assert.ok(byTestId(tree, "lead-map"), "the map where the rows were");
+    assert.equal(byTestId(byTestId(tree, "leads-phone-bar"), "leads-map-toggle").props["aria-pressed"], true);
+    assert.equal(all(tree, (n) => n.props?.className === "cl-controls").length, 0, "still no controls row");
+  } finally {
+    globalThis.__phone = false;
+  }
+});

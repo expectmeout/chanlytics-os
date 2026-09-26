@@ -22,12 +22,32 @@ export interface RoundBlock {
   data?: string;
 }
 
+/** What the round cost, as the API said it on the stream (sse.ts GatewayUsage plus the stop's output side). */
+export interface RoundUsage {
+  messageId: string | null;
+  inputTokens: number;
+  cacheReadTokens: number;
+  cacheCreationTokens: number;
+  /** Null when the stop carried no usage: unknown, never zero. */
+  outputTokens: number | null;
+}
+
+/** Where the round's time went, from the request: null when the event never came. */
+export interface RoundTiming {
+  firstEventMs: number | null;
+  firstTextMs: number | null;
+  totalMs: number;
+}
+
 export interface RoundResult {
   /** In the order the model wrote them. */
   blocks: RoundBlock[];
   stopReason: string | null;
   /** The stream broke after it started; the blocks so far are still here. */
   streamError: string | null;
+  /** Null when no usage frame came: a broken stream, or a scripted round in a test. */
+  usage?: RoundUsage | null;
+  timing?: RoundTiming;
 }
 
 /** `stream` is the gateway unless a test hands in its own events, so the gathering runs without a model. */
@@ -36,11 +56,16 @@ export async function runRound(
   onText: (textSoFar: string) => void,
   stream: typeof streamModel = streamModel,
 ): Promise<RoundResult> {
+  const t0 = Date.now();
   const blocks = new Map<number, RoundBlock>();
   let stopReason: string | null = null;
   let streamError: string | null = null;
+  let usage: RoundUsage | null = null;
+  let firstEventMs: number | null = null;
+  let firstTextMs: number | null = null;
   let textSoFar = "";
   for await (const ev of stream(call)) {
+    if (firstEventMs === null) firstEventMs = Date.now() - t0;
     switch (ev.type) {
       case "block_start":
         blocks.set(ev.index, {
@@ -56,6 +81,7 @@ export async function runRound(
       case "text": {
         const b = blocks.get(ev.index);
         if (!b) break;
+        if (firstTextMs === null && ev.text) firstTextMs = Date.now() - t0;
         b.text += ev.text;
         textSoFar += ev.text;
         onText(textSoFar);
@@ -76,8 +102,18 @@ export async function runRound(
         if (b) b.signature = (b.signature ?? "") + ev.signature;
         break;
       }
+      case "usage":
+        usage = {
+          messageId: ev.messageId,
+          inputTokens: ev.inputTokens,
+          cacheReadTokens: ev.cacheReadTokens,
+          cacheCreationTokens: ev.cacheCreationTokens,
+          outputTokens: null,
+        };
+        break;
       case "stop":
         stopReason = ev.stopReason;
+        if (usage && ev.outputTokens !== null) usage.outputTokens = ev.outputTokens;
         break;
       case "error":
         streamError = ev.message;
@@ -86,7 +122,13 @@ export async function runRound(
         break;
     }
   }
-  return { blocks: [...blocks.entries()].sort((a, b) => a[0] - b[0]).map(([, b]) => b), stopReason, streamError };
+  return {
+    blocks: [...blocks.entries()].sort((a, b) => a[0] - b[0]).map(([, b]) => b),
+    stopReason,
+    streamError,
+    usage,
+    timing: { firstEventMs, firstTextMs, totalMs: Date.now() - t0 },
+  };
 }
 
 export function parseInput(json: string): Record<string, unknown> {

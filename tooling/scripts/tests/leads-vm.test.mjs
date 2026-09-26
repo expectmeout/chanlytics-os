@@ -663,6 +663,11 @@ test("the endings read as the States artboard wrote them", () => {
     "Found all 64 chiropractors in Austin · the 61 found are yours · Look further out, in Round Rock and Pflugerville?",
   );
   assert.equal(
+    line("few_new_matches", { name: "chiropractors", seen: 64 }).step.label,
+    "Widen",
+    "the step is one word (Ruben, 25 Sep): the line before it says what was found and where",
+  );
+  assert.equal(
     said(line("stopped", { checking: true })),
     "Stopping · checking the emails of the 61 found · nothing else was counted",
   );

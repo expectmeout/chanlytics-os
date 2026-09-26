@@ -179,6 +179,8 @@ const AskReal = ({ open, onClose }) => {
   const asked = useArRef(null);
   // A hold on the mic in progress, or just lifted: the click its lift makes is not a press (see pressMic).
   const held = useArRef(false);
+  // When the Line opened: the question says how long it waited (the turn's shape, opened_ms).
+  const openedAt = useArRef(0);
   const t = window.askText(lang);
   const route = arRoute();
   // With the param: Leads is People's `leads` param, and the Line on it is the finder (spec F2, F3).
@@ -216,7 +218,15 @@ const AskReal = ({ open, onClose }) => {
       : quick && quick.pending
         ? "thinking"
         : speech.speakingId ? "speaking" : composing ? "listening" : "idle";
-  useArEffect(() => { if (M) M.mood.set(moodState); }, [moodState]);
+  // Said as it changes, never the same word twice: at mount, and at a strict mode's second mount, the Line has nothing
+  // to say, and the three may be reading the page in for a face that mounted a moment before (legacy-bridge/arrival.ts);
+  // a first word of "idle" ended that read on nothing.
+  const moodSaid = useArRef("idle");
+  useArEffect(() => {
+    if (!M || moodState === moodSaid.current) return;
+    moodSaid.current = moodState;
+    M.mood.set(moodState);
+  }, [moodState]);
   // The slide runs once the screen has made room (watchKeyboard hears the focus after this page does, so the room is
   // there by the next frame, before anything is painted).
   useArLayout(() => {
@@ -231,6 +241,7 @@ const AskReal = ({ open, onClose }) => {
   // Open: the route's scope, the threads, and the surfaces the rows read (Right now reads Today's and Broadcasts').
   useArEffect(() => {
     if (!open || !A) return;
+    openedAt.current = Date.now();
     const r = arRoute();
     setScope(A.scopeFor(r.page, r.param, arScopeLabel(r.page, r.param)));
     threadsReady.current = A.threads().then((list) => { setThreads(list); return list; });
@@ -489,7 +500,7 @@ const AskReal = ({ open, onClose }) => {
     let final = null;
     let spoke = false;
     let said = 0;
-    await A.send({ text: q, threadId, scope: thread.scope || scope, surface }, (ev) => {
+    await A.send({ text: q, threadId, scope: thread.scope || scope, surface, openedMs: openedAt.current ? Date.now() - openedAt.current : null }, (ev) => {
       if (mine !== turnSeq.current) return;
       if (ev.t === "thread") { threadId = ev.id; setActive((prev) => (prev ? { ...prev, id: ev.id, title: prev.title || ev.title } : prev)); }
       else if (ev.t === "trace") {
