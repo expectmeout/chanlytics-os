@@ -28,8 +28,11 @@ import {
   whenLabel,
   OFFERS_BY_WHATSAPP_NOTE,
 } from "@chanlytics/contracts";
-import { readCode, readRaw } from "./_source.mjs";
+import { readCode, readRaw, importSrc } from "./_source.mjs";
 import { fakeDb } from "./_fake-db.mjs";
+
+process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
+process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -601,25 +604,45 @@ test("getting their yes: an unambiguous phrase the ingest records, a link that o
 test("Ask: a broadcast is read (list_audiences) and proposed (propose_broadcast) as a card, never sent; nobody without a yes is ever included", async () => {
   const { PROPOSAL_GATE, buildAskSuggestions } = await import("@chanlytics/contracts");
   assert.equal(PROPOSAL_GATE.broadcast, "approve");
-  const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
-  assert.ok(
-    tools.includes('name: "list_audiences"') &&
-      /case "list_audiences":\s*out = await listAudiences\(t\);\s*break;/.test(tools),
+  // Both tools are the registry's, and run in ask-turn.test.mjs: list_audiences with every size named for what it
+  // counts, and propose_broadcast as a card of kind broadcast that an operator may approve ("the proposal builders
+  // run against the database in memory"), refused with the cause it has when nobody can receive it -- the same yes
+  // the route asks for, from the template's own category ("a broadcast to nobody is refused with the cause it has").
+  const { READ_TOOLS, newToolContext, buildProposal } = await importSrc("apps/dashboard/src/server/ask/tools/index.ts");
+  assert.ok(READ_TOOLS.some((t) => t.name === "list_audiences"));
+  // Only an approved template: a pending one is refused before anyone is counted.
+  const WS = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const PENDING = "dddddddd-dddd-4ddd-8ddd-ddddddddddd9";
+  const supabase = fakeDb(
+    {
+      templates: [
+        {
+          id: PENDING,
+          tenant_id: WS,
+          channel: "whatsapp",
+          name: "soon",
+          language: "en",
+          meta_status: "pending",
+          category: "MARKETING",
+          variables: [],
+          body_preview: "See you soon.",
+          hidden_at: null,
+        },
+      ],
+    },
+    {},
+    {},
   );
-  // Every size, named for what it counts -- who said each yes, and who can be sent a message on it -- and the note
-  // the assistant reads before it proposes anything: ask-turn.test.mjs runs list_audiences for both.
-  const pr = readCode("apps/dashboard/src/server/ask/proposals.ts");
-  assert.ok(
-    pr.includes('name: "propose_broadcast"') &&
-      /case "propose_broadcast":\s*return await proposeBroadcast\(t, input\);/.test(pr),
+  const t = newToolContext(
+    { supabase, userId: "u1", email: "ada@example.com", params: {} },
+    WS,
+    "operator",
+    ZONE,
+    new Date("2026-09-14T14:00:00Z"),
   );
-  assert.ok(
-    pr.includes("const purpose = purposeOfTemplate(tpl.category);"),
-    "the proposal asks for the same yes the route will",
-  );
-  // A broadcast to nobody is refused, not proposed, with the cause it has: ask-turn.test.mjs runs it.
-  assert.match(pr, /if \(!tpl \|\| tpl\.meta_status !== "approved"\)\s*return refuse\(/, "only an approved template");
-  assert.ok(pr.includes('kind: "broadcast",') && pr.includes('needs: "operator",'));
+  const pending = await buildProposal(t, "propose_broadcast", { template_id: PENDING, audience_kind: "everyone" });
+  assert.deepEqual([pending.proposal, pending.isError], [null, true]);
+  assert.match(JSON.parse(pending.result).error, /that template is not approved by WhatsApp/);
   const c = readCode("apps/dashboard/src/legacy-bridge/ask/commit.ts");
   assert.ok(
     c.includes('const r = await viaAsk(client, "POST broadcasts", {'),

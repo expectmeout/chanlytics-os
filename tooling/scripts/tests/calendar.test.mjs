@@ -407,16 +407,8 @@ test("full-fledged: month and agenda views, a date to jump to, windows that fit 
       dayModule.includes('data-testid="today-day-unreadable"'),
     "Today shows the day on the calendar, without a feed only the steps due, and says so about a feed it has and could not read (today-unreadable.test.mjs walks it)",
   );
-  const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
-  assert.ok(
-    tools.includes('name: "get_calendar"') &&
-      /case "get_calendar":\s*out = await getCalendar\(t, run\.input\);\s*break;/.test(tools),
-  );
-  assert.ok(
-    tools.includes(
-      "Nothing is booked from here: customers book through the booking link, or with the team where there is none.",
-    ),
-  );
+  // get_calendar is the registry's, and runs in ask-turn.test.mjs ("get_calendar reads the people it names"), where
+  // its result says that nothing is booked from here.
   assert.ok(
     /"?calendar"?:\s*"The owner's calendar as the receptionist reads it/.test(
       readCode("apps/dashboard/src/server/ask/prompt.ts"),

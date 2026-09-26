@@ -1,0 +1,802 @@
+{
+  "viewer": [
+    {
+      "name": "get_today",
+      "description": "The Today page: who needs a person right now, the WhatsApp threads whose free-reply window is closing while the customer waits, today's calls, the standing of the receptionist and the day's counts. It holds no drafts: list_threads filter=held has them. Start here for 'how are we doing', 'what needs me', 'brief me'.",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "list_threads",
+      "description": "Threads from the Inbox on every wire — WhatsApp, text or email, whichever the customer last wrote on, named per row in `channel` — each with its last three messages (who wrote, what). filter: needs_you (handed to a person), held (a draft waiting to send), waiting (taken over by a person), snoozed, recent (all, newest first). Call get_thread only when more of one conversation is needed.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "filter": {
+            "type": "string",
+            "enum": ["needs_you", "held", "waiting", "snoozed", "recent"]
+          }
+        },
+        "required": ["filter"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "get_thread",
+      "description": "One conversation, on whichever wire it runs — WhatsApp, text or email, named in `channel`: the person, its state, the last messages with who wrote them, and why the receptionist answered or held as it did. Use the conversation id from list_threads, get_today or search_people. more=true returns the longer history.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "conversation_id": {
+            "type": "string"
+          },
+          "more": {
+            "type": "boolean"
+          }
+        },
+        "required": ["conversation_id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "search_people",
+      "description": "Find people (customers and callers) by name or phone digits. Returns their state, last contact, receptionist mode and their next appointment when the calendar is connected. Empty query lists the most recent people. list narrows to one list: the list token list_audiences gives (seg:<id> for People's lists, list:<id> for the workspace's own), or a People list's id: needs_you (Needs you), waiting_on_you (Waiting on you), steps_due (Steps due), new_week (New this week), booked_week (Booked this week), booked (Booked), asked_never_booked (Asked, never booked), lapsed (Lapsed), consultation_booked (Consultations), proposal_out (Proposal out), clients (Clients), deal_passed (Passed), deal_ended (Ended), quiet (Quiet 30+ days), phoned_only (Phoned only), opted_in (Said yes to messages), offers_ok (Can receive offers), opted_out (Opted out). A list that can't be counted here says why. Each person says their next step, when they have one.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string"
+          },
+          "list": {
+            "type": "string"
+          }
+        },
+        "required": ["query"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "get_person",
+      "description": "One person's profile: right now, facts, their conversations and calls, and their timeline. Use a contact id from search_people or get_thread.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "contact_id": {
+            "type": "string"
+          }
+        },
+        "required": ["contact_id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "list_calls",
+      "description": "Phone calls. filter: missed (today's missed calls), abandoned (today's inbound callers who reached the receptionist and hung up within seconds, so they got nothing), today, live (on the line now), recent (newest first).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "filter": {
+            "type": "string",
+            "enum": ["missed", "abandoned", "today", "live", "recent"]
+          }
+        },
+        "required": ["filter"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "get_call",
+      "description": "One phone call: who, when, how it ended, the summary and the transcript (capped). Use the call id from list_calls or get_person.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "call_id": {
+            "type": "string"
+          }
+        },
+        "required": ["call_id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "get_report",
+      "description": "The Reports page for 7, 30 or 90 days: answered by the receptionist vs by a person, reply time, calls, new people, escalation reasons, and the change against the previous period.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "days": {
+            "type": "integer",
+            "enum": [7, 30, 90]
+          }
+        },
+        "required": ["days"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "get_settings",
+      "description": "The workspace's settings as the receptionist runs on them: hours, closures, services, notes, guardrails, booking rules, the reply policy and its dials, which channels are connected, notifications.",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "get_openings",
+      "description": "Open times from the connected calendar against the business hours, closures and booking rules. day: a weekday (mon..sun) or a date (YYYY-MM-DD), or empty for the next days. service: the service name to size the slot, or empty.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "day": {
+            "type": "string"
+          },
+          "service": {
+            "type": "string"
+          }
+        },
+        "required": ["day", "service"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "list_audiences",
+      "description": "The audiences a broadcast may go to — everyone who said yes, every People list this workspace can count, and every list of the workspace's own (kept by hand, or by a rule) — each with its kind and audience_id (propose_broadcast's audience), its list token (search_people's list), and FOUR counts; a list of the workspace's own that can't be counted here carries cannot_count (why) and no counts, because there are two consents and a yes needs a number to send to: can_be_sent_offers and can_be_sent_messages (who a promotional, or a utility or authentication, template reaches) and said_yes_to_offers and said_yes_to_messages (everyone who gave that yes, a number or not). Also the approved WhatsApp templates with their category and values, and whether the number may send. Read this before proposing a broadcast, and match the count to the template.",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "list_playbooks",
+      "description": "The playbooks: standing rules that send one approved template to newly eligible people who said yes — each with what starts it, its template, its clock, whether it is running, the autonomy mode its class runs under, its next run, what its runs earned, and a run waiting for a person if there is one — plus every trigger with who its moment names right now: said_yes_now (who said the yes its template needs, a number or not) and can_be_sent_now (who of them a run reaches), and each one's starter template. Read this to say what is running, and before proposing a playbook.",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "get_calendar",
+      "description": "The owner's calendar as the receptionist reads it, for a day or a few: what is taken (the calendar's own words, with the person in People when the title names one), whether the business is closed, and the windows the receptionist would offer. day: today, tomorrow, a weekday (mon..sun), a date (YYYY-MM-DD), or empty for today. days: how many from there, at most 14. Nothing is booked from here.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "day": {
+            "type": "string"
+          },
+          "days": {
+            "type": "number"
+          }
+        },
+        "required": ["day"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "list_lead_searches",
+      "description": "The workspace's lead searches, newest first: what was asked in the owner's words and when, its state or ending in words, how many qualified, need review and were counted, and, for a search that stopped to ask, its question. Read this before proposing a search, so a plan is not repeated.",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
+    }
+  ],
+  "operator": [
+    {
+      "name": "get_today",
+      "description": "The Today page: who needs a person right now, the WhatsApp threads whose free-reply window is closing while the customer waits, today's calls, the standing of the receptionist and the day's counts. It holds no drafts: list_threads filter=held has them. Start here for 'how are we doing', 'what needs me', 'brief me'.",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "list_threads",
+      "description": "Threads from the Inbox on every wire — WhatsApp, text or email, whichever the customer last wrote on, named per row in `channel` — each with its last three messages (who wrote, what). filter: needs_you (handed to a person), held (a draft waiting to send), waiting (taken over by a person), snoozed, recent (all, newest first). Call get_thread only when more of one conversation is needed.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "filter": {
+            "type": "string",
+            "enum": ["needs_you", "held", "waiting", "snoozed", "recent"]
+          }
+        },
+        "required": ["filter"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "get_thread",
+      "description": "One conversation, on whichever wire it runs — WhatsApp, text or email, named in `channel`: the person, its state, the last messages with who wrote them, and why the receptionist answered or held as it did. Use the conversation id from list_threads, get_today or search_people. more=true returns the longer history.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "conversation_id": {
+            "type": "string"
+          },
+          "more": {
+            "type": "boolean"
+          }
+        },
+        "required": ["conversation_id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "search_people",
+      "description": "Find people (customers and callers) by name or phone digits. Returns their state, last contact, receptionist mode and their next appointment when the calendar is connected. Empty query lists the most recent people. list narrows to one list: the list token list_audiences gives (seg:<id> for People's lists, list:<id> for the workspace's own), or a People list's id: needs_you (Needs you), waiting_on_you (Waiting on you), steps_due (Steps due), new_week (New this week), booked_week (Booked this week), booked (Booked), asked_never_booked (Asked, never booked), lapsed (Lapsed), consultation_booked (Consultations), proposal_out (Proposal out), clients (Clients), deal_passed (Passed), deal_ended (Ended), quiet (Quiet 30+ days), phoned_only (Phoned only), opted_in (Said yes to messages), offers_ok (Can receive offers), opted_out (Opted out). A list that can't be counted here says why. Each person says their next step, when they have one.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string"
+          },
+          "list": {
+            "type": "string"
+          }
+        },
+        "required": ["query"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "get_person",
+      "description": "One person's profile: right now, facts, their conversations and calls, and their timeline. Use a contact id from search_people or get_thread.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "contact_id": {
+            "type": "string"
+          }
+        },
+        "required": ["contact_id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "list_calls",
+      "description": "Phone calls. filter: missed (today's missed calls), abandoned (today's inbound callers who reached the receptionist and hung up within seconds, so they got nothing), today, live (on the line now), recent (newest first).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "filter": {
+            "type": "string",
+            "enum": ["missed", "abandoned", "today", "live", "recent"]
+          }
+        },
+        "required": ["filter"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "get_call",
+      "description": "One phone call: who, when, how it ended, the summary and the transcript (capped). Use the call id from list_calls or get_person.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "call_id": {
+            "type": "string"
+          }
+        },
+        "required": ["call_id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "get_report",
+      "description": "The Reports page for 7, 30 or 90 days: answered by the receptionist vs by a person, reply time, calls, new people, escalation reasons, and the change against the previous period.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "days": {
+            "type": "integer",
+            "enum": [7, 30, 90]
+          }
+        },
+        "required": ["days"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "get_settings",
+      "description": "The workspace's settings as the receptionist runs on them: hours, closures, services, notes, guardrails, booking rules, the reply policy and its dials, which channels are connected, notifications.",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "get_openings",
+      "description": "Open times from the connected calendar against the business hours, closures and booking rules. day: a weekday (mon..sun) or a date (YYYY-MM-DD), or empty for the next days. service: the service name to size the slot, or empty.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "day": {
+            "type": "string"
+          },
+          "service": {
+            "type": "string"
+          }
+        },
+        "required": ["day", "service"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "list_audiences",
+      "description": "The audiences a broadcast may go to — everyone who said yes, every People list this workspace can count, and every list of the workspace's own (kept by hand, or by a rule) — each with its kind and audience_id (propose_broadcast's audience), its list token (search_people's list), and FOUR counts; a list of the workspace's own that can't be counted here carries cannot_count (why) and no counts, because there are two consents and a yes needs a number to send to: can_be_sent_offers and can_be_sent_messages (who a promotional, or a utility or authentication, template reaches) and said_yes_to_offers and said_yes_to_messages (everyone who gave that yes, a number or not). Also the approved WhatsApp templates with their category and values, and whether the number may send. Read this before proposing a broadcast, and match the count to the template.",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "list_playbooks",
+      "description": "The playbooks: standing rules that send one approved template to newly eligible people who said yes — each with what starts it, its template, its clock, whether it is running, the autonomy mode its class runs under, its next run, what its runs earned, and a run waiting for a person if there is one — plus every trigger with who its moment names right now: said_yes_now (who said the yes its template needs, a number or not) and can_be_sent_now (who of them a run reaches), and each one's starter template. Read this to say what is running, and before proposing a playbook.",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "get_calendar",
+      "description": "The owner's calendar as the receptionist reads it, for a day or a few: what is taken (the calendar's own words, with the person in People when the title names one), whether the business is closed, and the windows the receptionist would offer. day: today, tomorrow, a weekday (mon..sun), a date (YYYY-MM-DD), or empty for today. days: how many from there, at most 14. Nothing is booked from here.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "day": {
+            "type": "string"
+          },
+          "days": {
+            "type": "number"
+          }
+        },
+        "required": ["day"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "list_lead_searches",
+      "description": "The workspace's lead searches, newest first: what was asked in the owner's words and when, its state or ending in words, how many qualified, need review and were counted, and, for a search that stopped to ask, its question. Read this before proposing a search, so a plan is not repeated.",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "draft_reply",
+      "description": "Propose words for a customer on a WhatsApp thread, as a card the person approves before anything is sent. voice: 'you' for the person's own words, 'receptionist' for the receptionist's voice. Use the conversation id a read returned. Never quote or confirm a price.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "conversation_id": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "voice": {
+            "type": "string",
+            "enum": ["you", "receptionist"]
+          }
+        },
+        "required": ["conversation_id", "text", "voice"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "propose_steer",
+      "description": "Propose rewriting a reply the receptionist is holding, with an instruction ('shorter', 'mention Saturday is full', 'in Spanish'). Use the held draft's message id from a read. The rewrite waits its turn like the first draft.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "message_id": {
+            "type": "string"
+          },
+          "instruction": {
+            "type": "string"
+          }
+        },
+        "required": ["message_id", "instruction"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "propose_thread_verb",
+      "description": "Propose an Inbox action on a thread: take_over (a person answers from here), hand_back (the receptionist resumes), snooze (until an ISO time, default tomorrow 10:00), wake, archive, resolve (close the open escalation).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "conversation_id": {
+            "type": "string"
+          },
+          "verb": {
+            "type": "string",
+            "enum": ["take_over", "hand_back", "snooze", "wake", "archive", "resolve"]
+          },
+          "until": {
+            "type": "string"
+          }
+        },
+        "required": ["conversation_id", "verb"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "propose_person_mode",
+      "description": "Propose how the receptionist treats one person: auto (answers), ask (asks a person first), never (stays silent), inherit (the workspace's rule). Owner-only.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "contact_id": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string",
+            "enum": ["auto", "ask", "never", "inherit"]
+          }
+        },
+        "required": ["contact_id", "mode"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "propose_deal",
+      "description": "Propose recording a deal on a person (0004, 0008): stage proposed (a proposal went out: a new engagement), won (they said yes or paid: a client), lost (they passed), ended (the engagement ended). Optional service, amount_cents with per (once, month, year: a proposal's value, or a client's agreed amount), a note, the proposal's web address (proposal_url), the last day it stands (valid_until, YYYY-MM-DD) and, with lost only, why they passed (lost_reason). Optionally the next step on it: what (next_step, for the team) with its day (next_step_due, YYYY-MM-DD, today or later), a note with a day the team sees on the deal, written after it. This records what a person told you; it never decides money.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "contact_id": {
+            "type": "string"
+          },
+          "stage": {
+            "type": "string",
+            "enum": ["proposed", "won", "lost", "ended"]
+          },
+          "service": {
+            "type": "string"
+          },
+          "amount_cents": {
+            "type": "number"
+          },
+          "per": {
+            "type": "string",
+            "enum": ["once", "month", "year"]
+          },
+          "note": {
+            "type": "string"
+          },
+          "proposal_url": {
+            "type": "string"
+          },
+          "valid_until": {
+            "type": "string"
+          },
+          "lost_reason": {
+            "type": "string",
+            "enum": ["price", "timing", "elsewhere", "no_reply", "not_a_fit", "other"]
+          },
+          "next_step": {
+            "type": "string"
+          },
+          "next_step_due": {
+            "type": "string"
+          }
+        },
+        "required": ["contact_id", "stage"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "propose_policy",
+      "description": "Propose a change to what the receptionist may do alone: a class (reply, booking, faq, reengage, campaign, reviews, and follow_up where deals are on) and a mode (auto, veto, ask, never), or the reply confidence dial (0 to 1). Never for money: that class is locked by charter, so a request to change it is answered in words, not proposed.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "class": {
+            "type": "string",
+            "enum": ["reply", "booking", "faq", "reengage", "campaign", "reviews", "money", "follow_up"]
+          },
+          "mode": {
+            "type": "string",
+            "enum": ["", "auto", "veto", "ask", "never"]
+          },
+          "min_confidence": {
+            "type": "number"
+          }
+        },
+        "required": ["class", "mode"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "propose_settings",
+      "description": "Propose a settings change the receptionist will follow: add_closure (a day or range closed), set_hours (one weekday's open/close, or closed), add_note (a note the receptionist reads), add_service. Owner-only. Dates YYYY-MM-DD, times HH:MM.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "change": {
+            "type": "object",
+            "properties": {
+              "op": {
+                "type": "string",
+                "enum": ["add_closure", "set_hours", "add_note", "add_service"]
+              },
+              "date": {
+                "type": "string"
+              },
+              "until": {
+                "type": "string"
+              },
+              "note": {
+                "type": "string"
+              },
+              "day": {
+                "type": "string"
+              },
+              "open": {
+                "type": "string"
+              },
+              "close": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "duration_min": {
+                "type": "integer"
+              }
+            },
+            "required": ["op"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["change"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "propose_whisper",
+      "description": "Propose a sentence only the phone receptionist hears on a live call, worked into its next answer. Use a call id from list_calls with filter live.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "call_id": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": ["call_id", "text"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "propose_broadcast",
+      "description": "Propose a broadcast: one approved WhatsApp template to an audience — everyone who said yes, or any list list_audiences names (its kind and audience_id: a People list, or one of the workspace's own) — with the template's values in order (typed text, or @first_name, @business_name, @booking_link to fill per person) and an optional ISO time with its offset (2026-09-20T15:00:00-04:00, never a bare date). Read list_audiences first. It becomes a card the person approves; nobody without a recorded yes is ever included.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "template_id": {
+            "type": "string"
+          },
+          "audience_kind": {
+            "type": "string",
+            "enum": ["everyone", "list", "saved"]
+          },
+          "audience_id": {
+            "type": "string"
+          },
+          "params": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "scheduled_for": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": ["template_id", "audience_kind"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "propose_playbook",
+      "description": "Propose a playbook: a standing rule that sends one approved WhatsApp template to newly eligible people who said yes. trigger: quiet_30 (win-back), new_week (welcome), phoned_only (save our number), everyone_monthly (the month's offer), saved_list (on any list: give its token from list_audiences in list -- one of People's or one of the workspace's own -- and policy_class campaign for an offer or reengage for a win-back), or, where deals are on, proposal_waiting (the proposal follow-up: one nudge per proposal waiting past the workspace's pace, one such playbook per workspace, its message carrying the proposal's link as @proposal_link). template_id: an approved template, or omit it for the trigger's starter when the workspace holds it. params: the template's values in order (typed text, or @first_name, @business_name, @booking_link, @proposal_link); a starter's are filled in, except a typed one such as the month's offer. run_hour 9–20 by the business's clock (default 10), cap_per_run (default 25). Read list_playbooks first. It becomes a card the person approves; it then runs under its class's autonomy mode.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "trigger": {
+            "type": "string",
+            "enum": [
+              "quiet_30",
+              "new_week",
+              "phoned_only",
+              "everyone_monthly",
+              "lapsed",
+              "saved_list",
+              "proposal_waiting"
+            ]
+          },
+          "list": {
+            "type": "string"
+          },
+          "policy_class": {
+            "type": "string",
+            "enum": ["campaign", "reengage"]
+          },
+          "template_id": {
+            "type": "string"
+          },
+          "params": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "run_hour": {
+            "type": "number"
+          },
+          "cap_per_run": {
+            "type": "number"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": ["trigger"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "propose_invite",
+      "description": "Propose inviting someone to the workspace by email, as operator or viewer. Owner-only.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": ["operator", "viewer"]
+          }
+        },
+        "required": ["email", "role"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "propose_lead_search",
+      "description": "Propose a search for businesses in the US the owner could reach: what kind (plural, and one of them), how many (50, 100, 200 or 500 unless they said a number), where (a city and its two-letter state, a ZIP, or a state), the contact standard (phone, or email checked), the criteria each with whether it must be seen or is likely from what Claude reads -- seen is only for what a listing shows (a rating or review count, a website, an email, a phone that matches the site, open or closed) and is judged from those facts alone; what a business IS or DOES (its kind, who owns it, what it serves or sells, who it treats) is likely, never seen, because a listing's name and category do not count as seeing it; and the kind of business itself is checked on every search without being written as a criterion -- who to leave out (chains, other kinds; short chips in plain words), up to three search terms (widest first). looking_for is local_businesses, or people, online_sellers or other when that is what was asked: those are answered in words, not searched. asked: the owner's words. It becomes a plan card the owner approves; nothing is searched or spent before that. Owner-only. amends: the id of a search that stopped to ask (list_lead_searches shows its question) when the plan is that search with the owner's answer applied; the card then answers that search instead of starting a new one.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "looking_for": {
+            "type": "string",
+            "enum": ["local_businesses", "people", "online_sellers", "other"]
+          },
+          "country": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer"
+          },
+          "who": {
+            "type": "string"
+          },
+          "who_one": {
+            "type": "string"
+          },
+          "category_key": {
+            "type": "string"
+          },
+          "terms": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "city": {
+            "type": "string"
+          },
+          "region": {
+            "type": "string"
+          },
+          "zip": {
+            "type": "string"
+          },
+          "contact": {
+            "type": "string",
+            "enum": ["phone", "email"]
+          },
+          "criteria": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": "string"
+                },
+                "standard": {
+                  "type": "string",
+                  "enum": ["likely", "seen"]
+                },
+                "required": {
+                  "type": "boolean"
+                }
+              },
+              "required": ["text", "standard", "required"],
+              "additionalProperties": false
+            }
+          },
+          "leave_out": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "words": {
+                  "type": "string"
+                }
+              },
+              "required": ["words"],
+              "additionalProperties": false
+            }
+          },
+          "asked": {
+            "type": "string"
+          },
+          "amends": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "looking_for",
+          "country",
+          "count",
+          "who",
+          "who_one",
+          "category_key",
+          "terms",
+          "region",
+          "contact",
+          "criteria",
+          "asked"
+        ],
+        "additionalProperties": false
+      }
+    }
+  ]
+}
