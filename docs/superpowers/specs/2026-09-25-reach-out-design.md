@@ -322,7 +322,7 @@ Each to 100% before the next, and each shippable in either deploy order unless s
    switches and the watch on them, the big files split by pure moves, the runtime and the toolchain aligned.
    `docs/superpowers/plans/2026-09-25-reach-out-part-2-5-hardening.md` has the decisions (D1–D14) and what was built.
 
-   **2.6, shipped 26 Sep 2026 (#1086, #1092 and the guards; 00180 and 00181 on production).** A second review before
+   **2.6, shipped 25 Sep 2026 (#1086, #1092 and the guards; 00180 and 00181 on production).** A second review before
    Part 3 (four reviewers; Ruben: "go with your recommendations"). A domain another workspace reserved is never taken
    while its DKIM key is published, and a lost create adopts only the provider domain that press made. A campaign's
    failure flags no thread (one predicate, contracts `isCampaignEmail`). A domain's day counts an email by when it left.

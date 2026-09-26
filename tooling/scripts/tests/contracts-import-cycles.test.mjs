@@ -26,8 +26,17 @@ const ts = createRequire(path.join(ROOT, "packages/contracts/package.json"))("ty
 /** The one cycle allowed, and why it is safe: each calls the other's function declaration inside a function. */
 const ALLOWED = [["signup.ts", "workspace.ts"]];
 
-/** Each module's value imports and re-exports of another module beside it, from its source. */
+/**
+ * Each module's value imports and re-exports of another module of the folder, from its source. Modules are named by
+ * their path in the folder ("sub/x.ts"), and a specifier is resolved from the module that says it, so a subfolder or a
+ * "../" is read as the bundle reads it: to a file ("x.ts") or a folder's index ("x/index.ts").
+ */
 function edgesOf(sources) {
+  const names = new Set(sources.map(([f]) => f));
+  const resolve = (from, spec) => {
+    const base = path.posix.normalize(path.posix.join(path.posix.dirname(from), spec)).replace(/\.(js|ts)$/, "");
+    return [`${base}.ts`, `${base}/index.ts`].find((n) => names.has(n)) ?? `${base}.ts`;
+  };
   const edges = new Map();
   for (const [f, text] of sources) {
     const sf = ts.createSourceFile(f, text, ts.ScriptTarget.Latest, true);
@@ -35,7 +44,7 @@ function edgesOf(sources) {
     for (const s of sf.statements) {
       if (!(ts.isImportDeclaration(s) || ts.isExportDeclaration(s)) || !s.moduleSpecifier) continue;
       const spec = s.moduleSpecifier.text;
-      if (!spec.startsWith("./")) continue;
+      if (!spec.startsWith(".")) continue;
       if (ts.isImportDeclaration(s)) {
         const c = s.importClause;
         if (c?.isTypeOnly) continue;
@@ -44,7 +53,7 @@ function edgesOf(sources) {
           nb && ts.isNamedImports(nb) && nb.elements.length > 0 && nb.elements.every((e) => e.isTypeOnly);
         if (c && !c.name && allTypes) continue;
       } else if (s.isTypeOnly) continue;
-      out.add(`${spec.slice(2).replace(/\.(js|ts)$/, "")}.ts`);
+      out.add(resolve(f, spec));
     }
     edges.set(f, out);
   }
@@ -86,7 +95,10 @@ function cyclesOf(edges) {
 }
 
 test("contracts has no value-import cycle but the one known safe pair", () => {
-  const files = fs.readdirSync(SRC).filter((n) => n.endsWith(".ts"));
+  const files = fs
+    .readdirSync(SRC, { recursive: true })
+    .map((n) => String(n).split(path.sep).join("/"))
+    .filter((n) => n.endsWith(".ts"));
   const edges = edgesOf(files.map((f) => [f, fs.readFileSync(path.join(SRC, f), "utf8")]));
   assert.ok(edges.size > 50, `read the folder (${edges.size} modules)`);
   assert.deepEqual(
@@ -109,4 +121,11 @@ test("the check sees a cycle through an import or a re-export, and none through 
   assert.deepEqual(cyclesOf(edges), [["a.ts", "b.ts", "c.ts"]]);
   assert.deepEqual([...edges.get("d.ts")], []);
   assert.deepEqual([...edges.get("e.ts")], []);
+  // Through a subfolder, its index and a "../", as a future folder of contracts would.
+  const nested = edgesOf([
+    ["g.ts", `import { h } from "./sub/h.js";`],
+    ["sub/h.ts", `export { i as h } from "./deep";`],
+    ["sub/deep/index.ts", `import { g } from "../../g";\nexport const i = g;`],
+  ]);
+  assert.deepEqual(cyclesOf(nested), [["g.ts", "sub/deep/index.ts", "sub/h.ts"]]);
 });

@@ -840,7 +840,7 @@ in the new files; every exported value of the built bundle equal to main's (the 
 moves were made by a script over the TypeScript compiler API that moves top-level declarations by name with their
 comments, computes each file's imports, and refuses a move that would make a private name public, add a value import
 through a re-export, or read a name before it is made. Imports the moved code already had were kept as they were:
-about 36 go through a barrel (`playbook-reach.ts` reads `audienceMembers` through `broadcasts.ts`). Since Part 2.6,
+38 go through a barrel, counted 25 Sep (`playbook-reach.ts` reads `audienceMembers` through `broadcasts.ts`). Since Part 2.6,
 `contracts-import-cycles.test.mjs` fails any new value-import cycle in contracts.
 
 **The repo's other large files, known and not Reach out's** (measured 25 Sep 2026 at `e70bf3d8`, source only):

@@ -12,6 +12,7 @@ import { ROOT, readRaw } from "./_source.mjs";
 import { LEASE_SECONDS, YIELD_AT_MS } from "../../../packages/jobs/src/ledger.ts";
 import { YIELD_AT_MS as DOMAINS_YIELD_AT_MS } from "../../../apps/edge/api/cron/domains.ts";
 import { SEND_TIMEOUT_MS } from "../../../packages/channels/src/email-resend.ts";
+import { NOTIFY_TIMEOUT_MS } from "../../../apps/edge/lib/ops/notify.ts";
 import { EVENT_EVIDENCE_KINDS, RETENTION_DAYS } from "@chanlytics/contracts";
 
 test("the events purge drops the evidence kinds and only those, past the contract's days, on a minute no sweep uses", () => {
@@ -105,14 +106,16 @@ test("an edge door's time limit is set in one place: vercel.json, never in the d
     assert.ok(functions[f.slice("apps/edge/".length)], `${f}: a sweep's limit is written in apps/edge/vercel.json`);
 });
 
-test("the domains sweep yields before its limit, with a provider read and the writes still to come", () => {
-  // Its last batch may start just before DOMAINS_YIELD_AT_MS and wait out one provider read (DNS is read beside it),
-  // then write. Past the limit the platform kills the function mid-write, and the tick is red for nothing it did.
+test("the domains sweep yields before its limit, with a row's whole check still to come", () => {
+  // Its last batch may start just before DOMAINS_YIELD_AT_MS (counted from the door's first line) and wait out one
+  // provider read (DNS is read beside it), the notice a hold sends (a page or the owner's mail), then write. Past the
+  // limit the platform kills the function mid-write, and the tick is red for nothing it did.
   const ceiling = FUNCTIONS["api/cron/domains.ts"].maxDuration * 1000;
   const WRITES_MS = 3_000;
+  const worst = DOMAINS_YIELD_AT_MS + SEND_TIMEOUT_MS + NOTIFY_TIMEOUT_MS + WRITES_MS;
   assert.ok(
-    DOMAINS_YIELD_AT_MS + SEND_TIMEOUT_MS + WRITES_MS <= ceiling,
-    `${DOMAINS_YIELD_AT_MS} + ${SEND_TIMEOUT_MS} + ${WRITES_MS} ms must fit in ${ceiling} ms`,
+    worst <= ceiling,
+    `${DOMAINS_YIELD_AT_MS} + ${SEND_TIMEOUT_MS} + ${NOTIFY_TIMEOUT_MS} + ${WRITES_MS} = ${worst} ms must fit in ${ceiling} ms`,
   );
 });
 

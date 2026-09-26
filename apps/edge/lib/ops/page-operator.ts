@@ -12,7 +12,8 @@
  * a customer waiting in a workspace with nobody on file to tell
  * (api/cron/deadman.ts); the receptionist having no model key
  * (core/inbound/answer.ts); and cold email's own: a sending domain another
- * workspace holds or the provider no longer knows (lib/email/sending-domains.ts),
+ * workspace holds, one the cold account already holds verified with no
+ * workspace's row, or one the provider no longer knows (lib/email/sending-domains.ts),
  * receipts that never arrive (lib/email/cold-receipts.ts), and unsubscribe links
  * that do not open (lib/email/unsubscribe-probe.ts). Each reaches the platform,
  * never an owner.
