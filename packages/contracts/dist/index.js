@@ -150,6 +150,12 @@ function formatPhoneDisplay(e164) {
 function personName(c) {
   return c?.display_name || c?.wa_profile_name || formatPhoneDisplay(c?.phone_e164) || c?.email || "Unknown";
 }
+function callerName(c) {
+  const withheld = !c.from_e164 && !c.from_raw;
+  const phone = formatPhoneDisplay(c.from_e164);
+  const name = c.contact?.display_name || c.contact?.wa_profile_name || null;
+  return withheld ? "Caller ID withheld" : name || phone || c.from_raw || "Unknown caller";
+}
 
 // src/email-address.ts
 var MAX_ADDRESS = 254;
@@ -2319,9 +2325,8 @@ var RECORDING_NOTE = {
 };
 function toCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
   const withheld = !dto.from_e164 && !dto.from_raw;
-  const phone = formatPhoneDisplay(dto.from_e164);
   const name = dto.contact?.display_name || dto.contact?.wa_profile_name || null;
-  const who = withheld ? "Caller ID withheld" : name || phone || dto.from_raw || "Unknown caller";
+  const who = callerName(dto);
   const whoShort = name ? isIdentifierName(name) ? name : name.split(" ")[0] : "Caller";
   const dur = mmss(dto.duration_ms);
   const live = isLiveCall(dto, now);
@@ -4006,7 +4011,7 @@ function toLiveCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
   const withheld = !dto.from_e164 && !dto.from_raw;
   const phone = formatPhoneDisplay(dto.from_e164);
   const name = dto.contact?.display_name || dto.contact?.wa_profile_name || null;
-  const who = withheld ? "Caller ID withheld" : name || phone || dto.from_raw || "Unknown caller";
+  const who = callerName(dto);
   const whoShort = name ? /^[+\d(]/.test(name) ? name : name.split(" ")[0] : "the caller";
   const live = isLiveCall(dto, now);
   const missed = dto.status === "not_connected";
@@ -24133,6 +24138,7 @@ export {
   callOfKey,
   callOutcomeOf,
   callOutcomeWords,
+  callerName,
   callsAnswer,
   callsToday,
   cameFromOf,

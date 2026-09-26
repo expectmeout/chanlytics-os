@@ -17,6 +17,7 @@
 import { injectedTurn } from "./whisper";
 import { CALL_HEARTBEAT_MS, isLiveCall } from "./policy";
 import { formatPhoneDisplay } from "./phone";
+import { callerName } from "./person-name";
 import { DISCONNECTION_LABELS, initialsOf, shortTime, spokenDuration, type CallDto } from "./viewmodels";
 import { callOutcomeWords } from "./call-words";
 import type { ChannelDto } from "./channels";
@@ -207,7 +208,7 @@ export function toLiveCallVM(dto: CallDto, tz: string, now = new Date()): LiveCa
   const withheld = !dto.from_e164 && !dto.from_raw;
   const phone = formatPhoneDisplay(dto.from_e164);
   const name = dto.contact?.display_name || dto.contact?.wa_profile_name || null;
-  const who = withheld ? "Caller ID withheld" : name || phone || dto.from_raw || "Unknown caller";
+  const who = callerName(dto);
   // A phone-like name is not split: "+1" is nobody's first name.
   const whoShort = name ? (/^[+\d(]/.test(name) ? name : name.split(" ")[0]) : "the caller";
 

@@ -1,5 +1,6 @@
 import "server-only";
 import {
+  AppError,
   ASK_CAPS,
   EVERYONE_LABEL,
   NO_NUMBER_REACH,
@@ -47,7 +48,6 @@ import {
   triggerOf,
   type AskReadSet,
   type LeadRoundEnding,
-  type EscalationDto,
   type MessageDto,
   type PersonDetailDto,
   type PersonDecisionDto,
@@ -74,6 +74,9 @@ import { calendarWeek } from "../calendar";
 import { load, readerContext, type ReaderContext } from "../readers";
 import * as readers from "../readers/facts";
 import { calls as callsReader } from "../readers/calls";
+import { call } from "../readers/call";
+import { conversation } from "../readers/conversation";
+import { escalations as escalationsReader } from "../readers/escalations";
 import { inbox } from "../readers/inbox";
 import { today } from "../readers/today";
 import { openingsFor } from "./openings";
@@ -245,6 +248,28 @@ function dayKey(iso: string | null | undefined, tz: string): string | null {
   }
 }
 
+/**
+ * The open escalation the Inbox shows on each thread, as the page picks it
+ * (legacy-bridge/surface-data.ts, inboxOverride): the open escalations come
+ * newest first and the last one keyed for a thread wins, so a thread shows its
+ * oldest. list_threads and get_thread both pick with this.
+ */
+function inboxEscalations<E extends { conversation_id: string }>(open: E[]): Map<string, E> {
+  return new Map(open.map((e) => [e.conversation_id, e]));
+}
+
+/**
+ * A reader's 404 as the tool's own "not here" answer, null; any other failure
+ * is still the read failing (runTool says so). A row the workspace does not
+ * hold is not a read that failed, and the model must not be told it was.
+ */
+function unlessNotFound<T>(read: Promise<T>): Promise<T | null> {
+  return read.catch((e: unknown) => {
+    if (e instanceof AppError && e.code === "not_found") return null;
+    throw e;
+  });
+}
+
 /* --------------------------------------------------------------- tools */
 
 async function getToday(t: ToolContext): Promise<unknown> {
@@ -329,7 +354,7 @@ async function listThreads(t: ToolContext, input: Record<string, unknown>): Prom
   const filter = str(input.filter) || "recent";
   // The Inbox as the page composes it (readers/inbox.ts): the newest hundred, and every escalated thread outside it.
   const { conversations, escalations } = (await load(t.rc, inbox, undefined)).data;
-  const byConv = new Map(escalations.map((e) => [e.conversation_id, e]));
+  const byConv = inboxEscalations(escalations);
   const vms = conversations.map((c) => toInboxThreadVM(c, byConv.get(c.id) ?? null, t.timezone, t.now));
   const matching = vms.filter((v) => {
     switch (filter) {
@@ -398,49 +423,19 @@ async function getThread(t: ToolContext, input: Record<string, unknown>): Promis
   const id = str(input.conversation_id);
   if (!UUID.test(id)) return { error: "conversation_id must be an id a tool returned" };
   const more = input.more === true;
-  const { supabase } = t.ctx;
-  const { data: conv, error } = await supabase
-    .from("conversations")
-    .select(CONVERSATION_COLUMNS)
-    .eq("id", id)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
-  if (!conv) return { error: "no such conversation in this workspace" };
-  const cap = more ? ASK_CAPS.messagesMore : ASK_CAPS.messages;
-  const [{ data: msgs, error: merr }, { data: esc }] = await Promise.all([
-    supabase
-      .from("messages")
-      .select(MESSAGE_COLUMNS)
-      .eq("conversation_id", id)
-      .order("created_at", { ascending: false })
-      .limit(cap),
-    supabase
-      .from("escalations")
-      .select("id, reason, details, state, created_at, conversation_id")
-      .eq("conversation_id", id)
-      .eq("state", "open")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
+  // The thread as its page reads it (readers/conversation.ts): the row under RLS and this workspace, then its hundred
+  // newest messages with their wire and their attachment, so the window and the wire are the page's (ledger #5). The
+  // open escalations beside it, as the Inbox reads them. Each once a turn; a thread not here is the reader's 404.
+  const [r, open] = await Promise.all([
+    unlessNotFound(load(t.rc, conversation, { id, before: null })),
+    load(t.rc, escalationsReader, { state: "open" }),
   ]);
-  if (merr) throw new Error(merr.message);
-  const dto = toConversationDto(
-    conv,
-    [...(msgs ?? [])].reverse().map((m) => ({
-      id: m.id,
-      direction: m.direction as MessageDto["direction"],
-      sender: m.sender as MessageDto["sender"],
-      type: m.type,
-      body: m.body,
-      media: null,
-      meta: m.meta as MessageDto["meta"],
-      status: m.status,
-      created_at: m.created_at,
-      channel_ts: m.channel_ts,
-    })),
-    t.ctx.userId,
-  );
-  const vm = toInboxThreadVM(dto, (esc as EscalationDto | null) ?? null, t.timezone, t.now);
+  if (!r) return { error: "no such conversation in this workspace" };
+  const esc = inboxEscalations(open.data.escalations).get(id) ?? null;
+  const cap = more ? ASK_CAPS.messagesMore : ASK_CAPS.messages;
+  const dto = { ...r.data.conversation, messages: r.data.messages };
+  // The page's own builder, over the page's own payload.
+  const vm = toInboxThreadVM(dto, esc, t.timezone, t.now);
   t.read.thread.add(id);
   t.read.conversation.add(id);
   if (dto.contact.id) t.read.person.add(dto.contact.id);
@@ -449,7 +444,10 @@ async function getThread(t: ToolContext, input: Record<string, unknown>): Promis
     route: `inbox/th-${id}`,
     contact_id: dto.contact.id || null,
     contact_route: dto.contact.id ? `clients/${dto.contact.id}` : null,
-    who: vm.who,
+    // Named as the Inbox row names them, which is the reader's row: the route's payload carries no email, so its view
+    // model would call a person reached only by email "Unknown" where the Inbox names them by their address. The
+    // reader's first row is the thread.
+    who: r.rows[0].label,
     channel: vm.replyVia,
     state: vm.needsYou
       ? "needs you"
@@ -461,11 +459,7 @@ async function getThread(t: ToolContext, input: Record<string, unknown>): Promis
             ? "opted out"
             : "answering",
     escalation: esc
-      ? {
-          id: (esc as EscalationDto).id,
-          reason: ESCALATION_REASON_LABELS[(esc as EscalationDto).reason] ?? (esc as EscalationDto).reason,
-          details: (esc as EscalationDto).details,
-        }
+      ? { id: esc.id, reason: ESCALATION_REASON_LABELS[esc.reason] ?? esc.reason, details: esc.details }
       : null,
     window_open: vm.windowOpen,
     held_draft: vm.veto
@@ -762,10 +756,11 @@ async function listCalls(t: ToolContext, input: Record<string, unknown>): Promis
 async function getCall(t: ToolContext, input: Record<string, unknown>): Promise<unknown> {
   const id = str(input.call_id);
   if (!UUID.test(id)) return { error: "call_id must be an id a tool returned" };
-  const { data, error } = await t.ctx.supabase.from("calls").select(CALL_COLUMNS).eq("id", id).maybeSingle();
-  if (error) throw new Error(error.message);
-  if (!data) return { error: "no such call in this workspace" };
-  const v = toCallVM(toCallDto(data), t.timezone, t.now);
+  // The call as the Calls page maps it, under this workspace's own filter (readers/call.ts), once a turn; a call not
+  // here is the reader's 404.
+  const r = await unlessNotFound(load(t.rc, call, { id }));
+  if (!r) return { error: "no such call in this workspace" };
+  const v = toCallVM(r.data.call, t.timezone, t.now);
   t.read.call.add(id);
   if (v.clientId) t.read.person.add(v.clientId);
   return {
