@@ -2790,6 +2790,16 @@ var POLICY_CLASS_MODES = {
   money: ["never"],
   follow_up: ["auto", "ask", "never"]
 };
+function policyModeOffered(cls, mode) {
+  return POLICY_CLASSES.includes(cls) && POLICY_CLASS_MODES[cls].includes(mode);
+}
+function policyModeRefusal(cls, mode) {
+  if (policyModeOffered(cls, mode)) return null;
+  if (mode === "veto") return `The ${POLICY_CLASS_WORDS[cls].short} row has nothing to hold for review.`;
+  if (mode === "never" && (cls === "booking" || cls === "faq"))
+    return 'Bookings and service questions are answered by the receptionist or by you \u2014 there is no "never".';
+  return `The ${cls} row cannot be set to ${mode}.`;
+}
 function policyClassOfIntent(intent) {
   if (intent === "booking") return "booking";
   if (intent === "pricing" || intent === "services") return "faq";
@@ -24283,6 +24293,8 @@ export {
   policyClassOfIntent,
   policyClassOffered,
   policyLinks,
+  policyModeOffered,
+  policyModeRefusal,
   policyRules,
   poolListContext,
   poolRowOf,

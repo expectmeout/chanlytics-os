@@ -1215,7 +1215,7 @@ test("the proposal builders run against the database in memory: each kind is a c
     (await p("propose_policy", { class: "money", mode: "ask" })).result,
     /money stays owner-only by charter/,
   );
-  assert.match((await p("propose_policy", { class: "booking", mode: "veto" })).result, /only replies can be held/);
+  assert.match((await p("propose_policy", { class: "booking", mode: "veto" })).result, /nothing to hold for review/);
   assert.match((await p("propose_policy", { class: "reply", mode: "" })).result, /say a mode or a confidence/);
   const dial = await p("propose_policy", { class: "reply", mode: "", min_confidence: 0.9 });
   assert.deepEqual(

@@ -44,6 +44,9 @@ import {
   dealPaceOf,
   dealsAreOn,
   policyClassOffered,
+  policyModeRefusal,
+  type PolicyClass,
+  type PolicyMode,
   triggerOffered,
   contactName,
   describeSettingsChange,
@@ -655,7 +658,9 @@ async function proposePolicy(t: ToolContext, input: Record<string, unknown>): Pr
     return refuse(FOLLOW_UP_NEEDS_DEALS);
   if (mode && !(POLICY_MODES as readonly string[]).includes(mode))
     return refuse("mode must be auto, veto, ask or never");
-  if (mode === "veto" && cls !== "reply") return refuse("only replies can be held for review");
+  // The route's own rule and words (contracts policyModeRefusal): a card the route would refuse is never offered.
+  const refusal = mode ? policyModeRefusal(cls as PolicyClass, mode as PolicyMode) : null;
+  if (refusal) return refuse(refusal);
   if (conf !== null && (cls !== "reply" || conf < 0 || conf > 1))
     return refuse("the confidence dial is 0 to 1 and applies to reply");
   if (!mode && conf === null) return refuse("say a mode or a confidence");

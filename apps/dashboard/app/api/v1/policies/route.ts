@@ -5,8 +5,8 @@ import {
   POLICY_MODES,
   REPLY_DELAY_MIN_MS,
   REPLY_DELAY_MAX_MS,
-  POLICY_CLASS_MODES,
   dealsAreOn,
+  policyModeRefusal,
   type PolicyClass,
   type PolicyMode,
 } from "@chanlytics/contracts";
@@ -31,7 +31,7 @@ export const GET = read({
 /**
  * PUT /api/v1/policies — {class, mode}. Owners and operators tune autonomy
  * (the mockup's ST_PERMS says so); viewers are refused here, not just hidden.
- * 'veto' is refused until the drafts engine exists (R1: no option without an
+ * A mode is refused where its class cannot honour it (R1: no option without an
  * enforcer), and the money lock lives in a DB trigger — even this route
  * cannot unlock it. The body is the route's own to read: which fields may
  * travel together depends on the class, and every refusal is a sentence.
@@ -64,30 +64,11 @@ export const PUT = write({
       mode = current.mode;
     }
     if (!(POLICY_MODES as readonly string[]).includes(mode)) throw new AppError("validation", "Unknown mode.");
-    // 'veto' used to be refused here on the rule "no option without an
-    // enforcer" — offering a mode nothing implemented would have been a switch
-    // that lies. The enforcer now exists: the receptionist writes its reply as a
-    // draft and a scheduled job sends it, so the option is real and the refusal
-    // has become the thing standing in the way.
-    //
-    // Only the REPLY class can be vetoed. The others have no draft to hold.
-    if (mode === "veto" && cls !== "reply") {
-      throw new AppError(
-        "validation",
-        "Only replies can be held for review — the other classes have no draft to hold.",
-      );
-    }
-    // A switch nothing enforces is a switch that lies: each class offers only
-    // the modes the runtime honours for it. Booking and service questions are
-    // answered by the receptionist or by a person; there is no "never".
-    if (!POLICY_CLASS_MODES[cls as PolicyClass].includes(mode as PolicyMode)) {
-      throw new AppError(
-        "validation",
-        cls === "booking" || cls === "faq"
-          ? 'Bookings and service questions are answered by the receptionist or by you — there is no "never".'
-          : `The ${cls} row cannot be set to ${mode}.`,
-      );
-    }
+    // A switch nothing enforces is a switch that lies: each class offers only the modes the runtime honours for it,
+    // by the rule the Autonomy pane draws its dots by and Ask proposes by (contracts policyModeOffered). Veto is offered
+    // wherever something waits to be stopped: a reply in the hold window, a playbook run thirty minutes out.
+    const refusal = policyModeRefusal(cls as PolicyClass, mode as PolicyMode);
+    if (refusal) throw new AppError("validation", refusal);
 
     // The wait, in ms. Clamped at the boundary as well as in the reader: a value
     // that reaches the database out of range would be silently corrected on read

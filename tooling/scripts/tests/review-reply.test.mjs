@@ -25,6 +25,8 @@ import {
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
 
+const { UI_ROWS } = await import("../../../apps/dashboard/src/legacy-bridge/policy-store.ts");
+
 const NOW = Date.parse("2026-09-07T15:00:00Z");
 const FACTS = {
   name: "Marisa's Beauty Salon",
@@ -264,11 +266,8 @@ test("the wiring: the migration, the edge, the routes, the bridge, the pane and 
   const bridge = readCode("apps/dashboard/src/legacy-bridge/google.ts");
   assert.ok(bridge.includes('"POST google/reviews/[id]/draft", { params: { id }, body: {} }'));
 
-  const store = readCode("apps/dashboard/src/legacy-bridge/policy-store.ts");
-  assert.match(
-    store,
-    /\{\s*id: "reviews",\s*cls: "reviews",\s*\.\.\.W\("reviews"\),\s*modes: \["Auto", "Ask", "Never"\]/,
-  );
+  // The pane's row, as it is drawn: Auto, Ask and Never, no countdown to hold.
+  assert.deepEqual(UI_ROWS.find((r) => r.id === "reviews").modes, ["Auto", "Ask", "Never"]);
   const reports = readCode("apps/dashboard/src/legacy/pages/reports.jsx");
   assert.ok(
     reports.includes('if (r.replied || mode === "never" || !window.__google || !window.__google.draft) return;'),
