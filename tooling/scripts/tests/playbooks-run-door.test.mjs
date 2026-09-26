@@ -751,3 +751,22 @@ test("a reach-out's root runs its first step now through the sweep's step runner
   const [s2, b2] = await answer(await knock({ ...press, playbook_id: STEP }));
   assert.deepEqual([s2, b2], [409, { ok: false, error: "reach_out_step" }]);
 });
+
+test("a reach-out's Start in a paused workspace says the workspace is paused, not the chain (R14)", async () => {
+  const w = world({ people: { [A]: [person("a1")] } });
+  workspace(w.tables, A, "auto", { status: "paused" });
+  w.tables.playbooks.push(
+    playbook(A, P, {
+      kind: "reach_out",
+      trigger: "lead_first",
+      policy_class: "outreach",
+      lead_search_id: "44444444-4444-4444-8444-444444444444",
+      after_playbook_id: null,
+      gap_minutes: 12,
+      domain_ids: [],
+    }),
+  );
+  const [status, body] = await answer(await knock(press));
+  assert.equal(status, 200, JSON.stringify(body));
+  assert.deepEqual([body.outcome, body.reason, body.planned], ["off", "workspace_paused", 0]);
+});

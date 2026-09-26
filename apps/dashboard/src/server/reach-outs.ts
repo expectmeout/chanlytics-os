@@ -13,12 +13,9 @@ import {
   isReachOutRefusal,
   isReachOutRun,
   localDate,
-  maySpend,
   parseTenantConfig,
   reachOutSlots,
   validateReachOutChain,
-  type BillingMode,
-  type BillingStatus,
   type ReachOutChainDto,
   type ReachOutChainInput,
   type ReachOutChainReportDto,
@@ -29,7 +26,7 @@ import {
   type ReachOutStartDto,
   type ReachOutStepDto,
 } from "@chanlytics/contracts";
-import { emailWordsFrom } from "@chanlytics/db";
+import { emailWordsFrom, outreachModeOf, workspaceMaySpend } from "@chanlytics/db";
 import type { RouteContext } from "@/server/with-route";
 import type { Member } from "@/server/route";
 import { recordDecision } from "@/server/verbs";
@@ -109,14 +106,15 @@ export async function chainsOf(ctx: RouteContext, tenantId: string): Promise<Rea
   if (roots.length === 0) return [];
   const templateIds = steps.map((s) => s.template_id).filter((x): x is string => !!x);
   const searchIds = roots.map((r) => r.lead_search_id).filter((x): x is string => !!x);
-  const [templates, searches, policy, billing, waiting] = await Promise.all([
+  const [templates, searches, waiting, mode, spend] = await Promise.all([
     sb.from("templates").select("id, components, body_preview").eq("tenant_id", tenantId).in("id", templateIds),
     sb.from("lead_searches").select("id, name").eq("tenant_id", tenantId).in("id", searchIds),
-    sb.from("policies").select("class, mode, subject_type").eq("tenant_id", tenantId).eq("class", "outreach"),
-    sb.from("billing_accounts").select("mode, status").eq("tenant_id", tenantId).maybeSingle(),
     sb.from("broadcasts").select("id, audience").eq("tenant_id", tenantId).eq("state", "pending_approval"),
+    // The step's run's own readings (packages/db): its outreach mode, and whether the workspace may spend.
+    outreachModeOf(sb, tenantId),
+    workspaceMaySpend(sb, tenantId),
   ]);
-  for (const r of [templates, searches, policy, billing, waiting]) if (r.error) throw new Error(r.error.message);
+  for (const r of [templates, searches, waiting]) if (r.error) throw new Error(r.error.message);
   const words = new Map(
     ((templates.data ?? []) as { id: string; components: unknown; body_preview: string | null }[]).map((t) => [
       t.id,
@@ -124,13 +122,6 @@ export async function chainsOf(ctx: RouteContext, tenantId: string): Promise<Rea
     ]),
   );
   const names = new Map(((searches.data ?? []) as { id: string; name: string }[]).map((s) => [s.id, s.name]));
-  // The outreach row every workspace has (00183); none, or one it does not know, reads as ask, as the step's run does.
-  const said = ((policy.data ?? []) as { mode: string; subject_type: string | null }[]).find(
-    (p) => p.subject_type === null,
-  )?.mode;
-  const mode = said === "veto" || said === "never" ? said : "ask";
-  const b = billing.data as { mode: string; status: string } | null;
-  const spend = !!b && maySpend(b.mode as BillingMode, b.status as BillingStatus);
   const waitingOf = new Map<string, string>();
   for (const w of (waiting.data ?? []) as { id: string; audience: unknown }[])
     if (isReachOutRun(w.audience)) waitingOf.set(String((w.audience as { root_id?: unknown }).root_id), w.id);
@@ -321,11 +312,10 @@ export async function reachOutRunOf(
   const root = all.find((s) => s.id === rootId);
   if (!root) return null;
   const steps = chainOf(root, all);
-  const stepN = Math.max(
-    0,
-    steps.findIndex((s) => s.id === run.playbook_id),
-  );
-  const step = steps[stepN]!;
+  // A run whose step was dropped from the chain since (R17) has no place in it: said so, never as another step.
+  const at = steps.findIndex((s) => s.id === run.playbook_id);
+  const stepN = at < 0 ? null : at;
+  const step = stepN === null ? null : steps[stepN]!;
   const rows = (sends.data ?? []) as unknown as SendRow[];
   const tz = facts.timezone;
   const today = localDate(tz, new Date());
@@ -338,7 +328,7 @@ export async function reachOutRunOf(
 
   let first: ReachOutRunDto["first"] = null;
   const lead = checked[0];
-  if (lead && step.template_id) {
+  if (lead && step?.template_id) {
     const { data: tpl, error } = await sb
       .from("templates")
       .select("components, body_preview")
@@ -382,7 +372,7 @@ export async function reachOutRunOf(
   return {
     root_id: root.id,
     chain_name: root.name,
-    step_id: step.id,
+    step_id: step?.id ?? null,
     step_n: stepN,
     gap_minutes: root.gap_minutes ?? 0,
     run_for: run.run_for,

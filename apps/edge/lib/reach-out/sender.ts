@@ -263,7 +263,7 @@ async function writeOne(t: Tick, s: ReachOutSendRow): Promise<Outcome> {
     (await move({ state: "skipped", reason: reason.slice(0, 60) })) ? "skipped" : "lost";
   /** Back to be checked, keeping its time and its owner's inclusions; a check under way for older words writes nothing. */
   const recheck = async (): Promise<Outcome> =>
-    (await recheckSends(db, { tenantId: s.tenant_id, ids: [s.id] })) === 1 ? "rechecked" : "lost";
+    (await recheckSends(db, { tenantId: s.tenant_id, ids: [s.id], fromState: "claimed" })) === 1 ? "rechecked" : "lost";
   const hold = (reason: string): Outcome => {
     t.later.push({ send: s, wrote: false });
     const key = `${s.tenant_id}:${reason}`;

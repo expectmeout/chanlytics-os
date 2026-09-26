@@ -4255,9 +4255,9 @@ interface ReachOutHeldSend {
 interface ReachOutRunDto {
     root_id: string;
     chain_name: string;
-    step_id: string;
-    /** 0 for the first email. */
-    step_n: number;
+    step_id: string | null;
+    /** 0 for the first email; null when the run's step has since been dropped from its chain (R17). */
+    step_n: number | null;
     gap_minutes: number;
     run_for: string | null;
     include_unconfirmed: boolean;
@@ -21075,6 +21075,11 @@ declare const REACH_OUT_REFUSALS: {
     readonly stepWrote: "That step has written already. Pause the reach-out instead.";
     readonly outOfPlace: "A step is out of its place. Open the reach-out again.";
     readonly notFound: "Reach-out not found.";
+    readonly workspaceNotFound: "Workspace not found.";
+    readonly oneEmail: "A reach-out has at least one email.";
+    /** lead_set_stage's own, when Not a fit finds its lead missing or erased. */
+    readonly leadNotFound: "Lead not found.";
+    readonly leadGone: "This lead is gone.";
     readonly searchNotFound: "Search not found.";
     readonly domainNotFound: "Domain not found.";
     readonly sendNotFound: "Email not found.";

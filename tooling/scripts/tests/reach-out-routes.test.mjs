@@ -606,4 +606,54 @@ test("a reach-out run's block: today and later from the checked only, the still-
   assert.deepEqual(run.domains, [{ host: "harbor-mail.example", sent_days: 12 }]);
   assert.deepEqual([run.step_n, run.chain_name, run.include_unconfirmed], [0, "Reach out · Personal trainers", false]);
   assert.equal(await server.reachOutRunOf(ctxFor(t), A, { ...t.broadcasts[0], audience: { kind: "everyone" } }), null);
+  // A run whose step was dropped from the chain since: no step, said so by the words (R17).
+  const dropped = await server.reachOutRunOf(ctxFor(t), A, { ...t.broadcasts[0], playbook_id: null });
+  assert.deepEqual([dropped.step_id, dropped.step_n, dropped.first], [null, null, null]);
+});
+
+test("the chains read the step's run's own readings: a paused workspace may not spend, and the outreach row is the workspace's own", async () => {
+  const paused = await chains.GET.run(
+    get(),
+    ctxFor(
+      tables("viewer", {
+        tenants: [{ id: A, name: "Harbor Moving Co", timezone: "America/Chicago", status: "paused" }],
+      }),
+    ),
+  );
+  assert.equal(paused.chains[0].next.may_spend, false, "a paused workspace may not spend (workspaceMaySpend)");
+  const never = await chains.GET.run(
+    get(),
+    ctxFor(
+      tables("viewer", {
+        policies: [
+          { tenant_id: A, class: "outreach", mode: "never", subject_type: null },
+          { tenant_id: A, class: "reengage", mode: "auto", subject_type: null },
+        ],
+      }),
+    ),
+  );
+  assert.equal(never.chains[0].next.mode, "never");
+  const none = await chains.GET.run(get(), ctxFor(tables("viewer", { policies: [] })));
+  assert.equal(none.chains[0].next.mode, "ask", "no row reads as ask, as the run reads it");
+});
+
+test("Not a fit on a lead that is gone says so, in lead_set_stage's own words", async () => {
+  const sends = [{ id: SEND, tenant_id: A, broadcast_id: RUN, state: "held", reason: "chain" }];
+  await refused(
+    decide.POST.run(
+      send("POST", { decision: "not_a_fit" }),
+      ctxFor(
+        tables("operator", { reach_out_sends: sends }),
+        { id: SEND },
+        {
+          reach_out_send_decide: () => {
+            throw pgError("P0002", "This lead is gone.");
+          },
+        },
+      ),
+    ),
+    "not_found",
+    404,
+    REACH_OUT_REFUSALS.leadGone,
+  );
 });

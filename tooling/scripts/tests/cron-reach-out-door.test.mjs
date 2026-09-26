@@ -101,13 +101,20 @@ function clockReads(t) {
   return {
     // 00198's one reset, as the SQL makes it (proved on a stack, reach-out-sheet-doors.db.test.mjs).
     reach_out_recheck: (a) => {
+      (t.rechecks ??= []).push(a);
       let n = 0;
       for (const s of t.reach_out_sends)
         if (
           a.p_send_ids.includes(s.id) &&
           ["planned", "held", "claimed"].includes(s.state) &&
+          (!a.p_from_state || s.state === a.p_from_state) &&
           (!a.p_tenant_id || s.tenant_id === a.p_tenant_id)
         ) {
+          // Past its fortnight (00198 reach_out_given_up): given up, never planned again.
+          if (Date.parse(s.created_at) < Date.now() - 14 * DAY) {
+            Object.assign(s, { state: "skipped", reason: "kept_waiting" });
+            continue;
+          }
           Object.assign(s, {
             state: "planned",
             reason: null,
@@ -1323,6 +1330,11 @@ test("words changed since the check, or an opening named and none written, send 
   });
   const [, body] = await w.send();
   assert.equal(body.claim.rechecked, 2);
+  assert.deepEqual(
+    w.tables.rechecks.map((a) => a.p_from_state),
+    ["claimed", "claimed"],
+    "only the send this tick claimed: never one another tick claimed since",
+  );
   const e = w.row(edited.id);
   assert.deepEqual(
     [e.state, e.checked_at, e.check_gen, e.checked_words, e.claimed_at, e.reason, e.included_for],

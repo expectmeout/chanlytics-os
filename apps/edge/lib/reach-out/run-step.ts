@@ -36,7 +36,10 @@ export async function runReachOutStep(
   const ctx = await reachOutRunContext(db, row, now);
   if ("error" in ctx) {
     await tried();
-    return { outcome: ctx.error === "paused" ? "off" : "failed", reason: ctx.error, planned: 0, runFor, runId: null };
+    // A paused workspace is said as the workspace's, never as the chain's own pause (core's "paused").
+    return ctx.error === "paused"
+      ? { outcome: "off", reason: "workspace_paused", planned: 0, runFor, runId: null }
+      : { outcome: "failed", reason: ctx.error, planned: 0, runFor, runId: null };
   }
   const r = await runReachOut(ctx.ports, ctx.step, { runFor });
   log.info("reach_out_ran", { tenant_id: row.tenant_id, playbook_id: row.id, ...r });

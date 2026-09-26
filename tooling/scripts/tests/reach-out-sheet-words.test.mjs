@@ -119,6 +119,12 @@ test("Start says what really happened, each reason in its own words; within the 
     "Planned 1 email. They go in each business's hours; you have thirty minutes to stop them.",
   );
   assert.equal(said("unreached", null), "Saved. The first run is planned within the hour.");
+  assert.equal(said("off", "paused"), "Saved. It is paused, so nothing was planned.");
+  assert.equal(
+    said("off", "workspace_paused"),
+    "Saved. This workspace is paused, so nothing runs until it is resumed.",
+    "the workspace's pause is said as the workspace's",
+  );
   const within = ["sent", "held", "empty", "off", "failed", "preview"].flatMap((o) =>
     ["billing", "never", "no_domain", "no_room", "nobody", "waiting_for_you", "already_ran", "paused", null].map((r) =>
       said(o, r, 3),
@@ -257,6 +263,13 @@ test("the approval sheet says who today, who later, what the check held, and nam
     today: "2026-09-28",
   });
   assert.equal(down.recheck, "Check the held again");
+  // A run whose step was dropped from its chain since says so, never another step's name (R17).
+  const dropped = approvalWordsOf(RUN({ step_id: null, step_n: null }), {
+    timezone: "America/Chicago",
+    share: 30,
+    today: "2026-09-28",
+  });
+  assert.match(dropped.sub, /^Reach-out · a step since removed · goes from/);
 });
 
 const CHAIN = {
@@ -341,4 +354,11 @@ test("the doors' refusals are one set of sentences, the ones the database raises
   assert.equal(isReachOutRefusal("This reach-out has written already. Pause it instead."), true);
   assert.equal(isReachOutRefusal('duplicate key value violates unique constraint "playbooks_one_reach_out"'), false);
   assert.equal(isReachOutRefusal(null), false);
+  for (const w of [
+    "Workspace not found.",
+    "A reach-out has at least one email.",
+    "This lead is gone.",
+    "Lead not found.",
+  ])
+    assert.equal(isReachOutRefusal(w), true, w);
 });

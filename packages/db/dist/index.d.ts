@@ -5228,6 +5228,13 @@ type Database = {
                 };
                 Returns: Json;
             };
+            outreach_wrote_back: {
+                Args: {
+                    p_contact_ids: string[];
+                    p_tenant_id: string;
+                };
+                Returns: string[];
+            };
             people_list: {
                 Args: {
                     p_contact_id?: string;
@@ -5637,6 +5644,12 @@ type Database = {
                     region: string;
                 }[];
             };
+            reach_out_given_up: {
+                Args: {
+                    p_created_at: string;
+                };
+                Returns: boolean;
+            };
             reach_out_held_stale: {
                 Args: {
                     p_before: string;
@@ -5724,6 +5737,7 @@ type Database = {
             };
             reach_out_recheck: {
                 Args: {
+                    p_from_state?: string;
                     p_send_ids: string[];
                     p_tenant_id?: string;
                 };
@@ -6967,11 +6981,14 @@ declare function recordCheck(db: Db$a, p: {
 /**
  * Sends back to unchecked (R5), in one statement (00198 reach_out_recheck, the one reset): planned, not checked, at
  * their words' next version, so a check still under way for the old words writes nothing; what their owner included
- * them past stays (R7). Only from planned, held or claimed. How many went back.
+ * them past stays (R7). Only from planned, held or claimed, and only from `fromState` when it is named: the sender
+ * names "claimed", so a send another tick has claimed since is never reset. One past its fortnight is given up,
+ * kept_waiting, instead (R10). How many went back.
  */
 declare function recheckSends(db: Db$a, p: {
     tenantId: string;
     ids: string[];
+    fromState?: "planned" | "held" | "claimed";
 }): Promise<number>;
 /** Holds left past `before`, oldest planned first (00197: fourteen days from when a send was planned, R10). */
 declare function heldStale(db: Db$a, before: Date, limit: number, tenantId?: string): Promise<ReachOutSendRow[]>;
@@ -6995,10 +7012,17 @@ declare function takeCheckAttempt(db: Db$a, p: {
 }): Promise<boolean>;
 /**
  * Whether a workspace may spend on reach-out now (contracts maySpend): a paused workspace, or one with no billing row,
- * may not. The one reading of it: the step's run (run-context.ts) and the check both ask it. A read that fails throws:
+ * may not. The one reading of it: the step's run (run-context.ts), the check and the dashboard's chains ask it. A read that fails throws:
  * "we could not check" is not "yes".
  */
 declare function workspaceMaySpend(db: Db$a, tenantId: string): Promise<boolean>;
+type OutreachMode = "ask" | "veto" | "never";
+/**
+ * Settings › Autonomy's outreach row (00183), the one reading of it: a workspace's own row, its mode as said; none, or
+ * a mode it does not know, reads as ask, so a missing row can only wait for its owner. The step's run and the
+ * dashboard's chains both ask it. A read that fails throws.
+ */
+declare function outreachModeOf(db: Db$a, tenantId: string): Promise<OutreachMode>;
 /** The workspace's own words about what it does (business_records.about, 00152), for the writer. */
 declare function workspaceAbout(db: Db$a, tenantId: string): Promise<string | null>;
 
@@ -7774,4 +7798,4 @@ interface Page<T> {
  */
 declare function readAllRows<T>(what: string, page: (from: number, to: number) => PromiseLike<Page<T>>, cap?: number, onCapped?: (what: string, cap: number) => void): Promise<T[]>;
 
-export { type AudienceLead, CALL_CONTROL_S, type ChannelLookup, type ColdReceiptsOwed, type ControlHolder, type ControlOutcome, DEFAULT_ROW_CAP, type Database, type DomainCapacity, type DueDomain, type FollowerLead, HISTORY_COLUMNS, type IdempotencyClaim, type IdempotencyHold, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type ListRow, MAX_ROWS, type MailboxRow, type MessageInsert, type NormalizedCallInput, type OutboundTarget, type OutreachFactsRow, PEOPLE_PAGE, type Page, type ParentEmail, type PersonForSend, type PgThreadState, type PolicyRecord, type PutTenantConfigResult, type QueuedOutcome, type ReachOutRecordRow, type ReachOutSendInsert, type ReachOutSendRow, type RoutedChannel, type SavedListRow, type SendStanding, type SendingDomainHolder, type SendingDomainRow, type ServiceClientConfig, type SubscribeOptions, type TemplateRow, type TenantConfigRow, type ThreadTurn, type Touch, type TouchIndex, type UncheckedSend, type WriteError, type WrittenEmail, type YesRow, addToList, applyDomainCheck, archiveList, assembleHistory, claimCallNotification, claimControl, claimIdempotencyKey, claimSends, closedRunSends, coldReceiptsOwed, contactEmailOf, countSendingDomains, countSentToday, createList, createServiceClient, deleteList, deleteSendingDomain, deleteSendingDomainAsRead, describeLead, domainCapacityOf, domainHeldSince, dropFromList, dueDomains, dueSendingDomains, emailWordsFrom, emailWordsOf, emitEvent, everyoneIn, finishableRuns, followUpTouchesSince, getTenantConfig, heldStale, ingestCall, ingestInbound, ingestInboundEmail, insertQueuedEmail, keepIdempotencyReceipt, lastInboundEmail, leadAddressBounced, leadSlotsOf, leadWritten, linkCallMessage, listMemberIds, listPolicies, listRow, mailboxById, mailboxFor, mailboxOfTenant, markProcessed, monthSent, moveSend, notesForReceptionist, outreachFactsOf, parentEmailOf, pauseConversation, peoplePage, personReplyMode, platformHoldStands, playbooksOnList, putTenantConfig, queuedOutcomes, reachOutAudience, reachOutFollowers, reachOutPerson, reachOutRecord, readAllRows, readDealForPhone, readLeadContext, readThreadState, recheckSends, recordCallNote, recordCarrierOptOut, recordCheck, recordEchoAndPause, recordEmailNo, recordEmailStatus, recordOutbound, recordProviderDomain, recordStatusByExternalId, releaseControl, releaseIdempotencyKey, releaseUnavailableHolds, renameList, reputationHoldsSince, reserveSendingDomain, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, runSending, savedListFor, savedListsFor, sendJobScheduled, sendNow, sendStanding, sendingDomainByHost, sendingDomainCounts, sendingDomainOf, sendingDomainsOf, sentEmailOf, sentEmailRequestOf, sentEmailWithMessageId, setCallRecording, setListRule, setPersonReplyMode, setPolicyMode, staleSends, stampEmailComplaint, stampEmailSent, stampMailboxReceived, stuckClaims, subscribeMessagesInserts, suppressEmailOf, takeCheckAttempt, takeIdempotencyKey, templatesFor, touchIndex, touchSendingDomain, touchesSince, uncheckedSends, uncheckedWaiting, watchedTables, withdrawEmail, workspaceAbout, workspaceMaySpend, workspaceNameAndConfig, writtenEmail, writtenEmails, yesesSince };
+export { type AudienceLead, CALL_CONTROL_S, type ChannelLookup, type ColdReceiptsOwed, type ControlHolder, type ControlOutcome, DEFAULT_ROW_CAP, type Database, type DomainCapacity, type DueDomain, type FollowerLead, HISTORY_COLUMNS, type IdempotencyClaim, type IdempotencyHold, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type ListRow, MAX_ROWS, type MailboxRow, type MessageInsert, type NormalizedCallInput, type OutboundTarget, type OutreachFactsRow, type OutreachMode, PEOPLE_PAGE, type Page, type ParentEmail, type PersonForSend, type PgThreadState, type PolicyRecord, type PutTenantConfigResult, type QueuedOutcome, type ReachOutRecordRow, type ReachOutSendInsert, type ReachOutSendRow, type RoutedChannel, type SavedListRow, type SendStanding, type SendingDomainHolder, type SendingDomainRow, type ServiceClientConfig, type SubscribeOptions, type TemplateRow, type TenantConfigRow, type ThreadTurn, type Touch, type TouchIndex, type UncheckedSend, type WriteError, type WrittenEmail, type YesRow, addToList, applyDomainCheck, archiveList, assembleHistory, claimCallNotification, claimControl, claimIdempotencyKey, claimSends, closedRunSends, coldReceiptsOwed, contactEmailOf, countSendingDomains, countSentToday, createList, createServiceClient, deleteList, deleteSendingDomain, deleteSendingDomainAsRead, describeLead, domainCapacityOf, domainHeldSince, dropFromList, dueDomains, dueSendingDomains, emailWordsFrom, emailWordsOf, emitEvent, everyoneIn, finishableRuns, followUpTouchesSince, getTenantConfig, heldStale, ingestCall, ingestInbound, ingestInboundEmail, insertQueuedEmail, keepIdempotencyReceipt, lastInboundEmail, leadAddressBounced, leadSlotsOf, leadWritten, linkCallMessage, listMemberIds, listPolicies, listRow, mailboxById, mailboxFor, mailboxOfTenant, markProcessed, monthSent, moveSend, notesForReceptionist, outreachFactsOf, outreachModeOf, parentEmailOf, pauseConversation, peoplePage, personReplyMode, platformHoldStands, playbooksOnList, putTenantConfig, queuedOutcomes, reachOutAudience, reachOutFollowers, reachOutPerson, reachOutRecord, readAllRows, readDealForPhone, readLeadContext, readThreadState, recheckSends, recordCallNote, recordCarrierOptOut, recordCheck, recordEchoAndPause, recordEmailNo, recordEmailStatus, recordOutbound, recordProviderDomain, recordStatusByExternalId, releaseControl, releaseIdempotencyKey, releaseUnavailableHolds, renameList, reputationHoldsSince, reserveSendingDomain, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, runSending, savedListFor, savedListsFor, sendJobScheduled, sendNow, sendStanding, sendingDomainByHost, sendingDomainCounts, sendingDomainOf, sendingDomainsOf, sentEmailOf, sentEmailRequestOf, sentEmailWithMessageId, setCallRecording, setListRule, setPersonReplyMode, setPolicyMode, staleSends, stampEmailComplaint, stampEmailSent, stampMailboxReceived, stuckClaims, subscribeMessagesInserts, suppressEmailOf, takeCheckAttempt, takeIdempotencyKey, templatesFor, touchIndex, touchSendingDomain, touchesSince, uncheckedSends, uncheckedWaiting, watchedTables, withdrawEmail, workspaceAbout, workspaceMaySpend, workspaceNameAndConfig, writtenEmail, writtenEmails, yesesSince };

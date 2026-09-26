@@ -46,6 +46,11 @@ export const REACH_OUT_REFUSALS = {
   stepWrote: "That step has written already. Pause the reach-out instead.",
   outOfPlace: "A step is out of its place. Open the reach-out again.",
   notFound: "Reach-out not found.",
+  workspaceNotFound: "Workspace not found.",
+  oneEmail: "A reach-out has at least one email.",
+  /** lead_set_stage's own, when Not a fit finds its lead missing or erased. */
+  leadNotFound: "Lead not found.",
+  leadGone: "This lead is gone.",
   searchNotFound: "Search not found.",
   domainNotFound: "Domain not found.",
   sendNotFound: "Email not found.",
@@ -163,7 +168,9 @@ export function startWords(s: ReachOutStartDto): { tone: "good" | "warn" | "plai
     case "off":
       return s.reason === "never"
         ? { tone: "warn", text: "Saved. Outreach is set to Never in Settings › Autonomy, so nothing runs." }
-        : { tone: "plain", text: "Saved. It is paused, so nothing was planned." };
+        : s.reason === "workspace_paused"
+          ? { tone: "warn", text: "Saved. This workspace is paused, so nothing runs until it is resumed." }
+          : { tone: "plain", text: "Saved. It is paused, so nothing was planned." };
     case "empty":
       return s.reason === "already_ran"
         ? { tone: "plain", text: "Saved. It already ran today; it runs again tomorrow." }
@@ -242,9 +249,12 @@ export function approvalWordsOf(r: ReachOutRunDto, p: { timezone: string; share:
     : at
       ? ` · goes from ${at} once you approve it`
       : "";
+  // A run whose step was dropped from its chain since (R17) says so, never another step's name.
+  const step =
+    r.step_n === null ? "a step since removed" : `step ${r.step_n + 1}, ${stepLabel(r.step_n).toLowerCase()}`;
   return {
     title: r.chain_name,
-    sub: `Reach-out · step ${r.step_n + 1}, ${stepLabel(r.step_n).toLowerCase()}${goes}, one every ${r.gap_minutes} minutes as each business opens`,
+    sub: `Reach-out · ${step}${goes}, one every ${r.gap_minutes} minutes as each business opens`,
     will: `${r.today} will get it today`,
     of: `of ${total + r.held.length + r.checking}`,
     why,

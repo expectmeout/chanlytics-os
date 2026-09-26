@@ -2709,6 +2709,11 @@ var REACH_OUT_REFUSALS = {
   stepWrote: "That step has written already. Pause the reach-out instead.",
   outOfPlace: "A step is out of its place. Open the reach-out again.",
   notFound: "Reach-out not found.",
+  workspaceNotFound: "Workspace not found.",
+  oneEmail: "A reach-out has at least one email.",
+  /** lead_set_stage's own, when Not a fit finds its lead missing or erased. */
+  leadNotFound: "Lead not found.",
+  leadGone: "This lead is gone.",
   searchNotFound: "Search not found.",
   domainNotFound: "Domain not found.",
   sendNotFound: "Email not found.",

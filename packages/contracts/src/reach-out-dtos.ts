@@ -165,9 +165,9 @@ export interface ReachOutHeldSend {
 export interface ReachOutRunDto {
   root_id: string;
   chain_name: string;
-  step_id: string;
-  /** 0 for the first email. */
-  step_n: number;
+  step_id: string | null;
+  /** 0 for the first email; null when the run's step has since been dropped from its chain (R17). */
+  step_n: number | null;
   gap_minutes: number;
   run_for: string | null;
   include_unconfirmed: boolean;

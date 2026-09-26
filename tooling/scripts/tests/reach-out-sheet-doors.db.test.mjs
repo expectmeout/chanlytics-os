@@ -11,6 +11,9 @@
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
 import { REACH_OUT_REFUSALS } from "@chanlytics/contracts";
 
@@ -26,6 +29,22 @@ const skip =
         ? "no SUPABASE_ANON_KEY in env: the members this suite signs in as need it"
         : false;
 
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
+const CLI = process.env.SUPABASE_CLI || "supabase";
+/** One statement through `supabase db query --local` (privileges.db.test.mjs's way), and its rows. */
+function query(sql) {
+  const r = spawnSync(CLI, ["db", "query", "--local", "--output-format", "json", sql], {
+    cwd: ROOT,
+    encoding: "utf8",
+    maxBuffer: 16 * 1024 * 1024,
+  });
+  if (r.error || r.status !== 0) throw new Error(`${CLI} db query failed: ${r.error?.message ?? r.stderr ?? r.stdout}`);
+  const out = r.stdout;
+  const start = out.search(/[[{]/);
+  if (start < 0) return [];
+  const parsed = JSON.parse(out.slice(start, out.lastIndexOf(out[start] === "{" ? "}" : "]") + 1));
+  return Array.isArray(parsed) ? parsed : (parsed.rows ?? []);
+}
 const MIN = 60_000;
 const DAY = 24 * 3_600_000;
 const stamp = Date.now().toString(36);
@@ -321,6 +340,9 @@ test(
     ok(await decide(re, "rewrite"));
     const r = await sendRow(re);
     assert.deepEqual([r.state, r.checked_at, r.check_gen], ["planned", null, 3]);
+    // Past its fortnight, Rewrite is refused as Include is: one predicate (reach_out_given_up).
+    const oldRe = await held({ reason: "unbacked_fact", hold_detail: "a 5.0", created_at: iso(Date.now() - 15 * DAY) });
+    refusedWith(await decide(oldRe, "rewrite"), "22023", REACH_OUT_REFUSALS.givenUp);
 
     const sk = await held();
     ok(await decide(sk, "skip"));
@@ -354,10 +376,18 @@ test("a run's holds the check could not answer go back in one call (R18)", { ski
     hold_detail: "site:3",
     checked_at: iso(Date.now()),
   });
+  // An opening that broke a rule is held check_unavailable with its rule: its owner's Rewrite, one at a time.
+  const broke = await sendIn(run, root, root, {
+    state: "held",
+    reason: "check_unavailable",
+    hold_detail: "price",
+    checked_at: iso(Date.now()),
+  });
   const r = ok(await as.operator.c.rpc("reach_out_run_recheck", { p_broadcast_id: run }));
   assert.deepEqual(r, { broadcast_id: run, rechecked: 3 });
   for (const id of ids) assert.equal((await sendRow(id)).state, "planned");
   assert.equal((await sendRow(kept)).state, "held", "a hold for a reason waits for its owner");
+  assert.equal((await sendRow(broke)).state, "held", "a rule broken is not the check being down");
   refusedWith(
     await as.viewer.c.rpc("reach_out_run_recheck", { p_broadcast_id: run }),
     "P0002",
@@ -504,4 +534,85 @@ test("a session deletes moments only: a chain's rows go through its door (R16)",
   assert.equal(gone.error, null);
   assert.equal(gone.count, 0, "RLS hides the row from the delete");
   assert.equal(ok(await db.from("playbooks").select("id").eq("id", root)).length, 1);
+});
+
+test(
+  "the one reset: from a named state only, and never past a send's fortnight (R10, the sender's guard)",
+  { skip },
+  async () => {
+    const s = await newSearch("Movers J");
+    const { root_id: root } = ok(await save(chainOf(s, { steps: [chainOf(s).steps[0]] })));
+    const run = await runOf(root, root);
+    const planned = await sendIn(run, root, root, { checked_at: iso(Date.now()), check_gen: 1 });
+    // The sender names "claimed": a send that is not claimed (another tick moved it) is left as it is.
+    assert.equal(
+      ok(await db.rpc("reach_out_recheck", { p_send_ids: [planned], p_tenant_id: A, p_from_state: "claimed" })),
+      0,
+    );
+    assert.equal((await sendRow(planned)).check_gen, 1);
+    assert.equal(ok(await db.rpc("reach_out_recheck", { p_send_ids: [planned], p_tenant_id: A })), 1);
+    const old = await sendIn(run, root, root, { checked_at: iso(Date.now()), created_at: iso(Date.now() - 15 * DAY) });
+    assert.equal(ok(await db.rpc("reach_out_recheck", { p_send_ids: [old], p_tenant_id: A })), 0);
+    const o = await sendRow(old);
+    assert.deepEqual([o.state, o.reason], ["skipped", "kept_waiting"], "given up, never planned again");
+    assert.equal(ok(await db.rpc("reach_out_given_up", { p_created_at: iso(Date.now() - 13 * DAY) })), false);
+  },
+);
+
+test("wrote back is one reading, asked for many at once or for one by the send door", { skip }, async () => {
+  const wrote = await one(db.from("contacts").insert({ tenant_id: A, email: `wrote-${stamp}@fixture-doors.example` }));
+  const quiet = await one(db.from("contacts").insert({ tenant_id: A, email: `quiet-${stamp}@fixture-doors.example` }));
+  const thread = await one(db.from("conversations").insert({ tenant_id: A, contact_id: wrote }));
+  ok(
+    await db.from("messages").insert({
+      tenant_id: A,
+      conversation_id: thread,
+      channel: "email",
+      direction: "inbound",
+      sender: "customer",
+      type: "text",
+      body: "Yes please.",
+      status: "received",
+    }),
+  );
+  const many = ok(await db.rpc("outreach_wrote_back", { p_tenant_id: A, p_contact_ids: [wrote, quiet] }));
+  assert.deepEqual(many, [wrote]);
+  for (const [c, want] of [
+    [wrote, true],
+    [quiet, false],
+  ]) {
+    const f = ok(await db.rpc("outreach_lead_facts", { p_tenant_id: A, p_contact_id: c, p_to: "x@example.com" }));
+    assert.equal(f.wrote_back, want);
+  }
+  assert.ok(
+    (await as.operator.c.rpc("outreach_wrote_back", { p_tenant_id: A, p_contact_ids: [wrote] })).error,
+    "the service role's",
+  );
+});
+
+test("a chain renamed renames its words in Templates too", { skip }, async () => {
+  const s = await newSearch("Movers K");
+  const { root_id: root, step_ids } = ok(await save(chainOf(s)));
+  const edit = { ...chainOf(s, { name: "Reach out · Office movers" }), root_id: root };
+  edit.steps = edit.steps.map((x, i) => ({ ...x, id: step_ids[i] }));
+  ok(await save(edit));
+  const tpls = ok(await db.from("playbooks").select("n:name, template_id").in("id", step_ids));
+  const titles = ok(
+    await db
+      .from("templates")
+      .select("title")
+      .in(
+        "id",
+        tpls.map((t) => t.template_id),
+      ),
+  ).map((t) => t.title);
+  assert.deepEqual(titles.sort(), ["Reach out · Office movers · a nudge", "Reach out · Office movers · your email"]);
+});
+
+test("a step's sends are read by their step, not by walking every workspace's", { skip }, async () => {
+  const rows = query(
+    "select indexdef from pg_indexes where schemaname = 'public' and indexname = 'reach_out_sends_step'",
+  );
+  assert.equal(rows.length, 1);
+  assert.match(rows[0].indexdef, /\(playbook_id, state\)/);
 });

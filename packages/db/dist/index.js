@@ -2647,6 +2647,11 @@ var REACH_OUT_REFUSALS = {
   stepWrote: "That step has written already. Pause the reach-out instead.",
   outOfPlace: "A step is out of its place. Open the reach-out again.",
   notFound: "Reach-out not found.",
+  workspaceNotFound: "Workspace not found.",
+  oneEmail: "A reach-out has at least one email.",
+  /** lead_set_stage's own, when Not a fit finds its lead missing or erased. */
+  leadNotFound: "Lead not found.",
+  leadGone: "This lead is gone.",
   searchNotFound: "Search not found.",
   domainNotFound: "Domain not found.",
   sendNotFound: "Email not found.",
@@ -3519,7 +3524,11 @@ async function recordCheck(db, p) {
 }
 async function recheckSends(db, p) {
   if (p.ids.length === 0) return 0;
-  const { data, error } = await db.rpc("reach_out_recheck", { p_send_ids: p.ids, p_tenant_id: p.tenantId });
+  const { data, error } = await db.rpc("reach_out_recheck", {
+    p_send_ids: p.ids,
+    p_tenant_id: p.tenantId,
+    ...p.fromState ? { p_from_state: p.fromState } : {}
+  });
   if (error) throw new Error(`cannot put the sends back to be checked: ${error.message}`);
   return typeof data === "number" ? data : 0;
 }
@@ -3558,6 +3567,12 @@ async function workspaceMaySpend(db, tenantId) {
   if (billing.error) throw new Error(`cannot read the workspace's billing: ${billing.error.message}`);
   if (tenant.data?.status === "paused" || !billing.data) return false;
   return maySpend(billing.data.mode, billing.data.status);
+}
+async function outreachModeOf(db, tenantId) {
+  const { data, error } = await db.from("policies").select("mode").eq("tenant_id", tenantId).eq("class", "outreach").is("subject_type", null).maybeSingle();
+  if (error) throw new Error(`cannot read the outreach mode: ${error.message}`);
+  const said = data?.mode;
+  return said === "veto" || said === "never" ? said : "ask";
 }
 async function workspaceAbout(db, tenantId) {
   const { data, error } = await db.from("business_records").select("about").eq("tenant_id", tenantId).maybeSingle();
@@ -4345,6 +4360,7 @@ export {
   moveSend,
   notesForReceptionist,
   outreachFactsOf,
+  outreachModeOf,
   parentEmailOf,
   pauseConversation,
   peoplePage,

@@ -751,11 +751,20 @@ export async function recordCheck(
 /**
  * Sends back to unchecked (R5), in one statement (00198 reach_out_recheck, the one reset): planned, not checked, at
  * their words' next version, so a check still under way for the old words writes nothing; what their owner included
- * them past stays (R7). Only from planned, held or claimed. How many went back.
+ * them past stays (R7). Only from planned, held or claimed, and only from `fromState` when it is named: the sender
+ * names "claimed", so a send another tick has claimed since is never reset. One past its fortnight is given up,
+ * kept_waiting, instead (R10). How many went back.
  */
-export async function recheckSends(db: Db, p: { tenantId: string; ids: string[] }): Promise<number> {
+export async function recheckSends(
+  db: Db,
+  p: { tenantId: string; ids: string[]; fromState?: "planned" | "held" | "claimed" },
+): Promise<number> {
   if (p.ids.length === 0) return 0;
-  const { data, error } = await db.rpc("reach_out_recheck", { p_send_ids: p.ids, p_tenant_id: p.tenantId } as never);
+  const { data, error } = await db.rpc("reach_out_recheck", {
+    p_send_ids: p.ids,
+    p_tenant_id: p.tenantId,
+    ...(p.fromState ? { p_from_state: p.fromState } : {}),
+  } as never);
   if (error) throw new Error(`cannot put the sends back to be checked: ${error.message}`);
   return typeof data === "number" ? data : 0;
 }
@@ -801,7 +810,7 @@ export async function takeCheckAttempt(db: Db, p: { tenantId: string; cap: numbe
 
 /**
  * Whether a workspace may spend on reach-out now (contracts maySpend): a paused workspace, or one with no billing row,
- * may not. The one reading of it: the step's run (run-context.ts) and the check both ask it. A read that fails throws:
+ * may not. The one reading of it: the step's run (run-context.ts), the check and the dashboard's chains ask it. A read that fails throws:
  * "we could not check" is not "yes".
  */
 export async function workspaceMaySpend(db: Db, tenantId: string): Promise<boolean> {
@@ -813,6 +822,26 @@ export async function workspaceMaySpend(db: Db, tenantId: string): Promise<boole
   if (billing.error) throw new Error(`cannot read the workspace's billing: ${billing.error.message}`);
   if (tenant.data?.status === "paused" || !billing.data) return false;
   return maySpend(billing.data.mode as BillingMode, billing.data.status as BillingStatus);
+}
+
+export type OutreachMode = "ask" | "veto" | "never";
+
+/**
+ * Settings › Autonomy's outreach row (00183), the one reading of it: a workspace's own row, its mode as said; none, or
+ * a mode it does not know, reads as ask, so a missing row can only wait for its owner. The step's run and the
+ * dashboard's chains both ask it. A read that fails throws.
+ */
+export async function outreachModeOf(db: Db, tenantId: string): Promise<OutreachMode> {
+  const { data, error } = await db
+    .from("policies")
+    .select("mode")
+    .eq("tenant_id", tenantId)
+    .eq("class", "outreach")
+    .is("subject_type", null)
+    .maybeSingle();
+  if (error) throw new Error(`cannot read the outreach mode: ${error.message}`);
+  const said = data?.mode;
+  return said === "veto" || said === "never" ? said : "ask";
 }
 
 /** The workspace's own words about what it does (business_records.about, 00152), for the writer. */

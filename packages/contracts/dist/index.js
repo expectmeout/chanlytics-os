@@ -24116,6 +24116,11 @@ var REACH_OUT_REFUSALS = {
   stepWrote: "That step has written already. Pause the reach-out instead.",
   outOfPlace: "A step is out of its place. Open the reach-out again.",
   notFound: "Reach-out not found.",
+  workspaceNotFound: "Workspace not found.",
+  oneEmail: "A reach-out has at least one email.",
+  /** lead_set_stage's own, when Not a fit finds its lead missing or erased. */
+  leadNotFound: "Lead not found.",
+  leadGone: "This lead is gone.",
   searchNotFound: "Search not found.",
   domainNotFound: "Domain not found.",
   sendNotFound: "Email not found.",
@@ -24209,7 +24214,7 @@ function startWords(s) {
           return { tone: "plain", text: "Saved. The first run is held." };
       }
     case "off":
-      return s.reason === "never" ? { tone: "warn", text: "Saved. Outreach is set to Never in Settings \u203A Autonomy, so nothing runs." } : { tone: "plain", text: "Saved. It is paused, so nothing was planned." };
+      return s.reason === "never" ? { tone: "warn", text: "Saved. Outreach is set to Never in Settings \u203A Autonomy, so nothing runs." } : s.reason === "workspace_paused" ? { tone: "warn", text: "Saved. This workspace is paused, so nothing runs until it is resumed." } : { tone: "plain", text: "Saved. It is paused, so nothing was planned." };
     case "empty":
       return s.reason === "already_ran" ? { tone: "plain", text: "Saved. It already ran today; it runs again tomorrow." } : { tone: "plain", text: "Saved. Nobody on this search can be written to yet; it looks again each day." };
     case "failed":
@@ -24261,9 +24266,10 @@ function approvalWordsOf(r2, p) {
   const hosts = r2.domains.map((d) => d.host);
   const from = r2.domains.length === 1 ? `all from ${r2.domains[0].host}, ${plural11(r2.domains[0].sent_days, "clean day", "clean days")}` : r2.domains.length > 1 ? `from ${hosts.slice(0, -1).join(", ")} and ${hosts[hosts.length - 1]}` : null;
   const goes = earlier ? " \xB7 goes from now, re-timed in their hours, once you approve it" : at2 ? ` \xB7 goes from ${at2} once you approve it` : "";
+  const step2 = r2.step_n === null ? "a step since removed" : `step ${r2.step_n + 1}, ${stepLabel(r2.step_n).toLowerCase()}`;
   return {
     title: r2.chain_name,
-    sub: `Reach-out \xB7 step ${r2.step_n + 1}, ${stepLabel(r2.step_n).toLowerCase()}${goes}, one every ${r2.gap_minutes} minutes as each business opens`,
+    sub: `Reach-out \xB7 ${step2}${goes}, one every ${r2.gap_minutes} minutes as each business opens`,
     will: `${r2.today} will get it today`,
     of: `of ${total + r2.held.length + r2.checking}`,
     why,

@@ -4967,6 +4967,10 @@ export type Database = {
         }
         Returns: Json
       }
+      outreach_wrote_back: {
+        Args: { p_contact_ids: string[]; p_tenant_id: string }
+        Returns: string[]
+      }
       people_list: {
         Args: {
           p_contact_id?: string
@@ -5308,6 +5312,7 @@ export type Database = {
           region: string
         }[]
       }
+      reach_out_given_up: { Args: { p_created_at: string }; Returns: boolean }
       reach_out_held_stale: {
         Args: { p_before: string; p_limit: number; p_tenant_id?: string }
         Returns: {
@@ -5375,7 +5380,11 @@ export type Database = {
         Returns: Json
       }
       reach_out_recheck: {
-        Args: { p_send_ids: string[]; p_tenant_id?: string }
+        Args: {
+          p_from_state?: string
+          p_send_ids: string[]
+          p_tenant_id?: string
+        }
         Returns: number
       }
       reach_out_record: {

@@ -4,9 +4,14 @@
 -- review round's R10, R15–R18 and R23). A member makes and edits a reach-out, counts who a search's chain would write
 -- to, answers a held send, and reads how each step of a chain is doing.
 --
+--   reach_out_sends_step     an index: a step's sends, by their step and state (the save, the removal, the report).
+--   reach_out_given_up       the fortnight a send has (R10), one predicate for every door here.
+--   outreach_wrote_back      whether people wrote back: 00184's reading moved into one set-based function, which
+--                            outreach_lead_facts (re-created) and a chain's report both ask.
 --   reach_out_recheck        the one reset of a send's check (R5): planned, unchecked, at its words' next version, what
---                            its owner included it past kept (R7). The save, a rewrite, the run's "check the held again",
---                            the hourly release (00197's, re-created on it) and the sender's recheck all ask it.
+--                            its owner included it past kept (R7), from a named state only when one is named; past its
+--                            fortnight, given up instead. The save, a rewrite, the run's "check the held again", the
+--                            hourly release (00197's, re-created on it) and the sender's recheck all ask it.
 --   reach_out_save           a chain, whole: its email templates and its playbook rows, made or edited in one transaction.
 --                            The service role's (R15): the route checks the member's role and validates the words first,
 --                            and passes the member's id. The database keeps only its CHECKs, and one more: a chain's gap
@@ -15,37 +20,147 @@
 --   reach_out_reach          a search's reach, for the sheet and the Leads door. Any member.
 --   reach_out_send_decide    an acting member's answer to a held or planned send: include, rewrite, skip, or not a fit
 --                            (the lead set aside and the send skipped, atomically: R18).
---   reach_out_run_recheck    every check_unavailable hold of a run, back to be checked, in one call (R18).
+--   reach_out_run_recheck    every hold of a run the check could not answer, back to be checked, in one call (R18).
 --   reach_out_chain_report   a chain's steps counted, its runs, and whether it may be removed (R16, R23). Any member.
 --   playbooks                a session deletes moments only (R16): a chain's history goes only through its door.
 
 set local lock_timeout = '3s';
 
+/* ---------------------------------------------------------------- what the doors read -- */
+
+-- A step's sends, by their step: the save, the removal and the report read them so, and without this every such read
+-- walked the whole table, every workspace's.
+create index if not exists reach_out_sends_step on public.reach_out_sends (playbook_id, state);
+
+-- The fortnight a send has (R10): planned that long ago and still not gone, it is given up, kept_waiting. The SQL form
+-- of the clock's REPLAN_GIVE_UP_MS (apps/edge/lib/reach-out/replan.ts), which the clock gives up by (00197
+-- reach_out_held_stale); every door here asks this one predicate.
+create or replace function public.reach_out_given_up(p_created_at timestamptz)
+returns boolean
+language sql
+stable
+set search_path = public
+as $$
+  select p_created_at < now() - interval '14 days'
+$$;
+revoke execute on function public.reach_out_given_up(timestamptz) from public, anon;
+grant execute on function public.reach_out_given_up(timestamptz) to authenticated, service_role;
+
+-- Whether these people wrote back (00181's three readings, moved here whole from 00184's outreach_lead_facts, which now
+-- asks this): a customer's message that is not an auto-reply, a reply to one of the workspace's emails, or a call in.
+-- Set-based, so a chain's report asks once for all its leads; the send door asks it for one.
+create or replace function public.outreach_wrote_back(p_tenant_id uuid, p_contact_ids uuid[])
+returns setof uuid
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select c.contact_id from public.messages m
+    join public.conversations c on c.id = m.conversation_id and c.tenant_id = m.tenant_id
+   where m.tenant_id = p_tenant_id and c.contact_id = any (p_contact_ids)
+     and m.direction = 'inbound' and m.sender = 'customer'
+     and not (m.channel = 'email' and coalesce(m.meta->'email'->>'claim', 'person') = 'auto_reply')
+  union
+  select c.contact_id from public.messages o
+    join public.conversations c on c.id = o.conversation_id and c.tenant_id = o.tenant_id
+   where o.tenant_id = p_tenant_id and c.contact_id = any (p_contact_ids)
+     and o.channel = 'email' and o.direction = 'outbound' and o.meta->'email'->>'message_id' is not null
+     and (exists (
+            select 1 from public.messages r
+             where r.tenant_id = p_tenant_id and r.channel = 'email' and r.direction = 'inbound'
+               and r.sender = 'customer'
+               and r.meta->'email'->>'in_reply_to' = o.meta->'email'->>'message_id'
+               and coalesce(r.meta->'email'->>'claim', 'person') <> 'auto_reply')
+          or exists (
+            select 1 from public.messages r
+             where r.tenant_id = p_tenant_id and r.channel = 'email' and r.direction = 'inbound'
+               and r.sender = 'customer'
+               and r.meta->'email'->'references' @> jsonb_build_array(o.meta->'email'->>'message_id')
+               and coalesce(r.meta->'email'->>'claim', 'person') <> 'auto_reply'))
+  union
+  select k.contact_id from public.calls k
+   where k.tenant_id = p_tenant_id and k.contact_id = any (p_contact_ids) and k.direction = 'inbound'
+$$;
+revoke execute on function public.outreach_wrote_back(uuid, uuid[]) from public, anon, authenticated;
+grant execute on function public.outreach_wrote_back(uuid, uuid[]) to service_role;
+
+-- 00184's lead facts, unchanged but for wrote_back, which is now the one function above.
+create or replace function public.outreach_lead_facts(
+  p_tenant_id uuid,
+  p_contact_id uuid,
+  p_to text,
+  p_lead_id uuid default null
+) returns jsonb
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select jsonb_build_object(
+    -- The send's own lead when it names one (a reach-out's always does); else the lead still being written to wins.
+    'lead_stage', coalesce(
+      (select l.stage from public.leads l
+        where p_lead_id is not null and l.id = p_lead_id and l.tenant_id = p_tenant_id
+          and l.contact_id = p_contact_id and l.erased_at is null and l.blanked_at is null),
+      (select l.stage from public.leads l
+        where p_lead_id is null and l.tenant_id = p_tenant_id and l.contact_id = p_contact_id
+          and l.erased_at is null and l.blanked_at is null
+        order by (l.stage in ('ready', 'nurture')) desc, l.found_at desc
+        limit 1)),
+    'suppressed', exists (
+      select 1 from public.lead_suppressions s
+       where s.tenant_id = p_tenant_id and s.kind = 'email'
+         and s.hash = public.lead_suppression_hash(p_tenant_id, lower(btrim(p_to)))),
+    'wrote_back', exists (select 1 from public.outreach_wrote_back(p_tenant_id, array[p_contact_id]))
+  )
+$$;
+revoke execute on function public.outreach_lead_facts(uuid, uuid, text, uuid) from public, anon, authenticated;
+grant execute on function public.outreach_lead_facts(uuid, uuid, text, uuid) to service_role;
+
 /* ---------------------------------------------------------------- the one reset -- */
 
 -- A send's check undone: planned, not checked, its words' version moved on so a check still under way for the old
 -- words writes nothing (00197 recordCheck), its opening and its hold's detail cleared. What its owner included it past
--- stays (R7). Only from planned, held or claimed: a send that is queued or done has gone as it was checked.
-create or replace function public.reach_out_recheck(p_send_ids uuid[], p_tenant_id uuid default null)
+-- stays (R7). Only from planned, held or claimed: a send that is queued or done has gone as it was checked. Only from
+-- `p_from_state` when one is named: the sender resets the send it claimed, never one another tick has claimed since.
+-- A send past its fortnight is never planned again: it is given up, kept_waiting (R10). How many went back.
+drop function if exists public.reach_out_recheck(uuid[], uuid);
+create or replace function public.reach_out_recheck(
+  p_send_ids uuid[],
+  p_tenant_id uuid default null,
+  p_from_state text default null
+)
 returns int
 language sql
 volatile
 security definer
 set search_path = public
 as $$
-  with done as (
+  with asked as (
+    select s.id, public.reach_out_given_up(s.created_at) as given_up from public.reach_out_sends s
+     where s.id = any (coalesce(p_send_ids, '{}')) and s.state in ('planned', 'held', 'claimed')
+       and (p_from_state is null or s.state = p_from_state)
+       and (p_tenant_id is null or s.tenant_id = p_tenant_id)
+       for update
+  ),
+  gave_up as (
+    update public.reach_out_sends s set state = 'skipped', reason = 'kept_waiting'
+      from asked a where a.id = s.id and a.given_up
+    returning 1
+  ),
+  done as (
     update public.reach_out_sends s
        set state = 'planned', reason = null, claimed_at = null, checked_at = null, check_gen = s.check_gen + 1,
            checked_words = null, check_tries = 0, check_first_at = null, check_after = null, check_started_at = null,
            opening = null, angle = null, facts_used = '{}', hold_detail = null
-     where s.id = any (coalesce(p_send_ids, '{}')) and s.state in ('planned', 'held', 'claimed')
-       and (p_tenant_id is null or s.tenant_id = p_tenant_id)
+      from asked a where a.id = s.id and not a.given_up
     returning 1
   )
   select count(*)::int from done
 $$;
-revoke execute on function public.reach_out_recheck(uuid[], uuid) from public, anon, authenticated;
-grant execute on function public.reach_out_recheck(uuid[], uuid) to service_role;
+revoke execute on function public.reach_out_recheck(uuid[], uuid, text) from public, anon, authenticated;
+grant execute on function public.reach_out_recheck(uuid[], uuid, text) to service_role;
 
 -- 00197's hourly release, on the one reset.
 create or replace function public.reach_out_release_unavailable(p_before timestamptz, p_tenant_id uuid default null)
@@ -159,6 +274,8 @@ begin
   -- skipped, step_removed, then its row. One that wrote keeps its history: its owner pauses the chain instead.
   if coalesce(cardinality(v_existing), 0) > v_n then
     v_dropped := v_existing[v_n + 1:];
+    -- Held against a claim while it is judged: a claim waits, or finds them skipped.
+    perform 1 from public.reach_out_sends s where s.playbook_id = any (v_dropped) for update;
     if exists (select 1 from public.reach_out_sends s
                 where s.playbook_id = any (v_dropped) and s.state in ('claimed', 'queued', 'sent', 'failed')) then
       raise exception 'That step has written already. Pause the reach-out instead.' using errcode = '23503';
@@ -211,6 +328,10 @@ begin
         update public.templates set components = v_parts, body_preview = left(v_body, 1024) where id = v_template;
         v_changed := v_changed || v_id;
       end if;
+      -- A new name for the chain is its words' new title in Templates too.
+      update public.templates set title = left(left(v_name, 60 - char_length(v_label) - 3) || ' · ' || v_label, 60)
+       where id = v_template
+         and title is distinct from left(left(v_name, 60 - char_length(v_label) - 3) || ' · ' || v_label, 60);
       update public.playbooks
          set name = case when v_i = 0 then v_name else left(v_name, 80 - char_length(v_label) - 3) || ' · ' || v_label end,
              gap_minutes = v_gap, domain_ids = v_domains,
@@ -268,6 +389,8 @@ begin
     select p.id from public.playbooks p join c on p.after_playbook_id = c.id
   )
   select array_agg(id) into v_steps from c;
+  -- Held against a claim while it is judged: a claim waits, or finds the chain gone.
+  perform 1 from public.reach_out_sends s where s.root_id = p_root_id for update;
   if exists (select 1 from public.reach_out_sends s
               where s.root_id = p_root_id and s.state in ('claimed', 'queued', 'sent', 'failed')) then
     raise exception 'This reach-out has written already. Pause it instead.' using errcode = '23503';
@@ -352,7 +475,7 @@ begin
       if v_send.state <> 'held' or v_send.reason = 'check_unavailable' then
         raise exception 'Only an email the check held for a reason is included.' using errcode = '22023';
       end if;
-      if v_send.created_at < now() - interval '14 days' then
+      if public.reach_out_given_up(v_send.created_at) then
         raise exception 'This email waited two weeks for your answer and was given up.' using errcode = '22023';
       end if;
       update public.reach_out_sends
@@ -360,6 +483,9 @@ begin
              included_for = array(select distinct x from unnest(included_for || v_send.reason) x order by x)
        where id = p_send_id;
     when 'rewrite' then
+      if public.reach_out_given_up(v_send.created_at) then
+        raise exception 'This email waited two weeks for your answer and was given up.' using errcode = '22023';
+      end if;
       perform public.reach_out_recheck(array[p_send_id], v_send.tenant_id);
     when 'skip' then
       update public.reach_out_sends set state = 'skipped', reason = 'owner_skipped' where id = p_send_id;
@@ -376,7 +502,8 @@ revoke execute on function public.reach_out_send_decide(uuid, text) from public,
 grant execute on function public.reach_out_send_decide(uuid, text) to authenticated, service_role;
 
 -- Every hold of a live run the check could not answer, back to be checked in one call (R18): two hundred holds are
--- never two hundred clicks. An acting member's.
+-- never two hundred clicks. The holds the hourly release takes, no more: an opening that broke a rule (a detail) is
+-- its owner's Rewrite, one at a time. An acting member's.
 create or replace function public.reach_out_run_recheck(p_broadcast_id uuid)
 returns jsonb
 language plpgsql
@@ -398,7 +525,8 @@ begin
   end if;
   return jsonb_build_object('broadcast_id', p_broadcast_id, 'rechecked', public.reach_out_recheck(array(
     select s.id from public.reach_out_sends s
-     where s.broadcast_id = p_broadcast_id and s.state = 'held' and s.reason = 'check_unavailable'), v_tenant));
+     where s.broadcast_id = p_broadcast_id and s.state = 'held' and s.reason = 'check_unavailable'
+       and s.hold_detail is null), v_tenant));
 end $$;
 revoke execute on function public.reach_out_run_recheck(uuid) from public, anon;
 grant execute on function public.reach_out_run_recheck(uuid) to authenticated, service_role;
@@ -411,7 +539,7 @@ grant execute on function public.reach_out_run_recheck(uuid) to authenticated, s
 --   bounced    their email failed with the provider's bounce (00184's reading of a bounce);
 --   wrote_back, said_no  distinct leads, each counted once, at the last step that wrote to them before they did: the
 --              send door writes to nobody after either (contracts outreachRefusalOf), so it is the one they answered.
---              Wrote back is the send door's own reading (outreach_lead_facts' wrote_back, 00181);
+--              Wrote back is the send door's own reading (outreach_wrote_back, asked once for the chain's leads);
 --   waiting    planned, claimed or queued; held, waiting for the owner.
 -- And the chain's last runs, and whether it may still be removed (R16: nothing of it has been written).
 create or replace function public.reach_out_chain_report(p_tenant_id uuid, p_root_id uuid)
@@ -445,11 +573,14 @@ begin
        where s.root_id = p_root_id and s.tenant_id = p_tenant_id and s.state = 'sent'
        order by s.lead_id, s.sent_at desc
     ),
+    -- Who of them wrote back, asked once for all (the send door's own reading).
+    wrote as (
+      select w.contact_id from public.outreach_wrote_back(p_tenant_id, array(
+        select ls.contact_id from last_sent ls where ls.contact_id is not null)) w(contact_id)
+    ),
     answered as (
       select ls.playbook_id,
-             count(*) filter (where ls.contact_id is not null and coalesce((public.outreach_lead_facts(
-               p_tenant_id, ls.contact_id, coalesce(ls.email, ''), ls.lead_id)->>'wrote_back')::boolean, false))
-               as wrote_back,
+             count(*) filter (where ls.contact_id in (select contact_id from wrote)) as wrote_back,
              count(*) filter (where ls.closed_reason = 'said_no') as said_no
         from last_sent ls
        group by ls.playbook_id
