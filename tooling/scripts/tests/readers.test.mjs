@@ -29,6 +29,8 @@ const { calls } = await import(at("apps/dashboard/src/server/readers/calls.ts"))
 const { searches } = await import(at("apps/dashboard/src/server/readers/searches.ts"));
 const { inbox } = await import(at("apps/dashboard/src/server/readers/inbox.ts"));
 const { today } = await import(at("apps/dashboard/src/server/readers/today.ts"));
+// Named apart from the fixtures below that build a conversation's and a message's rows.
+const { conversation: oneThread, messagesOf } = await import(at("apps/dashboard/src/server/readers/conversation.ts"));
 const threadRoute = await import(at("apps/dashboard/app/api/v1/conversations/[id]/route.ts"));
 
 // The kept values live in the module, keyed by workspace, person and reader: each test starts with none.
@@ -828,5 +830,117 @@ test("the one thread's messages carry an attachment's public facts, never its st
   assert.ok(
     !json.includes("t/c/m.jpg") && !json.includes("wamid.X") && !json.includes("sha256"),
     "the bytes only through their own route",
+  );
+  // The route's messages are its reader's, and Ask reads the same ones.
+  const read = await kernel.load(turnIn(dayCtx(tbls), B), messagesOf, { id: C1, before: null });
+  assert.deepEqual(read.data, page.messages);
+  assert.deepEqual(read.rows, [], "a message is cited by its thread");
+});
+
+test("GET conversations/:id through its reader asks what it asked, in the same order: the row once, in its scope, then the messages once -- the row is never read a second time", async () => {
+  const tbls = threadTables();
+  for (const [q, filters] of [
+    ["", [["eq", "conversation_id", C1]]],
+    [
+      "?before=2026-09-02T00:00:00Z",
+      [
+        ["eq", "conversation_id", C1],
+        ["lt", "created_at", "2026-09-02T00:00:00Z"],
+      ],
+    ],
+  ]) {
+    const ctx = routeCtx(tbls, C1);
+    await threadRoute.GET.run(req(q), ctx);
+    assert.deepEqual(
+      ctx.supabase.seen.map((s) => s.table),
+      ["conversations", "memberships", "messages"],
+      "the scope's row, the membership judged where it lives, the messages",
+    );
+    assert.deepEqual([selects(ctx, "conversations").length, selects(ctx, "messages").length], [1, 1]);
+    const [m] = selects(ctx, "messages");
+    assert.deepEqual(
+      [m.columns, m.order, m.desc, m.limit, m.filters],
+      [
+        "id, direction, sender, type, body, media, meta, created_at, status, channel_ts, channel",
+        "created_at",
+        true,
+        100,
+        filters,
+      ],
+    );
+  }
+});
+
+test("the one thread for Ask is what GET conversations/:id answers for it, key for key -- the row the route's scope loads, the hundred newest messages oldest first, paged back by `before` -- read with the row once and the messages once, and the thread and its person named as the Inbox names them", async () => {
+  const tbls = threadTables();
+  const page = await threadRoute.GET.run(req(), routeCtx(tbls, C1));
+  const ctx = dayCtx(tbls);
+  const r = await kernel.load(turnIn(ctx, B), oneThread, { id: C1, before: null });
+  assert.deepEqual(r.data, page, "the route's payload");
+  assert.deepEqual(Object.keys(r.data), ["conversation", "messages"]);
+  assert.deepEqual(
+    r.data.messages.map((m) => m.body),
+    ["first", "second"],
+    "oldest first, this thread only",
+  );
+  assert.deepEqual(
+    [selects(ctx, "conversations").length, selects(ctx, "messages").length],
+    [1, 1],
+    "the row once, through the loader the scope uses; the messages once",
+  );
+  assert.deepEqual(r.rows, [
+    { kind: "thread", id: C1, route: `inbox/th-${C1}`, label: "Ada" },
+    { kind: "person", id: "k1", route: "clients/k1", label: "Ada" },
+  ]);
+
+  const olderPage = await threadRoute.GET.run(req("?before=2026-09-02T00:00:00Z"), routeCtx(tbls, C1));
+  const older = await kernel.load(turnIn(dayCtx(tbls), B), oneThread, { id: C1, before: "2026-09-02T00:00:00Z" });
+  assert.deepEqual(older.data, olderPage, "paged back as the route pages");
+  assert.deepEqual(
+    older.data.messages.map((m) => m.body),
+    ["first"],
+  );
+
+  // Named as the Inbox row names the same thread: a person reached only by email is their address, never "Unknown".
+  const byEmail = {
+    ...threadTables(),
+    conversations: [
+      conversation(C1, B, { contacts: contact({ display_name: null, phone_e164: null, email: "ada@example.com" }) }),
+    ],
+  };
+  const listed = await kernel.load(turnIn(dayCtx(byEmail), B), conversations, { ids: [C1] });
+  const one = await kernel.load(turnIn(dayCtx(byEmail), B), oneThread, { id: C1, before: null });
+  assert.deepEqual(
+    one.rows.map((x) => x.label),
+    [listed.rows[0].label, listed.rows[0].label],
+  );
+  assert.equal(listed.rows[0].label, "ada@example.com");
+  // A thread with nobody behind it is the thread alone.
+  const nobody = { ...threadTables(), conversations: [conversation(C1, B, { contact_id: null, contacts: null })] };
+  const bare = await kernel.load(turnIn(dayCtx(nobody), B), oneThread, { id: C1, before: null });
+  assert.deepEqual(bare.rows, [{ kind: "thread", id: C1, route: `inbox/th-${C1}`, label: "Unknown" }]);
+});
+
+test("a thread this workspace does not hold is the page's 404, in the scope's own words -- one that is not there, another workspace's, or not an id -- and none of its messages is read", async () => {
+  const notFound = (message) => (e) => {
+    assert.deepEqual([e.code, e.status, e.message], ["not_found", 404, message]);
+    return true;
+  };
+  const tbls = threadTables();
+  await assert.rejects(
+    kernel.load(turnIn(dayCtx(tbls), B), oneThread, { id: "cccccccc-cccc-4ccc-8ccc-ccccccccccc9", before: null }),
+    notFound("Conversation not found."),
+  );
+  // Bayside's thread in a harbor turn. RLS would show it to a member of both, and this double has no RLS at all: the
+  // turn's workspace is what refuses it, as the route refuses a member of harbor alone where the row lives.
+  const ctx = dayCtx(tbls);
+  await assert.rejects(
+    kernel.load(turnIn(ctx, A), oneThread, { id: C1, before: null }),
+    notFound("Conversation not found."),
+  );
+  assert.equal(selects(ctx, "messages").length, 0, "no message of another workspace's thread is read");
+  await assert.rejects(
+    kernel.load(turnIn(dayCtx(tbls), B), oneThread, { id: "not-a-uuid", before: null }),
+    notFound("That conversation does not exist."),
   );
 });
