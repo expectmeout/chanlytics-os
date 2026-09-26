@@ -18,28 +18,47 @@
  * answered turn at the models' list prices, the rounds that stopped at the
  * cap, and which model answered (the model gate, spec 8.3).
  *
+ * A case may carry the page it is asked on (`context`, eval-ask-context.mjs): its rows are read through the GETs the
+ * page makes, once, before a turn is spent; the page is warmed (POST ask/warm) and rides with the question as the
+ * palette sends it, with the scope its route opens. A case without one is asked as before.
+ *
  *   NEXT_PUBLIC_SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… NEXT_PUBLIC_SUPABASE_ANON_KEY=… \
  *   E2E_USER_EMAIL=… [REPS=3] [SURFACE=today] [ONLY=id,id] node tooling/scripts/eval-ask.mjs [tooling/evals/ask-cases.json]
+ *   [REPS=3] [SURFACE=…] [ONLY=…] node tooling/scripts/eval-ask.mjs --list [tooling/evals/ask-cases.json]
  *
  * REPS runs every case that many times (the gate runs three: spec 5.10). SURFACE keeps one surface's cases. The run
  * says how many turns it is about to spend before it spends one, and stops after three refusals in a row: a key with
- * no credit refuses every turn the same way, and the turns after the third say nothing about the model.
+ * no credit refuses every turn the same way, and the turns after the third say nothing about the model. `--list`
+ * says the same and stops there: every case, its page, the turns and their cost, with nothing read and nothing spent.
  */
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { ASK_TOKENS_DAY, cardOpenRoute, oneDoor } from "@chanlytics/contracts";
 import { spread, wilson, pct } from "./ask-stats.mjs";
+import {
+  ROW_SOURCES,
+  announcement,
+  contextFails,
+  describeContext,
+  fromContext,
+  neededGets,
+  pageProblems,
+  resolveContext,
+} from "./eval-ask-context.mjs";
 
 const BASE = process.env.E2E_BASE_URL || "https://chanlytics-os.vercel.app";
 const URL_ = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
 const EMAIL = process.env.E2E_USER_EMAIL;
-const file = process.argv[2] || "tooling/evals/ask-cases.json";
+const LIST = process.argv.includes("--list");
+const file = process.argv.slice(2).find((a) => !a.startsWith("--")) || "tooling/evals/ask-cases.json";
 const ONLY = process.env.ONLY ? new Set(process.env.ONLY.split(",")) : null;
 const REPS = Math.max(1, Math.round(Number(process.env.REPS) || 1));
 const SURFACE = process.env.SURFACE || null;
+/** The baseline cost of one turn (spec §9): what the announcement multiplies before a turn is spent. */
+const PER_TURN = 0.012;
 
-if (!URL_ || !KEY || !ANON || !EMAIL) {
+if (!LIST && (!URL_ || !KEY || !ANON || !EMAIL)) {
   console.error(
     "NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, NEXT_PUBLIC_SUPABASE_ANON_KEY and E2E_USER_EMAIL are required",
   );
@@ -166,13 +185,44 @@ function summarizeUsage(rows, answered) {
   };
 }
 
-/* ---- one turn, read to the end ---- */
-async function ask(cookie, text, surface) {
+/* ---- the page, then one turn, read to the end ---- */
+/** The workspace named on every request, as the client's scoped() names it. */
+const scopedUrl = (path, ws) => `${BASE}${path}${path.includes("?") ? "&" : "?"}workspace=${encodeURIComponent(ws)}`;
+
+/** The GETs the cases' pages draw their rows from, each read once: a read that fails stops the run before a turn. */
+async function readGets(cookie, ws, keys) {
+  const answers = {};
+  for (const k of keys) {
+    const res = await fetch(scopedUrl(ROW_SOURCES[k].path, ws), { headers: { cookie } });
+    if (!res.ok) throw new Error(`GET ${k} ${res.status}: ${(await res.text()).slice(0, 200)}`);
+    answers[k] = (await res.json()).data;
+  }
+  return answers;
+}
+
+/** The page, read before the question as the palette reads it on open (POST ask/warm): its time, or its refusal. */
+async function warm(cookie, ws, context) {
   const t0 = Date.now();
-  const res = await fetch(`${BASE}/api/v1/ask`, {
+  const res = await fetch(scopedUrl("/api/v1/ask/warm", ws), {
     method: "POST",
     headers: { "content-type": "application/json", cookie, origin: new URL(BASE).origin },
-    body: JSON.stringify({ text, thread_id: null, scope: null, surface }),
+    body: JSON.stringify(context),
+  });
+  return { ok: res.ok, status: res.status, ms: Date.now() - t0 };
+}
+
+async function ask(cookie, text, surface, page = null, ws = null) {
+  const t0 = Date.now();
+  const res = await fetch(ws ? scopedUrl("/api/v1/ask", ws) : `${BASE}/api/v1/ask`, {
+    method: "POST",
+    headers: { "content-type": "application/json", cookie, origin: new URL(BASE).origin },
+    body: JSON.stringify({
+      text,
+      thread_id: null,
+      scope: page?.scope ?? null,
+      surface,
+      ...(page ? { context: page.context } : {}),
+    }),
   });
   if (!res.ok || !res.body) {
     const body = await res.text().catch(() => "");
@@ -226,14 +276,11 @@ export function judge(c, r) {
   const e = c.expect ?? {};
   const text = m.text ?? "";
   if (m.failed) fails.push(`turn failed: ${text.slice(0, 120)}`);
-  // Context first: the overview reads (Today, the Inbox, the calls) ride into
-  // every turn as the snapshot, so a case that named them is satisfied by an
-  // answer that needed no read at all.
-  const OVERVIEW = ["get_today", "list_threads", "list_calls"];
-  const fromSnapshot =
-    e.tools_any && e.tools_any.some((t) => OVERVIEW.includes(t)) && !m.tools.some((t) => OVERVIEW.includes(t));
-  if (e.tools_any && !fromSnapshot && !e.tools_any.some((t) => m.tools.includes(t)))
+  // Context first: the overview reads (Today, the Inbox, the calls) ride into every turn as the snapshot, and an
+  // on-page case's page rode with it, so a case the page answers is satisfied by an answer that needed no read at all.
+  if (e.tools_any && !fromContext(c, m, r.context) && !e.tools_any.some((t) => m.tools.includes(t)))
     fails.push(`tools ${JSON.stringify(m.tools)} include none of ${e.tools_any.join("/")}`);
+  fails.push(...contextFails(c, m, r.context));
   if (m.failed && /daily budget|presupuesto diario/.test(text))
     fails.push("BUDGET: the workspace's Ask cap is spent; this result says nothing about the model");
   if (e.tools_also_any && !e.tools_also_any.some((t) => m.tools.includes(t)))
@@ -302,22 +349,53 @@ export function judge(c, r) {
 }
 
 const cases = JSON.parse(readFileSync(file, "utf8"))
-  .map((c) => ({ ...c, surface: c.surface ?? "today" }))
+  .map((c) => ({ ...c, surface: c.surface ?? c.context?.surface ?? "today" }))
   .filter((c) => !ONLY || ONLY.has(c.id))
   .filter((c) => !SURFACE || c.surface === SURFACE);
 if (!cases.length) {
   console.error("no cases match ONLY/SURFACE");
   process.exit(2);
 }
+// A page the eval cannot build is said before anything is read or spent.
+const unbuildable = pageProblems(cases);
+if (unbuildable.length) {
+  console.error(`cases whose page cannot be built:\n  ${unbuildable.join("\n  ")}`);
+  process.exit(2);
+}
+
+if (LIST) {
+  for (const c of cases)
+    console.log(
+      `${c.id} · ${c.surface}${c.must_never ? " · must-never" : ""}${c.context ? ` · ${describeContext(c.context)}` : ""}\n    ${c.text}`,
+    );
+  process.stdout.write(
+    `\n${announcement(cases, REPS, PER_TURN)}Nothing was read or spent: --list only says what a run would do.\n`,
+  );
+  process.exit(0);
+}
+
 const session = await mint();
 const cookie = cookieHeader(session);
 // The budget before a case is asked: a run that starts near the cap ends in a wall of BUDGET refusals that say
 // nothing about the model (ask-gateway.ts refuses at ASK_TOKENS_DAY over the last day).
 const tenantId = await workspaceOf(session.user.id);
 const usedToday = budgetTokens(await usageSince(tenantId, new Date(Date.now() - DAY_MS).toISOString()));
+// The pages' rows, read once through the GETs the pages make; each turn builds its page from them at its own clock.
+const answers = await readGets(cookie, tenantId, neededGets(cases));
+let drawn;
+try {
+  drawn = cases
+    .filter((c) => c.context)
+    .map((c) => `${c.id} ${resolveContext(c.context, answers).context.rows.length}`);
+} catch (e) {
+  console.error(`a page could not be built from what its GETs answered, so nothing was asked: ${e.message}`);
+  process.exit(2);
+}
 process.stderr.write(
   `Ask's budget today: ${usedToday.toLocaleString("en-US")} of ${ASK_TOKENS_DAY.toLocaleString("en-US")} tokens used before this run\n` +
-    `${cases.length} cases × ${REPS} = ${cases.length * REPS} turns ≈ $${(cases.length * REPS * 0.012).toFixed(2)} at the baseline $0.012 a turn (spec §9) against ${BASE}. Every turn spends the model key the receptionist answers customers with; the run stops after three refusals in a row.\n`,
+    announcement(cases, REPS, PER_TURN) +
+    (drawn.length ? `The pages' rows as read: ${drawn.join(", ")}\n` : "") +
+    `Against ${BASE}. Every turn spends the model key the receptionist answers customers with; the run stops after three refusals in a row.\n`,
 );
 // A second of clock skew: the first row of a run lands seconds after this, and the previous run's last row can
 // still be on its way (the edge writes it after its stream settles), so the window opens no earlier than this.
@@ -331,8 +409,13 @@ let stopped = null;
 run: for (let rep = 1; rep <= REPS; rep++) {
   for (const c of cases) {
     let r;
+    let page = null;
+    let warmed = null;
     try {
-      r = await ask(cookie, c.text, c.surface);
+      // The page as the palette sends it: warmed as the Line opens, then carried with the question.
+      page = c.context ? resolveContext(c.context, answers) : null;
+      if (page) warmed = await warm(cookie, tenantId, page.context);
+      r = await ask(cookie, c.text, c.surface, page, page ? tenantId : null);
     } catch (e) {
       r = {
         final: null,
@@ -343,6 +426,7 @@ run: for (let rep = 1; rep <= REPS; rep++) {
         deltas: 0,
       };
     }
+    r.context = page?.context ?? null;
     const j = r.final ? judge(c, r) : { pass: false, fails: [r.error ?? "no answer"], notes: [] };
     results.push({
       id: c.id,
@@ -350,6 +434,8 @@ run: for (let rep = 1; rep <= REPS; rep++) {
       surface: c.surface,
       must_never: c.must_never === true,
       text: c.text,
+      context: r.context,
+      warm: warmed,
       answer: r.final?.text ?? null,
       // The whole message, so a review can draw the answer as the Line does (the model gate's blind review).
       message: r.final,
@@ -376,7 +462,7 @@ run: for (let rep = 1; rep <= REPS; rep++) {
       ...j,
     });
     process.stderr.write(
-      `${j.pass ? "PASS" : "FAIL"} ${c.id}${REPS > 1 ? ` #${rep}` : ""} (${r.ms} ms, ${r.final?.rounds ?? "?"} round(s), tools ${JSON.stringify(r.final?.tools ?? [])}, cards ${JSON.stringify((r.final?.proposals ?? []).map((p) => p.kind))})${j.pass ? "" : "\n     " + j.fails.join("\n     ")}\n`,
+      `${j.pass ? "PASS" : "FAIL"} ${c.id}${REPS > 1 ? ` #${rep}` : ""} (${r.ms} ms, ${r.final?.rounds ?? "?"} round(s), tools ${JSON.stringify(r.final?.tools ?? [])}, cards ${JSON.stringify((r.final?.proposals ?? []).map((p) => p.kind))}${warmed && !warmed.ok ? `, warm refused ${warmed.status}` : ""})${j.pass ? "" : "\n     " + j.fails.join("\n     ")}\n`,
     );
     // A request that threw (a 5xx, the route's rate limit) counts too: it says nothing about the model either.
     const refused = !r.final || (r.final.failed && REFUSED.test(r.final.text ?? ""));

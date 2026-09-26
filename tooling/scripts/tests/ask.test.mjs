@@ -38,6 +38,7 @@ import {
   scopeFromRoute,
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
+import { fromContext } from "../eval-ask-context.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const NOW = Date.parse("2026-09-05T15:00:00Z");
@@ -1044,11 +1045,14 @@ test("context first: the day rides into every turn, its rows can be cited, loade
     ),
     "what the prompt already holds needs no read",
   );
-  assert.ok(
-    /const fromSnapshot =\s+e\.tools_any && e\.tools_any\.some\(\(t\) => OVERVIEW\.includes\(t\)\) && !m\.tools\.some\(\(t\) => OVERVIEW\.includes\(t\)\);/.test(
-      readCode("tooling/scripts/eval-ask.mjs"),
-    ),
-    "the eval knows an overview can come from the snapshot",
+  // The eval knows an overview can come from the snapshot: executed over the judge's own excuse.
+  const overview = { expect: { tools_any: ["get_today", "list_threads"] } };
+  assert.equal(fromContext(overview, { tools: [] }, null), true, "no read, and the snapshot answered");
+  assert.equal(fromContext(overview, { tools: ["list_threads"] }, null), false, "a read of it is judged as a read");
+  assert.equal(
+    fromContext({ expect: { tools_any: ["get_report"] } }, { tools: [] }, null),
+    false,
+    "the snapshot carries no report",
   );
   const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
   // Run in ask-turn.test.mjs: a round that calls get_today, list_threads and list_calls together reads the
