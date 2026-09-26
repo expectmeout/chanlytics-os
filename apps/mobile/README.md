@@ -36,7 +36,7 @@ icon's number is the bell's. Push credentials and the signing token are the runb
 ## Signing in, and the lock
 
 Apple's sheet and Google's yield a token that a Surface POSTs to the site's native door, so the cookie is the WebView's
-(`src/shell/native-auth.ts`, `sign-in.ts`). The lock (`lock.ts`, `Lock.tsx`) stands at launch and after two minutes
+(`src/shell/native-auth.ts`, `sign-in.ts`). The lock (`lock.ts`, `LockScreen.tsx`) stands at launch and after two minutes
 away, on by default where the phone can lock. Google's ids come from the EAS environment; see the runbook's "Turn on
 native sign-in".
 

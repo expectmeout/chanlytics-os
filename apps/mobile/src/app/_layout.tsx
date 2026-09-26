@@ -13,7 +13,7 @@ import { useNetworkState } from "expo-network";
 import * as Updates from "expo-updates";
 import { Offline } from "@/shell/Offline";
 import { SignIn } from "@/shell/SignIn";
-import { Lock } from "@/shell/Lock";
+import { Lock } from "@/shell/LockScreen";
 import { canLock, lockChoice } from "@/shell/lock";
 import { shouldLock } from "@/shell/sign-in";
 import { signOutNatively } from "@/shell/native-auth";
