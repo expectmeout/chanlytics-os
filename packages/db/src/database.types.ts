@@ -4539,6 +4539,10 @@ export type Database = {
         Returns: undefined
       }
       call_status_rank: { Args: { p_status: string }; Returns: number }
+      caller_has_permission: {
+        Args: { p_permission: string; p_tenant_id: string }
+        Returns: boolean
+      }
       campaign_series: {
         Args: { p_days?: number; p_tenant_id: string }
         Returns: Json
@@ -5867,6 +5871,7 @@ export type Database = {
       trigger_leads_sweep: { Args: never; Returns: number }
       trigger_lines_sweep: { Args: never; Returns: number }
       trigger_notes_sweep: { Args: never; Returns: number }
+      trigger_partners_sweep: { Args: never; Returns: number }
       trigger_playbooks_sweep: { Args: never; Returns: number }
       trigger_reach_out_check_sweep: { Args: never; Returns: number }
       trigger_reach_out_sweep: { Args: never; Returns: number }

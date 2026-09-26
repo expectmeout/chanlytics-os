@@ -4545,6 +4545,13 @@ type Database = {
                 };
                 Returns: number;
             };
+            caller_has_permission: {
+                Args: {
+                    p_permission: string;
+                    p_tenant_id: string;
+                };
+                Returns: boolean;
+            };
             campaign_series: {
                 Args: {
                     p_days?: number;
@@ -6320,6 +6327,10 @@ type Database = {
                 Returns: number;
             };
             trigger_notes_sweep: {
+                Args: never;
+                Returns: number;
+            };
+            trigger_partners_sweep: {
                 Args: never;
                 Returns: number;
             };
