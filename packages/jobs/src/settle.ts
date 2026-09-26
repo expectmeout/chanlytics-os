@@ -15,7 +15,7 @@
  * either way. That condition, not `certain`, is what makes this safe to run on
  * a job whose outcome is unknown.
  */
-import { isCampaignEmail } from "@chanlytics/channels";
+import { isCampaignEmail } from "@chanlytics/contracts";
 import { upsertEscalation, type EscalationOutcome } from "./escalate";
 import { MAX_RESUMES, type Db } from "./ledger";
 import { scheduleJob } from "./schedule";

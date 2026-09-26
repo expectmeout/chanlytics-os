@@ -9,8 +9,9 @@
 --                                                          (messages_guard's meta.status_at, 00111), else the time its
 --                                                          status last moved (a send whose outcome is unknown failed
 --                                                          then), else when it was written.
---   outreach_facts(...)          sent_since by that clock. Otherwise as 00179 left it.
---   cold_receipts_owed(...)      by the same clock. What it answers is unchanged.
+--   outreach_facts(...)          sent_since by that clock, reading 30 days back for rows a run held for its approval.
+--                                Otherwise as 00179 left it.
+--   cold_receipts_owed(...)      by the same clock and bound (§3 says the one case that answers differently).
 
 set local lock_timeout = '3s';
 
@@ -30,7 +31,8 @@ revoke execute on function public.email_sent_at(jsonb, timestamptz, timestamptz)
 grant execute on function public.email_sent_at(jsonb, timestamptz, timestamptz) to service_role;
 
 -- 2. 00179's door, with the day counted by when each email left. created_at bounds the read to 00176's index: an email
--- is written before it is sent, and one written more than two days before the window is not looked for.
+-- is written before it is sent, so the bound is wide (30 days), because a run may wait days for its owner's approval
+-- and every email it sends then counts on the day it leaves. One written earlier than that is not looked for.
 create or replace function public.outreach_facts(
   p_tenant_id uuid,
   p_contact_id uuid,
@@ -64,7 +66,7 @@ as $$
       select count(*) from public.messages m
        where m.tenant_id = p_tenant_id and m.channel = 'email' and m.direction = 'outbound'
          and public.email_from_host(m.meta) = lower(btrim(p_host))
-         and m.created_at >= p_since - interval '2 days'
+         and m.created_at >= p_since - interval '30 days'
          and public.email_sent_at(m.meta, m.status_updated_at, m.created_at) >= p_since
          and (public.email_left(m.status, m.error)
               or (m.status = 'failed' and coalesce(m.error->>'outcome', '') = 'unknown')))
@@ -73,7 +75,9 @@ $$;
 revoke execute on function public.outreach_facts(uuid, uuid, text, text, timestamptz) from public, anon, authenticated;
 grant execute on function public.outreach_facts(uuid, uuid, text, text, timestamptz) to service_role;
 
--- 3. 00179's watch, over the same clock. What it answers is unchanged: an email that left carries status_at.sent.
+-- 3. 00179's watch, over the same clock and the same 30-day bound. An email that left carries status_at.sent, so it
+-- answers as it did, except for a send whose outcome was unknown and which a receipt settled later: it has no
+-- status_at.sent, and counts from when its status last moved rather than when it was written.
 create or replace function public.cold_receipts_owed(p_from timestamptz, p_to timestamptz)
 returns table (tenant_id uuid, host text, sent integer, unanswered integer)
 language sql
@@ -88,7 +92,7 @@ as $$
     join public.messages m
       on m.tenant_id = d.tenant_id and m.channel = 'email' and m.direction = 'outbound'
      and public.email_from_host(m.meta) = lower(d.host)
-     and m.created_at >= p_from - interval '2 days' and m.created_at < p_to
+     and m.created_at >= p_from - interval '30 days' and m.created_at < p_to
      and public.email_left(m.status, m.error)
      and public.email_sent_at(m.meta, m.status_updated_at, m.created_at) >= p_from
      and public.email_sent_at(m.meta, m.status_updated_at, m.created_at) < p_to

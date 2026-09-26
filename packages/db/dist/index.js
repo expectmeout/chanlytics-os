@@ -2762,7 +2762,7 @@ async function sendingDomainByHost(db, tenantId, host) {
 async function dueSendingDomains(db, limit) {
   return must(
     "read the due domains",
-    await db.from("sending_domains").select("*").in("state", ["verifying", "verified", "held"]).or("held_why.is.null,held_why.eq.verification,held_why.eq.dmarc,held_why.eq.provider").order("checked_at", { ascending: true, nullsFirst: true }).limit(limit)
+    await db.from("sending_domains").select("*").in("state", ["verifying", "verified", "held"]).or("held_why.is.null,held_why.neq.complaint").order("checked_at", { ascending: true, nullsFirst: true }).limit(limit)
   ) ?? [];
 }
 async function coldReceiptsOwed(db, from, to) {

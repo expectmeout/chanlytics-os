@@ -252,6 +252,8 @@ test(
     await sent({ writtenAt: hoursAgo(30), sentAt: hoursAgo(1) });
     // Queued and sent 26 hours ago: yesterday's.
     await sent({ writtenAt: hoursAgo(26), sentAt: hoursAgo(26) });
-    assert.equal((await facts()).sent_since - base, 2);
+    // Queued four days ago behind an approval that came this morning: today's, however long it waited.
+    await sent({ writtenAt: hoursAgo(96), sentAt: hoursAgo(2) });
+    assert.equal((await facts()).sent_since - base, 3);
   },
 );

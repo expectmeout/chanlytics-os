@@ -438,7 +438,7 @@ async function sayDomainChange(
  * own counts, rather than at the next ten-minute sweep, so a domain drawing complaints stops at the first. A verified
  * domain is held for it, and so is one held for another reason (judgeDomain: a complaint outranks a DNS or provider
  * hold, and bounces), so its owner weighs the complaint before any Resume. Best-effort by contract: the receipt is
- * already applied, and the sweep holds the domain anyway.
+ * already applied, and the sweep, which reads every hold but a complaint's, holds the domain anyway.
  */
 export async function holdForComplaint(
   p: Pick<DomainPorts, "db" | "log" | "now">,
@@ -487,7 +487,14 @@ export async function resumeSendingDomain(p: DomainPorts, row: SendingDomainRow)
   if (!written) return say(409, "moved", `${row.host} changed just now. Look again, then resume it.`);
   const data = { host: row.host, ...(row.held_why ? { why: row.held_why } : {}) } as Json;
   await emitEvent(p.db, row.tenant_id, "sending_domain.resumed", "setup", "sending_domain", row.id, data);
-  return { ok: true, domain: domainDto(written) };
+  // Read now, not at the next tick: a reputation hold is never read while it stands, so records that broke meanwhile
+  // (a DNS hold the bounces took the place of) would otherwise send for up to a tick before they held it again.
+  // Best effort: the resume is written, and the sweep reads it anyway.
+  const read = await checkSendingDomain(p, written, { verify: false }).catch((e) => {
+    p.log.warn("sending_domain_resume_unread", { domain: row.id, error: e instanceof Error ? e.message : String(e) });
+    return null;
+  });
+  return { ok: true, domain: domainDto(read?.row ?? written) };
 }
 
 /** The owner, told: the bell, and email where the workspace has somebody on file. Best effort: the row already says it. */

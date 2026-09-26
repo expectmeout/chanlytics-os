@@ -165,7 +165,7 @@ export function reputationHoldOf(c: DomainCounts | null): "complaint" | "bounces
 
 /**
  * What the edge just read: the provider's word (null: could not ask), DMARC (null: could not read), and what the
- * domain sent (null: not counted, because it is not verified or the count could not be read).
+ * domain sent (null: not counted, because it is neither verified nor held, or the count could not be read).
  */
 export interface DomainFacts {
   provider: string | null;
@@ -206,10 +206,13 @@ const CHECKING: ReadonlySet<string> = new Set(["pending", "temporary_failure", "
  *                      DMARC missing for the first time     → unchanged (the missing answer is stored, and the
  *                                                               next read, ten minutes on, confirms or clears it:
  *                                                               nameservers that disagree mid-move are one bad read)
- *   held (DNS, provider) provider verified + DMARC found    → verified (the ramp starts again, clean from now; the
+ *   held (DNS, provider) bounces or a complaint               → held, for that reason instead  change "held"
+ *                                                               (the owner's to resume now; checked first)
+ *                      provider verified + DMARC found    → verified (the ramp starts again, clean from now; the
  *                                                               reputation count does not: counted_since stays)
  *                                                                                              change "released"
- *   held (reputation)  unchanged: only the owner resumes it (resumeDomain).
+ *   held (bounces)     a complaint                          → held, complaint               change "held"
+ *   held (reputation)  otherwise unchanged: only the owner resumes it (resumeDomain); a complaint hold is the last word.
  * Verification sets both clocks, the ramp's (clean_since) and the count's (counted_since).
  * An unreadable provider changes nothing but a reputation hold, which is counted from our own rows, and an
  * unreadable DMARC neither holds nor verifies: "we could not look" is not a fact about the domain.

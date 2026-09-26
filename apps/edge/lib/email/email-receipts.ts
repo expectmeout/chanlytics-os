@@ -41,13 +41,8 @@ import {
   type Database,
   type Json,
 } from "../packages/db.js";
-import {
-  addressOf,
-  emailReceiptEffect,
-  isCampaignEmail,
-  type EmailReceipt,
-  type EmailReceiptType,
-} from "../packages/channels.js";
+import { addressOf, emailReceiptEffect, type EmailReceipt, type EmailReceiptType } from "../packages/channels.js";
+import { isCampaignEmail } from "../packages/contracts.js";
 import { holdForComplaint } from "./sending-domains.js";
 import { logger, errField } from "../log.js";
 import { upsertEscalation } from "../packages/jobs.js";

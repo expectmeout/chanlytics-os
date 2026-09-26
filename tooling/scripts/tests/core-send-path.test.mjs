@@ -381,7 +381,16 @@ test("a cold email's failure is recorded on its row and its run's to report: no 
     body: "Saw your shop on the map.",
     channel: "email",
     sender: "ai",
-    email: { to: ["owner@example.com"], idempotency_key: "m1" },
+    // Frozen as a cold email always is: with its unsubscribe, which the door refuses one without (Part 2.6: the one
+    // predicate, contracts isCampaignEmail, reads it).
+    email: {
+      to: ["owner@example.com"],
+      idempotency_key: "m1",
+      headers: {
+        "List-Unsubscribe": "<https://app.chanlytics.com/u/t>",
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+      },
+    },
   };
   const cold = {
     tenantId: "t1",
@@ -425,7 +434,8 @@ test("a cold email's failure is recorded on its row and its run's to report: no 
   );
 
   // A reply's failure is unchanged: flagged and told.
-  const replyRow = { ...coldRow, sender: "human" };
+  // A reply is frozen without an unsubscribe: it answers someone who wrote.
+  const replyRow = { ...coldRow, sender: "human", email: { to: ["owner@example.com"], idempotency_key: "m1" } };
   const reply = fakes({ queued: replyRow, deliver: failed(0, "fetch failed") });
   await core.sendQueued(reply.ports, {
     tenantId: "t1",

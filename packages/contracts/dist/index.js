@@ -23072,6 +23072,11 @@ function campaignFooterHtml(f) {
   campaignFooter(f);
   return `<p>${escapeHtml(f.why.trim())}<br>${escapeHtml(MARKETING_LINE)}<br>${escapeHtml(f.business.trim())} \xB7 ${escapeHtml(f.address.trim())}<br>${escapeHtml(`Not interested? Reply "no thanks" and I won't write again`)} \xB7 <a href="${escapeHtml(f.unsubscribeUrl.trim())}">Unsubscribe</a></p>`;
 }
+function isCampaignEmail(request) {
+  const headers = request?.headers;
+  const v = headers?.["List-Unsubscribe"];
+  return typeof v === "string" && v.trim() !== "";
+}
 function unsubscribePageWords(v) {
   switch (v.kind) {
     case "ask": {
@@ -23968,6 +23973,7 @@ export {
   invoiceStatusWords,
   isActivityNoise,
   isBaselinePrompt,
+  isCampaignEmail,
   isCarrier,
   isCheckoutReturn,
   isConsultationTitle,

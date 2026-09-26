@@ -604,3 +604,21 @@ test("a domain held for DNS whose records read good again, with a complaint made
     net.restore();
   }
 });
+
+test("the sweep reads a bounce hold too: a complaint since makes it a complaint hold, whether or not the receipt's own try landed (Part 2.6)", async () => {
+  const w = world([domain("d1", { state: "held", held_why: "bounces", held_at: ago(DAY) })], {
+    "d1.example": { sent: 200, bounced: 5, complained: 1 },
+  });
+  dns["d1.example"] = "found";
+  const net = provider({ "pd-d1": "verified" });
+  try {
+    assert.equal((await knock(POST, "domains")).status, 200);
+    assert.deepEqual([w.row("d1").state, w.row("d1").held_why], ["held", "complaint"]);
+    assert.deepEqual(
+      w.tables.notifications.map((n) => n.title),
+      ["d1.example is held: someone marked an email from it as spam"],
+    );
+  } finally {
+    net.restore();
+  }
+});

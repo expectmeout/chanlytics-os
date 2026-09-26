@@ -154,7 +154,8 @@ function world(rows = [], faults = {}) {
     tenant_channels: [],
     operator_pages: [],
   };
-  const db = uniqueHosts(fakeDb(tables, faults, {}), tables);
+  const rpcs = { sending_domain_counts: () => tables.counts ?? { sent: 0, bounced: 0, complained: 0 } };
+  const db = uniqueHosts(fakeDb(tables, faults, rpcs), tables);
   setPg(db);
   return { db, tables };
 }
@@ -579,7 +580,13 @@ test("Resume lifts a reputation hold: sending again at 30 a day, its counts clea
     }),
     row(D2, { state: "held", held_why: "dmarc", held_at: new Date().toISOString() }),
   ]);
-  const net = provider(() => reply(200, {}));
+  const host1 = w.tables.sending_domains.find((r) => r.id === D1).host;
+  dns[host1] = "found";
+  const net = provider((url) =>
+    url.endsWith(`/domains/pd-${D1.slice(0, 4)}`)
+      ? reply(200, PROVIDER_DOMAIN(`pd-${D1.slice(0, 4)}`, host1, "verified"))
+      : reply(404, {}),
+  );
   try {
     const before = Date.now();
     const [s, b] = await answer(await knock({ op: "resume", domain_id: D1 }));
@@ -587,7 +594,8 @@ test("Resume lifts a reputation hold: sending again at 30 a day, its counts clea
     const d = w.tables.sending_domains.find((r) => r.id === D1);
     assert.deepEqual(
       [d.state, d.held_why, d.held_at, d.sent_recent, d.bounced_recent, d.complaints],
-      ["verified", null, null, null, null, null],
+      // Cleared with the window they counted, and counted again at once from the new one: nothing yet (2.6).
+      ["verified", null, null, 0, 0, 0],
     );
     assert.ok(Date.parse(d.clean_since) >= before - 1000, "the ramp starts again from now");
     assert.equal(b.domain.state, "verified");
@@ -606,7 +614,11 @@ test("Resume lifts a reputation hold: sending again at 30 a day, its counts clea
       [409, "dns_hold", "Press Check: this one lifts itself when it reads right again."],
     );
     assert.equal(w.tables.sending_domains.find((r) => r.id === D2).state, "held");
-    assert.equal(net.calls.length, 0, "the provider is never asked");
+    assert.deepEqual(
+      net.calls.map((c) => c.method + " " + c.url.replace("https://api.resend.com", "")),
+      [`GET /domains/pd-${D1.slice(0, 4)}`],
+      "read once, straight after the resume; never asked to verify, and a refused Resume asks nothing",
+    );
   } finally {
     net.restore();
   }
@@ -615,7 +627,7 @@ test("Resume lifts a reputation hold: sending again at 30 a day, its counts clea
   assert.deepEqual([s, b.error], [404, "not_found"]);
 });
 
-test("a create refused because the account already has the host adopts it while it is unverified, so a lost create never strands a host (Part 2.5 review)", async () => {
+test("a create refused because the account already has the host adopts the one this very press made, so a lost create never strands a host (Part 2.5 review)", async () => {
   const w = world();
   const net = provider((url, init) => {
     if (init.method === "POST" && url === "https://api.resend.com/domains")
@@ -862,5 +874,43 @@ test("a domain left at the account before this add is made again with keys of it
     assert.equal(w2.tables.sending_domains.length, 0);
   } finally {
     net2.restore();
+  }
+});
+
+test("Resume reads the domain at once: records that broke while its reputation held it hold it again, never a tick of sending first (Part 2.6)", async () => {
+  // A reputation hold is never read while it stands, so a verification lost meanwhile is only seen when it is resumed.
+  const w = world([
+    row(D1, {
+      state: "held",
+      held_why: "bounces",
+      held_at: new Date(Date.now() - 86_400_000).toISOString(),
+      verified_at: new Date(Date.now() - 20 * 86_400_000).toISOString(),
+      clean_since: new Date(Date.now() - 20 * 86_400_000).toISOString(),
+      dmarc: "found",
+      provider_status: "verified",
+    }),
+  ]);
+  const host = w.tables.sending_domains[0].host;
+  dns[host] = "found";
+  const net = provider((url) =>
+    url.endsWith(`/domains/pd-${D1.slice(0, 4)}`)
+      ? reply(200, PROVIDER_DOMAIN(`pd-${D1.slice(0, 4)}`, host, "failed"))
+      : reply(404, {}),
+  );
+  try {
+    const [s, b] = await answer(await knock({ op: "resume", domain_id: D1 }));
+    assert.equal(s, 200, JSON.stringify(b));
+    assert.deepEqual(
+      [b.domain.state, b.domain.held_why],
+      ["held", "verification"],
+      "the page is told what is true now",
+    );
+    assert.deepEqual(
+      w.tables.events.map((e) => e.kind),
+      ["sending_domain.resumed", "sending_domain.held"],
+      "the resume, then the hold its records earned",
+    );
+  } finally {
+    net.restore();
   }
 });

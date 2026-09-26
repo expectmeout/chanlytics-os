@@ -2461,6 +2461,11 @@ var K = new Uint32Array([
   3329325298
 ]);
 var NAME_MAX = BrainConfigSchema.shape.business_name.maxLength ?? Infinity;
+function isCampaignEmail(request) {
+  const headers = request?.headers;
+  const v = headers?.["List-Unsubscribe"];
+  return typeof v === "string" && v.trim() !== "";
+}
 
 // ../channels/dist/index.js
 import { z as z11 } from "zod";
@@ -9739,11 +9744,6 @@ function messageIdHeader(id) {
   const bare = s2.replace(/^<|>$/g, "");
   return /^[^\s<>@]+@[^\s<>@]+$/.test(bare) ? `<${bare}>` : null;
 }
-function isCampaignEmail(request) {
-  const headers2 = request?.headers;
-  const v = headers2?.["List-Unsubscribe"];
-  return typeof v === "string" && v.trim() !== "";
-}
 function isEmailRequest(v) {
   if (!v || typeof v !== "object") return false;
   const r23 = v;
@@ -15432,6 +15432,11 @@ var K22 = new Uint32Array([
   3329325298
 ]);
 var NAME_MAX22 = BrainConfigSchema22.shape.business_name.maxLength ?? Infinity;
+function isCampaignEmail2(request) {
+  const headers = request?.headers;
+  const v = headers?.["List-Unsubscribe"];
+  return typeof v === "string" && v.trim() !== "";
+}
 z122.config({ jitless: true });
 var LABEL32 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL32 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
@@ -18049,7 +18054,7 @@ async function sendQueued(ports, cmd) {
       `Tenant ${cmd.tenantId}, message ${p.message_id}. Credentials, not content.`
     );
   }
-  if (outreach) return;
+  if (channel === "email" && isCampaignEmail2(msg?.email)) return;
   const notConnected = channel === "sms" ? "the texting line is not connected" : channel === "whatsapp" ? "the WhatsApp number is not connected" : `the ${channel} channel is not connected`;
   const cause = out.reason === "no_credentials" ? notConnected : out.reason === "no_sender_for_channel" ? `this runtime has no ${channel} line` : out.reason === "wire_unreadable" ? "the thread could not be read at the wire" : limit === "daily" || limit === "monthly" ? "the mail provider's sending limit is used up for now" : limit === "rate" ? "the mail provider asked us to slow down" : limit === "in_flight" ? "the mail provider is still sending an earlier try of it; check the thread before sending it again" : (
     // Status 0 is no answer at all: the network failed, or the email wire refused a request it will not send

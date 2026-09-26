@@ -1,4 +1,4 @@
-import type { SendPurpose } from "@chanlytics/contracts";
+import { isCampaignEmail, type SendPurpose } from "@chanlytics/contracts";
 import type { Channel } from "../deliver";
 import type { SendQueuedPorts } from "./ports";
 
@@ -113,9 +113,10 @@ export async function sendQueued(ports: SendQueuedPorts, cmd: SendQueuedCommand)
       `Tenant ${cmd.tenantId}, message ${p.message_id}. Credentials, not content.`,
     );
   }
-  // A cold email's failure is its run's to report, once (Part 3), and its row already says it: never a flag on a thread
-  // nobody has opened, or an owner alert per email of a run.
-  if (outreach) return;
+  // A campaign's email that failed (a reach-out, a broadcast) is its run's to report, once, and its row already says
+  // it: never a flag on a thread nobody there wrote on, or an owner alert per email of a run. The one predicate the
+  // receipt and a job that died ask too (contracts isCampaignEmail).
+  if (channel === "email" && isCampaignEmail(msg?.email)) return;
   // The wire could not carry it: the thread is flagged for a person and the
   // owner told, in words that say whose reply it was and what stopped it --
   // a number with no credentials is not "HTTP 503". A refusal needs neither;
