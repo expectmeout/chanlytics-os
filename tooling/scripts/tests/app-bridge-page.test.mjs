@@ -110,6 +110,11 @@ const doors = (answer = true) => {
       calls.push(["forget", t]);
       return answer;
     },
+    token: async () => {
+      calls.push(["token"]);
+      if (answer instanceof Error) throw answer;
+      return answer ? { access: "tok", expires: 1800000000 } : null;
+    },
   };
 };
 const tick = () => new Promise((r) => setTimeout(r, 0));
@@ -214,4 +219,24 @@ test("a device ask with an activity token registers both", async () => {
     "register",
     { token: "tok", platform: "ios", app_version: "1.0.0", activity_token: "act" },
   ]);
+});
+
+test("the shell's token ask is answered from the page's own session, and with nothing when there is none", async () => {
+  const { win, posted } = windowOf();
+  const d = doors(true);
+  installAppBridge(win, d);
+  win.__appBridge.receive('{"t":"token"}');
+  await tick();
+  assert.deepEqual(d.calls.at(-1), ["token"]);
+  assert.deepEqual(posted.at(-1), { t: "token", access: "tok", expires: 1800000000 });
+  const none = windowOf();
+  installAppBridge(none.win, doors(false));
+  none.win.__appBridge.receive('{"t":"token"}');
+  await tick();
+  assert.deepEqual(none.posted.at(-1), { t: "token", access: null, expires: 0 });
+  const broken = windowOf();
+  installAppBridge(broken.win, doors(new Error("no client")));
+  broken.win.__appBridge.receive('{"t":"token"}');
+  await tick();
+  assert.deepEqual(broken.posted.at(-1), { t: "token", access: null, expires: 0 });
 });

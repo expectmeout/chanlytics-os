@@ -282,6 +282,19 @@ test("the session is VERIFIED, never read from the cookie", () => {
   }
 });
 
+test("the proxy passes a bearer request to the route wrapper only under /api/v1 and only with the header", () => {
+  // Decision 0011: a native screen's call carries the session's access token as a bearer and no cookie. The proxy
+  // reads the cookie only, so it lets such a request through to withRoute, which verifies the token. The bypass
+  // must name the API prefix and the header's scheme, and nothing else may widen it.
+  assert.match(
+    middleware,
+    /path\.startsWith\("\/api\/v1\/"\)\s*&&\s*\/\^Bearer\\s\+\\S\+\/i\.test\(request\.headers\.get\("authorization"\)/,
+    "the bypass is the /api/v1/ prefix AND a Bearer authorization header",
+  );
+  assert.match(withRoute, /verifyBearer\(bearer\)/, "and the wrapper verifies the bearer itself");
+  assert.match(withRoute, /!bearer && req\.method !== "GET"/, "the same-origin rule stays the cookie's");
+});
+
 /* ---------------------------------------------------------------------- 2 -- */
 
 test("every /api/v1 route verifies the user itself", () => {

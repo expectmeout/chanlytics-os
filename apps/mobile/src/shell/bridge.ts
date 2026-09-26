@@ -17,7 +17,7 @@ export function onPageMessage(state: ShellState, raw: string): { state: ShellSta
       return {
         state:
           m.state === "out"
-            ? { ...state, session: "out", slug: null, needs: 0, registered: null }
+            ? { ...state, session: "out", slug: null, needs: 0, registered: null, access: null }
             : { ...state, session: "in" },
         effect: m.state === "out" ? "sign-in" : "nothing",
       };
@@ -40,6 +40,11 @@ export function onPageMessage(state: ShellState, raw: string): { state: ShellSta
       return { state, effect: "today" };
     case "route":
       return { state, effect: "nothing" };
+    case "token":
+      return {
+        state: { ...state, access: m.access ? { token: m.access, expires: m.expires } : null },
+        effect: "nothing",
+      };
   }
 }
 

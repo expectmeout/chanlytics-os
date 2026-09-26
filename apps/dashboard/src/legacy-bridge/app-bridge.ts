@@ -17,6 +17,7 @@ import {
   type TodayVM,
 } from "@chanlytics/contracts";
 import { api } from "./api";
+import { createClient } from "../lib/supabase/client";
 
 const IN_APP_CLASS = "in-app";
 
@@ -45,10 +46,20 @@ export interface DeviceDoors {
     activity_token?: string;
   }): Promise<boolean>;
   forget(token: string): Promise<boolean>;
+  /**
+   * The session's access token and its expiry (epoch seconds), for the shell's own calls (decision 0011); null when
+   * the page has none. The access token only: the refresh token stays in the page, which refreshes on its own.
+   */
+  token(): Promise<{ access: string; expires: number } | null>;
 }
 export const deviceDoors: DeviceDoors = {
   register: async (device) => (await api()("PUT me/devices", { body: device })).ok,
   forget: async (token) => (await api()("DELETE me/devices", { body: { token } })).ok,
+  token: async () => {
+    const { data } = await createClient().auth.getSession();
+    const s = data.session;
+    return s?.access_token ? { access: s.access_token, expires: s.expires_at ?? 0 } : null;
+  },
 };
 
 /** The hash route's name without its leading "#/", "today" when there is none: what app-shell.jsx parses. */
@@ -131,6 +142,12 @@ export function installAppBridge(
           .forget(m.token)
           .then((ok) => post({ t: "device", state: ok ? "forgotten" : "refused" }))
           .catch(() => post({ t: "device", state: "refused" }));
+      } else if (m.t === "token") {
+        // The shell's own calls carry the session's access token (decision 0011); the page is where it lives.
+        void doors
+          .token()
+          .then((t) => post({ t: "token", access: t?.access ?? null, expires: t?.expires ?? 0 }))
+          .catch(() => post({ t: "token", access: null, expires: 0 }));
       }
     },
   };
