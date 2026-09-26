@@ -286,7 +286,11 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
         for (const v of q.values) {
           const existing = rows().find((r) => q.conflict.every((c) => r[c] === v[c]));
           if (existing) {
-            if (!q.ignoreDuplicates) Object.assign(existing, v);
+            // ON CONFLICT DO NOTHING answers with nothing for the row it left
+            // alone, as PostgREST does: a claim on a unique row learns it lost
+            // by getting no row back. A merging upsert answers with the row.
+            if (q.ignoreDuplicates) continue;
+            Object.assign(existing, v);
             made.push(existing);
             continue;
           }
