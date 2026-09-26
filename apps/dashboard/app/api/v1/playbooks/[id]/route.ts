@@ -1,4 +1,10 @@
-import { AppError, PLAYBOOK_STATES, REACH_OUT_IS_NOT_A_MOMENT, triggerOf } from "@chanlytics/contracts";
+import {
+  AppError,
+  PLAYBOOK_STATES,
+  REACH_OUT_IS_NOT_A_MOMENT,
+  REACH_OUT_REFUSALS,
+  triggerOf,
+} from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 import { write } from "@/server/route";
 import { jsonBody } from "@/server/request-guards";
@@ -12,7 +18,9 @@ import { checkPlaybookInput, playbookWriteError, refuseOnArchivedList } from "@/
  *        records which); any other field re-checks the whole playbook the
  *        way a new one is checked and rewrites it.
  * DELETE /api/v1/playbooks/:id — the rule goes; its runs stay as broadcasts
- *        with their numbers. Recorded as a pause with `deleted`.
+ *        with their numbers. Recorded as a pause with `deleted`. Never a
+ *        reach-out's step: its sends would go with it (R16); a chain is
+ *        removed through its own door before it writes, and paused after.
  *
  * Owner or operator; the playbook is the row (playbookScope), found under
  * RLS, so one the caller cannot see is 404, and the role judged where it
@@ -80,6 +88,7 @@ export const DELETE = write({
   rate: "playbook",
   handle: async ({ ctx, row: p }) => {
     const id = p.id;
+    if (triggerOf(p.trigger)?.kind === "reach_out") throw new AppError("conflict", REACH_OUT_REFUSALS.notHere, 409);
     const { error, count } = await ctx.supabase.from("playbooks").delete({ count: "exact" }).eq("id", id);
     if (error) throw new Error(error.message);
     if (!count) throw new AppError("not_found", "Playbook not found.", 404);

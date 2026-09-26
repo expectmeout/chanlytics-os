@@ -398,16 +398,23 @@ export async function emailWordsOf(
     .eq("channel", "email")
     .maybeSingle();
   if (error) throw new Error(`cannot read the step's words: ${error.message}`);
-  if (!data) return null;
+  return data ? emailWordsFrom(data) : null;
+}
+
+/** An email template's words from its row: HEADER is the subject, BODY the body (the body preview when it has none). */
+export function emailWordsFrom(row: {
+  components: unknown;
+  body_preview: string | null;
+}): { subject: string | null; body: string } | null {
   const part = (type: string): string | null => {
-    for (const c of Array.isArray(data.components) ? data.components : [])
+    for (const c of Array.isArray(row.components) ? row.components : [])
       if (c && typeof c === "object" && String((c as { type?: unknown }).type ?? "").toUpperCase() === type) {
         const t = (c as { text?: unknown }).text;
         return typeof t === "string" && t.trim() ? t : null;
       }
     return null;
   };
-  const body = part("BODY") ?? (data.body_preview?.trim() || null);
+  const body = part("BODY") ?? (row.body_preview?.trim() || null);
   return body ? { subject: part("HEADER"), body } : null;
 }
 
@@ -742,23 +749,15 @@ export async function recordCheck(
 }
 
 /**
- * A send back to unchecked (R5): its words changed since its check, or it names an opening it has none of. Its words'
- * version moves on, so a check still under way for the old words writes nothing; what its owner included it past stays.
+ * Sends back to unchecked (R5), in one statement (00198 reach_out_recheck, the one reset): planned, not checked, at
+ * their words' next version, so a check still under way for the old words writes nothing; what their owner included
+ * them past stays (R7). Only from planned, held or claimed. How many went back.
  */
-export function checkResetPatch(gen: number): Partial<ReachOutSendRow> {
-  return {
-    checked_at: null,
-    check_gen: gen + 1,
-    checked_words: null,
-    check_tries: 0,
-    check_first_at: null,
-    check_after: null,
-    check_started_at: null,
-    opening: null,
-    angle: null,
-    facts_used: [],
-    hold_detail: null,
-  };
+export async function recheckSends(db: Db, p: { tenantId: string; ids: string[] }): Promise<number> {
+  if (p.ids.length === 0) return 0;
+  const { data, error } = await db.rpc("reach_out_recheck", { p_send_ids: p.ids, p_tenant_id: p.tenantId } as never);
+  if (error) throw new Error(`cannot put the sends back to be checked: ${error.message}`);
+  return typeof data === "number" ? data : 0;
 }
 
 /** Holds left past `before`, oldest planned first (00197: fourteen days from when a send was planned, R10). */

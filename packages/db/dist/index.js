@@ -19,6 +19,7 @@ import { z as z9 } from "zod";
 import { z as z10 } from "zod";
 import { z as z11 } from "zod";
 import { z as z12 } from "zod";
+import { z as z13 } from "zod";
 z.config({ jitless: true });
 function normalizePhone(raw) {
   if (raw == null) return null;
@@ -2583,6 +2584,7 @@ var OPENING_CHARS_MAX = 400;
 var REACH_OUT_STEPS_MAX = 5;
 var REACH_OUT_NAME_MAX = 80;
 var SIGNED_BY_MAX = 60;
+var REACH_OUT_GAP_MINUTES = [5, 8, 12, 20, 30, 60];
 var REACH_OUT_AFTER_DAYS = { min: 2, max: 30, first: 4 };
 var ReachOutStepSchema = z12.object({
   /** An existing step's id, when the sheet edits a chain; none for a new one. */
@@ -2595,7 +2597,10 @@ var ReachOutChainSchema = z12.object({
   name: z12.string().trim().min(1).max(REACH_OUT_NAME_MAX),
   search_id: z12.string().uuid(),
   include_unconfirmed: z12.boolean(),
-  gap_minutes: z12.number().int().min(5).max(120),
+  /** One of the sheet's paces: the database's CHECK holds the same set (00198). */
+  gap_minutes: z12.number().int().refine((g) => REACH_OUT_GAP_MINUTES.includes(g), {
+    message: `One of ${REACH_OUT_GAP_MINUTES.join(", ")} minutes.`
+  }),
   /** Empty: every verified domain of the workspace (00183). */
   domain_ids: z12.array(z12.string().uuid()).max(5),
   signed_by: z12.string().trim().max(SIGNED_BY_MAX).nullable(),
@@ -2622,6 +2627,45 @@ var OPENING_SCHEMA = {
   required: ["opening", "angle", "facts_used"],
   additionalProperties: false
 };
+var REACH_OUT_PREVIEW_INDEX_MAX = 199;
+var ReachOutPreviewSchema = z13.object({
+  search_id: z13.string().uuid(),
+  index: z13.number().int().min(0).max(REACH_OUT_PREVIEW_INDEX_MAX),
+  include_unconfirmed: z13.boolean(),
+  words: z13.object({
+    subject: z13.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
+    body: z13.string().trim().min(1).max(REACH_OUT_BODY_MAX * 2)
+  }),
+  signed_by: z13.string().trim().max(SIGNED_BY_MAX).nullable(),
+  language: z13.string().regex(/^[a-z]{2,3}(_[A-Z]{2})?$/).optional()
+});
+var REACH_OUT_DECISIONS = ["include", "rewrite", "skip", "not_a_fit"];
+var ReachOutDecideSchema = z13.object({ decision: z13.enum(REACH_OUT_DECISIONS) });
+var REACH_OUT_REFUSALS = {
+  exists: "This search has a reach-out already.",
+  wrote: "This reach-out has written already. Pause it instead.",
+  stepWrote: "That step has written already. Pause the reach-out instead.",
+  outOfPlace: "A step is out of its place. Open the reach-out again.",
+  notFound: "Reach-out not found.",
+  searchNotFound: "Search not found.",
+  domainNotFound: "Domain not found.",
+  sendNotFound: "Email not found.",
+  runNotFound: "Run not found.",
+  runOver: "That run is over.",
+  gone: "That email has gone.",
+  includeHeld: "Only an email the check held for a reason is included.",
+  givenUp: "This email waited two weeks for your answer and was given up.",
+  decision: "Include, rewrite, skip or not a fit.",
+  /** A row's CHECK refused what the words' rules let through: never expected, said plainly. */
+  unsaved: "That reach-out could not be saved as it is. Check its steps and try again.",
+  /** DELETE playbooks/[id] on a reach-out (R16): its history is never deleted there. */
+  notHere: "A reach-out is removed from its own row, and only before its first email goes. After that, pause it.",
+  /** The preview on a deployment that runs nothing. */
+  preview: "Previews only work on the production dashboard.",
+  previewDown: "The preview could not be written just now. Try again in a moment.",
+  budget: "Today's assistant budget is spent, so the preview waits until tomorrow."
+};
+var REFUSAL_SET = new Set(Object.values(REACH_OUT_REFUSALS));
 var CALL_ACTIVITY_STALE_MS = 15 * 6e4;
 
 // src/repositories/ingest.ts
@@ -3313,16 +3357,18 @@ async function sendStanding(db, s) {
 async function emailWordsOf(db, tenantId, templateId) {
   const { data, error } = await db.from("templates").select("components, body_preview").eq("tenant_id", tenantId).eq("id", templateId).eq("channel", "email").maybeSingle();
   if (error) throw new Error(`cannot read the step's words: ${error.message}`);
-  if (!data) return null;
+  return data ? emailWordsFrom(data) : null;
+}
+function emailWordsFrom(row) {
   const part = (type) => {
-    for (const c of Array.isArray(data.components) ? data.components : [])
+    for (const c of Array.isArray(row.components) ? row.components : [])
       if (c && typeof c === "object" && String(c.type ?? "").toUpperCase() === type) {
         const t = c.text;
         return typeof t === "string" && t.trim() ? t : null;
       }
     return null;
   };
-  const body = part("BODY") ?? (data.body_preview?.trim() || null);
+  const body = part("BODY") ?? (row.body_preview?.trim() || null);
   return body ? { subject: part("HEADER"), body } : null;
 }
 async function workspaceNameAndConfig(db, tenantId) {
@@ -3471,20 +3517,11 @@ async function recordCheck(db, p) {
   if (error) throw new Error(`cannot record the send's check: ${error.message}`);
   return (data ?? []).length === 1;
 }
-function checkResetPatch(gen) {
-  return {
-    checked_at: null,
-    check_gen: gen + 1,
-    checked_words: null,
-    check_tries: 0,
-    check_first_at: null,
-    check_after: null,
-    check_started_at: null,
-    opening: null,
-    angle: null,
-    facts_used: [],
-    hold_detail: null
-  };
+async function recheckSends(db, p) {
+  if (p.ids.length === 0) return 0;
+  const { data, error } = await db.rpc("reach_out_recheck", { p_send_ids: p.ids, p_tenant_id: p.tenantId });
+  if (error) throw new Error(`cannot put the sends back to be checked: ${error.message}`);
+  return typeof data === "number" ? data : 0;
 }
 async function heldStale(db, before, limit, tenantId) {
   const { data, error } = await db.rpc("reach_out_held_stale", {
@@ -4259,7 +4296,6 @@ export {
   applyDomainCheck,
   archiveList,
   assembleHistory,
-  checkResetPatch,
   claimCallNotification,
   claimControl,
   claimIdempotencyKey,
@@ -4280,6 +4316,7 @@ export {
   dropFromList,
   dueDomains,
   dueSendingDomains,
+  emailWordsFrom,
   emailWordsOf,
   emitEvent,
   everyoneIn,
@@ -4324,6 +4361,7 @@ export {
   readDealForPhone,
   readLeadContext,
   readThreadState,
+  recheckSends,
   recordCallNote,
   recordCarrierOptOut,
   recordCheck,

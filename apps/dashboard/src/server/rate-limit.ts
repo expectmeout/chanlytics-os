@@ -162,6 +162,8 @@ export const RATE = {
    */
   lead_bulk: { limit: 30, windowMs: 60_000, noun: "changes to many leads" },
   lead_draft: { limit: 60, windowMs: 3_600_000, noun: "email drafts" },
+  /** A reach-out's preview (Part 4, R12): one business's email written by the model, counted in Ask's day as well. */
+  reach_out_preview: { limit: 10, windowMs: 60_000, noun: "previews" },
   lead_suggest: { limit: 10, windowMs: 3_600_000, noun: "suggestion requests" },
   /** A question to the workspace assistant: a model turn, tools and all. */
   ask: { limit: 20, windowMs: 60_000, noun: "questions" },

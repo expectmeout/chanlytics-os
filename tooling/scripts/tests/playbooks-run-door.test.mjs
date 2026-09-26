@@ -724,11 +724,30 @@ test("a proposal is followed up once, whoever sent it (0006): not again after th
   assert.deepEqual([body.outcome, body.eligible], ["sent", 1], "reached: nothing was sent to them");
 });
 
-test("Run now is a moment's: a reach-out step runs through its own verb on its day, and the press is refused before anything is read (Reach out, Part 3)", async () => {
+test("a reach-out's root runs its first step now through the sweep's step runner, and says why (Part 4, R13, R14); a later step runs on its day only", async () => {
   const w = world({ people: { [A]: [person("a1")] } });
   workspace(w.tables, A, "auto");
-  w.tables.playbooks.push(playbook(A, P, { kind: "reach_out", trigger: "lead_first", policy_class: "outreach" }));
+  // No billing row is no permission to spend: the run is held for billing, and nothing is made.
+  w.tables.billing_accounts = (w.tables.billing_accounts ?? []).filter((b) => b.tenant_id !== A);
+  w.tables.playbooks.push(
+    playbook(A, P, {
+      kind: "reach_out",
+      trigger: "lead_first",
+      policy_class: "outreach",
+      lead_search_id: "44444444-4444-4444-8444-444444444444",
+      after_playbook_id: null,
+      gap_minutes: 12,
+      domain_ids: [],
+    }),
+  );
   const [status, body] = await answer(await knock(press));
-  assert.deepEqual([status, body], [409, { ok: false, error: "reach_out" }]);
+  assert.equal(status, 200, JSON.stringify(body));
+  assert.deepEqual([body.ok, body.outcome, body.reason, body.planned, body.run_id], [true, "held", "billing", 0, null]);
   assert.deepEqual(w.tables.broadcasts ?? [], [], "no run was made");
+  const STEP = "55555555-5555-4555-8555-555555555555";
+  w.tables.playbooks.push(
+    playbook(A, STEP, { kind: "reach_out", trigger: "after_step", policy_class: "outreach", after_playbook_id: P }),
+  );
+  const [s2, b2] = await answer(await knock({ ...press, playbook_id: STEP }));
+  assert.deepEqual([s2, b2], [409, { ok: false, error: "reach_out_step" }]);
 });

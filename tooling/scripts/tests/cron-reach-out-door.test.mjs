@@ -99,6 +99,35 @@ function clockReads(t) {
   const running = (id) => t.playbooks.some((p) => p.id === id && p.state === "running");
   const emailOf = (s) => (s.message_id ? t.messages.find((m) => m.id === s.message_id) : null);
   return {
+    // 00198's one reset, as the SQL makes it (proved on a stack, reach-out-sheet-doors.db.test.mjs).
+    reach_out_recheck: (a) => {
+      let n = 0;
+      for (const s of t.reach_out_sends)
+        if (
+          a.p_send_ids.includes(s.id) &&
+          ["planned", "held", "claimed"].includes(s.state) &&
+          (!a.p_tenant_id || s.tenant_id === a.p_tenant_id)
+        ) {
+          Object.assign(s, {
+            state: "planned",
+            reason: null,
+            claimed_at: null,
+            checked_at: null,
+            check_gen: (s.check_gen ?? 0) + 1,
+            checked_words: null,
+            check_tries: 0,
+            check_first_at: null,
+            check_after: null,
+            check_started_at: null,
+            opening: null,
+            angle: null,
+            facts_used: [],
+            hold_detail: null,
+          });
+          n += 1;
+        }
+      return n;
+    },
     reach_out_queued_outcomes: () =>
       t.reach_out_sends
         .filter((s) => s.state === "queued")

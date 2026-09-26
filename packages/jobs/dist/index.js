@@ -168,6 +168,7 @@ import { z as z9 } from "zod";
 import { z as z10 } from "zod";
 import { z as z11 } from "zod";
 import { z as z12 } from "zod";
+import { z as z13 } from "zod";
 z.config({ jitless: true });
 var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
@@ -2641,6 +2642,7 @@ var OPENING_CHARS_MAX = 400;
 var REACH_OUT_STEPS_MAX = 5;
 var REACH_OUT_NAME_MAX = 80;
 var SIGNED_BY_MAX = 60;
+var REACH_OUT_GAP_MINUTES = [5, 8, 12, 20, 30, 60];
 var REACH_OUT_AFTER_DAYS = { min: 2, max: 30, first: 4 };
 var ReachOutStepSchema = z12.object({
   /** An existing step's id, when the sheet edits a chain; none for a new one. */
@@ -2653,7 +2655,10 @@ var ReachOutChainSchema = z12.object({
   name: z12.string().trim().min(1).max(REACH_OUT_NAME_MAX),
   search_id: z12.string().uuid(),
   include_unconfirmed: z12.boolean(),
-  gap_minutes: z12.number().int().min(5).max(120),
+  /** One of the sheet's paces: the database's CHECK holds the same set (00198). */
+  gap_minutes: z12.number().int().refine((g) => REACH_OUT_GAP_MINUTES.includes(g), {
+    message: `One of ${REACH_OUT_GAP_MINUTES.join(", ")} minutes.`
+  }),
   /** Empty: every verified domain of the workspace (00183). */
   domain_ids: z12.array(z12.string().uuid()).max(5),
   signed_by: z12.string().trim().max(SIGNED_BY_MAX).nullable(),
@@ -2680,10 +2685,49 @@ var OPENING_SCHEMA = {
   required: ["opening", "angle", "facts_used"],
   additionalProperties: false
 };
+var REACH_OUT_PREVIEW_INDEX_MAX = 199;
+var ReachOutPreviewSchema = z13.object({
+  search_id: z13.string().uuid(),
+  index: z13.number().int().min(0).max(REACH_OUT_PREVIEW_INDEX_MAX),
+  include_unconfirmed: z13.boolean(),
+  words: z13.object({
+    subject: z13.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
+    body: z13.string().trim().min(1).max(REACH_OUT_BODY_MAX * 2)
+  }),
+  signed_by: z13.string().trim().max(SIGNED_BY_MAX).nullable(),
+  language: z13.string().regex(/^[a-z]{2,3}(_[A-Z]{2})?$/).optional()
+});
+var REACH_OUT_DECISIONS = ["include", "rewrite", "skip", "not_a_fit"];
+var ReachOutDecideSchema = z13.object({ decision: z13.enum(REACH_OUT_DECISIONS) });
+var REACH_OUT_REFUSALS = {
+  exists: "This search has a reach-out already.",
+  wrote: "This reach-out has written already. Pause it instead.",
+  stepWrote: "That step has written already. Pause the reach-out instead.",
+  outOfPlace: "A step is out of its place. Open the reach-out again.",
+  notFound: "Reach-out not found.",
+  searchNotFound: "Search not found.",
+  domainNotFound: "Domain not found.",
+  sendNotFound: "Email not found.",
+  runNotFound: "Run not found.",
+  runOver: "That run is over.",
+  gone: "That email has gone.",
+  includeHeld: "Only an email the check held for a reason is included.",
+  givenUp: "This email waited two weeks for your answer and was given up.",
+  decision: "Include, rewrite, skip or not a fit.",
+  /** A row's CHECK refused what the words' rules let through: never expected, said plainly. */
+  unsaved: "That reach-out could not be saved as it is. Check its steps and try again.",
+  /** DELETE playbooks/[id] on a reach-out (R16): its history is never deleted there. */
+  notHere: "A reach-out is removed from its own row, and only before its first email goes. After that, pause it.",
+  /** The preview on a deployment that runs nothing. */
+  preview: "Previews only work on the production dashboard.",
+  previewDown: "The preview could not be written just now. Try again in a moment.",
+  budget: "Today's assistant budget is spent, so the preview waits until tomorrow."
+};
+var REFUSAL_SET = new Set(Object.values(REACH_OUT_REFUSALS));
 var CALL_ACTIVITY_STALE_MS = 15 * 6e4;
 
 // ../channels/dist/index.js
-import { z as z13 } from "zod";
+import { z as z14 } from "zod";
 import { z as z22 } from "zod";
 import { z as z32 } from "zod";
 import { z as z42 } from "zod";
@@ -2695,6 +2739,7 @@ import { z as z92 } from "zod";
 import { z as z102 } from "zod";
 import { z as z112 } from "zod";
 import { z as z122 } from "zod";
+import { z as z132 } from "zod";
 
 // ../../node_modules/domelementtype/lib/esm/index.js
 var ElementType;
@@ -7635,7 +7680,7 @@ function handleDeprecatedOptions(options) {
 }
 
 // ../channels/dist/index.js
-z13.config({ jitless: true });
+z14.config({ jitless: true });
 var LABEL2 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL2 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE2 = new RegExp(`^(${LOCAL2})@(${LABEL2}(?:\\.${LABEL2})+)$`);
@@ -10062,6 +10107,7 @@ var OPENING_CHARS_MAX2 = 400;
 var REACH_OUT_STEPS_MAX2 = 5;
 var REACH_OUT_NAME_MAX2 = 80;
 var SIGNED_BY_MAX2 = 60;
+var REACH_OUT_GAP_MINUTES2 = [5, 8, 12, 20, 30, 60];
 var REACH_OUT_AFTER_DAYS2 = { min: 2, max: 30, first: 4 };
 var ReachOutStepSchema2 = z122.object({
   /** An existing step's id, when the sheet edits a chain; none for a new one. */
@@ -10074,7 +10120,10 @@ var ReachOutChainSchema2 = z122.object({
   name: z122.string().trim().min(1).max(REACH_OUT_NAME_MAX2),
   search_id: z122.string().uuid(),
   include_unconfirmed: z122.boolean(),
-  gap_minutes: z122.number().int().min(5).max(120),
+  /** One of the sheet's paces: the database's CHECK holds the same set (00198). */
+  gap_minutes: z122.number().int().refine((g) => REACH_OUT_GAP_MINUTES2.includes(g), {
+    message: `One of ${REACH_OUT_GAP_MINUTES2.join(", ")} minutes.`
+  }),
   /** Empty: every verified domain of the workspace (00183). */
   domain_ids: z122.array(z122.string().uuid()).max(5),
   signed_by: z122.string().trim().max(SIGNED_BY_MAX2).nullable(),
@@ -10101,6 +10150,45 @@ var OPENING_SCHEMA2 = {
   required: ["opening", "angle", "facts_used"],
   additionalProperties: false
 };
+var REACH_OUT_PREVIEW_INDEX_MAX2 = 199;
+var ReachOutPreviewSchema2 = z132.object({
+  search_id: z132.string().uuid(),
+  index: z132.number().int().min(0).max(REACH_OUT_PREVIEW_INDEX_MAX2),
+  include_unconfirmed: z132.boolean(),
+  words: z132.object({
+    subject: z132.string().max(REACH_OUT_SUBJECT_MAX2 * 2).nullable(),
+    body: z132.string().trim().min(1).max(REACH_OUT_BODY_MAX2 * 2)
+  }),
+  signed_by: z132.string().trim().max(SIGNED_BY_MAX2).nullable(),
+  language: z132.string().regex(/^[a-z]{2,3}(_[A-Z]{2})?$/).optional()
+});
+var REACH_OUT_DECISIONS2 = ["include", "rewrite", "skip", "not_a_fit"];
+var ReachOutDecideSchema2 = z132.object({ decision: z132.enum(REACH_OUT_DECISIONS2) });
+var REACH_OUT_REFUSALS2 = {
+  exists: "This search has a reach-out already.",
+  wrote: "This reach-out has written already. Pause it instead.",
+  stepWrote: "That step has written already. Pause the reach-out instead.",
+  outOfPlace: "A step is out of its place. Open the reach-out again.",
+  notFound: "Reach-out not found.",
+  searchNotFound: "Search not found.",
+  domainNotFound: "Domain not found.",
+  sendNotFound: "Email not found.",
+  runNotFound: "Run not found.",
+  runOver: "That run is over.",
+  gone: "That email has gone.",
+  includeHeld: "Only an email the check held for a reason is included.",
+  givenUp: "This email waited two weeks for your answer and was given up.",
+  decision: "Include, rewrite, skip or not a fit.",
+  /** A row's CHECK refused what the words' rules let through: never expected, said plainly. */
+  unsaved: "That reach-out could not be saved as it is. Check its steps and try again.",
+  /** DELETE playbooks/[id] on a reach-out (R16): its history is never deleted there. */
+  notHere: "A reach-out is removed from its own row, and only before its first email goes. After that, pause it.",
+  /** The preview on a deployment that runs nothing. */
+  preview: "Previews only work on the production dashboard.",
+  previewDown: "The preview could not be written just now. Try again in a moment.",
+  budget: "Today's assistant budget is spent, so the preview waits until tomorrow."
+};
+var REFUSAL_SET2 = new Set(Object.values(REACH_OUT_REFUSALS2));
 var CALL_ACTIVITY_STALE_MS2 = 15 * 6e4;
 var MEDIA_MAX_BYTES = 25 * 1024 * 1024;
 var CALL_ANALYSIS_FIELDS = [
@@ -10209,7 +10297,7 @@ var dec = new TextDecoder();
 var PAYLOAD_BYTES = 1 + 16 * 3;
 
 // ../core/dist/index.js
-import { z as z14 } from "zod";
+import { z as z15 } from "zod";
 import { z as z23 } from "zod";
 import { z as z33 } from "zod";
 import { z as z43 } from "zod";
@@ -10221,7 +10309,8 @@ import { z as z93 } from "zod";
 import { z as z103 } from "zod";
 import { z as z113 } from "zod";
 import { z as z123 } from "zod";
-import { z as z132 } from "zod";
+import { z as z133 } from "zod";
+import { z as z142 } from "zod";
 import { z as z222 } from "zod";
 import { z as z322 } from "zod";
 import { z as z422 } from "zod";
@@ -10233,7 +10322,8 @@ import { z as z922 } from "zod";
 import { z as z1022 } from "zod";
 import { z as z1122 } from "zod";
 import { z as z1222 } from "zod";
-import { z as z142 } from "zod";
+import { z as z1322 } from "zod";
+import { z as z152 } from "zod";
 import { z as z232 } from "zod";
 import { z as z332 } from "zod";
 import { z as z432 } from "zod";
@@ -10245,6 +10335,7 @@ import { z as z932 } from "zod";
 import { z as z1032 } from "zod";
 import { z as z1132 } from "zod";
 import { z as z1232 } from "zod";
+import { z as z1332 } from "zod";
 var __create2 = Object.create;
 var __defProp2 = Object.defineProperty;
 var __getOwnPropDesc2 = Object.getOwnPropertyDescriptor;
@@ -11164,7 +11255,7 @@ var DEFAULT_OPTIONS2 = {
   whitespaceCharacters: " 	\r\n\f\u200B",
   wordwrap: 80
 };
-z14.config({ jitless: true });
+z15.config({ jitless: true });
 var LABEL3 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL3 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE3 = new RegExp(`^(${LOCAL3})@(${LABEL3}(?:\\.${LABEL3})+)$`);
@@ -13591,6 +13682,7 @@ var OPENING_CHARS_MAX3 = 400;
 var REACH_OUT_STEPS_MAX3 = 5;
 var REACH_OUT_NAME_MAX3 = 80;
 var SIGNED_BY_MAX3 = 60;
+var REACH_OUT_GAP_MINUTES3 = [5, 8, 12, 20, 30, 60];
 var REACH_OUT_AFTER_DAYS3 = { min: 2, max: 30, first: 4 };
 var ReachOutStepSchema3 = z123.object({
   /** An existing step's id, when the sheet edits a chain; none for a new one. */
@@ -13603,7 +13695,10 @@ var ReachOutChainSchema3 = z123.object({
   name: z123.string().trim().min(1).max(REACH_OUT_NAME_MAX3),
   search_id: z123.string().uuid(),
   include_unconfirmed: z123.boolean(),
-  gap_minutes: z123.number().int().min(5).max(120),
+  /** One of the sheet's paces: the database's CHECK holds the same set (00198). */
+  gap_minutes: z123.number().int().refine((g) => REACH_OUT_GAP_MINUTES3.includes(g), {
+    message: `One of ${REACH_OUT_GAP_MINUTES3.join(", ")} minutes.`
+  }),
   /** Empty: every verified domain of the workspace (00183). */
   domain_ids: z123.array(z123.string().uuid()).max(5),
   signed_by: z123.string().trim().max(SIGNED_BY_MAX3).nullable(),
@@ -13630,6 +13725,45 @@ var OPENING_SCHEMA3 = {
   required: ["opening", "angle", "facts_used"],
   additionalProperties: false
 };
+var REACH_OUT_PREVIEW_INDEX_MAX3 = 199;
+var ReachOutPreviewSchema3 = z133.object({
+  search_id: z133.string().uuid(),
+  index: z133.number().int().min(0).max(REACH_OUT_PREVIEW_INDEX_MAX3),
+  include_unconfirmed: z133.boolean(),
+  words: z133.object({
+    subject: z133.string().max(REACH_OUT_SUBJECT_MAX3 * 2).nullable(),
+    body: z133.string().trim().min(1).max(REACH_OUT_BODY_MAX3 * 2)
+  }),
+  signed_by: z133.string().trim().max(SIGNED_BY_MAX3).nullable(),
+  language: z133.string().regex(/^[a-z]{2,3}(_[A-Z]{2})?$/).optional()
+});
+var REACH_OUT_DECISIONS3 = ["include", "rewrite", "skip", "not_a_fit"];
+var ReachOutDecideSchema3 = z133.object({ decision: z133.enum(REACH_OUT_DECISIONS3) });
+var REACH_OUT_REFUSALS3 = {
+  exists: "This search has a reach-out already.",
+  wrote: "This reach-out has written already. Pause it instead.",
+  stepWrote: "That step has written already. Pause the reach-out instead.",
+  outOfPlace: "A step is out of its place. Open the reach-out again.",
+  notFound: "Reach-out not found.",
+  searchNotFound: "Search not found.",
+  domainNotFound: "Domain not found.",
+  sendNotFound: "Email not found.",
+  runNotFound: "Run not found.",
+  runOver: "That run is over.",
+  gone: "That email has gone.",
+  includeHeld: "Only an email the check held for a reason is included.",
+  givenUp: "This email waited two weeks for your answer and was given up.",
+  decision: "Include, rewrite, skip or not a fit.",
+  /** A row's CHECK refused what the words' rules let through: never expected, said plainly. */
+  unsaved: "That reach-out could not be saved as it is. Check its steps and try again.",
+  /** DELETE playbooks/[id] on a reach-out (R16): its history is never deleted there. */
+  notHere: "A reach-out is removed from its own row, and only before its first email goes. After that, pause it.",
+  /** The preview on a deployment that runs nothing. */
+  preview: "Previews only work on the production dashboard.",
+  previewDown: "The preview could not be written just now. Try again in a moment.",
+  budget: "Today's assistant budget is spent, so the preview waits until tomorrow."
+};
+var REFUSAL_SET3 = new Set(Object.values(REACH_OUT_REFUSALS3));
 var CALL_ACTIVITY_STALE_MS3 = 15 * 6e4;
 var MEDIA_MAX_BYTES2 = 25 * 1024 * 1024;
 var CALL_ANALYSIS_FIELDS2 = [
@@ -13724,7 +13858,7 @@ var STATE_TTL_MS2 = 10 * 6e4;
 var enc22 = new TextEncoder();
 var dec2 = new TextDecoder();
 var PAYLOAD_BYTES2 = 1 + 16 * 3;
-z132.config({ jitless: true });
+z142.config({ jitless: true });
 var MAX_ADDRESS = 254;
 var MAX_LOCAL = 64;
 var LABEL22 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
@@ -16237,6 +16371,7 @@ var OPENING_CHARS_MAX22 = 400;
 var REACH_OUT_STEPS_MAX22 = 5;
 var REACH_OUT_NAME_MAX22 = 80;
 var SIGNED_BY_MAX22 = 60;
+var REACH_OUT_GAP_MINUTES22 = [5, 8, 12, 20, 30, 60];
 var REACH_OUT_AFTER_DAYS22 = { min: 2, max: 30, first: 4 };
 var ReachOutStepSchema22 = z1222.object({
   /** An existing step's id, when the sheet edits a chain; none for a new one. */
@@ -16249,7 +16384,10 @@ var ReachOutChainSchema22 = z1222.object({
   name: z1222.string().trim().min(1).max(REACH_OUT_NAME_MAX22),
   search_id: z1222.string().uuid(),
   include_unconfirmed: z1222.boolean(),
-  gap_minutes: z1222.number().int().min(5).max(120),
+  /** One of the sheet's paces: the database's CHECK holds the same set (00198). */
+  gap_minutes: z1222.number().int().refine((g) => REACH_OUT_GAP_MINUTES22.includes(g), {
+    message: `One of ${REACH_OUT_GAP_MINUTES22.join(", ")} minutes.`
+  }),
   /** Empty: every verified domain of the workspace (00183). */
   domain_ids: z1222.array(z1222.string().uuid()).max(5),
   signed_by: z1222.string().trim().max(SIGNED_BY_MAX22).nullable(),
@@ -16286,8 +16424,47 @@ var OPENING_SCHEMA22 = {
   required: ["opening", "angle", "facts_used"],
   additionalProperties: false
 };
+var REACH_OUT_PREVIEW_INDEX_MAX22 = 199;
+var ReachOutPreviewSchema22 = z1322.object({
+  search_id: z1322.string().uuid(),
+  index: z1322.number().int().min(0).max(REACH_OUT_PREVIEW_INDEX_MAX22),
+  include_unconfirmed: z1322.boolean(),
+  words: z1322.object({
+    subject: z1322.string().max(REACH_OUT_SUBJECT_MAX22 * 2).nullable(),
+    body: z1322.string().trim().min(1).max(REACH_OUT_BODY_MAX22 * 2)
+  }),
+  signed_by: z1322.string().trim().max(SIGNED_BY_MAX22).nullable(),
+  language: z1322.string().regex(/^[a-z]{2,3}(_[A-Z]{2})?$/).optional()
+});
+var REACH_OUT_DECISIONS22 = ["include", "rewrite", "skip", "not_a_fit"];
+var ReachOutDecideSchema22 = z1322.object({ decision: z1322.enum(REACH_OUT_DECISIONS22) });
+var REACH_OUT_REFUSALS22 = {
+  exists: "This search has a reach-out already.",
+  wrote: "This reach-out has written already. Pause it instead.",
+  stepWrote: "That step has written already. Pause the reach-out instead.",
+  outOfPlace: "A step is out of its place. Open the reach-out again.",
+  notFound: "Reach-out not found.",
+  searchNotFound: "Search not found.",
+  domainNotFound: "Domain not found.",
+  sendNotFound: "Email not found.",
+  runNotFound: "Run not found.",
+  runOver: "That run is over.",
+  gone: "That email has gone.",
+  includeHeld: "Only an email the check held for a reason is included.",
+  givenUp: "This email waited two weeks for your answer and was given up.",
+  decision: "Include, rewrite, skip or not a fit.",
+  /** A row's CHECK refused what the words' rules let through: never expected, said plainly. */
+  unsaved: "That reach-out could not be saved as it is. Check its steps and try again.",
+  /** DELETE playbooks/[id] on a reach-out (R16): its history is never deleted there. */
+  notHere: "A reach-out is removed from its own row, and only before its first email goes. After that, pause it.",
+  /** The preview on a deployment that runs nothing. */
+  preview: "Previews only work on the production dashboard.",
+  previewDown: "The preview could not be written just now. Try again in a moment.",
+  budget: "Today's assistant budget is spent, so the preview waits until tomorrow."
+};
+var REFUSAL_SET22 = new Set(Object.values(REACH_OUT_REFUSALS22));
 var CALL_ACTIVITY_STALE_MS22 = 15 * 6e4;
-z142.config({ jitless: true });
+z152.config({ jitless: true });
 var LABEL32 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL32 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE32 = new RegExp(`^(${LOCAL32})@(${LABEL32}(?:\\.${LABEL32})+)$`);
@@ -18707,6 +18884,7 @@ var OPENING_CHARS_MAX32 = 400;
 var REACH_OUT_STEPS_MAX32 = 5;
 var REACH_OUT_NAME_MAX32 = 80;
 var SIGNED_BY_MAX32 = 60;
+var REACH_OUT_GAP_MINUTES32 = [5, 8, 12, 20, 30, 60];
 var REACH_OUT_AFTER_DAYS32 = { min: 2, max: 30, first: 4 };
 var ReachOutStepSchema32 = z1232.object({
   /** An existing step's id, when the sheet edits a chain; none for a new one. */
@@ -18719,7 +18897,10 @@ var ReachOutChainSchema32 = z1232.object({
   name: z1232.string().trim().min(1).max(REACH_OUT_NAME_MAX32),
   search_id: z1232.string().uuid(),
   include_unconfirmed: z1232.boolean(),
-  gap_minutes: z1232.number().int().min(5).max(120),
+  /** One of the sheet's paces: the database's CHECK holds the same set (00198). */
+  gap_minutes: z1232.number().int().refine((g) => REACH_OUT_GAP_MINUTES32.includes(g), {
+    message: `One of ${REACH_OUT_GAP_MINUTES32.join(", ")} minutes.`
+  }),
   /** Empty: every verified domain of the workspace (00183). */
   domain_ids: z1232.array(z1232.string().uuid()).max(5),
   signed_by: z1232.string().trim().max(SIGNED_BY_MAX32).nullable(),
@@ -18746,6 +18927,45 @@ var OPENING_SCHEMA32 = {
   required: ["opening", "angle", "facts_used"],
   additionalProperties: false
 };
+var REACH_OUT_PREVIEW_INDEX_MAX32 = 199;
+var ReachOutPreviewSchema32 = z1332.object({
+  search_id: z1332.string().uuid(),
+  index: z1332.number().int().min(0).max(REACH_OUT_PREVIEW_INDEX_MAX32),
+  include_unconfirmed: z1332.boolean(),
+  words: z1332.object({
+    subject: z1332.string().max(REACH_OUT_SUBJECT_MAX32 * 2).nullable(),
+    body: z1332.string().trim().min(1).max(REACH_OUT_BODY_MAX32 * 2)
+  }),
+  signed_by: z1332.string().trim().max(SIGNED_BY_MAX32).nullable(),
+  language: z1332.string().regex(/^[a-z]{2,3}(_[A-Z]{2})?$/).optional()
+});
+var REACH_OUT_DECISIONS32 = ["include", "rewrite", "skip", "not_a_fit"];
+var ReachOutDecideSchema32 = z1332.object({ decision: z1332.enum(REACH_OUT_DECISIONS32) });
+var REACH_OUT_REFUSALS32 = {
+  exists: "This search has a reach-out already.",
+  wrote: "This reach-out has written already. Pause it instead.",
+  stepWrote: "That step has written already. Pause the reach-out instead.",
+  outOfPlace: "A step is out of its place. Open the reach-out again.",
+  notFound: "Reach-out not found.",
+  searchNotFound: "Search not found.",
+  domainNotFound: "Domain not found.",
+  sendNotFound: "Email not found.",
+  runNotFound: "Run not found.",
+  runOver: "That run is over.",
+  gone: "That email has gone.",
+  includeHeld: "Only an email the check held for a reason is included.",
+  givenUp: "This email waited two weeks for your answer and was given up.",
+  decision: "Include, rewrite, skip or not a fit.",
+  /** A row's CHECK refused what the words' rules let through: never expected, said plainly. */
+  unsaved: "That reach-out could not be saved as it is. Check its steps and try again.",
+  /** DELETE playbooks/[id] on a reach-out (R16): its history is never deleted there. */
+  notHere: "A reach-out is removed from its own row, and only before its first email goes. After that, pause it.",
+  /** The preview on a deployment that runs nothing. */
+  preview: "Previews only work on the production dashboard.",
+  previewDown: "The preview could not be written just now. Try again in a moment.",
+  budget: "Today's assistant budget is spent, so the preview waits until tomorrow."
+};
+var REFUSAL_SET32 = new Set(Object.values(REACH_OUT_REFUSALS32));
 var CALL_ACTIVITY_STALE_MS32 = 15 * 6e4;
 async function recordCarrierOptOut(db, p) {
   const { data, error } = await db.from("contacts").update({
@@ -19459,7 +19679,7 @@ var STALE_MS = 10 * 60 * 1e3;
 var STALE_REPLY_MS = 2 * 60 * 60 * 1e3;
 
 // ../db/dist/index.js
-import { z as z15 } from "zod";
+import { z as z16 } from "zod";
 import { z as z24 } from "zod";
 import { z as z34 } from "zod";
 import { z as z44 } from "zod";
@@ -19471,7 +19691,8 @@ import { z as z94 } from "zod";
 import { z as z104 } from "zod";
 import { z as z114 } from "zod";
 import { z as z124 } from "zod";
-z15.config({ jitless: true });
+import { z as z134 } from "zod";
+z16.config({ jitless: true });
 function normalizePhone(raw) {
   if (raw == null) return null;
   const digits2 = String(raw).replace(/[^\d]/g, "");
@@ -21898,6 +22119,7 @@ var OPENING_CHARS_MAX4 = 400;
 var REACH_OUT_STEPS_MAX4 = 5;
 var REACH_OUT_NAME_MAX4 = 80;
 var SIGNED_BY_MAX4 = 60;
+var REACH_OUT_GAP_MINUTES4 = [5, 8, 12, 20, 30, 60];
 var REACH_OUT_AFTER_DAYS4 = { min: 2, max: 30, first: 4 };
 var ReachOutStepSchema4 = z124.object({
   /** An existing step's id, when the sheet edits a chain; none for a new one. */
@@ -21910,7 +22132,10 @@ var ReachOutChainSchema4 = z124.object({
   name: z124.string().trim().min(1).max(REACH_OUT_NAME_MAX4),
   search_id: z124.string().uuid(),
   include_unconfirmed: z124.boolean(),
-  gap_minutes: z124.number().int().min(5).max(120),
+  /** One of the sheet's paces: the database's CHECK holds the same set (00198). */
+  gap_minutes: z124.number().int().refine((g) => REACH_OUT_GAP_MINUTES4.includes(g), {
+    message: `One of ${REACH_OUT_GAP_MINUTES4.join(", ")} minutes.`
+  }),
   /** Empty: every verified domain of the workspace (00183). */
   domain_ids: z124.array(z124.string().uuid()).max(5),
   signed_by: z124.string().trim().max(SIGNED_BY_MAX4).nullable(),
@@ -21937,6 +22162,45 @@ var OPENING_SCHEMA4 = {
   required: ["opening", "angle", "facts_used"],
   additionalProperties: false
 };
+var REACH_OUT_PREVIEW_INDEX_MAX4 = 199;
+var ReachOutPreviewSchema4 = z134.object({
+  search_id: z134.string().uuid(),
+  index: z134.number().int().min(0).max(REACH_OUT_PREVIEW_INDEX_MAX4),
+  include_unconfirmed: z134.boolean(),
+  words: z134.object({
+    subject: z134.string().max(REACH_OUT_SUBJECT_MAX4 * 2).nullable(),
+    body: z134.string().trim().min(1).max(REACH_OUT_BODY_MAX4 * 2)
+  }),
+  signed_by: z134.string().trim().max(SIGNED_BY_MAX4).nullable(),
+  language: z134.string().regex(/^[a-z]{2,3}(_[A-Z]{2})?$/).optional()
+});
+var REACH_OUT_DECISIONS4 = ["include", "rewrite", "skip", "not_a_fit"];
+var ReachOutDecideSchema4 = z134.object({ decision: z134.enum(REACH_OUT_DECISIONS4) });
+var REACH_OUT_REFUSALS4 = {
+  exists: "This search has a reach-out already.",
+  wrote: "This reach-out has written already. Pause it instead.",
+  stepWrote: "That step has written already. Pause the reach-out instead.",
+  outOfPlace: "A step is out of its place. Open the reach-out again.",
+  notFound: "Reach-out not found.",
+  searchNotFound: "Search not found.",
+  domainNotFound: "Domain not found.",
+  sendNotFound: "Email not found.",
+  runNotFound: "Run not found.",
+  runOver: "That run is over.",
+  gone: "That email has gone.",
+  includeHeld: "Only an email the check held for a reason is included.",
+  givenUp: "This email waited two weeks for your answer and was given up.",
+  decision: "Include, rewrite, skip or not a fit.",
+  /** A row's CHECK refused what the words' rules let through: never expected, said plainly. */
+  unsaved: "That reach-out could not be saved as it is. Check its steps and try again.",
+  /** DELETE playbooks/[id] on a reach-out (R16): its history is never deleted there. */
+  notHere: "A reach-out is removed from its own row, and only before its first email goes. After that, pause it.",
+  /** The preview on a deployment that runs nothing. */
+  preview: "Previews only work on the production dashboard.",
+  previewDown: "The preview could not be written just now. Try again in a moment.",
+  budget: "Today's assistant budget is spent, so the preview waits until tomorrow."
+};
+var REFUSAL_SET4 = new Set(Object.values(REACH_OUT_REFUSALS4));
 var CALL_ACTIVITY_STALE_MS4 = 15 * 6e4;
 async function ingestInbound(db, p) {
   const { data, error } = await db.rpc("ingest_inbound", {

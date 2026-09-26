@@ -3141,6 +3141,34 @@ Expected: PASS. In the integration test, the explicit "mark checked" from PR 2 i
 
 A member saves a chain, counts a search's reach, answers a held send and reads a chain's report, each through a door that checks who is asking (F7). Starting a chain plans its first run now (F11).
 
+> **As built (PRs 4 and 5 shipped together, as one PR, with migration 00198).** The check took 00197 (00189–00196 were
+> `main`'s and #1146's), so the doors' migration is `00198_the_reach_out_sheet_s_doors.sql`. It applies twice on a
+> replayed stack, and the generated database types match it. What departs from the task code below, and why:
+>
+> - **R5, one reset.** `reach_out_recheck(send_ids, tenant)` is the only reset of a send's check (planned, unchecked, at
+>   the words' next version, `included_for` kept). The save, Rewrite, the run's "check the held again", 00197's hourly
+>   release (re-created on it) and the edge sender's recheck (`recheckSends`, replacing `checkResetPatch`) all call it.
+> - **R13, no new run-now door.** `playbooks-run.ts` runs a chain's root through `lib/reach-out/run-step.ts`, the
+>   playbooks sweep's loop body moved so both can call it. It keeps its full-path audience and `user_id`. A later step
+>   is a 409 `reach_out_step`. There is no `reach-out-run` door, and Task 4.3 is not built.
+> - **R14.** The door answers `{ outcome, reason, planned, run_id }`. `runPlaybookNow` catches an edge it cannot
+>   reach (`edge_unreachable`), and contracts `startWords` says each reason. Only an unreached edge says "within the
+>   hour".
+> - **R15.** `reach_out_save(tenant, user, chain)` is granted to `service_role` only. The route checks the role and
+>   runs `validateReachOutChain`, and the door checks the membership again. The gap is a CHECK
+>   (`playbooks_reach_out_gap`), and `ReachOutChainSchema` refines it to the same set.
+> - **R16.** `playbooks_acting_delete` is narrowed to moments. `reach_out_remove` refuses a chain once any send is
+>   claimed, queued, sent or failed. The report's `can_remove` is that same predicate.
+> - **R17.** Dropping a step that wrote is refused ("That step has written already. Pause the reach-out instead.").
+>   Its history is kept.
+> - **R18.** `reach_out_send_decide` does all four answers, with `not_a_fit` through `lead_set_stage` in the same
+>   transaction. It is a session door (definer, `is_acting_member`) because `lead_set_stage` needs `auth.uid()`.
+>   `reach_out_run_recheck` is the run-level door.
+> - **R23.** The report's per-step Wrote back and Said no count each lead once, at the last step that wrote to them.
+>   The per-step figures therefore sum to the chain's distinct leads. Wrote back is `outreach_lead_facts`' own
+>   reading.
+> - Every refusal the doors raise is a sentence in contracts `REACH_OUT_REFUSALS`, and the routes show only those.
+
 ### Task 4.1: The migration
 
 **Files:** Create `supabase/migrations/00198_the_reach_out_sheet_s_doors.sql`; Regenerate `database.types.ts`
@@ -3598,6 +3626,27 @@ The sweep's loop keeps its `runDueNow` gate and its zone read, and calls this. I
 ## PR 5 — The routes and the words (`reach-out-4e-routes`)
 
 The dashboard reads and writes reach-outs through routes declared with `route()`, and every sentence the pages will say is a contracts view model, tested here before any page draws it. No migration.
+
+> **As built (with PR 4, one PR, 00198).** The routes are `GET/POST reach-outs`, `GET/PUT/DELETE reach-outs/[id]`,
+> `POST reach-outs/preview`, `GET reach-outs/reach`, `POST reach-out-sends/[id]/decide` (`row(reachOutSendScope)`) and
+> `POST broadcasts/[id]/recheck`. That is nine policy rows. What departs from the task code below:
+>
+> - **Start** is `POST reach-outs` for a new chain. It saves, then calls `runPlaybookNow` (R13). The answer carries
+>   `start: ReachOutStartDto`, which `startWords` says (R14). An edit starts nothing.
+> - **R12.** The preview route declares `spend: true` and a `reach_out_preview` bucket (10 a minute). The edge door
+>   takes `user_id`, refuses a workspace past `ASK_TOKENS_DAY` (429 `ask_budget`), and records the model's tokens as
+>   `usage.ask_tokens` with purpose `reach_out_preview`.
+> - **R23.** `GET reach-outs` lists chains without the report. `GET reach-outs/[id]` reads the report and the search's
+>   reach. `ReachOutChainDto.next` carries what `nextRunWords` needs (paused, never, billing, a waiting run, then the
+>   moments' `nextRunLabel`).
+> - **The view models.** They are `reachLineOf`, `paceWords`, `sheetFootWords`, `stepLabel`, `stepWhenWords`,
+>   `startWords`, `nextRunWords`, `approvalWordsOf` (R21: counts only checked sends, and an earlier day's run goes
+>   "from now"; R22: "each has a checked address" only without unconfirmed addresses, and the domains come from the
+>   run's sends with their days sent), `chainHintOf`, `chainReportWordsOf` (with `can_remove` and R24's stop-one line)
+>   and `emailTemplateWords` (R19: "a reach-out sends email only", with no switches).
+> - `DELETE playbooks/[id]` refuses a reach-out's step (409, R16). A reach-out run's `GET broadcasts/[id]` carries
+>   `reach_out`.
+> - The GET routes read through `server/reach-outs.ts`, not a named reader. Ask does not read reach-outs yet.
 
 ### Task 5.1: The DTOs
 

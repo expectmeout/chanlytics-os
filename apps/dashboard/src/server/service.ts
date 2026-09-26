@@ -24,6 +24,11 @@ function serviceDb(): SupabaseClient<Database> {
   return svc;
 }
 
+/** For tests: the service-role client the calls here use. */
+export function setServiceClient(db: SupabaseClient<Database> | null): void {
+  svc = db;
+}
+
 export async function schedule(
   tenantId: string,
   kind: JobKind,
@@ -791,6 +796,10 @@ export type RunPlaybookOutcome =
       skipped?: string;
       scheduledFor: string | null;
       movedFrom: string | null;
+      /** A reach-out's root (Part 4, R14): why it held, came back empty or is off, what it planned, its run. */
+      reason?: string | null;
+      planned?: number;
+      runId?: string | null;
     }
   | { ok: false; reason: string; detail?: string };
 
@@ -804,11 +813,13 @@ export async function runPlaybookNow(
   userId: string,
 ): Promise<RunPlaybookOutcome> {
   if (!deployment.providersLive) return { ok: false, reason: "preview" };
+  // An edge that cannot be reached is said as such: the hourly sweep runs what it would have (R14).
   const r = await fetch(`${edgeUrl()}/api/admin/playbooks-run`, {
     method: "POST",
     headers: edgeHeaders("/api/admin/playbooks-run", { workspace: tenantId, user: userId }),
     body: JSON.stringify({ tenant_id: tenantId, playbook_id: playbookId, user_id: userId }),
-  });
+  }).catch(() => null);
+  if (!r) return { ok: false, reason: "edge_unreachable" };
   const j = (await r.json().catch(() => ({}))) as {
     ok?: boolean;
     outcome?: string;
@@ -817,6 +828,9 @@ export async function runPlaybookNow(
     skipped?: string;
     scheduled_for?: unknown;
     moved_from?: unknown;
+    reason?: unknown;
+    planned?: unknown;
+    run_id?: unknown;
     error?: string;
     detail?: string;
   };
@@ -831,9 +845,58 @@ export async function runPlaybookNow(
       skipped: j.skipped,
       scheduledFor: at(j.scheduled_for),
       movedFrom: at(j.moved_from),
+      reason: at(j.reason),
+      planned: typeof j.planned === "number" ? j.planned : undefined,
+      runId: at(j.run_id),
     };
   }
   return { ok: false, reason: j.error ? String(j.error) : `edge ${r.status}`, detail: j.detail };
+}
+
+/* ---- Reach out (Part 4): a chain saved by the service role, and one business's preview ---- */
+
+/**
+ * A chain, made or edited whole (00198 reach_out_save). The service role's alone (R15): the route has checked the
+ * member's role and validated every word, and passes who they are; the door checks the membership again.
+ */
+export async function saveReachOut(
+  tenantId: string,
+  userId: string,
+  chain: Record<string, unknown>,
+  db: SupabaseClient<Database> = serviceDb(),
+): Promise<{ data: unknown; error: { code?: string; message: string } | null }> {
+  const { data, error } = await db.rpc("reach_out_save", {
+    p_tenant_id: tenantId,
+    p_user_id: userId,
+    p_chain: chain as Json,
+  });
+  return { data, error };
+}
+
+export type ReachOutPreviewOutcome =
+  | { ok: true; preview: unknown }
+  | { ok: false; reason: "preview" | "edge_unreachable" | "ask_budget" | "bad_request" | string };
+
+/**
+ * One business's email as the chain would write it (the edge's reach-out-preview door, R11): the model is asked, and
+ * what it cost is counted in Ask's daily budget against this member (R12).
+ */
+export async function previewReachOut(
+  tenantId: string,
+  userId: string,
+  body: Record<string, unknown>,
+): Promise<ReachOutPreviewOutcome> {
+  if (!deployment.providersLive) return { ok: false, reason: "preview" };
+  const r = await fetch(`${edgeUrl()}/api/admin/reach-out-preview`, {
+    method: "POST",
+    headers: edgeHeaders("/api/admin/reach-out-preview", { workspace: tenantId, user: userId }),
+    body: JSON.stringify({ ...body, tenant_id: tenantId, user_id: userId }),
+  }).catch(() => null);
+  if (!r) return { ok: false, reason: "edge_unreachable" };
+  const j = (await r.json().catch(() => ({}))) as { ok?: boolean; preview?: unknown; error?: string };
+  return r.ok && j.ok && j.preview
+    ? { ok: true, preview: j.preview }
+    : { ok: false, reason: j.error ?? `edge ${r.status}` };
 }
 
 /**
