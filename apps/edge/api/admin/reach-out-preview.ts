@@ -4,15 +4,16 @@
  * workspace, and what the body names. The preview itself is lib/reach-out/preview.ts: the check's own writer and
  * reader, and the sender's own assembly. Nothing is stored.
  *
- * Body { tenant_id, search_id, index, include_unconfirmed, words: { subject, body }, signed_by, language }. A search
- * that is not the workspace's reads as no business (the audience is keyed by both).
+ * Body { tenant_id, search_id, index, include_unconfirmed, words: { subject, body }, signed_by, language }; index is
+ * 0 to 199 (a run's cap), and any other is a 400. A search that is not the workspace's reads as no business (the
+ * audience is keyed by both).
  */
 import { json } from "../../lib/http.js";
 import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
 import { logger } from "../../lib/log.js";
 import { REACH_OUT_BODY_MAX, REACH_OUT_SUBJECT_MAX, SIGNED_BY_MAX } from "../../lib/packages/contracts.js";
-import { previewOne } from "../../lib/reach-out/preview.js";
+import { PREVIEW_INDEX_MAX, previewOne } from "../../lib/reach-out/preview.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const LANGUAGE = /^[a-z]{2,3}(_[A-Z]{2})?$/;
@@ -50,6 +51,7 @@ export async function POST(request: Request): Promise<Response> {
     typeof body.index !== "number" ||
     !Number.isInteger(body.index) ||
     body.index < 0 ||
+    body.index > PREVIEW_INDEX_MAX ||
     typeof body.include_unconfirmed !== "boolean" ||
     typeof words !== "string" ||
     !words.trim() ||

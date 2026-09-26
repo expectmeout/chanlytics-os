@@ -179,10 +179,12 @@ test("a body without words, or with an index or a language that is not one, is a
     assert.deepEqual(await answer(await knock(bad)), [400, { ok: false, error: "bad_request" }], JSON.stringify(bad));
 });
 
-test("the index is capped at 199, and the catch-all addresses come when the chain includes them (R11)", async () => {
+test("an index past 199 is refused, never clamped; the catch-all addresses come when the chain includes them (R11)", async () => {
   model();
   const w = world();
-  await knock(BODY({ index: 5000, include_unconfirmed: true }));
+  assert.deepEqual(await answer(await knock(BODY({ index: 200 }))), [400, { ok: false, error: "bad_request" }]);
+  assert.equal(w.asked.length, 0, "nothing was read for it");
+  await knock(BODY({ index: 199, include_unconfirmed: true }));
   assert.deepEqual([w.asked[0].p_limit, w.asked[0].p_include_unconfirmed], [200, true]);
 });
 

@@ -81,7 +81,10 @@ export async function previewOne(
     refused: null,
     unavailable: false,
   };
-  const index = Math.min(Math.max(0, Math.floor(Number.isFinite(i.index) ? i.index : 0)), PREVIEW_INDEX_MAX);
+  // The door refuses any other (a 400): never a silent clamp to a business the owner did not ask for.
+  if (!Number.isInteger(i.index) || i.index < 0 || i.index > PREVIEW_INDEX_MAX)
+    throw new RangeError(`a preview's index is a whole number from 0 to ${PREVIEW_INDEX_MAX}`);
+  const index = i.index;
   const leads = await reachOutAudience(db, {
     tenantId: i.tenantId,
     searchId: i.searchId,
