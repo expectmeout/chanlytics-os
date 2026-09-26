@@ -34,7 +34,6 @@ import {
 } from "../lib/packages/channels.js";
 import {
   pauseConversation,
-  resolveChannel,
   resolveChannelDetailed,
   ingestCall,
   recordCallNote,
@@ -142,7 +141,13 @@ async function routeDelivery(
     .eq("retell_call_id", n.retellCallId)
     .limit(1)
     .maybeSingle();
-  if (error) return { channel: null, lookupFailed: true };
+  if (error) {
+    // The REASON rides the log: an RLS or grant regression on `calls` must
+    // read differently from a network blip, and the door's refusal names
+    // the call, not the cause.
+    L.error("retell_call_row_unreadable", { call_id: n.retellCallId, error: error.message });
+    return { channel: null, lookupFailed: true };
+  }
   const agentId = (data as { agent_id?: string | null } | null)?.agent_id ?? null;
   return agentId ? resolveChannelDetailed(db, "voice", agentId) : { channel: null, lookupFailed: false };
 }
@@ -270,6 +275,13 @@ export async function POST(request: Request): Promise<Response> {
 
   const n = normalizeCall(call);
   const db = pg();
+  if (!db) {
+    // No control plane: nothing can be checked or written, so the delivery is
+    // not acknowledged. The SMS and WhatsApp doors answer the same 503, and a
+    // credential-less deployment answers no_database platform-wide (lib/pg.ts).
+    L.error("retell_no_database", { call_id: n.retellCallId, retell_event: event });
+    return json(503, { ok: false, error: "no_database" });
+  }
   // Whose call this is, decided ONCE and before anything is written. A read
   // that FAILED is not "nobody's agent": the dead letter below is for a
   // database that ANSWERED, and a blip is a 503 -- nothing is written, and
@@ -278,18 +290,18 @@ export async function POST(request: Request): Promise<Response> {
   // a 200, which the provider took as delivered and never sent again; and it
   // skipped the erasure guard below on the way, since the guard could not be
   // placed either.
-  const lookup = db ? await routeDelivery(db, n) : null;
-  if (lookup?.lookupFailed) {
+  const lookup = await routeDelivery(db, n);
+  if (lookup.lookupFailed) {
     L.error("retell_routing_unreadable", { call_id: n.retellCallId, agent_id: n.agentId, retell_event: event });
     return json(503, { ok: false, error: "routing_unreadable" });
   }
-  const routed = lookup?.channel ?? null;
+  const routed = lookup.channel;
   // A call that began before its caller asked to be erased belongs to the
   // erasure: its events must not make the person again with the call's data,
   // nor mail the owner about them. A call begun after the request is the
   // person calling back, and is theirs to make. A check that cannot be MADE
   // sends the delivery back rather than proceeding: see below.
-  if (db && routed && n.fromE164 && n.startedAtIso) {
+  if (routed && n.fromE164 && n.startedAtIso) {
     // A read that FAILED is not "nobody asked to be forgotten". The comment
     // above once promised a late sweep to catch what this let through; there
     // is no such sweep, so the promise was the only thing standing between a
@@ -549,22 +561,20 @@ export async function POST(request: Request): Promise<Response> {
     const callback = n.analysis?.outcome === "callback_needed";
     const durationS = n.durationMs ? Math.round(n.durationMs / 1000) : 0;
 
-    // Resolve the tenant ONCE for this block: the summary email is
-    // tenant-scoped, and resolving it twice invites two answers.
-    const db2 = pg();
-    const routedForCall = db2 && n.agentId ? await resolveChannel(db2, "voice", n.agentId) : null;
+    // The tenant was decided ONCE, above, before anything was written: the
+    // summary email is tenant-scoped, and resolving it twice invites two
+    // answers.
 
     // Same pipeline as WhatsApp escalations — and addressed the same way. This
     // email carries a caller's number and a full TRANSCRIPT of what they said,
     // and it used to fall back to a hardcoded personal address: with a second
     // tenant, one business's call recording summary delivered to another
     // business's owner. It now goes only to a mailbox we know is this tenant's.
-    const addressing =
-      db2 && routedForCall
-        ? await loadTenantNotifications(db2, routedForCall.tenantId)
-        : { notifications: null, isEnvDefault: false };
+    const addressing = routed
+      ? await loadTenantNotifications(db, routed.tenantId)
+      : { notifications: null, isEnvDefault: false };
     await notify(
-      { tenantId: routedForCall?.tenantId ?? null, ...addressing },
+      { tenantId: routed?.tenantId ?? null, ...addressing },
       {
         kind: "call",
         route: "conversations/phone",

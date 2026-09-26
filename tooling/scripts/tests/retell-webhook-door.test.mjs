@@ -541,7 +541,7 @@ test("the note waits for the SUMMARY, not for the analysis: a call_ended that al
     // end of the call stands -- the analysis's own words go to the owner, not
     // into the thread -- and the bell rings once, now. Postgres holds the
     // note's unique key; the double runs over the refusal it would give.
-    w.open({ "messages.insert": DUPLICATE("messages_tenant_external") });
+    w.open({ "messages.insert": DUPLICATE("messages_tenant_external_uq") });
     const analysed = await deliver(
       "call_analyzed",
       w.analysed(id, {
@@ -706,7 +706,7 @@ test("call_analyzed: the note lands in the caller's thread and the call links to
     // holds the note's unique key; the double does not, so the replay runs
     // over the refusal Postgres would give -- and the claim on the row makes
     // everything after the note a no-op.
-    w.open({ "messages.insert": DUPLICATE("messages_tenant_external") });
+    w.open({ "messages.insert": DUPLICATE("messages_tenant_external_uq") });
     const again = await deliver("call_analyzed", w.analysed(id));
     assert.deepEqual([again.status, await again.json()], [200, { ok: true, duplicate: true }]);
     assert.equal(w.tables.calls.length, 1, "one row: the upsert on (tenant, retell_call_id) is the gate");
@@ -931,7 +931,7 @@ test("callback_needed: the thread is paused for the workspace's own hours, one c
     esc[0].state = "open";
     w.open({
       "escalations.insert": DUPLICATE("escalations_one_open"),
-      "messages.insert": DUPLICATE("messages_tenant_external"),
+      "messages.insert": DUPLICATE("messages_tenant_external_uq"),
     });
     const again = await deliver(
       "call_analyzed",
@@ -1147,7 +1147,7 @@ test("callback_needed on call_ended: the thread is there and the analysis says s
     // The same words, as the analysis: the thread is paused and on Needs you,
     // the one escalation opens with the to-do, the bell is about the thread.
     // Postgres holds the note's unique key; the double runs over the refusal.
-    w.open({ "messages.insert": DUPLICATE("messages_tenant_external") });
+    w.open({ "messages.insert": DUPLICATE("messages_tenant_external_uq") });
     const before = Date.now();
     const analysed = await deliver("call_analyzed", w.analysed(id, { call_analysis }));
     assert.deepEqual([analysed.status, await analysed.json()], [200, { ok: true }]);
@@ -1387,7 +1387,7 @@ test("REGRESSION: a channel row that could not be READ is a 503, not 'nobody's a
     // A retry of the retry (the first one was slow): the row is the gate, so
     // the third delivery of one event converges on the same row, note, bell
     // and mail. Postgres holds the note's unique key; the double does not.
-    w.open({ "messages.insert": DUPLICATE("messages_tenant_external") });
+    w.open({ "messages.insert": DUPLICATE("messages_tenant_external_uq") });
     const again = await deliver("call_analyzed", w.analysed(id));
     assert.deepEqual([again.status, await again.json()], [200, { ok: true, duplicate: true }]);
     assert.deepEqual(
@@ -1461,12 +1461,33 @@ test("REGRESSION: a call row that could not be READ is a 503, not a dead letter:
     { role: "user", content: "Can I book Tuesday morning?" },
   ];
   const down = w.open({ "calls.select": { message: "connection reset" } });
-  const res = await deliver("transcript_updated", { call_id: id }, { transcript_with_tool_calls: turns });
+  // The door logs through lib/log.ts, one JSON object per line on console.error.
+  const logged = [];
+  const wasError = console.error;
+  console.error = (line) => logged.push(String(line));
+  let res;
+  try {
+    res = await deliver("transcript_updated", { call_id: id }, { transcript_with_tool_calls: turns });
+  } finally {
+    console.error = wasError;
+  }
   assert.deepEqual([res.status, await res.json()], [503, { ok: false, error: "routing_unreadable" }]);
   assert.equal(ingests(down).length, 0, "nothing reached ingest_call");
   assert.equal(kind(w.tables, "ingest.unroutable").length, 0, "a blip is not a dead letter");
   assert.equal(kind(w.tables, "webhook.delivery").length, rows, "no delivery row: nothing was decided");
   assert.equal(w.tables.calls[0].transcript_object, null, "the row did not move");
+  // The REASON rides the log: an RLS or grant regression on `calls` must read
+  // differently from a network blip, and the door's refusal names the call,
+  // not the cause.
+  const events = logged.flatMap((l) => {
+    try {
+      return [JSON.parse(l)];
+    } catch {
+      return [];
+    }
+  });
+  const why = events.find((e) => e.event === "retell_call_row_unreadable");
+  assert.deepEqual([why?.level, why?.call_id, why?.error], ["error", id, "connection reset"], JSON.stringify(logged));
 
   // The retry, with the database well: routed by the row, and landed on it.
   const well = w.open();
@@ -1474,4 +1495,21 @@ test("REGRESSION: a call row that could not be READ is a 503, not a dead letter:
   assert.deepEqual([retry.status, await retry.json()], [200, { ok: true }]);
   assert.equal(ingests(well).length, 1);
   assert.deepEqual([w.tables.calls.length, w.tables.calls[0].transcript_object], [1, turns], "one row, the turn on it");
+});
+
+test("no database at all: the delivery is not acknowledged -- the 503 a credential-less deployment answers everywhere, never a 200 that loses the call and mails the platform about a workspace's settings", async () => {
+  // The SMS door answers 503 with no database (inbound-sms.ts) and WhatsApp
+  // counts the message unrecorded and answers 503; this door ingested nothing,
+  // mailed the platform a redacted note per analysed call, and answered 200.
+  const w = world();
+  const line = wire();
+  try {
+    setPg(null);
+    const res = await deliver("call_analyzed", w.analysed(w.callId("no_database")));
+    assert.deepEqual([res.status, await res.json()], [503, { ok: false, error: "no_database" }]);
+    assert.equal(line.mail().length, 0, "nobody is mailed about a call nothing could record");
+    assert.equal(line.calls.length, 0, "no fetch at all: not the CDN, not the provider");
+  } finally {
+    line.restore();
+  }
 });
