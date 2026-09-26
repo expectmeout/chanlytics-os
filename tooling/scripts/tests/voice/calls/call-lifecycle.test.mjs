@@ -134,9 +134,14 @@ test("a call read tells the provider's answers apart — found, not found, a ref
     recording_url: "https://cdn.retell.test/call_found.wav",
   };
   const soon = new Date(Date.now() + 90_000).toUTCString();
+  const past = new Date(Date.now() - 90_000).toUTCString();
   const html = { "content-type": "text/html" };
   const answers = {
     call_found: () => Response.json(found),
+    call_limited_past: () =>
+      Response.json({ message: "Too Many Requests" }, { status: 429, headers: { "retry-after": past } }),
+    call_limited_now: () =>
+      Response.json({ message: "Too Many Requests" }, { status: 429, headers: { "retry-after": "0" } }),
     call_gone: () => Response.json({ message: "call not found" }, { status: 404 }),
     call_rejected: () => Response.json({ message: "invalid request" }, { status: 422 }),
     call_unauthorized: () => Response.json({ message: "Unauthorized" }, { status: 401 }),
@@ -192,6 +197,16 @@ test("a call read tells the provider's answers apart — found, not found, a ref
     assert.deepEqual(await getCall(cfg, "call_unauthorized"), { kind: "auth", status: 401 });
     assert.deepEqual(await getCall(cfg, "call_forbidden"), { kind: "auth", status: 403 });
     assert.deepEqual(await getCall(cfg, "call_limited"), { kind: "unavailable", status: 429, retryAfterMs: 30_000 });
+    assert.deepEqual(
+      await getCall(cfg, "call_limited_past"),
+      { kind: "unavailable", status: 429, retryAfterMs: null },
+      "a date already past is 'retry now' (RFC 9110): no wait to hold a tick for",
+    );
+    assert.deepEqual(
+      await getCall(cfg, "call_limited_now"),
+      { kind: "unavailable", status: 429, retryAfterMs: null },
+      "and so is zero",
+    );
     const until = await getCall(cfg, "call_limited_until");
     assert.equal(until.kind, "unavailable");
     assert.ok(

@@ -692,7 +692,7 @@ const providerUp = (req) => {
   throw new Error(`unexpected ${req.method} ${req.url}`);
 };
 
-test("calls: a provider that cannot answer — a 5xx, a rate limit, a read that never returns — leaves every row exactly as it was and counts no try against it, so an outage never marks a recording failed; the tick stops asking once the provider has said wait, answered a rate limit, or not answered at all; and the sweep still answers 200, because the sweep is not what is broken", async () => {
+test("calls: a provider that cannot answer — a 5xx, a rate limit, a read that never returns — spends no try on any row, so an outage never marks a recording failed; the tick stops asking once the provider has said wait, answered a rate limit, or not answered at all; and the sweep still answers 200, because the sweep is not what is broken", async () => {
   const T = tenant(5);
   const tables = {
     calls: [
@@ -705,22 +705,28 @@ test("calls: a provider that cannot answer — a 5xx, a rate limit, a read that 
     messages: [],
     events: [],
   };
-  const seed = structuredClone(tables.calls);
   const db = use(tables, { ingest_call: ingestRpc(tables) });
   const rec = (id) => tables.calls.find((c) => c.id === id).recording;
   const asked = (net) => net.calls.map((c) => c.url);
-  const untouched = (net, why) => {
-    assert.deepEqual(tables.calls, seed, why);
-    assert.deepEqual(updatesOf(db, "calls"), [], "no row written");
-    assert.deepEqual(
-      rpcs(db, "ingest_call"),
-      [],
+  /** The rows and the writes as they stand, to hold a tick against. */
+  const snapshot = () => ({
+    rows: structuredClone(tables.calls),
+    writes: updatesOf(db, "calls").length,
+    ingests: rpcs(db, "ingest_call").length,
+  });
+  const untouched = (before, net, why) => {
+    assert.deepEqual(tables.calls, before.rows, why);
+    assert.equal(updatesOf(db, "calls").length, before.writes, "no row written");
+    assert.equal(
+      rpcs(db, "ingest_call").length,
+      before.ingests,
       "nothing re-ingested: an outage is not the provider's word on any call",
     );
     assert.equal(net.to("cdn.retell.test").length, 0, "no copy attempted");
   };
 
   // A 5xx on every read.
+  let before = snapshot();
   let net = wired((req) => {
     if (req.url.startsWith(GET_CALL_URL)) return { status: 503, body: { message: "Service Unavailable" } };
     throw new Error(`unexpected ${req.method} ${req.url}`);
@@ -738,9 +744,26 @@ test("calls: a provider that cannot answer — a 5xx, a rate limit, a read that 
     [`${GET_CALL_URL}call_quiet`, `${GET_CALL_URL}call_first`, `${GET_CALL_URL}call_last`],
     "a 5xx that answered may be one row's own, so the next row is still asked",
   );
-  untouched(net, "a 5xx counts against nothing");
+  assert.equal(
+    rpcs(db, "ingest_call").length,
+    before.ingests,
+    "nothing re-ingested: not the provider's word on any call",
+  );
+  assert.equal(net.to("cdn.retell.test").length, 0, "no copy attempted");
+  assert.equal(tables.calls.find((c) => c.id === "quiet").status, "ongoing", "the call is left as it was");
+  // An answered 5xx may be one call's own for ever: the copy rows are written
+  // as they are, count unchanged, which in Postgres moves updated_at (00007)
+  // and sends them to the back of the queue instead of first every tick.
+  assert.deepEqual(rec("first"), { fetch_state: "pending", attempts: 0, error: "provider_503" });
+  assert.deepEqual(rec("last"), {
+    fetch_state: "pending",
+    attempts: RECORDING_MAX_ATTEMPTS - 1,
+    error: "provider_503",
+  });
+  assert.equal(updatesOf(db, "calls").length, before.writes + 2, "written as they are, once each");
 
   // A rate limit that names its wait.
+  before = snapshot();
   net = wired((req) => {
     if (req.url.startsWith(GET_CALL_URL))
       return {
@@ -761,9 +784,10 @@ test("calls: a provider that cannot answer — a 5xx, a rate limit, a read that 
     [`${GET_CALL_URL}call_quiet`],
     "the provider said wait: the rest of the tick does not ask",
   );
-  untouched(net, "a rate limit counts against nothing");
+  untouched(before, net, "a rate limit counts against nothing, and under its hold no row is written");
 
   // A read that never answers: the wire gives up as the read's own signal would.
+  before = snapshot();
   net = wired((req) => {
     if (req.url.startsWith(GET_CALL_URL))
       throw new DOMException("The operation was aborted due to timeout", "TimeoutError");
@@ -782,7 +806,7 @@ test("calls: a provider that cannot answer — a 5xx, a rate limit, a read that 
     "the adapter's own ten-second bound rides on the read, so a tick cannot hang on the provider",
   );
   assert.deepEqual([body.deferred, body.recordings.deferred], [1, 2]);
-  untouched(net, "a timeout counts against nothing");
+  untouched(before, net, "a timeout counts against nothing, and under its hold no row is written");
 
   // The provider is back: the rows are where the outage found them.
   net = wired(providerUp);
@@ -898,6 +922,151 @@ test("calls: a recording whose call the provider says it does not have (404) is 
     "the failed copy is no longer a candidate; the other is still owed its tries",
   );
   assert.equal(rec("fresh").attempts, 2);
+});
+
+test("calls: a copy the recordings CDN cannot serve just now (5xx) or the bucket cannot take (5xx, unreachable) is deferred — the row written as it was, its count unchanged, so the trigger sends it to the back — while a CDN 404 and a bucket 4xx still spend a try", async () => {
+  const T = tenant(8);
+  const tables = {
+    calls: [
+      pendingCopy(T, "cdn_down", 1),
+      pendingCopy(T, "bucket_down", 1, { updated_at: ago(9 * MIN) }),
+      pendingCopy(T, "unpublished", 0, { updated_at: ago(8 * MIN) }),
+      pendingCopy(T, "too_big", 0, { updated_at: ago(7 * MIN) }),
+    ],
+    messages: [],
+    events: [],
+  };
+  const db = use(tables, { ingest_call: ingestRpc(tables) });
+  // The bucket: down for one recording, refusing another for its size, taking the rest.
+  const realFrom = db.storage.from;
+  const storageAnswer = {
+    [`${T}/calls/bucket_down.wav`]: { message: "Service Unavailable", status: 503, statusCode: "503" },
+    [`${T}/calls/too_big.wav`]: {
+      message: "The object exceeded the maximum allowed size",
+      status: 413,
+      statusCode: "413",
+    },
+  };
+  db.storage.from = (name) => {
+    const real = realFrom(name);
+    return {
+      ...real,
+      upload: async (p, bytes, opts) =>
+        storageAnswer[p] ? { data: null, error: storageAnswer[p] } : real.upload(p, bytes, opts),
+    };
+  };
+  wired((req) => {
+    if (req.url.startsWith(GET_CALL_URL)) {
+      const id = req.url.slice(GET_CALL_URL.length);
+      return {
+        status: 200,
+        body: { call_id: id, call_status: "ended", recording_url: `https://cdn.retell.test/${id}.wav` },
+      };
+    }
+    if (req.url === "https://cdn.retell.test/call_cdn_down.wav")
+      return new Response("Service Unavailable", { status: 503 });
+    if (req.url === "https://cdn.retell.test/call_unpublished.wav") return new Response("Not Found", { status: 404 });
+    if (req.url.startsWith("https://cdn.retell.test/"))
+      return new Response(new Uint8Array([82, 73, 70, 70]), { status: 200, headers: { "content-type": "audio/wav" } });
+    throw new Error(`unexpected ${req.method} ${req.url}`);
+  });
+  const rec = (id) => tables.calls.find((c) => c.id === id).recording;
+  const writesTo = (id) =>
+    updatesOf(db, "calls").filter((u) => u.filters.some((f) => f[1] === "id" && f[2] === id)).length;
+
+  // Tick one: the two oldest, both deferred.
+  let [status, body] = await answer(await knock("calls"));
+  assert.equal(status, 200, JSON.stringify(body));
+  assert.deepEqual(body.recordings, { candidates: 2, stored: 0, retry: 0, failed: 0, deferred: 2 });
+  assert.deepEqual(
+    rec("cdn_down"),
+    { fetch_state: "pending", attempts: 1, error: "provider_503" },
+    "the CDN's 5xx is not its word on the file: no try spent",
+  );
+  assert.deepEqual(
+    rec("bucket_down"),
+    { fetch_state: "pending", attempts: 1, error: "storage_503" },
+    "nor is the bucket being down",
+  );
+  assert.deepEqual(
+    [writesTo("cdn_down"), writesTo("bucket_down")],
+    [1, 1],
+    "each written as it was: the write is what moves updated_at (00007) and the row to the back",
+  );
+
+  // The double has no updated_at trigger; the stamps move here as 00007's
+  // would for the rows the sweep wrote, so the next tick reaches the two behind.
+  for (const id of ["cdn_down", "bucket_down"]) tables.calls.find((c) => c.id === id).updated_at = iso(NOW);
+
+  // Tick two: the CDN's word and the bucket's refusal both count.
+  [status, body] = await answer(await knock("calls"));
+  assert.equal(status, 200, JSON.stringify(body));
+  assert.deepEqual(body.recordings, { candidates: 2, stored: 0, retry: 2, failed: 0, deferred: 0 });
+  assert.deepEqual(
+    rec("unpublished"),
+    { fetch_state: "pending", attempts: 1, error: "provider_404" },
+    "not published yet is the CDN's word: a try, within the bound",
+  );
+  assert.deepEqual(
+    rec("too_big"),
+    { fetch_state: "pending", attempts: 1, error: "storage_413" },
+    "a bucket refusing THIS file is a try like any other, so it ends failed instead of returning for ever",
+  );
+});
+
+test("calls: a call the provider answers 500 on every time is written with its count unchanged, so it goes to the back of the queue instead of standing first every tick and starving the rest", async () => {
+  const T = tenant(9);
+  const tables = {
+    calls: [
+      pendingCopy(T, "cursed", 0),
+      pendingCopy(T, "second", 0, { updated_at: ago(9 * MIN) }),
+      pendingCopy(T, "third", 0, { updated_at: ago(8 * MIN) }),
+    ],
+    messages: [],
+    events: [],
+  };
+  use(tables, { ingest_call: ingestRpc(tables) });
+  const cursedLine = (req) =>
+    req.url === `${GET_CALL_URL}call_cursed`
+      ? { status: 500, body: { message: "Internal Server Error" } }
+      : providerUp(req);
+  const rec = (id) => tables.calls.find((c) => c.id === id).recording;
+
+  let net = wired(cursedLine);
+  let [status, body] = await answer(await knock("calls"));
+  assert.equal(status, 200, JSON.stringify(body));
+  assert.deepEqual(body.recordings, { candidates: 2, stored: 1, retry: 0, failed: 0, deferred: 1 });
+  assert.deepEqual(
+    net.calls.map((c) => c.url),
+    [`${GET_CALL_URL}call_cursed`, `${GET_CALL_URL}call_second`, "https://cdn.retell.test/call_second.wav"],
+    "first in line, answered 500; the next row is still asked",
+  );
+  assert.deepEqual(
+    rec("cursed"),
+    { fetch_state: "pending", attempts: 0, error: "provider_500" },
+    "written as it was: no try spent, and the write moves updated_at (00007)",
+  );
+  assert.equal(rec("second").fetch_state, "stored");
+
+  // The double has no updated_at trigger; the stamp moves here as 00007's
+  // would -- kept past the settle window for the test's sake, and behind the
+  // row still waiting.
+  tables.calls.find((c) => c.id === "cursed").updated_at = ago(6 * MIN);
+
+  net = wired(cursedLine);
+  [status, body] = await answer(await knock("calls"));
+  assert.equal(status, 200, JSON.stringify(body));
+  assert.deepEqual(
+    net.calls.map((c) => c.url),
+    [`${GET_CALL_URL}call_third`, "https://cdn.retell.test/call_third.wav", `${GET_CALL_URL}call_cursed`],
+    "the cursed call no longer holds the first slot: the row behind it is served first",
+  );
+  assert.deepEqual(body.recordings, { candidates: 2, stored: 1, retry: 0, failed: 0, deferred: 1 });
+  assert.deepEqual(
+    rec("cursed"),
+    { fetch_state: "pending", attempts: 0, error: "provider_500" },
+    "and still no try spent",
+  );
 });
 
 test("calls: recordings past the ninety days the privacy page states are removed from the bucket and the row says so — before the provider is asked, so a deployment without the key still keeps that promise; a call that ended, or errored, without an analysis still gets its line in the customer's thread, once", async () => {

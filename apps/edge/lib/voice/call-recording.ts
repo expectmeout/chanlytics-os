@@ -14,7 +14,11 @@
  *
  * Attempts are counted on the row. After RECORDING_MAX_ATTEMPTS the copy is
  * marked failed and nothing wakes for it again — "Recording still processing"
- * used to be a state a row could stay in forever. The provider URL itself is
+ * used to be a state a row could stay in forever. A copy that could not be
+ * made for a reason that is nobody's word on the recording — the CDN or the
+ * bucket being down — spends no attempt: the row is written as it was, which
+ * alone moves its updated_at (00007's trigger) and sends it to the back of
+ * the queue for the next tick. The provider URL itself is
  * never written to the row: calls is in the realtime publication, so every
  * column reaches every member's browser.
  */
@@ -55,7 +59,8 @@ export function sniffAudioType(bytes: ArrayBuffer, given: string | null): string
   return given && given.startsWith("audio/") ? given : "audio/wav";
 }
 
-export type CopyOutcome = "stored" | "retry" | "failed";
+/** stored; retry (a try spent, more to come); failed (the last spent, or a refusal for good); deferred (no try spent: the CDN or the bucket could not answer for the file just now). */
+export type CopyOutcome = "stored" | "retry" | "failed" | "deferred";
 
 /** What the purge needs from the world: the clock, and the bucket's remove. */
 export interface PurgePorts {
@@ -147,11 +152,17 @@ export async function purgeExpiredRecordings(
  *  the CDN publishes the file a little after call_ended. */
 const PERMANENT_REFUSALS = new Set([401, 403, 410]);
 
-/** Bound a promise that offers no cancellation of its own. */
+/** The CDN not answering for the file just now — a rate limit, a 5xx. Not its word on the recording, so not a try. */
+const cdnUnavailable = (status: number): boolean => status === 429 || status >= 500;
+
+/** Bound a promise that offers no cancellation of its own. Rejects as the fetch's own signal does, by name. */
 function withTimeout<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const bound = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error(`${what} timed out after ${ms} ms`)), ms);
+    timer = setTimeout(
+      () => reject(Object.assign(new Error(`${what} timed out after ${ms} ms`), { name: "TimeoutError" })),
+      ms,
+    );
   });
   return Promise.race([p, bound]).finally(() => clearTimeout(timer));
 }
@@ -165,6 +176,19 @@ export async function copyRecording(
   const exhausted = attempt >= RECORDING_MAX_ATTEMPTS;
   const settle = async (state: "stored" | "pending" | "failed", extra: Record<string, unknown>) =>
     setCallRecording(db, p.tenantId, p.callId, { fetch_state: state, attempts: attempt, ...extra });
+  // No try spent: the count stays, and the write alone (00007's trigger on
+  // updated_at) sends the row to the back of the queue for the next tick.
+  const defer = async (error: string, fields: Record<string, unknown>): Promise<CopyOutcome> => {
+    L.error("call_recording_copy_failed", {
+      call: p.callId,
+      outcome: "deferred",
+      attempts: p.attempts ?? 0,
+      error,
+      ...fields,
+    });
+    await setCallRecording(db, p.tenantId, p.callId, { fetch_state: "pending", attempts: p.attempts ?? 0, error });
+    return "deferred";
+  };
   try {
     const got = await fetchRecording(p.providerUrl, { timeoutMs: p.timeoutMs });
     if (!got.ok) {
@@ -173,7 +197,10 @@ export async function copyRecording(
         await settle("failed", { error: `provider_refused_${got.status}` });
         return "failed";
       }
-      // Not published yet, or a provider blip: worth another look, within the bound.
+      // The CDN could not answer for the file just now: nobody's word on it.
+      if (cdnUnavailable(got.status)) return defer(`provider_${got.status}`, { status: got.status });
+      // Not published yet (404), or another refusal of the request: the
+      // CDN's word, worth another look, within the bound.
       await settle(exhausted ? "failed" : "pending", { error: `provider_${got.status}` });
       return exhausted ? "failed" : "retry";
     }
@@ -185,14 +212,29 @@ export async function copyRecording(
       p.timeoutMs,
       "storage upload",
     );
-    if (error) throw new Error(error.message);
+    if (error) {
+      // The bucket refusing THIS file (a 4xx: too large, a policy) is a try
+      // like any other, so such a copy ends failed instead of returning for
+      // ever; the bucket being down (a 5xx, or no status at all) is not the
+      // file's fault and spends none.
+      const status = (error as { status?: unknown }).status;
+      const message = String(error.message).slice(0, 200);
+      const refused = typeof status === "number" && status >= 400 && status < 500;
+      const slug = `storage_${typeof status === "number" ? status : "unreachable"}`;
+      if (!refused) return defer(slug, { message });
+      L.error("call_recording_copy_failed", { call: p.callId, attempt, exhausted, message, status });
+      await settle(exhausted ? "failed" : "pending", { error: slug });
+      return exhausted ? "failed" : "retry";
+    }
     await settle("stored", { storage_path: path, mime, bytes: got.bytes.byteLength });
     return "stored";
   } catch (e) {
-    // A timeout, a network error, a storage error: transient until proven
-    // otherwise, so the row stays pending and the sweep tries again — a
-    // bounded number of times.
+    // A timeout is the bound the copy was given, and counts: the sweep's own
+    // twenty seconds is what a long recording gets, a bounded number of
+    // times. Anything else thrown -- a refused connection, a reset, a client
+    // that threw -- is a fault around the copy, not a word on it.
     const message = String(e instanceof Error ? e.message : e).slice(0, 200);
+    if (!(e instanceof Error && e.name === "TimeoutError")) return defer(message, {});
     L.error("call_recording_copy_failed", { call: p.callId, attempt, exhausted, message });
     await settle(exhausted ? "failed" : "pending", { error: message });
     return exhausted ? "failed" : "retry";
