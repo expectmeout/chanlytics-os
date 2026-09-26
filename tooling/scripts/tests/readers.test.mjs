@@ -11,6 +11,7 @@ import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { callerName, toCallVM } from "@chanlytics/contracts";
 import { fakeDb } from "./_fake-db.mjs";
 import { PLAN } from "./_lead-fixtures.mjs";
 
@@ -504,6 +505,46 @@ test("calls: GET calls' answer -- the named workspace's calls, newest first, nar
       { kind: "call", id: L1, route: `conversations/cv-${L1}`, label: "+1 (555) 000-0001" },
     ],
     "a caller by their name, or their number when they have none",
+  );
+
+  // Who a call is with, derived once (contracts callerName): each row's label is the Calls page's own `who` for that
+  // row, without a view model built per call on every read.
+  const L4 = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee4";
+  const named = await kernel.load(
+    turnIn(
+      dayCtx({
+        calls: [
+          call(L1, A, {
+            started_at: "2026-09-04T00:00:00Z",
+            contacts: { display_name: "Dana", wa_profile_name: null, phone_e164: "+15550000003" },
+          }),
+          call(L2, A, { started_at: "2026-09-03T00:00:00Z" }),
+          call(L3, A, { started_at: "2026-09-02T00:00:00Z", from_e164: null, from_raw: "Restricted" }),
+          call(L4, A, { started_at: "2026-09-01T00:00:00Z", from_e164: null, from_raw: null }),
+        ],
+      }),
+    ),
+    calls,
+    {},
+  );
+  assert.deepEqual(
+    named.rows.map((r) => [r.id, r.label]),
+    [
+      [L1, "Dana"],
+      [L2, "+1 (555) 000-0001"],
+      [L3, "Restricted"],
+      [L4, "Caller ID withheld"],
+    ],
+    "a contact's name, else the number the phone showed, else what the line handed over; with neither, withheld",
+  );
+  assert.deepEqual(
+    named.rows.map((r) => r.label),
+    named.data.calls.map((c) => toCallVM(c, "America/New_York", new Date()).who),
+    "the Calls page's own who, for the same rows",
+  );
+  assert.deepEqual(
+    named.data.calls.map((c) => callerName(c)),
+    named.rows.map((r) => r.label),
   );
 });
 

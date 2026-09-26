@@ -1,5 +1,5 @@
 import "server-only";
-import { toCallVM, type CallDto } from "@chanlytics/contracts";
+import { callerName, type CallDto } from "@chanlytics/contracts";
 import { CALL_COLUMNS, toCallDto } from "../dto";
 import { stamp, type Reader, type RowRef } from "./index";
 
@@ -27,12 +27,12 @@ export const calls: Reader<{ conversationId?: string; status?: string }, { calls
     const calls: CallDto[] = (data ?? []).map(toCallDto);
     return {
       data: { calls },
-      // The caller as the Calls page names them: its own view model's `who`, which no zone or clock reaches.
+      // The caller as the Calls page names them (callerName, the view model's own `who`): no view model per row.
       rows: calls.map((c): RowRef => ({
         kind: "call",
         id: c.id,
         route: `conversations/cv-${c.id}`,
-        label: toCallVM(c, "UTC", rc.now).who,
+        label: callerName(c),
       })),
       stamp: stamp(),
     };
