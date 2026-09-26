@@ -3,9 +3,10 @@
  * Run against the pure module with the real mood and a clock of its own: a page arriving on a phone is read
  * (lit) for READ_MS, or as long as the boot takes up to READ_MAX_MS, then rest; the same page again within
  * AGAIN_MS is not read, a walk within a page is the same page, another page is read; nothing on a desk, nothing while
- * Ask is open or the mood is busy, and a read whose end finds Ask open leaves the mood alone; while something waits on
- * you the three stay lit, and the light goes as Ask opens and comes back as it closes; the needs-you count rising
- * makes the three hop once, its first word and a fall do not.
+ * Ask is open or the mood is busy, and a read whose end finds Ask open leaves the mood alone; while something needs
+ * you the three stay lit, and the light goes as Ask opens and comes back as it closes; what needs you is asked each
+ * time the light is decided, so Ask closing on "nobody is waiting" brings the ink back though nothing said so first;
+ * the needs-you count rising makes the three hop once, its first word and a fall do not.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -72,6 +73,7 @@ const world = (over = {}) => {
     route: "#/today",
     phone: true,
     askOpen: false,
+    waiting: false,
     boot: null,
     said,
     mood,
@@ -84,6 +86,7 @@ const world = (over = {}) => {
     phone: () => w.phone,
     askOpen: () => w.askOpen,
     afterBoot: () => (w.boot ? w.boot.promise : Promise.resolve()),
+    waiting: () => w.waiting,
     now: c.now,
     later: c.later,
     cancel: c.cancel,
@@ -185,10 +188,11 @@ test("nothing on a desk, nothing while Ask is open or the mood is busy, and a re
   assert.deepEqual(w.said.slice(-2), ["lit", "dark"], "and reads again once Ask has closed");
 });
 
-test("while something waits on you the three stay lit, past a read's end; the light goes as Ask opens and comes back as it closes; the ink is back when nothing waits; nothing on a desk", async () => {
+test("while something needs you the three stay lit, past a read's end; the light goes as Ask opens and comes back as it closes; the ink is back when nothing does; nothing on a desk", async () => {
   const w = world();
-  w.arrival.standing(true);
-  assert.deepEqual(w.said, ["lit"], "something waits: lit");
+  w.waiting = true;
+  w.arrival.recheck();
+  assert.deepEqual(w.said, ["lit"], "something needs you: lit");
   w.arrival.arrived();
   await w.c.tick(READ_MS + 1);
   assert.deepEqual(w.said, ["lit"], "a read on and off again: still lit, one word");
@@ -198,20 +202,40 @@ test("while something waits on you the three stay lit, past a read's end; the li
   w.askOpen = false;
   w.arrival.askChanged();
   assert.deepEqual(w.said, ["lit", "dark", "lit"], "Ask closed: lit again");
-  w.arrival.standing(false);
-  assert.deepEqual(w.said, ["lit", "dark", "lit", "dark"], "nothing waits: the ink");
-  w.arrival.standing(false);
+  w.waiting = false;
+  w.arrival.recheck();
+  assert.deepEqual(w.said, ["lit", "dark", "lit", "dark"], "nothing needs you: the ink");
+  w.arrival.recheck();
   assert.deepEqual(w.said.length, 4, "said once");
-  const desk = world({ phone: false });
-  desk.arrival.standing(true);
+  const desk = world({ phone: false, waiting: true });
+  desk.arrival.recheck();
   assert.deepEqual(desk.said, []);
   const read = world();
   read.arrival.arrived();
-  read.arrival.standing(true);
+  read.waiting = true;
   await read.c.tick(READ_MS + 1);
-  assert.deepEqual(read.said, ["lit"], "waiting begun during a read: the read's end leaves it lit");
+  assert.deepEqual(read.said, ["lit"], "something needing you begun during a read: the read's end leaves it lit");
   read.arrival.stop();
-  assert.deepEqual(read.said, ["lit", "dark"], "stopped: the ink, whatever waited");
+  assert.deepEqual(read.said, ["lit", "dark"], "stopped: the ink, whatever needs you");
+  read.arrival.recheck();
+  read.arrival.askChanged();
+  assert.deepEqual(read.said, ["lit", "dark"], "and nothing after");
+});
+
+test("what needs you is asked when the light is decided, never remembered: Ask closing on nobody waiting brings the ink back", async () => {
+  const w = world({ waiting: true });
+  w.arrival.recheck();
+  assert.deepEqual(w.said, ["lit"]);
+  w.askOpen = true;
+  w.arrival.askChanged();
+  // the queue cleared and the bell read while Ask was open, and no surface said so
+  w.waiting = false;
+  w.askOpen = false;
+  w.arrival.askChanged();
+  assert.deepEqual(w.said, ["lit", "dark"], "Ask closed on nobody waiting: the ink, not the old light");
+  w.arrival.arrived();
+  await w.c.tick(READ_MS);
+  assert.deepEqual(w.said, ["lit", "dark", "lit", "dark"], "a page read ends in the ink when nothing needs you");
 });
 
 test("the needs-you count rising makes the three hop once; its first word, a fall, and a rise while busy do not", () => {
