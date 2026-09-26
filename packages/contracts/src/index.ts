@@ -100,3 +100,4 @@ export * from "./booking-page";
 export * from "./reach-out";
 export * from "./sending-domains";
 export * from "./free-mail";
+export * from "./app-bridge";
