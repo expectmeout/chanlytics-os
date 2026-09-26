@@ -26,14 +26,14 @@
     "@playwright/test": "^1.63.0",
     "acorn": "8.18.0",
     "esbuild": "0.28.2",
-    "eslint": "^10.10.0",
+    "eslint": "^10.11.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.12.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.4.0",
     "prettier": "^3.9.8",
-    "tsx": "^4.23.13",
-    "typescript-eslint": "^8.70.0"
+    "tsx": "^4.23.15",
+    "typescript-eslint": "^8.70.1"
   },
   "pnpm": {
     "overrides": {
