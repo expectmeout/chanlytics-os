@@ -11186,6 +11186,7 @@ async function cancelSend(ports, cmd) {
 // src/conversations/reply.ts
 var SEND_GRACE_MS = 15 * 1e3;
 var IDEMPOTENCY_WINDOW_MS = 30 * 1e3;
+var REPLY_IN_PROGRESS_REFUSAL = "This reply is already being sent. Give it a moment, then check the thread before sending it again.";
 async function shapeEmailReply(ports, conv, to, text, agreedTo) {
   if (conv.email_suppressed_at) {
     throw new AppError(
@@ -11238,11 +11239,38 @@ async function replyToConversation(ports, cmd) {
   const window = replyWindow(channel, conv.last_wa_inbound_at, new Date(now));
   const idemKey = cmd.idempotencyKey ? `${cmd.userId}:${cmd.idempotencyKey}` : null;
   const intentHash = ports.hash(JSON.stringify(body));
+  const nowIso = new Date(now).toISOString();
   if (idemKey) {
-    const prior = await ports.priorReceipt(conv.tenant_id, idemKey);
-    const sameIntent = prior?.request_hash === intentHash;
-    if (prior && sameIntent && now - Date.parse(prior.created_at) < IDEMPOTENCY_WINDOW_MS) return prior.response;
+    const claim = await ports.claimKey(conv.tenant_id, idemKey, intentHash, nowIso);
+    if (!claim.won) {
+      const prior = claim.held;
+      const sameIntent = prior?.request_hash === intentHash;
+      const fresh = !!prior && now - Date.parse(prior.created_at) < IDEMPOTENCY_WINDOW_MS;
+      if (prior?.response && sameIntent && fresh) return prior.response;
+      if (!prior || fresh && !prior.response) throw new AppError("conflict", REPLY_IN_PROGRESS_REFUSAL, 409);
+      if (!await ports.takeKey(conv.tenant_id, idemKey, intentHash, nowIso, prior.created_at))
+        throw new AppError("conflict", REPLY_IN_PROGRESS_REFUSAL, 409);
+    }
   }
+  const sent = await queueReply(ports, cmd, { now, channel, to, window }).catch(async (e) => {
+    if (idemKey) await ports.releaseKey(conv.tenant_id, idemKey, nowIso);
+    throw e;
+  });
+  const queued = sent.receipt;
+  if (idemKey) await ports.storeReceipt(conv.tenant_id, idemKey, intentHash, queued);
+  const decision_id = await ports.record(conv.tenant_id, "conversation", conv.id, "reply", {
+    message_id: queued.message_id,
+    window_open: window.open,
+    template: sent.templateName
+  });
+  await ports.resolveEscalation(conv.id, decision_id);
+  const receipt = { ...queued, decision_id };
+  if (idemKey) await ports.storeReceipt(conv.tenant_id, idemKey, intentHash, receipt);
+  return receipt;
+}
+async function queueReply(ports, cmd, facts) {
+  const { conv, body } = cmd;
+  const { now, channel, to, window } = facts;
   let messageBody;
   let templateVars = null;
   let templateName = null;
@@ -11274,22 +11302,22 @@ async function replyToConversation(ports, cmd) {
         `This template needs words for \u201C${toWrite}\u201D, which the Inbox does not ask for. Pick a template without them, or send it from Campaigns.`
       );
     }
-    const facts = await ports.templateFacts(conv.tenant_id);
-    if (!facts)
+    const facts2 = await ports.templateFacts(conv.tenant_id);
+    if (!facts2)
       throw new AppError(
         "validation",
         "This workspace has no template facts configured yet. Add the business name in Settings \u203A Business first."
       );
     const slots = inboxSlots(tpl);
-    if (!facts.booking_link && slots.some((s) => s.kind === "booking_link"))
+    if (!facts2.booking_link && slots.some((s) => s.kind === "booking_link"))
       throw new AppError(
         "validation",
         "This template takes the booking link, and none is on file. Pick another template, or add the link in Settings \u203A Business first."
       );
     const params = resolveParams(slots, {
       firstName: firstNameOf(conv.display_name, conv.wa_profile_name),
-      businessName: facts.business_name,
-      bookingLink: facts.booking_link?.replace(/^https?:[/][/]/, "") ?? null
+      businessName: facts2.business_name,
+      bookingLink: facts2.booking_link?.replace(/^https?:[/][/]/, "") ?? null
     });
     templateName = tpl.name;
     templateVars = { language: tpl.language, params };
@@ -11332,23 +11360,16 @@ async function replyToConversation(ports, cmd) {
     await ports.cancelOrphan(message_id);
     throw e;
   }
-  const queued = {
-    message_id,
-    status: "queued",
-    cancelable_until: dueAt.toISOString(),
-    window_open: window.open,
-    withdrawn_drafts
+  return {
+    receipt: {
+      message_id,
+      status: "queued",
+      cancelable_until: dueAt.toISOString(),
+      window_open: window.open,
+      withdrawn_drafts
+    },
+    templateName
   };
-  if (idemKey) await ports.storeReceipt(conv.tenant_id, idemKey, intentHash, queued);
-  const decision_id = await ports.record(conv.tenant_id, "conversation", conv.id, "reply", {
-    message_id,
-    window_open: window.open,
-    template: templateName
-  });
-  await ports.resolveEscalation(conv.id, decision_id);
-  const receipt = { ...queued, decision_id };
-  if (idemKey) await ports.storeReceipt(conv.tenant_id, idemKey, intentHash, receipt);
-  return receipt;
 }
 
 // src/messages/send.ts
@@ -47678,6 +47699,7 @@ export {
   PROVIDER_RUN_PAGE,
   RADIUS_MAX_M,
   RADIUS_MIN_M,
+  REPLY_IN_PROGRESS_REFUSAL,
   SEND_GRACE_MS,
   STALE_MS,
   STALE_REPLY_MS,
