@@ -392,7 +392,7 @@ test("the box's words are kept per tab, in the tab's storage: back after a trip 
   assert.equal(searchBox(tree).props.value, "", "Phone has none yet");
   assert.equal(rows(tree).length, 1, "and its rows are not filtered by All's words");
   searchBox(tree).props.onChange({ target: { value: "emily" } });
-  tree = redraw({ channel: "phone", initialId: null });
+  redraw({ channel: "phone", initialId: null });
   assert.deepEqual(TM.place("conversations", "phone"), { q: "emily" });
   tree = redraw({ channel: "all", initialId: null });
   assert.equal(searchBox(tree).props.value, "rosa", "back on All, All's words");

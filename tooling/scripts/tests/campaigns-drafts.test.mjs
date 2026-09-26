@@ -485,9 +485,9 @@ test("a playbook card's act is said the moment the server takes it, with what it
 /* ---------------------------------- G: the playbook sheet ---------------------------------- */
 
 test("the playbook sheet keeps what was typed in the tab, opens again on it after the page was left, and its Cancel and Escape ask before throwing it away -- Escape dropped everything", () => {
-  let tree = playbooks();
+  playbooks();
   globalThis.window.dispatchEvent({ type: "playbooks:new" });
-  tree = redraw(playbooks);
+  let tree = redraw(playbooks);
   assert.ok(byTestId(tree, "pb-composer"), "the sheet is open");
   assert.deepEqual(drafts(), {}, "nothing typed, nothing kept");
   // Cancel with nothing changed closes at once, as it did.

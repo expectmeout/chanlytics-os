@@ -57,8 +57,8 @@ export async function createVoiceAgent(
   let llmId = o.llmId ?? null;
   let llmVersion: number | null = null;
   let agentId: string;
-  let agentVersion: number | null = null;
-  let published = false;
+  let agentVersion: number | null;
+  let published: boolean;
   const created = { llm: false, agent: false };
 
   if (o.agentId) {

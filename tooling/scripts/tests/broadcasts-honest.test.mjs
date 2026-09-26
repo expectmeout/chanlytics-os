@@ -1915,7 +1915,7 @@ test("A message is a row you scan, and the words open under it: what it is, what
   // did not exist was simply absent before, which is the hole the toolbar's
   // arithmetic ("Add the 3 in English") was describing -- and every other
   // language WhatsApp takes.
-  tree = messages({
+  messages({
     __TEMPLATES_ALL: [
       en,
       templateRow({ id: "t-w", name: "winback_offer", language: "en_US", meta_status: "approved" }),
@@ -2154,8 +2154,8 @@ test("Cancel goes back to the language that was in view; a heading, or a role th
   };
   try {
     const starterIn = (list) => {
-      let t = messages({ __TEMPLATES_ALL: list });
-      t = openedRow(lastStarterRow);
+      messages({ __TEMPLATES_ALL: list });
+      let t = openedRow(lastStarterRow);
       press(byTestId(lastStarterRow(t), "template-lang"));
       t = messagesAgain();
       press(optionOf(all(t, (n) => n.props?.["data-testid"] === "starter-row").at(-1), "pt_BR"));
@@ -2208,8 +2208,8 @@ test("Cancel goes back to the language that was in view; a heading, or a role th
   }
 
   // A heading would not come with it: no language to translate into, and the reason where they would be.
-  let tree = messages({ __TEMPLATES_ALL: [offerEn({ header: "Fall news" })] });
-  tree = openedRow(customRow);
+  messages({ __TEMPLATES_ALL: [offerEn({ header: "Fall news" })] });
+  let tree = openedRow(customRow);
   press(byTestId(customRow(tree), "template-lang"));
   tree = messagesAgain();
   let row = byTestId(tree, "custom-row");
@@ -2818,7 +2818,7 @@ test("A message says its state once, and a refusal is a line rather than a hover
   // as a dot plus words, so the control you press to read the Spanish version was
   // the only place its approval was written -- and a rejection's reason was a
   // `title=`, which a touch screen has no way to show at all.
-  let tree = messages({
+  messages({
     __TEMPLATES_ALL: [
       templateRow({ id: "t-en", name: "offer", language: "en_US", meta_status: "approved" }),
       templateRow({ id: "t-es", name: "offer", language: "es", meta_status: "pending" }),
@@ -2826,7 +2826,7 @@ test("A message says its state once, and a refusal is a line rather than a hover
   });
   // One chip for both, in the open row: the language in view, its state DRAWN, and "+1" for the
   // other -- a language, not a state, in its words.
-  tree = openedRow(customRow);
+  let tree = openedRow(customRow);
   let chip = byTestId(byTestId(tree, "custom-row"), "template-lang");
   assert.deepEqual(chipSays(chip), ["EN", "+1"]);
   assert.ok(!/approved|review/i.test(textOf(chip)), `the chip says a language, not a state: ${textOf(chip)}`);

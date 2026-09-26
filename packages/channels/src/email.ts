@@ -742,7 +742,7 @@ export type ResendLimit = "rate" | "in_flight" | "daily" | "monthly";
 
 export function resendLimitOf(r: { ok?: boolean; status: number; errorBody?: string | null }): ResendLimit | null {
   if (r.ok || (r.status !== 429 && r.status !== 409)) return null;
-  let name: unknown = null;
+  let name: unknown;
   try {
     name = (JSON.parse(r.errorBody ?? "") as { name?: unknown } | null)?.name ?? null;
   } catch {

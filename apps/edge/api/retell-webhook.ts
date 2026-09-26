@@ -214,7 +214,7 @@ export async function POST(request: Request): Promise<Response> {
     return json(401, { ok: false, error: "unauthorized" });
   }
 
-  let body: { event?: string; call?: RetellCall } = {};
+  let body: { event?: string; call?: RetellCall };
   try {
     body = JSON.parse(raw);
   } catch {

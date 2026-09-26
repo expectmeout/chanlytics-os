@@ -557,8 +557,8 @@ async function collectHeld(
   const newMembers: CollectPlace[] = [];
   let commits = 0;
   let cursor = 0;
-  let lastRoundState: LeadRoundState | null = null;
-  let lastRunState: LeadRunState | null = null;
+  let lastRoundState: LeadRoundState | null;
+  let lastRunState: LeadRunState | null;
   let judgeRefused: string | null = null;
 
   do {

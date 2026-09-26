@@ -64,7 +64,7 @@ export function timezoneWords(
 } {
   const zone = tz && isTimezone(tz) ? tz : DEFAULT_TIMEZONE;
   const city = timezoneCity(zone);
-  let timeThere: string | null = null;
+  let timeThere: string | null;
   try {
     timeThere = new Intl.DateTimeFormat("en-US", {
       timeZone: zone,

@@ -525,14 +525,14 @@ test("calls: a copy still pending is retried with a fresh URL from the provider 
   // Tick two. (The double has no updated_at trigger, so the five-minute
   // back-off between ticks is not modelled here; in Postgres the settle write
   // moves updated_at and the row waits SETTLE_MS before it is a candidate again.)
-  [status, body] = await answer(await knock("calls"));
+  [, body] = await answer(await knock("calls"));
   assert.deepEqual(body.recordings, { candidates: 2, stored: 1, retry: 1, failed: 0 });
   assert.equal(rec("slow").attempts, 2);
   assert.equal(rec("third").fetch_state, "stored", "the backlog drains");
   neverAskedAboutSpent();
 
   // Tick three: the third attempt is the last.
-  [status, body] = await answer(await knock("calls"));
+  [, body] = await answer(await knock("calls"));
   assert.deepEqual(body.recordings, { candidates: 1, stored: 0, retry: 0, failed: 1 });
   assert.equal(
     rec("slow").fetch_state,
@@ -543,7 +543,7 @@ test("calls: a copy still pending is retried with a fresh URL from the provider 
 
   // Tick four: nothing wakes for it.
   const before = net.calls.length;
-  [status, body] = await answer(await knock("calls"));
+  [, body] = await answer(await knock("calls"));
   assert.deepEqual(body.recordings, { candidates: 0, stored: 0, retry: 0, failed: 0 });
   assert.equal(net.calls.length, before, "a copy given up on is not asked about again");
   assert.equal(rec("slow").attempts, RECORDING_MAX_ATTEMPTS, "and left as it is");
@@ -598,7 +598,7 @@ test("calls: a CDN that refuses a recording for good (401, 403, 410) fails the c
   assert.equal(rec("unpublished").attempts, 1, "and the try is counted");
 
   const refusedAsks = asksAbout("refused");
-  [status, body] = await answer(await knock("calls"));
+  [, body] = await answer(await knock("calls"));
   assert.deepEqual(
     body.recordings,
     { candidates: 1, stored: 0, retry: 1, failed: 0 },
@@ -651,7 +651,7 @@ test("calls: a recording the provider never hands over is a try like any other, 
   );
   assert.equal(net.to("cdn.retell.test").length, 0, "there was nothing to fetch");
 
-  [status, body] = await answer(await knock("calls"));
+  [, body] = await answer(await knock("calls"));
   assert.deepEqual(
     body.recordings,
     { candidates: 1, stored: 0, retry: 1, failed: 0 },

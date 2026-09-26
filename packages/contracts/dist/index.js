@@ -4316,7 +4316,7 @@ function describeVisits(visits, tz, nowMs, opts) {
 }
 function feedSourceLabel(url) {
   if (!url) return "your calendar";
-  let host = "";
+  let host;
   try {
     host = new URL(url.replace(/^webcal:\/\//i, "https://")).hostname.toLowerCase();
   } catch {
@@ -7965,7 +7965,7 @@ function validateTemplateDraft(d) {
         ok: false,
         error: "A button cannot take a value: Chanlytics sends the message and nothing else, and WhatsApp would refuse every send."
       };
-    let parsed = null;
+    let parsed;
     try {
       parsed = new URL(url);
     } catch {
@@ -13768,7 +13768,7 @@ function parsePipelineRoute(route) {
   let peek = null;
   for (const s of segs) {
     if (s.startsWith("v-s.")) {
-      let name = "";
+      let name;
       try {
         name = decodeURIComponent(s.slice(4));
       } catch {
@@ -19773,7 +19773,7 @@ function cleanTimezone(raw) {
 function timezoneWords(tz, nowMs = Date.now()) {
   const zone = tz && isTimezone(tz) ? tz : DEFAULT_TIMEZONE;
   const city = timezoneCity(zone);
-  let timeThere = null;
+  let timeThere;
   try {
     timeThere = new Intl.DateTimeFormat("en-US", {
       timeZone: zone,

@@ -2791,7 +2791,7 @@ async function writeRetell(cfg, method, path, payload) {
     signal: AbortSignal.timeout(8e3)
   });
   const text = await r2.text();
-  let body = null;
+  let body;
   try {
     const parsed2 = JSON.parse(text);
     body = parsed2 !== null && typeof parsed2 === "object" ? parsed2 : null;
@@ -3413,7 +3413,7 @@ var fetchTwilio = async (acct, method, url, form2) => {
     signal: AbortSignal.timeout(15e3)
   });
   const text = await r2.text();
-  let body = null;
+  let body;
   try {
     const parsed2 = JSON.parse(text);
     body = parsed2 !== null && typeof parsed2 === "object" ? parsed2 : null;
@@ -4464,7 +4464,7 @@ function requestLeavesAs(request, as) {
 }
 function resendLimitOf(r2) {
   if (r2.ok || r2.status !== 429 && r2.status !== 409) return null;
-  let name = null;
+  let name;
   try {
     name = JSON.parse(r2.errorBody ?? "")?.name ?? null;
   } catch {

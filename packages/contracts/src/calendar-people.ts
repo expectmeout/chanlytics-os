@@ -456,7 +456,7 @@ export function describeVisits(
 /** Which calendar the feed comes from, from its address alone — the address itself never leaves the server. */
 export function feedSourceLabel(url: string | null | undefined): string {
   if (!url) return "your calendar";
-  let host = "";
+  let host: string;
   try {
     host = new URL(url.replace(/^webcal:\/\//i, "https://")).hostname.toLowerCase();
   } catch {

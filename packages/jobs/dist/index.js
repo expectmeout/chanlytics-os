@@ -13113,7 +13113,7 @@ function addressOf(header) {
 }
 function resendLimitOf(r222) {
   if (r222.ok || r222.status !== 429 && r222.status !== 409) return null;
-  let name2 = null;
+  let name2;
   try {
     name2 = JSON.parse(r222.errorBody ?? "")?.name ?? null;
   } catch {

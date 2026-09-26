@@ -46,9 +46,9 @@ const changedBy = (by, me, team = []) => {
 /** The page at rest, both sheets open, and a viewer's page: everything the tab can draw on Marisa's record. */
 const everything = () => {
   const drawn = [];
-  let tree = drawTab();
+  drawTab();
   changedBy("u-ruben", { id: "u-ruben", email: "ruben@rjcapital.example", role: "owner" });
-  tree = redrawTab();
+  let tree = redrawTab();
   drawn.push({ where: "the page at rest", tree });
   press(byTestId(tree, "rec-row-act-services"));
   tree = redrawTab();
@@ -108,11 +108,11 @@ test("nobody's email is drawn, and no count sits on a row at rest", () => {
     assert.doesNotMatch(textOf(tree), /[\w.+-]+@[\w-]+\.[\w.]+/, `${where} shows an email address`);
   }
   // A colleague with no name in the team is said by their address's local part, never the address.
-  let tree = drawTab();
+  drawTab();
   changedBy("u-ana", { id: "u-ruben", email: "ruben@rjcapital.example" }, [
     { userId: "u-ana", email: "ana.lopez@salon.example", displayName: null },
   ]);
-  tree = redrawTab();
+  const tree = redrawTab();
   assert.match(textOf(byTestId(tree, "bt-head")), /ana\.lopez/);
   assert.doesNotMatch(textOf(byTestId(tree, "bt-head")), /@/);
   // "In your own words · 339 characters" and "3 messages sent in your name · 3 differ": a row states its fact.
@@ -142,9 +142,9 @@ test("the told section has no Show: its one door is Read it (Task 5.1)", () => {
 /* ------------------------------------ kept ------------------------------------ */
 
 test("every phrase §10 kept is drawn where it belongs", () => {
-  let tree = drawTab();
+  drawTab();
   changedBy("u-ruben", { id: "u-ruben", email: "ruben@rjcapital.example", role: "owner" });
-  tree = redrawTab();
+  const tree = redrawTab();
   // Business: the page's own name, in its head.
   assert.equal(textOf(find(byTestId(tree, "bt-head"), (n) => classes(n).includes("bt-title"))), "Business");
   // Changed by you, 7m ago: never the address.

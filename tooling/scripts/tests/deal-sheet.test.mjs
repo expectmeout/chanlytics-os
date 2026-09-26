@@ -1117,9 +1117,9 @@ test("the sheet opens where it is asked for, reads the person through the profil
 test("a move opens on the deal as it stands, says it once when recorded and sends nothing; a refusal stays in the sheet, under the field it names or by its Save", async () => {
   const R = fixtures(Date.now());
   const { calls, answers } = wire(R.detail({ deals: [R.dealDto()] }));
-  let tree = open();
+  open();
   W.openDealSheet({ personId: "p1", mode: "won", dealId: "d1" });
-  tree = await until("the person is read", (t) => input(t, "deal-sheet-value-input"));
+  let tree = await until("the person is read", (t) => input(t, "deal-sheet-value-input"));
   assert.equal(title(tree), "Mark as client");
   assert.equal(sub(tree), "Daniela Reyes · Ad management");
   assert.equal(input(tree, "deal-sheet-value-input").props.value, "$1,200", "the proposal's value");
@@ -1154,7 +1154,7 @@ test("a move opens on the deal as it stands, says it once when recorded and send
   assert.equal(calls.filter((c) => c.path.endsWith("/reply")).length, 0, "a yes sends nothing");
 
   // A new proposal refused for a service already open: said under the service it names, and nothing sent.
-  tree = open();
+  open();
   W.openDealSheet({ personId: "p1", mode: "propose" });
   tree = await until("the person is read", (t) => input(t, "deal-sheet-link-input"));
   answers.deal = () => json(400, { ok: false, error: { code: "validation", message: DEAL_REFUSALS.already_open } });
@@ -1190,9 +1190,9 @@ test("read again with the sheet open -- after a refusal, or over the tab's held 
   const fields = (t) => ["link", "value", "valid"].map((f) => input(t, `deal-sheet-${f}-input`).props.value);
 
   // A refusal: the link was changed here, the door says the deal moved on, and they are read again.
-  let tree = open();
+  open();
   W.openDealSheet({ personId: "p1", mode: "edit", dealId: "d1" });
-  tree = await until("the person is read", (t) => input(t, "deal-sheet-link-input"));
+  let tree = await until("the person is read", (t) => input(t, "deal-sheet-link-input"));
   assert.deepEqual(fields(tree), [R.dealDto().proposal_url, "$1,200", "2026-09-30"]);
   type(input(tree, "deal-sheet-link-input"), "docs.example.com/p/new");
   answers.deal = () => json(400, { ok: false, error: { code: "validation", message: DEAL_REFUSALS.moved } });
@@ -1222,7 +1222,7 @@ test("read again with the sheet open -- after a refusal, or over the tab's held 
   );
 
   // The tab's held copy, behind the row: painted at once, typed into before the fresh read lands, then merged.
-  tree = open();
+  open();
   answers.person = person(was);
   await W.__personDetail("p1");
   answers.person = person(since);
@@ -1250,9 +1250,9 @@ test("read again with the sheet open -- after a refusal, or over the tab's held 
 test("a send refused after a good record says both and closes; where it cannot go the switch is off and says why; Cancel asks once about what was typed", async () => {
   const R = fixtures(Date.now());
   const { calls, answers } = wire(R.detail());
-  let tree = open();
+  open();
   W.openDealSheet({ personId: "p1", mode: "propose" });
-  tree = await until("the person is read", (t) => input(t, "deal-sheet-link-input"));
+  let tree = await until("the person is read", (t) => input(t, "deal-sheet-link-input"));
   answers.reply = () =>
     json(409, { ok: false, error: { code: "window_closed", message: "Their WhatsApp window has closed." } });
   type(input(tree, "deal-sheet-link-input"), "docs.example.com/p/late");
@@ -1295,7 +1295,7 @@ test("a send refused after a good record says both and closes; where it cannot g
       messages: [shut.msg("m1", 30 * H)],
     }),
   );
-  tree = open();
+  open();
   W.openDealSheet({ personId: "p1", mode: "propose" });
   tree = await until("the person is read", (t) => byTestId(t, "deal-sheet-send-switch"));
   const sw = byTestId(tree, "deal-sheet-send-switch");

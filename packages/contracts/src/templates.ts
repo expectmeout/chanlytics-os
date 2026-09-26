@@ -140,7 +140,7 @@ export function validateTemplateDraft(d: TemplateDraftInput): TemplateDraftCheck
         error:
           "A button cannot take a value: Chanlytics sends the message and nothing else, and WhatsApp would refuse every send.",
       };
-    let parsed: URL | null = null;
+    let parsed: URL | null;
     try {
       parsed = new URL(url);
     } catch {

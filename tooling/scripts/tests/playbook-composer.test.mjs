@@ -361,8 +361,8 @@ test("REGRESSION: a starter's first name is each person's own and offers nothing
 
 test("a slot on a message written elsewhere may take anything, its guess first; a link the workspace lacks is typed", () => {
   // Only the message written elsewhere is approved, so the composer opens on nothing and it is picked.
-  let tree = composing({ templates: [ownRow()], bookingLink: false }, "quiet_30");
-  tree = pick("pb-template", "autumn_offer");
+  composing({ templates: [ownRow()], bookingLink: false }, "quiet_30");
+  let tree = pick("pb-template", "autumn_offer");
   assert.deepEqual(
     fillsOf(tree),
     [
@@ -474,7 +474,7 @@ test("a moment moved to keeps the message chosen when it can send it, and gives 
     textOf(byTestId(tree, "pb-template")).includes("Win-back"),
     `the reminder cannot go to a list: ${textOf(byTestId(tree, "pb-template"))}`,
   );
-  tree = pick("pb-template", "autumn_offer");
+  pick("pb-template", "autumn_offer");
   tree = pick("pb-moment", "phoned_only");
   assert.ok(textOf(byTestId(tree, "pb-template")).includes("Autumn offer"), "a message chosen goes with the owner");
 });
