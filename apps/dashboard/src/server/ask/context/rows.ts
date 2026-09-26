@@ -60,6 +60,9 @@ export function line(xs: Part[], route: string | null): string {
 export const aggregateOf = (xs: Part[]): string => parts(xs).join(" · ");
 
 /** The ids of these kinds the page sent, in its order, each once. */
+/** A row's id as the database keeps it. An id read by id in SQL must be one, or the read fails for the whole page. */
+export const ROW_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export function idsOf(ctx: PageContext, ...kinds: AskContextRowKind[]): PageContextRow[] {
   const seen = new Set<string>();
   return ctx.rows.filter((r) => {

@@ -432,6 +432,8 @@ test("a question carries how long the Line was open before it was asked (AskTurn
 test("the page is warmed as the Line opens, once, and again when the page under it changes while it is open (D6); closed, nothing is warmed; a bridge without the warm draws as before", async () => {
   const hash = globalThis.window.location.hash;
   const warmed = [];
+  // The warm goes a tick after the page is drawn, so a page just under the Line has said what it drew.
+  const tick = () => new Promise((r) => setTimeout(r, 0));
   const calls = ask([]);
   // The bridge's two calls the warm needs (legacy-bridge/ask.ts): the page's context and the warm itself.
   globalThis.window.__ask.context = (route) => ({
@@ -448,19 +450,24 @@ test("the page is warmed as the Line opens, once, and again when the page under 
     globalThis.window.location.hash = "#/today";
     render(Palette, CLOSED);
     await later(Palette, CLOSED);
+    await tick();
     assert.deepEqual(warmed, [], "closed, nothing is warmed");
     await opens();
+    await tick();
     assert.deepEqual(warmed, ["today"], "opening warms the page once");
     await later(Palette, OPEN);
+    await tick();
     assert.deepEqual(warmed, ["today"], "and a draw that changes nothing warms nothing more");
     globalThis.window.location.hash = "#/inbox/th-aaaaaaaa-aaaa-4aaa-8aaa-000000000001";
     await opens();
+    await tick();
     assert.deepEqual(
       warmed,
       ["today", "inbox/th-aaaaaaaa-aaaa-4aaa-8aaa-000000000001"],
       "the page under the Line changed: warmed again",
     );
     await closes();
+    await tick();
     assert.equal(warmed.length, 2, "closing warms nothing");
     // A warm that fails costs nothing: the Line still opens and asks.
     globalThis.window.__ask.warm = async () => {

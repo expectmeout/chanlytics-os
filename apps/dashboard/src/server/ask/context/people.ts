@@ -199,11 +199,13 @@ function leadsQueryOf(ctx: { route: string; view?: string | null }) {
 /** Leads: the leads the page drew, each as its row says it, the rail's counts and the searches waiting on the owner. */
 export const leads: Provider = async (rc, ctx) => {
   const v = leadsQueryOf(ctx);
-  const query = LeadsQuerySchema.parse({
+  // The page's own query; one the schema refuses reads the Leads page as it opens, never nothing.
+  const asked = LeadsQuerySchema.safeParse({
     list: v.list,
     ...(v.cls ? { class: v.cls } : {}),
     ...(v.searchId ? { search: v.searchId } : {}),
   });
+  const query = asked.success ? asked.data : LeadsQuerySchema.parse({});
   const [page, found, tz] = await Promise.all([
     load(rc, leadsReader, query).then((r) => r.data),
     load(rc, searchesReader, undefined).then((r) => r.data),

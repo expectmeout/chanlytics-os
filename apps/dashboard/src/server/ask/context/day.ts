@@ -7,7 +7,17 @@ import { inbox as inboxReader } from "../../readers/inbox";
 import { conversations as conversationsReader } from "../../readers/conversations";
 import { escalations as escalationsReader } from "../../readers/escalations";
 import { calls as callsReader } from "../../readers/calls";
-import { aggregateOf, idsOf, line, pageWithView, refOf, sourceOf, type ContextRow, type Provider } from "./rows";
+import {
+  ROW_ID,
+  aggregateOf,
+  idsOf,
+  line,
+  pageWithView,
+  refOf,
+  sourceOf,
+  type ContextRow,
+  type Provider,
+} from "./rows";
 import { threadState } from "../thread-state";
 
 /**
@@ -113,7 +123,10 @@ export const inbox: Provider = async (rc, ctx) => {
  * workspace's filter; the calls from the Calls page's own read, the newest hundred.
  */
 export const conversations: Provider = async (rc, ctx) => {
-  const convIds = idsOf(ctx, "conversation").map((r) => r.id);
+  // Read by id in SQL: an id that is not a uuid names no row, and would fail the read for every row on the page.
+  const convIds = idsOf(ctx, "conversation")
+    .map((r) => r.id)
+    .filter((id) => ROW_ID.test(id));
   const wantsCalls = idsOf(ctx, "call").length > 0;
   const [convs, open, calls, tz] = await Promise.all([
     convIds.length

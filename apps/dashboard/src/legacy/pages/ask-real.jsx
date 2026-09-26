@@ -256,7 +256,11 @@ const AskReal = ({ open, onClose }) => {
   // holds, or a warm that fails, costs nothing.
   useArEffect(() => {
     if (!open || !A || !A.warm || !A.context) return;
-    try { Promise.resolve(A.warm(A.context(arRoute()))).catch(() => {}); } catch (e) { /* the question still goes */ }
+    // A tick later, so a page that has just come under the Line has said what it drew (legacy-bridge/ask/context.ts).
+    const id = setTimeout(() => {
+      try { Promise.resolve(A.warm(A.context(arRoute()))).catch(() => {}); } catch (e) { /* the question still goes */ }
+    }, 0);
+    return () => clearTimeout(id);
   }, [open, route.page, route.param]);
 
   // Open: the three move from the button into the line (a FLIP), and the button's own face hides while they stand here

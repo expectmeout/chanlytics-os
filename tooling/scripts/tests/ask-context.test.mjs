@@ -1063,3 +1063,24 @@ test("the tab's warm (D6): the page's context posted to ask/warm for the named w
   };
   assert.equal(await api.warm(context), undefined, "and so is a network that is down");
 });
+
+test("an id that is not a uuid never reaches a read by id: Postgres would refuse the whole query, and the page's good rows with it", async () => {
+  const ctx = ctxFor();
+  const cv = await buildContext(
+    rcIn(ctx),
+    page(
+      "conversations",
+      [
+        { kind: "conversation", id: "not-a-uuid" },
+        { kind: "conversation", id: C1 },
+      ],
+      { route: "conversations/all", view: "all" },
+    ),
+  );
+  assert.deepEqual(
+    cv.blocks.map((b) => b.source),
+    ["page://conversations", `conversation://${C1}`],
+    "the good row is kept",
+  );
+  assert.ok(!JSON.stringify(ctx.supabase.seen).includes("not-a-uuid"), "the bad id was never read");
+});
