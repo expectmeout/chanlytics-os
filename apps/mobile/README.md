@@ -16,6 +16,11 @@ corepack pnpm exec eas build --profile development --platform android          #
 corepack pnpm start                                      # the dev client loop, once one is installed
 ```
 
+**The preview app on main** (`.eas/workflows/preview.yml`): a push to main that touches this app or the contracts
+fingerprints the native code. When a preview APK with that fingerprint exists, the push reaches it as an update on
+the `preview` channel (the app fetches it at launch and runs it on the next one); only a native change builds a new
+APK. Each build is one of the plan's builds, and the free plan's run out, so nothing else builds on a push.
+
 `EXPO_PUBLIC_SITE_ORIGIN` names the site the shell holds. Unset, it is the product's own address (`src/site.ts`); an
 EAS environment or a local `.env.local` may point it elsewhere, at a preview for instance.
 
