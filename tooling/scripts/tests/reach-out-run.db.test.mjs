@@ -173,14 +173,13 @@ test("a run and its sends are written whole, under the run's own id, the sends t
   assert.equal(rows.length, 3);
   for (const r of rows)
     assert.deepEqual([r.tenant_id, r.broadcast_id, r.playbook_id, r.root_id], [A, run.id, root, root]);
-  assert.deepEqual(
-    rows.map((r) => [r.lead_id, r.state, r.reason]),
-    [
-      [a, "planned", null],
-      [b, "planned", null],
-      [c, "skipped", "closed_every_day"],
-    ],
-  );
+  // By lead, whatever order the rows come back in: one state is no order within it.
+  const byLead = Object.fromEntries(rows.map((r) => [r.lead_id, [r.state, r.reason]]));
+  assert.deepEqual(byLead, {
+    [a]: ["planned", null],
+    [b]: ["planned", null],
+    [c]: ["skipped", "closed_every_day"],
+  });
   // A replay (the same id) and another tick's run for the step's day (another id) meet what was made, and add nothing.
   assert.deepEqual(ok(await plan(run, [planned(await lead())])), { exists: true });
   assert.deepEqual(ok(await plan(runRow(), [planned(await lead())])), { exists: true });
