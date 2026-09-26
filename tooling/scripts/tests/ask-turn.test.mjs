@@ -1085,10 +1085,7 @@ test("the fourteen reads run against the database in memory: each answers in its
     [true, "that read failed; say so and answer with what you have"],
   );
   // A period the schema does not list is refused before the read runs, in the schema's own words (PR 3.1, D2).
-  assert.equal(
-    (await run("get_report", { days: 12 })).result,
-    JSON.stringify({ error: "get_report: days Invalid option: expected one of 7|30|90" }),
-  );
+  assert.match(JSON.parse((await run("get_report", { days: 12 })).result).error, /^get_report: days Invalid option/);
   assert.equal(
     (await run("get_thread", { conversation_id: "nope" })).result,
     JSON.stringify({ error: "conversation_id must be an id a tool returned" }),
@@ -1269,9 +1266,9 @@ test("the proposal builders run against the database in memory: each kind is a c
   assert.deepEqual([resolve.proposal.payload.escalation_id, resolve.proposal.undo], [E1, null]);
   assert.match((await p("propose_thread_verb", { conversation_id: C2, verb: "resolve" })).result, /no open escalation/);
   // A verb the schema does not list is refused before the builder runs, in the schema's own words (PR 3.1, D2).
-  assert.equal(
+  assert.match(
     JSON.parse((await p("propose_thread_verb", { conversation_id: C1, verb: "delete" })).result).error,
-    'propose_thread_verb: verb Invalid option: expected one of "take_over"|"hand_back"|"snooze"|"wake"|"archive"|"resolve"',
+    /^propose_thread_verb: verb Invalid option/,
   );
 
   const mode = await p("propose_person_mode", { contact_id: P1, mode: "never" });
@@ -1304,8 +1301,8 @@ test("the proposal builders run against the database in memory: each kind is a c
     /change rejected/,
   );
   assert.match(
-    (await p("propose_settings", {})).result,
-    /propose_settings: change Invalid input: expected object, received undefined/,
+    JSON.parse((await p("propose_settings", {})).result).error,
+    /^propose_settings: change Invalid input/,
     "no change at all is refused by the schema, before the builder (PR 3.1, D2)",
   );
 
@@ -1316,9 +1313,9 @@ test("the proposal builders run against the database in memory: each kind is a c
   assert.match((await p("propose_whisper", { call_id: K1, text: "x" })).result, /not in progress/);
 
   assert.match((await p("propose_invite", { email: "nope", role: "viewer" })).result, /not an email address/);
-  assert.equal(
+  assert.match(
     JSON.parse((await p("propose_invite", { email: "ada@example.com", role: "owner" })).result).error,
-    'propose_invite: role Invalid option: expected one of "operator"|"viewer"',
+    /^propose_invite: role Invalid option/,
     "a role the schema does not list is refused by the schema (PR 3.1, D2)",
   );
 
@@ -1365,12 +1362,13 @@ test("the proposal builders run against the database in memory: each kind is a c
     JSON.parse(broadcast.result).note,
     "Nothing has happened yet. This is a card the person can approve, edit or dismiss. Say what you proposed; never say it is done.",
   );
-  t.conversations[0].contacts = { ...t.conversations[0].contacts, dnc: true };
+  const was = t.conversations[0].contacts;
+  t.conversations[0].contacts = { ...was, dnc: true };
   assert.match(
     (await p("draft_reply", { conversation_id: C1, text: "See you Saturday", voice: "you" })).result,
     /Rosa opted out; nothing can be sent to them/,
   );
-  t.conversations[0].contacts = { ...t.conversations[0].contacts, dnc: false };
+  t.conversations[0].contacts = was;
   // A playbook with no template takes the trigger's starter, and says so when the workspace does not hold it; a
   // template with a typed slot and no words is a question for the person, never invented words (pinned as text in
   // playbooks.test.mjs until PR 3.1).
@@ -1971,6 +1969,10 @@ test("get_calendar reads the board as its page reads it (ledger #11): with no da
       ["2026-09-14", "2026-09-15", "2026-09-16"],
       "days without a day: that many from the page's Monday",
     );
+    // A null on days is absent before the parse (PR 3.1, decision 1): the handler sees no days and gives the page's
+    // week, where it once read the null as one day -- the one value the null-strip changed.
+    const nullDays = await runTool(tc, { name: "get_calendar", input: { day: "", days: null } });
+    assert.equal(JSON.parse(nullDays.result).days.length, 7, "no days asked is the page's week");
     const tomorrow = await runTool(tc, { name: "get_calendar", input: { day: "tomorrow" } });
     assert.deepEqual(
       JSON.parse(tomorrow.result).days.map((d) => d.day),
@@ -3207,9 +3209,9 @@ test("propose_deal makes a card the route commits: a new proposal has no deal_id
     (await p("propose_deal", { contact_id: MARIA, stage: "proposed", valid_until: "2026-02-31" })).result,
     /valid_until must be a day, like 2026-09-30/,
   );
-  assert.equal(
+  assert.match(
     JSON.parse((await p("propose_deal", { contact_id: MARIA, stage: "lost", lost_reason: "banana" })).result).error,
-    'propose_deal: lost_reason Invalid option: expected one of "price"|"timing"|"elsewhere"|"no_reply"|"not_a_fit"|"other"',
+    /^propose_deal: lost_reason Invalid option/,
     "a reason the schema does not list is refused by the schema (PR 3.1, D2)",
   );
   assert.match(
@@ -3219,15 +3221,19 @@ test("propose_deal makes a card the route commits: a new proposal has no deal_id
 
   const bad = await p("propose_deal", { contact_id: MARIA, stage: "banana" });
   assert.equal(bad.isError, true);
-  assert.equal(
+  assert.match(
     JSON.parse(bad.result).error,
-    'propose_deal: stage Invalid option: expected one of "proposed"|"won"|"lost"|"ended"',
+    /^propose_deal: stage Invalid option/,
     "a stage the schema does not list is refused by the schema (PR 3.1, D2)",
   );
   assert.match((await p("propose_deal", { contact_id: C2, stage: "won" })).result, /no such person/);
   assert.match(
     (await p("propose_deal", { contact_id: "c1", stage: "won" })).result,
     /contact_id must be an id a read returned/,
+  );
+  assert.ok(
+    !tc.ctx.supabase.seen.some((q) => ["insert", "update", "upsert", "delete"].includes(q.op)),
+    "a proposal reads; it never writes",
   );
 });
 

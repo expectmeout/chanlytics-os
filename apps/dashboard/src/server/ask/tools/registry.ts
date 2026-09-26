@@ -211,9 +211,9 @@ export async function runTool(t: ToolContext, run: ToolRun): Promise<ToolOutcome
   const label = toolLabel(run.name);
   const tool = READ_BY_NAME.get(run.name);
   if (!tool) return { result: json({ error: `unknown tool ${run.name}` }), isError: true, label };
-  const parsed = parseInput(run.name, tool.input, run.input);
-  if (!parsed.ok) return { result: json({ error: parsed.error }), isError: true, label };
   try {
+    const parsed = parseInput(run.name, tool.input, run.input);
+    if (!parsed.ok) return { result: json({ error: parsed.error }), isError: true, label };
     const out = await tool.run(t, parsed.data);
     const isError = !!(
       out &&
@@ -238,9 +238,9 @@ export async function buildProposal(
 ): Promise<ProposalOutcome> {
   const tool = ACT_BY_NAME.get(name);
   if (!tool) return refuse(`unknown tool ${name}`);
-  const parsed = parseInput(name, tool.input, input);
-  if (!parsed.ok) return refuse(parsed.error);
   try {
+    const parsed = parseInput(name, tool.input, input);
+    if (!parsed.ok) return refuse(parsed.error);
     return await tool.build(t, parsed.data);
   } catch (e) {
     console.error(

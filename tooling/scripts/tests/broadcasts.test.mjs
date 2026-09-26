@@ -614,7 +614,22 @@ test("Ask: a broadcast is read (list_audiences) and proposed (propose_broadcast)
   const WS = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
   const PENDING = "dddddddd-dddd-4ddd-8ddd-ddddddddddd9";
   const supabase = fakeDb(
-    { templates: [{ id: PENDING, tenant_id: WS, channel: "whatsapp", name: "soon", meta_status: "pending" }] },
+    {
+      templates: [
+        {
+          id: PENDING,
+          tenant_id: WS,
+          channel: "whatsapp",
+          name: "soon",
+          language: "en",
+          meta_status: "pending",
+          category: "MARKETING",
+          variables: [],
+          body_preview: "See you soon.",
+          hidden_at: null,
+        },
+      ],
+    },
     {},
     {},
   );

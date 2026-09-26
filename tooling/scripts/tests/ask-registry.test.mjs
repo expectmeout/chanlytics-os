@@ -20,9 +20,18 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { READ_TOOLS, ACT_TOOLS, ACT_TOOL_NAMES, READ_DEFS, ACT_DEFS, toolSchema, runTool, buildProposal, toolLabel } =
-  await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
-const { newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
+const {
+  READ_TOOLS,
+  ACT_TOOLS,
+  ACT_TOOL_NAMES,
+  READ_DEFS,
+  ACT_DEFS,
+  toolSchema,
+  runTool,
+  buildProposal,
+  toolLabel,
+  newToolContext,
+} = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
 
 const FIXTURE = JSON.parse(
   fs.readFileSync(path.join(ROOT, "tooling/scripts/tests/fixtures/ask-tools-0c136563.json"), "utf8"),
@@ -178,4 +187,10 @@ test("the lead search keeps its order: the owner check comes before the plan's o
   assert.match(JSON.parse(operator.result).error, /^only an owner can start a lead search/);
   const owner = await buildProposal(contextFor("owner").t, "propose_lead_search", ask);
   assert.equal(JSON.parse(owner.result).error, "the plan is not complete: count Too small: expected number to be >=1");
+  // The owner check wins over the plan's semantic schema only: D2 orders every tool's parse before its handler, so an
+  // ask malformed at the flat schema hears the zod's words whatever the role; PR 3.2's D7 moves `needs` in front.
+  const flat = await buildProposal(contextFor("operator").t, "propose_lead_search", {
+    looking_for: "local_businesses",
+  });
+  assert.match(JSON.parse(flat.result).error, /^propose_lead_search: country Invalid input/);
 });

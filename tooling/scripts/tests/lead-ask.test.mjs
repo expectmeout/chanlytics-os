@@ -209,6 +209,10 @@ test("propose_lead_search makes a plan card for an owner; the model's plan is co
   );
   assert.equal(out.proposal.payload.plan.version, 1);
   assert.match(JSON.parse(out.result).note, /Nothing has happened yet/);
+  assert.ok(
+    !t.ctx.supabase.seen.some((q) => ["insert", "update", "upsert", "delete"].includes(q.op)),
+    "a proposal reads; it never writes",
+  );
   // The plan is the schema's own, not the model's words passed through.
   assert.equal(out.proposal.summary, planSentence(out.proposal.payload.plan));
   assert.equal(out.proposal.payload.plan.card, "local_businesses");
