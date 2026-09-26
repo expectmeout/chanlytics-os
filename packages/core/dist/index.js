@@ -10804,12 +10804,31 @@ var DAY_MS22 = 24 * 3600 * 1e3;
 var CALL_CONTROL_S = 15 * 60;
 
 // src/deliver.ts
+var wireUnavailable = (error) => ({ unavailable: true, error });
+function isWireUnavailable(w) {
+  return typeof w === "object" && w !== null && w.unavailable === true;
+}
+var WireUnavailableError = class extends Error {
+  channel;
+  constructor(channel, error) {
+    super(`deliver: the ${channel} wire could not be bound: ${error}`);
+    this.name = "WireUnavailableError";
+    this.channel = channel;
+  }
+};
+function isWireUnavailableError(e) {
+  return e instanceof Error && e.name === "WireUnavailableError";
+}
 function whatsappSender(cfg) {
   if (!cfg) return null;
   return (to, p) => {
     const digits = to.replace(/^\+/, "");
     return p.template ? sendTemplate(cfg, digits, p.template) : sendText(cfg, digits, p.body);
   };
+}
+function whatsappWire(read) {
+  if (read.outcome === "unavailable") return wireUnavailable(read.error);
+  return whatsappSender(read.outcome === "present" ? read.credentials : null);
 }
 function emailSender(routes) {
   if (routes.length === 0) return null;
@@ -10983,6 +11002,7 @@ async function deliver(ports, d) {
     return { outcome: "refused", reason, messageId: d.messageId ?? null };
   }
   const send = ports.wire[d.channel];
+  if (isWireUnavailable(send)) throw new WireUnavailableError(d.channel, send.error);
   const sent = send === void 0 ? { ok: false, wamid: null, status: 0, errorBody: "no_sender_for_channel", reason: "no_sender_for_channel" } : send === null ? { ok: false, wamid: null, status: 503, errorBody: "no_credentials", reason: "no_credentials" } : await send(d.to, {
     body: d.body,
     template: d.template,
@@ -11352,6 +11372,7 @@ async function replyToConversation(ports, cmd) {
 }
 
 // src/messages/send.ts
+var SEND_RETRY_WAITS_MS = [6e4, 3 * 6e4, 10 * 6e4, 30 * 6e4];
 async function sendQueued(ports, cmd) {
   const p = cmd.payload;
   let msg;
@@ -11372,25 +11393,44 @@ async function sendQueued(ports, cmd) {
     throw new Error(
       `outbound_send: message ${p.message_id} goes out by ${channel} and the job names no ${channel === "email" ? "address" : "number"}`
     );
-  const out = await ports.deliver({
-    tenantId: cmd.tenantId,
-    conversationId: p.conversation_id,
-    contactId: null,
-    to,
-    channel,
-    // Read from the ROW, not hardcoded: under a veto window the receptionist's
-    // own reply travels this path, and stamping every send "human" would make
-    // the metrics report a bot's words as a person's.
-    sender: msg.sender ?? "human",
-    purpose,
-    proactive: p.proactive === true,
-    body: p.body ?? msg.body ?? "",
-    template: p.template,
-    // The request the row was queued with, sent as it was frozen. A row without one fails at the wire, by name.
-    ...msg.email ? { email: msg.email } : {},
-    ...msg.leadId ? { leadId: msg.leadId } : {},
-    messageId: p.message_id
-  });
+  let out;
+  try {
+    out = await ports.deliver({
+      tenantId: cmd.tenantId,
+      conversationId: p.conversation_id,
+      contactId: null,
+      to,
+      channel,
+      // Read from the ROW, not hardcoded: under a veto window the receptionist's
+      // own reply travels this path, and stamping every send "human" would make
+      // the metrics report a bot's words as a person's.
+      sender: msg.sender ?? "human",
+      purpose,
+      proactive: p.proactive === true,
+      body: p.body ?? msg.body ?? "",
+      template: p.template,
+      // The request the row was queued with, sent as it was frozen. A row without one fails at the wire, by name.
+      ...msg.email ? { email: msg.email } : {},
+      ...msg.leadId ? { leadId: msg.leadId } : {},
+      messageId: p.message_id
+    });
+  } catch (e) {
+    if (!isWireUnavailableError(e)) throw e;
+    const resumes = typeof p.resumes === "number" && p.resumes > 0 ? Math.floor(p.resumes) : 0;
+    const wait = SEND_RETRY_WAITS_MS[resumes];
+    if (wait === void 0)
+      throw new Error(
+        `outbound_send: the ${channel} wire could not be bound for ${resumes} fresh jobs in a row (${e.message})`,
+        { cause: e }
+      );
+    await ports.page?.(
+      `wire_unavailable:${channel}`,
+      `${channel}: a workspace's credentials could not be read`,
+      `Tenant ${cmd.tenantId}, message ${p.message_id}: ${e.message}. The reply stays queued; a fresh job tries again in ${Math.round(wait / 6e4)} min (${resumes + 1} of ${SEND_RETRY_WAITS_MS.length}).`
+    );
+    await ports.retry(new Date((ports.now ?? Date.now)() + wait), { ...p, resumes: resumes + 1 });
+    return;
+  }
   if (out.outcome !== "failed") return;
   const limit = out.limit ?? null;
   const outreach = channel === "email" && purpose === "outreach";
@@ -11548,6 +11588,12 @@ async function sendBroadcastBatch(ports, cmd) {
       subject: `Broadcast \u201C${b.name}\u201D not sent`,
       body: "The workspace is paused until billing resumes, so nothing went out. Resume from Settings \u203A Billing and send it again."
     });
+    return;
+  }
+  const unbound = await ports.wireUnavailable();
+  if (unbound) {
+    console.error("broadcast_wire_unavailable", b.id, unbound);
+    await ports.scheduleNext(b.id, new Date(ports.now() + BROADCAST_STALL_RETRY_MS));
     return;
   }
   if (b.state === "scheduled" && !await ports.startSending(b.id)) return;
@@ -47679,11 +47725,13 @@ export {
   RADIUS_MAX_M,
   RADIUS_MIN_M,
   SEND_GRACE_MS,
+  SEND_RETRY_WAITS_MS,
   STALE_MS,
   STALE_REPLY_MS,
   UNKNOWN_START_GRACE_MS,
   VISION_MAX_BYTES,
   VISION_MIMES,
+  WireUnavailableError,
   afterProbe,
   ageVerdict,
   answerInbound,
@@ -47722,6 +47770,8 @@ export {
   isFreeMail2 as isFreeMail,
   isThreadUnknown,
   isVisionMime,
+  isWireUnavailable,
+  isWireUnavailableError,
   judgeBatch,
   layerTwo,
   mainAsk,
@@ -47770,6 +47820,8 @@ export {
   unreadableThread,
   wake,
   whatsappSender,
+  whatsappWire,
+  wireUnavailable,
   yieldOf,
   zctaCenter
 };

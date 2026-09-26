@@ -50,7 +50,9 @@ export async function POST(request: Request): Promise<Response> {
     .maybeSingle();
   if (!ch?.waba_id) return json(409, { ok: false, error: "no_waba" });
   const creds = await waCredentialsForTenant(db, tenantId);
-  if (!creds?.accessToken) return json(503, { ok: false, error: "no_token" });
+  // None on file, or none readable just now: a 503 either way, since this door is tried again by hand.
+  if (creds.outcome !== "present") return json(503, { ok: false, error: "no_token" });
+  const accessToken = creds.credentials.accessToken;
 
   // Meta's delete takes a name, and the template's own id NARROWS it to one
   // language. WITHOUT the id it removes every language of that name and locks
@@ -62,7 +64,7 @@ export async function POST(request: Request): Promise<Response> {
   // ever — the sync the refusal told the operator to run can never fill in an
   // id for a template Meta never had.
   const gone = row.meta_id
-    ? await deleteTemplate(creds.accessToken, ch.waba_id, row.name, row.meta_id)
+    ? await deleteTemplate(accessToken, ch.waba_id, row.name, row.meta_id)
     : ({ ok: false, status: 404, error: "not synced: no template id on file, so Meta was not asked" } as const);
   if (!row.meta_id)
     L.warn("wa_template_delete_unsynced", { tenant_id: tenantId, name: row.name, language: row.language });

@@ -36,6 +36,9 @@ const ZONE = "America/New_York";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { dispatchJob } = await import(pathToFileURL(path.join(here, "../../../packages/jobs/dist/index.js")).href);
+const { wireUnavailable, BROADCAST_STALL_RETRY_MS } = await import(
+  pathToFileURL(path.join(here, "../../../packages/core/dist/index.js")).href
+);
 
 const person = (over = {}) => ({
   id: over.id ?? "p1",
@@ -398,6 +401,38 @@ test("the job's ports fail CLOSED: a read that did not happen never answers 'not
     dispatchJob(ctx(fakeDb(world(), { "tenant_config.select": blip })), job),
     /workspace's settings/,
   );
+});
+
+test("a wire that could not be bound claims nobody: the run stays as it was, its people stay queued, nobody is told to reconnect, and the batch is tried again a while on", async () => {
+  // The workspace's credentials could not be READ this heartbeat (the edge's
+  // waCredentialsForTenant: Vault or the database did not answer). That is not
+  // a number that is absent, and a claim settles only forward (00182), so the
+  // batch asks before it claims and leaves the whole run for the next tick.
+  const w = world();
+  const sent = [];
+  const later = [];
+  const before = Date.now();
+  await dispatchJob(
+    {
+      db: fakeDb(w),
+      wire: { whatsapp: wireUnavailable("vault unavailable") },
+      alert: async (news) => sent.push(news),
+      schedule: async (kind, dueAt, payload) => later.push([kind, dueAt, payload]),
+      deadline: Date.now() + 60_000,
+    },
+    { id: "j1", tenant_id: TID, kind: "broadcast_send", payload: { broadcast_id: "b1" } },
+  );
+  assert.equal(w.broadcasts[0].state, "scheduled", "not failed, not even started: nothing was sent");
+  assert.equal(w.broadcasts[0].failure, null);
+  assert.equal(w.broadcast_recipients[0].state, "queued", "nobody is claimed into a wire nobody can bind");
+  assert.deepEqual(w.messages, [], "nothing is sent");
+  assert.deepEqual(sent, [], "nobody is told WhatsApp could not be reached, or to reconnect a number that may work");
+  assert.deepEqual(
+    later.map(([kind, , payload]) => [kind, payload]),
+    [["broadcast_send", { broadcast_id: "b1" }]],
+    "the batch is tried again",
+  );
+  assert.ok(later[0][1].getTime() >= before + BROADCAST_STALL_RETRY_MS, "a while later, not this second");
 });
 
 test("the routes: an approved template, values Meta accepts, an audience crossed with who said yes, enrolled now, scheduled, on the ledger; cancel stops what has not finished", () => {

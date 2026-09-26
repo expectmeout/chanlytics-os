@@ -101,11 +101,18 @@ test("a vault reference is read through the vault door", () =>
         },
       },
     );
-    assert.deepEqual(await waCredentialsForTenant(db, "t2"), { phoneId: "222000", accessToken: "vault-token" });
+    assert.deepEqual(await waCredentialsForTenant(db, "t2"), {
+      outcome: "present",
+      credentials: { phoneId: "222000", accessToken: "vault-token" },
+    });
   }));
 
-test("a vault that does not answer is a refusal, not the environment's pair", () =>
+test("a vault that does not answer is UNAVAILABLE: never the environment's pair, and never 'no credentials' either", () =>
   withEnv(ENV, async () => {
+    // A read that FAILED is not a channel that carries nothing. The number may
+    // well be connected; nobody knows. Said as its own outcome, so the send
+    // path waits rather than fail a reply for good and tell the owner to
+    // reconnect a number that works.
     const db = fakeDb(
       { tenant_channels: [channel()] },
       {},
@@ -115,32 +122,49 @@ test("a vault that does not answer is a refusal, not the environment's pair", ()
         },
       },
     );
-    assert.equal(await waCredentialsForTenant(db, "t2"), null);
+    assert.deepEqual(await waCredentialsForTenant(db, "t2"), { outcome: "unavailable", error: "vault unavailable" });
+  }));
+
+test("a vault that answers with a pair missing a half is a channel that carries none", () =>
+  withEnv(ENV, async () => {
+    const db = fakeDb(
+      { tenant_channels: [channel()] },
+      {},
+      { get_channel_credentials: () => ({ access_token: "vault-token" }) },
+    );
+    assert.deepEqual(await waCredentialsForTenant(db, "t2"), { outcome: "absent" });
   }));
 
 test("a channel with no reference gets the environment pair only when it IS the environment's number", () =>
   withEnv(ENV, async () => {
     const pilot = fakeDb({ tenant_channels: [channel({ credentials_ref: null, external_id: "111000" })] });
-    assert.deepEqual(await waCredentialsForTenant(pilot, "t2"), { phoneId: "111000", accessToken: "env-token" });
+    assert.deepEqual(await waCredentialsForTenant(pilot, "t2"), {
+      outcome: "present",
+      credentials: { phoneId: "111000", accessToken: "env-token" },
+    });
     const other = fakeDb({ tenant_channels: [channel({ credentials_ref: null, external_id: "333000" })] });
-    assert.equal(await waCredentialsForTenant(other, "t2"), null, "another business's number is not ours to send from");
+    assert.deepEqual(
+      await waCredentialsForTenant(other, "t2"),
+      { outcome: "absent" },
+      "another business's number is not ours to send from",
+    );
   }));
 
-test("no active WhatsApp channel, or a channel that cannot be read, is a refusal", () =>
+test("no active WhatsApp channel is ABSENT; a channel that cannot be read is UNAVAILABLE; neither is the pilot's token", () =>
   withEnv(ENV, async () => {
-    assert.equal(await waCredentialsForTenant(fakeDb({ tenant_channels: [] }), "t2"), null);
-    assert.equal(
+    assert.deepEqual(await waCredentialsForTenant(fakeDb({ tenant_channels: [] }), "t2"), { outcome: "absent" });
+    assert.deepEqual(
       await waCredentialsForTenant(fakeDb({ tenant_channels: [channel({ status: "disabled" })] }), "t2"),
-      null,
+      { outcome: "absent" },
     );
     const broken = fakeDb(
       { tenant_channels: [channel()] },
       { "tenant_channels.select": { message: "connection reset" } },
     );
-    assert.equal(
+    assert.deepEqual(
       await waCredentialsForTenant(broken, "t2"),
-      null,
-      '"we could not check" is not "send on the pilot\'s token"',
+      { outcome: "unavailable", error: "connection reset" },
+      '"we could not check" is not "send on the pilot\'s token", and not "nothing on file" either',
     );
   }));
 

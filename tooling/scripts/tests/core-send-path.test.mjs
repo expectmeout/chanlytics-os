@@ -8,9 +8,11 @@ import assert from "node:assert/strict";
 import { importSrc } from "./_source.mjs";
 
 const core = await importSrc("packages/core/src/messages/index.ts");
+const { WireUnavailableError } = await importSrc("packages/core/src/deliver.ts");
+const NOW = Date.parse("2026-09-11T12:00:00Z");
 /** A port the runtime does not hold, as opposed to one that answers null. */
 const ABSENT = Symbol("absent");
-const WRITES = new Set(["deliver", "escalate", "alert", "page", "provision"]);
+const WRITES = new Set(["deliver", "escalate", "alert", "page", "provision", "retry"]);
 
 /** Every port answers a value, a function of its arguments, or throws an Error; ABSENT leaves the port out, as a runtime that does not hold it would. */
 function fakes(over = {}) {
@@ -22,12 +24,18 @@ function fakes(over = {}) {
     escalate: "opened",
     alert: undefined,
     page: undefined,
+    retry: undefined,
     provision: { ok: true },
+    now: () => NOW,
     ...over,
   };
   const ports = {};
   for (const [name, answer] of Object.entries(answers)) {
     if (answer === ABSENT) continue;
+    if (name === "now") {
+      ports[name] = answer;
+      continue;
+    }
     ports[name] = async (...args) => {
       if (WRITES.has(name)) log.push([name, ...args]);
       if (answer instanceof Error) throw answer;
@@ -474,4 +482,69 @@ test("a 403 that names a domain on the hosted mailbox is still the platform's cr
     payload: { message_id: "m1", conversation_id: "c1", to_email: "ana@example.com" },
   });
   assert.equal(f.log.find((l) => l[0] === "page")?.[1], "provider_auth:email");
+});
+
+test("a wire that could not be bound is tried again as a fresh job, the row still queued: nobody is flagged, nobody is told to reconnect, the platform is paged", async () => {
+  // The door threw by name: the workspace's credentials could not be READ
+  // (Vault, the database). Nothing left and nothing was written, so a second
+  // job is safe where a second run of THIS job is not (ledger SPEAKS_TO_A_PERSON):
+  // the same send, as a fresh row, a while on. The count rides the payload as a
+  // resumed broadcast's does (jobs settle.ts).
+  const down = () => fakes({ deliver: new WireUnavailableError("whatsapp", "vault unavailable") });
+  const first = down();
+  await core.sendQueued(first.ports, send());
+  assert.deepEqual(first.ops(), ["deliver", "page", "retry"]);
+  assert.deepEqual(
+    first.log[2],
+    [
+      "retry",
+      new Date(NOW + core.SEND_RETRY_WAITS_MS[0]),
+      { message_id: "m1", conversation_id: "c1", to_phone: "+13475550101", body: "See you at 3", resumes: 1 },
+    ],
+    "the whole payload travels, plus how many fresh jobs this one already is the result of",
+  );
+  assert.equal(first.log[1][1], "wire_unavailable:whatsapp", "the platform's condition, under its own key");
+  assert.match(first.log[1][3], /vault unavailable/);
+  assert.ok(!/not connected|reconnect/i.test(first.log[1][2] + first.log[1][3]), "nobody is told the number is off");
+
+  // Each fresh job waits longer than the one before it.
+  const third = down();
+  await core.sendQueued(third.ports, send({ resumes: 2 }));
+  assert.deepEqual(third.log.at(-1).slice(0, 2), ["retry", new Date(NOW + core.SEND_RETRY_WAITS_MS[2])]);
+  assert.equal(third.log.at(-1)[2].resumes, 3);
+  assert.ok(core.SEND_RETRY_WAITS_MS[2] > core.SEND_RETRY_WAITS_MS[0]);
+
+  // A runtime without a pager still tries again.
+  const quiet = fakes({ deliver: new WireUnavailableError("sms", "connection reset"), page: ABSENT });
+  await core.sendQueued(quiet.ports, send());
+  assert.deepEqual(quiet.ops(), ["deliver", "retry"]);
+});
+
+test("every wait spent, a wire still unbound fails the job loudly by name, and nothing it says is 'reconnect the number'", async () => {
+  // The tick fails the job and settles the row (jobs settle.ts: failed, its
+  // thread flagged, its owner told) in the ledger's own words for a run that
+  // did not finish. What this verb must not do is guess: no refusal, no
+  // "not connected", no fresh job past the last wait.
+  const spent = fakes({ deliver: new WireUnavailableError("whatsapp", "vault unavailable") });
+  await assert.rejects(core.sendQueued(spent.ports, send({ resumes: core.SEND_RETRY_WAITS_MS.length })), (e) => {
+    assert.match(e.message, /outbound_send: .*could not be bound/);
+    assert.match(e.message, /vault unavailable/);
+    assert.ok(!/not connected|reconnect/i.test(e.message));
+    return true;
+  });
+  assert.deepEqual(spent.ops(), ["deliver"], "no flag, no owner alert, no fresh job: the ledger says it");
+
+  // Any other throw from the door is still the door's, and still loud.
+  const other = fakes({ deliver: new Error("deliver: cannot read the wire for conversation c1: timeout") });
+  await assert.rejects(core.sendQueued(other.ports, send()), /cannot read the wire/);
+  assert.deepEqual(other.ops(), ["deliver"]);
+});
+
+test("the waits a reply's fresh jobs keep: each longer than the last, a bounded few, and none shorter than a minute", () => {
+  const waits = core.SEND_RETRY_WAITS_MS;
+  assert.ok(waits.length >= 3 && waits.length <= 6, `${waits.length} fresh jobs, then a person`);
+  for (let i = 0; i < waits.length; i++) {
+    assert.ok(waits[i] >= 60_000, `wait ${i} is at least a minute`);
+    if (i > 0) assert.ok(waits[i] > waits[i - 1], `wait ${i} outlasts wait ${i - 1}`);
+  }
 });

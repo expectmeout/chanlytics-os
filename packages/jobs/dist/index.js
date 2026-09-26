@@ -18792,6 +18792,20 @@ var POS_TTL_MS = 5 * 60 * 1e3;
 var NEG_TTL_MS = 60 * 1e3;
 var DAY_MS222 = 24 * 3600 * 1e3;
 var CALL_CONTROL_S = 15 * 60;
+function isWireUnavailable(w) {
+  return typeof w === "object" && w !== null && w.unavailable === true;
+}
+var WireUnavailableError = class extends Error {
+  channel;
+  constructor(channel, error) {
+    super(`deliver: the ${channel} wire could not be bound: ${error}`);
+    this.name = "WireUnavailableError";
+    this.channel = channel;
+  }
+};
+function isWireUnavailableError(e2) {
+  return e2 instanceof Error && e2.name === "WireUnavailableError";
+}
 function kindOf(d) {
   if (d.purpose === "outreach") return "broadcast";
   if (d.kind) return d.kind;
@@ -18951,6 +18965,7 @@ async function deliver(ports, d) {
     return { outcome: "refused", reason, messageId: d.messageId ?? null };
   }
   const send = ports.wire[d.channel];
+  if (isWireUnavailable(send)) throw new WireUnavailableError(d.channel, send.error);
   const sent = send === void 0 ? { ok: false, wamid: null, status: 0, errorBody: "no_sender_for_channel", reason: "no_sender_for_channel" } : send === null ? { ok: false, wamid: null, status: 503, errorBody: "no_credentials", reason: "no_credentials" } : await send(d.to, {
     body: d.body,
     template: d.template,
@@ -19050,6 +19065,7 @@ var PERSON_CONTROL_MAX_S = 24 * 60 * 60;
 var MAX_SNOOZE_MS = 30 * 24 * 3600 * 1e3;
 var SEND_GRACE_MS = 15 * 1e3;
 var IDEMPOTENCY_WINDOW_MS = 30 * 1e3;
+var SEND_RETRY_WAITS_MS = [6e4, 3 * 6e4, 10 * 6e4, 30 * 6e4];
 async function sendQueued(ports, cmd) {
   const p = cmd.payload;
   let msg;
@@ -19070,25 +19086,44 @@ async function sendQueued(ports, cmd) {
     throw new Error(
       `outbound_send: message ${p.message_id} goes out by ${channel} and the job names no ${channel === "email" ? "address" : "number"}`
     );
-  const out = await ports.deliver({
-    tenantId: cmd.tenantId,
-    conversationId: p.conversation_id,
-    contactId: null,
-    to,
-    channel,
-    // Read from the ROW, not hardcoded: under a veto window the receptionist's
-    // own reply travels this path, and stamping every send "human" would make
-    // the metrics report a bot's words as a person's.
-    sender: msg.sender ?? "human",
-    purpose,
-    proactive: p.proactive === true,
-    body: p.body ?? msg.body ?? "",
-    template: p.template,
-    // The request the row was queued with, sent as it was frozen. A row without one fails at the wire, by name.
-    ...msg.email ? { email: msg.email } : {},
-    ...msg.leadId ? { leadId: msg.leadId } : {},
-    messageId: p.message_id
-  });
+  let out;
+  try {
+    out = await ports.deliver({
+      tenantId: cmd.tenantId,
+      conversationId: p.conversation_id,
+      contactId: null,
+      to,
+      channel,
+      // Read from the ROW, not hardcoded: under a veto window the receptionist's
+      // own reply travels this path, and stamping every send "human" would make
+      // the metrics report a bot's words as a person's.
+      sender: msg.sender ?? "human",
+      purpose,
+      proactive: p.proactive === true,
+      body: p.body ?? msg.body ?? "",
+      template: p.template,
+      // The request the row was queued with, sent as it was frozen. A row without one fails at the wire, by name.
+      ...msg.email ? { email: msg.email } : {},
+      ...msg.leadId ? { leadId: msg.leadId } : {},
+      messageId: p.message_id
+    });
+  } catch (e2) {
+    if (!isWireUnavailableError(e2)) throw e2;
+    const resumes = typeof p.resumes === "number" && p.resumes > 0 ? Math.floor(p.resumes) : 0;
+    const wait = SEND_RETRY_WAITS_MS[resumes];
+    if (wait === void 0)
+      throw new Error(
+        `outbound_send: the ${channel} wire could not be bound for ${resumes} fresh jobs in a row (${e2.message})`,
+        { cause: e2 }
+      );
+    await ports.page?.(
+      `wire_unavailable:${channel}`,
+      `${channel}: a workspace's credentials could not be read`,
+      `Tenant ${cmd.tenantId}, message ${p.message_id}: ${e2.message}. The reply stays queued; a fresh job tries again in ${Math.round(wait / 6e4)} min (${resumes + 1} of ${SEND_RETRY_WAITS_MS.length}).`
+    );
+    await ports.retry(new Date((ports.now ?? Date.now)() + wait), { ...p, resumes: resumes + 1 });
+    return;
+  }
   if (out.outcome !== "failed") return;
   const limit = out.limit ?? null;
   const outreach = channel === "email" && purpose === "outreach";
@@ -19240,6 +19275,12 @@ async function sendBroadcastBatch(ports, cmd) {
       subject: `Broadcast \u201C${b.name}\u201D not sent`,
       body: "The workspace is paused until billing resumes, so nothing went out. Resume from Settings \u203A Billing and send it again."
     });
+    return;
+  }
+  const unbound = await ports.wireUnavailable();
+  if (unbound) {
+    console.error("broadcast_wire_unavailable", b.id, unbound);
+    await ports.scheduleNext(b.id, new Date(ports.now() + BROADCAST_STALL_RETRY_MS));
     return;
   }
   if (b.state === "scheduled" && !await ports.startSending(b.id)) return;
@@ -22160,6 +22201,12 @@ async function broadcastSend(ctx, job) {
         );
       },
       deliver: (d) => deliver({ db, wire: ctx.wire }, d),
+      // A broadcast goes by WhatsApp: the wire the tick bound for this tenant, or why it could not (the credentials
+      // read failed on the edge). A wire that is null is a number that carries none, and the door's to refuse.
+      wireUnavailable: async () => {
+        const wire = ctx.wire.whatsapp;
+        return isWireUnavailable(wire) ? wire.error : null;
+      },
       remaining: (id) => countRecipients(db, job.tenant_id, id, "queued"),
       // Read by the verb as "is this broadcast still wanted"; null is how a
       // cancel reads, so a failed read here would abandon a half-sent broadcast
@@ -22235,7 +22282,24 @@ async function outboundSend(ctx, job) {
       deliver: (d) => deliver({ db: ctx.db, wire: ctx.wire }, d),
       escalate: (conversationId, reason, details) => upsertEscalation(ctx.db, job.tenant_id, conversationId, reason, details),
       alert: ctx.alert,
-      ...ctx.page ? { page: ctx.page } : {}
+      ...ctx.page ? { page: ctx.page } : {},
+      // The same send as a fresh row, through the same door a broadcast's next batch takes: this job completes, and
+      // the ledger claims the new one when it is due. Said on the console, since the tick sees only a job done.
+      retry: async (dueAt, payload) => {
+        await ctx.schedule("outbound_send", dueAt, payload);
+        console.warn(
+          JSON.stringify({
+            level: "warn",
+            event: "outbound_send_rescheduled",
+            tenant: job.tenant_id,
+            job: job.id,
+            message_id: payload.message_id,
+            resumes: payload.resumes ?? null,
+            due_at: dueAt.toISOString()
+          })
+        );
+      },
+      now: Date.now
     },
     { tenantId: job.tenant_id, payload: job.payload }
   );

@@ -20,7 +20,9 @@ import { fakeDb } from "./_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const { dispatchJob } = await import(pathToFileURL(path.join(ROOT, "packages/jobs/dist/index.js")).href);
-const { whatsappSender } = await import(pathToFileURL(path.join(ROOT, "packages/core/dist/index.js")).href);
+const { whatsappSender, wireUnavailable } = await import(
+  pathToFileURL(path.join(ROOT, "packages/core/dist/index.js")).href
+);
 
 const T = "t1";
 const WRITTEN = "2026-09-10T10:00:00.000Z";
@@ -382,6 +384,40 @@ test("no credentials is a refusal at the wire, said to the owner, never a send o
   assert.equal(message(db).error.body, "no_credentials");
   assert.equal(db.tables.escalations.length, 1, "the thread is flagged for a person");
   assert.equal(alerts.length, 1, "and the owner is told");
+});
+
+test("a wire that could not be bound leaves the reply queued for a fresh job a while on: no failed row, no flag, no owner alert, nothing to Meta", async () => {
+  // The credentials read FAILED (the edge's waCredentialsForTenant: Vault or
+  // the database did not answer). Not "no credentials": the number may well be
+  // connected. The job is done; a fresh outbound_send carries the same payload,
+  // counting how many fresh jobs it is the result of, and the row keeps saying
+  // queued so that job can still send it.
+  graph.length = 0;
+  const db = wrap(tables());
+  const later = [];
+  const { ctx, alerts } = ctxFor(db, {
+    wire: { whatsapp: wireUnavailable("vault unavailable"), sms: null },
+    schedule: async (kind, dueAt, payload) => later.push([kind, dueAt, payload]),
+  });
+  const before = Date.now();
+  assert.equal(await dispatchJob(ctx, job()), "done");
+  assert.equal(graph.length, 0, "nothing went to Meta");
+  assert.equal(message(db).status, "queued", "still on its way");
+  assert.equal(message(db).error, undefined);
+  assert.deepEqual(db.tables.escalations, [], "the thread is not flagged");
+  assert.deepEqual(alerts, [], "and the owner is not told to reconnect anything");
+  assert.deepEqual(db.tables.events, [], "nothing left, so nothing failed");
+  assert.equal(later.length, 1, "one fresh job");
+  assert.equal(later[0][0], "outbound_send");
+  assert.ok(later[0][1].getTime() >= before + 60_000, "a while on, not this second");
+  assert.deepEqual(later[0][2], { ...job().payload, resumes: 1 });
+
+  // A workspace that holds NONE is still refused at the wire, as above: the two are different facts.
+  const none = wrap(tables());
+  const bare = ctxFor(none, { wire: { whatsapp: null, sms: null } });
+  await dispatchJob(bare.ctx, job());
+  assert.equal(message(none).status, "failed");
+  assert.match(bare.alerts[0].body, /the WhatsApp number is not connected/);
 });
 
 test("a reach-out's email written after the receptionist's draft is no person speaking: the draft is not retired by it", async () => {

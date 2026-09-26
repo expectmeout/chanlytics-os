@@ -71,6 +71,23 @@ async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
         upsertEscalation(ctx.db, job.tenant_id, conversationId, reason, details),
       alert: ctx.alert,
       ...(ctx.page ? { page: ctx.page } : {}),
+      // The same send as a fresh row, through the same door a broadcast's next batch takes: this job completes, and
+      // the ledger claims the new one when it is due. Said on the console, since the tick sees only a job done.
+      retry: async (dueAt, payload) => {
+        await ctx.schedule("outbound_send", dueAt, payload as Json);
+        console.warn(
+          JSON.stringify({
+            level: "warn",
+            event: "outbound_send_rescheduled",
+            tenant: job.tenant_id,
+            job: job.id,
+            message_id: payload.message_id,
+            resumes: payload.resumes ?? null,
+            due_at: dueAt.toISOString(),
+          }),
+        );
+      },
+      now: Date.now,
     },
     { tenantId: job.tenant_id, payload: job.payload as SendQueuedCommand["payload"] },
   );
