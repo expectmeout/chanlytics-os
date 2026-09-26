@@ -267,7 +267,10 @@ test("the row's words, for every state: the pill, what is left to do, and the ca
     [0, "Up to 30 a day", "100 a day after 14 more days of sending", "nothing sent yet"],
     [1, "Up to 30 a day", "100 a day after 13 more days of sending", "1 day sending"],
     [13, "Up to 30 a day", "100 a day after 1 more day of sending", "13 days sending"],
+    [14, "Up to 100 a day", "200 a day after 16 more days of sending", "14 days sending"],
     [20, "Up to 100 a day", "200 a day after 10 more days of sending", "20 days sending"],
+    [29, "Up to 100 a day", "200 a day after 1 more day of sending", "29 days sending"],
+    [30, "Up to 200 a day", null, "30 days sending"],
     [40, "Up to 200 a day", null, "40 days sending"],
   ]) {
     const w = sendingDomainWords(

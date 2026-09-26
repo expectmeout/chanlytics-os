@@ -5123,6 +5123,15 @@ type Database = {
                 };
                 Returns: Json;
             };
+            outreach_lead_facts: {
+                Args: {
+                    p_contact_id: string;
+                    p_lead_id?: string;
+                    p_tenant_id: string;
+                    p_to: string;
+                };
+                Returns: Json;
+            };
             people_list: {
                 Args: {
                     p_contact_id?: string;
@@ -6262,13 +6271,13 @@ interface FollowerLead {
     region: string | null;
     hours: unknown;
     parent_message_id: string;
-    /** The door's own facts for this lead (outreach_facts, keyed by it): the answer the send will get. */
+    /** The lead's own facts (outreach_lead_facts, keyed by it): the answer the send door will give about them. */
     facts: {
         lead_stage: string | null;
         suppressed: boolean;
         wrote_back: boolean;
     };
-    /** Any email of the chain to them bounced (C4): the chain stops. */
+    /** Any email of the chain to them bounced or failed for good (C4): the chain stops. */
     bounced: boolean;
 }
 /** A step's leads: sent the step before at least `afterDays` ago, not on this step yet (00184 reach_out_followers). */

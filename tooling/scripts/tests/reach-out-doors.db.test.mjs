@@ -9,6 +9,7 @@ import { test, before, after, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
 import { buildEmailRequest, ownDomainIdentity } from "@chanlytics/channels";
+import { claimSends } from "@chanlytics/db";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -254,12 +255,14 @@ test("capacity: a domain's day, its days sent (D15), and the times it spends, fr
     recent: [],
     last_sent_at: null,
   });
-  // Two left on this UTC day, one the day before: two days sent, two spent in the rolling day.
+  // Two left on this UTC day, one the day before: one day sent before today (today's counts from tomorrow, so a
+  // domain's share holds all day), two spent in the rolling day.
   await emailFrom(host, { sentAt: NOON - 1 * H });
   await emailFrom(host, { sentAt: NOON - 2 * H });
   await emailFrom(host, { sentAt: NOON - 25 * H });
   let c = await capacity(d);
-  assert.deepEqual([c.sent_days, c.used], [2, 2]);
+  assert.deepEqual([c.sent_days, c.used], [1, 2]);
+  assert.equal((await capacity(d, NOON + DAY)).sent_days, 2, "tomorrow, today is a day sent");
   // Written and not yet left, and claimed with no row yet: each spends the day too.
   await emailFrom(host, { status: "queued" });
   await sendIn({ domain_id: d, lead_id: await lead() }, "claimed");
@@ -276,6 +279,14 @@ test("capacity: a domain's day, its days sent (D15), and the times it spends, fr
   await emailFrom(await hostOf(await domainRow()), { sentAt: NOON - 3 * H });
   assert.equal((await capacity(d)).used, 4);
   assert.equal(Date.parse((await capacity(d)).last_sent_at), NOON - 1 * H);
+
+  // The rolling day is (at - 24 h, at], as the timetable counts it: one left exactly a day before is out, one at the
+  // moment is in.
+  const edge = await domainRow();
+  const edgeHost = await hostOf(edge);
+  await emailFrom(edgeHost, { sentAt: NOON - DAY });
+  await emailFrom(edgeHost, { sentAt: NOON });
+  assert.equal((await capacity(edge)).used, 1);
 });
 
 test(
@@ -320,10 +331,23 @@ test(
       );
     assert.equal((await facts({ p_lead_id: closed })).lead_stage, "archived", "the send's own lead");
     assert.equal((await facts({})).lead_stage, "ready", "00181's rule without one");
-    // The five arguments an edge built before this answers with, and the domain's days sent beside its state.
+    // The five arguments an edge built before this answers with, and the domain's days sent beside its state: the
+    // ramp's days as the domains clock wrote them on the row (none until written).
     const five = await facts({});
     assert.deepEqual(Object.keys(five.domain).sort(), ["clean_since", "from_local", "sent_days", "state"]);
     assert.equal(five.domain.sent_days, 0);
+    ok(await db.from("sending_domains").update({ sent_days: 16 }).eq("id", d));
+    assert.equal((await facts({})).domain.sent_days, 16);
+    // The lead's own facts, as a step's followers ask them: the same answer, without the domain's.
+    const own = ok(
+      await db.rpc("outreach_lead_facts", {
+        p_tenant_id: A,
+        p_contact_id: person,
+        p_to: `two-${stamp}@fixture-doors.example`,
+        p_lead_id: closed,
+      }),
+    );
+    assert.deepEqual(own, { lead_stage: "archived", suppressed: false, wrote_back: false });
     // A lead of somebody else's is no lead of this person's.
     const other = await lead({ stage: "ready" });
     assert.equal((await facts({ p_lead_id: other })).lead_stage, null);
@@ -346,6 +370,29 @@ test(
     const out = {};
     out.review = await lead();
     await member(out.review, { class: "review", counted: false, counted_month: null });
+    out.notCounted = await lead();
+    await member(out.notCounted, { counted: false, counted_month: null });
+    // The place is on the never-again list (a customer's listing, or an erased one).
+    out.byPlace = await lead();
+    await member(out.byPlace);
+    const place = ok(await db.from("leads").select("place_id").eq("id", out.byPlace).single()).place_id;
+    ok(
+      await db
+        .from("lead_suppressions")
+        .insert({ tenant_id: A, kind: "place", hash: await hash(place), what: "customer" }),
+    );
+    // Somebody in People wrote from this address once, and has another on file now: still theirs.
+    const wroteFrom = `wrote-from-${stamp}@fixture-doors.example`;
+    const moved = await one(
+      db.from("contacts").insert({ tenant_id: A, email: `moved-${stamp}@fixture-doors.example` }),
+    );
+    ok(
+      await db
+        .from("contact_identities")
+        .insert({ tenant_id: A, contact_id: moved, channel: "email", external_id: wroteFrom }),
+    );
+    out.byIdentity = await lead({ email: wroteFrom });
+    await member(out.byIdentity);
     out.archived = await lead({ stage: "archived", closed_reason: "not_a_fit" });
     await member(out.archived);
     out.catchAll = await lead({ email_state: "catch_all" });
@@ -402,6 +449,19 @@ test(
       ok(await db.rpc("reach_out_audience", { p_tenant_id: A, p_search_id: search, p_root_id: root, p_limit: 1 }))
         .length,
       1,
+    );
+    // Asked for another workspace, this search is nobody's.
+    const elsewhere = crypto.randomUUID();
+    assert.deepEqual(
+      ok(
+        await db.rpc("reach_out_audience", {
+          p_tenant_id: elsewhere,
+          p_search_id: search,
+          p_root_id: root,
+          p_limit: 50,
+        }),
+      ),
+      [],
     );
   },
 );
@@ -468,6 +528,44 @@ test("the person a first send needs is made once, and its lead is not converted 
       .eq("id", gone),
   );
   assert.deepEqual(ok(await db.rpc("reach_out_person", { p_tenant_id: A, p_lead_id: gone })), { refused: "lead_gone" });
+  // An address People cannot hold is no address, refused rather than thrown.
+  assert.deepEqual(
+    ok(await db.rpc("reach_out_person", { p_tenant_id: A, p_lead_id: await lead({ email: "no-dot@localhost" }) })),
+    {
+      refused: "no_address",
+    },
+  );
+  // One they wrote from once, with another address on file now: theirs.
+  const wroteFrom = `person-wrote-${stamp}@fixture-doors.example`;
+  const moved = await one(
+    db.from("contacts").insert({ tenant_id: A, email: `person-now-${stamp}@fixture-doors.example` }),
+  );
+  ok(
+    await db
+      .from("contact_identities")
+      .insert({ tenant_id: A, contact_id: moved, channel: "email", external_id: wroteFrom }),
+  );
+  assert.deepEqual(
+    ok(await db.rpc("reach_out_person", { p_tenant_id: A, p_lead_id: await lead({ email: wroteFrom }) })),
+    {
+      refused: "already_yours",
+    },
+  );
+});
+
+test("two claims make one person for one address at once: the other is refused, never an error", { skip }, async () => {
+  for (let round = 0; round < 5; round += 1) {
+    const email = `twice-${round}-${stamp}@fixture-doors.example`;
+    const [x, y] = [await lead({ email }), await lead({ email })];
+    const answers = await Promise.all([
+      db.rpc("reach_out_person", { p_tenant_id: A, p_lead_id: x }),
+      db.rpc("reach_out_person", { p_tenant_id: A, p_lead_id: y }),
+    ]);
+    for (const a of answers) assert.equal(a.error, null, a.error?.message);
+    const said = answers.map((a) => (a.data.refused ? a.data.refused : "made")).sort();
+    assert.deepEqual(said, ["already_yours", "made"], `round ${round}`);
+    assert.equal(ok(await db.from("contacts").select("id").eq("tenant_id", A).eq("email", email)).length, 1);
+  }
 });
 
 test(
@@ -497,6 +595,10 @@ test(
       domain_id: d,
     });
     const bounced = await sentTo({ daysAgo: 5, status: "failed", error: { provider: "bounced" } });
+    const failed = await sentTo({ daysAgo: 5, status: "failed", error: { provider: "failed" } });
+    // Erased with its person: the sent email's row is gone, and there is nobody to follow up.
+    const erased = await sentTo({ daysAgo: 4 });
+    ok(await db.from("messages").delete().eq("id", erased.message));
     const wrote = await sentTo({ daysAgo: 4 });
     ok(
       await db.from("messages").insert({
@@ -528,7 +630,22 @@ test(
     );
     assert.equal(by[due.lead].facts.lead_stage, "ready", "the door's own answer, keyed by the lead");
     assert.equal(by[bounced.lead].bounced, true, "any bounce in the chain stops it (C4); the caller drops it");
+    assert.equal(by[failed.lead].bounced, true, "an email that failed for good stops it too");
+    assert.ok(!by[erased.lead], "an erased email has no follower");
     assert.equal(by[wrote.lead].facts.wrote_back, true, "a reply stops it; the caller drops it");
+    assert.deepEqual(
+      ok(
+        await db.rpc("reach_out_followers", {
+          p_tenant_id: crypto.randomUUID(),
+          p_step_id: step,
+          p_parent_id: root,
+          p_after_days: 3,
+          p_limit: 50,
+        }),
+      ),
+      [],
+      "another workspace's step has no followers here",
+    );
   },
 );
 
@@ -536,9 +653,16 @@ test(
   "the claim: within the day's room, due sends of a running chain only, and never twice under two ticks (C7)",
   { skip },
   async () => {
-    const at = new Date();
+    // Each claim at its own moment, after its sends were planned a minute ago.
     const claim = async (domain, cap, limit = 10) =>
-      ok(await db.rpc("reach_out_claim", { p_domain_id: domain, p_cap: cap, p_at: at.toISOString(), p_limit: limit }));
+      ok(
+        await db.rpc("reach_out_claim", {
+          p_domain_id: domain,
+          p_cap: cap,
+          p_at: new Date().toISOString(),
+          p_limit: limit,
+        }),
+      );
     // Cap 2 with one already left today: room for one of three due.
     const d1 = await domainRow();
     await emailFrom(await hostOf(d1), { sentAt: Date.now() - H });
@@ -615,5 +739,63 @@ test(
     const held = await domainRow({ state: "held", held_why: "bounces", held_at: iso(Date.now()) });
     await sendIn({ domain_id: held, lead_id: await lead() });
     assert.equal((await claim(held, 30)).length, 0, "a held domain claims nothing");
+
+    // A step still running under a paused root: the chain is paused, every step of it.
+    const d4 = await domainRow();
+    const pausedStep = await one(
+      db.from("playbooks").insert({
+        tenant_id: A,
+        kind: "reach_out",
+        policy_class: "outreach",
+        gap_minutes: 12,
+        template_id: template,
+        template_name: `reach_first_${stamp}`,
+        template_language: "en",
+        params: [],
+        name: "Paused's nudge",
+        trigger: "after_step",
+        after_playbook_id: paused,
+        after_days: 3,
+      }),
+    );
+    const pausedStepRun = await one(
+      db.from("broadcasts").insert({
+        tenant_id: A,
+        name: "Paused's nudge",
+        template_id: template,
+        template_name: `reach_first_${stamp}`,
+        template_language: "en",
+        audience: { kind: "reach_out", root_id: paused, step_id: pausedStep, search_id: search },
+        state: "scheduled",
+        scheduled_for: iso(Date.now()),
+        playbook_id: pausedStep,
+        run_for: "2026-10-01",
+      }),
+    );
+    await sendIn({
+      domain_id: d4,
+      lead_id: await lead(),
+      broadcast_id: pausedStepRun,
+      playbook_id: pausedStep,
+      root_id: paused,
+    });
+    assert.equal((await claim(d4, 30)).length, 0, "a paused root holds its steps");
+
+    // No share or no limit is no claim, never "no cap": least() would read a null as none at all.
+    await sendIn({ domain_id: d4, lead_id: await lead() });
+    for (const [cap, limit] of [
+      [null, 10],
+      [30, null],
+      [null, null],
+      [0, 10],
+      [30, -1],
+    ])
+      assert.deepEqual(await claim(d4, cap, limit), [], JSON.stringify({ cap, limit }));
+    await assert.rejects(
+      claimSends(db, { domainId: d4, cap: Number.NaN, at: new Date(), limit: 10 }),
+      /whole numbers/,
+      "the repository refuses what JSON would send as null",
+    );
+    assert.equal((await claim(d4, 30)).length, 1, "and with a share, the due send is claimed");
   },
 );

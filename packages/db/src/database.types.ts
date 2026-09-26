@@ -4875,6 +4875,15 @@ export type Database = {
         }
         Returns: Json
       }
+      outreach_lead_facts: {
+        Args: {
+          p_contact_id: string
+          p_lead_id?: string
+          p_tenant_id: string
+          p_to: string
+        }
+        Returns: Json
+      }
       people_list: {
         Args: {
           p_contact_id?: string

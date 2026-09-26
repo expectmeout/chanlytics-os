@@ -1132,6 +1132,16 @@ here, because the capacity read is where "days actually sent" is counted.
 >   own person, and the writer would have put a cold row into their thread.
 > - **The door keeps "never clean, no share"**: `cleanSince` stays beside `sentDays`, since `domainDailyCap(0)` is 30.
 > - The trigger copy keeps 00140's comment on its two lookups.
+> - **PR 3's review** (all fixed in its second commit):
+>   - D15 counts the days **before today**, so a domain's share holds all day.
+>   - The **door reads `sending_domains.sent_days`**, which the sweep writes; the capacity read is 130–150 ms at 200 a day. When the sweep's write makes a domain clean again, the same write sets the days to 0.
+>   - **`outreach_lead_facts`** holds the lead's own facts. The door composes it, and the followers ask it alone: 300 followers took 44 s when each asked the whole door.
+>   - The claim claims nothing for a null or non-positive cap or limit, and requires the chain's root to be running as well as its step.
+>   - `reach_out_person` refuses on a unique or check violation instead of throwing.
+>   - The audience and the person door also refuse an address a person wrote from (their email identities).
+>   - A chain email that failed for good stops the chain, as a bounce does.
+>   - The edge sends `p_lead_id` only when it names a lead.
+>   - The queued-row count is bounded by 30 days.
 > - The words: "N days sending" (or "nothing sent yet"), and "100 a day after N more days of sending" in place of a
 >   date. `sendingDomainWords` and `checkResultWords` no longer take the clock. A DTO without `sent_days` (from an edge
 >   built before) reads as none sent.
@@ -2311,6 +2321,8 @@ export async function POST(request: Request): Promise<Response> {
 ---
 
 ## PR 6 — The sender: claim and write
+
+> **From PR 3's review:** the writer inserts the email row **before** it moves the send out of `claimed`. The capacity counts a claimed send and a queued row each, so this order only double-counts for a moment, which means sending less. The other order leaves a gap where the send is counted nowhere, and a concurrent claim could claim past the cap.
 
 The one PR that sends. After it, a reach-out run approved on Broadcasts goes out, one email per claim, from the
 workspace's own domains. It is complete only with the secrets set (C13); until then the clock answers 503 while

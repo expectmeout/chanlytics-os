@@ -855,3 +855,23 @@ test("the clock writes the days each domain sent (D15) beside its counts; a read
     net.restore();
   }
 });
+
+test("a domain clean again starts its days over in the same write: a hold released never says the days before it", async () => {
+  const w = world(
+    [domain("d1", { state: "held", held_why: "dmarc", held_at: ago(DAY), dmarc: "missing", sent_days: 20 })],
+    {},
+    { d1: { state: "held", clean_since: ago(20 * DAY), sent_days: 20, used: 0, recent: [], last_sent_at: null } },
+  );
+  dns["d1.example"] = "found";
+  const net = provider({ "pd-d1": "verified" });
+  try {
+    const [status] = await answer(await knock(POST, "domains"));
+    assert.equal(status, 200);
+    const d = w.row("d1");
+    assert.equal(d.state, "verified");
+    assert.ok(Date.parse(d.clean_since) > Date.now() - 60_000, "clean from now");
+    assert.equal(d.sent_days, 0, "the ramp's first step, as the door and the claim will count it");
+  } finally {
+    net.restore();
+  }
+});

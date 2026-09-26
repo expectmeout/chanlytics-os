@@ -2,28 +2,31 @@
 --
 -- Reach out, Part 3 (the plan's PR 3).
 --
---   sending_domain_capacity(domain, at)   the one read of what a domain may still send: its days actually sent since
---                                         it was clean, within the last 90 (D15: the ramp counts them, not calendar
---                                         days; a domain idle for months warms again), what it spends
---                                         in the rolling day at `at` (left, of unknown outcome, queued, claimed), and
---                                         the times it spends them (the timetable's `recent`). The door, the claim
---                                         and the timetable all read it.
---   outreach_facts(..., p_lead_id)        keyed by the lead a send is for (its stage, not "any lead of this
---                                         person's"), and the domain's sent_days. Without a lead, as 00181.
+--   sending_domain_capacity(domain, at)   the one read of what a domain may still send: the days it sent on before
+--                                         today since it was clean, within the last 90 (D15: the ramp counts them, not
+--                                         calendar days, and moves only at midnight; a domain idle for months warms
+--                                         again), what it spends in the rolling day at `at` (left, of unknown outcome,
+--                                         queued, claimed), and the times it spends them (the timetable's `recent`).
+--                                         The claim and the timetable read it; the domains clock writes its days.
+--   sending_domains.sent_days             those days as the domains clock last wrote them, beside its other counts
+--                                         (00176): the send door and Connections read them, since the days move only
+--                                         at midnight or when the domain is clean again, and the door runs per send.
+--   outreach_lead_facts(...)              the lead's own facts (its stage, the never-again list, whether they wrote
+--                                         back), keyed by the lead a send is for. A step's followers ask this.
+--   outreach_facts(..., p_lead_id)        those, and the domain's: what the send door asks. Without a lead, as 00181.
 --   reach_out_audience(...)               the leads a chain's first step may write to (§4.2).
+--   reach_out_followers(...)              a step's leads, with their own facts and any bounce in the chain.
 --   reach_out_person(tenant, lead)        the person a first send needs, made once, without the insert trigger
 --                                         calling the lead converted (it is not: nobody has written back).
 --   lead_link_contact()                   skips an insert made with chanlytics.link_lead = off, and only then.
 --   reach_out_claim(domain, cap, at, n)   up to n due sends of a running chain, claimed under the domain's lock so
 --                                         two ticks can never spend its day twice (C7).
---   sending_domains.sent_days             the capacity's days as the domains clock last read them, beside its other
---                                         counts (00176), so Connections says them: members cannot ask the capacity.
 
 set local lock_timeout = '3s';
 
 alter table public.sending_domains add column if not exists sent_days integer;
 comment on column public.sending_domains.sent_days is
-  'The days it sent on since it was clean, within the last 90, as the domains clock last read them (sending_domain_capacity): what Connections says of the ramp. The send door reads the capacity itself. Null until read; a Resume clears it.';
+  'The days it sent on before today since it was clean, within the last 90 (sending_domain_capacity, D15), as the domains clock last wrote them: the ramp the send door and Connections read. Zero when clean again (a hold released, a first verify); null until written, read as none.';
 
 /* ------------------------------------------------------------- capacity -- */
 
@@ -49,10 +52,12 @@ as $$
             or (m.status = 'failed' and coalesce(m.error->>'outcome', '') = 'unknown'))
   ),
   waiting as (
-    -- Queued email rows from the domain (written, not yet left), and claimed sends with no row yet.
+    -- Queued email rows from the domain (written, not yet left), and claimed sends with no row yet. A row queued a
+    -- month ago is stuck, not waiting (the outbox fails a job long before): the bound keeps the read on 00176's index.
     select now() as at from public.messages m, d
      where m.tenant_id = d.tenant_id and m.channel = 'email' and m.direction = 'outbound' and m.status = 'queued'
        and public.email_from_host(m.meta) = d.host
+       and m.created_at >= p_at - interval '30 days'
     union all
     select coalesce(s.claimed_at, p_at) from public.reach_out_sends s, d
      where s.domain_id = d.id and s.state = 'claimed'
@@ -63,10 +68,11 @@ as $$
   select jsonb_build_object(
     'state', d.state,
     'clean_since', d.clean_since,
-    -- D15: the days it actually sent on (UTC days), since it was last clean.
+    -- D15: the days it actually sent on (UTC days) since it was last clean, before today's: the step a day's first
+    -- send earns is the next day's, so a domain's share holds all day (as the calendar ramp's did).
     'sent_days', (select count(distinct (g.at at time zone 'UTC')::date) from gone g
                    where d.clean_since is not null and g.at >= greatest(d.clean_since, p_at - interval '90 days')
-                     and g.at <= p_at),
+                     and (g.at at time zone 'UTC')::date < (p_at at time zone 'UTC')::date),
     'used', (select count(*) from gone g where g.at > p_at - interval '1 day' and g.at <= p_at)
             + (select count(*) from waiting),
     'recent', coalesce((select jsonb_agg((extract(epoch from x.at) * 1000)::bigint order by x.at) from (
@@ -81,13 +87,11 @@ grant execute on function public.sending_domain_capacity(uuid, timestamptz) to s
 
 /* --------------------------------------------------- the door, by lead -- */
 
-drop function if exists public.outreach_facts(uuid, uuid, text, text, timestamptz);
-create or replace function public.outreach_facts(
+-- The lead's own facts: the one place they are asked, by the send door (below) and by a step's followers.
+create or replace function public.outreach_lead_facts(
   p_tenant_id uuid,
   p_contact_id uuid,
   p_to text,
-  p_host text,
-  p_since timestamptz,
   p_lead_id uuid default null
 ) returns jsonb
 language sql
@@ -137,10 +141,33 @@ as $$
                      and coalesce(r.meta->'email'->>'claim', 'person') <> 'auto_reply')))
       or exists (
         select 1 from public.calls k
-         where k.tenant_id = p_tenant_id and k.contact_id = p_contact_id and k.direction = 'inbound')),
+         where k.tenant_id = p_tenant_id and k.contact_id = p_contact_id and k.direction = 'inbound'))
+  )
+$$;
+revoke execute on function public.outreach_lead_facts(uuid, uuid, text, uuid) from public, anon, authenticated;
+grant execute on function public.outreach_lead_facts(uuid, uuid, text, uuid) to service_role;
+comment on function public.outreach_lead_facts(uuid, uuid, text, uuid) is
+  'A cold email''s facts about its lead: lead_stage (the send''s own lead when named, else the one still being written to), suppressed, wrote_back (00181). Service role only.';
+
+drop function if exists public.outreach_facts(uuid, uuid, text, text, timestamptz);
+create or replace function public.outreach_facts(
+  p_tenant_id uuid,
+  p_contact_id uuid,
+  p_to text,
+  p_host text,
+  p_since timestamptz,
+  p_lead_id uuid default null
+) returns jsonb
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select public.outreach_lead_facts(p_tenant_id, p_contact_id, p_to, p_lead_id) || jsonb_build_object(
+    -- The ramp's days as the domains clock wrote them (they move only at midnight, or to none when clean again).
     'domain', (
       select jsonb_build_object('state', d.state, 'from_local', d.from_local, 'clean_since', d.clean_since,
-                                'sent_days', (public.sending_domain_capacity(d.id, now())->>'sent_days')::int)
+                                'sent_days', coalesce(d.sent_days, 0))
         from public.sending_domains d
        where d.tenant_id = p_tenant_id and d.host = lower(btrim(p_host))),
     'sent_since', (
@@ -155,6 +182,8 @@ as $$
 $$;
 revoke execute on function public.outreach_facts(uuid, uuid, text, text, timestamptz, uuid) from public, anon, authenticated;
 grant execute on function public.outreach_facts(uuid, uuid, text, text, timestamptz, uuid) to service_role;
+comment on function public.outreach_facts(uuid, uuid, text, text, timestamptz, uuid) is
+  'The facts the send door asks of a cold email (core deliver.ts): the lead''s (outreach_lead_facts), domain {state, from_local, clean_since, sent_days}, sent_since. Service role only.';
 
 /* ------------------------------------------------------------ the audience -- */
 
@@ -173,10 +202,14 @@ as $$
      and sm.class = 'qualified' and sm.counted and sm.blanked_at is null
      and l.stage = 'ready' and l.closed_reason is null and l.erased_at is null and l.blanked_at is null
      and l.email_state = 'ok' and nullif(btrim(l.email), '') is not null
-     -- Never a customer's: nobody in People shares the address or the number, and the finder saw no share.
+     -- Never a customer's: nobody in People shares the address (as theirs now, or as one they wrote from) or the number,
+     -- and the finder saw no share.
      and coalesce(jsonb_array_length(sm.judgment->'shares'), 0) = 0
      and not exists (select 1 from public.contacts c where c.tenant_id = l.tenant_id and c.erased_at is null
                        and (c.email = lower(btrim(l.email)) or (l.phone_e164 is not null and c.phone_e164 = l.phone_e164)))
+     and not exists (select 1 from public.contact_identities i
+                       join public.contacts c on c.id = i.contact_id and c.erased_at is null
+                      where i.tenant_id = l.tenant_id and i.channel = 'email' and i.external_id = lower(btrim(l.email)))
      -- Never the never-again list: the address (an opt-out, a customer, an erasure), and the place or the number
      -- (a customer's or an erased person's, 00140: a number carries no opt-out of its own), so a business erased or
      -- already a customer is not found again under a new address.
@@ -197,9 +230,10 @@ $$;
 revoke execute on function public.reach_out_audience(uuid, uuid, uuid, int) from public, anon, authenticated;
 grant execute on function public.reach_out_audience(uuid, uuid, uuid, int) to service_role;
 
--- A step's leads: sent the step before at least p_after_days ago, not on this step yet, each with the door's own
--- facts (outreach_facts, keyed by the lead: the same answer the send will get) and whether any email of the chain
--- to them bounced (C4: any bounce stops the chain).
+-- A step's leads: sent the step before at least p_after_days ago, not on this step yet, each with the lead's own facts
+-- (outreach_lead_facts, keyed by the lead: the answer the send door will give about them) and whether any email of the
+-- chain to them bounced or failed for good (C4: any bounce stops the chain). A lead whose sent email was erased with
+-- its person is no follower: there is nobody to follow up.
 create or replace function public.reach_out_followers(
   p_tenant_id uuid, p_step_id uuid, p_parent_id uuid, p_after_days int, p_limit int)
 returns table (lead_id uuid, contact_id uuid, email text, region text, hours jsonb, parent_message_id uuid,
@@ -210,11 +244,10 @@ security definer
 set search_path = public
 as $$
   select l.id, s.contact_id, lower(btrim(l.email)), l.region, l.hours, s.message_id,
-         public.outreach_facts(p_tenant_id, s.contact_id, lower(btrim(l.email)),
-                               coalesce(public.email_from_host(m.meta), ''), now() - interval '1 day', l.id),
+         public.outreach_lead_facts(p_tenant_id, s.contact_id, lower(btrim(l.email)), l.id),
          exists (select 1 from public.reach_out_sends b join public.messages bm on bm.id = b.message_id
                   where b.root_id = s.root_id and b.lead_id = l.id
-                    and bm.status = 'failed' and bm.error->>'provider' = 'bounced')
+                    and bm.status = 'failed' and bm.error->>'provider' in ('bounced', 'failed'))
     from public.reach_out_sends s
     join public.leads l on l.id = s.lead_id and l.tenant_id = s.tenant_id
     join public.messages m on m.id = s.message_id
@@ -306,15 +339,27 @@ begin
   if v_lead.contact_id is not null then
     v_contact := v_lead.contact_id;
   else
-    -- Somebody in People already has this address: a customer, never written to cold (§4.8).
-    if exists (select 1 from public.contacts c where c.tenant_id = p_tenant_id and c.email = v_email and c.erased_at is null) then
+    -- Somebody in People already has this address, as theirs or as one they wrote from: a customer, never written to
+    -- cold (§4.8).
+    if exists (select 1 from public.contacts c where c.tenant_id = p_tenant_id and c.email = v_email and c.erased_at is null)
+       or exists (select 1 from public.contact_identities i
+                    join public.contacts c on c.id = i.contact_id and c.erased_at is null
+                   where i.tenant_id = p_tenant_id and i.channel = 'email' and i.external_id = v_email) then
       return jsonb_build_object('refused', 'already_yours');
     end if;
-    perform set_config('chanlytics.link_lead', 'off', true);
-    insert into public.contacts (tenant_id, display_name, email)
-    values (p_tenant_id, left(nullif(v_lead.business_name, ''), 80), v_email)
-    returning id into v_contact;
-    perform set_config('chanlytics.link_lead', 'on', true);
+    -- The person, made with the lead-link trigger told this insert is not a lead converting. A person with the address
+    -- made meanwhile (another lead's claim, an email in) is somebody's already; an address People cannot hold is none.
+    -- Either refuses, and the switch goes back with the failed insert.
+    begin
+      perform set_config('chanlytics.link_lead', 'off', true);
+      insert into public.contacts (tenant_id, display_name, email)
+      values (p_tenant_id, left(nullif(v_lead.business_name, ''), 80), v_email)
+      returning id into v_contact;
+      perform set_config('chanlytics.link_lead', 'on', true);
+    exception
+      when unique_violation then return jsonb_build_object('refused', 'already_yours');
+      when check_violation then return jsonb_build_object('refused', 'no_address');
+    end;
     insert into public.contact_identities (tenant_id, contact_id, channel, external_id)
     values (p_tenant_id, v_contact, 'email', v_email)
     on conflict (tenant_id, channel, external_id) do nothing;
@@ -343,20 +388,26 @@ as $$
 declare
   v_room int;
 begin
+  -- No share, no limit, no moment: nothing is claimed (least() would read a null cap as none at all).
+  if p_domain_id is null or p_cap is null or p_limit is null or p_at is null or p_cap <= 0 or p_limit <= 0 then
+    return;
+  end if;
   -- One claimer per domain at a time: the count below and the claim after it are one step (C7).
   perform pg_advisory_xact_lock(hashtext('reach_out_claim:' || p_domain_id::text));
   if not exists (select 1 from public.sending_domains where id = p_domain_id and state = 'verified') then return; end if;
   v_room := least(p_limit, p_cap - (public.sending_domain_capacity(p_domain_id, p_at)->>'used')::int);
-  if v_room <= 0 then return; end if;
+  if v_room is null or v_room <= 0 then return; end if;
   return query
   update public.reach_out_sends s
      set state = 'claimed', claimed_at = p_at
    where s.id in (
      select s2.id from public.reach_out_sends s2
        join public.playbooks p on p.id = s2.playbook_id
+       join public.playbooks r on r.id = s2.root_id
        join public.broadcasts b on b.id = s2.broadcast_id
       where s2.domain_id = p_domain_id and s2.state = 'planned' and s2.send_at <= p_at
-        and p.state = 'running' and b.state in ('scheduled', 'sending')
+        -- The step running, and its chain: a paused root pauses every step of it.
+        and p.state = 'running' and r.state = 'running' and b.state in ('scheduled', 'sending')
       order by s2.send_at
       limit v_room
       for update of s2 skip locked)

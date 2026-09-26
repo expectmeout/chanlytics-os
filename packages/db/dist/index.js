@@ -2965,7 +2965,9 @@ async function outreachFactsOf(db, p) {
     p_to: p.to,
     p_host: p.host,
     p_since: p.since,
-    p_lead_id: p.leadId ?? null
+    // Named only when there is a lead: a database before 00184 knows five arguments, and a sixth it has never heard of
+    // would fail every cold send rather than answer as it did.
+    ...p.leadId ? { p_lead_id: p.leadId } : {}
   });
   if (error) throw new Error(`cannot read the outreach facts: ${error.message}`);
   const f = data ?? {};
@@ -3026,6 +3028,8 @@ async function reachOutPerson(db, tenantId, leadId) {
   return { ok: true, contactId: r2.contact_id, conversationId: r2.conversation_id, made: r2.made === true };
 }
 async function claimSends(db, p) {
+  if (!Number.isInteger(p.cap) || !Number.isInteger(p.limit) || Number.isNaN(p.at.getTime()))
+    throw new Error(`cannot claim the domain's due sends: a cap and a limit are whole numbers (${p.cap}, ${p.limit})`);
   const { data, error } = await db.rpc("reach_out_claim", {
     p_domain_id: p.domainId,
     p_cap: p.cap,

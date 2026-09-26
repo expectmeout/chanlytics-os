@@ -92,6 +92,9 @@ export async function claimSends(
   db: Db,
   p: { domainId: string; cap: number; at: Date; limit: number },
 ): Promise<ReachOutSendRow[]> {
+  // A share or a limit that is not a whole number is a caller's mistake, never "no cap" (JSON would send NaN as null).
+  if (!Number.isInteger(p.cap) || !Number.isInteger(p.limit) || Number.isNaN(p.at.getTime()))
+    throw new Error(`cannot claim the domain's due sends: a cap and a limit are whole numbers (${p.cap}, ${p.limit})`);
   const { data, error } = await db.rpc("reach_out_claim", {
     p_domain_id: p.domainId,
     p_cap: p.cap,
@@ -125,9 +128,9 @@ export interface FollowerLead {
   region: string | null;
   hours: unknown;
   parent_message_id: string;
-  /** The door's own facts for this lead (outreach_facts, keyed by it): the answer the send will get. */
+  /** The lead's own facts (outreach_lead_facts, keyed by it): the answer the send door will give about them. */
   facts: { lead_stage: string | null; suppressed: boolean; wrote_back: boolean };
-  /** Any email of the chain to them bounced (C4): the chain stops. */
+  /** Any email of the chain to them bounced or failed for good (C4): the chain stops. */
   bounced: boolean;
 }
 

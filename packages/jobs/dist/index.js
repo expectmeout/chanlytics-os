@@ -18330,7 +18330,9 @@ async function outreachFactsOf(db, p) {
     p_to: p.to,
     p_host: p.host,
     p_since: p.since,
-    p_lead_id: p.leadId ?? null
+    // Named only when there is a lead: a database before 00184 knows five arguments, and a sixth it has never heard of
+    // would fail every cold send rather than answer as it did.
+    ...p.leadId ? { p_lead_id: p.leadId } : {}
   });
   if (error) throw new Error(`cannot read the outreach facts: ${error.message}`);
   const f = data ?? {};
