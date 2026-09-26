@@ -283,16 +283,14 @@ test(
   "a planned send knows when (its domain may be one that was removed), and one lead is in a run once",
   { skip },
   async () => {
-    const noTime = await db
-      .from("reach_out_sends")
-      .insert({
-        id: crypto.randomUUID(),
-        tenant_id: A,
-        broadcast_id: run,
-        playbook_id: root,
-        root_id: root,
-        lead_id: await lead(),
-      });
+    const noTime = await db.from("reach_out_sends").insert({
+      id: crypto.randomUUID(),
+      tenant_id: A,
+      broadcast_id: run,
+      playbook_id: root,
+      root_id: root,
+      lead_id: await lead(),
+    });
     assert.match(noTime.error?.message ?? "", /reach_out_sends_planned_is_timed/);
     const l = await lead();
     await send({ lead_id: l });
@@ -472,13 +470,11 @@ test(
         .select("id")
         .single(),
     ).id;
-    const across = await db
-      .from("playbooks")
-      .insert({
-        ...rootRow({ trigger: "after_step", lead_search_id: null, after_playbook_id: loneRoot, after_days: 3 }),
-        tenant_id: B,
-        template_id: template,
-      });
+    const across = await db.from("playbooks").insert({
+      ...rootRow({ trigger: "after_step", lead_search_id: null, after_playbook_id: loneRoot, after_days: 3 }),
+      tenant_id: B,
+      template_id: template,
+    });
     assert.match(across.error?.message ?? "", /playbooks_after_same_workspace/);
   },
 );

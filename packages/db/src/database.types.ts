@@ -3501,25 +3501,11 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "playbooks_after_playbook_id_fkey"
-            columns: ["after_playbook_id"]
+            foreignKeyName: "playbooks_after_same_workspace"
+            columns: ["tenant_id", "after_playbook_id"]
             isOneToOne: false
             referencedRelation: "playbooks"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "playbooks_lead_search_id_fkey"
-            columns: ["lead_search_id"]
-            isOneToOne: false
-            referencedRelation: "lead_searches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "playbooks_lead_search_id_fkey"
-            columns: ["lead_search_id"]
-            isOneToOne: false
-            referencedRelation: "lead_searches_view"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "playbooks_list_id_fkey"
@@ -3527,6 +3513,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "segments"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "playbooks_search_same_workspace"
+            columns: ["tenant_id", "lead_search_id"]
+            isOneToOne: false
+            referencedRelation: "lead_searches"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "playbooks_search_same_workspace"
+            columns: ["tenant_id", "lead_search_id"]
+            isOneToOne: false
+            referencedRelation: "lead_searches_view"
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "playbooks_template_id_fkey"
