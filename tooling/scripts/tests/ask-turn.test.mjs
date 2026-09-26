@@ -1971,9 +1971,10 @@ test("REGRESSION: Today's reply-window rows are the opposite of drafts -- the cu
   );
 });
 
-test("the day is read once a turn, as the pages read it: get_today, list_threads and list_calls in one round read the conversations twice at most and the calls once; the escalated thread past the newest hundred and the missed call past the newest forty are there", async () => {
-  // A hundred threads newer than the one still waiting on a person, which the Inbox fetches by its id (ledger #6),
-  // and forty-five calls this morning whose oldest never connected (ledger #8: list_calls read the newest forty).
+test("the day is read once a turn, each tool as its page reads it: get_today, list_threads and list_calls in one round read the conversations twice at most and the calls once; Today counts the customer waiting past the newest hundred as the Today page does, the Inbox fetches their thread, recent is the newest twenty, and the missed call past the newest forty is there", async () => {
+  // A hundred threads newer than the one still waiting on a person: the Inbox fetches that one by its id (ledger #6),
+  // the Today page does not. And forty-five calls this morning whose oldest never connected (ledger #8: list_calls
+  // read the newest forty).
   const hundred = Array.from({ length: 100 }, (_, i) =>
     conversation(`cccccccc-cccc-4ccc-8ccc-${String(i).padStart(12, "0")}`, {
       last_message_at: iso(NOW.getTime() - (i + 1) * 60_000),
@@ -2007,6 +2008,7 @@ test("the day is read once a turn, as the pages read it: get_today, list_threads
     ROUND([
       tool("get_today", {}),
       tool("list_threads", { filter: "needs_you" }),
+      tool("list_threads", { filter: "recent" }, "t-recent"),
       tool("list_calls", { filter: "missed" }),
     ]),
     ROUND([answer("Quinn is waiting on you, and one call never connected.")]),
@@ -2018,20 +2020,25 @@ test("the day is read once a turn, as the pages read it: get_today, list_threads
   assert.deepEqual(
     ["conversations", "calls", "escalations", "tenants"].map(selects),
     [2, 1, 1, 0],
-    "the newest hundred and the escalated one past them, the calls once, the escalations once, and no tenant: the zone is the turn's",
+    "the newest hundred once, shared; the escalated one past it once, for the Inbox; the calls and the escalations once; and no tenant: the zone is the turn's",
   );
   const out = Object.fromEntries(
     s.requests[1].messages.at(-1).content.map((c) => [c.tool_use_id, JSON.parse(c.content)]),
   );
   assert.deepEqual(
     out["t-get_today"].needs_you.rows.map((x) => [x.conversation_id, x.who]),
-    [[C2, "Quinn"]],
-    "Today names the waiting customer from their thread",
+    [[C2, "Unknown"]],
+    "Today counts the customer waiting past the newest hundred as the Today page does, whose thread it does not read",
   );
   assert.deepEqual(
     out["t-list_threads"].threads.map((x) => [x.conversation_id, x.who, x.state]),
     [[C2, "Quinn", "needs you"]],
-    "the Inbox's escalated thread past the newest hundred is listed",
+    "the Inbox fetches the escalated thread past the newest hundred, and lists it under needs_you",
+  );
+  assert.deepEqual(
+    [out["t-recent"].total_matching, out["t-recent"].threads.map((x) => x.conversation_id)],
+    [101, hundred.slice(0, 20).map((c) => c.id)],
+    "recent is the newest twenty: the old escalated thread the Inbox's rows put first is not one of them",
   );
   assert.deepEqual(
     out["t-list_calls"].calls.map((x) => [x.call_id, x.outcome]),

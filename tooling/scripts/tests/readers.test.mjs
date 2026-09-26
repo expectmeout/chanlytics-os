@@ -650,15 +650,22 @@ test("the Inbox as the page composes it: the newest hundred and the open escalat
   assert.deepEqual(lines, [[1]], "one waiting customer the read could not bring, counted");
 });
 
-test("Today for Ask as the page composes it: the Inbox, the day's metrics, the calls and the searches at once, each read once in the turn; a failed calls or searches read is null and the rest stands", async () => {
+test("Today for Ask as the page composes it: the day's metrics, the newest hundred, the open escalations, the calls and the searches at once -- no escalated thread fetched by id, which is the Inbox's read -- each read once in the turn and shared with the Inbox; a failed calls or searches read is null and the rest stands", async () => {
   const ctx = dayCtx(dayTables(), { rpcs: dayDoors });
   const rc = turnIn(ctx);
   const r = await kernel.load(rc, today, undefined);
-  const theInbox = await kernel.load(rc, inbox, undefined);
   assert.deepEqual(Object.keys(r.data), ["metrics", "conversations", "escalations", "calls", "searches"]);
   assert.deepEqual(r.data.metrics, SUMMARY);
-  assert.equal(r.data.conversations, theInbox.data.conversations, "the Inbox's own rows, not a second read");
-  assert.equal(r.data.escalations, theInbox.data.escalations);
+  assert.deepEqual(
+    r.data.conversations.map((c) => c.id),
+    Array.from({ length: 100 }, (_, i) => uuid(i)),
+    "the newest hundred, as the Today page reads them: the quiet thread that waits is not fetched",
+  );
+  assert.deepEqual(
+    r.data.escalations.map((e) => e.id),
+    ["e-in", "e-out"],
+    "its escalation is read: the page counts it as a customer waiting",
+  );
   assert.deepEqual(
     r.data.calls.map((c) => c.id),
     [L2, L1],
@@ -667,21 +674,29 @@ test("Today for Ask as the page composes it: the Inbox, the day's metrics, the c
     r.data.searches.map((s) => s.id),
     [S1],
   );
+  const hundred = await kernel.load(rc, conversations, { ids: null });
+  assert.equal(r.data.conversations, hundred.data.conversations, "the hundred's own read, shared through the turn");
   assert.deepEqual(r.rows, [
-    ...theInbox.rows,
+    ...hundred.rows,
     { kind: "call", id: L2, route: `conversations/cv-${L2}`, label: "Dana" },
     { kind: "call", id: L1, route: `conversations/cv-${L1}`, label: "+1 (555) 000-0001" },
   ]);
-  await kernel.load(rc, calls, {});
-  assert.deepEqual(
-    ["conversations", "escalations", "calls", "lead_searches_view"].map((t) => selects(ctx, t).length),
-    [2, 1, 1, 1],
-    "each read once in the turn; a tool that reads the Inbox or the calls after it reads nothing",
-  );
+  const reads = () =>
+    ["conversations", "escalations", "calls", "lead_searches_view"].map((t) => selects(ctx, t).length);
+  assert.deepEqual(reads(), [1, 1, 1, 1], "Today alone reads each once");
   assert.deepEqual(
     ctx.supabase.seen.filter((q) => q.rpc === "metrics_summary").map((q) => q.args.p_days),
     [1],
     "the day's metrics",
+  );
+  // list_threads and list_calls beside it in the turn: the Inbox reads only the ids the hundred did not hold.
+  const theInbox = await kernel.load(rc, inbox, undefined);
+  await kernel.load(rc, calls, {});
+  assert.equal(theInbox.data.conversations[0].id, OUTSIDE);
+  assert.deepEqual(
+    reads(),
+    [2, 1, 1, 1],
+    "the hundred, the escalations and the calls shared; the missing ids read once, for the Inbox",
   );
 
   const { result: noCalls, lines: callLines } = await logged("today_calls_fetch_failed", () =>
@@ -692,7 +707,7 @@ test("Today for Ask as the page composes it: the Inbox, the day's metrics, the c
     ),
   );
   assert.equal(noCalls.data.calls, null, "a calls read that failed is its own state, not none");
-  assert.equal(noCalls.data.conversations.length, 101);
+  assert.equal(noCalls.data.conversations.length, 100);
   assert.equal(noCalls.data.searches.length, 1);
   assert.deepEqual(callLines, [["permission denied"]]);
 

@@ -345,6 +345,11 @@ async function listThreads(t: ToolContext, input: Record<string, unknown>): Prom
         return true;
     }
   });
+  // Newest first, before the cap: the Inbox's rows put the escalated threads it fetched by id first, however old,
+  // and twenty of them would have been the whole answer. lastAtMs is last_message_at, the column the server orders
+  // the hundred by (the page keeps that order inside a bucket), so the hundred keep their order and the fetched
+  // threads stand where their last message puts them.
+  matching.sort((a, b) => b.lastAtMs - a.lastAtMs);
   // Counted BEFORE the cap, like search_people's `matches` a few functions
   // down. Counted after, "total_matching" reported 20 for 25 held drafts.
   const picked = matching.slice(0, ASK_CAPS.threads);
