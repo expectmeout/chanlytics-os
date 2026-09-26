@@ -7026,6 +7026,7 @@ var CONSENT_SOURCES = [
   { id: "customer_message", label: "Their own message" }
 ];
 var CONSENT_RESET_SOURCE = "operator";
+var CARRIER_CONSENT_SOURCE = "carrier";
 var OFFERS_YES_SOURCES = ["form", "customer_message"];
 function offersYesRefusal(source) {
   if (source && OFFERS_YES_SOURCES.includes(source)) return null;
@@ -7051,6 +7052,7 @@ function consentSourceLabel(source) {
   if (!source) return null;
   const known = CONSENT_SOURCES.find((s) => s.id === source);
   if (known) return known.label;
+  if (source === CARRIER_CONSENT_SOURCE) return "Reported by the carrier";
   return source === CONSENT_RESET_SOURCE ? null : source;
 }
 function mayReceive(r2, purpose) {
@@ -18651,6 +18653,8 @@ function consentChangeWords(c) {
     sub = `In their own words ${where}${c.words ? `: \u201C${c.words}\u201D` : ""}`;
   } else if (c.source === CONSENT_RESET_SOURCE || !c.source) {
     sub = "Reset by staff";
+  } else if (c.source === CARRIER_CONSENT_SOURCE) {
+    sub = "Reported by the carrier: they had texted STOP to your number, so a text to them was not sent";
   } else {
     sub = `${consentSourceLabel(c.source) ?? c.source}, recorded by staff${c.note ? ` \xB7 ${c.note}` : ""}`;
   }
@@ -24229,6 +24233,7 @@ export {
   CAMPAIGN_REPORT_RANGES,
   CAPABILITY_KINDS,
   CARRIERS,
+  CARRIER_CONSENT_SOURCE,
   CARRIER_WORDS,
   CHAIN_MIN_LISTINGS,
   CHANNEL_ANSWERED,

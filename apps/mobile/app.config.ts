@@ -38,8 +38,24 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     config: { usesNonExemptEncryption: false },
     ...(HOST ? { associatedDomains: [`applinks:${HOST}`] } : {}),
     infoPlist: {
-      // The shell is a WebView of the product: nothing here needs a camera, contacts or location. Face ID comes with PR 3.
+      // The shell is a WebView of the product: nothing here needs a camera, contacts or location.
       UIBackgroundModes: [],
+    },
+    // The app's own manifest (docs/store/privacy-labels.md); the Expo modules ship theirs. No tracking, no tracking domain.
+    privacyManifests: {
+      NSPrivacyTracking: false,
+      NSPrivacyTrackingDomains: [],
+      NSPrivacyCollectedDataTypes: [],
+      NSPrivacyAccessedAPITypes: [
+        {
+          NSPrivacyAccessedAPIType: "NSPrivacyAccessedAPICategoryUserDefaults",
+          NSPrivacyAccessedAPITypeReasons: ["CA92.1"],
+        },
+        {
+          NSPrivacyAccessedAPIType: "NSPrivacyAccessedAPICategoryFileTimestamp",
+          NSPrivacyAccessedAPITypeReasons: ["C617.1"],
+        },
+      ],
     },
   },
   android: {
