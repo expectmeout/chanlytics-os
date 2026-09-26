@@ -1057,7 +1057,9 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .ld-map-bar { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-bottom: 1px solid var(--line); background: var(--bg-sunken); }
 .ld-map-bar .sp { flex: 1; }
 .ld-map-count { font-size: var(--text-xs); color: var(--ink-dim); font-variant-numeric: tabular-nums; }
-.ld-map-by { display: inline-flex; gap: 4px; }
+/* What the pins mean: a mark and a word per state on the map, quiet, wrapping under the count (leads-map.jsx). */
+.ld-map-legend { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-left: auto; }
+.ld-map-key { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-xs); color: var(--ink-dim); white-space: nowrap; }
 .ld-map-rows { max-height: 520px; overflow: auto; }
 /* Fitted to the screen (useLeadMapFit, desktop): the map is as tall as the room under it, the square no taller than
    that, and the list beside it ends where the map does (its bar is 41px). */
@@ -1189,7 +1191,8 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
   .ld-map.is-phone { display: block; padding: 8px var(--row-pad-x) 4px; }
   .ld-map.is-phone .ld-map-main { min-width: 0; }
   .ld-map.is-phone .ld-map-foot { font-size: var(--text-sm); color: var(--ink-muted); }
-  .ld-map.is-phone .ld-map-bar { padding: 2px 0 6px; border: 0; background: none; }
+  .ld-map.is-phone .ld-map-bar { flex-wrap: wrap; row-gap: 4px; padding: 2px 0 6px; border: 0; background: none; }
+  .ld-map.is-phone .ld-map-key { font-size: var(--text-sm); }
   .ld-map.is-phone .ld-map-count { font-size: var(--text-sm); color: var(--ink-muted); }
   /* A group's acts on its line, as quiet words; named with html.legacy-on for the floor's sake. */
   .ld-sec-acts { display: inline-flex; gap: 12px; }

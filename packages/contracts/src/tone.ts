@@ -33,6 +33,8 @@ import {
   LEAD_CLASS_WORDS,
   LEAD_EMAIL_WORDS,
   LEAD_FIT_WORDS,
+  LEAD_LEFT_OUT_WORD,
+  LEAD_REVIEW_WORD,
   LEAD_STAGE_WORDS,
 } from "./leads";
 import { DEAL_STAGE_WORDS } from "./deals";
@@ -253,32 +255,58 @@ export function stateOf(kind: StateKind, value: unknown): { tone: Tone; label: s
   return { tone: stateTone(kind, value), label: stateLabel(kind, value) };
 }
 
-/** What a pin needs to know about a lead to take a tone: its class, its fit, its row state, its two slots. */
+/** What a pin needs to know about a lead to take a tone: the state its row wears. */
 export interface LeadPinnable {
-  cls: string;
-  fit: string | null;
   state: string;
-  slots: { phone: { state: string }; mailbox: { state: string } };
 }
 
 /**
- * The tone a lead's pin wears on the map, by what the map is coloured by.
+ * The tone a lead's pin wears on the map: its row's state, from the registry the row's own tag reads, so a pin and
+ * the row under the map say the same thing (leadMapLegend, below, says which colour is which).
  *
  * The map kept a table of its own, in leads.css, keyed by `strong`/`part`/`talking` -- words no tone vocabulary
  * knows -- so it was a sixth colour family that this file could not reach. It had already drifted: a `look` fit
  * drew amber on a pin while this map calls it plain. And because those rules named no element, and leads.css is
  * imported after clients.css, `.tone-ok` painted EVERY `tone-ok` in the app solid green -- a Today attention row,
- * and the peek's own Interested chip. Both now come through here.
+ * and the peek's own Interested chip. Both now come through here. It was coloured three ways too (fit, reach,
+ * stage) by a switch with no key, two of which repeated the row; the state is the one (25 Sep).
  *
- * A pin is data, so by the chart kit's rule it never wears the accent, and none of these branches can return it.
+ * A pin is data, so by the chart kit's rule it never wears the accent, and the state's tones never are it.
  */
-export function leadPinTone(lead: LeadPinnable, by: "fit" | "reach" | "stage"): Tone {
-  if (by === "reach") {
-    const { phone, mailbox } = lead.slots;
-    if (phone.state === "ok" || mailbox.state === "ok") return "ok";
-    // Nothing to reach them by at all is as quiet as a lead gets; anything part-way is worth a look.
-    return phone.state === "none" && mailbox.state === "none" ? "plain" : "warn";
-  }
-  if (by === "stage") return stateTone("lead_row_state", lead.state);
-  return lead.cls === "qualified" ? stateTone("lead_fit", lead.fit ?? "look") : stateTone("lead_class", lead.cls);
+export function leadPinTone(lead: LeadPinnable): Tone {
+  return stateTone("lead_row_state", lead.state);
+}
+
+/** A lead's row state, as the row wears it (lead-row.ts LeadRowVM["state"]). */
+type LeadMapState = "ready" | "contacted" | "talking" | "review" | "out";
+
+/** The legend's order: what is furthest along first, then what waits on the owner, then the rest. */
+const LEAD_MAP_LEGEND_ORDER: readonly LeadMapState[] = ["talking", "contacted", "review", "ready", "out"];
+
+/** Each state's words, the row's own (the row's tag and the rail's lists); "out" is both of the ways a lead leaves. */
+const LEAD_MAP_STATE_WORDS: Record<LeadMapState, string> = {
+  talking: LEAD_STAGE_WORDS.converted,
+  contacted: LEAD_STAGE_WORDS.nurture,
+  review: LEAD_REVIEW_WORD,
+  ready: LEAD_STAGE_WORDS.ready,
+  out: `${LEAD_STAGE_WORDS.archived} or ${LEAD_LEFT_OUT_WORD.toLowerCase()}`,
+};
+
+/**
+ * What the map's pins mean, said under the map: one entry per state a pin on it wears, in the pin's own tone.
+ *
+ * The map had a switch of three colourings (Fit, Reach, Stage) and no key, so green meant a strong fit, a reachable
+ * lead or one talking to you depending on a control nothing explained, and two of the three repeated what each row
+ * under the map already says (25 Sep). A pin now says what the row's tag says, and this says which colour is which.
+ */
+export function leadMapLegend(
+  rows: ReadonlyArray<{ state: string }>,
+): Array<{ state: LeadMapState; tone: Tone; label: string; out: boolean }> {
+  const present = new Set(rows.map((r) => r.state));
+  return LEAD_MAP_LEGEND_ORDER.filter((s) => present.has(s)).map((state) => ({
+    state,
+    tone: leadPinTone({ state }),
+    label: LEAD_MAP_STATE_WORDS[state],
+    out: state === "out",
+  }));
 }

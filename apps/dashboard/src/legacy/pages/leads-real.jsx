@@ -116,7 +116,6 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
   const [fitChip, setFitChip] = useState(null);
   const [benchGroup, setBenchGroup] = useState(null);
   const [mapOpen, setMapOpen] = useState(false);
-  const [mapBy, setMapBy] = useState("fit");
   const [mapPick, setMapPick] = useState(null);
 
   // One criterion of the Excluded view, from the chips at its head.
@@ -602,8 +601,6 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
       onMap={setMapOpen}
       // The phone's bar shows the map's pin only where the rows the source placed give it something to draw.
       canMap={leadShown.some((l) => !!l.point)}
-      mapBy={mapBy}
-      onMapBy={setMapBy}
       mapPick={mapPick}
       onMapPick={setMapPick}
       plot={mapOpen && window.__LEAD_VM && window.__LEAD_VM.leadMapPlot ? window.__LEAD_VM.leadMapPlot(leadShown, (openSearch && openSearch.plan && openSearch.plan.area) || null) : null}

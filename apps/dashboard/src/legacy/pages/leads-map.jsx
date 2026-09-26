@@ -14,15 +14,13 @@ const { LeadTile, LeadCallMenu, ldCallProps } = window;
 // a pin can no longer say one thing where a row says another. It used to answer in its own words (`strong`,
 // `part`, `talking`) and leave a table in leads.css to turn them into colours, which is how a `look` fit came to
 // draw amber here and plain everywhere else. Without the bridge (the standalone mockup) every pin is plain.
-const ldPinTone = (l, by) => {
+const ldPinTone = (l) => {
   const V = window.__LEAD_VM || {};
-  return V.leadPinTone ? V.leadPinTone(l, by) : "plain";
+  return V.leadPinTone ? V.leadPinTone(l) : "plain";
 };
 
 // Left out is plain, like a long shot -- so it steps back by being quieter instead of by being another colour.
 const ldPinOut = (l) => (l.state === "out" ? " is-out" : "");
-
-const LEAD_MAP_BY = [{ id: "fit", label: "Fit" }, { id: "reach", label: "Reach" }, { id: "stage", label: "Stage" }];
 
 // Streets under the pins, when the product hosts a basemap (legacy-bridge lead-map.ts publishes `__LEAD_MAP`). The
 // page asks once what ground the archive covers and draws streets only where it does; everywhere else, and wherever
@@ -42,7 +40,7 @@ const useLeadMapCoverage = () => {
   return cover;
 };
 
-const LeadStreets = ({ rows, plot, by, picked, onPick, x, children }) => {
+const LeadStreets = ({ rows, plot, picked, onPick, x, children }) => {
   const box = useLmRef(null);
   const handle = useLmRef(null);
   const latest = useLmRef({ onPick, x });
@@ -64,10 +62,10 @@ const LeadStreets = ({ rows, plot, by, picked, onPick, x, children }) => {
       plot.pins
         .map((p) => byId.get(p.id))
         .filter((l) => l && l.point)
-        .map((l) => ({ id: l.id, lat: l.point.lat, lng: l.point.lng, tone: ldPinTone(l, by), out: l.state === "out", label: `${l.name} — ${l.sub}` })),
+        .map((l) => ({ id: l.id, lat: l.point.lat, lng: l.point.lng, tone: ldPinTone(l), out: l.state === "out", label: `${l.name} — ${l.sub}` })),
       picked,
     );
-  }, [rows, ids, by, picked]);
+  }, [rows, ids, picked]);
   // The area the search asked for: contracts anchored the square on its centre, so the ring's radius in metres is
   // its share of the span, and its centre is the plot's.
   const ringM = plot.ring && center ? Math.round(plot.ring.r * plot.spanM) : 0;
@@ -140,7 +138,7 @@ const useLeadMapFit = () => {
  * (leads-scope.jsx). The side list here was a boxed card of its own -- numbered rows, square tiles, a dot -- under a
  * map on a screen too narrow for a side, and looked like no other list (Ruben, 25 Sep).
  */
-const LeadMap = ({ rows, plot, by, onBy, picked, onPick, x, onWiden, nearby, onNearby, canFind, oneSearch, phone = false }) => {
+const LeadMap = ({ rows, plot, picked, onPick, x, onWiden, nearby, onNearby, canFind, oneSearch, phone = false }) => {
   const V = window.__LEAD_VM || {};
   const byId = new Map(rows.map((l) => [l.id, l]));
   const near = [...plot.pins].sort((a, b) => Math.hypot(a.x - 0.5, a.y - 0.5) - Math.hypot(b.x - 0.5, b.y - 0.5));
@@ -159,15 +157,22 @@ const LeadMap = ({ rows, plot, by, onBy, picked, onPick, x, onWiden, nearby, onN
       ) : null}
     </div>
   ) : null;
+  // What the pins mean: one mark and word per state a pin on the map wears, in the pin's own tone (contracts
+  // leadMapLegend). A map too wide to draw has no pins, so nothing to explain.
+  const legend = !plot.tooWide && V.leadMapLegend ? V.leadMapLegend(plot.pins.map((p) => byId.get(p.id)).filter(Boolean)) : [];
   const bar = (
     <div className="ld-map-bar">
       <span className="ld-map-count" data-testid="lead-map-count">{`${plot.pins.length} on the map`}</span>
-      <span className="sp" />
-      <span className="ld-map-by" role="group" aria-label="Colour the pins by">
-        {LEAD_MAP_BY.map((b) => (
-          <button key={b.id} type="button" className={`ld-band-fit${by === b.id ? " on" : ""}`} aria-pressed={by === b.id} onClick={() => onBy(b.id)} data-testid={`map-by-${b.id}`}>{b.label}</button>
-        ))}
-      </span>
+      {legend.length ? (
+        <span className="ld-map-legend" data-testid="lead-map-legend">
+          {legend.map((e) => (
+            <span key={e.state} className="ld-map-key" data-testid={`lead-map-key-${e.state}`}>
+              <span className={`ld-pin-dot tone-${e.tone}${e.out ? " is-out" : ""}`} aria-hidden="true" />
+              {e.label}
+            </span>
+          ))}
+        </span>
+      ) : null}
     </div>
   );
   return (
@@ -186,7 +191,7 @@ const LeadMap = ({ rows, plot, by, onBy, picked, onPick, x, onWiden, nearby, onN
                   <div className="n">{l.name}</div>
                   <div className="s">{l.sub}</div>
                 </div>
-                <span className={`ld-pin-dot tone-${ldPinTone(l, by)}${ldPinOut(l)}`} aria-hidden="true" />
+                <span className={`ld-pin-dot tone-${ldPinTone(l)}${ldPinOut(l)}`} aria-hidden="true" />
               </div>
             );
           })}
@@ -200,7 +205,7 @@ const LeadMap = ({ rows, plot, by, onBy, picked, onPick, x, onWiden, nearby, onN
             <span className="ld-map-wide-line">{V.leadMapNote ? V.leadMapNote(plot, !!oneSearch) : ""}</span>
           </div>
         ) : streets ? (
-          <LeadStreets rows={rows} plot={plot} by={by} picked={picked} onPick={onPick} x={x}>
+          <LeadStreets rows={rows} plot={plot} picked={picked} onPick={onPick} x={x}>
             {card}
           </LeadStreets>
         ) : (
@@ -219,7 +224,7 @@ const LeadMap = ({ rows, plot, by, onBy, picked, onPick, x, onWiden, nearby, onN
               <button
                 key={p.id}
                 type="button"
-                className={`ld-pin tone-${ldPinTone(l, by)}${ldPinOut(l)}${picked === p.id ? " on" : ""}`}
+                className={`ld-pin tone-${ldPinTone(l)}${ldPinOut(l)}${picked === p.id ? " on" : ""}`}
                 style={{ left: `${p.x * 100}%`, top: `${p.y * 100}%` }}
                 aria-label={`${l.name} — ${l.sub}`}
                 data-testid={`lead-pin-${p.id}`}
@@ -244,7 +249,7 @@ const LeadMap = ({ rows, plot, by, onBy, picked, onPick, x, onWiden, nearby, onN
           ))}
           <button type="button" className="btn btn-sm" onClick={onWiden} data-testid="map-widen" {...(canFind ? {} : window.gate("find", "search a wider area"))}>Search wider</button>
         </div>
-        {phone ? bar : null}
+        {phone && !plot.tooWide ? bar : null}
       </div>
     </div>
   );

@@ -500,8 +500,6 @@ const LeadsScope = (p) => {
                 rows={p.rows}
                 plot={p.plot}
                 oneSearch={!!p.view.searchId}
-                by={p.mapBy}
-                onBy={p.onMapBy}
                 picked={p.mapPick}
                 onPick={p.onMapPick}
                 x={p.cellCtx}
