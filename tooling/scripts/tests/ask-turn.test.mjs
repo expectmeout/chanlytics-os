@@ -1971,6 +1971,75 @@ test("REGRESSION: Today's reply-window rows are the opposite of drafts -- the cu
   );
 });
 
+test("the day is read once a turn, as the pages read it: get_today, list_threads and list_calls in one round read the conversations twice at most and the calls once; the escalated thread past the newest hundred and the missed call past the newest forty are there", async () => {
+  // A hundred threads newer than the one still waiting on a person, which the Inbox fetches by its id (ledger #6),
+  // and forty-five calls this morning whose oldest never connected (ledger #8: list_calls read the newest forty).
+  const hundred = Array.from({ length: 100 }, (_, i) =>
+    conversation(`cccccccc-cccc-4ccc-8ccc-${String(i).padStart(12, "0")}`, {
+      last_message_at: iso(NOW.getTime() - (i + 1) * 60_000),
+    }),
+  );
+  const waiting = conversation(C2, {
+    last_message_at: iso(NOW.getTime() - 48 * 3600_000),
+    contacts: { ...contact, display_name: "Quinn" },
+  });
+  const morning = Array.from({ length: 45 }, (_, i) =>
+    call(`dddddddd-dddd-4ddd-8ddd-${String(i).padStart(12, "0")}`, {
+      retell_call_id: `r-${i}`,
+      started_at: iso(NOW.getTime() - (i + 1) * 60_000),
+      ...(i === 44 ? { status: "not_connected", duration_ms: null } : {}),
+    }),
+  );
+  const escalation = {
+    id: E1,
+    tenant_id: A,
+    conversation_id: C2,
+    reason: "human_token",
+    details: "asked for a person",
+    state: "open",
+    created_at: iso(NOW.getTime() - 3600_000),
+  };
+  const ctx = ctxFor(tables({ conversations: [...hundred, waiting], escalations: [escalation], calls: morning }), {
+    ...RPCS,
+    metrics_summary: () => METRICS,
+  });
+  const s = scripted([
+    ROUND([
+      tool("get_today", {}),
+      tool("list_threads", { filter: "needs_you" }),
+      tool("list_calls", { filter: "missed" }),
+    ]),
+    ROUND([answer("Quinn is waiting on you, and one call never connected.")]),
+  ]);
+  const { input } = turn(ctx);
+  const r = await runAskTurn(input, ports(s.round));
+  assert.equal(r.failed, false, r.failure ?? "");
+  const selects = (table) => ctx.supabase.seen.filter((q) => q.table === table && q.op === "select").length;
+  assert.deepEqual(
+    ["conversations", "calls", "escalations", "tenants"].map(selects),
+    [2, 1, 1, 0],
+    "the newest hundred and the escalated one past them, the calls once, the escalations once, and no tenant: the zone is the turn's",
+  );
+  const out = Object.fromEntries(
+    s.requests[1].messages.at(-1).content.map((c) => [c.tool_use_id, JSON.parse(c.content)]),
+  );
+  assert.deepEqual(
+    out["t-get_today"].needs_you.rows.map((x) => [x.conversation_id, x.who]),
+    [[C2, "Quinn"]],
+    "Today names the waiting customer from their thread",
+  );
+  assert.deepEqual(
+    out["t-list_threads"].threads.map((x) => [x.conversation_id, x.who, x.state]),
+    [[C2, "Quinn", "needs you"]],
+    "the Inbox's escalated thread past the newest hundred is listed",
+  );
+  assert.deepEqual(
+    out["t-list_calls"].calls.map((x) => [x.call_id, x.outcome]),
+    [[morning[44].id, "missed"]],
+    "the forty-fifth call is read, as the Calls page reads a hundred",
+  );
+});
+
 test("the rules Ask says the receptionist follows are the ones the composer gave it: three are on until switched off, the health rule only once switched on", async () => {
   const { factsBlock } = await import(at("apps/dashboard/src/server/ask/prompt.ts"));
   const { composeSystemPrompt, guardrailsInForce } = await import("@chanlytics/contracts");

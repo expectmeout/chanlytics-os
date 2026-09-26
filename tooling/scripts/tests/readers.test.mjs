@@ -26,6 +26,8 @@ const { conversations } = await import(at("apps/dashboard/src/server/readers/con
 const { escalations } = await import(at("apps/dashboard/src/server/readers/escalations.ts"));
 const { calls } = await import(at("apps/dashboard/src/server/readers/calls.ts"));
 const { searches } = await import(at("apps/dashboard/src/server/readers/searches.ts"));
+const { inbox } = await import(at("apps/dashboard/src/server/readers/inbox.ts"));
+const { today } = await import(at("apps/dashboard/src/server/readers/today.ts"));
 
 // The kept values live in the module, keyed by workspace, person and reader: each test starts with none.
 beforeEach(() => kernel.readerCache.clear());
@@ -530,4 +532,179 @@ test("searches: GET lead-searches' answer -- every kept search with its latest r
   );
   assert.deepEqual(r.rows, [], "a search is not citable until Phase 4");
   assert.equal(selects(ctx, "lead_searches_view").length, 1);
+});
+
+/* -------------------------------------- the Inbox and Today, as the page composes them */
+
+/** What `fn` logged under one event name. */
+async function logged(event, fn) {
+  const lines = [];
+  const was = console.error;
+  console.error = (name, ...rest) => {
+    if (name === event) lines.push(rest);
+  };
+  try {
+    return { result: await fn(), lines };
+  } finally {
+    console.error = was;
+  }
+}
+
+/**
+ * A workspace a hundred and one threads deep: the newest hundred, and one gone quiet that still waits on a person.
+ * Two open escalations, the newer on a thread among the hundred, the older on the quiet one.
+ */
+const OUTSIDE = uuid(100);
+const dayTables = () => ({
+  conversations: [
+    ...Array.from({ length: 100 }, (_, i) => conversation(uuid(i), A, { last_message_at: ago(i * HOUR) })),
+    conversation(OUTSIDE, A, {
+      last_message_at: ago(200 * HOUR),
+      contacts: contact({ id: "k9", display_name: "Quinn", phone_e164: "+15550000009" }),
+    }),
+  ],
+  messages: [message("m3", uuid(3), A), message("m-out", OUTSIDE, A, { created_at: ago(200 * HOUR) })],
+  escalations: [
+    {
+      id: "e-in",
+      tenant_id: A,
+      state: "open",
+      reason: "price",
+      details: null,
+      created_at: ago(HOUR),
+      conversation_id: uuid(3),
+    },
+    {
+      id: "e-out",
+      tenant_id: A,
+      state: "open",
+      reason: "human_token",
+      details: null,
+      created_at: ago(2 * HOUR),
+      conversation_id: OUTSIDE,
+    },
+  ],
+  calls: [
+    call(L1, A, { started_at: "2026-09-01T00:00:00Z" }),
+    call(L2, A, {
+      started_at: "2026-09-02T00:00:00Z",
+      contacts: { display_name: "Dana", wa_profile_name: null, phone_e164: "+15550000003" },
+    }),
+  ],
+  lead_searches_view: [view()],
+});
+const SUMMARY = { period: { messages_in: 2 } };
+const dayDoors = { metrics_summary: () => SUMMARY, lead_list_counts: () => COUNTS };
+
+test("the Inbox as the page composes it: the newest hundred and the open escalations at once, then every escalated thread outside the hundred in one read by id, first; one the extra read cannot bring is counted in the log", async () => {
+  const ctx = dayCtx(dayTables());
+  const r = await kernel.load(turnIn(ctx), inbox, undefined);
+  assert.deepEqual(
+    r.data.conversations.map((c) => c.id),
+    [OUTSIDE, ...Array.from({ length: 100 }, (_, i) => uuid(i))],
+    "the escalated thread outside the hundred first, then the hundred: the Inbox's order",
+  );
+  assert.deepEqual(
+    r.data.escalations.map((e) => e.id),
+    ["e-in", "e-out"],
+    "the open escalations as read, newest first",
+  );
+  assert.deepEqual(
+    r.data.conversations[0].messages.map((m) => m.id),
+    ["m-out"],
+    "with its messages",
+  );
+  const read = selects(ctx, "conversations");
+  assert.deepEqual(
+    read.map((q) => [q.limit, q.filters.find(([op]) => op === "in")?.[2] ?? null]),
+    [
+      [100, null],
+      [null, [OUTSIDE]],
+    ],
+    "conversations twice: the newest hundred, then the missing ids",
+  );
+  assert.equal(selects(ctx, "messages").length, 2, "the messages a page per read");
+  assert.equal(selects(ctx, "escalations").length, 1);
+  assert.deepEqual(
+    r.rows.map((x) => x.id),
+    r.data.conversations.map((c) => c.id),
+    "one thread per conversation, in the Inbox's order",
+  );
+  assert.deepEqual(r.rows[0], { kind: "thread", id: OUTSIDE, route: `inbox/th-${OUTSIDE}`, label: "Quinn" });
+
+  // The second conversations read fails: the list stands without it, and says how many it could not bring.
+  let n = 0;
+  const faults = {
+    get "conversations.select"() {
+      return ++n === 2 ? { message: "down" } : undefined;
+    },
+  };
+  const { result: short, lines } = await logged("inbox_escalated_fetch_failed", () =>
+    kernel.load(turnIn(dayCtx(dayTables(), { faults })), inbox, undefined),
+  );
+  assert.deepEqual(
+    short.data.conversations.map((c) => c.id),
+    Array.from({ length: 100 }, (_, i) => uuid(i)),
+  );
+  assert.equal(short.data.escalations.length, 2, "the escalations stand");
+  assert.deepEqual(lines, [[1]], "one waiting customer the read could not bring, counted");
+});
+
+test("Today for Ask as the page composes it: the Inbox, the day's metrics, the calls and the searches at once, each read once in the turn; a failed calls or searches read is null and the rest stands", async () => {
+  const ctx = dayCtx(dayTables(), { rpcs: dayDoors });
+  const rc = turnIn(ctx);
+  const r = await kernel.load(rc, today, undefined);
+  const theInbox = await kernel.load(rc, inbox, undefined);
+  assert.deepEqual(Object.keys(r.data), ["metrics", "conversations", "escalations", "calls", "searches"]);
+  assert.deepEqual(r.data.metrics, SUMMARY);
+  assert.equal(r.data.conversations, theInbox.data.conversations, "the Inbox's own rows, not a second read");
+  assert.equal(r.data.escalations, theInbox.data.escalations);
+  assert.deepEqual(
+    r.data.calls.map((c) => c.id),
+    [L2, L1],
+  );
+  assert.deepEqual(
+    r.data.searches.map((s) => s.id),
+    [S1],
+  );
+  assert.deepEqual(r.rows, [
+    ...theInbox.rows,
+    { kind: "call", id: L2, route: `conversations/cv-${L2}`, label: "Dana" },
+    { kind: "call", id: L1, route: `conversations/cv-${L1}`, label: "+1 (555) 000-0001" },
+  ]);
+  await kernel.load(rc, calls, {});
+  assert.deepEqual(
+    ["conversations", "escalations", "calls", "lead_searches_view"].map((t) => selects(ctx, t).length),
+    [2, 1, 1, 1],
+    "each read once in the turn; a tool that reads the Inbox or the calls after it reads nothing",
+  );
+  assert.deepEqual(
+    ctx.supabase.seen.filter((q) => q.rpc === "metrics_summary").map((q) => q.args.p_days),
+    [1],
+    "the day's metrics",
+  );
+
+  const { result: noCalls, lines: callLines } = await logged("today_calls_fetch_failed", () =>
+    kernel.load(
+      turnIn(dayCtx(dayTables(), { rpcs: dayDoors, faults: { "calls.select": { message: "permission denied" } } })),
+      today,
+      undefined,
+    ),
+  );
+  assert.equal(noCalls.data.calls, null, "a calls read that failed is its own state, not none");
+  assert.equal(noCalls.data.conversations.length, 101);
+  assert.equal(noCalls.data.searches.length, 1);
+  assert.deepEqual(callLines, [["permission denied"]]);
+
+  const { result: noSearches, lines: searchLines } = await logged("today_searches_fetch_failed", () =>
+    kernel.load(
+      turnIn(dayCtx(dayTables(), { rpcs: dayDoors, faults: { "lead_searches_view.select": { message: "down" } } })),
+      today,
+      undefined,
+    ),
+  );
+  assert.equal(noSearches.data.searches, null, "the queue says nothing of searches it could not read");
+  assert.equal(noSearches.data.calls.length, 2);
+  assert.deepEqual(noSearches.data.metrics, SUMMARY);
+  assert.deepEqual(searchLines, [["down"]]);
 });

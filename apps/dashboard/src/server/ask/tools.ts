@@ -46,9 +46,7 @@ import {
   starterForTrigger,
   triggerOf,
   type AskReadSet,
-  type CallDto,
   type LeadRoundEnding,
-  type ConversationDto,
   type EscalationDto,
   type MessageDto,
   type PersonDetailDto,
@@ -71,11 +69,13 @@ import {
 import { audiencePoolOnce, poolList } from "../audience";
 import { dealPaceRead } from "../deals";
 import { listSearches, waitingQuestionOf } from "../leads";
-import { metricsSummaryFor } from "../metrics";
 import { listPlaybooks, proposalFollowUps } from "../playbooks";
 import { calendarWeek } from "../calendar";
 import { load, readerContext, type ReaderContext } from "../readers";
 import * as readers from "../readers/facts";
+import { calls as callsReader } from "../readers/calls";
+import { inbox } from "../readers/inbox";
+import { today } from "../readers/today";
 import { openingsFor } from "./openings";
 import { workspaceFacts } from "./prompt";
 import { personNotesRead } from "../person-notes";
@@ -208,19 +208,13 @@ export interface ToolContext {
   timezone: string;
   read: AskReadSet;
   now: Date;
-  /** One turn's loads, by key: the same rows are never fetched twice in a turn. */
+  /**
+   * The audience pool, once a turn (audience.ts audiencePoolOnce): the one load that is not a reader yet. Every
+   * other read goes through `rc`, whose turn cache keeps no failure.
+   */
   memo: Map<string, Promise<unknown>>;
   /** The turn's reader context: every read through the readers shares the route's turn cache. */
   rc: ReaderContext;
-}
-
-function memoised<T>(t: ToolContext, key: string, load: () => Promise<T>): Promise<T> {
-  let p = t.memo.get(key) as Promise<T> | undefined;
-  if (!p) {
-    p = load();
-    t.memo.set(key, p);
-  }
-  return p;
 }
 
 export interface ToolOutcome {
@@ -238,75 +232,7 @@ function json(v: unknown): string {
   return JSON.stringify(v);
 }
 
-/* ------------------------------------------------------------ loaders */
-
-interface EscRow extends EscalationDto {
-  conversation_id: string;
-}
-
-/** The newest conversations with their messages: enough for the Inbox's rows, not the whole history. */
-const CONVERSATIONS = 40;
-const MESSAGES = 600;
-
-function loadConversations(
-  t: ToolContext,
-  limit = CONVERSATIONS,
-): Promise<{ convs: ConversationDto[]; escalations: EscRow[] }> {
-  return memoised(t, `conversations:${limit}`, () => loadConversationsNow(t, limit));
-}
-
-async function loadConversationsNow(
-  t: ToolContext,
-  limit: number,
-): Promise<{ convs: ConversationDto[]; escalations: EscRow[] }> {
-  const { supabase, userId } = t.ctx;
-  const [c, e] = await Promise.all([
-    supabase
-      .from("conversations")
-      .select(CONVERSATION_COLUMNS)
-      .eq("tenant_id", t.tenantId)
-      .order("last_message_at", { ascending: false, nullsFirst: false })
-      .limit(limit),
-    supabase
-      .from("escalations")
-      .select("id, reason, details, state, created_at, conversation_id")
-      .eq("tenant_id", t.tenantId)
-      .eq("state", "open")
-      .order("created_at", { ascending: false })
-      .limit(100),
-  ]);
-  if (c.error) throw new Error(c.error.message);
-  if (e.error) throw new Error(e.error.message);
-  const ids = (c.data ?? []).map((x) => x.id);
-  let byConv = new Map<string, MessageDto[]>();
-  if (ids.length) {
-    const m = await supabase
-      .from("messages")
-      .select(MESSAGE_COLUMNS)
-      .in("conversation_id", ids)
-      .order("created_at", { ascending: false })
-      .limit(MESSAGES);
-    if (m.error) throw new Error(m.error.message);
-    byConv = groupMessages(m.data ?? []);
-  }
-  return {
-    convs: (c.data ?? []).map((x) => toConversationDto(x, byConv.get(x.id) ?? [], userId)),
-    escalations: (e.data ?? []) as EscRow[],
-  };
-}
-
-function loadCalls(t: ToolContext, limit = 40): Promise<CallDto[]> {
-  return memoised(t, `calls:${limit}`, async () => {
-    const { data, error } = await t.ctx.supabase
-      .from("calls")
-      .select(CALL_COLUMNS)
-      .eq("tenant_id", t.tenantId)
-      .order("started_at", { ascending: false, nullsFirst: false })
-      .limit(limit);
-    if (error) throw new Error(error.message);
-    return (data ?? []).map(toCallDto);
-  });
-}
+/* ------------------------------------------------------------ helpers */
 
 function dayKey(iso: string | null | undefined, tz: string): string | null {
   if (!iso) return null;
@@ -322,22 +248,18 @@ function dayKey(iso: string | null | undefined, tz: string): string | null {
 /* --------------------------------------------------------------- tools */
 
 async function getToday(t: ToolContext): Promise<unknown> {
-  const { supabase } = t.ctx;
-  const [metrics, { convs, escalations }, calls] = await Promise.all([
-    // The same door the page's Today reads through, so Ask counts the same
-    // lines, including the workspace's email one, which is not a routing row.
-    metricsSummaryFor(supabase, t.tenantId, 1),
-    loadConversations(t),
-    loadCalls(t).catch(() => [] as CallDto[]),
-  ]);
-  if (!metrics) throw new Error("metrics unavailable");
-  const vm = toTodayVM(metrics, convs, escalations, calls, t.now);
+  // Today as the page composes it (readers/today.ts), read once in the turn: the Inbox's threads, the metrics the
+  // page's Today reads (every line, the workspace's email one too), the calls and the searches. A calls or searches
+  // read that failed is null, its own state on the page, never none.
+  const { metrics, conversations, escalations, calls, searches } = (await load(t.rc, today, undefined)).data;
+  // The page's own builder, with the waiting searches the page passes (the queue reads them).
+  const vm = toTodayVM(metrics, conversations, escalations, calls, t.now, searches);
   for (const r of vm.needsYou?.rows ?? []) t.read.thread.add(r.conversationId);
   // A row this read RETURNS is a row a citation may name (see the header).
   // These were returned and not recorded, so the assistant could warn about a
   // closing window and then be unable to open the thread it had just named.
   for (const r of vm.windowClosing?.rows ?? []) t.read.thread.add(r.id.replace(/^wc-/, ""));
-  for (const c of calls) t.read.call.add(c.id);
+  for (const c of calls ?? []) t.read.call.add(c.id);
   return {
     standing: {
       headline: vm.standing.headline,
@@ -405,9 +327,10 @@ async function getToday(t: ToolContext): Promise<unknown> {
 
 async function listThreads(t: ToolContext, input: Record<string, unknown>): Promise<unknown> {
   const filter = str(input.filter) || "recent";
-  const { convs, escalations } = await loadConversations(t);
+  // The Inbox as the page composes it (readers/inbox.ts): the newest hundred, and every escalated thread outside it.
+  const { conversations, escalations } = (await load(t.rc, inbox, undefined)).data;
   const byConv = new Map(escalations.map((e) => [e.conversation_id, e]));
-  const vms = convs.map((c) => toInboxThreadVM(c, byConv.get(c.id) ?? null, t.timezone, t.now));
+  const vms = conversations.map((c) => toInboxThreadVM(c, byConv.get(c.id) ?? null, t.timezone, t.now));
   const matching = vms.filter((v) => {
     switch (filter) {
       case "needs_you":
@@ -791,8 +714,9 @@ async function listCalls(t: ToolContext, input: Record<string, unknown>): Promis
   const filter = str(input.filter) || "recent";
   // The business's zone, as the turn read it (the route's facts): not read again.
   const { timezone } = t;
-  const calls = await loadCalls(t);
-  const today = dayKey(t.now.toISOString(), timezone);
+  // The hundred newest, as the Calls page reads them (readers/calls.ts), once in the turn.
+  const calls = (await load(t.rc, callsReader, {})).data.calls;
+  const todayKey = dayKey(t.now.toISOString(), timezone);
   const vms = calls.map((c) => toCallVM(c, timezone, t.now));
   const abandoned = new Set(calls.filter(abandonedCall).map((c) => c.id));
   const picked = vms
@@ -800,11 +724,11 @@ async function listCalls(t: ToolContext, input: Record<string, unknown>): Promis
       const c = calls[i];
       switch (filter) {
         case "missed":
-          return v.outcome === "missed" && dayKey(c.started_at, timezone) === today;
+          return v.outcome === "missed" && dayKey(c.started_at, timezone) === todayKey;
         case "abandoned":
-          return abandoned.has(c.id) && dayKey(c.started_at, timezone) === today;
+          return abandoned.has(c.id) && dayKey(c.started_at, timezone) === todayKey;
         case "today":
-          return dayKey(c.started_at, timezone) === today;
+          return dayKey(c.started_at, timezone) === todayKey;
         case "live":
           return v.outcome === "live";
         default:
