@@ -10,12 +10,15 @@ import type { ConfigContext, ExpoConfig } from "expo/config";
 const ORIGIN = process.env.EXPO_PUBLIC_SITE_ORIGIN ?? "";
 const HOST = ORIGIN ? new URL(ORIGIN).host : "";
 const ID = "com.chanlytics.app";
+/** The EAS project (expo.dev, chanlyticss-team / chanlytics): what builds, updates and push tokens are filed under. */
+const EAS_PROJECT_ID = "a5f1a093-2cd8-436b-8e7d-07fb2b0b62dc";
 const PAGE_DARK = "#0c0d0f"; // contracts THEME_COLORS.dark: the paper the document opens on before its boot script runs.
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: "Chanlytics",
   slug: "chanlytics",
+  owner: "chanlyticss-team",
   version: "1.0.0",
   scheme: "chanlytics",
   orientation: "portrait",
@@ -54,8 +57,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   plugins: [
     "expo-router",
+    "expo-updates",
     ["expo-splash-screen", { backgroundColor: PAGE_DARK, image: "./assets/images/splash-icon.png", imageWidth: 96 }],
   ],
+  // EAS Update: the fingerprint policy, so an update can only reach a build whose native code it matches.
+  runtimeVersion: { policy: "fingerprint" },
+  updates: { url: `https://u.expo.dev/${EAS_PROJECT_ID}` },
   experiments: { typedRoutes: true, reactCompiler: true },
-  extra: { ...config.extra },
+  extra: { ...config.extra, eas: { projectId: EAS_PROJECT_ID } },
 });
