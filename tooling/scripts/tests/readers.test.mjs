@@ -4,7 +4,7 @@
  * turns for five minutes per workspace and person, and the reader context a
  * route or a turn builds. Executed over the database in memory.
  */
-import { test } from "node:test";
+import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -17,6 +17,9 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const kernel = await import(at("apps/dashboard/src/server/readers/index.ts"));
 const { facts, sellsBy, policies, config } = await import(at("apps/dashboard/src/server/readers/facts.ts"));
+
+// The kept values live in the module, keyed by workspace, person and reader: each test starts with none.
+beforeEach(() => kernel.readerCache.clear());
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -78,7 +81,6 @@ test("a turn reads a reader once per arguments: the same call again is the same 
 });
 
 test("a reader with a ttl is kept across turns on this instance, per workspace and person, until the ttl; a failure is not kept; the cache is bounded", async () => {
-  kernel.readerCache.clear();
   const r = counting("kept", { ttlMs: 60_000 });
   const t1 = kernel.readerContext(ctxFor(tables()), { tenantId: A, role: "owner" });
   const t2 = kernel.readerContext(ctxFor(tables()), { tenantId: A, role: "owner" });
@@ -105,8 +107,26 @@ test("a reader with a ttl is kept across turns on this instance, per workspace a
   assert.equal(kernel.READER_CACHE_CAP, 500);
 });
 
+test("the kept values are bounded at READER_CACHE_CAP, the oldest write first out: a value read again goes to the back", async () => {
+  const turn = () => kernel.readerContext(ctxFor(tables()), { tenantId: A, role: "owner" });
+  const r = counting("fifo", { ttlMs: 60_000 });
+  await kernel.load(turn(), r, { n: 0 });
+  await kernel.load(turn(), r, { n: 1 });
+  // Both go stale, and the first is read again: a new write of it.
+  r.ttlMs = 1;
+  await new Promise((res) => setTimeout(res, 5));
+  await kernel.load(turn(), r, { n: 0 });
+  r.ttlMs = 60_000;
+  // One past the cap: the oldest write goes, which is now the second value, not the first.
+  for (let n = 2; n <= kernel.READER_CACHE_CAP; n++) await kernel.load(turn(), r, { n });
+  const reads = r.reads;
+  await kernel.load(turn(), r, { n: 0 });
+  assert.equal(r.reads, reads, "the value read again was kept: its write was the newer");
+  await kernel.load(turn(), r, { n: 1 });
+  assert.equal(r.reads, reads + 1, "the oldest write was the one let go");
+});
+
 test("the facts readers: the tenant's name and zone are read once and kept; sells_by, the policies and the config are read once per turn; each answers the row's fields and nothing else", async () => {
-  kernel.readerCache.clear();
   const ctx = ctxFor(tables());
   const rc = kernel.readerContext(ctx, { tenantId: A, role: "operator" });
   const [f, s, p, c] = await Promise.all([

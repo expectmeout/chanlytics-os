@@ -202,6 +202,8 @@ export const POST = write({
           openedMs,
           sinceLastMs,
           emit: (ev) => send(line(ev)),
+          // One clock for the turn: the tools' today is the readers' today.
+          now: rc.now,
           rc,
         });
         // The answer as the Line draws it, beside the v1 fields it gives (spec 5.8): the history, copy and search

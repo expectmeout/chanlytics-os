@@ -201,13 +201,13 @@ nothing about the Stage, the cards' routes or the charter moves.
 
 ### 5.1 One read layer (new; cuts the loaders in tools.ts and snapshot.ts)
 
-A reader is a function of the request context and typed arguments that returns a view model, the rows it touched as
-references, and a freshness stamp. Readers live in `apps/dashboard/src/server/readers/`, one file per domain, and are the
-only thing a `/api/v1` GET route, an Ask tool or a context provider calls. A reader's `data` is what the page's route
-answers today (the DTO the browser builds its view model from), key for key, so a route that reads through a reader
-answers the same bytes; a tool applies the page's own view-model builder to it and projects that; a provider folds it
-into the block. The repositories in `packages/db` and the view models in `packages/contracts` stay where they are;
-readers compose them.
+A reader is a function of the request context and typed arguments that returns `data`, what the page's route answers,
+the rows it touched as references, and a freshness stamp. Readers live in `apps/dashboard/src/server/readers/`, one file
+per domain, and are the only thing a `/api/v1` GET route, an Ask tool or a context provider calls. A reader's `data` is
+what the page's route answers today (the DTO the browser builds its view model from), key for key, so a route that reads
+through a reader answers the same bytes; a tool applies the page's own view-model builder to it and projects that; a
+provider folds it into the block. The repositories in `packages/db` and the view models in `packages/contracts` stay
+where they are; readers compose them.
 
 ```ts
 // apps/dashboard/src/server/readers/index.ts
@@ -222,7 +222,11 @@ export interface Read<T> {
   rows: RowRef[];
   stamp: number;
 }
-export type Reader<A, T> = (ctx: ReaderContext, args: A) => Promise<Read<T>>;
+export interface Reader<A, T> {
+  name: string;
+  read(rc: ReaderContext, args: A): Promise<Read<T>>;
+  ttlMs?: number;
+}
 ```
 
 Two caches, both on the server. A `TurnCache` memoises by reader and arguments for the life of one turn (the memo that
@@ -297,7 +301,7 @@ export function defineRead<A, T>(t: {
   input: z.ZodType<A>;
   examples?: A[];
   reader: Reader<A, T>;
-  forModel: (vm: T, detail: "concise" | "full") => unknown;
+  forModel: (data: T, detail: "concise" | "full") => unknown; // the projection, after the page's builder
 }): ReadTool;
 export function toApiTools(role: AskRole): ApiTool[]; // deterministic, sorted by name, the same array every round
 ```
@@ -554,15 +558,18 @@ Three patterns, as they would read:
 
 ```ts
 // server/readers/report.ts — one reader; the route and the tool both call it
-export const report: Reader<{ days: 7 | 30 | 90 }, ReportRead> = async (ctx, { days }) => {
-  const [series, people] = await Promise.all([reportSeries(ctx, days), ctx.cache.get(readers.people, {})]);
-  const booking = await bookingReport(ctx, people.vm, days).catch(() => null);
-  const deals = await dealReport(ctx, days, people.vm).catch(() => null);
-  return {
-    vm: { report: toReportVM(series), booking, deals },
-    rows: [page("reports", `Reports, ${days} days`)],
-    stamp: now(),
-  };
+export const report: Reader<{ days: 7 | 30 | 90 }, ReportRead> = {
+  name: "report",
+  async read(rc, { days }) {
+    const [series, people] = await Promise.all([reportSeries(rc, days), load(rc, readers.people, undefined)]);
+    const booking = await bookingReport(rc, people.data, days).catch(() => null);
+    const deals = await dealReport(rc, days, people.data).catch(() => null);
+    return {
+      data: { report: series, booking, deals },
+      rows: [page("reports", `Reports, ${days} days`)],
+      stamp: now(),
+    };
+  },
 };
 
 // server/ask/tools/read/get-report.ts — the tool is a projection, not a second read
@@ -573,12 +580,15 @@ export default defineRead({
   input: z.object({ days: z.union([z.literal(7), z.literal(30), z.literal(90)]) }),
   examples: [{ days: 7 }, { days: 30 }],
   reader: readers.report,
-  forModel: ({ report, booking, deals }, detail) => ({
-    range: report.rangeLabel,
-    tiles: report.tiles.map(tile),
-    booking: booking?.line ?? null,
-    deals: detail === "full" ? deals : (deals?.summary ?? null),
-  }),
+  forModel: ({ report, booking, deals }, detail) => {
+    const vm = toReportVM(report); // the page's own builder, as the bridge applies it
+    return {
+      range: vm.rangeLabel,
+      tiles: vm.tiles.map(tile),
+      booking: booking?.line ?? null,
+      deals: detail === "full" ? deals : (deals?.summary ?? null),
+    };
+  },
 });
 
 // legacy-bridge/ask/context.ts — a provider reads what the page already holds

@@ -19,6 +19,12 @@ import type { Member } from "../route";
  * generalised; a failure is never kept). The ReaderCache keeps a reader that
  * declares `ttlMs` across turns on this instance, per workspace and person;
  * in Phase 1 only the tenant's name and zone do.
+ *
+ * A `Read` is one object every caller in the turn shares by reference, and
+ * with a ttl every later turn of the same person: never mutate `data`; copy
+ * it. A reader with `ttlMs` may depend on nothing but its arguments and the
+ * workspace, never on `rc.now` or `rc.role`, because its promise is served to
+ * turns with other clocks and other roles.
  */
 
 /** The kinds a row may be cited as (contracts AskReadSet) and a page. Phase 4 grows this to twelve. */
@@ -82,12 +88,14 @@ class ReaderCache {
     const had = this.kept.get(k);
     if (had && Date.now() - had.at < (r.ttlMs ?? 0)) return had.read as Promise<Read<T>>;
     const read = r.read(rc, args);
+    // Deleted first, so a new write goes to the back: Map.set keeps a key it holds where it was.
+    this.kept.delete(k);
     this.kept.set(k, { at: Date.now(), read });
     // A failure is not a fact: the next turn reads again.
     read.catch(() => {
       if (this.kept.get(k)?.read === read) this.kept.delete(k);
     });
-    // Bounded first-in-first-out, as the snapshot's cache is.
+    // Bounded first-in-first-out by write: past the cap, the oldest write goes.
     if (this.kept.size > READER_CACHE_CAP) this.kept.delete(this.kept.keys().next().value as string);
     return read;
   }

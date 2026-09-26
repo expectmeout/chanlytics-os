@@ -30,8 +30,11 @@ const thread = await import(at("apps/dashboard/app/api/v1/ask/threads/[id]/route
 const metrics = await import(at("apps/dashboard/app/api/v1/metrics/route.ts"));
 const reports = await import(at("apps/dashboard/app/api/v1/reports/route.ts"));
 const campaigns = await import(at("apps/dashboard/app/api/v1/reports/campaigns/route.ts"));
+const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));
+// The workspace's facts are kept across turns in the module: each test starts with none kept.
+beforeEach(() => readerCache.clear());
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";

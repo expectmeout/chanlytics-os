@@ -1194,8 +1194,7 @@ const WEEKDAY_KEYS: Record<string, number> = { sun: 0, mon: 1, tue: 2, wed: 3, t
 
 /** The calendar for a day or a few, in the words the page uses. */
 async function getCalendar(t: ToolContext, input: Record<string, unknown>): Promise<unknown> {
-  const facts = (await load(t.rc, readers.facts, undefined)).data;
-  const todayKey = dayInZone(facts.timezone, t.now.getTime()).key;
+  const todayKey = dayInZone(t.timezone, t.now.getTime()).key;
   const asked = str(input.day, 20).trim().toLowerCase();
   const askedKey = isDayKey(asked) ? asked : null;
   let from = todayKey;

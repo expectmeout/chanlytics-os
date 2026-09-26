@@ -1,5 +1,5 @@
 import "server-only";
-import { listPolicies } from "@chanlytics/db";
+import { getTenantConfig, listPolicies } from "@chanlytics/db";
 import { tenantFacts } from "../tenant";
 import { sellsByOf } from "../deals";
 import { stamp, type Reader } from "./index";
@@ -40,12 +40,7 @@ export const policies: Reader<undefined, Awaited<ReturnType<typeof listPolicies>
 export const config: Reader<undefined, { config: unknown; version: number } | null> = {
   name: "config",
   async read(rc) {
-    const { data, error } = await rc.ctx.supabase
-      .from("tenant_config")
-      .select("config, version")
-      .eq("tenant_id", rc.tenantId)
-      .maybeSingle();
-    if (error) throw new Error(error.message);
-    return { data: data ? { config: data.config, version: data.version } : null, rows: [], stamp: stamp() };
+    const row = await getTenantConfig(rc.ctx.supabase, rc.tenantId);
+    return { data: row ? { config: row.config, version: row.version } : null, rows: [], stamp: stamp() };
   },
 };
