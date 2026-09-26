@@ -1030,15 +1030,13 @@ test("context first: the day rides into every turn, its rows can be cited, loade
     "the eval knows an overview can come from the snapshot",
   );
   const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
+  // Run in ask-turn.test.mjs: a round that calls get_today, list_threads and list_calls together reads the
+  // conversations at most twice and the calls once. The readers, and the Inbox's paged messages, in readers.test.mjs.
   assert.ok(
-    tools.includes("memo: new Map()") && tools.includes("return memoised(t, `conversations:${limit}`"),
-    "one turn never fetches the same rows twice",
-  );
-  assert.ok(
-    tools.includes("const CONVERSATIONS = 40;") &&
-      tools.includes("const MESSAGES = 600;") &&
-      !tools.includes(".limit(2000)"),
-    "the Inbox read no longer moves two thousand messages",
+    tools.includes("load(t.rc, today, undefined)") &&
+      tools.includes("load(t.rc, inbox, undefined)") &&
+      !tools.includes("memoised("),
+    "the day is read once through the readers",
   );
   const gw = readCode("apps/edge/lib/ask-gateway.ts");
   assert.ok(
