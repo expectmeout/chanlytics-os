@@ -26,12 +26,18 @@ export const SEND_GRACE_MS = 15 * 1000;
  * the same words inside thirty seconds on purpose is implausible, and the
  * cost of getting it wrong is asymmetric: a swallowed send reports success
  * while the customer receives nothing.
- *
- * It bounds a claim with no receipt the same way: a hold older than this was
- * left by a caller that died between claiming the key and keeping its
- * receipt, and the next caller under the key takes it over.
  */
 export const IDEMPOTENCY_WINDOW_MS = 30 * 1000;
+/**
+ * How long a claim with no receipt yet is the other caller's reply on its
+ * way, before the next caller under the key takes it over as abandoned. It
+ * is longer than any reply can live: the reply route pins its own lifetime
+ * with maxDuration (60 s; core-reply.test.mjs holds this above it), so a hold
+ * this old was left by a caller the platform has already ended, never one
+ * still about to write. The receipt is written on the claim's stamp all the
+ * same, so a caller that somehow outlived this could not complete either.
+ */
+export const HOLD_EXPIRY_MS = 120 * 1000;
 /** What the second of two callers under one key hears while the first one's reply is still on its way. */
 export const REPLY_IN_PROGRESS_REFUSAL =
   "This reply is already being sent. Give it a moment, then check the thread before sending it again.";
@@ -144,9 +150,19 @@ export interface ReplyPorts extends Pick<
    * went between the claim and the read.
    */
   claimKey(tenantId: string, key: string, requestHash: string, nowIso: string): Promise<KeyClaim>;
-  /** A hold taken over by the stamp it was read at: true iff this caller holds the key now; false when another took it first. */
+  /**
+   * A hold taken over by the stamp it was read at: true iff this caller holds the key now; false when another took it
+   * first. Taking over a receipt for other words puts the first words' receipt out of reach, so a replay of those
+   * words inside their window would send again. Accepted: the key is derived from the words (inbox-verbs.ts), so two
+   * intents under one key is a client that changed what the key means, not a retry.
+   */
   takeKey(tenantId: string, key: string, requestHash: string, nowIso: string, from: string): Promise<boolean>;
-  /** The claim stamped `nowIso` let go, and only that one; a kept receipt is never removed. Never throws: the reply is already failing. */
+  /**
+   * The row stamped `nowIso` let go, whatever it holds, and only that one: a caller lets go only when its send did not
+   * happen, and another caller's takeover moved the stamp. A receipt kept before a job that then could not be
+   * scheduled goes with it, so a replay of those words sends afresh instead of answering with a canceled message.
+   * Never throws: the reply is already failing.
+   */
   releaseKey(tenantId: string, key: string, nowIso: string): Promise<void>;
   /** The workspace's template by name and language, as Meta last told us about it; `variables` is one entry per slot, when the sync has filled it. */
   template(
@@ -174,8 +190,18 @@ export interface ReplyPorts extends Pick<
   schedule(tenantId: string, dueAt: Date, payload: SendPayload): Promise<void>;
   /** A queued row with no job to send it, canceled so it never sits "Sending…" forever. */
   cancelOrphan(messageId: string): Promise<void>;
-  /** The receipt kept under the key for the replay window; a failure is logged there, never fatal. */
-  storeReceipt(tenantId: string, key: string, requestHash: string, response: ReplyReceipt): Promise<void>;
+  /**
+   * The receipt kept under the key, written only onto the row that still carries this caller's stamp: true iff it
+   * does, false when another caller took the key over since. Throws when the write itself could not be made; where
+   * the verb stands decides what that means.
+   */
+  storeReceipt(
+    tenantId: string,
+    key: string,
+    requestHash: string,
+    response: ReplyReceipt,
+    stamp: string,
+  ): Promise<boolean>;
   /** A stable digest of a string, for the intent and the content. */
   hash(s: string): string;
 }
@@ -283,9 +309,10 @@ export async function replyToConversation(ports: ReplyPorts, cmd: ReplyCommand):
   // "no receipt yet", and both queued and both sent (audit 15.1). A loser is
   // shown what the holder left. A receipt is replayed as before. Nothing yet
   // means the other caller is mid-send, and this one is refused rather than
-  // made to wait. A hold older than the window (a caller that died before its
-  // receipt) or a receipt for other words is taken over, by the stamp it was
-  // read at, so of two callers who both read it exactly one goes on.
+  // made to wait, until the hold is older than any reply can live
+  // (HOLD_EXPIRY_MS: its caller died before its receipt). That, or a receipt
+  // for other words, is taken over by the stamp it was read at, so of two
+  // callers who both read it exactly one goes on.
   const idemKey = cmd.idempotencyKey ? `${cmd.userId}:${cmd.idempotencyKey}` : null;
   const intentHash = ports.hash(JSON.stringify(body));
   const nowIso = new Date(now).toISOString();
@@ -297,28 +324,26 @@ export async function replyToConversation(ports: ReplyPorts, cmd: ReplyCommand):
       // receipt that somehow lacks it must not swallow a send on the strength
       // of the key alone.
       const sameIntent = prior?.request_hash === intentHash;
-      const fresh = !!prior && now - Date.parse(prior.created_at) < IDEMPOTENCY_WINDOW_MS;
-      if (prior?.response && sameIntent && fresh) return prior.response;
+      const age = prior ? now - Date.parse(prior.created_at) : 0;
+      if (prior?.response && sameIntent && age < IDEMPOTENCY_WINDOW_MS) return prior.response;
       // No hold to read (let go between the claim and the read) is refused the
       // same way: a retry a moment later claims it.
-      if (!prior || (fresh && !prior.response)) throw new AppError("conflict", REPLY_IN_PROGRESS_REFUSAL, 409);
+      if (!prior || (!prior.response && age < HOLD_EXPIRY_MS))
+        throw new AppError("conflict", REPLY_IN_PROGRESS_REFUSAL, 409);
       if (!(await ports.takeKey(conv.tenant_id, idemKey, intentHash, nowIso, prior.created_at)))
         throw new AppError("conflict", REPLY_IN_PROGRESS_REFUSAL, 409);
     }
   }
 
-  const sent = await queueReply(ports, cmd, { now, channel, to, window }).catch(async (e: unknown) => {
+  const key = idemKey ? { idemKey, intentHash, stamp: nowIso } : null;
+  const sent = await queueReply(ports, cmd, { now, channel, to, window, key }).catch(async (e: unknown) => {
     // Nothing was sent, so the claim goes with the failure: a retry under the
     // key must claim afresh, not be told its reply is in progress. From the
-    // receipt on, a failure keeps it: the send is certain by then.
+    // job on, a failure keeps the receipt: the send is certain by then.
     if (idemKey) await ports.releaseKey(conv.tenant_id, idemKey, nowIso);
     throw e;
   });
-  // The receipt is kept the moment the send is certain: a retry under the same
-  // key after a failure further down must find it, or the words go twice. It
-  // is kept again below with the decision's id, once there is one.
   const queued = sent.receipt;
-  if (idemKey) await ports.storeReceipt(conv.tenant_id, idemKey, intentHash, queued);
   const decision_id = await ports.record(conv.tenant_id, "conversation", conv.id, "reply", {
     message_id: queued.message_id,
     window_open: window.open,
@@ -326,23 +351,35 @@ export async function replyToConversation(ports: ReplyPorts, cmd: ReplyCommand):
   });
   await ports.resolveEscalation(conv.id, decision_id);
 
+  // The receipt completed with the decision's id, on the same stamp. The send
+  // is certain by now, so a key taken over for other words since, or a write
+  // that failed, is not this reply's failure: a replay is answered with the
+  // receipt kept before the job, without the id.
   const receipt: ReplyReceipt = { ...queued, decision_id };
-  if (idemKey) await ports.storeReceipt(conv.tenant_id, idemKey, intentHash, receipt);
+  if (idemKey) await ports.storeReceipt(conv.tenant_id, idemKey, intentHash, receipt, nowIso).catch(() => false);
   return receipt;
 }
 
 /**
- * The words shaped and queued, with the job that sends them: everything a
- * reply writes between its claim on the key and its receipt. A throw here
- * means no row exists that will send, so the caller lets the claim go.
+ * The words shaped and queued, the receipt kept, and the job that sends them:
+ * everything a reply writes between its claim on the key and the job. A
+ * throw here means no row exists that will send, so the caller lets the
+ * claim go.
  */
 async function queueReply(
   ports: ReplyPorts,
   cmd: ReplyCommand,
-  facts: { now: number; channel: "whatsapp" | "sms" | "email"; to: string; window: { open: boolean } },
+  facts: {
+    now: number;
+    channel: "whatsapp" | "sms" | "email";
+    to: string;
+    window: { open: boolean };
+    /** The claim this reply holds, when it has a key: what the receipt is kept under, on the claim's stamp. */
+    key: { idemKey: string; intentHash: string; stamp: string } | null;
+  },
 ): Promise<{ receipt: ReplyReceipt; templateName: string | null }> {
   const { conv, body } = cmd;
-  const { now, channel, to, window } = facts;
+  const { now, channel, to, window, key } = facts;
   let messageBody: string;
   let templateVars: Json | null = null;
   let templateName: string | null = null;
@@ -452,7 +489,21 @@ async function queueReply(
     ...(email ?? {}),
   });
   const dueAt = new Date(now + SEND_GRACE_MS);
+  const receipt: ReplyReceipt = {
+    message_id,
+    status: "queued",
+    cancelable_until: dueAt.toISOString(),
+    window_open: window.open,
+    withdrawn_drafts,
+  };
   try {
+    // The receipt is kept BEFORE the job exists, on the claim's stamp. A retry
+    // under the key after a failure further down must find it, or the words
+    // go twice; and a caller that was slow past HOLD_EXPIRY_MS and taken over
+    // finds its stamp gone here, while no job can yet send the row it wrote,
+    // and cancels it. Kept again with the decision's id, once there is one.
+    if (key && !(await ports.storeReceipt(conv.tenant_id, key.idemKey, key.intentHash, receipt, key.stamp)))
+      throw new AppError("conflict", REPLY_IN_PROGRESS_REFUSAL, 409);
     await ports.schedule(conv.tenant_id, dueAt, {
       message_id,
       conversation_id: conv.id,
@@ -460,18 +511,10 @@ async function queueReply(
       ...(jobTemplate ? { template: jobTemplate } : { body: messageBody }),
     });
   } catch (e) {
-    // Never leave an orphan queued row that silently never sends.
+    // Never leave an orphan queued row that silently never sends -- nor one a
+    // taken-over caller wrote, which must not.
     await ports.cancelOrphan(message_id);
     throw e;
   }
-  return {
-    receipt: {
-      message_id,
-      status: "queued",
-      cancelable_until: dueAt.toISOString(),
-      window_open: window.open,
-      withdrawn_drafts,
-    },
-    templateName,
-  };
+  return { receipt, templateName };
 }

@@ -6,12 +6,18 @@
  * table's unique (tenant_id, key). Two callers under one key at once used to
  * both read "no receipt yet" and both send; now the insert is the race, and
  * Postgres picks the one winner. The winner completes its row with the
- * receipt (`keepIdempotencyReceipt`). A loser is shown what the holder left,
- * and core's reply decides what that means: a replay, a refusal, or a hold to
- * take over (`takeIdempotencyKey`, by the stamp it was read at, so of two
- * callers who both read an abandoned hold exactly one takes it). A claim
- * whose reply failed before its receipt is let go (`releaseIdempotencyKey`),
- * by its own stamp, so a retry is not told its reply is in progress.
+ * receipt (`keepIdempotencyReceipt`), written only onto the row that still
+ * carries its stamp. A loser is shown what the holder left, and core's reply
+ * decides what that means: a replay, a refusal, or a hold to take over
+ * (`takeIdempotencyKey`, by the stamp it was read at, so of two callers who
+ * both read an abandoned hold exactly one takes it, and the caller taken over
+ * finds its stamp gone when it comes to keep its receipt). A claim whose
+ * reply failed before its job is let go (`releaseIdempotencyKey`), by its own
+ * stamp, so a retry is not told its reply is in progress.
+ *
+ * The stamp is `created_at`, written by the claim and the takeover in the
+ * verb's own ISO spelling and compared in Postgres, so the spelling PostgREST
+ * reads it back in matches it too (idempotency-claim.db.test.mjs proves both).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../database.types";
@@ -86,7 +92,11 @@ export async function takeIdempotencyKey(
   return (taken.data ?? []).length > 0;
 }
 
-/** The claim stamped `nowIso` let go, and only that one: never another caller's, never a kept receipt. */
+/**
+ * The row stamped `nowIso` let go, whatever it holds, and only that one: a
+ * caller lets go only when its send did not happen, and another caller's
+ * takeover moved the stamp, so this never removes anyone else's row.
+ */
 export async function releaseIdempotencyKey(
   db: Db,
   p: { tenantId: string; key: string; nowIso: string },
@@ -96,31 +106,28 @@ export async function releaseIdempotencyKey(
     .delete()
     .eq("tenant_id", p.tenantId)
     .eq("key", p.key)
-    .eq("created_at", p.nowIso)
-    .is("response", null);
+    .eq("created_at", p.nowIso);
   if (released.error) throw new Error(`idempotency release: ${released.error.message}`);
 }
 
 /**
- * The receipt kept under the key, completing its claim; kept again with the
- * decision's id once there is one. `created_at` runs from this send, so the
- * replay window does. The error's words come back for the caller to log: the
- * send has happened by now, so a receipt that could not be kept is never fatal.
+ * The receipt kept under the key, completing its claim, written only onto the
+ * row that still carries the claim's stamp: true iff it does. False is a key
+ * another caller took over since (the hold outlived HOLD_EXPIRY_MS), and the
+ * caller must not go on to send. The stamp stays, so the replay window runs
+ * from the claim, which is this send.
  */
 export async function keepIdempotencyReceipt(
   db: Db,
-  p: { tenantId: string; key: string; route: string; requestHash: string; response: Json },
-): Promise<string | null> {
-  const { error } = await db.from("idempotency_keys").upsert(
-    {
-      tenant_id: p.tenantId,
-      key: p.key,
-      route: p.route,
-      request_hash: p.requestHash,
-      response: p.response,
-      created_at: new Date().toISOString(),
-    },
-    { onConflict: "tenant_id,key" },
-  );
-  return error ? error.message : null;
+  p: { tenantId: string; key: string; requestHash: string; response: Json; stamp: string },
+): Promise<boolean> {
+  const kept = await db
+    .from("idempotency_keys")
+    .update({ request_hash: p.requestHash, response: p.response })
+    .eq("tenant_id", p.tenantId)
+    .eq("key", p.key)
+    .eq("created_at", p.stamp)
+    .select("key");
+  if (kept.error) throw new Error(`idempotency receipt: ${kept.error.message}`);
+  return (kept.data ?? []).length > 0;
 }

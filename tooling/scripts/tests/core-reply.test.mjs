@@ -5,9 +5,11 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { importSrc } from "./_source.mjs";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+import { importSrc, ROOT } from "./_source.mjs";
 
-const { replyToConversation, IDEMPOTENCY_WINDOW_MS, SEND_GRACE_MS } = await importSrc(
+const { replyToConversation, IDEMPOTENCY_WINDOW_MS, HOLD_EXPIRY_MS, SEND_GRACE_MS } = await importSrc(
   "packages/core/src/conversations/reply.ts",
 );
 const NOW = Date.parse("2026-09-11T12:00:00Z");
@@ -54,7 +56,7 @@ function fakes(over = {}) {
     cancelOrphan: undefined,
     record: "d1",
     resolveEscalation: undefined,
-    storeReceipt: undefined,
+    storeReceipt: true,
     ...over,
   };
   const ports = {};
@@ -454,10 +456,11 @@ test("a replay: the same key and intent inside the window returns the stored rec
       withdrawn_drafts: 1,
       decision_id: "d1",
     },
+    iso(NOW),
   ]);
-  // The receipt is kept the moment the send is certain: a ledger that fails
-  // after the job exists still leaves a retry under the same key something
-  // to find, or the customer receives the words twice.
+  // The receipt is kept before the job exists, on the claim's stamp: a ledger
+  // that fails after the job still leaves a retry under the same key
+  // something to find, or the customer receives the words twice.
   const ledgerDown = fakes({
     record: () => {
       throw new Error("decisions down");
@@ -470,8 +473,8 @@ test("a replay: the same key and intent inside the window returns the stored rec
     "takeControl",
     "withdrawDrafts",
     "queue",
-    "schedule",
     "storeReceipt",
+    "schedule",
     "record",
   ]);
   assert.deepEqual(ledgerDown.call("storeReceipt"), [
@@ -486,7 +489,19 @@ test("a replay: the same key and intent inside the window returns the stored rec
       window_open: true,
       withdrawn_drafts: 1,
     },
+    iso(NOW),
   ]);
+  // A write of the second receipt (the decision's id) that fails is not the
+  // reply's failure: the send is certain, and the first receipt answers a replay.
+  let stores = 0;
+  const idDown = fakes({
+    storeReceipt: () => {
+      if (++stores === 2) throw new Error("keys down");
+      return true;
+    },
+  });
+  assert.equal((await replyToConversation(idDown.ports, cmd({ idempotencyKey: "k1" }))).decision_id, "d1");
+  assert.equal(stores, 2);
   const noKey = fakes();
   await replyToConversation(noKey.ports, cmd());
   assert.ok(!noKey.ops().includes("storeReceipt"), "no key, nothing stored");
@@ -502,6 +517,10 @@ test("a replay: the same key and intent inside the window returns the stored rec
 function keyTable(seed = []) {
   const rows = new Map(seed);
   const shared = {
+    // What the reply READ before it claimed anything (the defect): the receipt
+    // under the key, or nothing. Answered from the same table, so the verb as
+    // it was runs these cases too, and fails them with two messages queued.
+    priorReceipt: (t, k) => (rows.get(k)?.response ? { ...rows.get(k) } : null),
     claimKey: (t, k, hash, nowIso) => {
       if (rows.has(k)) return { won: false, held: { ...rows.get(k) } };
       rows.set(k, { response: null, created_at: nowIso, request_hash: hash });
@@ -514,11 +533,14 @@ function keyTable(seed = []) {
       return true;
     },
     releaseKey: (t, k, nowIso) => {
-      const h = rows.get(k);
-      if (h && h.created_at === nowIso && !h.response) rows.delete(k);
+      if (rows.get(k)?.created_at === nowIso) rows.delete(k);
     },
-    storeReceipt: (t, k, hash, response) => {
-      rows.set(k, { response, created_at: iso(NOW), request_hash: hash });
+    // Written only onto the row that still carries the caller's stamp, as the table's is.
+    storeReceipt: (t, k, hash, response, stamp) => {
+      const h = rows.get(k);
+      if (!h || h.created_at !== stamp) return false;
+      rows.set(k, { response, created_at: stamp, request_hash: hash });
+      return true;
     },
   };
   return { rows, shared };
@@ -591,13 +613,22 @@ test("a reply that fails after its claim and before its receipt lets the key go,
   assert.equal(kept.rows.get("u1:k1").response.message_id, "m1");
 });
 
-test("a hold older than the window is abandoned (its caller died before the receipt) and taken over -- by exactly one of two callers who both read it", async () => {
-  const stale = keyTable([
-    [
-      "u1:k1",
-      { response: null, created_at: iso(NOW - IDEMPOTENCY_WINDOW_MS - 1), request_hash: 'h({"text":"On our way."})' },
-    ],
+test("a hold with no receipt is the other caller's reply on its way until it is older than HOLD_EXPIRY_MS (past the replay window is not enough); older, it is abandoned and taken over -- by exactly one of two callers who both read it", async () => {
+  const INTENT = 'h({"text":"On our way."})';
+  const live = keyTable([
+    ["u1:k1", { response: null, created_at: iso(NOW - HOLD_EXPIRY_MS + 1), request_hash: INTENT }],
   ]);
+  const [x, y] = callers(live);
+  await refused(replyToConversation(x.ports, SAME_KEY()), "conflict", /already being sent/);
+  await refused(replyToConversation(y.ports, SAME_KEY()), "conflict", /already being sent/);
+  assert.deepEqual(
+    writes(x, y).map((l) => l[0]),
+    ["claimKey", "claimKey"],
+    "a hold a reply could still be writing under is never taken: nothing queued, nothing let go",
+  );
+  assert.equal(live.rows.get("u1:k1").response, null);
+
+  const stale = keyTable([["u1:k1", { response: null, created_at: iso(NOW - HOLD_EXPIRY_MS), request_hash: INTENT }]]);
   const [a, b] = callers(stale);
   const outcomes = await Promise.allSettled([
     replyToConversation(a.ports, SAME_KEY()),
@@ -608,6 +639,65 @@ test("a hold older than the window is abandoned (its caller died before the rece
   assert.equal(outcomes.filter((o) => o.status === "rejected").length, 1);
   assert.equal(writes(a, b).filter((l) => l[0] === "takeKey").length, 2, "both tried; the table let one through");
   assert.equal(stale.rows.get("u1:k1").response.status, "queued", "and completed it");
+});
+
+test("a caller slow past HOLD_EXPIRY_MS is taken over and cannot complete: its receipt is refused on its stamp, the row it queued is canceled before any job exists, and the taker's is the one send scheduled", async () => {
+  const table = keyTable();
+  let wake;
+  const stalled = new Promise((r) => (wake = r));
+  const a = fakes({ ...table.shared, queue: () => "m1", withdrawDrafts: () => stalled.then(() => 1) });
+  const b = fakes({ ...table.shared, queue: () => "m2", now: () => NOW + HOLD_EXPIRY_MS });
+  const pa = replyToConversation(a.ports, SAME_KEY());
+  // A claims and stalls after the thread is its: past its hold, before its row.
+  await new Promise((r) => setTimeout(r, 0));
+  assert.deepEqual(a.ops(), ["claimKey", "claimForReply", "takeControl", "withdrawDrafts"]);
+  const rb = await replyToConversation(b.ports, SAME_KEY());
+  assert.equal(rb.message_id, "m2", "B took the abandoned hold over and sent");
+  assert.deepEqual(b.call("takeKey"), [
+    "takeKey",
+    "t1",
+    "u1:k1",
+    'h({"text":"On our way."})',
+    iso(NOW + HOLD_EXPIRY_MS),
+    iso(NOW),
+  ]);
+  wake();
+  await refused(pa, "conflict", /already being sent/);
+  assert.deepEqual(a.ops(), [
+    "claimKey",
+    "claimForReply",
+    "takeControl",
+    "withdrawDrafts",
+    "queue",
+    "storeReceipt",
+    "cancelOrphan",
+    "releaseKey",
+  ]);
+  assert.deepEqual(
+    a.call("cancelOrphan"),
+    ["cancelOrphan", "m1"],
+    "A's row is canceled, and no job was ever made for it",
+  );
+  assert.equal(writes(a, b).filter((l) => l[0] === "schedule").length, 1, "exactly one send scheduled");
+  assert.equal(b.call("schedule")[3].message_id, "m2");
+  assert.equal(
+    table.rows.get("u1:k1").response.message_id,
+    "m2",
+    "B's receipt stands: A's release named a stamp that had moved",
+  );
+});
+
+test("a hold outlives any reply the route can run: HOLD_EXPIRY_MS is above the reply route's maxDuration, which the route pins", async () => {
+  process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
+  process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
+  const route = await import(
+    pathToFileURL(path.join(ROOT, "apps/dashboard/app/api/v1/conversations/[id]/reply/route.ts")).href
+  );
+  assert.equal(route.maxDuration, 60, "the reply route pins its lifetime, in seconds");
+  assert.ok(
+    HOLD_EXPIRY_MS > route.maxDuration * 1000,
+    "a hold this old was left by a caller the platform has already ended",
+  );
 });
 
 /* ------------------------------------------------------------------ email
@@ -816,7 +906,7 @@ test("the facts port answers with the business name alone: no link is null, and 
   assert.equal(await at({}), null, "and no receptionist, none");
 });
 
-test("the key ports over the fake table: a claim wins once and the next is shown the hold; the receipt completes it; a hold is taken over on its stamp once; a release removes the claim it names, never a kept receipt", async () => {
+test("the key ports over the fake table: a claim wins once and the next is shown the hold; the receipt completes it on its own stamp only; a hold is taken over on its stamp once, and the caller taken over cannot complete; a release removes the row the caller stamped, and only that", async () => {
   const { replyPorts } = await import("../../../apps/dashboard/src/server/core-ports.ts");
   const { fakeDb } = await import("./_fake-db.mjs");
   const tables = { idempotency_keys: [] };
@@ -838,22 +928,39 @@ test("the key ports over the fake table: a claim wins once and the next is shown
     window_open: true,
     withdrawn_drafts: 0,
   };
-  await ports.storeReceipt("t1", "u1:k1", "h1", receipt);
+  assert.equal(
+    await ports.storeReceipt("t1", "u1:k1", "h1", receipt, iso(NOW + 1)),
+    false,
+    "not the row's stamp: kept nothing",
+  );
+  assert.equal(row().response, null);
+  assert.equal(await ports.storeReceipt("t1", "u1:k1", "h1", receipt, T), true, "the claim's own stamp keeps it");
   const completed = await ports.claimKey("t1", "u1:k1", "h1", iso(NOW + 2));
   assert.equal(completed.won, false);
-  assert.deepEqual(completed.held.response, receipt);
-  // Taken over on the stamp it was read at; a second reader of the same stamp changes nothing.
+  assert.deepEqual(
+    completed.held,
+    { response: receipt, created_at: T, request_hash: "h1" },
+    "the stamp stays: the window runs from the claim",
+  );
+  // Taken over on the stamp it was read at; a second reader of the same stamp changes nothing, and the caller taken
+  // over finds its stamp gone when it comes to keep its receipt.
   const from = completed.held.created_at;
   assert.equal(await ports.takeKey("t1", "u1:k1", "h3", iso(NOW + 3), from), true);
   assert.equal(await ports.takeKey("t1", "u1:k1", "h4", iso(NOW + 4), from), false);
   assert.deepEqual([row().request_hash, row().response, row().created_at], ["h3", null, iso(NOW + 3)]);
-  // A release names its own stamp: another's removes nothing; a kept receipt stays whatever the stamp.
+  assert.equal(
+    await ports.storeReceipt("t1", "u1:k1", "h1", receipt, T),
+    false,
+    "the caller taken over cannot complete",
+  );
+  assert.equal(row().response, null, "and the taker's hold is untouched");
+  // A release names its own stamp: another's removes nothing; its own goes, whatever it holds.
   await ports.releaseKey("t1", "u1:k1", iso(NOW + 4));
   assert.equal(tables.idempotency_keys.length, 1);
   await ports.releaseKey("t1", "u1:k1", iso(NOW + 3));
   assert.equal(tables.idempotency_keys.length, 0, "the claim is gone");
   assert.deepEqual(await ports.claimKey("t1", "u1:k1", "h5", T), { won: true }, "free again");
-  await ports.storeReceipt("t1", "u1:k1", "h5", receipt);
-  await ports.releaseKey("t1", "u1:k1", row().created_at);
-  assert.equal(tables.idempotency_keys.length, 1, "a kept receipt is never released");
+  assert.equal(await ports.storeReceipt("t1", "u1:k1", "h5", receipt, T), true);
+  await ports.releaseKey("t1", "u1:k1", T);
+  assert.equal(tables.idempotency_keys.length, 0, "a receipt kept before a job that then failed goes with its stamp");
 });

@@ -546,7 +546,7 @@ Every verb is **a decision row plus a change to its subject**, both on the sessi
 `POST /conversations/:id/reply` (operator; 30 a minute) is core's `reply` over the route's ports:
 
 1. The WhatsApp window decides the shape (`replyWindow`, one rule in contracts): within 24 hours of the customer's last message, free text; outside it, an approved template or nothing.
-2. An idempotency key, scoped to the caller and a hash of the request, claimed on its table's unique row before anything else is written: a replay gets the stored receipt, and a second call while the first is still on its way is refused as in progress.
+2. An idempotency key, scoped to the caller and a hash of the request, claimed on its table's unique row before anything else is written: a replay inside 30 seconds gets the stored receipt; a second call while the first is still on its way is refused as in progress, for up to two minutes (`HOLD_EXPIRY_MS`, above the route's 60-second `maxDuration`) when the first died before its receipt, after which the next call takes the key over. The receipt is written on the claim's own stamp, so a caller taken over cannot complete: its row is canceled before any job exists to send it.
 3. Any receptionist reply still waiting is withdrawn, and the conversation pauses: a person replying takes the thread from the receptionist (decision D10 of the blueprint).
 4. The message is written `queued` and an `outbound_send` job is scheduled 15 seconds out; the response carries `cancelable_until`.
 5. `cancel-send` inside that window cancels the message and the job; after it, the route says the message has gone.

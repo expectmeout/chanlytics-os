@@ -11186,6 +11186,7 @@ async function cancelSend(ports, cmd) {
 // src/conversations/reply.ts
 var SEND_GRACE_MS = 15 * 1e3;
 var IDEMPOTENCY_WINDOW_MS = 30 * 1e3;
+var HOLD_EXPIRY_MS = 120 * 1e3;
 var REPLY_IN_PROGRESS_REFUSAL = "This reply is already being sent. Give it a moment, then check the thread before sending it again.";
 async function shapeEmailReply(ports, conv, to, text, agreedTo) {
   if (conv.email_suppressed_at) {
@@ -11245,19 +11246,20 @@ async function replyToConversation(ports, cmd) {
     if (!claim.won) {
       const prior = claim.held;
       const sameIntent = prior?.request_hash === intentHash;
-      const fresh = !!prior && now - Date.parse(prior.created_at) < IDEMPOTENCY_WINDOW_MS;
-      if (prior?.response && sameIntent && fresh) return prior.response;
-      if (!prior || fresh && !prior.response) throw new AppError("conflict", REPLY_IN_PROGRESS_REFUSAL, 409);
+      const age = prior ? now - Date.parse(prior.created_at) : 0;
+      if (prior?.response && sameIntent && age < IDEMPOTENCY_WINDOW_MS) return prior.response;
+      if (!prior || !prior.response && age < HOLD_EXPIRY_MS)
+        throw new AppError("conflict", REPLY_IN_PROGRESS_REFUSAL, 409);
       if (!await ports.takeKey(conv.tenant_id, idemKey, intentHash, nowIso, prior.created_at))
         throw new AppError("conflict", REPLY_IN_PROGRESS_REFUSAL, 409);
     }
   }
-  const sent = await queueReply(ports, cmd, { now, channel, to, window }).catch(async (e) => {
+  const key = idemKey ? { idemKey, intentHash, stamp: nowIso } : null;
+  const sent = await queueReply(ports, cmd, { now, channel, to, window, key }).catch(async (e) => {
     if (idemKey) await ports.releaseKey(conv.tenant_id, idemKey, nowIso);
     throw e;
   });
   const queued = sent.receipt;
-  if (idemKey) await ports.storeReceipt(conv.tenant_id, idemKey, intentHash, queued);
   const decision_id = await ports.record(conv.tenant_id, "conversation", conv.id, "reply", {
     message_id: queued.message_id,
     window_open: window.open,
@@ -11265,12 +11267,12 @@ async function replyToConversation(ports, cmd) {
   });
   await ports.resolveEscalation(conv.id, decision_id);
   const receipt = { ...queued, decision_id };
-  if (idemKey) await ports.storeReceipt(conv.tenant_id, idemKey, intentHash, receipt);
+  if (idemKey) await ports.storeReceipt(conv.tenant_id, idemKey, intentHash, receipt, nowIso).catch(() => false);
   return receipt;
 }
 async function queueReply(ports, cmd, facts) {
   const { conv, body } = cmd;
-  const { now, channel, to, window } = facts;
+  const { now, channel, to, window, key } = facts;
   let messageBody;
   let templateVars = null;
   let templateName = null;
@@ -11349,7 +11351,16 @@ async function queueReply(ports, cmd, facts) {
     ...email ?? {}
   });
   const dueAt = new Date(now + SEND_GRACE_MS);
+  const receipt = {
+    message_id,
+    status: "queued",
+    cancelable_until: dueAt.toISOString(),
+    window_open: window.open,
+    withdrawn_drafts
+  };
   try {
+    if (key && !await ports.storeReceipt(conv.tenant_id, key.idemKey, key.intentHash, receipt, key.stamp))
+      throw new AppError("conflict", REPLY_IN_PROGRESS_REFUSAL, 409);
     await ports.schedule(conv.tenant_id, dueAt, {
       message_id,
       conversation_id: conv.id,
@@ -11360,16 +11371,7 @@ async function queueReply(ports, cmd, facts) {
     await ports.cancelOrphan(message_id);
     throw e;
   }
-  return {
-    receipt: {
-      message_id,
-      status: "queued",
-      cancelable_until: dueAt.toISOString(),
-      window_open: window.open,
-      withdrawn_drafts
-    },
-    templateName
-  };
+  return { receipt, templateName };
 }
 
 // src/messages/send.ts
@@ -47668,6 +47670,7 @@ export {
   FACT_MAX,
   FINAL_RUN_STATES,
   FIRST_COLLECT_SECONDS,
+  HOLD_EXPIRY_MS,
   IDEMPOTENCY_WINDOW_MS,
   INPUT_MARKER,
   IngestFailed,

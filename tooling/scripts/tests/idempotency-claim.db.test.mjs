@@ -46,8 +46,8 @@ const at = (ms) => new Date(ms).toISOString();
 const claim = (k, requestHash, nowIso = at(Date.now())) =>
   claimIdempotencyKey(db, { tenantId, key: k, route: ROUTE, requestHash, nowIso });
 const take = (k, requestHash, nowIso, from) => takeIdempotencyKey(db, { tenantId, key: k, requestHash, nowIso, from });
-const keep = (k, requestHash) =>
-  keepIdempotencyReceipt(db, { tenantId, key: k, route: ROUTE, requestHash, response: RECEIPT });
+const keep = (k, requestHash, stamp) =>
+  keepIdempotencyReceipt(db, { tenantId, key: k, requestHash, response: RECEIPT, stamp });
 const rowOf = async (k) => {
   const { data, error } = await db
     .from("idempotency_keys")
@@ -113,18 +113,25 @@ test("claims in the same instant: exactly one wins, and every loser is shown the
 });
 
 test(
-  "the receipt completes the claim: a claim after it is shown the receipt, with the window running from the send",
+  "the receipt completes the claim on its own stamp, in the verb's spelling of it: a claim after it is shown the receipt; a receipt on a stamp that moved is refused and changes nothing",
   { skip },
   async () => {
     const k = key();
     const T = at(Date.now() - 10_000);
     assert.deepEqual(await claim(k, "h-1", T), { won: true });
-    assert.equal(await keep(k, "h-1"), null);
+    assert.equal(await keep(k, "h-1", T), true, "kept on the claim's stamp");
     const later = await claim(k, "h-1");
     assert.equal(later.won, false);
     assert.deepEqual(later.held.response, RECEIPT);
     assert.equal(later.held.request_hash, "h-1");
-    assert.ok(Date.parse(later.held.created_at) > Date.parse(T), "refreshed: the replay window runs from THIS send");
+    assert.equal(
+      Date.parse(later.held.created_at),
+      Date.parse(T),
+      "the window runs from the claim, which is this send",
+    );
+    assert.equal(await keep(k, "h-1", T), true, "and again with the decision's id, on the same stamp");
+    assert.equal(await keep(k, "h-x", at(Date.parse(T) + 1)), false, "another stamp keeps nothing");
+    assert.equal((await rowOf(k)).request_hash, "h-1", "and changed nothing");
   },
 );
 
@@ -133,7 +140,8 @@ test(
   { skip },
   async () => {
     const k = key();
-    assert.deepEqual(await claim(k, "h-dead", at(Date.now() - 60_000)), { won: true });
+    const dead = at(Date.now() - 180_000);
+    assert.deepEqual(await claim(k, "h-dead", dead), { won: true });
     // Both callers read this hold, in PostgREST's own spelling of the stamp.
     const seen = (await claim(k, "h-a")).held;
     const takes = await Promise.all([
@@ -146,11 +154,14 @@ test(
     assert.ok(["h-a", "h-b"].includes(row.request_hash), "the taker's words");
     assert.ok(Date.parse(row.created_at) > Date.parse(seen.created_at), "the taker's stamp");
     assert.equal(await take(k, "h-c", at(Date.now() + 2), seen.created_at), false, "a stamp that moved takes nothing");
+    // The caller that was taken over, alive after all, comes to keep its receipt: its stamp is gone.
+    assert.equal(await keep(k, "h-dead", dead), false, "the caller taken over cannot complete");
+    assert.equal((await rowOf(k)).response, null, "and the taker's hold is untouched");
   },
 );
 
 test(
-  "a release removes the claim it names and nothing else: not another stamp, never a kept receipt; the key is then free",
+  "a release removes the row the caller stamped, whatever it holds, and nothing else: not another stamp; the key is then free",
   { skip },
   async () => {
     const k = key();
@@ -160,10 +171,14 @@ test(
     assert.ok(await rowOf(k), "another stamp releases nothing");
     await releaseIdempotencyKey(db, { tenantId, key: k, nowIso: T });
     assert.equal(await rowOf(k), null, "the claim is gone");
-    assert.deepEqual(await claim(k, "h-2"), { won: true }, "and the key is free again");
-    assert.equal(await keep(k, "h-2"), null);
-    const kept = await rowOf(k);
-    await releaseIdempotencyKey(db, { tenantId, key: k, nowIso: kept.created_at });
-    assert.deepEqual((await rowOf(k)).response, RECEIPT, "a kept receipt is never released, even on its own stamp");
+    const T2 = at(Date.now());
+    assert.deepEqual(await claim(k, "h-2", T2), { won: true }, "and the key is free again");
+    assert.equal(await keep(k, "h-2", T2), true);
+    await releaseIdempotencyKey(db, { tenantId, key: k, nowIso: T2 });
+    assert.equal(
+      await rowOf(k),
+      null,
+      "a receipt kept before a job that then could not be scheduled goes with its stamp: a replay sends afresh",
+    );
   },
 );

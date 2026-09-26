@@ -3684,22 +3684,13 @@ async function takeIdempotencyKey(db, p) {
   return (taken.data ?? []).length > 0;
 }
 async function releaseIdempotencyKey(db, p) {
-  const released = await db.from("idempotency_keys").delete().eq("tenant_id", p.tenantId).eq("key", p.key).eq("created_at", p.nowIso).is("response", null);
+  const released = await db.from("idempotency_keys").delete().eq("tenant_id", p.tenantId).eq("key", p.key).eq("created_at", p.nowIso);
   if (released.error) throw new Error(`idempotency release: ${released.error.message}`);
 }
 async function keepIdempotencyReceipt(db, p) {
-  const { error } = await db.from("idempotency_keys").upsert(
-    {
-      tenant_id: p.tenantId,
-      key: p.key,
-      route: p.route,
-      request_hash: p.requestHash,
-      response: p.response,
-      created_at: (/* @__PURE__ */ new Date()).toISOString()
-    },
-    { onConflict: "tenant_id,key" }
-  );
-  return error ? error.message : null;
+  const kept = await db.from("idempotency_keys").update({ request_hash: p.requestHash, response: p.response }).eq("tenant_id", p.tenantId).eq("key", p.key).eq("created_at", p.stamp).select("key");
+  if (kept.error) throw new Error(`idempotency receipt: ${kept.error.message}`);
+  return (kept.data ?? []).length > 0;
 }
 
 // src/repositories/control.ts

@@ -229,18 +229,16 @@ export function replyPorts(ctx: RouteContext): ReplyPorts {
     cancelOrphan: async (id) => {
       await ctx.supabase.from("messages").update({ status: "canceled" }).eq("id", id);
     },
-    storeReceipt: async (tenantId, key, requestHash, response) => {
-      // Discarding this error is how a replay protection silently stops
-      // protecting: the send already happened, so it is logged rather than failed.
-      const failed = await keepIdempotencyReceipt(ctx.supabase, {
+    // A write that fails throws, like every other port here: before the job the
+    // verb fails the reply on it (nothing was sent); after, it lets it go.
+    storeReceipt: (tenantId, key, requestHash, response, stamp) =>
+      keepIdempotencyReceipt(ctx.supabase, {
         tenantId,
         key,
-        route: REPLY_KEY_ROUTE,
         requestHash,
         response: response as unknown as Json,
-      });
-      if (failed) console.error("idempotency_record_failed", tenantId, failed);
-    },
+        stamp,
+      }),
     hash: (s) => crypto.createHash("sha256").update(s).digest("hex").slice(0, 32),
   };
 }
