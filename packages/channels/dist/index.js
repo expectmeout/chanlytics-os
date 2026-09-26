@@ -419,6 +419,12 @@ var POLICY_CLASS_WORDS = {
     name: "Proposal follow-ups",
     short: "Follow-ups",
     note: "the proposal follow-up playbook \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
+  },
+  // Reach out (Part 3): cold email to the businesses a search found. A chain's first run always waits for its owner.
+  outreach: {
+    name: "Cold email to businesses a search found",
+    short: "Reach-outs",
+    note: "every email a reach-out sends \xB7 its first run always waits for you; later runs send 30 minutes after they are made unless you stop them \xB7 never sends none"
   }
 };
 var PolicyLimitsSchema = z3.object({
@@ -1236,6 +1242,100 @@ var WHATSAPP_LANGUAGES = [
 var BY_ID = new Map(WHATSAPP_LANGUAGES.map((l) => [l.id.toLowerCase(), l]));
 var DAY_MS5 = 864e5;
 var SWEEP_TICK_MS = 5 * 6e4;
+var PLAYBOOK_TRIGGERS = [
+  { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
+  {
+    id: "new_week",
+    label: "Welcome",
+    list: "new_week",
+    cls: "campaign",
+    kind: "list",
+    hint: "First contact in the last 7 days"
+  },
+  {
+    id: "phoned_only",
+    label: "Save our number",
+    list: "phoned_only",
+    cls: "reengage",
+    kind: "list",
+    hint: "Only ever phoned, never texted"
+  },
+  {
+    id: "everyone_monthly",
+    label: "The month's offer",
+    list: null,
+    cls: "campaign",
+    kind: "cadence",
+    hint: "Everyone who said yes, on a cadence"
+  },
+  {
+    id: "visit_tomorrow",
+    label: "Visit reminder",
+    list: null,
+    cls: "booking",
+    kind: "visit",
+    hint: "The day before an appointment on the calendar"
+  },
+  {
+    id: "visited",
+    label: "After the visit",
+    list: null,
+    cls: "reengage",
+    kind: "visit",
+    hint: "The day after a visit, when nothing is booked next"
+  },
+  // People's Lapsed list, by visits rather than silence: the win-back a salon means, which had no playbook of its own
+  // (00155). Named for its list, so it is never a second "Win-back" beside the one for the quiet.
+  {
+    id: "lapsed",
+    label: "Lapsed",
+    list: "lapsed",
+    cls: "reengage",
+    kind: "list",
+    hint: "No visit in 45 days, and nothing booked"
+  },
+  // Any list (decision 0009): one of People's (list_key, 00168) or one of the workspace's own (list_id, 00155), kept by
+  // hand or by a rule; the card says which. The id stays: playbooks made before any list could be named keep running.
+  {
+    id: "saved_list",
+    label: "On a list",
+    list: null,
+    cls: "campaign",
+    kind: "saved",
+    hint: "Everyone on a list: one of People's, or one you keep"
+  },
+  // A proposal out that has waited past the workspace's pace with nothing back (0006): one nudge per proposal, with
+  // its link, under its own class, where deals are on. Conversational: it answers the person's own request.
+  {
+    id: "proposal_waiting",
+    label: "Proposal follow-up",
+    list: null,
+    cls: "follow_up",
+    kind: "deal",
+    hint: "A proposal waiting with nothing back"
+  },
+  // Reach out (Part 3): a chain's first email, over a lead search, and a step days after the one before it. Made by
+  // the reach-out sheet (Part 4), never offered among the moments (triggerOffered).
+  {
+    id: "lead_first",
+    label: "Businesses a search found",
+    list: null,
+    cls: "outreach",
+    kind: "reach_out",
+    hint: "The first email of a reach-out"
+  },
+  {
+    id: "after_step",
+    label: "After the step before",
+    list: null,
+    cls: "outreach",
+    kind: "reach_out",
+    hint: "A nudge, days after the step before"
+  }
+];
+var MOMENT_TRIGGERS = PLAYBOOK_TRIGGERS.filter(
+  (t) => t.kind !== "reach_out"
+);
 var PLAYBOOK_HOURS = { min: 9, max: 20 };
 var SENDING_HOURS_WORDS = {
   min: PLAYBOOK_HOURS.min,
@@ -1810,7 +1910,8 @@ var PLAYBOOK_CLASS_LABEL = {
   reengage: POLICY_CLASS_WORDS.reengage.short,
   campaign: POLICY_CLASS_WORDS.campaign.short,
   booking: POLICY_CLASS_WORDS.booking.short,
-  follow_up: POLICY_CLASS_WORDS.follow_up.short
+  follow_up: POLICY_CLASS_WORDS.follow_up.short,
+  outreach: POLICY_CLASS_WORDS.outreach.short
 };
 function greetingFor(name) {
   const who = name ? ` ${name}` : "";

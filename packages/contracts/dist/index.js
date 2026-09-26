@@ -2726,7 +2726,8 @@ var POLICY_CLASSES = [
   "campaign",
   "reviews",
   "money",
-  "follow_up"
+  "follow_up",
+  "outreach"
 ];
 var POLICY_CLASS_WORDS = {
   reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
@@ -2761,6 +2762,12 @@ var POLICY_CLASS_WORDS = {
     name: "Proposal follow-ups",
     short: "Follow-ups",
     note: "the proposal follow-up playbook \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
+  },
+  // Reach out (Part 3): cold email to the businesses a search found. A chain's first run always waits for its owner.
+  outreach: {
+    name: "Cold email to businesses a search found",
+    short: "Reach-outs",
+    note: "every email a reach-out sends \xB7 its first run always waits for you; later runs send 30 minutes after they are made unless you stop them \xB7 never sends none"
   }
 };
 var POLICY_MODES = ["auto", "veto", "ask", "never"];
@@ -2788,7 +2795,10 @@ var POLICY_CLASS_MODES = {
   campaign: ["auto", "veto", "ask", "never"],
   reviews: ["auto", "ask", "never"],
   money: ["never"],
-  follow_up: ["auto", "ask", "never"]
+  follow_up: ["auto", "ask", "never"],
+  // Cold email never goes the moment a run is made: a chain's first run waits for its owner whatever the mode, and a
+  // later one gives thirty minutes to be stopped (veto), waits too (ask), or does not run (never).
+  outreach: ["veto", "ask", "never"]
 };
 function policyClassOfIntent(intent) {
   if (intent === "booking") return "booking";
@@ -8250,8 +8260,29 @@ var PLAYBOOK_TRIGGERS = [
     cls: "follow_up",
     kind: "deal",
     hint: "A proposal waiting with nothing back"
+  },
+  // Reach out (Part 3): a chain's first email, over a lead search, and a step days after the one before it. Made by
+  // the reach-out sheet (Part 4), never offered among the moments (triggerOffered).
+  {
+    id: "lead_first",
+    label: "Businesses a search found",
+    list: null,
+    cls: "outreach",
+    kind: "reach_out",
+    hint: "The first email of a reach-out"
+  },
+  {
+    id: "after_step",
+    label: "After the step before",
+    list: null,
+    cls: "outreach",
+    kind: "reach_out",
+    hint: "A nudge, days after the step before"
   }
 ];
+var MOMENT_TRIGGERS = PLAYBOOK_TRIGGERS.filter(
+  (t) => t.kind !== "reach_out"
+);
 var PLAYBOOK_STATES = ["running", "paused"];
 var PLAYBOOK_DEFAULTS = { runHour: 10, capPerRun: 25, gapDays: 90, cadenceDays: 30 };
 var PLAYBOOK_HOURS = { min: 9, max: 20 };
@@ -8265,10 +8296,12 @@ var SENDING_HOURS_WORDS = {
 var PLAYBOOK_BREATH_MS = 7 * DAY_MS5;
 var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
 var PLAYBOOK_NAME_MAX = 80;
+var REACH_OUT_IS_NOT_A_MOMENT = "A reach-out is made on its own sheet, from a search's leads, not among the moments.";
 function triggerOf(id) {
   return PLAYBOOK_TRIGGERS.find((t) => t.id === id) ?? null;
 }
 function triggerOffered(t, dealsOn) {
+  if (t.kind === "reach_out") return false;
   return t.kind !== "deal" || dealsOn;
 }
 function policyClassOffered(cls, dealsOn) {
@@ -10053,6 +10086,7 @@ function toRunReportVM(d, opts) {
 // src/broadcasts.ts
 var BROADCAST_STATES = ["pending_approval", "scheduled", "sending", "sent", "canceled", "failed"];
 var RECIPIENT_STATES = ["queued", "sent", "skipped", "failed"];
+var REACH_OUT_SEND_STATES = ["planned", "claimed", "queued", "sent", "skipped", "failed"];
 var BROADCAST_STATE_LABELS = {
   pending_approval: "Needs you",
   scheduled: "Scheduled",
@@ -12668,6 +12702,7 @@ function playbookRunReach(rows, p, touches, nowMs, pace, listIds = null) {
   };
   const t = triggerOf(p.trigger);
   if (!t) return { eligible: [], reach, saidYes: 0 };
+  if (t.kind === "reach_out") return { eligible: [], reach, saidYes: 0 };
   const purpose = purposeOfPlaybook(t.cls);
   const named = t.kind === "visit" ? (
     // The calendar's own day, never hours: eleven at night tomorrow is still tomorrow.
@@ -12744,7 +12779,8 @@ var PLAYBOOK_CLASS_LABEL = {
   reengage: POLICY_CLASS_WORDS.reengage.short,
   campaign: POLICY_CLASS_WORDS.campaign.short,
   booking: POLICY_CLASS_WORDS.booking.short,
-  follow_up: POLICY_CLASS_WORDS.follow_up.short
+  follow_up: POLICY_CLASS_WORDS.follow_up.short,
+  outreach: POLICY_CLASS_WORDS.outreach.short
 };
 
 // src/playbook-approval.ts
@@ -22441,7 +22477,8 @@ var SCHEMA_SETS = {
   "person_notes.author_kind": ["member", "receptionist"],
   "person_notes.source": ["page", "bulk", "moved", "call", "thread"],
   "person_notes.state": ["kept", "suggested"],
-  "playbooks.policy_class": ["reengage", "campaign", "booking", "follow_up"],
+  "playbooks.kind": ["moment", "reach_out"],
+  "playbooks.policy_class": ["reengage", "campaign", "booking", "follow_up", "outreach"],
   "playbooks.state": ["running", "paused"],
   "playbooks.trigger": [
     "quiet_30",
@@ -22452,12 +22489,25 @@ var SCHEMA_SETS = {
     "visited",
     "lapsed",
     "saved_list",
-    "proposal_waiting"
+    "proposal_waiting",
+    "lead_first",
+    "after_step"
   ],
-  "policies.class": ["reply", "booking", "faq", "reengage", "campaign", "money", "reviews", "follow_up"],
+  "policies.class": [
+    "reply",
+    "booking",
+    "faq",
+    "reengage",
+    "campaign",
+    "reviews",
+    "money",
+    "follow_up",
+    "outreach"
+  ],
   "policies.mode": ["auto", "veto", "ask", "never"],
   "policies.subject_type": ["segment", "contact"],
   "push_devices.platform": ["ios", "android"],
+  "reach_out_sends.state": ["planned", "claimed", "queued", "sent", "skipped", "failed"],
   "sending_domains.dmarc": ["found", "missing"],
   "sending_domains.held_why": ["verification", "dmarc", "bounces", "complaint", "provider"],
   "sending_domains.state": ["records", "verifying", "verified", "held"],
@@ -23492,6 +23542,7 @@ export {
   MESSAGE_TYPES,
   MOCK_TEXTING_SENTENCE,
   MODE_WORDS,
+  MOMENT_TRIGGERS,
   NEEDS_KEY_PREFIX,
   NEEDS_TITLE,
   NEW_WINDOW_DAYS,
@@ -23584,6 +23635,8 @@ export {
   QUIET_AFTER_DAYS,
   QUOTE_MAX,
   RATE_HITS_RETENTION_HOURS,
+  REACH_OUT_IS_NOT_A_MOMENT,
+  REACH_OUT_SEND_STATES,
   RECENT_MAX,
   RECIPIENT_STATES,
   RECORDING_PURGED_WORDS,

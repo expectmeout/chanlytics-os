@@ -10,6 +10,7 @@ import {
   BROADCAST_MAX_RECIPIENTS,
   EVERYONE_LABEL,
   FOLLOW_UP_NEEDS_DEALS,
+  REACH_OUT_IS_NOT_A_MOMENT,
   PEOPLE_LISTS,
   FOLLOW_UP_NEEDS_LINK,
   broadcastName,
@@ -818,6 +819,15 @@ test("the playbook's check: the trigger first, then the template through the one
     400,
     "Pick what starts it: win-back, welcome, save our number, the month's offer, a visit tomorrow, a visit yesterday, lapsed, one of your lists, or a proposal waiting.",
   );
+  // A reach-out's steps are made on its own sheet (Part 4): the moments' check refuses them in words, before the
+  // database's shape CHECK would in none.
+  for (const trigger of ["lead_first", "after_step"])
+    await refused(
+      checkPlaybook(fakes().ports, { trigger, template_id: T1 }),
+      "validation",
+      400,
+      REACH_OUT_IS_NOT_A_MOMENT,
+    );
   await refused(
     checkPlaybook(fakes().ports, { trigger: "quiet_30", template_id: "nope" }),
     "validation",

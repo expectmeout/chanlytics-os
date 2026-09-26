@@ -8,7 +8,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  PLAYBOOK_TRIGGERS,
+  MOMENT_TRIGGERS,
   STARTER_LANGUAGES,
   STARTER_TEMPLATES,
   compareTemplates,
@@ -74,8 +74,8 @@ test("nine starters, each in English and Spanish, each passing the hand-written 
   }
 });
 
-test("one starter per playbook trigger, one for any broadcast; titles for people, names for the wire", () => {
-  for (const t of PLAYBOOK_TRIGGERS) {
+test("one starter per moment, one for any broadcast; titles for people, names for the wire", () => {
+  for (const t of MOMENT_TRIGGERS) {
     const s = starterForTrigger(t.id);
     // One of the workspace's own lists sends what the owner picks; Lapsed sends the win-back, already about a visit.
     if (t.kind === "saved") {
@@ -85,6 +85,8 @@ test("one starter per playbook trigger, one for any broadcast; titles for people
     assert.ok(s, `${t.id} has a starter`);
     assert.equal(s.trigger, t.id === "lapsed" ? "quiet_30" : t.id);
   }
+  // A reach-out's words are its own email (Part 4), never a WhatsApp starter.
+  for (const id of ["lead_first", "after_step"]) assert.equal(starterForTrigger(id), null, id);
   assert.equal(starterForTrigger(null)?.key, undefined, "the quick note is for broadcasts, not a trigger");
   assert.equal(starterByKey("quick_note").trigger, null);
   assert.equal(starterByName("winback_offer").title, "Win-back");

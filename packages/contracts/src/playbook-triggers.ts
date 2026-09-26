@@ -86,9 +86,35 @@ export const PLAYBOOK_TRIGGERS = [
     kind: "deal",
     hint: "A proposal waiting with nothing back",
   },
+  // Reach out (Part 3): a chain's first email, over a lead search, and a step days after the one before it. Made by
+  // the reach-out sheet (Part 4), never offered among the moments (triggerOffered).
+  {
+    id: "lead_first",
+    label: "Businesses a search found",
+    list: null,
+    cls: "outreach",
+    kind: "reach_out",
+    hint: "The first email of a reach-out",
+  },
+  {
+    id: "after_step",
+    label: "After the step before",
+    list: null,
+    cls: "outreach",
+    kind: "reach_out",
+    hint: "A nudge, days after the step before",
+  },
 ] as const;
 
 export type PlaybookTrigger = (typeof PLAYBOOK_TRIGGERS)[number]["id"];
+
+/**
+ * The moments: every trigger but a reach-out's two. What the Playbooks page counts, what Ask may propose and what the
+ * moments' composer offers read this, so a reach-out's steps never reach them (Reach out, Part 3).
+ */
+export const MOMENT_TRIGGERS = PLAYBOOK_TRIGGERS.filter(
+  (t): t is Exclude<(typeof PLAYBOOK_TRIGGERS)[number], { kind: "reach_out" }> => t.kind !== "reach_out",
+);
 
 export type PlaybookTriggerKind = (typeof PLAYBOOK_TRIGGERS)[number]["kind"];
 
@@ -119,15 +145,21 @@ export const PLAYBOOK_VETO_DELAY_MS = 30 * 60_000;
 
 export const PLAYBOOK_NAME_MAX = 80;
 
+/** What a moment's doors say when handed a reach-out's step: the one refusal, in one place. */
+export const REACH_OUT_IS_NOT_A_MOMENT =
+  "A reach-out is made on its own sheet, from a search's leads, not among the moments.";
+
 export function triggerOf(id: string): (typeof PLAYBOOK_TRIGGERS)[number] | null {
   return PLAYBOOK_TRIGGERS.find((t) => t.id === id) ?? null;
 }
 
 /**
  * Whether a moment is offered in a workspace (0006): every one, and a proposal's only where deals are on
- * (dealsAreOn, 0008). The Playbooks page, its counts, Ask and the check that makes a playbook all read it.
+ * (dealsAreOn, 0008). The Playbooks page, its counts, Ask and the check that makes a playbook all read it. A
+ * reach-out's steps are never moments: the reach-out sheet makes them (Reach out, Part 4).
  */
 export function triggerOffered(t: { kind: string }, dealsOn: boolean): boolean {
+  if (t.kind === "reach_out") return false;
   return t.kind !== "deal" || dealsOn;
 }
 

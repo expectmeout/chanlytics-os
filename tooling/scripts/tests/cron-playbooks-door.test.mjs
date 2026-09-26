@@ -111,6 +111,7 @@ const person = (id, over = {}) => ({
 const playbook = (tenant, id, over = {}) => ({
   id,
   tenant_id: tenant,
+  kind: "moment",
   name: "Win-back",
   trigger: "quiet_30",
   template_id: "tpl-winback",

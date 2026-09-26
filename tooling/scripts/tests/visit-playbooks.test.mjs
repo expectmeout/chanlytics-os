@@ -7,7 +7,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  PLAYBOOK_TRIGGERS,
+  MOMENT_TRIGGERS,
   PLAYBOOK_CLASS_LABEL,
   eligibleForPlaybook,
   playbookRunReach,
@@ -97,9 +97,9 @@ const withVisits = (id, next, last, over = {}) =>
   );
 const untouched = { byThis: new Map(), byAny: new Map() };
 
-test("the triggers: People's lists and a cadence, two the calendar makes possible, Lapsed, the workspace's own lists and a proposal waiting, each under one of the four autonomy rows", () => {
+test("the moments: People's lists and a cadence, two the calendar makes possible, Lapsed, the workspace's own lists and a proposal waiting, each under one of the four autonomy rows", () => {
   assert.deepEqual(
-    PLAYBOOK_TRIGGERS.map((t) => t.id),
+    MOMENT_TRIGGERS.map((t) => t.id),
     [
       "quiet_30",
       "new_week",
@@ -113,7 +113,7 @@ test("the triggers: People's lists and a cadence, two the calendar makes possibl
     ],
   );
   assert.deepEqual(
-    PLAYBOOK_TRIGGERS.map((t) => t.kind),
+    MOMENT_TRIGGERS.map((t) => t.kind),
     ["list", "list", "list", "cadence", "visit", "visit", "list", "saved", "deal"],
   );
   assert.equal(
