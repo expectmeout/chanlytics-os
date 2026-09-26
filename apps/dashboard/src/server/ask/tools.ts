@@ -17,7 +17,6 @@ import {
   numberHealth,
   ESCALATION_REASON_LABELS,
   LEAD_ENDING_WORDS,
-  PERSON_STATE_LABELS,
   REPORT_RANGES,
   dealsAreOn,
   ago,
@@ -36,29 +35,30 @@ import {
   toDealReportVM,
   toTodayVM,
   PLAYBOOK_TRIGGERS,
-  dealPaceOf,
   policyClassOffered,
   triggerOffered,
   dayInZone,
   isDayKey,
   shiftKey,
   toCalendarVM,
-  playbookRunReach,
   nextRunLabel,
   scheduleLine,
   starterForTrigger,
   triggerOf,
+  poolRowOf,
+  poolListContext,
+  resolveList,
+  unmetNeed,
   type AskReadSet,
   type LeadRoundEnding,
+  type ListRef,
   type PersonRowDto,
+  type PersonRowVM,
   visitLine,
 } from "@chanlytics/contracts";
-import { savedListsFor } from "@chanlytics/db";
 import type { RouteContext } from "../with-route";
 import { poolList } from "../audience";
-import { dealPaceRead } from "../deals";
 import { listSearches, waitingQuestionOf } from "../leads";
-import { listPlaybooks, proposalFollowUps } from "../playbooks";
 import { load, readerContext, type ReaderContext } from "../readers";
 import * as readers from "../readers/facts";
 import { calls as callsReader } from "../readers/calls";
@@ -72,6 +72,9 @@ import { calendar } from "../readers/calendar";
 import { report } from "../readers/report";
 import { openings } from "../readers/openings";
 import { audiencePool } from "../readers/audience-pool";
+import { people } from "../readers/people";
+import { lists as listsReader } from "../readers/lists";
+import { playbooks } from "../readers/playbooks";
 import { workspaceFacts } from "./prompt";
 
 /**
@@ -481,13 +484,16 @@ function stepLine(r: PersonRowDto, tz: string, nowMs: number): string | null {
   return s ? `${s.words} · ${s.day.words}` : null;
 }
 
-function personLine(r: PersonRowDto, tz: string, nowMs: number) {
-  const stateKey = r.dnc ? "opted_out" : r.needs_human ? "needs_you" : "active";
+/** A person as search_people says them: the People row's facts, and where they stand in the row's own words (`vm`). */
+function personLine(r: PersonRowDto, vm: PersonRowVM, tz: string, nowMs: number) {
   return {
     contact_id: r.id,
     route: `clients/${r.id}`,
     name: personName(r),
-    state: PERSON_STATE_LABELS[stateKey as keyof typeof PERSON_STATE_LABELS] ?? stateKey,
+    // Where they stand as the People row says it (ledger #7): one of the seven states (contracts personStateFor, for
+    // the member asking), and the line the row draws beside it, when it draws one.
+    state: vm.stateLabel,
+    state_detail: vm.stateDetail || null,
     // The moment, not the time since it: handed the gap, ago read it as a moment in January 1970.
     last_contact: r.last_message_at
       ? ago(Date.parse(r.last_message_at), tz, nowMs)
@@ -512,40 +518,43 @@ function personLine(r: PersonRowDto, tz: string, nowMs: number) {
 }
 
 async function searchPeople(t: ToolContext, input: Record<string, unknown>): Promise<unknown> {
-  const q = str(input.query, 80).toLowerCase();
+  // The query as the People page's search sends it (contacts/route.ts): trimmed, eighty characters at most.
+  const q = str(input.query, 80);
   const listIn = str(input.list, 60);
   // Any list, one way (decision 0009): a token list_audiences gave, or a People list's bare id.
   const ref = listIn
     ? (parseListToken(listIn) ?? parseListToken(`list:${listIn}`) ?? parseListToken(`seg:${listIn}`))
     : null;
   if (listIn && !ref) return { error: "list must be a list token from list_audiences, or a People list's id" };
-  // With their appointments, so "who asked but never booked?" and "who is
-  // booked this week?" are answered from the calendar, not guessed. Once a turn (readers/audience-pool.ts).
-  const pool = (await load(t.rc, audiencePool, undefined)).data;
-  const { people: rows } = pool;
-  // Counted as a send and the page count it (audience.ts poolList); one that can't be counted here says why, in the
-  // page's words, and names the condition that failed.
+  // The People page's own read (readers/people.ts), once a turn per query (ledger #7): one page from people_list under
+  // the member's RLS, matched in SQL on a name, a WhatsApp name, an address or three digits of the number, in the
+  // function's order, each person with their appointments -- so "who asked but never booked?" and "who is booked this
+  // week?" are answered from the calendar -- and `total`, how many match in all. The audience pool is not read.
+  const page = (await load(t.rc, people, { q: q || null, offset: 0 })).data;
+  // Each row as the People page builds it (legacy-bridge/surface-data.ts personRowOf): for the member asking, and with
+  // no deal where deals are off.
+  const viewer = t.ctx.userId ?? null;
+  const rowOf = new Map(
+    page.people.map((r) => [r.id, poolRowOf(r, { tz: t.timezone, now: t.now, viewer, dealsOn: page.deals_on })]),
+  );
+  // A list is judged over the page's rows, by what the page's read says the workspace has: its calendar, deals, a
+  // consult-first service, and the member asking (audience.ts poolList, as a send and the page count it). One that
+  // can't be counted here says why, in the page's words, and names the condition that failed.
   let onList: Set<string> | null = null;
   if (ref) {
-    const found = await poolList(t.ctx, t.tenantId, pool, ref);
+    const listCtx = poolListContext({
+      calendar: page.calendar.state,
+      dealsOn: page.deals_on,
+      consultFirst: page.consult_first,
+      viewer,
+    });
+    const found = await poolList(t.ctx, t.tenantId, { rows: [...rowOf.values()], listCtx }, ref);
     if (!found) return { error: "no such list; list_audiences names them", people: [] };
     if ("unknown" in found) return { error: `${found.label}: ${found.unknown}`, people: [] };
     onList = new Set(found.memberIds);
   }
-  const digits = q.replace(/\D/g, "");
-  const hits = rows.filter((r) => {
-    if (onList && !onList.has(r.id)) return false;
-    if (!q) return true;
-    const name = personName(r).toLowerCase();
-    if (name.includes(q)) return true;
-    if (digits.length >= 4 && (r.phone_e164 ?? "").replace(/\D/g, "").includes(digits)) return true;
-    return false;
-  });
-  hits.sort(
-    (a, b) =>
-      (Date.parse(b.last_message_at ?? b.last_call_at ?? "") || 0) -
-      (Date.parse(a.last_message_at ?? a.last_call_at ?? "") || 0),
-  );
+  const members = onList;
+  const hits = members ? page.people.filter((r) => members.has(r.id)) : page.people;
   const picked = hits.slice(0, ASK_CAPS.people);
   for (const r of picked) {
     t.read.person.add(r.id);
@@ -555,8 +564,9 @@ async function searchPeople(t: ToolContext, input: Record<string, unknown>): Pro
     query: q,
     // A People list by its id, as it was asked for; one of the workspace's own by its token.
     list: ref ? (ref.kind === "builtin" ? ref.id : `list:${ref.id}`) : null,
-    matches: hits.length,
-    people: picked.map((r) => personLine(r, t.timezone, t.now.getTime())),
+    // Counted before the cap: everyone the query matches, as the page counts them; on a list, who of them is on it.
+    matches: members ? hits.length : page.page.total,
+    people: picked.map((r) => personLine(r, rowOf.get(r.id)!, t.timezone, t.now.getTime())),
   };
 }
 
@@ -819,13 +829,16 @@ export function newToolContext(
 async function listAudiences(t: ToolContext): Promise<unknown> {
   const [pool, lists, tpls, ch] = await Promise.all([
     load(t.rc, audiencePool, undefined).then((r) => r.data),
-    savedListsFor(t.ctx.supabase, t.tenantId),
+    // The workspace's own lists as People's rail reads them (readers/lists.ts), once a turn.
+    load(t.rc, listsReader, undefined).then((r) => r.data.lists),
+    // The templates the composer offers (templates/route.ts): approved, and not hidden by the workspace (ledger #9).
     t.ctx.supabase
       .from("templates")
       .select("id, name, language, category, variables, body_preview")
       .eq("tenant_id", t.tenantId)
       .eq("channel", "whatsapp")
       .eq("meta_status", "approved")
+      .is("hidden_at", null)
       .order("name"),
     t.ctx.supabase
       .from("tenant_channels")
@@ -919,87 +932,63 @@ const MODE_WORDS: Record<string, string> = {
 
 /**
  * The playbooks as the page shows them — the same rows, the same totals,
- * the same next-run words — and the four triggers with the count the
- * composer's chips carry.
+ * the same next-run words — and the triggers with the counts the page's
+ * chips carry: the Playbooks page's own read (readers/playbooks.ts), once a
+ * turn, projected (ledger #10). Every count is the page's: over everyone, with
+ * no one looking, the week's touches applied and, where deals are on, whoever
+ * already had their proposal's follow-up left out, as a run counts them.
  */
 async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
-  const [rows, facts, policies, pool, paceRead, followUps] = await Promise.all([
-    listPlaybooks(t.ctx, t.tenantId),
-    load(t.rc, readers.facts, undefined).then((r) => r.data),
+  const [pb, policies] = await Promise.all([
+    load(t.rc, playbooks, undefined).then((r) => r.data),
     load(t.rc, readers.policies, undefined).then(
       (r) => r.data,
       () => [],
     ),
-    load(t.rc, audiencePool, undefined).then((r) => r.data),
-    // A proposal's moment is counted as the page counts it (0006): by the workspace's pace, leaving out whoever
-    // already had their follow-up, from any playbook. Unreadable, that moment is not counted.
-    dealPaceRead(t.ctx, t.tenantId, t.now),
-    proposalFollowUps(t.ctx, t.tenantId, t.now).catch(() => null),
   ]);
-  const pace = pool.deals_on ? dealPaceOf(paceRead) : null;
   const modes = new Map(policies.map((r) => [r.class, r.mode]));
   const modeOf = (cls: string) => modes.get(cls) ?? "ask";
-  // With their appointments: the visit triggers count from the calendar.
-  const vm = pool.rows;
-  const vmPool = pool;
-  const untouched = {
-    byThis: new Map<string, number>(),
-    byAny: new Map<string, number>(),
-    followUps: new Map<string, number>(),
+  // Who a moment or a list names that said the yes its template needs, a number or not, and who of them a run reaches
+  // now: the page's chip (`candidates`). `said_yes_now` was the reach once, so a moment whose yes had no number to
+  // send to read as nobody's yes. Null where the page counts nobody: a read it needs failed.
+  const counted = (key: string) => {
+    const x = pb.pools[key];
+    return x
+      ? { said_yes_now: x.saidYes, can_be_sent_now: x.candidates }
+      : { said_yes_now: null, can_be_sent_now: null };
   };
-  // Who each moment names that said the yes its template needs, and who of them
-  // a run reaches, by the runner's own draw before anyone has heard from a
-  // playbook. `said_yes_now` was the reach, so a moment whose yes had no number
-  // to send to read as nobody's yes.
-  const moment = (trigger: string, listIds: ReadonlySet<string> | null = null) => {
-    const deal = triggerOf(trigger)?.kind === "deal";
-    if (deal && !followUps) return { said_yes_now: null, can_be_sent_now: null };
-    const drawn = playbookRunReach(
-      vm,
-      {
-        trigger: trigger as (typeof PLAYBOOK_TRIGGERS)[number]["id"],
-        cap_per_run: 100_000,
-        gap_days: 0,
-        cadence_days: 0,
-      },
-      deal && followUps ? { ...untouched, followUps } : untouched,
-      t.now.getTime(),
-      pace,
-      listIds,
-    );
-    return { said_yes_now: drawn.saidYes, can_be_sent_now: drawn.reach.will };
+  // Why the page counts nobody for a playbook on a list, as far as its read says: the list could not be read, or is
+  // gone; it is about whoever is looking, and a run has no one; or it is one of People's lists that needs what this
+  // workspace does not have (contracts unmetNeed, in listUnknownWords' words) -- a consult-first service when neither
+  // the calendar nor deals is what it lacks, since the page's read does not carry that one.
+  const uncounted = (ref: ListRef): string => {
+    if (ref.kind === "saved") {
+      if (pb.lists === null) return "its list could not be read just now";
+      const own = pb.lists.find((l) => l.id === ref.id);
+      if (!own) return "its list was deleted";
+      if (own.viewer) return listUnknownWords("viewer", pb.calendar);
+      return "it could not be counted just now";
+    }
+    const def = resolveList(ref, []);
+    if (!def) return "its list is not one of People's";
+    if (pb.people_lists.some((l) => l.key === ref.id)) return "it could not be counted just now";
+    const need =
+      unmetNeed(def.needs, { calendar: pb.calendar, dealsOn: pb.deals_on, consultFirst: true, viewer: false }) ??
+      "consult";
+    return listUnknownWords(need, pb.calendar);
   };
-  // A playbook on a list is counted over its own list (decision 0009): each list once, one of People's or one of the
-  // workspace's own, as the run counts it; one it can't count here says why. It read as nobody before.
-  const onList = new Map<
-    string,
-    { said_yes_now: number | null; can_be_sent_now: number | null } | { cannot_count: string }
-  >();
-  for (const p of rows) {
-    const ref = playbookListRef(p);
-    if (!ref || onList.has(listToken(ref))) continue;
-    const found = await poolList(t.ctx, t.tenantId, vmPool, ref);
-    onList.set(
-      listToken(ref),
-      !found
-        ? { cannot_count: "its list was deleted" }
-        : "unknown" in found
-          ? { cannot_count: found.unknown }
-          : moment(p.trigger, new Set(found.memberIds)),
-    );
-  }
   return {
     route: "outbound",
-    timezone: facts.timezone,
+    timezone: pb.timezone,
     modes: {
       reengage: modeOf("reengage"),
       campaign: modeOf("campaign"),
       booking: modeOf("booking"),
       // The follow-ups' class only where deals are on (0006).
-      ...(policyClassOffered("follow_up", pool.deals_on) ? { follow_up: modeOf("follow_up") } : {}),
+      ...(policyClassOffered("follow_up", pb.deals_on) ? { follow_up: modeOf("follow_up") } : {}),
     },
     mode_words: MODE_WORDS,
-    playbooks: rows.map((p) => ({
+    playbooks: pb.playbooks.map((p) => ({
       playbook_id: p.id,
       name: p.name,
       trigger: p.trigger,
@@ -1009,11 +998,13 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
       policy_class: p.policy_class,
       mode: modeOf(p.policy_class),
       schedule: scheduleLine(p),
-      next_run: nextRunLabel(p, facts.timezone, t.now),
-      // On a list: its token, and who a run on it reaches now.
+      next_run: nextRunLabel(p, pb.timezone, t.now),
+      // On a list (decision 0009): its token, and who a run on it reaches now, as the page counts that list.
       ...(() => {
         const ref = playbookListRef(p);
-        return ref ? { list: listToken(ref), ...onList.get(listToken(ref)) } : {};
+        if (!ref) return {};
+        const token = listToken(ref);
+        return { list: token, ...(pb.pools[token] ? counted(token) : { cannot_count: uncounted(ref) }) };
       })(),
       runs: p.totals.runs,
       sent: p.totals.sent,
@@ -1023,16 +1014,16 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
         : null,
     })),
     // The moments offered here (0006): a proposal's only where deals are on.
-    triggers: PLAYBOOK_TRIGGERS.filter((x) => triggerOffered(x, pool.deals_on)).map((x) => ({
+    triggers: PLAYBOOK_TRIGGERS.filter((x) => triggerOffered(x, pb.deals_on)).map((x) => ({
       trigger: x.id,
       label: x.label,
       when: x.hint,
       policy_class: x.cls,
       // On a list, the counts are the list's: list_audiences has each list's.
-      ...(x.kind === "saved" ? { counted_per_list: true } : moment(x.id)),
+      ...(x.kind === "saved" ? { counted_per_list: true } : counted(x.id)),
       starter_template: starterForTrigger(x.id)?.title ?? null,
     })),
-    note: `A run is a broadcast, and ${NO_NUMBER_REACH}. It never reaches anyone twice within the playbook's gap, and sends one playbook message per person per week. said_yes_now counts who each trigger names that said the yes its template needs, a number or not; can_be_sent_now is who of them a run reaches. When can_be_sent_now is 0 and said_yes_now is not, the ones who said yes have no number: say so, and never send the owner to get a yes they already have.${pool.deals_on ? " The proposal follow-up reaches each proposal once, with its link: its counts leave out whoever already had theirs, and null means that could not be read." : ""} Nothing here has run because you read it.`,
+    note: `A run is a broadcast, and ${NO_NUMBER_REACH}. It never reaches anyone twice within the playbook's gap, and sends one playbook message per person per week. said_yes_now counts who each trigger names that said the yes its template needs, a number or not; can_be_sent_now is who of them a run reaches now, the Playbooks page's own count: whoever a broadcast already reached this week waits out the week. When can_be_sent_now is 0 and said_yes_now is not, the ones who said yes have no number to send to, or heard from a broadcast this week: say so, and never send the owner to get a yes they already have.${pb.deals_on ? " The proposal follow-up reaches each proposal once, with its link: its counts leave out whoever already had theirs, and null means that could not be read." : ""} Nothing here has run because you read it.`,
   };
 }
 

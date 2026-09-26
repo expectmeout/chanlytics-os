@@ -27,6 +27,8 @@ import {
   NO_NUMBER_REACH,
   noNumberWords,
   toPersonVM,
+  toPersonRowVM,
+  nextRunLabel,
   toReportVM,
   toBookingReportVM,
   toDealReportVM,
@@ -51,6 +53,8 @@ const { readerCache, readerContext, load } = await import(at("apps/dashboard/src
 const workspaceReads = await import(at("apps/dashboard/src/server/readers/facts.ts"));
 const { report: reportReader } = await import(at("apps/dashboard/src/server/readers/report.ts"));
 const personRoute = await import(at("apps/dashboard/app/api/v1/contacts/[id]/route.ts"));
+const templatesRoute = await import(at("apps/dashboard/app/api/v1/templates/route.ts"));
+const { playbooks: playbooksReader } = await import(at("apps/dashboard/src/server/readers/playbooks.ts"));
 // The workspace's facts are kept across turns in the module: each test starts with none kept.
 beforeEach(() => readerCache.clear());
 
@@ -3269,7 +3273,7 @@ const OFFER = {
   hidden_at: null,
 };
 
-test("the audience pool is read once a turn, through its reader: a turn that lists the audiences, searches People and proposes a broadcast reads everyone once, and the workspace's zone, how its customers buy and its settings once each -- the memo that kept one pool whatever its zone and clock is gone from the tools' context", async () => {
+test("the audience pool is read once a turn, through its reader: a turn that lists the audiences, searches People and proposes a broadcast reads everyone once for the pool the listing and the card share, and the search its own page (ledger #7); the workspace's zone, how its customers buy and its settings once each -- the memo that kept one pool whatever its zone and clock is gone from the tools' context", async () => {
   const ctx = ctxFor(tables({ templates: [OFFER] }), { ...RPCS, people_list: () => threeAnswers() });
   const tc = newToolContext(ctx, A, "owner", TZ, NOW);
   assert.equal("memo" in tc, false, "the tools' context holds the turn's readers and nothing else to remember");
@@ -3294,14 +3298,14 @@ test("the audience pool is read once a turn, through its reader: a turn that lis
         (q.rpc ? `rpc:${q.rpc}` : `${q.table}.${q.op}`) === key && (columns === undefined || q.columns === columns),
     ).length;
   assert.deepEqual(
-    [
-      reads("rpc:people_list"),
-      reads("tenants.select", "name, timezone"),
-      reads("tenants.select", "sells_by"),
-      reads("tenant_config.select"),
-    ],
-    [1, 1, 1, 1],
-    "everyone once; the zone, sells_by and the settings once each",
+    ctx.supabase.seen.filter((q) => q.rpc === "people_list").map((q) => q.args),
+    [{ p_tenant_id: A }, { p_tenant_id: A, p_query: "rosa" }],
+    "everyone once, for the pool; then the People page's own page for the search, never the pool again",
+  );
+  assert.deepEqual(
+    [reads("tenants.select", "name, timezone"), reads("tenants.select", "sells_by"), reads("tenant_config.select")],
+    [1, 1, 1],
+    "the zone, sells_by and the settings once each, whichever read asked first",
   );
 });
 
@@ -3348,4 +3352,279 @@ test("the assistant counts with the calendar too: a visit tomorrow on the owner'
     globalThis.fetch = fetchWas;
     forgetFeeds();
   }
+});
+
+/* ------------------------------------------------- the three tools read what the pages read (PR 1.6) */
+
+/**
+ * Luis waits on a person; Rosa, whose WhatsApp name is Rosi, was last heard from six weeks ago. people_list as the
+ * database answers p_query (00125): a name, a WhatsApp name or an address, or three digits of the number.
+ */
+const twoPeople = () => [
+  peopleListRow({
+    id: LUIS,
+    display_name: "Luis Mora",
+    phone_e164: "+15555550101",
+    latest_conversation_id: C1,
+    needs_human: true,
+    open_escalation_reason: "human_token",
+    open_escalation_since: iso(NOW.getTime() - 3_600_000),
+  }),
+  peopleListRow({
+    id: ROSA,
+    display_name: "Rosa Diaz",
+    wa_profile_name: "Rosi",
+    phone_e164: "+15555550182",
+    latest_conversation_id: C2,
+    last_message_at: iso(NOW.getTime() - 45 * 86_400_000),
+    last_inbound_at: iso(NOW.getTime() - 45 * 86_400_000),
+  }),
+];
+const peopleListMatching = (rows) => (a) => {
+  if (a.p_tenant_id !== A) return [];
+  if (!a.p_query) return rows;
+  const q = a.p_query.toLowerCase();
+  const digits = q.replace(/\D/g, "");
+  return rows.filter(
+    (r) =>
+      [r.display_name, r.wa_profile_name, r.email].some((v) => (v ?? "").toLowerCase().includes(q)) ||
+      (digits.length >= 3 && (r.phone_e164 ?? "").replace(/\D/g, "").includes(digits)),
+  );
+};
+/** The workspace's contacts behind the rows, for the page's count of who matches. */
+const contactsOf = (rows) =>
+  rows.map((r) => ({
+    id: r.id,
+    tenant_id: A,
+    display_name: r.display_name,
+    wa_profile_name: r.wa_profile_name,
+    email: r.email,
+    phone_e164: r.phone_e164,
+    erased_at: null,
+  }));
+
+test("search_people reads what the People page reads (ledger #7): one SQL page for the query, so a WhatsApp name and three digits of a number find who the page finds, where the old match on the name alone and four digits found nobody; the page's order and its count; each person in the People row's own words for where they stand; and the pool is never read", async () => {
+  const rows = twoPeople();
+  const ctx = ctxFor(tables({ contacts: contactsOf(rows) }), { ...RPCS, people_list: peopleListMatching(rows) });
+  const tc = newToolContext(ctx, A, "owner", TZ, NOW);
+  const search = async (query) => {
+    const out = await runTool(tc, { name: "search_people", input: { query } });
+    assert.equal(out.isError, false, out.result);
+    return JSON.parse(out.result);
+  };
+  const byWhatsAppName = await search("Rosi");
+  assert.deepEqual(
+    [byWhatsAppName.people.map((p) => p.name), byWhatsAppName.matches],
+    [["Rosa Diaz"], 1],
+    "her WhatsApp name finds her, as the page's search does; the name alone did not",
+  );
+  const byThreeDigits = await search("018");
+  assert.deepEqual(
+    [byThreeDigits.people.map((p) => p.contact_id), byThreeDigits.matches],
+    [[ROSA], 1],
+    "three digits of her number, as the page matches them; the old match wanted four",
+  );
+  const everyone = await search("");
+  assert.deepEqual(
+    [everyone.people.map((p) => p.contact_id), everyone.matches],
+    [[LUIS, ROSA], 2],
+    "no query is the page's first page, in the function's order, counted where the rows are",
+  );
+  // Where they stand, in the People row's own words: its builder, for the member asking (surface-data.ts personRowOf).
+  const vm = (r) => toPersonRowVM({ ...r, effective_reply_mode: null, visits: null }, TZ, NOW, USER);
+  assert.deepEqual(
+    everyone.people.map((p) => [p.state, p.state_detail]),
+    rows.map((r) => [vm(r).stateLabel, vm(r).stateDetail || null]),
+  );
+  assert.deepEqual(
+    everyone.people.map((p) => p.state),
+    ["Needs you", "Quiet"],
+    "Rosa was 'Active' in the tool's own three states: the page says Quiet",
+  );
+  assert.ok(tc.read.person.has(ROSA) && tc.read.thread.has(C2), "a person found is a row read, and their thread");
+  assert.deepEqual(
+    ctx.supabase.seen.filter((q) => q.rpc === "people_list").map((q) => q.args.p_query ?? null),
+    ["Rosi", "018", null],
+    "the page's read, one per query; never everyone for a pool",
+  );
+});
+
+test("search_people answers who booked and who never did from the People page's own read: each row with its visits from the owner's calendar, and the Booked and Asked, never booked lists judged over those rows with the page's calendar", async () => {
+  const { forgetFeeds } = await import(at("apps/dashboard/src/server/ask/openings.ts"));
+  const ICS = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//test//EN",
+    "BEGIN:VEVENT",
+    "UID:e-rosa",
+    "DTSTART:20260916T140000Z",
+    "DTEND:20260916T150000Z",
+    "SUMMARY:Colour",
+    "DESCRIPTION:Rosa +15555550182",
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ].join("\r\n");
+  const rows = twoPeople().map((r) => ({
+    ...r,
+    last_message_at: iso(NOW.getTime() - 3 * 86_400_000),
+    last_inbound_at: iso(NOW.getTime() - 3 * 86_400_000),
+  }));
+  const base = tables();
+  const t = tables({
+    contacts: contactsOf(rows),
+    tenant_config: [
+      {
+        ...base.tenant_config[0],
+        config: { ...base.tenant_config[0].config, calendar: { ical_url: "https://calendar.example/harbor.ics" } },
+      },
+    ],
+  });
+  const fetchWas = globalThis.fetch;
+  globalThis.fetch = async () => new Response(ICS, { status: 200, headers: { "content-type": "text/calendar" } });
+  try {
+    forgetFeeds();
+    const tc = newToolContext(ctxFor(t, { ...RPCS, people_list: peopleListMatching(rows) }), A, "owner", TZ, NOW);
+    const on = async (list) =>
+      JSON.parse((await runTool(tc, { name: "search_people", input: { query: "", list } })).result);
+    const booked = await on("booked");
+    assert.deepEqual(
+      booked.people.map((p) => p.name),
+      ["Rosa Diaz"],
+    );
+    assert.match(booked.people[0].next_visit, /Colour$/, "her next visit, from the feed");
+    const never = await on("asked_never_booked");
+    assert.deepEqual(
+      [never.people.map((p) => p.name), never.people[0].next_visit],
+      [["Luis Mora"], null],
+      "wrote this month, and the calendar never had him",
+    );
+  } finally {
+    globalThis.fetch = fetchWas;
+    forgetFeeds();
+  }
+});
+
+test("list_audiences offers the templates the composer offers (ledger #9): approved and not hidden by the workspace -- the one the workspace hid is never offered, as the composer's own read never offers it", async () => {
+  const T2 = "dddddddd-dddd-4ddd-8ddd-ddddddddddd2";
+  const T3 = "dddddddd-dddd-4ddd-8ddd-ddddddddddd3";
+  const tpl = (id, name, over = {}) => ({ ...OFFER, id, name, ...over });
+  const t = tables({
+    templates: [
+      tpl(TPL, "fall_offer"),
+      tpl(T2, "summer_offer", { hidden_at: iso(NOW.getTime() - 86_400_000) }),
+      tpl(T3, "winter_offer", { meta_status: "pending" }),
+    ],
+  });
+  const out = await runTool(newToolContext(ctxFor(t), A, "owner", TZ, NOW), { name: "list_audiences", input: {} });
+  assert.equal(out.isError, false, out.result);
+  const offered = JSON.parse(out.result).templates.map((x) => x.template_id);
+  assert.deepEqual(offered, [TPL], "REGRESSION: the hidden summer_offer was offered to the model");
+  const composer = await templatesRoute.GET.run(new Request(`http://localhost/api/v1/templates?workspace=${A}`), {
+    ...ctxFor(t),
+    params: {},
+  });
+  assert.deepEqual(
+    offered,
+    composer.templates.filter((x) => x.channel === "whatsapp").map((x) => x.id),
+    "the composer's own list",
+  );
+});
+
+test("list_playbooks says the Playbooks page's numbers (ledger #10): every moment's and every list's counts are the page's chips -- over everyone with no one looking and the week's touches applied, so Rosa, reached by a broadcast yesterday, waits out the week where the tool's own count reached her -- its rows and next runs are the page's, and a list the page cannot count says why", async () => {
+  const DAY = 86_400_000;
+  const S_REG = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1";
+  const GONE = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb9";
+  const sent = iso(NOW.getTime() - DAY);
+  const pbRow = (id, over) => ({
+    id,
+    tenant_id: A,
+    kind: "moment",
+    name: "Win-back",
+    trigger: "saved_list",
+    list_id: null,
+    list_key: null,
+    template_id: TPL,
+    template_name: "fall_offer",
+    template_language: "en",
+    params: [],
+    policy_class: "reengage",
+    state: "running",
+    run_hour: 10,
+    cap_per_run: 50,
+    gap_days: 30,
+    cadence_days: 0,
+    last_run_for: null,
+    last_run_at: null,
+    created_at: "2026-09-01T00:00:00Z",
+    ...over,
+  });
+  const t = tables({
+    playbooks: [
+      pbRow("pb-regulars", { list_id: S_REG }),
+      pbRow("pb-booked", { list_key: "booked", created_at: "2026-09-02T00:00:00Z" }),
+      pbRow("pb-gone", { list_id: GONE, created_at: "2026-09-03T00:00:00Z" }),
+      pbRow("pb-monthly", {
+        trigger: "everyone_monthly",
+        policy_class: "campaign",
+        created_at: "2026-09-04T00:00:00Z",
+      }),
+    ],
+    segments: [{ id: S_REG, tenant_id: A, name: "Regulars", rule: null }],
+    segment_members: [
+      { tenant_id: A, segment_id: S_REG, contact_id: LUIS },
+      { tenant_id: A, segment_id: S_REG, contact_id: ROSA },
+    ],
+    broadcasts: [
+      {
+        id: "b-yesterday",
+        tenant_id: A,
+        playbook_id: null,
+        state: "sent",
+        scheduled_for: sent,
+        created_at: sent,
+        run_for: null,
+        params: [],
+      },
+    ],
+    broadcast_recipients: [
+      { tenant_id: A, broadcast_id: "b-yesterday", contact_id: ROSA, state: "sent", sent_at: sent },
+    ],
+  });
+  const doors = { ...RPCS, people_list: () => threeAnswers() };
+  const out = await runTool(newToolContext(ctxFor(t, doors), A, "owner", TZ, NOW), {
+    name: "list_playbooks",
+    input: {},
+  });
+  assert.equal(out.isError, false, out.result);
+  const read = JSON.parse(out.result);
+  // The page's own read of the same workspace, on the same clock (readers/playbooks.ts, GET playbooks' body).
+  const page = (
+    await load(readerContext(ctxFor(t, doors), { tenantId: A, role: "owner" }, NOW), playbooksReader, undefined)
+  ).data;
+  const chip = (key) => ({ said_yes_now: page.pools[key].saidYes, can_be_sent_now: page.pools[key].candidates });
+  for (const x of read.triggers.filter((y) => !y.counted_per_list))
+    assert.deepEqual({ said_yes_now: x.said_yes_now, can_be_sent_now: x.can_be_sent_now }, chip(x.trigger), x.trigger);
+  const monthly = read.triggers.find((x) => x.trigger === "everyone_monthly");
+  assert.deepEqual(
+    [monthly.said_yes_now, monthly.can_be_sent_now],
+    [2, 0],
+    "Ana and Rosa said yes to offers; only Rosa has a number, and a broadcast reached her yesterday: the tool said 1",
+  );
+  assert.deepEqual(
+    read.playbooks.map((p) => [p.playbook_id, p.next_run]),
+    page.playbooks.map((p) => [p.id, nextRunLabel(p, page.timezone, NOW)]),
+    "the page's rows, and its next-run words",
+  );
+  const byId = Object.fromEntries(read.playbooks.map((p) => [p.playbook_id, p]));
+  assert.deepEqual(
+    [byId["pb-regulars"].list, byId["pb-regulars"].said_yes_now, byId["pb-regulars"].can_be_sent_now],
+    [`list:${S_REG}`, chip(`list:${S_REG}`).said_yes_now, chip(`list:${S_REG}`).can_be_sent_now],
+    "a list of the workspace's own, counted as the page counts it",
+  );
+  assert.deepEqual(
+    [byId["pb-booked"].list, byId["pb-booked"].cannot_count],
+    ["seg:booked", "This list reads your calendar. Connect it under Settings › Business to count it."],
+  );
+  assert.deepEqual([byId["pb-gone"].cannot_count, byId["pb-gone"].said_yes_now], ["its list was deleted", undefined]);
+  assert.ok(read.note.includes("can_be_sent_now") && read.note.includes("this week"), read.note);
 });

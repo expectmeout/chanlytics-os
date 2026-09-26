@@ -1189,13 +1189,8 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
     [{ days: 30 }, null, true],
     "never fatal to the report",
   );
-  const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
-  assert.ok(
-    tools.includes('list: { type: "string" }') &&
-      tools.includes("if (onList && !onList.has(r.id)) return false;") &&
-      tools.includes("next_visit: r.visits?.next"),
-    "the assistant answers who booked and who never did",
-  );
+  // The assistant answers who booked and who never did: search_people runs over a feed in ask-turn.test.mjs, its
+  // Booked and Asked, never booked lists judged over the People page's own rows.
   const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
   assert.ok(
     sd.includes('(!l.needsCalendar || calendar.state === "ok") &&') &&
