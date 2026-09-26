@@ -20,10 +20,13 @@
  */
 import type { Mood } from "./mood";
 
-/** how long a page is read, at least: a glance, not a show (it was 2.2 s, which read as performed; Ruben, 26 Sep) */
-export const READ_MS = 1200;
+/**
+ * How long a page is read, at least: a glance, not a show. With the colour's own coming and going the light is seen
+ * for about 0.7 s and is grey by 0.8 s (it was 2.2 s, then 1.2 s, both of which read as performed; Ruben, 26 Sep).
+ */
+export const READ_MS = 400;
 /** and at most, should the boot take longer */
-export const READ_MAX_MS = 2400;
+export const READ_MAX_MS = 600;
 /** the same page again within this is not read again */
 export const AGAIN_MS = 20_000;
 

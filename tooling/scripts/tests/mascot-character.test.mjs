@@ -355,15 +355,15 @@ test("lit at rest (a page arriving): the three take the AI's colour where they s
     assert.ok(TURNS.includes(k) || ["look", "rise", "stretch", "nod"].includes(k), `${k} is a rest move`);
   ch.glow(0);
   const dark = ch.events().length;
-  run(ch, 1.4);
+  run(ch, 0.45);
   assert.ok(
     ch.frame().squares.every((s) => s.live < 0.1),
-    `the ink is back within a second or so: ${ch
+    `the ink is back within half a second: ${ch
       .frame()
       .squares.map((s) => s.live.toFixed(2))
       .join(",")}`,
   );
-  run(ch, 4.4);
+  run(ch, 5.3);
   assert.equal(
     ch.events().length,
     dark,
@@ -377,6 +377,26 @@ test("lit at rest (a page arriving): the three take the AI's colour where they s
     "calm takes the colour",
   );
   assert.equal(calm.events().length, 0, "and makes no move");
+});
+
+test("the page light's quick fade is its own: an answer's end after it still cools slowly, down the stack", () => {
+  const ch = createCharacter({ seed: 3, enter: false, detail: 60 });
+  run(ch, 8);
+  ch.glow(1);
+  run(ch, 0.5);
+  ch.glow(0);
+  run(ch, 0.5);
+  ch.set("speaking");
+  run(ch, 1);
+  ch.set("idle");
+  run(ch, 0.8);
+  assert.ok(
+    ch.frame().squares.every((s) => s.live > 0.3),
+    `still warm 0.8 s after the answer: ${ch
+      .frame()
+      .squares.map((s) => s.live.toFixed(2))
+      .join(",")}`,
+  );
 });
 
 test("an icon left alone goes quiet (no breath, turns only) and wakes when someone comes near", () => {

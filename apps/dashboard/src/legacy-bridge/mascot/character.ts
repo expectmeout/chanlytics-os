@@ -320,6 +320,8 @@ export function createCharacter(options: CharacterOptions = {}): Character {
   // lit at rest (glow): the colour the tiles hold while idle, eased
   let lit = 0;
   let litTarget = 0;
+  // the glow going out at rest: the tiles cool as quickly as it came, not with an answer's slow cooling
+  let glowOut = false;
   const moves: Move[] = [];
   const events: CharacterEvent[] = [];
   const entering = enter && !calm;
@@ -845,16 +847,16 @@ export function createCharacter(options: CharacterOptions = {}): Character {
 
     // colour: its step, and whether it is at work. Addressed, it lights at once; done, it keeps its colour through
     // its bow and cools slowly, down the stack
-    // the light comes and goes quickly: a glance, then the ink, grey about 1.2 s after it ends with the tiles' own
-    // cooling below (0.4 here lingered 1.65 s)
-    lit = ease(lit, litTarget, dt, litTarget > lit ? 0.12 : 0.15);
+    // the light comes and goes quickly: coloured within 0.3 s, and grey about 0.4 s after it ends (it lingered 1.65 s,
+    // which read as performed; Ruben, 26 Sep)
+    lit = ease(lit, litTarget, dt, litTarget > lit ? 0.12 : 0.08);
     const liveNow = state === "idle" ? lit : 1;
     const warming = liveNow > prevLive;
     for (const b of bodies) {
       const k = clamp(b.step, 0, 2);
       const hold = warming ? k * 0.05 : 0.5 + k * 0.09;
       const target = clock - stateAt >= hold ? liveNow : prevLive;
-      b.live = ease(b.live, target, dt, target > b.live ? 0.08 : 0.45);
+      b.live = ease(b.live, target, dt, target > b.live ? 0.08 : glowOut ? 0.12 : 0.45);
       b.shade = ease(b.shade, k, dt, 0.16);
     }
 
@@ -979,6 +981,7 @@ export function createCharacter(options: CharacterOptions = {}): Character {
     const prev = state;
     if (prev === "thinking" && orb > 0) release(next);
     prevLive = state === "idle" ? 0 : 1;
+    glowOut = false;
     state = next;
     stateAt = clock;
     unattended = 0;
@@ -1121,6 +1124,7 @@ export function createCharacter(options: CharacterOptions = {}): Character {
       }
       // the light gone, its quicker turns go with it: the ink's own pace again, not a turn left over from the light
       if (on <= 0.5 && litTarget > 0.5) nextFidgetAt = Math.max(nextFidgetAt, clock + 6 + rand() * 5);
+      glowOut = on <= 0.5 && state === "idle";
       litTarget = on;
     },
     pulse(v = 0.7) {
