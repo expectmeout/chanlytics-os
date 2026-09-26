@@ -203,9 +203,11 @@ nothing about the Stage, the cards' routes or the charter moves.
 
 A reader is a function of the request context and typed arguments that returns a view model, the rows it touched as
 references, and a freshness stamp. Readers live in `apps/dashboard/src/server/readers/`, one file per domain, and are the
-only thing a `/api/v1` GET route, an Ask tool or a context provider calls. The route serialises the view model; the tool
-projects it for the model; the provider folds it into the block. The repositories in `packages/db` and the view models
-in `packages/contracts` stay where they are; readers compose them.
+only thing a `/api/v1` GET route, an Ask tool or a context provider calls. A reader's `data` is what the page's route
+answers today (the DTO the browser builds its view model from), key for key, so a route that reads through a reader
+answers the same bytes; a tool applies the page's own view-model builder to it and projects that; a provider folds it
+into the block. The repositories in `packages/db` and the view models in `packages/contracts` stay where they are;
+readers compose them.
 
 ```ts
 // apps/dashboard/src/server/readers/index.ts
@@ -216,7 +218,7 @@ export interface RowRef {
   label: string;
 }
 export interface Read<T> {
-  vm: T;
+  data: T;
   rows: RowRef[];
   stamp: number;
 }
@@ -660,11 +662,13 @@ production numbers on each model before anything else moves, and the gate re-run
 rows of this document filled from them. The `defer_loading` probe of the canvas is dropped: the tool-search page lists
 Opus 5.5; it is written only if Sonnet 5 is ever made the default again.
 
-**Phase 1 · One read layer.** `server/readers/` with RowRefs and the two caches; the `/api/v1` GET routes and every Ask
-tool read through them; the duplicated loaders in tools.ts and snapshot.ts go; `tenantFacts` becomes a cached reader;
-`get_person` becomes the person page's read; `get_report` reads what the page reads; `get_today` passes the searches.
-No migration. **Proof:** route and tool outputs byte-equal before and after on the nightly workspace (a snapshot test
-per reader); the eval set holds. This phase ships nothing else.
+**Phase 1 · One read layer** (seven PRs; plan `2026-09-25-ask-rewired-1-readers.md`). `server/readers/` with RowRefs
+and the two caches (the cross-turn cache holds the tenant's facts only until Phase 2); the `/api/v1` GET routes Ask's
+world reads become one-liners over their readers, byte-equal (their tests unchanged, a query-log pin each); every Ask
+tool reads the reader and applies the page's builder, so thirteen named divergences close on purpose; `tenantFacts`,
+`sells_by`, the policies and the config read once a turn. The snapshot keeps its queries until Phase 2 replaces it. No
+migration. **Proof:** route tests unchanged and a pure-move diff per route; `ask-turn`'s tool test updated only where a
+divergence is named; the eval set holds. This phase ships nothing else.
 
 **Phase 2 · The page context and the warm call.** Contracts `PageContext` and eleven surfaces; the client providers;
 `POST ask/warm` as a data warm; the server providers and the context as `search_result` blocks in the user turn; the
