@@ -41,7 +41,7 @@ export async function POST(request: Request): Promise<Response> {
   }
   const raw = await request.text();
   if (raw.length > MAX_BODY) return json(413, { ok: false });
-  let body: unknown = null;
+  let body: unknown;
   try {
     body = JSON.parse(raw);
   } catch {

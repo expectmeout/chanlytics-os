@@ -1419,7 +1419,7 @@ test("the services sheet opened and closed beside this card, every fold of it ke
   openFold(tree, "languages");
   tree = redrawTab();
   langBox(tree).props.onChange({ target: { value: "Fre" } });
-  tree = redrawTab();
+  redrawTab();
   tree = redrawTab();
   assert.deepEqual(
     langOptions(tree).map(textOf),

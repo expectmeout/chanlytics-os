@@ -59,7 +59,7 @@ export async function POST(request: Request): Promise<Response> {
   const publish = body.publish === true;
 
   // Which agents: the one named, else every voice channel's.
-  let agentIds: string[] = [];
+  let agentIds: string[];
   if (typeof body.agent_id === "string" && /^agent_[a-z0-9]+$/i.test(body.agent_id)) {
     agentIds = [body.agent_id];
   } else {

@@ -1327,9 +1327,9 @@ test("the peek is in the address: opening pushes it, the cursor walking it repla
   await fresh();
   let tree = draw();
   find(tree, (n) => n.type === "tr" && n.props?.id === "person-wes").props.onClick();
-  tree = draw();
+  draw();
   assert.deepEqual(went, ["clients/pipeline:p-wes"], "opened: a new entry, so Back closes it");
-  tree = draw({ pipelineRoute: "pipeline:p-wes" });
+  draw({ pipelineRoute: "pipeline:p-wes" });
   tree = draw({ pipelineRoute: "pipeline:p-wes" });
   assert.equal(went.length, 1, "the address and the page agree: nothing more is asked");
   assert.ok(byTestId(tree, "pipeline-peek"));
@@ -1958,7 +1958,7 @@ test("the peek reads the person again when a deal is recorded on them, opens on 
   assert.deepEqual(reads, ["cat", "cat", "cat"], "a step saved on them reads them again");
   // A read that failed, with nothing held: said, with Retry.
   find(tree, (n) => n.type === "tr" && n.props?.id === "person-nia").props.onClick();
-  tree = draw();
+  draw();
   await tick();
   tree = draw();
   const failed = byTestId(peekOf(tree), "pipeline-peek-failed");

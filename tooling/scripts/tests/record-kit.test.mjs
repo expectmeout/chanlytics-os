@@ -1330,13 +1330,13 @@ test("a fold takes focus as it opens, and gives it back to its row as it closes"
     querySelectorAll: () => [stop("tip", "rec-tip"), stop("field", "rec-input"), stop("save", "btn", true)],
   };
   const act = { focus: () => focused.push("act") };
-  let tree = draw(W.RecordFold, bookingRules({ open: false }));
+  const tree = draw(W.RecordFold, bookingRules({ open: false }));
   // The stub attaches no ref, so the test stands in for the element React would have put there.
   find(tree, (n) => classes(n).includes("rec-fold")).props.ref.current = {
     querySelector: (sel) => (sel === ".rec-fold-inner" ? inner : null),
     contains: () => false,
   };
-  tree = redraw(W.RecordFold, bookingRules({ open: true }));
+  redraw(W.RecordFold, bookingRules({ open: true }));
   assert.deepEqual(focused, ["field"], "the first thing to type into: not the tip before it, not the page behind");
 
   const doc = globalThis.document;
@@ -1484,7 +1484,7 @@ test("a row a list has just been given takes focus in its first box", () => {
     focus: () => focused.push(name),
   });
   const row = { querySelectorAll: () => [stop("opens"), stop("closes"), stop("remove")] };
-  let tree = draw(W.RecordFold, bookingRules({ open: true }));
+  const tree = draw(W.RecordFold, bookingRules({ open: true }));
   find(tree, (n) => classes(n).includes("rec-fold")).props.ref.current = {
     querySelector: (sel) => {
       asked.push(sel);
@@ -1492,14 +1492,14 @@ test("a row a list has just been given takes focus in its first box", () => {
     },
     contains: () => true,
   };
-  tree = redraw(W.RecordFold, bookingRules({ open: true, focusOn: { row: "hours-mon-1" } }));
+  redraw(W.RecordFold, bookingRules({ open: true, focusOn: { row: "hours-mon-1" } }));
   assert.deepEqual(focused, ["opens"], "the new row's first box, not Add and not its remove");
   assert.ok(asked.includes('[data-rec-row="hours-mon-1"]'));
   const same = { row: "hours-mon-1" };
-  tree = redraw(W.RecordFold, bookingRules({ open: true, focusOn: same }));
-  tree = redraw(W.RecordFold, bookingRules({ open: true, focusOn: same }));
+  redraw(W.RecordFold, bookingRules({ open: true, focusOn: same }));
+  redraw(W.RecordFold, bookingRules({ open: true, focusOn: same }));
   assert.deepEqual(focused, ["opens", "opens"], "once for each row given, however often the fold is drawn");
-  tree = redraw(W.RecordFold, bookingRules({ open: true, focusOn: { row: "no-such-row" } }));
+  redraw(W.RecordFold, bookingRules({ open: true, focusOn: { row: "no-such-row" } }));
   assert.equal(focused.length, 2, "a row that is not there takes nothing");
 });
 

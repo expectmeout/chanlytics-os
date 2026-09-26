@@ -1264,7 +1264,7 @@ test("a view on its way says so: the rows on screen are the last view's, dimmed 
     "the view on screen is the one the address names: nothing is said",
   );
   // The address moved to a search the surface does not hold: its rows are still all leads.
-  tree = draw({ leadsRoute: `leads:s-${SEARCH_A}` });
+  draw({ leadsRoute: `leads:s-${SEARCH_A}` });
   tree = draw({ leadsRoute: `leads:s-${SEARCH_A}` });
   assert.deepEqual(
     [scopeOf(tree).props["data-loading"], tableOf(tree).props["aria-busy"]],
@@ -1691,7 +1691,7 @@ test("Esc closes the peek, then the plan panel, then the Columns menu, then the 
   assert.equal(panels.at(-1).open, true, "and the plan panel");
   assert.equal(press("j"), false, "the plan panel holds every key while it is open");
   assert.equal(press("Escape"), true);
-  tree = draw();
+  draw();
   assert.equal(peeks.length, drawn.peeks, "the peek went first: it is not drawn any more");
   assert.equal(panels.length, drawn.panels + 1, "and the plan panel is still open");
   assert.equal(press("Escape"), true);

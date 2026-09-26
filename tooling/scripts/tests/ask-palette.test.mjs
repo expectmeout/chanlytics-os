@@ -593,7 +593,7 @@ test("Esc while Ask reads stops waiting: the turn says so, and what the stream s
   assert.ok(textOf(byTestId(tree, "ask-reading")).includes("Reading the inbox…"), "reading, in the tools' words");
   assert.ok(byTestId(tree, "ask-stop"), "the line offers Stop while Ask reads");
   keyed(tree, "Escape");
-  tree = await later(Palette, props);
+  await later(Palette, props);
   assert.equal(closed, 0, "the first Esc stops the answer, and the Line stays");
   finish();
   tree = await later(Palette, props);
@@ -1593,15 +1593,15 @@ test("REGRESSION (N5): Earlier holds every conversation, opened with ⌘J from a
 test("Earlier finds a conversation by the words typed and Enter opens it; with none, it says there are none", async () => {
   ask([]);
   render(Palette, OPEN);
-  let tree = await later(Palette, OPEN);
+  await later(Palette, OPEN);
   cmdJ();
-  tree = await later(Palette, OPEN);
+  let tree = await later(Palette, OPEN);
   assert.equal(textOf(byClass(tree, "ask-rows-empty")[0]), "No earlier conversations yet.");
   await closes();
 
   const calls = ask([TH(1), TH(2), TH(3)]);
   render(Palette, OPEN);
-  tree = await later(Palette, OPEN);
+  await later(Palette, OPEN);
   cmdJ();
   tree = await later(Palette, OPEN);
   typed(tree, "question 3");

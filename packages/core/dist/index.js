@@ -3343,7 +3343,7 @@ function requestLeavesAs(request, as) {
 }
 function resendLimitOf(r22) {
   if (r22.ok || r22.status !== 429 && r22.status !== 409) return null;
-  let name = null;
+  let name;
   try {
     name = JSON.parse(r22.errorBody ?? "")?.name ?? null;
   } catch {
@@ -45473,8 +45473,8 @@ async function collectHeld(p, round, run, owner, gen) {
   const newMembers = [];
   let commits = 0;
   let cursor = 0;
-  let lastRoundState = null;
-  let lastRunState = null;
+  let lastRoundState;
+  let lastRunState;
   let judgeRefused = null;
   do {
     const { end, prepared } = takeBatch(card, items, cursor);
@@ -46458,7 +46458,7 @@ async function answerInbound(input, ports) {
     }
   }
   let replyText;
-  let escalate = false;
+  let escalate;
   let escalationReason = "human_token";
   let usage;
   let brainMeta;

@@ -58,7 +58,7 @@ const memoOf = (win: Window) => {
 function remembered(win: Window, slug: string): string | null {
   const m = memoOf(win);
   if (m.recalled && m.recalled.slug === slug) return m.recalled.zone;
-  let zone: string | null = null;
+  let zone: string | null;
   try {
     const all = JSON.parse(win.localStorage.getItem(ZONES_STORE) || "{}") as Record<string, unknown>;
     zone = typeof all[slug] === "string" && all[slug] ? (all[slug] as string) : null;

@@ -620,7 +620,7 @@ export function parsePipelineRoute(
   let peek: string | null = null;
   for (const s of segs) {
     if (s.startsWith("v-s.")) {
-      let name = "";
+      let name: string;
       try {
         name = decodeURIComponent(s.slice(4));
       } catch {

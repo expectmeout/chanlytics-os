@@ -167,7 +167,7 @@ test("the page draws one sheet slot, and it draws one sheet or none", () => {
   );
 
   press(find(sheetOf(tree), (n) => n.props?.["aria-label"] === "Close"));
-  tree = redrawTab();
+  redrawTab();
   W.__recordFolds.request("services");
   tree = redrawTab();
   assert.deepEqual(
@@ -408,14 +408,14 @@ test("the closed days' block opens the closed days' fold", () => {
 test("the Autonomy tab's rules open the Autonomy tab", () => {
   // A record whose details compose nothing is answered with its own prompt and only the Autonomy tab's rules after it
   // (resolveSystemPrompt), so those rules are a block of their own -- here, with Booking and FAQ on "ask".
-  let tree = drawTab({ profile: null });
+  drawTab({ profile: null });
   W.__SETTINGS.prompt = composePromptPreview(W.__SETTINGS.config.brain, {
     tz: "America/New_York",
     policy: { booking: { mode: "ask" }, faq: { mode: "ask" } },
     known: KNOWN,
     openings: null,
   });
-  tree = redrawTab();
+  let tree = redrawTab();
   press(byTestId(tree, "rec-prompt-open"));
   tree = redrawTab();
   const door = byTestId(tree, "rec-prompt-door-autonomy");

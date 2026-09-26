@@ -422,7 +422,7 @@ export async function passDeals(
   const changed: string[] = [];
   const failed: string[] = [];
   for (const it of items) {
-    let person: PersonVM | null = null;
+    let person: PersonVM | null;
     try {
       person = await personDetail(it.personId);
     } catch {

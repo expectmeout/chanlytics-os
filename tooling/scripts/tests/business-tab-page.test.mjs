@@ -1471,7 +1471,7 @@ test("what a row will say is worked out on the brain its save goes on: a save st
   assert.equal(hasProfile(sent[1].config.brain.profile), false);
 
   // And the other way: with the first field's save out, the second is not said to start what the first already has.
-  sent = holding();
+  holding();
   tree = drawTab({ profile: bare, resolved: KNOWN });
   openFold(tree, "website");
   tree = redrawTab();
@@ -2084,7 +2084,7 @@ test("an untouched fold follows what is stored: a colleague's change read back i
   openFold(tree, "hours");
   tree = redrawTab(flash);
   typeAt(tree, "Monday closes", "17:00");
-  tree = redrawTab(flash);
+  redrawTab(flash);
   W.__SETTINGS = {
     ...settings({ ...marisa, hours: { ...marisa.hours, tue: { open: "09:30", close: "20:00" } } }),
     version: 8,
@@ -2112,7 +2112,7 @@ test("a fold whose own part of the settings moved after it was typed in is refus
   openFold(tree, "hours");
   tree = redrawTab(flash);
   typeAt(tree, "Monday closes", "17:00");
-  tree = redrawTab(flash);
+  redrawTab(flash);
   W.__SETTINGS = {
     ...settings({ ...marisa, hours: { ...marisa.hours, tue: { open: "09:30", close: "20:00" } } }),
     version: 8,

@@ -356,7 +356,7 @@ async function writeRetell(
     signal: AbortSignal.timeout(8000),
   });
   const text = await r.text();
-  let body: Record<string, unknown> | null = null;
+  let body: Record<string, unknown> | null;
   try {
     const parsed = JSON.parse(text) as unknown;
     body = parsed !== null && typeof parsed === "object" ? (parsed as Record<string, unknown>) : null;

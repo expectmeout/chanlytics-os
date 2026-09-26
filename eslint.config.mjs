@@ -28,10 +28,6 @@ import globals from "globals";
 
 const OUR_TS_RULES = {
   ...js.configs.recommended.rules,
-  // @eslint/js 10 put this in the recommended set, over 93 assignments the tree already had (a value set and then
-  // overwritten before it is read). Off until they are cleared on their own, so aligning @eslint/js with eslint 10
-  // changed no verdict; preserve-caught-error, the other rule 10 added, holds.
-  "no-useless-assignment": "off",
   // TypeScript already rejects genuinely undefined identifiers, and the base
   // rule cannot see type-only imports or JSX pragmas.
   "no-undef": "off",
@@ -292,8 +288,6 @@ export default [
     },
     rules: {
       ...js.configs.recommended.rules,
-      // As for our TS above: added to the recommended set by @eslint/js 10, off until the tree's assignments are cleared.
-      "no-useless-assignment": "off",
       "no-unused-vars": ["warn", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
       "no-empty": ["error", { allowEmptyCatch: true }],
     },

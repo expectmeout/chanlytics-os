@@ -2320,9 +2320,9 @@ test("a person not read yet is nothing of theirs until their whole page is in: n
   globalThis.window.__peekPerson = () => null;
   cells = [];
   frames.begin();
-  let tree = globalThis.window.ClientProfile({ id: "p1", onBack: () => {} });
+  globalThis.window.ClientProfile({ id: "p1", onBack: () => {} });
   frames.begin();
-  tree = globalThis.window.ClientProfile({ id: "p1", onBack: () => {} });
+  let tree = globalThis.window.ClientProfile({ id: "p1", onBack: () => {} });
   const reading = byTestId(tree, "person-reading");
   assert.ok(reading, "the pane any page on its way draws");
   assert.equal(reading.props["aria-busy"], "true");

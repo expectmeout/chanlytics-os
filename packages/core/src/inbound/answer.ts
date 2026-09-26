@@ -707,7 +707,7 @@ export async function answerInbound(input: InboundInput, ports: InboundPorts): P
   }
 
   let replyText: string;
-  let escalate = false;
+  let escalate: boolean;
   let escalationReason = "human_token";
   let usage: { input_tokens: number; output_tokens: number } | undefined;
   let brainMeta: BrainMeta | undefined;

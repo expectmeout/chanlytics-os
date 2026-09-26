@@ -716,9 +716,9 @@ test("REGRESSION (B11): days that could not be read say so with a Retry, and are
   const later = dto({ from: "2026-09-14", to: "2026-09-20" });
   later.days = later.days.map((d, i) => ({ key: shiftKey("2026-09-14", i), items: [], windows: [] }));
   fresh(later, [false, false, true]);
-  let tree = page();
+  page();
   await settle();
-  tree = page();
+  let tree = page();
   assert.equal(reads.length, 1, "one read for the days the window lacks");
   const failed = byTestId(tree, "cal-failed");
   assert.ok(failed, "the page says the days could not be read");
