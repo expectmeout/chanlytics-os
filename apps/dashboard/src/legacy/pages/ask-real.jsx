@@ -500,7 +500,9 @@ const AskReal = ({ open, onClose }) => {
     let final = null;
     let spoke = false;
     let said = 0;
-    await A.send({ text: q, threadId, scope: thread.scope || scope, surface, openedMs: openedAt.current ? Date.now() - openedAt.current : null }, (ev) => {
+    // The page, as it is now: the rows on screen and the row the words name, if they name one (legacy-bridge/ask/context.ts).
+    const context = A.context ? A.context(arRoute(), q) : null;
+    await A.send({ text: q, threadId, scope: thread.scope || scope, surface, openedMs: openedAt.current ? Date.now() - openedAt.current : null, context }, (ev) => {
       if (mine !== turnSeq.current) return;
       if (ev.t === "thread") { threadId = ev.id; setActive((prev) => (prev ? { ...prev, id: ev.id, title: prev.title || ev.title } : prev)); }
       else if (ev.t === "trace") {

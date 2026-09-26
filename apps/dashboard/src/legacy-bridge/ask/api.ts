@@ -6,7 +6,14 @@
  * commit is marked `via: "ask"`, which the client sends as the x-via header
  * the ledger reads. Nothing here knows what the palette does with it.
  */
-import type { AskMessageVM, AskProposalOutcome, AskScope, AskSurface, AskThreadVM } from "@chanlytics/contracts";
+import type {
+  AskMessageVM,
+  AskProposalOutcome,
+  AskScope,
+  AskSurface,
+  AskThreadVM,
+  PageContext,
+} from "@chanlytics/contracts";
 import { refusalOf } from "@chanlytics/contracts";
 import { api } from "../api";
 import { unwrap, type Api, type ApiOptions, type ApiResult, type Output, type RouteKey } from "../../client/api";
@@ -116,6 +123,8 @@ export function askApi(client: Api = api()) {
         answering?: { searchId: string } | null;
         /** How long the Line was open before this question, in ms (AskTurnShape.opened_ms); omitted when unknown. */
         openedMs?: number | null;
+        /** The page the question is asked on (contracts PageContext; ask/context.ts); omitted when the page gave none. */
+        context?: PageContext | null;
       },
       on: (ev: SendEvent) => void,
     ): Promise<void> => {
@@ -131,6 +140,7 @@ export function askApi(client: Api = api()) {
             ...(typeof input.openedMs === "number" && input.openedMs >= 0
               ? { opened_ms: Math.round(input.openedMs) }
               : {}),
+            ...(input.context ? { context: input.context } : {}),
           },
           timeoutMs: TURN_MS,
         });

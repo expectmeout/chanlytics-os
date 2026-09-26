@@ -1894,3 +1894,27 @@ test("the page publishes how long it keeps a read and its words for a read that 
   const said = textOf(byTestId(page(), "cal-feed-stale"));
   assert.ok(said.includes("The calendar answered 503.") && !said.includes(keeps.words.stale), said);
 });
+
+test("the Calendar tells Ask what it draws (the Phase 2 plan, D3): the span on screen, and the people its appointments there name, in the board's order", () => {
+  // Nine weeks loaded, one drawn.
+  fresh(span("2026-08-31", 63));
+  const vm = globalThis.window.__CALENDAR.vm;
+  // Two appointments in the week on screen name people; one a month out does not count.
+  const day = vm.days.find((d) => d.key === vm.today);
+  const ahead = vm.days[vm.days.length - 1];
+  const block = (id, name) => ({
+    ...(day.blocks[0] ?? {}),
+    id: `b-${id}`,
+    person: { id, name, via: null, threadId: null, replyOpen: false },
+  });
+  day.blocks = [block("p-rosa", "Rosa Díaz"), block("p-ana", "Ana Ruiz"), block("p-rosa", "Rosa Díaz")];
+  ahead.blocks = [block("p-far", "Far Away")];
+  delete globalThis.window.__askOnScreen;
+  page();
+  const s = globalThis.window.__askOnScreen;
+  assert.equal(s.key, "calendar");
+  assert.match(s.view, /^\d{4}-\d{2}-\d{2}\/\d+$/, "the span drawn: its first day and how many");
+  assert.deepEqual(s.ids, ["p-rosa", "p-ana"], "each person once, in the board's order, and only the days on screen");
+  assert.deepEqual(s.labels, ["Rosa Díaz", "Ana Ruiz"]);
+  leave();
+});

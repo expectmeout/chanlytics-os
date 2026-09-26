@@ -471,6 +471,16 @@ const CalendarReal = ({ initialDay = null }) => {
   // What the view needs, from the anchor alone; whether the window has it.
   const span = vm && cal ? cal.spanFor(view, anchor) : null;
   const covered = !!(vm && cal && span && cal.covers(vm.days, span.from, span.days));
+  // What Ask is told is on screen (legacy-bridge/ask/context.ts): the span drawn ("YYYY-MM-DD/<days>") and the people its
+  // appointments name, in the board's order, forty at most.
+  React.useEffect(() => {
+    const at = span && vm ? vm.days.findIndex((d) => d.key === span.from) : -1;
+    const days = at >= 0 ? vm.days.slice(at, at + span.days) : [];
+    const named = new Map();
+    for (const d of days) for (const b of [...(d.allDay || []), ...(d.blocks || [])]) if (b.person && !named.has(b.person.id)) named.set(b.person.id, b.person.name || "");
+    const ids = [...named.keys()].slice(0, 40);
+    window.__askOnScreen = { key: "calendar", ids, labels: ids.map((id) => named.get(id)), view: span ? `${span.from}/${span.days}` : null };
+  });
 
   // Read only when the window does not cover the view. The frames below
   // already have their shape, so nothing jumps when the read lands. A read

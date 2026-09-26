@@ -450,3 +450,68 @@ test("one turn reads the workspace's facts once, on one clock: the route's own r
     setAskPorts(null);
   }
 });
+
+test("the route takes the page's context (the Phase 2 plan, PR 2.1): its size rides on the shape and nothing else of it reaches the model yet; one the schema refuses is no context, said once in the log, never a refused question; a context fills a surface the palette did not name", async () => {
+  const written = answerJson("Nobody has booked this week yet.");
+  const requests = [];
+  setAskPorts({
+    round: async (call, onText) => {
+      requests.push(call.request);
+      onText(written);
+      return ROUND([text(written)], { stopReason: "end_turn" });
+    },
+    snapshot: async () => "",
+  });
+  const T1 = "11111111-1111-4111-8111-111111111111";
+  const T2 = "22222222-2222-4222-8222-222222222222";
+  const context = {
+    v: 1,
+    surface: "inbox",
+    route: `inbox/th-${T1}`,
+    view: "needs",
+    focus: null,
+    rows: [
+      { kind: "thread", id: T1 },
+      { kind: "thread", id: T2 },
+    ],
+    askedAt: 1_758_880_000_000,
+  };
+  const refused = [];
+  const was = console.error;
+  console.error = (event, json) => {
+    if (event === "ask_context_refused") refused.push(JSON.parse(json));
+  };
+  try {
+    const tables = routeTables();
+    const ask = async (body) => (await askRoute.POST.run(post(body), ctxFor(tables))).text();
+    await ask({ text: "Who is waiting?", surface: "inbox" });
+    await ask({ text: "Who is waiting?", surface: "inbox", context });
+    const [plain, carried] = tables.ask_messages.filter((m) => m.role === "assistant").map((m) => m.content.shape);
+    assert.equal(plain.context_rows, null, "no context sent: nothing, never zero");
+    assert.equal(carried.context_rows, 2, "the rows the page sent");
+    const system = (r) => JSON.stringify(r.system);
+    assert.equal(system(requests[1]), system(requests[0]), "the model hears nothing of the context yet");
+    assert.deepEqual(requests[1].messages, requests[0].messages);
+
+    // A row carrying a fact the tab says about it: the schema refuses the whole context, and the question is answered.
+    const bad = { ...context, rows: [{ kind: "thread", id: T1, preview: "hi" }] };
+    await ask({ text: "Who is waiting?", surface: "inbox", context: bad });
+    const answered = tables.ask_messages.filter((m) => m.role === "assistant");
+    assert.equal(answered.length, 3, "answered");
+    assert.equal(answered[2].content.shape.context_rows, null);
+    assert.equal(refused.length, 1, "said once");
+    assert.equal(refused[0].tenant, A);
+    assert.equal(refused[0].path, "rows.0");
+
+    // No surface named: the context's fills it.
+    await ask({
+      text: "Who is waiting?",
+      context: { ...context, surface: "pipeline", route: "clients/pipeline", rows: [] },
+    });
+    const last = tables.ask_messages.filter((m) => m.role === "assistant").at(-1).content.shape;
+    assert.deepEqual([last.surface, last.context_rows], ["pipeline", 0]);
+  } finally {
+    console.error = was;
+    setAskPorts(null);
+  }
+});

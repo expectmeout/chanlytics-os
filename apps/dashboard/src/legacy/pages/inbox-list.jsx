@@ -103,6 +103,17 @@ const InboxList = ({
   // under Needs you 3 and over rows whose pills say whose, and once "3 threads" under a chip counting 1 (I2).
   const searching = !!query.trim();
   const headed = anySelected || searching || !!activeView;
+  // What Ask is told is on screen (legacy-bridge/ask/context.ts): the rows this list draws, in its order, forty at most,
+  // and what chose them -- a search, a saved view or the bucket. The list is the one place that knows its order.
+  const askRows = visible.slice(0, 40);
+  React.useEffect(() => {
+    window.__askOnScreen = {
+      key: "inbox",
+      ids: askRows.map((t) => String(t.id).replace(/^th-/, "")),
+      labels: askRows.map((t) => t.who || ""),
+      view: searching ? "search" : activeView || activeBucket || null,
+    };
+  });
 
   // The rows are a listbox with one tab stop: the open thread's row, or the first when none of these is
   // open. Arrows, J/K, Home and End open and focus the row on screen -- the page's own J/K walks its

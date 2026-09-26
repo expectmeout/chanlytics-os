@@ -163,14 +163,19 @@ test("the question about proposals is offered only where deals are a thing (0004
   );
 });
 
-test("the surfaces are one list, Leads among them, and a scope's kinds are a citation's: the route and the prompt read the same names", () => {
+test("the surfaces are one list, Leads among them, and a scope may be any kind a citation names, and the rows a page opens: the route and the prompt read the same names", () => {
   assert.ok(ASK_SURFACES.includes("leads"), "Leads is a page Ask knows it is on");
   assert.ok(ASK_SURFACES.includes("people") && ASK_SURFACES.includes("other"));
   assert.equal(new Set(ASK_SURFACES).size, ASK_SURFACES.length, "each said once");
   assert.deepEqual(
-    [...ASK_SCOPE_KINDS],
-    [...ASK_CITATION_KINDS],
+    ASK_CITATION_KINDS.filter((k) => !ASK_SCOPE_KINDS.includes(k)),
+    [],
     "a scope may have the five kinds a citation may name",
+  );
+  assert.deepEqual(
+    ASK_SCOPE_KINDS.filter((k) => !ASK_CITATION_KINDS.includes(k)),
+    ["lead", "search", "run"],
+    "and the rows a page opens that no citation names until Phase 4",
   );
 });
 

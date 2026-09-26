@@ -142,6 +142,7 @@ import { z as z6 } from "zod";
 import { z as z8 } from "zod";
 import { z as z9 } from "zod";
 import { z as z10 } from "zod";
+import { z as z11 } from "zod";
 
 // ../../node_modules/domelementtype/lib/esm/index.js
 var ElementType;
@@ -2975,6 +2976,22 @@ var AskProposalOutcomeSchema = z8.object({
   atMs: z8.number().catch(0),
   undo: z8.record(z8.string(), z8.unknown()).nullable().optional()
 });
+var ASK_SCOPE_KINDS = ["thread", "conversation", "call", "person", "page", "lead", "search", "run"];
+var ASK_SURFACES = [
+  "today",
+  "inbox",
+  "people",
+  "leads",
+  "conversations",
+  "live",
+  "reports",
+  "settings",
+  "pipeline",
+  "calendar",
+  "campaigns",
+  "start",
+  "other"
+];
 var AskSettingsChangeSchema = z8.discriminatedUnion("op", [
   z8.object({
     op: z8.literal("add_closure"),
@@ -2995,6 +3012,28 @@ var AskSettingsChangeSchema = z8.discriminatedUnion("op", [
     duration_min: z8.number().int().min(1).max(1440).optional()
   })
 ]);
+var ASK_CONTEXT_MAX_ROWS = 40;
+var ASK_CONTEXT_ROW_KINDS = [
+  "thread",
+  "conversation",
+  "call",
+  "person",
+  "lead",
+  "search",
+  "run",
+  "playbook",
+  "template"
+];
+var Id = z9.string().min(1).max(120);
+var PageContextSchema = z9.object({
+  v: z9.literal(1),
+  surface: z9.enum(ASK_SURFACES),
+  route: z9.string().max(200),
+  view: z9.string().max(80).nullish(),
+  focus: z9.object({ kind: z9.enum(ASK_SCOPE_KINDS), id: Id, label: z9.string().max(80) }).strict().nullish(),
+  rows: z9.array(z9.object({ kind: z9.enum(ASK_CONTEXT_ROW_KINDS), id: Id }).strict()).max(ASK_CONTEXT_MAX_ROWS),
+  askedAt: z9.number().int().nonnegative()
+}).strict();
 var ASK_ANSWER_CAPS = {
   headline: 160,
   detail: 700,
@@ -3147,10 +3186,10 @@ var ASK_ANSWER_FORMAT = {
 var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
-var InviteCodeSchema = z9.string().trim().max(80);
-var SignupSchema = z9.object({
-  name: z9.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
-  email: z9.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+var InviteCodeSchema = z10.string().trim().max(80);
+var SignupSchema = z10.object({
+  name: z10.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
+  email: z10.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -3164,17 +3203,17 @@ var SignupSchema = z9.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z9.string().max(200).optional(),
+  password: z10.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z9.string().trim().min(1).max(64).optional(),
+  timezone: z10.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
   code: InviteCodeSchema.optional()
 }).strict();
-var PendingWorkspaceSchema = z9.object({
-  name: z9.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
+var PendingWorkspaceSchema = z10.object({
+  name: z10.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z9.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
+  timezone: z10.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
 });
 function isTimezone(raw) {
   if (typeof raw !== "string" || !raw.trim()) return false;
@@ -3258,15 +3297,15 @@ var JUDGE_OUTPUT_SCHEMA = {
   required: ["places"],
   additionalProperties: false
 };
-var AnswerSchema = z10.object({
-  places: z10.array(
-    z10.object({
-      ref: z10.number().int(),
-      criteria: z10.array(
-        z10.object({ key: z10.string(), answer: z10.enum(["pass", "fail", "unknown"]), facts: z10.array(z10.string()) })
+var AnswerSchema = z11.object({
+  places: z11.array(
+    z11.object({
+      ref: z11.number().int(),
+      criteria: z11.array(
+        z11.object({ key: z11.string(), answer: z11.enum(["pass", "fail", "unknown"]), facts: z11.array(z11.string()) })
       ),
-      email_index: z10.number().int().nullable(),
-      reason: z10.string()
+      email_index: z11.number().int().nullable(),
+      reason: z11.string()
     })
   )
 });
@@ -3577,7 +3616,7 @@ var APIFY_RUN_END_EVENTS = [
 ];
 
 // ../contracts/dist/index.js
-import { z as z11 } from "zod";
+import { z as z12 } from "zod";
 import { z as z22 } from "zod";
 import { z as z32 } from "zod";
 import { z as z42 } from "zod";
@@ -3587,7 +3626,8 @@ import { z as z62 } from "zod";
 import { z as z82 } from "zod";
 import { z as z92 } from "zod";
 import { z as z102 } from "zod";
-z11.config({ jitless: true });
+import { z as z112 } from "zod";
+z12.config({ jitless: true });
 var AppError = class extends Error {
   code;
   status;
@@ -7362,6 +7402,22 @@ var AskProposalOutcomeSchema2 = z82.object({
   atMs: z82.number().catch(0),
   undo: z82.record(z82.string(), z82.unknown()).nullable().optional()
 });
+var ASK_SCOPE_KINDS2 = ["thread", "conversation", "call", "person", "page", "lead", "search", "run"];
+var ASK_SURFACES2 = [
+  "today",
+  "inbox",
+  "people",
+  "leads",
+  "conversations",
+  "live",
+  "reports",
+  "settings",
+  "pipeline",
+  "calendar",
+  "campaigns",
+  "start",
+  "other"
+];
 var AskSettingsChangeSchema2 = z82.discriminatedUnion("op", [
   z82.object({
     op: z82.literal("add_closure"),
@@ -7382,6 +7438,28 @@ var AskSettingsChangeSchema2 = z82.discriminatedUnion("op", [
     duration_min: z82.number().int().min(1).max(1440).optional()
   })
 ]);
+var ASK_CONTEXT_MAX_ROWS2 = 40;
+var ASK_CONTEXT_ROW_KINDS2 = [
+  "thread",
+  "conversation",
+  "call",
+  "person",
+  "lead",
+  "search",
+  "run",
+  "playbook",
+  "template"
+];
+var Id2 = z92.string().min(1).max(120);
+var PageContextSchema2 = z92.object({
+  v: z92.literal(1),
+  surface: z92.enum(ASK_SURFACES2),
+  route: z92.string().max(200),
+  view: z92.string().max(80).nullish(),
+  focus: z92.object({ kind: z92.enum(ASK_SCOPE_KINDS2), id: Id2, label: z92.string().max(80) }).strict().nullish(),
+  rows: z92.array(z92.object({ kind: z92.enum(ASK_CONTEXT_ROW_KINDS2), id: Id2 }).strict()).max(ASK_CONTEXT_MAX_ROWS2),
+  askedAt: z92.number().int().nonnegative()
+}).strict();
 var ASK_ANSWER_CAPS2 = {
   headline: 160,
   detail: 700,
@@ -7534,10 +7612,10 @@ var ASK_ANSWER_FORMAT2 = {
 var WHEN22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var SIGNUP_NAME_MIN2 = 2;
 var SIGNUP_NAME_MAX2 = 120;
-var InviteCodeSchema2 = z92.string().trim().max(80);
-var SignupSchema2 = z92.object({
-  name: z92.string().trim().min(SIGNUP_NAME_MIN2, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX2, "That name is too long \u2014 120 characters at most."),
-  email: z92.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+var InviteCodeSchema2 = z102.string().trim().max(80);
+var SignupSchema2 = z102.object({
+  name: z102.string().trim().min(SIGNUP_NAME_MIN2, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX2, "That name is too long \u2014 120 characters at most."),
+  email: z102.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -7551,17 +7629,17 @@ var SignupSchema2 = z92.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z92.string().max(200).optional(),
+  password: z102.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z92.string().trim().min(1).max(64).optional(),
+  timezone: z102.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
   code: InviteCodeSchema2.optional()
 }).strict();
-var PendingWorkspaceSchema2 = z92.object({
-  name: z92.string().trim().min(SIGNUP_NAME_MIN2).max(SIGNUP_NAME_MAX2),
+var PendingWorkspaceSchema2 = z102.object({
+  name: z102.string().trim().min(SIGNUP_NAME_MIN2).max(SIGNUP_NAME_MAX2),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z92.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone2(v) ? v : null)
+  timezone: z102.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone2(v) ? v : null)
 });
 function isTimezone2(raw) {
   if (typeof raw !== "string" || !raw.trim()) return false;
@@ -7675,15 +7753,15 @@ function judgeAsked(plan) {
   for (const [key, q] of Object.entries(judgeQuestions(plan))) out[key] = sha256Hex(q).slice(0, 16);
   return out;
 }
-var AnswerSchema2 = z102.object({
-  places: z102.array(
-    z102.object({
-      ref: z102.number().int(),
-      criteria: z102.array(
-        z102.object({ key: z102.string(), answer: z102.enum(["pass", "fail", "unknown"]), facts: z102.array(z102.string()) })
+var AnswerSchema2 = z112.object({
+  places: z112.array(
+    z112.object({
+      ref: z112.number().int(),
+      criteria: z112.array(
+        z112.object({ key: z112.string(), answer: z112.enum(["pass", "fail", "unknown"]), facts: z112.array(z112.string()) })
       ),
-      email_index: z102.number().int().nullable(),
-      reason: z102.string()
+      email_index: z112.number().int().nullable(),
+      reason: z112.string()
     })
   )
 });
@@ -8090,7 +8168,7 @@ function isReachOutRun(audience) {
 }
 
 // ../db/dist/index.js
-import { z as z12 } from "zod";
+import { z as z13 } from "zod";
 import { z as z23 } from "zod";
 import { z as z33 } from "zod";
 import { z as z43 } from "zod";
@@ -8100,7 +8178,8 @@ import { z as z63 } from "zod";
 import { z as z83 } from "zod";
 import { z as z93 } from "zod";
 import { z as z103 } from "zod";
-z12.config({ jitless: true });
+import { z as z113 } from "zod";
+z13.config({ jitless: true });
 var LABEL3 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL3 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE3 = new RegExp(`^(${LOCAL3})@(${LABEL3}(?:\\.${LABEL3})+)$`);
@@ -10110,6 +10189,22 @@ var AskProposalOutcomeSchema3 = z83.object({
   atMs: z83.number().catch(0),
   undo: z83.record(z83.string(), z83.unknown()).nullable().optional()
 });
+var ASK_SCOPE_KINDS3 = ["thread", "conversation", "call", "person", "page", "lead", "search", "run"];
+var ASK_SURFACES3 = [
+  "today",
+  "inbox",
+  "people",
+  "leads",
+  "conversations",
+  "live",
+  "reports",
+  "settings",
+  "pipeline",
+  "calendar",
+  "campaigns",
+  "start",
+  "other"
+];
 var AskSettingsChangeSchema3 = z83.discriminatedUnion("op", [
   z83.object({
     op: z83.literal("add_closure"),
@@ -10130,6 +10225,28 @@ var AskSettingsChangeSchema3 = z83.discriminatedUnion("op", [
     duration_min: z83.number().int().min(1).max(1440).optional()
   })
 ]);
+var ASK_CONTEXT_MAX_ROWS3 = 40;
+var ASK_CONTEXT_ROW_KINDS3 = [
+  "thread",
+  "conversation",
+  "call",
+  "person",
+  "lead",
+  "search",
+  "run",
+  "playbook",
+  "template"
+];
+var Id3 = z93.string().min(1).max(120);
+var PageContextSchema3 = z93.object({
+  v: z93.literal(1),
+  surface: z93.enum(ASK_SURFACES3),
+  route: z93.string().max(200),
+  view: z93.string().max(80).nullish(),
+  focus: z93.object({ kind: z93.enum(ASK_SCOPE_KINDS3), id: Id3, label: z93.string().max(80) }).strict().nullish(),
+  rows: z93.array(z93.object({ kind: z93.enum(ASK_CONTEXT_ROW_KINDS3), id: Id3 }).strict()).max(ASK_CONTEXT_MAX_ROWS3),
+  askedAt: z93.number().int().nonnegative()
+}).strict();
 var ASK_ANSWER_CAPS3 = {
   headline: 160,
   detail: 700,
@@ -10282,10 +10399,10 @@ var ASK_ANSWER_FORMAT3 = {
 var WHEN23 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var SIGNUP_NAME_MIN3 = 2;
 var SIGNUP_NAME_MAX3 = 120;
-var InviteCodeSchema3 = z93.string().trim().max(80);
-var SignupSchema3 = z93.object({
-  name: z93.string().trim().min(SIGNUP_NAME_MIN3, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX3, "That name is too long \u2014 120 characters at most."),
-  email: z93.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+var InviteCodeSchema3 = z103.string().trim().max(80);
+var SignupSchema3 = z103.object({
+  name: z103.string().trim().min(SIGNUP_NAME_MIN3, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX3, "That name is too long \u2014 120 characters at most."),
+  email: z103.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -10299,17 +10416,17 @@ var SignupSchema3 = z93.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z93.string().max(200).optional(),
+  password: z103.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z93.string().trim().min(1).max(64).optional(),
+  timezone: z103.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
   code: InviteCodeSchema3.optional()
 }).strict();
-var PendingWorkspaceSchema3 = z93.object({
-  name: z93.string().trim().min(SIGNUP_NAME_MIN3).max(SIGNUP_NAME_MAX3),
+var PendingWorkspaceSchema3 = z103.object({
+  name: z103.string().trim().min(SIGNUP_NAME_MIN3).max(SIGNUP_NAME_MAX3),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z93.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone3(v) ? v : null)
+  timezone: z103.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone3(v) ? v : null)
 });
 function isTimezone3(raw) {
   if (typeof raw !== "string" || !raw.trim()) return false;
@@ -10393,15 +10510,15 @@ var JUDGE_OUTPUT_SCHEMA3 = {
   required: ["places"],
   additionalProperties: false
 };
-var AnswerSchema3 = z103.object({
-  places: z103.array(
-    z103.object({
-      ref: z103.number().int(),
-      criteria: z103.array(
-        z103.object({ key: z103.string(), answer: z103.enum(["pass", "fail", "unknown"]), facts: z103.array(z103.string()) })
+var AnswerSchema3 = z113.object({
+  places: z113.array(
+    z113.object({
+      ref: z113.number().int(),
+      criteria: z113.array(
+        z113.object({ key: z113.string(), answer: z113.enum(["pass", "fail", "unknown"]), facts: z113.array(z113.string()) })
       ),
-      email_index: z103.number().int().nullable(),
-      reason: z103.string()
+      email_index: z113.number().int().nullable(),
+      reason: z113.string()
     })
   )
 });
@@ -45207,14 +45324,14 @@ function haversineM(a, b) {
   return Math.round(2 * R * Math.asin(Math.sqrt(s)));
 }
 function zctaCenter(zip) {
-  const z13 = zip.trim();
+  const z14 = zip.trim();
   let lo = 0;
   let hi = TABLE.length - 1;
   while (lo <= hi) {
     const mid = lo + hi >> 1;
     const row = TABLE[mid];
-    if (row[0] === z13) return { lat: row[1], lng: row[2] };
-    if (row[0] < z13) lo = mid + 1;
+    if (row[0] === z14) return { lat: row[1], lng: row[2] };
+    if (row[0] < z14) lo = mid + 1;
     else hi = mid - 1;
   }
   return null;

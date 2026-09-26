@@ -9,6 +9,7 @@ import { z as z6 } from "zod";
 import { z as z8 } from "zod";
 import { z as z9 } from "zod";
 import { z as z10 } from "zod";
+import { z as z11 } from "zod";
 z.config({ jitless: true });
 var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
@@ -2070,6 +2071,22 @@ var AskProposalOutcomeSchema = z8.object({
   atMs: z8.number().catch(0),
   undo: z8.record(z8.string(), z8.unknown()).nullable().optional()
 });
+var ASK_SCOPE_KINDS = ["thread", "conversation", "call", "person", "page", "lead", "search", "run"];
+var ASK_SURFACES = [
+  "today",
+  "inbox",
+  "people",
+  "leads",
+  "conversations",
+  "live",
+  "reports",
+  "settings",
+  "pipeline",
+  "calendar",
+  "campaigns",
+  "start",
+  "other"
+];
 var AskSettingsChangeSchema = z8.discriminatedUnion("op", [
   z8.object({
     op: z8.literal("add_closure"),
@@ -2090,6 +2107,28 @@ var AskSettingsChangeSchema = z8.discriminatedUnion("op", [
     duration_min: z8.number().int().min(1).max(1440).optional()
   })
 ]);
+var ASK_CONTEXT_MAX_ROWS = 40;
+var ASK_CONTEXT_ROW_KINDS = [
+  "thread",
+  "conversation",
+  "call",
+  "person",
+  "lead",
+  "search",
+  "run",
+  "playbook",
+  "template"
+];
+var Id = z9.string().min(1).max(120);
+var PageContextSchema = z9.object({
+  v: z9.literal(1),
+  surface: z9.enum(ASK_SURFACES),
+  route: z9.string().max(200),
+  view: z9.string().max(80).nullish(),
+  focus: z9.object({ kind: z9.enum(ASK_SCOPE_KINDS), id: Id, label: z9.string().max(80) }).strict().nullish(),
+  rows: z9.array(z9.object({ kind: z9.enum(ASK_CONTEXT_ROW_KINDS), id: Id }).strict()).max(ASK_CONTEXT_MAX_ROWS),
+  askedAt: z9.number().int().nonnegative()
+}).strict();
 var ASK_ANSWER_CAPS = {
   headline: 160,
   detail: 700,
@@ -2242,10 +2281,10 @@ var ASK_ANSWER_FORMAT = {
 var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
-var InviteCodeSchema = z9.string().trim().max(80);
-var SignupSchema = z9.object({
-  name: z9.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
-  email: z9.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+var InviteCodeSchema = z10.string().trim().max(80);
+var SignupSchema = z10.object({
+  name: z10.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
+  email: z10.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -2259,17 +2298,17 @@ var SignupSchema = z9.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z9.string().max(200).optional(),
+  password: z10.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z9.string().trim().min(1).max(64).optional(),
+  timezone: z10.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
   code: InviteCodeSchema.optional()
 }).strict();
-var PendingWorkspaceSchema = z9.object({
-  name: z9.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
+var PendingWorkspaceSchema = z10.object({
+  name: z10.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z9.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
+  timezone: z10.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
 });
 function isTimezone(raw) {
   if (typeof raw !== "string" || !raw.trim()) return false;
@@ -2464,15 +2503,15 @@ function judgeUserContent(places) {
 ${JSON.stringify(quoted)}
 </places>`;
 }
-var AnswerSchema = z10.object({
-  places: z10.array(
-    z10.object({
-      ref: z10.number().int(),
-      criteria: z10.array(
-        z10.object({ key: z10.string(), answer: z10.enum(["pass", "fail", "unknown"]), facts: z10.array(z10.string()) })
+var AnswerSchema = z11.object({
+  places: z11.array(
+    z11.object({
+      ref: z11.number().int(),
+      criteria: z11.array(
+        z11.object({ key: z11.string(), answer: z11.enum(["pass", "fail", "unknown"]), facts: z11.array(z11.string()) })
       ),
-      email_index: z10.number().int().nullable(),
-      reason: z10.string()
+      email_index: z11.number().int().nullable(),
+      reason: z11.string()
     })
   )
 });
