@@ -1780,6 +1780,94 @@ test("get_calendar reads the people it names: a person on the calendar enters th
   }
 });
 
+test("get_calendar reads the board as its page reads it (ledger #11): with no day asked, the page's own week from its Monday, not today alone; a day asked is that day, as before; the zone and the settings the turn already read are not read again; and nothing is written, even for an owner whose calendar names someone People does not hold", async () => {
+  const { forgetFeeds } = await import(at("apps/dashboard/src/server/ask/openings.ts"));
+  const ICS = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//test//EN",
+    "BEGIN:VEVENT",
+    "UID:w1",
+    "DTSTART:20260916T190000Z",
+    "DTEND:20260916T200000Z",
+    "SUMMARY:Estimate",
+    "DESCRIPTION:Call +15555550199 first",
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ].join("\r\n");
+  const base = tables();
+  const t = tables({
+    tenant_config: [
+      {
+        ...base.tenant_config[0],
+        config: { ...base.tenant_config[0].config, calendar: { ical_url: "https://calendar.example/harbor.ics" } },
+      },
+    ],
+  });
+  // A Wednesday at 10:00 in New York: this week's Monday is two days back.
+  const WEDNESDAY = new Date("2026-09-16T14:00:00Z");
+  const fetchWas = globalThis.fetch;
+  globalThis.fetch = async () => new Response(ICS, { status: 200, headers: { "content-type": "text/calendar" } });
+  try {
+    forgetFeeds();
+    const made = [];
+    const ctx = ctxFor(t, {
+      ...RPCS,
+      create_person: (a) => {
+        made.push(a);
+        return { contact_id: "p-new", existed: false };
+      },
+    });
+    // The Ask route reads the workspace's facts, config, policies and sells_by through the turn's readers first.
+    const rc = readerContext(ctx, { tenantId: A, role: "owner" }, WEDNESDAY);
+    await Promise.all(
+      [workspaceReads.facts, workspaceReads.config, workspaceReads.policies, workspaceReads.sellsBy].map((r) =>
+        load(rc, r, undefined),
+      ),
+    );
+    const before = ctx.supabase.seen.length;
+    const tc = newToolContext(ctx, A, "owner", TZ, WEDNESDAY, rc);
+    const week = await runTool(tc, { name: "get_calendar", input: { day: "" } });
+    assert.equal(week.isError, false, week.result);
+    const read = JSON.parse(week.result);
+    assert.deepEqual(
+      read.days.map((d) => d.day),
+      ["2026-09-14", "2026-09-15", "2026-09-16", "2026-09-17", "2026-09-18", "2026-09-19", "2026-09-20"],
+      "the week from its Monday, as the Calendar page opens",
+    );
+    assert.deepEqual(
+      read.days.find((d) => d.day === "2026-09-16").taken.map((b) => [b.title, b.person]),
+      [["Estimate", null]],
+      "the appointment, naming nobody People holds",
+    );
+    assert.deepEqual(
+      ctx.supabase.seen.slice(before).map((q) => (q.rpc ? `rpc:${q.rpc}` : `${q.table}.${q.op}`)),
+      ["rpc:people_list", "policies.select"],
+      "everyone to match the appointments to, and nothing the turn already read: no tenants, no tenant_config",
+    );
+    assert.deepEqual(made, [], "nobody put in People: Ask never writes");
+    assert.ok(
+      !ctx.supabase.seen.some(
+        (q) => q.rpc === "create_person" || ["insert", "update", "upsert", "delete"].includes(q.op),
+      ),
+    );
+    const tomorrow = await runTool(tc, { name: "get_calendar", input: { day: "tomorrow" } });
+    assert.deepEqual(
+      JSON.parse(tomorrow.result).days.map((d) => d.day),
+      ["2026-09-17"],
+      "a day asked is that day",
+    );
+    assert.equal(
+      ctx.supabase.seen.slice(before).filter((q) => q.table === "tenants" || q.table === "tenant_config").length,
+      0,
+      "the tenant and its settings are the turn's: read by the route before any tool, and never again",
+    );
+  } finally {
+    globalThis.fetch = fetchWas;
+    forgetFeeds();
+  }
+});
+
 test("REGRESSION: list_playbooks tells who said yes from who a run can reach -- 'said_yes_now' was the reach, so a moment whose yes had no number read as nobody's", async () => {
   const tc = newToolContext(ctxFor(tables(), { ...RPCS, people_list: () => threeAnswers() }), A, "owner", TZ, NOW);
   const out = await runTool(tc, { name: "list_playbooks", input: {} });

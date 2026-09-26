@@ -40,6 +40,12 @@ const { campaignReport } = await import(at("apps/dashboard/src/server/readers/ca
 const reportsRoute = await import(at("apps/dashboard/app/api/v1/reports/route.ts"));
 const campaignsRoute = await import(at("apps/dashboard/app/api/v1/reports/campaigns/route.ts"));
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/rate-limit.ts"));
+const { calendarWeek } = await import(at("apps/dashboard/src/server/calendar.ts"));
+const { forgetFeeds } = await import(at("apps/dashboard/src/server/ask/openings.ts"));
+const { calendar: calendarReader, sources: calendarSources } = await import(
+  at("apps/dashboard/src/server/readers/calendar.ts")
+);
+const calendarRoute = await import(at("apps/dashboard/app/api/v1/calendar/route.ts"));
 
 // The kept values live in the module, keyed by workspace, person and reader: each test starts with none.
 beforeEach(() => kernel.readerCache.clear());
@@ -1502,4 +1508,234 @@ test("the campaigns' report, for Ask and for the page: GET reports/campaigns ans
   }
   await assert.rejects(kernel.load(turnIn(worldCtx(w), B), campaignReport, { days: 30 }), noReport);
   await assert.rejects(campaignsRoute.GET.run(req(`?workspace=${B}`), worldCtx(w)), noReport);
+});
+
+/* ----------------------------------------------------------------------- the calendar (PR 1.5) */
+
+/** calendar-feed.test.mjs's clock: Tuesday noon in New York. */
+const CAL_NOW = new Date("2026-09-08T16:00:00.000Z");
+/** calendar-feed.test.mjs's one appointment: Ana Ruiz, with her number in its words, on the Tuesday afternoon. */
+const ONE_ICS = [
+  "BEGIN:VCALENDAR",
+  "BEGIN:VEVENT",
+  "UID:a1",
+  "SUMMARY:Ana Ruiz · Balayage",
+  "DESCRIPTION:Ana Ruiz +1 (917) 555-0100",
+  "DTSTART;TZID=America/New_York:20260908T140000",
+  "DTEND;TZID=America/New_York:20260908T153000",
+  "END:VEVENT",
+  "END:VCALENDAR",
+].join("\r\n");
+const calProfile = {
+  hours: {
+    mon: { open: "09:00", close: "18:00" },
+    tue: { open: "09:00", close: "18:00" },
+    wed: { open: "09:00", close: "18:00" },
+    thu: { open: "09:00", close: "18:00" },
+    fri: { open: "09:00", close: "18:00" },
+    sat: {},
+    sun: {},
+  },
+  closures: [],
+  services: [{ name: "Balayage", duration_min: 90 }],
+  booking_rules: { lead_hours: 2, max_days_ahead: 14, slot_min: 30 },
+};
+/** calendar-feed.test.mjs, tables(url, role): harbor's calendar at `url` (none when null), its hours, its one service. */
+const calTables = (url, role = "owner") => ({
+  memberships: [membership(A, role, "harbor", "2026-01-01T00:00:00Z")],
+  tenants: [{ id: A, slug: "harbor", name: "Harbor", status: "active", timezone: "America/New_York" }],
+  tenant_config: [
+    {
+      tenant_id: A,
+      config: {
+        ...(url ? { calendar: { ical_url: url } } : {}),
+        brain: {
+          business_name: "Harbor",
+          booking_link: "https://book.example/harbor",
+          system_prompt: "Answer as the front desk of Harbor: brief, warm, and never a price or a booking.",
+          fallbacks: { greeting: "g", error: "e", non_text: "n" },
+          profile: calProfile,
+        },
+      },
+    },
+  ],
+  policies: [],
+});
+/** A request over `t`: People as `people` answers them, and the door that puts a person in People, each call kept. */
+const calCtx = (t, people = () => [], made = []) => ({
+  supabase: fakeDb(
+    t,
+    {},
+    {
+      people_list: people,
+      create_person: (a) => {
+        made.push(a);
+        return { contact_id: "p1", existed: false };
+      },
+    },
+  ),
+  userId: USER,
+  email: "ada@example.com",
+  params: {},
+});
+/** The network, scripted for `fn`: every calendar answers `answer`, each fetch kept; no feed is remembered past it. */
+async function withFeed(answer, fn) {
+  const was = globalThis.fetch;
+  const fetched = [];
+  globalThis.fetch = async (url) => {
+    fetched.push(String(url));
+    return new Response(answer.body, { status: answer.status ?? 200, headers: { "content-type": "text/calendar" } });
+  };
+  forgetFeeds();
+  try {
+    return await fn(fetched);
+  } finally {
+    globalThis.fetch = was;
+    forgetFeeds();
+  }
+}
+/** A turn on calendar-feed's clock. */
+const calIn = (ctx, role = "viewer") => kernel.readerContext(ctx, { tenantId: A, role }, CAL_NOW);
+const WEEK = { from: "2026-09-07", days: 7 };
+/** Ana in People, by the number her appointment carries. */
+const ANA = { id: "k-ana", display_name: "Ana Ruiz", wa_profile_name: null, phone_e164: "+19175550100", email: null };
+const tuesday = (week) => week.days.find((d) => d.key === "2026-09-08");
+
+test("the calendar, for Ask: the board's week exactly as calendarWeek assembles it for a read that puts nobody in People -- over calendar-feed's fixture with no calendar, a calendar that cannot be read, and its one appointment -- and each person its days name is a row, once, by the board's name for them", async () => {
+  const none = calTables(null);
+  const quiet = await calendarWeek(calCtx(none), A, WEEK, CAL_NOW, { canAct: false });
+  const noFeed = await kernel.load(calIn(calCtx(none)), calendarReader, WEEK);
+  assert.deepEqual(noFeed.data, { calendar: quiet });
+  assert.equal(quiet.feed.state, "none");
+  assert.deepEqual(noFeed.rows, []);
+
+  await logged("ask_feed_fetch_failed", () =>
+    withFeed({ body: "nope", status: 503 }, async () => {
+      const t = calTables("https://cal.example/down.ics");
+      const want = await calendarWeek(calCtx(t), A, WEEK, CAL_NOW, { canAct: false });
+      const r = await kernel.load(calIn(calCtx(t)), calendarReader, WEEK);
+      assert.deepEqual(r.data, { calendar: want });
+      assert.deepEqual([want.feed.state, want.feed.reason, want.feed.status], ["unavailable", "http", 503]);
+    }),
+  );
+
+  await withFeed({ body: ONE_ICS }, async (fetched) => {
+    const t = calTables("https://cal.example/ok.ics");
+    const want = await calendarWeek(
+      calCtx(t, () => [ANA]),
+      A,
+      WEEK,
+      CAL_NOW,
+      { canAct: false },
+    );
+    const r = await kernel.load(calIn(calCtx(t, () => [ANA])), calendarReader, WEEK);
+    assert.deepEqual(r.data, { calendar: want }, "the week calendarWeek answers");
+    assert.equal(JSON.stringify(r.data.calendar), JSON.stringify(want), "byte for byte");
+    assert.equal(fetched.length, 1, "the calendar asked once: the second read took the loader's cache");
+    assert.deepEqual(
+      tuesday(want).items.map((i) => i.person?.id),
+      [ANA.id],
+      "the appointment names Ana by her number",
+    );
+    assert.ok(tuesday(want).windows.length > 0, "and the receptionist's windows beside it");
+    assert.deepEqual(r.rows, [{ kind: "person", id: ANA.id, route: `clients/${ANA.id}`, label: "Ana Ruiz" }]);
+    // Two appointments of hers are one row.
+    const twice = ONE_ICS.replace(
+      "END:VCALENDAR",
+      [
+        "BEGIN:VEVENT",
+        "UID:a2",
+        "SUMMARY:Ana Ruiz · Toner",
+        "DESCRIPTION:Ana Ruiz +1 (917) 555-0100",
+        "DTSTART;TZID=America/New_York:20260910T100000",
+        "DTEND;TZID=America/New_York:20260910T110000",
+        "END:VEVENT",
+        "END:VCALENDAR",
+      ].join("\r\n"),
+    );
+    forgetFeeds();
+    globalThis.fetch = async () => new Response(twice, { status: 200, headers: { "content-type": "text/calendar" } });
+    const again = await kernel.load(calIn(calCtx(t, () => [ANA])), calendarReader, WEEK);
+    assert.equal(again.data.calendar.days.flatMap((d) => d.items).length, 2);
+    assert.deepEqual(
+      again.rows.map((x) => x.id),
+      [ANA.id],
+    );
+  });
+});
+
+test("the calendar's reader never writes (D7): an owner's Ask reads the board of a feed naming someone People does not hold and puts nobody in People -- no door called, nothing inserted -- and its zone and settings are the turn's: a turn that holds them reads neither again", async () => {
+  await withFeed({ body: ONE_ICS }, async () => {
+    const made = [];
+    const ctx = calCtx(calTables("https://cal.example/ok.ics"), () => [], made);
+    const rc = calIn(ctx, "owner");
+    await Promise.all([kernel.load(rc, facts, undefined), kernel.load(rc, config, undefined)]);
+    const before = ctx.supabase.seen.length;
+    const r = await kernel.load(rc, calendarReader, WEEK);
+    assert.deepEqual(made, [], "nobody put in People");
+    assert.deepEqual(
+      ctx.supabase.seen.slice(before).map((q) => (q.rpc ? `rpc:${q.rpc}` : `${q.table}.${q.op}`)),
+      ["rpc:people_list", "policies.select"],
+      "everyone, and nothing the turn already read: no door, no write",
+    );
+    assert.deepEqual(
+      tuesday(r.data.calendar).items.map((i) => i.person),
+      [null],
+      "the appointment names nobody People holds",
+    );
+    assert.deepEqual(r.rows, []);
+    // Read once a turn: the board again is the same read, and its sources are one read for any reader of them.
+    assert.equal(kernel.load(rc, calendarReader, WEEK), kernel.load(rc, calendarReader, WEEK));
+    const s = await kernel.load(rc, calendarSources, { ...WEEK, fresh: false });
+    assert.equal(s.data.week, null, "the feed was read");
+    assert.deepEqual(s.rows, []);
+    assert.equal(ctx.supabase.seen.length, before + 2, "nothing asked again");
+  });
+});
+
+/**
+ * Every query GET calendar asked at origin/main (c39ce689) for an owner over calendar-feed's one appointment with
+ * nobody in People yet, in order, with the columns it selected: the workspace's door, the zone, the settings, everyone
+ * with their reply modes, then the person the feed names put in People.
+ */
+const CALENDAR_ASKED_AT_MAIN = [
+  ["memberships.select", "tenant_id, role, tenants (slug)"],
+  ["tenants.select", "name, timezone"],
+  ["tenant_config.select", "config"],
+  ["rpc:people_list", null],
+  ["policies.select", "subject_type, subject_id, mode"],
+  ["rpc:create_person", null],
+];
+
+test("GET calendar through its reader asks what it asked at origin/main, in the same order -- the settings now through the config reader's columns -- and keeps its write between the read and the board: an owner's or an operator's read puts the person the feed names in People and the board links them, as it did; a viewer's asks the same, less the write", async () => {
+  await withFeed({ body: ONE_ICS }, async () => {
+    for (const role of ["owner", "operator", "viewer"]) {
+      // The zone is the facts reader's, kept across requests on an instance: each caller here starts with none kept.
+      kernel.readerCache.clear();
+      const made = [];
+      const ctx = calCtx(calTables("https://cal.example/route.ics", role), () => [], made);
+      const page = await calendarRoute.GET.run(req(`?workspace=${A}&from=2026-09-07&days=7`), ctx);
+      const want = CALENDAR_ASKED_AT_MAIN.map(([k, cols]) => [
+        k,
+        k === "tenant_config.select" ? "tenant_id, config, version, updated_at, updated_by" : cols,
+      ]);
+      assert.deepEqual(
+        ctx.supabase.seen.map((q) => (q.rpc ? [`rpc:${q.rpc}`, null] : [`${q.table}.${q.op}`, q.columns])),
+        role === "viewer" ? want.slice(0, -1) : want,
+        role,
+      );
+      assert.deepEqual(
+        made.map((a) => [a.p_tenant_id, a.p_phone_e164, a.p_display_name, a.p_source]),
+        role === "viewer" ? [] : [[A, "+19175550100", "Ana Ruiz", "calendar"]],
+        `${role}: who is put in People`,
+      );
+      assert.deepEqual(
+        tuesday(page.calendar).items.map((i) => i.person),
+        role === "viewer" ? [null] : [{ id: "p1", name: "Ana Ruiz", via: "phone" }],
+        `${role}: the board links whom the read just added, as it did at origin/main`,
+      );
+      assert.equal(page.calendar.days.length, 7);
+      assert.ok(!JSON.stringify(page).includes("cal.example"), "the address never reaches the browser");
+    }
+  });
 });

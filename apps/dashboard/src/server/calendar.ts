@@ -247,9 +247,11 @@ export function itemsToDays(
  * The people the feed names by phone who are not in People yet, added
  * through the `create_person` door — owner or operator only, which is what
  * `canAct` says; a viewer's read changes nothing. Capped per read: the
- * hourly sweep on the edge takes the rest. Never fatal to the board.
+ * hourly sweep on the edge takes the rest. Never fatal to the board. The
+ * calendar route makes this write itself, between its reader and the board:
+ * a reader never writes (D7).
  */
-async function addPeopleSeen(
+export async function addPeopleSeen(
   ctx: Pick<RouteContext, "supabase">,
   tenantId: string,
   items: FeedItem[],
@@ -318,26 +320,55 @@ async function addPeopleSeen(
 }
 
 /**
- * Takes only the client it reads with, not a whole RouteContext: Setup's
- * assembly calls this for a workspace that is not the caller's own -- the back
- * office reading somebody else's -- and there is no request behind that.
+ * What the board's week is read from, for one span: the workspace's zone and the span by its clock, its settings, the
+ * feed parsed once, the profile's services and everyone in People as the matcher wants them. `week` is the answer
+ * already whole -- no calendar, or one that could not be read -- and null when the feed was read, which is then
+ * `parsed`; the services' names and People are read only then, and are empty beside a whole week. Server-side only:
+ * the address and the settings ride in it, and only what weekFrom assembles from it is ever answered.
  */
-export async function calendarWeek(
+export type CalendarSources = {
+  timezone: string;
+  span: { from: string; days: number };
+  cfg: TenantConfig | null;
+  url: string | null;
+  profile: BusinessProfile | null;
+  rules: BookingRules | null;
+  base: CalendarWeekDto;
+  serviceNames: string[];
+  people: PersonLike[];
+} & (
+  | { week: CalendarWeekDto; feed: ParsedRead | null; parsed: null }
+  | { week: null; feed: ParsedRead; parsed: ParsedFeed }
+);
+
+/**
+ * The calendar's one read for a span, and nothing written (D7): calendarWeek's reads, in its order, up to the point an
+ * owner's read would put the feed's people in People. The zone and the settings are read here unless a caller that
+ * read them this turn hands them in (readers/calendar.ts), so a turn reads the tenant once. What the board shows
+ * follows from this alone (weekFrom); a read that adds people does so between the two (calendarWeek, the calendar
+ * route). Takes only the client it reads with, as calendarWeek does.
+ */
+export async function calendarSources(
   ctx: Pick<RouteContext, "supabase">,
   tenantId: string,
   by: { from: string | null; days: number },
-  now = new Date(),
-  opts: { canAct?: boolean; fresh?: boolean } = {},
-): Promise<CalendarWeekDto> {
-  const { timezone } = await tenantFacts(ctx.supabase, tenantId);
+  now: Date,
+  opts: { fresh?: boolean; timezone?: string; config?: unknown } = {},
+): Promise<CalendarSources> {
+  // The zone and the settings: handed in by a caller that read them this turn (readers/calendar.ts), else read here.
+  const timezone = opts.timezone ?? (await tenantFacts(ctx.supabase, tenantId)).timezone;
   const span = spanFor(by.from, by.days, timezone, now);
-  const { data: row, error } = await ctx.supabase
-    .from("tenant_config")
-    .select("config")
-    .eq("tenant_id", tenantId)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
-  const { cfg, lostCalendar } = readSettings(tenantId, row?.config ?? null);
+  let raw = opts.config;
+  if (raw === undefined) {
+    const { data: row, error } = await ctx.supabase
+      .from("tenant_config")
+      .select("config")
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    raw = row?.config ?? null;
+  }
+  const { cfg, lostCalendar } = readSettings(tenantId, raw);
   const url = cfg?.calendar?.ical_url ?? null;
   const profile = cfg?.brain?.profile ?? null;
   const rules: BookingRules | null = profile?.booking_rules ?? null;
@@ -379,7 +410,8 @@ export async function calendarWeek(
     next_opening: null,
     days: Array.from({ length: span.days }, (_, i) => ({ key: shiftKey(span.from, i), items: [], windows: [] })),
   };
-  if (!url) return base;
+  const read = { timezone, span, cfg, url, profile, rules, base };
+  if (!url) return { ...read, feed: null, parsed: null, serviceNames: [], people: [], week: base };
 
   // One parse per fetch, shared with the profile, the People list and the
   // report. Its horizon — ninety days either side — covers any span the page
@@ -398,33 +430,39 @@ export async function calendarWeek(
   // Nothing readable, ever: the board says why, in the words the preview uses.
   if (!feed.parsed)
     return {
-      ...base,
-      feed: {
-        ...base.feed,
-        checked_at: feed.checkedAt === null ? null : new Date(feed.checkedAt).toISOString(),
-        reason: feed.reason,
-        status: feed.status,
-        problem: feedProblemWords(feed.reason, feed.status),
+      ...read,
+      feed,
+      parsed: null,
+      serviceNames: [],
+      people: [],
+      week: {
+        ...base,
+        feed: {
+          ...base.feed,
+          checked_at: feed.checkedAt === null ? null : new Date(feed.checkedAt).toISOString(),
+          reason: feed.reason,
+          status: feed.status,
+          problem: feedProblemWords(feed.reason, feed.status),
+        },
       },
     };
   const parsed = feed.parsed;
   const serviceNames = (profile?.services ?? []).map((s) => s.name);
   // Everyone, not the first thousand: past it, an appointment of a known person linked to nobody on the board, and
-  // the add below asked the door for them again.
+  // an owner's read asked the door for them again.
   const people = (await everyone(ctx, tenantId).catch(() => [])).map(personLike);
-  // The people this feed names are put in People here, so the board an
-  // owner is looking at already links to them; the hourly sweep does the
-  // same for everyone else, and for a feed nobody opens.
-  if (opts.canAct)
-    people.push(
-      ...(await addPeopleSeen(ctx, tenantId, parsed.items, serviceNames, people, now).catch((e: unknown) => {
-        console.error(
-          "calendar_people_seen_failed",
-          JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
-        );
-        return [];
-      })),
-    );
+  return { ...read, feed, parsed, serviceNames, people, week: null };
+}
+
+/**
+ * The board's week from what was read, a pure assembly: the feed's items by day, each matched to `people`, the windows
+ * the receptionist would offer from `now`, and the first of them. `people` is the read's own, or those with the people
+ * an owner's read just put in People. A week the read already answered whole is that week. Reads nothing, writes
+ * nothing, and changes nothing it is handed.
+ */
+export function weekFrom(s: CalendarSources, people: PersonLike[], now: Date): CalendarWeekDto {
+  if (s.week) return s.week;
+  const { timezone, span, cfg, url, profile, rules, base, feed, parsed, serviceNames } = s;
   const { days, dropped } = itemsToDays(
     parsed.items,
     span.from,
@@ -469,6 +507,42 @@ export async function calendarWeek(
       })),
     })),
   };
+}
+
+/**
+ * Takes only the client it reads with, not a whole RouteContext: Setup's
+ * assembly calls this for a workspace that is not the caller's own -- the back
+ * office reading somebody else's -- and there is no request behind that.
+ *
+ * The read (calendarSources), then, when the caller may act, the people the feed names put in People, then the board
+ * assembled (weekFrom): one clock for the span, the people and the windows. The calendar route takes the same three
+ * steps around its reader.
+ */
+export async function calendarWeek(
+  ctx: Pick<RouteContext, "supabase">,
+  tenantId: string,
+  by: { from: string | null; days: number },
+  now = new Date(),
+  opts: { canAct?: boolean; fresh?: boolean } = {},
+): Promise<CalendarWeekDto> {
+  const s = await calendarSources(ctx, tenantId, by, now, { fresh: !!opts.fresh });
+  if (s.week) return s.week;
+  // A copy: the read's own list is never changed.
+  const people = [...s.people];
+  // The people this feed names are put in People here, so the board an
+  // owner is looking at already links to them; the hourly sweep does the
+  // same for everyone else, and for a feed nobody opens.
+  if (opts.canAct)
+    people.push(
+      ...(await addPeopleSeen(ctx, tenantId, s.parsed.items, s.serviceNames, people, now).catch((e: unknown) => {
+        console.error(
+          "calendar_people_seen_failed",
+          JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
+        );
+        return [];
+      })),
+    );
+  return weekFrom(s, people, now);
 }
 
 /* ---- A feed checked before it is saved ---- */
