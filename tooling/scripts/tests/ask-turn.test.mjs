@@ -3810,10 +3810,8 @@ test("the workspace's pages are read once a turn, each tool as its page reads it
       .filter((c) => c.type === "tool_result")
       .map((c) => [c.tool_use_id, JSON.parse(c.content)]),
   );
-  const first = out;
-  const again = out;
   assert.deepEqual(
-    first["t-get_settings"].channels,
+    out["t-get_settings"].channels,
     [
       { kind: "voice", status: "active", number: "+19295550100" },
       { kind: "whatsapp", status: "active", number: "+19295550199" },
@@ -3823,18 +3821,18 @@ test("the workspace's pages are read once a turn, each tool as its page reads it
   // The page's own builder, over what the page reads of the number: Meta's quality and limit from the row's config.
   const health = numberHealth({ quality: "YELLOW", event: null, limit: "TIER_1K" });
   assert.deepEqual(
-    first["t-list_audiences"].number,
+    out["t-list_audiences"].number,
     { present: true, health: health.label, can_send: health.canSend, limit_per_day: 1000 },
     "the number the Broadcasts page picks, and its health from the quality Meta assigned it",
   );
-  assert.deepEqual(again["t-audiences-again"], first["t-list_audiences"], "the same answer from the turn's reads");
-  const searches = first["t-list_lead_searches"];
+  assert.deepEqual(out["t-audiences-again"], out["t-list_audiences"], "the same answer from the turn's reads");
+  const searches = out["t-list_lead_searches"];
   assert.deepEqual(searches.counts, COUNTS, "the rail's six counts, as the Leads page shows them");
   assert.deepEqual(
     searches.searches.map((x) => [x.id, x.state, x.question]),
     [[WAITING_SEARCH.id, "waiting for an answer from you", "Most of the first 25 are chain gyms. Include them?"]],
   );
-  assert.deepEqual(again["t-searches-again"], searches);
+  assert.deepEqual(out["t-searches-again"], searches);
 });
 
 test("list_audiences offers what the composer offers (ledger #14): a template this product cannot put on the wire -- a button that takes a value -- is withheld as the Broadcasts composer withholds it, and cannot_send says why in the composer's own sentence; nothing withheld, it says nothing", async () => {
@@ -3966,10 +3964,10 @@ test("a read the page tolerates, Ask tolerates as the page does and says so: a f
     "the failure was not kept: list_audiences read the channels again",
   );
   assert.deepEqual(
-    noChannels.lines.map((l) => JSON.parse(l)).map((x) => [x.tool, x.read]),
+    noChannels.lines.map((l) => JSON.parse(l)).map((x) => [x.tool, x.read, x.tenant]),
     [
-      ["get_settings", "channels"],
-      ["list_audiences", "channels"],
+      ["get_settings", "channels", A],
+      ["list_audiences", "channels", A],
     ],
   );
 

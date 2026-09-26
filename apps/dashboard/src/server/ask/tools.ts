@@ -261,11 +261,11 @@ function inboxEscalations<E extends { conversation_id: string }>(open: E[]): Map
  * and one line in the log. The turn's cache keeps no failure, so the next tool that asks reads again.
  */
 const unread =
-  (tool: string, read: string) =>
+  (t: ToolContext, tool: string, read: string) =>
   (e: unknown): null => {
     console.error(
       "ask_tool_read_failed",
-      JSON.stringify({ tool, read, error: e instanceof Error ? e.message : String(e) }),
+      JSON.stringify({ tool, read, tenant: t.tenantId, error: e instanceof Error ? e.message : String(e) }),
     );
     return null;
   };
@@ -781,7 +781,7 @@ async function getSettings(t: ToolContext): Promise<unknown> {
     ),
     // The channels as their page reads them (readers/channels.ts), once a turn: list_audiences reads the same rows. A
     // read that fails is said as its own state, never as no channels, and the rest of the settings still answer.
-    load(t.rc, channelsReader, undefined).then((r) => r.data.channels, unread("get_settings", "channels")),
+    load(t.rc, channelsReader, undefined).then((r) => r.data.channels, unread(t, "get_settings", "channels")),
     load(t.rc, readers.sellsBy, undefined).then((r) => r.data),
   ]);
   // The Autonomy rows offered here, as the pane draws them: the follow-ups' only where deals are on (0006).
@@ -871,10 +871,10 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
     // The composers' read of the templates (readers/templates.ts), once a turn: approved and not hidden by the
     // workspace (ledger #9), each with why this product cannot send it. A read that fails is its own state, as the
     // Broadcasts page keeps it, never "no template yet"; the audiences still answer.
-    load(t.rc, templatesReader, { all: false }).then((r) => r.data.templates, unread("list_audiences", "templates")),
+    load(t.rc, templatesReader, { all: false }).then((r) => r.data.templates, unread(t, "list_audiences", "templates")),
     // The channels as the Broadcasts page reads them (readers/channels.ts), once a turn: get_settings reads the same.
     // A read that fails is no number known, as the page takes it -- said as such, never as no number.
-    load(t.rc, channelsReader, undefined).then((r) => r.data.channels, unread("list_audiences", "channels")),
+    load(t.rc, channelsReader, undefined).then((r) => r.data.channels, unread(t, "list_audiences", "channels")),
   ]);
   const rows = pool.rows;
   // FOUR sizes for every audience: this listing is read BEFORE a template is
