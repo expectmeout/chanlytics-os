@@ -26,6 +26,7 @@ import {
   notePayment,
   noteTrialEnding,
   readSubscription,
+  STRIPE_READ_OPTIONS,
   stripe,
   subscriptionFacts,
   tenantOf,
@@ -58,11 +59,13 @@ export async function POST(request: Request): Promise<Response> {
   // for is not answered "duplicate" by our own half-finished attempt; one
   // that is killed outright cannot, and its lease runs out instead.
   let lease: string | null = null;
+  let tenant: string | null = null;
   /** The claim taken (null), or the answer for a delivery that did not get it. */
   const keep = async (tenantId: string | null): Promise<Response | null> => {
     const c = await keepEvent(db, event.id, event.type, tenantId);
     if (c.claim === "taken") {
       lease = c.lease;
+      tenant = tenantId;
       return null;
     }
     if (c.claim === "applied") return json(200, { ok: true, duplicate: true });
@@ -77,7 +80,7 @@ export async function POST(request: Request): Promise<Response> {
   // The answer once the work is done, the claim completed first: from here a
   // retry is a duplicate for ever. Nothing before this makes it one.
   const done = async (res: Response): Promise<Response> => {
-    if (lease) await completeEvent(db, event.id, lease);
+    if (lease) await completeEvent(db, event.id, lease, tenant);
     return res;
   };
   const giveBack = async (): Promise<void> => {
@@ -135,7 +138,9 @@ export async function POST(request: Request): Promise<Response> {
               type: event.type,
               subscription: sub.id,
               named_by_row: row.stripe_subscription_id,
-              error: current.why,
+              error: current.why.message,
+              stripe_type: current.why.type,
+              status: current.why.status,
             });
             await giveBack();
             return json(503, { ok: false, error: "stripe_unreadable" });
@@ -158,8 +163,14 @@ export async function POST(request: Request): Promise<Response> {
         }
         // The event's copy has no expanded card; the row keeps the card from
         // the last full read (sync) when this one has none. A read that fails
-        // is a 500, never the event's stale copy applied as if it were fresh.
-        const full = await s.subscriptions.retrieve(sub.id, { expand: ["default_payment_method"] });
+        // is a 500, never the event's stale copy applied as if it were fresh;
+        // it runs under the guard's budget too, so a slow Stripe is a 500
+        // Stripe retries, not a kill inside the function's thirty seconds.
+        const full = await s.subscriptions.retrieve(
+          sub.id,
+          { expand: ["default_payment_method"] },
+          STRIPE_READ_OPTIONS,
+        );
         const r = await applySubscription(db, row, full, event.type);
         return done(json(200, { ok: true, status: r.status, switched: r.switched }));
       }
@@ -173,7 +184,7 @@ export async function POST(request: Request): Promise<Response> {
           L.warn("stripe_checkout_unrouted", { session: session.id });
           return done(json(200, { ok: true, unrouted: true }));
         }
-        const sub = await s.subscriptions.retrieve(subId, { expand: ["default_payment_method"] });
+        const sub = await s.subscriptions.retrieve(subId, { expand: ["default_payment_method"] }, STRIPE_READ_OPTIONS);
         const r = await applySubscription(db, row, sub, event.type);
         return done(json(200, { ok: true, status: r.status }));
       }

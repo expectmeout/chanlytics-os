@@ -520,21 +520,41 @@ export async function forgetCustomer(db: Db, row: BillingRow): Promise<void> {
  * seconds), so only a delivery that is gone ever loses one.
  */
 export const BILLING_EVENT_LEASE_MS = 2 * 60_000;
-/** The guard read's own budget, inside the door's thirty seconds: a read that hangs fails on its own, not with the delivery. */
-const STRIPE_READ_TIMEOUT_MS = 8_000;
+/**
+ * A webhook read of Stripe's own budget: a timeout inside the door's thirty
+ * seconds, and no retry of the SDK's own -- the door's 503 is the retry. The
+ * client's default (twenty seconds, retried once) could outlive the function,
+ * which is a kill mid-delivery rather than an answer Stripe retries.
+ */
+export const STRIPE_READ_OPTIONS: Stripe.RequestOptions = { timeout: 8_000, maxNetworkRetries: 0 };
+
+/** Why a read of Stripe did not answer: the SDK's class (its `type`; it sets no `name`), Stripe's status when there was one, and the message. */
+export type StripeFailure = { type: string; status: number | null; message: string };
 
 /** What a read of Stripe came back with: the object; Stripe's word that there is no such object; or no answer at all. */
-export type StripeRead<T> = { read: "found"; value: T } | { read: "gone" } | { read: "unreadable"; why: string };
+export type StripeRead<T> = { read: "found"; value: T } | { read: "gone" } | { read: "unreadable"; why: StripeFailure };
 
 /**
- * Stripe's "No such subscription": a 404, code resource_missing. Every other
- * failure -- the network, a timeout, a 429, a 5xx, a refused key -- is Stripe
- * not answering, which says nothing about the subscription.
+ * Stripe's "No such subscription": a 404 AND code resource_missing, which a
+ * bare retrieve never answers one without the other. Every other failure --
+ * the network, a timeout, a 429, a 5xx, a refused key, a 404 that is not
+ * Stripe's word on the object (an unrecognised URL, a proxy's page) -- is
+ * Stripe not answering, which says nothing about the subscription. A false
+ * "gone" applies a dead event, so the test is as narrow as it can be.
  */
 function saysGone(e: unknown): boolean {
   if (!e || typeof e !== "object") return false;
   const { statusCode, code } = e as { statusCode?: unknown; code?: unknown };
-  return statusCode === 404 || code === "resource_missing";
+  return statusCode === 404 && code === "resource_missing";
+}
+
+function stripeFailure(e: unknown): StripeFailure {
+  const err = e && typeof e === "object" ? (e as { type?: unknown; statusCode?: unknown; message?: unknown }) : null;
+  return {
+    type: typeof err?.type === "string" ? err.type : e instanceof Error ? e.name : "Error",
+    status: typeof err?.statusCode === "number" ? err.statusCode : null,
+    message: typeof err?.message === "string" ? err.message : String(e),
+  };
 }
 
 /**
@@ -543,15 +563,15 @@ function saysGone(e: unknown): boolean {
  * is gone" and apply a late event over the live one: a network blip paused a
  * paying workspace. A read that does not answer is answered 503 by the door,
  * and Stripe delivers the event again (for up to three days, backing off).
- * The read carries its own timeout and no retry of its own -- the 503 is the
- * retry -- so it fails inside the door's budget rather than with it.
+ * The read runs under STRIPE_READ_OPTIONS, so it fails inside the door's
+ * budget rather than with it.
  */
 export async function readSubscription(s: Stripe, id: string): Promise<StripeRead<Stripe.Subscription>> {
   try {
-    const value = await s.subscriptions.retrieve(id, {}, { timeout: STRIPE_READ_TIMEOUT_MS, maxNetworkRetries: 0 });
+    const value = await s.subscriptions.retrieve(id, {}, STRIPE_READ_OPTIONS);
     return { read: "found", value };
   } catch (e) {
-    return saysGone(e) ? { read: "gone" } : { read: "unreadable", why: errField(e) };
+    return saysGone(e) ? { read: "gone" } : { read: "unreadable", why: stripeFailure(e) };
   }
 }
 
@@ -615,7 +635,7 @@ export async function keepEvent(
   if (up.error) throw new Error(up.error.message);
   if (!up.data?.length) return { claim: "held" };
   // The id's field is not called `event`: that is the line's own name (log.ts), and a field of that name replaces it.
-  logger({ hook: "stripe" }).warn("stripe_event_reclaimed", { event_id: id, type });
+  logger({ hook: "stripe" }).warn("stripe_event_reclaimed", { event_id: id, type, tenant_id: tenantId });
   return { claim: "taken", lease };
 }
 
@@ -626,7 +646,7 @@ export async function keepEvent(
  * the same reading (applySubscription is idempotent, and its own compare-and-
  * set absorbs the race), so the row is left to the retry.
  */
-export async function completeEvent(db: Db, id: string, lease: string): Promise<boolean> {
+export async function completeEvent(db: Db, id: string, lease: string, tenantId: string | null): Promise<boolean> {
   const up = await db
     .from("billing_events")
     .update({ state: APPLIED })
@@ -636,7 +656,7 @@ export async function completeEvent(db: Db, id: string, lease: string): Promise<
     .select("id");
   if (up.error) throw new Error(up.error.message);
   if (up.data?.length) return true;
-  logger({ hook: "stripe" }).warn("stripe_event_claim_lost", { event_id: id });
+  logger({ hook: "stripe" }).warn("stripe_event_claim_lost", { event_id: id, tenant_id: tenantId });
   return false;
 }
 

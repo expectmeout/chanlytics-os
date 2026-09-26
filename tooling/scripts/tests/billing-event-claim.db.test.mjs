@@ -95,10 +95,10 @@ test("a claim is taken once, held for its lease, completed once, and then a dupl
   );
   assert.equal((await rowOf(id)).lease_until, held.lease_until, "and the lease is not touched");
 
-  assert.equal(await completeEvent(db, id, lease), true, "the delivery that holds it completes it");
+  assert.equal(await completeEvent(db, id, lease, tenantId), true, "the delivery that holds it completes it");
   assert.equal((await rowOf(id)).state, "applied");
   assert.equal(
-    await completeEvent(db, id, lease),
+    await completeEvent(db, id, lease, tenantId),
     false,
     "completed once: the second compare-and-swap matches nothing",
   );
@@ -137,9 +137,9 @@ test(
       "and holds it",
     );
 
-    assert.equal(await completeEvent(db, id, lost), false, "the dead delivery's lease completes nothing");
+    assert.equal(await completeEvent(db, id, lost, tenantId), false, "the dead delivery's lease completes nothing");
     assert.equal((await rowOf(id)).state, "claimed", "the retry's claim stands");
-    assert.equal(await completeEvent(db, id, taken), true);
+    assert.equal(await completeEvent(db, id, taken, tenantId), true);
     assert.equal((await rowOf(id)).state, "applied");
   },
 );

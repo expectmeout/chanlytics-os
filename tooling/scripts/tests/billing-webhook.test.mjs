@@ -383,6 +383,13 @@ test("a Stripe read that fails is not the subscription being gone: nothing is wr
       message: "Invalid API Key provided",
     }),
     new TypeError("fetch failed"),
+    // A 404 that is not Stripe's word on the subscription -- no resource_missing
+    // on it: an unrecognised URL, a proxy's page. Not gone; not answered.
+    new Stripe.errors.StripeInvalidRequestError({
+      statusCode: 404,
+      type: "invalid_request_error",
+      message: "Unrecognized request URL (GET: /v1/subscriptions/sub_1).",
+    }),
   ];
   for (const refusal of refusals) {
     const state = tables({ billing_accounts: [row({ status: "active", stripe_subscription_id: "sub_1" })] });
@@ -400,7 +407,10 @@ test("a Stripe read that fails is not the subscription being gone: nothing is wr
     assert.deepEqual(state.billing_events, [], "the claim is given back, so the retry is not a duplicate");
     const why = lines.find((l) => l.event === "stripe_read_failed");
     assert.ok(why, `the log says the read failed: ${refusal.message}`);
-    assert.ok(String(why.error).includes(refusal.message), "and why");
+    assert.equal(why.error, refusal.message, "and why");
+    // The SDK sets no `name` on its errors, so the class is its `type`, and Stripe's status rides beside it.
+    assert.equal(why.stripe_type, refusal.type ?? refusal.name, "which kind of failure");
+    assert.equal(why.status, refusal.statusCode ?? null, "and Stripe's status, when there was one");
     assert.equal(why.named_by_row, "sub_1");
   }
   // The read has a budget of its own inside the door's thirty seconds, and no
@@ -430,6 +440,18 @@ test("Stripe answering that the subscription the row names does not exist is sti
   assert.deepEqual(await res.json(), { ok: true, status: "canceled", switched: "paused" });
   const stale = lines.find((l) => l.event === "stripe_event_stale_row");
   assert.equal(stale?.row_status, "gone", "the row named a subscription Stripe does not hold");
+  // Both reads -- the guard's, and the full one the row is written from -- run
+  // under the same budget: no retry of the SDK's own, a timeout inside the
+  // door's thirty seconds. The client's default (twenty seconds, retried once)
+  // could outlive the function: a kill, rather than an answer Stripe retries.
+  assert.deepEqual(
+    reads.map((r) => r.id),
+    ["sub_1", "sub_0"],
+  );
+  for (const r of reads) {
+    assert.equal(r.options?.maxNetworkRetries, 0, `${r.id}: no retry of the SDK's own`);
+    assert.ok(Number.isInteger(r.options?.timeout) && r.options.timeout < 30_000, `${r.id}: a timeout of its own`);
+  }
   const up = writes(db, "billing_accounts").find((q) => q.op === "update");
   assert.equal(first(up).stripe_subscription_id, "sub_0", "the row follows the event");
   assert.equal(
@@ -529,4 +551,32 @@ test("a completed claim is a duplicate for ever: the lease is for a claim that w
   assert.deepEqual(await late.json(), { ok: true, duplicate: true });
   assert.equal(writes(db, "tenants").length, 1);
   assert.equal(writes(db, "notifications").length, 1, "one bell, not two");
+});
+
+test("a finished Checkout is read back from Stripe under the same budget, and applied", async () => {
+  const state = tables({ billing_accounts: [row({ status: "none", stripe_subscription_id: null })] });
+  const db = fakeDb(state, {}, {}, { unique: ["billing_events"] });
+  setPg(db);
+  subs.set("sub_1", sub({ status: "trialing" }));
+  const res = await deliver("checkout.session.completed", {
+    id: "cs_1",
+    object: "checkout.session",
+    customer: "cus_1",
+    subscription: "sub_1",
+    metadata: { tenant_id: T },
+  });
+  assert.equal(res.status, 200);
+  assert.deepEqual(await res.json(), { ok: true, status: "trialing" });
+  const up = writes(db, "billing_accounts").find((q) => q.op === "update");
+  assert.equal(first(up).stripe_subscription_id, "sub_1", "the row follows the subscription Checkout made");
+  assert.equal(state.billing_events[0].state, "applied", "and the claim is completed");
+  assert.deepEqual(
+    reads.map((r) => [
+      r.id,
+      Number.isInteger(r.options?.timeout) && r.options.timeout < 30_000,
+      r.options?.maxNetworkRetries,
+    ]),
+    [["sub_1", true, 0]],
+    "one read, under the door's own budget",
+  );
 });
