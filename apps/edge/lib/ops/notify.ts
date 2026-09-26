@@ -34,7 +34,8 @@ import { logger, errField } from "../log.js";
 type Db = SupabaseClient<Database>;
 
 const RESEND = "https://api.resend.com/emails";
-const TIMEOUT_MS = 10_000;
+/** The longest one mail waits for the provider: a page, an owner's notice. A sweep's budget counts it. */
+export const NOTIFY_TIMEOUT_MS = 10_000;
 
 export interface NotifyTarget {
   /** The tenant this message is ABOUT. */
@@ -98,7 +99,7 @@ export async function post(from: string, to: string[], subject: string, text: st
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
       body: JSON.stringify({ from, to, subject, text }),
-      signal: AbortSignal.timeout(TIMEOUT_MS),
+      signal: AbortSignal.timeout(NOTIFY_TIMEOUT_MS),
     });
     if (!r.ok) {
       // Loud, with the status: this is the alarm channel failing, and the only

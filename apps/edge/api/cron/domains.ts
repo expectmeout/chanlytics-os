@@ -26,8 +26,13 @@ import { pageOperator } from "../../lib/ops/page-operator.js";
 const MAX_DUE = 500;
 /** How many are read at once: the provider allows ten requests a second per account. */
 const AT_ONCE = 5;
-/** No batch starts after this: one of five 15-second reads must still end inside the function's 60 seconds. */
-const YIELD_AT_MS = 40_000;
+/**
+ * No batch starts after this, counted from the door's first line: a row's check still to come must end inside the
+ * function's limit in vercel.json. That is a provider read (channels SEND_TIMEOUT_MS; DNS is read beside it, two names
+ * of 6 s for a host of three labels), then the notice a hold sends (a page or the owner's mail, NOTIFY_TIMEOUT_MS), then
+ * the writes. ops-hygiene.test.mjs holds the sum under the limit.
+ */
+export const YIELD_AT_MS = 30_000;
 /**
  * The least a batch takes: five reads a second at most, so the sweep leaves most of the account's rate for the sends
  * that share it (Resend limits requests per team, not per key).
@@ -36,6 +41,8 @@ const BATCH_AT_LEAST_MS = 1_000;
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 export async function POST(request: Request): Promise<Response> {
+  // The budget's clock, from the first line: the door's own reads and a cold start are inside the limit too.
+  const started = Date.now();
   const L = logger({ sweep: "domains" });
   const db = pg();
   if (!db) {
@@ -72,7 +79,6 @@ export async function POST(request: Request): Promise<Response> {
   // How stale the oldest due read was when this tick began: what a person reading the sweep's answer judges it by.
   // Null when the oldest due domain was never read at all.
   const oldestReadS = rows[0]?.checked_at ? Math.round((Date.now() - Date.parse(rows[0].checked_at)) / 1000) : null;
-  const started = Date.now();
   // Whether cold email's receipts reach us at all (lib/email/cold-receipts.ts): one read, and a page to the platform
   // when a domain's emails of the last day heard nothing back. First, inside the tick's time budget, so a tick with
   // hundreds of domains to read still asks it. It is the platform's to act on: the sweep's answer is about the

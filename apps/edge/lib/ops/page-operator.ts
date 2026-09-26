@@ -4,14 +4,19 @@
  * page per condition key per six hours, stamped only after delivery -- a page
  * that did not send earns no quiet, so the next tick tries again.
  *
- * Eight conditions call it today: the heartbeat failing many jobs in one run
- * (api/jobs/tick.ts); a provider refusing a send with 401 or 403 -- credentials,
- * not content -- and the mail provider's day or month used up
- * (core/messages/send.ts); due jobs nobody is claiming, WhatsApp messages Meta
- * accepted that have had no receipt for six hours, and the mail domain losing
- * its standing (api/cron/health.ts); a customer waiting in a workspace with
- * nobody on file to tell (api/cron/deadman.ts); and the receptionist having no
- * model key (core/inbound/answer.ts). Each reaches the platform, never an owner.
+ * Who calls it: the heartbeat failing many jobs in one run (api/jobs/tick.ts);
+ * a provider refusing a send with 401 or 403 -- credentials, not content -- and
+ * the mail provider's day or month used up (core/messages/send.ts); due jobs
+ * nobody is claiming, WhatsApp messages Meta accepted that have had no receipt
+ * for six hours, and the mail domain losing its standing (api/cron/health.ts);
+ * a customer waiting in a workspace with nobody on file to tell
+ * (api/cron/deadman.ts); the receptionist having no model key
+ * (core/inbound/answer.ts); and cold email's own: a sending domain another
+ * workspace holds, one the cold account already holds verified with no
+ * workspace's row, or one the provider no longer knows (lib/email/sending-domains.ts),
+ * receipts that never arrive (lib/email/cold-receipts.ts), and unsubscribe links
+ * that do not open (lib/email/unsubscribe-probe.ts). Each reaches the platform,
+ * never an owner.
  *
  * A page is mail, sent with the platform's own provider key. So a condition
  * that IS that key failing -- its 401, its used-up quota -- is recorded here

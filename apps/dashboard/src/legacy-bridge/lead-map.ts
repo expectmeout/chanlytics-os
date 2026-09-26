@@ -1,7 +1,7 @@
 /**
  * The lead map's streets (D5, continued).
  *
- * The plot in leads-scope.jsx is contracts' square: every lead in metres from
+ * The plot in leads-map.jsx is contracts' square: every lead in metres from
  * one centre, no projection, no tile, no request to anyone. That was the seam
  * the plan left for streets, and this is what fills it: MapLibre over a
  * Protomaps basemap the product hosts ITSELF -- one PMTiles archive, the fonts

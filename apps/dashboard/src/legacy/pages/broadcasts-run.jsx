@@ -340,4 +340,5 @@ const BC_STOP_WORDS = {
 
 const bcStopWords = (state) => BC_STOP_WORDS[state] || BC_STOP_WORDS.scheduled;
 
+// BcRunVerbs alone, as the run's report draws them for every run still open, is drawn on its own by confirm.test.mjs.
 Object.assign(window, { BC_NONE, BC_LIVE, BcRunVerbs, BroadcastDetail });

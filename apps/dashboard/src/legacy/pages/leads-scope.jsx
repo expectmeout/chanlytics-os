@@ -1,3 +1,14 @@
+/* global React, Icon, MoreMenu, Confirm, EmptyState, FailedRead, PeopleRail, RailSection, RailRow, PeopleStanding, PeopleTable,
+   PeopleColumnsMenu, plSortKeys, plDrawnColumns, plColumnOptions, PL_NO_SEL, LeadPlanPanel, LeadStrip, LeadPeek,
+   LeadPeekActions, LeadNotFitWhy, LeadsFirstDay */
+// The Leads scope of People: the rail's lead rows and its kept searches, the standing line, the controls, the
+// table drawn with LEAD_COLUMNS, the bulk bar, and the three classes (Qualified · Needs review · Excluded).
+//
+// Hookless, every one of them: every piece of state here is LeadsReal's (leads-real.jsx), where its one keyboard
+// listener and the address can move it, and arrives as a prop; every act goes out through the courier the bridge
+// installed (legacy-bridge/leads.ts).
+//
+// Nothing here names the vendor: the owner sees Claude finding businesses, and where each fact came from.
 
 // leads-bench.jsx, which loads before this file.
 const { ldExcludedChips, LeadBand, LeadExcludedChips, LeadReviewGroups, LeadReviewBench } = window;
@@ -612,7 +623,7 @@ const LeadsScope = (p) => {
             expand: p.onExpandPhoto,
           });
           // Call is the acts' own: it arms "How did the call go?" and then hands the tel: to the browser, which
-          // is exactly what C over the rows does (clients-a.jsx's callLead), so both end in the same place.
+          // is exactly what C over the rows does (leads-real.jsx's callLead), so both end in the same place.
           // The deck is a phone's (D5): one lead at a time, with the pile's place under the thumb.
           return <LeadPeek vm={p.peek} mode={p.peekMode} armed={p.armed} draft={p.draft} busy={p.bulkBusy} deck={phone ? p.deck : null} phone={phone} {...acts} />;
         })()}
