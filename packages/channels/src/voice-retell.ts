@@ -282,13 +282,16 @@ export type RetellCallRead =
   | { kind: "unavailable"; status: number | null; retryAfterMs: number | null }
   | { kind: "auth"; status: number };
 
-/** Retry-After as the provider spells it: seconds, or an HTTP-date. Null when absent or unreadable. */
+/**
+ * Retry-After as the provider spells it: seconds, or an HTTP-date. Null when
+ * absent, unreadable, or no wait at all — a zero, or a date already past,
+ * which RFC 9110 reads as "retry now" and a caller must not hold a tick for.
+ */
 function retryAfterMs(header: string | null): number | null {
   if (!header) return null;
   const h = header.trim();
-  if (/^\d+$/.test(h)) return Number(h) * 1000;
-  const at = Date.parse(h);
-  return Number.isFinite(at) ? Math.max(0, at - Date.now()) : null;
+  const ms = /^\d+$/.test(h) ? Number(h) * 1000 : Date.parse(h) - Date.now();
+  return Number.isFinite(ms) && ms > 0 ? ms : null;
 }
 
 /**

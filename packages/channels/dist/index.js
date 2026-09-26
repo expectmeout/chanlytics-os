@@ -2933,9 +2933,8 @@ var RETELL_READ_TIMEOUT_MS = 1e4;
 function retryAfterMs(header) {
   if (!header) return null;
   const h = header.trim();
-  if (/^\d+$/.test(h)) return Number(h) * 1e3;
-  const at = Date.parse(h);
-  return Number.isFinite(at) ? Math.max(0, at - Date.now()) : null;
+  const ms = /^\d+$/.test(h) ? Number(h) * 1e3 : Date.parse(h) - Date.now();
+  return Number.isFinite(ms) && ms > 0 ? ms : null;
 }
 async function getCall(cfg, callId, opts = {}) {
   let r2;

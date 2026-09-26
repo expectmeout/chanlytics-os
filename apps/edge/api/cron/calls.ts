@@ -249,9 +249,20 @@ export async function POST(request: Request): Promise<Response> {
     const read = await getCall({ apiKey }, row.retell_call_id);
     if (read.kind === "unavailable" || read.kind === "auth") {
       // The provider could not answer: not a try against this recording,
-      // which is still at the provider. The row waits, its count untouched.
+      // which is still at the provider. The row keeps its count. Under a
+      // provider-wide hold it is left untouched; an answered 5xx may be this
+      // one call's for ever, so the row is written as it is -- which alone
+      // moves its updated_at (00007's trigger) and sends it to the back of
+      // the queue, where untouched it stood first every tick and starved the
+      // rest.
       noteProvider(provider, read);
       recordings.deferred++;
+      if (!provider.hold && read.status !== null)
+        await setCallRecording(db, row.tenant_id, row.id, {
+          fetch_state: "pending",
+          attempts: rec.attempts ?? 0,
+          error: `provider_${read.status}`,
+        });
       continue;
     }
     const url = read.kind === "found" ? (read.call.recording_url ?? null) : null;
