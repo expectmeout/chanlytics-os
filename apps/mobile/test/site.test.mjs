@@ -7,7 +7,8 @@ import assert from "node:assert/strict";
 import { inAppFrom } from "../../../packages/contracts/src/chrome.ts";
 
 process.env.EXPO_PUBLIC_SITE_ORIGIN = "https://app.example.com/";
-const { userAgentToken, hrefFor, isOurs, isSignedOutUrl, LOGIN_HREF, SITE_ORIGIN } = await import("../src/site.ts");
+const { userAgentToken, hrefFor, isOurs, isSignedOutUrl, LOGIN_HREF, SITE_ORIGIN, DEFAULT_SITE_ORIGIN } =
+  await import("../src/site.ts");
 
 test("the User-Agent token round-trips through the site's regex", () => {
   const ua = `Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 ${userAgentToken("1.4.0", "ios")}`;
@@ -21,6 +22,11 @@ test("a workspace page's address, the home when no workspace is known, the origi
   assert.equal(hrefFor("a b", "today"), "https://app.example.com/w/a%20b#/today");
   assert.equal(hrefFor(null, "today"), "https://app.example.com/");
   assert.equal(LOGIN_HREF, "https://app.example.com/login");
+});
+
+test("the default is the product's own address, without a trailing slash", () => {
+  assert.equal(DEFAULT_SITE_ORIGIN, "https://app.chanlytics.com");
+  assert.equal("https://x.example.com/".replace(/\/+$/, ""), "https://x.example.com");
 });
 
 test("ours, and signed out, are read from the address", () => {

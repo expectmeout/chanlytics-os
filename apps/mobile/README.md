@@ -16,8 +16,8 @@ corepack pnpm exec eas build --profile development --platform android          #
 corepack pnpm start                                      # the dev client loop, once one is installed
 ```
 
-`EXPO_PUBLIC_SITE_ORIGIN` names the site the shell holds; it is set per EAS environment (`eas env:set`) and, for a
-local start, in `.env.local`. Unset, the shell holds nothing and claims no domain.
+`EXPO_PUBLIC_SITE_ORIGIN` names the site the shell holds. Unset, it is the product's own address (`src/site.ts`); an
+EAS environment or a local `.env.local` may point it elsewhere, at a preview for instance.
 
 ## What is where
 

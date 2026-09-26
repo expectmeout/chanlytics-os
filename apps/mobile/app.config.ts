@@ -3,11 +3,10 @@ import type { ConfigContext, ExpoConfig } from "expo/config";
 /**
  * The phone app's configuration (the PRD, M1 and M11). Everything a store needs to know that is not code.
  *
- * The site the shell holds is EXPO_PUBLIC_SITE_ORIGIN, set per EAS environment and never written here: the app links
- * (universal links on iOS, app links on Android) are derived from its host and left out while it is unset, so a
- * build with no origin claims no domain. The identifiers are the product's, once, in one place.
+ * The site the shell holds is EXPO_PUBLIC_SITE_ORIGIN when an EAS environment sets one, else the product's own address;
+ * the app links (universal links on iOS, app links on Android) are derived from its host. The identifiers are the product's, once, in one place.
  */
-const ORIGIN = process.env.EXPO_PUBLIC_SITE_ORIGIN ?? "";
+const ORIGIN = process.env.EXPO_PUBLIC_SITE_ORIGIN || "https://app.chanlytics.com"; // src/site.ts DEFAULT_SITE_ORIGIN
 const HOST = ORIGIN ? new URL(ORIGIN).host : "";
 const ID = "com.chanlytics.app";
 /** The EAS project (expo.dev, chanlyticss-team / chanlytics): what builds, updates and push tokens are filed under. */

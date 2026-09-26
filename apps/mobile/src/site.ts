@@ -2,11 +2,13 @@
  * The site the shell holds, and how the shell names itself to it.
  *
  * EXPO_PUBLIC_SITE_ORIGIN is inlined at bundle time by a static read (the only way Expo inlines an EXPO_PUBLIC_
- * variable), so it is read here once and nowhere else. The User-Agent token is what contracts' inAppFrom parses
+ * variable), so it is read here once and nowhere else; unset, the shell holds the product's own address. The User-Agent token is what contracts' inAppFrom parses
  * ("ChanlyticsApp/1.2.0 (ios)"); the two are held to each other by test/site.test.mjs. A workspace page's address is
  * legacy-bridge/workspace.ts's: /w/<slug>, with the hash route after it.
  */
-export const SITE_ORIGIN = (process.env.EXPO_PUBLIC_SITE_ORIGIN ?? "").replace(/\/+$/, "");
+/** The product's one address, as the e2e suite and the env examples name it; an EAS environment may point elsewhere. */
+export const DEFAULT_SITE_ORIGIN = "https://app.chanlytics.com";
+export const SITE_ORIGIN = (process.env.EXPO_PUBLIC_SITE_ORIGIN || DEFAULT_SITE_ORIGIN).replace(/\/+$/, "");
 
 export type Platform = "ios" | "android";
 
