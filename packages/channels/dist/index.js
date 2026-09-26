@@ -3539,6 +3539,7 @@ function planVoiceProvision(st) {
 }
 
 // src/lines.ts
+import { randomInt } from "crypto";
 var RETELL_ORIGINATION = "sip:sip.retellai.com";
 var LINE_COSTS = {
   local_number_month_usd: 1.15,
@@ -3563,13 +3564,14 @@ function sipUsername(lineId) {
 var LOWER = "abcdefghijkmnpqrstuvwxyz";
 var UPPER = "ABCDEFGHJKLMNPQRSTUVWXYZ";
 var DIGIT = "23456789";
-function sipPassword(random = Math.random) {
-  const pick = (s) => s[Math.floor(random() * s.length)];
+function sipPassword(random) {
+  const below = random ? (n) => Math.floor(random() * n) : (n) => randomInt(n);
+  const pick = (s) => s[below(s.length)];
   const all = LOWER + UPPER + DIGIT;
   const chars = [pick(LOWER), pick(UPPER), pick(DIGIT)];
   while (chars.length < 24) chars.push(pick(all));
   for (let i = chars.length - 1; i > 0; i--) {
-    const j = Math.floor(random() * (i + 1));
+    const j = below(i + 1);
     [chars[i], chars[j]] = [chars[j], chars[i]];
   }
   return chars.join("");

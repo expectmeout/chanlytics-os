@@ -67,6 +67,7 @@ export interface LinePorts {
   master: ProviderAccount;
   tenant: { id: string; name: string };
   now: () => string;
+  /** A source for the SIP password a test can pin; absent, as the edge wires it, the password comes from node:crypto. */
   random?: () => number;
   store: {
     /** Persist a patch of the row; the saga keeps its own copy current. */

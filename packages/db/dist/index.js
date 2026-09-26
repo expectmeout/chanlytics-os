@@ -3672,6 +3672,41 @@ function describeLead(lead, now = /* @__PURE__ */ new Date(), tz = "UTC") {
   return bits.join(" ");
 }
 
+// src/repositories/idempotency.ts
+var HOLD_COLUMNS = "response, created_at, request_hash";
+async function claimIdempotencyKey(db, p) {
+  const claimed = await db.from("idempotency_keys").upsert(
+    {
+      tenant_id: p.tenantId,
+      key: p.key,
+      route: p.route,
+      request_hash: p.requestHash,
+      response: null,
+      created_at: p.nowIso
+    },
+    { onConflict: "tenant_id,key", ignoreDuplicates: true }
+  ).select("key");
+  if (claimed.error) throw new Error(`idempotency claim: ${claimed.error.message}`);
+  if ((claimed.data ?? []).length > 0) return { won: true };
+  const held = await db.from("idempotency_keys").select(HOLD_COLUMNS).eq("tenant_id", p.tenantId).eq("key", p.key).maybeSingle();
+  if (held.error) throw new Error(`idempotency lookup: ${held.error.message}`);
+  return { won: false, held: held.data };
+}
+async function takeIdempotencyKey(db, p) {
+  const taken = await db.from("idempotency_keys").update({ request_hash: p.requestHash, response: null, created_at: p.nowIso }).eq("tenant_id", p.tenantId).eq("key", p.key).eq("created_at", p.from).select("key");
+  if (taken.error) throw new Error(`idempotency take: ${taken.error.message}`);
+  return (taken.data ?? []).length > 0;
+}
+async function releaseIdempotencyKey(db, p) {
+  const released = await db.from("idempotency_keys").delete().eq("tenant_id", p.tenantId).eq("key", p.key).eq("created_at", p.nowIso);
+  if (released.error) throw new Error(`idempotency release: ${released.error.message}`);
+}
+async function keepIdempotencyReceipt(db, p) {
+  const kept = await db.from("idempotency_keys").update({ request_hash: p.requestHash, response: p.response }).eq("tenant_id", p.tenantId).eq("key", p.key).eq("created_at", p.stamp).select("key");
+  if (kept.error) throw new Error(`idempotency receipt: ${kept.error.message}`);
+  return (kept.data ?? []).length > 0;
+}
+
 // src/repositories/control.ts
 var CALL_CONTROL_S = 15 * 60;
 async function claimControl(db, p) {
@@ -4097,6 +4132,7 @@ export {
   assembleHistory,
   claimCallNotification,
   claimControl,
+  claimIdempotencyKey,
   claimSends,
   closedRunSends,
   coldReceiptsOwed,
@@ -4124,6 +4160,7 @@ export {
   ingestInbound,
   ingestInboundEmail,
   insertQueuedEmail,
+  keepIdempotencyReceipt,
   lastInboundEmail,
   leadAddressBounced,
   leadSlotsOf,
@@ -4164,6 +4201,7 @@ export {
   recordProviderDomain,
   recordStatusByExternalId,
   releaseControl,
+  releaseIdempotencyKey,
   renameList,
   reputationHoldsSince,
   reserveSendingDomain,
@@ -4194,6 +4232,7 @@ export {
   stuckClaims,
   subscribeMessagesInserts,
   suppressEmailOf,
+  takeIdempotencyKey,
   templatesFor,
   touchIndex,
   touchSendingDomain,

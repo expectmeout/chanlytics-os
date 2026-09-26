@@ -19082,6 +19082,7 @@ var PERSON_CONTROL_MAX_S = 24 * 60 * 60;
 var MAX_SNOOZE_MS = 30 * 24 * 3600 * 1e3;
 var SEND_GRACE_MS = 15 * 1e3;
 var IDEMPOTENCY_WINDOW_MS = 30 * 1e3;
+var HOLD_EXPIRY_MS = 120 * 1e3;
 async function sendQueued(ports, cmd) {
   const p = cmd.payload;
   let msg;

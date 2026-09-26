@@ -473,6 +473,54 @@ test("the SIP credential meets Twilio's rule; the trunk domain and username come
   assert.deepEqual(body.inbound_agents, [{ agent_id: "a", weight: 1 }], "unpublished: no pin");
 });
 
+/**
+ * Math.random, made to throw for the length of `fn` -- awaited, so a saga's every step runs without it: a secret drawn
+ * from it is a test failure, not a password.
+ */
+async function withoutMathRandom(fn) {
+  const real = Math.random;
+  Math.random = () => {
+    throw new Error("Math.random is not a source of secrets");
+  };
+  try {
+    return await fn();
+  } finally {
+    Math.random = real;
+  }
+}
+/** Twilio's alphabet as the generator draws it: letters and digits, none that read as another (no l, o, I, O, 0, 1). */
+const SIP_ALPHABET = /^[a-kmnp-zA-HJ-NP-Z2-9]{24}$/;
+
+test("the SIP password is drawn from node:crypto, never Math.random: 24 characters of the unambiguous alphabet, Twilio's rule met, a fresh one each time; the seeded seam still pins one", async () => {
+  const seen = new Set();
+  await withoutMathRandom(() => {
+    for (let i = 0; i < 50; i++) {
+      const p = sipPassword();
+      assert.match(p, SIP_ALPHABET, p);
+      assert.ok(isValidSipPassword(p), p);
+      seen.add(p);
+    }
+  });
+  assert.equal(seen.size, 50, "no two alike");
+  assert.equal(
+    sipPassword(seeded(1)),
+    sipPassword(seeded(1)),
+    "an injected source is used instead, and pins the password",
+  );
+  assert.match(sipPassword(seeded(1)), SIP_ALPHABET);
+});
+
+test("the saga given no random source takes the secure default: the vault holds a Twilio-valid password while Math.random throws", async () => {
+  // The edge wires no `random` (lib/lines/provision.ts builds the ports without one), so this is production's path.
+  const f = fakes({ random: undefined });
+  const r = await withoutMathRandom(() => runLineSaga(freshLine(), f.ports));
+  assert.equal(r.ok, true, r.ok ? "" : `${r.step}: ${r.error}`);
+  const s = f.secrets();
+  assert.match(s.sip_password, SIP_ALPHABET, "the vault's password, from the default source");
+  assert.ok(isValidSipPassword(s.sip_password));
+  assert.equal(s.sip_username, sipUsername(LINE_ID));
+});
+
 test("wiring: the saga's ports, the receptionist shared with voice-provision, the migration, the manifest, the events", () => {
   // The edge endpoint itself -- the knock, every op, the spend rule, one line
   // per workspace, and that it schedules the saga rather than running it -- is
