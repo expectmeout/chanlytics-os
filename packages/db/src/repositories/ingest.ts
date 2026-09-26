@@ -5,7 +5,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { EventKind } from "@chanlytics/contracts";
-import { normalizePhone, type PurposeBearing } from "@chanlytics/contracts";
+import { CARRIER_CONSENT_SOURCE, normalizePhone, type PurposeBearing } from "@chanlytics/contracts";
 import type { Database, Json } from "../database.types";
 
 type Db = SupabaseClient<Database>;
@@ -112,6 +112,44 @@ export async function ingestInbound(db: Db, p: IngestInboundParams): Promise<Ing
     }
   }
   return out;
+}
+
+/**
+ * A no the carrier reported instead of relaying: a text refused with Twilio
+ * 21610, the person having replied STOP to the number before we heard (the
+ * STOP went to the carrier, or came before the line's webhook pointed here).
+ * The number is unreachable whatever our row says (contracts enums.ts, the
+ * carriers' words), so the row is brought to agree with the carrier THE WAY
+ * ingest_inbound records a STOP it did hear: the three consent columns
+ * together, dnc with them, and one contact.consent_changed row -- the carrier
+ * as its source, since there is no message of theirs to name. A person
+ * already opted out is left as they are, with no second ledger row: the
+ * update is guarded and counted, and the event written only for a row that
+ * changed. A write that fails THROWS, as ingestInbound's does: the door
+ * reports the send as it reports any wire it could not write, rather than a
+ * no going unrecorded under a refusal that says it was.
+ */
+export async function recordCarrierOptOut(
+  db: Db,
+  p: { tenantId: string; contactId: string; channel: "sms"; previous: string | null },
+): Promise<boolean> {
+  const { data, error } = await db
+    .from("contacts")
+    .update({
+      consent: "opted_out",
+      dnc: true,
+      consent_source: CARRIER_CONSENT_SOURCE,
+      consent_updated_at: new Date().toISOString(),
+    })
+    .eq("id", p.contactId)
+    .eq("tenant_id", p.tenantId)
+    .neq("consent", "opted_out")
+    .select("id");
+  if (error) throw new Error(`recording the carrier's opt-out for contact ${p.contactId}: ${error.message}`);
+  if (!data || data.length === 0) return false;
+  const change = { consent: "opted_out", previous: p.previous, source: CARRIER_CONSENT_SOURCE, channel: p.channel };
+  await emitEvent(db, p.tenantId, "contact.consent_changed", "contact", "contact", p.contactId, change);
+  return true;
 }
 
 /** Stamp a message handled (replied / deliberately skipped) — retry no-ops after this.

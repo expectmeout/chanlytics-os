@@ -30,11 +30,15 @@ const thread = await import(at("apps/dashboard/app/api/v1/ask/threads/[id]/route
 const metrics = await import(at("apps/dashboard/app/api/v1/metrics/route.ts"));
 const reports = await import(at("apps/dashboard/app/api/v1/reports/route.ts"));
 const campaigns = await import(at("apps/dashboard/app/api/v1/reports/campaigns/route.ts"));
-const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
+const { readerCache, readerContext } = await import(at("apps/dashboard/src/server/readers/index.ts"));
+const warm = await import(at("apps/dashboard/app/api/v1/ask/warm/route.ts"));
+const { buildContext, clearContextCache } = await import(at("apps/dashboard/src/server/ask/context.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));
 // The workspace's facts are kept across turns in the module: each test starts with none kept.
 beforeEach(() => readerCache.clear());
+// And the page contexts the warm keeps for a minute.
+beforeEach(() => clearContextCache());
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -100,10 +104,17 @@ const turn = (id, thread_id, tenant_id, role, content) => ({
   created_at: "2026-09-10T00:00:01Z",
 });
 
-test("the nine declare their policy: a question every member's and counted, the aggregates counted with their query declared, a person's own threads and cards on the account", () => {
+test("the ten declare their policy: a question every member's and counted, the warm every member's and counted with the aggregates, the aggregates counted with their query declared, a person's own threads and cards on the account", () => {
   const open = { kind: "read", scope: "workspace", role: null, rate: null, spend: false };
   const own = { scope: "account", role: null, rate: null, spend: false };
   assert.deepEqual(ask.POST.policy, { kind: "write", scope: "workspace", role: "viewer", rate: "ask", spend: false });
+  assert.deepEqual(warm.POST.policy, {
+    kind: "write",
+    scope: "workspace",
+    role: "viewer",
+    rate: "aggregate",
+    spend: false,
+  });
   assert.deepEqual(proposals.POST.policy, { kind: "write", ...own });
   assert.deepEqual(openings.GET.policy, { ...open, rate: "aggregate" });
   assert.deepEqual(threads.GET.policy, open);
@@ -401,6 +412,90 @@ test("the openings and the threads answer the workspace the tab named; one threa
     "not_found",
     404,
     "not yours or is already gone",
+  );
+});
+
+test("the warm (D6): a viewer may warm; it answers the build's stamp and nothing it read, and fills the minute's cache, so the question's build right after reads nothing; a context that is not one is a 400 in words, and nothing is read for it", async () => {
+  const C1 = "cccccccc-cccc-4ccc-8ccc-ccccccccccc1";
+  const tables = {
+    memberships: both("viewer", "viewer"),
+    tenants: [{ id: A, name: "Harbor", timezone: "America/New_York" }],
+    conversations: [
+      {
+        id: C1,
+        tenant_id: A,
+        contact_id: null,
+        state: "open",
+        paused_until: null,
+        snooze_until: null,
+        assignee_user_id: null,
+        last_wa_inbound_at: null,
+        last_message_at: "2026-09-10T00:00:00Z",
+        contacts: {
+          id: "k1",
+          display_name: "Rosa",
+          wa_profile_name: null,
+          phone_e164: null,
+          consent: "opted_in",
+          dnc: false,
+        },
+      },
+    ],
+    messages: [],
+    escalations: [],
+  };
+  const context = {
+    v: 1,
+    surface: "inbox",
+    route: "inbox",
+    view: "all",
+    focus: null,
+    rows: [{ kind: "thread", id: C1 }],
+    askedAt: 1,
+  };
+  const before = Date.now();
+  const warmed = ctxFor(tables);
+  const out = await warm.POST.run(send("POST", context, inA), warmed);
+  assert.deepEqual(Object.keys(out), ["stamp"], "the stamp, and nothing of what was read");
+  assert.ok(out.stamp >= before && out.stamp <= Date.now());
+  assert.ok(
+    warmed.supabase.seen.some((q) => q.table === "conversations"),
+    "the warm read the page",
+  );
+  // The question, a moment later, as the turn builds it: the same person, the same page, another request.
+  const asked = ctxFor(tables);
+  const built = await buildContext(readerContext(asked, { tenantId: A, role: "viewer" }, undefined, { keep: true }), {
+    ...context,
+    askedAt: 2,
+    focus: { kind: "thread", id: C1, label: "Rosa" },
+  });
+  assert.equal(built.warm, "hit");
+  assert.equal(built.stamp, out.stamp);
+  assert.deepEqual(asked.supabase.seen, [], "the turn's build read nothing: the warm had");
+  assert.deepEqual(
+    built.blocks.map((b) => b.source),
+    ["page://inbox", `thread://${C1}`],
+  );
+
+  const bad = ctxFor(tables);
+  await refused(
+    warm.POST.run(send("POST", { ...context, rows: [{ kind: "lead" }] }, inA), bad),
+    "validation",
+    400,
+    "rows",
+  );
+  await refused(
+    warm.POST.run(send("POST", { ...context, surface: "nowhere" }, inA), bad),
+    "validation",
+    400,
+    "surface",
+  );
+  await refused(warm.POST.run(send("POST", { ...context, extra: 1 }, inA), bad), "validation", 400);
+  await refused(warm.POST.run(send("POST", undefined, inA), bad), "validation", 400);
+  assert.equal(
+    bad.supabase.seen.filter((q) => q.table !== "memberships").length,
+    0,
+    "a refused context reads nothing of the workspace",
   );
 });
 
