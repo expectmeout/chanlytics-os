@@ -234,11 +234,6 @@
     "branches": 49,
     "depth": 3
   },
-  "apps/dashboard/src/legacy-bridge/today-sample.ts::build#1": {
-    "lines": 961,
-    "branches": 51,
-    "depth": 3
-  },
   "apps/dashboard/src/legacy/components/campaign-bits.jsx::CmPicker#1": {
     "lines": 234,
     "branches": 125,

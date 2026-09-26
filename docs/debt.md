@@ -49,8 +49,8 @@ fails when this block and the baselines disagree.
 <!-- measured:start -->
 
 ```text
-functions over the limit            280   of which over 200 lines: 71
-files over 800 lines                 38
+functions over the limit            279   of which over 200 lines: 70
+files over 800 lines                 37
 directories over 20 modules           7
 window globals                      191   names
 window publishers                   374   sites in 139 files
