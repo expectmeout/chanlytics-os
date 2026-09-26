@@ -34,7 +34,8 @@ export interface ResendConfig {
 
 /** The provider's API, once: every call in this package goes to a path under it (resendRequest). */
 export const RESEND_API = "https://api.resend.com";
-const SEND_TIMEOUT_MS = 15_000;
+/** The longest one request to the provider waits: a send's try, a domain's read. The domains sweep's budget counts it. */
+export const SEND_TIMEOUT_MS = 15_000;
 /**
  * The most one send may take, both tries and a short wait included: a worker's run is bounded (the jobs tick yields
  * at 45 s of 60), and Part 1 measured the worst case at 32 s.

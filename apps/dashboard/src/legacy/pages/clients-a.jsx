@@ -1626,7 +1626,7 @@ const PL_COLUMNS = [
 // 36px tall against the box's edge, the visit broken over two lines, three left edges in one card. The member's
 // desktop columns do not reach it: whatever they hid, the row says the state.
 // A row on a phone, the same for a person and a lead (the phone pass, D8): the face, the name and the state; one line
-// of detail; one line of facts. People's cell (plCardCell) and Leads' (ldCardCell, leads-scope.jsx) are drawn by this
+// of detail; one line of facts. People's cell (plCardCell) and Leads' (ldCardCell, leads-cells.jsx) are drawn by this
 // one function, so the two scopes' lists are one list to the eye, part for part. `face` is initials or a glyph, and a
 // picture over them (a lead's listing photo) that, failing to load, leaves the initials showing. The face is also the
 // row's checkbox (clients.css): a tap there selects, and a tap on the rest opens.
@@ -2362,7 +2362,7 @@ const usePlControls = ({ scope, cols, phoneCols, colCtx, people, sortFirst, rail
   const setExtraView = (patch) => { viewTouched.current = true; setExtraViewState((x) => ({ ...(x || {}), ...patch })); };
   // The columns drawn (every one this scope can show, those this member turned off marked for a desktop to hide).
   // Kept while nothing they are made of changed, so a memoised row sees the same list from one draw to the next.
-  // On a phone both scopes draw one cell a row, People's: plCardCell for a person, ldCardCell (leads-scope.jsx) for a
+  // On a phone both scopes draw one cell a row, People's: plCardCell for a person, ldCardCell (leads-cells.jsx) for a
   // lead, one plRowCard between them. Leads' cards of every column (#789) were a second look for the same list.
   const colKey = JSON.stringify(colCtx);
   const columns = React.useMemo(() => (phone ? phoneCols : plShownColumns(plDrawnColumns(cols, colChoices, colCtx), phone)), [cols, colChoices, colKey, phone]); // eslint-disable-line react-hooks/exhaustive-deps

@@ -13,7 +13,7 @@ const ldValuesPref = () => { try { return !!window.localStorage && window.localS
 // publishPeople builds a fresh array each time People lands, so the context is new then and the rows redraw -- on a
 // cold load of Leads the rows paint before the people, and a row that read the global would say Converted until a
 // sort or a search drew it again. `stageShown` is whether the Stage column is drawn: then it says each lead's state,
-// and the name's tag gives way (leads-scope.jsx ldBusinessCell), so a row says it once.
+// and the name's tag gives way (leads-cells.jsx ldBusinessCell), so a row says it once.
 const leadCellCtxFor = (acts, kept, values, mixedFits, hasCenter, canFind, peopleRows, stageShown = false) => {
   const k = kept.current;
   if (k && k.values === values && k.mixedFits === mixedFits && k.hasCenter === hasCenter && k.canFind === canFind && k.peopleRows === peopleRows && k.stageShown === stageShown) return k.ctx;
@@ -75,7 +75,7 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
   // dependency array can be checked against (an expression in one cannot).
   const leadList = leadView ? leadView.list : null;
   const hasCenter = leads.searches.some((s) => s.plan && s.plan.area && !!s.plan.area.center);
-  // The columns this scope draws with: the Leads scope's (LEAD_COLUMNS, leads-scope.jsx).
+  // The columns this scope draws with: the Leads scope's (LEAD_COLUMNS, leads-cells.jsx).
   const controls = usePlControls({ scope: "leads", cols: LEAD_COLUMNS, phoneCols: LEAD_PHONE_COLUMNS, colCtx: { hasCenter }, people, sortFirst: { by: "fit", dir: "asc" }, railRow: leadList });
   const { phone, searchOpen, setSearchOpen, bulkSheet, setBulkSheet, canExport, toastNode, plFlash, sel, setSel, toggleSel, allMatching, setAllMatching, clearSelection, sortBy, setSortBy, sortDir, setSortDir, onSort, colsOpen, setColsOpen, scrolledX, setScrolledX, columns, colOptions, pickColumn, colsButton, q, setQ, searchRef, scrollRef } = controls;
   // The phone's list picker: the rail, as a sheet.

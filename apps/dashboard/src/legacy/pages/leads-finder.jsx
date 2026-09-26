@@ -4,7 +4,7 @@
 // words are pickers (Task 9), and the strip that says what a round is doing
 // and how it ended (Task 10). A fresh Find is Ask's (spec F1, F2): nothing
 // here composes one. Hookless, as every part of People is: all of its state
-// lives in LeadsReal (clients-a.jsx), which closes the panel on Esc, and
+// lives in LeadsReal (leads-real.jsx), which closes the panel on Esc, and
 // arrives here as props.
 //
 // Nothing here names the vendor that runs a search: the owner sees Claude
@@ -403,7 +403,7 @@ const LeadPlanCard = ({ plan, view, facts, busy, refusal, baseVersion = 1, pick 
  * F2); nothing here composes one, so the row is drawn only under a question.
  *
  * stage: compose (answering only) | thinking | plan | starting. `answering` is
- * what the page hands it under a waiting search's question (clients-a.jsx
+ * what the page hands it under a waiting search's question (leads-real.jsx
  * answerOf), or null; it is the row's discriminator, so every caller says it.
  */
 const LeadPlanPanel = ({

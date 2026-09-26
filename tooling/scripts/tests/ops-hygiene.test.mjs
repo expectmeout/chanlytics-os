@@ -10,6 +10,8 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { ROOT, readRaw } from "./_source.mjs";
 import { LEASE_SECONDS, YIELD_AT_MS } from "../../../packages/jobs/src/ledger.ts";
+import { YIELD_AT_MS as DOMAINS_YIELD_AT_MS } from "../../../apps/edge/api/cron/domains.ts";
+import { SEND_TIMEOUT_MS } from "../../../packages/channels/src/email-resend.ts";
 import { EVENT_EVIDENCE_KINDS, RETENTION_DAYS } from "@chanlytics/contracts";
 
 test("the events purge drops the evidence kinds and only those, past the contract's days, on a minute no sweep uses", () => {
@@ -66,13 +68,16 @@ test("the nightly e2e job exists, runs against production, and is honest about w
   assert.ok(y.includes("permissions:\n  contents: read"));
 });
 
+/** The edge's time limits, from where Vercel reads them. */
+const FUNCTIONS = JSON.parse(readRaw("apps/edge/vercel.json")).functions;
+
 test("a claimed job's lease outlives the function that runs it", () => {
   // api/jobs/tick.ts claims a job and runs it inside one function. A lease
   // shorter than the function may live would let the next tick take the row
   // back while the first run is still inside the provider call, and a send run
   // twice is a text sent twice. The ceiling is read from where Vercel reads it,
   // so the two cannot drift apart without this going red.
-  const ceiling = JSON.parse(readRaw("apps/edge/vercel.json")).functions["api/jobs/tick.ts"]?.maxDuration;
+  const ceiling = FUNCTIONS["api/jobs/tick.ts"]?.maxDuration;
   assert.equal(typeof ceiling, "number", "api/jobs/tick.ts has an explicit ceiling in vercel.json");
   assert.ok(LEASE_SECONDS > ceiling, `a ${LEASE_SECONDS}s lease must outlive the ${ceiling}s ceiling`);
   assert.ok(YIELD_AT_MS < ceiling * 1000, "and a looping handler yields before the ceiling");
@@ -81,8 +86,9 @@ test("a claimed job's lease outlives the function that runs it", () => {
 test("an edge door's time limit is set in one place: vercel.json, never in the door too", () => {
   // Twelve doors once said their limit twice (an `export const config` and a vercel.json entry), eight only in the
   // door, six only in vercel.json: two places that agreed only by care (Reach out Part 2.5). vercel.json is the one
-  // the tests above already read. A door with no entry takes the platform's default, which is not written down here.
-  const functions = JSON.parse(readRaw("apps/edge/vercel.json")).functions;
+  // the tests above already read. A door with no entry takes the platform's default, which is not written down here,
+  // so a sweep or the job runner may not be one: each loops against a budget that is only safe under a known limit.
+  const functions = FUNCTIONS;
   const doors = execFileSync("git", ["ls-files", "apps/edge/api"], { cwd: ROOT, encoding: "utf8" })
     .split("\n")
     .filter((f) => f.endsWith(".ts"));
@@ -93,6 +99,21 @@ test("an edge door's time limit is set in one place: vercel.json, never in the d
     assert.ok(doors.includes(`apps/edge/${key}`), `vercel.json names ${key}, which is no door`);
     assert.ok(Number.isInteger(entry.maxDuration) && entry.maxDuration > 0, `${key}: a limit in seconds`);
   }
+  const looping = doors.filter((f) => /^apps\/edge\/api\/(cron|jobs)\//.test(f));
+  assert.ok(looping.length > 10, "the sweeps and the job runner are listed");
+  for (const f of looping)
+    assert.ok(functions[f.slice("apps/edge/".length)], `${f}: a sweep's limit is written in apps/edge/vercel.json`);
+});
+
+test("the domains sweep yields before its limit, with a provider read and the writes still to come", () => {
+  // Its last batch may start just before DOMAINS_YIELD_AT_MS and wait out one provider read (DNS is read beside it),
+  // then write. Past the limit the platform kills the function mid-write, and the tick is red for nothing it did.
+  const ceiling = FUNCTIONS["api/cron/domains.ts"].maxDuration * 1000;
+  const WRITES_MS = 3_000;
+  assert.ok(
+    DOMAINS_YIELD_AT_MS + SEND_TIMEOUT_MS + WRITES_MS <= ceiling,
+    `${DOMAINS_YIELD_AT_MS} + ${SEND_TIMEOUT_MS} + ${WRITES_MS} ms must fit in ${ceiling} ms`,
+  );
 });
 
 test("a log line on the message path carries a phone tail, never the number or the words", () => {

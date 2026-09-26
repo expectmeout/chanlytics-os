@@ -282,7 +282,11 @@ Reach out Part 3; these are the switches it needs, in order.
 2. **Its key, on the edge:** `RESEND_COLD_API_KEY`. Connections › Email then
    offers "Domains you send from", and the `domains` sweep reads them.
 3. **Its webhook.** In the cold account, point a webhook at
-   `https://<edge>/api/resend-webhook` for the email events, and set its
+   `https://<edge>/api/resend-webhook` for its sending events (`email.sent`,
+   `email.delivered`, `email.delivery_delayed`, `email.bounced`,
+   `email.complained`, `email.failed` and `email.suppressed`; not opens or
+   clicks, which nothing reads, nor `email.received`: replies come back to the
+   workspace's mailbox, on the platform account), and set its
    signing secret on the edge as `RESEND_COLD_WEBHOOK_SECRET`. The door takes
    either account's signature. Cold routes open only when the key and this
    secret are both set, so no cold email leaves while its receipts would be
@@ -300,13 +304,17 @@ Reach out Part 3; these are the switches it needs, in order.
    `email_unsubscribe_links_broken` when the page refuses it.
 5. **Redeploy both projects**, then check `GET /api/diag` on the edge:
    `env.emailDomain`, `env.resendWebhook`, `env.resendCold`,
-   `env.resendColdWebhook` and `env.unsubscribe` all `true`.
+   `env.resendColdWebhook` and `env.unsubscribe` all `true`. Cold routes also
+   need `env.resend` (the platform account's key) and the workspace's mailbox:
+   a cold email's replies come back to it.
 6. **The first domain.** Add it on Connections › Email, publish its records at
    the registrar, and press Check until it reads verified (the sweep reads it
    every ten minutes too).
 7. **The DKIM check, once, with Ruben's yes:** one real email from that domain
    to an inbox you own. Its headers show `dkim=pass`, with
-   `List-Unsubscribe` among the signed headers.
+   `List-Unsubscribe` and `List-Unsubscribe-Post` among the signed headers:
+   Gmail and Yahoo honour a one-click unsubscribe only when DKIM signs both
+   (RFC 8058 §4).
 
 **Rotating the unsubscribe secret.** A link already in someone's inbox must
 keep working for at least thirty days (CAN-SPAM). The dashboard first: move

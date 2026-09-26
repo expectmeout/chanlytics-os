@@ -13,7 +13,7 @@ const LD_MARKS = {
   cross: "M4.5 4.5l7 7M11.5 4.5l-7 7",
 };
 
-// `LeadShape` is `leads-scope.jsx`'s (Task 2), which draws the same five shapes for the same five email states and
+// `LeadShape` is `leads-cells.jsx`'s (Task 2), which draws the same five shapes for the same five email states and
 // is loaded before this file. It is read from `window` here and declared nowhere twice; `.ld-shape*` is one class
 // in one stylesheet.
 

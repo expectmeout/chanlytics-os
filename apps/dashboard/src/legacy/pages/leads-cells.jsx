@@ -2,18 +2,6 @@
 // Chanlytics -- People › Leads: a lead's cells, cards and row actions, and the columns the Leads table draws. Moved
 // whole from leads-scope.jsx (Reach out Part 2.5), which reads them from window.
 
-/* global React, Icon, MoreMenu, Confirm, EmptyState, FailedRead, PeopleRail, RailSection, RailRow, PeopleStanding, PeopleTable,
-   PeopleColumnsMenu, plSortKeys, plDrawnColumns, plColumnOptions, PL_NO_SEL, LeadPlanPanel, LeadStrip, LeadPeek,
-   LeadPeekActions, LeadNotFitWhy, LeadsFirstDay */
-// The Leads scope of People: the rail's lead rows and its kept searches, the standing line, the controls, the
-// table drawn with LEAD_COLUMNS, the bulk bar, and the three classes (Qualified · Needs review · Excluded).
-//
-// Hookless, every one of them: every piece of state here is LeadsReal's (clients-a.jsx), where its one keyboard
-// listener and the address can move it, and arrives as a prop; every act goes out through the courier the bridge
-// installed (legacy-bridge/leads.ts).
-//
-// Nothing here names the vendor: the owner sees Claude finding businesses, and where each fact came from.
-
 /* ------------------------------------------------------------------ the row */
 
 // The row's acts: Call and Copy on every row, on hover and on the keyboard's cursor; and the class's own three
@@ -82,7 +70,7 @@ const LeadRowActions = ({ l, onCall, onCopy, onCopyPhone, onLogCall, onKeep, onE
 //
 // **This is the one LeadShape in the release.** Task 12's peek draws the same component from `window` (its email
 // line is `<LeadShape state={vm.reach.email.state} />`) and declares no second one: `leads-peek.jsx` loads after
-// `leads-scope.jsx`, so a second declaration would silently take this one's place.
+// `leads-cells.jsx`, so a second declaration would silently take this one's place.
 const LD_SHAPE_CHECK = "M3.5 8.5l3 3 6-6.5";
 
 const LeadShape = ({ state, word, size = 13 }) => {
@@ -248,7 +236,7 @@ const ldStageSaysIt = (l) => l.state === "talking" || (l.state === "out" && l.cl
 // A converted lead whose person became a client (0004): the row reads People's row for them, and a deal won says
 // Client in the deal pill's own tone, in place of the lead's own tag. Nothing stored on the lead; a proposal still
 // out, or no deal, keeps the lead's word. People not read yet reads as no deal. The rows come through the cell
-// context (x.peopleRows, clients-a.jsx leadCellCtxFor), never the global: a memoised row is drawn again only when
+// context (x.peopleRows, leads-real.jsx leadCellCtxFor), never the global: a memoised row is drawn again only when
 // a prop changes, and on a cold load of Leads the people land after the rows were drawn.
 const ldClientOf = (l, x) => {
   const rows = x && x.peopleRows;

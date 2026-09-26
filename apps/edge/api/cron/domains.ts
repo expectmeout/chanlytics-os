@@ -26,8 +26,11 @@ import { pageOperator } from "../../lib/ops/page-operator.js";
 const MAX_DUE = 500;
 /** How many are read at once: the provider allows ten requests a second per account. */
 const AT_ONCE = 5;
-/** No batch starts after this: one of five 15-second reads must still end inside the function's 60 seconds. */
-const YIELD_AT_MS = 40_000;
+/**
+ * No batch starts after this: its reads (the provider's, at most channels SEND_TIMEOUT_MS, beside DNS's) must still end
+ * inside the function's limit in vercel.json, with room for the writes (ops-hygiene.test.mjs holds the two apart).
+ */
+export const YIELD_AT_MS = 40_000;
 /**
  * The least a batch takes: five reads a second at most, so the sweep leaves most of the account's rate for the sends
  * that share it (Resend limits requests per team, not per key).
