@@ -204,26 +204,6 @@
     "branches": 31,
     "depth": 2
   },
-  "apps/dashboard/src/legacy-bridge/mascot/character.ts::createCharacter#1": {
-    "lines": 866,
-    "branches": 214,
-    "depth": 9
-  },
-  "apps/dashboard/src/legacy-bridge/mascot/character.ts::react#1": {
-    "lines": 12,
-    "branches": 9,
-    "depth": 6
-  },
-  "apps/dashboard/src/legacy-bridge/mascot/character.ts::tick#1": {
-    "lines": 176,
-    "branches": 57,
-    "depth": 4
-  },
-  "apps/dashboard/src/legacy-bridge/mascot/character.ts::waiting#1": {
-    "lines": 36,
-    "branches": 13,
-    "depth": 9
-  },
   "apps/dashboard/src/legacy-bridge/mascot/driver.ts::mountCharacter#1": {
     "lines": 218,
     "branches": 66,
