@@ -3118,6 +3118,64 @@ async function withdrawEmail(db, p) {
   if (error) throw new Error(`cannot withdraw the email: ${error.message}`);
   return (data ?? []).length > 0;
 }
+async function dueDomains(db, at, limit, tenantId) {
+  const { data, error } = await db.rpc("reach_out_due_domains", {
+    p_at: at.toISOString(),
+    p_limit: limit,
+    ...tenantId ? { p_tenant_id: tenantId } : {}
+  });
+  if (error) throw new Error(`cannot read the domains with sends due: ${error.message}`);
+  return data ?? [];
+}
+async function monthSent(db, tenantId, at) {
+  const { data, error } = await db.rpc("reach_out_month_sent", {
+    p_tenant_id: tenantId,
+    p_at: at.toISOString()
+  });
+  if (error) throw new Error(`cannot count the month's cold emails: ${error.message}`);
+  if (typeof data !== "number") throw new Error("cannot count the month's cold emails: the database answered no count");
+  return data;
+}
+async function insertQueuedEmail(db, row) {
+  const { error } = await db.from("messages").insert(row);
+  if (!error) return "written";
+  if (error.code === "23505") return "exists";
+  throw new Error(`cannot write the email: ${error.message}`);
+}
+async function writtenEmail(db, p) {
+  const { data, error } = await db.from("messages").select("conversation_id, status, meta").eq("tenant_id", p.tenantId).eq("id", p.id).maybeSingle();
+  if (error) throw new Error(`cannot read the written email: ${error.message}`);
+  if (!data) return null;
+  const to = data.meta?.email?.request?.to;
+  return {
+    conversation_id: data.conversation_id,
+    status: data.status,
+    to: Array.isArray(to) && typeof to[0] === "string" ? to[0] : null
+  };
+}
+async function sendJobScheduled(db, p) {
+  const { data, error } = await db.from("jobs").select("id").eq("tenant_id", p.tenantId).eq("kind", "outbound_send").eq("payload->>message_id", p.messageId).limit(1);
+  if (error) throw new Error(`cannot read the email's job: ${error.message}`);
+  return (data ?? []).length > 0;
+}
+async function parentEmailOf(db, p) {
+  const { data: sends, error } = await db.from("reach_out_sends").select("message_id").eq("tenant_id", p.tenantId).eq("root_id", p.rootId).eq("lead_id", p.leadId).eq("playbook_id", p.stepId).eq("state", "sent").order("sent_at", { ascending: false }).limit(1);
+  if (error) throw new Error(`cannot read the step before's send: ${error.message}`);
+  const id = sends?.[0]?.message_id;
+  if (!id) return null;
+  const { data: m, error: me } = await db.from("messages").select("id, meta").eq("tenant_id", p.tenantId).eq("id", id).maybeSingle();
+  if (me) throw new Error(`cannot read the step before's email: ${me.message}`);
+  if (!m) return null;
+  const e = m.meta?.email ?? {};
+  const refs = e.request?.headers?.References;
+  const subject = typeof e.subject === "string" ? e.subject : e.request?.subject;
+  return {
+    messageId: m.id,
+    rfcMessageId: typeof e.message_id === "string" && e.message_id ? e.message_id : null,
+    references: typeof refs === "string" ? refs.split(/\s+/).filter(Boolean) : [],
+    subject: typeof subject === "string" ? subject : null
+  };
+}
 async function leadWritten(db, p) {
   const { data: lead, error } = await db.from("leads").select("stage, version, contacted_at").eq("tenant_id", p.tenantId).eq("id", p.leadId).maybeSingle();
   if (error) throw new Error(`cannot read the lead a send wrote to: ${error.message}`);
@@ -3855,6 +3913,7 @@ export {
   domainCapacityOf,
   domainHeldSince,
   dropFromList,
+  dueDomains,
   dueSendingDomains,
   emitEvent,
   everyoneIn,
@@ -3864,6 +3923,7 @@ export {
   ingestCall,
   ingestInbound,
   ingestInboundEmail,
+  insertQueuedEmail,
   lastInboundEmail,
   leadWritten,
   linkCallMessage,
@@ -3874,9 +3934,11 @@ export {
   mailboxFor,
   mailboxOfTenant,
   markProcessed,
+  monthSent,
   moveSend,
   notesForReceptionist,
   outreachFactsOf,
+  parentEmailOf,
   pauseConversation,
   peoplePage,
   personReplyMode,
@@ -3905,6 +3967,7 @@ export {
   resolveOutboundTarget,
   savedListFor,
   savedListsFor,
+  sendJobScheduled,
   sendingDomainByHost,
   sendingDomainCounts,
   sendingDomainOf,
@@ -3928,6 +3991,7 @@ export {
   touchesSince,
   watchedTables,
   withdrawEmail,
+  writtenEmail,
   writtenEmails,
   yesesSince
 };

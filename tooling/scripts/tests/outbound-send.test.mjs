@@ -383,3 +383,129 @@ test("no credentials is a refusal at the wire, said to the owner, never a send o
   assert.equal(db.tables.escalations.length, 1, "the thread is flagged for a person");
   assert.equal(alerts.length, 1, "and the owner is told");
 });
+
+test("a reach-out's email written after the receptionist's draft is no person speaking: the draft is not retired by it", async () => {
+  graph.length = 0;
+  const db = wrap(
+    tables({
+      messages: [
+        {
+          id: "m1",
+          tenant_id: T,
+          conversation_id: "c1",
+          status: "queued",
+          body: "We open at 9!",
+          sender: "ai",
+          channel: "whatsapp",
+          direction: "outbound",
+          created_at: WRITTEN,
+        },
+        // A cold email written into the same thread since, and refused at the door: its row says "human" all the same.
+        {
+          id: "m2",
+          tenant_id: T,
+          conversation_id: "c1",
+          status: "canceled",
+          body: "Saw your shop on the map.",
+          sender: "human",
+          channel: "email",
+          direction: "outbound",
+          created_at: "2026-09-10T10:00:20.000Z",
+          meta: { source: "reach_out" },
+        },
+      ],
+    }),
+  );
+  await dispatchJob(ctxFor(db).ctx, job({ body: "We open at 9!" }));
+  assert.equal(graph.length, 1, "the draft goes");
+  assert.equal(message(db).status, "sent");
+});
+
+test("a cold email's job asks the door about the lead its row was written for (meta.reach_out.lead_id), and no other", async () => {
+  const request = {
+    from: '"Sam at Harbor" <sam@getharbor.example>',
+    to: ["owner@fixture-movers.example"],
+    reply_to: ["r+abcdefghijklmnopqrstuvwx@mail.chanlytics.com"],
+    subject: "A quote for Fixture Movers",
+    text: "Hi",
+    html: "<p>Hi</p>",
+    headers: {
+      "List-Unsubscribe": "<https://app.chanlytics.com/u/token>",
+      "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+    },
+    tags: [],
+    idempotency_key: "m1",
+  };
+  const t = tables({
+    messages: [
+      {
+        id: "m1",
+        tenant_id: T,
+        conversation_id: "c1",
+        status: "queued",
+        body: "Hi",
+        sender: "human",
+        channel: "email",
+        direction: "outbound",
+        created_at: WRITTEN,
+        meta: { source: "reach_out", email: { request }, reach_out: { lead_id: "l-closed" } },
+      },
+    ],
+    conversations: [
+      {
+        id: "c1",
+        tenant_id: T,
+        paused_until: null,
+        contact_id: "k1",
+        contacts: {
+          consent: "unknown",
+          dnc: false,
+          marketing_consent: null,
+          email_marketing: "unknown",
+          erased_at: null,
+          erasing_since: null,
+          email: "owner@fixture-movers.example",
+          email_suppressed_at: null,
+        },
+        tenants: { status: "active" },
+      },
+    ],
+  });
+  const asked = [];
+  const db = fakeDb(
+    t,
+    {},
+    {
+      // The person's other lead is open; the one this email was written for closed since.
+      outreach_facts: (a) => {
+        asked.push(a);
+        return {
+          lead_stage: a.p_lead_id === "l-closed" ? "archived" : "ready",
+          suppressed: false,
+          wrote_back: false,
+          domain: { state: "verified", from_local: "sam", clean_since: "2026-08-01T00:00:00.000Z", sent_days: 0 },
+          sent_since: 0,
+        };
+      },
+    },
+  );
+  const sent = [];
+  const email = async (_to, p) => {
+    sent.push(p);
+    return { ok: true, wamid: "re_1", status: 200 };
+  };
+  await dispatchJob(
+    ctxFor(db, { wire: { email } }).ctx,
+    job({
+      to_phone: undefined,
+      to_email: "owner@fixture-movers.example",
+      body: undefined,
+      purpose: "outreach",
+      proactive: true,
+    }),
+  );
+  assert.equal(asked.length, 1);
+  assert.equal(asked[0].p_lead_id, "l-closed", "the row's own lead");
+  assert.equal(sent.length, 0, "nothing reaches the wire");
+  assert.deepEqual([t.messages[0].status, t.messages[0].error], ["canceled", { reason: "outreach_lead_closed" }]);
+});

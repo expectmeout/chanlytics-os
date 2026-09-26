@@ -258,6 +258,134 @@ export async function withdrawEmail(db: Db, p: { tenantId: string; id: string; r
   return (data ?? []).length > 0;
 }
 
+/* ------------------------------------------------------------ the sender -- */
+
+/** A verified domain with a send due, and its workspace. */
+export interface DueDomain {
+  id: string;
+  tenant_id: string;
+}
+
+/** The domains with sends due in runs that go ahead on running chains, longest waiting first (00187). */
+export async function dueDomains(db: Db, at: Date, limit: number, tenantId?: string): Promise<DueDomain[]> {
+  const { data, error } = await db.rpc("reach_out_due_domains", {
+    p_at: at.toISOString(),
+    p_limit: limit,
+    ...(tenantId ? { p_tenant_id: tenantId } : {}),
+  } as never);
+  if (error) throw new Error(`cannot read the domains with sends due: ${error.message}`);
+  return (data ?? []) as DueDomain[];
+}
+
+/** The cold emails a workspace wrote this calendar month, in its zone, that left or may still leave (00187). */
+export async function monthSent(db: Db, tenantId: string, at: Date): Promise<number> {
+  const { data, error } = await db.rpc("reach_out_month_sent", {
+    p_tenant_id: tenantId,
+    p_at: at.toISOString(),
+  } as never);
+  if (error) throw new Error(`cannot count the month's cold emails: ${error.message}`);
+  if (typeof data !== "number") throw new Error("cannot count the month's cold emails: the database answered no count");
+  return data;
+}
+
+export type MessageInsert = Database["public"]["Tables"]["messages"]["Insert"];
+
+/**
+ * A reach-out's email, written queued under its own id (core sendMessageId) before its send leaves `claimed`.
+ * "exists" when that id is a row already: a writer that died after writing it, whose email this is.
+ */
+export async function insertQueuedEmail(db: Db, row: MessageInsert): Promise<"written" | "exists"> {
+  const { error } = await db.from("messages").insert(row);
+  if (!error) return "written";
+  if (error.code === "23505") return "exists";
+  throw new Error(`cannot write the email: ${error.message}`);
+}
+
+/** The email a writer wrote before, as it was frozen: its thread and the address its request names. */
+export async function writtenEmail(
+  db: Db,
+  p: { tenantId: string; id: string },
+): Promise<{ conversation_id: string; status: string; to: string | null } | null> {
+  const { data, error } = await db
+    .from("messages")
+    .select("conversation_id, status, meta")
+    .eq("tenant_id", p.tenantId)
+    .eq("id", p.id)
+    .maybeSingle();
+  if (error) throw new Error(`cannot read the written email: ${error.message}`);
+  if (!data) return null;
+  const to = (data.meta as { email?: { request?: { to?: unknown } } } | null)?.email?.request?.to;
+  return {
+    conversation_id: data.conversation_id,
+    status: data.status,
+    to: Array.isArray(to) && typeof to[0] === "string" ? to[0] : null,
+  };
+}
+
+/** Whether an outbound_send job was scheduled for this email: a writer that died after scheduling it. */
+export async function sendJobScheduled(db: Db, p: { tenantId: string; messageId: string }): Promise<boolean> {
+  const { data, error } = await db
+    .from("jobs")
+    .select("id")
+    .eq("tenant_id", p.tenantId)
+    .eq("kind", "outbound_send")
+    .eq("payload->>message_id", p.messageId)
+    .limit(1);
+  if (error) throw new Error(`cannot read the email's job: ${error.message}`);
+  return (data ?? []).length > 0;
+}
+
+/** The email a step's send answers (D19): the lead's email on the step before, as its receipt stamped it. */
+export interface ParentEmail {
+  messageId: string;
+  /** Its Message-ID, stamped by its receipt (00128); null until one arrives. */
+  rfcMessageId: string | null;
+  /** The chain it carried, oldest first. */
+  references: string[];
+  subject: string | null;
+}
+
+/** The lead's sent email on the step before this one in its chain; null when it has none. */
+export async function parentEmailOf(
+  db: Db,
+  p: { tenantId: string; rootId: string; leadId: string; stepId: string },
+): Promise<ParentEmail | null> {
+  const { data: sends, error } = await db
+    .from("reach_out_sends")
+    .select("message_id")
+    .eq("tenant_id", p.tenantId)
+    .eq("root_id", p.rootId)
+    .eq("lead_id", p.leadId)
+    .eq("playbook_id", p.stepId)
+    .eq("state", "sent")
+    .order("sent_at", { ascending: false })
+    .limit(1);
+  if (error) throw new Error(`cannot read the step before's send: ${error.message}`);
+  const id = sends?.[0]?.message_id;
+  if (!id) return null;
+  const { data: m, error: me } = await db
+    .from("messages")
+    .select("id, meta")
+    .eq("tenant_id", p.tenantId)
+    .eq("id", id)
+    .maybeSingle();
+  if (me) throw new Error(`cannot read the step before's email: ${me.message}`);
+  if (!m) return null;
+  const e = ((m.meta as { email?: Record<string, unknown> } | null)?.email ?? {}) as {
+    message_id?: unknown;
+    subject?: unknown;
+    request?: { subject?: unknown; headers?: Record<string, unknown> };
+  };
+  const refs = e.request?.headers?.References;
+  const subject = typeof e.subject === "string" ? e.subject : e.request?.subject;
+  return {
+    messageId: m.id,
+    rfcMessageId: typeof e.message_id === "string" && e.message_id ? e.message_id : null,
+    references: typeof refs === "string" ? refs.split(/\s+/).filter(Boolean) : [],
+    subject: typeof subject === "string" ? subject : null,
+  };
+}
+
 /**
  * A lead written to by a reach-out's email: still being written to (ready becomes nurture; a later stage is kept),
  * first contacted when its first email left, its last outcome "emailed", and its event. Written only as it was read

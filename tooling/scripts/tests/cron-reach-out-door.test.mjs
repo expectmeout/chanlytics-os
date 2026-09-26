@@ -2,12 +2,14 @@
  * The reach-out clock, run: POST /api/cron/reach-out over a database in memory (Reach out, Part 3). Each step, each
  * outcome: a queued send reads its email's fate once; a claim left mid-way is adopted or freed; a closed run's sends
  * are skipped; a stale one is planned again (and, after two weeks without room, given up); a run with nothing open
- * finishes. It claims nothing yet: that is the sender's (PR 6).
+ * finishes. Then the sender (PR 6): a due send is claimed and becomes one email and one job; the lane refuses without
+ * its secrets; the month's allowance holds; a refused person or request skips; a step's send answers its lead's email
+ * before; a claim left mid-way is written again as the same email.
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { fakeDb } from "./_fake-db.mjs";
-import { at, knock, answer, refusedAtTheDoor, vault } from "./_cron-doors-world.mjs";
+import { at, knock, answer, refusedAtTheDoor, vault, withEnv } from "./_cron-doors-world.mjs";
 
 const { setPg } = await import(at("apps/edge/lib/pg.ts"));
 const { POST } = await import(at("apps/edge/api/cron/reach-out.ts"));
@@ -20,6 +22,26 @@ const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const ROOT = "11111111-1111-4111-8111-111111111111";
 const RUN = "22222222-2222-4222-8222-222222222222";
 const DOM = "33333333-3333-4333-8333-333333333333";
+const TPL = "44444444-aaaa-4aaa-8aaa-444444444444";
+/** The cold lane, set: what the sender needs to write an email (sender.ts coldLane). Made-up values. */
+const LANE = {
+  RESEND_API_KEY: "platform-key-for-this-file",
+  RESEND_COLD_API_KEY: "cold-key-for-this-file",
+  RESEND_COLD_WEBHOOK_SECRET: "cold-webhook-for-this-file",
+  UNSUBSCRIBE_SECRET: "unsubscribe-seal-for-this-file",
+  EMAIL_DOMAIN: "mail.chanlytics.com",
+};
+/** The lane unset: every variable it reads, absent. The clock's steps run without it. */
+const NO_LANE = Object.fromEntries(Object.keys(LANE).map((k) => [k, undefined]));
+/** A profile the parser takes (contracts parseTenantConfig), with the address the foot names. */
+const CONFIG = (address = "100 Example St, Austin, TX 78701") => ({
+  brain: {
+    business_name: "Harbor Moving Co",
+    system_prompt: "You answer for Harbor Moving Co, a moving company in Austin, Texas.",
+    fallbacks: { greeting: "g", error: "e", non_text: "n" },
+    profile: { address },
+  },
+});
 const ago = (ms) => new Date(Date.now() - ms).toISOString();
 const ahead = (ms) => new Date(Date.now() + ms).toISOString();
 
@@ -112,12 +134,101 @@ function clockReads(t) {
   };
 }
 
-function world({ sends = [], messages = [], runs = null, playbooks = null, domains = null } = {}) {
-  const leadIds = sends.map((s) => s.lead_id);
+/**
+ * The sender's doors over the tables, as 00184 and 00187 make them (their SQL is proved on a stack,
+ * reach-out-sender.db.test.mjs): the domains with sends due, the month's count, the claim, and the person made once.
+ */
+function senderReads(t, { monthSent = 0 } = {}) {
+  const runOf = (s) => t.broadcasts.find((b) => b.id === s.broadcast_id);
+  const running = (id) => t.playbooks.some((p) => p.id === id && p.state === "running");
+  const due = (s, at) =>
+    s.state === "planned" &&
+    s.send_at <= at &&
+    ["scheduled", "sending"].includes(runOf(s)?.state) &&
+    running(s.playbook_id) &&
+    running(s.root_id);
+  return {
+    reach_out_due_domains: (a) =>
+      t.sending_domains
+        .filter((d) => d.state === "verified" && t.reach_out_sends.some((s) => s.domain_id === d.id && due(s, a.p_at)))
+        .slice(0, a.p_limit)
+        .map((d) => ({ id: d.id, tenant_id: d.tenant_id })),
+    reach_out_month_sent: () => monthSent,
+    reach_out_claim: (a) => {
+      const picked = t.reach_out_sends
+        .filter((s) => s.domain_id === a.p_domain_id && due(s, a.p_at))
+        .sort((x, y) => (x.send_at < y.send_at ? -1 : 1))
+        .slice(0, Math.min(a.p_limit, a.p_cap));
+      for (const s of picked) Object.assign(s, { state: "claimed", claimed_at: a.p_at });
+      return picked.map((s) => ({ ...s }));
+    },
+    reach_out_person: (a) => {
+      const lead = t.leads.find((l) => l.id === a.p_lead_id && l.tenant_id === a.p_tenant_id);
+      if (!lead) return { refused: "lead_gone" };
+      if (!["ready", "nurture"].includes(lead.stage)) return { refused: "lead_closed" };
+      const email = lead.email?.trim().toLowerCase();
+      if (!email) return { refused: "no_address" };
+      let made = false;
+      if (!lead.contact_id) {
+        if (t.contacts.some((c) => c.tenant_id === a.p_tenant_id && c.email === email))
+          return { refused: "already_yours" };
+        const id = crypto.randomUUID();
+        t.contacts.push({ id, tenant_id: a.p_tenant_id, email });
+        lead.contact_id = id;
+        made = true;
+      }
+      let thread = t.conversations.find((c) => c.tenant_id === a.p_tenant_id && c.contact_id === lead.contact_id);
+      if (!thread) {
+        thread = { id: crypto.randomUUID(), tenant_id: a.p_tenant_id, contact_id: lead.contact_id };
+        t.conversations.push(thread);
+      }
+      return { contact_id: lead.contact_id, conversation_id: thread.id, made };
+    },
+  };
+}
+
+function world({
+  sends = [],
+  messages = [],
+  runs = null,
+  playbooks = null,
+  domains = null,
+  leads = [],
+  contacts = [],
+  conversations = [],
+  jobs = [],
+  templates = null,
+  config = CONFIG(),
+  monthSent = 0,
+} = {}) {
+  const leadIds = [...new Set(sends.map((s) => s.lead_id))].filter((id) => !leads.some((l) => l.id === id));
   const tables = {
-    tenants: [{ id: T, timezone: "America/Chicago" }],
+    tenants: [{ id: T, name: "Harbor Moving Co", timezone: "America/Chicago" }],
+    tenant_config: [{ tenant_id: T, config }],
+    mailboxes: [{ id: "mb-1", tenant_id: T, local_part: "harbor", reply_token: "abcdefghijklmnopqrstuvwx" }],
+    templates: templates ?? [
+      {
+        id: TPL,
+        tenant_id: T,
+        channel: "email",
+        body_preview: null,
+        components: [
+          { type: "HEADER", format: "TEXT", text: "A quote for {{business}}" },
+          { type: "BODY", text: "Hi {{business}}, movers in {{city}} ask us for this." },
+        ],
+      },
+    ],
     playbooks: playbooks ?? [
-      { id: ROOT, tenant_id: T, kind: "reach_out", state: "running", gap_minutes: 12, domain_ids: [] },
+      {
+        id: ROOT,
+        tenant_id: T,
+        kind: "reach_out",
+        state: "running",
+        gap_minutes: 12,
+        domain_ids: [],
+        template_id: TPL,
+        after_playbook_id: null,
+      },
     ],
     broadcasts: runs ?? [
       {
@@ -131,16 +242,35 @@ function world({ sends = [], messages = [], runs = null, playbooks = null, domai
     ],
     reach_out_sends: sends,
     messages,
-    leads: leadIds.map((id) => ({
-      id,
-      tenant_id: T,
-      stage: "ready",
-      version: 1,
-      contacted_at: null,
-      region: "TX",
-      hours: [],
-    })),
-    sending_domains: domains ?? [{ id: DOM, tenant_id: T, state: "verified" }],
+    leads: [
+      ...leads,
+      ...leadIds.map((id) => ({
+        id,
+        tenant_id: T,
+        stage: "ready",
+        version: 1,
+        contacted_at: null,
+        region: "TX",
+        hours: [],
+        business_name: `Fixture Movers ${id}`,
+        city: "Austin",
+        email: `owner-${id}@fixture-movers.example`,
+        contact_id: null,
+      })),
+    ],
+    contacts,
+    conversations,
+    jobs,
+    sending_domains: domains ?? [
+      {
+        id: DOM,
+        tenant_id: T,
+        state: "verified",
+        host: "getharbor.example",
+        from_local: "sam",
+        from_name: "Sam at Harbor",
+      },
+    ],
     events: [],
   };
   const db = fakeDb(
@@ -148,6 +278,7 @@ function world({ sends = [], messages = [], runs = null, playbooks = null, domai
     {},
     {
       ...vault,
+      ...senderReads(tables, { monthSent }),
       sending_domain_capacity: () => ({
         state: "verified",
         clean_since: ago(20 * DAY),
@@ -158,10 +289,18 @@ function world({ sends = [], messages = [], runs = null, playbooks = null, domai
       }),
       ...clockReads(tables),
     },
+    { unique: ["messages"] },
   );
   setPg(db);
   const row = (id) => tables.reach_out_sends.find((s) => s.id === id);
-  return { tables, row, tick: async () => answer(await knock(POST, "reach-out")) };
+  return {
+    tables,
+    row,
+    /** One tick with the lane unset, as the clock's own steps are proved. */
+    tick: () => withEnv(NO_LANE, async () => answer(await knock(POST, "reach-out"))),
+    /** One tick with the lane set: the clock's steps, then the claim. */
+    send: (env = {}) => withEnv({ ...LANE, ...env }, async () => answer(await knock(POST, "reach-out"))),
+  };
 }
 
 test("the door: the wrong key is a 401, a key Vault cannot produce is a 503, no database is a 503", async () => {
@@ -438,4 +577,407 @@ test("a send whose step was removed has nothing to be planned by, and goes no fu
   const [status] = await w.tick();
   assert.equal(status, 200, "the clock carries on");
   assert.deepEqual([w.row(orphan.id).state, w.row(orphan.id).reason], ["skipped", "step_removed"]);
+});
+
+/* ------------------------------------------------------------- the sender -- */
+
+const STEP = "abababab-abab-4bab-8bab-abababababab";
+const STEP_RUN = "cdcdcdcd-cdcd-4dcd-8dcd-cdcdcdcdcdcd";
+const TPL2 = "efefefef-efef-4fef-8fef-efefefefefef";
+const jobsOf = (w) => w.tables.jobs.filter((j) => j.kind === "outbound_send");
+const emailOf = (w, id) => w.tables.messages.find((m) => m.id === id);
+
+test("the claim: a due send becomes one person, one queued email under its own id, one job, and a run that is sending", async () => {
+  const s = send();
+  const w = world({ sends: [s] });
+  const [status, body] = await w.send();
+  assert.equal(status, 200);
+  assert.deepEqual(body.claim, {
+    claimed: 1,
+    written: 1,
+    rewritten: 0,
+    skipped: 0,
+    waited: 0,
+    errors: 0,
+    month_spent: 0,
+  });
+  const id = await sendMessageId(s.id, 0);
+  const person = w.tables.contacts[0];
+  const thread = w.tables.conversations[0];
+  assert.deepEqual(
+    [w.row(s.id).state, w.row(s.id).message_id, w.row(s.id).contact_id],
+    ["queued", id, person.id],
+    "queued on its email, with the person made for it",
+  );
+  const m = emailOf(w, id);
+  assert.deepEqual(
+    [m.status, m.channel, m.direction, m.sender, m.type, m.conversation_id, m.contact_id],
+    ["queued", "email", "outbound", "human", "text", thread.id, person.id],
+  );
+  assert.equal(m.body, `Hi Fixture Movers ${s.lead_id}, movers in Austin ask us for this.`);
+  assert.equal(m.meta.source, "reach_out");
+  assert.equal(m.meta.email.subject, `A quote for Fixture Movers ${s.lead_id}`);
+  assert.deepEqual(m.meta.email.to, [person.email]);
+  assert.equal(m.meta.email.request.idempotency_key, id, "the request is frozen for this row");
+  assert.equal(m.meta.email.request.from, `"Sam at Harbor" <sam@getharbor.example>`);
+  assert.deepEqual(m.meta.reach_out, {
+    send_id: s.id,
+    lead_id: s.lead_id,
+    contact_id: person.id,
+    playbook_id: ROOT,
+    root_id: ROOT,
+    broadcast_id: RUN,
+    attempt: 0,
+  });
+  const jobs = jobsOf(w);
+  assert.equal(jobs.length, 1);
+  assert.deepEqual(jobs[0].payload, {
+    message_id: id,
+    conversation_id: thread.id,
+    to_email: person.email,
+    purpose: "outreach",
+    proactive: true,
+  });
+  assert.ok(Math.abs(Date.parse(jobs[0].due_at) - Date.now()) < MIN, "due now");
+  assert.equal(w.tables.broadcasts[0].state, "sending");
+  // The next tick finds its email still queued for its job: nothing more is written.
+  const [, again] = await w.send();
+  assert.equal(again.claim.claimed, 0);
+  assert.equal(w.tables.messages.length, 1);
+  assert.equal(jobsOf(w).length, 1);
+});
+
+test("the lane: without a secret nothing is claimed, and a send due says what is missing (503); nothing due is a 200", async () => {
+  const s = send();
+  const w = world({ sends: [s] });
+  const [status, body] = await w.send({ UNSUBSCRIBE_SECRET: undefined });
+  assert.deepEqual([status, body.error, body.missing], [503, "cold_lane_unset", ["UNSUBSCRIBE_SECRET"]]);
+  assert.equal(w.row(s.id).state, "planned", "nothing claimed");
+  assert.equal(w.tables.messages.length, 0);
+  const [, all] = await w.tick();
+  assert.deepEqual(all.missing, [
+    "RESEND_API_KEY",
+    "RESEND_COLD_API_KEY",
+    "RESEND_COLD_WEBHOOK_SECRET",
+    "UNSUBSCRIBE_SECRET",
+    "EMAIL_DOMAIN",
+  ]);
+  const idle = world({ sends: [send({ send_at: ahead(DAY) })] });
+  const [quiet, said] = await idle.send({ RESEND_COLD_API_KEY: undefined });
+  assert.equal(quiet, 200, "no send due: nothing to say yet");
+  assert.deepEqual(said.lane_missing, ["RESEND_COLD_API_KEY"]);
+});
+
+test("the month: a workspace at its allowance claims nothing; one with three left claims three at most", async () => {
+  const spent = world({ sends: [send()], monthSent: 2000 });
+  const [, body] = await spent.send();
+  assert.deepEqual([body.claim.claimed, body.claim.month_spent], [0, 1]);
+  assert.equal(spent.tables.reach_out_sends[0].state, "planned");
+
+  const five = [1, 2, 3, 4, 5].map((i) => send({ send_at: ago(i * MIN) }));
+  const three = world({ sends: five, monthSent: 1997 });
+  const [, b3] = await three.send();
+  assert.deepEqual([b3.claim.claimed, b3.claim.written], [3, 3]);
+  assert.equal(three.tables.reach_out_sends.filter((r) => r.state === "queued").length, 3);
+  assert.equal(three.tables.reach_out_sends.filter((r) => r.state === "planned").length, 2);
+});
+
+test("the person refused: a customer's address, or a lead closed since it was planned, skips the send with why", async () => {
+  const mine = send();
+  const closed = send();
+  const w = world({
+    sends: [mine, closed],
+    leads: [
+      {
+        id: mine.lead_id,
+        tenant_id: T,
+        stage: "ready",
+        version: 1,
+        business_name: "Fixture Movers",
+        city: "Austin",
+        email: "customer@fixture-movers.example",
+        contact_id: null,
+      },
+      {
+        id: closed.lead_id,
+        tenant_id: T,
+        stage: "archived",
+        version: 1,
+        business_name: "Closed Movers",
+        city: "Austin",
+        email: "closed@fixture-movers.example",
+        contact_id: null,
+      },
+    ],
+    contacts: [{ id: "k-customer", tenant_id: T, email: "customer@fixture-movers.example" }],
+  });
+  const [, body] = await w.send();
+  assert.deepEqual([w.row(mine.id).state, w.row(mine.id).reason], ["skipped", "already_yours"]);
+  assert.deepEqual([w.row(closed.id).state, w.row(closed.id).reason], ["skipped", "lead_closed"]);
+  assert.equal(w.tables.messages.length, 0, "no row is written into a customer's thread");
+  assert.equal(body.claim.skipped, 2);
+});
+
+test("the request refused: a slot with no value, or no address for the foot, skips the send with why", async () => {
+  const slot = world({
+    sends: [send()],
+    templates: [
+      {
+        id: TPL,
+        tenant_id: T,
+        channel: "email",
+        components: [
+          { type: "HEADER", text: "Hello" },
+          { type: "BODY", text: "Hi {{first name}}" },
+        ],
+      },
+    ],
+  });
+  await slot.send();
+  assert.deepEqual(
+    [slot.tables.reach_out_sends[0].state, slot.tables.reach_out_sends[0].reason],
+    ["skipped", "missing_value"],
+  );
+  const noAddress = world({ sends: [send()], config: CONFIG("") });
+  await noAddress.send();
+  assert.deepEqual(
+    [noAddress.tables.reach_out_sends[0].state, noAddress.tables.reach_out_sends[0].reason],
+    ["skipped", "no_business_address"],
+  );
+  assert.equal(slot.tables.messages.length + noAddress.tables.messages.length, 0);
+});
+
+/** A chain of two: the root's email to the lead left (sent), and the step's send is due in its own run. */
+async function stepWorld({ stamped = true, created = ago(DAY) } = {}) {
+  const lead = "lead-step";
+  const contact = "c0c0c0c0-c0c0-4c0c-8c0c-c0c0c0c0c0c0";
+  const first = send({
+    lead_id: lead,
+    state: "sent",
+    sent_at: ago(3 * DAY),
+    message_id: "m-first",
+    contact_id: contact,
+  });
+  const nudge = send({
+    lead_id: lead,
+    broadcast_id: STEP_RUN,
+    playbook_id: STEP,
+    root_id: ROOT,
+    contact_id: contact,
+    created_at: created,
+  });
+  const w = world({
+    sends: [first, nudge],
+    leads: [
+      {
+        id: lead,
+        tenant_id: T,
+        stage: "nurture",
+        version: 2,
+        business_name: "Fixture Movers",
+        city: "Austin",
+        email: "owner@fixture-movers.example",
+        contact_id: contact,
+      },
+    ],
+    contacts: [{ id: contact, tenant_id: T, email: "owner@fixture-movers.example" }],
+    conversations: [{ id: "c-thread", tenant_id: T, contact_id: contact }],
+    messages: [
+      email("m-first", "delivered", {
+        conversation_id: "c-thread",
+        meta: {
+          source: "reach_out",
+          email: {
+            subject: "A quote for Fixture Movers",
+            ...(stamped ? { message_id: "<first@getharbor.example>" } : {}),
+            request: { subject: "A quote for Fixture Movers", headers: {} },
+          },
+        },
+      }),
+    ],
+    playbooks: [
+      {
+        id: ROOT,
+        tenant_id: T,
+        kind: "reach_out",
+        state: "running",
+        gap_minutes: 12,
+        domain_ids: [],
+        template_id: TPL,
+        after_playbook_id: null,
+      },
+      {
+        id: STEP,
+        tenant_id: T,
+        kind: "reach_out",
+        state: "running",
+        gap_minutes: 12,
+        domain_ids: [],
+        template_id: TPL2,
+        after_playbook_id: ROOT,
+      },
+    ],
+    templates: [
+      {
+        id: TPL2,
+        tenant_id: T,
+        channel: "email",
+        components: [
+          { type: "HEADER", text: "A heading a step never uses" },
+          { type: "BODY", text: "Just following up, {{business}}." },
+        ],
+      },
+    ],
+    runs: [
+      {
+        id: RUN,
+        tenant_id: T,
+        state: "sent",
+        playbook_id: ROOT,
+        audience: { kind: "reach_out", root_id: ROOT },
+        updated_at: ago(3 * DAY),
+      },
+      {
+        id: STEP_RUN,
+        tenant_id: T,
+        state: "scheduled",
+        playbook_id: STEP,
+        audience: { kind: "reach_out", root_id: ROOT },
+        updated_at: ago(DAY),
+      },
+    ],
+  });
+  return { w, nudge };
+}
+
+test("a step's send answers its lead's email before (D19): Re: its subject, and its Message-ID in the thread's headers", async () => {
+  const { w, nudge } = await stepWorld();
+  const [, body] = await w.send();
+  assert.equal(body.claim.written, 1);
+  const m = emailOf(w, await sendMessageId(nudge.id, 0));
+  assert.equal(m.conversation_id, "c-thread", "on the lead's own thread");
+  assert.equal(m.meta.email.request.subject, "Re: A quote for Fixture Movers");
+  assert.equal(m.meta.email.request.headers["In-Reply-To"], "<first@getharbor.example>");
+  assert.equal(m.meta.email.request.headers.References, "<first@getharbor.example>");
+  assert.deepEqual([m.meta.email.parent_id, m.meta.email.in_reply_to], ["m-first", "<first@getharbor.example>"]);
+  assert.equal(m.body, "Just following up, Fixture Movers.");
+});
+
+test("a step's send waits an hour while the email before has no Message-ID; after two weeks it is given up", async () => {
+  const { w, nudge } = await stepWorld({ stamped: false });
+  const [, body] = await w.send();
+  const r = w.row(nudge.id);
+  assert.deepEqual([r.state, r.claimed_at], ["planned", null]);
+  assert.ok(Math.abs(Date.parse(r.send_at) - (Date.now() + 60 * MIN)) < MIN, "an hour on");
+  assert.equal(body.claim.waited, 1);
+  assert.equal(w.tables.messages.length, 1, "nothing written");
+
+  const old = await stepWorld({ stamped: false, created: ago(15 * DAY) });
+  await old.w.send();
+  assert.deepEqual([old.w.row(old.nudge.id).state, old.w.row(old.nudge.id).reason], ["skipped", "parent_unstamped"]);
+});
+
+test("a claim a tick left mid-way is written again five minutes on, as the same email; its job is scheduled once", async () => {
+  // Left before its email: written now, under the id its number names.
+  const bare = send({ state: "claimed", claimed_at: ago(6 * MIN), attempts: 2 });
+  // Left after its email and its job: its email is the one it wrote, and no second job.
+  const wrote = send({ state: "claimed", claimed_at: ago(6 * MIN) });
+  // Left after its email, before its job: the job, once.
+  const nojob = send({ state: "claimed", claimed_at: ago(6 * MIN) });
+  const young = send({ state: "claimed", claimed_at: ago(MIN) });
+  const [wroteId, nojobId] = [await sendMessageId(wrote.id, 0), await sendMessageId(nojob.id, 0)];
+  const w = world({
+    sends: [bare, wrote, nojob, young],
+    conversations: [{ id: "c-old", tenant_id: T, contact_id: "k-old" }],
+    messages: [
+      email(wroteId, "queued", {
+        conversation_id: "c-old",
+        meta: { email: { request: { to: ["was@fixture.example"] } } },
+      }),
+      email(nojobId, "queued", {
+        conversation_id: "c-old",
+        meta: { email: { request: { to: ["was@fixture.example"] } } },
+      }),
+    ],
+    jobs: [{ id: "j-1", tenant_id: T, kind: "outbound_send", state: "scheduled", payload: { message_id: wroteId } }],
+  });
+  const [, body] = await w.send();
+  assert.equal(body.claim.rewritten, 3);
+  const bareId = await sendMessageId(bare.id, 2);
+  assert.deepEqual([w.row(bare.id).state, w.row(bare.id).message_id], ["queued", bareId]);
+  assert.ok(emailOf(w, bareId), "its email, under the id its number names");
+  for (const [s, id] of [
+    [wrote, wroteId],
+    [nojob, nojobId],
+  ]) {
+    assert.deepEqual([w.row(s.id).state, w.row(s.id).message_id], ["queued", id]);
+    assert.equal(w.tables.messages.filter((m) => m.id === id).length, 1, "the same email, never a second");
+  }
+  const jobs = jobsOf(w);
+  assert.equal(jobs.filter((j) => j.payload.message_id === wroteId).length, 1, "its job, once");
+  const nj = jobs.filter((j) => j.payload.message_id === nojobId);
+  assert.equal(nj.length, 1);
+  assert.deepEqual(
+    [nj[0].payload.conversation_id, nj[0].payload.to_email],
+    ["c-old", "was@fixture.example"],
+    "the job sends the email as it was frozen",
+  );
+  assert.equal(w.row(young.id).state, "claimed", "a claim a writer may still hold is its writer's");
+});
+
+test("after the claim, before the email: a run closed since skips the send; a chain paused since keeps it planned", async () => {
+  const CLOSED = "12121212-1212-4212-8212-121212121212";
+  const shut = send({ state: "claimed", claimed_at: ago(6 * MIN), broadcast_id: CLOSED });
+  const PAUSED = "34343434-3434-4434-8434-343434343434";
+  const held = send({ state: "claimed", claimed_at: ago(6 * MIN), playbook_id: PAUSED, root_id: PAUSED });
+  const w = world({
+    sends: [shut, held],
+    playbooks: [
+      {
+        id: ROOT,
+        tenant_id: T,
+        kind: "reach_out",
+        state: "running",
+        gap_minutes: 12,
+        domain_ids: [],
+        template_id: TPL,
+        after_playbook_id: null,
+      },
+      {
+        id: PAUSED,
+        tenant_id: T,
+        kind: "reach_out",
+        state: "paused",
+        gap_minutes: 12,
+        domain_ids: [],
+        template_id: TPL,
+        after_playbook_id: null,
+      },
+    ],
+    runs: [
+      {
+        id: RUN,
+        tenant_id: T,
+        state: "scheduled",
+        playbook_id: ROOT,
+        audience: { kind: "reach_out" },
+        updated_at: ago(DAY),
+      },
+      {
+        id: CLOSED,
+        tenant_id: T,
+        state: "canceled",
+        playbook_id: ROOT,
+        audience: { kind: "reach_out" },
+        updated_at: ago(MIN),
+      },
+    ],
+  });
+  await w.send();
+  assert.deepEqual([w.row(shut.id).state, w.row(shut.id).reason], ["skipped", "run_canceled"]);
+  assert.deepEqual(
+    [w.row(held.id).state, w.row(held.id).claimed_at, w.row(held.id).send_at],
+    ["planned", null, held.send_at],
+  );
+  assert.equal(w.tables.messages.length, 0);
 });

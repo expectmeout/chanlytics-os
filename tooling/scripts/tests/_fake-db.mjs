@@ -195,6 +195,14 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
           created_at: new Date().toISOString(),
           ...v,
         }));
+        // A table named in `opts.unique` holds each id once, as its primary key does: an insert of an id it holds fails
+        // as Postgres fails it (23505). Modelled for a writer whose row's id is derived, so a second write of the same
+        // email is the same row, never a second one.
+        if ((opts.unique ?? []).includes(table) && made.some((m) => rows().some((r) => r.id === m.id)))
+          return {
+            data: null,
+            error: { code: "23505", message: `duplicate key value violates unique constraint "${table}_pkey"` },
+          };
         rows().push(...made);
         return { data: made.map((r) => ({ ...r })), error: null };
       }

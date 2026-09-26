@@ -172,6 +172,11 @@ export interface Delivery {
   /** The frozen request, on the email wire (WirePayload.email). */
   email?: EmailRequest;
   /**
+   * The lead a cold email was written for (a reach-out's always names one): outreach's facts are that lead's, so a
+   * business closed or archived is refused even when its person has another lead still being written to.
+   */
+  leadId?: string | null;
+  /**
    * An outbox row already written as `queued` (the honest undo): finalized
    * in place rather than inserted, and only while it is still queued, so a
    * cancel that wins the row is never overwritten.
@@ -349,6 +354,7 @@ async function outreachFacts(db: Db, d: Delivery, f: WireFacts, nowMs: number): 
       // A From that cannot be read names no domain: the lead is still asked, and the door refuses the domain.
       host: host ?? "",
       since: new Date(nowMs - SHARE_WINDOW_MS).toISOString(),
+      leadId: d.leadId ?? null,
     });
   } catch (e) {
     throw new Error(`deliver: ${e instanceof Error ? e.message : String(e)} (conversation ${d.conversationId})`, {
@@ -482,7 +488,12 @@ async function overtakenByHuman(db: Db, d: Delivery): Promise<string | null> {
     .order("created_at", { ascending: true })
     .limit(10);
   if (error) throw new Error(`deliver: cannot read the thread for ${d.messageId}: ${error.message}`);
-  const spoke = (newer ?? []).find((m) => (m.meta as { source?: unknown } | null)?.source !== "broadcast");
+  // A campaign's email is no person speaking on this thread, whatever its row says wrote the words: a broadcast's, and
+  // a reach-out's (written queued, and perhaps refused at this door, in a thread the receptionist is drafting in).
+  const spoke = (newer ?? []).find((m) => {
+    const source = (m.meta as { source?: unknown } | null)?.source;
+    return source !== "broadcast" && source !== "reach_out";
+  });
   return spoke ? spoke.id : null;
 }
 

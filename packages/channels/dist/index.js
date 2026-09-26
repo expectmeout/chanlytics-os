@@ -4661,6 +4661,11 @@ async function resendRequest(cfg, method, path, opts = {}) {
     };
   }
 }
+function paceAskedMs(h) {
+  if (!h || h.get("ratelimit-remaining")?.trim() !== "0") return null;
+  const s = Number(h.get("ratelimit-reset"));
+  return h.get("ratelimit-reset") !== null && Number.isFinite(s) && s >= 0 ? Math.round(s * 1e3) : LIMIT_WAIT_DEFAULT_MS;
+}
 async function postEmail(cfg, request, timeoutMs) {
   const { idempotency_key, ...body } = request;
   const a = await resendRequest(cfg, "POST", "/emails", { body, timeoutMs, idempotencyKey: idempotency_key });
@@ -4669,6 +4674,7 @@ async function postEmail(cfg, request, timeoutMs) {
     return {
       result: { ok: true, wamid: typeof id === "string" ? id : null, status: a.status },
       waitMs: null,
+      paceMs: paceAskedMs(a.headers),
       timedOut: false
     };
   }
@@ -4676,11 +4682,13 @@ async function postEmail(cfg, request, timeoutMs) {
     return {
       result: { ok: false, wamid: null, status: 0, errorBody: a.timedOut ? "timeout" : a.raw },
       waitMs: null,
+      paceMs: null,
       timedOut: a.timedOut
     };
   return {
     result: { ok: false, wamid: null, status: a.status, errorBody: a.raw.slice(0, 500) },
     waitMs: a.headers ? waitAskedMs(a.headers) : null,
+    paceMs: null,
     timedOut: false
   };
 }
@@ -4689,6 +4697,10 @@ async function sendEmail(cfg, request, opts = {}) {
   const now = opts.now ?? Date.now;
   const deadline = now() + (opts.deadlineMs ?? SEND_DEADLINE_MS);
   const left = () => Math.max(0, deadline - now());
+  const paced = async (p) => {
+    if (p.result.ok && p.paceMs) await wait(Math.min(p.paceMs, LIMIT_WAIT_MAX_MS, left()));
+    return p.result;
+  };
   const first = await postEmail(cfg, request, Math.min(SEND_TIMEOUT_MS2, left()));
   if (first.timedOut) {
     if (left() < RETRY_NEEDS_MS) return first.result;
@@ -4696,14 +4708,14 @@ async function sendEmail(cfg, request, opts = {}) {
     const s = second.result;
     if (!s.ok && (s.status === 0 || s.status >= 500 || resendLimitOf(s) === "in_flight"))
       return { ok: false, wamid: null, status: 0, errorBody: "timeout" };
-    return s;
+    return paced(second);
   }
   const limit = resendLimitOf(first.result);
-  if (limit !== "rate" && limit !== "in_flight") return first.result;
+  if (limit !== "rate" && limit !== "in_flight") return paced(first);
   const ms = first.waitMs ?? LIMIT_WAIT_DEFAULT_MS;
   if (ms > LIMIT_WAIT_MAX_MS || ms >= left()) return first.result;
   await wait(ms);
-  return (await postEmail(cfg, request, Math.min(SEND_TIMEOUT_MS2, left()))).result;
+  return paced(await postEmail(cfg, request, Math.min(SEND_TIMEOUT_MS2, left())));
 }
 var RESEND_RECEIVED = `${RESEND_API}/emails/receiving`;
 var FETCH_TIMEOUT_MS = 15e3;

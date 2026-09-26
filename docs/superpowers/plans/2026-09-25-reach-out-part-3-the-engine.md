@@ -2393,6 +2393,15 @@ export async function POST(request: Request): Promise<Response> {
 
 > **From PR 3's review:** the writer inserts the email row **before** it moves the send out of `claimed`. The capacity counts a claimed send and a queued row each, so this order only double-counts for a moment, which means sending less. The other order leaves a gap where the send is counted nowhere, and a concurrent claim could claim past the cap.
 
+> **As built (PR 6, 26 Sep 2026; its migration is 00187, so PR 7's is 00188).**
+> - **00187** holds the claim's two reads as bounded SQL, as PR 5's review taught. `reach_out_due_domains` is filtered before its limit, so a paused chain's backlog never keeps a due domain out of the page. `reach_out_month_sent` counts the workspace's calendar month in its zone: what left, may have left, or is queued.
+> - **The lane** (`sender.ts coldLane`) also needs `RESEND_API_KEY`, because the email wire is bound with it (`emailWireFor`).
+> - **The writer** re-reads the run and the chain after the claim. A run closed since skips the send (`run_canceled`); a chain paused since keeps it planned. A domain gone since is re-planned. The person is `reach_out_person` for every step, which also returns a follower's thread. `to` is the person's stored address, as the door compares it.
+> - **Its skip reasons:** `already_yours`, `lead_closed`, `lead_gone`, `no_address`, `no_mailbox`, `no_template`, `missing_value`, `no_business_address`, `no_subject`, `words_unsendable`, `no_parent`, `step_removed`, and `parent_unstamped` (a parent with no Message-ID waits an hour at a time, for two weeks).
+> - **A claim five minutes old is written again.** A row that already exists is that email as it was frozen: its job is scheduled once, to the thread and address it was frozen with.
+> - **The door:** a reach-out's row never retires a receptionist's draft (`overtakenByHuman`).
+> - **C14:** handled in `sendEmail`, capped at the short wait.
+
 The one PR that sends. After it, a reach-out run approved on Broadcasts goes out, one email per claim, from the
 workspace's own domains. It is complete only with the secrets set (C13); until then the clock answers 503 while
 sends are due and says which is missing.

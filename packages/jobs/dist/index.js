@@ -18414,7 +18414,8 @@ async function outreachFacts(db, d, f, nowMs) {
       to: d.to,
       // A From that cannot be read names no domain: the lead is still asked, and the door refuses the domain.
       host: host ?? "",
-      since: new Date(nowMs - SHARE_WINDOW_MS).toISOString()
+      since: new Date(nowMs - SHARE_WINDOW_MS).toISOString(),
+      leadId: d.leadId ?? null
     });
   } catch (e2) {
     throw new Error(`deliver: ${e2 instanceof Error ? e2.message : String(e2)} (conversation ${d.conversationId})`, {
@@ -18468,7 +18469,10 @@ async function overtakenByHuman(db, d) {
   if (!mine) return null;
   const { data: newer, error } = await db.from("messages").select("id, meta").eq("conversation_id", d.conversationId).eq("tenant_id", d.tenantId).eq("direction", "outbound").eq("sender", "human").gt("created_at", mine.created_at).order("created_at", { ascending: true }).limit(10);
   if (error) throw new Error(`deliver: cannot read the thread for ${d.messageId}: ${error.message}`);
-  const spoke = (newer ?? []).find((m) => m.meta?.source !== "broadcast");
+  const spoke = (newer ?? []).find((m) => {
+    const source = m.meta?.source;
+    return source !== "broadcast" && source !== "reach_out";
+  });
   return spoke ? spoke.id : null;
 }
 function event(db, d, kind, messageId, data) {
@@ -18649,6 +18653,7 @@ async function sendQueued(ports, cmd) {
     template: p.template,
     // The request the row was queued with, sent as it was frozen. A row without one fails at the wire, by name.
     ...msg.email ? { email: msg.email } : {},
+    ...msg.leadId ? { leadId: msg.leadId } : {},
     messageId: p.message_id
   });
   if (out.outcome !== "failed") return;
@@ -21696,13 +21701,16 @@ async function outboundSend(ctx, job) {
         const { data, error } = await ctx.db.from("messages").select("id, status, body, template_name, channel, sender, meta").eq("id", id).eq("tenant_id", job.tenant_id).maybeSingle();
         if (error) throw new Error(error.message);
         if (!data) return null;
-        const request = data.meta?.email?.request;
+        const meta = data.meta;
+        const request = meta?.email?.request;
+        const leadId = meta?.reach_out?.lead_id;
         return {
           status: data.status,
           body: data.body,
           channel: data.channel,
           sender: data.sender,
-          email: isEmailRequest(request) ? request : null
+          email: isEmailRequest(request) ? request : null,
+          leadId: typeof leadId === "string" && leadId ? leadId : null
         };
       },
       purposeOf: (template) => templatePurpose(ctx.db, job.tenant_id, template),
