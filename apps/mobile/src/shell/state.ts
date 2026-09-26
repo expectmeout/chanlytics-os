@@ -29,6 +29,8 @@ export interface ShellState {
   tooOld: boolean;
   /** The session's access token for the shell's own calls (decision 0011), as the page last handed it over; memory only. */
   access: { token: string; expires: number } | null;
+  /** Counts the page's refreshes of Today: the native Today (PR 9) reads again on each, so the two never disagree for long. */
+  todayTick: number;
 }
 
 export const INITIAL: ShellState = {
@@ -45,6 +47,7 @@ export const INITIAL: ShellState = {
   badge: 0,
   tooOld: false,
   access: null,
+  todayTick: 0,
 };
 
 let state: ShellState = INITIAL;

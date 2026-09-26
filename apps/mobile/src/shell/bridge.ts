@@ -37,7 +37,7 @@ export function onPageMessage(state: ShellState, raw: string): { state: ShellSta
     case "calls":
       return { state, effect: m.live === 0 ? "calls-over" : "nothing" };
     case "today":
-      return { state, effect: "today" };
+      return { state: { ...state, todayTick: state.todayTick + 1 }, effect: "today" };
     case "route":
       return { state, effect: "nothing" };
     case "token":
