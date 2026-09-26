@@ -10095,7 +10095,7 @@ function toRunReportVM(d, opts) {
 // src/broadcasts.ts
 var BROADCAST_STATES = ["pending_approval", "scheduled", "sending", "sent", "canceled", "failed"];
 var RECIPIENT_STATES = ["queued", "sent", "skipped", "failed"];
-var REACH_OUT_SEND_STATES = ["planned", "claimed", "queued", "sent", "skipped", "failed"];
+var REACH_OUT_SEND_STATES = ["planned", "held", "claimed", "queued", "sent", "skipped", "failed"];
 var BROADCAST_STATE_LABELS = {
   pending_approval: "Needs you",
   scheduled: "Scheduled",
@@ -22570,7 +22570,7 @@ var SCHEMA_SETS = {
   "policies.mode": ["auto", "veto", "ask", "never"],
   "policies.subject_type": ["segment", "contact"],
   "push_devices.platform": ["ios", "android"],
-  "reach_out_sends.state": ["planned", "claimed", "queued", "sent", "skipped", "failed"],
+  "reach_out_sends.state": ["planned", "held", "claimed", "queued", "sent", "skipped", "failed"],
   "sending_domains.dmarc": ["found", "missing"],
   "sending_domains.held_why": ["verification", "dmarc", "bounces", "complaint", "provider", "unsubscribes"],
   "sending_domains.resume_by": ["owner", "platform"],
@@ -23897,6 +23897,7 @@ function isWaitRefusal(reason) {
   return OUTREACH_WAIT_REFUSALS.includes(reason ?? "");
 }
 var REACH_OUT_MONTH_EMAILS = 2e3;
+var REACH_OUT_CHECKS_PER_DAY = 400;
 function isReachOutRun(audience) {
   return !!audience && typeof audience === "object" && audience.kind === "reach_out";
 }
@@ -24607,6 +24608,7 @@ export {
   RATE_HITS_RETENTION_HOURS,
   REACH_OUT_AFTER_DAYS,
   REACH_OUT_BODY_MAX,
+  REACH_OUT_CHECKS_PER_DAY,
   REACH_OUT_GAP_MINUTES,
   REACH_OUT_HOLDS,
   REACH_OUT_IS_NOT_A_MOMENT,

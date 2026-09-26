@@ -8,6 +8,10 @@
  * left after writing its email is that email's: in a run canceled since, the email is withdrawn and the send adopted,
  * and the clock's next tick skips it, through the same guards. The sender is kept
  * to this suite's workspace (its reads take one). Local stack only: it makes workspaces.
+ *
+ * Part 4 (00190): a send is claimed only once it is checked, so each send here is planned checked, stamped with the
+ * words it was checked against (checked_words, R5); one not yet checked makes no domain due (R8); and a checked send's
+ * opening is its email's.
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -36,6 +40,7 @@ const token = () =>
 
 let db;
 let claimAndWrite;
+let checkedWordsOf;
 let sendMessageId;
 let log;
 let A;
@@ -49,21 +54,28 @@ const ok = (res) => {
 };
 const one = async (q) => ok(await q.select("id").single()).id;
 
+/** The suite's template's words, as the check stamps them on a send it passed (R5). */
+const WORDS = { subject: "A quote for {{business}}", body: "Hi {{business}}, movers in {{city}} ask us for this." };
 const workspace = (slug, name) => one(db.from("tenants").insert({ slug, name, timezone: "America/Chicago" }));
-const chain = (tenant, state = "running") =>
+/** A chain over a search of its own: a search has one chain (00190). */
+const chain = async (tenant, state = "running", tpl = template) =>
   one(
     db.from("playbooks").insert({
       tenant_id: tenant,
       kind: "reach_out",
       policy_class: "outreach",
       gap_minutes: 5,
-      template_id: template,
+      template_id: tpl,
       template_name: `reach_sender_${stamp}`,
       template_language: "en",
       params: [],
       name: "Movers",
       trigger: "lead_first",
-      lead_search_id: search,
+      lead_search_id: await one(
+        db
+          .from("lead_searches")
+          .insert({ tenant_id: tenant, via: "people", card: "movers", name: "Movers", asked: "movers", plan: {} }),
+      ),
       state,
     }),
   );
@@ -123,7 +135,8 @@ const run = (tenant, root, day, state = "scheduled") =>
       run_for: day,
     }),
   );
-async function planned(tenant, runId, root, domainId, leadIds, sendAt) {
+/** Sends planned in a run, checked against the suite's words (unless `check` says otherwise). */
+async function planned(tenant, runId, root, domainId, leadIds, sendAt, check = {}) {
   const rows = leadIds.map((lead) => ({
     id: crypto.randomUUID(),
     tenant_id: tenant,
@@ -133,6 +146,9 @@ async function planned(tenant, runId, root, domainId, leadIds, sendAt) {
     lead_id: lead,
     domain_id: domainId,
     send_at: iso(sendAt),
+    checked_at: iso(Date.now() - MIN),
+    checked_words: checkedWordsOf(WORDS, null, false),
+    ...check,
   }));
   for (let i = 0; i < rows.length; i += 500) ok(await db.from("reach_out_sends").insert(rows.slice(i, i + 500)));
   return rows.map((r) => r.id);
@@ -142,6 +158,7 @@ before(async () => {
   if (skip) return;
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
   ({ claimAndWrite } = await import(at("apps/edge/lib/reach-out/sender.ts")));
+  ({ checkedWordsOf } = await import(at("apps/edge/lib/reach-out/request.ts")));
   ({ sendMessageId } = await import(at("packages/core/src/campaigns/reach-out-ids.ts")));
   ({ logger: log } = await import(at("apps/edge/lib/log.ts")));
   A = await workspace(`sender-a-${stamp}`, "Harbor Moving Co");
@@ -194,6 +211,12 @@ test(
     // A waiting run's sends call nothing either.
     const waiting = await run(A, going, "2026-09-22", "pending_approval");
     await planned(A, waiting, going, crowded, await leads(A, 1), Date.now() - DAY);
+    // Nor does a send not yet checked (00190, R8): the claim would pass it by.
+    const unchecked = await domain(A);
+    await planned(A, goRun, going, unchecked, await leads(A, 1), Date.now() - 4 * DAY, {
+      checked_at: null,
+      checked_words: null,
+    });
 
     const page = ok(await db.rpc("reach_out_due_domains", { p_at: iso(Date.now()), p_limit: 1, p_tenant_id: A }));
     assert.deepEqual(page, [{ id: due, tenant_id: A }], "the longest-waiting due send's domain, past 600 held");
@@ -201,7 +224,7 @@ test(
     assert.deepEqual(
       all.map((d) => d.id),
       [due, later],
-      "a held domain is none; the one waiting longest goes first",
+      "a held domain is none, nor one whose due send waits to be checked; the one waiting longest goes first",
     );
     assert.deepEqual(
       ok(await db.rpc("reach_out_due_domains", { p_at: iso(Date.now()), p_limit: 50, p_tenant_id: B })),
@@ -216,8 +239,9 @@ test(
       "the next page starts past it",
     );
     assert.deepEqual(ok(await past({ p_skip_tenants: [A] })), [], "a workspace held is none of the page");
-    // Tidy, so the writer's case below starts from nothing due.
+    // Tidy, so the writer's case below starts from nothing due, and the workspace keeps within its five domains.
     ok(await db.from("reach_out_sends").delete().eq("tenant_id", A));
+    ok(await db.from("sending_domains").delete().eq("id", unchecked));
   },
 );
 
@@ -395,5 +419,72 @@ test(
     await reachOutClock(db, new Date(), L, Date.now(), A);
     const done = ok(await db.from("reach_out_sends").select("state, reason").eq("id", sendId).single());
     assert.deepEqual([done.state, done.reason], ["skipped", "run_canceled"]);
+  },
+);
+
+test(
+  "a checked send's opening is its email's; words changed since its check send it back to be checked (R5)",
+  { skip },
+  async () => {
+    const words = { subject: "A quote for {{business}}", body: "{{opening}}\n\nHi {{business}}." };
+    const tpl = await one(
+      db.from("templates").insert({
+        tenant_id: A,
+        channel: "email",
+        source: "chanlytics",
+        name: `reach_opening_${stamp}`,
+        language: "en",
+        category: "marketing",
+        meta_status: "approved",
+        components: [
+          { type: "HEADER", format: "TEXT", text: words.subject },
+          { type: "BODY", text: words.body },
+        ],
+      }),
+    );
+    const root = await chain(A, "running", tpl);
+    const [{ id: dom }] = ok(
+      await db.from("sending_domains").select("id").eq("tenant_id", A).eq("state", "verified").limit(1),
+    );
+    const runId = await run(A, root, "2026-09-27");
+    const [lead, stale] = await leads(A, 2);
+    const [written] = await planned(A, runId, root, dom, [lead], Date.now() - MIN, {
+      checked_words: checkedWordsOf(words, null, false),
+      opening: "A 4.9 from 16 reviews says people find you.",
+    });
+    const [again] = await planned(A, runId, root, dom, [stale], Date.now() - 2 * MIN, {
+      checked_words: checkedWordsOf({ ...words, body: "Older words." }, null, false),
+      opening: "Saw your shop.",
+      check_gen: 3,
+    });
+    const lane = {
+      unsubscribeSecret: "unsubscribe-seal-for-this-suite",
+      unsubscribeOrigin: "https://app.chanlytics.com",
+      replyDomain: "mail.chanlytics.com",
+    };
+    const out = await claimAndWrite({
+      db,
+      now: new Date(),
+      started: Date.now(),
+      lane,
+      log: log({ suite: "reach_out_sender" }),
+      tenantId: A,
+    });
+    assert.deepEqual([out.written, out.rechecked], [1, 1]);
+    const m = ok(
+      await db
+        .from("messages")
+        .select("body")
+        .eq("id", await sendMessageId(written, 0))
+        .single(),
+    );
+    assert.match(m.body, /^A 4\.9 from 16 reviews says people find you\.\n\nHi Fixture Movers \d+\.$/);
+    const back = ok(await db.from("reach_out_sends").select("*").eq("id", again).single());
+    assert.deepEqual(
+      [back.state, back.checked_at, back.check_gen, back.opening, back.claimed_at],
+      ["planned", null, 4, null, null],
+      "unchecked at the next version, through the guard's claimed -> planned",
+    );
+    ok(await db.from("jobs").update({ state: "canceled" }).eq("tenant_id", A).eq("kind", "outbound_send"));
   },
 );

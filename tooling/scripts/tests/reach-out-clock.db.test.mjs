@@ -5,6 +5,9 @@
  * is planned again however many a waiting run holds; a canceled run's written email is withdrawn before its send is
  * skipped. Every move runs through the real guards. The clock is kept to this suite's workspace (its reads take one), so
  * the database suites running beside it keep their rows. Local stack only: it makes workspaces.
+ *
+ * Part 4 (00190): each send here is planned checked, as a claim needs; a held send keeps its run open, and one its owner
+ * never answered is given up fourteen days from when it was planned (R10).
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -88,7 +91,7 @@ const run = (state, day) =>
       run_for: day,
     }),
   );
-/** Planned sends of a run for these leads, each at `sendAt`, in one insert. */
+/** Planned sends of a run for these leads, each at `sendAt`, checked (00190: a claim takes a checked send), in one insert. */
 async function planned(runId, leadIds, sendAt, over = {}) {
   const rows = leadIds.map((lead) => ({
     id: crypto.randomUUID(),
@@ -99,6 +102,7 @@ async function planned(runId, leadIds, sendAt, over = {}) {
     lead_id: lead,
     domain_id: domain,
     send_at: iso(sendAt),
+    checked_at: iso(Date.now() - MIN),
     ...over,
   }));
   for (let i = 0; i < rows.length; i += 500) ok(await db.from("reach_out_sends").insert(rows.slice(i, i + 500)));
@@ -317,5 +321,33 @@ test(
         ),
       );
     assert.deepEqual(left, [], "none keeps the time it was left at");
+  },
+);
+
+test(
+  "a held send keeps its run open; one its owner never answered is given up fourteen days from its planning (R10)",
+  { skip },
+  async () => {
+    const r = await run("sending", "2026-09-07");
+    const [young, old] = await leads(2);
+    const [waits] = await planned(r, [young], Date.now() + DAY, {
+      state: "held",
+      reason: "chain",
+      hold_detail: "site:3",
+      created_at: iso(Date.now() - DAY),
+    });
+    const [gone] = await planned(r, [old], Date.now() - 14 * DAY, {
+      state: "held",
+      reason: "language",
+      hold_detail: "es",
+      created_at: iso(Date.now() - 15 * DAY),
+    });
+    const out = await clock(db, new Date(), log({ test: "clock" }), Date.now(), A);
+    assert.ok(out.gave_up >= 1);
+    const g = ok(await db.from("reach_out_sends").select("state, reason").eq("id", gone).single());
+    assert.deepEqual([g.state, g.reason], ["skipped", "kept_waiting"]);
+    const w = ok(await db.from("reach_out_sends").select("state, reason").eq("id", waits).single());
+    assert.deepEqual([w.state, w.reason], ["held", "chain"], "its owner's to answer");
+    assert.equal(ok(await db.from("broadcasts").select("state").eq("id", r).single()).state, "sending", "kept open");
   },
 );

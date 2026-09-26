@@ -63,6 +63,7 @@ async function stepOf(db: Db, row: ReachOutRow): Promise<ReachOutStep | null> {
     trigger: row.trigger === "after_step" ? "after_step" : "lead_first",
     state: row.state === "running" && root.state === "running" ? "running" : "paused",
     lead_search_id: row.lead_search_id,
+    include_unconfirmed: root.include_unconfirmed === true,
     after_playbook_id: row.after_playbook_id,
     after_days: row.after_days,
     gap_minutes: row.gap_minutes ?? 0,
@@ -142,7 +143,12 @@ export async function reachOutRunContext(
     },
     // Twice the step's share: a lead the run skips (no open hour all week) leaves room for the next, not a short day.
     audience: (s) =>
-      reachOutAudience(db, { tenantId, searchId: s.lead_search_id ?? "", rootId: s.root_id, limit: s.cap_per_run * 2 }),
+      reachOutAudience(db, {
+        tenantId,
+        searchId: s.lead_search_id ?? "",
+        limit: s.cap_per_run * 2,
+        includeUnconfirmed: s.include_unconfirmed,
+      }),
     followers: (s) =>
       reachOutFollowers(db, {
         tenantId,

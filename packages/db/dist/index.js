@@ -1954,6 +1954,10 @@ var REVIEW_NEWS_MAX_AGE_MS = 14 * 864e5;
 var BOOTSTRAP_MS = 3600 * 1e3;
 var DATE_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WEEK_MS3 = 7 * 864e5;
+function maySpend(mode, status) {
+  if (mode !== "stripe") return true;
+  return status === "active";
+}
 var DATE_FMT3 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var CHECKOUT_OUTCOME_WORDS = {
   success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
@@ -3123,8 +3127,8 @@ async function reachOutAudience(db, p) {
   const { data, error } = await db.rpc("reach_out_audience", {
     p_tenant_id: p.tenantId,
     p_search_id: p.searchId,
-    p_root_id: p.rootId,
-    p_limit: p.limit
+    p_limit: p.limit,
+    p_include_unconfirmed: p.includeUnconfirmed
   });
   if (error) throw new Error(`cannot read who a reach-out may write to: ${error.message}`);
   return data ?? [];
@@ -3276,7 +3280,7 @@ async function sendJobScheduled(db, p) {
 async function sendStanding(db, s) {
   const [run, chain] = await Promise.all([
     db.from("broadcasts").select("state").eq("tenant_id", s.tenant_id).eq("id", s.broadcast_id).maybeSingle(),
-    db.from("playbooks").select("id, state, template_id, after_playbook_id").eq("tenant_id", s.tenant_id).in("id", [s.playbook_id ?? s.root_id, s.root_id])
+    db.from("playbooks").select("id, state, template_id, after_playbook_id, signed_by").eq("tenant_id", s.tenant_id).in("id", [s.playbook_id ?? s.root_id, s.root_id])
   ]);
   if (run.error) throw new Error(`cannot read the send's run: ${run.error.message}`);
   if (chain.error) throw new Error(`cannot read the send's chain: ${chain.error.message}`);
@@ -3284,7 +3288,8 @@ async function sendStanding(db, s) {
   return {
     run: run.data?.state ?? null,
     step: step ? { state: step.state, template_id: step.template_id, after_playbook_id: step.after_playbook_id } : null,
-    root: (chain.data ?? []).find((p) => p.id === s.root_id)?.state ?? null
+    root: (chain.data ?? []).find((p) => p.id === s.root_id)?.state ?? null,
+    signedBy: (chain.data ?? []).find((p) => p.id === s.root_id)?.signed_by ?? null
   };
 }
 async function emailWordsOf(db, tenantId, templateId) {
@@ -3383,6 +3388,127 @@ async function leadWritten(db, p) {
   });
   if (e3) throw new Error(`cannot record the lead's email: ${e3.message}`);
   return true;
+}
+var num = (v) => v === null || v === void 0 || v === "" ? null : Number(v);
+var text = (v) => typeof v === "string" ? v : null;
+function recordOf(r2) {
+  return {
+    business_name: text(r2.business_name),
+    category: text(r2.category),
+    city: text(r2.city),
+    region: text(r2.region),
+    rating: num(r2.rating),
+    reviews: num(r2.reviews),
+    website_host: text(r2.website_host),
+    hours: r2.hours ?? null,
+    about: text(r2.about),
+    email: text(r2.email),
+    why_it_fits: text(r2.why_it_fits),
+    what_you_asked: text(r2.what_you_asked),
+    site_listings: Number(r2.site_listings ?? 0),
+    name_listings: Number(r2.name_listings ?? 0),
+    email_domain_shared: r2.email_domain_shared === true
+  };
+}
+async function uncheckedSends(db, p) {
+  const { data, error } = await db.rpc("reach_out_unchecked", {
+    p_limit: p.limit,
+    p_per_workspace: p.perWorkspace,
+    p_ahead_minutes: p.aheadMinutes,
+    ...p.tenantId ? { p_tenant_id: p.tenantId } : {}
+  });
+  if (error) throw new Error(`cannot read the sends to check: ${error.message}`);
+  return (data ?? []).map((r2) => {
+    const send = r2.send;
+    return {
+      send,
+      check_gen: Number(r2.check_gen ?? send.check_gen ?? 0),
+      template_id: String(r2.template_id),
+      template_language: String(r2.template_language ?? "en"),
+      signed_by: text(r2.signed_by),
+      included_for: Array.isArray(r2.included_for) ? r2.included_for.filter((x) => typeof x === "string") : [],
+      record: recordOf(r2)
+    };
+  });
+}
+async function uncheckedWaiting(db, tenantId) {
+  let q = db.from("reach_out_sends").select("id").eq("state", "planned").is("checked_at", null);
+  if (tenantId) q = q.eq("tenant_id", tenantId);
+  const { data, error } = await q.limit(1);
+  if (error) throw new Error(`cannot read the sends to check: ${error.message}`);
+  return (data ?? []).length > 0;
+}
+async function reachOutRecord(db, p) {
+  const { data, error } = await db.rpc("reach_out_record", {
+    p_tenant_id: p.tenantId,
+    p_search_id: p.searchId,
+    p_lead_id: p.leadId
+  });
+  if (error) throw new Error(`cannot read the business's record: ${error.message}`);
+  const row = (data ?? [])[0];
+  return row ? recordOf(row) : null;
+}
+async function recordCheck(db, p) {
+  const { data, error } = await db.from("reach_out_sends").update({ ...p.patch, check_started_at: null }).eq("tenant_id", p.tenantId).eq("id", p.id).eq("state", "planned").is("checked_at", null).eq("check_gen", p.gen).select("id");
+  if (error) throw new Error(`cannot record the send's check: ${error.message}`);
+  return (data ?? []).length === 1;
+}
+function checkResetPatch(gen) {
+  return {
+    checked_at: null,
+    check_gen: gen + 1,
+    checked_words: null,
+    check_tries: 0,
+    check_first_at: null,
+    check_after: null,
+    check_started_at: null,
+    opening: null,
+    angle: null,
+    facts_used: [],
+    hold_detail: null
+  };
+}
+async function heldStale(db, before, limit, tenantId) {
+  const { data, error } = await db.rpc("reach_out_held_stale", {
+    p_before: before.toISOString(),
+    p_limit: limit,
+    ...tenantId ? { p_tenant_id: tenantId } : {}
+  });
+  if (error) throw new Error(`cannot read the held sends: ${error.message}`);
+  return data ?? [];
+}
+async function releaseUnavailableHolds(db, p) {
+  let q = db.from("reach_out_sends").select("id, tenant_id, check_gen").eq("state", "held").eq("reason", "check_unavailable").is("hold_detail", null);
+  if (p.tenantId) q = q.eq("tenant_id", p.tenantId);
+  const { data, error } = await q.lt("updated_at", p.before.toISOString()).limit(p.limit);
+  if (error) throw new Error(`cannot read the holds to check again: ${error.message}`);
+  let released = 0;
+  for (const h of data ?? []) {
+    const { data: moved, error: e2 } = await db.from("reach_out_sends").update({ ...checkResetPatch(h.check_gen), state: "planned", reason: null }).eq("tenant_id", h.tenant_id).eq("id", h.id).eq("state", "held").eq("check_gen", h.check_gen).select("id");
+    if (e2) throw new Error(`cannot put the hold back to be checked: ${e2.message}`);
+    released += (moved ?? []).length;
+  }
+  return released;
+}
+async function checkedSince(db, tenantId, since) {
+  const { count, error } = await db.from("reach_out_sends").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId).gte("checked_at", since.toISOString());
+  if (error) throw new Error(`cannot count the sends checked today: ${error.message}`);
+  return count ?? 0;
+}
+async function workspaceMaySpend(db, tenantId) {
+  const [tenant, billing] = await Promise.all([
+    db.from("tenants").select("status").eq("id", tenantId).maybeSingle(),
+    db.from("billing_accounts").select("mode, status").eq("tenant_id", tenantId).maybeSingle()
+  ]);
+  if (tenant.error) throw new Error(`cannot read the workspace: ${tenant.error.message}`);
+  if (billing.error) throw new Error(`cannot read the workspace's billing: ${billing.error.message}`);
+  if (tenant.data?.status === "paused" || !billing.data) return false;
+  return maySpend(billing.data.mode, billing.data.status);
+}
+async function workspaceAbout(db, tenantId) {
+  const { data, error } = await db.from("business_records").select("about").eq("tenant_id", tenantId).maybeSingle();
+  if (error) throw new Error(`cannot read the business record: ${error.message}`);
+  return data?.about?.trim() || null;
 }
 
 // src/repositories/routing.ts
@@ -4081,6 +4207,8 @@ export {
   applyDomainCheck,
   archiveList,
   assembleHistory,
+  checkResetPatch,
+  checkedSince,
   claimCallNotification,
   claimControl,
   claimSends,
@@ -4106,6 +4234,7 @@ export {
   finishableRuns,
   followUpTouchesSince,
   getTenantConfig,
+  heldStale,
   ingestCall,
   ingestInbound,
   ingestInboundEmail,
@@ -4137,11 +4266,13 @@ export {
   reachOutAudience,
   reachOutFollowers,
   reachOutPerson,
+  reachOutRecord,
   readAllRows,
   readDealForPhone,
   readLeadContext,
   readThreadState,
   recordCallNote,
+  recordCheck,
   recordEchoAndPause,
   recordEmailNo,
   recordEmailStatus,
@@ -4149,6 +4280,7 @@ export {
   recordProviderDomain,
   recordStatusByExternalId,
   releaseControl,
+  releaseUnavailableHolds,
   renameList,
   reputationHoldsSince,
   reserveSendingDomain,
@@ -4183,8 +4315,12 @@ export {
   touchIndex,
   touchSendingDomain,
   touchesSince,
+  uncheckedSends,
+  uncheckedWaiting,
   watchedTables,
   withdrawEmail,
+  workspaceAbout,
+  workspaceMaySpend,
   workspaceNameAndConfig,
   writtenEmail,
   writtenEmails,

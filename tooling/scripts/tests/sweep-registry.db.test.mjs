@@ -1,6 +1,6 @@
 /**
  * Every clock is registered (00107), proved on a real Postgres: the register
- * names all nineteen cron jobs, the nine that are judged on their runs are
+ * names every cron job, the nine that are judged on their runs are
  * judged that way, a name that arrives without its job is refused, the
  * upserts the sweeps themselves make still land, the alert stamp works on
  * the new rows, and the calls clock records what it asks, so the register's
@@ -87,6 +87,9 @@ const EVERY_CLOCK = {
   // The reach-out clock (00186): every minute, asking the edge only when a send is due, one is claimed or queued, a
   // closed run keeps open sends, or a run is ready to finish, and recording that it looked otherwise.
   reach_out: "reach-out-sweep",
+  // The reach-out check (00190): its own clock, every minute, asking the edge only when a send waits to be checked or a
+  // check_unavailable hold is an hour old, and recording that it looked otherwise.
+  reach_out_check: "reach-out-check-sweep",
 };
 const RUN_JUDGED = [
   "partitions",

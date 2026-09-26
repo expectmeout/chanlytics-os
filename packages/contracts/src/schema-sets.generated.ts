@@ -128,7 +128,7 @@ export const SCHEMA_SETS = {
   "policies.mode": ["auto", "veto", "ask", "never"],
   "policies.subject_type": ["segment", "contact"],
   "push_devices.platform": ["ios", "android"],
-  "reach_out_sends.state": ["planned", "claimed", "queued", "sent", "skipped", "failed"],
+  "reach_out_sends.state": ["planned", "held", "claimed", "queued", "sent", "skipped", "failed"],
   "sending_domains.dmarc": ["found", "missing"],
   "sending_domains.held_why": ["verification", "dmarc", "bounces", "complaint", "provider", "unsubscribes"],
   "sending_domains.resume_by": ["owner", "platform"],

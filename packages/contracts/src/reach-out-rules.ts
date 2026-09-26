@@ -7,6 +7,7 @@
  *   reachOutSlots       a step's words with the lead's, the workspace's and the send's values in (§4.3's six slots); a
  *                       slot with no value holds the email (missing_value, the reason that exists: broadcast.ts).
  *   REACH_OUT_MONTH_EMAILS   the month's allowance per workspace (§4.8's number; the price is Ruben's to set).
+ *   REACH_OUT_CHECKS_PER_DAY the check's daily ceiling per workspace (Part 4, R12).
  */
 import type { DeliveryRefusal } from "./consent";
 import { isReachOutSlot, replaceSlots, slotsNamed, type ReachOutSlot } from "./reach-out-words";
@@ -46,6 +47,12 @@ export function isWaitRefusal(reason: string | null | undefined): boolean {
 }
 
 export const REACH_OUT_MONTH_EMAILS = 2000;
+
+/**
+ * The most sends of one workspace the check before each send takes in a day (R12), counted by when each was checked:
+ * the model's spend is bounded where it is spent, whatever a run's size or a reset's count.
+ */
+export const REACH_OUT_CHECKS_PER_DAY = 400;
 
 /**
  * Whether a broadcasts row is a reach-out step's run (its audience says so, runReachOut): its sends are reach_out_sends
