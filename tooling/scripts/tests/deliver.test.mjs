@@ -449,6 +449,117 @@ test("no wire, no credentials, a provider that says no: each is OURS, a failed r
   assert.deepEqual(kinds(said), ["message.send_failed"], "a refusal the provider gave is a failure, not a send");
 });
 
+test("the carrier's own no on a text (Twilio 21610) is the person's STOP: recorded the way a STOP is, refused the way a recorded no is, and the next send never reaches the provider", async () => {
+  // Twilio refuses a text to a number that replied STOP to it before we heard
+  // -- the STOP went to the carrier, or arrived before the line's webhook
+  // pointed here. The number is unreachable whatever our row says (enums.ts,
+  // the carriers' words), so the row is brought to agree with the carrier.
+  // Until now the send failed like any other: the owner was told a delivery
+  // failed, nothing was recorded, and every later send to that person failed
+  // and told them again.
+  //
+  // ONE object holds the person in the contacts table and on the thread, so
+  // the door's write is what its next read sees, as one row is in Postgres.
+  const carrierNo = { ok: false, wamid: null, status: 400, errorBody: "Twilio 21610", code: 21610 };
+  const world = () => {
+    const k = { id: "k1", tenant_id: T, ...person() };
+    const t = tables({ contacts: [k], conversations: [thread({ contact_id: "k1", contacts: k })] });
+    const calls = [];
+    const wire = {
+      sms: async (to, p) => {
+        calls.push({ to, p });
+        return carrierNo;
+      },
+    };
+    return { k, t, calls, ports: { db: fakeDb(t), wire, now: () => NOW } };
+  };
+  const text = (over = {}) => words({ channel: "sms", sender: "ai", to: "+13475550101", ...over });
+  const ledger = (t) => t.events.filter((e) => e.kind === "contact.consent_changed");
+
+  // The receptionist's reply: no row yet, so none is written -- the ledger says why, and the thread stays quiet.
+  const a = world();
+  assert.deepEqual(await deliver(a.ports, text()), { outcome: "refused", reason: "opted_out", messageId: null });
+  assert.equal(a.calls.length, 1, "the wire was asked once");
+  assert.deepEqual(
+    [a.k.consent, a.k.dnc, a.k.consent_source],
+    ["opted_out", true, "carrier"],
+    "the three consent columns, as ingest_inbound writes a STOP it heard, with the carrier as the source",
+  );
+  assert.ok(a.k.consent_updated_at, "stamped");
+  assert.deepEqual(
+    ledger(a.t).map((e) => [e.category, e.subject_type, e.subject_id, e.data]),
+    [["contact", "contact", "k1", { consent: "opted_out", previous: "opted_in", source: "carrier", channel: "sms" }]],
+    "one ledger row, the shape every consent change has",
+  );
+  assert.equal(a.t.messages.length, 0, "a send with no row leaves none, as any refusal at the door does");
+  assert.deepEqual(kinds(a.t), ["contact.consent_changed"], "and no message.send_failed: it was not a failure of ours");
+  // The next send to that person, whoever asks: refused by the predicate, and the wire is not asked.
+  assert.deepEqual(await deliver(a.ports, text({ sender: "human" })), {
+    outcome: "refused",
+    reason: "opted_out",
+    messageId: null,
+  });
+  assert.equal(a.calls.length, 1, "the provider is not asked about a person who opted out");
+  assert.equal(ledger(a.t).length, 1, "and a no already recorded is not recorded again");
+
+  // A queued row (the outbox, a draft): canceled with the reason a recorded no gives it, never failed.
+  const b = world();
+  const queued = (id) => ({
+    id,
+    tenant_id: T,
+    conversation_id: "c1",
+    status: "queued",
+    body: "We open at 9",
+    sender: "ai",
+    channel: "sms",
+    direction: "outbound",
+    created_at: "2026-09-10T09:59:00.000Z",
+  });
+  b.t.messages.push(queued("m1"), queued("m2"));
+  assert.deepEqual(await deliver(b.ports, text({ messageId: "m1" })), {
+    outcome: "refused",
+    reason: "opted_out",
+    messageId: "m1",
+  });
+  assert.equal(b.t.messages[0].status, "canceled");
+  assert.deepEqual(b.t.messages[0].error, { reason: "opted_out" });
+  assert.deepEqual(
+    b.t.events.map((e) => [e.kind, e.data]),
+    [
+      ["contact.consent_changed", { consent: "opted_out", previous: "opted_in", source: "carrier", channel: "sms" }],
+      [
+        "message.send_blocked",
+        {
+          reason: "opted_out",
+          purpose: "conversational",
+          consent: "opted_out",
+          dnc: true,
+          marketing_consent: "opted_out",
+          source: "carrier",
+        },
+      ],
+    ],
+    "the no recorded first, then the send blocked by it, saying who reported it",
+  );
+  assert.deepEqual(await deliver(b.ports, text({ messageId: "m2" })), {
+    outcome: "refused",
+    reason: "opted_out",
+    messageId: "m2",
+  });
+  assert.equal(b.calls.length, 1);
+  assert.equal(b.t.messages[1].status, "canceled");
+  assert.deepEqual(b.t.messages[1].error, { reason: "opted_out" });
+
+  // The carrier's code is a text's: the same number on another wire is a provider's failure, as it always was.
+  const c = world();
+  const graph = await deliver(
+    ports(c.t, wireOf({ ...carrierNo, errorBody: "(#131030) Recipient phone number not in allowed list" })),
+    words(),
+  );
+  assert.deepEqual([graph.outcome, graph.reason], ["failed", "provider"]);
+  assert.equal(c.k.consent, "opted_in", "nothing recorded about the person");
+});
+
 test("a draft is not a send: recorded as queued it writes no message.sent, and the one it gets is from the moment it leaves", async () => {
   // The receptionist's reply waits out its veto window as a queued row. The
   // event that says a message went out is the send moment first_replies reads
