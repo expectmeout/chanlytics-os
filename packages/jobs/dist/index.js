@@ -15746,12 +15746,9 @@ var DOMAIN_RAMP = [
   { days: 14, perDay: 100 },
   { days: 30, perDay: 200 }
 ];
-var DAY_MS8 = 864e5;
-function domainDailyCap(cleanSince, nowMs) {
-  if (!cleanSince) return 0;
-  const days = (nowMs - Date.parse(cleanSince)) / DAY_MS8;
+function domainDailyCap(sentDays) {
   let cap2 = 0;
-  for (const step2 of DOMAIN_RAMP) if (days >= step2.days) cap2 = step2.perDay;
+  for (const step2 of DOMAIN_RAMP) if (sentDays >= step2.days) cap2 = step2.perDay;
   return cap2;
 }
 var ACTIVITY_KINDS22 = [...DECISION_VERBS22, ...EVENT_KINDS22];
@@ -16135,8 +16132,8 @@ var DECISION_VERBS32 = [
   /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
   "import"
 ];
-var DAY_MS9 = 864e5;
-var WEEK_MS52 = 7 * DAY_MS9;
+var DAY_MS8 = 864e5;
+var WEEK_MS52 = 7 * DAY_MS8;
 var BRAIN_INTENTS32 = [
   "booking",
   "pricing",
@@ -18332,7 +18329,8 @@ async function outreachFactsOf(db, p) {
     p_contact_id: p.contactId,
     p_to: p.to,
     p_host: p.host,
-    p_since: p.since
+    p_since: p.since,
+    p_lead_id: p.leadId ?? null
   });
   if (error) throw new Error(`cannot read the outreach facts: ${error.message}`);
   const f = data ?? {};
@@ -18345,7 +18343,9 @@ async function outreachFactsOf(db, p) {
     domain: f.domain && typeof f.domain === "object" && typeof f.domain.state === "string" ? {
       state: f.domain.state,
       from_local: String(f.domain.from_local ?? ""),
-      clean_since: typeof f.domain.clean_since === "string" ? f.domain.clean_since : null
+      clean_since: typeof f.domain.clean_since === "string" ? f.domain.clean_since : null,
+      // A database before 00184 says nothing of it: no days sent, the ramp's first step.
+      sent_days: Math.max(0, Number(f.domain.sent_days ?? 0) || 0)
     } : null,
     sent_since: Number(f.sent_since ?? 0) || 0
   };
@@ -18398,6 +18398,7 @@ async function outreachFacts(db, d, f, nowMs) {
       unsubscribable,
       domainState: null,
       cleanSince: null,
+      sentDays: 0,
       sentSince: 0
     };
   let facts;
@@ -18423,6 +18424,7 @@ async function outreachFacts(db, d, f, nowMs) {
     unsubscribable,
     domainState: own?.state ?? null,
     cleanSince: own?.clean_since ?? null,
+    sentDays: own?.sent_days ?? 0,
     sentSince: facts.sent_since
   };
 }
@@ -18444,7 +18446,7 @@ function refusalFor(d, f, nowMs, o2) {
     if (!o2.unsubscribable) return "outreach_without_unsubscribe";
     if (!o2.domainState) return "outreach_needs_own_domain";
     if (o2.domainState !== "verified") return "sending_domain_not_ready";
-    if (o2.sentSince >= domainDailyCap(o2.cleanSince, nowMs)) return "sending_domain_at_cap";
+    if (o2.sentSince >= (o2.cleanSince ? domainDailyCap(o2.sentDays) : 0)) return "sending_domain_at_cap";
   }
   const kind = kindOf(d);
   if (kind === "reply") return null;
@@ -19196,8 +19198,8 @@ var DECISION_VERBS4 = [
   /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
   "import"
 ];
-var DAY_MS10 = 864e5;
-var WEEK_MS6 = 7 * DAY_MS10;
+var DAY_MS9 = 864e5;
+var WEEK_MS6 = 7 * DAY_MS9;
 var BRAIN_INTENTS4 = [
   "booking",
   "pricing",

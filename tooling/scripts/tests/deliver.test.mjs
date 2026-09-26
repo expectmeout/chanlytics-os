@@ -83,7 +83,9 @@ const outreachRpc = (t) => ({
       lead_stage: live[0]?.stage ?? null,
       suppressed: (t.suppressed ?? []).includes(String(a.p_to).trim().toLowerCase()),
       wrote_back: wroteBack,
-      domain: d ? { state: d.state, from_local: d.from_local, clean_since: d.clean_since ?? null } : null,
+      domain: d
+        ? { state: d.state, from_local: d.from_local, clean_since: d.clean_since ?? null, sent_days: d.sent_days ?? 0 }
+        : null,
       sent_since: t.sent_since ?? 0,
     };
   },
@@ -928,6 +930,7 @@ const coldRequest = (over = {}) =>
   });
 /** Twenty clean days: the ramp's 100 a day. */
 const CLEAN_SINCE = new Date(NOW - 20 * 86_400_000).toISOString();
+const HARBOR = { tenant_id: T, host: "getharbor.com", from_local: "sam", state: "verified", clean_since: CLEAN_SINCE };
 const coldWorld = ({ who = {}, leads, domains } = {}) =>
   tables({
     conversations: [thread({ contact_id: "k1", contacts: onEmail({ email: OWNER, consent: "unknown", ...who }) })],
@@ -1131,14 +1134,14 @@ test("the door asks the spec's send-time questions: the lead still being written
     ["outreach_lead_closed", { leads: [{ id: "l1", tenant_id: T, contact_id: "k1", stage: "archived" }] }, {}],
     ["outreach_not_a_lead", { leads: [] }, {}],
     ["outreach_suppressed", {}, { suppressed: [OWNER] }],
-    ["sending_domain_at_cap", {}, { sent_since: 100 }],
-    [null, {}, { sent_since: 99 }],
+    // The ramp counts the days a domain sent (D15): clean twenty days and sent on none, it has the first step's 30;
+    // sent on fourteen, the second's 100.
+    ["sending_domain_at_cap", {}, { sent_since: 30 }],
+    [null, {}, { sent_since: 29 }],
+    ["sending_domain_at_cap", { domains: [{ ...HARBOR, sent_days: 14 }] }, { sent_since: 100 }],
+    [null, { domains: [{ ...HARBOR, sent_days: 14 }] }, { sent_since: 99 }],
     // A domain not yet clean has no day's share at all.
-    [
-      "sending_domain_at_cap",
-      { domains: [{ tenant_id: T, host: "getharbor.com", from_local: "sam", state: "verified", clean_since: null }] },
-      {},
-    ],
+    ["sending_domain_at_cap", { domains: [{ ...HARBOR, clean_since: null, sent_days: 20 }] }, {}],
   ];
   for (const [reason, world, extra] of cases) {
     const t = Object.assign(coldWorld(world), extra);

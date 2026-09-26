@@ -20978,16 +20978,10 @@ var DOMAIN_RAMP = [
   { days: 14, perDay: 100 },
   { days: 30, perDay: 200 }
 ];
-var DAY_MS8 = 864e5;
-function cleanDays(cleanSince, nowMs) {
-  if (!cleanSince) return 0;
-  return Math.max(0, Math.floor((nowMs - Date.parse(cleanSince)) / DAY_MS8));
-}
-function domainDailyCap(cleanSince, nowMs) {
-  if (!cleanSince) return 0;
-  const days = (nowMs - Date.parse(cleanSince)) / DAY_MS8;
+var sentDaysOf = (d) => Math.max(0, Math.floor(Number(d.sent_days) || 0));
+function domainDailyCap(sentDays) {
   let cap2 = 0;
-  for (const step2 of DOMAIN_RAMP) if (days >= step2.days) cap2 = step2.perDay;
+  for (const step2 of DOMAIN_RAMP) if (sentDays >= step2.days) cap2 = step2.perDay;
   return cap2;
 }
 function normalizeHost(typed) {
@@ -21139,7 +21133,8 @@ function sendingDomainDtoOf(r2) {
     created_at: r2.created_at,
     sent_recent: r2.sent_recent,
     bounced_recent: r2.bounced_recent,
-    complaints: r2.complaints
+    complaints: r2.complaints,
+    sent_days: Math.max(0, Number(r2.sent_days ?? 0) || 0)
   };
 }
 function domainStatsWords(d) {
@@ -21158,7 +21153,7 @@ var HOLD_WORDS = {
 function domainHoldWords(why) {
   return why && HOLD_WORDS[why] || "it was held";
 }
-function sendingDomainWords(d, nowMs) {
+function sendingDomainWords(d) {
   const who = `${d.from_name} \xB7 ${d.address}`;
   if (d.state === "records") {
     const line = d.provider_status === "not_found" ? "The mail provider no longer has this domain. Remove it and add it again." : d.provider_status === "verified" && d.dmarc === "missing" ? "SPF and DKIM pass. Add the DMARC record below, then Check." : d.provider_status === "failed" || d.provider_status === "partially_failed" ? "The records weren't found. Check each one below at your registrar, then Check again." : "Add the records below at your registrar, then Check.";
@@ -21175,23 +21170,24 @@ function sendingDomainWords(d, nowMs) {
       next: null
     };
   if (d.state === "verified") {
-    const days = cleanDays(d.clean_since, nowMs);
-    const cap2 = domainDailyCap(d.clean_since, nowMs);
+    const days = sentDaysOf(d);
+    const cap2 = domainDailyCap(days);
     const step2 = DOMAIN_RAMP.find((s) => s.perDay > cap2);
+    const left = step2 ? step2.days - days : 0;
     return {
       pill: "Verified",
       tone: "ok",
-      line: `${who} \xB7 ${days} clean day${days === 1 ? "" : "s"}`,
+      line: `${who} \xB7 ${days ? `${days} day${days === 1 ? "" : "s"} sending` : "nothing sent yet"}`,
       stats: domainStatsWords(d),
       fix: null,
       cap: `Up to ${cap2} a day`,
-      // The next step as the day it comes, if the days stay clean (the canvas's "200 a day from Oct 15").
-      next: step2 && d.clean_since ? `${step2.perDay} a day from ${DAY_FMT.format(new Date(Date.parse(d.clean_since) + step2.days * DAY_MS8))}` : null
+      // The next step by the days still to send (D15): a date would be a promise the days it rests on cannot keep.
+      next: step2 ? `${step2.perDay} a day after ${left} more day${left === 1 ? "" : "s"} of sending` : null
     };
   }
   const why = domainHoldWords(d.held_why);
   const since = d.held_at ? DAY_FMT.format(new Date(d.held_at)) : null;
-  const was = domainDailyCap(d.clean_since, d.held_at ? Date.parse(d.held_at) : nowMs);
+  const was = d.clean_since ? domainDailyCap(sentDaysOf(d)) : 0;
   return {
     pill: "Held",
     tone: "warn",
@@ -21262,9 +21258,9 @@ function domainRecordsIntro(host) {
 function domainRegistrarHint(host) {
   return `Some registrars add ${host} for you. If yours does, type only the part shown.`;
 }
-function checkResultWords(d, nowMs, before) {
+function checkResultWords(d, before) {
   if (d.state === "verified") {
-    const cap2 = domainDailyCap(d.clean_since, nowMs);
+    const cap2 = domainDailyCap(sentDaysOf(d));
     const again = before?.state === "held" || cap2 !== DOMAIN_RAMP[0].perDay;
     return {
       tone: "ok",
@@ -21291,7 +21287,7 @@ function sendingDomainsFootWords(count2, max) {
   if (count2 >= max) return `${max === 5 ? "Five" : max} is the most. Remove one to add another. ${where}`;
   if (count2 === 0)
     return "Cold email to the businesses you find leaves only from a domain you own, so cold email's reputation stays apart from your everyday email's. No spare domain? Buy one like get<yourbusiness>.com, then add it here.";
-  return `A new domain starts at ${DOMAIN_RAMP[0].perDay} a day and grows as the days stay clean. ${where}`;
+  return `A new domain starts at ${DOMAIN_RAMP[0].perDay} a day and grows with the days it sends. ${where}`;
 }
 
 // src/activity.ts
@@ -22572,17 +22568,17 @@ function leadsFirstDayWays(f) {
 }
 
 // src/pace.ts
-var DAY_MS9 = 864e5;
+var DAY_MS8 = 864e5;
 var SAME_SITTING_MS = 36e5;
 function yesWaits(rows) {
-  return rows.filter(isYes).map((d) => d.decided_at ? Date.parse(d.decided_at) - Date.parse(d.proposed_at) : Number.NaN).filter((ms2) => Number.isFinite(ms2) && ms2 >= SAME_SITTING_MS).map((ms2) => Math.floor(ms2 / DAY_MS9)).sort((a, b) => a - b);
+  return rows.filter(isYes).map((d) => d.decided_at ? Date.parse(d.decided_at) - Date.parse(d.proposed_at) : Number.NaN).filter((ms2) => Number.isFinite(ms2) && ms2 >= SAME_SITTING_MS).map((ms2) => Math.floor(ms2 / DAY_MS8)).sort((a, b) => a - b);
 }
 function medianWait(waits) {
   const m = quantile([...waits], 0.5);
   return m === null ? null : Math.round(m);
 }
 function dealPaceFrom(rows, nowMs) {
-  const since = nowMs - PACE_WINDOW_DAYS * DAY_MS9;
+  const since = nowMs - PACE_WINDOW_DAYS * DAY_MS8;
   const waits = yesWaits(rows.filter((d) => d.decided_at !== null && Date.parse(d.decided_at) >= since));
   return { median_days: medianWait(waits), yeses: waits.length };
 }
@@ -23023,7 +23019,7 @@ function importCounts(rows) {
 var LINE_RELEASE_WARN_DAYS = 7;
 var LINE_RELEASE_MIN_DAYS = 14;
 var LINE_RELEASE_REPORT_DAYS = 30;
-var DAY_MS10 = 864e5;
+var DAY_MS9 = 864e5;
 function lineReleaseAfterDays(raw) {
   if (!raw || !/^\d+$/.test(raw.trim())) return null;
   const n = Number(raw.trim());
@@ -23050,16 +23046,16 @@ function billingEndedAt(b) {
 function lineReleaseStep(billing, afterDays, warned, nowMs) {
   const endedAt = billingEndedAt(billing);
   if (endedAt === null) return { step: "keep" };
-  const releaseAt = endedAt + afterDays * DAY_MS10;
+  const releaseAt = endedAt + afterDays * DAY_MS9;
   const warnedAt = warned && msOf(warned.ended_at) === endedAt ? msOf(warned.at) : null;
   if (warnedAt === null) {
-    return nowMs >= releaseAt - LINE_RELEASE_WARN_DAYS * DAY_MS10 ? { step: "warn", endedAt, releaseAt } : { step: "wait", endedAt, releaseAt };
+    return nowMs >= releaseAt - LINE_RELEASE_WARN_DAYS * DAY_MS9 ? { step: "warn", endedAt, releaseAt } : { step: "wait", endedAt, releaseAt };
   }
-  const due = Math.max(releaseAt, warnedAt + LINE_RELEASE_WARN_DAYS * DAY_MS10);
+  const due = Math.max(releaseAt, warnedAt + LINE_RELEASE_WARN_DAYS * DAY_MS9);
   return nowMs >= due ? { step: "release", endedAt, releaseAt: due } : { step: "wait", endedAt, releaseAt: due };
 }
 function lineReleaseDay(releaseAt, nowMs) {
-  return Math.max(releaseAt, nowMs + LINE_RELEASE_WARN_DAYS * DAY_MS10);
+  return Math.max(releaseAt, nowMs + LINE_RELEASE_WARN_DAYS * DAY_MS9);
 }
 function lineReleaseWarning(i) {
   const number = formatPhoneDisplay(i.number) ?? i.number;
@@ -23353,7 +23349,7 @@ function weekHoursOf(hours) {
 var SEND_WINDOW_MARGIN_MIN = 30;
 var SEND_DAY_FRAME = { from: 8 * 60, to: 20 * 60 };
 var TIMETABLE_HORIZON_DAYS = 7;
-var DAY_MS11 = 864e5;
+var DAY_MS10 = 864e5;
 var MIN_MS2 = 6e4;
 var DAYS2 = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 function inFrame(week) {
@@ -23394,9 +23390,9 @@ function lowerBound(times, x) {
   return lo;
 }
 function fitsCap(times, t, cap2) {
-  const ends = [t, ...times.slice(lowerBound(times, t), lowerBound(times, t + DAY_MS11))];
+  const ends = [t, ...times.slice(lowerBound(times, t), lowerBound(times, t + DAY_MS10))];
   for (const q of ends) {
-    const already = lowerBound(times, q + 1) - lowerBound(times, q - DAY_MS11 + 1);
+    const already = lowerBound(times, q + 1) - lowerBound(times, q - DAY_MS10 + 1);
     if (already + 1 > cap2) return false;
   }
   return true;
@@ -23413,8 +23409,8 @@ function earliest(spans, times, cap2, gapMs, limitMs) {
         continue;
       }
       if (!fitsCap(times, t, cap2)) {
-        const j = lowerBound(times, t - DAY_MS11 + 1);
-        t = (j < times.length && times[j] <= t ? times[j] : t) + DAY_MS11;
+        const j = lowerBound(times, t - DAY_MS10 + 1);
+        t = (j < times.length && times[j] <= t ? times[j] : t) + DAY_MS10;
         floor = t;
         continue;
       }
@@ -23434,7 +23430,7 @@ function timetable(input) {
   if (!Number.isFinite(input.gapMinutes) || input.gapMinutes <= 0)
     throw new Error(`timetable: a gap is a number of minutes above zero (${input.gapMinutes})`);
   const horizon = input.horizonDays ?? TIMETABLE_HORIZON_DAYS;
-  const limitMs = input.nowMs + horizon * DAY_MS11;
+  const limitMs = input.nowMs + horizon * DAY_MS10;
   const draw = input.jitter ?? (() => Math.random() * 2 - 1);
   const jitter = () => {
     const j = draw();
@@ -24153,7 +24149,6 @@ export {
   citationRoute,
   classify,
   cleanAnswer,
-  cleanDays,
   cleanDisplayName,
   cleanDraft,
   cleanEmailCandidates,

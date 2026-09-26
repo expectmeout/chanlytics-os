@@ -12,6 +12,7 @@ import {
   countSendingDomains,
   deleteSendingDomain,
   deleteSendingDomainAsRead,
+  domainCapacityOf,
   domainHeldSince,
   emitEvent,
   recordProviderDomain,
@@ -332,10 +333,30 @@ export async function checkSendingDomain(
       return null;
     }
   };
-  const [read, dmarc, counts] = await Promise.all([getMailDomain(p.cfg, providerId), p.dmarc(row.host), countOf(row)]);
-  const countsPatch = counts
-    ? { sent_recent: counts.sent, bounced_recent: counts.bounced, complaints: counts.complained }
-    : {};
+  // The days it has sent on since it was clean (D15), for Connections to say: the door reads the capacity itself, so a
+  // read that fails leaves the row's last answer and judges nothing.
+  const sentDaysOf = async (r: SendingDomainRow): Promise<number | null> => {
+    if (r.state !== "verified" && r.state !== "held") return null;
+    try {
+      return (await domainCapacityOf(p.db, r.id, new Date(p.now()))).sent_days;
+    } catch (e) {
+      p.log.error("sending_domain_capacity_unread", {
+        domain: r.id,
+        error: e instanceof Error ? e.message : String(e),
+      });
+      return null;
+    }
+  };
+  const [read, dmarc, counts, sentDays] = await Promise.all([
+    getMailDomain(p.cfg, providerId),
+    p.dmarc(row.host),
+    countOf(row),
+    sentDaysOf(row),
+  ]);
+  const countsPatch = {
+    ...(counts ? { sent_recent: counts.sent, bounced_recent: counts.bounced, complaints: counts.complained } : {}),
+    ...(sentDays !== null ? { sent_days: sentDays } : {}),
+  };
   if (!read.ok) {
     p.log.error("sending_domain_unreadable", {
       domain: row.id,
@@ -483,6 +504,7 @@ export async function resumeSendingDomain(p: DomainPorts, row: SendingDomainRow)
     sent_recent: null,
     bounced_recent: null,
     complaints: null,
+    sent_days: null,
   });
   if (!written) return say(409, "moved", `${row.host} changed just now. Look again, then resume it.`);
   const data = { host: row.host, ...(row.held_why ? { why: row.held_why } : {}) } as Json;

@@ -3874,6 +3874,7 @@ export type Database = {
           provider_domain_id: string | null
           provider_status: string | null
           records: Json
+          sent_days: number | null
           sent_recent: number | null
           state: string
           tenant_id: string
@@ -3898,6 +3899,7 @@ export type Database = {
           provider_domain_id?: string | null
           provider_status?: string | null
           records?: Json
+          sent_days?: number | null
           sent_recent?: number | null
           state?: string
           tenant_id: string
@@ -3922,6 +3924,7 @@ export type Database = {
           provider_domain_id?: string | null
           provider_status?: string | null
           records?: Json
+          sent_days?: number | null
           sent_recent?: number | null
           state?: string
           tenant_id?: string
@@ -4865,6 +4868,7 @@ export type Database = {
         Args: {
           p_contact_id: string
           p_host: string
+          p_lead_id?: string
           p_since: string
           p_tenant_id: string
           p_to: string
@@ -5078,6 +5082,78 @@ export type Database = {
         Args: { p_line_id: string; p_secret: Json }
         Returns: string
       }
+      reach_out_audience: {
+        Args: {
+          p_limit: number
+          p_root_id: string
+          p_search_id: string
+          p_tenant_id: string
+        }
+        Returns: {
+          business_name: string
+          city: string
+          email: string
+          hours: Json
+          lead_id: string
+          region: string
+        }[]
+      }
+      reach_out_claim: {
+        Args: {
+          p_at: string
+          p_cap: number
+          p_domain_id: string
+          p_limit: number
+        }
+        Returns: {
+          attempts: number
+          broadcast_id: string
+          claimed_at: string | null
+          contact_id: string | null
+          created_at: string
+          domain_id: string | null
+          id: string
+          lead_id: string
+          message_id: string | null
+          playbook_id: string | null
+          reason: string | null
+          root_id: string
+          send_at: string | null
+          sent_at: string | null
+          state: string
+          tenant_id: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "reach_out_sends"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      reach_out_followers: {
+        Args: {
+          p_after_days: number
+          p_limit: number
+          p_parent_id: string
+          p_step_id: string
+          p_tenant_id: string
+        }
+        Returns: {
+          bounced: boolean
+          contact_id: string
+          email: string
+          facts: Json
+          hours: Json
+          lead_id: string
+          parent_message_id: string
+          region: string
+        }[]
+      }
+      reach_out_person: {
+        Args: { p_lead_id: string; p_tenant_id: string }
+        Returns: Json
+      }
       release_conversation_control: {
         Args: {
           p_by: string
@@ -5109,6 +5185,10 @@ export type Database = {
       scrub_contact_events: {
         Args: { p_contact_id: string; p_tenant_id: string }
         Returns: number
+      }
+      sending_domain_capacity: {
+        Args: { p_at: string; p_domain_id: string }
+        Returns: Json
       }
       sending_domain_counts: {
         Args: { p_host: string; p_since: string; p_tenant_id: string }

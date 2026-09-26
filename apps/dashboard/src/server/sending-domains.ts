@@ -14,7 +14,7 @@ const AUD = "/api/admin/sending-domains";
 
 /** The columns the page may see: every one but the provider's id. */
 export const SENDING_DOMAIN_COLUMNS =
-  "id, host, from_local, from_name, records, state, provider_status, dmarc, held_why, held_at, verified_at, clean_since, counted_since, checked_at, created_at, sent_recent, bounced_recent, complaints";
+  "id, host, from_local, from_name, records, state, provider_status, dmarc, held_why, held_at, verified_at, clean_since, counted_since, checked_at, created_at, sent_recent, bounced_recent, complaints, sent_days";
 
 export async function sendingDomainsFor(db: SupabaseClient<Database>, tenantId: string): Promise<SendingDomainDto[]> {
   const { data, error } = await db

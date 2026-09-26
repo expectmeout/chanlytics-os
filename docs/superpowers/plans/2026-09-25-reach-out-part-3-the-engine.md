@@ -1117,6 +1117,25 @@ In `deliver.ts`, the four lines at `:404-409` become:
 Four SQL doors and one reading of capacity. Each is proved on the replayed stack before anything calls it. D15 lands
 here, because the capacity read is where "days actually sent" is counted.
 
+> **As built (PR 3, 26 Sep 2026).** `supabase/migrations/00184_a_domain_has_one_capacity.sql` is the reference. It
+> differs from the block below in these ways, each proved in `reach-out-doors.db.test.mjs`:
+> - **D15 counts the days sent within the last 90** since the domain was clean. The read is bounded, so it no longer
+>   scans every email since a domain was verified, and a domain idle for months warms again.
+> - **`sending_domains.sent_days`**: the domains sweep writes the capacity's days beside its other counts, and a Resume
+>   clears them. Members cannot ask the capacity (service role only), so without the column Connections would always
+>   say "0 days". The door reads the capacity itself.
+> - **The audience honours a `phone` suppression** (a customer's or an erased person's number). A business erased, or
+>   already a customer, is not written to under a new address. It **orders by fit as a rank** (strong, look, long):
+>   the text sorts `long` first.
+> - **`reach_out_person` refuses a lead no longer ready or nurture** (`lead_closed`). A lead that became a customer
+>   since it was planned was linked and converted by the insert trigger. The door would have returned the customer's
+>   own person, and the writer would have put a cold row into their thread.
+> - **The door keeps "never clean, no share"**: `cleanSince` stays beside `sentDays`, since `domainDailyCap(0)` is 30.
+> - The trigger copy keeps 00140's comment on its two lookups.
+> - The words: "N days sending" (or "nothing sent yet"), and "100 a day after N more days of sending" in place of a
+>   date. `sendingDomainWords` and `checkResultWords` no longer take the clock. A DTO without `sent_days` (from an edge
+>   built before) reads as none sent.
+
 ### Task 3.1: The migration
 
 **Files:**

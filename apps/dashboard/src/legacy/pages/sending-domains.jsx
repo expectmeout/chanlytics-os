@@ -130,14 +130,13 @@ const SendingDomains = ({ email, flash }) => {
   if (!API || !email || !email.mailbox || !email.sending) return null;
   const { ready, domains } = email.sending;
   if (!ready && domains.length === 0) return null;
-  const now = Date.now();
   const check = async (d) => {
     setBusy(d.id);
     const r = await API.check(d.id);
     setBusy(null);
     if (!r.ok) { flash(window.refusalToast(r, "Not checked")); return; }
     // What the Check found, in its own tone: records not there yet are not a success.
-    const said = API.checkWords(r.data.domain, Date.now(), d);
+    const said = API.checkWords(r.data.domain, d);
     flash({ tone: said.tone === "ok" ? undefined : said.tone === "warn" ? "warn" : "info", msg: <>{said.msg}</> });
   };
   const remove = async (d) => {
@@ -148,7 +147,7 @@ const SendingDomains = ({ email, flash }) => {
     flash(r.ok ? { msg: <>{d.host} is removed. Nothing more is sent from it.</> } : window.refusalToast(r, "Not removed"));
   };
   // A hold for bounces or a complaint is the owner's to lift: the ramp starts again, at its first step.
-  const firstStep = API.cap(new Date(now).toISOString(), now);
+  const firstStep = API.cap(0);
   const resume = async (d) => {
     setBusy(d.id);
     const r = await API.resume(d.id);
@@ -167,7 +166,7 @@ const SendingDomains = ({ email, flash }) => {
         <div className="set-dom set-dom-note"><span /><span className="t"><span>{window.gateTitle("team", "add, check, resume or remove a domain")}</span></span></div>
       )}
       {domains.map((d) => {
-        const w = API.words(d, now);
+        const w = API.words(d);
         const acts = API.acts(d);
         const checkable = acts.check;
         const resumable = acts.resume;

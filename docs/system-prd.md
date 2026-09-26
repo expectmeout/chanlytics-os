@@ -782,8 +782,10 @@ the batch writer that sends a reach-out is Part 3's, so no cold email has left y
   `status | add | check | remove | resume`). The edge's `lib/email/sending-domains.ts` is the only writer: that door, the
   `domains` sweep and a complaint's receipt all write through it. The `domains` sweep (every ten minutes, S-09) reads each
   one at the cold account and in DNS. DNS and provider holds lift themselves; a reputation hold (permanent bounces over
-  2% of the last 500 sends, more than 3 while fewer than 150 have gone, or any complaint) waits for its owner's Resume. The ramp is 30, then 100, then 200 a day,
-  by clean days.
+  2% of the last 500 sends, more than 3 while fewer than 150 have gone, or any complaint) waits for its owner's Resume. The ramp is 30, then 100 after 14 days of sending,
+  then 200 after 30: the days it actually sent since it was clean, within the last 90 (D15, 00184
+  `sending_domain_capacity`, the one read the door, the claim and the timetable share; the sweep writes them to
+  `sent_days` for Connections to say).
 - **The `outreach` purpose at the door** (core `deliver.ts`, 00177's `outreach_facts` in one call; spec §4.8). A cold
   email is always a broadcast. It is refused, in words, unless it goes to a lead still `ready` or `nurture`, off the
   never-again list, who has never written back or phoned (00181: a message of their own on any channel, an email
