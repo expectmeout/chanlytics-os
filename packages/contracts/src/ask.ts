@@ -492,8 +492,16 @@ export const ASK_SURFACES = [
   "other",
 ] as const;
 export type AskSurface = (typeof ASK_SURFACES)[number];
-/** The surfaces that have no chips of their own yet: they are offered other's (the Phase 2 plan, PR 2.1). */
-const CHIPS_AS_OTHER: ReadonlySet<AskSurface> = new Set(["pipeline", "calendar", "campaigns", "start"]);
+/**
+ * The surfaces that have no chips of their own yet, and whose they are offered (the Phase 2 plan, PR 2.1): the
+ * Pipeline People's, as it was when it went by People's name; the rest other's.
+ */
+const CHIPS_OF: Partial<Record<AskSurface, AskSurface>> = {
+  pipeline: "people",
+  calendar: "other",
+  campaigns: "other",
+  start: "other",
+};
 
 export interface AskSuggestion {
   /** The words sent, or placed in the input when `compose` is set. */
@@ -612,8 +620,8 @@ function clipWords(s: string, cap: number): string {
 
 export function buildAskSuggestions(input: SuggestionInput): AskSuggestion[] {
   const t = T[input.language === "es" ? "es" : "en"];
-  // A page with no chips of its own yet is offered other's, as it was before it had a name.
-  const at: AskSurface = CHIPS_AS_OTHER.has(input.surface) ? "other" : input.surface;
+  // A page with no chips of its own yet is offered those it was offered before it had a name.
+  const at: AskSurface = CHIPS_OF[input.surface] ?? input.surface;
   const out: AskSuggestion[] = [];
   const add = (q: string, kind: AskSuggestion["kind"], icon: string, fast = false, label?: string) => {
     if (!out.some((s) => s.q === q)) out.push({ q, kind, icon, fast, ...(label ? { label } : {}) });

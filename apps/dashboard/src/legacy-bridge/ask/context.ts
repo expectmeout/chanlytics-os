@@ -124,7 +124,8 @@ const leads: Provider = (w, route) => {
 };
 
 const pipeline: Provider = (w, route) => {
-  const got = drawn(w, "pipeline", "person");
+  // Where deals are off, the Pipeline's address draws People (clients-a.jsx ClientsA), and People says what it drew.
+  const got = w.__askOnScreen?.key === "people" ? drawn(w, "people", "person") : drawn(w, "pipeline", "person");
   return { ...got, view: got.view ?? parsePipelineRoute(`clients/${route.param ?? "pipeline"}`)?.view ?? null };
 };
 
@@ -186,29 +187,38 @@ const PROVIDERS: Partial<Record<AskSurface, Provider>> = {
   start,
 };
 
-/** A row by its place: "the second", "the 2nd one", "el segundo", "la tercera" -- the article is what says a row. */
+/**
+ * A row by its place, in words: "the second", "the second one", "el segundo", "la tercera". Never the digits ("the
+ * 2nd" is a date on the Calendar), and only where the place is the row itself: the question ends there, or "one" or a
+ * row's noun follows ("the first thing to do", "the second most common question" name no row).
+ */
 const ORDINALS: Array<[string, number]> = [
-  ["first|1st|primer|primero|primera", 1],
-  ["second|2nd|segundo|segunda", 2],
-  ["third|3rd|tercer|tercero|tercera", 3],
-  ["fourth|4th|cuarto|cuarta", 4],
-  ["fifth|5th|quinto|quinta", 5],
-  ["sixth|6th|sexto|sexta", 6],
-  ["seventh|7th|septimo|septima", 7],
-  ["eighth|8th|octavo|octava", 8],
-  ["ninth|9th|noveno|novena", 9],
-  ["tenth|10th|decimo|decima", 10],
+  ["first|primer|primero|primera", 1],
+  ["second|segundo|segunda", 2],
+  ["third|tercer|tercero|tercera", 3],
+  ["fourth|cuarto|cuarta", 4],
+  ["fifth|quinto|quinta", 5],
+  ["sixth|sexto|sexta", 6],
+  ["seventh|septimo|septima", 7],
+  ["eighth|octavo|octava", 8],
+  ["ninth|noveno|novena", 9],
+  ["tenth|decimo|decima", 10],
 ];
-/** "The first time", "the second week", "la primera vez": a place in time, not a row on screen. */
-const TIME_AFTER = /^\s+(time|times|week|weeks|day|days|month|months|year|hour|call of|vez|semana|dia|mes|ano|hora)\b/;
+/** What may follow a place that names a row: "one" or a row's own noun, whatever comes after; or the question ends. */
+const ROW_AFTER =
+  "(?:\\s+(?:one|uno|una|row|thread|person|conversation|call|lead|search|fila|conversacion|llamada|persona|cliente|client|customer)\\b|\\s*(?:[?.!,]|$))";
 
-const fold = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+const fold = (s: string) =>
+  s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
 
 const SCOPE_KINDS = new Set<string>(ASK_SCOPE_KINDS);
 
 /**
  * The row the words name on screen (the spec's 5.5; the plan's D4): an ordinal, in English or Spanish ("the second",
- * "2nd", "#2", "el segundo", "la última"), picks that row; otherwise a row whose name appears whole in the words (case
+ * "#2", "el segundo", "la tercera") where it ends the question or "one" or a row's noun follows, picks that row; otherwise a row whose name appears whole in the words (case
  * and accents aside, the longest name winning, a name under three letters never); otherwise none. Only a row a scope
  * may be.
  */
@@ -221,18 +231,20 @@ export function focusFromWords(words: string, rows: Row[]): AskScope | null {
     id: r.id,
     label: (r.label ?? "").slice(0, 80) || `this ${r.kind}`,
   });
-  const hash = said.match(/(?:#|\bnumber\s|\bnumero\s)\s?(\d{1,2})\b/);
+  // "#2", "number 2", "el número 2" -- only where it ends the question (an invoice's "#3" mid-sentence names no row).
+  const hash = new RegExp(
+    `(?:^|\\s)(?<!\\b(?:invoice|order|ticket|room|table|step|page|line|item|factura|pedido|mesa|paso)\\s)(?:#|number\\s|numero\\s)\\s?(\\d{1,2})${ROW_AFTER}`,
+  ).exec(said);
   let n: number | null = hash ? Number(hash[1]) : null;
   if (n === null)
-    for (const [words, at] of ORDINALS) {
-      const m = new RegExp(`\\b(?:the|el|la|lo)\\s+(?:${words})\\b`).exec(said);
-      if (m && !TIME_AFTER.test(said.slice(m.index + m[0].length))) {
+    for (const [words, at] of ORDINALS)
+      if (new RegExp(`\\b(?:the|el|la|lo)\\s+(?:${words})${ROW_AFTER}`).test(said)) {
         n = at;
         break;
       }
-    }
   if (n !== null && scoped[n - 1]) return asScope(scoped[n - 1]);
   let best: Row | null = null;
+  const plain = words.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   for (const r of scoped) {
     const name = fold(r.label ?? "").trim();
     if (name.length < 3) continue;
@@ -242,6 +254,10 @@ export function focusFromWords(words: string, rows: Row[]): AskScope | null {
     const after = said[at + name.length] ?? " ";
     // Whole: "Ana" is not named by "Banana".
     if (/[a-z0-9]/.test(before) || /[a-z0-9]/.test(after)) continue;
+    // One word is a name only as a name is written, capitalised, or as someone's ("Grace", "grace's"): "the grace
+    // period" names nobody. Two words or more are a name however they are typed.
+    if (!/\s/.test(name) && !/^[A-Z]/.test(plain.slice(at, at + 1)) && !said.startsWith("'s", at + name.length))
+      continue;
     if (!best || name.length > fold(best.label ?? "").length) best = r;
   }
   return best ? asScope(best) : null;

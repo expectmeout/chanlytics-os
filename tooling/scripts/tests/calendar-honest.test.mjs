@@ -1917,4 +1917,5 @@ test("the Calendar tells Ask what it draws (the Phase 2 plan, D3): the span on s
   assert.deepEqual(s.ids, ["p-rosa", "p-ana"], "each person once, in the board's order, and only the days on screen");
   assert.deepEqual(s.labels, ["Rosa Díaz", "Ana Ruiz"]);
   leave();
+  assert.equal(globalThis.window.__askOnScreen, null, "the board gone, its people are no longer on screen");
 });

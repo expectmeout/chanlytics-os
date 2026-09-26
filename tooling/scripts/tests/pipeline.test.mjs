@@ -3220,3 +3220,21 @@ test("People tells Ask what it draws (the Phase 2 plan, D3): the rows of its tab
   assert.deepEqual(s.ids, rowIds(tree).slice(0, 40), "the rows the table draws, in its order");
   assert.equal(s.view, "all");
 });
+
+test("the Pipeline tells Ask its rows in the member's order: sorted by name, the second one is the second drawn", async () => {
+  await fresh();
+  let tree = draw();
+  const head = find(
+    tree,
+    (n) => n.props?.["data-testid"] === "pipe-sort-person" || n.props?.["data-sort"] === "person",
+  );
+  if (head && head.props.onClick) {
+    head.props.onClick();
+    tree = draw();
+  }
+  assert.deepEqual(
+    globalThis.window.__askOnScreen.ids,
+    rowIds(tree).slice(0, 40),
+    "what the table draws, in its order",
+  );
+});

@@ -480,6 +480,8 @@ const CalendarReal = ({ initialDay = null }) => {
     for (const d of days) for (const b of [...(d.allDay || []), ...(d.blocks || [])]) if (b.person && !named.has(b.person.id)) named.set(b.person.id, b.person.name || "");
     const ids = [...named.keys()].slice(0, 40);
     window.__askOnScreen = { key: "calendar", ids, labels: ids.map((id) => named.get(id)), view: span ? `${span.from}/${span.days}` : null };
+    // Taken back when the board goes: its people are no longer on screen.
+    return () => { if (window.__askOnScreen && window.__askOnScreen.key === "calendar") window.__askOnScreen = null; };
   });
 
   // Read only when the window does not cover the view. The frames below

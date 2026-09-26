@@ -79,6 +79,10 @@ test("the Inbox, People, the Pipeline and the Calendar: what the page said it dr
   assert.deepEqual(ctx({ __askOnScreen: shown }, "clients").rows, [], "the Inbox's rows are not People's");
   const people = ctx({ __askOnScreen: { key: "people", ids: [U(3)], labels: ["Luis"], view: "seg:vip" } }, "clients");
   assert.deepEqual([people.rows, people.view], [[{ kind: "person", id: U(3) }], "seg:vip"]);
+  // Where deals are off the Pipeline's address draws People, which says what it drew.
+  assert.deepEqual(ctx({ __askOnScreen: { key: "people", ids: [U(3)] } }, "clients/pipeline").rows, [
+    { kind: "person", id: U(3) },
+  ]);
   const pipe = ctx(
     { __askOnScreen: { key: "pipeline", ids: [U(4)], view: "open" } },
     `clients/pipeline:v-open:p-${U(4)}`,
@@ -184,17 +188,31 @@ test("the row the words name: by its place, in English or Spanish, or by its nam
   assert.equal(f("what did the second one say?"), U(2));
   assert.equal(f("¿qué dijo el segundo?"), U(2));
   assert.equal(f("la tercera"), U(3));
+  assert.equal(f("open the first thread"), U(1), "a row's noun after the place");
   assert.equal(f("reply to #1"), U(1));
   assert.equal(f("and number 3?"), U(3));
-  assert.equal(f("what did rosa diaz ask for"), U(1), "case and accents aside");
+  assert.equal(f("what did rosa diaz ask for"), U(1), "two words: case and accents aside");
   assert.equal(f("did Ana María book?"), U(3), "the longest name wins");
-  assert.equal(f("did ana book?"), U(2));
+  assert.equal(f("did Ana book?"), U(2), "one word, written as a name");
+  assert.equal(f("what did ana's reply say"), U(2), "one word, as someone's");
   assert.equal(f("bananas"), null, "a name is whole: Ana is not in bananas");
+  // Ordinary questions name no row (the review of PR 2.1 ran these through it).
   assert.equal(f("who called the first time?"), null, "a place in time");
   assert.equal(f("how was last week"), null);
   assert.equal(f("la primera vez"), null);
+  assert.equal(f("Am I open on the 2nd?"), null, "a date, not a row");
+  assert.equal(f("What's the first thing I should do today?"), null);
+  assert.equal(f("what is the second most common question"), null);
+  assert.equal(f("where is invoice #3"), null, "a numbered thing that is not a row");
   assert.equal(f("the fourth"), null, "a template is not a scope");
   assert.equal(f("the ninth"), null, "no ninth row");
+  const grace = [{ kind: "thread", id: U(9), label: "Grace" }];
+  assert.equal(
+    focusFromWords("how long is the grace period?", grace),
+    null,
+    "a word that is also a name, written as a word",
+  );
+  assert.equal(focusFromWords("did Grace pay?", grace)?.id, U(9));
   assert.equal(focusFromWords("the first", [{ kind: "thread", id: U(1), label: "Al" }])?.label, "Al");
   assert.equal(
     focusFromWords("al said", [{ kind: "thread", id: U(1), label: "Al" }]),

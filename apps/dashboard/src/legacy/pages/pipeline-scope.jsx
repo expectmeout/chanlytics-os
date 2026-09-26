@@ -197,13 +197,6 @@ const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null, pipelineRo
   // Past the people People holds (its fifty pages), the line counts only the loaded, and says so in People's words.
   const loaded = people.page && people.page.has_more ? window.plLoadedWords(rows.length, people.page.total) : null;
   const searching = !!q.trim();
-  // What Ask is told is on screen (legacy-bridge/ask/context.ts): the people the groups draw, in their order after the
-  // view and the words in the box, forty at most, and the view that chose them.
-  React.useEffect(() => {
-    // A folded group draws no rows, until the member opens it or the words in the box do (the sections below).
-    const drawn = vm.groups.filter((g) => searching || !g.collapsed || opened[g.key]).flatMap((g) => g.rows).slice(0, 40);
-    window.__askOnScreen = { key: "pipeline", ids: drawn.map((r) => (r.person && r.person.id) || r.id), labels: drawn.map((r) => r.name || ""), view: searching ? `${view}:search` : view };
-  });
   // Who may record a deal, whether the rows are a board, and whether they select: a selection is a desk's list, where
   // x and Space pick the row under the cursor, for Mark as passed and People's own acts.
   const canRecord = pipeCanRecord();
@@ -229,6 +222,13 @@ const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null, pipelineRo
   const cap = board && P.boardCap ? P.boardCap : Infinity;
   const shown = sections.filter((s) => !s.collapsed).flatMap((s) => (every[s.key] ? s.rows : s.rows.slice(0, cap)));
   const ids = shown.map((r) => r.id);
+  // What Ask is told is on screen (legacy-bridge/ask/context.ts): the rows drawn, in the member's order and the board's
+  // cap, forty at most, and the view that chose them; taken back when the page goes.
+  React.useEffect(() => {
+    const drawn = shown.slice(0, 40);
+    window.__askOnScreen = { key: "pipeline", ids: drawn.map((r) => r.id), labels: drawn.map((r) => r.name || ""), view: searching ? `${view}:search` : view };
+    return () => { if (window.__askOnScreen && window.__askOnScreen.key === "pipeline") window.__askOnScreen = null; };
+  });
   // The table's foot counts the view it shows ("6 people" in Proposal out, "Showing 1 of 6" searched there), as the
   // rail's row for it does; the line above stays the whole Pipeline's.
   const total = viewCount;

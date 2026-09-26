@@ -501,7 +501,9 @@ const AskReal = ({ open, onClose }) => {
     let spoke = false;
     let said = 0;
     // The page, as it is now: the rows on screen and the row the words name, if they name one (legacy-bridge/ask/context.ts).
-    const context = A.context ? A.context(arRoute(), q) : null;
+    // A page that cannot say what it holds sends none: the question still goes.
+    let context = null;
+    try { context = A.context ? A.context(arRoute(), q) : null; } catch (e) { context = null; }
     await A.send({ text: q, threadId, scope: thread.scope || scope, surface, openedMs: openedAt.current ? Date.now() - openedAt.current : null, context }, (ev) => {
       if (mine !== turnSeq.current) return;
       if (ev.t === "thread") { threadId = ev.id; setActive((prev) => (prev ? { ...prev, id: ev.id, title: prev.title || ev.title } : prev)); }

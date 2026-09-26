@@ -111,11 +111,17 @@ test("thirteen surfaces, each said once, Conversations and Live among them; each
       `${surface} is offered a question`,
     );
   }
-  // A page with no chips of its own yet is offered other's, as it was before it had a name.
-  for (const surface of ["pipeline", "calendar", "campaigns", "start"])
+  // A page with no chips of its own yet is offered those it was offered before it had a name: the Pipeline People's,
+  // the rest other's.
+  for (const [surface, was] of [
+    ["pipeline", "people"],
+    ["calendar", "other"],
+    ["campaigns", "other"],
+    ["start", "other"],
+  ])
     assert.deepEqual(
       buildAskSuggestions({ ...quiet, surface, language: "es", dealsOn: true }),
-      buildAskSuggestions({ ...quiet, surface: "other", language: "es", dealsOn: true }),
+      buildAskSuggestions({ ...quiet, surface: was, language: "es", dealsOn: true }),
       surface,
     );
 });

@@ -17665,7 +17665,12 @@ var ASK_SURFACES = [
   "start",
   "other"
 ];
-var CHIPS_AS_OTHER = /* @__PURE__ */ new Set(["pipeline", "calendar", "campaigns", "start"]);
+var CHIPS_OF = {
+  pipeline: "people",
+  calendar: "other",
+  campaigns: "other",
+  start: "other"
+};
 var T = {
   en: {
     needs: "Who needs me right now?",
@@ -17744,7 +17749,7 @@ function clipWords(s, cap2) {
 }
 function buildAskSuggestions(input) {
   const t = T[input.language === "es" ? "es" : "en"];
-  const at2 = CHIPS_AS_OTHER.has(input.surface) ? "other" : input.surface;
+  const at2 = CHIPS_OF[input.surface] ?? input.surface;
   const out = [];
   const add = (q, kind, icon, fast = false, label) => {
     if (!out.some((s2) => s2.q === q)) out.push({ q, kind, icon, fast, ...label ? { label } : {} });

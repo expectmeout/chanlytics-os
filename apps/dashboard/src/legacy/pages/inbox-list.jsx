@@ -113,6 +113,8 @@ const InboxList = ({
       labels: askRows.map((t) => t.who || ""),
       view: searching ? "search" : activeView || activeBucket || null,
     };
+    // Taken back when the list goes: its rows are no longer on screen.
+    return () => { if (window.__askOnScreen && window.__askOnScreen.key === "inbox") window.__askOnScreen = null; };
   });
 
   // The rows are a listbox with one tab stop: the open thread's row, or the first when none of these is

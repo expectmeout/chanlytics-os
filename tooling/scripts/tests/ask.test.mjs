@@ -291,8 +291,12 @@ test("the prompt on Leads: the page is named and words that describe businesses 
     assert.ok(on(kind).includes("No tool reads it by its id yet"), kind);
     assert.ok(!on(kind).includes("Read it before answering about it."), kind);
   }
-  for (const kind of ["thread", "call", "person", "search"])
+  for (const kind of ["thread", "call", "person"])
     assert.ok(on(kind).includes("Read it before answering about it."), kind);
+  assert.ok(
+    on("search").includes("Read list_lead_searches, which lists it by that id"),
+    "a search is found in its list",
+  );
 });
 
 test("the three quick questions are told by their words; the answers are ask-answer.ts's (ask-answer.test.mjs)", () => {
