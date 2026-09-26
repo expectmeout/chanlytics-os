@@ -1141,15 +1141,8 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
     "one parse, indexed once, for everyone",
   );
   assert.ok(svc.includes("export async function bookingReport(") && svc.includes("bookedAfterAsk("));
-  const route = readCode("apps/dashboard/app/api/v1/contacts/route.ts");
-  assert.ok(
-    [
-      "const [out, sellsBy, nameSteps, pace, followUp] = await Promise.all([",
-      "withVisits(ctx, tenantId, rows),",
-      "const buys = sellsByOf(ctx, tenantId);",
-    ].every((line) => route.includes(line)),
-    "the list carries visits and the calendar's state, a page at a time",
-  );
+  // The list carries visits and the calendar's state, a page at a time: GET contacts runs through its reader in
+  // readers.test.mjs, its two stages read from the query log and its payload compared key for key.
   // The report carries the line, and is never fatal for it: GET reports, run. The series, the booking line and the
   // deals, in that order; People read once, for the line and the deals alike, and the deals read after the line's
   // calendar lookup; a lookup that fails costs the line, said in the log, never the report.
@@ -1196,13 +1189,8 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
     [{ days: 30 }, null, true],
     "never fatal to the report",
   );
-  const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
-  assert.ok(
-    tools.includes('list: { type: "string" }') &&
-      tools.includes("if (onList && !onList.has(r.id)) return false;") &&
-      tools.includes("next_visit: r.visits?.next"),
-    "the assistant answers who booked and who never did",
-  );
+  // The assistant answers who booked and who never did: search_people runs over a feed in ask-turn.test.mjs, its
+  // Booked and Asked, never booked lists judged over the People page's own rows.
   const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
   assert.ok(
     sd.includes('(!l.needsCalendar || calendar.state === "ok") &&') &&

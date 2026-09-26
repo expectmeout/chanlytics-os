@@ -1,11 +1,8 @@
 import { z } from "zod";
-import { AppError, dealsAreOn, normalizePhone, whyNotAPhone } from "@chanlytics/contracts";
+import { AppError, normalizePhone, whyNotAPhone } from "@chanlytics/contracts";
 import { read, write, workspace } from "@/server/route";
-import { PEOPLE_PAGE, countPeople, listPeople } from "@/server/people";
-import { withVisits } from "@/server/calendar";
-import { dealPaceRead, sellsByOf } from "@/server/deals";
-import { stepNamer } from "@/server/person-notes";
-import { followUpFacts } from "@/server/playbooks";
+import { load, readerContext } from "@/server/readers";
+import { people } from "@/server/readers/people";
 
 const Query = z.object({
   q: z.string().max(80).optional(),
@@ -23,60 +20,16 @@ const Query = z.object({
  * A page at a time: `?q=` matches a name, a WhatsApp name or three digits
  * of the number; `?offset=` reads the next thousand under the same order.
  * `page` says how many there are in all and whether more follow, so the
- * page can stop at nothing and keep its counts right (00112).
+ * page can stop at nothing and keep its counts right (00112). The body is
+ * its reader's (readers/people.ts), which Ask's search_people reads too.
  */
 export const GET = read({
   scope: workspace,
   query: Query,
   handle: async ({ ctx, member, input }) => {
-    const tenantId = member.tenantId;
     const q = input?.q?.trim() || null;
     const offset = input?.offset ?? 0;
-    const [rows, total] = await Promise.all([
-      listPeople(ctx, tenantId, { q, offset, limit: PEOPLE_PAGE }),
-      countPeople(ctx, tenantId, q),
-    ]);
-    // Each person with their appointments from the owner's calendar, when one is connected: Booked is a fact here,
-    // not a stage. Never fatal to the list. In the same round trip, how this workspace's customers buy (0008): an
-    // answer that cannot be read is not asked yet, and costs the deal lists, never the list.
-    // And who each next step is for (00166), from the team, read only when a step is for someone; and the
-    // workspace's pace (0008, amended), said only where deals are on, and read with the first page alone: People
-    // keeps that page's answer, and a later page or a search would read it again for nothing.
-    // And the proposal follow-up's facts (0006), where deals are on, with the first page alone as the pace is: each
-    // row's standing is worked out from them where the rows are held. Unreadable, every row says what it said.
-    const buys = sellsByOf(ctx, tenantId);
-    const [out, sellsBy, nameSteps, pace, followUp] = await Promise.all([
-      withVisits(ctx, tenantId, rows),
-      buys,
-      stepNamer(ctx, tenantId, rows),
-      offset === 0 && !q ? dealPaceRead(ctx, tenantId) : Promise.resolve(null),
-      buys.then((s) =>
-        dealsAreOn(s) && offset === 0 && !q
-          ? followUpFacts(ctx, tenantId, new Date()).catch((e: unknown) => {
-              console.error(
-                "follow_up_facts_failed",
-                JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
-              );
-              return null;
-            })
-          : null,
-      ),
-    ]);
-    const dealsOn = dealsAreOn(sellsBy);
-    return {
-      ...out,
-      people: out.people.map(nameSteps),
-      // Deals are on where the workspace says some customers get a proposal first (dealsAreOn, 0008): the Journey's
-      // deal lists, the thread's menu item, the column. Consult-first stays a booking rule, sent for its own list; the
-      // names of the services stay on the server.
-      deals_on: dealsOn,
-      // How long this workspace's yeses usually take (0008, amended): when a proposal is waiting, on every page.
-      deal_pace: dealsOn ? pace : null,
-      // The proposal follow-up, where one runs (0006): who it has in hand and when, row by row, on People and Today.
-      follow_up: dealsOn ? followUp : null,
-      consult_first: out.consult_first,
-      page: { q, offset, limit: PEOPLE_PAGE, total, has_more: offset + rows.length < total },
-    };
+    return (await load(readerContext(ctx, member), people, { q, offset })).data;
   },
 });
 

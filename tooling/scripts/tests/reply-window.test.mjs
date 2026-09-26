@@ -51,7 +51,6 @@ function toolContext(tables) {
     role: "operator",
     read: new Proxy({}, { get: (sets, kind) => (sets[kind] ??= new Set()) }),
     now: NOW,
-    memo: new Map(),
   };
 }
 

@@ -2,8 +2,8 @@ import { createBroadcast } from "@chanlytics/core";
 import { read, write, workspace } from "@/server/route";
 import { jsonBody } from "@/server/request-guards";
 import { createBroadcastPorts } from "@/server/campaign-ports";
-import { listBroadcasts } from "@/server/broadcasts";
-import { recentTouches } from "@/server/playbooks";
+import { load, readerContext } from "@/server/readers";
+import { broadcasts } from "@/server/readers/broadcasts";
 
 /**
  * Broadcasts: one approved template to the people who said yes.
@@ -26,20 +26,9 @@ export const GET = read({
   scope: workspace,
   // { broadcasts, more, touched }: the recent fifty, whether older ones exist beyond them, and who a run of any kind
   // reached within the week -- the composer says how many of an audience heard from one. Touches that cannot be read
-  // are null, and the composer says nothing, rather than a list of nobody.
-  handle: async ({ ctx, member }) => {
-    const [list, touched] = await Promise.all([
-      listBroadcasts(ctx, member.tenantId),
-      recentTouches(ctx, member.tenantId, new Date()).catch((e: unknown) => {
-        console.error(
-          "broadcast_touches_failed",
-          JSON.stringify({ tenant: member.tenantId, error: e instanceof Error ? e.message : String(e) }),
-        );
-        return null;
-      }),
-    ]);
-    return { ...list, touched: touched ? Object.keys(touched) : null };
-  },
+  // are null, and the composer says nothing, rather than a list of nobody. The body is its reader's
+  // (readers/broadcasts.ts).
+  handle: async ({ ctx, member }) => (await load(readerContext(ctx, member), broadcasts, undefined)).data,
 });
 
 export const POST = write({

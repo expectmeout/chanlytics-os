@@ -48,6 +48,22 @@ const { calendar: calendarReader, sources: calendarSources } = await import(
   at("apps/dashboard/src/server/readers/calendar.ts")
 );
 const calendarRoute = await import(at("apps/dashboard/app/api/v1/calendar/route.ts"));
+const { people: peopleReader } = await import(at("apps/dashboard/src/server/readers/people.ts"));
+const { lists: listsReader } = await import(at("apps/dashboard/src/server/readers/lists.ts"));
+const { broadcasts: broadcastsReader, broadcast: oneBroadcast } = await import(
+  at("apps/dashboard/src/server/readers/broadcasts.ts")
+);
+const contactsRoute = await import(at("apps/dashboard/app/api/v1/contacts/route.ts"));
+const segmentsRoute = await import(at("apps/dashboard/app/api/v1/segments/route.ts"));
+const broadcastsRoute = await import(at("apps/dashboard/app/api/v1/broadcasts/route.ts"));
+const broadcastRoute = await import(at("apps/dashboard/app/api/v1/broadcasts/[id]/route.ts"));
+const { everyone } = await import(at("apps/dashboard/src/server/people.ts"));
+const { audiencePool: audiencePoolReader } = await import(at("apps/dashboard/src/server/readers/audience-pool.ts"));
+const { audiencePool: audiencePoolOf } = await import(at("apps/dashboard/src/server/audience.ts"));
+const { everyone: everyoneReader } = await import(at("apps/dashboard/src/server/readers/everyone.ts"));
+const { playbooks: playbooksReader } = await import(at("apps/dashboard/src/server/readers/playbooks.ts"));
+const playbooksRoute = await import(at("apps/dashboard/app/api/v1/playbooks/route.ts"));
+const { getBroadcast } = await import(at("apps/dashboard/src/server/broadcasts.ts"));
 
 // The kept values live in the module, keyed by workspace, person and reader: each test starts with none.
 beforeEach(() => kernel.readerCache.clear());
@@ -1878,4 +1894,855 @@ test("the cross-turn cache is opt-in: a context that does not keep reads a ttl r
       );
     }
   });
+});
+
+/* ------------------------------------------------- the people list, the lists, the broadcasts (PR 1.6) */
+
+const P3 = "33333333-3333-4333-8333-333333333333";
+/** GET contacts' payload keys at origin/main (e3184cff), in its order: withVisits' four, then the page's own. */
+const PEOPLE_KEYS = [
+  "people",
+  "calendar",
+  "booking_link",
+  "consult_first",
+  "deals_on",
+  "deal_pace",
+  "follow_up",
+  "page",
+];
+/**
+ * people-routes.test.mjs, "the people list is the workspace the tab named": harbor holds two people and bayside one;
+ * harbor's reply mode is auto, and one of its people has their own, never. No calendar, and nobody asked how its
+ * customers buy.
+ */
+const listWorld = () => ({
+  tables: {
+    memberships: reportMembers(),
+    policies: [pol(A, null, null, "auto"), pol(A, "contact", P2, "never")],
+    tenants: [],
+    tenant_config: [],
+  },
+  rpcs: { people_list: (a) => (a.p_tenant_id === A ? [personRow(P1), personRow(P2)] : [personRow(P3)]) },
+});
+/** people-routes.test.mjs, "the list pages under one order": the door does the matching, the count is where the rows are. */
+const pagingWorld = () => ({
+  tables: {
+    memberships: reportMembers(),
+    policies: [],
+    tenants: [],
+    tenant_config: [],
+    contacts: [
+      { id: P1, tenant_id: A, phone_e164: "+15550000001", display_name: "Ada", erased_at: null },
+      { id: P2, tenant_id: A, phone_e164: "+15550000002", display_name: "Bo", erased_at: null },
+      { id: P3, tenant_id: A, phone_e164: "+15550000003", display_name: "Cy", erased_at: "2026-08-01T00:00:00Z" },
+    ],
+  },
+  rpcs: { people_list: (a) => (a.p_query ? [personRow(P2, { display_name: "Bo" })] : [personRow(P1), personRow(P2)]) },
+});
+
+test("the people list, for Ask and for the page: GET contacts answers its reader's payload, key for key and byte for byte -- over people-routes' fixture in both workspaces, and a query, an offset and three digits over its paging fixture -- the same reading of who exists as the export, and each person a row, named as People names them", async () => {
+  for (const [w, tenant, query, args] of [
+    [listWorld(), A, "", { q: null, offset: 0 }],
+    [listWorld(), B, "", { q: null, offset: 0 }],
+    [pagingWorld(), A, "&q=%20bo%20", { q: "bo", offset: 0 }],
+    [pagingWorld(), A, "&offset=1000", { q: null, offset: 1000 }],
+    [pagingWorld(), A, "&q=0002", { q: "0002", offset: 0 }],
+  ]) {
+    const page = await contactsRoute.GET.run(req(`?workspace=${tenant}${query}`), worldCtx(w));
+    const r = await kernel.load(turnIn(worldCtx(w), tenant), peopleReader, args);
+    assert.deepEqual(r.data, page, "the route's payload");
+    assert.equal(JSON.stringify(r.data), JSON.stringify(page), "byte for byte");
+    assert.deepEqual(Object.keys(r.data), PEOPLE_KEYS, "the keys in the order the route answered them");
+    assert.deepEqual(
+      r.rows,
+      r.data.people.map((p) => ({ kind: "person", id: p.id, route: `clients/${p.id}`, label: personName(p) })),
+    );
+  }
+  // What people-routes asserts of the route, of the reader.
+  const harbor = await kernel.load(turnIn(worldCtx(listWorld())), peopleReader, { q: null, offset: 0 });
+  assert.deepEqual(
+    harbor.data.people.map((p) => [p.id, p.effective_reply_mode, p.visits]),
+    [
+      [P1, "auto", null],
+      [P2, "never", null],
+    ],
+  );
+  assert.equal(harbor.data.calendar.state, "none");
+  assert.deepEqual(harbor.data.page, { q: null, offset: 0, limit: 1000, total: 0, has_more: false });
+  assert.deepEqual(
+    harbor.rows.map((x) => x.label),
+    ["Ada", "Ada"],
+  );
+  const found = await kernel.load(turnIn(worldCtx(pagingWorld())), peopleReader, { q: "bo", offset: 0 });
+  assert.deepEqual(
+    [found.data.people.map((p) => p.id), found.data.page],
+    [[P2], { q: "bo", offset: 0, limit: 1000, total: 1, has_more: false }],
+    "the door matched, and the count counted the same match",
+  );
+  // The same reading of who exists as the CSV export (everyone(), server/people.ts): the door's rows under the member's
+  // RLS, each with the reply mode in force, a page at a time.
+  const all = await everyone(worldCtx(listWorld()), A);
+  assert.deepEqual(
+    harbor.data.people.map((p) => [p.id, p.effective_reply_mode]),
+    all.map((p) => [p.id, p.effective_reply_mode]),
+  );
+});
+
+/**
+ * A workspace whose customers sometimes get a proposal first (0008), with calendar-feed's one appointment naming Ana by
+ * her number: Ana has a step for a teammate, Luis a proposal out and a step for the member asking, and the proposal
+ * follow-up runs (0006) -- its number, its approved template -- and its run reached Luis this week.
+ */
+const peopleWorld = () => {
+  const cal = calTables("https://cal.example/people.ics", "viewer");
+  const sent = ago(48 * HOUR);
+  const DAY = 24 * HOUR;
+  return {
+    tables: {
+      ...cal,
+      memberships: reportMembers(),
+      tenants: [{ ...cal.tenants[0], sells_by: "proposal" }],
+      policies: [
+        pol(A, null, null, "auto"),
+        { tenant_id: A, class: "follow_up", subject_type: null, subject_id: null, mode: "ask" },
+      ],
+      contacts: [
+        { id: P1, tenant_id: A, display_name: "Ana Ruiz", phone_e164: "+19175550100", erased_at: null },
+        { id: P2, tenant_id: A, display_name: "Luis Mora", phone_e164: "+19175550101", erased_at: null },
+      ],
+      deals: [
+        { id: "d1", tenant_id: A, contact_id: P2, stage: "proposed", proposed_at: ago(10 * DAY), decided_at: null },
+        { id: "d2", tenant_id: A, contact_id: P1, stage: "won", proposed_at: ago(13 * DAY), decided_at: ago(3 * DAY) },
+      ],
+      playbooks: [
+        {
+          id: "pb-follow",
+          tenant_id: A,
+          trigger: "proposal_waiting",
+          state: "running",
+          run_hour: 10,
+          last_run_for: null,
+          template_name: "proposal_follow_up",
+          template_language: "en_US",
+        },
+      ],
+      templates: [
+        {
+          tenant_id: A,
+          channel: "whatsapp",
+          name: "proposal_follow_up",
+          language: "en_US",
+          meta_status: "approved",
+          category: "utility",
+        },
+      ],
+      tenant_channels: [{ tenant_id: A, kind: "whatsapp", status: "active", config: { quality_rating: "GREEN" } }],
+      broadcasts: [
+        {
+          id: "b1",
+          tenant_id: A,
+          playbook_id: "pb-follow",
+          state: "sent",
+          scheduled_for: sent,
+          created_at: sent,
+          run_for: null,
+          params: [{ kind: "first_name" }, { kind: "business_name" }, { kind: "proposal_link" }],
+        },
+      ],
+      broadcast_recipients: [{ tenant_id: A, broadcast_id: "b1", contact_id: P2, state: "sent", sent_at: sent }],
+    },
+    rpcs: {
+      people_list: (a) =>
+        a.p_tenant_id === A
+          ? [
+              personRow(P1, { display_name: "Ana Ruiz", phone_e164: "+19175550100", step_for_user_id: "u2" }),
+              personRow(P2, {
+                display_name: "Luis Mora",
+                phone_e164: "+19175550101",
+                deal_id: "d1",
+                deal_stage: "proposed",
+                step_for_user_id: USER,
+              }),
+            ]
+          : [],
+      team_roster: () => [
+        { member_user_id: USER, display_name: "Ada", email: "ada@example.com" },
+        { member_user_id: "u2", display_name: "Sam", email: "sam@example.com" },
+      ],
+    },
+  };
+};
+/**
+ * Every query GET contacts asked at origin/main (e3184cff) for peopleWorld's first page, in order, with the columns it
+ * selected. The workspace's door. The first stage at once: the page and how many match, then the page's reply modes.
+ * The second at once: how the workspace's customers buy, the calendar's zone and settings (the feed itself is fetched,
+ * never read from the database), who each step is for, the pace; then, once sells_by says deals are on, the proposal
+ * follow-up's facts -- its playbook, its class, the workspace, its number, the proposals out, its template, and the
+ * runs that touched them.
+ */
+const PEOPLE_ASKED_AT_MAIN = [
+  ["memberships.select", "tenant_id, role, tenants (slug)"],
+  ["rpc:people_list", null],
+  ["contacts.select", "id"],
+  ["policies.select", "subject_type, subject_id, mode"],
+  ["tenants.select", "sells_by"],
+  ["tenants.select", "name, timezone"],
+  ["tenant_config.select", "config"],
+  ["rpc:team_roster", null],
+  ["deals.select", "id, stage, proposed_at, decided_at"],
+  ["playbooks.select", "state, run_hour, last_run_for, template_name, template_language"],
+  ["policies.select", "mode"],
+  ["tenants.select", "status"],
+  ["tenant_channels.select", "config"],
+  ["deals.select", "id, contact_id, proposed_at"],
+  ["templates.select", "meta_status, category"],
+  ["tenants.select", "timezone"],
+  ["tenants.select", "timezone"],
+  ["broadcasts.select", "id, playbook_id, state, scheduled_for, created_at, run_for, params"],
+  ["broadcasts.select", "id, playbook_id, state, scheduled_for, created_at, run_for, params"],
+  ["broadcast_recipients.select", "broadcast_id, contact_id, sent_at, state"],
+  ["broadcast_recipients.select", "broadcast_id, contact_id, sent_at, state"],
+];
+/** Every query in the order it reached the database, with the columns a select asked for. */
+const askedWith = (ctx) =>
+  ctx.supabase.seen.map((q) => (q.rpc ? [`rpc:${q.rpc}`, null] : [`${q.table}.${q.op}`, q.columns]));
+/** The config reader's columns (getTenantConfig), where the calendar's own lookup asked for the one, config. */
+const CONFIG_READER_COLUMNS = "tenant_id, config, version, updated_at, updated_by";
+
+test("GET contacts through its reader asks what it asked at origin/main, in its two stages -- the page and its count at once; then how the customers buy, the calendar's zone and settings, who each step is for, the pace and the follow-up's facts at once -- the settings now through the config reader's columns and sells_by through its reader; a turn that holds the zone, the settings and sells_by reads none of them again", async () => {
+  await withFeed({ body: ONE_ICS }, async () => {
+    const want = PEOPLE_ASKED_AT_MAIN.map(([k, cols]) => [
+      k,
+      k === "tenant_config.select" ? CONFIG_READER_COLUMNS : cols,
+    ]);
+    // One world for every request below: its times are read from the clock once.
+    const w = peopleWorld();
+    const routed = worldCtx(w);
+    const page = await contactsRoute.GET.run(req(`?workspace=${A}`), routed);
+    assert.deepEqual(askedWith(routed), want, "the workspace's door, then the reads");
+    const ctx = worldCtx(w);
+    const r = await kernel.load(turnIn(ctx), peopleReader, { q: null, offset: 0 });
+    assert.deepEqual(r.data, page, "the route's payload");
+    assert.deepEqual(askedWith(ctx), want.slice(1));
+    // What each read was for, in the payload: Ana's visit from the feed, who each step is for, the pace, the follow-up.
+    const [ana, luis] = r.data.people;
+    assert.deepEqual(
+      [r.data.calendar.state, ana.visits.last.title, luis.visits.last],
+      ["ok", "Ana Ruiz · Balayage", null],
+    );
+    assert.deepEqual(
+      [ana.step_for_name, ana.step_for_me, luis.step_for_name, luis.step_for_me],
+      ["Sam", false, "Ada", true],
+    );
+    assert.deepEqual([r.data.deals_on, r.data.deal_pace], [true, { median_days: 10, yeses: 1 }]);
+    assert.deepEqual(Object.keys(r.data.follow_up.had), [P2], "Luis had his proposal's follow-up");
+    // A search reads neither the pace nor the follow-up's facts: People keeps its first page's.
+    const searched = worldCtx(w);
+    const s = await kernel.load(turnIn(searched), peopleReader, { q: "luis", offset: 0 });
+    assert.deepEqual([s.data.deal_pace, s.data.follow_up], [null, null]);
+    assert.deepEqual(askedWith(searched), want.slice(1, 8), "the two stages, less the pace and the follow-up");
+    // A turn that already holds the zone, the settings and how the customers buy is asked for none of them again.
+    const turn = turnIn(worldCtx(w));
+    await Promise.all([facts, config, sellsBy].map((x) => kernel.load(turn, x, undefined)));
+    const held = turn.ctx.supabase.seen.length;
+    await kernel.load(turn, peopleReader, { q: null, offset: 0 });
+    assert.deepEqual(
+      askedWith(turn.ctx).slice(held),
+      want
+        .slice(1)
+        .filter(([k, cols]) => k !== "tenant_config.select" && !(k === "tenants.select" && /sells_by|name/.test(cols))),
+      "the page, the steps, the pace and the follow-up's own reads: the zone, the settings and sells_by were the turn's",
+    );
+  });
+});
+
+test("the people list's calendar is never fatal: settings that cannot be read cost every row its visits and the list its calendar, said once in the log, and the rest of the page stands -- the reader's payload is the route's", async () => {
+  await withFeed({ body: ONE_ICS }, async () => {
+    const down = { "tenant_config.select": { message: "config down" } };
+    const w = peopleWorld();
+    const { result: page, lines } = await logged("people_visits_failed", () =>
+      contactsRoute.GET.run(req(`?workspace=${A}`), worldCtx(w, down)),
+    );
+    assert.deepEqual(
+      [page.people.map((p) => p.visits), page.calendar, page.booking_link],
+      [[null, null], { state: "none", source: "your calendar", timezone: "UTC" }, null],
+    );
+    assert.deepEqual([page.deals_on, Object.keys(page.follow_up.had), page.page.total], [true, [P2], 2]);
+    assert.deepEqual(
+      lines.map(([json]) => JSON.parse(json)),
+      // The settings come through the config reader now (getTenantConfig), which names itself in its failure.
+      [{ tenant: A, error: "getTenantConfig: config down" }],
+    );
+    const { result: r } = await logged("people_visits_failed", () =>
+      kernel.load(turnIn(worldCtx(w, down)), peopleReader, { q: null, offset: 0 }),
+    );
+    assert.deepEqual(r.data, page);
+  });
+});
+
+const SEG1 = "5e5e5e5e-1111-4111-8111-5e5e5e5e5e5e";
+const SEG2 = "5e5e5e5e-2222-4222-8222-5e5e5e5e5e5e";
+/** people-routes.test.mjs, "lists: one workspace's with their members' ids": a list in each workspace, one member each. */
+const segmentsWorld = () => ({
+  tables: {
+    memberships: reportMembers(),
+    segments: [
+      { id: SEG1, tenant_id: A, name: "Regulars" },
+      { id: SEG2, tenant_id: B, name: "VIP" },
+    ],
+    segment_members: [
+      { segment_id: SEG1, contact_id: P1, tenant_id: A },
+      { segment_id: SEG2, contact_id: P2, tenant_id: B },
+    ],
+  },
+  rpcs: {},
+});
+
+test("the lists, for Ask and for the page: GET segments answers its reader's payload over people-routes' fixture in both workspaces -- every list of the one workspace read, with every member -- and a list is not a row a citation names yet", async () => {
+  for (const [tenant, want] of [
+    [A, [{ id: SEG1, name: "Regulars", ids: [P1], rule: null, archived_at: null }]],
+    [B, [{ id: SEG2, name: "VIP", ids: [P2], rule: null, archived_at: null }]],
+  ]) {
+    const page = await segmentsRoute.GET.run(req(`?workspace=${tenant}`), worldCtx(segmentsWorld()));
+    const ctx = worldCtx(segmentsWorld());
+    const r = await kernel.load(turnIn(ctx, tenant), listsReader, undefined);
+    assert.deepEqual(r.data, page, "the route's payload");
+    assert.deepEqual(r.data, { lists: want });
+    assert.deepEqual(r.rows, []);
+    assert.deepEqual(asked(ctx), ["segments.select", "segment_members.select"], "the lists and their members at once");
+  }
+});
+
+const BC1 = "88888888-8888-4888-8888-888888888881";
+const BC2 = "88888888-8888-4888-8888-888888888882";
+const BC3 = "88888888-8888-4888-8888-888888888883";
+/** A broadcast row as outbound-routes.test.mjs builds one. */
+const bcRow = (id, tenant_id, over = {}) => ({
+  id,
+  tenant_id,
+  name: "Reminder",
+  template_id: "77777777-7777-4777-8777-777777777771",
+  template_name: "visit_reminder",
+  template_language: "en_US",
+  params: [],
+  audience: { kind: "everyone", id: null, label: "Everyone" },
+  state: "scheduled",
+  scheduled_for: "2026-09-10T00:00:00Z",
+  started_at: null,
+  finished_at: null,
+  recipient_count: 3,
+  failure: null,
+  created_at: "2026-09-10T00:00:00Z",
+  playbook_id: null,
+  run_for: null,
+  ...over,
+});
+/** outbound-routes.test.mjs, "the broadcasts list is the workspace the tab named": two of harbor's, one of bayside's. */
+const bcWorld = () => ({
+  tables: {
+    memberships: reportMembers(),
+    broadcasts: [
+      bcRow(BC1, A, { created_at: "2026-09-09T00:00:00Z" }),
+      bcRow(BC2, A, { created_at: "2026-09-10T00:00:00Z", state: "sent" }),
+      bcRow(BC3, B),
+    ],
+    broadcast_recipients: [
+      {
+        broadcast_id: BC2,
+        tenant_id: A,
+        contact_id: "k1",
+        state: "sent",
+        reason: null,
+        sent_at: "2026-09-10T01:00:00Z",
+        messages: { conversation_id: null, status: "delivered" },
+      },
+    ],
+  },
+  rpcs: {},
+});
+/** outbound-routes.test.mjs, "who a run of any kind reached this week": sent, held back, canceled, last month. */
+const touchedWorld = () => {
+  const rec = (broadcast_id, contact_id, state, sent_at) => ({
+    broadcast_id,
+    tenant_id: A,
+    contact_id,
+    state,
+    reason: null,
+    sent_at,
+    messages: null,
+  });
+  return {
+    tables: {
+      memberships: reportMembers(),
+      broadcasts: [
+        bcRow(BC1, A, { created_at: ago(2 * HOUR), state: "sent" }),
+        bcRow(BC2, A, { created_at: ago(2 * HOUR), state: "canceled" }),
+        bcRow(BC3, A, { created_at: ago(40 * 24 * HOUR), state: "sent" }),
+      ],
+      broadcast_recipients: [
+        rec(BC1, "k1", "sent", ago(HOUR)),
+        rec(BC1, "k2", "skipped", null),
+        rec(BC2, "k3", "queued", null),
+        rec(BC3, "k4", "sent", ago(40 * 24 * HOUR)),
+      ],
+    },
+    rpcs: {},
+  };
+};
+
+test("the broadcasts, for Ask and for the page: GET broadcasts answers its reader's payload over outbound-routes' two fixtures -- the recent fifty with what their messages earned, whether older ones exist, and who a run reached within the week of the turn's clock -- and a broadcast is not a row a citation names yet", async () => {
+  for (const [w, tenant] of [
+    [bcWorld(), A],
+    [bcWorld(), B],
+    [touchedWorld(), A],
+  ]) {
+    const page = await broadcastsRoute.GET.run(req(`?workspace=${tenant}`), worldCtx(w));
+    const r = await kernel.load(turnIn(worldCtx(w), tenant), broadcastsReader, undefined);
+    assert.deepEqual(r.data, page, "the route's payload");
+    assert.equal(JSON.stringify(r.data), JSON.stringify(page), "byte for byte");
+    assert.deepEqual(Object.keys(r.data), ["broadcasts", "more", "touched"]);
+    assert.deepEqual(r.rows, []);
+  }
+  // What outbound-routes asserts of the route, of the reader.
+  const harbor = (await kernel.load(turnIn(worldCtx(bcWorld())), broadcastsReader, undefined)).data;
+  assert.deepEqual(
+    [harbor.broadcasts.map((b) => b.id), harbor.broadcasts[0].counts.sent, harbor.broadcasts[0].counts.delivered],
+    [[BC2, BC1], 1, 1],
+  );
+  const touched = (await kernel.load(turnIn(worldCtx(touchedWorld())), broadcastsReader, undefined)).data.touched;
+  assert.deepEqual(touched, ["k1"], "sent this week; not held back, not canceled, not last month");
+  // The week is the turn's: at a clock eight days on, the run of an hour ago is last week's.
+  const later = kernel.readerContext(
+    worldCtx(touchedWorld()),
+    { tenantId: A, role: "viewer" },
+    new Date(Date.now() + 8 * 24 * HOUR),
+  );
+  assert.deepEqual((await kernel.load(later, broadcastsReader, undefined)).data.touched, []);
+});
+
+/** run-report.test.mjs's shape, in harbor: one run that reached two people and held one back, and what came back. */
+const detailWorld = () => {
+  const T0 = Date.parse("2026-09-20T15:00:00Z");
+  const at = (ms) => new Date(T0 + ms).toISOString();
+  const rec = (contact_id, over) => ({
+    broadcast_id: BC1,
+    tenant_id: A,
+    contact_id,
+    state: "sent",
+    reason: null,
+    sent_at: at(0),
+    ...over,
+  });
+  const said = (conversation_id, direction, ms, body, sender) => ({
+    tenant_id: A,
+    conversation_id,
+    direction,
+    created_at: at(ms),
+    body,
+    sender,
+    type: "text",
+  });
+  return {
+    tables: {
+      memberships: reportMembers(),
+      broadcasts: [bcRow(BC1, A, { state: "sent", scheduled_for: at(0), started_at: at(0), created_at: at(-HOUR) })],
+      broadcast_recipients: [
+        rec(P1, {
+          messages: { conversation_id: "cv-1", status: "read", meta: { status_at: { delivered: at(60_000) } } },
+          contacts: { display_name: "Ana Ruiz", wa_profile_name: null, phone_e164: "+19175550100", email: null },
+        }),
+        rec(P2, {
+          messages: { conversation_id: "cv-2", status: "delivered", meta: {} },
+          contacts: { display_name: null, wa_profile_name: "Lu", phone_e164: "+19175550101", email: null },
+        }),
+        rec(P3, {
+          state: "skipped",
+          reason: "no_consent",
+          sent_at: null,
+          messages: null,
+          contacts: { display_name: "Rosa", wa_profile_name: null, phone_e164: null, email: "rosa@example.com" },
+        }),
+      ],
+      messages: [
+        said("cv-1", "inbound", HOUR, "Yes please!", "customer"),
+        said("cv-1", "outbound", 2 * HOUR, "Booked you in.", "ai"),
+        said("cv-2", "inbound", 3 * HOUR, "stop", "customer"),
+      ],
+      events: [
+        {
+          tenant_id: A,
+          kind: "contact.consent_changed",
+          subject_type: "contact",
+          subject_id: P2,
+          data: { consent: "opted_out", purpose: "marketing" },
+          created_at: at(3 * HOUR),
+        },
+      ],
+      conversations: [
+        { id: "cv-1", tenant_id: A, state: "open" },
+        { id: "cv-2", tenant_id: A, state: "needs_human" },
+      ],
+    },
+    rpcs: {},
+  };
+};
+/** A request for broadcasts/:id over `w`. */
+const detailCtx = (w, id) => ({ ...worldCtx(w), params: { id } });
+
+test("one broadcast, for Ask and for the page: GET broadcasts/:id answers its reader's payload, which is getBroadcast's, over run-report's shape -- who it reached and what came back from each; another workspace's broadcast is the route's 404 in its words, and an id that is not one never reaches the database", async () => {
+  const w = detailWorld();
+  const page = await broadcastRoute.GET.run(req(`?workspace=${A}`), detailCtx(w, BC1));
+  const r = await kernel.load(turnIn(worldCtx(w)), oneBroadcast, { id: BC1 });
+  assert.deepEqual(r.data, page, "the route's payload");
+  assert.equal(JSON.stringify(r.data), JSON.stringify(page), "byte for byte");
+  assert.deepEqual(r.data, await getBroadcast(worldCtx(w), A, BC1), "getBroadcast's own answer");
+  assert.deepEqual(r.rows, []);
+  const by = Object.fromEntries(r.data.recipients.map((x) => [x.contact_id, x]));
+  assert.deepEqual(
+    [by[P1].name, by[P1].replied, by[P1].reply_words, by[P1].answered_by],
+    ["Ana Ruiz", true, "Yes please!", "receptionist"],
+  );
+  assert.deepEqual(
+    [by[P2].name, by[P2].consent_after, by[P2].consent_purpose, by[P2].waiting_on_you],
+    ["Lu", "opted_out", "marketing", true],
+  );
+  assert.deepEqual([by[P3].state, by[P3].reason, by[P3].replied], ["skipped", "no_consent", false]);
+  const gone = (e) => {
+    assert.deepEqual([e.code, e.status, e.message], ["not_found", 404, "Broadcast not found."]);
+    return true;
+  };
+  await assert.rejects(kernel.load(turnIn(worldCtx(w), B), oneBroadcast, { id: BC1 }), gone);
+  await assert.rejects(broadcastRoute.GET.run(req(`?workspace=${B}`), detailCtx(w, BC1)), gone);
+  const typo = detailCtx(w, "not-a-uuid");
+  await assert.rejects(broadcastRoute.GET.run(req(`?workspace=${A}`), typo), (e) => {
+    assert.deepEqual([e.code, e.status, e.message], ["not_found", 404, "That broadcast does not exist."]);
+    return true;
+  });
+  assert.deepEqual(asked(typo), ["memberships.select"], "the workspace's door, and nothing of the broadcast's");
+});
+
+/* --------------------------------------------------------------------------- the audience pool (PR 1.6) */
+
+test("the audience pool, for Ask: everyone with their appointments for the member asking, exactly as server/audience.ts reads it for the same zone and clock -- over a calendar that names one of them -- read once a turn; the zone, the settings and sells_by are the turn's, so the pool's calendar lookup reads neither and sells_by is not read again; settings that cannot be read cost the visits, never the pool; a workspace-wide read, with no row of its own", async () => {
+  await withFeed({ body: ONE_ICS }, async () => {
+    const w = peopleWorld();
+    const want = await audiencePoolOf(worldCtx(w), A, "America/New_York", CAL_NOW);
+    const r = await kernel.load(calIn(worldCtx(w)), audiencePoolReader, undefined);
+    assert.deepEqual(r.data, want, "the pool server/audience.ts reads");
+    assert.deepEqual(r.rows, []);
+    // Ana's appointment is on the turn's own day, ahead of its clock; deals are on here, so Luis's proposal is his.
+    const [ana, luis] = r.data.rows;
+    assert.deepEqual([r.data.calendar.state, ana.nextVisitDate, luis.nextVisitDate], ["ok", "2026-09-08", null]);
+    assert.deepEqual([r.data.deals_on, !!luis.deal], [true, true]);
+    // A turn that holds the zone, the settings and how the customers buy reads everyone and their reply modes, once.
+    const turn = calIn(worldCtx(w));
+    await Promise.all([facts, config, sellsBy].map((x) => kernel.load(turn, x, undefined)));
+    const held = turn.ctx.supabase.seen.length;
+    assert.equal(kernel.load(turn, audiencePoolReader, undefined), kernel.load(turn, audiencePoolReader, undefined));
+    await kernel.load(turn, audiencePoolReader, undefined);
+    assert.deepEqual(asked(turn.ctx).slice(held), ["rpc:people_list", "policies.select"]);
+    // The settings are read only where the pool's calendar lookup would read them: one that fails costs the visits,
+    // said once in the log, as server/audience.ts's own lookup costs them -- never the pool.
+    const down = { "tenant_config.select": { message: "config down" } };
+    const { result: blind, lines } = await logged("people_visits_failed", () =>
+      kernel.load(calIn(worldCtx(w, down)), audiencePoolReader, undefined),
+    );
+    const { result: blindWant } = await logged("people_visits_failed", () =>
+      audiencePoolOf(worldCtx(w, down), A, "America/New_York", CAL_NOW),
+    );
+    assert.deepEqual(blind.data, blindWant);
+    assert.deepEqual(
+      [blind.data.calendar.state, blind.data.people.map((p) => p.visits), lines.length],
+      ["none", [null, null], 1],
+    );
+  });
+});
+
+/* -------------------------------------------------------------------------------- the playbooks (PR 1.6) */
+
+const PB1 = "99999999-9999-4999-8999-999999999991";
+const PB2 = "99999999-9999-4999-8999-999999999992";
+/** GET playbooks' payload keys at origin/main (e3184cff), in its order. */
+const PLAYBOOKS_KEYS = ["playbooks", "timezone", "touched", "pools", "calendar", "lists", "people_lists", "deals_on"];
+/** A playbook row as the page's read selects it (server/playbooks.ts COLUMNS), a moment. */
+const pbRow = (id, over = {}) => ({
+  id,
+  tenant_id: A,
+  kind: "moment",
+  name: "Win-back",
+  trigger: "quiet_30",
+  list_id: null,
+  list_key: null,
+  template_id: "77777777-7777-4777-8777-777777777771",
+  template_name: "winback_offer",
+  template_language: "en_US",
+  params: [],
+  policy_class: "reengage",
+  state: "running",
+  run_hour: 10,
+  cap_per_run: 50,
+  gap_days: 30,
+  cadence_days: 0,
+  last_run_for: null,
+  last_run_at: null,
+  created_at: "2026-09-01T00:00:00Z",
+  ...over,
+});
+/** peopleWorld's workspace with its playbooks: the proposal follow-up, and a win-back on a list of its own kept by hand. */
+const playbooksWorld = () => {
+  const w = peopleWorld();
+  return {
+    tables: {
+      ...w.tables,
+      playbooks: [
+        pbRow("pb-follow", {
+          name: "Follow-up",
+          trigger: "proposal_waiting",
+          template_name: "proposal_follow_up",
+          policy_class: "follow_up",
+          gap_days: 0,
+        }),
+        pbRow("pb-win", { trigger: "saved_list", list_id: SEG1, created_at: "2026-09-02T00:00:00Z" }),
+      ],
+      segments: [{ id: SEG1, tenant_id: A, name: "Regulars", rule: null, archived_at: null }],
+      segment_members: [{ tenant_id: A, segment_id: SEG1, contact_id: P1 }],
+    },
+    rpcs: w.rpcs,
+  };
+};
+/** calendar-counts.test.mjs's person: a yes to offers and a number, heard from forty days ago. */
+const poolPerson = (n, over = {}) => ({
+  id: `p${n}`,
+  display_name: `Person ${n}`,
+  wa_profile_name: null,
+  phone_e164: `+1917555${String(n).padStart(4, "0")}`,
+  consent: "opted_in",
+  consent_source: "customer_message",
+  marketing_consent: "opted_in",
+  dnc: false,
+  has_chat: true,
+  first_seen_at: ago(60 * 24 * HOUR),
+  last_inbound_at: ago(40 * 24 * HOUR),
+  latest_wa_inbound_at: ago(40 * 24 * HOUR),
+  latest_conversation_id: `c${n}`,
+  conversation_count: 1,
+  ...over,
+});
+/** people_list as the database answers it: a page of at most a thousand, from an offset. */
+const pagedPeople = (all) => (a) => all.slice(a.p_offset ?? 0, (a.p_offset ?? 0) + (a.p_limit ?? 1000));
+/** calendar-counts.test.mjs's workspace: an owner, no calendar, and whatever `extra` adds. */
+const countsWorld = (people, extra = {}) => ({
+  tables: { ...calTables(null, "owner"), playbooks: [], templates: [], ...extra },
+  rpcs: { people_list: people },
+});
+/** outbound-routes.test.mjs, "playbooks: the workspace's with their runs' numbers": one of harbor's, one of bayside's. */
+const outboundWorld = () => ({
+  tables: {
+    memberships: reportMembers(),
+    playbooks: [pbRow(PB1), pbRow(PB2, { tenant_id: B, name: "Welcome", trigger: "new_week" })],
+    broadcasts: [bcRow(BC1, B, { playbook_id: PB2, state: "sent", run_for: "2026-09-10" })],
+    broadcast_recipients: [],
+    tenants: [{ id: B, name: "Bayside", timezone: "America/Chicago" }],
+    templates: [],
+  },
+  // No People door: the pools' read of everyone fails, and no moment is counted.
+  rpcs: {},
+});
+
+test("the playbooks, for Ask and for the page: GET playbooks answers its reader's payload, key for key and byte for byte -- over outbound-routes' fixture in both workspaces, whose People read fails and counts no moment; calendar-counts' thousand and three people with one reached this week, its People read refused, and its proposals out where deals are on and where they are off; and a workspace with a calendar, deals on and a list of its own -- and a playbook is not a row a citation names yet", async () => {
+  const thousand = Array.from({ length: 1003 }, (_, i) => poolPerson(i + 1));
+  thousand[0].marketing_consent = "unknown";
+  thousand[1].dnc = true;
+  const sent = ago(48 * HOUR);
+  const touchedOnce = countsWorld(pagedPeople(thousand), {
+    broadcasts: [{ id: "b1", tenant_id: A, state: "sent", playbook_id: null, scheduled_for: sent, created_at: sent }],
+    broadcast_recipients: [{ tenant_id: A, broadcast_id: "b1", contact_id: "p3", state: "sent", sent_at: sent }],
+  });
+  const refused = countsWorld(() => {
+    throw new Error("canceling statement due to statement timeout");
+  });
+  const out = (n, days, over = {}) =>
+    poolPerson(n, {
+      deal_id: `d${n}`,
+      deal_stage: "proposed",
+      deal_proposed_at: ago(days * 24 * HOUR),
+      deal_proposal_url: `https://docs.example.com/proposal/${n}`,
+      ...over,
+    });
+  const proposals = pagedPeople([out(1, 10), out(2, 20), out(3, 20, { deal_proposal_url: null }), poolPerson(4)]);
+  const dealsOn = countsWorld(proposals, {
+    tenants: [
+      { id: A, slug: "harbor", name: "Harbor", status: "active", timezone: "America/New_York", sells_by: "proposal" },
+    ],
+    deals: [],
+  });
+  const booked = countsWorld(proposals);
+  const cases = [
+    ["outbound, harbor", outboundWorld(), A],
+    ["outbound, bayside", outboundWorld(), B],
+    ["a thousand and three", touchedOnce, A],
+    ["People refused", refused, A],
+    ["deals on", dealsOn, A],
+    ["deals off", booked, A],
+    ["calendar, deals and a list", playbooksWorld(), A],
+  ];
+  const pages = {};
+  await withFeed({ body: ONE_ICS }, async () => {
+    for (const [label, w, tenant] of cases) {
+      const { result: page } = await logged("playbook_pools_people_failed", () =>
+        playbooksRoute.GET.run(req(`?workspace=${tenant}`), worldCtx(w)),
+      );
+      const { result: r } = await logged("playbook_pools_people_failed", () =>
+        kernel.load(turnIn(worldCtx(w), tenant), playbooksReader, undefined),
+      );
+      assert.deepEqual(r.data, page, `${label}: the route's payload`);
+      assert.equal(JSON.stringify(r.data), JSON.stringify(page), `${label}: byte for byte`);
+      assert.deepEqual(Object.keys(r.data), PLAYBOOKS_KEYS, `${label}: the keys in the order the route answered them`);
+      assert.deepEqual(r.rows, []);
+      pages[label] = r.data;
+    }
+  });
+  // What outbound-routes and calendar-counts assert of the route, of the reader.
+  assert.deepEqual(
+    pages["outbound, bayside"].playbooks.map((p) => [p.id, p.totals.runs]),
+    [[PB2, 1]],
+  );
+  assert.equal(pages["outbound, bayside"].timezone, "America/Chicago");
+  assert.deepEqual(
+    [pages["outbound, harbor"].playbooks.map((p) => p.id), pages["outbound, harbor"].pools.everyone_monthly],
+    [[PB1], null],
+    "a People read that fails counts no moment, and the playbooks stand",
+  );
+  const e = pages["a thousand and three"].pools.everyone_monthly;
+  assert.deepEqual(
+    [e.candidates, e.held, e.pool],
+    [1003 - 2 - 1, 1, 1003],
+    "past the first page, less the one reached",
+  );
+  assert.equal(pages["People refused"].pools.everyone_monthly, null);
+  assert.deepEqual([pages["deals on"].deals_on, pages["deals on"].pools.proposal_waiting.pool], [true, 2]);
+  assert.deepEqual([pages["deals off"].deals_on, pages["deals off"].pools.proposal_waiting], [false, null]);
+  const rich = pages["calendar, deals and a list"];
+  assert.deepEqual(
+    [
+      rich.calendar,
+      rich.deals_on,
+      Object.keys(rich.touched),
+      rich.lists.map((l) => l.id),
+      rich.pools[`list:${SEG1}`].pool,
+    ],
+    ["ok", true, [P2], [SEG1], 1],
+  );
+});
+
+/**
+ * Every query GET playbooks asked at origin/main (e3184cff) for playbooksWorld, in order, with the columns it selected.
+ * The workspace's door. The first stage at once: the zone, who a run reached this week (with the zone its touches
+ * keep), how the customers buy, the playbooks' runs and rows, the pace, then the runs' recipients. The second: everyone
+ * with their reply modes; the calendar's own lookup of the zone and the settings; then, deals being on, who had a
+ * proposal's follow-up; and the lists.
+ */
+const PLAYBOOKS_ASKED_AT_MAIN = [
+  ["memberships.select", "tenant_id, role, tenants (slug)"],
+  ["tenants.select", "name, timezone"],
+  ["tenants.select", "timezone"],
+  ["tenants.select", "sells_by"],
+  [
+    "broadcasts.select",
+    "id, name, template_id, template_name, template_language, params, audience, state, scheduled_for, started_at, finished_at, recipient_count, failure, created_at, playbook_id, run_for",
+  ],
+  [
+    "playbooks.select",
+    "id, name, trigger, list_id, list_key, template_id, template_name, template_language, params, policy_class, state, run_hour, cap_per_run, gap_days, cadence_days, last_run_for, last_run_at, created_at",
+  ],
+  ["broadcasts.select", "id, playbook_id, state, scheduled_for, created_at, run_for, params"],
+  ["deals.select", "id, stage, proposed_at, decided_at"],
+  [
+    "broadcast_recipients.select",
+    "broadcast_id, contact_id, state, reason, sent_at, messages(conversation_id, status, meta)",
+  ],
+  ["broadcast_recipients.select", "broadcast_id, contact_id, sent_at, state"],
+  ["rpc:people_list", null],
+  ["policies.select", "subject_type, subject_id, mode"],
+  ["tenants.select", "name, timezone"],
+  ["tenant_config.select", "config"],
+  ["deals.select", "id, contact_id, proposed_at"],
+  ["tenants.select", "timezone"],
+  ["broadcasts.select", "id, playbook_id, state, scheduled_for, created_at, run_for, params"],
+  ["broadcast_recipients.select", "broadcast_id, contact_id, sent_at, state"],
+  ["segments.select", "id, name, rule, archived_at"],
+  ["segment_members.select", "segment_id, contact_id"],
+];
+
+test("GET playbooks through its reader asks what it asked at origin/main, in its order, less one read: the pools' calendar lookup no longer reads the zone the page's first read just read, and the settings come through the config reader's columns; a turn that holds the zone, the settings and sells_by reads none of them; settings that cannot be read cost the visit moments, said once in the log, never the page", async () => {
+  await withFeed({ body: ONE_ICS }, async () => {
+    // At origin/main the pools' calendar lookup read the zone a second time, just before the settings.
+    const lookup = PLAYBOOKS_ASKED_AT_MAIN.findIndex(
+      ([k, cols], i) => i > 1 && k === "tenants.select" && cols === "name, timezone",
+    );
+    const want = PLAYBOOKS_ASKED_AT_MAIN.filter((_, i) => i !== lookup).map(([k, cols]) => [
+      k,
+      k === "tenant_config.select" ? CONFIG_READER_COLUMNS : cols,
+    ]);
+    const w = playbooksWorld();
+    const routed = worldCtx(w);
+    const page = await playbooksRoute.GET.run(req(`?workspace=${A}`), routed);
+    assert.deepEqual(askedWith(routed), want, "the workspace's door, then the reads");
+    const ctx = worldCtx(w);
+    const r = await kernel.load(turnIn(ctx), playbooksReader, undefined);
+    assert.deepEqual(r.data, page);
+    assert.deepEqual(askedWith(ctx), want.slice(1));
+    const turn = turnIn(worldCtx(w));
+    await Promise.all([facts, config, sellsBy].map((x) => kernel.load(turn, x, undefined)));
+    const held = turn.ctx.supabase.seen.length;
+    await kernel.load(turn, playbooksReader, undefined);
+    assert.deepEqual(
+      askedWith(turn.ctx).slice(held),
+      want
+        .slice(1)
+        .filter(([k, cols]) => k !== "tenant_config.select" && !(k === "tenants.select" && /sells_by|name/.test(cols))),
+      "the zone, the settings and sells_by were the turn's",
+    );
+    const down = { "tenant_config.select": { message: "config down" } };
+    const { result: blind, lines } = await logged("playbook_pools_visits_failed", () =>
+      playbooksRoute.GET.run(req(`?workspace=${A}`), worldCtx(w, down)),
+    );
+    assert.deepEqual(
+      [blind.calendar, blind.pools.visit_tomorrow, blind.pools.visited, blind.pools.lapsed],
+      ["none", null, null, null],
+      "no calendar read: the moments it names are not counted",
+    );
+    assert.ok(blind.pools.everyone_monthly && blind.playbooks.length === 2, "and everything else stands");
+    assert.deepEqual(
+      lines.map(([json]) => JSON.parse(json)),
+      [{ tenant: A, error: "getTenantConfig: config down" }],
+    );
+    const { result: r2 } = await logged("playbook_pools_visits_failed", () =>
+      kernel.load(turnIn(worldCtx(w, down)), playbooksReader, undefined),
+    );
+    assert.deepEqual(r2.data, blind);
+  });
+});
+
+/* ------------------------------------------------------------------ everyone, once a turn (PR 1.6) */
+
+test("everyone, for Ask: every page of People with the reply mode in force for each, exactly as server/people.ts reads it, and no row of its own; the audience pool and the Playbooks page's pools count from the one read, so a turn that reads both reads every page once and the reply modes once", async () => {
+  const all = Array.from({ length: 1003 }, (_, i) => poolPerson(i + 1));
+  const w = countsWorld(pagedPeople(all));
+  const r = await kernel.load(turnIn(worldCtx(w)), everyoneReader, undefined);
+  assert.deepEqual(r.data, await everyone(worldCtx(w), A), "server/people.ts everyone()");
+  assert.deepEqual([r.data.length, r.rows], [1003, []]);
+  const ctx = worldCtx(w);
+  const turn = turnIn(ctx);
+  await Promise.all([kernel.load(turn, audiencePoolReader, undefined), kernel.load(turn, playbooksReader, undefined)]);
+  assert.deepEqual(
+    ctx.supabase.seen.filter((q) => q.rpc === "people_list").map((q) => q.args.p_offset ?? 0),
+    [0, 1000],
+    "every page once, for the pool and the Playbooks page's pools alike",
+  );
+  assert.equal(
+    selects(ctx, "policies").filter((q) => q.columns === "subject_type, subject_id, mode").length,
+    1,
+    "and the reply modes once",
+  );
 });
