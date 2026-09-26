@@ -23448,7 +23448,9 @@ function outreachRefusalOf(f) {
 }
 var OUTREACH_WAIT_REFUSALS = [
   "sending_domain_at_cap",
-  "sending_domain_not_ready"
+  "sending_domain_not_ready",
+  "outreach_needs_own_domain",
+  "paused"
 ];
 function isWaitRefusal(reason) {
   return OUTREACH_WAIT_REFUSALS.includes(reason ?? "");

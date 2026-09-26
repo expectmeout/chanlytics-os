@@ -20,7 +20,12 @@ test("the lead's own facts, in the door's order: not a lead, closed, the never-a
 });
 
 test("a wait is the cap and a domain not ready: a send that meets one goes later, never nowhere", () => {
-  assert.deepEqual([...OUTREACH_WAIT_REFUSALS], ["sending_domain_at_cap", "sending_domain_not_ready"]);
+  assert.deepEqual(
+    [...OUTREACH_WAIT_REFUSALS],
+    ["sending_domain_at_cap", "sending_domain_not_ready", "outreach_needs_own_domain", "paused"],
+    "the domain's day or state, a domain removed, a workspace paused: none is about the lead",
+  );
+  assert.equal(isWaitRefusal("human_has_it"), false, "a person has the thread: a conversation, not a wait");
   assert.equal(isWaitRefusal("sending_domain_at_cap"), true);
   assert.equal(isWaitRefusal("outreach_wrote_back"), false);
 });

@@ -5140,6 +5140,17 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      reach_out_closed_sends: {
+        Args: { p_limit: number; p_stuck_before: string; p_tenant_id?: string }
+        Returns: {
+          email_status: string
+          send: Json
+        }[]
+      }
+      reach_out_finishable: {
+        Args: { p_limit: number; p_tenant_id?: string }
+        Returns: string[]
+      }
       reach_out_followers: {
         Args: {
           p_after_days: number
@@ -5166,6 +5177,44 @@ export type Database = {
       reach_out_plan_run: {
         Args: { p_run: Json; p_sends: Json }
         Returns: Json
+      }
+      reach_out_queued_outcomes: {
+        Args: { p_limit: number; p_tenant_id?: string }
+        Returns: {
+          error: Json
+          send: Json
+          sent_at: string
+          status: string
+          written_at: string
+        }[]
+      }
+      reach_out_stale_sends: {
+        Args: { p_before: string; p_limit: number; p_tenant_id?: string }
+        Returns: {
+          attempts: number
+          broadcast_id: string
+          claimed_at: string | null
+          contact_id: string | null
+          created_at: string
+          domain_id: string | null
+          id: string
+          lead_id: string
+          message_id: string | null
+          playbook_id: string | null
+          reason: string | null
+          root_id: string
+          send_at: string | null
+          sent_at: string | null
+          state: string
+          tenant_id: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "reach_out_sends"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       release_conversation_control: {
         Args: {
@@ -5349,6 +5398,7 @@ export type Database = {
       trigger_lines_sweep: { Args: never; Returns: number }
       trigger_notes_sweep: { Args: never; Returns: number }
       trigger_playbooks_sweep: { Args: never; Returns: number }
+      trigger_reach_out_sweep: { Args: never; Returns: number }
       trigger_registration_sweep: { Args: never; Returns: number }
       trigger_sweep_health: { Args: never; Returns: number }
       wake_stale_snoozes: { Args: never; Returns: number }

@@ -36,6 +36,9 @@
     "api/cron/domains.ts": {
       "maxDuration": 60
     },
+    "api/cron/reach-out.ts": {
+      "maxDuration": 60
+    },
     "api/cron/google.ts": {
       "maxDuration": 60
     },

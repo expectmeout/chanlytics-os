@@ -20282,7 +20282,11 @@ interface OutreachLeadFacts {
     wroteBack: boolean;
 }
 declare function outreachRefusalOf(f: OutreachLeadFacts): DeliveryRefusal | null;
-declare const OUTREACH_WAIT_REFUSALS: readonly ["sending_domain_at_cap", "sending_domain_not_ready"];
+/**
+ * A wait, never an end: the domain's day is full or the domain is not ready, the domain was removed (another sends
+ * it), or the workspace is paused (billing). None is a fact about the lead, so none may end what its owner approved.
+ */
+declare const OUTREACH_WAIT_REFUSALS: readonly ["sending_domain_at_cap", "sending_domain_not_ready", "outreach_needs_own_domain", "paused"];
 declare function isWaitRefusal(reason: string | null | undefined): boolean;
 declare const REACH_OUT_MONTH_EMAILS = 2000;
 /**

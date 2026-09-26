@@ -4,7 +4,7 @@
  * because "we could not check" is not "yes".
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../database.types";
+import type { Database, Json } from "../database.types";
 
 type Db = SupabaseClient<Database>;
 export type ReachOutSendRow = Database["public"]["Tables"]["reach_out_sends"]["Row"];
@@ -155,11 +155,150 @@ export async function reachOutFollowers(
   return rows;
 }
 
-/** A run's sends, planned once: a lead already in the run keeps the plan it has. */
-export async function planSends(db: Db, rows: ReachOutSendInsert[]): Promise<void> {
-  if (rows.length === 0) return;
-  const { error } = await db
-    .from("reach_out_sends")
-    .upsert(rows as never, { onConflict: "broadcast_id,lead_id", ignoreDuplicates: true });
-  if (error) throw new Error(`cannot plan the run's sends: ${error.message}`);
+/* ------------------------------------------------------------- the clock -- */
+
+/** A queued send and what became of its email (00186 reach_out_queued_outcomes). An email row gone is all nulls. */
+export interface QueuedOutcome {
+  send: ReachOutSendRow;
+  status: string | null;
+  error: unknown;
+  /** When it left, as its row was stamped (messages_guard's status_at.sent). */
+  sent_at: string | null;
+  /** When its email row was written. */
+  written_at: string | null;
+}
+
+/** Queued sends with their emails, the ones with an outcome to read first (00186). */
+export async function queuedOutcomes(db: Db, limit: number, tenantId?: string): Promise<QueuedOutcome[]> {
+  const { data, error } = await db.rpc("reach_out_queued_outcomes", {
+    p_limit: limit,
+    ...(tenantId ? { p_tenant_id: tenantId } : {}),
+  } as never);
+  if (error) throw new Error(`cannot read the queued sends: ${error.message}`);
+  return (data ?? []) as QueuedOutcome[];
+}
+
+/** Claims older than `before`, oldest first: a writer that died mid-send left them. */
+export async function stuckClaims(db: Db, before: Date, limit: number, tenantId?: string): Promise<ReachOutSendRow[]> {
+  let q = db.from("reach_out_sends").select("*").eq("state", "claimed");
+  if (tenantId) q = q.eq("tenant_id", tenantId);
+  const { data, error } = await q
+    .lt("claimed_at", before.toISOString())
+    .order("claimed_at", { ascending: true })
+    .limit(limit);
+  if (error) throw new Error(`cannot read the claimed sends: ${error.message}`);
+  return data ?? [];
+}
+
+/** Planned sends left past `before` in runs that go ahead on running chains (00186 reach_out_stale_sends). */
+export async function staleSends(db: Db, before: Date, limit: number, tenantId?: string): Promise<ReachOutSendRow[]> {
+  const { data, error } = await db.rpc("reach_out_stale_sends", {
+    p_before: before.toISOString(),
+    p_limit: limit,
+    ...(tenantId ? { p_tenant_id: tenantId } : {}),
+  } as never);
+  if (error) throw new Error(`cannot read the stale sends: ${error.message}`);
+  return (data ?? []) as ReachOutSendRow[];
+}
+
+/** The open sends of canceled or failed runs, with their email's state (00186 reach_out_closed_sends). */
+export async function closedRunSends(
+  db: Db,
+  stuckBefore: Date,
+  limit: number,
+  tenantId?: string,
+): Promise<Array<{ send: ReachOutSendRow; email_status: string | null }>> {
+  const { data, error } = await db.rpc("reach_out_closed_sends", {
+    p_stuck_before: stuckBefore.toISOString(),
+    p_limit: limit,
+    ...(tenantId ? { p_tenant_id: tenantId } : {}),
+  } as never);
+  if (error) throw new Error(`cannot read the closed runs' sends: ${error.message}`);
+  return (data ?? []) as Array<{ send: ReachOutSendRow; email_status: string | null }>;
+}
+
+/** Reach-out runs that go ahead with nothing left open (00186 reach_out_finishable). */
+export async function finishableRuns(db: Db, limit: number, tenantId?: string): Promise<string[]> {
+  const { data, error } = await db.rpc("reach_out_finishable", {
+    p_limit: limit,
+    ...(tenantId ? { p_tenant_id: tenantId } : {}),
+  } as never);
+  if (error) throw new Error(`cannot read the runs to finish: ${error.message}`);
+  return ((data ?? []) as unknown[]).map((r) =>
+    typeof r === "string" ? r : String((r as Record<string, unknown>).reach_out_finishable ?? ""),
+  );
+}
+
+/** Which of these email ids have a row, a hundred at a time (an id list rides in the request's address). */
+export async function writtenEmails(db: Db, ids: string[]): Promise<Set<string>> {
+  const out = new Set<string>();
+  const all = [...new Set(ids)];
+  for (let i = 0; i < all.length; i += 100) {
+    const { data, error } = await db
+      .from("messages")
+      .select("id")
+      .in("id", all.slice(i, i + 100));
+    if (error) throw new Error(`cannot read the sends' emails: ${error.message}`);
+    for (const m of data ?? []) out.add(m.id);
+  }
+  return out;
+}
+
+/** An email the clock withdraws while it is still queued (its run was closed): its job then sends nothing. */
+export async function withdrawEmail(db: Db, p: { tenantId: string; id: string; reason: string }): Promise<boolean> {
+  const why = { reason: p.reason } as unknown as Json;
+  const { data, error } = await db
+    .from("messages")
+    .update({ status: "canceled", error: why })
+    .eq("tenant_id", p.tenantId)
+    .eq("id", p.id)
+    .eq("status", "queued")
+    .select("id");
+  if (error) throw new Error(`cannot withdraw the email: ${error.message}`);
+  return (data ?? []).length > 0;
+}
+
+/**
+ * A lead written to by a reach-out's email: still being written to (ready becomes nurture; a later stage is kept),
+ * first contacted when its first email left, its last outcome "emailed", and its event. Written only as it was read
+ * (its version), so a person working the lead at the same moment wins and the next email says so again.
+ */
+export async function leadWritten(
+  db: Db,
+  p: { tenantId: string; leadId: string; at: string; sendId: string; retried?: boolean },
+): Promise<boolean> {
+  const { data: lead, error } = await db
+    .from("leads")
+    .select("stage, version, contacted_at")
+    .eq("tenant_id", p.tenantId)
+    .eq("id", p.leadId)
+    .maybeSingle();
+  if (error) throw new Error(`cannot read the lead a send wrote to: ${error.message}`);
+  if (!lead) return false;
+  const { data: moved, error: e2 } = await db
+    .from("leads")
+    .update({
+      stage: lead.stage === "ready" ? "nurture" : lead.stage,
+      contacted_at: lead.contacted_at ?? p.at,
+      last_outcome: "emailed",
+      version: lead.version + 1,
+    })
+    .eq("tenant_id", p.tenantId)
+    .eq("id", p.leadId)
+    .eq("version", lead.version)
+    .select("id");
+  if (e2) throw new Error(`cannot record the lead as written to: ${e2.message}`);
+  // Worked by a person at the same moment: read again and write once more (it only merges), then say it was not.
+  if ((moved ?? []).length === 0) return p.retried ? false : leadWritten(db, { ...p, retried: true });
+  const said = { by: "reach_out", send_id: p.sendId } as unknown as Json;
+  const { error: e3 } = await db.from("events").insert({
+    tenant_id: p.tenantId,
+    kind: "lead.emailed",
+    category: "lead",
+    subject_type: "lead",
+    subject_id: p.leadId,
+    data: said,
+  });
+  if (e3) throw new Error(`cannot record the lead's email: ${e3.message}`);
+  return true;
 }

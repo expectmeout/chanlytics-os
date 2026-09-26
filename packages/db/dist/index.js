@@ -3059,10 +3059,88 @@ async function reachOutFollowers(db, p) {
       throw new Error("cannot read who a step may write to: the database did not say whether they wrote back");
   return rows;
 }
-async function planSends(db, rows) {
-  if (rows.length === 0) return;
-  const { error } = await db.from("reach_out_sends").upsert(rows, { onConflict: "broadcast_id,lead_id", ignoreDuplicates: true });
-  if (error) throw new Error(`cannot plan the run's sends: ${error.message}`);
+async function queuedOutcomes(db, limit, tenantId) {
+  const { data, error } = await db.rpc("reach_out_queued_outcomes", {
+    p_limit: limit,
+    ...tenantId ? { p_tenant_id: tenantId } : {}
+  });
+  if (error) throw new Error(`cannot read the queued sends: ${error.message}`);
+  return data ?? [];
+}
+async function stuckClaims(db, before, limit, tenantId) {
+  let q = db.from("reach_out_sends").select("*").eq("state", "claimed");
+  if (tenantId) q = q.eq("tenant_id", tenantId);
+  const { data, error } = await q.lt("claimed_at", before.toISOString()).order("claimed_at", { ascending: true }).limit(limit);
+  if (error) throw new Error(`cannot read the claimed sends: ${error.message}`);
+  return data ?? [];
+}
+async function staleSends(db, before, limit, tenantId) {
+  const { data, error } = await db.rpc("reach_out_stale_sends", {
+    p_before: before.toISOString(),
+    p_limit: limit,
+    ...tenantId ? { p_tenant_id: tenantId } : {}
+  });
+  if (error) throw new Error(`cannot read the stale sends: ${error.message}`);
+  return data ?? [];
+}
+async function closedRunSends(db, stuckBefore, limit, tenantId) {
+  const { data, error } = await db.rpc("reach_out_closed_sends", {
+    p_stuck_before: stuckBefore.toISOString(),
+    p_limit: limit,
+    ...tenantId ? { p_tenant_id: tenantId } : {}
+  });
+  if (error) throw new Error(`cannot read the closed runs' sends: ${error.message}`);
+  return data ?? [];
+}
+async function finishableRuns(db, limit, tenantId) {
+  const { data, error } = await db.rpc("reach_out_finishable", {
+    p_limit: limit,
+    ...tenantId ? { p_tenant_id: tenantId } : {}
+  });
+  if (error) throw new Error(`cannot read the runs to finish: ${error.message}`);
+  return (data ?? []).map(
+    (r2) => typeof r2 === "string" ? r2 : String(r2.reach_out_finishable ?? "")
+  );
+}
+async function writtenEmails(db, ids) {
+  const out = /* @__PURE__ */ new Set();
+  const all = [...new Set(ids)];
+  for (let i = 0; i < all.length; i += 100) {
+    const { data, error } = await db.from("messages").select("id").in("id", all.slice(i, i + 100));
+    if (error) throw new Error(`cannot read the sends' emails: ${error.message}`);
+    for (const m of data ?? []) out.add(m.id);
+  }
+  return out;
+}
+async function withdrawEmail(db, p) {
+  const why = { reason: p.reason };
+  const { data, error } = await db.from("messages").update({ status: "canceled", error: why }).eq("tenant_id", p.tenantId).eq("id", p.id).eq("status", "queued").select("id");
+  if (error) throw new Error(`cannot withdraw the email: ${error.message}`);
+  return (data ?? []).length > 0;
+}
+async function leadWritten(db, p) {
+  const { data: lead, error } = await db.from("leads").select("stage, version, contacted_at").eq("tenant_id", p.tenantId).eq("id", p.leadId).maybeSingle();
+  if (error) throw new Error(`cannot read the lead a send wrote to: ${error.message}`);
+  if (!lead) return false;
+  const { data: moved, error: e2 } = await db.from("leads").update({
+    stage: lead.stage === "ready" ? "nurture" : lead.stage,
+    contacted_at: lead.contacted_at ?? p.at,
+    last_outcome: "emailed",
+    version: lead.version + 1
+  }).eq("tenant_id", p.tenantId).eq("id", p.leadId).eq("version", lead.version).select("id");
+  if (e2) throw new Error(`cannot record the lead as written to: ${e2.message}`);
+  if ((moved ?? []).length === 0) return p.retried ? false : leadWritten(db, { ...p, retried: true });
+  const said = { by: "reach_out", send_id: p.sendId };
+  const { error: e3 } = await db.from("events").insert({
+    tenant_id: p.tenantId,
+    kind: "lead.emailed",
+    category: "lead",
+    subject_type: "lead",
+    subject_id: p.leadId,
+    data: said
+  });
+  if (e3) throw new Error(`cannot record the lead's email: ${e3.message}`);
+  return true;
 }
 
 // src/repositories/routing.ts
@@ -3764,6 +3842,7 @@ export {
   claimCallNotification,
   claimControl,
   claimSends,
+  closedRunSends,
   coldReceiptsOwed,
   countSendingDomains,
   countSentToday,
@@ -3779,12 +3858,14 @@ export {
   dueSendingDomains,
   emitEvent,
   everyoneIn,
+  finishableRuns,
   followUpTouchesSince,
   getTenantConfig,
   ingestCall,
   ingestInbound,
   ingestInboundEmail,
   lastInboundEmail,
+  leadWritten,
   linkCallMessage,
   listMemberIds,
   listPolicies,
@@ -3799,9 +3880,9 @@ export {
   pauseConversation,
   peoplePage,
   personReplyMode,
-  planSends,
   playbooksOnList,
   putTenantConfig,
+  queuedOutcomes,
   reachOutAudience,
   reachOutFollowers,
   reachOutPerson,
@@ -3834,9 +3915,11 @@ export {
   setListRule,
   setPersonReplyMode,
   setPolicyMode,
+  staleSends,
   stampEmailComplaint,
   stampEmailSent,
   stampMailboxReceived,
+  stuckClaims,
   subscribeMessagesInserts,
   suppressEmailOf,
   templatesFor,
@@ -3844,5 +3927,7 @@ export {
   touchSendingDomain,
   touchesSince,
   watchedTables,
+  withdrawEmail,
+  writtenEmails,
   yesesSince
 };

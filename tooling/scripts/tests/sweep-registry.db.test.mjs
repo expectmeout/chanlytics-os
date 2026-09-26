@@ -84,6 +84,9 @@ const EVERY_CLOCK = {
   // A workspace's own sending domains (00175): a ten-minute clock that asks the edge only when a domain is being
   // checked or can send, and records that it looked otherwise.
   domains: "domains-sweep",
+  // The reach-out clock (00186): every minute, asking the edge only when a send is due, one is claimed or queued, a
+  // closed run keeps open sends, or a run is ready to finish, and recording that it looked otherwise.
+  reach_out: "reach-out-sweep",
 };
 const RUN_JUDGED = [
   "partitions",
