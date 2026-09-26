@@ -5083,7 +5083,12 @@ export type Database = {
       purge_notifications: { Args: { p_keep?: string }; Returns: number }
       push_device_forget: { Args: { p_token: string }; Returns: Json }
       push_device_register: {
-        Args: { p_activity_token?: string; p_app_version?: string; p_platform: string; p_token: string }
+        Args: {
+          p_activity_token?: string
+          p_app_version?: string
+          p_platform: string
+          p_token: string
+        }
         Returns: Json
       }
       put_channel_credentials: {
