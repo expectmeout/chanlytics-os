@@ -3748,6 +3748,59 @@ test("at a phone's width Needs review is rows in groups: the group's acts on its
   }
 });
 
+test("at a phone's width the bar's switch says list or map, and the leads under the map are the list's own rows", () => {
+  // 25 Sep: the pin read as a hammer and said neither which view this was nor what it opened; under the map stood a
+  // boxed list of its own (numbered rows, square tiles) that looked like no other list.
+  fresh();
+  globalThis.__phone = true;
+  try {
+    let tree = draw({ leadsRoute: `leads:s-${SEARCH_A}` });
+    const bar = byTestId(tree, "leads-phone-bar");
+    assert.equal(byTestId(bar, "leads-list-toggle").props["aria-pressed"], true, "the list is the view shown");
+    assert.equal(byTestId(bar, "leads-map-toggle").props["aria-pressed"], false);
+    click(byTestId(bar, "leads-map-toggle"));
+    tree = draw({ leadsRoute: `leads:s-${SEARCH_A}` });
+    const map = byTestId(tree, "lead-map");
+    assert.ok(map);
+    assert.equal(all(map, (n) => n.props?.["data-testid"] === "lead-map-row").length, 0, "no list of the map's own");
+    assert.equal(all(map, (n) => n.props?.className === "ld-map-side").length, 0);
+    assert.ok(
+      all(tree, (n) => n.type === "tr" && String(n.props?.className || "").includes("pl-card-row")).length > 0,
+      "the list's rows under it",
+    );
+    assert.ok(byTestId(map, "lead-map-count"), "how many are on it, in a line under the map");
+    assert.equal(byTestId(byTestId(tree, "leads-phone-bar"), "leads-map-toggle").props["aria-pressed"], true);
+    click(byTestId(byTestId(tree, "leads-phone-bar"), "leads-list-toggle"));
+    tree = draw({ leadsRoute: `leads:s-${SEARCH_A}` });
+    assert.equal(byTestId(tree, "lead-map"), null, "and the list again");
+  } finally {
+    globalThis.__phone = false;
+  }
+});
+
+test("at a phone's width a list picked in the Lists sheet opens and the sheet closes; picked again it stays open", () => {
+  // 25 Sep: the sheet stood open over the page it had opened, and a second press on the same row went back to all
+  // leads, so an owner could not tell what their press had done.
+  fresh();
+  globalThis.__phone = true;
+  try {
+    let tree = draw({ leadsRoute: "leads" });
+    click(byTestId(tree, "leads-phone-lists"));
+    tree = draw({ leadsRoute: "leads" });
+    assert.ok(byTestId(tree, "people-lists-sheet"), "the sheet is open");
+    click(byTestId(byTestId(tree, "people-lists-sheet"), "leads-list-ready"));
+    assert.equal(went.at(-1), leadsRoute({ list: "ready" }), "the list opens");
+    tree = draw({ leadsRoute: "leads:l-ready" });
+    assert.equal(byTestId(tree, "people-lists-sheet"), null, "and the sheet has closed on it");
+    click(byTestId(tree, "leads-phone-lists"));
+    tree = draw({ leadsRoute: "leads:l-ready" });
+    click(byTestId(byTestId(tree, "people-lists-sheet"), "leads-list-ready"));
+    assert.equal(went.at(-1), leadsRoute({ list: "ready" }), "pressed again, it stays that list, never all leads");
+  } finally {
+    globalThis.__phone = false;
+  }
+});
+
 test("at a phone's width the bar has the map's pin where the rows have places, and it opens the map where the rows were", () => {
   fresh();
   globalThis.__phone = true;

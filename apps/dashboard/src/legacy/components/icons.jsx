@@ -70,6 +70,9 @@ const Icon = ({ name, size = 16, className = "", style = {} }) => {
     case "headphones": return <svg {...props}><path d="M2 9v3a1 1 0 001 1h1.5v-5H3a1 1 0 00-1 1zM14 9v3a1 1 0 01-1 1h-1.5v-5H13a1 1 0 011 1z"/><path d="M2 9a6 6 0 0112 0"/></svg>;
     case "eye":      return <svg {...props}><path d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8s-2.5 4.5-6.5 4.5S1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/></svg>;
     case "flag":     return <svg {...props}><path d="M3 14V2.5h8l-1.5 3 1.5 3H3"/></svg>;
+    // A folded map and a list: the Leads switch between the places and the rows (a push-pin read as a hammer).
+    case "map":      return <svg {...props}><path d="M2 4.2l4-1.7 4 1.7 4-1.7v9.3l-4 1.7-4-1.7-4 1.7z"/><path d="M6 2.5v9.3M10 4.2v9.3"/></svg>;
+    case "list":     return <svg {...props}><path d="M5.5 4h8M5.5 8h8M5.5 12h8"/><circle cx="2.7" cy="4" r="0.8" fill="currentColor" stroke="none"/><circle cx="2.7" cy="8" r="0.8" fill="currentColor" stroke="none"/><circle cx="2.7" cy="12" r="0.8" fill="currentColor" stroke="none"/></svg>;
     case "pin":      return <svg {...props}><path d="M10 2.5L13.5 6 11 8l-1.5-1.5L6 10l-1-1 3.5-3.5L7 4l3-1.5z"/><path d="M6 10l-3 3.5"/></svg>;
     case "star":     return <svg {...props}><path d="M8 2l1.8 4 4.2.5-3 3 .9 4.2L8 11.7 4.1 13.7 5 9.5 2 6.5 6.2 6z"/></svg>;
     case "shield":   return <svg {...props}><path d="M8 1.5l5 2v4c0 3-2 5.5-5 7-3-1.5-5-4-5-7v-4l5-2z"/></svg>;

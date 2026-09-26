@@ -1177,8 +1177,20 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
   /* 36px: 32 inside the control's 2px. Named with html.legacy-on, since the touch floor for a tab is (legacy.css). */
   html.legacy-on .ld-band .ld-class, .ld-band .ld-class { height: 32px; min-height: 32px; }
   .ld-band .ld-class::after { content: ""; position: absolute; inset: -4px 0; }
-  /* The bar's pin: the map, or the list again. */
-  .ld-bar-map.on { color: var(--accent); }
+  /* The bar's switch of two, the rows and the places (leads-scope.jsx LeadsPhoneBar): the class tabs' segmented look,
+     smaller, the one shown raised in ink. 36px drawn, each half a thumb tall to press. Named with html.legacy-on for
+     the touch floor's sake. */
+  .ld-bar-view { flex: none; display: inline-flex; align-items: center; gap: 2px; height: 36px; padding: 2px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-sunken); }
+  html.legacy-on .ld-bar-view-opt, .ld-bar-view-opt { position: relative; width: 34px; height: 30px; min-height: 30px; display: grid; place-items: center; padding: 0; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--ink-dim); cursor: pointer; }
+  .ld-bar-view-opt::after { content: ""; position: absolute; inset: -7px -1px; }
+  .ld-bar-view-opt.on { background: var(--bg-raised); color: var(--ink); box-shadow: 0 0 0 1px var(--line); }
+  /* The map on a phone: the places, a line under them (how many, what the pins say), then the list's own rows
+     (leads-map.jsx `phone`). No side card: it was a boxed list of its own under the map. */
+  .ld-map.is-phone { display: block; padding: 8px var(--row-pad-x) 4px; }
+  .ld-map.is-phone .ld-map-main { min-width: 0; }
+  .ld-map.is-phone .ld-map-foot { font-size: var(--text-sm); color: var(--ink-muted); }
+  .ld-map.is-phone .ld-map-bar { padding: 2px 0 6px; border: 0; background: none; }
+  .ld-map.is-phone .ld-map-count { font-size: var(--text-sm); color: var(--ink-muted); }
   /* A group's acts on its line, as quiet words; named with html.legacy-on for the floor's sake. */
   .ld-sec-acts { display: inline-flex; gap: 12px; }
   html.legacy-on .ld-sec-act, .ld-sec-act { position: relative; height: auto; min-height: 0; padding: 0; border: 0; background: none; font: inherit; font-weight: var(--weight-medium); color: var(--accent); cursor: pointer; }

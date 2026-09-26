@@ -3122,10 +3122,11 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
               lists={lists}
               groups={people.groups || PL_DEFAULT_GROUPS}
               active={listId}
-              onPick={(id) => { pickSmart(id); setListsOpen(false); }}
+              // In the sheet a press opens the list and closes the sheet, never toggles back to Everyone (Leads' too).
+              onPick={(id) => { setSavedId(null); setListId(id); setListsOpen(false); }}
               saved={saved}
               activeSaved={savedId}
-              onPickSaved={(id) => { pickSaved(id); setListsOpen(false); }}
+              onPickSaved={(id) => { setListId(null); setSavedId(id); setListsOpen(false); }}
               canEdit={canEditLists}
               onCreateList={window.__lists ? createList : null}
               savedRead={people.savedRead !== false}
