@@ -399,3 +399,41 @@ test("the client sends opened_ms with the question when the palette measured one
   assert.equal(bodies[0].opened_ms, 4200);
   assert.ok(!("opened_ms" in bodies[1]));
 });
+
+test("one turn reads the workspace's facts once: the route's own read and the tools' reads share the turn cache (tenants, tenant_config, policies each once)", async () => {
+  const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
+  readerCache.clear();
+  const tables = routeTables();
+  const written = answerJson("Hours are nine to five.");
+  // The model calls get_settings and list_calls in one round, then answers.
+  let rounds = 0;
+  setAskPorts({
+    round: async (call, onText) => {
+      rounds++;
+      if (rounds === 1)
+        return ROUND([
+          { type: "tool_use", id: "t-get_settings", name: "get_settings", text: "", json: "{}" },
+          { type: "tool_use", id: "t-list_calls", name: "list_calls", text: "", json: "{}" },
+        ]);
+      onText(written);
+      return ROUND([text(written)], { stopReason: "end_turn" });
+    },
+    snapshot: async () => "",
+  });
+  const ctx = ctxFor(tables);
+  try {
+    const res = await askRoute.POST.run(post({ text: "what are our hours?", surface: "settings" }), ctx);
+    await res.text();
+    const selects = (table) => ctx.supabase.seen.filter((q) => q.table === table && q.op === "select").length;
+    assert.deepEqual([selects("tenant_channels"), selects("calls")], [1, 1], "both tools ran and read their own rows");
+    assert.equal(
+      selects("tenants"),
+      2,
+      "name and zone once (facts), sells_by once (sellsBy): the tools re-read neither",
+    );
+    assert.equal(selects("tenant_config"), 1, "the config once, for the prompt and for get_settings");
+    assert.equal(selects("policies"), 1, "the policies once");
+  } finally {
+    setAskPorts(null);
+  }
+});

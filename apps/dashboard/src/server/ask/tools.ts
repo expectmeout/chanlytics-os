@@ -58,7 +58,7 @@ import {
   type ReportDto,
   visitLine,
 } from "@chanlytics/contracts";
-import { listPolicies, savedListsFor } from "@chanlytics/db";
+import { savedListsFor } from "@chanlytics/db";
 import type { RouteContext } from "../with-route";
 import {
   CALL_COLUMNS,
@@ -69,12 +69,13 @@ import {
   toConversationDto,
 } from "../dto";
 import { audiencePoolOnce, poolList } from "../audience";
-import { dealPaceRead, sellsByOf } from "../deals";
+import { dealPaceRead } from "../deals";
 import { listSearches, waitingQuestionOf } from "../leads";
 import { metricsSummaryFor } from "../metrics";
 import { listPlaybooks, proposalFollowUps } from "../playbooks";
 import { calendarWeek } from "../calendar";
-import { tenantFacts } from "../tenant";
+import { load, readerContext, type ReaderContext } from "../readers";
+import * as readers from "../readers/facts";
 import { openingsFor } from "./openings";
 import { workspaceFacts } from "./prompt";
 import { personNotesRead } from "../person-notes";
@@ -209,6 +210,8 @@ export interface ToolContext {
   now: Date;
   /** One turn's loads, by key: the same rows are never fetched twice in a turn. */
   memo: Map<string, Promise<unknown>>;
+  /** The turn's reader context: every read through the readers shares the route's turn cache. */
+  rc: ReaderContext;
 }
 
 function memoised<T>(t: ToolContext, key: string, load: () => Promise<T>): Promise<T> {
@@ -688,7 +691,7 @@ async function getPerson(t: ToolContext, input: Record<string, unknown>): Promis
     // so a card can carry the address into a reply.
     sb.from("contacts").select("proposal_url").eq("id", id).maybeSingle(),
     // How the workspace's customers buy (0008): the deal and its proposal are said only where deals are on.
-    sellsByOf(t.ctx, t.tenantId),
+    load(t.rc, readers.sellsBy, undefined).then((r) => r.data),
   ]);
   if (convs.error) throw new Error(convs.error.message);
   if (calls.error) throw new Error(calls.error.message);
@@ -786,7 +789,8 @@ async function getPerson(t: ToolContext, input: Record<string, unknown>): Promis
 
 async function listCalls(t: ToolContext, input: Record<string, unknown>): Promise<unknown> {
   const filter = str(input.filter) || "recent";
-  const { timezone } = await tenantFacts(t.ctx.supabase, t.tenantId);
+  // The business's zone, as the turn read it (the route's facts): not read again.
+  const { timezone } = t;
   const calls = await loadCalls(t);
   const today = dayKey(t.now.toISOString(), timezone);
   const vms = calls.map((c) => toCallVM(c, timezone, t.now));
@@ -878,16 +882,19 @@ async function getReport(t: ToolContext, input: Record<string, unknown>): Promis
 async function getSettings(t: ToolContext): Promise<unknown> {
   const sb = t.ctx.supabase;
   const [{ name, timezone }, cfgRow, all, channels, sellsBy] = await Promise.all([
-    tenantFacts(sb, t.tenantId),
-    sb.from("tenant_config").select("config, version").eq("tenant_id", t.tenantId).maybeSingle(),
-    listPolicies(sb, t.tenantId).catch(() => []),
+    load(t.rc, readers.facts, undefined).then((r) => r.data),
+    load(t.rc, readers.config, undefined).then((r) => r.data),
+    load(t.rc, readers.policies, undefined).then(
+      (r) => r.data,
+      () => [],
+    ),
     sb.from("tenant_channels").select("kind, status, number_e164").eq("tenant_id", t.tenantId),
-    sellsByOf(t.ctx, t.tenantId),
+    load(t.rc, readers.sellsBy, undefined).then((r) => r.data),
   ]);
   // The Autonomy rows offered here, as the pane draws them: the follow-ups' only where deals are on (0006).
   const policies = all.filter((p) => policyClassOffered(p.class, dealsAreOn(sellsBy)));
-  const cfg = parseTenantConfig(cfgRow.data?.config ?? null);
-  const facts = workspaceFacts(name, timezone, cfgRow.data?.config ?? null, policies);
+  const cfg = parseTenantConfig(cfgRow?.config ?? null);
+  const facts = workspaceFacts(name, timezone, cfgRow?.config ?? null, policies);
   return {
     business: facts.businessName,
     timezone,
@@ -909,7 +916,7 @@ async function getSettings(t: ToolContext): Promise<unknown> {
       : null,
     policies: policies.map((p) => ({ class: p.class, mode: p.mode, limits: p.limits })),
     channels: (channels.data ?? []).map((c) => ({ kind: c.kind, status: c.status, number: c.number_e164 })),
-    config_version: cfgRow.data?.version ?? null,
+    config_version: cfgRow?.version ?? null,
   };
 }
 
@@ -952,8 +959,9 @@ export function newToolContext(
   role: ToolContext["role"],
   timezone: string,
   now = new Date(),
+  rc: ReaderContext = readerContext(ctx, { tenantId, role }, now),
 ): ToolContext {
-  return { ctx, tenantId, role, timezone, read: emptyReadSet(), now, memo: new Map() };
+  return { ctx, tenantId, role, timezone, read: emptyReadSet(), now, memo: new Map(), rc };
 }
 
 /** Run one read. A tool's own failure is returned to the model as an error result, never thrown. */
@@ -1071,8 +1079,11 @@ const MODE_WORDS: Record<string, string> = {
 async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
   const [rows, facts, policies, pool, paceRead, followUps] = await Promise.all([
     listPlaybooks(t.ctx, t.tenantId),
-    tenantFacts(t.ctx.supabase, t.tenantId),
-    listPolicies(t.ctx.supabase, t.tenantId).catch(() => []),
+    load(t.rc, readers.facts, undefined).then((r) => r.data),
+    load(t.rc, readers.policies, undefined).then(
+      (r) => r.data,
+      () => [],
+    ),
     audiencePoolOnce(t.memo, t.ctx, t.tenantId, t.timezone, t.now),
     // A proposal's moment is counted as the page counts it (0006): by the workspace's pace, leaving out whoever
     // already had their follow-up, from any playbook. Unreadable, that moment is not counted.
@@ -1183,7 +1194,7 @@ const WEEKDAY_KEYS: Record<string, number> = { sun: 0, mon: 1, tue: 2, wed: 3, t
 
 /** The calendar for a day or a few, in the words the page uses. */
 async function getCalendar(t: ToolContext, input: Record<string, unknown>): Promise<unknown> {
-  const facts = await tenantFacts(t.ctx.supabase, t.tenantId);
+  const facts = (await load(t.rc, readers.facts, undefined)).data;
   const todayKey = dayInZone(facts.timezone, t.now.getTime()).key;
   const asked = str(input.day, 20).trim().toLowerCase();
   const askedKey = isDayKey(asked) ? asked : null;
