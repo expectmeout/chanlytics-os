@@ -680,6 +680,16 @@ tool reads the reader and applies the page's builder, so thirteen named divergen
 migration. **Proof:** route tests unchanged and a pure-move diff per route; `ask-turn`'s tool test updated only where a
 divergence is named; the eval set holds. This phase ships nothing else.
 
+**Phase 1, closed** (the plan's ledger, re-read against the tools at the end of PR 1.7). Fourteen rows, the thirteen the
+map found and one found building the last PR, closed in six: #2, #4, #6 and #8 in PR 1.2 (#1101); #5 in PR 1.3 (#1110);
+#3 in PR 1.4 (#1113); #1, #11 and #13 in PR 1.5 (#1115); #7, #9 and #10 in PR 1.6 (#1118); #12 (`list_lead_searches`
+carries the Leads page's rows and the rail's six counts) and #14 (`list_audiences` withholds what the Broadcasts
+composer withholds as unsendable, and says why) in PR 1.7. Every GET route Ask's world reads answers through its
+reader, byte-equal, and no tool reads the database itself; a proposal's own checks and the snapshot keep their reads.
+Still open: the composer's further filter, offering only a template whose every slot a broadcast can fill (`bcSlots`),
+which `list_audiences` does not apply; `search_people`'s match in SQL (people_list's `p_query`), where the People
+page's box matches the rows it holds in the browser; and the tool descriptions, which wait for Phase 3's registry.
+
 **Phase 2 · The page context and the warm call.** Contracts `PageContext` and eleven surfaces; the client providers;
 `POST ask/warm` as a data warm; the server providers and the context as `search_result` blocks in the user turn; the
 shape of the workspace as the byte-stable second system block; the snapshot and the regex prefetch replaced (the
