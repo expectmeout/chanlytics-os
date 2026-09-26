@@ -24,7 +24,13 @@ export type PageMessage =
   /** Today as the widget shows it, on every refresh of the page's Today (PR 4). */
   | { t: "today"; snapshot: TodayWidgetSnapshot }
   /** How many calls are in progress, on every refresh of the page's Live: none ends the phone's call activity (PR 7). */
-  | { t: "calls"; live: number };
+  | { t: "calls"; live: number }
+  /**
+   * The session's access token for the shell's own calls to /api/v1 (decision 0011, PR 8), answered to the shell's
+   * `token` ask: the token and when it expires (epoch seconds), or null when the page has no session to hand over.
+   * Never the refresh token: the page refreshes, the shell asks again.
+   */
+  | { t: "token"; access: string | null; expires: number };
 
 /** A phone's push token, as expo-notifications hands it out. */
 export const PUSH_TOKEN_MAX = 200;
@@ -36,7 +42,9 @@ export type ShellMessage =
   /** Register this phone for the person signed in: the page calls PUT me/devices through its own client. */
   | { t: "device"; token: string; platform: "ios" | "android"; version: string; activity?: string }
   /** Forget this phone before the person signs out. */
-  | { t: "forget"; token: string };
+  | { t: "forget"; token: string }
+  /** The session's access token, for the shell's own calls (decision 0011): the page answers with `token`. */
+  | { t: "token" };
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null;
 
@@ -74,6 +82,11 @@ export function parsePageMessage(raw: string): PageMessage | null {
       return typeof v.live === "number" && Number.isInteger(v.live) && v.live >= 0
         ? { t: "calls", live: v.live }
         : null;
+    case "token": {
+      const access = typeof v.access === "string" && v.access.trim() ? v.access.trim() : null;
+      const expires = typeof v.expires === "number" && Number.isFinite(v.expires) && v.expires >= 0 ? v.expires : 0;
+      return { t: "token", access, expires };
+    }
     default:
       return null;
   }
@@ -92,6 +105,8 @@ export function parseShellMessage(v: unknown): ShellMessage | null {
       return { t: "menu" };
     case "top":
       return { t: "top" };
+    case "token":
+      return { t: "token" };
     case "device": {
       const tok = token(v.token);
       const platform = v.platform === "ios" || v.platform === "android" ? v.platform : null;

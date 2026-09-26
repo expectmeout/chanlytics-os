@@ -31,3 +31,26 @@ export async function createClient() {
     },
   );
 }
+
+/**
+ * The client for a request that carries the session's access token as a bearer instead of the cookie (server/bearer.ts,
+ * decision 0011): no cookie is read or written, and every read runs under RLS as that token. The token's own
+ * verification is the route's (getClaims over it), never assumed from the header.
+ */
+export function createBearerClient(token: string) {
+  return createServerClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return [];
+        },
+        setAll() {
+          /* a bearer request has no cookie to refresh */
+        },
+      },
+      global: { headers: { Authorization: `Bearer ${token}` } },
+    },
+  );
+}
