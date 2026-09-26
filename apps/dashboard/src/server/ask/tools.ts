@@ -1059,10 +1059,14 @@ async function getCalendar(t: ToolContext, input: Record<string, unknown>): Prom
   }
   const days = Math.min(14, Math.max(1, Math.round(Number(input.days)) || 1));
   // The board as its page reads it (readers/calendar.ts), once a turn, with the zone and the settings the turn read,
-  // and never a write. No day asked is the page's own span, the week from its Monday, as the Calendar opens (ledger
-  // #11); a day asked is that day and the days after it, as before. Then the page's own view model, as the bridge
-  // builds it.
-  const r = await load(t.rc, calendar, asked ? { from, days } : { from: null, days: 7 });
+  // and never a write. No day asked is the page's own span from its Monday: its week, as the Calendar opens (ledger
+  // #11), or as many days as were asked for; a day asked is that day and the days after it, as before. Then the page's
+  // own view model, as the bridge builds it.
+  const r = await load(
+    t.rc,
+    calendar,
+    asked ? { from, days } : { from: null, days: input.days === undefined ? 7 : days },
+  );
   const vm = toCalendarVM(r.data.calendar, t.now);
   // A person the calendar names is a row read: the answer may name them, and open their profile.
   for (const d of vm.days) for (const b of [...d.allDay, ...d.blocks]) if (b.person) t.read.person.add(b.person.id);

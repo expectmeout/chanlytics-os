@@ -1441,13 +1441,14 @@ test("the reports, for Ask and for the page: GET reports answers its reader's pa
   }
 });
 
-test("GET reports through its reader asks what it asked at origin/main, in its order: the series; People once, with their reply modes, for the booking line and the deals alike; the booking line's calendar lookup; how the workspace's customers buy, once, through its reader; then the deals, and only where deals are on", async () => {
+test("GET reports through its reader asks what it asked at origin/main, in its order: the series; People once, with their reply modes, for the booking line and the deals alike; the booking line's calendar zone and settings, now through their readers; how the workspace's customers buy, once, through its reader; then the deals, and only where deals are on -- and a turn that holds the zone, the settings and sells_by reads none of them again", async () => {
   const REPORT_READS = [
     "rpc:report_series",
     // Everyone, read once for the whole report: the booking line's read, which the deals take their sources from.
     "rpc:people_list",
     "policies.select",
-    // The booking line's calendar: its zone and its address.
+    // The booking line's calendar: its zone and its settings, through the facts and config readers, where its own
+    // lookup read them at origin/main.
     "tenants.select",
     "tenant_config.select",
     // How the workspace's customers buy, after the booking line, then the deals.
@@ -1466,17 +1467,24 @@ test("GET reports through its reader asks what it asked at origin/main, in its o
     "the calendar's zone, then sells_by once",
   );
   assert.deepEqual(
+    selects(ctx, "tenant_config").map((q) => q.columns),
+    // At origin/main (c39ce689) the booking line's lookup asked for the one column, config.
+    ["tenant_id, config, version, updated_at, updated_by"],
+    "the settings once, through the config reader",
+  );
+  assert.deepEqual(
     ctx.supabase.seen.filter((q) => q.rpc === "report_series").map((q) => q.args),
     [{ p_tenant_id: A, p_days: 30 }],
   );
-  // A turn that already holds how the workspace's customers buy is not asked again.
+  // A turn that already holds the zone, the settings and how the workspace's customers buy is asked for none again.
   const turn = turnIn(worldCtx(dealsWorld("proposal")));
-  await kernel.load(turn, sellsBy, undefined);
+  await Promise.all([facts, config, sellsBy].map((r) => kernel.load(turn, r, undefined)));
+  const held = turn.ctx.supabase.seen.length;
   await kernel.load(turn, reportReader, { days: 30 });
   assert.deepEqual(
-    selects(turn.ctx, "tenants").map((q) => q.columns),
-    ["sells_by", "name, timezone"],
-    "sells_by once in the turn: the report took the turn's",
+    asked(turn.ctx).slice(held),
+    ["rpc:report_series", "rpc:people_list", "policies.select", "deals.select"],
+    "the series, everyone and the deals: the tenant, its settings and sells_by were the turn's",
   );
   // Where the workspace's customers book, the deals are not even read.
   const off = worldCtx(dealsWorld("booking"));
@@ -1502,7 +1510,8 @@ test("a report the function will not answer is GET reports' 404, in its sentence
   assert.deepEqual([page.report.days, page.deals.any, page.deals.clients], [30, true, 1]);
   assert.deepEqual(
     lines.map(([json]) => JSON.parse(json)),
-    [{ tenant: A, error: "config down" }],
+    // The settings come through the config reader now (getTenantConfig), which names itself in its failure.
+    [{ tenant: A, error: "getTenantConfig: config down" }],
   );
   const { result: r } = await logged("booking_report_failed", () =>
     kernel.load(turnIn(worldCtx(dealsWorld("proposal"), down)), reportReader, { days: 30 }),
@@ -1704,6 +1713,14 @@ test("the calendar's reader never writes (D7): an owner's Ask reads the board of
     const s = await kernel.load(rc, calendarSources, { ...WEEK, fresh: false });
     assert.equal(s.data.week, null, "the feed was read");
     assert.deepEqual(s.rows, []);
+    // What the board needs of the address and the settings, and not them: nothing a projection of the read could leak.
+    assert.ok(!("url" in s.data) && !("cfg" in s.data), "no address, no raw settings");
+    assert.equal(typeof s.data.source, "string");
+    const json = JSON.stringify(s.data);
+    assert.ok(
+      !json.includes("cal.example") && !json.includes("front desk of Harbor"),
+      "neither is anywhere in the read",
+    );
     assert.equal(ctx.supabase.seen.length, before + 2, "nothing asked again");
   });
 });

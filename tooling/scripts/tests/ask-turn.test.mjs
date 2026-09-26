@@ -1784,7 +1784,7 @@ test("get_calendar reads the people it names: a person on the calendar enters th
   }
 });
 
-test("get_calendar reads the board as its page reads it (ledger #11): with no day asked, the page's own week from its Monday, not today alone; a day asked is that day, as before; the zone and the settings the turn already read are not read again; and nothing is written, even for an owner whose calendar names someone People does not hold", async () => {
+test("get_calendar reads the board as its page reads it (ledger #11): with no day asked, the page's own week from its Monday, not today alone, or as many days from that Monday as were asked for; a day asked is that day, as before; the zone and the settings the turn already read are not read again; and nothing is written, even for an owner whose calendar names someone People does not hold", async () => {
   const { forgetFeeds } = await import(at("apps/dashboard/src/server/ask/openings.ts"));
   const ICS = [
     "BEGIN:VCALENDAR",
@@ -1855,6 +1855,12 @@ test("get_calendar reads the board as its page reads it (ledger #11): with no da
         (q) => q.rpc === "create_person" || ["insert", "update", "upsert", "delete"].includes(q.op),
       ),
     );
+    const threeDays = await runTool(tc, { name: "get_calendar", input: { days: 3 } });
+    assert.deepEqual(
+      JSON.parse(threeDays.result).days.map((d) => d.day),
+      ["2026-09-14", "2026-09-15", "2026-09-16"],
+      "days without a day: that many from the page's Monday",
+    );
     const tomorrow = await runTool(tc, { name: "get_calendar", input: { day: "tomorrow" } });
     assert.deepEqual(
       JSON.parse(tomorrow.result).days.map((d) => d.day),
@@ -1911,7 +1917,7 @@ test("get_openings is the palette's own read (ledger #13): the service asked for
   );
 });
 
-test("get_report reads what the Reports page reads (ledger #1): the series, then the booking line and the deals beside it, once a turn, with how the workspace's customers buy taken from the turn; the booking line and the Deals section in the page's own words beside the numbers it gave before", async () => {
+test("get_report reads what the Reports page reads (ledger #1): the series, then the booking line and the deals beside it, once a turn, with the calendar's zone and settings and how the workspace's customers buy taken from the turn; the booking line and the Deals section in the page's own words beside the numbers it gave before", async () => {
   const { forgetFeeds } = await import(at("apps/dashboard/src/server/ask/openings.ts"));
   const DAY = 86_400_000;
   const CLIENT = "cccccccc-cccc-4ccc-8ccc-cccccccccc01";
@@ -2027,12 +2033,15 @@ test("get_report reads what the Reports page reads (ledger #1): the series, then
       // Everyone, once, for the booking line and the deals alike.
       "rpc:people_list",
       "policies.select",
-      // The booking line's own calendar lookup, as the page's.
-      "tenants.select",
-      "tenant_config.select",
-      // How the workspace's customers buy is the turn's: not read again.
+      // The calendar's zone and settings for the booking line, and how the workspace's customers buy, are the
+      // turn's: none read again. The deals.
       "deals.select",
     ]);
+    assert.equal(
+      asked.filter((x) => x === "tenants.select" || x === "tenant_config.select").length,
+      0,
+      "the tenant and its settings: the turn's, never read again",
+    );
     // The page's own builders over the page's own payload, as the bridge applies them; the same read, once a turn.
     const page = (await load(rc, reportReader, { days: 7 })).data;
     assert.equal(ctx.supabase.seen.filter((q) => q.rpc === "report_series").length, 1, "read once a turn");

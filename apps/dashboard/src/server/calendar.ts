@@ -148,11 +148,14 @@ function readSettings(tenantId: string, raw: unknown): { cfg: TenantConfig | nul
 /**
  * The workspace's calendar, as the people surfaces need it: its address (kept here), zone and name — and the
  * booking link, which a row may offer. `lostCalendar` is true when the settings would not parse AND they name
- * a calendar, which is why a null url is not always "no calendar" (see readSettings).
+ * a calendar, which is why a null url is not always "no calendar" (see readSettings). `known`: the zone and the raw
+ * settings, handed in by a caller that read them this turn (readers/report.ts), so neither is read again; without it,
+ * both are read here.
  */
 async function calendarOf(
   ctx: RouteContext,
   tenantId: string,
+  known?: { timezone: string; config: unknown },
 ): Promise<{
   url: string | null;
   lostCalendar: boolean;
@@ -163,12 +166,21 @@ async function calendarOf(
   /** The business's profile: its services, and the rules that say which need a consultation first. Null without one. */
   profile: BusinessProfile | null;
 }> {
-  const [{ timezone }, { data: row, error }] = await Promise.all([
-    tenantFacts(ctx.supabase, tenantId),
-    ctx.supabase.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
-  ]);
-  if (error) throw new Error(error.message);
-  const { cfg, lostCalendar } = readSettings(tenantId, row?.config ?? null);
+  let timezone: string;
+  let raw: unknown;
+  if (known) {
+    timezone = known.timezone;
+    raw = known.config;
+  } else {
+    const [facts, { data: row, error }] = await Promise.all([
+      tenantFacts(ctx.supabase, tenantId),
+      ctx.supabase.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
+    ]);
+    if (error) throw new Error(error.message);
+    timezone = facts.timezone;
+    raw = row?.config ?? null;
+  }
+  const { cfg, lostCalendar } = readSettings(tenantId, raw);
   const url = cfg?.calendar?.ical_url ?? null;
   const bookingLink = cfg?.brain?.booking_link?.trim() || null;
   // Server-side only: the address feeds the reads in this module and is never part of a response.
@@ -323,14 +335,17 @@ export async function addPeopleSeen(
  * What the board's week is read from, for one span: the workspace's zone and the span by its clock, its settings, the
  * feed parsed once, the profile's services and everyone in People as the matcher wants them. `week` is the answer
  * already whole -- no calendar, or one that could not be read -- and null when the feed was read, which is then
- * `parsed`; the services' names and People are read only then, and are empty beside a whole week. Server-side only:
- * the address and the settings ride in it, and only what weekFrom assembles from it is ever answered.
+ * `parsed`; the services' names and People are read only then, and are empty beside a whole week. It carries neither
+ * the feed's address nor the raw settings -- only the calendar's name and the business's own addresses, taken from
+ * them in calendarSources -- and it is still never an answer: only what weekFrom assembles from it is.
  */
 export type CalendarSources = {
   timezone: string;
   span: { from: string; days: number };
-  cfg: TenantConfig | null;
-  url: string | null;
+  /** The calendar's name ("Google Calendar", "your calendar"), as the board says it: never its address. */
+  source: string;
+  /** The business's own addresses (never anybody's visit), as the board matches around them. */
+  ownAddresses: OwnAddresses;
   profile: BusinessProfile | null;
   rules: BookingRules | null;
   base: CalendarWeekDto;
@@ -410,7 +425,16 @@ export async function calendarSources(
     next_opening: null,
     days: Array.from({ length: span.days }, (_, i) => ({ key: shiftKey(span.from, i), items: [], windows: [] })),
   };
-  const read = { timezone, span, cfg, url, profile, rules, base };
+  // What the board needs of the address and the settings, and not them: the calendar's name, the business's own.
+  const read = {
+    timezone,
+    span,
+    source: feedSourceLabel(url),
+    ownAddresses: ownAddressesOf(cfg),
+    profile,
+    rules,
+    base,
+  };
   if (!url) return { ...read, feed: null, parsed: null, serviceNames: [], people: [], week: base };
 
   // One parse per fetch, shared with the profile, the People list and the
@@ -462,14 +486,14 @@ export async function calendarSources(
  */
 export function weekFrom(s: CalendarSources, people: PersonLike[], now: Date): CalendarWeekDto {
   if (s.week) return s.week;
-  const { timezone, span, cfg, url, profile, rules, base, feed, parsed, serviceNames } = s;
+  const { timezone, span, source, ownAddresses, profile, rules, base, feed, parsed, serviceNames } = s;
   const { days, dropped } = itemsToDays(
     parsed.items,
     span.from,
     span.days,
     timezone,
     people,
-    ownAddressesOf(cfg),
+    ownAddresses,
     serviceNames,
     { services: profile?.services ?? [], rules },
   );
@@ -486,7 +510,7 @@ export function weekFrom(s: CalendarSources, people: PersonLike[], now: Date): C
     // A reason beside "ok" means the latest try failed and this is the last good read, said so on the chip.
     feed: {
       present: true,
-      source: feedSourceLabel(url),
+      source,
       state: "ok",
       read_at: feed.at === null ? null : new Date(feed.at).toISOString(),
       checked_at: feed.checkedAt === null ? null : new Date(feed.checkedAt).toISOString(),
@@ -682,8 +706,9 @@ export async function peopleVisits(
   tenantId: string,
   rows: PersonRowDto[],
   now = new Date(),
+  known?: { timezone: string; config: unknown },
 ): Promise<PeopleVisits> {
-  const { url, lostCalendar, timezone, source, bookingLink, own, profile } = await calendarOf(ctx, tenantId);
+  const { url, lostCalendar, timezone, source, bookingLink, own, profile } = await calendarOf(ctx, tenantId, known);
   const services = profile?.services ?? [];
   const rules = profile?.booking_rules ?? null;
   const visits = new Map<string, PersonVisitsDto>();
@@ -753,7 +778,9 @@ export async function withVisits(
 /**
  * Asked, then booked: of the people who wrote or called in the period, how
  * many have an appointment on the calendar — upcoming, or held since they
- * reached out. The one conversion line Reports carries.
+ * reached out. The one conversion line Reports carries. `known`: the zone and
+ * the raw settings a caller read this turn, so the calendar's lookup reads
+ * neither again (calendarOf).
  */
 export async function bookingReport(
   ctx: RouteContext,
@@ -761,8 +788,9 @@ export async function bookingReport(
   rows: PersonRowDto[],
   days: number,
   now = new Date(),
+  known?: { timezone: string; config: unknown },
 ): Promise<BookingReportDto> {
-  const pv = await peopleVisits(ctx, tenantId, rows, now);
+  const pv = await peopleVisits(ctx, tenantId, rows, now, known);
   const nowMs = now.getTime();
   const since = nowMs - days * 86_400_000;
   let asked = 0;
