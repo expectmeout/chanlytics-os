@@ -11,6 +11,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "./_fake-db.mjs";
+import { REACH_OUT_IS_NOT_A_MOMENT } from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -125,6 +126,7 @@ const bc = (id, tenant_id, over = {}) => ({
 const pb = (id, tenant_id, over = {}) => ({
   id,
   tenant_id,
+  kind: "moment",
   name: "Win-back",
   trigger: "quiet_30",
   template_id: T1,
@@ -1030,5 +1032,49 @@ test("one proposal follow-up per workspace (00167): the database's refusal of a 
       tables.playbooks.find((p) => p.id === made.id)?.policy_class,
     ],
     ["proposal_waiting", "follow_up"],
+  );
+});
+
+test("a reach-out's step is no moment: never listed among the playbooks, never rewritten as one, and still paused and resumed (Reach out, Part 3)", async () => {
+  const K3 = "99999999-9999-4999-8999-999999999993";
+  const reachOut = pb(K3, B, {
+    kind: "reach_out",
+    name: "Movers in Austin",
+    trigger: "lead_first",
+    policy_class: "outreach",
+    lead_search_id: "55555555-5555-4555-8555-555555555555",
+    gap_minutes: 12,
+  });
+  const tables = {
+    memberships: both("viewer", "operator"),
+    playbooks: [pb(K2, B, { name: "Welcome", trigger: "new_week" }), reachOut],
+    broadcasts: [],
+    broadcast_recipients: [],
+    tenants: [{ id: B, name: "Bayside", timezone: "America/Chicago" }],
+    templates: [tpl(T1, B, { name: "winback_offer", category: "marketing" })],
+    decisions: [],
+  };
+  const listed = await playbooks.GET.run(get(inB), ctxFor(tables));
+  assert.deepEqual(
+    listed.playbooks.map((p) => p.id),
+    [K2],
+    "the moments only",
+  );
+  await refused(
+    playbook.PUT.run(
+      send("PUT", { name: "Renamed", trigger: "quiet_30", template_id: T1, params: [] }),
+      ctxFor(tables, { id: K3 }),
+    ),
+    "conflict",
+    409,
+    REACH_OUT_IS_NOT_A_MOMENT,
+  );
+  const paused = await playbook.PUT.run(send("PUT", { state: "paused" }), ctxFor(tables, { id: K3 }));
+  assert.equal(paused.state, "paused", "pausing a chain is the same switch");
+  await refused(
+    playbooks.POST.run(send("POST", { trigger: "lead_first", template_id: T1 }, inB), ctxFor(tables)),
+    "validation",
+    400,
+    REACH_OUT_IS_NOT_A_MOMENT,
   );
 });

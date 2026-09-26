@@ -27,7 +27,18 @@ import {
   personActs,
   PEOPLE_LISTS,
 } from "@chanlytics/contracts";
-import { readCode } from "./_source.mjs";
+import { importSrc, readCode } from "./_source.mjs";
+import { fakeDb } from "./_fake-db.mjs";
+
+// The profile's route runs below over a database in memory; a module that ever builds a service client reads these,
+// and nothing dials it.
+process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
+process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
+const personRoute = await importSrc("apps/dashboard/app/api/v1/contacts/[id]/route.ts");
+const reportsRoute = await importSrc("apps/dashboard/app/api/v1/reports/route.ts");
+// The reports route counts against its bucket: this instance's memory, never a store dialled.
+const { setRateStore, memoryStore } = await importSrc("apps/dashboard/src/server/rate-limit.ts");
+setRateStore(memoryStore());
 
 /**
  * The People page and the table it draws with, each read once for the whole file. The table, its Columns menu and
@@ -82,6 +93,73 @@ const ICS = [
 
 const NOW = Date.parse("2026-09-06T16:00:00.000Z");
 const feed = () => parseIcs(ICS, TZ, { horizon: { from: NOW - 90 * 86_400_000, to: NOW + 60 * 86_400_000 } });
+
+/** Harbor, its owner, and Maria Lopez in its People: her profile's route runs over them (profileOf). */
+const HARBOR = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const MARIA = "11111111-1111-4111-8111-111111111111";
+const BRAIN = {
+  business_name: "Harbor",
+  system_prompt: "Answer as the front desk of Harbor: brief and warm.",
+  fallbacks: { greeting: "g", error: "e", non_text: "n" },
+};
+/**
+ * Maria's profile as GET contacts/:id answers it, run over a database in memory holding her row, her workspace and
+ * `tables` beside them, `faults` failing a read the way PostgREST fails: what it answered, every query it asked, and
+ * what it logged, by event.
+ */
+async function profileOf(tables = {}, faults = {}) {
+  const supabase = fakeDb(
+    {
+      memberships: [
+        {
+          user_id: "u1",
+          tenant_id: HARBOR,
+          role: "owner",
+          tenants: { slug: "harbor" },
+          created_at: "2026-01-01T00:00:00Z",
+        },
+      ],
+      tenants: [{ id: HARBOR, name: "Harbor", timezone: TZ, sells_by: null }],
+      contacts: [
+        {
+          id: MARIA,
+          tenant_id: HARBOR,
+          phone_e164: "+13055550134",
+          display_name: "Maria Lopez",
+          notes: null,
+          proposal_url: null,
+        },
+      ],
+      tenant_config: [{ tenant_id: HARBOR, config: { brain: BRAIN } }],
+      ...tables,
+    },
+    faults,
+    {
+      people_list: (a) =>
+        a.p_tenant_id === HARBOR && a.p_contact_id === MARIA
+          ? [{ id: MARIA, display_name: "Maria Lopez", phone_e164: "+13055550134", consent: "opted_in", dnc: false }]
+          : [],
+    },
+  );
+  const lines = [];
+  const was = console.error;
+  console.error = (event, ...rest) => lines.push({ event, rest });
+  try {
+    const { person } = await personRoute.GET.run(
+      new Request(`http://localhost/api/v1/contacts/${MARIA}?workspace=${HARBOR}`),
+      { supabase, userId: "u1", email: "owner@example.com", params: { id: MARIA } },
+    );
+    const logged = (event) => lines.filter((l) => l.event === event).map((l) => l.rest);
+    return { person, seen: supabase.seen, logged };
+  } finally {
+    console.error = was;
+  }
+}
+/** Whether `q` is a select on `table` filtered by every `[column, value]` named. */
+const selectOn = (q, table, ...eqs) =>
+  q.table === table &&
+  q.op === "select" &&
+  eqs.every(([col, val]) => q.filters.some(([op, c, v]) => op === "eq" && c === col && v === val));
 
 test("the feed carries the description, the place and the guests — folded, unescaped, quoted parameters intact", () => {
   const f = feed();
@@ -547,7 +625,7 @@ test("the profile: a Next visit fact and About rows when the calendar is connect
   assert.equal(down.facts.find((f) => f.label === "Next visit").meta, "could not be read");
 });
 
-test("the wiring: the board and the profile read one match; both receptionists are told; the panel says who it is for and where it comes from", () => {
+test("the wiring: the board and the profile read one match; both receptionists are told; the panel says who it is for and where it comes from", async () => {
   const svc = readCode("apps/dashboard/src/server/calendar.ts");
   assert.ok(
     svc.includes("export async function personVisits(") &&
@@ -556,12 +634,15 @@ test("the wiring: the board and the profile read one match; both receptionists a
   );
   assert.ok(svc.includes("source: feedSourceLabel(url)"), "the calendar's name, never its address");
   assert.ok(!svc.includes("personInTitle"), "the old name-only match is gone");
-  const route = readCode("apps/dashboard/app/api/v1/contacts/[id]/route.ts");
-  assert.ok(
-    route.includes("const visitsRead = personVisits(") &&
-      route.includes('"person_visits_failed"') &&
-      route.includes("visits: visits ?? undefined,"),
-    "never fatal to the profile (read in the same round as the rest: person-read-one-round.test.mjs)",
+  // Never fatal to the profile: a calendar that cannot even be looked up costs its visits, said in the log with who
+  // they were for, and the profile stands. Run; their visits are read in the same round as the rest
+  // (person-read-one-round.test.mjs).
+  const lookupDown = await profileOf({}, { "tenants.select": { message: "down" } });
+  assert.equal(lookupDown.person.row.id, MARIA, "the profile stands");
+  assert.equal(lookupDown.person.visits, undefined, "without its visits");
+  assert.deepEqual(
+    lookupDown.logged("person_visits_failed").map(([json]) => JSON.parse(json)),
+    [{ contact: MARIA, error: "down" }],
   );
   const edge = readCode("apps/edge/lib/calendar/availability.ts");
   assert.ok(
@@ -760,7 +841,7 @@ test("one refused number costs one person, never everyone behind them", () => {
   );
 });
 
-test("automatically: an hourly sweep on the edge and the owner's own read both put the feed's people in People through one extraction; the profile says where they came from; no button", () => {
+test("automatically: an hourly sweep on the edge and the owner's own read both put the feed's people in People through one extraction; the profile says where they came from; no button", async () => {
   const mig = readCode("supabase/migrations/00052_create_person.sql");
   assert.ok(
     mig.includes(
@@ -816,10 +897,44 @@ test("automatically: an hourly sweep on the edge and the owner's own read both p
     route.includes('role: "operator",') && route.includes('ctx.supabase.rpc("create_person"'),
     "the door's own route stays, for a hand",
   );
-  const detail = readCode("apps/dashboard/app/api/v1/contacts/[id]/route.ts");
-  assert.ok(
-    detail.includes('.eq("kind", "contact.added")') && detail.includes("added: added.data"),
+  // The profile reads where they came from: the door's contact.added row for them. Somebody else's, and another kind
+  // of row about them, each older, are not it. Run.
+  const cameFrom = await profileOf({
+    events: [
+      {
+        tenant_id: HARBOR,
+        kind: "contact.added",
+        subject_type: "contact",
+        subject_id: MARIA,
+        data: { source: "calendar", title: "Balayage" },
+        created_at: "2026-09-01T00:00:00Z",
+      },
+      {
+        tenant_id: HARBOR,
+        kind: "contact.added",
+        subject_type: "contact",
+        subject_id: "22222222-2222-4222-8222-222222222222",
+        data: { source: "manual" },
+        created_at: "2026-08-01T00:00:00Z",
+      },
+      {
+        tenant_id: HARBOR,
+        kind: "contact.named",
+        subject_type: "contact",
+        subject_id: MARIA,
+        data: {},
+        created_at: "2026-07-01T00:00:00Z",
+      },
+    ],
+  });
+  assert.deepEqual(
+    cameFrom.person.added,
+    { at: "2026-09-01T00:00:00Z", source: "calendar", title: "Balayage" },
     "the profile reads where they came from",
+  );
+  assert.ok(
+    cameFrom.seen.some((q) => selectOn(q, "events", ["kind", "contact.added"], ["subject_id", MARIA])),
+    "from the events, the contact.added row of this person",
   );
   const page = readCode("apps/dashboard/src/legacy/pages/calendar-real.jsx");
   assert.ok(
@@ -1015,7 +1130,7 @@ test("asked, then booked: the report's one conversion line, in words that say wh
   );
 });
 
-test("the wiring: the list and the assistant carry appointments from one parsed feed; the report carries the line; Leads and the Deal board retire into People", () => {
+test("the wiring: the list and the assistant carry appointments from one parsed feed; the report carries the line; Leads and the Deal board retire into People", async () => {
   const svc = readCode("apps/dashboard/src/server/calendar.ts");
   assert.ok(
     svc.includes("const parsedFeeds = new Map<string, { text: string; tz: string; parsed: ParsedFeed }>();") &&
@@ -1026,28 +1141,56 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
     "one parse, indexed once, for everyone",
   );
   assert.ok(svc.includes("export async function bookingReport(") && svc.includes("bookedAfterAsk("));
-  const route = readCode("apps/dashboard/app/api/v1/contacts/route.ts");
+  // The list carries visits and the calendar's state, a page at a time: GET contacts runs through its reader in
+  // readers.test.mjs, its two stages read from the query log and its payload compared key for key.
+  // The report carries the line, and is never fatal for it: GET reports, run. The series, the booking line and the
+  // deals, in that order; People read once, for the line and the deals alike, and the deals read after the line's
+  // calendar lookup; a lookup that fails costs the line, said in the log, never the report.
+  const reportOf = async (faults = {}) => {
+    const supabase = fakeDb(
+      {
+        memberships: [
+          { user_id: "u1", tenant_id: HARBOR, role: "owner", tenants: { slug: "harbor" }, created_at: "2026-01-01" },
+        ],
+        tenants: [{ id: HARBOR, name: "Harbor", timezone: TZ, sells_by: "proposal" }],
+        tenant_config: [{ tenant_id: HARBOR, config: { brain: BRAIN } }],
+        policies: [],
+        deals: [],
+      },
+      faults,
+      { report_series: (a) => ({ days: a.p_days }), people_list: () => [] },
+    );
+    const lines = [];
+    const was = console.error;
+    console.error = (event, ...rest) => lines.push({ event, rest });
+    try {
+      const out = await reportsRoute.GET.run(new Request(`http://localhost/api/v1/reports?workspace=${HARBOR}`), {
+        supabase,
+        userId: "u1",
+        email: "owner@example.com",
+        params: {},
+      });
+      return { out, asked: supabase.seen.map((q) => q.rpc ?? q.table), logged: lines.map((l) => l.event) };
+    } finally {
+      console.error = was;
+    }
+  };
+  const whole = await reportOf();
+  assert.deepEqual(Object.keys(whole.out), ["report", "booking", "deals"]);
+  assert.deepEqual(whole.out.booking, { calendar: "none", days: 30, asked: 0, booked: 0 });
+  assert.equal(whole.asked.filter((x) => x === "people_list").length, 1, "People read once for the whole report");
   assert.ok(
-    [
-      "const [out, sellsBy, nameSteps, pace, followUp] = await Promise.all([",
-      "withVisits(ctx, tenantId, rows),",
-      "const buys = sellsByOf(ctx, tenantId);",
-    ].every((line) => route.includes(line)),
-    "the list carries visits and the calendar's state, a page at a time",
+    whole.asked.lastIndexOf("tenant_config") < whole.asked.indexOf("deals"),
+    `the deals read after the booking line's: ${whole.asked.join(", ")}`,
   );
-  const rep = readCode("apps/dashboard/app/api/v1/reports/route.ts");
-  assert.ok(
-    rep.includes(".then((rows) => bookingReport(ctx, tenantId, rows, days))") &&
-      rep.includes("return { report, booking, deals };"),
+  const lineDown = await reportOf({ "tenant_config.select": { message: "down" } });
+  assert.deepEqual(
+    [lineDown.out.report, lineDown.out.booking, lineDown.logged.includes("booking_report_failed")],
+    [{ days: 30 }, null, true],
     "never fatal to the report",
   );
-  const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
-  assert.ok(
-    tools.includes('list: { type: "string" }') &&
-      tools.includes("if (onList && !onList.has(r.id)) return false;") &&
-      tools.includes("next_visit: r.visits?.next"),
-    "the assistant answers who booked and who never did",
-  );
+  // The assistant answers who booked and who never did: search_people runs over a feed in ask-turn.test.mjs, its
+  // Booked and Asked, never booked lists judged over the People page's own rows.
   const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
   assert.ok(
     sd.includes('(!l.needsCalendar || calendar.state === "ok") &&') &&
@@ -1077,7 +1220,7 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
   assert.ok(readCode("apps/dashboard/src/legacy/pages/reports-sections.jsx").includes('testid="chart-booking"'));
 });
 
-test("a name the owner gives and notes the receptionist reads: two doors, one route, the profile's rename and Notes, the VM's givenName", () => {
+test("a name the owner gives and notes the receptionist reads: two doors, one route, the profile's rename and Notes, the VM's givenName", async () => {
   const mig = readCode("supabase/migrations/00054_person_details.sql");
   assert.ok(
     mig.includes("create or replace function public.set_person_name(p_contact_id uuid, p_name text)") &&
@@ -1099,10 +1242,30 @@ test("a name the owner gives and notes the receptionist reads: two doors, one ro
     route.includes('"Send a name, notes, an email address or a proposal link."'),
     "the schema refuses in the same words",
   );
-  const detail = readCode("apps/dashboard/app/api/v1/contacts/[id]/route.ts");
+  // The profile reads the owner's notes and their proposal link off the person's own row: the two columns people_list
+  // does not carry. None written is none. Run.
+  const noted = await profileOf({
+    contacts: [
+      {
+        id: MARIA,
+        tenant_id: HARBOR,
+        phone_e164: "+13055550134",
+        display_name: "Maria Lopez",
+        notes: "Sees Sofia",
+        proposal_url: "https://docs.example.com/p/maria",
+      },
+    ],
+  });
+  assert.deepEqual([noted.person.notes, noted.person.proposal_url], ["Sees Sofia", "https://docs.example.com/p/maria"]);
+  const [own] = noted.seen.filter((q) => selectOn(q, "contacts", ["id", MARIA]));
   assert.ok(
-    detail.includes('sb.from("contacts").select("notes, proposal_url").eq("id", id).maybeSingle()') &&
-      detail.includes("notes: own.data?.notes ?? null,"),
+    ["notes", "proposal_url"].every((c) => own.columns.split(", ").includes(c)),
+    `the person's own row, for its two columns: ${own.columns}`,
+  );
+  assert.deepEqual(
+    [(await profileOf()).person.notes, (await profileOf({ contacts: [] })).person.notes],
+    [null, null],
+    "none written: none",
   );
   const bridge = readCode("apps/dashboard/src/legacy-bridge/people-detail.ts");
   assert.ok(
@@ -1564,11 +1727,22 @@ test("every visit, oldest first, for the timeline; the profile reads them as Vis
       composer.includes("setText((cur) => (cur && cur.trim() ? cur : carried.text));"),
     "only into an empty composer, only once",
   );
-  const route = readCode("apps/dashboard/app/api/v1/contacts/[id]/route.ts");
+  // The profile carries the workspace's own booking link, from its settings, trimmed; none set, or a blank one, is no
+  // link to send. Run.
+  const linked = await profileOf({
+    tenant_config: [
+      { tenant_id: HARBOR, config: { brain: { ...BRAIN, booking_link: " https://book.example.com/marisas " } } },
+    ],
+  });
+  assert.equal(linked.person.booking_link, "https://book.example.com/marisas");
   assert.ok(
-    route.includes('sb.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle()') &&
-      route.includes('booking_link: typeof bookingLink === "string"'),
+    linked.seen.some((q) => selectOn(q, "tenant_config", ["tenant_id", HARBOR])),
+    "read from the workspace's own settings",
   );
+  for (const brain of [BRAIN, { ...BRAIN, booking_link: "  " }]) {
+    const none = await profileOf({ tenant_config: [{ tenant_id: HARBOR, config: { brain } }] });
+    assert.equal(none.person.booking_link, null, "no link to send");
+  }
   assert.ok(
     /const all = allVisitsIn\(index, person\)\s*\.map\(\(x\) => toVisitDto\(x\) as VisitDto\)\s*\.slice\(-60\);/.test(
       readCode("apps/dashboard/src/server/calendar.ts"),

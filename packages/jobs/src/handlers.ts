@@ -52,13 +52,17 @@ async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
         if (!data) return null;
         // The request an email was queued with (core reply.ts). meta is JSON, so its shape is checked, not assumed:
         // a row without a sendable one reaches the wire with none and fails there by name.
-        const request = (data.meta as { email?: { request?: unknown } } | null)?.email?.request;
+        const meta = data.meta as { email?: { request?: unknown }; reach_out?: { lead_id?: unknown } } | null;
+        const request = meta?.email?.request;
+        // A reach-out's email names the lead it was written for, so the door asks that lead's facts and no other's.
+        const leadId = meta?.reach_out?.lead_id;
         return {
           status: data.status,
           body: data.body,
           channel: data.channel,
           sender: data.sender,
           email: isEmailRequest(request) ? request : null,
+          leadId: typeof leadId === "string" && leadId ? leadId : null,
         };
       },
       purposeOf: (template) => templatePurpose(ctx.db, job.tenant_id, template),

@@ -236,3 +236,18 @@ test("the cold account's receipts come to the same door, proven with its own sec
     delete process.env.RESEND_COLD_WEBHOOK_SECRET;
   }
 });
+
+test("a reply to a cold email on the cold reply domain (D17) names its workspace by the same route; unset, it names nobody", async () => {
+  const t = world();
+  process.env.COLD_REPLY_DOMAIN = "reply.coldlinks.example";
+  try {
+    assert.equal(await post(received([`r+${"b".repeat(24)}@reply.coldlinks.example`])), 200);
+  } finally {
+    delete process.env.COLD_REPLY_DOMAIN;
+  }
+  assert.equal(await post(received([`r+${"b".repeat(24)}@reply.coldlinks.example`], { email_id: "rcv_2" })), 200);
+  assert.deepEqual(
+    jobsOf(t).map((j) => [j[0], j[2].received_id]),
+    [["t-b", "rcv_1"]],
+  );
+});

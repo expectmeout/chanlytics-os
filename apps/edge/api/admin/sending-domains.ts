@@ -7,6 +7,8 @@
  *   { op: "check", tenant_id, domain_id }                   → the provider asked to look again, and read now
  *   { op: "remove", tenant_id, domain_id }                  → gone at the provider, then the row
  *   { op: "resume", tenant_id, domain_id }                  → a reputation hold lifted by the owner, 30 a day again
+ *   { op: "resume", tenant_id, domain_id, by: "platform" }  → one held twice in 30 days, lifted by the platform (D16):
+ *                                                             the platform's key only, never a dashboard's token
  *
  * What each answer means is lib/email/sending-domains.ts's; this file is the door: who may knock, which workspace,
  * and what the body names.
@@ -33,6 +35,7 @@ interface Body {
   tenant_id?: unknown;
   user_id?: unknown;
   domain_id?: unknown;
+  by?: unknown;
   host?: unknown;
   from_local?: unknown;
   from_name?: unknown;
@@ -106,7 +109,12 @@ export async function POST(request: Request): Promise<Response> {
       return json(200, { ok: true, domain: domainDto(now), change: out.change });
     }
     if (op === "resume") {
-      const out = await resumeSendingDomain(ports, row);
+      // The platform lifts a second hold (D16) with its own key: a dashboard's token speaks for an owner, whatever it says.
+      const platform = str(body.by) === "platform";
+      // A call that carries a dashboard's token is a dashboard's, even while this edge lets the key decide.
+      if (platform && (auth.via !== "key" || request.headers.get("x-edge-token")))
+        return json(403, { ok: false, error: "platform_only", message: "Only the platform lifts this hold." });
+      const out = await resumeSendingDomain(ports, row, platform ? "platform" : "owner");
       return out.ok ? json(200, out) : json(out.status, out);
     }
     const gone = await removeSendingDomain(ports, row);

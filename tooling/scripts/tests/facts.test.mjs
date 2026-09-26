@@ -427,21 +427,6 @@ test("a config change records who and what, and neither is the values", async ()
     ["features", "notifications"],
   );
   assert.deepEqual(changedConfigFields(withFeed, withFeed), []);
-  const { lastChangedWords, lastChangedName, agoWords } = await import("@chanlytics/contracts");
-  const now = Date.parse("2026-09-11T12:00:00Z");
-  const at = "2026-09-09T12:00:00Z";
-  const when = agoWords(Date.parse(at), now);
-  assert.equal(lastChangedWords(at, { who: "member", name: "Ada" }, now), `Last changed by Ada, ${when}`);
-  assert.equal(lastChangedWords(at, { who: "you" }, now), `Changed by you, ${when}`, "the viewer is named as you");
-  assert.equal(lastChangedWords(at, { who: "gone" }, now), `Last changed by someone no longer on the team, ${when}`);
-  assert.equal(lastChangedWords(at, { who: "unknown" }, now), `Last changed ${when}, before we kept track of who`);
-  assert.equal(lastChangedWords(null, { who: "you" }, now), "", "no stamp, nothing said");
-  // Never an address. A line under the page's title is read over a shoulder and on a phone, and
-  // "ruben@rjcapital.io" is longer than the sentence it sits in.
-  assert.equal(lastChangedName({ display_name: "Ada Lovelace", email: "ada@example.com" }), "Ada Lovelace");
-  assert.equal(lastChangedName({ display_name: "  ", email: "bo.chen@example.com" }), "bo.chen");
-  assert.equal(lastChangedName({ display_name: null, email: null }), "a member");
-
   // The change lands in the ledger every other consequential act does, and the config row records its author:
   // settings-routes.test.mjs runs the PUT and reads both rows it wrote (its fields, its author and its version, and
   // never the business's own words), and first-receptionist.test.mjs the first receptionist's.

@@ -2,7 +2,7 @@ import "server-only";
 import { getTenantConfig, listPolicies } from "@chanlytics/db";
 import { tenantFacts } from "../tenant";
 import { sellsByOf } from "../deals";
-import { stamp, type Reader } from "./index";
+import { load, stamp, type Reader, type ReaderContext } from "./index";
 
 /**
  * The workspace's facts, read once.
@@ -44,3 +44,14 @@ export const config: Reader<undefined, { config: unknown; version: number } | nu
     return { data: row ? { config: row.config, version: row.version } : null, rows: [], stamp: stamp() };
   },
 };
+
+/**
+ * How to read the calendar's zone and settings from the turn (server/calendar.ts ZoneAndSettings), for a function that
+ * reads them only where its calendar lookup would: through the facts and config readers above, so a turn reads each
+ * once, and a read of either that fails fails where the lookup's own did.
+ */
+export const zoneAndSettings = (rc: ReaderContext) => (): Promise<{ timezone: string; config: unknown }> =>
+  Promise.all([load(rc, facts, undefined), load(rc, config, undefined)]).then(([zone, settings]) => ({
+    timezone: zone.data.timezone,
+    config: settings.data?.config ?? null,
+  }));

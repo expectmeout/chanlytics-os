@@ -27,10 +27,10 @@ const ROUTE = "#/admin/workspace";
 /** The pane the record is read in, which is what scrolls when something on it is laid out past the edge. */
 const PANE = ".set-pane";
 
-/** The page is a Settings pane; the head is drawn only once the settings read has a brain to draw. */
+/** The page is a Settings pane; its first card is drawn only once the settings read has a brain to draw. */
 async function openRecord(page: Page): Promise<void> {
   await page.goto(`/${ROUTE}`);
-  await expect(page.getByTestId("bt-head")).toBeVisible({ timeout: 40_000 });
+  await expect(page.getByTestId("rec-card-who")).toBeVisible({ timeout: 40_000 });
 }
 
 /** What GET settings holds, for the comparison that proves nothing was saved. */
@@ -586,23 +586,21 @@ test.describe("Settings › Business on a real workspace", () => {
     await signIn(page);
   });
 
-  test("the standing line's door opens the row it names, and focus lands inside it and comes back to the act", async ({
+  test("the gap line's door opens the row it names, and focus lands inside it and comes back to the act", async ({
     page,
   }) => {
     const before = await readConfig(page);
     await openRecord(page);
 
-    // Three clauses and, where something is missing, the one gap most worth closing -- which is the door to it.
-    const standing = page.getByTestId("rec-standing");
-    await expect(standing).toBeInViewport({ ratio: 1 });
-    await expect(standing).toContainText(/\S/);
-
-    const door = page.getByTestId("rec-standing-door");
-    if ((await door.count()) === 0) {
+    // Where something is missing, the one gap most worth closing, which is the door to it; nothing otherwise.
+    const gap = page.getByTestId("rec-gap");
+    if ((await gap.count()) === 0) {
       // A record with no gap states no gap, and offers no door to one. Nothing else here to prove.
-      await expect(standing).toHaveAttribute("data-state", "ok");
+      await expect(page.getByTestId("rec-gap-door")).toHaveCount(0);
       return;
     }
+    await expect(gap).toBeInViewport({ ratio: 1 });
+    const door = page.getByTestId("rec-gap-door");
     await door.click();
     // The door opens ONE editor, as a row's own act does, and focus is in it rather than on the document.
     await expect(openFolds(page)).toHaveCount(1);
@@ -1149,8 +1147,8 @@ test.describe("Settings › Business on a real workspace", () => {
           const why =
             id === "rec-prompt-open"
               ? "Read it"
-              : id === "rec-standing-door"
-                ? "the standing line's link"
+              : id === "rec-gap-door"
+                ? "the gap line's link"
                 : id === "set-export-all"
                   ? "Download"
                   : id === "rec-who-carriers" || el.closest(".set-team-mail") || el.classList.contains("set-mark")

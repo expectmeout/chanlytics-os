@@ -17,8 +17,6 @@ import { W, drawTab, redrawTab, marisa } from "./_business-tab-harness.mjs";
 
 after(() => unmount());
 
-const { lastChangedFor } = await import("../../../apps/dashboard/src/legacy-bridge/inbox-verbs.ts");
-
 /** The classes a label is drawn in: a card's title, a row's key, a fold's or an inline editor's, a field's, a rule's. */
 const LABELS = [
   "rec-card-title",
@@ -34,20 +32,10 @@ const labelsOf = (tree) =>
     .map((n) => textOf(n).trim())
     .filter(Boolean);
 
-/** Who last changed the record, as the bridge says it (inbox-verbs.ts lastChangedFor), over the page's own read. */
-const changedBy = (by, me, team = []) => {
-  W.__SETTINGS.updatedAt = new Date(Date.now() - 7 * 60_000).toISOString();
-  W.__SETTINGS.updatedBy = by;
-  W.__ME = me;
-  W.__TEAM = team;
-  W.__lastChanged = () => lastChangedFor(W, Date.now());
-};
-
 /** The page at rest, both sheets open, and a viewer's page: everything the tab can draw on Marisa's record. */
 const everything = () => {
   const drawn = [];
   drawTab();
-  changedBy("u-ruben", { id: "u-ruben", email: "ruben@rjcapital.example", role: "owner" });
   let tree = redrawTab();
   drawn.push({ where: "the page at rest", tree });
   press(byTestId(tree, "rec-row-act-services"));
@@ -107,15 +95,8 @@ test("nobody's email is drawn, and no count sits on a row at rest", () => {
   for (const { where, tree } of drawn) {
     assert.doesNotMatch(textOf(tree), /[\w.+-]+@[\w-]+\.[\w.]+/, `${where} shows an email address`);
   }
-  // A colleague with no name in the team is said by their address's local part, never the address.
-  drawTab();
-  changedBy("u-ana", { id: "u-ruben", email: "ruben@rjcapital.example" }, [
-    { userId: "u-ana", email: "ana.lopez@salon.example", displayName: null },
-  ]);
-  const tree = redrawTab();
-  assert.match(textOf(byTestId(tree, "bt-head")), /ana\.lopez/);
-  assert.doesNotMatch(textOf(byTestId(tree, "bt-head")), /@/);
   // "In your own words · 339 characters" and "3 messages sent in your name · 3 differ": a row states its fact.
+  const tree = drawTab();
   for (const row of all(tree, (n) => classes(n).includes("rec-row"))) {
     assert.doesNotMatch(textOf(row), /\d[\d,]*\s+characters?/, `${row.props["data-testid"]} carries a count`);
   }
@@ -143,12 +124,7 @@ test("the told section has no Show: its one door is Read it (Task 5.1)", () => {
 
 test("every phrase §10 kept is drawn where it belongs", () => {
   drawTab();
-  changedBy("u-ruben", { id: "u-ruben", email: "ruben@rjcapital.example", role: "owner" });
   const tree = redrawTab();
-  // Business: the page's own name, in its head.
-  assert.equal(textOf(find(byTestId(tree, "bt-head"), (n) => classes(n).includes("bt-title"))), "Business");
-  // Changed by you, 7m ago: never the address.
-  assert.match(textOf(byTestId(tree, "bt-head")), /Changed by you, 7m ago/);
   // Hands you a customer: ONE row, one line, the reasons counted and what a call does (24 Sep: it named both
   // channels, each on a line of its own).
   const hands = all(tree, (n) => classes(n).includes("rec-row-key") && textOf(n) === "Hands you a customer");

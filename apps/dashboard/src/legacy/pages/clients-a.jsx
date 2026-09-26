@@ -1138,11 +1138,14 @@ const plScopes = (dealsOn) => (dealsOn ? PL_SCOPES : PL_SCOPES.slice(0, 2));
 const plScopeRoute = (to) => (to === "leads" ? "clients/leads" : to === "pipeline" ? "clients/pipeline" : "clients");
 
 // People | Leads (| Pipeline): the one switch between this page's scopes (PRD 6.1). A tablist, because they are views
-// of one page, not pages; on a phone the switch is the slim bar's (Task 18).
-const PeopleScopeTabs = ({ scope, onScope, dealsOn = false }) => (
-  <div className="pt-scope" role="tablist" aria-label="Which people" data-testid="people-scope">
+// of one page, not pages. Drawn as the shell's own tab strip (.stabs, the Inbox's and Campaigns' views: the picked one
+// underlined in the accent) at every width: on a desk a row of its own over the rail and the rows (the page's first
+// child, clients.css), on a phone the first row of the bar (PeoplePhoneBar). On a desk it was a boxed segmented
+// control at the head of the rail, the one strip in the app that looked like no other page's views (Ruben, 25 Sep).
+const PeopleScopeTabs = ({ scope, onScope, dealsOn = false, testid = "people-scope" }) => (
+  <div className="stabs stabs-people" role="tablist" aria-label="Which people" data-testid={testid}>
     {plScopes(dealsOn).map((s) => (
-      <button key={s.id} type="button" role="tab" aria-selected={scope === s.id} className={scope === s.id ? "on" : ""} onClick={() => onScope(s.id)} data-testid={`scope-${s.id}`}>{s.label}</button>
+      <button key={s.id} type="button" role="tab" aria-selected={scope === s.id} className={`stabs-tab${scope === s.id ? " active" : ""}`} onClick={() => onScope(s.id)} data-testid={`scope-${s.id}`}>{s.label}</button>
     ))}
   </div>
 );
@@ -1240,15 +1243,14 @@ const RailRow = ({ label, count = null, active = false, onPick, onWarm = null, s
   );
 };
 
-// The rail. The switch heads it in both scopes; under Leads the rows below it are the Leads scope's (LeadsRailRows,
-// leads-scope.jsx), drawn with the same kit, so the smart lists and the lists kept by hand are People's alone.
-// `scopeTabs` is false in the phone's sheet, whose bar has the switch; `everyone` ({ count, active, onPick }) is the
-// sheet's first row, the way back to everyone. `dealsOn` puts the Pipeline in the switch. Under the Pipeline the rows
-// are People's own lists, and a pick opens that list on People (pipeline-scope.jsx).
+// The rail. The switch between the scopes stands over it, the page's own strip (PeopleScopeTabs), never in it; under
+// Leads the rows are the Leads scope's (LeadsRailRows, leads-scope.jsx), drawn with the same kit, so the smart lists
+// and the lists kept by hand are People's alone. `everyone` ({ count, active, onPick }) is the phone sheet's first
+// row, the way back to everyone. Under the Pipeline the rows are People's own lists, and a pick opens that list on
+// People (pipeline-scope.jsx).
 // `compact` is the phone's sheet: one level of heading (the groups), and the empty lists said in a line, not drawn.
-const PeopleRail = ({ scope = "people", onScope = () => {}, scopeTabs = true, dealsOn = false, everyone = null, children = null, lists = PL_NO_LISTS, groups = PL_DEFAULT_GROUPS, active, onPick, saved = [], savedRead = true, archived = PL_NO_LISTS, onRestore = null, activeSaved = null, onPickSaved = () => {}, canEdit = false, onCreateList = null, newListSignal = 0, compact = false }) => (
+const PeopleRail = ({ scope = "people", everyone = null, children = null, lists = PL_NO_LISTS, groups = PL_DEFAULT_GROUPS, active, onPick, saved = [], savedRead = true, archived = PL_NO_LISTS, onRestore = null, activeSaved = null, onPickSaved = () => {}, canEdit = false, onCreateList = null, newListSignal = 0, compact = false }) => (
   <aside className="cl-rail">
-    {scopeTabs && <PeopleScopeTabs scope={scope} onScope={onScope} dealsOn={dealsOn} />}
     {scope === "leads" ? children : (
     <>
     {/* The way back to everyone, first, where a phone looks for it: a desktop's is Show everyone on the list's title
@@ -1384,11 +1386,7 @@ const PeoplePhoneBar = ({ scope, onScope, dealsOn = false, listLabel = null, lis
   // The two rows are one top: `-phone-bar` names both, so what reads the bar (the scopes, the list, search) finds them.
   return (
     <div className="pp-top" data-testid={id("bar")}>
-      <div className="stabs stabs-people" role="tablist" aria-label="Which people" data-testid={id("scopes")}>
-        {plScopes(dealsOn).map((s) => (
-          <button key={s.id} type="button" role="tab" aria-selected={scope === s.id} className={`stabs-tab${scope === s.id ? " active" : ""}`} onClick={() => onScope(s.id)}>{s.label}</button>
-        ))}
-      </div>
+      <PeopleScopeTabs scope={scope} onScope={onScope} dealsOn={dealsOn} testid={id("scopes")} />
       {searchOpen || q ? (
         <PeoplePhoneSearch id={id} q={q} onQ={onQ} searchRef={searchRef} searchOpen={searchOpen} onSearchOpen={onSearchOpen} searchLabel={searchLabel} />
       ) : (
@@ -2936,10 +2934,10 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
 
   return (
     <div className="clients">
+      {/* The switch between the scopes, over the rail and the rows; a phone's is the bar's first row (PeoplePhoneBar). */}
+      {!phone && <PeopleScopeTabs scope="people" onScope={(to) => nav(plScopeRoute(to))} dealsOn={dealsOn} />}
       <PeopleRail
         scope="people"
-        onScope={(to) => nav(plScopeRoute(to))}
-        dealsOn={dealsOn}
         lists={lists}
         groups={people.groups || PL_DEFAULT_GROUPS}
         active={listId}
@@ -3116,7 +3114,6 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
             <PeopleRail
               compact
               scope="people"
-              scopeTabs={false}
               everyone={{ count: agg.total, active: !listId && !savedId, onPick: () => { setListId(null); setSavedId(null); setListsOpen(false); } }}
               onScope={(to) => nav(plScopeRoute(to))}
               lists={lists}

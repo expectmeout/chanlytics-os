@@ -13,6 +13,9 @@ import { pageStates, untoldPages, type PageRow } from "../lib/ops/page-operator.
 import { getAgent, getRetellLlm, voiceShellDrift, agentSettingsDrift } from "../lib/packages/channels.js";
 import { metaAppId } from "../lib/whatsapp/meta-graph.js";
 import { env } from "../lib/env.js";
+import { unsubscribeOrigin, unsubscribeOriginRejected } from "../lib/dashboard-origin.js";
+import { coldReplyDomains } from "../lib/email/email.js";
+import { emailDomainOf } from "../lib/packages/contracts.js";
 
 const META_APP_ID = metaAppId();
 
@@ -44,6 +47,14 @@ export async function GET(request: Request): Promise<Response> {
       resendCold: !!env.RESEND_COLD_API_KEY,
       resendColdWebhook: !!env.RESEND_COLD_WEBHOOK_SECRET,
       unsubscribe: !!env.UNSUBSCRIBE_SECRET,
+    },
+    // Where cold email's links and replies go (D17), as the edge reads them: values, not presence, since neither is a
+    // secret and a value set and ignored (not an origin, not a domain) is the thing to see.
+    coldMail: {
+      unsubscribeOrigin: unsubscribeOrigin(),
+      unsubscribeOriginRejected: unsubscribeOriginRejected(),
+      coldReplyDomains: coldReplyDomains(),
+      coldReplyDomainRejected: !!env.COLD_REPLY_DOMAIN && !emailDomainOf(env.COLD_REPLY_DOMAIN),
     },
   };
 

@@ -419,6 +419,12 @@ var POLICY_CLASS_WORDS = {
     name: "Proposal follow-ups",
     short: "Follow-ups",
     note: "the proposal follow-up playbook \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
+  },
+  // Reach out (Part 3): cold email to the businesses a search found. A chain's first run always waits for its owner.
+  outreach: {
+    name: "Cold email to businesses a search found",
+    short: "Reach-outs",
+    note: "every email a reach-out sends \xB7 its first run always waits for you; later runs send 30 minutes after they are made unless you stop them \xB7 never sends none"
   }
 };
 var PolicyLimitsSchema = z3.object({
@@ -1236,6 +1242,100 @@ var WHATSAPP_LANGUAGES = [
 var BY_ID = new Map(WHATSAPP_LANGUAGES.map((l) => [l.id.toLowerCase(), l]));
 var DAY_MS5 = 864e5;
 var SWEEP_TICK_MS = 5 * 6e4;
+var PLAYBOOK_TRIGGERS = [
+  { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
+  {
+    id: "new_week",
+    label: "Welcome",
+    list: "new_week",
+    cls: "campaign",
+    kind: "list",
+    hint: "First contact in the last 7 days"
+  },
+  {
+    id: "phoned_only",
+    label: "Save our number",
+    list: "phoned_only",
+    cls: "reengage",
+    kind: "list",
+    hint: "Only ever phoned, never texted"
+  },
+  {
+    id: "everyone_monthly",
+    label: "The month's offer",
+    list: null,
+    cls: "campaign",
+    kind: "cadence",
+    hint: "Everyone who said yes, on a cadence"
+  },
+  {
+    id: "visit_tomorrow",
+    label: "Visit reminder",
+    list: null,
+    cls: "booking",
+    kind: "visit",
+    hint: "The day before an appointment on the calendar"
+  },
+  {
+    id: "visited",
+    label: "After the visit",
+    list: null,
+    cls: "reengage",
+    kind: "visit",
+    hint: "The day after a visit, when nothing is booked next"
+  },
+  // People's Lapsed list, by visits rather than silence: the win-back a salon means, which had no playbook of its own
+  // (00155). Named for its list, so it is never a second "Win-back" beside the one for the quiet.
+  {
+    id: "lapsed",
+    label: "Lapsed",
+    list: "lapsed",
+    cls: "reengage",
+    kind: "list",
+    hint: "No visit in 45 days, and nothing booked"
+  },
+  // Any list (decision 0009): one of People's (list_key, 00168) or one of the workspace's own (list_id, 00155), kept by
+  // hand or by a rule; the card says which. The id stays: playbooks made before any list could be named keep running.
+  {
+    id: "saved_list",
+    label: "On a list",
+    list: null,
+    cls: "campaign",
+    kind: "saved",
+    hint: "Everyone on a list: one of People's, or one you keep"
+  },
+  // A proposal out that has waited past the workspace's pace with nothing back (0006): one nudge per proposal, with
+  // its link, under its own class, where deals are on. Conversational: it answers the person's own request.
+  {
+    id: "proposal_waiting",
+    label: "Proposal follow-up",
+    list: null,
+    cls: "follow_up",
+    kind: "deal",
+    hint: "A proposal waiting with nothing back"
+  },
+  // Reach out (Part 3): a chain's first email, over a lead search, and a step days after the one before it. Made by
+  // the reach-out sheet (Part 4), never offered among the moments (triggerOffered).
+  {
+    id: "lead_first",
+    label: "Businesses a search found",
+    list: null,
+    cls: "outreach",
+    kind: "reach_out",
+    hint: "The first email of a reach-out"
+  },
+  {
+    id: "after_step",
+    label: "After the step before",
+    list: null,
+    cls: "outreach",
+    kind: "reach_out",
+    hint: "A nudge, days after the step before"
+  }
+];
+var MOMENT_TRIGGERS = PLAYBOOK_TRIGGERS.filter(
+  (t) => t.kind !== "reach_out"
+);
 var PLAYBOOK_HOURS = { min: 9, max: 20 };
 var SENDING_HOURS_WORDS = {
   min: PLAYBOOK_HOURS.min,
@@ -1810,7 +1910,8 @@ var PLAYBOOK_CLASS_LABEL = {
   reengage: POLICY_CLASS_WORDS.reengage.short,
   campaign: POLICY_CLASS_WORDS.campaign.short,
   booking: POLICY_CLASS_WORDS.booking.short,
-  follow_up: POLICY_CLASS_WORDS.follow_up.short
+  follow_up: POLICY_CLASS_WORDS.follow_up.short,
+  outreach: POLICY_CLASS_WORDS.outreach.short
 };
 function greetingFor(name) {
   const who = name ? ` ${name}` : "";
@@ -2181,6 +2282,7 @@ function isTimezone(raw) {
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
 var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
 var DAY_FMT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var REPUTATION_MEMORY_MS = 30 * 864e5;
 var ACTIVITY_KINDS = [...DECISION_VERBS, ...EVENT_KINDS];
 var BUSINESS_INDUSTRIES = [
   "AGRICULTURE",
@@ -2489,6 +2591,8 @@ var K = new Uint32Array([
   3329325298
 ]);
 var NAME_MAX = BrainConfigSchema.shape.business_name.maxLength ?? Infinity;
+var NINE_TO_FIVE = [{ from: 9 * 60, to: 17 * 60 }];
+var SEND_DAY_FRAME = { from: 8 * 60, to: 20 * 60 };
 
 // src/whatsapp.ts
 var GRAPH = "https://graph.facebook.com/v25.0";
@@ -4308,12 +4412,18 @@ async function verifyResendWebhook(secret, h, rawBody, nowMs) {
     return version === "v1" && !!sig && sameBytes(sig, expected);
   });
 }
-function platformRecipient(address, domain) {
+function platformRecipient(address, domain, coldReplyDomains = null) {
   const a = address.trim().toLowerCase();
   const at = a.lastIndexOf("@");
-  if (at < 1 || a.slice(at + 1) !== domain.toLowerCase()) return null;
+  if (at < 1) return null;
+  const host = a.slice(at + 1);
   const local = a.slice(0, at);
   const reply = /^r\+([a-z2-7]{24})$/.exec(local);
+  const cold = (typeof coldReplyDomains === "string" ? [coldReplyDomains] : coldReplyDomains ?? []).map(
+    (d) => d.toLowerCase()
+  );
+  if (host !== domain.toLowerCase() && cold.includes(host)) return reply ? { kind: "reply", token: reply[1] } : null;
+  if (host !== domain.toLowerCase()) return null;
   if (reply) return { kind: "reply", token: reply[1] };
   return /^[a-z0-9]([a-z0-9-]{0,38}[a-z0-9])?$/.test(local) && local !== "r" ? { kind: "mailbox", localPart: local } : null;
 }
@@ -4446,17 +4556,21 @@ function sendsAs(mailbox, domain) {
     replyRoutes: [mailbox.reply_token, mailbox.reply_token_prev].filter((t) => !!t).map((t) => replyRouteAddress(t, domain))
   };
 }
-function sendsAsOwnDomain(domain, mailbox, mailDomain) {
+function sendsAsOwnDomain(domain, mailbox, mailDomain, coldReplyDomains = null) {
+  const cold = typeof coldReplyDomains === "string" ? [coldReplyDomains] : coldReplyDomains ?? [];
   return {
     address: `${domain.from_local}@${domain.host}`.toLowerCase(),
-    replyRoutes: sendsAs(mailbox, mailDomain).replyRoutes
+    replyRoutes: [
+      ...sendsAs(mailbox, mailDomain).replyRoutes,
+      ...cold.filter((d) => d !== mailDomain).flatMap((d) => sendsAs(mailbox, d).replyRoutes)
+    ]
   };
 }
-function ownDomainIdentity(domain, mailbox, mailDomain) {
+function ownDomainIdentity(domain, mailbox, replyDomain) {
   return {
     fromName: domain.from_name,
     fromAddress: `${domain.from_local}@${domain.host}`.toLowerCase(),
-    replyTo: replyRouteAddress(mailbox.reply_token, mailDomain)
+    replyTo: replyRouteAddress(mailbox.reply_token, replyDomain)
   };
 }
 function requestLeavesAs(request, as) {
@@ -4558,6 +4672,11 @@ async function resendRequest(cfg, method, path, opts = {}) {
     };
   }
 }
+function paceAskedMs(h) {
+  if (!h || h.get("ratelimit-remaining")?.trim() !== "0") return null;
+  const s = Number(h.get("ratelimit-reset"));
+  return h.get("ratelimit-reset") !== null && Number.isFinite(s) && s >= 0 ? Math.round(s * 1e3) : LIMIT_WAIT_DEFAULT_MS;
+}
 async function postEmail(cfg, request, timeoutMs) {
   const { idempotency_key, ...body } = request;
   const a = await resendRequest(cfg, "POST", "/emails", { body, timeoutMs, idempotencyKey: idempotency_key });
@@ -4566,6 +4685,7 @@ async function postEmail(cfg, request, timeoutMs) {
     return {
       result: { ok: true, wamid: typeof id === "string" ? id : null, status: a.status },
       waitMs: null,
+      paceMs: paceAskedMs(a.headers),
       timedOut: false
     };
   }
@@ -4573,11 +4693,13 @@ async function postEmail(cfg, request, timeoutMs) {
     return {
       result: { ok: false, wamid: null, status: 0, errorBody: a.timedOut ? "timeout" : a.raw },
       waitMs: null,
+      paceMs: null,
       timedOut: a.timedOut
     };
   return {
     result: { ok: false, wamid: null, status: a.status, errorBody: a.raw.slice(0, 500) },
     waitMs: a.headers ? waitAskedMs(a.headers) : null,
+    paceMs: null,
     timedOut: false
   };
 }
@@ -4586,6 +4708,10 @@ async function sendEmail(cfg, request, opts = {}) {
   const now = opts.now ?? Date.now;
   const deadline = now() + (opts.deadlineMs ?? SEND_DEADLINE_MS);
   const left = () => Math.max(0, deadline - now());
+  const paced = async (p) => {
+    if (p.result.ok && p.paceMs) await wait(Math.min(p.paceMs, LIMIT_WAIT_MAX_MS, left()));
+    return p.result;
+  };
   const first = await postEmail(cfg, request, Math.min(SEND_TIMEOUT_MS2, left()));
   if (first.timedOut) {
     if (left() < RETRY_NEEDS_MS) return first.result;
@@ -4593,14 +4719,14 @@ async function sendEmail(cfg, request, opts = {}) {
     const s = second.result;
     if (!s.ok && (s.status === 0 || s.status >= 500 || resendLimitOf(s) === "in_flight"))
       return { ok: false, wamid: null, status: 0, errorBody: "timeout" };
-    return s;
+    return paced(second);
   }
   const limit = resendLimitOf(first.result);
-  if (limit !== "rate" && limit !== "in_flight") return first.result;
+  if (limit !== "rate" && limit !== "in_flight") return paced(first);
   const ms = first.waitMs ?? LIMIT_WAIT_DEFAULT_MS;
   if (ms > LIMIT_WAIT_MAX_MS || ms >= left()) return first.result;
   await wait(ms);
-  return (await postEmail(cfg, request, Math.min(SEND_TIMEOUT_MS2, left()))).result;
+  return paced(await postEmail(cfg, request, Math.min(SEND_TIMEOUT_MS2, left())));
 }
 var RESEND_RECEIVED = `${RESEND_API}/emails/receiving`;
 var FETCH_TIMEOUT_MS = 15e3;

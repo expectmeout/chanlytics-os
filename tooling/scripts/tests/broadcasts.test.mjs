@@ -514,8 +514,7 @@ test("the number's health: what WhatsApp said decides what may be sent; nothing 
 });
 
 test("the detail: every person on a broadcast, with what happened to them; the send route refuses what the number cannot carry; the thread says which broadcast", () => {
-  const d = readCode("apps/dashboard/app/api/v1/broadcasts/[id]/route.ts");
-  assert.ok(d.includes("return await getBroadcast(ctx, tenantId, id);"));
+  // The detail route answers getBroadcast's own answer: run through its reader in readers.test.mjs.
   const s = readCode("apps/dashboard/src/server/broadcasts.ts");
   assert.ok(s.includes("contacts(display_name, wa_profile_name, phone_e164, email)"), "names come with the rows");
   assert.ok(s.includes("replied: !!(r.messages?.conversation_id && replied.has(r.messages.conversation_id)),"));

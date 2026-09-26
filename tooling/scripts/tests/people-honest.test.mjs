@@ -1079,7 +1079,9 @@ test("on a phone the scopes are the Inbox's tab strip, on a row of their own ove
     let tree = draw();
     const top = byTestId(tree, "people-phone-bar");
     const kids = (top.props.children || []).filter(Boolean);
-    const strip = kids[0];
+    // The first row is the one switch (PeopleScopeTabs), the component a desk draws over its rail; the strip is what
+    // it rendered.
+    const strip = kids[0].rendered ?? kids[0];
     assert.match(String(strip.props.className), /\bstabs\b/, "the shell's own strip, as the Inbox draws its views");
     assert.equal(strip.props.role, "tablist");
     assert.deepEqual(

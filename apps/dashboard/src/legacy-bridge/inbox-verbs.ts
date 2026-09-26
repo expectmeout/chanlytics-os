@@ -25,9 +25,6 @@ import {
   inboxTemplates,
   instructionsDraft,
   inviteState,
-  lastChangedWords,
-  lastChangedName,
-  type LastChangedBy,
   newReceptionistDefaults,
   refusalOf,
   tomorrowAtIn,
@@ -399,8 +396,6 @@ declare global {
     __unknownDetails: typeof unknownDetails;
     /** The approved templates one person can be sent, and why the rest are not offered (I4). */
     __inboxTemplates: typeof inboxTemplates;
-    /** "Last changed by Ada, two days ago", from the settings row's own author and stamp; "" when there is no stamp. */
-    __lastChanged: () => string;
     /** An open invitation's state for the Team card: pending with its expiry, or expired. */
     __inviteState: (expiresAt: string | null | undefined) => { expired: boolean; words: string };
   }
@@ -507,7 +502,6 @@ export function installInboxVerbs(): void {
   // The composer offers the templates the reply route accepts for this person, in the owner's words (I4).
   window.__inboxTemplates = inboxTemplates;
   window.__inviteState = (expiresAt) => inviteState(expiresAt, Date.now());
-  window.__lastChanged = () => lastChangedFor(window as unknown as LastChangedWindow, Date.now());
 }
 
 /**
@@ -553,31 +547,4 @@ export async function saveSettings(
   // to reapply, because the form's words are the person's.
   if (!r.ok && r.code === "conflict") await (deps.refresh ?? (() => refreshSurfaces([settingsOverride])))();
   return r;
-}
-
-interface LastChangedWindow {
-  __SETTINGS?: { updatedAt?: string | null; updatedBy?: string | null } | null;
-  __TEAM?: Array<{ userId: string; email: string | null; displayName: string }> | null;
-  __ME?: { id?: string | null } | null;
-}
-
-/**
- * The Business card's "last changed" line: the reader's own change said as
- * theirs, someone else's named from the roster, or said to be gone from it.
- * Never an address -- contracts' `lastChangedName` says why.
- */
-export function lastChangedFor(w: LastChangedWindow, nowMs: number): string {
-  const s = w.__SETTINGS;
-  if (!s) return "";
-  return lastChangedWords(s.updatedAt, lastChangedBy(w), nowMs);
-}
-
-function lastChangedBy(w: LastChangedWindow): LastChangedBy {
-  const by = w.__SETTINGS?.updatedBy;
-  if (!by) return { who: "unknown" };
-  if (w.__ME?.id && w.__ME.id === by) return { who: "you" };
-  const who = (w.__TEAM ?? []).find((m) => m.userId === by) ?? null;
-  return who
-    ? { who: "member", name: lastChangedName({ email: who.email, display_name: who.displayName }) }
-    : { who: "gone" };
 }

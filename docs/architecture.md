@@ -147,6 +147,18 @@ platform's mail account, for everything else; the own lane, a verified sending
 domain on the cold account, for outreach only. A cold send never moves its
 thread, and a failure is recorded on its row rather than flagged.
 
+A reach-out (Part 3) is a chain of `playbooks` rows over a lead search, and
+each lead in a step's run is a send (`reach_out_sends`). The run is planned
+whole in SQL (00185); the reach-out clock (`/api/cron/reach-out`, every
+minute) reads what became of the emails it wrote, then claims what is due
+under each domain's lock and writes each email rows first: the email row
+under an id derived from the send, its `outbound_send` job, then the send
+queued. It leaves through the one door, which asks `outreach_facts` about
+that send's own lead. The reads that choose each step's work are bounded SQL
+functions (00186, 00187), and any list of ids the clock still sends goes a
+hundred at a time: a list of ids in a URL breaks past about two hundred, and
+a page cut at a thousand rows would have finished a run with a send open.
+
 A send that happens later is a job: `packages/jobs` is the ledger (`claim_due_jobs`, a lease, a heartbeat, `settle`), `apps/edge/api/jobs/tick.ts` runs it, and `packages/jobs/src/handlers.ts` maps each kind to a core verb. Every clock is a timestamp on a row that a sweep acts on, and every sweep is registered in `sweep_status` and judged by `/api/cron/health`.
 
 ## The packages, and the direction of dependency

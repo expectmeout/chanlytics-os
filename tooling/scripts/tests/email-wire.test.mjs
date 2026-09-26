@@ -501,6 +501,42 @@ test("the provider's 'not this second' is waited out once, briefly, and the same
   }
 });
 
+test("an email taken as the last its rate allowed waits out the reset before it returns, so the next meets no 429 (Reach out C14)", async () => {
+  const real = globalThis.fetch;
+  let answers = [];
+  globalThis.fetch = async () => {
+    const a = answers.shift();
+    return new Response(JSON.stringify({ id: "re_9" }), { status: 200, headers: a });
+  };
+  const waits = [];
+  const wait = async (ms) => {
+    waits.push(ms);
+  };
+  try {
+    const r = buildEmailRequest(input());
+    for (const [headers, expected, why] of [
+      [{ "ratelimit-remaining": "0", "ratelimit-reset": "1" }, [1000], "the last of its second: the reset, waited out"],
+      [{ "ratelimit-remaining": "0", "ratelimit-reset": "5" }, [2000], "never longer than a worker's short wait"],
+      [{ "ratelimit-remaining": "0" }, [1000], "no reset given: the default second"],
+      [{ "ratelimit-remaining": "1", "ratelimit-reset": "1" }, [], "room left: at once"],
+      [{}, [], "no rate headers: at once"],
+    ]) {
+      waits.length = 0;
+      answers = [headers];
+      assert.deepEqual(await sendEmail({ apiKey: "k" }, r, { wait }), { ok: true, wamid: "re_9", status: 200 }, why);
+      assert.deepEqual(waits, expected, why);
+    }
+    // With the real clock: it returns after about the second it was asked to wait.
+    answers = [{ "ratelimit-remaining": "0", "ratelimit-reset": "1" }];
+    const t0 = Date.now();
+    await sendEmail({ apiKey: "k" }, r);
+    const took = Date.now() - t0;
+    assert.ok(took >= 950 && took < 1900, `about a second: ${took} ms`);
+  } finally {
+    globalThis.fetch = real;
+  }
+});
+
 test("a send that timed out goes once more under the same key, inside its deadline; twice timed out is 'timeout' (Part 2.5 D5)", async () => {
   const real = globalThis.fetch;
   const posted = [];

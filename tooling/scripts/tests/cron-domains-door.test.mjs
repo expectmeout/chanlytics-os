@@ -48,6 +48,7 @@ const domain = (id, over = {}) => ({
   created_by: null,
   created_at: ago(21 * DAY),
   updated_at: ago(10 * 60_000),
+  sent_days: null,
   ...over,
 });
 
@@ -86,7 +87,7 @@ beforeEach(() => {
   owed = () => [];
 });
 
-function world(rows, counts) {
+function world(rows, counts, capacity) {
   const tables = {
     sending_domains: rows,
     tenant_config: [{ tenant_id: A, config: { notifications: { escalation_emails: [OWNER] } } }],
@@ -102,6 +103,13 @@ function world(rows, counts) {
       const c = counts[a.p_host];
       if (c instanceof Error) throw c;
       return c ?? { sent: 0, bounced: 0, complained: 0 };
+    };
+  // 00184's capacity, answered per domain id; an Error is a read that failed.
+  if (capacity)
+    rpcs.sending_domain_capacity = (a) => {
+      const c = capacity[a.p_domain_id];
+      if (c instanceof Error) throw c;
+      return c ?? { state: "verified", clean_since: null, sent_days: 0, used: 0, recent: [], last_sent_at: null };
     };
   const db = fakeDb(tables, {}, rpcs);
   setPg(db);
@@ -320,8 +328,8 @@ test("a verified domain is counted since it was clean; bounces or a complaint ho
         .sort((a, b) => a.host.localeCompare(b.host)),
       [
         // What was counted stays on the ledger: a Resume clears the row's counts (2.6).
-        { host: "d2.example", why: "bounces", sent: 200, bounced: 5, complaints: 0 },
-        { host: "d3.example", why: "complaint", sent: 12, bounced: 0, complaints: 1 },
+        { host: "d2.example", why: "bounces", sent: 200, bounced: 5, complaints: 0, unsubscribed: 0 },
+        { host: "d3.example", why: "complaint", sent: 12, bounced: 0, complaints: 1, unsubscribed: 0 },
       ],
     );
     assert.deepEqual(w.tables.notifications.map((n) => n.title).sort(), [
@@ -811,6 +819,244 @@ test("without the edge's key nothing is sealed, so nothing is probed (Part 2.6)"
     assert.equal(body.unsubscribe, "no_secret");
     assert.equal(opened.length, 0);
     assert.deepEqual(w.tables.operator_pages, []);
+  } finally {
+    net.restore();
+  }
+});
+
+test("the clock writes the days each domain sent (D15) beside its counts; a read that fails leaves the row's last answer", async () => {
+  const w = world(
+    [
+      domain("d1"),
+      domain("d2", { sent_days: 7 }),
+      domain("d3", { state: "records", verified_at: null, clean_since: null }),
+    ],
+    {},
+    {
+      d1: { state: "verified", clean_since: null, sent_days: 4, used: 0, recent: [], last_sent_at: null },
+      d2: new Error("statement timeout"),
+    },
+  );
+  for (const h of ["d1", "d2", "d3"]) dns[`${h}.example`] = "found";
+  const net = provider({ "pd-d3": "pending" });
+  try {
+    const [status] = await answer(await knock(POST, "domains"));
+    assert.equal(status, 200);
+    assert.deepEqual([w.row("d1").sent_days, w.row("d2").sent_days, w.row("d3").sent_days], [4, 7, null]);
+    assert.deepEqual(
+      w.db.seen
+        .filter((s) => s.rpc === "sending_domain_capacity")
+        .map((s) => s.args.p_domain_id)
+        .sort(),
+      ["d1", "d2"],
+      "a domain not yet sending has no days to count",
+    );
+  } finally {
+    net.restore();
+  }
+});
+
+test("a domain clean again starts its days over in the same write: a hold released never says the days before it", async () => {
+  const w = world(
+    [domain("d1", { state: "held", held_why: "dmarc", held_at: ago(DAY), dmarc: "missing", sent_days: 20 })],
+    {},
+    { d1: { state: "held", clean_since: ago(20 * DAY), sent_days: 20, used: 0, recent: [], last_sent_at: null } },
+  );
+  dns["d1.example"] = "found";
+  const net = provider({ "pd-d1": "verified" });
+  try {
+    const [status] = await answer(await knock(POST, "domains"));
+    assert.equal(status, 200);
+    const d = w.row("d1");
+    assert.equal(d.state, "verified");
+    assert.ok(Date.parse(d.clean_since) > Date.now() - 60_000, "clean from now");
+    assert.equal(d.sent_days, 0, "the ramp's first step, as the door and the claim will count it");
+  } finally {
+    net.restore();
+  }
+});
+
+test("unsubscribes hold a domain past 2% of what it sent (D18), after bounces; its owner resumes it", async () => {
+  const w = world([domain("d1"), domain("d2")], {
+    "d1.example": { sent: 200, bounced: 0, complained: 0, unsubscribed: 5 },
+    // Under the floor: three of a hundred is not yet a pattern.
+    "d2.example": { sent: 100, bounced: 0, complained: 0, unsubscribed: 3 },
+  });
+  for (const h of ["d1", "d2"]) dns[`${h}.example`] = "found";
+  const net = provider({});
+  try {
+    await answer(await knock(POST, "domains"));
+    assert.deepEqual([w.row("d1").state, w.row("d1").held_why], ["held", "unsubscribes"]);
+    assert.equal(w.row("d2").state, "verified");
+    assert.deepEqual(
+      w.tables.events.filter((e) => e.kind === "sending_domain.held").map((e) => e.data),
+      [{ host: "d1.example", why: "unsubscribes", sent: 200, bounced: 0, complaints: 0, unsubscribed: 5 }],
+    );
+    assert.deepEqual(
+      w.tables.notifications.map((n) => n.title),
+      ["d1.example is held: more than 2% of the people it wrote to unsubscribed"],
+    );
+    assert.match(w.tables.notifications[0].body, /resume it on Connections/, "the owner's to resume");
+    assert.notEqual(w.row("d1").resume_by, "platform");
+  } finally {
+    net.restore();
+  }
+});
+
+test("a second reputation hold in 30 days is the platform's to lift (D16): paged, and the owner told there is nothing to press", async () => {
+  const w = world([domain("d1"), domain("d2"), domain("d3")], {
+    "d1.example": { sent: 200, bounced: 5, complained: 0 },
+    "d2.example": { sent: 200, bounced: 5, complained: 0 },
+    "d3.example": { sent: 200, bounced: 5, complained: 0 },
+  });
+  const held = (host, why, at) => ({
+    id: crypto.randomUUID(),
+    tenant_id: A,
+    kind: "sending_domain.held",
+    category: "setup",
+    subject_type: "sending_domain",
+    subject_id: "an-earlier-row",
+    data: { host, why },
+    created_at: at,
+  });
+  w.tables.events.push(
+    // Held for bounces ten days ago, removed and added again since: the host, not the row, remembers.
+    held("d1.example", "bounces", ago(10 * DAY)),
+    // Forty days ago is past remembering.
+    held("d2.example", "complaint", ago(40 * DAY)),
+    // A records hold is not a reputation hold.
+    held("d3.example", "dmarc", ago(5 * DAY)),
+  );
+  for (const h of ["d1", "d2", "d3"]) dns[`${h}.example`] = "found";
+  const net = provider({});
+  try {
+    await answer(await knock(POST, "domains"));
+    for (const h of ["d1", "d2", "d3"]) assert.deepEqual([w.row(h).state, w.row(h).held_why], ["held", "bounces"], h);
+    assert.equal(w.row("d1").resume_by, "platform");
+    assert.equal(w.row("d2").resume_by ?? "owner", "owner", "a first hold in 30 days is its owner's");
+    assert.equal(w.row("d3").resume_by ?? "owner", "owner");
+    assert.deepEqual(
+      w.tables.operator_pages.map((p) => p.key),
+      ["sending_domain_held_twice:d1.example"],
+    );
+    const d1 = w.tables.events.find((e) => e.kind === "sending_domain.held" && e.subject_id === "d1");
+    assert.equal(d1.data.resume_by, "platform", "the ledger says who lifts it");
+    const told = w.tables.notifications.find((n) => n.title.startsWith("d1.example"));
+    assert.match(told.body, /held twice in 30 days, so we lift this hold ourselves/);
+    assert.doesNotMatch(told.body, /resume it on Connections/, "nothing for the owner to press");
+  } finally {
+    net.restore();
+  }
+});
+
+test("a worse reason inside one hold is the same hold: held for unsubscribes, bounces take its place and stay the owner's", async () => {
+  const w = world([domain("d1", { state: "held", held_why: "unsubscribes", held_at: ago(DAY) })], {
+    "d1.example": { sent: 200, bounced: 5, complained: 0, unsubscribed: 5 },
+  });
+  w.tables.events.push({
+    id: crypto.randomUUID(),
+    tenant_id: A,
+    kind: "sending_domain.held",
+    subject_type: "sending_domain",
+    subject_id: "d1",
+    data: { host: "d1.example", why: "unsubscribes" },
+    created_at: ago(DAY),
+  });
+  dns["d1.example"] = "found";
+  const net = provider({});
+  try {
+    await answer(await knock(POST, "domains"));
+    assert.deepEqual([w.row("d1").state, w.row("d1").held_why], ["held", "bounces"]);
+    assert.notEqual(w.row("d1").resume_by, "platform");
+    assert.deepEqual(w.tables.operator_pages, []);
+  } finally {
+    net.restore();
+  }
+});
+
+test("what never makes a hold the platform's: another workspace's hold of the host, a late complaint about mail from before, a history that cannot be read", async () => {
+  const held = (tenant, host, why) => ({
+    id: crypto.randomUUID(),
+    tenant_id: tenant,
+    kind: "sending_domain.held",
+    subject_type: "sending_domain",
+    subject_id: "an-earlier-row",
+    data: { host, why },
+    created_at: ago(5 * DAY),
+  });
+  const w = world([domain("d1"), domain("d2")], {
+    "d1.example": { sent: 200, bounced: 5, complained: 0 },
+    // The one complaint is about an email sent before the count began: it holds, and is the episode already answered.
+    "d2.example": { sent: 200, bounced: 0, complained: 1, complained_new: 0 },
+  });
+  w.tables.events.push(
+    held("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "d1.example", "bounces"),
+    held(A, "d2.example", "bounces"),
+  );
+  for (const h of ["d1", "d2"]) dns[`${h}.example`] = "found";
+  const net = provider({});
+  try {
+    await answer(await knock(POST, "domains"));
+    assert.deepEqual([w.row("d1").held_why, w.row("d1").resume_by ?? "owner"], ["bounces", "owner"]);
+    assert.deepEqual([w.row("d2").held_why, w.row("d2").resume_by ?? "owner"], ["complaint", "owner"]);
+    assert.deepEqual(w.tables.operator_pages, []);
+  } finally {
+    net.restore();
+  }
+
+  // The holds before cannot be read: the hold is its owner's, and the platform is not paged on a guess.
+  const u = world([domain("d1")], { "d1.example": { sent: 200, bounced: 5, complained: 0 } });
+  u.tables.events.push(held(A, "d1.example", "bounces"));
+  setPg(
+    fakeDb(
+      u.tables,
+      { "events.select": { message: "statement timeout" } },
+      {
+        ...vault,
+        cold_receipts_owed: () => [],
+        sending_domain_counts: () => ({ sent: 200, bounced: 5, complained: 0 }),
+      },
+    ),
+  );
+  dns["d1.example"] = "found";
+  const net2 = provider({});
+  try {
+    await answer(await knock(POST, "domains"));
+    assert.deepEqual([u.row("d1").held_why, u.row("d1").resume_by ?? "owner"], ["bounces", "owner"]);
+  } finally {
+    net2.restore();
+  }
+});
+
+test("the probe opens the links where they are minted: UNSUBSCRIBE_ORIGIN when it is an origin (D17), the dashboard's otherwise", async () => {
+  for (const [origin, expected] of [
+    ["https://links.coldmail.example", /^https:\/\/links\.coldmail\.example\/u\/[A-Za-z0-9_-]{87}$/],
+    ["links.coldmail.example", /^https:\/\/app\.chanlytics\.com\/u\//],
+    ["https://links.coldmail.example/path", /^https:\/\/app\.chanlytics\.com\/u\//],
+  ]) {
+    world([domain("d1")]);
+    dns["d1.example"] = "found";
+    const { net, opened } = dashboardAt({ current: EDGE_KEY });
+    try {
+      await withEnv({ UNSUBSCRIBE_SECRET: EDGE_KEY, UNSUBSCRIBE_ORIGIN: origin }, async () =>
+        answer(await knock(POST, "domains")),
+      );
+      assert.match(opened[0].url, expected, origin);
+    } finally {
+      net.restore();
+    }
+  }
+});
+
+test("an origin typed with a trailing slash is the same origin: the probe opens the page there", async () => {
+  world([domain("d1")]);
+  dns["d1.example"] = "found";
+  const { net, opened } = dashboardAt({ current: EDGE_KEY });
+  try {
+    await withEnv({ UNSUBSCRIBE_SECRET: EDGE_KEY, UNSUBSCRIBE_ORIGIN: "https://links.coldmail.example/" }, async () =>
+      answer(await knock(POST, "domains")),
+    );
+    assert.match(opened[0].url, /^https:\/\/links\.coldmail\.example\/u\/[A-Za-z0-9_-]{87}$/);
   } finally {
     net.restore();
   }

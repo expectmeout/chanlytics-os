@@ -43,6 +43,7 @@ import {
 import {
   domainDailyCap,
   mayMessageFor,
+  outreachRefusalOf,
   purposeOfTemplate,
   type DeliveryRefusal,
   type SendPurpose,
@@ -170,6 +171,11 @@ export interface Delivery {
   template?: TemplateSend;
   /** The frozen request, on the email wire (WirePayload.email). */
   email?: EmailRequest;
+  /**
+   * The lead a cold email was written for (a reach-out's always names one): outreach's facts are that lead's, so a
+   * business closed or archived is refused even when its person has another lead still being written to.
+   */
+  leadId?: string | null;
   /**
    * An outbox row already written as `queued` (the honest undo): finalized
    * in place rather than inserted, and only while it is still queued, so a
@@ -306,8 +312,10 @@ interface OutreachFacts {
    * from_local); null when the From is no such address.
    */
   domainState: string | null;
-  /** The ramp's clock for that domain: its day's share is domainDailyCap of it. */
+  /** When that domain was last clean: a domain never clean has no day's share at all. */
   cleanSince: string | null;
+  /** The days that domain has sent on since it was clean (D15): its day's share is domainDailyCap of them. */
+  sentDays: number;
   /** What left from that domain in the last day. */
   sentSince: number;
 }
@@ -334,6 +342,7 @@ async function outreachFacts(db: Db, d: Delivery, f: WireFacts, nowMs: number): 
       unsubscribable,
       domainState: null,
       cleanSince: null,
+      sentDays: 0,
       sentSince: 0,
     };
   let facts;
@@ -345,6 +354,7 @@ async function outreachFacts(db: Db, d: Delivery, f: WireFacts, nowMs: number): 
       // A From that cannot be read names no domain: the lead is still asked, and the door refuses the domain.
       host: host ?? "",
       since: new Date(nowMs - SHARE_WINDOW_MS).toISOString(),
+      leadId: d.leadId ?? null,
     });
   } catch (e) {
     throw new Error(`deliver: ${e instanceof Error ? e.message : String(e)} (conversation ${d.conversationId})`, {
@@ -361,6 +371,7 @@ async function outreachFacts(db: Db, d: Delivery, f: WireFacts, nowMs: number): 
     unsubscribable,
     domainState: own?.state ?? null,
     cleanSince: own?.clean_since ?? null,
+    sentDays: own?.sent_days ?? 0,
     sentSince: facts.sent_since,
   };
 }
@@ -401,22 +412,15 @@ function refusalFor(d: Delivery, f: WireFacts, nowMs: number, o: OutreachFacts |
   // verified, never from the hosted address every workspace's replies share.
   if (d.purpose === "outreach") {
     if (!o) throw new Error(`deliver: an outreach email is judged with its facts (conversation ${d.conversationId})`);
-    if (!o.leadStage) return "outreach_not_a_lead";
-    // Only a business still being written to: a lead that said no, became a customer or was set aside is not.
-    if (o.leadStage !== "ready" && o.leadStage !== "nurture") return "outreach_lead_closed";
-    if (o.suppressed) return "outreach_suppressed";
-    // Every cold email's foot promises "reply 'no thanks' and I won't write again", and a reply asking to stop, in any
-    // words, is an opt-out the law says to honour. Nothing reads a reply to tell a no from a yes, so the promise is
-    // kept the plain way: a person who wrote back, or phoned, is in a conversation, answered from the Inbox, and a
-    // reach-out's next email (a nudge, a later run) is never sent to them. An out-of-office is not a person writing;
-    // mail with a list's headers is, since a helpdesk sends a person's no with them too (00181).
-    if (o.wroteBack) return "outreach_wrote_back";
+    // The lead's own facts, in the one mapping the reach-out clock also asks before it claims a send.
+    const lead = outreachRefusalOf({ leadStage: o.leadStage, suppressed: o.suppressed, wroteBack: o.wroteBack });
+    if (lead) return lead;
     if (!o.unsubscribable) return "outreach_without_unsubscribe";
     if (!o.domainState) return "outreach_needs_own_domain";
     if (o.domainState !== "verified") return "sending_domain_not_ready";
     // The day's share is the ramp's (contracts domainDailyCap). The batch writer claims within it (Part 3); this is
     // the backstop, so a run that miscounts cannot spend a domain's reputation past its share.
-    if (o.sentSince >= domainDailyCap(o.cleanSince, nowMs)) return "sending_domain_at_cap";
+    if (o.sentSince >= (o.cleanSince ? domainDailyCap(o.sentDays) : 0)) return "sending_domain_at_cap";
   }
   const kind = kindOf(d);
   // A person's own reply goes out even when the machine is told to stop: the
@@ -484,7 +488,12 @@ async function overtakenByHuman(db: Db, d: Delivery): Promise<string | null> {
     .order("created_at", { ascending: true })
     .limit(10);
   if (error) throw new Error(`deliver: cannot read the thread for ${d.messageId}: ${error.message}`);
-  const spoke = (newer ?? []).find((m) => (m.meta as { source?: unknown } | null)?.source !== "broadcast");
+  // A campaign's email is no person speaking on this thread, whatever its row says wrote the words: a broadcast's, and
+  // a reach-out's (written queued, and perhaps refused at this door, in a thread the receptionist is drafting in).
+  const spoke = (newer ?? []).find((m) => {
+    const source = (m.meta as { source?: unknown } | null)?.source;
+    return source !== "broadcast" && source !== "reach_out";
+  });
   return spoke ? spoke.id : null;
 }
 

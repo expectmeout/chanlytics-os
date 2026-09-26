@@ -40,6 +40,7 @@ import {
   POLICY_CLASSES,
   POLICY_MODES,
   FOLLOW_UP_NEEDS_DEALS,
+  REACH_OUT_IS_NOT_A_MOMENT,
   FOLLOW_UP_ONE,
   dealPaceOf,
   dealsAreOn,
@@ -54,7 +55,7 @@ import {
   AppError,
   type LeadSearchPlan,
   PLAYBOOK_CLASS_LABEL,
-  PLAYBOOK_TRIGGERS,
+  MOMENT_TRIGGERS,
   ProposeLeadSearchSchema,
   planLeadSearch,
   planSentence,
@@ -73,10 +74,12 @@ import { listPolicies } from "@chanlytics/db";
 import type { ToolContext, ToolDef } from "./tools";
 import { answerPlanOf, planFacts, searchRow, waitingQuestionOf, type SearchViewRow } from "../leads";
 import { requireUuid } from "../request-guards";
-import { archivedListWords, audiencePoolOnce, poolList } from "../audience";
+import { archivedListWords, poolList } from "../audience";
 import { dealPaceRead, sellsByOf } from "../deals";
 import { checkPlaybookInput, proposalFollowUps } from "../playbooks";
 import { replyChannelOf } from "../verbs";
+import { load } from "../readers";
+import { audiencePool } from "../readers/audience-pool";
 
 /**
  * What the assistant may propose, and how a proposal is checked.
@@ -173,7 +176,8 @@ export const ACT_TOOLS: ToolDef[] = [
       "Propose a change to what the receptionist may do alone: a class (reply, booking, faq, reengage, campaign, reviews, and follow_up where deals are on) and a mode (auto, veto, ask, never), or the reply confidence dial (0 to 1). Never for money: that class is locked by charter, so a request to change it is answered in words, not proposed.",
     input_schema: obj(
       {
-        class: { type: "string", enum: [...POLICY_CLASSES] },
+        // The classes the Autonomy pane draws: a reach-out's is set where reach-outs are made (Part 4).
+        class: { type: "string", enum: POLICY_CLASSES.filter((c) => c !== "outreach") },
         mode: { type: "string", enum: ["", ...POLICY_MODES] },
         min_confidence: { type: "number" },
       },
@@ -234,8 +238,9 @@ export const ACT_TOOLS: ToolDef[] = [
       "Propose a playbook: a standing rule that sends one approved WhatsApp template to newly eligible people who said yes. trigger: quiet_30 (win-back), new_week (welcome), phoned_only (save our number), everyone_monthly (the month's offer), saved_list (on any list: give its token from list_audiences in list -- one of People's or one of the workspace's own -- and policy_class campaign for an offer or reengage for a win-back), or, where deals are on, proposal_waiting (the proposal follow-up: one nudge per proposal waiting past the workspace's pace, one such playbook per workspace, its message carrying the proposal's link as @proposal_link). template_id: an approved template, or omit it for the trigger's starter when the workspace holds it. params: the template's values in order (typed text, or @first_name, @business_name, @booking_link, @proposal_link); a starter's are filled in, except a typed one such as the month's offer. run_hour 9–20 by the business's clock (default 10), cap_per_run (default 25). Read list_playbooks first. It becomes a card the person approves; it then runs under its class's autonomy mode.",
     input_schema: obj(
       {
-        // Every trigger except the two that follow the calendar; a proposal's is refused where deals are off.
-        trigger: { type: "string", enum: PLAYBOOK_TRIGGERS.filter((t) => t.kind !== "visit").map((t) => t.id) },
+        // Every moment except the two that follow the calendar; a proposal's is refused where deals are off. A
+        // reach-out's steps are not moments (MOMENT_TRIGGERS).
+        trigger: { type: "string", enum: MOMENT_TRIGGERS.filter((t) => t.kind !== "visit").map((t) => t.id) },
         // On a list (saved_list): the list's token from list_audiences, and what it sends.
         list: { type: "string" },
         policy_class: { type: "string", enum: [...LIST_PLAYBOOK_CLASSES] },
@@ -650,6 +655,7 @@ async function proposePolicy(t: ToolContext, input: Record<string, unknown>): Pr
   if (!(POLICY_CLASSES as readonly string[]).includes(cls))
     return refuse("class must be reply, booking, faq, reengage, campaign, reviews, follow_up or money");
   if (cls === "money") return refuse("money stays owner-only by charter; that row is locked");
+  if (cls === "outreach") return refuse("a reach-out's runs are set where reach-outs are made, not here");
   // A class only a proposal's moment runs under is offered only where deals are on (0006); only it asks.
   if (!policyClassOffered(cls, false) && !policyClassOffered(cls, dealsAreOn(await sellsByOf(t.ctx, t.tenantId))))
     return refuse(FOLLOW_UP_NEEDS_DEALS);
@@ -807,8 +813,9 @@ async function proposeBroadcast(t: ToolContext, input: Record<string, unknown>):
     return refuse(`this template takes ${expected} value${expected === 1 ? "" : "s"}, in order`);
 
   // The audience, counted the way the route will count it.
-  // The pool and the list the route will read, so the count here is the count it enrols.
-  const pool = await audiencePoolOnce(t.memo, t.ctx, t.tenantId, t.timezone, t.now);
+  // The pool and the list the route will read, so the count here is the count it enrols: once a turn, so a listing of
+  // the audiences before it read the same pool (readers/audience-pool.ts).
+  const pool = (await load(t.rc, audiencePool, undefined)).data;
   // Any list, counted the way the send will count it (audience.ts poolList): a built-in or a saved list alike, and
   // one that can't be counted here refused with why.
   let members: Set<string> | null = null;
@@ -876,6 +883,7 @@ const MODE_WORDS: Record<string, string> = {
 async function proposePlaybook(t: ToolContext, input: Record<string, unknown>): Promise<ProposalOutcome> {
   const trig = triggerOf(str(input.trigger, 30));
   if (!trig) return refuse("trigger must be quiet_30, new_week, phoned_only, everyone_monthly or saved_list");
+  if (trig.kind === "reach_out") return refuse(REACH_OUT_IS_NOT_A_MOMENT);
   // A playbook on a list names it by its token (decision 0009): one of People's, or one of the workspace's own.
   const listRef = trig.kind === "saved" ? parseListToken(str(input.list, 60)) : null;
   if (trig.kind === "saved" && !listRef)
@@ -978,7 +986,7 @@ async function proposePlaybook(t: ToolContext, input: Record<string, unknown>): 
 
   const deal = trig.kind === "deal";
   const [pool, policies, paceRead, followUps] = await Promise.all([
-    audiencePoolOnce(t.memo, t.ctx, t.tenantId, t.timezone, t.now),
+    load(t.rc, audiencePool, undefined).then((r) => r.data),
     listPolicies(t.ctx.supabase, t.tenantId).catch(() => []),
     // A proposal's moment is counted as the page counts it (0006): by the pace, less whoever had their follow-up.
     deal ? dealPaceRead(t.ctx, t.tenantId, t.now) : Promise.resolve(null),

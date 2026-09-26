@@ -109,8 +109,12 @@ test(
     });
     await sent({ host: `other-${stamp}.example` });
     await sent({ host: null });
-    assert.deepEqual(await counts(host), { sent: 3, bounced: 1, complained: 0 });
-    assert.deepEqual(await counts(host.toUpperCase()), { sent: 3, bounced: 1, complained: 0 }, "a host in any case");
+    assert.deepEqual(await counts(host), { sent: 3, bounced: 1, complained: 0, unsubscribed: 0, complained_new: 0 });
+    assert.deepEqual(
+      await counts(host.toUpperCase()),
+      { sent: 3, bounced: 1, complained: 0, unsubscribed: 0, complained_new: 0 },
+      "a host in any case",
+    );
   },
 );
 
@@ -121,10 +125,14 @@ test("the window: since the domain was clean, and the last 500 sends at most", {
   const since = new Date(Date.now() - 86_400_000).toISOString();
   assert.deepEqual(
     await counts(host, since),
-    { sent: 0, bounced: 0, complained: 0 },
+    { sent: 0, bounced: 0, complained: 0, unsubscribed: 0, complained_new: 0 },
     "a bounce before it was clean is not counted",
   );
-  assert.deepEqual(await counts(host), { sent: 1, bounced: 1, complained: 0 }, "no since: the last 90 days");
+  assert.deepEqual(
+    await counts(host),
+    { sent: 1, bounced: 1, complained: 0, unsubscribed: 0, complained_new: 0 },
+    "no since: the last 90 days",
+  );
 
   const many = `c-${stamp}.example`;
   await sent({ host: many, status: "failed", error: BOUNCED, at: new Date(Date.now() - 3_600_000) });
@@ -132,7 +140,7 @@ test("the window: since the domain was clean, and the last 500 sends at most", {
   for (let k = 0; k < rows.length; k += 50) await Promise.all(rows.slice(k, k + 50).map(() => sent({ host: many })));
   assert.deepEqual(
     await counts(many),
-    { sent: 500, bounced: 0, complained: 0 },
+    { sent: 500, bounced: 0, complained: 0, unsubscribed: 0, complained_new: 0 },
     "the older bounce fell out of the last 500",
   );
 });
@@ -157,7 +165,7 @@ test("a complaint is stamped once on the row it is about, and counted", { skip }
   assert.equal(row.status, "delivered", "the row stays delivered");
   assert.ok(row.meta.email.complained_at);
   assert.equal(row.meta.email.request.subject, "Your moving quotes", "what the row kept is kept");
-  assert.deepEqual(await counts(host), { sent: 1, bounced: 0, complained: 1 });
+  assert.deepEqual(await counts(host), { sent: 1, bounced: 0, complained: 1, unsubscribed: 0, complained_new: 1 });
 });
 
 test(
@@ -184,7 +192,14 @@ test(
         p_at: new Date(Date.now() - 4 * 86_400_000).toISOString(),
       }),
     );
-    assert.deepEqual(await counts(host, since), { sent: 0, bounced: 0, complained: 1 });
+    // A complaint about mail from before the count began holds the domain, and is not a new one (00188, D16).
+    assert.deepEqual(await counts(host, since), {
+      sent: 0,
+      bounced: 0,
+      complained: 1,
+      unsubscribed: 0,
+      complained_new: 0,
+    });
   },
 );
 
@@ -199,6 +214,6 @@ test(
       error: { provider: "bounced", kind: "Transient", sub_kind: "MailboxFull", message: "452 mailbox full" },
     });
     await sent({ host, status: "failed", error: BOUNCED });
-    assert.deepEqual(await counts(host), { sent: 2, bounced: 1, complained: 0 });
+    assert.deepEqual(await counts(host), { sent: 2, bounced: 1, complained: 0, unsubscribed: 0, complained_new: 0 });
   },
 );

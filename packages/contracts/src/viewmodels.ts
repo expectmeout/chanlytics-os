@@ -162,7 +162,7 @@ export interface ConversationVM {
 import { whisperText } from "./whisper";
 import { replyWhy, type ReplyWhyVM } from "./brain";
 import { formatPhoneDisplay } from "./phone";
-import { personName } from "./person-name";
+import { callerName, personName } from "./person-name";
 import { isOptedOutContact } from "./consent";
 import { replyWindow, isLiveCall } from "./policy";
 import { callOutcomeOf, callOutcomeWords, tidyCallSummary } from "./call-words";
@@ -1308,9 +1308,8 @@ const RECORDING_NOTE: Partial<Record<CallVM["recordingState"], string>> = {
 
 export function toCallVM(dto: CallDto, tz: string, now = new Date()): CallVM {
   const withheld = !dto.from_e164 && !dto.from_raw;
-  const phone = formatPhoneDisplay(dto.from_e164);
   const name = dto.contact?.display_name || dto.contact?.wa_profile_name || null;
-  const who = withheld ? "Caller ID withheld" : name || phone || dto.from_raw || "Unknown caller";
+  const who = callerName(dto);
   const whoShort = name ? (isIdentifierName(name) ? name : name.split(" ")[0]) : "Caller";
   const dur = mmss(dto.duration_ms);
   // Not `status === "ongoing"`. A lost call_ended leaves that flag set forever,

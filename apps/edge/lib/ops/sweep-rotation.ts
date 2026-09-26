@@ -122,9 +122,31 @@ export async function playbooksDue(
     .from("playbooks")
     .select("*", { count: "exact" })
     .eq("state", "running")
+    // The moments. A reach-out step runs through its own verb (Reach out, Part 3).
+    .eq("kind", "moment")
     .order("last_run_at", { ascending: true, nullsFirst: true })
     .limit(limit);
   if (error) throw new Error(`reading the playbooks due: ${error.message}`);
+  const rows = data ?? [];
+  return { rows, remaining: Math.max(0, (count ?? rows.length) - rows.length) };
+}
+
+/**
+ * The reach-out steps (Part 3), a page of their own, least-recently-run first as the moments are: each runs through
+ * runReachOut, never the moments' run, and a workspace's moments never crowd its reach-outs out of a tick.
+ */
+export async function reachOutsDue(
+  db: Db,
+  limit: number,
+): Promise<DuePage<Database["public"]["Tables"]["playbooks"]["Row"]>> {
+  const { data, error, count } = await db
+    .from("playbooks")
+    .select("*", { count: "exact" })
+    .eq("state", "running")
+    .eq("kind", "reach_out")
+    .order("last_run_at", { ascending: true, nullsFirst: true })
+    .limit(limit);
+  if (error) throw new Error(`reading the reach-outs due: ${error.message}`);
   const rows = data ?? [];
   return { rows, remaining: Math.max(0, (count ?? rows.length) - rows.length) };
 }

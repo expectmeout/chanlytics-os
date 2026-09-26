@@ -836,6 +836,7 @@ test("the domains you send from: under the Email row, each in contracts' words, 
           dmarc: "found",
           verified_at: iso(20),
           clean_since: iso(20),
+          sent_days: 16,
           records: [],
         },
       ],
@@ -877,8 +878,10 @@ test("the domains you send from: under the Email row, each in contracts' words, 
 
   const verified = byTestId(tree, "domain-harbor-mail.com");
   assert.match(textOf(verified), /Verified/);
-  assert.match(textOf(verified), /20 clean days/);
+  // The ramp reads the days it sent (D15): sixteen of the twenty since it was clean.
+  assert.match(textOf(verified), /16 days sending/);
   assert.match(textOf(verified), /Up to 100 a day/);
+  assert.match(textOf(verified), /200 a day after 14 more days of sending/);
   assert.equal(
     byTestId(tree, "domain-check-harbor-mail.com"),
     null,

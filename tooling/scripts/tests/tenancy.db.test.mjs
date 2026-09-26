@@ -161,7 +161,7 @@ before(async () => {
     scheduled_for: new Date().toISOString(),
   });
   await seed("broadcast_recipients", { tenant_id: A, broadcast_id: ctx.broadcast, contact_id: ctx.contact }, null);
-  await seed("playbooks", {
+  ctx.playbook = await seed("playbooks", {
     tenant_id: A,
     name: "tenancy playbook",
     policy_class: "reengage",
@@ -203,7 +203,7 @@ before(async () => {
     reply_token: "t".repeat(24),
     from_name: "Tenancy",
   });
-  await seed("sending_domains", {
+  ctx.domain = await seed("sending_domains", {
     tenant_id: A,
     host: `tenancy-${Date.now().toString(36)}.example`,
     from_local: "sam",
@@ -257,6 +257,33 @@ before(async () => {
     null,
   );
   ctx.lead = await seed("leads", { tenant_id: A, place_id: "ChIJtenancy0001", business_name: "Tenancy Salon" });
+  // A reach-out's root (00183) and a send of it: the service role writes both, members read them.
+  ctx.reachRoot = await seed("playbooks", {
+    tenant_id: A,
+    kind: "reach_out",
+    name: "tenancy reach-out",
+    trigger: "lead_first",
+    policy_class: "outreach",
+    lead_search_id: ctx.leadSearch,
+    gap_minutes: 12,
+    template_id: ctx.template,
+    template_language: "en_US",
+    template_name: "tenancy_tpl_1",
+  });
+  await seed(
+    "reach_out_sends",
+    {
+      id: crypto.randomUUID(),
+      tenant_id: A,
+      broadcast_id: ctx.broadcast,
+      playbook_id: ctx.reachRoot,
+      root_id: ctx.reachRoot,
+      lead_id: ctx.lead,
+      domain_id: ctx.domain,
+      send_at: new Date().toISOString(),
+    },
+    null,
+  );
   await seed("lead_places", { tenant_id: A, lead_id: ctx.lead, place_id: "ChIJtenancy0002" }, null);
   await seed(
     "lead_search_members",
@@ -385,6 +412,20 @@ const TENANT_TABLES = {
     }),
   ],
   broadcast_recipients: ["member", () => ({ tenant_id: A, broadcast_id: ctx.broadcast, contact_id: ctx.contact2 })],
+  // Reach out (00183): members read a workspace's sends; only the edge's service role writes them.
+  reach_out_sends: [
+    "member",
+    () => ({
+      id: crypto.randomUUID(),
+      tenant_id: A,
+      broadcast_id: ctx.broadcast,
+      playbook_id: ctx.reachRoot,
+      root_id: ctx.reachRoot,
+      lead_id: ctx.lead,
+      domain_id: ctx.domain,
+      send_at: new Date().toISOString(),
+    }),
+  ],
   playbooks: [
     "member",
     () => ({

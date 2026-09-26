@@ -1,11 +1,10 @@
 import type { Json } from "@chanlytics/db";
-import { dealPaceOf, dealsAreOn } from "@chanlytics/contracts";
 import { read, write, workspace } from "@/server/route";
 import { jsonBody } from "@/server/request-guards";
 import { recordDecision } from "@/server/verbs";
-import { tenantFacts } from "@/server/tenant";
-import { checkPlaybookInput, listPlaybooks, playbookWriteError, recentTouches, triggerPools } from "@/server/playbooks";
-import { dealPaceRead, sellsByOf } from "@/server/deals";
+import { checkPlaybookInput, playbookWriteError } from "@/server/playbooks";
+import { load, readerContext } from "@/server/readers";
+import { playbooks } from "@/server/readers/playbooks";
 
 /**
  * Playbooks: a standing rule that sends one approved template to newly
@@ -23,36 +22,12 @@ import { dealPaceRead, sellsByOf } from "@/server/deals";
  *      the way the send route checks a broadcast (checkPlaybookInput, in its
  *      own words, so the body is the route's own to read); starts running;
  *      the ledger records the start.
+ *
+ * The GET's body is its reader's (readers/playbooks.ts), which Ask's list_playbooks reads too.
  */
 export const GET = read({
   scope: workspace,
-  handle: async ({ ctx, member }) => {
-    const tenantId = member.tenantId;
-    const now = new Date();
-    const [playbooks, facts, touched, sellsBy, paceRead] = await Promise.all([
-      listPlaybooks(ctx, tenantId),
-      tenantFacts(ctx.supabase, tenantId),
-      recentTouches(ctx, tenantId, now),
-      sellsByOf(ctx, tenantId),
-      // The pace the edge's sweep reads (packages/db yesesSince): the follow-up's pool is the run's own.
-      dealPaceRead(ctx, tenantId, now),
-    ]);
-    const dealsOn = dealsAreOn(sellsBy);
-    const { pools, calendar, lists, people } = await triggerPools(ctx, tenantId, touched, facts.timezone, now, {
-      on: dealsOn,
-      pace: dealsOn ? dealPaceOf(paceRead) : null,
-    });
-    return {
-      playbooks,
-      timezone: facts.timezone,
-      touched,
-      pools,
-      calendar,
-      lists,
-      people_lists: people,
-      deals_on: dealsOn,
-    };
-  },
+  handle: async ({ ctx, member }) => (await load(readerContext(ctx, member), playbooks, undefined)).data,
 });
 
 export const POST = write({

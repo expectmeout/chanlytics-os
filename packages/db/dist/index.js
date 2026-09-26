@@ -459,6 +459,12 @@ var POLICY_CLASS_WORDS = {
     name: "Proposal follow-ups",
     short: "Follow-ups",
     note: "the proposal follow-up playbook \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
+  },
+  // Reach out (Part 3): cold email to the businesses a search found. A chain's first run always waits for its owner.
+  outreach: {
+    name: "Cold email to businesses a search found",
+    short: "Reach-outs",
+    note: "every email a reach-out sends \xB7 its first run always waits for you; later runs send 30 minutes after they are made unless you stop them \xB7 never sends none"
   }
 };
 var PolicyLimitsSchema = z3.object({
@@ -1333,6 +1339,100 @@ function parseParamSpecs(raw) {
 }
 var DAY_MS5 = 864e5;
 var SWEEP_TICK_MS = 5 * 6e4;
+var PLAYBOOK_TRIGGERS = [
+  { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
+  {
+    id: "new_week",
+    label: "Welcome",
+    list: "new_week",
+    cls: "campaign",
+    kind: "list",
+    hint: "First contact in the last 7 days"
+  },
+  {
+    id: "phoned_only",
+    label: "Save our number",
+    list: "phoned_only",
+    cls: "reengage",
+    kind: "list",
+    hint: "Only ever phoned, never texted"
+  },
+  {
+    id: "everyone_monthly",
+    label: "The month's offer",
+    list: null,
+    cls: "campaign",
+    kind: "cadence",
+    hint: "Everyone who said yes, on a cadence"
+  },
+  {
+    id: "visit_tomorrow",
+    label: "Visit reminder",
+    list: null,
+    cls: "booking",
+    kind: "visit",
+    hint: "The day before an appointment on the calendar"
+  },
+  {
+    id: "visited",
+    label: "After the visit",
+    list: null,
+    cls: "reengage",
+    kind: "visit",
+    hint: "The day after a visit, when nothing is booked next"
+  },
+  // People's Lapsed list, by visits rather than silence: the win-back a salon means, which had no playbook of its own
+  // (00155). Named for its list, so it is never a second "Win-back" beside the one for the quiet.
+  {
+    id: "lapsed",
+    label: "Lapsed",
+    list: "lapsed",
+    cls: "reengage",
+    kind: "list",
+    hint: "No visit in 45 days, and nothing booked"
+  },
+  // Any list (decision 0009): one of People's (list_key, 00168) or one of the workspace's own (list_id, 00155), kept by
+  // hand or by a rule; the card says which. The id stays: playbooks made before any list could be named keep running.
+  {
+    id: "saved_list",
+    label: "On a list",
+    list: null,
+    cls: "campaign",
+    kind: "saved",
+    hint: "Everyone on a list: one of People's, or one you keep"
+  },
+  // A proposal out that has waited past the workspace's pace with nothing back (0006): one nudge per proposal, with
+  // its link, under its own class, where deals are on. Conversational: it answers the person's own request.
+  {
+    id: "proposal_waiting",
+    label: "Proposal follow-up",
+    list: null,
+    cls: "follow_up",
+    kind: "deal",
+    hint: "A proposal waiting with nothing back"
+  },
+  // Reach out (Part 3): a chain's first email, over a lead search, and a step days after the one before it. Made by
+  // the reach-out sheet (Part 4), never offered among the moments (triggerOffered).
+  {
+    id: "lead_first",
+    label: "Businesses a search found",
+    list: null,
+    cls: "outreach",
+    kind: "reach_out",
+    hint: "The first email of a reach-out"
+  },
+  {
+    id: "after_step",
+    label: "After the step before",
+    list: null,
+    cls: "outreach",
+    kind: "reach_out",
+    hint: "A nudge, days after the step before"
+  }
+];
+var MOMENT_TRIGGERS = PLAYBOOK_TRIGGERS.filter(
+  (t) => t.kind !== "reach_out"
+);
 var PLAYBOOK_HOURS = { min: 9, max: 20 };
 var SENDING_HOURS_WORDS = {
   min: PLAYBOOK_HOURS.min,
@@ -1911,7 +2011,8 @@ var PLAYBOOK_CLASS_LABEL = {
   reengage: POLICY_CLASS_WORDS.reengage.short,
   campaign: POLICY_CLASS_WORDS.campaign.short,
   booking: POLICY_CLASS_WORDS.booking.short,
-  follow_up: POLICY_CLASS_WORDS.follow_up.short
+  follow_up: POLICY_CLASS_WORDS.follow_up.short,
+  outreach: POLICY_CLASS_WORDS.outreach.short
 };
 var TRY_QUIET_AFTER_MS = 3 * 6e4;
 var FIRST_RUN_PHONE_WORDS = {
@@ -2278,6 +2379,7 @@ function isTimezone(raw) {
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
 var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
 var DAY_FMT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var REPUTATION_MEMORY_MS = 30 * 864e5;
 var ACTIVITY_KINDS = [...DECISION_VERBS, ...EVENT_KINDS];
 var PASSWORD_MIN = 12;
 var PASSWORD_WORDS = {
@@ -2426,6 +2528,8 @@ var K = new Uint32Array([
   3329325298
 ]);
 var NAME_MAX = BrainConfigSchema.shape.business_name.maxLength ?? Infinity;
+var NINE_TO_FIVE = [{ from: 9 * 60, to: 17 * 60 }];
+var SEND_DAY_FRAME = { from: 8 * 60, to: 20 * 60 };
 
 // src/repositories/ingest.ts
 async function ingestInbound(db, p) {
@@ -2703,10 +2807,15 @@ async function stampEmailSent(db, p) {
   return row ? { status: row.status, conversationId: row.conversation_id } : null;
 }
 async function sentEmailRequestOf(db, p) {
+  return (await sentEmailOf(db, p))?.request ?? null;
+}
+async function sentEmailOf(db, p) {
   const { data, error } = await db.from("messages").select("meta").eq("id", p.messageId).eq("tenant_id", p.tenantId).eq("channel", "email").eq("direction", "outbound").maybeSingle();
   if (error) throw new Error(`sent email request: ${error.message}`);
-  const meta = data?.meta ?? null;
-  return meta?.email?.request ?? null;
+  if (!data) return null;
+  const meta = data.meta ?? null;
+  const lead = meta?.reach_out?.lead_id;
+  return { request: meta?.email?.request ?? null, leadId: typeof lead === "string" && lead ? lead : null };
 }
 async function stampEmailComplaint(db, p) {
   const { data, error } = await db.rpc("stamp_email_complaint", {
@@ -2832,7 +2941,29 @@ async function sendingDomainCounts(db, tenantId, host, since) {
   const r2 = await db.rpc("sending_domain_counts", { p_tenant_id: tenantId, p_host: host, p_since: since });
   const c = must("count a domain's sends", r2) ?? {};
   const n = (k) => typeof c[k] === "number" ? c[k] : Number(c[k] ?? 0) || 0;
-  return { sent: n("sent"), bounced: n("bounced"), complained: n("complained") };
+  return {
+    sent: n("sent"),
+    bounced: n("bounced"),
+    complained: n("complained"),
+    unsubscribed: n("unsubscribed"),
+    // A count from before 00188 says none apart: every complaint is taken as new, as it was.
+    complained_new: "complained_new" in c ? n("complained_new") : n("complained")
+  };
+}
+async function reputationHoldsSince(db, p) {
+  const r2 = await db.from("events").select("id").eq("tenant_id", p.tenantId).eq("kind", "sending_domain.held").gte("created_at", p.sinceIso).eq("data->>host", p.host).in("data->>why", [...p.whys]).limit(20);
+  if (r2.error) throw new Error(`sending_domains: read a domain's reputation holds: ${r2.error.message}`);
+  return (r2.data ?? []).length;
+}
+async function platformHoldStands(db, p) {
+  const r2 = await db.from("events").select("kind, data, created_at").eq("tenant_id", p.tenantId).in("kind", ["sending_domain.held", "sending_domain.resumed"]).gte("created_at", p.sinceIso).eq("data->>host", p.host).order("created_at", { ascending: false }).limit(20);
+  if (r2.error) throw new Error(`sending_domains: read a domain's platform holds: ${r2.error.message}`);
+  for (const e of r2.data ?? []) {
+    const d = e.data ?? {};
+    if (e.kind === "sending_domain.held" && d.resume_by === "platform") return true;
+    if (e.kind === "sending_domain.resumed" && d.by === "platform") return false;
+  }
+  return false;
 }
 async function deleteSendingDomainAsRead(db, row) {
   const r2 = must(
@@ -2861,7 +2992,10 @@ async function outreachFactsOf(db, p) {
     p_contact_id: p.contactId,
     p_to: p.to,
     p_host: p.host,
-    p_since: p.since
+    p_since: p.since,
+    // Named only when there is a lead: a database before 00184 knows five arguments, and a sixth it has never heard of
+    // would fail every cold send rather than answer as it did.
+    ...p.leadId ? { p_lead_id: p.leadId } : {}
   });
   if (error) throw new Error(`cannot read the outreach facts: ${error.message}`);
   const f = data ?? {};
@@ -2874,10 +3008,297 @@ async function outreachFactsOf(db, p) {
     domain: f.domain && typeof f.domain === "object" && typeof f.domain.state === "string" ? {
       state: f.domain.state,
       from_local: String(f.domain.from_local ?? ""),
-      clean_since: typeof f.domain.clean_since === "string" ? f.domain.clean_since : null
+      clean_since: typeof f.domain.clean_since === "string" ? f.domain.clean_since : null,
+      // A database before 00184 says nothing of it: no days sent, the ramp's first step.
+      sent_days: Math.max(0, Number(f.domain.sent_days ?? 0) || 0)
     } : null,
     sent_since: Number(f.sent_since ?? 0) || 0
   };
+}
+
+// src/repositories/reach-out.ts
+async function domainCapacityOf(db, domainId, at) {
+  const { data, error } = await db.rpc("sending_domain_capacity", {
+    p_domain_id: domainId,
+    p_at: at.toISOString()
+  });
+  if (error) throw new Error(`cannot read the domain's capacity: ${error.message}`);
+  const c = data ?? {};
+  if (typeof c.used !== "number" || typeof c.sent_days !== "number")
+    throw new Error("cannot read the domain's capacity: the database answered without its counts");
+  return {
+    state: String(c.state ?? ""),
+    clean_since: typeof c.clean_since === "string" ? c.clean_since : null,
+    sent_days: c.sent_days,
+    used: c.used,
+    recent: Array.isArray(c.recent) ? c.recent.map(Number).filter(Number.isFinite) : [],
+    last_sent_at: typeof c.last_sent_at === "string" ? c.last_sent_at : null
+  };
+}
+async function reachOutAudience(db, p) {
+  const { data, error } = await db.rpc("reach_out_audience", {
+    p_tenant_id: p.tenantId,
+    p_search_id: p.searchId,
+    p_root_id: p.rootId,
+    p_limit: p.limit
+  });
+  if (error) throw new Error(`cannot read who a reach-out may write to: ${error.message}`);
+  return data ?? [];
+}
+async function reachOutPerson(db, tenantId, leadId) {
+  const { data, error } = await db.rpc("reach_out_person", { p_tenant_id: tenantId, p_lead_id: leadId });
+  if (error) throw new Error(`cannot make the person this send is for: ${error.message}`);
+  const r2 = data ?? {};
+  if (r2.refused === "lead_gone" || r2.refused === "lead_closed" || r2.refused === "no_address" || r2.refused === "already_yours")
+    return { ok: false, refused: r2.refused };
+  if (!r2.contact_id || !r2.conversation_id)
+    throw new Error("cannot make the person this send is for: no person came back");
+  return { ok: true, contactId: r2.contact_id, conversationId: r2.conversation_id, made: r2.made === true };
+}
+async function claimSends(db, p) {
+  if (!Number.isInteger(p.cap) || !Number.isInteger(p.limit) || Number.isNaN(p.at.getTime()))
+    throw new Error(`cannot claim the domain's due sends: a cap and a limit are whole numbers (${p.cap}, ${p.limit})`);
+  const { data, error } = await db.rpc("reach_out_claim", {
+    p_domain_id: p.domainId,
+    p_cap: p.cap,
+    p_at: p.at.toISOString(),
+    p_limit: p.limit
+  });
+  if (error) throw new Error(`cannot claim the domain's due sends: ${error.message}`);
+  return data ?? [];
+}
+async function moveSend(db, p) {
+  const { data, error } = await db.from("reach_out_sends").update(p.patch).eq("tenant_id", p.tenantId).eq("id", p.id).eq("state", p.from).select("id");
+  if (error) throw new Error(`cannot move the send: ${error.message}`);
+  return (data ?? []).length === 1;
+}
+async function reachOutFollowers(db, p) {
+  const { data, error } = await db.rpc("reach_out_followers", {
+    p_tenant_id: p.tenantId,
+    p_step_id: p.stepId,
+    p_parent_id: p.parentId,
+    p_after_days: p.afterDays,
+    p_limit: p.limit
+  });
+  if (error) throw new Error(`cannot read who a step may write to: ${error.message}`);
+  const rows = data ?? [];
+  for (const r2 of rows)
+    if (typeof r2.facts?.wrote_back !== "boolean")
+      throw new Error("cannot read who a step may write to: the database did not say whether they wrote back");
+  return rows;
+}
+async function queuedOutcomes(db, limit, tenantId) {
+  const { data, error } = await db.rpc("reach_out_queued_outcomes", {
+    p_limit: limit,
+    ...tenantId ? { p_tenant_id: tenantId } : {}
+  });
+  if (error) throw new Error(`cannot read the queued sends: ${error.message}`);
+  return data ?? [];
+}
+async function stuckClaims(db, before, limit, tenantId) {
+  let q = db.from("reach_out_sends").select("*").eq("state", "claimed");
+  if (tenantId) q = q.eq("tenant_id", tenantId);
+  const { data, error } = await q.lt("claimed_at", before.toISOString()).order("claimed_at", { ascending: true }).limit(limit);
+  if (error) throw new Error(`cannot read the claimed sends: ${error.message}`);
+  return data ?? [];
+}
+async function staleSends(db, before, limit, tenantId) {
+  const { data, error } = await db.rpc("reach_out_stale_sends", {
+    p_before: before.toISOString(),
+    p_limit: limit,
+    ...tenantId ? { p_tenant_id: tenantId } : {}
+  });
+  if (error) throw new Error(`cannot read the stale sends: ${error.message}`);
+  return data ?? [];
+}
+async function closedRunSends(db, stuckBefore, limit, tenantId) {
+  const { data, error } = await db.rpc("reach_out_closed_sends", {
+    p_stuck_before: stuckBefore.toISOString(),
+    p_limit: limit,
+    ...tenantId ? { p_tenant_id: tenantId } : {}
+  });
+  if (error) throw new Error(`cannot read the closed runs' sends: ${error.message}`);
+  return data ?? [];
+}
+async function finishableRuns(db, limit, tenantId) {
+  const { data, error } = await db.rpc("reach_out_finishable", {
+    p_limit: limit,
+    ...tenantId ? { p_tenant_id: tenantId } : {}
+  });
+  if (error) throw new Error(`cannot read the runs to finish: ${error.message}`);
+  return (data ?? []).map(
+    (r2) => typeof r2 === "string" ? r2 : String(r2.reach_out_finishable ?? "")
+  );
+}
+async function writtenEmails(db, ids) {
+  const out = /* @__PURE__ */ new Set();
+  const all = [...new Set(ids)];
+  for (let i = 0; i < all.length; i += 100) {
+    const { data, error } = await db.from("messages").select("id").in("id", all.slice(i, i + 100));
+    if (error) throw new Error(`cannot read the sends' emails: ${error.message}`);
+    for (const m of data ?? []) out.add(m.id);
+  }
+  return out;
+}
+async function withdrawEmail(db, p) {
+  const why = { reason: p.reason };
+  const { data, error } = await db.from("messages").update({ status: "canceled", error: why }).eq("tenant_id", p.tenantId).eq("id", p.id).eq("status", "queued").select("id");
+  if (error) throw new Error(`cannot withdraw the email: ${error.message}`);
+  return (data ?? []).length > 0;
+}
+async function dueDomains(db, at, limit, opts = {}) {
+  const { data, error } = await db.rpc("reach_out_due_domains", {
+    p_at: at.toISOString(),
+    p_limit: limit,
+    ...opts.tenantId ? { p_tenant_id: opts.tenantId } : {},
+    p_skip_tenants: [...opts.skipTenants ?? []],
+    p_skip_domains: [...opts.skipDomains ?? []]
+  });
+  if (error) throw new Error(`cannot read the domains with sends due: ${error.message}`);
+  return data ?? [];
+}
+async function monthSent(db, tenantId, at) {
+  const { data, error } = await db.rpc("reach_out_month_sent", {
+    p_tenant_id: tenantId,
+    p_at: at.toISOString()
+  });
+  if (error) throw new Error(`cannot count the month's cold emails: ${error.message}`);
+  if (typeof data !== "number") throw new Error("cannot count the month's cold emails: the database answered no count");
+  return data;
+}
+async function insertQueuedEmail(db, row) {
+  const { error } = await db.from("messages").insert(row);
+  if (!error) return "written";
+  if (error.code === "23505") return "exists";
+  throw new Error(`cannot write the email: ${error.message}`);
+}
+async function writtenEmail(db, p) {
+  const { data, error } = await db.from("messages").select("conversation_id, contact_id, status, meta").eq("tenant_id", p.tenantId).eq("id", p.id).maybeSingle();
+  if (error) throw new Error(`cannot read the written email: ${error.message}`);
+  if (!data) return null;
+  const to = data.meta?.email?.request?.to;
+  return {
+    conversation_id: data.conversation_id,
+    contact_id: data.contact_id,
+    status: data.status,
+    to: Array.isArray(to) && typeof to[0] === "string" ? to[0] : null
+  };
+}
+async function sendJobScheduled(db, p) {
+  const { data, error } = await db.from("jobs").select("id").eq("tenant_id", p.tenantId).eq("kind", "outbound_send").eq("payload->>message_id", p.messageId).limit(1);
+  if (error) throw new Error(`cannot read the email's job: ${error.message}`);
+  return (data ?? []).length > 0;
+}
+async function sendStanding(db, s) {
+  const [run, chain] = await Promise.all([
+    db.from("broadcasts").select("state").eq("tenant_id", s.tenant_id).eq("id", s.broadcast_id).maybeSingle(),
+    db.from("playbooks").select("id, state, template_id, after_playbook_id").eq("tenant_id", s.tenant_id).in("id", [s.playbook_id ?? s.root_id, s.root_id])
+  ]);
+  if (run.error) throw new Error(`cannot read the send's run: ${run.error.message}`);
+  if (chain.error) throw new Error(`cannot read the send's chain: ${chain.error.message}`);
+  const step = s.playbook_id ? (chain.data ?? []).find((p) => p.id === s.playbook_id) : void 0;
+  return {
+    run: run.data?.state ?? null,
+    step: step ? { state: step.state, template_id: step.template_id, after_playbook_id: step.after_playbook_id } : null,
+    root: (chain.data ?? []).find((p) => p.id === s.root_id)?.state ?? null
+  };
+}
+async function emailWordsOf(db, tenantId, templateId) {
+  const { data, error } = await db.from("templates").select("components, body_preview").eq("tenant_id", tenantId).eq("id", templateId).eq("channel", "email").maybeSingle();
+  if (error) throw new Error(`cannot read the step's words: ${error.message}`);
+  if (!data) return null;
+  const part = (type) => {
+    for (const c of Array.isArray(data.components) ? data.components : [])
+      if (c && typeof c === "object" && String(c.type ?? "").toUpperCase() === type) {
+        const t = c.text;
+        return typeof t === "string" && t.trim() ? t : null;
+      }
+    return null;
+  };
+  const body = part("BODY") ?? (data.body_preview?.trim() || null);
+  return body ? { subject: part("HEADER"), body } : null;
+}
+async function workspaceNameAndConfig(db, tenantId) {
+  const [t, cfg] = await Promise.all([
+    db.from("tenants").select("name").eq("id", tenantId).maybeSingle(),
+    db.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle()
+  ]);
+  if (t.error) throw new Error(`cannot read the workspace: ${t.error.message}`);
+  if (cfg.error) throw new Error(`cannot read the workspace's configuration: ${cfg.error.message}`);
+  return { name: t.data?.name ?? null, config: cfg.data?.config ?? null };
+}
+async function leadSlotsOf(db, tenantId, leadId) {
+  const { data, error } = await db.from("leads").select("business_name, city").eq("tenant_id", tenantId).eq("id", leadId).maybeSingle();
+  if (error) throw new Error(`cannot read the lead: ${error.message}`);
+  return data;
+}
+async function contactEmailOf(db, tenantId, contactId) {
+  const { data, error } = await db.from("contacts").select("email").eq("tenant_id", tenantId).eq("id", contactId).maybeSingle();
+  if (error) throw new Error(`cannot read the person: ${error.message}`);
+  return data?.email ?? null;
+}
+async function sendNow(db, p) {
+  const { data, error } = await db.from("reach_out_sends").select("state, message_id").eq("tenant_id", p.tenantId).eq("id", p.id).maybeSingle();
+  if (error) throw new Error(`cannot read the send: ${error.message}`);
+  return data;
+}
+async function runSending(db, p) {
+  const { error } = await db.from("broadcasts").update({ state: "sending" }).eq("tenant_id", p.tenantId).eq("id", p.id).eq("state", "scheduled");
+  if (error) throw new Error(`cannot start the run: ${error.message}`);
+}
+async function parentEmailOf(db, p) {
+  const { data: sends, error } = await db.from("reach_out_sends").select("message_id").eq("tenant_id", p.tenantId).eq("root_id", p.rootId).eq("lead_id", p.leadId).eq("playbook_id", p.stepId).eq("state", "sent").order("sent_at", { ascending: false }).limit(1);
+  if (error) throw new Error(`cannot read the step before's send: ${error.message}`);
+  const id = sends?.[0]?.message_id;
+  if (!id) return null;
+  const { data: m, error: me } = await db.from("messages").select("id, meta").eq("tenant_id", p.tenantId).eq("id", id).maybeSingle();
+  if (me) throw new Error(`cannot read the step before's email: ${me.message}`);
+  if (!m) return null;
+  const e = m.meta?.email ?? {};
+  const refs = e.request?.headers?.References;
+  const subject = typeof e.subject === "string" ? e.subject : e.request?.subject;
+  return {
+    messageId: m.id,
+    rfcMessageId: typeof e.message_id === "string" && e.message_id ? e.message_id : null,
+    references: typeof refs === "string" ? refs.split(/\s+/).filter(Boolean) : [],
+    subject: typeof subject === "string" ? subject : null
+  };
+}
+async function leadAddressBounced(db, p) {
+  const { data: lead, error } = await db.from("leads").select("version, email_state, erased_at, blanked_at").eq("tenant_id", p.tenantId).eq("id", p.leadId).maybeSingle();
+  if (error) throw new Error(`cannot read the lead whose address bounced: ${error.message}`);
+  if (!lead || lead.erased_at || lead.blanked_at || lead.email_state === "invalid") return false;
+  const { data: moved, error: e2 } = await db.from("leads").update({ email_state: "invalid", email_checked_at: p.at, version: lead.version + 1 }).eq("tenant_id", p.tenantId).eq("id", p.leadId).eq("version", lead.version).select("id");
+  if (e2) throw new Error(`cannot mark the lead's address bounced: ${e2.message}`);
+  if ((moved ?? []).length === 0) {
+    if (p.retried) throw new Error("the lead whose address bounced moved while it was marked");
+    return leadAddressBounced(db, { ...p, retried: true });
+  }
+  return true;
+}
+async function leadWritten(db, p) {
+  const { data: lead, error } = await db.from("leads").select("stage, version, contacted_at").eq("tenant_id", p.tenantId).eq("id", p.leadId).maybeSingle();
+  if (error) throw new Error(`cannot read the lead a send wrote to: ${error.message}`);
+  if (!lead) return false;
+  const { data: moved, error: e2 } = await db.from("leads").update({
+    stage: lead.stage === "ready" ? "nurture" : lead.stage,
+    contacted_at: lead.contacted_at ?? p.at,
+    last_outcome: "emailed",
+    version: lead.version + 1
+  }).eq("tenant_id", p.tenantId).eq("id", p.leadId).eq("version", lead.version).select("id");
+  if (e2) throw new Error(`cannot record the lead as written to: ${e2.message}`);
+  if ((moved ?? []).length === 0) return p.retried ? false : leadWritten(db, { ...p, retried: true });
+  const said = { by: "reach_out", send_id: p.sendId };
+  const { error: e3 } = await db.from("events").insert({
+    tenant_id: p.tenantId,
+    kind: "lead.emailed",
+    category: "lead",
+    subject_type: "lead",
+    subject_id: p.leadId,
+    data: said
+  });
+  if (e3) throw new Error(`cannot record the lead's email: ${e3.message}`);
+  return true;
 }
 
 // src/repositories/routing.ts
@@ -3578,7 +3999,10 @@ export {
   assembleHistory,
   claimCallNotification,
   claimControl,
+  claimSends,
+  closedRunSends,
   coldReceiptsOwed,
+  contactEmailOf,
   countSendingDomains,
   countSentToday,
   createList,
@@ -3587,17 +4011,25 @@ export {
   deleteSendingDomain,
   deleteSendingDomainAsRead,
   describeLead,
+  domainCapacityOf,
   domainHeldSince,
   dropFromList,
+  dueDomains,
   dueSendingDomains,
+  emailWordsOf,
   emitEvent,
   everyoneIn,
+  finishableRuns,
   followUpTouchesSince,
   getTenantConfig,
   ingestCall,
   ingestInbound,
   ingestInboundEmail,
+  insertQueuedEmail,
   lastInboundEmail,
+  leadAddressBounced,
+  leadSlotsOf,
+  leadWritten,
   linkCallMessage,
   listMemberIds,
   listPolicies,
@@ -3606,13 +4038,21 @@ export {
   mailboxFor,
   mailboxOfTenant,
   markProcessed,
+  monthSent,
+  moveSend,
   notesForReceptionist,
   outreachFactsOf,
+  parentEmailOf,
   pauseConversation,
   peoplePage,
   personReplyMode,
+  platformHoldStands,
   playbooksOnList,
   putTenantConfig,
+  queuedOutcomes,
+  reachOutAudience,
+  reachOutFollowers,
+  reachOutPerson,
   readAllRows,
   readDealForPhone,
   readLeadContext,
@@ -3626,25 +4066,33 @@ export {
   recordStatusByExternalId,
   releaseControl,
   renameList,
+  reputationHoldsSince,
   reserveSendingDomain,
   resolveChannel,
   resolveChannelDetailed,
   resolveOutboundTarget,
+  runSending,
   savedListFor,
   savedListsFor,
+  sendJobScheduled,
+  sendNow,
+  sendStanding,
   sendingDomainByHost,
   sendingDomainCounts,
   sendingDomainOf,
   sendingDomainsOf,
+  sentEmailOf,
   sentEmailRequestOf,
   sentEmailWithMessageId,
   setCallRecording,
   setListRule,
   setPersonReplyMode,
   setPolicyMode,
+  staleSends,
   stampEmailComplaint,
   stampEmailSent,
   stampMailboxReceived,
+  stuckClaims,
   subscribeMessagesInserts,
   suppressEmailOf,
   templatesFor,
@@ -3652,5 +4100,9 @@ export {
   touchSendingDomain,
   touchesSince,
   watchedTables,
+  withdrawEmail,
+  workspaceNameAndConfig,
+  writtenEmail,
+  writtenEmails,
   yesesSince
 };

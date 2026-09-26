@@ -11,6 +11,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "./_fake-db.mjs";
+import { REACH_OUT_IS_NOT_A_MOMENT } from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -38,6 +39,7 @@ const tables = () => ({
     {
       id: K2,
       tenant_id: B,
+      kind: "moment",
       name: "Win-back",
       trigger: "quiet_30",
       template_id: T1,
@@ -112,4 +114,20 @@ test("REGRESSION (C7): the route hands back when a run really goes, as the edge 
     ["held", null, null],
     "a run left waiting has no time to give, and none is made up",
   );
+});
+
+test("Run now is a moment's: a reach-out step is refused in words before the edge is asked (Reach out, Part 3)", async () => {
+  const t = tables();
+  Object.assign(t.playbooks[0], { kind: "reach_out", trigger: "lead_first", policy_class: "outreach" });
+  const before = edge.calls.length;
+  await assert.rejects(
+    run.POST.run(new Request("http://localhost/api/v1/x", { method: "POST" }), {
+      supabase: fakeDb(t, {}, {}),
+      userId: USER,
+      email: "ada@example.com",
+      params: { id: K2 },
+    }),
+    (e) => e.status === 409 && e.message === REACH_OUT_IS_NOT_A_MOMENT,
+  );
+  assert.equal(edge.calls.length, before, "the edge was never asked");
 });

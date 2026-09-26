@@ -7,7 +7,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  PLAYBOOK_TRIGGERS,
+  MOMENT_TRIGGERS,
   PLAYBOOK_CLASS_LABEL,
   eligibleForPlaybook,
   playbookRunReach,
@@ -97,9 +97,9 @@ const withVisits = (id, next, last, over = {}) =>
   );
 const untouched = { byThis: new Map(), byAny: new Map() };
 
-test("the triggers: People's lists and a cadence, two the calendar makes possible, Lapsed, the workspace's own lists and a proposal waiting, each under one of the four autonomy rows", () => {
+test("the moments: People's lists and a cadence, two the calendar makes possible, Lapsed, the workspace's own lists and a proposal waiting, each under one of the four autonomy rows", () => {
   assert.deepEqual(
-    PLAYBOOK_TRIGGERS.map((t) => t.id),
+    MOMENT_TRIGGERS.map((t) => t.id),
     [
       "quiet_30",
       "new_week",
@@ -113,7 +113,7 @@ test("the triggers: People's lists and a cadence, two the calendar makes possibl
     ],
   );
   assert.deepEqual(
-    PLAYBOOK_TRIGGERS.map((t) => t.kind),
+    MOMENT_TRIGGERS.map((t) => t.kind),
     ["list", "list", "list", "cadence", "visit", "visit", "list", "saved", "deal"],
   );
   assert.equal(
@@ -317,13 +317,8 @@ test("the wiring: the CHECKs, the facts column, the runner attaching the calenda
     "the composer says it plainly",
   );
   // No gap and no breath promised for a visit trigger, and the card's count of the day's visits, are run in
-  // playbook-composer.test.mjs; the preview's visit words are drawn there too.
-  const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
-  assert.ok(
-    tools.includes('booking: modeOf("booking")') &&
-      tools.includes("audiencePoolOnce(t.memo, t.ctx, t.tenantId, t.timezone, t.now)"),
-    "the assistant counts with the calendar too",
-  );
+  // playbook-composer.test.mjs; the preview's visit words are drawn there too. The assistant counts with the calendar
+  // too: list_playbooks runs over a feed in ask-turn.test.mjs, and the pool it counts from is read once a turn there.
 });
 
 /* ---- the run context: one workspace's bad read is one workspace's problem ---- */

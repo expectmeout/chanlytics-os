@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { read, workspace } from "@/server/route";
-import { AppError, REPORT_RANGES, type CampaignReportDto } from "@chanlytics/contracts";
+import { AppError, REPORT_RANGES } from "@chanlytics/contracts";
+import { load, readerContext } from "@/server/readers";
+import { campaignReport } from "@/server/readers/campaign-report";
 
 const Query = z.object({
   /** 7, 30 or 90; thirty by default. */
@@ -13,7 +15,8 @@ const Query = z.object({
  * The twin of /api/v1/reports: one SECURITY INVOKER function computes the
  * series in the tenant's own time zone under the caller's RLS, over two
  * periods so the page can show a change, plus the current period by
- * playbook or broadcast. The same three presets, for the same reason.
+ * playbook or broadcast. The same three presets, for the same reason. The
+ * body is its reader's (readers/campaign-report.ts).
  */
 export const GET = read({
   scope: workspace,
@@ -24,11 +27,6 @@ export const GET = read({
     if (!REPORT_RANGES.some((r) => r.days === days)) {
       throw new AppError("validation", "days must be 7, 30 or 90.");
     }
-    const tenantId = member.tenantId;
-    const { data, error } = await ctx.supabase.rpc("campaign_series", { p_tenant_id: tenantId, p_days: days });
-    if (error) throw new Error(error.message);
-    const report = data as unknown as CampaignReportDto;
-    if (!report || report.error) throw new AppError("not_found", "No workspace found for this report.", 404);
-    return { report };
+    return (await load(readerContext(ctx, member), campaignReport, { days })).data;
   },
 });

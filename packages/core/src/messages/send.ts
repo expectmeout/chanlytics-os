@@ -81,6 +81,7 @@ export async function sendQueued(ports: SendQueuedPorts, cmd: SendQueuedCommand)
     template: p.template,
     // The request the row was queued with, sent as it was frozen. A row without one fails at the wire, by name.
     ...(msg.email ? { email: msg.email } : {}),
+    ...(msg.leadId ? { leadId: msg.leadId } : {}),
     messageId: p.message_id,
   });
   if (out.outcome !== "failed") return;

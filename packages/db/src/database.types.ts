@@ -3413,14 +3413,20 @@ export type Database = {
       }
       playbooks: {
         Row: {
+          after_days: number | null
+          after_playbook_id: string | null
           cadence_days: number
           cap_per_run: number
           created_at: string
           created_by: string | null
+          domain_ids: string[]
           gap_days: number
+          gap_minutes: number | null
           id: string
+          kind: string
           last_run_at: string | null
           last_run_for: string | null
+          lead_search_id: string | null
           list_id: string | null
           list_key: string | null
           name: string
@@ -3436,14 +3442,20 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          after_days?: number | null
+          after_playbook_id?: string | null
           cadence_days?: number
           cap_per_run?: number
           created_at?: string
           created_by?: string | null
+          domain_ids?: string[]
           gap_days?: number
+          gap_minutes?: number | null
           id?: string
+          kind?: string
           last_run_at?: string | null
           last_run_for?: string | null
+          lead_search_id?: string | null
           list_id?: string | null
           list_key?: string | null
           name: string
@@ -3459,14 +3471,20 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          after_days?: number | null
+          after_playbook_id?: string | null
           cadence_days?: number
           cap_per_run?: number
           created_at?: string
           created_by?: string | null
+          domain_ids?: string[]
           gap_days?: number
+          gap_minutes?: number | null
           id?: string
+          kind?: string
           last_run_at?: string | null
           last_run_for?: string | null
+          lead_search_id?: string | null
           list_id?: string | null
           list_key?: string | null
           name?: string
@@ -3483,11 +3501,32 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "playbooks_after_same_workspace"
+            columns: ["tenant_id", "after_playbook_id"]
+            isOneToOne: false
+            referencedRelation: "playbooks"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
             foreignKeyName: "playbooks_list_id_fkey"
             columns: ["list_id"]
             isOneToOne: false
             referencedRelation: "segments"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "playbooks_search_same_workspace"
+            columns: ["tenant_id", "lead_search_id"]
+            isOneToOne: false
+            referencedRelation: "lead_searches"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "playbooks_search_same_workspace"
+            columns: ["tenant_id", "lead_search_id"]
+            isOneToOne: false
+            referencedRelation: "lead_searches_view"
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "playbooks_template_id_fkey"
@@ -3612,6 +3651,123 @@ export type Database = {
         }
         Relationships: []
       }
+      reach_out_sends: {
+        Row: {
+          attempts: number
+          broadcast_id: string
+          claimed_at: string | null
+          contact_id: string | null
+          created_at: string
+          domain_id: string | null
+          id: string
+          lead_id: string
+          message_id: string | null
+          playbook_id: string | null
+          reason: string | null
+          root_id: string
+          send_at: string | null
+          sent_at: string | null
+          state: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          broadcast_id: string
+          claimed_at?: string | null
+          contact_id?: string | null
+          created_at?: string
+          domain_id?: string | null
+          id: string
+          lead_id: string
+          message_id?: string | null
+          playbook_id?: string | null
+          reason?: string | null
+          root_id: string
+          send_at?: string | null
+          sent_at?: string | null
+          state?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          broadcast_id?: string
+          claimed_at?: string | null
+          contact_id?: string | null
+          created_at?: string
+          domain_id?: string | null
+          id?: string
+          lead_id?: string
+          message_id?: string | null
+          playbook_id?: string | null
+          reason?: string | null
+          root_id?: string
+          send_at?: string | null
+          sent_at?: string | null
+          state?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reach_out_sends_broadcast_id_fkey"
+            columns: ["broadcast_id"]
+            isOneToOne: false
+            referencedRelation: "broadcasts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reach_out_sends_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reach_out_sends_domain_id_fkey"
+            columns: ["domain_id"]
+            isOneToOne: false
+            referencedRelation: "sending_domains"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reach_out_sends_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reach_out_sends_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reach_out_sends_playbook_id_fkey"
+            columns: ["playbook_id"]
+            isOneToOne: false
+            referencedRelation: "playbooks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reach_out_sends_root_id_fkey"
+            columns: ["root_id"]
+            isOneToOne: false
+            referencedRelation: "playbooks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reach_out_sends_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       segment_members: {
         Row: {
           added_at: string
@@ -3718,6 +3874,8 @@ export type Database = {
           provider_domain_id: string | null
           provider_status: string | null
           records: Json
+          resume_by: string
+          sent_days: number | null
           sent_recent: number | null
           state: string
           tenant_id: string
@@ -3742,6 +3900,8 @@ export type Database = {
           provider_domain_id?: string | null
           provider_status?: string | null
           records?: Json
+          resume_by?: string
+          sent_days?: number | null
           sent_recent?: number | null
           state?: string
           tenant_id: string
@@ -3766,6 +3926,8 @@ export type Database = {
           provider_domain_id?: string | null
           provider_status?: string | null
           records?: Json
+          resume_by?: string
+          sent_days?: number | null
           sent_recent?: number | null
           state?: string
           tenant_id?: string
@@ -4709,7 +4871,17 @@ export type Database = {
         Args: {
           p_contact_id: string
           p_host: string
+          p_lead_id?: string
           p_since: string
+          p_tenant_id: string
+          p_to: string
+        }
+        Returns: Json
+      }
+      outreach_lead_facts: {
+        Args: {
+          p_contact_id: string
+          p_lead_id?: string
           p_tenant_id: string
           p_to: string
         }
@@ -4922,6 +5094,148 @@ export type Database = {
         Args: { p_line_id: string; p_secret: Json }
         Returns: string
       }
+      reach_out_audience: {
+        Args: {
+          p_limit: number
+          p_root_id: string
+          p_search_id: string
+          p_tenant_id: string
+        }
+        Returns: {
+          business_name: string
+          city: string
+          email: string
+          hours: Json
+          lead_id: string
+          region: string
+        }[]
+      }
+      reach_out_claim: {
+        Args: {
+          p_at: string
+          p_cap: number
+          p_domain_id: string
+          p_limit: number
+        }
+        Returns: {
+          attempts: number
+          broadcast_id: string
+          claimed_at: string | null
+          contact_id: string | null
+          created_at: string
+          domain_id: string | null
+          id: string
+          lead_id: string
+          message_id: string | null
+          playbook_id: string | null
+          reason: string | null
+          root_id: string
+          send_at: string | null
+          sent_at: string | null
+          state: string
+          tenant_id: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "reach_out_sends"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      reach_out_closed_sends: {
+        Args: { p_limit: number; p_stuck_before: string; p_tenant_id?: string }
+        Returns: {
+          email_status: string
+          send: Json
+        }[]
+      }
+      reach_out_due_domains: {
+        Args: {
+          p_at: string
+          p_limit: number
+          p_skip_domains?: string[]
+          p_skip_tenants?: string[]
+          p_tenant_id?: string
+        }
+        Returns: {
+          id: string
+          tenant_id: string
+        }[]
+      }
+      reach_out_finishable: {
+        Args: { p_limit: number; p_tenant_id?: string }
+        Returns: string[]
+      }
+      reach_out_followers: {
+        Args: {
+          p_after_days: number
+          p_limit: number
+          p_parent_id: string
+          p_step_id: string
+          p_tenant_id: string
+        }
+        Returns: {
+          bounced: boolean
+          contact_id: string
+          email: string
+          facts: Json
+          hours: Json
+          lead_id: string
+          parent_message_id: string
+          region: string
+        }[]
+      }
+      reach_out_month_sent: {
+        Args: { p_at: string; p_tenant_id: string }
+        Returns: number
+      }
+      reach_out_person: {
+        Args: { p_lead_id: string; p_tenant_id: string }
+        Returns: Json
+      }
+      reach_out_plan_run: {
+        Args: { p_run: Json; p_sends: Json }
+        Returns: Json
+      }
+      reach_out_queued_outcomes: {
+        Args: { p_limit: number; p_tenant_id?: string }
+        Returns: {
+          error: Json
+          send: Json
+          sent_at: string
+          status: string
+          written_at: string
+        }[]
+      }
+      reach_out_stale_sends: {
+        Args: { p_before: string; p_limit: number; p_tenant_id?: string }
+        Returns: {
+          attempts: number
+          broadcast_id: string
+          claimed_at: string | null
+          contact_id: string | null
+          created_at: string
+          domain_id: string | null
+          id: string
+          lead_id: string
+          message_id: string | null
+          playbook_id: string | null
+          reason: string | null
+          root_id: string
+          send_at: string | null
+          sent_at: string | null
+          state: string
+          tenant_id: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "reach_out_sends"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       release_conversation_control: {
         Args: {
           p_by: string
@@ -4953,6 +5267,10 @@ export type Database = {
       scrub_contact_events: {
         Args: { p_contact_id: string; p_tenant_id: string }
         Returns: number
+      }
+      sending_domain_capacity: {
+        Args: { p_at: string; p_domain_id: string }
+        Returns: Json
       }
       sending_domain_counts: {
         Args: { p_host: string; p_since: string; p_tenant_id: string }
@@ -5100,6 +5418,7 @@ export type Database = {
       trigger_lines_sweep: { Args: never; Returns: number }
       trigger_notes_sweep: { Args: never; Returns: number }
       trigger_playbooks_sweep: { Args: never; Returns: number }
+      trigger_reach_out_sweep: { Args: never; Returns: number }
       trigger_registration_sweep: { Args: never; Returns: number }
       trigger_sweep_health: { Args: never; Returns: number }
       wake_stale_snoozes: { Args: never; Returns: number }

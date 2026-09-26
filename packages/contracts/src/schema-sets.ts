@@ -38,7 +38,7 @@ import type {
 import type { CAPABILITY_KINDS } from "./capabilities";
 import type { BUSINESS_TYPES, COMPANY_TYPES } from "./a2p-enums";
 import type { BILLING_MODES, BILLING_STATUSES } from "./billing";
-import type { BROADCAST_STATES, RECIPIENT_STATES } from "./broadcasts";
+import type { BROADCAST_STATES, REACH_OUT_SEND_STATES, RECIPIENT_STATES } from "./broadcasts";
 import type { CALL_OUTCOMES } from "./call-words";
 import type { POLICY_CLASSES, POLICY_MODES } from "./config";
 import type { DEAL_LOST_REASONS, DEAL_PERS, DEAL_SOURCES, DEAL_STAGES, SELLS_BY } from "./deals";
@@ -46,7 +46,7 @@ import type { SERVER_NOTIFICATION_KINDS } from "./notifications";
 import type { PLAYBOOK_STATES, PLAYBOOK_TRIGGERS } from "./playbooks";
 import type { TEMPLATE_CATEGORIES } from "./templates";
 import type { PUSH_PLATFORMS } from "./push";
-import type { DMARC_STATES, DOMAIN_HOLDS, SENDING_DOMAIN_STATES } from "./sending-domains";
+import type { DMARC_STATES, DOMAIN_HOLDS, DOMAIN_RESUMERS, SENDING_DOMAIN_STATES } from "./sending-domains";
 import type {
   LEAD_CLOSED_REASONS,
   LEAD_COUNTER_KINDS,
@@ -127,6 +127,7 @@ export type SchemaAgreement = [
   // Broadcasts and playbooks. A playbook runs under one of the policy classes.
   Holds<Exactly<Of<typeof BROADCAST_STATES>, SchemaSet<"broadcasts.state">>>,
   Holds<Exactly<Of<typeof RECIPIENT_STATES>, SchemaSet<"broadcast_recipients.state">>>,
+  Holds<Exactly<Of<typeof REACH_OUT_SEND_STATES>, SchemaSet<"reach_out_sends.state">>>,
   Holds<Exactly<Of<typeof PLAYBOOK_STATES>, SchemaSet<"playbooks.state">>>,
   Holds<Exactly<(typeof PLAYBOOK_TRIGGERS)[number]["id"], SchemaSet<"playbooks.trigger">>>,
   Holds<Within<SchemaSet<"playbooks.policy_class">, Of<typeof POLICY_CLASSES>>>,
@@ -170,4 +171,6 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof SENDING_DOMAIN_STATES>, SchemaSet<"sending_domains.state">>>,
   Holds<Exactly<Of<typeof DOMAIN_HOLDS>, SchemaSet<"sending_domains.held_why">>>,
   Holds<Exactly<Of<typeof DMARC_STATES>, SchemaSet<"sending_domains.dmarc">>>,
+  // Who lifts a reputation hold (00188, D16).
+  Holds<Exactly<Of<typeof DOMAIN_RESUMERS>, SchemaSet<"sending_domains.resume_by">>>,
 ];

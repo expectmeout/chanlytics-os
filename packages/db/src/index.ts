@@ -3,6 +3,7 @@ export * from "./repositories/ingest";
 export * from "./repositories/email";
 export * from "./repositories/sending-domains";
 export * from "./repositories/outreach";
+export * from "./repositories/reach-out";
 export * from "./repositories/routing";
 export * from "./repositories/calls";
 export * from "./repositories/thread";

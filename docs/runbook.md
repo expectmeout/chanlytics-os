@@ -274,8 +274,9 @@ only; the dashboard holds none.
 
 Reach out sends from a workspace's own domains through a second Resend
 account, apart from the one every reply and every page uses, so a cold
-complaint never touches the platform's reputation. Nothing sends cold until
-Reach out Part 3; these are the switches it needs, in order.
+complaint never touches the platform's reputation. Reach out Part 3 built
+the engine that sends it; nothing sends cold until these switches are set, in
+order, and a reach-out exists (step 8).
 
 1. **The cold account.** Create the second Resend account on a plan with
    enough domains (five per workspace at most).
@@ -315,6 +316,31 @@ Reach out Part 3; these are the switches it needs, in order.
    `List-Unsubscribe` and `List-Unsubscribe-Post` among the signed headers:
    Gmail and Yahoo honour a one-click unsubscribe only when DKIM signs both
    (RFC 8058 §4).
+8. **The first reach-out.** Made on Part 4's sheet: a chain over a lead
+   search, its words and its domains. Until the sheet ships there is no door
+   that makes one; `tooling/scripts/tests/reach-out.integration.db.test.mjs`
+   seeds one on a local stack and runs it end to end. Its first run waits for
+   its owner on Broadcasts; the `reach-out-sweep` clock (every minute) sends
+   what is due from then on, each email through the jobs tick and the door.
+
+**What the reach-out clock's 503 means.** `POST /api/cron/reach-out` answers
+`503 cold_lane_unset` with the variables it lacks (`RESEND_API_KEY`,
+`RESEND_COLD_API_KEY`, `RESEND_COLD_WEBHOOK_SECRET`, `UNSUBSCRIBE_SECRET`,
+`EMAIL_DOMAIN`) while a send is due: nothing is claimed until they are set,
+and the sends keep. With nothing due it answers 200 and names them under
+`lane_missing`. A workspace at its month's allowance (2,000) claims nothing
+until the month turns in its zone (`reach_out_month_spent` in the logs); one
+without a mailbox or a business address claims nothing either
+(`reach_out_workspace_held`).
+
+**A domain held twice in 30 days.** Its owner cannot resume it: the platform
+is paged (`sending_domain_held_twice:<host>`, naming the workspace and the
+domain). Look at what it sent, then lift it:
+`POST /api/admin/sending-domains` with `x-diag-key` and
+`{ "op": "resume", "tenant_id": "…", "domain_id": "…", "by": "platform" }`.
+The owner is told it sends again, from 30 a day. Only the platform's
+`DIAG_KEY` opens this lift, a dashboard's token never does: keep `DIAG_KEY` on
+the edge, even once every caller carries a token.
 
 **Rotating the unsubscribe secret.** A link already in someone's inbox must
 keep working for at least thirty days (CAN-SPAM). The dashboard first: move
@@ -324,6 +350,44 @@ redeploy that. The other way round, every link the edge seals in between is
 one the page cannot open, and the sweep pages
 `email_unsubscribe_links_broken`. Clear the previous value no sooner than
 thirty days later.
+
+**Before scale: a cold-only domain (D17).** Until these are set, a cold
+email's unsubscribe link points at `app.chanlytics.com/u/…` and its replies
+come back on `EMAIL_DOMAIN`. Both are judged by the mail they appear in. Before
+cold mail is sent at scale, give it a domain of its own, so the app's links and
+every workspace's replies never answer for it:
+
+1. Buy a domain for cold mail's links and replies: not a workspace's, and not
+   chanlytics.com.
+2. Add it to the dashboard's Vercel project, so `https://<it>/u/<token>` is the
+   unsubscribe page, and set `UNSUBSCRIBE_ORIGIN=https://<it>` on the
+   dashboard: on that host it then answers `/u/` and nothing else (a 404),
+   so no sign-in form stands on a domain cold mail names.
+3. Set the same `UNSUBSCRIBE_ORIGIN=https://<it>` on the edge, then redeploy
+   both. The domains sweep's probe then opens the page there. A value that is
+   not an https origin is ignored and logged once (`email_switch_rejected`),
+   and the links stay on the dashboard; `GET /api/diag` shows the origin in
+   use (`unsubscribeOrigin`, `unsubscribeOriginRejected`).
+4. Receive mail on a subdomain of it on the platform's Resend account (MX to
+   Resend, as for `mail.chanlytics.com`). The platform account's existing
+   webhook, already pointed at the edge's `/api/resend-webhook`, carries its
+   deliveries: add no second one, whose signing secret the door would not
+   know. Wait until the provider reads it verified for receiving.
+5. Set `COLD_REPLY_DOMAIN=<that subdomain>` on the edge. New cold emails'
+   Reply-To moves to `r+<token>@<it>`. Replies to older ones still arrive on
+   `EMAIL_DOMAIN`, which keeps receiving, and an email queued before the
+   switch still leaves as it was frozen. Only reply routes route there: no
+   workspace publishes an address on it. The health sweep checks it receives,
+   and pages `cold_reply_domain:<it>` when it does not.
+
+**Moving it, or turning it off.** Never simply change or unset
+`COLD_REPLY_DOMAIN`: every cold email already sent is answered there, and a
+reply that no longer routes is dropped, a lead's "no thanks" among them. Set
+`COLD_REPLY_DOMAIN_PREVIOUS` to the old value in the same change, keep it
+receiving, and clear it no sooner than 30 days plus the longest chain's length
+later. Keep an old link host on the dashboard's project for at least 30 days
+after `UNSUBSCRIBE_ORIGIN` moves too: the law wants every link already in an
+inbox working that long.
 
 ## Apply a migration
 

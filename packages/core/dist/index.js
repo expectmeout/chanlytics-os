@@ -1348,6 +1348,12 @@ var POLICY_CLASS_WORDS = {
     name: "Proposal follow-ups",
     short: "Follow-ups",
     note: "the proposal follow-up playbook \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
+  },
+  // Reach out (Part 3): cold email to the businesses a search found. A chain's first run always waits for its owner.
+  outreach: {
+    name: "Cold email to businesses a search found",
+    short: "Reach-outs",
+    note: "every email a reach-out sends \xB7 its first run always waits for you; later runs send 30 minutes after they are made unless you stop them \xB7 never sends none"
   }
 };
 var PolicyLimitsSchema = z3.object({
@@ -2162,6 +2168,100 @@ var WHATSAPP_LANGUAGES = [
 var BY_ID = new Map(WHATSAPP_LANGUAGES.map((l) => [l.id.toLowerCase(), l]));
 var DAY_MS5 = 864e5;
 var SWEEP_TICK_MS = 5 * 6e4;
+var PLAYBOOK_TRIGGERS = [
+  { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
+  {
+    id: "new_week",
+    label: "Welcome",
+    list: "new_week",
+    cls: "campaign",
+    kind: "list",
+    hint: "First contact in the last 7 days"
+  },
+  {
+    id: "phoned_only",
+    label: "Save our number",
+    list: "phoned_only",
+    cls: "reengage",
+    kind: "list",
+    hint: "Only ever phoned, never texted"
+  },
+  {
+    id: "everyone_monthly",
+    label: "The month's offer",
+    list: null,
+    cls: "campaign",
+    kind: "cadence",
+    hint: "Everyone who said yes, on a cadence"
+  },
+  {
+    id: "visit_tomorrow",
+    label: "Visit reminder",
+    list: null,
+    cls: "booking",
+    kind: "visit",
+    hint: "The day before an appointment on the calendar"
+  },
+  {
+    id: "visited",
+    label: "After the visit",
+    list: null,
+    cls: "reengage",
+    kind: "visit",
+    hint: "The day after a visit, when nothing is booked next"
+  },
+  // People's Lapsed list, by visits rather than silence: the win-back a salon means, which had no playbook of its own
+  // (00155). Named for its list, so it is never a second "Win-back" beside the one for the quiet.
+  {
+    id: "lapsed",
+    label: "Lapsed",
+    list: "lapsed",
+    cls: "reengage",
+    kind: "list",
+    hint: "No visit in 45 days, and nothing booked"
+  },
+  // Any list (decision 0009): one of People's (list_key, 00168) or one of the workspace's own (list_id, 00155), kept by
+  // hand or by a rule; the card says which. The id stays: playbooks made before any list could be named keep running.
+  {
+    id: "saved_list",
+    label: "On a list",
+    list: null,
+    cls: "campaign",
+    kind: "saved",
+    hint: "Everyone on a list: one of People's, or one you keep"
+  },
+  // A proposal out that has waited past the workspace's pace with nothing back (0006): one nudge per proposal, with
+  // its link, under its own class, where deals are on. Conversational: it answers the person's own request.
+  {
+    id: "proposal_waiting",
+    label: "Proposal follow-up",
+    list: null,
+    cls: "follow_up",
+    kind: "deal",
+    hint: "A proposal waiting with nothing back"
+  },
+  // Reach out (Part 3): a chain's first email, over a lead search, and a step days after the one before it. Made by
+  // the reach-out sheet (Part 4), never offered among the moments (triggerOffered).
+  {
+    id: "lead_first",
+    label: "Businesses a search found",
+    list: null,
+    cls: "outreach",
+    kind: "reach_out",
+    hint: "The first email of a reach-out"
+  },
+  {
+    id: "after_step",
+    label: "After the step before",
+    list: null,
+    cls: "outreach",
+    kind: "reach_out",
+    hint: "A nudge, days after the step before"
+  }
+];
+var MOMENT_TRIGGERS = PLAYBOOK_TRIGGERS.filter(
+  (t) => t.kind !== "reach_out"
+);
 var PLAYBOOK_HOURS = { min: 9, max: 20 };
 var SENDING_HOURS_WORDS = {
   min: PLAYBOOK_HOURS.min,
@@ -2720,7 +2820,8 @@ var PLAYBOOK_CLASS_LABEL = {
   reengage: POLICY_CLASS_WORDS.reengage.short,
   campaign: POLICY_CLASS_WORDS.campaign.short,
   booking: POLICY_CLASS_WORDS.booking.short,
-  follow_up: POLICY_CLASS_WORDS.follow_up.short
+  follow_up: POLICY_CLASS_WORDS.follow_up.short,
+  outreach: POLICY_CLASS_WORDS.outreach.short
 };
 var TRY_QUIET_AFTER_MS = 3 * 6e4;
 var FIRST_RUN_PHONE_WORDS = {
@@ -3086,6 +3187,7 @@ function isTimezone(raw) {
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
 var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
 var DAY_FMT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var REPUTATION_MEMORY_MS = 30 * 864e5;
 var ACTIVITY_KINDS = [...DECISION_VERBS, ...EVENT_KINDS];
 var PASSWORD_MIN = 12;
 var PASSWORD_WORDS = {
@@ -3234,6 +3336,8 @@ var K = new Uint32Array([
   3329325298
 ]);
 var NAME_MAX = BrainConfigSchema.shape.business_name.maxLength ?? Infinity;
+var NINE_TO_FIVE = [{ from: 9 * 60, to: 17 * 60 }];
+var SEND_DAY_FRAME = { from: 8 * 60, to: 20 * 60 };
 var GRAPH = "https://graph.facebook.com/v25.0";
 var SEND_TIMEOUT_MS = 15e3;
 async function postGraph(cfg, payload) {
@@ -3401,6 +3505,11 @@ async function resendRequest(cfg, method, path, opts = {}) {
     };
   }
 }
+function paceAskedMs(h) {
+  if (!h || h.get("ratelimit-remaining")?.trim() !== "0") return null;
+  const s = Number(h.get("ratelimit-reset"));
+  return h.get("ratelimit-reset") !== null && Number.isFinite(s) && s >= 0 ? Math.round(s * 1e3) : LIMIT_WAIT_DEFAULT_MS;
+}
 async function postEmail(cfg, request, timeoutMs) {
   const { idempotency_key, ...body } = request;
   const a = await resendRequest(cfg, "POST", "/emails", { body, timeoutMs, idempotencyKey: idempotency_key });
@@ -3409,6 +3518,7 @@ async function postEmail(cfg, request, timeoutMs) {
     return {
       result: { ok: true, wamid: typeof id === "string" ? id : null, status: a.status },
       waitMs: null,
+      paceMs: paceAskedMs(a.headers),
       timedOut: false
     };
   }
@@ -3416,11 +3526,13 @@ async function postEmail(cfg, request, timeoutMs) {
     return {
       result: { ok: false, wamid: null, status: 0, errorBody: a.timedOut ? "timeout" : a.raw },
       waitMs: null,
+      paceMs: null,
       timedOut: a.timedOut
     };
   return {
     result: { ok: false, wamid: null, status: a.status, errorBody: a.raw.slice(0, 500) },
     waitMs: a.headers ? waitAskedMs(a.headers) : null,
+    paceMs: null,
     timedOut: false
   };
 }
@@ -3429,6 +3541,10 @@ async function sendEmail(cfg, request, opts = {}) {
   const now = opts.now ?? Date.now;
   const deadline = now() + (opts.deadlineMs ?? SEND_DEADLINE_MS);
   const left = () => Math.max(0, deadline - now());
+  const paced = async (p) => {
+    if (p.result.ok && p.paceMs) await wait(Math.min(p.paceMs, LIMIT_WAIT_MAX_MS, left()));
+    return p.result;
+  };
   const first = await postEmail(cfg, request, Math.min(SEND_TIMEOUT_MS2, left()));
   if (first.timedOut) {
     if (left() < RETRY_NEEDS_MS) return first.result;
@@ -3436,14 +3552,14 @@ async function sendEmail(cfg, request, opts = {}) {
     const s = second.result;
     if (!s.ok && (s.status === 0 || s.status >= 500 || resendLimitOf(s) === "in_flight"))
       return { ok: false, wamid: null, status: 0, errorBody: "timeout" };
-    return s;
+    return paced(second);
   }
   const limit = resendLimitOf(first.result);
-  if (limit !== "rate" && limit !== "in_flight") return first.result;
+  if (limit !== "rate" && limit !== "in_flight") return paced(first);
   const ms2 = first.waitMs ?? LIMIT_WAIT_DEFAULT_MS;
   if (ms2 > LIMIT_WAIT_MAX_MS || ms2 >= left()) return first.result;
   await wait(ms2);
-  return (await postEmail(cfg, request, Math.min(SEND_TIMEOUT_MS2, left()))).result;
+  return paced(await postEmail(cfg, request, Math.min(SEND_TIMEOUT_MS2, left())));
 }
 var RESEND_RECEIVED = `${RESEND_API}/emails/receiving`;
 var RESEND_DOMAINS = `${RESEND_API}/domains`;
@@ -3848,6 +3964,21 @@ function localToUtcMs(tz, y, m, d, hh, mm) {
   const second = guess - zoneOffsetMs(tz, first);
   return second;
 }
+function dayInZone(tz, atMs) {
+  const p = zoneParts(tz, new Date(atMs));
+  const pad = (n) => String(n).padStart(2, "0");
+  return { key: `${p.y}-${pad(p.m)}-${pad(p.d)}`, weekday: p.weekday, y: p.y, m: p.m, d: p.d };
+}
+var dayNumber = (y, m, d) => Math.floor(Date.UTC(y, m - 1, d) / 864e5);
+var WEEKDAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+function dayPlusInZone(tz, atMs, days) {
+  const from = dayInZone(tz, atMs);
+  if (days === 0) return from;
+  const at2 = new Date((dayNumber(from.y, from.m, from.d) + days) * 864e5);
+  const pad = (n) => String(n).padStart(2, "0");
+  const y = at2.getUTCFullYear(), m = at2.getUTCMonth() + 1, d = at2.getUTCDate();
+  return { key: `${y}-${pad(m)}-${pad(d)}`, weekday: WEEKDAY_KEYS[at2.getUTCDay()], y, m, d };
+}
 function dayIntervals(h) {
   const raw = [];
   if (h?.open && h?.close) raw.push([h.open, h.close]);
@@ -4168,6 +4299,12 @@ var POLICY_CLASS_WORDS2 = {
     name: "Proposal follow-ups",
     short: "Follow-ups",
     note: "the proposal follow-up playbook \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
+  },
+  // Reach out (Part 3): cold email to the businesses a search found. A chain's first run always waits for its owner.
+  outreach: {
+    name: "Cold email to businesses a search found",
+    short: "Reach-outs",
+    note: "every email a reach-out sends \xB7 its first run always waits for you; later runs send 30 minutes after they are made unless you stop them \xB7 never sends none"
   }
 };
 function policyClassOfIntent(intent) {
@@ -5910,7 +6047,7 @@ function resolveParams(specs, f) {
 }
 var DAY_MS52 = 864e5;
 var SWEEP_TICK_MS2 = 5 * 6e4;
-var PLAYBOOK_TRIGGERS = [
+var PLAYBOOK_TRIGGERS2 = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
   {
     id: "new_week",
@@ -5981,8 +6118,29 @@ var PLAYBOOK_TRIGGERS = [
     cls: "follow_up",
     kind: "deal",
     hint: "A proposal waiting with nothing back"
+  },
+  // Reach out (Part 3): a chain's first email, over a lead search, and a step days after the one before it. Made by
+  // the reach-out sheet (Part 4), never offered among the moments (triggerOffered).
+  {
+    id: "lead_first",
+    label: "Businesses a search found",
+    list: null,
+    cls: "outreach",
+    kind: "reach_out",
+    hint: "The first email of a reach-out"
+  },
+  {
+    id: "after_step",
+    label: "After the step before",
+    list: null,
+    cls: "outreach",
+    kind: "reach_out",
+    hint: "A nudge, days after the step before"
   }
 ];
+var MOMENT_TRIGGERS2 = PLAYBOOK_TRIGGERS2.filter(
+  (t) => t.kind !== "reach_out"
+);
 var PLAYBOOK_DEFAULTS = { runHour: 10, capPerRun: 25, gapDays: 90, cadenceDays: 30 };
 var PLAYBOOK_HOURS2 = { min: 9, max: 20 };
 var SENDING_HOURS_WORDS2 = {
@@ -5995,10 +6153,12 @@ var SENDING_HOURS_WORDS2 = {
 var PLAYBOOK_BREATH_MS2 = 7 * DAY_MS52;
 var PLAYBOOK_VETO_DELAY_MS2 = 30 * 6e4;
 var PLAYBOOK_NAME_MAX = 80;
+var REACH_OUT_IS_NOT_A_MOMENT = "A reach-out is made on its own sheet, from a search's leads, not among the moments.";
 function triggerOf(id) {
-  return PLAYBOOK_TRIGGERS.find((t) => t.id === id) ?? null;
+  return PLAYBOOK_TRIGGERS2.find((t) => t.id === id) ?? null;
 }
 function triggerOffered(t, dealsOn) {
+  if (t.kind === "reach_out") return false;
   return t.kind !== "deal" || dealsOn;
 }
 var FIRST2 = { kind: "first_name", label: "First name", example: "Dani" };
@@ -6959,6 +7119,7 @@ function playbookRunReach(rows, p, touches, nowMs, pace, listIds = null) {
   };
   const t = triggerOf(p.trigger);
   if (!t) return { eligible: [], reach, saidYes: 0 };
+  if (t.kind === "reach_out") return { eligible: [], reach, saidYes: 0 };
   const purpose = purposeOfPlaybook(t.cls);
   const named = t.kind === "visit" ? (
     // The calendar's own day, never hours: eleven at night tomorrow is still tomorrow.
@@ -7011,7 +7172,8 @@ var PLAYBOOK_CLASS_LABEL2 = {
   reengage: POLICY_CLASS_WORDS2.reengage.short,
   campaign: POLICY_CLASS_WORDS2.campaign.short,
   booking: POLICY_CLASS_WORDS2.booking.short,
-  follow_up: POLICY_CLASS_WORDS2.follow_up.short
+  follow_up: POLICY_CLASS_WORDS2.follow_up.short,
+  outreach: POLICY_CLASS_WORDS2.outreach.short
 };
 function playbookListRef(p) {
   if (triggerOf(p.trigger)?.kind !== "saved") return null;
@@ -7415,17 +7577,15 @@ function optInConfirmation(businessName, purpose) {
 var CONSENT_PHRASE2 = OFFERS_OPT_IN_PHRASES2.en;
 var CONSENT_PHRASE_ES2 = OFFERS_OPT_IN_PHRASES2.es;
 var DAY_FMT2 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var REPUTATION_MEMORY_MS2 = 30 * 864e5;
 var DOMAIN_RAMP = [
   { days: 0, perDay: 30 },
   { days: 14, perDay: 100 },
   { days: 30, perDay: 200 }
 ];
-var DAY_MS8 = 864e5;
-function domainDailyCap(cleanSince, nowMs) {
-  if (!cleanSince) return 0;
-  const days = (nowMs - Date.parse(cleanSince)) / DAY_MS8;
+function domainDailyCap(sentDays) {
   let cap2 = 0;
-  for (const step2 of DOMAIN_RAMP) if (days >= step2.days) cap2 = step2.perDay;
+  for (const step2 of DOMAIN_RAMP) if (sentDays >= step2.days) cap2 = step2.perDay;
   return cap2;
 }
 var ACTIVITY_KINDS2 = [...DECISION_VERBS2, ...EVENT_KINDS2];
@@ -7655,6 +7815,276 @@ function isCampaignEmail(request) {
   const headers = request?.headers;
   const v = headers?.["List-Unsubscribe"];
   return typeof v === "string" && v.trim() !== "";
+}
+var US_STATE_ZONES = {
+  AL: "America/Chicago",
+  AK: "America/Anchorage",
+  AZ: "America/Phoenix",
+  AR: "America/Chicago",
+  CA: "America/Los_Angeles",
+  CO: "America/Denver",
+  CT: "America/New_York",
+  DE: "America/New_York",
+  DC: "America/New_York",
+  FL: "America/New_York",
+  GA: "America/New_York",
+  HI: "Pacific/Honolulu",
+  ID: "America/Boise",
+  IL: "America/Chicago",
+  IN: "America/Indiana/Indianapolis",
+  IA: "America/Chicago",
+  KS: "America/Chicago",
+  KY: "America/New_York",
+  LA: "America/Chicago",
+  ME: "America/New_York",
+  MD: "America/New_York",
+  MA: "America/New_York",
+  MI: "America/Detroit",
+  MN: "America/Chicago",
+  MS: "America/Chicago",
+  MO: "America/Chicago",
+  MT: "America/Denver",
+  NE: "America/Chicago",
+  NV: "America/Los_Angeles",
+  NH: "America/New_York",
+  NJ: "America/New_York",
+  NM: "America/Denver",
+  NY: "America/New_York",
+  NC: "America/New_York",
+  ND: "America/Chicago",
+  OH: "America/New_York",
+  OK: "America/Chicago",
+  OR: "America/Los_Angeles",
+  PA: "America/New_York",
+  RI: "America/New_York",
+  SC: "America/New_York",
+  SD: "America/Chicago",
+  TN: "America/Chicago",
+  TX: "America/Chicago",
+  UT: "America/Denver",
+  VT: "America/New_York",
+  VA: "America/New_York",
+  WA: "America/Los_Angeles",
+  WV: "America/New_York",
+  WI: "America/Chicago",
+  WY: "America/Denver"
+};
+function zoneOfRegion(region) {
+  const code2 = (region ?? "").trim().toUpperCase();
+  return US_STATE_ZONES[code2] ?? null;
+}
+var NINE_TO_FIVE2 = [{ from: 9 * 60, to: 17 * 60 }];
+var DEFAULT_WEEK = {
+  mon: NINE_TO_FIVE2,
+  tue: NINE_TO_FIVE2,
+  wed: NINE_TO_FIVE2,
+  thu: NINE_TO_FIVE2,
+  fri: NINE_TO_FIVE2,
+  sat: [],
+  sun: []
+};
+var DAY_OF = {
+  mon: "mon",
+  monday: "mon",
+  tue: "tue",
+  tues: "tue",
+  tuesday: "tue",
+  wed: "wed",
+  wednesday: "wed",
+  thu: "thu",
+  thur: "thu",
+  thurs: "thu",
+  thursday: "thu",
+  fri: "fri",
+  friday: "fri",
+  sat: "sat",
+  saturday: "sat",
+  sun: "sun",
+  sunday: "sun",
+  mo: "mon",
+  tu: "tue",
+  we: "wed",
+  weds: "wed",
+  th: "thu",
+  fr: "fri",
+  sa: "sat",
+  su: "sun"
+};
+var dayNameOf = (raw) => DAY_OF[String(raw ?? "").replace(/\([^)]*\)/g, "").replace(/\./g, "").trim().toLowerCase()] ?? null;
+function timeOf(s) {
+  const t = s.trim().toLowerCase().replace(/\./g, "");
+  if (t === "noon") return { min: 0, meridiem: "pm" };
+  if (t === "midnight") return { min: 0, meridiem: "am" };
+  const m = /^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/.exec(t);
+  if (!m) return null;
+  const hh = Number(m[1]);
+  const mm = Number(m[2] ?? 0);
+  if (mm > 59) return null;
+  if (hh === 0) return m[3] ? null : { min: mm, meridiem: "am" };
+  if (hh > 12) return null;
+  return { min: hh % 12 * 60 + mm, meridiem: m[3] ?? null };
+}
+var withMeridiem = (min, meridiem) => meridiem === "pm" ? min + 12 * 60 : min;
+function rangeOf(s) {
+  const parts2 = s.split(/\s*(?:to|–|—|-)\s*/i);
+  if (parts2.length !== 2) return null;
+  const a = timeOf(parts2[0]);
+  const b = timeOf(parts2[1]);
+  if (!a || !b || !b.meridiem) return null;
+  const to0 = withMeridiem(b.min, b.meridiem);
+  let from = a.meridiem ? withMeridiem(a.min, a.meridiem) : withMeridiem(a.min, b.meridiem);
+  if (!a.meridiem && from > to0) from = a.min;
+  const to = to0 === 0 ? 24 * 60 : to0 <= from ? to0 + 24 * 60 : to0;
+  return { from, to };
+}
+function dayOf(words4) {
+  const w = words4.replace(/\([^)]*\)/g, "").trim().toLowerCase();
+  if (w === "closed") return [];
+  if (w === "open 24 hours" || w === "24 hours") return [{ from: 0, to: 24 * 60 }];
+  const ranges = w.split(/\s*,\s*/).map(rangeOf);
+  return ranges.every((r22) => r22 !== null) && ranges.length > 0 ? ranges : null;
+}
+function weekHoursOf(hours) {
+  if (!Array.isArray(hours) || hours.length === 0) return { week: DEFAULT_WEEK, read: false };
+  const week = { mon: [], tue: [], wed: [], thu: [], fri: [], sat: [], sun: [] };
+  let readAny = false;
+  for (const e of hours) {
+    const day = e && typeof e === "object" ? dayNameOf(e.day) : null;
+    if (!day) return { week: DEFAULT_WEEK, read: false };
+    const said2 = e.hours;
+    const windows = typeof said2 === "string" ? dayOf(said2) : null;
+    week[day] = windows ?? DEFAULT_WEEK[day];
+    if (windows !== null) readAny = true;
+  }
+  return readAny ? { week, read: true } : { week: DEFAULT_WEEK, read: false };
+}
+var SEND_WINDOW_MARGIN_MIN = 30;
+var SEND_DAY_FRAME2 = { from: 8 * 60, to: 20 * 60 };
+var TIMETABLE_HORIZON_DAYS = 7;
+var DAY_MS10 = 864e5;
+var MIN_MS2 = 6e4;
+var DAYS22 = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+function inFrame(week) {
+  const out = {};
+  for (const day of DAYS22) {
+    out[day] = (week[day] ?? []).map((w) => ({
+      from: Math.max(w.from + SEND_WINDOW_MARGIN_MIN, SEND_DAY_FRAME2.from),
+      to: Math.min(w.to - SEND_WINDOW_MARGIN_MIN, SEND_DAY_FRAME2.to)
+    })).filter((w) => w.to > w.from);
+  }
+  return out;
+}
+function sendWindowsOf(week) {
+  const framed = inFrame(week);
+  if (DAYS22.some((d) => framed[d].length > 0)) return framed;
+  return DAYS22.some((d) => (week[d] ?? []).length > 0) ? inFrame(DEFAULT_WEEK) : framed;
+}
+function openSpans(zone, windows, fromMs, days) {
+  const spans = [];
+  for (let i = 0; i <= Math.ceil(days); i += 1) {
+    const day = dayPlusInZone(zone, fromMs, i);
+    for (const w of windows[day.weekday] ?? []) {
+      const start = localToUtcMs(zone, day.y, day.m, day.d, Math.floor(w.from / 60), w.from % 60);
+      const end = localToUtcMs(zone, day.y, day.m, day.d, Math.floor(w.to / 60), w.to % 60);
+      if (end > fromMs) spans.push([Math.max(start, fromMs), end]);
+    }
+  }
+  return spans.sort((a, b) => a[0] - b[0]);
+}
+function lowerBound(times, x) {
+  let lo = 0;
+  let hi = times.length;
+  while (lo < hi) {
+    const mid = lo + hi >> 1;
+    if (times[mid] < x) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+function fitsCap(times, t, cap2) {
+  const ends = [t, ...times.slice(lowerBound(times, t), lowerBound(times, t + DAY_MS10))];
+  for (const q of ends) {
+    const already = lowerBound(times, q + 1) - lowerBound(times, q - DAY_MS10 + 1);
+    if (already + 1 > cap2) return false;
+  }
+  return true;
+}
+function earliest(spans, times, cap2, gapMs, limitMs) {
+  let floor = 0;
+  for (const [start, end] of spans) {
+    let t = Math.max(start, floor);
+    for (let guard = 0; guard < 500 && t < end && t < limitMs; guard += 1) {
+      const i = lowerBound(times, t - gapMs + 1);
+      if (i < times.length && times[i] < t + gapMs) {
+        t = times[i] + gapMs;
+        floor = t;
+        continue;
+      }
+      if (!fitsCap(times, t, cap2)) {
+        const j = lowerBound(times, t - DAY_MS10 + 1);
+        t = (j < times.length && times[j] <= t ? times[j] : t) + DAY_MS10;
+        floor = t;
+        continue;
+      }
+      return t;
+    }
+  }
+  return null;
+}
+function spansOrNone(zone, week, fromMs, days) {
+  try {
+    return openSpans(zone, sendWindowsOf(week), fromMs, days);
+  } catch {
+    return [];
+  }
+}
+function timetable(input) {
+  if (!Number.isFinite(input.gapMinutes) || input.gapMinutes <= 0)
+    throw new Error(`timetable: a gap is a number of minutes above zero (${input.gapMinutes})`);
+  const horizon = input.horizonDays ?? TIMETABLE_HORIZON_DAYS;
+  const limitMs = input.nowMs + horizon * DAY_MS10;
+  const draw = input.jitter ?? (() => Math.random() * 2 - 1);
+  const jitter = () => {
+    const j = draw();
+    return Number.isFinite(j) ? Math.max(-1, Math.min(1, j)) : 0;
+  };
+  const domains = input.domains.filter((d) => d.cap > 0).map((d) => ({ ...d, times: [...d.recent].sort((a, b) => a - b), placed: 0 }));
+  const spansOf = /* @__PURE__ */ new Map();
+  const placed = [];
+  const unplaced = [];
+  for (const s of input.sends) {
+    const gapMs = Math.round(input.gapMinutes * MIN_MS2 * (1 + 0.25 * jitter()));
+    const key = `${s.zone}|${JSON.stringify(s.week)}`;
+    let spans = spansOf.get(key);
+    if (!spans) {
+      spans = spansOrNone(s.zone, s.week, input.nowMs, horizon);
+      spansOf.set(key, spans);
+    }
+    let best = null;
+    for (const d of domains) {
+      const t = earliest(spans, d.times, d.cap, gapMs, limitMs);
+      if (t === null) continue;
+      if (!best || t < best.t || t === best.t && d.placed < best.d.placed) best = { d, t };
+    }
+    if (!best) {
+      unplaced.push(s.id);
+      continue;
+    }
+    best.d.times.splice(lowerBound(best.d.times, best.t), 0, best.t);
+    best.d.placed += 1;
+    placed.push({ id: s.id, domainId: best.d.id, sendAtMs: best.t });
+  }
+  return { placed, unplaced };
+}
+function outreachRefusalOf(f) {
+  if (!f.leadStage) return "outreach_not_a_lead";
+  if (f.leadStage !== "ready" && f.leadStage !== "nurture") return "outreach_lead_closed";
+  if (f.suppressed) return "outreach_suppressed";
+  if (f.wroteBack) return "outreach_wrote_back";
+  return null;
+}
+function isReachOutRun(audience) {
+  return !!audience && typeof audience === "object" && audience.kind === "reach_out";
 }
 
 // ../db/dist/index.js
@@ -7887,8 +8317,8 @@ var DECISION_VERBS3 = [
   /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
   "import"
 ];
-var DAY_MS9 = 864e5;
-var WEEK_MS5 = 7 * DAY_MS9;
+var DAY_MS8 = 864e5;
+var WEEK_MS5 = 7 * DAY_MS8;
 var BRAIN_INTENTS3 = [
   "booking",
   "pricing",
@@ -8051,6 +8481,12 @@ var POLICY_CLASS_WORDS3 = {
     name: "Proposal follow-ups",
     short: "Follow-ups",
     note: "the proposal follow-up playbook \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
+  },
+  // Reach out (Part 3): cold email to the businesses a search found. A chain's first run always waits for its owner.
+  outreach: {
+    name: "Cold email to businesses a search found",
+    short: "Reach-outs",
+    note: "every email a reach-out sends \xB7 its first run always waits for you; later runs send 30 minutes after they are made unless you stop them \xB7 never sends none"
   }
 };
 var PolicyLimitsSchema3 = z33.object({
@@ -8865,6 +9301,100 @@ var WHATSAPP_LANGUAGES3 = [
 var BY_ID3 = new Map(WHATSAPP_LANGUAGES3.map((l) => [l.id.toLowerCase(), l]));
 var DAY_MS53 = 864e5;
 var SWEEP_TICK_MS3 = 5 * 6e4;
+var PLAYBOOK_TRIGGERS3 = [
+  { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
+  {
+    id: "new_week",
+    label: "Welcome",
+    list: "new_week",
+    cls: "campaign",
+    kind: "list",
+    hint: "First contact in the last 7 days"
+  },
+  {
+    id: "phoned_only",
+    label: "Save our number",
+    list: "phoned_only",
+    cls: "reengage",
+    kind: "list",
+    hint: "Only ever phoned, never texted"
+  },
+  {
+    id: "everyone_monthly",
+    label: "The month's offer",
+    list: null,
+    cls: "campaign",
+    kind: "cadence",
+    hint: "Everyone who said yes, on a cadence"
+  },
+  {
+    id: "visit_tomorrow",
+    label: "Visit reminder",
+    list: null,
+    cls: "booking",
+    kind: "visit",
+    hint: "The day before an appointment on the calendar"
+  },
+  {
+    id: "visited",
+    label: "After the visit",
+    list: null,
+    cls: "reengage",
+    kind: "visit",
+    hint: "The day after a visit, when nothing is booked next"
+  },
+  // People's Lapsed list, by visits rather than silence: the win-back a salon means, which had no playbook of its own
+  // (00155). Named for its list, so it is never a second "Win-back" beside the one for the quiet.
+  {
+    id: "lapsed",
+    label: "Lapsed",
+    list: "lapsed",
+    cls: "reengage",
+    kind: "list",
+    hint: "No visit in 45 days, and nothing booked"
+  },
+  // Any list (decision 0009): one of People's (list_key, 00168) or one of the workspace's own (list_id, 00155), kept by
+  // hand or by a rule; the card says which. The id stays: playbooks made before any list could be named keep running.
+  {
+    id: "saved_list",
+    label: "On a list",
+    list: null,
+    cls: "campaign",
+    kind: "saved",
+    hint: "Everyone on a list: one of People's, or one you keep"
+  },
+  // A proposal out that has waited past the workspace's pace with nothing back (0006): one nudge per proposal, with
+  // its link, under its own class, where deals are on. Conversational: it answers the person's own request.
+  {
+    id: "proposal_waiting",
+    label: "Proposal follow-up",
+    list: null,
+    cls: "follow_up",
+    kind: "deal",
+    hint: "A proposal waiting with nothing back"
+  },
+  // Reach out (Part 3): a chain's first email, over a lead search, and a step days after the one before it. Made by
+  // the reach-out sheet (Part 4), never offered among the moments (triggerOffered).
+  {
+    id: "lead_first",
+    label: "Businesses a search found",
+    list: null,
+    cls: "outreach",
+    kind: "reach_out",
+    hint: "The first email of a reach-out"
+  },
+  {
+    id: "after_step",
+    label: "After the step before",
+    list: null,
+    cls: "outreach",
+    kind: "reach_out",
+    hint: "A nudge, days after the step before"
+  }
+];
+var MOMENT_TRIGGERS3 = PLAYBOOK_TRIGGERS3.filter(
+  (t) => t.kind !== "reach_out"
+);
 var PLAYBOOK_HOURS3 = { min: 9, max: 20 };
 var SENDING_HOURS_WORDS3 = {
   min: PLAYBOOK_HOURS3.min,
@@ -9423,7 +9953,8 @@ var PLAYBOOK_CLASS_LABEL3 = {
   reengage: POLICY_CLASS_WORDS3.reengage.short,
   campaign: POLICY_CLASS_WORDS3.campaign.short,
   booking: POLICY_CLASS_WORDS3.booking.short,
-  follow_up: POLICY_CLASS_WORDS3.follow_up.short
+  follow_up: POLICY_CLASS_WORDS3.follow_up.short,
+  outreach: POLICY_CLASS_WORDS3.outreach.short
 };
 var TRY_QUIET_AFTER_MS3 = 3 * 6e4;
 var FIRST_RUN_PHONE_WORDS3 = {
@@ -9789,6 +10320,7 @@ function isTimezone3(raw) {
 var CONSENT_PHRASE3 = OFFERS_OPT_IN_PHRASES3.en;
 var CONSENT_PHRASE_ES3 = OFFERS_OPT_IN_PHRASES3.es;
 var DAY_FMT3 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var REPUTATION_MEMORY_MS3 = 30 * 864e5;
 var ACTIVITY_KINDS3 = [...DECISION_VERBS3, ...EVENT_KINDS3];
 var PASSWORD_MIN3 = 12;
 var PASSWORD_WORDS3 = {
@@ -9937,6 +10469,8 @@ var K3 = new Uint32Array([
   3329325298
 ]);
 var NAME_MAX3 = BrainConfigSchema3.shape.business_name.maxLength ?? Infinity;
+var NINE_TO_FIVE3 = [{ from: 9 * 60, to: 17 * 60 }];
+var SEND_DAY_FRAME3 = { from: 8 * 60, to: 20 * 60 };
 async function recordOutbound(db, p) {
   if (p.channel === "email")
     throw new Error("record_outbound: an email's row is written before it is sent, never after");
@@ -9981,7 +10515,10 @@ async function outreachFactsOf(db, p) {
     p_contact_id: p.contactId,
     p_to: p.to,
     p_host: p.host,
-    p_since: p.since
+    p_since: p.since,
+    // Named only when there is a lead: a database before 00184 knows five arguments, and a sixth it has never heard of
+    // would fail every cold send rather than answer as it did.
+    ...p.leadId ? { p_lead_id: p.leadId } : {}
   });
   if (error) throw new Error(`cannot read the outreach facts: ${error.message}`);
   const f = data ?? {};
@@ -9994,7 +10531,9 @@ async function outreachFactsOf(db, p) {
     domain: f.domain && typeof f.domain === "object" && typeof f.domain.state === "string" ? {
       state: f.domain.state,
       from_local: String(f.domain.from_local ?? ""),
-      clean_since: typeof f.domain.clean_since === "string" ? f.domain.clean_since : null
+      clean_since: typeof f.domain.clean_since === "string" ? f.domain.clean_since : null,
+      // A database before 00184 says nothing of it: no days sent, the ramp's first step.
+      sent_days: Math.max(0, Number(f.domain.sent_days ?? 0) || 0)
     } : null,
     sent_since: Number(f.sent_since ?? 0) || 0
   };
@@ -10069,6 +10608,7 @@ async function outreachFacts(db, d, f, nowMs) {
       unsubscribable,
       domainState: null,
       cleanSince: null,
+      sentDays: 0,
       sentSince: 0
     };
   let facts;
@@ -10079,7 +10619,8 @@ async function outreachFacts(db, d, f, nowMs) {
       to: d.to,
       // A From that cannot be read names no domain: the lead is still asked, and the door refuses the domain.
       host: host ?? "",
-      since: new Date(nowMs - SHARE_WINDOW_MS).toISOString()
+      since: new Date(nowMs - SHARE_WINDOW_MS).toISOString(),
+      leadId: d.leadId ?? null
     });
   } catch (e) {
     throw new Error(`deliver: ${e instanceof Error ? e.message : String(e)} (conversation ${d.conversationId})`, {
@@ -10094,6 +10635,7 @@ async function outreachFacts(db, d, f, nowMs) {
     unsubscribable,
     domainState: own?.state ?? null,
     cleanSince: own?.clean_since ?? null,
+    sentDays: own?.sent_days ?? 0,
     sentSince: facts.sent_since
   };
 }
@@ -10110,14 +10652,12 @@ function refusalFor(d, f, nowMs, o) {
   if (!may.ok) return may.reason;
   if (d.purpose === "outreach") {
     if (!o) throw new Error(`deliver: an outreach email is judged with its facts (conversation ${d.conversationId})`);
-    if (!o.leadStage) return "outreach_not_a_lead";
-    if (o.leadStage !== "ready" && o.leadStage !== "nurture") return "outreach_lead_closed";
-    if (o.suppressed) return "outreach_suppressed";
-    if (o.wroteBack) return "outreach_wrote_back";
+    const lead = outreachRefusalOf({ leadStage: o.leadStage, suppressed: o.suppressed, wroteBack: o.wroteBack });
+    if (lead) return lead;
     if (!o.unsubscribable) return "outreach_without_unsubscribe";
     if (!o.domainState) return "outreach_needs_own_domain";
     if (o.domainState !== "verified") return "sending_domain_not_ready";
-    if (o.sentSince >= domainDailyCap(o.cleanSince, nowMs)) return "sending_domain_at_cap";
+    if (o.sentSince >= (o.cleanSince ? domainDailyCap(o.sentDays) : 0)) return "sending_domain_at_cap";
   }
   const kind = kindOf(d);
   if (kind === "reply") return null;
@@ -10134,7 +10674,10 @@ async function overtakenByHuman(db, d) {
   if (!mine) return null;
   const { data: newer, error } = await db.from("messages").select("id, meta").eq("conversation_id", d.conversationId).eq("tenant_id", d.tenantId).eq("direction", "outbound").eq("sender", "human").gt("created_at", mine.created_at).order("created_at", { ascending: true }).limit(10);
   if (error) throw new Error(`deliver: cannot read the thread for ${d.messageId}: ${error.message}`);
-  const spoke = (newer ?? []).find((m) => m.meta?.source !== "broadcast");
+  const spoke = (newer ?? []).find((m) => {
+    const source = m.meta?.source;
+    return source !== "broadcast" && source !== "reach_out";
+  });
   return spoke ? spoke.id : null;
 }
 function event(db, d, kind, messageId, data) {
@@ -10585,6 +11128,7 @@ async function sendQueued(ports, cmd) {
     template: p.template,
     // The request the row was queued with, sent as it was frozen. A row without one fails at the wire, by name.
     ...msg.email ? { email: msg.email } : {},
+    ...msg.leadId ? { leadId: msg.leadId } : {},
     messageId: p.message_id
   });
   if (out.outcome !== "failed") return;
@@ -10734,6 +11278,7 @@ async function sendBroadcastBatch(ports, cmd) {
   const b = await ports.broadcast(cmd.broadcastId);
   if (!b) return;
   if (b.state !== "scheduled" && b.state !== "sending") return;
+  if (isReachOutRun(b.audience)) return;
   if (await ports.workspacePaused()) {
     await ports.fail(b.id, "paused");
     await ports.alert({
@@ -11238,6 +11783,7 @@ async function createBroadcast(ports, cmd) {
 async function approveRun(ports, cmd) {
   const b = cmd.row;
   if (b.state !== "pending_approval") throw new AppError("conflict", "This run is not waiting for approval.", 409);
+  if (isReachOutRun(b.audience)) return approveReachOut(ports, b, cmd.now);
   const tz = await ports.timezone();
   if (b.playbook_id && b.run_for && localDate(tz, cmd.now) !== b.run_for) {
     throw new AppError(
@@ -11279,6 +11825,28 @@ async function approveRun(ports, cmd) {
     decision_id
   };
 }
+async function approveReachOut(ports, b, now) {
+  const first = b.scheduled_for ? Date.parse(b.scheduled_for) : NaN;
+  const at = Number.isFinite(first) && first > now.getTime() ? new Date(first) : now;
+  if (!await ports.release(b.id, at)) throw new AppError("conflict", "This run just changed state; look again.", 409);
+  const scheduledFor = at.toISOString();
+  const decision_id = await ports.record("broadcast", b.id, "send_broadcast", {
+    name: b.name,
+    playbook_id: b.playbook_id,
+    recipients: b.recipient_count,
+    approved: true,
+    reach_out: true,
+    scheduled_for: scheduledFor
+  });
+  return {
+    id: b.id,
+    state: "scheduled",
+    recipient_count: b.recipient_count,
+    scheduled_for: scheduledFor,
+    moved_from: null,
+    decision_id
+  };
+}
 
 // src/campaigns/cancel.ts
 async function cancelBroadcast(ports, cmd) {
@@ -11311,6 +11879,7 @@ async function checkPlaybook(ports, body) {
       "validation",
       "Pick what starts it: win-back, welcome, save our number, the month's offer, a visit tomorrow, a visit yesterday, lapsed, one of your lists, or a proposal waiting."
     );
+  if (trig.kind === "reach_out") throw new AppError("validation", REACH_OUT_IS_NOT_A_MOMENT);
   if (trig.kind === "deal" && !triggerOffered(trig, await ports.dealsOn()))
     throw new AppError("validation", FOLLOW_UP_NEEDS_DEALS2);
   let listName = null;
@@ -11359,6 +11928,121 @@ async function checkPlaybook(ports, body) {
     gap_days: int(body?.gap_days, PLAYBOOK_DEFAULTS.gapDays, 7, 365, "The gap"),
     cadence_days: int(body?.cadence_days, PLAYBOOK_DEFAULTS.cadenceDays, 1, 90, "The cadence")
   };
+}
+
+// src/uuid-v5.ts
+var enc3 = new TextEncoder();
+var hex = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+async function uuidV5(name) {
+  const h = hex(await crypto.subtle.digest("SHA-1", enc3.encode(name)));
+  const v = `${h.slice(0, 12)}5${h.slice(13, 16)}${(parseInt(h.slice(16, 17), 16) & 3 | 8).toString(16)}${h.slice(17, 32)}`;
+  return `${v.slice(0, 8)}-${v.slice(8, 12)}-${v.slice(12, 16)}-${v.slice(16, 20)}-${v.slice(20, 32)}`;
+}
+
+// src/campaigns/reach-out-ids.ts
+var reachOutRunIdFor = (stepId, runFor) => uuidV5(`reach_out_run:${stepId}:${runFor}`);
+var sendIdFor = (runId, leadId) => uuidV5(`reach_out_send:${runId}:${leadId}`);
+var sendMessageId = (sendId, attempt) => uuidV5(`reach_out_email:${sendId}:${attempt}`);
+
+// src/campaigns/run-reach-out.ts
+var neverOpen = (week) => Object.values(sendWindowsOf(week)).every((w) => w.length === 0);
+async function runReachOut(ports, step, cmd) {
+  if (step.state !== "running") return { outcome: "off", reason: "paused", planned: 0 };
+  if (ports.mode === "never") return { outcome: "off", reason: "never", planned: 0 };
+  if (!ports.maySpend) return { outcome: "held", reason: "billing", planned: 0 };
+  if (await ports.alreadyRan(step.id, cmd.runFor)) return { outcome: "empty", reason: "already_ran", planned: 0 };
+  const chain = await ports.chainState(step.root_id);
+  if (chain === "waiting") return { outcome: "held", reason: "waiting_for_you", planned: 0 };
+  const asks = chain === "none" || ports.mode === "ask";
+  const skips = [];
+  let leads = [];
+  if (step.trigger === "lead_first") leads = await ports.audience(step);
+  else
+    for (const f of await ports.followers(step)) {
+      const refused = f.bounced ? "outreach_bounced" : outreachRefusalOf({
+        leadStage: f.facts.lead_stage,
+        suppressed: f.facts.suppressed,
+        wroteBack: f.facts.wrote_back
+      });
+      if (refused) skips.push({ lead: f, reason: refused });
+      else leads.push(f);
+    }
+  const weeks = new Map(leads.map((l) => [l.lead_id, weekHoursOf(l.hours).week]));
+  for (const l of leads) if (neverOpen(weeks.get(l.lead_id))) skips.push({ lead: l, reason: "closed_every_day" });
+  const skipped = new Set(skips.map((s) => s.lead.lead_id));
+  leads = leads.filter((l) => !skipped.has(l.lead_id)).slice(0, step.cap_per_run);
+  if (leads.length === 0) return { outcome: "empty", reason: "nobody", planned: 0 };
+  const domains = (await ports.domains(step)).filter((d) => d.cap > 0);
+  if (domains.length === 0) return { outcome: "held", reason: "no_domain", planned: 0 };
+  const now = ports.now();
+  const plan = timetable({
+    sends: leads.map((l) => ({
+      id: l.lead_id,
+      zone: zoneOfRegion(l.region) ?? ports.workspaceZone,
+      week: weeks.get(l.lead_id)
+    })),
+    domains,
+    gapMinutes: step.gap_minutes,
+    nowMs: asks ? now : now + PLAYBOOK_VETO_DELAY_MS2
+  });
+  if (plan.placed.length === 0) return { outcome: "held", reason: "no_room", planned: 0 };
+  const firstAt = Math.min(...plan.placed.map((p) => p.sendAtMs));
+  const run = {
+    id: await reachOutRunIdFor(step.id, cmd.runFor),
+    tenant_id: step.tenant_id,
+    playbook_id: step.id,
+    run_for: cmd.runFor,
+    // A day's run, named for its day as a moment's is.
+    name: `${step.name} \xB7 ${cmd.runFor}`,
+    template_id: step.template_id,
+    template_name: step.template_name,
+    template_language: step.template_language,
+    state: asks ? "pending_approval" : "scheduled",
+    scheduled_for: new Date(firstAt).toISOString(),
+    recipient_count: plan.placed.length,
+    audience: {
+      kind: "reach_out",
+      root_id: step.root_id,
+      step_id: step.id,
+      search_id: step.lead_search_id
+    }
+  };
+  const contactOf = new Map([...leads, ...skips.map((s) => s.lead)].map((l) => [l.lead_id, l.contact_id ?? null]));
+  const row = async (leadId) => ({
+    id: await sendIdFor(run.id, leadId),
+    tenant_id: step.tenant_id,
+    broadcast_id: run.id,
+    playbook_id: step.id,
+    root_id: step.root_id,
+    lead_id: leadId,
+    contact_id: contactOf.get(leadId) ?? null
+  });
+  const sends = [
+    ...await Promise.all(
+      plan.placed.map(async (p) => ({
+        ...await row(p.id),
+        state: "planned",
+        domain_id: p.domainId,
+        send_at: new Date(p.sendAtMs).toISOString()
+      }))
+    ),
+    ...await Promise.all(
+      skips.map(async (s) => ({
+        ...await row(s.lead.lead_id),
+        state: "skipped",
+        domain_id: null,
+        send_at: null,
+        reason: s.reason
+      }))
+    )
+  ];
+  if (await ports.planRun(run, sends) === "exists") return { outcome: "empty", reason: "already_ran", planned: 0 };
+  await ports.recordRun(run, { planned: plan.placed.length, skipped: skips.length });
+  if (asks) {
+    await ports.notifyWaiting(run.id, plan.placed.length, firstAt);
+    return { outcome: "held", reason: "waiting_for_you", planned: plan.placed.length };
+  }
+  return { outcome: "sent", planned: plan.placed.length };
 }
 
 // src/leads/zcta-centroids.json
@@ -44806,15 +45490,13 @@ function identityOf(p, held, suppressedPlaceIds, shares) {
 }
 
 // src/leads/ids.ts
-var enc3 = new TextEncoder();
-var hex = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+var enc4 = new TextEncoder();
+var hex2 = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
 async function sha256Hex2(s) {
-  return hex(await crypto.subtle.digest("SHA-256", enc3.encode(s)));
+  return hex2(await crypto.subtle.digest("SHA-256", enc4.encode(s)));
 }
 async function runIdFor(roundId, phase, term) {
-  const h = hex(await crypto.subtle.digest("SHA-1", enc3.encode(`lead_run:${roundId}:${phase}:${term}`)));
-  const v = `${h.slice(0, 12)}5${h.slice(13, 16)}${(parseInt(h.slice(16, 17), 16) & 3 | 8).toString(16)}${h.slice(17, 32)}`;
-  return `${v.slice(0, 8)}-${v.slice(8, 12)}-${v.slice(12, 16)}-${v.slice(16, 20)}-${v.slice(20, 32)}`;
+  return uuidV5(`lead_run:${roundId}:${phase}:${term}`);
 }
 
 // src/leads/judge.ts
@@ -46796,6 +47478,7 @@ export {
   probeYield,
   provisionLine,
   radiusFromSpread,
+  reachOutRunIdFor,
   reconcileUnknownRuns,
   rejudgeProbe,
   replyPosture,
@@ -46805,8 +47488,11 @@ export {
   runCaps,
   runIdFor,
   runPlaybook,
+  runReachOut,
   runStateOf,
   sendBroadcastBatch,
+  sendIdFor,
+  sendMessageId,
   sendQueued,
   sha256Hex2 as sha256Hex,
   shareKeysOf,

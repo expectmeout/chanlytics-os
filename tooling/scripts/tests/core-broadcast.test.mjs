@@ -476,3 +476,13 @@ test("a proposal follow-up's send (0006): the link each person's run froze fills
     ["marketing"],
   );
 });
+
+test("a reach-out's run is the reach-out clock's: a broadcast job that reaches one touches nothing, and never ends it as sent", async () => {
+  for (const state of ["scheduled", "sending"]) {
+    const f = fakes({
+      broadcast: broadcast({ state, playbook_id: "p1", audience: { kind: "reach_out", root_id: "p1", step_id: "p1" } }),
+    });
+    await sendBroadcastBatch(f.ports, cmd());
+    assert.deepEqual(f.ops(), [], state);
+  }
+});

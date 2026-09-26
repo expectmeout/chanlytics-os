@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { read, workspace } from "@/server/route";
-import { openingsFor } from "@/server/ask/openings";
+import { load, readerContext } from "@/server/readers";
+import { openings } from "@/server/readers/openings";
 
 const Query = z.object({
   day: z.string().optional(),
@@ -13,7 +14,8 @@ const Query = z.object({
  * The palette's fast path for "what's open Saturday": the same computation
  * the phone receptionist's availability tool runs, answered from the
  * connected calendar in the business's own zone. Counted with the other
- * aggregate reads.
+ * aggregate reads. The body is its reader's (readers/openings.ts), which
+ * Ask's get_openings reads too.
  */
 export const GET = read({
   scope: workspace,
@@ -22,6 +24,6 @@ export const GET = read({
   handle: async ({ ctx, member, input }) => {
     const day = (input.day ?? "").trim().slice(0, 20) || null;
     const service = (input.service ?? "").trim().slice(0, 160) || null;
-    return { openings: await openingsFor(ctx, member.tenantId, { day, service }) };
+    return (await load(readerContext(ctx, member), openings, { day, service })).data;
   },
 });

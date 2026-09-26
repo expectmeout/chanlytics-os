@@ -16,6 +16,8 @@ import {
   DECISION_VERBS,
   PLAYBOOK_BREATH_MS,
   PLAYBOOK_TRIGGERS,
+  MOMENT_TRIGGERS,
+  REACH_OUT_IS_NOT_A_MOMENT,
   PLAYBOOK_VETO_DELAY_MS,
   eligibleForPlaybook,
   localDate,
@@ -128,9 +130,9 @@ test("the reminder's words are relative to the moment it goes: tomorrow, today, 
   );
 });
 
-test("nine triggers: People's lists and a cadence, two the calendar makes possible, Lapsed, one of the workspace's own lists, and a proposal waiting, each under one of the four autonomy rows", () => {
+test("nine moments: People's lists and a cadence, two the calendar makes possible, Lapsed, one of the workspace's own lists, and a proposal waiting, each under one of the four autonomy rows; and a reach-out's two steps, which are no moment", () => {
   assert.deepEqual(
-    PLAYBOOK_TRIGGERS.map((t) => t.id),
+    MOMENT_TRIGGERS.map((t) => t.id),
     [
       "quiet_30",
       "new_week",
@@ -142,6 +144,14 @@ test("nine triggers: People's lists and a cadence, two the calendar makes possib
       "saved_list",
       "proposal_waiting",
     ],
+  );
+  assert.deepEqual(
+    PLAYBOOK_TRIGGERS.filter((t) => !MOMENT_TRIGGERS.includes(t)).map((t) => [t.id, t.kind, t.cls]),
+    [
+      ["lead_first", "reach_out", "outreach"],
+      ["after_step", "reach_out", "outreach"],
+    ],
+    "the closed set the schema pins (Exactly) holds them, and nothing that counts moments reads them",
   );
   assert.deepEqual(
     [triggerOf("proposal_waiting").kind, triggerOf("proposal_waiting").cls, triggerOf("proposal_waiting").list],
@@ -509,10 +519,8 @@ test("Ask knows playbooks: read as the page shows them, proposed as a card, comm
     tools.includes('name: "list_playbooks"') &&
       /case "list_playbooks":\s*out = await listPlaybooksTool\(t\);\s*break;/.test(tools),
   );
-  assert.ok(
-    tools.includes("listPlaybooks(t.ctx, t.tenantId)") && tools.includes("nextRunLabel(p, facts.timezone, t.now)"),
-    "the same rows and words as the page",
-  );
+  // The same rows, next-run words and counts as the page: list_playbooks runs against the page's own read in
+  // ask-turn.test.mjs.
   assert.ok(tools.includes("Nothing here has run because you read it."));
   const pr = readCode("apps/dashboard/src/server/ask/proposals.ts");
   assert.ok(
@@ -676,17 +684,23 @@ test("a proposal follow-up (0006): the proposal waiting past the pace, with its 
 test("offered here (0006): a proposal's moment and its Autonomy class only where deals are on, every other everywhere", () => {
   assert.deepEqual(
     PLAYBOOK_TRIGGERS.filter((t) => !triggerOffered(t, false)).map((t) => t.id),
-    ["proposal_waiting"],
+    ["proposal_waiting", "lead_first", "after_step"],
   );
-  assert.ok(PLAYBOOK_TRIGGERS.every((t) => triggerOffered(t, true)));
+  assert.deepEqual(
+    PLAYBOOK_TRIGGERS.filter((t) => !triggerOffered(t, true)).map((t) => t.id),
+    ["lead_first", "after_step"],
+    "a reach-out's steps are never offered among the moments: its own sheet makes them (Part 4)",
+  );
+  assert.match(REACH_OUT_IS_NOT_A_MOMENT, /own sheet/);
   assert.deepEqual(
     POLICY_CLASSES.filter((c) => !policyClassOffered(c, false)),
-    ["follow_up"],
+    ["follow_up", "outreach"],
     "a salon's Autonomy: seven rows",
   );
-  assert.ok(
-    POLICY_CLASSES.every((c) => policyClassOffered(c, true)),
-    "deals on: all eight",
+  assert.deepEqual(
+    POLICY_CLASSES.filter((c) => !policyClassOffered(c, true)),
+    ["outreach"],
+    "deals on: eight rows; the reach-outs' row waits for the reach-out sheet (Part 4)",
   );
   assert.ok(
     FOLLOW_UP_NEEDS_DEALS.includes("Settings › Business") &&
@@ -782,4 +796,17 @@ test("where one person stands with the follow-up (0006): by its run's own rules,
   assert.equal(followUpRunAt({ run_hour: 9, last_run_for: null }, tz, halfPast, halfPast), at("2026-09-09T13:05:00Z"));
   const late = at("2026-09-09T01:30:00Z"); // half past nine at night
   assert.equal(followUpRunAt({ run_hour: 9, last_run_for: null }, tz, late, late), at("2026-09-09T13:05:00Z"));
+});
+
+test("a reach-out's step reaches nobody among People: its run is its own, and it never falls through to everyone (Reach out, Part 3)", () => {
+  for (const trigger of ["lead_first", "after_step"]) {
+    const drawn = playbookRunReach(
+      [person("a"), person("b")],
+      { trigger, policy_class: "outreach", cap_per_run: 25, gap_days: 90, cadence_days: 30 },
+      noTouch,
+      NOW,
+      null,
+    );
+    assert.deepEqual([drawn.eligible, drawn.reach.pool], [[], 0], trigger);
+  }
 });

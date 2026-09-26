@@ -158,6 +158,7 @@ const person = (id, over = {}) => ({
 const playbook = (tenant, id, over = {}) => ({
   id,
   tenant_id: tenant,
+  kind: "moment",
   name: "Win-back",
   trigger: "quiet_30",
   template_id: "tpl-winback",
@@ -721,4 +722,13 @@ test("a proposal is followed up once, whoever sent it (0006): not again after th
   const [status, body] = await answer(await knock(press));
   assert.equal(status, 200, JSON.stringify(body));
   assert.deepEqual([body.outcome, body.eligible], ["sent", 1], "reached: nothing was sent to them");
+});
+
+test("Run now is a moment's: a reach-out step runs through its own verb on its day, and the press is refused before anything is read (Reach out, Part 3)", async () => {
+  const w = world({ people: { [A]: [person("a1")] } });
+  workspace(w.tables, A, "auto");
+  w.tables.playbooks.push(playbook(A, P, { kind: "reach_out", trigger: "lead_first", policy_class: "outreach" }));
+  const [status, body] = await answer(await knock(press));
+  assert.deepEqual([status, body], [409, { ok: false, error: "reach_out" }]);
+  assert.deepEqual(w.tables.broadcasts ?? [], [], "no run was made");
 });

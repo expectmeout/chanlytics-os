@@ -7,7 +7,7 @@ import {
   PLAYBOOK_TOUCH_WINDOW_MS,
   playbookRunStop,
   purposeOfTemplate,
-  PLAYBOOK_TRIGGERS,
+  MOMENT_TRIGGERS,
   consultFirstOf,
   poolListContext,
   poolRowsOf,
@@ -39,11 +39,12 @@ import {
 } from "@chanlytics/db";
 import type { RouteContext } from "@/server/with-route";
 import { listRuns } from "@/server/broadcasts";
-import { peopleVisits } from "@/server/calendar";
+import { peopleVisits, type ZoneAndSettings } from "@/server/calendar";
 import { archivedListWords } from "@/server/audience";
 import { createBroadcastPorts, templateValuePorts } from "@/server/campaign-ports";
 import { everyone } from "@/server/people";
 import { sellsByOf } from "@/server/deals";
+import { lazily, type Lazy } from "@/server/lazy";
 
 /**
  * Playbooks, read and checked.
@@ -258,6 +259,12 @@ export async function triggerPools(
    * pace where they are on, and reaches nobody where they are off, as its run does (0006).
    */
   deals: { on: boolean; pace: Pick<DealPaceVM, "waitDays"> | null },
+  /**
+   * What the caller already holds this turn, or how to read it from the turn (readers/playbooks.ts): everyone in People
+   * (readers/everyone.ts, which the audience pool shares), read just where the pools read their own; and the calendar's
+   * zone and settings, which the visits' lookup then reads neither of. Without them, each is read here.
+   */
+  from: { people?: Lazy<PersonRowDto[]>; known?: ZoneAndSettings } = {},
 ): Promise<{
   pools: Record<string, TriggerPool | null>;
   calendar: "ok" | "unavailable" | "none";
@@ -275,20 +282,20 @@ export async function triggerPools(
   // offered the QR for a yes nobody knew was missing.
   let rows: PersonRowDto[];
   try {
-    rows = await everyone(ctx, tenantId);
+    rows = await (from.people === undefined ? everyone(ctx, tenantId) : lazily(from.people));
   } catch (e) {
     console.error(
       "playbook_pools_people_failed",
       JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
     );
     return {
-      pools: Object.fromEntries(PLAYBOOK_TRIGGERS.map((t) => [t.id, null])),
+      pools: Object.fromEntries(MOMENT_TRIGGERS.map((t) => [t.id, null])),
       calendar: "none",
       lists: null,
       people: [],
     };
   }
-  const pv = await peopleVisits(ctx, tenantId, rows, now).catch((e: unknown) => {
+  const pv = await peopleVisits(ctx, tenantId, rows, now, from.known).catch((e: unknown) => {
     console.error(
       "playbook_pools_visits_failed",
       JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
@@ -342,7 +349,7 @@ export async function triggerPools(
       saidYes,
     };
   };
-  for (const t of PLAYBOOK_TRIGGERS) {
+  for (const t of MOMENT_TRIGGERS) {
     // A moment the calendar names (a visit, or the Lapsed list) is not counted when the calendar could not be read;
     // one of the workspace's lists is counted per list, below.
     if (t.kind === "saved" || ((t.kind === "visit" || t.id === "lapsed") && !pv)) {
@@ -400,8 +407,11 @@ export async function triggerPools(
 export type PlaybookListRow = PlaybookDto & { totals: PlaybookTotals };
 
 export async function listPlaybooks(ctx: RouteContext, tenantId: string): Promise<PlaybookListRow[]> {
-  const read = (columns: string) =>
-    ctx.supabase.from("playbooks").select(columns).eq("tenant_id", tenantId).order("created_at", { ascending: false });
+  // The moments. A reach-out's steps are its own sheet's (Reach out, Part 4), never cards here.
+  const read = (columns: string, moments = true) => {
+    const q = ctx.supabase.from("playbooks").select(columns).eq("tenant_id", tenantId);
+    return (moments ? q.eq("kind", "moment") : q).order("created_at", { ascending: false });
+  };
   const [first, runs] = await Promise.all([read(COLUMNS), listRuns(ctx, tenantId)]);
   // A database 00168 has not reached has no list_key, and one 00155 has not reached no list_id: read again without
   // them, and no playbook runs on a People list (or on any list).
@@ -411,13 +421,20 @@ export async function listPlaybooks(ctx: RouteContext, tenantId: string): Promis
   };
   const missing = (col: string) =>
     !!error && new RegExp(col).test(error.message) && /does not exist|could not find/i.test(error.message);
+  // A database 00183 has not reached has no kind, and every playbook there is a moment.
+  const moments = !missing("kind");
+  if (!moments)
+    ({ data: rows, error } = (await read(COLUMNS, false)) as unknown as {
+      data: Record<string, unknown>[] | null;
+      error: { message: string } | null;
+    });
   if (missing("list_key"))
-    ({ data: rows, error } = (await read(COLUMNS.replace("list_key, ", ""))) as unknown as {
+    ({ data: rows, error } = (await read(COLUMNS.replace("list_key, ", ""), moments)) as unknown as {
       data: Record<string, unknown>[] | null;
       error: { message: string } | null;
     });
   if (missing("list_id"))
-    ({ data: rows, error } = (await read(COLUMNS.replace("list_id, list_key, ", ""))) as unknown as {
+    ({ data: rows, error } = (await read(COLUMNS.replace("list_id, list_key, ", ""), moments)) as unknown as {
       data: Record<string, unknown>[] | null;
       error: { message: string } | null;
     });

@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { isRetryableAuthError } from "@/server/auth-errors";
 import { contentSecurityPolicy, CSP_HEADER } from "@/csp";
+import { linkHostAnswers, linkHostOf } from "@/link-host";
 import { writeAuthCookies } from "@/server/auth-cookies";
 
 /**
@@ -106,6 +107,10 @@ function canonicalRedirect(request: NextRequest): NextResponse | null {
 }
 
 export async function proxy(request: NextRequest) {
+  // On the cold link host (D17) the unsubscribe page and nothing else: never a sign-in form on a domain cold mail names.
+  const linkHost = linkHostOf(process.env.UNSUBSCRIBE_ORIGIN);
+  if (!linkHostAnswers({ host: request.headers.get("host"), path: request.nextUrl.pathname, linkHost }))
+    return new NextResponse("Not found", { status: 404 });
   const moved = canonicalRedirect(request);
   if (moved) return moved;
   // The policy composed in src/csp.ts, on the response so the browser

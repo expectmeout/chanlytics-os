@@ -29,8 +29,12 @@ import { pageOperator } from "../../lib/ops/page-operator.js";
 import { logger } from "../../lib/log.js";
 import { chooseSweepAlerts, describeSweepTrouble, type SweepHealthRow } from "../../lib/ops/sweep-health.js";
 import { whatsappWithoutReceipts, describeSilentReceipts } from "../../lib/whatsapp/receipts-watch.js";
-import { checkMailDomain, describeMailDomainTrouble } from "../../lib/email/mail-domain.js";
-import { emailDomain } from "../../lib/email/email.js";
+import {
+  checkMailDomain,
+  describeColdReplyDomainTrouble,
+  describeMailDomainTrouble,
+} from "../../lib/email/mail-domain.js";
+import { coldReplyDomains, emailDomain } from "../../lib/email/email.js";
 import { env } from "../../lib/env.js";
 
 export async function POST(request: Request): Promise<Response> {
@@ -126,6 +130,19 @@ export async function POST(request: Request): Promise<Response> {
     const page = describeMailDomainTrouble(mail.trouble, mailDomain);
     await pageOperator({ db }, "mail_domain", page.subject, page.body);
   }
+  // And each cold reply domain (D17), which must receive as the mail domain does: every cold email's Reply-To is on
+  // one, and a reply dropped there is a "no thanks" nobody reads. Received on the platform's account, so asked with
+  // its key; sending switched off there is no trouble.
+  const coldTrouble: string[] = [];
+  for (const cold of coldReplyDomains()) {
+    const c = await checkMailDomain({ domain: cold, apiKey: env.RESEND_API_KEY, receiveOnly: true });
+    if (c.error) L.error("cold_reply_domain_unreadable", { domain: cold, error: c.error });
+    if (c.trouble) {
+      coldTrouble.push(cold);
+      const page = describeColdReplyDomainTrouble(c.trouble, cold);
+      await pageOperator({ db }, `cold_reply_domain:${cold}`, page.subject, page.body);
+    }
+  }
 
   L.info("sweep_health_checked", {
     broken: plan.broken.length,
@@ -133,6 +150,7 @@ export async function POST(request: Request): Promise<Response> {
     recovered: plan.recovered.length,
     unreceipted,
     mail_domain: mail.trouble?.kind ?? mail.skipped ?? (mail.error ? "unreadable" : "ok"),
+    cold_reply_trouble: coldTrouble,
   });
 
   // ALWAYS 200, even when a sweep is broken. This route's own response is

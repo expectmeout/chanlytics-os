@@ -31,6 +31,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../packages/db.js";
+import { isCampaignEmail } from "../packages/contracts.js";
 import type { EscalationOutcome } from "../packages/jobs.js";
 import type { logger } from "../log.js";
 import type { notify as notifyFn, reachesTenant as reachesFn, NotifyTarget, NotifyMessage } from "../ops/notify.js";
@@ -108,6 +109,7 @@ interface QueuedRow {
   conversation_id: string | null;
   sender: string | null;
   created_at: string;
+  meta: { email?: { request?: unknown } } | null;
 }
 
 const iso = (ms: number) => new Date(ms).toISOString();
@@ -195,7 +197,7 @@ export async function sweepUnfinished(p: UnfinishedPorts): Promise<UnfinishedSum
   // 2. A queued reply nothing is sending.
   const { data: queued, error: qErr } = await p.db
     .from("messages")
-    .select("id, tenant_id, conversation_id, sender, created_at")
+    .select("id, tenant_id, conversation_id, sender, created_at, meta")
     .eq("status", "queued")
     .gt("created_at", iso(now - LOOKBACK_MS))
     .lt("created_at", iso(now - ORPHAN_QUEUED_AFTER_MS))
@@ -230,7 +232,9 @@ export async function sweepUnfinished(p: UnfinishedPorts): Promise<UnfinishedSum
         if (error) throw new Error(error.message);
         if (!changed?.length) continue; // another tick, or the send itself, got there first
         out.orphaned += 1;
-        if (s.conversation_id) {
+        // A campaign's email (a reach-out's) is its run's to count: the clock plans it again (orphaned never left), and
+        // no thread nobody wrote on is flagged, nor its owner told (Reach out D4, contracts isCampaignEmail).
+        if (s.conversation_id && !isCampaignEmail(s.meta?.email?.request)) {
           const who = s.sender === "ai" ? "The receptionist's reply" : "A reply";
           await p.upsertEscalation(
             p.db,

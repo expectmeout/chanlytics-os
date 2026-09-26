@@ -26,6 +26,12 @@ import {
   EVERYONE_LABEL,
   NO_NUMBER_REACH,
   noNumberWords,
+  toPersonVM,
+  toPersonRowVM,
+  nextRunLabel,
+  toReportVM,
+  toBookingReportVM,
+  toDealReportVM,
 } from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -43,7 +49,12 @@ const { workspaceFacts, stableSystem, ASK_RULES, ASK_EXAMPLES } = await import(
   at("apps/dashboard/src/server/ask/prompt.ts")
 );
 const { GatewayRefused } = await import(at("apps/dashboard/src/server/ask/gateway.ts"));
-const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
+const { readerCache, readerContext, load } = await import(at("apps/dashboard/src/server/readers/index.ts"));
+const workspaceReads = await import(at("apps/dashboard/src/server/readers/facts.ts"));
+const { report: reportReader } = await import(at("apps/dashboard/src/server/readers/report.ts"));
+const personRoute = await import(at("apps/dashboard/app/api/v1/contacts/[id]/route.ts"));
+const templatesRoute = await import(at("apps/dashboard/app/api/v1/templates/route.ts"));
+const { playbooks: playbooksReader } = await import(at("apps/dashboard/src/server/readers/playbooks.ts"));
 // The workspace's facts are kept across turns in the module: each test starts with none kept.
 beforeEach(() => readerCache.clear());
 
@@ -1777,6 +1788,299 @@ test("get_calendar reads the people it names: a person on the calendar enters th
   }
 });
 
+test("get_calendar reads the board as its page reads it (ledger #11): with no day asked, the page's own week from its Monday, not today alone, or as many days from that Monday as were asked for; a day asked is that day, as before; the zone and the settings the turn already read are not read again; and nothing is written, even for an owner whose calendar names someone People does not hold", async () => {
+  const { forgetFeeds } = await import(at("apps/dashboard/src/server/ask/openings.ts"));
+  const ICS = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//test//EN",
+    "BEGIN:VEVENT",
+    "UID:w1",
+    "DTSTART:20260916T190000Z",
+    "DTEND:20260916T200000Z",
+    "SUMMARY:Estimate",
+    "DESCRIPTION:Call +15555550199 first",
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ].join("\r\n");
+  const base = tables();
+  const t = tables({
+    tenant_config: [
+      {
+        ...base.tenant_config[0],
+        config: { ...base.tenant_config[0].config, calendar: { ical_url: "https://calendar.example/harbor.ics" } },
+      },
+    ],
+  });
+  // A Wednesday at 10:00 in New York: this week's Monday is two days back.
+  const WEDNESDAY = new Date("2026-09-16T14:00:00Z");
+  const fetchWas = globalThis.fetch;
+  globalThis.fetch = async () => new Response(ICS, { status: 200, headers: { "content-type": "text/calendar" } });
+  try {
+    forgetFeeds();
+    const made = [];
+    const ctx = ctxFor(t, {
+      ...RPCS,
+      create_person: (a) => {
+        made.push(a);
+        return { contact_id: "p-new", existed: false };
+      },
+    });
+    // The Ask route reads the workspace's facts, config, policies and sells_by through the turn's readers first.
+    const rc = readerContext(ctx, { tenantId: A, role: "owner" }, WEDNESDAY);
+    await Promise.all(
+      [workspaceReads.facts, workspaceReads.config, workspaceReads.policies, workspaceReads.sellsBy].map((r) =>
+        load(rc, r, undefined),
+      ),
+    );
+    const before = ctx.supabase.seen.length;
+    const tc = newToolContext(ctx, A, "owner", TZ, WEDNESDAY, rc);
+    const week = await runTool(tc, { name: "get_calendar", input: { day: "" } });
+    assert.equal(week.isError, false, week.result);
+    const read = JSON.parse(week.result);
+    assert.deepEqual(
+      read.days.map((d) => d.day),
+      ["2026-09-14", "2026-09-15", "2026-09-16", "2026-09-17", "2026-09-18", "2026-09-19", "2026-09-20"],
+      "the week from its Monday, as the Calendar page opens",
+    );
+    assert.deepEqual(
+      read.days.find((d) => d.day === "2026-09-16").taken.map((b) => [b.title, b.person]),
+      [["Estimate", null]],
+      "the appointment, naming nobody People holds",
+    );
+    assert.deepEqual(
+      ctx.supabase.seen.slice(before).map((q) => (q.rpc ? `rpc:${q.rpc}` : `${q.table}.${q.op}`)),
+      ["rpc:people_list", "policies.select"],
+      "everyone to match the appointments to, and nothing the turn already read: no tenants, no tenant_config",
+    );
+    assert.deepEqual(made, [], "nobody put in People: Ask never writes");
+    assert.ok(
+      !ctx.supabase.seen.some(
+        (q) => q.rpc === "create_person" || ["insert", "update", "upsert", "delete"].includes(q.op),
+      ),
+    );
+    const threeDays = await runTool(tc, { name: "get_calendar", input: { days: 3 } });
+    assert.deepEqual(
+      JSON.parse(threeDays.result).days.map((d) => d.day),
+      ["2026-09-14", "2026-09-15", "2026-09-16"],
+      "days without a day: that many from the page's Monday",
+    );
+    const tomorrow = await runTool(tc, { name: "get_calendar", input: { day: "tomorrow" } });
+    assert.deepEqual(
+      JSON.parse(tomorrow.result).days.map((d) => d.day),
+      ["2026-09-17"],
+      "a day asked is that day",
+    );
+    assert.equal(
+      ctx.supabase.seen.slice(before).filter((q) => q.table === "tenants" || q.table === "tenant_config").length,
+      0,
+      "the tenant and its settings are the turn's: read by the route before any tool, and never again",
+    );
+  } finally {
+    globalThis.fetch = fetchWas;
+    forgetFeeds();
+  }
+});
+
+test("get_openings is the palette's own read (ledger #13): the service asked for is cut where the route cuts it, at 160, so a question that names the service past its eightieth character still reaches it; the zone and the settings the turn already read are not read again", async () => {
+  const base = tables();
+  const profile = {
+    ...base.tenant_config[0].config.brain.profile,
+    services: [{ name: "Moving estimate", duration_min: 60 }],
+  };
+  const t = tables({
+    tenant_config: [
+      {
+        ...base.tenant_config[0],
+        config: { ...base.tenant_config[0].config, brain: { ...base.tenant_config[0].config.brain, profile } },
+      },
+    ],
+  });
+  const asked =
+    "Please look for any free time later this week, or else early next week if you can, for a moving estimate";
+  assert.ok(asked.toLowerCase().indexOf("moving estimate") >= 80, "the service is named past the eightieth character");
+  const ctx = ctxFor(t);
+  // The Ask route reads the workspace's facts, config, policies and sells_by through the turn's readers first.
+  const rc = readerContext(ctx, { tenantId: A, role: "operator" }, NOW);
+  await Promise.all(
+    [workspaceReads.facts, workspaceReads.config, workspaceReads.policies, workspaceReads.sellsBy].map((r) =>
+      load(rc, r, undefined),
+    ),
+  );
+  const before = ctx.supabase.seen.length;
+  const tc = newToolContext(ctx, A, "operator", TZ, NOW, rc);
+  const out = await runTool(tc, { name: "get_openings", input: { day: "", service: asked } });
+  assert.equal(out.isError, false, out.result);
+  const read = JSON.parse(out.result);
+  assert.equal(read.service, "Moving estimate", "cut at 80, the question named no service at all");
+  assert.equal(read.state, "no_calendar");
+  assert.deepEqual(
+    ctx.supabase.seen.slice(before),
+    [],
+    "nothing read: the zone and the settings were the turn's, and no calendar is connected",
+  );
+});
+
+test("get_report reads what the Reports page reads (ledger #1): the series, then the booking line and the deals beside it, once a turn, with the calendar's zone and settings and how the workspace's customers buy taken from the turn; the booking line and the Deals section in the page's own words beside the numbers it gave before", async () => {
+  const { forgetFeeds } = await import(at("apps/dashboard/src/server/ask/openings.ts"));
+  const DAY = 86_400_000;
+  const CLIENT = "cccccccc-cccc-4ccc-8ccc-cccccccccc01";
+  // The booking line and the deals count by the server's clock, as the page's own route does.
+  const now = Date.now();
+  const key = (ms) => new Date(ms).toISOString().slice(0, 10);
+  const quiet = {
+    messages_in: 0,
+    conversations: 0,
+    answered_ai: 0,
+    answered_you: 0,
+    unanswered: 0,
+    out_ai: 0,
+    out_you: 0,
+    escalations: 0,
+    calls: 0,
+    call_seconds: 0,
+    new_contacts: 0,
+  };
+  /** report_series for `days`: two periods of quiet days, the newest today. */
+  const series = (days) => ({
+    timezone: TZ,
+    days,
+    span_days: days * 2,
+    today: key(now),
+    series: Array.from({ length: days * 2 }, (_, i) => ({ day: key(now - (days * 2 - 1 - i) * DAY), ...quiet })),
+    reasons: {},
+    reply_seconds: [],
+    sentiments: {},
+    voicemail: 0,
+  });
+  const ics = (ms) =>
+    new Date(ms)
+      .toISOString()
+      .replace(/[-:]/g, "")
+      .replace(/\.\d{3}/, "");
+  // Rosa wrote yesterday and has a visit the day after tomorrow; she became a client, found as a lead, five days ago.
+  const ICS = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//test//EN",
+    "BEGIN:VEVENT",
+    "UID:r1",
+    `DTSTART:${ics(now + 2 * DAY)}`,
+    `DTEND:${ics(now + 2 * DAY + 3_600_000)}`,
+    "SUMMARY:Rosa · Estimate",
+    "DESCRIPTION:+15555550100",
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ].join("\r\n");
+  const rosa = {
+    id: CLIENT,
+    display_name: "Rosa",
+    wa_profile_name: null,
+    phone_e164: "+15555550100",
+    email: null,
+    came_from: "lead",
+    last_inbound_at: new Date(now - DAY).toISOString(),
+  };
+  const won = {
+    id: "dddddddd-dddd-4ddd-8ddd-dddddddddd01",
+    tenant_id: A,
+    contact_id: CLIENT,
+    stage: "won",
+    proposed_at: new Date(now - 5 * DAY).toISOString(),
+    decided_at: null,
+    amount_cents: 250_000,
+    per: "month",
+    currency: "usd",
+    lost_reason: null,
+  };
+  const base = tables();
+  const world = (calendar, sellsBy = "proposal") =>
+    tables({
+      tenants: [{ id: A, name: "Harbor", timezone: TZ, sells_by: sellsBy }],
+      tenant_config: [
+        {
+          ...base.tenant_config[0],
+          config: {
+            ...base.tenant_config[0].config,
+            ...(calendar ? { calendar: { ical_url: "https://calendar.example/harbor.ics" } } : {}),
+          },
+        },
+      ],
+      deals: [won],
+    });
+  const rpcs = { ...RPCS, report_series: (a) => series(a.p_days), people_list: () => [rosa] };
+  /** A turn over `t` with the Ask route's own reads made first, and get_report run in it: its answer and what it asked. */
+  const turnOver = async (t) => {
+    const ctx = ctxFor(t, rpcs);
+    const rc = readerContext(ctx, { tenantId: A, role: "operator" }, NOW);
+    await Promise.all(
+      [workspaceReads.facts, workspaceReads.config, workspaceReads.policies, workspaceReads.sellsBy].map((r) =>
+        load(rc, r, undefined),
+      ),
+    );
+    const before = ctx.supabase.seen.length;
+    const out = await runTool(newToolContext(ctx, A, "operator", TZ, NOW, rc), {
+      name: "get_report",
+      input: { days: 7 },
+    });
+    assert.equal(out.isError, false, out.result);
+    const asked = ctx.supabase.seen.slice(before).map((q) => (q.rpc ? `rpc:${q.rpc}` : `${q.table}.${q.op}`));
+    return { read: JSON.parse(out.result), asked, rc, ctx };
+  };
+  const fetchWas = globalThis.fetch;
+  globalThis.fetch = async () => new Response(ICS, { status: 200, headers: { "content-type": "text/calendar" } });
+  try {
+    forgetFeeds();
+    const { read, asked, rc, ctx } = await turnOver(world(true));
+    assert.deepEqual(asked, [
+      "rpc:report_series",
+      // Everyone, once, for the booking line and the deals alike.
+      "rpc:people_list",
+      "policies.select",
+      // The calendar's zone and settings for the booking line, and how the workspace's customers buy, are the
+      // turn's: none read again. The deals.
+      "deals.select",
+    ]);
+    assert.equal(
+      asked.filter((x) => x === "tenants.select" || x === "tenant_config.select").length,
+      0,
+      "the tenant and its settings: the turn's, never read again",
+    );
+    // The page's own builders over the page's own payload, as the bridge applies them; the same read, once a turn.
+    const page = (await load(rc, reportReader, { days: 7 })).data;
+    assert.equal(ctx.supabase.seen.filter((q) => q.rpc === "report_series").length, 1, "read once a turn");
+    const vm = toReportVM(page.report);
+    const booking = toBookingReportVM(page.booking);
+    const deals = toDealReportVM(page.deals, vm.rangeLabel);
+    assert.equal(read.range, vm.rangeLabel);
+    assert.deepEqual(
+      read.tiles,
+      vm.tiles.map((x) => ({ label: x.label, value: x.value, meta: x.meta, change: x.delta?.text ?? null })),
+      "the numbers it gave before, from the same builder",
+    );
+    assert.equal(read.booking, booking.headline);
+    assert.equal(read.booking, "1 of 1 booked", "Rosa wrote, and has a visit on the calendar");
+    assert.deepEqual(read.deals, {
+      headline: deals.headline,
+      outcomes: deals.outcomes.rows.map((o) => `${o.label}: ${o.value}`),
+      lines: deals.lines.map((l) => l.text),
+      stock: deals.stock,
+    });
+    assert.equal(read.deals.stock, "1 client now · $2,500 a month.");
+    assert.ok(read.deals.lines.includes("Your new client came from Leads."), read.deals.lines.join(" | "));
+  } finally {
+    globalThis.fetch = fetchWas;
+    forgetFeeds();
+  }
+  // No calendar: the line says why there is nothing to count, in the page's words.
+  const bare = await turnOver(world(false));
+  assert.equal(bare.read.booking, "Connect your calendar under Settings › Business to see who booked.");
+  // Where the workspace's customers book, the page draws no Deals section, and the deals are not even read.
+  const booked = await turnOver(world(false, "booking"));
+  assert.equal(booked.read.deals, null);
+  assert.ok(!booked.asked.includes("deals.select"));
+});
+
 test("REGRESSION: list_playbooks tells who said yes from who a run can reach -- 'said_yes_now' was the reach, so a moment whose yes had no number read as nobody's", async () => {
   const tc = newToolContext(ctxFor(tables(), { ...RPCS, people_list: () => threeAnswers() }), A, "owner", TZ, NOW);
   const out = await runTool(tc, { name: "list_playbooks", input: {} });
@@ -2068,6 +2372,352 @@ test("the day is read once a turn, each tool as its page reads it: get_today, li
     out["t-list_calls"].calls.map((x) => [x.call_id, x.outcome]),
     [[morning[44].id, "missed"]],
     "the forty-fifth call is read, as the Calls page reads a hundred",
+  );
+});
+
+test("get_thread and get_call read through the readers (ledger #5): the thread as its page reads it, its messages with their wire and their attachment, so a text thread's window is the text's rule and it says Text, and an email thread says Email; the open escalation is the one the Inbox shows, the oldest; the row once and the messages once in the turn; the call under the workspace's own filter; another workspace's thread or call is an error, never a row", async () => {
+  const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  const C3 = "cccccccc-cccc-4ccc-8ccc-ccccccccccc3";
+  const C4 = "cccccccc-cccc-4ccc-8ccc-ccccccccccc4";
+  const C5 = "cccccccc-cccc-4ccc-8ccc-ccccccccccc5";
+  const K3 = "cccccccc-cccc-4ccc-8ccc-ccccccccccc7";
+  const M3 = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee3";
+  const M4 = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee4";
+  const M6 = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee6";
+  const M9 = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee9";
+  const NEWER = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee7";
+  const OLDER = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee8";
+  const H = 3600_000;
+  const earlier = (ms) => iso(NOW.getTime() - ms);
+  // A text thread whose WhatsApp window, read from last_wa_inbound_at, closed a day ago: a text has no window.
+  const texting = conversation(C2, { last_wa_inbound_at: earlier(48 * H), last_message_at: earlier(46 * H) });
+  const texted = [
+    message(M2, C2, {
+      sender: "customer",
+      channel: "sms",
+      body: "Can I come at five?",
+      created_at: earlier(47 * H),
+      channel_ts: earlier(47 * H),
+    }),
+    message(M3, C2, {
+      sender: "customer",
+      channel: "sms",
+      type: "media",
+      body: null,
+      media: {
+        mime_type: "image/jpeg",
+        fetch_state: "stored",
+        caption: "this one",
+        filename: null,
+        storage_path: "t/c/m.jpg",
+      },
+      created_at: earlier(46 * H),
+      channel_ts: earlier(46 * H),
+    }),
+  ];
+  const escalation = (id, reason, ago) => ({
+    id,
+    tenant_id: A,
+    conversation_id: C2,
+    reason,
+    details: null,
+    state: "open",
+    created_at: earlier(ago),
+  });
+  const t = tables({
+    conversations: [
+      conversation(C1),
+      texting,
+      conversation(C3, { last_wa_inbound_at: null }),
+      conversation(C4, { tenant_id: B }),
+      conversation(C5, {
+        last_wa_inbound_at: null,
+        contacts: { ...contact, display_name: null, phone_e164: null, email: "rosa@example.com" },
+      }),
+    ],
+    messages: [
+      message(M1, C1),
+      ...texted,
+      message(M4, C3, { sender: "customer", channel: "email", body: "Hello" }),
+      message(M6, C4, { tenant_id: B }),
+      message(M9, C5, { sender: "customer", channel: "email", body: "Is Saturday free?" }),
+    ],
+    escalations: [escalation(NEWER, "manual", H), escalation(OLDER, "human_token", 40 * H)],
+    calls: [call(K1), call(K3, { tenant_id: B, retell_call_id: "r3" })],
+  });
+
+  const ctx = ctxFor(t);
+  const s = scripted([
+    ROUND([tool("get_thread", { conversation_id: C2 }, "t-text"), tool("get_call", { call_id: K1 }, "t-call")]),
+    ROUND([answer("Rosa texted a photo, and the text can be answered now.")]),
+  ]);
+  const { input } = turn(ctx);
+  const r = await runAskTurn(input, ports(s.round));
+  assert.equal(r.failed, false, r.failure ?? "");
+  const selects = (table) => ctx.supabase.seen.filter((q) => q.table === table && q.op === "select");
+  assert.deepEqual(
+    ["conversations", "messages", "escalations", "calls"].map((x) => selects(x).length),
+    [1, 1, 1, 1],
+    "the thread's row once, through the loader the page's scope uses; its messages once; the open escalations once; the call once",
+  );
+  assert.deepEqual(
+    selects("calls")[0].filters,
+    [
+      ["eq", "tenant_id", A],
+      ["eq", "id", K1],
+    ],
+    "the call under the workspace's own filter",
+  );
+  const out = Object.fromEntries(
+    s.requests[1].messages.at(-1).content.map((c) => [c.tool_use_id, JSON.parse(c.content)]),
+  );
+  const text = out["t-text"];
+  assert.deepEqual(
+    [text.channel, text.window_open],
+    ["Text", true],
+    "the messages carry their wire: a text has no window, where WhatsApp's rule read this thread closed and named it WhatsApp",
+  );
+  assert.deepEqual(
+    text.messages.map((m) => [m.from, m.text]),
+    [
+      ["customer", "Can I come at five?"],
+      ["customer", "Photo: this one"],
+    ],
+    "and their attachment: a photo with its caption, where it read as an unnamed attachment",
+  );
+  assert.deepEqual(
+    text.escalation,
+    { id: OLDER, reason: "Customer asked for a person", details: null },
+    "the open escalation the Inbox shows on the thread, the oldest, where it read the newest",
+  );
+  assert.deepEqual([out["t-call"].call_id, out["t-call"].who], [K1, "Rosa"]);
+
+  const tc = newToolContext(ctxFor(t), A, "operator", TZ, NOW);
+  const email = JSON.parse((await runTool(tc, { name: "get_thread", input: { conversation_id: C3 } })).result);
+  assert.deepEqual(
+    [email.channel, email.window_open],
+    ["Email", true],
+    "an email thread says Email, and an email may be answered whenever",
+  );
+  // A person reached only by email is their address, as the Inbox row names them and as this tool always said: the
+  // thread's own payload carries no email, and its view model alone would say "Unknown".
+  const byAddress = JSON.parse((await runTool(tc, { name: "get_thread", input: { conversation_id: C5 } })).result);
+  const inTheInbox = JSON.parse((await runTool(tc, { name: "list_threads", input: { filter: "recent" } })).result);
+  assert.deepEqual(
+    [byAddress.who, inTheInbox.threads.find((x) => x.conversation_id === C5).who],
+    ["rosa@example.com", "rosa@example.com"],
+  );
+
+  // Another workspace's thread and call, which RLS would show a member of both: not here, in the tools' own words, and
+  // not a read that failed.
+  const elsewhere = ctxFor(t);
+  const away = newToolContext(elsewhere, A, "operator", TZ, NOW);
+  const { result: refused, lines } = await logged("ask_tool_failed", async () => [
+    await runTool(away, { name: "get_thread", input: { conversation_id: C4 } }),
+    await runTool(away, { name: "get_call", input: { call_id: K3 } }),
+  ]);
+  assert.deepEqual(
+    refused.map((x) => [x.isError, JSON.parse(x.result)]),
+    [
+      [true, { error: "no such conversation in this workspace" }],
+      [true, { error: "no such call in this workspace" }],
+    ],
+  );
+  assert.deepEqual(lines, [], "a row that is not here is not a failed read");
+  assert.equal(elsewhere.supabase.seen.filter((q) => q.table === "messages").length, 0, "none of its messages is read");
+  assert.ok(
+    !away.read.thread.has(C4) && !away.read.conversation.has(C4) && !away.read.call.has(K3),
+    "nothing of another workspace enters the read set",
+  );
+});
+
+test("get_person is the person page's one read (ledger #3): the reader's one round, every read keyed on the person asked for at once and only their threads' own waiting for the ids; the config and sells_by the turn already read are not read again; read once a turn; the page's own view model over the page's payload, so the About rows and the timeline say what the profile says; another workspace's person is an error, never a row", async () => {
+  const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  const P2 = "abababab-abab-4aba-8aba-abababababa2";
+  const C3 = "cccccccc-cccc-4ccc-8ccc-ccccccccccc3";
+  const wrote = iso(NOW.getTime() - 3600_000);
+  const days = (n) => iso(NOW.getTime() - n * 86_400_000);
+  // Rosa as people_list answers her: one thread, one call.
+  const rosa = {
+    id: P1,
+    display_name: "Rosa",
+    wa_profile_name: null,
+    phone_e164: "+15555550100",
+    email: null,
+    consent: "opted_in",
+    consent_source: null,
+    consent_updated_at: null,
+    dnc: false,
+    channels: ["whatsapp"],
+    conversation_count: 1,
+    escalation_count: 0,
+    needs_human: false,
+    open_escalation_reason: null,
+    open_escalation_since: null,
+    latest_conversation_id: C1,
+    latest_state: "open",
+    latest_paused_until: null,
+    latest_assignee_user_id: null,
+    latest_snooze_until: null,
+    latest_wa_inbound_at: wrote,
+    last_message_at: wrote,
+    last_message_direction: "inbound",
+    last_message_sender: "customer",
+    last_inbound_text: "Are you open Saturday?",
+    last_inbound_at: wrote,
+    last_call_at: iso(NOW.getTime() - 7200_000),
+    call_count: 1,
+    call_seconds: 200,
+    first_contact_at: days(10),
+    earliest_row_at: days(10),
+    has_backfill: false,
+    has_chat: true,
+    queued_reply_at: null,
+  };
+  // Harbor's Rosa, and Bea, who is bayside's: people_list answers each for their own workspace alone.
+  const rpcs = {
+    ...RPCS,
+    people_list: (a) =>
+      a.p_tenant_id === A && a.p_contact_id === P1
+        ? [rosa]
+        : a.p_tenant_id === B && a.p_contact_id === P2
+          ? [{ ...rosa, id: P2, display_name: "Bea", latest_conversation_id: C3 }]
+          : [],
+  };
+  const t = tables({
+    contacts: [
+      { ...contact, tenant_id: A, erased_at: null },
+      { ...contact, id: P2, display_name: "Bea", tenant_id: B, erased_at: null },
+    ],
+    conversations: [
+      conversation(C1),
+      conversation(C3, { tenant_id: B, contact_id: P2, contacts: { ...contact, id: P2, display_name: "Bea" } }),
+    ],
+    contact_identities: [{ contact_id: P1, channel: "whatsapp", external_id: "15555550100", created_at: days(10) }],
+    // Where she came from, and a yes she gave: the profile says both; the tool's own read said neither.
+    events: [
+      {
+        tenant_id: A,
+        kind: "contact.added",
+        subject_type: "contact",
+        subject_id: P1,
+        data: { source: "calendar", title: "Local move" },
+        created_at: days(10),
+      },
+      {
+        id: "ev-1",
+        tenant_id: A,
+        kind: "contact.consent_changed",
+        subject_type: "contact",
+        subject_id: P1,
+        data: { consent: "opted_in", source: "customer_message", channel: "whatsapp", words: "START" },
+        created_at: days(5),
+      },
+    ],
+  });
+
+  // The Ask route reads the workspace's facts, config, policies and sells_by through the turn's readers first.
+  const ctx = ctxFor(t, rpcs);
+  const rc = readerContext(ctx, { tenantId: A, role: "operator" }, NOW);
+  await Promise.all(
+    [workspaceReads.facts, workspaceReads.config, workspaceReads.policies, workspaceReads.sellsBy].map((r) =>
+      load(rc, r, undefined),
+    ),
+  );
+  const before = ctx.supabase.seen.length;
+  const tc = newToolContext(ctx, A, "operator", TZ, NOW, rc);
+  const out = await runTool(tc, { name: "get_person", input: { contact_id: P1 } });
+  assert.equal(out.isError, false, out.result);
+  const seen = ctx.supabase.seen.slice(before);
+  const order = seen.map((q) => q.rpc ?? q.table);
+  const waited = order.indexOf("messages");
+  for (const read of [
+    "people_list",
+    "conversations",
+    "calls",
+    "policies",
+    "events",
+    "contacts",
+    "deals",
+    "contact_identities",
+    "leads",
+    "broadcast_recipients",
+    "person_notes",
+  ]) {
+    const asked = order.indexOf(read);
+    assert.ok(asked >= 0 && asked < waited, `REGRESSION: ${read} waited for another round (${order.join(", ")})`);
+  }
+  assert.deepEqual(
+    order.slice(waited),
+    ["messages", "escalations", "decisions"],
+    "only the threads' own reads wait, for their ids",
+  );
+  assert.deepEqual(
+    ["people_list", "policies", "events"].map((x) => order.filter((o) => o === x).length),
+    [1, 2, 2],
+    "the row once; both reply modes; where she came from, and her consent changes",
+  );
+  const columns = (table) => seen.filter((q) => q.table === table).map((q) => q.columns);
+  assert.deepEqual(
+    [columns("tenants"), columns("tenant_config")],
+    [["name, timezone"], ["config"]],
+    "the config and sells_by are the turn's; only the calendar's own lookup, which is not a reader, reads the zone and the config, as the page's read does",
+  );
+  const reads = ctx.supabase.seen.length;
+  await runTool(tc, { name: "get_person", input: { contact_id: P1 } });
+  assert.equal(ctx.supabase.seen.length, reads, "read once a turn: the second call is the first read");
+
+  // The page's own view model over the page's own payload: GET contacts/:id, then toPersonVM for the member looking, as
+  // the profile builds it (legacy-bridge/people-detail.ts).
+  const page = await personRoute.GET.run(new Request(`http://localhost/api/v1/contacts/${P1}?workspace=${A}`), {
+    ...ctxFor(t, rpcs),
+    params: { id: P1 },
+  });
+  const vm = toPersonVM(page.person, TZ, NOW, USER);
+  const said = JSON.parse(out.result);
+  assert.deepEqual(
+    said.about,
+    vm.about.map((a) => `${a.k}: ${a.v}`),
+    "the profile's About rows",
+  );
+  assert.deepEqual(
+    said.timeline,
+    vm.timeline
+      .slice(0, 20)
+      .map((i) => ({ day: i.day, time: i.time, kind: i.kind, who: i.who, text: i.text.slice(0, 240) })),
+    "the profile's timeline",
+  );
+  assert.deepEqual(said.right_now, { title: vm.rightNow.title, detail: vm.rightNow.detail });
+  assert.ok(
+    said.about.some((a) => /^Added: .* · from your calendar \(Local move\)$/.test(a)),
+    `where she came from, which the tool's own read never said: ${said.about}`,
+  );
+  assert.ok(
+    said.timeline.some((i) => i.kind === "system" && i.text === "Added from your calendar (Local move)") &&
+      said.timeline.some((i) => i.kind === "consent"),
+    "and on the timeline, with the yes she gave",
+  );
+  assert.deepEqual([said.conversations.map((c) => c.conversation_id), said.calls.map((c) => c.call_id)], [[C1], [K1]]);
+  assert.deepEqual(
+    [[...tc.read.person], [...tc.read.thread], [...tc.read.conversation], [...tc.read.call]],
+    [[P1], [C1], [C1], [K1]],
+    "the person, each thread, each call: rows a citation may name",
+  );
+
+  // Bea is bayside's: a harbor turn is told she is not here, in the tool's own words, and nothing of hers is a row.
+  const away = newToolContext(ctxFor(t, rpcs), A, "operator", TZ, NOW);
+  const { result: refused, lines } = await logged("ask_tool_failed", () =>
+    runTool(away, { name: "get_person", input: { contact_id: P2 } }),
+  );
+  assert.deepEqual(
+    [refused.isError, JSON.parse(refused.result)],
+    [true, { error: "no such person in this workspace" }],
+  );
+  assert.deepEqual(lines, [], "a person who is not here is not a failed read");
+  assert.deepEqual(
+    Object.values(away.read).map((s) => s.size),
+    [0, 0, 0, 0],
+    "nothing of another workspace enters the read set",
   );
 });
 
@@ -2605,4 +3255,475 @@ test("the proposal follow-up in Ask (0006): listed where deals are on and counte
   const again = await propose({ ...followed, templates: [tpl] });
   assert.equal(again.isError, false, again.result);
   assert.equal(again.proposal.payload.candidates, 0);
+});
+
+/* ------------------------------------------------------------------------ the pool, once a turn (PR 1.6) */
+
+/** An approved offer to everyone, with no values to fill. */
+const OFFER = {
+  id: TPL,
+  tenant_id: A,
+  channel: "whatsapp",
+  name: "fall_offer",
+  language: "en",
+  meta_status: "approved",
+  category: "MARKETING",
+  variables: [],
+  body_preview: "20% off this week.",
+  hidden_at: null,
+};
+
+test("everyone in People is read once a turn, through the readers: a turn that lists the playbooks and the audiences and proposes a playbook and a broadcast reads every page of People once, and their reply modes once -- where the listing and the playbooks each read them -- a search by a list counts over that same pool, and a search by words reads its own page once; the zone and the settings once each, and the memo is gone from the tools' context", async () => {
+  // A thousand and one people, each with a number and a yes to offers: People is read a page at a time.
+  const many = Array.from({ length: 1001 }, (_, i) =>
+    peopleListRow({
+      id: `dddddddd-dddd-4ddd-8ddd-${String(i).padStart(12, "0")}`,
+      display_name: `Person ${i}`,
+      phone_e164: `+1555${String(1000000 + i)}`,
+      marketing_consent: "opted_in",
+      marketing_consent_source: "customer_message",
+      marketing_consent_updated_at: iso(NOW.getTime() - 20 * 86_400_000),
+    }),
+  );
+  const doors = {
+    ...RPCS,
+    people_list: (a) =>
+      a.p_query
+        ? many.filter((p) => p.display_name.includes(a.p_query))
+        : many.slice(a.p_offset ?? 0, (a.p_offset ?? 0) + (a.p_limit ?? 1000)),
+  };
+  const ctx = {
+    supabase: fakeDb(tables({ templates: [OFFER] }), {}, doors, { maxRows: 1000 }),
+    userId: USER,
+    email: "ada@example.com",
+    params: {},
+  };
+  const tc = newToolContext(ctx, A, "owner", TZ, NOW);
+  assert.equal("memo" in tc, false, "the tools' context holds the turn's readers and nothing else to remember");
+  const everyone = () =>
+    ctx.supabase.seen.filter((q) => q.rpc === "people_list").map((q) => q.args.p_query ?? q.args.p_offset ?? 0);
+  const replyModes = () =>
+    ctx.supabase.seen.filter((q) => q.table === "policies" && q.columns === "subject_type, subject_id, mode").length;
+  // The prefetch's pair for "start a win-back playbook for the quiet clients", then the two cards.
+  for (const name of ["list_playbooks", "list_audiences"]) {
+    const out = await runTool(tc, { name, input: {} });
+    assert.equal(out.isError, false, out.result);
+  }
+  const playbook = await buildProposal(tc, "propose_playbook", { trigger: "quiet_30", template_id: TPL, params: [] });
+  assert.equal(playbook.isError, false, playbook.result);
+  const card = await buildProposal(tc, "propose_broadcast", {
+    template_id: TPL,
+    audience_kind: "everyone",
+    audience_id: null,
+    params: [],
+  });
+  assert.equal(card.isError, false, card.result);
+  assert.equal(card.proposal.payload.count, 1001, "every page, as the send enrols them");
+  assert.deepEqual(
+    [everyone(), replyModes()],
+    [[0, 1000], 1],
+    "every page of People once and the reply modes once, for the Playbooks page's pools and the audience pool alike, where each read its own",
+  );
+  const byList = await runTool(tc, { name: "search_people", input: { query: "", list: "seg:phoned_only" } });
+  assert.equal(byList.isError, false, byList.result);
+  assert.deepEqual([everyone(), replyModes()], [[0, 1000], 1], "a list is counted over the same pool");
+  const byWords = await runTool(tc, { name: "search_people", input: { query: "Person 7" } });
+  assert.equal(byWords.isError, false, byWords.result);
+  assert.deepEqual(
+    [everyone(), replyModes()],
+    [[0, 1000, "Person 7"], 2],
+    "a search by words reads the People page's own page, once, with its reply modes",
+  );
+  const reads = (key, columns) =>
+    ctx.supabase.seen.filter(
+      (q) =>
+        (q.rpc ? `rpc:${q.rpc}` : `${q.table}.${q.op}`) === key && (columns === undefined || q.columns === columns),
+    ).length;
+  assert.deepEqual(
+    [reads("tenants.select", "name, timezone"), reads("tenant_config.select")],
+    [1, 1],
+    "the zone and the settings once each, whichever read asked first",
+  );
+});
+
+test("the assistant counts with the calendar too: a visit tomorrow on the owner's calendar is counted by list_playbooks' reminder from the feed, over the same people the page counts, and the Bookings class's mode is said beside the others", async () => {
+  const { forgetFeeds } = await import(at("apps/dashboard/src/server/ask/openings.ts"));
+  const ICS = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//test//EN",
+    "BEGIN:VEVENT",
+    "UID:e-tomorrow",
+    "DTSTART:20260915T140000Z",
+    "DTEND:20260915T150000Z",
+    "SUMMARY:Colour",
+    "DESCRIPTION:Rosa +15555550102",
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ].join("\r\n");
+  const base = tables();
+  const t = tables({
+    tenant_config: [
+      {
+        ...base.tenant_config[0],
+        config: { ...base.tenant_config[0].config, calendar: { ical_url: "https://calendar.example/harbor.ics" } },
+      },
+    ],
+  });
+  const fetchWas = globalThis.fetch;
+  globalThis.fetch = async () => new Response(ICS, { status: 200, headers: { "content-type": "text/calendar" } });
+  try {
+    forgetFeeds();
+    const tc = newToolContext(ctxFor(t, { ...RPCS, people_list: () => threeAnswers() }), A, "owner", TZ, NOW);
+    const out = await runTool(tc, { name: "list_playbooks", input: {} });
+    assert.equal(out.isError, false, out.result);
+    const read = JSON.parse(out.result);
+    const reminder = read.triggers.find((x) => x.trigger === "visit_tomorrow");
+    assert.deepEqual(
+      [reminder.said_yes_now, reminder.can_be_sent_now],
+      [1, 1],
+      "Rosa's visit tomorrow, read from the feed: her yes to messages and her number",
+    );
+    assert.equal(read.modes.booking, "ask", "the Bookings class, which the reminder runs under, with no row: ask");
+  } finally {
+    globalThis.fetch = fetchWas;
+    forgetFeeds();
+  }
+});
+
+/* ------------------------------------------------- the three tools read what the pages read (PR 1.6) */
+
+/**
+ * Luis waits on a person; Rosa, whose WhatsApp name is Rosi, was last heard from six weeks ago. people_list as the
+ * database answers p_query (00125): a name, a WhatsApp name or an address, or three digits of the number.
+ */
+const twoPeople = () => [
+  peopleListRow({
+    id: LUIS,
+    display_name: "Luis Mora",
+    phone_e164: "+15555550101",
+    latest_conversation_id: C1,
+    needs_human: true,
+    open_escalation_reason: "human_token",
+    open_escalation_since: iso(NOW.getTime() - 3_600_000),
+  }),
+  peopleListRow({
+    id: ROSA,
+    display_name: "Rosa Diaz",
+    wa_profile_name: "Rosi",
+    phone_e164: "+15555550182",
+    latest_conversation_id: C2,
+    last_message_at: iso(NOW.getTime() - 45 * 86_400_000),
+    last_inbound_at: iso(NOW.getTime() - 45 * 86_400_000),
+  }),
+];
+const peopleListMatching = (rows) => (a) => {
+  if (a.p_tenant_id !== A) return [];
+  if (!a.p_query) return rows;
+  const q = a.p_query.toLowerCase();
+  const digits = q.replace(/\D/g, "");
+  return rows.filter(
+    (r) =>
+      [r.display_name, r.wa_profile_name, r.email].some((v) => (v ?? "").toLowerCase().includes(q)) ||
+      (digits.length >= 3 && (r.phone_e164 ?? "").replace(/\D/g, "").includes(digits)),
+  );
+};
+/** The workspace's contacts behind the rows, for the page's count of who matches. */
+const contactsOf = (rows) =>
+  rows.map((r) => ({
+    id: r.id,
+    tenant_id: A,
+    display_name: r.display_name,
+    wa_profile_name: r.wa_profile_name,
+    email: r.email,
+    phone_e164: r.phone_e164,
+    erased_at: null,
+  }));
+
+test("search_people reads what the People page reads (ledger #7): one SQL page for the query, so a WhatsApp name and three digits of a number find who the page finds, where the old match on the name alone and four digits found nobody; the page's order and its count; each person in the People row's own words for where they stand; and the pool is never read", async () => {
+  const rows = twoPeople();
+  const ctx = ctxFor(tables({ contacts: contactsOf(rows) }), { ...RPCS, people_list: peopleListMatching(rows) });
+  const tc = newToolContext(ctx, A, "owner", TZ, NOW);
+  const search = async (query) => {
+    const out = await runTool(tc, { name: "search_people", input: { query } });
+    assert.equal(out.isError, false, out.result);
+    return JSON.parse(out.result);
+  };
+  const byWhatsAppName = await search("Rosi");
+  assert.deepEqual(
+    [byWhatsAppName.people.map((p) => p.name), byWhatsAppName.matches],
+    [["Rosa Diaz"], 1],
+    "her WhatsApp name finds her, as the page's search does; the name alone did not",
+  );
+  const byThreeDigits = await search("018");
+  assert.deepEqual(
+    [byThreeDigits.people.map((p) => p.contact_id), byThreeDigits.matches],
+    [[ROSA], 1],
+    "three digits of her number, as the page matches them; the old match wanted four",
+  );
+  const everyone = await search("");
+  assert.deepEqual(
+    [everyone.people.map((p) => p.contact_id), everyone.matches],
+    [[LUIS, ROSA], 2],
+    "no query is the page's first page, in the function's order, counted where the rows are",
+  );
+  // Where they stand, in the People row's own words: its builder, for the member asking (surface-data.ts personRowOf).
+  const vm = (r) => toPersonRowVM({ ...r, effective_reply_mode: null, visits: null }, TZ, NOW, USER);
+  assert.deepEqual(
+    everyone.people.map((p) => [p.state, p.state_detail]),
+    rows.map((r) => [vm(r).stateLabel, vm(r).stateDetail || null]),
+  );
+  assert.deepEqual(
+    everyone.people.map((p) => p.state),
+    ["Needs you", "Quiet"],
+    "Rosa was 'Active' in the tool's own three states: the page says Quiet",
+  );
+  assert.ok(tc.read.person.has(ROSA) && tc.read.thread.has(C2), "a person found is a row read, and their thread");
+  assert.deepEqual(
+    ctx.supabase.seen.filter((q) => q.rpc === "people_list").map((q) => q.args.p_query ?? null),
+    ["Rosi", "018", null],
+    "the page's read, one per query; never everyone for a pool",
+  );
+});
+
+test("search_people answers who booked and who never did, a list counted over the audience pool as the People rail counts one: everyone with their visits from the owner's calendar, and the Booked and Asked, never booked lists judged with the pool's calendar", async () => {
+  const { forgetFeeds } = await import(at("apps/dashboard/src/server/ask/openings.ts"));
+  const ICS = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//test//EN",
+    "BEGIN:VEVENT",
+    "UID:e-rosa",
+    "DTSTART:20260916T140000Z",
+    "DTEND:20260916T150000Z",
+    "SUMMARY:Colour",
+    "DESCRIPTION:Rosa +15555550182",
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ].join("\r\n");
+  const rows = twoPeople().map((r) => ({
+    ...r,
+    last_message_at: iso(NOW.getTime() - 3 * 86_400_000),
+    last_inbound_at: iso(NOW.getTime() - 3 * 86_400_000),
+  }));
+  const base = tables();
+  const t = tables({
+    contacts: contactsOf(rows),
+    tenant_config: [
+      {
+        ...base.tenant_config[0],
+        config: { ...base.tenant_config[0].config, calendar: { ical_url: "https://calendar.example/harbor.ics" } },
+      },
+    ],
+  });
+  const fetchWas = globalThis.fetch;
+  globalThis.fetch = async () => new Response(ICS, { status: 200, headers: { "content-type": "text/calendar" } });
+  try {
+    forgetFeeds();
+    const tc = newToolContext(ctxFor(t, { ...RPCS, people_list: peopleListMatching(rows) }), A, "owner", TZ, NOW);
+    const on = async (list) =>
+      JSON.parse((await runTool(tc, { name: "search_people", input: { query: "", list } })).result);
+    const booked = await on("booked");
+    assert.deepEqual(
+      booked.people.map((p) => p.name),
+      ["Rosa Diaz"],
+    );
+    assert.match(booked.people[0].next_visit, /Colour$/, "her next visit, from the feed");
+    const never = await on("asked_never_booked");
+    assert.deepEqual(
+      [never.people.map((p) => p.name), never.people[0].next_visit],
+      [["Luis Mora"], null],
+      "wrote this month, and the calendar never had him",
+    );
+  } finally {
+    globalThis.fetch = fetchWas;
+    forgetFeeds();
+  }
+});
+
+test("list_audiences offers the templates the composer offers (ledger #9): approved and not hidden by the workspace -- the one the workspace hid is never offered, as the composer's own read never offers it", async () => {
+  const T2 = "dddddddd-dddd-4ddd-8ddd-ddddddddddd2";
+  const T3 = "dddddddd-dddd-4ddd-8ddd-ddddddddddd3";
+  const tpl = (id, name, over = {}) => ({ ...OFFER, id, name, ...over });
+  const t = tables({
+    templates: [
+      tpl(TPL, "fall_offer"),
+      tpl(T2, "summer_offer", { hidden_at: iso(NOW.getTime() - 86_400_000) }),
+      tpl(T3, "winter_offer", { meta_status: "pending" }),
+    ],
+  });
+  const out = await runTool(newToolContext(ctxFor(t), A, "owner", TZ, NOW), { name: "list_audiences", input: {} });
+  assert.equal(out.isError, false, out.result);
+  const offered = JSON.parse(out.result).templates.map((x) => x.template_id);
+  assert.deepEqual(offered, [TPL], "REGRESSION: the hidden summer_offer was offered to the model");
+  const composer = await templatesRoute.GET.run(new Request(`http://localhost/api/v1/templates?workspace=${A}`), {
+    ...ctxFor(t),
+    params: {},
+  });
+  assert.deepEqual(
+    offered,
+    composer.templates.filter((x) => x.channel === "whatsapp").map((x) => x.id),
+    "the composer's own list",
+  );
+});
+
+test("list_playbooks says the Playbooks page's numbers (ledger #10): every moment's and every list's counts are the page's chips -- over everyone with no one looking and the week's touches applied, so Rosa, reached by a broadcast yesterday, waits out the week where the tool's own count reached her -- its rows and next runs are the page's, and a list the page cannot count says why as far as the page's read says, never a reason it does not give", async () => {
+  const DAY = 86_400_000;
+  const S_REG = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1";
+  const S_MINE = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2";
+  const S_NEWER = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb3";
+  const GONE = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb9";
+  const sent = iso(NOW.getTime() - DAY);
+  const pbRow = (id, over) => ({
+    id,
+    tenant_id: A,
+    kind: "moment",
+    name: "Win-back",
+    trigger: "saved_list",
+    list_id: null,
+    list_key: null,
+    template_id: TPL,
+    template_name: "fall_offer",
+    template_language: "en",
+    params: [],
+    policy_class: "reengage",
+    state: "running",
+    run_hour: 10,
+    cap_per_run: 50,
+    gap_days: 30,
+    cadence_days: 0,
+    last_run_for: null,
+    last_run_at: null,
+    created_at: "2026-09-01T00:00:00Z",
+    ...over,
+  });
+  const t = tables({
+    playbooks: [
+      pbRow("pb-regulars", { list_id: S_REG }),
+      pbRow("pb-booked", { list_key: "booked", created_at: "2026-09-02T00:00:00Z" }),
+      pbRow("pb-gone", { list_id: GONE, created_at: "2026-09-03T00:00:00Z" }),
+      pbRow("pb-monthly", {
+        trigger: "everyone_monthly",
+        policy_class: "campaign",
+        created_at: "2026-09-04T00:00:00Z",
+      }),
+      pbRow("pb-quiet", { list_key: "quiet", created_at: "2026-09-05T00:00:00Z" }),
+      pbRow("pb-mine", { list_id: S_MINE, created_at: "2026-09-06T00:00:00Z" }),
+      pbRow("pb-newer", { list_id: S_NEWER, created_at: "2026-09-07T00:00:00Z" }),
+    ],
+    segments: [
+      { id: S_REG, tenant_id: A, name: "Regulars", rule: null },
+      // About whoever is looking: a run has no one (the page's read says so).
+      { id: S_MINE, tenant_id: A, name: "Mine", rule: { all: [{ field: "assigned", op: "is", value: "me" }] } },
+      // A rule this version can't read: the page counts it for nobody, and People says why on the list.
+      { id: S_NEWER, tenant_id: A, name: "From the future", rule: { v: 3, all: [{ field: "future_fact" }] } },
+    ],
+    segment_members: [
+      { tenant_id: A, segment_id: S_REG, contact_id: LUIS },
+      { tenant_id: A, segment_id: S_REG, contact_id: ROSA },
+    ],
+    broadcasts: [
+      {
+        id: "b-yesterday",
+        tenant_id: A,
+        playbook_id: null,
+        state: "sent",
+        scheduled_for: sent,
+        created_at: sent,
+        run_for: null,
+        params: [],
+      },
+    ],
+    broadcast_recipients: [
+      { tenant_id: A, broadcast_id: "b-yesterday", contact_id: ROSA, state: "sent", sent_at: sent },
+    ],
+  });
+  const doors = { ...RPCS, people_list: () => threeAnswers() };
+  const out = await runTool(newToolContext(ctxFor(t, doors), A, "owner", TZ, NOW), {
+    name: "list_playbooks",
+    input: {},
+  });
+  assert.equal(out.isError, false, out.result);
+  const read = JSON.parse(out.result);
+  // The page's own read of the same workspace, on the same clock (readers/playbooks.ts, GET playbooks' body).
+  const page = (
+    await load(readerContext(ctxFor(t, doors), { tenantId: A, role: "owner" }, NOW), playbooksReader, undefined)
+  ).data;
+  const chip = (key) => ({ said_yes_now: page.pools[key].saidYes, can_be_sent_now: page.pools[key].candidates });
+  for (const x of read.triggers.filter((y) => !y.counted_per_list))
+    assert.deepEqual({ said_yes_now: x.said_yes_now, can_be_sent_now: x.can_be_sent_now }, chip(x.trigger), x.trigger);
+  const monthly = read.triggers.find((x) => x.trigger === "everyone_monthly");
+  assert.deepEqual(
+    [monthly.said_yes_now, monthly.can_be_sent_now],
+    [2, 0],
+    "Ana and Rosa said yes to offers; only Rosa has a number, and a broadcast reached her yesterday: the tool said 1",
+  );
+  assert.deepEqual(
+    read.playbooks.map((p) => [p.playbook_id, p.next_run]),
+    page.playbooks.map((p) => [p.id, nextRunLabel(p, page.timezone, NOW)]),
+    "the page's rows, and its next-run words",
+  );
+  const byId = Object.fromEntries(read.playbooks.map((p) => [p.playbook_id, p]));
+  assert.deepEqual(
+    [byId["pb-regulars"].list, byId["pb-regulars"].said_yes_now, byId["pb-regulars"].can_be_sent_now],
+    [`list:${S_REG}`, chip(`list:${S_REG}`).said_yes_now, chip(`list:${S_REG}`).can_be_sent_now],
+    "a list of the workspace's own, counted as the page counts it",
+  );
+  assert.deepEqual(
+    [byId["pb-booked"].list, byId["pb-booked"].cannot_count],
+    ["seg:booked", "This list reads your calendar. Connect it under Settings › Business to count it."],
+  );
+  assert.deepEqual([byId["pb-gone"].cannot_count, byId["pb-gone"].said_yes_now], ["its list was deleted", undefined]);
+  assert.deepEqual(
+    [byId["pb-quiet"].said_yes_now, byId["pb-quiet"].can_be_sent_now],
+    [chip("seg:quiet").said_yes_now, chip("seg:quiet").can_be_sent_now],
+  );
+  assert.deepEqual(
+    [byId["pb-mine"].cannot_count, byId["pb-newer"].cannot_count],
+    [
+      "This list is about whoever is looking, so only a person can count it.",
+      "it could not be counted just now; People says why on the list",
+    ],
+    "the page's reason where its read carries one, and never a reason guessed for a list of the workspace's own",
+  );
+  assert.ok(read.note.includes("can_be_sent_now") && read.note.includes("this week"), read.note);
+  assert.ok(read.note.includes("A null count means the page could not count it just now."), read.note);
+  // Everyone could not be read: no moment and no list is counted, and each says so -- never a calendar to connect or a
+  // service to add, which is what a People read that failed looked like (no People list offered at all).
+  const { result: blindOut, lines } = await logged("playbook_pools_people_failed", () =>
+    runTool(
+      newToolContext(
+        ctxFor(t, {
+          ...doors,
+          people_list: () => {
+            throw new Error("canceling statement due to statement timeout");
+          },
+        }),
+        A,
+        "owner",
+        TZ,
+        NOW,
+      ),
+      { name: "list_playbooks", input: {} },
+    ),
+  );
+  assert.equal(blindOut.isError, false, blindOut.result);
+  assert.equal(lines.length, 1, "said once in the log");
+  const blind = JSON.parse(blindOut.result);
+  const blindById = Object.fromEntries(blind.playbooks.map((p) => [p.playbook_id, p]));
+  assert.deepEqual(
+    ["pb-booked", "pb-quiet", "pb-regulars", "pb-mine"].map((id) => blindById[id].cannot_count),
+    [
+      "it could not be counted just now",
+      "it could not be counted just now",
+      "its list could not be read just now",
+      "its list could not be read just now",
+    ],
+  );
+  assert.ok(
+    blind.triggers
+      .filter((x) => !x.counted_per_list)
+      .every((x) => x.said_yes_now === null && x.can_be_sent_now === null),
+  );
+  assert.ok(!/Settings/.test(JSON.stringify(blind.playbooks)), "REGRESSION: a failed read was told to fix Settings");
 });

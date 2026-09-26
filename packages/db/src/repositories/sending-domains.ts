@@ -186,19 +186,77 @@ export async function applyDomainCheck(db: Db, row: SendingDomainRow, patch: Pat
 }
 
 /**
- * What one own domain sent since it was last clean (00176): the last 500 that left, the bounces among them, and the
- * complaints. A read that fails throws; the caller judges nothing on it.
+ * What one own domain sent since it was last clean (00176): the last 500 that left, the bounces among them, the
+ * complaints, and the unsubscribes they drew (00188; none from a database before it). A read that fails throws; the
+ * caller judges nothing on it.
  */
 export async function sendingDomainCounts(
   db: Db,
   tenantId: string,
   host: string,
   since: string | null,
-): Promise<{ sent: number; bounced: number; complained: number }> {
+): Promise<{ sent: number; bounced: number; complained: number; unsubscribed: number; complained_new: number }> {
   const r = await db.rpc("sending_domain_counts", { p_tenant_id: tenantId, p_host: host, p_since: since } as never);
   const c = (must("count a domain's sends", r) ?? {}) as Record<string, unknown>;
   const n = (k: string): number => (typeof c[k] === "number" ? (c[k] as number) : Number(c[k] ?? 0) || 0);
-  return { sent: n("sent"), bounced: n("bounced"), complained: n("complained") };
+  return {
+    sent: n("sent"),
+    bounced: n("bounced"),
+    complained: n("complained"),
+    unsubscribed: n("unsubscribed"),
+    // A count from before 00188 says none apart: every complaint is taken as new, as it was.
+    complained_new: "complained_new" in c ? n("complained_new") : n("complained"),
+  };
+}
+
+/**
+ * How many times this workspace's domain by this host was held for its reputation since `sinceIso` (its
+ * sending_domain.held events, by host: a domain removed and added again has a new id, and the same name). What makes
+ * a second hold the platform's to lift (D16). A read that fails throws.
+ */
+export async function reputationHoldsSince(
+  db: Db,
+  p: { tenantId: string; host: string; sinceIso: string; whys: readonly string[] },
+): Promise<number> {
+  const r = await db
+    .from("events")
+    .select("id")
+    .eq("tenant_id", p.tenantId)
+    .eq("kind", "sending_domain.held")
+    .gte("created_at", p.sinceIso)
+    .eq("data->>host", p.host)
+    .in("data->>why", [...p.whys])
+    .limit(20);
+  if (r.error) throw new Error(`sending_domains: read a domain's reputation holds: ${r.error.message}`);
+  return (r.data ?? []).length;
+}
+
+/**
+ * Whether this workspace's domain by this host is, by its ledger, still held for the platform to lift (D16): its last
+ * platform word since `sinceIso` a hold the platform lifts (a sending_domain.held with resume_by platform) and not the
+ * platform's Resume. What refuses an owner who removed the domain while so held from adding it again. A read that fails
+ * throws.
+ */
+export async function platformHoldStands(
+  db: Db,
+  p: { tenantId: string; host: string; sinceIso: string },
+): Promise<boolean> {
+  const r = await db
+    .from("events")
+    .select("kind, data, created_at")
+    .eq("tenant_id", p.tenantId)
+    .in("kind", ["sending_domain.held", "sending_domain.resumed"])
+    .gte("created_at", p.sinceIso)
+    .eq("data->>host", p.host)
+    .order("created_at", { ascending: false })
+    .limit(20);
+  if (r.error) throw new Error(`sending_domains: read a domain's platform holds: ${r.error.message}`);
+  for (const e of r.data ?? []) {
+    const d = (e.data ?? {}) as { resume_by?: unknown; by?: unknown };
+    if (e.kind === "sending_domain.held" && d.resume_by === "platform") return true;
+    if (e.kind === "sending_domain.resumed" && d.by === "platform") return false;
+  }
+  return false;
 }
 
 /** A domain removed only as it was read: another writer since (its owner checking it, say) wins. */

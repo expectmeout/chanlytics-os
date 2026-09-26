@@ -485,3 +485,52 @@ test("a campaign's email that bounces fails its row and stops the address, and f
   );
   assert.equal(t.contacts[0].email_suppressed_reason, "hard_bounce", "and the address stops, as for any email");
 });
+
+test("a reach-out's email that bounces for good marks its lead's address invalid (C11); a transient bounce, or a reply's, marks no lead", async () => {
+  const lead = (id) => ({
+    id,
+    tenant_id: T,
+    email_state: "ok",
+    email_checked_at: null,
+    version: 3,
+    erased_at: null,
+    blanked_at: null,
+  });
+  const cold = { source: "reach_out", email: { subject: "A quote" }, reach_out: { lead_id: "l1" } };
+
+  const t = world({ meta: cold });
+  t.leads = [lead("l1"), lead("l2")];
+  assert.equal(await post(receipt("bounced", BOUNCE)), 200);
+  const l1 = t.leads.find((l) => l.id === "l1");
+  assert.deepEqual([l1.email_state, l1.version], ["invalid", 4]);
+  assert.ok(l1.email_checked_at, "when it was found out");
+  assert.equal(t.leads.find((l) => l.id === "l2").email_state, "ok", "only the lead the email was written for");
+  // The same receipt again marks nothing twice.
+  assert.equal(await post(receipt("bounced", BOUNCE)), 200);
+  assert.equal(t.leads.find((l) => l.id === "l1").version, 4);
+
+  const transient = world({ meta: cold });
+  transient.leads = [lead("l1")];
+  const FULL = { bounce: { type: "Transient", subType: "MailboxFull", message: "full" } };
+  assert.equal(await post(receipt("bounced", FULL)), 200);
+  assert.deepEqual(
+    [transient.leads[0].email_state, transient.leads[0].version],
+    ["ok", 3],
+    "a full mailbox is not a bad address",
+  );
+
+  const reply = world();
+  reply.leads = [lead("l1")];
+  assert.equal(await post(receipt("bounced", BOUNCE)), 200);
+  assert.deepEqual([reply.leads[0].email_state, reply.leads[0].version], ["ok", 3], "a reply names no lead");
+});
+
+test("a bounce marks no lead that was erased or blanked: what is gone stays gone (C11)", async () => {
+  const cold = { source: "reach_out", email: { subject: "A quote" }, reach_out: { lead_id: "l1" } };
+  for (const gone of [{ erased_at: "2026-09-20T00:00:00Z" }, { blanked_at: "2026-09-20T00:00:00Z" }]) {
+    const t = world({ meta: cold });
+    t.leads = [{ id: "l1", tenant_id: T, email_state: "ok", version: 3, erased_at: null, blanked_at: null, ...gone }];
+    assert.equal(await post(receipt("bounced", BOUNCE)), 200);
+    assert.deepEqual([t.leads[0].email_state, t.leads[0].version], ["ok", 3], JSON.stringify(gone));
+  }
+});

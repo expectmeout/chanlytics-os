@@ -3,6 +3,7 @@ import {
   BUILTIN_LISTS,
   LIST_PLAYBOOK_CLASSES,
   FOLLOW_UP_NEEDS_DEALS,
+  REACH_OUT_IS_NOT_A_MOMENT,
   FOLLOW_UP_NEEDS_LINK,
   PLAYBOOK_DEFAULTS,
   PLAYBOOK_HOURS,
@@ -71,6 +72,8 @@ export async function checkPlaybook(
       "validation",
       "Pick what starts it: win-back, welcome, save our number, the month's offer, a visit tomorrow, a visit yesterday, lapsed, one of your lists, or a proposal waiting.",
     );
+  // A reach-out's steps are not moments (Reach out, Part 3): they are made on the reach-out sheet, over a lead search.
+  if (trig.kind === "reach_out") throw new AppError("validation", REACH_OUT_IS_NOT_A_MOMENT);
   // A proposal follow-up where deals are off has no proposal to follow (0006): refused in the words a run says. Only
   // a moment that needs deals asks whether they are on.
   if (trig.kind === "deal" && !triggerOffered(trig, await ports.dealsOn()))

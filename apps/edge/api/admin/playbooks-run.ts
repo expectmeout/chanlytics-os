@@ -46,6 +46,8 @@ export async function POST(request: Request): Promise<Response> {
     .maybeSingle();
   if (error) return json(500, { ok: false, error: "read_failed", detail: error.message });
   if (!p) return json(404, { ok: false, error: "not_found" });
+  // A reach-out step runs through its own verb, on its day (Reach out, Part 3): Run now is a moment's.
+  if ((p as { kind?: string }).kind === "reach_out") return json(409, { ok: false, error: "reach_out" });
 
   const ctx = await loadTenantRunContext(db, tenantId, new Date());
   if ("error" in ctx) return json(500, { ok: false, error: "context_failed", detail: ctx.error });

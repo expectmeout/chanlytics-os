@@ -5,7 +5,7 @@
 // §4.4 and §5; the canvas's Edit-Sheet board): thirty-three rows of three boxes on the live record, the "99 inputs in a
 // 720px column" the redesign exists to remove. A search and Add above the rows, the rows in three columns with a remove
 // each, and a foot that says what the receptionist will be told. Its row at rest is the card's (business-tab-offer.jsx
-// BtwServicesRow), whose act asks the registry for this sheet by its id, as the standing line's door does.
+// BtwServicesRow), whose act asks the registry for this sheet by its id, as the gap line's door does.
 //
 // A file of its own because the PAGE draws it, through its one sheet slot after every card, never the card: the fold
 // registry opens one editor or sheet at a time, and the slot draws one sheet or none (business-tab.jsx BtSheetSlot).

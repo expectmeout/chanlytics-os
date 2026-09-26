@@ -150,6 +150,12 @@ function formatPhoneDisplay(e164) {
 function personName(c) {
   return c?.display_name || c?.wa_profile_name || formatPhoneDisplay(c?.phone_e164) || c?.email || "Unknown";
 }
+function callerName(c) {
+  const withheld = !c.from_e164 && !c.from_raw;
+  const phone = formatPhoneDisplay(c.from_e164);
+  const name = c.contact?.display_name || c.contact?.wa_profile_name || null;
+  return withheld ? "Caller ID withheld" : name || phone || c.from_raw || "Unknown caller";
+}
 
 // src/email-address.ts
 var MAX_ADDRESS = 254;
@@ -1156,7 +1162,7 @@ function freeWindows(input) {
   const leadMs = rules.lead_hours * 36e5;
   const bufferMs = rules.buffer_min * 6e4;
   const slotMs = rules.slot_min * 6e4;
-  const earliest = onTheGrid(input.tz, input.now.getTime() + leadMs, rules.slot_min);
+  const earliest2 = onTheGrid(input.tz, input.now.getTime() + leadMs, rules.slot_min);
   const busy = input.busy.map((b) => ({ start: b.start - bufferMs, end: b.end + bufferMs })).sort((a, b) => a.start - b.start);
   const out = [];
   for (let offset = 0; offset < rules.max_days_ahead; offset++) {
@@ -1167,7 +1173,7 @@ function freeWindows(input) {
     for (const [open, close] of ranges) {
       const o = hhmm(open), c = hhmm(close);
       if (!o || !c) continue;
-      let start = Math.max(localToUtcMs(input.tz, day.y, day.m, day.d, o[0], o[1]), earliest);
+      let start = Math.max(localToUtcMs(input.tz, day.y, day.m, day.d, o[0], o[1]), earliest2);
       const end = localToUtcMs(input.tz, day.y, day.m, day.d, c[0], c[1]);
       for (const b of busy) {
         if (b.end <= start) continue;
@@ -2319,9 +2325,8 @@ var RECORDING_NOTE = {
 };
 function toCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
   const withheld = !dto.from_e164 && !dto.from_raw;
-  const phone = formatPhoneDisplay(dto.from_e164);
   const name = dto.contact?.display_name || dto.contact?.wa_profile_name || null;
-  const who = withheld ? "Caller ID withheld" : name || phone || dto.from_raw || "Unknown caller";
+  const who = callerName(dto);
   const whoShort = name ? isIdentifierName(name) ? name : name.split(" ")[0] : "Caller";
   const dur = mmss(dto.duration_ms);
   const live = isLiveCall(dto, now);
@@ -2658,21 +2663,6 @@ function changedConfigFields(before, after) {
   const keys = [.../* @__PURE__ */ new Set([...Object.keys(a), ...Object.keys(b)])].sort();
   return keys.filter((k) => JSON.stringify(a[k] ?? null) !== JSON.stringify(b[k] ?? null));
 }
-function lastChangedName(m) {
-  const name = (m.display_name ?? "").trim();
-  if (name) return name;
-  const local = (m.email ?? "").trim().split("@")[0]?.trim() ?? "";
-  return local || "a member";
-}
-function lastChangedWords(updatedAt, by, nowMs) {
-  const at2 = updatedAt ? Date.parse(updatedAt) : NaN;
-  if (Number.isNaN(at2)) return "";
-  const when = agoWords(at2, nowMs);
-  if (by.who === "you") return `Changed by you, ${when}`;
-  if (by.who === "member") return `Last changed by ${by.name}, ${when}`;
-  if (by.who === "gone") return `Last changed by someone no longer on the team, ${when}`;
-  return `Last changed ${when}, before we kept track of who`;
-}
 
 // src/config.ts
 import { z as z3 } from "zod";
@@ -2726,7 +2716,8 @@ var POLICY_CLASSES = [
   "campaign",
   "reviews",
   "money",
-  "follow_up"
+  "follow_up",
+  "outreach"
 ];
 var POLICY_CLASS_WORDS = {
   reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
@@ -2761,6 +2752,12 @@ var POLICY_CLASS_WORDS = {
     name: "Proposal follow-ups",
     short: "Follow-ups",
     note: "the proposal follow-up playbook \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
+  },
+  // Reach out (Part 3): cold email to the businesses a search found. A chain's first run always waits for its owner.
+  outreach: {
+    name: "Cold email to businesses a search found",
+    short: "Reach-outs",
+    note: "every email a reach-out sends \xB7 its first run always waits for you; later runs send 30 minutes after they are made unless you stop them \xB7 never sends none"
   }
 };
 var POLICY_MODES = ["auto", "veto", "ask", "never"];
@@ -2788,7 +2785,10 @@ var POLICY_CLASS_MODES = {
   campaign: ["auto", "veto", "ask", "never"],
   reviews: ["auto", "ask", "never"],
   money: ["never"],
-  follow_up: ["auto", "ask", "never"]
+  follow_up: ["auto", "ask", "never"],
+  // Cold email never goes the moment a run is made: a chain's first run waits for its owner whatever the mode, and a
+  // later one gives thirty minutes to be stopped (veto), waits too (ask), or does not run (never).
+  outreach: ["veto", "ask", "never"]
 };
 function policyClassOfIntent(intent) {
   if (intent === "booking") return "booking";
@@ -3996,7 +3996,7 @@ function toLiveCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
   const withheld = !dto.from_e164 && !dto.from_raw;
   const phone = formatPhoneDisplay(dto.from_e164);
   const name = dto.contact?.display_name || dto.contact?.wa_profile_name || null;
-  const who = withheld ? "Caller ID withheld" : name || phone || dto.from_raw || "Unknown caller";
+  const who = callerName(dto);
   const whoShort = name ? /^[+\d(]/.test(name) ? name : name.split(" ")[0] : "the caller";
   const live = isLiveCall(dto, now);
   const missed = dto.status === "not_connected";
@@ -5829,8 +5829,8 @@ var milesLabel = (m) => {
 // src/lead-facts.ts
 function leadTodayLine(hours, tz, now) {
   if (!hours.length) return null;
-  const dayOf = (d) => new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long" }).format(d).toLowerCase();
-  const hoursOn = (d) => hours.find((x) => x.day.toLowerCase() === dayOf(d))?.hours.trim() ?? null;
+  const dayOf2 = (d) => new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long" }).format(d).toLowerCase();
+  const hoursOn = (d) => hours.find((x) => x.day.toLowerCase() === dayOf2(d))?.hours.trim() ?? null;
   const parts2 = new Intl.DateTimeFormat("en-US", {
     timeZone: tz,
     hour: "numeric",
@@ -8250,8 +8250,29 @@ var PLAYBOOK_TRIGGERS = [
     cls: "follow_up",
     kind: "deal",
     hint: "A proposal waiting with nothing back"
+  },
+  // Reach out (Part 3): a chain's first email, over a lead search, and a step days after the one before it. Made by
+  // the reach-out sheet (Part 4), never offered among the moments (triggerOffered).
+  {
+    id: "lead_first",
+    label: "Businesses a search found",
+    list: null,
+    cls: "outreach",
+    kind: "reach_out",
+    hint: "The first email of a reach-out"
+  },
+  {
+    id: "after_step",
+    label: "After the step before",
+    list: null,
+    cls: "outreach",
+    kind: "reach_out",
+    hint: "A nudge, days after the step before"
   }
 ];
+var MOMENT_TRIGGERS = PLAYBOOK_TRIGGERS.filter(
+  (t) => t.kind !== "reach_out"
+);
 var PLAYBOOK_STATES = ["running", "paused"];
 var PLAYBOOK_DEFAULTS = { runHour: 10, capPerRun: 25, gapDays: 90, cadenceDays: 30 };
 var PLAYBOOK_HOURS = { min: 9, max: 20 };
@@ -8265,10 +8286,12 @@ var SENDING_HOURS_WORDS = {
 var PLAYBOOK_BREATH_MS = 7 * DAY_MS5;
 var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
 var PLAYBOOK_NAME_MAX = 80;
+var REACH_OUT_IS_NOT_A_MOMENT = "A reach-out is made on its own sheet, from a search's leads, not among the moments.";
 function triggerOf(id) {
   return PLAYBOOK_TRIGGERS.find((t) => t.id === id) ?? null;
 }
 function triggerOffered(t, dealsOn) {
+  if (t.kind === "reach_out") return false;
   return t.kind !== "deal" || dealsOn;
 }
 function policyClassOffered(cls, dealsOn) {
@@ -10053,6 +10076,7 @@ function toRunReportVM(d, opts) {
 // src/broadcasts.ts
 var BROADCAST_STATES = ["pending_approval", "scheduled", "sending", "sent", "canceled", "failed"];
 var RECIPIENT_STATES = ["queued", "sent", "skipped", "failed"];
+var REACH_OUT_SEND_STATES = ["planned", "claimed", "queued", "sent", "skipped", "failed"];
 var BROADCAST_STATE_LABELS = {
   pending_approval: "Needs you",
   scheduled: "Scheduled",
@@ -12668,6 +12692,7 @@ function playbookRunReach(rows, p, touches, nowMs, pace, listIds = null) {
   };
   const t = triggerOf(p.trigger);
   if (!t) return { eligible: [], reach, saidYes: 0 };
+  if (t.kind === "reach_out") return { eligible: [], reach, saidYes: 0 };
   const purpose = purposeOfPlaybook(t.cls);
   const named = t.kind === "visit" ? (
     // The calendar's own day, never hours: eleven at night tomorrow is still tomorrow.
@@ -12744,7 +12769,8 @@ var PLAYBOOK_CLASS_LABEL = {
   reengage: POLICY_CLASS_WORDS.reengage.short,
   campaign: POLICY_CLASS_WORDS.campaign.short,
   booking: POLICY_CLASS_WORDS.booking.short,
-  follow_up: POLICY_CLASS_WORDS.follow_up.short
+  follow_up: POLICY_CLASS_WORDS.follow_up.short,
+  outreach: POLICY_CLASS_WORDS.outreach.short
 };
 
 // src/playbook-approval.ts
@@ -14044,39 +14070,22 @@ function bookingLinkRowWords(sellsBy) {
 }
 var CANNOT_SAY_SERVICES = "cannot say what you offer";
 var has2 = (v) => typeof v === "string" ? v.trim().length > 0 : Array.isArray(v) ? v.length > 0 : !!v && Object.keys(v).length > 0;
-var wontPrice = (link, calls) => `It offers ${link ? "a consult or the booking link" : "a consult, or takes their details,"} instead of a price${calls ? " \u2014 in chat before the reply is sent, on a call caught afterwards rather than prevented" : ""}.`;
-function standingLine(i, calls, sellsBy) {
-  if (typeof calls !== "boolean") {
-    throw new TypeError("standingLine needs to know whether the workspace answers calls: the two channels differ.");
-  }
+function businessGap(i, sellsBy) {
   if (sellsBy !== null && typeof sellsBy !== "string") {
     throw new TypeError(
-      "standingLine needs how customers buy (the workspace's sells_by, null when not said): whether a missing booking link is a gap turns on it."
+      "businessGap needs how customers buy (the workspace's sells_by, null when not said): whether a missing booking link is a gap turns on it."
     );
   }
   const p = i.profile ?? {};
-  const link = offersBookingLink(i);
-  const gaps = [];
-  if (!has2(i.business_name)) gaps.push({ sentence: "It has no name to introduce itself with.", row: "name" });
-  if (!link && !bookingLinkOptional(sellsBy))
-    gaps.push({ sentence: "It has no booking link to send anyone.", row: "booking_link" });
-  if (!has2(p.hours)) gaps.push({ sentence: "It cannot say when you are open.", row: "hours" });
-  if (!has2(p.services)) gaps.push({ sentence: `It ${CANNOT_SAY_SERVICES}.`, row: "services" });
-  if (!has2(p.address)) gaps.push({ sentence: "It cannot say where you are.", row: "address" });
+  if (!has2(i.business_name)) return { sentence: "It has no name to introduce itself with.", row: "name" };
+  if (!offersBookingLink(i) && !bookingLinkOptional(sellsBy))
+    return { sentence: "It has no booking link to send anyone.", row: "booking_link" };
+  if (!has2(p.hours)) return { sentence: "It cannot say when you are open.", row: "hours" };
+  if (!has2(p.services)) return { sentence: `It ${CANNOT_SAY_SERVICES}.`, row: "services" };
+  if (!has2(p.address)) return { sentence: "It cannot say where you are.", row: "address" };
   if (!has2(p.tone))
-    gaps.push({
-      sentence: "It has no voice of its own yet \u2014 it answers in nobody in particular's words.",
-      row: "tone"
-    });
-  const answers = [];
-  if (has2(p.address)) answers.push("where you are");
-  if (has2(p.hours)) answers.push("when you're open");
-  if (has2(p.services)) answers.push("what you offer");
-  if (link) answers.push("how to book");
-  else if (bookingLinkOptional(sellsBy)) answers.push("how to get a quote");
-  const can = answers.length ? `It can say ${answers.length === 1 ? answers[0] : `${answers.slice(0, -1).join(", ")} and ${answers.at(-1)}`}.` : "It cannot answer anyone yet.";
-  const wont = has2(p.services) ? wontPrice(link, calls) : null;
-  return { can, wont, missing: gaps[0] ?? null };
+    return { sentence: "It has no voice of its own yet \u2014 it answers in nobody in particular's words.", row: "tone" };
+  return null;
 }
 var DAY_COUNT_WORDS = ["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven"];
 function openWeekWords(hours, tz) {
@@ -14384,7 +14393,7 @@ function abilityRows(i) {
       channels: both,
       runsOn: { label: "Name and hours", row: "name" },
       ready: answering,
-      // The facts it answers from are the standing line's subject, at the top of the page.
+      // The facts it answers from are the rows' own subject, and a missing one is the gap line's (businessGap).
       missing: false
     },
     {
@@ -20922,7 +20931,12 @@ function deskSignMetadata(f) {
 // src/sending-domains.ts
 var DAY_FMT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var SENDING_DOMAIN_STATES = ["records", "verifying", "verified", "held"];
-var DOMAIN_HOLDS = ["verification", "dmarc", "bounces", "complaint", "provider"];
+var DOMAIN_HOLDS = ["verification", "dmarc", "bounces", "complaint", "provider", "unsubscribes"];
+var REPUTATION_HOLDS = ["bounces", "complaint", "unsubscribes"];
+var DOMAIN_RESUMERS = ["owner", "platform"];
+var REPUTATION_MEMORY_MS = 30 * 864e5;
+var PLATFORM_HOLD_REFUSAL = "Held twice in 30 days: we lift this hold, and we've been told.";
+var PLATFORM_HOLD_READD = "This domain was held twice in the last 30 days, and removed before we lifted it. It can be added again 30 days after it was held.";
 var DMARC_STATES = ["found", "missing"];
 var DNS_HOLDS = ["verification", "dmarc"];
 var SELF_LIFTING_HOLDS = ["verification", "dmarc", "provider"];
@@ -20942,16 +20956,10 @@ var DOMAIN_RAMP = [
   { days: 14, perDay: 100 },
   { days: 30, perDay: 200 }
 ];
-var DAY_MS8 = 864e5;
-function cleanDays(cleanSince, nowMs) {
-  if (!cleanSince) return 0;
-  return Math.max(0, Math.floor((nowMs - Date.parse(cleanSince)) / DAY_MS8));
-}
-function domainDailyCap(cleanSince, nowMs) {
-  if (!cleanSince) return 0;
-  const days = (nowMs - Date.parse(cleanSince)) / DAY_MS8;
+var sentDaysOf = (d) => Math.max(0, Math.floor(Number(d.sent_days) || 0));
+function domainDailyCap(sentDays) {
   let cap2 = 0;
-  for (const step2 of DOMAIN_RAMP) if (days >= step2.days) cap2 = step2.perDay;
+  for (const step2 of DOMAIN_RAMP) if (sentDays >= step2.days) cap2 = step2.perDay;
   return cap2;
 }
 function normalizeHost(typed) {
@@ -20994,14 +21002,17 @@ function reputationHoldOf(c) {
   if (!c) return null;
   if (c.complained >= 1) return "complaint";
   if (c.bounced * 50 > Math.max(c.sent, 150)) return "bounces";
+  if ((c.unsubscribed ?? 0) * 50 > Math.max(c.sent, 150)) return "unsubscribes";
   return null;
 }
+var REPUTATION_RANK = { unsubscribes: 1, bounces: 2, complaint: 3 };
 var CHECKING = /* @__PURE__ */ new Set(["pending", "temporary_failure", "partially_verified"]);
 function judgeDomain(row2, facts, nowIso) {
   const same2 = { ...row2, dmarc: facts.dmarc ?? row2.dmarc, change: null };
   const judgeable = row2.state === "verified" || row2.state === "held" && row2.held_why !== "complaint";
   const reputation = judgeable ? reputationHoldOf(facts.counts) : null;
-  if (reputation && !(row2.state === "held" && row2.held_why === reputation))
+  const heldFor2 = row2.state === "held" && row2.held_why && REPUTATION_HOLDS.includes(row2.held_why) ? REPUTATION_RANK[row2.held_why] : 0;
+  if (reputation && REPUTATION_RANK[reputation] > heldFor2)
     return { ...same2, state: "held", held_why: reputation, held_at: nowIso, change: "held" };
   if (facts.provider === null) return { ...row2, change: null };
   const verified = facts.provider === "verified";
@@ -21078,7 +21089,8 @@ function sendingDomainActs(d) {
   const waiting = d.state === "records" || d.state === "verifying";
   return {
     check: waiting || selfLifting,
-    resume: held && !selfLifting,
+    // A second reputation hold in thirty days is the platform's to lift (D16): the owner's door refuses it too.
+    resume: held && !selfLifting && d.resume_by !== "platform",
     remove: true,
     records: waiting || dnsHold
   };
@@ -21103,7 +21115,9 @@ function sendingDomainDtoOf(r2) {
     created_at: r2.created_at,
     sent_recent: r2.sent_recent,
     bounced_recent: r2.bounced_recent,
-    complaints: r2.complaints
+    complaints: r2.complaints,
+    sent_days: Math.max(0, Number(r2.sent_days ?? 0) || 0),
+    resume_by: r2.resume_by === "platform" ? "platform" : "owner"
   };
 }
 function domainStatsWords(d) {
@@ -21117,12 +21131,13 @@ var HOLD_WORDS = {
   dmarc: "its DMARC record is missing",
   bounces: "more than 2% of its recent emails bounced",
   complaint: "someone marked an email from it as spam",
-  provider: "the mail provider no longer has it"
+  provider: "the mail provider no longer has it",
+  unsubscribes: "more than 2% of the people it wrote to unsubscribed"
 };
 function domainHoldWords(why) {
   return why && HOLD_WORDS[why] || "it was held";
 }
-function sendingDomainWords(d, nowMs) {
+function sendingDomainWords(d) {
   const who = `${d.from_name} \xB7 ${d.address}`;
   if (d.state === "records") {
     const line = d.provider_status === "not_found" ? "The mail provider no longer has this domain. Remove it and add it again." : d.provider_status === "verified" && d.dmarc === "missing" ? "SPF and DKIM pass. Add the DMARC record below, then Check." : d.provider_status === "failed" || d.provider_status === "partially_failed" ? "The records weren't found. Check each one below at your registrar, then Check again." : "Add the records below at your registrar, then Check.";
@@ -21139,33 +21154,35 @@ function sendingDomainWords(d, nowMs) {
       next: null
     };
   if (d.state === "verified") {
-    const days = cleanDays(d.clean_since, nowMs);
-    const cap2 = domainDailyCap(d.clean_since, nowMs);
+    const days = sentDaysOf(d);
+    const cap2 = domainDailyCap(days);
     const step2 = DOMAIN_RAMP.find((s) => s.perDay > cap2);
+    const left = step2 ? step2.days - days : 0;
     return {
       pill: "Verified",
       tone: "ok",
-      line: `${who} \xB7 ${days} clean day${days === 1 ? "" : "s"}`,
+      line: `${who} \xB7 ${days ? `${days} day${days === 1 ? "" : "s"} sending` : "nothing sent yet"}`,
       stats: domainStatsWords(d),
       fix: null,
       cap: `Up to ${cap2} a day`,
-      // The next step as the day it comes, if the days stay clean (the canvas's "200 a day from Oct 15").
-      next: step2 && d.clean_since ? `${step2.perDay} a day from ${DAY_FMT.format(new Date(Date.parse(d.clean_since) + step2.days * DAY_MS8))}` : null
+      // The next step by the days still to send (D15): a date would be a promise the days it rests on cannot keep.
+      next: step2 ? `${step2.perDay} a day after ${left} more day${left === 1 ? "" : "s"} of sending` : null
     };
   }
   const why = domainHoldWords(d.held_why);
   const since = d.held_at ? DAY_FMT.format(new Date(d.held_at)) : null;
-  const was = domainDailyCap(d.clean_since, d.held_at ? Date.parse(d.held_at) : nowMs);
+  const was = d.clean_since ? domainDailyCap(sentDaysOf(d)) : 0;
   return {
     pill: "Held",
     tone: "warn",
     line: `${since ? `Held since ${since}` : "Held"} \xB7 ${why}`,
     stats: null,
-    // Only a hold the owner lifts says what to do: a DNS hold shows its records just below, and a provider hold lifts
-    // itself (its line says so), so neither says anything twice or tells the owner to remove what will come back.
-    fix: d.held_why && SELF_LIFTING_HOLDS.includes(d.held_why) ? null : domainHoldFixWords(d.held_why),
+    // Only a hold the owner lifts says what to do: a DNS hold shows its records just below, a provider hold lifts
+    // itself (its line says so), and a hold the platform lifts (D16) has nothing for the owner to press, so none says
+    // anything twice or tells the owner to do what is not theirs.
+    fix: d.held_why && SELF_LIFTING_HOLDS.includes(d.held_why) || d.resume_by === "platform" ? null : domainHoldFixWords(d.held_why),
     cap: was > 0 ? `Sending nothing \xB7 was ${was} a day` : "Sending nothing",
-    next: d.held_why === "provider" ? "We've been told. If it doesn't come back on its own, remove it and add it again." : d.held_why && DNS_HOLDS.includes(d.held_why) ? `It sends again by itself once the records read right, starting at ${DOMAIN_RAMP[0].perDay} a day.` : "Nothing leaves from it until you resume it."
+    next: d.held_why === "provider" ? "We've been told. If it doesn't come back on its own, remove it and add it again." : d.held_why && DNS_HOLDS.includes(d.held_why) ? `It sends again by itself once the records read right, starting at ${DOMAIN_RAMP[0].perDay} a day.` : d.resume_by === "platform" ? "Held twice in 30 days \xB7 we were told, and we lift this hold." : "Nothing leaves from it until you resume it."
   };
 }
 var HOLD_FIX_WORDS = {
@@ -21173,7 +21190,8 @@ var HOLD_FIX_WORDS = {
   dmarc: "Its DMARC record is missing: add the one below.",
   bounces: "Check the addresses you write to before you resume it.",
   complaint: "Read the email again before you resume it: a clear reason for writing, and fewer a day.",
-  provider: "It usually comes back by itself."
+  provider: "It usually comes back by itself.",
+  unsubscribes: "Write to fewer, and to the ones it fits best, before you resume it."
 };
 function domainHoldFixWords(why) {
   return why && HOLD_FIX_WORDS[why] || null;
@@ -21183,8 +21201,10 @@ var HOLD_NOTICE_WORDS = {
   dmarc: "Its DMARC record is missing: Connections shows the one to add, under Email.",
   bounces: "Check the addresses you write to, then resume it on Connections, under Email.",
   complaint: "Read the email again (a clear reason for writing, and fewer a day), then resume it on Connections, under Email.",
-  provider: "It usually comes back by itself; if it doesn't, remove it and add it again on Connections, under Email."
+  provider: "It usually comes back by itself; if it doesn't, remove it and add it again on Connections, under Email.",
+  unsubscribes: "Write to fewer, and to the ones it fits best, then resume it on Connections, under Email."
 };
+var PLATFORM_HOLD_NOTICE = "It was held twice in 30 days, so we lift this hold ourselves, and we've been told. We'll write when it sends again.";
 function domainHoldNoticeWords(why) {
   return why && HOLD_NOTICE_WORDS[why] || null;
 }
@@ -21226,9 +21246,9 @@ function domainRecordsIntro(host) {
 function domainRegistrarHint(host) {
   return `Some registrars add ${host} for you. If yours does, type only the part shown.`;
 }
-function checkResultWords(d, nowMs, before) {
+function checkResultWords(d, before) {
   if (d.state === "verified") {
-    const cap2 = domainDailyCap(d.clean_since, nowMs);
+    const cap2 = domainDailyCap(sentDaysOf(d));
     const again = before?.state === "held" || cap2 !== DOMAIN_RAMP[0].perDay;
     return {
       tone: "ok",
@@ -21255,7 +21275,7 @@ function sendingDomainsFootWords(count2, max) {
   if (count2 >= max) return `${max === 5 ? "Five" : max} is the most. Remove one to add another. ${where}`;
   if (count2 === 0)
     return "Cold email to the businesses you find leaves only from a domain you own, so cold email's reputation stays apart from your everyday email's. No spare domain? Buy one like get<yourbusiness>.com, then add it here.";
-  return `A new domain starts at ${DOMAIN_RAMP[0].perDay} a day and grows as the days stay clean. ${where}`;
+  return `A new domain starts at ${DOMAIN_RAMP[0].perDay} a day and grows with the days it sends. ${where}`;
 }
 
 // src/activity.ts
@@ -22441,7 +22461,8 @@ var SCHEMA_SETS = {
   "person_notes.author_kind": ["member", "receptionist"],
   "person_notes.source": ["page", "bulk", "moved", "call", "thread"],
   "person_notes.state": ["kept", "suggested"],
-  "playbooks.policy_class": ["reengage", "campaign", "booking", "follow_up"],
+  "playbooks.kind": ["moment", "reach_out"],
+  "playbooks.policy_class": ["reengage", "campaign", "booking", "follow_up", "outreach"],
   "playbooks.state": ["running", "paused"],
   "playbooks.trigger": [
     "quiet_30",
@@ -22452,14 +22473,28 @@ var SCHEMA_SETS = {
     "visited",
     "lapsed",
     "saved_list",
-    "proposal_waiting"
+    "proposal_waiting",
+    "lead_first",
+    "after_step"
   ],
-  "policies.class": ["reply", "booking", "faq", "reengage", "campaign", "money", "reviews", "follow_up"],
+  "policies.class": [
+    "reply",
+    "booking",
+    "faq",
+    "reengage",
+    "campaign",
+    "reviews",
+    "money",
+    "follow_up",
+    "outreach"
+  ],
   "policies.mode": ["auto", "veto", "ask", "never"],
   "policies.subject_type": ["segment", "contact"],
   "push_devices.platform": ["ios", "android"],
+  "reach_out_sends.state": ["planned", "claimed", "queued", "sent", "skipped", "failed"],
   "sending_domains.dmarc": ["found", "missing"],
-  "sending_domains.held_why": ["verification", "dmarc", "bounces", "complaint", "provider"],
+  "sending_domains.held_why": ["verification", "dmarc", "bounces", "complaint", "provider", "unsubscribes"],
+  "sending_domains.resume_by": ["owner", "platform"],
   "sending_domains.state": ["records", "verifying", "verified", "held"],
   "sweep_status.judged_by": ["request", "run"],
   "templates.category": ["marketing", "utility", "authentication"],
@@ -22522,17 +22557,17 @@ function leadsFirstDayWays(f) {
 }
 
 // src/pace.ts
-var DAY_MS9 = 864e5;
+var DAY_MS8 = 864e5;
 var SAME_SITTING_MS = 36e5;
 function yesWaits(rows) {
-  return rows.filter(isYes).map((d) => d.decided_at ? Date.parse(d.decided_at) - Date.parse(d.proposed_at) : Number.NaN).filter((ms2) => Number.isFinite(ms2) && ms2 >= SAME_SITTING_MS).map((ms2) => Math.floor(ms2 / DAY_MS9)).sort((a, b) => a - b);
+  return rows.filter(isYes).map((d) => d.decided_at ? Date.parse(d.decided_at) - Date.parse(d.proposed_at) : Number.NaN).filter((ms2) => Number.isFinite(ms2) && ms2 >= SAME_SITTING_MS).map((ms2) => Math.floor(ms2 / DAY_MS8)).sort((a, b) => a - b);
 }
 function medianWait(waits) {
   const m = quantile([...waits], 0.5);
   return m === null ? null : Math.round(m);
 }
 function dealPaceFrom(rows, nowMs) {
-  const since = nowMs - PACE_WINDOW_DAYS * DAY_MS9;
+  const since = nowMs - PACE_WINDOW_DAYS * DAY_MS8;
   const waits = yesWaits(rows.filter((d) => d.decided_at !== null && Date.parse(d.decided_at) >= since));
   return { median_days: medianWait(waits), yeses: waits.length };
 }
@@ -22973,7 +23008,7 @@ function importCounts(rows) {
 var LINE_RELEASE_WARN_DAYS = 7;
 var LINE_RELEASE_MIN_DAYS = 14;
 var LINE_RELEASE_REPORT_DAYS = 30;
-var DAY_MS10 = 864e5;
+var DAY_MS9 = 864e5;
 function lineReleaseAfterDays(raw) {
   if (!raw || !/^\d+$/.test(raw.trim())) return null;
   const n = Number(raw.trim());
@@ -23000,16 +23035,16 @@ function billingEndedAt(b) {
 function lineReleaseStep(billing, afterDays, warned, nowMs) {
   const endedAt = billingEndedAt(billing);
   if (endedAt === null) return { step: "keep" };
-  const releaseAt = endedAt + afterDays * DAY_MS10;
+  const releaseAt = endedAt + afterDays * DAY_MS9;
   const warnedAt = warned && msOf(warned.ended_at) === endedAt ? msOf(warned.at) : null;
   if (warnedAt === null) {
-    return nowMs >= releaseAt - LINE_RELEASE_WARN_DAYS * DAY_MS10 ? { step: "warn", endedAt, releaseAt } : { step: "wait", endedAt, releaseAt };
+    return nowMs >= releaseAt - LINE_RELEASE_WARN_DAYS * DAY_MS9 ? { step: "warn", endedAt, releaseAt } : { step: "wait", endedAt, releaseAt };
   }
-  const due = Math.max(releaseAt, warnedAt + LINE_RELEASE_WARN_DAYS * DAY_MS10);
+  const due = Math.max(releaseAt, warnedAt + LINE_RELEASE_WARN_DAYS * DAY_MS9);
   return nowMs >= due ? { step: "release", endedAt, releaseAt: due } : { step: "wait", endedAt, releaseAt: due };
 }
 function lineReleaseDay(releaseAt, nowMs) {
-  return Math.max(releaseAt, nowMs + LINE_RELEASE_WARN_DAYS * DAY_MS10);
+  return Math.max(releaseAt, nowMs + LINE_RELEASE_WARN_DAYS * DAY_MS9);
 }
 function lineReleaseWarning(i) {
   const number = formatPhoneDisplay(i.number) ?? i.number;
@@ -23151,6 +23186,309 @@ function unsubscribePageWords(v) {
         foot: null
       };
   }
+}
+
+// src/us-zones.ts
+var US_STATE_ZONES = {
+  AL: "America/Chicago",
+  AK: "America/Anchorage",
+  AZ: "America/Phoenix",
+  AR: "America/Chicago",
+  CA: "America/Los_Angeles",
+  CO: "America/Denver",
+  CT: "America/New_York",
+  DE: "America/New_York",
+  DC: "America/New_York",
+  FL: "America/New_York",
+  GA: "America/New_York",
+  HI: "Pacific/Honolulu",
+  ID: "America/Boise",
+  IL: "America/Chicago",
+  IN: "America/Indiana/Indianapolis",
+  IA: "America/Chicago",
+  KS: "America/Chicago",
+  KY: "America/New_York",
+  LA: "America/Chicago",
+  ME: "America/New_York",
+  MD: "America/New_York",
+  MA: "America/New_York",
+  MI: "America/Detroit",
+  MN: "America/Chicago",
+  MS: "America/Chicago",
+  MO: "America/Chicago",
+  MT: "America/Denver",
+  NE: "America/Chicago",
+  NV: "America/Los_Angeles",
+  NH: "America/New_York",
+  NJ: "America/New_York",
+  NM: "America/Denver",
+  NY: "America/New_York",
+  NC: "America/New_York",
+  ND: "America/Chicago",
+  OH: "America/New_York",
+  OK: "America/Chicago",
+  OR: "America/Los_Angeles",
+  PA: "America/New_York",
+  RI: "America/New_York",
+  SC: "America/New_York",
+  SD: "America/Chicago",
+  TN: "America/Chicago",
+  TX: "America/Chicago",
+  UT: "America/Denver",
+  VT: "America/New_York",
+  VA: "America/New_York",
+  WA: "America/Los_Angeles",
+  WV: "America/New_York",
+  WI: "America/Chicago",
+  WY: "America/Denver"
+};
+function zoneOfRegion(region) {
+  const code2 = (region ?? "").trim().toUpperCase();
+  return US_STATE_ZONES[code2] ?? null;
+}
+
+// src/lead-hours.ts
+var NINE_TO_FIVE = [{ from: 9 * 60, to: 17 * 60 }];
+var DEFAULT_WEEK = {
+  mon: NINE_TO_FIVE,
+  tue: NINE_TO_FIVE,
+  wed: NINE_TO_FIVE,
+  thu: NINE_TO_FIVE,
+  fri: NINE_TO_FIVE,
+  sat: [],
+  sun: []
+};
+var DAY_OF = {
+  mon: "mon",
+  monday: "mon",
+  tue: "tue",
+  tues: "tue",
+  tuesday: "tue",
+  wed: "wed",
+  wednesday: "wed",
+  thu: "thu",
+  thur: "thu",
+  thurs: "thu",
+  thursday: "thu",
+  fri: "fri",
+  friday: "fri",
+  sat: "sat",
+  saturday: "sat",
+  sun: "sun",
+  sunday: "sun",
+  mo: "mon",
+  tu: "tue",
+  we: "wed",
+  weds: "wed",
+  th: "thu",
+  fr: "fri",
+  sa: "sat",
+  su: "sun"
+};
+var dayNameOf = (raw) => DAY_OF[String(raw ?? "").replace(/\([^)]*\)/g, "").replace(/\./g, "").trim().toLowerCase()] ?? null;
+function timeOf(s) {
+  const t = s.trim().toLowerCase().replace(/\./g, "");
+  if (t === "noon") return { min: 0, meridiem: "pm" };
+  if (t === "midnight") return { min: 0, meridiem: "am" };
+  const m = /^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/.exec(t);
+  if (!m) return null;
+  const hh = Number(m[1]);
+  const mm = Number(m[2] ?? 0);
+  if (mm > 59) return null;
+  if (hh === 0) return m[3] ? null : { min: mm, meridiem: "am" };
+  if (hh > 12) return null;
+  return { min: hh % 12 * 60 + mm, meridiem: m[3] ?? null };
+}
+var withMeridiem = (min, meridiem) => meridiem === "pm" ? min + 12 * 60 : min;
+function rangeOf(s) {
+  const parts2 = s.split(/\s*(?:to|–|—|-)\s*/i);
+  if (parts2.length !== 2) return null;
+  const a = timeOf(parts2[0]);
+  const b = timeOf(parts2[1]);
+  if (!a || !b || !b.meridiem) return null;
+  const to0 = withMeridiem(b.min, b.meridiem);
+  let from = a.meridiem ? withMeridiem(a.min, a.meridiem) : withMeridiem(a.min, b.meridiem);
+  if (!a.meridiem && from > to0) from = a.min;
+  const to = to0 === 0 ? 24 * 60 : to0 <= from ? to0 + 24 * 60 : to0;
+  return { from, to };
+}
+function dayOf(words4) {
+  const w = words4.replace(/\([^)]*\)/g, "").trim().toLowerCase();
+  if (w === "closed") return [];
+  if (w === "open 24 hours" || w === "24 hours") return [{ from: 0, to: 24 * 60 }];
+  const ranges = w.split(/\s*,\s*/).map(rangeOf);
+  return ranges.every((r2) => r2 !== null) && ranges.length > 0 ? ranges : null;
+}
+function weekHoursOf(hours) {
+  if (!Array.isArray(hours) || hours.length === 0) return { week: DEFAULT_WEEK, read: false };
+  const week = { mon: [], tue: [], wed: [], thu: [], fri: [], sat: [], sun: [] };
+  let readAny = false;
+  for (const e of hours) {
+    const day = e && typeof e === "object" ? dayNameOf(e.day) : null;
+    if (!day) return { week: DEFAULT_WEEK, read: false };
+    const said = e.hours;
+    const windows = typeof said === "string" ? dayOf(said) : null;
+    week[day] = windows ?? DEFAULT_WEEK[day];
+    if (windows !== null) readAny = true;
+  }
+  return readAny ? { week, read: true } : { week: DEFAULT_WEEK, read: false };
+}
+
+// src/reach-out-timetable.ts
+var SEND_WINDOW_MARGIN_MIN = 30;
+var SEND_DAY_FRAME = { from: 8 * 60, to: 20 * 60 };
+var TIMETABLE_HORIZON_DAYS = 7;
+var DAY_MS10 = 864e5;
+var MIN_MS2 = 6e4;
+var DAYS2 = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+function inFrame(week) {
+  const out = {};
+  for (const day of DAYS2) {
+    out[day] = (week[day] ?? []).map((w) => ({
+      from: Math.max(w.from + SEND_WINDOW_MARGIN_MIN, SEND_DAY_FRAME.from),
+      to: Math.min(w.to - SEND_WINDOW_MARGIN_MIN, SEND_DAY_FRAME.to)
+    })).filter((w) => w.to > w.from);
+  }
+  return out;
+}
+function sendWindowsOf(week) {
+  const framed = inFrame(week);
+  if (DAYS2.some((d) => framed[d].length > 0)) return framed;
+  return DAYS2.some((d) => (week[d] ?? []).length > 0) ? inFrame(DEFAULT_WEEK) : framed;
+}
+function openSpans(zone, windows, fromMs, days) {
+  const spans = [];
+  for (let i = 0; i <= Math.ceil(days); i += 1) {
+    const day = dayPlusInZone(zone, fromMs, i);
+    for (const w of windows[day.weekday] ?? []) {
+      const start = localToUtcMs(zone, day.y, day.m, day.d, Math.floor(w.from / 60), w.from % 60);
+      const end = localToUtcMs(zone, day.y, day.m, day.d, Math.floor(w.to / 60), w.to % 60);
+      if (end > fromMs) spans.push([Math.max(start, fromMs), end]);
+    }
+  }
+  return spans.sort((a, b) => a[0] - b[0]);
+}
+function lowerBound(times, x) {
+  let lo = 0;
+  let hi = times.length;
+  while (lo < hi) {
+    const mid = lo + hi >> 1;
+    if (times[mid] < x) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+function fitsCap(times, t, cap2) {
+  const ends = [t, ...times.slice(lowerBound(times, t), lowerBound(times, t + DAY_MS10))];
+  for (const q of ends) {
+    const already = lowerBound(times, q + 1) - lowerBound(times, q - DAY_MS10 + 1);
+    if (already + 1 > cap2) return false;
+  }
+  return true;
+}
+function earliest(spans, times, cap2, gapMs, limitMs) {
+  let floor = 0;
+  for (const [start, end] of spans) {
+    let t = Math.max(start, floor);
+    for (let guard = 0; guard < 500 && t < end && t < limitMs; guard += 1) {
+      const i = lowerBound(times, t - gapMs + 1);
+      if (i < times.length && times[i] < t + gapMs) {
+        t = times[i] + gapMs;
+        floor = t;
+        continue;
+      }
+      if (!fitsCap(times, t, cap2)) {
+        const j = lowerBound(times, t - DAY_MS10 + 1);
+        t = (j < times.length && times[j] <= t ? times[j] : t) + DAY_MS10;
+        floor = t;
+        continue;
+      }
+      return t;
+    }
+  }
+  return null;
+}
+function spansOrNone(zone, week, fromMs, days) {
+  try {
+    return openSpans(zone, sendWindowsOf(week), fromMs, days);
+  } catch {
+    return [];
+  }
+}
+function timetable(input) {
+  if (!Number.isFinite(input.gapMinutes) || input.gapMinutes <= 0)
+    throw new Error(`timetable: a gap is a number of minutes above zero (${input.gapMinutes})`);
+  const horizon = input.horizonDays ?? TIMETABLE_HORIZON_DAYS;
+  const limitMs = input.nowMs + horizon * DAY_MS10;
+  const draw = input.jitter ?? (() => Math.random() * 2 - 1);
+  const jitter = () => {
+    const j = draw();
+    return Number.isFinite(j) ? Math.max(-1, Math.min(1, j)) : 0;
+  };
+  const domains = input.domains.filter((d) => d.cap > 0).map((d) => ({ ...d, times: [...d.recent].sort((a, b) => a - b), placed: 0 }));
+  const spansOf = /* @__PURE__ */ new Map();
+  const placed = [];
+  const unplaced = [];
+  for (const s of input.sends) {
+    const gapMs = Math.round(input.gapMinutes * MIN_MS2 * (1 + 0.25 * jitter()));
+    const key = `${s.zone}|${JSON.stringify(s.week)}`;
+    let spans = spansOf.get(key);
+    if (!spans) {
+      spans = spansOrNone(s.zone, s.week, input.nowMs, horizon);
+      spansOf.set(key, spans);
+    }
+    let best = null;
+    for (const d of domains) {
+      const t = earliest(spans, d.times, d.cap, gapMs, limitMs);
+      if (t === null) continue;
+      if (!best || t < best.t || t === best.t && d.placed < best.d.placed) best = { d, t };
+    }
+    if (!best) {
+      unplaced.push(s.id);
+      continue;
+    }
+    best.d.times.splice(lowerBound(best.d.times, best.t), 0, best.t);
+    best.d.placed += 1;
+    placed.push({ id: s.id, domainId: best.d.id, sendAtMs: best.t });
+  }
+  return { placed, unplaced };
+}
+
+// src/reach-out-rules.ts
+function outreachRefusalOf(f) {
+  if (!f.leadStage) return "outreach_not_a_lead";
+  if (f.leadStage !== "ready" && f.leadStage !== "nurture") return "outreach_lead_closed";
+  if (f.suppressed) return "outreach_suppressed";
+  if (f.wroteBack) return "outreach_wrote_back";
+  return null;
+}
+var OUTREACH_WAIT_REFUSALS = [
+  "sending_domain_at_cap",
+  "sending_domain_not_ready",
+  "outreach_needs_own_domain",
+  "paused"
+];
+function isWaitRefusal(reason) {
+  return OUTREACH_WAIT_REFUSALS.includes(reason ?? "");
+}
+var REACH_OUT_MONTH_EMAILS = 2e3;
+function isReachOutRun(audience) {
+  return !!audience && typeof audience === "object" && audience.kind === "reach_out";
+}
+function reachOutSlots(words4, lead, workspace) {
+  const values = /* @__PURE__ */ new Map([
+    ["business", lead.business_name?.trim() || null],
+    ["city", lead.city?.trim() || null],
+    ["your business", workspace.businessName?.trim() || null]
+  ]);
+  const SLOT = /\{\{([^{}]*)\}\}/g;
+  let missing = /\{\{|\}\}/.test(words4.replace(SLOT, ""));
+  const text = words4.replace(SLOT, (whole, name) => {
+    const v = values.get(name.trim().replace(/\s+/g, " ").toLowerCase());
+    if (v == null) missing = true;
+    return v ?? whole;
+  });
+  return missing ? { ok: false, reason: "missing_value" } : { ok: true, text };
 }
 
 // src/app-bridge.ts
@@ -23314,6 +23652,7 @@ export {
   DEFAULT_INDUSTRY,
   DEFAULT_THEME_PREF,
   DEFAULT_TIMEZONE,
+  DEFAULT_WEEK,
   DELIVERY_REFUSALS,
   DEVICE_PREFS_STORAGE,
   DISCONNECTION_LABELS,
@@ -23323,6 +23662,7 @@ export {
   DNS_HOLDS,
   DOMAIN_HOLDS,
   DOMAIN_RAMP,
+  DOMAIN_RESUMERS,
   E164,
   EARLIER_FALLBACK_DEFAULTS,
   EMAIL_ELSEWHERE_SENTENCE,
@@ -23531,6 +23871,7 @@ export {
   MESSAGE_TYPES,
   MOCK_TEXTING_SENTENCE,
   MODE_WORDS,
+  MOMENT_TRIGGERS,
   NEEDS_KEY_PREFIX,
   NEEDS_TITLE,
   NEW_WINDOW_DAYS,
@@ -23554,6 +23895,7 @@ export {
   OPT_OUT_PATTERN,
   OPT_OUT_REFUSAL,
   OUTCOME_UNKNOWN,
+  OUTREACH_WAIT_REFUSALS,
   OWN_MESSAGE_REFUSALS,
   PACE_AFTER_YESES,
   PACE_WINDOW_DAYS,
@@ -23584,6 +23926,9 @@ export {
   PIPELINE_RAIL_SERVICES,
   PIPELINE_SORTS,
   PIPELINE_WORDS,
+  PLATFORM_HOLD_NOTICE,
+  PLATFORM_HOLD_READD,
+  PLATFORM_HOLD_REFUSAL,
   PLATFORM_NEW_DAYS,
   PLATFORM_QUIET_DAYS,
   PLATFORM_VERDICTS,
@@ -23623,6 +23968,9 @@ export {
   QUIET_AFTER_DAYS,
   QUOTE_MAX,
   RATE_HITS_RETENTION_HOURS,
+  REACH_OUT_IS_NOT_A_MOMENT,
+  REACH_OUT_MONTH_EMAILS,
+  REACH_OUT_SEND_STATES,
   RECENT_MAX,
   RECIPIENT_STATES,
   RECORDING_PURGED_WORDS,
@@ -23644,6 +23992,8 @@ export {
   REPORT_RANGES,
   REPORT_WEEK_LONG,
   REPORT_WEEK_SHORT,
+  REPUTATION_HOLDS,
+  REPUTATION_MEMORY_MS,
   RETENTION_DAYS,
   REVIEW_AUTO_REPLIES_PER_SYNC,
   REVIEW_AUTO_REPLY_MAX_AGE_MS,
@@ -23670,6 +24020,8 @@ export {
   SENDING_DOMAINS_MAX,
   SENDING_DOMAIN_STATES,
   SENDING_HOURS_WORDS,
+  SEND_DAY_FRAME,
+  SEND_WINDOW_MARGIN_MIN,
   SERVER_KEY_PREFIX,
   SERVER_NOTIFICATION_KINDS,
   SERVICE_SUGGESTION_TYPES,
@@ -23714,6 +24066,7 @@ export {
   THEME_COLOR_META,
   THEME_OPTIONS,
   TIMELINE_FILTERS,
+  TIMETABLE_HORIZON_DAYS,
   TOAST_ICONS,
   TOAST_MIN_MS,
   TOAST_MS,
@@ -23732,6 +24085,7 @@ export {
   TenantConfigSchema,
   TenantConfigWriteSchema,
   UNSUBSCRIBE_PAGE_HEADER,
+  US_STATE_ZONES,
   VISION_STRENGTH,
   WABA_FIELDS,
   WAITING_AFTER_DAYS,
@@ -23799,6 +24153,7 @@ export {
   buildAskSuggestions,
   buildNotificationFeed,
   businessFieldsFor,
+  businessGap,
   businessGroupWordsFor,
   businessNameOf,
   businessPageMetadata,
@@ -23814,6 +24169,7 @@ export {
   callOfKey,
   callOutcomeOf,
   callOutcomeWords,
+  callerName,
   callsAnswer,
   callsToday,
   cameFromOf,
@@ -23834,7 +24190,6 @@ export {
   citationRoute,
   classify,
   cleanAnswer,
-  cleanDays,
   cleanDisplayName,
   cleanDraft,
   cleanEmailCandidates,
@@ -24070,6 +24425,7 @@ export {
   isPipelineView,
   isProductFallback,
   isPushKind,
+  isReachOutRun,
   isRealDate,
   isReplyTo,
   isSellsBy,
@@ -24079,6 +24435,7 @@ export {
   isTypingTarget,
   isUngrounded,
   isUsablePassword,
+  isWaitRefusal,
   isYes,
   jobNewsWords,
   judgeAsked,
@@ -24094,8 +24451,6 @@ export {
   languageName,
   languageTag,
   languageWords,
-  lastChangedName,
-  lastChangedWords,
   leadAllowanceFact,
   leadAnd,
   leadAskedFor,
@@ -24231,6 +24586,7 @@ export {
   optInLink,
   optInPurposeOf,
   outcomeMove,
+  outreachRefusalOf,
   overLimitRefusal,
   ownAddressesOf,
   ownDomainAddress,
@@ -24352,6 +24708,7 @@ export {
   questionAfterProbe,
   ratingWords,
   reachLines,
+  reachOutSlots,
   reachedCustomer,
   readAgoLabel,
   reasonShort,
@@ -24420,6 +24777,7 @@ export {
   sellsBySaved,
   sellsByVM,
   sendFailureIsOurs,
+  sendWindowsOf,
   sendableTemplates,
   sendingDomainActs,
   sendingDomainDtoOf,
@@ -24463,7 +24821,6 @@ export {
   spokenBreachDetails,
   spokenDuration,
   stageArgs,
-  standingLine,
   standingOf,
   starsOf,
   starterByKey,
@@ -24518,6 +24875,7 @@ export {
   threadChannelWords,
   threadStanding,
   tidyCallSummary,
+  timetable,
   timezoneCity,
   timezoneWords,
   toApprovalVM,
@@ -24593,6 +24951,7 @@ export {
   waitedLabel,
   waitingOnProposal,
   wallClockAt,
+  weekHoursOf,
   weekOf,
   whenLabel,
   whisperText,
@@ -24622,6 +24981,7 @@ export {
   youAreLiveEmail,
   zoneDayKey,
   zoneMidnight,
+  zoneOfRegion,
   zoneOffsetMs,
   zoneSearchWords,
   zonedInputValue
