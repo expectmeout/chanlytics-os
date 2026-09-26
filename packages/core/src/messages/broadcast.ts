@@ -235,7 +235,8 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
         throw new ThrownAtTheDoor(e);
       });
     if (out.outcome === "sent") {
-      await mark(r.contact_id, { state: "sent", message_id: out.messageId });
+      // The claim's "nobody knows" is settled: a sent row carries no reason.
+      await mark(r.contact_id, { state: "sent", reason: null, message_id: out.messageId });
       return "go on";
     }
     if (out.outcome === "refused") {

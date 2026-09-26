@@ -227,14 +227,17 @@ test(
       const back = await mark(claimed, { state: "queued" });
       assert.match(back.error?.message ?? "", /terminal/, `and ${to} is final after it`);
     }
+    const unqueued = await recipient("queued");
+    assert.equal((await mark(unqueued, { state: "failed", reason: "outcome_unknown" })).error, null);
+    const back = await mark(unqueued, { state: "queued" });
+    assert.match(back.error?.message ?? "", /terminal/, "a claim never goes back to the queue");
     const claimed = await recipient("queued");
-    await mark(claimed, { state: "failed", reason: "outcome_unknown" });
-    const refused = await mark(claimed, { state: "failed", reason: "send_failed" });
-    assert.equal(refused.error, null, "a claim the send failed stays failed, with the send's reason");
+    const claim = await mark(claimed, { state: "failed", reason: "outcome_unknown" });
+    assert.equal(claim.error, null, claim.error?.message);
+    const failedSend = await mark(claimed, { state: "failed", reason: "send_failed" });
+    assert.equal(failedSend.error, null, "a claim the send failed stays failed, with the send's reason");
     const late = await mark(claimed, { state: "sent" });
     assert.match(late.error?.message ?? "", /terminal/, "a failure that is a verdict is final");
-    const unclaimed = await mark(claimed, { state: "queued" });
-    assert.match(unclaimed.error?.message ?? "", /terminal/, "a claim never goes back to the queue");
   },
 );
 
