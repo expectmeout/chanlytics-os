@@ -73,6 +73,7 @@ import { installPlaybooks } from "./playbooks";
 import { installCalendar } from "./calendar";
 import { installToday } from "./today";
 import { installMascot } from "./mascot";
+import { installArrival } from "./arrival";
 import { installBusinessTab } from "./business-tab";
 import { installSetup, setupOverride } from "./setup";
 import { installGoogle, googleOverride } from "./google";
@@ -119,6 +120,8 @@ installCalendar();
 installToday();
 // The three, Today's face: the character, its driver and the turn reducer (mascot/index.ts).
 installMascot();
+// On a phone the three take a page in as it arrives and notice what comes for you (arrival.ts).
+installArrival();
 installBusinessTab();
 installSetup();
 installGoogle();
