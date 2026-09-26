@@ -155,7 +155,9 @@ var EVENT_KINDS = [
   // standing the sweep decided for a workspace once it had paid.
   "partner.earned",
   "partner.reversed",
-  "partner.standing_set"
+  "partner.standing_set",
+  // A payout sent by hand (0012, P5), on each workspace it came from, with that workspace's part.
+  "partner.paid"
 ];
 var OFFERS_OPT_IN_PHRASES = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS = [
@@ -4257,6 +4259,43 @@ async function getPartnerWorkspaces(db) {
     }))
   };
 }
+async function getPlatformPartners(db) {
+  const [b, w] = await Promise.all([db.rpc("platform_partner_balances"), db.rpc("platform_partner_workspaces")]);
+  for (const r2 of [b, w]) {
+    if (r2.error && !noFunction(r2.error)) throw Object.assign(new Error(r2.error.message), { code: r2.error.code });
+  }
+  return {
+    balances: b.error ? [] : (b.data ?? []).map((r2) => ({
+      ...r2,
+      held_cents: Number(r2.held_cents),
+      payable_cents: Number(r2.payable_cents),
+      paid_cents: Number(r2.paid_cents)
+    })),
+    workspaces: w.error ? [] : w.data ?? []
+  };
+}
+async function setPartnerStanding(db, tenantId, standing, why) {
+  const { data, error } = await db.rpc("partner_standing_set", {
+    p_tenant: tenantId,
+    p_standing: standing,
+    p_why: why
+  });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  return {
+    ok: true,
+    value: data
+  };
+}
+async function markPartnerPaid(db, partnerId, currency, reference) {
+  const { data, error } = await db.rpc("partner_payout_mark", {
+    p_partner: partnerId,
+    p_currency: currency,
+    p_reference: reference
+  });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  const v = data;
+  return { ok: true, value: { ...v, total_cents: Number(v.total_cents) } };
+}
 
 // src/realtime.ts
 var WATCHED = [
@@ -4381,6 +4420,7 @@ export {
   getOwnPartner,
   getPartnerBalance,
   getPartnerWorkspaces,
+  getPlatformPartners,
   getTenantConfig,
   heldStale,
   ingestCall,
@@ -4399,6 +4439,7 @@ export {
   mailboxById,
   mailboxFor,
   mailboxOfTenant,
+  markPartnerPaid,
   markProcessed,
   monthSent,
   moveSend,
@@ -4453,6 +4494,7 @@ export {
   sentEmailWithMessageId,
   setCallRecording,
   setListRule,
+  setPartnerStanding,
   setPersonReplyMode,
   setPolicyMode,
   staleSends,

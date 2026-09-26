@@ -612,6 +612,7 @@ const OTHER_TABLES = {
   lead_platform: "none", // the switch, one row; read through lead_searches_on()
   lead_niche_priors: "none", // platform-wide priors; read through lead_niche_prior()
   partners: "own", // a partner's own row (0012): read by user_id; written only through partner_become
+  partner_payouts: "own", // a partner's own payouts (0012, P5): read through their partner row; written only by partner_payout_mark
 };
 
 const seen = async (client, table, filter) => {

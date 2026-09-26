@@ -3401,10 +3401,67 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "partner_earnings_payout_id_fkey"
+            columns: ["payout_id"]
+            isOneToOne: false
+            referencedRelation: "partner_payouts"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "partner_earnings_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      partner_payouts: {
+        Row: {
+          created_at: string
+          currency: string
+          earnings: number
+          id: string
+          partner_id: string
+          period_end: string
+          period_start: string
+          reference: string
+          sent_at: string
+          sent_by: string | null
+          total_cents: number
+        }
+        Insert: {
+          created_at?: string
+          currency: string
+          earnings: number
+          id?: string
+          partner_id: string
+          period_end: string
+          period_start: string
+          reference: string
+          sent_at?: string
+          sent_by?: string | null
+          total_cents: number
+        }
+        Update: {
+          created_at?: string
+          currency?: string
+          earnings?: number
+          id?: string
+          partner_id?: string
+          period_end?: string
+          period_start?: string
+          reference?: string
+          sent_at?: string
+          sent_by?: string | null
+          total_cents?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_payouts_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "partners"
             referencedColumns: ["id"]
           },
         ]
@@ -5216,6 +5273,10 @@ export type Database = {
           whatsapp_number: string
         }[]
       }
+      partner_payout_mark: {
+        Args: { p_currency: string; p_partner: string; p_reference: string }
+        Returns: Json
+      }
       partner_reverse: {
         Args: {
           p_amount_cents: number
@@ -5223,6 +5284,10 @@ export type Database = {
           p_invoice_id: string
           p_kind: string
         }
+        Returns: Json
+      }
+      partner_standing_set: {
+        Args: { p_standing: string; p_tenant: string; p_why: string }
         Returns: Json
       }
       partner_workspace_money: {
@@ -5442,6 +5507,38 @@ export type Database = {
           voice_state: string
           whatsapp_active: boolean
           whatsapp_number: string
+        }[]
+      }
+      platform_partner_balances: {
+        Args: never
+        Returns: {
+          code: string
+          currency: string
+          email: string
+          held_cents: number
+          joined_at: string
+          last_paid_at: string
+          paid_cents: number
+          partner_id: string
+          payable_cents: number
+          share_bp: number
+          status: string
+          under_review: number
+          workspaces: number
+        }[]
+      }
+      platform_partner_workspaces: {
+        Args: never
+        Returns: {
+          attributed_at: string
+          checks: Json
+          code: string
+          decided_by: string
+          partner_id: string
+          standing: string
+          standing_at: string
+          standing_why: string
+          tenant_id: string
         }[]
       }
       profile_set: { Args: { p_display_name: string }; Returns: Json }

@@ -898,6 +898,20 @@
       "rate": null,
       "spend": false
     },
+    "POST platform/partners/payout": {
+      "kind": "write",
+      "scope": "platform",
+      "role": null,
+      "rate": "platform_partner_payout",
+      "spend": false
+    },
+    "POST platform/partners/standing": {
+      "kind": "write",
+      "scope": "platform",
+      "role": null,
+      "rate": "platform_partner_standing",
+      "spend": false
+    },
     "POST platform/waitlist/invited": {
       "kind": "write",
       "scope": "platform",

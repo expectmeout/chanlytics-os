@@ -135,6 +135,8 @@ export const ROUTES = {
   "POST platform/lines/release": { method: "POST", path: "/api/v1/platform/lines/release" },
   "POST platform/lines/replace": { method: "POST", path: "/api/v1/platform/lines/replace" },
   "POST platform/lines/retry": { method: "POST", path: "/api/v1/platform/lines/retry" },
+  "POST platform/partners/payout": { method: "POST", path: "/api/v1/platform/partners/payout" },
+  "POST platform/partners/standing": { method: "POST", path: "/api/v1/platform/partners/standing" },
   "POST platform/waitlist/invited": { method: "POST", path: "/api/v1/platform/waitlist/invited" },
   "POST playbooks": { method: "POST", path: "/api/v1/playbooks" },
   "POST playbooks/[id]/run": { method: "POST", path: "/api/v1/playbooks/[id]/run" },
@@ -308,6 +310,8 @@ export type Routes = {
   "POST platform/lines/release": typeof import("../../app/api/v1/platform/lines/release/route").POST;
   "POST platform/lines/replace": typeof import("../../app/api/v1/platform/lines/replace/route").POST;
   "POST platform/lines/retry": typeof import("../../app/api/v1/platform/lines/retry/route").POST;
+  "POST platform/partners/payout": typeof import("../../app/api/v1/platform/partners/payout/route").POST;
+  "POST platform/partners/standing": typeof import("../../app/api/v1/platform/partners/standing/route").POST;
   "POST platform/waitlist/invited": typeof import("../../app/api/v1/platform/waitlist/invited/route").POST;
   "POST playbooks": typeof import("../../app/api/v1/playbooks/route").POST;
   "POST playbooks/[id]/run": typeof import("../../app/api/v1/playbooks/[id]/run/route").POST;

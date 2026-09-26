@@ -1,7 +1,7 @@
 # 0012 · A partner brings a workspace, sets it up, and earns a share
 
-**Status:** decided; P1 (the role), P2 (attribution) and P3 (the ledger) merged (#1151); P4 (the partner's table) built on
-the branch this note ships with; P5 not yet. Written against commit `b6f2216` (PR #1124, 26 September 2026); every file and line below was read
+**Status:** decided; P1 (the role), P2 (attribution) and P3 (the ledger) merged (#1151); P4 (the partner's table)
+merged (#1156); P5 (standing and payouts) built on the branch this note ships with (00205). Written against commit `b6f2216` (PR #1124, 26 September 2026); every file and line below was read
 at that commit, before P1, so the Context describes the code P1 to P3 changed: `memberships.role` admits `partner`,
 `has_permission()` and `ROLE_PERMS` carry its row, the setting-class routes declare `role: "partner"`, `requireRole`
 refuses a role it does not know (00201, `with-route.ts`); `partners` and `partner_tenants` exist, `create_workspace`
@@ -30,6 +30,14 @@ What moved from the Shape below as written, each for a reason found in the code:
   nothing else of the business: the share is for bringing it, the view is for working in it.
 - **Standing is judged a week after the first share, or as soon as the card is known**, so a share paid before the
   subscription's card was marked is not judged on nothing.
+- **The back office's two verbs name their subject in the body**, as the line actions do: `POST platform/partners/
+standing` (`tenant_id`, `standing`, `why`) and `POST platform/partners/payout` (`partner_id`, `currency`,
+  `reference`). A person's decision takes effect when it is made: disqualified voids what the workspace held, and
+  qualified makes what is past its hold payable, rather than waiting for the night's sweep. A void share stays void.
+- **A payout is one currency's payable earnings, netted, and there is no `planned` state**: it is recorded after the
+  money left, so it is `sent` or it does not exist. A net that is not above zero records nothing. Each workspace it
+  came from gets a `partner.paid` event with its own part and no reference, since a workspace's members read its
+  events. The partners and who brought each workspace ride on `GET platform/overview`, as the waiting list does.
 
 ## Context
 
@@ -286,6 +294,8 @@ know the role before any row carries it, and P1's migration creates none.
    with numbers behind it.
 5. **P5 — standing and payouts.** `partner_standing_set`, `partner_payouts`, `partner_payout_mark`, the back
    office's column and two actions, the review words on the partner's pane ("Under review · we'll write to you").
+   Built as 00205 with `platform_partner_balances` and `platform_partner_workspaces` for the back office's card;
+   either order, since the overview reads no partners on a database without it.
 6. **Later, each its own note:** email to a partner (earned, payable, paid, under review); Stripe Connect Express
    for identity, tax forms and transfers; a partner making the workspace and inviting the owner (needs "invite as
    owner" and a hand-over); presets per trade on top of `firstReceptionistOf`; a directory of partners a business

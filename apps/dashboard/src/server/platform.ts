@@ -24,7 +24,7 @@ import "server-only";
  * unless the database says yes. The type is branded so it cannot be forged from
  * an object literal either. Nothing is exported that hands out authority.
  */
-import { createServiceClient } from "@chanlytics/db";
+import { createServiceClient, getPlatformPartners, markPartnerPaid, setPartnerStanding } from "@chanlytics/db";
 import type { Database } from "@chanlytics/db";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
@@ -32,6 +32,8 @@ import {
   platformHealthOf,
   QUEUE_SHOWN,
   type PlatformHealth,
+  type PlatformPartnerBalanceDto,
+  type PlatformPartnerWorkspaceDto,
   type PlatformQueue,
   type PlatformTenantDto,
   type SweepHealthRow,
@@ -313,4 +315,61 @@ export async function platformLineAct(
 
   const a = await edgeLines(EDGE_OP[action](tenantId, lineId), 60_000);
   return { ok: a.status === 200, status: a.status, body: a.body };
+}
+
+/* ------------------------------------------------------------------------ partners (decision 0012, P5) */
+
+/**
+ * Every partner, and who brought each workspace, for the back office.
+ *
+ * On the SESSION client, as platform_overview is: both functions check `is_platform_admin()` for `auth.uid()`
+ * themselves. NOT FATAL, like the health read: the workspaces are the page's work, and a partner list that could
+ * not be read is said as such rather than taking them down with it.
+ */
+export async function platformPartners(
+  office: BackOffice,
+): Promise<{ balances: PlatformPartnerBalanceDto[]; workspaces: PlatformPartnerWorkspaceDto[] } | null> {
+  return getPlatformPartners(office.session).then(
+    (r) => ({
+      balances: r.balances,
+      workspaces: r.workspaces.map((w) => ({ ...w, checks: (w.checks ?? null) as Record<string, unknown> | null })),
+    }),
+    () => null,
+  );
+}
+
+/** The function's refusals, as the route answers them: its own words for a bad input, the page's for the rest. */
+function partnerVerbError(r: { code: string; message: string }): AppError {
+  if (r.code === "22023") return new AppError("validation", r.message, 400);
+  if (r.code === "P0002") return new AppError("not_found", r.message, 404);
+  if (r.code === "42501") return new AppError("not_found", "No such page.", 404);
+  return new AppError("internal", "That could not be recorded, so it was not done. Try again in a moment.", 503);
+}
+
+/**
+ * A person's decision on a workspace a partner brought. The function records it (platform.acted and
+ * partner.standing_set, against the caller) in the same transaction as the change, so there is no order to get
+ * wrong here: it is recorded, or it did not happen.
+ */
+export async function platformPartnerStanding(
+  office: BackOffice,
+  tenantId: string,
+  standing: string,
+  why: string,
+): Promise<{ standing: string; from: string | null; voided: number; matured: number }> {
+  const r = await setPartnerStanding(office.session, tenantId, standing, why);
+  if (!r.ok) throw partnerVerbError(r);
+  return r.value;
+}
+
+/** Record a payout sent to a partner by hand: every payable earning in the currency, netted, into one payout. */
+export async function platformPartnerPayout(
+  office: BackOffice,
+  partnerId: string,
+  currency: string,
+  reference: string,
+): Promise<{ paid: boolean; total_cents: number; currency: string; earnings?: number; payout_id?: string }> {
+  const r = await markPartnerPaid(office.session, partnerId, currency, reference);
+  if (!r.ok) throw partnerVerbError(r);
+  return r.value;
 }

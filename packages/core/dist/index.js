@@ -1087,7 +1087,9 @@ var EVENT_KINDS = [
   // standing the sweep decided for a workspace once it had paid.
   "partner.earned",
   "partner.reversed",
-  "partner.standing_set"
+  "partner.standing_set",
+  // A payout sent by hand (0012, P5), on each workspace it came from, with that workspace's part.
+  "partner.paid"
 ];
 var OFFERS_OPT_IN_PHRASES = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS = [
@@ -3949,7 +3951,9 @@ var EVENT_KINDS2 = [
   // standing the sweep decided for a workspace once it had paid.
   "partner.earned",
   "partner.reversed",
-  "partner.standing_set"
+  "partner.standing_set",
+  // A payout sent by hand (0012, P5), on each workspace it came from, with that workspace's part.
+  "partner.paid"
 ];
 var OFFERS_OPT_IN_PHRASES2 = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS2 = [
@@ -8505,7 +8509,9 @@ var EVENT_KINDS3 = [
   // standing the sweep decided for a workspace once it had paid.
   "partner.earned",
   "partner.reversed",
-  "partner.standing_set"
+  "partner.standing_set",
+  // A payout sent by hand (0012, P5), on each workspace it came from, with that workspace's part.
+  "partner.paid"
 ];
 var OFFERS_OPT_IN_PHRASES3 = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS3 = [

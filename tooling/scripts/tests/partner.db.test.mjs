@@ -438,3 +438,183 @@ test(
     assert.ok(r.error, "owner-only, as 00093 made its caller");
   },
 );
+
+/* ------------------------------------------------------------------------- standing and payouts, by a person (P5) */
+
+test(
+  "the platform's partner verbs are a platform admin's alone: a partner, an owner and a stranger are refused the privilege",
+  { skip },
+  async () => {
+    const [{ id: partnerId }] = ok(await partner.client.from("partners").select("id"));
+    for (const who of [partner, customer, other]) {
+      const standing = await who.client.rpc("partner_standing_set", {
+        p_tenant: brought,
+        p_standing: "disqualified",
+        p_why: "forged",
+      });
+      assert.equal(standing.error?.code, "42501");
+      const paid = await who.client.rpc("partner_payout_mark", {
+        p_partner: partnerId,
+        p_currency: "usd",
+        p_reference: "forged",
+      });
+      assert.equal(paid.error?.code, "42501");
+      for (const read of ["platform_partner_balances", "platform_partner_workspaces"])
+        assert.equal((await who.client.rpc(read)).error?.code, "42501", read);
+    }
+    const link = ok(await db.from("partner_tenants").select("standing").eq("tenant_id", brought).single());
+    assert.equal(link.standing, "qualified", "nothing moved");
+  },
+);
+
+test(
+  "a payout recorded by hand settles every payable share into one row the partner reads; a second press pays nothing",
+  { skip },
+  async () => {
+    const admin = await person("admin");
+    ok(await db.from("platform_admins").insert({ user_id: admin.userId }));
+    try {
+      const [{ id: partnerId }] = ok(await partner.client.from("partners").select("id"));
+      const mine = ok(await admin.client.rpc("platform_partner_balances")).find(
+        (r) => r.partner_id === partnerId && r.currency === "usd",
+      );
+      assert.equal(
+        Number(mine.payable_cents),
+        2500,
+        "$100 earned, $75 of it refunded, the dispute taken and given back",
+      );
+      assert.ok(mine.workspaces >= 2, "the workspace they brought, and the second one");
+
+      const bad = await admin.client.rpc("partner_payout_mark", {
+        p_partner: partnerId,
+        p_currency: "usd",
+        p_reference: "  ",
+      });
+      assert.equal(bad.error?.code, "22023", "a payout says where it can be found");
+
+      const paid = ok(
+        await admin.client.rpc("partner_payout_mark", {
+          p_partner: partnerId,
+          p_currency: "USD",
+          p_reference: "bank-ref-1",
+        }),
+      );
+      assert.equal(paid.paid, true);
+      assert.equal(Number(paid.total_cents), 2500);
+      const rows = ok(await db.from("partner_earnings").select("state, payout_id").eq("stripe_invoice_id", "in_led_1"));
+      assert.ok(
+        rows.every((r) => r.state === "paid" && r.payout_id === paid.payout_id),
+        "every line of the invoice, netted, in the one payout",
+      );
+      const again = ok(
+        await admin.client.rpc("partner_payout_mark", {
+          p_partner: partnerId,
+          p_currency: "usd",
+          p_reference: "bank-ref-2",
+        }),
+      );
+      assert.deepEqual([again.paid, Number(again.total_cents)], [false, 0], "nothing left to pay");
+
+      const seen = ok(await partner.client.from("partner_payouts").select("total_cents, reference, earnings"));
+      assert.deepEqual(
+        seen.map((p) => [Number(p.total_cents), p.reference]),
+        [[2500, "bank-ref-1"]],
+      );
+      assert.deepEqual(ok(await customer.client.from("partner_payouts").select("id")), [], "never the owner's");
+      const forged = await partner.client.from("partner_payouts").insert({
+        partner_id: partnerId,
+        currency: "usd",
+        total_cents: 1,
+        earnings: 1,
+        period_start: PAID,
+        period_end: PAID,
+        reference: "forged",
+      });
+      assert.ok(forged.error, "and nobody signed in writes one");
+      const balance = Object.fromEntries(
+        ok(await partner.client.rpc("partner_balance")).map((r) => [r.state, Number(r.earned_cents)]),
+      );
+      assert.equal(balance.paid, 2500);
+      assert.equal(balance.payable, undefined);
+      const ev = ok(await db.from("events").select("data").eq("tenant_id", brought).eq("kind", "partner.paid"));
+      assert.equal(ev.length, 1);
+      assert.equal(ev[0].data.earned_cents, 2500);
+      assert.equal(
+        ev[0].data.reference,
+        undefined,
+        "the workspace's members read its events; the reference is not theirs",
+      );
+      const paidRow = await db
+        .from("partner_earnings")
+        .update({ state: "paid", payout_id: null })
+        .eq("stripe_invoice_id", "in_led_1");
+      assert.ok(paidRow.error, "a paid line always names its payout");
+    } finally {
+      await db.from("platform_admins").delete().eq("user_id", admin.userId);
+    }
+  },
+);
+
+test(
+  "a person's decision on a brought workspace: why is required, it is recorded against them, and a void share stays void",
+  { skip },
+  async () => {
+    const admin = await person("admin2");
+    ok(await db.from("platform_admins").insert({ user_id: admin.userId }));
+    try {
+      const [{ id: partnerId }] = ok(await partner.client.from("partners").select("id"));
+      const out = ok(
+        await db.from("partner_tenants").select("tenant_id").eq("partner_id", partnerId).eq("standing", "disqualified"),
+      );
+      assert.equal(out.length, 1, "the second workspace, disqualified by the sweep's test");
+      const second = out[0].tenant_id;
+      const noWhy = await admin.client.rpc("partner_standing_set", {
+        p_tenant: second,
+        p_standing: "qualified",
+        p_why: " ",
+      });
+      assert.equal(noWhy.error?.code, "22023");
+      const nobody = await admin.client.rpc("partner_standing_set", {
+        p_tenant: "00000000-0000-4000-8000-000000000000",
+        p_standing: "qualified",
+        p_why: "x",
+      });
+      assert.equal(nobody.error?.code, "P0002");
+
+      const r = ok(
+        await admin.client.rpc("partner_standing_set", {
+          p_tenant: second,
+          p_standing: "qualified",
+          p_why: "A different owner, checked by hand.",
+        }),
+      );
+      assert.equal(r.from, "disqualified");
+      const link = ok(
+        await db.from("partner_tenants").select("standing, standing_why, standing_by").eq("tenant_id", second).single(),
+      );
+      assert.deepEqual(link, {
+        standing: "qualified",
+        standing_why: "A different owner, checked by hand.",
+        standing_by: admin.userId,
+      });
+      assert.deepEqual(
+        (await rows("in_led_2")).map((e) => e.state),
+        ["void"],
+        "what was voided stays void: it earns from now on",
+      );
+      const acted = ok(
+        await db
+          .from("events")
+          .select("kind, data")
+          .eq("tenant_id", second)
+          .in("kind", ["platform.acted", "partner.standing_set"]),
+      ).filter((e) => e.data.by === admin.userId || e.data.by === "person");
+      assert.deepEqual(acted.map((e) => e.kind).sort(), ["partner.standing_set", "platform.acted"]);
+
+      const listed = ok(await admin.client.rpc("platform_partner_workspaces")).find((w) => w.tenant_id === second);
+      assert.equal(listed.decided_by, "person");
+    } finally {
+      await db.from("platform_admins").delete().eq("user_id", admin.userId);
+    }
+  },
+);

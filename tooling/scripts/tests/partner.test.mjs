@@ -23,6 +23,11 @@ import {
   partnerLinkFor,
   partnerVM,
   partnerWorkspacesVM,
+  partnerPayoutOutcomeWords,
+  partnerStandingChoices,
+  partnerStandingOutcomeWords,
+  platformPartnerRows,
+  platformPartnerSummary,
   shareWords,
 } from "@chanlytics/contracts";
 
@@ -351,8 +356,12 @@ test("wiring, run: the pane's surface is real and waits for Settings, becoming o
     "partner.earned",
     "partner.reversed",
     "partner.standing_set",
+    "partner.paid",
   ])
     assert.ok(EVENT_KINDS.includes(k), k);
+  // The back office's two partner verbs (P5) have their ceilings.
+  assert.equal(RATE.platform_partner_standing.limit, 60);
+  assert.equal(RATE.platform_partner_payout.limit, 30);
 });
 
 /* ------------------------------------------------------------ the workspaces a partner brought (P4) */
@@ -498,5 +507,83 @@ test("GET partner/workspaces: on the account, every caller's own two lists, none
       ctxFor(tables(), { partner_overview: missing, partner_workspace_money: missing }),
     ),
     { overview: [], money: [] },
+  );
+});
+
+/* ------------------------------------------------------------ standing and payouts, in the back office (P5) */
+
+const line = (over = {}) => ({
+  partner_id: "p1",
+  code: "ada-co",
+  email: "ada@example.com",
+  status: "active",
+  share_bp: 2500,
+  joined_at: "2026-08-01T00:00:00Z",
+  workspaces: 3,
+  under_review: 0,
+  currency: "usd",
+  held_cents: 0,
+  payable_cents: 0,
+  paid_cents: 0,
+  last_paid_at: null,
+  ...over,
+});
+
+test("the back office's partner line: who, what they are owed, and a payout only when the net is above zero", () => {
+  const [row] = platformPartnerRows([
+    line({ under_review: 1, status: "paused", payable_cents: 12500, held_cents: 5000 }),
+  ]);
+  assert.equal(row.who, "ada@example.com · 3 workspaces · 1 under review · 25% of what each pays · paused");
+  assert.equal(row.money, "$125.00 payable · $50.00 held · $0.00 paid to date");
+  assert.equal(row.canPay, true);
+  assert.equal(row.payLabel, "Mark $125.00 as paid");
+  assert.equal(row.tone, "warn", "a workspace under review is a person's to look at");
+  const [owed] = platformPartnerRows([line({ payable_cents: -3000, paid_cents: 12500 })]);
+  assert.equal(owed.canPay, false);
+  assert.equal(owed.money, "-$30.00 to come off the next payout · $0.00 held · $125.00 paid to date");
+  const [fresh] = platformPartnerRows([line({ currency: null, email: null })]);
+  assert.equal(fresh.money, "Nothing earned yet.");
+  assert.match(fresh.who, /^no address on file/);
+});
+
+test("the partner card's line counts partners once, sums what is payable per currency, never across them", () => {
+  assert.equal(platformPartnerSummary([]), "No partners yet.");
+  assert.equal(
+    platformPartnerSummary([
+      line({ payable_cents: 10000, under_review: 2 }),
+      line({ currency: "eur", payable_cents: 2000, under_review: 2 }),
+      line({ partner_id: "p2", code: "bo", payable_cents: -500 }),
+    ]),
+    "2 partners · $100.00 and €20.00 payable · 2 workspaces under review",
+  );
+  assert.equal(platformPartnerSummary([line()]), "1 partner · nothing payable");
+});
+
+test("a person's decisions: never the standing it has; the outcome said in words", () => {
+  assert.deepEqual(partnerStandingChoices("review"), ["qualified", "disqualified"]);
+  assert.deepEqual(partnerStandingChoices(null), ["qualified", "review", "disqualified"]);
+  assert.equal(
+    partnerStandingOutcomeWords({ standing: "disqualified", voided: 1, matured: 0 }),
+    "Disqualified. What it still held (1 share) is void; what was paid stays paid.",
+  );
+  assert.equal(
+    partnerStandingOutcomeWords({ standing: "qualified", voided: 0, matured: 2 }),
+    "Qualified. 2 shares past the hold are payable now.",
+  );
+  assert.equal(
+    partnerStandingOutcomeWords({ standing: "review", voided: 0, matured: 0 }),
+    "Now under review. What it holds waits until a person decides.",
+  );
+  assert.equal(
+    partnerPayoutOutcomeWords("ada-co", { paid: true, total_cents: 12500, currency: "usd", earnings: 2 }),
+    "Recorded: $125.00 paid to ada-co, settling 2 ledger lines.",
+  );
+  assert.equal(
+    partnerPayoutOutcomeWords("ada-co", { paid: false, total_cents: -3000, currency: "usd" }),
+    "Nothing to pay: refunds since the last payout take $30.00, which comes off their next share.",
+  );
+  assert.equal(
+    partnerPayoutOutcomeWords("ada-co", { paid: false, total_cents: 0, currency: "usd" }),
+    "Nothing is payable to them in that currency, so nothing was recorded.",
   );
 });

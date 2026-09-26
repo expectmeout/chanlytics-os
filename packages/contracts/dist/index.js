@@ -472,7 +472,9 @@ var EVENT_KINDS = [
   // standing the sweep decided for a workspace once it had paid.
   "partner.earned",
   "partner.reversed",
-  "partner.standing_set"
+  "partner.standing_set",
+  // A payout sent by hand (0012, P5), on each workspace it came from, with that workspace's part.
+  "partner.paid"
 ];
 var OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
 var SMS_OPT_OUT_PATTERN = /^\s*(stop|stopall|end|cancel|quit|unsubscribe|revoke|optout|baja|alto)\s*[.!]?\s*$/i;
@@ -20355,6 +20357,87 @@ function partnerWorkspacesVM(overview, money, nowMs = Date.now()) {
   if (needs) parts2.push(`${needs} need${needs === 1 ? "s" : ""} you`);
   return { rows, summary: total ? parts2.join(" \xB7 ") : "No workspace has come through your link yet." };
 }
+var PARTNER_STANDING_VERBS = {
+  qualified: "Qualify",
+  review: "Hold for review",
+  disqualified: "Disqualify"
+};
+function partnerStandingChoices(standing) {
+  return PARTNER_STANDINGS.filter((s) => s !== standing);
+}
+function platformPartnerRows(rows) {
+  return rows.map((r2) => {
+    const cur = r2.currency ?? "usd";
+    const pct2 = r2.share_bp / 100;
+    const who = [
+      r2.email ?? "no address on file",
+      `${r2.workspaces} workspace${r2.workspaces === 1 ? "" : "s"}`,
+      r2.under_review ? `${r2.under_review} under review` : null,
+      `${Number.isInteger(pct2) ? pct2 : pct2.toFixed(1).replace(/\.0$/, "")}% of what each pays`,
+      r2.status === "active" ? null : r2.status
+    ].filter(Boolean);
+    const payable = r2.payable_cents;
+    const money = r2.currency === null ? "Nothing earned yet." : [
+      payable < 0 ? `${moneyWords(payable, cur)} to come off the next payout` : `${moneyWords(payable, cur)} payable`,
+      `${moneyWords(r2.held_cents, cur)} held`,
+      `${moneyWords(r2.paid_cents, cur)} paid to date`
+    ].join(" \xB7 ");
+    return {
+      partnerId: r2.partner_id,
+      code: r2.code,
+      who: who.join(" \xB7 "),
+      money,
+      currency: r2.currency,
+      payableCents: payable,
+      canPay: r2.currency !== null && payable > 0,
+      payLabel: `Mark ${moneyWords(Math.max(payable, 0), cur)} as paid`,
+      tone: r2.under_review ? "warn" : payable > 0 ? "info" : "plain"
+    };
+  });
+}
+function platformPartnerSummary(rows) {
+  const partners = new Set(rows.map((r2) => r2.partner_id)).size;
+  if (!partners) return "No partners yet.";
+  const byCur = /* @__PURE__ */ new Map();
+  for (const r2 of rows)
+    if (r2.currency && r2.payable_cents > 0) byCur.set(r2.currency, (byCur.get(r2.currency) ?? 0) + r2.payable_cents);
+  const review = [...new Map(rows.map((r2) => [r2.partner_id, r2.under_review])).values()].reduce((n, v) => n + v, 0);
+  const parts2 = [`${partners} partner${partners === 1 ? "" : "s"}`];
+  parts2.push(byCur.size ? `${[...byCur].map(([c, n]) => moneyWords(n, c)).join(" and ")} payable` : "nothing payable");
+  if (review) parts2.push(`${review} workspace${review === 1 ? "" : "s"} under review`);
+  return parts2.join(" \xB7 ");
+}
+var STANDING_LABELS = {
+  qualified: "Qualified",
+  review: "Under review",
+  disqualified: "Disqualified"
+};
+function platformPartnerStanding(w) {
+  const label = w.standing ? STANDING_LABELS[w.standing] ?? w.standing : "Not judged yet";
+  const whose = w.decided_by === "person" ? " (decided by a person)" : w.decided_by === "sweep" ? " (the nightly check)" : "";
+  const why = w.standing ? w.standing_why ? `: ${w.standing_why}` : "" : ": judged once it has paid";
+  return {
+    by: `Brought by ${w.code}`,
+    standing: `${label}${whose}${why}`,
+    tone: w.standing === "review" ? "warn" : w.standing === "disqualified" ? "danger" : w.standing === "qualified" ? "ok" : "plain",
+    choices: partnerStandingChoices(w.standing).map((s) => ({ standing: s, label: PARTNER_STANDING_VERBS[s] }))
+  };
+}
+function partnerPayoutOutcomeWords(code2, r2) {
+  if (r2.paid)
+    return `Recorded: ${moneyWords(r2.total_cents, r2.currency)} paid to ${code2}, settling ${r2.earnings ?? 0} ledger ${r2.earnings === 1 ? "line" : "lines"}.`;
+  if (r2.total_cents < 0)
+    return `Nothing to pay: refunds since the last payout take ${moneyWords(-r2.total_cents, r2.currency)}, which comes off their next share.`;
+  return "Nothing is payable to them in that currency, so nothing was recorded.";
+}
+function partnerStandingOutcomeWords(r2) {
+  const label = (STANDING_LABELS[r2.standing] ?? r2.standing).toLowerCase();
+  if (r2.standing === "disqualified")
+    return r2.voided ? `Disqualified. What it still held (${r2.voided} ${r2.voided === 1 ? "share" : "shares"}) is void; what was paid stays paid.` : "Disqualified. It earns nothing from now on; what was paid stays paid.";
+  if (r2.standing === "qualified")
+    return r2.matured ? `Qualified. ${r2.matured} ${r2.matured === 1 ? "share" : "shares"} past the hold ${r2.matured === 1 ? "is" : "are"} payable now.` : "Qualified. Its shares become payable as each one's hold ends.";
+  return `Now ${label}. What it holds waits until a person decides.`;
+}
 
 // src/chrome.ts
 var THEME_OPTIONS = [
@@ -24850,6 +24933,7 @@ export {
   PARTNER_HOLD_DAYS,
   PARTNER_SHARE_BP_DEFAULT,
   PARTNER_STANDINGS,
+  PARTNER_STANDING_VERBS,
   PARTNER_STANDING_WORDS,
   PARTNER_STATUSES,
   PARTNER_WORDS,
@@ -25614,6 +25698,9 @@ export {
   partnerEarningsWords,
   partnerLinkFor,
   partnerPathFor,
+  partnerPayoutOutcomeWords,
+  partnerStandingChoices,
+  partnerStandingOutcomeWords,
   partnerVM,
   partnerWorkspacesVM,
   passwordProblem,
@@ -25670,6 +25757,9 @@ export {
   platformHealthWords,
   platformLineActions,
   platformNumber,
+  platformPartnerRows,
+  platformPartnerStanding,
+  platformPartnerSummary,
   platformQueue,
   platformRows,
   platformSummary,
