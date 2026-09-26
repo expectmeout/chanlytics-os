@@ -21,7 +21,7 @@ export type Role = (typeof ROLES)[number];
 /**
  * The roles Team hands out: an invite, a change of role. A partner is not one
  * of them. That role arrives with the workspace, written by the attribution
- * when the workspace is made through a partner's link (decision 0011), and
+ * when the workspace is made through a partner's link (decision 0012), and
  * Team can only take it away.
  */
 export const TEAM_ROLES = ["owner", "operator", "viewer"] as const satisfies readonly Role[];
@@ -49,9 +49,9 @@ export const ROLE_PERMS: Record<
   // `find` is the lead finder: starting a search, keeping a lead from review,
   // putting one back. Each spends the month's allowance, so it is the
   // owner's, and the partner's (PRD v3 §16.6, S9); has_permission() in 00140
-  // (widened in 00189) says the same, and lead-engine.db.test.mjs holds the
+  // (widened in 00198) says the same, and lead-engine.db.test.mjs holds the
   // two together.
-  // `partner` (decision 0011) is the member who brought the workspace and sets
+  // `partner` (decision 0012) is the member who brought the workspace and sets
   // it up for its owner: everything setting up and running the receptionist
   // takes, and nothing that touches the money, the team, or the customer list
   // as a file. `disconnect` is the channel permission both ways: a partner

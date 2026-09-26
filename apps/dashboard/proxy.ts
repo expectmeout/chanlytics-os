@@ -61,7 +61,7 @@ const PUBLIC_PATHS = new Set([
  *           takes input: its only write is a person's own "stop", under a key
  *           only we hold, and a GET changes nothing (src/server/unsubscribe.ts).
  *
- *   /p/     a partner's link (decision 0011). It leaves one cookie naming the
+ *   /p/     a partner's link (decision 0012). It leaves one cookie naming the
  *           partner's code and goes on to sign-up; it reads nothing and writes
  *           nothing else (app/p/[code]/route.ts).
  *

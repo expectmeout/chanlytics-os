@@ -828,7 +828,7 @@ test("the owner's form: every field the carriers ask, checked in the owner's wor
   const reg = readCode("apps/dashboard/app/api/v1/lines/register/route.ts");
   assert.ok(
     reg.includes('role: "partner",') && reg.includes('rate: "lines_register",') && reg.includes("spend: true,"),
-    "filing costs the workspace's money, so it is an owner's or the partner's (0011), it is rate-limited, and it declares the spend",
+    "filing costs the workspace's money, so it is an owner's or the partner's (0012), it is rate-limited, and it declares the spend",
   );
   assert.ok(
     !/mock:\s*(true|body)/.test(reg),

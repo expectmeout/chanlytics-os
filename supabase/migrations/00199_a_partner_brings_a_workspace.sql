@@ -1,8 +1,8 @@
--- 00190 · A partner brings a workspace: the partner, the attribution, and the membership that comes with it.
+-- 00199 · A partner brings a workspace: the partner, the attribution, and the membership that comes with it.
 --
--- Decision 0011, P2. A partner is a person with an account and a code; their link (/p/<code>) leaves a cookie, and
+-- Decision 0012, P2. A partner is a person with an account and a code; their link (/p/<code>) leaves a cookie, and
 -- a workspace made while the cookie is there is attributed to them, once, at creation, in the same transaction as
--- the tenant: a partner_tenants row and a 'partner' membership (00189). Nothing attributes a workspace later, and a
+-- the tenant: a partner_tenants row and a 'partner' membership (00198). Nothing attributes a workspace later, and a
 -- partner is never credited with a workspace they made themselves.
 --
 --   partners         one per account: the code, the standing (active · paused · closed), the share in basis points
@@ -23,13 +23,13 @@ create table if not exists public.partners (
   status             text not null default 'active' check (status in ('active', 'paused', 'closed')),
   share_bp           integer not null default 2500 check (share_bp between 0 and 10000),
   terms_accepted_at  timestamptz,
-  -- How they are paid, by hand until Stripe Connect (0011, later): free-form, the platform's to fill.
+  -- How they are paid, by hand until Stripe Connect (0012, later): free-form, the platform's to fill.
   payout_facts       jsonb not null default '{}'::jsonb,
   created_at         timestamptz not null default now(),
   updated_at         timestamptz not null default now()
 );
 comment on table public.partners is
-  'A partner (0011): a person who brings workspaces to Chanlytics through their link, sets them up as a member of their team, and earns share_bp of what each pays. One per account.';
+  'A partner (0012): a person who brings workspaces to Chanlytics through their link, sets them up as a member of their team, and earns share_bp of what each pays. One per account.';
 
 drop trigger if exists partners_moddatetime on public.partners;
 create trigger partners_moddatetime before update on public.partners
@@ -51,7 +51,7 @@ create table if not exists public.partner_tenants (
   partner_id     uuid not null references public.partners (id) on delete restrict,
   code_used      text not null,
   attributed_at  timestamptz not null default now(),
-  -- What the sweep found (0011, P3): null until it has looked.
+  -- What the sweep found (0012, P3): null until it has looked.
   standing       text check (standing in ('qualified', 'review', 'disqualified')),
   standing_why   text,
   standing_by    uuid references auth.users (id) on delete set null,
@@ -59,7 +59,7 @@ create table if not exists public.partner_tenants (
   checks         jsonb not null default '{}'::jsonb
 );
 comment on table public.partner_tenants is
-  'Which partner brought this workspace (0011), fixed when the workspace was made and never moved. standing is what the sweep decided about it; null until it has looked.';
+  'Which partner brought this workspace (0012), fixed when the workspace was made and never moved. standing is what the sweep decided about it; null until it has looked.';
 create index if not exists partner_tenants_partner_idx on public.partner_tenants (partner_id);
 
 alter table public.partner_tenants enable row level security;
@@ -113,7 +113,7 @@ begin
 end $$;
 
 comment on function public.partner_become(text) is
-  'The calling session becomes a partner (0011) with this code, once. The code''s shape and the reserved words are contracts'' rule, restated here; the terms are recorded as agreed now.';
+  'The calling session becomes a partner (0012) with this code, once. The code''s shape and the reserved words are contracts'' rule, restated here; the terms are recorded as agreed now.';
 
 revoke execute on function public.partner_become(text) from public, anon;
 grant execute on function public.partner_become(text) to authenticated;
@@ -211,7 +211,7 @@ begin
   insert into public.memberships (tenant_id, user_id, role)
   values (v_id, v_user, 'owner');
 
-  -- The partner (0011): credited only when the code names an active partner who is not the caller, and only now.
+  -- The partner (0012): credited only when the code names an active partner who is not the caller, and only now.
   -- A code that names nobody creditable is recorded as ignored, with why, and the workspace is made all the same:
   -- the link is the partner's affair, never the business's problem.
   if v_code is not null then
@@ -245,7 +245,7 @@ begin
 end $$;
 
 comment on function public.create_workspace_for(uuid, text, text, text) is
-  'Create a workspace and make p_user its owner, in one transaction; with p_partner_code, credit the partner it names and seat them on the team (0011). Service role only; create_workspace wraps it for signed-in callers.';
+  'Create a workspace and make p_user its owner, in one transaction; with p_partner_code, credit the partner it names and seat them on the team (0012). Service role only; create_workspace wraps it for signed-in callers.';
 
 -- Service role alone: a signed-in caller must not name another user as owner.
 revoke execute on function public.create_workspace_for(uuid, text, text, text) from public, anon, authenticated;
@@ -271,7 +271,7 @@ begin
 end $$;
 
 comment on function public.create_workspace(text, text, text) is
-  'Create a workspace and make the calling user its owner, in one transaction; p_partner_code credits the partner whose link brought them (0011). Caller is auth.uid(), never a parameter; the body lives in create_workspace_for.';
+  'Create a workspace and make the calling user its owner, in one transaction; p_partner_code credits the partner whose link brought them (0012). Caller is auth.uid(), never a parameter; the body lives in create_workspace_for.';
 
 revoke execute on function public.create_workspace(text, text, text) from public, anon;
 grant execute on function public.create_workspace(text, text, text) to authenticated;

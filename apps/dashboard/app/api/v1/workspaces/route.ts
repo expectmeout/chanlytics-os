@@ -23,7 +23,7 @@ interface WorkspaceRow {
   status: string;
   timezone: string;
   sells_by: string | null;
-  /** The caller's role in it (0011): the switcher says it beside every workspace, and the partner's pane counts theirs. */
+  /** The caller's role in it (0012): the switcher says it beside every workspace, and the partner's pane counts theirs. */
   role?: string | null;
 }
 const COLUMNS = "id, slug, name, status, timezone, sells_by";
@@ -87,9 +87,9 @@ export const GET = read({
     // to hand every session -- and it is NOT the authorization: every platform
     // route asks the database again.
     const platformAdmin = await isPlatformAdmin(ctx);
-    // Whether this person is a partner (0011), on the same payload for the same reason: the Partner pane and the
+    // Whether this person is a partner (0012), on the same payload for the same reason: the Partner pane and the
     // switcher's role chips are drawn from what boot already fetched. Their own row alone, by RLS; null on a
-    // database 00190 has not reached.
+    // database 00199 has not reached.
     const partnerRow = await getOwnPartner(supabase);
     const partner = partnerRow ? { code: partnerRow.code, status: partnerRow.status } : null;
 
@@ -155,7 +155,7 @@ export const GET = read({
       };
     }
 
-    // The caller's role in each workspace (0011): one read of their own memberships, RLS-scoped.
+    // The caller's role in each workspace (0012): one read of their own memberships, RLS-scoped.
     const { data: mine, error: mineErr } = await supabase
       .from("memberships")
       .select("tenant_id, role")

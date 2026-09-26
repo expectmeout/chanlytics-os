@@ -1,5 +1,5 @@
 /**
- * A partner (decision 0011), P2, against the replayed stack: becoming one, and what create_workspace does with a
+ * A partner (decision 0012), P2, against the replayed stack: becoming one, and what create_workspace does with a
  * code — the attribution row, the partner's seat on the team and the event, in one transaction; nothing for a code
  * that names nobody creditable, with the reason recorded; and who may read what. Then the ledger (P3): a share of a
  * paid invoice, each delivery written once, refunds and disputes capped at the share and maturing with it, the sweep's

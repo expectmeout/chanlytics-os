@@ -1,7 +1,7 @@
--- 00189 · A partner is a fourth role: it sets a workspace up and runs its receptionist, and touches neither its
+-- 00198 · A partner is a fourth role: it sets a workspace up and runs its receptionist, and touches neither its
 --         money nor its team.
 --
--- Decision 0011, P1. A partner is the member who brought the workspace and sets it up for its owner. Nothing writes
+-- Decision 0012, P1. A partner is the member who brought the workspace and sets it up for its owner. Nothing writes
 -- the role yet (P2's create_workspace will); this makes the database ready for it, so the dashboard that knows the
 -- role and the rows that will carry it can arrive in either order, and no door meets a role it does not understand.
 --
@@ -69,7 +69,7 @@ as $$
 $$;
 
 comment on function public.has_permission(uuid, uuid, text) is
-  'Whether this user may do this in this workspace, by role: contracts'' ROLE_PERMS, restated once in SQL. A partner (0011) sets the workspace up: settings, disconnect and find beside what an operator has; billing, team and export stay the owner''s.';
+  'Whether this user may do this in this workspace, by role: contracts'' ROLE_PERMS, restated once in SQL. A partner (0012) sets the workspace up: settings, disconnect and find beside what an operator has; billing, team and export stay the owner''s.';
 
 -- It takes an arbitrary user id, so a signed-in member could read anyone's role with it. The doors call it as
 -- definer; a session asks caller_has_permission, which answers about the caller alone.
@@ -120,7 +120,7 @@ create policy capability_activations_owner_write on public.capability_activation
   with check (public.caller_has_permission(tenant_id, 'disconnect'));
 
 -- The mailbox (00129): settings. The bodies are 00129's with the check re-pointed; the words stay the owner's until a
--- workspace can say whether it has a partner (0011, P2).
+-- workspace can say whether it has a partner (0012, P2).
 create or replace function public.create_mailbox(p_tenant_id uuid, p_local_part text, p_from_name text)
 returns jsonb
 language plpgsql

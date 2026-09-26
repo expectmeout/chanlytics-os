@@ -10,7 +10,7 @@
  * payment events ring their bells. The answer is 200 as soon as the row
  * is written; a failure to write is a 500 so Stripe tries again.
  *
- * A partner's ledger (0011) rides on the same deliveries: a paid plan
+ * A partner's ledger (0012) rides on the same deliveries: a paid plan
  * invoice writes the share of the partner who brought the workspace, and a
  * refund or a dispute of it writes what that does to the share
  * (lib/partner-earnings.ts). A workspace nobody brought costs one read and
@@ -164,7 +164,7 @@ export async function POST(request: Request): Promise<Response> {
         return json(200, { ok: true, ...(earned ? { partner_earned: earned.earned } : {}) });
       }
       case "charge.refunded": {
-        // A partner's share gives back what the refund takes (0011). Stripe says the charge's refunded total so far;
+        // A partner's share gives back what the refund takes (0012). Stripe says the charge's refunded total so far;
         // the door takes the difference from what earlier refunds took.
         const charge = event.data.object;
         const row = await tenantOf(db, charge.metadata, idOf(charge.customer));

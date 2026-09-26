@@ -79,7 +79,7 @@ async function refused(p, code, words) {
 }
 const calls = (ctx) => ctx.supabase.seen.filter((s) => s.rpc).map((s) => s.rpc);
 
-test("both routes are an owner's or the partner's (0011), in the workspace, under the settings limit", () => {
+test("both routes are an owner's or the partner's (0012), in the workspace, under the settings limit", () => {
   const policy = { kind: "write", scope: "workspace", role: "partner", rate: "settings", spend: false };
   assert.deepEqual(mailboxes.POST.policy, policy);
   assert.deepEqual(mailbox.PUT.policy, policy);

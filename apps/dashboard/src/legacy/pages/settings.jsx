@@ -93,7 +93,7 @@ window.INT_STORE = window.INT_STORE || {
  */
 const SET_TABS = [
   { id: "profile",       label: "Profile",       icon: "user",     group: "You" },
-  // A partner's account and link (0011): the offer for everyone else. On the account, like Profile.
+  // A partner's account and link (0012): the offer for everyone else. On the account, like Profile.
   { id: "partner",       label: "Partner",       icon: "users",    group: "You" },
   { id: "workspace",     label: "Business",      icon: "home",     group: "Workspace" },
   { id: "team",          label: "Team",          icon: "users",    group: "Workspace" },

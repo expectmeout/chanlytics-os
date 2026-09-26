@@ -1,5 +1,5 @@
 /**
- * The partner surface (decision 0011): the caller's partner account, read once at boot (`GET partner` →
+ * The partner surface (decision 0012): the caller's partner account, read once at boot (`GET partner` →
  * window.__PARTNER), and the one verb, becoming one. The pane is pages/partner-real.jsx; every sentence it says is
  * contracts' (partnerVM, PARTNER_WORDS), and the count of workspaces brought is read off the workspace list the
  * seam already holds: a membership whose role is partner is one the link brought.
@@ -19,7 +19,7 @@ import { refreshSurfaces } from "./surface-runner";
 
 export interface PartnerSurface {
   dto: PartnerDto | null;
-  /** What the ledger holds for this partner, by currency and state (00191). */
+  /** What the ledger holds for this partner, by currency and state (00200). */
   balance: PartnerBalanceRow[];
   fetchedAt: number;
 }

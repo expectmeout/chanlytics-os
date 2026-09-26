@@ -1,5 +1,5 @@
 /**
- * The partner clock (decision 0011, P3): once a day pg_cron asks it (00191 trigger_partners_sweep), and only when a
+ * The partner clock (decision 0012, P3): once a day pg_cron asks it (00200 trigger_partners_sweep), and only when a
  * workspace a partner brought has paid and awaits its standing, or an earning's thirty days are up. The work is one
  * door, partner_earnings_sweep: it judges each such workspace once (the card of a workspace the partner owns, or a
  * Google listing an older workspace already has, is held for a person; anything else qualifies), makes what is due

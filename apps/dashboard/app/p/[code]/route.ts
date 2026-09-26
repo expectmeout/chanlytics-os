@@ -1,6 +1,6 @@
 /**
- * /p/<code> — a partner's link (decision 0011). It leaves one cookie naming the code and goes on to sign-up; the
- * workspace made while the cookie is there is credited to the partner (create_workspace, 00190). Public: the reader
+ * /p/<code> — a partner's link (decision 0012). It leaves one cookie naming the code and goes on to sign-up; the
+ * workspace made while the cookie is there is credited to the partner (create_workspace, 00199). Public: the reader
  * has no account yet. It reads nothing: a code that names nobody is still a cookie, and create_workspace ignores it
  * with a record of why, so the link is never a door that can be probed for which codes exist.
  *

@@ -1,5 +1,5 @@
 /**
- * A partner (decision 0011), P2: the code, the link and the cookie it leaves; the two account routes; the
+ * A partner (decision 0012), P2: the code, the link and the cookie it leaves; the two account routes; the
  * workspace-create route passing the cookie's code to the function and living without it on an older database;
  * the workspaces payload carrying each role and the partner; and the wiring that seats the pane beside the rest.
  *
@@ -71,7 +71,7 @@ test("the link is /p/<code> on the app, and the cookie it leaves is read back as
 test("the words: the share from the row, the count from the memberships, the standing from the status", () => {
   assert.equal(shareWords(2500), "25% of what it pays for its plan");
   assert.equal(shareWords(1250), "12.5% of what it pays for its plan");
-  assert.equal(shareWords(PARTNER_SHARE_BP_DEFAULT), "25% of what it pays for its plan", "what 00190 defaults to");
+  assert.equal(shareWords(PARTNER_SHARE_BP_DEFAULT), "25% of what it pays for its plan", "what 00199 defaults to");
   assert.equal(broughtWords(0), "No workspace has come through your link yet.");
   assert.equal(broughtWords(1), "1 workspace came through your link.");
   assert.equal(broughtWords(3), "3 workspaces came through your link.");
@@ -199,7 +199,7 @@ test("the two declare their policy: on the account, no role to name, becoming on
   });
 });
 
-test("GET partner: the caller's row and their balance, or null and nothing; a database 00190 or 00191 has not reached reads as none", async () => {
+test("GET partner: the caller's row and their balance, or null and nothing; a database 00199 or 00200 has not reached reads as none", async () => {
   assert.deepEqual(await partner.GET.run(get(), ctxFor(tables())), { partner: null, balance: [] });
   const row = {
     id: "p1",

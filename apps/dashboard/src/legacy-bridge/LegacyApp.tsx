@@ -171,7 +171,7 @@ const SURFACES = [
   liveOverride,
   broadcastsOverride,
   playbooksOverride,
-  // The partner's account (0011): on the person, read once, beside the rest.
+  // The partner's account (0012): on the person, read once, beside the rest.
   partnerOverride,
   calendarOverride,
   notificationsOverride,

@@ -121,7 +121,7 @@ async function refused(p, code, status) {
   });
 }
 
-test("release A's eleven declare their policy: the reads open to every member; a search, a top-up and what counts a lead the owner's or the partner's (0011), spending where money leaves; a stop the operator's", () => {
+test("release A's eleven declare their policy: the reads open to every member; a search, a top-up and what counts a lead the owner's or the partner's (0012), spending where money leaves; a stop the operator's", () => {
   const open = { kind: "read", role: null, rate: null, spend: false, scope: "workspace" };
   assert.deepEqual(searches.GET.policy, open);
   assert.deepEqual(search.GET.policy, open);
@@ -695,7 +695,7 @@ beforeEach(() => {
   });
 });
 
-test("release B's ten declare their policy: working a lead is the operator's, erasing and exporting the owner's, removing and giving leads back the owner's or the partner's (0011), and none of them spends", () => {
+test("release B's ten declare their policy: working a lead is the operator's, erasing and exporting the owner's, removing and giving leads back the owner's or the partner's (0012), and none of them spends", () => {
   assert.deepEqual(search.PATCH.policy, {
     kind: "write",
     scope: "row",

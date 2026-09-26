@@ -45,7 +45,7 @@ let A; // the workspace under test, in America/Chicago
 let B; // another workspace
 let owner; // an owner of A
 let operator; // an operator of A
-let partner; // the partner who brought A (0011)
+let partner; // the partner who brought A (0012)
 let stranger; // an owner of B
 const users = [];
 const TZ = "America/Chicago";

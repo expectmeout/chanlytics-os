@@ -114,7 +114,7 @@ test("the role ladder is owner > partner > operator > viewer", () => {
 });
 
 test("a partner sets the workspace up and is not its owner: a partner's door refuses an operator in the owner's words", () => {
-  // Decision 0011: settings, the channels and the finder are the partner's; billing and the team are not.
+  // Decision 0012: settings, the channels and the finder are the partner's; billing and the team are not.
   assert.throws(
     () => requireRole(member("partner"), "owner"),
     (e) => e.status === 403 && e.details?.needs === "owner",

@@ -597,7 +597,7 @@ export function shouldLandOnFirstRun(
   route: string,
   landed: boolean,
 ): boolean {
-  // Whoever may set the workspace up: its owner, and the partner who brought it (0011).
+  // Whoever may set the workspace up: its owner, and the partner who brought it (0012).
   if (landed || answering || !ROLE_PERMS[role as Role]?.settings) return false;
   return route === "" || route === "today";
 }

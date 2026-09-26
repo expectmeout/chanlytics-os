@@ -414,7 +414,7 @@ test("the landing rule: an owner whose receptionist answers nowhere lands on the
   assert.equal(
     shouldLandOnFirstRun("partner", false, "today", false),
     true,
-    "the partner who brought it sets it up (0011)",
+    "the partner who brought it sets it up (0012)",
   );
   assert.equal(
     shouldLandOnFirstRun("operator", false, "today", false),

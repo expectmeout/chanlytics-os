@@ -1,6 +1,6 @@
--- 00191 · A partner earns a share: the ledger, held thirty days, reversed by a refund or a dispute.
+-- 00200 · A partner earns a share: the ledger, held thirty days, reversed by a refund or a dispute.
 --
--- Decision 0011, P3. What a partner earns is written from what Stripe collected, never from a plan's price, and
+-- Decision 0012, P3. What a partner earns is written from what Stripe collected, never from a plan's price, and
 -- never by anything but the Stripe webhook (the service role). Every row carries the Stripe event that wrote it, and
 -- that id is unique, so a delivery replayed writes nothing.
 --
@@ -36,13 +36,13 @@ create table if not exists public.partner_earnings (
   paid_at            timestamptz not null,
   payable_at         timestamptz not null,
   state              text not null default 'held' check (state in ('held', 'payable', 'paid', 'void')),
-  -- The payout that settled it (0011, P5).
+  -- The payout that settled it (0012, P5).
   payout_id          uuid,
   created_at         timestamptz not null default now(),
   updated_at         timestamptz not null default now()
 );
 comment on table public.partner_earnings is
-  'What a partner earned (0011), one row per movement, written only by the Stripe webhook through partner_earn and partner_reverse. held until payable_at, then payable once the workspace qualifies; void when it is disqualified while held.';
+  'What a partner earned (0012), one row per movement, written only by the Stripe webhook through partner_earn and partner_reverse. held until payable_at, then payable once the workspace qualifies; void when it is disqualified while held.';
 
 -- One share per invoice, whatever delivers it.
 create unique index if not exists partner_earnings_share_idx on public.partner_earnings (stripe_invoice_id)
@@ -71,7 +71,7 @@ create table if not exists public.billing_card_marks (
   seen_at           timestamptz not null default now()
 );
 comment on table public.billing_card_marks is
-  'The fingerprint of the card a workspace''s subscription pays with, as Stripe gives it (0011). Read by the partner sweep alone, to see a partner paying for a workspace they claim to have brought. No member reads it.';
+  'The fingerprint of the card a workspace''s subscription pays with, as Stripe gives it (0012). Read by the partner sweep alone, to see a partner paying for a workspace they claim to have brought. No member reads it.';
 create index if not exists billing_card_marks_fingerprint_idx on public.billing_card_marks (card_fingerprint);
 
 alter table public.billing_card_marks enable row level security;
@@ -132,7 +132,7 @@ begin
 end $$;
 
 comment on function public.partner_earn(uuid, text, text, bigint, text, timestamptz) is
-  'A share of a paid plan invoice for the partner who brought this workspace (0011), at the partner''s share_bp, held thirty days. Null when nobody brought it, it is disqualified, or the invoice or delivery was written already.';
+  'A share of a paid plan invoice for the partner who brought this workspace (0012), at the partner''s share_bp, held thirty days. Null when nobody brought it, it is disqualified, or the invoice or delivery was written already.';
 
 revoke execute on function public.partner_earn(uuid, text, text, bigint, text, timestamptz) from public, anon, authenticated;
 grant execute on function public.partner_earn(uuid, text, text, bigint, text, timestamptz) to service_role;
@@ -235,7 +235,7 @@ begin
 end $$;
 
 comment on function public.partner_reverse(text, text, text, bigint) is
-  'A refund, a dispute or a won dispute of an invoice a partner earned a share of (0011): the difference it makes to the share, capped so the share is taken at most once and given back at most once. Null when there is no share or nothing changes.';
+  'A refund, a dispute or a won dispute of an invoice a partner earned a share of (0012): the difference it makes to the share, capped so the share is taken at most once and given back at most once. Null when there is no share or nothing changes.';
 
 revoke execute on function public.partner_reverse(text, text, text, bigint) from public, anon, authenticated;
 grant execute on function public.partner_reverse(text, text, text, bigint) to service_role;
@@ -274,7 +274,7 @@ declare
 begin
   -- 1. Standing, once a workspace has paid: a week after its first share, or as soon as its card is known. The card
   --    of a workspace the partner owns, or a Google listing an older workspace already has, is held for a person to
-  --    look at; anything else qualifies. Judged once: a person moves it after that (0011, P5).
+  --    look at; anything else qualifies. Judged once: a person moves it after that (0012, P5).
   for v_link in
     select pt.tenant_id, pt.partner_id, p.user_id as partner_user, t.created_at as made_at
       from public.partner_tenants pt
@@ -342,7 +342,7 @@ begin
 end $$;
 
 comment on function public.partner_earnings_sweep(timestamptz) is
-  'The partner clock (0011): judges the standing of each attributed workspace once it has paid, makes held earnings past their date payable on a qualified workspace for an active partner, and voids what a disqualified one held.';
+  'The partner clock (0012): judges the standing of each attributed workspace once it has paid, makes held earnings past their date payable on a qualified workspace for an active partner, and voids what a disqualified one held.';
 
 revoke execute on function public.partner_earnings_sweep(timestamptz) from public, anon, authenticated;
 grant execute on function public.partner_earnings_sweep(timestamptz) to service_role;
@@ -391,7 +391,7 @@ begin
 end $$;
 revoke execute on function public.trigger_partners_sweep() from public, anon, authenticated;
 comment on function public.trigger_partners_sweep() is
-  'The partner clock (0011, P3). Calls the edge once a day when a workspace awaits its standing or an earning is due; otherwise records that it looked.';
+  'The partner clock (0012, P3). Calls the edge once a day when a workspace awaits its standing or an earning is due; otherwise records that it looked.';
 
 insert into public.sweep_status (sweep, jobname, max_silence, judged_by, requested_at) values
   -- daily, recording itself each time: two days is a missed day and then some.

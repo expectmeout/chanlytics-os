@@ -517,7 +517,7 @@ test("Find: not on Google puts Google's row off, the member's own choice", async
   }
 });
 
-test("Find is for whoever may set the workspace up (an owner, or the partner who brought it: 0011), by the role gate (View-as included): anyone else sees Check, which says an owner sets the receptionist up", async () => {
+test("Find is for whoever may set the workspace up (an owner, or the partner who brought it: 0012), by the role gate (View-as included): anyone else sees Check, which says an owner sets the receptionist up", async () => {
   const asked = googleSays([found([HARBOR])]);
   const was = globalThis.window.canDo;
   globalThis.window.canDo = (a) => a === "approve" || a === "autonomy"; // an operator, exactly (contracts ROLE_PERMS)

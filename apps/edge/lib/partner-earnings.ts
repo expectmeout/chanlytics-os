@@ -1,10 +1,10 @@
 /**
- * A partner's ledger, from what Stripe says (decision 0011, P3). The webhook's transport: which invoice a payment,
+ * A partner's ledger, from what Stripe says (decision 0012, P3). The webhook's transport: which invoice a payment,
  * a refund or a dispute is about, read off Stripe's objects, and the one door each writes through. What a share is,
- * what a reversal takes, and when either matures is the database's (00191 partner_earn, partner_reverse), so a
+ * what a reversal takes, and when either matures is the database's (00200 partner_earn, partner_reverse), so a
  * delivery replayed writes nothing and two deliveries about one invoice are written one after the other.
  *
- * On a database 00191 has not reached the doors do not exist: the write is skipped and said
+ * On a database 00200 has not reached the doors do not exist: the write is skipped and said
  * (`partner_earning_skipped`), never a 500, so the webhook's own work goes on whichever deploys first. A share
  * skipped that way is Stripe's to replay from the dashboard once the migration is in.
  */
@@ -34,7 +34,7 @@ export function cardFingerprintOf(sub: Stripe.Subscription): string | null {
   return pm?.card?.fingerprint ?? null;
 }
 
-/** Keep the workspace's card mark (00191 billing_card_marks), for the sweep's one check that needs it. */
+/** Keep the workspace's card mark (00200 billing_card_marks), for the sweep's one check that needs it. */
 export async function markCard(db: Db, tenantId: string, fingerprint: string | null, L: Log): Promise<void> {
   if (!fingerprint) return;
   const { error } = await db.rpc("billing_card_mark", { p_tenant_id: tenantId, p_fingerprint: fingerprint });

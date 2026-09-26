@@ -9,8 +9,8 @@ import {
 import { becomePartner, getOwnPartner, getPartnerBalance } from "@chanlytics/db";
 
 /**
- * GET /api/v1/partner — the caller's partner account (decision 0011), or null, and what the ledger holds for them:
- * held, payable and paid, by currency (00191 partner_balance). On the account, not a workspace: a partner is a
+ * GET /api/v1/partner — the caller's partner account (decision 0012), or null, and what the ledger holds for them:
+ * held, payable and paid, by currency (00200 partner_balance). On the account, not a workspace: a partner is a
  * person, and the pane that shows it is the person's. The database answers about the caller alone.
  */
 export const GET = read({

@@ -77,7 +77,7 @@ async function refused(p, code, words) {
   });
 }
 
-test("all three are an owner's or the partner's (0011), in the workspace, under the settings limit", () => {
+test("all three are an owner's or the partner's (0012), in the workspace, under the settings limit", () => {
   const policy = { kind: "write", scope: "workspace", role: "partner", rate: "settings", spend: false };
   assert.deepEqual(add.POST.policy, policy);
   assert.deepEqual(one.DELETE.policy, policy);

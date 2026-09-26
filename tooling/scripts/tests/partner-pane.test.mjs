@@ -1,5 +1,5 @@
 /**
- * Settings › Partner (decision 0011), drawn: pages/partner-real.jsx on the stub React, over data-bits and the real
+ * Settings › Partner (decision 0012), drawn: pages/partner-real.jsx on the stub React, over data-bits and the real
  * bridge (legacy-bridge/partner.ts). Reading, a failed read, the offer and its one press, and a partner's link, share,
  * earnings and count, every sentence contracts'. And the rail: the tab is on the account, beside Profile.
  */

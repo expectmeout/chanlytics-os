@@ -87,7 +87,7 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof MEMBERSHIP_ROLES>, SchemaSet<"memberships.role">>>,
   Holds<Within<SchemaSet<"invitations.role">, Of<typeof MEMBERSHIP_ROLES>>>,
 
-  // Partners (0011): the account, the standing of a workspace brought, the ledger.
+  // Partners (0012): the account, the standing of a workspace brought, the ledger.
   Holds<Exactly<Of<typeof PARTNER_STATUSES>, SchemaSet<"partners.status">>>,
   Holds<Exactly<Of<typeof PARTNER_STANDINGS>, SchemaSet<"partner_tenants.standing">>>,
   Holds<Exactly<Of<typeof PARTNER_EARNING_KINDS>, SchemaSet<"partner_earnings.kind">>>,

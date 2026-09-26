@@ -222,7 +222,7 @@ export async function memberContext(
 }
 
 /**
- * The ladder a route's `role` names a rung of. A partner (decision 0011) sits
+ * The ladder a route's `role` names a rung of. A partner (decision 0012) sits
  * between operator and owner: everything setting a workspace up takes, and
  * nothing that touches its money or its team, which is what `role: "partner"`
  * on a route means (ROLE_PERMS in contracts is the same table, per permission).
@@ -245,7 +245,7 @@ export function requireRole(member: MemberContext, atLeast: Role): void {
   if (have === undefined || have < ROLE_RANK[atLeast]) {
     // The least role that may, in the words a member reads. A partner's door
     // says "owner": the partner already passed it, and until a workspace can
-    // say whether it has one (0011, P2), "owner" is what is true of every
+    // say whether it has one (0012, P2), "owner" is what is true of every
     // workspace.
     const needs = atLeast === "partner" ? "owner" : atLeast;
     throw new AppError(

@@ -45,10 +45,10 @@ import { giveFirstAlertAddress } from "@/server/first-alert";
  * The body stays the route's own to read: the first issue's message is what
  * the create screen shows, without a field name in front of it.
  *
- * AND IT READS THE PARTNER'S COOKIE (decision 0011). A partner's link (/p/<code>) leaves one cookie; a workspace
+ * AND IT READS THE PARTNER'S COOKIE (decision 0012). A partner's link (/p/<code>) leaves one cookie; a workspace
  * made while it is there is credited to that partner by the function, in the same transaction as the tenant, and
  * only then. The route passes the code and nothing more: who is credited, and whether anyone is, is the function's
- * to decide (an unknown, paused or self code is recorded as ignored). On a database 00190 has not reached the
+ * to decide (an unknown, paused or self code is recorded as ignored). On a database 00199 has not reached the
  * three-argument function does not exist; the call is made again without the code, and the drop is logged, so
  * either deploy order makes the workspace.
  */

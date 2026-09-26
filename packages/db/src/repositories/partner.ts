@@ -1,5 +1,5 @@
 /**
- * Partners (decision 0011): the one place the two tables are typed. Reads run on the session client, so RLS
+ * Partners (decision 0012): the one place the two tables are typed. Reads run on the session client, so RLS
  * decides what comes back: a partner sees their own row and the workspaces they brought; an owner sees who
  * brought theirs. The writes are functions (partner_become, create_workspace) and the service role's.
  */
@@ -18,12 +18,12 @@ export type PartnerPublicRow = Pick<
   "id" | "code" | "status" | "share_bp" | "terms_accepted_at" | "created_at"
 >;
 
-/** The error a database 00190 has not reached answers a read of the table with. */
+/** The error a database 00199 has not reached answers a read of the table with. */
 const noTable = (message: string): boolean =>
   /\bpartners\b/.test(message) && /does not exist|could not find|schema cache/i.test(message);
 
 /**
- * The caller's own partner row, or null: none, or a database 00190 has not reached, which reads as none so the app
+ * The caller's own partner row, or null: none, or a database 00199 has not reached, which reads as none so the app
  * boots whichever deploys first. Any other failure is thrown.
  */
 export async function getOwnPartner(db: Db): Promise<PartnerPublicRow | null> {
@@ -44,7 +44,7 @@ export interface PartnerBalanceLine {
 }
 
 /**
- * The caller's own totals (00191 partner_balance): held, payable and paid, by currency. Empty on a database 00191
+ * The caller's own totals (00200 partner_balance): held, payable and paid, by currency. Empty on a database 00200
  * has not reached, which reads as nothing earned yet, which is true.
  */
 export async function getPartnerBalance(db: Db): Promise<PartnerBalanceLine[]> {

@@ -289,7 +289,7 @@ test("a deleted customer is forgotten: the ids point at nothing, the row says no
 test("a type nobody acts on is kept once and said to be ignored; an event about no workspace is answered and left", async () => {
   const db = fakeDb(tables());
   setPg(db);
-  // charge.refunded is acted on now, for a partner's share (0011; partner-ledger.test.mjs): the type nobody acts on
+  // charge.refunded is acted on now, for a partner's share (0012; partner-ledger.test.mjs): the type nobody acts on
   // is one Stripe sends every workspace and nothing here reads.
   const ignored = await deliver("customer.updated", { id: "cus_1", object: "customer", metadata: {} });
   assert.deepEqual(await ignored.json(), { ok: true, ignored: "customer.updated" });

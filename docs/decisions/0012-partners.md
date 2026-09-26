@@ -1,14 +1,14 @@
-# 0011 · A partner brings a workspace, sets it up, and earns a share
+# 0012 · A partner brings a workspace, sets it up, and earns a share
 
 **Status:** decided; P1 (the role), P2 (attribution) and P3 (the ledger) built on the branch this note ships with,
 P4 onward not yet. Written against commit `b6f2216` (PR #1124, 26 September 2026); every file and line below was read
 at that commit, before P1, so the Context describes the code P1 to P3 changed: `memberships.role` admits `partner`,
 `has_permission()` and `ROLE_PERMS` carry its row, the setting-class routes declare `role: "partner"`, `requireRole`
-refuses a role it does not know (00189, `with-route.ts`); `partners` and `partner_tenants` exist, `create_workspace`
+refuses a role it does not know (00198, `with-route.ts`); `partners` and `partner_tenants` exist, `create_workspace`
 takes the code the link's cookie left, `GET /workspaces` carries each role and the partner, and Settings › Partner is
-the offer or the link (00190, `app/p/[code]`, `partner-real.jsx`); `partner_earnings` is written by the Stripe webhook
+the offer or the link (00199, `app/p/[code]`, `partner-real.jsx`); `partner_earnings` is written by the Stripe webhook
 through `partner_earn` and `partner_reverse`, the daily clock `partners` runs `partner_earnings_sweep`, and the pane
-says held, payable and paid from `partner_balance` (00191, `lib/partner-earnings.ts`, `api/cron/partners.ts`).
+says held, payable and paid from `partner_balance` (00200, `lib/partner-earnings.ts`, `api/cron/partners.ts`).
 
 What moved from the Shape below as written, each for a reason found in the code:
 

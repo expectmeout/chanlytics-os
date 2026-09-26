@@ -125,7 +125,7 @@ const TABLES = [
 ];
 
 /** Survives the delete with a null tenant_id, deliberately. */
-// A partner's earnings (0011) are money owed or paid, and outlive the workspace they came from, as its events do.
+// A partner's earnings (0012) are money owed or paid, and outlive the workspace they came from, as its events do.
 const KEPT = new Set(["billing_events", "partner_earnings"]);
 
 const db = createClient(url, key, { auth: { persistSession: false } });

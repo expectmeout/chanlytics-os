@@ -84,7 +84,7 @@ const policy = (tenant_id, cls, mode, limits = {}) => ({
   updated_at: "2026-09-01T00:00:00Z",
 });
 
-test("the fourteen declare their policy: the reads open to every member, the calendar counted with the aggregates, every change counted, the owner's or the partner's (0011) where it is the business's identity or its lines", () => {
+test("the fourteen declare their policy: the reads open to every member, the calendar counted with the aggregates, every change counted, the owner's or the partner's (0012) where it is the business's identity or its lines", () => {
   const open = { kind: "read", scope: "workspace", role: null, rate: null, spend: false };
   const ws = (role, rate) => ({ kind: "write", scope: "workspace", role, rate, spend: false });
   assert.deepEqual(settings.GET.policy, open);

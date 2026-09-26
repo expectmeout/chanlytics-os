@@ -233,11 +233,11 @@ export const EVENT_KINDS = [
   "deal.won",
   "deal.lost",
   "deal.ended",
-  // A partner (0011): the workspace was made through a partner's link and the partner joined its team, or the code
+  // A partner (0012): the workspace was made through a partner's link and the partner joined its team, or the code
   // the link left named no partner who could be credited (unknown, paused, or the caller's own).
   "partner.attributed",
   "partner.code_ignored",
-  // The ledger (0011, P3): a share written from a paid invoice, a refund's or a dispute's effect on it, and the
+  // The ledger (0012, P3): a share written from a paid invoice, a refund's or a dispute's effect on it, and the
   // standing the sweep decided for a workspace once it had paid.
   "partner.earned",
   "partner.reversed",

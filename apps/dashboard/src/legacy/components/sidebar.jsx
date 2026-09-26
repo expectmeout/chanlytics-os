@@ -213,7 +213,7 @@ const WorkspaceMenu = ({ onNavigate, close }) => {
   const all = window.__WORKSPACES || (window.__DEMO_MODE ? [{ id: "demo", name: sbWorkspaceName() }] : []);
   const active = sbWorkspace() || (window.__DEMO_MODE ? all[0] : null) || null;
   const role = sbWho().role;
-  // Each workspace's own role beside it (0011): a partner's list says which are theirs and which they brought.
+  // Each workspace's own role beside it (0012): a partner's list says which are theirs and which they brought.
   const roleOf = (w, current) =>
     w.role && window.__identity ? window.__identity.words({ email: null, role: w.role }).role : current ? role : null;
   const hotkey = (i) => (all.length > 1 && window.__chrome ? window.__chrome.workspaceHotkey(i) : null);

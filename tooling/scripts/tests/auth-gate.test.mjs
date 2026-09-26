@@ -138,7 +138,7 @@ test("five public PREFIXES, and only a workspace's own pages, the unsubscribe li
   // database for a link we did not make; and a GET changes nothing, because
   // link scanners open every URL in an email (unsubscribe-door.test.mjs).
   //
-  // `/p/` joined with partners (decision 0011): a partner's link, which the
+  // `/p/` joined with partners (decision 0012): a partner's link, which the
   // reader opens before they have an account. It reads nothing and writes one
   // cookie naming a code; who is credited is decided later, by create_workspace,
   // so the link is not a door that can be probed (partner.test.mjs).

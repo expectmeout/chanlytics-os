@@ -79,7 +79,7 @@ async function lands(p) {
   return new URL(to).searchParams;
 }
 
-test("the eleven declare their policy: the way there the owner's or the partner's (0011), the way back its own door as a read of the account, the listing and the account the owner's or the partner's, a refresh, a draft and a reply an operator's", () => {
+test("the eleven declare their policy: the way there the owner's or the partner's (0012), the way back its own door as a read of the account, the listing and the account the owner's or the partner's, a refresh, a draft and a reply an operator's", () => {
   const rd = (role, rate) => ({ kind: "read", scope: "workspace", role, rate, spend: false });
   const ws = (role, rate) => ({ kind: "write", scope: "workspace", role, rate, spend: false });
   assert.deepEqual(callback.GET.policy, { kind: "read", scope: "account", role: null, rate: null, spend: false });

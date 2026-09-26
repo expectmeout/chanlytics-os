@@ -204,7 +204,7 @@ export async function applySubscription(
   const tenant = await db.from("tenants").select("status").eq("id", row.tenant_id).maybeSingle();
   if (tenant.error) throw new Error(tenant.error.message);
   const facts = subscriptionFacts(sub);
-  // The card's mark for the partner sweep (0011): kept apart from the row every member reads, and before the
+  // The card's mark for the partner sweep (0012): kept apart from the row every member reads, and before the
   // compare-and-set below, so a reading that loses the race still leaves it.
   await markCard(db, row.tenant_id, cardFingerprintOf(sub), L);
   const plan = planBilling(

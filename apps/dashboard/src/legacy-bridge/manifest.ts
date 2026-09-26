@@ -148,7 +148,7 @@ import "@/legacy/pages/business-tab-create.jsx";
 import "@/legacy/pages/business-tab.jsx";
 import "@/legacy/pages/settings.jsx";
 import "@/legacy/pages/billing-real.jsx";
-// The partner pane (0011): the offer, or the link.
+// The partner pane (0012): the offer, or the link.
 import "@/legacy/pages/partner-real.jsx";
 // After the mockup's settings: the Integrations pane and the one form it opens.
 import "@/legacy/pages/sending-domains.jsx";

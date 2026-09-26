@@ -78,7 +78,7 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
   // clicked Back office got the Not-in-this-release card -- found by Ruben
   // on 11 September, the day the tab became the way to file a campaign.
   "admin/platform": "real",
-  // A partner's account and link (0011): the offer for everyone else, the row for a partner (partner-real.jsx).
+  // A partner's account and link (0012): the offer for everyone else, the row for a partner (partner-real.jsx).
   "admin/partner": "real",
 };
 

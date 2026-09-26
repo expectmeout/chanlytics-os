@@ -89,7 +89,7 @@ test("the graph helpers: E.164 out of Meta's display form, a six-digit PIN, the 
 
 test("the dashboard route: owner only, the settings rate bucket, the sign-up ids validated, the ledger keeps the connection in the owner's words", () => {
   const r = readCode("apps/dashboard/app/api/v1/channels/whatsapp/connect/route.ts");
-  assert.ok(r.includes('role: "partner",'), "the owner's, or the partner's who set it up (0011)");
+  assert.ok(r.includes('role: "partner",'), "the owner's, or the partner's who set it up (0012)");
   assert.ok(r.includes('rate: "settings",'));
   assert.ok(r.includes("if (!ID.test(phoneNumberId) || !ID.test(wabaId))"));
   assert.ok(r.includes('recordDecision(ctx, member.tenantId, "channel", r.channelId, "connect_channel", {'));
