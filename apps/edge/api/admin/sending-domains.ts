@@ -45,7 +45,9 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
 
 export async function POST(request: Request): Promise<Response> {
-  const auth = authorizeAdmin(request, "/api/admin/sending-domains");
+  // The platform lifts a second hold with its key and never with a token (D16, the runbook), so the key stays a
+  // credential here on an edge that holds the secret too; a dashboard's call carries a token.
+  const auth = authorizeAdmin(request, "/api/admin/sending-domains", { platformKey: true });
   if (!auth.ok) return auth.response;
   let body: Body = {};
   try {
