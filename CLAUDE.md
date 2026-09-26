@@ -37,6 +37,8 @@ corepack pnpm -r typecheck
 corepack pnpm lint
 corepack pnpm format                          # Prettier over the tree; the pre-commit hook does this for staged files
 corepack pnpm test                            # the node suite; database suites skip without credentials
+UPDATE_BASELINES=1 corepack pnpm test         # the same, banking every ratchet's reduction (docs/debt.md)
+corepack pnpm check:dead-exports              # knip against a baseline that may only fall; -- --update banks it
 corepack pnpm test:db                         # the database suites, against a running Supabase stack
 corepack pnpm e2e                             # Playwright, against production by default
 node tooling/scripts/gen-route-types.mjs      # the typed client, after a route changes (--check to verify)
@@ -79,6 +81,12 @@ Each of these is enforced by a test or a workflow. Breaking one is a red build, 
   edited or renamed once applied. Two files on one number fail the build.
 - **Tests execute the code they prove.** A source-text assertion is the last resort, and
   `source-scan-baseline.json` may only fall.
+- **What is measured may only fall.** `docs/debt.md` names every number the build holds and the
+  baseline under `tooling/scripts/tests/baselines/` that holds it: functions over 150 lines, 30
+  branches or 5 levels; files over 800 lines; directories over 20 modules; window globals and
+  publishers; a helper declared in three files; `as unknown as`; a table name outside `packages/db`;
+  dead exports; lint warnings. A new offender is a red build. A number that must rise is raised in
+  the baseline in the same diff, with the reason in the pull request.
 - **Production scripts** are dry-run by default, write a backup first, and take `--apply`.
 - **The layers hold apart.** Browser code (`legacy-bridge`, `client`, `yes`, `auth`) never imports
   `src/server` or `@chanlytics/core|jobs|channels`; server code never imports the shell, the bridge
@@ -110,6 +118,7 @@ Copy the shape of these; do not invent a second one.
 | A log line on the edge                        | `logger({ tenant_id }).info("event_name", { fields })` from `apps/edge/lib/log.ts`   | One JSON object per line; the event name is the contract                                                |
 | A test of a door                              | `tooling/scripts/tests/sms-door.test.mjs`                                            | A world over `_fake-db.mjs`; the real handler runs                                                      |
 | A test of a verb                              | `tooling/scripts/tests/core-thread-verbs.test.mjs`                                   | Fakes for the ports                                                                                     |
+| A ratchet                                     | `tooling/scripts/tests/code-health-ratchets.test.mjs`, `_ratchet.mjs`, `_ast.mjs`    | Measure the syntax tree, never the text; the baseline may only fall; a row in `docs/debt.md`            |
 | A database test                               | `tooling/scripts/tests/*.db.test.mjs`                                                | Runs against the replayed stack in CI when database paths change; skips without credentials             |
 | A design that changes the shape of the system | `docs/decisions/0002-appointments-record.md`                                         | Written against a named commit, steps shippable in either deploy order                                  |
 

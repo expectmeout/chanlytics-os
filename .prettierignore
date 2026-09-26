@@ -18,6 +18,7 @@ packages/db/src/database.types.ts
 *.generated.ts
 tooling/scripts/tests/route-policy.json
 tooling/scripts/tests/source-scan-baseline.json
+tooling/scripts/tests/baselines/
 
 # The ported shell keeps its own conventions (apps/dashboard/src/legacy/CLAUDE.md):
 # script-mode files with /* global */ headers, edited by several people at once.

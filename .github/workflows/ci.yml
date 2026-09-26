@@ -53,6 +53,10 @@ jobs:
       # dashboard until apps/edge — the 1,600 lines a real customer message
       # travels through — turned out to be the one unlinted thing in the repo.
       - run: pnpm lint
+      # Dead exports may only fall: knip over the whole import graph, against a
+      # baseline (docs/debt.md). Its own step because the graph takes a minute
+      # the node suite should not.
+      - run: pnpm check:dead-exports
       # Formatting is checked, never fixed, here: the pre-commit hook formats
       # what is staged, and this step catches a commit made with the hook off.
       - run: pnpm format:check

@@ -1,0 +1,12 @@
+{
+  "apps/dashboard/src/legacy-bridge": 52,
+  "apps/dashboard/src/legacy/components": 24,
+  "apps/dashboard/src/legacy/pages": 84,
+  "apps/dashboard/src/server": 63,
+  "apps/dashboard/src/server/readers": 22,
+  "e2e": 48,
+  "packages/channels/src": 25,
+  "packages/contracts/src": 129,
+  "tooling/scripts": 24,
+  "tooling/scripts/tests": 544
+}

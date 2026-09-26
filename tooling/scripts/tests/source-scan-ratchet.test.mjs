@@ -5,6 +5,7 @@
  * lint (every write names a workspace, env vars are declared where read).
  *
  *   UPDATE_SOURCE_SCAN_BASELINE=1 pnpm test   # rewrite the baseline after a reduction
+ *   UPDATE_BASELINES=1 pnpm test               # the same, together with every other ratchet (docs/debt.md)
  *
  * WHY THIS EXISTS AT ALL, in one measurement: on 2026-09-09 three PRs added
  * THIRTY-SIX of these assertions and removed one, against a standing rule in
@@ -69,7 +70,7 @@ const counts = Object.fromEntries(
     .filter(([, n]) => n > 0),
 );
 
-if (process.env.UPDATE_SOURCE_SCAN_BASELINE === "1") {
+if (process.env.UPDATE_SOURCE_SCAN_BASELINE === "1" || process.env.UPDATE_BASELINES === "1") {
   const prev = JSON.parse(fs.readFileSync(BASELINE, "utf8"));
   fs.writeFileSync(BASELINE, JSON.stringify({ lint: prev.lint, counts }, null, 2) + "\n");
 }
