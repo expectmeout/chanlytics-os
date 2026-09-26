@@ -16,8 +16,9 @@ import {
 } from "@chanlytics/contracts";
 import type { RouteContext } from "./with-route";
 import { everyone } from "./people";
-import { withVisits, type KnownFacts, type PeopleVisits } from "./calendar";
+import { withVisits, type PeopleVisits, type ZoneAndSettings } from "./calendar";
 import { sellsByOf } from "./deals";
+import { lazily, type Lazy } from "./lazy";
 
 /**
  * Everyone, with their appointments: the pool a broadcast's audience, a People list and a playbook's moment are
@@ -49,14 +50,17 @@ export async function audiencePool(
   tz: string,
   now: Date,
   /**
-   * What a caller already read this turn (readers/audience-pool.ts): how the workspace's customers buy, taken instead
-   * of reading it here, and the calendar's zone and settings, which the calendar's lookup then reads neither of
-   * (withVisits). The send reads its own.
+   * What a caller already read this turn, or how to read it from the turn (readers/audience-pool.ts): how the
+   * workspace's customers buy, taken instead of reading it here; everyone in People, read just where this reads its
+   * own (readers/everyone.ts, which the Playbooks page's pools share); and the calendar's zone and settings, which the
+   * calendar's lookup then reads neither of (withVisits). The send reads its own.
    */
-  opts: { sellsBy?: SellsBy | null; known?: KnownFacts } = {},
+  opts: { sellsBy?: SellsBy | null; people?: Lazy<PersonRowDto[]>; known?: ZoneAndSettings } = {},
 ): Promise<AudiencePool> {
   const [{ people, calendar, consult_first }, sellsBy] = await Promise.all([
-    everyone(ctx, tenantId).then((rows) => withVisits(ctx, tenantId, rows, now, opts.known)),
+    (opts.people === undefined ? everyone(ctx, tenantId) : lazily(opts.people)).then((rows) =>
+      withVisits(ctx, tenantId, rows, now, opts.known),
+    ),
     opts.sellsBy !== undefined ? opts.sellsBy : sellsByOf(ctx, tenantId),
   ]);
   const deals_on = dealsAreOn(sellsBy);

@@ -55,6 +55,7 @@ import type { RouteContext } from "@/server/with-route";
 import { tenantFacts } from "@/server/tenant";
 import { everyone } from "@/server/people";
 import { loadFeed } from "@/server/ask/openings";
+import { lazily, type Lazy } from "@/server/lazy";
 
 /** The address rule is contracts' (feed-url.ts); re-exported so the settings routes' test reaches it at the door that uses it. */
 export { feedUrlOk };
@@ -698,31 +699,30 @@ export interface PeopleVisits {
 
 /**
  * The workspace's zone and its raw settings, handed to the calendar's lookup (calendarOf) by a caller that holds them
- * this turn, or how to read them from the turn (readers/people.ts, readers/playbooks.ts): asked for just where the
- * lookup would read them itself, so neither is read twice or any sooner, and a read of them that fails costs the
- * visits, as the lookup's own failure does.
+ * this turn, or how to read them from the turn (readers/facts.ts zoneAndSettings): asked for just where the lookup
+ * would read them itself, so neither is read twice or any sooner, and a read of them that fails costs the visits, as
+ * the lookup's own failure does.
  */
-export type KnownFacts =
-  { timezone: string; config: unknown } | (() => PromiseLike<{ timezone: string; config: unknown }>);
+export type ZoneAndSettings = Lazy<{ timezone: string; config: unknown }>;
 
 /**
  * The next and last appointment of everyone on the list, from one parsed
  * feed indexed once — the number first, the whole name second — so a list
  * of hundreds costs one read of the calendar, not hundreds. `known`: the
- * zone and the settings the turn holds (KnownFacts), which the lookup then
- * reads neither of.
+ * zone and the settings the turn holds (ZoneAndSettings), which the lookup
+ * then reads neither of.
  */
 export async function peopleVisits(
   ctx: RouteContext,
   tenantId: string,
   rows: PersonRowDto[],
   now = new Date(),
-  known?: KnownFacts,
+  known?: ZoneAndSettings,
 ): Promise<PeopleVisits> {
   const { url, lostCalendar, timezone, source, bookingLink, own, profile } = await calendarOf(
     ctx,
     tenantId,
-    typeof known === "function" ? await known() : known,
+    known === undefined ? undefined : await lazily(known),
   );
   const services = profile?.services ?? [];
   const rules = profile?.booking_rules ?? null;
@@ -755,15 +755,15 @@ export async function peopleVisits(
 
 /**
  * The rows with their appointments attached, the way the People list and the assistant read them. `known`: the zone
- * and the settings the turn holds, or how to read them from it (KnownFacts), so the calendar's lookup reads neither
- * again; a read of them that fails costs the visits, never the list.
+ * and the settings the turn holds, or how to read them from it (ZoneAndSettings), so the calendar's lookup reads
+ * neither again; a read of them that fails costs the visits, never the list.
  */
 export async function withVisits(
   ctx: RouteContext,
   tenantId: string,
   rows: PersonRowDto[],
   now = new Date(),
-  known?: KnownFacts,
+  known?: ZoneAndSettings,
 ): Promise<{
   people: PersonRowDto[];
   calendar: PeopleVisits["calendar"];

@@ -4,6 +4,7 @@ import { listPlaybooks, recentTouches, triggerPools, type PlaybookListRow } from
 import { dealPaceRead } from "../deals";
 import { load, stamp, type Reader } from "./index";
 import * as readers from "./facts";
+import { everyone } from "./everyone";
 
 type Pools = Awaited<ReturnType<typeof triggerPools>>;
 
@@ -26,8 +27,9 @@ export interface PlaybooksPage {
  * may run on, each with its own pool, and whether deals are on here (0008), which offers and counts the proposal
  * follow-up (0006). The route's body, moved here whole, so the Playbooks page and Ask's list_playbooks say the same
  * numbers. The workspace's name and zone, how its customers buy and its settings come through their readers, once in a
- * turn: the pools' calendar lookup reads neither the zone nor the settings again. A playbook is not a row a citation
- * names until Phase 4 gives it a kind.
+ * turn: the pools' calendar lookup reads neither the zone nor the settings again. Everyone the pools count is the
+ * turn's own read too (readers/everyone.ts), which the audience pool shares. A playbook is not a row a citation names
+ * until Phase 4 gives it a kind.
  */
 export const playbooks: Reader<undefined, PlaybooksPage> = {
   name: "playbooks",
@@ -51,10 +53,12 @@ export const playbooks: Reader<undefined, PlaybooksPage> = {
       facts.timezone,
       now,
       { on: dealsOn, pace: dealsOn ? dealPaceOf(paceRead) : null },
-      // The zone just read, and the settings the turn's config reader holds, asked for where the pools' calendar
-      // lookup would read its own: a settings read that fails costs the visit moments, never the page.
-      () =>
-        load(rc, readers.config, undefined).then((r) => ({ timezone: facts.timezone, config: r.data?.config ?? null })),
+      // Everyone, and the zone and settings, from the turn, each read just where the pools read their own: everyone
+      // once a turn, shared with the audience pool; a settings read that fails costs the visit moments, never the page.
+      {
+        people: () => load(rc, everyone, undefined).then((r) => r.data),
+        known: readers.zoneAndSettings(rc),
+      },
     );
     return {
       data: {

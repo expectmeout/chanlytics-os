@@ -3273,17 +3273,44 @@ const OFFER = {
   hidden_at: null,
 };
 
-test("the audience pool is read once a turn, through its reader: a turn that lists the audiences, searches People and proposes a broadcast reads everyone once for the pool the listing and the card share, and the search its own page (ledger #7); the workspace's zone, how its customers buy and its settings once each -- the memo that kept one pool whatever its zone and clock is gone from the tools' context", async () => {
-  const ctx = ctxFor(tables({ templates: [OFFER] }), { ...RPCS, people_list: () => threeAnswers() });
+test("everyone in People is read once a turn, through the readers: a turn that lists the playbooks and the audiences and proposes a playbook and a broadcast reads every page of People once, and their reply modes once -- where the listing and the playbooks each read them -- a search by a list counts over that same pool, and a search by words reads its own page once; the zone and the settings once each, and the memo is gone from the tools' context", async () => {
+  // A thousand and one people, each with a number and a yes to offers: People is read a page at a time.
+  const many = Array.from({ length: 1001 }, (_, i) =>
+    peopleListRow({
+      id: `dddddddd-dddd-4ddd-8ddd-${String(i).padStart(12, "0")}`,
+      display_name: `Person ${i}`,
+      phone_e164: `+1555${String(1000000 + i)}`,
+      marketing_consent: "opted_in",
+      marketing_consent_source: "customer_message",
+      marketing_consent_updated_at: iso(NOW.getTime() - 20 * 86_400_000),
+    }),
+  );
+  const doors = {
+    ...RPCS,
+    people_list: (a) =>
+      a.p_query
+        ? many.filter((p) => p.display_name.includes(a.p_query))
+        : many.slice(a.p_offset ?? 0, (a.p_offset ?? 0) + (a.p_limit ?? 1000)),
+  };
+  const ctx = {
+    supabase: fakeDb(tables({ templates: [OFFER] }), {}, doors, { maxRows: 1000 }),
+    userId: USER,
+    email: "ada@example.com",
+    params: {},
+  };
   const tc = newToolContext(ctx, A, "owner", TZ, NOW);
   assert.equal("memo" in tc, false, "the tools' context holds the turn's readers and nothing else to remember");
-  for (const [name, input] of [
-    ["list_audiences", {}],
-    ["search_people", { query: "rosa" }],
-  ]) {
-    const out = await runTool(tc, { name, input });
+  const everyone = () =>
+    ctx.supabase.seen.filter((q) => q.rpc === "people_list").map((q) => q.args.p_query ?? q.args.p_offset ?? 0);
+  const replyModes = () =>
+    ctx.supabase.seen.filter((q) => q.table === "policies" && q.columns === "subject_type, subject_id, mode").length;
+  // The prefetch's pair for "start a win-back playbook for the quiet clients", then the two cards.
+  for (const name of ["list_playbooks", "list_audiences"]) {
+    const out = await runTool(tc, { name, input: {} });
     assert.equal(out.isError, false, out.result);
   }
+  const playbook = await buildProposal(tc, "propose_playbook", { trigger: "quiet_30", template_id: TPL, params: [] });
+  assert.equal(playbook.isError, false, playbook.result);
   const card = await buildProposal(tc, "propose_broadcast", {
     template_id: TPL,
     audience_kind: "everyone",
@@ -3291,21 +3318,31 @@ test("the audience pool is read once a turn, through its reader: a turn that lis
     params: [],
   });
   assert.equal(card.isError, false, card.result);
-  assert.equal(card.proposal.payload.count, 1, "Rosa: a yes to offers and a number, counted over the same pool");
+  assert.equal(card.proposal.payload.count, 1001, "every page, as the send enrols them");
+  assert.deepEqual(
+    [everyone(), replyModes()],
+    [[0, 1000], 1],
+    "every page of People once and the reply modes once, for the Playbooks page's pools and the audience pool alike, where each read its own",
+  );
+  const byList = await runTool(tc, { name: "search_people", input: { query: "", list: "seg:phoned_only" } });
+  assert.equal(byList.isError, false, byList.result);
+  assert.deepEqual([everyone(), replyModes()], [[0, 1000], 1], "a list is counted over the same pool");
+  const byWords = await runTool(tc, { name: "search_people", input: { query: "Person 7" } });
+  assert.equal(byWords.isError, false, byWords.result);
+  assert.deepEqual(
+    [everyone(), replyModes()],
+    [[0, 1000, "Person 7"], 2],
+    "a search by words reads the People page's own page, once, with its reply modes",
+  );
   const reads = (key, columns) =>
     ctx.supabase.seen.filter(
       (q) =>
         (q.rpc ? `rpc:${q.rpc}` : `${q.table}.${q.op}`) === key && (columns === undefined || q.columns === columns),
     ).length;
   assert.deepEqual(
-    ctx.supabase.seen.filter((q) => q.rpc === "people_list").map((q) => q.args),
-    [{ p_tenant_id: A }, { p_tenant_id: A, p_query: "rosa" }],
-    "everyone once, for the pool; then the People page's own page for the search, never the pool again",
-  );
-  assert.deepEqual(
-    [reads("tenants.select", "name, timezone"), reads("tenants.select", "sells_by"), reads("tenant_config.select")],
-    [1, 1, 1],
-    "the zone, sells_by and the settings once each, whichever read asked first",
+    [reads("tenants.select", "name, timezone"), reads("tenant_config.select")],
+    [1, 1],
+    "the zone and the settings once each, whichever read asked first",
   );
 });
 
@@ -3449,7 +3486,7 @@ test("search_people reads what the People page reads (ledger #7): one SQL page f
   );
 });
 
-test("search_people answers who booked and who never did from the People page's own read: each row with its visits from the owner's calendar, and the Booked and Asked, never booked lists judged over those rows with the page's calendar", async () => {
+test("search_people answers who booked and who never did, a list counted over the audience pool as the People rail counts one: everyone with their visits from the owner's calendar, and the Booked and Asked, never booked lists judged with the pool's calendar", async () => {
   const { forgetFeeds } = await import(at("apps/dashboard/src/server/ask/openings.ts"));
   const ICS = [
     "BEGIN:VCALENDAR",
@@ -3530,9 +3567,11 @@ test("list_audiences offers the templates the composer offers (ledger #9): appro
   );
 });
 
-test("list_playbooks says the Playbooks page's numbers (ledger #10): every moment's and every list's counts are the page's chips -- over everyone with no one looking and the week's touches applied, so Rosa, reached by a broadcast yesterday, waits out the week where the tool's own count reached her -- its rows and next runs are the page's, and a list the page cannot count says why", async () => {
+test("list_playbooks says the Playbooks page's numbers (ledger #10): every moment's and every list's counts are the page's chips -- over everyone with no one looking and the week's touches applied, so Rosa, reached by a broadcast yesterday, waits out the week where the tool's own count reached her -- its rows and next runs are the page's, and a list the page cannot count says why as far as the page's read says, never a reason it does not give", async () => {
   const DAY = 86_400_000;
   const S_REG = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1";
+  const S_MINE = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2";
+  const S_NEWER = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb3";
   const GONE = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb9";
   const sent = iso(NOW.getTime() - DAY);
   const pbRow = (id, over) => ({
@@ -3568,8 +3607,17 @@ test("list_playbooks says the Playbooks page's numbers (ledger #10): every momen
         policy_class: "campaign",
         created_at: "2026-09-04T00:00:00Z",
       }),
+      pbRow("pb-quiet", { list_key: "quiet", created_at: "2026-09-05T00:00:00Z" }),
+      pbRow("pb-mine", { list_id: S_MINE, created_at: "2026-09-06T00:00:00Z" }),
+      pbRow("pb-newer", { list_id: S_NEWER, created_at: "2026-09-07T00:00:00Z" }),
     ],
-    segments: [{ id: S_REG, tenant_id: A, name: "Regulars", rule: null }],
+    segments: [
+      { id: S_REG, tenant_id: A, name: "Regulars", rule: null },
+      // About whoever is looking: a run has no one (the page's read says so).
+      { id: S_MINE, tenant_id: A, name: "Mine", rule: { all: [{ field: "assigned", op: "is", value: "me" }] } },
+      // A rule this version can't read: the page counts it for nobody, and People says why on the list.
+      { id: S_NEWER, tenant_id: A, name: "From the future", rule: { v: 3, all: [{ field: "future_fact" }] } },
+    ],
     segment_members: [
       { tenant_id: A, segment_id: S_REG, contact_id: LUIS },
       { tenant_id: A, segment_id: S_REG, contact_id: ROSA },
@@ -3626,5 +3674,56 @@ test("list_playbooks says the Playbooks page's numbers (ledger #10): every momen
     ["seg:booked", "This list reads your calendar. Connect it under Settings › Business to count it."],
   );
   assert.deepEqual([byId["pb-gone"].cannot_count, byId["pb-gone"].said_yes_now], ["its list was deleted", undefined]);
+  assert.deepEqual(
+    [byId["pb-quiet"].said_yes_now, byId["pb-quiet"].can_be_sent_now],
+    [chip("seg:quiet").said_yes_now, chip("seg:quiet").can_be_sent_now],
+  );
+  assert.deepEqual(
+    [byId["pb-mine"].cannot_count, byId["pb-newer"].cannot_count],
+    [
+      "This list is about whoever is looking, so only a person can count it.",
+      "it could not be counted just now; People says why on the list",
+    ],
+    "the page's reason where its read carries one, and never a reason guessed for a list of the workspace's own",
+  );
   assert.ok(read.note.includes("can_be_sent_now") && read.note.includes("this week"), read.note);
+  assert.ok(read.note.includes("A null count means the page could not count it just now."), read.note);
+  // Everyone could not be read: no moment and no list is counted, and each says so -- never a calendar to connect or a
+  // service to add, which is what a People read that failed looked like (no People list offered at all).
+  const { result: blindOut, lines } = await logged("playbook_pools_people_failed", () =>
+    runTool(
+      newToolContext(
+        ctxFor(t, {
+          ...doors,
+          people_list: () => {
+            throw new Error("canceling statement due to statement timeout");
+          },
+        }),
+        A,
+        "owner",
+        TZ,
+        NOW,
+      ),
+      { name: "list_playbooks", input: {} },
+    ),
+  );
+  assert.equal(blindOut.isError, false, blindOut.result);
+  assert.equal(lines.length, 1, "said once in the log");
+  const blind = JSON.parse(blindOut.result);
+  const blindById = Object.fromEntries(blind.playbooks.map((p) => [p.playbook_id, p]));
+  assert.deepEqual(
+    ["pb-booked", "pb-quiet", "pb-regulars", "pb-mine"].map((id) => blindById[id].cannot_count),
+    [
+      "it could not be counted just now",
+      "it could not be counted just now",
+      "its list could not be read just now",
+      "its list could not be read just now",
+    ],
+  );
+  assert.ok(
+    blind.triggers
+      .filter((x) => !x.counted_per_list)
+      .every((x) => x.said_yes_now === null && x.can_be_sent_now === null),
+  );
+  assert.ok(!/Settings/.test(JSON.stringify(blind.playbooks)), "REGRESSION: a failed read was told to fix Settings");
 });

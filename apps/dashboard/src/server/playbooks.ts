@@ -39,11 +39,12 @@ import {
 } from "@chanlytics/db";
 import type { RouteContext } from "@/server/with-route";
 import { listRuns } from "@/server/broadcasts";
-import { peopleVisits, type KnownFacts } from "@/server/calendar";
+import { peopleVisits, type ZoneAndSettings } from "@/server/calendar";
 import { archivedListWords } from "@/server/audience";
 import { createBroadcastPorts, templateValuePorts } from "@/server/campaign-ports";
 import { everyone } from "@/server/people";
 import { sellsByOf } from "@/server/deals";
+import { lazily, type Lazy } from "@/server/lazy";
 
 /**
  * Playbooks, read and checked.
@@ -259,10 +260,11 @@ export async function triggerPools(
    */
   deals: { on: boolean; pace: Pick<DealPaceVM, "waitDays"> | null },
   /**
-   * The calendar's zone and settings the turn holds, or how to read them from it (KnownFacts, readers/playbooks.ts):
-   * the visits' lookup then reads neither again. Without them, it reads its own.
+   * What the caller already holds this turn, or how to read it from the turn (readers/playbooks.ts): everyone in People
+   * (readers/everyone.ts, which the audience pool shares), read just where the pools read their own; and the calendar's
+   * zone and settings, which the visits' lookup then reads neither of. Without them, each is read here.
    */
-  known?: KnownFacts,
+  from: { people?: Lazy<PersonRowDto[]>; known?: ZoneAndSettings } = {},
 ): Promise<{
   pools: Record<string, TriggerPool | null>;
   calendar: "ok" | "unavailable" | "none";
@@ -280,7 +282,7 @@ export async function triggerPools(
   // offered the QR for a yes nobody knew was missing.
   let rows: PersonRowDto[];
   try {
-    rows = await everyone(ctx, tenantId);
+    rows = await (from.people === undefined ? everyone(ctx, tenantId) : lazily(from.people));
   } catch (e) {
     console.error(
       "playbook_pools_people_failed",
@@ -293,7 +295,7 @@ export async function triggerPools(
       people: [],
     };
   }
-  const pv = await peopleVisits(ctx, tenantId, rows, now, known).catch((e: unknown) => {
+  const pv = await peopleVisits(ctx, tenantId, rows, now, from.known).catch((e: unknown) => {
     console.error(
       "playbook_pools_visits_failed",
       JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),

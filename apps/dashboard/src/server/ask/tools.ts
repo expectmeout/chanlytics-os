@@ -46,7 +46,6 @@ import {
   starterForTrigger,
   triggerOf,
   poolRowOf,
-  poolListContext,
   resolveList,
   unmetNeed,
   type AskReadSet,
@@ -57,7 +56,7 @@ import {
   visitLine,
 } from "@chanlytics/contracts";
 import type { RouteContext } from "../with-route";
-import { poolList } from "../audience";
+import { poolList, type AudiencePool } from "../audience";
 import { listSearches, waitingQuestionOf } from "../leads";
 import { load, readerContext, type ReaderContext } from "../readers";
 import * as readers from "../readers/facts";
@@ -206,8 +205,10 @@ export interface ToolContext {
   read: AskReadSet;
   now: Date;
   /**
-   * The turn's reader context: every read goes through the readers and shares the route's turn cache, which keeps no
-   * failure -- the audience pool too (readers/audience-pool.ts), read once a turn by its arguments.
+   * The turn's reader context: the tools read through the readers and share the route's turn cache, which keeps no
+   * failure -- the audience pool too (readers/audience-pool.ts), read once a turn by its arguments. Not yet through
+   * them: get_settings' channels, list_audiences' templates and number, and list_lead_searches (PR 1.7), and poolList's
+   * own read of a list and its members (audience.ts).
    */
   rc: ReaderContext;
 }
@@ -526,35 +527,41 @@ async function searchPeople(t: ToolContext, input: Record<string, unknown>): Pro
     ? (parseListToken(listIn) ?? parseListToken(`list:${listIn}`) ?? parseListToken(`seg:${listIn}`))
     : null;
   if (listIn && !ref) return { error: "list must be a list token from list_audiences, or a People list's id" };
-  // The People page's own read (readers/people.ts), once a turn per query (ledger #7): one page from people_list under
-  // the member's RLS, matched in SQL on a name, a WhatsApp name, an address or three digits of the number, in the
-  // function's order, each person with their appointments -- so "who asked but never booked?" and "who is booked this
-  // week?" are answered from the calendar -- and `total`, how many match in all. The audience pool is not read.
-  const page = (await load(t.rc, people, { q: q || null, offset: 0 })).data;
-  // Each row as the People page builds it (legacy-bridge/surface-data.ts personRowOf): for the member asking, and with
-  // no deal where deals are off.
-  const viewer = t.ctx.userId ?? null;
-  const rowOf = new Map(
-    page.people.map((r) => [r.id, poolRowOf(r, { tz: t.timezone, now: t.now, viewer, dealsOn: page.deals_on })]),
-  );
-  // A list is judged over the page's rows, by what the page's read says the workspace has: its calendar, deals, a
-  // consult-first service, and the member asking (audience.ts poolList, as a send and the page count it). One that
-  // can't be counted here says why, in the page's words, and names the condition that failed.
-  let onList: Set<string> | null = null;
+  // A list is counted over the audience pool (readers/audience-pool.ts, once a turn), everyone with their appointments,
+  // as the People rail and the send count one (audience.ts poolList) -- never over one page. One that can't be counted
+  // here says why, in the page's words, and names the condition that failed.
+  let pool: AudiencePool | null = null;
+  let members: Set<string> | null = null;
   if (ref) {
-    const listCtx = poolListContext({
-      calendar: page.calendar.state,
-      dealsOn: page.deals_on,
-      consultFirst: page.consult_first,
-      viewer,
-    });
-    const found = await poolList(t.ctx, t.tenantId, { rows: [...rowOf.values()], listCtx }, ref);
+    pool = (await load(t.rc, audiencePool, undefined)).data;
+    const found = await poolList(t.ctx, t.tenantId, pool, ref);
     if (!found) return { error: "no such list; list_audiences names them", people: [] };
     if ("unknown" in found) return { error: `${found.label}: ${found.unknown}`, people: [] };
-    onList = new Set(found.memberIds);
+    members = new Set(found.memberIds);
   }
-  const members = onList;
-  const hits = members ? page.people.filter((r) => members.has(r.id)) : page.people;
+  const on = members;
+  const viewer = t.ctx.userId ?? null;
+  let hits: PersonRowDto[];
+  let matches: number;
+  let rowOf: (r: PersonRowDto) => PersonRowVM;
+  if (pool && on && !q) {
+    // A list and no words: its members, in the pool's order, each with the pool's own People row.
+    const inPool = pool;
+    hits = inPool.people.filter((r) => on.has(r.id));
+    matches = hits.length;
+    rowOf = (r) => inPool.rows.find((v) => v.id === r.id)!;
+  } else {
+    // The People page's own read (readers/people.ts), once a turn per query (ledger #7): one page from people_list
+    // under the member's RLS, matched in SQL on a name, a WhatsApp name, an address or three digits of the number, in
+    // the function's order, each person with their appointments -- so "who is booked this week?" is answered from the
+    // calendar -- and `total`, how many match in all; on a list too, who of its matches is on the list.
+    const page = (await load(t.rc, people, { q: q || null, offset: 0 })).data;
+    hits = on ? page.people.filter((r) => on.has(r.id)) : page.people;
+    matches = on ? hits.length : page.page.total;
+    // Each person said, as the People page builds their row (legacy-bridge/surface-data.ts personRowOf): for the member
+    // asking, with no deal where deals are off -- built for the rows said alone, never the whole page.
+    rowOf = (r) => poolRowOf(r, { tz: t.timezone, now: t.now, viewer, dealsOn: page.deals_on });
+  }
   const picked = hits.slice(0, ASK_CAPS.people);
   for (const r of picked) {
     t.read.person.add(r.id);
@@ -564,9 +571,9 @@ async function searchPeople(t: ToolContext, input: Record<string, unknown>): Pro
     query: q,
     // A People list by its id, as it was asked for; one of the workspace's own by its token.
     list: ref ? (ref.kind === "builtin" ? ref.id : `list:${ref.id}`) : null,
-    // Counted before the cap: everyone the query matches, as the page counts them; on a list, who of them is on it.
-    matches: members ? hits.length : page.page.total,
-    people: picked.map((r) => personLine(r, rowOf.get(r.id)!, t.timezone, t.now.getTime())),
+    // Counted before the cap: everyone the query matches, as the page counts them; on a list, who is on it.
+    matches,
+    people: picked.map((r) => personLine(r, rowOf(r), t.timezone, t.now.getTime())),
   };
 }
 
@@ -957,20 +964,24 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
       ? { said_yes_now: x.saidYes, can_be_sent_now: x.candidates }
       : { said_yes_now: null, can_be_sent_now: null };
   };
-  // Why the page counts nobody for a playbook on a list, as far as its read says: the list could not be read, or is
-  // gone; it is about whoever is looking, and a run has no one; or it is one of People's lists that needs what this
-  // workspace does not have (contracts unmetNeed, in listUnknownWords' words) -- a consult-first service when neither
-  // the calendar nor deals is what it lacks, since the page's read does not carry that one.
+  // Why the page counts nobody for a playbook on a list, as far as its read says, and never a reason it does not give.
+  // One of the workspace's own: its list could not be read, or is gone; or it is about whoever is looking, and a run
+  // has no one (the page's read carries that one, `viewer`); else the page cannot count it and People says why on the
+  // list. One of People's: none offered at all is a People read that failed; one offered and uncounted, a read of its
+  // own; one not offered needs what this workspace does not have (contracts unmetNeed, in listUnknownWords' words) -- a
+  // consult-first service when neither the calendar nor deals is what it lacks, since the page's read does not carry
+  // that one, and the built-ins that need nothing are offered whenever the read succeeds.
   const uncounted = (ref: ListRef): string => {
     if (ref.kind === "saved") {
       if (pb.lists === null) return "its list could not be read just now";
       const own = pb.lists.find((l) => l.id === ref.id);
       if (!own) return "its list was deleted";
       if (own.viewer) return listUnknownWords("viewer", pb.calendar);
-      return "it could not be counted just now";
+      return "it could not be counted just now; People says why on the list";
     }
     const def = resolveList(ref, []);
     if (!def) return "its list is not one of People's";
+    if (pb.people_lists.length === 0) return "it could not be counted just now";
     if (pb.people_lists.some((l) => l.key === ref.id)) return "it could not be counted just now";
     const need =
       unmetNeed(def.needs, { calendar: pb.calendar, dealsOn: pb.deals_on, consultFirst: true, viewer: false }) ??
@@ -1023,7 +1034,7 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
       ...(x.kind === "saved" ? { counted_per_list: true } : counted(x.id)),
       starter_template: starterForTrigger(x.id)?.title ?? null,
     })),
-    note: `A run is a broadcast, and ${NO_NUMBER_REACH}. It never reaches anyone twice within the playbook's gap, and sends one playbook message per person per week. said_yes_now counts who each trigger names that said the yes its template needs, a number or not; can_be_sent_now is who of them a run reaches now, the Playbooks page's own count: whoever a broadcast already reached this week waits out the week. When can_be_sent_now is 0 and said_yes_now is not, the ones who said yes have no number to send to, or heard from a broadcast this week: say so, and never send the owner to get a yes they already have.${pb.deals_on ? " The proposal follow-up reaches each proposal once, with its link: its counts leave out whoever already had theirs, and null means that could not be read." : ""} Nothing here has run because you read it.`,
+    note: `A run is a broadcast, and ${NO_NUMBER_REACH}. It never reaches anyone twice within the playbook's gap, and sends one playbook message per person per week. said_yes_now counts who each trigger names that said the yes its template needs, a number or not; can_be_sent_now is who of them a run reaches now, the Playbooks page's own count: whoever a broadcast already reached this week waits out the week. When can_be_sent_now is 0 and said_yes_now is not, the ones who said yes have no number to send to, or heard from a broadcast this week: say so, and never send the owner to get a yes they already have. A null count means the page could not count it just now.${pb.deals_on ? " The proposal follow-up reaches each proposal once, with its link: its counts leave out whoever already had theirs." : ""} Nothing here has run because you read it.`,
   };
 }
 

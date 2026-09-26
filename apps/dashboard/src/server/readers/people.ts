@@ -58,12 +58,7 @@ export const people: Reader<{ q: string | null; offset: number }, PeoplePage> = 
     const [out, sellsBy, nameSteps, pace, followUp] = await Promise.all([
       // The calendar's zone and settings are the turn's too, read just where the calendar's own lookup read them: a
       // turn that holds them reads neither again, and one that fails costs the visits, never the list.
-      withVisits(ctx, tenantId, rows, rc.now, () =>
-        Promise.all([load(rc, facts.facts, undefined), load(rc, facts.config, undefined)]).then(([zone, settings]) => ({
-          timezone: zone.data.timezone,
-          config: settings.data?.config ?? null,
-        })),
-      ),
+      withVisits(ctx, tenantId, rows, rc.now, facts.zoneAndSettings(rc)),
       buys,
       stepNamer(ctx, tenantId, rows),
       offset === 0 && !q ? dealPaceRead(ctx, tenantId, rc.now) : Promise.resolve(null),
