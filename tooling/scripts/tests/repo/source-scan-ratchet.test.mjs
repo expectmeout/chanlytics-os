@@ -26,55 +26,17 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { ROOT, readCode } from "../_source.mjs";
+import { ROOT } from "../_source.mjs";
+import { sourceScan, TESTS_DIR } from "../_measures.mjs";
 
-const DIR = "tooling/scripts/tests";
+const DIR = TESTS_DIR;
 const BASELINE = path.join(ROOT, DIR, "source-scan-baseline.json");
-const SELF = "repo/source-scan-ratchet.test.mjs";
 
-/**
- * The files the REPOSITORY has, not the files this laptop has, each keyed by
- * its path relative to tooling/scripts/tests (`people/person-notes.test.mjs`):
- * the suite is grouped by domain, and a file name alone no longer says where a
- * file is.
- *
- * Learned from CI, on this file's own first run. The baseline was seeded from a
- * working tree that happened to contain another session's UNTRACKED test file;
- * CI checked out the repo, found four fewer source reads than the baseline
- * claimed, and failed with `legacy-harness.test.mjs: now 0, baseline 4`.
- *
- * A number that differs between a checkout and a desk is not a ratchet — it is a
- * number two people can argue about. So the measurement is over `git ls-files`,
- * which is the same set everywhere, and an untracked scratch test cannot move a
- * repo-wide count in either direction.
- *
- * Falls back to the directory when git is unavailable, because a test that cannot
- * run at all is worse than one measuring a slightly wider set.
- */
-function repoTestFiles() {
-  try {
-    return execFileSync("git", ["ls-files", DIR], { cwd: ROOT, encoding: "utf8" })
-      .split("\n")
-      .map((l) => l.trim())
-      .filter((l) => l.endsWith(".test.mjs"))
-      .map((l) => l.slice(DIR.length + 1));
-  } catch {
-    return fs
-      .readdirSync(path.join(ROOT, DIR), { recursive: true })
-      .map((f) => String(f).split(path.sep).join("/"))
-      .filter((f) => f.endsWith(".test.mjs"));
-  }
-}
-
-const files = repoTestFiles().filter((f) => f !== SELF && fs.existsSync(path.join(ROOT, DIR, f)));
-const counts = Object.fromEntries(
-  files
-    .map((f) => [f, (readCode(`${DIR}/${f}`).match(/\b(readCode|readRaw)\(/g) ?? []).length])
-    .filter(([, n]) => n > 0),
-);
+// The measure lives in _measures.mjs, beside the others the register prints, and
+// says there why the file set is `git ls-files` and the key a path under tests/.
+const { files, counts } = sourceScan();
 
 if (process.env.UPDATE_SOURCE_SCAN_BASELINE === "1" || process.env.UPDATE_BASELINES === "1") {
   const prev = JSON.parse(fs.readFileSync(BASELINE, "utf8"));

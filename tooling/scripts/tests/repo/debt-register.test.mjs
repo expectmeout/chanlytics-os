@@ -8,6 +8,11 @@
  * say, so a count on the page cannot go stale — the failure mode
  * docs/takeover.md shows in fifteen places at the time of writing.
  *
+ * In bank mode this file measures for itself (_measures.mjs) rather than reading
+ * the baselines, because the runner starts test files in parallel and the
+ * ratchets may still be writing them; the plain run then checks the page against
+ * the files, which by then agree.
+ *
  *   UPDATE_BASELINES=1 pnpm test   # rewrite the block after banking a reduction
  */
 import { test } from "node:test";
@@ -16,6 +21,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { ROOT } from "../_source.mjs";
 import { BASELINES_DIR, BANK, BANK_HINT, readBaseline } from "../_ratchet.mjs";
+import { MEASURES, sourceScan } from "../_measures.mjs";
 
 const REGISTER = "docs/debt.md";
 const START = "<!-- measured:start -->";
@@ -32,32 +38,42 @@ const baselineFiles = fs
 const total = (o) => Object.values(o ?? {}).reduce((a, v) => a + (typeof v === "number" ? v : 1), 0);
 const keys = (o) => Object.keys(o ?? {}).length;
 
-function measured() {
-  const complexity = readBaseline("complexity.json") ?? {};
+/** The block, from a map of baseline file → its numbers, and the source-scan counts. */
+function blockFrom(by, scanCounts) {
+  const complexity = by["complexity.json"] ?? {};
   const over200 = Object.values(complexity).filter((v) => v.lines > 200).length;
-  const publishers = readBaseline("window-publishers.json") ?? {};
-  const copies = readBaseline("copies.json") ?? {};
-  const scan = JSON.parse(readText("tooling/scripts/tests/source-scan-baseline.json"));
+  const publishers = by["window-publishers.json"] ?? {};
+  const copies = by["copies.json"] ?? {};
   const lint = JSON.parse(readText("package.json")).scripts.lint.match(/--max-warnings (\d+)/);
   const rows = [
     ["functions over the limit", keys(complexity), `of which over 200 lines: ${over200}`],
-    ["files over 800 lines", keys(readBaseline("file-length.json")), ""],
-    ["directories over 20 modules", keys(readBaseline("tree-shape.json")), ""],
-    ["window globals", keys(readBaseline("window-globals.json")), "names"],
+    ["files over 800 lines", keys(by["file-length.json"]), ""],
+    ["directories over 20 modules", keys(by["tree-shape.json"]), ""],
+    ["window globals", keys(by["window-globals.json"]), "names"],
     ["window publishers", total(publishers), `sites in ${keys(publishers)} files`],
     ["copies", total(copies), `of ${keys(copies)} names`],
-    ["as unknown as", total(readBaseline("casts.json")), ""],
-    ["table names outside packages/db", total(readBaseline("tables.json")), ""],
+    ["as unknown as", total(by["casts.json"]), ""],
+    ["table names outside packages/db", total(by["tables.json"]), ""],
+    // knip's baseline is written by its own script, never by the suite, so the file is the truth in both modes.
     ["dead exports, types and modules", total(readBaseline("dead-exports.json")), ""],
-    ["source-text reads in tests", total(scan.counts), ""],
+    ["source-text reads in tests", total(scanCounts), ""],
     ["lint warnings allowed", lint ? Number(lint[1]) : NaN, ""],
   ];
-  return rows
-    .map(([label, n, note]) => `${label.padEnd(34)}${String(n).padStart(5)}${note ? "   " + note : ""}`)
-    .join("\n");
+  const lines = rows.map(
+    ([label, n, note]) => `${label.padEnd(34)}${String(n).padStart(5)}${note ? "   " + note : ""}`,
+  );
+  return "```text\n" + lines.join("\n") + "\n```";
 }
 
-const block = "```text\n" + measured() + "\n```";
+const fromFiles = () =>
+  blockFrom(
+    Object.fromEntries(baselineFiles.map((f) => [f, readBaseline(f)])),
+    JSON.parse(readText("tooling/scripts/tests/source-scan-baseline.json")).counts,
+  );
+
+const fromMeasures = () =>
+  blockFrom(Object.fromEntries(MEASURES.map((m) => [m.file, m.measure()])), sourceScan().counts);
+
 const page = () => readText(REGISTER);
 
 if (BANK) {
@@ -65,7 +81,7 @@ if (BANK) {
   const now = page();
   const a = now.indexOf(START) + START.length;
   const b = now.indexOf(END);
-  fs.writeFileSync(p, now.slice(0, a) + "\n\n" + block + "\n\n" + now.slice(b));
+  fs.writeFileSync(p, now.slice(0, a) + "\n\n" + fromMeasures() + "\n\n" + now.slice(b));
 }
 
 test("every baseline the build holds is a row of the register", () => {
@@ -76,11 +92,15 @@ test("every baseline the build holds is a row of the register", () => {
   assert.ok(text.includes("--max-warnings"), "the lint warnings ceiling is owed a row too");
 });
 
-test("the numbers on the register are the baselines' numbers", () => {
-  const text = page();
-  const a = text.indexOf(START);
-  const b = text.indexOf(END);
-  assert.ok(a >= 0 && b > a, `${REGISTER} has no measured block`);
-  const written = text.slice(a + START.length, b).trim();
-  assert.equal(written, block, `the register is stale — rewrite it: ${BANK_HINT}`);
-});
+test(
+  "the numbers on the register are the baselines' numbers",
+  { skip: BANK && "banked from the measures; the next plain run checks the files" },
+  () => {
+    const text = page();
+    const a = text.indexOf(START);
+    const b = text.indexOf(END);
+    assert.ok(a >= 0 && b > a, `${REGISTER} has no measured block`);
+    const written = text.slice(a + START.length, b).trim();
+    assert.equal(written, fromFiles(), `the register is stale — rewrite it: ${BANK_HINT}`);
+  },
+);
