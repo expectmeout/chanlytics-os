@@ -4534,11 +4534,11 @@ export type Database = {
       }
     }
     Functions: {
-      call_status_rank: { Args: { p_status: string }; Returns: number }
       billing_card_mark: {
         Args: { p_fingerprint: string; p_tenant_id: string }
         Returns: undefined
       }
+      call_status_rank: { Args: { p_status: string }; Returns: number }
       campaign_series: {
         Args: { p_days?: number; p_tenant_id: string }
         Returns: Json
@@ -4612,7 +4612,12 @@ export type Database = {
         }[]
       }
       create_workspace_for: {
-        Args: { p_name: string; p_partner_code?: string; p_timezone?: string; p_user: string }
+        Args: {
+          p_name: string
+          p_partner_code?: string
+          p_timezone?: string
+          p_user: string
+        }
         Returns: {
           id: string
           locale: string
@@ -5165,10 +5170,7 @@ export type Database = {
           state: string
         }[]
       }
-      partner_become: {
-        Args: { p_code: string }
-        Returns: Json
-      }
+      partner_become: { Args: { p_code: string }; Returns: Json }
       partner_earn: {
         Args: {
           p_amount_cents: number
@@ -5182,7 +5184,12 @@ export type Database = {
       }
       partner_earnings_sweep: { Args: { p_now?: string }; Returns: Json }
       partner_reverse: {
-        Args: { p_amount_cents: number; p_event_id: string; p_invoice_id: string; p_kind: string }
+        Args: {
+          p_amount_cents: number
+          p_event_id: string
+          p_invoice_id: string
+          p_kind: string
+        }
         Returns: Json
       }
       people_list: {

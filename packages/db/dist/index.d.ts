@@ -4532,18 +4532,18 @@ type Database = {
             };
         };
         Functions: {
-            call_status_rank: {
-                Args: {
-                    p_status: string;
-                };
-                Returns: number;
-            };
             billing_card_mark: {
                 Args: {
                     p_fingerprint: string;
                     p_tenant_id: string;
                 };
                 Returns: undefined;
+            };
+            call_status_rank: {
+                Args: {
+                    p_status: string;
+                };
+                Returns: number;
             };
             campaign_series: {
                 Args: {
