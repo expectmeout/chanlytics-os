@@ -984,25 +984,10 @@
     "branches": 54,
     "depth": 1
   },
-  "apps/edge/api/admin/billing.ts::POST#1": {
-    "lines": 78,
-    "branches": 43,
-    "depth": 2
-  },
   "apps/edge/api/admin/eval.ts::POST#1": {
     "lines": 98,
     "branches": 37,
     "depth": 3
-  },
-  "apps/edge/api/admin/google.ts::POST#1": {
-    "lines": 227,
-    "branches": 82,
-    "depth": 4
-  },
-  "apps/edge/api/admin/lines.ts::POST#1": {
-    "lines": 479,
-    "branches": 123,
-    "depth": 5
   },
   "apps/edge/api/admin/sending-domains.ts::POST#1": {
     "lines": 80,

@@ -72,7 +72,7 @@
   "apps/edge/api/admin/billing.ts": 2,
   "apps/edge/api/admin/eval.ts": 1,
   "apps/edge/api/admin/google.ts": 9,
-  "apps/edge/api/admin/lines.ts": 15,
+  "apps/edge/api/admin/lines.ts": 14,
   "apps/edge/api/admin/playbooks-run.ts": 1,
   "apps/edge/api/admin/setup-request.ts": 1,
   "apps/edge/api/admin/signup-notify.ts": 1,
