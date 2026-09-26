@@ -13,9 +13,9 @@
  *   5. their receipts stamp the Message-IDs, and the clock reads them sent: both leads written to (nurture, emailed);
  *   6. three days on, the nudge: the lead who wrote back is not written to; the other is, "Re:" and threaded under
  *      the first email;
- *   7. the nudge bounces for good: its lead's address is invalid;
- *   8. the clock finishes both runs;
- *   9. at the domain's day's share, a due send is not claimed, and a cold email written past it by hand is refused at
+ *   7. the nudge bounces for good: its lead's address is invalid, and its run waits on it;
+ *   8. the clock reads the bounce and finishes the nudge's run (the first run finished at 5);
+ *   9. at the domain's day's share, a due send is not claimed, and a cold email written at it by hand is refused at
  *      the door as sending_domain_at_cap and planned again by the clock, never skipped.
  *
  * Kept to its own workspace (every clock and claim call takes it). Local stack only: it makes a workspace and a user.
@@ -73,29 +73,36 @@ const ok = (res) => {
 };
 const one = async (q) => ok(await q.select("id").single()).id;
 
-/** Every request to the mail provider, answered as it answers a send; a domain read answers verified. */
+/**
+ * Every send to the mail provider, answered as it answers one, its id kept by the row its tag names. Any other call
+ * to the provider fails the suite: nothing else here may reach it.
+ */
 const sent = [];
+const providerIdOf = new Map();
 const realFetch = globalThis.fetch;
 function stubProvider() {
   globalThis.fetch = async (url, init) => {
     const u = String(url);
-    if (u.startsWith("https://api.resend.com/emails")) {
+    if (u === "https://api.resend.com/emails" && init?.method === "POST") {
       const body = JSON.parse(init.body);
       sent.push({ key: init.headers.Authorization, idempotency: init.headers["Idempotency-Key"], body });
-      return new Response(JSON.stringify({ id: `re_${sent.length}` }), { status: 200 });
+      const id = `re_${sent.length}`;
+      providerIdOf.set(body.tags?.find((t) => t.name === "cl_message")?.value, id);
+      return new Response(JSON.stringify({ id }), { status: 200 });
     }
+    if (u.startsWith("https://api.resend.com")) throw new Error(`the suite does not answer ${init?.method} ${u}`);
     return realFetch(url, init);
   };
 }
 const coldSent = () => sent.filter((s) => s.key === `Bearer ${process.env.RESEND_COLD_API_KEY}`);
 
-/** A receipt, as the webhook hands it on: its tags name the row. */
+/** A receipt, as the webhook hands it on: the provider's id for the email, and its tags naming the row. */
 const receipt = (type, m, over = {}) =>
   emailReceiptFrom({
     type: `email.${type}`,
     created_at: iso(Date.now()),
     data: {
-      email_id: `re_${m.id.slice(0, 8)}`,
+      email_id: providerIdOf.get(m.id) ?? assert.fail(`the provider never took ${m.id}`),
       message_id: `<${m.id}@${HOST}>`,
       from: m.meta.email.request.from,
       to: m.meta.email.request.to,
@@ -111,9 +118,17 @@ async function sendsOf(runId) {
 async function leadOf(id) {
   return ok(await db.from("leads").select("*").eq("id", id).single());
 }
+/** The workspace's send jobs, taken as the runner takes them (fired, leased) in one update, run, and marked done. */
 async function runJobs() {
+  const now = Date.now();
   const jobs = ok(
-    await db.from("jobs").select("*").eq("tenant_id", A).eq("kind", "outbound_send").eq("state", "scheduled"),
+    await db
+      .from("jobs")
+      .update({ state: "fired", fired_at: iso(now), lease_until: iso(now + MIN) })
+      .eq("tenant_id", A)
+      .eq("kind", "outbound_send")
+      .eq("state", "scheduled")
+      .select("*"),
   );
   const wire = { email: await lib.emailWireFor(db, A) };
   for (const j of jobs) {
@@ -121,13 +136,11 @@ async function runJobs() {
       { db, wire, alert: async () => {}, schedule: async () => {}, deadline: Date.now() + 60_000 },
       { id: j.id, tenant_id: j.tenant_id, kind: j.kind, payload: j.payload },
     );
-    // Run here by hand, so withdrawn from the ledger: a runner beside this suite never takes it again.
-    ok(await db.from("jobs").update({ state: "canceled" }).eq("id", j.id));
+    ok(await db.from("jobs").update({ state: "done" }).eq("id", j.id));
   }
   return jobs.length;
 }
-const tick = async () => {
-  const now = new Date();
+const tick = async (now = new Date()) => {
   await lib.reachOutClock(db, now, L, Date.now(), A);
   return lib.claimAndWrite({ db, now, started: Date.now(), lane: LANE, log: L, tenantId: A });
 };
@@ -255,7 +268,9 @@ before(async () => {
       template_name: `reach_nudge_${stamp}`,
     }),
   );
-  // Three qualified members: Texas, California, and one whose address a person in People already has.
+  // Three qualified members: Texas, California, and one whose address a person in People already has. The person is
+  // there first, so the lead is found and stays ready: only the run's own rule keeps it out.
+  ok(await db.from("contacts").insert({ tenant_id: A, email: `owner@dallas-movers-${stamp}.example` }));
   const lead = async (key, region, city, emailAddress) => {
     leads[key] = await one(
       db.from("leads").insert({
@@ -285,7 +300,6 @@ before(async () => {
   await lead("tx", "TX", "Austin", `owner@austin-movers-${stamp}.example`);
   await lead("ca", "CA", "Fresno", `owner@fresno-movers-${stamp}.example`);
   await lead("customer", "TX", "Dallas", `owner@dallas-movers-${stamp}.example`);
-  ok(await db.from("contacts").insert({ tenant_id: A, email: `owner@dallas-movers-${stamp}.example` }));
 });
 after(async () => {
   globalThis.fetch = realFetch;
@@ -320,6 +334,12 @@ test(
   { skip },
   async () => {
     // 1. The first step's run: planned whole, waiting for its owner, who is told.
+    const customer = await leadOf(leads.customer);
+    assert.deepEqual(
+      [customer.stage, customer.contact_id],
+      ["ready", null],
+      "the customer's lead is still one to write",
+    );
     const r1 = await stepRun(root);
     assert.deepEqual([r1.outcome, r1.reason, r1.planned], ["held", "waiting_for_you", 2]);
     const run1 = await runOf(root);
@@ -383,6 +403,8 @@ test(
       const lead = await leadOf(s.lead_id);
       assert.deepEqual([lead.stage, lead.last_outcome], ["nurture", "emailed"]);
     }
+    const state = async (id) => ok(await db.from("broadcasts").select("state").eq("id", id).single()).state;
+    assert.equal(await state(run1.id), "sent", "the first run finished: every send in it went");
 
     // 6. Three days on. The Texas business wrote back, answering the first email: it is not written to again. The
     // California one is, as the same thread.
@@ -439,22 +461,22 @@ test(
     const bounce = { bounce: { type: "Permanent", subType: "General", message: "550 5.1.1 no such user" } };
     assert.equal(await lib.applyEmailReceipt(db, receipt("bounced", nudgeRow, bounce), iso(Date.now())), "applied");
     assert.equal((await leadOf(leads.ca)).email_state, "invalid");
+    assert.equal(await state(run2.id), "sending", "the nudge's run waits on its one open send");
 
-    // 8. The clock reads the bounce and finishes both runs.
+    // 8. The clock reads the bounce (its send failed), then finishes the nudge's run; the first stays finished.
     await tick();
     await tick();
     const after = ok(await db.from("reach_out_sends").select("state, reason").eq("id", nudgeSend.id).single());
     assert.deepEqual([after.state, after.reason], ["failed", "bounced"]);
-    for (const id of [run1.id, run2.id])
-      assert.equal(ok(await db.from("broadcasts").select("state").eq("id", id).single()).state, "sent", id);
+    for (const id of [run1.id, run2.id]) assert.equal(await state(id), "sent", id);
 
-    // 9. At the domain's day's share (30 on its first ramp step): a due send is not claimed; one written past it by hand
-    // is refused at the door, and the clock plans it again, never skips it.
+    // 9. At the domain's day's share (30 on its first ramp step: the three above, and twenty-seven more): a due send is
+    // not claimed; one written at the share by hand is refused at the door, and the clock plans it again, never skips it.
     const other = await one(db.from("contacts").insert({ tenant_id: A, email: `bulk-${stamp}@fixture-e2e.example` }));
     const thread = await one(db.from("conversations").insert({ tenant_id: A, contact_id: other }));
     ok(
       await db.from("messages").insert(
-        Array.from({ length: 30 }, () => ({
+        Array.from({ length: 27 }, () => ({
           tenant_id: A,
           conversation_id: thread,
           contact_id: other,
@@ -515,9 +537,14 @@ test(
         ],
       }),
     );
-    const c9 = await tick();
+    // The three emails above were stamped by the database's clock, which may run a moment ahead of this machine's: the
+    // claim reads the day from a moment past the last of them, or it could miss one and claim into the share.
+    const { last_sent_at } = ok(
+      await db.rpc("sending_domain_capacity", { p_domain_id: domain, p_at: iso(Date.now() + MIN) }),
+    );
+    const c9 = await tick(new Date(Math.max(Date.now(), Date.parse(last_sent_at) + 1)));
     assert.equal(c9.claimed, 0, "the domain's day is spent: nothing is claimed");
-    // By hand, past the share: the send claimed and its email written as the writer writes one.
+    // By hand, at the share: the send claimed and its email written as the writer writes one.
     ok(
       await db
         .from("reach_out_sends")
@@ -580,7 +607,7 @@ test(
     );
     const before9 = coldSent().length;
     await runJobs();
-    assert.equal(coldSent().length, before9, "nothing leaves past the share");
+    assert.equal(coldSent().length, before9, "nothing leaves once the share is spent");
     const refused = ok(await db.from("messages").select("status, error").eq("id", messageId).single());
     assert.deepEqual([refused.status, refused.error], ["canceled", { reason: "sending_domain_at_cap" }]);
     await tick();

@@ -1,7 +1,7 @@
 # Reach out: design spec
 
 **Date:** 25 Sep 2026 · **Owner:** Ruben · **Status:** Parts 1–2 shipped; 2.5 (the hardening) and 2.6 (the review before Part 3)
-shipped; Part 3 approved (D15–D19) and next. The eight decisions in §9 were approved 25 Sep ·
+shipped; Part 3 (the engine) shipped 26 Sep (D15–D19); Part 4 (the words and the pages) next. The eight decisions in §9 were approved 25 Sep ·
 **Canvas:** https://claude.ai/artifact/AdMCtQTkWUoDhXz8SewiZg (23 boards; the builder is `Claude Video/reach-out-design/canvas`) ·
 **Supersedes:** §4.7 "Leads" of `2026-09-24-campaigns-on-every-channel-design.md` · **Re-sequences:** steps 2–11 of
 `docs/plans/2026-09-24-every-business-every-channel.md` §4 · **Follows:** Part 0 of the campaigns spec (#999, #1005,
@@ -113,14 +113,15 @@ stopped (§4.7). `touchesSince` already holds what is needed (`db/src/repositori
 **As built (Part 3; 00183, 00185).**
 - **The chain.** `playbooks` gained `kind` (`moment | reach_out`), `lead_search_id`, `after_playbook_id`, `after_days`,
   `gap_minutes` and `domain_ids`. `audience`, `pace`, `hand` and `channels` were not needed: the search names the
-  audience, the gap and the ramp are the pace, and a reach-out is email only.
+  audience, the gap and the ramp are the pace, and a reach-out is email only. `hand` (a hand-to-you step, §9
+  decision 7) is deferred to Part 5's dated step, not dropped.
 - **The sends.** Each lead in a step's run is a row of its own, **`reach_out_sends`**, with its lead, person, domain,
   `send_at`, `state` (`planned → claimed → queued → sent`, or `skipped` / `failed` with a reason), `attempts` (the emails
   written for it) and `message_id`, guarded move by move.
 - **The run.** A step's run is a `broadcasts` row with `audience.kind = 'reach_out'` and an id derived from the step
   and its day. It is written whole with its sends, or not at all (`reach_out_plan_run`).
 - **`after_step`'s reach** is 00184's `reach_out_followers`: sent the step before at least `after_days` ago, the door's
-  own facts about the lead, filtered before its limit, and any bounce in the chain stops it.
+  own facts about the lead, filtered before its limit (00185), and any bounce in the chain stops it.
 
 ### 4.2 The audience, and the person made at first send
 
@@ -287,7 +288,8 @@ undoable for seven days on the lead ("read as no · undo").
   - *wrote back*: a message of their own on any channel, an email answering one sent to them from any address, or a
     call they made; an out-of-office is not one (00181, the door and the followers);
   - *unsubscribed* and *said no* (the door);
-  - *bounced*: any bounce stops the chain, and a permanent one marks the lead's address invalid (00188);
+  - *bounced*: any bounce stops the chain, and a permanent one marks the lead's address invalid (PR 7's receipt,
+    `leadAddressBounced`);
   - *closed*: a lead no longer `ready` or `nurture`.
 - **Owed by Part 5:** *booked*, *not now* and *away* need the reply's intent read, and the classifier is Part 5's. Until
   then any reply stops the chain (C16).
@@ -312,15 +314,16 @@ undoable for seven days on the lead ("read as no · undo").
   email from any address that answers or cites one sent to them, or a call they made; an out-of-office is not one), built
   without its unsubscribe link (`outreach_without_unsubscribe`), not from the workspace's own domain by its whole From
   (`outreach_needs_own_domain`), from one not verified (`sending_domain_not_ready`), or past the domain's day: its
-  rolling 24 hours against the ramp (`sending_domain_at_cap`). The day's count is the backstop; Part 3's batch writer
-  claims within it (C7).
+  rolling 24 hours against the ramp (`sending_domain_at_cap`). The day's count is the backstop; the reach-out clock
+  claims within it, under the domain's lock (`reach_out_claim`, C7).
 - **Volume:** the ramp per domain; the gap; the lead's hours; the month's allowance per workspace (cold sends counted
   from `messages` where `meta.source = 'reach_out'`, beside `maySpend`); the Campaigns head says "1,940 of 2,000 emails
   this month" once half is used.
 - **The owner:** the first run waits for approval; later runs give thirty minutes; every held email waits for a decision;
   nothing is rerouted to another channel or domain on a failure.
 - **As built (Part 3, 00188), the holds Part 3 added:**
-  - **Unsubscribes (D18)** hold a domain past 2% of what it sent (over 150), after a complaint and bounces.
+  - **Unsubscribes (D18)** hold a domain past 2% of what it sent (more than 3 while fewer than 150 have gone:
+    `unsubscribed × 50 > max(sent, 150)`), after a complaint and bounces.
   - **A second reputation hold (D16)** within 30 days is the platform's to lift: the platform is paged and the owner's
     Resume is refused. Removing the domain and adding it again inside the 30 days is refused too.
   - **A cold-only link and reply domain (D17)**, before scale: `UNSUBSCRIBE_ORIGIN` and `COLD_REPLY_DOMAIN`, with the

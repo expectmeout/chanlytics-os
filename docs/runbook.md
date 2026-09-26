@@ -274,8 +274,9 @@ only; the dashboard holds none.
 
 Reach out sends from a workspace's own domains through a second Resend
 account, apart from the one every reply and every page uses, so a cold
-complaint never touches the platform's reputation. Nothing sends cold until
-Reach out Part 3; these are the switches it needs, in order.
+complaint never touches the platform's reputation. Reach out Part 3 built
+the engine that sends it; nothing sends cold until these switches are set, in
+order, and a reach-out exists (step 8).
 
 1. **The cold account.** Create the second Resend account on a plan with
    enough domains (five per workspace at most).
@@ -337,7 +338,9 @@ is paged (`sending_domain_held_twice:<host>`, naming the workspace and the
 domain). Look at what it sent, then lift it:
 `POST /api/admin/sending-domains` with `x-diag-key` and
 `{ "op": "resume", "tenant_id": "…", "domain_id": "…", "by": "platform" }`.
-The owner is told it sends again, from 30 a day.
+The owner is told it sends again, from 30 a day. Only the platform's
+`DIAG_KEY` opens this lift, a dashboard's token never does: keep `DIAG_KEY` on
+the edge, even once every caller carries a token.
 
 **Rotating the unsubscribe secret.** A link already in someone's inbox must
 keep working for at least thirty days (CAN-SPAM). The dashboard first: move

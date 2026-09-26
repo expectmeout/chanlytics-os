@@ -154,9 +154,10 @@ minute) reads what became of the emails it wrote, then claims what is due
 under each domain's lock and writes each email rows first: the email row
 under an id derived from the send, its `outbound_send` job, then the send
 queued. It leaves through the one door, which asks `outreach_facts` about
-that send's own lead. Every read that decides a step's work is a bounded SQL
-function, since a list of ids in a URL, or a page cut at a thousand rows,
-would have stopped the clock or finished a run with a send still open.
+that send's own lead. The reads that choose each step's work are bounded SQL
+functions (00186, 00187), and any list of ids the clock still sends goes a
+hundred at a time: a list of ids in a URL breaks past about two hundred, and
+a page cut at a thousand rows would have finished a run with a send open.
 
 A send that happens later is a job: `packages/jobs` is the ledger (`claim_due_jobs`, a lease, a heartbeat, `settle`), `apps/edge/api/jobs/tick.ts` runs it, and `packages/jobs/src/handlers.ts` maps each kind to a core verb. Every clock is a timestamp on a row that a sweep acts on, and every sweep is registered in `sweep_status` and judged by `/api/cron/health`.
 
