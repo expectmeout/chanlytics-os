@@ -997,10 +997,10 @@ test("wiring: manifest, bridge, routes, rate bucket, event kind, migration", () 
   ])
     assert.ok(get.includes(pin), pin);
   assert.ok(
-    readCode("apps/dashboard/app/api/v1/setup/route.ts").includes(
-      'setupDtoFor(ctx.supabase, member.tenantId, { kind: "member" })',
+    readCode("apps/dashboard/src/server/readers/connections.ts").includes(
+      'setupDtoFor(rc.ctx.supabase, rc.tenantId, { kind: "member" }, rc.now)',
     ),
-    "and the route is its first caller",
+    "and the route is its first caller, through its reader",
   );
   const post = readCode("apps/dashboard/app/api/v1/setup/request/route.ts");
   for (const pin of [
