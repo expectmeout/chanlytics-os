@@ -192,7 +192,8 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
     // template to the same person a second time — the one thing a broadcast
     // must never do, and the thing the whole SPEAKS_TO_A_PERSON rule exists to
     // prevent. Written first, the row says "a run was mid-send here and nobody
-    // knows how it went", and a moment later it is overwritten with the truth.
+    // knows how it went", and a moment later it is overwritten with the truth
+    // (sent or skipped: the one failed the guard lets move on, 00182).
     // The trade is deliberate: it risks one person who WOULD have been sent to
     // and now is not, in the gap between two adjacent writes, to close a gap
     // the width of a call to Meta — and between those two, never twice wins.

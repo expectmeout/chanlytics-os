@@ -175,7 +175,7 @@ async function contact() {
 }
 
 test(
-  "a recipient is marked once: queued -> sent, skipped or failed, then final; a resumed batch may say the same again",
+  "a recipient is marked once: queued -> sent, skipped or failed, then final, but a claim is settled by its send; a resumed batch may say the same again",
   { skip },
   async () => {
     const broadcastId = await broadcast("sending");
@@ -215,6 +215,26 @@ test(
       reason: "a resumed batch, marking what it already marked",
     });
     assert.equal(again.error, null, `a same-state update is not a move: ${again.error?.message}`);
+
+    // The batch's claim (messages/broadcast.ts): failed with outcome_unknown just before the wire, then how the send
+    // went. That one failed is settled by the send it was claimed for, once (00182).
+    for (const to of ["sent", "skipped"]) {
+      const claimed = await recipient("queued");
+      const claim = await mark(claimed, { state: "failed", reason: "outcome_unknown" });
+      assert.equal(claim.error, null, claim.error?.message);
+      const settled = await mark(claimed, { state: to, reason: to === "sent" ? null : "opted_out" });
+      assert.equal(settled.error, null, `a claim settles to ${to}: ${settled.error?.message}`);
+      const back = await mark(claimed, { state: "queued" });
+      assert.match(back.error?.message ?? "", /terminal/, `and ${to} is final after it`);
+    }
+    const claimed = await recipient("queued");
+    await mark(claimed, { state: "failed", reason: "outcome_unknown" });
+    const refused = await mark(claimed, { state: "failed", reason: "send_failed" });
+    assert.equal(refused.error, null, "a claim the send failed stays failed, with the send's reason");
+    const late = await mark(claimed, { state: "sent" });
+    assert.match(late.error?.message ?? "", /terminal/, "a failure that is a verdict is final");
+    const unclaimed = await mark(claimed, { state: "queued" });
+    assert.match(unclaimed.error?.message ?? "", /terminal/, "a claim never goes back to the queue");
   },
 );
 
