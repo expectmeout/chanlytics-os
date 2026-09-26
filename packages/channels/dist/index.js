@@ -4289,6 +4289,10 @@ function withCarrierConsent(n, c) {
   if (!c) return n;
   return { ...n, optOut: n.optOut || c.optOut, optIn: n.optIn || c.optIn };
 }
+var SMS_OPTED_OUT_CODE = 21610;
+function smsRefusalOf(r2) {
+  return !r2.ok && r2.code === SMS_OPTED_OUT_CODE ? "opted_out" : null;
+}
 var SMS_FOOTER = "Msg & data rates may apply. Reply STOP to opt out, HELP for help.";
 var SMS_MAX_CHARS = 1600;
 function smsBody(reply, isFirstReply) {
@@ -6480,6 +6484,7 @@ export {
   SMS_HELD_DETAILS,
   SMS_HELD_REASON,
   SMS_MAX_CHARS,
+  SMS_OPTED_OUT_CODE,
   STATE_TTL_MS,
   TRUSTHUB,
   TwilioError,
@@ -6636,6 +6641,7 @@ export {
   smsInboundFrom,
   smsInboundUrl,
   smsKeywordConsent,
+  smsRefusalOf,
   smsStateFor,
   smsStatusFrom,
   smsStatusToRow,
