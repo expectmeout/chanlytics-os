@@ -1,7 +1,7 @@
 /**
  * The three on a phone take a page in as it arrives, and notice what comes for you (legacy-bridge/mascot/arrival.ts).
  * Run against the pure module with the real mood and a clock of its own: a page arriving on a phone is read
- * (thinking) for READ_MS, or as long as the boot takes up to READ_MAX_MS, then rest; the same page again within
+ * (lit) for READ_MS, or as long as the boot takes up to READ_MAX_MS, then rest; the same page again within
  * AGAIN_MS is not read, a walk within a page is the same page, another page is read; nothing on a desk, nothing while
  * Ask is open or the mood is busy, and a read whose end finds Ask open leaves the mood alone; the needs-you count
  * rising makes the three hop once, its first word and a fall do not.
@@ -54,7 +54,19 @@ const world = (over = {}) => {
   const c = clock();
   const mood = createMood();
   const said = [];
-  mood.subscribe((ev) => said.push(ev.t === "state" ? ev.state : ev.t === "react" ? `react:${ev.kind}` : ev.t));
+  mood.subscribe((ev) =>
+    said.push(
+      ev.t === "state"
+        ? ev.state
+        : ev.t === "react"
+          ? `react:${ev.kind}`
+          : ev.t === "glow"
+            ? ev.on
+              ? "lit"
+              : "dark"
+            : ev.t,
+    ),
+  );
   const w = {
     route: "#/today",
     phone: true,
@@ -96,47 +108,47 @@ test("a page names itself without the walk within it", () => {
 test("a page arriving on a phone is read for READ_MS, then rest; the same page again is not read, another is", async () => {
   const w = world();
   w.arrival.arrived();
-  assert.deepEqual(w.said, ["thinking"]);
+  assert.deepEqual(w.said, ["lit"]);
   await w.c.tick(READ_MS - 1);
-  assert.deepEqual(w.said, ["thinking"], "still reading");
+  assert.deepEqual(w.said, ["lit"], "still reading");
   await w.c.tick(1);
-  assert.deepEqual(w.said, ["thinking", "idle"], "then rest");
+  assert.deepEqual(w.said, ["lit", "dark"], "then rest");
   w.arrival.arrived();
-  assert.deepEqual(w.said, ["thinking", "idle"], "the same page again within AGAIN_MS: nothing");
+  assert.deepEqual(w.said, ["lit", "dark"], "the same page again within AGAIN_MS: nothing");
   w.route = "#/clients/leads:s-1";
   w.arrival.arrived();
-  assert.deepEqual(w.said, ["thinking", "idle", "thinking"], "another page: read");
+  assert.deepEqual(w.said, ["lit", "dark", "lit"], "another page: read");
   await w.c.tick(READ_MS);
   w.route = "#/clients/leads:s-1:p-3";
   w.arrival.arrived();
-  assert.deepEqual(w.said, ["thinking", "idle", "thinking", "idle"], "a walk within the page: the same page");
+  assert.deepEqual(w.said, ["lit", "dark", "lit", "dark"], "a walk within the page: the same page");
   await w.c.tick(AGAIN_MS);
   w.route = "#/today";
   w.arrival.arrived();
-  assert.equal(w.said.at(-1), "thinking", "the first page again, AGAIN_MS later: read");
+  assert.equal(w.said.at(-1), "lit", "the first page again, AGAIN_MS later: read");
 });
 
 test("the first read is as long as the boot, past READ_MS and up to READ_MAX_MS", async () => {
   const slow = world({ boot: held() });
   slow.arrival.arrived();
   await slow.c.tick(READ_MS);
-  assert.deepEqual(slow.said, ["thinking"], "the boot still out at READ_MS: still reading");
+  assert.deepEqual(slow.said, ["lit"], "the boot still out at READ_MS: still reading");
   slow.boot.settle();
   await slow.c.tick(0);
-  assert.deepEqual(slow.said, ["thinking", "idle"], "the boot in: rest");
+  assert.deepEqual(slow.said, ["lit", "dark"], "the boot in: rest");
   const stuck = world({ boot: held() });
   stuck.arrival.arrived();
   await stuck.c.tick(READ_MAX_MS - 1);
-  assert.deepEqual(stuck.said, ["thinking"]);
+  assert.deepEqual(stuck.said, ["lit"]);
   await stuck.c.tick(1);
-  assert.deepEqual(stuck.said, ["thinking", "idle"], "a boot that never lands: rest at READ_MAX_MS");
+  assert.deepEqual(stuck.said, ["lit", "dark"], "a boot that never lands: rest at READ_MAX_MS");
   const quick = world({ boot: held() });
   quick.arrival.arrived();
   quick.boot.settle();
   await quick.c.tick(READ_MS - 1);
-  assert.deepEqual(quick.said, ["thinking"], "a boot in before READ_MS: the read is still READ_MS");
+  assert.deepEqual(quick.said, ["lit"], "a boot in before READ_MS: the read is still READ_MS");
   await quick.c.tick(1);
-  assert.deepEqual(quick.said, ["thinking", "idle"]);
+  assert.deepEqual(quick.said, ["lit", "dark"]);
 });
 
 test("nothing on a desk, nothing while Ask is open or the mood is busy, and a read's end leaves an opened Ask alone", async () => {
@@ -159,13 +171,17 @@ test("nothing on a desk, nothing while Ask is open or the mood is busy, and a re
   w.askOpen = true;
   w.mood.set("listening"); // the Line took the mood
   await w.c.tick(READ_MS);
-  assert.deepEqual(w.said, ["thinking", "listening"], "the read's end says nothing over the Line");
+  assert.deepEqual(
+    w.said,
+    ["lit", "listening", "dark"],
+    "the read's end takes its light back and leaves the Line's word",
+  );
   w.askOpen = false;
   w.mood.set("idle");
   w.route = "#/inbox";
   w.arrival.arrived();
   await w.c.tick(READ_MS);
-  assert.deepEqual(w.said.slice(-2), ["thinking", "idle"], "and reads again once Ask has closed");
+  assert.deepEqual(w.said.slice(-2), ["lit", "dark"], "and reads again once Ask has closed");
 });
 
 test("the needs-you count rising makes the three hop once; its first word, a fall, and a rise while busy do not", () => {
@@ -185,10 +201,11 @@ test("the needs-you count rising makes the three hop once; its first word, a fal
   assert.deepEqual(w.said, ["react:hop", "thinking"], "not while the three are busy");
 });
 
-test("stopped, a read on is let go without a word", async () => {
+test("stopped, a read on takes its light back at once and says nothing more", async () => {
   const w = world();
   w.arrival.arrived();
   w.arrival.stop();
+  assert.deepEqual(w.said, ["lit", "dark"]);
   await w.c.tick(READ_MAX_MS);
-  assert.deepEqual(w.said, ["thinking"], "nothing more is said; whoever owns the mood next sets it");
+  assert.deepEqual(w.said, ["lit", "dark"], "nothing more is said");
 });

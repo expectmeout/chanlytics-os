@@ -222,18 +222,19 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
   .phone-ask:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
   .phone-ask:active { transform: scale(0.96); }
   /* The disc, and its dot. The disc is the cards' surface, lifted by their shadow and nothing else: no hairline, the
-     three's own edge is the edge. The dot is the app's word for a state (components.css, the badges): nothing at rest,
-     so the ✦ is furniture; while Ask works (`data-work`) the coral dot every live thing wears, breathing; from 80% of
-     the usage (`data-usage`) an amber dot that stays, at 100% red. It rides the rim at the top right with the
-     surface's own ring around it. The AI's colours are kept for the moments they mean something: the read as a page
-     arrives, the orbit while Ask works. Chosen from the canvas (Ruben, 25 Sep: "let's go with 4"); the beam it
-     replaces is B3 to B5 of the spec. */
+     three's own edge is the edge. The dot is the app's word for a state (components.css, the badges): nothing while
+     nothing needs you, so the ✦ is furniture; something waiting on you (`data-needs`: people, runs or searches waiting,
+     Ask's own standing) is the amber dot "needs you" wears everywhere here, breathing; the usage from 80%
+     (`data-usage`) amber too, at 100% red. It rides the rim at the top right with the surface's own ring around it.
+     The AI's colours are the three's own: lit where they stand as a page arrives, the states while Ask works. Chosen
+     from the canvas (Ruben, 25 Sep: "let's go with 4", then "the dot only if something needs my attention"); the
+     beam it replaces is B3 to B5 of the spec. */
   .phone-ask .ask-disc {
     position: absolute; inset: 2px; border-radius: 50%; pointer-events: none;
     background: var(--bg-raised); box-shadow: var(--shadow-md);
-    --dot: var(--accent); --dot-on: 0;
+    --dot: var(--warn); --dot-on: 0;
   }
-  .phone-ask .ask-disc[data-work="1"] { --dot-on: 1; }
+  .phone-ask .ask-disc[data-needs="1"] { --dot-on: 1; }
   .phone-ask .ask-disc[data-usage="warned"] { --dot: var(--warn); --dot-on: 1; }
   .phone-ask .ask-disc[data-usage="over"] { --dot: var(--danger); --dot-on: 1; }
   .phone-ask .ask-disc::before {

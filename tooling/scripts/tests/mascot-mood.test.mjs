@@ -36,6 +36,29 @@ test("a read that lands reaches every face that can show one, and passes by one 
   ]);
 });
 
+test("lit reaches every face that can show it, a face that follows late starts lit, the same word again reaches none, and a face with no way to show it is passed by", () => {
+  const mood = createMood();
+  const f = face();
+  f.glow = (v) => f.said.push(["glow", v]);
+  const old = { set: () => {}, react: () => {}, beat: () => {}, hear: () => {} };
+  follow(f, mood);
+  follow(old, mood);
+  mood.glow(true);
+  mood.glow(true);
+  assert.deepEqual(f.said.slice(1), [["glow", 1]]);
+  assert.equal(mood.lit, true);
+  const late = face();
+  late.glow = (v) => late.said.push(["glow", v]);
+  follow(late, mood);
+  assert.deepEqual(late.said, [
+    ["set", "idle"],
+    ["glow", 1],
+  ]);
+  mood.glow(false);
+  assert.deepEqual(f.said.slice(2), [["glow", 0]]);
+  assert.equal(mood.lit, false);
+});
+
 test("a new state reaches every face; the same state again, or no state at all, reaches none", () => {
   const mood = createMood();
   const a = face();

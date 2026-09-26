@@ -18,6 +18,7 @@
  * - Reading: an orbit. The three circle a ring tilted toward you, the nearest the largest, lifted and lightest, the
  *   farthest small and deep; the ring's axis sways, so the path traces a sphere. Leaving it, each tile keeps its speed.
  * - Answering: the tiles side by side, each word lifting one toward you and lighting it.
+ * - Lit (glow): at rest, the mark where it stands in the AI's colour, with a turn or two: a page arriving on a phone.
  * Gestures scale with the drawn size (`detail`): a 7px tile in the top bar moves less than a 60px one on a phone.
  * A face nobody is near (the top bar's icon) stops breathing after `quietAfter` seconds and only turns, less often.
  * Each tile carries a charge, drawn as colour, never as motion (`light`).
@@ -96,6 +97,8 @@ export interface Character {
   press(down: boolean): void;
   /** a read that landed: the orbit surges and a light runs down the stack */
   pulse(strength?: number): void;
+  /** lit at rest: the mark keeps its place and takes the AI's colour, with a turn now and another soon; 0 is the ink again */
+  glow(v: number): void;
   tick(dt: number): void;
   /** where every tile is now: a snapshot, untouched by later ticks */
   frame(): CharacterFrame;
@@ -313,6 +316,9 @@ export function createCharacter(options: CharacterOptions = {}): Character {
   let wasQuiet = false;
   let settleArmed = true;
   let liquid = 0;
+  // lit at rest (glow): the colour the tiles hold while idle, eased
+  let lit = 0;
+  let litTarget = 0;
   const moves: Move[] = [];
   const events: CharacterEvent[] = [];
   const entering = enter && !calm;
@@ -715,7 +721,7 @@ export function createCharacter(options: CharacterOptions = {}): Character {
     if (state === "idle" && W.idle > 0.95) {
       const quiet = awake < 0.5;
       fidget(quiet);
-      nextFidgetAt = clock + (quiet ? 14 + rand() * 10 : 6 + rand() * 5);
+      nextFidgetAt = clock + (quiet ? 14 + rand() * 10 : lit > 0.5 ? 1.3 + rand() * 0.8 : 6 + rand() * 5);
     } else if (state === "listening" && W.listening > 0.95 && quietFor > 1.2) {
       waiting();
       nextFidgetAt = clock + 2.5 + rand() * 2.5;
@@ -838,7 +844,8 @@ export function createCharacter(options: CharacterOptions = {}): Character {
 
     // colour: its step, and whether it is at work. Addressed, it lights at once; done, it keeps its colour through
     // its bow and cools slowly, down the stack
-    const liveNow = state === "idle" ? 0 : 1;
+    lit = ease(lit, litTarget, dt, litTarget > lit ? 0.12 : 0.4);
+    const liveNow = state === "idle" ? lit : 1;
     const warming = liveNow > prevLive;
     for (const b of bodies) {
       const k = clamp(b.step, 0, 2);
@@ -1101,6 +1108,15 @@ export function createCharacter(options: CharacterOptions = {}): Character {
     },
     press(down) {
       pressDown = !!down && !calm;
+    },
+    glow(v) {
+      const on = unit(v);
+      // lit from dark, at rest: a turn now and the next soon, so the colour arrives with a move
+      if (on > 0.5 && litTarget <= 0.5 && state === "idle" && !calm) {
+        if (!moves.length) note(turns([0.46, 0.71, 0.89]));
+        nextFidgetAt = clock + 1.1 + rand() * 0.7;
+      }
+      litTarget = on;
     },
     pulse(v = 0.7) {
       if (calm) return;

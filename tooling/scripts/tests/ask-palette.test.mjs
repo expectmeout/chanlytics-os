@@ -1998,32 +1998,37 @@ test("on a phone the field in use composes: the rows go, their fold kept closed,
 
 /* ------------------------------ the phone's ✦: the disc and its dot ------------------------------ */
 
-test("the disc says the usage as its dot: none with no usage surface or under 80%, amber from 80%, red at 100%; and it works when the mood is not at rest", () => {
+test("the disc's dot says what needs you (Ask's own standing) and the usage from 80%: nothing with nothing waiting and no usage surface, amber for someone waiting or from 80%, red at 100%", () => {
   const Disc = (props) => globalThis.window.AskDisc(props);
   const drawn = () => byTestId(render(Disc, { testId: "b" }), "b");
-  const subs = [];
-  const mood = { state: "idle", subscribe: (fn) => (subs.push(fn), () => subs.splice(subs.indexOf(fn), 1)) };
-  const had = globalThis.window.__mascot;
-  globalThis.window.__mascot = { mood };
+  const hadAsk = globalThis.window.__ask;
+  let parts = { people: 0, runs: 0, searches: 0 };
+  globalThis.window.__ask = { rightNowParts: () => ({ sentence: "", ...parts }) };
   try {
     delete globalThis.window.__USAGE;
-    let beam = drawn();
-    assert.equal(beam.props.className, "ask-disc");
-    assert.equal(beam.props["data-usage"], "ok", "no usage surface yet: no dot for the usage");
-    assert.equal(beam.props["data-work"], "0", "at rest");
+    let disc = drawn();
+    assert.equal(disc.props.className, "ask-disc");
+    assert.equal(disc.props["data-needs"], "0", "nobody waiting: no dot");
+    assert.equal(disc.props["data-usage"], "ok", "no usage surface yet: no dot for the usage");
+    parts = { people: 1, runs: 0, searches: 0 };
+    assert.equal(drawn().props["data-needs"], "1", "someone waiting: the dot");
+    parts = { people: 0, runs: 0, searches: 2 };
+    assert.equal(drawn().props["data-needs"], "1", "a search waiting: the dot");
+    parts = { people: 0, runs: 0, searches: 0 };
     globalThis.window.__USAGE = { standing: "ok", share: 27 };
-    assert.equal(drawn().props["data-usage"], "ok");
+    disc = drawn();
+    assert.equal(disc.props["data-usage"], "ok");
+    assert.equal(disc.props["data-needs"], "0");
     globalThis.window.__USAGE = { standing: "warned", share: 89 };
     assert.equal(drawn().props["data-usage"], "warned");
     globalThis.window.__USAGE = { standing: "over", share: 100 };
     assert.equal(drawn().props["data-usage"], "over");
-    mood.state = "thinking";
-    beam = drawn();
-    assert.equal(beam.props["data-work"], "1", "Ask reading: the dot is on");
+    delete globalThis.window.__ask;
+    assert.equal(drawn().props["data-needs"], "0", "no Ask at all: nothing waiting");
   } finally {
     delete globalThis.window.__USAGE;
-    if (had === undefined) delete globalThis.window.__mascot;
-    else globalThis.window.__mascot = had;
+    if (hadAsk === undefined) delete globalThis.window.__ask;
+    else globalThis.window.__ask = hadAsk;
   }
 });
 

@@ -68,6 +68,8 @@ export interface Mounted {
   react(kind: Reaction): void;
   /** a read that landed */
   pulse(strength?: number): void;
+  /** lit at rest, as a page arrives on a phone (mood.ts glow) */
+  glow(v: number): void;
   /** advance by hand and draw: captures and tests */
   step(dt?: number, frames?: number): void;
   destroy(): void;
@@ -370,6 +372,10 @@ export function mountCharacter(canvas: CanvasLike, opts: MountOptions = {}): Mou
     },
     pulse(v) {
       character.pulse(v);
+    },
+    glow(v) {
+      character.glow(v);
+      stillFrame();
     },
     step(dt = 1 / 60, frames = 1) {
       for (let i = 0; i < frames; i++) frame(dt);
