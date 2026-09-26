@@ -1698,12 +1698,19 @@ Expected: lint at its baseline (0 errors), every suite green, `dist in sync with
 >   a first step only. `check.ts` imports `WrittenOpening`.
 > - **Held give-up in the reach-out clock** (Task 3.3 Step 4), after its restale; the trigger wakes the clock for a
 >   hold two weeks old, and counts a held send as open in a canceled run and in a run to finish.
-> - **Generated files by hand.** No local stack could run in the container that built this PR (image pulls blocked),
->   so `schema-sets.generated.ts` and `database.types.ts` were written to what the generators emit (the overload in
->   the order `@supabase/postgrest-typegen` sorts by argument types), and the database suites
->   (`reach-out-checked.db.test.mjs`, new, and the Part 3 suites, whose sends are now planned checked and whose extra
->   chains now each have a search of their own) were written without a run. The Database workflow replays and runs
->   them.
+> - **The lead's own person is not a customer's domain** (departs from the task code's record): the domain test in
+>   `reach_out_record` leaves out the lead's own contact (`leads.contact_id`, made by its first send) and any person
+>   with the lead's exact address. Without it every later step's send held `customer_domain`, since the person Part 3
+>   made for the lead writes from the lead's own domain. The end-to-end suite found it.
+> - **Generated files by hand, then proved against a replay.** The Supabase stack cannot start in the container that
+>   built this PR (image pulls blocked). The migrations were replayed instead on a stock Postgres 16 with stubs for
+>   what the stack provides (roles, `auth`, `vault`, `cron`, `net`, storage), under PostgREST 12.2.3 and a small
+>   gateway for the three auth calls the suites make. On it: every migration applies, 00190 applies twice;
+>   `gen-schema-sets --check` passes; `@supabase/postgrest-typegen` 0.2.0 generates exactly the committed
+>   `database.types.ts` for both schemas (it differs from the CI's generator only in the helper types' parentheses,
+>   on `main` as here), including the `reach_out_audience` overload; `reach-out-checked.db.test.mjs`, every Part 3
+>   reach-out suite, the end-to-end suite, `tenancy` and `privileges` pass. The overload's order and shape under the
+>   CI's own generator version are the one thing only the Database workflow can confirm.
 
 The database side of F1, F3, F8, F9 and F10. Nothing checks yet: PR 3's clock phase does. The claim already refuses what is unchecked, and no chain exists on production, so no send waits on it (read back with the migration).
 

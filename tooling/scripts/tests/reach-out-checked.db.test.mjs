@@ -401,6 +401,16 @@ test(
       [],
       "another workspace's business is none",
     );
+    // The lead's own person (its first send made it) is not another who writes from its domain: a later step's check
+    // never holds the lead for its own address.
+    const own = `own-${stamp}.example`;
+    const written = await lead({ email: `owner@${own}` });
+    ok(await db.rpc("reach_out_person", { p_tenant_id: A, p_lead_id: written }));
+    const [mine] = ok(await db.rpc("reach_out_record", { p_tenant_id: A, p_search_id: search, p_lead_id: written }));
+    assert.equal(mine.email_domain_shared, false, "its own person is not a customer's domain");
+    ok(await db.from("contacts").insert({ tenant_id: A, email: `front@${own}` }));
+    const [theirs] = ok(await db.rpc("reach_out_record", { p_tenant_id: A, p_search_id: search, p_lead_id: written }));
+    assert.equal(theirs.email_domain_shared, true, "another person at its domain is");
   },
 );
 

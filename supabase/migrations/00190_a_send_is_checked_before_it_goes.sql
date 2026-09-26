@@ -321,8 +321,9 @@ create index if not exists contacts_email_domain on public.contacts (tenant_id, 
 
 -- One business's record for a search, whether or not a send exists for it yet: what the writer and the reader are
 -- given (the listing, the finder's reason, what the owner asked the finder for), and the check's two code facts: how
--- many of the workspace's leads share its website and its name (a chain, F4), and whether a person in People writes
--- from its address's domain (F6). The check (reach_out_unchecked) and the sheet's preview both read it here.
+-- many of the workspace's leads share its website and its name (a chain, F4), and whether a person in People other
+-- than the lead's own writes from its address's domain (F6). The check (reach_out_unchecked) and the sheet's preview
+-- both read it here.
 create or replace function public.reach_out_record(p_tenant_id uuid, p_search_id uuid, p_lead_id uuid)
 returns table (
   business_name text, category text, city text, region text, rating numeric, reviews int, website_host text,
@@ -341,9 +342,12 @@ as $$
          (select count(*)::int from public.leads o
            where o.tenant_id = l.tenant_id and o.erased_at is null and o.blanked_at is null
              and public.lead_name_key(o.business_name) = public.lead_name_key(l.business_name)),
+         -- The lead's own person (made by its first send, 00184 reach_out_person) is not another: its address is the
+         -- lead's, and a chain's later step writes to it.
          split_part(lower(btrim(coalesce(l.email, ''))), '@', 2) <> '' and exists (
            select 1 from public.contacts c
             where c.tenant_id = l.tenant_id and c.email is not null and c.erased_at is null
+              and c.id is distinct from l.contact_id and c.email <> lower(btrim(l.email))
               and split_part(c.email, '@', 2) = split_part(lower(btrim(l.email)), '@', 2))
     from public.leads l
     left join public.lead_search_members sm
