@@ -281,6 +281,18 @@ test("the prompt on Leads: the page is named and words that describe businesses 
   assert.ok(people.includes("They are on the people page."));
   assert.ok(!people.includes("propose_lead_search"), "People is not the finder");
   assert.ok(!turnSystem({ ...facts, surface: null }).includes("They are on the"), "no surface, no line");
+  assert.ok(
+    turnSystem({ ...facts, surface: "pipeline" }).includes("They are on the pipeline page."),
+    "a new surface, named",
+  );
+  // A row a page opens that no tool reads by its id (a lead, a run) is never one the model is sent to read.
+  const on = (kind) => turnSystem({ ...facts, surface: "leads", scope: { kind, id: "x1", label: `this ${kind}` } });
+  for (const kind of ["lead", "run"]) {
+    assert.ok(on(kind).includes("No tool reads it by its id yet"), kind);
+    assert.ok(!on(kind).includes("Read it before answering about it."), kind);
+  }
+  for (const kind of ["thread", "call", "person", "search"])
+    assert.ok(on(kind).includes("Read it before answering about it."), kind);
 });
 
 test("the three quick questions are told by their words; the answers are ask-answer.ts's (ask-answer.test.mjs)", () => {

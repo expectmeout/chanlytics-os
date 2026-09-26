@@ -94,8 +94,8 @@ export function surfaceFor(page: string, param?: string | null): AskSurface {
       return "today";
     case "inbox":
       return "inbox";
+    // People, and People › Lists (surface-registry.ts): People's own page of lists.
     case "clients":
-    // People › Lists (surface-registry.ts): People's own page of lists.
     case "segments":
       return "people";
     case "conversations":

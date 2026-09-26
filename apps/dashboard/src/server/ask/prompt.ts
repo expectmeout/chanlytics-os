@@ -310,9 +310,12 @@ export function turnSystem(t: TurnFacts): string {
       'They are on the Leads page, where the businesses Claude found for them are listed. Words that describe businesses (a kind, a place, a count) are a search to propose: read list_lead_searches, then propose_lead_search; ask only when the kind or the place is missing. If a search on this page is waiting for an answer, words that answer its question amend it (amends), and "this search" is the one the scope names.',
     );
   else if (t.surface) lines.push(`They are on the ${t.surface} page.`);
+  // A lead or a run is a row a page opens that no tool reads by its id until Phase 4: the model is told so, never sent
+  // to read what it cannot.
+  const unread = t.scope?.kind === "lead" || t.scope?.kind === "run";
   if (t.scope)
     lines.push(
-      `They are looking at ${t.scope.label} (${t.scope.kind} ${t.scope.id}); "this", "them", "here" mean that unless they say otherwise. Read it before answering about it.`,
+      `They are looking at ${t.scope.label} (${t.scope.kind} ${t.scope.id}); "this", "them", "here" mean that unless they say otherwise. ${unread ? "No tool reads it by its id yet: say what you can from the reads you have, and say so rather than guess." : "Read it before answering about it."}`,
     );
   if (t.language === "es") lines.push("They wrote in Spanish; answer in Spanish.");
   else if (t.language === "en") lines.push("They wrote in English; answer in English.");

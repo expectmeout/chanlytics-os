@@ -257,7 +257,7 @@ const routeOf = (r: Route) => (r.param ? `${r.page}/${r.param}` : r.page).slice(
 export function pageContext(win: Window, route: Route, words?: string): PageContext {
   const w = win as unknown as ContextGlobals;
   const surface = surfaceFor(route.page, route.param);
-  let got: Provided = { rows: [] };
+  let got: Provided;
   try {
     got = PROVIDERS[surface]?.(w, route) ?? { rows: [] };
   } catch {
