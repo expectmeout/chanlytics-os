@@ -35,7 +35,7 @@
   "packages/contracts/src/leads/lead-search.ts": 1027,
   "packages/contracts/src/people/people.ts": 1027,
   "packages/contracts/src/templates/template-library.ts": 1097,
-  "packages/contracts/src/today/today.ts": 2474,
+  "packages/contracts/src/today/today.ts": 2427,
   "packages/core/src/inbound/answer.ts": 1006,
   "packages/core/src/leads/runner.ts": 1274
 }

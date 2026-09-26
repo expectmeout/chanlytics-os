@@ -2690,8 +2690,8 @@ function fallbackMessages(brain, known) {
     const stored = brain.fallbacks[kind];
     return !values["booking link"] && stored.trim() === EARLIER_FALLBACK_DEFAULTS[kind] ? FALLBACK_DEFAULTS[kind] : stored;
   };
-  const say = (kind) => fillDetails(own(kind), values) || fillDetails(FALLBACK_DEFAULTS[kind], values);
-  return { greeting: say("greeting"), error: say("error"), non_text: say("non_text") };
+  const say2 = (kind) => fillDetails(own(kind), values) || fillDetails(FALLBACK_DEFAULTS[kind], values);
+  return { greeting: say2("greeting"), error: say2("error"), non_text: say2("non_text") };
 }
 function unknownDetails(text) {
   return [...text.matchAll(/\{[^{}\n]{1,40}\}/g)].map((m) => m[0]).filter((name) => !namesADetail(name));
@@ -6375,8 +6375,8 @@ function normalizeAnswer(raw, read, fallback) {
     }
   }
   const root = asObj(json);
-  const say = asObj(root.say);
-  const headline = words2(say.headline, C.headline);
+  const say2 = asObj(root.say);
+  const headline = words2(say2.headline, C.headline);
   if (!headline) return { ok: false, error: "no headline" };
   const language = root.language === "en" || root.language === "es" ? root.language : fallback;
   let dropped = 0;
@@ -6422,7 +6422,7 @@ function normalizeAnswer(raw, read, fallback) {
     answer: {
       v: 2,
       form: "structured",
-      say: { headline, detail: words2(say.detail, C.detail) },
+      say: { headline, detail: words2(say2.detail, C.detail) },
       show: { figures, items, breakdown },
       do: { open, next },
       language
@@ -11243,14 +11243,14 @@ function bookingRuleRefusal(key) {
     max_days_ahead: (lo, hi) => `Times are offered ${lo} to ${hi} days ahead; leave it empty to use ${plural4(BOOKING_DEFAULTS.max_days_ahead, "day", "days")}.`,
     party_max: (lo, hi) => `A booking is for ${lo} to ${hi} people; leave it empty for no rule.`
   };
-  const say = Object.prototype.hasOwnProperty.call(words4, key) ? words4[key] : null;
-  const bound = say ? shape[key]?.unwrap?.() : null;
-  if (!say || !bound || bound.minValue == null || bound.maxValue == null) {
+  const say2 = Object.prototype.hasOwnProperty.call(words4, key) ? words4[key] : null;
+  const bound = say2 ? shape[key]?.unwrap?.() : null;
+  if (!say2 || !bound || bound.minValue == null || bound.maxValue == null) {
     throw new TypeError(
       `bookingRuleRefusal knows the five booking rules a box holds a number for (${Object.keys(words4).join(", ")}), not ${JSON.stringify(key)}.`
     );
   }
-  return say(bound.minValue, bound.maxValue);
+  return say2(bound.minValue, bound.maxValue);
 }
 var BOOKING_RULE_HINTS = /* @__PURE__ */ (() => ({
   lead_hours: `Empty uses ${plural4(BOOKING_DEFAULTS.lead_hours, "hour", "hours")}.`,
@@ -11594,13 +11594,13 @@ function profileRefusal(key, seen, of) {
     instructions: () => chars(L2.instructions),
     message: () => chars(L2.message)
   };
-  const say = Object.prototype.hasOwnProperty.call(words4, key) ? words4[key] : null;
-  if (!say) {
+  const say2 = Object.prototype.hasOwnProperty.call(words4, key) ? words4[key] : null;
+  if (!say2) {
     throw new TypeError(
       `profileRefusal knows the tab's own caps (${Object.keys(words4).join(", ")}), not ${JSON.stringify(key)}.`
     );
   }
-  return say();
+  return say2();
 }
 var WRITTEN_OUT_NUMBER = /\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}/;
 function writtenOutDetail(text, bookingLink) {
@@ -21673,6 +21673,204 @@ function nameKnownCustomers(rows, threads, calls) {
   });
 }
 
+// src/today/today-bands.ts
+var andList = (xs) => xs.length < 3 ? xs.join(" and ") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`;
+function secondsPhrase(s) {
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  const r2 = s % 60;
+  return r2 ? `${m}m ${r2}s` : `${m}m`;
+}
+function todayStanding(f) {
+  const { m, wires } = f;
+  const chips = wires.map((w) => ({ text: `${w.label} ${w.on ? "connected" : "disconnected"}`, ok: w.on }));
+  const down = wires.filter((w) => !w.on);
+  const on = wires.filter((w) => w.on);
+  const up = on.length;
+  const lines = {
+    text: m.linesRead === false ? "the email line could not be counted" : wires.length ? `${up} of ${wires.length} ${wires.length === 1 ? "line" : "lines"} connected` : "no lines connected yet",
+    down: down.length > 0
+  };
+  const alert = m.workspace.status === "paused" ? "This workspace is paused \u2014 the receptionist is not answering anything." : down.length ? `${andList(down.map((w) => w.label))} ${down.length > 1 ? "are" : "is"} disconnected \u2014 messages coming in are not being answered.` : null;
+  return { chips, lines, alert };
+}
+function todayQueueEmpty(f) {
+  const { m, wires } = f;
+  const down = wires.filter((w) => !w.on);
+  const on = wires.filter((w) => w.on);
+  const answered = on.filter((w) => CHANNEL_ANSWERED.has(w.kind));
+  if (m.workspace.status === "paused") {
+    return {
+      title: "Nothing in the queue \u2014 the workspace is paused, so nothing is being answered.",
+      sub: "nothing in the queue",
+      glyph: "alert",
+      tone: "warn",
+      testid: "today-queue-empty-paused"
+    };
+  }
+  if (down.length) {
+    return {
+      title: "Nothing in the queue \u2014 new messages go unanswered until the line is back.",
+      sub: "nothing in the queue",
+      glyph: "alert",
+      tone: "warn",
+      testid: "today-queue-empty-down"
+    };
+  }
+  if (wires.length === 0) {
+    return {
+      title: "Nothing in the queue \u2014 nothing can come in until a line is connected.",
+      sub: "nothing in the queue",
+      glyph: "phone",
+      tone: "",
+      testid: "today-queue-empty-unconnected"
+    };
+  }
+  if (answered.length === 0) {
+    return on.every((w) => w.kind === "email") ? {
+      title: `Nothing in the queue. ${EMAIL_NOT_ANSWERED_SENTENCE}`,
+      sub: "nothing in the queue",
+      glyph: "mail",
+      tone: "",
+      testid: "today-queue-empty-unanswered"
+    } : {
+      title: "Nothing in the queue \u2014 no line the receptionist answers is connected.",
+      sub: "nothing in the queue",
+      glyph: "phone",
+      tone: "",
+      testid: "today-queue-empty-unanswered"
+    };
+  }
+  return {
+    title: "All caught up \u2014 the receptionist is answering on its own.",
+    sub: "nothing needs you",
+    glyph: "check",
+    tone: "ok",
+    testid: "today-queue-empty-ok"
+  };
+}
+function todayAskFacts(f) {
+  const { p, callMinutes } = f;
+  return [
+    { label: "Messages in", value: String(p.messages_in) },
+    { label: "Answered by the receptionist", value: `${p.answered_by_ai} of ${p.messages_in}` },
+    p.median_reply_seconds_ai === null ? { label: "Typical reply time", value: "\u2014", hint: "Not enough replies yet" } : { label: "Typical reply time", value: secondsPhrase(p.median_reply_seconds_ai) },
+    { label: "Calls", value: p.calls ? `${p.calls}${callMinutes ? ` \xB7 ${callMinutes} min` : ""}` : "0" }
+  ];
+}
+function todayTrafficLine(f) {
+  const { p, callMinutes } = f;
+  const trafficParts = [];
+  if (p.messages_in > 0) {
+    trafficParts.push(
+      `${p.messages_in} message${p.messages_in === 1 ? "" : "s"} in, ${p.answered_by_ai} answered by the receptionist${p.median_reply_seconds_ai === null ? "" : `, typically in ${secondsPhrase(p.median_reply_seconds_ai)}`}`
+    );
+  }
+  if (p.calls) {
+    trafficParts.push(
+      `${p.calls} call${p.calls === 1 ? "" : "s"}${callMinutes ? `, ${callMinutes} minute${callMinutes === 1 ? "" : "s"}` : ""}`
+    );
+  }
+  return trafficParts.length ? `${trafficParts.join(". ")}.` : "Nothing has come in yet today.";
+}
+function todayQuietDay(f, proof) {
+  const { wires, conversations } = f;
+  const names2 = andList(wires.map((w) => w.label));
+  const pluralVerb = wires.length > 1 ? "are" : "is";
+  const sub = wires.length === 0 ? "No line is connected yet, so nothing can come in." : `${names2} ${pluralVerb} connected. ${proof}`;
+  return {
+    headline: "Nothing has come in yet today.",
+    sub,
+    proof: [
+      ...wires.length === 0 ? [{ label: "Lines", value: "none connected yet" }] : [],
+      ...wires.map((w) => ({
+        label: w.label,
+        // "on" / "off" in the owner's words, never the column's value. A
+        // wire with nothing to name it by says only that: "connected · on"
+        // was two words for one fact.
+        value: w.where ? `${w.where} \xB7 ${w.on ? "on" : "off"}` : w.on ? "on" : "off"
+      })),
+      { label: "Checked", value: "just now" }
+    ],
+    launchpad: conversations.length ? {
+      label: `Nothing waiting. ${conversations.length} earlier conversation${conversations.length === 1 ? "" : "s"} \u2192`,
+      to: "conversations"
+    } : null
+  };
+}
+function todayHeadline(f, alert, needsRows) {
+  const { needsYouCount, oldest } = f;
+  if (alert) return { headline: "Check your connection before anything else.", detail: null, tone: "alert" };
+  if (needsYouCount > 1) {
+    return {
+      headline: `${needsYouCount} conversations need you.`,
+      detail: oldest ? `The oldest has been waiting since ${oldest}.` : null,
+      tone: "needs"
+    };
+  }
+  if (needsYouCount === 1) {
+    const who = needsRows[0]?.who;
+    return {
+      headline: "One conversation needs you",
+      detail: who && oldest ? `${who} has been waiting since ${oldest}.` : null,
+      tone: "needs"
+    };
+  }
+  return calmHeadline(f.p);
+}
+function calmHeadline(p) {
+  const bits2 = [];
+  if (p.messages_in) {
+    bits2.push(
+      `${p.messages_in} message${p.messages_in === 1 ? "" : "s"}${p.conversations_active ? ` from ${p.conversations_active} ${p.conversations_active === 1 ? "person" : "people"}` : ""}`
+    );
+  }
+  if (p.calls) bits2.push(`${p.calls} call${p.calls === 1 ? "" : "s"}`);
+  const allByReceptionist = p.unanswered_in_window === 0 && p.messages_out_you === 0;
+  const headline = bits2.length ? allByReceptionist ? `The receptionist handled everything \u2014 ${bits2.join(" and ")} today. Nothing needs you.` : `${bits2.join(" and ")} today. Nothing needs you right now.` : "Nothing needs you.";
+  const detail = p.median_reply_seconds_ai !== null && p.messages_in > 0 ? `It answered ${p.answered_by_ai} of the ${p.messages_in} on its own, typically in about ${secondsPhrase(
+    p.median_reply_seconds_ai
+  )}.` : null;
+  return { headline, detail, tone: "calm" };
+}
+function todaySentences(f, tone, alert) {
+  const { p, callMinutes, conversations, sinceMs } = f;
+  const sentences = [];
+  const headlineCoversTraffic = tone === "calm" && !alert;
+  if (p.answered_by_ai && !headlineCoversTraffic) {
+    sentences.push({
+      // Not "the WhatsApp receptionist": answered_by_ai is first_replies with
+      // no channel predicate (00037_hygiene.sql), so an email it answered is
+      // in this count. Every other sentence in this file already says just
+      // "the receptionist".
+      text: `The receptionist answered ${p.answered_by_ai} message${p.answered_by_ai === 1 ? "" : "s"}${p.conversations_active ? ` from ${p.conversations_active} ${p.conversations_active === 1 ? "person" : "people"}` : ""}.`,
+      traffic: true
+    });
+  }
+  if (p.calls && !headlineCoversTraffic) {
+    sentences.push({
+      text: `${p.calls} caller${p.calls === 1 ? "" : "s"} reached the phone line${callMinutes ? ` \u2014 ${callMinutes} minute${callMinutes === 1 ? "" : "s"} total` : ""}.`,
+      traffic: true
+    });
+  }
+  if (p.messages_out_you) {
+    sentences.push({ text: `You sent ${p.messages_out_you} repl${p.messages_out_you === 1 ? "y" : "ies"} yourself.` });
+  }
+  if (p.send_failures) {
+    const lastFailed = conversations.flatMap(
+      (c) => c.messages.filter(
+        (x) => x.direction === "outbound" && x.status === "failed" && x.meta?.backfill !== true && new Date(x.created_at).getTime() >= sinceMs
+      ).map((x) => ({ conv: c, at: x.created_at }))
+    ).sort((a, b) => b.at.localeCompare(a.at))[0];
+    sentences.push({
+      text: `${p.send_failures} repl${p.send_failures === 1 ? "y" : "ies"} failed to deliver \u2014 the customer got no answer.`,
+      warn: true,
+      ...lastFailed ? { to: `inbox/th-${lastFailed.conv.id}` } : {}
+    });
+  }
+  return sentences;
+}
+
 // src/today/today.ts
 function emailWires(email) {
   return email?.ready && email.mailbox ? [{ kind: "email", status: "active", number: null, address: email.mailbox.address }] : [];
@@ -21681,7 +21879,6 @@ var TODAY_QUEUE_MAX = 6;
 var SEARCH_WARN_MS = 12 * 36e5;
 var QUOTE_MAX = 240;
 var NO_REPLY_AFTER_MS = 36e5;
-var andList = (xs) => xs.length < 3 ? xs.join(" and ") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`;
 function tzClock(iso, tz, now) {
   const t = tzTime(iso, tz);
   if (!iso || !t) return t;
@@ -21765,12 +21962,6 @@ function tzDayAndTime(iso, tz, now) {
   } catch {
     return t;
   }
-}
-function secondsPhrase(s) {
-  if (s < 60) return `${s}s`;
-  const m = Math.floor(s / 60);
-  const r2 = s % 60;
-  return r2 ? `${m}m ${r2}s` : `${m}m`;
 }
 var COUNT_WORDS2 = {
   1: "one",
@@ -21930,17 +22121,15 @@ function figuresOf(m, conversations, callsInWindow, escalations, tz, now) {
   };
   return [messages, answered, calls, newPeople];
 }
-function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ new Date(), searches = null) {
-  const tz = m.workspace.timezone;
-  const p = m.period;
-  const live = m.now;
-  const callsRead = calls !== null;
-  const callDtos = calls ?? [];
+function todayClock(m) {
   const localNow = new Date(m.window.now_local);
   const valid = !Number.isNaN(localNow.getTime());
   const clock2 = valid ? localNow.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "";
   const datePart = valid ? `${localNow.toLocaleDateString("en-US", { weekday: "long" })} \xB7 ${localNow.toLocaleDateString("en-US", { month: "long", day: "numeric" })}` : "";
-  const wires = m.channels.map((c) => ({
+  return { clock: clock2, datePart };
+}
+function todayWires(m) {
+  return m.channels.map((c) => ({
     kind: c.kind,
     label: channelKindWords(c.kind),
     on: c.status === "active",
@@ -21948,55 +22137,9 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
     // said the column's "+12125550142".
     where: c.address ?? formatPhoneDisplay(c.number)
   }));
-  const chips = wires.map((w) => ({ text: `${w.label} ${w.on ? "connected" : "disconnected"}`, ok: w.on }));
-  const down = wires.filter((w) => !w.on);
-  const on = wires.filter((w) => w.on);
-  const up = on.length;
-  const lines = {
-    text: m.linesRead === false ? "the email line could not be counted" : wires.length ? `${up} of ${wires.length} ${wires.length === 1 ? "line" : "lines"} connected` : "no lines connected yet",
-    down: down.length > 0
-  };
-  const alert = m.workspace.status === "paused" ? "This workspace is paused \u2014 the receptionist is not answering anything." : down.length ? `${andList(down.map((w) => w.label))} ${down.length > 1 ? "are" : "is"} disconnected \u2014 messages coming in are not being answered.` : null;
-  const answered = on.filter((w) => CHANNEL_ANSWERED.has(w.kind));
-  const queueEmpty = m.workspace.status === "paused" ? {
-    title: "Nothing in the queue \u2014 the workspace is paused, so nothing is being answered.",
-    sub: "nothing in the queue",
-    glyph: "alert",
-    tone: "warn",
-    testid: "today-queue-empty-paused"
-  } : down.length ? {
-    title: "Nothing in the queue \u2014 new messages go unanswered until the line is back.",
-    sub: "nothing in the queue",
-    glyph: "alert",
-    tone: "warn",
-    testid: "today-queue-empty-down"
-  } : wires.length === 0 ? {
-    title: "Nothing in the queue \u2014 nothing can come in until a line is connected.",
-    sub: "nothing in the queue",
-    glyph: "phone",
-    tone: "",
-    testid: "today-queue-empty-unconnected"
-  } : answered.length === 0 ? on.every((w) => w.kind === "email") ? {
-    title: `Nothing in the queue. ${EMAIL_NOT_ANSWERED_SENTENCE}`,
-    sub: "nothing in the queue",
-    glyph: "mail",
-    tone: "",
-    testid: "today-queue-empty-unanswered"
-  } : {
-    title: "Nothing in the queue \u2014 no line the receptionist answers is connected.",
-    sub: "nothing in the queue",
-    glyph: "phone",
-    tone: "",
-    testid: "today-queue-empty-unanswered"
-  } : {
-    title: "All caught up \u2014 the receptionist is answering on its own.",
-    sub: "nothing needs you",
-    glyph: "check",
-    tone: "ok",
-    testid: "today-queue-empty-ok"
-  };
-  const byConv = new Map(conversations.map((c) => [c.id, c]));
-  const openEsc = escalations.filter((e) => e.state === "open").filter((e) => {
+}
+function openEscalations(escalations, byConv, now) {
+  return escalations.filter((e) => e.state === "open").filter((e) => {
     const conv = byConv.get(e.conversation_id);
     if (!conv) return true;
     return standingOf(
@@ -22010,18 +22153,18 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       now.getTime()
     ).standing === "needs_you";
   }).sort((a, b) => a.created_at.localeCompare(b.created_at));
-  const needsYouCount = openEsc.length;
-  const sinceMs = new Date(m.window.since).getTime();
-  const callsInWindow = callDtos.filter((c) => c.started_at && new Date(c.started_at).getTime() >= sinceMs);
-  const callMinutes = Math.round(p.call_seconds / 60);
+}
+function newestCallByThread(callDtos) {
   const callByConv = /* @__PURE__ */ new Map();
   for (const c of callDtos) {
     if (!c.conversation_id) continue;
     const prev = callByConv.get(c.conversation_id);
     if (!prev || String(c.started_at ?? "") > String(prev.started_at ?? "")) callByConv.set(c.conversation_id, c);
   }
-  const say = (v) => typeof v === "string" && v.trim() ? v.trim() : "";
-  const escRecords = openEsc.map((e) => {
+  return callByConv;
+}
+function escalationRecords(openEsc, byConv, callByConv, tz, now) {
+  return openEsc.map((e) => {
     const conv = byConv.get(e.conversation_id);
     const call = e.reason === "callback" ? callByConv.get(e.conversation_id) ?? null : null;
     const lastCustomer = conv ? [...conv.messages].reverse().find((x) => x.sender === "customer") : void 0;
@@ -22040,7 +22183,48 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       closes: win?.open ? tzClock(win.closesAtIso, tz, now) : null
     };
   });
-  const needsRows = escRecords.map((r2) => ({
+}
+function closingConversations(conversations, escSet, now) {
+  return conversations.filter((c) => {
+    if (escSet.has(c.id)) return false;
+    const last = c.messages[c.messages.length - 1];
+    if (!last || last.sender !== "customer") return false;
+    const w = waWindow(c.last_wa_inbound_at, now);
+    return w.open && w.closesAtIso ? new Date(w.closesAtIso).getTime() - now.getTime() < 6 * 3600 * 1e3 : false;
+  });
+}
+function todayFacts(input) {
+  const { m, conversations, escalations, calls, now } = input;
+  const tz = m.workspace.timezone;
+  const p = m.period;
+  const callDtos = calls ?? [];
+  const byConv = new Map(conversations.map((c) => [c.id, c]));
+  const openEsc = openEscalations(escalations, byConv, now);
+  const escSet = new Set(openEsc.map((e) => e.conversation_id));
+  const sinceMs = new Date(m.window.since).getTime();
+  return {
+    ...input,
+    tz,
+    p,
+    live: m.now,
+    // Null: the calls read failed. The card says so rather than counting none.
+    callsRead: calls !== null,
+    ...todayClock(m),
+    wires: todayWires(m),
+    needsYouCount: openEsc.length,
+    escRecords: escalationRecords(openEsc, byConv, newestCallByThread(callDtos), tz, now),
+    escSet,
+    closingConvs: closingConversations(conversations, escSet, now),
+    sinceMs,
+    callsInWindow: callDtos.filter((c) => c.started_at && new Date(c.started_at).getTime() >= sinceMs),
+    callMinutes: Math.round(p.call_seconds / 60),
+    traffic: p.messages_in + p.calls + p.messages_out_you,
+    oldest: tzSince(m.now.oldest_open_escalation_at, tz, now)
+  };
+}
+var say = (v) => typeof v === "string" && v.trim() ? v.trim() : "";
+function todayNeedsRows(f) {
+  return f.escRecords.map((r2) => ({
     id: `th-${r2.e.conversation_id}`,
     conversationId: r2.e.conversation_id,
     escalationId: r2.e.id,
@@ -22055,15 +22239,20 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
     windowNote: r2.closes ? `Reply window closes ${r2.closes}` : null,
     to: `inbox/th-${r2.e.conversation_id}`
   }));
-  const escSet = new Set(openEsc.map((e) => e.conversation_id));
-  const closingConvs = conversations.filter((c) => {
-    if (escSet.has(c.id)) return false;
-    const last = c.messages[c.messages.length - 1];
-    if (!last || last.sender !== "customer") return false;
-    const w = waWindow(c.last_wa_inbound_at, now);
-    return w.open && w.closesAtIso ? new Date(w.closesAtIso).getTime() - now.getTime() < 6 * 3600 * 1e3 : false;
-  });
-  const closingRows = closingConvs.map((c) => {
+}
+function todayNeedsYou(f) {
+  const rows = todayNeedsRows(f);
+  const { p } = f;
+  return {
+    count: f.needsYouCount,
+    hint: "The receptionist stopped and asked for a human.",
+    rows,
+    empty: rows.length ? null : p.unanswered_in_window === 0 && p.messages_out_you === 0 ? "Nothing needs you. The receptionist answered every message that came in, and nobody asked for a person." : "Nothing needs you right now \u2014 nobody asked for a person."
+  };
+}
+function todayWindowClosing(f) {
+  const { closingConvs, tz, now } = f;
+  const rows = closingConvs.map((c) => {
     const w = waWindow(c.last_wa_inbound_at, now);
     const mins = w.closesAtIso ? Math.max(1, Math.round((new Date(w.closesAtIso).getTime() - now.getTime()) / 6e4)) : 0;
     return {
@@ -22072,8 +22261,16 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       to: `inbox/th-${c.id}`
     };
   });
+  return rows.length ? {
+    label: "Reply window closing",
+    hint: "WhatsApp only lets you write freely for 24 hours after someone messages you. After that it's an approved template.",
+    rows
+  } : null;
+}
+function todayNoReply(f) {
+  const { conversations, escSet, closingConvs, now } = f;
   const closingSet = new Set(closingConvs.map((c) => c.id));
-  const noReply = conversations.flatMap((c) => {
+  return conversations.flatMap((c) => {
     if (escSet.has(c.id) || closingSet.has(c.id) || c.state === "archived") return [];
     const { standing } = standingOf(
       {
@@ -22092,138 +22289,10 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
     if (now.getTime() - lastMs < NO_REPLY_AFTER_MS) return [];
     return [{ conversationId: c.id, who: contactName(c), sinceMs: lastMs, to: `inbox/th-${c.id}` }];
   }).sort((a, b) => a.sinceMs - b.sinceMs);
-  const proof = todayProof(live, tz, now);
-  const figures = figuresOf(m, conversations, callsInWindow, escalations, tz, now);
-  const traffic = p.messages_in + p.calls + p.messages_out_you;
-  const isQuiet = traffic === 0 && needsYouCount === 0 && !alert;
-  const facts = [
-    { label: "Messages in", value: String(p.messages_in) },
-    { label: "Answered by the receptionist", value: `${p.answered_by_ai} of ${p.messages_in}` },
-    p.median_reply_seconds_ai === null ? { label: "Typical reply time", value: "\u2014", hint: "Not enough replies yet" } : { label: "Typical reply time", value: secondsPhrase(p.median_reply_seconds_ai) },
-    { label: "Calls", value: p.calls ? `${p.calls}${callMinutes ? ` \xB7 ${callMinutes} min` : ""}` : "0" }
-  ];
-  const trafficParts = [];
-  if (p.messages_in > 0) {
-    trafficParts.push(
-      `${p.messages_in} message${p.messages_in === 1 ? "" : "s"} in, ${p.answered_by_ai} answered by the receptionist${p.median_reply_seconds_ai === null ? "" : `, typically in ${secondsPhrase(p.median_reply_seconds_ai)}`}`
-    );
-  }
-  if (p.calls) {
-    trafficParts.push(
-      `${p.calls} call${p.calls === 1 ? "" : "s"}${callMinutes ? `, ${callMinutes} minute${callMinutes === 1 ? "" : "s"}` : ""}`
-    );
-  }
-  const trafficLine = trafficParts.length ? `${trafficParts.join(". ")}.` : "Nothing has come in yet today.";
-  if (isQuiet) {
-    const names2 = andList(wires.map((w) => w.label));
-    const pluralVerb = wires.length > 1 ? "are" : "is";
-    const sub = wires.length === 0 ? "No line is connected yet, so nothing can come in." : `${names2} ${pluralVerb} connected. ${proof}`;
-    return {
-      standing: {
-        eyebrow: `${datePart} \xB7 ${clock2} \xB7 ${m.workspace.name}`,
-        chips,
-        lines,
-        alert: null,
-        headline: "Nothing has come in yet today.",
-        detail: null,
-        tone: "calm"
-      },
-      needsYou: null,
-      windowClosing: null,
-      recap: { label: "Today so far", line: "Nothing has come in yet today.", sentences: [], facts, receipts: [] },
-      figures: null,
-      proof,
-      noReply,
-      calls: null,
-      callsRead,
-      queue: { rows: [], more: 0, parts: [], empty: queueEmpty, waiting: 0 },
-      quiet: {
-        headline: "Nothing has come in yet today.",
-        sub,
-        proof: [
-          ...wires.length === 0 ? [{ label: "Lines", value: "none connected yet" }] : [],
-          ...wires.map((w) => ({
-            label: w.label,
-            // "on" / "off" in the owner's words, never the column's value. A
-            // wire with nothing to name it by says only that: "connected · on"
-            // was two words for one fact.
-            value: w.where ? `${w.where} \xB7 ${w.on ? "on" : "off"}` : w.on ? "on" : "off"
-          })),
-          { label: "Checked", value: "just now" }
-        ],
-        launchpad: conversations.length ? {
-          label: `Nothing waiting. ${conversations.length} earlier conversation${conversations.length === 1 ? "" : "s"} \u2192`,
-          to: "conversations"
-        } : null
-      }
-    };
-  }
-  const oldest = tzSince(live.oldest_open_escalation_at, tz, now);
-  let headline;
-  let detail = null;
-  let tone = "calm";
-  if (alert) {
-    headline = "Check your connection before anything else.";
-    tone = "alert";
-  } else if (needsYouCount > 1) {
-    headline = `${needsYouCount} conversations need you.`;
-    if (oldest) detail = `The oldest has been waiting since ${oldest}.`;
-    tone = "needs";
-  } else if (needsYouCount === 1) {
-    headline = "One conversation needs you";
-    const who = needsRows[0]?.who;
-    if (who && oldest) detail = `${who} has been waiting since ${oldest}.`;
-    tone = "needs";
-  } else {
-    const bits2 = [];
-    if (p.messages_in) {
-      bits2.push(
-        `${p.messages_in} message${p.messages_in === 1 ? "" : "s"}${p.conversations_active ? ` from ${p.conversations_active} ${p.conversations_active === 1 ? "person" : "people"}` : ""}`
-      );
-    }
-    if (p.calls) bits2.push(`${p.calls} call${p.calls === 1 ? "" : "s"}`);
-    const allByReceptionist = p.unanswered_in_window === 0 && p.messages_out_you === 0;
-    headline = bits2.length ? allByReceptionist ? `The receptionist handled everything \u2014 ${bits2.join(" and ")} today. Nothing needs you.` : `${bits2.join(" and ")} today. Nothing needs you right now.` : "Nothing needs you.";
-    if (p.median_reply_seconds_ai !== null && p.messages_in > 0) {
-      detail = `It answered ${p.answered_by_ai} of the ${p.messages_in} on its own, typically in about ${secondsPhrase(
-        p.median_reply_seconds_ai
-      )}.`;
-    }
-  }
-  const sentences = [];
-  const headlineCoversTraffic = tone === "calm" && !alert;
-  if (p.answered_by_ai && !headlineCoversTraffic) {
-    sentences.push({
-      // Not "the WhatsApp receptionist": answered_by_ai is first_replies with
-      // no channel predicate (00037_hygiene.sql), so an email it answered is
-      // in this count. Every other sentence in this file already says just
-      // "the receptionist".
-      text: `The receptionist answered ${p.answered_by_ai} message${p.answered_by_ai === 1 ? "" : "s"}${p.conversations_active ? ` from ${p.conversations_active} ${p.conversations_active === 1 ? "person" : "people"}` : ""}.`,
-      traffic: true
-    });
-  }
-  if (p.calls && !headlineCoversTraffic) {
-    sentences.push({
-      text: `${p.calls} caller${p.calls === 1 ? "" : "s"} reached the phone line${callMinutes ? ` \u2014 ${callMinutes} minute${callMinutes === 1 ? "" : "s"} total` : ""}.`,
-      traffic: true
-    });
-  }
-  if (p.messages_out_you) {
-    sentences.push({ text: `You sent ${p.messages_out_you} repl${p.messages_out_you === 1 ? "y" : "ies"} yourself.` });
-  }
-  if (p.send_failures) {
-    const lastFailed = conversations.flatMap(
-      (c) => c.messages.filter(
-        (x) => x.direction === "outbound" && x.status === "failed" && x.meta?.backfill !== true && new Date(x.created_at).getTime() >= sinceMs
-      ).map((x) => ({ conv: c, at: x.created_at }))
-    ).sort((a, b) => b.at.localeCompare(a.at))[0];
-    sentences.push({
-      text: `${p.send_failures} repl${p.send_failures === 1 ? "y" : "ies"} failed to deliver \u2014 the customer got no answer.`,
-      warn: true,
-      ...lastFailed ? { to: `inbox/th-${lastFailed.conv.id}` } : {}
-    });
-  }
-  const receipts = conversations.flatMap(
+}
+function todayReceipts(f) {
+  const { conversations, sinceMs, tz } = f;
+  return conversations.flatMap(
     (c) => c.messages.filter(
       (x) => x.direction === "outbound" && SENT.includes(String(x.status)) && x.meta?.backfill !== true && new Date(x.created_at).getTime() >= sinceMs
     ).map((x) => ({ conv: c, msg: x }))
@@ -22232,8 +22301,20 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
     text: `replied to ${contactName(conv)}: \u201C${messageText(msg).slice(0, 90)}\u201D`,
     to: `inbox/th-${conv.id}`
   }));
-  const NEEDS_EAR = ["dial_no_answer", "inactivity", "concurrency_limit_reached", "marked_as_spam"];
-  const callRows = callsInWindow.filter((c) => c.status !== "not_connected").map((c) => ({ c, vm: toCallVM(c, tz, now) })).filter(
+}
+var NEEDS_EAR = ["dial_no_answer", "inactivity", "concurrency_limit_reached", "marked_as_spam"];
+function callNote(c, live, analysisDue) {
+  if (live) return "In progress right now";
+  if (c.in_voicemail) return "Reached voicemail";
+  if (abandonedCall(c)) return `Hung up after ${spokenDuration(c.duration_ms)} \u2014 they left with nothing`;
+  if (c.sentiment === "Negative") return "Caller sentiment: Negative \u2014 the voice provider's own read";
+  if (analysisDue) return "Summary on its way from the voice provider";
+  if (!c.summary) return "No summary from the voice provider";
+  return DISCONNECTION_LABELS[c.disconnection_reason ?? ""] ?? "Ended early";
+}
+function todayCallRows(f) {
+  const { callsInWindow, tz, now } = f;
+  return callsInWindow.filter((c) => c.status !== "not_connected").map((c) => ({ c, vm: toCallVM(c, tz, now) })).filter(
     ({ c, vm }) => vm.live || c.in_voicemail || c.sentiment === "Negative" || !c.summary || // Somebody rang and left with nothing. Measured before writing this:
     // with a provider summary the row was not worth an ear at all, since
     // `user_hangup` is not in NEEDS_EAR and rightly so — every ordinary
@@ -22249,139 +22330,153 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       who: vm.who,
       at: tzTime(c.started_at, tz) ?? "",
       duration: vm.duration ?? "",
-      note: vm.live ? "In progress right now" : c.in_voicemail ? "Reached voicemail" : (
-        // BEFORE the summary branches, deliberately. A caller gone in six
-        // seconds has no summary and never will have much of one, so the
-        // chain below would have said "summary on its way" and buried the
-        // only fact worth acting on.
-        abandonedCall(c) ? `Hung up after ${spokenDuration(c.duration_ms)} \u2014 they left with nothing` : c.sentiment === "Negative" ? "Caller sentiment: Negative \u2014 the voice provider's own read" : analysisDue ? "Summary on its way from the voice provider" : !c.summary ? "No summary from the voice provider" : DISCONNECTION_LABELS[c.disconnection_reason ?? ""] ?? "Ended early"
-      ),
+      note: callNote(c, vm.live, analysisDue),
       to: vm.live ? "live" : `conversations/cv-${c.id}`
     };
   });
+}
+function todayCalls(f, rows) {
+  const { p, callMinutes } = f;
+  return p.calls ? {
+    line: `${p.calls} call${p.calls === 1 ? "" : "s"} today${callMinutes ? ` \xB7 ${callMinutes} minute${callMinutes === 1 ? "" : "s"}` : ""}.`,
+    rows
+  } : null;
+}
+function callbackRow(r2) {
+  const e = r2.e;
+  return {
+    id: `q-${e.id}`,
+    kind: "callback",
+    conversationId: e.conversation_id,
+    callId: r2.call ? r2.call.id : null,
+    who: r2.who,
+    initials: initialsOf(r2.who),
+    channel: "Phone",
+    when: `waited ${formatWaited(r2.waitedMs)}`,
+    sentence: say(e.details) || "The caller needs a call back.",
+    quoted: false,
+    status: ["Needs a call back", `since ${r2.since}`],
+    tone: "escalated",
+    warn: r2.warn,
+    cta: { label: "Open the call", to: r2.call ? `conversations/cv-${r2.call.id}` : `inbox/th-${e.conversation_id}` },
+    also: { label: "Done", verb: "resolve", conversationId: e.conversation_id, escalationId: e.id },
+    waitedMs: r2.waitedMs
+  };
+}
+function handoffRow2(r2) {
+  const e = r2.e;
+  return {
+    id: `q-${e.id}`,
+    kind: "handoff",
+    conversationId: e.conversation_id,
+    callId: null,
+    who: r2.who,
+    initials: initialsOf(r2.who),
+    channel: r2.conv ? threadChannelWords(r2.conv.messages) : "WhatsApp",
+    when: `waited ${formatWaited(r2.waitedMs)}`,
+    sentence: r2.quote || (ESCALATION_REASON_LABELS[e.reason] ?? e.reason),
+    quoted: !!r2.quote,
+    status: [
+      "Escalated",
+      reasonShort(e.reason) || e.reason,
+      `since ${r2.since}`,
+      ...r2.closes ? [`reply window closes ${r2.closes}`] : []
+    ],
+    tone: "escalated",
+    warn: r2.warn,
+    cta: { label: "Open and reply", to: `inbox/th-${e.conversation_id}` },
+    also: { label: "Snooze", verb: "snooze", conversationId: e.conversation_id, escalationId: e.id },
+    waitedMs: r2.waitedMs
+  };
+}
+function windowRow(c, f) {
+  const { tz, now } = f;
+  const w = waWindow(c.last_wa_inbound_at, now);
+  const leftMs = w.closesAtIso ? Math.max(6e4, new Date(w.closesAtIso).getTime() - now.getTime()) : 0;
+  const last = [...c.messages].reverse().find((x) => x.sender === "customer");
+  const who = contactName(c);
+  return {
+    id: `q-w-${c.id}`,
+    kind: "window",
+    conversationId: c.id,
+    callId: null,
+    who,
+    initials: initialsOf(who),
+    channel: "WhatsApp",
+    when: `closes ${tzClock(w.closesAtIso, tz, now) ?? "soon"} \xB7 in ${formatWaited(leftMs)}`,
+    sentence: last ? clipAtWord(messageWords(last), QUOTE_MAX) : "They wrote last, and the free reply window is closing.",
+    quoted: !!last,
+    status: ["Reply window closing", "they wrote last"],
+    tone: "warn",
+    warn: leftMs < 2 * 36e5,
+    cta: { label: "Open thread", to: `inbox/th-${c.id}` },
+    also: null,
+    // After every escalation (which waited ≥ 0), the soonest to close first.
+    waitedMs: -leftMs
+  };
+}
+function earRow(r2, f) {
+  const c = f.callsInWindow.find((k) => k.id === r2.id);
+  const wanted = say(c?.wanted);
+  return {
+    id: `q-c-${r2.id}`,
+    kind: "call",
+    conversationId: c?.conversation_id ?? null,
+    callId: r2.id,
+    who: r2.who,
+    initials: initialsOf(r2.who),
+    channel: "Phone",
+    when: `${r2.at}${r2.duration ? ` \xB7 ${r2.duration}` : ""}`,
+    sentence: wanted || r2.note,
+    quoted: false,
+    status: [wanted ? r2.note : "Worth a listen"],
+    tone: "warn",
+    warn: false,
+    cta: { label: "Open the call", to: r2.to },
+    also: null,
+    waitedMs: Number.NEGATIVE_INFINITY
+  };
+}
+function searchRow(s, now) {
+  const r2 = s.round;
+  if (!r2 || r2.state !== "waiting_on_owner" || !r2.question) return null;
+  const since = r2.waiting_since ? new Date(r2.waiting_since).getTime() : now.getTime();
+  const waitedMs = Math.max(0, now.getTime() - since);
+  return {
+    id: `q-s-${s.id}`,
+    kind: "search",
+    conversationId: null,
+    callId: null,
+    who: s.name,
+    initials: initialsOf(s.name),
+    channel: "Leads",
+    when: `waited ${formatWaited(waitedMs)}`,
+    sentence: r2.question.sentence,
+    quoted: false,
+    status: ["Waiting for your answer", "nothing is spent while it waits"],
+    tone: "escalated",
+    warn: waitedMs > SEARCH_WARN_MS,
+    cta: { label: "Answer", to: leadQuestionRoute(s.id) },
+    also: null,
+    waitedMs
+  };
+}
+function todayQueue(f, callRows, empty) {
+  const { escRecords, closingConvs, searches, now } = f;
   const queueAll = [];
   for (const r2 of escRecords) {
-    const e = r2.e;
-    if (e.reason === "callback") {
-      queueAll.push({
-        id: `q-${e.id}`,
-        kind: "callback",
-        conversationId: e.conversation_id,
-        callId: r2.call ? r2.call.id : null,
-        who: r2.who,
-        initials: initialsOf(r2.who),
-        channel: "Phone",
-        when: `waited ${formatWaited(r2.waitedMs)}`,
-        sentence: say(e.details) || "The caller needs a call back.",
-        quoted: false,
-        status: ["Needs a call back", `since ${r2.since}`],
-        tone: "escalated",
-        warn: r2.warn,
-        cta: { label: "Open the call", to: r2.call ? `conversations/cv-${r2.call.id}` : `inbox/th-${e.conversation_id}` },
-        also: { label: "Done", verb: "resolve", conversationId: e.conversation_id, escalationId: e.id },
-        waitedMs: r2.waitedMs
-      });
-      continue;
-    }
-    queueAll.push({
-      id: `q-${e.id}`,
-      kind: "handoff",
-      conversationId: e.conversation_id,
-      callId: null,
-      who: r2.who,
-      initials: initialsOf(r2.who),
-      channel: r2.conv ? threadChannelWords(r2.conv.messages) : "WhatsApp",
-      when: `waited ${formatWaited(r2.waitedMs)}`,
-      sentence: r2.quote || (ESCALATION_REASON_LABELS[e.reason] ?? e.reason),
-      quoted: !!r2.quote,
-      status: [
-        "Escalated",
-        reasonShort(e.reason) || e.reason,
-        `since ${r2.since}`,
-        ...r2.closes ? [`reply window closes ${r2.closes}`] : []
-      ],
-      tone: "escalated",
-      warn: r2.warn,
-      cta: { label: "Open and reply", to: `inbox/th-${e.conversation_id}` },
-      also: { label: "Snooze", verb: "snooze", conversationId: e.conversation_id, escalationId: e.id },
-      waitedMs: r2.waitedMs
-    });
+    queueAll.push(r2.e.reason === "callback" ? callbackRow(r2) : handoffRow2(r2));
   }
   for (const c of closingConvs) {
-    const w = waWindow(c.last_wa_inbound_at, now);
-    const leftMs = w.closesAtIso ? Math.max(6e4, new Date(w.closesAtIso).getTime() - now.getTime()) : 0;
-    const last = [...c.messages].reverse().find((x) => x.sender === "customer");
-    const who = contactName(c);
-    queueAll.push({
-      // "WhatsApp" is right here even when the last written message came by
-      // email: the row is about WhatsApp's window (waWindow on the thread's
-      // last WhatsApp inbound), which is the one wire that has one. The
-      // handoff row above names the wire the reply would go out on instead.
-      id: `q-w-${c.id}`,
-      kind: "window",
-      conversationId: c.id,
-      callId: null,
-      who,
-      initials: initialsOf(who),
-      channel: "WhatsApp",
-      when: `closes ${tzClock(w.closesAtIso, tz, now) ?? "soon"} \xB7 in ${formatWaited(leftMs)}`,
-      sentence: last ? clipAtWord(messageWords(last), QUOTE_MAX) : "They wrote last, and the free reply window is closing.",
-      quoted: !!last,
-      status: ["Reply window closing", "they wrote last"],
-      tone: "warn",
-      warn: leftMs < 2 * 36e5,
-      cta: { label: "Open thread", to: `inbox/th-${c.id}` },
-      also: null,
-      // After every escalation (which waited ≥ 0), the soonest to close first.
-      waitedMs: -leftMs
-    });
+    queueAll.push(windowRow(c, f));
   }
   for (const r2 of callRows) {
     if (r2.to === "live") continue;
-    const c = callsInWindow.find((k) => k.id === r2.id);
-    const wanted = say(c?.wanted);
-    queueAll.push({
-      id: `q-c-${r2.id}`,
-      kind: "call",
-      conversationId: c?.conversation_id ?? null,
-      callId: r2.id,
-      who: r2.who,
-      initials: initialsOf(r2.who),
-      channel: "Phone",
-      when: `${r2.at}${r2.duration ? ` \xB7 ${r2.duration}` : ""}`,
-      sentence: wanted || r2.note,
-      quoted: false,
-      status: [wanted ? r2.note : "Worth a listen"],
-      tone: "warn",
-      warn: false,
-      cta: { label: "Open the call", to: r2.to },
-      also: null,
-      waitedMs: Number.NEGATIVE_INFINITY
-    });
+    queueAll.push(earRow(r2, f));
   }
   for (const s of searches ?? []) {
-    const r2 = s.round;
-    if (!r2 || r2.state !== "waiting_on_owner" || !r2.question) continue;
-    const since = r2.waiting_since ? new Date(r2.waiting_since).getTime() : now.getTime();
-    const waitedMs = Math.max(0, now.getTime() - since);
-    queueAll.push({
-      id: `q-s-${s.id}`,
-      kind: "search",
-      conversationId: null,
-      callId: null,
-      who: s.name,
-      initials: initialsOf(s.name),
-      channel: "Leads",
-      when: `waited ${formatWaited(waitedMs)}`,
-      sentence: r2.question.sentence,
-      quoted: false,
-      status: ["Waiting for your answer", "nothing is spent while it waits"],
-      tone: "escalated",
-      warn: waitedMs > SEARCH_WARN_MS,
-      cta: { label: "Answer", to: leadQuestionRoute(s.id) },
-      also: null,
-      waitedMs
-    });
+    const row2 = searchRow(s, now);
+    if (row2) queueAll.push(row2);
   }
   queueAll.sort((a, b) => b.waitedMs - a.waitedMs);
   const countOf = (...kinds) => queueAll.filter((r2) => kinds.includes(r2.kind)).length;
@@ -22395,44 +22490,65 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
     winN ? `${winN} reply window${winN === 1 ? "" : "s"} closing` : "",
     earN ? `${earN} call${earN === 1 ? "" : "s"} worth a listen` : ""
   ].filter(Boolean);
-  const queue = {
+  return {
     rows: queueAll.slice(0, TODAY_QUEUE_MAX),
     more: Math.max(0, queueAll.length - TODAY_QUEUE_MAX),
     parts: parts2,
-    empty: queueEmpty,
+    empty,
     waiting: needN + winN + searchN
   };
+}
+function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ new Date(), searches = null) {
+  const f = todayFacts({ m, conversations, escalations, calls, now, searches });
+  const { chips, lines, alert } = todayStanding(f);
+  const eyebrow = `${f.datePart} \xB7 ${f.clock} \xB7 ${m.workspace.name}`;
+  const proof = todayProof(f.live, f.tz, now);
+  const noReply = todayNoReply(f);
+  const facts = todayAskFacts(f);
+  const empty = todayQueueEmpty(f);
+  if (f.traffic === 0 && f.needsYouCount === 0 && !alert) {
+    return {
+      standing: {
+        eyebrow,
+        chips,
+        lines,
+        alert: null,
+        headline: "Nothing has come in yet today.",
+        detail: null,
+        tone: "calm"
+      },
+      needsYou: null,
+      windowClosing: null,
+      recap: { label: "Today so far", line: "Nothing has come in yet today.", sentences: [], facts, receipts: [] },
+      figures: null,
+      proof,
+      noReply,
+      calls: null,
+      callsRead: f.callsRead,
+      queue: { rows: [], more: 0, parts: [], empty, waiting: 0 },
+      quiet: todayQuietDay(f, proof)
+    };
+  }
+  const needsYou = todayNeedsYou(f);
+  const { headline, detail, tone } = todayHeadline(f, alert, needsYou.rows);
+  const callRows = todayCallRows(f);
   return {
-    standing: {
-      eyebrow: `${datePart} \xB7 ${clock2} \xB7 ${m.workspace.name}`,
-      chips,
-      lines,
-      alert,
-      headline,
-      detail,
-      tone
+    standing: { eyebrow, chips, lines, alert, headline, detail, tone },
+    needsYou,
+    windowClosing: todayWindowClosing(f),
+    recap: {
+      label: "Today so far",
+      line: todayTrafficLine(f),
+      sentences: todaySentences(f, tone, alert),
+      facts,
+      receipts: todayReceipts(f)
     },
-    needsYou: {
-      count: needsYouCount,
-      hint: "The receptionist stopped and asked for a human.",
-      rows: needsRows,
-      empty: needsRows.length ? null : p.unanswered_in_window === 0 && p.messages_out_you === 0 ? "Nothing needs you. The receptionist answered every message that came in, and nobody asked for a person." : "Nothing needs you right now \u2014 nobody asked for a person."
-    },
-    windowClosing: closingRows.length ? {
-      label: "Reply window closing",
-      hint: "WhatsApp only lets you write freely for 24 hours after someone messages you. After that it's an approved template.",
-      rows: closingRows
-    } : null,
-    recap: { label: "Today so far", line: trafficLine, sentences, facts, receipts },
-    figures,
+    figures: figuresOf(m, conversations, f.callsInWindow, escalations, f.tz, now),
     proof,
     noReply,
-    callsRead,
-    calls: p.calls ? {
-      line: `${p.calls} call${p.calls === 1 ? "" : "s"} today${callMinutes ? ` \xB7 ${callMinutes} minute${callMinutes === 1 ? "" : "s"}` : ""}.`,
-      rows: callRows
-    } : null,
-    queue,
+    callsRead: f.callsRead,
+    calls: todayCalls(f, callRows),
+    queue: todayQueue(f, callRows, empty),
     quiet: null
   };
 }

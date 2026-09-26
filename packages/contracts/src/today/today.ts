@@ -45,10 +45,21 @@ import { clipAtWord } from "../conversations/viewmodels";
 import { pipelineRoute } from "../deals/pipeline";
 import { isOptedOutContact } from "../consent/consent";
 import { conversationOfNeedsKey, callOfKey, unreadCount } from "./notifications";
-import { channelKindWords, CHANNEL_ANSWERED } from "../lines/channels";
+import { channelKindWords } from "../lines/channels";
 import { formatPhoneDisplay } from "../shared/phone";
-import { EMAIL_NOT_ANSWERED_SENTENCE, type EmailSetupDto } from "../email/mailbox";
+import type { EmailSetupDto } from "../email/mailbox";
 import { leadQuestionRoute, type LeadSearchDto } from "../leads/leads";
+import {
+  andList,
+  secondsPhrase,
+  todayAskFacts,
+  todayHeadline,
+  todayQueueEmpty,
+  todayQuietDay,
+  todaySentences,
+  todayStanding,
+  todayTrafficLine,
+} from "./today-bands";
 
 /**
  * One wire a workspace can be reached on.
@@ -301,11 +312,6 @@ export interface TodayVM {
   } | null;
 }
 
-/** "Email", "WhatsApp and Email", "WhatsApp, Texting and Email". (calendar.ts, config.ts and
- *  reports.ts each hold their own copy of this join; one home for it is a tidy of its own.) */
-const andList = (xs: readonly string[]): string =>
-  xs.length < 3 ? xs.join(" and ") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`;
-
 /** Wall-clock time AT THE SALON, whatever clock the reader is holding. */
 /**
  * A clock time that says which day when it is not today: "3:30 PM",
@@ -411,14 +417,6 @@ function tzDayAndTime(iso: string | null, tz: string, now: Date): string | null 
   } catch {
     return t;
   }
-}
-
-/** "41s" / "1m 12s". Seconds are exact here: this is a measured median. */
-function secondsPhrase(s: number): string {
-  if (s < 60) return `${s}s`;
-  const m = Math.floor(s / 60);
-  const r = s % 60;
-  return r ? `${m}m ${r}s` : `${m}m`;
 }
 
 /** "once", "twice", "3 times". */
@@ -717,35 +715,96 @@ function figuresOf(
   return [messages, answered, calls, newPeople];
 }
 
-export function toTodayVM(
-  m: MetricsSummaryDto,
-  conversations: ConversationDto[],
-  escalations: Array<EscalationDto & { conversation_id: string }>,
-  calls: CallDto[] | null,
-  now = new Date(),
-  // After `now`, so every caller that never read the searches stands; null is "not read", the queue says nothing.
-  searches: LeadSearchDto[] | null = null,
-): TodayVM {
-  const tz = m.workspace.timezone;
-  const p = m.period;
-  const live = m.now;
-  // Null: the calls read failed. The card says so rather than counting none.
-  const callsRead = calls !== null;
-  const callDtos = calls ?? [];
+/* ------------------------------ the brief ---------------------------------- */
 
-  // now_local is a naive tenant-local wall clock ("2026-08-27T11:00:19"), so
-  // parsing it as a local Date yields the salon's own hour and weekday.
+/** What `toTodayVM` reads: its six inputs as one record, so the facts and every band take one thing. */
+interface TodayInput {
+  m: MetricsSummaryDto;
+  conversations: ConversationDto[];
+  escalations: Array<EscalationDto & { conversation_id: string }>;
+  /** Null: the calls read failed. The card says so rather than counting none. */
+  calls: CallDto[] | null;
+  now: Date;
+  /** Null: the searches were not read; the queue says nothing about them. */
+  searches: LeadSearchDto[] | null;
+}
+
+/**
+ * One wire, normalised once for the five things Today says about it: the chips, the count above the work, the
+ * alert, the empty queue and the quiet day's proof. The label is channels.ts's, so "sms" cannot reach a page.
+ */
+interface TodayWire {
+  kind: string;
+  label: string;
+  on: boolean;
+  /** Where customers reach it, as a person reads it ("+1 (212) 555-0142", or the address); null with nothing to name it by. */
+  where: string | null;
+}
+
+/**
+ * ONE reading of an open escalation. Ask's rows (needsYou) and the queue's handoff and call-back rows were two
+ * derivations of the same list, and they disagreed on a call-back: Ask never saw the to-do the phone receptionist
+ * left, and named a caller with no thread "Unknown" where the queue named the call.
+ */
+interface EscalationRecord {
+  e: EscalationDto & { conversation_id: string };
+  conv: ConversationDto | undefined;
+  /** A call-back's newest call, when the thread holds one. */
+  call: CallDto | null;
+  waitedMs: number;
+  warn: boolean;
+  since: string;
+  /** Her own words, never a generated characterization of them. */
+  quote: string;
+  who: string;
+  /** When the free reply window closes, while it is open. */
+  closes: string | null;
+}
+
+/** The facts every band reads, computed once over the input (today-bands.ts says what each band makes of them). */
+export interface TodayFacts extends TodayInput {
+  tz: string;
+  p: MetricsSummaryDto["period"];
+  live: MetricsSummaryDto["now"];
+  /** Whether the calls read succeeded; false means the rows omit the phone, and the card says so. */
+  callsRead: boolean;
+  /** The salon's own wall clock and calendar day, from `now_local`; empty when it could not be parsed. */
+  clock: string;
+  datePart: string;
+  wires: TodayWire[];
+  /** The one number every surface shows for "need you": the Inbox badge counts the same threads by the same rule. */
+  needsYouCount: number;
+  /** The open escalations nobody has taken over, oldest waiting first, each read once. */
+  escRecords: EscalationRecord[];
+  /** Their threads: the queue's, so nothing on this page is said twice. */
+  escSet: Set<string>;
+  /** Threads where the customer spoke last and the free-reply window is running out. */
+  closingConvs: ConversationDto[];
+  sinceMs: number;
+  callsInWindow: CallDto[];
+  callMinutes: number;
+  traffic: number;
+  /** When the oldest open handoff began, in the salon's words, for the headline's detail. */
+  oldest: string | null;
+}
+
+/**
+ * now_local is a naive tenant-local wall clock ("2026-08-27T11:00:19"), so
+ * parsing it as a local Date yields the salon's own hour and weekday.
+ */
+function todayClock(m: MetricsSummaryDto): { clock: string; datePart: string } {
   const localNow = new Date(m.window.now_local);
   const valid = !Number.isNaN(localNow.getTime());
   const clock = valid ? localNow.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "";
   const datePart = valid
     ? `${localNow.toLocaleDateString("en-US", { weekday: "long" })} · ${localNow.toLocaleDateString("en-US", { month: "long", day: "numeric" })}`
     : "";
+  return { clock, datePart };
+}
 
-  // One normalisation of the wires for the five things Today says about them:
-  // the chips, the count above the work, the alert, the empty queue and the
-  // quiet day's proof. The label is channels.ts's, so "sms" cannot reach a page.
-  const wires = m.channels.map((c) => ({
+/** One normalisation of the wires, for the five things Today says about them. */
+function todayWires(m: MetricsSummaryDto): TodayWire[] {
+  return m.channels.map((c) => ({
     kind: c.kind,
     label: channelKindWords(c.kind),
     on: c.status === "active",
@@ -753,94 +812,20 @@ export function toTodayVM(
     // said the column's "+12125550142".
     where: c.address ?? formatPhoneDisplay(c.number),
   }));
-  const chips = wires.map((w) => ({ text: `${w.label} ${w.on ? "connected" : "disconnected"}`, ok: w.on }));
-  const down = wires.filter((w) => !w.on);
-  const on = wires.filter((w) => w.on);
-  const up = on.length;
-  // The count lives here because the sentence has a number in it. The page
-  // counted its own chips, which is why "2 of 2 lines connected" was said on a
-  // workspace with three. A wire that could not be read is not a smaller
-  // whole: the line says so instead of a count that is short by one.
-  const lines = {
-    text:
-      m.linesRead === false
-        ? "the email line could not be counted"
-        : wires.length
-          ? `${up} of ${wires.length} ${wires.length === 1 ? "line" : "lines"} connected`
-          : "no lines connected yet",
-    down: down.length > 0,
-  };
+}
 
-  // The alert is the one place Today raises its voice, and it SUPPRESSES every
-  // reassuring line — "nothing needs you" is a lie while the number is dark.
-  const alert =
-    m.workspace.status === "paused"
-      ? "This workspace is paused — the receptionist is not answering anything."
-      : down.length
-        ? `${andList(down.map((w) => w.label))} ${down.length > 1 ? "are" : "is"} disconnected — messages coming in are not being answered.`
-        : null;
-
-  // What an empty queue means HERE. The page chose between three of these by
-  // counting chips: an email-only workspace was told nothing could come in,
-  // and counting email would have told it the receptionist was answering on
-  // its own, which it does not do for email. The heading's own words ride
-  // with it, so the two are decided once.
-  const answered = on.filter((w) => CHANNEL_ANSWERED.has(w.kind));
-  const queueEmpty: TodayQueueEmptyVM =
-    m.workspace.status === "paused"
-      ? {
-          title: "Nothing in the queue — the workspace is paused, so nothing is being answered.",
-          sub: "nothing in the queue",
-          glyph: "alert",
-          tone: "warn",
-          testid: "today-queue-empty-paused",
-        }
-      : down.length
-        ? {
-            title: "Nothing in the queue — new messages go unanswered until the line is back.",
-            sub: "nothing in the queue",
-            glyph: "alert",
-            tone: "warn",
-            testid: "today-queue-empty-down",
-          }
-        : wires.length === 0
-          ? {
-              title: "Nothing in the queue — nothing can come in until a line is connected.",
-              sub: "nothing in the queue",
-              glyph: "phone",
-              tone: "",
-              testid: "today-queue-empty-unconnected",
-            }
-          : answered.length === 0
-            ? on.every((w) => w.kind === "email")
-              ? {
-                  title: `Nothing in the queue. ${EMAIL_NOT_ANSWERED_SENTENCE}`,
-                  sub: "nothing in the queue",
-                  glyph: "mail",
-                  tone: "",
-                  testid: "today-queue-empty-unanswered",
-                }
-              : {
-                  title: "Nothing in the queue — no line the receptionist answers is connected.",
-                  sub: "nothing in the queue",
-                  glyph: "phone",
-                  tone: "",
-                  testid: "today-queue-empty-unanswered",
-                }
-            : {
-                title: "All caught up — the receptionist is answering on its own.",
-                sub: "nothing needs you",
-                glyph: "check",
-                tone: "ok",
-                testid: "today-queue-empty-ok",
-              };
-
-  const byConv = new Map(conversations.map((c) => [c.id, c]));
-  const openEsc = escalations
+/**
+ * The open escalations the queue holds, oldest waiting first. One rule (standing.ts): a handoff a person has
+ * already taken over is theirs, not the queue's. An escalation whose thread the page did not load keeps its
+ * place — unknown is not "handled".
+ */
+function openEscalations(
+  escalations: TodayInput["escalations"],
+  byConv: Map<string, ConversationDto>,
+  now: Date,
+): TodayInput["escalations"] {
+  return escalations
     .filter((e) => e.state === "open")
-    // One rule (standing.ts): a handoff a person has already taken over is
-    // theirs, not the queue's. An escalation whose thread the page did not
-    // load keeps its place — unknown is not "handled".
     .filter((e) => {
       const conv = byConv.get(e.conversation_id);
       if (!conv) return true;
@@ -858,27 +843,28 @@ export function toTodayVM(
       );
     })
     .sort((a, b) => a.created_at.localeCompare(b.created_at)); // oldest waiting first
-  // The one number every surface shows for "need you": the Inbox badge counts
-  // the same threads by the same rule.
-  const needsYouCount = openEsc.length;
+}
 
-  const sinceMs = new Date(m.window.since).getTime();
-  const callsInWindow = callDtos.filter((c) => c.started_at && new Date(c.started_at).getTime() >= sinceMs);
-  const callMinutes = Math.round(p.call_seconds / 60);
-
-  // The newest call a thread holds: a call-back's row opens it, and a call-back with no thread is named by it.
+/** The newest call a thread holds: a call-back's row opens it, and a call-back with no thread is named by it. */
+function newestCallByThread(callDtos: CallDto[]): Map<string, CallDto> {
   const callByConv = new Map<string, CallDto>();
   for (const c of callDtos) {
     if (!c.conversation_id) continue;
     const prev = callByConv.get(c.conversation_id);
     if (!prev || String(c.started_at ?? "") > String(prev.started_at ?? "")) callByConv.set(c.conversation_id, c);
   }
-  const say = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : "");
+  return callByConv;
+}
 
-  // ONE reading of each open escalation. Ask's rows (needsYou) and the queue's handoff and call-back rows were two
-  // derivations of the same list, and they disagreed on a call-back: Ask never saw the to-do the phone receptionist
-  // left, and named a caller with no thread "Unknown" where the queue named the call.
-  const escRecords = openEsc.map((e) => {
+/** Each open escalation, read once (see EscalationRecord). */
+function escalationRecords(
+  openEsc: TodayInput["escalations"],
+  byConv: Map<string, ConversationDto>,
+  callByConv: Map<string, CallDto>,
+  tz: string,
+  now: Date,
+): EscalationRecord[] {
+  return openEsc.map((e) => {
     const conv = byConv.get(e.conversation_id);
     const call = e.reason === "callback" ? (callByConv.get(e.conversation_id) ?? null) : null;
     const lastCustomer = conv ? [...conv.messages].reverse().find((x) => x.sender === "customer") : undefined;
@@ -903,8 +889,60 @@ export function toTodayVM(
       closes: win?.open ? tzClock(win.closesAtIso, tz, now) : null,
     };
   });
+}
 
-  const needsRows: TodayNeedsRowVM[] = escRecords.map((r) => ({
+/**
+ * Threads where the customer spoke last and the free-reply window is running
+ * out. Rendered ONLY when at least one qualifies — an empty deadline board
+ * manufactures anxiety on a calm day.
+ */
+function closingConversations(conversations: ConversationDto[], escSet: Set<string>, now: Date): ConversationDto[] {
+  return conversations.filter((c) => {
+    if (escSet.has(c.id)) return false;
+    const last = c.messages[c.messages.length - 1];
+    if (!last || last.sender !== "customer") return false;
+    const w = waWindow(c.last_wa_inbound_at, now);
+    return w.open && w.closesAtIso ? new Date(w.closesAtIso).getTime() - now.getTime() < 6 * 3600 * 1000 : false;
+  });
+}
+
+/** The facts, once: what every band below and in today-bands.ts reads. */
+function todayFacts(input: TodayInput): TodayFacts {
+  const { m, conversations, escalations, calls, now } = input;
+  const tz = m.workspace.timezone;
+  const p = m.period;
+  const callDtos = calls ?? [];
+  const byConv = new Map(conversations.map((c) => [c.id, c]));
+  const openEsc = openEscalations(escalations, byConv, now);
+  const escSet = new Set(openEsc.map((e) => e.conversation_id));
+  const sinceMs = new Date(m.window.since).getTime();
+  return {
+    ...input,
+    tz,
+    p,
+    live: m.now,
+    // Null: the calls read failed. The card says so rather than counting none.
+    callsRead: calls !== null,
+    ...todayClock(m),
+    wires: todayWires(m),
+    needsYouCount: openEsc.length,
+    escRecords: escalationRecords(openEsc, byConv, newestCallByThread(callDtos), tz, now),
+    escSet,
+    closingConvs: closingConversations(conversations, escSet, now),
+    sinceMs,
+    callsInWindow: callDtos.filter((c) => c.started_at && new Date(c.started_at).getTime() >= sinceMs),
+    callMinutes: Math.round(p.call_seconds / 60),
+    traffic: p.messages_in + p.calls + p.messages_out_you,
+    oldest: tzSince(m.now.oldest_open_escalation_at, tz, now),
+  };
+}
+
+/** A string with words in it, trimmed; anything else is "". */
+const say = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : "");
+
+/** Ask's rows: the same escalations the queue draws, read once. */
+function todayNeedsRows(f: TodayFacts): TodayNeedsRowVM[] {
+  return f.escRecords.map((r) => ({
     id: `th-${r.e.conversation_id}`,
     conversationId: r.e.conversation_id,
     escalationId: r.e.id,
@@ -926,19 +964,28 @@ export function toTodayVM(
     windowNote: r.closes ? `Reply window closes ${r.closes}` : null,
     to: `inbox/th-${r.e.conversation_id}`,
   }));
+}
 
-  // Threads where the customer spoke last and the free-reply window is running
-  // out. Rendered ONLY when at least one qualifies — an empty deadline board
-  // manufactures anxiety on a calm day.
-  const escSet = new Set(openEsc.map((e) => e.conversation_id));
-  const closingConvs = conversations.filter((c) => {
-    if (escSet.has(c.id)) return false;
-    const last = c.messages[c.messages.length - 1];
-    if (!last || last.sender !== "customer") return false;
-    const w = waWindow(c.last_wa_inbound_at, now);
-    return w.open && w.closesAtIso ? new Date(w.closesAtIso).getTime() - now.getTime() < 6 * 3600 * 1000 : false;
-  });
-  const closingRows = closingConvs.map((c) => {
+/** Everything Ask reads about who needs you: the count, the rows, and what an empty list means. */
+function todayNeedsYou(f: TodayFacts): NonNullable<TodayVM["needsYou"]> {
+  const rows = todayNeedsRows(f);
+  const { p } = f;
+  return {
+    count: f.needsYouCount,
+    hint: "The receptionist stopped and asked for a human.",
+    rows,
+    empty: rows.length
+      ? null
+      : p.unanswered_in_window === 0 && p.messages_out_you === 0
+        ? "Nothing needs you. The receptionist answered every message that came in, and nobody asked for a person."
+        : "Nothing needs you right now — nobody asked for a person.",
+  };
+}
+
+/** The closing windows as a band: one line each, and nothing at all when none is closing. */
+function todayWindowClosing(f: TodayFacts): TodayVM["windowClosing"] {
+  const { closingConvs, tz, now } = f;
+  const rows = closingConvs.map((c) => {
     const w = waWindow(c.last_wa_inbound_at, now);
     const mins = w.closesAtIso
       ? Math.max(1, Math.round((new Date(w.closesAtIso).getTime() - now.getTime()) / 60000))
@@ -949,13 +996,25 @@ export function toTodayVM(
       to: `inbox/th-${c.id}`,
     };
   });
+  return rows.length
+    ? {
+        label: "Reply window closing",
+        hint: "WhatsApp only lets you write freely for 24 hours after someone messages you. After that it's an approved template.",
+        rows,
+      }
+    : null;
+}
 
-  // Who is waiting with nothing back: the customer wrote last an hour ago or more, nobody replied, nobody holds the
-  // thread (the one rule, standing.ts: a thread a person paused or claimed is not waiting on nobody), and no queue
-  // row is about it (an escalation's thread and a closing window's thread are the queue's; nothing on this page is
-  // said twice). The identity was in the conversations read all along and only the count survived into the view model.
+/**
+ * Who is waiting with nothing back: the customer wrote last an hour ago or more, nobody replied, nobody holds the
+ * thread (the one rule, standing.ts: a thread a person paused or claimed is not waiting on nobody), and no queue
+ * row is about it (an escalation's thread and a closing window's thread are the queue's; nothing on this page is
+ * said twice). The identity was in the conversations read all along and only the count survived into the view model.
+ */
+function todayNoReply(f: TodayFacts): TodayNoReplyVM[] {
+  const { conversations, escSet, closingConvs, now } = f;
   const closingSet = new Set(closingConvs.map((c) => c.id));
-  const noReply: TodayNoReplyVM[] = conversations
+  return conversations
     .flatMap((c) => {
       // Archived is filed away, which standingOf reads as quiet; it is not waiting on anybody.
       if (escSet.has(c.id) || closingSet.has(c.id) || c.state === "archived") return [];
@@ -977,204 +1036,20 @@ export function toTodayVM(
       return [{ conversationId: c.id, who: contactName(c), sinceMs: lastMs, to: `inbox/th-${c.id}` }];
     })
     .sort((a, b) => a.sinceMs - b.sinceMs);
+}
 
-  const proof = todayProof(live, tz, now);
-  const figures = figuresOf(m, conversations, callsInWindow, escalations, tz, now);
-
-  const traffic = p.messages_in + p.calls + p.messages_out_you;
-  const isQuiet = traffic === 0 && needsYouCount === 0 && !alert;
-
-  // Ask's four facts. A zero is a real measurement, and "—" is a real "not enough data yet"; never a delta, a
-  // percentage or a sparkline: a jump from 1 message to 3 is not "+200%".
-  const facts: TodayFactVM[] = [
-    { label: "Messages in", value: String(p.messages_in) },
-    { label: "Answered by the receptionist", value: `${p.answered_by_ai} of ${p.messages_in}` },
-    p.median_reply_seconds_ai === null
-      ? { label: "Typical reply time", value: "—", hint: "Not enough replies yet" }
-      : { label: "Typical reply time", value: secondsPhrase(p.median_reply_seconds_ai) },
-    { label: "Calls", value: p.calls ? `${p.calls}${callMinutes ? ` · ${callMinutes} min` : ""}` : "0" },
-  ];
-  // The day's traffic as one sentence, for Ask; the page draws the figures instead.
-  const trafficParts: string[] = [];
-  if (p.messages_in > 0) {
-    trafficParts.push(
-      `${p.messages_in} message${p.messages_in === 1 ? "" : "s"} in, ${p.answered_by_ai} answered by the receptionist${
-        p.median_reply_seconds_ai === null ? "" : `, typically in ${secondsPhrase(p.median_reply_seconds_ai)}`
-      }`,
-    );
-  }
-  if (p.calls) {
-    trafficParts.push(
-      `${p.calls} call${p.calls === 1 ? "" : "s"}${callMinutes ? `, ${callMinutes} minute${callMinutes === 1 ? "" : "s"}` : ""}`,
-    );
-  }
-  const trafficLine = trafficParts.length ? `${trafficParts.join(". ")}.` : "Nothing has come in yet today.";
-
-  /* ---- the quiet day: prove we are listening, don't show a row of zeroes ---- */
-  if (isQuiet) {
-    const names = andList(wires.map((w) => w.label));
-    const pluralVerb = wires.length > 1 ? "are" : "is";
-    // A workspace with no wire yet is a new owner's first Today — it must not
-    // read " is connected." with nothing in front of it, and it must not name
-    // the only two wires this sentence used to know about.
-    const sub =
-      wires.length === 0
-        ? "No line is connected yet, so nothing can come in."
-        : `${names} ${pluralVerb} connected. ${proof}`;
-    return {
-      standing: {
-        eyebrow: `${datePart} · ${clock} · ${m.workspace.name}`,
-        chips,
-        lines,
-        alert: null,
-        headline: "Nothing has come in yet today.",
-        detail: null,
-        tone: "calm",
-      },
-      needsYou: null,
-      windowClosing: null,
-      recap: { label: "Today so far", line: "Nothing has come in yet today.", sentences: [], facts, receipts: [] },
-      figures: null,
-      proof,
-      noReply,
-      calls: null,
-      callsRead,
-      queue: { rows: [], more: 0, parts: [], empty: queueEmpty, waiting: 0 },
-      quiet: {
-        headline: "Nothing has come in yet today.",
-        sub,
-        proof: [
-          ...(wires.length === 0 ? [{ label: "Lines", value: "none connected yet" }] : []),
-          ...wires.map((w) => ({
-            label: w.label,
-            // "on" / "off" in the owner's words, never the column's value. A
-            // wire with nothing to name it by says only that: "connected · on"
-            // was two words for one fact.
-            value: w.where ? `${w.where} · ${w.on ? "on" : "off"}` : w.on ? "on" : "off",
-          })),
-          { label: "Checked", value: "just now" },
-        ],
-        launchpad: conversations.length
-          ? {
-              label: `Nothing waiting. ${conversations.length} earlier conversation${
-                conversations.length === 1 ? "" : "s"
-              } →`,
-              to: "conversations",
-            }
-          : null,
-      },
-    };
-  }
-
-  /* ---- headline ladder: first match wins ---- */
-  const oldest = tzSince(live.oldest_open_escalation_at, tz, now);
-  let headline: string;
-  let detail: string | null = null;
-  let tone: "needs" | "calm" | "alert" = "calm";
-
-  if (alert) {
-    headline = "Check your connection before anything else.";
-    tone = "alert";
-  } else if (needsYouCount > 1) {
-    headline = `${needsYouCount} conversations need you.`;
-    if (oldest) detail = `The oldest has been waiting since ${oldest}.`;
-    tone = "needs";
-  } else if (needsYouCount === 1) {
-    headline = "One conversation needs you";
-    const who = needsRows[0]?.who;
-    if (who && oldest) detail = `${who} has been waiting since ${oldest}.`;
-    tone = "needs";
-  } else {
-    const bits: string[] = [];
-    if (p.messages_in) {
-      bits.push(
-        `${p.messages_in} message${p.messages_in === 1 ? "" : "s"}${
-          p.conversations_active
-            ? ` from ${p.conversations_active} ${p.conversations_active === 1 ? "person" : "people"}`
-            : ""
-        }`,
-      );
-    }
-    if (p.calls) bits.push(`${p.calls} call${p.calls === 1 ? "" : "s"}`);
-    // "Handled everything" only when the receptionist did: a message you
-    // answered yourself, or one nobody answered, is not the receptionist's.
-    const allByReceptionist = p.unanswered_in_window === 0 && p.messages_out_you === 0;
-    headline = bits.length
-      ? allByReceptionist
-        ? `The receptionist handled everything — ${bits.join(" and ")} today. Nothing needs you.`
-        : `${bits.join(" and ")} today. Nothing needs you right now.`
-      : "Nothing needs you.";
-    if (p.median_reply_seconds_ai !== null && p.messages_in > 0) {
-      detail = `It answered ${p.answered_by_ai} of the ${p.messages_in} on its own, typically in about ${secondsPhrase(
-        p.median_reply_seconds_ai,
-      )}.`;
-    }
-  }
-
-  /* ---- Ask's recap sentences: only what the HEADLINE does not already say. When nothing needs you, the headline
-     is "The receptionist handled everything — N messages and M calls", so repeating those counts here would be the
-     brief reading its own first line back. When something DOES need you, the headline is spent on that. ---- */
-  const sentences: TodaySentenceVM[] = [];
-  const headlineCoversTraffic = tone === "calm" && !alert;
-  if (p.answered_by_ai && !headlineCoversTraffic) {
-    sentences.push({
-      // Not "the WhatsApp receptionist": answered_by_ai is first_replies with
-      // no channel predicate (00037_hygiene.sql), so an email it answered is
-      // in this count. Every other sentence in this file already says just
-      // "the receptionist".
-      text: `The receptionist answered ${p.answered_by_ai} message${p.answered_by_ai === 1 ? "" : "s"}${
-        p.conversations_active
-          ? ` from ${p.conversations_active} ${p.conversations_active === 1 ? "person" : "people"}`
-          : ""
-      }.`,
-      traffic: true,
-    });
-  }
-  if (p.calls && !headlineCoversTraffic) {
-    sentences.push({
-      text: `${p.calls} caller${p.calls === 1 ? "" : "s"} reached the phone line${
-        callMinutes ? ` — ${callMinutes} minute${callMinutes === 1 ? "" : "s"} total` : ""
-      }.`,
-      traffic: true,
-    });
-  }
-  if (p.messages_out_you) {
-    sentences.push({ text: `You sent ${p.messages_out_you} repl${p.messages_out_you === 1 ? "y" : "ies"} yourself.` });
-  }
-  // A reply that never reached the customer is the one line that must never be
-  // quiet — the send already escalated, but a card saying "handled everything"
-  // while a message died in transit would be a lie of omission.
-  if (p.send_failures) {
-    // The thread of the newest reply that failed, when the conversations read holds it: "See the thread"
-    // opened the Inbox list, where the owner had to go looking.
-    const lastFailed = conversations
-      .flatMap((c) =>
-        c.messages
-          .filter(
-            (x) =>
-              x.direction === "outbound" &&
-              x.status === "failed" &&
-              x.meta?.backfill !== true &&
-              new Date(x.created_at).getTime() >= sinceMs,
-          )
-          .map((x) => ({ conv: c, at: x.created_at })),
-      )
-      .sort((a, b) => b.at.localeCompare(a.at))[0];
-    sentences.push({
-      text: `${p.send_failures} repl${p.send_failures === 1 ? "y" : "ies"} failed to deliver — the customer got no answer.`,
-      warn: true,
-      ...(lastFailed ? { to: `inbox/th-${lastFailed.conv.id}` } : {}),
-    });
-  }
-
-  // Receipts quote the message that actually went out. She is spot-checking
-  // tone, not reading a report — a summary of the reply defeats the purpose.
-  //
-  // Backfilled rows are excluded for the same reason the SQL excludes them:
-  // their created_at is the moment the IMPORT ran, so the first live load
-  // rendered weeks-old replies as "sent at 1:59 AM today". A receipt whose
-  // timestamp is wrong is worse than no receipt.
-  const receipts = conversations
+/**
+ * Receipts quote the message that actually went out. She is spot-checking
+ * tone, not reading a report — a summary of the reply defeats the purpose.
+ *
+ * Backfilled rows are excluded for the same reason the SQL excludes them:
+ * their created_at is the moment the IMPORT ran, so the first live load
+ * rendered weeks-old replies as "sent at 1:59 AM today". A receipt whose
+ * timestamp is wrong is worse than no receipt.
+ */
+function todayReceipts(f: TodayFacts): NonNullable<TodayVM["recap"]>["receipts"] {
+  const { conversations, sinceMs, tz } = f;
+  return conversations
     .flatMap((c) =>
       c.messages
         .filter(
@@ -1193,191 +1068,242 @@ export function toTodayVM(
       text: `replied to ${contactName(conv)}: “${messageText(msg).slice(0, 90)}”`,
       to: `inbox/th-${conv.id}`,
     }));
+}
 
-  /* ---- calls worth an ear: rows ONLY for the ones that need one.
-     A call that went fine is a line in the aggregate, not a row demanding
-     attention — the whole point of the region is that it stays short. ---- */
-  const NEEDS_EAR = ["dial_no_answer", "inactivity", "concurrency_limit_reached", "marked_as_spam"];
-  const callRows: TodayCallRowVM[] = callsInWindow
-    // A dial that never connected is not a call, so it is not a call worth an ear.
-    .filter((c) => c.status !== "not_connected")
-    .map((c) => ({ c, vm: toCallVM(c, tz, now) }))
-    .filter(
-      ({ c, vm }) =>
-        vm.live ||
-        c.in_voicemail ||
-        c.sentiment === "Negative" ||
-        !c.summary ||
-        // Somebody rang and left with nothing. Measured before writing this:
-        // with a provider summary the row was not worth an ear at all, since
-        // `user_hangup` is not in NEEDS_EAR and rightly so — every ordinary
-        // call ends that way. Without one it did arrive, as "No summary from
-        // the voice provider", which reads as our glitch rather than as the
-        // day's one lost customer whose number the business already has.
-        abandonedCall(c) ||
-        (c.disconnection_reason ? NEEDS_EAR.includes(c.disconnection_reason) : false),
-    )
-    .map(({ c, vm }) => {
-      const endedMs = c.ended_at ? new Date(c.ended_at).getTime() : NaN;
-      const analysisDue = !c.summary && Number.isFinite(endedMs) && now.getTime() - endedMs < ANALYSIS_GRACE_MS;
-      return {
-        id: c.id,
-        who: vm.who,
-        at: tzTime(c.started_at, tz) ?? "",
-        duration: vm.duration ?? "",
-        note: vm.live
-          ? "In progress right now"
-          : c.in_voicemail
-            ? "Reached voicemail"
-            : // BEFORE the summary branches, deliberately. A caller gone in six
-              // seconds has no summary and never will have much of one, so the
-              // chain below would have said "summary on its way" and buried the
-              // only fact worth acting on.
-              abandonedCall(c)
-              ? `Hung up after ${spokenDuration(c.duration_ms)} — they left with nothing`
-              : c.sentiment === "Negative"
-                ? "Caller sentiment: Negative — the voice provider's own read"
-                : analysisDue
-                  ? "Summary on its way from the voice provider"
-                  : !c.summary
-                    ? "No summary from the voice provider"
-                    : (DISCONNECTION_LABELS[c.disconnection_reason ?? ""] ?? "Ended early"),
-        to: vm.live ? "live" : `conversations/cv-${c.id}`,
-      };
-    });
+/* ---- calls worth an ear: rows ONLY for the ones that need one.
+   A call that went fine is a line in the aggregate, not a row demanding
+   attention — the whole point of the region is that it stays short. ---- */
+const NEEDS_EAR = ["dial_no_answer", "inactivity", "concurrency_limit_reached", "marked_as_spam"];
 
-  /* ---- the queue: everything that asks for a person, in one row grammar.
-     The longest wait first; a closing window by how soon it closes; a call
-     worth an ear last. Six on Today, the rest a count for the Inbox link. ---- */
+/** What a call worth an ear says under its name: the first of these that is true. */
+function callNote(c: CallDto, live: boolean | undefined, analysisDue: boolean): string {
+  if (live) return "In progress right now";
+  if (c.in_voicemail) return "Reached voicemail";
+  // BEFORE the summary branches, deliberately. A caller gone in six
+  // seconds has no summary and never will have much of one, so the
+  // chain below would have said "summary on its way" and buried the
+  // only fact worth acting on.
+  if (abandonedCall(c)) return `Hung up after ${spokenDuration(c.duration_ms)} — they left with nothing`;
+  if (c.sentiment === "Negative") return "Caller sentiment: Negative — the voice provider's own read";
+  if (analysisDue) return "Summary on its way from the voice provider";
+  if (!c.summary) return "No summary from the voice provider";
+  return DISCONNECTION_LABELS[c.disconnection_reason ?? ""] ?? "Ended early";
+}
+
+function todayCallRows(f: TodayFacts): TodayCallRowVM[] {
+  const { callsInWindow, tz, now } = f;
+  return (
+    callsInWindow
+      // A dial that never connected is not a call, so it is not a call worth an ear.
+      .filter((c) => c.status !== "not_connected")
+      .map((c) => ({ c, vm: toCallVM(c, tz, now) }))
+      .filter(
+        ({ c, vm }) =>
+          vm.live ||
+          c.in_voicemail ||
+          c.sentiment === "Negative" ||
+          !c.summary ||
+          // Somebody rang and left with nothing. Measured before writing this:
+          // with a provider summary the row was not worth an ear at all, since
+          // `user_hangup` is not in NEEDS_EAR and rightly so — every ordinary
+          // call ends that way. Without one it did arrive, as "No summary from
+          // the voice provider", which reads as our glitch rather than as the
+          // day's one lost customer whose number the business already has.
+          abandonedCall(c) ||
+          (c.disconnection_reason ? NEEDS_EAR.includes(c.disconnection_reason) : false),
+      )
+      .map(({ c, vm }) => {
+        const endedMs = c.ended_at ? new Date(c.ended_at).getTime() : NaN;
+        const analysisDue = !c.summary && Number.isFinite(endedMs) && now.getTime() - endedMs < ANALYSIS_GRACE_MS;
+        return {
+          id: c.id,
+          who: vm.who,
+          at: tzTime(c.started_at, tz) ?? "",
+          duration: vm.duration ?? "",
+          note: callNote(c, vm.live, analysisDue),
+          to: vm.live ? "live" : `conversations/cv-${c.id}`,
+        };
+      })
+  );
+}
+
+/** The calls band: the day's count and minutes as one line over the rows worth an ear; null on a day with no call. */
+function todayCalls(f: TodayFacts, rows: TodayCallRowVM[]): TodayVM["calls"] {
+  const { p, callMinutes } = f;
+  return p.calls
+    ? {
+        line: `${p.calls} call${p.calls === 1 ? "" : "s"} today${
+          callMinutes ? ` · ${callMinutes} minute${callMinutes === 1 ? "" : "s"}` : ""
+        }.`,
+        rows,
+      }
+    : null;
+}
+
+/* ---- the queue: everything that asks for a person, in one row grammar.
+   The longest wait first; a closing window by how soon it closes; a call
+   worth an ear last. Six on Today, the rest a count for the Inbox link. ---- */
+
+/**
+ * A call-back: the phone receptionist could not finish it. The to-do it left is the
+ * sentence, the call itself is where the verb goes, Done resolves it.
+ */
+function callbackRow(r: EscalationRecord): TodayQueueRowVM {
+  const e = r.e;
+  return {
+    id: `q-${e.id}`,
+    kind: "callback",
+    conversationId: e.conversation_id,
+    callId: r.call ? r.call.id : null,
+    who: r.who,
+    initials: initialsOf(r.who),
+    channel: "Phone",
+    when: `waited ${formatWaited(r.waitedMs)}`,
+    sentence: say(e.details) || "The caller needs a call back.",
+    quoted: false,
+    status: ["Needs a call back", `since ${r.since}`],
+    tone: "escalated",
+    warn: r.warn,
+    cta: { label: "Open the call", to: r.call ? `conversations/cv-${r.call.id}` : `inbox/th-${e.conversation_id}` },
+    also: { label: "Done", verb: "resolve", conversationId: e.conversation_id, escalationId: e.id },
+    waitedMs: r.waitedMs,
+  };
+}
+
+/** A handoff: the receptionist stopped and asked for a person; her words are the sentence, Snooze puts it aside. */
+function handoffRow(r: EscalationRecord): TodayQueueRowVM {
+  const e = r.e;
+  return {
+    id: `q-${e.id}`,
+    kind: "handoff",
+    conversationId: e.conversation_id,
+    callId: null,
+    who: r.who,
+    initials: initialsOf(r.who),
+    channel: r.conv ? threadChannelWords(r.conv.messages) : "WhatsApp",
+    when: `waited ${formatWaited(r.waitedMs)}`,
+    sentence: r.quote || (ESCALATION_REASON_LABELS[e.reason] ?? e.reason),
+    quoted: !!r.quote,
+    status: [
+      "Escalated",
+      reasonShort(e.reason) || e.reason,
+      `since ${r.since}`,
+      ...(r.closes ? [`reply window closes ${r.closes}`] : []),
+    ],
+    tone: "escalated",
+    warn: r.warn,
+    cta: { label: "Open and reply", to: `inbox/th-${e.conversation_id}` },
+    also: { label: "Snooze", verb: "snooze", conversationId: e.conversation_id, escalationId: e.id },
+    waitedMs: r.waitedMs,
+  };
+}
+
+/**
+ * A closing window. "WhatsApp" is right here even when the last written message came by
+ * email: the row is about WhatsApp's window (waWindow on the thread's
+ * last WhatsApp inbound), which is the one wire that has one. The
+ * handoff row above names the wire the reply would go out on instead.
+ */
+function windowRow(c: ConversationDto, f: TodayFacts): TodayQueueRowVM {
+  const { tz, now } = f;
+  const w = waWindow(c.last_wa_inbound_at, now);
+  const leftMs = w.closesAtIso ? Math.max(60000, new Date(w.closesAtIso).getTime() - now.getTime()) : 0;
+  const last = [...c.messages].reverse().find((x) => x.sender === "customer");
+  const who = contactName(c);
+  return {
+    id: `q-w-${c.id}`,
+    kind: "window",
+    conversationId: c.id,
+    callId: null,
+    who,
+    initials: initialsOf(who),
+    channel: "WhatsApp",
+    when: `closes ${tzClock(w.closesAtIso, tz, now) ?? "soon"} · in ${formatWaited(leftMs)}`,
+    sentence: last
+      ? clipAtWord(messageWords(last), QUOTE_MAX)
+      : "They wrote last, and the free reply window is closing.",
+    quoted: !!last,
+    status: ["Reply window closing", "they wrote last"],
+    tone: "warn",
+    warn: leftMs < 2 * 3600000,
+    cta: { label: "Open thread", to: `inbox/th-${c.id}` },
+    also: null,
+    // After every escalation (which waited ≥ 0), the soonest to close first.
+    waitedMs: -leftMs,
+  };
+}
+
+/** A call worth an ear, as a queue row: after everyone waiting, what the caller wanted as the sentence. */
+function earRow(r: TodayCallRowVM, f: TodayFacts): TodayQueueRowVM {
+  const c = f.callsInWindow.find((k) => k.id === r.id);
+  const wanted = say(c?.wanted);
+  return {
+    id: `q-c-${r.id}`,
+    kind: "call",
+    conversationId: c?.conversation_id ?? null,
+    callId: r.id,
+    who: r.who,
+    initials: initialsOf(r.who),
+    channel: "Phone",
+    when: `${r.at}${r.duration ? ` · ${r.duration}` : ""}`,
+    sentence: wanted || r.note,
+    quoted: false,
+    status: [wanted ? r.note : "Worth a listen"],
+    tone: "warn",
+    warn: false,
+    cta: { label: "Open the call", to: r.to },
+    also: null,
+    waitedMs: Number.NEGATIVE_INFINITY,
+  };
+}
+
+/**
+ * A search that stopped to ask waits on the owner like a person does (spec G6): its name, its question, one
+ * button to answer it. Null for a search that is not waiting.
+ */
+function searchRow(s: LeadSearchDto, now: Date): TodayQueueRowVM | null {
+  const r = s.round;
+  if (!r || r.state !== "waiting_on_owner" || !r.question) return null;
+  const since = r.waiting_since ? new Date(r.waiting_since).getTime() : now.getTime();
+  const waitedMs = Math.max(0, now.getTime() - since);
+  return {
+    id: `q-s-${s.id}`,
+    kind: "search",
+    conversationId: null,
+    callId: null,
+    who: s.name,
+    initials: initialsOf(s.name),
+    channel: "Leads",
+    when: `waited ${formatWaited(waitedMs)}`,
+    sentence: r.question.sentence,
+    quoted: false,
+    status: ["Waiting for your answer", "nothing is spent while it waits"],
+    tone: "escalated",
+    warn: waitedMs > SEARCH_WARN_MS,
+    cta: { label: "Answer", to: leadQuestionRoute(s.id) },
+    also: null,
+    waitedMs,
+  };
+}
+
+/** The queue: the rows in order, the rest as a count, what the rows hold in words, and how many people are waiting on you. */
+function todayQueue(f: TodayFacts, callRows: TodayCallRowVM[], empty: TodayQueueEmptyVM): TodayVM["queue"] {
+  const { escRecords, closingConvs, searches, now } = f;
   const queueAll: TodayQueueRowVM[] = [];
   for (const r of escRecords) {
-    const e = r.e;
-    if (e.reason === "callback") {
-      // The phone receptionist could not finish it: the to-do it left is the
-      // sentence, the call itself is where the verb goes, Done resolves it.
-      queueAll.push({
-        id: `q-${e.id}`,
-        kind: "callback",
-        conversationId: e.conversation_id,
-        callId: r.call ? r.call.id : null,
-        who: r.who,
-        initials: initialsOf(r.who),
-        channel: "Phone",
-        when: `waited ${formatWaited(r.waitedMs)}`,
-        sentence: say(e.details) || "The caller needs a call back.",
-        quoted: false,
-        status: ["Needs a call back", `since ${r.since}`],
-        tone: "escalated",
-        warn: r.warn,
-        cta: { label: "Open the call", to: r.call ? `conversations/cv-${r.call.id}` : `inbox/th-${e.conversation_id}` },
-        also: { label: "Done", verb: "resolve", conversationId: e.conversation_id, escalationId: e.id },
-        waitedMs: r.waitedMs,
-      });
-      continue;
-    }
-    queueAll.push({
-      id: `q-${e.id}`,
-      kind: "handoff",
-      conversationId: e.conversation_id,
-      callId: null,
-      who: r.who,
-      initials: initialsOf(r.who),
-      channel: r.conv ? threadChannelWords(r.conv.messages) : "WhatsApp",
-      when: `waited ${formatWaited(r.waitedMs)}`,
-      sentence: r.quote || (ESCALATION_REASON_LABELS[e.reason] ?? e.reason),
-      quoted: !!r.quote,
-      status: [
-        "Escalated",
-        reasonShort(e.reason) || e.reason,
-        `since ${r.since}`,
-        ...(r.closes ? [`reply window closes ${r.closes}`] : []),
-      ],
-      tone: "escalated",
-      warn: r.warn,
-      cta: { label: "Open and reply", to: `inbox/th-${e.conversation_id}` },
-      also: { label: "Snooze", verb: "snooze", conversationId: e.conversation_id, escalationId: e.id },
-      waitedMs: r.waitedMs,
-    });
+    queueAll.push(r.e.reason === "callback" ? callbackRow(r) : handoffRow(r));
   }
   for (const c of closingConvs) {
-    const w = waWindow(c.last_wa_inbound_at, now);
-    const leftMs = w.closesAtIso ? Math.max(60000, new Date(w.closesAtIso).getTime() - now.getTime()) : 0;
-    const last = [...c.messages].reverse().find((x) => x.sender === "customer");
-    const who = contactName(c);
-    queueAll.push({
-      // "WhatsApp" is right here even when the last written message came by
-      // email: the row is about WhatsApp's window (waWindow on the thread's
-      // last WhatsApp inbound), which is the one wire that has one. The
-      // handoff row above names the wire the reply would go out on instead.
-      id: `q-w-${c.id}`,
-      kind: "window",
-      conversationId: c.id,
-      callId: null,
-      who,
-      initials: initialsOf(who),
-      channel: "WhatsApp",
-      when: `closes ${tzClock(w.closesAtIso, tz, now) ?? "soon"} · in ${formatWaited(leftMs)}`,
-      sentence: last
-        ? clipAtWord(messageWords(last), QUOTE_MAX)
-        : "They wrote last, and the free reply window is closing.",
-      quoted: !!last,
-      status: ["Reply window closing", "they wrote last"],
-      tone: "warn",
-      warn: leftMs < 2 * 3600000,
-      cta: { label: "Open thread", to: `inbox/th-${c.id}` },
-      also: null,
-      // After every escalation (which waited ≥ 0), the soonest to close first.
-      waitedMs: -leftMs,
-    });
+    queueAll.push(windowRow(c, f));
   }
   for (const r of callRows) {
     if (r.to === "live") continue;
-    const c = callsInWindow.find((k) => k.id === r.id);
-    const wanted = say(c?.wanted);
-    queueAll.push({
-      id: `q-c-${r.id}`,
-      kind: "call",
-      conversationId: c?.conversation_id ?? null,
-      callId: r.id,
-      who: r.who,
-      initials: initialsOf(r.who),
-      channel: "Phone",
-      when: `${r.at}${r.duration ? ` · ${r.duration}` : ""}`,
-      sentence: wanted || r.note,
-      quoted: false,
-      status: [wanted ? r.note : "Worth a listen"],
-      tone: "warn",
-      warn: false,
-      cta: { label: "Open the call", to: r.to },
-      also: null,
-      waitedMs: Number.NEGATIVE_INFINITY,
-    });
+    queueAll.push(earRow(r, f));
   }
-  // A search that stopped to ask waits on the owner like a person does (spec G6): its name, its question, one
-  // button to answer it. Null: the searches were not read; the queue says nothing about them.
+  // Null: the searches were not read; the queue says nothing about them.
   for (const s of searches ?? []) {
-    const r = s.round;
-    if (!r || r.state !== "waiting_on_owner" || !r.question) continue;
-    const since = r.waiting_since ? new Date(r.waiting_since).getTime() : now.getTime();
-    const waitedMs = Math.max(0, now.getTime() - since);
-    queueAll.push({
-      id: `q-s-${s.id}`,
-      kind: "search",
-      conversationId: null,
-      callId: null,
-      who: s.name,
-      initials: initialsOf(s.name),
-      channel: "Leads",
-      when: `waited ${formatWaited(waitedMs)}`,
-      sentence: r.question.sentence,
-      quoted: false,
-      status: ["Waiting for your answer", "nothing is spent while it waits"],
-      tone: "escalated",
-      warn: waitedMs > SEARCH_WARN_MS,
-      cta: { label: "Answer", to: leadQuestionRoute(s.id) },
-      also: null,
-      waitedMs,
-    });
+    const row = searchRow(s, now);
+    if (row) queueAll.push(row);
   }
   queueAll.sort((a, b) => b.waitedMs - a.waitedMs);
   const countOf = (...kinds: TodayQueueRowVM["kind"][]) => queueAll.filter((r) => kinds.includes(r.kind)).length;
@@ -1391,55 +1317,82 @@ export function toTodayVM(
     winN ? `${winN} reply window${winN === 1 ? "" : "s"} closing` : "",
     earN ? `${earN} call${earN === 1 ? "" : "s"} worth a listen` : "",
   ].filter(Boolean);
-  const queue = {
+  return {
     rows: queueAll.slice(0, TODAY_QUEUE_MAX),
     more: Math.max(0, queueAll.length - TODAY_QUEUE_MAX),
     parts,
-    empty: queueEmpty,
+    empty,
     waiting: needN + winN + searchN,
   };
+}
 
+/**
+ * Today's brief: the facts read once, then one builder per band. The quiet day (no traffic, nobody waiting, no
+ * alert) proves the lines are listening instead of drawing a row of zeroes; every other day gets the headline
+ * ladder, the recap, the figures, the calls and the queue.
+ */
+export function toTodayVM(
+  m: MetricsSummaryDto,
+  conversations: ConversationDto[],
+  escalations: Array<EscalationDto & { conversation_id: string }>,
+  calls: CallDto[] | null,
+  now = new Date(),
+  // After `now`, so every caller that never read the searches stands; null is "not read", the queue says nothing.
+  searches: LeadSearchDto[] | null = null,
+): TodayVM {
+  const f = todayFacts({ m, conversations, escalations, calls, now, searches });
+  const { chips, lines, alert } = todayStanding(f);
+  const eyebrow = `${f.datePart} · ${f.clock} · ${m.workspace.name}`;
+  const proof = todayProof(f.live, f.tz, now);
+  const noReply = todayNoReply(f);
+  const facts = todayAskFacts(f);
+  const empty = todayQueueEmpty(f);
+
+  /* ---- the quiet day: prove we are listening, don't show a row of zeroes ---- */
+  if (f.traffic === 0 && f.needsYouCount === 0 && !alert) {
+    return {
+      standing: {
+        eyebrow,
+        chips,
+        lines,
+        alert: null,
+        headline: "Nothing has come in yet today.",
+        detail: null,
+        tone: "calm",
+      },
+      needsYou: null,
+      windowClosing: null,
+      recap: { label: "Today so far", line: "Nothing has come in yet today.", sentences: [], facts, receipts: [] },
+      figures: null,
+      proof,
+      noReply,
+      calls: null,
+      callsRead: f.callsRead,
+      queue: { rows: [], more: 0, parts: [], empty, waiting: 0 },
+      quiet: todayQuietDay(f, proof),
+    };
+  }
+
+  const needsYou = todayNeedsYou(f);
+  const { headline, detail, tone } = todayHeadline(f, alert, needsYou.rows);
+  const callRows = todayCallRows(f);
   return {
-    standing: {
-      eyebrow: `${datePart} · ${clock} · ${m.workspace.name}`,
-      chips,
-      lines,
-      alert,
-      headline,
-      detail,
-      tone,
+    standing: { eyebrow, chips, lines, alert, headline, detail, tone },
+    needsYou,
+    windowClosing: todayWindowClosing(f),
+    recap: {
+      label: "Today so far",
+      line: todayTrafficLine(f),
+      sentences: todaySentences(f, tone, alert),
+      facts,
+      receipts: todayReceipts(f),
     },
-    needsYou: {
-      count: needsYouCount,
-      hint: "The receptionist stopped and asked for a human.",
-      rows: needsRows,
-      empty: needsRows.length
-        ? null
-        : p.unanswered_in_window === 0 && p.messages_out_you === 0
-          ? "Nothing needs you. The receptionist answered every message that came in, and nobody asked for a person."
-          : "Nothing needs you right now — nobody asked for a person.",
-    },
-    windowClosing: closingRows.length
-      ? {
-          label: "Reply window closing",
-          hint: "WhatsApp only lets you write freely for 24 hours after someone messages you. After that it's an approved template.",
-          rows: closingRows,
-        }
-      : null,
-    recap: { label: "Today so far", line: trafficLine, sentences, facts, receipts },
-    figures,
+    figures: figuresOf(m, conversations, f.callsInWindow, escalations, f.tz, now),
     proof,
     noReply,
-    callsRead,
-    calls: p.calls
-      ? {
-          line: `${p.calls} call${p.calls === 1 ? "" : "s"} today${
-            callMinutes ? ` · ${callMinutes} minute${callMinutes === 1 ? "" : "s"}` : ""
-          }.`,
-          rows: callRows,
-        }
-      : null,
-    queue,
+    callsRead: f.callsRead,
+    calls: todayCalls(f, callRows),
+    queue: todayQueue(f, callRows, empty),
     quiet: null,
   };
 }

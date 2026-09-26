@@ -49,7 +49,7 @@ fails when this block and the baselines disagree.
 <!-- measured:start -->
 
 ```text
-functions over the limit            286   of which over 200 lines: 75
+functions over the limit            284   of which over 200 lines: 74
 files over 800 lines                 39
 directories over 20 modules           7
 window globals                      191   names

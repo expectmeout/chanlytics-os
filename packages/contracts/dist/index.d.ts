@@ -19065,6 +19065,11 @@ declare function todayProof(live: {
     last_inbound_at: string | null;
     last_outbound_at: string | null;
 }, tz: string, now: Date): string;
+/**
+ * Today's brief: the facts read once, then one builder per band. The quiet day (no traffic, nobody waiting, no
+ * alert) proves the lines are listening instead of drawing a row of zeroes; every other day gets the headline
+ * ladder, the recap, the figures, the calls and the queue.
+ */
 declare function toTodayVM(m: MetricsSummaryDto, conversations: ConversationDto[], escalations: Array<EscalationDto & {
     conversation_id: string;
 }>, calls: CallDto[] | null, now?: Date, searches?: LeadSearchDto[] | null): TodayVM;

@@ -1319,20 +1319,10 @@
     "branches": 35,
     "depth": 3
   },
-  "packages/contracts/src/today/today.ts::(callback)#57": {
-    "lines": 28,
-    "branches": 15,
-    "depth": 6
-  },
   "packages/contracts/src/today/today.ts::figuresOf#1": {
     "lines": 200,
     "branches": 65,
     "depth": 5
-  },
-  "packages/contracts/src/today/today.ts::toTodayVM#1": {
-    "lines": 726,
-    "branches": 182,
-    "depth": 6
   },
   "packages/contracts/src/today/today.ts::todayAwayGrouped#1": {
     "lines": 98,
