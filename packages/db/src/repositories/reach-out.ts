@@ -4,7 +4,7 @@
  * because "we could not check" is not "yes".
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../database.types";
+import type { Database, Json } from "../database.types";
 
 type Db = SupabaseClient<Database>;
 export type ReachOutSendRow = Database["public"]["Tables"]["reach_out_sends"]["Row"];
@@ -162,4 +162,148 @@ export async function planSends(db: Db, rows: ReachOutSendInsert[]): Promise<voi
     .from("reach_out_sends")
     .upsert(rows as never, { onConflict: "broadcast_id,lead_id", ignoreDuplicates: true });
   if (error) throw new Error(`cannot plan the run's sends: ${error.message}`);
+}
+
+/* ------------------------------------------------------------- the clock -- */
+
+const OPEN_STATES = ["planned", "claimed", "queued"] as const;
+
+/** The sends in one state, oldest first: the clock's queued (to reconcile) and claimed (to see stuck) ones. */
+export async function sendsIn(db: Db, state: "claimed" | "queued", limit: number): Promise<ReachOutSendRow[]> {
+  const { data, error } = await db
+    .from("reach_out_sends")
+    .select("*")
+    .eq("state", state)
+    .order("updated_at", { ascending: true })
+    .limit(limit);
+  if (error) throw new Error(`cannot read the ${state} sends: ${error.message}`);
+  return data ?? [];
+}
+
+/**
+ * Planned sends due by `before`, oldest first: what the clock plans again once stale (and, from PR 6, claims). A send
+ * whose domain was removed is among them once its time has passed.
+ */
+export async function plannedDue(db: Db, before: Date, limit: number): Promise<ReachOutSendRow[]> {
+  const { data, error } = await db
+    .from("reach_out_sends")
+    .select("*")
+    .eq("state", "planned")
+    .lte("send_at", before.toISOString())
+    .order("send_at", { ascending: true })
+    .limit(limit);
+  if (error) throw new Error(`cannot read the sends due: ${error.message}`);
+  return data ?? [];
+}
+
+export interface ReachOutRunRow {
+  id: string;
+  tenant_id: string;
+  state: string;
+  playbook_id: string | null;
+  audience: unknown;
+  updated_at: string;
+}
+
+/** Reach-out runs in these states, changed since `since` when given (a run canceled a week ago has nothing open). */
+export async function reachOutRunsIn(db: Db, states: string[], since?: Date): Promise<ReachOutRunRow[]> {
+  let q = db
+    .from("broadcasts")
+    .select("id, tenant_id, state, playbook_id, audience, updated_at")
+    .eq("audience->>kind", "reach_out")
+    .in("state", states);
+  if (since) q = q.gte("updated_at", since.toISOString());
+  const { data, error } = await q.limit(1000);
+  if (error) throw new Error(`cannot read the reach-out runs: ${error.message}`);
+  return (data ?? []) as ReachOutRunRow[];
+}
+
+/** The runs, by id, that sends belong to. */
+export async function runsById(db: Db, ids: string[]): Promise<Map<string, ReachOutRunRow>> {
+  if (ids.length === 0) return new Map();
+  const { data, error } = await db
+    .from("broadcasts")
+    .select("id, tenant_id, state, playbook_id, audience, updated_at")
+    .in("id", [...new Set(ids)]);
+  if (error) throw new Error(`cannot read the sends' runs: ${error.message}`);
+  return new Map(((data ?? []) as ReachOutRunRow[]).map((r) => [r.id, r]));
+}
+
+/** The sends of these runs still open (planned, claimed, queued), or in the states asked. */
+export async function sendsOfRuns(
+  db: Db,
+  runIds: string[],
+  states: readonly string[] = OPEN_STATES,
+): Promise<ReachOutSendRow[]> {
+  if (runIds.length === 0) return [];
+  const { data, error } = await db
+    .from("reach_out_sends")
+    .select("*")
+    .in("broadcast_id", [...new Set(runIds)])
+    .in("state", [...states]);
+  if (error) throw new Error(`cannot read the runs' sends: ${error.message}`);
+  return data ?? [];
+}
+
+export interface SendMessage {
+  id: string;
+  status: string;
+  error: unknown;
+  meta: unknown;
+  created_at: string;
+}
+
+/** The email rows these ids name, by id: what became of each send's email. A row not there is a row gone. */
+export async function messagesById(db: Db, ids: string[]): Promise<Map<string, SendMessage>> {
+  if (ids.length === 0) return new Map();
+  const { data, error } = await db
+    .from("messages")
+    .select("id, status, error, meta, created_at")
+    .in("id", [...new Set(ids)]);
+  if (error) throw new Error(`cannot read the sends' emails: ${error.message}`);
+  return new Map(((data ?? []) as SendMessage[]).map((m) => [m.id, m]));
+}
+
+/**
+ * A lead written to by a reach-out's email: still being written to (ready becomes nurture; a later stage is kept),
+ * first contacted when its first email left, its last outcome "emailed", and its event. Written only as it was read
+ * (its version), so a person working the lead at the same moment wins and the next email says so again.
+ */
+export async function leadWritten(
+  db: Db,
+  p: { tenantId: string; leadId: string; at: string; sendId: string },
+): Promise<boolean> {
+  const { data: lead, error } = await db
+    .from("leads")
+    .select("stage, version, contacted_at")
+    .eq("tenant_id", p.tenantId)
+    .eq("id", p.leadId)
+    .maybeSingle();
+  if (error) throw new Error(`cannot read the lead a send wrote to: ${error.message}`);
+  if (!lead) return false;
+  const { data: moved, error: e2 } = await db
+    .from("leads")
+    .update({
+      stage: lead.stage === "ready" ? "nurture" : lead.stage,
+      contacted_at: lead.contacted_at ?? p.at,
+      last_outcome: "emailed",
+      version: lead.version + 1,
+    })
+    .eq("tenant_id", p.tenantId)
+    .eq("id", p.leadId)
+    .eq("version", lead.version)
+    .select("id");
+  if (e2) throw new Error(`cannot record the lead as written to: ${e2.message}`);
+  if ((moved ?? []).length === 0) return false;
+  const said = { by: "reach_out", send_id: p.sendId } as unknown as Json;
+  const { error: e3 } = await db.from("events").insert({
+    tenant_id: p.tenantId,
+    kind: "lead.emailed",
+    category: "lead",
+    subject_type: "lead",
+    subject_id: p.leadId,
+    data: said,
+  });
+  if (e3) throw new Error(`cannot record the lead's email: ${e3.message}`);
+  return true;
 }

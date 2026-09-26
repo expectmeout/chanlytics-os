@@ -5759,6 +5759,10 @@ type Database = {
                 Args: never;
                 Returns: number;
             };
+            trigger_reach_out_sweep: {
+                Args: never;
+                Returns: number;
+            };
             trigger_registration_sweep: {
                 Args: never;
                 Returns: number;
@@ -6297,6 +6301,47 @@ declare function reachOutFollowers(db: Db$9, p: {
 }): Promise<FollowerLead[]>;
 /** A run's sends, planned once: a lead already in the run keeps the plan it has. */
 declare function planSends(db: Db$9, rows: ReachOutSendInsert[]): Promise<void>;
+/** The sends in one state, oldest first: the clock's queued (to reconcile) and claimed (to see stuck) ones. */
+declare function sendsIn(db: Db$9, state: "claimed" | "queued", limit: number): Promise<ReachOutSendRow[]>;
+/**
+ * Planned sends due by `before`, oldest first: what the clock plans again once stale (and, from PR 6, claims). A send
+ * whose domain was removed is among them once its time has passed.
+ */
+declare function plannedDue(db: Db$9, before: Date, limit: number): Promise<ReachOutSendRow[]>;
+interface ReachOutRunRow {
+    id: string;
+    tenant_id: string;
+    state: string;
+    playbook_id: string | null;
+    audience: unknown;
+    updated_at: string;
+}
+/** Reach-out runs in these states, changed since `since` when given (a run canceled a week ago has nothing open). */
+declare function reachOutRunsIn(db: Db$9, states: string[], since?: Date): Promise<ReachOutRunRow[]>;
+/** The runs, by id, that sends belong to. */
+declare function runsById(db: Db$9, ids: string[]): Promise<Map<string, ReachOutRunRow>>;
+/** The sends of these runs still open (planned, claimed, queued), or in the states asked. */
+declare function sendsOfRuns(db: Db$9, runIds: string[], states?: readonly string[]): Promise<ReachOutSendRow[]>;
+interface SendMessage {
+    id: string;
+    status: string;
+    error: unknown;
+    meta: unknown;
+    created_at: string;
+}
+/** The email rows these ids name, by id: what became of each send's email. A row not there is a row gone. */
+declare function messagesById(db: Db$9, ids: string[]): Promise<Map<string, SendMessage>>;
+/**
+ * A lead written to by a reach-out's email: still being written to (ready becomes nurture; a later stage is kept),
+ * first contacted when its first email left, its last outcome "emailed", and its event. Written only as it was read
+ * (its version), so a person working the lead at the same moment wins and the next email says so again.
+ */
+declare function leadWritten(db: Db$9, p: {
+    tenantId: string;
+    leadId: string;
+    at: string;
+    sendId: string;
+}): Promise<boolean>;
 
 /** Webhook → tenant routing over tenant_channels(kind, external_id). */
 
@@ -6985,4 +7030,4 @@ interface Page<T> {
  */
 declare function readAllRows<T>(what: string, page: (from: number, to: number) => PromiseLike<Page<T>>, cap?: number, onCapped?: (what: string, cap: number) => void): Promise<T[]>;
 
-export { type AudienceLead, CALL_CONTROL_S, type ChannelLookup, type ColdReceiptsOwed, type ControlHolder, type ControlOutcome, DEFAULT_ROW_CAP, type Database, type DomainCapacity, type FollowerLead, HISTORY_COLUMNS, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type ListRow, MAX_ROWS, type MailboxRow, type NormalizedCallInput, type OutboundTarget, type OutreachFactsRow, PEOPLE_PAGE, type Page, type PersonForSend, type PgThreadState, type PolicyRecord, type PutTenantConfigResult, type ReachOutSendInsert, type ReachOutSendRow, type RoutedChannel, type SavedListRow, type SendingDomainHolder, type SendingDomainRow, type ServiceClientConfig, type SubscribeOptions, type TemplateRow, type TenantConfigRow, type ThreadTurn, type Touch, type TouchIndex, type WriteError, type YesRow, addToList, applyDomainCheck, archiveList, assembleHistory, claimCallNotification, claimControl, claimSends, coldReceiptsOwed, countSendingDomains, countSentToday, createList, createServiceClient, deleteList, deleteSendingDomain, deleteSendingDomainAsRead, describeLead, domainCapacityOf, domainHeldSince, dropFromList, dueSendingDomains, emitEvent, everyoneIn, followUpTouchesSince, getTenantConfig, ingestCall, ingestInbound, ingestInboundEmail, lastInboundEmail, linkCallMessage, listMemberIds, listPolicies, listRow, mailboxById, mailboxFor, mailboxOfTenant, markProcessed, moveSend, notesForReceptionist, outreachFactsOf, pauseConversation, peoplePage, personReplyMode, planSends, playbooksOnList, putTenantConfig, reachOutAudience, reachOutFollowers, reachOutPerson, readAllRows, readDealForPhone, readLeadContext, readThreadState, recordCallNote, recordEchoAndPause, recordEmailNo, recordEmailStatus, recordOutbound, recordProviderDomain, recordStatusByExternalId, releaseControl, renameList, reserveSendingDomain, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, savedListFor, savedListsFor, sendingDomainByHost, sendingDomainCounts, sendingDomainOf, sendingDomainsOf, sentEmailRequestOf, sentEmailWithMessageId, setCallRecording, setListRule, setPersonReplyMode, setPolicyMode, stampEmailComplaint, stampEmailSent, stampMailboxReceived, subscribeMessagesInserts, suppressEmailOf, templatesFor, touchIndex, touchSendingDomain, touchesSince, watchedTables, yesesSince };
+export { type AudienceLead, CALL_CONTROL_S, type ChannelLookup, type ColdReceiptsOwed, type ControlHolder, type ControlOutcome, DEFAULT_ROW_CAP, type Database, type DomainCapacity, type FollowerLead, HISTORY_COLUMNS, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type ListRow, MAX_ROWS, type MailboxRow, type NormalizedCallInput, type OutboundTarget, type OutreachFactsRow, PEOPLE_PAGE, type Page, type PersonForSend, type PgThreadState, type PolicyRecord, type PutTenantConfigResult, type ReachOutRunRow, type ReachOutSendInsert, type ReachOutSendRow, type RoutedChannel, type SavedListRow, type SendMessage, type SendingDomainHolder, type SendingDomainRow, type ServiceClientConfig, type SubscribeOptions, type TemplateRow, type TenantConfigRow, type ThreadTurn, type Touch, type TouchIndex, type WriteError, type YesRow, addToList, applyDomainCheck, archiveList, assembleHistory, claimCallNotification, claimControl, claimSends, coldReceiptsOwed, countSendingDomains, countSentToday, createList, createServiceClient, deleteList, deleteSendingDomain, deleteSendingDomainAsRead, describeLead, domainCapacityOf, domainHeldSince, dropFromList, dueSendingDomains, emitEvent, everyoneIn, followUpTouchesSince, getTenantConfig, ingestCall, ingestInbound, ingestInboundEmail, lastInboundEmail, leadWritten, linkCallMessage, listMemberIds, listPolicies, listRow, mailboxById, mailboxFor, mailboxOfTenant, markProcessed, messagesById, moveSend, notesForReceptionist, outreachFactsOf, pauseConversation, peoplePage, personReplyMode, planSends, plannedDue, playbooksOnList, putTenantConfig, reachOutAudience, reachOutFollowers, reachOutPerson, reachOutRunsIn, readAllRows, readDealForPhone, readLeadContext, readThreadState, recordCallNote, recordEchoAndPause, recordEmailNo, recordEmailStatus, recordOutbound, recordProviderDomain, recordStatusByExternalId, releaseControl, renameList, reserveSendingDomain, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, runsById, savedListFor, savedListsFor, sendingDomainByHost, sendingDomainCounts, sendingDomainOf, sendingDomainsOf, sendsIn, sendsOfRuns, sentEmailRequestOf, sentEmailWithMessageId, setCallRecording, setListRule, setPersonReplyMode, setPolicyMode, stampEmailComplaint, stampEmailSent, stampMailboxReceived, subscribeMessagesInserts, suppressEmailOf, templatesFor, touchIndex, touchSendingDomain, touchesSince, watchedTables, yesesSince };

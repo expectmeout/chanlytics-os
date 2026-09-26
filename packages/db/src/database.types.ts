@@ -5349,6 +5349,7 @@ export type Database = {
       trigger_lines_sweep: { Args: never; Returns: number }
       trigger_notes_sweep: { Args: never; Returns: number }
       trigger_playbooks_sweep: { Args: never; Returns: number }
+      trigger_reach_out_sweep: { Args: never; Returns: number }
       trigger_registration_sweep: { Args: never; Returns: number }
       trigger_sweep_health: { Args: never; Returns: number }
       wake_stale_snoozes: { Args: never; Returns: number }
