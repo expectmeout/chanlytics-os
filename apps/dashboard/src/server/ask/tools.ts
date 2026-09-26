@@ -257,6 +257,20 @@ function inboxEscalations<E extends { conversation_id: string }>(open: E[]): Map
 }
 
 /**
+ * A read the page tolerates, tolerated as the page does: null, which the tool says as its own state (never "none"),
+ * and one line in the log. The turn's cache keeps no failure, so the next tool that asks reads again.
+ */
+const unread =
+  (tool: string, read: string) =>
+  (e: unknown): null => {
+    console.error(
+      "ask_tool_read_failed",
+      JSON.stringify({ tool, read, error: e instanceof Error ? e.message : String(e) }),
+    );
+    return null;
+  };
+
+/**
  * A reader's 404 as the tool's own "not here" answer, null; any other failure
  * is still the read failing (runTool says so). A row the workspace does not
  * hold is not a read that failed, and the model must not be told it was.
@@ -765,8 +779,9 @@ async function getSettings(t: ToolContext): Promise<unknown> {
       (r) => r.data,
       () => [],
     ),
-    // The channels as their page reads them (readers/channels.ts), once a turn: list_audiences reads the same rows.
-    load(t.rc, channelsReader, undefined).then((r) => r.data.channels),
+    // The channels as their page reads them (readers/channels.ts), once a turn: list_audiences reads the same rows. A
+    // read that fails is said as its own state, never as no channels, and the rest of the settings still answer.
+    load(t.rc, channelsReader, undefined).then((r) => r.data.channels, unread("get_settings", "channels")),
     load(t.rc, readers.sellsBy, undefined).then((r) => r.data),
   ]);
   // The Autonomy rows offered here, as the pane draws them: the follow-ups' only where deals are on (0006).
@@ -793,9 +808,10 @@ async function getSettings(t: ToolContext): Promise<unknown> {
         }
       : null,
     policies: policies.map((p) => ({ class: p.class, mode: p.mode, limits: p.limits })),
-    // The same three fields, in the page's order: by kind.
-    channels: chans.map((c) => ({ kind: c.kind, status: c.status, number: c.number_e164 })),
+    // The same three fields, in the page's order: by kind. Null: they could not be read, which is not none.
+    channels: chans ? chans.map((c) => ({ kind: c.kind, status: c.status, number: c.number_e164 })) : null,
     config_version: cfgRow?.version ?? null,
+    ...(chans ? {} : { could_not_read: ["The channels could not be read just now."] }),
   };
 }
 
@@ -853,10 +869,12 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
     // The workspace's own lists as People's rail reads them (readers/lists.ts), once a turn.
     load(t.rc, listsReader, undefined).then((r) => r.data.lists),
     // The composers' read of the templates (readers/templates.ts), once a turn: approved and not hidden by the
-    // workspace (ledger #9), each with why this product cannot send it.
-    load(t.rc, templatesReader, { all: false }).then((r) => r.data.templates),
+    // workspace (ledger #9), each with why this product cannot send it. A read that fails is its own state, as the
+    // Broadcasts page keeps it, never "no template yet"; the audiences still answer.
+    load(t.rc, templatesReader, { all: false }).then((r) => r.data.templates, unread("list_audiences", "templates")),
     // The channels as the Broadcasts page reads them (readers/channels.ts), once a turn: get_settings reads the same.
-    load(t.rc, channelsReader, undefined).then((r) => r.data.channels),
+    // A read that fails is no number known, as the page takes it -- said as such, never as no number.
+    load(t.rc, channelsReader, undefined).then((r) => r.data.channels, unread("list_audiences", "channels")),
   ]);
   const rows = pool.rows;
   // FOUR sizes for every audience: this listing is read BEFORE a template is
@@ -901,7 +919,7 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
   ];
   // The number a broadcast goes out on, as the Broadcasts page picks it (legacy-bridge/surface-data.ts): the active
   // WhatsApp row, and its health from the quality Meta assigned it.
-  const wa = chans.find((c) => c.kind === "whatsapp" && c.status === "active") ?? null;
+  const wa = chans?.find((c) => c.kind === "whatsapp" && c.status === "active") ?? null;
   const health = numberHealth({
     quality: wa?.quality ?? null,
     event: wa?.quality_event ?? null,
@@ -913,33 +931,44 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
   // here that the wire refuses became a card whose send failed for everyone on it. The rows carry `blocked`, the
   // answer the reader worked out from Meta's array, which the split believes (contracts templateBlocked); its type
   // names the array they no longer carry.
-  const split = sendableTemplates<TemplatesRead["templates"][number] & { components?: unknown }>(
-    tpls.filter((x) => x.channel === "whatsapp" && x.meta_status === "approved").sort(compareTemplates),
-  );
+  const split = tpls
+    ? sendableTemplates<TemplatesRead["templates"][number] & { components?: unknown }>(
+        tpls.filter((x) => x.channel === "whatsapp" && x.meta_status === "approved").sort(compareTemplates),
+      )
+    : null;
+  // What could not be read, in words the model says: a null above is not none.
+  const couldNotRead = [
+    ...(split ? [] : ["The messages could not be read just now: say so, and propose no broadcast until they can."]),
+    ...(chans ? [] : ["The WhatsApp number's state could not be read just now."]),
+  ];
   return {
     route: "broadcasts",
     audiences,
-    templates: split.sendable.map((x) => ({
-      template_id: x.id,
-      name: x.name,
-      language: x.language,
-      category: x.category,
-      values: Array.isArray(x.variables)
-        ? (x.variables as { position?: number; label?: string; example?: string | null }[]).map((v) => ({
-            position: v.position,
-            label: v.label,
-            example: v.example ?? null,
-          }))
-        : [],
-      body: x.body_preview,
-    })),
-    cannot_send: split.why,
-    number: {
-      present: !!wa,
-      health: health.label,
-      can_send: health.canSend,
-      limit_per_day: health.limitPerDay === Number.POSITIVE_INFINITY ? null : health.limitPerDay,
-    },
+    templates:
+      split?.sendable.map((x) => ({
+        template_id: x.id,
+        name: x.name,
+        language: x.language,
+        category: x.category,
+        values: Array.isArray(x.variables)
+          ? (x.variables as { position?: number; label?: string; example?: string | null }[]).map((v) => ({
+              position: v.position,
+              label: v.label,
+              example: v.example ?? null,
+            }))
+          : [],
+        body: x.body_preview,
+      })) ?? null,
+    cannot_send: split?.why ?? null,
+    number: chans
+      ? {
+          present: !!wa,
+          health: health.label,
+          can_send: health.canSend,
+          limit_per_day: health.limitPerDay === Number.POSITIVE_INFINITY ? null : health.limitPerDay,
+        }
+      : null,
+    ...(couldNotRead.length ? { could_not_read: couldNotRead } : {}),
     note: `Two consents, two counts each. can_be_sent_offers is who a promotional template reaches and can_be_sent_messages who a utility or authentication one reaches, because ${NO_NUMBER_REACH}; said_yes_to_offers and said_yes_to_messages count everyone who gave that yes, a number or not. Pick the template first, then quote its can_be_sent count as who the broadcast reaches -- never a larger count. When that is 0 and its said_yes is not, the ones who said yes have no number: say so, and never send the owner to get a yes they already have.`,
   };
 }

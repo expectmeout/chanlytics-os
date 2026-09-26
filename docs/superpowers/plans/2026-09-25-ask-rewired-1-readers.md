@@ -988,12 +988,17 @@ hours must not pay for; `list_audiences` reads `channels` (the number, as the Br
 composers' `templates`, split as the composer splits them, `cannot_send` saying why for the ones the wire refuses
 (closes #14; the composer's slot filter stays open); `list_lead_searches` reads `searches`, the page's rows, and
 carries the rail's six `counts` (closes #12). `server/audience.ts` `poolList` takes the turn's lists: `search_people`,
-`propose_broadcast` and `propose_playbook` hand them for a list of the workspace's own; the send reads its own. After it
-no tool reads the database itself (`tools.ts` holds no `.from(` or `.rpc(`); a proposal's own checks and the snapshot
-keep theirs. **Pins:** re-pointed at the readers where no route run holds them (`back-office`, `setup`, the templates'
+`propose_broadcast` and `propose_playbook` hand them for a list of the workspace's own; the send reads its own. A read
+the page tolerates, the tools tolerate as the page does and say so: a failed `channels` read is `get_settings`'
+`channels: null` and `list_audiences`' `number: null`, a failed `templates` read `list_audiences`' `templates: null`
+(and `cannot_send: null`), each with a `could_not_read` sentence, never "none" and never a failed tool; the turn keeps
+no failure, so the next tool reads again. `openingsFor` takes the turn's zone and settings, required (its fallback read
+of `tenantFacts` and the config is gone, and with it its database context), and the kernel's comment says what the
+cache does, so the phase's exit greps print nothing. After it no tool reads the database itself (`tools.ts` holds no
+`.from(` or `.rpc(`); a proposal's own checks and the snapshot keep theirs. **Pins:** re-pointed at the readers where no route run holds them (`back-office`, `setup`, the templates'
 title and columns); converted where a route run already asserts them (`availability`, `facts`, `settings-truth`,
 `broadcasts`, `notifications-durable`, the composers' filter in `starter-templates` and `templates-truth`); the
-baseline falls by five. `settings-routes.test.mjs:637` passes unchanged. `tools.ts` is 1,229 lines, not the 700 hoped
+baseline falls by five. `settings-routes.test.mjs:637` passes unchanged. `tools.ts` is 1,258 lines, not the 700 hoped
 for: what is left is the tools' own projections, which Phase 3's registry takes apart.
 
 ---

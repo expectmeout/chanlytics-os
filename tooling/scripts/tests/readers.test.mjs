@@ -1841,7 +1841,11 @@ test("the openings, for Ask and for the palette: GET ask/openings answers its re
 
   await withFeed({ body: WEDNESDAY_TAKEN }, async () => {
     const t = calTables("https://cal.example/open.ics");
-    const want = await openingsFor(calCtx(t), A, { day: "2026-09-09", service: "Balayage" }, CAL_NOW);
+    // openingsFor handed the fixture's own zone and settings, as the reader hands it the turn's.
+    const want = await openingsFor(A, { day: "2026-09-09", service: "Balayage" }, CAL_NOW, {
+      timezone: t.tenants[0].timezone,
+      config: t.tenant_config[0].config,
+    });
     const read = await kernel.load(calIn(calCtx(t)), openingsReader, { day: "2026-09-09", service: "Balayage" });
     assert.deepEqual(read.data, { openings: want });
     assert.deepEqual(

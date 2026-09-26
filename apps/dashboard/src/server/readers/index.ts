@@ -128,8 +128,8 @@ export class TurnCache {
     if (had) return had;
     const read = rc.keep && r.ttlMs ? readerCache.get(rc, r, args, key) : r.read(rc, args);
     this.hits.set(key, read);
-    // memoised() in tools.ts kept a rejection for the whole turn, so a read
-    // that failed once failed on every later call. Not here.
+    // A failure is never kept: once the read settles as a rejection it leaves
+    // the cache, so the next call in the turn reads again.
     read.catch(() => {
       if (this.hits.get(key) === read) this.hits.delete(key);
     });

@@ -14,7 +14,7 @@ export const openings: Reader<{ day: string | null; service: string | null }, { 
   async read(rc, { day, service }) {
     const { timezone } = (await load(rc, facts.facts, undefined)).data;
     const settings = (await load(rc, facts.config, undefined)).data;
-    const result = await openingsFor(rc.ctx, rc.tenantId, { day, service }, rc.now, {
+    const result = await openingsFor(rc.tenantId, { day, service }, rc.now, {
       timezone,
       config: settings?.config ?? null,
     });

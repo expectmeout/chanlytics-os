@@ -3920,3 +3920,72 @@ test("a list of the workspace's own is read once a turn: list_audiences reads th
     "the lists and their members once, for the listing, the search and the card alike",
   );
 });
+
+test("a read the page tolerates, Ask tolerates as the page does and says so: a failed channels read is get_settings' channels and list_audiences' number null, a failed templates read list_audiences' templates null -- each with its sentence, never none and never a failed tool, said once in the log; everything else still answers; the turn keeps no failure, so the next tool reads again", async () => {
+  const world = () => tables({ tenant_channels: CHANNELS, templates: [OFFER] });
+  const answers = async (faults, names) => {
+    const ctx = ctxFor(world(), RPCS, faults);
+    const tc = newToolContext(ctx, A, "owner", TZ, NOW);
+    const out = {};
+    const { lines } = await logged("ask_tool_read_failed", async () => {
+      for (const name of names) out[name] = await runTool(tc, { name, input: {} });
+    });
+    return { ctx, out, lines };
+  };
+  const parsed = (o) => JSON.parse(o.result);
+  const without = (o, ...keys) => Object.fromEntries(Object.entries(o).filter(([k]) => !keys.includes(k)));
+  const healthy = await answers({}, ["get_settings", "list_audiences"]);
+  const settings = parsed(healthy.out.get_settings);
+  const listing = parsed(healthy.out.list_audiences);
+  assert.equal("could_not_read" in settings || "could_not_read" in listing, false, "nothing to say when all was read");
+
+  // The channels: get_settings, then list_audiences, in one turn.
+  const noChannels = await answers({ "tenant_channels.select": { message: "channels down" } }, [
+    "get_settings",
+    "list_audiences",
+  ]);
+  const s = parsed(noChannels.out.get_settings);
+  assert.equal(noChannels.out.get_settings.isError, false, noChannels.out.get_settings.result);
+  assert.deepEqual(
+    [s.channels, s.could_not_read],
+    [null, ["The channels could not be read just now."]],
+    "never [] -- no channels read is not no channels",
+  );
+  assert.deepEqual(without(s, "channels", "could_not_read"), without(settings, "channels"), "the rest still answers");
+  const a = parsed(noChannels.out.list_audiences);
+  assert.equal(noChannels.out.list_audiences.isError, false, noChannels.out.list_audiences.result);
+  assert.deepEqual(
+    [a.number, a.could_not_read],
+    [null, ["The WhatsApp number's state could not be read just now."]],
+    "no number known, never 'no number'",
+  );
+  assert.deepEqual(without(a, "number", "could_not_read"), without(listing, "number"), "the audiences still answer");
+  assert.equal(
+    noChannels.ctx.supabase.seen.filter((q) => q.table === "tenant_channels" && q.op === "select").length,
+    2,
+    "the failure was not kept: list_audiences read the channels again",
+  );
+  assert.deepEqual(
+    noChannels.lines.map((l) => JSON.parse(l)).map((x) => [x.tool, x.read]),
+    [
+      ["get_settings", "channels"],
+      ["list_audiences", "channels"],
+    ],
+  );
+
+  // The templates.
+  const noTemplates = await answers({ "templates.select": { message: "templates down" } }, ["list_audiences"]);
+  const t = parsed(noTemplates.out.list_audiences);
+  assert.equal(noTemplates.out.list_audiences.isError, false, noTemplates.out.list_audiences.result);
+  assert.deepEqual(
+    [t.templates, t.cannot_send, t.could_not_read],
+    [null, null, ["The messages could not be read just now: say so, and propose no broadcast until they can."]],
+    "the templates' own state, never 'no template yet'",
+  );
+  assert.deepEqual(
+    without(t, "templates", "cannot_send", "could_not_read"),
+    without(listing, "templates", "cannot_send"),
+    "the audiences and the number still answer",
+  );
+  assert.equal(noTemplates.lines.length, 1, "said once in the log");
+});
