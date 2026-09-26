@@ -11,7 +11,8 @@ const HOST = ORIGIN ? new URL(ORIGIN).host : "";
 const ID = "com.chanlytics.app";
 /** The EAS project (expo.dev, chanlyticss-team / chanlytics): what builds, updates and push tokens are filed under. */
 const EAS_PROJECT_ID = "a5f1a093-2cd8-436b-8e7d-07fb2b0b62dc";
-const PAGE_DARK = "#0c0d0f"; // contracts THEME_COLORS.dark: the paper the document opens on before its boot script runs.
+const PAGE_DARK = "#0c0d0f";
+const MARK_TEAL = "#3cb79e"; // the ring in the mark, sampled from icon.png // contracts THEME_COLORS.dark: the paper the document opens on before its boot script runs.
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
@@ -57,6 +58,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   plugins: [
     "expo-router",
     "expo-updates",
+    // The status-bar icon Android draws is the mark in white on transparent (a 96px PNG); the tint is the ring's teal.
+    [
+      "expo-notifications",
+      { icon: "./assets/images/notification-icon.png", color: MARK_TEAL, defaultChannel: "default" },
+    ],
     ["expo-splash-screen", { backgroundColor: PAGE_DARK, image: "./assets/images/splash-icon.png", imageWidth: 96 }],
   ],
   // EAS Update: the fingerprint policy, so an update can only reach a build whose native code it matches.

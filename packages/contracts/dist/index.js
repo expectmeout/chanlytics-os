@@ -331,7 +331,14 @@ var JOB_KINDS = [
    * contracts PUSH_KINDS; a transport failure throws and is tried again by
    * RETRY_WAITS_MS. Internal work: a second claim runs it again.
    */
-  "push_send"
+  "push_send",
+  /**
+   * The receipts of one push_send, read a quarter of an hour on (00189):
+   * Expo's ticket says the service took a message, its receipt says whether
+   * the phone did, and a phone answered gone is forgotten here. Carries the
+   * tickets in its payload; a transport failure throws and is tried again.
+   */
+  "push_receipts"
 ];
 var JOB_STATES = ["scheduled", "fired", "done", "canceled", "failed"];
 var WABA_FIELDS = [
@@ -9398,11 +9405,11 @@ var BUILTIN_ID = /^[a-z_]{1,40}$/;
 function listToken(ref) {
   return ref.kind === "builtin" ? `seg:${ref.id}` : `list:${ref.id}`;
 }
-function parseListToken(token) {
-  if (typeof token !== "string") return null;
-  const at2 = token.indexOf(":");
-  const kind = token.slice(0, at2);
-  const id = token.slice(at2 + 1);
+function parseListToken(token2) {
+  if (typeof token2 !== "string") return null;
+  const at2 = token2.indexOf(":");
+  const kind = token2.slice(0, at2);
+  const id = token2.slice(at2 + 1);
   if ((kind === "seg" || kind === "state") && BUILTIN_ID.test(id)) return { kind: "builtin", id };
   if (kind === "list" && SAVED_ID.test(id)) return { kind: "saved", id: id.toLowerCase() };
   return null;
@@ -9584,8 +9591,8 @@ function unmetNeed(needs, ctx) {
   };
   return LIST_NEEDS.find((n) => needs.includes(n) && !met[n]) ?? null;
 }
-var builtinByToken = (token) => {
-  const ref = parseListToken(token);
+var builtinByToken = (token2) => {
+  const ref = parseListToken(token2);
   return ref && ref.kind === "builtin" ? BUILTIN_LISTS.find((l) => l.id === ref.id) ?? null : null;
 };
 function listMembers(list2, rows, ctx, lookup = () => null) {
@@ -9598,16 +9605,16 @@ function listMembers(list2, rows, ctx, lookup = () => null) {
   const need = unmetNeed(ruleNeeds(rule), ctx);
   if (need) return { state: "unknown", reason: need };
   const read = /* @__PURE__ */ new Map();
-  for (const token of ruleLists(rule)) {
-    const b = builtinByToken(token);
-    const other = b ? { rule: b.rule, ids: [], readable: true } : lookup(token);
+  for (const token2 of ruleLists(rule)) {
+    const b = builtinByToken(token2);
+    const other = b ? { rule: b.rule, ids: [], readable: true } : lookup(token2);
     if (!other || !other.readable) return { state: "unknown", reason: "list" };
     if (other.rule && ruleLists(other.rule).length) return { state: "unknown", reason: "list" };
     const m = listMembers(other, rows, ctx);
     if (m.state === "unknown") return m;
-    read.set(token, m.ids);
+    read.set(token2, m.ids);
   }
-  const inList = (token, id) => read.get(token)?.has(id) ?? false;
+  const inList = (token2, id) => read.get(token2)?.has(id) ?? false;
   return { state: "ok", ids: new Set(rows.filter((v) => listRuleMatches(rule, v, inList)).map((v) => v.id)) };
 }
 function savedListIds(list2, rows, ctx, lookup = () => null) {
@@ -9615,8 +9622,8 @@ function savedListIds(list2, rows, ctx, lookup = () => null) {
   return m.state === "ok" ? m.ids : /* @__PURE__ */ new Set();
 }
 function savedListLookup(saved) {
-  return (token) => {
-    const ref = parseListToken(token);
+  return (token2) => {
+    const ref = parseListToken(token2);
     if (!ref || ref.kind !== "saved") return null;
     const l = saved.find((s) => s.id.toLowerCase() === ref.id);
     if (!l) return null;
@@ -9627,9 +9634,9 @@ function savedListLookup(saved) {
 function listNeeds(rule, lookup = () => null) {
   if (!rule) return [];
   const needs = new Set(ruleNeeds(rule));
-  for (const token of ruleLists(rule)) {
-    const b = builtinByToken(token);
-    const other = b ? b.rule : lookup(token)?.rule;
+  for (const token2 of ruleLists(rule)) {
+    const b = builtinByToken(token2);
+    const other = b ? b.rule : lookup(token2)?.rule;
     if (other) for (const n of ruleNeeds(other)) needs.add(n);
   }
   return LIST_NEEDS.filter((n) => needs.has(n));
@@ -9723,21 +9730,21 @@ function pinTokens(view) {
   return Array.isArray(pins) ? pins.filter((t) => typeof t === "string" && parseListToken(t) !== null).slice(0, TODAY_PINS_MAX) : [];
 }
 function todayPins(view, people) {
-  return pinTokens(view).flatMap((token) => {
-    const ref = parseListToken(token);
+  return pinTokens(view).flatMap((token2) => {
+    const ref = parseListToken(token2);
     if (ref.kind === "builtin") {
       const l = people.lists.find((x) => x.id === ref.id);
-      return l ? [{ token, label: l.label, count: l.count, to: `clients/seg:${l.id}` }] : [];
+      return l ? [{ token: token2, label: l.label, count: l.count, to: `clients/seg:${l.id}` }] : [];
     }
     const s = people.saved.find((x) => x.id.toLowerCase() === ref.id);
-    return s ? [{ token, label: s.name, count: s.unknown ? null : s.count, to: `clients/list:${s.id}` }] : [];
+    return s ? [{ token: token2, label: s.name, count: s.unknown ? null : s.count, to: `clients/list:${s.id}` }] : [];
   });
 }
-function togglePin(view, token) {
+function togglePin(view, token2) {
   const pins = pinTokens(view);
-  const t = token.toLowerCase();
+  const t = token2.toLowerCase();
   if (pins.some((p) => p.toLowerCase() === t)) return { pins: pins.filter((p) => p.toLowerCase() !== t) };
-  return pins.length < TODAY_PINS_MAX ? { pins: [...pins, token] } : null;
+  return pins.length < TODAY_PINS_MAX ? { pins: [...pins, token2] } : null;
 }
 
 // src/broadcast-audience.ts
@@ -15700,13 +15707,13 @@ var TOKEN_MAX = 200;
 var VERSION_MAX = 40;
 function parseDevice(body) {
   const b = body && typeof body === "object" ? body : {};
-  const token = typeof b.token === "string" ? b.token.trim() : "";
-  if (!token) return { ok: false, reason: "A device needs its push token." };
-  if (token.length > TOKEN_MAX) return { ok: false, reason: "That push token is longer than any we know." };
+  const token2 = typeof b.token === "string" ? b.token.trim() : "";
+  if (!token2) return { ok: false, reason: "A device needs its push token." };
+  if (token2.length > TOKEN_MAX) return { ok: false, reason: "That push token is longer than any we know." };
   const platform = PUSH_PLATFORMS.includes(String(b.platform)) ? b.platform : null;
   if (!platform) return { ok: false, reason: "A device is an iPhone or an Android phone." };
   const version = typeof b.app_version === "string" && b.app_version.trim() ? b.app_version.trim().slice(0, VERSION_MAX) : null;
-  return { ok: true, device: { token, platform, app_version: version } };
+  return { ok: true, device: { token: token2, platform, app_version: version } };
 }
 var PUSH_KINDS = [
   "handoff",
@@ -15722,19 +15729,27 @@ var PUSH_KINDS = [
   "review"
 ];
 var isPushKind = (kind) => PUSH_KINDS.includes(kind);
+function unreadFor(rows, seenAt, marks) {
+  const seen = seenAt ? Date.parse(seenAt) : 0;
+  const gone = new Set(marks.filter((m) => m.read_at || m.dismissed_at).map((m) => m.notification_id));
+  return rows.filter((r2) => Date.parse(r2.created_at) > seen && !gone.has(r2.id)).length;
+}
 function firstLine(body, max = 160) {
   return body.split("\n").find((l) => l.trim())?.trim().slice(0, max) ?? "";
 }
-function pushFor(n, tokens) {
+function pushFor(n, targets) {
   const body = firstLine(n.body);
-  return tokens.map((to) => ({
-    to,
+  return targets.map((t) => ({
+    to: t.token,
     title: n.title,
     body,
     sound: "default",
+    badge: t.badge,
     data: { route: n.route, notification_id: n.id, tenant_id: n.tenant_id }
   }));
 }
+var PUSH_RECEIPTS_AFTER_MS = 15 * 6e4;
+var BELL_WINDOW_DAYS = 30;
 
 // src/notifications.ts
 var DAY_MS6 = 24 * 3600 * 1e3;
@@ -15847,7 +15862,8 @@ var JOB_WORK = {
   lead_round_start: { stopped: "A search could not start", to: "clients/leads" },
   lead_collect: { stopped: "A search stopped partway", to: "clients/leads" },
   lead_check: { stopped: "Checking a search's emails stopped", to: "clients/leads" },
-  push_send: { stopped: "An alert to your phone was not sent", to: "admin/notifications" }
+  push_send: { stopped: "An alert to your phone was not sent", to: "admin/notifications" },
+  push_receipts: { stopped: "Checking that your phone was told did not finish", to: "admin/notifications" }
 };
 var JOB_WORK_OTHER = { stopped: "Something in the background did not finish", to: "today" };
 function jobNewsWords(jobKind, end, attempts = 1) {
@@ -22351,7 +22367,8 @@ var SCHEMA_SETS = {
     "lead_round_start",
     "lead_collect",
     "lead_check",
-    "push_send"
+    "push_send",
+    "push_receipts"
   ],
   "jobs.state": ["scheduled", "fired", "done", "canceled", "failed"],
   "lead_counters.kind": ["allowance", "budget", "day"],
@@ -23493,6 +23510,7 @@ function reachOutSlots(words4, lead, workspace) {
 
 // src/app-bridge.ts
 var APP_ROUTE_RE = /^[a-z][a-z0-9-]*(?:\/[A-Za-z0-9:_-]+)*$/;
+var PUSH_TOKEN_MAX = 200;
 var isRecord = (v) => typeof v === "object" && v !== null;
 function parsePageMessage(raw) {
   let v;
@@ -23511,10 +23529,15 @@ function parsePageMessage(raw) {
       return v.state === "in" || v.state === "out" ? { t: "session", state: v.state } : null;
     case "workspace":
       return typeof v.slug === "string" && v.slug.trim() ? { t: "workspace", slug: v.slug.trim() } : null;
+    case "badge":
+      return typeof v.n === "number" && Number.isInteger(v.n) && v.n >= 0 ? { t: "badge", n: v.n } : null;
+    case "device":
+      return v.state === "registered" || v.state === "forgotten" || v.state === "refused" ? { t: "device", state: v.state } : null;
     default:
       return null;
   }
 }
+var token = (v) => typeof v === "string" && v.trim() && v.trim().length <= PUSH_TOKEN_MAX ? v.trim() : null;
 function parseShellMessage(v) {
   if (!isRecord(v)) return null;
   switch (v.t) {
@@ -23524,6 +23547,16 @@ function parseShellMessage(v) {
       return { t: "menu" };
     case "top":
       return { t: "top" };
+    case "device": {
+      const tok = token(v.token);
+      const platform = v.platform === "ios" || v.platform === "android" ? v.platform : null;
+      const version = typeof v.version === "string" ? v.version.trim().slice(0, 40) : "";
+      return tok && platform ? { t: "device", token: tok, platform, version } : null;
+    }
+    case "forget": {
+      const tok = token(v.token);
+      return tok ? { t: "forget", token: tok } : null;
+    }
     default:
       return null;
   }
@@ -23563,6 +23596,7 @@ export {
   AppError,
   AskProposalOutcomeSchema,
   AskSettingsChangeSchema,
+  BELL_WINDOW_DAYS,
   BILLING_MODES,
   BILLING_STATUSES,
   BILLING_TEST_MODE_CLAUSE,
@@ -23959,6 +23993,8 @@ export {
   PURPOSE_REFUSALS,
   PUSH_KINDS,
   PUSH_PLATFORMS,
+  PUSH_RECEIPTS_AFTER_MS,
+  PUSH_TOKEN_MAX,
   PendingWorkspaceSchema,
   PeopleExportQuerySchema,
   PolicyLimitsSchema,
@@ -24924,6 +24960,7 @@ export {
   unknownDetails,
   unmetNeed,
   unreadCount,
+  unreadFor,
   unsubscribePageWords,
   unsureHoursWords,
   usPhone,

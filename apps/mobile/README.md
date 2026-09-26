@@ -27,6 +27,12 @@ EAS environment or a local `.env.local` may point it elsewhere, at a preview for
 - `src/app/(tabs)`: the five tabs; `src/app/_layout.tsx` the theme, the sign-in gate, the foreground looks.
 - `test/`: the pure modules, run by the repository's `corepack pnpm test`.
 
+## Being told
+
+The phone asks for its token on a device (never a simulator), hands it to the page in front, which registers it through
+the account route, and opens a tapped notification's route in the tab that owns it (`src/shell/notifications*.ts`). The
+icon's number is the bell's. Push credentials and the signing token are the runbook's "Turn on push".
+
 ## What waits on what
 
 PR 1 (this) needs only an Expo project and `EXPO_TOKEN`. Push (PR 2) needs the Apple Developer Program's APNs key

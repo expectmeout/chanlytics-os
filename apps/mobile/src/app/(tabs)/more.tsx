@@ -8,5 +8,5 @@ export default function MoreTab() {
     front.set("more", h);
     h.ask({ t: "menu" });
   }, []);
-  return <Surface route="today" onReady={onReady} />;
+  return <Surface route="today" tab="more" onReady={onReady} />;
 }
