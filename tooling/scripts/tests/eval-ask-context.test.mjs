@@ -197,7 +197,7 @@ test("a context the eval cannot build is said in words before anything is read",
   assert.throws(() => resolveContext({ surface: "inbox" }, ANSWERS), /cannot build/);
 });
 
-test("the judge excuses a missing read when the page answered: the snapshot's overview, or an on-page case's rows", () => {
+test("the judge excuses a missing read only when the page answered: an on-page case's rows, or its page", () => {
   const onPage = {
     expect: { on_page: true, tools_any: ["search_people"] },
     context: { surface: "people", route: "clients", rows: "GET contacts" },
@@ -218,8 +218,8 @@ test("the judge excuses a missing read when the page answered: the snapshot's ov
   assert.equal(fromContext(aggregate, { tools: [] }, { rows: [] }), true, "a page of no rows rides as itself");
   assert.equal(
     fromContext({ expect: { tools_any: ["get_today"] } }, { tools: [] }, null),
-    true,
-    "today's excuse stands",
+    false,
+    "the snapshot went in PR 2.4: a case with no page must read",
   );
 });
 

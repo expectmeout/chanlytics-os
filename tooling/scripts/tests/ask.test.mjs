@@ -1014,15 +1014,9 @@ test("context first: the page rides into every turn (ask-turn.test.mjs runs it),
     ),
     "what the prompt already holds needs no read",
   );
-  // The eval knows an overview can come from the snapshot: executed over the judge's own excuse.
+  // The snapshot is gone, and the eval's excuse for it with it: a case sent with no page reads what it answers from.
   const overview = { expect: { tools_any: ["get_today", "list_threads"] } };
-  assert.equal(fromContext(overview, { tools: [] }, null), true, "no read, and the snapshot answered");
-  assert.equal(fromContext(overview, { tools: ["list_threads"] }, null), false, "a read of it is judged as a read");
-  assert.equal(
-    fromContext({ expect: { tools_any: ["get_report"] } }, { tools: [] }, null),
-    false,
-    "the snapshot carries no report",
-  );
+  assert.equal(fromContext(overview, { tools: [] }, null), false, "no page and no read: judged as missing the read");
   const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
   // Run in ask-turn.test.mjs: a round that calls get_today, list_threads and list_calls together reads the
   // conversations at most twice and the calls once. The readers, and the Inbox's paged messages, in readers.test.mjs.
