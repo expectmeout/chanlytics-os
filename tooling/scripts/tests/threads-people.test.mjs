@@ -20,7 +20,8 @@ import {
   toPersonVM,
   personStateFor,
 } from "@chanlytics/contracts";
-import { readCode, readRaw } from "./_source.mjs";
+import { importSrc, readCode, readRaw } from "./_source.mjs";
+import { fakeDb } from "./_fake-db.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -29,6 +30,11 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const { groupMessages } = await import(
   pathToFileURL(path.join(here, "../../../apps/dashboard/src/server/dto.ts")).href
 );
+// One person's route runs below over a database in memory; a module that ever builds a service client reads these,
+// and nothing dials it.
+process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
+process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
+const personRoute = await importSrc("apps/dashboard/app/api/v1/contacts/[id]/route.ts");
 
 const NOW = new Date("2026-09-04T15:00:00.000Z");
 const ago = (ms) => new Date(NOW.getTime() - ms).toISOString();
@@ -348,13 +354,52 @@ test("the profile's Right now agrees with the mode two inches away", () => {
   assert.match(ws.rightNow.detail, /for the workspace/);
 });
 
-test("the API attaches the mode in force, and an erasure scrubs the jobs that carried the number", () => {
+test("the API attaches the mode in force, and an erasure scrubs the jobs that carried the number", async () => {
   // The reading moved into one helper the list route and the CSV export share.
   const list = readCode("apps/dashboard/src/server/people.ts");
   assert.ok(list.includes("effective_reply_mode: personMode.get(r.id) ?? workspaceMode"));
-  const detail = readCode("apps/dashboard/app/api/v1/contacts/[id]/route.ts");
-  assert.ok(detail.includes("effective_reply_mode: personPol.data?.mode ?? wsPol.data?.mode ?? null"));
-  assert.ok(detail.includes("scrubErasedJobs(contact.tenant_id, id, threadIds)"));
+  // One person's page attaches it the same way, run over a database in memory: their own mode, else the workspace's,
+  // else none. Another person's own mode is not theirs.
+  const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const P1 = "11111111-1111-4111-8111-111111111111";
+  const P2 = "22222222-2222-4222-8222-222222222222";
+  const mode = (subject_id, m) => ({
+    tenant_id: T,
+    class: "reply",
+    subject_type: subject_id ? "contact" : null,
+    subject_id,
+    mode: m,
+  });
+  const inForce = async (policies) => {
+    const supabase = fakeDb(
+      {
+        memberships: [
+          {
+            user_id: "u1",
+            tenant_id: T,
+            role: "viewer",
+            tenants: { slug: "harbor" },
+            created_at: "2026-01-01T00:00:00Z",
+          },
+        ],
+        policies,
+      },
+      {},
+      { people_list: (a) => (a.p_tenant_id === T && a.p_contact_id === P1 ? [row({ id: P1 })] : []) },
+    );
+    const { person } = await personRoute.GET.run(new Request(`http://localhost/api/v1/contacts/${P1}?workspace=${T}`), {
+      supabase,
+      userId: "u1",
+      email: "ada@example.com",
+      params: { id: P1 },
+    });
+    return [person.row.effective_reply_mode, person.receptionist_mode, person.workspace_reply_mode];
+  };
+  assert.deepEqual(await inForce([mode(null, "auto"), mode(P1, "never")]), ["never", "never", "auto"], "their own");
+  assert.deepEqual(await inForce([mode(null, "ask"), mode(P2, "never")]), ["ask", null, "ask"], "else the workspace's");
+  assert.deepEqual(await inForce([]), [null, null, null], "else none");
+  const erase = readCode("apps/dashboard/app/api/v1/contacts/[id]/route.ts");
+  assert.ok(erase.includes("scrubErasedJobs(contact.tenant_id, id, threadIds)"));
   const service = readCode("apps/dashboard/src/server/service.ts");
   // No kind is spared any more. One was -- the blob_thread_erase job that
   // removed the second copy of the conversation, which the scrub would

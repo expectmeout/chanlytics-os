@@ -11,7 +11,7 @@ import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { callerName, toCallVM } from "@chanlytics/contracts";
+import { callerName, personName, toCallVM } from "@chanlytics/contracts";
 import { fakeDb } from "./_fake-db.mjs";
 import { PLAN } from "./_lead-fixtures.mjs";
 
@@ -32,7 +32,9 @@ const { today } = await import(at("apps/dashboard/src/server/readers/today.ts"))
 // Named apart from the fixtures below that build a conversation's and a message's rows.
 const { conversation: oneThread, messagesOf } = await import(at("apps/dashboard/src/server/readers/conversation.ts"));
 const { call: oneCall } = await import(at("apps/dashboard/src/server/readers/call.ts"));
+const { person: onePerson } = await import(at("apps/dashboard/src/server/readers/person.ts"));
 const threadRoute = await import(at("apps/dashboard/app/api/v1/conversations/[id]/route.ts"));
+const personRoute = await import(at("apps/dashboard/app/api/v1/contacts/[id]/route.ts"));
 
 // The kept values live in the module, keyed by workspace, person and reader: each test starts with none.
 beforeEach(() => kernel.readerCache.clear());
@@ -1009,4 +1011,314 @@ test("one call for Ask: the Calls page's own columns and mapping for one call, r
   const typo = dayCtx(tbls);
   await assert.rejects(kernel.load(turnIn(typo), oneCall, { id: "not-a-uuid" }), notFound("That call does not exist."));
   assert.equal(selects(typo, "calls").length, 0, "a malformed id never reaches the database");
+});
+
+/* ------------------------------------------------------------------------- the person (PR 1.4) */
+
+const P1 = "11111111-1111-4111-8111-111111111111";
+const P2 = "22222222-2222-4222-8222-222222222222";
+const pol = (tenant_id, subject_type, subject_id, mode) => ({
+  tenant_id,
+  class: "reply",
+  subject_type,
+  subject_id,
+  mode,
+});
+/** A row as people_list answers it. */
+const personRow = (id, over = {}) => ({
+  id,
+  display_name: "Ada",
+  phone_e164: "+15550000001",
+  consent: "opted_in",
+  dnc: false,
+  ...over,
+});
+/**
+ * people-routes.test.mjs, "one person in full": harbor's person with the owner's notes, a WhatsApp identity, their own
+ * reply mode and the workspace's, where they came from, their consent changes beside another person's and another
+ * kind, and the workspace's booking link; the member is in harbor and bayside. `threads` gives them two threads, the
+ * newer with a message, and a call.
+ */
+const personTables = ({ threads = false } = {}) => ({
+  memberships: [
+    membership(A, "viewer", "harbor", "2026-01-01T00:00:00Z"),
+    membership(B, "viewer", "bayside", "2026-02-01T00:00:00Z"),
+  ],
+  contacts: [
+    {
+      id: P1,
+      tenant_id: A,
+      phone_e164: "+15550000001",
+      display_name: "Ada",
+      erased_at: null,
+      marketing_consent: null,
+      notes: "Sees Sofia",
+    },
+  ],
+  contact_identities: [
+    { contact_id: P1, channel: "whatsapp", external_id: "15550000001", created_at: "2026-08-01T00:00:00Z" },
+  ],
+  conversations: threads
+    ? [
+        conversation(C1, A, { contact_id: P1, contacts: contact({ id: P1 }) }),
+        conversation(C2, A, { contact_id: P1, contacts: contact({ id: P1 }), last_message_at: ago(2 * HOUR) }),
+      ]
+    : [],
+  messages: threads ? [message("m1", C1, A)] : [],
+  calls: threads
+    ? [
+        call(L1, A, {
+          contact_id: P1,
+          contacts: { display_name: "Ada", wa_profile_name: null, phone_e164: "+15550000001" },
+        }),
+      ]
+    : [],
+  policies: [pol(A, null, null, "auto"), pol(A, "contact", P1, "ask")],
+  events: [
+    {
+      tenant_id: A,
+      kind: "contact.added",
+      subject_type: "contact",
+      subject_id: P1,
+      data: { source: "calendar", title: "Colour" },
+      created_at: "2026-08-01T00:00:00Z",
+    },
+    {
+      id: "ev-1",
+      tenant_id: A,
+      kind: "contact.consent_changed",
+      subject_type: "contact",
+      subject_id: P1,
+      data: {
+        consent: "opted_in",
+        source: "customer_message",
+        channel: "sms",
+        message_external_id: "SM123",
+        words: "START",
+      },
+      created_at: "2026-08-02T00:00:00Z",
+    },
+    {
+      id: "ev-2",
+      tenant_id: A,
+      kind: "contact.consent_changed",
+      subject_type: "contact",
+      subject_id: P1,
+      data: { purpose: "marketing", consent: "opted_in", source: "form", note: "signed 2 Sep", by: "u-ada" },
+      created_at: "2026-08-03T00:00:00Z",
+    },
+    {
+      id: "ev-3",
+      tenant_id: A,
+      kind: "contact.consent_changed",
+      subject_type: "contact",
+      subject_id: P2,
+      data: { consent: "opted_out", source: "customer_message" },
+      created_at: "2026-08-04T00:00:00Z",
+    },
+    {
+      id: "ev-4",
+      tenant_id: A,
+      kind: "message.sent",
+      subject_type: "message",
+      subject_id: "m-1",
+      data: {},
+      created_at: "2026-08-05T00:00:00Z",
+    },
+  ],
+  tenant_config: [{ tenant_id: A, config: { brain: { booking_link: " https://book.example/marisa " } } }],
+  tenants: [],
+});
+/** A request for the person `id` names, over `tbls`, `faults` failing a read: people_list answers harbor's P1 alone. */
+const personCtx = (tbls, id, faults = {}) => ({
+  supabase: fakeDb(tbls, faults, {
+    people_list: (a) => (a.p_tenant_id === A && a.p_contact_id === P1 ? [personRow(P1)] : []),
+  }),
+  userId: USER,
+  email: "ada@example.com",
+  params: { id },
+});
+/** GET contacts/:id's payload keys at origin/main (fad8b7ea), in its order. */
+const PERSON_KEYS = [
+  "row",
+  "identities",
+  "conversations",
+  "calls",
+  "escalations",
+  "decisions",
+  "receptionist_mode",
+  "workspace_reply_mode",
+  "visits",
+  "notes",
+  "person_notes",
+  "proposal_url",
+  "booking_link",
+  "consent_history",
+  "campaigns",
+  "lead",
+  "deals",
+  "deals_on",
+  "deal_pace",
+  "services",
+  "consult_first",
+  "added",
+];
+/** Every read GET contacts/:id made at origin/main (fad8b7ea) for one person with threads, by table. */
+const PERSON_READS = {
+  "rpc:people_list": 1,
+  "contact_identities.select": 1,
+  "conversations.select": 1,
+  "calls.select": 1,
+  // Their own receptionist mode, and the workspace's.
+  "policies.select": 2,
+  // Where they came from, and every change to either answer.
+  "events.select": 2,
+  "contacts.select": 1,
+  // The calendar's own lookup, and the booking link and the services.
+  "tenant_config.select": 2,
+  // The calendar's zone, and how the workspace's customers buy.
+  "tenants.select": 2,
+  "leads.select": 1,
+  // Their deals, and the workspace's pace.
+  "deals.select": 2,
+  "broadcast_recipients.select": 1,
+  "person_notes.select": 1,
+  "messages.select": 1,
+  "escalations.select": 1,
+  "decisions.select": 1,
+};
+/** How many times each table (or door) was asked, whatever for. */
+const readsOf = (ctx) => {
+  const n = {};
+  for (const q of ctx.supabase.seen) {
+    const k = q.rpc ? `rpc:${q.rpc}` : `${q.table}.${q.op}`;
+    n[k] = (n[k] ?? 0) + 1;
+  }
+  return n;
+};
+const notHere = (e) => {
+  assert.deepEqual([e.code, e.status, e.message], ["not_found", 404, "This person is not in your workspace."]);
+  return true;
+};
+
+test("the person, for Ask and for the page: GET contacts/:id answers its reader's payload, key for key and byte for byte, over people-routes' fixture alone and with two threads and a call; the rows are the person, then each thread by the person's name, then each call by its caller as the Calls page names them", async () => {
+  for (const threads of [false, true]) {
+    const tbls = personTables({ threads });
+    const page = await personRoute.GET.run(req(`?workspace=${A}`), personCtx(tbls, P1));
+    const r = await kernel.load(turnIn(personCtx(tbls, P1)), onePerson, { id: P1 });
+    assert.deepEqual(r.data, page, "the route's payload");
+    assert.equal(JSON.stringify(r.data), JSON.stringify(page), "byte for byte");
+    assert.deepEqual(Object.keys(r.data), ["person"]);
+    assert.deepEqual(Object.keys(r.data.person), PERSON_KEYS, "the keys in the order the route answered them");
+  }
+  const r = await kernel.load(turnIn(personCtx(personTables({ threads: true }), P1)), onePerson, { id: P1 });
+  const p = r.data.person;
+  // What people-routes asserts of the route, of the reader.
+  assert.deepEqual(
+    [p.row.effective_reply_mode, p.receptionist_mode, p.workspace_reply_mode, p.notes, p.booking_link],
+    ["ask", "ask", "auto", "Sees Sofia", "https://book.example/marisa"],
+  );
+  assert.deepEqual(p.added, { at: "2026-08-01T00:00:00Z", source: "calendar", title: "Colour" });
+  assert.deepEqual(
+    p.consent_history.map((c) => c.id),
+    ["ev-2", "ev-1"],
+    "this person's changes, newest first",
+  );
+  assert.deepEqual(
+    p.conversations.map((c) => [c.id, c.messages.map((m) => m.id)]),
+    [
+      [C1, ["m1"]],
+      [C2, []],
+    ],
+    "their threads newest first, each with its own messages",
+  );
+  assert.deepEqual(
+    p.calls.map((c) => c.id),
+    [L1],
+  );
+  assert.deepEqual(r.rows, [
+    { kind: "person", id: P1, route: `clients/${P1}`, label: "Ada" },
+    { kind: "thread", id: C1, route: `inbox/th-${C1}`, label: "Ada" },
+    { kind: "thread", id: C2, route: `inbox/th-${C2}`, label: "Ada" },
+    { kind: "call", id: L1, route: `conversations/cv-${L1}`, label: "Ada" },
+  ]);
+  assert.deepEqual(
+    r.rows.map((x) => x.label),
+    [
+      personName(p.row),
+      ...p.conversations.map(() => personName(p.row)),
+      ...p.calls.map((c) => toCallVM(c, "America/New_York", new Date()).who),
+    ],
+    "People's name for the person and for each of their threads, the Calls page's for each call",
+  );
+});
+
+test("GET contacts/:id through its reader reads what it read at origin/main, in one round: every table as many times, only the threads' messages, escalations and decisions waiting for their ids; the config now through getTenantConfig's columns and sells_by through its reader, once each", async () => {
+  const tbls = personTables({ threads: true });
+  const routed = personCtx(tbls, P1);
+  await personRoute.GET.run(req(`?workspace=${A}`), routed);
+  assert.deepEqual(
+    readsOf(routed),
+    { "memberships.select": 1, ...PERSON_READS },
+    "the workspace's door, then the reads",
+  );
+  const ctx = personCtx(tbls, P1);
+  await kernel.load(turnIn(ctx), onePerson, { id: P1 });
+  assert.deepEqual(readsOf(ctx), PERSON_READS);
+  const order = ctx.supabase.seen.map((q) => q.rpc ?? q.table);
+  assert.deepEqual(
+    order.slice(order.indexOf("messages")),
+    ["messages", "escalations", "decisions"],
+    "every other read was asked for before the threads' own",
+  );
+  const columns = (table) =>
+    selects(ctx, table)
+      .map((q) => q.columns)
+      .sort();
+  assert.deepEqual(
+    columns("tenant_config"),
+    ["config", "tenant_id, config, version, updated_at, updated_by"],
+    "the calendar's own lookup, and the config through its reader (getTenantConfig)",
+  );
+  assert.deepEqual(
+    columns("tenants"),
+    ["name, timezone", "sells_by"],
+    "the calendar's zone, and sells_by through its reader",
+  );
+});
+
+test("a person this workspace does not hold is GET contacts/:id's 404, in its sentence, and no payload: an id nobody has, and another workspace's person", async () => {
+  const tbls = personTables({ threads: true });
+  await assert.rejects(kernel.load(turnIn(personCtx(tbls, P2)), onePerson, { id: P2 }), notHere);
+  // Harbor's person in a bayside turn: people_list answers for the workspace it is asked about, and bayside has nobody.
+  await assert.rejects(kernel.load(turnIn(personCtx(tbls, P1), B), onePerson, { id: P1 }), notHere);
+  await assert.rejects(personRoute.GET.run(req(`?workspace=${B}`), personCtx(tbls, P1)), notHere);
+});
+
+test("a config read that fails keeps the route's place in the error order: a person this workspace does not hold is still the 404, one it holds is the config's own failure, and a failure the route checks first is still said first", async () => {
+  const tbls = personTables({ threads: true });
+  const configDown = { "tenant_config.select": { message: "config down" } };
+  const configFails = (e) => {
+    assert.equal(e.message, "getTenantConfig: config down");
+    return true;
+  };
+  // The calendar's own lookup reads the config too, and says its failure as the visits' line: kept out of the output.
+  await logged("person_visits_failed", async () => {
+    await assert.rejects(kernel.load(turnIn(personCtx(tbls, P2, configDown)), onePerson, { id: P2 }), notHere);
+    await assert.rejects(personRoute.GET.run(req(`?workspace=${A}`), personCtx(tbls, P2, configDown)), notHere);
+    await assert.rejects(kernel.load(turnIn(personCtx(tbls, P1, configDown)), onePerson, { id: P1 }), configFails);
+    await assert.rejects(personRoute.GET.run(req(`?workspace=${A}`), personCtx(tbls, P1, configDown)), configFails);
+    // Their consent changes are checked before the config, as the route checked them.
+    await assert.rejects(
+      kernel.load(
+        turnIn(personCtx(tbls, P1, { ...configDown, "events.select": { message: "events down" } })),
+        onePerson,
+        { id: P1 },
+      ),
+      (e) => {
+        assert.equal(e.message, "events down");
+        return true;
+      },
+    );
+  });
 });
