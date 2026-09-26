@@ -420,10 +420,10 @@ const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null, pipelineRo
   const line = loaded ? [...all.line, { words: loaded, view: null, tone: null }] : all.line;
   return (
     <div className="clients pipe-scope" data-testid="pipeline">
-      {/* The Pipeline's own rail, with People's switch at its head. A phone's is the bar's switch and its list button. */}
+      {/* People's switch over the Pipeline's own rail. A phone's are the bar's: its first row and its list button. */}
+      {!phone && <window.PeopleScopeTabs scope="pipeline" onScope={onScope} dealsOn />}
       {!phone && (
         <aside className="cl-rail pipe-rail" data-testid="pipeline-rail">
-          <window.PeopleScopeTabs scope="pipeline" onScope={onScope} dealsOn />
           <PipelineRailRows sections={rail} view={view} onPick={pickView} />
         </aside>
       )}
