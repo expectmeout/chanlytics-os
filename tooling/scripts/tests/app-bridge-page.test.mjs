@@ -190,3 +190,28 @@ test("Today is handed to the widget at install and on every refresh, in the snap
   installAppBridge(bare.win, doors());
   assert.ok(!bare.posted.some((m) => m.t === "today"), "no Today yet, nothing to hand over");
 });
+
+test("the Live page's refresh tells the shell how many calls are in progress, so the phone can end the call's activity", () => {
+  const { win, posted, fire } = windowOf();
+  installAppBridge(win, doors());
+  fire("surface:live");
+  assert.ok(!posted.some((m) => m.t === "calls"), "no Live yet, nothing to say");
+  win.__LIVE = { now: [{ id: "c1" }] };
+  fire("surface:live");
+  assert.deepEqual(posted.at(-1), { t: "calls", live: 1 });
+  win.__LIVE = { now: [] };
+  fire("surface:live");
+  assert.deepEqual(posted.at(-1), { t: "calls", live: 0 });
+});
+
+test("a device ask with an activity token registers both", async () => {
+  const { win } = windowOf();
+  const d = doors(true);
+  installAppBridge(win, d);
+  win.__appBridge.receive('{"t":"device","token":"tok","platform":"ios","version":"1.0.0","activity":"act"}');
+  await tick();
+  assert.deepEqual(d.calls.at(-1), [
+    "register",
+    { token: "tok", platform: "ios", app_version: "1.0.0", activity_token: "act" },
+  ]);
+});

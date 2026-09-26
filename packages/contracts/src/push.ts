@@ -8,6 +8,7 @@ export interface PushDevice {
   token: string;
   platform: PushPlatform;
   app_version: string | null;
+  activity_token: string | null;
 }
 
 const TOKEN_MAX = 200;
@@ -25,7 +26,11 @@ export function parseDevice(body: unknown): { ok: true; device: PushDevice } | {
   if (!platform) return { ok: false, reason: "A device is an iPhone or an Android phone." };
   const version =
     typeof b.app_version === "string" && b.app_version.trim() ? b.app_version.trim().slice(0, VERSION_MAX) : null;
-  return { ok: true, device: { token, platform, app_version: version } };
+  // The Live Activity's push-to-start token (00191), when the phone has one: iOS 17.2 and later, never Android.
+  const activity = typeof b.activity_token === "string" && b.activity_token.trim() ? b.activity_token.trim() : null;
+  if (activity && activity.length > TOKEN_MAX)
+    return { ok: false, reason: "That activity token is longer than any we know." };
+  return { ok: true, device: { token, platform, app_version: version, activity_token: activity } };
 }
 
 /**

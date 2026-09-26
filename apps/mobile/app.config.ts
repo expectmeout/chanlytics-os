@@ -94,6 +94,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     [
       "expo-widgets",
       {
+        // The call in progress is a Live Activity started by the site's push (src/widgets/CallActivity.tsx).
+        enablePushNotifications: true,
         widgets: [
           {
             name: "TodayWidget",

@@ -22,7 +22,9 @@ export type PageMessage =
   /** What became of the shell's device ask: registered, forgotten, or refused by the site. */
   | { t: "device"; state: "registered" | "forgotten" | "refused" }
   /** Today as the widget shows it, on every refresh of the page's Today (PR 4). */
-  | { t: "today"; snapshot: TodayWidgetSnapshot };
+  | { t: "today"; snapshot: TodayWidgetSnapshot }
+  /** How many calls are in progress, on every refresh of the page's Live: none ends the phone's call activity (PR 7). */
+  | { t: "calls"; live: number };
 
 /** A phone's push token, as expo-notifications hands it out. */
 export const PUSH_TOKEN_MAX = 200;
@@ -32,7 +34,7 @@ export type ShellMessage =
   | { t: "menu" }
   | { t: "top" }
   /** Register this phone for the person signed in: the page calls PUT me/devices through its own client. */
-  | { t: "device"; token: string; platform: "ios" | "android"; version: string }
+  | { t: "device"; token: string; platform: "ios" | "android"; version: string; activity?: string }
   /** Forget this phone before the person signs out. */
   | { t: "forget"; token: string };
 
@@ -68,6 +70,10 @@ export function parsePageMessage(raw: string): PageMessage | null {
       const snapshot = parseTodayWidgetSnapshot(v.snapshot);
       return snapshot ? { t: "today", snapshot } : null;
     }
+    case "calls":
+      return typeof v.live === "number" && Number.isInteger(v.live) && v.live >= 0
+        ? { t: "calls", live: v.live }
+        : null;
     default:
       return null;
   }
@@ -90,7 +96,8 @@ export function parseShellMessage(v: unknown): ShellMessage | null {
       const tok = token(v.token);
       const platform = v.platform === "ios" || v.platform === "android" ? v.platform : null;
       const version = typeof v.version === "string" ? v.version.trim().slice(0, 40) : "";
-      return tok && platform ? { t: "device", token: tok, platform, version } : null;
+      const activity = token(v.activity);
+      return tok && platform ? { t: "device", token: tok, platform, version, ...(activity ? { activity } : {}) } : null;
     }
     case "forget": {
       const tok = token(v.token);

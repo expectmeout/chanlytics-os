@@ -3603,6 +3603,7 @@ type Database = {
             };
             push_devices: {
                 Row: {
+                    activity_token: string | null;
                     app_version: string | null;
                     created_at: string;
                     id: string;
@@ -3612,6 +3613,7 @@ type Database = {
                     user_id: string;
                 };
                 Insert: {
+                    activity_token?: string | null;
                     app_version?: string | null;
                     created_at?: string;
                     id?: string;
@@ -3621,6 +3623,7 @@ type Database = {
                     user_id: string;
                 };
                 Update: {
+                    activity_token?: string | null;
                     app_version?: string | null;
                     created_at?: string;
                     id?: string;
@@ -5379,6 +5382,7 @@ type Database = {
             };
             push_device_register: {
                 Args: {
+                    p_activity_token?: string;
                     p_app_version?: string;
                     p_platform: string;
                     p_token: string;

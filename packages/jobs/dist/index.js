@@ -2677,6 +2677,7 @@ var OPENING_SCHEMA = {
   required: ["opening", "angle", "facts_used"],
   additionalProperties: false
 };
+var CALL_ACTIVITY_STALE_MS = 15 * 6e4;
 
 // ../channels/dist/index.js
 import { z as z13 } from "zod";
@@ -10094,6 +10095,7 @@ var OPENING_SCHEMA2 = {
   required: ["opening", "angle", "facts_used"],
   additionalProperties: false
 };
+var CALL_ACTIVITY_STALE_MS2 = 15 * 6e4;
 var MEDIA_MAX_BYTES = 25 * 1024 * 1024;
 var CALL_ANALYSIS_FIELDS = [
   {
@@ -13619,6 +13621,7 @@ var OPENING_SCHEMA3 = {
   required: ["opening", "angle", "facts_used"],
   additionalProperties: false
 };
+var CALL_ACTIVITY_STALE_MS3 = 15 * 6e4;
 var MEDIA_MAX_BYTES2 = 25 * 1024 * 1024;
 var CALL_ANALYSIS_FIELDS2 = [
   {
@@ -16266,6 +16269,7 @@ var OPENING_SCHEMA22 = {
   required: ["opening", "angle", "facts_used"],
   additionalProperties: false
 };
+var CALL_ACTIVITY_STALE_MS22 = 15 * 6e4;
 z142.config({ jitless: true });
 var LABEL32 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL32 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
@@ -18721,6 +18725,7 @@ var OPENING_SCHEMA32 = {
   required: ["opening", "angle", "facts_used"],
   additionalProperties: false
 };
+var CALL_ACTIVITY_STALE_MS32 = 15 * 6e4;
 async function recordOutbound(db, p) {
   if (p.channel === "email")
     throw new Error("record_outbound: an email's row is written before it is sent, never after");
@@ -21881,6 +21886,7 @@ var OPENING_SCHEMA4 = {
   required: ["opening", "angle", "facts_used"],
   additionalProperties: false
 };
+var CALL_ACTIVITY_STALE_MS4 = 15 * 6e4;
 async function ingestInbound(db, p) {
   const { data, error } = await db.rpc("ingest_inbound", {
     p_tenant_id: p.tenantId,

@@ -44,6 +44,8 @@ import {
 } from "../lib/packages/db.js";
 import { copyRecording, WEBHOOK_COPY_TIMEOUT_MS } from "../lib/voice/call-recording.js";
 import { markForwardingVerified } from "../lib/voice/forwarding.js";
+import { tellPhonesCallStarted } from "../lib/voice/call-activity.js";
+import { apns, apnsKeys } from "../lib/ops/apns.js";
 import { erasedBeforeCall } from "../lib/erased.js";
 import { upsertEscalation } from "../lib/packages/jobs.js";
 import {
@@ -330,6 +332,31 @@ export async function POST(request: Request): Promise<Response> {
           // Older than the row: a retried call_started after call_ended, or a
           // partial transcript after the final one. Nothing was written.
           L.info("retell_event_stale", { retell_event: event, call_id: n.retellCallId });
+        }
+        // The call on the phones' Lock Screens (00191, lib/voice/call-activity.ts): once, as it starts, to every
+        // phone that handed the site its push-to-start token. Best effort beside the call's own door.
+        if (event === "call_started" && !res.skipped && n.status === "ongoing") {
+          const keys = apnsKeys();
+          if (keys) {
+            const outcome = await tellPhonesCallStarted(
+              db,
+              routed.tenantId,
+              { from_e164: n.fromE164, from_raw: n.fromRaw ?? null, to_e164: n.toE164, started_at: n.startedAtIso },
+              apns(keys),
+            ).catch((e: unknown) => {
+              L.error("call_activity_failed", { call: n.retellCallId, error: errField(e) });
+              return null;
+            });
+            if (outcome) {
+              L.info("call_activity_started", {
+                call: n.retellCallId,
+                started: outcome.started,
+                refused: outcome.refused.length,
+              });
+              for (const r of outcome.refused)
+                L.warn("call_activity_refused", { call: n.retellCallId, error: r.error });
+            }
+          }
         }
         // Awaited: this row IS /api/diag's answer to "what did the provider
         // actually send", and the deliveries it was written for — call_started

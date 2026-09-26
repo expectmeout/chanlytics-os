@@ -17,6 +17,7 @@ import { Lock } from "@/shell/Lock";
 import { canLock, lockChoice } from "@/shell/lock";
 import { shouldLock } from "@/shell/sign-in";
 import { signOutNatively } from "@/shell/native-auth";
+import { listenPushToStart } from "@/shell/live-activity";
 import { getState, reloadEveryPage, setState, useShell } from "@/shell/state";
 import { decideReload, isOlderThan, minAppOf, shaOf } from "@/shell/deploy";
 import { Update } from "@/shell/Update";
@@ -118,7 +119,13 @@ export default function RootLayout() {
     void coldStartRoute().then((route) => {
       if (route) open(route);
     });
-    return listen({ tap: open, token: (token) => setState({ token }) });
+    const offTaps = listen({ tap: open, token: (token) => setState({ token }) });
+    // The Live Activity's push-to-start token, registered beside the push token the moment the phone hands it out.
+    const offActivity = listenPushToStart((activityToken) => setState({ activityToken }));
+    return () => {
+      offTaps();
+      offActivity();
+    };
   }, [router]);
 
   useEffect(() => {

@@ -19,6 +19,7 @@ export const PUT = write({
       p_token: device.token,
       p_platform: device.platform,
       ...(device.app_version ? { p_app_version: device.app_version } : {}),
+      ...(device.activity_token ? { p_activity_token: device.activity_token } : {}),
     });
     if (error) throw new AppError("validation", error.message, 400);
     return data as { id: string };
