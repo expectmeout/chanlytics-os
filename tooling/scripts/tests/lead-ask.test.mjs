@@ -10,7 +10,7 @@
  * through the committer on a client bound to a fake fetch, the way
  * `ask-commit.test.mjs` runs every other card.
  */
-import { test } from "node:test";
+import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -26,6 +26,9 @@ const { newToolContext, runTool } = await import(at("apps/dashboard/src/server/a
 const { buildProposal } = await import(at("apps/dashboard/src/server/ask/proposals.ts"));
 const { createApi } = await import(at("apps/dashboard/src/client/api.ts"));
 const { commitProposal, undoProposal } = await import(at("apps/dashboard/src/legacy-bridge/ask/commit.ts"));
+const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
+// The workspace's facts are kept across turns in the module: each test starts with none kept.
+beforeEach(() => readerCache.clear());
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const SEARCH = "55555555-5555-4555-8555-555555555551";
