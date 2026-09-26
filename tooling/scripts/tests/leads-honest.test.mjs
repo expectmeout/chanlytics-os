@@ -455,7 +455,7 @@ for (const k of [
 // People › Pipeline, the third view over the same table, in the order both lists load it: before the page that draws it.
 await import("../../../apps/dashboard/src/legacy/pages/pipeline-scope.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/leads-real.jsx");
-await import("../../../apps/dashboard/src/legacy/pages/clients-a.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/people.jsx");
 // People's hooks, which LeadsReal (leads-real.jsx) reads from window when it draws, as a browser reads a global.
 for (const k of [
   "PeopleRail",

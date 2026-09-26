@@ -13,7 +13,7 @@ import { installLegacyReact } from "./_legacy-react.mjs";
 
 installLegacyReact({ __DEMO_MODE: false });
 const L = "../../../apps/dashboard/src/legacy";
-await import(`${L}/pages/calendar-real.jsx`);
+await import(`${L}/pages/calendar.jsx`);
 const W = globalThis.window;
 
 test("how long it runs, in the words the day's rows use", () => {

@@ -45,7 +45,7 @@ setRateStore(memoryStore());
  * their helpers were lifted out of the page into people-table.jsx (release B of the lead finder), so the strings
  * below live in one file or the other; four reads of the page became one, and the fifth is the table's.
  */
-const PEOPLE_PAGE = readCode("apps/dashboard/src/legacy/pages/clients-a.jsx");
+const PEOPLE_PAGE = readCode("apps/dashboard/src/legacy/pages/people.jsx");
 const PEOPLE_TABLE = readCode("apps/dashboard/src/legacy/pages/people-table.jsx");
 
 /**
@@ -661,7 +661,7 @@ test("the wiring: the board and the profile read one match; both receptionists a
   );
   // Phone: the visits in the caller context, and a call for a switched-off
   // channel telling the platform as a text does: run in call-start.test.mjs.
-  const page = readCode("apps/dashboard/src/legacy/pages/calendar-real.jsx");
+  const page = readCode("apps/dashboard/src/legacy/pages/calendar.jsx");
   for (const id of ["cal-panel-person", "cal-panel-contact", "cal-panel-where", "cal-panel-desc"])
     assert.ok(page.includes(`data-testid="${id}"`), id);
   assert.ok(
@@ -936,7 +936,7 @@ test("automatically: an hourly sweep on the edge and the owner's own read both p
     cameFrom.seen.some((q) => selectOn(q, "events", ["kind", "contact.added"], ["subject_id", MARIA])),
     "from the events, the contact.added row of this person",
   );
-  const page = readCode("apps/dashboard/src/legacy/pages/calendar-real.jsx");
+  const page = readCode("apps/dashboard/src/legacy/pages/calendar.jsx");
   assert.ok(
     !page.includes("cal-panel-add") && !page.includes("__addPerson"),
     "no button on the CALENDAR: added on its own, deleted from the profile if unwanted",

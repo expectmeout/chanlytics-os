@@ -602,7 +602,7 @@ test("REGRESSION: a real thread's composer offers no Save draft -- it flashed 'D
 
 /* ---------------------- Calendar: Day view steps a day ---------------------- */
 
-await import("../../../apps/dashboard/src/legacy/pages/calendar-real.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/calendar.jsx");
 
 test("REGRESSION: in Day view the arrows move one day -- they moved seven", async () => {
   const { shiftKey, shiftMonth } = await import("@chanlytics/contracts");
@@ -642,11 +642,11 @@ const { installClock } = await import("../../../apps/dashboard/src/legacy-bridge
 installClock();
 await import("../../../apps/dashboard/src/legacy/pages/broadcasts-run.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/broadcasts-ledger.jsx");
-await import("../../../apps/dashboard/src/legacy/pages/broadcasts-real.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/broadcasts.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/playbook-bits.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/playbook-card.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/playbook-composer.jsx");
-await import("../../../apps/dashboard/src/legacy/pages/outbound-real.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/outbound.jsx");
 
 test("REGRESSION: approving a run the server moved to nine says so -- the toast said 'sending now'", async () => {
   assert.equal(typeof globalThis.window.bcWhenWords, "function", "one sentence for when a send really goes");

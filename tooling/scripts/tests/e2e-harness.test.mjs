@@ -538,7 +538,7 @@ test("in a browser, the pipeline record's page stands at its workspace's address
 
 /**
  * What the People pages read that the pipeline record's page leaves alone, and why. The Leads scope's own is excused
- * whole (LEADS_SCOPE): clients-a.jsx draws it beside People, and this record has no searches.
+ * whole (LEADS_SCOPE): people.jsx draws it beside People, and this record has no searches.
  */
 const PEOPLE_NOT_PUBLISHED = new Map([
   [
@@ -552,7 +552,7 @@ const LEADS_SCOPE = /^__(LEADS|LEAD_VM|leads?[A-Z]\w*)$/;
 test("in a browser, the pipeline record's page has every global the People pages read, or says why not", async () => {
   const read = new Set([
     ...globalsRead([
-      "clients-a.jsx",
+      "people.jsx",
       "clients-bits.jsx",
       "people-table.jsx",
       "people-import.jsx",

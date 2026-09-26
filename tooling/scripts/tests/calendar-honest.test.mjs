@@ -206,7 +206,7 @@ globalThis.window.usePPToast = () => [null, (t) => toasts.push(t)];
 globalThis.window.__chrome = { state: stateOf };
 // The bridge's own object, with its reads answered here.
 const { calendar } = await import("../../../apps/dashboard/src/legacy-bridge/calendar.ts");
-await import("../../../apps/dashboard/src/legacy/pages/calendar-real.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/calendar.jsx");
 // Today's day, which names the next open time the way the Calendar does.
 await import("../../../apps/dashboard/src/legacy/pages/dashboard-a-day.jsx");
 

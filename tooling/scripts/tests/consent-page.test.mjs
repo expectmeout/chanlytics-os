@@ -335,7 +335,7 @@ test("the wiring: public by one prefix, read by slug, writes nothing, and the ow
     "exactly the facts the page shows leave this boundary",
   );
   assert.ok(!/insert|update|delete|upsert/i.test(server), "the public page's reader may not write");
-  const bc = readCode("apps/dashboard/src/legacy/pages/broadcasts-real.jsx");
+  const bc = readCode("apps/dashboard/src/legacy/pages/broadcasts.jsx");
   assert.ok(bc.includes('data-testid="bc-optin-page"') && bc.includes("the wording the phone carriers ask for"));
   const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
   assert.ok(

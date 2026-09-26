@@ -352,14 +352,14 @@ test("the page and its doors: Outbound is Playbooks, real; make, change, pause, 
     reg.includes('outbound: "real"') && reg.includes('outbound: "playbooks"'),
     "flipped, and the gate waits on its surface",
   );
-  const page = readCode("apps/dashboard/src/legacy/pages/outbound-real.jsx");
+  const page = readCode("apps/dashboard/src/legacy/pages/outbound.jsx");
   // A playbook's card and its composer are playbook-card.jsx and playbook-composer.jsx (Reach out Part 2.5): their
   // doors are drawn and pressed by playbook-composer, campaigns-drafts, runs-honest, reports-honest and confirm.
   assert.ok(page.includes('data-testid="playbooks-real"'));
   assert.ok(page.includes('testid="pb-empty"'), "the empty state, through the one EmptyState, with the verb on it");
   assert.ok(
     page.includes("window.OutboundPage = (props) =>") &&
-      readCode("apps/dashboard/src/legacy/pages/outbound.jsx").includes("window.OutboundSeed = OutboundPage;"),
+      readCode("apps/dashboard/src/legacy/demo/pages/outbound.jsx").includes("window.OutboundSeed = OutboundPage;"),
   );
   assert.ok(
     !/\$[\d,]+|revenue|Attributed|booked/.test(page.replace(/\/\/[^\n]*/g, "")),
@@ -581,7 +581,7 @@ test("Ask knows playbooks: read as the page shows them, proposed as a card, comm
   );
   assert.ok(readCode("apps/dashboard/src/legacy/pages/inbox-thread.jsx").includes("`the ${entry.via.name} playbook`"));
   assert.ok(
-    !readCode("apps/dashboard/src/legacy/pages/broadcasts-real.jsx").includes("Not available yet"),
+    !readCode("apps/dashboard/src/legacy/pages/broadcasts.jsx").includes("Not available yet"),
     "no disabled channel chips until a second channel is real",
   );
 });

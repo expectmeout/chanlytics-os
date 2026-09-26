@@ -354,7 +354,7 @@ test("revoking an invitation asks in its own words", () => {
 
 await import("../../../apps/dashboard/src/legacy/pages/broadcasts-run.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/broadcasts-ledger.jsx");
-await import("../../../apps/dashboard/src/legacy/pages/broadcasts-real.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/broadcasts.jsx");
 // The run's card on the ledger, where the stop now lives.
 const BcRunCard = globalThis.window.BcRunCard;
 const broadcast = (state) => ({
@@ -438,7 +438,7 @@ test("a broadcast's stop is armed and named for what it does: Stop a send, Skip 
 await import("../../../apps/dashboard/src/legacy/pages/playbook-bits.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/playbook-card.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/playbook-composer.jsx");
-await import("../../../apps/dashboard/src/legacy/pages/outbound-real.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/outbound.jsx");
 const PlaybookCard = globalThis.window.PlaybookCard;
 const playbook = {
   id: "pb-1",

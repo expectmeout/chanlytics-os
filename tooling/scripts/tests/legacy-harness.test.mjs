@@ -49,15 +49,19 @@ const html = readRaw(`${LEGACY}/Chanlytics.html`);
 /** The harness's own seed file, standing where the bridge puts seed-globals.ts. */
 const STUBS = "data/bridge-stubs.jsx";
 
+/** Where the mockup's files are: the shell's three directories, and the demo's two under legacy/demo/. */
+const DIRS = ["components", "data", "pages", "demo/data", "demo/pages"];
+const DIR = "(?:components|data|pages|demo\\/data|demo\\/pages)";
+
 /** Every `src="dir/file.jsx?v=N"` the harness loads, in order, without the cache-buster. */
-const harness = [...html.matchAll(/<script[^>]*\bsrc="((?:components|data|pages)\/[^"?]+\.jsx)[^"]*"/g)].map(
+const harness = [...html.matchAll(new RegExp(`<script[^>]*\\bsrc="(${DIR}\\/[^"?]+\\.jsx)[^"]*"`, "g"))].map(
   (m) => m[1],
 );
 
 /** Every legacy file the bridge loads, in order; its seed-globals is the harness's stub file. */
 const manifest = readCode(`${LEGACY}-bridge/manifest.ts`)
   .split("\n")
-  .map((l) => l.match(/^import "(?:@\/legacy\/)?(\.\/seed-globals|(?:components|data|pages)\/[^"]+\.jsx)";/))
+  .map((l) => l.match(new RegExp(`^import "(?:@\\/legacy\\/)?(\\.\\/seed-globals|${DIR}\\/[^"]+\\.jsx)";`)))
   .filter(Boolean)
   .map((m) => (m[1] === "./seed-globals" ? STUBS : m[1]));
 
@@ -65,7 +69,7 @@ const manifest = readCode(`${LEGACY}-bridge/manifest.ts`)
 const shell = readCode(`${LEGACY}/pages/app-shell.jsx`);
 
 /** Every file of the mockup on disk, in the shape both lists name it. */
-const onDisk = ["components", "data", "pages"].flatMap((dir) =>
+const onDisk = DIRS.flatMap((dir) =>
   fs
     .readdirSync(path.join(ROOT, LEGACY, dir))
     .filter((f) => f.endsWith(".jsx"))
@@ -94,7 +98,7 @@ test("every script the harness loads is cache-busted", () => {
   // server, so an edited file without a bumped ?v= is an edit the reviewer
   // does not see. (The document itself is the one exception: a browser holding
   // a stale Chanlytics.html is a hard reload, not a version.)
-  const bare = [...html.matchAll(/<script[^>]*\bsrc="((?:components|data|pages)\/[^"]+)"/g)]
+  const bare = [...html.matchAll(new RegExp(`<script[^>]*\\bsrc="(${DIR}\\/[^"]+)"`, "g"))]
     .map((m) => m[1])
     .filter((s) => !s.includes("?v="));
   assert.deepEqual(bare, [], `no ?v= on: ${bare.join(", ")}`);

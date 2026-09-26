@@ -448,12 +448,12 @@ test("the surface and the page: Broadcasts is real, fed by the same rules, and t
   assert.ok(s.includes('.filter((t) => t.channel === "whatsapp" && t.meta_status === "approved")'));
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installBroadcasts();"));
   assert.ok(
-    readCode("apps/dashboard/src/legacy-bridge/manifest.ts").includes('import "@/legacy/pages/broadcasts-real.jsx";'),
+    readCode("apps/dashboard/src/legacy-bridge/manifest.ts").includes('import "@/legacy/pages/broadcasts.jsx";'),
   );
   assert.ok(
-    readCode("apps/dashboard/src/legacy/pages/broadcasts.jsx").includes("window.BroadcastsSeed = BroadcastsPage;"),
+    readCode("apps/dashboard/src/legacy/demo/pages/broadcasts.jsx").includes("window.BroadcastsSeed = BroadcastsPage;"),
   );
-  const p = readCode("apps/dashboard/src/legacy/pages/broadcasts-real.jsx");
+  const p = readCode("apps/dashboard/src/legacy/pages/broadcasts.jsx");
   for (const id of [
     "broadcasts-real",
     "bc-audience",
@@ -526,7 +526,7 @@ test("the detail: every person on a broadcast, with what happened to them; the s
     /health: numberHealth\(\{\s*quality: wa\?\.quality \?\? null,\s*event: wa\?\.quality_event \?\? null,\s*limit: wa\?\.messaging_limit \?\? null,?\s*\}\),/,
   );
   assert.ok(sd.includes("heldReasons: HELD_REASONS,"));
-  const p = readCode("apps/dashboard/src/legacy/pages/broadcasts-real.jsx");
+  const p = readCode("apps/dashboard/src/legacy/pages/broadcasts.jsx");
   // bc-detail, bc-person and bc-open-who are a run's and the ledger's (broadcasts-run.jsx, broadcasts-ledger.jsx);
   // broadcasts-honest and runs-honest draw them.
   for (const id of ["bc-number", "bc-number-refusal", "bc-over-limit"])
@@ -575,7 +575,7 @@ test("getting their yes: an unambiguous phrase the ingest records, a link that o
       'qrPath: optInLink(wa?.number_e164) ? api().url("GET consent/qr") : null,',
     ),
   );
-  const p = readCode("apps/dashboard/src/legacy/pages/broadcasts-real.jsx");
+  const p = readCode("apps/dashboard/src/legacy/pages/broadcasts.jsx");
   assert.ok(
     p.includes('data-testid="bc-optin"') &&
       p.includes('data-testid="bc-optin-copy"') &&

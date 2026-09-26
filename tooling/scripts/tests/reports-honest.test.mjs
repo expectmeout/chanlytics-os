@@ -252,11 +252,11 @@ Object.assign(globalThis.window, {
 await import("../../../apps/dashboard/src/legacy/pages/templates-real.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/broadcasts-run.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/broadcasts-ledger.jsx");
-await import("../../../apps/dashboard/src/legacy/pages/broadcasts-real.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/broadcasts.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/playbook-bits.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/playbook-card.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/playbook-composer.jsx");
-await import("../../../apps/dashboard/src/legacy/pages/outbound-real.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/outbound.jsx");
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;

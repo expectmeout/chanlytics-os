@@ -160,7 +160,7 @@ await import("../../../apps/dashboard/src/legacy/components/data-bits.jsx");
 globalThis.Confirm = globalThis.window.Confirm;
 // data-bits also publishes the shell's toast hook; this harness keeps its own flash.
 globalThis.window.usePPToast = () => [null, (m) => calls.flash.push(m)];
-await import("../../../apps/dashboard/src/legacy/pages/live-monitor-real.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/live-monitor.jsx");
 const Page = globalThis.window.LiveMonitorPage;
 
 function mount() {

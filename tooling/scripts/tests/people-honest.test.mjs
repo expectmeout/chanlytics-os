@@ -398,7 +398,7 @@ for (const k of [
 ])
   globalThis[k] = globalThis.window[k];
 await import("../../../apps/dashboard/src/legacy/pages/leads-real.jsx");
-await import("../../../apps/dashboard/src/legacy/pages/clients-a.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/people.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/client-profile.jsx");
 // The shell's ? sheet, whose Esc is heard before People's.
 await import("../../../apps/dashboard/src/legacy/components/shortcuts.jsx");

@@ -348,7 +348,7 @@ test("the wiring: one row component for People and Today, the queue in the comma
       manifest.indexOf('"@/legacy/pages/dashboard-a-brief.jsx"'),
     "loaded before the pages that draw it",
   );
-  const people = readCode("apps/dashboard/src/legacy/pages/clients-a.jsx");
+  const people = readCode("apps/dashboard/src/legacy/pages/people.jsx");
   // People drew three of these rows above its table -- the table's own first rows
   // again -- so the strip went and each row carries the words itself.
   assert.ok(

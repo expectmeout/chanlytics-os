@@ -14,7 +14,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readCode, readRaw } from "./_source.mjs";
 
-const page = readRaw("apps/dashboard/src/legacy/pages/live-monitor-real.jsx");
+const page = readRaw("apps/dashboard/src/legacy/pages/live-monitor.jsx");
 
 test("the waiting state says the greeting is playing and words follow the first exchange", () => {
   assert.ok(page.includes("It opens with the greeting; the phone provider sends the words after the first exchange"));

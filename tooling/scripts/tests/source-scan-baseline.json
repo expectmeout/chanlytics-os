@@ -65,7 +65,7 @@
     "notifications.test.mjs": 3,
     "numbers-two-tables.test.mjs": 1,
     "one-hours-algorithm.test.mjs": 1,
-    "ops-hygiene.test.mjs": 7,
+    "ops-hygiene.test.mjs": 8,
     "opt-out.test.mjs": 2,
     "person-mode-enforcement.test.mjs": 3,
     "phone-shell.test.mjs": 12,

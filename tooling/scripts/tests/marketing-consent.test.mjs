@@ -555,7 +555,7 @@ test('every read of "said yes to offers" points at the offers column', () => {
     "and it is counted the way the reachable view counts it",
   );
 
-  const clients = readCode("apps/dashboard/src/legacy/pages/clients-a.jsx");
+  const clients = readCode("apps/dashboard/src/legacy/pages/people.jsx");
   assert.match(clients, /PL_OFFERS\[p\.consent\.marketing\]/, "the column titled Offers");
   assert.match(clients, /rank\[a\.consent\.marketing\]/, "and sorting by it sorts by it");
 

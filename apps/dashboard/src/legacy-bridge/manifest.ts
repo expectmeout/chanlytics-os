@@ -50,7 +50,7 @@ import "@/legacy/data/conversations-data.jsx";
 import "@/legacy/data/live-data.jsx";
 import "@/legacy/data/calendar-data.jsx";
 import "@/legacy/data/reports-data.jsx";
-import "@/legacy/data/tasks-data.jsx";
+import "@/legacy/demo/data/tasks-data.jsx";
 import "@/legacy/data/people-data.jsx";
 import "@/legacy/pages/attention-bits.jsx";
 import "@/legacy/pages/dashboard-a-brief.jsx";
@@ -75,7 +75,7 @@ import "@/legacy/pages/inbox.jsx";
 import "@/legacy/pages/clients-bits.jsx";
 import "@/legacy/pages/people-table.jsx";
 // People › Pipeline (0008), the third scope: its peek and its board before the scope, which draws them, and the
-// scope before clients-a.jsx, whose ClientsA draws it.
+// scope before people.jsx, whose ClientsA draws it.
 // The pieces a row, a card and the peek share (the track, the row's menu, a selection's pass), before them.
 import "@/legacy/pages/pipeline-row.jsx";
 import "@/legacy/pages/pipeline-peek.jsx";
@@ -83,11 +83,12 @@ import "@/legacy/pages/pipeline-board.jsx";
 // New proposal: who it is for, before the one deal sheet.
 import "@/legacy/pages/pipeline-new.jsx";
 import "@/legacy/pages/pipeline-scope.jsx";
-// Import people: the owner's sheet, before clients-a.jsx, whose People page opens it.
+// Import people: the owner's sheet, before people.jsx, whose People page opens it.
 import "@/legacy/pages/people-import.jsx";
-// People › Leads, the real surface (moved whole from clients-a.jsx): before clients-a.jsx, whose ClientsA draws it.
+// People › Leads, the real surface (moved whole from people.jsx): before people.jsx, whose ClientsA draws it.
 import "@/legacy/pages/leads-real.jsx";
-import "@/legacy/pages/clients-a.jsx";
+// People (clients-a.jsx until 26 September 2026): ClientsA, PeopleReal and the two list-page hooks.
+import "@/legacy/pages/people.jsx";
 // A person's deal (0008): the card the profile draws first in its left column.
 import "@/legacy/pages/person-deal.jsx";
 import "@/legacy/pages/client-profile.jsx";
@@ -102,34 +103,39 @@ import "@/legacy/pages/leads-peek.jsx";
 // are the mockup's surfaces: kept, hidden from every real workspace (the
 // registry marks them demo), revisited when the product is at 100% — Ruben,
 // 11 September 2026. None of their features is built before then.
+// The mockup's own files live under legacy/demo/: those six, the seeded twin of
+// each real page (calendar, broadcasts, outbound, live-monitor: the *Seed a
+// real page falls back to outside a fed workspace) and the seeds only they
+// read. Still in this list, at the places they always had, until the twins'
+// forks on the seeds are gone (docs/plans/2026-09-26-organization-and-code-health.md).
 import "@/legacy/pages/segments.jsx";
-import "@/legacy/pages/agent-store.jsx";
-import "@/legacy/pages/agent-fleet.jsx";
-import "@/legacy/pages/agent-studio.jsx";
-import "@/legacy/pages/outbound.jsx";
-// A playbook's words, card and composer (moved whole from outbound-real.jsx): before the page, which draws them.
+import "@/legacy/demo/pages/agent-store.jsx";
+import "@/legacy/demo/pages/agent-fleet.jsx";
+import "@/legacy/demo/pages/agent-studio.jsx";
+import "@/legacy/demo/pages/outbound.jsx";
+// A playbook's words, card and composer (moved whole from the page, outbound-real.jsx then): before it, which draws them.
 import "@/legacy/pages/playbook-bits.jsx";
 import "@/legacy/pages/playbook-card.jsx";
 import "@/legacy/pages/playbook-composer.jsx";
-import "@/legacy/pages/outbound-real.jsx";
-import "@/legacy/pages/content-cal.jsx";
+import "@/legacy/pages/outbound.jsx";
+import "@/legacy/demo/pages/content-cal.jsx";
 import "@/legacy/pages/templates-real.jsx";
 import "@/legacy/pages/messages.jsx";
-import "@/legacy/pages/broadcasts.jsx";
-// A run and the ledger of runs (moved whole from broadcasts-real.jsx): before the page, which draws them.
+import "@/legacy/demo/pages/broadcasts.jsx";
+// A run and the ledger of runs (moved whole from the page, broadcasts-real.jsx then): before it, which draws them.
 import "@/legacy/pages/broadcasts-run.jsx";
 import "@/legacy/pages/broadcasts-ledger.jsx";
-import "@/legacy/pages/broadcasts-real.jsx";
-import "@/legacy/pages/pipeline.jsx";
+import "@/legacy/pages/broadcasts.jsx";
+import "@/legacy/demo/pages/pipeline.jsx";
 import "@/legacy/pages/conversations.jsx";
-import "@/legacy/pages/live-monitor.jsx";
+import "@/legacy/demo/pages/live-monitor.jsx";
 // After the mockup's console: takes the route over when the bridge feeds it.
-import "@/legacy/pages/live-monitor-real.jsx";
+import "@/legacy/pages/live-monitor.jsx";
+import "@/legacy/demo/pages/calendar.jsx";
 import "@/legacy/pages/calendar.jsx";
-import "@/legacy/pages/calendar-real.jsx";
 import "@/legacy/pages/reports-sections.jsx";
 import "@/legacy/pages/reports.jsx";
-import "@/legacy/pages/tasks.jsx";
+import "@/legacy/demo/pages/tasks.jsx";
 import "@/legacy/pages/setup.jsx";
 import "@/legacy/pages/first-run.jsx";
 // Before the Business tab, and so before settings.jsx: what the tab's saves write, the one saver they go through, the

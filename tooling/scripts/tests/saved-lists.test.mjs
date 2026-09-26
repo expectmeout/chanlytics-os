@@ -102,7 +102,7 @@ test("the surface: lists ride People, counted over the rows on the page; the ver
 });
 
 test("the page: the rail's Saved section is real, a name typed there is the only thing typed, a person joins from their profile", () => {
-  const p = readCode("apps/dashboard/src/legacy/pages/clients-a.jsx");
+  const p = readCode("apps/dashboard/src/legacy/pages/people.jsx");
   // The Saved section itself is the rail kit's (RailSection), drawn and pressed in people-honest, not read here.
   assert.ok(p.includes('data-testid="new-list"') && p.includes('data-testid="new-list-name"'));
   assert.ok(!p.includes("Saved lists need a segments table (Tier 2)"), "the demo-only block is gone");
@@ -138,7 +138,7 @@ test("Lists is a view of People: a kept list is the page's title with its rename
     readCode("apps/dashboard/src/legacy/pages/segments.jsx").includes("window.SegmentsPage = SegmentsPage;"),
     "the demo's page under the name the shell draws",
   );
-  const p = readCode("apps/dashboard/src/legacy/pages/clients-a.jsx");
+  const p = readCode("apps/dashboard/src/legacy/pages/people.jsx");
   // The phone's way to the lists is the bar's list button now, pressed in people-honest ("on a phone the lists are
   // behind the bar's list button"), not a testid read here.
   for (const id of [

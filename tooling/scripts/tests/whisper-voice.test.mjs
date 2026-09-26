@@ -18,7 +18,7 @@ import assert from "node:assert/strict";
 import { readRaw } from "./_source.mjs";
 
 test("hold to talk: the browser's recogniser, sent on release, hidden where it does not exist", () => {
-  const page = readRaw("apps/dashboard/src/legacy/pages/live-monitor-real.jsx");
+  const page = readRaw("apps/dashboard/src/legacy/pages/live-monitor.jsx");
   assert.ok(page.includes("window.SpeechRecognition || window.webkitSpeechRecognition || null"));
   assert.ok(
     page.includes("{canTalk && (") && page.includes('data-testid="live-whisper-talk"'),

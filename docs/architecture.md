@@ -227,8 +227,12 @@ honest:
   database cannot support. A zero is a measurement and is shown; an invented
   number is not.
 
-The unbuilt surfaces (agent fleet, store, studio, tasks, content) stay in the
-tree, hidden from every real workspace, by decision. The shell's route names
+The unbuilt surfaces (agent fleet, store, studio, tasks, content, the retired
+deal board) stay in the tree, hidden from every real workspace, by decision.
+They live under `src/legacy/demo/`, with the seeded twin of each real page
+(`demo/pages/calendar.jsx` beside `pages/calendar.jsx`, and so on) and the seed
+data only they read; the manifest still loads them, at the places they always
+had, until the twins' forks on those seeds are gone. The shell's route names
 and the API's nouns do not all agree yet; `docs/glossary.md` lists the five.
 
 ## Where to look

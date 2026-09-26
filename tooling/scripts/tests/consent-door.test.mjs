@@ -97,7 +97,7 @@ test("TWO lists, because there are two answers: one for messages, one for offers
 
   const at = (id) => PEOPLE_LISTS.findIndex((l) => l.id === id);
   assert.ok(at("opted_in") < at("offers_ok") && at("offers_ok") < at("opted_out"), "the two yeses, then the no");
-  const page = readCode("apps/dashboard/src/legacy/pages/clients-a.jsx");
+  const page = readCode("apps/dashboard/src/legacy/pages/people.jsx");
   // The rail's tip is the list's own (contracts BUILTIN_LISTS, decision 0009): it says which yes.
   assert.match(offers.tip, /^Said yes to OFFERS, separately/, "the rail explains which yes");
   // And the column titled Offers reads the offers answer.

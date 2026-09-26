@@ -209,7 +209,7 @@ test("the wiring: the door carries the summary, the surface carries the rows, an
   // The strip that drew three of these rows above the table is gone: it showed
   // the table's own first rows over again, with the same sentences. The row
   // still speaks -- People reads the same attention row for its words.
-  const page = readCode("apps/dashboard/src/legacy/pages/clients-a.jsx");
+  const page = readCode("apps/dashboard/src/legacy/pages/people.jsx");
   assert.ok(page.includes("const said = attention && attention[p.id];"), "every row reads its own attention row");
   assert.ok(
     page.includes('<div className="cl-row-words" title={words} data-testid="row-words">{words}</div>'),

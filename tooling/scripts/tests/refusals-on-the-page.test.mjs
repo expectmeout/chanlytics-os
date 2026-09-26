@@ -463,7 +463,7 @@ for (const k of [
 ])
   globalThis[k] = globalThis.window[k];
 await import("../../../apps/dashboard/src/legacy/pages/leads-real.jsx");
-await import("../../../apps/dashboard/src/legacy/pages/clients-a.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/people.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/client-profile.jsx");
 
 test("REGRESSION (B5): a refused list delete keeps the question open and says why -- it closed with no word", async () => {

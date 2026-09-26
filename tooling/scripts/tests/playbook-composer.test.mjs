@@ -248,7 +248,7 @@ await import("../../../apps/dashboard/src/legacy/components/campaign-bits.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/playbook-bits.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/playbook-card.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/playbook-composer.jsx");
-await import("../../../apps/dashboard/src/legacy/pages/outbound-real.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/outbound.jsx");
 // The verbs, as the bridge publishes them: what the composer sends is what the route would be sent.
 globalThis.window.__playbooks = {
   ...globalThis.window.__playbooks,

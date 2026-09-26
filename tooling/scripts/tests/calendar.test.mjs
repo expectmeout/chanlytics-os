@@ -271,7 +271,7 @@ test("the doors and the page: read-only, the feed's address never in the browser
   assert.ok(pv.includes('role: "operator",') && pv.includes("previewFeed(url, timezone)"));
   const reg = readCode("apps/dashboard/src/legacy-bridge/surface-registry.ts");
   assert.ok(reg.includes('calendar: "real"') && reg.includes('calendar: "calendar"'));
-  const page = readCode("apps/dashboard/src/legacy/pages/calendar-real.jsx");
+  const page = readCode("apps/dashboard/src/legacy/pages/calendar.jsx");
   for (const id of [
     "calendar-real",
     "cal-feed",
@@ -291,7 +291,9 @@ test("the doors and the page: read-only, the feed's address never in the browser
     !/drag|Move |cancel\(|Waitlist|two-way|Two-way|Google Calendar|Apple iCal|Utilization|\$\d/.test(page),
     "a viewer: nothing moved, cancelled, synced two ways, or priced",
   );
-  assert.ok(readCode("apps/dashboard/src/legacy/pages/calendar.jsx").includes("window.CalendarSeed = CalendarPage;"));
+  assert.ok(
+    readCode("apps/dashboard/src/legacy/demo/pages/calendar.jsx").includes("window.CalendarSeed = CalendarPage;"),
+  );
   const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
   assert.ok(sd.includes('key: "calendar"') && sd.includes('read("GET calendar"'), "one override, fed by the route");
   // The form's "Check the address" button went with the form: the Business page's calendar row states its last read
@@ -348,7 +350,7 @@ test("the words from Settings on the board: hours as runs, closures ahead, servi
 });
 
 test("full-fledged: month and agenda views, a date to jump to, windows that fit a service, the rules bar, Today's line, the assistant's read, and Settings saves that reach the board", async () => {
-  const page = readCode("apps/dashboard/src/legacy/pages/calendar-real.jsx");
+  const page = readCode("apps/dashboard/src/legacy/pages/calendar.jsx");
   for (const id of [
     "cal-month",
     "cal-month-cell",
@@ -458,7 +460,7 @@ test("instant views: the span a view needs, the window loaded around a day, whet
 });
 
 test("the page keeps a view and a day, derives the rest, and reads only when the window does not cover the view", () => {
-  const page = readCode("apps/dashboard/src/legacy/pages/calendar-real.jsx");
+  const page = readCode("apps/dashboard/src/legacy/pages/calendar.jsx");
   assert.ok(
     page.includes("const span = vm && cal ? cal.spanFor(view, anchor) : null;") &&
       page.includes("cal.covers(vm.days, span.from, span.days)"),

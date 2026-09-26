@@ -310,13 +310,13 @@ test("the pages: titles not names, the starter set in Settings, one click on Bro
       tabs.includes('to: "content", demoOnly: true'),
     "Templates is the third door of the shell's own Campaigns strip, on the route that is still `messages`; Content stays seed-only",
   );
-  for (const f of ["outbound-real", "broadcasts-real", "messages"])
+  for (const f of ["outbound", "broadcasts", "messages"])
     assert.ok(
       !readCode(`apps/dashboard/src/legacy/pages/${f}.jsx`).includes("CampaignsTabs"),
       `${f}: one strip, the shell's`,
     );
   assert.ok(s.includes("{tplTitle(t)}") && s.includes('" · made here"'), "a title, with the raw name beside it");
-  const b = readCode("apps/dashboard/src/legacy/pages/broadcasts-real.jsx");
+  const b = readCode("apps/dashboard/src/legacy/pages/broadcasts.jsx");
   assert.ok(b.includes('data-testid="bc-add-starters"'));
   assert.ok(
     b.includes(

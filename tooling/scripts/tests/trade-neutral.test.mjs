@@ -23,6 +23,7 @@ const SCOPE = [
   "apps/dashboard/src/server",
   "apps/dashboard/src/legacy-bridge",
   "apps/dashboard/src/legacy/pages",
+  "apps/dashboard/src/legacy/demo/pages",
   "apps/dashboard/src/legacy/components",
   "apps/edge/lib",
   "apps/edge/api",
@@ -30,22 +31,25 @@ const SCOPE = [
 /** Files that may keep a trade's words, and why. */
 const ALLOWED = new Map([
   [
-    "apps/dashboard/src/legacy/pages/calendar.jsx",
-    "the seeded calendar of the design mockup; a real workspace renders calendar-real.jsx",
+    "apps/dashboard/src/legacy/demo/pages/calendar.jsx",
+    "the seeded calendar of the design mockup; a real workspace renders pages/calendar.jsx",
   ],
   [
-    "apps/dashboard/src/legacy/pages/broadcasts.jsx",
-    "the seeded Broadcasts of the mockup; a real workspace renders broadcasts-real.jsx",
+    "apps/dashboard/src/legacy/demo/pages/broadcasts.jsx",
+    "the seeded Broadcasts of the mockup; a real workspace renders pages/broadcasts.jsx",
   ],
   [
     "apps/dashboard/src/legacy/pages/segments.jsx",
-    "the seeded Segments of the mockup; a real workspace's lists are a view of People (clients-a.jsx)",
+    "the seeded Segments of the mockup; a real workspace's lists are a view of People (people.jsx)",
   ],
   [
-    "apps/dashboard/src/legacy/pages/content-cal.jsx",
+    "apps/dashboard/src/legacy/demo/pages/content-cal.jsx",
     "the seeded content calendar; a real workspace sees the in-design card",
   ],
-  ["apps/dashboard/src/legacy/pages/agent-studio.jsx", "the seeded Studio; a real workspace sees the in-design card"],
+  [
+    "apps/dashboard/src/legacy/demo/pages/agent-studio.jsx",
+    "the seeded Studio; a real workspace sees the in-design card",
+  ],
 ]);
 const BANNED = /\b(salons?|stylists?|balayage|therapists?|chair rental|haircuts?|keratin|blowouts?|lash(?:es)?)\b/i;
 const EXT = new Set([".ts", ".tsx", ".jsx", ".js"]);

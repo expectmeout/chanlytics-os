@@ -325,7 +325,7 @@ test("the three routes keep their doors: rate bucket, a named workspace, owner o
 test("the pages link to the routes, and only where the bridge can name the workspace", () => {
   // A conversation's file is in its thread's menu (one-thread.test.mjs), a call's under its transcript
   // (calls-in-the-thread.test.mjs): both run there, off a demo and only with the bridge.
-  const people = readRaw("apps/dashboard/src/legacy/pages/clients-a.jsx");
+  const people = readRaw("apps/dashboard/src/legacy/pages/people.jsx");
   // Everyone, or the list that is open (decision 0009), by its token.
   assert.ok(people.includes("href={exportHref}"));
   assert.ok(people.includes('window.__href("GET contacts/export", undefined, exportName ? { list:'));

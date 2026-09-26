@@ -206,7 +206,7 @@ test("the job fills the slots per person and holds anyone a slot cannot be fille
   // The slots per person and the hold on an unfillable one are run: core-broadcast.test.mjs.
   assert.ok(h.includes('const businessName = parsedCfg?.brain?.business_name || tenantRow?.name || "";'));
   // The specs and the booking-link refusal are run: core-campaigns.test.mjs.
-  const p = readCode("apps/dashboard/src/legacy/pages/broadcasts-real.jsx");
+  const p = readCode("apps/dashboard/src/legacy/pages/broadcasts.jsx");
   assert.ok(p.includes('data-testid="bc-var-source"') && p.includes('data-testid="bc-new-template"'));
   assert.ok(p.includes("<window.TemplateComposer"), "one composer, mounted where a template is needed");
   const s = readCode("apps/dashboard/src/legacy/pages/messages.jsx");

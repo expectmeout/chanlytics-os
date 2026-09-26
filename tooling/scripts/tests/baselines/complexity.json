@@ -364,45 +364,85 @@
     "branches": 87,
     "depth": 4
   },
-  "apps/dashboard/src/legacy/pages/activity.jsx::PaneActivity#1": {
-    "lines": 177,
-    "branches": 47,
-    "depth": 2
-  },
-  "apps/dashboard/src/legacy/pages/agent-fleet.jsx::FleetDetail#1": {
+  "apps/dashboard/src/legacy/demo/pages/agent-fleet.jsx::FleetDetail#1": {
     "lines": 335,
     "branches": 89,
     "depth": 2
   },
-  "apps/dashboard/src/legacy/pages/agent-store.jsx::(callback)#19": {
+  "apps/dashboard/src/legacy/demo/pages/agent-store.jsx::(callback)#19": {
     "lines": 93,
     "branches": 40,
     "depth": 3
   },
-  "apps/dashboard/src/legacy/pages/agent-store.jsx::AgentStore#1": {
+  "apps/dashboard/src/legacy/demo/pages/agent-store.jsx::AgentStore#1": {
     "lines": 173,
     "branches": 28,
     "depth": 2
   },
-  "apps/dashboard/src/legacy/pages/agent-store.jsx::InstallModal#1": {
+  "apps/dashboard/src/legacy/demo/pages/agent-store.jsx::InstallModal#1": {
     "lines": 197,
     "branches": 38,
     "depth": 3
   },
-  "apps/dashboard/src/legacy/pages/agent-store.jsx::ListingsPane#1": {
+  "apps/dashboard/src/legacy/demo/pages/agent-store.jsx::ListingsPane#1": {
     "lines": 136,
     "branches": 42,
     "depth": 3
   },
-  "apps/dashboard/src/legacy/pages/agent-studio.jsx::ComposeMode#1": {
+  "apps/dashboard/src/legacy/demo/pages/agent-studio.jsx::ComposeMode#1": {
     "lines": 168,
     "branches": 23,
     "depth": 2
   },
-  "apps/dashboard/src/legacy/pages/agent-studio.jsx::ConnectMode#1": {
+  "apps/dashboard/src/legacy/demo/pages/agent-studio.jsx::ConnectMode#1": {
     "lines": 841,
     "branches": 213,
     "depth": 5
+  },
+  "apps/dashboard/src/legacy/demo/pages/broadcasts.jsx::BroadcastsPage#1": {
+    "lines": 353,
+    "branches": 77,
+    "depth": 2
+  },
+  "apps/dashboard/src/legacy/demo/pages/calendar.jsx::CalendarPage#1": {
+    "lines": 340,
+    "branches": 76,
+    "depth": 2
+  },
+  "apps/dashboard/src/legacy/demo/pages/calendar.jsx::EventPanel#1": {
+    "lines": 169,
+    "branches": 61,
+    "depth": 8
+  },
+  "apps/dashboard/src/legacy/demo/pages/content-cal.jsx::ContentPage#1": {
+    "lines": 153,
+    "branches": 29,
+    "depth": 3
+  },
+  "apps/dashboard/src/legacy/demo/pages/live-monitor.jsx::LivePanel#1": {
+    "lines": 221,
+    "branches": 40,
+    "depth": 3
+  },
+  "apps/dashboard/src/legacy/demo/pages/outbound.jsx::(callback)#18": {
+    "lines": 110,
+    "branches": 32,
+    "depth": 2
+  },
+  "apps/dashboard/src/legacy/demo/pages/outbound.jsx::OutboundPage#1": {
+    "lines": 198,
+    "branches": 48,
+    "depth": 2
+  },
+  "apps/dashboard/src/legacy/demo/pages/tasks.jsx::TasksPage#1": {
+    "lines": 262,
+    "branches": 68,
+    "depth": 4
+  },
+  "apps/dashboard/src/legacy/pages/activity.jsx::PaneActivity#1": {
+    "lines": 177,
+    "branches": 47,
+    "depth": 2
   },
   "apps/dashboard/src/legacy/pages/app-shell.jsx::ChanlyticsApp#1": {
     "lines": 701,
@@ -449,11 +489,6 @@
     "branches": 40,
     "depth": 3
   },
-  "apps/dashboard/src/legacy/pages/broadcasts-real.jsx::BroadcastsReal#1": {
-    "lines": 659,
-    "branches": 327,
-    "depth": 5
-  },
   "apps/dashboard/src/legacy/pages/broadcasts-run.jsx::BcSheet#1": {
     "lines": 98,
     "branches": 33,
@@ -464,10 +499,10 @@
     "branches": 58,
     "depth": 2
   },
-  "apps/dashboard/src/legacy/pages/broadcasts.jsx::BroadcastsPage#1": {
-    "lines": 353,
-    "branches": 77,
-    "depth": 2
+  "apps/dashboard/src/legacy/pages/broadcasts.jsx::BroadcastsReal#1": {
+    "lines": 659,
+    "branches": 327,
+    "depth": 5
   },
   "apps/dashboard/src/legacy/pages/business-can.jsx::BtCanCard#1": {
     "lines": 142,
@@ -514,30 +549,20 @@
     "branches": 31,
     "depth": 1
   },
-  "apps/dashboard/src/legacy/pages/calendar-real.jsx::CalendarReal#1": {
+  "apps/dashboard/src/legacy/pages/calendar.jsx::CalendarReal#1": {
     "lines": 342,
     "branches": 139,
     "depth": 3
   },
-  "apps/dashboard/src/legacy/pages/calendar-real.jsx::CrAgenda#1": {
+  "apps/dashboard/src/legacy/pages/calendar.jsx::CrAgenda#1": {
     "lines": 49,
     "branches": 33,
     "depth": 3
   },
-  "apps/dashboard/src/legacy/pages/calendar-real.jsx::CrPanel#1": {
+  "apps/dashboard/src/legacy/pages/calendar.jsx::CrPanel#1": {
     "lines": 113,
     "branches": 44,
     "depth": 3
-  },
-  "apps/dashboard/src/legacy/pages/calendar.jsx::CalendarPage#1": {
-    "lines": 340,
-    "branches": 76,
-    "depth": 2
-  },
-  "apps/dashboard/src/legacy/pages/calendar.jsx::EventPanel#1": {
-    "lines": 169,
-    "branches": 61,
-    "depth": 8
   },
   "apps/dashboard/src/legacy/pages/client-profile.jsx::(callback)#48": {
     "lines": 40,
@@ -577,56 +602,6 @@
   "apps/dashboard/src/legacy/pages/client-profile.jsx::noteRow#1": {
     "lines": 86,
     "branches": 36,
-    "depth": 3
-  },
-  "apps/dashboard/src/legacy/pages/clients-a.jsx::(callback)#137": {
-    "lines": 52,
-    "branches": 54,
-    "depth": 4
-  },
-  "apps/dashboard/src/legacy/pages/clients-a.jsx::ClientsASeed#1": {
-    "lines": 320,
-    "branches": 62,
-    "depth": 3
-  },
-  "apps/dashboard/src/legacy/pages/clients-a.jsx::NewListRow#1": {
-    "lines": 96,
-    "branches": 38,
-    "depth": 2
-  },
-  "apps/dashboard/src/legacy/pages/clients-a.jsx::PeopleBulkBar#1": {
-    "lines": 323,
-    "branches": 137,
-    "depth": 2
-  },
-  "apps/dashboard/src/legacy/pages/clients-a.jsx::PeopleRail#1": {
-    "lines": 64,
-    "branches": 31,
-    "depth": 2
-  },
-  "apps/dashboard/src/legacy/pages/clients-a.jsx::PeopleReal#1": {
-    "lines": 557,
-    "branches": 299,
-    "depth": 4
-  },
-  "apps/dashboard/src/legacy/pages/clients-a.jsx::onKey#2": {
-    "lines": 48,
-    "branches": 54,
-    "depth": 4
-  },
-  "apps/dashboard/src/legacy/pages/clients-a.jsx::usePlControls#1": {
-    "lines": 164,
-    "branches": 54,
-    "depth": 2
-  },
-  "apps/dashboard/src/legacy/pages/clients-a.jsx::usePlPlace#1": {
-    "lines": 192,
-    "branches": 106,
-    "depth": 4
-  },
-  "apps/dashboard/src/legacy/pages/content-cal.jsx::ContentPage#1": {
-    "lines": 153,
-    "branches": 29,
     "depth": 3
   },
   "apps/dashboard/src/legacy/pages/conversations.jsx::ConversationsPage#1": {
@@ -804,20 +779,15 @@
     "branches": 64,
     "depth": 5
   },
-  "apps/dashboard/src/legacy/pages/live-monitor-real.jsx::LrPanel#1": {
+  "apps/dashboard/src/legacy/pages/live-monitor.jsx::LrPanel#1": {
     "lines": 128,
     "branches": 41,
     "depth": 5
   },
-  "apps/dashboard/src/legacy/pages/live-monitor-real.jsx::LrWhisper#1": {
+  "apps/dashboard/src/legacy/pages/live-monitor.jsx::LrWhisper#1": {
     "lines": 122,
     "branches": 38,
     "depth": 2
-  },
-  "apps/dashboard/src/legacy/pages/live-monitor.jsx::LivePanel#1": {
-    "lines": 221,
-    "branches": 40,
-    "depth": 3
   },
   "apps/dashboard/src/legacy/pages/messages.jsx::MessageRow#1": {
     "lines": 312,
@@ -829,19 +799,9 @@
     "branches": 90,
     "depth": 3
   },
-  "apps/dashboard/src/legacy/pages/outbound-real.jsx::PlaybooksReal#1": {
+  "apps/dashboard/src/legacy/pages/outbound.jsx::PlaybooksReal#1": {
     "lines": 207,
     "branches": 54,
-    "depth": 2
-  },
-  "apps/dashboard/src/legacy/pages/outbound.jsx::(callback)#18": {
-    "lines": 110,
-    "branches": 32,
-    "depth": 2
-  },
-  "apps/dashboard/src/legacy/pages/outbound.jsx::OutboundPage#1": {
-    "lines": 198,
-    "branches": 48,
     "depth": 2
   },
   "apps/dashboard/src/legacy/pages/people-import.jsx::PeopleImportSheet#1": {
@@ -853,6 +813,51 @@
     "lines": 57,
     "branches": 34,
     "depth": 2
+  },
+  "apps/dashboard/src/legacy/pages/people.jsx::(callback)#137": {
+    "lines": 52,
+    "branches": 54,
+    "depth": 4
+  },
+  "apps/dashboard/src/legacy/pages/people.jsx::ClientsASeed#1": {
+    "lines": 320,
+    "branches": 62,
+    "depth": 3
+  },
+  "apps/dashboard/src/legacy/pages/people.jsx::NewListRow#1": {
+    "lines": 96,
+    "branches": 38,
+    "depth": 2
+  },
+  "apps/dashboard/src/legacy/pages/people.jsx::PeopleBulkBar#1": {
+    "lines": 323,
+    "branches": 137,
+    "depth": 2
+  },
+  "apps/dashboard/src/legacy/pages/people.jsx::PeopleRail#1": {
+    "lines": 64,
+    "branches": 31,
+    "depth": 2
+  },
+  "apps/dashboard/src/legacy/pages/people.jsx::PeopleReal#1": {
+    "lines": 557,
+    "branches": 299,
+    "depth": 4
+  },
+  "apps/dashboard/src/legacy/pages/people.jsx::onKey#2": {
+    "lines": 48,
+    "branches": 54,
+    "depth": 4
+  },
+  "apps/dashboard/src/legacy/pages/people.jsx::usePlControls#1": {
+    "lines": 164,
+    "branches": 54,
+    "depth": 2
+  },
+  "apps/dashboard/src/legacy/pages/people.jsx::usePlPlace#1": {
+    "lines": 192,
+    "branches": 106,
+    "depth": 4
   },
   "apps/dashboard/src/legacy/pages/pipeline-board.jsx::PipelineBoard#1": {
     "lines": 59,
@@ -938,11 +943,6 @@
     "lines": 76,
     "branches": 45,
     "depth": 3
-  },
-  "apps/dashboard/src/legacy/pages/tasks.jsx::TasksPage#1": {
-    "lines": 262,
-    "branches": 68,
-    "depth": 4
   },
   "apps/dashboard/src/legacy/pages/templates-real.jsx::TemplateComposer#1": {
     "lines": 236,

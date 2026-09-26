@@ -870,7 +870,7 @@ await import("../../../apps/dashboard/src/legacy/pages/pipeline-board.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/pipeline-new.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/pipeline-scope.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/leads-real.jsx");
-await import("../../../apps/dashboard/src/legacy/pages/clients-a.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/people.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/person-deal.jsx");
 
 const walk = (n, fn) => {

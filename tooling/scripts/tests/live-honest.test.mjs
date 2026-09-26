@@ -191,7 +191,7 @@ globalThis.ReactDOM ??= { createPortal: (node) => node };
 await import("../../../apps/dashboard/src/legacy/components/data-bits.jsx");
 for (const k of ["Confirm", "EmptyState", "FailedRead"]) globalThis[k] = globalThis.window[k];
 globalThis.window.usePPToast = () => [null, (m) => flashes.push(m)];
-await import("../../../apps/dashboard/src/legacy/pages/live-monitor-real.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/live-monitor.jsx");
 const Page = globalThis.window.LiveMonitorPage;
 
 const walk = (n, fn) => {

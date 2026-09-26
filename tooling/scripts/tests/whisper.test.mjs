@@ -82,7 +82,7 @@ test("the route proves visibility, then the role door, then the provider — and
 });
 
 test("the page offers it only on a live call, behind the gate the server enforces", () => {
-  const page = readRaw("apps/dashboard/src/legacy/pages/live-monitor-real.jsx");
+  const page = readRaw("apps/dashboard/src/legacy/pages/live-monitor.jsx");
   assert.ok(page.includes("{c.live && <LrWhisper c={c} />}"));
   assert.ok(page.includes('data-testid="live-whisper"'));
   assert.ok(page.includes('{...window.gate("approve")}'), "the same door: operator or owner");

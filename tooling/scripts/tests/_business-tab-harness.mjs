@@ -88,7 +88,7 @@ await import(`${L}/components/record-fold.jsx`);
 await import(`${L}/components/record-sheet.jsx`);
 // The Calendar page, which loads before the tab in both lists: it publishes how long it keeps a read and its words for
 // a read that gives no reason (window.__calendarPage), which the tab's calendar row keeps too.
-await import(`${L}/pages/calendar-real.jsx`);
+await import(`${L}/pages/calendar.jsx`);
 // What the tab's saves write and the one saver they go through, before the page, as both load lists have them.
 await import(`${L}/pages/business-tab-save.jsx`);
 await import(`${L}/pages/business-tab-folds.jsx`);

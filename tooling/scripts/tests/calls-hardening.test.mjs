@@ -134,7 +134,7 @@ test("Live says only what is true about a silent 'ongoing' row", () => {
   assert.equal(phantom.stale, true, "neither live nor ended");
   assert.equal(toLiveCallVM({ ...base, status: "ended", duration_ms: 1000 }, ZONE, NOW).stale, false);
   // "No word from the provider" is the one pill's word for a stale call now: run in state-pill.test.mjs.
-  const page = readRaw("apps/dashboard/src/legacy/pages/live-monitor-real.jsx");
+  const page = readRaw("apps/dashboard/src/legacy/pages/live-monitor.jsx");
   assert.ok(page.includes("checked with the phone provider within five minutes"));
   assert.ok(!page.includes("The transcript arrives when the call ends"), "turns stream now");
   const tabs = readRaw("apps/dashboard/src/legacy/components/surface-tabs.jsx");

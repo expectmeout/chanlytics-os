@@ -94,7 +94,9 @@ that feeds a real surface from `/api/v1` is `src/legacy-bridge`, and
 `surface-registry.ts` there is the table that says which routes are real. The
 mockup's unbuilt surfaces (agent fleet, store, studio, tasks, content, the
 pipeline board, the shared report viewer) stay in
-the tree and hidden from every real workspace, by decision. The mockup's own
+the tree and hidden from every real workspace, by decision; their files, the
+seeded twin of each real page and the seeds only they read live under
+`src/legacy/demo/`. The mockup's own
 prose (its audits and demo scripts) lives in `docs/mockup/`, not in the app.
 
 **`dynamic(ssr:false)` on the legacy app is required.** `inbox-data.jsx` does

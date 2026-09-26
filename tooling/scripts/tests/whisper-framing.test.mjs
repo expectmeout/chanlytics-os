@@ -103,7 +103,7 @@ test("both transcripts show the whisper as the owner's own words, where it lande
     ["client", "whisper", "agent"],
   );
   assert.equal(call.transcript[1].text, "tell them we have a haircut special");
-  const page = readRaw("apps/dashboard/src/legacy/pages/live-monitor-real.jsx");
+  const page = readRaw("apps/dashboard/src/legacy/pages/live-monitor.jsx");
   assert.ok(page.includes('data-testid="live-whisper-line"') && page.includes("You whispered"));
   // The call's own transcript says it on the thread's call card, run in calls-in-the-thread.test.mjs.
   // The edge sending the frame (and the ledger keeping the words) is run in whisper-door.test.mjs.
