@@ -43,7 +43,7 @@ import {
   toPersonRowVM,
   visitTitleFor,
 } from "./people";
-import { CONSENT_RESET_SOURCE, consentSourceLabel } from "./person-consent";
+import { CARRIER_CONSENT_SOURCE, CONSENT_RESET_SOURCE, consentSourceLabel } from "./person-consent";
 import { addedBy, capitalize, mmss, proposalSending, proposalSent, replyChannelOfThreads, ts } from "./person-helpers";
 import { personNotesVM, type PersonNoteTeamDto, type PersonNoteVM } from "./person-notes";
 import { PERSON_CHANNEL_WORDS, type PersonChannel, REPLY_VIA } from "./person-words";
@@ -131,6 +131,10 @@ export function consentChangeWords(c: ConsentChange): { who: string; text: strin
     sub = `In their own words ${where}${c.words ? `: “${c.words}”` : ""}`;
   } else if (c.source === CONSENT_RESET_SOURCE || !c.source) {
     sub = "Reset by staff";
+  } else if (c.source === CARRIER_CONSENT_SOURCE) {
+    // The carrier's report of a STOP we never heard (a text refused with Twilio 21610): the person's own no, said
+    // by the carrier -- neither their words to us nor a member's record.
+    sub = "Reported by the carrier: they had texted STOP to your number, so a text to them was not sent";
   } else {
     sub = `${consentSourceLabel(c.source) ?? c.source}, recorded by staff${c.note ? ` · ${c.note}` : ""}`;
   }

@@ -32,6 +32,7 @@ import {
   sendEmail,
   requestLeavesAs,
   resendLimitOf,
+  smsRefusalOf,
   addressOf,
   type SendResult,
   type WaConfig,
@@ -41,6 +42,7 @@ import {
   type ResendLimit,
 } from "@chanlytics/channels";
 import {
+  CARRIER_CONSENT_SOURCE,
   domainDailyCap,
   mayMessageFor,
   outreachRefusalOf,
@@ -49,7 +51,14 @@ import {
   type SendPurpose,
   type EventKind,
 } from "@chanlytics/contracts";
-import { emitEvent, outreachFactsOf, recordOutbound, type Database, type Json } from "@chanlytics/db";
+import {
+  emitEvent,
+  outreachFactsOf,
+  recordCarrierOptOut,
+  recordOutbound,
+  type Database,
+  type Json,
+} from "@chanlytics/db";
 
 export type { DeliveryRefusal };
 
@@ -614,24 +623,33 @@ export async function deliver(ports: DeliverPorts, d: Delivery): Promise<Deliver
   const refusal = refusalFor(d, facts, nowMs, outreach);
   const overtakenBy = !refusal && kindOf(d) === "draft" ? await overtakenByHuman(ports.db, d) : null;
   const reason = refusal ?? (overtakenBy ? "superseded_by_human" : null);
-  if (reason) {
-    // A queued row is canceled with its reason, so the thread shows why the
-    // words never left; a send with no row yet leaves none, and the caller
-    // records the refusal where it lives (a recipient's row, a spoken reply).
+  // A queued row is canceled with its reason, so the thread shows why the
+  // words never left; a send with no row yet leaves none, and the caller
+  // records the refusal where it lives (a recipient's row, a spoken reply).
+  // The event says the person's consent as the door read it -- or, for a
+  // refusal that changed it (the carrier's, below), as it is now.
+  const refuse = async (
+    why: DeliveryRefusal,
+    now: Partial<WireFacts["contact"]> = {},
+    said: Record<string, Json> = {},
+  ): Promise<Delivered> => {
     if (d.messageId) {
-      await finalizeQueued(ports.db, d, { status: "canceled", error: { reason } });
+      const contact = { ...facts.contact, ...now };
+      await finalizeQueued(ports.db, d, { status: "canceled", error: { reason: why } });
       await event(ports.db, d, "message.send_blocked", d.messageId, {
-        reason,
+        reason: why,
         purpose: d.purpose,
-        consent: facts.contact.consent,
-        dnc: facts.contact.dnc,
-        marketing_consent: facts.contact.marketing_consent,
-        ...(d.purpose === "outreach" ? { email_marketing: facts.contact.email_marketing } : {}),
+        consent: contact.consent,
+        dnc: contact.dnc,
+        marketing_consent: contact.marketing_consent,
+        ...(d.purpose === "outreach" ? { email_marketing: contact.email_marketing } : {}),
         ...(overtakenBy ? { after: overtakenBy } : {}),
+        ...said,
       });
     }
-    return { outcome: "refused", reason, messageId: d.messageId ?? null };
-  }
+    return { outcome: "refused", reason: why, messageId: d.messageId ?? null };
+  };
+  if (reason) return refuse(reason);
 
   const send = ports.wire[d.channel];
   // Asked only of words that may go, so a refusal above is still recorded
@@ -648,6 +666,27 @@ export async function deliver(ports: DeliverPorts, d: Delivery): Promise<Deliver
             template: d.template,
             ...(d.email ? { email: d.email, purpose: d.purpose } : {}),
           });
+
+  // The carrier's own no, on the person's behalf (channels smsRefusalOf:
+  // Twilio 21610, the recipient replied STOP to this number before we heard --
+  // the STOP went to the carrier, or came before the line's webhook pointed
+  // here). The number is unreachable whatever our row says, so the row is
+  // brought to agree with the carrier, the way ingest records a STOP it did
+  // hear, and the send is the refusal a recorded no is: the row canceled with
+  // its reason, nothing escalated, and the next send to this person refused by
+  // the predicate before the provider is asked. It used to be a failure like
+  // any other: the owner told a delivery failed, nothing recorded, and every
+  // later send to that person failing and telling them again.
+  if (!sent.ok && d.channel === "sms" && smsRefusalOf(sent) === "opted_out") {
+    if (facts.contactId)
+      await recordCarrierOptOut(ports.db, {
+        tenantId: d.tenantId,
+        contactId: facts.contactId,
+        channel: d.channel,
+        previous: facts.contact.consent,
+      });
+    return refuse("opted_out", { consent: "opted_out", dnc: true }, { source: CARRIER_CONSENT_SOURCE });
+  }
 
   if (sent.ok) {
     if (d.messageId) {

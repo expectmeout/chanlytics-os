@@ -3515,6 +3515,10 @@ var twilioUrls = {
   serviceNumbers: (serviceSid) => `${MESSAGING}/Services/${serviceSid}/PhoneNumbers`,
   messages: (sid2) => `${API2}/Accounts/${sid2}/Messages.json`
 };
+var SMS_OPTED_OUT_CODE = 21610;
+function smsRefusalOf(r22) {
+  return !r22.ok && r22.code === SMS_OPTED_OUT_CODE ? "opted_out" : null;
+}
 var enc = new TextEncoder();
 var oneLine = (s) => s.replace(/\p{Cc}+/gu, " ").replace(/\s+/g, " ").trim();
 function addressOf(header) {
@@ -5918,6 +5922,7 @@ function waitingOnProposal(r22, nowMs, pace) {
   if (nowMs - d.sinceMs < wait * DAY_MS3) return false;
   return !heardSinceProposal(r22);
 }
+var CARRIER_CONSENT_SOURCE = "carrier";
 function mayReceive(r22, purpose) {
   return whyNotReceive(r22, purpose) === null;
 }
@@ -9335,6 +9340,7 @@ var SELLS_BY_WORDS3 = {
     sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
   }
 };
+var CARRIER_CONSENT_SOURCE2 = "carrier";
 var DAY_MS43 = 864e5;
 var WEEK_MS23 = 7 * DAY_MS43;
 var MONTH_MS3 = 30 * DAY_MS43;
@@ -10731,6 +10737,19 @@ var OPENING_SCHEMA3 = {
   required: ["opening", "angle", "facts_used"],
   additionalProperties: false
 };
+async function recordCarrierOptOut(db, p) {
+  const { data, error } = await db.from("contacts").update({
+    consent: "opted_out",
+    dnc: true,
+    consent_source: CARRIER_CONSENT_SOURCE2,
+    consent_updated_at: (/* @__PURE__ */ new Date()).toISOString()
+  }).eq("id", p.contactId).eq("tenant_id", p.tenantId).neq("consent", "opted_out").select("id");
+  if (error) throw new Error(`recording the carrier's opt-out for contact ${p.contactId}: ${error.message}`);
+  if (!data || data.length === 0) return false;
+  const change = { consent: "opted_out", previous: p.previous, source: CARRIER_CONSENT_SOURCE2, channel: p.channel };
+  await emitEvent(db, p.tenantId, "contact.consent_changed", "contact", "contact", p.contactId, change);
+  return true;
+}
 async function recordOutbound(db, p) {
   if (p.channel === "email")
     throw new Error("record_outbound: an email's row is written before it is sent, never after");
@@ -10986,21 +11005,24 @@ async function deliver(ports, d) {
   const refusal = refusalFor(d, facts, nowMs, outreach);
   const overtakenBy = !refusal && kindOf(d) === "draft" ? await overtakenByHuman(ports.db, d) : null;
   const reason = refusal ?? (overtakenBy ? "superseded_by_human" : null);
-  if (reason) {
+  const refuse = async (why, now = {}, said2 = {}) => {
     if (d.messageId) {
-      await finalizeQueued(ports.db, d, { status: "canceled", error: { reason } });
+      const contact = { ...facts.contact, ...now };
+      await finalizeQueued(ports.db, d, { status: "canceled", error: { reason: why } });
       await event(ports.db, d, "message.send_blocked", d.messageId, {
-        reason,
+        reason: why,
         purpose: d.purpose,
-        consent: facts.contact.consent,
-        dnc: facts.contact.dnc,
-        marketing_consent: facts.contact.marketing_consent,
-        ...d.purpose === "outreach" ? { email_marketing: facts.contact.email_marketing } : {},
-        ...overtakenBy ? { after: overtakenBy } : {}
+        consent: contact.consent,
+        dnc: contact.dnc,
+        marketing_consent: contact.marketing_consent,
+        ...d.purpose === "outreach" ? { email_marketing: contact.email_marketing } : {},
+        ...overtakenBy ? { after: overtakenBy } : {},
+        ...said2
       });
     }
-    return { outcome: "refused", reason, messageId: d.messageId ?? null };
-  }
+    return { outcome: "refused", reason: why, messageId: d.messageId ?? null };
+  };
+  if (reason) return refuse(reason);
   const send = ports.wire[d.channel];
   if (isWireUnavailable(send)) throw new WireUnavailableError(d.channel, send.error);
   const sent = send === void 0 ? { ok: false, wamid: null, status: 0, errorBody: "no_sender_for_channel", reason: "no_sender_for_channel" } : send === null ? { ok: false, wamid: null, status: 503, errorBody: "no_credentials", reason: "no_credentials" } : await send(d.to, {
@@ -11008,6 +11030,16 @@ async function deliver(ports, d) {
     template: d.template,
     ...d.email ? { email: d.email, purpose: d.purpose } : {}
   });
+  if (!sent.ok && d.channel === "sms" && smsRefusalOf(sent) === "opted_out") {
+    if (facts.contactId)
+      await recordCarrierOptOut(ports.db, {
+        tenantId: d.tenantId,
+        contactId: facts.contactId,
+        channel: d.channel,
+        previous: facts.contact.consent
+      });
+    return refuse("opted_out", { consent: "opted_out", dnc: true }, { source: CARRIER_CONSENT_SOURCE });
+  }
   if (sent.ok) {
     if (d.messageId) {
       const marked = await finalizeQueued(ports.db, d, {

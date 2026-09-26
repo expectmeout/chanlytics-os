@@ -51,6 +51,13 @@
       "rate": null,
       "spend": false
     },
+    "POST ask/warm": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "viewer",
+      "rate": "aggregate",
+      "spend": false
+    },
     "POST billing/checkout": {
       "kind": "write",
       "scope": "workspace",
