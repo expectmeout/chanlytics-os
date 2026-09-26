@@ -23,5 +23,10 @@ the day on the server in the page's own words, and the app draws it. PRD tier 2,
   one page's reads. The native screen reads once more, through one route, and the page's refresh is the signal to
   read again, so the two never disagree for longer than a debounce.
 - **Nothing is ever blank.** A read that fails leaves the page in front; the screen shows only when it has a day.
+- **The review's three (26 Sep).** The day is kept with the workspace it was read for, so after a switch the page
+  stands until the new workspace's day arrives, and an answer for a workspace already left is not drawn. While the
+  native screen is in front, the page under it is hidden from VoiceOver and TalkBack. A press on the Today tab brings
+  the native screen to its top; every other ask (the token, a route) still reaches the page. `route-policy.json` keeps
+  main's order and gains only its one row.
 - **One composition, three readers.** The browser, Ask and this route call the same `toTodayVM`; the route is the
   first to hand the composed view model over the wire, which is what a third native surface will want too.

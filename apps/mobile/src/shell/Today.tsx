@@ -4,7 +4,7 @@
  * once by GET /api/v1/today over the reader Ask uses, so the page, Ask and this screen never disagree. A row's door
  * is the page's route, opened in the tab it belongs to; the phone's Inbox draws a thread natively (PR 8).
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, useColorScheme, View } from "react-native";
 import { useIsFocused, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -21,8 +21,17 @@ const TONES = {
 };
 type Tone = (typeof TONES)["light"];
 
-/** Whether the native screen has something true to draw; a failed first read leaves the page in front. */
-export function Today({ onShown }: { onShown?: (shown: boolean) => void }) {
+/**
+ * Whether the native screen has something true to draw; a failed first read leaves the page in front. The day is
+ * kept with the workspace it was read for: after a switch, the page stands until the new workspace's day arrives.
+ */
+export function Today({
+  onShown,
+  scrollRef,
+}: {
+  onShown?: (shown: boolean) => void;
+  scrollRef?: RefObject<ScrollView | null>;
+}) {
   const scheme = useColorScheme() === "dark" ? "dark" : "light";
   const t = TONES[scheme];
   const insets = useSafeAreaInsets();
@@ -31,15 +40,21 @@ export function Today({ onShown }: { onShown?: (shown: boolean) => void }) {
   const slug = useShell((s) => s.slug);
   const session = useShell((s) => s.session);
   const tick = useShell((s) => s.todayTick);
-  const [vm, setVm] = useState<TodayVM | null>(null);
+  const [day, setDay] = useState<{ slug: string; vm: TodayVM } | null>(null);
   const [busy, setBusy] = useState(false);
+  const vm = day && day.slug === slug ? day.vm : null;
+  const current = useRef(slug);
+  useEffect(() => {
+    current.current = slug;
+  }, [slug]);
 
   const load = useCallback(async () => {
     if (!slug || session !== "in") return;
     setBusy(true);
     try {
       const a = await api<{ today: TodayVM }>("today", { query: { workspace: slug } });
-      setVm(a.today);
+      // An answer for a workspace the shell has since left is not drawn.
+      if (current.current === slug) setDay({ slug, vm: a.today });
     } catch {
       /* the page underneath stands; the next refresh reads again */
     } finally {
@@ -67,6 +82,7 @@ export function Today({ onShown }: { onShown?: (shown: boolean) => void }) {
   const q = vm.queue;
   return (
     <ScrollView
+      ref={scrollRef}
       style={[styles.fill, { backgroundColor: t.paper }]}
       contentContainerStyle={[styles.body, { paddingTop: insets.top + 12 }]}
       refreshControl={<RefreshControl refreshing={busy} onRefresh={() => void load()} tintColor={TEAL} />}
