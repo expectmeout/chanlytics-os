@@ -4412,12 +4412,16 @@ async function verifyResendWebhook(secret, h, rawBody, nowMs) {
     return version === "v1" && !!sig && sameBytes(sig, expected);
   });
 }
-function platformRecipient(address, domain) {
+function platformRecipient(address, domain, coldReplyDomain = null) {
   const a = address.trim().toLowerCase();
   const at = a.lastIndexOf("@");
-  if (at < 1 || a.slice(at + 1) !== domain.toLowerCase()) return null;
+  if (at < 1) return null;
+  const host = a.slice(at + 1);
   const local = a.slice(0, at);
   const reply = /^r\+([a-z2-7]{24})$/.exec(local);
+  if (coldReplyDomain && host === coldReplyDomain.toLowerCase() && host !== domain.toLowerCase())
+    return reply ? { kind: "reply", token: reply[1] } : null;
+  if (host !== domain.toLowerCase()) return null;
   if (reply) return { kind: "reply", token: reply[1] };
   return /^[a-z0-9]([a-z0-9-]{0,38}[a-z0-9])?$/.test(local) && local !== "r" ? { kind: "mailbox", localPart: local } : null;
 }
@@ -4550,10 +4554,13 @@ function sendsAs(mailbox, domain) {
     replyRoutes: [mailbox.reply_token, mailbox.reply_token_prev].filter((t) => !!t).map((t) => replyRouteAddress(t, domain))
   };
 }
-function sendsAsOwnDomain(domain, mailbox, mailDomain) {
+function sendsAsOwnDomain(domain, mailbox, mailDomain, coldReplyDomain = null) {
   return {
     address: `${domain.from_local}@${domain.host}`.toLowerCase(),
-    replyRoutes: sendsAs(mailbox, mailDomain).replyRoutes
+    replyRoutes: [
+      ...sendsAs(mailbox, mailDomain).replyRoutes,
+      ...coldReplyDomain && coldReplyDomain !== mailDomain ? sendsAs(mailbox, coldReplyDomain).replyRoutes : []
+    ]
   };
 }
 function ownDomainIdentity(domain, mailbox, mailDomain) {

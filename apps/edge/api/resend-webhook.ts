@@ -23,7 +23,7 @@
 import { json } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
 import { logger, errField } from "../lib/log.js";
-import { emailDomain } from "../lib/email/email.js";
+import { coldReplyDomain, emailDomain } from "../lib/email/email.js";
 import { planResendEvent } from "../lib/email/email-ingress.js";
 import { applyEmailReceipt } from "../lib/email/email-receipts.js";
 import { emitEvent, type Json } from "../lib/packages/db.js";
@@ -57,6 +57,7 @@ export async function POST(request: Request): Promise<Response> {
       },
       secrets: [env.RESEND_WEBHOOK_SECRET, env.RESEND_COLD_WEBHOOK_SECRET].filter((s): s is string => !!s),
       domain,
+      coldReplyDomain: coldReplyDomain(),
       db,
       nowMs: Date.now(),
     });

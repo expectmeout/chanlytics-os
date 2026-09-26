@@ -16,7 +16,7 @@ import { dkimPublished, readDmarc } from "../../lib/email/dmarc.js";
 import { checkSendingDomain, type DomainPorts } from "../../lib/email/sending-domains.js";
 import { watchColdReceipts } from "../../lib/email/cold-receipts.js";
 import { probeUnsubscribe } from "../../lib/email/unsubscribe-probe.js";
-import { dashboardOrigin } from "../../lib/dashboard-origin.js";
+import { unsubscribeOrigin } from "../../lib/dashboard-origin.js";
 import { pageOperator } from "../../lib/ops/page-operator.js";
 
 /**
@@ -87,7 +87,7 @@ export async function POST(request: Request): Promise<Response> {
   // beside it: the same budget, the same pager, and nothing below depends on either.
   const [, unsubscribe] = await Promise.all([
     watchColdReceipts({ db, now: Date.now, log: L, page }),
-    probeUnsubscribe({ secret: env.UNSUBSCRIBE_SECRET ?? null, origin: dashboardOrigin(), log: L, page }),
+    probeUnsubscribe({ secret: env.UNSUBSCRIBE_SECRET ?? null, origin: unsubscribeOrigin(), log: L, page }),
   ]);
   const counts = { checked: 0, verified: 0, held: 0, released: 0, unreadable: 0, refused: 0 };
   for (let i = 0; i < rows.length; i += AT_ONCE) {

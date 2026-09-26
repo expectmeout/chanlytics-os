@@ -32,6 +32,15 @@ export function emailDomain(): string | null {
 }
 
 /**
+ * The domain cold emails' replies come back on (D17), lower-cased, when it is set apart from the mail domain; null when
+ * it is not, and they come back on EMAIL_DOMAIN as every other reply does.
+ */
+export function coldReplyDomain(): string | null {
+  const d = emailDomainOf(env.COLD_REPLY_DOMAIN);
+  return d && d !== emailDomain() ? d : null;
+}
+
+/**
  * One workspace's email wire. undefined: no email on this runtime. null: email
  * is on and this workspace cannot send, because the deployment holds no
  * provider key or the workspace has no mailbox. Otherwise a wire that sends
@@ -61,7 +70,13 @@ export async function emailWireFor(db: Db, tenantId: string): Promise<Sender | n
     try {
       for (const d of await sendingDomainsOf(db, tenantId))
         if (d.state === "verified")
-          routes.push({ lane: "own", cfg: { apiKey: coldKey }, as: sendsAsOwnDomain(d, mailbox, domain) });
+          routes.push({
+            lane: "own",
+            cfg: { apiKey: coldKey },
+            // Answered on the cold reply domain when it is set (D17), and on the mail domain still: an email frozen
+            // before the switch leaves as it was frozen.
+            as: sendsAsOwnDomain(d, mailbox, domain, coldReplyDomain()),
+          });
     } catch (e) {
       logger({ tenant: tenantId }).error("email_own_domains_unread", { error: errField(e) });
     }

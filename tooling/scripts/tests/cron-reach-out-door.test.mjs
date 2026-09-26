@@ -1156,3 +1156,19 @@ test("one domain the database refuses is its own: the next domain still claims, 
   assert.equal(w.row(first.id).state, "planned", "the refused domain's send keeps");
   assert.equal(w.row(next.id).state, "queued", "the next domain's is written");
 });
+
+test("the switches (D17): set, a cold email's links point at the cold origin and its replies come back on the cold reply domain", async () => {
+  const s = send();
+  const w = world({ sends: [s] });
+  await w.send({ UNSUBSCRIBE_ORIGIN: "https://links.coldmail.example", COLD_REPLY_DOMAIN: "reply.coldlinks.example" });
+  const r = emailOf(w, await sendMessageId(s.id, 0)).meta.email.request;
+  assert.deepEqual(r.reply_to, ["r+abcdefghijklmnopqrstuvwx@reply.coldlinks.example"]);
+  assert.match(r.headers["List-Unsubscribe"], /^<https:\/\/links\.coldmail\.example\/u\//);
+  // Unset, as today: the dashboard's origin and the mail domain.
+  const t = send();
+  const today = world({ sends: [t] });
+  await today.send();
+  const q = emailOf(today, await sendMessageId(t.id, 0)).meta.email.request;
+  assert.deepEqual(q.reply_to, ["r+abcdefghijklmnopqrstuvwx@mail.chanlytics.com"]);
+  assert.match(q.headers["List-Unsubscribe"], /^<https:\/\/app\.chanlytics\.com\/u\//);
+});

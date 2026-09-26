@@ -45,6 +45,8 @@ export interface ResendIngressInput {
   secrets: string[];
   /** The deployment's mail domain (email.ts emailDomain). */
   domain: string;
+  /** The cold reply domain (email.ts coldReplyDomain, D17): its reply routes route too. Null when there is none. */
+  coldReplyDomain?: string | null;
   db: Db;
   nowMs: number;
 }
@@ -75,10 +77,10 @@ export async function planResendEvent(i: ResendIngressInput): Promise<ResendVerd
   const event = emailReceivedEventFrom(payload);
   if (!event) return { kind: "ignore", log: "resend_webhook_no_work", unroutable: 0 };
 
-  // Only addresses on the platform's own mail domain route anywhere; the rest
-  // are the other people an email was also sent to.
+  // Only addresses on the platform's own mail domain route anywhere, and reply routes on the cold reply domain (D17);
+  // the rest are the other people an email was also sent to.
   const ours = event.recipients
-    .map((r) => platformRecipient(r, i.domain))
+    .map((r) => platformRecipient(r, i.domain, i.coldReplyDomain ?? null))
     .filter((r): r is NonNullable<typeof r> => r !== null);
   const jobs = new Map<string, { tenantId: string; mailboxId: string }>();
   let unroutable = 0;

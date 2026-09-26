@@ -1027,3 +1027,23 @@ test("what never makes a hold the platform's: another workspace's hold of the ho
     net2.restore();
   }
 });
+
+test("the probe opens the links where they are minted: UNSUBSCRIBE_ORIGIN when it is an origin (D17), the dashboard's otherwise", async () => {
+  for (const [origin, expected] of [
+    ["https://links.coldmail.example", /^https:\/\/links\.coldmail\.example\/u\/[A-Za-z0-9_-]{87}$/],
+    ["links.coldmail.example", /^https:\/\/app\.chanlytics\.com\/u\//],
+    ["https://links.coldmail.example/path", /^https:\/\/app\.chanlytics\.com\/u\//],
+  ]) {
+    world([domain("d1")]);
+    dns["d1.example"] = "found";
+    const { net, opened } = dashboardAt({ current: EDGE_KEY });
+    try {
+      await withEnv({ UNSUBSCRIBE_SECRET: EDGE_KEY, UNSUBSCRIBE_ORIGIN: origin }, async () =>
+        answer(await knock(POST, "domains")),
+      );
+      assert.match(opened[0].url, expected, origin);
+    } finally {
+      net.restore();
+    }
+  }
+});

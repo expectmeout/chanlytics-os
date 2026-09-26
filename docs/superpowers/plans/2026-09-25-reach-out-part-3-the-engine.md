@@ -2678,6 +2678,13 @@ alter table public.sending_domains add constraint sending_domains_resume_by_chec
 
 No migration. The switches ship with today's addresses as their defaults, so nothing moves until Ruben sets them.
 
+> **As built (PR 8, 26 Sep 2026).**
+> - `unsubscribeOrigin()` sits beside `dashboardOrigin()`. The sender's lane (`coldLane`) takes it, and so does the domains sweep's probe.
+> - `coldReplyDomain()` sits beside `emailDomain()` in `lib/email/email.ts`. It is null when it is unset or the same as EMAIL_DOMAIN. The lane's field is renamed `replyDomain`, and `RequestInput` follows.
+> - The own-domain route answers on both domains (`sendsAsOwnDomain(…, coldReplyDomain)`), so an email frozen before the switch still leaves.
+> - `platformRecipient(address, domain, coldReplyDomain)` routes reply routes only on the cold domain. The webhook door passes it.
+> - The dashboard needed no change: `canonicalRedirect` only moves `.vercel.app` hosts.
+
 ### Task 8.1: The switches
 
 **Files:**

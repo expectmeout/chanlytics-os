@@ -27,7 +27,7 @@ const input = (over = {}) => ({
   workspace: { businessName: "Harbor Moving Co", address: "100 Example St, Austin, TX 78701" },
   domain: { host: "getharbor.example", from_local: "sam", from_name: "Sam at Harbor" },
   mailbox: { reply_token: "abcdefghijklmnopqrstuvwx" },
-  mailDomain: "mail.chanlytics.com",
+  replyDomain: "mail.chanlytics.com",
   unsubscribe: { secret: SECRET, origin: "https://app.chanlytics.com" },
   parent: null,
   ...over,
@@ -123,4 +123,14 @@ test("no business address, or no business name, on the profile: no_business_addr
       ok: false,
       reason: "no_business_address",
     });
+});
+
+test("with a cold reply domain (D17) the replies come back there, to the mailbox's own route", () => {
+  const out = reachOutRequest(input({ replyDomain: "reply.coldlinks.example" }));
+  assert.deepEqual(out.request.reply_to, ["r+abcdefghijklmnopqrstuvwx@reply.coldlinks.example"]);
+  const links = reachOutRequest(input({ unsubscribe: { secret: SECRET, origin: "https://links.coldmail.example" } }));
+  assert.match(
+    links.request.headers["List-Unsubscribe"],
+    /^<https:\/\/links\.coldmail\.example\/u\/[A-Za-z0-9_-]{87}>$/,
+  );
 });

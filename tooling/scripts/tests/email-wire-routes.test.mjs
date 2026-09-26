@@ -123,3 +123,33 @@ test("cold mail never leaves while its receipts would be refused: the cold key w
     delete process.env.RESEND_COLD_API_KEY;
   }
 });
+
+test("with a cold reply domain (D17), an own domain's email answered there leaves, and one frozen before the switch still does; the hosted mailbox is unchanged", async () => {
+  process.env.RESEND_COLD_API_KEY = "cold-key";
+  process.env.RESEND_COLD_WEBHOOK_SECRET = "whsec_cold";
+  process.env.COLD_REPLY_DOMAIN = "Reply.ColdLinks.example";
+  const db = fakeDb({ mailboxes: [MAILBOX], sending_domains: [domain("getharbor.com", "verified")] });
+  const net = provider();
+  try {
+    const wire = await emailWireFor(db, T);
+    const cold = request(ownDomainIdentity(domain("getharbor.com"), MAILBOX, "reply.coldlinks.example"));
+    assert.deepEqual(cold.reply_to, [`r+${"a".repeat(24)}@reply.coldlinks.example`]);
+    assert.equal((await wire("owner@example.com", { body: "x", email: cold, purpose: "outreach" })).ok, true);
+    assert.equal(
+      (await wire("owner@example.com", { body: "x", email: own("getharbor.com"), purpose: "outreach" })).ok,
+      true,
+      "frozen on the mail domain before the switch",
+    );
+    const hostedCold = request({ ...hostedIdentity(MAILBOX, "mail.chanlytics.com"), replyTo: cold.reply_to[0] });
+    assert.equal(
+      (await wire("owner@example.com", { body: "x", email: hostedCold })).errorBody,
+      "request_leaves_as_another_sender",
+      "the cold reply domain is cold mail's only",
+    );
+  } finally {
+    delete process.env.COLD_REPLY_DOMAIN;
+    delete process.env.RESEND_COLD_API_KEY;
+    delete process.env.RESEND_COLD_WEBHOOK_SECRET;
+    net.restore();
+  }
+});

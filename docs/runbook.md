@@ -325,6 +325,29 @@ one the page cannot open, and the sweep pages
 `email_unsubscribe_links_broken`. Clear the previous value no sooner than
 thirty days later.
 
+**Before scale: a cold-only domain (D17).** Until these are set, a cold
+email's unsubscribe link points at `app.chanlytics.com/u/…` and its replies
+come back on `EMAIL_DOMAIN`. Both are judged by the mail they appear in. Before
+cold mail is sent at scale, give it a domain of its own, so the app's links and
+every workspace's replies never answer for it:
+
+1. Buy a domain for cold mail's links and replies: not a workspace's, and not
+   chanlytics.com.
+2. Add it to the dashboard's Vercel project, so `https://<it>/u/<token>` is the
+   unsubscribe page. `/u/` answers on any host the project serves; only
+   `.vercel.app` aliases are sent to the canonical host.
+3. Set `UNSUBSCRIBE_ORIGIN=https://<it>` on the edge, then redeploy it. The
+   domains sweep's probe then opens the page there. A value that is not an
+   https origin is ignored, and the links stay on the dashboard.
+4. Receive mail on a subdomain of it on the platform's Resend account (MX to
+   Resend, as for `mail.chanlytics.com`), and point its inbound webhook at the
+   edge's `/api/resend-webhook`.
+5. Set `COLD_REPLY_DOMAIN=<that subdomain>` on the edge. New cold emails'
+   Reply-To moves to `r+<token>@<it>`. Replies to older ones still arrive on
+   `EMAIL_DOMAIN`, which keeps receiving, and an email queued before the
+   switch still leaves as it was frozen. Only reply routes route there: no
+   workspace publishes an address on it.
+
 ## Apply a migration
 
 1. Write it: the next free number, named for the schema change, re-runnable
