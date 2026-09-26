@@ -113,6 +113,18 @@ export function askApi(client: Api = api()) {
       });
       return r.ok;
     },
+    /**
+     * The page, read before the question (POST ask/warm; the Phase 2 plan, D6): sent as the Line opens and as the page
+     * under it changes, so the question asked a moment later finds its page read. Sent raw, so the tab keeps its reads
+     * and runs no refresh; never waited on, and a warm that fails costs nothing but the warm.
+     */
+    warm: async (context: PageContext): Promise<void> => {
+      try {
+        await client.raw("POST ask/warm", { body: context });
+      } catch {
+        /* the question still goes, and reads its page itself */
+      }
+    },
     send: async (
       input: {
         text: string;
