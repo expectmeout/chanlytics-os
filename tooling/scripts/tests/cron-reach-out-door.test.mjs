@@ -136,9 +136,11 @@ function clockReads(t) {
 
 /**
  * The sender's doors over the tables, as 00184 and 00187 make them (their SQL is proved on a stack,
- * reach-out-sender.db.test.mjs): the domains with sends due, the month's count, the claim, and the person made once.
+ * reach-out-sender.db.test.mjs): the domains with sends due (clean, verified, longest waiting first, past the ones the
+ * sender skips), the month's count, the claim (on a verified domain, within its share), and the person made once.
+ * `failClaim` names the domains whose claim the database refuses.
  */
-function senderReads(t, { monthSent = 0 } = {}) {
+function senderReads(t, { monthSent = 0, failClaim = [] } = {}) {
   const runOf = (s) => t.broadcasts.find((b) => b.id === s.broadcast_id);
   const running = (id) => t.playbooks.some((p) => p.id === id && p.state === "running");
   const due = (s, at) =>
@@ -148,13 +150,30 @@ function senderReads(t, { monthSent = 0 } = {}) {
     running(s.playbook_id) &&
     running(s.root_id);
   return {
-    reach_out_due_domains: (a) =>
-      t.sending_domains
-        .filter((d) => d.state === "verified" && t.reach_out_sends.some((s) => s.domain_id === d.id && due(s, a.p_at)))
+    reach_out_due_domains: (a) => {
+      const first = (d) =>
+        t.reach_out_sends
+          .filter((s) => s.domain_id === d.id && due(s, a.p_at))
+          .map((s) => s.send_at)
+          .sort()[0];
+      return t.sending_domains
+        .filter(
+          (d) =>
+            d.state === "verified" &&
+            d.clean_since &&
+            first(d) &&
+            (!a.p_tenant_id || d.tenant_id === a.p_tenant_id) &&
+            !(a.p_skip_tenants ?? []).includes(d.tenant_id) &&
+            !(a.p_skip_domains ?? []).includes(d.id),
+        )
+        .sort((x, y) => (first(x) < first(y) ? -1 : first(x) > first(y) ? 1 : 0))
         .slice(0, a.p_limit)
-        .map((d) => ({ id: d.id, tenant_id: d.tenant_id })),
+        .map((d) => ({ id: d.id, tenant_id: d.tenant_id }));
+    },
     reach_out_month_sent: () => monthSent,
     reach_out_claim: (a) => {
+      if (failClaim.includes(a.p_domain_id)) throw new Error("canceling statement due to lock timeout");
+      if (!t.sending_domains.some((d) => d.id === a.p_domain_id && d.state === "verified")) return [];
       const picked = t.reach_out_sends
         .filter((s) => s.domain_id === a.p_domain_id && due(s, a.p_at))
         .sort((x, y) => (x.send_at < y.send_at ? -1 : 1))
@@ -200,6 +219,7 @@ function world({
   templates = null,
   config = CONFIG(),
   monthSent = 0,
+  failClaim = [],
 } = {}) {
   const leadIds = [...new Set(sends.map((s) => s.lead_id))].filter((id) => !leads.some((l) => l.id === id));
   const tables = {
@@ -269,6 +289,8 @@ function world({
         host: "getharbor.example",
         from_local: "sam",
         from_name: "Sam at Harbor",
+        clean_since: ago(20 * DAY),
+        sent_days: 0,
       },
     ],
     events: [],
@@ -278,7 +300,7 @@ function world({
     {},
     {
       ...vault,
-      ...senderReads(tables, { monthSent }),
+      ...senderReads(tables, { monthSent, failClaim }),
       sending_domain_capacity: () => ({
         state: "verified",
         clean_since: ago(20 * DAY),
@@ -598,8 +620,11 @@ test("the claim: a due send becomes one person, one queued email under its own i
     rewritten: 0,
     skipped: 0,
     waited: 0,
+    held: 0,
+    gave_up: 0,
     errors: 0,
     month_spent: 0,
+    workspaces_held: 0,
   });
   const id = await sendMessageId(s.id, 0);
   const person = w.tables.contacts[0];
@@ -718,7 +743,8 @@ test("the person refused: a customer's address, or a lead closed since it was pl
   assert.equal(body.claim.skipped, 2);
 });
 
-test("the request refused: a slot with no value, or no address for the foot, skips the send with why", async () => {
+test("the step's or the workspace's fault holds its sends, and nobody is made; a lead with no value is skipped alone", async () => {
+  // A slot no lead could fill is the step's to fix: the send waits an hour, in its lead's hours, and keeps its place.
   const slot = world({
     sends: [send()],
     templates: [
@@ -733,18 +759,51 @@ test("the request refused: a slot with no value, or no address for the foot, ski
       },
     ],
   });
-  await slot.send();
+  const [, held] = await slot.send();
+  const r = slot.tables.reach_out_sends[0];
+  assert.deepEqual([r.state, r.reason, r.claimed_at], ["planned", null, null]);
+  assert.ok(Date.parse(r.send_at) >= Date.now() + 59 * MIN, "an hour on at the soonest");
+  assert.equal(held.claim.held, 1);
   assert.deepEqual(
-    [slot.tables.reach_out_sends[0].state, slot.tables.reach_out_sends[0].reason],
-    ["skipped", "missing_value"],
+    [slot.tables.contacts.length, slot.tables.conversations.length],
+    [0, 0],
+    "nobody is made for an email that cannot be written",
   );
+
+  // No address for the foot, or no mailbox for the replies: the workspace claims nothing, and its sends keep.
   const noAddress = world({ sends: [send()], config: CONFIG("") });
-  await noAddress.send();
-  assert.deepEqual(
-    [noAddress.tables.reach_out_sends[0].state, noAddress.tables.reach_out_sends[0].reason],
-    ["skipped", "no_business_address"],
-  );
-  assert.equal(slot.tables.messages.length + noAddress.tables.messages.length, 0);
+  const noMailbox = world({ sends: [send()] });
+  noMailbox.tables.mailboxes.length = 0;
+  for (const w of [noAddress, noMailbox]) {
+    const [, quiet] = await w.send();
+    assert.deepEqual(
+      [w.tables.reach_out_sends[0].state, quiet.claim.claimed, quiet.claim.workspaces_held],
+      ["planned", 0, 1],
+    );
+  }
+
+  // A lead with no city, for words that name one: that lead alone is skipped, and the next is written.
+  const bare = send();
+  const next = send();
+  const w = world({
+    sends: [bare, next],
+    leads: [
+      {
+        id: bare.lead_id,
+        tenant_id: T,
+        stage: "ready",
+        version: 1,
+        business_name: "No City Movers",
+        city: null,
+        email: "nocity@fixture-movers.example",
+        contact_id: null,
+      },
+    ],
+  });
+  await w.send();
+  assert.deepEqual([w.row(bare.id).state, w.row(bare.id).reason], ["skipped", "missing_value"]);
+  assert.equal(w.row(next.id).state, "queued");
+  assert.equal(slot.tables.messages.length + noAddress.tables.messages.length + noMailbox.tables.messages.length, 0);
 });
 
 /** A chain of two: the root's email to the lead left (sent), and the step's send is due in its own run. */
@@ -868,8 +927,9 @@ test("a step's send waits an hour while the email before has no Message-ID; afte
   const [, body] = await w.send();
   const r = w.row(nudge.id);
   assert.deepEqual([r.state, r.claimed_at], ["planned", null]);
-  assert.ok(Math.abs(Date.parse(r.send_at) - (Date.now() + 60 * MIN)) < MIN, "an hour on");
+  assert.ok(Date.parse(r.send_at) >= Date.now() + 59 * MIN, "an hour on at the soonest, in its lead's hours");
   assert.equal(body.claim.waited, 1);
+  assert.equal(w.tables.contacts.length, 1, "nobody new is made while it waits");
   assert.equal(w.tables.messages.length, 1, "nothing written");
 
   const old = await stepWorld({ stamped: false, created: ago(15 * DAY) });
@@ -980,4 +1040,119 @@ test("after the claim, before the email: a run closed since skips the send; a ch
     ["planned", null, held.send_at],
   );
   assert.equal(w.tables.messages.length, 0);
+});
+
+test("a claim whose email a dead tick wrote is that email's, whatever changed since; a closed run's queued one is withdrawn first", async () => {
+  const CLOSED = "56565656-5656-4656-8656-565656565656";
+  const PAUSED = "78787878-7878-4878-8878-787878787878";
+  // Its email left, then the owner canceled the run: the send is the email's, and the clock reads it sent.
+  const left = send({ state: "claimed", claimed_at: ago(6 * MIN), broadcast_id: CLOSED });
+  // Still queued when the run was canceled: withdrawn, so its job sends nothing.
+  const queued = send({ state: "claimed", claimed_at: ago(6 * MIN), broadcast_id: CLOSED });
+  // Queued when its chain was paused: it goes on, as a paused chain's queued email does.
+  const paused = send({ state: "claimed", claimed_at: ago(6 * MIN), playbook_id: PAUSED, root_id: PAUSED });
+  const [leftId, queuedId, pausedId] = [
+    await sendMessageId(left.id, 0),
+    await sendMessageId(queued.id, 0),
+    await sendMessageId(paused.id, 0),
+  ];
+  const frozen = { email: { request: { to: ["was@fixture-movers.example"] } } };
+  const w = world({
+    sends: [left, queued, paused],
+    messages: [
+      email(leftId, "sent", { meta: { ...frozen, status_at: { sent: ago(5 * MIN) } } }),
+      email(queuedId, "queued", { meta: frozen }),
+      email(pausedId, "queued", { meta: frozen }),
+    ],
+    jobs: [{ id: "j-p", tenant_id: T, kind: "outbound_send", state: "scheduled", payload: { message_id: pausedId } }],
+    playbooks: [
+      {
+        id: ROOT,
+        tenant_id: T,
+        kind: "reach_out",
+        state: "running",
+        gap_minutes: 12,
+        domain_ids: [],
+        template_id: TPL,
+        after_playbook_id: null,
+      },
+      {
+        id: PAUSED,
+        tenant_id: T,
+        kind: "reach_out",
+        state: "paused",
+        gap_minutes: 12,
+        domain_ids: [],
+        template_id: TPL,
+        after_playbook_id: null,
+      },
+    ],
+    runs: [
+      {
+        id: RUN,
+        tenant_id: T,
+        state: "scheduled",
+        playbook_id: ROOT,
+        audience: { kind: "reach_out" },
+        updated_at: ago(DAY),
+      },
+      {
+        id: CLOSED,
+        tenant_id: T,
+        state: "canceled",
+        playbook_id: ROOT,
+        audience: { kind: "reach_out" },
+        updated_at: ago(MIN),
+      },
+    ],
+  });
+  const [, body] = await w.send();
+  assert.equal(body.claim.rewritten, 3);
+  for (const [s, id] of [
+    [left, leftId],
+    [queued, queuedId],
+    [paused, pausedId],
+  ])
+    assert.deepEqual([w.row(s.id).state, w.row(s.id).message_id], ["queued", id], "adopted: its email's");
+  assert.equal(emailOf(w, leftId).status, "sent", "an email that left is never withdrawn");
+  assert.deepEqual([emailOf(w, queuedId).status, emailOf(w, queuedId).error], ["canceled", { reason: "run_canceled" }]);
+  assert.equal(emailOf(w, pausedId).status, "queued");
+  assert.deepEqual(
+    jobsOf(w).map((j) => j.payload.message_id),
+    [pausedId],
+    "no job for the withdrawn one, and none twice",
+  );
+  assert.equal(w.tables.contacts.length, 0, "nobody made: the emails were written before");
+  // The next tick reads each: the one that left is sent and its lead written to, never a second first email; the
+  // withdrawn one's send is skipped with its run.
+  await w.tick();
+  assert.equal(w.row(left.id).state, "sent");
+  assert.equal(w.tables.leads.find((l) => l.id === left.lead_id).stage, "nurture");
+  assert.deepEqual([w.row(queued.id).state, w.row(queued.id).reason], ["skipped", "run_canceled"]);
+});
+
+test("one domain the database refuses is its own: the next domain still claims, and the tick answers", async () => {
+  const DOM2 = "9a9a9a9a-9a9a-4a9a-8a9a-9a9a9a9a9a9a";
+  const first = send({ domain_id: DOM2, send_at: ago(3 * MIN) });
+  const next = send({ send_at: ago(MIN) });
+  const domain = (id, host) => ({
+    id,
+    tenant_id: T,
+    state: "verified",
+    host,
+    from_local: "sam",
+    from_name: "Sam at Harbor",
+    clean_since: ago(20 * DAY),
+    sent_days: 0,
+  });
+  const w = world({
+    sends: [first, next],
+    domains: [domain(DOM, "getharbor.example"), domain(DOM2, "harbor-two.example")],
+    failClaim: [DOM2],
+  });
+  const [status, body] = await w.send();
+  assert.equal(status, 200);
+  assert.deepEqual([body.claim.errors, body.claim.written], [1, 1]);
+  assert.equal(w.row(first.id).state, "planned", "the refused domain's send keeps");
+  assert.equal(w.row(next.id).state, "queued", "the next domain's is written");
 });

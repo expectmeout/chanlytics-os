@@ -117,7 +117,9 @@ export async function replanSends(db: Db, items: Replan[], now: Date, log: Logge
         const p = placed.get(s.id);
         const attempts = (s.attempts ?? 0) + (wrote.has(s.id) ? 1 : 0);
         const tooLong = now.getTime() - Date.parse(s.created_at) > REPLAN_GIVE_UP_MS;
-        if (attempts >= REPLAN_MAX_ATTEMPTS || (!p && tooLong)) {
+        // Two weeks is the end whether or not a moment was found: a send that fails every time it is written (its
+        // claim left, planned again, claimed again) would otherwise circle for good, holding its domain's day.
+        if (attempts >= REPLAN_MAX_ATTEMPTS || tooLong) {
           if (await move(s, { state: "skipped", reason: "kept_waiting", attempts: Math.min(attempts, 20) }))
             out.gave_up += 1;
         } else if (p) {

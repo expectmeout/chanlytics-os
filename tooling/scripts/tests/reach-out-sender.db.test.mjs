@@ -4,7 +4,9 @@
  * one domain never keep another's due send out of the page; the month's count is the workspace's own calendar month in
  * its own zone, and only what left, may have left, or waits to go. Then the writer itself, over the real guards: a due
  * send is claimed, its person made, its email row written, its job scheduled, its send queued and its run sending,
- * each through the constraint or the trigger that holds it; and a second tick writes nothing more. The sender is kept
+ * each through the constraint or the trigger that holds it; and a second tick writes nothing more. A claim a dead tick
+ * left after writing its email is that email's: in a run canceled since, the email is withdrawn and the send adopted,
+ * and the clock's next tick skips it, through the same guards. The sender is kept
  * to this suite's workspace (its reads take one). Local stack only: it makes workspaces.
  */
 import { test, before, after } from "node:test";
@@ -205,6 +207,15 @@ test(
       ok(await db.rpc("reach_out_due_domains", { p_at: iso(Date.now()), p_limit: 50, p_tenant_id: B })),
       [],
     );
+    // Past what the sender is done with this tick: a domain it did, and a workspace it holds.
+    const past = (skip) =>
+      db.rpc("reach_out_due_domains", { p_at: iso(Date.now()), p_limit: 50, p_tenant_id: A, ...skip });
+    assert.deepEqual(
+      ok(await past({ p_skip_domains: [due] })).map((d) => d.id),
+      [later],
+      "the next page starts past it",
+    );
+    assert.deepEqual(ok(await past({ p_skip_tenants: [A] })), [], "a workspace held is none of the page");
     // Tidy, so the writer's case below starts from nothing due.
     ok(await db.from("reach_out_sends").delete().eq("tenant_id", A));
   },
@@ -320,5 +331,69 @@ test(
     assert.deepEqual([again.claimed, again.written, again.rewritten], [0, 0, 0], "a second tick writes nothing more");
     // The job never runs here: withdrawn, so a runner beside this suite sends nothing.
     ok(await db.from("jobs").update({ state: "canceled" }).eq("tenant_id", A).eq("kind", "outbound_send"));
+  },
+);
+
+test(
+  "a claim a dead tick left after writing its email, in a run canceled since: withdrawn, adopted, then skipped, through the guards",
+  { skip },
+  async () => {
+    const { reachOutClock } = await import(at("apps/edge/lib/reach-out/clock.ts"));
+    const root = await chain(A);
+    // A workspace sends from five domains at most, and the cases above made them: one of theirs.
+    const [{ id: dom }] = ok(
+      await db.from("sending_domains").select("id").eq("tenant_id", A).eq("state", "verified").limit(1),
+    );
+    const runId = await run(A, root, "2026-09-26");
+    const [lead] = await leads(A, 1);
+    const [sendId] = await planned(A, runId, root, dom, [lead], Date.now() - 10 * MIN);
+    // The dead tick: claimed six minutes ago, its email written, then nothing.
+    ok(
+      await db
+        .from("reach_out_sends")
+        .update({ state: "claimed", claimed_at: iso(Date.now() - 6 * MIN) })
+        .eq("id", sendId),
+    );
+    const person = await one(
+      db.from("contacts").insert({ tenant_id: A, email: `dead-${stamp}@fixture-sender.example` }),
+    );
+    const thread = await one(db.from("conversations").insert({ tenant_id: A, contact_id: person }));
+    const id = await sendMessageId(sendId, 0);
+    ok(
+      await db.from("messages").insert({
+        id,
+        tenant_id: A,
+        conversation_id: thread,
+        contact_id: person,
+        channel: "email",
+        direction: "outbound",
+        sender: "human",
+        type: "text",
+        body: "Saw your shop on the map.",
+        status: "queued",
+        meta: { source: "reach_out", email: { request: { to: [`dead-${stamp}@fixture-sender.example`] } } },
+      }),
+    );
+    // The owner cancels the run.
+    ok(await db.from("broadcasts").update({ state: "canceled" }).eq("id", runId));
+
+    const lane = {
+      unsubscribeSecret: "unsubscribe-seal-for-this-suite",
+      unsubscribeOrigin: "https://app.chanlytics.com",
+      mailDomain: "mail.chanlytics.com",
+    };
+    const L = log({ suite: "reach_out_sender" });
+    const out = await claimAndWrite({ db, now: new Date(), started: Date.now(), lane, log: L, tenantId: A });
+    assert.equal(out.rewritten, 1);
+    const m = ok(await db.from("messages").select("status, error").eq("id", id).single());
+    assert.deepEqual([m.status, m.error], ["canceled", { reason: "run_canceled" }], "withdrawn: its job sends nothing");
+    const adopted = ok(await db.from("reach_out_sends").select("state, message_id").eq("id", sendId).single());
+    assert.deepEqual([adopted.state, adopted.message_id], ["queued", id], "adopted: the send is its email's");
+    const jobs = ok(await db.from("jobs").select("id").eq("tenant_id", A).eq("payload->>message_id", id));
+    assert.equal(jobs.length, 0, "no job for a withdrawn email");
+
+    await reachOutClock(db, new Date(), L, Date.now(), A);
+    const done = ok(await db.from("reach_out_sends").select("state, reason").eq("id", sendId).single());
+    assert.deepEqual([done.state, done.reason], ["skipped", "run_canceled"]);
   },
 );

@@ -89,15 +89,20 @@ test("a step's email answers the one before (D19): Re: its subject, once, and it
   assert.ok(out.request.text.includes("This is a marketing email."));
 });
 
-test("a slot with no value holds the email: missing_value, whether in the subject or the words", () => {
+test("a slot this lead has no value for is the lead's (missing_value); a slot no lead could fill, or no subject, is the step's", () => {
   assert.deepEqual(reachOutRequest(input({ lead: { business_name: "Fixture Movers", city: null } })), {
     ok: false,
     reason: "missing_value",
   });
-  assert.deepEqual(reachOutRequest(input({ words: { subject: "Hi {{first name}}", body: "Hello." } })), {
-    ok: false,
-    reason: "missing_value",
-  });
+  for (const words of [
+    { subject: "Hi {{first name}}", body: "Hello." },
+    { subject: "Hello", body: "Hi {{business_name}}" },
+    { subject: "Hello", body: "Hi {{business" },
+  ])
+    assert.deepEqual(reachOutRequest(input({ words })), { ok: false, reason: "unknown_slot" }, JSON.stringify(words));
+  // A step after the first never reads its own heading, so a slot there holds nothing.
+  const parent = { messageId: "m0", rfcMessageId: "<first@getharbor.example>", references: [], subject: "Hi" };
+  assert.equal(reachOutRequest(input({ parent, words: { subject: "{{first name}}", body: "Hello." } })).ok, true);
   assert.deepEqual(reachOutRequest(input({ words: { subject: null, body: "Hello." } })), {
     ok: false,
     reason: "no_subject",

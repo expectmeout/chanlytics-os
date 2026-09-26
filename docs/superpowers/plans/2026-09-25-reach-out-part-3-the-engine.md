@@ -2397,10 +2397,15 @@ export async function POST(request: Request): Promise<Response> {
 > - **00187** holds the claim's two reads as bounded SQL, as PR 5's review taught. `reach_out_due_domains` is filtered before its limit, so a paused chain's backlog never keeps a due domain out of the page. `reach_out_month_sent` counts the workspace's calendar month in its zone: what left, may have left, or is queued.
 > - **The lane** (`sender.ts coldLane`) also needs `RESEND_API_KEY`, because the email wire is bound with it (`emailWireFor`).
 > - **The writer** re-reads the run and the chain after the claim. A run closed since skips the send (`run_canceled`); a chain paused since keeps it planned. A domain gone since is re-planned. The person is `reach_out_person` for every step, which also returns a follower's thread. `to` is the person's stored address, as the door compares it.
-> - **Its skip reasons:** `already_yours`, `lead_closed`, `lead_gone`, `no_address`, `no_mailbox`, `no_template`, `missing_value`, `no_business_address`, `no_subject`, `words_unsendable`, `no_parent`, `step_removed`, and `parent_unstamped` (a parent with no Message-ID waits an hour at a time, for two weeks).
-> - **A claim five minutes old is written again.** A row that already exists is that email as it was frozen: its job is scheduled once, to the thread and address it was frozen with.
-> - **The door:** a reach-out's row never retires a receptionist's draft (`overtakenByHuman`).
+> - **A lead's own refusal skips it:** `already_yours`, `lead_closed`, `lead_gone`, `no_address`, `missing_value` (a slot this lead has no value for), `no_parent`, `step_removed`, and `parent_unstamped` after two weeks.
+> - **The step's or the workspace's fault holds the send instead:** `no_mailbox`, `no_business_address`, `no_template`, `no_subject`, `unknown_slot` (a slot no lead could fill), `words_unsendable`. The send is planned again an hour on, in its lead's hours, and the lead keeps its place. A workspace missing its mailbox or its address claims nothing at all (`workspaces_held`). A parent with no Message-ID waits the same way.
+> - **The cheap checks run before anybody is made.** `reach_out_person` comes after the words, the workspace and the domain.
+> - **A claim five minutes old** whose email was already written is adopted before anything else is judged, because that email may already be in somebody's inbox. Still queued in a run canceled since, it is withdrawn first. Otherwise its job is made sure of, once. A claim with no email is written as the first one.
+> - **One domain's failure is its own.** The page of due domains reads past the workspaces held this tick and the domains already done (`p_skip_tenants`, `p_skip_domains`). The claim's share is the lower of the live count and the door's `sent_days`.
+> - **Two weeks is the end** of a re-planned send whether or not the timetable found it a moment (`replan.ts`), so a send that fails every time cannot circle for good.
+> - **The door:** a reach-out's row never retires a receptionist's draft (`overtakenByHuman`). The orphan sweep fails a cold email with no job as `orphaned`, which the clock re-plans, and flags no thread (D4).
 > - **C14:** handled in `sendEmail`, capped at the short wait.
+> - **The sender's reads live in `packages/db`** (`sendStanding`, `emailWordsOf`, `workspaceNameAndConfig`, `leadSlotsOf`, `contactEmailOf`, `sendNow`, `runSending`).
 
 The one PR that sends. After it, a reach-out run approved on Broadcasts goes out, one email per claim, from the
 workspace's own domains. It is complete only with the secrets set (C13); until then the clock answers 503 while

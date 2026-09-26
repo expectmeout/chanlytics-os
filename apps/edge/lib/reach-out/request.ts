@@ -13,7 +13,7 @@ import {
   type EmailParent,
   type EmailRequest,
 } from "../packages/channels.js";
-import { campaignFooter, campaignFooterHtml, reachOutSlots, whyFrom } from "../packages/contracts.js";
+import { campaignFooter, campaignFooterHtml, reachOutSlots, whyFrom, type SlotLead } from "../packages/contracts.js";
 
 export interface RequestInput {
   tenantId: string;
@@ -34,16 +34,41 @@ export interface RequestInput {
   parent: EmailParent | null;
 }
 
-export type RequestRefusal = "missing_value" | "no_business_address" | "no_subject" | "words_unsendable";
+/** Why a step's words cannot become this lead's: the step's (no subject, a slot no lead could fill) or the lead's. */
+export type WordsRefusal = "unknown_slot" | "no_subject" | "missing_value";
+export type RequestRefusal = WordsRefusal | "no_business_address" | "words_unsendable";
+
+/** Every slot a step may name, each with a value: what tells a slot no lead could fill from one this lead cannot. */
+const EVERY_SLOT = { lead: { business_name: "x", city: "x" }, workspace: { businessName: "x" } };
+
+/**
+ * A step's words with this lead's values in. The step's own faults come first, and are the step's to fix (the sender
+ * holds its sends): a first email with no subject, or a slot no lead could fill ({{first name}}). Then the lead's: a
+ * slot it has no value for ({{city}} for a lead with none) holds this email and no other. A step after the first
+ * answers the email before it, so its own heading is never read (D19).
+ */
+export function reachOutWords(
+  words: { subject: string | null; body: string },
+  lead: SlotLead,
+  workspace: { businessName: string | null },
+  answers: boolean,
+): { ok: true; subject: string | null; body: string } | { ok: false; reason: WordsRefusal } {
+  const subject = answers ? null : (words.subject ?? "");
+  for (const text of [subject, words.body])
+    if (text !== null && !reachOutSlots(text, EVERY_SLOT.lead, EVERY_SLOT.workspace).ok)
+      return { ok: false, reason: "unknown_slot" };
+  if (subject !== null && !subject.trim()) return { ok: false, reason: "no_subject" };
+  const s = subject === null ? null : reachOutSlots(subject, lead, workspace);
+  const b = reachOutSlots(words.body, lead, workspace);
+  if ((s && !s.ok) || !b.ok) return { ok: false, reason: "missing_value" };
+  return { ok: true, subject: s ? s.text : null, body: b.text };
+}
 
 export function reachOutRequest(
   i: RequestInput,
 ): { ok: true; request: EmailRequest; subject: string; body: string } | { ok: false; reason: RequestRefusal } {
-  // A step's subject is its parent's, once, with "Re:" (buildEmailRequest): its own heading is not read.
-  const subject = i.parent ? null : reachOutSlots(i.words.subject ?? "", i.lead, i.workspace);
-  const body = reachOutSlots(i.words.body, i.lead, i.workspace);
-  if ((subject && !subject.ok) || !body.ok) return { ok: false, reason: "missing_value" };
-  if (subject && !subject.text.trim()) return { ok: false, reason: "no_subject" };
+  const words = reachOutWords(i.words, i.lead, i.workspace, i.parent !== null);
+  if (!words.ok) return words;
   // The foot names who and where (CAN-SPAM): without both there is no email to send, only a refusal to say.
   const business = i.workspace.businessName?.trim() ?? "";
   const address = i.workspace.address?.trim() ?? "";
@@ -62,8 +87,8 @@ export function reachOutRequest(
       identity: ownDomainIdentity(i.domain, i.mailbox, i.mailDomain),
       to: i.to,
       parent: i.parent,
-      ...(subject ? { subject: subject.text } : {}),
-      body: body.text,
+      ...(words.subject !== null ? { subject: words.subject } : {}),
+      body: words.body,
       signature: null,
       // The owner's words, sent by the machine: the campaign marks it auto-generated either way.
       actor: "human",
@@ -75,5 +100,5 @@ export function reachOutRequest(
     // Words no email may carry (a first email whose subject poses as a reply): the step's to fix, never this send's.
     return { ok: false, reason: "words_unsendable" };
   }
-  return { ok: true, request, subject: request.subject, body: body.text };
+  return { ok: true, request, subject: request.subject, body: words.body };
 }

@@ -379,6 +379,41 @@ test("a queued reply with no job to send it is failed with an honest note and th
   }
 });
 
+test("a campaign's email with no job is failed the same way, and flags no thread and tells nobody: its run counts it (Reach out D4)", async () => {
+  const cold = {
+    id: "q-cold",
+    tenant_id: A,
+    conversation_id: "cv-cold",
+    direction: "outbound",
+    sender: "human",
+    body: "Saw your shop on the map.",
+    status: "queued",
+    created_at: ago(15 * M),
+    meta: {
+      source: "reach_out",
+      email: { request: { headers: { "List-Unsubscribe": "<https://app.chanlytics.com/u/token>" } } },
+    },
+  };
+  const w = world([], { messages: [cold] });
+  const line = wire();
+  try {
+    assert.deepEqual(await answer(await w.tick()), [
+      200,
+      { ok: true, flagged: 0, unanswered: 0, orphaned: 1, told: 0 },
+    ]);
+    const row = w.tables.messages.find((m) => m.id === "q-cold");
+    assert.deepEqual(
+      [row.status, row.error.reason],
+      ["failed", "orphaned"],
+      "orphaned: the clock plans its send again",
+    );
+    assert.equal(w.tables.escalations.length, 0, "no thread nobody wrote on is flagged");
+    assert.equal(bell(w, A).length, 0, "and nobody is told");
+  } finally {
+    line.restore();
+  }
+});
+
 test("the unfinished questions failing does not cost the two-hour watchdog its tick", async () => {
   const w = world([waiting("e-a1", A)], {
     messages: [inbound("m-1")],
