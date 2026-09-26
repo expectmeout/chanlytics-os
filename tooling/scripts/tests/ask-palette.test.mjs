@@ -1996,11 +1996,11 @@ test("on a phone the field in use composes: the rows go, their fold kept closed,
   }
 });
 
-/* ------------------------------ the phone's ✦: the beam ------------------------------ */
+/* ------------------------------ the phone's ✦: the disc and its dot ------------------------------ */
 
-test("the beam says the usage while Ask works: the AI's own colours with no usage surface or under 80%, amber from 80%, red at 100%; and it works when the mood is not at rest", () => {
-  const Beam = (props) => globalThis.window.AskBeam(props);
-  const drawn = () => byTestId(render(Beam, { testId: "b" }), "b");
+test("the disc says the usage as its dot: none with no usage surface or under 80%, amber from 80%, red at 100%; and it works when the mood is not at rest", () => {
+  const Disc = (props) => globalThis.window.AskDisc(props);
+  const drawn = () => byTestId(render(Disc, { testId: "b" }), "b");
   const subs = [];
   const mood = { state: "idle", subscribe: (fn) => (subs.push(fn), () => subs.splice(subs.indexOf(fn), 1)) };
   const had = globalThis.window.__mascot;
@@ -2008,8 +2008,8 @@ test("the beam says the usage while Ask works: the AI's own colours with no usag
   try {
     delete globalThis.window.__USAGE;
     let beam = drawn();
-    assert.equal(beam.props.className, "ask-beam");
-    assert.equal(beam.props["data-usage"], "ok", "no usage surface yet: the AI's own colours");
+    assert.equal(beam.props.className, "ask-disc");
+    assert.equal(beam.props["data-usage"], "ok", "no usage surface yet: no dot for the usage");
     assert.equal(beam.props["data-work"], "0", "at rest");
     globalThis.window.__USAGE = { standing: "ok", share: 27 };
     assert.equal(drawn().props["data-usage"], "ok");
@@ -2019,7 +2019,7 @@ test("the beam says the usage while Ask works: the AI's own colours with no usag
     assert.equal(drawn().props["data-usage"], "over");
     mood.state = "thinking";
     beam = drawn();
-    assert.equal(beam.props["data-work"], "1", "Ask reading: the beam works");
+    assert.equal(beam.props["data-work"], "1", "Ask reading: the dot is on");
   } finally {
     delete globalThis.window.__USAGE;
     if (had === undefined) delete globalThis.window.__mascot;

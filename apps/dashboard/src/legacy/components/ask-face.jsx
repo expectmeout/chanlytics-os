@@ -38,17 +38,17 @@ const AskFace = ({ className, tone = "page", ground = "page", side, testId }) =>
   return <canvas ref={ref} className={className} aria-hidden="true" data-testid={testId} />;
 };
 
-// The beam: the phone's ✦ is the cards' surface with a short arc travelling its rim (styles/ask.css, `.ask-beam`; spec
-// docs/superpowers/specs/2026-09-25-the-ask-button-on-a-phone-design.md). At rest the arc is the ink, faint and slow.
-// While Ask works (`data-work`, from the mood) it brightens and quickens in the usage's colour (`data-usage`): the
-// AI's own blue, violet and gold under 80%, amber from 80%, red at 100%. The usage is the usage surface's standing
-// (`window.__USAGE`, `{ standing }`, repainted on `surface:usage`; the usage spec); until that surface ships there is
-// none, and the beam stays in the AI's colours.
+// The disc and its dot: the phone's ✦ is the cards' surface with the three on it, and its state is said the way the
+// app says every state, a dot on the disc's rim (styles/ask.css, `.ask-disc`; the spec
+// docs/superpowers/specs/2026-09-25-the-ask-button-on-a-phone-design.md, B9). Nothing at rest. While Ask works
+// (`data-work`, from the mood) the coral dot every live thing wears, breathing; from 80% of the usage an amber dot
+// that stays, at 100% red (`data-usage`, the usage surface's standing: `window.__USAGE`, `{ standing }`, repainted on
+// `surface:usage`; the usage spec). Until that surface ships there is none, and the dot is the mood's alone.
 const standingOf = () => {
   const u = window.__USAGE;
   return u && (u.standing === "warned" || u.standing === "over") ? u.standing : "ok";
 };
-const AskBeam = ({ testId }) => {
+const AskDisc = ({ testId }) => {
   const [usage, setUsage] = useAfState(standingOf);
   const [work, setWork] = useAfState(() => {
     const M = window.__mascot;
@@ -64,7 +64,7 @@ const AskBeam = ({ testId }) => {
       if (stop) stop();
     };
   }, []);
-  return <span className="ask-beam" data-usage={usage} data-work={work ? "1" : "0"} aria-hidden="true" data-testid={testId} />;
+  return <span className="ask-disc" data-usage={usage} data-work={work ? "1" : "0"} aria-hidden="true" data-testid={testId} />;
 };
 
-Object.assign(window, { AskFace, AskBeam });
+Object.assign(window, { AskFace, AskDisc });
