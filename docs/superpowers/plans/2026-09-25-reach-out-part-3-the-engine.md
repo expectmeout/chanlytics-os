@@ -10,6 +10,27 @@
 
 **Status:** Written 25 Sep 2026 against `main` at `e745cd2e` (Part 2.6 complete: #1086, #1092, #1098; the broadcast claim fix, #1100). Part 3 is approved (Ruben, 25 Sep: "go with your recommendations"), with D15–D19 and the design notes below decided. Every file:line below was read that day by three code maps and checked by hand where the plan leans on it.
 
+**As built: complete, 26 Sep 2026.** Nine PRs, each one reviewed once, fixed, and merged on green. Migrations 00183–00188 are on production. Each PR's section below opens with its "As built" note, which says where it differs from the code this plan wrote and why.
+
+| PR | What | Migration |
+| --- | --- | --- |
+| 1 #1102 | The objects: the chain's columns, `reach_out_sends` and its guard, the `outreach` class | 00183 |
+| 2 #1111 | The clock of a lead: US zones, lead hours, the timetable, the rules (pure) | — |
+| 3 #1112 | The doors: one capacity, the audience and followers, the person, the atomic claim, `sent_days` (D15) | 00184 |
+| 4 #1114 | A step's run, planned whole; approving a reach-out run releases no `broadcast_send` | 00185 |
+| 5 #1116 | The reach-out clock: reconcile, unstick, close, finish, restale; every read a bounded SQL function | 00186 |
+| 6 #1117 | The sender: rows first; adopting a dead tick's email; holds for the step's and the workspace's faults; the lane (C13); the door by lead; C14 | 00187 |
+| 7 #1119 | The holds: a bounce marks the lead (C11), a second hold is the platform's (D16), unsubscribes hold a domain (D18) | 00188 |
+| 8 #1120 | A cold-only link and reply domain when it is set (D17), with a previous reply domain, a receiving check and a link host that answers only `/u/` | — |
+| 9 | The end-to-end proof on a stack, and the docs (the spec's "As built" notes and C1–C14, the PRD, the runbook, the architecture, the glossary) | — |
+
+The migration numbers moved during the build: PR 4's review added 00185, so the clock's number is 00186, not 00185. PR 6 needed bounded reads of its own (00187), so the holds' number is 00188, not 00186.
+
+What is left for later parts:
+- **Part 4:** the sheet that makes a reach-out, the opening, and the model's checks.
+- **Part 5:** replies read for their intent (booked, not now, away).
+- **Ruben's to set:** the cold lane's secrets, the one real send that checks DKIM, the cold-only domain, and the allowance's price.
+
 ---
 
 ## 0. What is decided, and what this plan decides
@@ -2724,6 +2745,11 @@ No migration. The switches ship with today's addresses as their defaults, so not
 ---
 
 ## PR 9 — The proof and the docs
+
+> **As built (PR 9, 26 Sep 2026).** `reach-out.integration.db.test.mjs` runs the nine steps below over the real code on a stack.
+> - **Where it calls the code directly:** it calls the run verb (`reachOutRunContext` and `runReachOut`) rather than the playbooks sweep's door, whose hour gate would make the test wait for a clock. It uses the dashboard's own `approveRunPorts`, with a real auth user as the decision's actor.
+> - **How it runs the jobs:** it runs each job by hand through `dispatchJob` with the edge's email wire, and withdraws it afterwards so no runner takes it again.
+> - **Step 9's shape:** the domain's first ramp step (30), filled by thirty emails sent within the day; the plan said "a cap of 1". The claim takes nothing, and an email written by hand past the share is refused at the door and planned again.
 
 ### Task 9.1: End to end, on a replayed stack
 
