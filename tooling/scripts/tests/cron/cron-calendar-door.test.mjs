@@ -255,6 +255,10 @@ test("the rotation, and what a read leaves behind: the never-read workspace firs
     assert.equal(checkedAt(w, F), tenMinutesAgo, "the fresh one untouched");
     assert.equal(checkedAt(w, X), null);
     assert.deepEqual(w.backlog, [{ p_sweep: "calendar", p_remaining: 0 }], "the queue drained");
+    assert.ok(
+      !w.db.seen.some((s) => s.table === "tenants"),
+      "each feed's zone comes with the page: the workspace row is not read per feed",
+    );
   } finally {
     line.restore();
   }

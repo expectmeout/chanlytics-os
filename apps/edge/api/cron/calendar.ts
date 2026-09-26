@@ -54,8 +54,8 @@ export async function POST(request: Request): Promise<Response> {
     if (!url) continue;
     out.tenants += 1;
     try {
-      const { data: tenant } = await db.from("tenants").select("timezone").eq("id", row.tenant_id).maybeSingle();
-      const tz = tenant?.timezone || "America/New_York";
+      // The zone comes with the page (00193): the workspace's own, UTC when that is a name nobody knows.
+      const tz = row.timezone;
       const items = await feedItemsFor(
         row.tenant_id,
         url,

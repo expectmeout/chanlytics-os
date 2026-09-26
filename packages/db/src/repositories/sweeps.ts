@@ -63,12 +63,14 @@ export interface DueCalendar {
   tenant_id: string;
   /** The workspace's configuration as stored; its calendar's address is in it. */
   config: Json;
+  /** The zone its feed is read in: the workspace's own (tenants.timezone), UTC when that is a name nobody knows. */
+  timezone: string;
 }
 
 /**
  * The workspaces whose calendar is due before `before` (00193 calendars_due): a feed's address on the row, never read
- * or last read before then; never read first, then the least recently read, `limit` of them, with the exact count of
- * due calendars beyond the page. A row whose `calendar` has no address is not a feed, and is neither.
+ * or last read before then; never read first, then the least recently read, `limit` of them, each with its zone, with
+ * the exact count of due calendars beyond the page. A row whose `calendar` has no address is not a feed, and is neither.
  */
 export async function dueCalendars(
   db: Db,
@@ -80,6 +82,9 @@ export async function dueCalendars(
     ...(p.tenantId ? { p_tenant_id: p.tenantId } : {}),
   });
   if (error) throw new Error(`cannot read the calendars due: ${error.message}`);
-  const rows = (data ?? []) as Array<{ tenant_id: string; config: Json; due_total: number }>;
-  return { rows: rows.map((r) => ({ tenant_id: r.tenant_id, config: r.config })), remaining: remainingOf(rows) };
+  const rows = (data ?? []) as Array<{ tenant_id: string; config: Json; timezone: string; due_total: number }>;
+  return {
+    rows: rows.map((r) => ({ tenant_id: r.tenant_id, config: r.config, timezone: r.timezone })),
+    remaining: remainingOf(rows),
+  };
 }
