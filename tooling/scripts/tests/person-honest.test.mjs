@@ -1531,7 +1531,19 @@ test("REGRESSION: the timeline says who sent each of ours in the Inbox's words -
 });
 
 test("a person's page names the lists that keep themselves current and have them on, by the rail's own tests -- and not the ones it already says", () => {
-  const booked = toPersonVM(detail(), ZONE, new Date(NOW));
+  // Booked this week is Monday to Sunday by the workspace clock, and the fixture books two days ahead of the real
+  // one: run on a Saturday or a Sunday, the booking fell into next week and this failed (CI, 26 Sep 2026). So this
+  // one reads at noon on the most recent Wednesday, with the booking two days on from THAT; the rest of the file
+  // keeps the real clock, which the drawn pages read for themselves.
+  const wed = new Date(NOW);
+  wed.setUTCDate(wed.getUTCDate() - ((wed.getUTCDay() + 4) % 7));
+  wed.setUTCHours(16, 0, 0, 0);
+  const midweek = {
+    ...NEXT,
+    start: new Date(wed.getTime() + 2 * D).toISOString(),
+    end: new Date(wed.getTime() + 2 * D + 2 * H).toISOString(),
+  };
+  const booked = toPersonVM(detail({ visits: { ...VISITS, next: midweek } }), ZONE, wed);
   assert.deepEqual(
     booked.smartLists.map((l) => l.id),
     ["booked_week", "booked"],
