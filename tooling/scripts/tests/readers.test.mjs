@@ -31,6 +31,7 @@ const { inbox } = await import(at("apps/dashboard/src/server/readers/inbox.ts"))
 const { today } = await import(at("apps/dashboard/src/server/readers/today.ts"));
 // Named apart from the fixtures below that build a conversation's and a message's rows.
 const { conversation: oneThread, messagesOf } = await import(at("apps/dashboard/src/server/readers/conversation.ts"));
+const { call: oneCall } = await import(at("apps/dashboard/src/server/readers/call.ts"));
 const threadRoute = await import(at("apps/dashboard/app/api/v1/conversations/[id]/route.ts"));
 
 // The kept values live in the module, keyed by workspace, person and reader: each test starts with none.
@@ -943,4 +944,69 @@ test("a thread this workspace does not hold is the page's 404, in the scope's ow
     kernel.load(turnIn(dayCtx(tbls), B), oneThread, { id: "not-a-uuid", before: null }),
     notFound("That conversation does not exist."),
   );
+});
+
+test("one call for Ask: the Calls page's own columns and mapping for one call, read under the workspace's own filter -- another workspace's call, or one not there, is the call routes' 404 -- and the call and its person are the rows", async () => {
+  const stored = {
+    storage_path: "a/b.mp3",
+    fetch_state: "stored",
+    provider_url: "https://provider.example/x",
+    mime: "audio/mpeg",
+    bytes: 10,
+  };
+  const tbls = {
+    calls: [
+      call(L1, A, {
+        contact_id: "k1",
+        contacts: { display_name: "Dana", wa_profile_name: null, phone_e164: "+15550000003" },
+        recording: stored,
+      }),
+      call(L2, A, { contact_id: null }),
+      call(L3, B, { contact_id: "k3" }),
+    ],
+  };
+  const ctx = dayCtx(tbls);
+  const r = await kernel.load(turnIn(ctx), oneCall, { id: L1 });
+  const listed = await kernel.load(turnIn(dayCtx(tbls)), calls, {});
+  assert.deepEqual(
+    r.data,
+    { call: listed.data.calls.find((c) => c.id === L1) },
+    "the Calls page's mapping of the same row",
+  );
+  const json = JSON.stringify(r.data);
+  assert.ok(!json.includes("storage_path") && !json.includes("provider.example"), "audio only through its own route");
+  assert.deepEqual(
+    selects(ctx, "calls").map((q) => q.filters),
+    [
+      [
+        ["eq", "tenant_id", A],
+        ["eq", "id", L1],
+      ],
+    ],
+    "one read, filtered to the workspace as well as the id",
+  );
+  assert.deepEqual(r.rows, [
+    { kind: "call", id: L1, route: `conversations/cv-${L1}`, label: "Dana" },
+    { kind: "person", id: "k1", route: "clients/k1", label: "Dana" },
+  ]);
+  const alone = await kernel.load(turnIn(dayCtx(tbls)), oneCall, { id: L2 });
+  assert.deepEqual(
+    alone.rows,
+    [{ kind: "call", id: L2, route: `conversations/cv-${L2}`, label: "+1 (555) 000-0001" }],
+    "a caller who is nobody's yet is the call alone, by the number the phone showed",
+  );
+
+  const notFound = (message) => (e) => {
+    assert.deepEqual([e.code, e.status, e.message], ["not_found", 404, message]);
+    return true;
+  };
+  // Bayside's call in a harbor turn: RLS would show it to a member of both; the workspace's filter does not.
+  await assert.rejects(kernel.load(turnIn(dayCtx(tbls)), oneCall, { id: L3 }), notFound("Call not found."));
+  await assert.rejects(
+    kernel.load(turnIn(dayCtx(tbls)), oneCall, { id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee9" }),
+    notFound("Call not found."),
+  );
+  const typo = dayCtx(tbls);
+  await assert.rejects(kernel.load(turnIn(typo), oneCall, { id: "not-a-uuid" }), notFound("That call does not exist."));
+  assert.equal(selects(typo, "calls").length, 0, "a malformed id never reaches the database");
 });
