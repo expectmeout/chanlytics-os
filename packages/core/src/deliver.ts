@@ -107,12 +107,65 @@ export interface WirePayload {
 export type Sender = (to: string, p: WirePayload) => Promise<SendResult>;
 
 /**
+ * What a read of a workspace's credentials came back as, from wherever they
+ * are kept (the edge's Vault, for WhatsApp). Three answers, because two of
+ * them used to be one: `present` is the pair; `absent` is a channel that
+ * carries none -- not connected, refused at the door and said to the owner;
+ * `unavailable` is a read that FAILED (Vault, the database) whose truth nobody
+ * has. The number may well be connected, so it is neither a refusal nor "not
+ * connected": a send that meets it waits (WireUnavailable) rather than fail
+ * for good and send the owner to reconnect a number that works.
+ */
+export type CredentialsRead<C> =
+  { outcome: "present"; credentials: C } | { outcome: "absent" } | { outcome: "unavailable"; error: string };
+
+/**
+ * A wire that could not be BOUND this run: the workspace's credentials could
+ * not be read (CredentialsRead unavailable). A plain object rather than a
+ * class, because the value is built on the edge and read inside core's dist
+ * and jobs' bundle of it, and `instanceof` does not cross a bundle.
+ */
+export interface WireUnavailable {
+  unavailable: true;
+  /** The read's own words, for the log and the pager; never shown to an owner. */
+  error: string;
+}
+export const wireUnavailable = (error: string): WireUnavailable => ({ unavailable: true, error });
+export function isWireUnavailable(w: Sender | null | undefined | WireUnavailable): w is WireUnavailable {
+  return typeof w === "object" && w !== null && (w as WireUnavailable).unavailable === true;
+}
+
+/**
  * The wires one workspace has. `undefined`: this runtime has no such
  * channel at all. `null`: the channel exists but this workspace holds no
  * credentials or line for it -- refused here, never guessed from the
  * environment, which is how one business's message left on another's line.
+ * A WireUnavailable: the channel may well be this workspace's, but its
+ * credentials could not be read just now -- nothing is sent, nothing is
+ * failed, and the caller tries again later.
  */
-export type Wire = Partial<Record<Channel, Sender | null>>;
+export type Wire = Partial<Record<Channel, Sender | null | WireUnavailable>>;
+
+/**
+ * The door could not be opened: this channel's wire could not be bound
+ * (Wire's WireUnavailable). Thrown before anything is written -- a queued row
+ * stays queued, no event is emitted -- as every read that fails at the door
+ * throws: "we could not check" is not "not connected". A caller that speaks to
+ * a person tries again later (sendQueued, sendBroadcastBatch); deliverSafely
+ * says it as `wire_unreadable`. Told apart by name, not by class, for the same
+ * reason WireUnavailable is an object.
+ */
+export class WireUnavailableError extends Error {
+  readonly channel: Channel;
+  constructor(channel: Channel, error: string) {
+    super(`deliver: the ${channel} wire could not be bound: ${error}`);
+    this.name = "WireUnavailableError";
+    this.channel = channel;
+  }
+}
+export function isWireUnavailableError(e: unknown): e is WireUnavailableError {
+  return e instanceof Error && e.name === "WireUnavailableError";
+}
 
 export interface Delivery {
   tenantId: string;
@@ -549,9 +602,14 @@ function assertFrozenFor(d: Delivery): void {
 
 type WireResult = SendResult & { reason?: "no_sender_for_channel" | "no_credentials" };
 
-/** The words on this workspace's wire for the channel, or why there is none. */
+/**
+ * The words on this workspace's wire for the channel, or why there is none. A wire that could not be BOUND (its
+ * credentials could not be read) throws before anything is written: asked only of words that may go, so a refusal is
+ * still recorded during an outage, and the row stays queued for the caller's next try. Not the same fact as `null`.
+ */
 async function putOnWire(wire: Wire, d: Delivery): Promise<WireResult> {
   const send = wire[d.channel];
+  if (isWireUnavailable(send)) throw new WireUnavailableError(d.channel, send.error);
   if (send === undefined)
     return { ok: false, wamid: null, status: 0, errorBody: "no_sender_for_channel", reason: "no_sender_for_channel" };
   if (send === null)

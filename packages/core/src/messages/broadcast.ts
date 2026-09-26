@@ -84,6 +84,21 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
     });
     return;
   }
+  // The wire itself, before anyone is claimed. Credentials that could not be
+  // READ (Vault, the database) are not credentials that are absent: nobody
+  // knows whether the number is connected, so nobody is claimed into a send
+  // that cannot leave -- a claim settles only to sent or skipped (00182), never
+  // back to queued -- and the whole batch waits for the next tick, its people
+  // still queued and the run as it was, the way a batch whose people could not
+  // be read waits. Nothing is said to the owner about reconnecting a number
+  // that may well be connected. A number that IS absent is the door's answer,
+  // per person, below, as it always was.
+  const unbound = await ports.wireUnavailable();
+  if (unbound) {
+    console.error("broadcast_wire_unavailable", b.id, unbound);
+    await ports.scheduleNext(b.id, new Date(ports.now() + BROADCAST_STALL_RETRY_MS));
+    return;
+  }
   // Only while still scheduled: a cancel that landed between the read above
   // and this write is the row's answer, and the batch sends nothing.
   if (b.state === "scheduled" && !(await ports.startSending(b.id))) return;

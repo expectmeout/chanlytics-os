@@ -16,7 +16,7 @@ import {
   type EmailSendsAs,
   type ResendConfig,
 } from "@chanlytics/channels";
-import type { Sender } from "./deliver";
+import { wireUnavailable, type CredentialsRead, type Sender, type WireUnavailable } from "./deliver";
 
 /**
  * WhatsApp's wire from a workspace's credentials. Graph wants bare digits,
@@ -28,6 +28,12 @@ export function whatsappSender(cfg: WaConfig | null): Sender | null {
     const digits = to.replace(/^\+/, "");
     return p.template ? sendTemplate(cfg, digits, p.template) : sendText(cfg, digits, p.body);
   };
+}
+
+/** WhatsApp's wire from a credentials READ: the sender, none to refuse with, or a wire that could not be bound. */
+export function whatsappWire(read: CredentialsRead<WaConfig>): Sender | null | WireUnavailable {
+  if (read.outcome === "unavailable") return wireUnavailable(read.error);
+  return whatsappSender(read.outcome === "present" ? read.credentials : null);
 }
 
 /**

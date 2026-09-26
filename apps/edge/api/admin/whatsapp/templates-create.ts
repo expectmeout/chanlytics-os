@@ -77,9 +77,15 @@ export async function POST(request: Request): Promise<Response> {
   if (!ch) return refuse(409, "no_channel");
   if (!ch.waba_id) return refuse(409, "no_waba");
   const creds = await waCredentialsForTenant(db, tenantId);
-  if (!creds?.accessToken) return refuse(503, "no_token");
+  // None on file, or none readable just now: a 503 either way, since this door is tried again by hand.
+  if (creds.outcome !== "present") return refuse(503, "no_token");
 
-  const made = await createTemplate(creds.accessToken, ch.waba_id, { name, language, category, components });
+  const made = await createTemplate(creds.credentials.accessToken, ch.waba_id, {
+    name,
+    language,
+    category,
+    components,
+  });
   if (!made.ok) {
     L.error("wa_template_create_failed", {
       tenant_id: tenantId,

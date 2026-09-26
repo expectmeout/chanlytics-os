@@ -1,27 +1,18 @@
-import { isCampaignEmail, type SendPurpose } from "@chanlytics/contracts";
-import type { Channel } from "../deliver";
-import type { SendQueuedPorts } from "./ports";
+import { isCampaignEmail, MIN_MS, type SendPurpose } from "@chanlytics/contracts";
+import { isWireUnavailableError, type Channel, type Delivered } from "../deliver";
+import type { SendQueuedCommand, SendQueuedPorts } from "./ports";
 
-export interface SendQueuedCommand {
-  tenantId: string;
-  /** `to_phone` on a phone's wire, `to_email` on email's: an address never travels in a field read as a number. */
-  payload: {
-    message_id: string;
-    conversation_id: string;
-    to_phone?: string;
-    to_email?: string;
-    body?: string;
-    template?: { name: string; language: string; params: string[] };
-    /**
-     * What the send IS, when the job knows better than a template can: an offer is marketing whatever its words, and a
-     * first email starts a conversation. Both can only make the door stricter: a payload never makes a template's
-     * purpose looser, and only `true` makes a send proactive. "outreach" (a cold email, Reach out) is its own lane,
-     * which the door holds to its own rules.
-     */
-    purpose?: SendPurpose;
-    proactive?: boolean;
-  };
-}
+export type { SendQueuedCommand } from "./ports";
+
+/**
+ * How long a reply whose wire could not be bound waits before a FRESH job tries it again, by how many fresh jobs it
+ * already is the result of (payload.resumes): a blip, a bad minute, a short outage, and one more before a person is
+ * told. The list's length is the bound: a send past its last wait fails loudly by name, and the ledger settles the
+ * row and tells the owner as it does for any run that did not finish -- never "reconnect the number", because
+ * nobody knows that it is off. Fresh rows rather than the ledger's own retry (RETRY_WAITS_MS), which is closed to a
+ * kind that speaks to a person: a run that threw mid-send may have sent, and this one provably did not.
+ */
+export const SEND_RETRY_WAITS_MS: readonly number[] = [MIN_MS, 3 * MIN_MS, 10 * MIN_MS, 30 * MIN_MS];
 
 /**
  * outbound_send: the honest undo — the message sat status='queued' through
@@ -65,25 +56,49 @@ export async function sendQueued(ports: SendQueuedPorts, cmd: SendQueuedCommand)
     throw new Error(
       `outbound_send: message ${p.message_id} goes out by ${channel} and the job names no ${channel === "email" ? "address" : "number"}`,
     );
-  const out = await ports.deliver({
-    tenantId: cmd.tenantId,
-    conversationId: p.conversation_id,
-    contactId: null,
-    to,
-    channel,
-    // Read from the ROW, not hardcoded: under a veto window the receptionist's
-    // own reply travels this path, and stamping every send "human" would make
-    // the metrics report a bot's words as a person's.
-    sender: (msg.sender ?? "human") as "ai" | "human" | "system",
-    purpose,
-    proactive: p.proactive === true,
-    body: p.body ?? msg.body ?? "",
-    template: p.template,
-    // The request the row was queued with, sent as it was frozen. A row without one fails at the wire, by name.
-    ...(msg.email ? { email: msg.email, ownEmail: msg.ownEmail } : {}),
-    ...(msg.leadId ? { leadId: msg.leadId } : {}),
-    messageId: p.message_id,
-  });
+  let out: Delivered;
+  try {
+    out = await ports.deliver({
+      tenantId: cmd.tenantId,
+      conversationId: p.conversation_id,
+      contactId: null,
+      to,
+      channel,
+      // Read from the ROW, not hardcoded: under a veto window the receptionist's
+      // own reply travels this path, and stamping every send "human" would make
+      // the metrics report a bot's words as a person's.
+      sender: (msg.sender ?? "human") as "ai" | "human" | "system",
+      purpose,
+      proactive: p.proactive === true,
+      body: p.body ?? msg.body ?? "",
+      template: p.template,
+      // The request the row was queued with, sent as it was frozen. A row without one fails at the wire, by name.
+      ...(msg.email ? { email: msg.email, ownEmail: msg.ownEmail } : {}),
+      ...(msg.leadId ? { leadId: msg.leadId } : {}),
+      messageId: p.message_id,
+    });
+  } catch (e) {
+    // The wire could not be BOUND: the workspace's credentials could not be read. Not a refusal, and not "no
+    // credentials" -- the number may well be connected -- so nothing is flagged and nobody is told to reconnect it.
+    // Nothing left and the row is still queued, so the same send is handed to a fresh job a while on, a bounded
+    // number of times; the platform is paged, because a credentials store that does not answer is its condition.
+    // Any other throw is the door's own, and stays as loud as it was.
+    if (!isWireUnavailableError(e)) throw e;
+    const resumes = typeof p.resumes === "number" && p.resumes > 0 ? Math.floor(p.resumes) : 0;
+    const wait = SEND_RETRY_WAITS_MS[resumes];
+    if (wait === undefined)
+      throw new Error(
+        `outbound_send: the ${channel} wire could not be bound for ${resumes} fresh jobs in a row (${e.message})`,
+        { cause: e },
+      );
+    await ports.page?.(
+      `wire_unavailable:${channel}`,
+      `${channel}: a workspace's credentials could not be read`,
+      `Tenant ${cmd.tenantId}, message ${p.message_id}: ${e.message}. The reply stays queued; a fresh job tries again in ${Math.round(wait / MIN_MS)} min (${resumes + 1} of ${SEND_RETRY_WAITS_MS.length}).`,
+    );
+    await ports.retry(new Date((ports.now ?? Date.now)() + wait), { ...p, resumes: resumes + 1 });
+    return;
+  }
   if (out.outcome !== "failed") return;
   // A limit at the mail provider (named by the door, deliver.ts) is not this thread's fault either. A used-up day or
   // month stops every workspace's email on the key, so it is recorded for the platform (provider_quota:email, shown on

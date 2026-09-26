@@ -19,7 +19,7 @@ import { alertFor } from "../../lib/ops/job-alert.js";
 import { waCredentialsForTenant } from "../../lib/tenant-runtime.js";
 import { smsSenderForTenant } from "../../lib/sms/sms.js";
 import { emailWireFor, emailIntake } from "../../lib/email/email.js";
-import { whatsappSender } from "../../lib/packages/core.js";
+import { whatsappWire } from "../../lib/packages/core.js";
 import { pageOperator } from "../../lib/ops/page-operator.js";
 import { provisionLineJob } from "../../lib/lines/line-provision-job.js";
 import { leadPipeline } from "../../lib/leads/lead-pipeline.js";
@@ -75,7 +75,9 @@ export async function POST(request: Request): Promise<Response> {
           // TENANT's WhatsApp credentials, never the environment's (a second
           // business's reply must not leave from the first one's number), and
           // the texting line's sender when the workspace has one. Null on
-          // either is a refusal at the door, not a guess. Email's provider key
+          // either is a refusal at the door, not a guess; a WhatsApp read that
+          // FAILED is neither (core whatsappWire): the job waits for a
+          // heartbeat that can read the vault. Email's provider key
           // is the deployment's, so its wire is bound to the tenant's MAILBOX:
           // it sends a frozen request only when that request leaves as this
           // workspace, and a workspace without a mailbox has no email line.
@@ -86,7 +88,7 @@ export async function POST(request: Request): Promise<Response> {
           // The lead finder's pipeline: absent without APIFY_TOKEN, and a lead job then fails by name.
           const leads = leadPipeline();
           const wire = {
-            whatsapp: whatsappSender(await waCredentialsForTenant(db, job.tenant_id)),
+            whatsapp: whatsappWire(await waCredentialsForTenant(db, job.tenant_id)),
             sms: line
               ? (to: string, p: { body: string }) => line.send(to.startsWith("+") ? to : `+${to}`, p.body)
               : null,

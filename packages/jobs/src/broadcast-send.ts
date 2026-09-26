@@ -3,7 +3,7 @@
  * Part 2.5), which re-exports its public names.
  */
 import { parseTenantConfig } from "@chanlytics/contracts";
-import { deliver, sendBroadcastBatch } from "@chanlytics/core";
+import { deliver, isWireUnavailable, sendBroadcastBatch } from "@chanlytics/core";
 import { type Database, resolveOutboundTarget } from "@chanlytics/db";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { type ClaimedJob, type JobContext, must } from "./context";
@@ -177,6 +177,12 @@ export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<v
         );
       },
       deliver: (d) => deliver({ db, wire: ctx.wire }, d),
+      // A broadcast goes by WhatsApp: the wire the tick bound for this tenant, or why it could not (the credentials
+      // read failed on the edge). A wire that is null is a number that carries none, and the door's to refuse.
+      wireUnavailable: async () => {
+        const wire = ctx.wire.whatsapp;
+        return isWireUnavailable(wire) ? wire.error : null;
+      },
       remaining: (id) => countRecipients(db, job.tenant_id, id, "queued"),
       // Read by the verb as "is this broadcast still wanted"; null is how a
       // cancel reads, so a failed read here would abandon a half-sent broadcast

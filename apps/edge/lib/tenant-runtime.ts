@@ -19,6 +19,7 @@ import {
   type KnownFacts,
 } from "./packages/contracts.js";
 import type { RoutedChannel } from "./packages/db.js";
+import type { CredentialsRead } from "./packages/core.js";
 import { env } from "./env.js";
 import { logger, errField } from "./log.js";
 
@@ -276,20 +277,27 @@ export async function loadTenantRuntime(db: SupabaseClient<Database>, routed: Ro
   }
 }
 
+/** The read's three answers (core CredentialsRead), for the callers below. */
+export type WaCredentialsRead = CredentialsRead<{ phoneId: string; accessToken: string }>;
+
 /**
  * A tenant's WhatsApp credentials, for callers holding a tenant_id and no
  * routed channel -- the job runner and the template doors.
  *
- * Null means NO credentials, and the caller must refuse: the environment pair
- * is handed out only to the tenant whose channel row carries the environment's
- * own phone_number_id. A vault error is a refusal too, said in the log; a
- * fallback here is how a second business's reply left from the first one's
- * number.
+ * ABSENT means NO credentials, and the caller must refuse: the environment
+ * pair is handed out only to the tenant whose channel row carries the
+ * environment's own phone_number_id; a fallback here is how a second
+ * business's reply left from the first one's number. UNAVAILABLE means the
+ * read itself FAILED -- the channel row or the vault did not answer -- which is
+ * not the same fact: the number may well be connected, and a caller that took
+ * it for absent failed a reply for good and sent the owner to reconnect a
+ * number that worked. Said in the log either way, under the names alerting
+ * greps for; never the environment's pair.
  */
 export async function waCredentialsForTenant(
   db: SupabaseClient<Database>,
   tenantId: string,
-): Promise<{ phoneId: string; accessToken: string } | null> {
+): Promise<WaCredentialsRead> {
   const L = logger();
   try {
     const { data: ch, error: chErr } = await db
@@ -302,22 +310,25 @@ export async function waCredentialsForTenant(
       .maybeSingle();
     if (chErr) {
       L.error("wa_credentials_channel_unreadable", { tenant: tenantId, error: chErr.message });
-      return null;
+      return { outcome: "unavailable", error: chErr.message };
     }
-    if (!ch) return null;
+    if (!ch) return { outcome: "absent" };
     if (ch.credentials_ref) {
       const { data, error } = await db.rpc("get_channel_credentials", { p_channel_id: ch.id });
       if (error) {
         L.error("wa_credentials_for_tenant_failed", { tenant: tenantId, error: error.message });
-        return null;
+        return { outcome: "unavailable", error: error.message };
       }
       const c = data as { access_token?: string; phone_id?: string } | null;
-      return c?.access_token && c?.phone_id ? { phoneId: c.phone_id, accessToken: c.access_token } : null;
+      return c?.access_token && c?.phone_id
+        ? { outcome: "present", credentials: { phoneId: c.phone_id, accessToken: c.access_token } }
+        : { outcome: "absent" };
     }
-    return isEnvNumber(ch.external_id) ? envPair() : null;
+    const pair = isEnvNumber(ch.external_id) ? envPair() : null;
+    return pair ? { outcome: "present", credentials: pair } : { outcome: "absent" };
   } catch (e) {
     L.error("wa_credentials_for_tenant_threw", { tenant: tenantId, error: errField(e) });
-    return null;
+    return { outcome: "unavailable", error: errField(e) };
   }
 }
 

@@ -182,7 +182,12 @@ function ledger({ faults = {}, claim } = {}) {
   const db = fakeDb(tables, faults, {
     get_cron_sweep_key: () => KEY,
     claim_due_jobs: claim ?? ((args) => claimDue(tables.jobs, args)),
-    get_channel_credentials: ({ p_channel_id }) => vault.channels[p_channel_id] ?? null,
+    // A channel whose entry is a function is one Vault does not answer for ("unreadable"): the throw becomes the
+    // rpc's error envelope, as the double answers every refused function.
+    get_channel_credentials: ({ p_channel_id }) => {
+      const v = vault.channels[p_channel_id];
+      return typeof v === "function" ? v() : (v ?? null);
+    },
     get_line_credentials: ({ p_line_id }) => vault.lines[p_line_id] ?? {},
   });
   setPg(db);
@@ -201,7 +206,7 @@ function ledger({ faults = {}, claim } = {}) {
         external_id: String(106570000000000 + i),
         number_e164: `+1786555${pad(i, 4)}`,
         status: "active",
-        credentials_ref: whatsapp === "own" ? `vault-ref-${i}` : null,
+        credentials_ref: whatsapp === "own" || whatsapp === "unreadable" ? `vault-ref-${i}` : null,
         config: {},
       };
       tables.tenant_channels.push(channel);
@@ -210,6 +215,11 @@ function ledger({ faults = {}, claim } = {}) {
         ws.token = `workspace-${i}-whatsapp-token`;
         vault.channels[channel.id] = { access_token: ws.token, phone_id: ws.phoneId };
       }
+      // Its credentials are in the vault, and the vault does not answer this heartbeat.
+      if (whatsapp === "unreadable")
+        vault.channels[channel.id] = () => {
+          throw new Error("vault unavailable");
+        };
     }
     if (texting) {
       ws.line = {
@@ -438,6 +448,68 @@ test("each job leaves on its own workspace's WhatsApp credentials from the vault
     ],
     "the three ran; the refused one's kept row leaves one push job for its own owner's phone (00162), for the next heartbeat",
   );
+});
+
+test("a workspace whose vault did not answer is not a workspace that holds none: its reply stays queued for a fresh job, nobody is flagged, nobody is told to reconnect", async () => {
+  // Two workspaces, two facts. One carries no credentials: refused at the wire,
+  // its thread flagged, its owner told the number is not connected, as before.
+  // The other has credentials the vault did not answer for this heartbeat: a
+  // read that FAILED, said under its own event name, and its reply is handed
+  // to a fresh job a while on with the row still queued -- never failed, never
+  // flagged, and nobody told to reconnect a number that works.
+  const L = ledger();
+  const blip = L.workspace({ whatsapp: "unreadable" });
+  const none = L.workspace({ whatsapp: "none" });
+  const waiting = blip.queue({ to: "+13475550104", body: "See you at 3" });
+  const refused = none.queue({ to: "+13475550105", body: "We open at 9" });
+  const before = Date.now();
+
+  await listening(async (log) => {
+    assert.deepEqual(
+      await answer(await knock()),
+      [200, { ok: true, claimed: 2, done: 2, failed: 0, gaveUp: 0, deferred: 0 }],
+      "both jobs are done: one refused at the wire, one handed to a fresh job",
+    );
+    assert.deepEqual(
+      log.said("wa_credentials_for_tenant_failed").map((l) => [l.stream, l.tenant, l.error]),
+      [["error", blip.T, "vault unavailable"]],
+      "the read's failure is said, under the name alerting greps for",
+    );
+  });
+
+  assert.deepEqual(L.left().graph, [], "nothing left on any wire");
+  assert.deepEqual(
+    L.left().mail.map((m) => [m.to, m.subject]),
+    [
+      [[MAIL.LEAD_TO], "[Chanlytics] whatsapp: a workspace's credentials could not be read"],
+      [[none.owner], "Reply delivery failed: +13475550105"],
+    ],
+    "the platform is paged for its own condition, the workspace that holds none is told; the one whose vault blinked is not",
+  );
+  const page = JSON.stringify(L.left().mail[0]);
+  assert.ok(page.includes(blip.T) && page.includes("vault unavailable"), "the page names the workspace and the read");
+  assert.ok(!/not connected|reconnect/i.test(page), "and never says the number is off");
+  assert.equal(waiting.message.status, "queued", "still on its way");
+  assert.equal(waiting.message.error, undefined);
+  assert.deepEqual(
+    [refused.message.status, refused.message.error],
+    ["failed", { http_status: 503, body: "no_credentials" }],
+    "the workspace with none: today's answer, unchanged",
+  );
+  assert.deepEqual(
+    L.tables.escalations.map((e) => [e.tenant_id, e.reason]),
+    [[none.T, "send_failed"]],
+    "only the disconnected workspace's thread is flagged",
+  );
+  assert.equal(waiting.job.state, "done");
+  const fresh = L.tables.jobs.filter((j) => j.tenant_id === blip.T && j.id !== waiting.job.id);
+  assert.deepEqual(
+    fresh.map((j) => [j.kind, j.state ?? "scheduled"]),
+    [["outbound_send", "scheduled"]],
+    "one fresh job, for a heartbeat that can read the vault",
+  );
+  assert.deepEqual(fresh[0].payload, { ...waiting.job.payload, resumes: 1 }, "the same send, counting its fresh jobs");
+  assert.ok(Date.parse(fresh[0].due_at) >= before + 60_000, "a while on, not this second");
 });
 
 test("a texting workspace's job leaves on its own line: the subaccount's token from the vault, the line's Messaging Service, the number in E.164 however it was written; a workspace with no line is refused at the wire", async () => {
