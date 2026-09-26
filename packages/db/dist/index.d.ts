@@ -5461,6 +5461,35 @@ type Database = {
                 };
                 Returns: Json;
             };
+            partner_overview: {
+                Args: never;
+                Returns: {
+                    billing_mode: string;
+                    billing_status: string;
+                    created_at: string;
+                    current_period_end: string;
+                    last_inbound_at: string;
+                    line_e164: string;
+                    line_error: string;
+                    line_kind: string;
+                    members: number;
+                    name: string;
+                    reg_mock: boolean;
+                    reg_sole_prop: boolean;
+                    reg_step: string;
+                    slug: string;
+                    sms_state: string;
+                    status: string;
+                    tenant_id: string;
+                    timezone: string;
+                    trial_end: string;
+                    voice_active: boolean;
+                    voice_number: string;
+                    voice_state: string;
+                    whatsapp_active: boolean;
+                    whatsapp_number: string;
+                }[];
+            };
             partner_reverse: {
                 Args: {
                     p_amount_cents: number;
@@ -5469,6 +5498,20 @@ type Database = {
                     p_kind: string;
                 };
                 Returns: Json;
+            };
+            partner_workspace_money: {
+                Args: never;
+                Returns: {
+                    currency: string;
+                    held_cents: number;
+                    month_cents: number;
+                    name: string;
+                    on_team: boolean;
+                    paid_cents: number;
+                    payable_cents: number;
+                    standing: string;
+                    tenant_id: string;
+                }[];
             };
             people_list: {
                 Args: {
@@ -5633,6 +5676,37 @@ type Database = {
             };
             platform_overview_rows: {
                 Args: never;
+                Returns: {
+                    billing_mode: string;
+                    billing_status: string;
+                    created_at: string;
+                    current_period_end: string;
+                    last_inbound_at: string;
+                    line_e164: string;
+                    line_error: string;
+                    line_kind: string;
+                    members: number;
+                    name: string;
+                    reg_mock: boolean;
+                    reg_sole_prop: boolean;
+                    reg_step: string;
+                    slug: string;
+                    sms_state: string;
+                    status: string;
+                    tenant_id: string;
+                    timezone: string;
+                    trial_end: string;
+                    voice_active: boolean;
+                    voice_number: string;
+                    voice_state: string;
+                    whatsapp_active: boolean;
+                    whatsapp_number: string;
+                }[];
+            };
+            platform_overview_rows_for: {
+                Args: {
+                    p_tenants: string[];
+                };
                 Returns: {
                     billing_mode: string;
                     billing_status: string;
@@ -7921,6 +7995,17 @@ declare function becomePartner(db: Db, code: string): Promise<{
     code: string;
     message: string;
 }>;
+type PartnerOverviewRow = Database["public"]["Functions"]["partner_overview"]["Returns"][number];
+type PartnerWorkspaceMoneyLine = Database["public"]["Functions"]["partner_workspace_money"]["Returns"][number];
+/**
+ * The back office's row for each workspace the caller brought and still sits on the team of (00204
+ * partner_overview), and what each they ever brought earned them (partner_workspace_money). Both answer about the
+ * caller alone; both read as none on a database 00204 has not reached.
+ */
+declare function getPartnerWorkspaces(db: Db): Promise<{
+    overview: PartnerOverviewRow[];
+    money: PartnerWorkspaceMoneyLine[];
+}>;
 
 /**
  * The single Realtime subscription wrapper (Blueprint §5): every surface
@@ -7996,4 +8081,4 @@ interface Page<T> {
  */
 declare function readAllRows<T>(what: string, page: (from: number, to: number) => PromiseLike<Page<T>>, cap?: number, onCapped?: (what: string, cap: number) => void): Promise<T[]>;
 
-export { type AudienceLead, CALL_CONTROL_S, type ChannelLookup, type ColdReceiptsOwed, type ControlHolder, type ControlOutcome, DEFAULT_ROW_CAP, type Database, type DomainCapacity, type DueDomain, type FollowerLead, HISTORY_COLUMNS, type IdempotencyClaim, type IdempotencyHold, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type ListRow, MAX_ROWS, type MailboxRow, type MessageInsert, type NormalizedCallInput, type OutboundTarget, type OutreachFactsRow, PEOPLE_PAGE, type Page, type ParentEmail, type PartnerBalanceLine, type PartnerPublicRow, type PartnerRow, type PartnerTenantRow, type PersonForSend, type PgThreadState, type PolicyRecord, type PutTenantConfigResult, type QueuedOutcome, type ReachOutRecordRow, type ReachOutSendInsert, type ReachOutSendRow, type RoutedChannel, type SavedListRow, type SendStanding, type SendingDomainHolder, type SendingDomainRow, type ServiceClientConfig, type SubscribeOptions, type TemplateRow, type TenantConfigRow, type ThreadTurn, type Touch, type TouchIndex, type UncheckedSend, type WriteError, type WrittenEmail, type YesRow, addToList, applyDomainCheck, archiveList, assembleHistory, becomePartner, checkResetPatch, claimCallNotification, claimControl, claimIdempotencyKey, claimSends, closedRunSends, coldReceiptsOwed, contactEmailOf, countSendingDomains, countSentToday, createList, createServiceClient, deleteList, deleteSendingDomain, deleteSendingDomainAsRead, describeLead, domainCapacityOf, domainHeldSince, dropFromList, dueDomains, dueSendingDomains, emailWordsOf, emitEvent, everyoneIn, finishableRuns, followUpTouchesSince, getOwnPartner, getPartnerBalance, getTenantConfig, heldStale, ingestCall, ingestInbound, ingestInboundEmail, insertQueuedEmail, keepIdempotencyReceipt, lastInboundEmail, leadAddressBounced, leadSlotsOf, leadWritten, linkCallMessage, listMemberIds, listPolicies, listRow, mailboxById, mailboxFor, mailboxOfTenant, markProcessed, monthSent, moveSend, notesForReceptionist, outreachFactsOf, parentEmailOf, pauseConversation, peoplePage, personReplyMode, platformHoldStands, playbooksOnList, putTenantConfig, queuedOutcomes, reachOutAudience, reachOutFollowers, reachOutPerson, reachOutRecord, readAllRows, readDealForPhone, readLeadContext, readThreadState, recordCallNote, recordCarrierOptOut, recordCheck, recordEchoAndPause, recordEmailNo, recordEmailStatus, recordOutbound, recordProviderDomain, recordStatusByExternalId, releaseControl, releaseIdempotencyKey, releaseUnavailableHolds, renameList, reputationHoldsSince, reserveSendingDomain, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, runSending, savedListFor, savedListsFor, sendJobScheduled, sendNow, sendStanding, sendingDomainByHost, sendingDomainCounts, sendingDomainOf, sendingDomainsOf, sentEmailOf, sentEmailRequestOf, sentEmailWithMessageId, setCallRecording, setListRule, setPersonReplyMode, setPolicyMode, staleSends, stampEmailComplaint, stampEmailSent, stampMailboxReceived, stuckClaims, subscribeMessagesInserts, suppressEmailOf, takeCheckAttempt, takeIdempotencyKey, templatesFor, touchIndex, touchSendingDomain, touchesSince, uncheckedSends, uncheckedWaiting, watchedTables, withdrawEmail, workspaceAbout, workspaceMaySpend, workspaceNameAndConfig, writtenEmail, writtenEmails, yesesSince };
+export { type AudienceLead, CALL_CONTROL_S, type ChannelLookup, type ColdReceiptsOwed, type ControlHolder, type ControlOutcome, DEFAULT_ROW_CAP, type Database, type DomainCapacity, type DueDomain, type FollowerLead, HISTORY_COLUMNS, type IdempotencyClaim, type IdempotencyHold, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type ListRow, MAX_ROWS, type MailboxRow, type MessageInsert, type NormalizedCallInput, type OutboundTarget, type OutreachFactsRow, PEOPLE_PAGE, type Page, type ParentEmail, type PartnerBalanceLine, type PartnerOverviewRow, type PartnerPublicRow, type PartnerRow, type PartnerTenantRow, type PartnerWorkspaceMoneyLine, type PersonForSend, type PgThreadState, type PolicyRecord, type PutTenantConfigResult, type QueuedOutcome, type ReachOutRecordRow, type ReachOutSendInsert, type ReachOutSendRow, type RoutedChannel, type SavedListRow, type SendStanding, type SendingDomainHolder, type SendingDomainRow, type ServiceClientConfig, type SubscribeOptions, type TemplateRow, type TenantConfigRow, type ThreadTurn, type Touch, type TouchIndex, type UncheckedSend, type WriteError, type WrittenEmail, type YesRow, addToList, applyDomainCheck, archiveList, assembleHistory, becomePartner, checkResetPatch, claimCallNotification, claimControl, claimIdempotencyKey, claimSends, closedRunSends, coldReceiptsOwed, contactEmailOf, countSendingDomains, countSentToday, createList, createServiceClient, deleteList, deleteSendingDomain, deleteSendingDomainAsRead, describeLead, domainCapacityOf, domainHeldSince, dropFromList, dueDomains, dueSendingDomains, emailWordsOf, emitEvent, everyoneIn, finishableRuns, followUpTouchesSince, getOwnPartner, getPartnerBalance, getPartnerWorkspaces, getTenantConfig, heldStale, ingestCall, ingestInbound, ingestInboundEmail, insertQueuedEmail, keepIdempotencyReceipt, lastInboundEmail, leadAddressBounced, leadSlotsOf, leadWritten, linkCallMessage, listMemberIds, listPolicies, listRow, mailboxById, mailboxFor, mailboxOfTenant, markProcessed, monthSent, moveSend, notesForReceptionist, outreachFactsOf, parentEmailOf, pauseConversation, peoplePage, personReplyMode, platformHoldStands, playbooksOnList, putTenantConfig, queuedOutcomes, reachOutAudience, reachOutFollowers, reachOutPerson, reachOutRecord, readAllRows, readDealForPhone, readLeadContext, readThreadState, recordCallNote, recordCarrierOptOut, recordCheck, recordEchoAndPause, recordEmailNo, recordEmailStatus, recordOutbound, recordProviderDomain, recordStatusByExternalId, releaseControl, releaseIdempotencyKey, releaseUnavailableHolds, renameList, reputationHoldsSince, reserveSendingDomain, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, runSending, savedListFor, savedListsFor, sendJobScheduled, sendNow, sendStanding, sendingDomainByHost, sendingDomainCounts, sendingDomainOf, sendingDomainsOf, sentEmailOf, sentEmailRequestOf, sentEmailWithMessageId, setCallRecording, setListRule, setPersonReplyMode, setPolicyMode, staleSends, stampEmailComplaint, stampEmailSent, stampMailboxReceived, stuckClaims, subscribeMessagesInserts, suppressEmailOf, takeCheckAttempt, takeIdempotencyKey, templatesFor, touchIndex, touchSendingDomain, touchesSince, uncheckedSends, uncheckedWaiting, watchedTables, withdrawEmail, workspaceAbout, workspaceMaySpend, workspaceNameAndConfig, writtenEmail, writtenEmails, yesesSince };

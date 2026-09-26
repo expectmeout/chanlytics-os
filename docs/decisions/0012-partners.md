@@ -1,7 +1,7 @@
 # 0012 · A partner brings a workspace, sets it up, and earns a share
 
-**Status:** decided; P1 (the role), P2 (attribution) and P3 (the ledger) built on the branch this note ships with,
-P4 onward not yet. Written against commit `b6f2216` (PR #1124, 26 September 2026); every file and line below was read
+**Status:** decided; P1 (the role), P2 (attribution) and P3 (the ledger) merged (#1151); P4 (the partner's table) built on
+the branch this note ships with; P5 not yet. Written against commit `b6f2216` (PR #1124, 26 September 2026); every file and line below was read
 at that commit, before P1, so the Context describes the code P1 to P3 changed: `memberships.role` admits `partner`,
 `has_permission()` and `ROLE_PERMS` carry its row, the setting-class routes declare `role: "partner"`, `requireRole`
 refuses a role it does not know (00201, `with-route.ts`); `partners` and `partner_tenants` exist, `create_workspace`
@@ -23,6 +23,11 @@ What moved from the Shape below as written, each for a reason found in the code:
   nothing; a refund is written as the difference its running total makes; a dispute won gives back what its dispute
   took; all reversals together are capped at the share.
 - **A held earning of a disqualified workspace is `void`**, not `reversed`: a reversal is a row of its own.
+- **The partner's table is a section of Settings › Partner, not a table of its own**: the back office's row
+  (`AttnRow`) for each workspace, judged by `platformRows`, over `platform_overview_rows_for(tenant ids)`, which 00204
+  made the one join behind both (the back office asks for every workspace, `partner_overview` for the caller's). A
+  workspace whose owner took the partner off its team keeps its money line (`partner_workspace_money`) and shows
+  nothing else of the business: the share is for bringing it, the view is for working in it.
 - **Standing is judged a week after the first share, or as soon as the card is known**, so a share paid before the
   subscription's card was marked is not judged on nothing.
 

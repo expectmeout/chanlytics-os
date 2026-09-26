@@ -19943,6 +19943,238 @@ function usableDeviceTimezone(resolve) {
 
 // src/partner.ts
 import { z as z11 } from "zod";
+
+// src/platform.ts
+var PLATFORM_VERDICTS = {
+  broken: { label: "Broken", tone: "danger", rank: 100 },
+  billing: { label: "Billing", tone: "danger", rank: 90 },
+  rehearsal: { label: "Rehearsal", tone: "warn", rank: 80 },
+  stalled: { label: "Stalled", tone: "warn", rank: 70 },
+  waiting_owner: { label: "Waiting on them", tone: "info", rank: 60 },
+  quiet: { label: "Quiet", tone: "warn", rank: 40 },
+  new: { label: "New", tone: "info", rank: 20 },
+  live: { label: "Live", tone: "ok", rank: 10 },
+  paused: { label: "Paused", tone: "plain", rank: 5 },
+  test: { label: "Test", tone: "plain", rank: 0 }
+};
+var DAY = 864e5;
+var PLATFORM_NEW_DAYS = 1;
+var PLATFORM_QUIET_DAYS = 14;
+var at = (iso) => {
+  if (!iso) return null;
+  const ms2 = Date.parse(iso);
+  return Number.isFinite(ms2) ? ms2 : null;
+};
+var OURS_TO_FIX = ["failed"];
+var THEIRS_TO_FIX = ["needs_record", "otp_waiting", "rejected"];
+function billingBites(mode, status) {
+  if (mode !== "stripe") return false;
+  return !receptionistOn(status) || status === "past_due";
+}
+function verdictFor(r2, nowMs) {
+  if (r2.status === "test") return "test";
+  const mode = r2.billing_mode ?? "direct";
+  const status = r2.billing_status ?? "none";
+  const answering = r2.voice_active === true || r2.whatsapp_active === true;
+  const age = nowMs - (at(r2.created_at) ?? nowMs);
+  if (r2.voice_state === "failed" || OURS_TO_FIX.includes(r2.sms_state ?? "")) return "broken";
+  if (billingBites(mode, status)) return "billing";
+  if (r2.status === "paused") return "paused";
+  if (r2.reg_mock === true) return "rehearsal";
+  if (!answering && age <= PLATFORM_NEW_DAYS * DAY) return "new";
+  if (THEIRS_TO_FIX.includes(r2.sms_state ?? "")) return "waiting_owner";
+  if (mode === "stripe" && !maySpend(mode, status) && status !== "trialing") return "waiting_owner";
+  if (!answering) return "stalled";
+  const heard = at(r2.last_inbound_at);
+  if (heard === null) return age > PLATFORM_QUIET_DAYS * DAY ? "quiet" : "new";
+  if (nowMs - heard > PLATFORM_QUIET_DAYS * DAY) return "quiet";
+  return "live";
+}
+function sentenceFor(r2, verdict, nowMs) {
+  const heard = at(r2.last_inbound_at);
+  const quietFor = heard === null ? null : Math.floor((nowMs - heard) / DAY);
+  switch (verdict) {
+    case "broken":
+      return r2.line_error ? `${r2.line_error}${r2.reg_step ? ` (stopped at ${r2.reg_step})` : ""}` : "Their line stopped and said nothing. A person at Chanlytics has to look.";
+    case "billing":
+      return r2.billing_status === "past_due" ? "A payment failed. The receptionist still answers, and will not once Stripe gives up." : `Not subscribed (${r2.billing_status ?? "no status"}) \u2014 the receptionist is paused for them.`;
+    case "rehearsal":
+      return "Texting is filed against the test registry: it reports itself approved, delivers nothing, and expires thirty days after filing.";
+    case "stalled":
+      return `Set up ${agoWords(at(r2.created_at) ?? nowMs, nowMs)} and nothing answers yet${r2.members <= 1 ? ", with one person in the workspace" : ""}.`;
+    case "waiting_owner": {
+      const mode = r2.billing_mode ?? "direct";
+      const status = r2.billing_status ?? "none";
+      if (!THEIRS_TO_FIX.includes(r2.sms_state ?? "") && mode === "stripe") {
+        return whyCannotSpend(mode, status) ?? "Something about their billing needs them.";
+      }
+      const words4 = textingWords({
+        sms_state: r2.sms_state ?? "none",
+        reg_mock: r2.reg_mock ?? false,
+        reg_sole_prop: r2.reg_sole_prop ?? false
+      }).sentence;
+      return r2.line_error ? `${words4} \u2014 ${r2.line_error}` : words4;
+    }
+    case "quiet":
+      return quietFor === null ? "Answering, and no customer has ever reached them." : `Answering, and no customer has reached them in ${quietFor} days.`;
+    case "new":
+      return r2.voice_active === true || r2.whatsapp_active === true ? `Answering since ${agoWords(at(r2.created_at) ?? nowMs, nowMs)}; no customer has reached them yet.` : `Signed up ${agoWords(at(r2.created_at) ?? nowMs, nowMs)}, still setting up.`;
+    case "live":
+      return `Answering; last heard from ${heard === null ? "never" : agoWords(heard, nowMs)}.`;
+    case "paused":
+      return "The workspace is paused. Nothing answers, by design.";
+    case "test":
+      return "Not a customer \u2014 a test workspace.";
+  }
+}
+function factsFor(r2, nowMs) {
+  const mode = r2.billing_mode ?? null;
+  const status = r2.billing_status ?? null;
+  const paying = mode === null ? "No arrangement" : mode === "direct" ? "Invoiced" : status === "trialing" && r2.trial_end ? `Trial to ${r2.trial_end.slice(0, 10)}` : status ?? "unknown";
+  const on = [r2.voice_active ? "phone" : null, r2.whatsapp_active ? "WhatsApp" : null].filter(Boolean);
+  const answering = on.length ? on.join(" + ") : r2.voice_state === "provisioning" ? "Getting a number" : r2.voice_state === "failed" ? "Line failed" : "Nothing yet";
+  const texting = !r2.line_e164 ? "No line" : r2.sms_state === "active" ? r2.reg_sole_prop ? "On (sole proprietor)" : "On" : r2.reg_mock ? "Rehearsal" : (r2.sms_state ?? "none").replace(/_/g, " ");
+  const at_ = at(r2.last_inbound_at);
+  return { paying, answering, texting, heard: at_ === null ? "Never" : agoWords(at_, nowMs) };
+}
+function platformRows(rows, nowMs = Date.now()) {
+  return rows.map((r2) => {
+    const verdict = verdictFor(r2, nowMs);
+    return {
+      tenantId: r2.tenant_id,
+      slug: r2.slug,
+      name: r2.name,
+      verdict,
+      sentence: sentenceFor(r2, verdict, nowMs),
+      facts: factsFor(r2, nowMs),
+      age: agoWords(at(r2.created_at) ?? nowMs, nowMs),
+      members: r2.members
+    };
+  }).sort((a, b) => {
+    const byRank = PLATFORM_VERDICTS[b.verdict].rank - PLATFORM_VERDICTS[a.verdict].rank;
+    if (byRank !== 0) return byRank;
+    return a.name.localeCompare(b.name);
+  });
+}
+function platformSummary(rows) {
+  const customers = rows.filter((r2) => r2.verdict !== "test");
+  const needsUs = customers.filter((r2) => r2.verdict === "broken" || r2.verdict === "rehearsal").length;
+  const needsThem = customers.filter(
+    (r2) => r2.verdict === "billing" || r2.verdict === "waiting_owner" || r2.verdict === "stalled"
+  ).length;
+  const live = customers.filter((r2) => r2.verdict === "live").length;
+  const parts2 = [`${customers.length} workspace${customers.length === 1 ? "" : "s"}`, `${live} live`];
+  if (needsUs) parts2.push(`${needsUs} on us`);
+  if (needsThem) parts2.push(`${needsThem} on them`);
+  return { total: customers.length, needsUs, needsThem, live, sentence: parts2.join(" \xB7 ") };
+}
+function platformNumber(e164) {
+  return formatPhoneDisplay(e164) ?? "\u2014";
+}
+var NUMBER_MONTHLY = "$1.15 a month";
+var REAL_FILING = "about $19.50 once";
+var CAMPAIGN_VETTING = "about $15 once";
+function platformLineActions(l, nowMs = Date.now()) {
+  const out = [];
+  if (l.voice_state === "failed" || lineStuckProvisioning(l, nowMs)) {
+    out.push({
+      action: "retry",
+      label: "Retry setting up",
+      sentence: "Resumes the line where it stopped, without repeating the steps that succeeded. The saga reads its own receipts, so nothing is bought twice.",
+      // A saga that failed BEFORE the number was bought buys one when it
+      // resumes, so this can spend even though it usually does not.
+      cost: `If it stopped before the number was bought, this buys one \u2014 ${NUMBER_MONTHLY}.`,
+      permanent: false
+    });
+  }
+  if (l.sms_state === "rejected") {
+    out.push({
+      action: "refile",
+      label: "Send the campaign back",
+      // It used to say "Correct the business on record first — this sends what is
+      // there now", which was true and was the whole problem: nothing verified
+      // that anyone had, so a rejection could be answered with the fault that
+      // caused it. Both senders now run the same pre-flight, so the honest
+      // sentence is that this REFUSES rather than repeats.
+      sentence: "Resubmits the campaign to the carriers, free \u2014 the vetting fee is charged once per campaign. It refuses, with the reason, if the record or the workspace's name still would not pass review.",
+      cost: null,
+      permanent: false
+    });
+    out.push({
+      action: "replace",
+      label: "File a new campaign",
+      sentence: "Deletes the refused campaign and files a new one from today's facts, under the same approved brand: the remedy when what the carriers named cannot be edited (the opt-in confirmation and its keywords never can be). It refuses, with the reason, if the record or the workspace's name still would not pass review.",
+      cost: `${CAMPAIGN_VETTING}, charged to Chanlytics.`,
+      permanent: true
+    });
+  } else if (l.reg_mock === true) {
+    out.push({
+      action: "refile",
+      label: "File it for real",
+      sentence: "Takes the rehearsal off and files a real registration with the carriers. The rehearsal delivers nothing and expires thirty days after it was filed.",
+      cost: `${REAL_FILING}, charged to Chanlytics.`,
+      permanent: true
+    });
+  }
+  if (l.e164) {
+    out.push({
+      action: "release",
+      label: "Give the number back",
+      sentence: "Releases the number, drops the trunk and forgets the line. Calls keep their history; the routing row is switched off, never deleted.",
+      cost: `Stops the ${NUMBER_MONTHLY} this number costs.`,
+      permanent: true
+    });
+  }
+  return out;
+}
+function platformHealthOf(rows, backlog, now = /* @__PURE__ */ new Date()) {
+  const unhealthy = (rows ?? []).filter((r2) => !r2.healthy).map((r2) => ({ sweep: r2.sweep, detail: r2.detail }));
+  return { ok: unhealthy.length === 0 && backlog === 0, unhealthy, backlog, checkedAt: now.toISOString() };
+}
+function platformHealthWords(h) {
+  if (h.backlog === null) return "The platform's health could not be read just now.";
+  const late = h.backlog > 0 ? `${h.backlog} job${h.backlog === 1 ? "" : "s"} late` : null;
+  const clocks = h.unhealthy.length ? `${h.unhealthy.length} clock${h.unhealthy.length === 1 ? "" : "s"} not running` : null;
+  if (!late && !clocks) return "Every clock is running and nothing is waiting.";
+  return [clocks, late].filter(Boolean).join(" \xB7 ");
+}
+function platformActionWarning(a) {
+  const parts2 = [a.cost, a.permanent ? "This cannot be undone." : null].filter(Boolean);
+  return parts2.length ? parts2.join(" ") : "Nothing is spent, and it can be done again.";
+}
+var QUEUE_SHOWN = 100;
+var QUEUE_SENDS_NOTHING = "Chanlytics sends no invitations. Write to them yourself, then mark it here so the queue moves.";
+function waitingDetail(r2) {
+  const from = r2.source ? sourceWords(r2.source) : null;
+  return [r2.business?.trim() || null, from].filter(Boolean).join(" \xB7 ") || null;
+}
+function sourceWords(source) {
+  const s = source.trim();
+  if (!s) return null;
+  try {
+    const u = new URL(s);
+    const path = u.pathname.replace(/\/+$/, "");
+    return `from ${u.host}${path && path !== "/" ? path : ""}`;
+  } catch {
+    return `from ${s.slice(0, 60)}`;
+  }
+}
+function platformQueue(q, nowMs = Date.now()) {
+  const note = QUEUE_SENDS_NOTHING;
+  if (!q.waiting) return { rows: [], sentence: "The waiting list could not be read just now.", unreadable: true, note };
+  const rows = q.waiting.map((r2) => ({
+    id: r2.id,
+    email: r2.email,
+    detail: waitingDetail(r2),
+    waited: `asked ${agoWords(Date.parse(r2.created_at), nowMs)}`
+  }));
+  const total = q.total ?? rows.length;
+  const oldest = q.waiting[0];
+  const sentence2 = total === 0 ? "Nobody is waiting." : `${total} waiting${oldest ? `, the first since ${agoWords(Date.parse(oldest.created_at), nowMs)}` : ""}${total > rows.length ? ` \xB7 showing the first ${rows.length}` : ""}.`;
+  return { rows, sentence: sentence2, unreadable: false, note };
+}
+
+// src/partner.ts
 var PARTNER_STATUSES = ["active", "paused", "closed"];
 var PARTNER_SHARE_BP_DEFAULT = 2500;
 var PARTNER_STANDINGS = ["qualified", "review", "disqualified"];
@@ -20011,6 +20243,10 @@ var PARTNER_WORDS = {
   /** What the switcher and Team show for a workspace brought this way. */
   role: "Partner",
   earnings: "Earnings",
+  workspaces: "Your workspaces",
+  open: "Open",
+  readingWorkspaces: "Reading your workspaces\u2026",
+  failedWorkspaces: "your workspaces",
   noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan."
 };
 function shareWords(shareBp) {
@@ -20056,6 +20292,68 @@ function partnerVM(dto, origin, workspacesAsPartner, balance = []) {
     standing: dto.status === "paused" ? PARTNER_WORDS.paused : dto.status === "closed" ? PARTNER_WORDS.closed : null,
     earnings: partnerEarningsWords(balance)
   };
+}
+var PARTNER_STANDING_WORDS = {
+  pending: "Its share is judged once it has paid.",
+  qualified: null,
+  review: "Under review: its card or its listing matches one of yours. We'll write to you.",
+  disqualified: "Not eligible for a share."
+};
+var NEEDS_THE_PARTNER = ["broken", "stalled", "waiting_owner", "billing", "rehearsal"];
+function moneyLine(lines) {
+  if (!lines.length) return "Nothing earned from it yet.";
+  const say = (pick) => lines.map((l) => moneyWords(pick(l), l.currency)).join(" and ");
+  const toDate = lines.reduce((n, l) => n + l.held_cents + l.payable_cents + l.paid_cents, 0);
+  const month = lines.reduce((n, l) => n + l.month_cents, 0);
+  if (toDate === 0 && month === 0) return "Nothing earned from it yet.";
+  return `${say((l) => l.month_cents)} from this month's payments \xB7 ${say((l) => l.held_cents + l.payable_cents + l.paid_cents)} to date`;
+}
+function partnerWorkspacesVM(overview, money, nowMs = Date.now()) {
+  const judged = platformRows(overview, nowMs);
+  const moneyOf = (id) => money.filter((m) => m.tenant_id === id);
+  const standingOf2 = (id) => {
+    const s = moneyOf(id)[0]?.standing ?? "pending";
+    return PARTNER_STANDING_WORDS[s] ?? null;
+  };
+  const rows = judged.map((r2) => {
+    const v = PLATFORM_VERDICTS[r2.verdict];
+    return {
+      tenantId: r2.tenantId,
+      slug: r2.slug,
+      name: r2.name,
+      verdict: r2.verdict,
+      label: v.label,
+      tone: v.tone,
+      sentence: r2.sentence,
+      facts: [r2.facts.paying, r2.facts.answering, `texting ${r2.facts.texting}`, `heard ${r2.facts.heard}`].join(" \xB7 "),
+      standing: standingOf2(r2.tenantId),
+      money: moneyLine(moneyOf(r2.tenantId)),
+      onTeam: true
+    };
+  });
+  const seen = new Set(rows.map((r2) => r2.tenantId));
+  const off = [...new Map(money.filter((m) => !seen.has(m.tenant_id)).map((m) => [m.tenant_id, m])).values()];
+  for (const m of off.sort((a, b) => a.name.localeCompare(b.name))) {
+    rows.push({
+      tenantId: m.tenant_id,
+      slug: null,
+      name: m.name,
+      verdict: null,
+      label: "Off the team",
+      tone: "plain",
+      sentence: m.on_team ? "Its details could not be read just now." : "Its owner took you off its team. Your share goes on while it pays; its details are theirs.",
+      facts: null,
+      standing: standingOf2(m.tenant_id),
+      money: moneyLine(moneyOf(m.tenant_id)),
+      onTeam: m.on_team
+    });
+  }
+  const total = rows.length;
+  const live = rows.filter((r2) => r2.verdict === "live").length;
+  const needs = rows.filter((r2) => r2.verdict !== null && NEEDS_THE_PARTNER.includes(r2.verdict)).length;
+  const parts2 = [`${total} workspace${total === 1 ? "" : "s"}`, `${live} live`];
+  if (needs) parts2.push(`${needs} need${needs === 1 ? "s" : ""} you`);
+  return { rows, summary: total ? parts2.join(" \xB7 ") : "No workspace has come through your link yet." };
 }
 
 // src/chrome.ts
@@ -20775,236 +21073,6 @@ var CONNECTION_GROUP_WORDS = {
   },
   later: { title: "Later", sub: () => "not yet: nothing here is connected" }
 };
-
-// src/platform.ts
-var PLATFORM_VERDICTS = {
-  broken: { label: "Broken", tone: "danger", rank: 100 },
-  billing: { label: "Billing", tone: "danger", rank: 90 },
-  rehearsal: { label: "Rehearsal", tone: "warn", rank: 80 },
-  stalled: { label: "Stalled", tone: "warn", rank: 70 },
-  waiting_owner: { label: "Waiting on them", tone: "info", rank: 60 },
-  quiet: { label: "Quiet", tone: "warn", rank: 40 },
-  new: { label: "New", tone: "info", rank: 20 },
-  live: { label: "Live", tone: "ok", rank: 10 },
-  paused: { label: "Paused", tone: "plain", rank: 5 },
-  test: { label: "Test", tone: "plain", rank: 0 }
-};
-var DAY = 864e5;
-var PLATFORM_NEW_DAYS = 1;
-var PLATFORM_QUIET_DAYS = 14;
-var at = (iso) => {
-  if (!iso) return null;
-  const ms2 = Date.parse(iso);
-  return Number.isFinite(ms2) ? ms2 : null;
-};
-var OURS_TO_FIX = ["failed"];
-var THEIRS_TO_FIX = ["needs_record", "otp_waiting", "rejected"];
-function billingBites(mode, status) {
-  if (mode !== "stripe") return false;
-  return !receptionistOn(status) || status === "past_due";
-}
-function verdictFor(r2, nowMs) {
-  if (r2.status === "test") return "test";
-  const mode = r2.billing_mode ?? "direct";
-  const status = r2.billing_status ?? "none";
-  const answering = r2.voice_active === true || r2.whatsapp_active === true;
-  const age = nowMs - (at(r2.created_at) ?? nowMs);
-  if (r2.voice_state === "failed" || OURS_TO_FIX.includes(r2.sms_state ?? "")) return "broken";
-  if (billingBites(mode, status)) return "billing";
-  if (r2.status === "paused") return "paused";
-  if (r2.reg_mock === true) return "rehearsal";
-  if (!answering && age <= PLATFORM_NEW_DAYS * DAY) return "new";
-  if (THEIRS_TO_FIX.includes(r2.sms_state ?? "")) return "waiting_owner";
-  if (mode === "stripe" && !maySpend(mode, status) && status !== "trialing") return "waiting_owner";
-  if (!answering) return "stalled";
-  const heard = at(r2.last_inbound_at);
-  if (heard === null) return age > PLATFORM_QUIET_DAYS * DAY ? "quiet" : "new";
-  if (nowMs - heard > PLATFORM_QUIET_DAYS * DAY) return "quiet";
-  return "live";
-}
-function sentenceFor(r2, verdict, nowMs) {
-  const heard = at(r2.last_inbound_at);
-  const quietFor = heard === null ? null : Math.floor((nowMs - heard) / DAY);
-  switch (verdict) {
-    case "broken":
-      return r2.line_error ? `${r2.line_error}${r2.reg_step ? ` (stopped at ${r2.reg_step})` : ""}` : "Their line stopped and said nothing. A person at Chanlytics has to look.";
-    case "billing":
-      return r2.billing_status === "past_due" ? "A payment failed. The receptionist still answers, and will not once Stripe gives up." : `Not subscribed (${r2.billing_status ?? "no status"}) \u2014 the receptionist is paused for them.`;
-    case "rehearsal":
-      return "Texting is filed against the test registry: it reports itself approved, delivers nothing, and expires thirty days after filing.";
-    case "stalled":
-      return `Set up ${agoWords(at(r2.created_at) ?? nowMs, nowMs)} and nothing answers yet${r2.members <= 1 ? ", with one person in the workspace" : ""}.`;
-    case "waiting_owner": {
-      const mode = r2.billing_mode ?? "direct";
-      const status = r2.billing_status ?? "none";
-      if (!THEIRS_TO_FIX.includes(r2.sms_state ?? "") && mode === "stripe") {
-        return whyCannotSpend(mode, status) ?? "Something about their billing needs them.";
-      }
-      const words4 = textingWords({
-        sms_state: r2.sms_state ?? "none",
-        reg_mock: r2.reg_mock ?? false,
-        reg_sole_prop: r2.reg_sole_prop ?? false
-      }).sentence;
-      return r2.line_error ? `${words4} \u2014 ${r2.line_error}` : words4;
-    }
-    case "quiet":
-      return quietFor === null ? "Answering, and no customer has ever reached them." : `Answering, and no customer has reached them in ${quietFor} days.`;
-    case "new":
-      return r2.voice_active === true || r2.whatsapp_active === true ? `Answering since ${agoWords(at(r2.created_at) ?? nowMs, nowMs)}; no customer has reached them yet.` : `Signed up ${agoWords(at(r2.created_at) ?? nowMs, nowMs)}, still setting up.`;
-    case "live":
-      return `Answering; last heard from ${heard === null ? "never" : agoWords(heard, nowMs)}.`;
-    case "paused":
-      return "The workspace is paused. Nothing answers, by design.";
-    case "test":
-      return "Not a customer \u2014 a test workspace.";
-  }
-}
-function factsFor(r2, nowMs) {
-  const mode = r2.billing_mode ?? null;
-  const status = r2.billing_status ?? null;
-  const paying = mode === null ? "No arrangement" : mode === "direct" ? "Invoiced" : status === "trialing" && r2.trial_end ? `Trial to ${r2.trial_end.slice(0, 10)}` : status ?? "unknown";
-  const on = [r2.voice_active ? "phone" : null, r2.whatsapp_active ? "WhatsApp" : null].filter(Boolean);
-  const answering = on.length ? on.join(" + ") : r2.voice_state === "provisioning" ? "Getting a number" : r2.voice_state === "failed" ? "Line failed" : "Nothing yet";
-  const texting = !r2.line_e164 ? "No line" : r2.sms_state === "active" ? r2.reg_sole_prop ? "On (sole proprietor)" : "On" : r2.reg_mock ? "Rehearsal" : (r2.sms_state ?? "none").replace(/_/g, " ");
-  const at_ = at(r2.last_inbound_at);
-  return { paying, answering, texting, heard: at_ === null ? "Never" : agoWords(at_, nowMs) };
-}
-function platformRows(rows, nowMs = Date.now()) {
-  return rows.map((r2) => {
-    const verdict = verdictFor(r2, nowMs);
-    return {
-      tenantId: r2.tenant_id,
-      slug: r2.slug,
-      name: r2.name,
-      verdict,
-      sentence: sentenceFor(r2, verdict, nowMs),
-      facts: factsFor(r2, nowMs),
-      age: agoWords(at(r2.created_at) ?? nowMs, nowMs),
-      members: r2.members
-    };
-  }).sort((a, b) => {
-    const byRank = PLATFORM_VERDICTS[b.verdict].rank - PLATFORM_VERDICTS[a.verdict].rank;
-    if (byRank !== 0) return byRank;
-    return a.name.localeCompare(b.name);
-  });
-}
-function platformSummary(rows) {
-  const customers = rows.filter((r2) => r2.verdict !== "test");
-  const needsUs = customers.filter((r2) => r2.verdict === "broken" || r2.verdict === "rehearsal").length;
-  const needsThem = customers.filter(
-    (r2) => r2.verdict === "billing" || r2.verdict === "waiting_owner" || r2.verdict === "stalled"
-  ).length;
-  const live = customers.filter((r2) => r2.verdict === "live").length;
-  const parts2 = [`${customers.length} workspace${customers.length === 1 ? "" : "s"}`, `${live} live`];
-  if (needsUs) parts2.push(`${needsUs} on us`);
-  if (needsThem) parts2.push(`${needsThem} on them`);
-  return { total: customers.length, needsUs, needsThem, live, sentence: parts2.join(" \xB7 ") };
-}
-function platformNumber(e164) {
-  return formatPhoneDisplay(e164) ?? "\u2014";
-}
-var NUMBER_MONTHLY = "$1.15 a month";
-var REAL_FILING = "about $19.50 once";
-var CAMPAIGN_VETTING = "about $15 once";
-function platformLineActions(l, nowMs = Date.now()) {
-  const out = [];
-  if (l.voice_state === "failed" || lineStuckProvisioning(l, nowMs)) {
-    out.push({
-      action: "retry",
-      label: "Retry setting up",
-      sentence: "Resumes the line where it stopped, without repeating the steps that succeeded. The saga reads its own receipts, so nothing is bought twice.",
-      // A saga that failed BEFORE the number was bought buys one when it
-      // resumes, so this can spend even though it usually does not.
-      cost: `If it stopped before the number was bought, this buys one \u2014 ${NUMBER_MONTHLY}.`,
-      permanent: false
-    });
-  }
-  if (l.sms_state === "rejected") {
-    out.push({
-      action: "refile",
-      label: "Send the campaign back",
-      // It used to say "Correct the business on record first — this sends what is
-      // there now", which was true and was the whole problem: nothing verified
-      // that anyone had, so a rejection could be answered with the fault that
-      // caused it. Both senders now run the same pre-flight, so the honest
-      // sentence is that this REFUSES rather than repeats.
-      sentence: "Resubmits the campaign to the carriers, free \u2014 the vetting fee is charged once per campaign. It refuses, with the reason, if the record or the workspace's name still would not pass review.",
-      cost: null,
-      permanent: false
-    });
-    out.push({
-      action: "replace",
-      label: "File a new campaign",
-      sentence: "Deletes the refused campaign and files a new one from today's facts, under the same approved brand: the remedy when what the carriers named cannot be edited (the opt-in confirmation and its keywords never can be). It refuses, with the reason, if the record or the workspace's name still would not pass review.",
-      cost: `${CAMPAIGN_VETTING}, charged to Chanlytics.`,
-      permanent: true
-    });
-  } else if (l.reg_mock === true) {
-    out.push({
-      action: "refile",
-      label: "File it for real",
-      sentence: "Takes the rehearsal off and files a real registration with the carriers. The rehearsal delivers nothing and expires thirty days after it was filed.",
-      cost: `${REAL_FILING}, charged to Chanlytics.`,
-      permanent: true
-    });
-  }
-  if (l.e164) {
-    out.push({
-      action: "release",
-      label: "Give the number back",
-      sentence: "Releases the number, drops the trunk and forgets the line. Calls keep their history; the routing row is switched off, never deleted.",
-      cost: `Stops the ${NUMBER_MONTHLY} this number costs.`,
-      permanent: true
-    });
-  }
-  return out;
-}
-function platformHealthOf(rows, backlog, now = /* @__PURE__ */ new Date()) {
-  const unhealthy = (rows ?? []).filter((r2) => !r2.healthy).map((r2) => ({ sweep: r2.sweep, detail: r2.detail }));
-  return { ok: unhealthy.length === 0 && backlog === 0, unhealthy, backlog, checkedAt: now.toISOString() };
-}
-function platformHealthWords(h) {
-  if (h.backlog === null) return "The platform's health could not be read just now.";
-  const late = h.backlog > 0 ? `${h.backlog} job${h.backlog === 1 ? "" : "s"} late` : null;
-  const clocks = h.unhealthy.length ? `${h.unhealthy.length} clock${h.unhealthy.length === 1 ? "" : "s"} not running` : null;
-  if (!late && !clocks) return "Every clock is running and nothing is waiting.";
-  return [clocks, late].filter(Boolean).join(" \xB7 ");
-}
-function platformActionWarning(a) {
-  const parts2 = [a.cost, a.permanent ? "This cannot be undone." : null].filter(Boolean);
-  return parts2.length ? parts2.join(" ") : "Nothing is spent, and it can be done again.";
-}
-var QUEUE_SHOWN = 100;
-var QUEUE_SENDS_NOTHING = "Chanlytics sends no invitations. Write to them yourself, then mark it here so the queue moves.";
-function waitingDetail(r2) {
-  const from = r2.source ? sourceWords(r2.source) : null;
-  return [r2.business?.trim() || null, from].filter(Boolean).join(" \xB7 ") || null;
-}
-function sourceWords(source) {
-  const s = source.trim();
-  if (!s) return null;
-  try {
-    const u = new URL(s);
-    const path = u.pathname.replace(/\/+$/, "");
-    return `from ${u.host}${path && path !== "/" ? path : ""}`;
-  } catch {
-    return `from ${s.slice(0, 60)}`;
-  }
-}
-function platformQueue(q, nowMs = Date.now()) {
-  const note = QUEUE_SENDS_NOTHING;
-  if (!q.waiting) return { rows: [], sentence: "The waiting list could not be read just now.", unreadable: true, note };
-  const rows = q.waiting.map((r2) => ({
-    id: r2.id,
-    email: r2.email,
-    detail: waitingDetail(r2),
-    waited: `asked ${agoWords(Date.parse(r2.created_at), nowMs)}`
-  }));
-  const total = q.total ?? rows.length;
-  const oldest = q.waiting[0];
-  const sentence2 = total === 0 ? "Nobody is waiting." : `${total} waiting${oldest ? `, the first since ${agoWords(Date.parse(oldest.created_at), nowMs)}` : ""}${total > rows.length ? ` \xB7 showing the first ${rows.length}` : ""}.`;
-  return { rows, sentence: sentence2, unreadable: false, note };
-}
 
 // src/consent-page.ts
 function policyLinks(f) {
@@ -24782,6 +24850,7 @@ export {
   PARTNER_HOLD_DAYS,
   PARTNER_SHARE_BP_DEFAULT,
   PARTNER_STANDINGS,
+  PARTNER_STANDING_WORDS,
   PARTNER_STATUSES,
   PARTNER_WORDS,
   PASSWORD_MAX_BYTES,
@@ -25546,6 +25615,7 @@ export {
   partnerLinkFor,
   partnerPathFor,
   partnerVM,
+  partnerWorkspacesVM,
   passwordProblem,
   pausedGreetingFor,
   pausedVoiceFacts,

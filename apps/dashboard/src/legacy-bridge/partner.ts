@@ -8,10 +8,12 @@ import {
   PARTNER_SHARE_BP_DEFAULT,
   PARTNER_WORDS,
   partnerVM,
+  partnerWorkspacesVM,
   shareWords,
   type PartnerBalanceRow,
   type PartnerDto,
   type PartnerVM,
+  type PartnerWorkspacesVM,
 } from "@chanlytics/contracts";
 import type { SurfaceOverride, Workspace } from "./surface-data";
 import { api, read } from "./api";
@@ -36,6 +38,10 @@ export interface PartnerApi {
   become(code: string): Promise<{ ok: boolean; message: string }>;
   /** Read the account again (the failed card's retry). */
   refresh(): Promise<void>;
+  /** The workspaces this partner brought, judged as the back office judges them, with their standing and money (P4). */
+  workspaces(): Promise<{ ok: true; vm: PartnerWorkspacesVM } | { ok: false; message: string }>;
+  /** Go into one of them: the switcher's own way. */
+  open(tenantId: string): void;
 }
 
 declare global {
@@ -77,5 +83,14 @@ export function installPartner(win: Window = window): void {
       return { ok: true, message: "" };
     },
     refresh: () => refreshSurfaces([partnerOverride]),
+    async workspaces() {
+      const r = await api()("GET partner/workspaces");
+      if (!r.ok) return { ok: false, message: r.message };
+      return { ok: true, vm: partnerWorkspacesVM(r.data.overview, r.data.money) };
+    },
+    open(tenantId) {
+      const shell = (win as unknown as { __shell?: { switchWorkspace(id: string): void } }).__shell;
+      if (shell) shell.switchWorkspace(tenantId);
+    },
   };
 }

@@ -3263,6 +3263,10 @@ var PARTNER_WORDS = {
   /** What the switcher and Team show for a workspace brought this way. */
   role: "Partner",
   earnings: "Earnings",
+  workspaces: "Your workspaces",
+  open: "Open",
+  readingWorkspaces: "Reading your workspaces\u2026",
+  failedWorkspaces: "your workspaces",
   noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan."
 };
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
@@ -7790,6 +7794,10 @@ var PARTNER_WORDS2 = {
   /** What the switcher and Team show for a workspace brought this way. */
   role: "Partner",
   earnings: "Earnings",
+  workspaces: "Your workspaces",
+  open: "Open",
+  readingWorkspaces: "Reading your workspaces\u2026",
+  failedWorkspaces: "your workspaces",
   noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan."
 };
 function optInConfirmation(businessName, purpose) {
@@ -10666,6 +10674,10 @@ var PARTNER_WORDS3 = {
   /** What the switcher and Team show for a workspace brought this way. */
   role: "Partner",
   earnings: "Earnings",
+  workspaces: "Your workspaces",
+  open: "Open",
+  readingWorkspaces: "Reading your workspaces\u2026",
+  failedWorkspaces: "your workspaces",
   noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan."
 };
 var CONSENT_PHRASE3 = OFFERS_OPT_IN_PHRASES3.en;

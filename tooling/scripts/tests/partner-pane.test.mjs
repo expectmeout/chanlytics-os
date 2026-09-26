@@ -31,6 +31,12 @@ const ROW = {
 };
 
 installPartner(globalThis.window);
+await import("../../../apps/dashboard/src/legacy/pages/attention-bits.jsx");
+/** The workspaces read, answered by the test. */
+let workspacesSay = { ok: true, vm: { rows: [], summary: "No workspace has come through your link yet." } };
+const opened = [];
+globalThis.window.__partner.workspaces = async () => workspacesSay;
+globalThis.window.__partner.open = (id) => opened.push(id);
 
 test("while it reads, it says so; a read that failed says so with a retry, never an empty offer", () => {
   delete globalThis.window.__PARTNER;
@@ -115,4 +121,66 @@ test("the link copies, and a copy the browser refuses says what to do instead", 
   });
   await press(byTestId(draw(), "partner-copy"));
   assert.equal(flashes.at(-1).tone, "warn");
+});
+
+test("under the account, the workspaces brought: reading, then the back office's rows, and Open goes into one the way the switcher does", async () => {
+  globalThis.window.__PARTNER = { dto: ROW, balance: [], fetchedAt: 1 };
+  workspacesSay = {
+    ok: true,
+    vm: {
+      summary: "2 workspaces · 1 live",
+      rows: [
+        {
+          tenantId: "t1",
+          slug: "harbor",
+          name: "Harbor Moving",
+          verdict: "live",
+          label: "Live",
+          tone: "ok",
+          sentence: "Answering.",
+          facts: "paying · answering",
+          standing: null,
+          money: "$100.00 to date",
+          onTeam: true,
+        },
+        {
+          tenantId: "t2",
+          slug: null,
+          name: "Old Client",
+          verdict: null,
+          label: "Off the team",
+          tone: "plain",
+          sentence: "Its owner took you off its team.",
+          facts: null,
+          standing: "Under review.",
+          money: "$0.00",
+          onTeam: false,
+        },
+      ],
+    },
+  };
+  assert.ok(byTestId(draw(), "partner-workspaces-reading"), "reading, while it reads");
+  await settle();
+  const tree = redraw();
+  assert.equal(textOf(byTestId(tree, "partner-workspaces-summary")), "2 workspaces · 1 live");
+  const live = byTestId(tree, "partner-workspace-t1");
+  assert.ok(textOf(live).includes("Harbor Moving") && textOf(live).includes("$100.00 to date"));
+  press(byTestId(tree, "partner-open-t1"));
+  assert.deepEqual(opened, ["t1"]);
+  const off = byTestId(tree, "partner-workspace-t2");
+  assert.ok(
+    textOf(off).includes("Its owner took you off its team. Under review."),
+    "the standing rides with the sentence",
+  );
+  assert.equal(byTestId(tree, "partner-open-t2"), null, "no way into a business that removed you");
+});
+
+test("a workspaces read that failed says so with a retry, and the account above it stands", async () => {
+  globalThis.window.__PARTNER = { dto: ROW, balance: [], fetchedAt: 1 };
+  workspacesSay = { ok: false, message: "Could not reach the server." };
+  draw();
+  await settle();
+  const tree = redraw();
+  assert.ok(byTestId(tree, "partner-workspaces-failed"));
+  assert.ok(byTestId(tree, "partner-link"), "the link is still there");
 });
