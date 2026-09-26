@@ -356,6 +356,13 @@ details, note), `propose_deal`, `propose_autonomy`, `propose_settings`, `propose
 `propose_campaign` (broadcast, playbook, a waiting run), `propose_list`, `propose_lead_search`. Each checks through its
 card's spec (§5.4).
 
+_Amended by the Phase 3 plan (26 Sep 2026):_ the registry lands first as a move of today's 26 tools, their schemas
+generated through one normaliser (zod's output is not byte-equal to the hand-written schemas: it adds `$schema` and
+safe-integer bounds, and writes literal unions as `anyOf`), deep-equal to a frozen fixture. The descriptions and
+`input_examples` follow as their own change, a refusal of the examples retried once without them; then the
+consolidation to nineteen for Phase 3 (nine reads, ten acts; `propose_list` and the Phase 4 reads bring it to the
+table's count), with the owner-only acts offered to owners only. `detail` waits for Phase 4.
+
 ### 5.4 One spec per card (fix; cuts the commit.ts switch, cardOpenRoute, PROPOSAL_GATE)
 
 Every card kind is one object in contracts that says what it needs, what gate the client checks, which route commits it
@@ -381,6 +388,14 @@ export interface ProposalSpec<P> {
 }
 // wake has no inverse that needs no day: its spec declares no undo, and the card offers none.
 ```
+
+_Amended by the Phase 3 plan (26 Sep 2026):_ contracts knows no route key today (`RouteKey` is the dashboard's, over
+files that import the routes), so the generator also writes an import-free `ROUTE_KEYS` into contracts. The cards do
+not all fit `commit: {route, params, body}`: a thread verb's route depends on the verb and a lead search's on
+`amends`, settings reads the tab's settings before it sends and undoes, a deal with a next step makes a second call on
+the first answer's id, and the undo record is built per kind. So `commit(p, tab)` returns the call or a refusal,
+`then?(p, data)` a second call, and `undo` carries `label`, `window`, `record(p, data)` and `call(record)`. The voice
+waits for Ruben to say what a receptionist-voiced reply does; until then the route does not take it.
 
 | Card                                                                                                                        | State | Commits through                                             | Why it is in                                                                                                                              |
 | --------------------------------------------------------------------------------------------------------------------------- | ----- | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
@@ -723,13 +738,31 @@ prefetch go (the cross-page nouns kept as reads in the user turn). PR 2.5, only 
 breakpoint removed. No migration. **Proof:** eval cases per surface with context fixtures; one-round rate and
 first-token time against PR 2.3's baseline; the e2e ask spec asks one question on each of five surfaces.
 
-**Phase 3 · The registry and the specs.** `defineRead`/`defineAct` with zod, generated schemas, the reads consolidated
-under `action` parameters to about twenty-two tools, three-to-four-sentence descriptions with `input_examples` where
-inputs have a shape, concise-or-full results, the rules moved into the stable block; `ProposalSpec` per kind in
-contracts, `commit.ts` a spec walk, `cardOpenRoute` and `PROPOSAL_GATE` folded in; the wake undo and the reply voice
-closed by the spec; the route accepts the voice. No migration. **Proof:** a test that every tool's schema equals the zod
-schema; a test that every spec commits and undoes over a fake client; the existing ask-commit tests rewritten over the
-specs.
+**Phase 2, landed** (26 Sep 2026). PR 2.1 (#1131), PR 2.2 (#1135), PR 2.3 (#1139) and PR 2.4 (#1150), each on green.
+The turn reads the page as `search_result` blocks in the question's message behind the third breakpoint, the shape of
+the workspace is the second system block, and `snapshot.ts` and `prefetch.ts` are gone; the cross-page nouns ride as
+`read://` blocks. PR 2.4's review narrowed D14 to a 400 that names the blocks, counted the page as a read only when
+something on it was read, and recorded a drop (`context_dropped`). PR 2.4 merged on Ruben's word without the eval
+re-run or the real-model probe the plan named; both remain his to run, against PR 2.3's baseline. Still to measure,
+from a day of production turns: the one-round rate and first-token time (`ask-day.mjs`: `2+rd`, `warm`), `cache_hit` on
+follow-ups (the page is written again on each, since earlier turns come before it), and `ask_context_rejected`. PR 2.5
+(the context's breakpoint removed) waits on those numbers. `loop.ts` grew (692 → 790) where the plan hoped it would
+shrink; Phase 3 moves the tools out of it.
+
+**Phase 3 · The registry and the specs** (five PRs; plan `2026-09-26-ask-rewired-3-registry.md`). PR 3.1: the registry
+as a move (`server/ask/tools/`: `defineRead`/`defineAct` with zod, one normaliser to JSON schema, dispatch a map, a
+file per family), the same 26 tools deep-equal to a frozen fixture, the input parsed before a tool runs. PR 3.2: the
+route keys generated into contracts, `ProposalSpec` per kind in `contracts/ask-proposals.ts` (payload-dependent
+routes, the tab's settings, the deal's second call, per-kind undo records), `commit.ts` a walk, `PROPOSAL_GATE`,
+`askUndoOpen` and `cardOpenRoute` derived; the wake card declares no undo, the reply card sends its id as the
+idempotency key, and an act refuses a person below its card's `needs`. PR 3.3: the descriptions at the documented
+length with the tool rules moved into them, `input_examples` on shaped inputs (a refusal of them retried once without),
+rounds 4 → 3, the round ceiling 2,000 → 4,000. PR 3.4: nineteen tools under `action` parameters, sorted, the owner's
+acts to owners, the eval cases carried through a committed name map. PR 3.5: the reply's voice, once Ruben has said
+what a receptionist-voiced reply does. PRs 3.3 and 3.4 change what the model reads and wait for his word. No migration.
+**Proof:** a test that every tool's schema equals its zod's and that the moved registry deep-equals the fixture; a test
+that every spec commits and undoes over the fake client, and that each spec's `needs` is its route's role; the existing
+ask-commit tests rewritten over the specs.
 
 **Phase 4 · Aware of all data.** Readers and tools for leads, pipeline, lists, broadcasts, notifications, connections,
 activity and message search; citation kinds to twelve; four new cards (note, list, run, person_details); the text index
