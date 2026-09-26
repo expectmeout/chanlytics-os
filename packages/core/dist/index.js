@@ -3187,6 +3187,7 @@ function isTimezone(raw) {
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
 var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
 var DAY_FMT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var REPUTATION_MEMORY_MS = 30 * 864e5;
 var ACTIVITY_KINDS = [...DECISION_VERBS, ...EVENT_KINDS];
 var PASSWORD_MIN = 12;
 var PASSWORD_WORDS = {
@@ -7576,6 +7577,7 @@ function optInConfirmation(businessName, purpose) {
 var CONSENT_PHRASE2 = OFFERS_OPT_IN_PHRASES2.en;
 var CONSENT_PHRASE_ES2 = OFFERS_OPT_IN_PHRASES2.es;
 var DAY_FMT2 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var REPUTATION_MEMORY_MS2 = 30 * 864e5;
 var DOMAIN_RAMP = [
   { days: 0, perDay: 30 },
   { days: 14, perDay: 100 },
@@ -10318,6 +10320,7 @@ function isTimezone3(raw) {
 var CONSENT_PHRASE3 = OFFERS_OPT_IN_PHRASES3.en;
 var CONSENT_PHRASE_ES3 = OFFERS_OPT_IN_PHRASES3.es;
 var DAY_FMT3 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var REPUTATION_MEMORY_MS3 = 30 * 864e5;
 var ACTIVITY_KINDS3 = [...DECISION_VERBS3, ...EVENT_KINDS3];
 var PASSWORD_MIN3 = 12;
 var PASSWORD_WORDS3 = {

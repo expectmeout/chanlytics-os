@@ -524,6 +524,39 @@ export async function parentEmailOf(
 }
 
 /**
+ * A lead whose address bounced for good (Reach out C11): its address is invalid now, as the finder's own check would
+ * say it, so the Leads page shows it and no step or run writes to it again. The address itself already stops at the
+ * send door (suppressed). An erased or blanked lead is left as it is. True when the lead was marked.
+ */
+export async function leadAddressBounced(
+  db: Db,
+  p: { tenantId: string; leadId: string; at: string; retried?: boolean },
+): Promise<boolean> {
+  const { data: lead, error } = await db
+    .from("leads")
+    .select("version, email_state, erased_at, blanked_at")
+    .eq("tenant_id", p.tenantId)
+    .eq("id", p.leadId)
+    .maybeSingle();
+  if (error) throw new Error(`cannot read the lead whose address bounced: ${error.message}`);
+  if (!lead || lead.erased_at || lead.blanked_at || lead.email_state === "invalid") return false;
+  const { data: moved, error: e2 } = await db
+    .from("leads")
+    .update({ email_state: "invalid", email_checked_at: p.at, version: lead.version + 1 })
+    .eq("tenant_id", p.tenantId)
+    .eq("id", p.leadId)
+    .eq("version", lead.version)
+    .select("id");
+  if (e2) throw new Error(`cannot mark the lead's address bounced: ${e2.message}`);
+  // Worked by a person at the same moment: read again and marked once more; twice, and the receipt comes again.
+  if ((moved ?? []).length === 0) {
+    if (p.retried) throw new Error("the lead whose address bounced moved while it was marked");
+    return leadAddressBounced(db, { ...p, retried: true });
+  }
+  return true;
+}
+
+/**
  * A lead written to by a reach-out's email: still being written to (ready becomes nurture; a later stage is kept),
  * first contacted when its first email left, its last outcome "emailed", and its event. Written only as it was read
  * (its version), so a person working the lead at the same moment wins and the next email says so again.

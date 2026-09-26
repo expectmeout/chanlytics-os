@@ -697,3 +697,77 @@ test("a row from an edge that does not say its days yet reads as none sent, neve
   assert.equal(checkResultWords(older).msg, "getbestmovers.com is verified. It starts at 30 a day.");
   assert.equal(sendingDomainDtoOf({ ...older, sent_days: undefined }).sent_days, 0);
 });
+
+test("unsubscribes hold a domain past 2% of what it sent, over at least 150, after a complaint and bounces (D18)", () => {
+  assert.equal(reputationHoldOf({ sent: 200, bounced: 0, complained: 0, unsubscribed: 5 }), "unsubscribes");
+  assert.equal(reputationHoldOf({ sent: 200, bounced: 0, complained: 0, unsubscribed: 4 }), null, "4 of 200 is 2%");
+  assert.equal(reputationHoldOf({ sent: 100, bounced: 0, complained: 0, unsubscribed: 3 }), null, "the 150 floor");
+  assert.equal(reputationHoldOf({ sent: 200, bounced: 5, complained: 0, unsubscribed: 5 }), "bounces");
+  assert.equal(reputationHoldOf({ sent: 200, bounced: 5, complained: 1, unsubscribed: 5 }), "complaint");
+  // A count from a database before 00188 says nothing of unsubscribes: none.
+  assert.equal(reputationHoldOf({ sent: 200, bounced: 0, complained: 0 }), null);
+  assert.equal(domainHoldWords("unsubscribes"), "more than 2% of the people it wrote to unsubscribed");
+  assert.equal(
+    domainHoldFixWords("unsubscribes"),
+    "Write to fewer, and to the ones it fits best, before you resume it.",
+  );
+  assert.match(domainHoldNoticeWords("unsubscribes"), /then resume it on Connections, under Email\.$/);
+  const held = judgeDomain(
+    sending(),
+    { provider: "verified", dmarc: "found", counts: { sent: 200, bounced: 0, complained: 0, unsubscribed: 5 } },
+    NOW_ISO,
+  );
+  assert.deepEqual([held.state, held.held_why, held.change], ["held", "unsubscribes", "held"]);
+  const resumed = resumeDomain({ ...sending(), state: "held", held_why: "unsubscribes", held_at: NOW_ISO }, NOW_ISO);
+  assert.equal(resumed.change, "resumed", "its owner's to lift, like any reputation hold");
+});
+
+test("inside one reputation hold only a worse reason takes its place: a complaint over bounces over unsubscribes", () => {
+  const counts = (c) => ({
+    provider: "verified",
+    dmarc: "found",
+    counts: { sent: 200, bounced: 0, complained: 0, unsubscribed: 0, ...c },
+  });
+  const heldFor = (why) => ({ ...sending(), state: "held", held_why: why, held_at: daysAgo(1) });
+  assert.deepEqual(
+    [
+      judgeDomain(heldFor("unsubscribes"), counts({ bounced: 5 }), NOW_ISO).held_why,
+      judgeDomain(heldFor("unsubscribes"), counts({ bounced: 5 }), NOW_ISO).change,
+    ],
+    ["bounces", "held"],
+  );
+  assert.equal(judgeDomain(heldFor("bounces"), counts({ unsubscribed: 9 }), NOW_ISO).change, null, "never softened");
+  assert.equal(judgeDomain(heldFor("bounces"), counts({ bounced: 5 }), NOW_ISO).change, null, "never said twice");
+  assert.equal(judgeDomain(heldFor("unsubscribes"), counts({ complained: 1 }), NOW_ISO).held_why, "complaint");
+  // A records hold still gives way to any reputation hold.
+  assert.equal(
+    judgeDomain({ ...heldFor("dmarc"), dmarc: "missing" }, counts({ unsubscribed: 5 }), NOW_ISO).held_why,
+    "unsubscribes",
+  );
+});
+
+test("a hold that is the platform's to lift (D16): no Resume on the page, and the row says who lifts it", () => {
+  const platform = dto({
+    state: "held",
+    held_why: "bounces",
+    held_at: daysAgo(1),
+    verified_at: daysAgo(20),
+    clean_since: daysAgo(20),
+    resume_by: "platform",
+  });
+  assert.equal(sendingDomainActs(platform).resume, false);
+  assert.equal(sendingDomainActs({ ...platform, resume_by: "owner" }).resume, true);
+  assert.equal(sendingDomainActs({ state: "held", held_why: "bounces" }).resume, true, "a DTO from before 00188");
+  const w = sendingDomainWords(platform);
+  assert.equal(w.next, "Held twice in 30 days · we were told, and we lift this hold.");
+  assert.equal(w.fix, "Check the addresses you write to before you resume it.", "what to fix still stands");
+  assert.equal(
+    sendingDomainWords({ ...platform, resume_by: "owner" }).next,
+    "Nothing leaves from it until you resume it.",
+  );
+  // The DTO: a row from before 00188, or with anything but the platform, is its owner's.
+  const base = { ...dto(), provider_domain_id: "pd" };
+  assert.equal(sendingDomainDtoOf(base).resume_by, "owner");
+  assert.equal(sendingDomainDtoOf({ ...base, resume_by: "platform" }).resume_by, "platform");
+  assert.equal(sendingDomainDtoOf({ ...base, resume_by: "somebody" }).resume_by, "owner");
+});

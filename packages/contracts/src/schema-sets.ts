@@ -46,7 +46,7 @@ import type { SERVER_NOTIFICATION_KINDS } from "./notifications";
 import type { PLAYBOOK_STATES, PLAYBOOK_TRIGGERS } from "./playbooks";
 import type { TEMPLATE_CATEGORIES } from "./templates";
 import type { PUSH_PLATFORMS } from "./push";
-import type { DMARC_STATES, DOMAIN_HOLDS, SENDING_DOMAIN_STATES } from "./sending-domains";
+import type { DMARC_STATES, DOMAIN_HOLDS, DOMAIN_RESUMERS, SENDING_DOMAIN_STATES } from "./sending-domains";
 import type {
   LEAD_CLOSED_REASONS,
   LEAD_COUNTER_KINDS,
@@ -171,4 +171,6 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof SENDING_DOMAIN_STATES>, SchemaSet<"sending_domains.state">>>,
   Holds<Exactly<Of<typeof DOMAIN_HOLDS>, SchemaSet<"sending_domains.held_why">>>,
   Holds<Exactly<Of<typeof DMARC_STATES>, SchemaSet<"sending_domains.dmarc">>>,
+  // Who lifts a reputation hold (00188, D16).
+  Holds<Exactly<Of<typeof DOMAIN_RESUMERS>, SchemaSet<"sending_domains.resume_by">>>,
 ];

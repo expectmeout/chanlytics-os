@@ -603,7 +603,7 @@ test("Resume lifts a reputation hold: sending again at 30 a day, its counts clea
     const resumed = w.tables.events.filter((e) => e.kind === "sending_domain.resumed");
     assert.deepEqual(
       resumed.map((e) => e.data),
-      [{ host: d.host, why: "bounces" }],
+      [{ host: d.host, why: "bounces", by: "owner" }],
     );
 
     const [again, againBody] = await answer(await knock({ op: "resume", domain_id: D1 }));
@@ -911,6 +911,63 @@ test("Resume reads the domain at once: records that broke while its reputation h
       "the resume, then the hold its records earned",
     );
   } finally {
+    net.restore();
+  }
+});
+
+test("a domain held twice in 30 days is the platform's to lift (D16): the owner's Resume is refused, the platform's key lifts it", async () => {
+  const held = (over = {}) =>
+    row(D1, {
+      state: "held",
+      held_why: "bounces",
+      held_at: new Date().toISOString(),
+      provider_status: "verified",
+      dmarc: "found",
+      verified_at: new Date(Date.now() - 20 * 86_400_000).toISOString(),
+      clean_since: new Date(Date.now() - 20 * 86_400_000).toISOString(),
+      resume_by: "platform",
+      ...over,
+    });
+  const w = world([held()]);
+  const host = w.tables.sending_domains[0].host;
+  dns[host] = "found";
+  const net = provider((url) =>
+    url.endsWith(`/domains/pd-${D1.slice(0, 4)}`)
+      ? reply(200, PROVIDER_DOMAIN(`pd-${D1.slice(0, 4)}`, host, "verified"))
+      : reply(404, {}),
+  );
+  try {
+    const [s1, b1] = await answer(await knock({ op: "resume", domain_id: D1 }));
+    assert.deepEqual(
+      [s1, b1.error, b1.message],
+      [409, "platform_hold", "Held twice in 30 days: we lift this hold, and we've been told."],
+    );
+    // A dashboard's token speaks for an owner, whatever its body says.
+    const [s2, b2] = await answer(await knock({ op: "resume", domain_id: D1, by: "platform" }));
+    assert.deepEqual([s2, b2.error], [403, "platform_only"]);
+    assert.equal(w.tables.sending_domains[0].state, "held", "neither lifted it");
+
+    process.env.DIAG_KEY = "diag-key-for-this-file";
+    const [s3, b3] = await answer(
+      await knock(
+        { op: "resume", tenant_id: A, domain_id: D1, by: "platform" },
+        { "x-diag-key": process.env.DIAG_KEY },
+      ),
+    );
+    assert.equal(s3, 200, JSON.stringify(b3));
+    const d = w.tables.sending_domains[0];
+    assert.deepEqual(
+      [d.state, d.held_why, d.resume_by],
+      ["verified", null, "owner"],
+      "the next hold is its owner's again",
+    );
+    assert.deepEqual(
+      w.tables.events.filter((e) => e.kind === "sending_domain.resumed").map((e) => e.data),
+      [{ host, why: "bounces", by: "platform" }],
+    );
+    assert.equal(b3.domain.resume_by, "owner");
+  } finally {
+    delete process.env.DIAG_KEY;
     net.restore();
   }
 });

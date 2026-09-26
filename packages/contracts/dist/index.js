@@ -20931,7 +20931,11 @@ function deskSignMetadata(f) {
 // src/sending-domains.ts
 var DAY_FMT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var SENDING_DOMAIN_STATES = ["records", "verifying", "verified", "held"];
-var DOMAIN_HOLDS = ["verification", "dmarc", "bounces", "complaint", "provider"];
+var DOMAIN_HOLDS = ["verification", "dmarc", "bounces", "complaint", "provider", "unsubscribes"];
+var REPUTATION_HOLDS = ["bounces", "complaint", "unsubscribes"];
+var DOMAIN_RESUMERS = ["owner", "platform"];
+var REPUTATION_MEMORY_MS = 30 * 864e5;
+var PLATFORM_HOLD_REFUSAL = "Held twice in 30 days: we lift this hold, and we've been told.";
 var DMARC_STATES = ["found", "missing"];
 var DNS_HOLDS = ["verification", "dmarc"];
 var SELF_LIFTING_HOLDS = ["verification", "dmarc", "provider"];
@@ -20997,14 +21001,17 @@ function reputationHoldOf(c) {
   if (!c) return null;
   if (c.complained >= 1) return "complaint";
   if (c.bounced * 50 > Math.max(c.sent, 150)) return "bounces";
+  if ((c.unsubscribed ?? 0) * 50 > Math.max(c.sent, 150)) return "unsubscribes";
   return null;
 }
+var REPUTATION_RANK = { unsubscribes: 1, bounces: 2, complaint: 3 };
 var CHECKING = /* @__PURE__ */ new Set(["pending", "temporary_failure", "partially_verified"]);
 function judgeDomain(row2, facts, nowIso) {
   const same2 = { ...row2, dmarc: facts.dmarc ?? row2.dmarc, change: null };
   const judgeable = row2.state === "verified" || row2.state === "held" && row2.held_why !== "complaint";
   const reputation = judgeable ? reputationHoldOf(facts.counts) : null;
-  if (reputation && !(row2.state === "held" && row2.held_why === reputation))
+  const heldFor2 = row2.state === "held" && row2.held_why && REPUTATION_HOLDS.includes(row2.held_why) ? REPUTATION_RANK[row2.held_why] : 0;
+  if (reputation && REPUTATION_RANK[reputation] > heldFor2)
     return { ...same2, state: "held", held_why: reputation, held_at: nowIso, change: "held" };
   if (facts.provider === null) return { ...row2, change: null };
   const verified = facts.provider === "verified";
@@ -21081,7 +21088,8 @@ function sendingDomainActs(d) {
   const waiting = d.state === "records" || d.state === "verifying";
   return {
     check: waiting || selfLifting,
-    resume: held && !selfLifting,
+    // A second reputation hold in thirty days is the platform's to lift (D16): the owner's door refuses it too.
+    resume: held && !selfLifting && d.resume_by !== "platform",
     remove: true,
     records: waiting || dnsHold
   };
@@ -21107,7 +21115,8 @@ function sendingDomainDtoOf(r2) {
     sent_recent: r2.sent_recent,
     bounced_recent: r2.bounced_recent,
     complaints: r2.complaints,
-    sent_days: Math.max(0, Number(r2.sent_days ?? 0) || 0)
+    sent_days: Math.max(0, Number(r2.sent_days ?? 0) || 0),
+    resume_by: r2.resume_by === "platform" ? "platform" : "owner"
   };
 }
 function domainStatsWords(d) {
@@ -21121,7 +21130,8 @@ var HOLD_WORDS = {
   dmarc: "its DMARC record is missing",
   bounces: "more than 2% of its recent emails bounced",
   complaint: "someone marked an email from it as spam",
-  provider: "the mail provider no longer has it"
+  provider: "the mail provider no longer has it",
+  unsubscribes: "more than 2% of the people it wrote to unsubscribed"
 };
 function domainHoldWords(why) {
   return why && HOLD_WORDS[why] || "it was held";
@@ -21170,7 +21180,7 @@ function sendingDomainWords(d) {
     // itself (its line says so), so neither says anything twice or tells the owner to remove what will come back.
     fix: d.held_why && SELF_LIFTING_HOLDS.includes(d.held_why) ? null : domainHoldFixWords(d.held_why),
     cap: was > 0 ? `Sending nothing \xB7 was ${was} a day` : "Sending nothing",
-    next: d.held_why === "provider" ? "We've been told. If it doesn't come back on its own, remove it and add it again." : d.held_why && DNS_HOLDS.includes(d.held_why) ? `It sends again by itself once the records read right, starting at ${DOMAIN_RAMP[0].perDay} a day.` : "Nothing leaves from it until you resume it."
+    next: d.held_why === "provider" ? "We've been told. If it doesn't come back on its own, remove it and add it again." : d.held_why && DNS_HOLDS.includes(d.held_why) ? `It sends again by itself once the records read right, starting at ${DOMAIN_RAMP[0].perDay} a day.` : d.resume_by === "platform" ? "Held twice in 30 days \xB7 we were told, and we lift this hold." : "Nothing leaves from it until you resume it."
   };
 }
 var HOLD_FIX_WORDS = {
@@ -21178,7 +21188,8 @@ var HOLD_FIX_WORDS = {
   dmarc: "Its DMARC record is missing: add the one below.",
   bounces: "Check the addresses you write to before you resume it.",
   complaint: "Read the email again before you resume it: a clear reason for writing, and fewer a day.",
-  provider: "It usually comes back by itself."
+  provider: "It usually comes back by itself.",
+  unsubscribes: "Write to fewer, and to the ones it fits best, before you resume it."
 };
 function domainHoldFixWords(why) {
   return why && HOLD_FIX_WORDS[why] || null;
@@ -21188,8 +21199,10 @@ var HOLD_NOTICE_WORDS = {
   dmarc: "Its DMARC record is missing: Connections shows the one to add, under Email.",
   bounces: "Check the addresses you write to, then resume it on Connections, under Email.",
   complaint: "Read the email again (a clear reason for writing, and fewer a day), then resume it on Connections, under Email.",
-  provider: "It usually comes back by itself; if it doesn't, remove it and add it again on Connections, under Email."
+  provider: "It usually comes back by itself; if it doesn't, remove it and add it again on Connections, under Email.",
+  unsubscribes: "Write to fewer, and to the ones it fits best, then resume it on Connections, under Email."
 };
+var PLATFORM_HOLD_NOTICE = "It was held for this twice in 30 days, so we lift this hold ourselves, and we've been told. We'll write when it sends again.";
 function domainHoldNoticeWords(why) {
   return why && HOLD_NOTICE_WORDS[why] || null;
 }
@@ -22478,7 +22491,8 @@ var SCHEMA_SETS = {
   "push_devices.platform": ["ios", "android"],
   "reach_out_sends.state": ["planned", "claimed", "queued", "sent", "skipped", "failed"],
   "sending_domains.dmarc": ["found", "missing"],
-  "sending_domains.held_why": ["verification", "dmarc", "bounces", "complaint", "provider"],
+  "sending_domains.held_why": ["verification", "dmarc", "bounces", "complaint", "provider", "unsubscribes"],
+  "sending_domains.resume_by": ["owner", "platform"],
   "sending_domains.state": ["records", "verifying", "verified", "held"],
   "sweep_status.judged_by": ["request", "run"],
   "templates.category": ["marketing", "utility", "authentication"],
@@ -23607,6 +23621,7 @@ export {
   DNS_HOLDS,
   DOMAIN_HOLDS,
   DOMAIN_RAMP,
+  DOMAIN_RESUMERS,
   E164,
   EARLIER_FALLBACK_DEFAULTS,
   EMAIL_ELSEWHERE_SENTENCE,
@@ -23870,6 +23885,8 @@ export {
   PIPELINE_RAIL_SERVICES,
   PIPELINE_SORTS,
   PIPELINE_WORDS,
+  PLATFORM_HOLD_NOTICE,
+  PLATFORM_HOLD_REFUSAL,
   PLATFORM_NEW_DAYS,
   PLATFORM_QUIET_DAYS,
   PLATFORM_VERDICTS,
@@ -23933,6 +23950,8 @@ export {
   REPORT_RANGES,
   REPORT_WEEK_LONG,
   REPORT_WEEK_SHORT,
+  REPUTATION_HOLDS,
+  REPUTATION_MEMORY_MS,
   RETENTION_DAYS,
   REVIEW_AUTO_REPLIES_PER_SYNC,
   REVIEW_AUTO_REPLY_MAX_AGE_MS,

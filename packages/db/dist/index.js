@@ -2379,6 +2379,7 @@ function isTimezone(raw) {
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
 var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
 var DAY_FMT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var REPUTATION_MEMORY_MS = 30 * 864e5;
 var ACTIVITY_KINDS = [...DECISION_VERBS, ...EVENT_KINDS];
 var PASSWORD_MIN = 12;
 var PASSWORD_WORDS = {
@@ -2806,10 +2807,15 @@ async function stampEmailSent(db, p) {
   return row ? { status: row.status, conversationId: row.conversation_id } : null;
 }
 async function sentEmailRequestOf(db, p) {
+  return (await sentEmailOf(db, p))?.request ?? null;
+}
+async function sentEmailOf(db, p) {
   const { data, error } = await db.from("messages").select("meta").eq("id", p.messageId).eq("tenant_id", p.tenantId).eq("channel", "email").eq("direction", "outbound").maybeSingle();
   if (error) throw new Error(`sent email request: ${error.message}`);
-  const meta = data?.meta ?? null;
-  return meta?.email?.request ?? null;
+  if (!data) return null;
+  const meta = data.meta ?? null;
+  const lead = meta?.reach_out?.lead_id;
+  return { request: meta?.email?.request ?? null, leadId: typeof lead === "string" && lead ? lead : null };
 }
 async function stampEmailComplaint(db, p) {
   const { data, error } = await db.rpc("stamp_email_complaint", {
@@ -2935,7 +2941,12 @@ async function sendingDomainCounts(db, tenantId, host, since) {
   const r2 = await db.rpc("sending_domain_counts", { p_tenant_id: tenantId, p_host: host, p_since: since });
   const c = must("count a domain's sends", r2) ?? {};
   const n = (k) => typeof c[k] === "number" ? c[k] : Number(c[k] ?? 0) || 0;
-  return { sent: n("sent"), bounced: n("bounced"), complained: n("complained") };
+  return { sent: n("sent"), bounced: n("bounced"), complained: n("complained"), unsubscribed: n("unsubscribed") };
+}
+async function reputationHoldsSince(db, p) {
+  const r2 = await db.from("events").select("id").eq("tenant_id", p.tenantId).eq("kind", "sending_domain.held").gte("created_at", p.sinceIso).eq("data->>host", p.host).in("data->>why", [...p.whys]).limit(20);
+  if (r2.error) throw new Error(`sending_domains: read a domain's reputation holds: ${r2.error.message}`);
+  return (r2.data ?? []).length;
 }
 async function deleteSendingDomainAsRead(db, row) {
   const r2 = must(
@@ -3235,6 +3246,18 @@ async function parentEmailOf(db, p) {
     references: typeof refs === "string" ? refs.split(/\s+/).filter(Boolean) : [],
     subject: typeof subject === "string" ? subject : null
   };
+}
+async function leadAddressBounced(db, p) {
+  const { data: lead, error } = await db.from("leads").select("version, email_state, erased_at, blanked_at").eq("tenant_id", p.tenantId).eq("id", p.leadId).maybeSingle();
+  if (error) throw new Error(`cannot read the lead whose address bounced: ${error.message}`);
+  if (!lead || lead.erased_at || lead.blanked_at || lead.email_state === "invalid") return false;
+  const { data: moved, error: e2 } = await db.from("leads").update({ email_state: "invalid", email_checked_at: p.at, version: lead.version + 1 }).eq("tenant_id", p.tenantId).eq("id", p.leadId).eq("version", lead.version).select("id");
+  if (e2) throw new Error(`cannot mark the lead's address bounced: ${e2.message}`);
+  if ((moved ?? []).length === 0) {
+    if (p.retried) throw new Error("the lead whose address bounced moved while it was marked");
+    return leadAddressBounced(db, { ...p, retried: true });
+  }
+  return true;
 }
 async function leadWritten(db, p) {
   const { data: lead, error } = await db.from("leads").select("stage, version, contacted_at").eq("tenant_id", p.tenantId).eq("id", p.leadId).maybeSingle();
@@ -3987,6 +4010,7 @@ export {
   ingestInboundEmail,
   insertQueuedEmail,
   lastInboundEmail,
+  leadAddressBounced,
   leadSlotsOf,
   leadWritten,
   linkCallMessage,
@@ -4024,6 +4048,7 @@ export {
   recordStatusByExternalId,
   releaseControl,
   renameList,
+  reputationHoldsSince,
   reserveSendingDomain,
   resolveChannel,
   resolveChannelDetailed,
@@ -4038,6 +4063,7 @@ export {
   sendingDomainCounts,
   sendingDomainOf,
   sendingDomainsOf,
+  sentEmailOf,
   sentEmailRequestOf,
   sentEmailWithMessageId,
   setCallRecording,

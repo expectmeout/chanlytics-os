@@ -2282,6 +2282,7 @@ function isTimezone(raw) {
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
 var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
 var DAY_FMT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var REPUTATION_MEMORY_MS = 30 * 864e5;
 var ACTIVITY_KINDS = [...DECISION_VERBS, ...EVENT_KINDS];
 var BUSINESS_INDUSTRIES = [
   "AGRICULTURE",
