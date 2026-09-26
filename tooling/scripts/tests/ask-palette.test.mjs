@@ -1155,6 +1155,32 @@ test("on a phone the Line is the screen: focus on the dialog, not the field, the
   }
 });
 
+test("on a phone a preset question answered without a model offers Clear in the head, as a conversation does, and Clear goes home", async () => {
+  const ph = phoneWindow();
+  const props = { open: true, onClose: () => {} };
+  try {
+    const calls = ask([]);
+    render(Palette, props);
+    let tree = await later(Palette, props);
+    assert.equal(byTestId(tree, "ask-clear-head"), null, "home: nothing to clear");
+    typed(tree, "what's open saturday?");
+    tree = await later(Palette, props);
+    keyed(tree, "Enter");
+    tree = await later(Palette, props);
+    assert.deepEqual(calls.sent, [], "a quick answer asks no model");
+    assert.ok(byTestId(tree, "ask-say"), "the quick answer is drawn");
+    assert.ok(byTestId(tree, "ask-clear-head"), "and the head offers Clear over it");
+    press(byTestId(tree, "ask-clear-head"));
+    tree = await later(Palette, props);
+    assert.equal(byTestId(tree, "ask-say"), null, "cleared: the answer goes");
+    assert.ok(byTestId(tree, "ask-row-now"), "home again");
+    assert.equal(byTestId(tree, "ask-clear-head"), null);
+    await closes();
+  } finally {
+    ph.restore();
+  }
+});
+
 test("on a phone a place Ask goes to takes the takeover's entry: Back from there is the page Ask was opened over", async () => {
   const ph = phoneWindow();
   const went = [];

@@ -18,7 +18,8 @@
  * - Reading: an orbit. The three circle a ring tilted toward you, the nearest the largest, lifted and lightest, the
  *   farthest small and deep; the ring's axis sways, so the path traces a sphere. Leaving it, each tile keeps its speed.
  * - Answering: the tiles side by side, each word lifting one toward you and lighting it.
- * - Lit (glow): at rest, the mark where it stands in the AI's colour, with a turn or two: a page arriving on a phone.
+ * - Lit (glow): at rest, the mark where it stands in the AI's colour, with a turn, and more while it stays: a page
+ *   arriving on a phone, or something waiting on you.
  * Gestures scale with the drawn size (`detail`): a 7px tile in the top bar moves less than a 60px one on a phone.
  * A face nobody is near (the top bar's icon) stops breathing after `quietAfter` seconds and only turns, less often.
  * Each tile carries a charge, drawn as colour, never as motion (`light`).
@@ -844,7 +845,9 @@ export function createCharacter(options: CharacterOptions = {}): Character {
 
     // colour: its step, and whether it is at work. Addressed, it lights at once; done, it keeps its colour through
     // its bow and cools slowly, down the stack
-    lit = ease(lit, litTarget, dt, litTarget > lit ? 0.12 : 0.4);
+    // the light comes and goes quickly: a glance, then the ink, grey about 1.2 s after it ends with the tiles' own
+    // cooling below (0.4 here lingered 1.65 s)
+    lit = ease(lit, litTarget, dt, litTarget > lit ? 0.12 : 0.15);
     const liveNow = state === "idle" ? lit : 1;
     const warming = liveNow > prevLive;
     for (const b of bodies) {
@@ -1111,11 +1114,13 @@ export function createCharacter(options: CharacterOptions = {}): Character {
     },
     glow(v) {
       const on = unit(v);
-      // lit from dark, at rest: a turn now and the next soon, so the colour arrives with a move
+      // lit from dark, at rest: a turn now, so the colour arrives with a move; the next only if the light stays
       if (on > 0.5 && litTarget <= 0.5 && state === "idle" && !calm) {
         if (!moves.length) note(turns([0.46, 0.71, 0.89]));
-        nextFidgetAt = clock + 1.1 + rand() * 0.7;
+        nextFidgetAt = clock + 1.3 + rand() * 0.8;
       }
+      // the light gone, its quicker turns go with it: the ink's own pace again, not a turn left over from the light
+      if (on <= 0.5 && litTarget > 0.5) nextFidgetAt = Math.max(nextFidgetAt, clock + 6 + rand() * 5);
       litTarget = on;
     },
     pulse(v = 0.7) {

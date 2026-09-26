@@ -328,7 +328,7 @@ test("listening with nothing heard, the three wait alive: the tiles behind turn,
   assert.ok(moments >= 60);
 });
 
-test("lit at rest (a page arriving): the three take the AI's colour where they stand, a turn comes within two seconds, and the colour goes as the light does", () => {
+test("lit at rest (a page arriving): the three take the AI's colour where they stand, a turn comes with it, and the colour and its turns go as the light does", () => {
   const ch = createCharacter({ seed: 3, enter: false, detail: 60 });
   run(ch, 8);
   const home = ch.frame().squares.map((s) => [s.x, s.y]);
@@ -354,10 +354,20 @@ test("lit at rest (a page arriving): the three take the AI's colour where they s
   for (const k of moved)
     assert.ok(TURNS.includes(k) || ["look", "rise", "stretch", "nod"].includes(k), `${k} is a rest move`);
   ch.glow(0);
-  run(ch, 2.5);
+  const dark = ch.events().length;
+  run(ch, 1.4);
   assert.ok(
     ch.frame().squares.every((s) => s.live < 0.1),
-    "the ink is back",
+    `the ink is back within a second or so: ${ch
+      .frame()
+      .squares.map((s) => s.live.toFixed(2))
+      .join(",")}`,
+  );
+  run(ch, 4.4);
+  assert.equal(
+    ch.events().length,
+    dark,
+    "and the light's quicker turns went with it: nothing within the ink's own pace",
   );
   const calm = createCharacter({ seed: 3, enter: false, calm: true });
   calm.glow(1);
