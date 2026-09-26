@@ -9,7 +9,7 @@
  * below are neither a verb nor a request.
  */
 import {
-  standingLine,
+  businessGap,
   ABILITY_CHANNEL_WORDS,
   abilityRows,
   cannotRows,
@@ -307,7 +307,7 @@ export function saveIssues(part: unknown): Array<{ path: Array<string | number>;
 // What you offer's first row is how customers buy (0008): sellsByVM is its row, its choice and what the answer switches
 // on the page (the consult-first row's hint), and sellsBySaved the toast once an answer is taken.
 export const BUSINESS_TAB = {
-  standingLine,
+  businessGap,
   rulesKept,
   VISION_STRENGTH,
   ABILITY_CHANNEL_WORDS,

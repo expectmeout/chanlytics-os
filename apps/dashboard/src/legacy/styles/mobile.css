@@ -341,9 +341,6 @@
 }
 
 @media (max-width: 720px) {
-  /* Business says its name once on a phone: the open section in the strip over it and the top bar's crumb say it, so
-     the big title under them goes, for a screen reader's ears only; the line of what it is and who changed it stays. */
-  .bt-title { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .st-grid, .fleet-grid { grid-template-columns: 1fr; }
   .cl-triage-tab-row { flex-direction: column; align-items: flex-start; gap: 2px; }
   .pp-board { grid-template-columns: repeat(5, 82vw); min-width: 0; }

@@ -274,7 +274,7 @@ export function bookingLinkRowWords(sellsBy: string | null | undefined): { empty
     : { empty: "Not set", hint: "Sent instead of confirming an appointment itself." };
 }
 
-/** The subset of the brain the standing line reads. */
+/** The subset of the brain the gap line reads. */
 export interface StandingInputs {
   business_name?: string | null;
   booking_link?: string | null;
@@ -286,24 +286,14 @@ export interface StandingInputs {
   } | null;
 }
 
-export interface StandingVM {
-  /** What it can answer, in one clause. */
-  can: string;
-  /**
-   * What it will not do: state a price. Said whenever there are services to price,
-   * whatever the price switch says, because the detector runs either way (the owner's
-   * decision, 20 Sep 2026). Null with nothing to price.
-   *
-   * On a workspace that answers calls it names the difference between the two channels once,
-   * because the promise lands differently on each: see wontPrice below.
-   */
-  wont: string | null;
-  /** The single most useful gap, and the row that fixes it. Null when there is none. */
-  missing: { sentence: string; row: string } | null;
+/** The single most useful gap, and the row that fixes it. */
+export interface BusinessGap {
+  sentence: string;
+  row: string;
 }
 
 /**
- * What a receptionist with no services cannot do, in ONE place: the standing line's gap says it ("It cannot say what you
+ * What a receptionist with no services cannot do, in ONE place: the gap line says it ("It cannot say what you
  * offer."), and so does the services sheet's foot once the last one is taken out (servicesToldWords).
  */
 const CANNOT_SAY_SERVICES = "cannot say what you offer";
@@ -316,92 +306,37 @@ const has = (v: unknown): boolean =>
       : !!v && Object.keys(v as object).length > 0;
 
 /**
- * What it will not do, on the lines it answers on (the plan's M-1, 22 Sep 2026).
- *
- * In chat the sentence is exact: `violatesNoPrices` runs over the model's draft and the words are swapped before
- * anyone reads the reply, because a draft sits between the model and the customer (policy.ts).
- *
- * On a call there is no before. The provider hosts the agent and it speaks directly, so by the time a turn reaches
- * `spokenBreach` the caller has heard the figure, and what the product can still do is tell the owner -- and, while
- * the call's turns are still being delivered, correct it in what the agent says next (policy.ts's own header). Said
- * flat, the chat sentence promised a phone caller a swap that cannot happen there -- and it promised it hardest on
- * the workspaces where the price switch is off, since nothing then tells the phone agent to leave a service's price
- * note unread (config.ts, the Services block). So a workspace with a call names the difference, once, inside the one
- * clause; a chat-only workspace reads the exact sentence and is told nothing about a line it does not have.
- *
- * The clause says CAUGHT rather than corrected, on purpose. A correction is what the product can also do where the
- * call can still be reached; with per-turn delivery off on the agent the check runs on the final transcript and the
- * owner is told after the fact, with nothing said back to the caller. One line has to be true of both, and the one
- * thing that is true of both is that it is caught afterwards rather than prevented. The fold's own two lines say the
- * rest (`checkedOn`), where there is room for it.
- *
- * Still ONE clause either way: the standing line is three, and a fourth would make it a paragraph (spec 4.1).
- */
-const wontPrice = (link: boolean, calls: boolean): string =>
-  `It offers ${link ? "a consult or the booking link" : "a consult, or takes their details,"} instead of a price${calls ? " — in chat before the reply is sent, on a call caught afterwards rather than prevented" : ""}.`;
-
-/**
- * Three clauses, worst last.
+ * The one fact most worth adding, and the row that adds it; null when nothing is missing.
  *
  * The gaps are ordered by what a customer notices: a receptionist with no name
  * cannot introduce itself, one with no hours cannot answer the commonest
  * question, and one with no voice answers in nobody's words. Only
  * the first gap is named — a list of six is a list nobody starts.
  *
- * `calls` is whether the workspace answers a phone line at all, and it is required and checked as it runs, like
- * `abilityRows`' inputs: the page that calls this is untyped JSX, and a workspace whose call was left out would read
- * the chat sentence on the phone -- which is the wording M-1 was raised about in the first place.
+ * The page says nothing above its cards while every fact is there: the rows already say what it answers from, and the
+ * price rule's fold says what it does instead of a price, per channel (`checkedOn`). A line that repeated both was the
+ * clutter Ruben cut on 26 Sep 2026.
  *
- * `sellsBy` is the workspace's answer to how its customers buy, null where it was never said, and required for the
- * same reason: a business that quotes has no booking link by right (deals.ts bookingLinkOptional), and one left out
- * would be told its missing link is the gap to fix.
+ * `sellsBy` is the workspace's answer to how its customers buy, null where it was never said, and required and checked
+ * as it runs: the page that calls this is untyped JSX, a business that quotes has no booking link by right (deals.ts
+ * bookingLinkOptional), and one left out would be told its missing link is the gap to fix.
  */
-export function standingLine(i: StandingInputs, calls: boolean, sellsBy: string | null): StandingVM {
-  if (typeof calls !== "boolean") {
-    throw new TypeError("standingLine needs to know whether the workspace answers calls: the two channels differ.");
-  }
+export function businessGap(i: StandingInputs, sellsBy: string | null): BusinessGap | null {
   if (sellsBy !== null && typeof sellsBy !== "string") {
     throw new TypeError(
-      "standingLine needs how customers buy (the workspace's sells_by, null when not said): whether a missing booking link is a gap turns on it.",
+      "businessGap needs how customers buy (the workspace's sells_by, null when not said): whether a missing booking link is a gap turns on it.",
     );
   }
   const p = i.profile ?? {};
-  // Whether it offers a link, by the resolver's own test: every clause below that turns on one asks this.
-  const link = offersBookingLink(i);
-  const gaps: { sentence: string; row: string }[] = [];
-  if (!has(i.business_name)) gaps.push({ sentence: "It has no name to introduce itself with.", row: "name" });
-  if (!link && !bookingLinkOptional(sellsBy))
-    gaps.push({ sentence: "It has no booking link to send anyone.", row: "booking_link" });
-  if (!has(p.hours)) gaps.push({ sentence: "It cannot say when you are open.", row: "hours" });
-  if (!has(p.services)) gaps.push({ sentence: `It ${CANNOT_SAY_SERVICES}.`, row: "services" });
-  if (!has(p.address)) gaps.push({ sentence: "It cannot say where you are.", row: "address" });
+  if (!has(i.business_name)) return { sentence: "It has no name to introduce itself with.", row: "name" };
+  if (!offersBookingLink(i) && !bookingLinkOptional(sellsBy))
+    return { sentence: "It has no booking link to send anyone.", row: "booking_link" };
+  if (!has(p.hours)) return { sentence: "It cannot say when you are open.", row: "hours" };
+  if (!has(p.services)) return { sentence: `It ${CANNOT_SAY_SERVICES}.`, row: "services" };
+  if (!has(p.address)) return { sentence: "It cannot say where you are.", row: "address" };
   if (!has(p.tone))
-    gaps.push({
-      sentence: "It has no voice of its own yet — it answers in nobody in particular's words.",
-      row: "tone",
-    });
-
-  const answers: string[] = [];
-  if (has(p.address)) answers.push("where you are");
-  if (has(p.hours)) answers.push("when you're open");
-  if (has(p.services)) answers.push("what you offer");
-  // A business that quotes, with no link, still answers: it takes their details for a quote (decision 2).
-  if (link) answers.push("how to book");
-  else if (bookingLinkOptional(sellsBy)) answers.push("how to get a quote");
-
-  const can = answers.length
-    ? `It can say ${answers.length === 1 ? answers[0] : `${answers.slice(0, -1).join(", ")} and ${answers.at(-1)}`}.`
-    : "It cannot answer anyone yet.";
-
-  // Both offers, because the two channels do different things: chat's replacement offers a
-  // consult (layerTwo), and a call's correction offers the booking link (frameGuardrail).
-  // "A consult" alone was true on WhatsApp and not on the phone. And on a workspace with a call,
-  // WHEN each happens differs too, which is the rest of the clause on a call. With no link, a
-  // call's correction takes their details in the link's place (priceNextStep, no-booking-link.ts),
-  // and the clause says so.
-  const wont = has(p.services) ? wontPrice(link, calls) : null;
-
-  return { can, wont, missing: gaps[0] ?? null };
+    return { sentence: "It has no voice of its own yet — it answers in nobody in particular's words.", row: "tone" };
+  return null;
 }
 
 /* ---- When you're open ---- */
@@ -607,7 +542,7 @@ export const PROMPT_NOW = {
 /**
  * What the services sheet's foot says it will be told: "33 services, 1,190 characters — a quarter of everything it
  * reads." (the canvas's Edit-Sheet), from the services the save would write, its block's characters and the whole
- * prompt's length. With none it says what that costs, in the standing line's own words for it (CANNOT_SAY_SERVICES).
+ * prompt's length. With none it says what that costs, in the gap line's own words for it (CANNOT_SAY_SERVICES).
  */
 export function servicesToldWords(i: { count: number; chars: number | null; total: number | null }): string {
   const n = i.count;
@@ -1246,7 +1181,7 @@ export function abilityRows(i: AbilityInputs): AbilitiesVM {
       channels: both,
       runsOn: { label: "Name and hours", row: "name" },
       ready: answering,
-      // The facts it answers from are the standing line's subject, at the top of the page.
+      // The facts it answers from are the rows' own subject, and a missing one is the gap line's (businessGap).
       missing: false,
     },
     {

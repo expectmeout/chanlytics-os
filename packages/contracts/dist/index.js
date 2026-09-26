@@ -2663,21 +2663,6 @@ function changedConfigFields(before, after) {
   const keys = [.../* @__PURE__ */ new Set([...Object.keys(a), ...Object.keys(b)])].sort();
   return keys.filter((k) => JSON.stringify(a[k] ?? null) !== JSON.stringify(b[k] ?? null));
 }
-function lastChangedName(m) {
-  const name = (m.display_name ?? "").trim();
-  if (name) return name;
-  const local = (m.email ?? "").trim().split("@")[0]?.trim() ?? "";
-  return local || "a member";
-}
-function lastChangedWords(updatedAt, by, nowMs) {
-  const at2 = updatedAt ? Date.parse(updatedAt) : NaN;
-  if (Number.isNaN(at2)) return "";
-  const when = agoWords(at2, nowMs);
-  if (by.who === "you") return `Changed by you, ${when}`;
-  if (by.who === "member") return `Last changed by ${by.name}, ${when}`;
-  if (by.who === "gone") return `Last changed by someone no longer on the team, ${when}`;
-  return `Last changed ${when}, before we kept track of who`;
-}
 
 // src/config.ts
 import { z as z3 } from "zod";
@@ -14085,39 +14070,22 @@ function bookingLinkRowWords(sellsBy) {
 }
 var CANNOT_SAY_SERVICES = "cannot say what you offer";
 var has2 = (v) => typeof v === "string" ? v.trim().length > 0 : Array.isArray(v) ? v.length > 0 : !!v && Object.keys(v).length > 0;
-var wontPrice = (link, calls) => `It offers ${link ? "a consult or the booking link" : "a consult, or takes their details,"} instead of a price${calls ? " \u2014 in chat before the reply is sent, on a call caught afterwards rather than prevented" : ""}.`;
-function standingLine(i, calls, sellsBy) {
-  if (typeof calls !== "boolean") {
-    throw new TypeError("standingLine needs to know whether the workspace answers calls: the two channels differ.");
-  }
+function businessGap(i, sellsBy) {
   if (sellsBy !== null && typeof sellsBy !== "string") {
     throw new TypeError(
-      "standingLine needs how customers buy (the workspace's sells_by, null when not said): whether a missing booking link is a gap turns on it."
+      "businessGap needs how customers buy (the workspace's sells_by, null when not said): whether a missing booking link is a gap turns on it."
     );
   }
   const p = i.profile ?? {};
-  const link = offersBookingLink(i);
-  const gaps = [];
-  if (!has2(i.business_name)) gaps.push({ sentence: "It has no name to introduce itself with.", row: "name" });
-  if (!link && !bookingLinkOptional(sellsBy))
-    gaps.push({ sentence: "It has no booking link to send anyone.", row: "booking_link" });
-  if (!has2(p.hours)) gaps.push({ sentence: "It cannot say when you are open.", row: "hours" });
-  if (!has2(p.services)) gaps.push({ sentence: `It ${CANNOT_SAY_SERVICES}.`, row: "services" });
-  if (!has2(p.address)) gaps.push({ sentence: "It cannot say where you are.", row: "address" });
+  if (!has2(i.business_name)) return { sentence: "It has no name to introduce itself with.", row: "name" };
+  if (!offersBookingLink(i) && !bookingLinkOptional(sellsBy))
+    return { sentence: "It has no booking link to send anyone.", row: "booking_link" };
+  if (!has2(p.hours)) return { sentence: "It cannot say when you are open.", row: "hours" };
+  if (!has2(p.services)) return { sentence: `It ${CANNOT_SAY_SERVICES}.`, row: "services" };
+  if (!has2(p.address)) return { sentence: "It cannot say where you are.", row: "address" };
   if (!has2(p.tone))
-    gaps.push({
-      sentence: "It has no voice of its own yet \u2014 it answers in nobody in particular's words.",
-      row: "tone"
-    });
-  const answers = [];
-  if (has2(p.address)) answers.push("where you are");
-  if (has2(p.hours)) answers.push("when you're open");
-  if (has2(p.services)) answers.push("what you offer");
-  if (link) answers.push("how to book");
-  else if (bookingLinkOptional(sellsBy)) answers.push("how to get a quote");
-  const can = answers.length ? `It can say ${answers.length === 1 ? answers[0] : `${answers.slice(0, -1).join(", ")} and ${answers.at(-1)}`}.` : "It cannot answer anyone yet.";
-  const wont = has2(p.services) ? wontPrice(link, calls) : null;
-  return { can, wont, missing: gaps[0] ?? null };
+    return { sentence: "It has no voice of its own yet \u2014 it answers in nobody in particular's words.", row: "tone" };
+  return null;
 }
 var DAY_COUNT_WORDS = ["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven"];
 function openWeekWords(hours, tz) {
@@ -14425,7 +14393,7 @@ function abilityRows(i) {
       channels: both,
       runsOn: { label: "Name and hours", row: "name" },
       ready: answering,
-      // The facts it answers from are the standing line's subject, at the top of the page.
+      // The facts it answers from are the rows' own subject, and a missing one is the gap line's (businessGap).
       missing: false
     },
     {
@@ -24123,6 +24091,7 @@ export {
   buildAskSuggestions,
   buildNotificationFeed,
   businessFieldsFor,
+  businessGap,
   businessGroupWordsFor,
   businessNameOf,
   businessPageMetadata,
@@ -24420,8 +24389,6 @@ export {
   languageName,
   languageTag,
   languageWords,
-  lastChangedName,
-  lastChangedWords,
   leadAllowanceFact,
   leadAnd,
   leadAskedFor,
@@ -24790,7 +24757,6 @@ export {
   spokenBreachDetails,
   spokenDuration,
   stageArgs,
-  standingLine,
   standingOf,
   starsOf,
   starterByKey,

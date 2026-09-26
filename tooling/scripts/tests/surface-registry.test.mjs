@@ -256,9 +256,9 @@ test("every default pane is one the registry classifies", () => {
 
 // The empty profile leads with a button, not a footnote. Every workspace starts here, and a faint Edit link in a
 // card header is findable only by someone who already knows the form exists. Since Task 3.7 the form is gone and
-// the page says it at the top instead: the standing line names the one gap most worth closing and IS the door to
+// the page says it at the top instead: the gap line names the one gap most worth closing and IS the door to
 // the row that closes it (the spec's 4.1). Drawn and pressed, not read -- business-tab-page.test.mjs, "a missing
-// voice is named in the band, and the link opens its row".
+// voice is named in the gap line, and the link opens its row".
 
 /* ------------------ the gate must resolve the same way ------------------- */
 

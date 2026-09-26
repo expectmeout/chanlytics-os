@@ -59,7 +59,6 @@ Object.assign(globalThis, {
   __samePhone: samePhone,
   __handoffE164: handoffE164,
   __roleGate: roleGate,
-  __lastChanged: () => "",
   // What a new receptionist starts with, which a rename writes again under the new name (inbox-verbs.ts).
   __receptionistDefaults: newReceptionistDefaults,
   // When you're open: the composer's own run-collapsing and the caps the write schema keeps (inbox-verbs.ts), and the
@@ -108,7 +107,7 @@ await import(`${L}/pages/business-tab-prompt.jsx`);
 await import(`${L}/pages/business-tab-create.jsx`);
 await import(`${L}/pages/business-tab.jsx`);
 const W = globalThis.window;
-// The tab's helpers, from the module the app installs: the standing line, and what each row will tell the receptionist.
+// The tab's helpers, from the module the app installs: the gap line, and what each row will tell the receptionist.
 const { installBusinessTab } = await import("../../../apps/dashboard/src/legacy-bridge/business-tab.ts");
 installBusinessTab();
 // What the receptionist is told, read off the settings read as the app reads it (inbox-verbs.ts composedPrompt, the
