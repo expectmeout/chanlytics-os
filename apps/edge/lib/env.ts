@@ -148,6 +148,24 @@ export const env = {
   get EXPO_ACCESS_TOKEN() {
     return read(process.env.EXPO_ACCESS_TOKEN);
   },
+  // Apple's push service, spoken to directly for the call in progress on a phone's Lock Screen (lib/ops/apns.ts).
+  // All four set, or the port is absent; the key is the .p8's PEM, or a base64 of it.
+  get APNS_TEAM_ID() {
+    return read(process.env.APNS_TEAM_ID);
+  },
+  get APNS_KEY_ID() {
+    return read(process.env.APNS_KEY_ID);
+  },
+  get APNS_KEY_P8() {
+    return read(process.env.APNS_KEY_P8);
+  },
+  get APNS_BUNDLE_ID() {
+    return read(process.env.APNS_BUNDLE_ID);
+  },
+  /** 'on' sends to Apple's sandbox: a development build's tokens are the sandbox's. */
+  get APNS_SANDBOX() {
+    return read(process.env.APNS_SANDBOX);
+  },
 
   // LLM
   get ANTHROPIC_API_KEY() {

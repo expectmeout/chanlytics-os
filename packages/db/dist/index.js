@@ -2615,6 +2615,7 @@ var OPENING_SCHEMA = {
   required: ["opening", "angle", "facts_used"],
   additionalProperties: false
 };
+var CALL_ACTIVITY_STALE_MS = 15 * 6e4;
 
 // src/repositories/ingest.ts
 async function ingestInbound(db, p) {

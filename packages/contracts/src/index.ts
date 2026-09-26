@@ -110,3 +110,4 @@ export * from "./reach-out-words";
 export * from "./reach-out-opening";
 export * from "./app-bridge";
 export * from "./widget";
+export * from "./live-activity";

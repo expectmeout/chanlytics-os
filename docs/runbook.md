@@ -418,6 +418,23 @@ Nothing sends until a build carries push credentials, and nothing is signed unti
 3. **Watch** `push_send` and `push_receipts` on the jobs ledger: a `push_rejected 401` is the token; a phone the
    receipts say is gone is forgotten by the job, never by hand.
 
+## Turn on the call in progress on phones
+
+A call the receptionist is on appears on the workspace's iPhones as a Live Activity (PR 7 of the phone app): the edge
+starts it with a push straight to Apple's service, since Expo's push service does not carry `liveactivity` pushes
+(`apps/edge/lib/ops/apns.ts`; the rule is `apps/edge/lib/voice/call-activity.ts`). Nothing is sent until the four
+keys are set; a phone hands out its push-to-start token on iOS 17.2 and later, and the site keeps it on the device's
+row (00191).
+
+1. **A key**, once: Apple Developer, Certificates, Identifiers & Profiles → Keys, a key with Apple Push Notifications
+   service (APNs). Keep the `.p8` it downloads once. The same key may be the one EAS holds for push.
+2. **On the edge** (Vercel, the messaging project): `APNS_TEAM_ID` (the account's team id), `APNS_KEY_ID` (the key's
+   id), `APNS_KEY_P8` (the `.p8` file's contents; a base64 of it is accepted, since a one-line value is what a
+   dashboard takes), `APNS_BUNDLE_ID=com.chanlytics.app`. `APNS_SANDBOX=on` only for a development build's tokens.
+3. **Watch** `call_activity_started`, `call_activity_refused` and `call_activity_failed` on the edge's logs: a 403 is
+   the key or the team, a 400 `BadDeviceToken` a sandbox token against production (or the reverse), a 410 a phone
+   that no longer has the app.
+
 ## Turn on native sign-in
 
 The app signs in with Apple and Google natively (PR 3 of the phone app) and hands the identity token to

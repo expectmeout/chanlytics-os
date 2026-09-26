@@ -3422,6 +3422,7 @@ var OPENING_SCHEMA = {
   required: ["opening", "angle", "facts_used"],
   additionalProperties: false
 };
+var CALL_ACTIVITY_STALE_MS = 15 * 6e4;
 var GRAPH = "https://graph.facebook.com/v25.0";
 var SEND_TIMEOUT_MS = 15e3;
 async function postGraph(cfg, payload) {
@@ -8267,6 +8268,7 @@ var OPENING_SCHEMA2 = {
   required: ["opening", "angle", "facts_used"],
   additionalProperties: false
 };
+var CALL_ACTIVITY_STALE_MS2 = 15 * 6e4;
 
 // ../db/dist/index.js
 import { z as z14 } from "zod";
@@ -10737,6 +10739,7 @@ var OPENING_SCHEMA3 = {
   required: ["opening", "angle", "facts_used"],
   additionalProperties: false
 };
+var CALL_ACTIVITY_STALE_MS3 = 15 * 6e4;
 async function recordCarrierOptOut(db, p) {
   const { data, error } = await db.from("contacts").update({
     consent: "opted_out",

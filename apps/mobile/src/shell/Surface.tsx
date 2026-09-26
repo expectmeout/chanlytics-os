@@ -15,10 +15,11 @@ import * as WebBrowser from "expo-web-browser";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useIsFocused } from "expo-router";
 import { parsePageMessage, type ShellMessage } from "@chanlytics/contracts";
-import { askPage, bottomInset, insetScript, onPageMessage, shouldRegister } from "./bridge";
+import { askPage, bottomInset, insetScript, onPageMessage, registrationKey, shouldRegister } from "./bridge";
 import { getState, registerReloader, setState, useShell, type Tab } from "./state";
 import { setBadge, tabOf } from "./notifications";
 import { updateTodayWidget } from "./widget";
+import { endCallActivities } from "./live-activity";
 import { Offline } from "./Offline";
 import { hrefFor, isOurs, isSignedOutUrl, LOGIN_HREF, NATIVE_DOOR, userAgentToken } from "@/site";
 
@@ -53,6 +54,7 @@ export function Surface({ route, tab, onReady, post }: Props) {
   const [failed, setFailed] = useState(false);
   const slug = useShell((s) => s.slug);
   const token = useShell((s) => s.token);
+  const activityToken = useShell((s) => s.activityToken);
   const registered = useShell((s) => s.registered);
   const session = useShell((s) => s.session);
   const pendingRoute = useShell((s) => s.pendingRoute);
@@ -84,6 +86,7 @@ export function Surface({ route, tab, onReady, post }: Props) {
       const { state, effect } = onPageMessage(getState(), e.nativeEvent.data);
       setState(state);
       if (effect === "badge") void setBadge(state.badge);
+      if (effect === "calls-over") void endCallActivities();
       const m = parsePageMessage(e.nativeEvent.data);
       if (m?.t === "today") updateTodayWidget(m.snapshot);
       if (m?.t === "device" && m.state === "forgotten") forgetting.current?.resolve();
@@ -95,13 +98,19 @@ export function Surface({ route, tab, onReady, post }: Props) {
     [focused, handle, onReady],
   );
 
-  // The phone registers through the page in front: once per token per person (bridge.ts shouldRegister).
+  // The phone registers through the page in front: once per token pair per person (bridge.ts shouldRegister).
   useEffect(() => {
-    if (!ready || !focused || route === "login" || !shouldRegister({ ...getState(), session, token, registered }))
-      return;
-    setState({ registered: token }); // claimed now, so a second page in front does not ask again; a refusal clears it
-    handle.ask({ t: "device", token: token!, platform: PLATFORM, version: Application.nativeApplicationVersion ?? "" });
-  }, [ready, focused, route, session, token, registered, handle]);
+    const s = { ...getState(), session, token, activityToken, registered };
+    if (!ready || !focused || route === "login" || !shouldRegister(s)) return;
+    setState({ registered: registrationKey(s) }); // claimed now, so a second page in front does not ask again; a refusal clears it
+    handle.ask({
+      t: "device",
+      token: token!,
+      platform: PLATFORM,
+      version: Application.nativeApplicationVersion ?? "",
+      ...(activityToken ? { activity: activityToken } : {}),
+    });
+  }, [ready, focused, route, session, token, activityToken, registered, handle]);
 
   // A tapped notification's route, opened by the tab it belongs to once its page is ready.
   useEffect(() => {
@@ -120,7 +129,7 @@ export function Surface({ route, tab, onReady, post }: Props) {
       if (isOurs(req.url)) {
         // Before the person signs out, the page forgets the phone; two seconds at most, then the sign-out goes on.
         const { token: tok, registered: reg } = getState();
-        if (/\/auth\/signout(\/|\?|$)/.test(req.url) && tok && reg === tok && !forgetting.current) {
+        if (/\/auth\/signout(\/|\?|$)/.test(req.url) && tok && reg && !forgetting.current) {
           const go = () => {
             forgetting.current = null;
             setState({ registered: null });

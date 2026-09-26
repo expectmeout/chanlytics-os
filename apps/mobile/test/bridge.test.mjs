@@ -12,6 +12,7 @@ import {
   bottomInset,
   IOS_TAB_BAR_PT,
   shouldRegister,
+  registrationKey,
 } from "../src/shell/bridge.ts";
 import { INITIAL } from "../src/shell/state.ts";
 
@@ -55,7 +56,7 @@ test("the bell's number is the icon's; a device answer settles what is registere
   assert.equal(r.effect, "badge");
   assert.equal(r.state.badge, 5);
   r = onPageMessage(r.state, '{"t":"device","state":"registered"}');
-  assert.equal(r.state.registered, "tok");
+  assert.equal(r.state.registered, "tok|");
   r = onPageMessage(r.state, '{"t":"device","state":"refused"}');
   assert.equal(r.state.registered, null, "refused: the next chance asks again");
   r = onPageMessage({ ...r.state, session: "in", slug: "acme", registered: "tok" }, '{"t":"session","state":"out"}');
@@ -63,10 +64,21 @@ test("the bell's number is the icon's; a device answer settles what is registere
   assert.equal(r.state.slug, null);
 });
 
-test("a page in front is asked to register once per token per person", () => {
+test("a page in front is asked to register once per token pair per person", () => {
   assert.ok(shouldRegister({ ...INITIAL, session: "in", token: "tok", registered: null }));
-  assert.ok(shouldRegister({ ...INITIAL, session: "in", token: "tok2", registered: "tok" }), "a rotated token");
-  assert.ok(!shouldRegister({ ...INITIAL, session: "in", token: "tok", registered: "tok" }));
+  assert.ok(shouldRegister({ ...INITIAL, session: "in", token: "tok2", registered: "tok|" }), "a rotated token");
+  assert.ok(!shouldRegister({ ...INITIAL, session: "in", token: "tok", registered: "tok|" }));
+  assert.ok(
+    shouldRegister({ ...INITIAL, session: "in", token: "tok", activityToken: "act", registered: "tok|" }),
+    "an activity token that arrived after the push token registers again",
+  );
+  assert.ok(!shouldRegister({ ...INITIAL, session: "in", token: "tok", activityToken: "act", registered: "tok|act" }));
+  assert.equal(registrationKey({ token: null, activityToken: "act" }), null, "no push token, nothing to register");
   assert.ok(!shouldRegister({ ...INITIAL, session: "out", token: "tok", registered: null }));
   assert.ok(!shouldRegister({ ...INITIAL, session: "in", token: null, registered: null }), "a simulator has no token");
+});
+
+test("the Live page's count of calls in progress ends the call's activity only at none", () => {
+  assert.equal(onPageMessage(INITIAL, '{"t":"calls","live":0}').effect, "calls-over");
+  assert.equal(onPageMessage(INITIAL, '{"t":"calls","live":1}').effect, "nothing");
 });
