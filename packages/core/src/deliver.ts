@@ -43,6 +43,7 @@ import {
 import {
   domainDailyCap,
   mayMessageFor,
+  outreachRefusalOf,
   purposeOfTemplate,
   type DeliveryRefusal,
   type SendPurpose,
@@ -401,16 +402,9 @@ function refusalFor(d: Delivery, f: WireFacts, nowMs: number, o: OutreachFacts |
   // verified, never from the hosted address every workspace's replies share.
   if (d.purpose === "outreach") {
     if (!o) throw new Error(`deliver: an outreach email is judged with its facts (conversation ${d.conversationId})`);
-    if (!o.leadStage) return "outreach_not_a_lead";
-    // Only a business still being written to: a lead that said no, became a customer or was set aside is not.
-    if (o.leadStage !== "ready" && o.leadStage !== "nurture") return "outreach_lead_closed";
-    if (o.suppressed) return "outreach_suppressed";
-    // Every cold email's foot promises "reply 'no thanks' and I won't write again", and a reply asking to stop, in any
-    // words, is an opt-out the law says to honour. Nothing reads a reply to tell a no from a yes, so the promise is
-    // kept the plain way: a person who wrote back, or phoned, is in a conversation, answered from the Inbox, and a
-    // reach-out's next email (a nudge, a later run) is never sent to them. An out-of-office is not a person writing;
-    // mail with a list's headers is, since a helpdesk sends a person's no with them too (00181).
-    if (o.wroteBack) return "outreach_wrote_back";
+    // The lead's own facts, in the one mapping the reach-out clock also asks before it claims a send.
+    const lead = outreachRefusalOf({ leadStage: o.leadStage, suppressed: o.suppressed, wroteBack: o.wroteBack });
+    if (lead) return lead;
     if (!o.unsubscribable) return "outreach_without_unsubscribe";
     if (!o.domainState) return "outreach_needs_own_domain";
     if (o.domainState !== "verified") return "sending_domain_not_ready";

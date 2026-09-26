@@ -776,6 +776,18 @@ export function weekHoursOf(hours: unknown): { week: WeekHours; read: boolean } 
 - Create: `packages/contracts/src/reach-out-timetable.ts`
 - Test: `tooling/scripts/tests/reach-out-timetable.test.mjs`
 
+> **As built (PR 2, 26 Sep 2026).** The file in the tree is the reference; it differs from the code below in three ways,
+> each tested:
+> - **A day's frame.** A send also falls inside 8 AM–8 PM in the lead's time (`SEND_DAY_FRAME`). Without it, an "Open 24
+>   hours" listing took its first send at 00:30. `sendWindowsOf(week)` applies the margin and the frame. A week with
+>   open hours but no daytime window (a bar from nine) takes the default week's; a week closed every day stays unplaced.
+> - **Sorted times, searched.** The gap and cap checks use binary search over sorted times, and a lead's spans are worked
+>   out once per zone and week. The code below took 1 s for 500 sends and 5 s for 2,000. The build takes 19 ms and 40 ms
+>   for the same placements.
+> - **No re-export of the weekday order.** Part 4 imports what it needs from `lead-hours.ts`.
+>
+> `lead-hours.test.mjs` also pins the odd shapes production holds (all 47 distinct strings read, 25 Sep 2026).
+
 - [ ] **Step 1: The failing tests** — each a rule of §4.5:
 
 ```js

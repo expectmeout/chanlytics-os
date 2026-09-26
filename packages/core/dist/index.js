@@ -3335,6 +3335,8 @@ var K = new Uint32Array([
   3329325298
 ]);
 var NAME_MAX = BrainConfigSchema.shape.business_name.maxLength ?? Infinity;
+var NINE_TO_FIVE = [{ from: 9 * 60, to: 17 * 60 }];
+var SEND_DAY_FRAME = { from: 8 * 60, to: 20 * 60 };
 var GRAPH = "https://graph.facebook.com/v25.0";
 var SEND_TIMEOUT_MS = 15e3;
 async function postGraph(cfg, payload) {
@@ -7788,6 +7790,15 @@ function isCampaignEmail(request) {
   const v = headers?.["List-Unsubscribe"];
   return typeof v === "string" && v.trim() !== "";
 }
+var NINE_TO_FIVE2 = [{ from: 9 * 60, to: 17 * 60 }];
+var SEND_DAY_FRAME2 = { from: 8 * 60, to: 20 * 60 };
+function outreachRefusalOf(f) {
+  if (!f.leadStage) return "outreach_not_a_lead";
+  if (f.leadStage !== "ready" && f.leadStage !== "nurture") return "outreach_lead_closed";
+  if (f.suppressed) return "outreach_suppressed";
+  if (f.wroteBack) return "outreach_wrote_back";
+  return null;
+}
 
 // ../db/dist/index.js
 import { z as z12 } from "zod";
@@ -10170,6 +10181,8 @@ var K3 = new Uint32Array([
   3329325298
 ]);
 var NAME_MAX3 = BrainConfigSchema3.shape.business_name.maxLength ?? Infinity;
+var NINE_TO_FIVE3 = [{ from: 9 * 60, to: 17 * 60 }];
+var SEND_DAY_FRAME3 = { from: 8 * 60, to: 20 * 60 };
 async function recordOutbound(db, p) {
   if (p.channel === "email")
     throw new Error("record_outbound: an email's row is written before it is sent, never after");
@@ -10343,10 +10356,8 @@ function refusalFor(d, f, nowMs, o) {
   if (!may.ok) return may.reason;
   if (d.purpose === "outreach") {
     if (!o) throw new Error(`deliver: an outreach email is judged with its facts (conversation ${d.conversationId})`);
-    if (!o.leadStage) return "outreach_not_a_lead";
-    if (o.leadStage !== "ready" && o.leadStage !== "nurture") return "outreach_lead_closed";
-    if (o.suppressed) return "outreach_suppressed";
-    if (o.wroteBack) return "outreach_wrote_back";
+    const lead = outreachRefusalOf({ leadStage: o.leadStage, suppressed: o.suppressed, wroteBack: o.wroteBack });
+    if (lead) return lead;
     if (!o.unsubscribable) return "outreach_without_unsubscribe";
     if (!o.domainState) return "outreach_needs_own_domain";
     if (o.domainState !== "verified") return "sending_domain_not_ready";

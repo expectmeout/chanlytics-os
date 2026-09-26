@@ -2582,6 +2582,8 @@ function isCampaignEmail(request) {
   const v = headers?.["List-Unsubscribe"];
   return typeof v === "string" && v.trim() !== "";
 }
+var NINE_TO_FIVE = [{ from: 9 * 60, to: 17 * 60 }];
+var SEND_DAY_FRAME = { from: 8 * 60, to: 20 * 60 };
 
 // ../channels/dist/index.js
 import { z as z11 } from "zod";
@@ -9912,6 +9914,8 @@ var K2 = new Uint32Array([
   3329325298
 ]);
 var NAME_MAX2 = BrainConfigSchema2.shape.business_name.maxLength ?? Infinity;
+var NINE_TO_FIVE2 = [{ from: 9 * 60, to: 17 * 60 }];
+var SEND_DAY_FRAME2 = { from: 8 * 60, to: 20 * 60 };
 var MEDIA_MAX_BYTES = 25 * 1024 * 1024;
 var CALL_ANALYSIS_FIELDS = [
   {
@@ -13346,6 +13350,8 @@ var K3 = new Uint32Array([
   3329325298
 ]);
 var NAME_MAX3 = BrainConfigSchema3.shape.business_name.maxLength ?? Infinity;
+var NINE_TO_FIVE3 = [{ from: 9 * 60, to: 17 * 60 }];
+var SEND_DAY_FRAME3 = { from: 8 * 60, to: 20 * 60 };
 var MEDIA_MAX_BYTES2 = 25 * 1024 * 1024;
 var CALL_ANALYSIS_FIELDS2 = [
   {
@@ -15901,6 +15907,15 @@ function isCampaignEmail2(request) {
   const v = headers?.["List-Unsubscribe"];
   return typeof v === "string" && v.trim() !== "";
 }
+var NINE_TO_FIVE22 = [{ from: 9 * 60, to: 17 * 60 }];
+var SEND_DAY_FRAME22 = { from: 8 * 60, to: 20 * 60 };
+function outreachRefusalOf(f) {
+  if (!f.leadStage) return "outreach_not_a_lead";
+  if (f.leadStage !== "ready" && f.leadStage !== "nurture") return "outreach_lead_closed";
+  if (f.suppressed) return "outreach_suppressed";
+  if (f.wroteBack) return "outreach_wrote_back";
+  return null;
+}
 z122.config({ jitless: true });
 var LABEL32 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL32 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
@@ -18271,6 +18286,8 @@ var K32 = new Uint32Array([
   3329325298
 ]);
 var NAME_MAX32 = BrainConfigSchema32.shape.business_name.maxLength ?? Infinity;
+var NINE_TO_FIVE32 = [{ from: 9 * 60, to: 17 * 60 }];
+var SEND_DAY_FRAME32 = { from: 8 * 60, to: 20 * 60 };
 async function recordOutbound(db, p) {
   if (p.channel === "email")
     throw new Error("record_outbound: an email's row is written before it is sent, never after");
@@ -18422,10 +18439,8 @@ function refusalFor(d, f, nowMs, o2) {
   if (!may.ok) return may.reason;
   if (d.purpose === "outreach") {
     if (!o2) throw new Error(`deliver: an outreach email is judged with its facts (conversation ${d.conversationId})`);
-    if (!o2.leadStage) return "outreach_not_a_lead";
-    if (o2.leadStage !== "ready" && o2.leadStage !== "nurture") return "outreach_lead_closed";
-    if (o2.suppressed) return "outreach_suppressed";
-    if (o2.wroteBack) return "outreach_wrote_back";
+    const lead = outreachRefusalOf({ leadStage: o2.leadStage, suppressed: o2.suppressed, wroteBack: o2.wroteBack });
+    if (lead) return lead;
     if (!o2.unsubscribable) return "outreach_without_unsubscribe";
     if (!o2.domainState) return "outreach_needs_own_domain";
     if (o2.domainState !== "verified") return "sending_domain_not_ready";
@@ -21332,6 +21347,8 @@ var K4 = new Uint32Array([
   3329325298
 ]);
 var NAME_MAX4 = BrainConfigSchema4.shape.business_name.maxLength ?? Infinity;
+var NINE_TO_FIVE4 = [{ from: 9 * 60, to: 17 * 60 }];
+var SEND_DAY_FRAME4 = { from: 8 * 60, to: 20 * 60 };
 async function ingestInbound(db, p) {
   const { data, error } = await db.rpc("ingest_inbound", {
     p_tenant_id: p.tenantId,
