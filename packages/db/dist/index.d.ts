@@ -7224,7 +7224,7 @@ interface YesRow {
 declare function yesesSince(db: Db$1, tenantId: string, since: Date): Promise<YesRow[]>;
 
 /**
- * What the hourly sweeps read (00193): a bounded page of what is due, judged in the database, with the exact count of
+ * What the hourly sweeps read (00196): a bounded page of what is due, judged in the database, with the exact count of
  * what is due beyond it. The playbooks sweep used to read a page of every running playbook and judge due-ness after,
  * so a due playbook waited behind a page of ones that had run today or were hours from their hour, and what it said
  * it could not reach counted those too: a deployment with twenty-six daily playbooks called itself backlogged every
@@ -7246,7 +7246,7 @@ interface DuePlaybook {
     timezone: string;
 }
 /**
- * The running playbooks of one kind due at `at` (00193 playbooks_due): at or past their hour by their workspace's own
+ * The running playbooks of one kind due at `at` (00196 playbooks_due): at or past their hour by their workspace's own
  * clock, not past the last hour a message may go out, and not yet run for that clock's day -- runDueNow's rule, judged
  * in the database -- never run first, then the least recently run, `limit` of them, with the exact count of due
  * playbooks beyond the page. `tenantId` keeps to one workspace (a test's); the sweep asks for every workspace.
@@ -7265,7 +7265,7 @@ interface DueCalendar {
     timezone: string;
 }
 /**
- * The workspaces whose calendar is due before `before` (00193 calendars_due): a feed's address on the row, never read
+ * The workspaces whose calendar is due before `before` (00196 calendars_due): a feed's address on the row, never read
  * or last read before then; never read first, then the least recently read, `limit` of them, each with its zone, with
  * the exact count of due calendars beyond the page. A row whose `calendar` has no address is not a feed, and is neither.
  */

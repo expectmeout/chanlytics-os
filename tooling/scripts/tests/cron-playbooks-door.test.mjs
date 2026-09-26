@@ -493,7 +493,7 @@ test("a playbook that already ran today, or is not yet at its hour, is neither r
 
 test("a zone nobody knows does not take the tick down: the workspace with it is judged in UTC, and the others run on their own clocks as ever", async () => {
   // tenants.timezone is owner-settable text; a name Postgres does not know would fail the page for every workspace,
-  // every tick, so the page judges such a row in UTC (00193 safe_zone), as the edge itself falls back to UTC.
+  // every tick, so the page judges such a row in UTC (00196 safe_zone), as the edge itself falls back to UTC.
   const now = new Date();
   const utcHour = localHour("UTC", now);
   // Set for the hour it is in UTC right now, within the sending hours: due there when UTC's clock is inside them.

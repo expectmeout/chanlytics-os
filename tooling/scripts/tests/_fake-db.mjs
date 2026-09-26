@@ -136,7 +136,7 @@ function matches(row, filters) {
 }
 
 /**
- * The zone a row is judged in, as 00193 safe_zone answers it: the workspace's own, the product's default when it has
+ * The zone a row is judged in, as 00196 safe_zone answers it: the workspace's own, the product's default when it has
  * none, and UTC when the name is not a zone Intl knows -- the edge's own fallback (contracts parts()).
  */
 function safeZone(name) {
@@ -197,7 +197,7 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       return { allowance: of("allowance"), budget: of("budget") };
     },
     /**
-     * The hourly sweeps' pages (00193 playbooks_due, calendars_due), answered from the rows a fixture sets the way
+     * The hourly sweeps' pages (00196 playbooks_due, calendars_due), answered from the rows a fixture sets the way
      * the database answers them: only what is due, the longest waiting first, `p_limit` of them, every row carrying
      * `due_total`, the count of all that were due. A door test runs the real sweep over what the database would have
      * judged due; the SQL itself is proved on a stack in sweep-pages.db.test.mjs.

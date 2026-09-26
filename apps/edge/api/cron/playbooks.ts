@@ -36,7 +36,7 @@ export async function POST(request: Request): Promise<Response> {
 
   const now = new Date();
   // A BOUNDED, ROTATING page OF WHAT IS DUE, least-recently-run first, judged
-  // in the database by each workspace's own clock (00193 playbooks_due). This
+  // in the database by each workspace's own clock (00196 playbooks_due). This
   // once read every running playbook and iterated, serially, inside a
   // sixty-second function -- and it SENDS, so running out of tick past a few
   // hundred workspaces meant the ones at the end of an unchanging order never
@@ -139,7 +139,7 @@ export async function POST(request: Request): Promise<Response> {
     }
   }
   // `remaining` counts what was DUE and beyond the two pages, judged in the
-  // database in each workspace's own zone (00193): a playbook that ran today,
+  // database in each workspace's own zone (00196): a playbook that ran today,
   // or whose hour has not come, is not in it. So three ticks in a row with a
   // remainder is a queue of due work the sweep is not draining, and nothing
   // else -- the alarm it raises is about that and can be believed.
