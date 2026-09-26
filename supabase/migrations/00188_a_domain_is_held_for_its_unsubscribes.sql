@@ -11,7 +11,10 @@
 --   sending_domain_counts gains `unsubscribed`: the emails among its window (the last 500 that left since its count
 --                   began) that an unsubscribe names (the contact.consent_changed event set_email_marketing writes
 --                   with the message it came from, 00174/00177). A complaint is counted as `complained`, never here.
---                   What it answered before is unchanged.
+--                   And `complained_new`: the complaints about emails sent since the count began. A late spam report
+--                   about mail from before a Resume still holds the domain (`complained`), but it is the episode its
+--                   owner already answered, so it never makes the hold the platform's (D16). What it answered before
+--                   is unchanged.
 
 set local lock_timeout = '3s';
 
@@ -54,6 +57,10 @@ as $$
     'complained', (
       select count(*) from ours
        where (meta->'email'->>'complained_at')::timestamptz >= coalesce(p_since, '-infinity'::timestamptz)),
+    'complained_new', (
+      select count(*) from ours
+       where (meta->'email'->>'complained_at')::timestamptz >= coalesce(p_since, '-infinity'::timestamptz)
+         and created_at >= coalesce(p_since, '-infinity'::timestamptz)),
     -- An unsubscribe comes after its email left, so after the count began: read from then (the index on the
     -- workspace's events by kind and time), never before the ninety days the emails are read over.
     'unsubscribed', (

@@ -146,7 +146,8 @@ const SendingDomains = ({ email, flash }) => {
     setArm(null);
     flash(r.ok ? { msg: <>{d.host} is removed. Nothing more is sent from it.</> } : window.refusalToast(r, "Not removed"));
   };
-  // A hold for bounces or a complaint is the owner's to lift: the ramp starts again, at its first step.
+  // A reputation hold is the owner's to lift (a second in thirty days is the platform's, and not offered): the ramp
+  // starts again, at its first step.
   const firstStep = API.cap(0);
   const resume = async (d) => {
     setBusy(d.id);

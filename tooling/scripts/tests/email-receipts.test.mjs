@@ -524,3 +524,13 @@ test("a reach-out's email that bounces for good marks its lead's address invalid
   assert.equal(await post(receipt("bounced", BOUNCE)), 200);
   assert.deepEqual([reply.leads[0].email_state, reply.leads[0].version], ["ok", 3], "a reply names no lead");
 });
+
+test("a bounce marks no lead that was erased or blanked: what is gone stays gone (C11)", async () => {
+  const cold = { source: "reach_out", email: { subject: "A quote" }, reach_out: { lead_id: "l1" } };
+  for (const gone of [{ erased_at: "2026-09-20T00:00:00Z" }, { blanked_at: "2026-09-20T00:00:00Z" }]) {
+    const t = world({ meta: cold });
+    t.leads = [{ id: "l1", tenant_id: T, email_state: "ok", version: 3, erased_at: null, blanked_at: null, ...gone }];
+    assert.equal(await post(receipt("bounced", BOUNCE)), 200);
+    assert.deepEqual([t.leads[0].email_state, t.leads[0].version], ["ok", 3], JSON.stringify(gone));
+  }
+});

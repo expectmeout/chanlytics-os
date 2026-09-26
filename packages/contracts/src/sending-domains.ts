@@ -25,6 +25,12 @@ export type DomainResumer = (typeof DOMAIN_RESUMERS)[number];
 export const REPUTATION_MEMORY_MS = 30 * 86_400_000;
 /** What the owner is told when their Resume meets a hold that is the platform's (D16). */
 export const PLATFORM_HOLD_REFUSAL = "Held twice in 30 days: we lift this hold, and we've been told.";
+/**
+ * What the owner is told when they add again a domain they removed while its hold was the platform's (D16): removing
+ * and adding a domain would otherwise start it over, clean, and lift the platform's hold by another name.
+ */
+export const PLATFORM_HOLD_READD =
+  "This domain was held twice in the last 30 days, and removed before we lifted it. It can be added again 30 days after it was held.";
 export const DMARC_STATES = ["found", "missing"] as const;
 export type DmarcState = (typeof DMARC_STATES)[number];
 
@@ -170,6 +176,11 @@ export interface DomainCounts {
   complained: number;
   /** The emails among what it sent that somebody pressed Unsubscribe on (00188); absent from a count before it. */
   unsubscribed?: number;
+  /**
+   * The complaints about emails sent since the count began (00188): a late spam report about mail from before a Resume
+   * still holds the domain, but never makes the hold the platform's (D16). Absent from a count before 00188.
+   */
+  complained_new?: number;
 }
 
 /**
@@ -220,7 +231,7 @@ const CHECKING: ReadonlySet<string> = new Set(["pending", "temporary_failure", "
  *                      anything else                        → records
  *   verified           a complaint, or bounces or           → held, complaint | bounces |    change "held"
  *                      unsubscribes past 2%                    unsubscribes
- *                                                               (reputationHoldOf; first, and only the owner lifts it)
+ *                                                               (reputationHoldOf; first, and only a Resume lifts it)
  *                      provider no longer knows it, or a    → held, provider                change "held"
  *                      word it has not documented             (lifts itself if the provider knows it again)
  *                      provider pending                     → unchanged: a check in progress, the owner's own
@@ -233,14 +244,15 @@ const CHECKING: ReadonlySet<string> = new Set(["pending", "temporary_failure", "
  *                      DMARC missing for the first time     → unchanged (the missing answer is stored, and the
  *                                                               next read, ten minutes on, confirms or clears it:
  *                                                               nameservers that disagree mid-move are one bad read)
- *   held (DNS, provider) bounces or a complaint               → held, for that reason instead  change "held"
+ *   held (DNS, provider) a reputation hold                    → held, for that reason instead  change "held"
  *                                                               (the owner's to resume now; checked first)
  *                      provider verified + DMARC found    → verified (the ramp starts again, clean from now; the
  *                                                               reputation count does not: counted_since stays)
  *                                                                                              change "released"
  *   held (bounces,     a worse reason (a complaint; bounces → held, for it                   change "held"
  *   unsubscribes)      over unsubscribes)
- *   held (reputation)  otherwise unchanged: only the owner resumes it (resumeDomain); a complaint hold is the last word.
+ *   held (reputation)  otherwise unchanged: only a Resume lifts it (resumeDomain), its owner's, or the platform's after
+ *                      a second in thirty days (D16); a complaint hold is the last word.
  * Verification sets both clocks, the ramp's (clean_since) and the count's (counted_since).
  * An unreadable provider changes nothing but a reputation hold, which is counted from our own rows, and an
  * unreadable DMARC neither holds nor verifies: "we could not look" is not a fact about the domain.
@@ -507,9 +519,13 @@ export function sendingDomainWords(d: SendingDomainDto): SendingDomainWords {
     tone: "warn",
     line: `${since ? `Held since ${since}` : "Held"} · ${why}`,
     stats: null,
-    // Only a hold the owner lifts says what to do: a DNS hold shows its records just below, and a provider hold lifts
-    // itself (its line says so), so neither says anything twice or tells the owner to remove what will come back.
-    fix: d.held_why && SELF_LIFTING_HOLDS.includes(d.held_why) ? null : domainHoldFixWords(d.held_why),
+    // Only a hold the owner lifts says what to do: a DNS hold shows its records just below, a provider hold lifts
+    // itself (its line says so), and a hold the platform lifts (D16) has nothing for the owner to press, so none says
+    // anything twice or tells the owner to do what is not theirs.
+    fix:
+      (d.held_why && SELF_LIFTING_HOLDS.includes(d.held_why)) || d.resume_by === "platform"
+        ? null
+        : domainHoldFixWords(d.held_why),
     cap: was > 0 ? `Sending nothing · was ${was} a day` : "Sending nothing",
     next:
       d.held_why === "provider"
@@ -549,7 +565,7 @@ const HOLD_NOTICE_WORDS: Record<DomainHold, string> = {
 
 /** The owner's notice for a second reputation hold in thirty days (D16): nothing for them to press. */
 export const PLATFORM_HOLD_NOTICE =
-  "It was held for this twice in 30 days, so we lift this hold ourselves, and we've been told. We'll write when it sends again.";
+  "It was held twice in 30 days, so we lift this hold ourselves, and we've been told. We'll write when it sends again.";
 
 export function domainHoldNoticeWords(why: string | null | undefined): string | null {
   return (why && HOLD_NOTICE_WORDS[why as DomainHold]) || null;

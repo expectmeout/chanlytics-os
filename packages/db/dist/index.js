@@ -2941,12 +2941,29 @@ async function sendingDomainCounts(db, tenantId, host, since) {
   const r2 = await db.rpc("sending_domain_counts", { p_tenant_id: tenantId, p_host: host, p_since: since });
   const c = must("count a domain's sends", r2) ?? {};
   const n = (k) => typeof c[k] === "number" ? c[k] : Number(c[k] ?? 0) || 0;
-  return { sent: n("sent"), bounced: n("bounced"), complained: n("complained"), unsubscribed: n("unsubscribed") };
+  return {
+    sent: n("sent"),
+    bounced: n("bounced"),
+    complained: n("complained"),
+    unsubscribed: n("unsubscribed"),
+    // A count from before 00188 says none apart: every complaint is taken as new, as it was.
+    complained_new: "complained_new" in c ? n("complained_new") : n("complained")
+  };
 }
 async function reputationHoldsSince(db, p) {
   const r2 = await db.from("events").select("id").eq("tenant_id", p.tenantId).eq("kind", "sending_domain.held").gte("created_at", p.sinceIso).eq("data->>host", p.host).in("data->>why", [...p.whys]).limit(20);
   if (r2.error) throw new Error(`sending_domains: read a domain's reputation holds: ${r2.error.message}`);
   return (r2.data ?? []).length;
+}
+async function platformHoldStands(db, p) {
+  const r2 = await db.from("events").select("kind, data, created_at").eq("tenant_id", p.tenantId).in("kind", ["sending_domain.held", "sending_domain.resumed"]).gte("created_at", p.sinceIso).eq("data->>host", p.host).order("created_at", { ascending: false }).limit(20);
+  if (r2.error) throw new Error(`sending_domains: read a domain's platform holds: ${r2.error.message}`);
+  for (const e of r2.data ?? []) {
+    const d = e.data ?? {};
+    if (e.kind === "sending_domain.held" && d.resume_by === "platform") return true;
+    if (e.kind === "sending_domain.resumed" && d.by === "platform") return false;
+  }
+  return false;
 }
 async function deleteSendingDomainAsRead(db, row) {
   const r2 = must(
@@ -4029,6 +4046,7 @@ export {
   pauseConversation,
   peoplePage,
   personReplyMode,
+  platformHoldStands,
   playbooksOnList,
   putTenantConfig,
   queuedOutcomes,

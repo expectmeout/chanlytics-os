@@ -2597,6 +2597,17 @@ A send left `claimed` for five minutes is read by `staleClaims(db, now)` at the 
 
 ## PR 7 — The holds (00186): C11, D16, D18
 
+> **As built (PR 7, 26 Sep 2026; its migration is 00188, and every "00186" below means it).**
+> - **C11:** the receipt reads the row's meta once (`sentEmailOf`), for both the flag and the lead. `leadAddressBounced` retries a version race once, then sends the receipt back. An erased or blanked lead is left alone.
+> - **D16:**
+>   - Holds are counted by tenant and host over the last 30 days (`reputationHoldsSince`), and only when the domain was not already reputation-held: a worse reason inside one hold is the same hold.
+>   - A complaint hold whose complaints are all about mail sent before the count began is its owner's. `sending_domain_counts` gains `complained_new` for that.
+>   - The platform's page names the domain id. On a platform Resume the owner is told the domain sends again.
+>   - A domain removed while its hold was the platform's is refused if added again inside the 30 days (`platformHoldStands`).
+>   - The platform's Resume is refused on any call that carries an edge token.
+>   - A platform hold shows no fix line.
+> - **D18:** `judgeDomain` ranks the reputation holds: a complaint over bounces over unsubscribes. Inside a hold only a worse reason moves it, so a hold is never softened.
+
 ### Task 7.1: A bounce marks the lead (C11)
 
 **Files:**

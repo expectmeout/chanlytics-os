@@ -111,7 +111,8 @@ export async function POST(request: Request): Promise<Response> {
     if (op === "resume") {
       // The platform lifts a second hold (D16) with its own key: a dashboard's token speaks for an owner, whatever it says.
       const platform = str(body.by) === "platform";
-      if (platform && auth.via !== "key")
+      // A call that carries a dashboard's token is a dashboard's, even while this edge lets the key decide.
+      if (platform && (auth.via !== "key" || request.headers.get("x-edge-token")))
         return json(403, { ok: false, error: "platform_only", message: "Only the platform lifts this hold." });
       const out = await resumeSendingDomain(ports, row, platform ? "platform" : "owner");
       return out.ok ? json(200, out) : json(out.status, out);

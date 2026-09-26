@@ -86,12 +86,14 @@ function refusal(a: EdgeAnswer, doing: string): AppError {
       return new AppError("upstream_email", "Sending from your own domain isn't switched on here yet.", 503);
     case "invalid":
       return new AppError("validation", said ?? "That can't be a domain to send from.", 400);
-    // Resume's three (00176) are conflicts too: a hold the records lift, a domain not held, a row that moved.
+    // Resume's three (00176) are conflicts too: a hold the records lift, a domain not held, a row that moved; and a hold
+    // that is the platform's to lift, or a domain removed while so held (D16).
     case "too_many":
     case "host_taken":
     case "dns_hold":
     case "not_held":
     case "moved":
+    case "platform_hold":
       return new AppError("conflict", said ?? "That domain can't be added.", 409);
     case "not_found":
       return new AppError("not_found", "That domain isn't this workspace's.", 404);

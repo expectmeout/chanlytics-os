@@ -760,7 +760,7 @@ test("a hold that is the platform's to lift (D16): no Resume on the page, and th
   assert.equal(sendingDomainActs({ state: "held", held_why: "bounces" }).resume, true, "a DTO from before 00188");
   const w = sendingDomainWords(platform);
   assert.equal(w.next, "Held twice in 30 days · we were told, and we lift this hold.");
-  assert.equal(w.fix, "Check the addresses you write to before you resume it.", "what to fix still stands");
+  assert.equal(w.fix, null, "nothing for the owner to press, so no 'before you resume it'");
   assert.equal(
     sendingDomainWords({ ...platform, resume_by: "owner" }).next,
     "Nothing leaves from it until you resume it.",

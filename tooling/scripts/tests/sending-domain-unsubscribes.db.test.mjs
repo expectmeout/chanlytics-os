@@ -33,7 +33,7 @@ const ok = (res) => {
 const one = async (q) => ok(await q.select("id").single()).id;
 
 /** A person with a thread, and `count` emails that left from `host` to them. */
-async function sentTo(label, host, count) {
+async function sentTo(label, host, count, at = null) {
   const email = `${label}-${stamp}@fixture-unsubs.example`;
   const person = await one(db.from("contacts").insert({ tenant_id: A, email }));
   const thread = await one(db.from("conversations").insert({ tenant_id: A, contact_id: person }));
@@ -49,6 +49,7 @@ async function sentTo(label, host, count) {
     body: "Saw your shop on the map.",
     status: "sent",
     meta: { source: "reach_out", email: { request: { from: `"Sam" <sam@${host}>`, to: [email] } } },
+    ...(at ? { created_at: at } : {}),
   }));
   ok(await db.from("messages").insert(rows));
   return { person, ids: rows.map((r) => r.id) };
@@ -105,6 +106,13 @@ test("a domain's count names the emails an unsubscribe came from, and nothing el
     "one email of this domain's was unsubscribed from; a complaint is its own count, and another domain's is theirs",
   );
   assert.equal(c.complained, 0, "a complaint is counted from its stamp (00176), which this no did not make");
+  // An email sent before the count began and unsubscribed from after it is the episode before: not this count's.
+  const before = await sentTo("before", HOST, 1, iso(Date.now() - 50 * DAY));
+  ok(await say(before.person, before.ids[0], "unsubscribe"));
+  const after = ok(
+    await db.rpc("sending_domain_counts", { p_tenant_id: A, p_host: HOST, p_since: iso(Date.now() - 40 * DAY) }),
+  );
+  assert.equal(after.unsubscribed, 1, "still the one");
   // Past the count's start, nothing is named.
   const later = ok(
     await db.rpc("sending_domain_counts", { p_tenant_id: A, p_host: HOST, p_since: iso(Date.now() + DAY) }),

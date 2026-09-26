@@ -966,8 +966,47 @@ test("a domain held twice in 30 days is the platform's to lift (D16): the owner'
       [{ host, why: "bounces", by: "platform" }],
     );
     assert.equal(b3.domain.resume_by, "owner");
+    assert.ok(
+      w.tables.notifications.some((n) => n.title === `${host} sends again`),
+      "the owner is told, as the hold's notice promised",
+    );
   } finally {
     delete process.env.DIAG_KEY;
+    net.restore();
+  }
+});
+
+test("a domain removed while its hold was the platform's is not added again inside 30 days (D16); after the platform's Resume, it may be", async () => {
+  const w = world([]);
+  const host = "getharbor.com";
+  const ev = (kind, data, daysAgo) => ({
+    id: crypto.randomUUID(),
+    tenant_id: A,
+    kind,
+    subject_type: "sending_domain",
+    subject_id: "the-removed-row",
+    data: { host, ...data },
+    created_at: new Date(Date.now() - daysAgo * 86_400_000).toISOString(),
+  });
+  w.tables.events.push(ev("sending_domain.held", { why: "bounces", resume_by: "platform" }, 3));
+  const net = provider(() => reply(200, PROVIDER_DOMAIN("pd-new", host)));
+  try {
+    const [s, b] = await answer(await knock(ADD));
+    assert.deepEqual(
+      [s, b.error, b.message],
+      [
+        409,
+        "platform_hold",
+        "This domain was held twice in the last 30 days, and removed before we lifted it. It can be added again 30 days after it was held.",
+      ],
+    );
+    assert.equal(w.tables.sending_domains.length, 0, "nothing reserved");
+    assert.equal(net.calls.length, 0, "nothing asked of the provider");
+    // The platform lifted it before it was removed: added again as any domain.
+    w.tables.events.push(ev("sending_domain.resumed", { why: "bounces", by: "platform" }, 2));
+    const [s2] = await answer(await knock(ADD));
+    assert.equal(s2, 200);
+  } finally {
     net.restore();
   }
 });

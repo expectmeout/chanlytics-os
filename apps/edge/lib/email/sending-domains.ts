@@ -15,6 +15,7 @@ import {
   domainCapacityOf,
   domainHeldSince,
   emitEvent,
+  platformHoldStands,
   recordProviderDomain,
   reputationHoldsSince,
   reserveSendingDomain,
@@ -40,7 +41,9 @@ import {
   domainHoldWords,
   domainPatchOf,
   DNS_HOLDS,
+  DOMAIN_RAMP,
   PLATFORM_HOLD_NOTICE,
+  PLATFORM_HOLD_READD,
   PLATFORM_HOLD_REFUSAL,
   REPUTATION_HOLDS,
   REPUTATION_MEMORY_MS,
@@ -109,16 +112,19 @@ const countedSince = (row: SendingDomainRow): string | null => row.counted_since
  * A reputation hold that comes a second time in thirty days is the platform's to lift (D16): a domain that keeps
  * drawing bounces, complaints or unsubscribes is not one more press of Resume. Asked before the hold is written, of
  * the holds said before it (its sending_domain.held events, by host), and only when the domain was not already held
- * for its reputation: a worse reason inside one hold is the same hold. A read that fails leaves the hold its owner's,
- * and says so: the platform is not paged on a guess.
+ * for its reputation: a worse reason inside one hold is the same hold. A complaint hold whose complaints are all about
+ * mail sent before the count began (a late spam report about the episode a Resume answered) is its owner's again. A
+ * read that fails leaves the hold its owner's, and says so: the platform is not paged on a guess.
  */
 async function heldTwice(
   p: Pick<DomainPorts, "db" | "log"> & { now?: () => number },
   row: SendingDomainRow,
   judged: { change: DomainJudgementChange; held_why: DomainHold | null },
+  counts: DomainCounts | null,
 ): Promise<boolean> {
   if (judged.change !== "held" || !judged.held_why || !REPUTATION_HOLDS.includes(judged.held_why)) return false;
   if (row.state === "held" && REPUTATION_HOLDS.includes(row.held_why as DomainHold)) return false;
+  if (judged.held_why === "complaint" && (counts?.complained_new ?? counts?.complained ?? 0) === 0) return false;
   try {
     const since = new Date((p.now ?? Date.now)() - REPUTATION_MEMORY_MS).toISOString();
     const before = await reputationHoldsSince(p.db, {
@@ -164,6 +170,11 @@ export async function addSendingDomain(
   if (problem) return say(400, "invalid", problem);
   if ((await countSendingDomains(p.db, i.tenantId)) >= SENDING_DOMAINS_MAX) return tooMany();
   const host = normalizeHost(i.host);
+  // Removed while its hold was the platform's (D16): added again, it would start over clean and lift that hold by another
+  // name. Its memory is the platform's thirty days.
+  const since = new Date(p.now() - REPUTATION_MEMORY_MS).toISOString();
+  if (await platformHoldStands(p.db, { tenantId: i.tenantId, host, sinceIso: since }))
+    return say(409, "platform_hold", PLATFORM_HOLD_READD);
   const reserve = () =>
     reserveSendingDomain(p.db, {
       tenantId: i.tenantId,
@@ -408,7 +419,7 @@ export async function checkSendingDomain(
     // read time either way, so a domain the provider will not answer for waits its turn instead of heading every tick.
     const own = judgeDomain(stateOf(row), { provider: null, dmarc: null, counts }, nowIso);
     const ownPatch = own.change === "held" ? domainPatchOf(own) : {};
-    const twice = await heldTwice(p, row, own);
+    const twice = await heldTwice(p, row, own, counts);
     const held = await applyDomainCheck(p.db, row, {
       ...ownPatch,
       ...countsPatch,
@@ -428,7 +439,7 @@ export async function checkSendingDomain(
   const providerStatus = read.value ? read.value.status : "not_found";
   const judged = judgeDomain(stateOf(row), { provider: providerStatus, dmarc, counts }, nowIso);
   const judgedPatch = domainPatchOf(judged);
-  const twice = await heldTwice(p, row, judged);
+  const twice = await heldTwice(p, row, judged, counts);
   const written = await applyDomainCheck(p.db, row, {
     ...judgedPatch,
     provider_status: providerStatus,
@@ -511,8 +522,9 @@ async function sayDomainChange(
         await p.page?.(
           `sending_domain_held_twice:${row.host}`,
           `sending domain: ${row.host} held twice in 30 days`,
-          `${row.host} (workspace ${row.tenant_id}) is held again because ${domainHoldWords(judged.held_why)}. ` +
-            `Its owner cannot resume it: look at what it sent, then lift it with the admin door (op resume, by platform).`,
+          `${row.host} (workspace ${row.tenant_id}, domain ${row.id}) is held again because ` +
+            `${domainHoldWords(judged.held_why)}. Its owner cannot resume it: look at what it sent, then lift it with ` +
+            `the admin door (op resume, tenant_id, domain_id, by platform).`,
         );
       await tellDomainHeld(p, written, judged.held_why, platform);
     }
@@ -540,7 +552,7 @@ export async function holdForComplaint(
     const counts = await sendingDomainCounts(p.db, row.tenant_id, row.host, countedSince(row));
     const judged = judgeDomain(stateOf(row), { provider: null, dmarc: null, counts }, nowIso);
     if (judged.change !== "held") return "unchanged";
-    const twice = await heldTwice(p, row, judged);
+    const twice = await heldTwice(p, row, judged, counts);
     const written = await applyDomainCheck(p.db, row, {
       ...domainPatchOf(judged),
       sent_recent: counts.sent,
@@ -584,6 +596,8 @@ export async function resumeSendingDomain(
   if (!written) return say(409, "moved", `${row.host} changed just now. Look again, then resume it.`);
   const data = { host: row.host, ...(row.held_why ? { why: row.held_why } : {}), by } as Json;
   await emitEvent(p.db, row.tenant_id, "sending_domain.resumed", "setup", "sending_domain", row.id, data);
+  // The platform lifted what its owner could not: the owner is told, as the hold's notice promised.
+  if (by === "platform") await tellDomainResumed(p, written);
   // Read now, not at the next tick: a reputation hold is never read while it stands, so records that broke meanwhile
   // (a DNS hold the bounces took the place of) would otherwise send for up to a tick before they held it again.
   // Best effort: the resume is written, and the sweep reads it anyway.
@@ -618,6 +632,28 @@ async function tellDomainHeld(
           `${what ? ` ${what}` : ""}\n\n` +
           `Connections has the details, under Email.`,
         redactedBody: "A workspace's sending domain was held.",
+      },
+    );
+  } catch (e) {
+    p.log.error("sending_domain_tell_failed", { domain: row.id, error: String(e) });
+  }
+}
+
+/** The owner, told the platform lifted a hold that was its own to lift (D16). Best effort: the row already says it. */
+async function tellDomainResumed(p: Pick<DomainPorts, "db" | "log">, row: SendingDomainRow): Promise<void> {
+  try {
+    const addressing = await loadTenantNotifications(p.db, row.tenant_id);
+    await notify(
+      { tenantId: row.tenant_id, ...addressing },
+      {
+        kind: "sweep",
+        route: "admin/integrations",
+        about: { type: "sending_domain", id: row.id },
+        subject: `${row.host} sends again`,
+        body:
+          `We've lifted the hold on ${row.host}. It sends again, starting at ${DOMAIN_RAMP[0].perDay} a day.\n\n` +
+          `Connections has the details, under Email.`,
+        redactedBody: "A workspace's sending domain sends again.",
       },
     );
   } catch (e) {

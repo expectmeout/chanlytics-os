@@ -20936,6 +20936,7 @@ var REPUTATION_HOLDS = ["bounces", "complaint", "unsubscribes"];
 var DOMAIN_RESUMERS = ["owner", "platform"];
 var REPUTATION_MEMORY_MS = 30 * 864e5;
 var PLATFORM_HOLD_REFUSAL = "Held twice in 30 days: we lift this hold, and we've been told.";
+var PLATFORM_HOLD_READD = "This domain was held twice in the last 30 days, and removed before we lifted it. It can be added again 30 days after it was held.";
 var DMARC_STATES = ["found", "missing"];
 var DNS_HOLDS = ["verification", "dmarc"];
 var SELF_LIFTING_HOLDS = ["verification", "dmarc", "provider"];
@@ -21176,9 +21177,10 @@ function sendingDomainWords(d) {
     tone: "warn",
     line: `${since ? `Held since ${since}` : "Held"} \xB7 ${why}`,
     stats: null,
-    // Only a hold the owner lifts says what to do: a DNS hold shows its records just below, and a provider hold lifts
-    // itself (its line says so), so neither says anything twice or tells the owner to remove what will come back.
-    fix: d.held_why && SELF_LIFTING_HOLDS.includes(d.held_why) ? null : domainHoldFixWords(d.held_why),
+    // Only a hold the owner lifts says what to do: a DNS hold shows its records just below, a provider hold lifts
+    // itself (its line says so), and a hold the platform lifts (D16) has nothing for the owner to press, so none says
+    // anything twice or tells the owner to do what is not theirs.
+    fix: d.held_why && SELF_LIFTING_HOLDS.includes(d.held_why) || d.resume_by === "platform" ? null : domainHoldFixWords(d.held_why),
     cap: was > 0 ? `Sending nothing \xB7 was ${was} a day` : "Sending nothing",
     next: d.held_why === "provider" ? "We've been told. If it doesn't come back on its own, remove it and add it again." : d.held_why && DNS_HOLDS.includes(d.held_why) ? `It sends again by itself once the records read right, starting at ${DOMAIN_RAMP[0].perDay} a day.` : d.resume_by === "platform" ? "Held twice in 30 days \xB7 we were told, and we lift this hold." : "Nothing leaves from it until you resume it."
   };
@@ -21202,7 +21204,7 @@ var HOLD_NOTICE_WORDS = {
   provider: "It usually comes back by itself; if it doesn't, remove it and add it again on Connections, under Email.",
   unsubscribes: "Write to fewer, and to the ones it fits best, then resume it on Connections, under Email."
 };
-var PLATFORM_HOLD_NOTICE = "It was held for this twice in 30 days, so we lift this hold ourselves, and we've been told. We'll write when it sends again.";
+var PLATFORM_HOLD_NOTICE = "It was held twice in 30 days, so we lift this hold ourselves, and we've been told. We'll write when it sends again.";
 function domainHoldNoticeWords(why) {
   return why && HOLD_NOTICE_WORDS[why] || null;
 }
@@ -23886,6 +23888,7 @@ export {
   PIPELINE_SORTS,
   PIPELINE_WORDS,
   PLATFORM_HOLD_NOTICE,
+  PLATFORM_HOLD_READD,
   PLATFORM_HOLD_REFUSAL,
   PLATFORM_NEW_DAYS,
   PLATFORM_QUIET_DAYS,

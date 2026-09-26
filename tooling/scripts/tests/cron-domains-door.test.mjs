@@ -942,7 +942,7 @@ test("a second reputation hold in 30 days is the platform's to lift (D16): paged
     const d1 = w.tables.events.find((e) => e.kind === "sending_domain.held" && e.subject_id === "d1");
     assert.equal(d1.data.resume_by, "platform", "the ledger says who lifts it");
     const told = w.tables.notifications.find((n) => n.title.startsWith("d1.example"));
-    assert.match(told.body, /held for this twice in 30 days, so we lift this hold ourselves/);
+    assert.match(told.body, /held twice in 30 days, so we lift this hold ourselves/);
     assert.doesNotMatch(told.body, /resume it on Connections/, "nothing for the owner to press");
   } finally {
     net.restore();
@@ -971,5 +971,59 @@ test("a worse reason inside one hold is the same hold: held for unsubscribes, bo
     assert.deepEqual(w.tables.operator_pages, []);
   } finally {
     net.restore();
+  }
+});
+
+test("what never makes a hold the platform's: another workspace's hold of the host, a late complaint about mail from before, a history that cannot be read", async () => {
+  const held = (tenant, host, why) => ({
+    id: crypto.randomUUID(),
+    tenant_id: tenant,
+    kind: "sending_domain.held",
+    subject_type: "sending_domain",
+    subject_id: "an-earlier-row",
+    data: { host, why },
+    created_at: ago(5 * DAY),
+  });
+  const w = world([domain("d1"), domain("d2")], {
+    "d1.example": { sent: 200, bounced: 5, complained: 0 },
+    // The one complaint is about an email sent before the count began: it holds, and is the episode already answered.
+    "d2.example": { sent: 200, bounced: 0, complained: 1, complained_new: 0 },
+  });
+  w.tables.events.push(
+    held("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "d1.example", "bounces"),
+    held(A, "d2.example", "bounces"),
+  );
+  for (const h of ["d1", "d2"]) dns[`${h}.example`] = "found";
+  const net = provider({});
+  try {
+    await answer(await knock(POST, "domains"));
+    assert.deepEqual([w.row("d1").held_why, w.row("d1").resume_by ?? "owner"], ["bounces", "owner"]);
+    assert.deepEqual([w.row("d2").held_why, w.row("d2").resume_by ?? "owner"], ["complaint", "owner"]);
+    assert.deepEqual(w.tables.operator_pages, []);
+  } finally {
+    net.restore();
+  }
+
+  // The holds before cannot be read: the hold is its owner's, and the platform is not paged on a guess.
+  const u = world([domain("d1")], { "d1.example": { sent: 200, bounced: 5, complained: 0 } });
+  u.tables.events.push(held(A, "d1.example", "bounces"));
+  setPg(
+    fakeDb(
+      u.tables,
+      { "events.select": { message: "statement timeout" } },
+      {
+        ...vault,
+        cold_receipts_owed: () => [],
+        sending_domain_counts: () => ({ sent: 200, bounced: 5, complained: 0 }),
+      },
+    ),
+  );
+  dns["d1.example"] = "found";
+  const net2 = provider({});
+  try {
+    await answer(await knock(POST, "domains"));
+    assert.deepEqual([u.row("d1").held_why, u.row("d1").resume_by ?? "owner"], ["bounces", "owner"]);
+  } finally {
+    net2.restore();
   }
 });
