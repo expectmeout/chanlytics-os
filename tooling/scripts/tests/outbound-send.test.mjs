@@ -384,6 +384,76 @@ test("no credentials is a refusal at the wire, said to the owner, never a send o
   assert.equal(alerts.length, 1, "and the owner is told");
 });
 
+test("the carrier's own no on a text (Twilio 21610) is the person's STOP: the row is canceled as opted out, nobody is flagged or told, and the next job to them never reaches the line", async () => {
+  // Until now a 21610 was a provider failure like any other: the thread was
+  // flagged, the owner told a delivery failed, nothing recorded -- and the
+  // next queued message to that person did it all again. The door (deliver
+  // .test.mjs) records the no and refuses; this proves the job hears a
+  // refusal, which pages nobody, and that the second job is refused before
+  // the line is asked.
+  graph.length = 0;
+  const k = {
+    id: "k1",
+    tenant_id: T,
+    consent: "opted_in",
+    dnc: false,
+    marketing_consent: "opted_out",
+    erased_at: null,
+  };
+  const queued = (id, body) => ({
+    id,
+    tenant_id: T,
+    conversation_id: "c1",
+    status: "queued",
+    body,
+    sender: "ai",
+    channel: "sms",
+    direction: "outbound",
+    created_at: WRITTEN,
+  });
+  const db = wrap(
+    tables({
+      contacts: [k],
+      conversations: [
+        { id: "c1", tenant_id: T, contact_id: "k1", paused_until: null, contacts: k, tenants: { status: "active" } },
+      ],
+      messages: [queued("m1", "We open at 9"), queued("m2", "Still there?")],
+    }),
+  );
+  const texts = [];
+  const line = async (to, p) => {
+    texts.push({ to, p });
+    return { ok: false, wamid: null, status: 400, errorBody: "Twilio 21610", code: 21610 };
+  };
+  const { ctx, alerts } = ctxFor(db, { wire: { whatsapp: null, sms: line } });
+  assert.equal(await dispatchJob(ctx, job({ message_id: "m1", body: "We open at 9" })), "done");
+  assert.equal(texts.length, 1, "the line was asked once");
+  assert.equal(message(db).status, "canceled");
+  assert.deepEqual(message(db).error, { reason: "opted_out" });
+  assert.deepEqual([k.consent, k.dnc, k.consent_source], ["opted_out", true, "carrier"], "recorded as their STOP");
+  assert.deepEqual(
+    db.tables.events.filter((e) => e.kind === "contact.consent_changed").map((e) => e.data),
+    [{ consent: "opted_out", previous: "opted_in", source: "carrier", channel: "sms" }],
+  );
+  assert.deepEqual(
+    blocked(db).map((b) => b.reason),
+    ["opted_out"],
+  );
+  assert.deepEqual(db.tables.escalations, [], "no thread flagged: the person asked to stop");
+  assert.deepEqual(alerts, [], "and the owner is not told a delivery failed");
+
+  // The next queued message to the same person: refused by consent before the line is asked.
+  assert.equal(await dispatchJob(ctx, job({ message_id: "m2", body: "Still there?" })), "done");
+  assert.equal(texts.length, 1, "the line was not asked again");
+  assert.equal(db.tables.messages[1].status, "canceled");
+  assert.deepEqual(db.tables.messages[1].error, { reason: "opted_out" });
+  assert.deepEqual(
+    blocked(db).map((b) => b.reason),
+    ["opted_out", "opted_out"],
+  );
+  assert.deepEqual([db.tables.escalations, alerts], [[], []], "still nobody flagged, nobody told");
+});
+
 test("a reach-out's email written after the receptionist's draft is no person speaking: the draft is not retired by it", async () => {
   graph.length = 0;
   const db = wrap(

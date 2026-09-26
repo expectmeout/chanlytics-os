@@ -102,9 +102,9 @@ const NO_LINK = `This business has no booking link, so nothing was sent. Take ${
 
 export async function POST(request: Request): Promise<Response> {
   const raw = await request.text();
-  // The signature, or the tool's x-fn-secret header until the signature is required. Whether Retell signs
+  // The signature, or the tool's x-fn-secret header while this door still reads one. Whether Retell signs
   // custom-function calls is what the log answers (voice-door-auth.ts); this file used to say it did not.
-  if (!voiceDoorAuth("fn", request, raw, request.headers.get("x-fn-secret")).ok) {
+  if (!voiceDoorAuth("fn", request, raw).ok) {
     return json(401, { ok: false, error: "bad_secret" });
   }
 

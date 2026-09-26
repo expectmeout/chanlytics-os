@@ -1,8 +1,12 @@
 /**
  * Run the WhatsApp receptionist's evaluation set against a deployed edge.
  *
- *   BASE_URL=https://chanlytics-messaging.vercel.app DIAG_KEY=… TENANT_ID=… \
+ *   BASE_URL=https://chanlytics-messaging.vercel.app EDGE_CALL_SECRET=… TENANT_ID=… \
  *     node tooling/scripts/eval-brain.mjs [tooling/evals/whatsapp-cases.json]
+ *
+ * The knock is a token minted for the eval door and this workspace, as the
+ * dashboard mints one (packages/channels edge-token); DIAG_KEY in place of the
+ * secret opens the door only on an edge that holds no EDGE_CALL_SECRET.
  *
  * Nothing is sent to a customer and nothing is written: the edge runs the
  * brain on each case with the workspace's real composed prompt and hands the
@@ -13,16 +17,22 @@
  * Exit 0 = every case passed. 1 = failures listed. 2 = could not run.
  */
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { signEdgeToken } from "@chanlytics/channels";
 import { judgeCase, validateCases, formatReport } from "./eval-judge.mjs";
 
 const BASE = process.env.BASE_URL || "https://chanlytics-messaging.vercel.app";
+const SECRET = process.env.EDGE_CALL_SECRET;
 const KEY = process.env.DIAG_KEY;
 const TENANT = process.env.TENANT_ID;
 const file = process.argv[2] || "tooling/evals/whatsapp-cases.json";
-if (!KEY || !TENANT) {
-  console.error("DIAG_KEY and TENANT_ID are required");
+if ((!SECRET && !KEY) || !TENANT) {
+  console.error("EDGE_CALL_SECRET (or DIAG_KEY, for an edge without the secret) and TENANT_ID are required");
   process.exit(2);
 }
+
+/** What a batch knocks with: a token for this door and this workspace, minted per batch (a minute's life); the key only where no secret is held. */
+const credential = () =>
+  SECRET ? { "x-edge-token": signEdgeToken(SECRET, "/api/admin/eval", { workspace: TENANT }) } : { "x-diag-key": KEY };
 
 const cases = JSON.parse(readFileSync(file, "utf8"));
 const problems = validateCases(cases);
@@ -39,7 +49,7 @@ for (let i = 0; i < cases.length; i += BATCH) {
     .map(({ id, text, history }) => ({ id, text, ...(history ? { history } : {}) }));
   const res = await fetch(`${BASE}/api/admin/eval`, {
     method: "POST",
-    headers: { "content-type": "application/json", "x-diag-key": KEY },
+    headers: { "content-type": "application/json", ...credential() },
     body: JSON.stringify({ tenant_id: TENANT, cases: batch }),
   });
   const data = await res.json().catch(() => ({}));

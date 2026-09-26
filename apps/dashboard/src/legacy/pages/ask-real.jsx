@@ -251,6 +251,18 @@ const AskReal = ({ open, onClose }) => {
     return () => evs.forEach((e) => window.removeEventListener(e, bump));
   }, [open]);
 
+  // Open, and the page under the Line changing while it is open: the page is warmed (POST ask/warm; legacy-bridge/ask/api.ts),
+  // so the server has read the rows on screen before the question comes. Never waited on; a page that cannot say what it
+  // holds, or a warm that fails, costs nothing.
+  useArEffect(() => {
+    if (!open || !A || !A.warm || !A.context) return;
+    // A tick later, so a page that has just come under the Line has said what it drew (legacy-bridge/ask/context.ts).
+    const id = setTimeout(() => {
+      try { Promise.resolve(A.warm(A.context(arRoute()))).catch(() => {}); } catch (e) { /* the question still goes */ }
+    }, 0);
+    return () => clearTimeout(id);
+  }, [open, route.page, route.param]);
+
   // Open: the three move from the button into the line (a FLIP), and the button's own face hides while they stand here
   // (ask.css, body.ask-open), so there is one character. With reduced motion they are simply here.
   useArEffect(() => {

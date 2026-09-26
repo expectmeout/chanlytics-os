@@ -280,6 +280,14 @@ test("the door: a token for another door, a forgery and a bad token beside the r
       [403, { ok: false, error: "token_malformed" }],
       "there is no falling back from a bad token to the key",
     );
+    // The right key alone, on an edge that could have verified a token: this door is the dashboard's, and the key
+    // opens it no longer (admin-auth.ts logs the knock as admin_door_key_only).
+    const keyOnly = await knock({ op: "status" }, { "x-diag-key": "diag-key-for-this-file" });
+    assert.deepEqual(
+      await answer(keyOnly),
+      [403, { ok: false, error: "token_required" }],
+      "the key alone opens no door a token reaches",
+    );
     await withEnv({ EDGE_CALL_SECRET: undefined }, async () => {
       // Before the edge has the secret, a token is ignored and the key decides
       // -- so the dashboard may be given the secret before or after the edge.
