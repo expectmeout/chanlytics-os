@@ -340,17 +340,8 @@ test("the pages link to the routes, and only where the bridge can name the works
     "Only an owner can export the customer list.",
     "the Export a non-owner sees says why, in contracts' words",
   );
-  // The list route and the export share one reading of who exists.
-  const list = readCode("apps/dashboard/app/api/v1/contacts/route.ts");
-  assert.ok(
-    list.includes("listPeople(ctx, tenantId, { q, offset, limit: PEOPLE_PAGE })") &&
-      [
-        "const [out, sellsBy, nameSteps, pace, followUp] = await Promise.all([",
-        "withVisits(ctx, tenantId, rows),",
-        "const buys = sellsByOf(ctx, tenantId);",
-      ].every((line) => list.includes(line)),
-    "the same reading of who exists as the export, with their appointments, a page at a time",
-  );
+  // The list route and the export share one reading of who exists, with their appointments, a page at a time: run in
+  // readers.test.mjs, where GET contacts' rows are everyone()'s with the same reply modes.
 });
 
 /* ----------------------------------------------------------------------------

@@ -4,6 +4,8 @@ import { jsonBody } from "@/server/request-guards";
 import { createList, savedListsFor, type Json } from "@chanlytics/db";
 import { cleanListName, cleanListRule, type SavedListDto } from "@/server/lists";
 import { recordDecision } from "@/server/verbs";
+import { load, readerContext } from "@/server/readers";
+import { lists } from "@/server/readers/lists";
 
 /**
  * Saved lists: a name and the people on it.
@@ -16,11 +18,12 @@ import { recordDecision } from "@/server/verbs";
  * POST /api/v1/segments — { name } makes an empty list. Owner or operator.
  *
  * Scoped explicitly by tenant, not by RLS alone (the templates route's rule):
- * a member of two workspaces must see one workspace's lists at a time.
+ * a member of two workspaces must see one workspace's lists at a time. The
+ * GET's body is its reader's (readers/lists.ts), which Ask reads too.
  */
 export const GET = read({
   scope: workspace,
-  handle: async ({ ctx, member }) => ({ lists: await savedListsFor(ctx.supabase, member.tenantId) }),
+  handle: async ({ ctx, member }) => (await load(readerContext(ctx, member), lists, undefined)).data,
 });
 
 /**

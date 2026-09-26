@@ -1141,15 +1141,8 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
     "one parse, indexed once, for everyone",
   );
   assert.ok(svc.includes("export async function bookingReport(") && svc.includes("bookedAfterAsk("));
-  const route = readCode("apps/dashboard/app/api/v1/contacts/route.ts");
-  assert.ok(
-    [
-      "const [out, sellsBy, nameSteps, pace, followUp] = await Promise.all([",
-      "withVisits(ctx, tenantId, rows),",
-      "const buys = sellsByOf(ctx, tenantId);",
-    ].every((line) => route.includes(line)),
-    "the list carries visits and the calendar's state, a page at a time",
-  );
+  // The list carries visits and the calendar's state, a page at a time: GET contacts runs through its reader in
+  // readers.test.mjs, its two stages read from the query log and its payload compared key for key.
   // The report carries the line, and is never fatal for it: GET reports, run. The series, the booking line and the
   // deals, in that order; People read once, for the line and the deals alike, and the deals read after the line's
   // calendar lookup; a lookup that fails costs the line, said in the log, never the report.
