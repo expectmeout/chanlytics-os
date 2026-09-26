@@ -2137,19 +2137,27 @@ var FIRST_RUN_PHONE_WORDS = {
   withMeSent: "We'll email you to find a time for a call.",
   notForwarded: "Forwarding not saved"
 };
+function unreadFor(rows, seenAt, marks) {
+  const seen = seenAt ? Date.parse(seenAt) : 0;
+  const gone = new Set(marks.filter((m) => m.read_at || m.dismissed_at).map((m) => m.notification_id));
+  return rows.filter((r23) => Date.parse(r23.created_at) > seen && !gone.has(r23.id)).length;
+}
 function firstLine(body, max = 160) {
   return body.split("\n").find((l2) => l2.trim())?.trim().slice(0, max) ?? "";
 }
-function pushFor(n2, tokens) {
+function pushFor(n2, targets) {
   const body = firstLine(n2.body);
-  return tokens.map((to) => ({
-    to,
+  return targets.map((t2) => ({
+    to: t2.token,
     title: n2.title,
     body,
     sound: "default",
+    badge: t2.badge,
     data: { route: n2.route, notification_id: n2.id, tenant_id: n2.tenant_id }
   }));
 }
+var PUSH_RECEIPTS_AFTER_MS = 15 * 6e4;
+var BELL_WINDOW_DAYS = 30;
 var DAY_MS6 = 24 * 3600 * 1e3;
 var JOB_WORK = {
   outbound_send: { stopped: "A message may not have been sent", to: "inbox" },
@@ -2159,7 +2167,8 @@ var JOB_WORK = {
   lead_round_start: { stopped: "A search could not start", to: "clients/leads" },
   lead_collect: { stopped: "A search stopped partway", to: "clients/leads" },
   lead_check: { stopped: "Checking a search's emails stopped", to: "clients/leads" },
-  push_send: { stopped: "An alert to your phone was not sent", to: "admin/notifications" }
+  push_send: { stopped: "An alert to your phone was not sent", to: "admin/notifications" },
+  push_receipts: { stopped: "Checking that your phone was told did not finish", to: "admin/notifications" }
 };
 var JOB_WORK_OTHER = { stopped: "Something in the background did not finish", to: "today" };
 function jobNewsWords(jobKind, end, attempts = 1) {
@@ -9504,6 +9513,7 @@ var FIRST_RUN_PHONE_WORDS2 = {
   withMeSent: "We'll email you to find a time for a call.",
   notForwarded: "Forwarding not saved"
 };
+var PUSH_RECEIPTS_AFTER_MS2 = 15 * 6e4;
 var DAY_MS62 = 24 * 3600 * 1e3;
 var DAY_MS72 = 864e5;
 var QUIET_AFTER_MS2 = 7 * DAY_MS72;
@@ -12941,6 +12951,7 @@ var FIRST_RUN_PHONE_WORDS3 = {
   withMeSent: "We'll email you to find a time for a call.",
   notForwarded: "Forwarding not saved"
 };
+var PUSH_RECEIPTS_AFTER_MS3 = 15 * 6e4;
 var DAY_MS63 = 24 * 3600 * 1e3;
 var DAY_MS73 = 864e5;
 var QUIET_AFTER_MS3 = 7 * DAY_MS73;
@@ -15481,6 +15492,7 @@ var FIRST_RUN_PHONE_WORDS22 = {
   withMeSent: "We'll email you to find a time for a call.",
   notForwarded: "Forwarding not saved"
 };
+var PUSH_RECEIPTS_AFTER_MS22 = 15 * 6e4;
 var DAY_MS622 = 24 * 3600 * 1e3;
 var DAY_MS722 = 864e5;
 var QUIET_AFTER_MS22 = 7 * DAY_MS722;
@@ -17879,6 +17891,7 @@ var FIRST_RUN_PHONE_WORDS32 = {
   withMeSent: "We'll email you to find a time for a call.",
   notForwarded: "Forwarding not saved"
 };
+var PUSH_RECEIPTS_AFTER_MS32 = 15 * 6e4;
 var DAY_MS632 = 24 * 3600 * 1e3;
 var DAY_MS732 = 864e5;
 var QUIET_AFTER_MS32 = 7 * DAY_MS732;
@@ -20955,6 +20968,7 @@ var FIRST_RUN_PHONE_WORDS4 = {
   withMeSent: "We'll email you to find a time for a call.",
   notForwarded: "Forwarding not saved"
 };
+var PUSH_RECEIPTS_AFTER_MS4 = 15 * 6e4;
 var DAY_MS64 = 24 * 3600 * 1e3;
 var DAY_MS74 = 864e5;
 var QUIET_AFTER_MS4 = 7 * DAY_MS74;
@@ -21810,18 +21824,72 @@ async function pushSend(ctx, job) {
   if (!readers.length) return;
   const devices = must(
     "push_send: cannot read the phones",
-    await ctx.db.from("push_devices").select("token").in("user_id", readers)
+    await ctx.db.from("push_devices").select("token, user_id").in("user_id", readers)
   ) ?? [];
   if (!devices.length) return;
+  const badges = await badgesFor(ctx, job.tenant_id, [...new Set(devices.map((d) => d.user_id))]);
   const receipts = await ctx.push.send(
     pushFor(
       n2,
-      devices.map((d) => d.token)
+      devices.map((d) => ({ token: d.token, badge: badges.get(d.user_id) ?? 0 }))
     )
   );
   const gone = receipts.filter((r6) => r6.status === "error" && r6.error === "DeviceNotRegistered").map((r6) => r6.to);
   if (gone.length) {
     must("push_send: cannot forget a phone that is gone", await ctx.db.from("push_devices").delete().in("token", gone));
+  }
+  const tickets = receipts.flatMap((r6) => r6.status === "ok" && r6.id ? [{ id: r6.id, to: r6.to }] : []);
+  if (tickets.length) {
+    await ctx.schedule("push_receipts", new Date(Date.now() + PUSH_RECEIPTS_AFTER_MS), {
+      tickets: tickets.map((t2) => ({ id: t2.id, to: t2.to }))
+    });
+  }
+}
+async function badgesFor(ctx, tenantId, readers) {
+  const since = new Date(Date.now() - BELL_WINDOW_DAYS * 864e5).toISOString();
+  const rows = must(
+    "push_send: cannot read the bell",
+    await ctx.db.from("notifications").select("id, created_at").eq("tenant_id", tenantId).gte("created_at", since)
+  ) ?? [];
+  const seen = must(
+    "push_send: cannot read when the bell was opened",
+    await ctx.db.from("notification_reads").select("user_id, seen_at").eq("tenant_id", tenantId).in("user_id", readers)
+  ) ?? [];
+  const marks = rows.length ? must(
+    "push_send: cannot read the bell's marks",
+    await ctx.db.from("notification_marks").select("notification_id, user_id, read_at, dismissed_at").in("user_id", readers).in(
+      "notification_id",
+      rows.map((r6) => r6.id)
+    )
+  ) ?? [] : [];
+  const out = /* @__PURE__ */ new Map();
+  for (const u of readers) {
+    const mine = seen.find((s2) => s2.user_id === u);
+    out.set(
+      u,
+      unreadFor(
+        rows,
+        mine?.seen_at ?? null,
+        marks.filter((m) => m.user_id === u)
+      )
+    );
+  }
+  return out;
+}
+async function pushReceipts(ctx, job) {
+  if (!ctx.push) throw new Error("push_receipts: this runtime holds no push transport");
+  const raw = job.payload.tickets;
+  const tickets = Array.isArray(raw) ? raw.flatMap(
+    (t2) => t2 && typeof t2 === "object" && typeof t2.id === "string" && typeof t2.to === "string" ? [{ id: t2.id, to: t2.to }] : []
+  ) : [];
+  if (!tickets.length) return;
+  const receipts = await ctx.push.receipts(tickets.map((t2) => t2.id));
+  const gone = tickets.filter((t2) => receipts[t2.id]?.error === "DeviceNotRegistered").map((t2) => t2.to);
+  if (gone.length) {
+    must(
+      "push_receipts: cannot forget a phone that is gone",
+      await ctx.db.from("push_devices").delete().in("token", [...new Set(gone)])
+    );
   }
 }
 var HANDLERS = {
@@ -21832,7 +21900,8 @@ var HANDLERS = {
   lead_round_start: leadRoundStart,
   lead_collect: leadCollect,
   lead_check: leadCheck,
-  push_send: pushSend
+  push_send: pushSend,
+  push_receipts: pushReceipts
 };
 async function dispatchJob(ctx, job) {
   const handler = HANDLERS[job.kind];
@@ -21871,7 +21940,10 @@ var RETRY_WAITS_MS = {
   // its short outage, each wait outlasting the lease like the three above. The
   // row is read again on each try, and a phone the service answered for is
   // answered for once.
-  push_send: [2 * 6e4, 10 * 6e4]
+  push_send: [2 * 6e4, 10 * 6e4],
+  // The receipts of a send (00189): Expo keeps them a day, so a bad minute and
+  // then a short outage are affordable waits, each outlasting the lease.
+  push_receipts: [5 * 6e4, 30 * 6e4]
 };
 function retryWait(job) {
   if (SPEAKS_TO_A_PERSON.has(job.kind) || job.attempts >= MAX_ATTEMPTS) return null;

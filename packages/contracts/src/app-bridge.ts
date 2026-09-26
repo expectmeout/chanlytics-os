@@ -14,9 +14,23 @@ export type PageMessage =
   | { t: "route"; route: string }
   | { t: "needs"; inbox: number }
   | { t: "session"; state: "in" | "out" }
-  | { t: "workspace"; slug: string };
+  | { t: "workspace"; slug: string }
+  /** The bell's unread number, on every bell change: what the icon wears (PR 2). */
+  | { t: "badge"; n: number }
+  /** What became of the shell's device ask: registered, forgotten, or refused by the site. */
+  | { t: "device"; state: "registered" | "forgotten" | "refused" };
 
-export type ShellMessage = { t: "navigate"; route: string } | { t: "menu" } | { t: "top" };
+/** A phone's push token, as expo-notifications hands it out. */
+export const PUSH_TOKEN_MAX = 200;
+
+export type ShellMessage =
+  | { t: "navigate"; route: string }
+  | { t: "menu" }
+  | { t: "top" }
+  /** Register this phone for the person signed in: the page calls PUT me/devices through its own client. */
+  | { t: "device"; token: string; platform: "ios" | "android"; version: string }
+  /** Forget this phone before the person signs out. */
+  | { t: "forget"; token: string };
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null;
 
@@ -40,10 +54,19 @@ export function parsePageMessage(raw: string): PageMessage | null {
       return v.state === "in" || v.state === "out" ? { t: "session", state: v.state } : null;
     case "workspace":
       return typeof v.slug === "string" && v.slug.trim() ? { t: "workspace", slug: v.slug.trim() } : null;
+    case "badge":
+      return typeof v.n === "number" && Number.isInteger(v.n) && v.n >= 0 ? { t: "badge", n: v.n } : null;
+    case "device":
+      return v.state === "registered" || v.state === "forgotten" || v.state === "refused"
+        ? { t: "device", state: v.state }
+        : null;
     default:
       return null;
   }
 }
+
+const token = (v: unknown): string | null =>
+  typeof v === "string" && v.trim() && v.trim().length <= PUSH_TOKEN_MAX ? v.trim() : null;
 
 /** What the shell asked, or null when it is not one of the three shapes. */
 export function parseShellMessage(v: unknown): ShellMessage | null {
@@ -55,6 +78,16 @@ export function parseShellMessage(v: unknown): ShellMessage | null {
       return { t: "menu" };
     case "top":
       return { t: "top" };
+    case "device": {
+      const tok = token(v.token);
+      const platform = v.platform === "ios" || v.platform === "android" ? v.platform : null;
+      const version = typeof v.version === "string" ? v.version.trim().slice(0, 40) : "";
+      return tok && platform ? { t: "device", token: tok, platform, version } : null;
+    }
+    case "forget": {
+      const tok = token(v.token);
+      return tok ? { t: "forget", token: tok } : null;
+    }
     default:
       return null;
   }

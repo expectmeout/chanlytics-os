@@ -4,5 +4,5 @@ import { front } from "@/shell/front";
 
 export default function CalendarTab() {
   const onReady = useCallback((h: SurfaceHandle) => front.set("calendar", h), []);
-  return <Surface route="calendar" onReady={onReady} />;
+  return <Surface route="calendar" tab="calendar" onReady={onReady} />;
 }

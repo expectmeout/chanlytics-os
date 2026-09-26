@@ -1,13 +1,15 @@
 /**
  * push_send, run over the fake database and a recording push port: the readers of a kept row (the one it is
- * addressed to, else every member), their phones, one message each, a phone the service says is gone forgotten, and
- * a transport that fails thrown so the ledger tries again.
+ * addressed to, else every member), their phones, one message each with the reader's bell number, the tickets kept for
+ * one push_receipts job, a phone the service says is gone forgotten (in the ticket, or in the receipt a quarter of an
+ * hour on), and a transport that fails thrown so the ledger tries again.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { fakeDb } from "./_fake-db.mjs";
 import { dispatchJob } from "../../../packages/jobs/src/handlers.ts";
 import { RETRY_WAITS_MS } from "../../../packages/jobs/src/ledger.ts";
+import { PUSH_RECEIPTS_AFTER_MS } from "../../../packages/contracts/src/push.ts";
 
 const T = "11111111-1111-4111-8111-111111111111";
 const OTHER = "22222222-2222-4222-8222-222222222222";
@@ -19,6 +21,7 @@ const row = (over = {}) => ({
   body: "Maria asked for a person.\nMore",
   route: "inbox/th-1",
   recipient_user_id: null,
+  created_at: "2026-09-26T10:00:00Z",
   ...over,
 });
 /** The tables by reference, so what the job deleted can be read back. */
@@ -48,8 +51,9 @@ const port = (answer) => {
       send: async (messages) => {
         sent.push(...messages);
         if (answer instanceof Error) throw answer;
-        return messages.map((m) => answer?.[m.to] ?? { to: m.to, status: "ok" });
+        return messages.map((m) => answer?.[m.to] ?? { to: m.to, status: "ok", id: `ticket-${m.to}` });
       },
+      receipts: async () => ({}),
     },
   };
 };
@@ -73,8 +77,99 @@ test("every member's every phone hears a workspace row, in the bell's words; ano
     title: "Handoff needed",
     body: "Maria asked for a person.",
     sound: "default",
+    badge: 1,
     data: { route: "inbox/th-1", notification_id: "n1", tenant_id: T },
   });
+});
+
+test("the badge is each reader's own bell number; the tickets go to one push_receipts job a quarter of an hour on", async () => {
+  // u1 opened the bell after the first row and marked nothing; u2 never opened it but dismissed one row.
+  const tables = {
+    notifications: [
+      row({ id: "n0", created_at: "2026-09-26T09:00:00Z" }),
+      row(),
+      row({ id: "n2", created_at: "2026-09-26T11:00:00Z" }),
+    ],
+    memberships: [
+      { user_id: "u1", tenant_id: T, role: "owner" },
+      { user_id: "u2", tenant_id: T, role: "staff" },
+    ],
+    push_devices: [
+      { id: "d1", user_id: "u1", token: "tok-u1-a" },
+      { id: "d2", user_id: "u1", token: "tok-u1-b" },
+      { id: "d3", user_id: "u2", token: "tok-u2" },
+    ],
+    notification_reads: [{ tenant_id: T, user_id: "u1", seen_at: "2026-09-26T09:30:00Z" }],
+    notification_marks: [{ notification_id: "n2", user_id: "u2", read_at: null, dismissed_at: "2026-09-26T12:00:00Z" }],
+  };
+  const db = fakeDb(tables);
+  const scheduled = [];
+  const p = port();
+  const before = Date.now();
+  await dispatchJob(
+    ctx(db, { push: p.push, schedule: async (kind, dueAt, payload) => scheduled.push({ kind, dueAt, payload }) }),
+    job,
+  );
+  const badgeOf = (to) => p.sent.find((m) => m.to === to).badge;
+  assert.equal(badgeOf("tok-u1-a"), 2, "u1: two rows after the seen moment");
+  assert.equal(badgeOf("tok-u1-b"), 2, "the same person's other phone wears the same number");
+  assert.equal(badgeOf("tok-u2"), 2, "u2: three rows, one dismissed");
+  assert.equal(scheduled.length, 1);
+  assert.equal(scheduled[0].kind, "push_receipts");
+  assert.ok(scheduled[0].dueAt.getTime() - before >= PUSH_RECEIPTS_AFTER_MS - 1000, "a quarter of an hour on");
+  assert.deepEqual(scheduled[0].payload.tickets.map((t) => t.to).sort(), ["tok-u1-a", "tok-u1-b", "tok-u2"]);
+  assert.deepEqual(
+    scheduled[0].payload.tickets.find((t) => t.to === "tok-u2"),
+    { id: "ticket-tok-u2", to: "tok-u2" },
+  );
+});
+
+test("push_receipts forgets the phones their receipts say are gone and leaves every other answer alone", async () => {
+  const { db, devices } = world();
+  const asked = [];
+  const push = {
+    send: async () => [],
+    receipts: async (ids) => {
+      asked.push(...ids);
+      return {
+        "t-a": { status: "ok" },
+        "t-b": { status: "error", error: "DeviceNotRegistered" },
+        "t-c": { status: "error", error: "MessageRateExceeded" },
+      };
+    },
+  };
+  const receiptsJob = {
+    id: "j2",
+    tenant_id: T,
+    kind: "push_receipts",
+    payload: {
+      tickets: [
+        { id: "t-a", to: "tok-u1-a" },
+        { id: "t-b", to: "tok-u1-b" },
+        { id: "t-c", to: "tok-u2" },
+        { id: "t-late", to: "tok-u2" },
+        "junk",
+      ],
+    },
+  };
+  assert.equal(await dispatchJob(ctx(db, { push }), receiptsJob), "done");
+  assert.deepEqual(asked, ["t-a", "t-b", "t-c", "t-late"]);
+  assert.deepEqual(
+    devices.map((d) => d.token).sort(),
+    ["tok-u1-a", "tok-u2", "tok-u9"],
+    "only the phone answered gone is forgotten",
+  );
+  assert.equal(
+    await dispatchJob(ctx(db, { push }), { ...receiptsJob, payload: {} }),
+    "done",
+    "no tickets is a job done",
+  );
+  await assert.rejects(dispatchJob(ctx(db, {}), receiptsJob), /push_receipts: this runtime holds no push transport/);
+  assert.deepEqual(
+    RETRY_WAITS_MS.push_receipts,
+    [5 * 60_000, 30 * 60_000],
+    "five minutes, then thirty: the receipts keep a day",
+  );
 });
 
 test("a row addressed to one member reaches that member's phones only", async () => {
