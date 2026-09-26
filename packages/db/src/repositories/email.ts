@@ -202,6 +202,18 @@ export async function stampEmailSent(
  * isCampaignEmail). A read that fails throws; the receipt comes again.
  */
 export async function sentEmailRequestOf(db: Db, p: { tenantId: string; messageId: string }): Promise<unknown | null> {
+  return (await sentEmailOf(db, p))?.request ?? null;
+}
+
+/**
+ * An outbound email as a receipt reads it: the request it was frozen with, and the lead a reach-out wrote it for
+ * (meta.reach_out.lead_id), so a permanent bounce marks that lead's address (Reach out C11). Null when there is no such
+ * row. A read that fails throws; the receipt comes again.
+ */
+export async function sentEmailOf(
+  db: Db,
+  p: { tenantId: string; messageId: string },
+): Promise<{ request: unknown | null; leadId: string | null } | null> {
   const { data, error } = await db
     .from("messages")
     .select("meta")
@@ -211,8 +223,10 @@ export async function sentEmailRequestOf(db: Db, p: { tenantId: string; messageI
     .eq("direction", "outbound")
     .maybeSingle();
   if (error) throw new Error(`sent email request: ${error.message}`);
-  const meta = (data?.meta ?? null) as { email?: { request?: unknown } } | null;
-  return meta?.email?.request ?? null;
+  if (!data) return null;
+  const meta = (data.meta ?? null) as { email?: { request?: unknown }; reach_out?: { lead_id?: unknown } } | null;
+  const lead = meta?.reach_out?.lead_id;
+  return { request: meta?.email?.request ?? null, leadId: typeof lead === "string" && lead ? lead : null };
 }
 
 /**

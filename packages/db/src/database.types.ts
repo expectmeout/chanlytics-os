@@ -3874,6 +3874,7 @@ export type Database = {
           provider_domain_id: string | null
           provider_status: string | null
           records: Json
+          resume_by: string
           sent_days: number | null
           sent_recent: number | null
           state: string
@@ -3899,6 +3900,7 @@ export type Database = {
           provider_domain_id?: string | null
           provider_status?: string | null
           records?: Json
+          resume_by?: string
           sent_days?: number | null
           sent_recent?: number | null
           state?: string
@@ -3924,6 +3926,7 @@ export type Database = {
           provider_domain_id?: string | null
           provider_status?: string | null
           records?: Json
+          resume_by?: string
           sent_days?: number | null
           sent_recent?: number | null
           state?: string

@@ -24,6 +24,10 @@
  *                   the ADDRESS stops being sent to (00126), when it is still
  *                   the person's address. A complaint arrives after delivery
  *                   and leaves the row delivered.
+ *   a permanent bounce of a reach-out's email
+ *                   the LEAD it was written for is marked, its address
+ *                   invalid (Reach out C11): the Leads page says so, and no
+ *                   step or run writes to it again.
  *
  * A receipt whose tags name no row of ours is the platform's own notification
  * email, or a forged tag: acknowledged and dropped. A database that cannot take
@@ -32,9 +36,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   emitEvent,
+  leadAddressBounced,
   recordEmailNo,
   recordEmailStatus,
-  sentEmailRequestOf,
+  sentEmailOf,
   stampEmailComplaint,
   stampEmailSent,
   suppressEmailOf,
@@ -44,6 +49,7 @@ import {
 import { addressOf, emailReceiptEffect, type EmailReceipt, type EmailReceiptType } from "../packages/channels.js";
 import { isCampaignEmail } from "../packages/contracts.js";
 import { holdForComplaint } from "./sending-domains.js";
+import { pageOperator } from "../ops/page-operator.js";
 import { logger, errField } from "../log.js";
 import { upsertEscalation } from "../packages/jobs.js";
 
@@ -68,14 +74,13 @@ export async function applyEmailReceipt(db: Db, r: EmailReceipt, nowIso: string)
 
   const effect = emailReceiptEffect(r);
   const words = EMAIL_FAILED_WORDS[r.type];
+  // What the email was, read once and only when it matters: whether it was a campaign's (a flag is only a reply's),
+  // and the lead a reach-out wrote it for (a permanent bounce marks that lead).
+  const flagging = effect.status === "failed" && !!words && stands.status !== "failed";
+  const sent = flagging || effect.suppress === "hard_bounce" ? await sentEmailOf(db, row) : null;
   // A campaign's email that bounced (a broadcast, a reach-out) is the campaign's to count, on its row: it flags no
-  // thread, since nobody there wrote and is waiting (Reach out D4). Read only on the way to a flag.
-  if (
-    effect.status === "failed" &&
-    words &&
-    stands.status !== "failed" &&
-    !isCampaignEmail(await sentEmailRequestOf(db, row))
-  ) {
+  // thread, since nobody there wrote and is waiting (Reach out D4).
+  if (flagging && !isCampaignEmail(sent?.request ?? null)) {
     const flagged = await upsertEscalation(db, r.tenantId, stands.conversationId, "send_failed", words);
     if (flagged === "failed")
       throw new Error(`email receipt: message ${r.messageId} failed and its thread could not be flagged`);
@@ -89,6 +94,10 @@ export async function applyEmailReceipt(db: Db, r: EmailReceipt, nowIso: string)
     const stopped = { reason: effect.suppress };
     if (contactId)
       await emitEvent(db, r.tenantId, "contact.email_suppressed", "contact", "contact", contactId, stopped);
+    // A reach-out's email that bounced for good: its lead's address is invalid, as the finder's own check would say
+    // (C11). After the address stops, so a lead that cannot be marked (the receipt comes again) is already not written to.
+    if (effect.suppress === "hard_bounce" && sent?.leadId)
+      await leadAddressBounced(db, { tenantId: r.tenantId, leadId: sent.leadId, at: nowIso });
   }
   if (r.type === "complained") {
     // A complaint is the person's no, as an unsubscribe is (00177): their address on the never-again list, their
@@ -98,7 +107,9 @@ export async function applyEmailReceipt(db: Db, r: EmailReceipt, nowIso: string)
     const host = addressOf(no.from)?.address.split("@")[1] ?? null;
     if (host) {
       const log = logger({ tenant: r.tenantId });
-      await holdForComplaint({ db, log, now: () => Date.parse(nowIso) }, r.tenantId, host).catch((e) =>
+      // With the platform's pager: a complaint that holds a domain a second time in thirty days is the platform's (D16).
+      const page = (key: string, subject: string, body: string) => pageOperator({ db }, key, subject, body);
+      await holdForComplaint({ db, log, now: () => Date.parse(nowIso), page }, r.tenantId, host).catch((e) =>
         log.error("sending_domain_complaint_hold_failed", { host, error: errField(e) }),
       );
     }
